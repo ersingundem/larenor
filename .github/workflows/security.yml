@@ -28,5 +28,9 @@ jobs:
       contents: read
     uses: "google/osv-scanner-action/.github/workflows/osv-scanner-reusable.yml@v2.5.0"
     with:
+      # This is a private repo without GitHub Advanced Security, so Code
+      # Scanning isn't available — just run the scan, don't try to upload
+      # SARIF results to it.
+      upload-sarif: false
       scan-args: |-
         --lockfile=./pubspec.lock
