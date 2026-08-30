@@ -120,9 +120,9 @@ class _ConnectScreenState extends ConsumerState<ConnectScreen> {
                 Text(
                   'Connect to Home Assistant',
                   textAlign: TextAlign.center,
-                  style: CupertinoTheme.of(
-                    context,
-                  ).textTheme.navLargeTitleTextStyle,
+                  style: CupertinoTheme.of(context)
+                      .textTheme
+                      .navLargeTitleTextStyle,
                 ),
                 const SizedBox(height: 24),
                 if (_discovered.isNotEmpty || _scanning) ...[
@@ -173,9 +173,7 @@ class _ConnectScreenState extends ConsumerState<ConnectScreen> {
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     fontSize: 12,
-                    color: CupertinoColors.secondaryLabel.resolveFrom(
-                      context,
-                    ),
+                    color: CupertinoColors.secondaryLabel.resolveFrom(context),
                   ),
                 ),
               ],

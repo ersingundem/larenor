@@ -29,9 +29,7 @@ class DashboardLayoutNotifier extends _$DashboardLayoutNotifier {
   Future<void> removeTile(String id) async {
     final current = state.value ?? const DashboardLayout();
     await _persist(
-      current.copyWith(
-        tiles: current.tiles.where((t) => t.id != id).toList(),
-      ),
+      current.copyWith(tiles: current.tiles.where((t) => t.id != id).toList()),
     );
   }
 
@@ -40,7 +38,8 @@ class DashboardLayoutNotifier extends _$DashboardLayoutNotifier {
     await _persist(
       current.copyWith(
         tiles: [
-          for (final t in current.tiles) if (t.id == tile.id) tile else t,
+          for (final t in current.tiles)
+            if (t.id == tile.id) tile else t,
         ],
       ),
     );

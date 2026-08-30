@@ -33,10 +33,7 @@ void main() {
 
   test('isOn reflects the "on" state', () {
     expect(HaEntity.fromJson(json).isOn, isTrue);
-    expect(
-      HaEntity.fromJson({...json, 'state': 'off'}).isOn,
-      isFalse,
-    );
+    expect(HaEntity.fromJson({...json, 'state': 'off'}).isOn, isFalse);
   });
 
   test('isToggleable is true for controllable domains only', () {

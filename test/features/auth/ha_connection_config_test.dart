@@ -26,14 +26,18 @@ void main() {
 
     test('strips multiple trailing slashes', () {
       expect(
-        HaConnectionConfig.normalizeBaseUrl('http://homeassistant.local:8123///'),
+        HaConnectionConfig.normalizeBaseUrl(
+          'http://homeassistant.local:8123///',
+        ),
         'http://homeassistant.local:8123',
       );
     });
 
     test('trims surrounding whitespace', () {
       expect(
-        HaConnectionConfig.normalizeBaseUrl('  http://homeassistant.local:8123  '),
+        HaConnectionConfig.normalizeBaseUrl(
+          '  http://homeassistant.local:8123  ',
+        ),
         'http://homeassistant.local:8123',
       );
     });

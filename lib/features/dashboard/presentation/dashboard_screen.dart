@@ -71,12 +71,10 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                 tiles: layout.tiles,
                 editMode: _editMode,
                 tileBuilder: (context, tile) => buildTileContent(tile),
-                onTileChanged: (tile) => ref
-                    .read(dashboardLayoutProvider.notifier)
-                    .updateTile(tile),
-                onTileRemoved: (id) => ref
-                    .read(dashboardLayoutProvider.notifier)
-                    .removeTile(id),
+                onTileChanged: (tile) =>
+                    ref.read(dashboardLayoutProvider.notifier).updateTile(tile),
+                onTileRemoved: (id) =>
+                    ref.read(dashboardLayoutProvider.notifier).removeTile(id),
               ),
             );
           },
@@ -126,21 +124,25 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     final entities = ref.read(entitiesProvider).value?.values.toList() ?? [];
 
     final chosen = await Navigator.of(context).push<HaEntity>(
-      CupertinoPageRoute(builder: (_) => EntityPickerScreen(entities: entities)),
+      CupertinoPageRoute(
+        builder: (_) => EntityPickerScreen(entities: entities),
+      ),
     );
 
     if (chosen == null) return;
-    await ref.read(dashboardLayoutProvider.notifier).addTile(
-      TileConfig(
-        id: _generateTileId(),
-        type: TileType.entity,
-        x: 0,
-        y: nextY,
-        width: 2,
-        height: 2,
-        entityId: chosen.entityId,
-      ),
-    );
+    await ref
+        .read(dashboardLayoutProvider.notifier)
+        .addTile(
+          TileConfig(
+            id: _generateTileId(),
+            type: TileType.entity,
+            x: 0,
+            y: nextY,
+            width: 2,
+            height: 2,
+            entityId: chosen.entityId,
+          ),
+        );
   }
 
   Future<void> _showUrlDialog(BuildContext context, int nextY) async {
@@ -172,17 +174,19 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     );
 
     if (url == null || url.isEmpty) return;
-    await ref.read(dashboardLayoutProvider.notifier).addTile(
-      TileConfig(
-        id: _generateTileId(),
-        type: TileType.webview,
-        x: 0,
-        y: nextY,
-        width: 4,
-        height: 4,
-        url: url,
-      ),
-    );
+    await ref
+        .read(dashboardLayoutProvider.notifier)
+        .addTile(
+          TileConfig(
+            id: _generateTileId(),
+            type: TileType.webview,
+            x: 0,
+            y: nextY,
+            width: 4,
+            height: 4,
+            url: url,
+          ),
+        );
   }
 }
 

@@ -56,9 +56,7 @@ class HaDiscoveryService {
             : null);
     if (baseUrl == null) return;
 
-    final name =
-        service.attributes['location_name'] ??
-        service.name;
+    final name = service.attributes['location_name'] ?? service.name;
     _servers[service.name] = DiscoveredHaServer(name: name, baseUrl: baseUrl);
     _controller.add(_servers.values.toList());
   }

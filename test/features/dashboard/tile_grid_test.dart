@@ -32,9 +32,7 @@ void main() {
     );
   }
 
-  testWidgets('renders tile content via the provided builder', (
-    tester,
-  ) async {
+  testWidgets('renders tile content via the provided builder', (tester) async {
     await tester.pumpWidget(buildGrid(editMode: false));
 
     expect(find.text('light.kitchen'), findsOneWidget);

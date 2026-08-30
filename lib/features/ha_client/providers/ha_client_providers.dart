@@ -24,10 +24,8 @@ HaWebSocketClient? haWebSocketClient(Ref ref) {
   final config = ref.watch(connectionConfigProvider).value;
   if (config == null) return null;
 
-  final client = HaWebSocketClient(
-    baseUrl: config.baseUrl,
-    token: config.token,
-  )..connect();
+  final client = HaWebSocketClient(baseUrl: config.baseUrl, token: config.token)
+    ..connect();
   ref.onDispose(client.dispose);
   return client;
 }

@@ -51,9 +51,7 @@ class HaRestClient {
         .timeout(const Duration(seconds: 15));
 
     if (response.statusCode != 200) {
-      throw HaApiException(
-        'Failed to fetch states (${response.statusCode}).',
-      );
+      throw HaApiException('Failed to fetch states (${response.statusCode}).');
     }
 
     final decoded = jsonDecode(response.body) as List<dynamic>;
@@ -68,10 +66,7 @@ class HaRestClient {
     String? entityId,
     Map<String, dynamic>? serviceData,
   }) async {
-    final body = <String, dynamic>{
-      ...?serviceData,
-      'entity_id': ?entityId,
-    };
+    final body = <String, dynamic>{...?serviceData, 'entity_id': ?entityId};
 
     final response = await _client
         .post(

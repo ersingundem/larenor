@@ -70,24 +70,23 @@ void main() {
   });
 
   group('callService', () {
-    test('posts to the domain/service endpoint with entity_id in the body', () async {
-      final client = HaRestClient(
-        baseUrl: baseUrl,
-        token: token,
-        httpClient: MockClient((request) async {
-          expect(request.method, 'POST');
-          expect(request.url.path, '/api/services/light/turn_on');
-          final body = jsonDecode(request.body) as Map<String, dynamic>;
-          expect(body['entity_id'], 'light.kitchen');
-          return http.Response('', 200);
-        }),
-      );
+    test(
+      'posts to the domain/service endpoint with entity_id in the body',
+      () async {
+        final client = HaRestClient(
+          baseUrl: baseUrl,
+          token: token,
+          httpClient: MockClient((request) async {
+            expect(request.method, 'POST');
+            expect(request.url.path, '/api/services/light/turn_on');
+            final body = jsonDecode(request.body) as Map<String, dynamic>;
+            expect(body['entity_id'], 'light.kitchen');
+            return http.Response('', 200);
+          }),
+        );
 
-      await client.callService(
-        'light',
-        'turn_on',
-        entityId: 'light.kitchen',
-      );
-    });
+        await client.callService('light', 'turn_on', entityId: 'light.kitchen');
+      },
+    );
   });
 }

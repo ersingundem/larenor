@@ -23,9 +23,7 @@ class EntityTile extends ConsumerWidget {
 
     final background = entity.isOn
         ? CupertinoColors.activeBlue.withValues(alpha: 0.15)
-        : CupertinoColors.secondarySystemGroupedBackground.resolveFrom(
-            context,
-          );
+        : CupertinoColors.secondarySystemGroupedBackground.resolveFrom(context);
 
     return ColoredBox(
       color: background,
@@ -44,10 +42,7 @@ class EntityTile extends ConsumerWidget {
               entity.friendlyName,
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                fontWeight: FontWeight.w600,
-                fontSize: 14,
-              ),
+              style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
             ),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,

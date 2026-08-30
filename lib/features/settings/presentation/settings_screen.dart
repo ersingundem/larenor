@@ -56,9 +56,7 @@ class SettingsScreen extends ConsumerWidget {
                     ),
                   ),
                   onTap: () async {
-                    await ref
-                        .read(connectionConfigProvider.notifier)
-                        .signOut();
+                    await ref.read(connectionConfigProvider.notifier).signOut();
                     if (context.mounted) context.go('/');
                   },
                 ),

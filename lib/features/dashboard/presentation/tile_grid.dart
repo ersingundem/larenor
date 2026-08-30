@@ -49,9 +49,10 @@ class _TileGridState extends State<TileGrid> {
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final columns = (constraints.maxWidth / kGridCellSize)
-            .floor()
-            .clamp(1, kGridMaxColumns);
+        final columns = (constraints.maxWidth / kGridCellSize).floor().clamp(
+          1,
+          kGridMaxColumns,
+        );
         final cellSize = constraints.maxWidth / columns;
         final height = _rowCount * cellSize;
 

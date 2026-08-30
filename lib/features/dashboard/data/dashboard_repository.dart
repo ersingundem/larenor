@@ -15,9 +15,7 @@ class DashboardRepository {
     final prefs = await SharedPreferences.getInstance();
     final raw = prefs.getString(_key);
     if (raw == null) return const DashboardLayout();
-    return DashboardLayout.fromJson(
-      jsonDecode(raw) as Map<String, dynamic>,
-    );
+    return DashboardLayout.fromJson(jsonDecode(raw) as Map<String, dynamic>);
   }
 
   Future<void> save(DashboardLayout layout) async {
