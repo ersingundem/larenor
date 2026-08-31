@@ -9,6 +9,11 @@ import '../../admin/presentation/devices_screen.dart';
 import '../../admin/presentation/entities_screen.dart';
 import '../../admin/presentation/integrations_screen.dart';
 import '../../auth/providers/auth_providers.dart';
+import '../../media/arr/presentation/radarr_screen.dart';
+import '../../media/arr/presentation/sonarr_screen.dart';
+import '../../media/jellyfin/presentation/jellyfin_home_screen.dart';
+import '../../media/jellyseerr/presentation/jellyseerr_home_screen.dart';
+import '../../media/qbittorrent/presentation/qbittorrent_torrents_screen.dart';
 import '../providers/settings_providers.dart';
 
 class SettingsScreen extends ConsumerWidget {
@@ -188,6 +193,39 @@ class SettingsScreen extends ConsumerWidget {
                   icon: CupertinoIcons.videocam,
                   title: 'Cameras',
                   builder: (_) => const CamerasScreen(),
+                ),
+              ],
+            ),
+            CupertinoListSection.insetGrouped(
+              header: const Text('MEDIA SERVICES'),
+              footer: const Text(
+                'Each service is independent — connect the ones you use.',
+              ),
+              children: [
+                _AdminRow(
+                  icon: CupertinoIcons.play_rectangle,
+                  title: 'Jellyfin',
+                  builder: (_) => const JellyfinHomeScreen(),
+                ),
+                _AdminRow(
+                  icon: CupertinoIcons.search,
+                  title: 'Jellyseerr',
+                  builder: (_) => const JellyseerrHomeScreen(),
+                ),
+                _AdminRow(
+                  icon: CupertinoIcons.tv,
+                  title: 'Sonarr',
+                  builder: (_) => const SonarrScreen(),
+                ),
+                _AdminRow(
+                  icon: CupertinoIcons.film,
+                  title: 'Radarr',
+                  builder: (_) => const RadarrScreen(),
+                ),
+                _AdminRow(
+                  icon: CupertinoIcons.arrow_down_circle,
+                  title: 'qBittorrent',
+                  builder: (_) => const QbittorrentTorrentsScreen(),
                 ),
               ],
             ),
