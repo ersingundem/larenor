@@ -12,6 +12,17 @@ enum TileType {
   weather,
   history,
   camera,
+  jellyfin,
+  jellyseerr,
+  sonarr,
+  radarr,
+  lidarr,
+  readarr,
+  bazarr,
+  prowlarr,
+  qbittorrent,
+  proxmox,
+  keenetic,
 }
 
 @freezed

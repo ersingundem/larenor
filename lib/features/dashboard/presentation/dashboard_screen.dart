@@ -58,6 +58,27 @@ const _tileKinds = {
   ),
 };
 
+/// The 11 external-service summary tiles — unlike everything in
+/// [_tileKinds], these aren't tied to a Home Assistant entity, they read
+/// from that service's own app-wide connection (configured once via
+/// Settings → Manage Integrations), so adding one needs no entity picker
+/// and no per-tile setup dialog at all. Grouped into their own action
+/// sheet rather than flattened into the main one, so that sheet doesn't
+/// grow to 19 entries.
+const _serviceTileKinds = {
+  TileType.jellyfin: _TileKind('Jellyfin', width: 3, height: 2),
+  TileType.jellyseerr: _TileKind('Jellyseerr', width: 3, height: 2),
+  TileType.sonarr: _TileKind('Sonarr', width: 3, height: 2),
+  TileType.radarr: _TileKind('Radarr', width: 3, height: 2),
+  TileType.lidarr: _TileKind('Lidarr', width: 3, height: 2),
+  TileType.readarr: _TileKind('Readarr', width: 3, height: 2),
+  TileType.bazarr: _TileKind('Bazarr', width: 3, height: 2),
+  TileType.prowlarr: _TileKind('Prowlarr', width: 3, height: 2),
+  TileType.qbittorrent: _TileKind('qBittorrent', width: 3, height: 2),
+  TileType.proxmox: _TileKind('Proxmox', width: 3, height: 2),
+  TileType.keenetic: _TileKind('Keenetic', width: 3, height: 2),
+};
+
 class DashboardScreen extends ConsumerStatefulWidget {
   const DashboardScreen({super.key});
 
@@ -155,7 +176,8 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
               .map((t) => t.y + t.height)
               .reduce((a, b) => a > b ? a : b);
 
-    final choice = await showCupertinoModalPopup<TileType>(
+    const showServiceMenu = 'service_menu';
+    final choice = await showCupertinoModalPopup<Object>(
       context: context,
       builder: (context) => CupertinoActionSheet(
         title: const Text('Add tile'),
@@ -169,6 +191,10 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
             onPressed: () => Navigator.pop(context, TileType.webview),
             child: const Text('Fullscreen website'),
           ),
+          CupertinoActionSheetAction(
+            onPressed: () => Navigator.pop(context, showServiceMenu),
+            child: const Text('Service widget…'),
+          ),
         ],
         cancelButton: CupertinoActionSheetAction(
           onPressed: () => Navigator.pop(context),
@@ -179,11 +205,52 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     );
 
     if (choice == null || !context.mounted) return;
-    if (choice == TileType.webview) {
+    if (choice == showServiceMenu) {
+      await _showServiceTileSheet(context, nextY);
+    } else if (choice == TileType.webview) {
       await _showUrlDialog(context, nextY);
     } else {
-      await _pickEntityForTile(context, choice, nextY);
+      await _pickEntityForTile(context, choice as TileType, nextY);
     }
+  }
+
+  Future<void> _showServiceTileSheet(BuildContext context, int nextY) async {
+    final choice = await showCupertinoModalPopup<TileType>(
+      context: context,
+      builder: (context) => CupertinoActionSheet(
+        title: const Text('Service widget'),
+        message: const Text(
+          'Shows a live summary from a service you\'ve connected under '
+          'Settings → Manage Integrations.',
+        ),
+        actions: [
+          for (final entry in _serviceTileKinds.entries)
+            CupertinoActionSheetAction(
+              onPressed: () => Navigator.pop(context, entry.key),
+              child: Text(entry.value.label),
+            ),
+        ],
+        cancelButton: CupertinoActionSheetAction(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancel'),
+        ),
+      ),
+    );
+
+    if (choice == null) return;
+    final kind = _serviceTileKinds[choice]!;
+    await ref
+        .read(dashboardLayoutProvider.notifier)
+        .addTile(
+          TileConfig(
+            id: _generateTileId(),
+            type: choice,
+            x: 0,
+            y: nextY,
+            width: kind.width,
+            height: kind.height,
+          ),
+        );
   }
 
   Future<void> _pickEntityForTile(

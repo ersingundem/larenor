@@ -103,4 +103,41 @@ void main() {
 
     expect(roundTripped, layout);
   });
+
+  test('service-widget tile types round-trip with no entityId needed', () {
+    const layout = DashboardLayout(
+      tiles: [
+        TileConfig(
+          id: '1',
+          type: TileType.jellyfin,
+          x: 0,
+          y: 0,
+          width: 3,
+          height: 2,
+        ),
+        TileConfig(
+          id: '2',
+          type: TileType.proxmox,
+          x: 3,
+          y: 0,
+          width: 3,
+          height: 2,
+        ),
+        TileConfig(
+          id: '3',
+          type: TileType.keenetic,
+          x: 6,
+          y: 0,
+          width: 3,
+          height: 2,
+        ),
+      ],
+    );
+
+    final roundTripped = DashboardLayout.fromJson(
+      jsonDecode(jsonEncode(layout.toJson())) as Map<String, dynamic>,
+    );
+
+    expect(roundTripped, layout);
+  });
 }

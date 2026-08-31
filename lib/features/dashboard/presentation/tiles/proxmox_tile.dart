@@ -1,0 +1,37 @@
+import 'package:flutter/cupertino.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../../../proxmox/presentation/proxmox_nodes_screen.dart';
+import '../../../proxmox/providers/proxmox_providers.dart';
+import '../../domain/tile_config.dart';
+import 'service_tile_shell.dart';
+
+class ProxmoxTile extends ConsumerWidget {
+  const ProxmoxTile({super.key, required this.tile});
+
+  final TileConfig tile;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final connected = ref.watch(proxmoxConnectionProvider).value != null;
+    final nodes = ref.watch(proxmoxNodesProvider).value ?? const [];
+
+    return ServiceTileShell(
+      icon: CupertinoIcons.square_stack_3d_up,
+      title: 'Proxmox',
+      connected: connected,
+      onTap: () => Navigator.of(context)
+          .push(CupertinoPageRoute(builder: (_) => const ProxmoxNodesScreen())),
+      lines: nodes.isEmpty
+          ? const ['No nodes']
+          : nodes
+                .take(3)
+                .map(
+                  (n) =>
+                      '${n.name} · CPU ${((n.cpuFraction ?? 0) * 100).round()}% · '
+                      'RAM ${((n.memFraction ?? 0) * 100).round()}%',
+                )
+                .toList(),
+    );
+  }
+}

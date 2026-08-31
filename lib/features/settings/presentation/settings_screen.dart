@@ -10,17 +10,31 @@ import '../../admin/presentation/entities_screen.dart';
 import '../../admin/presentation/integrations_screen.dart';
 import '../../auth/providers/auth_providers.dart';
 import '../../keenetic/presentation/keenetic_home_screen.dart';
+import '../../keenetic/providers/keenetic_providers.dart';
 import '../../media/arr/presentation/lidarr_screen.dart';
 import '../../media/arr/presentation/radarr_screen.dart';
 import '../../media/arr/presentation/readarr_screen.dart';
 import '../../media/arr/presentation/sonarr_screen.dart';
+import '../../media/arr/providers/lidarr_providers.dart';
+import '../../media/arr/providers/radarr_providers.dart';
+import '../../media/arr/providers/readarr_providers.dart';
+import '../../media/arr/providers/sonarr_providers.dart';
 import '../../media/bazarr/presentation/bazarr_home_screen.dart';
+import '../../media/bazarr/providers/bazarr_providers.dart';
 import '../../media/jellyfin/presentation/jellyfin_home_screen.dart';
+import '../../media/jellyfin/providers/jellyfin_providers.dart';
 import '../../media/jellyseerr/presentation/jellyseerr_home_screen.dart';
+import '../../media/jellyseerr/providers/jellyseerr_providers.dart';
 import '../../media/prowlarr/presentation/prowlarr_indexers_screen.dart';
+import '../../media/prowlarr/providers/prowlarr_providers.dart';
 import '../../media/qbittorrent/presentation/qbittorrent_torrents_screen.dart';
+import '../../media/qbittorrent/providers/qbittorrent_providers.dart';
 import '../../proxmox/presentation/proxmox_nodes_screen.dart';
+import '../../proxmox/providers/proxmox_providers.dart';
+import '../data/app_service.dart';
+import '../providers/enabled_services_providers.dart';
 import '../providers/settings_providers.dart';
+import 'manage_integrations_screen.dart';
 
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
@@ -32,6 +46,113 @@ class SettingsScreen extends ConsumerWidget {
     final nightWindow = ref.watch(nightWindowProvider).value;
     final pin = ref.watch(pinLockProvider).value;
     final idleMode = ref.watch(idleModeProvider).value;
+    final enabledServices =
+        ref.watch(enabledServicesProvider).value ?? const {};
+
+    bool active(AppService service, bool connected) =>
+        enabledServices.contains(service) && connected;
+
+    final integrationRows = <_AdminRow>[
+      if (active(
+        AppService.jellyfin,
+        ref.watch(jellyfinConnectionProvider).value != null,
+      ))
+        _AdminRow(
+          icon: CupertinoIcons.play_rectangle,
+          title: 'Jellyfin',
+          builder: (_) => const JellyfinHomeScreen(),
+        ),
+      if (active(
+        AppService.jellyseerr,
+        ref.watch(jellyseerrConnectionProvider).value != null,
+      ))
+        _AdminRow(
+          icon: CupertinoIcons.search,
+          title: 'Jellyseerr',
+          builder: (_) => const JellyseerrHomeScreen(),
+        ),
+      if (active(
+        AppService.sonarr,
+        ref.watch(sonarrConnectionProvider).value != null,
+      ))
+        _AdminRow(
+          icon: CupertinoIcons.tv,
+          title: 'Sonarr',
+          builder: (_) => const SonarrScreen(),
+        ),
+      if (active(
+        AppService.radarr,
+        ref.watch(radarrConnectionProvider).value != null,
+      ))
+        _AdminRow(
+          icon: CupertinoIcons.film,
+          title: 'Radarr',
+          builder: (_) => const RadarrScreen(),
+        ),
+      if (active(
+        AppService.lidarr,
+        ref.watch(lidarrConnectionProvider).value != null,
+      ))
+        _AdminRow(
+          icon: CupertinoIcons.music_note,
+          title: 'Lidarr',
+          builder: (_) => const LidarrScreen(),
+        ),
+      if (active(
+        AppService.readarr,
+        ref.watch(readarrConnectionProvider).value != null,
+      ))
+        _AdminRow(
+          icon: CupertinoIcons.book,
+          title: 'Readarr',
+          builder: (_) => const ReadarrScreen(),
+        ),
+      if (active(
+        AppService.bazarr,
+        ref.watch(bazarrConnectionProvider).value != null,
+      ))
+        _AdminRow(
+          icon: CupertinoIcons.captions_bubble,
+          title: 'Bazarr',
+          builder: (_) => const BazarrHomeScreen(),
+        ),
+      if (active(
+        AppService.prowlarr,
+        ref.watch(prowlarrConnectionProvider).value != null,
+      ))
+        _AdminRow(
+          icon: CupertinoIcons.dot_radiowaves_left_right,
+          title: 'Prowlarr',
+          builder: (_) => const ProwlarrIndexersScreen(),
+        ),
+      if (active(
+        AppService.qbittorrent,
+        ref.watch(qbittorrentConnectionProvider).value != null,
+      ))
+        _AdminRow(
+          icon: CupertinoIcons.arrow_down_circle,
+          title: 'qBittorrent',
+          builder: (_) => const QbittorrentTorrentsScreen(),
+        ),
+      if (active(
+        AppService.proxmox,
+        ref.watch(proxmoxConnectionProvider).value != null,
+      ))
+        _AdminRow(
+          icon: CupertinoIcons.square_stack_3d_up,
+          title: 'Proxmox',
+          builder: (_) => const ProxmoxNodesScreen(),
+        ),
+      if (active(
+        AppService.keenetic,
+        ref.watch(keeneticConnectionProvider).value != null,
+      ))
+        _AdminRow(
+          icon: CupertinoIcons.wifi,
+          title: 'Keenetic',
+          builder: (_) => const KeeneticHomeScreen(),
+        ),
+    ];
 
     return CupertinoPageScaffold(
       navigationBar: const CupertinoNavigationBar(middle: Text('Settings')),
@@ -203,70 +324,17 @@ class SettingsScreen extends ConsumerWidget {
               ],
             ),
             CupertinoListSection.insetGrouped(
-              header: const Text('MEDIA SERVICES'),
+              header: const Text('INTEGRATIONS'),
               footer: const Text(
-                'Each service is independent — connect the ones you use.',
+                'Only services you\'ve turned on and connected show up here — '
+                'manage them all from Manage Integrations.',
               ),
               children: [
+                ...integrationRows,
                 _AdminRow(
-                  icon: CupertinoIcons.play_rectangle,
-                  title: 'Jellyfin',
-                  builder: (_) => const JellyfinHomeScreen(),
-                ),
-                _AdminRow(
-                  icon: CupertinoIcons.search,
-                  title: 'Jellyseerr',
-                  builder: (_) => const JellyseerrHomeScreen(),
-                ),
-                _AdminRow(
-                  icon: CupertinoIcons.tv,
-                  title: 'Sonarr',
-                  builder: (_) => const SonarrScreen(),
-                ),
-                _AdminRow(
-                  icon: CupertinoIcons.film,
-                  title: 'Radarr',
-                  builder: (_) => const RadarrScreen(),
-                ),
-                _AdminRow(
-                  icon: CupertinoIcons.music_note,
-                  title: 'Lidarr',
-                  builder: (_) => const LidarrScreen(),
-                ),
-                _AdminRow(
-                  icon: CupertinoIcons.book,
-                  title: 'Readarr',
-                  builder: (_) => const ReadarrScreen(),
-                ),
-                _AdminRow(
-                  icon: CupertinoIcons.captions_bubble,
-                  title: 'Bazarr',
-                  builder: (_) => const BazarrHomeScreen(),
-                ),
-                _AdminRow(
-                  icon: CupertinoIcons.dot_radiowaves_left_right,
-                  title: 'Prowlarr',
-                  builder: (_) => const ProwlarrIndexersScreen(),
-                ),
-                _AdminRow(
-                  icon: CupertinoIcons.arrow_down_circle,
-                  title: 'qBittorrent',
-                  builder: (_) => const QbittorrentTorrentsScreen(),
-                ),
-              ],
-            ),
-            CupertinoListSection.insetGrouped(
-              header: const Text('INFRASTRUCTURE'),
-              children: [
-                _AdminRow(
-                  icon: CupertinoIcons.square_stack_3d_up,
-                  title: 'Proxmox',
-                  builder: (_) => const ProxmoxNodesScreen(),
-                ),
-                _AdminRow(
-                  icon: CupertinoIcons.wifi,
-                  title: 'Keenetic',
-                  builder: (_) => const KeeneticHomeScreen(),
+                  icon: CupertinoIcons.slider_horizontal_3,
+                  title: 'Manage Integrations',
+                  builder: (_) => const ManageIntegrationsScreen(),
                 ),
               ],
             ),
