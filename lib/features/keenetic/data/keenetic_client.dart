@@ -39,8 +39,12 @@ class KeeneticClient {
     final initial = await _client
         .get(_uri('/auth'))
         .timeout(const Duration(seconds: 10));
+    // The router ties the challenge below to the session cookie it issues
+    // on this very first response — capture it even though the request is
+    // unauthenticated (401), and replay it on the POST, or the router
+    // rejects an otherwise-correct challenge/response with 400.
+    _storeCookie(initial);
     if (initial.statusCode == 200) {
-      _storeCookie(initial);
       return;
     }
     if (initial.statusCode != 401) {
@@ -65,7 +69,7 @@ class KeeneticClient {
     final response = await _client
         .post(
           _uri('/auth'),
-          headers: {'Content-Type': 'application/json'},
+          headers: {..._headers, 'Content-Type': 'application/json'},
           body: jsonEncode({
             'login': config.username,
             'password': passwordHash,

@@ -103,6 +103,39 @@ void main() {
       await followUp.getConnectedDevices();
     });
 
+    test('replays the session cookie from the initial 401 challenge on the '
+        'follow-up POST /auth', () async {
+      var sawPostCookie = '';
+      final client = KeeneticClient(
+        config: config,
+        httpClient: MockClient((request) async {
+          if (request.url.path == '/auth' && request.method == 'GET') {
+            return http.Response(
+              '',
+              401,
+              headers: {
+                'x-ndm-challenge': 'chal123',
+                'x-ndm-realm': 'realm1',
+                'set-cookie': 'sdid=preauth123; Path=/',
+              },
+            );
+          }
+          if (request.url.path == '/auth' && request.method == 'POST') {
+            sawPostCookie = request.headers['Cookie'] ?? '';
+            return http.Response(
+              '',
+              200,
+              headers: {'set-cookie': 'session=abc123; Path=/'},
+            );
+          }
+          return http.Response('', 404);
+        }),
+      );
+
+      await client.login();
+      expect(sawPostCookie, 'sdid=preauth123');
+    });
+
     test(
       'treats a 200 on the initial GET /auth as already authenticated',
       () async {
