@@ -9,10 +9,15 @@ import '../../admin/presentation/devices_screen.dart';
 import '../../admin/presentation/entities_screen.dart';
 import '../../admin/presentation/integrations_screen.dart';
 import '../../auth/providers/auth_providers.dart';
+import '../../keenetic/presentation/keenetic_home_screen.dart';
+import '../../media/arr/presentation/lidarr_screen.dart';
 import '../../media/arr/presentation/radarr_screen.dart';
+import '../../media/arr/presentation/readarr_screen.dart';
 import '../../media/arr/presentation/sonarr_screen.dart';
+import '../../media/bazarr/presentation/bazarr_home_screen.dart';
 import '../../media/jellyfin/presentation/jellyfin_home_screen.dart';
 import '../../media/jellyseerr/presentation/jellyseerr_home_screen.dart';
+import '../../media/prowlarr/presentation/prowlarr_indexers_screen.dart';
 import '../../media/qbittorrent/presentation/qbittorrent_torrents_screen.dart';
 import '../../proxmox/presentation/proxmox_nodes_screen.dart';
 import '../providers/settings_providers.dart';
@@ -224,6 +229,26 @@ class SettingsScreen extends ConsumerWidget {
                   builder: (_) => const RadarrScreen(),
                 ),
                 _AdminRow(
+                  icon: CupertinoIcons.music_note,
+                  title: 'Lidarr',
+                  builder: (_) => const LidarrScreen(),
+                ),
+                _AdminRow(
+                  icon: CupertinoIcons.book,
+                  title: 'Readarr',
+                  builder: (_) => const ReadarrScreen(),
+                ),
+                _AdminRow(
+                  icon: CupertinoIcons.captions_bubble,
+                  title: 'Bazarr',
+                  builder: (_) => const BazarrHomeScreen(),
+                ),
+                _AdminRow(
+                  icon: CupertinoIcons.dot_radiowaves_left_right,
+                  title: 'Prowlarr',
+                  builder: (_) => const ProwlarrIndexersScreen(),
+                ),
+                _AdminRow(
                   icon: CupertinoIcons.arrow_down_circle,
                   title: 'qBittorrent',
                   builder: (_) => const QbittorrentTorrentsScreen(),
@@ -237,6 +262,11 @@ class SettingsScreen extends ConsumerWidget {
                   icon: CupertinoIcons.square_stack_3d_up,
                   title: 'Proxmox',
                   builder: (_) => const ProxmoxNodesScreen(),
+                ),
+                _AdminRow(
+                  icon: CupertinoIcons.wifi,
+                  title: 'Keenetic',
+                  builder: (_) => const KeeneticHomeScreen(),
                 ),
               ],
             ),

@@ -9,27 +9,35 @@ import 'models/arr_lookup_result.dart';
 import 'models/arr_picker_options.dart';
 import 'models/arr_queue_item.dart';
 
-/// Sonarr and Radarr are the same underlying app family — identical REST
-/// API v3 shape (`X-Api-Key` header, camelCase JSON — verified against
-/// Sonarr's own generated API client docs and the arrapi Python library's
-/// request-building code, not guessed), differing only in resource name
-/// (`series` vs `movie`) and lookup id field (`tvdbId` vs `tmdbId`). One
-/// parameterized client covers both instead of duplicating it.
+/// Sonarr, Radarr, Lidarr, and Readarr are the same underlying "Servarr"
+/// app family — identical REST shape (`X-Api-Key` header, camelCase JSON
+/// — verified against Sonarr's own generated API client docs, the arrapi
+/// Python library's request-building code, and Lidarr/Readarr's own
+/// controller source, not guessed), differing only in API version prefix
+/// (`v3` for Sonarr/Radarr, `v1` for Lidarr/Readarr), resource name
+/// (`series`/`movie`/`artist`/`author`), and lookup id field (`tvdbId`/
+/// `tmdbId`/`foreignArtistId`/`foreignAuthorId`). One parameterized client
+/// covers all four instead of duplicating it.
 class ArrClient {
   ArrClient({
     required this.config,
     required this.resourcePath,
     required this.idFieldName,
+    this.apiVersion = 'v3',
     http.Client? httpClient,
   }) : _client = httpClient ?? http.Client();
 
   final ArrConfig config;
 
-  /// `'series'` for Sonarr, `'movie'` for Radarr.
+  /// `'series'` (Sonarr), `'movie'` (Radarr), `'artist'` (Lidarr), or
+  /// `'author'` (Readarr).
   final String resourcePath;
 
-  /// `'tvdbId'` for Sonarr, `'tmdbId'` for Radarr.
+  /// `'tvdbId'`, `'tmdbId'`, `'foreignArtistId'`, or `'foreignAuthorId'`.
   final String idFieldName;
+
+  /// `'v3'` for Sonarr/Radarr, `'v1'` for Lidarr/Readarr.
+  final String apiVersion;
 
   final http.Client _client;
 
@@ -39,7 +47,7 @@ class ArrClient {
   };
 
   Uri _uri(String path, [Map<String, dynamic>? query]) {
-    final uri = Uri.parse('${config.baseUrl}/api/v3$path');
+    final uri = Uri.parse('${config.baseUrl}/api/$apiVersion$path');
     if (query == null) return uri;
     return uri.replace(
       queryParameters: query.map((key, value) => MapEntry(key, '$value')),
@@ -93,14 +101,29 @@ class ArrClient {
         .toList();
   }
 
+  /// Lidarr/Readarr additionally require a metadata profile on add —
+  /// Sonarr/Radarr don't have this concept, so callers for those two
+  /// simply never call this.
+  Future<List<ArrMetadataProfile>> getMetadataProfiles() async {
+    final response = await _client
+        .get(_uri('/metadataprofile'), headers: _headers)
+        .timeout(const Duration(seconds: 15));
+    _checkOk(response);
+    final decoded = jsonDecode(response.body) as List<dynamic>;
+    return decoded
+        .map((e) => ArrMetadataProfile.fromJson(e as Map<String, dynamic>))
+        .toList();
+  }
+
   /// Adds [result] to the library: takes the full looked-up object and
   /// merges in the fields the add endpoint needs, matching what every
-  /// *arr client does (Sonarr/Radarr want the whole metadata object back,
-  /// not just a handful of ids).
+  /// *arr client does (they all want the whole metadata object back, not
+  /// just a handful of ids).
   Future<void> add({
     required ArrLookupResult result,
     required int qualityProfileId,
     required String rootFolderPath,
+    int? metadataProfileId,
     bool searchOnAdd = true,
   }) async {
     final body = {
@@ -108,9 +131,13 @@ class ArrClient {
       'qualityProfileId': qualityProfileId,
       'rootFolderPath': rootFolderPath,
       'monitored': true,
-      'addOptions': resourcePath == 'series'
-          ? {'searchForMissingEpisodes': searchOnAdd, 'monitor': 'all'}
-          : {'searchForMovie': searchOnAdd},
+      'metadataProfileId': ?metadataProfileId,
+      'addOptions': switch (resourcePath) {
+        'series' => {'searchForMissingEpisodes': searchOnAdd, 'monitor': 'all'},
+        'artist' => {'searchForMissingAlbums': searchOnAdd, 'monitor': 'all'},
+        'author' => {'searchForMissingBooks': searchOnAdd, 'monitor': 'all'},
+        _ => {'searchForMovie': searchOnAdd},
+      },
     };
 
     final response = await _client

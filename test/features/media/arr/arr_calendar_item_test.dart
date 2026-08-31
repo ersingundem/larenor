@@ -47,4 +47,26 @@ void main() {
     final none = ArrCalendarItem.fromJson({'title': 'X'});
     expect(none.date, isNull);
   });
+
+  test('parses a Lidarr album entry with a nested artist.artistName', () {
+    final item = ArrCalendarItem.fromJson({
+      'title': 'OK Computer',
+      'artist': {'artistName': 'Radiohead'},
+      'releaseDate': '2026-09-01T00:00:00Z',
+    });
+
+    expect(item.title, 'Radiohead');
+    expect(item.subtitle, 'OK Computer');
+    expect(item.date, DateTime.parse('2026-09-01T00:00:00Z'));
+  });
+
+  test('parses a Readarr book entry with a nested author.authorName', () {
+    final item = ArrCalendarItem.fromJson({
+      'title': 'Some Book',
+      'author': {'authorName': 'Some Author'},
+    });
+
+    expect(item.title, 'Some Author');
+    expect(item.subtitle, 'Some Book');
+  });
 }

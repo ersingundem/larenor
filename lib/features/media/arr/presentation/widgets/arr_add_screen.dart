@@ -3,9 +3,10 @@ import 'package:flutter/cupertino.dart';
 import '../../data/models/arr_lookup_result.dart';
 import '../../data/models/arr_picker_options.dart';
 
-/// Shared "search and add" flow for Sonarr/Radarr: lookup → pick a result →
-/// pick quality profile + root folder → confirm. Parameterized entirely by
-/// callbacks so the same widget drives both services.
+/// Shared "search and add" flow for Sonarr/Radarr/Lidarr/Readarr: lookup →
+/// pick a result → pick quality profile + root folder (+ metadata profile
+/// for Lidarr/Readarr) → confirm. Parameterized entirely by callbacks so
+/// the same widget drives all four services.
 class ArrAddScreen extends StatefulWidget {
   const ArrAddScreen({
     super.key,
@@ -15,6 +16,7 @@ class ArrAddScreen extends StatefulWidget {
     required this.loadQualityProfiles,
     required this.loadRootFolders,
     required this.onAdd,
+    this.loadMetadataProfiles,
   });
 
   final String title;
@@ -22,10 +24,16 @@ class ArrAddScreen extends StatefulWidget {
   final Future<List<ArrLookupResult>> Function(String term) onLookup;
   final Future<List<ArrQualityProfile>> Function() loadQualityProfiles;
   final Future<List<ArrRootFolder>> Function() loadRootFolders;
+
+  /// Lidarr/Readarr only — Sonarr/Radarr don't pass this, so the third
+  /// picker section simply doesn't render for them.
+  final Future<List<ArrMetadataProfile>> Function()? loadMetadataProfiles;
+
   final Future<void> Function(
     ArrLookupResult result,
     int qualityProfileId,
     String rootFolderPath,
+    int? metadataProfileId,
   )
   onAdd;
 
@@ -99,10 +107,16 @@ class _ArrAddScreenState extends State<ArrAddScreen> {
   Future<void> _openAddSheet(ArrLookupResult result) async {
     final profiles = await widget.loadQualityProfiles();
     final folders = await widget.loadRootFolders();
+    final metadataProfiles = await widget.loadMetadataProfiles?.call();
     if (!mounted || profiles.isEmpty || folders.isEmpty) return;
+    if (widget.loadMetadataProfiles != null &&
+        (metadataProfiles == null || metadataProfiles.isEmpty)) {
+      return;
+    }
 
     ArrQualityProfile selectedProfile = profiles.first;
     ArrRootFolder selectedFolder = folders.first;
+    ArrMetadataProfile? selectedMetadataProfile = metadataProfiles?.first;
 
     await showCupertinoModalPopup<void>(
       context: context,
@@ -110,7 +124,8 @@ class _ArrAddScreenState extends State<ArrAddScreen> {
         builder: (context, setSheetState) => CupertinoActionSheet(
           title: Text(result.title),
           message: Text(
-            'Quality: ${selectedProfile.name}\nFolder: ${selectedFolder.path}',
+            'Quality: ${selectedProfile.name}\nFolder: ${selectedFolder.path}'
+            '${selectedMetadataProfile != null ? '\nMetadata: ${selectedMetadataProfile!.name}' : ''}',
           ),
           actions: [
             for (final profile in profiles)
@@ -127,6 +142,15 @@ class _ArrAddScreenState extends State<ArrAddScreen> {
                   '${selectedFolder.id == folder.id ? '✓ ' : ''}Folder: ${folder.path}',
                 ),
               ),
+            if (metadataProfiles != null)
+              for (final profile in metadataProfiles)
+                CupertinoActionSheetAction(
+                  onPressed: () =>
+                      setSheetState(() => selectedMetadataProfile = profile),
+                  child: Text(
+                    '${selectedMetadataProfile?.id == profile.id ? '✓ ' : ''}Metadata: ${profile.name}',
+                  ),
+                ),
             CupertinoActionSheetAction(
               isDefaultAction: true,
               onPressed: () async {
@@ -135,6 +159,7 @@ class _ArrAddScreenState extends State<ArrAddScreen> {
                   result,
                   selectedProfile.id,
                   selectedFolder.path,
+                  selectedMetadataProfile?.id,
                 );
                 if (mounted) setState(() => _results = null);
               },

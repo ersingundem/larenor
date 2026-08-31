@@ -57,7 +57,7 @@ class RadarrScreen extends ConsumerWidget {
                         ref.read(radarrClientProvider)!.getQualityProfiles(),
                     loadRootFolders: () =>
                         ref.read(radarrClientProvider)!.getRootFolders(),
-                    onAdd: (result, profileId, folder) async {
+                    onAdd: (result, profileId, folder, _) async {
                       await ref
                           .read(radarrClientProvider)!
                           .add(

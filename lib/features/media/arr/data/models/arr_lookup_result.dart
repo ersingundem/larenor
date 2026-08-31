@@ -15,7 +15,11 @@ class ArrLookupResult {
   });
 
   final String title;
-  final int remoteId;
+
+  /// `tvdbId`/`tmdbId` (Sonarr/Radarr) are numeric; `foreignArtistId`/
+  /// `foreignAuthorId` (Lidarr/Readarr) are MusicBrainz/Goodreads-style
+  /// string ids — so this is left untyped rather than forced to `int`.
+  final Object? remoteId;
   final int? year;
   final String? overview;
   final String? posterUrl;
@@ -38,7 +42,7 @@ class ArrLookupResult {
 
     return ArrLookupResult(
       title: json['title'] as String? ?? 'Unknown',
-      remoteId: json[idFieldName] as int? ?? 0,
+      remoteId: json[idFieldName] ?? 0,
       year: json['year'] as int?,
       overview: json['overview'] as String?,
       posterUrl: poster,

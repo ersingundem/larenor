@@ -1,17 +1,17 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../providers/sonarr_providers.dart';
+import '../providers/readarr_providers.dart';
 import 'widgets/arr_add_screen.dart';
 import 'widgets/arr_connect_form.dart';
 import 'widgets/arr_dashboard_body.dart';
 
-class SonarrScreen extends ConsumerWidget {
-  const SonarrScreen({super.key});
+class ReadarrScreen extends ConsumerWidget {
+  const ReadarrScreen({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final connectionAsync = ref.watch(sonarrConnectionProvider);
+    final connectionAsync = ref.watch(readarrConnectionProvider);
 
     return connectionAsync.when(
       loading: () => const CupertinoPageScaffold(
@@ -22,25 +22,25 @@ class SonarrScreen extends ConsumerWidget {
       data: (config) {
         if (config == null) {
           return ArrConnectForm(
-            title: 'Sonarr',
-            urlHint: 'http://sonarr.local:8989',
+            title: 'Readarr',
+            urlHint: 'http://readarr.local:8787',
             onConnect: (url, key) => ref
-                .read(sonarrConnectionProvider.notifier)
+                .read(readarrConnectionProvider.notifier)
                 .signIn(baseUrl: url, apiKey: key),
           );
         }
 
-        final queue = ref.watch(sonarrQueueProvider);
-        final calendar = ref.watch(sonarrCalendarProvider);
+        final queue = ref.watch(readarrQueueProvider);
+        final calendar = ref.watch(readarrCalendarProvider);
 
         return CupertinoPageScaffold(
           navigationBar: CupertinoNavigationBar(
-            middle: const Text('Sonarr'),
+            middle: const Text('Readarr'),
             leading: CupertinoButton(
               padding: EdgeInsets.zero,
               onPressed: () {
-                ref.invalidate(sonarrQueueProvider);
-                ref.invalidate(sonarrCalendarProvider);
+                ref.invalidate(readarrQueueProvider);
+                ref.invalidate(readarrCalendarProvider);
               },
               child: const Icon(CupertinoIcons.refresh),
             ),
@@ -49,24 +49,28 @@ class SonarrScreen extends ConsumerWidget {
               onPressed: () => Navigator.of(context).push(
                 CupertinoPageRoute(
                   builder: (_) => ArrAddScreen(
-                    title: 'Add Series',
-                    searchHint: 'Search TV shows',
+                    title: 'Add Author',
+                    searchHint: 'Search authors',
                     onLookup: (term) =>
-                        ref.read(sonarrClientProvider)!.lookup(term),
+                        ref.read(readarrClientProvider)!.lookup(term),
                     loadQualityProfiles: () =>
-                        ref.read(sonarrClientProvider)!.getQualityProfiles(),
+                        ref.read(readarrClientProvider)!.getQualityProfiles(),
                     loadRootFolders: () =>
-                        ref.read(sonarrClientProvider)!.getRootFolders(),
-                    onAdd: (result, profileId, folder, _) async {
-                      await ref
-                          .read(sonarrClientProvider)!
-                          .add(
-                            result: result,
-                            qualityProfileId: profileId,
-                            rootFolderPath: folder,
-                          );
-                      ref.invalidate(sonarrCalendarProvider);
-                    },
+                        ref.read(readarrClientProvider)!.getRootFolders(),
+                    loadMetadataProfiles: () =>
+                        ref.read(readarrClientProvider)!.getMetadataProfiles(),
+                    onAdd:
+                        (result, profileId, folder, metadataProfileId) async {
+                          await ref
+                              .read(readarrClientProvider)!
+                              .add(
+                                result: result,
+                                qualityProfileId: profileId,
+                                rootFolderPath: folder,
+                                metadataProfileId: metadataProfileId,
+                              );
+                          ref.invalidate(readarrCalendarProvider);
+                        },
                   ),
                 ),
               ),

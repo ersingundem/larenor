@@ -22,3 +22,18 @@ class ArrRootFolder {
     path: json['path'] as String? ?? '/',
   );
 }
+
+/// Lidarr/Readarr-only picker — Sonarr/Radarr don't have metadata
+/// profiles.
+class ArrMetadataProfile {
+  const ArrMetadataProfile({required this.id, required this.name});
+
+  final int id;
+  final String name;
+
+  factory ArrMetadataProfile.fromJson(Map<String, dynamic> json) =>
+      ArrMetadataProfile(
+        id: json['id'] as int,
+        name: json['name'] as String? ?? 'Profile ${json['id']}',
+      );
+}
