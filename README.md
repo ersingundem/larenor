@@ -2,21 +2,98 @@
 
 A private, custom Home Assistant companion app built with Flutter. Oikos connects to
 an existing self-hosted Home Assistant server over its REST and WebSocket APIs and
-provides:
-
-- A visual dashboard builder — drag/resize tiles instead of hand-editing Lovelace YAML.
-- An Android tablet "wall panel" mode — the app can be set as the device's default
-  Home launcher, stays awake, and shows live dashboards or embedded web pages fullscreen.
+turns an Android tablet into a modern, drag-and-drop wall panel — plus an in-app admin
+panel and a built-in media center for a self-hosted Jellyfin/*arr/qBittorrent stack.
 
 This is not a fork of Home Assistant. It is a standalone client; you still need a
 running Home Assistant instance on your network.
 
 This repository and its contents are proprietary — see [LICENSE](LICENSE).
 
+## Features
+
+### Dashboard
+
+- Drag-to-move, corner-drag-to-resize tile grid — build a dashboard visually instead
+  of hand-editing Lovelace YAML. Layout persists locally.
+- Tile types: entity card (state + toggle), fullscreen WebView (any URL, including the
+  raw HA frontend), history/statistics graph, media player (play/pause/skip/volume,
+  album art), climate/thermostat (radial dial), weather with forecast, scene
+  (one-tap `scene.turn_on`), and camera (live snapshot polling).
+- Tap-through "more info" popup on every entity tile — full state, attributes, and
+  controls, not just the inline toggle.
+- Favorites section — pin frequently used entities to the top of the dashboard.
+- Connection-status banner ("Home Assistant unreachable, retrying…") instead of a
+  small status dot, with WebSocket reconnect-with-backoff underneath it.
+- Broad brand/device coverage: icons and controls for lights, switches, locks (state-
+  aware), vacuums, humidifiers, valves, sirens, alarm panels, covers, fans, climate,
+  media players, cameras, device trackers (e.g. Keenetic presence), water heaters,
+  scenes, persons, timers, scripts, updates, numbers, selects, and buttons, plus
+  device-class-aware sensor/binary_sensor icons (battery, power/energy, temperature,
+  motion, connectivity, etc. — covers what integrations like Anker Solix, Xiaomi,
+  Sonoff, Philips Hue, Apple HomeKit, and eWeLink commonly expose). Home Assistant's
+  domain/device_class model is brand-agnostic, so rendering every domain and device
+  class well is what makes the app work with virtually any HA-supported brand,
+  including ones only available through a HACS custom integration installed on the
+  server itself.
+
+### Home Assistant admin panel
+
+Reachable from Settings, styled with the same Cupertino/iOS design language as the
+rest of the app:
+
+- **Integrations** — list, reload, delete existing config entries; add a new
+  integration through HA's real config-flow protocol with a generic dynamic form
+  engine (text/number/boolean/select fields, with a JSON-editor fallback for rarer
+  selector kinds).
+- **Devices**, **Areas**, **Entities** — browse the device/entity/area registries;
+  enable or disable entities.
+- **Automations** — list with enable/disable/trigger/delete, last-triggered
+  timestamps, and a raw JSON config editor for viewing, hand-editing, and creating
+  automations.
+- **Cameras** — a dedicated grid of live camera snapshots, tap to expand.
+
+### Kiosk / wall-panel mode
+
+- Android `HOME` intent-filter so the app can be set as the tablet's default launcher.
+- Keep-screen-on toggle (wakelock).
+- Scheduled day/night screen brightness dimming and screen-off/do-not-disturb hours.
+- Idle/ambient mode — after N minutes of no touch input, switch to a low-distraction
+  clock + weather screen (reduces burn-in on an always-on panel).
+- PIN lock on Settings, so leaving kiosk mode or changing the server connection
+  requires a PIN.
+
+### Media stack
+
+Five independent, optional integrations for a self-hosted media server setup, each
+connected separately from its own row under Settings → Media Services — the app works
+fine with zero, some, or all five configured:
+
+- **Jellyfin** — connect with a username/password, browse continue-watching/recently-
+  added/libraries, and play through a built-in `media_kit` (libmpv) video player. The
+  player negotiates a device profile with the server so playback decodes on the
+  tablet and prefers Direct Play over server-side transcoding, keeping load off the
+  Jellyfin server. Playback progress is reported back to Jellyfin so resume/continue-
+  watching works.
+- **Jellyseerr** — connect with a server URL + API key, search movies/TV, submit
+  requests, and track request status ("My Requests").
+- **Sonarr** / **Radarr** — connect each with a server URL + API key; view the
+  upcoming release calendar and active download queue with progress; full search-
+  and-add flow using each server's own lookup endpoint, with quality-profile and
+  root-folder pickers before confirming.
+- **qBittorrent** — connect with a server URL + username/password; view torrents with
+  progress/speed/state, pause/resume/delete; add torrents via a pasted magnet link or
+  by uploading a `.torrent` file from the device.
+
 ## Status
 
-Early development (MVP slice): connect via server URL + long-lived access token, view
-and toggle entities, build a basic dashboard with entity and fullscreen-webview tiles.
+Actively developed. Core dashboard, HA admin panel, kiosk/wall-panel behavior, and the
+Jellyfin/Jellyseerr/Sonarr/Radarr/qBittorrent media stack are all implemented and
+covered by CI (static analysis, unit/widget tests, debug Android build). Deferred for
+later: OAuth2/PKCE login, true kiosk lock-task mode, push notifications, an Assist
+voice satellite, multi-profile/guest-mode dashboards, room-based dashboard tabs, a
+theme editor, and iOS build/signing (Apple does not allow third-party home-screen
+launchers, so the eventual iOS build will be a single-app kiosk, not a true launcher).
 
 ## Development setup (macOS)
 
