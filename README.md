@@ -15,6 +15,14 @@ This repository and its contents are proprietary — see [LICENSE](LICENSE).
 
 ## Features
 
+### Home Assistant connection
+
+- Connect with a server URL and a long-lived access token — no OAuth dance, just
+  paste the token from your HA profile page.
+- Automatic discovery of Home Assistant servers on the local network via mDNS/
+  Zeroconf (HA's `zeroconf` integration), listed on the connect screen so you can
+  tap one instead of typing the URL by hand.
+
 ### Dashboard
 
 - Drag-to-move, corner-drag-to-resize tile grid — build a dashboard visually instead
@@ -178,7 +186,8 @@ stale/conflicting generated output, run `dart run build_runner clean` first.
 ## Useful commands
 
 ```sh
-flutter analyze              # static analysis
-flutter test                 # unit + widget tests
-flutter build apk --debug    # debug Android build
+flutter analyze                    # static analysis
+flutter test                       # unit + widget tests
+flutter build apk --debug          # debug Android build
+dart run flutter_launcher_icons    # regenerate app icons after changing assets/icon/*.png
 ```
