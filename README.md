@@ -84,6 +84,13 @@ fine with zero, some, or all five configured:
 - **qBittorrent** — connect with a server URL + username/password; view torrents with
   progress/speed/state, pause/resume/delete; add torrents via a pasted magnet link or
   by uploading a `.torrent` file from the device.
+- **Bazarr** — connect with a server URL + API key; view movies and episodes missing
+  subtitles, trigger a search-and-download per missing language.
+- **Prowlarr** — connect with a server URL + API key; list configured indexers with an
+  enable/disable toggle.
+- **Lidarr** / **Readarr** — connect each with a server URL + API key; the same
+  calendar/queue monitoring and search-and-add flow as Sonarr/Radarr, plus a
+  metadata-profile picker alongside quality profile and root folder.
 
 ### Proxmox VE management
 
@@ -105,16 +112,28 @@ server, independent of everything else in the app:
 - An embedded interactive console — noVNC for VMs, xterm.js for containers — running
   inside a WebView against Proxmox's console WebSocket endpoints.
 
+### Keenetic router management
+
+Reachable from Settings → Infrastructure — a native client for Keenetic's unofficial
+RCI HTTP API, going further than Home Assistant's own Keenetic integration (which only
+exposes device-tracker presence):
+
+- Connect with the router's admin URL and web-UI credentials (challenge/response
+  session auth, the same model the router's own web interface uses).
+- Connected-devices list with live/offline status.
+- Wi-Fi access point list (including guest networks) with an enable/disable toggle.
+- Read-only port-forwarding/static-NAT rule list.
+
 ## Status
 
 Actively developed. Core dashboard, HA admin panel, kiosk/wall-panel behavior, the
-Jellyfin/Jellyseerr/Sonarr/Radarr/qBittorrent media stack, and Proxmox VE management
-are all implemented and covered by CI (static analysis, unit/widget tests, debug
-Android build). Deferred for later: OAuth2/PKCE login, true kiosk lock-task mode, push
-notifications, an Assist voice satellite, multi-profile/guest-mode dashboards,
-room-based dashboard tabs, a theme editor, and iOS build/signing (Apple does not allow
-third-party home-screen launchers, so the eventual iOS build will be a single-app
-kiosk, not a true launcher).
+Jellyfin/Jellyseerr/Sonarr/Radarr/Lidarr/Readarr/Bazarr/Prowlarr/qBittorrent media
+stack, Proxmox VE management, and Keenetic router management are all implemented and
+covered by CI (static analysis, unit/widget tests, debug Android build). Deferred for
+later: OAuth2/PKCE login, true kiosk lock-task mode, push notifications, an Assist
+voice satellite, multi-profile/guest-mode dashboards, room-based dashboard tabs, a
+theme editor, and iOS build/signing (Apple does not allow third-party home-screen
+launchers, so the eventual iOS build will be a single-app kiosk, not a true launcher).
 
 ## Development setup (macOS)
 
