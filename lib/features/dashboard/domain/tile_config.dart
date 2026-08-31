@@ -3,7 +3,16 @@ import 'package:freezed_annotation/freezed_annotation.dart';
 part 'tile_config.freezed.dart';
 part 'tile_config.g.dart';
 
-enum TileType { entity, webview }
+enum TileType {
+  entity,
+  webview,
+  scene,
+  mediaPlayer,
+  climate,
+  weather,
+  history,
+  camera,
+}
 
 @freezed
 abstract class TileConfig with _$TileConfig {

@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'core/router.dart';
 import 'core/theme.dart';
+import 'features/settings/presentation/idle_gate.dart';
+import 'features/settings/presentation/screen_policy_runner.dart';
 
 class OikosApp extends ConsumerWidget {
   const OikosApp({super.key});
@@ -16,6 +18,9 @@ class OikosApp extends ConsumerWidget {
       debugShowCheckedModeBanner: false,
       theme: oikosCupertinoTheme,
       routerConfig: router,
+      builder: (context, child) => ScreenPolicyRunner(
+        child: IdleGate(child: child ?? const SizedBox.shrink()),
+      ),
     );
   }
 }

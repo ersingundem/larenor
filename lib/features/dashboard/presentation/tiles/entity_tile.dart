@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../ha_client/providers/ha_client_providers.dart';
 import '../../domain/tile_config.dart';
+import '../widgets/more_info_sheet.dart';
 
 class EntityTile extends ConsumerWidget {
   const EntityTile({super.key, required this.tile});
@@ -25,49 +26,55 @@ class EntityTile extends ConsumerWidget {
         ? CupertinoColors.activeBlue.withValues(alpha: 0.15)
         : CupertinoColors.secondarySystemGroupedBackground.resolveFrom(context);
 
-    return ColoredBox(
-      color: background,
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(12, 32, 12, 8),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Icon(
-              _iconFor(entity.domain),
-              size: 26,
-              color: CupertinoTheme.of(context).primaryColor,
-            ),
-            Text(
-              entity.friendlyName,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
-            ),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Flexible(
-                  child: Text(
-                    entity.state,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: CupertinoColors.secondaryLabel.resolveFrom(
-                        context,
+    return GestureDetector(
+      onTap: () => showEntityMoreInfo(context, entity.entityId),
+      child: ColoredBox(
+        color: background,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(12, 32, 12, 8),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Icon(
+                _iconFor(entity.domain),
+                size: 26,
+                color: CupertinoTheme.of(context).primaryColor,
+              ),
+              Text(
+                entity.friendlyName,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  fontWeight: FontWeight.w600,
+                  fontSize: 14,
+                ),
+              ),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Flexible(
+                    child: Text(
+                      entity.state,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: CupertinoColors.secondaryLabel.resolveFrom(
+                          context,
+                        ),
                       ),
                     ),
                   ),
-                ),
-                if (entity.isToggleable)
-                  CupertinoSwitch(
-                    value: entity.isOn,
-                    onChanged: (_) =>
-                        ref.read(entitiesProvider.notifier).toggle(entity),
-                  ),
-              ],
-            ),
-          ],
+                  if (entity.isToggleable)
+                    CupertinoSwitch(
+                      value: entity.isOn,
+                      onChanged: (_) =>
+                          ref.read(entitiesProvider.notifier).toggle(entity),
+                    ),
+                ],
+              ),
+            ],
+          ),
         ),
       ),
     );

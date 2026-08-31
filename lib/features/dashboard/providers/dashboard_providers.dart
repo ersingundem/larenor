@@ -44,4 +44,12 @@ class DashboardLayoutNotifier extends _$DashboardLayoutNotifier {
       ),
     );
   }
+
+  Future<void> toggleFavorite(String entityId) async {
+    final current = state.value ?? const DashboardLayout();
+    final favorites = current.favoriteEntityIds.contains(entityId)
+        ? current.favoriteEntityIds.where((id) => id != entityId).toList()
+        : [...current.favoriteEntityIds, entityId];
+    await _persist(current.copyWith(favoriteEntityIds: favorites));
+  }
 }

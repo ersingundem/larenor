@@ -10,8 +10,53 @@ import '../providers/dashboard_providers.dart';
 import 'entity_picker_screen.dart';
 import 'tile_grid.dart';
 import 'tiles/tile_registry.dart';
+import 'widgets/more_info_sheet.dart';
 
 String _generateTileId() => DateTime.now().microsecondsSinceEpoch.toString();
+
+class _TileKind {
+  const _TileKind(
+    this.label, {
+    this.domainFilter,
+    this.width = 2,
+    this.height = 2,
+  });
+
+  final String label;
+  final String? domainFilter;
+  final int width;
+  final int height;
+}
+
+const _tileKinds = {
+  TileType.entity: _TileKind('Entity card'),
+  TileType.scene: _TileKind('Scene button', domainFilter: 'scene'),
+  TileType.mediaPlayer: _TileKind(
+    'Media player',
+    domainFilter: 'media_player',
+    width: 3,
+    height: 3,
+  ),
+  TileType.climate: _TileKind(
+    'Climate',
+    domainFilter: 'climate',
+    width: 3,
+    height: 3,
+  ),
+  TileType.weather: _TileKind(
+    'Weather',
+    domainFilter: 'weather',
+    width: 4,
+    height: 3,
+  ),
+  TileType.history: _TileKind('History graph', width: 4, height: 3),
+  TileType.camera: _TileKind(
+    'Camera',
+    domainFilter: 'camera',
+    width: 3,
+    height: 3,
+  ),
+};
 
 class DashboardScreen extends ConsumerStatefulWidget {
   const DashboardScreen({super.key});
@@ -34,7 +79,6 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
         trailing: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            _ConnectionIndicator(status: connectionStatus.value),
             if (_editMode)
               CupertinoButton(
                 padding: EdgeInsets.zero,
@@ -55,29 +99,49 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
         ),
       ),
       child: SafeArea(
-        child: layoutAsync.when(
-          loading: () => const Center(child: CupertinoActivityIndicator()),
-          error: (error, _) =>
-              Center(child: Text('Failed to load dashboard: $error')),
-          data: (layout) {
-            if (layout.tiles.isEmpty) {
-              return _EmptyDashboard(
-                onAddTile: () => _showAddTileSheet(context),
-              );
-            }
-            return Padding(
-              padding: const EdgeInsets.all(8),
-              child: TileGrid(
-                tiles: layout.tiles,
-                editMode: _editMode,
-                tileBuilder: (context, tile) => buildTileContent(tile),
-                onTileChanged: (tile) =>
-                    ref.read(dashboardLayoutProvider.notifier).updateTile(tile),
-                onTileRemoved: (id) =>
-                    ref.read(dashboardLayoutProvider.notifier).removeTile(id),
+        child: Column(
+          children: [
+            _ConnectionBanner(status: connectionStatus.value),
+            Expanded(
+              child: layoutAsync.when(
+                loading: () =>
+                    const Center(child: CupertinoActivityIndicator()),
+                error: (error, _) =>
+                    Center(child: Text('Failed to load dashboard: $error')),
+                data: (layout) {
+                  if (layout.tiles.isEmpty &&
+                      layout.favoriteEntityIds.isEmpty) {
+                    return _EmptyDashboard(
+                      onAddTile: () => _showAddTileSheet(context),
+                    );
+                  }
+                  return Column(
+                    children: [
+                      if (layout.favoriteEntityIds.isNotEmpty)
+                        _FavoritesRow(entityIds: layout.favoriteEntityIds),
+                      Expanded(
+                        child: Padding(
+                          padding: const EdgeInsets.all(8),
+                          child: TileGrid(
+                            tiles: layout.tiles,
+                            editMode: _editMode,
+                            tileBuilder: (context, tile) =>
+                                buildTileContent(tile),
+                            onTileChanged: (tile) => ref
+                                .read(dashboardLayoutProvider.notifier)
+                                .updateTile(tile),
+                            onTileRemoved: (id) => ref
+                                .read(dashboardLayoutProvider.notifier)
+                                .removeTile(id),
+                          ),
+                        ),
+                      ),
+                    ],
+                  );
+                },
               ),
-            );
-          },
+            ),
+          ],
         ),
       ),
     );
@@ -91,17 +155,18 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
               .map((t) => t.y + t.height)
               .reduce((a, b) => a > b ? a : b);
 
-    final choice = await showCupertinoModalPopup<String>(
+    final choice = await showCupertinoModalPopup<TileType>(
       context: context,
       builder: (context) => CupertinoActionSheet(
         title: const Text('Add tile'),
         actions: [
+          for (final entry in _tileKinds.entries)
+            CupertinoActionSheetAction(
+              onPressed: () => Navigator.pop(context, entry.key),
+              child: Text(entry.value.label),
+            ),
           CupertinoActionSheetAction(
-            onPressed: () => Navigator.pop(context, 'entity'),
-            child: const Text('Entity card'),
-          ),
-          CupertinoActionSheetAction(
-            onPressed: () => Navigator.pop(context, 'webview'),
+            onPressed: () => Navigator.pop(context, TileType.webview),
             child: const Text('Fullscreen website'),
           ),
         ],
@@ -113,15 +178,24 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
       ),
     );
 
-    if (choice == 'entity' && context.mounted) {
-      await _pickEntity(context, nextY);
-    } else if (choice == 'webview' && context.mounted) {
+    if (choice == null || !context.mounted) return;
+    if (choice == TileType.webview) {
       await _showUrlDialog(context, nextY);
+    } else {
+      await _pickEntityForTile(context, choice, nextY);
     }
   }
 
-  Future<void> _pickEntity(BuildContext context, int nextY) async {
-    final entities = ref.read(entitiesProvider).value?.values.toList() ?? [];
+  Future<void> _pickEntityForTile(
+    BuildContext context,
+    TileType type,
+    int nextY,
+  ) async {
+    final kind = _tileKinds[type]!;
+    final allEntities = ref.read(entitiesProvider).value?.values.toList() ?? [];
+    final entities = kind.domainFilter == null
+        ? allEntities
+        : allEntities.where((e) => e.domain == kind.domainFilter).toList();
 
     final chosen = await Navigator.of(context).push<HaEntity>(
       CupertinoPageRoute(
@@ -135,11 +209,11 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
         .addTile(
           TileConfig(
             id: _generateTileId(),
-            type: TileType.entity,
+            type: type,
             x: 0,
             y: nextY,
-            width: 2,
-            height: 2,
+            width: kind.width,
+            height: kind.height,
             entityId: chosen.entityId,
           ),
         );
@@ -190,6 +264,61 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   }
 }
 
+class _FavoritesRow extends ConsumerWidget {
+  const _FavoritesRow({required this.entityIds});
+
+  final List<String> entityIds;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final entities = ref.watch(entitiesProvider).value ?? const {};
+
+    return SizedBox(
+      height: 76,
+      child: ListView(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+        children: [
+          for (final entityId in entityIds)
+            if (entities[entityId] case final entity?)
+              GestureDetector(
+                onTap: () => showEntityMoreInfo(context, entityId),
+                child: Container(
+                  width: 88,
+                  margin: const EdgeInsets.symmetric(horizontal: 4),
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: entity.isOn
+                        ? CupertinoColors.activeBlue.withValues(alpha: 0.15)
+                        : CupertinoColors.secondarySystemGroupedBackground
+                              .resolveFrom(context),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        CupertinoIcons.star_fill,
+                        size: 18,
+                        color: CupertinoTheme.of(context).primaryColor,
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        entity.friendlyName,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontSize: 11),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+        ],
+      ),
+    );
+  }
+}
+
 class _EmptyDashboard extends StatelessWidget {
   const _EmptyDashboard({required this.onAddTile});
 
@@ -219,27 +348,67 @@ class _EmptyDashboard extends StatelessWidget {
   }
 }
 
-class _ConnectionIndicator extends StatelessWidget {
-  const _ConnectionIndicator({required this.status});
+class _ConnectionBanner extends StatefulWidget {
+  const _ConnectionBanner({required this.status});
 
   final HaConnectionStatus? status;
 
   @override
+  State<_ConnectionBanner> createState() => _ConnectionBannerState();
+}
+
+class _ConnectionBannerState extends State<_ConnectionBanner> {
+  bool _dismissed = false;
+
+  @override
+  void didUpdateWidget(covariant _ConnectionBanner oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.status != widget.status) _dismissed = false;
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final color = switch (status) {
-      HaConnectionStatus.connected => CupertinoColors.systemGreen,
-      HaConnectionStatus.connecting => CupertinoColors.systemOrange,
-      _ => CupertinoColors.systemRed,
-    };
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 6),
-      child: Container(
-        width: 8,
-        height: 8,
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          color: color.resolveFrom(context),
-        ),
+    final status = widget.status;
+    if (_dismissed ||
+        status == null ||
+        status == HaConnectionStatus.connected) {
+      return const SizedBox.shrink();
+    }
+
+    final message = status == HaConnectionStatus.connecting
+        ? 'Connecting to Home Assistant…'
+        : 'Home Assistant unreachable, retrying…';
+
+    return Container(
+      width: double.infinity,
+      color: CupertinoColors.systemOrange,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      child: Row(
+        children: [
+          const Icon(
+            CupertinoIcons.wifi_slash,
+            size: 16,
+            color: CupertinoColors.white,
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              message,
+              style: const TextStyle(
+                color: CupertinoColors.white,
+                fontSize: 13,
+              ),
+            ),
+          ),
+          GestureDetector(
+            onTap: () => setState(() => _dismissed = true),
+            child: const Icon(
+              CupertinoIcons.xmark,
+              size: 16,
+              color: CupertinoColors.white,
+            ),
+          ),
+        ],
       ),
     );
   }

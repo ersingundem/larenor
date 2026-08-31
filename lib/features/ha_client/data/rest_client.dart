@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:http/http.dart' as http;
 
@@ -105,6 +106,18 @@ class HaRestClient {
         .delete(_uri(path), headers: _headers)
         .timeout(const Duration(seconds: 15));
     return _decodeOrThrow(response, path);
+  }
+
+  /// Raw-bytes GET, for endpoints that return an image rather than JSON
+  /// (e.g. `/api/camera_proxy/<entity_id>`).
+  Future<Uint8List> getBytes(String path) async {
+    final response = await _client
+        .get(_uri(path), headers: _headers)
+        .timeout(const Duration(seconds: 15));
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw HaApiException('Request to $path failed (${response.statusCode}).');
+    }
+    return response.bodyBytes;
   }
 
   dynamic _decodeOrThrow(http.Response response, String path) {

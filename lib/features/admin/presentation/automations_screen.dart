@@ -1,7 +1,9 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../ha_client/data/models/ha_entity.dart';
 import '../../ha_client/providers/ha_client_providers.dart';
+import '../data/models/automation_summary.dart';
 import '../providers/admin_providers.dart';
 import 'automation_editor_screen.dart';
 
@@ -45,9 +47,12 @@ class AutomationsScreen extends ConsumerWidget {
                     for (final automation in automations)
                       CupertinoListTile(
                         title: Text(automation.friendlyName),
-                        subtitle: automation.automationId == null
-                            ? const Text('Config not editable from here')
-                            : null,
+                        subtitle: Text(
+                          automationSubtitle(
+                            automation,
+                            liveEntities?[automation.entityId],
+                          ),
+                        ),
                         trailing: CupertinoSwitch(
                           value:
                               liveEntities?[automation.entityId]?.isOn ??
@@ -79,4 +84,15 @@ class AutomationsScreen extends ConsumerWidget {
       ),
     );
   }
+}
+
+/// Pulled out of [AutomationsScreen] so the subtitle logic is unit
+/// testable without standing up the widget tree.
+String automationSubtitle(AutomationSummary automation, HaEntity? liveEntity) {
+  if (automation.automationId == null) return 'Config not editable from here';
+  final lastTriggered = liveEntity?.attributes['last_triggered'] as String?;
+  if (lastTriggered == null) return 'Never triggered';
+  final parsed = DateTime.tryParse(lastTriggered);
+  if (parsed == null) return 'Last triggered: $lastTriggered';
+  return 'Last triggered: ${parsed.toLocal().toString().split('.')[0]}';
 }
