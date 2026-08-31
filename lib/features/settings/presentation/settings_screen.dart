@@ -14,6 +14,7 @@ import '../../media/arr/presentation/sonarr_screen.dart';
 import '../../media/jellyfin/presentation/jellyfin_home_screen.dart';
 import '../../media/jellyseerr/presentation/jellyseerr_home_screen.dart';
 import '../../media/qbittorrent/presentation/qbittorrent_torrents_screen.dart';
+import '../../proxmox/presentation/proxmox_nodes_screen.dart';
 import '../providers/settings_providers.dart';
 
 class SettingsScreen extends ConsumerWidget {
@@ -226,6 +227,16 @@ class SettingsScreen extends ConsumerWidget {
                   icon: CupertinoIcons.arrow_down_circle,
                   title: 'qBittorrent',
                   builder: (_) => const QbittorrentTorrentsScreen(),
+                ),
+              ],
+            ),
+            CupertinoListSection.insetGrouped(
+              header: const Text('INFRASTRUCTURE'),
+              children: [
+                _AdminRow(
+                  icon: CupertinoIcons.square_stack_3d_up,
+                  title: 'Proxmox',
+                  builder: (_) => const ProxmoxNodesScreen(),
                 ),
               ],
             ),
