@@ -1,0 +1,13 @@
+# Extends gitleaks' default ruleset. The only addition is an allowlist for
+# vendored, minified third-party JavaScript bundled as static assets for
+# the Proxmox console screen (noVNC, xterm.js) — their minified variable
+# names and crypto implementation constants trip generic high-entropy
+# secret rules as false positives; there is no actual secret material in
+# this repository.
+[extend]
+useDefault = true
+
+[allowlist]
+paths = [
+  '''assets/console/.*''',
+]
