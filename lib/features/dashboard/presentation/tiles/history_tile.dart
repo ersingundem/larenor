@@ -2,6 +2,7 @@ import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../shared/theme/category_colors.dart';
 import '../../../ha_client/providers/ha_client_providers.dart';
 import '../../domain/tile_config.dart';
 
@@ -113,7 +114,14 @@ class _HistoryTileState extends ConsumerState<HistoryTile> {
                           LineChartBarData(
                             spots: _spots!,
                             isCurved: true,
-                            color: CupertinoTheme.of(context).primaryColor,
+                            color: entity == null
+                                ? CupertinoColors.systemTeal
+                                : categoryColorForDomain(
+                                    entity.domain,
+                                    deviceClass:
+                                        entity.attributes['device_class']
+                                            as String?,
+                                  ),
                             barWidth: 2,
                             dotData: const FlDotData(show: false),
                           ),

@@ -27,6 +27,9 @@ This repository and its contents are proprietary — see [LICENSE](LICENSE).
 
 - Drag-to-move, corner-drag-to-resize tile grid — build a dashboard visually instead
   of hand-editing Lovelace YAML. Layout persists locally.
+- Adding a tile is itself drag-and-drop: a widget gallery slides up from the bottom
+  showing a live/illustrative preview card for every tile type, and dragging one onto
+  the (still-visible) grid drops it at that exact spot — no menus or config dialogs.
 - Tile types: entity card (state + toggle), fullscreen WebView (any URL, including the
   raw HA frontend), history/statistics graph, media player (play/pause/skip/volume,
   album art), climate/thermostat (radial dial), weather with forecast, scene
@@ -147,9 +150,9 @@ list, so the app stays uncluttered no matter how many services exist:
   actually connected, so an unused integration never shows up there at all.
 - Every one of the 11 is also addable straight onto the dashboard as a live summary
   tile (continue watching, upcoming releases, active torrents, node CPU/RAM, connected
-  devices, etc.) via a "Service widget" entry in the add-tile menu — no per-tile setup,
-  since each tile just reads the service's existing app-wide connection. Tapping a tile
-  opens that service's full screen.
+  devices, etc.) by dragging it from the widget gallery — no per-tile setup, since each
+  tile just reads the service's existing app-wide connection. Tapping a tile opens that
+  service's full screen.
 
 ## Status
 

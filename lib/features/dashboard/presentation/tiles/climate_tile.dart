@@ -3,6 +3,7 @@ import 'dart:math';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../shared/theme/category_colors.dart';
 import '../../../ha_client/providers/ha_client_providers.dart';
 import '../../domain/tile_config.dart';
 
@@ -127,7 +128,7 @@ class _RadialDialState extends State<_RadialDial> {
           child: CustomPaint(
             painter: _DialPainter(
               fraction: fraction,
-              color: CupertinoTheme.of(context).primaryColor,
+              color: categoryColorForDomain('climate'),
             ),
             child: Center(
               child: Column(

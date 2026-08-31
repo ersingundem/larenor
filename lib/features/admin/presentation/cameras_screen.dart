@@ -13,64 +13,77 @@ class CamerasScreen extends ConsumerWidget {
     final entitiesAsync = ref.watch(entitiesProvider);
 
     return CupertinoPageScaffold(
-      navigationBar: const CupertinoNavigationBar(middle: Text('Cameras')),
-      child: SafeArea(
-        child: entitiesAsync.when(
-          loading: () => const Center(child: CupertinoActivityIndicator()),
-          error: (error, _) => Center(child: Text('Failed to load: $error')),
-          data: (entities) {
-            final cameras =
-                entities.values.where((e) => e.domain == 'camera').toList()
-                  ..sort((a, b) => a.friendlyName.compareTo(b.friendlyName));
-            if (cameras.isEmpty) {
-              return const Center(child: Text('No cameras found'));
-            }
-            return GridView.builder(
-              padding: const EdgeInsets.all(12),
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 2,
-                mainAxisSpacing: 12,
-                crossAxisSpacing: 12,
-                childAspectRatio: 1.3,
-              ),
-              itemCount: cameras.length,
-              itemBuilder: (context, index) {
-                final camera = cameras[index];
-                return GestureDetector(
-                  onTap: () => Navigator.of(context).push(
-                    CupertinoPageRoute(
-                      builder: (_) => CameraViewerScreen(
-                        entityId: camera.entityId,
-                        title: camera.friendlyName,
-                      ),
-                    ),
-                  ),
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(12),
-                    child: Stack(
-                      fit: StackFit.expand,
-                      children: [
-                        CameraSnapshot(entityId: camera.entityId),
-                        Positioned(
-                          left: 8,
-                          bottom: 8,
-                          child: Text(
-                            camera.friendlyName,
-                            style: const TextStyle(
-                              color: CupertinoColors.white,
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
+      child: CustomScrollView(
+        slivers: [
+          const CupertinoSliverNavigationBar(largeTitle: Text('Cameras')),
+          entitiesAsync.when(
+            loading: () => const SliverFillRemaining(
+              child: Center(child: CupertinoActivityIndicator()),
+            ),
+            error: (error, _) => SliverFillRemaining(
+              child: Center(child: Text('Failed to load: $error')),
+            ),
+            data: (entities) {
+              final cameras =
+                  entities.values.where((e) => e.domain == 'camera').toList()
+                    ..sort((a, b) => a.friendlyName.compareTo(b.friendlyName));
+              if (cameras.isEmpty) {
+                return const SliverFillRemaining(
+                  child: Center(child: Text('No cameras found')),
+                );
+              }
+              return SliverSafeArea(
+                top: false,
+                sliver: SliverPadding(
+                  padding: const EdgeInsets.all(12),
+                  sliver: SliverGrid(
+                    gridDelegate:
+                        const SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: 2,
+                          mainAxisSpacing: 12,
+                          crossAxisSpacing: 12,
+                          childAspectRatio: 1.3,
+                        ),
+                    delegate: SliverChildBuilderDelegate((context, index) {
+                      final camera = cameras[index];
+                      return GestureDetector(
+                        onTap: () => Navigator.of(context).push(
+                          CupertinoPageRoute(
+                            builder: (_) => CameraViewerScreen(
+                              entityId: camera.entityId,
+                              title: camera.friendlyName,
                             ),
                           ),
                         ),
-                      ],
-                    ),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(12),
+                          child: Stack(
+                            fit: StackFit.expand,
+                            children: [
+                              CameraSnapshot(entityId: camera.entityId),
+                              Positioned(
+                                left: 8,
+                                bottom: 8,
+                                child: Text(
+                                  camera.friendlyName,
+                                  style: const TextStyle(
+                                    color: CupertinoColors.white,
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    }, childCount: cameras.length),
                   ),
-                );
-              },
-            );
-          },
-        ),
+                ),
+              );
+            },
+          ),
+        ],
       ),
     );
   }

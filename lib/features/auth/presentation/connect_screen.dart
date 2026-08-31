@@ -1,6 +1,7 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../shared/widgets/icon_badge.dart';
 import '../../ha_client/data/ha_api_exception.dart';
 import '../../ha_client/data/rest_client.dart';
 import '../data/ha_connection_config.dart';
@@ -103,83 +104,95 @@ class _ConnectScreenState extends ConsumerState<ConnectScreen> {
   @override
   Widget build(BuildContext context) {
     return CupertinoPageScaffold(
-      child: SafeArea(
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 420),
-            child: ListView(
-              padding: const EdgeInsets.all(24),
-              children: [
-                const SizedBox(height: 24),
-                Icon(
-                  CupertinoIcons.house_fill,
-                  size: 56,
-                  color: CupertinoTheme.of(context).primaryColor,
-                ),
-                const SizedBox(height: 12),
-                Text(
-                  'Connect to Home Assistant',
-                  textAlign: TextAlign.center,
-                  style: CupertinoTheme.of(context)
-                      .textTheme
-                      .navLargeTitleTextStyle,
-                ),
-                const SizedBox(height: 24),
-                if (_discovered.isNotEmpty || _scanning) ...[
-                  _buildDiscoverySection(context),
-                  const SizedBox(height: 8),
-                ],
-                CupertinoListSection.insetGrouped(
-                  header: const Text('SERVER'),
-                  children: [
-                    CupertinoTextFormFieldRow(
-                      controller: _urlController,
-                      prefix: const Text('URL'),
-                      placeholder: 'http://homeassistant.local:8123',
-                      keyboardType: TextInputType.url,
-                    ),
-                    CupertinoTextFormFieldRow(
-                      controller: _tokenController,
-                      focusNode: _tokenFocusNode,
-                      prefix: const Text('Token'),
-                      placeholder: 'Long-lived access token',
-                      obscureText: true,
-                    ),
-                  ],
-                ),
-                if (_errorMessage != null) ...[
-                  const SizedBox(height: 12),
-                  Text(
-                    _errorMessage!,
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      color: CupertinoColors.systemRed.resolveFrom(context),
+      child: CustomScrollView(
+        slivers: [
+          const CupertinoSliverNavigationBar(largeTitle: Text('Connect')),
+          SliverSafeArea(
+            top: false,
+            sliver: SliverToBoxAdapter(
+              child: Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 420),
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Text(
+                          'Connect to your self-hosted Home Assistant '
+                          'server to get started.',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            color: CupertinoColors.secondaryLabel.resolveFrom(
+                              context,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 20),
+                        if (_discovered.isNotEmpty || _scanning) ...[
+                          _buildDiscoverySection(context),
+                          const SizedBox(height: 8),
+                        ],
+                        CupertinoListSection.insetGrouped(
+                          header: const Text('SERVER'),
+                          children: [
+                            CupertinoTextFormFieldRow(
+                              controller: _urlController,
+                              prefix: const Text('URL'),
+                              placeholder: 'http://homeassistant.local:8123',
+                              keyboardType: TextInputType.url,
+                            ),
+                            CupertinoTextFormFieldRow(
+                              controller: _tokenController,
+                              focusNode: _tokenFocusNode,
+                              prefix: const Text('Token'),
+                              placeholder: 'Long-lived access token',
+                              obscureText: true,
+                            ),
+                          ],
+                        ),
+                        if (_errorMessage != null) ...[
+                          const SizedBox(height: 12),
+                          Text(
+                            _errorMessage!,
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              color: CupertinoColors.systemRed.resolveFrom(
+                                context,
+                              ),
+                            ),
+                          ),
+                        ],
+                        const SizedBox(height: 20),
+                        CupertinoButton.filled(
+                          onPressed: _isConnecting ? null : _connect,
+                          child: _isConnecting
+                              ? const CupertinoActivityIndicator(
+                                  color: CupertinoColors.white,
+                                )
+                              : const Text('Connect'),
+                        ),
+                        const SizedBox(height: 12),
+                        Text(
+                          'Create a long-lived access token from your Home '
+                          'Assistant profile page (bottom of the Security '
+                          'tab).',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: CupertinoColors.secondaryLabel.resolveFrom(
+                              context,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                ],
-                const SizedBox(height: 20),
-                CupertinoButton.filled(
-                  onPressed: _isConnecting ? null : _connect,
-                  child: _isConnecting
-                      ? const CupertinoActivityIndicator(
-                          color: CupertinoColors.white,
-                        )
-                      : const Text('Connect'),
                 ),
-                const SizedBox(height: 12),
-                Text(
-                  'Create a long-lived access token from your Home '
-                  'Assistant profile page (bottom of the Security tab).',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: CupertinoColors.secondaryLabel.resolveFrom(context),
-                  ),
-                ),
-              ],
+              ),
             ),
           ),
-        ),
+        ],
       ),
     );
   }
@@ -190,6 +203,10 @@ class _ConnectScreenState extends ConsumerState<ConnectScreen> {
       children: [
         for (final server in _discovered)
           CupertinoListTile(
+            leading: const IconBadge(
+              icon: CupertinoIcons.house_fill,
+              color: CupertinoColors.systemBlue,
+            ),
             title: Text(server.name),
             subtitle: Text(server.baseUrl),
             trailing: const CupertinoListTileChevron(),

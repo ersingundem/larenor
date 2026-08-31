@@ -5,5 +5,5 @@ import 'package:flutter/cupertino.dart';
 /// from the platform brightness, so no separate light/dark variant is
 /// needed here.
 const larenorCupertinoTheme = CupertinoThemeData(
-  primaryColor: CupertinoColors.activeBlue,
+  primaryColor: CupertinoColors.systemBlue,
 );

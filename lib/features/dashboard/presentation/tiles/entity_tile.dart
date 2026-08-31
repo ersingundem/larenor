@@ -1,6 +1,7 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../shared/theme/category_colors.dart';
 import '../../../ha_client/providers/ha_client_providers.dart';
 import '../../domain/tile_config.dart';
 import '../widgets/more_info_sheet.dart';
@@ -23,8 +24,15 @@ class EntityTile extends ConsumerWidget {
       );
     }
 
+    final categoryColor = categoryColorForDomain(
+      entity.domain,
+      deviceClass: entity.attributes['device_class'] as String?,
+    );
     final background = entity.isOn
-        ? CupertinoColors.activeBlue.withValues(alpha: 0.15)
+        ? CupertinoDynamicColor.resolve(
+            categoryColor,
+            context,
+          ).withValues(alpha: 0.15)
         : CupertinoColors.secondarySystemGroupedBackground.resolveFrom(context);
 
     return GestureDetector(
@@ -37,11 +45,7 @@ class EntityTile extends ConsumerWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Icon(
-                iconForEntity(entity),
-                size: 26,
-                color: CupertinoTheme.of(context).primaryColor,
-              ),
+              Icon(iconForEntity(entity), size: 26, color: categoryColor),
               Text(
                 entity.friendlyName,
                 maxLines: 2,

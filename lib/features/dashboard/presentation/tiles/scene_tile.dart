@@ -1,6 +1,7 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../shared/theme/category_colors.dart';
 import '../../../ha_client/providers/ha_client_providers.dart';
 import '../../domain/tile_config.dart';
 
@@ -31,7 +32,7 @@ class SceneTile extends ConsumerWidget {
               Icon(
                 CupertinoIcons.wand_stars,
                 size: 26,
-                color: CupertinoTheme.of(context).primaryColor,
+                color: categoryColorForDomain('scene'),
               ),
               Text(
                 name,

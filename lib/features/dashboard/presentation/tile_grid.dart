@@ -5,6 +5,15 @@ import '../domain/tile_config.dart';
 const double kGridCellSize = 110;
 const int kGridMaxColumns = 12;
 
+/// Column count and per-column pixel size for a grid of [kGridCellSize]-ish
+/// cells that fits within [maxWidth] — shared by [TileGrid]'s own layout
+/// and by the drag-and-drop drop-target math in `dashboard_screen.dart`,
+/// so both agree on where a given pixel offset lands in grid cells.
+({int columns, double cellSize}) gridMetricsForWidth(double maxWidth) {
+  final columns = (maxWidth / kGridCellSize).floor().clamp(1, kGridMaxColumns);
+  return (columns: columns, cellSize: maxWidth / columns);
+}
+
 /// A free-form, drag-to-move / drag-to-resize grid of dashboard tiles.
 ///
 /// Positions and sizes are expressed in grid cells (not pixels) so the
@@ -49,11 +58,9 @@ class _TileGridState extends State<TileGrid> {
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final columns = (constraints.maxWidth / kGridCellSize).floor().clamp(
-          1,
-          kGridMaxColumns,
-        );
-        final cellSize = constraints.maxWidth / columns;
+        final metrics = gridMetricsForWidth(constraints.maxWidth);
+        final columns = metrics.columns;
+        final cellSize = metrics.cellSize;
         final height = _rowCount * cellSize;
 
         return SingleChildScrollView(

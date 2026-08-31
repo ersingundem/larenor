@@ -35,6 +35,7 @@ import '../data/app_service.dart';
 import '../providers/enabled_services_providers.dart';
 import '../providers/settings_providers.dart';
 import 'manage_integrations_screen.dart';
+import '../../../shared/widgets/icon_badge.dart';
 
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
@@ -59,6 +60,7 @@ class SettingsScreen extends ConsumerWidget {
       ))
         _AdminRow(
           icon: CupertinoIcons.play_rectangle,
+          color: CupertinoColors.systemPurple,
           title: 'Jellyfin',
           builder: (_) => const JellyfinHomeScreen(),
         ),
@@ -68,6 +70,7 @@ class SettingsScreen extends ConsumerWidget {
       ))
         _AdminRow(
           icon: CupertinoIcons.search,
+          color: CupertinoColors.systemBlue,
           title: 'Jellyseerr',
           builder: (_) => const JellyseerrHomeScreen(),
         ),
@@ -77,6 +80,7 @@ class SettingsScreen extends ConsumerWidget {
       ))
         _AdminRow(
           icon: CupertinoIcons.tv,
+          color: CupertinoColors.systemIndigo,
           title: 'Sonarr',
           builder: (_) => const SonarrScreen(),
         ),
@@ -86,6 +90,7 @@ class SettingsScreen extends ConsumerWidget {
       ))
         _AdminRow(
           icon: CupertinoIcons.film,
+          color: CupertinoColors.systemYellow,
           title: 'Radarr',
           builder: (_) => const RadarrScreen(),
         ),
@@ -95,6 +100,7 @@ class SettingsScreen extends ConsumerWidget {
       ))
         _AdminRow(
           icon: CupertinoIcons.music_note,
+          color: CupertinoColors.systemGreen,
           title: 'Lidarr',
           builder: (_) => const LidarrScreen(),
         ),
@@ -104,6 +110,7 @@ class SettingsScreen extends ConsumerWidget {
       ))
         _AdminRow(
           icon: CupertinoIcons.book,
+          color: CupertinoColors.systemOrange,
           title: 'Readarr',
           builder: (_) => const ReadarrScreen(),
         ),
@@ -113,6 +120,7 @@ class SettingsScreen extends ConsumerWidget {
       ))
         _AdminRow(
           icon: CupertinoIcons.captions_bubble,
+          color: CupertinoColors.systemTeal,
           title: 'Bazarr',
           builder: (_) => const BazarrHomeScreen(),
         ),
@@ -122,6 +130,7 @@ class SettingsScreen extends ConsumerWidget {
       ))
         _AdminRow(
           icon: CupertinoIcons.dot_radiowaves_left_right,
+          color: CupertinoColors.systemOrange,
           title: 'Prowlarr',
           builder: (_) => const ProwlarrIndexersScreen(),
         ),
@@ -131,6 +140,7 @@ class SettingsScreen extends ConsumerWidget {
       ))
         _AdminRow(
           icon: CupertinoIcons.arrow_down_circle,
+          color: CupertinoColors.systemBlue,
           title: 'qBittorrent',
           builder: (_) => const QbittorrentTorrentsScreen(),
         ),
@@ -140,6 +150,7 @@ class SettingsScreen extends ConsumerWidget {
       ))
         _AdminRow(
           icon: CupertinoIcons.square_stack_3d_up,
+          color: CupertinoColors.systemOrange,
           title: 'Proxmox',
           builder: (_) => const ProxmoxNodesScreen(),
         ),
@@ -149,215 +160,254 @@ class SettingsScreen extends ConsumerWidget {
       ))
         _AdminRow(
           icon: CupertinoIcons.wifi,
+          color: CupertinoColors.systemGreen,
           title: 'Keenetic',
           builder: (_) => const KeeneticHomeScreen(),
         ),
     ];
 
     return CupertinoPageScaffold(
-      navigationBar: const CupertinoNavigationBar(middle: Text('Settings')),
-      child: SafeArea(
-        child: ListView(
-          children: [
-            const SizedBox(height: 16),
-            CupertinoListSection.insetGrouped(
-              header: const Text('CONNECTION'),
-              children: [
-                CupertinoListTile(
-                  leading: const Icon(CupertinoIcons.house),
-                  title: const Text('Home Assistant server'),
-                  additionalInfo: Text(config?.baseUrl ?? 'Not connected'),
-                ),
-              ],
-            ),
-            CupertinoListSection.insetGrouped(
-              header: const Text('DISPLAY'),
-              children: [
-                CupertinoListTile(
-                  leading: const Icon(CupertinoIcons.brightness),
-                  title: const Text('Keep screen on'),
-                  subtitle: const Text('Recommended for wall-mounted tablets'),
-                  trailing: CupertinoSwitch(
-                    value: keepScreenOn.value ?? false,
-                    onChanged: (value) =>
-                        ref.read(keepScreenOnProvider.notifier).set(value),
-                  ),
-                ),
-                if (idleMode != null) ...[
-                  CupertinoListTile(
-                    leading: const Icon(CupertinoIcons.moon_stars),
-                    title: const Text('Idle/ambient mode'),
-                    subtitle: const Text(
-                      'Show a clock screen after inactivity',
-                    ),
-                    trailing: CupertinoSwitch(
-                      value: idleMode.enabled,
-                      onChanged: (value) =>
-                          ref.read(idleModeProvider.notifier).setEnabled(value),
-                    ),
-                  ),
-                  if (idleMode.enabled)
+      child: CustomScrollView(
+        slivers: [
+          const CupertinoSliverNavigationBar(largeTitle: Text('Settings')),
+          SliverSafeArea(
+            top: false,
+            sliver: SliverList(
+              delegate: SliverChildListDelegate([
+                const SizedBox(height: 16),
+                CupertinoListSection.insetGrouped(
+                  header: const Text('CONNECTION'),
+                  children: [
                     CupertinoListTile(
-                      title: const Text('After'),
-                      additionalInfo: Text('${idleMode.timeoutMinutes} min'),
-                      trailing: const CupertinoListTileChevron(),
-                      onTap: () => _showTimeoutPicker(context, ref, idleMode),
+                      leading: const IconBadge(
+                        icon: CupertinoIcons.house_fill,
+                        color: CupertinoColors.systemBlue,
+                      ),
+                      title: const Text('Home Assistant server'),
+                      additionalInfo: Text(config?.baseUrl ?? 'Not connected'),
                     ),
-                ],
-              ],
-            ),
-            if (nightWindow != null)
-              CupertinoListSection.insetGrouped(
-                header: const Text('NIGHT MODE'),
-                footer: const Text(
-                  'A shared overnight window used to dim the screen and/or '
-                  'let it turn off, like a day/night theme.',
+                  ],
                 ),
-                children: [
-                  CupertinoListTile(
-                    title: const Text('Starts'),
-                    additionalInfo: Text(
-                      _formatMinutes(nightWindow.startMinutes),
-                    ),
-                    trailing: const CupertinoListTileChevron(),
-                    onTap: () => _pickTime(
-                      context,
-                      ref,
-                      initialMinutes: nightWindow.startMinutes,
-                      onPicked: (minutes) => ref
-                          .read(nightWindowProvider.notifier)
-                          .setStartMinutes(minutes),
-                    ),
-                  ),
-                  CupertinoListTile(
-                    title: const Text('Ends'),
-                    additionalInfo: Text(
-                      _formatMinutes(nightWindow.endMinutes),
-                    ),
-                    trailing: const CupertinoListTileChevron(),
-                    onTap: () => _pickTime(
-                      context,
-                      ref,
-                      initialMinutes: nightWindow.endMinutes,
-                      onPicked: (minutes) => ref
-                          .read(nightWindowProvider.notifier)
-                          .setEndMinutes(minutes),
-                    ),
-                  ),
-                  CupertinoListTile(
-                    title: const Text('Dim screen at night'),
-                    trailing: CupertinoSwitch(
-                      value: nightWindow.dimBrightnessAtNight,
-                      onChanged: (value) => ref
-                          .read(nightWindowProvider.notifier)
-                          .setDimBrightnessAtNight(value),
-                    ),
-                  ),
-                  CupertinoListTile(
-                    title: const Text('Turn screen off at night'),
-                    subtitle: const Text(
-                      'Overrides "Keep screen on" overnight',
-                    ),
-                    trailing: CupertinoSwitch(
-                      value: nightWindow.screenOffAtNight,
-                      onChanged: (value) => ref
-                          .read(nightWindowProvider.notifier)
-                          .setScreenOffAtNight(value),
-                    ),
-                  ),
-                ],
-              ),
-            CupertinoListSection.insetGrouped(
-              header: const Text('SECURITY'),
-              footer: Text(
-                pin == null
-                    ? 'No PIN set — Settings is open to anyone using this device.'
-                    : 'Settings is locked behind a PIN.',
-              ),
-              children: [
-                CupertinoListTile(
-                  leading: const Icon(CupertinoIcons.lock),
-                  title: Text(pin == null ? 'Set PIN' : 'Change PIN'),
-                  onTap: () => _showSetPinDialog(context, ref),
-                ),
-                if (pin != null)
-                  CupertinoListTile(
-                    leading: const Icon(CupertinoIcons.lock_open),
-                    title: const Text('Remove PIN'),
-                    onTap: () => ref.read(pinLockProvider.notifier).clearPin(),
-                  ),
-              ],
-            ),
-            CupertinoListSection.insetGrouped(
-              header: const Text('MANAGE HOME ASSISTANT'),
-              children: [
-                _AdminRow(
-                  icon: CupertinoIcons.cube_box,
-                  title: 'Integrations',
-                  builder: (_) => const IntegrationsScreen(),
-                ),
-                _AdminRow(
-                  icon: CupertinoIcons.device_laptop,
-                  title: 'Devices',
-                  builder: (_) => const DevicesScreen(),
-                ),
-                _AdminRow(
-                  icon: CupertinoIcons.square_grid_2x2,
-                  title: 'Areas',
-                  builder: (_) => const AreasScreen(),
-                ),
-                _AdminRow(
-                  icon: CupertinoIcons.list_bullet,
-                  title: 'Entities',
-                  builder: (_) => const EntitiesScreen(),
-                ),
-                _AdminRow(
-                  icon: CupertinoIcons.bolt,
-                  title: 'Automations',
-                  builder: (_) => const AutomationsScreen(),
-                ),
-                _AdminRow(
-                  icon: CupertinoIcons.videocam,
-                  title: 'Cameras',
-                  builder: (_) => const CamerasScreen(),
-                ),
-              ],
-            ),
-            CupertinoListSection.insetGrouped(
-              header: const Text('INTEGRATIONS'),
-              footer: const Text(
-                'Only services you\'ve turned on and connected show up here — '
-                'manage them all from Manage Integrations.',
-              ),
-              children: [
-                ...integrationRows,
-                _AdminRow(
-                  icon: CupertinoIcons.slider_horizontal_3,
-                  title: 'Manage Integrations',
-                  builder: (_) => const ManageIntegrationsScreen(),
-                ),
-              ],
-            ),
-            CupertinoListSection.insetGrouped(
-              children: [
-                CupertinoListTile(
-                  title: Center(
-                    child: Text(
-                      'Sign out',
-                      style: TextStyle(
-                        color: CupertinoColors.systemRed.resolveFrom(context),
+                CupertinoListSection.insetGrouped(
+                  header: const Text('DISPLAY'),
+                  children: [
+                    CupertinoListTile(
+                      leading: const IconBadge(
+                        icon: CupertinoIcons.brightness,
+                        color: CupertinoColors.systemYellow,
+                      ),
+                      title: const Text('Keep screen on'),
+                      subtitle: const Text(
+                        'Recommended for wall-mounted tablets',
+                      ),
+                      trailing: CupertinoSwitch(
+                        value: keepScreenOn.value ?? false,
+                        onChanged: (value) =>
+                            ref.read(keepScreenOnProvider.notifier).set(value),
                       ),
                     ),
-                  ),
-                  onTap: () async {
-                    await ref.read(connectionConfigProvider.notifier).signOut();
-                    if (context.mounted) context.go('/');
-                  },
+                    if (idleMode != null) ...[
+                      CupertinoListTile(
+                        leading: const IconBadge(
+                          icon: CupertinoIcons.moon_stars,
+                          color: CupertinoColors.systemIndigo,
+                        ),
+                        title: const Text('Idle/ambient mode'),
+                        subtitle: const Text(
+                          'Show a clock screen after inactivity',
+                        ),
+                        trailing: CupertinoSwitch(
+                          value: idleMode.enabled,
+                          onChanged: (value) => ref
+                              .read(idleModeProvider.notifier)
+                              .setEnabled(value),
+                        ),
+                      ),
+                      if (idleMode.enabled)
+                        CupertinoListTile(
+                          title: const Text('After'),
+                          additionalInfo: Text(
+                            '${idleMode.timeoutMinutes} min',
+                          ),
+                          trailing: const CupertinoListTileChevron(),
+                          onTap: () =>
+                              _showTimeoutPicker(context, ref, idleMode),
+                        ),
+                    ],
+                  ],
                 ),
-              ],
+                if (nightWindow != null)
+                  CupertinoListSection.insetGrouped(
+                    header: const Text('NIGHT MODE'),
+                    footer: const Text(
+                      'A shared overnight window used to dim the screen and/or '
+                      'let it turn off, like a day/night theme.',
+                    ),
+                    children: [
+                      CupertinoListTile(
+                        title: const Text('Starts'),
+                        additionalInfo: Text(
+                          _formatMinutes(nightWindow.startMinutes),
+                        ),
+                        trailing: const CupertinoListTileChevron(),
+                        onTap: () => _pickTime(
+                          context,
+                          ref,
+                          initialMinutes: nightWindow.startMinutes,
+                          onPicked: (minutes) => ref
+                              .read(nightWindowProvider.notifier)
+                              .setStartMinutes(minutes),
+                        ),
+                      ),
+                      CupertinoListTile(
+                        title: const Text('Ends'),
+                        additionalInfo: Text(
+                          _formatMinutes(nightWindow.endMinutes),
+                        ),
+                        trailing: const CupertinoListTileChevron(),
+                        onTap: () => _pickTime(
+                          context,
+                          ref,
+                          initialMinutes: nightWindow.endMinutes,
+                          onPicked: (minutes) => ref
+                              .read(nightWindowProvider.notifier)
+                              .setEndMinutes(minutes),
+                        ),
+                      ),
+                      CupertinoListTile(
+                        title: const Text('Dim screen at night'),
+                        trailing: CupertinoSwitch(
+                          value: nightWindow.dimBrightnessAtNight,
+                          onChanged: (value) => ref
+                              .read(nightWindowProvider.notifier)
+                              .setDimBrightnessAtNight(value),
+                        ),
+                      ),
+                      CupertinoListTile(
+                        title: const Text('Turn screen off at night'),
+                        subtitle: const Text(
+                          'Overrides "Keep screen on" overnight',
+                        ),
+                        trailing: CupertinoSwitch(
+                          value: nightWindow.screenOffAtNight,
+                          onChanged: (value) => ref
+                              .read(nightWindowProvider.notifier)
+                              .setScreenOffAtNight(value),
+                        ),
+                      ),
+                    ],
+                  ),
+                CupertinoListSection.insetGrouped(
+                  header: const Text('SECURITY'),
+                  footer: Text(
+                    pin == null
+                        ? 'No PIN set — Settings is open to anyone using this device.'
+                        : 'Settings is locked behind a PIN.',
+                  ),
+                  children: [
+                    CupertinoListTile(
+                      leading: const IconBadge(
+                        icon: CupertinoIcons.lock_fill,
+                        color: CupertinoColors.systemRed,
+                      ),
+                      title: Text(pin == null ? 'Set PIN' : 'Change PIN'),
+                      onTap: () => _showSetPinDialog(context, ref),
+                    ),
+                    if (pin != null)
+                      CupertinoListTile(
+                        leading: const IconBadge(
+                          icon: CupertinoIcons.lock_open_fill,
+                          color: CupertinoColors.systemGrey,
+                        ),
+                        title: const Text('Remove PIN'),
+                        onTap: () =>
+                            ref.read(pinLockProvider.notifier).clearPin(),
+                      ),
+                  ],
+                ),
+                CupertinoListSection.insetGrouped(
+                  header: const Text('MANAGE HOME ASSISTANT'),
+                  children: [
+                    _AdminRow(
+                      icon: CupertinoIcons.cube_box,
+                      color: CupertinoColors.systemBlue,
+                      title: 'Integrations',
+                      builder: (_) => const IntegrationsScreen(),
+                    ),
+                    _AdminRow(
+                      icon: CupertinoIcons.device_laptop,
+                      color: CupertinoColors.systemGrey,
+                      title: 'Devices',
+                      builder: (_) => const DevicesScreen(),
+                    ),
+                    _AdminRow(
+                      icon: CupertinoIcons.square_grid_2x2,
+                      color: CupertinoColors.systemGreen,
+                      title: 'Areas',
+                      builder: (_) => const AreasScreen(),
+                    ),
+                    _AdminRow(
+                      icon: CupertinoIcons.list_bullet,
+                      color: CupertinoColors.systemIndigo,
+                      title: 'Entities',
+                      builder: (_) => const EntitiesScreen(),
+                    ),
+                    _AdminRow(
+                      icon: CupertinoIcons.bolt,
+                      color: CupertinoColors.systemOrange,
+                      title: 'Automations',
+                      builder: (_) => const AutomationsScreen(),
+                    ),
+                    _AdminRow(
+                      icon: CupertinoIcons.videocam,
+                      color: CupertinoColors.systemPurple,
+                      title: 'Cameras',
+                      builder: (_) => const CamerasScreen(),
+                    ),
+                  ],
+                ),
+                CupertinoListSection.insetGrouped(
+                  header: const Text('INTEGRATIONS'),
+                  footer: const Text(
+                    'Only services you\'ve turned on and connected show up here — '
+                    'manage them all from Manage Integrations.',
+                  ),
+                  children: [
+                    ...integrationRows,
+                    _AdminRow(
+                      icon: CupertinoIcons.slider_horizontal_3,
+                      color: CupertinoColors.systemGrey,
+                      title: 'Manage Integrations',
+                      builder: (_) => const ManageIntegrationsScreen(),
+                    ),
+                  ],
+                ),
+                CupertinoListSection.insetGrouped(
+                  children: [
+                    CupertinoListTile(
+                      title: Center(
+                        child: Text(
+                          'Sign out',
+                          style: TextStyle(
+                            color: CupertinoColors.systemRed.resolveFrom(
+                              context,
+                            ),
+                          ),
+                        ),
+                      ),
+                      onTap: () async {
+                        await ref
+                            .read(connectionConfigProvider.notifier)
+                            .signOut();
+                        if (context.mounted) context.go('/');
+                      },
+                    ),
+                  ],
+                ),
+              ]),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -483,18 +533,20 @@ class SettingsScreen extends ConsumerWidget {
 class _AdminRow extends StatelessWidget {
   const _AdminRow({
     required this.icon,
+    required this.color,
     required this.title,
     required this.builder,
   });
 
   final IconData icon;
+  final Color color;
   final String title;
   final WidgetBuilder builder;
 
   @override
   Widget build(BuildContext context) {
     return CupertinoListTile(
-      leading: Icon(icon),
+      leading: IconBadge(icon: icon, color: color),
       title: Text(title),
       trailing: const CupertinoListTileChevron(),
       onTap: () =>
