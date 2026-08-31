@@ -25,6 +25,12 @@ abstract class HaEntity with _$HaEntity {
 
   bool get isOn => state == 'on';
 
-  bool get isToggleable =>
-      const {'light', 'switch', 'input_boolean', 'fan'}.contains(domain);
+  bool get isToggleable => const {
+    'light',
+    'switch',
+    'input_boolean',
+    'fan',
+    'humidifier',
+    'siren',
+  }.contains(domain);
 }

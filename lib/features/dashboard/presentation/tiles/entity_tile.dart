@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../ha_client/providers/ha_client_providers.dart';
 import '../../domain/tile_config.dart';
 import '../widgets/more_info_sheet.dart';
+import 'entity_icons.dart';
 
 class EntityTile extends ConsumerWidget {
   const EntityTile({super.key, required this.tile});
@@ -37,7 +38,7 @@ class EntityTile extends ConsumerWidget {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Icon(
-                _iconFor(entity.domain),
+                iconForEntity(entity),
                 size: 26,
                 color: CupertinoTheme.of(context).primaryColor,
               ),
@@ -78,28 +79,5 @@ class EntityTile extends ConsumerWidget {
         ),
       ),
     );
-  }
-
-  IconData _iconFor(String domain) {
-    switch (domain) {
-      case 'light':
-        return CupertinoIcons.lightbulb;
-      case 'switch':
-        return CupertinoIcons.power;
-      case 'sensor':
-        return CupertinoIcons.graph_circle;
-      case 'climate':
-        return CupertinoIcons.thermometer;
-      case 'fan':
-        return CupertinoIcons.wind;
-      case 'input_boolean':
-        return CupertinoIcons.checkmark_square;
-      case 'media_player':
-        return CupertinoIcons.play_circle;
-      case 'cover':
-        return CupertinoIcons.rectangle_split_3x1;
-      default:
-        return CupertinoIcons.square_grid_2x2;
-    }
   }
 }

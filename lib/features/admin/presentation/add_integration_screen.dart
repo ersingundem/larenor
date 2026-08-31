@@ -139,7 +139,11 @@ class _AddIntegrationScreenState extends ConsumerState<AddIntegrationScreen> {
           padding: EdgeInsets.symmetric(horizontal: 16),
           child: Text(
             'These are the raw integration domains your server can set up. '
-            'Pick the one matching what you want to add.',
+            'Pick the one matching what you want to add. Not every brand '
+            'ships with Home Assistant by default — some (e.g. Anker Solix, '
+            'SonoffLAN, richer Keenetic router control) need to be installed '
+            'via HACS in Home Assistant itself first; once installed there, '
+            'they\'ll show up here automatically.',
             style: TextStyle(
               fontSize: 12,
               color: CupertinoColors.secondaryLabel,
