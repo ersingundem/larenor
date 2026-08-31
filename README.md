@@ -65,9 +65,9 @@ rest of the app:
 
 ### Media stack
 
-Five independent, optional integrations for a self-hosted media server setup, each
-connected separately from its own row under Settings → Media Services — the app works
-fine with zero, some, or all five configured:
+Nine independent, optional integrations for a self-hosted media server setup — the app
+works fine with zero, some, or all of them configured (see "Integrations management"
+below for how they're toggled and surfaced):
 
 - **Jellyfin** — connect with a username/password, browse continue-watching/recently-
   added/libraries, and play through a built-in `media_kit` (libmpv) video player. The
@@ -94,8 +94,8 @@ fine with zero, some, or all five configured:
 
 ### Proxmox VE management
 
-Reachable from Settings → Infrastructure — full management of a self-hosted Proxmox VE
-server, independent of everything else in the app:
+Full management of a self-hosted Proxmox VE server, independent of everything else in
+the app:
 
 - Connect with host/port/realm/username/password (ticket-based session auth, the same
   model Proxmox's own web UI uses) and an "allow self-signed certificate" toggle, since
@@ -114,15 +114,31 @@ server, independent of everything else in the app:
 
 ### Keenetic router management
 
-Reachable from Settings → Infrastructure — a native client for Keenetic's unofficial
-RCI HTTP API, going further than Home Assistant's own Keenetic integration (which only
-exposes device-tracker presence):
+A native client for Keenetic's unofficial RCI HTTP API, going further than Home
+Assistant's own Keenetic integration (which only exposes device-tracker presence):
 
 - Connect with the router's admin URL and web-UI credentials (challenge/response
   session auth, the same model the router's own web interface uses).
 - Connected-devices list with live/offline status.
 - Wi-Fi access point list (including guest networks) with an enable/disable toggle.
 - Read-only port-forwarding/static-NAT rule list.
+
+### Integrations management & dashboard widgets
+
+All 11 optional integrations above (the 9 media services plus Proxmox and Keenetic)
+are managed from one place — Settings → Manage Integrations — rather than as a flat
+list, so the app stays uncluttered no matter how many services exist:
+
+- Each service has its own on/off switch. Turning one off only hides it — it keeps its
+  saved credentials, so turning it back on doesn't require reconnecting. Existing users
+  are seeded as enabled for whatever they already had connected.
+- The main Settings screen only shows a row for a service that's both switched on and
+  actually connected, so an unused integration never shows up there at all.
+- Every one of the 11 is also addable straight onto the dashboard as a live summary
+  tile (continue watching, upcoming releases, active torrents, node CPU/RAM, connected
+  devices, etc.) via a "Service widget" entry in the add-tile menu — no per-tile setup,
+  since each tile just reads the service's existing app-wide connection. Tapping a tile
+  opens that service's full screen.
 
 ## Status
 
