@@ -1,7 +1,7 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:oikos/features/dashboard/domain/tile_config.dart';
-import 'package:oikos/features/dashboard/presentation/tile_grid.dart';
+import 'package:larenor/features/dashboard/domain/tile_config.dart';
+import 'package:larenor/features/dashboard/presentation/tile_grid.dart';
 
 void main() {
   const tile = TileConfig(

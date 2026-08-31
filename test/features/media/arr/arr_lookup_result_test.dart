@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:oikos/features/media/arr/data/models/arr_lookup_result.dart';
+import 'package:larenor/features/media/arr/data/models/arr_lookup_result.dart';
 
 void main() {
   test('parses using the given idFieldName (tvdbId for Sonarr)', () {

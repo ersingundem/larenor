@@ -4,6 +4,6 @@ import 'package:flutter/cupertino.dart';
 /// [CupertinoColors.systemBackground]) resolve to light/dark automatically
 /// from the platform brightness, so no separate light/dark variant is
 /// needed here.
-const oikosCupertinoTheme = CupertinoThemeData(
+const larenorCupertinoTheme = CupertinoThemeData(
   primaryColor: CupertinoColors.activeBlue,
 );

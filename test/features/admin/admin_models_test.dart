@@ -1,9 +1,9 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:oikos/features/admin/data/models/config_entry.dart';
-import 'package:oikos/features/admin/data/models/flow_step.dart';
-import 'package:oikos/features/admin/data/models/ha_area.dart';
-import 'package:oikos/features/admin/data/models/ha_device.dart';
-import 'package:oikos/features/admin/data/models/ha_registry_entry.dart';
+import 'package:larenor/features/admin/data/models/config_entry.dart';
+import 'package:larenor/features/admin/data/models/flow_step.dart';
+import 'package:larenor/features/admin/data/models/ha_area.dart';
+import 'package:larenor/features/admin/data/models/ha_device.dart';
+import 'package:larenor/features/admin/data/models/ha_registry_entry.dart';
 
 void main() {
   test('ConfigEntry.fromJson maps snake_case fields', () {

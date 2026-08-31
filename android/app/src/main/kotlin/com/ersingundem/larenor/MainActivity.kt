@@ -1,4 +1,4 @@
-package com.ersingundem.oikos
+package com.ersingundem.larenor
 
 import io.flutter.embedding.android.FlutterActivity
 

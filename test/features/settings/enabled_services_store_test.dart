@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:oikos/features/settings/data/app_service.dart';
-import 'package:oikos/features/settings/data/enabled_services_store.dart';
+import 'package:larenor/features/settings/data/app_service.dart';
+import 'package:larenor/features/settings/data/enabled_services_store.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {

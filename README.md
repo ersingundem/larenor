@@ -1,6 +1,6 @@
-# Oikos
+# Larenor
 
-A private, custom Home Assistant companion app built with Flutter. Oikos connects to
+A private, custom Home Assistant companion app built with Flutter. Larenor connects to
 an existing self-hosted Home Assistant server over its REST and WebSocket APIs and
 turns an Android tablet into a modern, drag-and-drop wall panel — plus an in-app admin
 panel and a built-in media center for a self-hosted Jellyfin/*arr/qBittorrent stack.

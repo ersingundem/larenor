@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:oikos/features/proxmox/data/models/proxmox_storage.dart';
+import 'package:larenor/features/proxmox/data/models/proxmox_storage.dart';
 
 void main() {
   test('parses content types and computes usedFraction', () {

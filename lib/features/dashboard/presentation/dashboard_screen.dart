@@ -96,7 +96,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
 
     return CupertinoPageScaffold(
       navigationBar: CupertinoNavigationBar(
-        middle: const Text('Oikos'),
+        middle: const Text('Larenor'),
         trailing: Row(
           mainAxisSize: MainAxisSize.min,
           children: [

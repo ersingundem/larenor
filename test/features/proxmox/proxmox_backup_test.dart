@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:oikos/features/proxmox/data/models/proxmox_backup.dart';
+import 'package:larenor/features/proxmox/data/models/proxmox_backup.dart';
 
 void main() {
   test('parses volid/vmid/size and converts ctime to a DateTime', () {

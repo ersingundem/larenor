@@ -52,7 +52,7 @@ class JellyfinCredentialsStore {
   Future<String> _ensureDeviceId() async {
     final existing = await _storage.read(key: _deviceIdKey);
     if (existing != null) return existing;
-    final generated = 'oikos-${DateTime.now().microsecondsSinceEpoch}';
+    final generated = 'larenor-${DateTime.now().microsecondsSinceEpoch}';
     await _storage.write(key: _deviceIdKey, value: generated);
     return generated;
   }

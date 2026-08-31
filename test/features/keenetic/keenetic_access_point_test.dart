@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:oikos/features/keenetic/data/models/keenetic_access_point.dart';
+import 'package:larenor/features/keenetic/data/models/keenetic_access_point.dart';
 
 void main() {
   test('name prefers description, then ssid, then id', () {

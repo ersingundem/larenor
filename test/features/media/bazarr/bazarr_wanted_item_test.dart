@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:oikos/features/media/bazarr/data/models/bazarr_wanted_item.dart';
+import 'package:larenor/features/media/bazarr/data/models/bazarr_wanted_item.dart';
 
 void main() {
   test('parses a movie wanted item with missing languages', () {

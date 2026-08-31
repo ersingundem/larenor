@@ -32,7 +32,7 @@ class JellyfinClient {
   final JellyfinConfig config;
   final http.Client _client;
 
-  static const _clientName = 'Oikos';
+  static const _clientName = 'Larenor';
   static const _clientVersion = '1.0.0';
 
   static String _authHeader({required String deviceId, String? token}) {

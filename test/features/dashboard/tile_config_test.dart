@@ -1,8 +1,8 @@
 import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:oikos/features/dashboard/domain/dashboard_layout.dart';
-import 'package:oikos/features/dashboard/domain/tile_config.dart';
+import 'package:larenor/features/dashboard/domain/dashboard_layout.dart';
+import 'package:larenor/features/dashboard/domain/tile_config.dart';
 
 void main() {
   test('DashboardLayout survives a JSON-string round trip', () {

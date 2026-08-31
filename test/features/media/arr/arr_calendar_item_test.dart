@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:oikos/features/media/arr/data/models/arr_calendar_item.dart';
+import 'package:larenor/features/media/arr/data/models/arr_calendar_item.dart';
 
 void main() {
   test('parses a Sonarr episode entry with a series title and S/E code', () {

@@ -3,10 +3,10 @@ import 'dart:convert';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
-import 'package:oikos/features/proxmox/data/proxmox_api_exception.dart';
-import 'package:oikos/features/proxmox/data/proxmox_client.dart';
-import 'package:oikos/features/proxmox/data/proxmox_config.dart';
-import 'package:oikos/features/proxmox/data/models/proxmox_guest.dart';
+import 'package:larenor/features/proxmox/data/proxmox_api_exception.dart';
+import 'package:larenor/features/proxmox/data/proxmox_client.dart';
+import 'package:larenor/features/proxmox/data/proxmox_config.dart';
+import 'package:larenor/features/proxmox/data/models/proxmox_guest.dart';
 
 void main() {
   const config = ProxmoxConfig(

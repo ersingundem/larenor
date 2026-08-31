@@ -1,6 +1,6 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:oikos/features/dashboard/presentation/tiles/service_tile_shell.dart';
+import 'package:larenor/features/dashboard/presentation/tiles/service_tile_shell.dart';
 
 void main() {
   testWidgets('shows a "Not connected" placeholder when not connected', (

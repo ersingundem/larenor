@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:oikos/features/keenetic/data/models/keenetic_port_forward.dart';
+import 'package:larenor/features/keenetic/data/models/keenetic_port_forward.dart';
 
 void main() {
   test('label prefers a non-empty comment', () {

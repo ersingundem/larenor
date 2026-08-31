@@ -1,7 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:oikos/features/admin/data/models/ha_registry_entry.dart';
-import 'package:oikos/features/admin/providers/admin_providers.dart';
-import 'package:oikos/features/ha_client/data/models/ha_entity.dart';
+import 'package:larenor/features/admin/data/models/ha_registry_entry.dart';
+import 'package:larenor/features/admin/providers/admin_providers.dart';
+import 'package:larenor/features/ha_client/data/models/ha_entity.dart';
 
 void main() {
   test('resolves automationId from the matching registry entry', () {

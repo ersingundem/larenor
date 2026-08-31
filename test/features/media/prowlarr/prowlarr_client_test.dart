@@ -3,10 +3,10 @@ import 'dart:convert';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
-import 'package:oikos/features/media/data/media_api_exception.dart';
-import 'package:oikos/features/media/prowlarr/data/models/prowlarr_indexer.dart';
-import 'package:oikos/features/media/prowlarr/data/prowlarr_client.dart';
-import 'package:oikos/features/media/prowlarr/data/prowlarr_config.dart';
+import 'package:larenor/features/media/data/media_api_exception.dart';
+import 'package:larenor/features/media/prowlarr/data/models/prowlarr_indexer.dart';
+import 'package:larenor/features/media/prowlarr/data/prowlarr_client.dart';
+import 'package:larenor/features/media/prowlarr/data/prowlarr_config.dart';
 
 void main() {
   const config = ProwlarrConfig(

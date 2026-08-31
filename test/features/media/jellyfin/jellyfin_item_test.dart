@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:oikos/features/media/jellyfin/data/models/jellyfin_item.dart';
+import 'package:larenor/features/media/jellyfin/data/models/jellyfin_item.dart';
 
 void main() {
   test('parses PascalCase Jellyfin fields', () {

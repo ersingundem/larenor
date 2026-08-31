@@ -4,9 +4,9 @@ import 'package:crypto/crypto.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
-import 'package:oikos/features/keenetic/data/keenetic_api_exception.dart';
-import 'package:oikos/features/keenetic/data/keenetic_client.dart';
-import 'package:oikos/features/keenetic/data/keenetic_config.dart';
+import 'package:larenor/features/keenetic/data/keenetic_api_exception.dart';
+import 'package:larenor/features/keenetic/data/keenetic_client.dart';
+import 'package:larenor/features/keenetic/data/keenetic_config.dart';
 
 void main() {
   const config = KeeneticConfig(

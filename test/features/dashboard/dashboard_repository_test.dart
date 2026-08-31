@@ -1,7 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:oikos/features/dashboard/data/dashboard_repository.dart';
-import 'package:oikos/features/dashboard/domain/dashboard_layout.dart';
-import 'package:oikos/features/dashboard/domain/tile_config.dart';
+import 'package:larenor/features/dashboard/data/dashboard_repository.dart';
+import 'package:larenor/features/dashboard/domain/dashboard_layout.dart';
+import 'package:larenor/features/dashboard/domain/tile_config.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {

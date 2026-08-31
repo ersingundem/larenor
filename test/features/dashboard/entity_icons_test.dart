@@ -1,7 +1,7 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:oikos/features/dashboard/presentation/tiles/entity_icons.dart';
-import 'package:oikos/features/ha_client/data/models/ha_entity.dart';
+import 'package:larenor/features/dashboard/presentation/tiles/entity_icons.dart';
+import 'package:larenor/features/ha_client/data/models/ha_entity.dart';
 
 HaEntity _entity({
   required String entityId,

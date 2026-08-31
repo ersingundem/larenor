@@ -16,7 +16,7 @@
   var term = new Terminal({ cursorBlink: true, convertEol: true, fontSize: 14 });
   term.open(document.getElementById('term'));
 
-  window.oikosConnect = function (url) {
+  window.larenorConnect = function (url) {
     var ws = new WebSocket(url);
     ws.binaryType = 'arraybuffer';
 

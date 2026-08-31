@@ -1,9 +1,9 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:oikos/features/admin/data/models/ha_area.dart';
-import 'package:oikos/features/admin/presentation/areas_screen.dart';
-import 'package:oikos/features/admin/providers/admin_providers.dart';
+import 'package:larenor/features/admin/data/models/ha_area.dart';
+import 'package:larenor/features/admin/presentation/areas_screen.dart';
+import 'package:larenor/features/admin/providers/admin_providers.dart';
 
 void main() {
   testWidgets('renders areas from the provider without hitting the network', (

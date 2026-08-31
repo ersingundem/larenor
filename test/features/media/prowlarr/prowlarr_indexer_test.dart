@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:oikos/features/media/prowlarr/data/models/prowlarr_indexer.dart';
+import 'package:larenor/features/media/prowlarr/data/models/prowlarr_indexer.dart';
 
 void main() {
   test('parses indexer fields and keeps the raw JSON', () {

@@ -17,12 +17,12 @@
 
   const statusEl = document.getElementById('status');
 
-  window.oikosConnect = function (url) {
+  window.larenorConnect = function (url) {
     const target = document.getElementById('screen');
     const rfb = new RFB(target, url, { credentials: {} });
     rfb.scaleViewport = true;
     rfb.resizeSession = true;
-    window._oikosRfb = rfb;
+    window._larenorRfb = rfb;
 
     rfb.addEventListener('connect', () => { statusEl.style.display = 'none'; });
     rfb.addEventListener('disconnect', () => {

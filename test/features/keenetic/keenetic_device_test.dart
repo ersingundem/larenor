@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:oikos/features/keenetic/data/models/keenetic_device.dart';
+import 'package:larenor/features/keenetic/data/models/keenetic_device.dart';
 
 void main() {
   test('parses name, falling back to hostname then mac', () {

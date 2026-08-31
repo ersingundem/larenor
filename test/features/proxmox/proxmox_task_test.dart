@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:oikos/features/proxmox/data/models/proxmox_task.dart';
+import 'package:larenor/features/proxmox/data/models/proxmox_task.dart';
 
 void main() {
   test('a task with no status field is still running', () {

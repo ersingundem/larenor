@@ -6,5 +6,5 @@ import 'app.dart';
 
 void main() {
   MediaKit.ensureInitialized();
-  runApp(const ProviderScope(child: OikosApp()));
+  runApp(const ProviderScope(child: LarenorApp()));
 }

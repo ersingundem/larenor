@@ -3,9 +3,9 @@ import 'dart:convert';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
-import 'package:oikos/features/media/data/media_api_exception.dart';
-import 'package:oikos/features/media/jellyfin/data/jellyfin_client.dart';
-import 'package:oikos/features/media/jellyfin/data/jellyfin_config.dart';
+import 'package:larenor/features/media/data/media_api_exception.dart';
+import 'package:larenor/features/media/jellyfin/data/jellyfin_client.dart';
+import 'package:larenor/features/media/jellyfin/data/jellyfin_config.dart';
 
 void main() {
   const baseUrl = 'http://jellyfin.local:8096';

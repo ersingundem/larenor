@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:oikos/features/media/arr/data/models/arr_queue_item.dart';
+import 'package:larenor/features/media/arr/data/models/arr_queue_item.dart';
 
 void main() {
   test('computes progressFraction from size and sizeleft', () {

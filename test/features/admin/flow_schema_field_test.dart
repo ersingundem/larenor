@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:oikos/features/admin/data/models/flow_schema_field.dart';
+import 'package:larenor/features/admin/data/models/flow_schema_field.dart';
 
 void main() {
   group('legacy `type`-based fields', () {

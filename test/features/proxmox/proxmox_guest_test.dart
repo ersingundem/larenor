@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:oikos/features/proxmox/data/models/proxmox_guest.dart';
+import 'package:larenor/features/proxmox/data/models/proxmox_guest.dart';
 
 void main() {
   test('parses a running qemu guest', () {

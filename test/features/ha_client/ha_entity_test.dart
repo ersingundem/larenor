@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:oikos/features/ha_client/data/models/ha_entity.dart';
+import 'package:larenor/features/ha_client/data/models/ha_entity.dart';
 
 void main() {
   final json = {

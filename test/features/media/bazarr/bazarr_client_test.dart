@@ -3,9 +3,9 @@ import 'dart:convert';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
-import 'package:oikos/features/media/bazarr/data/bazarr_client.dart';
-import 'package:oikos/features/media/bazarr/data/bazarr_config.dart';
-import 'package:oikos/features/media/data/media_api_exception.dart';
+import 'package:larenor/features/media/bazarr/data/bazarr_client.dart';
+import 'package:larenor/features/media/bazarr/data/bazarr_config.dart';
+import 'package:larenor/features/media/data/media_api_exception.dart';
 
 void main() {
   const config = BazarrConfig(

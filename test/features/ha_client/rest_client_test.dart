@@ -3,8 +3,8 @@ import 'dart:convert';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
-import 'package:oikos/features/ha_client/data/ha_api_exception.dart';
-import 'package:oikos/features/ha_client/data/rest_client.dart';
+import 'package:larenor/features/ha_client/data/ha_api_exception.dart';
+import 'package:larenor/features/ha_client/data/rest_client.dart';
 
 void main() {
   const baseUrl = 'http://homeassistant.local:8123';

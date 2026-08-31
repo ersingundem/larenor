@@ -3,9 +3,9 @@ import 'dart:convert';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
-import 'package:oikos/features/media/arr/data/arr_client.dart';
-import 'package:oikos/features/media/arr/data/arr_config.dart';
-import 'package:oikos/features/media/arr/data/models/arr_lookup_result.dart';
+import 'package:larenor/features/media/arr/data/arr_client.dart';
+import 'package:larenor/features/media/arr/data/arr_config.dart';
+import 'package:larenor/features/media/arr/data/models/arr_lookup_result.dart';
 
 void main() {
   const config = ArrConfig(baseUrl: 'http://lidarr.local:8686', apiKey: 'k1');

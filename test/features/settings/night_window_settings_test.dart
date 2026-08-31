@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:oikos/features/settings/providers/settings_providers.dart';
+import 'package:larenor/features/settings/providers/settings_providers.dart';
 
 void main() {
   group('same-day window (e.g. 09:00 -> 17:00)', () {

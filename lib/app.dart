@@ -6,17 +6,17 @@ import 'core/theme.dart';
 import 'features/settings/presentation/idle_gate.dart';
 import 'features/settings/presentation/screen_policy_runner.dart';
 
-class OikosApp extends ConsumerWidget {
-  const OikosApp({super.key});
+class LarenorApp extends ConsumerWidget {
+  const LarenorApp({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final router = ref.watch(routerProvider);
 
     return CupertinoApp.router(
-      title: 'Oikos',
+      title: 'Larenor',
       debugShowCheckedModeBanner: false,
-      theme: oikosCupertinoTheme,
+      theme: larenorCupertinoTheme,
       routerConfig: router,
       builder: (context, child) => ScreenPolicyRunner(
         child: IdleGate(child: child ?? const SizedBox.shrink()),

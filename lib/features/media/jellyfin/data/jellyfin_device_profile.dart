@@ -5,7 +5,7 @@
 /// player, so this profile is intentionally generous.
 Map<String, dynamic> buildJellyfinDeviceProfile() {
   return {
-    'Name': 'Oikos',
+    'Name': 'Larenor',
     'MaxStreamingBitrate': 120000000,
     'DirectPlayProfiles': [
       {

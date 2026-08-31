@@ -83,13 +83,15 @@ class _ProxmoxConsoleScreenState extends ConsumerState<ProxmoxConsoleScreen> {
 
     for (var attempt = 0; attempt < 15; attempt++) {
       final ready = await _controller.runJavaScriptReturningResult(
-        'typeof window.oikosConnect === "function"',
+        'typeof window.larenorConnect === "function"',
       );
       if ('$ready' == 'true') break;
       await Future.delayed(const Duration(milliseconds: 200));
     }
 
-    await _controller.runJavaScript('window.oikosConnect(${jsonEncode(url)});');
+    await _controller.runJavaScript(
+      'window.larenorConnect(${jsonEncode(url)});',
+    );
     if (mounted) setState(() => _loading = false);
   }
 

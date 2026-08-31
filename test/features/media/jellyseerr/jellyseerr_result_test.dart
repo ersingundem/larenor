@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:oikos/features/media/jellyseerr/data/models/jellyseerr_result.dart';
+import 'package:larenor/features/media/jellyseerr/data/models/jellyseerr_result.dart';
 
 void main() {
   group('JellyseerrMediaStatus.fromCode', () {
