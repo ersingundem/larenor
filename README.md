@@ -85,15 +85,36 @@ fine with zero, some, or all five configured:
   progress/speed/state, pause/resume/delete; add torrents via a pasted magnet link or
   by uploading a `.torrent` file from the device.
 
+### Proxmox VE management
+
+Reachable from Settings → Infrastructure — full management of a self-hosted Proxmox VE
+server, independent of everything else in the app:
+
+- Connect with host/port/realm/username/password (ticket-based session auth, the same
+  model Proxmox's own web UI uses) and an "allow self-signed certificate" toggle, since
+  a fresh Proxmox install ships one by default.
+- Node list with CPU/RAM/disk usage bars, drilling into each node's VMs, containers,
+  and storage.
+- Power control — start/shutdown/stop/reboot/suspend/resume — through a status-aware
+  action sheet that only shows actions valid for the guest's current state.
+- Guest detail/edit screen: structured fields for name/hostname, CPU cores, memory, and
+  start-on-boot, plus every other config key as a raw editable field.
+- Create a new VM or container by cloning an existing template, with a target-storage
+  picker and live task-progress polling.
+- Storage and backup browsing, with an on-demand "back up now" action.
+- An embedded interactive console — noVNC for VMs, xterm.js for containers — running
+  inside a WebView against Proxmox's console WebSocket endpoints.
+
 ## Status
 
-Actively developed. Core dashboard, HA admin panel, kiosk/wall-panel behavior, and the
-Jellyfin/Jellyseerr/Sonarr/Radarr/qBittorrent media stack are all implemented and
-covered by CI (static analysis, unit/widget tests, debug Android build). Deferred for
-later: OAuth2/PKCE login, true kiosk lock-task mode, push notifications, an Assist
-voice satellite, multi-profile/guest-mode dashboards, room-based dashboard tabs, a
-theme editor, and iOS build/signing (Apple does not allow third-party home-screen
-launchers, so the eventual iOS build will be a single-app kiosk, not a true launcher).
+Actively developed. Core dashboard, HA admin panel, kiosk/wall-panel behavior, the
+Jellyfin/Jellyseerr/Sonarr/Radarr/qBittorrent media stack, and Proxmox VE management
+are all implemented and covered by CI (static analysis, unit/widget tests, debug
+Android build). Deferred for later: OAuth2/PKCE login, true kiosk lock-task mode, push
+notifications, an Assist voice satellite, multi-profile/guest-mode dashboards,
+room-based dashboard tabs, a theme editor, and iOS build/signing (Apple does not allow
+third-party home-screen launchers, so the eventual iOS build will be a single-app
+kiosk, not a true launcher).
 
 ## Development setup (macOS)
 
