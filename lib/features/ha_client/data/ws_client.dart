@@ -3,6 +3,7 @@ import 'dart:convert';
 
 import 'package:web_socket_channel/web_socket_channel.dart';
 
+import 'ha_api_exception.dart';
 import 'models/ha_entity.dart';
 
 enum HaConnectionStatus { connecting, connected, disconnected }
@@ -27,9 +28,27 @@ class HaWebSocketClient {
 
   final _entityController = StreamController<HaEntity>.broadcast();
   final _statusController = StreamController<HaConnectionStatus>.broadcast();
+  final _pendingCommands = <int, Completer<dynamic>>{};
 
   Stream<HaEntity> get entityUpdates => _entityController.stream;
   Stream<HaConnectionStatus> get status => _statusController.stream;
+
+  /// Sends an arbitrary command (e.g. `config/device_registry/list`) and
+  /// resolves with its `result` payload once the matching response arrives.
+  Future<dynamic> sendCommand(Map<String, dynamic> command) {
+    final id = _messageId++;
+    final completer = Completer<dynamic>();
+    _pendingCommands[id] = completer;
+    _send({...command, 'id': id});
+
+    return completer.future.timeout(
+      const Duration(seconds: 15),
+      onTimeout: () {
+        _pendingCommands.remove(id);
+        throw HaApiException('Timed out waiting for a response.');
+      },
+    );
+  }
 
   static String _toWsUrl(String baseUrl) {
     final uri = Uri.parse(baseUrl);
@@ -70,6 +89,23 @@ class HaWebSocketClient {
         _channel?.sink.close();
       case 'event':
         _handleEvent(message);
+      case 'result':
+        _handleResult(message);
+    }
+  }
+
+  void _handleResult(Map<String, dynamic> message) {
+    final id = message['id'] as int?;
+    final completer = id == null ? null : _pendingCommands.remove(id);
+    if (completer == null) return;
+
+    if (message['success'] == true) {
+      completer.complete(message['result']);
+    } else {
+      final error = message['error'] as Map<String, dynamic>?;
+      completer.completeError(
+        HaApiException(error?['message'] as String? ?? 'Command failed.'),
+      );
     }
   }
 
@@ -104,5 +140,11 @@ class HaWebSocketClient {
     _channel?.sink.close();
     _entityController.close();
     _statusController.close();
+    for (final completer in _pendingCommands.values) {
+      if (!completer.isCompleted) {
+        completer.completeError(HaApiException('Connection closed.'));
+      }
+    }
+    _pendingCommands.clear();
   }
 }

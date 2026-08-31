@@ -83,5 +83,37 @@ class HaRestClient {
     }
   }
 
+  /// Generic GET returning the decoded JSON body (a `Map` or `List`
+  /// depending on the endpoint). Used by admin/config endpoints that aren't
+  /// worth a bespoke method each.
+  Future<dynamic> getJson(String path) async {
+    final response = await _client
+        .get(_uri(path), headers: _headers)
+        .timeout(const Duration(seconds: 15));
+    return _decodeOrThrow(response, path);
+  }
+
+  Future<dynamic> postJson(String path, [Map<String, dynamic>? body]) async {
+    final response = await _client
+        .post(_uri(path), headers: _headers, body: jsonEncode(body ?? {}))
+        .timeout(const Duration(seconds: 15));
+    return _decodeOrThrow(response, path);
+  }
+
+  Future<dynamic> deleteJson(String path) async {
+    final response = await _client
+        .delete(_uri(path), headers: _headers)
+        .timeout(const Duration(seconds: 15));
+    return _decodeOrThrow(response, path);
+  }
+
+  dynamic _decodeOrThrow(http.Response response, String path) {
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw HaApiException('Request to $path failed (${response.statusCode}).');
+    }
+    if (response.body.isEmpty) return null;
+    return jsonDecode(response.body);
+  }
+
   void dispose() => _client.close();
 }

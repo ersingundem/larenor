@@ -2,6 +2,11 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../admin/presentation/areas_screen.dart';
+import '../../admin/presentation/automations_screen.dart';
+import '../../admin/presentation/devices_screen.dart';
+import '../../admin/presentation/entities_screen.dart';
+import '../../admin/presentation/integrations_screen.dart';
 import '../../auth/providers/auth_providers.dart';
 import '../providers/settings_providers.dart';
 
@@ -45,6 +50,36 @@ class SettingsScreen extends ConsumerWidget {
               ],
             ),
             CupertinoListSection.insetGrouped(
+              header: const Text('MANAGE HOME ASSISTANT'),
+              children: [
+                _AdminRow(
+                  icon: CupertinoIcons.cube_box,
+                  title: 'Integrations',
+                  builder: (_) => const IntegrationsScreen(),
+                ),
+                _AdminRow(
+                  icon: CupertinoIcons.device_laptop,
+                  title: 'Devices',
+                  builder: (_) => const DevicesScreen(),
+                ),
+                _AdminRow(
+                  icon: CupertinoIcons.square_grid_2x2,
+                  title: 'Areas',
+                  builder: (_) => const AreasScreen(),
+                ),
+                _AdminRow(
+                  icon: CupertinoIcons.list_bullet,
+                  title: 'Entities',
+                  builder: (_) => const EntitiesScreen(),
+                ),
+                _AdminRow(
+                  icon: CupertinoIcons.bolt,
+                  title: 'Automations',
+                  builder: (_) => const AutomationsScreen(),
+                ),
+              ],
+            ),
+            CupertinoListSection.insetGrouped(
               children: [
                 CupertinoListTile(
                   title: Center(
@@ -65,6 +100,29 @@ class SettingsScreen extends ConsumerWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+class _AdminRow extends StatelessWidget {
+  const _AdminRow({
+    required this.icon,
+    required this.title,
+    required this.builder,
+  });
+
+  final IconData icon;
+  final String title;
+  final WidgetBuilder builder;
+
+  @override
+  Widget build(BuildContext context) {
+    return CupertinoListTile(
+      leading: Icon(icon),
+      title: Text(title),
+      trailing: const CupertinoListTileChevron(),
+      onTap: () =>
+          Navigator.of(context).push(CupertinoPageRoute(builder: builder)),
     );
   }
 }
