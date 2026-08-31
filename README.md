@@ -1,5 +1,8 @@
 # Larenor
 
+*Unus Lar, omnem domum servat.*
+*(One guardian spirit watches over the whole home.)*
+
 A private, custom Home Assistant companion app built with Flutter. Larenor connects to
 an existing self-hosted Home Assistant server over its REST and WebSocket APIs and
 turns an Android tablet into a modern, drag-and-drop wall panel — plus an in-app admin

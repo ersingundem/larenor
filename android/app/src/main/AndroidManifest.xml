@@ -28,7 +28,7 @@
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
-            <!-- Lets the user pick Oikos as their tablet's default Home app. -->
+            <!-- Lets the user pick Larenor as their tablet's default Home app. -->
             <intent-filter>
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.HOME"/>
