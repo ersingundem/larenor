@@ -5,6 +5,7 @@ import '../../../l10n/generated/app_localizations.dart';
 import '../data/models/proxmox_guest.dart';
 import '../providers/proxmox_providers.dart';
 import 'console/proxmox_console_screen.dart';
+import 'widgets/proxmox_field_label.dart';
 import 'widgets/proxmox_usage_bar.dart';
 
 /// Config keys treated as "common" and given friendly labels; everything
@@ -52,6 +53,7 @@ class _ProxmoxGuestDetailScreenState
         _onboot = '${entry.value}' == '1';
         continue;
       }
+      if (proxmoxHiddenConfigKeys.contains(entry.key)) continue;
       _controllers[entry.key] = TextEditingController(text: '${entry.value}');
     }
   }
@@ -127,7 +129,10 @@ class _ProxmoxGuestDetailScreenState
               ..._commonKeys,
             ].where(config.containsKey);
             final advancedKeys = config.keys.where(
-              (k) => !commonKeys.contains(k) && k != 'onboot',
+              (k) =>
+                  !commonKeys.contains(k) &&
+                  k != 'onboot' &&
+                  !proxmoxHiddenConfigKeys.contains(k),
             );
 
             return ListView(
@@ -161,7 +166,9 @@ class _ProxmoxGuestDetailScreenState
                     for (final key in commonKeys)
                       CupertinoTextFormFieldRow(
                         controller: _controllers[key],
-                        prefix: Text(_friendlyLabel(context, key)),
+                        prefix: Text(
+                          proxmoxFieldLabel(AppLocalizations.of(context), key),
+                        ),
                       ),
                     CupertinoListTile(
                       title: Text(
@@ -186,7 +193,12 @@ class _ProxmoxGuestDetailScreenState
                       for (final key in advancedKeys)
                         CupertinoTextFormFieldRow(
                           controller: _controllers[key],
-                          prefix: Text(key),
+                          prefix: Text(
+                            proxmoxFieldLabel(
+                              AppLocalizations.of(context),
+                              key,
+                            ),
+                          ),
                         ),
                     ],
                   ),
@@ -235,16 +247,5 @@ class _ProxmoxGuestDetailScreenState
         ),
       ),
     );
-  }
-
-  String _friendlyLabel(BuildContext context, String key) {
-    final l10n = AppLocalizations.of(context);
-    return switch (key) {
-      'name' => l10n.proxmoxFieldName,
-      'hostname' => l10n.proxmoxFieldHostname,
-      'cores' => l10n.proxmoxFieldCores,
-      'memory' => l10n.proxmoxFieldMemory,
-      _ => key,
-    };
   }
 }

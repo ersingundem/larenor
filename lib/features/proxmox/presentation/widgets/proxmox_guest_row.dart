@@ -37,7 +37,8 @@ class ProxmoxGuestRow extends ConsumerWidget {
             : guest.name,
       ),
       subtitle: Text(
-        '${proxmoxGuestTypeLabel(context, guest.type)} #${guest.vmid} · ${guest.status}',
+        '${proxmoxGuestTypeLabel(context, guest.type)} #${guest.vmid} · '
+        '${_statusLabel(context, guest.status)}',
       ),
       trailing: Row(
         mainAxisSize: MainAxisSize.min,
@@ -96,6 +97,17 @@ class ProxmoxGuestRow extends ConsumerWidget {
     if (action == null) return;
     await client.powerAction(guest.node, guest.type, guest.vmid, action);
     onChanged();
+  }
+
+  String _statusLabel(BuildContext context, String status) {
+    final l10n = AppLocalizations.of(context);
+    return switch (status) {
+      'running' => l10n.proxmoxStatusRunning,
+      'stopped' => l10n.proxmoxStatusStopped,
+      'paused' => l10n.proxmoxStatusPaused,
+      'suspended' => l10n.proxmoxStatusSuspended,
+      _ => status,
+    };
   }
 
   String _label(BuildContext context, String action) {

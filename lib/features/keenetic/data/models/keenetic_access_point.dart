@@ -1,3 +1,14 @@
+final RegExp _wifiInterfaceId = RegExp(r'^WifiMaster(\d+)/AccessPoint(\d+)$');
+
+/// Parses Keenetic's raw interface id (e.g. `WifiMaster0/AccessPoint0`)
+/// into its radio/AP index pair, or null if it doesn't match that shape
+/// — used to render a friendly label instead of the raw id string.
+(int radio, int accessPoint)? parseKeeneticWifiInterfaceId(String id) {
+  final match = _wifiInterfaceId.firstMatch(id);
+  if (match == null) return null;
+  return (int.parse(match.group(1)!), int.parse(match.group(2)!));
+}
+
 /// A Wi-Fi access point interface, from `GET /rci/show/interface` filtered
 /// to `type == 'AccessPoint'`. Which field indicates "up" isn't fully
 /// verified against a live router, so several plausible ones are tried.

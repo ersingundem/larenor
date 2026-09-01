@@ -376,6 +376,71 @@
   "proxmoxFieldHostname": "Hostname",
   "proxmoxFieldCores": "CPU cores",
   "proxmoxFieldMemory": "Memory (MB)",
+  "proxmoxFieldOnboot": "Start at boot",
+  "proxmoxFieldBoot": "Boot order",
+  "proxmoxFieldBootdisk": "Boot disk",
+  "proxmoxFieldOstype": "OS type",
+  "proxmoxFieldAgent": "QEMU Guest Agent",
+  "proxmoxFieldNuma": "NUMA",
+  "proxmoxFieldSockets": "CPU sockets",
+  "proxmoxFieldArch": "Architecture",
+  "proxmoxFieldSwap": "Swap (MB)",
+  "proxmoxFieldUnprivileged": "Unprivileged container",
+  "proxmoxFieldFeatures": "Features",
+  "proxmoxFieldTags": "Tags",
+  "proxmoxFieldDescription": "Description",
+  "proxmoxFieldVmgenid": "VM generation ID",
+  "proxmoxFieldSmbios1": "SMBIOS settings",
+  "proxmoxFieldTablet": "Tablet pointer",
+  "proxmoxFieldStartup": "Startup/shutdown order",
+  "proxmoxFieldCpu": "CPU type",
+  "proxmoxFieldCpulimit": "CPU limit",
+  "proxmoxFieldCpuunits": "CPU priority",
+  "proxmoxFieldVcpus": "Virtual CPUs",
+  "proxmoxFieldHotplug": "Hotplug",
+  "proxmoxFieldProtection": "Protection",
+  "proxmoxFieldTemplate": "Template",
+  "proxmoxFieldRootfs": "Root filesystem",
+  "proxmoxFieldSearchdomain": "Search domain",
+  "proxmoxFieldNameserver": "Nameserver",
+  "proxmoxFieldOstemplate": "OS template",
+  "proxmoxFieldVga": "Display (VGA)",
+  "proxmoxFieldMachine": "Machine type",
+  "proxmoxFieldBalloon": "Memory ballooning (MB)",
+  "proxmoxFieldNetworkInterface": "Network Interface {index}",
+  "@proxmoxFieldNetworkInterface": {
+    "placeholders": { "index": { "type": "int" } }
+  },
+  "proxmoxFieldStorageDevice": "{bus} Storage {index}",
+  "@proxmoxFieldStorageDevice": {
+    "placeholders": {
+      "bus": { "type": "String" },
+      "index": { "type": "int" }
+    }
+  },
+  "proxmoxFieldMountPoint": "Mount Point {index}",
+  "@proxmoxFieldMountPoint": {
+    "placeholders": { "index": { "type": "int" } }
+  },
+  "proxmoxFieldUnusedDisk": "Unused Disk {index}",
+  "@proxmoxFieldUnusedDisk": {
+    "placeholders": { "index": { "type": "int" } }
+  },
+  "proxmoxFieldIpConfig": "IP Configuration {index}",
+  "@proxmoxFieldIpConfig": {
+    "placeholders": { "index": { "type": "int" } }
+  },
+  "proxmoxStatusRunning": "Running",
+  "proxmoxStatusStopped": "Stopped",
+  "proxmoxStatusPaused": "Paused",
+  "proxmoxStatusSuspended": "Suspended",
+  "keeneticWifiRadioLabel": "Radio {radio} · Access Point {ap}",
+  "@keeneticWifiRadioLabel": {
+    "placeholders": {
+      "radio": { "type": "int" },
+      "ap": { "type": "int" }
+    }
+  },
   "proxmoxCreateFromTemplateTitle": "Create from Template",
   "proxmoxNoTemplates": "No templates on this node. Flag a VM or container as a template in Proxmox first.",
   "proxmoxTargetStorageTitle": "Target Storage",

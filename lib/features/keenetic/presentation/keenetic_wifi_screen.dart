@@ -2,6 +2,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../l10n/generated/app_localizations.dart';
+import '../data/models/keenetic_access_point.dart';
 import '../providers/keenetic_providers.dart';
 import 'keenetic_connect_screen.dart';
 
@@ -67,7 +68,7 @@ class _AccessPointsList extends ConsumerWidget {
                     for (final ap in aps)
                       CupertinoListTile(
                         title: Text(ap.name),
-                        subtitle: Text(ap.id),
+                        subtitle: Text(_interfaceLabel(context, ap.id)),
                         trailing: CupertinoSwitch(
                           value: ap.up,
                           onChanged: clientAsync.value == null
@@ -89,5 +90,12 @@ class _AccessPointsList extends ConsumerWidget {
         ),
       ),
     );
+  }
+
+  String _interfaceLabel(BuildContext context, String id) {
+    final parsed = parseKeeneticWifiInterfaceId(id);
+    if (parsed == null) return id;
+    return AppLocalizations.of(context)
+        .keeneticWifiRadioLabel(parsed.$1, parsed.$2);
   }
 }
