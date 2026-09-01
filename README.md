@@ -77,6 +77,8 @@ rest of the app:
 ### Kiosk / wall-panel mode
 
 - Android `HOME` intent-filter so the app can be set as the tablet's default launcher.
+- Always runs fullscreen (status/navigation bars hidden), reapplied automatically on
+  every resume so it stays hidden after backgrounding, permission dialogs, etc.
 - Keep-screen-on toggle (wakelock).
 - Scheduled day/night screen brightness dimming and screen-off/do-not-disturb hours.
 - Idle/ambient mode — after N minutes of no touch input, switch to a low-distraction
