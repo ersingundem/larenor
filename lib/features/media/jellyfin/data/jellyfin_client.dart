@@ -135,13 +135,22 @@ class JellyfinClient {
     return '${config.baseUrl}/Items/$itemId/Images/$type';
   }
 
-  Future<JellyfinPlaybackSource> getPlaybackInfo(String itemId) async {
+  /// [maxStreamingBitrate] caps the stream at a given bits-per-second
+  /// ceiling (a manual "quality" selection) — when the source exceeds it,
+  /// Jellyfin transcodes down to fit; when it doesn't, Direct Play
+  /// continues exactly as with no cap at all, so picking a lower quality
+  /// never makes an already-smaller file worse.
+  Future<JellyfinPlaybackSource> getPlaybackInfo(
+    String itemId, {
+    int? maxStreamingBitrate,
+  }) async {
     final response = await _client.post(
       _uri('/Items/$itemId/PlaybackInfo'),
       headers: _headers,
       body: jsonEncode({
         'UserId': config.userId,
         'DeviceProfile': buildJellyfinDeviceProfile(),
+        'MaxStreamingBitrate': ?maxStreamingBitrate,
       }),
     );
     _checkOk(response);

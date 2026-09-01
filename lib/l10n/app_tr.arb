@@ -187,6 +187,17 @@
   "jellyfinLibraryEmpty": "Burada henüz bir şey yok",
   "jellyfinPlayerNotConnected": "Jellyfin'e bağlı değil.",
 
+  "jellyfinPlayerSubtitlesButton": "Altyazı",
+  "jellyfinPlayerAudioButton": "Ses",
+  "jellyfinPlayerQualityButton": "Kalite",
+  "jellyfinPlayerSubtitlesTitle": "Altyazılar",
+  "jellyfinPlayerSubtitlesOff": "Kapalı",
+  "jellyfinPlayerAudioTitle": "Ses Parçası",
+  "jellyfinPlayerQualityTitle": "Kalite",
+  "jellyfinPlayerQualityAuto": "Otomatik (Orijinal)",
+  "jellyfinPlayerTrackUnnamed": "Parça {index}",
+  "jellyfinPlayerQualityChangeFailed": "Kalite değiştirilemedi. Önceki ayarla oynatmaya devam ediliyor.",
+
   "mediaErrorEnterUrlApiKey": "Bir sunucu URL'si ve API anahtarı girin.",
   "mediaApiKeyLabel": "API Anahtarı",
 

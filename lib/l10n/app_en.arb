@@ -242,6 +242,20 @@
   "jellyfinLibraryEmpty": "Nothing here yet",
   "jellyfinPlayerNotConnected": "Not connected to Jellyfin.",
 
+  "jellyfinPlayerSubtitlesButton": "Subtitles",
+  "jellyfinPlayerAudioButton": "Audio",
+  "jellyfinPlayerQualityButton": "Quality",
+  "jellyfinPlayerSubtitlesTitle": "Subtitles",
+  "jellyfinPlayerSubtitlesOff": "Off",
+  "jellyfinPlayerAudioTitle": "Audio Track",
+  "jellyfinPlayerQualityTitle": "Quality",
+  "jellyfinPlayerQualityAuto": "Auto (Original)",
+  "jellyfinPlayerTrackUnnamed": "Track {index}",
+  "@jellyfinPlayerTrackUnnamed": {
+    "placeholders": { "index": { "type": "int" } }
+  },
+  "jellyfinPlayerQualityChangeFailed": "Couldn't change quality. Still playing at the previous setting.",
+
   "mediaErrorEnterUrlApiKey": "Enter a server URL and API key.",
   "mediaApiKeyLabel": "API Key",
 

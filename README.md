@@ -97,11 +97,15 @@ service also gets its real logo mark next to its name throughout the app instead
 generic icon:
 
 - **Jellyfin** — connect with a username/password, browse continue-watching/recently-
-  added/libraries, and play through a built-in `media_kit` (libmpv) video player. The
-  player negotiates a device profile with the server so playback decodes on the
-  tablet and prefers Direct Play over server-side transcoding, keeping load off the
-  Jellyfin server. Playback progress is reported back to Jellyfin so resume/continue-
-  watching works.
+  added/libraries, and play through a built-in `media_kit` (libmpv) video player with
+  fully custom Cupertino controls (no stock Material overlay). The player negotiates a
+  device profile with the server so playback decodes on the tablet and prefers Direct
+  Play over server-side transcoding, keeping load off the Jellyfin server; a manual
+  quality/bitrate picker is available too, for capping playback to a lower ceiling on
+  demand. Playback progress is reported back to Jellyfin so resume/continue-watching
+  works. Subtitle and audio track pickers switch between a file's embedded tracks
+  on the fly. iOS-style edge gestures: swipe up/down on the left half of the screen
+  for brightness, right half for volume, double-tap either side to seek ±10s.
 - **Jellyseerr** — connect with a server URL + API key, search movies/TV, submit
   requests, and track request status ("My Requests").
 - **Sonarr** / **Radarr** — connect each with a server URL + API key; view the

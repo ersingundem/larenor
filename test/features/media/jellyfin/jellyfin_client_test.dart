@@ -118,6 +118,51 @@ void main() {
       expect(source.streamUrl, '$baseUrl/videos/item1/master.m3u8?a=b');
     });
 
+    test(
+      'includes MaxStreamingBitrate in the request body when given',
+      () async {
+        final client = JellyfinClient(
+          config: config,
+          httpClient: MockClient((request) async {
+            final body = jsonDecode(request.body) as Map<String, dynamic>;
+            expect(body['MaxStreamingBitrate'], 4000000);
+            return http.Response(
+              jsonEncode({
+                'PlaySessionId': 'session1',
+                'MediaSources': [
+                  {'Id': 'source1'},
+                ],
+              }),
+              200,
+            );
+          }),
+        );
+
+        await client.getPlaybackInfo('item1', maxStreamingBitrate: 4000000);
+      },
+    );
+
+    test('omits MaxStreamingBitrate entirely when not given', () async {
+      final client = JellyfinClient(
+        config: config,
+        httpClient: MockClient((request) async {
+          final body = jsonDecode(request.body) as Map<String, dynamic>;
+          expect(body.containsKey('MaxStreamingBitrate'), isFalse);
+          return http.Response(
+            jsonEncode({
+              'PlaySessionId': 'session1',
+              'MediaSources': [
+                {'Id': 'source1'},
+              ],
+            }),
+            200,
+          );
+        }),
+      );
+
+      await client.getPlaybackInfo('item1');
+    });
+
     test('throws when there are no media sources', () async {
       final client = JellyfinClient(
         config: config,
