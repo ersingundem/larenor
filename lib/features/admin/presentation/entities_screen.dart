@@ -1,6 +1,7 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../l10n/generated/app_localizations.dart';
 import '../../../shared/theme/category_colors.dart';
 import '../../../shared/widgets/icon_badge.dart';
 import '../providers/admin_providers.dart';
@@ -17,13 +18,14 @@ class _EntitiesScreenState extends ConsumerState<EntitiesScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final entitiesAsync = ref.watch(entityRegistryProvider);
 
     return CupertinoPageScaffold(
       child: CustomScrollView(
         slivers: [
           CupertinoSliverNavigationBar(
-            largeTitle: const Text('Entities'),
+            largeTitle: Text(l10n.settingsEntities),
             leading: CupertinoButton(
               padding: EdgeInsets.zero,
               onPressed: () => ref.invalidate(entityRegistryProvider),
@@ -35,7 +37,7 @@ class _EntitiesScreenState extends ConsumerState<EntitiesScreen> {
               child: Center(child: CupertinoActivityIndicator()),
             ),
             error: (error, _) => SliverFillRemaining(
-              child: Center(child: Text('Failed to load: $error')),
+              child: Center(child: Text(l10n.adminLoadError(error.toString()))),
             ),
             data: (entities) {
               final filtered = _query.isEmpty

@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../l10n/generated/app_localizations.dart';
 import '../providers/admin_providers.dart';
 
 /// Raw JSON editor for an automation's trigger/condition/action config.
@@ -58,7 +59,9 @@ class _AutomationEditorScreenState
       final config = await client.getAutomationConfig(_editingId);
       _controller.text = _encoder.convert(config);
     } catch (e) {
-      _error = 'Failed to load: $e';
+      if (mounted) {
+        _error = AppLocalizations.of(context).adminLoadError(e.toString());
+      }
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -72,7 +75,11 @@ class _AutomationEditorScreenState
     try {
       parsed = jsonDecode(_controller.text) as Map<String, dynamic>;
     } catch (e) {
-      setState(() => _error = 'Invalid JSON: $e');
+      setState(
+        () =>
+            _error = AppLocalizations.of(context)
+                .automationEditorInvalidJson(e.toString()),
+      );
       return;
     }
 
@@ -85,7 +92,11 @@ class _AutomationEditorScreenState
       ref.invalidate(automationsProvider);
       if (mounted) Navigator.of(context).pop();
     } catch (e) {
-      setState(() => _error = 'Failed to save: $e');
+      setState(
+        () =>
+            _error = AppLocalizations.of(context)
+                .automationEditorSaveError(e.toString()),
+      );
     } finally {
       if (mounted) setState(() => _saving = false);
     }
@@ -98,17 +109,19 @@ class _AutomationEditorScreenState
     final confirmed = await showCupertinoDialog<bool>(
       context: context,
       builder: (context) => CupertinoAlertDialog(
-        title: const Text('Delete automation?'),
-        content: const Text('This cannot be undone.'),
+        title: Text(AppLocalizations.of(context).automationEditorDeleteTitle),
+        content: Text(
+          AppLocalizations.of(context).automationEditorDeleteMessage,
+        ),
         actions: [
           CupertinoDialogAction(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
+            child: Text(AppLocalizations.of(context).commonCancel),
           ),
           CupertinoDialogAction(
             isDestructiveAction: true,
             onPressed: () => Navigator.pop(context, true),
-            child: const Text('Delete'),
+            child: Text(AppLocalizations.of(context).commonDelete),
           ),
         ],
       ),
@@ -122,7 +135,8 @@ class _AutomationEditorScreenState
       if (mounted) Navigator.of(context).pop();
     } catch (e) {
       setState(() {
-        _error = 'Failed to delete: $e';
+        _error = AppLocalizations.of(context)
+            .automationEditorDeleteError(e.toString());
         _saving = false;
       });
     }
@@ -138,7 +152,11 @@ class _AutomationEditorScreenState
   Widget build(BuildContext context) {
     return CupertinoPageScaffold(
       navigationBar: CupertinoNavigationBar(
-        middle: Text(_isNew ? 'New Automation' : 'Edit Automation'),
+        middle: Text(
+          _isNew
+              ? AppLocalizations.of(context).automationEditorNewTitle
+              : AppLocalizations.of(context).automationEditorEditTitle,
+        ),
         trailing: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -156,7 +174,7 @@ class _AutomationEditorScreenState
               onPressed: _saving ? null : _save,
               child: _saving
                   ? const CupertinoActivityIndicator()
-                  : const Text('Save'),
+                  : Text(AppLocalizations.of(context).commonSave),
             ),
           ],
         ),

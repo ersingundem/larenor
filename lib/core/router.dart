@@ -6,6 +6,7 @@ import '../features/auth/presentation/connect_screen.dart';
 import '../features/auth/providers/auth_providers.dart';
 import '../features/dashboard/presentation/dashboard_screen.dart';
 import '../features/settings/presentation/settings_gate_screen.dart';
+import '../l10n/generated/app_localizations.dart';
 
 final routerProvider = Provider<GoRouter>((ref) {
   return GoRouter(
@@ -33,7 +34,11 @@ class _RootScreen extends ConsumerWidget {
         child: Center(child: CupertinoActivityIndicator()),
       ),
       error: (error, _) => CupertinoPageScaffold(
-        child: Center(child: Text('Something went wrong: $error')),
+        child: Center(
+          child: Text(
+            AppLocalizations.of(context).rootScreenError(error.toString()),
+          ),
+        ),
       ),
       data: (config) =>
           config == null ? const ConnectScreen() : const DashboardScreen(),

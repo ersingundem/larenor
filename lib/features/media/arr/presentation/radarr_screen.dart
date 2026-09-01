@@ -1,6 +1,7 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../l10n/generated/app_localizations.dart';
 import '../../../../shared/discovery/service_signatures.dart';
 import '../providers/radarr_providers.dart';
 import 'widgets/arr_add_screen.dart';
@@ -51,8 +52,8 @@ class RadarrScreen extends ConsumerWidget {
               onPressed: () => Navigator.of(context).push(
                 CupertinoPageRoute(
                   builder: (_) => ArrAddScreen(
-                    title: 'Add Movie',
-                    searchHint: 'Search movies',
+                    title: AppLocalizations.of(context).arrAddMovieTitle,
+                    searchHint: AppLocalizations.of(context).arrSearchMovies,
                     onLookup: (term) =>
                         ref.read(radarrClientProvider)!.lookup(term),
                     loadQualityProfiles: () =>

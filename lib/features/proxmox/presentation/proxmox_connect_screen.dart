@@ -1,6 +1,7 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../l10n/generated/app_localizations.dart';
 import '../../../shared/discovery/lan_discovery_section.dart';
 import '../../../shared/discovery/service_signatures.dart';
 import '../data/proxmox_api_exception.dart';
@@ -50,7 +51,9 @@ class _ProxmoxConnectScreenState extends ConsumerState<ProxmoxConnectScreen> {
     final username = _userController.text.trim();
     final password = _passwordController.text;
     if (host.isEmpty || realm.isEmpty || username.isEmpty) {
-      setState(() => _error = 'Enter a host, realm, and username.');
+      setState(
+        () => _error = AppLocalizations.of(context).proxmoxErrorEnterFields,
+      );
       return;
     }
     setState(() {
@@ -72,7 +75,9 @@ class _ProxmoxConnectScreenState extends ConsumerState<ProxmoxConnectScreen> {
     } on ProxmoxApiException catch (e) {
       setState(() => _error = e.message);
     } catch (_) {
-      setState(() => _error = 'Could not reach the server.');
+      setState(
+        () => _error = AppLocalizations.of(context).mediaErrorUnreachable,
+      );
     } finally {
       if (mounted) setState(() => _connecting = false);
     }
@@ -98,40 +103,48 @@ class _ProxmoxConnectScreenState extends ConsumerState<ProxmoxConnectScreen> {
                   children: [
                     CupertinoTextFormFieldRow(
                       controller: _hostController,
-                      prefix: const Text('Host'),
+                      prefix: Text(
+                        AppLocalizations.of(context).proxmoxHostLabel,
+                      ),
                       placeholder: 'proxmox.local',
                       keyboardType: TextInputType.url,
                     ),
                     CupertinoTextFormFieldRow(
                       controller: _portController,
-                      prefix: const Text('Port'),
+                      prefix: Text(
+                        AppLocalizations.of(context).proxmoxPortLabel,
+                      ),
                       keyboardType: TextInputType.number,
                     ),
                     CupertinoTextFormFieldRow(
                       controller: _realmController,
-                      prefix: const Text('Realm'),
+                      prefix: Text(
+                        AppLocalizations.of(context).proxmoxRealmLabel,
+                      ),
                       placeholder: 'pam',
                     ),
                     CupertinoTextFormFieldRow(
                       controller: _userController,
-                      prefix: const Text('User'),
+                      prefix: Text(AppLocalizations.of(context).mediaUserLabel),
                     ),
                     CupertinoTextFormFieldRow(
                       controller: _passwordController,
-                      prefix: const Text('Password'),
+                      prefix: Text(
+                        AppLocalizations.of(context).mediaPasswordLabel,
+                      ),
                       obscureText: true,
                     ),
                   ],
                 ),
                 CupertinoListSection.insetGrouped(
-                  footer: const Text(
-                    'Proxmox uses a self-signed certificate by default on a '
-                    'fresh install. Turn this off if you installed a trusted '
-                    'certificate.',
+                  footer: Text(
+                    AppLocalizations.of(context).proxmoxSelfSignedHint,
                   ),
                   children: [
                     CupertinoListTile(
-                      title: const Text('Allow self-signed certificate'),
+                      title: Text(
+                        AppLocalizations.of(context).proxmoxAllowSelfSigned,
+                      ),
                       trailing: CupertinoSwitch(
                         value: _allowSelfSigned,
                         onChanged: (value) =>
@@ -157,7 +170,7 @@ class _ProxmoxConnectScreenState extends ConsumerState<ProxmoxConnectScreen> {
                       ? const CupertinoActivityIndicator(
                           color: CupertinoColors.white,
                         )
-                      : const Text('Connect'),
+                      : Text(AppLocalizations.of(context).commonConnect),
                 ),
               ],
             ),

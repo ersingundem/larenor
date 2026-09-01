@@ -1,6 +1,8 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:intl/intl.dart';
 
+import '../../../../l10n/generated/app_localizations.dart';
 import '../../../../shared/theme/category_colors.dart';
 import '../../../ha_client/providers/ha_client_providers.dart';
 import '../../domain/tile_config.dart';
@@ -57,9 +59,11 @@ class _WeatherTileState extends ConsumerState<WeatherTile> {
   Widget build(BuildContext context) {
     final entity = ref.watch(entitiesProvider).value?[widget.tile.entityId];
     if (entity == null) {
-      return const ColoredBox(
+      return ColoredBox(
         color: CupertinoColors.systemGrey5,
-        child: Center(child: Text('Unknown entity')),
+        child: Center(
+          child: Text(AppLocalizations.of(context).commonUnknownEntity),
+        ),
       );
     }
 
@@ -114,6 +118,7 @@ class _WeatherTileState extends ConsumerState<WeatherTile> {
                           children: [
                             Text(
                               _shortDay(
+                                context,
                                 (day as Map<String, dynamic>)['datetime']
                                     as String?,
                               ),
@@ -139,12 +144,12 @@ class _WeatherTileState extends ConsumerState<WeatherTile> {
     );
   }
 
-  String _shortDay(String? iso) {
+  String _shortDay(BuildContext context, String? iso) {
     if (iso == null) return '';
     final date = DateTime.tryParse(iso);
     if (date == null) return '';
-    const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-    return days[date.weekday - 1];
+    final locale = Localizations.localeOf(context).toString();
+    return DateFormat.E(locale).format(date);
   }
 
   IconData _iconForCondition(String? condition) {

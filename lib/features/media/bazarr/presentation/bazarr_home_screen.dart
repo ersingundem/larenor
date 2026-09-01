@@ -1,6 +1,7 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../l10n/generated/app_localizations.dart';
 import '../data/models/bazarr_wanted_item.dart';
 import '../providers/bazarr_providers.dart';
 import 'bazarr_connect_screen.dart';
@@ -17,7 +18,7 @@ class BazarrHomeScreen extends ConsumerWidget {
         child: Center(child: CupertinoActivityIndicator()),
       ),
       error: (error, _) =>
-          CupertinoPageScaffold(child: Center(child: Text('$error'))),
+          CupertinoPageScaffold(child: Center(child: Text(error.toString()))),
       data: (config) {
         if (config == null) return const BazarrConnectScreen();
         return const _BazarrWantedScaffold();
@@ -53,12 +54,12 @@ class _BazarrWantedScaffold extends ConsumerWidget {
           children: [
             const SizedBox(height: 16),
             _WantedSection(
-              title: 'MOVIES MISSING SUBTITLES',
+              title: AppLocalizations.of(context).bazarrMoviesMissingHeader,
               itemsAsync: moviesAsync,
               onChanged: refresh,
             ),
             _WantedSection(
-              title: 'EPISODES MISSING SUBTITLES',
+              title: AppLocalizations.of(context).bazarrEpisodesMissingHeader,
               itemsAsync: episodesAsync,
               onChanged: refresh,
             ),
@@ -86,7 +87,10 @@ class _WantedSection extends ConsumerWidget {
       loading: () => const Center(child: CupertinoActivityIndicator()),
       error: (error, _) => Padding(
         padding: const EdgeInsets.all(16),
-        child: Text('Failed to load $title: $error'),
+        child: Text(
+          AppLocalizations.of(context)
+              .bazarrLoadSectionError(title, error.toString()),
+        ),
       ),
       data: (items) {
         if (items.isEmpty) return const SizedBox.shrink();
@@ -152,7 +156,11 @@ class _WantedRowState extends ConsumerState<_WantedRow> {
     return CupertinoListTile(
       leading: const Icon(CupertinoIcons.captions_bubble),
       title: Text(widget.item.title),
-      subtitle: Text(languages.isEmpty ? 'Missing subtitles' : languages),
+      subtitle: Text(
+        languages.isEmpty
+            ? AppLocalizations.of(context).bazarrMissingSubtitlesLabel
+            : languages,
+      ),
       trailing: _searching
           ? const CupertinoActivityIndicator()
           : CupertinoButton(
@@ -160,7 +168,7 @@ class _WantedRowState extends ConsumerState<_WantedRow> {
               onPressed: widget.item.missingLanguages.isEmpty
                   ? null
                   : _searchFirstMissing,
-              child: const Text('Search'),
+              child: Text(AppLocalizations.of(context).commonSearch),
             ),
     );
   }

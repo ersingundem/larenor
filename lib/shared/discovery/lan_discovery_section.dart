@@ -1,5 +1,6 @@
 import 'package:flutter/cupertino.dart';
 
+import '../../l10n/generated/app_localizations.dart';
 import 'lan_scanner.dart';
 
 /// A "FOUND ON YOUR NETWORK" list section that sweeps the local subnet for
@@ -47,8 +48,9 @@ class _LanDiscoverySectionState extends State<LanDiscoverySection> {
   Widget build(BuildContext context) {
     if (!_scanning && _found.isEmpty) return const SizedBox.shrink();
 
+    final l10n = AppLocalizations.of(context);
     return CupertinoListSection.insetGrouped(
-      header: const Text('FOUND ON YOUR NETWORK'),
+      header: Text(l10n.commonFoundOnNetwork),
       children: [
         for (final url in _found)
           CupertinoListTile(
@@ -57,9 +59,9 @@ class _LanDiscoverySectionState extends State<LanDiscoverySection> {
             onTap: () => widget.onSelected(url),
           ),
         if (_scanning)
-          const CupertinoListTile(
-            leading: CupertinoActivityIndicator(),
-            title: Text('Scanning…'),
+          CupertinoListTile(
+            leading: const CupertinoActivityIndicator(),
+            title: Text(l10n.commonScanning),
           ),
       ],
     );

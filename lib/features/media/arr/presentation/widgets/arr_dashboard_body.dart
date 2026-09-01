@@ -1,6 +1,7 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../../l10n/generated/app_localizations.dart';
 import '../../data/models/arr_calendar_item.dart';
 import '../../data/models/arr_queue_item.dart';
 
@@ -19,13 +20,14 @@ class ArrDashboardBody extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return ListView(
       children: [
         const SizedBox(height: 16),
         _Section(
-          title: 'DOWNLOAD QUEUE',
+          title: l10n.arrDownloadQueueHeader,
           items: queue,
-          empty: 'Nothing downloading',
+          empty: l10n.arrNothingDownloading,
           builder: (item) => CupertinoListTile(
             title: Text(item.title),
             subtitle: Text(item.status),
@@ -35,9 +37,9 @@ class ArrDashboardBody extends StatelessWidget {
           ),
         ),
         _Section(
-          title: 'UPCOMING',
+          title: l10n.arrUpcomingHeader,
           items: calendar,
-          empty: 'Nothing scheduled',
+          empty: l10n.arrNothingScheduled,
           builder: (item) => CupertinoListTile(
             title: Text(item.title),
             subtitle: item.subtitle != null ? Text(item.subtitle!) : null,

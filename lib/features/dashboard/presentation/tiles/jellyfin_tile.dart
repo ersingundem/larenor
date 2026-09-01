@@ -1,6 +1,7 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../l10n/generated/app_localizations.dart';
 import '../../../media/jellyfin/presentation/jellyfin_home_screen.dart';
 import '../../../media/jellyfin/providers/jellyfin_providers.dart';
 import '../../domain/tile_config.dart';
@@ -25,7 +26,7 @@ class JellyfinTile extends ConsumerWidget {
       onTap: () => Navigator.of(context)
           .push(CupertinoPageRoute(builder: (_) => const JellyfinHomeScreen())),
       lines: items.isEmpty
-          ? const ['Nothing in progress']
+          ? [AppLocalizations.of(context).jellyfinTileNothingInProgress]
           : items.take(3).map((item) => item.name).toList(),
     );
   }

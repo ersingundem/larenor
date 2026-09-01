@@ -1,6 +1,7 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../l10n/generated/app_localizations.dart';
 import '../providers/settings_providers.dart';
 import 'settings_screen.dart';
 
@@ -43,8 +44,11 @@ class _SettingsGateScreenState extends ConsumerState<SettingsGateScreen> {
   }
 
   Widget _buildPinEntry(BuildContext context, String pin) {
+    final l10n = AppLocalizations.of(context);
     return CupertinoPageScaffold(
-      navigationBar: const CupertinoNavigationBar(middle: Text('Settings')),
+      navigationBar: CupertinoNavigationBar(
+        middle: Text(l10n.settingsScreenTitle),
+      ),
       child: SafeArea(
         child: Center(
           child: ConstrainedBox(
@@ -66,8 +70,8 @@ class _SettingsGateScreenState extends ConsumerState<SettingsGateScreen> {
                     keyboardType: TextInputType.number,
                     textAlign: TextAlign.center,
                     autofocus: true,
-                    placeholder: 'PIN',
-                    onSubmitted: (_) => _submit(pin),
+                    placeholder: l10n.settingsGatePinPlaceholder,
+                    onSubmitted: (_) => _submit(pin, l10n),
                   ),
                   if (_error != null) ...[
                     const SizedBox(height: 8),
@@ -80,8 +84,8 @@ class _SettingsGateScreenState extends ConsumerState<SettingsGateScreen> {
                   ],
                   const SizedBox(height: 16),
                   CupertinoButton.filled(
-                    onPressed: () => _submit(pin),
-                    child: const Text('Unlock'),
+                    onPressed: () => _submit(pin, l10n),
+                    child: Text(l10n.settingsGateUnlockButton),
                   ),
                 ],
               ),
@@ -92,14 +96,14 @@ class _SettingsGateScreenState extends ConsumerState<SettingsGateScreen> {
     );
   }
 
-  void _submit(String pin) {
+  void _submit(String pin, AppLocalizations l10n) {
     if (_controller.text == pin) {
       setState(() {
         _unlocked = true;
         _error = null;
       });
     } else {
-      setState(() => _error = 'Incorrect PIN');
+      setState(() => _error = l10n.settingsGateIncorrectPin);
       _controller.clear();
     }
   }

@@ -1,6 +1,7 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../l10n/generated/app_localizations.dart';
 import '../../../../shared/discovery/service_signatures.dart';
 import '../providers/lidarr_providers.dart';
 import 'widgets/arr_add_screen.dart';
@@ -51,8 +52,8 @@ class LidarrScreen extends ConsumerWidget {
               onPressed: () => Navigator.of(context).push(
                 CupertinoPageRoute(
                   builder: (_) => ArrAddScreen(
-                    title: 'Add Artist',
-                    searchHint: 'Search artists',
+                    title: AppLocalizations.of(context).arrAddArtistTitle,
+                    searchHint: AppLocalizations.of(context).arrSearchArtists,
                     onLookup: (term) =>
                         ref.read(lidarrClientProvider)!.lookup(term),
                     loadQualityProfiles: () =>

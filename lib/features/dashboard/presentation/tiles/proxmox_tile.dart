@@ -1,6 +1,7 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../l10n/generated/app_localizations.dart';
 import '../../../proxmox/presentation/proxmox_nodes_screen.dart';
 import '../../../proxmox/providers/proxmox_providers.dart';
 import '../../domain/tile_config.dart';
@@ -25,13 +26,15 @@ class ProxmoxTile extends ConsumerWidget {
       onTap: () => Navigator.of(context)
           .push(CupertinoPageRoute(builder: (_) => const ProxmoxNodesScreen())),
       lines: nodes.isEmpty
-          ? const ['No nodes']
+          ? [AppLocalizations.of(context).proxmoxTileNoNodes]
           : nodes
                 .take(3)
                 .map(
-                  (n) =>
-                      '${n.name} · CPU ${((n.cpuFraction ?? 0) * 100).round()}% · '
-                      'RAM ${((n.memFraction ?? 0) * 100).round()}%',
+                  (n) => AppLocalizations.of(context).proxmoxTileNodeStats(
+                    n.name,
+                    ((n.cpuFraction ?? 0) * 100).round(),
+                    ((n.memFraction ?? 0) * 100).round(),
+                  ),
                 )
                 .toList(),
     );

@@ -1,6 +1,7 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../l10n/generated/app_localizations.dart';
 import '../../../ha_client/data/models/ha_entity.dart';
 import '../../../ha_client/providers/ha_client_providers.dart';
 import '../../providers/dashboard_providers.dart';
@@ -41,7 +42,11 @@ class _MoreInfoSheet extends ConsumerWidget {
           borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
         ),
         child: entity == null
-            ? const Center(child: Text('Entity not found'))
+            ? Center(
+                child: Text(
+                  AppLocalizations.of(context).moreInfoEntityNotFound,
+                ),
+              )
             : ListView(
                 controller: scrollController,
                 padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
@@ -95,7 +100,7 @@ class _MoreInfoSheet extends ConsumerWidget {
                     CupertinoListSection.insetGrouped(
                       children: [
                         CupertinoListTile(
-                          title: const Text('On'),
+                          title: Text(AppLocalizations.of(context).moreInfoOn),
                           trailing: CupertinoSwitch(
                             value: entity.isOn,
                             onChanged: (_) => ref
@@ -110,15 +115,21 @@ class _MoreInfoSheet extends ConsumerWidget {
                     _BrightnessSlider(entity: entity),
                   const SizedBox(height: 8),
                   CupertinoListSection.insetGrouped(
-                    header: const Text('DETAILS'),
+                    header: Text(
+                      AppLocalizations.of(context).moreInfoDetailsHeader,
+                    ),
                     children: [
                       CupertinoListTile(
-                        title: const Text('Entity ID'),
+                        title: Text(
+                          AppLocalizations.of(context).moreInfoEntityId,
+                        ),
                         additionalInfo: Text(entity.entityId),
                       ),
                       if (entity.lastChanged != null)
                         CupertinoListTile(
-                          title: const Text('Last changed'),
+                          title: Text(
+                            AppLocalizations.of(context).moreInfoLastChanged,
+                          ),
                           additionalInfo: Text(
                             entity.lastChanged!.toLocal().toString().split(
                               '.',

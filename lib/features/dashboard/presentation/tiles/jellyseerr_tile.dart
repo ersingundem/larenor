@@ -1,7 +1,9 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../l10n/generated/app_localizations.dart';
 import '../../../media/jellyseerr/presentation/jellyseerr_home_screen.dart';
+import '../../../media/jellyseerr/presentation/jellyseerr_status_label.dart';
 import '../../../media/jellyseerr/providers/jellyseerr_providers.dart';
 import '../../domain/tile_config.dart';
 import 'service_tile_shell.dart';
@@ -26,10 +28,13 @@ class JellyseerrTile extends ConsumerWidget {
         context,
       ).push(CupertinoPageRoute(builder: (_) => const JellyseerrHomeScreen())),
       lines: items.isEmpty
-          ? const ['No requests']
+          ? [AppLocalizations.of(context).jellyseerrTileNoRequests]
           : items
                 .take(3)
-                .map((item) => '${item.displayTitle} · ${item.status.label}')
+                .map(
+                  (item) =>
+                      '${item.displayTitle} · ${jellyseerrRequestStatusLabel(context, item.status)}',
+                )
                 .toList(),
     );
   }

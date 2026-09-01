@@ -25,6 +25,7 @@ import '../../proxmox/presentation/proxmox_nodes_screen.dart';
 import '../../proxmox/providers/proxmox_providers.dart';
 import '../data/app_service.dart';
 import '../providers/enabled_services_providers.dart';
+import '../../../l10n/generated/app_localizations.dart';
 import '../../../shared/widgets/brand_icon.dart';
 import '../../../shared/widgets/icon_badge.dart';
 
@@ -37,6 +38,7 @@ class ManageIntegrationsScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = AppLocalizations.of(context);
     final enabled = ref.watch(enabledServicesProvider).value ?? const {};
 
     void toggle(AppService service, bool value) =>
@@ -45,8 +47,8 @@ class ManageIntegrationsScreen extends ConsumerWidget {
     return CupertinoPageScaffold(
       child: CustomScrollView(
         slivers: [
-          const CupertinoSliverNavigationBar(
-            largeTitle: Text('Manage Integrations'),
+          CupertinoSliverNavigationBar(
+            largeTitle: Text(l10n.settingsManageIntegrations),
           ),
           SliverSafeArea(
             top: false,
@@ -54,7 +56,7 @@ class ManageIntegrationsScreen extends ConsumerWidget {
               delegate: SliverChildListDelegate([
                 const SizedBox(height: 16),
                 CupertinoListSection.insetGrouped(
-                  header: const Text('MEDIA SERVICES'),
+                  header: Text(l10n.settingsSectionMediaServices),
                   children: [
                     _ServiceRow(
                       icon: CupertinoIcons.play_rectangle,
@@ -195,7 +197,7 @@ class ManageIntegrationsScreen extends ConsumerWidget {
                   ],
                 ),
                 CupertinoListSection.insetGrouped(
-                  header: const Text('INFRASTRUCTURE'),
+                  header: Text(l10n.settingsSectionInfrastructure),
                   children: [
                     _ServiceRow(
                       icon: CupertinoIcons.square_stack_3d_up,
@@ -270,7 +272,11 @@ class _ServiceRow extends StatelessWidget {
           ? BrandIcon(service: service)
           : IconBadge(icon: icon, color: color),
       title: Text(title),
-      subtitle: Text(connected ? 'Connected' : 'Not connected'),
+      subtitle: Text(
+        connected
+            ? AppLocalizations.of(context).settingsConnected
+            : AppLocalizations.of(context).commonNotConnected,
+      ),
       trailing: CupertinoSwitch(value: enabled, onChanged: onToggle),
       onTap: onTap,
     );

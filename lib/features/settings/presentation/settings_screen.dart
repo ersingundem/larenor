@@ -35,6 +35,7 @@ import '../data/app_service.dart';
 import '../providers/enabled_services_providers.dart';
 import '../providers/settings_providers.dart';
 import 'manage_integrations_screen.dart';
+import '../../../l10n/generated/app_localizations.dart';
 import '../../../shared/widgets/brand_icon.dart';
 import '../../../shared/widgets/icon_badge.dart';
 
@@ -43,6 +44,7 @@ class SettingsScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = AppLocalizations.of(context);
     final config = ref.watch(connectionConfigProvider).value;
     final keepScreenOn = ref.watch(keepScreenOnProvider);
     final nightWindow = ref.watch(nightWindowProvider).value;
@@ -180,37 +182,39 @@ class SettingsScreen extends ConsumerWidget {
     return CupertinoPageScaffold(
       child: CustomScrollView(
         slivers: [
-          const CupertinoSliverNavigationBar(largeTitle: Text('Settings')),
+          CupertinoSliverNavigationBar(
+            largeTitle: Text(l10n.settingsScreenTitle),
+          ),
           SliverSafeArea(
             top: false,
             sliver: SliverList(
               delegate: SliverChildListDelegate([
                 const SizedBox(height: 16),
                 CupertinoListSection.insetGrouped(
-                  header: const Text('CONNECTION'),
+                  header: Text(l10n.settingsSectionConnection),
                   children: [
                     CupertinoListTile(
                       leading: const IconBadge(
                         icon: CupertinoIcons.house_fill,
                         color: CupertinoColors.systemBlue,
                       ),
-                      title: const Text('Home Assistant server'),
-                      additionalInfo: Text(config?.baseUrl ?? 'Not connected'),
+                      title: Text(l10n.settingsHaServer),
+                      additionalInfo: Text(
+                        config?.baseUrl ?? l10n.commonNotConnected,
+                      ),
                     ),
                   ],
                 ),
                 CupertinoListSection.insetGrouped(
-                  header: const Text('DISPLAY'),
+                  header: Text(l10n.settingsSectionDisplay),
                   children: [
                     CupertinoListTile(
                       leading: const IconBadge(
                         icon: CupertinoIcons.brightness,
                         color: CupertinoColors.systemYellow,
                       ),
-                      title: const Text('Keep screen on'),
-                      subtitle: const Text(
-                        'Recommended for wall-mounted tablets',
-                      ),
+                      title: Text(l10n.settingsKeepScreenOn),
+                      subtitle: Text(l10n.settingsKeepScreenOnHint),
                       trailing: CupertinoSwitch(
                         value: keepScreenOn.value ?? false,
                         onChanged: (value) =>
@@ -223,10 +227,8 @@ class SettingsScreen extends ConsumerWidget {
                           icon: CupertinoIcons.moon_stars,
                           color: CupertinoColors.systemIndigo,
                         ),
-                        title: const Text('Idle/ambient mode'),
-                        subtitle: const Text(
-                          'Show a clock screen after inactivity',
-                        ),
+                        title: Text(l10n.settingsIdleMode),
+                        subtitle: Text(l10n.settingsIdleModeHint),
                         trailing: CupertinoSwitch(
                           value: idleMode.enabled,
                           onChanged: (value) => ref
@@ -236,9 +238,9 @@ class SettingsScreen extends ConsumerWidget {
                       ),
                       if (idleMode.enabled)
                         CupertinoListTile(
-                          title: const Text('After'),
+                          title: Text(l10n.settingsIdleModeAfter),
                           additionalInfo: Text(
-                            '${idleMode.timeoutMinutes} min',
+                            l10n.settingsMinutesShort(idleMode.timeoutMinutes),
                           ),
                           trailing: const CupertinoListTileChevron(),
                           onTap: () =>
@@ -249,14 +251,11 @@ class SettingsScreen extends ConsumerWidget {
                 ),
                 if (nightWindow != null)
                   CupertinoListSection.insetGrouped(
-                    header: const Text('NIGHT MODE'),
-                    footer: const Text(
-                      'A shared overnight window used to dim the screen and/or '
-                      'let it turn off, like a day/night theme.',
-                    ),
+                    header: Text(l10n.settingsSectionNightMode),
+                    footer: Text(l10n.settingsNightModeFooter),
                     children: [
                       CupertinoListTile(
-                        title: const Text('Starts'),
+                        title: Text(l10n.settingsNightStarts),
                         additionalInfo: Text(
                           _formatMinutes(nightWindow.startMinutes),
                         ),
@@ -271,7 +270,7 @@ class SettingsScreen extends ConsumerWidget {
                         ),
                       ),
                       CupertinoListTile(
-                        title: const Text('Ends'),
+                        title: Text(l10n.settingsNightEnds),
                         additionalInfo: Text(
                           _formatMinutes(nightWindow.endMinutes),
                         ),
@@ -286,7 +285,7 @@ class SettingsScreen extends ConsumerWidget {
                         ),
                       ),
                       CupertinoListTile(
-                        title: const Text('Dim screen at night'),
+                        title: Text(l10n.settingsNightDim),
                         trailing: CupertinoSwitch(
                           value: nightWindow.dimBrightnessAtNight,
                           onChanged: (value) => ref
@@ -295,10 +294,8 @@ class SettingsScreen extends ConsumerWidget {
                         ),
                       ),
                       CupertinoListTile(
-                        title: const Text('Turn screen off at night'),
-                        subtitle: const Text(
-                          'Overrides "Keep screen on" overnight',
-                        ),
+                        title: Text(l10n.settingsNightScreenOff),
+                        subtitle: Text(l10n.settingsNightScreenOffHint),
                         trailing: CupertinoSwitch(
                           value: nightWindow.screenOffAtNight,
                           onChanged: (value) => ref
@@ -309,11 +306,11 @@ class SettingsScreen extends ConsumerWidget {
                     ],
                   ),
                 CupertinoListSection.insetGrouped(
-                  header: const Text('SECURITY'),
+                  header: Text(l10n.settingsSectionSecurity),
                   footer: Text(
                     pin == null
-                        ? 'No PIN set — Settings is open to anyone using this device.'
-                        : 'Settings is locked behind a PIN.',
+                        ? l10n.settingsNoPinFooter
+                        : l10n.settingsPinSetFooter,
                   ),
                   children: [
                     CupertinoListTile(
@@ -321,7 +318,11 @@ class SettingsScreen extends ConsumerWidget {
                         icon: CupertinoIcons.lock_fill,
                         color: CupertinoColors.systemRed,
                       ),
-                      title: Text(pin == null ? 'Set PIN' : 'Change PIN'),
+                      title: Text(
+                        pin == null
+                            ? l10n.settingsSetPin
+                            : l10n.settingsChangePin,
+                      ),
                       onTap: () => _showSetPinDialog(context, ref),
                     ),
                     if (pin != null)
@@ -330,65 +331,62 @@ class SettingsScreen extends ConsumerWidget {
                           icon: CupertinoIcons.lock_open_fill,
                           color: CupertinoColors.systemGrey,
                         ),
-                        title: const Text('Remove PIN'),
+                        title: Text(l10n.settingsRemovePin),
                         onTap: () =>
                             ref.read(pinLockProvider.notifier).clearPin(),
                       ),
                   ],
                 ),
                 CupertinoListSection.insetGrouped(
-                  header: const Text('MANAGE HOME ASSISTANT'),
+                  header: Text(l10n.settingsSectionManageHa),
                   children: [
                     _AdminRow(
                       icon: CupertinoIcons.cube_box,
                       color: CupertinoColors.systemBlue,
-                      title: 'Integrations',
+                      title: l10n.settingsIntegrations,
                       builder: (_) => const IntegrationsScreen(),
                     ),
                     _AdminRow(
                       icon: CupertinoIcons.device_laptop,
                       color: CupertinoColors.systemGrey,
-                      title: 'Devices',
+                      title: l10n.settingsDevices,
                       builder: (_) => const DevicesScreen(),
                     ),
                     _AdminRow(
                       icon: CupertinoIcons.square_grid_2x2,
                       color: CupertinoColors.systemGreen,
-                      title: 'Areas',
+                      title: l10n.settingsAreas,
                       builder: (_) => const AreasScreen(),
                     ),
                     _AdminRow(
                       icon: CupertinoIcons.list_bullet,
                       color: CupertinoColors.systemIndigo,
-                      title: 'Entities',
+                      title: l10n.settingsEntities,
                       builder: (_) => const EntitiesScreen(),
                     ),
                     _AdminRow(
                       icon: CupertinoIcons.bolt,
                       color: CupertinoColors.systemOrange,
-                      title: 'Automations',
+                      title: l10n.settingsAutomations,
                       builder: (_) => const AutomationsScreen(),
                     ),
                     _AdminRow(
                       icon: CupertinoIcons.videocam,
                       color: CupertinoColors.systemPurple,
-                      title: 'Cameras',
+                      title: l10n.settingsCameras,
                       builder: (_) => const CamerasScreen(),
                     ),
                   ],
                 ),
                 CupertinoListSection.insetGrouped(
-                  header: const Text('INTEGRATIONS'),
-                  footer: const Text(
-                    'Only services you\'ve turned on and connected show up here — '
-                    'manage them all from Manage Integrations.',
-                  ),
+                  header: Text(l10n.settingsSectionIntegrations),
+                  footer: Text(l10n.settingsIntegrationsFooter),
                   children: [
                     ...integrationRows,
                     _AdminRow(
                       icon: CupertinoIcons.slider_horizontal_3,
                       color: CupertinoColors.systemGrey,
-                      title: 'Manage Integrations',
+                      title: l10n.settingsManageIntegrations,
                       builder: (_) => const ManageIntegrationsScreen(),
                     ),
                   ],
@@ -398,7 +396,7 @@ class SettingsScreen extends ConsumerWidget {
                     CupertinoListTile(
                       title: Center(
                         child: Text(
-                          'Sign out',
+                          l10n.commonSignOut,
                           style: TextStyle(
                             color: CupertinoColors.systemRed.resolveFrom(
                               context,
@@ -456,7 +454,7 @@ class SettingsScreen extends ConsumerWidget {
               mainAxisAlignment: MainAxisAlignment.end,
               children: [
                 CupertinoButton(
-                  child: const Text('Done'),
+                  child: Text(AppLocalizations.of(context).commonDone),
                   onPressed: () {
                     onPicked(selected);
                     Navigator.of(context).pop();
@@ -488,17 +486,19 @@ class SettingsScreen extends ConsumerWidget {
     final choice = await showCupertinoModalPopup<int>(
       context: context,
       builder: (context) => CupertinoActionSheet(
-        title: const Text('Idle after'),
+        title: Text(AppLocalizations.of(context).settingsIdleAfterTitle),
         actions: [
           for (final minutes in options)
             CupertinoActionSheetAction(
               onPressed: () => Navigator.pop(context, minutes),
-              child: Text('$minutes min'),
+              child: Text(
+                AppLocalizations.of(context).settingsMinutesShort(minutes),
+              ),
             ),
         ],
         cancelButton: CupertinoActionSheetAction(
           onPressed: () => Navigator.pop(context),
-          child: const Text('Cancel'),
+          child: Text(AppLocalizations.of(context).commonCancel),
         ),
       ),
     );
@@ -512,7 +512,7 @@ class SettingsScreen extends ConsumerWidget {
     final pin = await showCupertinoDialog<String>(
       context: context,
       builder: (context) => CupertinoAlertDialog(
-        title: const Text('Set PIN'),
+        title: Text(AppLocalizations.of(context).settingsSetPinTitle),
         content: Padding(
           padding: const EdgeInsets.only(top: 12),
           child: CupertinoTextField(
@@ -520,17 +520,17 @@ class SettingsScreen extends ConsumerWidget {
             keyboardType: TextInputType.number,
             obscureText: true,
             autofocus: true,
-            placeholder: '4+ digits',
+            placeholder: AppLocalizations.of(context).settingsPinPlaceholder,
           ),
         ),
         actions: [
           CupertinoDialogAction(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
+            child: Text(AppLocalizations.of(context).commonCancel),
           ),
           CupertinoDialogAction(
             onPressed: () => Navigator.pop(context, controller.text.trim()),
-            child: const Text('Save'),
+            child: Text(AppLocalizations.of(context).commonSave),
           ),
         ],
       ),

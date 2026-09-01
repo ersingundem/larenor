@@ -1,7 +1,9 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../l10n/generated/app_localizations.dart';
 import '../providers/jellyseerr_providers.dart';
+import 'jellyseerr_status_label.dart';
 
 class JellyseerrRequestsScreen extends ConsumerWidget {
   const JellyseerrRequestsScreen({super.key});
@@ -12,7 +14,7 @@ class JellyseerrRequestsScreen extends ConsumerWidget {
 
     return CupertinoPageScaffold(
       navigationBar: CupertinoNavigationBar(
-        middle: const Text('My Requests'),
+        middle: Text(AppLocalizations.of(context).jellyseerrMyRequestsTitle),
         trailing: CupertinoButton(
           padding: EdgeInsets.zero,
           onPressed: () => ref.invalidate(jellyseerrMyRequestsProvider),
@@ -22,10 +24,18 @@ class JellyseerrRequestsScreen extends ConsumerWidget {
       child: SafeArea(
         child: requestsAsync.when(
           loading: () => const Center(child: CupertinoActivityIndicator()),
-          error: (error, _) => Center(child: Text('Failed to load: $error')),
+          error: (error, _) => Center(
+            child: Text(
+              AppLocalizations.of(context).adminLoadError(error.toString()),
+            ),
+          ),
           data: (requests) {
             if (requests.isEmpty) {
-              return const Center(child: Text('No requests yet'));
+              return Center(
+                child: Text(
+                  AppLocalizations.of(context).jellyseerrNoRequestsYet,
+                ),
+              );
             }
             return ListView(
               children: [
@@ -40,7 +50,9 @@ class JellyseerrRequestsScreen extends ConsumerWidget {
                               : CupertinoIcons.film,
                         ),
                         title: Text(request.displayTitle),
-                        additionalInfo: Text(request.status.label),
+                        additionalInfo: Text(
+                          jellyseerrRequestStatusLabel(context, request.status),
+                        ),
                       ),
                   ],
                 ),

@@ -3,6 +3,7 @@ import 'dart:math';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../l10n/generated/app_localizations.dart';
 import '../../../../shared/theme/category_colors.dart';
 import '../../../ha_client/providers/ha_client_providers.dart';
 import '../../domain/tile_config.dart';
@@ -16,9 +17,11 @@ class ClimateTile extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final entity = ref.watch(entitiesProvider).value?[tile.entityId];
     if (entity == null) {
-      return const ColoredBox(
+      return ColoredBox(
         color: CupertinoColors.systemGrey5,
-        child: Center(child: Text('Unknown entity')),
+        child: Center(
+          child: Text(AppLocalizations.of(context).commonUnknownEntity),
+        ),
       );
     }
 

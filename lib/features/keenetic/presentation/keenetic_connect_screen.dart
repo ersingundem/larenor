@@ -2,6 +2,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:network_info_plus/network_info_plus.dart';
 
+import '../../../l10n/generated/app_localizations.dart';
 import '../data/keenetic_api_exception.dart';
 import '../providers/keenetic_providers.dart';
 
@@ -55,7 +56,10 @@ class _KeeneticConnectScreenState extends ConsumerState<KeeneticConnectScreen> {
     final username = _userController.text.trim();
     final password = _passwordController.text;
     if (url.isEmpty || username.isEmpty) {
-      setState(() => _error = 'Enter the router URL and username.');
+      setState(
+        () =>
+            _error = AppLocalizations.of(context).keeneticErrorEnterUrlUsername,
+      );
       return;
     }
     setState(() {
@@ -74,7 +78,9 @@ class _KeeneticConnectScreenState extends ConsumerState<KeeneticConnectScreen> {
     } on KeeneticApiException catch (e) {
       setState(() => _error = e.message);
     } catch (_) {
-      setState(() => _error = 'Could not reach the router.');
+      setState(
+        () => _error = AppLocalizations.of(context).keeneticErrorUnreachable,
+      );
     } finally {
       if (mounted) setState(() => _connecting = false);
     }
@@ -93,23 +99,26 @@ class _KeeneticConnectScreenState extends ConsumerState<KeeneticConnectScreen> {
               children: [
                 const SizedBox(height: 16),
                 CupertinoListSection.insetGrouped(
-                  footer: const Text(
-                    'The same admin credentials used to log into the '
-                    'router\'s web interface.',
+                  footer: Text(
+                    AppLocalizations.of(context).keeneticCredentialsHint,
                   ),
                   children: [
                     CupertinoTextFormFieldRow(
                       controller: _urlController,
-                      prefix: const Text('URL'),
+                      prefix: Text(
+                        AppLocalizations.of(context).connectUrlLabel,
+                      ),
                       keyboardType: TextInputType.url,
                     ),
                     CupertinoTextFormFieldRow(
                       controller: _userController,
-                      prefix: const Text('User'),
+                      prefix: Text(AppLocalizations.of(context).mediaUserLabel),
                     ),
                     CupertinoTextFormFieldRow(
                       controller: _passwordController,
-                      prefix: const Text('Password'),
+                      prefix: Text(
+                        AppLocalizations.of(context).mediaPasswordLabel,
+                      ),
                       obscureText: true,
                     ),
                   ],
@@ -131,7 +140,7 @@ class _KeeneticConnectScreenState extends ConsumerState<KeeneticConnectScreen> {
                       ? const CupertinoActivityIndicator(
                           color: CupertinoColors.white,
                         )
-                      : const Text('Connect'),
+                      : Text(AppLocalizations.of(context).commonConnect),
                 ),
               ],
             ),

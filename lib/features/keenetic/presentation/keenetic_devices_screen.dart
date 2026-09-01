@@ -1,6 +1,7 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../l10n/generated/app_localizations.dart';
 import '../providers/keenetic_providers.dart';
 import 'keenetic_connect_screen.dart';
 
@@ -16,7 +17,7 @@ class KeeneticDevicesScreen extends ConsumerWidget {
         child: Center(child: CupertinoActivityIndicator()),
       ),
       error: (error, _) =>
-          CupertinoPageScaffold(child: Center(child: Text('$error'))),
+          CupertinoPageScaffold(child: Center(child: Text(error.toString()))),
       data: (config) {
         if (config == null) return const KeeneticConnectScreen();
         return const _DevicesList();
@@ -34,7 +35,7 @@ class _DevicesList extends ConsumerWidget {
 
     return CupertinoPageScaffold(
       navigationBar: CupertinoNavigationBar(
-        middle: const Text('Connected Devices'),
+        middle: Text(AppLocalizations.of(context).keeneticConnectedDevices),
         trailing: CupertinoButton(
           padding: EdgeInsets.zero,
           onPressed: () => ref.invalidate(keeneticDevicesProvider),
@@ -44,10 +45,16 @@ class _DevicesList extends ConsumerWidget {
       child: SafeArea(
         child: devicesAsync.when(
           loading: () => const Center(child: CupertinoActivityIndicator()),
-          error: (error, _) => Center(child: Text('Failed to load: $error')),
+          error: (error, _) => Center(
+            child: Text(
+              AppLocalizations.of(context).adminLoadError(error.toString()),
+            ),
+          ),
           data: (devices) {
             if (devices.isEmpty) {
-              return const Center(child: Text('No devices found'));
+              return Center(
+                child: Text(AppLocalizations.of(context).devicesScreenEmpty),
+              );
             }
             return ListView(
               children: [

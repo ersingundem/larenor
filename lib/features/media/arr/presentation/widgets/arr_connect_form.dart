@@ -1,5 +1,6 @@
 import 'package:flutter/cupertino.dart';
 
+import '../../../../../l10n/generated/app_localizations.dart';
 import '../../../../../shared/discovery/lan_discovery_section.dart';
 import '../../../../../shared/discovery/lan_scanner.dart';
 import '../../../data/media_api_exception.dart';
@@ -42,7 +43,9 @@ class _ArrConnectFormState extends State<ArrConnectForm> {
     final url = _urlController.text.trim();
     final key = _keyController.text.trim();
     if (url.isEmpty || key.isEmpty) {
-      setState(() => _error = 'Enter a server URL and API key.');
+      setState(
+        () => _error = AppLocalizations.of(context).mediaErrorEnterUrlApiKey,
+      );
       return;
     }
     setState(() {
@@ -57,7 +60,9 @@ class _ArrConnectFormState extends State<ArrConnectForm> {
     } on MediaApiException catch (e) {
       setState(() => _error = e.message);
     } catch (_) {
-      setState(() => _error = 'Could not reach the server.');
+      setState(
+        () => _error = AppLocalizations.of(context).mediaErrorUnreachable,
+      );
     } finally {
       if (mounted) setState(() => _connecting = false);
     }
@@ -83,17 +88,21 @@ class _ArrConnectFormState extends State<ArrConnectForm> {
                   ),
                 CupertinoListSection.insetGrouped(
                   footer: Text(
-                    'Find your API key in ${widget.title} under Settings → General → Security.',
+                    AppLocalizations.of(context).arrApiKeyHint(widget.title),
                   ),
                   children: [
                     CupertinoTextFormFieldRow(
                       controller: _urlController,
-                      prefix: const Text('URL'),
+                      prefix: Text(
+                        AppLocalizations.of(context).connectUrlLabel,
+                      ),
                       keyboardType: TextInputType.url,
                     ),
                     CupertinoTextFormFieldRow(
                       controller: _keyController,
-                      prefix: const Text('API Key'),
+                      prefix: Text(
+                        AppLocalizations.of(context).mediaApiKeyLabel,
+                      ),
                       obscureText: true,
                     ),
                   ],
@@ -115,7 +124,7 @@ class _ArrConnectFormState extends State<ArrConnectForm> {
                       ? const CupertinoActivityIndicator(
                           color: CupertinoColors.white,
                         )
-                      : const Text('Connect'),
+                      : Text(AppLocalizations.of(context).commonConnect),
                 ),
               ],
             ),

@@ -2,6 +2,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:qbittorrent_api/qbittorrent_api.dart';
 
+import '../../../../l10n/generated/app_localizations.dart';
 import '../providers/qbittorrent_providers.dart';
 import 'add_torrent_sheet.dart';
 import 'qbittorrent_connect_screen.dart';
@@ -18,7 +19,7 @@ class QbittorrentTorrentsScreen extends ConsumerWidget {
         child: Center(child: CupertinoActivityIndicator()),
       ),
       error: (error, _) =>
-          CupertinoPageScaffold(child: Center(child: Text('$error'))),
+          CupertinoPageScaffold(child: Center(child: Text(error.toString()))),
       data: (config) {
         if (config == null) return const QbittorrentConnectScreen();
         return const _TorrentsList();
@@ -60,10 +61,16 @@ class _TorrentsList extends ConsumerWidget {
       child: SafeArea(
         child: torrentsAsync.when(
           loading: () => const Center(child: CupertinoActivityIndicator()),
-          error: (error, _) => Center(child: Text('Failed to load: $error')),
+          error: (error, _) => Center(
+            child: Text(
+              AppLocalizations.of(context).adminLoadError(error.toString()),
+            ),
+          ),
           data: (torrents) {
             if (torrents.isEmpty) {
-              return const Center(child: Text('No torrents'));
+              return Center(
+                child: Text(AppLocalizations.of(context).qbittorrentNoTorrents),
+              );
             }
             return ListView(
               children: [
@@ -72,9 +79,12 @@ class _TorrentsList extends ConsumerWidget {
                   children: [
                     for (final torrent in torrents)
                       CupertinoListTile(
-                        title: Text(torrent.name ?? 'Unknown'),
+                        title: Text(
+                          torrent.name ??
+                              AppLocalizations.of(context).commonUnknown,
+                        ),
                         subtitle: Text(
-                          '${torrent.state?.name ?? 'unknown'} · '
+                          '${torrent.state?.name ?? AppLocalizations.of(context).commonUnknown.toLowerCase()} · '
                           '${((torrent.progress ?? 0) * 100).round()}%',
                         ),
                         trailing: const CupertinoListTileChevron(),
@@ -109,25 +119,28 @@ class _TorrentsList extends ConsumerWidget {
     final action = await showCupertinoModalPopup<String>(
       context: context,
       builder: (context) => CupertinoActionSheet(
-        title: Text(torrent.name ?? 'Torrent'),
+        title: Text(
+          torrent.name ??
+              AppLocalizations.of(context).qbittorrentTileFallbackName,
+        ),
         actions: [
           CupertinoActionSheetAction(
             onPressed: () => Navigator.pop(context, 'pause'),
-            child: const Text('Pause'),
+            child: Text(AppLocalizations.of(context).qbittorrentPauseAction),
           ),
           CupertinoActionSheetAction(
             onPressed: () => Navigator.pop(context, 'resume'),
-            child: const Text('Resume'),
+            child: Text(AppLocalizations.of(context).qbittorrentResumeAction),
           ),
           CupertinoActionSheetAction(
             isDestructiveAction: true,
             onPressed: () => Navigator.pop(context, 'delete'),
-            child: const Text('Delete'),
+            child: Text(AppLocalizations.of(context).commonDelete),
           ),
         ],
         cancelButton: CupertinoActionSheetAction(
           onPressed: () => Navigator.pop(context),
-          child: const Text('Cancel'),
+          child: Text(AppLocalizations.of(context).commonCancel),
         ),
       ),
     );

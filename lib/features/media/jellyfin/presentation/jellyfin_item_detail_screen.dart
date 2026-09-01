@@ -1,6 +1,7 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../l10n/generated/app_localizations.dart';
 import '../data/models/jellyfin_item.dart';
 import '../providers/jellyfin_providers.dart';
 import 'jellyfin_library_screen.dart';
@@ -63,7 +64,7 @@ class JellyfinItemDetailScreen extends ConsumerWidget {
                     builder: (_) => JellyfinPlayerScreen(item: item),
                   ),
                 ),
-                child: const Text('Play'),
+                child: Text(AppLocalizations.of(context).jellyfinPlayButton),
               )
             else
               CupertinoButton.filled(
@@ -75,7 +76,7 @@ class JellyfinItemDetailScreen extends ConsumerWidget {
                     ),
                   ),
                 ),
-                child: const Text('Browse'),
+                child: Text(AppLocalizations.of(context).jellyfinBrowseButton),
               ),
           ],
         ),

@@ -1,6 +1,7 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../l10n/generated/app_localizations.dart';
 import '../../../../shared/discovery/lan_discovery_section.dart';
 import '../../../../shared/discovery/service_signatures.dart';
 import '../../data/media_api_exception.dart';
@@ -33,7 +34,9 @@ class _BazarrConnectScreenState extends ConsumerState<BazarrConnectScreen> {
     final url = _urlController.text.trim();
     final key = _keyController.text.trim();
     if (url.isEmpty || key.isEmpty) {
-      setState(() => _error = 'Enter a server URL and API key.');
+      setState(
+        () => _error = AppLocalizations.of(context).mediaErrorEnterUrlApiKey,
+      );
       return;
     }
     setState(() {
@@ -51,7 +54,9 @@ class _BazarrConnectScreenState extends ConsumerState<BazarrConnectScreen> {
     } on MediaApiException catch (e) {
       setState(() => _error = e.message);
     } catch (_) {
-      setState(() => _error = 'Could not reach the server.');
+      setState(
+        () => _error = AppLocalizations.of(context).mediaErrorUnreachable,
+      );
     } finally {
       if (mounted) setState(() => _connecting = false);
     }
@@ -75,18 +80,20 @@ class _BazarrConnectScreenState extends ConsumerState<BazarrConnectScreen> {
                       setState(() => _urlController.text = url),
                 ),
                 CupertinoListSection.insetGrouped(
-                  footer: const Text(
-                    'Find your API key in Bazarr under Settings → General.',
-                  ),
+                  footer: Text(AppLocalizations.of(context).bazarrApiKeyHint),
                   children: [
                     CupertinoTextFormFieldRow(
                       controller: _urlController,
-                      prefix: const Text('URL'),
+                      prefix: Text(
+                        AppLocalizations.of(context).connectUrlLabel,
+                      ),
                       keyboardType: TextInputType.url,
                     ),
                     CupertinoTextFormFieldRow(
                       controller: _keyController,
-                      prefix: const Text('API Key'),
+                      prefix: Text(
+                        AppLocalizations.of(context).mediaApiKeyLabel,
+                      ),
                       obscureText: true,
                     ),
                   ],
@@ -108,7 +115,7 @@ class _BazarrConnectScreenState extends ConsumerState<BazarrConnectScreen> {
                       ? const CupertinoActivityIndicator(
                           color: CupertinoColors.white,
                         )
-                      : const Text('Connect'),
+                      : Text(AppLocalizations.of(context).commonConnect),
                 ),
               ],
             ),

@@ -1,6 +1,7 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../l10n/generated/app_localizations.dart';
 import '../../../../shared/theme/category_colors.dart';
 import '../../../ha_client/providers/ha_client_providers.dart';
 import '../../domain/tile_config.dart';
@@ -13,7 +14,10 @@ class SceneTile extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final entity = ref.watch(entitiesProvider).value?[tile.entityId];
-    final name = entity?.friendlyName ?? tile.entityId ?? 'Scene';
+    final name =
+        entity?.friendlyName ??
+        tile.entityId ??
+        AppLocalizations.of(context).dashboardTileScene;
 
     return GestureDetector(
       onTap: () => ref

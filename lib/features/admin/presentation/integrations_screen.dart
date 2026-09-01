@@ -1,6 +1,7 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../l10n/generated/app_localizations.dart';
 import '../../../shared/widgets/icon_badge.dart';
 import '../data/models/config_entry.dart';
 import '../providers/admin_providers.dart';
@@ -11,13 +12,14 @@ class IntegrationsScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = AppLocalizations.of(context);
     final entriesAsync = ref.watch(configEntriesProvider);
 
     return CupertinoPageScaffold(
       child: CustomScrollView(
         slivers: [
           CupertinoSliverNavigationBar(
-            largeTitle: const Text('Integrations'),
+            largeTitle: Text(l10n.settingsIntegrations),
             leading: CupertinoButton(
               padding: EdgeInsets.zero,
               onPressed: () =>
@@ -39,12 +41,12 @@ class IntegrationsScreen extends ConsumerWidget {
               child: Center(child: CupertinoActivityIndicator()),
             ),
             error: (error, _) => SliverFillRemaining(
-              child: Center(child: Text('Failed to load: $error')),
+              child: Center(child: Text(l10n.adminLoadError(error.toString()))),
             ),
             data: (entries) {
               if (entries.isEmpty) {
-                return const SliverFillRemaining(
-                  child: Center(child: Text('No integrations configured')),
+                return SliverFillRemaining(
+                  child: Center(child: Text(l10n.integrationsScreenEmpty)),
                 );
               }
               return SliverSafeArea(
@@ -82,6 +84,7 @@ class IntegrationsScreen extends ConsumerWidget {
     WidgetRef ref,
     ConfigEntry entry,
   ) async {
+    final l10n = AppLocalizations.of(context);
     final action = await showCupertinoModalPopup<String>(
       context: context,
       builder: (context) => CupertinoActionSheet(
@@ -90,17 +93,17 @@ class IntegrationsScreen extends ConsumerWidget {
         actions: [
           CupertinoActionSheetAction(
             onPressed: () => Navigator.pop(context, 'reload'),
-            child: const Text('Reload'),
+            child: Text(l10n.integrationsReloadAction),
           ),
           CupertinoActionSheetAction(
             onPressed: () => Navigator.pop(context, 'delete'),
             isDestructiveAction: true,
-            child: const Text('Delete'),
+            child: Text(l10n.commonDelete),
           ),
         ],
         cancelButton: CupertinoActionSheetAction(
           onPressed: () => Navigator.pop(context),
-          child: const Text('Cancel'),
+          child: Text(l10n.commonCancel),
         ),
       ),
     );

@@ -1,5 +1,6 @@
 import 'package:flutter/cupertino.dart';
 
+import '../../../l10n/generated/app_localizations.dart';
 import '../../../shared/widgets/icon_badge.dart';
 import '../domain/tile_config.dart';
 import 'tile_kinds.dart';
@@ -46,7 +47,7 @@ class WidgetGallery extends StatelessWidget {
               children: [
                 Expanded(
                   child: Text(
-                    'Add Widget',
+                    AppLocalizations.of(context).widgetGalleryTitle,
                     style: CupertinoTheme.of(context)
                         .textTheme
                         .navTitleTextStyle,
@@ -65,7 +66,7 @@ class WidgetGallery extends StatelessWidget {
             child: Align(
               alignment: Alignment.centerLeft,
               child: Text(
-                'Long-press a widget, then drag it onto your dashboard.',
+                AppLocalizations.of(context).widgetGalleryHint,
                 style: TextStyle(
                   fontSize: 12,
                   color: CupertinoColors.secondaryLabel.resolveFrom(context),
@@ -175,7 +176,7 @@ class _GalleryCard extends StatelessWidget {
               color: CupertinoColors.secondarySystemGroupedBackground
                   .resolveFrom(context),
               child: Text(
-                kind.label,
+                tileTypeLabel(context, type),
                 textAlign: TextAlign.center,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,

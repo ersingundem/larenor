@@ -1,6 +1,7 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../l10n/generated/app_localizations.dart';
 import '../data/models/flow_schema_field.dart';
 import '../data/models/flow_step.dart';
 import '../providers/admin_providers.dart';
@@ -85,14 +86,15 @@ class _AddIntegrationScreenState extends ConsumerState<AddIntegrationScreen> {
   @override
   Widget build(BuildContext context) {
     return CupertinoPageScaffold(
-      navigationBar: const CupertinoNavigationBar(
-        middle: Text('Add Integration'),
+      navigationBar: CupertinoNavigationBar(
+        middle: Text(AppLocalizations.of(context).addIntegrationTitle),
       ),
       child: SafeArea(child: _buildBody(context)),
     );
   }
 
   Widget _buildBody(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final step = _step;
     if (step == null) return _buildHandlerPicker(context);
 
@@ -100,12 +102,12 @@ class _AddIntegrationScreenState extends ConsumerState<AddIntegrationScreen> {
       case 'create_entry':
         return _buildResult(
           icon: CupertinoIcons.check_mark_circled,
-          message: 'Integration added successfully.',
+          message: l10n.addIntegrationSuccess,
         );
       case 'abort':
         return _buildResult(
           icon: CupertinoIcons.exclamationmark_circle,
-          message: step.reason ?? 'The setup flow was aborted.',
+          message: step.reason ?? l10n.addIntegrationAborted,
         );
       case 'menu':
         return _buildMenu(step);
@@ -115,8 +117,9 @@ class _AddIntegrationScreenState extends ConsumerState<AddIntegrationScreen> {
   }
 
   Widget _buildHandlerPicker(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     if (_handlersError != null) {
-      return Center(child: Text('Failed to load: $_handlersError'));
+      return Center(child: Text(l10n.adminLoadError(_handlersError!)));
     }
     if (_handlers == null) {
       return const Center(child: CupertinoActivityIndicator());
@@ -131,20 +134,15 @@ class _AddIntegrationScreenState extends ConsumerState<AddIntegrationScreen> {
         Padding(
           padding: const EdgeInsets.all(12),
           child: CupertinoSearchTextField(
-            placeholder: 'Search integration domain (e.g. hue, mqtt)',
+            placeholder: l10n.addIntegrationSearchPlaceholder,
             onChanged: (value) => setState(() => _query = value),
           ),
         ),
-        const Padding(
-          padding: EdgeInsets.symmetric(horizontal: 16),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
           child: Text(
-            'These are the raw integration domains your server can set up. '
-            'Pick the one matching what you want to add. Not every brand '
-            'ships with Home Assistant by default — some (e.g. Anker Solix, '
-            'SonoffLAN, richer Keenetic router control) need to be installed '
-            'via HACS in Home Assistant itself first; once installed there, '
-            'they\'ll show up here automatically.',
-            style: TextStyle(
+            l10n.addIntegrationHint,
+            style: const TextStyle(
               fontSize: 12,
               color: CupertinoColors.secondaryLabel,
             ),
@@ -208,7 +206,9 @@ class _AddIntegrationScreenState extends ConsumerState<AddIntegrationScreen> {
             ),
           ),
         CupertinoListSection.insetGrouped(
-          header: Text(step.stepId ?? 'Setup'),
+          header: Text(
+            step.stepId ?? AppLocalizations.of(context).addIntegrationSetup,
+          ),
           children: [
             for (final field in step.dataSchema)
               DynamicFormField(
@@ -229,7 +229,7 @@ class _AddIntegrationScreenState extends ConsumerState<AddIntegrationScreen> {
                 : () => _submitStep(_valuesForSubmit(step.dataSchema)),
             child: _submitting
                 ? const CupertinoActivityIndicator(color: CupertinoColors.white)
-                : const Text('Next'),
+                : Text(AppLocalizations.of(context).commonNext),
           ),
         ),
       ],
@@ -262,7 +262,7 @@ class _AddIntegrationScreenState extends ConsumerState<AddIntegrationScreen> {
             const SizedBox(height: 20),
             CupertinoButton.filled(
               onPressed: () => Navigator.of(context).pop(),
-              child: const Text('Done'),
+              child: Text(AppLocalizations.of(context).commonDone),
             ),
           ],
         ),

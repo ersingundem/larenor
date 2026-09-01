@@ -1,6 +1,7 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../l10n/generated/app_localizations.dart';
 import '../../../media/qbittorrent/presentation/qbittorrent_torrents_screen.dart';
 import '../../../media/qbittorrent/providers/qbittorrent_providers.dart';
 import '../../domain/tile_config.dart';
@@ -26,13 +27,16 @@ class QbittorrentTile extends ConsumerWidget {
         CupertinoPageRoute(builder: (_) => const QbittorrentTorrentsScreen()),
       ),
       lines: torrents.isEmpty
-          ? const ['No active torrents']
+          ? [AppLocalizations.of(context).qbittorrentTileNoActive]
           : torrents
                 .take(3)
                 .map(
-                  (t) =>
-                      '${t.name ?? 'Torrent'} · '
-                      '${((t.progress ?? 0) * 100).round()}%',
+                  (t) => AppLocalizations.of(context).qbittorrentTileProgress(
+                    t.name ??
+                        AppLocalizations.of(context)
+                            .qbittorrentTileFallbackName,
+                    ((t.progress ?? 0) * 100).round(),
+                  ),
                 )
                 .toList(),
     );

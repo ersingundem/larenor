@@ -58,3 +58,8 @@ app.*.map.json
 # `dart run build_runner build` after checkout to regenerate.
 *.g.dart
 *.freezed.dart
+
+# Generated localizations - run `flutter gen-l10n` after checkout to
+# regenerate (or it runs automatically on `flutter pub get`/`flutter run`
+# since l10n.yaml + pubspec.yaml's flutter.generate:true are set).
+lib/l10n/generated/

@@ -1,5 +1,6 @@
 import 'package:flutter/cupertino.dart';
 
+import '../../../l10n/generated/app_localizations.dart';
 import '../domain/tile_config.dart';
 
 /// Static metadata for one addable tile type — label, icon/color for the
@@ -171,3 +172,49 @@ const webviewTileKind = TileKindInfo(
   width: 4,
   height: 4,
 );
+
+/// Localized label for a [TileType], since [TileKindInfo.label] lives in a
+/// `const` map and can't call [AppLocalizations.of] itself.
+String tileTypeLabel(BuildContext context, TileType type) {
+  final l10n = AppLocalizations.of(context);
+  switch (type) {
+    case TileType.entity:
+      return l10n.dashboardTileEntity;
+    case TileType.scene:
+      return l10n.dashboardTileScene;
+    case TileType.mediaPlayer:
+      return l10n.dashboardTileMediaPlayer;
+    case TileType.climate:
+      return l10n.dashboardTileClimate;
+    case TileType.weather:
+      return l10n.dashboardTileWeather;
+    case TileType.history:
+      return l10n.dashboardTileHistory;
+    case TileType.camera:
+      return l10n.dashboardTileCamera;
+    case TileType.jellyfin:
+      return l10n.dashboardTileJellyfin;
+    case TileType.jellyseerr:
+      return l10n.dashboardTileJellyseerr;
+    case TileType.sonarr:
+      return l10n.dashboardTileSonarr;
+    case TileType.radarr:
+      return l10n.dashboardTileRadarr;
+    case TileType.lidarr:
+      return l10n.dashboardTileLidarr;
+    case TileType.readarr:
+      return l10n.dashboardTileReadarr;
+    case TileType.bazarr:
+      return l10n.dashboardTileBazarr;
+    case TileType.prowlarr:
+      return l10n.dashboardTileProwlarr;
+    case TileType.qbittorrent:
+      return l10n.dashboardTileQbittorrent;
+    case TileType.proxmox:
+      return l10n.dashboardTileProxmox;
+    case TileType.keenetic:
+      return l10n.dashboardTileKeenetic;
+    case TileType.webview:
+      return l10n.dashboardTileWebview;
+  }
+}

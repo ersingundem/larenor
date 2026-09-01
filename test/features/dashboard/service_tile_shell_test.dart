@@ -1,6 +1,7 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:larenor/features/dashboard/presentation/tiles/service_tile_shell.dart';
+import 'package:larenor/l10n/generated/app_localizations.dart';
 
 void main() {
   testWidgets('shows a "Not connected" placeholder when not connected', (
@@ -8,6 +9,8 @@ void main() {
   ) async {
     await tester.pumpWidget(
       CupertinoApp(
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
         home: ServiceTileShell(
           icon: CupertinoIcons.play_rectangle,
           title: 'Jellyfin',
@@ -26,6 +29,8 @@ void main() {
   testWidgets('shows the provided lines when connected', (tester) async {
     await tester.pumpWidget(
       CupertinoApp(
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
         home: ServiceTileShell(
           icon: CupertinoIcons.square_stack_3d_up,
           title: 'Proxmox',
@@ -45,6 +50,8 @@ void main() {
     var tapped = false;
     await tester.pumpWidget(
       CupertinoApp(
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
         home: ServiceTileShell(
           icon: CupertinoIcons.wifi,
           title: 'Keenetic',

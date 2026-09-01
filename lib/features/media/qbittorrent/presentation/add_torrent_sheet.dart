@@ -4,6 +4,8 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:qbittorrent_api/qbittorrent_api.dart';
 
+import '../../../../l10n/generated/app_localizations.dart';
+
 /// Add-torrent entry point: magnet link (pasted into a text field) or a
 /// `.torrent` file picked from the device via the platform file chooser.
 Future<void> showAddTorrentSheet(
@@ -14,20 +16,20 @@ Future<void> showAddTorrentSheet(
   final choice = await showCupertinoModalPopup<String>(
     context: context,
     builder: (context) => CupertinoActionSheet(
-      title: const Text('Add Torrent'),
+      title: Text(AppLocalizations.of(context).qbittorrentAddTorrentTitle),
       actions: [
         CupertinoActionSheetAction(
           onPressed: () => Navigator.pop(context, 'magnet'),
-          child: const Text('Paste Magnet Link'),
+          child: Text(AppLocalizations.of(context).qbittorrentPasteMagnetLink),
         ),
         CupertinoActionSheetAction(
           onPressed: () => Navigator.pop(context, 'file'),
-          child: const Text('Choose .torrent File'),
+          child: Text(AppLocalizations.of(context).qbittorrentChooseFile),
         ),
       ],
       cancelButton: CupertinoActionSheetAction(
         onPressed: () => Navigator.pop(context),
-        child: const Text('Cancel'),
+        child: Text(AppLocalizations.of(context).commonCancel),
       ),
     ),
   );
@@ -49,7 +51,7 @@ Future<void> _addByMagnet(
   final magnet = await showCupertinoDialog<String>(
     context: context,
     builder: (context) => CupertinoAlertDialog(
-      title: const Text('Magnet Link'),
+      title: Text(AppLocalizations.of(context).qbittorrentMagnetLinkTitle),
       content: Padding(
         padding: const EdgeInsets.only(top: 12),
         child: CupertinoTextField(
@@ -61,11 +63,11 @@ Future<void> _addByMagnet(
       actions: [
         CupertinoDialogAction(
           onPressed: () => Navigator.pop(context),
-          child: const Text('Cancel'),
+          child: Text(AppLocalizations.of(context).commonCancel),
         ),
         CupertinoDialogAction(
           onPressed: () => Navigator.pop(context, controller.text.trim()),
-          child: const Text('Add'),
+          child: Text(AppLocalizations.of(context).commonAdd),
         ),
       ],
     ),

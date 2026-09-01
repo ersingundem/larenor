@@ -1,6 +1,7 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../l10n/generated/app_localizations.dart';
 import '../../../shared/widgets/icon_badge.dart';
 import '../providers/admin_providers.dart';
 
@@ -9,13 +10,14 @@ class AreasScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = AppLocalizations.of(context);
     final areasAsync = ref.watch(areasProvider);
 
     return CupertinoPageScaffold(
       child: CustomScrollView(
         slivers: [
           CupertinoSliverNavigationBar(
-            largeTitle: const Text('Areas'),
+            largeTitle: Text(l10n.settingsAreas),
             leading: CupertinoButton(
               padding: EdgeInsets.zero,
               onPressed: () => ref.invalidate(areasProvider),
@@ -27,12 +29,12 @@ class AreasScreen extends ConsumerWidget {
               child: Center(child: CupertinoActivityIndicator()),
             ),
             error: (error, _) => SliverFillRemaining(
-              child: Center(child: Text('Failed to load: $error')),
+              child: Center(child: Text(l10n.adminLoadError(error.toString()))),
             ),
             data: (areas) {
               if (areas.isEmpty) {
-                return const SliverFillRemaining(
-                  child: Center(child: Text('No areas configured')),
+                return SliverFillRemaining(
+                  child: Center(child: Text(l10n.areasScreenEmpty)),
                 );
               }
               return SliverSafeArea(

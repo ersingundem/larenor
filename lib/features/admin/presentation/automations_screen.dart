@@ -1,6 +1,7 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../l10n/generated/app_localizations.dart';
 import '../../../shared/widgets/icon_badge.dart';
 import '../../ha_client/data/models/ha_entity.dart';
 import '../../ha_client/providers/ha_client_providers.dart';
@@ -13,6 +14,7 @@ class AutomationsScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = AppLocalizations.of(context);
     final automationsAsync = ref.watch(automationsProvider);
     final liveEntities = ref.watch(entitiesProvider).value;
 
@@ -20,7 +22,7 @@ class AutomationsScreen extends ConsumerWidget {
       child: CustomScrollView(
         slivers: [
           CupertinoSliverNavigationBar(
-            largeTitle: const Text('Automations'),
+            largeTitle: Text(l10n.settingsAutomations),
             leading: CupertinoButton(
               padding: EdgeInsets.zero,
               onPressed: () => ref.invalidate(automationsProvider),
@@ -41,12 +43,12 @@ class AutomationsScreen extends ConsumerWidget {
               child: Center(child: CupertinoActivityIndicator()),
             ),
             error: (error, _) => SliverFillRemaining(
-              child: Center(child: Text('Failed to load: $error')),
+              child: Center(child: Text(l10n.adminLoadError(error.toString()))),
             ),
             data: (automations) {
               if (automations.isEmpty) {
-                return const SliverFillRemaining(
-                  child: Center(child: Text('No automations found')),
+                return SliverFillRemaining(
+                  child: Center(child: Text(l10n.automationsScreenEmpty)),
                 );
               }
               return SliverSafeArea(
@@ -65,6 +67,7 @@ class AutomationsScreen extends ConsumerWidget {
                             title: Text(automation.friendlyName),
                             subtitle: Text(
                               automationSubtitle(
+                                l10n,
                                 automation,
                                 liveEntities?[automation.entityId],
                               ),
@@ -106,11 +109,17 @@ class AutomationsScreen extends ConsumerWidget {
 
 /// Pulled out of [AutomationsScreen] so the subtitle logic is unit
 /// testable without standing up the widget tree.
-String automationSubtitle(AutomationSummary automation, HaEntity? liveEntity) {
-  if (automation.automationId == null) return 'Config not editable from here';
+String automationSubtitle(
+  AppLocalizations l10n,
+  AutomationSummary automation,
+  HaEntity? liveEntity,
+) {
+  if (automation.automationId == null) return l10n.automationsNotEditable;
   final lastTriggered = liveEntity?.attributes['last_triggered'] as String?;
-  if (lastTriggered == null) return 'Never triggered';
+  if (lastTriggered == null) return l10n.automationsNeverTriggered;
   final parsed = DateTime.tryParse(lastTriggered);
-  if (parsed == null) return 'Last triggered: $lastTriggered';
-  return 'Last triggered: ${parsed.toLocal().toString().split('.')[0]}';
+  final formatted = parsed == null
+      ? lastTriggered
+      : parsed.toLocal().toString().split('.')[0];
+  return l10n.automationsLastTriggered(formatted);
 }

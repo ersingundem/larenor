@@ -1,6 +1,7 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../l10n/generated/app_localizations.dart';
 import '../../../media/arr/presentation/lidarr_screen.dart';
 import '../../../media/arr/providers/lidarr_providers.dart';
 import '../../domain/tile_config.dart';
@@ -26,7 +27,7 @@ class LidarrTile extends ConsumerWidget {
           Navigator.of(context)
               .push(CupertinoPageRoute(builder: (_) => const LidarrScreen())),
       lines: items.isEmpty
-          ? const ['Nothing upcoming']
+          ? [AppLocalizations.of(context).commonNothingUpcoming]
           : items.take(3).map((item) => item.title).toList(),
     );
   }

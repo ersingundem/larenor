@@ -1,6 +1,7 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../l10n/generated/app_localizations.dart';
 import '../../../shared/widgets/camera_snapshot.dart';
 import '../../ha_client/providers/ha_client_providers.dart';
 import 'camera_viewer_screen.dart';
@@ -10,26 +11,27 @@ class CamerasScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = AppLocalizations.of(context);
     final entitiesAsync = ref.watch(entitiesProvider);
 
     return CupertinoPageScaffold(
       child: CustomScrollView(
         slivers: [
-          const CupertinoSliverNavigationBar(largeTitle: Text('Cameras')),
+          CupertinoSliverNavigationBar(largeTitle: Text(l10n.settingsCameras)),
           entitiesAsync.when(
             loading: () => const SliverFillRemaining(
               child: Center(child: CupertinoActivityIndicator()),
             ),
             error: (error, _) => SliverFillRemaining(
-              child: Center(child: Text('Failed to load: $error')),
+              child: Center(child: Text(l10n.adminLoadError(error.toString()))),
             ),
             data: (entities) {
               final cameras =
                   entities.values.where((e) => e.domain == 'camera').toList()
                     ..sort((a, b) => a.friendlyName.compareTo(b.friendlyName));
               if (cameras.isEmpty) {
-                return const SliverFillRemaining(
-                  child: Center(child: Text('No cameras found')),
+                return SliverFillRemaining(
+                  child: Center(child: Text(l10n.camerasScreenEmpty)),
                 );
               }
               return SliverSafeArea(

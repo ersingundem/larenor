@@ -1,6 +1,7 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../l10n/generated/app_localizations.dart';
 import '../../data/media_api_exception.dart';
 import '../data/jellyfin_discovery.dart';
 import '../providers/jellyfin_providers.dart';
@@ -66,7 +67,9 @@ class _JellyfinConnectScreenState extends ConsumerState<JellyfinConnectScreen> {
     final username = _userController.text.trim();
     final password = _passwordController.text;
     if (url.isEmpty || username.isEmpty) {
-      setState(() => _error = 'Enter a server URL and username.');
+      setState(
+        () => _error = AppLocalizations.of(context).mediaErrorEnterUrlUsername,
+      );
       return;
     }
 
@@ -86,7 +89,9 @@ class _JellyfinConnectScreenState extends ConsumerState<JellyfinConnectScreen> {
     } on MediaApiException catch (e) {
       setState(() => _error = e.message);
     } catch (_) {
-      setState(() => _error = 'Could not reach the server.');
+      setState(
+        () => _error = AppLocalizations.of(context).mediaErrorUnreachable,
+      );
     } finally {
       if (mounted) setState(() => _connecting = false);
     }
@@ -94,6 +99,7 @@ class _JellyfinConnectScreenState extends ConsumerState<JellyfinConnectScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return CupertinoPageScaffold(
       navigationBar: const CupertinoNavigationBar(middle: Text('Jellyfin')),
       child: SafeArea(
@@ -106,7 +112,7 @@ class _JellyfinConnectScreenState extends ConsumerState<JellyfinConnectScreen> {
                 const SizedBox(height: 16),
                 if (_discovered.isNotEmpty || _scanning) ...[
                   CupertinoListSection.insetGrouped(
-                    header: const Text('FOUND ON YOUR NETWORK'),
+                    header: Text(l10n.commonFoundOnNetwork),
                     children: [
                       for (final server in _discovered)
                         CupertinoListTile(
@@ -116,9 +122,9 @@ class _JellyfinConnectScreenState extends ConsumerState<JellyfinConnectScreen> {
                           onTap: () => _selectDiscovered(server),
                         ),
                       if (_scanning && _discovered.isEmpty)
-                        const CupertinoListTile(
-                          leading: CupertinoActivityIndicator(),
-                          title: Text('Scanning…'),
+                        CupertinoListTile(
+                          leading: const CupertinoActivityIndicator(),
+                          title: Text(l10n.commonScanning),
                         ),
                     ],
                   ),
@@ -128,18 +134,18 @@ class _JellyfinConnectScreenState extends ConsumerState<JellyfinConnectScreen> {
                   children: [
                     CupertinoTextFormFieldRow(
                       controller: _urlController,
-                      prefix: const Text('URL'),
+                      prefix: Text(l10n.connectUrlLabel),
                       placeholder: 'http://jellyfin.local:8096',
                       keyboardType: TextInputType.url,
                     ),
                     CupertinoTextFormFieldRow(
                       controller: _userController,
-                      prefix: const Text('User'),
-                      placeholder: 'Username',
+                      prefix: Text(l10n.mediaUserLabel),
+                      placeholder: l10n.mediaUsernamePlaceholder,
                     ),
                     CupertinoTextFormFieldRow(
                       controller: _passwordController,
-                      prefix: const Text('Password'),
+                      prefix: Text(l10n.mediaPasswordLabel),
                       obscureText: true,
                     ),
                   ],
@@ -161,7 +167,7 @@ class _JellyfinConnectScreenState extends ConsumerState<JellyfinConnectScreen> {
                       ? const CupertinoActivityIndicator(
                           color: CupertinoColors.white,
                         )
-                      : const Text('Connect'),
+                      : Text(l10n.commonConnect),
                 ),
               ],
             ),

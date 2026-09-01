@@ -1,5 +1,6 @@
 import 'package:flutter/cupertino.dart';
 
+import '../../../../../l10n/generated/app_localizations.dart';
 import '../../data/models/arr_lookup_result.dart';
 import '../../data/models/arr_picker_options.dart';
 
@@ -62,7 +63,9 @@ class _ArrAddScreenState extends State<ArrAddScreen> {
             if (_searching) const CupertinoActivityIndicator(),
             Expanded(
               child: _results == null
-                  ? const Center(child: Text('Search to add something new'))
+                  ? Center(
+                      child: Text(AppLocalizations.of(context).arrSearchToAdd),
+                    )
                   : ListView.builder(
                       itemCount: _results!.length,
                       itemBuilder: (context, index) {
@@ -73,7 +76,9 @@ class _ArrAddScreenState extends State<ArrAddScreen> {
                               ? Text('${result.year}')
                               : null,
                           trailing: result.alreadyAdded
-                              ? const Text('Added')
+                              ? Text(
+                                  AppLocalizations.of(context).arrAlreadyAdded,
+                                )
                               : const CupertinoListTileChevron(),
                           onTap: result.alreadyAdded
                               ? null
@@ -121,56 +126,70 @@ class _ArrAddScreenState extends State<ArrAddScreen> {
     await showCupertinoModalPopup<void>(
       context: context,
       builder: (context) => StatefulBuilder(
-        builder: (context, setSheetState) => CupertinoActionSheet(
-          title: Text(result.title),
-          message: Text(
-            'Quality: ${selectedProfile.name}\nFolder: ${selectedFolder.path}'
-            '${selectedMetadataProfile != null ? '\nMetadata: ${selectedMetadataProfile!.name}' : ''}',
-          ),
-          actions: [
-            for (final profile in profiles)
-              CupertinoActionSheetAction(
-                onPressed: () => setSheetState(() => selectedProfile = profile),
-                child: Text(
-                  '${selectedProfile.id == profile.id ? '✓ ' : ''}Quality: ${profile.name}',
-                ),
-              ),
-            for (final folder in folders)
-              CupertinoActionSheetAction(
-                onPressed: () => setSheetState(() => selectedFolder = folder),
-                child: Text(
-                  '${selectedFolder.id == folder.id ? '✓ ' : ''}Folder: ${folder.path}',
-                ),
-              ),
-            if (metadataProfiles != null)
-              for (final profile in metadataProfiles)
+        builder: (context, setSheetState) {
+          final l10n = AppLocalizations.of(context);
+          return CupertinoActionSheet(
+            title: Text(result.title),
+            message: Text(
+              [
+                l10n.arrQualityLine(selectedProfile.name),
+                l10n.arrFolderLine(selectedFolder.path),
+                if (selectedMetadataProfile != null)
+                  l10n.arrMetadataLine(selectedMetadataProfile!.name),
+              ].join('\n'),
+            ),
+            actions: [
+              for (final profile in profiles)
                 CupertinoActionSheetAction(
                   onPressed: () =>
-                      setSheetState(() => selectedMetadataProfile = profile),
+                      setSheetState(() => selectedProfile = profile),
                   child: Text(
-                    '${selectedMetadataProfile?.id == profile.id ? '✓ ' : ''}Metadata: ${profile.name}',
+                    selectedProfile.id == profile.id
+                        ? l10n.arrQualityOptionSelected(profile.name)
+                        : l10n.arrQualityLine(profile.name),
                   ),
                 ),
-            CupertinoActionSheetAction(
-              isDefaultAction: true,
-              onPressed: () async {
-                Navigator.pop(context);
-                await widget.onAdd(
-                  result,
-                  selectedProfile.id,
-                  selectedFolder.path,
-                  selectedMetadataProfile?.id,
-                );
-                if (mounted) setState(() => _results = null);
-              },
-              child: const Text('Add'),
+              for (final folder in folders)
+                CupertinoActionSheetAction(
+                  onPressed: () => setSheetState(() => selectedFolder = folder),
+                  child: Text(
+                    selectedFolder.id == folder.id
+                        ? l10n.arrFolderOptionSelected(folder.path)
+                        : l10n.arrFolderLine(folder.path),
+                  ),
+                ),
+              if (metadataProfiles != null)
+                for (final profile in metadataProfiles)
+                  CupertinoActionSheetAction(
+                    onPressed: () =>
+                        setSheetState(() => selectedMetadataProfile = profile),
+                    child: Text(
+                      selectedMetadataProfile?.id == profile.id
+                          ? l10n.arrMetadataOptionSelected(profile.name)
+                          : l10n.arrMetadataLine(profile.name),
+                    ),
+                  ),
+              CupertinoActionSheetAction(
+                isDefaultAction: true,
+                onPressed: () async {
+                  Navigator.pop(context);
+                  await widget.onAdd(
+                    result,
+                    selectedProfile.id,
+                    selectedFolder.path,
+                    selectedMetadataProfile?.id,
+                  );
+                  if (mounted) setState(() => _results = null);
+                },
+                child: Text(l10n.commonAdd),
+              ),
+            ],
+            cancelButton: CupertinoActionSheetAction(
+              onPressed: () => Navigator.pop(context),
+              child: Text(l10n.commonCancel),
             ),
-          ],
-          cancelButton: CupertinoActionSheetAction(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-        ),
+          );
+        },
       ),
     );
   }

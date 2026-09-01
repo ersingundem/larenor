@@ -1,6 +1,7 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../l10n/generated/app_localizations.dart';
 import '../../../media/arr/presentation/sonarr_screen.dart';
 import '../../../media/arr/providers/sonarr_providers.dart';
 import '../../domain/tile_config.dart';
@@ -26,7 +27,7 @@ class SonarrTile extends ConsumerWidget {
           Navigator.of(context)
               .push(CupertinoPageRoute(builder: (_) => const SonarrScreen())),
       lines: items.isEmpty
-          ? const ['Nothing upcoming']
+          ? [AppLocalizations.of(context).commonNothingUpcoming]
           : items.take(3).map((item) => item.title).toList(),
     );
   }

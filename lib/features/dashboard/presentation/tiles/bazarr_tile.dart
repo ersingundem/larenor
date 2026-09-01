@@ -1,6 +1,7 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../l10n/generated/app_localizations.dart';
 import '../../../media/bazarr/presentation/bazarr_home_screen.dart';
 import '../../../media/bazarr/providers/bazarr_providers.dart';
 import '../../domain/tile_config.dart';
@@ -27,9 +28,7 @@ class BazarrTile extends ConsumerWidget {
       onTap: () => Navigator.of(context)
           .push(CupertinoPageRoute(builder: (_) => const BazarrHomeScreen())),
       lines: [
-        missingCount == 0
-            ? 'No missing subtitles'
-            : '$missingCount missing subtitles',
+        AppLocalizations.of(context).bazarrTileMissingSubtitles(missingCount),
       ],
     );
   }

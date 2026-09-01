@@ -1,6 +1,7 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../l10n/generated/app_localizations.dart';
 import '../data/models/proxmox_guest.dart';
 import '../data/models/proxmox_storage.dart';
 import '../providers/proxmox_providers.dart';
@@ -40,7 +41,11 @@ class ProxmoxNodeDetailScreen extends ConsumerWidget {
       child: SafeArea(
         child: guestsAsync.when(
           loading: () => const Center(child: CupertinoActivityIndicator()),
-          error: (error, _) => Center(child: Text('Failed to load: $error')),
+          error: (error, _) => Center(
+            child: Text(
+              AppLocalizations.of(context).adminLoadError(error.toString()),
+            ),
+          ),
           data: (guests) {
             final vms = guests.where((g) => g.type == ProxmoxGuestType.qemu);
             final containers = guests.where(
@@ -51,7 +56,7 @@ class ProxmoxNodeDetailScreen extends ConsumerWidget {
                 const SizedBox(height: 16),
                 if (vms.isNotEmpty)
                   CupertinoListSection.insetGrouped(
-                    header: const Text('VIRTUAL MACHINES'),
+                    header: Text(AppLocalizations.of(context).proxmoxVmsHeader),
                     children: [
                       for (final guest in vms)
                         ProxmoxGuestRow(guest: guest, onChanged: refresh),
@@ -59,7 +64,9 @@ class ProxmoxNodeDetailScreen extends ConsumerWidget {
                   ),
                 if (containers.isNotEmpty)
                   CupertinoListSection.insetGrouped(
-                    header: const Text('CONTAINERS'),
+                    header: Text(
+                      AppLocalizations.of(context).proxmoxContainersHeader,
+                    ),
                     children: [
                       for (final guest in containers)
                         ProxmoxGuestRow(guest: guest, onChanged: refresh),
@@ -71,7 +78,9 @@ class ProxmoxNodeDetailScreen extends ConsumerWidget {
                   data: (storages) => storages.isEmpty
                       ? const SizedBox.shrink()
                       : CupertinoListSection.insetGrouped(
-                          header: const Text('STORAGE'),
+                          header: Text(
+                            AppLocalizations.of(context).proxmoxStorageHeader,
+                          ),
                           children: [
                             for (final storage in storages)
                               _StorageRow(nodeName: nodeName, storage: storage),

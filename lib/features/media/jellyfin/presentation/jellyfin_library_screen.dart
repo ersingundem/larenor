@@ -1,6 +1,7 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../l10n/generated/app_localizations.dart';
 import '../providers/jellyfin_providers.dart';
 import 'jellyfin_item_detail_screen.dart';
 import 'widgets/jellyfin_poster.dart';
@@ -28,10 +29,16 @@ class JellyfinLibraryScreen extends ConsumerWidget {
       child: SafeArea(
         child: itemsAsync.when(
           loading: () => const Center(child: CupertinoActivityIndicator()),
-          error: (error, _) => Center(child: Text('Failed to load: $error')),
+          error: (error, _) => Center(
+            child: Text(
+              AppLocalizations.of(context).adminLoadError(error.toString()),
+            ),
+          ),
           data: (items) {
             if (items.isEmpty) {
-              return const Center(child: Text('Nothing here yet'));
+              return Center(
+                child: Text(AppLocalizations.of(context).jellyfinLibraryEmpty),
+              );
             }
             return GridView.builder(
               padding: const EdgeInsets.all(12),

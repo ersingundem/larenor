@@ -1,6 +1,7 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../l10n/generated/app_localizations.dart';
 import '../../../../shared/discovery/service_signatures.dart';
 import '../providers/sonarr_providers.dart';
 import 'widgets/arr_add_screen.dart';
@@ -51,8 +52,8 @@ class SonarrScreen extends ConsumerWidget {
               onPressed: () => Navigator.of(context).push(
                 CupertinoPageRoute(
                   builder: (_) => ArrAddScreen(
-                    title: 'Add Series',
-                    searchHint: 'Search TV shows',
+                    title: AppLocalizations.of(context).arrAddSeriesTitle,
+                    searchHint: AppLocalizations.of(context).arrSearchTvShows,
                     onLookup: (term) =>
                         ref.read(sonarrClientProvider)!.lookup(term),
                     loadQualityProfiles: () =>

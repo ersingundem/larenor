@@ -1,6 +1,7 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../l10n/generated/app_localizations.dart';
 import '../data/models/jellyfin_item.dart';
 import '../providers/jellyfin_providers.dart';
 import 'jellyfin_connect_screen.dart';
@@ -20,7 +21,7 @@ class JellyfinHomeScreen extends ConsumerWidget {
         child: Center(child: CupertinoActivityIndicator()),
       ),
       error: (error, _) =>
-          CupertinoPageScaffold(child: Center(child: Text('$error'))),
+          CupertinoPageScaffold(child: Center(child: Text(error.toString()))),
       data: (config) {
         if (config == null) return const JellyfinConnectScreen();
         return _JellyfinBrowseScaffold(ref: ref);
@@ -54,13 +55,19 @@ class _JellyfinBrowseScaffold extends ConsumerWidget {
         child: ListView(
           padding: const EdgeInsets.symmetric(vertical: 12),
           children: [
-            _PosterRow(title: 'Continue Watching', itemsAsync: resumeAsync),
-            _PosterRow(title: 'Recently Added', itemsAsync: latestAsync),
-            const Padding(
-              padding: EdgeInsets.fromLTRB(16, 16, 16, 4),
+            _PosterRow(
+              title: AppLocalizations.of(context).jellyfinContinueWatching,
+              itemsAsync: resumeAsync,
+            ),
+            _PosterRow(
+              title: AppLocalizations.of(context).jellyfinRecentlyAdded,
+              itemsAsync: latestAsync,
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
               child: Text(
-                'LIBRARIES',
-                style: TextStyle(
+                AppLocalizations.of(context).jellyfinLibrariesHeader,
+                style: const TextStyle(
                   fontSize: 12,
                   color: CupertinoColors.secondaryLabel,
                 ),
@@ -68,7 +75,9 @@ class _JellyfinBrowseScaffold extends ConsumerWidget {
             ),
             librariesAsync.when(
               loading: () => const Center(child: CupertinoActivityIndicator()),
-              error: (error, _) => Text('Failed to load: $error'),
+              error: (error, _) => Text(
+                AppLocalizations.of(context).adminLoadError(error.toString()),
+              ),
               data: (libraries) => CupertinoListSection.insetGrouped(
                 children: [
                   for (final library in libraries)

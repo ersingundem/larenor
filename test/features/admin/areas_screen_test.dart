@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:larenor/features/admin/data/models/ha_area.dart';
 import 'package:larenor/features/admin/presentation/areas_screen.dart';
 import 'package:larenor/features/admin/providers/admin_providers.dart';
+import 'package:larenor/l10n/generated/app_localizations.dart';
 
 void main() {
   testWidgets('renders areas from the provider without hitting the network', (
@@ -19,7 +20,11 @@ void main() {
             ],
           ),
         ],
-        child: const CupertinoApp(home: AreasScreen()),
+        child: const CupertinoApp(
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: AreasScreen(),
+        ),
       ),
     );
     await tester.pumpAndSettle();
@@ -32,7 +37,11 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [areasProvider.overrideWith((ref) async => const [])],
-        child: const CupertinoApp(home: AreasScreen()),
+        child: const CupertinoApp(
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: AreasScreen(),
+        ),
       ),
     );
     await tester.pumpAndSettle();

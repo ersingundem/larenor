@@ -1,6 +1,7 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../l10n/generated/app_localizations.dart';
 import '../../../shared/widgets/icon_badge.dart';
 import '../../ha_client/data/ha_api_exception.dart';
 import '../../ha_client/data/rest_client.dart';
@@ -69,7 +70,8 @@ class _ConnectScreenState extends ConsumerState<ConnectScreen> {
     final tokenInput = _tokenController.text.trim();
     if (urlInput.isEmpty || tokenInput.isEmpty) {
       setState(
-        () => _errorMessage = 'Enter both a server URL and an access token.',
+        () =>
+            _errorMessage = AppLocalizations.of(context).connectErrorEnterBoth,
       );
       return;
     }
@@ -92,8 +94,9 @@ class _ConnectScreenState extends ConsumerState<ConnectScreen> {
       setState(() => _errorMessage = e.message);
     } catch (_) {
       setState(
-        () => _errorMessage =
-            'Could not reach the server. Check the URL and your network.',
+        () =>
+            _errorMessage = AppLocalizations.of(context)
+                .connectErrorUnreachable,
       );
     } finally {
       client.dispose();
@@ -103,10 +106,13 @@ class _ConnectScreenState extends ConsumerState<ConnectScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return CupertinoPageScaffold(
       child: CustomScrollView(
         slivers: [
-          const CupertinoSliverNavigationBar(largeTitle: Text('Connect')),
+          CupertinoSliverNavigationBar(
+            largeTitle: Text(l10n.connectScreenTitle),
+          ),
           SliverSafeArea(
             top: false,
             sliver: SliverToBoxAdapter(
@@ -119,8 +125,7 @@ class _ConnectScreenState extends ConsumerState<ConnectScreen> {
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
                         Text(
-                          'Connect to your self-hosted Home Assistant '
-                          'server to get started.',
+                          l10n.connectScreenIntro,
                           textAlign: TextAlign.center,
                           style: TextStyle(
                             color: CupertinoColors.secondaryLabel.resolveFrom(
@@ -134,19 +139,19 @@ class _ConnectScreenState extends ConsumerState<ConnectScreen> {
                           const SizedBox(height: 8),
                         ],
                         CupertinoListSection.insetGrouped(
-                          header: const Text('SERVER'),
+                          header: Text(l10n.connectServerHeader),
                           children: [
                             CupertinoTextFormFieldRow(
                               controller: _urlController,
-                              prefix: const Text('URL'),
+                              prefix: Text(l10n.connectUrlLabel),
                               placeholder: 'http://homeassistant.local:8123',
                               keyboardType: TextInputType.url,
                             ),
                             CupertinoTextFormFieldRow(
                               controller: _tokenController,
                               focusNode: _tokenFocusNode,
-                              prefix: const Text('Token'),
-                              placeholder: 'Long-lived access token',
+                              prefix: Text(l10n.connectTokenLabel),
+                              placeholder: l10n.connectTokenPlaceholder,
                               obscureText: true,
                             ),
                           ],
@@ -170,13 +175,11 @@ class _ConnectScreenState extends ConsumerState<ConnectScreen> {
                               ? const CupertinoActivityIndicator(
                                   color: CupertinoColors.white,
                                 )
-                              : const Text('Connect'),
+                              : Text(l10n.commonConnect),
                         ),
                         const SizedBox(height: 12),
                         Text(
-                          'Create a long-lived access token from your Home '
-                          'Assistant profile page (bottom of the Security '
-                          'tab).',
+                          l10n.connectTokenHint,
                           textAlign: TextAlign.center,
                           style: TextStyle(
                             fontSize: 12,
@@ -198,8 +201,9 @@ class _ConnectScreenState extends ConsumerState<ConnectScreen> {
   }
 
   Widget _buildDiscoverySection(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return CupertinoListSection.insetGrouped(
-      header: const Text('FOUND ON YOUR NETWORK'),
+      header: Text(l10n.commonFoundOnNetwork),
       children: [
         for (final server in _discovered)
           CupertinoListTile(
@@ -213,9 +217,9 @@ class _ConnectScreenState extends ConsumerState<ConnectScreen> {
             onTap: () => _selectDiscovered(server),
           ),
         if (_scanning && _discovered.isEmpty)
-          const CupertinoListTile(
-            leading: CupertinoActivityIndicator(),
-            title: Text('Scanning…'),
+          CupertinoListTile(
+            leading: const CupertinoActivityIndicator(),
+            title: Text(l10n.commonScanning),
           ),
       ],
     );

@@ -1,6 +1,7 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../l10n/generated/app_localizations.dart';
 import '../../../keenetic/presentation/keenetic_home_screen.dart';
 import '../../../keenetic/providers/keenetic_providers.dart';
 import '../../domain/tile_config.dart';
@@ -28,8 +29,9 @@ class KeeneticTile extends ConsumerWidget {
       onTap: () => Navigator.of(context)
           .push(CupertinoPageRoute(builder: (_) => const KeeneticHomeScreen())),
       lines: [
-        '$activeCount devices online',
-        if (aps.isNotEmpty) '$apsUp of ${aps.length} Wi-Fi networks up',
+        AppLocalizations.of(context).keeneticTileDevicesOnline(activeCount),
+        if (aps.isNotEmpty)
+          AppLocalizations.of(context).keeneticTileWifiUp(apsUp, aps.length),
       ],
     );
   }

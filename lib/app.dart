@@ -5,6 +5,7 @@ import 'core/router.dart';
 import 'core/theme.dart';
 import 'features/settings/presentation/idle_gate.dart';
 import 'features/settings/presentation/screen_policy_runner.dart';
+import 'l10n/generated/app_localizations.dart';
 
 class LarenorApp extends ConsumerWidget {
   const LarenorApp({super.key});
@@ -17,6 +18,11 @@ class LarenorApp extends ConsumerWidget {
       title: 'Larenor',
       debugShowCheckedModeBanner: false,
       theme: larenorCupertinoTheme,
+      // No `locale:` override — this follows the device's own language
+      // setting automatically, falling back to English (the first
+      // supportedLocales entry) for any language not in the list.
+      localizationsDelegates: AppLocalizations.localizationsDelegates,
+      supportedLocales: AppLocalizations.supportedLocales,
       routerConfig: router,
       builder: (context, child) => ScreenPolicyRunner(
         child: IdleGate(child: child ?? const SizedBox.shrink()),

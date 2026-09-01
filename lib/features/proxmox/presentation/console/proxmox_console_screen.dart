@@ -4,6 +4,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 
+import '../../../../l10n/generated/app_localizations.dart';
 import '../../data/models/proxmox_guest.dart';
 import '../../providers/proxmox_providers.dart';
 
@@ -45,7 +46,9 @@ class _ProxmoxConsoleScreenState extends ConsumerState<ProxmoxConsoleScreen> {
   Future<void> _prepare() async {
     final client = ref.read(proxmoxClientProvider).value;
     if (client == null) {
-      setState(() => _error = 'Not connected.');
+      setState(
+        () => _error = AppLocalizations.of(context).proxmoxConsoleNotConnected,
+      );
       return;
     }
 
@@ -72,7 +75,13 @@ class _ProxmoxConsoleScreenState extends ConsumerState<ProxmoxConsoleScreen> {
           : 'assets/console/xterm.html';
       await _controller.loadFlutterAsset(asset);
     } catch (e) {
-      if (mounted) setState(() => _error = 'Could not open console: $e');
+      if (mounted) {
+        setState(
+          () =>
+              _error = AppLocalizations.of(context)
+                  .proxmoxConsoleOpenError(e.toString()),
+        );
+      }
     }
   }
 
@@ -99,7 +108,9 @@ class _ProxmoxConsoleScreenState extends ConsumerState<ProxmoxConsoleScreen> {
   Widget build(BuildContext context) {
     return CupertinoPageScaffold(
       navigationBar: CupertinoNavigationBar(
-        middle: Text('${widget.guest.name} — Console'),
+        middle: Text(
+          AppLocalizations.of(context).proxmoxConsoleTitle(widget.guest.name),
+        ),
       ),
       child: Stack(
         children: [

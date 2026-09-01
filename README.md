@@ -15,6 +15,13 @@ This repository and its contents are proprietary — see [LICENSE](LICENSE).
 
 ## Features
 
+### Localization
+
+- English and Turkish, following the device's system language automatically — no
+  in-app language switch needed, and no language ever gets stuck after an update or
+  reinstall since it just re-reads the OS setting. Falls back to English on any other
+  device language.
+
 ### Home Assistant connection
 
 - Connect with a server URL and a long-lived access token — no OAuth dance, just
@@ -194,6 +201,12 @@ Generated code (`*.g.dart`, `*.freezed.dart`) is not committed — regenerate it
 with the `build_runner` command above after every checkout or after changing
 any `@freezed`/`@riverpod`/`@JsonSerializable`-annotated file. If you hit
 stale/conflicting generated output, run `dart run build_runner clean` first.
+
+Localization output (`lib/l10n/generated/`) is also not committed — it's
+regenerated automatically by `flutter pub get`/`flutter run` (via
+`flutter: generate: true` in `pubspec.yaml`), or manually with
+`flutter gen-l10n`, from the source strings in `lib/l10n/app_en.arb` and
+`lib/l10n/app_tr.arb`.
 
 ## Useful commands
 

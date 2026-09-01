@@ -1,6 +1,7 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../l10n/generated/app_localizations.dart';
 import '../../../../shared/discovery/service_signatures.dart';
 import '../providers/readarr_providers.dart';
 import 'widgets/arr_add_screen.dart';
@@ -51,8 +52,8 @@ class ReadarrScreen extends ConsumerWidget {
               onPressed: () => Navigator.of(context).push(
                 CupertinoPageRoute(
                   builder: (_) => ArrAddScreen(
-                    title: 'Add Author',
-                    searchHint: 'Search authors',
+                    title: AppLocalizations.of(context).arrAddAuthorTitle,
+                    searchHint: AppLocalizations.of(context).arrSearchAuthors,
                     onLookup: (term) =>
                         ref.read(readarrClientProvider)!.lookup(term),
                     loadQualityProfiles: () =>

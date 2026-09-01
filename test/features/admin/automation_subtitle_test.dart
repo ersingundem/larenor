@@ -2,8 +2,11 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:larenor/features/admin/data/models/automation_summary.dart';
 import 'package:larenor/features/admin/presentation/automations_screen.dart';
 import 'package:larenor/features/ha_client/data/models/ha_entity.dart';
+import 'package:larenor/l10n/generated/app_localizations_en.dart';
 
 void main() {
+  final l10n = AppLocalizationsEn();
+
   const automation = AutomationSummary(
     entityId: 'automation.morning',
     friendlyName: 'Morning routine',
@@ -19,7 +22,7 @@ void main() {
       automationId: null,
     );
     expect(
-      automationSubtitle(notEditable, null),
+      automationSubtitle(l10n, notEditable, null),
       'Config not editable from here',
     );
   });
@@ -30,11 +33,11 @@ void main() {
       'state': 'on',
       'attributes': <String, dynamic>{},
     });
-    expect(automationSubtitle(automation, entity), 'Never triggered');
+    expect(automationSubtitle(l10n, automation, entity), 'Never triggered');
   });
 
   test('never triggered when there is no live entity at all', () {
-    expect(automationSubtitle(automation, null), 'Never triggered');
+    expect(automationSubtitle(l10n, automation, null), 'Never triggered');
   });
 
   test('formats a valid last_triggered timestamp', () {
@@ -44,7 +47,7 @@ void main() {
       'attributes': {'last_triggered': '2026-01-01T08:00:00+00:00'},
     });
     expect(
-      automationSubtitle(automation, entity),
+      automationSubtitle(l10n, automation, entity),
       startsWith('Last triggered: '),
     );
   });
@@ -56,7 +59,7 @@ void main() {
       'attributes': {'last_triggered': 'not-a-date'},
     });
     expect(
-      automationSubtitle(automation, entity),
+      automationSubtitle(l10n, automation, entity),
       'Last triggered: not-a-date',
     );
   });

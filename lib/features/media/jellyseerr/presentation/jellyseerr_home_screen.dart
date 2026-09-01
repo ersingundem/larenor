@@ -1,10 +1,12 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../l10n/generated/app_localizations.dart';
 import '../data/models/jellyseerr_result.dart';
 import '../providers/jellyseerr_providers.dart';
 import 'jellyseerr_connect_screen.dart';
 import 'jellyseerr_requests_screen.dart';
+import 'jellyseerr_status_label.dart';
 
 class JellyseerrHomeScreen extends ConsumerWidget {
   const JellyseerrHomeScreen({super.key});
@@ -18,7 +20,7 @@ class JellyseerrHomeScreen extends ConsumerWidget {
         child: Center(child: CupertinoActivityIndicator()),
       ),
       error: (error, _) =>
-          CupertinoPageScaffold(child: Center(child: Text('$error'))),
+          CupertinoPageScaffold(child: Center(child: Text(error.toString()))),
       data: (config) {
         if (config == null) return const JellyseerrConnectScreen();
         return const _JellyseerrSearchScreen();
@@ -100,7 +102,8 @@ class _JellyseerrSearchScreenState
             Padding(
               padding: const EdgeInsets.all(12),
               child: CupertinoSearchTextField(
-                placeholder: 'Search movies & TV shows',
+                placeholder: AppLocalizations.of(context)
+                    .jellyseerrSearchPlaceholder,
                 onSubmitted: _search,
                 onChanged: (value) {
                   if (value.trim().isEmpty) setState(() => _results = null);
@@ -110,7 +113,11 @@ class _JellyseerrSearchScreenState
             if (_searching) const CupertinoActivityIndicator(),
             Expanded(
               child: _results == null
-                  ? const Center(child: Text('Search for something to request'))
+                  ? Center(
+                      child: Text(
+                        AppLocalizations.of(context).jellyseerrSearchEmpty,
+                      ),
+                    )
                   : ListView.builder(
                       itemCount: _results!.length,
                       itemBuilder: (context, index) {
@@ -163,10 +170,14 @@ class _ResultTile extends ConsumerWidget {
               ),
       ),
       title: Text(result.displayTitle),
-      subtitle: Text(result.isTv ? 'TV Show' : 'Movie'),
+      subtitle: Text(
+        result.isTv
+            ? AppLocalizations.of(context).jellyseerrTvShow
+            : AppLocalizations.of(context).jellyseerrMovie,
+      ),
       trailing: alreadyRequested
           ? Text(
-              result.status.label,
+              jellyseerrStatusLabel(context, result.status),
               style: TextStyle(
                 fontSize: 12,
                 color: CupertinoColors.secondaryLabel.resolveFrom(context),
@@ -177,7 +188,7 @@ class _ResultTile extends ConsumerWidget {
           : CupertinoButton(
               padding: EdgeInsets.zero,
               onPressed: onRequest,
-              child: const Text('Request'),
+              child: Text(AppLocalizations.of(context).jellyseerrRequestButton),
             ),
     );
   }

@@ -1,6 +1,7 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../l10n/generated/app_localizations.dart';
 import '../data/models/proxmox_node.dart';
 import '../providers/proxmox_providers.dart';
 import 'proxmox_connect_screen.dart';
@@ -19,7 +20,7 @@ class ProxmoxNodesScreen extends ConsumerWidget {
         child: Center(child: CupertinoActivityIndicator()),
       ),
       error: (error, _) =>
-          CupertinoPageScaffold(child: Center(child: Text('$error'))),
+          CupertinoPageScaffold(child: Center(child: Text(error.toString()))),
       data: (config) {
         if (config == null) return const ProxmoxConnectScreen();
         return const _NodesList();
@@ -53,10 +54,16 @@ class _NodesList extends ConsumerWidget {
       child: SafeArea(
         child: nodesAsync.when(
           loading: () => const Center(child: CupertinoActivityIndicator()),
-          error: (error, _) => Center(child: Text('Failed to load: $error')),
+          error: (error, _) => Center(
+            child: Text(
+              AppLocalizations.of(context).adminLoadError(error.toString()),
+            ),
+          ),
           data: (nodes) {
             if (nodes.isEmpty) {
-              return const Center(child: Text('No nodes'));
+              return Center(
+                child: Text(AppLocalizations.of(context).proxmoxTileNoNodes),
+              );
             }
             return ListView(
               children: [

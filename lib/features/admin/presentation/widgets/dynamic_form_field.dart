@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:flutter/cupertino.dart';
 
+import '../../../../l10n/generated/app_localizations.dart';
 import '../../data/models/flow_schema_field.dart';
 
 /// Renders one field of a config-flow `data_schema` as a Cupertino form
@@ -41,7 +42,7 @@ class DynamicFormField extends StatelessWidget {
       case FlowFieldKind.select:
         return CupertinoListTile(
           title: Text(_label),
-          additionalInfo: Text(_currentSelectLabel()),
+          additionalInfo: Text(_currentSelectLabel(context)),
           trailing: const CupertinoListTileChevron(),
           onTap: () => _showPicker(context),
         );
@@ -50,7 +51,9 @@ class DynamicFormField extends StatelessWidget {
       case FlowFieldKind.number:
         return CupertinoTextFormFieldRow(
           prefix: Text(_label),
-          placeholder: field.required ? 'Required' : 'Optional',
+          placeholder: field.required
+              ? AppLocalizations.of(context).dynamicFormRequired
+              : AppLocalizations.of(context).dynamicFormOptional,
           keyboardType: TextInputType.numberWithOptions(
             decimal: field.kind == FlowFieldKind.number,
           ),
@@ -66,7 +69,9 @@ class DynamicFormField extends StatelessWidget {
       case FlowFieldKind.rawFallback:
         return CupertinoTextFormFieldRow(
           prefix: Text(_label),
-          placeholder: field.required ? 'Required' : 'Optional',
+          placeholder: field.required
+              ? AppLocalizations.of(context).dynamicFormRequired
+              : AppLocalizations.of(context).dynamicFormOptional,
           obscureText: field.name.toLowerCase().contains('password'),
           initialValue: _initialTextValue(),
           onChanged: onChanged,
@@ -82,12 +87,12 @@ class DynamicFormField extends StatelessWidget {
     return jsonEncode(field.defaultValue);
   }
 
-  String _currentSelectLabel() {
+  String _currentSelectLabel(BuildContext context) {
     final current = (value as String?) ?? field.defaultValue?.toString();
     for (final option in field.options) {
       if (option.value == current) return option.label;
     }
-    return current ?? 'Select…';
+    return current ?? AppLocalizations.of(context).dynamicFormSelect;
   }
 
   Future<void> _showPicker(BuildContext context) async {
@@ -104,7 +109,7 @@ class DynamicFormField extends StatelessWidget {
         ],
         cancelButton: CupertinoActionSheetAction(
           onPressed: () => Navigator.pop(context),
-          child: const Text('Cancel'),
+          child: Text(AppLocalizations.of(context).commonCancel),
         ),
       ),
     );

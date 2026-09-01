@@ -2,6 +2,7 @@ import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../l10n/generated/app_localizations.dart';
 import '../../../../shared/theme/category_colors.dart';
 import '../../../ha_client/providers/ha_client_providers.dart';
 import '../../domain/tile_config.dart';
@@ -89,7 +90,9 @@ class _HistoryTileState extends ConsumerState<HistoryTile> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              entity?.friendlyName ?? widget.tile.entityId ?? 'History',
+              entity?.friendlyName ??
+                  widget.tile.entityId ??
+                  AppLocalizations.of(context).historyTileFallbackTitle,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
@@ -100,7 +103,8 @@ class _HistoryTileState extends ConsumerState<HistoryTile> {
                   : (_spots == null || _spots!.isEmpty)
                   ? Center(
                       child: Text(
-                        _error ?? 'No history',
+                        _error ??
+                            AppLocalizations.of(context).historyTileNoData,
                         style: const TextStyle(fontSize: 11),
                       ),
                     )

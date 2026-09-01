@@ -1,9 +1,11 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../l10n/generated/app_localizations.dart';
 import '../data/models/proxmox_backup.dart';
 import '../data/models/proxmox_guest.dart';
 import '../providers/proxmox_providers.dart';
+import 'widgets/proxmox_guest_type_label.dart';
 
 class ProxmoxBackupsScreen extends ConsumerStatefulWidget {
   const ProxmoxBackupsScreen({
@@ -27,17 +29,19 @@ class _ProxmoxBackupsScreenState extends ConsumerState<ProxmoxBackupsScreen> {
     final guest = await showCupertinoModalPopup<ProxmoxGuest>(
       context: context,
       builder: (context) => CupertinoActionSheet(
-        title: const Text('Back Up Now'),
+        title: Text(AppLocalizations.of(context).proxmoxBackUpNowTitle),
         actions: [
           for (final guest in guests)
             CupertinoActionSheetAction(
               onPressed: () => Navigator.pop(context, guest),
-              child: Text('${guest.type.label}: ${guest.name}'),
+              child: Text(
+                '${proxmoxGuestTypeLabel(context, guest.type)}: ${guest.name}',
+              ),
             ),
         ],
         cancelButton: CupertinoActionSheetAction(
           onPressed: () => Navigator.pop(context),
-          child: const Text('Cancel'),
+          child: Text(AppLocalizations.of(context).commonCancel),
         ),
       ),
     );
@@ -89,10 +93,16 @@ class _ProxmoxBackupsScreenState extends ConsumerState<ProxmoxBackupsScreen> {
       child: SafeArea(
         child: backupsAsync.when(
           loading: () => const Center(child: CupertinoActivityIndicator()),
-          error: (error, _) => Center(child: Text('Failed to load: $error')),
+          error: (error, _) => Center(
+            child: Text(
+              AppLocalizations.of(context).adminLoadError(error.toString()),
+            ),
+          ),
           data: (backups) {
             if (backups.isEmpty) {
-              return const Center(child: Text('No backups on this storage'));
+              return Center(
+                child: Text(AppLocalizations.of(context).proxmoxNoBackups),
+              );
             }
             return ListView(
               children: [
@@ -121,7 +131,9 @@ class _BackupRow extends StatelessWidget {
     return CupertinoListTile(
       leading: const Icon(CupertinoIcons.archivebox),
       title: Text(
-        backup.vmid != null ? 'VM/CT #${backup.vmid}' : backup.volumeId,
+        backup.vmid != null
+            ? AppLocalizations.of(context).proxmoxVmCtId(backup.vmid!)
+            : backup.volumeId,
       ),
       subtitle: Text(
         [

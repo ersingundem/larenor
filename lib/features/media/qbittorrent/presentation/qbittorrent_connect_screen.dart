@@ -1,6 +1,7 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../l10n/generated/app_localizations.dart';
 import '../../../../shared/discovery/lan_discovery_section.dart';
 import '../../../../shared/discovery/service_signatures.dart';
 import '../../data/media_api_exception.dart';
@@ -37,7 +38,9 @@ class _QbittorrentConnectScreenState
     final username = _userController.text.trim();
     final password = _passwordController.text;
     if (url.isEmpty || username.isEmpty) {
-      setState(() => _error = 'Enter a server URL and username.');
+      setState(
+        () => _error = AppLocalizations.of(context).mediaErrorEnterUrlUsername,
+      );
       return;
     }
     setState(() {
@@ -56,7 +59,9 @@ class _QbittorrentConnectScreenState
     } on MediaApiException catch (e) {
       setState(() => _error = e.message);
     } catch (_) {
-      setState(() => _error = 'Could not reach the server.');
+      setState(
+        () => _error = AppLocalizations.of(context).mediaErrorUnreachable,
+      );
     } finally {
       if (mounted) setState(() => _connecting = false);
     }
@@ -83,16 +88,20 @@ class _QbittorrentConnectScreenState
                   children: [
                     CupertinoTextFormFieldRow(
                       controller: _urlController,
-                      prefix: const Text('URL'),
+                      prefix: Text(
+                        AppLocalizations.of(context).connectUrlLabel,
+                      ),
                       keyboardType: TextInputType.url,
                     ),
                     CupertinoTextFormFieldRow(
                       controller: _userController,
-                      prefix: const Text('User'),
+                      prefix: Text(AppLocalizations.of(context).mediaUserLabel),
                     ),
                     CupertinoTextFormFieldRow(
                       controller: _passwordController,
-                      prefix: const Text('Password'),
+                      prefix: Text(
+                        AppLocalizations.of(context).mediaPasswordLabel,
+                      ),
                       obscureText: true,
                     ),
                   ],
@@ -114,7 +123,7 @@ class _QbittorrentConnectScreenState
                       ? const CupertinoActivityIndicator(
                           color: CupertinoColors.white,
                         )
-                      : const Text('Connect'),
+                      : Text(AppLocalizations.of(context).commonConnect),
                 ),
               ],
             ),

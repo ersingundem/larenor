@@ -1,6 +1,7 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../l10n/generated/app_localizations.dart';
 import '../data/models/proxmox_guest.dart';
 import '../providers/proxmox_providers.dart';
 import 'console/proxmox_console_screen.dart';
@@ -84,7 +85,11 @@ class _ProxmoxGuestDetailScreenState
       ref.invalidate(proxmoxGuestsProvider(widget.guest.node));
       if (mounted) Navigator.of(context).pop();
     } catch (e) {
-      setState(() => _error = 'Could not save: $e');
+      setState(
+        () =>
+            _error = AppLocalizations.of(context)
+                .proxmoxCouldNotSave(e.toString()),
+      );
     } finally {
       if (mounted) setState(() => _saving = false);
     }
@@ -110,7 +115,11 @@ class _ProxmoxGuestDetailScreenState
       child: SafeArea(
         child: configAsync.when(
           loading: () => const Center(child: CupertinoActivityIndicator()),
-          error: (error, _) => Center(child: Text('Failed to load: $error')),
+          error: (error, _) => Center(
+            child: Text(
+              AppLocalizations.of(context).adminLoadError(error.toString()),
+            ),
+          ),
           data: (config) {
             _seedControllers(config);
             final commonKeys = [
@@ -145,15 +154,19 @@ class _ProxmoxGuestDetailScreenState
                   ),
                 ),
                 CupertinoListSection.insetGrouped(
-                  header: const Text('DETAILS'),
+                  header: Text(
+                    AppLocalizations.of(context).moreInfoDetailsHeader,
+                  ),
                   children: [
                     for (final key in commonKeys)
                       CupertinoTextFormFieldRow(
                         controller: _controllers[key],
-                        prefix: Text(_friendlyLabel(key)),
+                        prefix: Text(_friendlyLabel(context, key)),
                       ),
                     CupertinoListTile(
-                      title: const Text('Start on boot'),
+                      title: Text(
+                        AppLocalizations.of(context).proxmoxStartOnBoot,
+                      ),
                       trailing: CupertinoSwitch(
                         value: _onboot,
                         onChanged: (value) => setState(() => _onboot = value),
@@ -163,10 +176,11 @@ class _ProxmoxGuestDetailScreenState
                 ),
                 if (advancedKeys.isNotEmpty)
                   CupertinoListSection.insetGrouped(
-                    header: const Text('ADVANCED'),
-                    footer: const Text(
-                      'Raw config values — edit with care, invalid values '
-                      'can prevent this guest from starting.',
+                    header: Text(
+                      AppLocalizations.of(context).proxmoxAdvancedHeader,
+                    ),
+                    footer: Text(
+                      AppLocalizations.of(context).proxmoxAdvancedFooter,
                     ),
                     children: [
                       for (final key in advancedKeys)
@@ -177,11 +191,15 @@ class _ProxmoxGuestDetailScreenState
                     ],
                   ),
                 CupertinoListSection.insetGrouped(
-                  header: const Text('CONSOLE'),
+                  header: Text(
+                    AppLocalizations.of(context).proxmoxConsoleHeader,
+                  ),
                   children: [
                     CupertinoListTile(
                       leading: const Icon(CupertinoIcons.desktopcomputer),
-                      title: const Text('Open console'),
+                      title: Text(
+                        AppLocalizations.of(context).proxmoxOpenConsole,
+                      ),
                       trailing: const CupertinoListTileChevron(),
                       onTap: _openConsole,
                     ),
@@ -208,7 +226,7 @@ class _ProxmoxGuestDetailScreenState
                         ? const CupertinoActivityIndicator(
                             color: CupertinoColors.white,
                           )
-                        : const Text('Save'),
+                        : Text(AppLocalizations.of(context).commonSave),
                   ),
                 ),
               ],
@@ -219,11 +237,14 @@ class _ProxmoxGuestDetailScreenState
     );
   }
 
-  String _friendlyLabel(String key) => switch (key) {
-    'name' => 'Name',
-    'hostname' => 'Hostname',
-    'cores' => 'CPU cores',
-    'memory' => 'Memory (MB)',
-    _ => key,
-  };
+  String _friendlyLabel(BuildContext context, String key) {
+    final l10n = AppLocalizations.of(context);
+    return switch (key) {
+      'name' => l10n.proxmoxFieldName,
+      'hostname' => l10n.proxmoxFieldHostname,
+      'cores' => l10n.proxmoxFieldCores,
+      'memory' => l10n.proxmoxFieldMemory,
+      _ => key,
+    };
+  }
 }

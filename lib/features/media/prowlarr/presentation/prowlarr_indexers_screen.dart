@@ -1,6 +1,7 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../l10n/generated/app_localizations.dart';
 import '../providers/prowlarr_providers.dart';
 import 'prowlarr_connect_screen.dart';
 
@@ -16,7 +17,7 @@ class ProwlarrIndexersScreen extends ConsumerWidget {
         child: Center(child: CupertinoActivityIndicator()),
       ),
       error: (error, _) =>
-          CupertinoPageScaffold(child: Center(child: Text('$error'))),
+          CupertinoPageScaffold(child: Center(child: Text(error.toString()))),
       data: (config) {
         if (config == null) return const ProwlarrConnectScreen();
         return const _IndexersList();
@@ -45,10 +46,18 @@ class _IndexersList extends ConsumerWidget {
       child: SafeArea(
         child: indexersAsync.when(
           loading: () => const Center(child: CupertinoActivityIndicator()),
-          error: (error, _) => Center(child: Text('Failed to load: $error')),
+          error: (error, _) => Center(
+            child: Text(
+              AppLocalizations.of(context).adminLoadError(error.toString()),
+            ),
+          ),
           data: (indexers) {
             if (indexers.isEmpty) {
-              return const Center(child: Text('No indexers configured'));
+              return Center(
+                child: Text(
+                  AppLocalizations.of(context).prowlarrNoIndexersConfigured,
+                ),
+              );
             }
             return ListView(
               children: [

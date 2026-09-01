@@ -1,9 +1,11 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../l10n/generated/app_localizations.dart';
 import '../../data/models/proxmox_guest.dart';
 import '../../providers/proxmox_providers.dart';
 import '../proxmox_guest_detail_screen.dart';
+import 'proxmox_guest_type_label.dart';
 
 /// Shared row for both VM and container lists — a status-aware
 /// power-action sheet (only actions valid for the guest's current state
@@ -29,8 +31,14 @@ class ProxmoxGuestRow extends ConsumerWidget {
             ? CupertinoColors.systemGreen.resolveFrom(context)
             : CupertinoColors.systemGrey,
       ),
-      title: Text(guest.isTemplate ? '${guest.name} (template)' : guest.name),
-      subtitle: Text('${guest.type.label} #${guest.vmid} · ${guest.status}'),
+      title: Text(
+        guest.isTemplate
+            ? AppLocalizations.of(context).proxmoxTemplateName(guest.name)
+            : guest.name,
+      ),
+      subtitle: Text(
+        '${proxmoxGuestTypeLabel(context, guest.type)} #${guest.vmid} · ${guest.status}',
+      ),
       trailing: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -75,12 +83,12 @@ class ProxmoxGuestRow extends ConsumerWidget {
             CupertinoActionSheetAction(
               isDestructiveAction: a == 'stop',
               onPressed: () => Navigator.pop(context, a),
-              child: Text(_label(a)),
+              child: Text(_label(context, a)),
             ),
         ],
         cancelButton: CupertinoActionSheetAction(
           onPressed: () => Navigator.pop(context),
-          child: const Text('Cancel'),
+          child: Text(AppLocalizations.of(context).commonCancel),
         ),
       ),
     );
@@ -90,13 +98,16 @@ class ProxmoxGuestRow extends ConsumerWidget {
     onChanged();
   }
 
-  String _label(String action) => switch (action) {
-    'start' => 'Start',
-    'shutdown' => 'Shutdown',
-    'stop' => 'Force Stop',
-    'reboot' => 'Reboot',
-    'suspend' => 'Suspend',
-    'resume' => 'Resume',
-    _ => action,
-  };
+  String _label(BuildContext context, String action) {
+    final l10n = AppLocalizations.of(context);
+    return switch (action) {
+      'start' => l10n.proxmoxActionStart,
+      'shutdown' => l10n.proxmoxActionShutdown,
+      'stop' => l10n.proxmoxActionForceStop,
+      'reboot' => l10n.proxmoxActionReboot,
+      'suspend' => l10n.proxmoxActionSuspend,
+      'resume' => l10n.proxmoxActionResume,
+      _ => action,
+    };
+  }
 }

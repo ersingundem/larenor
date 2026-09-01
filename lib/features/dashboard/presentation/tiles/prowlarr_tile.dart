@@ -1,6 +1,7 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../l10n/generated/app_localizations.dart';
 import '../../../media/prowlarr/presentation/prowlarr_indexers_screen.dart';
 import '../../../media/prowlarr/providers/prowlarr_providers.dart';
 import '../../domain/tile_config.dart';
@@ -28,8 +29,9 @@ class ProwlarrTile extends ConsumerWidget {
       ),
       lines: [
         indexers.isEmpty
-            ? 'No indexers'
-            : '$enabledCount of ${indexers.length} enabled',
+            ? AppLocalizations.of(context).prowlarrTileNoIndexers
+            : AppLocalizations.of(context)
+                  .prowlarrTileEnabledCount(enabledCount, indexers.length),
       ],
     );
   }

@@ -1,0 +1,414 @@
+{
+  "@@locale": "en",
+  "appTitle": "Larenor",
+  "@appTitle": {
+    "description": "The app's name, shown as the dashboard title and window/task title."
+  },
+
+  "commonCancel": "Cancel",
+  "commonSave": "Save",
+  "commonDelete": "Delete",
+  "commonConnect": "Connect",
+  "commonAdd": "Add",
+  "commonDone": "Done",
+  "commonEdit": "Edit",
+  "commonClose": "Close",
+  "commonRetry": "Retry",
+  "commonOk": "OK",
+  "commonRemove": "Remove",
+  "commonRefresh": "Refresh",
+  "commonSearch": "Search",
+  "commonUnknownEntity": "Unknown entity",
+  "commonNotConnected": "Not connected",
+  "commonNothingUpcoming": "Nothing upcoming",
+  "commonError": "Error",
+  "commonLoading": "Loading…",
+  "commonNoData": "No data",
+  "commonSignOut": "Sign Out",
+  "commonSubmit": "Submit",
+  "commonBack": "Back",
+  "commonNext": "Next",
+  "commonCreate": "Create",
+  "commonYes": "Yes",
+  "commonNo": "No",
+  "commonUnknown": "Unknown",
+  "commonNone": "None",
+
+  "dashboardLoadError": "Failed to load dashboard: {error}",
+  "@dashboardLoadError": {
+    "placeholders": { "error": { "type": "String" } }
+  },
+  "dashboardEmptyTitle": "Your dashboard is empty",
+  "dashboardAddTileButton": "Add a tile",
+  "dashboardConnectingMessage": "Connecting to Home Assistant…",
+  "dashboardUnreachableMessage": "Home Assistant unreachable, retrying…",
+  "dashboardWebsiteUrlTitle": "Website URL",
+  "dashboardTileEntity": "Entity card",
+  "dashboardTileScene": "Scene button",
+  "dashboardTileMediaPlayer": "Media player",
+  "dashboardTileClimate": "Climate",
+  "dashboardTileWeather": "Weather",
+  "dashboardTileHistory": "History graph",
+  "dashboardTileCamera": "Camera",
+  "dashboardTileJellyfin": "Jellyfin",
+  "dashboardTileJellyseerr": "Jellyseerr",
+  "dashboardTileSonarr": "Sonarr",
+  "dashboardTileRadarr": "Radarr",
+  "dashboardTileLidarr": "Lidarr",
+  "dashboardTileReadarr": "Readarr",
+  "dashboardTileBazarr": "Bazarr",
+  "dashboardTileProwlarr": "Prowlarr",
+  "dashboardTileQbittorrent": "qBittorrent",
+  "dashboardTileProxmox": "Proxmox",
+  "dashboardTileKeenetic": "Keenetic",
+  "dashboardTileWebview": "Fullscreen website",
+
+  "widgetGalleryTitle": "Add Widget",
+  "widgetGalleryHint": "Long-press a widget, then drag it onto your dashboard.",
+
+  "entityPickerTitle": "Add Entity",
+  "entityPickerEmpty": "No entities found",
+
+  "moreInfoEntityNotFound": "Entity not found",
+  "moreInfoOn": "On",
+  "moreInfoDetailsHeader": "DETAILS",
+  "moreInfoEntityId": "Entity ID",
+  "moreInfoLastChanged": "Last changed",
+
+  "historyTileFallbackTitle": "History",
+  "historyTileNoData": "No history",
+
+  "bazarrTileMissingSubtitles": "{count, plural, =0{No missing subtitles} one{{count} missing subtitle} other{{count} missing subtitles}}",
+  "@bazarrTileMissingSubtitles": {
+    "placeholders": { "count": { "type": "int" } }
+  },
+
+  "jellyfinTileNothingInProgress": "Nothing in progress",
+  "jellyseerrTileNoRequests": "No requests",
+
+  "keeneticTileDevicesOnline": "{count, plural, one{{count} device online} other{{count} devices online}}",
+  "@keeneticTileDevicesOnline": {
+    "placeholders": { "count": { "type": "int" } }
+  },
+  "keeneticTileWifiUp": "{up} of {total} Wi-Fi networks up",
+  "@keeneticTileWifiUp": {
+    "placeholders": {
+      "up": { "type": "int" },
+      "total": { "type": "int" }
+    }
+  },
+
+  "prowlarrTileNoIndexers": "No indexers",
+  "prowlarrTileEnabledCount": "{enabled} of {total} enabled",
+  "@prowlarrTileEnabledCount": {
+    "placeholders": {
+      "enabled": { "type": "int" },
+      "total": { "type": "int" }
+    }
+  },
+
+  "proxmoxTileNoNodes": "No nodes",
+  "proxmoxTileNodeStats": "{name} · CPU {cpu}% · RAM {ram}%",
+  "@proxmoxTileNodeStats": {
+    "placeholders": {
+      "name": { "type": "String" },
+      "cpu": { "type": "int" },
+      "ram": { "type": "int" }
+    }
+  },
+
+  "qbittorrentTileNoActive": "No active torrents",
+  "qbittorrentTileFallbackName": "Torrent",
+  "qbittorrentTileProgress": "{name} · {percent}%",
+  "@qbittorrentTileProgress": {
+    "placeholders": {
+      "name": { "type": "String" },
+      "percent": { "type": "int" }
+    }
+  },
+
+  "commonFoundOnNetwork": "FOUND ON YOUR NETWORK",
+  "commonScanning": "Scanning…",
+
+  "connectScreenTitle": "Connect",
+  "connectScreenIntro": "Connect to your self-hosted Home Assistant server to get started.",
+  "connectServerHeader": "SERVER",
+  "connectUrlLabel": "URL",
+  "connectTokenLabel": "Token",
+  "connectTokenPlaceholder": "Long-lived access token",
+  "connectTokenHint": "Create a long-lived access token from your Home Assistant profile page (bottom of the Security tab).",
+  "connectErrorEnterBoth": "Enter both a server URL and an access token.",
+  "connectErrorUnreachable": "Could not reach the server. Check the URL and your network.",
+
+  "settingsScreenTitle": "Settings",
+  "settingsSectionConnection": "CONNECTION",
+  "settingsHaServer": "Home Assistant server",
+  "settingsSectionDisplay": "DISPLAY",
+  "settingsKeepScreenOn": "Keep screen on",
+  "settingsKeepScreenOnHint": "Recommended for wall-mounted tablets",
+  "settingsIdleMode": "Idle/ambient mode",
+  "settingsIdleModeHint": "Show a clock screen after inactivity",
+  "settingsIdleModeAfter": "After",
+  "settingsMinutesShort": "{minutes} min",
+  "@settingsMinutesShort": {
+    "placeholders": { "minutes": { "type": "int" } }
+  },
+  "settingsSectionNightMode": "NIGHT MODE",
+  "settingsNightModeFooter": "A shared overnight window used to dim the screen and/or let it turn off, like a day/night theme.",
+  "settingsNightStarts": "Starts",
+  "settingsNightEnds": "Ends",
+  "settingsNightDim": "Dim screen at night",
+  "settingsNightScreenOff": "Turn screen off at night",
+  "settingsNightScreenOffHint": "Overrides \"Keep screen on\" overnight",
+  "settingsSectionSecurity": "SECURITY",
+  "settingsNoPinFooter": "No PIN set — Settings is open to anyone using this device.",
+  "settingsPinSetFooter": "Settings is locked behind a PIN.",
+  "settingsSetPin": "Set PIN",
+  "settingsChangePin": "Change PIN",
+  "settingsRemovePin": "Remove PIN",
+  "settingsSectionManageHa": "MANAGE HOME ASSISTANT",
+  "settingsIntegrations": "Integrations",
+  "settingsDevices": "Devices",
+  "settingsAreas": "Areas",
+  "settingsEntities": "Entities",
+  "settingsAutomations": "Automations",
+  "settingsCameras": "Cameras",
+  "settingsSectionIntegrations": "INTEGRATIONS",
+  "settingsIntegrationsFooter": "Only services you've turned on and connected show up here — manage them all from Manage Integrations.",
+  "settingsManageIntegrations": "Manage Integrations",
+  "settingsIdleAfterTitle": "Idle after",
+  "settingsSetPinTitle": "Set PIN",
+  "settingsPinPlaceholder": "4+ digits",
+  "settingsSectionMediaServices": "MEDIA SERVICES",
+  "settingsSectionInfrastructure": "INFRASTRUCTURE",
+  "settingsConnected": "Connected",
+  "settingsGatePinPlaceholder": "PIN",
+  "settingsGateUnlockButton": "Unlock",
+  "settingsGateIncorrectPin": "Incorrect PIN",
+
+  "adminLoadError": "Failed to load: {error}",
+  "@adminLoadError": {
+    "placeholders": { "error": { "type": "String" } }
+  },
+  "integrationsScreenEmpty": "No integrations configured",
+  "integrationsReloadAction": "Reload",
+  "addIntegrationTitle": "Add Integration",
+  "addIntegrationSuccess": "Integration added successfully.",
+  "addIntegrationAborted": "The setup flow was aborted.",
+  "addIntegrationSearchPlaceholder": "Search integration domain (e.g. hue, mqtt)",
+  "addIntegrationHint": "These are the raw integration domains your server can set up. Pick the one matching what you want to add. Not every brand ships with Home Assistant by default — some (e.g. Anker Solix, SonoffLAN, richer Keenetic router control) need to be installed via HACS in Home Assistant itself first; once installed there, they'll show up here automatically.",
+  "addIntegrationSetup": "Setup",
+  "devicesScreenEmpty": "No devices found",
+  "areasScreenEmpty": "No areas configured",
+  "automationsScreenEmpty": "No automations found",
+  "automationsNotEditable": "Config not editable from here",
+  "automationsNeverTriggered": "Never triggered",
+  "automationsLastTriggered": "Last triggered: {when}",
+  "@automationsLastTriggered": {
+    "placeholders": { "when": { "type": "String" } }
+  },
+  "automationEditorInvalidJson": "Invalid JSON: {error}",
+  "@automationEditorInvalidJson": {
+    "placeholders": { "error": { "type": "String" } }
+  },
+  "automationEditorSaveError": "Failed to save: {error}",
+  "@automationEditorSaveError": {
+    "placeholders": { "error": { "type": "String" } }
+  },
+  "automationEditorDeleteError": "Failed to delete: {error}",
+  "@automationEditorDeleteError": {
+    "placeholders": { "error": { "type": "String" } }
+  },
+  "automationEditorDeleteTitle": "Delete automation?",
+  "automationEditorDeleteMessage": "This cannot be undone.",
+  "automationEditorNewTitle": "New Automation",
+  "automationEditorEditTitle": "Edit Automation",
+  "camerasScreenEmpty": "No cameras found",
+  "dynamicFormRequired": "Required",
+  "dynamicFormOptional": "Optional",
+  "dynamicFormSelect": "Select…",
+
+  "mediaErrorEnterUrlUsername": "Enter a server URL and username.",
+  "mediaErrorUnreachable": "Could not reach the server.",
+  "mediaUserLabel": "User",
+  "mediaUsernamePlaceholder": "Username",
+  "mediaPasswordLabel": "Password",
+
+  "jellyfinContinueWatching": "Continue Watching",
+  "jellyfinRecentlyAdded": "Recently Added",
+  "jellyfinLibrariesHeader": "LIBRARIES",
+  "jellyfinPlayButton": "Play",
+  "jellyfinBrowseButton": "Browse",
+  "jellyfinLibraryEmpty": "Nothing here yet",
+  "jellyfinPlayerNotConnected": "Not connected to Jellyfin.",
+
+  "mediaErrorEnterUrlApiKey": "Enter a server URL and API key.",
+  "mediaApiKeyLabel": "API Key",
+
+  "jellyseerrApiKeyHint": "Find your API key in Jellyseerr under Settings → General.",
+  "jellyseerrSearchPlaceholder": "Search movies & TV shows",
+  "jellyseerrSearchEmpty": "Search for something to request",
+  "jellyseerrTvShow": "TV Show",
+  "jellyseerrMovie": "Movie",
+  "jellyseerrRequestButton": "Request",
+  "jellyseerrMyRequestsTitle": "My Requests",
+  "jellyseerrNoRequestsYet": "No requests yet",
+  "jellyseerrStatusNotRequested": "Not requested",
+  "jellyseerrStatusPending": "Pending",
+  "jellyseerrStatusProcessing": "Processing",
+  "jellyseerrStatusPartiallyAvailable": "Partially available",
+  "jellyseerrStatusAvailable": "Available",
+  "jellyseerrRequestStatusPendingApproval": "Pending approval",
+  "jellyseerrRequestStatusApproved": "Approved",
+  "jellyseerrRequestStatusDeclined": "Declined",
+
+  "arrApiKeyHint": "Find your API key in {service} under Settings → General → Security.",
+  "@arrApiKeyHint": {
+    "placeholders": { "service": { "type": "String" } }
+  },
+  "arrDownloadQueueHeader": "DOWNLOAD QUEUE",
+  "arrNothingDownloading": "Nothing downloading",
+  "arrUpcomingHeader": "UPCOMING",
+  "arrNothingScheduled": "Nothing scheduled",
+  "arrSearchToAdd": "Search to add something new",
+  "arrAlreadyAdded": "Added",
+  "arrQualityLine": "Quality: {name}",
+  "@arrQualityLine": {
+    "placeholders": { "name": { "type": "String" } }
+  },
+  "arrQualityOptionSelected": "✓ Quality: {name}",
+  "@arrQualityOptionSelected": {
+    "placeholders": { "name": { "type": "String" } }
+  },
+  "arrFolderLine": "Folder: {path}",
+  "@arrFolderLine": {
+    "placeholders": { "path": { "type": "String" } }
+  },
+  "arrFolderOptionSelected": "✓ Folder: {path}",
+  "@arrFolderOptionSelected": {
+    "placeholders": { "path": { "type": "String" } }
+  },
+  "arrMetadataLine": "Metadata: {name}",
+  "@arrMetadataLine": {
+    "placeholders": { "name": { "type": "String" } }
+  },
+  "arrMetadataOptionSelected": "✓ Metadata: {name}",
+  "@arrMetadataOptionSelected": {
+    "placeholders": { "name": { "type": "String" } }
+  },
+  "arrAddSeriesTitle": "Add Series",
+  "arrSearchTvShows": "Search TV shows",
+  "arrAddMovieTitle": "Add Movie",
+  "arrSearchMovies": "Search movies",
+  "arrAddArtistTitle": "Add Artist",
+  "arrSearchArtists": "Search artists",
+  "arrAddAuthorTitle": "Add Author",
+  "arrSearchAuthors": "Search authors",
+
+  "bazarrApiKeyHint": "Find your API key in Bazarr under Settings → General.",
+  "bazarrMoviesMissingHeader": "MOVIES MISSING SUBTITLES",
+  "bazarrEpisodesMissingHeader": "EPISODES MISSING SUBTITLES",
+  "bazarrLoadSectionError": "Failed to load {section}: {error}",
+  "@bazarrLoadSectionError": {
+    "placeholders": {
+      "section": { "type": "String" },
+      "error": { "type": "String" }
+    }
+  },
+  "bazarrMissingSubtitlesLabel": "Missing subtitles",
+
+  "prowlarrApiKeyHint": "Find your API key in Prowlarr under Settings → General.",
+  "prowlarrNoIndexersConfigured": "No indexers configured",
+
+  "qbittorrentNoTorrents": "No torrents",
+  "qbittorrentPauseAction": "Pause",
+  "qbittorrentResumeAction": "Resume",
+  "qbittorrentAddTorrentTitle": "Add Torrent",
+  "qbittorrentPasteMagnetLink": "Paste Magnet Link",
+  "qbittorrentChooseFile": "Choose .torrent File",
+  "qbittorrentMagnetLinkTitle": "Magnet Link",
+
+  "proxmoxErrorEnterFields": "Enter a host, realm, and username.",
+  "proxmoxHostLabel": "Host",
+  "proxmoxPortLabel": "Port",
+  "proxmoxRealmLabel": "Realm",
+  "proxmoxSelfSignedHint": "Proxmox uses a self-signed certificate by default on a fresh install. Turn this off if you installed a trusted certificate.",
+  "proxmoxAllowSelfSigned": "Allow self-signed certificate",
+  "proxmoxGuestTypeVm": "VM",
+  "proxmoxGuestTypeContainer": "Container",
+  "proxmoxVmsHeader": "VIRTUAL MACHINES",
+  "proxmoxContainersHeader": "CONTAINERS",
+  "proxmoxStorageHeader": "STORAGE",
+  "proxmoxTemplateName": "{name} (template)",
+  "@proxmoxTemplateName": {
+    "placeholders": { "name": { "type": "String" } }
+  },
+  "proxmoxActionStart": "Start",
+  "proxmoxActionShutdown": "Shutdown",
+  "proxmoxActionForceStop": "Force Stop",
+  "proxmoxActionReboot": "Reboot",
+  "proxmoxActionSuspend": "Suspend",
+  "proxmoxActionResume": "Resume",
+  "proxmoxCouldNotSave": "Could not save: {error}",
+  "@proxmoxCouldNotSave": {
+    "placeholders": { "error": { "type": "String" } }
+  },
+  "proxmoxStartOnBoot": "Start on boot",
+  "proxmoxAdvancedHeader": "ADVANCED",
+  "proxmoxAdvancedFooter": "Raw config values — edit with care, invalid values can prevent this guest from starting.",
+  "proxmoxConsoleHeader": "CONSOLE",
+  "proxmoxOpenConsole": "Open console",
+  "proxmoxFieldName": "Name",
+  "proxmoxFieldHostname": "Hostname",
+  "proxmoxFieldCores": "CPU cores",
+  "proxmoxFieldMemory": "Memory (MB)",
+  "proxmoxCreateFromTemplateTitle": "Create from Template",
+  "proxmoxNoTemplates": "No templates on this node. Flag a VM or container as a template in Proxmox first.",
+  "proxmoxTargetStorageTitle": "Target Storage",
+  "proxmoxErrorInvalidId": "Enter a valid numeric ID.",
+  "proxmoxCloningStatus": "Cloning…",
+  "proxmoxCloneDone": "Done",
+  "proxmoxCloneFailed": "Failed: {error}",
+  "@proxmoxCloneFailed": {
+    "placeholders": { "error": { "type": "String" } }
+  },
+  "proxmoxUnknownError": "unknown error",
+  "proxmoxCloneTitle": "Clone {name}",
+  "@proxmoxCloneTitle": {
+    "placeholders": { "name": { "type": "String" } }
+  },
+  "proxmoxNewIdLabel": "New ID",
+  "proxmoxFullClone": "Full clone",
+  "proxmoxFullCloneHint": "Off for a fast linked clone",
+  "proxmoxStorageLabel": "Storage",
+  "proxmoxBackUpNowTitle": "Back Up Now",
+  "proxmoxNoBackups": "No backups on this storage",
+  "proxmoxVmCtId": "VM/CT #{id}",
+  "@proxmoxVmCtId": {
+    "placeholders": { "id": { "type": "int" } }
+  },
+  "proxmoxConsoleNotConnected": "Not connected.",
+  "proxmoxConsoleOpenError": "Could not open console: {error}",
+  "@proxmoxConsoleOpenError": {
+    "placeholders": { "error": { "type": "String" } }
+  },
+  "proxmoxConsoleTitle": "{name} — Console",
+  "@proxmoxConsoleTitle": {
+    "placeholders": { "name": { "type": "String" } }
+  },
+
+  "keeneticErrorEnterUrlUsername": "Enter the router URL and username.",
+  "keeneticErrorUnreachable": "Could not reach the router.",
+  "keeneticCredentialsHint": "The same admin credentials used to log into the router's web interface.",
+  "keeneticConnectedDevices": "Connected Devices",
+  "keeneticWifi": "Wi-Fi",
+  "keeneticPortForwarding": "Port Forwarding",
+  "keeneticNoForwardingRules": "No forwarding rules",
+  "keeneticReadOnlyHint": "Read-only — manage rules in Keenetic Web.",
+  "keeneticNoAccessPoints": "No access points found",
+
+  "rootScreenError": "Something went wrong: {error}",
+  "@rootScreenError": {
+    "placeholders": { "error": { "type": "String" } }
+  }
+}

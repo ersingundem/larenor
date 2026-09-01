@@ -1,5 +1,6 @@
 import 'package:flutter/cupertino.dart';
 
+import '../../../../l10n/generated/app_localizations.dart';
 import '../../../settings/data/app_service.dart';
 import '../../../../shared/widgets/brand_icon.dart';
 
@@ -73,7 +74,7 @@ class ServiceTileShell extends StatelessWidget {
               const SizedBox(height: 6),
               if (!connected)
                 Text(
-                  'Not connected',
+                  AppLocalizations.of(context).commonNotConnected,
                   style: TextStyle(
                     fontSize: 11,
                     color: CupertinoColors.secondaryLabel.resolveFrom(context),

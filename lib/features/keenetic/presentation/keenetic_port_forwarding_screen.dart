@@ -1,6 +1,7 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../l10n/generated/app_localizations.dart';
 import '../providers/keenetic_providers.dart';
 import 'keenetic_connect_screen.dart';
 
@@ -16,7 +17,7 @@ class KeeneticPortForwardingScreen extends ConsumerWidget {
         child: Center(child: CupertinoActivityIndicator()),
       ),
       error: (error, _) =>
-          CupertinoPageScaffold(child: Center(child: Text('$error'))),
+          CupertinoPageScaffold(child: Center(child: Text(error.toString()))),
       data: (config) {
         if (config == null) return const KeeneticConnectScreen();
         return const _RulesList();
@@ -34,7 +35,7 @@ class _RulesList extends ConsumerWidget {
 
     return CupertinoPageScaffold(
       navigationBar: CupertinoNavigationBar(
-        middle: const Text('Port Forwarding'),
+        middle: Text(AppLocalizations.of(context).keeneticPortForwarding),
         trailing: CupertinoButton(
           padding: EdgeInsets.zero,
           onPressed: () => ref.invalidate(keeneticPortForwardingProvider),
@@ -44,17 +45,25 @@ class _RulesList extends ConsumerWidget {
       child: SafeArea(
         child: rulesAsync.when(
           loading: () => const Center(child: CupertinoActivityIndicator()),
-          error: (error, _) => Center(child: Text('Failed to load: $error')),
+          error: (error, _) => Center(
+            child: Text(
+              AppLocalizations.of(context).adminLoadError(error.toString()),
+            ),
+          ),
           data: (rules) {
             if (rules.isEmpty) {
-              return const Center(child: Text('No forwarding rules'));
+              return Center(
+                child: Text(
+                  AppLocalizations.of(context).keeneticNoForwardingRules,
+                ),
+              );
             }
             return ListView(
               children: [
                 const SizedBox(height: 16),
                 CupertinoListSection.insetGrouped(
-                  footer: const Text(
-                    'Read-only — manage rules in Keenetic Web.',
+                  footer: Text(
+                    AppLocalizations.of(context).keeneticReadOnlyHint,
                   ),
                   children: [
                     for (final rule in rules)

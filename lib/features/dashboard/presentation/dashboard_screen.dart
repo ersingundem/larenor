@@ -2,6 +2,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../l10n/generated/app_localizations.dart';
 import '../../../shared/theme/category_colors.dart';
 import '../../ha_client/data/models/ha_entity.dart';
 import '../../ha_client/data/ws_client.dart';
@@ -34,9 +35,11 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     final layoutAsync = ref.watch(dashboardLayoutProvider);
     final connectionStatus = ref.watch(haConnectionStatusProvider);
 
+    final l10n = AppLocalizations.of(context);
+
     return CupertinoPageScaffold(
       navigationBar: CupertinoNavigationBar(
-        middle: const Text('Larenor'),
+        middle: Text(l10n.appTitle),
         trailing: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -56,7 +59,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                 _editMode = !_editMode;
                 if (!_editMode) _showGallery = false;
               }),
-              child: Text(_editMode ? 'Done' : 'Edit'),
+              child: Text(_editMode ? l10n.commonDone : l10n.commonEdit),
             ),
             CupertinoButton(
               padding: EdgeInsets.zero,
@@ -76,8 +79,9 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                   child: layoutAsync.when(
                     loading: () =>
                         const Center(child: CupertinoActivityIndicator()),
-                    error: (error, _) =>
-                        Center(child: Text('Failed to load dashboard: $error')),
+                    error: (error, _) => Center(
+                      child: Text(l10n.dashboardLoadError(error.toString())),
+                    ),
                     data: (layout) {
                       final isEmpty =
                           layout.tiles.isEmpty &&
@@ -236,7 +240,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     final url = await showCupertinoDialog<String>(
       context: context,
       builder: (context) => CupertinoAlertDialog(
-        title: const Text('Website URL'),
+        title: Text(AppLocalizations.of(context).dashboardWebsiteUrlTitle),
         content: Padding(
           padding: const EdgeInsets.only(top: 12),
           child: CupertinoTextField(
@@ -249,11 +253,11 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
         actions: [
           CupertinoDialogAction(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
+            child: Text(AppLocalizations.of(context).commonCancel),
           ),
           CupertinoDialogAction(
             onPressed: () => Navigator.pop(context, controller.text.trim()),
-            child: const Text('Add'),
+            child: Text(AppLocalizations.of(context).commonAdd),
           ),
         ],
       ),
@@ -359,11 +363,11 @@ class _EmptyDashboard extends StatelessWidget {
             color: CupertinoColors.secondaryLabel.resolveFrom(context),
           ),
           const SizedBox(height: 12),
-          const Text('Your dashboard is empty'),
+          Text(AppLocalizations.of(context).dashboardEmptyTitle),
           const SizedBox(height: 12),
           CupertinoButton.filled(
             onPressed: onAddTile,
-            child: const Text('Add a tile'),
+            child: Text(AppLocalizations.of(context).dashboardAddTileButton),
           ),
         ],
       ),
@@ -398,9 +402,10 @@ class _ConnectionBannerState extends State<_ConnectionBanner> {
       return const SizedBox.shrink();
     }
 
+    final l10n = AppLocalizations.of(context);
     final message = status == HaConnectionStatus.connecting
-        ? 'Connecting to Home Assistant…'
-        : 'Home Assistant unreachable, retrying…';
+        ? l10n.dashboardConnectingMessage
+        : l10n.dashboardUnreachableMessage;
 
     return Container(
       width: double.infinity,

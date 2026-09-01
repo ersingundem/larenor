@@ -1,6 +1,7 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../l10n/generated/app_localizations.dart';
 import '../providers/keenetic_providers.dart';
 import 'keenetic_connect_screen.dart';
 import 'keenetic_devices_screen.dart';
@@ -19,7 +20,7 @@ class KeeneticHomeScreen extends ConsumerWidget {
         child: Center(child: CupertinoActivityIndicator()),
       ),
       error: (error, _) =>
-          CupertinoPageScaffold(child: Center(child: Text('$error'))),
+          CupertinoPageScaffold(child: Center(child: Text(error.toString()))),
       data: (config) {
         if (config == null) return const KeeneticConnectScreen();
         return const _KeeneticMenu();
@@ -51,7 +52,9 @@ class _KeeneticMenu extends ConsumerWidget {
               children: [
                 CupertinoListTile(
                   leading: const Icon(CupertinoIcons.device_laptop),
-                  title: const Text('Connected Devices'),
+                  title: Text(
+                    AppLocalizations.of(context).keeneticConnectedDevices,
+                  ),
                   trailing: const CupertinoListTileChevron(),
                   onTap: () => Navigator.of(context).push(
                     CupertinoPageRoute(
@@ -61,7 +64,7 @@ class _KeeneticMenu extends ConsumerWidget {
                 ),
                 CupertinoListTile(
                   leading: const Icon(CupertinoIcons.wifi),
-                  title: const Text('Wi-Fi'),
+                  title: Text(AppLocalizations.of(context).keeneticWifi),
                   trailing: const CupertinoListTileChevron(),
                   onTap: () => Navigator.of(context).push(
                     CupertinoPageRoute(
@@ -71,7 +74,9 @@ class _KeeneticMenu extends ConsumerWidget {
                 ),
                 CupertinoListTile(
                   leading: const Icon(CupertinoIcons.arrow_right_arrow_left),
-                  title: const Text('Port Forwarding'),
+                  title: Text(
+                    AppLocalizations.of(context).keeneticPortForwarding,
+                  ),
                   trailing: const CupertinoListTileChevron(),
                   onTap: () => Navigator.of(context).push(
                     CupertinoPageRoute(

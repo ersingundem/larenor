@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:media_kit/media_kit.dart';
 import 'package:media_kit_video/media_kit_video.dart';
 
+import '../../../../../l10n/generated/app_localizations.dart';
 import '../../data/jellyfin_client.dart';
 import '../../data/models/jellyfin_item.dart';
 import '../../providers/jellyfin_providers.dart';
@@ -45,7 +46,7 @@ class _JellyfinPlayerScreenState extends ConsumerState<JellyfinPlayerScreen> {
     final client = ref.read(jellyfinClientProvider);
     if (client == null) {
       setState(() {
-        _error = 'Not connected to Jellyfin.';
+        _error = AppLocalizations.of(context).jellyfinPlayerNotConnected;
         _loading = false;
       });
       return;

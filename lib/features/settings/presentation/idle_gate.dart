@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:intl/intl.dart';
 
 import '../../ha_client/data/models/ha_entity.dart';
 import '../../ha_client/providers/ha_client_providers.dart';
@@ -89,30 +90,6 @@ class _IdleClockScreenState extends ConsumerState<_IdleClockScreen> {
     super.dispose();
   }
 
-  static const _weekdays = [
-    'Monday',
-    'Tuesday',
-    'Wednesday',
-    'Thursday',
-    'Friday',
-    'Saturday',
-    'Sunday',
-  ];
-  static const _months = [
-    'January',
-    'February',
-    'March',
-    'April',
-    'May',
-    'June',
-    'July',
-    'August',
-    'September',
-    'October',
-    'November',
-    'December',
-  ];
-
   @override
   Widget build(BuildContext context) {
     final entities = ref.watch(entitiesProvider).value;
@@ -126,10 +103,10 @@ class _IdleClockScreenState extends ConsumerState<_IdleClockScreen> {
       }
     }
 
+    final locale = Localizations.localeOf(context).toString();
     final time =
         '${_now.hour.toString().padLeft(2, '0')}:${_now.minute.toString().padLeft(2, '0')}';
-    final date =
-        '${_weekdays[_now.weekday - 1]}, ${_months[_now.month - 1]} ${_now.day}';
+    final date = DateFormat.MMMMEEEEd(locale).format(_now);
 
     return ColoredBox(
       color: CupertinoColors.black,

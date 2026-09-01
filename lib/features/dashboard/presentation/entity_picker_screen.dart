@@ -1,5 +1,6 @@
 import 'package:flutter/cupertino.dart';
 
+import '../../../l10n/generated/app_localizations.dart';
 import '../../ha_client/data/models/ha_entity.dart';
 
 class EntityPickerScreen extends StatefulWidget {
@@ -30,8 +31,11 @@ class _EntityPickerScreenState extends State<EntityPickerScreen> {
               )
               .toList();
 
+    final l10n = AppLocalizations.of(context);
     return CupertinoPageScaffold(
-      navigationBar: const CupertinoNavigationBar(middle: Text('Add Entity')),
+      navigationBar: CupertinoNavigationBar(
+        middle: Text(l10n.entityPickerTitle),
+      ),
       child: SafeArea(
         child: Column(
           children: [
@@ -43,7 +47,7 @@ class _EntityPickerScreenState extends State<EntityPickerScreen> {
             ),
             Expanded(
               child: filtered.isEmpty
-                  ? const Center(child: Text('No entities found'))
+                  ? Center(child: Text(l10n.entityPickerEmpty))
                   : ListView.builder(
                       itemCount: filtered.length,
                       itemBuilder: (context, index) {

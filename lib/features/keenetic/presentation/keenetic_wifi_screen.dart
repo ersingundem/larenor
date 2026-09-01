@@ -1,6 +1,7 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../l10n/generated/app_localizations.dart';
 import '../providers/keenetic_providers.dart';
 import 'keenetic_connect_screen.dart';
 
@@ -16,7 +17,7 @@ class KeeneticWifiScreen extends ConsumerWidget {
         child: Center(child: CupertinoActivityIndicator()),
       ),
       error: (error, _) =>
-          CupertinoPageScaffold(child: Center(child: Text('$error'))),
+          CupertinoPageScaffold(child: Center(child: Text(error.toString()))),
       data: (config) {
         if (config == null) return const KeeneticConnectScreen();
         return const _AccessPointsList();
@@ -35,7 +36,7 @@ class _AccessPointsList extends ConsumerWidget {
 
     return CupertinoPageScaffold(
       navigationBar: CupertinoNavigationBar(
-        middle: const Text('Wi-Fi'),
+        middle: Text(AppLocalizations.of(context).keeneticWifi),
         trailing: CupertinoButton(
           padding: EdgeInsets.zero,
           onPressed: () => ref.invalidate(keeneticAccessPointsProvider),
@@ -45,10 +46,18 @@ class _AccessPointsList extends ConsumerWidget {
       child: SafeArea(
         child: apsAsync.when(
           loading: () => const Center(child: CupertinoActivityIndicator()),
-          error: (error, _) => Center(child: Text('Failed to load: $error')),
+          error: (error, _) => Center(
+            child: Text(
+              AppLocalizations.of(context).adminLoadError(error.toString()),
+            ),
+          ),
           data: (aps) {
             if (aps.isEmpty) {
-              return const Center(child: Text('No access points found'));
+              return Center(
+                child: Text(
+                  AppLocalizations.of(context).keeneticNoAccessPoints,
+                ),
+              );
             }
             return ListView(
               children: [

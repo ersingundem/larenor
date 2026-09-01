@@ -1,6 +1,7 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../l10n/generated/app_localizations.dart';
 import '../../../shared/widgets/icon_badge.dart';
 import '../providers/admin_providers.dart';
 
@@ -9,6 +10,7 @@ class DevicesScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = AppLocalizations.of(context);
     final devicesAsync = ref.watch(devicesProvider);
     final areasAsync = ref.watch(areasProvider);
 
@@ -16,7 +18,7 @@ class DevicesScreen extends ConsumerWidget {
       child: CustomScrollView(
         slivers: [
           CupertinoSliverNavigationBar(
-            largeTitle: const Text('Devices'),
+            largeTitle: Text(l10n.settingsDevices),
             leading: CupertinoButton(
               padding: EdgeInsets.zero,
               onPressed: () {
@@ -31,12 +33,12 @@ class DevicesScreen extends ConsumerWidget {
               child: Center(child: CupertinoActivityIndicator()),
             ),
             error: (error, _) => SliverFillRemaining(
-              child: Center(child: Text('Failed to load: $error')),
+              child: Center(child: Text(l10n.adminLoadError(error.toString()))),
             ),
             data: (devices) {
               if (devices.isEmpty) {
-                return const SliverFillRemaining(
-                  child: Center(child: Text('No devices found')),
+                return SliverFillRemaining(
+                  child: Center(child: Text(l10n.devicesScreenEmpty)),
                 );
               }
               final areaNames = {
