@@ -5,6 +5,7 @@ import '../../../media/prowlarr/presentation/prowlarr_indexers_screen.dart';
 import '../../../media/prowlarr/providers/prowlarr_providers.dart';
 import '../../domain/tile_config.dart';
 import 'service_tile_shell.dart';
+import '../../../settings/data/app_service.dart';
 
 class ProwlarrTile extends ConsumerWidget {
   const ProwlarrTile({super.key, required this.tile});
@@ -19,6 +20,7 @@ class ProwlarrTile extends ConsumerWidget {
 
     return ServiceTileShell(
       icon: CupertinoIcons.dot_radiowaves_left_right,
+      service: AppService.prowlarr,
       title: 'Prowlarr',
       connected: connected,
       onTap: () => Navigator.of(context).push(

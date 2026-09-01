@@ -81,7 +81,13 @@ rest of the app:
 
 Nine independent, optional integrations for a self-hosted media server setup — the app
 works fine with zero, some, or all of them configured (see "Integrations management"
-below for how they're toggled and surfaced):
+below for how they're toggled and surfaced). Each service's connect screen shows a
+"Found on your network" list before you type anything: Jellyfin uses its own UDP
+broadcast discovery protocol, and the rest are found by sweeping the local subnet for
+a matching signature on their default port (no credentials needed for this — it's
+purely a convenience to save typing an IP, tap a result to fill in the URL). Every
+service also gets its real logo mark next to its name throughout the app instead of a
+generic icon:
 
 - **Jellyfin** — connect with a username/password, browse continue-watching/recently-
   added/libraries, and play through a built-in `media_kit` (libmpv) video player. The
@@ -113,7 +119,8 @@ the app:
 
 - Connect with host/port/realm/username/password (ticket-based session auth, the same
   model Proxmox's own web UI uses) and an "allow self-signed certificate" toggle, since
-  a fresh Proxmox install ships one by default.
+  a fresh Proxmox install ships one by default. The connect screen also sweeps the
+  local subnet for a matching host on Proxmox's default port beforehand.
 - Node list with CPU/RAM/disk usage bars, drilling into each node's VMs, containers,
   and storage.
 - Power control — start/shutdown/stop/reboot/suspend/resume — through a status-aware
@@ -132,7 +139,9 @@ A native client for Keenetic's unofficial RCI HTTP API, going further than Home
 Assistant's own Keenetic integration (which only exposes device-tracker presence):
 
 - Connect with the router's admin URL and web-UI credentials (challenge/response
-  session auth, the same model the router's own web interface uses).
+  session auth, the same model the router's own web interface uses) — the URL field
+  is pre-filled with the device's own default gateway, since that's almost always
+  where the router actually is.
 - Connected-devices list with live/offline status.
 - Wi-Fi access point list (including guest networks) with an enable/disable toggle.
 - Read-only port-forwarding/static-NAT rule list.

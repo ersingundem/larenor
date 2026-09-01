@@ -54,6 +54,7 @@ dependencies:
   media_kit_libs_video: ^1.0.7
   file_picker: ^12.1.2
   crypto: ^3.0.7
+  network_info_plus: ^8.2.1
 
 dev_dependencies:
   flutter_test:
@@ -102,6 +103,7 @@ flutter:
   # lib/features/proxmox/presentation/console/. Flutter asset directories
   # aren't recursive, so every subdirectory needs its own entry.
   assets:
+    - assets/brand_icons/
     - assets/console/
     - assets/console/novnc/
     - assets/console/novnc/core/

@@ -35,6 +35,7 @@ import '../data/app_service.dart';
 import '../providers/enabled_services_providers.dart';
 import '../providers/settings_providers.dart';
 import 'manage_integrations_screen.dart';
+import '../../../shared/widgets/brand_icon.dart';
 import '../../../shared/widgets/icon_badge.dart';
 
 class SettingsScreen extends ConsumerWidget {
@@ -61,6 +62,7 @@ class SettingsScreen extends ConsumerWidget {
         _AdminRow(
           icon: CupertinoIcons.play_rectangle,
           color: CupertinoColors.systemPurple,
+          service: AppService.jellyfin,
           title: 'Jellyfin',
           builder: (_) => const JellyfinHomeScreen(),
         ),
@@ -71,6 +73,7 @@ class SettingsScreen extends ConsumerWidget {
         _AdminRow(
           icon: CupertinoIcons.search,
           color: CupertinoColors.systemBlue,
+          service: AppService.jellyseerr,
           title: 'Jellyseerr',
           builder: (_) => const JellyseerrHomeScreen(),
         ),
@@ -81,6 +84,7 @@ class SettingsScreen extends ConsumerWidget {
         _AdminRow(
           icon: CupertinoIcons.tv,
           color: CupertinoColors.systemIndigo,
+          service: AppService.sonarr,
           title: 'Sonarr',
           builder: (_) => const SonarrScreen(),
         ),
@@ -91,6 +95,7 @@ class SettingsScreen extends ConsumerWidget {
         _AdminRow(
           icon: CupertinoIcons.film,
           color: CupertinoColors.systemYellow,
+          service: AppService.radarr,
           title: 'Radarr',
           builder: (_) => const RadarrScreen(),
         ),
@@ -101,6 +106,7 @@ class SettingsScreen extends ConsumerWidget {
         _AdminRow(
           icon: CupertinoIcons.music_note,
           color: CupertinoColors.systemGreen,
+          service: AppService.lidarr,
           title: 'Lidarr',
           builder: (_) => const LidarrScreen(),
         ),
@@ -111,6 +117,7 @@ class SettingsScreen extends ConsumerWidget {
         _AdminRow(
           icon: CupertinoIcons.book,
           color: CupertinoColors.systemOrange,
+          service: AppService.readarr,
           title: 'Readarr',
           builder: (_) => const ReadarrScreen(),
         ),
@@ -121,6 +128,7 @@ class SettingsScreen extends ConsumerWidget {
         _AdminRow(
           icon: CupertinoIcons.captions_bubble,
           color: CupertinoColors.systemTeal,
+          service: AppService.bazarr,
           title: 'Bazarr',
           builder: (_) => const BazarrHomeScreen(),
         ),
@@ -131,6 +139,7 @@ class SettingsScreen extends ConsumerWidget {
         _AdminRow(
           icon: CupertinoIcons.dot_radiowaves_left_right,
           color: CupertinoColors.systemOrange,
+          service: AppService.prowlarr,
           title: 'Prowlarr',
           builder: (_) => const ProwlarrIndexersScreen(),
         ),
@@ -141,6 +150,7 @@ class SettingsScreen extends ConsumerWidget {
         _AdminRow(
           icon: CupertinoIcons.arrow_down_circle,
           color: CupertinoColors.systemBlue,
+          service: AppService.qbittorrent,
           title: 'qBittorrent',
           builder: (_) => const QbittorrentTorrentsScreen(),
         ),
@@ -151,6 +161,7 @@ class SettingsScreen extends ConsumerWidget {
         _AdminRow(
           icon: CupertinoIcons.square_stack_3d_up,
           color: CupertinoColors.systemOrange,
+          service: AppService.proxmox,
           title: 'Proxmox',
           builder: (_) => const ProxmoxNodesScreen(),
         ),
@@ -536,6 +547,7 @@ class _AdminRow extends StatelessWidget {
     required this.color,
     required this.title,
     required this.builder,
+    this.service,
   });
 
   final IconData icon;
@@ -543,10 +555,17 @@ class _AdminRow extends StatelessWidget {
   final String title;
   final WidgetBuilder builder;
 
+  /// When set and a real vendored logo exists for it, that logo is shown
+  /// via [BrandIcon] instead of the generic [icon]/[color] pair.
+  final AppService? service;
+
   @override
   Widget build(BuildContext context) {
+    final service = this.service;
     return CupertinoListTile(
-      leading: IconBadge(icon: icon, color: color),
+      leading: service != null && hasBrandIcon(service)
+          ? BrandIcon(service: service)
+          : IconBadge(icon: icon, color: color),
       title: Text(title),
       trailing: const CupertinoListTileChevron(),
       onTap: () =>

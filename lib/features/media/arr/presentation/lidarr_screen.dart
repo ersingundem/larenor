@@ -1,6 +1,7 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../shared/discovery/service_signatures.dart';
 import '../providers/lidarr_providers.dart';
 import 'widgets/arr_add_screen.dart';
 import 'widgets/arr_connect_form.dart';
@@ -24,6 +25,7 @@ class LidarrScreen extends ConsumerWidget {
           return ArrConnectForm(
             title: 'Lidarr',
             urlHint: 'http://lidarr.local:8686',
+            discoverySignature: ServiceSignatures.lidarr,
             onConnect: (url, key) => ref
                 .read(lidarrConnectionProvider.notifier)
                 .signIn(baseUrl: url, apiKey: key),

@@ -2,6 +2,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../data/media_api_exception.dart';
+import '../data/jellyfin_discovery.dart';
 import '../providers/jellyfin_providers.dart';
 
 class JellyfinConnectScreen extends ConsumerStatefulWidget {
@@ -22,8 +23,38 @@ class _JellyfinConnectScreenState extends ConsumerState<JellyfinConnectScreen> {
   bool _connecting = false;
   String? _error;
 
+  final _discovery = JellyfinDiscoveryService();
+  List<DiscoveredJellyfinServer> _discovered = [];
+  bool _scanning = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _startDiscovery();
+  }
+
+  Future<void> _startDiscovery() async {
+    try {
+      _discovery.servers.listen((servers) {
+        if (!mounted) return;
+        setState(() => _discovered = servers);
+      });
+      await _discovery.start();
+      Future.delayed(const Duration(seconds: 4), () {
+        if (mounted) setState(() => _scanning = false);
+      });
+    } catch (_) {
+      if (mounted) setState(() => _scanning = false);
+    }
+  }
+
+  void _selectDiscovered(DiscoveredJellyfinServer server) {
+    setState(() => _urlController.text = server.baseUrl);
+  }
+
   @override
   void dispose() {
+    _discovery.stop();
     _urlController.dispose();
     _userController.dispose();
     _passwordController.dispose();
@@ -73,6 +104,26 @@ class _JellyfinConnectScreenState extends ConsumerState<JellyfinConnectScreen> {
               padding: const EdgeInsets.all(24),
               children: [
                 const SizedBox(height: 16),
+                if (_discovered.isNotEmpty || _scanning) ...[
+                  CupertinoListSection.insetGrouped(
+                    header: const Text('FOUND ON YOUR NETWORK'),
+                    children: [
+                      for (final server in _discovered)
+                        CupertinoListTile(
+                          title: Text(server.name),
+                          subtitle: Text(server.baseUrl),
+                          trailing: const CupertinoListTileChevron(),
+                          onTap: () => _selectDiscovered(server),
+                        ),
+                      if (_scanning && _discovered.isEmpty)
+                        const CupertinoListTile(
+                          leading: CupertinoActivityIndicator(),
+                          title: Text('Scanning…'),
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                ],
                 CupertinoListSection.insetGrouped(
                   children: [
                     CupertinoTextFormFieldRow(

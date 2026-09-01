@@ -5,6 +5,7 @@ import '../../../media/arr/presentation/radarr_screen.dart';
 import '../../../media/arr/providers/radarr_providers.dart';
 import '../../domain/tile_config.dart';
 import 'service_tile_shell.dart';
+import '../../../settings/data/app_service.dart';
 
 class RadarrTile extends ConsumerWidget {
   const RadarrTile({super.key, required this.tile});
@@ -18,6 +19,7 @@ class RadarrTile extends ConsumerWidget {
 
     return ServiceTileShell(
       icon: CupertinoIcons.film,
+      service: AppService.radarr,
       title: 'Radarr',
       connected: connected,
       onTap: () =>

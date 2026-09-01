@@ -1,6 +1,8 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../shared/discovery/lan_discovery_section.dart';
+import '../../../../shared/discovery/service_signatures.dart';
 import '../../data/media_api_exception.dart';
 import '../providers/qbittorrent_providers.dart';
 
@@ -72,6 +74,11 @@ class _QbittorrentConnectScreenState
               padding: const EdgeInsets.all(24),
               children: [
                 const SizedBox(height: 16),
+                LanDiscoverySection(
+                  signature: ServiceSignatures.qbittorrent,
+                  onSelected: (url) =>
+                      setState(() => _urlController.text = url),
+                ),
                 CupertinoListSection.insetGrouped(
                   children: [
                     CupertinoTextFormFieldRow(

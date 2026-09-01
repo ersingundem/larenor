@@ -5,6 +5,7 @@ import '../../../media/arr/presentation/lidarr_screen.dart';
 import '../../../media/arr/providers/lidarr_providers.dart';
 import '../../domain/tile_config.dart';
 import 'service_tile_shell.dart';
+import '../../../settings/data/app_service.dart';
 
 class LidarrTile extends ConsumerWidget {
   const LidarrTile({super.key, required this.tile});
@@ -18,6 +19,7 @@ class LidarrTile extends ConsumerWidget {
 
     return ServiceTileShell(
       icon: CupertinoIcons.music_note,
+      service: AppService.lidarr,
       title: 'Lidarr',
       connected: connected,
       onTap: () =>

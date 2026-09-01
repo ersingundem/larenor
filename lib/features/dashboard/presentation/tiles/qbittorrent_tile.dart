@@ -5,6 +5,7 @@ import '../../../media/qbittorrent/presentation/qbittorrent_torrents_screen.dart
 import '../../../media/qbittorrent/providers/qbittorrent_providers.dart';
 import '../../domain/tile_config.dart';
 import 'service_tile_shell.dart';
+import '../../../settings/data/app_service.dart';
 
 class QbittorrentTile extends ConsumerWidget {
   const QbittorrentTile({super.key, required this.tile});
@@ -18,6 +19,7 @@ class QbittorrentTile extends ConsumerWidget {
 
     return ServiceTileShell(
       icon: CupertinoIcons.arrow_down_circle,
+      service: AppService.qbittorrent,
       title: 'qBittorrent',
       connected: connected,
       onTap: () => Navigator.of(context).push(

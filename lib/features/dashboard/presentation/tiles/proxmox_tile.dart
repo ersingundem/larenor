@@ -5,6 +5,7 @@ import '../../../proxmox/presentation/proxmox_nodes_screen.dart';
 import '../../../proxmox/providers/proxmox_providers.dart';
 import '../../domain/tile_config.dart';
 import 'service_tile_shell.dart';
+import '../../../settings/data/app_service.dart';
 
 class ProxmoxTile extends ConsumerWidget {
   const ProxmoxTile({super.key, required this.tile});
@@ -18,6 +19,7 @@ class ProxmoxTile extends ConsumerWidget {
 
     return ServiceTileShell(
       icon: CupertinoIcons.square_stack_3d_up,
+      service: AppService.proxmox,
       title: 'Proxmox',
       connected: connected,
       onTap: () => Navigator.of(context)

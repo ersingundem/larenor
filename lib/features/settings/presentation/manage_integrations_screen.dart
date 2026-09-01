@@ -25,6 +25,7 @@ import '../../proxmox/presentation/proxmox_nodes_screen.dart';
 import '../../proxmox/providers/proxmox_providers.dart';
 import '../data/app_service.dart';
 import '../providers/enabled_services_providers.dart';
+import '../../../shared/widgets/brand_icon.dart';
 import '../../../shared/widgets/icon_badge.dart';
 
 /// Every optional service in one place: toggle it on/off, and see at a
@@ -58,6 +59,7 @@ class ManageIntegrationsScreen extends ConsumerWidget {
                     _ServiceRow(
                       icon: CupertinoIcons.play_rectangle,
                       color: CupertinoColors.systemPurple,
+                      service: AppService.jellyfin,
                       title: 'Jellyfin',
                       connected:
                           ref.watch(jellyfinConnectionProvider).value != null,
@@ -72,6 +74,7 @@ class ManageIntegrationsScreen extends ConsumerWidget {
                     _ServiceRow(
                       icon: CupertinoIcons.search,
                       color: CupertinoColors.systemBlue,
+                      service: AppService.jellyseerr,
                       title: 'Jellyseerr',
                       connected:
                           ref.watch(jellyseerrConnectionProvider).value != null,
@@ -86,6 +89,7 @@ class ManageIntegrationsScreen extends ConsumerWidget {
                     _ServiceRow(
                       icon: CupertinoIcons.tv,
                       color: CupertinoColors.systemIndigo,
+                      service: AppService.sonarr,
                       title: 'Sonarr',
                       connected:
                           ref.watch(sonarrConnectionProvider).value != null,
@@ -100,6 +104,7 @@ class ManageIntegrationsScreen extends ConsumerWidget {
                     _ServiceRow(
                       icon: CupertinoIcons.film,
                       color: CupertinoColors.systemYellow,
+                      service: AppService.radarr,
                       title: 'Radarr',
                       connected:
                           ref.watch(radarrConnectionProvider).value != null,
@@ -114,6 +119,7 @@ class ManageIntegrationsScreen extends ConsumerWidget {
                     _ServiceRow(
                       icon: CupertinoIcons.music_note,
                       color: CupertinoColors.systemGreen,
+                      service: AppService.lidarr,
                       title: 'Lidarr',
                       connected:
                           ref.watch(lidarrConnectionProvider).value != null,
@@ -128,6 +134,7 @@ class ManageIntegrationsScreen extends ConsumerWidget {
                     _ServiceRow(
                       icon: CupertinoIcons.book,
                       color: CupertinoColors.systemOrange,
+                      service: AppService.readarr,
                       title: 'Readarr',
                       connected:
                           ref.watch(readarrConnectionProvider).value != null,
@@ -142,6 +149,7 @@ class ManageIntegrationsScreen extends ConsumerWidget {
                     _ServiceRow(
                       icon: CupertinoIcons.captions_bubble,
                       color: CupertinoColors.systemTeal,
+                      service: AppService.bazarr,
                       title: 'Bazarr',
                       connected:
                           ref.watch(bazarrConnectionProvider).value != null,
@@ -156,6 +164,7 @@ class ManageIntegrationsScreen extends ConsumerWidget {
                     _ServiceRow(
                       icon: CupertinoIcons.dot_radiowaves_left_right,
                       color: CupertinoColors.systemOrange,
+                      service: AppService.prowlarr,
                       title: 'Prowlarr',
                       connected:
                           ref.watch(prowlarrConnectionProvider).value != null,
@@ -170,6 +179,7 @@ class ManageIntegrationsScreen extends ConsumerWidget {
                     _ServiceRow(
                       icon: CupertinoIcons.arrow_down_circle,
                       color: CupertinoColors.systemBlue,
+                      service: AppService.qbittorrent,
                       title: 'qBittorrent',
                       connected:
                           ref.watch(qbittorrentConnectionProvider).value !=
@@ -190,6 +200,7 @@ class ManageIntegrationsScreen extends ConsumerWidget {
                     _ServiceRow(
                       icon: CupertinoIcons.square_stack_3d_up,
                       color: CupertinoColors.systemOrange,
+                      service: AppService.proxmox,
                       title: 'Proxmox',
                       connected:
                           ref.watch(proxmoxConnectionProvider).value != null,
@@ -204,6 +215,7 @@ class ManageIntegrationsScreen extends ConsumerWidget {
                     _ServiceRow(
                       icon: CupertinoIcons.wifi,
                       color: CupertinoColors.systemGreen,
+                      service: AppService.keenetic,
                       title: 'Keenetic',
                       connected:
                           ref.watch(keeneticConnectionProvider).value != null,
@@ -235,6 +247,7 @@ class _ServiceRow extends StatelessWidget {
     required this.enabled,
     required this.onToggle,
     required this.onTap,
+    this.service,
   });
 
   final IconData icon;
@@ -245,10 +258,17 @@ class _ServiceRow extends StatelessWidget {
   final ValueChanged<bool> onToggle;
   final VoidCallback onTap;
 
+  /// When set and a real vendored logo exists for it, that logo is shown
+  /// via [BrandIcon] instead of the generic [icon]/[color] pair.
+  final AppService? service;
+
   @override
   Widget build(BuildContext context) {
+    final service = this.service;
     return CupertinoListTile(
-      leading: IconBadge(icon: icon, color: color),
+      leading: service != null && hasBrandIcon(service)
+          ? BrandIcon(service: service)
+          : IconBadge(icon: icon, color: color),
       title: Text(title),
       subtitle: Text(connected ? 'Connected' : 'Not connected'),
       trailing: CupertinoSwitch(value: enabled, onChanged: onToggle),

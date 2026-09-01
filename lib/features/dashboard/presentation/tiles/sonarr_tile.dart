@@ -5,6 +5,7 @@ import '../../../media/arr/presentation/sonarr_screen.dart';
 import '../../../media/arr/providers/sonarr_providers.dart';
 import '../../domain/tile_config.dart';
 import 'service_tile_shell.dart';
+import '../../../settings/data/app_service.dart';
 
 class SonarrTile extends ConsumerWidget {
   const SonarrTile({super.key, required this.tile});
@@ -18,6 +19,7 @@ class SonarrTile extends ConsumerWidget {
 
     return ServiceTileShell(
       icon: CupertinoIcons.tv,
+      service: AppService.sonarr,
       title: 'Sonarr',
       connected: connected,
       onTap: () =>

@@ -1,6 +1,8 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../shared/discovery/lan_discovery_section.dart';
+import '../../../shared/discovery/service_signatures.dart';
 import '../data/proxmox_api_exception.dart';
 import '../providers/proxmox_providers.dart';
 
@@ -30,6 +32,15 @@ class _ProxmoxConnectScreenState extends ConsumerState<ProxmoxConnectScreen> {
     _userController.dispose();
     _passwordController.dispose();
     super.dispose();
+  }
+
+  void _selectDiscovered(String baseUrl) {
+    final uri = Uri.tryParse(baseUrl);
+    if (uri == null) return;
+    setState(() {
+      _hostController.text = uri.host;
+      if (uri.hasPort) _portController.text = uri.port.toString();
+    });
   }
 
   Future<void> _connect() async {
@@ -79,6 +90,10 @@ class _ProxmoxConnectScreenState extends ConsumerState<ProxmoxConnectScreen> {
               padding: const EdgeInsets.all(24),
               children: [
                 const SizedBox(height: 16),
+                LanDiscoverySection(
+                  signature: ServiceSignatures.proxmox,
+                  onSelected: _selectDiscovered,
+                ),
                 CupertinoListSection.insetGrouped(
                   children: [
                     CupertinoTextFormFieldRow(

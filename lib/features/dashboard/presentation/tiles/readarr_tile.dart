@@ -5,6 +5,7 @@ import '../../../media/arr/presentation/readarr_screen.dart';
 import '../../../media/arr/providers/readarr_providers.dart';
 import '../../domain/tile_config.dart';
 import 'service_tile_shell.dart';
+import '../../../settings/data/app_service.dart';
 
 class ReadarrTile extends ConsumerWidget {
   const ReadarrTile({super.key, required this.tile});
@@ -18,6 +19,7 @@ class ReadarrTile extends ConsumerWidget {
 
     return ServiceTileShell(
       icon: CupertinoIcons.book,
+      service: AppService.readarr,
       title: 'Readarr',
       connected: connected,
       onTap: () =>

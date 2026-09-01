@@ -1,6 +1,7 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../shared/discovery/service_signatures.dart';
 import '../providers/sonarr_providers.dart';
 import 'widgets/arr_add_screen.dart';
 import 'widgets/arr_connect_form.dart';
@@ -24,6 +25,7 @@ class SonarrScreen extends ConsumerWidget {
           return ArrConnectForm(
             title: 'Sonarr',
             urlHint: 'http://sonarr.local:8989',
+            discoverySignature: ServiceSignatures.sonarr,
             onConnect: (url, key) => ref
                 .read(sonarrConnectionProvider.notifier)
                 .signIn(baseUrl: url, apiKey: key),

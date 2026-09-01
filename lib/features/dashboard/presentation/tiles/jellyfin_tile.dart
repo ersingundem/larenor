@@ -5,6 +5,7 @@ import '../../../media/jellyfin/presentation/jellyfin_home_screen.dart';
 import '../../../media/jellyfin/providers/jellyfin_providers.dart';
 import '../../domain/tile_config.dart';
 import 'service_tile_shell.dart';
+import '../../../settings/data/app_service.dart';
 
 class JellyfinTile extends ConsumerWidget {
   const JellyfinTile({super.key, required this.tile});
@@ -18,6 +19,7 @@ class JellyfinTile extends ConsumerWidget {
 
     return ServiceTileShell(
       icon: CupertinoIcons.play_rectangle,
+      service: AppService.jellyfin,
       title: 'Jellyfin',
       connected: connected,
       onTap: () => Navigator.of(context)

@@ -1,6 +1,8 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../shared/discovery/lan_discovery_section.dart';
+import '../../../../shared/discovery/service_signatures.dart';
 import '../../data/media_api_exception.dart';
 import '../providers/jellyseerr_providers.dart';
 
@@ -68,6 +70,11 @@ class _JellyseerrConnectScreenState
               padding: const EdgeInsets.all(24),
               children: [
                 const SizedBox(height: 16),
+                LanDiscoverySection(
+                  signature: ServiceSignatures.jellyseerr,
+                  onSelected: (url) =>
+                      setState(() => _urlController.text = url),
+                ),
                 CupertinoListSection.insetGrouped(
                   footer: const Text(
                     'Find your API key in Jellyseerr under Settings → General.',

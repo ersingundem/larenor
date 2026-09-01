@@ -1,5 +1,6 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:network_info_plus/network_info_plus.dart';
 
 import '../data/keenetic_api_exception.dart';
 import '../providers/keenetic_providers.dart';
@@ -13,11 +14,33 @@ class KeeneticConnectScreen extends ConsumerStatefulWidget {
 }
 
 class _KeeneticConnectScreenState extends ConsumerState<KeeneticConnectScreen> {
-  final _urlController = TextEditingController(text: 'http://192.168.1.1');
+  static const _defaultUrl = 'http://192.168.1.1';
+
+  final _urlController = TextEditingController(text: _defaultUrl);
   final _userController = TextEditingController(text: 'admin');
   final _passwordController = TextEditingController();
   bool _connecting = false;
   String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _prefillGatewayIp();
+  }
+
+  /// The router is almost always reachable at the device's default
+  /// gateway — a much cheaper and more reliable "discovery" than sweeping
+  /// the subnet, since there's exactly one gateway to check.
+  Future<void> _prefillGatewayIp() async {
+    try {
+      final gateway = await NetworkInfo().getWifiGatewayIP();
+      if (!mounted || gateway == null) return;
+      if (_urlController.text != _defaultUrl) return;
+      setState(() => _urlController.text = 'http://$gateway');
+    } catch (_) {
+      // Keep the manual default — nothing to prefill with.
+    }
+  }
 
   @override
   void dispose() {

@@ -1,6 +1,8 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../shared/discovery/lan_discovery_section.dart';
+import '../../../../shared/discovery/service_signatures.dart';
 import '../../data/media_api_exception.dart';
 import '../providers/bazarr_providers.dart';
 
@@ -67,6 +69,11 @@ class _BazarrConnectScreenState extends ConsumerState<BazarrConnectScreen> {
               padding: const EdgeInsets.all(24),
               children: [
                 const SizedBox(height: 16),
+                LanDiscoverySection(
+                  signature: ServiceSignatures.bazarr,
+                  onSelected: (url) =>
+                      setState(() => _urlController.text = url),
+                ),
                 CupertinoListSection.insetGrouped(
                   footer: const Text(
                     'Find your API key in Bazarr under Settings → General.',

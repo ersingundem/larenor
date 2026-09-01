@@ -1,6 +1,7 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../shared/discovery/service_signatures.dart';
 import '../providers/radarr_providers.dart';
 import 'widgets/arr_add_screen.dart';
 import 'widgets/arr_connect_form.dart';
@@ -24,6 +25,7 @@ class RadarrScreen extends ConsumerWidget {
           return ArrConnectForm(
             title: 'Radarr',
             urlHint: 'http://radarr.local:7878',
+            discoverySignature: ServiceSignatures.radarr,
             onConnect: (url, key) => ref
                 .read(radarrConnectionProvider.notifier)
                 .signIn(baseUrl: url, apiKey: key),

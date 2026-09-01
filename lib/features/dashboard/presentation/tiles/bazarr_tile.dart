@@ -5,6 +5,7 @@ import '../../../media/bazarr/presentation/bazarr_home_screen.dart';
 import '../../../media/bazarr/providers/bazarr_providers.dart';
 import '../../domain/tile_config.dart';
 import 'service_tile_shell.dart';
+import '../../../settings/data/app_service.dart';
 
 class BazarrTile extends ConsumerWidget {
   const BazarrTile({super.key, required this.tile});
@@ -20,6 +21,7 @@ class BazarrTile extends ConsumerWidget {
 
     return ServiceTileShell(
       icon: CupertinoIcons.captions_bubble,
+      service: AppService.bazarr,
       title: 'Bazarr',
       connected: connected,
       onTap: () => Navigator.of(context)

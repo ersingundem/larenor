@@ -5,6 +5,7 @@ import '../../../keenetic/presentation/keenetic_home_screen.dart';
 import '../../../keenetic/providers/keenetic_providers.dart';
 import '../../domain/tile_config.dart';
 import 'service_tile_shell.dart';
+import '../../../settings/data/app_service.dart';
 
 class KeeneticTile extends ConsumerWidget {
   const KeeneticTile({super.key, required this.tile});
@@ -21,6 +22,7 @@ class KeeneticTile extends ConsumerWidget {
 
     return ServiceTileShell(
       icon: CupertinoIcons.wifi,
+      service: AppService.keenetic,
       title: 'Keenetic',
       connected: connected,
       onTap: () => Navigator.of(context)

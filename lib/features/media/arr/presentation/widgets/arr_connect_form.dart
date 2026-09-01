@@ -1,20 +1,25 @@
 import 'package:flutter/cupertino.dart';
 
+import '../../../../../shared/discovery/lan_discovery_section.dart';
+import '../../../../../shared/discovery/lan_scanner.dart';
 import '../../../data/media_api_exception.dart';
 
-/// Shared connect UI for Sonarr/Radarr — identical shape (URL + API key),
-/// just parameterized by title/hint/the actual sign-in call.
+/// Shared connect UI for Sonarr/Radarr/Lidarr/Readarr — identical shape
+/// (URL + API key), just parameterized by title/hint/the actual sign-in
+/// call/discovery signature.
 class ArrConnectForm extends StatefulWidget {
   const ArrConnectForm({
     super.key,
     required this.title,
     required this.urlHint,
     required this.onConnect,
+    this.discoverySignature,
   });
 
   final String title;
   final String urlHint;
   final Future<void> Function(String baseUrl, String apiKey) onConnect;
+  final LanServiceSignature? discoverySignature;
 
   @override
   State<ArrConnectForm> createState() => _ArrConnectFormState();
@@ -70,6 +75,12 @@ class _ArrConnectFormState extends State<ArrConnectForm> {
               padding: const EdgeInsets.all(24),
               children: [
                 const SizedBox(height: 16),
+                if (widget.discoverySignature != null)
+                  LanDiscoverySection(
+                    signature: widget.discoverySignature!,
+                    onSelected: (url) =>
+                        setState(() => _urlController.text = url),
+                  ),
                 CupertinoListSection.insetGrouped(
                   footer: Text(
                     'Find your API key in ${widget.title} under Settings → General → Security.',

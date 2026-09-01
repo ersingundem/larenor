@@ -1,5 +1,8 @@
 import 'package:flutter/cupertino.dart';
 
+import '../../../settings/data/app_service.dart';
+import '../../../../shared/widgets/brand_icon.dart';
+
 /// Shared visual shell for the 11 external-service summary tiles — same
 /// icon/title header, a "not connected" placeholder when the service
 /// isn't configured, and up to a few compact content lines otherwise.
@@ -15,6 +18,7 @@ class ServiceTileShell extends StatelessWidget {
     required this.connected,
     required this.onTap,
     required this.lines,
+    this.service,
   });
 
   final IconData icon;
@@ -23,8 +27,13 @@ class ServiceTileShell extends StatelessWidget {
   final VoidCallback onTap;
   final List<String> lines;
 
+  /// When set and a real vendored logo exists for it, that logo is shown
+  /// via [BrandIcon] in the header instead of the generic [icon].
+  final AppService? service;
+
   @override
   Widget build(BuildContext context) {
+    final service = this.service;
     return GestureDetector(
       onTap: onTap,
       child: ColoredBox(
@@ -39,11 +48,14 @@ class ServiceTileShell extends StatelessWidget {
             children: [
               Row(
                 children: [
-                  Icon(
-                    icon,
-                    size: 18,
-                    color: CupertinoTheme.of(context).primaryColor,
-                  ),
+                  if (service != null && hasBrandIcon(service))
+                    BrandIcon(service: service, size: 18)
+                  else
+                    Icon(
+                      icon,
+                      size: 18,
+                      color: CupertinoTheme.of(context).primaryColor,
+                    ),
                   const SizedBox(width: 6),
                   Expanded(
                     child: Text(

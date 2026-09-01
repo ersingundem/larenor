@@ -5,6 +5,7 @@ import '../../../media/jellyseerr/presentation/jellyseerr_home_screen.dart';
 import '../../../media/jellyseerr/providers/jellyseerr_providers.dart';
 import '../../domain/tile_config.dart';
 import 'service_tile_shell.dart';
+import '../../../settings/data/app_service.dart';
 
 class JellyseerrTile extends ConsumerWidget {
   const JellyseerrTile({super.key, required this.tile});
@@ -18,6 +19,7 @@ class JellyseerrTile extends ConsumerWidget {
 
     return ServiceTileShell(
       icon: CupertinoIcons.search,
+      service: AppService.jellyseerr,
       title: 'Jellyseerr',
       connected: connected,
       onTap: () => Navigator.of(
