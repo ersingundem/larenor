@@ -208,14 +208,38 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
 
   Future<void> _pickEntityForTile(TileType type, int x, int y) async {
     final kind = tileKinds[type]!;
-    final allEntities = ref.read(entitiesProvider).value?.values.toList() ?? [];
+
+    // `ref.read`ing the current snapshot isn't enough here: right after
+    // opening an empty dashboard, nothing else in the tree is watching
+    // `entitiesProvider` yet, so its initial `GET /api/states` fetch may
+    // still be in flight — a plain synchronous read would see an empty
+    // map and the picker would wrongly claim no entities exist at all.
+    // `.future` waits for that fetch (already-loaded data resolves
+    // immediately, so this is a no-op in the common case).
+    Map<String, HaEntity> allEntitiesById;
+    try {
+      allEntitiesById = await ref.read(entitiesProvider.future);
+    } catch (_) {
+      allEntitiesById = const {};
+    }
+    if (!mounted) return;
+
+    final allEntities = allEntitiesById.values.toList();
     final entities = kind.domainFilter == null
         ? allEntities
         : allEntities.where((e) => e.domain == kind.domainFilter).toList();
 
+    final l10n = AppLocalizations.of(context);
+    final emptyMessage = allEntities.isEmpty
+        ? l10n.entityPickerNotConnected
+        : (kind.domainFilter != null
+              ? l10n.entityPickerNoDomainMatch(kind.domainFilter!)
+              : null);
+
     final chosen = await Navigator.of(context).push<HaEntity>(
       CupertinoPageRoute(
-        builder: (_) => EntityPickerScreen(entities: entities),
+        builder: (_) =>
+            EntityPickerScreen(entities: entities, emptyMessage: emptyMessage),
       ),
     );
 

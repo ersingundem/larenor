@@ -68,6 +68,11 @@
 
   "entityPickerTitle": "Add Entity",
   "entityPickerEmpty": "No entities found",
+  "entityPickerNotConnected": "Not connected to Home Assistant — connect first, then add this tile.",
+  "entityPickerNoDomainMatch": "No {domain} entities found on your Home Assistant server.",
+  "@entityPickerNoDomainMatch": {
+    "placeholders": { "domain": { "type": "String" } }
+  },
 
   "moreInfoEntityNotFound": "Entity not found",
   "moreInfoOn": "On",

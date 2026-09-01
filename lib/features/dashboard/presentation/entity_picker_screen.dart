@@ -4,9 +4,18 @@ import '../../../l10n/generated/app_localizations.dart';
 import '../../ha_client/data/models/ha_entity.dart';
 
 class EntityPickerScreen extends StatefulWidget {
-  const EntityPickerScreen({super.key, required this.entities});
+  const EntityPickerScreen({
+    super.key,
+    required this.entities,
+    this.emptyMessage,
+  });
 
   final List<HaEntity> entities;
+
+  /// Overrides the default "No entities found" message — used to give a
+  /// more specific reason (e.g. not connected at all vs. no entities of
+  /// the requested domain) instead of one generic empty state for both.
+  final String? emptyMessage;
 
   @override
   State<EntityPickerScreen> createState() => _EntityPickerScreenState();
@@ -47,7 +56,11 @@ class _EntityPickerScreenState extends State<EntityPickerScreen> {
             ),
             Expanded(
               child: filtered.isEmpty
-                  ? Center(child: Text(l10n.entityPickerEmpty))
+                  ? Center(
+                      child: Text(
+                        widget.emptyMessage ?? l10n.entityPickerEmpty,
+                      ),
+                    )
                   : ListView.builder(
                       itemCount: filtered.length,
                       itemBuilder: (context, index) {

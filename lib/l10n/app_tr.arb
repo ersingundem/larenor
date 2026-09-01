@@ -62,6 +62,8 @@
 
   "entityPickerTitle": "Varlık Ekle",
   "entityPickerEmpty": "Varlık bulunamadı",
+  "entityPickerNotConnected": "Home Assistant'a bağlı değilsiniz — önce bağlanın, sonra bu kartı ekleyin.",
+  "entityPickerNoDomainMatch": "Home Assistant sunucunuzda {domain} türünde varlık bulunamadı.",
 
   "moreInfoEntityNotFound": "Varlık bulunamadı",
   "moreInfoOn": "Açık",
