@@ -6,7 +6,14 @@
     <application
         android:label="Larenor"
         android:name="${applicationName}"
-        android:icon="@mipmap/ic_launcher">
+        android:icon="@mipmap/ic_launcher"
+        android:usesCleartextTraffic="true">
+        <!-- Every server this app talks to (Home Assistant, Proxmox,
+             Keenetic, the media stack, etc.) is a self-hosted address the
+             user types in themselves, almost always plain HTTP on the
+             local network — Android blocks cleartext traffic by default
+             since API 28, which would otherwise silently break every one
+             of them. -->
         <activity
             android:name=".MainActivity"
             android:exported="true"

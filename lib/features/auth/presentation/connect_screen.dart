@@ -10,15 +10,20 @@ import '../data/ha_discovery.dart';
 import '../providers/auth_providers.dart';
 
 class ConnectScreen extends ConsumerStatefulWidget {
-  const ConnectScreen({super.key});
+  const ConnectScreen({super.key, this.initialUrl});
+
+  /// Pre-fills the URL field — used when re-opening this screen from
+  /// Settings to refresh a stale connection, so the user only has to
+  /// paste a new token, not retype the server address too.
+  final String? initialUrl;
 
   @override
   ConsumerState<ConnectScreen> createState() => _ConnectScreenState();
 }
 
 class _ConnectScreenState extends ConsumerState<ConnectScreen> {
-  final _urlController = TextEditingController(
-    text: 'http://homeassistant.local:8123',
+  late final _urlController = TextEditingController(
+    text: widget.initialUrl ?? 'http://homeassistant.local:8123',
   );
   final _tokenController = TextEditingController();
   final _tokenFocusNode = FocusNode();
