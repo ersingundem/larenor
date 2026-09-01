@@ -3,9 +3,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../l10n/generated/app_localizations.dart';
 import '../providers/settings_providers.dart';
-import 'settings_screen.dart';
+import 'settings_split_screen.dart';
 
-/// Gates access to [SettingsScreen] behind a PIN, if one has been set —
+/// Gates access to [SettingsSplitScreen] behind a PIN, if one has been set —
 /// protects the connection config and admin panel from casual tampering on
 /// a shared wall-mounted tablet. No PIN set (the default) means unlocked.
 class SettingsGateScreen extends ConsumerStatefulWidget {
@@ -37,7 +37,7 @@ class _SettingsGateScreenState extends ConsumerState<SettingsGateScreen> {
       error: (error, _) =>
           CupertinoPageScaffold(child: Center(child: Text('$error'))),
       data: (pin) {
-        if (pin == null || _unlocked) return const SettingsScreen();
+        if (pin == null || _unlocked) return const SettingsSplitScreen();
         return _buildPinEntry(context, pin);
       },
     );

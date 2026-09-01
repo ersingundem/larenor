@@ -4,7 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../features/auth/presentation/connect_screen.dart';
 import '../features/auth/providers/auth_providers.dart';
-import '../features/dashboard/presentation/dashboard_screen.dart';
+import '../features/dashboard/presentation/home_dashboard_screen.dart';
 import '../features/settings/presentation/settings_gate_screen.dart';
 import '../l10n/generated/app_localizations.dart';
 
@@ -41,7 +41,7 @@ class _RootScreen extends ConsumerWidget {
         ),
       ),
       data: (config) =>
-          config == null ? const ConnectScreen() : const DashboardScreen(),
+          config == null ? const ConnectScreen() : const HomeDashboardScreen(),
     );
   }
 }

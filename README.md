@@ -5,7 +5,7 @@
 
 A private, custom Home Assistant companion app built with Flutter. Larenor connects to
 an existing self-hosted Home Assistant server over its REST and WebSocket APIs and
-turns an Android tablet into a modern, drag-and-drop wall panel — plus an in-app admin
+turns an Android tablet into a modern, Apple Home-style wall panel — plus an in-app admin
 panel and a built-in media center for a self-hosted Jellyfin/*arr/qBittorrent stack.
 
 This is not a fork of Home Assistant. It is a standalone client; you still need a
@@ -32,18 +32,28 @@ This repository and its contents are proprietary — see [LICENSE](LICENSE).
 
 ### Dashboard
 
-- Drag-to-move, corner-drag-to-resize tile grid — build a dashboard visually instead
-  of hand-editing Lovelace YAML. Layout persists locally.
-- Adding a tile is itself drag-and-drop: a widget gallery slides up from the bottom
-  showing a live/illustrative preview card for every tile type, and dragging one onto
-  the (still-visible) grid drops it at that exact spot — no menus or config dialogs.
-- Tile types: entity card (state + toggle), fullscreen WebView (any URL, including the
-  raw HA frontend), history/statistics graph, media player (play/pause/skip/volume,
-  album art), climate/thermostat (radial dial), weather with forecast, scene
-  (one-tap `scene.turn_on`), and camera (live snapshot polling).
-- Tap-through "more info" popup on every entity tile — full state, attributes, and
+- Modelled on Apple's Home app: nothing is placed or resized by hand. Accessories
+  appear automatically, grouped into the rooms Home Assistant already knows about,
+  so the dashboard is a view over your setup rather than a layout you assemble.
+- Rooms come from HA's area registry; an accessory resolves to a room via its own
+  `area_id`, falling back to its device's — the same inheritance rule HA itself uses.
+  Anything unassigned lands in an "Other" section, so a non-admin token that can't
+  read the registries still shows every accessory instead of an empty screen.
+- Only accessories worth glancing at surface: controllable domains plus sensors whose
+  `device_class` is one Apple Home would show (temperature, humidity, motion, door…),
+  filtering out the hundreds of diagnostic entities a real HA instance carries.
+- Category chips (Lights / Climate / Security / Media) filter the whole page, and a
+  status line summarises the home at a glance ("3 lights on").
+- Tap an accessory to toggle it; locks and covers deliberately open their detail sheet
+  instead, so a stray finger can't unlock a door. Long-press for details, favourite,
+  or hide.
+- Favourites pin to the top; hidden accessories drop out of their room entirely.
+- A "Services" section carries the 11 external-service summary tiles (continue
+  watching, upcoming releases, active torrents, node CPU/RAM…), and a "Widgets"
+  section holds the two hand-added kinds with no HA entity behind them: a fullscreen
+  WebView (any URL, including the raw HA frontend) and a history/statistics graph.
+- Tap-through "more info" popup on every accessory — full state, attributes, and
   controls, not just the inline toggle.
-- Favorites section — pin frequently used entities to the top of the dashboard.
 - Connection-status banner ("Home Assistant unreachable, retrying…") instead of a
   small status dot, with WebSocket reconnect-with-backoff underneath it.
 - Broad brand/device coverage: icons and controls for lights, switches, locks (state-
@@ -168,13 +178,23 @@ list, so the app stays uncluttered no matter how many services exist:
 - Each service has its own on/off switch. Turning one off only hides it — it keeps its
   saved credentials, so turning it back on doesn't require reconnecting. Existing users
   are seeded as enabled for whatever they already had connected.
-- The main Settings screen only shows a row for a service that's both switched on and
-  actually connected, so an unused integration never shows up there at all.
-- Every one of the 11 is also addable straight onto the dashboard as a live summary
-  tile (continue watching, upcoming releases, active torrents, node CPU/RAM, connected
-  devices, etc.) by dragging it from the widget gallery — no per-tile setup, since each
-  tile just reads the service's existing app-wide connection. Tapping a tile opens that
-  service's full screen.
+- The Settings → Integrations pane only shows a row for a service that's both switched
+  on and actually connected, so an unused integration never shows up there at all.
+- Every switched-on service also appears in the dashboard's Services section as a live
+  summary tile (continue watching, upcoming releases, active torrents, node CPU/RAM,
+  connected devices, etc.) — no per-tile setup, since each tile just reads the
+  service's existing app-wide connection. Tapping a tile opens that service's full
+  screen.
+
+### Settings
+
+- An iPad-style split view: the categories (Connection, Display & Brightness,
+  Security, Home Assistant, Integrations, About) stay listed down the left while the
+  selected one fills the right half. Drilling into a category — say Integrations → a
+  config flow — keeps the master list visible beside it.
+- On a display too narrow for two useful panes it falls back to the plain iOS
+  behaviour of pushing each category full-screen, so phones and portrait are
+  unaffected. The switch is width-driven, not orientation-driven.
 
 ## Status
 
@@ -183,7 +203,7 @@ Jellyfin/Jellyseerr/Sonarr/Radarr/Lidarr/Readarr/Bazarr/Prowlarr/qBittorrent med
 stack, Proxmox VE management, and Keenetic router management are all implemented and
 covered by CI (static analysis, unit/widget tests, debug Android build). Deferred for
 later: OAuth2/PKCE login, true kiosk lock-task mode, push notifications, an Assist
-voice satellite, multi-profile/guest-mode dashboards, room-based dashboard tabs, a
+voice satellite, multi-profile/guest-mode dashboards, a
 theme editor, and iOS build/signing (Apple does not allow third-party home-screen
 launchers, so the eventual iOS build will be a single-app kiosk, not a true launcher).
 

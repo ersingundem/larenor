@@ -52,4 +52,30 @@ class DashboardLayoutNotifier extends _$DashboardLayoutNotifier {
         : [...current.favoriteEntityIds, entityId];
     await _persist(current.copyWith(favoriteEntityIds: favorites));
   }
+
+  /// Hides [entityId] from its room section. Hiding also un-favourites it,
+  /// so a hidden entity can't linger at the top of the dashboard.
+  Future<void> hideEntity(String entityId) async {
+    final current = state.value ?? const DashboardLayout();
+    if (current.hiddenEntityIds.contains(entityId)) return;
+    await _persist(
+      current.copyWith(
+        hiddenEntityIds: [...current.hiddenEntityIds, entityId],
+        favoriteEntityIds: current.favoriteEntityIds
+            .where((id) => id != entityId)
+            .toList(),
+      ),
+    );
+  }
+
+  Future<void> unhideEntity(String entityId) async {
+    final current = state.value ?? const DashboardLayout();
+    await _persist(
+      current.copyWith(
+        hiddenEntityIds: current.hiddenEntityIds
+            .where((id) => id != entityId)
+            .toList(),
+      ),
+    );
+  }
 }

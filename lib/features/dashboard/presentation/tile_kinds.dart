@@ -1,12 +1,11 @@
 import 'package:flutter/cupertino.dart';
 
 import '../../../l10n/generated/app_localizations.dart';
+import '../../settings/data/app_service.dart';
 import '../domain/tile_config.dart';
 
-/// Static metadata for one addable tile type — label, icon/color for the
-/// widget gallery preview card, and default grid footprint. Shared between
-/// the widget gallery ([WidgetGallerySheet]) and the dashboard's own
-/// add-tile plumbing so both agree on what each [TileType] looks like.
+/// Static metadata for one tile type — label plus the icon/colour used
+/// wherever a tile kind needs to be named in the UI.
 class TileKindInfo {
   const TileKindInfo(
     this.label,
@@ -163,6 +162,23 @@ const serviceTileKinds = {
     width: 3,
     height: 2,
   ),
+};
+
+/// Which summary tile represents each optional service, so the dashboard's
+/// Services section can be built straight from [enabledServicesProvider]
+/// without any per-tile configuration.
+const serviceTileTypes = {
+  AppService.jellyfin: TileType.jellyfin,
+  AppService.jellyseerr: TileType.jellyseerr,
+  AppService.sonarr: TileType.sonarr,
+  AppService.radarr: TileType.radarr,
+  AppService.lidarr: TileType.lidarr,
+  AppService.readarr: TileType.readarr,
+  AppService.bazarr: TileType.bazarr,
+  AppService.prowlarr: TileType.prowlarr,
+  AppService.qbittorrent: TileType.qbittorrent,
+  AppService.proxmox: TileType.proxmox,
+  AppService.keenetic: TileType.keenetic,
 };
 
 const webviewTileKind = TileKindInfo(
