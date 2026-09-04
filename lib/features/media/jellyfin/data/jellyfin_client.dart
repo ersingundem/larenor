@@ -95,9 +95,19 @@ class JellyfinClient {
     );
   }
 
+  /// Fields Jellyfin leaves out of list responses unless asked for.
+  /// `ProviderIds` is the important one — without it a library item can't
+  /// be matched against the same title in Jellyseerr, Radarr or Sonarr.
+  static const _itemFields =
+      'ProviderIds,Overview,Genres,ImageTags,'
+      'BackdropImageTags';
+
   Future<List<JellyfinItem>> getResumeItems() async {
     final response = await _client.get(
-      _uri('/Users/${config.userId}/Items/Resume', {'Limit': 20}),
+      _uri('/Users/${config.userId}/Items/Resume', {
+        'Limit': 20,
+        'Fields': _itemFields,
+      }),
       headers: _headers,
     );
     return _parseItemsEnvelope(response);
@@ -105,7 +115,10 @@ class JellyfinClient {
 
   Future<List<JellyfinItem>> getLatestItems() async {
     final response = await _client.get(
-      _uri('/Users/${config.userId}/Items/Latest', {'Limit': 20}),
+      _uri('/Users/${config.userId}/Items/Latest', {
+        'Limit': 20,
+        'Fields': _itemFields,
+      }),
       headers: _headers,
     );
     _checkOk(response);
@@ -125,14 +138,62 @@ class JellyfinClient {
       _uri('/Users/${config.userId}/Items', {
         'ParentId': parentId,
         'SortBy': 'SortName',
+        'Fields': _itemFields,
       }),
       headers: _headers,
     );
     return _parseItemsEnvelope(response);
   }
 
-  String imageUrl(String itemId, {String type = 'Primary'}) {
-    return '${config.baseUrl}/Items/$itemId/Images/$type';
+  /// Every film and series in the library, flattened. Used to build the
+  /// media hub's availability index, so `Recursive=true` and the item
+  /// types are pinned to the two kinds the hub deals in.
+  Future<List<JellyfinItem>> getAllMoviesAndSeries({int limit = 2000}) async {
+    final response = await _client.get(
+      _uri('/Users/${config.userId}/Items', {
+        'Recursive': true,
+        'IncludeItemTypes': 'Movie,Series',
+        'SortBy': 'SortName',
+        'Limit': limit,
+        'Fields': _itemFields,
+      }),
+      headers: _headers,
+    );
+    return _parseItemsEnvelope(response);
+  }
+
+  Future<List<JellyfinItem>> search(String term, {int limit = 40}) async {
+    if (term.trim().isEmpty) return const [];
+    final response = await _client.get(
+      _uri('/Users/${config.userId}/Items', {
+        'searchTerm': term,
+        'Recursive': true,
+        'IncludeItemTypes': 'Movie,Series',
+        'Limit': limit,
+        'Fields': _itemFields,
+      }),
+      headers: _headers,
+    );
+    return _parseItemsEnvelope(response);
+  }
+
+  Future<JellyfinItem> getItem(String itemId) async {
+    final response = await _client.get(
+      _uri('/Users/${config.userId}/Items/$itemId', {'Fields': _itemFields}),
+      headers: _headers,
+    );
+    _checkOk(response);
+    return JellyfinItem.fromJson(
+      jsonDecode(response.body) as Map<String, dynamic>,
+    );
+  }
+
+  /// [tag] is the matching entry from [JellyfinItem.imageTags]; passing it
+  /// makes the URL content-addressed, so the on-disk image cache can hold
+  /// a poster indefinitely and still pick up genuine artwork changes.
+  String imageUrl(String itemId, {String type = 'Primary', String? tag}) {
+    final base = '${config.baseUrl}/Items/$itemId/Images/$type';
+    return tag == null ? base : '$base?tag=$tag';
   }
 
   /// [maxStreamingBitrate] caps the stream at a given bits-per-second

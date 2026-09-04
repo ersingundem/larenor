@@ -14,6 +14,7 @@ import '../../../media/arr/providers/readarr_providers.dart';
 import '../../../media/arr/providers/sonarr_providers.dart';
 import '../../../media/bazarr/presentation/bazarr_home_screen.dart';
 import '../../../media/bazarr/providers/bazarr_providers.dart';
+import '../../../media/hub/presentation/media_hub_screen.dart';
 import '../../../media/jellyfin/presentation/jellyfin_home_screen.dart';
 import '../../../media/jellyfin/providers/jellyfin_providers.dart';
 import '../../../media/jellyseerr/presentation/jellyseerr_home_screen.dart';
@@ -171,6 +172,15 @@ class IntegrationsPane extends ConsumerWidget {
         CupertinoListSection.insetGrouped(
           footer: Text(l10n.settingsIntegrationsFooter),
           children: [
+            // The unified hub leads, since it's the way into most of what
+            // the rows below expose; those stay for the per-service tasks
+            // that have no place in a browse-and-play layout.
+            SettingsNavRow(
+              icon: CupertinoIcons.play_rectangle,
+              color: CupertinoColors.systemRed,
+              title: l10n.mediaHubTitle,
+              builder: (_) => const MediaHubScreen(),
+            ),
             ...rows,
             SettingsNavRow(
               icon: CupertinoIcons.slider_horizontal_3,

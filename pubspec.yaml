@@ -58,6 +58,7 @@ dependencies:
   file_picker: ^12.1.2
   crypto: ^3.0.7
   network_info_plus: ^8.2.1
+  cached_network_image: ^4.0.0
 
 dev_dependencies:
   flutter_test:

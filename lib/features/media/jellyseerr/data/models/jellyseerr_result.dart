@@ -38,7 +38,16 @@ enum JellyseerrMediaStatus {
 
 @freezed
 abstract class JellyseerrMediaInfo with _$JellyseerrMediaInfo {
-  const factory JellyseerrMediaInfo({int? status}) = _JellyseerrMediaInfo;
+  const factory JellyseerrMediaInfo({
+    int? status,
+    @JsonKey(name: 'tmdbId') int? tmdbId,
+    @JsonKey(name: 'tvdbId') int? tvdbId,
+
+    /// Jellyseerr records the Jellyfin item it matched a title to. That's
+    /// a direct bridge — when it's present the hub can jump straight to
+    /// playback without resolving through external ids at all.
+    @JsonKey(name: 'jellyfinMediaId') String? jellyfinMediaId,
+  }) = _JellyseerrMediaInfo;
 
   const JellyseerrMediaInfo._();
 
@@ -57,7 +66,11 @@ abstract class JellyseerrResult with _$JellyseerrResult {
     String? title,
     String? name,
     @JsonKey(name: 'posterPath') String? posterPath,
+    @JsonKey(name: 'backdropPath') String? backdropPath,
     String? overview,
+    @JsonKey(name: 'releaseDate') String? releaseDate,
+    @JsonKey(name: 'firstAirDate') String? firstAirDate,
+    @JsonKey(name: 'voteAverage') double? voteAverage,
     @JsonKey(name: 'mediaInfo') JellyseerrMediaInfo? mediaInfo,
   }) = _JellyseerrResult;
 
@@ -69,6 +82,17 @@ abstract class JellyseerrResult with _$JellyseerrResult {
   String get displayTitle => title ?? name ?? 'Unknown';
 
   bool get isTv => mediaType == 'tv';
+
+  /// TMDB ids are what everything else joins on. [id] already is one for
+  /// search/discover results, but `mediaInfo` wins when present since
+  /// that's Jellyseerr's own resolved value.
+  int get tmdbId => mediaInfo?.tmdbId ?? id;
+
+  int? get year {
+    final raw = releaseDate ?? firstAirDate;
+    if (raw == null || raw.length < 4) return null;
+    return int.tryParse(raw.substring(0, 4));
+  }
 
   JellyseerrMediaStatus get status =>
       mediaInfo?.resolvedStatus ?? JellyseerrMediaStatus.unknown;

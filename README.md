@@ -6,7 +6,8 @@
 A private, custom Home Assistant companion app built with Flutter. Larenor connects to
 an existing self-hosted Home Assistant server over its REST and WebSocket APIs and
 turns an Android tablet into a modern, Apple Home-style wall panel — plus an in-app admin
-panel and a built-in media center for a self-hosted Jellyfin/*arr/qBittorrent stack.
+panel, a unified Netflix-style media hub over a self-hosted Jellyfin/*arr/qBittorrent
+stack, and infrastructure management for Proxmox VE and Keenetic routers.
 
 This is not a fork of Home Assistant. It is a standalone client; you still need a
 running Home Assistant instance on your network.
@@ -95,6 +96,35 @@ rest of the app:
   clock + weather screen (reduces burn-in on an always-on panel).
 - PIN lock on Settings, so leaving kiosk mode or changing the server connection
   requires a PIN.
+
+### Media hub
+
+One Netflix-style surface across every connected media service, instead of a screen
+per service. Reachable from the dashboard's film button or Settings → Integrations.
+
+- **Browse** — a featured hero plus poster rows: Continue Watching and Recently Added
+  from Jellyfin, Trending from Jellyseerr, Coming Soon from the merged Sonarr/Radarr
+  calendars, and everything currently Downloading. A row hides itself when the service
+  behind it isn't connected, so the hub works with any subset — Jellyfin alone,
+  Jellyseerr alone, or all of them.
+- **Search** — one box across your library *and* everything you could request. A title
+  known to two services shows up once, with a badge saying what you can do with it.
+- **One page per title** — the point of the whole thing. Its primary button resolves
+  from actual state: **Play** if it's in Jellyfin, **Request** through Jellyseerr if it
+  isn't, **Add to library** via Sonarr/Radarr if you don't run Jellyseerr, or live
+  download progress if a grab is already underway. Below it: monitored state and
+  Bazarr's missing-subtitle count for that exact title.
+- **How the join works** — TMDB id is the key. Jellyseerr is TMDB-native, Radarr keys
+  on `tmdbId`, Sonarr carries one alongside `tvdbId`, and Jellyfin exposes all three
+  through `ProviderIds`. A single index is built once per refresh from the Jellyfin,
+  Sonarr and Radarr libraries and stores each title under *every* id it knows, so a
+  TVDB-only Sonarr entry still meets a TMDB-only Jellyseerr result. Films and TV
+  sharing a numeric id never collide, since kind is part of the key.
+- Posters are disk-cached and content-addressed by Jellyfin's own image tags, so
+  artwork survives a cold start and is only re-fetched when it genuinely changes.
+
+Lidarr and Readarr stay on their own screens — music and books need a different
+identity scheme (MusicBrainz/Goodreads, not TMDB) and suit a poster-row layout poorly.
 
 ### Media stack
 

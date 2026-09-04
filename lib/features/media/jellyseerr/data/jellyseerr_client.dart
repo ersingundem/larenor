@@ -39,9 +39,61 @@ class JellyseerrClient {
     }
   }
 
-  String? posterUrl(String? posterPath) {
+  String? posterUrl(String? posterPath, {String size = 'w300'}) {
     if (posterPath == null) return null;
-    return 'https://image.tmdb.org/t/p/w300$posterPath';
+    return 'https://image.tmdb.org/t/p/$size$posterPath';
+  }
+
+  String? backdropUrl(String? backdropPath, {String size = 'w1280'}) {
+    if (backdropPath == null) return null;
+    return 'https://image.tmdb.org/t/p/$size$backdropPath';
+  }
+
+  /// Trending across both films and TV — the closest thing Jellyseerr
+  /// offers to a "what's popular right now" row.
+  Future<List<JellyseerrResult>> discoverTrending({int page = 1}) =>
+      _discover('/discover/trending', page: page);
+
+  Future<List<JellyseerrResult>> discoverMovies({int page = 1}) =>
+      _discover('/discover/movies', page: page);
+
+  Future<List<JellyseerrResult>> discoverTv({int page = 1}) =>
+      _discover('/discover/tv', page: page);
+
+  /// The discover endpoints return the same paged `{results: [...]}`
+  /// envelope as search, except `/discover/movies` and `/discover/tv`
+  /// omit `mediaType` (it's implied by the route), so it's filled in here
+  /// — otherwise those results couldn't be told apart downstream.
+  Future<List<JellyseerrResult>> _discover(
+    String path, {
+    required int page,
+  }) async {
+    final response = await _client
+        .get(_uri(path, {'page': page}), headers: _headers)
+        .timeout(const Duration(seconds: 15));
+    _checkOk(response);
+    final body = jsonDecode(response.body) as Map<String, dynamic>;
+    final results = body['results'] as List<dynamic>? ?? [];
+
+    final implied = switch (path) {
+      '/discover/movies' => 'movie',
+      '/discover/tv' => 'tv',
+      _ => null,
+    };
+
+    return results
+        .map((e) => e as Map<String, dynamic>)
+        .where((e) {
+          final type = e['mediaType'] as String? ?? implied;
+          return type == 'movie' || type == 'tv';
+        })
+        .map(
+          (e) => JellyseerrResult.fromJson({
+            ...e,
+            if (e['mediaType'] == null && implied != null) 'mediaType': implied,
+          }),
+        )
+        .toList();
   }
 
   Future<List<JellyseerrResult>> search(String query) async {

@@ -4,6 +4,10 @@ class ArrCalendarItem {
     this.subtitle,
     this.date,
     this.hasFile = false,
+    this.tmdbId,
+    this.tvdbId,
+    this.imdbId,
+    this.posterUrl,
   });
 
   final String title;
@@ -11,14 +15,24 @@ class ArrCalendarItem {
   final DateTime? date;
   final bool hasFile;
 
+  /// External ids, read from the nested parent object for Sonarr-style
+  /// episode entries and from the entry itself for Radarr-style movie
+  /// entries — so a "coming soon" row can link straight through to the
+  /// unified title page.
+  final int? tmdbId;
+  final int? tvdbId;
+  final String? imdbId;
+  final String? posterUrl;
+
   /// Sonarr calendar entries are episodes (title = episode title, with a
   /// nested `series.title`); Radarr's are the movies themselves; Lidarr's
   /// are albums (nested `artist.artistName`); Readarr's are books (nested
   /// `author.authorName`). One lenient parser covers all four rather than
   /// near-identical models per service.
   factory ArrCalendarItem.fromJson(Map<String, dynamic> json) {
+    final series = json['series'] as Map<String, dynamic>?;
     final parentTitle =
-        (json['series'] as Map<String, dynamic>?)?['title'] as String? ??
+        series?['title'] as String? ??
         (json['artist'] as Map<String, dynamic>?)?['artistName'] as String? ??
         (json['author'] as Map<String, dynamic>?)?['authorName'] as String?;
     final season = json['seasonNumber'] as int?;
@@ -31,6 +45,10 @@ class ArrCalendarItem {
         json['physicalRelease'] as String? ??
         json['releaseDate'] as String?;
 
+    // Episode entries carry their ids on the nested series; movie
+    // entries carry them at the top level.
+    final idSource = series ?? json;
+
     return ArrCalendarItem(
       title: parentTitle ?? json['title'] as String? ?? 'Unknown',
       subtitle: parentTitle != null
@@ -38,7 +56,21 @@ class ArrCalendarItem {
           : null,
       date: dateString == null ? null : DateTime.tryParse(dateString),
       hasFile: json['hasFile'] as bool? ?? false,
+      tmdbId: idSource['tmdbId'] as int?,
+      tvdbId: idSource['tvdbId'] as int?,
+      imdbId: idSource['imdbId'] as String?,
+      posterUrl: _posterFrom(idSource['images'] as List<dynamic>?),
     );
+  }
+
+  static String? _posterFrom(List<dynamic>? images) {
+    for (final image in images ?? const []) {
+      final map = image as Map<String, dynamic>;
+      if (map['coverType'] == 'poster') {
+        return (map['remoteUrl'] ?? map['url']) as String?;
+      }
+    }
+    return null;
   }
 
   static String _episodeCode(int? season, int? episode) {

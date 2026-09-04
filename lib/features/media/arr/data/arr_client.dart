@@ -5,6 +5,7 @@ import 'package:http/http.dart' as http;
 import '../../data/media_api_exception.dart';
 import 'arr_config.dart';
 import 'models/arr_calendar_item.dart';
+import 'models/arr_library_item.dart';
 import 'models/arr_lookup_result.dart';
 import 'models/arr_picker_options.dart';
 import 'models/arr_queue_item.dart';
@@ -76,6 +77,19 @@ class ArrClient {
             idFieldName: idFieldName,
           ),
         )
+        .toList();
+  }
+
+  /// Everything already in the library. The media hub indexes this once
+  /// and reuses it for every title, instead of a per-title lookup call.
+  Future<List<ArrLibraryItem>> getLibrary() async {
+    final response = await _client
+        .get(_uri('/$resourcePath'), headers: _headers)
+        .timeout(const Duration(seconds: 30));
+    _checkOk(response);
+    final decoded = jsonDecode(response.body) as List<dynamic>;
+    return decoded
+        .map((e) => ArrLibraryItem.fromJson(e as Map<String, dynamic>))
         .toList();
   }
 

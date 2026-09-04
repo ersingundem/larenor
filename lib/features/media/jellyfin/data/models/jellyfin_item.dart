@@ -13,6 +13,25 @@ abstract class JellyfinItem with _$JellyfinItem {
     @JsonKey(name: 'ProductionYear') int? productionYear,
     @JsonKey(name: 'SeriesName') String? seriesName,
     @JsonKey(name: 'UserData') JellyfinUserData? userData,
+
+    /// External metadata ids (`Tmdb`, `Imdb`, `Tvdb`, …). Jellyfin only
+    /// includes this on list responses when the request asks for
+    /// `Fields=ProviderIds`, so [JellyfinClient] does exactly that — it's
+    /// what lets a library item be matched to the same title in
+    /// Jellyseerr, Radarr or Sonarr.
+    @JsonKey(name: 'ProviderIds') Map<String, String>? providerIds,
+    @JsonKey(name: 'SeriesId') String? seriesId,
+    @JsonKey(name: 'IndexNumber') int? indexNumber,
+    @JsonKey(name: 'ParentIndexNumber') int? parentIndexNumber,
+    @JsonKey(name: 'RunTimeTicks') int? runTimeTicks,
+    @JsonKey(name: 'CommunityRating') double? communityRating,
+    @JsonKey(name: 'Genres') List<String>? genres,
+
+    /// Per-image-type content hashes. Appending one to an image URL makes
+    /// it immutable, so a cached poster is only re-fetched when the
+    /// artwork itself actually changes.
+    @JsonKey(name: 'ImageTags') Map<String, String>? imageTags,
+    @JsonKey(name: 'BackdropImageTags') List<String>? backdropImageTags,
   }) = _JellyfinItem;
 
   const JellyfinItem._();
@@ -23,6 +42,27 @@ abstract class JellyfinItem with _$JellyfinItem {
   bool get isPlayable => type == 'Movie' || type == 'Episode';
 
   double get playedFraction => (userData?.playedPercentage ?? 0) / 100;
+
+  /// Provider id lookups are case-insensitive because Jellyfin plugins
+  /// haven't been consistent about casing (`Tmdb` vs `TMDB` vs `tmdb`).
+  String? providerId(String provider) {
+    final ids = providerIds;
+    if (ids == null) return null;
+    final wanted = provider.toLowerCase();
+    for (final entry in ids.entries) {
+      if (entry.key.toLowerCase() == wanted && entry.value.isNotEmpty) {
+        return entry.value;
+      }
+    }
+    return null;
+  }
+
+  int? get tmdbId => int.tryParse(providerId('Tmdb') ?? '');
+  int? get tvdbId => int.tryParse(providerId('Tvdb') ?? '');
+  String? get imdbId => providerId('Imdb');
+
+  Duration? get runtime =>
+      runTimeTicks == null ? null : Duration(microseconds: runTimeTicks! ~/ 10);
 }
 
 @freezed

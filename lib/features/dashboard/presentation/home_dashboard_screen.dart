@@ -58,6 +58,12 @@ class _HomeDashboardScreenState extends ConsumerState<HomeDashboardScreen> {
                   onPressed: _showAddMenu,
                   child: const Icon(CupertinoIcons.add_circled),
                 ),
+                if (_hasMediaServices())
+                  CupertinoButton(
+                    padding: EdgeInsets.zero,
+                    onPressed: () => context.push('/media'),
+                    child: const Icon(CupertinoIcons.play_rectangle),
+                  ),
                 CupertinoButton(
                   padding: EdgeInsets.zero,
                   onPressed: () => context.push('/settings'),
@@ -197,6 +203,18 @@ class _HomeDashboardScreenState extends ConsumerState<HomeDashboardScreen> {
         ],
       ],
     ];
+  }
+
+  /// The media hub only makes sense once at least one of the services it
+  /// draws on is switched on — otherwise it would open onto an empty
+  /// screen, so the button stays hidden.
+  bool _hasMediaServices() {
+    final enabled =
+        ref.watch(enabledServicesProvider).value ?? const <AppService>{};
+    return enabled.contains(AppService.jellyfin) ||
+        enabled.contains(AppService.jellyseerr) ||
+        enabled.contains(AppService.sonarr) ||
+        enabled.contains(AppService.radarr);
   }
 
   List<HaEntity> _filtered(List<HaEntity> entities) {
