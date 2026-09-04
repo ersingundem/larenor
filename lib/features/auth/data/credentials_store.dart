@@ -1,3 +1,5 @@
+import 'package:larenor/core/configuration_writes.dart';
+
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 import 'ha_connection_config.dart';
@@ -20,13 +22,14 @@ class CredentialsStore {
     return HaConnectionConfig(baseUrl: baseUrl, token: token);
   }
 
-  Future<void> save(HaConnectionConfig config) async {
-    await _storage.write(key: _baseUrlKey, value: config.baseUrl);
-    await _storage.write(key: _tokenKey, value: config.token);
-  }
+  Future<void> save(HaConnectionConfig config) =>
+      ConfigurationWrites.run(() async {
+        await _storage.write(key: _baseUrlKey, value: config.baseUrl);
+        await _storage.write(key: _tokenKey, value: config.token);
+      });
 
-  Future<void> clear() async {
+  Future<void> clear() => ConfigurationWrites.run(() async {
     await _storage.delete(key: _baseUrlKey);
     await _storage.delete(key: _tokenKey);
-  }
+  });
 }

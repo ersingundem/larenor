@@ -634,5 +634,100 @@
   },
   "settingsGateStorageError": "Güvenli depoya erişilemiyor. Ayarlar kilitli kalıyor.",
   "settingsPinInvalid": "4–12 rakam gir.",
-  "settingsPinSaveError": "PIN kaydedilemedi. Tekrar dene."
+  "settingsPinSaveError": "PIN kaydedilemedi. Tekrar dene.",
+  "backupTitle": "Yedekleme ve Geri Yükleme",
+  "backupIntro": "Larenor yapılandırmasının şifreli bir kopyasını saklayın. İçeriği seçip Dosyalar ile kaydedin.",
+  "backupExport": "Şifreli yedek dışa aktar",
+  "backupRestore": "Yedekten geri yükle",
+  "backupSettings": "Uygulama tercihleri",
+  "backupDashboard": "Ev düzeni ve odalar",
+  "backupConnections": "Servis bağlantıları ve erişim bilgileri",
+  "backupCredentialHint": "İsteğe bağlıdır. Kayıtlı erişim anahtarları ve parolaları şifreli dosyaya ekler. Ayarlar PIN’i bu cihazda kalır.",
+  "backupPassphrase": "Yedek parolası",
+  "backupConfirmPassphrase": "Parolayı tekrarlayın",
+  "backupPassphraseHint": "En az 12 karakter ve Ayarlar PIN’inden farklı bir parola kullanın. Dosyayı geri yüklemek için bu parola gereklidir.",
+  "backupPassphraseInvalid": "En az 12 karakter kullanın.",
+  "backupPassphraseSamePin": "Ayarlar PIN’inden farklı bir yedek parolası seçin.",
+  "backupPassphraseMismatch": "Parolalar eşleşmiyor.",
+  "backupChooseFile": ".larenor-vault dosyası seç",
+  "backupFileSelected": "Şifreli yedek seçildi",
+  "backupDecrypt": "Kilidi aç ve önizle",
+  "backupRestoreHint": "Önce bir dosya seçin. Bu cihazdaki bilgiler değişmeden içeriği önizlemek için kilidini açın. Home Assistant ve diğer sunucular düzenlenmez.",
+  "backupPreview": "Geri yükleme önizlemesi",
+  "backupServices": "İçerilen servisler",
+  "backupNoServices": "Kayıtlı servis erişim bilgisi yok",
+  "backupConflicts": "Cihazda veri zaten varsa",
+  "backupKeepExisting": "Mevcudu koru",
+  "backupReplaceSelected": "Seçilenleri değiştir",
+  "backupConflictHint": "Mevcudu koru; çakışan tercihleri, mevcut ev düzenini ve bağlı servisleri atlar. Seçilenleri değiştir yalnızca seçili grupları değiştirir. Ayarlar PIN’i korunur.",
+  "backupApply": "Seçili içeriği geri yükle",
+  "backupApplyTitle": "Bu cihaza geri yüklensin mi?",
+  "backupApplyMessage": "Seçili içerik geri yüklendikten sonra Larenor yeniden açılır. Sunucu verileri değişmez.",
+  "backupProgress": "Yapılandırma geri yükleniyor…",
+  "backupRestoreFailed": "Geri yükleme tamamlanamadı. Devam ettikten sonra ayarlarınızı ve bağlantılarınızı kontrol edin.",
+  "backupContinue": "Devam et",
+  "backupSaved": "Şifreli yedek kaydedildi. Parolayı güvenli bir yerde saklayın.",
+  "backupCancelled": "İptal edildi. Ayarlar değiştirilmedi.",
+  "backupFailed": "Yedekleme işlemi başarısız oldu. Dosyayı veya depolama erişimini kontrol edip tekrar deneyin.",
+  "backupDecryptFailed": "Yedeğin kilidi açılamadı. Parolayı ve dosyanın eksiksiz olduğunu kontrol edin.",
+  "backupTooLarge": "Bu dosya geri yüklemek için çok büyük.",
+  "backupSelectGroup": "En az bir içerik grubu seçin.",
+  "backupLocked": "Geri yüklemeye devam etmek için Ayarlar’ın kilidini açın.",
+  "backupConnectRestore": "Mevcut bir Larenor yedeğini geri yükle",
+  "backupCreatedAt": "Oluşturulma",
+  "backupExistingData": "Bu cihazdaki mevcut veriler",
+  "backupCertificateReview": "Geri yüklenen Proxmox bağlantılarında normal sertifika doğrulaması kullanılır. Kendinden imzalı sertifikaları bağlantı ayarlarında ayrıca inceleyin.",
+  "backupSelectAnother": "Başka dosya seç",
+  "backupCountSummary": "{settings} tercih · {rooms} oda · {tiles} kutucuk · {favorites} favori",
+  "@backupCountSummary": {
+    "placeholders": {
+      "settings": {
+        "type": "int"
+      },
+      "rooms": {
+        "type": "int"
+      },
+      "tiles": {
+        "type": "int"
+      },
+      "favorites": {
+        "type": "int"
+      }
+    }
+  },
+  "backupExistingSummary": "{settings} tercih · {services} bağlı servis",
+  "@backupExistingSummary": {
+    "placeholders": {
+      "settings": {
+        "type": "int"
+      },
+      "services": {
+        "type": "int"
+      }
+    }
+  },
+  "backupRecoveryProgress": "Kayıtlı yapılandırma kontrol ediliyor…",
+  "backupRecoveryFailed": "Yapılandırma kurtarılamadı. Uygulamayı açmadan önce tekrar deneyin.",
+  "navigationSearchTitle": "Evinde ara",
+  "navigationSearchHint": "Odalar, cihazlar, sahneler ve kayıtlı medya",
+  "navigationSearchLocalHint": "Arama bu cihazda yüklenmiş verileri kullanır.",
+  "navigationSearchEmpty": "Eşleşen sonuç yok",
+  "navigationSearchRemote": "Medya kataloğunda ara",
+  "navigationSearchNoCache": "İçeriği yüklemek için Ev veya Medya'yı açıp burada arayabilirsin.",
+  "navigationSearchRoom": "Oda",
+  "navigationSearchEntity": "Cihaz veya varlık",
+  "navigationSearchScene": "Sahne",
+  "navigationSearchScript": "Betik",
+  "navigationSearchSystem": "Sistem",
+  "navigationHome": "Ev",
+  "navigationMedia": "Medya",
+  "navigationRoutines": "Rutinler",
+  "navigationSystem": "Sistem",
+  "navigationUnconfigured": "Kayıtlı bağlantı yok",
+  "navigationConfigure": "Ayarlardan bağla",
+  "navigationRoutineHint": "İncelemek ve çalıştırmak için bir sahne veya betik açın.",
+  "navigationNoRoutines": "Kullanılabilir sahne veya betik yok.",
+  "navigationDestinationMissing": "Bu öğe artık kullanılamıyor.",
+  "navigationSavedConnection": "Kayıtlı bağlantı",
+  "navigationSearch": "Ara"
 }

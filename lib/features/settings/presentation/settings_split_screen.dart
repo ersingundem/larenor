@@ -13,6 +13,8 @@ import 'panes/display_pane.dart';
 import 'panes/home_assistant_pane.dart';
 import 'panes/integrations_pane.dart';
 import 'panes/security_pane.dart';
+import 'settings_file_dialog.dart';
+import '../../backup/presentation/backup_screen.dart';
 
 /// The top-level settings categories, in the order they appear down the
 /// master list.
@@ -22,6 +24,7 @@ enum SettingsCategory {
   security,
   homeAssistant,
   integrations,
+  backup,
   about,
 }
 
@@ -30,7 +33,9 @@ enum SettingsCategory {
 /// narrow for two useful panes it falls back to the plain iOS behaviour of
 /// pushing each category full-screen.
 class SettingsSplitScreen extends StatefulWidget {
-  const SettingsSplitScreen({super.key});
+  const SettingsSplitScreen({super.key, this.runFileDialog});
+
+  final SettingsFileDialogRunner? runFileDialog;
 
   @override
   State<SettingsSplitScreen> createState() => _SettingsSplitScreenState();
@@ -78,7 +83,8 @@ class _SettingsSplitScreenState extends State<SettingsSplitScreen> {
               key: _detailKey,
               onGenerateRoute: (settings) => CupertinoPageRoute<void>(
                 settings: settings,
-                builder: (_) => paneFor(_selected),
+                builder: (_) =>
+                    paneFor(_selected, runFileDialog: widget.runFileDialog),
               ),
             ),
           ),
@@ -90,14 +96,20 @@ class _SettingsSplitScreenState extends State<SettingsSplitScreen> {
   Widget _buildNarrow(BuildContext context) {
     return _MasterList(
       selected: null,
-      onSelect: (category) =>
-          Navigator.of(context)
-              .push(CupertinoPageRoute(builder: (_) => paneFor(category))),
+      onSelect: (category) => Navigator.of(context).push(
+        CupertinoPageRoute(
+          builder: (_) =>
+              paneFor(category, runFileDialog: widget.runFileDialog),
+        ),
+      ),
     );
   }
 }
 
-Widget paneFor(SettingsCategory category) {
+Widget paneFor(
+  SettingsCategory category, {
+  SettingsFileDialogRunner? runFileDialog,
+}) {
   switch (category) {
     case SettingsCategory.connection:
       return const ConnectionPane();
@@ -109,6 +121,8 @@ Widget paneFor(SettingsCategory category) {
       return const HomeAssistantPane();
     case SettingsCategory.integrations:
       return const IntegrationsPane();
+    case SettingsCategory.backup:
+      return BackupScreen(runFileDialog: runFileDialog);
     case SettingsCategory.about:
       return const AboutPane();
   }
@@ -156,6 +170,12 @@ class _MasterList extends StatelessWidget {
         CupertinoIcons.slider_horizontal_3,
         CupertinoColors.systemGrey,
         l10n.settingsCategoryIntegrations,
+      ),
+      (
+        SettingsCategory.backup,
+        CupertinoIcons.archivebox_fill,
+        CupertinoColors.systemOrange,
+        l10n.backupTitle,
       ),
       (
         SettingsCategory.about,

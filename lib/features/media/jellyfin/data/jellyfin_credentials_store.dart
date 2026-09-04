@@ -1,3 +1,5 @@
+import 'package:larenor/core/configuration_writes.dart';
+
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 import 'jellyfin_config.dart';
@@ -35,25 +37,25 @@ class JellyfinCredentialsStore {
     required String baseUrl,
     required String userId,
     required String accessToken,
-  }) async {
+  }) => ConfigurationWrites.run(() async {
     await _storage.write(key: _baseUrlKey, value: baseUrl);
     await _storage.write(key: _userIdKey, value: userId);
     await _storage.write(key: _tokenKey, value: accessToken);
-  }
+  });
 
-  Future<void> clear() async {
+  Future<void> clear() => ConfigurationWrites.run(() async {
     await _storage.delete(key: _baseUrlKey);
     await _storage.delete(key: _userIdKey);
     await _storage.delete(key: _tokenKey);
-  }
+  });
 
   /// A stable per-install identifier Jellyfin uses to recognize "this
   /// device" across sessions (shows up in the server's device list).
-  Future<String> _ensureDeviceId() async {
+  Future<String> _ensureDeviceId() => ConfigurationWrites.run(() async {
     final existing = await _storage.read(key: _deviceIdKey);
     if (existing != null) return existing;
     final generated = 'larenor-${DateTime.now().microsecondsSinceEpoch}';
     await _storage.write(key: _deviceIdKey, value: generated);
     return generated;
-  }
+  });
 }

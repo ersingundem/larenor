@@ -73,6 +73,40 @@ def validate_workflow(text):
     return errors
 
 
+
+def validate_signed_android_workflow(text):
+    """Check the release job's reviewed secret/material boundaries."""
+    errors = []
+    job = text.partition("  build-signed-release-apk:\n")[2]
+    if not job:
+        return ["Android signed release job is missing"]
+    gate = ("    if: github.ref == 'refs/heads/main' && "
+            "(github.event_name == 'push' || github.event_name == 'workflow_dispatch')")
+    if gate not in job.split("    steps:", 1)[0]:
+        errors.append("Signing must be gated to trusted main push/manual runs")
+    if "    needs: build-debug-apk" not in job:
+        errors.append("Signed release must wait for debug and fail-closed signing checks")
+    checks = ["python3 tool/android_signing.py check-ci",
+              "python3 tool/android_signing.py prepare-ci",
+              "python3 tool/android_signing.py verify-apk",
+              'if [ "$GITHUB_RUN_ATTEMPT" != "1" ]',
+              'if [ "$current_main" != "$GITHUB_SHA" ]']
+    for check in checks:
+        if check not in job:
+            errors.append("Missing signed release guard: " + check)
+    cleanup = job.partition("      - name: Remove private signing material\n")[2].split("      - name:", 1)[0]
+    if "if: always()" not in cleanup or "rm -f android/key.properties" not in cleanup or 'rm -rf "$RUNNER_TEMP/larenor-signing"' not in cleanup:
+        errors.append("Private signing material must be cleaned even after failure")
+    upload = job.partition("      - name: Upload verified signed APK and public integrity metadata\n")[2]
+    if "if: success() && steps.signing.outputs.available == 'true'" not in upload:
+        errors.append("Only verified successful signed artifacts may be uploaded")
+    expected_paths = ("          path: |\n"
+                      "            build/app/outputs/flutter-apk/app-release.apk\n"
+                      "            build/app/outputs/flutter-apk/release-metadata.json\n")
+    if expected_paths not in upload:
+        errors.append("Signed artifacts must be restricted to APK and public metadata")
+    return errors
+
 def check_repository(root):
     res = root / "android/app/src/main"
     errors = validate_backup(
@@ -82,6 +116,7 @@ def check_repository(root):
     )
     for path in sorted((root / ".github/workflows").glob("*.yml")):
         errors.extend(f"{path.name}: {error}" for error in validate_workflow(path.read_text()))
+    errors.extend(validate_signed_android_workflow((root / ".github/workflows/android-build.yml").read_text()))
     return errors
 
 

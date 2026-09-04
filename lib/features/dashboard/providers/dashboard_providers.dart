@@ -1,5 +1,7 @@
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
+import '../../../core/configuration_writes.dart';
+
 import '../data/dashboard_repository.dart';
 import '../domain/dashboard_layout.dart';
 import '../domain/dashboard_room.dart';
@@ -12,8 +14,6 @@ DashboardRepository dashboardRepository(Ref ref) => DashboardRepository();
 
 @riverpod
 class DashboardLayoutNotifier extends _$DashboardLayoutNotifier {
-  Future<void> _saveQueue = Future.value();
-
   @override
   Future<DashboardLayout> build() {
     return ref.watch(dashboardRepositoryProvider).load();
@@ -22,10 +22,9 @@ class DashboardLayoutNotifier extends _$DashboardLayoutNotifier {
   Future<void> _persist(DashboardLayout layout) async {
     state = AsyncData(layout);
     final repository = ref.read(dashboardRepositoryProvider);
-    // Serialize writes: a slower earlier save must not overwrite a newer edit.
-    final save = _saveQueue.then((_) => repository.save(layout));
-    _saveQueue = save.catchError((Object _) {});
-    await save;
+    // The repository queues immediately with all configuration writes, so a
+    // vault restore cannot be followed by a delayed save from this old session.
+    await ConfigurationWrites.run(() => repository.save(layout));
   }
 
   Future<void> addTile(TileConfig tile) async {

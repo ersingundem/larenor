@@ -34,8 +34,8 @@ class EnabledServices extends _$EnabledServices {
     }
 
     final seeded = await _seedFromExistingCredentials();
-    await store.save(seeded);
-    await prefs.setBool(_migratedKey, true);
+    if (!ref.mounted) return seeded;
+    await store.save(seeded, markMigrated: true);
     return seeded;
   }
 

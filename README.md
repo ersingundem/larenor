@@ -289,12 +289,27 @@ list, so the app stays uncluttered no matter how many services exist:
 ### Settings
 
 - An iPad-style split view: the categories (Connection, Display & Brightness,
-  Security, Home Assistant, Integrations, About) stay listed down the left while the
+  Security, Backup and restore, Home Assistant, Integrations, About) stay listed down the left while the
   selected one fills the right half. Drilling into a category — say Integrations → a
   config flow — keeps the master list visible beside it.
 - On a display too narrow for two useful panes it falls back to the plain iOS
   behaviour of pushing each category full-screen, so phones and portrait are
   unaffected. The switch is width-driven, not orientation-driven.
+
+### Configuration backup and reinstall recovery
+
+- Settings → Backup and restore saves a password-encrypted `.larenor-vault` file
+  using the system file picker. Rooms/cards/favorites, preferences and optional
+  service credentials can be restored from the fresh-install connection screen.
+- Credentials default off; PIN, failed-attempt state, cookies, temporary sessions
+  and Jellyfin installation identity are excluded. A separate 12+ character
+  passphrase protects AES-256-GCM encryption; PBKDF2 runs off the UI isolate.
+- Restore validates all content before writing, previews conflicts, preserves
+  existing settings by default, and uses a secure journal to recover interrupted
+  writes before clients start. Native file-picker return rechecks the Settings PIN.
+- Normal updates should use the same release identity without uninstalling. The
+  first transition from a differently signed debug installation needs a backup.
+  [Vault details](docs/configuration-vault.md).
 
 ### Performance, stability and security
 
@@ -401,7 +416,10 @@ Debug builds work without signing secrets. For a release, provide an ignored
 `storePassword`, `keyAlias`, and `keyPassword`, following the
 [Flutter signing guide](https://docs.flutter.dev/deployment/android#sign-the-app).
 Keep that file and the keystore private. `:app:validateReleaseSigning` fails when
-keys are missing; generating or distributing a production key is not part of CI.
+keys are missing. Trusted `main` CI builds load the persistent identity from
+GitHub Secrets, increment `versionCode`, and verify the resulting APK before
+uploading the signed artifact. PR builds never receive signing secrets.
+[Provisioning, update compatibility and artifact verification](docs/android-release-signing.md).
 
 ### Read-only Home Assistant audit
 

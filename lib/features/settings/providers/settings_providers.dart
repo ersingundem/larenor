@@ -2,6 +2,7 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../core/theme.dart';
+import '../../../core/configuration_writes.dart';
 import '../data/pin_lock_store.dart';
 
 part 'settings_providers.g.dart';
@@ -22,8 +23,7 @@ class KeepScreenOn extends _$KeepScreenOn {
 
   Future<void> set(bool value) async {
     state = AsyncData(value);
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool(_keepScreenOnKey, value);
+    await _savePreference((prefs) => prefs.setBool(_keepScreenOnKey, value));
   }
 }
 
@@ -43,8 +43,9 @@ class Appearance extends _$Appearance {
 
   Future<void> set(AppAppearance value) async {
     state = AsyncData(value);
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_appearanceKey, value.name);
+    await _savePreference(
+      (prefs) => prefs.setString(_appearanceKey, value.name),
+    );
   }
 }
 
@@ -134,30 +135,29 @@ class NightWindow extends _$NightWindow {
     final current = state.value;
     if (current == null) return;
     state = AsyncData(current.copyWith(startMinutes: minutes));
-    (await SharedPreferences.getInstance()).setInt(_nightStartKey, minutes);
+    await _savePreference((prefs) => prefs.setInt(_nightStartKey, minutes));
   }
 
   Future<void> setEndMinutes(int minutes) async {
     final current = state.value;
     if (current == null) return;
     state = AsyncData(current.copyWith(endMinutes: minutes));
-    (await SharedPreferences.getInstance()).setInt(_nightEndKey, minutes);
+    await _savePreference((prefs) => prefs.setInt(_nightEndKey, minutes));
   }
 
   Future<void> setDimBrightnessAtNight(bool value) async {
     final current = state.value;
     if (current == null) return;
     state = AsyncData(current.copyWith(dimBrightnessAtNight: value));
-    (await SharedPreferences.getInstance()).setBool(_dimAtNightKey, value);
+    await _savePreference((prefs) => prefs.setBool(_dimAtNightKey, value));
   }
 
   Future<void> setScreenOffAtNight(bool value) async {
     final current = state.value;
     if (current == null) return;
     state = AsyncData(current.copyWith(screenOffAtNight: value));
-    (await SharedPreferences.getInstance()).setBool(
-      _screenOffAtNightKey,
-      value,
+    await _savePreference(
+      (prefs) => prefs.setBool(_screenOffAtNightKey, value),
     );
   }
 }
@@ -196,13 +196,22 @@ class IdleMode extends _$IdleMode {
     final current = state.value;
     if (current == null) return;
     state = AsyncData(current.copyWith(enabled: value));
-    (await SharedPreferences.getInstance()).setBool(_idleEnabledKey, value);
+    await _savePreference((prefs) => prefs.setBool(_idleEnabledKey, value));
   }
 
   Future<void> setTimeoutMinutes(int minutes) async {
     final current = state.value;
     if (current == null) return;
     state = AsyncData(current.copyWith(timeoutMinutes: minutes));
-    (await SharedPreferences.getInstance()).setInt(_idleTimeoutKey, minutes);
+    await _savePreference((prefs) => prefs.setInt(_idleTimeoutKey, minutes));
   }
 }
+
+/// Share the same queue with backup capture/restore and await platform writes.
+Future<void> _savePreference(
+  Future<bool> Function(SharedPreferences preferences) write,
+) => ConfigurationWrites.run(() async {
+  if (!await write(await SharedPreferences.getInstance())) {
+    throw StateError('The preference could not be saved.');
+  }
+});

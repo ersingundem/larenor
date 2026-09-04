@@ -6,6 +6,7 @@ import '../../../shared/widgets/app_page_scaffold.dart';
 import '../../../l10n/generated/app_localizations.dart';
 import '../providers/settings_providers.dart';
 import 'settings_split_screen.dart';
+import 'settings_file_dialog.dart';
 
 /// Gates access to [SettingsSplitScreen] behind a PIN, if one has been set —
 /// protects the connection config and admin panel from casual tampering on
@@ -24,6 +25,8 @@ class _SettingsGateScreenState extends ConsumerState<SettingsGateScreen>
   bool _checking = false;
   int _generation = 0;
   String? _error;
+  bool _fileDialogActive = false;
+  bool _settingsOpened = false;
 
   @override
   void initState() {
@@ -52,6 +55,10 @@ class _SettingsGateScreenState extends ConsumerState<SettingsGateScreen>
       _checking = false;
       _error = null;
     });
+    // A native picker may background the app. Its already-open route can
+    // retain ciphertext, but cannot continue until the gate reauthenticates.
+    if (_fileDialogActive) return;
+    _settingsOpened = false;
     // Phone settings push routes above this gate; remove those routes as well.
     // Tablet detail routes disappear with the SettingsSplitScreen subtree.
     final gate = ModalRoute.of(context);
@@ -90,10 +97,47 @@ class _SettingsGateScreenState extends ConsumerState<SettingsGateScreen>
         ),
       ),
       data: (pin) {
-        if (pin == null || _unlocked) return const SettingsSplitScreen();
-        return _buildPinEntry(context);
+        final unlocked = pin == null || _unlocked;
+        if (unlocked) _settingsOpened = true;
+        return Stack(
+          children: [
+            if (unlocked || (_fileDialogActive && _settingsOpened))
+              Offstage(
+                offstage: !unlocked,
+                child: TickerMode(
+                  enabled: unlocked,
+                  child: SettingsSplitScreen(runFileDialog: _runFileDialog),
+                ),
+              ),
+            if (!unlocked) Positioned.fill(child: _buildPinEntry(context)),
+          ],
+        );
       },
     );
+  }
+
+  Future<T?> _runFileDialog<T>(Future<T?> Function() operation) async {
+    if (_fileDialogActive) return null;
+    final store = ref.read(pinLockStoreProvider);
+    final pin = await store.read();
+    if (!mounted || (pin != null && !_unlocked)) return null;
+    _fileDialogActive = true;
+    try {
+      final result = await operation();
+      if (!mounted || result == null) return null;
+      if (!_unlocked && await store.read() != null) {
+        if (!mounted) return null;
+        final accepted = await reauthenticateSettingsFileDialog(context, store);
+        if (!mounted || !accepted) return null;
+        setState(() => _unlocked = true);
+      }
+      return result;
+    } finally {
+      _fileDialogActive = false;
+      if (mounted && !_unlocked && ref.read(pinLockProvider).value != null) {
+        _lockSettings();
+      }
+    }
   }
 
   Widget _buildPinEntry(BuildContext context) {

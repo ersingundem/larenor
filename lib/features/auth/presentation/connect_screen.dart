@@ -11,6 +11,12 @@ import '../data/ha_discovery.dart';
 import '../providers/auth_providers.dart';
 import '../../../shared/theme/typography.dart';
 import '../../../shared/widgets/settings_section.dart';
+import '../../backup/presentation/backup_screen.dart';
+import '../../settings/providers/settings_providers.dart';
+
+final haDiscoveryFactoryProvider = Provider<HaDiscoveryService Function()>(
+  (ref) => HaDiscoveryService.new,
+);
 
 class ConnectScreen extends ConsumerStatefulWidget {
   const ConnectScreen({super.key, this.initialUrl});
@@ -31,16 +37,18 @@ class _ConnectScreenState extends ConsumerState<ConnectScreen> {
   final _tokenController = TextEditingController();
   final _tokenFocusNode = FocusNode();
 
-  final _discovery = HaDiscoveryService();
+  late final HaDiscoveryService _discovery;
   List<DiscoveredHaServer> _discovered = [];
   bool _scanning = true;
 
   bool _isConnecting = false;
+  bool _openingBackup = false;
   String? _errorMessage;
 
   @override
   void initState() {
     super.initState();
+    _discovery = ref.read(haDiscoveryFactoryProvider)();
     _startDiscovery();
   }
 
@@ -73,7 +81,35 @@ class _ConnectScreenState extends ConsumerState<ConnectScreen> {
     _tokenFocusNode.requestFocus();
   }
 
+  Future<void> _restoreBackup() async {
+    if (_isConnecting || _openingBackup) return;
+    setState(() => _openingBackup = true);
+    try {
+      final pin = await ref.read(pinLockStoreProvider).read();
+      if (!mounted) return;
+      if (pin != null || ref.read(connectionConfigProvider).value != null) {
+        return;
+      }
+      await Navigator.of(context).push<void>(
+        CupertinoPageRoute(
+          builder: (_) => const BackupScreen(freshInstall: true),
+        ),
+      );
+    } catch (_) {
+      if (mounted) {
+        setState(
+          () =>
+              _errorMessage = AppLocalizations.of(context)
+                  .settingsGateStorageError,
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _openingBackup = false);
+    }
+  }
+
   Future<void> _connect() async {
+    if (_isConnecting || _openingBackup) return;
     final urlInput = _urlController.text.trim();
     final tokenInput = _tokenController.text.trim();
     if (urlInput.isEmpty || tokenInput.isEmpty) {
@@ -97,10 +133,12 @@ class _ConnectScreenState extends ConsumerState<ConnectScreen> {
     final client = HaRestClient(baseUrl: config.baseUrl, token: config.token);
     try {
       await client.checkConnection();
+      if (!mounted) return;
       await ref.read(connectionConfigProvider.notifier).signIn(config);
     } on HaApiException catch (e) {
-      setState(() => _errorMessage = e.message);
+      if (mounted) setState(() => _errorMessage = e.message);
     } catch (_) {
+      if (!mounted) return;
       setState(
         () =>
             _errorMessage = AppLocalizations.of(context)
@@ -115,6 +153,14 @@ class _ConnectScreenState extends ConsumerState<ConnectScreen> {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
+    final pin = ref.watch(pinLockProvider);
+    final connection = ref.watch(connectionConfigProvider);
+    final canRestore =
+        widget.initialUrl == null &&
+        pin.hasValue &&
+        pin.value == null &&
+        connection.hasValue &&
+        connection.value == null;
     return CupertinoPageScaffold(
       child: CustomScrollView(
         slivers: [
@@ -183,13 +229,28 @@ class _ConnectScreenState extends ConsumerState<ConnectScreen> {
                         ],
                         const SizedBox(height: 20),
                         CupertinoButton.filled(
-                          onPressed: _isConnecting ? null : _connect,
+                          onPressed: _isConnecting || _openingBackup
+                              ? null
+                              : _connect,
                           child: _isConnecting
                               ? const CupertinoActivityIndicator(
                                   color: CupertinoColors.white,
                                 )
                               : Text(l10n.commonConnect),
                         ),
+                        if (canRestore) ...[
+                          const SizedBox(height: 12),
+                          CupertinoButton(
+                            key: const ValueKey('connect-restore-backup'),
+                            onPressed: _isConnecting || _openingBackup
+                                ? null
+                                : _restoreBackup,
+                            child: Text(
+                              l10n.backupConnectRestore,
+                              textAlign: TextAlign.center,
+                            ),
+                          ),
+                        ],
                         const SizedBox(height: 12),
                         Text(
                           l10n.connectTokenHint,

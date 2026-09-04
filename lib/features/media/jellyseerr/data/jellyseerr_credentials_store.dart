@@ -1,3 +1,5 @@
+import 'package:larenor/core/configuration_writes.dart';
+
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 import 'jellyseerr_config.dart';
@@ -18,13 +20,14 @@ class JellyseerrCredentialsStore {
     return JellyseerrConfig(baseUrl: baseUrl, apiKey: apiKey);
   }
 
-  Future<void> save({required String baseUrl, required String apiKey}) async {
-    await _storage.write(key: _baseUrlKey, value: baseUrl);
-    await _storage.write(key: _apiKeyKey, value: apiKey);
-  }
+  Future<void> save({required String baseUrl, required String apiKey}) =>
+      ConfigurationWrites.run(() async {
+        await _storage.write(key: _baseUrlKey, value: baseUrl);
+        await _storage.write(key: _apiKeyKey, value: apiKey);
+      });
 
-  Future<void> clear() async {
+  Future<void> clear() => ConfigurationWrites.run(() async {
     await _storage.delete(key: _baseUrlKey);
     await _storage.delete(key: _apiKeyKey);
-  }
+  });
 }

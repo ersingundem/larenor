@@ -1,3 +1,5 @@
+import 'package:larenor/core/configuration_writes.dart';
+
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'app_service.dart';
@@ -20,8 +22,18 @@ class EnabledServicesStore {
         .toSet();
   }
 
-  Future<void> save(Set<AppService> services) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setStringList(_key, services.map((s) => s.name).toList());
-  }
+  Future<void> save(Set<AppService> services, {bool markMigrated = false}) =>
+      ConfigurationWrites.run(() async {
+        final prefs = await SharedPreferences.getInstance();
+        if (!await prefs.setStringList(
+          _key,
+          services.map((s) => s.name).toList(),
+        )) {
+          throw StateError('Enabled services could not be saved.');
+        }
+        if (markMigrated &&
+            !await prefs.setBool('enabled_services_migrated', true)) {
+          throw StateError('Service migration could not be saved.');
+        }
+      });
 }

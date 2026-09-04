@@ -1,3 +1,5 @@
+import 'package:larenor/core/configuration_writes.dart';
+
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 import 'proxmox_config.dart';
@@ -51,21 +53,21 @@ class ProxmoxCredentialsStore {
     required String realm,
     required String password,
     required bool allowSelfSigned,
-  }) async {
+  }) => ConfigurationWrites.run(() async {
     await _storage.write(key: _hostKey, value: host);
     await _storage.write(key: _portKey, value: '$port');
     await _storage.write(key: _usernameKey, value: username);
     await _storage.write(key: _realmKey, value: realm);
     await _storage.write(key: _passwordKey, value: password);
     await _storage.write(key: _allowSelfSignedKey, value: '$allowSelfSigned');
-  }
+  });
 
-  Future<void> clear() async {
+  Future<void> clear() => ConfigurationWrites.run(() async {
     await _storage.delete(key: _hostKey);
     await _storage.delete(key: _portKey);
     await _storage.delete(key: _usernameKey);
     await _storage.delete(key: _realmKey);
     await _storage.delete(key: _passwordKey);
     await _storage.delete(key: _allowSelfSignedKey);
-  }
+  });
 }

@@ -1,3 +1,5 @@
+import 'package:larenor/core/configuration_writes.dart';
+
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 import 'qbittorrent_config.dart';
@@ -31,15 +33,15 @@ class QbittorrentCredentialsStore {
     required String baseUrl,
     required String username,
     required String password,
-  }) async {
+  }) => ConfigurationWrites.run(() async {
     await _storage.write(key: _baseUrlKey, value: baseUrl);
     await _storage.write(key: _usernameKey, value: username);
     await _storage.write(key: _passwordKey, value: password);
-  }
+  });
 
-  Future<void> clear() async {
+  Future<void> clear() => ConfigurationWrites.run(() async {
     await _storage.delete(key: _baseUrlKey);
     await _storage.delete(key: _usernameKey);
     await _storage.delete(key: _passwordKey);
-  }
+  });
 }

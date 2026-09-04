@@ -1,3 +1,5 @@
+import 'package:larenor/core/configuration_writes.dart';
+
 import 'dart:convert';
 
 import 'package:shared_preferences/shared_preferences.dart';
@@ -18,8 +20,9 @@ class DashboardRepository {
     return DashboardLayout.fromJson(jsonDecode(raw) as Map<String, dynamic>);
   }
 
-  Future<void> save(DashboardLayout layout) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_key, jsonEncode(layout.toJson()));
-  }
+  Future<void> save(DashboardLayout layout) =>
+      ConfigurationWrites.run(() async {
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString(_key, jsonEncode(layout.toJson()));
+      });
 }

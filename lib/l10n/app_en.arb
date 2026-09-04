@@ -955,5 +955,100 @@
   },
   "settingsGateStorageError": "Secure storage is unavailable. Settings remain locked.",
   "settingsPinInvalid": "Enter 4–12 digits.",
-  "settingsPinSaveError": "The PIN could not be saved. Try again."
+  "settingsPinSaveError": "The PIN could not be saved. Try again.",
+  "backupTitle": "Backup & Restore",
+  "backupIntro": "Keep an encrypted copy of your Larenor setup. Choose what to include and save it with Files.",
+  "backupExport": "Export encrypted backup",
+  "backupRestore": "Restore from backup",
+  "backupSettings": "App preferences",
+  "backupDashboard": "Home layout & rooms",
+  "backupConnections": "Service connections & credentials",
+  "backupCredentialHint": "Optional. Includes saved access tokens and passwords inside the encrypted file. Your Settings PIN stays on this device.",
+  "backupPassphrase": "Backup passphrase",
+  "backupConfirmPassphrase": "Repeat passphrase",
+  "backupPassphraseHint": "Use at least 12 characters and a different passphrase from your Settings PIN. You need this passphrase to restore the file.",
+  "backupPassphraseInvalid": "Use at least 12 characters.",
+  "backupPassphraseSamePin": "Choose a backup passphrase different from your Settings PIN.",
+  "backupPassphraseMismatch": "The passphrases do not match.",
+  "backupChooseFile": "Choose .larenor-vault file",
+  "backupFileSelected": "Encrypted backup selected",
+  "backupDecrypt": "Unlock & preview",
+  "backupRestoreHint": "Choose a file first. Unlock it to review its contents before anything on this device changes. Home Assistant and other servers are not edited.",
+  "backupPreview": "Restore preview",
+  "backupServices": "Included services",
+  "backupNoServices": "No saved service credentials",
+  "backupConflicts": "When local data already exists",
+  "backupKeepExisting": "Keep existing",
+  "backupReplaceSelected": "Replace selected",
+  "backupConflictHint": "Keep existing skips conflicting preferences, the existing home layout and already-connected services. Replace selected replaces only the selected groups. Your Settings PIN is preserved.",
+  "backupApply": "Restore selected content",
+  "backupApplyTitle": "Restore this device?",
+  "backupApplyMessage": "Larenor will reload after restoring the selected content. Server data is unchanged.",
+  "backupProgress": "Restoring your setup…",
+  "backupRestoreFailed": "Restore could not be completed. Continue, then check your settings and connections.",
+  "backupContinue": "Continue",
+  "backupSaved": "Encrypted backup saved. Keep the passphrase somewhere safe.",
+  "backupCancelled": "Cancelled. No settings were changed.",
+  "backupFailed": "The backup operation failed. Check the file or storage access and try again.",
+  "backupDecryptFailed": "Could not unlock this backup. Check the passphrase and that the file is complete.",
+  "backupTooLarge": "This file is too large to restore.",
+  "backupSelectGroup": "Choose at least one content group.",
+  "backupLocked": "Unlock Settings to continue restoring.",
+  "backupConnectRestore": "Restore an existing Larenor backup",
+  "backupCreatedAt": "Created",
+  "backupExistingData": "Existing data on this device",
+  "backupCertificateReview": "Restored Proxmox connections require normal certificate validation. Review self-signed certificates separately in connection settings.",
+  "backupSelectAnother": "Choose another file",
+  "backupCountSummary": "{settings} preferences · {rooms} rooms · {tiles} tiles · {favorites} favorites",
+  "@backupCountSummary": {
+    "placeholders": {
+      "settings": {
+        "type": "int"
+      },
+      "rooms": {
+        "type": "int"
+      },
+      "tiles": {
+        "type": "int"
+      },
+      "favorites": {
+        "type": "int"
+      }
+    }
+  },
+  "backupExistingSummary": "{settings} preferences · {services} connected services",
+  "@backupExistingSummary": {
+    "placeholders": {
+      "settings": {
+        "type": "int"
+      },
+      "services": {
+        "type": "int"
+      }
+    }
+  },
+  "backupRecoveryProgress": "Checking saved configuration…",
+  "backupRecoveryFailed": "Configuration recovery could not finish. Retry before opening the app.",
+  "navigationSearchTitle": "Search your home",
+  "navigationSearchHint": "Rooms, devices, scenes and saved media",
+  "navigationSearchLocalHint": "Search uses data already loaded on this device.",
+  "navigationSearchEmpty": "No matching results",
+  "navigationSearchRemote": "Search media catalog",
+  "navigationSearchNoCache": "Open Home or Media to load content, then search here.",
+  "navigationSearchRoom": "Room",
+  "navigationSearchEntity": "Device or entity",
+  "navigationSearchScene": "Scene",
+  "navigationSearchScript": "Script",
+  "navigationSearchSystem": "System",
+  "navigationHome": "Home",
+  "navigationMedia": "Media",
+  "navigationRoutines": "Routines",
+  "navigationSystem": "System",
+  "navigationUnconfigured": "No saved connection",
+  "navigationConfigure": "Set up in Settings",
+  "navigationRoutineHint": "Open a scene or script to review and run it.",
+  "navigationNoRoutines": "No scenes or scripts are available.",
+  "navigationDestinationMissing": "This item is no longer available.",
+  "navigationSavedConnection": "Saved connection",
+  "navigationSearch": "Search"
 }

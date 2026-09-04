@@ -10,7 +10,7 @@ import '../features/settings/presentation/settings_gate_screen.dart';
 import '../l10n/generated/app_localizations.dart';
 
 final routerProvider = Provider<GoRouter>((ref) {
-  return GoRouter(
+  final router = GoRouter(
     initialLocation: '/',
     routes: [
       GoRoute(path: '/', builder: (context, state) => const _RootScreen()),
@@ -24,6 +24,8 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
     ],
   );
+  ref.onDispose(router.dispose);
+  return router;
 });
 
 /// Shows the connect flow or the dashboard depending on whether the app
