@@ -46,9 +46,11 @@ class AreasScreen extends ConsumerWidget {
                       children: [
                         for (final area in areas)
                           CupertinoListTile(
-                            leading: const IconBadge(
+                            leading: IconBadge(
                               icon: CupertinoIcons.square_grid_2x2,
-                              color: CupertinoColors.systemGreen,
+                              color: CupertinoColors.systemGreen.resolveFrom(
+                                context,
+                              ),
                             ),
                             title: Text(area.name),
                           ),

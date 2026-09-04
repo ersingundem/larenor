@@ -60,9 +60,11 @@ class AutomationsScreen extends ConsumerWidget {
                       children: [
                         for (final automation in automations)
                           CupertinoListTile(
-                            leading: const IconBadge(
+                            leading: IconBadge(
                               icon: CupertinoIcons.bolt,
-                              color: CupertinoColors.systemOrange,
+                              color: CupertinoColors.systemOrange.resolveFrom(
+                                context,
+                              ),
                             ),
                             title: Text(automation.friendlyName),
                             subtitle: Text(

@@ -49,6 +49,7 @@ class _MediaSearchScreenState extends ConsumerState<MediaSearchScreen> {
       ),
       navigationBar: CupertinoNavigationBar(
         middle: Text(l10n.mediaSearchTitle),
+        previousPageTitle: l10n.mediaHubTitle,
       ),
       child: SafeArea(
         child: Column(

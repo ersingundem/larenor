@@ -8,6 +8,10 @@ import '../../../ha_client/providers/ha_client_providers.dart';
 import '../../providers/dashboard_providers.dart';
 import '../widgets/more_info_sheet.dart';
 import 'entity_icons.dart';
+import '../../../../shared/theme/typography.dart';
+import '../../../../shared/theme/spacing.dart';
+import '../../../../shared/theme/radii.dart';
+import '../../../../shared/theme/icon_sizes.dart';
 
 /// Domains where a plain tap is safe to treat as "toggle this".
 ///
@@ -28,12 +32,10 @@ class HomeAccessoryTile extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final categoryColor = CupertinoDynamicColor.resolve(
-      categoryColorForDomain(
-        entity.domain,
-        deviceClass: entity.attributes['device_class'] as String?,
-      ),
+    final categoryColor = categoryColorForDomain(
       context,
+      entity.domain,
+      deviceClass: entity.attributes['device_class'] as String?,
     );
     final isOn = entity.isOn;
 
@@ -59,10 +61,10 @@ class HomeAccessoryTile extends ConsumerWidget {
       child: DecoratedBox(
         decoration: BoxDecoration(
           color: background,
-          borderRadius: BorderRadius.circular(18),
+          borderRadius: Radii.brLarge,
         ),
         child: Padding(
-          padding: const EdgeInsets.all(12),
+          padding: Insets.tile,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -74,7 +76,11 @@ class HomeAccessoryTile extends ConsumerWidget {
                   color: glyphBackground,
                   shape: BoxShape.circle,
                 ),
-                child: Icon(iconForEntity(entity), size: 19, color: glyphColor),
+                child: Icon(
+                  iconForEntity(entity),
+                  size: IconSizes.body,
+                  color: glyphColor,
+                ),
               ),
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -84,13 +90,11 @@ class HomeAccessoryTile extends ConsumerWidget {
                     entity.friendlyName,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
+                    style: AppText.tileTitle.copyWith(
                       color: CupertinoColors.label.resolveFrom(context),
                     ),
                   ),
-                  const SizedBox(height: 1),
+                  const SizedBox(height: Gap.xxs),
                   Text(
                     _stateLabel(context),
                     maxLines: 1,

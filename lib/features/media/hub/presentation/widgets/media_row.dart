@@ -1,5 +1,7 @@
 import 'package:flutter/cupertino.dart';
 
+import '../../../../../shared/theme/spacing.dart';
+import '../../../../../shared/theme/typography.dart';
 import '../../domain/media_title.dart';
 import 'media_poster.dart';
 
@@ -24,17 +26,16 @@ class MediaRow extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
-          padding: const EdgeInsets.fromLTRB(20, 20, 20, 10),
-          child: Text(
-            title,
-            style: const TextStyle(fontSize: 19, fontWeight: FontWeight.bold),
-          ),
+          padding: Insets.sectionHeader,
+          child: Text(title, style: AppText.sectionHeader),
         ),
         SizedBox(
-          height: 232,
+          // Derived from the card itself rather than a literal, so the row
+          // can't clip its own captions when the text scale changes.
+          height: MediaPoster.heightFor(128, context),
           child: ListView.separated(
             scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 16),
+            padding: Insets.page,
             itemCount: titles.length,
             separatorBuilder: (_, _) => const SizedBox(width: 12),
             itemBuilder: (context, index) {

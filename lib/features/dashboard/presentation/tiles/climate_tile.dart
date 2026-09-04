@@ -7,6 +7,8 @@ import '../../../../l10n/generated/app_localizations.dart';
 import '../../../../shared/theme/category_colors.dart';
 import '../../../ha_client/providers/ha_client_providers.dart';
 import '../../domain/tile_config.dart';
+import '../../../../shared/theme/spacing.dart';
+import '../../../../shared/theme/typography.dart';
 
 class ClimateTile extends ConsumerWidget {
   const ClimateTile({super.key, required this.tile});
@@ -18,7 +20,7 @@ class ClimateTile extends ConsumerWidget {
     final entity = ref.watch(entitiesProvider).value?[tile.entityId];
     if (entity == null) {
       return ColoredBox(
-        color: CupertinoColors.systemGrey5,
+        color: CupertinoColors.systemGrey5.resolveFrom(context),
         child: Center(
           child: Text(AppLocalizations.of(context).commonUnknownEntity),
         ),
@@ -36,7 +38,7 @@ class ClimateTile extends ConsumerWidget {
         context,
       ),
       child: Padding(
-        padding: const EdgeInsets.all(8),
+        padding: Insets.tile,
         child: Column(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
@@ -44,7 +46,7 @@ class ClimateTile extends ConsumerWidget {
               entity.friendlyName,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+              style: AppText.tileTitle,
             ),
             Expanded(
               child: target == null
@@ -67,7 +69,7 @@ class ClimateTile extends ConsumerWidget {
             Text(
               (entity.attributes['hvac_action'] as String?) ?? entity.state,
               style: TextStyle(
-                fontSize: 11,
+                fontSize: AppText.tileSubtitle.fontSize,
                 color: CupertinoColors.secondaryLabel.resolveFrom(context),
               ),
             ),
@@ -131,24 +133,22 @@ class _RadialDialState extends State<_RadialDial> {
           child: CustomPaint(
             painter: _DialPainter(
               fraction: fraction,
-              color: categoryColorForDomain('climate'),
+              color: categoryColorForDomain(context, 'climate'),
+              // A CustomPainter gets no BuildContext, so a dynamic colour
+              // handed to Paint.color can never resolve itself — it has to
+              // be resolved here and passed in already-concrete.
+              trackColor: CupertinoColors.systemGrey4.resolveFrom(context),
             ),
             child: Center(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text(
-                    '${_value.toStringAsFixed(1)}°',
-                    style: const TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
+                  Text('${_value.toStringAsFixed(1)}°', style: AppText.title3),
                   if (widget.currentTemperature != null)
                     Text(
                       'now ${widget.currentTemperature!.toStringAsFixed(1)}°',
                       style: TextStyle(
-                        fontSize: 10,
+                        fontSize: AppText.caption2.fontSize,
                         color: CupertinoColors.secondaryLabel.resolveFrom(
                           context,
                         ),
@@ -165,17 +165,22 @@ class _RadialDialState extends State<_RadialDial> {
 }
 
 class _DialPainter extends CustomPainter {
-  _DialPainter({required this.fraction, required this.color});
+  _DialPainter({
+    required this.fraction,
+    required this.color,
+    required this.trackColor,
+  });
 
   final double fraction;
   final Color color;
+  final Color trackColor;
 
   @override
   void paint(Canvas canvas, Size size) {
     final center = Offset(size.width / 2, size.height / 2);
     final radius = (size.shortestSide / 2) - 6;
     final backgroundPaint = Paint()
-      ..color = CupertinoColors.systemGrey4
+      ..color = trackColor
       ..style = PaintingStyle.stroke
       ..strokeWidth = 6
       ..strokeCap = StrokeCap.round;
@@ -197,5 +202,9 @@ class _DialPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _DialPainter oldDelegate) =>
-      oldDelegate.fraction != fraction || oldDelegate.color != color;
+      oldDelegate.fraction != fraction ||
+      oldDelegate.color != color ||
+      // Without this the track keeps its old colour across a light/dark
+      // switch, since nothing else about the painter changes.
+      oldDelegate.trackColor != trackColor;
 }

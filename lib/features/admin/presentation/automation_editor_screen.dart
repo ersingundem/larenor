@@ -164,9 +164,9 @@ class _AutomationEditorScreenState
               CupertinoButton(
                 padding: EdgeInsets.zero,
                 onPressed: _saving ? null : _delete,
-                child: const Icon(
+                child: Icon(
                   CupertinoIcons.delete,
-                  color: CupertinoColors.destructiveRed,
+                  color: CupertinoColors.destructiveRed.resolveFrom(context),
                 ),
               ),
             CupertinoButton(

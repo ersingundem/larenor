@@ -15,6 +15,8 @@ import '../../jellyseerr/providers/jellyseerr_providers.dart';
 import '../domain/media_identity.dart';
 import '../domain/media_title.dart';
 import '../providers/media_catalog_providers.dart';
+import '../../../../shared/theme/spacing.dart';
+import '../../../../shared/theme/typography.dart';
 
 /// One page per title, pulling together every service that knows about
 /// it: play it from Jellyfin, request it through Jellyseerr, add it to
@@ -48,6 +50,7 @@ class _MediaTitleDetailScreenState
       ),
       navigationBar: CupertinoNavigationBar(
         middle: Text(_title.title, overflow: TextOverflow.ellipsis),
+        previousPageTitle: l10n.mediaHubTitle,
       ),
       child: SafeArea(
         top: false,
@@ -65,17 +68,16 @@ class _MediaTitleDetailScreenState
                 ),
               ),
             Padding(
-              padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+              padding: const EdgeInsets.fromLTRB(
+                Insets.pageGutter,
+                Gap.lg,
+                Insets.pageGutter,
+                0,
+              ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    _title.title,
-                    style: const TextStyle(
-                      fontSize: 24,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
+                  Text(_title.title, style: AppText.title1),
                   const SizedBox(height: 4),
                   Text(
                     _subtitleLine(l10n),
@@ -88,7 +90,7 @@ class _MediaTitleDetailScreenState
                   const SizedBox(height: 16),
                   _primaryAction(l10n),
                   if (_message != null) ...[
-                    const SizedBox(height: 10),
+                    const SizedBox(height: Gap.md),
                     Text(
                       _message!,
                       style: TextStyle(
@@ -99,8 +101,11 @@ class _MediaTitleDetailScreenState
                     ),
                   ],
                   if (_title.overview != null) ...[
-                    const SizedBox(height: 18),
-                    Text(_title.overview!, style: const TextStyle(height: 1.4)),
+                    const SizedBox(height: Gap.xl),
+                    Text(
+                      _title.overview!,
+                      style: AppText.body.copyWith(height: 1.4),
+                    ),
                   ],
                 ],
               ),
@@ -189,7 +194,7 @@ class _MediaTitleDetailScreenState
     return CupertinoListSection.insetGrouped(
       children: [
         CupertinoListTile(
-          leading: IconBadge(icon: _statusIcon(), color: _statusColor()),
+          leading: IconBadge(icon: _statusIcon(), color: _statusColor(context)),
           title: Text(_statusLabel(l10n)),
         ),
         if (_title.monitored == true)
@@ -237,13 +242,19 @@ class _MediaTitleDetailScreenState
     MediaAvailability.notAvailable => CupertinoIcons.cloud,
   };
 
-  Color _statusColor() => switch (_title.availability) {
-    MediaAvailability.inLibrary => CupertinoColors.systemGreen,
-    MediaAvailability.downloading => CupertinoColors.systemBlue,
-    MediaAvailability.requested => CupertinoColors.systemOrange,
-    MediaAvailability.monitored => CupertinoColors.systemPurple,
-    MediaAvailability.notAvailable => CupertinoColors.systemGrey,
-  };
+  Color _statusColor(BuildContext context) => CupertinoDynamicColor.resolve(
+    _statusColorFor(_title.availability),
+    context,
+  );
+
+  Color _statusColorFor(MediaAvailability availability) =>
+      switch (availability) {
+        MediaAvailability.inLibrary => CupertinoColors.systemGreen,
+        MediaAvailability.downloading => CupertinoColors.systemBlue,
+        MediaAvailability.requested => CupertinoColors.systemOrange,
+        MediaAvailability.monitored => CupertinoColors.systemPurple,
+        MediaAvailability.notAvailable => CupertinoColors.systemGrey,
+      };
 
   String _statusLabel(AppLocalizations l10n) => switch (_title.availability) {
     MediaAvailability.inLibrary => l10n.mediaStatusInLibrary,

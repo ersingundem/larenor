@@ -1,6 +1,7 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../core/theme.dart';
 import '../../../../l10n/generated/app_localizations.dart';
 import '../../../../shared/widgets/icon_badge.dart';
 import '../../providers/settings_providers.dart';
@@ -15,6 +16,8 @@ class DisplayPane extends ConsumerWidget {
     final keepScreenOn = ref.watch(keepScreenOnProvider);
     final nightWindow = ref.watch(nightWindowProvider).value;
     final idleMode = ref.watch(idleModeProvider).value;
+    final appearance =
+        ref.watch(appearanceProvider).value ?? AppAppearance.system;
 
     return SettingsPaneScaffold(
       title: l10n.settingsCategoryDisplay,
@@ -22,6 +25,16 @@ class DisplayPane extends ConsumerWidget {
         CupertinoListSection.insetGrouped(
           header: Text(l10n.settingsSectionDisplay),
           children: [
+            CupertinoListTile(
+              leading: const IconBadge(
+                icon: CupertinoIcons.circle_lefthalf_fill,
+                color: CupertinoColors.systemIndigo,
+              ),
+              title: Text(l10n.settingsAppearance),
+              additionalInfo: Text(_appearanceLabel(l10n, appearance)),
+              trailing: const CupertinoListTileChevron(),
+              onTap: () => _showAppearancePicker(context, ref, appearance),
+            ),
             CupertinoListTile(
               leading: const IconBadge(
                 icon: CupertinoIcons.brightness,
@@ -113,6 +126,47 @@ class DisplayPane extends ConsumerWidget {
           ),
       ],
     );
+  }
+
+  String _appearanceLabel(AppLocalizations l10n, AppAppearance appearance) =>
+      switch (appearance) {
+        AppAppearance.system => l10n.settingsAppearanceSystem,
+        AppAppearance.light => l10n.settingsAppearanceLight,
+        AppAppearance.dark => l10n.settingsAppearanceDark,
+      };
+
+  Future<void> _showAppearancePicker(
+    BuildContext context,
+    WidgetRef ref,
+    AppAppearance current,
+  ) async {
+    final l10n = AppLocalizations.of(context);
+    final choice = await showCupertinoModalPopup<AppAppearance>(
+      context: context,
+      builder: (sheetContext) => CupertinoActionSheet(
+        title: Text(l10n.settingsAppearance),
+        message: Text(l10n.settingsAppearanceSystemHint),
+        actions: [
+          for (final option in AppAppearance.values)
+            CupertinoActionSheetAction(
+              onPressed: () => Navigator.pop(sheetContext, option),
+              child: Text(
+                _appearanceLabel(l10n, option),
+                style: option == current
+                    ? const TextStyle(fontWeight: FontWeight.w600)
+                    : null,
+              ),
+            ),
+        ],
+        cancelButton: CupertinoActionSheetAction(
+          onPressed: () => Navigator.pop(sheetContext),
+          child: Text(l10n.commonCancel),
+        ),
+      ),
+    );
+    if (choice != null) {
+      await ref.read(appearanceProvider.notifier).set(choice);
+    }
   }
 
   String _formatMinutes(int minutes) {

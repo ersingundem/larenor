@@ -75,7 +75,7 @@ class _EntitiesScreenState extends ConsumerState<EntitiesScreen> {
                         return CupertinoListTile(
                           leading: IconBadge(
                             icon: CupertinoIcons.list_bullet,
-                            color: categoryColorForDomain(domain),
+                            color: categoryColorForDomain(context, domain),
                           ),
                           title: Text(entity.displayName),
                           subtitle: Text(entity.entityId),

@@ -2,8 +2,11 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../l10n/generated/app_localizations.dart';
+import '../../../../shared/theme/icon_sizes.dart';
 import '../../../ha_client/providers/ha_client_providers.dart';
 import '../../domain/tile_config.dart';
+import '../../../../shared/theme/spacing.dart';
+import '../../../../shared/theme/typography.dart';
 
 class MediaPlayerTile extends ConsumerWidget {
   const MediaPlayerTile({super.key, required this.tile});
@@ -15,7 +18,7 @@ class MediaPlayerTile extends ConsumerWidget {
     final entity = ref.watch(entitiesProvider).value?[tile.entityId];
     if (entity == null) {
       return ColoredBox(
-        color: CupertinoColors.systemGrey5,
+        color: CupertinoColors.systemGrey5.resolveFrom(context),
         child: Center(
           child: Text(AppLocalizations.of(context).commonUnknownEntity),
         ),
@@ -43,7 +46,7 @@ class MediaPlayerTile extends ConsumerWidget {
         context,
       ),
       child: Padding(
-        padding: const EdgeInsets.all(12),
+        padding: Insets.tile,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -52,14 +55,14 @@ class MediaPlayerTile extends ConsumerWidget {
               entity.friendlyName,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+              style: AppText.tileTitle,
             ),
             if (title != null)
               Text(
                 title,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: const TextStyle(fontSize: 13),
+                style: AppText.tileSubtitle,
               ),
             if (artist != null)
               Text(
@@ -67,37 +70,35 @@ class MediaPlayerTile extends ConsumerWidget {
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(
-                  fontSize: 11,
+                  fontSize: AppText.tileSubtitle.fontSize,
                   color: CupertinoColors.secondaryLabel.resolveFrom(context),
                 ),
               ),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: [
-                GestureDetector(
-                  onTap: () => callService('media_previous_track'),
-                  child: const Icon(CupertinoIcons.backward_fill, size: 22),
+                _TransportButton(
+                  icon: CupertinoIcons.backward_fill,
+                  onPressed: () => callService('media_previous_track'),
                 ),
-                GestureDetector(
-                  onTap: () =>
+                _TransportButton(
+                  icon: isPlaying
+                      ? CupertinoIcons.pause_fill
+                      : CupertinoIcons.play_fill,
+                  size: IconSizes.control,
+                  onPressed: () =>
                       callService(isPlaying ? 'media_pause' : 'media_play'),
-                  child: Icon(
-                    isPlaying
-                        ? CupertinoIcons.pause_fill
-                        : CupertinoIcons.play_fill,
-                    size: 28,
-                  ),
                 ),
-                GestureDetector(
-                  onTap: () => callService('media_next_track'),
-                  child: const Icon(CupertinoIcons.forward_fill, size: 22),
+                _TransportButton(
+                  icon: CupertinoIcons.forward_fill,
+                  onPressed: () => callService('media_next_track'),
                 ),
               ],
             ),
             if (volume != null)
               Row(
                 children: [
-                  const Icon(CupertinoIcons.speaker_2, size: 14),
+                  const Icon(CupertinoIcons.speaker_2, size: IconSizes.caption),
                   Expanded(
                     child: CupertinoSlider(
                       value: volume.clamp(0.0, 1.0),
@@ -112,4 +113,27 @@ class MediaPlayerTile extends ConsumerWidget {
       ),
     );
   }
+}
+
+/// A transport control sized to the 44pt minimum tap target. These were
+/// bare 22–28pt icons in a `GestureDetector`, which takes exactly its
+/// child's hit rect — the cell has plenty of room for a proper target.
+class _TransportButton extends StatelessWidget {
+  const _TransportButton({
+    required this.icon,
+    required this.onPressed,
+    this.size = 22,
+  });
+
+  final IconData icon;
+  final VoidCallback onPressed;
+  final double size;
+
+  @override
+  Widget build(BuildContext context) => CupertinoButton(
+    padding: EdgeInsets.zero,
+    minimumSize: const Size.square(IconSizes.minTapTarget),
+    onPressed: onPressed,
+    child: Icon(icon, size: size),
+  );
 }

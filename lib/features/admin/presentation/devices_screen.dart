@@ -55,9 +55,11 @@ class DevicesScreen extends ConsumerWidget {
                       children: [
                         for (final device in devices)
                           CupertinoListTile(
-                            leading: const IconBadge(
+                            leading: IconBadge(
                               icon: CupertinoIcons.device_laptop,
-                              color: CupertinoColors.systemGrey,
+                              color: CupertinoColors.systemGrey.resolveFrom(
+                                context,
+                              ),
                             ),
                             title: Text(device.displayName),
                             subtitle: Text(

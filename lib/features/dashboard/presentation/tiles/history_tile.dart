@@ -6,6 +6,8 @@ import '../../../../l10n/generated/app_localizations.dart';
 import '../../../../shared/theme/category_colors.dart';
 import '../../../ha_client/providers/ha_client_providers.dart';
 import '../../domain/tile_config.dart';
+import '../../../../shared/theme/spacing.dart';
+import '../../../../shared/theme/typography.dart';
 
 class HistoryTile extends ConsumerStatefulWidget {
   const HistoryTile({super.key, required this.tile});
@@ -85,7 +87,7 @@ class _HistoryTileState extends ConsumerState<HistoryTile> {
         context,
       ),
       child: Padding(
-        padding: const EdgeInsets.all(12),
+        padding: Insets.tile,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -95,7 +97,7 @@ class _HistoryTileState extends ConsumerState<HistoryTile> {
                   AppLocalizations.of(context).historyTileFallbackTitle,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+              style: AppText.tileTitle,
             ),
             Expanded(
               child: _loading
@@ -121,6 +123,7 @@ class _HistoryTileState extends ConsumerState<HistoryTile> {
                             color: entity == null
                                 ? CupertinoColors.systemTeal
                                 : categoryColorForDomain(
+                                    context,
                                     entity.domain,
                                     deviceClass:
                                         entity.attributes['device_class']

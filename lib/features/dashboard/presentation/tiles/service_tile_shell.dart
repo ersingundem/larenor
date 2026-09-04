@@ -3,6 +3,9 @@ import 'package:flutter/cupertino.dart';
 import '../../../../l10n/generated/app_localizations.dart';
 import '../../../settings/data/app_service.dart';
 import '../../../../shared/widgets/brand_icon.dart';
+import '../../../../shared/theme/typography.dart';
+import '../../../../shared/theme/spacing.dart';
+import '../../../../shared/theme/icon_sizes.dart';
 
 /// Shared visual shell for the 11 external-service summary tiles — same
 /// icon/title header, a "not connected" placeholder when the service
@@ -42,7 +45,7 @@ class ServiceTileShell extends StatelessWidget {
           context,
         ),
         child: Padding(
-          padding: const EdgeInsets.all(12),
+          padding: Insets.tile,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisAlignment: MainAxisAlignment.start,
@@ -50,33 +53,30 @@ class ServiceTileShell extends StatelessWidget {
               Row(
                 children: [
                   if (service != null && hasBrandIcon(service))
-                    BrandIcon(service: service, size: 18)
+                    BrandIcon(service: service, size: IconSizes.body)
                   else
                     Icon(
                       icon,
                       size: 18,
                       color: CupertinoTheme.of(context).primaryColor,
                     ),
-                  const SizedBox(width: 6),
+                  const SizedBox(width: Gap.sm),
                   Expanded(
                     child: Text(
                       title,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        fontWeight: FontWeight.w600,
-                        fontSize: 13,
-                      ),
+                      style: AppText.tileTitle,
                     ),
                   ),
                 ],
               ),
-              const SizedBox(height: 6),
+              const SizedBox(height: Gap.sm),
               if (!connected)
                 Text(
                   AppLocalizations.of(context).commonNotConnected,
                   style: TextStyle(
-                    fontSize: 11,
+                    fontSize: AppText.tileSubtitle.fontSize,
                     color: CupertinoColors.secondaryLabel.resolveFrom(context),
                   ),
                 )
@@ -89,7 +89,7 @@ class ServiceTileShell extends StatelessWidget {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
-                        fontSize: 11,
+                        fontSize: AppText.tileSubtitle.fontSize,
                         color: CupertinoColors.secondaryLabel.resolveFrom(
                           context,
                         ),

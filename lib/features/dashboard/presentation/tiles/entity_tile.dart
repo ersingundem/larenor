@@ -7,6 +7,9 @@ import '../../../ha_client/providers/ha_client_providers.dart';
 import '../../domain/tile_config.dart';
 import '../widgets/more_info_sheet.dart';
 import 'entity_icons.dart';
+import '../../../../shared/theme/typography.dart';
+import '../../../../shared/theme/icon_sizes.dart';
+import '../../../../shared/theme/spacing.dart';
 
 class EntityTile extends ConsumerWidget {
   const EntityTile({super.key, required this.tile});
@@ -20,7 +23,7 @@ class EntityTile extends ConsumerWidget {
 
     if (entity == null) {
       return ColoredBox(
-        color: CupertinoColors.systemGrey5,
+        color: CupertinoColors.systemGrey5.resolveFrom(context),
         child: Center(
           child: Text(AppLocalizations.of(context).commonUnknownEntity),
         ),
@@ -28,14 +31,12 @@ class EntityTile extends ConsumerWidget {
     }
 
     final categoryColor = categoryColorForDomain(
+      context,
       entity.domain,
       deviceClass: entity.attributes['device_class'] as String?,
     );
     final background = entity.isOn
-        ? CupertinoDynamicColor.resolve(
-            categoryColor,
-            context,
-          ).withValues(alpha: 0.15)
+        ? categoryColor.withValues(alpha: 0.15)
         : CupertinoColors.secondarySystemGroupedBackground.resolveFrom(context);
 
     return GestureDetector(
@@ -43,20 +44,21 @@ class EntityTile extends ConsumerWidget {
       child: ColoredBox(
         color: background,
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(12, 32, 12, 8),
+          padding: Insets.tile,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Icon(iconForEntity(entity), size: 26, color: categoryColor),
+              Icon(
+                iconForEntity(entity),
+                size: IconSizes.tile,
+                color: categoryColor,
+              ),
               Text(
                 entity.friendlyName,
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  fontWeight: FontWeight.w600,
-                  fontSize: 14,
-                ),
+                style: AppText.tileTitle,
               ),
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -65,8 +67,7 @@ class EntityTile extends ConsumerWidget {
                     child: Text(
                       entity.state,
                       overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontSize: 12,
+                      style: AppText.tileSubtitle.copyWith(
                         color: CupertinoColors.secondaryLabel.resolveFrom(
                           context,
                         ),

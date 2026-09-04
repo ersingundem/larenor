@@ -8,6 +8,9 @@ import 'media_search_screen.dart';
 import 'media_title_detail_screen.dart';
 import 'widgets/media_hero.dart';
 import 'widgets/media_row.dart';
+import '../../../../shared/theme/spacing.dart';
+import '../../../../shared/theme/typography.dart';
+import '../../../../shared/theme/icon_sizes.dart';
 
 /// One browse surface across every connected media service — the library
 /// you already have and the catalogue you could request, in the same
@@ -24,50 +27,60 @@ class MediaHubScreen extends ConsumerWidget {
       backgroundColor: CupertinoColors.systemGroupedBackground.resolveFrom(
         context,
       ),
-      navigationBar: CupertinoNavigationBar(
-        middle: Text(l10n.mediaHubTitle),
-        trailing: CupertinoButton(
-          padding: EdgeInsets.zero,
-          onPressed: () => Navigator.of(
-            context,
-          ).push(CupertinoPageRoute(builder: (_) => const MediaSearchScreen())),
-          child: const Icon(CupertinoIcons.search),
-        ),
-      ),
-      child: SafeArea(
-        bottom: false,
-        child: rowsAsync.when(
-          loading: () => const Center(child: CupertinoActivityIndicator()),
-          error: (error, _) =>
-              _Message(title: l10n.commonError, message: error.toString()),
-          data: (rows) => _Body(rows: rows, onRefresh: () => _refresh(ref)),
-        ),
+      // The nav bar lives in the scroll view rather than the scaffold so
+      // it can be a large title — which means it has to wrap the loading
+      // and empty states too, not just the loaded one.
+      child: CustomScrollView(
+        slivers: [
+          CupertinoSliverNavigationBar(
+            largeTitle: Text(l10n.mediaHubTitle),
+            trailing: CupertinoButton(
+              padding: EdgeInsets.zero,
+              onPressed: () => Navigator.of(context).push(
+                CupertinoPageRoute(builder: (_) => const MediaSearchScreen()),
+              ),
+              child: const Icon(CupertinoIcons.search),
+            ),
+          ),
+          CupertinoSliverRefreshControl(onRefresh: () => _refresh(ref)),
+          ...rowsAsync.when(
+            loading: () => const [
+              SliverFillRemaining(
+                hasScrollBody: false,
+                child: Center(child: CupertinoActivityIndicator()),
+              ),
+            ],
+            error: (error, _) => [
+              SliverFillRemaining(
+                hasScrollBody: false,
+                child: _Message(
+                  title: l10n.commonError,
+                  message: error.toString(),
+                ),
+              ),
+            ],
+            data: (rows) => _slivers(context, l10n, rows),
+          ),
+        ],
       ),
     );
   }
 
-  Future<void> _refresh(WidgetRef ref) async {
-    ref.invalidate(mediaLibraryIndexProvider);
-    ref.invalidate(mediaHubRowsProvider);
-    await ref.read(mediaHubRowsProvider.future);
-  }
-}
-
-class _Body extends StatelessWidget {
-  const _Body({required this.rows, required this.onRefresh});
-
-  final List<MediaRowData> rows;
-  final Future<void> Function() onRefresh;
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
-
+  List<Widget> _slivers(
+    BuildContext context,
+    AppLocalizations l10n,
+    List<MediaRowData> rows,
+  ) {
     if (rows.isEmpty) {
-      return _Message(
-        title: l10n.mediaEmptyTitle,
-        message: l10n.mediaEmptyMessage,
-      );
+      return [
+        SliverFillRemaining(
+          hasScrollBody: false,
+          child: _Message(
+            title: l10n.mediaEmptyTitle,
+            message: l10n.mediaEmptyMessage,
+          ),
+        ),
+      ];
     }
 
     // The feature is the first thing worth featuring: something you're
@@ -75,28 +88,25 @@ class _Body extends StatelessWidget {
     // first row.
     final featured = rows.first.titles.first;
 
-    return CustomScrollView(
-      slivers: [
-        CupertinoSliverRefreshControl(onRefresh: onRefresh),
-        SliverToBoxAdapter(
-          child: MediaHero(
-            title: featured,
-            onTap: () => openMediaTitle(context, featured),
-          ),
+    return [
+      SliverToBoxAdapter(
+        child: MediaHero(
+          title: featured,
+          onTap: () => openMediaTitle(context, featured),
         ),
-        SliverList(
-          delegate: SliverChildBuilderDelegate((context, index) {
-            final row = rows[index];
-            return MediaRow(
-              title: _rowTitle(l10n, row.id),
-              titles: row.titles,
-              onTapTitle: (title) => openMediaTitle(context, title),
-            );
-          }, childCount: rows.length),
-        ),
-        const SliverToBoxAdapter(child: SizedBox(height: 32)),
-      ],
-    );
+      ),
+      SliverList(
+        delegate: SliverChildBuilderDelegate((context, index) {
+          final row = rows[index];
+          return MediaRow(
+            title: _rowTitle(l10n, row.id),
+            titles: row.titles,
+            onTapTitle: (title) => openMediaTitle(context, title),
+          );
+        }, childCount: rows.length),
+      ),
+      const SliverToBoxAdapter(child: SizedBox(height: Gap.xxxl)),
+    ];
   }
 
   String _rowTitle(AppLocalizations l10n, MediaRowId id) => switch (id) {
@@ -106,6 +116,12 @@ class _Body extends StatelessWidget {
     MediaRowId.comingSoon => l10n.mediaRowComingSoon,
     MediaRowId.downloading => l10n.mediaRowDownloading,
   };
+
+  Future<void> _refresh(WidgetRef ref) async {
+    ref.invalidate(mediaLibraryIndexProvider);
+    ref.invalidate(mediaHubRowsProvider);
+    await ref.read(mediaHubRowsProvider.future);
+  }
 }
 
 class _Message extends StatelessWidget {
@@ -118,25 +134,22 @@ class _Message extends StatelessWidget {
   Widget build(BuildContext context) {
     return Center(
       child: Padding(
-        padding: const EdgeInsets.all(32),
+        padding: Insets.emptyState,
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Icon(
               CupertinoIcons.film,
-              size: 44,
+              size: IconSizes.hero,
               color: CupertinoColors.tertiaryLabel.resolveFrom(context),
             ),
             const SizedBox(height: 16),
-            Text(
-              title,
-              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
-            ),
+            Text(title, style: AppText.emptyStateTitle),
             const SizedBox(height: 8),
             Text(
               message,
               textAlign: TextAlign.center,
-              style: TextStyle(
+              style: AppText.emptyStateBody.copyWith(
                 color: CupertinoColors.secondaryLabel.resolveFrom(context),
               ),
             ),

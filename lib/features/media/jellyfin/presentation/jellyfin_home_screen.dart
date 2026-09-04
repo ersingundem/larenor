@@ -8,6 +8,7 @@ import 'jellyfin_connect_screen.dart';
 import 'jellyfin_item_detail_screen.dart';
 import 'jellyfin_library_screen.dart';
 import 'widgets/jellyfin_poster.dart';
+import '../../../../shared/widgets/section_header.dart';
 
 class JellyfinHomeScreen extends ConsumerWidget {
   const JellyfinHomeScreen({super.key});
@@ -63,15 +64,8 @@ class _JellyfinBrowseScaffold extends ConsumerWidget {
               title: AppLocalizations.of(context).jellyfinRecentlyAdded,
               itemsAsync: latestAsync,
             ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
-              child: Text(
-                AppLocalizations.of(context).jellyfinLibrariesHeader,
-                style: const TextStyle(
-                  fontSize: 12,
-                  color: CupertinoColors.secondaryLabel,
-                ),
-              ),
+            SectionHeader(
+              title: AppLocalizations.of(context).jellyfinLibrariesHeader,
             ),
             librariesAsync.when(
               loading: () => const Center(child: CupertinoActivityIndicator()),
@@ -124,18 +118,9 @@ class _PosterRow extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
-          child: Text(
-            title.toUpperCase(),
-            style: const TextStyle(
-              fontSize: 12,
-              color: CupertinoColors.secondaryLabel,
-            ),
-          ),
-        ),
+        SectionHeader(title: title),
         SizedBox(
-          height: 190,
+          height: JellyfinPoster.heightFor(120, context),
           child: ListView.separated(
             scrollDirection: Axis.horizontal,
             padding: const EdgeInsets.symmetric(horizontal: 16),

@@ -6,6 +6,9 @@ import '../../../../l10n/generated/app_localizations.dart';
 import '../../../../shared/theme/category_colors.dart';
 import '../../../ha_client/providers/ha_client_providers.dart';
 import '../../domain/tile_config.dart';
+import '../../../../shared/theme/spacing.dart';
+import '../../../../shared/theme/typography.dart';
+import '../../../../shared/theme/icon_sizes.dart';
 
 class WeatherTile extends ConsumerStatefulWidget {
   const WeatherTile({super.key, required this.tile});
@@ -60,7 +63,7 @@ class _WeatherTileState extends ConsumerState<WeatherTile> {
     final entity = ref.watch(entitiesProvider).value?[widget.tile.entityId];
     if (entity == null) {
       return ColoredBox(
-        color: CupertinoColors.systemGrey5,
+        color: CupertinoColors.systemGrey5.resolveFrom(context),
         child: Center(
           child: Text(AppLocalizations.of(context).commonUnknownEntity),
         ),
@@ -74,7 +77,7 @@ class _WeatherTileState extends ConsumerState<WeatherTile> {
         context,
       ),
       child: Padding(
-        padding: const EdgeInsets.all(12),
+        padding: Insets.tile,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -82,18 +85,12 @@ class _WeatherTileState extends ConsumerState<WeatherTile> {
               children: [
                 Icon(
                   _iconForCondition(entity.state),
-                  size: 28,
-                  color: categoryColorForDomain('weather'),
+                  size: IconSizes.control,
+                  color: categoryColorForDomain(context, 'weather'),
                 ),
                 const SizedBox(width: 8),
                 if (temperature != null)
-                  Text(
-                    '$temperature°',
-                    style: const TextStyle(
-                      fontSize: 22,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
+                  Text('$temperature°', style: AppText.title2),
               ],
             ),
             Text(

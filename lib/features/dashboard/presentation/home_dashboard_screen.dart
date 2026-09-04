@@ -3,6 +3,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../l10n/generated/app_localizations.dart';
+import '../../../shared/theme/icon_sizes.dart';
+import '../../../shared/theme/radii.dart';
+import '../../../shared/theme/spacing.dart';
+import '../../../shared/theme/typography.dart';
 import '../../ha_client/data/models/ha_entity.dart';
 import '../../ha_client/data/ws_client.dart';
 import '../../ha_client/providers/ha_client_providers.dart';
@@ -16,6 +20,7 @@ import 'entity_picker_screen.dart';
 import 'tile_kinds.dart';
 import 'tiles/home_accessory_tile.dart';
 import 'tiles/tile_registry.dart';
+import '../../../shared/widgets/section_header.dart';
 
 String _generateTileId() => DateTime.now().microsecondsSinceEpoch.toString();
 
@@ -132,28 +137,22 @@ class _HomeDashboardScreenState extends ConsumerState<HomeDashboardScreen> {
         SliverFillRemaining(
           hasScrollBody: false,
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 48),
+            padding: Insets.emptyState,
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 Icon(
                   CupertinoIcons.house,
-                  size: 48,
+                  size: IconSizes.hero,
                   color: CupertinoColors.tertiaryLabel.resolveFrom(context),
                 ),
                 const SizedBox(height: 16),
-                Text(
-                  l10n.homeEmptyTitle,
-                  style: const TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
+                Text(l10n.homeEmptyTitle, style: AppText.emptyStateTitle),
                 const SizedBox(height: 8),
                 Text(
                   l10n.homeEmptyMessage,
                   textAlign: TextAlign.center,
-                  style: TextStyle(
+                  style: AppText.emptyStateBody.copyWith(
                     color: CupertinoColors.secondaryLabel.resolveFrom(context),
                   ),
                 ),
@@ -226,13 +225,17 @@ class _HomeDashboardScreenState extends ConsumerState<HomeDashboardScreen> {
   Widget _summary(HomeDashboardData data) {
     final l10n = AppLocalizations.of(context);
     return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 0, 20, 4),
+      padding: const EdgeInsets.fromLTRB(
+        Insets.pageGutter,
+        0,
+        Insets.pageGutter,
+        Gap.xs,
+      ),
       child: Text(
         data.lightsOn == 0
             ? l10n.homeSummaryAllOff
             : l10n.homeSummaryLightsOn(data.lightsOn),
-        style: TextStyle(
-          fontSize: 15,
+        style: AppText.subhead.copyWith(
           color: CupertinoColors.secondaryLabel.resolveFrom(context),
         ),
       ),
@@ -249,35 +252,33 @@ class _HomeDashboardScreenState extends ConsumerState<HomeDashboardScreen> {
       HomeCategory.media: l10n.homeCategoryMedia,
     };
 
-    return SizedBox(
-      height: 52,
-      child: ListView(
+    // Height comes from the chips themselves rather than a literal — the
+    // strip previously capped them at 36pt, which their own padding plus
+    // label already filled at the default text size and overflowed one
+    // Dynamic Type step up.
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: Gap.sm),
+      child: SingleChildScrollView(
         scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        children: [
-          for (final entry in labels.entries)
-            Padding(
-              padding: const EdgeInsets.only(right: 8),
-              child: _CategoryChip(
-                label: entry.value,
-                selected: _category == entry.key,
-                onTap: () => setState(() => _category = entry.key),
+        padding: Insets.page,
+        child: Row(
+          children: [
+            for (final entry in labels.entries)
+              Padding(
+                padding: const EdgeInsets.only(right: Gap.sm),
+                child: _CategoryChip(
+                  label: entry.value,
+                  selected: _category == entry.key,
+                  onTap: () => setState(() => _category = entry.key),
+                ),
               ),
-            ),
-        ],
+          ],
+        ),
       ),
     );
   }
 
-  Widget _sectionHeader(String title) => SliverToBoxAdapter(
-    child: Padding(
-      padding: const EdgeInsets.fromLTRB(20, 20, 20, 10),
-      child: Text(
-        title,
-        style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-      ),
-    ),
-  );
+  Widget _sectionHeader(String title) => SliverSectionHeader(title: title);
 
   /// One shared grid geometry for every section, so the whole page reads as
   /// a single uniform layout the way Apple Home's does — two columns on a
@@ -290,7 +291,7 @@ class _HomeDashboardScreenState extends ConsumerState<HomeDashboardScreen> {
   );
 
   Widget _accessoryGrid(List<HaEntity> entities) => SliverPadding(
-    padding: const EdgeInsets.symmetric(horizontal: 16),
+    padding: Insets.page,
     sliver: SliverGrid(
       gridDelegate: _gridDelegate,
       delegate: SliverChildBuilderDelegate(
@@ -302,13 +303,13 @@ class _HomeDashboardScreenState extends ConsumerState<HomeDashboardScreen> {
 
   Widget _tileGrid(List<TileConfig> tiles, {bool dismissible = false}) =>
       SliverPadding(
-        padding: const EdgeInsets.symmetric(horizontal: 16),
+        padding: Insets.page,
         sliver: SliverGrid(
           gridDelegate: _gridDelegate,
           delegate: SliverChildBuilderDelegate((context, index) {
             final tile = tiles[index];
             final content = ClipRRect(
-              borderRadius: BorderRadius.circular(18),
+              borderRadius: Radii.brLarge,
               child: buildTileContent(tile),
             );
             if (!dismissible) return content;
@@ -482,15 +483,16 @@ class _CategoryChip extends StatelessWidget {
               : CupertinoColors.secondarySystemGroupedBackground.resolveFrom(
                   context,
                 ),
-          borderRadius: BorderRadius.circular(18),
+          borderRadius: Radii.brPill,
         ),
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          padding: const EdgeInsets.symmetric(
+            horizontal: Gap.lg,
+            vertical: Gap.sm,
+          ),
           child: Text(
             label,
-            style: TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.w600,
+            style: AppText.tileTitle.copyWith(
               color: selected
                   ? CupertinoColors.white
                   : CupertinoColors.label.resolveFrom(context),
@@ -564,17 +566,19 @@ class _ConnectionBannerState extends State<_ConnectionBanner> {
           Expanded(
             child: Text(
               message,
-              style: const TextStyle(
-                color: CupertinoColors.white,
-                fontSize: 13,
-              ),
+              style: AppText.footnote.copyWith(color: CupertinoColors.white),
             ),
           ),
-          GestureDetector(
-            onTap: () => setState(() => _dismissed = true),
+          // A bare GestureDetector gets exactly its child's hit rect, so
+          // this used to be a 16pt target. CupertinoButton enforces the
+          // 44pt minimum on its own.
+          CupertinoButton(
+            padding: EdgeInsets.zero,
+            minimumSize: const Size.square(IconSizes.minTapTarget),
+            onPressed: () => setState(() => _dismissed = true),
             child: const Icon(
               CupertinoIcons.xmark,
-              size: 16,
+              size: IconSizes.caption,
               color: CupertinoColors.white,
             ),
           ),

@@ -3,6 +3,9 @@ import 'package:flutter/cupertino.dart';
 
 import '../../../../../l10n/generated/app_localizations.dart';
 import '../../domain/media_title.dart';
+import '../../../../../shared/theme/spacing.dart';
+import '../../../../../shared/theme/typography.dart';
+import '../../../../../shared/theme/icon_sizes.dart';
 
 /// The full-bleed feature at the top of the hub.
 class MediaHero extends StatelessWidget {
@@ -52,8 +55,8 @@ class MediaHero extends StatelessWidget {
               ),
             ),
             Positioned(
-              left: 20,
-              right: 20,
+              left: Insets.pageGutter,
+              right: Insets.pageGutter,
               bottom: 16,
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -63,27 +66,24 @@ class MediaHero extends StatelessWidget {
                     title.title,
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
+                    style: AppText.title1.copyWith(
                       color: CupertinoColors.white,
-                      fontSize: 26,
-                      fontWeight: FontWeight.bold,
                     ),
                   ),
                   if (title.year != null) ...[
-                    const SizedBox(height: 2),
+                    const SizedBox(height: Gap.xxs),
                     Text(
                       '${title.year}',
-                      style: const TextStyle(
-                        color: CupertinoColors.systemGrey3,
-                        fontSize: 13,
+                      style: AppText.footnote.copyWith(
+                        color: CupertinoColors.systemGrey3.resolveFrom(context),
                       ),
                     ),
                   ],
-                  const SizedBox(height: 12),
+                  const SizedBox(height: Gap.md),
                   CupertinoButton.filled(
                     padding: const EdgeInsets.symmetric(
-                      horizontal: 22,
-                      vertical: 8,
+                      horizontal: Gap.xxl,
+                      vertical: Gap.sm,
                     ),
                     onPressed: onTap,
                     child: Row(
@@ -93,9 +93,9 @@ class MediaHero extends StatelessWidget {
                           title.isPlayable
                               ? CupertinoIcons.play_fill
                               : CupertinoIcons.info,
-                          size: 16,
+                          size: IconSizes.caption,
                         ),
-                        const SizedBox(width: 6),
+                        const SizedBox(width: Gap.sm),
                         Text(
                           title.isPlayable
                               ? l10n.mediaActionPlay

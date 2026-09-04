@@ -5,7 +5,20 @@ import 'package:flutter/cupertino.dart';
 /// dark-aware system palette rather than inventing new colors, so entity
 /// tiles read as color-coded categories the way Apple Home's accessory
 /// tiles do, instead of every icon sharing one flat accent color.
-Color categoryColorForDomain(String domain, {String? deviceClass}) {
+/// Resolved against [context] on the way out, so a caller can never leak
+/// an unresolved [CupertinoDynamicColor] into a `TextStyle`, an `Icon` or
+/// a `CustomPainter` — none of which resolve dynamic colours themselves,
+/// and all of which previously rendered the light variant in dark mode.
+Color categoryColorForDomain(
+  BuildContext context,
+  String domain, {
+  String? deviceClass,
+}) => CupertinoDynamicColor.resolve(
+  _categoryColor(domain, deviceClass: deviceClass),
+  context,
+);
+
+Color _categoryColor(String domain, {String? deviceClass}) {
   switch (domain) {
     case 'light':
       return CupertinoColors.systemYellow;

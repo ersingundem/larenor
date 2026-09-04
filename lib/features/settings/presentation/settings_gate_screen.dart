@@ -47,6 +47,8 @@ class _SettingsGateScreenState extends ConsumerState<SettingsGateScreen> {
     final l10n = AppLocalizations.of(context);
     return CupertinoPageScaffold(
       navigationBar: CupertinoNavigationBar(
+        // Deliberately a middle title even though Settings itself uses a
+        // large one: this is a lock screen, not the destination.
         middle: Text(l10n.settingsScreenTitle),
       ),
       child: SafeArea(

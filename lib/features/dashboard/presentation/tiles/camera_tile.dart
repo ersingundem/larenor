@@ -14,7 +14,7 @@ class CameraTile extends StatelessWidget {
     final entityId = tile.entityId;
     if (entityId == null) {
       return ColoredBox(
-        color: CupertinoColors.systemGrey5,
+        color: CupertinoColors.systemGrey5.resolveFrom(context),
         child: Center(
           child: Text(AppLocalizations.of(context).commonUnknownEntity),
         ),

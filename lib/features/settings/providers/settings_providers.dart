@@ -2,11 +2,13 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 
+import '../../../core/theme.dart';
 import '../data/pin_lock_store.dart';
 
 part 'settings_providers.g.dart';
 
 const _keepScreenOnKey = 'keep_screen_on';
+const _appearanceKey = 'appearance';
 
 /// Whether the screen should stay on continuously — the default posture for
 /// a wall-mounted tablet dashboard.
@@ -29,6 +31,27 @@ class KeepScreenOn extends _$KeepScreenOn {
 
   Future<void> _apply(bool value) {
     return value ? WakelockPlus.enable() : WakelockPlus.disable();
+  }
+}
+
+/// Light/dark preference. Defaults to following the tablet's own setting,
+/// which is what the app did before this was configurable.
+@riverpod
+class Appearance extends _$Appearance {
+  @override
+  Future<AppAppearance> build() async {
+    final prefs = await SharedPreferences.getInstance();
+    final stored = prefs.getString(_appearanceKey);
+    return AppAppearance.values.firstWhere(
+      (value) => value.name == stored,
+      orElse: () => AppAppearance.system,
+    );
+  }
+
+  Future<void> set(AppAppearance value) async {
+    state = AsyncData(value);
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_appearanceKey, value.name);
   }
 }
 

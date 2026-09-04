@@ -4,6 +4,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../../l10n/generated/app_localizations.dart';
 import '../../data/models/arr_calendar_item.dart';
 import '../../data/models/arr_queue_item.dart';
+import '../../../../../shared/theme/spacing.dart';
+import '../../../../../shared/widgets/section_header.dart';
 
 /// Shared read-only monitoring view — active download queue with progress,
 /// plus the upcoming-release calendar. Identical shape for Sonarr and
@@ -75,23 +77,11 @@ class _Section<T> extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
-          child: Text(
-            title,
-            style: const TextStyle(
-              fontSize: 12,
-              color: CupertinoColors.secondaryLabel,
-            ),
-          ),
-        ),
+        SectionHeader(title: title),
         if (items.isLoading && data.isEmpty)
           const Center(child: CupertinoActivityIndicator())
         else if (data.isEmpty)
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: Text(empty),
-          )
+          Padding(padding: Insets.page, child: Text(empty))
         else
           CupertinoListSection.insetGrouped(
             children: [for (final item in data) builder(item)],

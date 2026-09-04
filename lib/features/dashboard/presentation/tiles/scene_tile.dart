@@ -5,6 +5,8 @@ import '../../../../l10n/generated/app_localizations.dart';
 import '../../../../shared/theme/category_colors.dart';
 import '../../../ha_client/providers/ha_client_providers.dart';
 import '../../domain/tile_config.dart';
+import '../../../../shared/theme/icon_sizes.dart';
+import '../../../../shared/theme/spacing.dart';
 
 class SceneTile extends ConsumerWidget {
   const SceneTile({super.key, required this.tile});
@@ -28,15 +30,15 @@ class SceneTile extends ConsumerWidget {
           context,
         ),
         child: Padding(
-          padding: const EdgeInsets.all(12),
+          padding: Insets.tile,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Icon(
                 CupertinoIcons.wand_stars,
-                size: 26,
-                color: categoryColorForDomain('scene'),
+                size: IconSizes.tile,
+                color: categoryColorForDomain(context, 'scene'),
               ),
               Text(
                 name,

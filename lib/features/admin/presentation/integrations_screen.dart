@@ -58,9 +58,11 @@ class IntegrationsScreen extends ConsumerWidget {
                       children: [
                         for (final entry in entries)
                           CupertinoListTile(
-                            leading: const IconBadge(
+                            leading: IconBadge(
                               icon: CupertinoIcons.cube_box,
-                              color: CupertinoColors.systemBlue,
+                              color: CupertinoColors.systemBlue.resolveFrom(
+                                context,
+                              ),
                             ),
                             title: Text(entry.title),
                             subtitle: Text('${entry.domain} · ${entry.state}'),

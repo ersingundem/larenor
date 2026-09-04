@@ -142,9 +142,9 @@ class _AddIntegrationScreenState extends ConsumerState<AddIntegrationScreen> {
           padding: const EdgeInsets.symmetric(horizontal: 16),
           child: Text(
             l10n.addIntegrationHint,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 12,
-              color: CupertinoColors.secondaryLabel,
+              color: CupertinoColors.secondaryLabel.resolveFrom(context),
             ),
           ),
         ),
