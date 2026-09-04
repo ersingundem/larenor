@@ -5,8 +5,8 @@
 ## Uygulama takibi
 
 - [x] 0. Şifreli yapılandırma kasası ve imzalı CI altyapısı — 620 Flutter / 17 Python testi geçti; gerçek cihaz ve ilk signed CI APK doğrulaması bekliyor.
-- [ ] 1. Ortak gezinme ve arama — sürüyor.
-- [ ] 2. Bağlantı ve işlem durumları.
+- [x] 1. Ortak gezinme ve arama — 50 yönlendirme/arama/sistem/rutin testi geçti; oda/kaydırma ve pencere boyutu geçişi doğrulandı.
+- [ ] 2. Bağlantı ve işlem durumları — sürüyor.
 - [ ] 3. Bugün: listeler, takvim, bildirimler.
 - [ ] 4. Medyada istekten oynatmaya ortak aşamalar.
 - [ ] 5. Film gecesi rutinleri.
@@ -18,7 +18,7 @@
 - [ ] 11. Uygulama içinde müzik merkezi; Music Assistant sunucu motorunun Android uyumluluk değerlendirmesi, üyelik sağlayıcılarının izin verdiği işlevler.
 - [ ] 12. Kilit ekranı medya bilgisi/kontrolleri, aktif oynatmada arka plan servisi, bildirim ve güç ayarları.
 - [ ] 13. Samsung DeX: değişken pencere boyutu, harici dokunmatik monitör, klavye/fare odağı, çoklu pencere yaşam döngüsü.
-- [ ] Son GitHub frontend skill incelemesi, ortak tasarım, test/CI, README ve GitHub doğrulaması.
+- [ ] Son GitHub frontend skill incelemesi, uçtan uca özellikler arası backend/frontend akış kontrolü, ortak tasarım, test/CI, ekran görüntülü README ve GitHub doğrulaması.
 
 Aşağıdaki araştırma önerileri bu teslimlerin gerekçesidir. Hesap/Assist ve yeni
 Frigate entegrasyonu ayrıca değerlendirilmek üzere sonraki

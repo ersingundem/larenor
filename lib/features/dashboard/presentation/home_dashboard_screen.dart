@@ -26,6 +26,7 @@ import 'widgets/home_surface.dart';
 import 'tiles/home_accessory_tile.dart';
 import 'tiles/tile_registry.dart';
 import '../../../shared/widgets/section_header.dart';
+import '../../navigation/presentation/app_shell_actions.dart';
 
 String _generateTileId() => DateTime.now().microsecondsSinceEpoch.toString();
 
@@ -34,7 +35,13 @@ String _generateTileId() => DateTime.now().microsecondsSinceEpoch.toString();
 /// supplies live state for those entities; it doesn't decide what appears.
 /// Nothing is placed or resized by hand — the grid arranges itself.
 class HomeDashboardScreen extends ConsumerStatefulWidget {
-  const HomeDashboardScreen({super.key});
+  const HomeDashboardScreen({
+    super.key,
+    this.embedded = false,
+    this.initialRoomId,
+  });
+  final bool embedded;
+  final String? initialRoomId;
 
   @override
   ConsumerState<HomeDashboardScreen> createState() =>
@@ -45,6 +52,20 @@ class _HomeDashboardScreenState extends ConsumerState<HomeDashboardScreen> {
   /// `null` is the "All" chip.
   HomeCategory? _category;
   String? _selectedRoom;
+
+  @override
+  void initState() {
+    super.initState();
+    _selectedRoom = widget.initialRoomId;
+  }
+
+  @override
+  void didUpdateWidget(covariant HomeDashboardScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.initialRoomId != widget.initialRoomId) {
+      _selectedRoom = widget.initialRoomId;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -58,10 +79,11 @@ class _HomeDashboardScreenState extends ConsumerState<HomeDashboardScreen> {
     final layout = layoutAsync.value;
     final rooms = layout?.rooms ?? const <DashboardRoom>[];
     final selectedRoom = rooms.where((r) => r.id == _selectedRoom).firstOrNull;
-    final wide = MediaQuery.sizeOf(context).width >= 1000;
+    final wide = !widget.embedded && MediaQuery.sizeOf(context).width >= 1000;
     final hasMedia = _hasMediaServices();
 
     final content = CustomScrollView(
+      key: PageStorageKey('home-${widget.initialRoomId ?? 'overview'}'),
       physics: const AlwaysScrollableScrollPhysics(),
       slivers: [
         CupertinoSliverNavigationBar(
@@ -81,7 +103,8 @@ class _HomeDashboardScreenState extends ConsumerState<HomeDashboardScreen> {
                   child: const Icon(CupertinoIcons.add_circled),
                 ),
               ),
-              if (!wide && hasMedia)
+              if (widget.embedded) const AppShellActions(),
+              if (!widget.embedded && !wide && hasMedia)
                 CupertinoButton(
                   padding: EdgeInsets.zero,
                   onPressed: () => context.push('/media'),
@@ -90,7 +113,7 @@ class _HomeDashboardScreenState extends ConsumerState<HomeDashboardScreen> {
                     child: const Icon(CupertinoIcons.play_rectangle),
                   ),
                 ),
-              if (!wide)
+              if (!widget.embedded && !wide)
                 CupertinoButton(
                   padding: EdgeInsets.zero,
                   onPressed: () => context.push('/settings'),
@@ -167,6 +190,16 @@ class _HomeDashboardScreenState extends ConsumerState<HomeDashboardScreen> {
     }
   }
 
+  void _selectRoom(String? id) {
+    if (widget.embedded) {
+      context.go(
+        id == null ? '/' : Uri(pathSegments: ['', 'rooms', id]).toString(),
+      );
+    } else {
+      setState(() => _selectedRoom = id);
+    }
+  }
+
   /// The dashboard is what the user assembled: rooms they made, holding
   /// devices they picked. Home Assistant supplies live state for those
   /// entities and nothing else — it no longer decides what's on screen.
@@ -202,7 +235,8 @@ class _HomeDashboardScreenState extends ConsumerState<HomeDashboardScreen> {
 
     return [
       const SliverToBoxAdapter(child: HomeOverview()),
-      if (layout.rooms.isNotEmpty && MediaQuery.sizeOf(context).width < 1000)
+      if (layout.rooms.isNotEmpty &&
+          (widget.embedded || MediaQuery.sizeOf(context).width < 1000))
         SliverToBoxAdapter(child: _roomStrip(layout.rooms, selectedRoom?.id)),
       if (rooms.isNotEmpty || favourites.isNotEmpty)
         SliverToBoxAdapter(child: _categoryStrip()),
@@ -341,7 +375,7 @@ class _HomeDashboardScreenState extends ConsumerState<HomeDashboardScreen> {
                   horizontal: 14,
                   vertical: 8,
                 ),
-                onPressed: () => setState(() => _selectedRoom = entry.key),
+                onPressed: () => _selectRoom(entry.key),
                 child: Text(
                   entry.value,
                   style: AppText.subhead.copyWith(

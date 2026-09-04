@@ -1,6 +1,7 @@
 import 'package:flutter/cupertino.dart';
 
 import 'app_page_scaffold.dart';
+import 'operational_service_scope.dart';
 
 import '../theme/spacing.dart';
 
@@ -31,13 +32,19 @@ class ServiceRootScaffold extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final operational = OperationalServiceScope.isOperational(context);
     return AppPageScaffold(
       child: CustomScrollView(
         slivers: [
           CupertinoSliverNavigationBar(
             largeTitle: Text(title),
-            leading: leading,
-            trailing: trailing,
+            leading: operational ? null : leading,
+            trailing: operational && leading != null
+                ? Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [leading!, ?trailing],
+                  )
+                : trailing,
           ),
           ...slivers,
           const SliverToBoxAdapter(child: SizedBox(height: Gap.xxxl)),

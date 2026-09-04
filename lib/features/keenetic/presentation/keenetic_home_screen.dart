@@ -9,6 +9,7 @@ import 'keenetic_devices_screen.dart';
 import 'keenetic_port_forwarding_screen.dart';
 import 'keenetic_wifi_screen.dart';
 import '../../../shared/widgets/service_root_scaffold.dart';
+import '../../../shared/widgets/operational_service_scope.dart';
 import '../../../shared/theme/spacing.dart';
 
 class KeeneticHomeScreen extends ConsumerWidget {
@@ -74,14 +75,9 @@ class _KeeneticMenu extends ConsumerWidget {
               semanticLabel: l10n.commonRefresh,
             ),
           ),
-          CupertinoButton(
-            padding: EdgeInsets.zero,
-            onPressed: () =>
+          ServiceAccountAction(
+            onSignOut: () =>
                 ref.read(keeneticConnectionProvider.notifier).signOut(),
-            child: Icon(
-              CupertinoIcons.square_arrow_right,
-              semanticLabel: l10n.commonSignOut,
-            ),
           ),
         ],
       ),

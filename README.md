@@ -296,6 +296,20 @@ list, so the app stays uncluttered no matter how many services exist:
   behaviour of pushing each category full-screen, so phones and portrait are
   unaffected. The switch is width-driven, not orientation-driven.
 
+### Shared navigation and search
+
+- Home, Media, Routines and System use persistent branch navigation: phone tabs
+  become a sidebar in wider windows. Room selection and scroll survive a tab
+  round trip and window resizing. Configuration stays behind the Settings PIN.
+- Global local search finds rooms, member devices, scenes/scripts, cached media
+  and configured services. Turkish matching, stable identifiers, media alias
+  deduplication and virtualized results are tested with 5,000 entities.
+- Search opens details without executing actions. Remote catalog search is an
+  explicit choice. System rows distinguish a saved configuration from a live
+  server read; opening the list alone does not log in to all servers.
+- Room/entity/media/service routes handle missing items; daily service views send
+  account configuration actions to protected Settings.
+
 ### Configuration backup and reinstall recovery
 
 - Settings → Backup and restore saves a password-encrypted `.larenor-vault` file

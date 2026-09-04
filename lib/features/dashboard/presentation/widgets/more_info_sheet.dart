@@ -19,42 +19,47 @@ const _hiddenAttributeKeys = {'friendly_name', 'icon'};
 Future<void> showEntityMoreInfo(BuildContext context, String entityId) {
   return showCupertinoModalPopup<void>(
     context: context,
-    builder: (context) => _MoreInfoSheet(entityId: entityId),
+    builder: (context) => EntityMoreInfo(entityId: entityId),
   );
 }
 
-class _MoreInfoSheet extends ConsumerWidget {
-  const _MoreInfoSheet({required this.entityId});
+class EntityMoreInfo extends ConsumerWidget {
+  const EntityMoreInfo({
+    super.key,
+    required this.entityId,
+    this.asPage = false,
+  });
+
+  final bool asPage;
 
   final String entityId;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final entity = ref.watch(entitiesProvider).value?[entityId];
+    final entity = ref.watch(
+      entitiesProvider.select((states) => states.value?[entityId]),
+    );
     final favorites =
         ref.watch(dashboardLayoutProvider).value?.favoriteEntityIds ?? const [];
     final isFavorite = favorites.contains(entityId);
 
-    return DraggableScrollableSheet(
-      initialChildSize: 0.55,
-      minChildSize: 0.3,
-      maxChildSize: 0.9,
-      expand: false,
-      builder: (context, scrollController) => DecoratedBox(
-        decoration: BoxDecoration(
-          color: CupertinoColors.systemBackground.resolveFrom(context),
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
-        ),
-        child: entity == null
-            ? Center(
-                child: Text(
-                  AppLocalizations.of(context).moreInfoEntityNotFound,
-                ),
-              )
-            : ListView(
-                controller: scrollController,
-                padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
-                children: [
+    Widget content(
+      BuildContext context,
+      ScrollController? scrollController,
+    ) => DecoratedBox(
+      decoration: BoxDecoration(
+        color: CupertinoColors.systemBackground.resolveFrom(context),
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      child: entity == null
+          ? Center(
+              child: Text(AppLocalizations.of(context).moreInfoEntityNotFound),
+            )
+          : ListView(
+              controller: scrollController,
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+              children: [
+                if (!asPage)
                   Center(
                     child: Container(
                       width: 36,
@@ -66,84 +71,89 @@ class _MoreInfoSheet extends ConsumerWidget {
                       ),
                     ),
                   ),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          entity.friendlyName,
-                          style: CupertinoTheme.of(context)
-                              .textTheme
-                              .navLargeTitleTextStyle,
-                        ),
-                      ),
-                      CupertinoButton(
-                        padding: EdgeInsets.zero,
-                        onPressed: () => ref
-                            .read(dashboardLayoutProvider.notifier)
-                            .toggleFavorite(entity.entityId),
-                        child: Icon(
-                          isFavorite
-                              ? CupertinoIcons.star_fill
-                              : CupertinoIcons.star,
-                          color: CupertinoColors.systemYellow,
-                        ),
-                      ),
-                    ],
-                  ),
-                  Text(
-                    entity.state,
-                    style: TextStyle(
-                      fontSize: AppText.body.fontSize,
-                      color: CupertinoColors.secondaryLabel.resolveFrom(
-                        context,
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        entity.friendlyName,
+                        style: CupertinoTheme.of(context)
+                            .textTheme
+                            .navLargeTitleTextStyle,
                       ),
                     ),
-                  ),
-                  const SizedBox(height: 16),
-                  _EntityQuickControls(entity: entity),
-                  EntityControls(entity: entity),
-                  CupertinoButton(
-                    onPressed: () => Navigator.of(context).push(
-                      CupertinoPageRoute(
-                        builder: (_) => HaActionsScreen(entityId: entityId),
+                    CupertinoButton(
+                      padding: EdgeInsets.zero,
+                      onPressed: () => ref
+                          .read(dashboardLayoutProvider.notifier)
+                          .toggleFavorite(entity.entityId),
+                      child: Icon(
+                        isFavorite
+                            ? CupertinoIcons.star_fill
+                            : CupertinoIcons.star,
+                        color: CupertinoColors.systemYellow,
                       ),
                     ),
-                    child: Text(AppLocalizations.of(context).haAllActions),
+                  ],
+                ),
+                Text(
+                  entity.state,
+                  style: TextStyle(
+                    fontSize: AppText.body.fontSize,
+                    color: CupertinoColors.secondaryLabel.resolveFrom(context),
                   ),
-                  const SizedBox(height: 8),
-                  SettingsSection(
-                    header: Text(
-                      AppLocalizations.of(context).moreInfoDetailsHeader,
+                ),
+                const SizedBox(height: 16),
+                _EntityQuickControls(entity: entity),
+                EntityControls(entity: entity),
+                CupertinoButton(
+                  onPressed: () => Navigator.of(context).push(
+                    CupertinoPageRoute(
+                      builder: (_) => HaActionsScreen(entityId: entityId),
                     ),
-                    children: [
+                  ),
+                  child: Text(AppLocalizations.of(context).haAllActions),
+                ),
+                const SizedBox(height: 8),
+                SettingsSection(
+                  header: Text(
+                    AppLocalizations.of(context).moreInfoDetailsHeader,
+                  ),
+                  children: [
+                    CupertinoListTile(
+                      title: Text(
+                        AppLocalizations.of(context).moreInfoEntityId,
+                      ),
+                      additionalInfo: Text(entity.entityId),
+                    ),
+                    if (entity.lastChanged != null)
                       CupertinoListTile(
                         title: Text(
-                          AppLocalizations.of(context).moreInfoEntityId,
+                          AppLocalizations.of(context).moreInfoLastChanged,
                         ),
-                        additionalInfo: Text(entity.entityId),
+                        additionalInfo: Text(
+                          entity.lastChanged!.toLocal().toString().split(
+                            '.',
+                          )[0],
+                        ),
                       ),
-                      if (entity.lastChanged != null)
+                    for (final attribute in entity.attributes.entries)
+                      if (!_hiddenAttributeKeys.contains(attribute.key))
                         CupertinoListTile(
-                          title: Text(
-                            AppLocalizations.of(context).moreInfoLastChanged,
-                          ),
-                          additionalInfo: Text(
-                            entity.lastChanged!.toLocal().toString().split(
-                              '.',
-                            )[0],
-                          ),
+                          title: Text(attribute.key),
+                          additionalInfo: Text('${attribute.value}'),
                         ),
-                      for (final attribute in entity.attributes.entries)
-                        if (!_hiddenAttributeKeys.contains(attribute.key))
-                          CupertinoListTile(
-                            title: Text(attribute.key),
-                            additionalInfo: Text('${attribute.value}'),
-                          ),
-                    ],
-                  ),
-                ],
-              ),
-      ),
+                  ],
+                ),
+              ],
+            ),
+    );
+    if (asPage) return content(context, null);
+    return DraggableScrollableSheet(
+      initialChildSize: 0.55,
+      minChildSize: 0.3,
+      maxChildSize: 0.9,
+      expand: false,
+      builder: content,
     );
   }
 }

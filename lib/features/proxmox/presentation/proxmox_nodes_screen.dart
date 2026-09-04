@@ -8,6 +8,7 @@ import 'proxmox_connect_screen.dart';
 import 'proxmox_node_detail_screen.dart';
 import 'widgets/proxmox_usage_bar.dart';
 import '../../../shared/widgets/service_root_scaffold.dart';
+import '../../../shared/widgets/operational_service_scope.dart';
 import '../../../shared/theme/spacing.dart';
 
 class ProxmoxNodesScreen extends ConsumerWidget {
@@ -45,10 +46,8 @@ class _NodesList extends ConsumerWidget {
         onPressed: () => ref.invalidate(proxmoxNodesProvider),
         child: const Icon(CupertinoIcons.refresh),
       ),
-      trailing: CupertinoButton(
-        padding: EdgeInsets.zero,
-        onPressed: () => ref.read(proxmoxConnectionProvider.notifier).signOut(),
-        child: const Icon(CupertinoIcons.square_arrow_right),
+      trailing: ServiceAccountAction(
+        onSignOut: () => ref.read(proxmoxConnectionProvider.notifier).signOut(),
       ),
       slivers: nodesAsync.when(
         loading: () => const [

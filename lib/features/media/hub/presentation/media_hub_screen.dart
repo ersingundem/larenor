@@ -21,12 +21,14 @@ import 'widgets/media_row.dart';
 import '../../../../shared/theme/spacing.dart';
 import '../../../../shared/theme/typography.dart';
 import '../../../../shared/theme/icon_sizes.dart';
+import '../../../navigation/presentation/app_shell_actions.dart';
 
 /// One browse surface across every connected media service — the library
 /// you already have and the catalogue you could request, in the same
 /// place, instead of a screen per service.
 class MediaHubScreen extends ConsumerStatefulWidget {
-  const MediaHubScreen({super.key});
+  const MediaHubScreen({super.key, this.embedded = false});
+  final bool embedded;
 
   @override
   ConsumerState<MediaHubScreen> createState() => _MediaHubScreenState();
@@ -47,16 +49,21 @@ class _MediaHubScreenState extends ConsumerState<MediaHubScreen> {
       // it can be a large title — which means it has to wrap the loading
       // and empty states too, not just the loaded one.
       child: CustomScrollView(
+        key: const PageStorageKey('media-hub'),
         slivers: [
           CupertinoSliverNavigationBar(
             largeTitle: Text(l10n.mediaHubTitle),
-            trailing: CupertinoButton(
-              padding: EdgeInsets.zero,
-              onPressed: () => Navigator.of(context).push(
-                CupertinoPageRoute(builder: (_) => const MediaSearchScreen()),
-              ),
-              child: const Icon(CupertinoIcons.search),
-            ),
+            trailing: widget.embedded
+                ? const AppShellActions()
+                : CupertinoButton(
+                    padding: EdgeInsets.zero,
+                    onPressed: () => Navigator.of(context).push(
+                      CupertinoPageRoute(
+                        builder: (_) => const MediaSearchScreen(),
+                      ),
+                    ),
+                    child: const Icon(CupertinoIcons.search),
+                  ),
           ),
           CupertinoSliverRefreshControl(onRefresh: () => _refresh(ref)),
           SliverToBoxAdapter(

@@ -60,6 +60,9 @@ class MediaLibraryIndex {
   final Map<String, JellyfinItem> _jellyfinById;
   JellyfinItem? jellyfinItem(String? id) => _jellyfinById[id];
 
+  /// Already-fetched items for local-only search; this performs no I/O.
+  Iterable<JellyfinItem> get jellyfinItems => _jellyfinById.values;
+
   static final empty = MediaLibraryIndex._(const {}, const {});
 
   bool get isEmpty => _byKey.isEmpty;
