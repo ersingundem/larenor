@@ -91,7 +91,7 @@ Settings → Home Assistant uses the same adaptive Cupertino layout as Home and 
   limits are validated. Advanced JSON supports additional and complex parameters.
   An accessory's details links directly to actions for that domain.
 - **Device controls** in the accessory sheet include climate mode/temperature and
-  dual setpoints, cover position/open/close/stop, confirmed lock/unlock, fan speed,
+  dual setpoints, cover position/open/close/stop, lock/unlock with unlock confirmation, fan speed,
   number/select helpers and media transport/volume. Live action availability and
   entity features constrain what appears. Sliders submit on release; errors and
   duplicate-request guards apply to these controls.
