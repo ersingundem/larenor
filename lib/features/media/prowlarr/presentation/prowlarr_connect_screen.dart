@@ -6,6 +6,7 @@ import '../../../../shared/discovery/lan_discovery_section.dart';
 import '../../../../shared/discovery/service_signatures.dart';
 import '../../data/media_api_exception.dart';
 import '../providers/prowlarr_providers.dart';
+import '../../../../shared/widgets/settings_section.dart';
 
 class ProwlarrConnectScreen extends ConsumerStatefulWidget {
   const ProwlarrConnectScreen({super.key});
@@ -79,7 +80,7 @@ class _ProwlarrConnectScreenState extends ConsumerState<ProwlarrConnectScreen> {
                   onSelected: (url) =>
                       setState(() => _urlController.text = url),
                 ),
-                CupertinoListSection.insetGrouped(
+                SettingsSection(
                   footer: Text(AppLocalizations.of(context).prowlarrApiKeyHint),
                   children: [
                     CupertinoTextFormFieldRow(

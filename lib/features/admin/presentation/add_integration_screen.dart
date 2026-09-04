@@ -7,6 +7,7 @@ import '../data/models/flow_step.dart';
 import '../providers/admin_providers.dart';
 import 'widgets/dynamic_form_field.dart';
 import '../../../shared/theme/typography.dart';
+import '../../../shared/widgets/settings_section.dart';
 
 class AddIntegrationScreen extends ConsumerStatefulWidget {
   const AddIntegrationScreen({super.key});
@@ -175,7 +176,7 @@ class _AddIntegrationScreenState extends ConsumerState<AddIntegrationScreen> {
     return ListView(
       children: [
         const SizedBox(height: 16),
-        CupertinoListSection.insetGrouped(
+        SettingsSection(
           header: step.title != null ? Text(step.title!) : null,
           children: [
             for (final option in options)
@@ -206,7 +207,7 @@ class _AddIntegrationScreenState extends ConsumerState<AddIntegrationScreen> {
               ),
             ),
           ),
-        CupertinoListSection.insetGrouped(
+        SettingsSection(
           header: Text(
             step.stepId ?? AppLocalizations.of(context).addIntegrationSetup,
           ),

@@ -7,6 +7,7 @@ import '../providers/proxmox_providers.dart';
 import 'console/proxmox_console_screen.dart';
 import 'widgets/proxmox_field_label.dart';
 import 'widgets/proxmox_usage_bar.dart';
+import '../../../shared/widgets/settings_section.dart';
 
 /// Config keys treated as "common" and given friendly labels; everything
 /// else in the guest's config is still shown and editable, just under an
@@ -158,7 +159,7 @@ class _ProxmoxGuestDetailScreenState
                     ],
                   ),
                 ),
-                CupertinoListSection.insetGrouped(
+                SettingsSection(
                   header: Text(
                     AppLocalizations.of(context).moreInfoDetailsHeader,
                   ),
@@ -182,7 +183,7 @@ class _ProxmoxGuestDetailScreenState
                   ],
                 ),
                 if (advancedKeys.isNotEmpty)
-                  CupertinoListSection.insetGrouped(
+                  SettingsSection(
                     header: Text(
                       AppLocalizations.of(context).proxmoxAdvancedHeader,
                     ),
@@ -202,7 +203,7 @@ class _ProxmoxGuestDetailScreenState
                         ),
                     ],
                   ),
-                CupertinoListSection.insetGrouped(
+                SettingsSection(
                   header: Text(
                     AppLocalizations.of(context).proxmoxConsoleHeader,
                   ),

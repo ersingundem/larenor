@@ -12,6 +12,7 @@ import '../../../../shared/theme/typography.dart';
 import '../../../../shared/theme/spacing.dart';
 import '../../../../shared/theme/radii.dart';
 import '../../../../shared/theme/icon_sizes.dart';
+import 'entity_state_label.dart';
 
 /// Domains where a plain tap is safe to treat as "toggle this".
 ///
@@ -112,7 +113,7 @@ class HomeAccessoryTile extends ConsumerWidget {
                   ),
                   const SizedBox(height: Gap.xxs),
                   Text(
-                    _stateLabel(context),
+                    entityStateLabel(context, entity),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
@@ -129,20 +130,6 @@ class HomeAccessoryTile extends ConsumerWidget {
         ),
       ),
     );
-  }
-
-  /// Prefers a reading (temperature, humidity, …) over the raw state
-  /// string, the way Apple Home shows "21°" rather than "on".
-  String _stateLabel(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
-    final unit = entity.attributes['unit_of_measurement'] as String?;
-    if (unit != null && double.tryParse(entity.state) != null) {
-      return '${entity.state}$unit';
-    }
-    if (entity.domain == 'light' || entity.domain == 'switch') {
-      return entity.isOn ? l10n.moreInfoOn : l10n.commonOff;
-    }
-    return entity.state;
   }
 
   Future<void> _showActions(BuildContext context, WidgetRef ref) async {

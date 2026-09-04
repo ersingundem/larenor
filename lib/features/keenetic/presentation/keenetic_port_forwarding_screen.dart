@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../l10n/generated/app_localizations.dart';
 import '../providers/keenetic_providers.dart';
 import 'keenetic_connect_screen.dart';
+import '../../../shared/widgets/settings_section.dart';
 
 class KeeneticPortForwardingScreen extends ConsumerWidget {
   const KeeneticPortForwardingScreen({super.key});
@@ -61,7 +62,7 @@ class _RulesList extends ConsumerWidget {
             return ListView(
               children: [
                 const SizedBox(height: 16),
-                CupertinoListSection.insetGrouped(
+                SettingsSection(
                   footer: Text(
                     AppLocalizations.of(context).keeneticReadOnlyHint,
                   ),

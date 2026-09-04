@@ -5,6 +5,7 @@ import '../../../../l10n/generated/app_localizations.dart';
 import '../../data/media_api_exception.dart';
 import '../data/jellyfin_discovery.dart';
 import '../providers/jellyfin_providers.dart';
+import '../../../../shared/widgets/settings_section.dart';
 
 class JellyfinConnectScreen extends ConsumerStatefulWidget {
   const JellyfinConnectScreen({super.key});
@@ -111,7 +112,7 @@ class _JellyfinConnectScreenState extends ConsumerState<JellyfinConnectScreen> {
               children: [
                 const SizedBox(height: 16),
                 if (_discovered.isNotEmpty || _scanning) ...[
-                  CupertinoListSection.insetGrouped(
+                  SettingsSection(
                     header: Text(l10n.commonFoundOnNetwork),
                     children: [
                       for (final server in _discovered)
@@ -130,7 +131,7 @@ class _JellyfinConnectScreenState extends ConsumerState<JellyfinConnectScreen> {
                   ),
                   const SizedBox(height: 8),
                 ],
-                CupertinoListSection.insetGrouped(
+                SettingsSection(
                   children: [
                     CupertinoTextFormFieldRow(
                       controller: _urlController,

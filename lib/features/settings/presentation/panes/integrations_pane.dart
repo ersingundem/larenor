@@ -29,6 +29,7 @@ import '../../data/app_service.dart';
 import '../../providers/enabled_services_providers.dart';
 import '../manage_integrations_screen.dart';
 import 'settings_nav_row.dart';
+import '../../../../shared/widgets/settings_section.dart';
 
 class IntegrationsPane extends ConsumerWidget {
   const IntegrationsPane({super.key});
@@ -169,7 +170,7 @@ class IntegrationsPane extends ConsumerWidget {
     return SettingsPaneScaffold(
       title: l10n.settingsCategoryIntegrations,
       children: [
-        CupertinoListSection.insetGrouped(
+        SettingsSection(
           footer: Text(l10n.settingsIntegrationsFooter),
           children: [
             // The unified hub leads, since it's the way into most of what

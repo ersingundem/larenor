@@ -9,6 +9,7 @@ import '../data/ha_connection_config.dart';
 import '../data/ha_discovery.dart';
 import '../providers/auth_providers.dart';
 import '../../../shared/theme/typography.dart';
+import '../../../shared/widgets/settings_section.dart';
 
 class ConnectScreen extends ConsumerStatefulWidget {
   const ConnectScreen({super.key, this.initialUrl});
@@ -144,7 +145,7 @@ class _ConnectScreenState extends ConsumerState<ConnectScreen> {
                           _buildDiscoverySection(context),
                           const SizedBox(height: 8),
                         ],
-                        CupertinoListSection.insetGrouped(
+                        SettingsSection(
                           header: Text(l10n.connectServerHeader),
                           children: [
                             CupertinoTextFormFieldRow(
@@ -208,7 +209,7 @@ class _ConnectScreenState extends ConsumerState<ConnectScreen> {
 
   Widget _buildDiscoverySection(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    return CupertinoListSection.insetGrouped(
+    return SettingsSection(
       header: Text(l10n.commonFoundOnNetwork),
       children: [
         for (final server in _discovered)

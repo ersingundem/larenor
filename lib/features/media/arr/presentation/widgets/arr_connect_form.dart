@@ -4,6 +4,7 @@ import '../../../../../l10n/generated/app_localizations.dart';
 import '../../../../../shared/discovery/lan_discovery_section.dart';
 import '../../../../../shared/discovery/lan_scanner.dart';
 import '../../../data/media_api_exception.dart';
+import '../../../../../shared/widgets/settings_section.dart';
 
 /// Shared connect UI for Sonarr/Radarr/Lidarr/Readarr — identical shape
 /// (URL + API key), just parameterized by title/hint/the actual sign-in
@@ -86,7 +87,7 @@ class _ArrConnectFormState extends State<ArrConnectForm> {
                     onSelected: (url) =>
                         setState(() => _urlController.text = url),
                   ),
-                CupertinoListSection.insetGrouped(
+                SettingsSection(
                   footer: Text(
                     AppLocalizations.of(context).arrApiKeyHint(widget.title),
                   ),

@@ -134,14 +134,23 @@ abstract final class AppText {
 /// The Cupertino text theme, so widgets that read from the theme (nav bar
 /// titles, list tiles, buttons, dialogs) pick up Inter and the scale
 /// without every call site restating it.
-const appTextTheme = CupertinoTextThemeData(
+///
+/// Every style here **must** carry a colour. Cupertino's own text theme
+/// derives one, so overriding these styles without one leaves the text
+/// colourless — which renders it white, and made list-tile titles and nav
+/// bar titles invisible against a light background. `CupertinoColors.label`
+/// is a dynamic colour and `CupertinoTextThemeData.resolveFrom` resolves
+/// it, so light/dark still works.
+const _label = CupertinoColors.label;
+
+final appTextTheme = CupertinoTextThemeData(
   primaryColor: CupertinoColors.systemBlue,
-  textStyle: AppText.body,
-  actionTextStyle: AppText.body,
-  tabLabelTextStyle: AppText.caption2,
-  navTitleTextStyle: AppText.headline,
-  navLargeTitleTextStyle: AppText.largeTitle,
-  navActionTextStyle: AppText.body,
-  pickerTextStyle: AppText.title3,
-  dateTimePickerTextStyle: AppText.title3,
+  textStyle: AppText.body.copyWith(color: _label),
+  actionTextStyle: AppText.body.copyWith(color: CupertinoColors.activeBlue),
+  tabLabelTextStyle: AppText.caption2.copyWith(color: _label),
+  navTitleTextStyle: AppText.headline.copyWith(color: _label),
+  navLargeTitleTextStyle: AppText.largeTitle.copyWith(color: _label),
+  navActionTextStyle: AppText.body.copyWith(color: CupertinoColors.activeBlue),
+  pickerTextStyle: AppText.title3.copyWith(color: _label),
+  dateTimePickerTextStyle: AppText.title3.copyWith(color: _label),
 );

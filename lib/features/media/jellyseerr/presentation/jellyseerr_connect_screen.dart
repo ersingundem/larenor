@@ -6,6 +6,7 @@ import '../../../../shared/discovery/lan_discovery_section.dart';
 import '../../../../shared/discovery/service_signatures.dart';
 import '../../data/media_api_exception.dart';
 import '../providers/jellyseerr_providers.dart';
+import '../../../../shared/widgets/settings_section.dart';
 
 class JellyseerrConnectScreen extends ConsumerStatefulWidget {
   const JellyseerrConnectScreen({super.key});
@@ -80,7 +81,7 @@ class _JellyseerrConnectScreenState
                   onSelected: (url) =>
                       setState(() => _urlController.text = url),
                 ),
-                CupertinoListSection.insetGrouped(
+                SettingsSection(
                   footer: Text(
                     AppLocalizations.of(context).jellyseerrApiKeyHint,
                   ),

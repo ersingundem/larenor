@@ -6,6 +6,7 @@ import '../../../shared/discovery/lan_discovery_section.dart';
 import '../../../shared/discovery/service_signatures.dart';
 import '../data/proxmox_api_exception.dart';
 import '../providers/proxmox_providers.dart';
+import '../../../shared/widgets/settings_section.dart';
 
 class ProxmoxConnectScreen extends ConsumerStatefulWidget {
   const ProxmoxConnectScreen({super.key});
@@ -99,7 +100,7 @@ class _ProxmoxConnectScreenState extends ConsumerState<ProxmoxConnectScreen> {
                   signature: ServiceSignatures.proxmox,
                   onSelected: _selectDiscovered,
                 ),
-                CupertinoListSection.insetGrouped(
+                SettingsSection(
                   children: [
                     CupertinoTextFormFieldRow(
                       controller: _hostController,
@@ -136,7 +137,7 @@ class _ProxmoxConnectScreenState extends ConsumerState<ProxmoxConnectScreen> {
                     ),
                   ],
                 ),
-                CupertinoListSection.insetGrouped(
+                SettingsSection(
                   footer: Text(
                     AppLocalizations.of(context).proxmoxSelfSignedHint,
                   ),

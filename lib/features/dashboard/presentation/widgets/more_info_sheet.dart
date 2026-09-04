@@ -6,6 +6,7 @@ import '../../../ha_client/data/models/ha_entity.dart';
 import '../../../ha_client/providers/ha_client_providers.dart';
 import '../../providers/dashboard_providers.dart';
 import '../../../../shared/theme/typography.dart';
+import '../../../../shared/widgets/settings_section.dart';
 
 const _hiddenAttributeKeys = {'friendly_name', 'icon'};
 
@@ -98,7 +99,7 @@ class _MoreInfoSheet extends ConsumerWidget {
                   ),
                   const SizedBox(height: 16),
                   if (entity.isToggleable)
-                    CupertinoListSection.insetGrouped(
+                    SettingsSection(
                       children: [
                         CupertinoListTile(
                           title: Text(AppLocalizations.of(context).moreInfoOn),
@@ -115,7 +116,7 @@ class _MoreInfoSheet extends ConsumerWidget {
                       entity.attributes['brightness'] is num)
                     _BrightnessSlider(entity: entity),
                   const SizedBox(height: 8),
-                  CupertinoListSection.insetGrouped(
+                  SettingsSection(
                     header: Text(
                       AppLocalizations.of(context).moreInfoDetailsHeader,
                     ),

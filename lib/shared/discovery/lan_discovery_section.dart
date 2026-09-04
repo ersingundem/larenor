@@ -2,6 +2,7 @@ import 'package:flutter/cupertino.dart';
 
 import '../../l10n/generated/app_localizations.dart';
 import 'lan_scanner.dart';
+import '../../shared/widgets/settings_section.dart';
 
 /// A "FOUND ON YOUR NETWORK" list section that sweeps the local subnet for
 /// one service via [LanScanner], mirroring the discovery section on the
@@ -49,7 +50,7 @@ class _LanDiscoverySectionState extends State<LanDiscoverySection> {
     if (!_scanning && _found.isEmpty) return const SizedBox.shrink();
 
     final l10n = AppLocalizations.of(context);
-    return CupertinoListSection.insetGrouped(
+    return SettingsSection(
       header: Text(l10n.commonFoundOnNetwork),
       children: [
         for (final url in _found)

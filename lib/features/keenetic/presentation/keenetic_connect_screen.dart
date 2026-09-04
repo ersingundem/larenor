@@ -5,6 +5,7 @@ import 'package:network_info_plus/network_info_plus.dart';
 import '../../../l10n/generated/app_localizations.dart';
 import '../data/keenetic_api_exception.dart';
 import '../providers/keenetic_providers.dart';
+import '../../../shared/widgets/settings_section.dart';
 
 class KeeneticConnectScreen extends ConsumerStatefulWidget {
   const KeeneticConnectScreen({super.key});
@@ -98,7 +99,7 @@ class _KeeneticConnectScreenState extends ConsumerState<KeeneticConnectScreen> {
               padding: const EdgeInsets.all(24),
               children: [
                 const SizedBox(height: 16),
-                CupertinoListSection.insetGrouped(
+                SettingsSection(
                   footer: Text(
                     AppLocalizations.of(context).keeneticCredentialsHint,
                   ),

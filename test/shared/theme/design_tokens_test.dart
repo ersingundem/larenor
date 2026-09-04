@@ -116,6 +116,54 @@ void main() {
       expect(larenorTheme().textTheme.textStyle.fontFamily, AppText.fontFamily);
     });
 
+    test('every text theme style carries a colour', () {
+      // Regression guard. Cupertino's own text theme derives a colour;
+      // overriding these styles without one left the text colourless,
+      // which rendered white and made list-tile and nav bar titles
+      // invisible on a light background.
+      final styles = {
+        'textStyle': appTextTheme.textStyle,
+        'actionTextStyle': appTextTheme.actionTextStyle,
+        'tabLabelTextStyle': appTextTheme.tabLabelTextStyle,
+        'navTitleTextStyle': appTextTheme.navTitleTextStyle,
+        'navLargeTitleTextStyle': appTextTheme.navLargeTitleTextStyle,
+        'navActionTextStyle': appTextTheme.navActionTextStyle,
+        'pickerTextStyle': appTextTheme.pickerTextStyle,
+        'dateTimePickerTextStyle': appTextTheme.dateTimePickerTextStyle,
+      };
+      for (final entry in styles.entries) {
+        expect(
+          entry.value.color,
+          isNotNull,
+          reason: '${entry.key} has no colour and will render white',
+        );
+      }
+    });
+
+    testWidgets('a list tile title renders in the label colour', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        CupertinoApp(
+          theme: larenorTheme(brightness: Brightness.light),
+          home: CupertinoPageScaffold(
+            child: CupertinoListSection.insetGrouped(
+              children: const [CupertinoListTile(title: Text('Connection'))],
+            ),
+          ),
+        ),
+      );
+
+      final text = tester.widget<Text>(find.text('Connection'));
+      final resolved =
+          text.style?.color ??
+          DefaultTextStyle.of(tester.element(find.text('Connection')))
+              .style
+              .color;
+      expect(resolved, isNotNull);
+      expect(resolved, isNot(const Color(0xFFFFFFFF)));
+    });
+
     test('appearance maps onto a brightness, with system meaning null', () {
       expect(AppAppearance.system.brightness, isNull);
       expect(AppAppearance.light.brightness, Brightness.light);

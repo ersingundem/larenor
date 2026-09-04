@@ -7,6 +7,7 @@ import '../providers/bazarr_providers.dart';
 import 'bazarr_connect_screen.dart';
 import '../../../../shared/widgets/service_root_scaffold.dart';
 import '../../../../shared/theme/spacing.dart';
+import '../../../../shared/widgets/settings_section.dart';
 
 class BazarrHomeScreen extends ConsumerWidget {
   const BazarrHomeScreen({super.key});
@@ -94,7 +95,7 @@ class _WantedSection extends ConsumerWidget {
       ),
       data: (items) {
         if (items.isEmpty) return const SizedBox.shrink();
-        return CupertinoListSection.insetGrouped(
+        return SettingsSection(
           header: Text(title),
           children: [
             for (final item in items)

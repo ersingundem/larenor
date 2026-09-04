@@ -6,6 +6,7 @@ import '../../../../shared/discovery/lan_discovery_section.dart';
 import '../../../../shared/discovery/service_signatures.dart';
 import '../../data/media_api_exception.dart';
 import '../providers/bazarr_providers.dart';
+import '../../../../shared/widgets/settings_section.dart';
 
 class BazarrConnectScreen extends ConsumerStatefulWidget {
   const BazarrConnectScreen({super.key});
@@ -79,7 +80,7 @@ class _BazarrConnectScreenState extends ConsumerState<BazarrConnectScreen> {
                   onSelected: (url) =>
                       setState(() => _urlController.text = url),
                 ),
-                CupertinoListSection.insetGrouped(
+                SettingsSection(
                   footer: Text(AppLocalizations.of(context).bazarrApiKeyHint),
                   children: [
                     CupertinoTextFormFieldRow(

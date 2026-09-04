@@ -28,6 +28,7 @@ import '../providers/enabled_services_providers.dart';
 import '../../../l10n/generated/app_localizations.dart';
 import '../../../shared/widgets/brand_icon.dart';
 import '../../../shared/widgets/icon_badge.dart';
+import '../../../shared/widgets/settings_section.dart';
 
 /// Every optional service in one place: toggle it on/off, and see at a
 /// glance whether it's actually connected. Turning a service off only
@@ -55,7 +56,7 @@ class ManageIntegrationsScreen extends ConsumerWidget {
             sliver: SliverList(
               delegate: SliverChildListDelegate([
                 const SizedBox(height: 16),
-                CupertinoListSection.insetGrouped(
+                SettingsSection(
                   header: Text(l10n.settingsSectionMediaServices),
                   children: [
                     _ServiceRow(
@@ -196,7 +197,7 @@ class ManageIntegrationsScreen extends ConsumerWidget {
                     ),
                   ],
                 ),
-                CupertinoListSection.insetGrouped(
+                SettingsSection(
                   header: Text(l10n.settingsSectionInfrastructure),
                   children: [
                     _ServiceRow(

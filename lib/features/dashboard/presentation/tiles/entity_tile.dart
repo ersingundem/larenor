@@ -10,6 +10,7 @@ import 'entity_icons.dart';
 import '../../../../shared/theme/typography.dart';
 import '../../../../shared/theme/icon_sizes.dart';
 import '../../../../shared/theme/spacing.dart';
+import 'entity_state_label.dart';
 
 class EntityTile extends ConsumerWidget {
   const EntityTile({super.key, required this.tile});
@@ -65,7 +66,7 @@ class EntityTile extends ConsumerWidget {
                 children: [
                   Flexible(
                     child: Text(
-                      entity.state,
+                      entityStateLabel(context, entity),
                       overflow: TextOverflow.ellipsis,
                       style: AppText.tileSubtitle.copyWith(
                         color: CupertinoColors.secondaryLabel.resolveFrom(

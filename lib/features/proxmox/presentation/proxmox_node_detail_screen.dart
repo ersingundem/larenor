@@ -9,6 +9,7 @@ import 'proxmox_backups_screen.dart';
 import 'proxmox_create_guest_screen.dart';
 import 'widgets/proxmox_guest_row.dart';
 import 'widgets/proxmox_usage_bar.dart';
+import '../../../shared/widgets/settings_section.dart';
 
 class ProxmoxNodeDetailScreen extends ConsumerWidget {
   const ProxmoxNodeDetailScreen({super.key, required this.nodeName});
@@ -55,7 +56,7 @@ class ProxmoxNodeDetailScreen extends ConsumerWidget {
               children: [
                 const SizedBox(height: 16),
                 if (vms.isNotEmpty)
-                  CupertinoListSection.insetGrouped(
+                  SettingsSection(
                     header: Text(AppLocalizations.of(context).proxmoxVmsHeader),
                     children: [
                       for (final guest in vms)
@@ -63,7 +64,7 @@ class ProxmoxNodeDetailScreen extends ConsumerWidget {
                     ],
                   ),
                 if (containers.isNotEmpty)
-                  CupertinoListSection.insetGrouped(
+                  SettingsSection(
                     header: Text(
                       AppLocalizations.of(context).proxmoxContainersHeader,
                     ),
@@ -77,7 +78,7 @@ class ProxmoxNodeDetailScreen extends ConsumerWidget {
                   error: (_, _) => const SizedBox.shrink(),
                   data: (storages) => storages.isEmpty
                       ? const SizedBox.shrink()
-                      : CupertinoListSection.insetGrouped(
+                      : SettingsSection(
                           header: Text(
                             AppLocalizations.of(context).proxmoxStorageHeader,
                           ),

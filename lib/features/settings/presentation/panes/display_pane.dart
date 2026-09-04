@@ -6,6 +6,7 @@ import '../../../../l10n/generated/app_localizations.dart';
 import '../../../../shared/widgets/icon_badge.dart';
 import '../../providers/settings_providers.dart';
 import 'settings_nav_row.dart';
+import '../../../../shared/widgets/settings_section.dart';
 
 class DisplayPane extends ConsumerWidget {
   const DisplayPane({super.key});
@@ -22,7 +23,7 @@ class DisplayPane extends ConsumerWidget {
     return SettingsPaneScaffold(
       title: l10n.settingsCategoryDisplay,
       children: [
-        CupertinoListSection.insetGrouped(
+        SettingsSection(
           header: Text(l10n.settingsSectionDisplay),
           children: [
             CupertinoListTile(
@@ -75,7 +76,7 @@ class DisplayPane extends ConsumerWidget {
           ],
         ),
         if (nightWindow != null)
-          CupertinoListSection.insetGrouped(
+          SettingsSection(
             header: Text(l10n.settingsSectionNightMode),
             footer: Text(l10n.settingsNightModeFooter),
             children: [
