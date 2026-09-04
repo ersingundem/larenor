@@ -8,6 +8,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../l10n/generated/app_localizations.dart';
 import '../domain/media_title.dart';
+import '../domain/media_read_result.dart';
+import 'widgets/media_read_issue_banner.dart';
 import '../providers/media_catalog_providers.dart';
 import 'media_hub_screen.dart';
 import 'widgets/media_poster.dart';
@@ -84,9 +86,11 @@ class _MediaSearchScreenState extends ConsumerState<MediaSearchScreen> {
 
     return resultsAsync.when(
       loading: () => const Center(child: CupertinoActivityIndicator()),
-      error: (error, _) => _Hint(text: error.toString()),
+      error: (error, _) => _Hint(text: l10n.healthReadError),
       data: (titles) {
-        if (titles.isEmpty) return _Hint(text: l10n.mediaSearchEmpty);
+        if (titles.isEmpty && titles.readIssues.isEmpty) {
+          return _Hint(text: l10n.mediaSearchEmpty);
+        }
         return LayoutBuilder(
           builder: (context, constraints) {
             final columns = ((constraints.maxWidth - 32) / 152).floor().clamp(
@@ -95,23 +99,42 @@ class _MediaSearchScreenState extends ConsumerState<MediaSearchScreen> {
             );
             final width =
                 (constraints.maxWidth - 32 - (columns - 1) * 12) / columns;
-            return GridView.builder(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: columns,
-                mainAxisSpacing: 14,
-                crossAxisSpacing: 12,
-                mainAxisExtent: MediaPoster.heightFor(width, context),
-              ),
-              itemCount: titles.length,
-              itemBuilder: (context, index) {
-                final title = titles[index];
-                return MediaPoster(
-                  title: title,
-                  width: double.infinity,
-                  onTap: () => openMediaTitle(context, title),
-                );
-              },
+            return CustomScrollView(
+              slivers: [
+                if (titles.readIssues.isNotEmpty)
+                  SliverToBoxAdapter(
+                    child: MediaReadIssueBanner(
+                      issues: titles.readIssues,
+                      hasContent: titles.isNotEmpty,
+                      onRetry: () {
+                        ref.invalidate(mediaLibraryIndexProvider);
+                        ref.invalidate(mediaSearchProvider(_query));
+                      },
+                    ),
+                  ),
+                SliverPadding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 8,
+                  ),
+                  sliver: SliverGrid(
+                    gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: columns,
+                      mainAxisSpacing: 14,
+                      crossAxisSpacing: 12,
+                      mainAxisExtent: MediaPoster.heightFor(width, context),
+                    ),
+                    delegate: SliverChildBuilderDelegate((context, index) {
+                      final title = titles[index];
+                      return MediaPoster(
+                        title: title,
+                        width: double.infinity,
+                        onTap: () => openMediaTitle(context, title),
+                      );
+                    }, childCount: titles.length),
+                  ),
+                ),
+              ],
             );
           },
         );

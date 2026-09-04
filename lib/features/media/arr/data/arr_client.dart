@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 
 import '../../../../shared/network/server_bound_client.dart';
+import '../../../health/data/health_monitor.dart';
 
 import '../../data/media_api_exception.dart';
 import 'arr_config.dart';
@@ -28,9 +29,15 @@ class ArrClient {
     required this.idFieldName,
     this.apiVersion = 'v3',
     http.Client? httpClient,
-  }) : _client = ServerBoundClient(baseUrl: config.baseUrl, inner: httpClient);
+    this.healthSession,
+  }) : _client = ServerBoundClient(
+         baseUrl: config.baseUrl,
+         inner: httpClient,
+         observer: healthSession?.observeTransport,
+       );
 
   final ArrConfig config;
+  final HealthSession? healthSession;
 
   /// `'series'` (Sonarr), `'movie'` (Radarr), `'artist'` (Lidarr), or
   /// `'author'` (Readarr).
@@ -62,7 +69,10 @@ class ArrClient {
         .get(_uri('/system/status'), headers: _headers)
         .timeout(const Duration(seconds: 10));
     if (response.statusCode != 200) {
-      throw MediaApiException('Invalid server URL or API key.');
+      throw MediaApiException(
+        'Invalid server URL or API key.',
+        statusCode: response.statusCode,
+      );
     }
   }
 
@@ -160,7 +170,10 @@ class ArrClient {
         .post(_uri('/$resourcePath'), headers: _headers, body: jsonEncode(body))
         .timeout(const Duration(seconds: 20));
     if (response.statusCode != 200 && response.statusCode != 201) {
-      throw MediaApiException('Add failed (${response.statusCode}).');
+      throw MediaApiException(
+        'Add failed (${response.statusCode}).',
+        statusCode: response.statusCode,
+      );
     }
   }
 
@@ -178,7 +191,7 @@ class ArrClient {
     _checkOk(response);
     final body = decodeServerJson(response.body);
     final records = body is Map<String, dynamic>
-        ? (body['records'] as List<dynamic>? ?? const [])
+        ? body['records'] as List<dynamic>
         : body as List<dynamic>;
     return records
         .map((e) => ArrQueueItem.fromJson(e as Map<String, dynamic>))
@@ -207,7 +220,10 @@ class ArrClient {
 
   void _checkOk(http.Response response) {
     if (response.statusCode < 200 || response.statusCode >= 300) {
-      throw MediaApiException('Request failed (${response.statusCode}).');
+      throw MediaApiException(
+        'Request failed (${response.statusCode}).',
+        statusCode: response.statusCode,
+      );
     }
   }
 

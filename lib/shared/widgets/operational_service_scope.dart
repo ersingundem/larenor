@@ -6,14 +6,18 @@ import '../../l10n/generated/app_localizations.dart';
 /// Daily-use service pages may operate a saved connection, but account changes
 /// belong to the Settings route, which applies the user's PIN policy.
 class OperationalServiceScope extends InheritedWidget {
-  const OperationalServiceScope({super.key, required super.child});
+  const OperationalServiceScope({super.key, required super.child, this.status});
 
-  static bool isOperational(BuildContext context) =>
-      context.dependOnInheritedWidgetOfExactType<OperationalServiceScope>() !=
-      null;
+  final Widget? status;
+
+  static OperationalServiceScope? maybeOf(BuildContext context) =>
+      context.dependOnInheritedWidgetOfExactType<OperationalServiceScope>();
+
+  static bool isOperational(BuildContext context) => maybeOf(context) != null;
 
   @override
-  bool updateShouldNotify(OperationalServiceScope oldWidget) => false;
+  bool updateShouldNotify(OperationalServiceScope oldWidget) =>
+      status != oldWidget.status;
 }
 
 class ServiceAccountAction extends StatelessWidget {

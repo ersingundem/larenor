@@ -2,10 +2,10 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../l10n/generated/app_localizations.dart';
-import '../../../ha_client/data/ha_api_exception.dart';
 import '../../../ha_client/data/models/ha_entity.dart';
-import '../../../ha_client/providers/ha_client_providers.dart';
 import '../../../ha_tools/presentation/ha_actions_screen.dart';
+import '../../../health/providers/ha_actions.dart';
+import '../../../../shared/widgets/action_status_indicator.dart';
 
 /// Native controls for a current entity snapshot. Callers should keep light
 /// and simple on/off controls alongside this widget. Services must exist in
@@ -79,8 +79,6 @@ class _EntityControlsState extends ConsumerState<EntityControls> {
       _error = null;
     });
     try {
-      final client = ref.read(haRestClientProvider);
-      if (client == null) throw HaApiException(_l10n.haDisconnected);
       final payload = Map<String, dynamic>.of(data);
       if (entity.domain == 'lock' &&
           (service == 'unlock' || entity.attributes['code_format'] != null)) {
@@ -92,14 +90,16 @@ class _EntityControlsState extends ConsumerState<EntityControls> {
         if (confirmed == null || !mounted) return;
         payload.addAll(confirmed);
       }
-      await client.callService(
-        entity.domain,
-        service,
-        entityId: entity.entityId,
-        serviceData: payload,
-      );
+      await ref
+          .read(haActionExecutorProvider)
+          .execute(
+            domain: entity.domain,
+            service: service,
+            entityId: entity.entityId,
+            serviceData: payload,
+          );
     } catch (error) {
-      if (mounted) setState(() => _error = '$error');
+      if (mounted) setState(() => _error = actionErrorLabel(_l10n, error));
     } finally {
       if (mounted) {
         setState(() {

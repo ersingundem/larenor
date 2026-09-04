@@ -3,18 +3,26 @@ import 'dart:async';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 import '../../auth/providers/auth_providers.dart';
+import '../../health/providers/ha_actions.dart';
 import '../data/models/ha_entity.dart';
 import '../data/rest_client.dart';
 import '../data/ws_client.dart';
+import 'ha_health_bindings.dart';
 
 part 'ha_client_providers.g.dart';
 
 @riverpod
 HaRestClient? haRestClient(Ref ref) {
   final config = ref.watch(connectionConfigProvider).value;
+  final health = ref.watch(haHealthSessionProvider);
   if (config == null) return null;
 
-  final client = HaRestClient(baseUrl: config.baseUrl, token: config.token);
+  final client = HaRestClient(
+    baseUrl: config.baseUrl,
+    token: config.token,
+    observer: health.observeTransport,
+    healthSession: health,
+  );
   ref.onDispose(client.dispose);
   return client;
 }
@@ -22,10 +30,14 @@ HaRestClient? haRestClient(Ref ref) {
 @riverpod
 HaWebSocketClient? haWebSocketClient(Ref ref) {
   final config = ref.watch(connectionConfigProvider).value;
+  final health = ref.watch(haHealthSessionProvider);
   if (config == null) return null;
 
-  final client = HaWebSocketClient(baseUrl: config.baseUrl, token: config.token)
-    ..connect();
+  final client = HaWebSocketClient(
+    baseUrl: config.baseUrl,
+    token: config.token,
+    connectionObserver: (event) => observeHaConnection(health, event),
+  )..connect();
   ref.onDispose(client.dispose);
   return client;
 }
@@ -45,6 +57,7 @@ class Entities extends _$Entities {
   Future<Map<String, HaEntity>> build() async {
     final rest = ref.watch(haRestClientProvider);
     final ws = ref.watch(haWebSocketClientProvider);
+    final health = rest?.healthSession;
     if (rest == null) return {};
 
     final pending = <String, HaEntityChange>{};
@@ -104,7 +117,14 @@ class Entities extends _$Entities {
       stopListening();
     });
 
-    final states = await rest.getStates();
+    final List<HaEntity> states;
+    try {
+      states = await rest.getStates();
+      if (active) health?.readSucceeded(synchronizesLiveSnapshot: true);
+    } catch (error) {
+      if (active) health?.failed(classifyHaReadFailure(error));
+      rethrow;
+    }
     final map = {for (final entity in states) entity.entityId: entity};
     _mergeUpdates(map, pending);
     pending.clear();
@@ -136,9 +156,13 @@ class Entities extends _$Entities {
   }
 
   Future<void> toggle(HaEntity entity) async {
-    final rest = ref.read(haRestClientProvider);
-    if (rest == null) return;
     final service = entity.isOn ? 'turn_off' : 'turn_on';
-    await rest.callService(entity.domain, service, entityId: entity.entityId);
+    await ref
+        .read(haActionExecutorProvider)
+        .execute(
+          domain: entity.domain,
+          service: service,
+          entityId: entity.entityId,
+        );
   }
 }

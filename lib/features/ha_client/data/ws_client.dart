@@ -9,6 +9,24 @@ import 'models/ha_entity.dart';
 
 enum HaConnectionStatus { connecting, connected, disconnected }
 
+enum HaConnectionEvent {
+  connecting,
+  contact,
+  liveReady,
+  liveContact,
+  authenticationRejected,
+  permissionDenied,
+  disconnected,
+  retrying,
+}
+
+/// Contains connection evidence only, never server text, tokens or payloads.
+class HaConnectionObservation {
+  const HaConnectionObservation(this.event, {this.retryAttempt = 0});
+  final HaConnectionEvent event;
+  final int retryAttempt;
+}
+
 class HaEntityChange {
   const HaEntityChange({required this.entityId, this.entity, this.time});
 
@@ -44,6 +62,7 @@ class HaWebSocketClient {
     WebSocketChannel Function(Uri)? channelFactory,
     Duration Function(int attempt)? reconnectDelay,
     this.heartbeatInterval = const Duration(seconds: 30),
+    this.connectionObserver,
   }) : _wsUrl = _toWsUrl(baseUrl),
        _channelFactory = channelFactory ?? WebSocketChannel.connect,
        _reconnectDelay = reconnectDelay ?? _defaultReconnectDelay;
@@ -53,6 +72,7 @@ class HaWebSocketClient {
   final WebSocketChannel Function(Uri) _channelFactory;
   final Duration Function(int) _reconnectDelay;
   final Duration heartbeatInterval;
+  final void Function(HaConnectionObservation)? connectionObserver;
 
   WebSocketChannel? _channel;
   StreamSubscription<dynamic>? _subscription;
@@ -244,6 +264,7 @@ class HaWebSocketClient {
     _reconnectTimer?.cancel();
     _reconnectTimer = null;
     _setStatus(HaConnectionStatus.connecting);
+    _observe(HaConnectionEvent.connecting);
 
     final WebSocketChannel channel;
     try {
@@ -289,8 +310,10 @@ class HaWebSocketClient {
   void _handleMessage(Map<String, dynamic> message) {
     switch (message['type']) {
       case 'auth_required':
+        _observe(HaConnectionEvent.contact);
         _send({'type': 'auth', 'access_token': token});
       case 'auth_ok':
+        _observe(HaConnectionEvent.contact);
         _eventsSubscriptionId = _messageId++;
         _send({
           'id': _eventsSubscriptionId,
@@ -301,13 +324,17 @@ class HaWebSocketClient {
         // Retrying the same rejected token cannot recover. A changed config
         // creates a new client through the provider.
         _authenticationRejected = true;
+        _observe(HaConnectionEvent.authenticationRejected);
         _scheduleReconnect(_channel);
       case 'event':
         _handleEvent(message);
+        _observe(HaConnectionEvent.liveContact);
       case 'result':
         _handleResult(message);
+        _observe(HaConnectionEvent.liveContact);
       case 'pong':
         _handleResult({...message, 'success': true, 'result': null});
+        _observe(HaConnectionEvent.liveContact);
     }
   }
 
@@ -321,8 +348,12 @@ class HaWebSocketClient {
         // Events cannot be considered live until HA acknowledges this
         // subscription; reconnect snapshot refreshes depend on this signal.
         _setStatus(HaConnectionStatus.connected);
+        _observe(HaConnectionEvent.liveReady);
         _startHeartbeat();
       } else {
+        if ((message['error'] as Map?)?['code'] == 'unauthorized') {
+          _observe(HaConnectionEvent.permissionDenied);
+        }
         _scheduleReconnect(_channel);
       }
       return;
@@ -380,6 +411,17 @@ class HaWebSocketClient {
     _statusController.add(value);
   }
 
+  void _observe(HaConnectionEvent event, {int retryAttempt = 0}) {
+    if (_disposed) return;
+    try {
+      connectionObserver?.call(
+        HaConnectionObservation(event, retryAttempt: retryAttempt),
+      );
+    } catch (_) {
+      // Optional monitoring must not interrupt the protocol state machine.
+    }
+  }
+
   void _startHeartbeat() {
     _heartbeatTimer?.cancel();
     if (heartbeatInterval <= Duration.zero) return;
@@ -415,8 +457,10 @@ class HaWebSocketClient {
     unawaited(channel?.sink.close());
     _failPending();
     _setStatus(HaConnectionStatus.disconnected);
+    _observe(HaConnectionEvent.disconnected);
     if (_authenticationRejected) return;
     _retryAttempt++;
+    _observe(HaConnectionEvent.retrying, retryAttempt: _retryAttempt);
     _reconnectTimer = Timer(_reconnectDelay(_retryAttempt), () {
       _reconnectTimer = null;
       connect();

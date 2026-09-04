@@ -6,9 +6,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../l10n/generated/app_localizations.dart';
 import '../domain/media_title.dart';
+import '../domain/media_read_result.dart';
+import 'widgets/media_read_issue_banner.dart';
 import '../../jellyfin/presentation/jellyfin_home_screen.dart';
 import '../../jellyfin/providers/jellyfin_providers.dart';
-import '../../jellyseerr/providers/jellyseerr_providers.dart';
 import '../../arr/providers/sonarr_providers.dart';
 import '../../arr/providers/radarr_providers.dart';
 import '../domain/media_identity.dart';
@@ -126,7 +127,7 @@ class _MediaHubScreenState extends ConsumerState<MediaHubScreen> {
                 hasScrollBody: false,
                 child: _Message(
                   title: l10n.commonError,
-                  message: error.toString(),
+                  message: l10n.healthReadError,
                 ),
               ),
             ],
@@ -151,6 +152,8 @@ class _MediaHubScreenState extends ConsumerState<MediaHubScreen> {
                   )
                   .where((row) => row.titles.isNotEmpty)
                   .toList(),
+              issues: rows.readIssues,
+              hasSuccessfulRead: rows.successfulReads.isNotEmpty,
             ),
           ),
         ],
@@ -161,22 +164,30 @@ class _MediaHubScreenState extends ConsumerState<MediaHubScreen> {
   List<Widget> _slivers(
     BuildContext context,
     AppLocalizations l10n,
-    List<MediaRowData> rows,
-  ) {
+    List<MediaRowData> rows, {
+    required List<MediaReadIssue> issues,
+    required bool hasSuccessfulRead,
+  }) {
+    final warnings = <Widget>[
+      if (issues.isNotEmpty)
+        SliverToBoxAdapter(
+          child: MediaReadIssueBanner(
+            issues: issues,
+            hasContent: rows.isNotEmpty,
+            onRetry: () => _refresh(ref),
+          ),
+        ),
+    ];
     if (rows.isEmpty) {
-      final connected =
-          ref.watch(jellyfinClientProvider) != null ||
-          ref.watch(jellyseerrClientProvider) != null ||
-          ref.watch(sonarrClientProvider) != null ||
-          ref.watch(radarrClientProvider) != null;
+      if (issues.isNotEmpty) return warnings;
       return [
         SliverFillRemaining(
           hasScrollBody: false,
           child: _Message(
-            title: connected
+            title: hasSuccessfulRead
                 ? l10n.mediaBrowseEmptyTitle
                 : l10n.mediaEmptyTitle,
-            message: connected
+            message: hasSuccessfulRead
                 ? l10n.mediaBrowseEmptyMessage
                 : l10n.mediaEmptyMessage,
           ),
@@ -190,6 +201,7 @@ class _MediaHubScreenState extends ConsumerState<MediaHubScreen> {
     final featured = rows.first.titles.first;
 
     return [
+      ...warnings,
       SliverToBoxAdapter(
         child: MediaHero(
           title: featured,
@@ -223,7 +235,11 @@ class _MediaHubScreenState extends ConsumerState<MediaHubScreen> {
     ref.invalidate(radarrQueueProvider);
     ref.invalidate(mediaLibraryIndexProvider);
     ref.invalidate(mediaHubRowsProvider);
-    await ref.read(mediaHubRowsProvider.future);
+    try {
+      await ref.read(mediaHubRowsProvider.future);
+    } catch (_) {
+      // The provider exposes the new error state; refresh callbacks must finish.
+    }
   }
 }
 

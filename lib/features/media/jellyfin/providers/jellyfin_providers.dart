@@ -1,5 +1,8 @@
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
+import '../../../health/data/integration_health.dart';
+import '../../../health/providers/health_providers.dart';
+
 import '../data/jellyfin_client.dart';
 import '../data/jellyfin_config.dart';
 import '../data/jellyfin_credentials_store.dart';
@@ -46,8 +49,12 @@ class JellyfinConnection extends _$JellyfinConnection {
 @riverpod
 JellyfinClient? jellyfinClient(Ref ref) {
   final config = ref.watch(jellyfinConnectionProvider).value;
+  final health = ref
+      .watch(healthMonitorProvider)
+      .bind(IntegrationId.jellyfin, configured: config != null);
+  ref.onDispose(health.close);
   if (config == null) return null;
-  final client = JellyfinClient(config: config);
+  final client = JellyfinClient(config: config, healthSession: health);
   ref.onDispose(client.dispose);
   return client;
 }

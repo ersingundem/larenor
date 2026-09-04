@@ -3,6 +3,7 @@ import '../../arr/data/models/arr_queue_item.dart';
 import '../../jellyfin/data/models/jellyfin_item.dart';
 import 'media_identity.dart';
 import 'media_title.dart';
+import 'media_read_result.dart';
 
 /// What one service knows about a title. Kept separate per source so the
 /// index can answer "playable?", "downloading?" and "monitored?"
@@ -54,7 +55,15 @@ class MediaLibraryEntry {
 /// they carry — Sonarr may know only a TVDB id while Jellyseerr knows
 /// only TMDB, and those two still need to meet.
 class MediaLibraryIndex {
-  MediaLibraryIndex._(this._byKey, this._jellyfinById);
+  MediaLibraryIndex._(
+    this._byKey,
+    this._jellyfinById, {
+    this.readIssues = const [],
+    this.successfulReads = const {},
+  });
+
+  final List<MediaReadIssue> readIssues;
+  final Set<MediaReadKey> successfulReads;
 
   final Map<String, MediaLibraryEntry> _byKey;
   final Map<String, JellyfinItem> _jellyfinById;
@@ -106,6 +115,8 @@ class MediaLibraryIndex {
     List<ArrLibraryItem> sonarrLibrary = const [],
     List<ArrLibraryItem> radarrLibrary = const [],
     List<ArrQueueItem> queue = const [],
+    Iterable<MediaReadIssue> readIssues = const [],
+    Iterable<MediaReadKey> successfulReads = const [],
   }) {
     final byKey = <String, MediaLibraryEntry>{};
 
@@ -187,9 +198,12 @@ class MediaLibraryIndex {
       );
     }
 
-    return MediaLibraryIndex._(byKey, {
-      for (final item in jellyfinItems) item.id: item,
-    });
+    return MediaLibraryIndex._(
+      byKey,
+      {for (final item in jellyfinItems) item.id: item},
+      readIssues: orderedMediaIssues(readIssues),
+      successfulReads: Set.unmodifiable(successfulReads),
+    );
   }
 }
 

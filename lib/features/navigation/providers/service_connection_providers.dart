@@ -1,6 +1,8 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../keenetic/providers/keenetic_providers.dart';
+import '../../health/data/integration_health.dart';
+import '../../health/providers/health_providers.dart';
 import '../../media/arr/providers/lidarr_providers.dart';
 import '../../media/arr/providers/radarr_providers.dart';
 import '../../media/arr/providers/readarr_providers.dart';
@@ -30,6 +32,14 @@ final savedServiceConnectionProvider = Provider.autoDispose
         AppService.proxmox => ref.watch(proxmoxConnectionProvider),
         AppService.keenetic => ref.watch(keeneticConnectionProvider),
       };
+      if (!connection.isLoading && !connection.hasError) {
+        ref
+            .watch(healthMonitorProvider)
+            .synchronizeConfiguration(
+              IntegrationId.values.byName(service.name),
+              connection.value,
+            );
+      }
       return connection.whenData((value) => value != null);
     });
 

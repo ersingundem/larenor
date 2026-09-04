@@ -353,7 +353,7 @@ class _HaActionScreenState extends ConsumerState<HaActionScreen> {
         target: target,
         returnResponse: _returnResponse,
       );
-      if (mounted) setState(() => _result = result ?? l10n.haSuccess);
+      if (mounted) setState(() => _result = result ?? l10n.actionAccepted);
     } catch (error) {
       if (mounted) {
         setState(() {

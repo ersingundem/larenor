@@ -2,16 +2,22 @@ import 'dart:convert';
 
 import 'package:http/http.dart' as http;
 
+import 'transport_observation.dart';
+
 /// An authenticated integration transport may only contact its configured
 /// server. Custom API-key headers are not stripped by Dart's automatic redirect
 /// handling, so even same-host redirects are left for the user to configure.
 class ServerBoundClient extends http.BaseClient {
-  ServerBoundClient({required String baseUrl, http.Client? inner})
-    : baseUri = parseServerUrl(baseUrl),
-      _inner = inner ?? http.Client();
+  ServerBoundClient({
+    required String baseUrl,
+    http.Client? inner,
+    this.observer,
+  }) : baseUri = parseServerUrl(baseUrl),
+       _inner = inner ?? http.Client();
 
   final Uri baseUri;
   final http.Client _inner;
+  final TransportObserver? observer;
 
   @override
   Future<http.StreamedResponse> send(http.BaseRequest request) async {
@@ -24,13 +30,30 @@ class ServerBoundClient extends http.BaseClient {
       throw http.ClientException('Invalid request header.');
     }
     request.followRedirects = false;
+    final isRead = {'GET', 'HEAD'}.contains(request.method.toUpperCase());
     final http.StreamedResponse response;
     try {
       response = await _inner.send(request);
     } on http.ClientException {
+      notifyTransport(
+        observer,
+        TransportObservation(
+          kind: TransportObservationKind.failed,
+          isRead: isRead,
+          failure: TransportFailure.connection,
+        ),
+      );
       // Platform errors can include URLs with authentication query parameters.
       throw http.ClientException('Could not connect to the configured server.');
     }
+    notifyTransport(
+      observer,
+      TransportObservation(
+        kind: TransportObservationKind.response,
+        isRead: isRead,
+        statusCode: response.statusCode,
+      ),
+    );
     if ({301, 302, 303, 307, 308}.contains(response.statusCode)) {
       await response.stream.listen((_) {}).cancel();
       throw http.ClientException(
@@ -38,7 +61,7 @@ class ServerBoundClient extends http.BaseClient {
       );
     }
     return http.StreamedResponse(
-      _safeResponseStream(response.stream),
+      _safeResponseStream(response.stream, isRead, response.statusCode),
       response.statusCode,
       contentLength: response.contentLength,
       headers: response.headers,
@@ -49,12 +72,32 @@ class ServerBoundClient extends http.BaseClient {
     );
   }
 
-  Stream<List<int>> _safeResponseStream(Stream<List<int>> stream) async* {
+  Stream<List<int>> _safeResponseStream(
+    Stream<List<int>> stream,
+    bool isRead,
+    int statusCode,
+  ) async* {
     try {
       await for (final chunk in stream) {
         yield chunk;
       }
+      notifyTransport(
+        observer,
+        TransportObservation(
+          kind: TransportObservationKind.completed,
+          isRead: isRead,
+          statusCode: statusCode,
+        ),
+      );
     } on http.ClientException {
+      notifyTransport(
+        observer,
+        TransportObservation(
+          kind: TransportObservationKind.failed,
+          isRead: isRead,
+          failure: TransportFailure.connection,
+        ),
+      );
       throw http.ClientException(
         'Could not read the configured server response.',
       );

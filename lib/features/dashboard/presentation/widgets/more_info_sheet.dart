@@ -5,6 +5,8 @@ import '../../../../l10n/generated/app_localizations.dart';
 import '../../../ha_client/data/models/ha_entity.dart';
 import '../../../ha_tools/presentation/ha_actions_screen.dart';
 import '../../../ha_client/providers/ha_client_providers.dart';
+import '../../../health/providers/ha_actions.dart';
+import '../../../../shared/widgets/action_status_indicator.dart';
 import '../../providers/dashboard_providers.dart';
 import '../../../../shared/theme/typography.dart';
 import '../../../../shared/widgets/settings_section.dart';
@@ -103,6 +105,7 @@ class EntityMoreInfo extends ConsumerWidget {
                   ),
                 ),
                 const SizedBox(height: 16),
+                ActionStatusIndicator(entityId: entityId),
                 _EntityQuickControls(entity: entity),
                 EntityControls(entity: entity),
                 CupertinoButton(
@@ -180,7 +183,9 @@ class _EntityQuickControlsState extends ConsumerState<_EntityQuickControls> {
           context: context,
           builder: (context) => CupertinoAlertDialog(
             title: Text(AppLocalizations.of(context).commonError),
-            content: Text('$error'),
+            content: Text(
+              actionErrorLabel(AppLocalizations.of(context), error),
+            ),
             actions: [
               CupertinoDialogAction(
                 onPressed: () => Navigator.pop(context),
@@ -243,10 +248,10 @@ class _EntityQuickControlsState extends ConsumerState<_EntityQuickControls> {
                         ? null
                         : (value) => _run(() async {
                             await ref
-                                .read(haRestClientProvider)
-                                ?.callService(
-                                  'light',
-                                  'turn_on',
+                                .read(haActionExecutorProvider)
+                                .execute(
+                                  domain: 'light',
+                                  service: 'turn_on',
                                   entityId: entity.entityId,
                                   serviceData: {
                                     'brightness_pct': (value * 100).round(),

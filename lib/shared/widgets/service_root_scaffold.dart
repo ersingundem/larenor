@@ -32,7 +32,8 @@ class ServiceRootScaffold extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final operational = OperationalServiceScope.isOperational(context);
+    final operationalScope = OperationalServiceScope.maybeOf(context);
+    final operational = operationalScope != null;
     return AppPageScaffold(
       child: CustomScrollView(
         slivers: [
@@ -46,6 +47,8 @@ class ServiceRootScaffold extends StatelessWidget {
                   )
                 : trailing,
           ),
+          if (operationalScope?.status != null)
+            SliverToBoxAdapter(child: operationalScope!.status),
           ...slivers,
           const SliverToBoxAdapter(child: SizedBox(height: Gap.xxxl)),
         ],

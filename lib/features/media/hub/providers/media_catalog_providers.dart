@@ -1,3 +1,6 @@
+import 'dart:async';
+
+import 'package:http/http.dart' as http;
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 import '../../arr/data/models/arr_calendar_item.dart';
@@ -10,57 +13,131 @@ import '../../jellyfin/data/models/jellyfin_item.dart';
 import '../../jellyfin/providers/jellyfin_providers.dart';
 import '../../jellyseerr/data/models/jellyseerr_result.dart';
 import '../../jellyseerr/providers/jellyseerr_providers.dart';
+import '../../../health/data/health_monitor.dart';
+import '../../../health/data/integration_health.dart';
+import '../../data/media_api_exception.dart';
+import '../domain/media_read_result.dart';
 import '../domain/media_identity.dart';
 import '../domain/media_library_index.dart';
 import '../domain/media_title.dart';
 
 part 'media_catalog_providers.g.dart';
 
-/// Runs [task] and swallows any failure into [fallback].
-///
-/// The hub deliberately degrades rather than fails: one unreachable
-/// service (a Sonarr box that's off, an expired Jellyseerr key) should
-/// cost you that one row, not the whole screen.
-Future<T> _orEmpty<T>(Future<T> Function() task, T fallback) async {
-  try {
-    return await task().timeout(const Duration(seconds: 20));
-  } catch (_) {
-    return fallback;
+/// A collector belongs to one async provider build. Failures are attached to
+/// that result, never accumulated in a shared side channel across accounts.
+class _MediaReads {
+  final issues = <MediaReadIssue>[];
+  final successful = <MediaReadKey>{};
+  final _freshSuccessful = <MediaReadKey>{};
+
+  Future<T> read<T>(
+    MediaReadKey key,
+    bool available,
+    Future<T> Function() task,
+    T fallback,
+  ) async {
+    if (!available) return fallback;
+    try {
+      final value = await task().timeout(const Duration(seconds: 20));
+      successful.add(key);
+      // Queue providers own their parsed-read timestamps: their Future may
+      // already be cached, so consuming it cannot make that read fresh again.
+      if (key.operation != MediaReadOperation.queue) _freshSuccessful.add(key);
+      return value;
+    } catch (error) {
+      issues.add(MediaReadIssue(key, _failureOf(error)));
+      return fallback;
+    }
   }
+
+  void include(MediaLibraryIndex index) {
+    issues.addAll(index.readIssues);
+    successful.addAll(index.successfulReads);
+  }
+
+  /// Report complete parsed reads, then any partial failure. A successful
+  /// sibling endpoint must not erase a failed library/calendar in this batch.
+  void publish(Ref ref, Iterable<HealthSession?> sessions) {
+    if (!ref.mounted) return;
+    for (final session in sessions.whereType<HealthSession>()) {
+      if (_freshSuccessful.any((read) => read.service == session.id)) {
+        session.readSucceeded();
+      }
+      final failures =
+          issues
+              .where((issue) => issue.read.service == session.id)
+              .map((issue) => issue.failure)
+              .toList()
+            ..sort((a, b) => a.index.compareTo(b.index));
+      if (failures.isNotEmpty) session.failed(failures.first);
+    }
+  }
+}
+
+HealthFailure _failureOf(Object error) {
+  if (error is TimeoutException) return HealthFailure.timeout;
+  if (error is http.ClientException) return HealthFailure.transport;
+  if (error is MediaApiException) {
+    return switch (error.statusCode) {
+      401 => HealthFailure.authentication,
+      403 => HealthFailure.permission,
+      final int status when status >= 500 => HealthFailure.server,
+      _ => HealthFailure.invalidResponse,
+    };
+  }
+  return HealthFailure.invalidResponse;
 }
 
 /// Everything the connected services already have, indexed for O(1)
 /// availability lookups. Rebuilt when any underlying connection changes.
 @riverpod
 Future<MediaLibraryIndex> mediaLibraryIndex(Ref ref) async {
+  final reads = _MediaReads();
   final jellyfin = ref.watch(jellyfinClientProvider);
   final sonarr = ref.watch(sonarrClientProvider);
   final radarr = ref.watch(radarrClientProvider);
 
   final results = await Future.wait([
-    _orEmpty<List<JellyfinItem>>(
+    reads.read<List<JellyfinItem>>(
+      const MediaReadKey(IntegrationId.jellyfin, MediaReadOperation.library),
+      jellyfin != null,
       () => jellyfin?.getAllMoviesAndSeries() ?? Future.value(const []),
       const [],
     ),
-    _orEmpty<List<ArrLibraryItem>>(
+    reads.read<List<ArrLibraryItem>>(
+      const MediaReadKey(IntegrationId.sonarr, MediaReadOperation.library),
+      sonarr != null,
       () => sonarr?.getLibrary() ?? Future.value(const []),
       const [],
     ),
-    _orEmpty<List<ArrLibraryItem>>(
+    reads.read<List<ArrLibraryItem>>(
+      const MediaReadKey(IntegrationId.radarr, MediaReadOperation.library),
+      radarr != null,
       () => radarr?.getLibrary() ?? Future.value(const []),
       const [],
     ),
-    _orEmpty<List<ArrQueueItem>>(
+    reads.read<List<ArrQueueItem>>(
+      const MediaReadKey(IntegrationId.sonarr, MediaReadOperation.queue),
+      sonarr != null,
       () => ref.watch(sonarrQueueProvider.future),
       const [],
     ),
-    _orEmpty<List<ArrQueueItem>>(
+    reads.read<List<ArrQueueItem>>(
+      const MediaReadKey(IntegrationId.radarr, MediaReadOperation.queue),
+      radarr != null,
       () => ref.watch(radarrQueueProvider.future),
       const [],
     ),
   ]);
 
+  reads.publish(ref, [
+    jellyfin?.healthSession,
+    sonarr?.healthSession,
+    radarr?.healthSession,
+  ]);
   return MediaLibraryIndex.build(
+    readIssues: reads.issues,
+    successfulReads: reads.successful,
     jellyfinItems: results[0] as List<JellyfinItem>,
     sonarrLibrary: results[1] as List<ArrLibraryItem>,
     radarrLibrary: results[2] as List<ArrLibraryItem>,
@@ -212,6 +289,7 @@ enum MediaRowId {
 
 @riverpod
 Future<List<MediaRowData>> mediaHubRows(Ref ref) async {
+  final reads = _MediaReads();
   final indexFuture = ref.watch(mediaLibraryIndexProvider.future);
   final jellyfin = ref.watch(jellyfinClientProvider);
   final jellyseerr = ref.watch(jellyseerrClientProvider);
@@ -222,31 +300,45 @@ Future<List<MediaRowData>> mediaHubRows(Ref ref) async {
       jellyfin?.imageUrl(id, type: type, tag: tag);
 
   final pendingResults = Future.wait([
-    _orEmpty<List<JellyfinItem>>(
+    reads.read<List<JellyfinItem>>(
+      const MediaReadKey(IntegrationId.jellyfin, MediaReadOperation.resume),
+      jellyfin != null,
       () => jellyfin?.getResumeItems() ?? Future.value(const []),
       const [],
     ),
-    _orEmpty<List<JellyfinItem>>(
+    reads.read<List<JellyfinItem>>(
+      const MediaReadKey(IntegrationId.jellyfin, MediaReadOperation.recent),
+      jellyfin != null,
       () => jellyfin?.getLatestItems() ?? Future.value(const []),
       const [],
     ),
-    _orEmpty<List<JellyseerrResult>>(
+    reads.read<List<JellyseerrResult>>(
+      const MediaReadKey(IntegrationId.jellyseerr, MediaReadOperation.trending),
+      jellyseerr != null,
       () => jellyseerr?.discoverTrending() ?? Future.value(const []),
       const [],
     ),
-    _orEmpty<List<ArrCalendarItem>>(
+    reads.read<List<ArrCalendarItem>>(
+      const MediaReadKey(IntegrationId.sonarr, MediaReadOperation.calendar),
+      sonarr != null,
       () => sonarr?.getCalendar() ?? Future.value(const []),
       const [],
     ),
-    _orEmpty<List<ArrCalendarItem>>(
+    reads.read<List<ArrCalendarItem>>(
+      const MediaReadKey(IntegrationId.radarr, MediaReadOperation.calendar),
+      radarr != null,
       () => radarr?.getCalendar() ?? Future.value(const []),
       const [],
     ),
-    _orEmpty<List<ArrQueueItem>>(
+    reads.read<List<ArrQueueItem>>(
+      const MediaReadKey(IntegrationId.sonarr, MediaReadOperation.queue),
+      sonarr != null,
       () => ref.watch(sonarrQueueProvider.future),
       const [],
     ),
-    _orEmpty<List<ArrQueueItem>>(
+    reads.read<List<ArrQueueItem>>(
+      const MediaReadKey(IntegrationId.radarr, MediaReadOperation.queue),
+      radarr != null,
       () => ref.watch(radarrQueueProvider.future),
       const [],
     ),
@@ -256,6 +348,7 @@ Future<List<MediaRowData>> mediaHubRows(Ref ref) async {
   // together; a large library must not delay the first request elsewhere.
   final completed = await Future.wait<Object>([indexFuture, pendingResults]);
   final index = completed[0] as MediaLibraryIndex;
+  reads.include(index);
   final results = completed[1] as List<dynamic>;
 
   List<MediaTitle> fromJellyfin(List<JellyfinItem> items) => dedupeTitles(
@@ -328,7 +421,17 @@ Future<List<MediaRowData>> mediaHubRows(Ref ref) async {
     MediaRowData(id: MediaRowId.downloading, titles: downloading),
   ];
 
-  return rows.where((row) => row.titles.isNotEmpty).toList();
+  reads.publish(ref, [
+    jellyfin?.healthSession,
+    jellyseerr?.healthSession,
+    sonarr?.healthSession,
+    radarr?.healthSession,
+  ]);
+  return MediaReadList(
+    rows.where((row) => row.titles.isNotEmpty),
+    issues: reads.issues,
+    successfulReads: reads.successful,
+  );
 }
 
 /// Unified search: the library and the requestable catalogue at once,
@@ -336,6 +439,7 @@ Future<List<MediaRowData>> mediaHubRows(Ref ref) async {
 @riverpod
 Future<List<MediaTitle>> mediaSearch(Ref ref, String query) async {
   if (query.trim().isEmpty) return const [];
+  final reads = _MediaReads();
 
   final indexFuture = ref.watch(mediaLibraryIndexProvider.future);
   final jellyfin = ref.watch(jellyfinClientProvider);
@@ -344,21 +448,29 @@ Future<List<MediaTitle>> mediaSearch(Ref ref, String query) async {
   final radarr = ref.watch(radarrClientProvider);
 
   final pendingResults = Future.wait([
-    _orEmpty<List<JellyfinItem>>(
+    reads.read<List<JellyfinItem>>(
+      const MediaReadKey(IntegrationId.jellyfin, MediaReadOperation.search),
+      jellyfin != null,
       () => jellyfin?.search(query) ?? Future.value(const []),
       const [],
     ),
-    _orEmpty<List<JellyseerrResult>>(
+    reads.read<List<JellyseerrResult>>(
+      const MediaReadKey(IntegrationId.jellyseerr, MediaReadOperation.search),
+      jellyseerr != null,
       () => jellyseerr?.search(query) ?? Future.value(const []),
       const [],
     ),
-    _orEmpty<List<ArrLookupResult>>(
+    reads.read<List<ArrLookupResult>>(
+      const MediaReadKey(IntegrationId.sonarr, MediaReadOperation.search),
+      jellyseerr == null && sonarr != null,
       () => jellyseerr == null && sonarr != null
           ? sonarr.lookup(query)
           : Future.value(const []),
       const [],
     ),
-    _orEmpty<List<ArrLookupResult>>(
+    reads.read<List<ArrLookupResult>>(
+      const MediaReadKey(IntegrationId.radarr, MediaReadOperation.search),
+      jellyseerr == null && radarr != null,
       () => jellyseerr == null && radarr != null
           ? radarr.lookup(query)
           : Future.value(const []),
@@ -370,11 +482,12 @@ Future<List<MediaTitle>> mediaSearch(Ref ref, String query) async {
   // together; a large library must not delay the first request elsewhere.
   final completed = await Future.wait<Object>([indexFuture, pendingResults]);
   final index = completed[0] as MediaLibraryIndex;
+  reads.include(index);
   final results = completed[1] as List<dynamic>;
 
   // Library hits lead: something already playable is almost always what
   // the user meant, and deduping keeps the first occurrence.
-  return dedupeTitles(
+  final titles = dedupeTitles(
     [
       ...(results[0] as List<JellyfinItem>)
           .map(
@@ -400,6 +513,17 @@ Future<List<MediaTitle>> mediaSearch(Ref ref, String query) async {
         (item) => mediaTitleFromArrLookup(item, MediaKind.movie),
       ),
     ].map(index.enrich),
+  );
+  reads.publish(ref, [
+    jellyfin?.healthSession,
+    jellyseerr?.healthSession,
+    sonarr?.healthSession,
+    radarr?.healthSession,
+  ]);
+  return MediaReadList(
+    titles,
+    issues: reads.issues,
+    successfulReads: reads.successful,
   );
 }
 

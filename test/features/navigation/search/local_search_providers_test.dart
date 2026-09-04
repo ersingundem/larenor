@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:larenor/features/dashboard/domain/dashboard_layout.dart';
@@ -8,6 +10,8 @@ import 'package:larenor/features/ha_client/providers/ha_client_providers.dart';
 import 'package:larenor/features/keenetic/data/keenetic_config.dart';
 import 'package:larenor/features/keenetic/providers/keenetic_providers.dart';
 import 'package:larenor/features/media/hub/domain/media_library_index.dart';
+import 'package:larenor/features/media/hub/domain/media_identity.dart';
+import 'package:larenor/features/media/hub/domain/media_title.dart';
 import 'package:larenor/features/media/hub/providers/media_catalog_providers.dart';
 import 'package:larenor/features/media/jellyfin/data/models/jellyfin_item.dart';
 import 'package:larenor/features/navigation/search/domain/local_search_index.dart';
@@ -29,7 +33,108 @@ class _Enabled extends EnabledServices {
   void publish(Set<AppService> value) => state = AsyncData(value);
 }
 
+final _accountProvider = NotifierProvider<_Account, int>(_Account.new);
+
+class _Account extends Notifier<int> {
+  @override
+  int build() => 0;
+  void change() => state++;
+}
+
+class _AccountEntities extends Entities {
+  _AccountEntities(this.next);
+  final Completer<Map<String, HaEntity>> next;
+  @override
+  Future<Map<String, HaEntity>> build() async =>
+      ref.watch(_accountProvider) == 0
+      ? {
+          'light.old': const HaEntity(
+            entityId: 'light.old',
+            state: 'on',
+            attributes: {'friendly_name': 'Old private lamp'},
+          ),
+        }
+      : next.future;
+}
+
 void main() {
+  test('account reload hides old media and HA caches until the new snapshot resolves', () async {
+    final nextEntities = Completer<Map<String, HaEntity>>();
+    final nextLibrary = Completer<MediaLibraryIndex>();
+    final nextRows = Completer<List<MediaRowData>>();
+    final container = ProviderContainer(
+      overrides: [
+        entitiesProvider.overrideWith(() => _AccountEntities(nextEntities)),
+        mediaLibraryIndexProvider.overrideWith((ref) async {
+          if (ref.watch(_accountProvider) == 0) {
+            return MediaLibraryIndex.build(
+              jellyfinItems: [
+                const JellyfinItem(
+                  id: 'old-local',
+                  name: 'Old private movie',
+                  type: 'Movie',
+                ),
+              ],
+            );
+          }
+          return nextLibrary.future;
+        }),
+        mediaHubRowsProvider.overrideWith((ref) async {
+          if (ref.watch(_accountProvider) == 0) {
+            return const [
+              MediaRowData(
+                id: MediaRowId.trending,
+                titles: [
+                  MediaTitle(
+                    identity: MediaIdentity(kind: MediaKind.movie, tmdbId: 2),
+                    title: 'Old private catalog',
+                    availability: MediaAvailability.notAvailable,
+                  ),
+                ],
+              ),
+            ];
+          }
+          return nextRows.future;
+        }),
+      ],
+    );
+    addTearDown(container.dispose);
+    container.listen(entitiesProvider, (_, _) {});
+    container.listen(mediaLibraryIndexProvider, (_, _) {});
+    container.listen(mediaHubRowsProvider, (_, _) {});
+    await container.read(entitiesProvider.future);
+    await container.read(mediaLibraryIndexProvider.future);
+    await container.read(mediaHubRowsProvider.future);
+    container.listen(localSearchIndexProvider, (_, _) {});
+    expect(
+      container.read(localSearchIndexProvider).search('private'),
+      hasLength(3),
+    );
+    container.read(_accountProvider.notifier).change();
+    await container.pump();
+    expect(container.read(entitiesProvider).isReloading, isTrue);
+    expect(container.read(mediaLibraryIndexProvider).isReloading, isTrue);
+    expect(container.read(mediaHubRowsProvider).isReloading, isTrue);
+    expect(container.read(localSearchIndexProvider).search('private'), isEmpty);
+    nextEntities.complete({
+      'light.new': const HaEntity(
+        entityId: 'light.new',
+        state: 'off',
+        attributes: {'friendly_name': 'New lamp'},
+      ),
+    });
+    nextLibrary.complete(MediaLibraryIndex.empty);
+    nextRows.complete([]);
+    await container.read(entitiesProvider.future);
+    await container.read(mediaLibraryIndexProvider.future);
+    await container.read(mediaHubRowsProvider.future);
+    expect(container.read(localSearchIndexProvider).search('private'), isEmpty);
+    expect(
+      container.read(localSearchIndexProvider).search('new lamp').single.id,
+      'entity:light.new',
+    );
+  });
+
   test('opening and querying cold caches never initializes connections or catalogs', () {
     var coldReads = 0;
     final container = ProviderContainer(

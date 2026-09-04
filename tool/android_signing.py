@@ -202,10 +202,16 @@ def build_tool(name):
 
 
 def validate_apk_output(signature_output, badging_output, expected, expected_code):
+    signature_output = "\n".join(signature_output.splitlines())
     certificates = re.findall(r"^Signer #\d+ certificate SHA-256 digest: ([a-fA-F0-9:]+)$",
                               signature_output, re.MULTILINE)
-    if len(certificates) != 1 or normalized_fingerprint(certificates[0]) != normalized_fingerprint(expected):
-        raise SigningError("Release APK is not signed only by the pinned release certificate.")
+    if len(certificates) != 1:
+        raise SigningError(f"Expected one APK signing certificate; verifier reported {len(certificates)} recognized records.")
+    if normalized_fingerprint(certificates[0]) != normalized_fingerprint(expected):
+        # Certificates are public integrity metadata. Only emit a validated hex
+        # digest, never raw tool output, private keys or environment values.
+        raise SigningError("APK certificate differs from the pinned release identity; observed SHA-256: "
+                           + normalized_fingerprint(certificates[0]))
     if re.search(r"^Signer #\d+ certificate DN:.*CN=Android Debug(?:,|$)", signature_output, re.MULTILINE | re.IGNORECASE):
         raise SigningError("Android debug signing certificates are forbidden for release artifacts.")
     package = re.search(r"^package: name='([^']+)' versionCode='([0-9]+)' versionName='([^']*)'", badging_output, re.MULTILINE)
@@ -216,12 +222,20 @@ def validate_apk_output(signature_output, badging_output, expected, expected_cod
     return package[3]
 
 
+def file_sha256(path):
+    # hashlib.file_digest requires Python 3.11; macOS may still provide 3.9.
+    digest = hashlib.sha256()
+    with path.open("rb") as stream:
+        for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
 def verify_apk(apk, expected, expected_code, output):
     signature = run([build_tool("apksigner"), "verify", "--verbose", "--print-certs", str(apk)]).decode()
     badging = run([build_tool("aapt"), "dump", "badging", str(apk)]).decode()
     version_name = validate_apk_output(signature, badging, expected, expected_code)
-    with apk.open("rb") as stream:
-        apk_hash = hashlib.file_digest(stream, "sha256").hexdigest()
+    apk_hash = file_sha256(apk)
     metadata = {
         "applicationId": "com.ersingundem.larenor",
         "versionName": version_name,

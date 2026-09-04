@@ -58,7 +58,7 @@ class LocalSearchIndexController extends Notifier<LocalSearchIndex> {
             entitiesProvider.select(
               (states) => _EntityNames({
                 for (final entry
-                    in states.value?.entries ??
+                    in _visibleCache(states)?.entries ??
                         const <MapEntry<String, HaEntity>>[])
                   entry.key: entry.value.friendlyName,
               }),
@@ -72,10 +72,10 @@ class LocalSearchIndexController extends Notifier<LocalSearchIndex> {
               const <DashboardRoom>[]
         : const <DashboardRoom>[];
     final library = ref.exists(mediaLibraryIndexProvider)
-        ? ref.watch(mediaLibraryIndexProvider).value
+        ? _visibleCache(ref.watch(mediaLibraryIndexProvider))
         : null;
     final rows = ref.exists(mediaHubRowsProvider)
-        ? ref.watch(mediaHubRowsProvider).value
+        ? _visibleCache(ref.watch(mediaHubRowsProvider))
         : null;
     final services = _availableCachedServices();
     // Refreshing the passive cache view never renormalizes a 5000-entity
@@ -190,3 +190,9 @@ final localSearchResultsProvider = Provider.autoDispose
     .family<List<LocalSearchItem>, String>((ref, query) {
       return ref.watch(localSearchIndexProvider).search(query);
     });
+
+// Dependency reloads can represent another server/account. AsyncValue keeps
+// the previous value while loading; never expose that value through Search.
+// An explicit refresh of the same source may keep its useful cached results.
+T? _visibleCache<T>(AsyncValue<T> value) =>
+    value.isReloading ? null : value.value;

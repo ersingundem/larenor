@@ -729,5 +729,51 @@
   "navigationNoRoutines": "Kullanılabilir sahne veya betik yok.",
   "navigationDestinationMissing": "Bu öğe artık kullanılamıyor.",
   "navigationSavedConnection": "Kayıtlı bağlantı",
-  "navigationSearch": "Ara"
+  "navigationSearch": "Ara",
+  "healthNotVerified": "Henüz doğrulanmadı",
+  "healthConnecting": "Bağlanıyor…",
+  "healthReachable": "Sunucu yanıtladı; veriler henüz doğrulanmadı",
+  "healthReadCurrent": "Veriler başarıyla okundu",
+  "healthReadStale": "Son okuma güncelliğini yitirdi",
+  "healthRetrying": "Bağlantı yeniden deneniyor",
+  "healthUnavailable": "Servise ulaşılamıyor",
+  "healthAuthenticationRequired": "Yeniden giriş gerekli",
+  "healthPermissionDenied": "Erişim izni gerekli",
+  "healthReadError": "Servis verileri okunamadı",
+  "healthLastSuccessfulRead": "Son başarılı okuma: {time}",
+  "@healthLastSuccessfulRead": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "mediaReadPartialTitle": "Bazı medya kaynakları okunamadı",
+  "mediaReadPartialMessage": "Erişilebilen içerik gösteriliyor. Kütüphane ve katalog bilgileri eksik olabilir.",
+  "mediaReadFailedTitle": "Medya doğrulanamadı",
+  "mediaReadFailedMessage": "Bu durum kütüphanenin boş olduğu anlamına gelmez. Bağlantıları kontrol edip tekrar deneyebilirsin.",
+  "actionSending": "İstek gönderiliyor",
+  "actionAccepted": "Home Assistant isteği kabul etti",
+  "actionAwaitingState": "İstek kabul edildi · durum bekleniyor",
+  "actionStateObserved": "Home Assistant istenen durumu bildirdi",
+  "actionFailed": "İstek tamamlanamadı",
+  "actionUnknown": "Sonuç doğrulanamadı. Tekrar denemeden önce cihazı kontrol et.",
+  "actionAlreadyPending": "Bu cihaz için devam eden bir istek var.",
+  "actionLastRequest": "Son istek · {time}",
+  "@actionLastRequest": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "navigationNoServices": "Henüz ek servis yapılandırılmadı.",
+  "climateCurrentReading": "Ölçülen: {value}",
+  "@climateCurrentReading": {
+    "placeholders": {
+      "value": {
+        "type": "String"
+      }
+    }
+  }
 }

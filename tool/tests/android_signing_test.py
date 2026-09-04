@@ -1,5 +1,6 @@
 import base64
 import json
+import hashlib
 from pathlib import Path
 import stat
 import sys
@@ -11,7 +12,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from android_signing import (ANDROID_MAX_VERSION, ROOT, SECRET_NAMES, VERSION_BASE,
                              SigningError, normalized_fingerprint, prepare_ci,
                              private_write, properties_value, provision,
-                             secret_status, upload, validate_apk_output, version_code)
+                             secret_status, upload, validate_apk_output, version_code, file_sha256)
 from check_security_policy import validate_signed_android_workflow
 
 FINGERPRINT = "ab" * 32
@@ -110,6 +111,7 @@ class AndroidSigningTest(unittest.TestCase):
         signature = f"Signer #1 certificate SHA-256 digest: {FINGERPRINT}\n"
         badging = "package: name='com.ersingundem.larenor' versionCode='100000001' versionName='1.0.0'\n"
         self.assertEqual(validate_apk_output(signature, badging, FINGERPRINT, version_code("1")), "1.0.0")
+        self.assertEqual(validate_apk_output(signature.replace("\n", "\r\n"), badging, FINGERPRINT, version_code("1")), "1.0.0")
         cases = [
             (signature, badging + "application-debuggable\n"),
             (signature, badging.replace("100000001", "1")),
@@ -121,6 +123,13 @@ class AndroidSigningTest(unittest.TestCase):
         for signer, manifest in cases:
             with self.assertRaises(SigningError):
                 validate_apk_output(signer, manifest, FINGERPRINT, version_code("1"))
+
+    def test_streaming_apk_digest_crosses_chunk_boundary(self):
+        with tempfile.TemporaryDirectory() as raw:
+            apk = Path(raw) / "fixture.apk"
+            payload = b"fixture" * 200_000
+            apk.write_bytes(payload)
+            self.assertEqual(file_sha256(apk), hashlib.sha256(payload).hexdigest())
 
     def test_signing_workflow_rejects_untrusted_missing_cleanup_or_broad_artifacts(self):
         workflow = (ROOT / ".github/workflows/android-build.yml").read_text()

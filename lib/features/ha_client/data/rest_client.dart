@@ -4,6 +4,9 @@ import 'dart:typed_data';
 
 import 'package:http/http.dart' as http;
 
+import '../../../shared/network/transport_observation.dart';
+import '../../health/data/health_monitor.dart';
+
 import 'ha_api_exception.dart';
 import 'ha_endpoint.dart';
 import 'models/ha_entity.dart';
@@ -17,6 +20,8 @@ class HaRestClient {
     required this.token,
     http.Client? httpClient,
     this.requestTimeout = const Duration(seconds: 30),
+    this.observer,
+    this.healthSession,
   }) : baseUrl = normalizeHaBaseUrl(baseUrl),
        _client = httpClient ?? http.Client();
 
@@ -24,6 +29,8 @@ class HaRestClient {
   final String token;
   final Duration requestTimeout;
   final http.Client _client;
+  final TransportObserver? observer;
+  final HealthSession? healthSession;
 
   Future<bool> checkConnection() async {
     final result = _object(await getJson('/api/'));
@@ -329,21 +336,55 @@ class HaRestClient {
       request.body = jsonEncode(body);
     }
     final http.Response response;
+    final isRead = {'GET', 'HEAD'}.contains(verb);
     try {
-      response = await (() async => http.Response.fromStream(
-        await _client.send(request),
-      ))().timeout(requestTimeout);
+      response = await (() async {
+        final streamed = await _client.send(request);
+        notifyTransport(
+          observer,
+          TransportObservation(
+            kind: TransportObservationKind.response,
+            isRead: isRead,
+            statusCode: streamed.statusCode,
+          ),
+        );
+        return http.Response.fromStream(streamed);
+      })().timeout(requestTimeout);
     } on TimeoutException {
+      notifyTransport(
+        observer,
+        TransportObservation(
+          kind: TransportObservationKind.failed,
+          isRead: isRead,
+          failure: TransportFailure.timeout,
+        ),
+      );
       throw HaApiException(
         'Home Assistant request timed out.',
         code: 'timeout',
       );
     } on http.ClientException {
+      notifyTransport(
+        observer,
+        TransportObservation(
+          kind: TransportObservationKind.failed,
+          isRead: isRead,
+          failure: TransportFailure.connection,
+        ),
+      );
       throw HaApiException(
         'Could not reach Home Assistant.',
         code: 'connection_error',
       );
     }
+    notifyTransport(
+      observer,
+      TransportObservation(
+        kind: TransportObservationKind.completed,
+        isRead: isRead,
+        statusCode: response.statusCode,
+      ),
+    );
     if (response.statusCode < 200 || response.statusCode >= 300) {
       throw HaApiException(
         _errorMessage(response),

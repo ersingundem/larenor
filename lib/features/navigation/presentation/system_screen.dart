@@ -6,10 +6,13 @@ import '../../../l10n/generated/app_localizations.dart';
 import '../../../shared/widgets/app_page_scaffold.dart';
 import '../../../shared/widgets/brand_icon.dart';
 import '../../../shared/widgets/icon_badge.dart';
+import '../../../shared/widgets/integration_health_status.dart';
 import '../../../shared/widgets/operational_service_scope.dart';
 import '../../../shared/widgets/service_root_scaffold.dart';
 import '../../../shared/widgets/settings_section.dart';
 import '../../keenetic/presentation/keenetic_home_screen.dart';
+import '../../auth/providers/auth_providers.dart';
+import '../../health/data/integration_health.dart';
 import '../../media/arr/presentation/lidarr_screen.dart';
 import '../../media/arr/presentation/radarr_screen.dart';
 import '../../media/arr/presentation/readarr_screen.dart';
@@ -60,6 +63,7 @@ class SystemScreen extends ConsumerWidget {
             largeTitle: Text(l10n.navigationSystem),
             trailing: const AppShellActions(),
           ),
+          const SliverToBoxAdapter(child: _HomeAssistantHealthCard()),
           if (enabled.hasError)
             SliverToBoxAdapter(
               child: _ConnectionMessage(
@@ -70,6 +74,7 @@ class SystemScreen extends ConsumerWidget {
           if (services.isNotEmpty)
             SliverToBoxAdapter(
               child: SettingsSection(
+                header: Text(l10n.settingsCategoryIntegrations),
                 children: [
                   for (final service in services)
                     CupertinoListTile(
@@ -81,15 +86,7 @@ class SystemScreen extends ConsumerWidget {
                               color: CupertinoColors.systemGreen,
                             ),
                       title: Text(serviceDisplayName(service)),
-                      subtitle: Text(
-                        connections[service]!.isLoading
-                            ? l10n.commonLoading
-                            : connections[service]!.hasError
-                            ? l10n.commonError
-                            : connections[service]!.value == true
-                            ? l10n.navigationSavedConnection
-                            : l10n.navigationUnconfigured,
-                      ),
+                      subtitle: SavedServiceHealthStatus(service: service),
                       trailing: const CupertinoListTileChevron(),
                       onTap: () => context.push('/system/${service.name}'),
                     ),
@@ -101,7 +98,7 @@ class SystemScreen extends ConsumerWidget {
           else
             SliverFilledMessage(
               child: _ConnectionMessage(
-                message: l10n.navigationUnconfigured,
+                message: l10n.navigationNoServices,
                 showConfigure: true,
               ),
             ),
@@ -121,6 +118,37 @@ class SystemScreen extends ConsumerWidget {
   }
 }
 
+class _HomeAssistantHealthCard extends ConsumerWidget {
+  const _HomeAssistantHealthCard();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final connection = ref.watch(connectionConfigProvider);
+    final l10n = AppLocalizations.of(context);
+    return SettingsSection(
+      children: [
+        CupertinoListTile(
+          key: const ValueKey('system-home-assistant'),
+          leading: const IconBadge(
+            icon: CupertinoIcons.house_fill,
+            color: CupertinoColors.systemBlue,
+          ),
+          title: const Text('Home Assistant'),
+          subtitle: connection.isLoading
+              ? Text(l10n.commonLoading)
+              : connection.hasError
+              ? Text(l10n.commonError)
+              : IntegrationHealthStatus(
+                  id: IntegrationId.ha,
+                  configured: connection.value != null,
+                  compact: true,
+                ),
+        ),
+      ],
+    );
+  }
+}
+
 /// This guard is above every operational widget: a missing, loading or failed
 /// saved connection must never fall through to a service's inline setup form.
 class OperationalServiceScreen extends ConsumerWidget {
@@ -136,6 +164,7 @@ class OperationalServiceScreen extends ConsumerWidget {
         !connection.hasError &&
         connection.value == true) {
       return OperationalServiceScope(
+        status: ServiceHealthBanner(service: service),
         child: switch (service) {
           AppService.jellyfin => const JellyfinHomeScreen(),
           AppService.jellyseerr => const JellyseerrHomeScreen(),

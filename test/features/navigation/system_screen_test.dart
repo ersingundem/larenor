@@ -4,6 +4,7 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:larenor/features/keenetic/data/keenetic_config.dart';
+import 'package:larenor/features/health/providers/health_providers.dart';
 import 'package:larenor/features/keenetic/providers/keenetic_providers.dart';
 import 'package:larenor/features/media/arr/providers/lidarr_providers.dart';
 import 'package:larenor/features/media/arr/providers/radarr_providers.dart';
@@ -133,6 +134,16 @@ Future<GoRouter> _show(
   return router;
 }
 
+Future<void> _close(WidgetTester tester, ProviderContainer container) async {
+  // This fixture owns its container separately from the widget tree. Unmount
+  // within the test zone so auto-disposed UI clocks can stop before invariants.
+  await tester.pumpWidget(
+    UncontrolledProviderScope(container: container, child: const SizedBox()),
+  );
+  await tester.pumpAndSettle();
+  expect(container.exists(healthClockProvider), isFalse);
+}
+
 void main() {
   setUp(() {
     SharedPreferences.setMockInitialValues({'enabled_services_migrated': true});
@@ -156,7 +167,13 @@ void main() {
       expect(find.byKey(const ValueKey('system-keenetic')), findsOneWidget);
       expect(find.byKey(const ValueKey('system-jellyfin')), findsNothing);
       expect(find.text('Saved connection'), findsOneWidget);
-      expect(find.text('No saved connection'), findsOneWidget);
+      expect(
+        find.descendant(
+          of: find.byKey(const ValueKey('system-keenetic')),
+          matching: find.text('No saved connection'),
+        ),
+        findsOneWidget,
+      );
       expect([
         container.exists(jellyfinClientProvider),
         container.exists(jellyseerrClientProvider),
@@ -171,6 +188,7 @@ void main() {
         container.exists(keeneticClientProvider),
       ], everyElement(isFalse));
       expect(find.textContaining('server.invalid'), findsNothing);
+      await _close(tester, container);
     },
   );
 
@@ -193,6 +211,7 @@ void main() {
         await tester.pumpAndSettle();
         expect(find.text('Unlock'), findsOneWidget);
         expect(find.text('Integrations'), findsNothing);
+        await _close(tester, container);
       },
     );
   }
@@ -225,6 +244,7 @@ void main() {
             .value,
         isFalse,
       );
+      await _close(tester, container);
     },
   );
 
@@ -254,6 +274,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(connection.reads, 2);
     expect(find.text('Proxmox VE'), findsWidgets);
+    await _close(tester, container);
   });
 
   for (final service in [
@@ -303,6 +324,7 @@ void main() {
           proxmox.signOutCalls + keenetic.signOutCalls + jellyfin.signOutCalls,
           0,
         );
+        await _close(tester, container);
       },
     );
   }
@@ -329,6 +351,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.byKey(const ValueKey('system-proxmox')), findsOneWidget);
       expect(tester.takeException(), isNull);
+      await _close(tester, container);
     },
   );
 }

@@ -353,10 +353,8 @@ void main() {
         http.Response('{"message":"Device rejected the command"}', 400),
       );
       await tester.pumpAndSettle();
-      expect(
-        find.textContaining('Device rejected the command'),
-        findsOneWidget,
-      );
+      expect(find.text('The request could not be completed'), findsOneWidget);
+      expect(find.textContaining('Device rejected the command'), findsNothing);
       expect(
         tester
             .widget<CupertinoButton>(

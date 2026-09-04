@@ -1,5 +1,8 @@
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
+import '../../../health/data/integration_health.dart';
+import '../../../health/providers/health_providers.dart';
+
 import '../data/jellyseerr_client.dart';
 import '../data/jellyseerr_config.dart';
 import '../data/jellyseerr_credentials_store.dart';
@@ -35,8 +38,12 @@ class JellyseerrConnection extends _$JellyseerrConnection {
 @riverpod
 JellyseerrClient? jellyseerrClient(Ref ref) {
   final config = ref.watch(jellyseerrConnectionProvider).value;
+  final health = ref
+      .watch(healthMonitorProvider)
+      .bind(IntegrationId.jellyseerr, configured: config != null);
+  ref.onDispose(health.close);
   if (config == null) return null;
-  final client = JellyseerrClient(config: config);
+  final client = JellyseerrClient(config: config, healthSession: health);
   ref.onDispose(client.dispose);
   return client;
 }

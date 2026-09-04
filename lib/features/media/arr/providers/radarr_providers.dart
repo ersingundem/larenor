@@ -1,5 +1,8 @@
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
+import '../../../health/data/integration_health.dart';
+import '../../../health/providers/health_providers.dart';
+
 import '../data/arr_client.dart';
 import '../data/arr_config.dart';
 import '../data/arr_credentials_store.dart';
@@ -39,9 +42,14 @@ class RadarrConnection extends _$RadarrConnection {
 @riverpod
 ArrClient? radarrClient(Ref ref) {
   final config = ref.watch(radarrConnectionProvider).value;
+  final health = ref
+      .watch(healthMonitorProvider)
+      .bind(IntegrationId.radarr, configured: config != null);
+  ref.onDispose(health.close);
   if (config == null) return null;
   final client = ArrClient(
     config: config,
+    healthSession: health,
     resourcePath: 'movie',
     idFieldName: 'tmdbId',
   );
@@ -60,5 +68,7 @@ Future<List<ArrCalendarItem>> radarrCalendar(Ref ref) async {
 Future<List<ArrQueueItem>> radarrQueue(Ref ref) async {
   final client = ref.watch(radarrClientProvider);
   if (client == null) return [];
-  return client.getQueue();
+  final items = await client.getQueue();
+  if (ref.mounted) client.healthSession?.readSucceeded();
+  return items;
 }

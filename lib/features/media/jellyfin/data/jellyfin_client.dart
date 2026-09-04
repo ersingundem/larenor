@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 
 import '../../../../shared/network/server_bound_client.dart';
+import '../../../health/data/health_monitor.dart';
 
 import '../../data/media_api_exception.dart';
 import 'jellyfin_config.dart';
@@ -28,11 +29,19 @@ class JellyfinPlaybackSource {
 /// its own API surface, so this mirrors the same "hand-roll for control"
 /// approach already used for the Home Assistant client.
 class JellyfinClient {
-  JellyfinClient({required this.config, http.Client? httpClient})
-    : _client = ServerBoundClient(baseUrl: config.baseUrl, inner: httpClient),
-      _baseUri = parseServerUrl(config.baseUrl);
+  JellyfinClient({
+    required this.config,
+    http.Client? httpClient,
+    this.healthSession,
+  }) : _client = ServerBoundClient(
+         baseUrl: config.baseUrl,
+         inner: httpClient,
+         observer: healthSession?.observeTransport,
+       ),
+       _baseUri = parseServerUrl(config.baseUrl);
 
   final JellyfinConfig config;
+  final HealthSession? healthSession;
   final http.Client _client;
   final Uri _baseUri;
 
@@ -93,7 +102,10 @@ class JellyfinClient {
           .timeout(const Duration(seconds: 15));
 
       if (response.statusCode != 200) {
-        throw MediaApiException('Login failed (${response.statusCode}).');
+        throw MediaApiException(
+          'Login failed (${response.statusCode}).',
+          statusCode: response.statusCode,
+        );
       }
 
       final body = decodeServerJson(response.body) as Map<String, dynamic>;
@@ -186,7 +198,7 @@ class JellyfinClient {
           .timeout(const Duration(seconds: 15));
       _checkOk(response);
       final body = decodeServerJson(response.body) as Map<String, dynamic>;
-      final page = _parseItemList(body['Items'] as List<dynamic>? ?? []);
+      final page = _parseItemList(body['Items'] as List<dynamic>);
       final unique = page.where((item) => seen.add(item.id)).toList();
       items.addAll(unique);
       startIndex += page.length;
@@ -420,9 +432,7 @@ class JellyfinClient {
   Future<List<JellyfinItem>> _parseItemsEnvelope(http.Response response) {
     _checkOk(response);
     final body = decodeServerJson(response.body) as Map<String, dynamic>;
-    return Future.value(
-      _parseItemList(body['Items'] as List<dynamic>? ?? const []),
-    );
+    return Future.value(_parseItemList(body['Items'] as List<dynamic>));
   }
 
   List<JellyfinItem> _parseItemList(List<dynamic> raw) {
@@ -433,7 +443,10 @@ class JellyfinClient {
 
   void _checkOk(http.Response response) {
     if (response.statusCode < 200 || response.statusCode >= 300) {
-      throw MediaApiException('Request failed (${response.statusCode}).');
+      throw MediaApiException(
+        'Request failed (${response.statusCode}).',
+        statusCode: response.statusCode,
+      );
     }
   }
 

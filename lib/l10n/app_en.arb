@@ -1050,5 +1050,51 @@
   "navigationNoRoutines": "No scenes or scripts are available.",
   "navigationDestinationMissing": "This item is no longer available.",
   "navigationSavedConnection": "Saved connection",
-  "navigationSearch": "Search"
+  "navigationSearch": "Search",
+  "healthNotVerified": "Not yet verified",
+  "healthConnecting": "Connecting…",
+  "healthReachable": "Server responded; data not yet verified",
+  "healthReadCurrent": "Data read successfully",
+  "healthReadStale": "Last read is out of date",
+  "healthRetrying": "Retrying connection",
+  "healthUnavailable": "Unable to reach service",
+  "healthAuthenticationRequired": "Sign-in required",
+  "healthPermissionDenied": "Permission required",
+  "healthReadError": "Could not read service data",
+  "healthLastSuccessfulRead": "Last successful read: {time}",
+  "@healthLastSuccessfulRead": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "mediaReadPartialTitle": "Some media sources could not be read",
+  "mediaReadPartialMessage": "Available content is shown. Library and catalog information may be incomplete.",
+  "mediaReadFailedTitle": "Media could not be verified",
+  "mediaReadFailedMessage": "This does not mean your library is empty. Check the connections and retry.",
+  "actionSending": "Sending request",
+  "actionAccepted": "Home Assistant accepted the request",
+  "actionAwaitingState": "Request accepted · waiting for state",
+  "actionStateObserved": "Requested state reported by Home Assistant",
+  "actionFailed": "The request could not be completed",
+  "actionUnknown": "Result not confirmed. Check the device before retrying.",
+  "actionAlreadyPending": "A request is already pending for this device.",
+  "actionLastRequest": "Last request · {time}",
+  "@actionLastRequest": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "navigationNoServices": "No optional services configured.",
+  "climateCurrentReading": "Current: {value}",
+  "@climateCurrentReading": {
+    "placeholders": {
+      "value": {
+        "type": "String"
+      }
+    }
+  }
 }

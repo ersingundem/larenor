@@ -325,6 +325,25 @@ list, so the app stays uncluttered no matter how many services exist:
   first transition from a differently signed debug installation needs a backup.
   [Vault details](docs/configuration-vault.md).
 
+### Connection and request evidence
+
+- System, integration settings and daily service screens separate saved
+  configuration, server contact, parsed data, stale data and authentication or
+  permission failures. Displaying status does not launch probes to every server.
+- Home Assistant, Jellyfin, Jellyseerr, Sonarr and Radarr report reads through a
+  shared monitor. Other services remain unverified until an instrumented read
+  supplies evidence; a saved token never becomes a green online indicator.
+- Media source errors retain usable partial results and identify incomplete
+  sources. A failed read is not presented as an empty library. Account replacement
+  clears old connection evidence, media search snapshots and action receipts.
+- Entity controls distinguish sending, server acceptance, matching state reported
+  by HA, rejection and uncertain results. Per-device guards block duplicate
+  pending actions; commands are never automatically retried or queued offline.
+  Matching a reported state does not prove a physical change or its cause. Scenes
+  and actions without an observable predicate show server acceptance only.
+- Receipt history is bounded and kept in memory without command payloads or
+  credentials. Last-request timestamps prevent old results appearing current.
+
 ### Performance, stability and security
 
 - Dashboard subscriptions isolate room structure, summary counts and individual

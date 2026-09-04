@@ -4,7 +4,7 @@
 
 ## Uygulama takibi
 
-- [x] 0. Şifreli yapılandırma kasası ve imzalı CI altyapısı — 620 Flutter / 17 Python testi geçti; gerçek cihaz ve ilk signed CI APK doğrulaması bekliyor.
+- [x] 0. Şifreli yapılandırma kasası — 620 Flutter / 17 Python testi geçti. Kalıcı imza CI altyapısı eklendi; ilk release APK derlendi, sertifika kontrolü araştırılıyor. Gerçek cihaz kabulü bekliyor.
 - [x] 1. Ortak gezinme ve arama — 50 yönlendirme/arama/sistem/rutin testi geçti; oda/kaydırma ve pencere boyutu geçişi doğrulandı.
 - [ ] 2. Bağlantı ve işlem durumları — sürüyor.
 - [ ] 3. Bugün: listeler, takvim, bildirimler.
@@ -18,6 +18,10 @@
 - [ ] 11. Uygulama içinde müzik merkezi; Music Assistant sunucu motorunun Android uyumluluk değerlendirmesi, üyelik sağlayıcılarının izin verdiği işlevler.
 - [ ] 12. Kilit ekranı medya bilgisi/kontrolleri, aktif oynatmada arka plan servisi, bildirim ve güç ayarları.
 - [ ] 13. Samsung DeX: değişken pencere boyutu, harici dokunmatik monitör, klavye/fare odağı, çoklu pencere yaşam döngüsü.
+- [ ] 14. Kişisel sağlık/tartı verileri: Apple Health, Health Connect, Huawei Health, Xiaomi/Mi Fitness ve üretici/HA yolları; platform desteği ve izinlere göre.
+- [ ] 15. Fully Kiosk Browser kapsamı: resmi özellik matrisi, kiosk/web paneli, yönetici kilidi, otomatik açılış, ekran/boşta davranışı ve uzaktan yönetim; cihaz sahibi yetkisi ve Huawei/DeX sınırlarıyla.
+- [ ] 16. Superapp fikirleri: diğer akıllı ev/dashboard/smart screen/medya projelerinin resmi kaynaklarla karşılaştırılması; seçilen fikirlerin mevcut aşamalara ve kabul testlerine bağlanması.
+- [ ] 17. İsteğe bağlı kamera/yüz özellikleri: anonim yaklaşma algılama ile ekran uyandırma, açık kayıt/izin ile kişisel görünüm; cihazda işleme ve silme, donanım/model lisansı/performans değerlendirmesi. Yüz tanıma tek başına yönetici veya kişisel sağlık erişim kilidi olmayacak.
 - [ ] Son GitHub frontend skill incelemesi, uçtan uca özellikler arası backend/frontend akış kontrolü, ortak tasarım, test/CI, ekran görüntülü README ve GitHub doğrulaması.
 
 Aşağıdaki araştırma önerileri bu teslimlerin gerekçesidir. Hesap/Assist ve yeni
@@ -31,12 +35,13 @@ okunur doğrulamayı ve resmi ürün/API kaynaklarını temel alır. Değer/efor
 
 ## Yeni öncelik: ayarları yeniden kurulumda koruma
 
-Kullanıcının tekrar token girme sorunu nedeniyle bu iş, yeni özelliklerden önce
-alınmalı. **Henüz uygulanmadı.** İki tamamlayıcı teslim önerilir:
+Kullanıcının tekrar token girme sorunu nedeniyle bu iş ilk aşamada uygulandı.
+Aşağıdaki tasarımın kod ve testleri `2170ce6` değişikliğinde bulunur; cihazda
+kaldır–kur doğrulaması bekler. İki tamamlayıcı teslim:
 
 1. **Kaldırmadan güncelleme:** aynı uygulama kimliği ve kalıcı imza anahtarıyla
-   APK üretmek; artan sürüm kodu. CI şu anda debug APK üretir, kalıcı signing key
-   saklamaz. Bu yüzden güncelleme uyumluluğu ayrıca çözülmeli. Mevcut kurulu
+   APK üretmek; artan sürüm kodu. CI için kalıcı imza anahtarı sağlandı ve debug/release işleri ayrıldı. İlk
+   release APK derlendi; son sertifika doğrulamasındaki hata araştırılıyor. Mevcut kurulu
    sürümün imzası ölçülmeden kullanıcıdaki kaldırma gereğinin nedeni kesin
    söylenemez. İmza değişimine geçişten önce mevcut uygulamadan yedek alınmalı.
 2. **Yedekle ve geri yükle:** odalar/kartlar/favoriler, tercihler, etkin servisler
@@ -311,3 +316,22 @@ varsayılmamalı. Araştırmada yeni servis kurulmadı ve hesap bağlanmadı.
   karşılamaz; Android/platform/DRM desteği doğrulanıp sınırlar açıkça raporlanmalı.
 - Home Assistant üretim kurulumu salt okunur sınırında; uygulama kodu için verilen
   yetki, sunucuya Music Assistant kurma veya gerçek cihazları değiştirme izni değildir.
+
+- Birincil tablet: **Huawei MatePad 11.5 S (2026)**. Global resmi model
+  HarmonyOS 4.3 kullanır; kullanıcı cihazındaki build ayrıca doğrulanmalıdır.
+  GMS varsayımı yapılmayacak; ağdan hedef kontrolü ve müzik davranışı Huawei,
+  genel Android tablet ve Samsung DeX pencerelerinde sınanacak.
+  Kaynak: https://consumer.huawei.com/en/tablets/matepad-11-5-s-2026/specs/
+- 5 Eylül oturumundaki `adb devices -l` sonucu boş; fiziksel cihaz testi yapılmadı.
+
+## Ek bütünlük denetimi
+
+Kullanıcı, listede düşünülmemiş eksiklerin de giderilmesini istedi. Son kontrolde
+yalnız ekran varlığı değil, hesap değişimi, eski veri, belirsiz komut sonucu,
+çift tıklama/slider istek yağmuru, arka plan ve geri dönüş, erişilebilirlik,
+platform yetenekleri, kişisel veri sınırları ve hata sonrası toparlanma denetlenir.
+Sağlayıcının sunmadığı API veya bağlı olmayan fiziksel cihaz için yüzde yüz
+uyumluluk iddiası üretilmez; doğrulama sınırı açık tutulur.
+
+Kişisel sağlık kaynaklarının resmi erişim yolları ve kabul kontrolleri:
+[Sağlık sağlayıcıları araştırması](wellbeing-provider-research-2026-09-05.md).
