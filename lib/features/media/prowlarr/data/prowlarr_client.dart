@@ -2,6 +2,8 @@ import 'dart:convert';
 
 import 'package:http/http.dart' as http;
 
+import '../../../../shared/network/server_bound_client.dart';
+
 import '../../data/media_api_exception.dart';
 import 'prowlarr_config.dart';
 import 'models/prowlarr_indexer.dart';
@@ -13,7 +15,7 @@ import 'models/prowlarr_indexer.dart';
 /// provider-specific field schema, out of scope here.
 class ProwlarrClient {
   ProwlarrClient({required this.config, http.Client? httpClient})
-    : _client = httpClient ?? http.Client();
+    : _client = ServerBoundClient(baseUrl: config.baseUrl, inner: httpClient);
 
   final ProwlarrConfig config;
   final http.Client _client;
@@ -39,7 +41,7 @@ class ProwlarrClient {
         .get(_uri('/indexer'), headers: _headers)
         .timeout(const Duration(seconds: 15));
     _checkOk(response);
-    final decoded = jsonDecode(response.body) as List<dynamic>;
+    final decoded = decodeServerJson(response.body) as List<dynamic>;
     return decoded
         .map((e) => ProwlarrIndexer.fromJson(e as Map<String, dynamic>))
         .toList();

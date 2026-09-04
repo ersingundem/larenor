@@ -1,7 +1,8 @@
 import 'dart:async';
-import 'dart:convert';
 
 import 'package:http/http.dart' as http;
+
+import '../../../shared/network/server_bound_client.dart';
 
 import 'proxmox_api_exception.dart';
 import 'proxmox_config.dart';
@@ -46,9 +47,15 @@ class ProxmoxClient {
     http.Client? httpClient,
     DateTime Function()? now,
   }) : _now = now ?? DateTime.now,
-       _client =
-           httpClient ??
-           buildProxmoxHttpClient(allowSelfSigned: config.allowSelfSigned);
+       _client = ServerBoundClient(
+         baseUrl: config.baseUrl,
+         inner:
+             httpClient ??
+             buildProxmoxHttpClient(
+               allowSelfSigned: config.allowSelfSigned,
+               server: Uri.parse(config.baseUrl),
+             ),
+       );
 
   final ProxmoxConfig config;
   final http.Client _client;
@@ -483,7 +490,7 @@ class ProxmoxClient {
 
   dynamic _dataOf(http.Response response) {
     _checkOk(response);
-    final body = jsonDecode(response.body) as Map<String, dynamic>;
+    final body = decodeServerJson(response.body) as Map<String, dynamic>;
     return body['data'];
   }
 
@@ -491,7 +498,7 @@ class ProxmoxClient {
     if (response.statusCode < 200 || response.statusCode >= 300) {
       String? detail;
       try {
-        final body = jsonDecode(response.body) as Map<String, dynamic>;
+        final body = decodeServerJson(response.body) as Map<String, dynamic>;
         final errors = body['errors'];
         if (errors is Map && errors.isNotEmpty) {
           detail = errors.entries
@@ -506,7 +513,10 @@ class ProxmoxClient {
         // Keep the status code when the error envelope is not an object.
       }
       throw ProxmoxApiException(
-        'Request failed (${response.statusCode}).${detail == null ? '' : ' $detail'}',
+        redactServerMessage(
+          'Request failed (${response.statusCode}).${detail == null ? '' : ' $detail'}',
+          [config.password, _ticket, _csrfToken],
+        ),
       );
     }
   }

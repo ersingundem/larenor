@@ -1,10 +1,11 @@
 import 'package:flutter/cupertino.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../l10n/generated/app_localizations.dart';
 import '../../../../shared/theme/typography.dart';
 import '../../../../shared/widgets/larenor_brand.dart';
 import '../../../../shared/widgets/app_page_scaffold.dart';
-import '../../../ha_client/data/models/ha_entity.dart';
+import '../../providers/dashboard_live_providers.dart';
 import '../../domain/dashboard_room.dart';
 
 /// Home shares the adaptive page palette with media and settings.
@@ -15,17 +16,15 @@ class HomeWallpaper extends StatelessWidget {
   Widget build(BuildContext context) => AppSurface(child: child);
 }
 
-class HomeOverview extends StatelessWidget {
-  const HomeOverview({super.key, required this.entities});
-  final List<HaEntity> entities;
+class HomeOverview extends ConsumerWidget {
+  const HomeOverview({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context);
-    final lights = entities.where((e) => e.domain == 'light' && e.isOn).length;
-    final unavailable = entities
-        .where((e) => e.state == 'unavailable' || e.state == 'unknown')
-        .length;
+    final summary = ref.watch(dashboardSummaryProvider);
+    final lights = summary.lightsOn;
+    final unavailable = summary.unavailable;
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
       child: Column(
@@ -41,7 +40,7 @@ class HomeOverview extends StatelessWidget {
             children: [
               _StatusPill(
                 icon: CupertinoIcons.square_grid_2x2_fill,
-                text: l10n.homeAccessoriesCount(entities.length),
+                text: l10n.homeAccessoriesCount(summary.accessories),
                 color: CupertinoColors.systemBlue.resolveFrom(context),
               ),
               if (lights > 0)

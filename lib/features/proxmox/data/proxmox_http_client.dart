@@ -6,10 +6,16 @@ import 'package:http/io_client.dart';
 /// Proxmox ships a self-signed TLS certificate by default on every fresh
 /// install, so home installations almost always need certificate trust
 /// relaxed to connect at all. Isolated to this one helper so no other
-/// client in the app is affected by it.
-http.Client buildProxmoxHttpClient({required bool allowSelfSigned}) {
-  if (!allowSelfSigned) return http.Client();
-  final ioClient = HttpClient()
-    ..badCertificateCallback = (cert, host, port) => true;
-  return IOClient(ioClient);
+/// client in the app is affected by it. The exception is restricted to the
+/// configured host and port, including when this transport is used separately.
+http.Client buildProxmoxHttpClient({
+  required bool allowSelfSigned,
+  required Uri server,
+  HttpClient? ioClient,
+}) {
+  final client = ioClient ?? HttpClient();
+  client.badCertificateCallback = allowSelfSigned
+      ? (cert, host, port) => host == server.host && port == server.port
+      : null;
+  return IOClient(client);
 }

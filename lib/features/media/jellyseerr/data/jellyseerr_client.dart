@@ -2,6 +2,8 @@ import 'dart:convert';
 
 import 'package:http/http.dart' as http;
 
+import '../../../../shared/network/server_bound_client.dart';
+
 import '../../data/media_api_exception.dart';
 import 'jellyseerr_config.dart';
 import 'models/jellyseerr_request_item.dart';
@@ -12,7 +14,7 @@ import 'models/jellyseerr_result.dart';
 /// `X-Api-Key` header auth, camelCase response fields.
 class JellyseerrClient {
   JellyseerrClient({required this.config, http.Client? httpClient})
-    : _client = httpClient ?? http.Client();
+    : _client = ServerBoundClient(baseUrl: config.baseUrl, inner: httpClient);
 
   final JellyseerrConfig config;
   final http.Client _client;
@@ -72,7 +74,7 @@ class JellyseerrClient {
         .get(_uri(path, {'page': page}), headers: _headers)
         .timeout(const Duration(seconds: 15));
     _checkOk(response);
-    final body = jsonDecode(response.body) as Map<String, dynamic>;
+    final body = decodeServerJson(response.body) as Map<String, dynamic>;
     final results = body['results'] as List<dynamic>? ?? [];
 
     final implied = switch (path) {
@@ -101,7 +103,7 @@ class JellyseerrClient {
         .get(_uri('/search', {'query': query}), headers: _headers)
         .timeout(const Duration(seconds: 15));
     _checkOk(response);
-    final body = jsonDecode(response.body) as Map<String, dynamic>;
+    final body = decodeServerJson(response.body) as Map<String, dynamic>;
     final results = body['results'] as List<dynamic>? ?? [];
     return results
         .where((e) {
@@ -129,9 +131,7 @@ class JellyseerrClient {
         )
         .timeout(const Duration(seconds: 15));
     if (response.statusCode != 200 && response.statusCode != 201) {
-      throw MediaApiException(
-        'Request failed (${response.statusCode}): ${response.body}',
-      );
+      throw MediaApiException('Request failed (${response.statusCode}).');
     }
   }
 
@@ -143,7 +143,7 @@ class JellyseerrClient {
         )
         .timeout(const Duration(seconds: 15));
     _checkOk(response);
-    final body = jsonDecode(response.body) as Map<String, dynamic>;
+    final body = decodeServerJson(response.body) as Map<String, dynamic>;
     final results = body['results'] as List<dynamic>? ?? [];
     return results
         .map((e) => JellyseerrRequestItem.fromJson(e as Map<String, dynamic>))

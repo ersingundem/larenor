@@ -3,6 +3,8 @@ import 'dart:convert';
 import 'package:crypto/crypto.dart';
 import 'package:http/http.dart' as http;
 
+import '../../../shared/network/server_bound_client.dart';
+
 import 'keenetic_api_exception.dart';
 import 'keenetic_config.dart';
 import 'models/keenetic_access_point.dart';
@@ -22,7 +24,7 @@ import 'models/keenetic_router_status.dart';
 /// then replays the resulting session cookie on every later request.
 class KeeneticClient {
   KeeneticClient({required this.config, http.Client? httpClient})
-    : _client = httpClient ?? http.Client(),
+    : _client = ServerBoundClient(baseUrl: config.baseUrl, inner: httpClient),
       _baseUrl = KeeneticConfig.normalizeBaseUrl(config.baseUrl);
 
   final KeeneticConfig config;
@@ -221,7 +223,7 @@ class KeeneticClient {
     if (body != null && response.body.trim().isEmpty) return null;
     final Object? decoded;
     try {
-      decoded = jsonDecode(response.body);
+      decoded = decodeServerJson(response.body);
     } on FormatException {
       throw KeeneticApiException('Router returned an invalid response.');
     }
@@ -238,7 +240,10 @@ class KeeneticClient {
       if (value['status'] == 'error' || value['status'] == 'fail') {
         throw KeeneticApiException(
           value['message'] is String
-              ? value['message'] as String
+              ? redactServerMessage(value['message'] as String, [
+                  config.password,
+                  ..._cookies.values,
+                ])
               : 'Router rejected the command.',
         );
       }

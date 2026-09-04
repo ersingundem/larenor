@@ -1,6 +1,5 @@
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:wakelock_plus/wakelock_plus.dart';
 
 import '../../../core/theme.dart';
 import '../data/pin_lock_store.dart';
@@ -18,7 +17,6 @@ class KeepScreenOn extends _$KeepScreenOn {
   Future<bool> build() async {
     final prefs = await SharedPreferences.getInstance();
     final value = prefs.getBool(_keepScreenOnKey) ?? false;
-    await _apply(value);
     return value;
   }
 
@@ -26,11 +24,6 @@ class KeepScreenOn extends _$KeepScreenOn {
     state = AsyncData(value);
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_keepScreenOnKey, value);
-    await _apply(value);
-  }
-
-  Future<void> _apply(bool value) {
-    return value ? WakelockPlus.enable() : WakelockPlus.disable();
   }
 }
 

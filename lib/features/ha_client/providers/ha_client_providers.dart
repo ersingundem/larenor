@@ -50,15 +50,16 @@ class Entities extends _$Entities {
     final pending = <String, HaEntityChange>{};
     var active = true;
     var snapshotReady = false;
+    Timer? updateBatch;
 
     void applyPending() {
       if (!active || !snapshotReady || pending.isEmpty) return;
       final current = state.value;
       if (current == null) return;
       final next = {...current};
-      _mergeUpdates(next, pending);
+      final changed = _mergeUpdates(next, pending);
       pending.clear();
-      state = AsyncData(next);
+      if (changed) state = AsyncData(next);
     }
 
     // Subscribe before starting REST: an event received during that request
@@ -72,7 +73,13 @@ class Entities extends _$Entities {
         return;
       }
       pending[change.entityId] = change;
-      applyPending();
+      // Drain the current event-loop burst before copying the full map.
+      // A coalesced HA frame can contain thousands of entity changes; only
+      // the newest change per entity matters to the next rendered frame.
+      updateBatch ??= Timer(Duration.zero, () {
+        updateBatch = null;
+        applyPending();
+      });
     });
     final connection = ws?.status.skip(1).listen((status) {
       if (active && status == HaConnectionStatus.connected) {
@@ -91,6 +98,7 @@ class Entities extends _$Entities {
     });
     ref.onDispose(() {
       active = false;
+      updateBatch?.cancel();
       unawaited(updates?.cancel());
       unawaited(connection?.cancel());
       stopListening();
@@ -103,10 +111,11 @@ class Entities extends _$Entities {
     return map;
   }
 
-  void _mergeUpdates(
+  bool _mergeUpdates(
     Map<String, HaEntity> snapshot,
     Map<String, HaEntityChange> updates,
   ) {
+    var changed = false;
     for (final entry in updates.entries) {
       final snapshotTime = snapshot[entry.key]?.lastUpdated;
       final updateTime = entry.value.time;
@@ -117,11 +126,13 @@ class Entities extends _$Entities {
       }
       final entity = entry.value.entity;
       if (entity == null) {
-        snapshot.remove(entry.key);
-      } else {
+        changed = snapshot.remove(entry.key) != null || changed;
+      } else if (snapshot[entry.key] != entity) {
         snapshot[entry.key] = entity;
+        changed = true;
       }
     }
+    return changed;
   }
 
   Future<void> toggle(HaEntity entity) async {

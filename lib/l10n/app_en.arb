@@ -347,7 +347,7 @@
   "settingsManageIntegrations": "Manage Integrations",
   "settingsIdleAfterTitle": "Idle after",
   "settingsSetPinTitle": "Set PIN",
-  "settingsPinPlaceholder": "4+ digits",
+  "settingsPinPlaceholder": "4–12 digits",
   "settingsSectionMediaServices": "MEDIA SERVICES",
   "settingsSectionInfrastructure": "INFRASTRUCTURE",
   "settingsConnected": "Connected",
@@ -944,5 +944,16 @@
         "type": "String"
       }
     }
-  }
+  },
+  "settingsGateRetryAfter": "Too many attempts. Try again in {seconds} seconds.",
+  "@settingsGateRetryAfter": {
+    "placeholders": {
+      "seconds": {
+        "type": "int"
+      }
+    }
+  },
+  "settingsGateStorageError": "Secure storage is unavailable. Settings remain locked.",
+  "settingsPinInvalid": "Enter 4–12 digits.",
+  "settingsPinSaveError": "The PIN could not be saved. Try again."
 }

@@ -296,6 +296,32 @@ list, so the app stays uncluttered no matter how many services exist:
   behaviour of pushing each category full-screen, so phones and portrait are
   unaffected. The switch is width-driven, not orientation-driven.
 
+### Performance, stability and security
+
+- Dashboard subscriptions isolate room structure, summary counts and individual
+  accessories. Bursts of Home Assistant state changes are merged before UI
+  publication; unrelated diagnostic changes do not redraw the room layout.
+- Media requests start alongside library indexing, and Arr queue reads are shared
+  within a refresh. Camera/task polling pauses in the background, avoids overlap,
+  and rejects results from a previous entity or connection.
+- Authenticated native integration HTTP clients reject redirects, foreign origins,
+  proxy-path escapes and malformed authentication headers. Configure the final
+  server URL directly. Proxmox's optional self-signed TLS exception is restricted
+  to its configured host/port. Local HTTP remains supported.
+- Settings PIN attempts are serialized and persisted in secure storage. Five wrong
+  attempts cause a 30-second pause, escalating to five minutes; backgrounding
+  relocks Settings and closes protected drilldown screens. New PINs require 4–12
+  digits. This protects shared-tablet Settings, not HA server-side authorization.
+- Android cloud backup and device-transfer rules exclude credentials, WebView
+  sessions and local home metadata. Release builds require private signing keys;
+  they never fall back to the debug key.
+- CI pins external actions and Flutter, enforces the dependency lockfile, cancels
+  superseded runs, limits job/test duration, preserves test logs/coverage, and
+  tests Android backup policies and release-signing failure without private keys.
+
+See the [hardening review and next improvements](docs/performance-security-review-2026-09-05.md)
+for measured regression evidence, device-test limits and remaining transport work.
+
 ### Brand and design
 
 - The single brand motto is **Unus Lar, omnem domum servat.**
@@ -363,10 +389,19 @@ regenerated automatically by `flutter pub get`/`flutter run` (via
 
 ```sh
 flutter analyze                    # static analysis
-flutter test                       # unit + widget tests
+flutter test --coverage             # unit, widget, security + performance regressions
 flutter build apk --debug          # debug Android build
 dart run flutter_launcher_icons    # regenerate app icons after changing assets/icon/*.png
 ```
+
+### Android release signing
+
+Debug builds work without signing secrets. For a release, provide an ignored
+`android/key.properties` with `storeFile` (absolute path to your keystore),
+`storePassword`, `keyAlias`, and `keyPassword`, following the
+[Flutter signing guide](https://docs.flutter.dev/deployment/android#sign-the-app).
+Keep that file and the keystore private. `:app:validateReleaseSigning` fails when
+keys are missing; generating or distributing a production key is not part of CI.
 
 ### Read-only Home Assistant audit
 

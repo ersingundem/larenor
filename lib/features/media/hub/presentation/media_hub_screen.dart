@@ -212,6 +212,8 @@ class _MediaHubScreenState extends ConsumerState<MediaHubScreen> {
   };
 
   Future<void> _refresh(WidgetRef ref) async {
+    ref.invalidate(sonarrQueueProvider);
+    ref.invalidate(radarrQueueProvider);
     ref.invalidate(mediaLibraryIndexProvider);
     ref.invalidate(mediaHubRowsProvider);
     await ref.read(mediaHubRowsProvider.future);

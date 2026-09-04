@@ -62,14 +62,14 @@ void main() {
         },
       });
       remove();
-      await flushEvents();
+      await flushEntityUpdates();
       response.complete(snapshot('on'));
       expect(await ready, isEmpty);
       socket.change('light.lamp', 'on');
-      await flushEvents();
+      await flushEntityUpdates();
       expect(container.read(entitiesProvider).value, contains('light.lamp'));
       remove();
-      await flushEvents();
+      await flushEntityUpdates();
       expect(container.read(entitiesProvider).value, isEmpty);
     },
   );
@@ -102,11 +102,11 @@ void main() {
       container.listen(entitiesProvider, (_, _) {});
       final ready = container.read(entitiesProvider.future);
       socket.change('light.lamp', 'on', updated: '2026-09-04T10:01:00Z');
-      await flushEvents();
+      await flushEntityUpdates();
       response.complete(snapshot('off', updated: '2026-09-04T10:00:00Z'));
       expect((await ready)['light.lamp']!.state, 'on');
       socket.change('light.lamp', 'off', updated: '2026-09-04T10:02:00Z');
-      await flushEvents();
+      await flushEntityUpdates();
       expect(
         container.read(entitiesProvider).value!['light.lamp']!.state,
         'off',
@@ -142,7 +142,7 @@ void main() {
       container.listen(entitiesProvider, (_, _) {});
       final ready = container.read(entitiesProvider.future);
       socket.change('light.lamp', 'off', updated: '2026-09-04T10:00:00Z');
-      await flushEvents();
+      await flushEntityUpdates();
       response.complete(snapshot('on', updated: '2026-09-04T10:01:00Z'));
       expect((await ready)['light.lamp']!.state, 'on');
     },
@@ -224,7 +224,7 @@ void main() {
     addTearDown(rest.dispose);
     addTearDown(ws.dispose);
     container.listen(entitiesProvider, (_, _) {});
-    await flushEvents();
+    await flushEntityUpdates();
     await socket.authenticate();
     await container.pump();
     expect(
@@ -232,10 +232,16 @@ void main() {
       'on',
     );
     oldResponse.complete(snapshot('off'));
-    await flushEvents();
+    await flushEntityUpdates();
     expect(container.read(entitiesProvider).value!['light.lamp']!.state, 'on');
     socket.change('light.lamp', 'off');
-    await flushEvents();
+    await flushEntityUpdates();
     expect(container.read(entitiesProvider).value!['light.lamp']!.state, 'off');
   });
+}
+
+// Entity bursts publish at the next event-loop boundary after wire delivery.
+Future<void> flushEntityUpdates() async {
+  await flushEvents();
+  await flushEvents();
 }

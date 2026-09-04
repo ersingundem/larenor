@@ -21,28 +21,43 @@ class IdleGate extends ConsumerStatefulWidget {
   ConsumerState<IdleGate> createState() => _IdleGateState();
 }
 
-class _IdleGateState extends ConsumerState<IdleGate> {
+class _IdleGateState extends ConsumerState<IdleGate>
+    with WidgetsBindingObserver {
   Timer? _timer;
   bool _idle = false;
+  bool _foreground = true;
 
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _resetTimer());
+    WidgetsBinding.instance.addObserver(this);
+    final state = WidgetsBinding.instance.lifecycleState;
+    _foreground = state == null || state == AppLifecycleState.resumed;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _resetTimer();
+    });
   }
 
   @override
   void dispose() {
     _timer?.cancel();
+    WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
 
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    _foreground = state == AppLifecycleState.resumed;
+    _resetTimer();
+  }
+
   void _resetTimer() {
+    if (!mounted) return;
     _timer?.cancel();
     if (_idle) setState(() => _idle = false);
 
     final settings = ref.read(idleModeProvider).value;
-    if (settings == null || !settings.enabled) return;
+    if (!_foreground || settings == null || !settings.enabled) return;
 
     _timer = Timer(Duration(minutes: settings.timeoutMinutes), () {
       if (mounted) setState(() => _idle = true);
@@ -80,8 +95,22 @@ class _IdleClockScreenState extends ConsumerState<_IdleClockScreen> {
   @override
   void initState() {
     super.initState();
-    _ticker = Timer.periodic(const Duration(seconds: 1), (_) {
-      if (mounted) setState(() => _now = DateTime.now());
+    _scheduleTick();
+  }
+
+  void _scheduleTick() {
+    final now = DateTime.now();
+    final nextMinute = DateTime(
+      now.year,
+      now.month,
+      now.day,
+      now.hour,
+      now.minute + 1,
+    );
+    _ticker = Timer(nextMinute.difference(now), () {
+      if (!mounted) return;
+      setState(() => _now = DateTime.now());
+      _scheduleTick();
     });
   }
 

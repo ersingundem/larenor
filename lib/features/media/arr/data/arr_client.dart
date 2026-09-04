@@ -2,6 +2,8 @@ import 'dart:convert';
 
 import 'package:http/http.dart' as http;
 
+import '../../../../shared/network/server_bound_client.dart';
+
 import '../../data/media_api_exception.dart';
 import 'arr_config.dart';
 import 'models/arr_calendar_item.dart';
@@ -26,7 +28,7 @@ class ArrClient {
     required this.idFieldName,
     this.apiVersion = 'v3',
     http.Client? httpClient,
-  }) : _client = httpClient ?? http.Client();
+  }) : _client = ServerBoundClient(baseUrl: config.baseUrl, inner: httpClient);
 
   final ArrConfig config;
 
@@ -69,7 +71,7 @@ class ArrClient {
         .get(_uri('/$resourcePath/lookup', {'term': term}), headers: _headers)
         .timeout(const Duration(seconds: 20));
     _checkOk(response);
-    final decoded = jsonDecode(response.body) as List<dynamic>;
+    final decoded = decodeServerJson(response.body) as List<dynamic>;
     return decoded
         .map(
           (e) => ArrLookupResult.fromJson(
@@ -87,7 +89,7 @@ class ArrClient {
         .get(_uri('/$resourcePath'), headers: _headers)
         .timeout(const Duration(seconds: 30));
     _checkOk(response);
-    final decoded = jsonDecode(response.body) as List<dynamic>;
+    final decoded = decodeServerJson(response.body) as List<dynamic>;
     return decoded
         .map((e) => ArrLibraryItem.fromJson(e as Map<String, dynamic>))
         .toList();
@@ -98,7 +100,7 @@ class ArrClient {
         .get(_uri('/qualityprofile'), headers: _headers)
         .timeout(const Duration(seconds: 15));
     _checkOk(response);
-    final decoded = jsonDecode(response.body) as List<dynamic>;
+    final decoded = decodeServerJson(response.body) as List<dynamic>;
     return decoded
         .map((e) => ArrQualityProfile.fromJson(e as Map<String, dynamic>))
         .toList();
@@ -109,7 +111,7 @@ class ArrClient {
         .get(_uri('/rootfolder'), headers: _headers)
         .timeout(const Duration(seconds: 15));
     _checkOk(response);
-    final decoded = jsonDecode(response.body) as List<dynamic>;
+    final decoded = decodeServerJson(response.body) as List<dynamic>;
     return decoded
         .map((e) => ArrRootFolder.fromJson(e as Map<String, dynamic>))
         .toList();
@@ -123,7 +125,7 @@ class ArrClient {
         .get(_uri('/metadataprofile'), headers: _headers)
         .timeout(const Duration(seconds: 15));
     _checkOk(response);
-    final decoded = jsonDecode(response.body) as List<dynamic>;
+    final decoded = decodeServerJson(response.body) as List<dynamic>;
     return decoded
         .map((e) => ArrMetadataProfile.fromJson(e as Map<String, dynamic>))
         .toList();
@@ -158,9 +160,7 @@ class ArrClient {
         .post(_uri('/$resourcePath'), headers: _headers, body: jsonEncode(body))
         .timeout(const Duration(seconds: 20));
     if (response.statusCode != 200 && response.statusCode != 201) {
-      throw MediaApiException(
-        'Add failed (${response.statusCode}): ${response.body}',
-      );
+      throw MediaApiException('Add failed (${response.statusCode}).');
     }
   }
 
@@ -176,7 +176,7 @@ class ArrClient {
         )
         .timeout(const Duration(seconds: 15));
     _checkOk(response);
-    final body = jsonDecode(response.body);
+    final body = decodeServerJson(response.body);
     final records = body is Map<String, dynamic>
         ? (body['records'] as List<dynamic>? ?? const [])
         : body as List<dynamic>;
@@ -199,7 +199,7 @@ class ArrClient {
         )
         .timeout(const Duration(seconds: 15));
     _checkOk(response);
-    final decoded = jsonDecode(response.body) as List<dynamic>;
+    final decoded = decodeServerJson(response.body) as List<dynamic>;
     return decoded
         .map((e) => ArrCalendarItem.fromJson(e as Map<String, dynamic>))
         .toList();

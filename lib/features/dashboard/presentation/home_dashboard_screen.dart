@@ -17,6 +17,7 @@ import '../domain/dashboard_room.dart';
 import '../domain/home_domains.dart';
 import '../domain/tile_config.dart';
 import '../providers/dashboard_providers.dart';
+import '../providers/dashboard_live_providers.dart';
 import '../providers/home_dashboard_providers.dart';
 import 'entity_multi_picker_screen.dart';
 import 'entity_picker_screen.dart';
@@ -50,7 +51,9 @@ class _HomeDashboardScreenState extends ConsumerState<HomeDashboardScreen> {
     final l10n = AppLocalizations.of(context);
     final layoutAsync = ref.watch(dashboardLayoutProvider);
     final connectionStatus = ref.watch(haConnectionStatusProvider);
-    final entitiesAsync = ref.watch(entitiesProvider);
+    final entitiesError = ref.watch(
+      entitiesProvider.select((states) => states.error?.toString()),
+    );
 
     final layout = layoutAsync.value;
     final rooms = layout?.rooms ?? const <DashboardRoom>[];
@@ -103,9 +106,7 @@ class _HomeDashboardScreenState extends ConsumerState<HomeDashboardScreen> {
         SliverToBoxAdapter(
           child: _ConnectionBanner(
             status: connectionStatus.value,
-            entitiesError: entitiesAsync.hasError
-                ? entitiesAsync.error.toString()
-                : null,
+            entitiesError: entitiesError,
             onRetry: _refresh,
           ),
         ),
@@ -171,26 +172,19 @@ class _HomeDashboardScreenState extends ConsumerState<HomeDashboardScreen> {
   /// entities and nothing else — it no longer decides what's on screen.
   List<Widget> _buildSections(DashboardLayout layout) {
     final l10n = AppLocalizations.of(context);
-    final entities = ref.watch(entitiesProvider).value ?? const {};
+    final categories = ref.watch(dashboardCategoriesProvider).byId;
     final enabledServices =
         ref.watch(enabledServicesProvider).value ?? const <AppService>{};
 
-    List<HaEntity> resolve(Iterable<String> ids) => _filtered([
+    List<String> resolve(Iterable<String> ids) => [
       for (final id in ids.toSet())
-        if (!layout.hiddenEntityIds.contains(id))
-          entities[id] ?? HaEntity(entityId: id, state: 'unavailable'),
-    ]);
+        if (categories.containsKey(id) &&
+            (_category == null || categories[id] == _category))
+          id,
+    ];
     final selectedRoom = layout.rooms
         .where((r) => r.id == _selectedRoom)
         .firstOrNull;
-    final allVisible = <String, HaEntity>{
-      for (final id in {
-        ...layout.favoriteEntityIds,
-        for (final room in layout.rooms) ...room.entityIds,
-      })
-        if (!layout.hiddenEntityIds.contains(id))
-          id: entities[id] ?? HaEntity(entityId: id, state: 'unavailable'),
-    };
 
     final favourites = resolve(layout.favoriteEntityIds);
     final rooms = [
@@ -207,9 +201,7 @@ class _HomeDashboardScreenState extends ConsumerState<HomeDashboardScreen> {
     }
 
     return [
-      SliverToBoxAdapter(
-        child: HomeOverview(entities: allVisible.values.toList()),
-      ),
+      const SliverToBoxAdapter(child: HomeOverview()),
       if (layout.rooms.isNotEmpty && MediaQuery.sizeOf(context).width < 1000)
         SliverToBoxAdapter(child: _roomStrip(layout.rooms, selectedRoom?.id)),
       if (rooms.isNotEmpty || favourites.isNotEmpty)
@@ -331,12 +323,6 @@ class _HomeDashboardScreenState extends ConsumerState<HomeDashboardScreen> {
         enabled.contains(AppService.radarr);
   }
 
-  List<HaEntity> _filtered(List<HaEntity> entities) {
-    final category = _category;
-    if (category == null) return entities;
-    return entities.where((e) => homeCategoryForEntity(e) == category).toList();
-  }
-
   Widget _roomStrip(List<DashboardRoom> rooms, String? selected) {
     final l10n = AppLocalizations.of(context);
     return SingleChildScrollView(
@@ -448,15 +434,18 @@ class _HomeDashboardScreenState extends ConsumerState<HomeDashboardScreen> {
         mainAxisExtent: HomeAccessoryTile.heightFor(context),
       );
 
-  Widget _accessoryGrid(List<HaEntity> entities, {DashboardRoom? room}) =>
+  Widget _accessoryGrid(List<String> entityIds, {DashboardRoom? room}) =>
       SliverPadding(
         padding: Insets.page,
         sliver: SliverGrid(
           gridDelegate: _gridDelegate(context),
           delegate: SliverChildBuilderDelegate(
-            (context, index) =>
-                HomeAccessoryTile(entity: entities[index], roomId: room?.id),
-            childCount: entities.length,
+            (context, index) => LiveHomeAccessoryTile(
+              key: ValueKey(entityIds[index]),
+              entityId: entityIds[index],
+              roomId: room?.id,
+            ),
+            childCount: entityIds.length,
           ),
         ),
       );
@@ -559,32 +548,23 @@ class _HomeDashboardScreenState extends ConsumerState<HomeDashboardScreen> {
     );
   }
 
-  Future<String?> _promptName({required String title, String? initial}) async {
-    final controller = TextEditingController(text: initial);
+  Future<String?> _promptName({
+    required String title,
+    String? initial,
+    String? placeholder,
+    String? confirmLabel,
+    TextInputType? keyboardType,
+  }) {
     final l10n = AppLocalizations.of(context);
     return showCupertinoDialog<String>(
       context: context,
-      builder: (dialogContext) => CupertinoAlertDialog(
-        title: Text(title),
-        content: Padding(
-          padding: const EdgeInsets.only(top: Gap.md),
-          child: CupertinoTextField(
-            controller: controller,
-            autofocus: true,
-            placeholder: l10n.roomNamePlaceholder,
-          ),
-        ),
-        actions: [
-          CupertinoDialogAction(
-            onPressed: () => Navigator.pop(dialogContext),
-            child: Text(l10n.commonCancel),
-          ),
-          CupertinoDialogAction(
-            onPressed: () =>
-                Navigator.pop(dialogContext, controller.text.trim()),
-            child: Text(l10n.commonSave),
-          ),
-        ],
+      builder: (_) => _DashboardTextDialog(
+        title: title,
+        initial: initial,
+        placeholder: placeholder ?? l10n.roomNamePlaceholder,
+        confirmLabel: confirmLabel ?? l10n.commonSave,
+        cancelLabel: l10n.commonCancel,
+        keyboardType: keyboardType,
       ),
     );
   }
@@ -727,8 +707,9 @@ class _HomeDashboardScreenState extends ConsumerState<HomeDashboardScreen> {
     final l10n = AppLocalizations.of(context);
     // Only things worth putting on a wall panel, and nothing the room
     // already holds — there's no useful action for those here.
+    final existing = room.entityIds.toSet();
     final candidates = allById.values
-        .where((e) => isHomeEntity(e) && !room.entityIds.contains(e.entityId))
+        .where((e) => isHomeEntity(e) && !existing.contains(e.entityId))
         .toList();
 
     final picked = await Navigator.of(context).push<List<String>>(
@@ -791,34 +772,13 @@ class _HomeDashboardScreenState extends ConsumerState<HomeDashboardScreen> {
   );
 
   Future<void> _addWebsite() async {
-    final controller = TextEditingController(text: 'https://');
-    final url = await showCupertinoDialog<String>(
-      context: context,
-      builder: (dialogContext) => CupertinoAlertDialog(
-        title: Text(
-          AppLocalizations.of(dialogContext).dashboardWebsiteUrlTitle,
-        ),
-        content: Padding(
-          padding: const EdgeInsets.only(top: 12),
-          child: CupertinoTextField(
-            controller: controller,
-            keyboardType: TextInputType.url,
-            autofocus: true,
-            placeholder: 'https://example.com',
-          ),
-        ),
-        actions: [
-          CupertinoDialogAction(
-            onPressed: () => Navigator.pop(dialogContext),
-            child: Text(AppLocalizations.of(dialogContext).commonCancel),
-          ),
-          CupertinoDialogAction(
-            onPressed: () =>
-                Navigator.pop(dialogContext, controller.text.trim()),
-            child: Text(AppLocalizations.of(dialogContext).commonAdd),
-          ),
-        ],
-      ),
+    final l10n = AppLocalizations.of(context);
+    final url = await _promptName(
+      title: l10n.dashboardWebsiteUrlTitle,
+      initial: 'https://',
+      placeholder: 'https://example.com',
+      confirmLabel: l10n.commonAdd,
+      keyboardType: TextInputType.url,
     );
 
     if (url == null || url.isEmpty || !mounted) return;
@@ -1034,4 +994,66 @@ class _ConnectionBannerState extends State<_ConnectionBanner> {
       ),
     );
   }
+}
+
+/// The dialog owns its editor until its route has finished animating out.
+class _DashboardTextDialog extends StatefulWidget {
+  const _DashboardTextDialog({
+    required this.title,
+    required this.placeholder,
+    required this.confirmLabel,
+    required this.cancelLabel,
+    this.initial,
+    this.keyboardType,
+  });
+
+  final String title;
+  final String placeholder;
+  final String confirmLabel;
+  final String cancelLabel;
+  final String? initial;
+  final TextInputType? keyboardType;
+
+  @override
+  State<_DashboardTextDialog> createState() => _DashboardTextDialogState();
+}
+
+class _DashboardTextDialogState extends State<_DashboardTextDialog> {
+  late final TextEditingController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController(text: widget.initial);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => CupertinoAlertDialog(
+    title: Text(widget.title),
+    content: Padding(
+      padding: const EdgeInsets.only(top: Gap.md),
+      child: CupertinoTextField(
+        controller: _controller,
+        keyboardType: widget.keyboardType,
+        autofocus: true,
+        placeholder: widget.placeholder,
+      ),
+    ),
+    actions: [
+      CupertinoDialogAction(
+        onPressed: () => Navigator.pop(context),
+        child: Text(widget.cancelLabel),
+      ),
+      CupertinoDialogAction(
+        onPressed: () => Navigator.pop(context, _controller.text.trim()),
+        child: Text(widget.confirmLabel),
+      ),
+    ],
+  );
 }

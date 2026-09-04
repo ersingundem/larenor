@@ -132,6 +132,39 @@ Widget app({
 void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
 
+  for (final (name, menuLabel, initial) in [
+    ('room', 'Oda ekle', ''),
+    ('website', 'Web sitesi ekle', 'https://'),
+  ]) {
+    testWidgets('$name dialog disposes its editor after the route transition', (
+      tester,
+    ) async {
+      await tester.pumpWidget(app());
+      await tester.pumpAndSettle();
+      await tester.tap(find.byIcon(CupertinoIcons.add_circled).first);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(menuLabel).last);
+      await tester.pumpAndSettle();
+      final controller = tester
+          .widget<CupertinoTextField>(find.byType(CupertinoTextField))
+          .controller!;
+      expect(controller.text, initial);
+      await tester.enterText(find.byType(CupertinoTextField), 'fixture');
+      await tester.tap(find.text('İptal').last);
+      await tester.pump(const Duration(milliseconds: 10));
+      void listener() {}
+      expect(
+        () => controller.addListener(listener),
+        returnsNormally,
+        reason: 'The editor is still mounted during the closing animation',
+      );
+      controller.removeListener(listener);
+      await tester.pumpAndSettle();
+      expect(() => controller.addListener(listener), throwsFlutterError);
+      expect(tester.takeException(), isNull);
+    });
+  }
+
   testWidgets(
     'room selection and category filtering show only matching accessories',
     (tester) async {

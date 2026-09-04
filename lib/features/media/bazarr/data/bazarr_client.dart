@@ -1,6 +1,6 @@
-import 'dart:convert';
-
 import 'package:http/http.dart' as http;
+
+import '../../../../shared/network/server_bound_client.dart';
 
 import '../../data/media_api_exception.dart';
 import 'bazarr_config.dart';
@@ -12,7 +12,7 @@ import 'models/bazarr_wanted_item.dart';
 /// `X-API-KEY` header, `PATCH` triggers a subtitle search+download.
 class BazarrClient {
   BazarrClient({required this.config, http.Client? httpClient})
-    : _client = httpClient ?? http.Client();
+    : _client = ServerBoundClient(baseUrl: config.baseUrl, inner: httpClient);
 
   final BazarrConfig config;
   final http.Client _client;
@@ -47,7 +47,7 @@ class BazarrClient {
         .get(_uri(path, {'start': 0, 'length': 50}), headers: _headers)
         .timeout(const Duration(seconds: 15));
     _checkOk(response);
-    final decoded = jsonDecode(response.body);
+    final decoded = decodeServerJson(response.body);
     final list = decoded is Map<String, dynamic>
         ? (decoded['data'] as List<dynamic>? ?? const [])
         : decoded as List<dynamic>;

@@ -231,7 +231,7 @@
   "settingsManageIntegrations": "Entegrasyonları Yönet",
   "settingsIdleAfterTitle": "Şu süre sonra boşta",
   "settingsSetPinTitle": "PIN Belirle",
-  "settingsPinPlaceholder": "4+ rakam",
+  "settingsPinPlaceholder": "4–12 rakam",
   "settingsSectionMediaServices": "MEDYA SERVİSLERİ",
   "settingsSectionInfrastructure": "ALTYAPI",
   "settingsConnected": "Bağlı",
@@ -623,5 +623,16 @@
         "type": "String"
       }
     }
-  }
+  },
+  "settingsGateRetryAfter": "Çok fazla deneme. {seconds} saniye sonra tekrar dene.",
+  "@settingsGateRetryAfter": {
+    "placeholders": {
+      "seconds": {
+        "type": "int"
+      }
+    }
+  },
+  "settingsGateStorageError": "Güvenli depoya erişilemiyor. Ayarlar kilitli kalıyor.",
+  "settingsPinInvalid": "4–12 rakam gir.",
+  "settingsPinSaveError": "PIN kaydedilemedi. Tekrar dene."
 }

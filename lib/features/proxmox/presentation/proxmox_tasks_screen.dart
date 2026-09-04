@@ -1,10 +1,9 @@
-import 'dart:async';
-
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart' show SelectableText;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../l10n/generated/app_localizations.dart';
+import '../../../shared/utils/foreground_poller.dart';
 import '../data/models/proxmox_task.dart';
 import '../data/proxmox_client.dart';
 import '../providers/proxmox_providers.dart';
@@ -19,19 +18,28 @@ class ProxmoxTasksScreen extends ConsumerStatefulWidget {
 }
 
 class _ProxmoxTasksScreenState extends ConsumerState<ProxmoxTasksScreen> {
-  Timer? _timer;
+  late final ForegroundPoller _poller;
 
   @override
   void initState() {
     super.initState();
-    _timer = Timer.periodic(const Duration(seconds: 10), (_) => _refresh());
+    _poller = ForegroundPoller(
+      interval: const Duration(seconds: 10),
+      poll: () async {
+        if (ModalRoute.of(context)?.isCurrent == false) return;
+        final provider = proxmoxTasksProvider(widget.nodeName);
+        // Await the current read rather than invalidating it every interval.
+        if (!ref.read(provider).isLoading) ref.invalidate(provider);
+        await ref.read(provider.future);
+      },
+    )..start(immediately: false);
   }
 
-  void _refresh() => ref.invalidate(proxmoxTasksProvider(widget.nodeName));
+  void _refresh() => _poller.refresh();
 
   @override
   void dispose() {
-    _timer?.cancel();
+    _poller.dispose();
     super.dispose();
   }
 
@@ -132,39 +140,63 @@ class _TaskLogScreenState extends ConsumerState<_TaskLogScreen> {
   ProxmoxTaskPoll? _status;
   String? _error;
   bool _loading = false;
-  Timer? _timer;
+  late final ForegroundPoller _poller;
+  int _generation = 0;
 
   @override
   void initState() {
     super.initState();
-    _refresh();
+    _poller = ForegroundPoller(
+      interval: const Duration(seconds: 3),
+      poll: _fetch,
+    );
+    ref.listenManual(proxmoxClientProvider, (previous, next) {
+      if (identical(previous?.value, next.value)) return;
+      _generation++;
+      setState(() {
+        _lines = null;
+        _status = null;
+      });
+      _refresh();
+    });
+    _poller.start();
   }
 
-  Future<void> _refresh() async {
-    if (_loading) return;
-    _timer?.cancel();
+  void _refresh() {
+    _poller.start(immediately: false);
+    _poller.refresh();
+  }
+
+  Future<void> _fetch() async {
+    final generation = _generation;
     setState(() {
       _loading = true;
       _error = null;
     });
     try {
       final client = await ref.read(proxmoxClientProvider.future);
-      if (client == null) return;
+      if (client == null ||
+          !mounted ||
+          !_poller.isActive ||
+          generation != _generation) {
+        return;
+      }
       final status = await client.getTaskStatus(
         widget.nodeName,
         widget.task.upid,
       );
+      if (!mounted || !_poller.isActive || generation != _generation) return;
       final lines = await client.getTaskLog(widget.nodeName, widget.task.upid);
-      if (!mounted) return;
+      if (!mounted || !_poller.isActive || generation != _generation) return;
       setState(() {
         _lines = lines;
         _status = status;
       });
-      if (status.isRunning) {
-        _timer = Timer(const Duration(seconds: 3), _refresh);
-      }
+      if (!status.isRunning) _poller.stop();
     } catch (error) {
-      if (mounted) setState(() => _error = error.toString());
+      if (mounted && generation == _generation) {
+        setState(() => _error = error.toString());
+      }
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -172,7 +204,7 @@ class _TaskLogScreenState extends ConsumerState<_TaskLogScreen> {
 
   @override
   void dispose() {
-    _timer?.cancel();
+    _poller.dispose();
     super.dispose();
   }
 

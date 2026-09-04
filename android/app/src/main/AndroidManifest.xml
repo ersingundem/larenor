@@ -7,6 +7,9 @@
         android:label="Larenor"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher"
+        android:allowBackup="false"
+        android:fullBackupContent="@xml/backup_rules"
+        android:dataExtractionRules="@xml/data_extraction_rules"
         android:usesCleartextTraffic="true">
         <!-- Every server this app talks to (Home Assistant, Proxmox,
              Keenetic, the media stack, etc.) is a self-hosted address the

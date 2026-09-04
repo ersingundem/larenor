@@ -63,3 +63,7 @@ app.*.map.json
 # regenerate (or it runs automatically on `flutter pub get`/`flutter run`
 # since l10n.yaml + pubspec.yaml's flutter.generate:true are set).
 lib/l10n/generated/
+
+# Local Python policy-check caches
+__pycache__/
+*.pyc

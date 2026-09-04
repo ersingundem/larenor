@@ -40,7 +40,7 @@ class SecurityPane extends ConsumerWidget {
                   color: CupertinoColors.systemGrey,
                 ),
                 title: Text(l10n.settingsRemovePin),
-                onTap: () => ref.read(pinLockProvider.notifier).clearPin(),
+                onTap: () => _clearPin(context, ref),
               ),
           ],
         ),
@@ -48,36 +48,122 @@ class SecurityPane extends ConsumerWidget {
     );
   }
 
-  Future<void> _showSetPinDialog(BuildContext context, WidgetRef ref) async {
-    final controller = TextEditingController();
-    final pin = await showCupertinoDialog<String>(
-      context: context,
-      builder: (context) => CupertinoAlertDialog(
-        title: Text(AppLocalizations.of(context).settingsSetPinTitle),
+  Future<void> _clearPin(BuildContext context, WidgetRef ref) async {
+    try {
+      await ref.read(pinLockProvider.notifier).clearPin();
+    } catch (_) {
+      if (!context.mounted) return;
+      await showCupertinoDialog<void>(
+        context: context,
+        builder: (context) => CupertinoAlertDialog(
+          content: Text(AppLocalizations.of(context).settingsPinSaveError),
+          actions: [
+            CupertinoDialogAction(
+              onPressed: () => Navigator.pop(context),
+              child: Text(AppLocalizations.of(context).commonClose),
+            ),
+          ],
+        ),
+      );
+    }
+  }
+
+  Future<void> _showSetPinDialog(BuildContext context, WidgetRef ref) =>
+      showCupertinoDialog<void>(
+        context: context,
+        builder: (_) => const _PinDialog(),
+      );
+}
+
+class _PinDialog extends ConsumerStatefulWidget {
+  const _PinDialog();
+
+  @override
+  ConsumerState<_PinDialog> createState() => _PinDialogState();
+}
+
+class _PinDialogState extends ConsumerState<_PinDialog> {
+  final _controller = TextEditingController();
+  bool _saving = false;
+  String? _error;
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  Future<void> _save() async {
+    if (_saving) return;
+    final l10n = AppLocalizations.of(context);
+    final pin = _controller.text.trim();
+    if (!RegExp(r'^\d{4,12}$').hasMatch(pin)) {
+      setState(() => _error = l10n.settingsPinInvalid);
+      return;
+    }
+    final route = ModalRoute.of(context);
+    setState(() {
+      _saving = true;
+      _error = null;
+    });
+    try {
+      await ref.read(pinLockProvider.notifier).setPin(pin);
+      if (mounted && route?.isCurrent == true) Navigator.pop(context);
+    } catch (_) {
+      if (mounted) setState(() => _error = l10n.settingsPinSaveError);
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    return PopScope(
+      canPop: !_saving,
+      child: CupertinoAlertDialog(
+        title: Text(l10n.settingsSetPinTitle),
         content: Padding(
           padding: const EdgeInsets.only(top: 12),
-          child: CupertinoTextField(
-            controller: controller,
-            keyboardType: TextInputType.number,
-            obscureText: true,
-            autofocus: true,
-            placeholder: AppLocalizations.of(context).settingsPinPlaceholder,
+          child: Column(
+            children: [
+              CupertinoTextField(
+                controller: _controller,
+                keyboardType: TextInputType.number,
+                obscureText: true,
+                autofocus: true,
+                enableSuggestions: false,
+                autocorrect: false,
+                enabled: !_saving,
+                placeholder: l10n.settingsPinPlaceholder,
+                onSubmitted: (_) => _save(),
+              ),
+              if (_error != null)
+                Padding(
+                  padding: const EdgeInsets.only(top: 8),
+                  child: Text(
+                    _error!,
+                    style: TextStyle(
+                      color: CupertinoColors.systemRed.resolveFrom(context),
+                    ),
+                  ),
+                ),
+            ],
           ),
         ),
         actions: [
           CupertinoDialogAction(
-            onPressed: () => Navigator.pop(context),
-            child: Text(AppLocalizations.of(context).commonCancel),
+            onPressed: _saving ? null : () => Navigator.pop(context),
+            child: Text(l10n.commonCancel),
           ),
           CupertinoDialogAction(
-            onPressed: () => Navigator.pop(context, controller.text.trim()),
-            child: Text(AppLocalizations.of(context).commonSave),
+            onPressed: _saving ? null : _save,
+            child: _saving
+                ? const CupertinoActivityIndicator()
+                : Text(l10n.commonSave),
           ),
         ],
       ),
     );
-
-    if (pin == null || pin.length < 4) return;
-    await ref.read(pinLockProvider.notifier).setPin(pin);
   }
 }

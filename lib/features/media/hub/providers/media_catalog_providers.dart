@@ -51,11 +51,11 @@ Future<MediaLibraryIndex> mediaLibraryIndex(Ref ref) async {
       const [],
     ),
     _orEmpty<List<ArrQueueItem>>(
-      () => sonarr?.getQueue() ?? Future.value(const []),
+      () => ref.watch(sonarrQueueProvider.future),
       const [],
     ),
     _orEmpty<List<ArrQueueItem>>(
-      () => radarr?.getQueue() ?? Future.value(const []),
+      () => ref.watch(radarrQueueProvider.future),
       const [],
     ),
   ]);
@@ -212,7 +212,7 @@ enum MediaRowId {
 
 @riverpod
 Future<List<MediaRowData>> mediaHubRows(Ref ref) async {
-  final index = await ref.watch(mediaLibraryIndexProvider.future);
+  final indexFuture = ref.watch(mediaLibraryIndexProvider.future);
   final jellyfin = ref.watch(jellyfinClientProvider);
   final jellyseerr = ref.watch(jellyseerrClientProvider);
   final sonarr = ref.watch(sonarrClientProvider);
@@ -221,7 +221,7 @@ Future<List<MediaRowData>> mediaHubRows(Ref ref) async {
   String? jfImage(String id, {String type = 'Primary', String? tag}) =>
       jellyfin?.imageUrl(id, type: type, tag: tag);
 
-  final results = await Future.wait([
+  final pendingResults = Future.wait([
     _orEmpty<List<JellyfinItem>>(
       () => jellyfin?.getResumeItems() ?? Future.value(const []),
       const [],
@@ -243,14 +243,20 @@ Future<List<MediaRowData>> mediaHubRows(Ref ref) async {
       const [],
     ),
     _orEmpty<List<ArrQueueItem>>(
-      () => sonarr?.getQueue() ?? Future.value(const []),
+      () => ref.watch(sonarrQueueProvider.future),
       const [],
     ),
     _orEmpty<List<ArrQueueItem>>(
-      () => radarr?.getQueue() ?? Future.value(const []),
+      () => ref.watch(radarrQueueProvider.future),
       const [],
     ),
   ]);
+
+  // Library indexing and row/search requests are independent. Start them
+  // together; a large library must not delay the first request elsewhere.
+  final completed = await Future.wait<Object>([indexFuture, pendingResults]);
+  final index = completed[0] as MediaLibraryIndex;
+  final results = completed[1] as List<dynamic>;
 
   List<MediaTitle> fromJellyfin(List<JellyfinItem> items) => dedupeTitles(
     items
@@ -331,13 +337,13 @@ Future<List<MediaRowData>> mediaHubRows(Ref ref) async {
 Future<List<MediaTitle>> mediaSearch(Ref ref, String query) async {
   if (query.trim().isEmpty) return const [];
 
-  final index = await ref.watch(mediaLibraryIndexProvider.future);
+  final indexFuture = ref.watch(mediaLibraryIndexProvider.future);
   final jellyfin = ref.watch(jellyfinClientProvider);
   final jellyseerr = ref.watch(jellyseerrClientProvider);
   final sonarr = ref.watch(sonarrClientProvider);
   final radarr = ref.watch(radarrClientProvider);
 
-  final results = await Future.wait([
+  final pendingResults = Future.wait([
     _orEmpty<List<JellyfinItem>>(
       () => jellyfin?.search(query) ?? Future.value(const []),
       const [],
@@ -360,6 +366,12 @@ Future<List<MediaTitle>> mediaSearch(Ref ref, String query) async {
     ),
   ]);
 
+  // Library indexing and row/search requests are independent. Start them
+  // together; a large library must not delay the first request elsewhere.
+  final completed = await Future.wait<Object>([indexFuture, pendingResults]);
+  final index = completed[0] as MediaLibraryIndex;
+  final results = completed[1] as List<dynamic>;
+
   // Library hits lead: something already playable is almost always what
   // the user meant, and deduping keeps the first occurrence.
   return dedupeTitles(
@@ -368,6 +380,7 @@ Future<List<MediaTitle>> mediaSearch(Ref ref, String query) async {
           .map(
             (e) => mediaTitleFromJellyfin(
               e,
+              series: index.jellyfinItem(e.seriesId),
               imageUrl: (id, {String type = 'Primary', String? tag}) =>
                   jellyfin?.imageUrl(id, type: type, tag: tag),
             ),

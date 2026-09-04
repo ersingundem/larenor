@@ -7,6 +7,7 @@ import '../../../../shared/theme/category_colors.dart';
 import '../../../ha_client/data/models/ha_entity.dart';
 import '../../../ha_client/providers/ha_client_providers.dart';
 import '../../providers/dashboard_providers.dart';
+import '../../providers/dashboard_live_providers.dart';
 import '../widgets/more_info_sheet.dart';
 import 'entity_icons.dart';
 import '../../../../shared/theme/typography.dart';
@@ -259,4 +260,18 @@ class _HomeAccessoryTileState extends ConsumerState<HomeAccessoryTile> {
       ),
     );
   }
+}
+
+/// Keeps live changes local to this accessory rather than its parent grid.
+class LiveHomeAccessoryTile extends ConsumerWidget {
+  const LiveHomeAccessoryTile({super.key, required this.entityId, this.roomId});
+
+  final String entityId;
+  final String? roomId;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) => HomeAccessoryTile(
+    entity: ref.watch(dashboardEntityProvider(entityId)),
+    roomId: roomId,
+  );
 }
