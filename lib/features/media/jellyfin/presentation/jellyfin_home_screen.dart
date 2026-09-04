@@ -9,6 +9,7 @@ import 'jellyfin_item_detail_screen.dart';
 import 'jellyfin_library_screen.dart';
 import 'widgets/jellyfin_poster.dart';
 import '../../../../shared/widgets/section_header.dart';
+import '../../../../shared/widgets/service_root_scaffold.dart';
 
 class JellyfinHomeScreen extends ConsumerWidget {
   const JellyfinHomeScreen({super.key});
@@ -42,20 +43,17 @@ class _JellyfinBrowseScaffold extends ConsumerWidget {
     final latestAsync = ref.watch(jellyfinLatestItemsProvider);
     final librariesAsync = ref.watch(jellyfinLibrariesProvider);
 
-    return CupertinoPageScaffold(
-      navigationBar: CupertinoNavigationBar(
-        middle: const Text('Jellyfin'),
-        trailing: CupertinoButton(
-          padding: EdgeInsets.zero,
-          onPressed: () =>
-              ref.read(jellyfinConnectionProvider.notifier).signOut(),
-          child: const Icon(CupertinoIcons.square_arrow_right),
-        ),
+    return ServiceRootScaffold(
+      title: 'Jellyfin',
+      trailing: CupertinoButton(
+        padding: EdgeInsets.zero,
+        onPressed: () =>
+            ref.read(jellyfinConnectionProvider.notifier).signOut(),
+        child: const Icon(CupertinoIcons.square_arrow_right),
       ),
-      child: SafeArea(
-        child: ListView(
-          padding: const EdgeInsets.symmetric(vertical: 12),
-          children: [
+      slivers: [
+        SliverList(
+          delegate: SliverChildListDelegate([
             _PosterRow(
               title: AppLocalizations.of(context).jellyfinContinueWatching,
               itemsAsync: resumeAsync,
@@ -91,9 +89,9 @@ class _JellyfinBrowseScaffold extends ConsumerWidget {
                 ],
               ),
             ),
-          ],
+          ]),
         ),
-      ),
+      ],
     );
   }
 }

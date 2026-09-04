@@ -97,7 +97,7 @@ class _WeatherTileState extends ConsumerState<WeatherTile> {
               entity.friendlyName,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(fontSize: 12),
+              style: AppText.tileSubtitle,
             ),
             const SizedBox(height: 8),
             if (_loading)
@@ -119,7 +119,7 @@ class _WeatherTileState extends ConsumerState<WeatherTile> {
                                 (day as Map<String, dynamic>)['datetime']
                                     as String?,
                               ),
-                              style: const TextStyle(fontSize: 10),
+                              style: AppText.caption2,
                             ),
                             Icon(
                               _iconForCondition(day['condition'] as String?),
@@ -127,7 +127,7 @@ class _WeatherTileState extends ConsumerState<WeatherTile> {
                             ),
                             Text(
                               '${day['temperature']}°',
-                              style: const TextStyle(fontSize: 11),
+                              style: AppText.caption2,
                             ),
                           ],
                         ),

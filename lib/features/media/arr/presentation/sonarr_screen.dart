@@ -7,6 +7,7 @@ import '../providers/sonarr_providers.dart';
 import 'widgets/arr_add_screen.dart';
 import 'widgets/arr_connect_form.dart';
 import 'widgets/arr_dashboard_body.dart';
+import '../../../../shared/widgets/service_root_scaffold.dart';
 
 class SonarrScreen extends ConsumerWidget {
   const SonarrScreen({super.key});
@@ -36,49 +37,48 @@ class SonarrScreen extends ConsumerWidget {
         final queue = ref.watch(sonarrQueueProvider);
         final calendar = ref.watch(sonarrCalendarProvider);
 
-        return CupertinoPageScaffold(
-          navigationBar: CupertinoNavigationBar(
-            middle: const Text('Sonarr'),
-            leading: CupertinoButton(
-              padding: EdgeInsets.zero,
-              onPressed: () {
-                ref.invalidate(sonarrQueueProvider);
-                ref.invalidate(sonarrCalendarProvider);
-              },
-              child: const Icon(CupertinoIcons.refresh),
-            ),
-            trailing: CupertinoButton(
-              padding: EdgeInsets.zero,
-              onPressed: () => Navigator.of(context).push(
-                CupertinoPageRoute(
-                  builder: (_) => ArrAddScreen(
-                    title: AppLocalizations.of(context).arrAddSeriesTitle,
-                    searchHint: AppLocalizations.of(context).arrSearchTvShows,
-                    onLookup: (term) =>
-                        ref.read(sonarrClientProvider)!.lookup(term),
-                    loadQualityProfiles: () =>
-                        ref.read(sonarrClientProvider)!.getQualityProfiles(),
-                    loadRootFolders: () =>
-                        ref.read(sonarrClientProvider)!.getRootFolders(),
-                    onAdd: (result, profileId, folder, _) async {
-                      await ref
-                          .read(sonarrClientProvider)!
-                          .add(
-                            result: result,
-                            qualityProfileId: profileId,
-                            rootFolderPath: folder,
-                          );
-                      ref.invalidate(sonarrCalendarProvider);
-                    },
-                  ),
+        return ServiceRootScaffold(
+          title: 'Sonarr',
+          leading: CupertinoButton(
+            padding: EdgeInsets.zero,
+            onPressed: () {
+              ref.invalidate(sonarrQueueProvider);
+              ref.invalidate(sonarrCalendarProvider);
+            },
+            child: const Icon(CupertinoIcons.refresh),
+          ),
+          trailing: CupertinoButton(
+            padding: EdgeInsets.zero,
+            onPressed: () => Navigator.of(context).push(
+              CupertinoPageRoute(
+                builder: (_) => ArrAddScreen(
+                  title: AppLocalizations.of(context).arrAddSeriesTitle,
+                  searchHint: AppLocalizations.of(context).arrSearchTvShows,
+                  onLookup: (term) =>
+                      ref.read(sonarrClientProvider)!.lookup(term),
+                  loadQualityProfiles: () =>
+                      ref.read(sonarrClientProvider)!.getQualityProfiles(),
+                  loadRootFolders: () =>
+                      ref.read(sonarrClientProvider)!.getRootFolders(),
+                  onAdd: (result, profileId, folder, _) async {
+                    await ref
+                        .read(sonarrClientProvider)!
+                        .add(
+                          result: result,
+                          qualityProfileId: profileId,
+                          rootFolderPath: folder,
+                        );
+                    ref.invalidate(sonarrCalendarProvider);
+                  },
                 ),
               ),
-              child: const Icon(CupertinoIcons.add),
             ),
+            child: const Icon(CupertinoIcons.add),
           ),
-          child: SafeArea(
-            child: ArrDashboardBody(queue: queue, calendar: calendar),
-          ),
+          slivers: ArrDashboardBody(
+            queue: queue,
+            calendar: calendar,
+          ).slivers(context),
         );
       },
     );

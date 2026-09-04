@@ -30,6 +30,22 @@ class HomeAccessoryTile extends ConsumerWidget {
 
   final HaEntity entity;
 
+  static const _glyphSize = 34.0;
+
+  /// The height this tile needs at the current text scale.
+  ///
+  /// The grid used to pin a fixed aspect ratio, which meant the cell
+  /// stopped fitting its own contents around 1.8x system text size. The
+  /// glyph circle is fixed, but both text lines grow, so the height has
+  /// to be derived rather than assumed.
+  static double heightFor(BuildContext context) {
+    final scaler = MediaQuery.textScalerOf(context);
+    const lineFactor = 1.35;
+    final title = scaler.scale(AppText.tileTitle.fontSize!) * lineFactor;
+    final subtitle = scaler.scale(AppText.tileSubtitle.fontSize!) * lineFactor;
+    return Gap.md * 2 + _glyphSize + Gap.xxs + title + subtitle;
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final categoryColor = categoryColorForDomain(
@@ -70,8 +86,8 @@ class HomeAccessoryTile extends ConsumerWidget {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Container(
-                width: 34,
-                height: 34,
+                width: _glyphSize,
+                height: _glyphSize,
                 decoration: BoxDecoration(
                   color: glyphBackground,
                   shape: BoxShape.circle,
@@ -100,7 +116,7 @@ class HomeAccessoryTile extends ConsumerWidget {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
-                      fontSize: 12.5,
+                      fontSize: AppText.tileSubtitle.fontSize,
                       color: CupertinoColors.secondaryLabel.resolveFrom(
                         context,
                       ),

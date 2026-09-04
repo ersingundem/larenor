@@ -8,6 +8,7 @@ import '../../ha_client/data/rest_client.dart';
 import '../data/ha_connection_config.dart';
 import '../data/ha_discovery.dart';
 import '../providers/auth_providers.dart';
+import '../../../shared/theme/typography.dart';
 
 class ConnectScreen extends ConsumerStatefulWidget {
   const ConnectScreen({super.key, this.initialUrl});
@@ -187,7 +188,7 @@ class _ConnectScreenState extends ConsumerState<ConnectScreen> {
                           l10n.connectTokenHint,
                           textAlign: TextAlign.center,
                           style: TextStyle(
-                            fontSize: 12,
+                            fontSize: AppText.hint.fontSize,
                             color: CupertinoColors.secondaryLabel.resolveFrom(
                               context,
                             ),

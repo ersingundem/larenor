@@ -7,6 +7,7 @@ import '../providers/readarr_providers.dart';
 import 'widgets/arr_add_screen.dart';
 import 'widgets/arr_connect_form.dart';
 import 'widgets/arr_dashboard_body.dart';
+import '../../../../shared/widgets/service_root_scaffold.dart';
 
 class ReadarrScreen extends ConsumerWidget {
   const ReadarrScreen({super.key});
@@ -36,53 +37,51 @@ class ReadarrScreen extends ConsumerWidget {
         final queue = ref.watch(readarrQueueProvider);
         final calendar = ref.watch(readarrCalendarProvider);
 
-        return CupertinoPageScaffold(
-          navigationBar: CupertinoNavigationBar(
-            middle: const Text('Readarr'),
-            leading: CupertinoButton(
-              padding: EdgeInsets.zero,
-              onPressed: () {
-                ref.invalidate(readarrQueueProvider);
-                ref.invalidate(readarrCalendarProvider);
-              },
-              child: const Icon(CupertinoIcons.refresh),
-            ),
-            trailing: CupertinoButton(
-              padding: EdgeInsets.zero,
-              onPressed: () => Navigator.of(context).push(
-                CupertinoPageRoute(
-                  builder: (_) => ArrAddScreen(
-                    title: AppLocalizations.of(context).arrAddAuthorTitle,
-                    searchHint: AppLocalizations.of(context).arrSearchAuthors,
-                    onLookup: (term) =>
-                        ref.read(readarrClientProvider)!.lookup(term),
-                    loadQualityProfiles: () =>
-                        ref.read(readarrClientProvider)!.getQualityProfiles(),
-                    loadRootFolders: () =>
-                        ref.read(readarrClientProvider)!.getRootFolders(),
-                    loadMetadataProfiles: () =>
-                        ref.read(readarrClientProvider)!.getMetadataProfiles(),
-                    onAdd:
-                        (result, profileId, folder, metadataProfileId) async {
-                          await ref
-                              .read(readarrClientProvider)!
-                              .add(
-                                result: result,
-                                qualityProfileId: profileId,
-                                rootFolderPath: folder,
-                                metadataProfileId: metadataProfileId,
-                              );
-                          ref.invalidate(readarrCalendarProvider);
-                        },
-                  ),
+        return ServiceRootScaffold(
+          title: 'Readarr',
+          leading: CupertinoButton(
+            padding: EdgeInsets.zero,
+            onPressed: () {
+              ref.invalidate(readarrQueueProvider);
+              ref.invalidate(readarrCalendarProvider);
+            },
+            child: const Icon(CupertinoIcons.refresh),
+          ),
+          trailing: CupertinoButton(
+            padding: EdgeInsets.zero,
+            onPressed: () => Navigator.of(context).push(
+              CupertinoPageRoute(
+                builder: (_) => ArrAddScreen(
+                  title: AppLocalizations.of(context).arrAddAuthorTitle,
+                  searchHint: AppLocalizations.of(context).arrSearchAuthors,
+                  onLookup: (term) =>
+                      ref.read(readarrClientProvider)!.lookup(term),
+                  loadQualityProfiles: () =>
+                      ref.read(readarrClientProvider)!.getQualityProfiles(),
+                  loadRootFolders: () =>
+                      ref.read(readarrClientProvider)!.getRootFolders(),
+                  loadMetadataProfiles: () =>
+                      ref.read(readarrClientProvider)!.getMetadataProfiles(),
+                  onAdd: (result, profileId, folder, metadataProfileId) async {
+                    await ref
+                        .read(readarrClientProvider)!
+                        .add(
+                          result: result,
+                          qualityProfileId: profileId,
+                          rootFolderPath: folder,
+                          metadataProfileId: metadataProfileId,
+                        );
+                    ref.invalidate(readarrCalendarProvider);
+                  },
                 ),
               ),
-              child: const Icon(CupertinoIcons.add),
             ),
+            child: const Icon(CupertinoIcons.add),
           ),
-          child: SafeArea(
-            child: ArrDashboardBody(queue: queue, calendar: calendar),
-          ),
+          slivers: ArrDashboardBody(
+            queue: queue,
+            calendar: calendar,
+          ).slivers(context),
         );
       },
     );

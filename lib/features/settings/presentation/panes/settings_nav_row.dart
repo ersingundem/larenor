@@ -36,8 +36,11 @@ class SettingsNavRow extends StatelessWidget {
           : IconBadge(icon: icon, color: color),
       title: Text(title),
       trailing: const CupertinoListTileChevron(),
+      // `title` auto-populates the pushed screen's back button, so it
+      // reads the section's name rather than a generic "Back".
       onTap: () =>
-          Navigator.of(context).push(CupertinoPageRoute(builder: builder)),
+          Navigator.of(context)
+              .push(CupertinoPageRoute(title: title, builder: builder)),
     );
   }
 }

@@ -120,6 +120,15 @@ abstract final class AppText {
 
   static final emptyStateTitle = title3;
   static const emptyStateBody = subhead;
+
+  /// The idle screen's clock. Deliberately far outside the UI scale —
+  /// it's ambient display read from across a room, not an interface
+  /// element, so Apple's largest text style is nowhere near big enough.
+  static const ambientClock = TextStyle(
+    fontFamily: fontFamily,
+    fontSize: 72,
+    fontWeight: FontWeight.w200,
+  );
 }
 
 /// The Cupertino text theme, so widgets that read from the theme (nav bar

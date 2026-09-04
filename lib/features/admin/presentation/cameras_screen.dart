@@ -5,6 +5,7 @@ import '../../../l10n/generated/app_localizations.dart';
 import '../../../shared/widgets/camera_snapshot.dart';
 import '../../ha_client/providers/ha_client_providers.dart';
 import 'camera_viewer_screen.dart';
+import '../../../shared/theme/typography.dart';
 
 class CamerasScreen extends ConsumerWidget {
   const CamerasScreen({super.key});
@@ -68,9 +69,9 @@ class CamerasScreen extends ConsumerWidget {
                                 bottom: 8,
                                 child: Text(
                                   camera.friendlyName,
-                                  style: const TextStyle(
+                                  style: TextStyle(
                                     color: CupertinoColors.white,
-                                    fontSize: 12,
+                                    fontSize: AppText.caption1.fontSize,
                                     fontWeight: FontWeight.w600,
                                   ),
                                 ),

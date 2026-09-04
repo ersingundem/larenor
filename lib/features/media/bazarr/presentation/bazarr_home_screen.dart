@@ -5,6 +5,8 @@ import '../../../../l10n/generated/app_localizations.dart';
 import '../data/models/bazarr_wanted_item.dart';
 import '../providers/bazarr_providers.dart';
 import 'bazarr_connect_screen.dart';
+import '../../../../shared/widgets/service_root_scaffold.dart';
+import '../../../../shared/theme/spacing.dart';
 
 class BazarrHomeScreen extends ConsumerWidget {
   const BazarrHomeScreen({super.key});
@@ -40,19 +42,17 @@ class _BazarrWantedScaffold extends ConsumerWidget {
       ref.invalidate(bazarrMissingEpisodesProvider);
     }
 
-    return CupertinoPageScaffold(
-      navigationBar: CupertinoNavigationBar(
-        middle: const Text('Bazarr'),
-        trailing: CupertinoButton(
-          padding: EdgeInsets.zero,
-          onPressed: refresh,
-          child: const Icon(CupertinoIcons.refresh),
-        ),
+    return ServiceRootScaffold(
+      title: 'Bazarr',
+      trailing: CupertinoButton(
+        padding: EdgeInsets.zero,
+        onPressed: refresh,
+        child: const Icon(CupertinoIcons.refresh),
       ),
-      child: SafeArea(
-        child: ListView(
-          children: [
-            const SizedBox(height: 16),
+      slivers: [
+        SliverList(
+          delegate: SliverChildListDelegate([
+            const SizedBox(height: Gap.sm),
             _WantedSection(
               title: AppLocalizations.of(context).bazarrMoviesMissingHeader,
               itemsAsync: moviesAsync,
@@ -63,9 +63,9 @@ class _BazarrWantedScaffold extends ConsumerWidget {
               itemsAsync: episodesAsync,
               onChanged: refresh,
             ),
-          ],
+          ]),
         ),
-      ),
+      ],
     );
   }
 }

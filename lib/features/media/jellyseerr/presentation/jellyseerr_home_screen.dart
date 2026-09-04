@@ -7,6 +7,9 @@ import '../providers/jellyseerr_providers.dart';
 import 'jellyseerr_connect_screen.dart';
 import 'jellyseerr_requests_screen.dart';
 import 'jellyseerr_status_label.dart';
+import '../../../../shared/theme/typography.dart';
+import '../../../../shared/widgets/service_root_scaffold.dart';
+import '../../../../shared/theme/spacing.dart';
 
 class JellyseerrHomeScreen extends ConsumerWidget {
   const JellyseerrHomeScreen({super.key});
@@ -83,56 +86,51 @@ class _JellyseerrSearchScreenState
 
   @override
   Widget build(BuildContext context) {
-    return CupertinoPageScaffold(
-      navigationBar: CupertinoNavigationBar(
-        middle: const Text('Jellyseerr'),
-        trailing: CupertinoButton(
-          padding: EdgeInsets.zero,
-          onPressed: () => Navigator.of(context).push(
-            CupertinoPageRoute(
-              builder: (_) => const JellyseerrRequestsScreen(),
+    final results = _results;
+
+    return ServiceRootScaffold(
+      title: 'Jellyseerr',
+      trailing: CupertinoButton(
+        padding: EdgeInsets.zero,
+        onPressed: () => Navigator.of(context).push(
+          CupertinoPageRoute(builder: (_) => const JellyseerrRequestsScreen()),
+        ),
+        child: const Icon(CupertinoIcons.list_bullet),
+      ),
+      slivers: [
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: const EdgeInsets.all(Gap.md),
+            child: CupertinoSearchTextField(
+              placeholder: AppLocalizations.of(context)
+                  .jellyseerrSearchPlaceholder,
+              onSubmitted: _search,
+              onChanged: (value) {
+                if (value.trim().isEmpty) setState(() => _results = null);
+              },
             ),
           ),
-          child: const Icon(CupertinoIcons.list_bullet),
         ),
-      ),
-      child: SafeArea(
-        child: Column(
-          children: [
-            Padding(
-              padding: const EdgeInsets.all(12),
-              child: CupertinoSearchTextField(
-                placeholder: AppLocalizations.of(context)
-                    .jellyseerrSearchPlaceholder,
-                onSubmitted: _search,
-                onChanged: (value) {
-                  if (value.trim().isEmpty) setState(() => _results = null);
-                },
-              ),
-            ),
-            if (_searching) const CupertinoActivityIndicator(),
-            Expanded(
-              child: _results == null
-                  ? Center(
-                      child: Text(
-                        AppLocalizations.of(context).jellyseerrSearchEmpty,
-                      ),
-                    )
-                  : ListView.builder(
-                      itemCount: _results!.length,
-                      itemBuilder: (context, index) {
-                        final result = _results![index];
-                        return _ResultTile(
-                          result: result,
-                          requesting: _requestingIds.contains(result.id),
-                          onRequest: () => _request(result),
-                        );
-                      },
-                    ),
-            ),
-          ],
-        ),
-      ),
+        if (_searching)
+          const SliverToBoxAdapter(
+            child: Center(child: CupertinoActivityIndicator()),
+          ),
+        if (results == null)
+          SliverFilledMessage(
+            child: Text(AppLocalizations.of(context).jellyseerrSearchEmpty),
+          )
+        else
+          SliverList(
+            delegate: SliverChildBuilderDelegate((context, index) {
+              final result = results[index];
+              return _ResultTile(
+                result: result,
+                requesting: _requestingIds.contains(result.id),
+                onRequest: () => _request(result),
+              );
+            }, childCount: results.length),
+          ),
+      ],
     );
   }
 }
@@ -179,7 +177,7 @@ class _ResultTile extends ConsumerWidget {
           ? Text(
               jellyseerrStatusLabel(context, result.status),
               style: TextStyle(
-                fontSize: 12,
+                fontSize: AppText.caption1.fontSize,
                 color: CupertinoColors.secondaryLabel.resolveFrom(context),
               ),
             )

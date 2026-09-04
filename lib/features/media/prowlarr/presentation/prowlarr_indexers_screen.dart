@@ -4,6 +4,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../l10n/generated/app_localizations.dart';
 import '../providers/prowlarr_providers.dart';
 import 'prowlarr_connect_screen.dart';
+import '../../../../shared/widgets/service_root_scaffold.dart';
+import '../../../../shared/theme/spacing.dart';
 
 class ProwlarrIndexersScreen extends ConsumerWidget {
   const ProwlarrIndexersScreen({super.key});
@@ -34,34 +36,38 @@ class _IndexersList extends ConsumerWidget {
     final indexersAsync = ref.watch(prowlarrIndexersProvider);
     final client = ref.watch(prowlarrClientProvider);
 
-    return CupertinoPageScaffold(
-      navigationBar: CupertinoNavigationBar(
-        middle: const Text('Prowlarr'),
-        leading: CupertinoButton(
-          padding: EdgeInsets.zero,
-          onPressed: () => ref.invalidate(prowlarrIndexersProvider),
-          child: const Icon(CupertinoIcons.refresh),
-        ),
+    return ServiceRootScaffold(
+      title: 'Prowlarr',
+      leading: CupertinoButton(
+        padding: EdgeInsets.zero,
+        onPressed: () => ref.invalidate(prowlarrIndexersProvider),
+        child: const Icon(CupertinoIcons.refresh),
       ),
-      child: SafeArea(
-        child: indexersAsync.when(
-          loading: () => const Center(child: CupertinoActivityIndicator()),
-          error: (error, _) => Center(
+      slivers: indexersAsync.when(
+        loading: () => const [
+          SliverFilledMessage(child: CupertinoActivityIndicator()),
+        ],
+        error: (error, _) => [
+          SliverFilledMessage(
             child: Text(
               AppLocalizations.of(context).adminLoadError(error.toString()),
             ),
           ),
-          data: (indexers) {
-            if (indexers.isEmpty) {
-              return Center(
+        ],
+        data: (indexers) {
+          if (indexers.isEmpty) {
+            return [
+              SliverFilledMessage(
                 child: Text(
                   AppLocalizations.of(context).prowlarrNoIndexersConfigured,
                 ),
-              );
-            }
-            return ListView(
-              children: [
-                const SizedBox(height: 16),
+              ),
+            ];
+          }
+          return [
+            SliverList(
+              delegate: SliverChildListDelegate([
+                const SizedBox(height: Gap.sm),
                 CupertinoListSection.insetGrouped(
                   children: [
                     for (final indexer in indexers)
@@ -85,10 +91,10 @@ class _IndexersList extends ConsumerWidget {
                       ),
                   ],
                 ),
-              ],
-            );
-          },
-        ),
+              ]),
+            ),
+          ];
+        },
       ),
     );
   }

@@ -6,6 +6,7 @@ import '../data/models/flow_schema_field.dart';
 import '../data/models/flow_step.dart';
 import '../providers/admin_providers.dart';
 import 'widgets/dynamic_form_field.dart';
+import '../../../shared/theme/typography.dart';
 
 class AddIntegrationScreen extends ConsumerStatefulWidget {
   const AddIntegrationScreen({super.key});
@@ -143,7 +144,7 @@ class _AddIntegrationScreenState extends ConsumerState<AddIntegrationScreen> {
           child: Text(
             l10n.addIntegrationHint,
             style: TextStyle(
-              fontSize: 12,
+              fontSize: AppText.hint.fontSize,
               color: CupertinoColors.secondaryLabel.resolveFrom(context),
             ),
           ),

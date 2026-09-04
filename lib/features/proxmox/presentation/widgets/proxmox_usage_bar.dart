@@ -1,5 +1,7 @@
 import 'package:flutter/cupertino.dart';
 
+import '../../../../shared/theme/typography.dart';
+
 /// A small labeled usage bar (e.g. "CPU 32%") — hand-rolled rather than a
 /// Material `LinearProgressIndicator`, matching the pattern already used
 /// for playback-progress bars elsewhere in the app.
@@ -22,7 +24,7 @@ class ProxmoxUsageBar extends StatelessWidget {
         Text(
           '$label ${(value * 100).round()}%',
           style: TextStyle(
-            fontSize: 12,
+            fontSize: AppText.caption1.fontSize,
             color: CupertinoColors.secondaryLabel.resolveFrom(context),
           ),
         ),

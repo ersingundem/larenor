@@ -107,7 +107,7 @@ class _HistoryTileState extends ConsumerState<HistoryTile> {
                       child: Text(
                         _error ??
                             AppLocalizations.of(context).historyTileNoData,
-                        style: const TextStyle(fontSize: 11),
+                        style: AppText.caption2,
                       ),
                     )
                   : LineChart(

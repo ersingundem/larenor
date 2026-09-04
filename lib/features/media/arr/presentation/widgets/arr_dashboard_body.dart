@@ -20,38 +20,44 @@ class ArrDashboardBody extends StatelessWidget {
   final AsyncValue<List<ArrQueueItem>> queue;
   final AsyncValue<List<ArrCalendarItem>> calendar;
 
+  /// The same content as [build], as slivers — so a caller can put it
+  /// under a large title, which has to live in the scroll view itself.
+  List<Widget> slivers(BuildContext context) => [
+    SliverList(delegate: SliverChildListDelegate(_sections(context))),
+  ];
+
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) => ListView(children: _sections(context));
+
+  List<Widget> _sections(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    return ListView(
-      children: [
-        const SizedBox(height: 16),
-        _Section(
-          title: l10n.arrDownloadQueueHeader,
-          items: queue,
-          empty: l10n.arrNothingDownloading,
-          builder: (item) => CupertinoListTile(
-            title: Text(item.title),
-            subtitle: Text(item.status),
-            additionalInfo: item.progressFraction != null
-                ? Text('${(item.progressFraction! * 100).round()}%')
-                : (item.timeLeft != null ? Text(item.timeLeft!) : null),
-          ),
+    return [
+      const SizedBox(height: Gap.sm),
+      _Section(
+        title: l10n.arrDownloadQueueHeader,
+        items: queue,
+        empty: l10n.arrNothingDownloading,
+        builder: (item) => CupertinoListTile(
+          title: Text(item.title),
+          subtitle: Text(item.status),
+          additionalInfo: item.progressFraction != null
+              ? Text('${(item.progressFraction! * 100).round()}%')
+              : (item.timeLeft != null ? Text(item.timeLeft!) : null),
         ),
-        _Section(
-          title: l10n.arrUpcomingHeader,
-          items: calendar,
-          empty: l10n.arrNothingScheduled,
-          builder: (item) => CupertinoListTile(
-            title: Text(item.title),
-            subtitle: item.subtitle != null ? Text(item.subtitle!) : null,
-            additionalInfo: item.date != null
-                ? Text(_formatDate(item.date!))
-                : null,
-          ),
+      ),
+      _Section(
+        title: l10n.arrUpcomingHeader,
+        items: calendar,
+        empty: l10n.arrNothingScheduled,
+        builder: (item) => CupertinoListTile(
+          title: Text(item.title),
+          subtitle: item.subtitle != null ? Text(item.subtitle!) : null,
+          additionalInfo: item.date != null
+              ? Text(_formatDate(item.date!))
+              : null,
         ),
-      ],
-    );
+      ),
+    ];
   }
 
   String _formatDate(DateTime date) =>

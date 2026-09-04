@@ -7,6 +7,7 @@ import '../../../ha_client/providers/ha_client_providers.dart';
 import '../../domain/tile_config.dart';
 import '../../../../shared/theme/icon_sizes.dart';
 import '../../../../shared/theme/spacing.dart';
+import '../../../../shared/theme/typography.dart';
 
 class SceneTile extends ConsumerWidget {
   const SceneTile({super.key, required this.tile});
@@ -44,9 +45,9 @@ class SceneTile extends ConsumerWidget {
                 name,
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
+                style: TextStyle(
                   fontWeight: FontWeight.w600,
-                  fontSize: 14,
+                  fontSize: AppText.tileTitle.fontSize,
                 ),
               ),
             ],

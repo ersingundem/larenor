@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../l10n/generated/app_localizations.dart';
 import '../providers/admin_providers.dart';
+import '../../../shared/theme/typography.dart';
 
 /// Raw JSON editor for an automation's trigger/condition/action config.
 /// Used for both editing an existing automation (pass [automationId]) and
@@ -202,9 +203,9 @@ class _AutomationEditorScreenState
                         maxLines: null,
                         expands: true,
                         textAlignVertical: TextAlignVertical.top,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontFamily: 'monospace',
-                          fontSize: 13,
+                          fontSize: AppText.footnote.fontSize,
                         ),
                         decoration: BoxDecoration(
                           border: Border.all(

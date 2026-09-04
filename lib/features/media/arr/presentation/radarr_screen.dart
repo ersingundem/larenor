@@ -7,6 +7,7 @@ import '../providers/radarr_providers.dart';
 import 'widgets/arr_add_screen.dart';
 import 'widgets/arr_connect_form.dart';
 import 'widgets/arr_dashboard_body.dart';
+import '../../../../shared/widgets/service_root_scaffold.dart';
 
 class RadarrScreen extends ConsumerWidget {
   const RadarrScreen({super.key});
@@ -36,49 +37,48 @@ class RadarrScreen extends ConsumerWidget {
         final queue = ref.watch(radarrQueueProvider);
         final calendar = ref.watch(radarrCalendarProvider);
 
-        return CupertinoPageScaffold(
-          navigationBar: CupertinoNavigationBar(
-            middle: const Text('Radarr'),
-            leading: CupertinoButton(
-              padding: EdgeInsets.zero,
-              onPressed: () {
-                ref.invalidate(radarrQueueProvider);
-                ref.invalidate(radarrCalendarProvider);
-              },
-              child: const Icon(CupertinoIcons.refresh),
-            ),
-            trailing: CupertinoButton(
-              padding: EdgeInsets.zero,
-              onPressed: () => Navigator.of(context).push(
-                CupertinoPageRoute(
-                  builder: (_) => ArrAddScreen(
-                    title: AppLocalizations.of(context).arrAddMovieTitle,
-                    searchHint: AppLocalizations.of(context).arrSearchMovies,
-                    onLookup: (term) =>
-                        ref.read(radarrClientProvider)!.lookup(term),
-                    loadQualityProfiles: () =>
-                        ref.read(radarrClientProvider)!.getQualityProfiles(),
-                    loadRootFolders: () =>
-                        ref.read(radarrClientProvider)!.getRootFolders(),
-                    onAdd: (result, profileId, folder, _) async {
-                      await ref
-                          .read(radarrClientProvider)!
-                          .add(
-                            result: result,
-                            qualityProfileId: profileId,
-                            rootFolderPath: folder,
-                          );
-                      ref.invalidate(radarrCalendarProvider);
-                    },
-                  ),
+        return ServiceRootScaffold(
+          title: 'Radarr',
+          leading: CupertinoButton(
+            padding: EdgeInsets.zero,
+            onPressed: () {
+              ref.invalidate(radarrQueueProvider);
+              ref.invalidate(radarrCalendarProvider);
+            },
+            child: const Icon(CupertinoIcons.refresh),
+          ),
+          trailing: CupertinoButton(
+            padding: EdgeInsets.zero,
+            onPressed: () => Navigator.of(context).push(
+              CupertinoPageRoute(
+                builder: (_) => ArrAddScreen(
+                  title: AppLocalizations.of(context).arrAddMovieTitle,
+                  searchHint: AppLocalizations.of(context).arrSearchMovies,
+                  onLookup: (term) =>
+                      ref.read(radarrClientProvider)!.lookup(term),
+                  loadQualityProfiles: () =>
+                      ref.read(radarrClientProvider)!.getQualityProfiles(),
+                  loadRootFolders: () =>
+                      ref.read(radarrClientProvider)!.getRootFolders(),
+                  onAdd: (result, profileId, folder, _) async {
+                    await ref
+                        .read(radarrClientProvider)!
+                        .add(
+                          result: result,
+                          qualityProfileId: profileId,
+                          rootFolderPath: folder,
+                        );
+                    ref.invalidate(radarrCalendarProvider);
+                  },
                 ),
               ),
-              child: const Icon(CupertinoIcons.add),
             ),
+            child: const Icon(CupertinoIcons.add),
           ),
-          child: SafeArea(
-            child: ArrDashboardBody(queue: queue, calendar: calendar),
-          ),
+          slivers: ArrDashboardBody(
+            queue: queue,
+            calendar: calendar,
+          ).slivers(context),
         );
       },
     );

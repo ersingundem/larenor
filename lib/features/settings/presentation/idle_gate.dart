@@ -7,6 +7,7 @@ import 'package:intl/intl.dart';
 import '../../ha_client/data/models/ha_entity.dart';
 import '../../ha_client/providers/ha_client_providers.dart';
 import '../providers/settings_providers.dart';
+import '../../../shared/theme/typography.dart';
 
 /// Wraps the whole app; after [IdleModeSettings.timeoutMinutes] of no touch
 /// input it swaps the dashboard for a low-distraction clock screen (also
@@ -116,27 +117,27 @@ class _IdleClockScreenState extends ConsumerState<_IdleClockScreen> {
           children: [
             Text(
               time,
-              style: const TextStyle(
+              style: AppText.ambientClock.copyWith(
                 color: CupertinoColors.white,
-                fontSize: 72,
-                fontWeight: FontWeight.w200,
               ),
             ),
             const SizedBox(height: 8),
             Text(
               date,
-              style: const TextStyle(
+              style: TextStyle(
                 color: CupertinoColors.systemGrey,
-                fontSize: 18,
+                fontFamily: AppText.fontFamily,
+                fontSize: AppText.title3.fontSize,
               ),
             ),
             if (weather != null) ...[
               const SizedBox(height: 24),
               Text(
                 '${weather.attributes['temperature']}° · ${weather.state}',
-                style: const TextStyle(
+                style: TextStyle(
                   color: CupertinoColors.systemGrey2,
-                  fontSize: 16,
+                  fontFamily: AppText.fontFamily,
+                  fontSize: AppText.callout.fontSize,
                 ),
               ),
             ],

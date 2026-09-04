@@ -7,6 +7,8 @@ import 'keenetic_connect_screen.dart';
 import 'keenetic_devices_screen.dart';
 import 'keenetic_port_forwarding_screen.dart';
 import 'keenetic_wifi_screen.dart';
+import '../../../shared/widgets/service_root_scaffold.dart';
+import '../../../shared/theme/spacing.dart';
 
 class KeeneticHomeScreen extends ConsumerWidget {
   const KeeneticHomeScreen({super.key});
@@ -34,20 +36,18 @@ class _KeeneticMenu extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    return CupertinoPageScaffold(
-      navigationBar: CupertinoNavigationBar(
-        middle: const Text('Keenetic'),
-        trailing: CupertinoButton(
-          padding: EdgeInsets.zero,
-          onPressed: () =>
-              ref.read(keeneticConnectionProvider.notifier).signOut(),
-          child: const Icon(CupertinoIcons.square_arrow_right),
-        ),
+    return ServiceRootScaffold(
+      title: 'Keenetic',
+      trailing: CupertinoButton(
+        padding: EdgeInsets.zero,
+        onPressed: () =>
+            ref.read(keeneticConnectionProvider.notifier).signOut(),
+        child: const Icon(CupertinoIcons.square_arrow_right),
       ),
-      child: SafeArea(
-        child: ListView(
-          children: [
-            const SizedBox(height: 16),
+      slivers: [
+        SliverList(
+          delegate: SliverChildListDelegate([
+            const SizedBox(height: Gap.sm),
             CupertinoListSection.insetGrouped(
               children: [
                 CupertinoListTile(
@@ -86,9 +86,9 @@ class _KeeneticMenu extends ConsumerWidget {
                 ),
               ],
             ),
-          ],
+          ]),
         ),
-      ),
+      ],
     );
   }
 }

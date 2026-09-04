@@ -10,6 +10,7 @@ import '../../../../../l10n/generated/app_localizations.dart';
 import '../../data/jellyfin_client.dart';
 import '../../data/models/jellyfin_item.dart';
 import '../../providers/jellyfin_providers.dart';
+import '../../../../../shared/theme/typography.dart';
 
 /// A manual "quality" ceiling — mirrors the bitrate ladder real Jellyfin
 /// clients offer. `null` means no cap: Direct Play whenever the declared
@@ -581,9 +582,9 @@ class _JellyfinPlayerScreenState extends ConsumerState<JellyfinPlayerScreen> {
                 children: [
                   Text(
                     _formatDuration(_position),
-                    style: const TextStyle(
+                    style: TextStyle(
                       color: CupertinoColors.white,
-                      fontSize: 12,
+                      fontSize: AppText.caption1.fontSize,
                     ),
                   ),
                   Expanded(
@@ -605,9 +606,9 @@ class _JellyfinPlayerScreenState extends ConsumerState<JellyfinPlayerScreen> {
                   ),
                   Text(
                     _formatDuration(_duration),
-                    style: const TextStyle(
+                    style: TextStyle(
                       color: CupertinoColors.white,
-                      fontSize: 12,
+                      fontSize: AppText.caption1.fontSize,
                     ),
                   ),
                 ],

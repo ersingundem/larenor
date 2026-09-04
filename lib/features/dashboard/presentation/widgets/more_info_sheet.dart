@@ -5,6 +5,7 @@ import '../../../../l10n/generated/app_localizations.dart';
 import '../../../ha_client/data/models/ha_entity.dart';
 import '../../../ha_client/providers/ha_client_providers.dart';
 import '../../providers/dashboard_providers.dart';
+import '../../../../shared/theme/typography.dart';
 
 const _hiddenAttributeKeys = {'friendly_name', 'icon'};
 
@@ -89,7 +90,7 @@ class _MoreInfoSheet extends ConsumerWidget {
                   Text(
                     entity.state,
                     style: TextStyle(
-                      fontSize: 17,
+                      fontSize: AppText.body.fontSize,
                       color: CupertinoColors.secondaryLabel.resolveFrom(
                         context,
                       ),

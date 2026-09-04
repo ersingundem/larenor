@@ -6,6 +6,8 @@ import '../../../../l10n/generated/app_localizations.dart';
 import '../providers/qbittorrent_providers.dart';
 import 'add_torrent_sheet.dart';
 import 'qbittorrent_connect_screen.dart';
+import '../../../../shared/widgets/service_root_scaffold.dart';
+import '../../../../shared/theme/spacing.dart';
 
 class QbittorrentTorrentsScreen extends ConsumerWidget {
   const QbittorrentTorrentsScreen({super.key});
@@ -36,45 +38,49 @@ class _TorrentsList extends ConsumerWidget {
     final torrentsAsync = ref.watch(qbittorrentTorrentsProvider);
     final clientAsync = ref.watch(qbittorrentClientProvider);
 
-    return CupertinoPageScaffold(
-      navigationBar: CupertinoNavigationBar(
-        middle: const Text('qBittorrent'),
-        leading: CupertinoButton(
-          padding: EdgeInsets.zero,
-          onPressed: () => ref.invalidate(qbittorrentTorrentsProvider),
-          child: const Icon(CupertinoIcons.refresh),
-        ),
-        trailing: CupertinoButton(
-          padding: EdgeInsets.zero,
-          onPressed: clientAsync.value == null
-              ? null
-              : () async {
-                  await showAddTorrentSheet(
-                    context,
-                    clientAsync.value!,
-                    () => ref.invalidate(qbittorrentTorrentsProvider),
-                  );
-                },
-          child: const Icon(CupertinoIcons.add),
-        ),
+    return ServiceRootScaffold(
+      title: 'qBittorrent',
+      leading: CupertinoButton(
+        padding: EdgeInsets.zero,
+        onPressed: () => ref.invalidate(qbittorrentTorrentsProvider),
+        child: const Icon(CupertinoIcons.refresh),
       ),
-      child: SafeArea(
-        child: torrentsAsync.when(
-          loading: () => const Center(child: CupertinoActivityIndicator()),
-          error: (error, _) => Center(
+      trailing: CupertinoButton(
+        padding: EdgeInsets.zero,
+        onPressed: clientAsync.value == null
+            ? null
+            : () async {
+                await showAddTorrentSheet(
+                  context,
+                  clientAsync.value!,
+                  () => ref.invalidate(qbittorrentTorrentsProvider),
+                );
+              },
+        child: const Icon(CupertinoIcons.add),
+      ),
+      slivers: torrentsAsync.when(
+        loading: () => const [
+          SliverFilledMessage(child: CupertinoActivityIndicator()),
+        ],
+        error: (error, _) => [
+          SliverFilledMessage(
             child: Text(
               AppLocalizations.of(context).adminLoadError(error.toString()),
             ),
           ),
-          data: (torrents) {
-            if (torrents.isEmpty) {
-              return Center(
+        ],
+        data: (torrents) {
+          if (torrents.isEmpty) {
+            return [
+              SliverFilledMessage(
                 child: Text(AppLocalizations.of(context).qbittorrentNoTorrents),
-              );
-            }
-            return ListView(
-              children: [
-                const SizedBox(height: 16),
+              ),
+            ];
+          }
+          return [
+            SliverList(
+              delegate: SliverChildListDelegate([
+                const SizedBox(height: Gap.sm),
                 CupertinoListSection.insetGrouped(
                   children: [
                     for (final torrent in torrents)
@@ -99,10 +105,10 @@ class _TorrentsList extends ConsumerWidget {
                       ),
                   ],
                 ),
-              ],
-            );
-          },
-        ),
+              ]),
+            ),
+          ];
+        },
       ),
     );
   }

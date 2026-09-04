@@ -7,6 +7,8 @@ import '../providers/proxmox_providers.dart';
 import 'proxmox_connect_screen.dart';
 import 'proxmox_node_detail_screen.dart';
 import 'widgets/proxmox_usage_bar.dart';
+import '../../../shared/widgets/service_root_scaffold.dart';
+import '../../../shared/theme/spacing.dart';
 
 class ProxmoxNodesScreen extends ConsumerWidget {
   const ProxmoxNodesScreen({super.key});
@@ -36,45 +38,48 @@ class _NodesList extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final nodesAsync = ref.watch(proxmoxNodesProvider);
 
-    return CupertinoPageScaffold(
-      navigationBar: CupertinoNavigationBar(
-        middle: const Text('Proxmox VE'),
-        leading: CupertinoButton(
-          padding: EdgeInsets.zero,
-          onPressed: () => ref.invalidate(proxmoxNodesProvider),
-          child: const Icon(CupertinoIcons.refresh),
-        ),
-        trailing: CupertinoButton(
-          padding: EdgeInsets.zero,
-          onPressed: () =>
-              ref.read(proxmoxConnectionProvider.notifier).signOut(),
-          child: const Icon(CupertinoIcons.square_arrow_right),
-        ),
+    return ServiceRootScaffold(
+      title: 'Proxmox VE',
+      leading: CupertinoButton(
+        padding: EdgeInsets.zero,
+        onPressed: () => ref.invalidate(proxmoxNodesProvider),
+        child: const Icon(CupertinoIcons.refresh),
       ),
-      child: SafeArea(
-        child: nodesAsync.when(
-          loading: () => const Center(child: CupertinoActivityIndicator()),
-          error: (error, _) => Center(
+      trailing: CupertinoButton(
+        padding: EdgeInsets.zero,
+        onPressed: () => ref.read(proxmoxConnectionProvider.notifier).signOut(),
+        child: const Icon(CupertinoIcons.square_arrow_right),
+      ),
+      slivers: nodesAsync.when(
+        loading: () => const [
+          SliverFilledMessage(child: CupertinoActivityIndicator()),
+        ],
+        error: (error, _) => [
+          SliverFilledMessage(
             child: Text(
               AppLocalizations.of(context).adminLoadError(error.toString()),
             ),
           ),
-          data: (nodes) {
-            if (nodes.isEmpty) {
-              return Center(
+        ],
+        data: (nodes) {
+          if (nodes.isEmpty) {
+            return [
+              SliverFilledMessage(
                 child: Text(AppLocalizations.of(context).proxmoxTileNoNodes),
-              );
-            }
-            return ListView(
-              children: [
-                const SizedBox(height: 16),
+              ),
+            ];
+          }
+          return [
+            SliverList(
+              delegate: SliverChildListDelegate([
+                const SizedBox(height: Gap.sm),
                 CupertinoListSection.insetGrouped(
                   children: [for (final node in nodes) _NodeRow(node: node)],
                 ),
-              ],
-            );
-          },
-        ),
+              ]),
+            ),
+          ];
+        },
       ),
     );
   }

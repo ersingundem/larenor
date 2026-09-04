@@ -283,17 +283,21 @@ class _HomeDashboardScreenState extends ConsumerState<HomeDashboardScreen> {
   /// One shared grid geometry for every section, so the whole page reads as
   /// a single uniform layout the way Apple Home's does — two columns on a
   /// phone, more on the tablet, with no per-tile sizing.
-  static const _gridDelegate = SliverGridDelegateWithMaxCrossAxisExtent(
-    maxCrossAxisExtent: 210,
-    mainAxisSpacing: 12,
-    crossAxisSpacing: 12,
-    childAspectRatio: 1.6,
-  );
+  /// `mainAxisExtent` rather than `childAspectRatio`: the cell has to be
+  /// as tall as its contents need at the current text scale, not a fixed
+  /// proportion of its width.
+  SliverGridDelegate _gridDelegate(BuildContext context) =>
+      SliverGridDelegateWithMaxCrossAxisExtent(
+        maxCrossAxisExtent: 210,
+        mainAxisSpacing: Gap.md,
+        crossAxisSpacing: Gap.md,
+        mainAxisExtent: HomeAccessoryTile.heightFor(context),
+      );
 
   Widget _accessoryGrid(List<HaEntity> entities) => SliverPadding(
     padding: Insets.page,
     sliver: SliverGrid(
-      gridDelegate: _gridDelegate,
+      gridDelegate: _gridDelegate(context),
       delegate: SliverChildBuilderDelegate(
         (context, index) => HomeAccessoryTile(entity: entities[index]),
         childCount: entities.length,
@@ -305,7 +309,7 @@ class _HomeDashboardScreenState extends ConsumerState<HomeDashboardScreen> {
       SliverPadding(
         padding: Insets.page,
         sliver: SliverGrid(
-          gridDelegate: _gridDelegate,
+          gridDelegate: _gridDelegate(context),
           delegate: SliverChildBuilderDelegate((context, index) {
             final tile = tiles[index];
             final content = ClipRRect(
