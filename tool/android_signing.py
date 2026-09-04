@@ -195,25 +195,72 @@ def build_tool(name):
     android_home = os.environ.get("ANDROID_HOME") or os.environ.get("ANDROID_SDK_ROOT")
     if not android_home:
         raise SigningError("ANDROID_HOME is required to verify the release APK.")
-    tools = list((Path(android_home) / "build-tools").glob(f"*/{name}"))
+    directory = Path(android_home) / "build-tools"
+    pinned = os.environ.get("ANDROID_BUILD_TOOLS_VERSION")
+    if pinned:
+        if not re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+", pinned):
+            raise SigningError("Verification requires a stable Android build-tools version.")
+        tool = directory / pinned / name
+        if not tool.is_file():
+            raise SigningError(f"Pinned Android build tool {name} was not found.")
+        return str(tool)
+    # A preview such as 37.0.0-rc2 must not sort above stable 37.0.0.
+    tools = [path for path in directory.glob(f"*/{name}")
+             if path.is_file() and re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+", path.parent.name)]
     if not tools:
         raise SigningError(f"Android build tool {name} was not found.")
-    return str(max(tools, key=lambda path: tuple(int(x) for x in re.findall(r"\d+", path.parent.name))))
+    return str(max(tools, key=lambda path: tuple(int(x) for x in path.parent.name.split("."))))
+
+
+# Build-tools <=36 uses "Signer #1". Stable 37 uses scheme-specific labels
+# ("V2 Signer:", "V3.0 Signer:") and can report the same identity for multiple
+# SDK ranges. Only these documented/observed certificate labels are accepted;
+# public-key digests and source-stamp certificates are not APK signer pins.
+SDK_SIGNER_RANGE = r"\(minSdkVersion=[0-9]+(?: \(dev release=true\))?, maxSdkVersion=[0-9]+\)"
+APK_SIGNER_LABEL = (r"(?:Signer (?:#[1-9][0-9]*|" + SDK_SIGNER_RANGE + r")|"
+                    r"V(?:1|2|3\.0|3\.1) Signer(?: #[1-9][0-9]*)?:(?: " + SDK_SIGNER_RANGE + r")?)")
+
+
+def apk_certificate_fingerprint(signature_output):
+    lines = signature_output.splitlines()
+    counts = [re.fullmatch(r"Number of signers: ([0-9]+)", line)
+              for line in lines if line.startswith("Number of signers:")]
+    if len(counts) != 1 or counts[0] is None or counts[0][1] != "1":
+        raise SigningError("APK verifier must report exactly one signer.")
+    certificates = []
+    for line in lines:
+        if " certificate SHA-256 digest:" not in line:
+            continue
+        # A source stamp proves distribution provenance, not the APK's signer.
+        if re.fullmatch(r"Source Stamp Signer:? certificate SHA-256 digest: [a-fA-F0-9:]+", line):
+            continue
+        match = re.fullmatch(r"(" + APK_SIGNER_LABEL + r") certificate SHA-256 digest: ([a-fA-F0-9:]+)", line)
+        if match is None:
+            raise SigningError("APK verifier reported an unsupported signing-certificate record.")
+        index = re.search(r"#([0-9]+)", match[1])
+        if index is not None and index[1] != "1":
+            raise SigningError("APK verifier reported more than one signer identity.")
+        certificates.append(normalized_fingerprint(match[2]))
+    if not certificates:
+        raise SigningError("Expected one APK signing certificate; verifier reported 0 recognized records.")
+    if len(set(certificates)) != 1:
+        # Rotation/lineage needs an explicit identity-migration policy. It must
+        # not pass merely because one of several certificates matches the pin.
+        raise SigningError("APK signing certificates contain different identities.")
+    signature_output = "\n".join(lines)
+    if re.search(r"^" + APK_SIGNER_LABEL + r" certificate DN:.*\bCN\s*=\s*Android Debug(?:\s*,|$)",
+                 signature_output, re.MULTILINE | re.IGNORECASE):
+        raise SigningError("Android debug signing certificates are forbidden for release artifacts.")
+    return certificates[0]
 
 
 def validate_apk_output(signature_output, badging_output, expected, expected_code):
-    signature_output = "\n".join(signature_output.splitlines())
-    certificates = re.findall(r"^Signer #\d+ certificate SHA-256 digest: ([a-fA-F0-9:]+)$",
-                              signature_output, re.MULTILINE)
-    if len(certificates) != 1:
-        raise SigningError(f"Expected one APK signing certificate; verifier reported {len(certificates)} recognized records.")
-    if normalized_fingerprint(certificates[0]) != normalized_fingerprint(expected):
+    observed = apk_certificate_fingerprint(signature_output)
+    if observed != normalized_fingerprint(expected):
         # Certificates are public integrity metadata. Only emit a validated hex
         # digest, never raw tool output, private keys or environment values.
         raise SigningError("APK certificate differs from the pinned release identity; observed SHA-256: "
-                           + normalized_fingerprint(certificates[0]))
-    if re.search(r"^Signer #\d+ certificate DN:.*CN=Android Debug(?:,|$)", signature_output, re.MULTILINE | re.IGNORECASE):
-        raise SigningError("Android debug signing certificates are forbidden for release artifacts.")
+                           + observed)
     package = re.search(r"^package: name='([^']+)' versionCode='([0-9]+)' versionName='([^']*)'", badging_output, re.MULTILINE)
     if not package or package[1] != "com.ersingundem.larenor" or int(package[2]) != expected_code:
         raise SigningError("Release APK package/version does not match this workflow run.")

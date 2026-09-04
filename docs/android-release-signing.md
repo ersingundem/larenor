@@ -80,6 +80,19 @@ kısmen tamamlandıysa araç mevcut secret'ların üzerine yazmaz. Yeniden anaht
   Android debug sertifikası release için reddedilir.
   [Android apksigner](https://developer.android.com/tools/apksigner)
 
+Doğrulayıcı CI'da **build-tools 37.0.0** sürümüne sabitlenmiştir. 37.0.0,
+sertifika satırlarında eski `Signer #1` yerine `V2 Signer:` ve `V3.0 Signer:`
+gibi şema adları kullanır. Önceki ayrıştırıcı bu geçerli çıktıda sıfır sertifika
+bulduğu için CI duruyordu; aynı release APK üzerinde resmi 36.1.0 ve 37.0.0
+araçlarıyla fark yeniden üretildi. Yeni ayrıştırıcı bu belirli biçimleri kabul
+eder, `Number of signers: 1` koşulunu zorunlu tutar ve farklı şema/SDK
+aralıklarında tekrarlanan bütün sertifikaların aynı sabitlenmiş kimliğe ait
+olmasını ister. Birden fazla kimlik veya anahtar rotasyonu ayrıca tasarlanmadan
+kabul edilmez; kaynak damgası ve public-key digest'i imza sertifikası yerine
+geçmez. `apksigner verify` başarısızsa metadata veya release artifact üretilmez.
+[Resmi Android SDK paketleri](https://dl.google.com/android/repository/repository2-3.xml),
+[AOSP apksigner kaynak kodu ve test APK'ları](https://android.googlesource.com/platform/tools/apksig/)
+
 Platformun Android backup/device-transfer dışlamaları bu işlemle değişmez.
 İmza anahtarı APK'ya gömülmez ve uygulama veri yedeği değildir.
 

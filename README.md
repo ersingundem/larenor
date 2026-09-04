@@ -24,6 +24,51 @@ This repository and its contents are proprietary — see [LICENSE](LICENSE).
   reinstall since it just re-reads the OS setting. Falls back to English on any other
   device language.
 
+### Shared navigation and connection evidence
+
+- Home, Media, Routines and System share stable routes, with a sidebar on wide
+  windows and tabs on smaller screens. Room selection and scroll position survive
+  switching tabs; everyday service screens are reachable outside Settings.
+- Local search finds rooms, accessories, scenes, cached media and configured
+  services, plus Today and Intercom. Turkish spelling is normalized. Opening or
+  typing in search does not initialize service connections or scan remote libraries.
+- Connection labels distinguish saved configuration, server contact and a valid
+  data read. Partial media errors remain visible. An unchanged device state is not
+  treated as an offline connection.
+- HA controls show sending, server acknowledgement, observed state, failure or an
+  uncertain outcome. Observing a reported state is not proof of physical causality.
+  Duplicate submissions are guarded; uncertain mutations are never auto-retried.
+
+### Today
+
+- A daily overview combines HA to-do lists, calendar events and persistent
+  notifications, using the Home Assistant time zone, including daylight-saving
+  transitions and all-day events.
+- Open a list to add or edit supported fields, complete an item or undo completion.
+  Updates use item IDs and explicit readback; unavailable lists and stale reads are
+  shown separately from empty lists. Foreground refreshes are bounded and stop in
+  the background.
+- Notification reading is local to the current account/session. Removing a
+  notification from Home Assistant requires a separate confirmation. Calendars are
+  currently read-only; this screen does not create phone push notifications.
+
+### Intercom foundation — Netelsan Algan 7
+
+- Settings → Intercom maps an existing HA camera, chime, active-call sensor, door
+  contact and commissioned `button`/`lock` release control. Home and local search
+  open the daily intercom page. Mapping changes are local to Larenor.
+- Camera snapshots show their receive time and keep a visibly stale last image
+  when refresh fails; hidden pages stop polling. Snapshot receipt is not a live
+  video or capture-time guarantee.
+- Door release starts disabled and requires an explicit, named confirmation,
+  current live HA connection evidence and, by default, an active call. The approval
+  expires after 30 seconds and is invalidated by account, mapping, call or lifecycle
+  changes. Importing the mapping from a backup disables release until recommissioned.
+- The Algan 7 needs a revision-specific, isolated hardware bridge. Its door button
+  releases during a call and changes the camera view when idle. There is no direct
+  Algan IP integration, universal wiring pinout, audio bridge or installed firmware
+  in this delivery. See the [hardware foundation](docs/intercom-hardware-foundation-2026-09-05.md).
+
 ### Home Assistant connection
 
 - Connect with a server URL and a long-lived access token from your HA profile.
@@ -111,7 +156,8 @@ Settings → Home Assistant uses the same adaptive Cupertino layout as Home and 
 - **Automations** supports listing, enabling/disabling, running, duplication and
   JSON configuration create/edit/delete. The full visual editor and traces remain
   available in Home Assistant's own frontend.
-- **Cameras** provides live snapshot browsing and image expansion.
+- **Cameras** provides periodic snapshot browsing and image expansion, with receive
+  times and visible stale-image errors.
 - **Home Assistant workspace** opens the official frontend inside the app for
   server-specific panels such as Energy, maps, backups, Assist and custom
   dashboards. It uses its own sign-in session; the app never injects its long-lived

@@ -218,6 +218,23 @@ class _SearchResultRow extends StatelessWidget {
         CupertinoIcons.square_stack_3d_up,
         l10n.navigationSearchSystem,
       ),
+      LocalSearchKind.page =>
+        switch ((item.target as HomePageNavigationTarget).page) {
+          HomePageTarget.today => (
+            CupertinoIcons.calendar,
+            l10n.navigationSearchPage,
+          ),
+          HomePageTarget.intercom => (
+            CupertinoIcons.bell,
+            l10n.navigationSearchPage,
+          ),
+        },
+    };
+    final title = switch (item.target) {
+      HomePageNavigationTarget(page: HomePageTarget.today) => l10n.todayTitle,
+      HomePageNavigationTarget(page: HomePageTarget.intercom) =>
+        l10n.intercomTitle,
+      _ => item.title,
     };
     final details = [
       kindLabel,
@@ -242,7 +259,7 @@ class _SearchResultRow extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    item.title,
+                    title,
                     style: AppText.body.copyWith(
                       color: CupertinoColors.label.resolveFrom(context),
                     ),

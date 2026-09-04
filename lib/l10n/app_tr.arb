@@ -775,5 +775,130 @@
         "type": "String"
       }
     }
-  }
+  },
+  "cameraUnavailable": "Kamera görüntüsü yenilenemedi",
+  "cameraSnapshotTime": "Görüntü alındı · {time}",
+  "@cameraSnapshotTime": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "intercomTitle": "Diafon",
+  "intercomSetup": "Diafon kurulumu",
+  "intercomSetupDescription": "Kurulumu doğrulanmış diafon köprüsünün Home Assistant üzerindeki kamera, çağrı ve kapı kontrolünü bağla.",
+  "intercomReleaseEnabled": "Kapı açmayı etkinleştir",
+  "intercomReleaseDisabled": "Kapı açma devre dışı",
+  "intercomAdd": "Diafon ekle",
+  "intercomNotSelected": "Seçilmedi",
+  "intercomName": "Diafon adı",
+  "intercomCamera": "Kamera",
+  "intercomChime": "Zil sinyali",
+  "intercomActiveCall": "Aktif görüşme sinyali",
+  "intercomDoorContact": "Kapı kontağı",
+  "intercomReleaseControl": "Kapı açma kontrolü",
+  "intercomRequireCall": "Aktif görüşme gerekli",
+  "intercomCommissioningNote": "Kapı açmayı, köprü ve darbe sınırı bu diafon modeliyle doğrulandıktan sonra etkinleştir. Algan kapı tuşunun işlevi görüşme durumuna bağlıdır.",
+  "intercomDifferentServer": "Bu diafon farklı bir Home Assistant bağlantısına ait. Kurulumu gözden geçir.",
+  "intercomSaveError": "Diafon kaydedilemedi. Adını ve seçilen cihazları kontrol et.",
+  "intercomRemove": "Diafonu kaldır",
+  "intercomEmpty": "Henüz diafon eklenmedi",
+  "intercomConfirmTitle": "{name} kapısı açılsın mı?",
+  "intercomConfirmMessage": "Bu diafona bir kapı açma isteği gönderilecek. Yanıt, kapının fiziksel olarak açıldığını kanıtlamaz.",
+  "intercomLockCode": "Kilit erişim kodu",
+  "intercomOpenDoor": "Kapıyı aç",
+  "intercomRecheck": "Diafon hazır değil. Güncel görüşmeyi, bağlantıyı ve kurulumu kontrol et.",
+  "intercomWaitForCall": "Kapı açma aktif görüşme sırasında kullanılabilir.",
+  "intercomStale": "Güncel Home Assistant bağlantısı ve cihaz durumu bekleniyor.",
+  "intercomNoVideo": "Bu bağlantı için kamera görüntüsü seçilmedi.",
+  "intercomRinging": "Zil çalıyor",
+  "intercomChimeQuiet": "Zil beklemede",
+  "intercomChimeUnknown": "Zil durumu alınamıyor",
+  "intercomContactOpen": "Kapı kontağı: açık",
+  "intercomContactClosed": "Kapı kontağı: kapalı",
+  "intercomContactUnknown": "Kapı kontağı: bilinmiyor",
+  "intercomClearSelection": "Seçimi temizle",
+  "@intercomConfirmTitle": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "todayTitle": "Bugün",
+  "todayTodos": "Görevler ve alışveriş",
+  "todayCalendar": "Takvim",
+  "todayNotifications": "Bildirimler",
+  "todayNoTodoLists": "Kullanılabilir görev listesi yok.",
+  "todayNoTasks": "Bu listede görev yok.",
+  "todayNoCalendars": "Kullanılabilir takvim yok.",
+  "todayNoEvents": "Bugün etkinlik yok.",
+  "todayNoNotifications": "Bildirim yok.",
+  "todayUnread": "Henüz okunmadı",
+  "todayPartial": "Bazı bilgiler yenilenemedi.",
+  "todayStale": "Önceden okunan veriler gösteriliyor. Değişiklik yapmadan önce yenileyin.",
+  "todayUnsupported": "Bu özellik bu Home Assistant entegrasyonunda kullanılamıyor.",
+  "todayUnavailable": "Bu kaynağa şu anda erişilemiyor.",
+  "todayReadError": "Bu bilgiler okunamadı.",
+  "todayAddTask": "Görev ekle",
+  "todayEditTask": "Görevi düzenle",
+  "todayTaskTitle": "Görev",
+  "todayTaskNotes": "Notlar",
+  "todayTaskDueDate": "Son tarih",
+  "todayTaskNoDueDate": "Son tarih yok",
+  "todayTaskRemoveDueDate": "Son tarihi kaldır",
+  "todayTaskUnnamed": "Adsız görev",
+  "todayTaskUnknownStatus": "Durum bilinmiyor",
+  "todayTaskTitleRequired": "Bir görev adı girin.",
+  "todayMissingItem": "Bu öğe artık mevcut değil. Listeyi yenileyin.",
+  "todayInvalidOperation": "Bu öğe için bu değişiklik kullanılamıyor. Listeyi yenileyin.",
+  "todayReadOnlyList": "Bu liste burada yalnızca görüntülenebilir.",
+  "todayMarkDone": "Tamamlandı olarak işaretle",
+  "todayMarkIncomplete": "Tamamlanmadı olarak işaretle",
+  "todayCompleted": "Tamamlananlar",
+  "todayOpenTasks": "Bekleyenler",
+  "todayAllTasks": "Tümü",
+  "todayUndo": "Geri al",
+  "todayMarkedComplete": "Görev tamamlandı",
+  "todayNotificationFallback": "Bildirim",
+  "todayDismissNotification": "Home Assistant’tan kaldır",
+  "todayDismissConfirm": "Bu işlem bildirimi Home Assistant’tan herkes için kaldırır.",
+  "todayViewingKeepsNotification": "Bildirimi açmak onu Home Assistant’tan kaldırmaz.",
+  "todayAllDay": "Tüm gün",
+  "todayLocation": "Konum",
+  "todayTimeZone": "Ev saat dilimi: {zone}",
+  "todayRefreshed": "Güncellendi: {time}",
+  "todayViewAll": "Tümünü gör ({count})",
+  "todayRemaining": "{count} bekleyen",
+  "@todayTimeZone": {
+    "placeholders": {
+      "zone": {
+        "type": "String"
+      }
+    }
+  },
+  "@todayRefreshed": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "@todayViewAll": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "@todayRemaining": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "todayTaskIncludeTime": "Saat ekle",
+  "navigationSearchPage": "Sayfa"
 }

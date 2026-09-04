@@ -133,6 +133,38 @@ class _HomeDashboardScreenState extends ConsumerState<HomeDashboardScreen> {
             onRetry: _refresh,
           ),
         ),
+        if (widget.embedded && _selectedRoom == null)
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: Wrap(
+                children: [
+                  CupertinoButton(
+                    onPressed: () => context.go('/today'),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(CupertinoIcons.calendar, size: 20),
+                        const SizedBox(width: 8),
+                        Text(l10n.todayTitle),
+                      ],
+                    ),
+                  ),
+                  CupertinoButton(
+                    onPressed: () => context.go('/intercom'),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(CupertinoIcons.bell, size: 20),
+                        const SizedBox(width: 8),
+                        Text(l10n.intercomTitle),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
         ...layoutAsync.when(
           loading: () => const [
             SliverFillRemaining(

@@ -55,7 +55,7 @@ String foldSearchText(String value) {
   return out.toString().trim().replaceAll(RegExp(r'\s+'), ' ');
 }
 
-enum LocalSearchKind { room, entity, scene, script, media, system }
+enum LocalSearchKind { room, entity, scene, script, media, system, page }
 
 class LocalSearchEntity {
   const LocalSearchEntity({required this.entityId, required this.name});
@@ -122,8 +122,43 @@ class LocalSearchIndex {
     Iterable<LocalSearchEntity> entities = const [],
     Iterable<MediaTitle> media = const [],
     Iterable<AppService> services = const [],
+    Iterable<HomePageTarget> pages = const [],
   }) {
     final documents = <String, _Document>{};
+    for (final page in pages.toSet()) {
+      final aliases = switch (page) {
+        HomePageTarget.today => [
+          'Today',
+          'Bugün',
+          'takvim',
+          'calendar',
+          'alışveriş',
+          'shopping',
+          'ev işleri',
+          'görevler',
+          'tasks',
+          'bildirimler',
+          'notifications',
+        ],
+        HomePageTarget.intercom => [
+          'Intercom',
+          'Diafon',
+          'kapı',
+          'door',
+          'zil',
+          'doorbell',
+          'Netelsan',
+          'Algan',
+        ],
+      };
+      final item = LocalSearchItem(
+        id: 'page:${page.name}',
+        title: aliases.first,
+        kind: LocalSearchKind.page,
+        target: HomePageNavigationTarget(page),
+      );
+      documents[item.id] = _Document(item, aliases, const []);
+    }
     final memberships = <String, Set<String>>{};
     for (final room in rooms) {
       final item = LocalSearchItem(

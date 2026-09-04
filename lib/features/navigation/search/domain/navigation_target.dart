@@ -17,6 +17,15 @@ sealed class NavigationTarget {
   int get hashCode => location.hashCode;
 }
 
+enum HomePageTarget { today, intercom }
+
+final class HomePageNavigationTarget extends NavigationTarget {
+  const HomePageNavigationTarget(this.page);
+  final HomePageTarget page;
+  @override
+  Uri get uri => Uri(path: '/${page.name}');
+}
+
 final class RoomNavigationTarget extends NavigationTarget {
   const RoomNavigationTarget(this.roomId);
   final String roomId;

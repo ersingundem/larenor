@@ -1096,5 +1096,130 @@
         "type": "String"
       }
     }
-  }
+  },
+  "cameraUnavailable": "Camera image could not be refreshed",
+  "cameraSnapshotTime": "Snapshot received · {time}",
+  "@cameraSnapshotTime": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "intercomTitle": "Intercom",
+  "intercomSetup": "Intercom setup",
+  "intercomSetupDescription": "Connect a commissioned door station through its Home Assistant camera, call and door-control entities.",
+  "intercomReleaseEnabled": "Enable door release",
+  "intercomReleaseDisabled": "Door release is disabled",
+  "intercomAdd": "Add door station",
+  "intercomNotSelected": "Not selected",
+  "intercomName": "Door station name",
+  "intercomCamera": "Camera",
+  "intercomChime": "Doorbell signal",
+  "intercomActiveCall": "Active call signal",
+  "intercomDoorContact": "Door contact",
+  "intercomReleaseControl": "Door release control",
+  "intercomRequireCall": "Require an active call",
+  "intercomCommissioningNote": "Enable release after the bridge and its pulse limit have been verified for this intercom model. Algan door-button behavior depends on the active call.",
+  "intercomDifferentServer": "This station belongs to a different Home Assistant connection. Review its setup.",
+  "intercomSaveError": "The station could not be saved. Check the name and entity selections.",
+  "intercomRemove": "Remove station",
+  "intercomEmpty": "No door stations configured",
+  "intercomConfirmTitle": "Release {name}?",
+  "intercomConfirmMessage": "Send one door-release request to this station. The response does not prove the door physically opened.",
+  "intercomLockCode": "Lock access code",
+  "intercomOpenDoor": "Release door",
+  "intercomRecheck": "The station is not ready. Check the current call, connection and setup.",
+  "intercomWaitForCall": "Door release is available during an active call.",
+  "intercomStale": "Waiting for a current Home Assistant connection and device state.",
+  "intercomNoVideo": "No camera image is configured for this connection.",
+  "intercomRinging": "Doorbell active",
+  "intercomChimeQuiet": "Doorbell idle",
+  "intercomChimeUnknown": "Doorbell state unavailable",
+  "intercomContactOpen": "Door contact: open",
+  "intercomContactClosed": "Door contact: closed",
+  "intercomContactUnknown": "Door contact: unknown",
+  "intercomClearSelection": "Clear selection",
+  "@intercomConfirmTitle": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "todayTitle": "Today",
+  "todayTodos": "Tasks & shopping",
+  "todayCalendar": "Calendar",
+  "todayNotifications": "Notifications",
+  "todayNoTodoLists": "No to-do lists are available.",
+  "todayNoTasks": "No tasks in this list.",
+  "todayNoCalendars": "No calendars are available.",
+  "todayNoEvents": "No events today.",
+  "todayNoNotifications": "No notifications.",
+  "todayUnread": "Not read yet",
+  "todayPartial": "Some information could not be refreshed.",
+  "todayStale": "Showing an older saved view. Refresh before making changes.",
+  "todayUnsupported": "This feature is not available from this Home Assistant integration.",
+  "todayUnavailable": "This source is currently unavailable.",
+  "todayReadError": "This information could not be read.",
+  "todayAddTask": "Add task",
+  "todayEditTask": "Edit task",
+  "todayTaskTitle": "Task",
+  "todayTaskNotes": "Notes",
+  "todayTaskDueDate": "Due date",
+  "todayTaskNoDueDate": "No due date",
+  "todayTaskRemoveDueDate": "Remove due date",
+  "todayTaskUnnamed": "Unnamed task",
+  "todayTaskUnknownStatus": "Status unavailable",
+  "todayTaskTitleRequired": "Enter a task name.",
+  "todayMissingItem": "This item is no longer available. Refresh the list.",
+  "todayInvalidOperation": "This change is not available for this item. Refresh the list.",
+  "todayReadOnlyList": "This list can only be viewed here.",
+  "todayMarkDone": "Mark complete",
+  "todayMarkIncomplete": "Mark incomplete",
+  "todayCompleted": "Completed",
+  "todayOpenTasks": "Open",
+  "todayAllTasks": "All",
+  "todayUndo": "Undo",
+  "todayMarkedComplete": "Task marked complete",
+  "todayNotificationFallback": "Notification",
+  "todayDismissNotification": "Dismiss in Home Assistant",
+  "todayDismissConfirm": "This removes the notification from Home Assistant for everyone.",
+  "todayViewingKeepsNotification": "Opening a notification keeps it in Home Assistant.",
+  "todayAllDay": "All day",
+  "todayLocation": "Location",
+  "todayTimeZone": "Home time zone: {zone}",
+  "todayRefreshed": "Updated: {time}",
+  "todayViewAll": "View all ({count})",
+  "todayRemaining": "{count} remaining",
+  "@todayTimeZone": {
+    "placeholders": {
+      "zone": {
+        "type": "String"
+      }
+    }
+  },
+  "@todayRefreshed": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "@todayViewAll": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "@todayRemaining": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "todayTaskIncludeTime": "Include time",
+  "navigationSearchPage": "Page"
 }

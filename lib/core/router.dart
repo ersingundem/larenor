@@ -13,6 +13,8 @@ import '../features/navigation/search/domain/navigation_target.dart';
 import '../features/navigation/search/presentation/local_search_screen.dart';
 import '../features/settings/data/app_service.dart';
 import '../features/settings/presentation/settings_gate_screen.dart';
+import '../features/intercom/presentation/intercom_screen.dart';
+import '../features/today/presentation/today_screen.dart';
 
 final routerProvider = Provider<GoRouter>((ref) {
   final rootKey = GlobalKey<NavigatorState>();
@@ -31,6 +33,14 @@ final routerProvider = Provider<GoRouter>((ref) {
                 path: '/',
                 builder: (_, _) => const HomeDashboardScreen(embedded: true),
                 routes: [
+                  GoRoute(
+                    path: 'today',
+                    builder: (_, _) => const TodayScreen(),
+                  ),
+                  GoRoute(
+                    path: 'intercom',
+                    builder: (_, _) => const IntercomScreen(),
+                  ),
                   GoRoute(
                     path: 'rooms/:roomId',
                     builder: (_, state) => RoomDestinationScreen(

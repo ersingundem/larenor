@@ -22,6 +22,7 @@ import '../../../proxmox/providers/proxmox_providers.dart';
 import '../../../settings/data/app_service.dart';
 import '../../../settings/providers/enabled_services_providers.dart';
 import '../domain/local_search_index.dart';
+import '../domain/navigation_target.dart';
 
 class _EntityNames {
   const _EntityNames(this.names);
@@ -104,6 +105,7 @@ class LocalSearchIndexController extends Notifier<LocalSearchIndex> {
             ),
     ];
     return _index = LocalSearchIndex.build(
+      pages: HomePageTarget.values,
       rooms: rooms,
       entities: [
         for (final entry in names.names.entries)

@@ -89,6 +89,18 @@ class AppShell extends ConsumerWidget {
                           padding: const EdgeInsets.symmetric(vertical: 20),
                           children: [
                             if (navigationShell.currentIndex == 0) ...[
+                              _NavigationRow(
+                                label: l10n.todayTitle,
+                                icon: CupertinoIcons.calendar,
+                                selected: location.path == '/today',
+                                onPressed: () => context.go('/today'),
+                              ),
+                              _NavigationRow(
+                                label: l10n.intercomTitle,
+                                icon: CupertinoIcons.bell,
+                                selected: location.path == '/intercom',
+                                onPressed: () => context.go('/intercom'),
+                              ),
                               Padding(
                                 padding: const EdgeInsets.fromLTRB(
                                   26,

@@ -78,6 +78,9 @@ jobs:
     needs: build-debug-apk
     runs-on: ubuntu-latest
     timeout-minutes: 40
+    env:
+      # Pin the verifier output contract; do not select a runner's newest preview.
+      ANDROID_BUILD_TOOLS_VERSION: "37.0.0"
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
@@ -130,6 +133,7 @@ jobs:
           flutter pub get --enforce-lockfile
           dart run build_runner build
           sdkmanager "platforms;android-37.0"
+          sdkmanager "build-tools;$ANDROID_BUILD_TOOLS_VERSION"
           platform_dir="$ANDROID_HOME/platforms"
           if [ -d "$platform_dir/android-37.0" ] && [ ! -e "$platform_dir/android-37" ]; then
             ln -s "$platform_dir/android-37.0" "$platform_dir/android-37"

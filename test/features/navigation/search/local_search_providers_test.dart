@@ -175,6 +175,22 @@ void main() {
       container.read(localSearchIndexProvider.notifier).refreshCachedSources();
       expect(container.read(localSearchResultsProvider(query)), isEmpty);
     }
+    expect(
+      container
+          .read(localSearchResultsProvider('Bugün'))
+          .single
+          .target
+          .location,
+      '/today',
+    );
+    expect(
+      container
+          .read(localSearchResultsProvider('Algan'))
+          .single
+          .target
+          .location,
+      '/intercom',
+    );
     expect(coldReads, 0);
     expect(container.exists(entitiesProvider), isFalse);
     expect(container.exists(mediaLibraryIndexProvider), isFalse);
@@ -217,7 +233,7 @@ void main() {
       await container.read(dashboardLayoutProvider.future);
       container.listen(localSearchIndexProvider, (_, _) {});
       final index = container.read(localSearchIndexProvider);
-      expect(index.length, 5001);
+      expect(index.length, 5003);
       expect(index.search('salon light').single.id, 'entity:light.lamp_0');
       final changed = {
         for (final entry in initial.entries)
@@ -273,7 +289,10 @@ void main() {
       );
       addTearDown(container.dispose);
       container.listen(localSearchIndexProvider, (_, _) {});
-      expect(container.read(localSearchIndexProvider).isEmpty, isTrue);
+      expect(
+        container.read(localSearchIndexProvider).search('arrival'),
+        isEmpty,
+      );
       container.listen(mediaLibraryIndexProvider, (_, _) {});
       await container.read(mediaLibraryIndexProvider.future);
       container.read(localSearchIndexProvider.notifier).refreshCachedSources();

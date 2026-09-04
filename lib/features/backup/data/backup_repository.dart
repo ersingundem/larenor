@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import '../../../core/configuration_writes.dart';
+import '../../intercom/domain/door_station.dart';
 import 'backup_snapshot.dart';
 import 'backup_storage.dart';
 
@@ -138,7 +139,11 @@ class BackupRepository {
         for (final entry in settings.entries) {
           final previous = await _storage.readPreference(entry.key);
           if (!replace && previous != null) continue;
-          changes.add(_Change(false, entry.key, previous, entry.value));
+          // A restored door mapping never imports physical-control approval.
+          final next = entry.key == DoorStation.storageKey && entry.value != null
+              ? DoorStation.uncommissionStored(entry.value as String)
+              : entry.value;
+          changes.add(_Change(false, entry.key, previous, next));
           if (entry.key == 'enabled_services') {
             changes.add(
               _Change(

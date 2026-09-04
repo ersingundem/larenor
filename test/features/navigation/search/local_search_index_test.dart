@@ -9,6 +9,20 @@ import 'package:larenor/features/navigation/search/domain/navigation_target.dart
 import 'package:larenor/features/settings/data/app_service.dart';
 
 void main() {
+  test(
+    'home pages are searchable without indexing private contents or actions',
+    () {
+      final index = LocalSearchIndex.build(pages: HomePageTarget.values);
+      for (final query in ['BUGÜN', 'alışveriş', 'takvim', 'notifications']) {
+        expect(index.search(query).single.target.location, '/today');
+      }
+      for (final query in ['diafon', 'Netelsan', 'Algan', 'kapı']) {
+        expect(index.search(query).single.target.location, '/intercom');
+      }
+      expect(index.search('private task body'), isEmpty);
+    },
+  );
+
   test('Turkish dotted/dotless I and composed/decomposed accents match', () {
     for (final value in ['IŞIK', 'ışık', 'İŞİK', 'is\u0327ik', 'isik']) {
       expect(foldSearchText(value), 'isik');

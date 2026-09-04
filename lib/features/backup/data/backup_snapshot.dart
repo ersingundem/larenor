@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import '../../../shared/network/server_bound_client.dart';
 import '../../dashboard/domain/tile_config.dart';
+import '../../intercom/domain/door_station.dart';
 import '../../settings/data/app_service.dart';
 
 class BackupException implements Exception {
@@ -108,6 +109,7 @@ const backupPreferenceKeys = <String>{
   'idle_mode_enabled',
   'idle_timeout_minutes',
   'enabled_services',
+  DoorStation.storageKey,
 };
 
 /// The field names are logical record fields, not an unrestricted storage dump.
@@ -217,6 +219,8 @@ void _validateSettings(Object? value) {
     final v = entry.value;
     if (v == null) continue;
     switch (entry.key) {
+      case DoorStation.storageKey:
+        DoorStation.decodeStored(v);
       case 'appearance':
         if (!{'system', 'light', 'dark'}.contains(v)) {
           throw const BackupValidationException();

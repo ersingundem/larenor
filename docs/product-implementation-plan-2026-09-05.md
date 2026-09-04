@@ -4,11 +4,12 @@
 
 ## Uygulama takibi
 
-- [x] 0. Şifreli yapılandırma kasası — 620 Flutter / 17 Python testi geçti. Kalıcı imza CI altyapısı eklendi; ilk release APK derlendi, sertifika kontrolü araştırılıyor. Gerçek cihaz kabulü bekliyor.
+- [x] 0. Şifreli yapılandırma kasası — Şifreli kasa ve kalıcı imza CI altyapısı eklendi. Birleşik 865 Flutter / 23 Python testi geçti; Build Tools 37 sertifika çıktısı düzeltildi, sonraki CI release doğrulaması bekleniyor. Gerçek cihaz kabulü bekliyor.
 - [x] 1. Ortak gezinme ve arama — 50 yönlendirme/arama/sistem/rutin testi geçti; oda/kaydırma ve pencere boyutu geçişi doğrulandı.
-- [ ] 2. Bağlantı ve işlem durumları — sürüyor.
-- [ ] 3. Bugün: listeler, takvim, bildirimler.
-- [ ] 4. Medyada istekten oynatmaya ortak aşamalar.
+- [x] 2. Bağlantı ve işlem durumları — HA kontrol makbuzları, geçerli veri/erişim ayrımı ve medya kısmi hata kanıtı; diğer servislerin ayrıntılı okuma kanıtı ilgili entegrasyon aşamasında genişletilecek.
+- [x] 2a. Netelsan Algan 7 diafon temeli — yerel eşleştirme ekranı, zil/kamera/kapı kontağı ve süreli onayla açma; diafon + yedekleme 106 test geçti. Elektronik mimari belgelendi; tam revizyon, donanım köprüsü ve fiziksel kabul bekliyor.
+- [x] 3. Bugün: listeler, takvim, bildirimler — 55 veri/UI testi; HA saat dilimi, UID, kısmi hata, hesap/arka plan sınırları. Cihaz kabulü bekliyor.
+- [ ] 4. Medyada istekten oynatmaya ortak aşamalar — sıradaki uygulama aşaması.
 - [ ] 5. Film gecesi rutinleri.
 - [ ] 6. Kontrollü oda eşitleme ve kart düzenleme.
 - [ ] 7. Enerji ve bakım özeti.
@@ -40,8 +41,8 @@ Aşağıdaki tasarımın kod ve testleri `2170ce6` değişikliğinde bulunur; ci
 kaldır–kur doğrulaması bekler. İki tamamlayıcı teslim:
 
 1. **Kaldırmadan güncelleme:** aynı uygulama kimliği ve kalıcı imza anahtarıyla
-   APK üretmek; artan sürüm kodu. CI için kalıcı imza anahtarı sağlandı ve debug/release işleri ayrıldı. İlk
-   release APK derlendi; son sertifika doğrulamasındaki hata araştırılıyor. Mevcut kurulu
+   APK üretmek; artan sürüm kodu. CI için kalıcı imza anahtarı sağlandı ve debug/release işleri ayrıldı. Release APK derlendi; Build Tools 37 sertifika çıktı biçimi değişikliğine göre doğrulayıcı
+   düzeltildi ve aynı APK üzerinde eski/yeni araçla test edildi. Son CI kabulü bekliyor. Mevcut kurulu
    sürümün imzası ölçülmeden kullanıcıdaki kaldırma gereğinin nedeni kesin
    söylenemez. İmza değişimine geçişten önce mevcut uygulamadan yedek alınmalı.
 2. **Yedekle ve geri yükle:** odalar/kartlar/favoriler, tercihler, etkin servisler
@@ -184,8 +185,9 @@ Sunucu hatası “kütüphane boş” biçiminde gösterilmez.
 ### 3. Günlük ev işleri
 
 **Listeler:** `todo.*` üzerinden liste seçme, hızlı ekleme, UID ile tamamlama ve
-son tarih. Aynı başlıktaki iki öğe karıştırılmamalı. HA 2026.8.3'te item list ve
-subscription yolları mevcut; uygun to-do entegrasyonu gerekli.
+son tarih. Aynı başlıktaki iki öğe karıştırılmamalı. HA 2026.8.3 item list yolu kullanılır; to-do listeleri ön planda 60 saniyelik
+okuma, yeniden bağlantı ve açık işlem sonrası okuma ile yenilenir. Uygun to-do
+entegrasyonu gerekli; yerel bildirim okundu durumu bellekte kalır.
 [8.3 to-do kaynak](https://github.com/home-assistant/core/blob/2026.8.3/homeassistant/components/todo/__init__.py),
 [Local to-do](https://www.home-assistant.io/integrations/local_todo/)
 

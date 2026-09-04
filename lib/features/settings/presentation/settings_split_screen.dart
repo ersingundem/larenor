@@ -15,6 +15,7 @@ import 'panes/integrations_pane.dart';
 import 'panes/security_pane.dart';
 import 'settings_file_dialog.dart';
 import '../../backup/presentation/backup_screen.dart';
+import '../../intercom/presentation/intercom_settings_screen.dart';
 
 /// The top-level settings categories, in the order they appear down the
 /// master list.
@@ -23,6 +24,7 @@ enum SettingsCategory {
   display,
   security,
   homeAssistant,
+  intercom,
   integrations,
   backup,
   about,
@@ -119,6 +121,8 @@ Widget paneFor(
       return const SecurityPane();
     case SettingsCategory.homeAssistant:
       return const HomeAssistantPane();
+    case SettingsCategory.intercom:
+      return const IntercomSettingsScreen();
     case SettingsCategory.integrations:
       return const IntegrationsPane();
     case SettingsCategory.backup:
@@ -170,6 +174,12 @@ class _MasterList extends StatelessWidget {
         CupertinoIcons.slider_horizontal_3,
         CupertinoColors.systemGrey,
         l10n.settingsCategoryIntegrations,
+      ),
+      (
+        SettingsCategory.intercom,
+        CupertinoIcons.bell_fill,
+        CupertinoColors.systemOrange,
+        l10n.intercomTitle,
       ),
       (
         SettingsCategory.backup,
