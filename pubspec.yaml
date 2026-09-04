@@ -82,8 +82,8 @@ flutter_launcher_icons:
   android: true
   ios: true
   image_path: "assets/icon/app_icon.png"
-  adaptive_icon_background: "#0A5ADC"
-  adaptive_icon_foreground: "assets/icon/app_icon_foreground.png"
+  # Android adaptive/themed icons use native vectors in res/drawable.
+  # Keep the hand-authored mipmap-anydpi-v26/ic_launcher.xml when regenerating.
   remove_alpha_ios: true
 
 # For information on the generic Dart part of this file, see the
@@ -117,6 +117,7 @@ flutter:
   # lib/features/proxmox/presentation/console/. Flutter asset directories
   # aren't recursive, so every subdirectory needs its own entry.
   assets:
+    - assets/icon/app_icon.png
     - assets/brand_icons/
     - assets/fonts/OFL.txt
     - assets/console/

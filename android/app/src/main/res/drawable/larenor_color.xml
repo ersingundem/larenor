@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Larenor: native vector companion to the app icon; no bitmap background. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp" android:height="108dp"
+    android:viewportWidth="1000" android:viewportHeight="1000">
+    <group android:pivotX="500" android:pivotY="500" android:scaleX="0.86" android:scaleY="0.86">
+    <path android:fillColor="#00000000" android:strokeColor="#F8F4E8" android:strokeWidth="72" android:strokeLineJoin="round" android:strokeLineCap="round"
+        android:pathData="M250,410 L250,675 Q250,752 330,752 L670,752 Q750,752 750,675 L750,410 L535,221 Q500,191 465,221 L250,410 Z" />
+    <path android:fillColor="#E7B35E"
+        android:pathData="M548,352 A48,48 0,1 1,452,352 A48,48 0,1 1,548,352 Z" />
+    <path android:fillColor="#E7B35E"
+        android:pathData="M442,365 C400,462 464,492 510,548 C563,612 525,689 419,716 C601,719 655,625 613,538 C576,454 459,451 442,365 Z" />
+    <path android:fillColor="#E7B35E"
+        android:pathData="M436,506 C366,552 346,628 387,670 C421,704 474,674 464,637 C456,596 417,562 436,506 Z" />
+    </group>
+</vector>

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:crypto/crypto.dart';
@@ -203,20 +204,90 @@ void main() {
       expect(aps, hasLength(1));
       expect(aps.single.id, 'WifiMaster0/AccessPoint0');
     });
+
+    test(
+      'keeps IDs from keyed responses and skips non-interface metadata',
+      () async {
+        final client = await loggedInClient(
+          (request) async => http.Response(
+            jsonEncode({
+              'prompt': '(config)',
+              'WifiMaster1/AccessPoint0': {
+                'type': 'AccessPoint',
+                'state': 'down',
+                'link': 'up',
+              },
+            }),
+            200,
+          ),
+        );
+        final aps = await client.getAccessPoints();
+        expect(aps.single.id, 'WifiMaster1/AccessPoint0');
+        expect(aps.single.up, isFalse);
+      },
+    );
   });
 
   group('setInterfaceUp', () {
-    test('POSTs a parse command array to /rci/', () async {
+    test('POSTs interface change and save in one router-side batch', () async {
       final client = await loggedInClient((request) async {
         expect(request.url.path, '/rci/');
         final body = jsonDecode(request.body) as List<dynamic>;
-        expect(body.single, {
-          'parse': 'interface WifiMaster0/AccessPoint0 down',
-        });
+        expect(body, [
+          {'parse': 'interface WifiMaster0/AccessPoint0 down'},
+          {'parse': 'system configuration save'},
+        ]);
         return http.Response('', 200);
       });
 
       await client.setInterfaceUp('WifiMaster0/AccessPoint0', false);
+    });
+
+    test(
+      'rejects non-Wi-Fi IDs and command injection before sending',
+      () async {
+        final client = KeeneticClient(
+          config: config,
+          httpClient: MockClient((_) async {
+            fail('An invalid interface must not reach the router.');
+          }),
+        );
+        for (final id in [
+          'Home',
+          'WifiMaster0/AccessPoint0\nsystem reboot',
+          '',
+        ]) {
+          await expectLater(
+            client.setInterfaceUp(id, false),
+            throwsA(isA<KeeneticApiException>()),
+          );
+        }
+      },
+    );
+
+    test('surfaces nested RCI errors even when HTTP returns 200', () async {
+      final client = await loggedInClient(
+        (request) async => http.Response(
+          jsonEncode([
+            {
+              'parse': [
+                {'status': 'error', 'message': 'Permission denied'},
+              ],
+            },
+          ]),
+          200,
+        ),
+      );
+      await expectLater(
+        client.setInterfaceUp('WifiMaster0/AccessPoint0', true),
+        throwsA(
+          isA<KeeneticApiException>().having(
+            (error) => error.message,
+            'message',
+            'Permission denied',
+          ),
+        ),
+      );
     });
   });
 
@@ -235,5 +306,135 @@ void main() {
       final rules = await client.getPortForwardingRules();
       expect(rules.single.toAddress, '192.168.1.50');
     });
+  });
+
+  group('session recovery', () {
+    test(
+      'reauthenticates once for simultaneous expired-session reads',
+      () async {
+        var authRequests = 0;
+        var unauthorized = 0;
+        final bothRejected = Completer<void>();
+        final client = KeeneticClient(
+          config: config,
+          httpClient: MockClient((request) async {
+            if (request.url.path == '/auth') {
+              authRequests++;
+              await bothRejected.future;
+              return http.Response(
+                '',
+                200,
+                headers: {'set-cookie': 'session=new; Path=/'},
+              );
+            }
+            if (request.headers['Cookie'] != 'session=new') {
+              unauthorized++;
+              if (unauthorized == 2) bothRejected.complete();
+              return http.Response('', 401);
+            }
+            return http.Response(
+              request.url.path.endsWith('hotspot') ? '{"host":[]}' : '{}',
+              200,
+            );
+          }),
+        );
+        await Future.wait([
+          client.getConnectedDevices(),
+          client.getAccessPoints(),
+        ]);
+        expect(authRequests, 1);
+        expect(unauthorized, 2);
+      },
+    );
+
+    test('stops after one authentication retry', () async {
+      var apiRequests = 0;
+      final client = KeeneticClient(
+        config: config,
+        httpClient: MockClient((request) async {
+          if (request.url.path == '/auth') {
+            return http.Response(
+              '',
+              200,
+              headers: {'set-cookie': 'session=new'},
+            );
+          }
+          apiRequests++;
+          return http.Response('', 401);
+        }),
+      );
+      await expectLater(
+        client.getConnectedDevices(),
+        throwsA(isA<KeeneticApiException>()),
+      );
+      expect(apiRequests, 2);
+    });
+
+    test('does not retry a forbidden mutation', () async {
+      var requests = 0;
+      final client = KeeneticClient(
+        config: config,
+        httpClient: MockClient((request) async {
+          requests++;
+          return http.Response('', 403);
+        }),
+      );
+      await expectLater(
+        client.setInterfaceUp('WifiMaster0/AccessPoint0', true),
+        throwsA(isA<KeeneticApiException>()),
+      );
+      expect(requests, 1);
+    });
+
+    test('retains multiple cookies and handles Expires commas', () async {
+      final client = KeeneticClient(
+        config: config,
+        httpClient: MockClient((request) async {
+          if (request.url.path == '/auth') {
+            return http.Response(
+              '',
+              200,
+              headers: {
+                'set-cookie': 'session=one; Expires=Wed, 09 Jun 2038 10:18:14 GMT; Path=/, route=two; Path=/',
+              },
+            );
+          }
+          expect(request.headers['Cookie'], 'session=one; route=two');
+          return http.Response('{"host":[]}', 200);
+        }),
+      );
+      await client.login();
+      await client.getConnectedDevices();
+    });
+  });
+
+  test('checkConnection rejects an HTML login page with status 200', () async {
+    final client = KeeneticClient(
+      config: config,
+      httpClient: MockClient(
+        (request) async => http.Response('<html>Log in</html>', 200),
+      ),
+    );
+    await expectLater(
+      client.checkConnection(),
+      throwsA(isA<KeeneticApiException>()),
+    );
+  });
+
+  test('loads router identity and system metrics', () async {
+    final client = await loggedInClient(
+      (request) async => http.Response(
+        request.url.path.endsWith('version')
+            ? '{"model":"Keenetic Giga","release":"4.2.4"}'
+            : '{"hostname":"Home","cpuload":8,"memory":"65536/262144","uptime":"90061"}',
+        200,
+      ),
+    );
+    final router = await client.getRouterStatus();
+    expect(router.model, 'Keenetic Giga');
+    expect(router.firmware, '4.2.4');
+    expect(router.hostname, 'Home');
+    expect(router.memoryPercent, 25);
+    expect(router.uptimeSeconds, 90061);
   });
 }

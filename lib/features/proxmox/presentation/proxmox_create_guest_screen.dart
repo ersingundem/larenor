@@ -90,9 +90,7 @@ class _CloneFormScreen extends ConsumerStatefulWidget {
 }
 
 class _CloneFormScreenState extends ConsumerState<_CloneFormScreen> {
-  late final _idController = TextEditingController(
-    text: '${widget.template.vmid + 100}',
-  );
+  final _idController = TextEditingController();
   late final _nameController = TextEditingController(
     text: '${widget.template.name}-clone',
   );
@@ -101,6 +99,24 @@ class _CloneFormScreenState extends ConsumerState<_CloneFormScreen> {
   bool _cloning = false;
   String? _status;
   String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _suggestId();
+  }
+
+  Future<void> _suggestId() async {
+    try {
+      final client = await ref.read(proxmoxClientProvider.future);
+      final nextId = await client?.getNextGuestId();
+      if (mounted && nextId != null && _idController.text.isEmpty) {
+        _idController.text = '$nextId';
+      }
+    } catch (_) {
+      // A user without cluster privileges can still enter an ID manually.
+    }
+  }
 
   @override
   void dispose() {
@@ -127,13 +143,17 @@ class _CloneFormScreenState extends ConsumerState<_CloneFormScreen> {
         ),
       ),
     );
-    if (picked != null) setState(() => _storage = picked);
+    if (picked != null && mounted) setState(() => _storage = picked);
   }
 
   Future<void> _submit() async {
     final client = ref.read(proxmoxClientProvider).value;
     final newId = int.tryParse(_idController.text.trim());
-    if (client == null || newId == null) {
+    if (client == null ||
+        newId == null ||
+        newId < 100 ||
+        newId > 999999999 ||
+        newId == widget.template.vmid) {
       setState(
         () => _error = AppLocalizations.of(context).proxmoxErrorInvalidId,
       );
@@ -154,31 +174,23 @@ class _CloneFormScreenState extends ConsumerState<_CloneFormScreen> {
         name: _nameController.text.trim().isEmpty
             ? null
             : _nameController.text.trim(),
-        targetStorage: _storage?.name,
+        targetStorage: _fullClone ? _storage?.name : null,
         full: _fullClone,
       );
 
-      while (mounted) {
-        final poll = await client.getTaskStatus(widget.nodeName, upid);
-        if (!poll.isRunning) {
-          setState(() {
-            _status = poll.isSuccess
-                ? AppLocalizations.of(context).proxmoxCloneDone
-                : AppLocalizations.of(context).proxmoxCloneFailed(
-                    poll.exitStatus ??
-                        AppLocalizations.of(context).proxmoxUnknownError,
-                  );
-          });
-          if (poll.isSuccess) {
-            ref.invalidate(proxmoxGuestsProvider(widget.nodeName));
-            await Future.delayed(const Duration(seconds: 1));
-            if (mounted) Navigator.of(context).pop();
-          }
-          break;
-        }
-        await Future.delayed(const Duration(seconds: 2));
+      final result = await client.waitForTask(
+        widget.nodeName,
+        upid,
+        shouldContinue: () => mounted,
+      );
+      if (mounted && result != null) {
+        ref.invalidate(proxmoxGuestsProvider(widget.nodeName));
+        ref.invalidate(proxmoxTasksProvider(widget.nodeName));
+        Navigator.of(context).pop();
       }
     } catch (e) {
+      if (!mounted) return;
+      _status = null;
       setState(
         () =>
             _error = AppLocalizations.of(context)
@@ -208,11 +220,13 @@ class _CloneFormScreenState extends ConsumerState<_CloneFormScreen> {
               children: [
                 CupertinoTextFormFieldRow(
                   controller: _idController,
+                  readOnly: _cloning,
                   prefix: Text(AppLocalizations.of(context).proxmoxNewIdLabel),
                   keyboardType: TextInputType.number,
                 ),
                 CupertinoTextFormFieldRow(
                   controller: _nameController,
+                  readOnly: _cloning,
                   prefix: Text(AppLocalizations.of(context).proxmoxFieldName),
                 ),
                 CupertinoListTile(
@@ -222,7 +236,9 @@ class _CloneFormScreenState extends ConsumerState<_CloneFormScreen> {
                   ),
                   trailing: CupertinoSwitch(
                     value: _fullClone,
-                    onChanged: (value) => setState(() => _fullClone = value),
+                    onChanged: _cloning
+                        ? null
+                        : (value) => setState(() => _fullClone = value),
                   ),
                 ),
                 storagesAsync.when(
@@ -232,10 +248,25 @@ class _CloneFormScreenState extends ConsumerState<_CloneFormScreen> {
                     ),
                     trailing: const CupertinoActivityIndicator(),
                   ),
-                  error: (_, _) => const SizedBox.shrink(),
+                  error: (error, _) => CupertinoListTile(
+                    title: Text(
+                      AppLocalizations.of(context).proxmoxStorageLabel,
+                    ),
+                    subtitle: Text(
+                      AppLocalizations.of(context)
+                          .adminLoadError(error.toString()),
+                    ),
+                    trailing: CupertinoButton(
+                      padding: EdgeInsets.zero,
+                      onPressed: () => ref.invalidate(
+                        proxmoxStoragesProvider(widget.nodeName),
+                      ),
+                      child: const Icon(CupertinoIcons.refresh),
+                    ),
+                  ),
                   data: (storages) {
                     final targetable = storages
-                        .where((s) => s.supportsTemplates)
+                        .where((s) => s.supportsGuestType(widget.template.type))
                         .toList();
                     _storage ??= targetable.isEmpty ? null : targetable.first;
                     return CupertinoListTile(
@@ -247,7 +278,7 @@ class _CloneFormScreenState extends ConsumerState<_CloneFormScreen> {
                             AppLocalizations.of(context).commonNone,
                       ),
                       trailing: const CupertinoListTileChevron(),
-                      onTap: targetable.isEmpty
+                      onTap: !_fullClone || _cloning || targetable.isEmpty
                           ? null
                           : () => _pickStorage(targetable),
                     );

@@ -13,6 +13,10 @@ abstract class ConfigEntry with _$ConfigEntry {
     required String state,
     @JsonKey(name: 'disabled_by') String? disabledBy,
     String? reason,
+    @JsonKey(name: 'supports_options') @Default(false) bool supportsOptions,
+    @JsonKey(name: 'supports_reconfigure')
+    @Default(false)
+    bool supportsReconfigure,
   }) = _ConfigEntry;
 
   factory ConfigEntry.fromJson(Map<String, dynamic> json) =>

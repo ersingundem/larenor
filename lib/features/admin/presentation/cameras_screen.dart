@@ -1,4 +1,7 @@
 import 'package:flutter/cupertino.dart';
+
+import '../../../shared/widgets/app_page_scaffold.dart';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../l10n/generated/app_localizations.dart';
@@ -15,7 +18,7 @@ class CamerasScreen extends ConsumerWidget {
     final l10n = AppLocalizations.of(context);
     final entitiesAsync = ref.watch(entitiesProvider);
 
-    return CupertinoPageScaffold(
+    return AppPageScaffold(
       child: CustomScrollView(
         slivers: [
           CupertinoSliverNavigationBar(largeTitle: Text(l10n.settingsCameras)),

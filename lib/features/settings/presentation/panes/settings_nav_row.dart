@@ -1,5 +1,7 @@
 import 'package:flutter/cupertino.dart';
 
+import '../../../../shared/widgets/app_page_scaffold.dart';
+
 import '../../../../shared/widgets/brand_icon.dart';
 import '../../../../shared/widgets/icon_badge.dart';
 import '../../data/app_service.dart';
@@ -60,10 +62,7 @@ class SettingsPaneScaffold extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return CupertinoPageScaffold(
-      backgroundColor: CupertinoColors.systemGroupedBackground.resolveFrom(
-        context,
-      ),
+    return AppPageScaffold(
       child: CustomScrollView(
         slivers: [
           CupertinoSliverNavigationBar(largeTitle: Text(title)),

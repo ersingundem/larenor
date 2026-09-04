@@ -1,5 +1,8 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/cupertino.dart';
+
+import '../../../../shared/widgets/app_page_scaffold.dart';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../l10n/generated/app_localizations.dart';
@@ -10,6 +13,9 @@ import '../../arr/providers/sonarr_providers.dart';
 import '../../bazarr/providers/bazarr_providers.dart';
 import '../../data/media_api_exception.dart';
 import '../../jellyfin/presentation/player/jellyfin_player_screen.dart';
+import '../../jellyfin/presentation/jellyfin_series_screen.dart';
+import '../../jellyfin/presentation/jellyfin_library_screen.dart';
+import 'widgets/media_theme.dart';
 import '../../jellyfin/providers/jellyfin_providers.dart';
 import '../../jellyseerr/providers/jellyseerr_providers.dart';
 import '../domain/media_identity.dart';
@@ -37,17 +43,26 @@ class _MediaTitleDetailScreenState
   bool _busy = false;
   String? _message;
 
-  MediaTitle get _title => widget.title;
+  bool _requested = false;
+
+  MediaTitle get _title {
+    final title =
+        ref.read(mediaLibraryIndexProvider).value?.enrich(widget.title) ??
+        widget.title;
+    return _requested && !title.isPlayable && title.downloadProgress == null
+        ? title.copyWith(availability: MediaAvailability.requested)
+        : title;
+  }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) => MediaTheme(builder: _build);
+
+  Widget _build(BuildContext context) {
+    ref.watch(mediaLibraryIndexProvider);
     final l10n = AppLocalizations.of(context);
     final artwork = _title.backdropUrl ?? _title.posterUrl;
 
-    return CupertinoPageScaffold(
-      backgroundColor: CupertinoColors.systemGroupedBackground.resolveFrom(
-        context,
-      ),
+    return AppPageScaffold(
       navigationBar: CupertinoNavigationBar(
         middle: Text(_title.title, overflow: TextOverflow.ellipsis),
         previousPageTitle: l10n.mediaHubTitle,
@@ -57,8 +72,11 @@ class _MediaTitleDetailScreenState
         child: ListView(
           children: [
             if (artwork != null)
-              AspectRatio(
-                aspectRatio: 16 / 9,
+              SizedBox(
+                height: (MediaQuery.sizeOf(context).width * 9 / 16).clamp(
+                  180.0,
+                  380.0,
+                ),
                 child: CachedNetworkImage(
                   imageUrl: artwork,
                   fit: BoxFit.cover,
@@ -138,11 +156,17 @@ class _MediaTitleDetailScreenState
 
     // The one button changes meaning with what's actually possible right
     // now, so there's never a dead action on screen.
-    if (_title.isPlayable) {
+    if (_title.isPlayable && ref.watch(jellyfinClientProvider) != null) {
       final resuming = (_title.playedFraction ?? 0) > 0;
       return CupertinoButton.filled(
         onPressed: _play,
-        child: Text(resuming ? l10n.mediaActionResume : l10n.mediaActionPlay),
+        child: Text(
+          resuming
+              ? l10n.mediaActionResume
+              : _title.isTv
+              ? l10n.mediaEpisodesTitle
+              : l10n.mediaActionPlay,
+        ),
       );
     }
 
@@ -161,13 +185,23 @@ class _MediaTitleDetailScreenState
       );
     }
 
+    if (_title.availability == MediaAvailability.inLibrary ||
+        _title.availability == MediaAvailability.monitored) {
+      return CupertinoButton.filled(
+        onPressed: null,
+        child: Text(_statusLabel(l10n)),
+      );
+    }
+
     final canRequest =
         ref.watch(jellyseerrClientProvider) != null &&
         _title.identity.tmdbId != null;
     if (canRequest) {
       return CupertinoButton.filled(
         onPressed: _request,
-        child: Text(l10n.mediaActionRequest),
+        child: Text(
+          _title.isTv ? l10n.mediaRequestAllSeasons : l10n.mediaActionRequest,
+        ),
       );
     }
 
@@ -276,10 +310,25 @@ class _MediaTitleDetailScreenState
       final item = await client.getItem(itemId);
       if (!mounted) return;
       await Navigator.of(context).push(
-        CupertinoPageRoute(builder: (_) => JellyfinPlayerScreen(item: item)),
+        CupertinoPageRoute(
+          builder: (_) => item.isPlayable
+              ? JellyfinPlayerScreen(item: item)
+              : item.type == 'Series'
+              ? JellyfinSeriesScreen(series: item)
+              : JellyfinLibraryScreen(parentId: item.id, title: item.name),
+        ),
       );
-    } on MediaApiException catch (e) {
-      if (mounted) setState(() => _message = e.message);
+      ref.invalidate(jellyfinResumeItemsProvider);
+      ref.invalidate(mediaLibraryIndexProvider);
+      ref.invalidate(mediaHubRowsProvider);
+    } catch (e) {
+      if (mounted) {
+        setState(
+          () => _message = e is MediaApiException
+              ? e.message
+              : AppLocalizations.of(context).mediaErrorUnreachable,
+        );
+      }
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -302,9 +351,21 @@ class _MediaTitleDetailScreenState
       );
       ref.invalidate(mediaLibraryIndexProvider);
       ref.invalidate(mediaHubRowsProvider);
-      if (mounted) setState(() => _message = l10n.mediaRequestSent);
-    } on MediaApiException catch (e) {
-      if (mounted) setState(() => _message = e.message);
+      if (mounted) {
+        ref.invalidate(mediaSearchProvider);
+        setState(() {
+          _requested = true;
+          _message = l10n.mediaRequestSent;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(
+          () => _message = e is MediaApiException
+              ? e.message
+              : l10n.mediaErrorUnreachable,
+        );
+      }
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -323,6 +384,11 @@ class _MediaTitleDetailScreenState
         builder: (_) => ArrAddScreen(
           title: l10n.mediaActionAdd,
           searchHint: _title.title,
+          initialQuery: isTv && _title.identity.tvdbId != null
+              ? 'tvdb:${_title.identity.tvdbId}'
+              : !isTv && _title.identity.tmdbId != null
+              ? 'tmdb:${_title.identity.tmdbId}'
+              : _title.title,
           onLookup: client.lookup,
           loadQualityProfiles: client.getQualityProfiles,
           loadRootFolders: client.getRootFolders,

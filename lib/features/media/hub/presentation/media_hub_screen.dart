@@ -1,8 +1,18 @@
 import 'package:flutter/cupertino.dart';
+
+import '../../../../shared/widgets/app_page_scaffold.dart';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../l10n/generated/app_localizations.dart';
 import '../domain/media_title.dart';
+import '../../jellyfin/presentation/jellyfin_home_screen.dart';
+import '../../jellyfin/providers/jellyfin_providers.dart';
+import '../../jellyseerr/providers/jellyseerr_providers.dart';
+import '../../arr/providers/sonarr_providers.dart';
+import '../../arr/providers/radarr_providers.dart';
+import '../domain/media_identity.dart';
+import 'widgets/media_theme.dart';
 import '../providers/media_catalog_providers.dart';
 import 'media_search_screen.dart';
 import 'media_title_detail_screen.dart';
@@ -15,18 +25,24 @@ import '../../../../shared/theme/icon_sizes.dart';
 /// One browse surface across every connected media service — the library
 /// you already have and the catalogue you could request, in the same
 /// place, instead of a screen per service.
-class MediaHubScreen extends ConsumerWidget {
+class MediaHubScreen extends ConsumerStatefulWidget {
   const MediaHubScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<MediaHubScreen> createState() => _MediaHubScreenState();
+}
+
+class _MediaHubScreenState extends ConsumerState<MediaHubScreen> {
+  int _filter = 0;
+
+  @override
+  Widget build(BuildContext context) => MediaTheme(builder: _build);
+
+  Widget _build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final rowsAsync = ref.watch(mediaHubRowsProvider);
 
-    return CupertinoPageScaffold(
-      backgroundColor: CupertinoColors.systemGroupedBackground.resolveFrom(
-        context,
-      ),
+    return AppPageScaffold(
       // The nav bar lives in the scroll view rather than the scaffold so
       // it can be a large title — which means it has to wrap the loading
       // and empty states too, not just the loaded one.
@@ -43,6 +59,54 @@ class MediaHubScreen extends ConsumerWidget {
             ),
           ),
           CupertinoSliverRefreshControl(onRefresh: () => _refresh(ref)),
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
+              child: Wrap(
+                spacing: 10,
+                runSpacing: 12,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  CupertinoSlidingSegmentedControl<int>(
+                    groupValue: _filter,
+                    children: {
+                      0: Padding(
+                        padding: const EdgeInsets.all(8),
+                        child: Text(l10n.mediaFilterAll),
+                      ),
+                      1: Padding(
+                        padding: const EdgeInsets.all(8),
+                        child: Text(l10n.mediaFilterMovies),
+                      ),
+                      2: Padding(
+                        padding: const EdgeInsets.all(8),
+                        child: Text(l10n.mediaFilterTv),
+                      ),
+                    },
+                    onValueChanged: (value) =>
+                        setState(() => _filter = value ?? 0),
+                  ),
+                  if (ref.watch(jellyfinClientProvider) != null)
+                    CupertinoButton(
+                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                      onPressed: () => Navigator.of(context).push(
+                        CupertinoPageRoute(
+                          builder: (_) => const JellyfinHomeScreen(),
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(CupertinoIcons.rectangle_stack, size: 18),
+                          const SizedBox(width: 8),
+                          Text(l10n.mediaLibraryTitle),
+                        ],
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ),
           ...rowsAsync.when(
             loading: () => const [
               SliverFillRemaining(
@@ -59,7 +123,28 @@ class MediaHubScreen extends ConsumerWidget {
                 ),
               ),
             ],
-            data: (rows) => _slivers(context, l10n, rows),
+            data: (rows) => _slivers(
+              context,
+              l10n,
+              rows
+                  .map(
+                    (row) => MediaRowData(
+                      id: row.id,
+                      titles: row.titles
+                          .where(
+                            (title) =>
+                                _filter == 0 ||
+                                title.identity.kind ==
+                                    (_filter == 1
+                                        ? MediaKind.movie
+                                        : MediaKind.tv),
+                          )
+                          .toList(),
+                    ),
+                  )
+                  .where((row) => row.titles.isNotEmpty)
+                  .toList(),
+            ),
           ),
         ],
       ),
@@ -72,12 +157,21 @@ class MediaHubScreen extends ConsumerWidget {
     List<MediaRowData> rows,
   ) {
     if (rows.isEmpty) {
+      final connected =
+          ref.watch(jellyfinClientProvider) != null ||
+          ref.watch(jellyseerrClientProvider) != null ||
+          ref.watch(sonarrClientProvider) != null ||
+          ref.watch(radarrClientProvider) != null;
       return [
         SliverFillRemaining(
           hasScrollBody: false,
           child: _Message(
-            title: l10n.mediaEmptyTitle,
-            message: l10n.mediaEmptyMessage,
+            title: connected
+                ? l10n.mediaBrowseEmptyTitle
+                : l10n.mediaEmptyTitle,
+            message: connected
+                ? l10n.mediaBrowseEmptyMessage
+                : l10n.mediaEmptyMessage,
           ),
         ),
       ];

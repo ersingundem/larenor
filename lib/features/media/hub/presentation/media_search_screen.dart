@@ -1,6 +1,9 @@
 import 'dart:async';
 
 import 'package:flutter/cupertino.dart';
+
+import '../../../../shared/widgets/app_page_scaffold.dart';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../l10n/generated/app_localizations.dart';
@@ -8,6 +11,7 @@ import '../domain/media_title.dart';
 import '../providers/media_catalog_providers.dart';
 import 'media_hub_screen.dart';
 import 'widgets/media_poster.dart';
+import 'widgets/media_theme.dart';
 
 /// Searches the library and the requestable catalogue at once, so one
 /// title is one result whether you already have it or not.
@@ -40,13 +44,12 @@ class _MediaSearchScreenState extends ConsumerState<MediaSearchScreen> {
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) => MediaTheme(builder: _build);
+
+  Widget _build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
 
-    return CupertinoPageScaffold(
-      backgroundColor: CupertinoColors.systemGroupedBackground.resolveFrom(
-        context,
-      ),
+    return AppPageScaffold(
       navigationBar: CupertinoNavigationBar(
         middle: Text(l10n.mediaSearchTitle),
         previousPageTitle: l10n.mediaHubTitle,
@@ -61,7 +64,10 @@ class _MediaSearchScreenState extends ConsumerState<MediaSearchScreen> {
                 autofocus: true,
                 placeholder: l10n.mediaSearchPlaceholder,
                 onChanged: _onChanged,
-                onSubmitted: (value) => setState(() => _query = value.trim()),
+                onSubmitted: (value) {
+                  _debounce?.cancel();
+                  setState(() => _query = value.trim());
+                },
               ),
             ),
             Expanded(child: _results(context, l10n)),
@@ -81,21 +87,31 @@ class _MediaSearchScreenState extends ConsumerState<MediaSearchScreen> {
       error: (error, _) => _Hint(text: error.toString()),
       data: (titles) {
         if (titles.isEmpty) return _Hint(text: l10n.mediaSearchEmpty);
-        return GridView.builder(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-            maxCrossAxisExtent: 140,
-            mainAxisSpacing: 14,
-            crossAxisSpacing: 12,
-            childAspectRatio: 0.58,
-          ),
-          itemCount: titles.length,
-          itemBuilder: (context, index) {
-            final title = titles[index];
-            return MediaPoster(
-              title: title,
-              width: double.infinity,
-              onTap: () => openMediaTitle(context, title),
+        return LayoutBuilder(
+          builder: (context, constraints) {
+            final columns = ((constraints.maxWidth - 32) / 152).floor().clamp(
+              2,
+              12,
+            );
+            final width =
+                (constraints.maxWidth - 32 - (columns - 1) * 12) / columns;
+            return GridView.builder(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: columns,
+                mainAxisSpacing: 14,
+                crossAxisSpacing: 12,
+                mainAxisExtent: MediaPoster.heightFor(width, context),
+              ),
+              itemCount: titles.length,
+              itemBuilder: (context, index) {
+                final title = titles[index];
+                return MediaPoster(
+                  title: title,
+                  width: double.infinity,
+                  onTap: () => openMediaTitle(context, title),
+                );
+              },
             );
           },
         );

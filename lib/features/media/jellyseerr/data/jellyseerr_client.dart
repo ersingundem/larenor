@@ -124,7 +124,7 @@ class JellyseerrClient {
           body: jsonEncode({
             'mediaType': mediaType,
             'mediaId': mediaId,
-            'seasons': ?seasons,
+            if (mediaType == 'tv') 'seasons': seasons ?? 'all',
           }),
         )
         .timeout(const Duration(seconds: 15));

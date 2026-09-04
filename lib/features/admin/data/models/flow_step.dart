@@ -9,6 +9,10 @@ List<FlowSchemaField> _schemaFromJson(List<dynamic>? raw) => (raw ?? const [])
     .map((e) => FlowSchemaField.fromJson(e as Map<String, dynamic>))
     .toList();
 
+List<String>? _menuFromJson(Object? raw) => raw is Map
+    ? raw.keys.map((key) => '$key').toList()
+    : (raw as List?)?.map((value) => '$value').toList();
+
 @freezed
 abstract class FlowStep with _$FlowStep {
   const factory FlowStep({
@@ -19,7 +23,12 @@ abstract class FlowStep with _$FlowStep {
     String? title,
     String? reason,
     @JsonKey(name: 'last_step') bool? lastStep,
-    @JsonKey(name: 'menu_options') List<String>? menuOptions,
+    @JsonKey(name: 'menu_options', fromJson: _menuFromJson)
+    List<String>? menuOptions,
+    String? url,
+    @JsonKey(name: 'progress_action') String? progressAction,
+    @JsonKey(name: 'description_placeholders')
+    Map<String, dynamic>? descriptionPlaceholders,
     Map<String, dynamic>? errors,
     @JsonKey(
       name: 'data_schema',

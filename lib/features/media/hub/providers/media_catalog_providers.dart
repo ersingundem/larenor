@@ -2,6 +2,7 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 import '../../arr/data/models/arr_calendar_item.dart';
 import '../../arr/data/models/arr_library_item.dart';
+import '../../arr/data/models/arr_lookup_result.dart';
 import '../../arr/data/models/arr_queue_item.dart';
 import '../../arr/providers/radarr_providers.dart';
 import '../../arr/providers/sonarr_providers.dart';
@@ -22,7 +23,7 @@ part 'media_catalog_providers.g.dart';
 /// cost you that one row, not the whole screen.
 Future<T> _orEmpty<T>(Future<T> Function() task, T fallback) async {
   try {
-    return await task();
+    return await task().timeout(const Duration(seconds: 20));
   } catch (_) {
     return fallback;
   }
@@ -74,16 +75,21 @@ Future<MediaLibraryIndex> mediaLibraryIndex(Ref ref) async {
 /// their series so a row never shows the same show twice.
 MediaTitle? mediaTitleFromJellyfin(
   JellyfinItem item, {
+  JellyfinItem? series,
   required String? Function(String itemId, {String type, String? tag}) imageUrl,
 }) {
   final kind = jellyfinKindOf(item);
   if (kind == null) return null;
 
+  // Episode ProviderIds identify the episode itself, never its parent show.
+  final metadata = item.type == 'Episode' || item.type == 'Season'
+      ? series
+      : item;
   final identity = MediaIdentity(
     kind: kind,
-    tmdbId: item.tmdbId,
-    tvdbId: item.tvdbId,
-    imdbId: item.imdbId,
+    tmdbId: metadata?.tmdbId,
+    tvdbId: metadata?.tvdbId,
+    imdbId: metadata?.imdbId,
   );
 
   return MediaTitle(
@@ -92,15 +98,19 @@ MediaTitle? mediaTitleFromJellyfin(
     availability: MediaAvailability.inLibrary,
     year: item.productionYear,
     overview: item.overview,
-    posterUrl: imageUrl(item.id, tag: item.imageTags?['Primary']),
-    backdropUrl: item.backdropImageTags?.isNotEmpty ?? false
+    posterUrl: imageUrl(
+      metadata?.id ?? item.seriesId ?? item.id,
+      tag: metadata?.imageTags?['Primary'] ?? item.imageTags?['Primary'],
+    ),
+    backdropUrl: metadata?.backdropImageTags?.isNotEmpty ?? false
         ? imageUrl(
-            item.id,
+            metadata!.id,
             type: 'Backdrop',
-            tag: item.backdropImageTags!.first,
+            tag: metadata.backdropImageTags!.first,
           )
         : null,
     jellyfinItemId: item.id,
+    jellyfinSeriesId: item.type == 'Series' ? item.id : item.seriesId,
     playedFraction: item.playedFraction > 0 ? item.playedFraction : null,
     rating: item.communityRating,
   );
@@ -166,7 +176,11 @@ List<MediaTitle> dedupeTitles(Iterable<MediaTitle> titles) {
   final seen = <String>{};
   final out = <MediaTitle>[];
   for (final title in titles) {
-    final keys = title.identity.allKeys;
+    final keys = [
+      ...title.identity.allKeys,
+      if (title.jellyfinSeriesId != null) 'jellyfin:${title.jellyfinSeriesId}',
+      if (title.jellyfinItemId != null) 'jellyfin:${title.jellyfinItemId}',
+    ];
     // Titles with no external ids can't be deduped, so they're kept
     // as-is rather than collapsed onto each other.
     if (keys.isEmpty) {
@@ -240,7 +254,13 @@ Future<List<MediaRowData>> mediaHubRows(Ref ref) async {
 
   List<MediaTitle> fromJellyfin(List<JellyfinItem> items) => dedupeTitles(
     items
-        .map((e) => mediaTitleFromJellyfin(e, imageUrl: jfImage))
+        .map(
+          (e) => mediaTitleFromJellyfin(
+            e,
+            series: index.jellyfinItem(e.seriesId),
+            imageUrl: jfImage,
+          ),
+        )
         .whereType<MediaTitle>()
         .map(index.enrich),
   );
@@ -314,6 +334,8 @@ Future<List<MediaTitle>> mediaSearch(Ref ref, String query) async {
   final index = await ref.watch(mediaLibraryIndexProvider.future);
   final jellyfin = ref.watch(jellyfinClientProvider);
   final jellyseerr = ref.watch(jellyseerrClientProvider);
+  final sonarr = ref.watch(sonarrClientProvider);
+  final radarr = ref.watch(radarrClientProvider);
 
   final results = await Future.wait([
     _orEmpty<List<JellyfinItem>>(
@@ -322,6 +344,18 @@ Future<List<MediaTitle>> mediaSearch(Ref ref, String query) async {
     ),
     _orEmpty<List<JellyseerrResult>>(
       () => jellyseerr?.search(query) ?? Future.value(const []),
+      const [],
+    ),
+    _orEmpty<List<ArrLookupResult>>(
+      () => jellyseerr == null && sonarr != null
+          ? sonarr.lookup(query)
+          : Future.value(const []),
+      const [],
+    ),
+    _orEmpty<List<ArrLookupResult>>(
+      () => jellyseerr == null && radarr != null
+          ? radarr.lookup(query)
+          : Future.value(const []),
       const [],
     ),
   ]);
@@ -346,6 +380,32 @@ Future<List<MediaTitle>> mediaSearch(Ref ref, String query) async {
           backdropUrl: (p) => jellyseerr?.backdropUrl(p),
         ),
       ),
+      ...(results[2] as List<ArrLookupResult>).map(
+        (item) => mediaTitleFromArrLookup(item, MediaKind.tv),
+      ),
+      ...(results[3] as List<ArrLookupResult>).map(
+        (item) => mediaTitleFromArrLookup(item, MediaKind.movie),
+      ),
     ].map(index.enrich),
+  );
+}
+
+MediaTitle mediaTitleFromArrLookup(ArrLookupResult result, MediaKind kind) {
+  int? id(String key) => int.tryParse('${result.raw[key] ?? ''}');
+  return MediaTitle(
+    identity: MediaIdentity(
+      kind: kind,
+      tmdbId: id('tmdbId'),
+      tvdbId: id('tvdbId'),
+      imdbId: result.raw['imdbId'] as String?,
+    ),
+    title: result.title,
+    year: result.year,
+    overview: result.overview,
+    posterUrl: result.posterUrl,
+    availability: result.alreadyAdded
+        ? MediaAvailability.monitored
+        : MediaAvailability.notAvailable,
+    arrItemId: result.alreadyAdded ? id('id') : null,
   );
 }

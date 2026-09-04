@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:larenor/features/proxmox/data/models/proxmox_storage.dart';
+import 'package:larenor/features/proxmox/data/models/proxmox_guest.dart';
 
 void main() {
   test('parses content types and computes usedFraction', () {
@@ -39,5 +40,34 @@ void main() {
       'content': '',
     });
     expect(storage.usedFraction, isNull);
+  });
+  test('clone storage matches guest content type and availability', () {
+    final images = ProxmoxStorage.fromJson({
+      'storage': 'images',
+      'content': 'images',
+    });
+    final containers = ProxmoxStorage.fromJson({
+      'storage': 'ct',
+      'content': 'rootdir',
+    });
+    final offline = ProxmoxStorage.fromJson({
+      'storage': 'offline',
+      'content': 'images,rootdir,backup',
+      'active': 0,
+    });
+    final disabled = ProxmoxStorage.fromJson({
+      'storage': 'disabled',
+      'content': 'images,rootdir,backup',
+      'enabled': 0,
+    });
+    expect(images.supportsGuestType(ProxmoxGuestType.qemu), isTrue);
+    expect(images.supportsGuestType(ProxmoxGuestType.lxc), isFalse);
+    expect(containers.supportsGuestType(ProxmoxGuestType.lxc), isTrue);
+    expect(containers.supportsGuestType(ProxmoxGuestType.qemu), isFalse);
+    for (final storage in [offline, disabled]) {
+      expect(storage.supportsGuestType(ProxmoxGuestType.qemu), isFalse);
+      expect(storage.supportsGuestType(ProxmoxGuestType.lxc), isFalse);
+      expect(storage.supportsBackups, isFalse);
+    }
   });
 }

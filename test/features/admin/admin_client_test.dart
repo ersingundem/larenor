@@ -7,6 +7,8 @@ import 'package:larenor/features/admin/data/admin_client.dart';
 import 'package:larenor/features/ha_client/data/rest_client.dart';
 import 'package:larenor/features/ha_client/data/ws_client.dart';
 
+import 'admin_test_fakes.dart';
+
 void main() {
   const baseUrl = 'http://homeassistant.local:8123';
   const token = 'test-token';
@@ -120,6 +122,114 @@ void main() {
 
     final step = await client.submitFlowStep('flow1', {'host': '192.168.1.5'});
     expect(step.type, 'create_entry');
+  });
+
+  test(
+    'options and reconfigure use distinct endpoints and frontend-base header',
+    () async {
+      final requests = <http.Request>[];
+      final client = buildClient(
+        MockClient((request) async {
+          requests.add(request);
+          expect(request.headers['HA-Frontend-Base'], baseUrl);
+          return http.Response('{"type":"form","flow_id":"flow1"}', 200);
+        }),
+      );
+      await client.startFlow('hue', entryId: 'entry1');
+      await client.startFlow('entry1', options: true);
+      await client.submitFlowStep('flow1', {'delay': 5}, options: true);
+      await client.getFlow('flow1', options: true);
+      expect(requests.map((request) => request.url.path), [
+        '/api/config/config_entries/flow',
+        '/api/config/config_entries/options/flow',
+        '/api/config/config_entries/options/flow/flow1',
+        '/api/config/config_entries/options/flow/flow1',
+      ]);
+      expect(jsonDecode(requests[0].body), {
+        'handler': 'hue',
+        'entry_id': 'entry1',
+      });
+      expect(jsonDecode(requests[1].body), {'handler': 'entry1'});
+      expect(jsonDecode(requests[2].body), {'delay': 5});
+      expect(requests[3].method, 'GET');
+    },
+  );
+
+  test(
+    'registry updates retain explicit null clearing and use official commands',
+    () async {
+      final socket = RecordingAdminSocket();
+      final client = fakeAdminClient(socket);
+      await client.createArea('Kitchen');
+      await client.updateArea('kitchen', 'Dining');
+      await client.deleteArea('kitchen');
+      await client.updateDevice('hub', {'name_by_user': null, 'area_id': null});
+      await client.updateEntity('light.old', {
+        'new_entity_id': 'light.new',
+        'disabled_by': null,
+        'hidden_by': 'user',
+      });
+      await client.updateConfigEntry('entry', {'title': 'New name'});
+      await client.setConfigEntryDisabled('entry', true);
+      expect(socket.commands, [
+        {'type': 'config/area_registry/create', 'name': 'Kitchen'},
+        {
+          'type': 'config/area_registry/update',
+          'area_id': 'kitchen',
+          'name': 'Dining',
+        },
+        {'type': 'config/area_registry/delete', 'area_id': 'kitchen'},
+        {
+          'type': 'config/device_registry/update',
+          'device_id': 'hub',
+          'name_by_user': null,
+          'area_id': null,
+        },
+        {
+          'type': 'config/entity_registry/update',
+          'entity_id': 'light.old',
+          'new_entity_id': 'light.new',
+          'disabled_by': null,
+          'hidden_by': 'user',
+        },
+        {
+          'type': 'config_entries/update',
+          'entry_id': 'entry',
+          'title': 'New name',
+        },
+        {
+          'type': 'config_entries/disable',
+          'entry_id': 'entry',
+          'disabled_by': 'user',
+        },
+      ]);
+    },
+  );
+
+  test(
+    'pending discovery and reauth flows come from the server progress command',
+    () async {
+      final socket = RecordingAdminSocket(
+        respond: (_) => [
+          {
+            'flow_id': 'reauth1',
+            'handler': 'cloud',
+            'context': {'source': 'reauth'},
+          },
+        ],
+      );
+      final flows = await fakeAdminClient(socket).getPendingFlows();
+      expect(socket.commands.single, {'type': 'config_entries/flow/progress'});
+      expect(flows.single['flow_id'], 'reauth1');
+    },
+  );
+
+  test('reload and delete preserve server restart requirement', () async {
+    final client = buildClient(
+      MockClient((_) async => http.Response('{"require_restart":true}', 200)),
+    );
+    expect(await client.reloadConfigEntry('entry'), isTrue);
+    expect(await client.deleteConfigEntry('entry'), isTrue);
   });
 
   test(

@@ -4,7 +4,6 @@
   "@appTitle": {
     "description": "The app's name, shown as the dashboard title and window/task title."
   },
-
   "commonOff": "Off",
   "commonCancel": "Cancel",
   "commonSave": "Save",
@@ -34,14 +33,16 @@
   "commonNo": "No",
   "commonUnknown": "Unknown",
   "commonNone": "None",
-
   "dashboardLoadError": "Failed to load dashboard: {error}",
   "@dashboardLoadError": {
-    "placeholders": { "error": { "type": "String" } }
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
   },
   "dashboardEmptyTitle": "Your dashboard is empty",
   "dashboardAddTileButton": "Add a tile",
-
   "homeFavorites": "Favourites",
   "homeOtherRoom": "Other",
   "homeServices": "Services",
@@ -53,7 +54,11 @@
   "homeCategoryMedia": "Media",
   "homeSummaryLightsOn": "{count, plural, =1{1 light on} other{{count} lights on}}",
   "@homeSummaryLightsOn": {
-    "placeholders": { "count": { "type": "int" } }
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
   },
   "homeSummaryAllOff": "Everything is off",
   "homeActionMoreInfo": "Details",
@@ -86,18 +91,47 @@
   "dashboardTileProxmox": "Proxmox",
   "dashboardTileKeenetic": "Keenetic",
   "dashboardTileWebview": "Fullscreen website",
-
   "widgetGalleryTitle": "Add Widget",
   "widgetGalleryHint": "Long-press a widget, then drag it onto your dashboard.",
-
+  "entityPickerAddCount": "Add ({count})",
+  "@entityPickerAddCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "roomAddTitle": "New room",
+  "roomNamePlaceholder": "Room name",
+  "roomAddDevices": "Add devices",
+  "roomAddDevicesTo": "Add to {room}",
+  "@roomAddDevicesTo": {
+    "placeholders": {
+      "room": {
+        "type": "String"
+      }
+    }
+  },
+  "roomRename": "Rename room",
+  "roomRemove": "Delete room",
+  "roomRemoveDevice": "Remove from room",
+  "roomImportAreas": "Import Home Assistant areas",
+  "roomPickTitle": "Which room?",
+  "dashboardNoRoomsTitle": "No rooms yet",
+  "dashboardNoRoomsMessage": "Create a room and add the devices you actually want on this screen. You can also start from your Home Assistant areas.",
+  "dashboardAddRoom": "Add a room",
+  "roomEmpty": "No devices yet",
   "entityPickerTitle": "Add Entity",
   "entityPickerEmpty": "No entities found",
   "entityPickerNotConnected": "Not connected to Home Assistant — connect first, then add this tile.",
   "entityPickerNoDomainMatch": "No {domain} entities found on your Home Assistant server.",
   "@entityPickerNoDomainMatch": {
-    "placeholders": { "domain": { "type": "String" } }
+    "placeholders": {
+      "domain": {
+        "type": "String"
+      }
+    }
   },
-
   "entityStateOn": "On",
   "entityStateOff": "Off",
   "entityStateOpen": "Open",
@@ -131,68 +165,84 @@
   "entityStateClear": "Clear",
   "entityStateUnavailable": "Unavailable",
   "entityStateScene": "Scene",
-
   "moreInfoEntityNotFound": "Entity not found",
   "moreInfoOn": "On",
   "moreInfoDetailsHeader": "DETAILS",
   "moreInfoEntityId": "Entity ID",
   "moreInfoLastChanged": "Last changed",
-
   "historyTileFallbackTitle": "History",
   "historyTileNoData": "No history",
-
   "bazarrTileMissingSubtitles": "{count, plural, =0{No missing subtitles} one{{count} missing subtitle} other{{count} missing subtitles}}",
   "@bazarrTileMissingSubtitles": {
-    "placeholders": { "count": { "type": "int" } }
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
   },
-
   "jellyfinTileNothingInProgress": "Nothing in progress",
   "jellyseerrTileNoRequests": "No requests",
-
   "keeneticTileDevicesOnline": "{count, plural, one{{count} device online} other{{count} devices online}}",
   "@keeneticTileDevicesOnline": {
-    "placeholders": { "count": { "type": "int" } }
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
   },
   "keeneticTileWifiUp": "{up} of {total} Wi-Fi networks up",
   "@keeneticTileWifiUp": {
     "placeholders": {
-      "up": { "type": "int" },
-      "total": { "type": "int" }
+      "up": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
     }
   },
-
   "prowlarrTileNoIndexers": "No indexers",
   "prowlarrTileEnabledCount": "{enabled} of {total} enabled",
   "@prowlarrTileEnabledCount": {
     "placeholders": {
-      "enabled": { "type": "int" },
-      "total": { "type": "int" }
+      "enabled": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
     }
   },
-
   "proxmoxTileNoNodes": "No nodes",
   "proxmoxTileNodeStats": "{name} · CPU {cpu}% · RAM {ram}%",
   "@proxmoxTileNodeStats": {
     "placeholders": {
-      "name": { "type": "String" },
-      "cpu": { "type": "int" },
-      "ram": { "type": "int" }
+      "name": {
+        "type": "String"
+      },
+      "cpu": {
+        "type": "int"
+      },
+      "ram": {
+        "type": "int"
+      }
     }
   },
-
   "qbittorrentTileNoActive": "No active torrents",
   "qbittorrentTileFallbackName": "Torrent",
   "qbittorrentTileProgress": "{name} · {percent}%",
   "@qbittorrentTileProgress": {
     "placeholders": {
-      "name": { "type": "String" },
-      "percent": { "type": "int" }
+      "name": {
+        "type": "String"
+      },
+      "percent": {
+        "type": "int"
+      }
     }
   },
-
   "commonFoundOnNetwork": "FOUND ON YOUR NETWORK",
   "commonScanning": "Scanning…",
-
   "connectScreenTitle": "Connect",
   "connectScreenIntro": "Connect to your self-hosted Home Assistant server to get started.",
   "connectServerHeader": "SERVER",
@@ -202,7 +252,6 @@
   "connectTokenHint": "Create a long-lived access token from your Home Assistant profile page (bottom of the Security tab).",
   "connectErrorEnterBoth": "Enter both a server URL and an access token.",
   "connectErrorUnreachable": "Could not reach the server. Check the URL and your network.",
-
   "settingsCategoryConnection": "Connection",
   "settingsCategoryDisplay": "Display & Brightness",
   "settingsCategorySecurity": "Security",
@@ -226,7 +275,7 @@
   "mediaActionDetails": "Details",
   "mediaStatusInLibrary": "In your library",
   "mediaStatusDownloading": "Downloading",
-  "mediaStatusDownloadingPercent": "Downloading \u2014 {percent}%",
+  "mediaStatusDownloadingPercent": "Downloading — {percent}%",
   "mediaStatusRequested": "Requested",
   "mediaStatusMonitored": "Monitored, not downloaded yet",
   "mediaStatusNotAvailable": "Not in your library",
@@ -238,12 +287,19 @@
   "mediaKindMovie": "Film",
   "mediaKindTv": "TV series",
   "@mediaStatusDownloadingPercent": {
-    "placeholders": { "percent": { "type": "int" } }
+    "placeholders": {
+      "percent": {
+        "type": "int"
+      }
+    }
   },
   "@mediaSubtitlesMissing": {
-    "placeholders": { "count": { "type": "int" } }
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
   },
-
   "settingsScreenTitle": "Settings",
   "settingsSectionConnection": "CONNECTION",
   "settingsHaServer": "Home Assistant server",
@@ -260,7 +316,11 @@
   "settingsIdleModeAfter": "After",
   "settingsMinutesShort": "{minutes} min",
   "@settingsMinutesShort": {
-    "placeholders": { "minutes": { "type": "int" } }
+    "placeholders": {
+      "minutes": {
+        "type": "int"
+      }
+    }
   },
   "settingsSectionNightMode": "NIGHT MODE",
   "settingsNightModeFooter": "A shared overnight window used to dim the screen and/or let it turn off, like a day/night theme.",
@@ -294,10 +354,13 @@
   "settingsGatePinPlaceholder": "PIN",
   "settingsGateUnlockButton": "Unlock",
   "settingsGateIncorrectPin": "Incorrect PIN",
-
   "adminLoadError": "Failed to load: {error}",
   "@adminLoadError": {
-    "placeholders": { "error": { "type": "String" } }
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
   },
   "integrationsScreenEmpty": "No integrations configured",
   "integrationsReloadAction": "Reload",
@@ -314,19 +377,35 @@
   "automationsNeverTriggered": "Never triggered",
   "automationsLastTriggered": "Last triggered: {when}",
   "@automationsLastTriggered": {
-    "placeholders": { "when": { "type": "String" } }
+    "placeholders": {
+      "when": {
+        "type": "String"
+      }
+    }
   },
   "automationEditorInvalidJson": "Invalid JSON: {error}",
   "@automationEditorInvalidJson": {
-    "placeholders": { "error": { "type": "String" } }
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
   },
   "automationEditorSaveError": "Failed to save: {error}",
   "@automationEditorSaveError": {
-    "placeholders": { "error": { "type": "String" } }
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
   },
   "automationEditorDeleteError": "Failed to delete: {error}",
   "@automationEditorDeleteError": {
-    "placeholders": { "error": { "type": "String" } }
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
   },
   "automationEditorDeleteTitle": "Delete automation?",
   "automationEditorDeleteMessage": "This cannot be undone.",
@@ -336,13 +415,11 @@
   "dynamicFormRequired": "Required",
   "dynamicFormOptional": "Optional",
   "dynamicFormSelect": "Select…",
-
   "mediaErrorEnterUrlUsername": "Enter a server URL and username.",
   "mediaErrorUnreachable": "Could not reach the server.",
   "mediaUserLabel": "User",
   "mediaUsernamePlaceholder": "Username",
   "mediaPasswordLabel": "Password",
-
   "jellyfinContinueWatching": "Continue Watching",
   "jellyfinRecentlyAdded": "Recently Added",
   "jellyfinLibrariesHeader": "LIBRARIES",
@@ -350,7 +427,6 @@
   "jellyfinBrowseButton": "Browse",
   "jellyfinLibraryEmpty": "Nothing here yet",
   "jellyfinPlayerNotConnected": "Not connected to Jellyfin.",
-
   "jellyfinPlayerSubtitlesButton": "Subtitles",
   "jellyfinPlayerAudioButton": "Audio",
   "jellyfinPlayerQualityButton": "Quality",
@@ -361,13 +437,15 @@
   "jellyfinPlayerQualityAuto": "Auto (Original)",
   "jellyfinPlayerTrackUnnamed": "Track {index}",
   "@jellyfinPlayerTrackUnnamed": {
-    "placeholders": { "index": { "type": "int" } }
+    "placeholders": {
+      "index": {
+        "type": "int"
+      }
+    }
   },
   "jellyfinPlayerQualityChangeFailed": "Couldn't change quality. Still playing at the previous setting.",
-
   "mediaErrorEnterUrlApiKey": "Enter a server URL and API key.",
   "mediaApiKeyLabel": "API Key",
-
   "jellyseerrApiKeyHint": "Find your API key in Jellyseerr under Settings → General.",
   "jellyseerrSearchPlaceholder": "Search movies & TV shows",
   "jellyseerrSearchEmpty": "Search for something to request",
@@ -384,10 +462,13 @@
   "jellyseerrRequestStatusPendingApproval": "Pending approval",
   "jellyseerrRequestStatusApproved": "Approved",
   "jellyseerrRequestStatusDeclined": "Declined",
-
   "arrApiKeyHint": "Find your API key in {service} under Settings → General → Security.",
   "@arrApiKeyHint": {
-    "placeholders": { "service": { "type": "String" } }
+    "placeholders": {
+      "service": {
+        "type": "String"
+      }
+    }
   },
   "arrDownloadQueueHeader": "DOWNLOAD QUEUE",
   "arrNothingDownloading": "Nothing downloading",
@@ -397,27 +478,51 @@
   "arrAlreadyAdded": "Added",
   "arrQualityLine": "Quality: {name}",
   "@arrQualityLine": {
-    "placeholders": { "name": { "type": "String" } }
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
   },
   "arrQualityOptionSelected": "✓ Quality: {name}",
   "@arrQualityOptionSelected": {
-    "placeholders": { "name": { "type": "String" } }
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
   },
   "arrFolderLine": "Folder: {path}",
   "@arrFolderLine": {
-    "placeholders": { "path": { "type": "String" } }
+    "placeholders": {
+      "path": {
+        "type": "String"
+      }
+    }
   },
   "arrFolderOptionSelected": "✓ Folder: {path}",
   "@arrFolderOptionSelected": {
-    "placeholders": { "path": { "type": "String" } }
+    "placeholders": {
+      "path": {
+        "type": "String"
+      }
+    }
   },
   "arrMetadataLine": "Metadata: {name}",
   "@arrMetadataLine": {
-    "placeholders": { "name": { "type": "String" } }
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
   },
   "arrMetadataOptionSelected": "✓ Metadata: {name}",
   "@arrMetadataOptionSelected": {
-    "placeholders": { "name": { "type": "String" } }
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
   },
   "arrAddSeriesTitle": "Add Series",
   "arrSearchTvShows": "Search TV shows",
@@ -427,22 +532,23 @@
   "arrSearchArtists": "Search artists",
   "arrAddAuthorTitle": "Add Author",
   "arrSearchAuthors": "Search authors",
-
   "bazarrApiKeyHint": "Find your API key in Bazarr under Settings → General.",
   "bazarrMoviesMissingHeader": "MOVIES MISSING SUBTITLES",
   "bazarrEpisodesMissingHeader": "EPISODES MISSING SUBTITLES",
   "bazarrLoadSectionError": "Failed to load {section}: {error}",
   "@bazarrLoadSectionError": {
     "placeholders": {
-      "section": { "type": "String" },
-      "error": { "type": "String" }
+      "section": {
+        "type": "String"
+      },
+      "error": {
+        "type": "String"
+      }
     }
   },
   "bazarrMissingSubtitlesLabel": "Missing subtitles",
-
   "prowlarrApiKeyHint": "Find your API key in Prowlarr under Settings → General.",
   "prowlarrNoIndexersConfigured": "No indexers configured",
-
   "qbittorrentNoTorrents": "No torrents",
   "qbittorrentPauseAction": "Pause",
   "qbittorrentResumeAction": "Resume",
@@ -450,7 +556,6 @@
   "qbittorrentPasteMagnetLink": "Paste Magnet Link",
   "qbittorrentChooseFile": "Choose .torrent File",
   "qbittorrentMagnetLinkTitle": "Magnet Link",
-
   "proxmoxErrorEnterFields": "Enter a host, realm, and username.",
   "proxmoxHostLabel": "Host",
   "proxmoxPortLabel": "Port",
@@ -464,7 +569,11 @@
   "proxmoxStorageHeader": "STORAGE",
   "proxmoxTemplateName": "{name} (template)",
   "@proxmoxTemplateName": {
-    "placeholders": { "name": { "type": "String" } }
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
   },
   "proxmoxActionStart": "Start",
   "proxmoxActionShutdown": "Shutdown",
@@ -474,7 +583,11 @@
   "proxmoxActionResume": "Resume",
   "proxmoxCouldNotSave": "Could not save: {error}",
   "@proxmoxCouldNotSave": {
-    "placeholders": { "error": { "type": "String" } }
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
   },
   "proxmoxStartOnBoot": "Start on boot",
   "proxmoxAdvancedHeader": "ADVANCED",
@@ -518,26 +631,46 @@
   "proxmoxFieldBalloon": "Memory ballooning (MB)",
   "proxmoxFieldNetworkInterface": "Network Interface {index}",
   "@proxmoxFieldNetworkInterface": {
-    "placeholders": { "index": { "type": "int" } }
+    "placeholders": {
+      "index": {
+        "type": "int"
+      }
+    }
   },
   "proxmoxFieldStorageDevice": "{bus} Storage {index}",
   "@proxmoxFieldStorageDevice": {
     "placeholders": {
-      "bus": { "type": "String" },
-      "index": { "type": "int" }
+      "bus": {
+        "type": "String"
+      },
+      "index": {
+        "type": "int"
+      }
     }
   },
   "proxmoxFieldMountPoint": "Mount Point {index}",
   "@proxmoxFieldMountPoint": {
-    "placeholders": { "index": { "type": "int" } }
+    "placeholders": {
+      "index": {
+        "type": "int"
+      }
+    }
   },
   "proxmoxFieldUnusedDisk": "Unused Disk {index}",
   "@proxmoxFieldUnusedDisk": {
-    "placeholders": { "index": { "type": "int" } }
+    "placeholders": {
+      "index": {
+        "type": "int"
+      }
+    }
   },
   "proxmoxFieldIpConfig": "IP Configuration {index}",
   "@proxmoxFieldIpConfig": {
-    "placeholders": { "index": { "type": "int" } }
+    "placeholders": {
+      "index": {
+        "type": "int"
+      }
+    }
   },
   "proxmoxStatusRunning": "Running",
   "proxmoxStatusStopped": "Stopped",
@@ -546,8 +679,12 @@
   "keeneticWifiRadioLabel": "Radio {radio} · Access Point {ap}",
   "@keeneticWifiRadioLabel": {
     "placeholders": {
-      "radio": { "type": "int" },
-      "ap": { "type": "int" }
+      "radio": {
+        "type": "int"
+      },
+      "ap": {
+        "type": "int"
+      }
     }
   },
   "proxmoxCreateFromTemplateTitle": "Create from Template",
@@ -558,12 +695,20 @@
   "proxmoxCloneDone": "Done",
   "proxmoxCloneFailed": "Failed: {error}",
   "@proxmoxCloneFailed": {
-    "placeholders": { "error": { "type": "String" } }
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
   },
   "proxmoxUnknownError": "unknown error",
   "proxmoxCloneTitle": "Clone {name}",
   "@proxmoxCloneTitle": {
-    "placeholders": { "name": { "type": "String" } }
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
   },
   "proxmoxNewIdLabel": "New ID",
   "proxmoxFullClone": "Full clone",
@@ -573,18 +718,29 @@
   "proxmoxNoBackups": "No backups on this storage",
   "proxmoxVmCtId": "VM/CT #{id}",
   "@proxmoxVmCtId": {
-    "placeholders": { "id": { "type": "int" } }
+    "placeholders": {
+      "id": {
+        "type": "int"
+      }
+    }
   },
   "proxmoxConsoleNotConnected": "Not connected.",
   "proxmoxConsoleOpenError": "Could not open console: {error}",
   "@proxmoxConsoleOpenError": {
-    "placeholders": { "error": { "type": "String" } }
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
   },
   "proxmoxConsoleTitle": "{name} — Console",
   "@proxmoxConsoleTitle": {
-    "placeholders": { "name": { "type": "String" } }
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
   },
-
   "keeneticErrorEnterUrlUsername": "Enter the router URL and username.",
   "keeneticErrorUnreachable": "Could not reach the router.",
   "keeneticCredentialsHint": "The same admin credentials used to log into the router's web interface.",
@@ -594,9 +750,199 @@
   "keeneticNoForwardingRules": "No forwarding rules",
   "keeneticReadOnlyHint": "Read-only — manage rules in Keenetic Web.",
   "keeneticNoAccessPoints": "No access points found",
-
   "rootScreenError": "Something went wrong: {error}",
   "@rootScreenError": {
-    "placeholders": { "error": { "type": "String" } }
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "homeTitle": "My Home",
+  "homeOverview": "Home overview",
+  "homeRooms": "Rooms",
+  "homeAccessoriesCount": "{count} accessories",
+  "homeUnavailableCount": "{count} unavailable",
+  "homeRoomAll": "All rooms",
+  "homeNoCategoryDevices": "No accessories in this category",
+  "homeMoveRoomUp": "Move room up",
+  "homeMoveRoomDown": "Move room down",
+  "homeActionFailed": "Could not update this accessory. Check the connection and try again.",
+  "homeImportEmpty": "No areas found. Create a room and select devices manually.",
+  "homeInvalidUrl": "Enter a valid http:// or https:// website address.",
+  "homeRemoveRoomMessage": "This only removes the room from Larenor. Your Home Assistant devices stay available.",
+  "mediaFilterAll": "All",
+  "mediaFilterMovies": "Films",
+  "mediaFilterTv": "TV series",
+  "mediaLibraryTitle": "Your library",
+  "mediaEpisodesTitle": "Episodes",
+  "mediaSeasonLabel": "Season {number}",
+  "mediaEpisodeLabel": "S{season} · E{episode}",
+  "mediaBrowseEmptyTitle": "Your next watch starts here",
+  "mediaBrowseEmptyMessage": "Search for a title or open your Jellyfin library. Pull to refresh if a service is unavailable.",
+  "mediaRequestAllSeasons": "Request all seasons",
+  "proxmoxTasksTitle": "Activity",
+  "proxmoxNoTasks": "No recent tasks",
+  "proxmoxTaskRunning": "Running",
+  "proxmoxTaskSucceeded": "Completed",
+  "proxmoxTaskLogTitle": "Task log",
+  "proxmoxTaskNoLog": "No log output yet",
+  "@homeAccessoriesCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "@homeUnavailableCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "@mediaSeasonLabel": {
+    "placeholders": {
+      "number": {
+        "type": "int"
+      }
+    }
+  },
+  "@mediaEpisodeLabel": {
+    "placeholders": {
+      "season": {
+        "type": "int"
+      },
+      "episode": {
+        "type": "int"
+      }
+    }
+  },
+  "keeneticRouterStatus": "Network Overview",
+  "keeneticFirmware": "KeeneticOS",
+  "keeneticCpuUsage": "CPU load",
+  "keeneticMemoryUsage": "Memory",
+  "keeneticUptime": "Uptime",
+  "keeneticOnline": "Online",
+  "keeneticOffline": "Offline",
+  "keeneticAllDevices": "All devices",
+  "keeneticIpAddress": "IP address",
+  "keeneticMacAddress": "MAC address",
+  "keeneticInterface": "Interface",
+  "keeneticRegistered": "Registered device",
+  "keeneticDisableWifiTitle": "Turn off Wi-Fi?",
+  "keeneticDisableWifiMessage": "Devices using {name} will disconnect. You may need another network or Ethernet to turn it back on.",
+  "keeneticTurnOff": "Turn Off",
+  "keeneticWifiChangesSaved": "Wi-Fi changes are saved on the router.",
+  "keeneticInvalidUrl": "Enter a valid http:// or https:// router address.",
+  "@keeneticDisableWifiMessage": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "arrMissingConfiguration": "Configure a quality profile and root folder on the server before adding a title.",
+  "aboutAppDescription": "A private companion for your home. Control Home Assistant, discover and watch your self-hosted media, and manage Proxmox and Keenetic from one place.",
+  "aboutAppPrivacy": "Connects to the servers you configure. Your services and media stay on your own infrastructure.",
+  "adminName": "Name",
+  "adminArea": "Area",
+  "adminEnabled": "Enabled",
+  "adminHidden": "Hidden",
+  "adminIcon": "Icon",
+  "adminEntityId": "Entity ID",
+  "adminAddArea": "Add area",
+  "adminEditArea": "Edit area",
+  "adminDeleteAreaMessage": "Removing this Home Assistant area clears its assignments. Devices are kept.",
+  "adminEditDevice": "Edit device",
+  "adminEditEntity": "Edit entity",
+  "adminRegistryHint": "These changes are saved in Home Assistant. Leave a custom name blank to use its default.",
+  "adminOptions": "Options",
+  "adminReconfigure": "Reconfigure",
+  "adminPendingFlows": "Discovered / needs attention",
+  "adminRestartRequired": "Home Assistant reports that a restart is required to apply this change.",
+  "adminFlowWaiting": "Waiting for Home Assistant…",
+  "adminFlowExternal": "Complete authentication on the opened page, then return and refresh.",
+  "adminInvalidValue": "Enter a valid value for this field.",
+  "adminRequiredValue": "This field is required.",
+  "adminDuplicate": "Duplicate",
+  "adminRunNow": "Run now",
+  "adminConfirmDelete": "Remove this integration and its associated entities?",
+  "haActions": "Actions",
+  "haActionsHint": "All actions advertised by your connected Home Assistant, including installed integrations.",
+  "haSearchActions": "Search actions or integrations",
+  "haTools": "Developer tools",
+  "haFrontend": "Home Assistant workspace",
+  "haFrontendHint": "Open the full Home Assistant interface for dashboards, Energy, Assist, backups and other server features. Sign in with your Home Assistant account if asked.",
+  "haTarget": "Target",
+  "haTargetHint": "Optional target as JSON: entity_id, device_id, area_id, floor_id or label_id. Select entities below or enter an exact target.",
+  "haPickEntities": "Choose entities",
+  "haServiceData": "Action data",
+  "haServiceDataHint": "Advanced JSON merges with the fields above. Use it for additional or complex selectors.",
+  "haReturnResponse": "Return response data",
+  "haRun": "Run",
+  "haResult": "Result",
+  "haSuccess": "Completed successfully.",
+  "haJsonObjectRequired": "Enter a valid JSON object.",
+  "haDisconnected": "Connect to Home Assistant first.",
+  "haServerInfo": "Server information",
+  "haHistory": "History",
+  "haLogbook": "Activity",
+  "haCalendars": "Calendars",
+  "haTemplates": "Templates",
+  "haLogs": "System log",
+  "haCheckConfig": "Check configuration",
+  "haEvents": "Events",
+  "haApiConsole": "API console",
+  "haApiHint": "Sends commands to your connected Home Assistant with your account permissions. Write operations can change your home. Review the request before running it.",
+  "haConfirmRun": "Run this action on Home Assistant?",
+  "haRequest": "Request",
+  "haEndpoint": "Endpoint",
+  "haBody": "JSON body",
+  "haEntityIds": "Entity IDs (comma-separated)",
+  "haStart": "Start (ISO 8601)",
+  "haEnd": "End (ISO 8601)",
+  "haTemplate": "Jinja template",
+  "haNoActions": "No matching actions.",
+  "haStateHint": "Setting a state changes Home Assistant’s representation only. Use Actions to control a physical device.",
+  "haUnknownSelector": "Use JSON for this field.",
+  "haAllActions": "All device actions",
+  "haRead": "Read",
+  "haInvalidDate": "Enter valid ISO 8601 dates with end after start.",
+  "haReload": "Reload",
+  "haEndpointUnavailable": "This endpoint is unavailable on this server. Check that the corresponding integration is installed and your account has access.",
+  "commonEnable": "Enable",
+  "commonDisable": "Disable",
+  "haLive": "Live subscription",
+  "haEventType": "Event type (empty for all)",
+  "haStopListening": "Stop listening",
+  "haListening": "Listening… The latest 50 events appear here.",
+  "entityControlTemperature": "Target temperature",
+  "entityControlTargetLow": "Lower target",
+  "entityControlTargetHigh": "Upper target",
+  "entityControlHvacMode": "Mode",
+  "entityControlFanMode": "Fan mode",
+  "entityControlPreset": "Preset",
+  "entityControlPosition": "Position",
+  "entityControlSpeed": "Speed",
+  "entityControlValue": "Value",
+  "entityControlOption": "Option",
+  "entityControlVolume": "Volume",
+  "entityControlOpen": "Open",
+  "entityControlStop": "Stop",
+  "entityControlLock": "Lock",
+  "entityControlUnlock": "Unlock",
+  "entityControlConfirmUnlock": "Unlock this lock?",
+  "entityControlPause": "Pause",
+  "entityControlPrevious": "Previous",
+  "entityControlMute": "Mute",
+  "entityControlCode": "Code",
+  "adminLocalLayoutError": "Home Assistant saved the change, but the local home layout could not be updated: {error}",
+  "@adminLocalLayoutError": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
   }
 }

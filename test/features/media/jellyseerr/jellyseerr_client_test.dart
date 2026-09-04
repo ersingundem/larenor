@@ -57,6 +57,23 @@ void main() {
       await client.requestMedia(mediaType: 'tv', mediaId: 5, seasons: [1, 2]);
     });
 
+    test(
+      'requests all TV seasons explicitly when no selection is supplied',
+      () async {
+        final client = JellyseerrClient(
+          config: config,
+          httpClient: MockClient((request) async {
+            expect(
+              (jsonDecode(request.body) as Map<String, dynamic>)['seasons'],
+              'all',
+            );
+            return http.Response('{}', 201);
+          }),
+        );
+        await client.requestMedia(mediaType: 'tv', mediaId: 5);
+      },
+    );
+
     test('omits seasons entirely when not provided', () async {
       final client = JellyseerrClient(
         config: config,

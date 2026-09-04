@@ -1,4 +1,7 @@
 import 'package:flutter/cupertino.dart';
+
+import '../../../../shared/widgets/settings_section.dart';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../l10n/generated/app_localizations.dart';
@@ -18,7 +21,7 @@ class ConnectionPane extends ConsumerWidget {
     return SettingsPaneScaffold(
       title: l10n.settingsCategoryConnection,
       children: [
-        CupertinoListSection.insetGrouped(
+        SettingsSection(
           children: [
             CupertinoListTile(
               leading: const IconBadge(

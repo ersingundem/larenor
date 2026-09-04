@@ -10,7 +10,7 @@ import 'proxmox_guest_type_label.dart';
 /// Shared row for both VM and container lists — a status-aware
 /// power-action sheet (only actions valid for the guest's current state
 /// are shown) plus navigation into the guest detail screen.
-class ProxmoxGuestRow extends ConsumerWidget {
+class ProxmoxGuestRow extends ConsumerStatefulWidget {
   const ProxmoxGuestRow({
     super.key,
     required this.guest,
@@ -21,7 +21,15 @@ class ProxmoxGuestRow extends ConsumerWidget {
   final VoidCallback onChanged;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<ProxmoxGuestRow> createState() => _ProxmoxGuestRowState();
+}
+
+class _ProxmoxGuestRowState extends ConsumerState<ProxmoxGuestRow> {
+  bool _busy = false;
+  ProxmoxGuest get guest => widget.guest;
+
+  @override
+  Widget build(BuildContext context) {
     return CupertinoListTile(
       leading: Icon(
         guest.isRunning
@@ -43,12 +51,15 @@ class ProxmoxGuestRow extends ConsumerWidget {
       trailing: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          CupertinoButton(
-            padding: EdgeInsets.zero,
-            minimumSize: Size.zero,
-            onPressed: () => _showActions(context, ref),
-            child: const Icon(CupertinoIcons.power, size: 20),
-          ),
+          if (guest.powerActions.isNotEmpty)
+            CupertinoButton(
+              padding: EdgeInsets.zero,
+              minimumSize: Size.zero,
+              onPressed: _busy ? null : () => _showActions(context),
+              child: _busy
+                  ? const CupertinoActivityIndicator(radius: 10)
+                  : const Icon(CupertinoIcons.power, size: 20),
+            ),
           const SizedBox(width: 4),
           const CupertinoListTileChevron(),
         ],
@@ -61,18 +72,11 @@ class ProxmoxGuestRow extends ConsumerWidget {
     );
   }
 
-  Future<void> _showActions(BuildContext context, WidgetRef ref) async {
+  Future<void> _showActions(BuildContext context) async {
     final client = ref.read(proxmoxClientProvider).value;
     if (client == null) return;
 
-    final actions = <String>[
-      if (!guest.isRunning) 'start',
-      if (guest.isRunning) 'shutdown',
-      if (guest.isRunning) 'stop',
-      if (guest.isRunning) 'reboot',
-      if (guest.isRunning) 'suspend',
-      if (guest.status == 'paused') 'resume',
-    ];
+    final actions = guest.powerActions;
     if (actions.isEmpty) return;
 
     final action = await showCupertinoModalPopup<String>(
@@ -94,9 +98,42 @@ class ProxmoxGuestRow extends ConsumerWidget {
       ),
     );
 
-    if (action == null) return;
-    await client.powerAction(guest.node, guest.type, guest.vmid, action);
-    onChanged();
+    if (action == null || !mounted) return;
+    setState(() => _busy = true);
+    try {
+      final upid = await client.powerAction(
+        guest.node,
+        guest.type,
+        guest.vmid,
+        action,
+      );
+      final result = await client.waitForTask(
+        guest.node,
+        upid,
+        shouldContinue: () => mounted,
+      );
+      if (result != null && mounted) widget.onChanged();
+    } catch (error) {
+      if (!context.mounted) return;
+      await showCupertinoDialog<void>(
+        context: context,
+        builder: (context) => CupertinoAlertDialog(
+          title: Text(AppLocalizations.of(context).commonError),
+          content: Text(error.toString()),
+          actions: [
+            CupertinoDialogAction(
+              onPressed: () => Navigator.pop(context),
+              child: Text(AppLocalizations.of(context).commonOk),
+            ),
+          ],
+        ),
+      );
+    } finally {
+      if (mounted) {
+        ref.invalidate(proxmoxTasksProvider(guest.node));
+        setState(() => _busy = false);
+      }
+    }
   }
 
   String _statusLabel(BuildContext context, String status) {

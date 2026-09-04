@@ -46,12 +46,29 @@ class _ProxmoxConnectScreenState extends ConsumerState<ProxmoxConnectScreen> {
   }
 
   Future<void> _connect() async {
-    final host = _hostController.text.trim();
-    final port = int.tryParse(_portController.text.trim()) ?? 8006;
+    final input = _hostController.text.trim();
+    final address = Uri.tryParse(
+      input.contains('://') ? input : 'https://$input',
+    );
+    final host = address?.host ?? '';
+    final port = address?.hasPort == true
+        ? address!.port
+        : int.tryParse(_portController.text.trim());
     final realm = _realmController.text.trim();
     final username = _userController.text.trim();
     final password = _passwordController.text;
-    if (host.isEmpty || realm.isEmpty || username.isEmpty) {
+    if (host.isEmpty ||
+        address?.scheme != 'https' ||
+        address!.userInfo.isNotEmpty ||
+        address.hasQuery ||
+        address.hasFragment ||
+        (address.path.isNotEmpty && address.path != '/') ||
+        port == null ||
+        port < 1 ||
+        port > 65535 ||
+        realm.isEmpty ||
+        username.isEmpty ||
+        password.isEmpty) {
       setState(
         () => _error = AppLocalizations.of(context).proxmoxErrorEnterFields,
       );
@@ -74,8 +91,10 @@ class _ProxmoxConnectScreenState extends ConsumerState<ProxmoxConnectScreen> {
           );
       if (mounted) Navigator.of(context).pop();
     } on ProxmoxApiException catch (e) {
+      if (!mounted) return;
       setState(() => _error = e.message);
     } catch (_) {
+      if (!mounted) return;
       setState(
         () => _error = AppLocalizations.of(context).mediaErrorUnreachable,
       );

@@ -1,6 +1,9 @@
 import 'dart:convert';
 
 import 'package:flutter/cupertino.dart';
+
+import '../../../shared/widgets/app_page_scaffold.dart';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../l10n/generated/app_localizations.dart';
@@ -12,9 +15,14 @@ import '../../../shared/theme/typography.dart';
 /// creating a new one (leave it null) — a visual trigger/condition/action
 /// builder is a separate, much larger project deferred to a later phase.
 class AutomationEditorScreen extends ConsumerStatefulWidget {
-  const AutomationEditorScreen({super.key, this.automationId});
+  const AutomationEditorScreen({
+    super.key,
+    this.automationId,
+    this.initialConfig,
+  });
 
   final String? automationId;
+  final Map<String, dynamic>? initialConfig;
 
   @override
   ConsumerState<AutomationEditorScreen> createState() =>
@@ -41,12 +49,15 @@ class _AutomationEditorScreenState
         widget.automationId ?? DateTime.now().microsecondsSinceEpoch.toString();
 
     if (_isNew) {
-      _controller.text = _encoder.convert({
-        'alias': 'New automation',
-        'triggers': <dynamic>[],
-        'conditions': <dynamic>[],
-        'actions': <dynamic>[],
-      });
+      _controller.text = _encoder.convert(
+        widget.initialConfig ??
+            {
+              'alias': 'New automation',
+              'triggers': <dynamic>[],
+              'conditions': <dynamic>[],
+              'actions': <dynamic>[],
+            },
+      );
       _loading = false;
     } else {
       _loadExisting();
@@ -58,6 +69,7 @@ class _AutomationEditorScreenState
     if (client == null) return;
     try {
       final config = await client.getAutomationConfig(_editingId);
+      if (!mounted) return;
       _controller.text = _encoder.convert(config);
     } catch (e) {
       if (mounted) {
@@ -76,6 +88,7 @@ class _AutomationEditorScreenState
     try {
       parsed = jsonDecode(_controller.text) as Map<String, dynamic>;
     } catch (e) {
+      if (!mounted) return;
       setState(
         () =>
             _error = AppLocalizations.of(context)
@@ -89,10 +102,13 @@ class _AutomationEditorScreenState
       _error = null;
     });
     try {
+      parsed['id'] = _editingId;
       await client.saveAutomationConfig(_editingId, parsed);
+      if (!mounted) return;
       ref.invalidate(automationsProvider);
       if (mounted) Navigator.of(context).pop();
     } catch (e) {
+      if (!mounted) return;
       setState(
         () =>
             _error = AppLocalizations.of(context)
@@ -127,14 +143,16 @@ class _AutomationEditorScreenState
         ],
       ),
     );
-    if (confirmed != true) return;
+    if (confirmed != true || !mounted) return;
 
     setState(() => _saving = true);
     try {
       await client.deleteAutomationConfig(_editingId);
+      if (!mounted) return;
       ref.invalidate(automationsProvider);
       if (mounted) Navigator.of(context).pop();
     } catch (e) {
+      if (!mounted) return;
       setState(() {
         _error = AppLocalizations.of(context)
             .automationEditorDeleteError(e.toString());
@@ -151,7 +169,7 @@ class _AutomationEditorScreenState
 
   @override
   Widget build(BuildContext context) {
-    return CupertinoPageScaffold(
+    return AppPageScaffold(
       navigationBar: CupertinoNavigationBar(
         middle: Text(
           _isNew
@@ -164,7 +182,7 @@ class _AutomationEditorScreenState
             if (!_isNew)
               CupertinoButton(
                 padding: EdgeInsets.zero,
-                onPressed: _saving ? null : _delete,
+                onPressed: _saving || _loading ? null : _delete,
                 child: Icon(
                   CupertinoIcons.delete,
                   color: CupertinoColors.destructiveRed.resolveFrom(context),
@@ -172,7 +190,7 @@ class _AutomationEditorScreenState
               ),
             CupertinoButton(
               padding: EdgeInsets.zero,
-              onPressed: _saving ? null : _save,
+              onPressed: _saving || _loading ? null : _save,
               child: _saving
                   ? const CupertinoActivityIndicator()
                   : Text(AppLocalizations.of(context).commonSave),

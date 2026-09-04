@@ -6,6 +6,7 @@ import '../data/keenetic_credentials_store.dart';
 import '../data/models/keenetic_access_point.dart';
 import '../data/models/keenetic_device.dart';
 import '../data/models/keenetic_port_forward.dart';
+import '../data/models/keenetic_router_status.dart';
 
 part 'keenetic_providers.g.dart';
 
@@ -25,7 +26,7 @@ class KeeneticConnection extends _$KeeneticConnection {
     required String password,
   }) async {
     final config = KeeneticConfig(
-      baseUrl: baseUrl,
+      baseUrl: KeeneticConfig.normalizeBaseUrl(baseUrl),
       username: username,
       password: password,
     );
@@ -39,7 +40,7 @@ class KeeneticConnection extends _$KeeneticConnection {
 
     await ref
         .read(keeneticCredentialsStoreProvider)
-        .save(baseUrl: baseUrl, username: username, password: password);
+        .save(baseUrl: config.baseUrl, username: username, password: password);
     state = AsyncData(config);
   }
 
@@ -51,11 +52,19 @@ class KeeneticConnection extends _$KeeneticConnection {
 
 @riverpod
 Future<KeeneticClient?> keeneticClient(Ref ref) async {
-  final config = ref.watch(keeneticConnectionProvider).value;
+  final config = await ref.watch(keeneticConnectionProvider.future);
   if (config == null) return null;
   final client = KeeneticClient(config: config);
+  ref.onDispose(client.dispose);
   await client.login();
   return client;
+}
+
+@riverpod
+Future<KeeneticRouterStatus?> keeneticRouterStatus(Ref ref) async {
+  final client = await ref.watch(keeneticClientProvider.future);
+  if (client == null) return null;
+  return client.getRouterStatus();
 }
 
 @riverpod

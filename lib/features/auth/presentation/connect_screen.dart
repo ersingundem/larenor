@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../l10n/generated/app_localizations.dart';
 import '../../../shared/widgets/icon_badge.dart';
+import '../../../shared/widgets/larenor_brand.dart';
 import '../../ha_client/data/ha_api_exception.dart';
 import '../../ha_client/data/rest_client.dart';
 import '../data/ha_connection_config.dart';
@@ -131,6 +132,11 @@ class _ConnectScreenState extends ConsumerState<ConnectScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
+                        const Padding(
+                          padding: EdgeInsets.symmetric(vertical: 20),
+                          child: LarenorBrand(centered: true),
+                        ),
+                        const SizedBox(height: 8),
                         Text(
                           l10n.connectScreenIntro,
                           textAlign: TextAlign.center,

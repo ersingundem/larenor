@@ -15,7 +15,8 @@ class ProxmoxConfig {
   final String password;
   final bool allowSelfSigned;
 
-  String get baseUrl => 'https://$host:$port';
+  String get baseUrl => Uri(scheme: 'https', host: host, port: port).toString();
 
-  String get userWithRealm => '$username@$realm';
+  String get userWithRealm =>
+      username.contains('@') ? username : '$username@$realm';
 }

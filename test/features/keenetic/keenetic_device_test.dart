@@ -23,4 +23,18 @@ void main() {
     expect(macOnly.name, 'AA:BB:CC');
     expect(macOnly.active, isFalse);
   });
+
+  test('ignores empty names and accepts router flag encodings', () {
+    final device = KeeneticDevice.fromJson({
+      'name': '',
+      'hostname': 'Tablet',
+      'active': 'yes',
+      'registered': true,
+      'via': 'WifiMaster0/AccessPoint0',
+    });
+    expect(device.name, 'Tablet');
+    expect(device.active, isTrue);
+    expect(device.registered, isTrue);
+    expect(device.interfaceId, 'WifiMaster0/AccessPoint0');
+  });
 }

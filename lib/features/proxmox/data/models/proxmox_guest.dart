@@ -47,6 +47,16 @@ class ProxmoxGuest {
 
   bool get isRunning => status == 'running';
 
+  List<String> get powerActions {
+    if (isTemplate) return const [];
+    return switch (status) {
+      'running' => const ['shutdown', 'stop', 'reboot', 'suspend'],
+      'paused' || 'suspended' => const ['resume', 'stop'],
+      'stopped' => const ['start'],
+      _ => const [],
+    };
+  }
+
   double? get memFraction =>
       (mem != null && maxMem != null && maxMem! > 0) ? mem! / maxMem! : null;
 
@@ -59,7 +69,9 @@ class ProxmoxGuest {
     node: node,
     vmid: (json['vmid'] as num?)?.toInt() ?? 0,
     name: json['name'] as String? ?? 'unknown',
-    status: json['status'] as String? ?? 'unknown',
+    status: json['qmpstatus'] == 'paused'
+        ? 'paused'
+        : json['status'] as String? ?? 'unknown',
     isTemplate: (json['template'] as num? ?? 0) == 1,
     cpuFraction: (json['cpu'] as num?)?.toDouble(),
     maxCpu: (json['maxcpu'] as num?)?.toInt(),

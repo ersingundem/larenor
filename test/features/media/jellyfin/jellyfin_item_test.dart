@@ -2,6 +2,39 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:larenor/features/media/jellyfin/data/models/jellyfin_item.dart';
 
 void main() {
+  test('resume starts from server ticks but completed items start over', () {
+    const item = JellyfinItem(
+      id: 'one',
+      name: 'Film',
+      type: 'Movie',
+      runTimeTicks: 12000000000,
+      userData: JellyfinUserData(playbackPositionTicks: 600000000),
+    );
+    expect(item.resumePosition, const Duration(seconds: 60));
+    expect(
+      item
+          .copyWith(
+            userData: const JellyfinUserData(
+              playbackPositionTicks: 600000000,
+              played: true,
+            ),
+          )
+          .resumePosition,
+      Duration.zero,
+    );
+  });
+
+  test('derives resume progress when Jellyfin omits PlayedPercentage', () {
+    final item = JellyfinItem.fromJson({
+      'Id': 'episode',
+      'Name': 'Pilot',
+      'Type': 'Episode',
+      'RunTimeTicks': 1000,
+      'UserData': {'PlaybackPositionTicks': 250},
+    });
+    expect(item.playedFraction, 0.25);
+  });
+
   test('parses PascalCase Jellyfin fields', () {
     final item = JellyfinItem.fromJson({
       'Id': 'abc123',

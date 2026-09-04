@@ -28,4 +28,18 @@ void main() {
     });
     expect(ap.up, isTrue);
   });
+
+  test('administrative state takes precedence over physical link', () {
+    final ap = KeeneticAccessPoint.fromJson({
+      'id': 'WifiMaster0/AccessPoint0',
+      'description': '',
+      'ssid': 'Home',
+      'state': 'down',
+      'link': 'up',
+      'connected': true,
+    });
+    expect(ap.up, isFalse);
+    expect(ap.name, 'Home');
+    expect(ap.ssid, 'Home');
+  });
 }

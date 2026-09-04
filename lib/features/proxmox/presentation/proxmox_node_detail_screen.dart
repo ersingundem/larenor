@@ -7,6 +7,7 @@ import '../data/models/proxmox_storage.dart';
 import '../providers/proxmox_providers.dart';
 import 'proxmox_backups_screen.dart';
 import 'proxmox_create_guest_screen.dart';
+import 'proxmox_tasks_screen.dart';
 import 'widgets/proxmox_guest_row.dart';
 import 'widgets/proxmox_usage_bar.dart';
 import '../../../shared/widgets/settings_section.dart';
@@ -29,14 +30,24 @@ class ProxmoxNodeDetailScreen extends ConsumerWidget {
     return CupertinoPageScaffold(
       navigationBar: CupertinoNavigationBar(
         middle: Text(nodeName),
-        trailing: CupertinoButton(
-          padding: EdgeInsets.zero,
-          onPressed: () => Navigator.of(context).push(
-            CupertinoPageRoute(
-              builder: (_) => ProxmoxCreateGuestScreen(nodeName: nodeName),
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            CupertinoButton(
+              padding: EdgeInsets.zero,
+              onPressed: refresh,
+              child: const Icon(CupertinoIcons.refresh),
             ),
-          ),
-          child: const Icon(CupertinoIcons.add),
+            CupertinoButton(
+              padding: EdgeInsets.zero,
+              onPressed: () => Navigator.of(context).push(
+                CupertinoPageRoute(
+                  builder: (_) => ProxmoxCreateGuestScreen(nodeName: nodeName),
+                ),
+              ),
+              child: const Icon(CupertinoIcons.add),
+            ),
+          ],
         ),
       ),
       child: SafeArea(
@@ -55,12 +66,33 @@ class ProxmoxNodeDetailScreen extends ConsumerWidget {
             return ListView(
               children: [
                 const SizedBox(height: 16),
+                SettingsSection(
+                  children: [
+                    CupertinoListTile(
+                      leading: const Icon(CupertinoIcons.clock),
+                      title: Text(
+                        AppLocalizations.of(context).proxmoxTasksTitle,
+                      ),
+                      trailing: const CupertinoListTileChevron(),
+                      onTap: () => Navigator.of(context).push(
+                        CupertinoPageRoute<void>(
+                          builder: (_) =>
+                              ProxmoxTasksScreen(nodeName: nodeName),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
                 if (vms.isNotEmpty)
                   SettingsSection(
                     header: Text(AppLocalizations.of(context).proxmoxVmsHeader),
                     children: [
                       for (final guest in vms)
-                        ProxmoxGuestRow(guest: guest, onChanged: refresh),
+                        ProxmoxGuestRow(
+                          key: ValueKey('${guest.type.name}-${guest.vmid}'),
+                          guest: guest,
+                          onChanged: refresh,
+                        ),
                     ],
                   ),
                 if (containers.isNotEmpty)
@@ -70,12 +102,22 @@ class ProxmoxNodeDetailScreen extends ConsumerWidget {
                     ),
                     children: [
                       for (final guest in containers)
-                        ProxmoxGuestRow(guest: guest, onChanged: refresh),
+                        ProxmoxGuestRow(
+                          key: ValueKey('${guest.type.name}-${guest.vmid}'),
+                          guest: guest,
+                          onChanged: refresh,
+                        ),
                     ],
                   ),
                 storagesAsync.when(
                   loading: () => const SizedBox.shrink(),
-                  error: (_, _) => const SizedBox.shrink(),
+                  error: (error, _) => Padding(
+                    padding: const EdgeInsets.all(20),
+                    child: Text(
+                      AppLocalizations.of(context)
+                          .adminLoadError(error.toString()),
+                    ),
+                  ),
                   data: (storages) => storages.isEmpty
                       ? const SizedBox.shrink()
                       : SettingsSection(

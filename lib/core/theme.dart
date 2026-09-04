@@ -1,6 +1,7 @@
 import 'package:flutter/cupertino.dart';
 
 import '../shared/theme/typography.dart';
+import '../shared/theme/app_colors.dart';
 
 /// How the app picks between light and dark.
 enum AppAppearance {
@@ -31,6 +32,8 @@ CupertinoThemeData larenorTheme({Brightness? brightness}) => CupertinoThemeData(
   brightness: brightness,
   primaryColor: CupertinoColors.systemBlue,
   textTheme: appTextTheme,
+  scaffoldBackgroundColor: AppColors.canvas,
+  barBackgroundColor: AppColors.navigation,
 );
 
 /// Convenience for tests and previews that don't need an appearance

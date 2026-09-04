@@ -20,4 +20,25 @@ void main() {
     });
     expect(rule.label, 'udp :51820');
   });
+
+  test('parses documented NAT argument names and translated ports', () {
+    final rule = KeeneticPortForward.fromJson({
+      'protocol': 'tcp',
+      'interface': 'ISP',
+      'port': 8080,
+      'end-port': 8090,
+      'address': '203.0.113.1',
+      'to-address': '192.168.1.50',
+      'to-port': 80,
+    });
+    expect(rule.portRange, '8080–8090');
+    expect(rule.destination, '192.168.1.50:80');
+    expect(rule.interfaceId, 'ISP');
+  });
+
+  test('source address is not misrepresented as destination', () {
+    final rule = KeeneticPortForward.fromJson({'address': '203.0.113.1'});
+    expect(rule.toAddress, isNull);
+    expect(rule.protocol, 'any');
+  });
 }

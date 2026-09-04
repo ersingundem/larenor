@@ -96,4 +96,27 @@ void main() {
     expect(step.type, 'create_entry');
     expect(step.dataSchema, isEmpty);
   });
+
+  test(
+    'config entry capabilities and flow menu maps follow HA response schema',
+    () {
+      final entry = ConfigEntry.fromJson({
+        'entry_id': 'test',
+        'domain': 'hue',
+        'title': 'Hue',
+        'source': 'user',
+        'state': 'loaded',
+        'supports_options': true,
+        'supports_reconfigure': true,
+      });
+      expect(entry.supportsOptions, isTrue);
+      expect(entry.supportsReconfigure, isTrue);
+      final step = FlowStep.fromJson({
+        'type': 'menu',
+        'flow_id': 'test',
+        'menu_options': {'local': 'Local network', 'cloud': 'Cloud account'},
+      });
+      expect(step.menuOptions, ['local', 'cloud']);
+    },
+  );
 }

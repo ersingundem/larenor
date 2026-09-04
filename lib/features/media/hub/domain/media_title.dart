@@ -32,6 +32,7 @@ class MediaTitle {
     this.posterUrl,
     this.backdropUrl,
     this.jellyfinItemId,
+    this.jellyfinSeriesId,
     this.playedFraction,
     this.downloadProgress,
     this.rating,
@@ -50,6 +51,7 @@ class MediaTitle {
   /// Set when the title resolves to something in Jellyfin — this is what
   /// makes Play possible.
   final String? jellyfinItemId;
+  final String? jellyfinSeriesId;
 
   /// Resume position, 0–1, when Jellyfin has watch progress for it.
   final double? playedFraction;
@@ -77,6 +79,7 @@ class MediaTitle {
     String? posterUrl,
     String? backdropUrl,
     String? jellyfinItemId,
+    String? jellyfinSeriesId,
     double? playedFraction,
     double? downloadProgress,
     double? rating,
@@ -91,6 +94,7 @@ class MediaTitle {
     posterUrl: posterUrl ?? this.posterUrl,
     backdropUrl: backdropUrl ?? this.backdropUrl,
     jellyfinItemId: jellyfinItemId ?? this.jellyfinItemId,
+    jellyfinSeriesId: jellyfinSeriesId ?? this.jellyfinSeriesId,
     playedFraction: playedFraction ?? this.playedFraction,
     downloadProgress: downloadProgress ?? this.downloadProgress,
     rating: rating ?? this.rating,

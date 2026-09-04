@@ -98,9 +98,7 @@ class JellyfinClient {
   /// Fields Jellyfin leaves out of list responses unless asked for.
   /// `ProviderIds` is the important one — without it a library item can't
   /// be matched against the same title in Jellyseerr, Radarr or Sonarr.
-  static const _itemFields =
-      'ProviderIds,Overview,Genres,ImageTags,'
-      'BackdropImageTags';
+  static const _itemFields = 'ProviderIds,Overview,Genres';
 
   Future<List<JellyfinItem>> getResumeItems() async {
     final response = await _client.get(
@@ -149,16 +147,69 @@ class JellyfinClient {
   /// media hub's availability index, so `Recursive=true` and the item
   /// types are pinned to the two kinds the hub deals in.
   Future<List<JellyfinItem>> getAllMoviesAndSeries({int limit = 2000}) async {
-    final response = await _client.get(
-      _uri('/Users/${config.userId}/Items', {
-        'Recursive': true,
-        'IncludeItemTypes': 'Movie,Series',
-        'SortBy': 'SortName',
-        'Limit': limit,
-        'Fields': _itemFields,
-      }),
-      headers: _headers,
-    );
+    if (limit < 1) throw ArgumentError.value(limit, 'limit');
+    final items = <JellyfinItem>[];
+    final seen = <String>{};
+    var startIndex = 0;
+    while (true) {
+      final response = await _client
+          .get(
+            _uri('/Users/${config.userId}/Items', {
+              'Recursive': true,
+              'IncludeItemTypes': 'Movie,Series',
+              'SortBy': 'SortName',
+              'StartIndex': startIndex,
+              'Limit': limit,
+              'Fields': _itemFields,
+            }),
+            headers: _headers,
+          )
+          .timeout(const Duration(seconds: 15));
+      _checkOk(response);
+      final body = jsonDecode(response.body) as Map<String, dynamic>;
+      final page = _parseItemList(body['Items'] as List<dynamic>? ?? []);
+      final unique = page.where((item) => seen.add(item.id)).toList();
+      items.addAll(unique);
+      startIndex += page.length;
+      final total = (body['TotalRecordCount'] as num?)?.toInt();
+      // Guard against a server/proxy that ignores the pagination offset.
+      if (unique.isEmpty ||
+          (total != null ? startIndex >= total : page.length < limit)) {
+        break;
+      }
+    }
+    return items;
+  }
+
+  Future<List<JellyfinItem>> getSeasons(String seriesId) async {
+    final response = await _client
+        .get(
+          _uri('/Shows/$seriesId/Seasons', {
+            'UserId': config.userId,
+            'IsMissing': false,
+            'Fields': _itemFields,
+          }),
+          headers: _headers,
+        )
+        .timeout(const Duration(seconds: 15));
+    return _parseItemsEnvelope(response);
+  }
+
+  Future<List<JellyfinItem>> getEpisodes(
+    String seriesId, {
+    String? seasonId,
+  }) async {
+    final response = await _client
+        .get(
+          _uri('/Shows/$seriesId/Episodes', {
+            'UserId': config.userId,
+            'SeasonId': ?seasonId,
+            'IsMissing': false,
+            'Fields': _itemFields,
+          }),
+          headers: _headers,
+        )
+        .timeout(const Duration(seconds: 15));
     return _parseItemsEnvelope(response);
   }
 
@@ -223,9 +274,15 @@ class JellyfinClient {
       throw MediaApiException('No playable media source for this item.');
     }
 
-    final source = mediaSources.first as Map<String, dynamic>;
+    final sources = mediaSources.cast<Map<String, dynamic>>();
+    final source = sources.firstWhere(
+      (source) => source['SupportsDirectPlay'] == true,
+      orElse: () => sources.first,
+    );
     final mediaSourceId = source['Id'] as String;
-    final transcodingUrl = source['TranscodingUrl'] as String?;
+    final transcodingUrl = source['SupportsDirectPlay'] == true
+        ? null
+        : source['TranscodingUrl'] as String?;
 
     final streamUrl = transcodingUrl != null
         ? '${config.baseUrl}$transcodingUrl'
@@ -244,7 +301,13 @@ class JellyfinClient {
   Future<void> reportPlaybackStart({
     required String itemId,
     required JellyfinPlaybackSource source,
-  }) => _postSession('/Sessions/Playing', itemId, source, positionTicks: 0);
+    Duration position = Duration.zero,
+  }) => _postSession(
+    '/Sessions/Playing',
+    itemId,
+    source,
+    positionTicks: _ticksFrom(position),
+  );
 
   Future<void> reportPlaybackProgress({
     required String itemId,

@@ -45,7 +45,7 @@ class _ProxmoxBackupsScreenState extends ConsumerState<ProxmoxBackupsScreen> {
         ),
       ),
     );
-    if (guest == null) return;
+    if (guest == null || !mounted) return;
 
     final client = ref.read(proxmoxClientProvider).value;
     if (client == null) return;
@@ -57,13 +57,31 @@ class _ProxmoxBackupsScreenState extends ConsumerState<ProxmoxBackupsScreen> {
         vmid: guest.vmid,
         storage: widget.storageName,
       );
-      while (mounted) {
-        final poll = await client.getTaskStatus(widget.nodeName, upid);
-        if (!poll.isRunning) break;
-        await Future.delayed(const Duration(seconds: 2));
-      }
+      final result = await client.waitForTask(
+        widget.nodeName,
+        upid,
+        shouldContinue: () => mounted,
+      );
+      if (!mounted || result == null) return;
       ref.invalidate(
         proxmoxBackupsProvider(widget.nodeName, widget.storageName),
+      );
+      ref.invalidate(proxmoxStoragesProvider(widget.nodeName));
+      ref.invalidate(proxmoxTasksProvider(widget.nodeName));
+    } catch (error) {
+      if (!mounted) return;
+      await showCupertinoDialog<void>(
+        context: context,
+        builder: (context) => CupertinoAlertDialog(
+          title: Text(AppLocalizations.of(context).commonError),
+          content: Text(error.toString()),
+          actions: [
+            CupertinoDialogAction(
+              onPressed: () => Navigator.pop(context),
+              child: Text(AppLocalizations.of(context).commonOk),
+            ),
+          ],
+        ),
       );
     } finally {
       if (mounted) setState(() => _backingUp = false);
@@ -82,7 +100,7 @@ class _ProxmoxBackupsScreenState extends ConsumerState<ProxmoxBackupsScreen> {
         middle: Text(widget.storageName),
         trailing: CupertinoButton(
           padding: EdgeInsets.zero,
-          onPressed: _backingUp || guestsAsync.value == null
+          onPressed: _backingUp || guestsAsync.value?.isNotEmpty != true
               ? null
               : () => _backUpNow(guestsAsync.value!),
           child: _backingUp

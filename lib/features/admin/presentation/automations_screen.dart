@@ -1,4 +1,8 @@
 import 'package:flutter/cupertino.dart';
+
+import '../../../shared/widgets/settings_section.dart';
+import '../../../shared/widgets/app_page_scaffold.dart';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../l10n/generated/app_localizations.dart';
@@ -8,17 +12,24 @@ import '../../ha_client/providers/ha_client_providers.dart';
 import '../data/models/automation_summary.dart';
 import '../providers/admin_providers.dart';
 import 'automation_editor_screen.dart';
+import 'widgets/admin_dialogs.dart';
 
-class AutomationsScreen extends ConsumerWidget {
+class AutomationsScreen extends ConsumerStatefulWidget {
   const AutomationsScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<AutomationsScreen> createState() => _AutomationsScreenState();
+}
+
+class _AutomationsScreenState extends ConsumerState<AutomationsScreen> {
+  final _pending = <String>{};
+  @override
+  Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final automationsAsync = ref.watch(automationsProvider);
     final liveEntities = ref.watch(entitiesProvider).value;
 
-    return CupertinoPageScaffold(
+    return AppPageScaffold(
       child: CustomScrollView(
         slivers: [
           CupertinoSliverNavigationBar(
@@ -56,7 +67,7 @@ class AutomationsScreen extends ConsumerWidget {
                 sliver: SliverList(
                   delegate: SliverChildListDelegate([
                     const SizedBox(height: 16),
-                    CupertinoListSection.insetGrouped(
+                    SettingsSection(
                       children: [
                         for (final automation in automations)
                           CupertinoListTile(
@@ -78,23 +89,14 @@ class AutomationsScreen extends ConsumerWidget {
                               value:
                                   liveEntities?[automation.entityId]?.isOn ??
                                   automation.isOn,
-                              onChanged: (enabled) => ref
-                                  .read(haRestClientProvider)
-                                  ?.callService(
-                                    'automation',
-                                    enabled ? 'turn_on' : 'turn_off',
-                                    entityId: automation.entityId,
-                                  ),
-                            ),
-                            onTap: automation.automationId == null
-                                ? null
-                                : () => Navigator.of(context).push(
-                                    CupertinoPageRoute(
-                                      builder: (_) => AutomationEditorScreen(
-                                        automationId: automation.automationId,
-                                      ),
+                              onChanged: _pending.contains(automation.entityId)
+                                  ? null
+                                  : (enabled) => _run(
+                                      automation.entityId,
+                                      enabled ? 'turn_on' : 'turn_off',
                                     ),
-                                  ),
+                            ),
+                            onTap: () => _actions(automation),
                           ),
                       ],
                     ),
@@ -106,6 +108,87 @@ class AutomationsScreen extends ConsumerWidget {
         ],
       ),
     );
+  }
+
+  Future<void> _run(String entityId, String service) async {
+    if (_pending.contains(entityId)) return;
+    setState(() => _pending.add(entityId));
+    try {
+      await ref
+          .read(haRestClientProvider)
+          ?.callService(
+            'automation',
+            service,
+            entityId: entityId,
+            serviceData: service == 'trigger'
+                ? {'skip_condition': false}
+                : null,
+          );
+      if (mounted) ref.invalidate(entitiesProvider);
+    } catch (error) {
+      if (mounted) await showAdminMessage(context, error.toString());
+    } finally {
+      if (mounted) setState(() => _pending.remove(entityId));
+    }
+  }
+
+  Future<void> _actions(AutomationSummary automation) async {
+    final l10n = AppLocalizations.of(context);
+    final action = await showCupertinoModalPopup<String>(
+      context: context,
+      builder: (context) => CupertinoActionSheet(
+        title: Text(automation.friendlyName),
+        actions: [
+          CupertinoActionSheetAction(
+            onPressed: () => Navigator.pop(context, 'run'),
+            child: Text(l10n.adminRunNow),
+          ),
+          if (automation.automationId != null) ...[
+            CupertinoActionSheetAction(
+              onPressed: () => Navigator.pop(context, 'edit'),
+              child: Text(l10n.commonEdit),
+            ),
+            CupertinoActionSheetAction(
+              onPressed: () => Navigator.pop(context, 'duplicate'),
+              child: Text(l10n.adminDuplicate),
+            ),
+          ],
+        ],
+        cancelButton: CupertinoActionSheetAction(
+          onPressed: () => Navigator.pop(context),
+          child: Text(l10n.commonCancel),
+        ),
+      ),
+    );
+    if (!mounted || action == null) return;
+    if (action == 'run') {
+      await _run(automation.entityId, 'trigger');
+      return;
+    }
+    if (action == 'edit') {
+      await Navigator.of(context).push(
+        CupertinoPageRoute<void>(
+          builder: (_) =>
+              AutomationEditorScreen(automationId: automation.automationId),
+        ),
+      );
+      return;
+    }
+    try {
+      final config = await ref
+          .read(haAdminClientProvider)
+          ?.getAutomationConfig(automation.automationId!);
+      if (!mounted || config == null) return;
+      final copy = Map<String, dynamic>.from(config)..remove('id');
+      copy['alias'] = '${automation.friendlyName} (${l10n.adminDuplicate})';
+      await Navigator.of(context).push(
+        CupertinoPageRoute<void>(
+          builder: (_) => AutomationEditorScreen(initialConfig: copy),
+        ),
+      );
+    } catch (error) {
+      if (mounted) await showAdminMessage(context, error.toString());
+    }
   }
 }
 

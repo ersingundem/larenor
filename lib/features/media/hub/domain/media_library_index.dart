@@ -54,11 +54,13 @@ class MediaLibraryEntry {
 /// they carry — Sonarr may know only a TVDB id while Jellyseerr knows
 /// only TMDB, and those two still need to meet.
 class MediaLibraryIndex {
-  MediaLibraryIndex._(this._byKey);
+  MediaLibraryIndex._(this._byKey, this._jellyfinById);
 
   final Map<String, MediaLibraryEntry> _byKey;
+  final Map<String, JellyfinItem> _jellyfinById;
+  JellyfinItem? jellyfinItem(String? id) => _jellyfinById[id];
 
-  static final empty = MediaLibraryIndex._(const {});
+  static final empty = MediaLibraryIndex._(const {}, const {});
 
   bool get isEmpty => _byKey.isEmpty;
 
@@ -88,8 +90,8 @@ class MediaLibraryIndex {
                 ? MediaAvailability.requested
                 : entry.availability)
           : entry.availability,
-      jellyfinItemId: entry.jellyfinItemId,
-      playedFraction: entry.playedFraction,
+      jellyfinItemId: title.jellyfinItemId ?? entry.jellyfinItemId,
+      playedFraction: title.playedFraction ?? entry.playedFraction,
       downloadProgress: entry.downloadProgress,
       arrItemId: entry.arrItemId,
       monitored: entry.monitored,
@@ -120,6 +122,7 @@ class MediaLibraryIndex {
     }
 
     for (final item in jellyfinItems) {
+      if (item.type != 'Movie' && item.type != 'Series') continue;
       final kind = jellyfinKindOf(item);
       if (kind == null) continue;
       final identity = MediaIdentity(
@@ -181,7 +184,9 @@ class MediaLibraryIndex {
       );
     }
 
-    return MediaLibraryIndex._(byKey);
+    return MediaLibraryIndex._(byKey, {
+      for (final item in jellyfinItems) item.id: item,
+    });
   }
 }
 

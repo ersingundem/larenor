@@ -13,6 +13,8 @@ abstract class HaRegistryEntry with _$HaRegistryEntry {
     @JsonKey(name: 'area_id') String? areaId,
     @JsonKey(name: 'disabled_by') String? disabledBy,
     String? name,
+    String? icon,
+    @JsonKey(name: 'hidden_by') String? hiddenBy,
     @JsonKey(name: 'original_name') String? originalName,
   }) = _HaRegistryEntry;
 

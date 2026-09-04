@@ -4,6 +4,7 @@ import 'package:network_info_plus/network_info_plus.dart';
 
 import '../../../l10n/generated/app_localizations.dart';
 import '../data/keenetic_api_exception.dart';
+import '../data/keenetic_config.dart';
 import '../providers/keenetic_providers.dart';
 import '../../../shared/widgets/settings_section.dart';
 
@@ -53,14 +54,21 @@ class _KeeneticConnectScreenState extends ConsumerState<KeeneticConnectScreen> {
   }
 
   Future<void> _connect() async {
-    final url = _urlController.text.trim();
+    final rawUrl = _urlController.text.trim();
     final username = _userController.text.trim();
     final password = _passwordController.text;
-    if (url.isEmpty || username.isEmpty) {
+    if (rawUrl.isEmpty || username.isEmpty) {
       setState(
         () =>
             _error = AppLocalizations.of(context).keeneticErrorEnterUrlUsername,
       );
+      return;
+    }
+    final String url;
+    try {
+      url = KeeneticConfig.normalizeBaseUrl(rawUrl);
+    } on FormatException {
+      setState(() => _error = AppLocalizations.of(context).keeneticInvalidUrl);
       return;
     }
     setState(() {
@@ -70,18 +78,18 @@ class _KeeneticConnectScreenState extends ConsumerState<KeeneticConnectScreen> {
     try {
       await ref
           .read(keeneticConnectionProvider.notifier)
-          .signIn(
-            baseUrl: url.endsWith('/') ? url.substring(0, url.length - 1) : url,
-            username: username,
-            password: password,
-          );
-      if (mounted) Navigator.of(context).pop();
+          .signIn(baseUrl: url, username: username, password: password);
+      if (mounted && Navigator.of(context).canPop()) {
+        Navigator.of(context).pop();
+      }
     } on KeeneticApiException catch (e) {
-      setState(() => _error = e.message);
+      if (mounted) setState(() => _error = e.message);
     } catch (_) {
-      setState(
-        () => _error = AppLocalizations.of(context).keeneticErrorUnreachable,
-      );
+      if (mounted) {
+        setState(
+          () => _error = AppLocalizations.of(context).keeneticErrorUnreachable,
+        );
+      }
     } finally {
       if (mounted) setState(() => _connecting = false);
     }
@@ -110,10 +118,14 @@ class _KeeneticConnectScreenState extends ConsumerState<KeeneticConnectScreen> {
                         AppLocalizations.of(context).connectUrlLabel,
                       ),
                       keyboardType: TextInputType.url,
+                      autocorrect: false,
+                      enabled: !_connecting,
                     ),
                     CupertinoTextFormFieldRow(
                       controller: _userController,
                       prefix: Text(AppLocalizations.of(context).mediaUserLabel),
+                      autocorrect: false,
+                      enabled: !_connecting,
                     ),
                     CupertinoTextFormFieldRow(
                       controller: _passwordController,
@@ -121,6 +133,10 @@ class _KeeneticConnectScreenState extends ConsumerState<KeeneticConnectScreen> {
                         AppLocalizations.of(context).mediaPasswordLabel,
                       ),
                       obscureText: true,
+                      enabled: !_connecting,
+                      onFieldSubmitted: (_) {
+                        if (!_connecting) _connect();
+                      },
                     ),
                   ],
                 ),

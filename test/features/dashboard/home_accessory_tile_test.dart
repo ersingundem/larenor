@@ -1,8 +1,11 @@
+import 'dart:async';
+
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:larenor/features/dashboard/presentation/tiles/home_accessory_tile.dart';
 import 'package:larenor/features/ha_client/data/models/ha_entity.dart';
+import 'package:larenor/features/ha_client/providers/ha_client_providers.dart';
 import 'package:larenor/l10n/generated/app_localizations.dart';
 
 HaEntity entity(
@@ -20,6 +23,18 @@ Widget wrap(Widget child) => ProviderScope(
     ),
   ),
 );
+
+class ControlledEntities extends Entities {
+  final Completer<void> operation = Completer<void>();
+  int calls = 0;
+  @override
+  Future<Map<String, HaEntity>> build() async => {};
+  @override
+  Future<void> toggle(HaEntity entity) {
+    calls++;
+    return operation.future;
+  }
+}
 
 void main() {
   group('tapTogglesEntity', () {
@@ -41,6 +56,45 @@ void main() {
   });
 
   group('HomeAccessoryTile', () {
+    testWidgets(
+      'suppresses duplicate commands and shows a recoverable failure',
+      (tester) async {
+        final notifier = ControlledEntities();
+        await tester.pumpWidget(
+          ProviderScope(
+            overrides: [entitiesProvider.overrideWith(() => notifier)],
+            child: CupertinoApp(
+              localizationsDelegates: AppLocalizations.localizationsDelegates,
+              supportedLocales: AppLocalizations.supportedLocales,
+              home: CupertinoPageScaffold(
+                child: SizedBox(
+                  width: 200,
+                  height: 130,
+                  child: HomeAccessoryTile(entity: entity('light.kitchen')),
+                ),
+              ),
+            ),
+          ),
+        );
+        await tester.tap(find.byType(HomeAccessoryTile));
+        await tester.pump();
+        await tester.tap(find.byType(HomeAccessoryTile));
+        expect(notifier.calls, 1);
+        notifier.operation.completeError(StateError('offline'));
+        await tester.pumpAndSettle();
+        expect(
+          find.text(
+            'Could not update this accessory. Check the connection and try again.',
+          ),
+          findsOneWidget,
+        );
+        expect(find.byType(CupertinoActivityIndicator), findsNothing);
+        await tester.tap(find.text('OK'));
+        await tester.pumpAndSettle();
+        expect(tester.takeException(), isNull);
+      },
+    );
+
     testWidgets('shows the friendly name and an On state', (tester) async {
       await tester.pumpWidget(
         wrap(

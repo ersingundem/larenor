@@ -1,5 +1,7 @@
 import 'package:flutter/cupertino.dart';
 
+import '../../../shared/widgets/app_page_scaffold.dart';
+
 import '../../../shared/widgets/camera_snapshot.dart';
 
 class CameraViewerScreen extends StatelessWidget {
@@ -14,7 +16,7 @@ class CameraViewerScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return CupertinoPageScaffold(
+    return AppPageScaffold(
       navigationBar: CupertinoNavigationBar(middle: Text(title)),
       child: SafeArea(
         child: CameraSnapshot(

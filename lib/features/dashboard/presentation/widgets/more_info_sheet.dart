@@ -3,10 +3,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../l10n/generated/app_localizations.dart';
 import '../../../ha_client/data/models/ha_entity.dart';
+import '../../../ha_tools/presentation/ha_actions_screen.dart';
 import '../../../ha_client/providers/ha_client_providers.dart';
 import '../../providers/dashboard_providers.dart';
 import '../../../../shared/theme/typography.dart';
 import '../../../../shared/widgets/settings_section.dart';
+import 'entity_controls.dart';
 
 const _hiddenAttributeKeys = {'friendly_name', 'icon'};
 
@@ -98,23 +100,16 @@ class _MoreInfoSheet extends ConsumerWidget {
                     ),
                   ),
                   const SizedBox(height: 16),
-                  if (entity.isToggleable)
-                    SettingsSection(
-                      children: [
-                        CupertinoListTile(
-                          title: Text(AppLocalizations.of(context).moreInfoOn),
-                          trailing: CupertinoSwitch(
-                            value: entity.isOn,
-                            onChanged: (_) => ref
-                                .read(entitiesProvider.notifier)
-                                .toggle(entity),
-                          ),
-                        ),
-                      ],
+                  _EntityQuickControls(entity: entity),
+                  EntityControls(entity: entity),
+                  CupertinoButton(
+                    onPressed: () => Navigator.of(context).push(
+                      CupertinoPageRoute(
+                        builder: (_) => HaActionsScreen(entityId: entityId),
+                      ),
                     ),
-                  if (entity.domain == 'light' &&
-                      entity.attributes['brightness'] is num)
-                    _BrightnessSlider(entity: entity),
+                    child: Text(AppLocalizations.of(context).haAllActions),
+                  ),
                   const SizedBox(height: 8),
                   SettingsSection(
                     header: Text(
@@ -153,37 +148,107 @@ class _MoreInfoSheet extends ConsumerWidget {
   }
 }
 
-class _BrightnessSlider extends ConsumerWidget {
-  const _BrightnessSlider({required this.entity});
-
+class _EntityQuickControls extends ConsumerStatefulWidget {
+  const _EntityQuickControls({required this.entity});
   final HaEntity entity;
+  @override
+  ConsumerState<_EntityQuickControls> createState() =>
+      _EntityQuickControlsState();
+}
+
+class _EntityQuickControlsState extends ConsumerState<_EntityQuickControls> {
+  bool _busy = false;
+  double? _brightness;
+  Future<void> _run(Future<void> Function() action) async {
+    if (_busy) return;
+    setState(() => _busy = true);
+    try {
+      await action();
+    } catch (error) {
+      if (mounted) {
+        await showCupertinoDialog<void>(
+          context: context,
+          builder: (context) => CupertinoAlertDialog(
+            title: Text(AppLocalizations.of(context).commonError),
+            content: Text('$error'),
+            actions: [
+              CupertinoDialogAction(
+                onPressed: () => Navigator.pop(context),
+                child: Text(AppLocalizations.of(context).commonOk),
+              ),
+            ],
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _busy = false;
+          _brightness = null;
+        });
+      }
+    }
+  }
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final brightness = (entity.attributes['brightness'] as num).toDouble();
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      child: Row(
-        children: [
-          const Icon(CupertinoIcons.sun_max, size: 20),
-          Expanded(
-            child: CupertinoSlider(
-              value: (brightness / 255).clamp(0.0, 1.0),
-              onChanged: (value) {
-                ref
-                    .read(haRestClientProvider)
-                    ?.callService(
-                      'light',
-                      'turn_on',
-                      entityId: entity.entityId,
-                      serviceData: {'brightness_pct': (value * 100).round()},
-                    );
-              },
+  Widget build(BuildContext context) {
+    final entity = widget.entity;
+    return Column(
+      children: [
+        if (entity.isToggleable)
+          SettingsSection(
+            children: [
+              CupertinoListTile(
+                title: Text(AppLocalizations.of(context).moreInfoOn),
+                trailing: _busy
+                    ? const CupertinoActivityIndicator()
+                    : CupertinoSwitch(
+                        value: entity.isOn,
+                        onChanged: (_) => _run(
+                          () => ref
+                              .read(entitiesProvider.notifier)
+                              .toggle(entity),
+                        ),
+                      ),
+              ),
+            ],
+          ),
+        if (entity.domain == 'light' && entity.attributes['brightness'] is num)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            child: Row(
+              children: [
+                const Icon(CupertinoIcons.sun_max, size: 20),
+                Expanded(
+                  child: CupertinoSlider(
+                    value:
+                        _brightness ??
+                        ((entity.attributes['brightness'] as num).toDouble() /
+                                255)
+                            .clamp(0.0, 1.0),
+                    onChanged: _busy
+                        ? null
+                        : (value) => setState(() => _brightness = value),
+                    onChangeEnd: _busy
+                        ? null
+                        : (value) => _run(() async {
+                            await ref
+                                .read(haRestClientProvider)
+                                ?.callService(
+                                  'light',
+                                  'turn_on',
+                                  entityId: entity.entityId,
+                                  serviceData: {
+                                    'brightness_pct': (value * 100).round(),
+                                  },
+                                );
+                          }),
+                  ),
+                ),
+              ],
             ),
           ),
-        ],
-      ),
+      ],
     );
   }
 }

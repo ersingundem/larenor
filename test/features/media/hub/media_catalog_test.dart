@@ -2,6 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:larenor/features/media/arr/data/models/arr_calendar_item.dart';
 import 'package:larenor/features/media/hub/domain/media_identity.dart';
 import 'package:larenor/features/media/hub/domain/media_title.dart';
+import 'package:larenor/features/media/hub/domain/media_library_index.dart';
 import 'package:larenor/features/media/hub/providers/media_catalog_providers.dart';
 import 'package:larenor/features/media/jellyfin/data/models/jellyfin_item.dart';
 import 'package:larenor/features/media/jellyseerr/data/models/jellyseerr_result.dart';
@@ -50,6 +51,53 @@ void main() {
       expect(title.title, 'Breaking Bad');
       expect(title.identity.kind, MediaKind.tv);
     });
+
+    test('episode IDs never masquerade as series IDs and resume survives enrichment', () {
+      const series = JellyfinItem(
+        id: 'show',
+        name: 'Show',
+        type: 'Series',
+        providerIds: {'Tmdb': '10'},
+        imageTags: {'Primary': 'series-poster'},
+      );
+      const episode = JellyfinItem(
+        id: 'ep',
+        name: 'Pilot',
+        type: 'Episode',
+        seriesId: 'show',
+        seriesName: 'Show',
+        providerIds: {'Tmdb': '999'},
+        userData: JellyfinUserData(playedPercentage: 40),
+      );
+      final title = mediaTitleFromJellyfin(
+        episode,
+        series: series,
+        imageUrl: fakeImage,
+      )!;
+      final enriched = MediaLibraryIndex.build(jellyfinItems: [series])
+          .enrich(title);
+      expect(enriched.identity.tmdbId, 10);
+      expect(enriched.jellyfinItemId, 'ep');
+      expect(enriched.playedFraction, 0.4);
+      expect(enriched.posterUrl, 'http://jf/show/Primary?tag=series-poster');
+      expect(
+        mediaTitleFromJellyfin(episode, imageUrl: fakeImage)!.identity.isEmpty,
+        isTrue,
+      );
+    });
+
+    test(
+      'dedupes episodes using the parent Jellyfin ID without provider metadata',
+      () {
+        final titles = ['one', 'two'].map(
+          (id) => mediaTitleFromJellyfin(
+            JellyfinItem(id: id, name: id, type: 'Episode', seriesId: 'show'),
+            imageUrl: fakeImage,
+          )!,
+        );
+        expect(dedupeTitles(titles), hasLength(1));
+      },
+    );
 
     test('returns null for item types the hub does not handle', () {
       expect(

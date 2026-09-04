@@ -8,6 +8,7 @@ import 'keenetic_config.dart';
 import 'models/keenetic_access_point.dart';
 import 'models/keenetic_device.dart';
 import 'models/keenetic_port_forward.dart';
+import 'models/keenetic_router_status.dart';
 
 /// Hand-rolled client over Keenetic's unofficial RCI HTTP API — not
 /// officially documented, verified against two independent community
@@ -21,23 +22,35 @@ import 'models/keenetic_port_forward.dart';
 /// then replays the resulting session cookie on every later request.
 class KeeneticClient {
   KeeneticClient({required this.config, http.Client? httpClient})
-    : _client = httpClient ?? http.Client();
+    : _client = httpClient ?? http.Client(),
+      _baseUrl = KeeneticConfig.normalizeBaseUrl(config.baseUrl);
 
   final KeeneticConfig config;
   final http.Client _client;
+  final String _baseUrl;
 
-  String? _sessionCookie;
+  final Map<String, String> _cookies = {};
+  Future<void>? _loginFuture;
+  int _sessionGeneration = 0;
 
-  Uri _uri(String path) => Uri.parse('${config.baseUrl}$path');
+  Uri _uri(String path) => Uri.parse('$_baseUrl$path');
 
   Map<String, String> get _headers {
-    final cookie = _sessionCookie;
-    return {'Cookie': ?cookie};
+    return {
+      'Accept': 'application/json',
+      if (_cookies.isNotEmpty)
+        'Cookie': _cookies.entries.map((e) => '${e.key}=${e.value}').join('; '),
+    };
   }
 
-  Future<void> login() async {
+  /// Share a single challenge/response exchange when several providers
+  /// discover an expired session at the same time.
+  Future<void> login() =>
+      _loginFuture ??= _authenticate().whenComplete(() => _loginFuture = null);
+
+  Future<void> _authenticate() async {
     final initial = await _client
-        .get(_uri('/auth'))
+        .get(_uri('/auth'), headers: _headers)
         .timeout(const Duration(seconds: 10));
     // The router ties the challenge below to the session cookie it issues
     // on this very first response — capture it even though the request is
@@ -45,6 +58,7 @@ class KeeneticClient {
     // rejects an otherwise-correct challenge/response with 400.
     _storeCookie(initial);
     if (initial.statusCode == 200) {
+      _sessionGeneration++;
       return;
     }
     if (initial.statusCode != 401) {
@@ -81,51 +95,78 @@ class KeeneticClient {
       throw KeeneticApiException('Login failed (${response.statusCode}).');
     }
     _storeCookie(response);
-    if (_sessionCookie == null) {
+    if (_cookies.isEmpty) {
       throw KeeneticApiException('Router did not return a session cookie.');
     }
+    _sessionGeneration++;
   }
 
   void _storeCookie(http.Response response) {
     final setCookie = response.headers['set-cookie'];
     if (setCookie == null) return;
-    _sessionCookie = setCookie.split(';').first;
-  }
-
-  Future<void> checkConnection() async {
-    final response = await _client
-        .get(_uri('/rci/show/version'), headers: _headers)
-        .timeout(const Duration(seconds: 10));
-    if (response.statusCode != 200) {
-      throw KeeneticApiException('Could not reach the router.');
+    // package:http combines multiple Set-Cookie headers with a comma. Do
+    // not split the comma inside an Expires attribute, or discard another
+    // session cookie when a router rotates only one of them.
+    for (final cookie in setCookie.split(RegExp(r',(?=\s*[^;,=\s]+=)'))) {
+      final pair = cookie.split(';').first.trim();
+      final equals = pair.indexOf('=');
+      if (equals <= 0) continue;
+      final name = pair.substring(0, equals);
+      final value = pair.substring(equals + 1);
+      if (value.isEmpty ||
+          RegExp(r'max-age\s*=\s*0', caseSensitive: false).hasMatch(cookie)) {
+        _cookies.remove(name);
+      } else {
+        _cookies[name] = value;
+      }
     }
   }
 
+  Future<void> checkConnection() async {
+    _object(await _request('/rci/show/version'));
+  }
+
+  Future<KeeneticRouterStatus> getRouterStatus() async {
+    final responses = await Future.wait([
+      _request('/rci/show/version'),
+      _request('/rci/show/system'),
+    ]);
+    return KeeneticRouterStatus.fromJson(
+      _object(responses[0]),
+      _object(responses[1]),
+    );
+  }
+
   Future<List<KeeneticDevice>> getConnectedDevices() async {
-    final response = await _client
-        .get(_uri('/rci/show/ip/hotspot'), headers: _headers)
-        .timeout(const Duration(seconds: 15));
-    _checkOk(response);
-    final decoded = jsonDecode(response.body);
-    final list = decoded is Map<String, dynamic>
-        ? (decoded['host'] as List<dynamic>? ?? const [])
-        : decoded as List<dynamic>;
-    return list
-        .map((e) => KeeneticDevice.fromJson(e as Map<String, dynamic>))
-        .toList();
+    final decoded = await _request('/rci/show/ip/hotspot');
+    final devices = _list(
+      decoded,
+      'host',
+    ).map(KeeneticDevice.fromJson).toList();
+    devices.sort((a, b) {
+      if (a.active != b.active) return a.active ? -1 : 1;
+      return a.name.toLowerCase().compareTo(b.name.toLowerCase());
+    });
+    return devices;
   }
 
   Future<List<KeeneticAccessPoint>> getAccessPoints() async {
-    final response = await _client
-        .get(_uri('/rci/show/interface'), headers: _headers)
-        .timeout(const Duration(seconds: 15));
-    _checkOk(response);
-    final decoded = jsonDecode(response.body);
-    final entries = decoded is Map<String, dynamic>
-        ? decoded.values
-        : decoded as List<dynamic>;
+    final decoded = await _request('/rci/show/interface');
+    // Some firmware indexes interfaces by ID and omits it from each value.
+    final Iterable<Map<String, dynamic>> entries;
+    if (decoded is Map<String, dynamic>) {
+      entries = decoded.entries
+          .where((entry) => entry.value is Map<String, dynamic>)
+          .map(
+            (entry) => {
+              'id': entry.key,
+              ...entry.value as Map<String, dynamic>,
+            },
+          );
+    } else {
+      entries = _list(decoded, 'interface');
+    }
     return entries
-        .cast<Map<String, dynamic>>()
         .where((e) => e['type'] == 'AccessPoint')
         .map(KeeneticAccessPoint.fromJson)
         .toList();
@@ -134,37 +175,99 @@ class KeeneticClient {
   /// Sends an RCI "parse" command — the same syntax as Keenetic's CLI,
   /// wrapped as JSON. Used here for `interface <id> up`/`down`.
   Future<void> setInterfaceUp(String interfaceId, bool up) async {
-    final response = await _client
-        .post(
-          _uri('/rci/'),
-          headers: {..._headers, 'Content-Type': 'application/json'},
-          body: jsonEncode([
-            {'parse': 'interface $interfaceId ${up ? 'up' : 'down'}'},
-          ]),
-        )
-        .timeout(const Duration(seconds: 15));
-    _checkOk(response);
+    if (parseKeeneticWifiInterfaceId(interfaceId) == null) {
+      throw KeeneticApiException('Invalid Wi-Fi interface.');
+    }
+    // Execute and persist in one router-side batch: disabling the current
+    // Wi-Fi link can disconnect the app before a second request is sent.
+    // https://support.keenetic.com/explorer/kn-1613/en/18480-command-line-interface--cli-.html
+    await _request(
+      '/rci/',
+      body: [
+        {'parse': 'interface $interfaceId ${up ? 'up' : 'down'}'},
+        {'parse': 'system configuration save'},
+      ],
+    );
   }
 
   Future<List<KeeneticPortForward>> getPortForwardingRules() async {
-    final response = await _client
-        .get(_uri('/rci/ip/static'), headers: _headers)
-        .timeout(const Duration(seconds: 15));
-    _checkOk(response);
-    final decoded = jsonDecode(response.body);
-    final list = decoded is List
-        ? decoded
-        : (decoded as Map<String, dynamic>)['static'] as List<dynamic>? ??
-              const [];
-    return list
-        .map((e) => KeeneticPortForward.fromJson(e as Map<String, dynamic>))
-        .toList();
+    final decoded = await _request('/rci/ip/static');
+    return _list(decoded, 'static').map(KeeneticPortForward.fromJson).toList();
   }
 
-  void _checkOk(http.Response response) {
+  Future<Object?> _request(String path, {Object? body}) async {
+    Future<http.Response> send() =>
+        (body == null
+                ? _client.get(_uri(path), headers: _headers)
+                : _client.post(
+                    _uri(path),
+                    headers: {..._headers, 'Content-Type': 'application/json'},
+                    body: jsonEncode(body),
+                  ))
+            .timeout(const Duration(seconds: 15));
+
+    final generation = _sessionGeneration;
+    var response = await send();
+    if (response.statusCode == 401) {
+      if (generation == _sessionGeneration) await login();
+      // Retry only an explicit authentication rejection, never a timeout
+      // or other ambiguous failure that could duplicate a router command.
+      response = await send();
+    }
     if (response.statusCode < 200 || response.statusCode >= 300) {
       throw KeeneticApiException('Request failed (${response.statusCode}).');
     }
+    _storeCookie(response);
+    if (body != null && response.body.trim().isEmpty) return null;
+    final Object? decoded;
+    try {
+      decoded = jsonDecode(response.body);
+    } on FormatException {
+      throw KeeneticApiException('Router returned an invalid response.');
+    }
+    _checkCommandResult(decoded);
+    return decoded;
+  }
+
+  void _checkCommandResult(Object? value) {
+    if (value is List) {
+      for (final entry in value) {
+        _checkCommandResult(entry);
+      }
+    } else if (value is Map<String, dynamic>) {
+      if (value['status'] == 'error' || value['status'] == 'fail') {
+        throw KeeneticApiException(
+          value['message'] is String
+              ? value['message'] as String
+              : 'Router rejected the command.',
+        );
+      }
+      // Both {parse: [{status: ...}]} and {status: [{status: ...}]} are
+      // emitted by RCI. Check those envelopes even for HTTP 200 responses.
+      for (final key in ['parse', 'status']) {
+        final nested = value[key];
+        if (nested is List || nested is Map<String, dynamic>) {
+          _checkCommandResult(nested);
+        }
+      }
+    }
+  }
+
+  Map<String, dynamic> _object(Object? value) {
+    if (value is! Map<String, dynamic>) {
+      throw KeeneticApiException('Router returned an unexpected response.');
+    }
+    return value;
+  }
+
+  Iterable<Map<String, dynamic>> _list(Object? value, String key) {
+    final entries = value is Map<String, dynamic>
+        ? value[key] ?? const []
+        : value;
+    if (entries is! List) {
+      throw KeeneticApiException('Router returned an unexpected response.');
+    }
+    return entries.whereType<Map<String, dynamic>>();
   }
 
   void dispose() => _client.close();

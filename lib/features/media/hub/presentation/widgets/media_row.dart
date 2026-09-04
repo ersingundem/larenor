@@ -22,6 +22,7 @@ class MediaRow extends StatelessWidget {
   Widget build(BuildContext context) {
     if (titles.isEmpty) return const SizedBox.shrink();
 
+    final width = MediaQuery.sizeOf(context).width >= 700 ? 152.0 : 128.0;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -32,7 +33,7 @@ class MediaRow extends StatelessWidget {
         SizedBox(
           // Derived from the card itself rather than a literal, so the row
           // can't clip its own captions when the text scale changes.
-          height: MediaPoster.heightFor(128, context),
+          height: MediaPoster.heightFor(width, context),
           child: ListView.separated(
             scrollDirection: Axis.horizontal,
             padding: Insets.page,
@@ -40,7 +41,11 @@ class MediaRow extends StatelessWidget {
             separatorBuilder: (_, _) => const SizedBox(width: 12),
             itemBuilder: (context, index) {
               final item = titles[index];
-              return MediaPoster(title: item, onTap: () => onTapTitle(item));
+              return MediaPoster(
+                title: item,
+                width: width,
+                onTap: () => onTapTitle(item),
+              );
             },
           ),
         ),

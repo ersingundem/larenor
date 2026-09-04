@@ -41,7 +41,21 @@ abstract class JellyfinItem with _$JellyfinItem {
 
   bool get isPlayable => type == 'Movie' || type == 'Episode';
 
-  double get playedFraction => (userData?.playedPercentage ?? 0) / 100;
+  Duration get resumePosition {
+    if (userData?.played == true) return Duration.zero;
+    final ticks = userData?.playbackPositionTicks ?? 0;
+    if (ticks <= 0) return Duration.zero;
+    if (runTimeTicks != null && ticks >= runTimeTicks!) return Duration.zero;
+    return Duration(microseconds: ticks ~/ 10);
+  }
+
+  double get playedFraction {
+    final percentage = userData?.playedPercentage;
+    if (percentage != null) return (percentage / 100).clamp(0, 1);
+    final runtime = runTimeTicks ?? 0;
+    if (runtime <= 0) return 0;
+    return ((userData?.playbackPositionTicks ?? 0) / runtime).clamp(0, 1);
+  }
 
   /// Provider id lookups are case-insensitive because Jellyfin plugins
   /// haven't been consistent about casing (`Tmdb` vs `TMDB` vs `tmdb`).

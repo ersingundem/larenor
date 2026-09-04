@@ -1,5 +1,9 @@
 import 'package:flutter/cupertino.dart';
 
+import '../../../shared/widgets/settings_section.dart';
+
+import '../../../shared/widgets/app_page_scaffold.dart';
+
 import '../../../core/breakpoints.dart';
 import '../../../l10n/generated/app_localizations.dart';
 import '../../../shared/widgets/icon_badge.dart';
@@ -51,10 +55,7 @@ class _SettingsSplitScreenState extends State<SettingsSplitScreen> {
   }
 
   Widget _buildSplit(BuildContext context) {
-    return CupertinoPageScaffold(
-      backgroundColor: CupertinoColors.systemGroupedBackground.resolveFrom(
-        context,
-      ),
+    return AppPageScaffold(
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -164,10 +165,7 @@ class _MasterList extends StatelessWidget {
       ),
     ];
 
-    return CupertinoPageScaffold(
-      backgroundColor: CupertinoColors.systemGroupedBackground.resolveFrom(
-        context,
-      ),
+    return AppPageScaffold(
       child: CustomScrollView(
         slivers: [
           CupertinoSliverNavigationBar(
@@ -178,7 +176,7 @@ class _MasterList extends StatelessWidget {
             sliver: SliverList(
               delegate: SliverChildListDelegate([
                 const SizedBox(height: 8),
-                CupertinoListSection.insetGrouped(
+                SettingsSection(
                   children: [
                     for (final (category, icon, color, title) in entries)
                       Container(

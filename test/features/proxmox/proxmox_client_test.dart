@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -118,6 +119,7 @@ void main() {
     test('merges qemu and lxc lists, tagging each with its type', () async {
       final client = await loggedInClient((request) async {
         if (request.url.path.endsWith('/qemu')) {
+          expect(request.url.queryParameters['full'], '1');
           return okData([
             {'vmid': 100, 'name': 'vm1', 'status': 'running'},
           ]);
@@ -214,6 +216,8 @@ void main() {
         final client = await loggedInClient((_) async => okData(null));
         final url = client.consoleWebSocketUrl(
           node: 'pve1',
+          type: ProxmoxGuestType.qemu,
+          vmid: 100,
           console: const ProxmoxConsoleTicket(ticket: 'tkt', port: 5900),
         );
 
@@ -221,10 +225,237 @@ void main() {
         expect(uri.scheme, 'wss');
         expect(uri.host, 'proxmox.local');
         expect(uri.port, 8006);
-        expect(uri.path, '/api2/json/nodes/pve1/vncwebsocket');
+        expect(uri.path, '/api2/json/nodes/pve1/qemu/100/vncwebsocket');
         expect(uri.queryParameters['port'], '5900');
         expect(uri.queryParameters['vncticket'], 'tkt');
       },
     );
+  });
+  group('session recovery', () {
+    test('concurrent requests share the first login', () async {
+      var logins = 0;
+      final gate = Completer<void>();
+      final client = ProxmoxClient(
+        config: config,
+        httpClient: MockClient((request) async {
+          if (request.url.path.endsWith('/access/ticket')) {
+            logins++;
+            await gate.future;
+            return okData({'ticket': 'ticket', 'CSRFPreventionToken': 'csrf'});
+          }
+          return okData([]);
+        }),
+      );
+      final calls = Future.wait([client.getNodes(), client.getNodes()]);
+      gate.complete();
+      await calls;
+      expect(logins, 1);
+    });
+
+    test('renews before the two-hour ticket expires', () async {
+      var now = DateTime(2026, 1, 1);
+      var logins = 0;
+      final client = ProxmoxClient(
+        config: config,
+        now: () => now,
+        httpClient: MockClient((request) async {
+          if (request.url.path.endsWith('/access/ticket')) {
+            logins++;
+            return okData({
+              'ticket': 'ticket$logins',
+              'CSRFPreventionToken': 'csrf$logins',
+            });
+          }
+          expect(request.headers['Cookie'], 'PVEAuthCookie=ticket$logins');
+          return okData([]);
+        }),
+      );
+      await client.getNodes();
+      now = now.add(const Duration(minutes: 109));
+      await client.getNodes();
+      expect(logins, 1);
+      now = now.add(const Duration(minutes: 1));
+      await client.getNodes();
+      expect(logins, 2);
+    });
+
+    test(
+      'retries a rejected mutation once with fresh cookie and CSRF',
+      () async {
+        var logins = 0;
+        var writes = 0;
+        final client = ProxmoxClient(
+          config: config,
+          httpClient: MockClient((request) async {
+            if (request.url.path.endsWith('/access/ticket')) {
+              logins++;
+              return okData({
+                'ticket': 'ticket$logins',
+                'CSRFPreventionToken': 'csrf$logins',
+              });
+            }
+            writes++;
+            expect(request.headers['Cookie'], 'PVEAuthCookie=ticket$logins');
+            expect(request.headers['CSRFPreventionToken'], 'csrf$logins');
+            return writes == 1
+                ? http.Response('', 401)
+                : okData('UPID:pve1:start');
+          }),
+        );
+        expect(
+          await client.powerAction('pve1', ProxmoxGuestType.qemu, 100, 'start'),
+          'UPID:pve1:start',
+        );
+        expect(logins, 2);
+        expect(writes, 2);
+      },
+    );
+
+    test(
+      'permission errors do not retry or hide API validation details',
+      () async {
+        var writes = 0;
+        final client = await loggedInClient((request) async {
+          writes++;
+          return http.Response(
+            jsonEncode({
+              'errors': {'storage': 'permission denied'},
+            }),
+            403,
+          );
+        });
+        await expectLater(
+          client.powerAction('pve1', ProxmoxGuestType.qemu, 100, 'start'),
+          throwsA(
+            isA<ProxmoxApiException>().having(
+              (error) => error.message,
+              'message',
+              contains('storage: permission denied'),
+            ),
+          ),
+        );
+        expect(writes, 1);
+      },
+    );
+  });
+
+  test(
+    'container clones use hostname and omit storage for a linked clone',
+    () async {
+      final client = await loggedInClient((request) async {
+        expect(request.url.path, '/api2/json/nodes/pve1/lxc/100/clone');
+        expect(request.bodyFields['hostname'], 'new-container');
+        expect(request.bodyFields.containsKey('name'), isFalse);
+        expect(request.bodyFields.containsKey('storage'), isFalse);
+        expect(request.bodyFields['full'], '0');
+        return okData('UPID:pve1:clone');
+      });
+      await client.cloneGuest(
+        'pve1',
+        ProxmoxGuestType.lxc,
+        100,
+        newId: 101,
+        name: 'new-container',
+        targetStorage: 'local',
+        full: false,
+      );
+    },
+  );
+
+  test('next guest ID comes from the whole cluster', () async {
+    final client = await loggedInClient((request) async {
+      expect(request.url.path, '/api2/json/cluster/nextid');
+      return okData('105');
+    });
+    expect(await client.getNextGuestId(), 105);
+  });
+
+  test('task polling propagates a stopped task failure', () async {
+    var polls = 0;
+    final client = await loggedInClient((request) async {
+      polls++;
+      return okData(
+        polls == 1
+            ? {'status': 'running'}
+            : {'status': 'stopped', 'exitstatus': 'storage is full'},
+      );
+    });
+    await expectLater(
+      client.waitForTask('pve1', 'UPID:pve1:test', interval: Duration.zero),
+      throwsA(
+        isA<ProxmoxApiException>().having(
+          (error) => error.message,
+          'message',
+          'storage is full',
+        ),
+      ),
+    );
+    expect(polls, 2);
+  });
+
+  test('task polling stops without more requests when screen closes', () async {
+    var visible = true;
+    var polls = 0;
+    final client = await loggedInClient((request) async {
+      polls++;
+      visible = false;
+      return okData({'status': 'running'});
+    });
+    expect(
+      await client.waitForTask(
+        'pve1',
+        'UPID:pve1:test',
+        shouldContinue: () => visible,
+        interval: Duration.zero,
+      ),
+      isNull,
+    );
+    expect(polls, 1);
+  });
+
+  test('task logs decode output and encode the UPID as one segment', () async {
+    final client = await loggedInClient((request) async {
+      expect(request.url.pathSegments.last, 'log');
+      expect(request.url.pathSegments[5], 'UPID:pve1:task/a');
+      expect(request.url.queryParameters['limit'], '500');
+      return okData([
+        {'n': 1, 't': 'Started'},
+        {'n': 2, 't': 'TASK OK'},
+      ]);
+    });
+    expect(await client.getTaskLog('pve1', 'UPID:pve1:task/a'), [
+      'Started',
+      'TASK OK',
+    ]);
+  });
+
+  test('console pages choose native VM and container clients without URL credentials', () async {
+    final client = await loggedInClient((request) async => okData(null));
+    for (final type in ProxmoxGuestType.values) {
+      final uri = client.consolePageUrl(
+        ProxmoxGuest(
+          type: type,
+          node: 'pve1',
+          vmid: 100,
+          name: 'Guest',
+          status: 'running',
+        ),
+      );
+      expect(uri.host, config.host);
+      expect(uri.port, 8006);
+      expect(
+        uri.queryParameters['console'],
+        type == ProxmoxGuestType.qemu ? 'kvm' : 'lxc',
+      );
+      expect(
+        uri.queryParameters[type == ProxmoxGuestType.qemu
+            ? 'novnc'
+            : 'xtermjs'],
+        '1',
+      );
+      expect(uri.queryParameters['vmid'], '100');
+      expect(uri.toString(), isNot(contains('secret')));
+      expect(uri.toString(), isNot(contains('tkt123')));
+    }
   });
 }

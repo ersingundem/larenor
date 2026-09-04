@@ -76,6 +76,7 @@ Future<ProxmoxClient?> proxmoxClient(Ref ref) async {
   if (config == null) return null;
 
   final client = ProxmoxClient(config: config);
+  ref.onDispose(client.dispose);
   await client.login();
   return client;
 }

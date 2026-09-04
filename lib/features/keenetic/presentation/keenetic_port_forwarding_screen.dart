@@ -39,7 +39,12 @@ class _RulesList extends ConsumerWidget {
         middle: Text(AppLocalizations.of(context).keeneticPortForwarding),
         trailing: CupertinoButton(
           padding: EdgeInsets.zero,
-          onPressed: () => ref.invalidate(keeneticPortForwardingProvider),
+          onPressed: () {
+            if (ref.read(keeneticClientProvider).hasError) {
+              ref.invalidate(keeneticClientProvider);
+            }
+            ref.invalidate(keeneticPortForwardingProvider);
+          },
           child: const Icon(CupertinoIcons.refresh),
         ),
       ),
@@ -73,8 +78,10 @@ class _RulesList extends ConsumerWidget {
                           CupertinoIcons.arrow_right_arrow_left,
                         ),
                         title: Text(rule.label),
-                        subtitle: rule.toAddress != null
-                            ? Text('→ ${rule.toAddress}')
+                        subtitle: rule.destination != null
+                            ? Text(
+                                '${rule.protocol.toUpperCase()}${rule.portRange == null ? '' : ' ${rule.portRange}'} → ${rule.destination}',
+                              )
                             : null,
                       ),
                   ],

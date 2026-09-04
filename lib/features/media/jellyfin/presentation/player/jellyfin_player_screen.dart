@@ -109,7 +109,7 @@ class _JellyfinPlayerScreenState extends ConsumerState<JellyfinPlayerScreen> {
     _client = client;
 
     try {
-      await _openSource(startPosition: Duration.zero);
+      await _openSource(startPosition: widget.item.resumePosition);
       if (mounted) setState(() => _loading = false);
     } catch (e) {
       if (mounted) {
@@ -132,7 +132,11 @@ class _JellyfinPlayerScreenState extends ConsumerState<JellyfinPlayerScreen> {
     if (startPosition > Duration.zero) {
       await _player.seek(startPosition);
     }
-    await client.reportPlaybackStart(itemId: widget.item.id, source: source);
+    await client.reportPlaybackStart(
+      itemId: widget.item.id,
+      source: source,
+      position: startPosition,
+    );
 
     _positionSub?.cancel();
     _positionSub = _player.stream.position.listen((position) {

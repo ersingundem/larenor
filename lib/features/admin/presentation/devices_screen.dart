@@ -1,20 +1,31 @@
 import 'package:flutter/cupertino.dart';
+
+import '../../../shared/widgets/settings_section.dart';
+import '../../../shared/widgets/app_page_scaffold.dart';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../l10n/generated/app_localizations.dart';
 import '../../../shared/widgets/icon_badge.dart';
 import '../providers/admin_providers.dart';
+import 'registry_editor_screen.dart';
 
-class DevicesScreen extends ConsumerWidget {
+class DevicesScreen extends ConsumerStatefulWidget {
   const DevicesScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<DevicesScreen> createState() => _DevicesScreenState();
+}
+
+class _DevicesScreenState extends ConsumerState<DevicesScreen> {
+  String _query = '';
+  @override
+  Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final devicesAsync = ref.watch(devicesProvider);
     final areasAsync = ref.watch(areasProvider);
 
-    return CupertinoPageScaffold(
+    return AppPageScaffold(
       child: CustomScrollView(
         slivers: [
           CupertinoSliverNavigationBar(
@@ -50,10 +61,21 @@ class DevicesScreen extends ConsumerWidget {
                 top: false,
                 sliver: SliverList(
                   delegate: SliverChildListDelegate([
-                    const SizedBox(height: 16),
-                    CupertinoListSection.insetGrouped(
+                    Padding(
+                      padding: const EdgeInsets.all(12),
+                      child: CupertinoSearchTextField(
+                        onChanged: (value) =>
+                            setState(() => _query = value.toLowerCase()),
+                      ),
+                    ),
+                    SettingsSection(
                       children: [
-                        for (final device in devices)
+                        for (final device in devices.where(
+                          (device) =>
+                              '${device.displayName} ${device.manufacturer ?? ''} ${device.model ?? ''}'
+                                  .toLowerCase()
+                                  .contains(_query),
+                        ))
                           CupertinoListTile(
                             leading: IconBadge(
                               icon: CupertinoIcons.device_laptop,
@@ -62,6 +84,13 @@ class DevicesScreen extends ConsumerWidget {
                               ),
                             ),
                             title: Text(device.displayName),
+                            trailing: const CupertinoListTileChevron(),
+                            onTap: () => Navigator.of(context).push(
+                              CupertinoPageRoute<void>(
+                                builder: (_) =>
+                                    RegistryEditorScreen.device(device),
+                              ),
+                            ),
                             subtitle: Text(
                               [
                                 if (device.manufacturer != null)

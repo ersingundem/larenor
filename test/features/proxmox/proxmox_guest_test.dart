@@ -57,4 +57,30 @@ void main() {
     expect(guest.isTemplate, isFalse);
     expect(guest.memFraction, isNull);
   });
+  test('power actions exclude templates and unknown states', () {
+    ProxmoxGuest guest(String status, {bool template = false}) => ProxmoxGuest(
+      type: ProxmoxGuestType.qemu,
+      node: 'pve1',
+      vmid: 100,
+      name: 'VM',
+      status: status,
+      isTemplate: template,
+    );
+    expect(guest('stopped').powerActions, ['start']);
+    expect(guest('paused').powerActions, ['resume', 'stop']);
+    expect(guest('suspended').powerActions, ['resume', 'stop']);
+    expect(guest('unknown').powerActions, isEmpty);
+    expect(guest('stopped', template: true).powerActions, isEmpty);
+    expect(guest('running').powerActions, isNot(contains('start')));
+  });
+
+  test('QEMU paused state takes precedence over process running state', () {
+    final guest = ProxmoxGuest.fromJson(
+      {'vmid': 100, 'status': 'running', 'qmpstatus': 'paused'},
+      type: ProxmoxGuestType.qemu,
+      node: 'pve1',
+    );
+    expect(guest.isRunning, isFalse);
+    expect(guest.powerActions, contains('resume'));
+  });
 }

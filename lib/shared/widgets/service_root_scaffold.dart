@@ -1,5 +1,7 @@
 import 'package:flutter/cupertino.dart';
 
+import 'app_page_scaffold.dart';
+
 import '../theme/spacing.dart';
 
 /// Standard chrome for a service's root screen — Proxmox, Keenetic,
@@ -29,10 +31,7 @@ class ServiceRootScaffold extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return CupertinoPageScaffold(
-      backgroundColor: CupertinoColors.systemGroupedBackground.resolveFrom(
-        context,
-      ),
+    return AppPageScaffold(
       child: CustomScrollView(
         slivers: [
           CupertinoSliverNavigationBar(

@@ -16,6 +16,73 @@ void main() {
     deviceId: 'device1',
   );
 
+  group('TV browsing and complete library index', () {
+    test(
+      'requests available seasons and episodes scoped to the user',
+      () async {
+        final requests = <Uri>[];
+        final client = JellyfinClient(
+          config: config,
+          httpClient: MockClient((request) async {
+            requests.add(request.url);
+            expect(request.url.queryParameters['UserId'], 'user1');
+            expect(request.url.queryParameters['IsMissing'], 'false');
+            expect(
+              request.url.queryParameters['Fields'],
+              isNot(contains('ImageTags')),
+            );
+            return http.Response('{"Items":[]}', 200);
+          }),
+        );
+        await client.getSeasons('show1');
+        await client.getEpisodes('show1', seasonId: 'season2');
+        expect(requests[0].path, '/Shows/show1/Seasons');
+        expect(requests[1].path, '/Shows/show1/Episodes');
+        expect(requests[1].queryParameters['SeasonId'], 'season2');
+      },
+    );
+
+    test('loads every index page and stops at TotalRecordCount', () async {
+      final offsets = <String?>[];
+      final client = JellyfinClient(
+        config: config,
+        httpClient: MockClient((request) async {
+          final offset = int.parse(request.url.queryParameters['StartIndex']!);
+          offsets.add('$offset');
+          return http.Response(
+            jsonEncode({
+              'TotalRecordCount': 3,
+              'Items': [
+                for (var i = offset; i < offset + 2 && i < 3; i++)
+                  {'Id': '$i', 'Name': 'Movie $i', 'Type': 'Movie'},
+              ],
+            }),
+            200,
+          );
+        }),
+      );
+      final items = await client.getAllMoviesAndSeries(limit: 2);
+      expect(items.map((item) => item.id), ['0', '1', '2']);
+      expect(offsets, ['0', '2']);
+    });
+
+    test('does not loop forever if a server ignores pagination', () async {
+      var calls = 0;
+      final client = JellyfinClient(
+        config: config,
+        httpClient: MockClient((request) async {
+          calls++;
+          return http.Response(
+            '{"TotalRecordCount":50,"Items":[{"Id":"1","Name":"Film","Type":"Movie"}]}',
+            200,
+          );
+        }),
+      );
+      expect(await client.getAllMoviesAndSeries(limit: 1), hasLength(1));
+      expect(calls, 2);
+    });
+  });
+
   group('login', () {
     test('sends username/password and parses the token + user id', () async {
       final mockClient = MockClient((request) async {
@@ -90,6 +157,39 @@ void main() {
         expect(source.playSessionId, 'session1');
         expect(source.streamUrl, contains('/Videos/item1/stream'));
         expect(source.streamUrl, contains('mediaSourceId=source1'));
+      },
+    );
+
+    test(
+      'prefers a server-approved direct source over a transcoding alternative',
+      () async {
+        final client = JellyfinClient(
+          config: config,
+          httpClient: MockClient((request) async {
+            return http.Response(
+              jsonEncode({
+                'PlaySessionId': 'session1',
+                'MediaSources': [
+                  {
+                    'Id': 'transcode',
+                    'SupportsDirectPlay': false,
+                    'TranscodingUrl': '/transcode.m3u8',
+                  },
+                  {
+                    'Id': 'direct',
+                    'SupportsDirectPlay': true,
+                    'TranscodingUrl': '/fallback.m3u8',
+                  },
+                ],
+              }),
+              200,
+            );
+          }),
+        );
+        final source = await client.getPlaybackInfo('item1');
+        expect(source.mediaSourceId, 'direct');
+        expect(source.isTranscoding, isFalse);
+        expect(source.streamUrl, contains('/Videos/item1/stream'));
       },
     );
 

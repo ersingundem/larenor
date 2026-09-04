@@ -34,6 +34,7 @@ class SettingsSection extends StatelessWidget {
     );
 
     return CupertinoListSection.insetGrouped(
+      backgroundColor: CupertinoColors.transparent,
       margin: margin,
       header: header == null
           ? null

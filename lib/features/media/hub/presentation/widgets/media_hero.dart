@@ -3,11 +3,9 @@ import 'package:flutter/cupertino.dart';
 
 import '../../../../../l10n/generated/app_localizations.dart';
 import '../../domain/media_title.dart';
-import '../../../../../shared/theme/spacing.dart';
-import '../../../../../shared/theme/typography.dart';
-import '../../../../../shared/theme/icon_sizes.dart';
+import '../../../../../shared/theme/radii.dart';
 
-/// The full-bleed feature at the top of the hub.
+/// Wide cinematic artwork with a legible, responsive editorial overlay.
 class MediaHero extends StatelessWidget {
   const MediaHero({super.key, required this.title, required this.onTap});
 
@@ -18,96 +16,124 @@ class MediaHero extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final artwork = title.backdropUrl ?? title.posterUrl;
-
-    return GestureDetector(
-      onTap: onTap,
-      child: SizedBox(
-        height: 260,
-        width: double.infinity,
-        child: Stack(
-          fit: StackFit.expand,
-          children: [
-            if (artwork != null)
-              CachedNetworkImage(
-                imageUrl: artwork,
-                fit: BoxFit.cover,
-                errorWidget: (_, _, _) => ColoredBox(
-                  color: CupertinoColors.systemGrey5.resolveFrom(context),
+    final wide = MediaQuery.sizeOf(context).width >= 700;
+    final scale = MediaQuery.textScalerOf(context).scale(1).clamp(1.0, 2.0);
+    return Padding(
+      padding: EdgeInsets.symmetric(horizontal: wide ? 24 : 16),
+      child: ClipRRect(
+        borderRadius: Radii.brLarge,
+        child: SizedBox(
+          height: (wide ? 410 : 350) + (scale - 1) * 120,
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              const ColoredBox(color: Color(0xFF191F2A)),
+              if (artwork != null)
+                CachedNetworkImage(
+                  imageUrl: artwork,
+                  fit: BoxFit.cover,
+                  errorWidget: (_, _, _) => const SizedBox.shrink(),
                 ),
-              )
-            else
-              ColoredBox(
-                color: CupertinoColors.systemGrey5.resolveFrom(context),
-              ),
-            // Keeps the title legible over an arbitrary backdrop.
-            const DecoratedBox(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [
-                    Color(0x00000000),
-                    Color(0x66000000),
-                    Color(0xCC000000),
-                  ],
-                  stops: [0.35, 0.7, 1],
-                ),
-              ),
-            ),
-            Positioned(
-              left: Insets.pageGutter,
-              right: Insets.pageGutter,
-              bottom: 16,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    title.title,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: AppText.title1.copyWith(
-                      color: CupertinoColors.white,
-                    ),
+              const DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topRight,
+                    end: Alignment.bottomLeft,
+                    colors: [
+                      Color(0x180C1018),
+                      Color(0xA60C1018),
+                      Color(0xFF0C1018),
+                    ],
+                    stops: [0, 0.5, 1],
                   ),
-                  if (title.year != null) ...[
-                    const SizedBox(height: Gap.xxs),
-                    Text(
-                      '${title.year}',
-                      style: AppText.footnote.copyWith(
-                        color: CupertinoColors.systemGrey3.resolveFrom(context),
-                      ),
-                    ),
-                  ],
-                  const SizedBox(height: Gap.md),
-                  CupertinoButton.filled(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: Gap.xxl,
-                      vertical: Gap.sm,
-                    ),
-                    onPressed: onTap,
-                    child: Row(
+                ),
+              ),
+              Positioned(
+                left: wide ? 36 : 24,
+                right: wide ? 36 : 24,
+                bottom: 28,
+                child: Align(
+                  alignment: Alignment.bottomLeft,
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 580),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Icon(
-                          title.isPlayable
-                              ? CupertinoIcons.play_fill
-                              : CupertinoIcons.info,
-                          size: IconSizes.caption,
-                        ),
-                        const SizedBox(width: Gap.sm),
                         Text(
-                          title.isPlayable
-                              ? l10n.mediaActionPlay
-                              : l10n.mediaActionDetails,
+                          title.title,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: CupertinoColors.white,
+                            fontSize: wide ? 38 : 30,
+                            fontWeight: FontWeight.w800,
+                            height: 1.05,
+                            letterSpacing: -0.8,
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        Text(
+                          [
+                            title.isTv ? l10n.mediaKindTv : l10n.mediaKindMovie,
+                            if (title.year != null) '${title.year}',
+                            if (title.rating != null && title.rating! > 0)
+                              '★ ${title.rating!.toStringAsFixed(1)}',
+                          ].join('   ·   '),
+                          style: const TextStyle(
+                            color: Color(0xFFD4DEE9),
+                            fontSize: 13,
+                          ),
+                        ),
+                        if (title.overview?.isNotEmpty ?? false) ...[
+                          const SizedBox(height: 12),
+                          Text(
+                            title.overview!,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              color: Color(0xFFCCD2DB),
+                              fontSize: 14,
+                              height: 1.4,
+                            ),
+                          ),
+                        ],
+                        const SizedBox(height: 20),
+                        CupertinoButton(
+                          color: CupertinoColors.white,
+                          borderRadius: BorderRadius.circular(12),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 22,
+                            vertical: 12,
+                          ),
+                          onPressed: onTap,
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(
+                                CupertinoIcons.info_circle_fill,
+                                color: CupertinoColors.black,
+                                size: 18,
+                              ),
+                              const SizedBox(width: 8),
+                              Text(
+                                l10n.mediaActionDetails,
+                                style: const TextStyle(
+                                  color: CupertinoColors.black,
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: 15,
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
                       ],
                     ),
                   ),
-                ],
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

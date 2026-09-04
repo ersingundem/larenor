@@ -1,3 +1,5 @@
+import 'proxmox_guest.dart';
+
 class ProxmoxStorage {
   const ProxmoxStorage({
     required this.name,
@@ -7,6 +9,7 @@ class ProxmoxStorage {
     this.used,
     this.available,
     this.active = true,
+    this.enabled = true,
   });
 
   final String name;
@@ -16,11 +19,20 @@ class ProxmoxStorage {
   final int? used;
   final int? available;
   final bool active;
+  final bool enabled;
 
   double? get usedFraction =>
       (used != null && total != null && total! > 0) ? used! / total! : null;
 
-  bool get supportsBackups => contentTypes.contains('backup');
+  bool get supportsBackups =>
+      active && enabled && contentTypes.contains('backup');
+
+  bool supportsGuestType(ProxmoxGuestType type) =>
+      active &&
+      enabled &&
+      contentTypes.contains(
+        type == ProxmoxGuestType.qemu ? 'images' : 'rootdir',
+      );
 
   bool get supportsTemplates =>
       contentTypes.contains('images') || contentTypes.contains('rootdir');
@@ -38,5 +50,6 @@ class ProxmoxStorage {
     used: (json['used'] as num?)?.toInt(),
     available: (json['avail'] as num?)?.toInt(),
     active: (json['active'] as num? ?? 1) == 1,
+    enabled: (json['enabled'] as num? ?? 1) == 1,
   );
 }

@@ -5,6 +5,7 @@ import '../../../../l10n/generated/app_localizations.dart';
 import '../data/models/jellyfin_item.dart';
 import '../providers/jellyfin_providers.dart';
 import 'jellyfin_library_screen.dart';
+import 'jellyfin_series_screen.dart';
 import 'player/jellyfin_player_screen.dart';
 
 class JellyfinItemDetailScreen extends ConsumerWidget {
@@ -70,10 +71,12 @@ class JellyfinItemDetailScreen extends ConsumerWidget {
               CupertinoButton.filled(
                 onPressed: () => Navigator.of(context).push(
                   CupertinoPageRoute(
-                    builder: (_) => JellyfinLibraryScreen(
-                      parentId: item.id,
-                      title: item.name,
-                    ),
+                    builder: (_) => item.type == 'Series'
+                        ? JellyfinSeriesScreen(series: item)
+                        : JellyfinLibraryScreen(
+                            parentId: item.id,
+                            title: item.name,
+                          ),
                   ),
                 ),
                 child: Text(AppLocalizations.of(context).jellyfinBrowseButton),

@@ -1,10 +1,18 @@
 import '../../../../l10n/generated/app_localizations.dart';
 
-/// Config keys that should never be shown/edited at all — internal
-/// bookkeeping fields, not real guest settings. `digest` in particular is
-/// a hash of the config used for optimistic-concurrency checks; showing
-/// or round-tripping it as an editable text field is meaningless.
-const proxmoxHiddenConfigKeys = {'digest'};
+/// Internal config metadata must not become editable settings. The editor
+/// preserves `digest` separately as the server's optimistic concurrency guard
+/// while excluding locks and snapshot bookkeeping from submitted changes.
+const proxmoxHiddenConfigKeys = {
+  'digest',
+  'lock',
+  'template',
+  'pending',
+  'snapshots',
+  'parent',
+  'snaptime',
+  'snapstate',
+};
 
 final RegExp _numberedKey = RegExp(r'^([a-zA-Z]+?)(\d+)$');
 

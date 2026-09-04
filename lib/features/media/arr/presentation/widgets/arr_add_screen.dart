@@ -18,10 +18,12 @@ class ArrAddScreen extends StatefulWidget {
     required this.loadRootFolders,
     required this.onAdd,
     this.loadMetadataProfiles,
+    this.initialQuery,
   });
 
   final String title;
   final String searchHint;
+  final String? initialQuery;
   final Future<List<ArrLookupResult>> Function(String term) onLookup;
   final Future<List<ArrQualityProfile>> Function() loadQualityProfiles;
   final Future<List<ArrRootFolder>> Function() loadRootFolders;
@@ -45,6 +47,22 @@ class ArrAddScreen extends StatefulWidget {
 class _ArrAddScreenState extends State<ArrAddScreen> {
   List<ArrLookupResult>? _results;
   bool _searching = false;
+  bool _adding = false;
+  String? _error;
+  late final TextEditingController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController(text: widget.initialQuery);
+    if (widget.initialQuery != null) _search(widget.initialQuery!);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -57,10 +75,19 @@ class _ArrAddScreenState extends State<ArrAddScreen> {
               padding: const EdgeInsets.all(12),
               child: CupertinoSearchTextField(
                 placeholder: widget.searchHint,
+                controller: _controller,
                 onSubmitted: _search,
               ),
             ),
-            if (_searching) const CupertinoActivityIndicator(),
+            if (_searching || _adding) const CupertinoActivityIndicator(),
+            if (_error != null)
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: Text(
+                  _error!,
+                  style: const TextStyle(color: CupertinoColors.systemRed),
+                ),
+              ),
             Expanded(
               child: _results == null
                   ? Center(
@@ -80,7 +107,7 @@ class _ArrAddScreenState extends State<ArrAddScreen> {
                                   AppLocalizations.of(context).arrAlreadyAdded,
                                 )
                               : const CupertinoListTileChevron(),
-                          onTap: result.alreadyAdded
+                          onTap: result.alreadyAdded || _adding
                               ? null
                               : () => _openAddSheet(result),
                         );
@@ -98,99 +125,133 @@ class _ArrAddScreenState extends State<ArrAddScreen> {
       setState(() => _results = null);
       return;
     }
-    setState(() => _searching = true);
+    setState(() {
+      _searching = true;
+      _error = null;
+    });
     try {
       final results = await widget.onLookup(query.trim());
       if (mounted) setState(() => _results = results);
     } catch (_) {
-      if (mounted) setState(() => _results = []);
+      if (mounted) {
+        setState(() {
+          _results = [];
+          _error = AppLocalizations.of(context).mediaErrorUnreachable;
+        });
+      }
     } finally {
       if (mounted) setState(() => _searching = false);
     }
   }
 
   Future<void> _openAddSheet(ArrLookupResult result) async {
-    final profiles = await widget.loadQualityProfiles();
-    final folders = await widget.loadRootFolders();
-    final metadataProfiles = await widget.loadMetadataProfiles?.call();
-    if (!mounted || profiles.isEmpty || folders.isEmpty) return;
-    if (widget.loadMetadataProfiles != null &&
-        (metadataProfiles == null || metadataProfiles.isEmpty)) {
-      return;
-    }
+    if (_adding) return;
+    setState(() {
+      _adding = true;
+      _error = null;
+    });
+    try {
+      final profiles = await widget.loadQualityProfiles();
+      final folders = await widget.loadRootFolders();
+      final metadataProfiles = await widget.loadMetadataProfiles?.call();
+      if (!mounted) return;
+      if (profiles.isEmpty || folders.isEmpty) {
+        setState(
+          () => _error = AppLocalizations.of(context).arrMissingConfiguration,
+        );
+        return;
+      }
+      if (widget.loadMetadataProfiles != null &&
+          (metadataProfiles == null || metadataProfiles.isEmpty)) {
+        setState(
+          () => _error = AppLocalizations.of(context).arrMissingConfiguration,
+        );
+        return;
+      }
 
-    ArrQualityProfile selectedProfile = profiles.first;
-    ArrRootFolder selectedFolder = folders.first;
-    ArrMetadataProfile? selectedMetadataProfile = metadataProfiles?.first;
+      ArrQualityProfile selectedProfile = profiles.first;
+      ArrRootFolder selectedFolder = folders.first;
+      ArrMetadataProfile? selectedMetadataProfile = metadataProfiles?.first;
 
-    await showCupertinoModalPopup<void>(
-      context: context,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setSheetState) {
-          final l10n = AppLocalizations.of(context);
-          return CupertinoActionSheet(
-            title: Text(result.title),
-            message: Text(
-              [
-                l10n.arrQualityLine(selectedProfile.name),
-                l10n.arrFolderLine(selectedFolder.path),
-                if (selectedMetadataProfile != null)
-                  l10n.arrMetadataLine(selectedMetadataProfile!.name),
-              ].join('\n'),
-            ),
-            actions: [
-              for (final profile in profiles)
-                CupertinoActionSheetAction(
-                  onPressed: () =>
-                      setSheetState(() => selectedProfile = profile),
-                  child: Text(
-                    selectedProfile.id == profile.id
-                        ? l10n.arrQualityOptionSelected(profile.name)
-                        : l10n.arrQualityLine(profile.name),
-                  ),
-                ),
-              for (final folder in folders)
-                CupertinoActionSheetAction(
-                  onPressed: () => setSheetState(() => selectedFolder = folder),
-                  child: Text(
-                    selectedFolder.id == folder.id
-                        ? l10n.arrFolderOptionSelected(folder.path)
-                        : l10n.arrFolderLine(folder.path),
-                  ),
-                ),
-              if (metadataProfiles != null)
-                for (final profile in metadataProfiles)
+      final confirmed = await showCupertinoModalPopup<bool>(
+        context: context,
+        builder: (context) => StatefulBuilder(
+          builder: (context, setSheetState) {
+            final l10n = AppLocalizations.of(context);
+            return CupertinoActionSheet(
+              title: Text(result.title),
+              message: Text(
+                [
+                  l10n.arrQualityLine(selectedProfile.name),
+                  l10n.arrFolderLine(selectedFolder.path),
+                  if (selectedMetadataProfile != null)
+                    l10n.arrMetadataLine(selectedMetadataProfile!.name),
+                ].join('\n'),
+              ),
+              actions: [
+                for (final profile in profiles)
                   CupertinoActionSheetAction(
                     onPressed: () =>
-                        setSheetState(() => selectedMetadataProfile = profile),
+                        setSheetState(() => selectedProfile = profile),
                     child: Text(
-                      selectedMetadataProfile?.id == profile.id
-                          ? l10n.arrMetadataOptionSelected(profile.name)
-                          : l10n.arrMetadataLine(profile.name),
+                      selectedProfile.id == profile.id
+                          ? l10n.arrQualityOptionSelected(profile.name)
+                          : l10n.arrQualityLine(profile.name),
                     ),
                   ),
-              CupertinoActionSheetAction(
-                isDefaultAction: true,
-                onPressed: () async {
-                  Navigator.pop(context);
-                  await widget.onAdd(
-                    result,
-                    selectedProfile.id,
-                    selectedFolder.path,
-                    selectedMetadataProfile?.id,
-                  );
-                  if (mounted) setState(() => _results = null);
-                },
-                child: Text(l10n.commonAdd),
+                for (final folder in folders)
+                  CupertinoActionSheetAction(
+                    onPressed: () =>
+                        setSheetState(() => selectedFolder = folder),
+                    child: Text(
+                      selectedFolder.id == folder.id
+                          ? l10n.arrFolderOptionSelected(folder.path)
+                          : l10n.arrFolderLine(folder.path),
+                    ),
+                  ),
+                if (metadataProfiles != null)
+                  for (final profile in metadataProfiles)
+                    CupertinoActionSheetAction(
+                      onPressed: () => setSheetState(
+                        () => selectedMetadataProfile = profile,
+                      ),
+                      child: Text(
+                        selectedMetadataProfile?.id == profile.id
+                            ? l10n.arrMetadataOptionSelected(profile.name)
+                            : l10n.arrMetadataLine(profile.name),
+                      ),
+                    ),
+                CupertinoActionSheetAction(
+                  isDefaultAction: true,
+                  onPressed: () => Navigator.pop(context, true),
+                  child: Text(l10n.commonAdd),
+                ),
+              ],
+              cancelButton: CupertinoActionSheetAction(
+                onPressed: () => Navigator.pop(context),
+                child: Text(l10n.commonCancel),
               ),
-            ],
-            cancelButton: CupertinoActionSheetAction(
-              onPressed: () => Navigator.pop(context),
-              child: Text(l10n.commonCancel),
-            ),
-          );
-        },
-      ),
-    );
+            );
+          },
+        ),
+      );
+      if (confirmed == true) {
+        await widget.onAdd(
+          result,
+          selectedProfile.id,
+          selectedFolder.path,
+          selectedMetadataProfile?.id,
+        );
+        if (mounted) Navigator.of(context).pop(true);
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(
+          () => _error = AppLocalizations.of(context).mediaErrorUnreachable,
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _adding = false);
+    }
   }
 }

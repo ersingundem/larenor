@@ -16,7 +16,7 @@ const _nameKeysByType = {
   ProxmoxGuestType.qemu: 'name',
   ProxmoxGuestType.lxc: 'hostname',
 };
-const _commonKeys = ['cores', 'memory', 'onboot'];
+const _commonKeys = ['cores', 'memory'];
 
 class ProxmoxGuestDetailScreen extends ConsumerStatefulWidget {
   const ProxmoxGuestDetailScreen({super.key, required this.guest});
@@ -57,6 +57,9 @@ class _ProxmoxGuestDetailScreenState
       if (proxmoxHiddenConfigKeys.contains(entry.key)) continue;
       _controllers[entry.key] = TextEditingController(text: '${entry.value}');
     }
+    for (final key in [_nameKey, ..._commonKeys]) {
+      _controllers.putIfAbsent(key, () => TextEditingController());
+    }
   }
 
   Future<void> _save() async {
@@ -69,15 +72,25 @@ class _ProxmoxGuestDetailScreenState
     });
     try {
       final changes = <String, String>{
-        for (final entry in _controllers.entries) entry.key: entry.value.text,
-        'onboot': _onboot ? '1' : '0',
+        for (final entry in _controllers.entries)
+          if (entry.value.text != '${_loadedConfig?[entry.key] ?? ''}')
+            entry.key: entry.value.text,
+        if (_onboot != ('${_loadedConfig?['onboot']}' == '1'))
+          'onboot': _onboot ? '1' : '0',
       };
+      if (changes.isEmpty) {
+        if (mounted) Navigator.of(context).pop();
+        return;
+      }
+      final digest = _loadedConfig?['digest'];
+      if (digest is String) changes['digest'] = digest;
       await client.updateGuestConfig(
         widget.guest.node,
         widget.guest.type,
         widget.guest.vmid,
         changes,
       );
+      if (!mounted) return;
       ref.invalidate(
         proxmoxGuestConfigProvider(
           widget.guest.node,
@@ -88,6 +101,7 @@ class _ProxmoxGuestDetailScreenState
       ref.invalidate(proxmoxGuestsProvider(widget.guest.node));
       if (mounted) Navigator.of(context).pop();
     } catch (e) {
+      if (!mounted) return;
       setState(
         () =>
             _error = AppLocalizations.of(context)
@@ -125,10 +139,7 @@ class _ProxmoxGuestDetailScreenState
           ),
           data: (config) {
             _seedControllers(config);
-            final commonKeys = [
-              _nameKey,
-              ..._commonKeys,
-            ].where(config.containsKey);
+            final commonKeys = [_nameKey, ..._commonKeys];
             final advancedKeys = config.keys.where(
               (k) =>
                   !commonKeys.contains(k) &&
@@ -167,6 +178,9 @@ class _ProxmoxGuestDetailScreenState
                     for (final key in commonKeys)
                       CupertinoTextFormFieldRow(
                         controller: _controllers[key],
+                        keyboardType: _commonKeys.contains(key)
+                            ? TextInputType.number
+                            : TextInputType.text,
                         prefix: Text(
                           proxmoxFieldLabel(AppLocalizations.of(context), key),
                         ),
@@ -194,6 +208,7 @@ class _ProxmoxGuestDetailScreenState
                       for (final key in advancedKeys)
                         CupertinoTextFormFieldRow(
                           controller: _controllers[key],
+                          readOnly: key == 'unprivileged',
                           prefix: Text(
                             proxmoxFieldLabel(
                               AppLocalizations.of(context),
@@ -214,7 +229,9 @@ class _ProxmoxGuestDetailScreenState
                         AppLocalizations.of(context).proxmoxOpenConsole,
                       ),
                       trailing: const CupertinoListTileChevron(),
-                      onTap: _openConsole,
+                      onTap: guest.isRunning && !guest.isTemplate
+                          ? _openConsole
+                          : null,
                     ),
                   ],
                 ),

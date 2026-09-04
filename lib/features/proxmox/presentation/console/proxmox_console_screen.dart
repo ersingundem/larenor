@@ -1,5 +1,3 @@
-import 'dart:convert';
-
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:webview_flutter/webview_flutter.dart';
@@ -8,12 +6,9 @@ import '../../../../l10n/generated/app_localizations.dart';
 import '../../data/models/proxmox_guest.dart';
 import '../../providers/proxmox_providers.dart';
 
-/// Embeds an interactive console for a VM (noVNC) or container (xterm.js)
-/// inside a WebView, loading vendored client-side JS bundled as Flutter
-/// assets. The console websocket needs both a vnc/term ticket (as a query
-/// param) *and* Proxmox's `PVEAuthCookie` present on the connection, so
-/// the cookie is pushed into the WebView's cookie jar before the page
-/// loads.
+/// Uses the console client served by this Proxmox version. Its noVNC/xterm
+/// page handles console tickets, terminal framing, resizing and reconnects on
+/// the same origin as the authenticated API, including self-signed servers.
 class ProxmoxConsoleScreen extends ConsumerStatefulWidget {
   const ProxmoxConsoleScreen({super.key, required this.guest});
 
@@ -26,111 +21,141 @@ class ProxmoxConsoleScreen extends ConsumerStatefulWidget {
 
 class _ProxmoxConsoleScreenState extends ConsumerState<ProxmoxConsoleScreen> {
   late final WebViewController _controller;
-  String? _wsUrl;
-  bool _connecting = false;
   bool _loading = true;
   String? _error;
 
   @override
   void initState() {
     super.initState();
-    _controller = WebViewController()
-      ..setJavaScriptMode(JavaScriptMode.unrestricted)
-      ..setBackgroundColor(const Color(0xFF000000))
-      ..setNavigationDelegate(
-        NavigationDelegate(onPageFinished: (_) => _connect()),
-      );
+    _controller = WebViewController();
     _prepare();
   }
 
   Future<void> _prepare() async {
-    final client = ref.read(proxmoxClientProvider).value;
-    if (client == null) {
-      setState(
-        () => _error = AppLocalizations.of(context).proxmoxConsoleNotConnected,
-      );
-      return;
+    if (mounted) {
+      setState(() {
+        _loading = true;
+        _error = null;
+      });
     }
-
     try {
-      final isQemu = widget.guest.type == ProxmoxGuestType.qemu;
-      final ticket = isQemu
-          ? await client.vncTicket(widget.guest.node, widget.guest.vmid)
-          : await client.termTicket(widget.guest.node, widget.guest.vmid);
-      _wsUrl = client.consoleWebSocketUrl(
-        node: widget.guest.node,
-        console: ticket,
+      final client = await ref.read(proxmoxClientProvider.future);
+      if (!mounted) return;
+      if (client == null) {
+        setState(
+          () =>
+              _error = AppLocalizations.of(context).proxmoxConsoleNotConnected,
+        );
+        return;
+      }
+      await client.ensureAuthenticated();
+      if (!mounted) return;
+      final page = client.consolePageUrl(widget.guest);
+      await _controller.setJavaScriptMode(JavaScriptMode.unrestricted);
+      await _controller.setBackgroundColor(const Color(0xFF000000));
+      await _controller.setNavigationDelegate(
+        NavigationDelegate(
+          onNavigationRequest: (request) {
+            final target = Uri.tryParse(request.url);
+            final sameServer =
+                target != null &&
+                {'http', 'https'}.contains(target.scheme) &&
+                target.hasAuthority &&
+                target.origin == page.origin;
+            return sameServer
+                ? NavigationDecision.navigate
+                : NavigationDecision.prevent;
+          },
+          onPageFinished: (_) {
+            if (mounted) setState(() => _loading = false);
+          },
+          onWebResourceError: (error) {
+            if (error.isForMainFrame == true && mounted) {
+              setState(() {
+                _error = error.description;
+                _loading = false;
+              });
+            }
+          },
+          onSslAuthError: (error) {
+            if (client.config.allowSelfSigned) {
+              error.proceed();
+            } else {
+              error.cancel();
+            }
+          },
+        ),
       );
-
       await WebViewCookieManager().setCookie(
         WebViewCookie(
           name: 'PVEAuthCookie',
           value: client.authCookieValue,
           domain: client.config.host,
+          path: '/',
         ),
       );
-
-      final asset = isQemu
-          ? 'assets/console/novnc.html'
-          : 'assets/console/xterm.html';
-      await _controller.loadFlutterAsset(asset);
-    } catch (e) {
+      if (!mounted) return;
+      await _controller.loadRequest(page);
+    } catch (error) {
       if (mounted) {
-        setState(
-          () =>
-              _error = AppLocalizations.of(context)
-                  .proxmoxConsoleOpenError(e.toString()),
-        );
+        setState(() {
+          _loading = false;
+          _error = AppLocalizations.of(context)
+              .proxmoxConsoleOpenError(error.toString());
+        });
       }
     }
   }
 
-  Future<void> _connect() async {
-    final url = _wsUrl;
-    if (url == null || _connecting) return;
-    _connecting = true;
-
-    for (var attempt = 0; attempt < 15; attempt++) {
-      final ready = await _controller.runJavaScriptReturningResult(
-        'typeof window.larenorConnect === "function"',
-      );
-      if ('$ready' == 'true') break;
-      await Future.delayed(const Duration(milliseconds: 200));
-    }
-
-    await _controller.runJavaScript(
-      'window.larenorConnect(${jsonEncode(url)});',
-    );
-    if (mounted) setState(() => _loading = false);
-  }
-
   @override
   Widget build(BuildContext context) {
+    // Keep the API client alive for the life of its console session.
+    ref.watch(proxmoxClientProvider);
     return CupertinoPageScaffold(
+      backgroundColor: const Color(0xFF000000),
       navigationBar: CupertinoNavigationBar(
         middle: Text(
           AppLocalizations.of(context).proxmoxConsoleTitle(widget.guest.name),
         ),
+        trailing: CupertinoButton(
+          padding: EdgeInsets.zero,
+          onPressed: _loading ? null : _prepare,
+          child: const Icon(CupertinoIcons.refresh),
+        ),
       ),
-      child: Stack(
-        children: [
-          WebViewWidget(controller: _controller),
-          if (_loading && _error == null)
-            const Center(
-              child: CupertinoActivityIndicator(color: CupertinoColors.white),
-            ),
-          if (_error != null)
-            Center(
-              child: Padding(
-                padding: const EdgeInsets.all(24),
-                child: Text(
-                  _error!,
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(color: CupertinoColors.white),
+      child: SafeArea(
+        child: Stack(
+          children: [
+            WebViewWidget(controller: _controller),
+            if (_loading && _error == null)
+              const Center(
+                child: CupertinoActivityIndicator(color: CupertinoColors.white),
+              ),
+            if (_error != null)
+              ColoredBox(
+                color: const Color(0xFF000000),
+                child: Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          _error!,
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(color: CupertinoColors.white),
+                        ),
+                        CupertinoButton(
+                          onPressed: _prepare,
+                          child: Text(AppLocalizations.of(context).commonRetry),
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
               ),
-            ),
-        ],
+          ],
+        ),
       ),
     );
   }
