@@ -1,0 +1,4028 @@
+{
+  "schemaVersion": 1,
+  "title": "Larenor kalıcı yürütme kuyruğu",
+  "updatedAt": "2026-09-05",
+  "selectedFeatures": [
+    "F01",
+    "F02",
+    "F03",
+    "F04",
+    "F05",
+    "F06",
+    "F07",
+    "F08",
+    "F09",
+    "F10",
+    "F11",
+    "F12",
+    "F13",
+    "F14",
+    "F15",
+    "F16",
+    "F17",
+    "F18",
+    "F19",
+    "F20",
+    "F21",
+    "F22",
+    "F23",
+    "F24",
+    "F25",
+    "F26",
+    "F27",
+    "F28",
+    "F29",
+    "F30",
+    "F31",
+    "F32",
+    "F33",
+    "F34",
+    "F35",
+    "F36",
+    "F37",
+    "F38",
+    "F39",
+    "F40",
+    "F41",
+    "F42",
+    "F43",
+    "F44",
+    "F45",
+    "F46",
+    "F47",
+    "F48",
+    "F49",
+    "F50",
+    "F51",
+    "F52",
+    "F53",
+    "F54",
+    "F55",
+    "F56",
+    "F57",
+    "F58",
+    "F59",
+    "F60",
+    "F61",
+    "F62",
+    "F63"
+  ],
+  "sources": [
+    "docs/PROGRESS.md",
+    "docs/remaining-core-integration-slices.md",
+    "docs/media-resource-preparation-plan-2026-09-05.md",
+    "docs/product-implementation-plan-2026-09-05.md",
+    "docs/feature-expansion-plan-2026-09-05.md",
+    "docs/feature-candidates-2026-09-05.json",
+    "docs/remote-access-plan-2026-09-05.json",
+    "docs/remote-access-plan-2026-09-05.md",
+    "docs/integrated-media-stack.md",
+    "docs/readme-publication-plan.md",
+    "docs/kiosk-capabilities-research-2026-09-05.md"
+  ],
+  "nodes": [
+    {
+      "id": "B0",
+      "kind": "checkpoint",
+      "parent": null,
+      "title": "Önceki kabul: 62b2054 tam CI ve imzalı dağıtım",
+      "status": "done",
+      "dependsOn": [],
+      "finishDependsOn": [],
+      "sources": [
+        "docs/PROGRESS.md"
+      ],
+      "scope": "Yalnız önceki kabul tabanı; sonraki işin veya fiziksel cihazın kanıtı değildir.",
+      "acceptance": [
+        "Kaydedilmiş tam kaynak commit’i üzerinde Server/Güvenlik/Android ve imzalı APK kapıları geçti."
+      ],
+      "requiredEvidence": [
+        "test",
+        "review",
+        "ci"
+      ],
+      "evidence": [
+        {
+          "kind": "test",
+          "ref": "docs/PROGRESS.md",
+          "commit": "62b2054661abe594353d5f653aa72a8b9053f8ae",
+          "state": "completed",
+          "result": "passed",
+          "label": "2625 Flutter, 1516 Linux Server, 98 JVM, 8 cihaz E2E, 178 araç"
+        },
+        {
+          "kind": "review",
+          "ref": "docs/PROGRESS.md",
+          "commit": "62b2054661abe594353d5f653aa72a8b9053f8ae",
+          "state": "completed",
+          "result": "passed",
+          "label": "Salt okunur bağımsız inceleme ve kaynak/artefact doğrulaması"
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/33976443262",
+          "commit": "62b2054661abe594353d5f653aa72a8b9053f8ae",
+          "state": "completed",
+          "result": "passed",
+          "label": "Güvenlik"
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/33976443375",
+          "commit": "62b2054661abe594353d5f653aa72a8b9053f8ae",
+          "state": "completed",
+          "result": "passed",
+          "label": "İki mimarili Server"
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/33976443371",
+          "commit": "62b2054661abe594353d5f653aa72a8b9053f8ae",
+          "state": "completed",
+          "result": "passed",
+          "label": "Android E2E ve imzalı APK"
+        }
+      ],
+      "completionCommit": "62b2054661abe594353d5f653aa72a8b9053f8ae",
+      "reason": null
+    },
+    {
+      "id": "B1",
+      "kind": "group",
+      "parent": null,
+      "title": "Yönetilen bileşen yaşam döngüsü"
+    },
+    {
+      "id": "S06",
+      "kind": "group",
+      "parent": "B1",
+      "title": "Tek medya kurulumu koordinatörü"
+    },
+    {
+      "id": "S06.3",
+      "kind": "group",
+      "parent": "S06",
+      "title": "Sahiplikli kaynak hazırlığı"
+    },
+    {
+      "id": "S06.3a",
+      "kind": "task",
+      "parent": "S06.3",
+      "title": "Worker kaynak planı ve değişmez kimlikler",
+      "status": "awaiting_ci",
+      "dependsOn": [
+        "B0"
+      ],
+      "finishDependsOn": [],
+      "sources": [
+        "docs/media-resource-preparation-plan-2026-09-05.md",
+        "docs/remaining-core-integration-slices.md",
+        "docs/resource-preparation-implementation-2026-09-05.md"
+      ],
+      "scope": "installAvailable=false; Client kaynak adı/Docker seçenekleri üretmez. Gerçek ev sunucusuna işlem yok.",
+      "acceptance": [
+        "Aynı hazırlık/politika aynı ID’leri üretir; altı child ve ortak ağ çakışmaz. Eski plan hash’leri korunur; başka Core/ev, eski katalog ve Client Docker alanları reddedilir."
+      ],
+      "requiredEvidence": [
+        "test",
+        "review",
+        "ci"
+      ],
+      "evidence": [
+        {
+          "kind": "test",
+          "ref": "docs/resource-preparation-implementation-2026-09-05.md",
+          "commit": "0de91a2f6aefeeeb318050552993940d7dc3a7ef",
+          "state": "completed",
+          "result": "passed",
+          "label": "67 yeni odaklı; katalog/stack ile 249 geçti, birleşik kapsam %95"
+        },
+        {
+          "kind": "review",
+          "ref": "docs/resource-preparation-implementation-2026-09-05.md",
+          "commit": "0de91a2f6aefeeeb318050552993940d7dc3a7ef",
+          "state": "completed",
+          "result": "passed",
+          "label": "Kök bağımsız inceleme: sözleşme/pin/sıfır I/O/v1 geçmiş sınırı"
+        }
+      ],
+      "completionCommit": null,
+      "reason": "Yerel 249 test ve bağımsız inceleme geçti; bu commit için uzak CI kapısı henüz açık."
+    },
+    {
+      "id": "S06.3b",
+      "kind": "task",
+      "parent": "S06.3",
+      "title": "Kaynak journal’ı ve kesilmiş işlem sahipliği",
+      "status": "in_progress",
+      "dependsOn": [
+        "B0"
+      ],
+      "finishDependsOn": [
+        "S06.3a"
+      ],
+      "sources": [
+        "docs/media-resource-preparation-plan-2026-09-05.md",
+        "docs/remaining-core-integration-slices.md",
+        "docs/resource-preparation-implementation-2026-09-05.md"
+      ],
+      "scope": "installAvailable=false; Client kaynak adı/Docker seçenekleri üretmez. Gerçek ev sunucusuna işlem yok. Başlangıç yerelde dondurulmuş sözleşmeye dayanır; önceki iş tam kanıtla done olmadan bu iş done/CI kabulü sayılmaz. Ayrı resources-v1 özel journal; mevcut container journal v1 değiştirilmez.",
+      "acceptance": [
+        "Niyet etkiden önce kalıcıdır; migration/rollback, restart ve eşzamanlı işçi sınanır. Yalnız ad/label/boş dizin sahiplik sağlamaz; bozuk makbuzda needs_attention; otomatik silme yok."
+      ],
+      "requiredEvidence": [
+        "test",
+        "review",
+        "ci"
+      ],
+      "evidence": [],
+      "completionCommit": null,
+      "reason": "Önceki sözleşme yerelde dondurulunca ayrı modülde paralel draft geliştirme; kabul önceki işin CI kapısını bekler."
+    },
+    {
+      "id": "S06.3c",
+      "kind": "task",
+      "parent": "S06.3",
+      "title": "Seçili digest ile bounded imaj edinme",
+      "status": "in_progress",
+      "dependsOn": [
+        "B0"
+      ],
+      "finishDependsOn": [
+        "S06.3b"
+      ],
+      "sources": [
+        "docs/media-resource-preparation-plan-2026-09-05.md",
+        "docs/remaining-core-integration-slices.md",
+        "docs/resource-preparation-implementation-2026-09-05.md"
+      ],
+      "scope": "installAvailable=false; Client kaynak adı/Docker seçenekleri üretmez. Gerçek ev sunucusuna işlem yok. Başlangıç yerelde dondurulmuş sözleşmeye dayanır; önceki iş tam kanıtla done olmadan bu iş done/CI kabulü sayılmaz.",
+      "acceptance": [
+        "200 içi hata, kesilme, süre/boyut, yanlış digest/config/mimari ve cache sınanır. Kayıp cevap sonrası inspect; daemon image-store bütçesi ayrı; prune/delete yok."
+      ],
+      "requiredEvidence": [
+        "test",
+        "review",
+        "ci"
+      ],
+      "evidence": [],
+      "completionCommit": null,
+      "reason": "Önceki sözleşme yerelde dondurulunca ayrı modülde paralel draft geliştirme; kabul önceki işin CI kapısını bekler."
+    },
+    {
+      "id": "S06.3d",
+      "kind": "task",
+      "parent": "S06.3",
+      "title": "Onaylı kökte sahiplikli appdata",
+      "status": "pending",
+      "dependsOn": [
+        "S06.3b"
+      ],
+      "finishDependsOn": [],
+      "sources": [
+        "docs/media-resource-preparation-plan-2026-09-05.md",
+        "docs/remaining-core-integration-slices.md"
+      ],
+      "scope": "installAvailable=false; Client kaynak adı/Docker seçenekleri üretmez. Gerçek ev sunucusuna işlem yok.",
+      "acceptance": [
+        "Descriptor/no-follow, root inode/mount/UID değişimi ve crash noktaları sınanır. Worker/daemon kök kanıtı yeniden alınır; kullanıcı kütüphanesi taşınmaz, temizlenmez veya recursive chown yapılmaz."
+      ],
+      "requiredEvidence": [
+        "test",
+        "review",
+        "ci"
+      ],
+      "evidence": [],
+      "completionCommit": null,
+      "reason": null
+    },
+    {
+      "id": "S06.3e",
+      "kind": "task",
+      "parent": "S06.3",
+      "title": "Sahiplikli özel kontrol ağı",
+      "status": "pending",
+      "dependsOn": [
+        "S06.3b"
+      ],
+      "finishDependsOn": [],
+      "sources": [
+        "docs/media-resource-preparation-plan-2026-09-05.md",
+        "docs/remaining-core-integration-slices.md"
+      ],
+      "scope": "installAvailable=false; Client kaynak adı/Docker seçenekleri üretmez. Gerçek ev sunucusuna işlem yok.",
+      "acceptance": [
+        "Sabit bridge/local/internal profil, gerçek network ID ve journal doğrulanır. Aynı adlı yabancı/çoklu ağ, farklı özellik ve kayıp cevap reddedilir; container attach/start/publish yok."
+      ],
+      "requiredEvidence": [
+        "test",
+        "review",
+        "ci"
+      ],
+      "evidence": [],
+      "completionCommit": null,
+      "reason": null
+    },
+    {
+      "id": "S06.3f",
+      "kind": "task",
+      "parent": "S06.3",
+      "title": "Kaynak makbuzu ve iki mimarili kabul",
+      "status": "pending",
+      "dependsOn": [
+        "S06.3c",
+        "S06.3d",
+        "S06.3e"
+      ],
+      "finishDependsOn": [],
+      "sources": [
+        "docs/media-resource-preparation-plan-2026-09-05.md",
+        "docs/remaining-core-integration-slices.md"
+      ],
+      "scope": "installAvailable=false; Client kaynak adı/Docker seçenekleri üretmez. Gerçek ev sunucusuna işlem yok.",
+      "acceptance": [
+        "İzole Linux amd64/arm64 gerçek Engine fixture’ında yalnız pull/inspect ve network create/inspect; restart/recovery/iptal ve güncel yetki kanıtı. resources_ready kurulum/sağlık başarısı değildir."
+      ],
+      "requiredEvidence": [
+        "test",
+        "review",
+        "ci"
+      ],
+      "evidence": [],
+      "completionCommit": null,
+      "reason": null
+    },
+    {
+      "id": "S06.4",
+      "kind": "task",
+      "parent": "S06",
+      "title": "Dar kurulum adımlarını API ve işçiye bağlama",
+      "status": "pending",
+      "dependsOn": [
+        "S06.3"
+      ],
+      "finishDependsOn": [],
+      "sources": [
+        "docs/remaining-core-integration-slices.md",
+        "docs/integrated-media-stack.md"
+      ],
+      "scope": "Kurulum yeteneği ancak ayrı, kanıtlanmış yürütme kapısıyla açılır; mevcut readonly inspection mutasyona dönüşmez.",
+      "acceptance": [
+        "Her yan etkide güncel actor/family/Core/ev/preparation/katalog/politika/iptal; child operation ile create/start, kayıp cevapta sahiplik uzlaştırması; serbest Docker JSON reddi."
+      ],
+      "requiredEvidence": [
+        "test",
+        "review",
+        "ci"
+      ],
+      "evidence": [],
+      "completionCommit": null,
+      "reason": null
+    },
+    {
+      "id": "S06.5",
+      "kind": "task",
+      "parent": "S06",
+      "title": "Özel bootstrap ve otomatik servis eşleştirme temeli",
+      "status": "pending",
+      "dependsOn": [
+        "S06.4"
+      ],
+      "finishDependsOn": [],
+      "sources": [
+        "docs/remaining-core-integration-slices.md",
+        "docs/integrated-media-stack.md"
+      ],
+      "scope": "Kullanıcı ayrı uygulama kurmaz veya API anahtarı kopyalamaz; sırlar Client/plan/log içine girmez.",
+      "acceptance": [
+        "Server sır üretir ve şifreli tutar; ilk-kullanıcı API’si LAN’a açılmaz. MA host ağı ayrı korunur; adres/anahtar/kütüphane eşlemeleri geri okunur ve kısmi hata görünür."
+      ],
+      "requiredEvidence": [
+        "test",
+        "review",
+        "ci"
+      ],
+      "evidence": [],
+      "completionCommit": null,
+      "reason": null
+    },
+    {
+      "id": "S06.6",
+      "kind": "task",
+      "parent": "S06",
+      "title": "Doğrulanmış sonuç, iptal ve kurtarma",
+      "status": "pending",
+      "dependsOn": [
+        "S06.5"
+      ],
+      "finishDependsOn": [],
+      "sources": [
+        "docs/remaining-core-integration-slices.md",
+        "docs/integrated-media-stack.md"
+      ],
+      "scope": "Ev kurulumu ve fiziksel alıcı kabulü ayrı kalır.",
+      "acceptance": [
+        "Gerçek servis sonucu create/start makbuzundan ayrılır; restart/iptal/hata veriyi silmez. İki mimarili geçici Linux ortamında gerçek bileşen kabulü ve yetki kaybı sınanır."
+      ],
+      "requiredEvidence": [
+        "test",
+        "review",
+        "ci"
+      ],
+      "evidence": [],
+      "completionCommit": null,
+      "reason": null
+    },
+    {
+      "id": "B2",
+      "kind": "group",
+      "parent": null,
+      "title": "Bütünleşik medya ve müzik"
+    },
+    {
+      "id": "S07",
+      "kind": "group",
+      "parent": "B2",
+      "title": "Tek Server paketi ve otomatik medya bağlantıları"
+    },
+    {
+      "id": "S07.1",
+      "kind": "task",
+      "parent": "S07",
+      "title": "Altı bileşen ve dahili Music Assistant paketleme",
+      "status": "pending",
+      "dependsOn": [
+        "B1"
+      ],
+      "finishDependsOn": [],
+      "sources": [
+        "docs/integrated-media-stack.md",
+        "docs/PROGRESS.md"
+      ],
+      "scope": "Gerçek sağlayıcı hesapları ve HomePod/Cast kabulü en sondaki manuel kapıda.",
+      "acceptance": [
+        "Tek Larenor kurulumu, sürüm/lisans/mimari ve dahili motor yaşam döngüsü doğrulanır; eski CasaOS container/verisine sahiplik alınmaz."
+      ],
+      "requiredEvidence": [
+        "test",
+        "review",
+        "ci"
+      ],
+      "evidence": [],
+      "completionCommit": null,
+      "reason": null
+    },
+    {
+      "id": "S07.2",
+      "kind": "task",
+      "parent": "S07",
+      "title": "İndirme, istek ve kütüphane otomatik eşleştirmesi",
+      "status": "pending",
+      "dependsOn": [
+        "S07.1"
+      ],
+      "finishDependsOn": [],
+      "sources": [
+        "docs/integrated-media-stack.md",
+        "docs/PROGRESS.md"
+      ],
+      "scope": "Gerçek sağlayıcı hesapları ve HomePod/Cast kabulü en sondaki manuel kapıda.",
+      "acceptance": [
+        "qBittorrent/Arr/Seerr/Jellyfin kullanıcı, kategori ve ortak yolları otomatik bağlanır; istek→indirme→import→oynatma, hardlink/yol farkı, yeniden deneme ve kısmi hata fixture’ları geçer."
+      ],
+      "requiredEvidence": [
+        "test",
+        "review",
+        "ci"
+      ],
+      "evidence": [],
+      "completionCommit": null,
+      "reason": null
+    },
+    {
+      "id": "S07.3",
+      "kind": "task",
+      "parent": "S07",
+      "title": "Müzik sağlayıcı, kuyruk ve alıcı Server API’si",
+      "status": "pending",
+      "dependsOn": [
+        "S07.1"
+      ],
+      "finishDependsOn": [],
+      "sources": [
+        "docs/integrated-media-stack.md",
+        "docs/PROGRESS.md"
+      ],
+      "scope": "Gerçek sağlayıcı hesapları ve HomePod/Cast kabulü en sondaki manuel kapıda.",
+      "acceptance": [
+        "MA yerel motoru Larenor yetkisiyle sunulur; sağlayıcı giriş/iptal, kuyruk/grup/oynatıcı sonuçları ve anahtar yenileme sınanır. Ayrı MA adres/token onboarding’i yok."
+      ],
+      "requiredEvidence": [
+        "test",
+        "review",
+        "ci"
+      ],
+      "evidence": [],
+      "completionCommit": null,
+      "reason": null
+    },
+    {
+      "id": "S07.4",
+      "kind": "task",
+      "parent": "S07",
+      "title": "Tek kurulum durumu ve ayarlar kabulü",
+      "status": "pending",
+      "dependsOn": [
+        "S07.2",
+        "S07.3"
+      ],
+      "finishDependsOn": [],
+      "sources": [
+        "docs/integrated-media-stack.md",
+        "docs/PROGRESS.md"
+      ],
+      "scope": "Gerçek sağlayıcı hesapları ve HomePod/Cast kabulü en sondaki manuel kapıda.",
+      "acceptance": [
+        "Client yalnız medya/sağlayıcı ayarlarını yönetir; doğrulanmış entegrasyon ile çalışan süreç ayrılır, eksik yetenek açık görünür. Çapraz servis E2E ve iki mimarili restart kanıtı."
+      ],
+      "requiredEvidence": [
+        "test",
+        "review",
+        "ci"
+      ],
+      "evidence": [],
+      "completionCommit": null,
+      "reason": null
+    },
+    {
+      "id": "B3",
+      "kind": "group",
+      "parent": null,
+      "title": "Merkezi kaynak, yetki ve olay sözleşmeleri"
+    },
+    {
+      "id": "S08",
+      "kind": "group",
+      "parent": "B3",
+      "title": "Core bağlamı, Client yalıtımı ve merkezi adaptörler"
+    },
+    {
+      "id": "S08.1",
+      "kind": "task",
+      "parent": "S08",
+      "title": "Core/ev bağlamını oturuma atomik bağlama",
+      "status": "pending",
+      "dependsOn": [
+        "B0"
+      ],
+      "finishDependsOn": [],
+      "sources": [
+        "docs/remaining-core-integration-slices.md",
+        "docs/feature-expansion-plan-2026-09-05.md",
+        "docs/integrated-media-stack.md"
+      ],
+      "scope": "Tek mevcut ev bağlamı; F19 çoklu Core/ev federasyonu bu teslim değildir.",
+      "acceptance": [
+        "Login/refresh/password POST sonrası context GET aksarsa yeni tokenları koru; yalnız bağlamı tekrar oku. Aynı URL/kullanıcıda değişen Core ev kapsamını açamaz."
+      ],
+      "requiredEvidence": [
+        "test",
+        "review",
+        "ci"
+      ],
+      "evidence": [],
+      "completionCommit": null,
+      "reason": null
+    },
+    {
+      "id": "S08.2",
+      "kind": "task",
+      "parent": "S08",
+      "title": "İlk parola ve eski Server uyumluluğu",
+      "status": "pending",
+      "dependsOn": [
+        "S08.1"
+      ],
+      "finishDependsOn": [],
+      "sources": [
+        "docs/remaining-core-integration-slices.md",
+        "docs/feature-expansion-plan-2026-09-05.md",
+        "docs/integrated-media-stack.md"
+      ],
+      "scope": "Tek mevcut ev bağlamı; F19 çoklu Core/ev federasyonu bu teslim değildir.",
+      "acceptance": [
+        "İlk parola öncesi korumalı context çağrısı yok; parola değişimi sonrası doğrula. 404/bozuk cevapta URL’den kimlik türetme; saklanan kimlik tek başına yetki değil."
+      ],
+      "requiredEvidence": [
+        "test",
+        "review",
+        "ci"
+      ],
+      "evidence": [],
+      "completionCommit": null,
+      "reason": null
+    },
+    {
+      "id": "S08.3",
+      "kind": "task",
+      "parent": "S08",
+      "title": "Provider, route ve callback kapsam sınırı",
+      "status": "pending",
+      "dependsOn": [
+        "S08.2"
+      ],
+      "finishDependsOn": [],
+      "sources": [
+        "docs/remaining-core-integration-slices.md",
+        "docs/feature-expansion-plan-2026-09-05.md",
+        "docs/integrated-media-stack.md"
+      ],
+      "scope": "Tek mevcut ev bağlamı; F19 çoklu Core/ev federasyonu bu teslim değildir.",
+      "acceptance": [
+        "(Core,ev,kullanıcı) değişiminde eski ekran/ikincil route/istek/WS/callback kapanır; aynı bağlam refresh’i gereksiz reset yapmaz; account controller sınır dışında kalır."
+      ],
+      "requiredEvidence": [
+        "test",
+        "review",
+        "ci"
+      ],
+      "evidence": [],
+      "completionCommit": null,
+      "reason": null
+    },
+    {
+      "id": "S08.4",
+      "kind": "task",
+      "parent": "S08",
+      "title": "Bağlamlı kalıcı cache ve açık eski veri taşıması",
+      "status": "pending",
+      "dependsOn": [
+        "S08.3"
+      ],
+      "finishDependsOn": [],
+      "sources": [
+        "docs/remaining-core-integration-slices.md",
+        "docs/feature-expansion-plan-2026-09-05.md",
+        "docs/integrated-media-stack.md"
+      ],
+      "scope": "Tek mevcut ev bağlamı; F19 çoklu Core/ev federasyonu bu teslim değildir.",
+      "acceptance": [
+        "Dashboard ve ev kayıtları bağlamlı anahtarla saklanır. Eski dashboard_layout/ha_base_url/ha_token yalnız açık önizlemeyle taşınır; geç cevap/restart çapraz ev verisi göstermez."
+      ],
+      "requiredEvidence": [
+        "test",
+        "review",
+        "ci"
+      ],
+      "evidence": [],
+      "completionCommit": null,
+      "reason": null
+    },
+    {
+      "id": "S08.5",
+      "kind": "task",
+      "parent": "S08",
+      "title": "Restore, logout ve journal hedef sınırı",
+      "status": "pending",
+      "dependsOn": [
+        "S08.4"
+      ],
+      "finishDependsOn": [],
+      "sources": [
+        "docs/remaining-core-integration-slices.md",
+        "docs/feature-expansion-plan-2026-09-05.md",
+        "docs/integrated-media-stack.md"
+      ],
+      "scope": "Tek mevcut ev bağlamı; F19 çoklu Core/ev federasyonu bu teslim değildir.",
+      "acceptance": [
+        "A evindeki restore önizlemesi B’de onaylanamaz. Yedek oturum/Core kimliği geri yüklemez; logout tokenı siler ve scope’u kapatır, diğer kayıtları topluca silmez."
+      ],
+      "requiredEvidence": [
+        "test",
+        "review",
+        "ci"
+      ],
+      "evidence": [],
+      "completionCommit": null,
+      "reason": null
+    },
+    {
+      "id": "S08.6",
+      "kind": "task",
+      "parent": "S08",
+      "title": "Kişi/oda/kaynak kimliği ve yetki sözleşmesi",
+      "status": "pending",
+      "dependsOn": [
+        "S08.3"
+      ],
+      "finishDependsOn": [],
+      "sources": [
+        "docs/remaining-core-integration-slices.md",
+        "docs/feature-expansion-plan-2026-09-05.md",
+        "docs/integrated-media-stack.md"
+      ],
+      "scope": "Tek mevcut ev bağlamı; F19 çoklu Core/ev federasyonu bu teslim değildir.",
+      "acceptance": [
+        "Sürümlü sabit resource ID’leri, kişi/oda/kaynak okuma-yazma yetkileri ve iptal senaryoları; başka kullanıcı/ev kaynağına erişim reddi."
+      ],
+      "requiredEvidence": [
+        "test",
+        "review",
+        "ci"
+      ],
+      "evidence": [],
+      "completionCommit": null,
+      "reason": null
+    },
+    {
+      "id": "S08.7",
+      "kind": "task",
+      "parent": "S08",
+      "title": "İlk merkezi Home Assistant adaptörü",
+      "status": "pending",
+      "dependsOn": [
+        "S08.5",
+        "S08.6"
+      ],
+      "finishDependsOn": [],
+      "sources": [
+        "docs/remaining-core-integration-slices.md",
+        "docs/feature-expansion-plan-2026-09-05.md",
+        "docs/integrated-media-stack.md"
+      ],
+      "scope": "Tek mevcut ev bağlamı; F19 çoklu Core/ev federasyonu bu teslim değildir.",
+      "acceptance": [
+        "HA kaynak/komut/sonuç yolunu Server’a taşı; doğrudan HA’ya otomatik fallback eski ev verisi getiremez. Sır maskeleme, yetki, timeout ve belirsiz komut tekrarı sınanır."
+      ],
+      "requiredEvidence": [
+        "test",
+        "review",
+        "ci"
+      ],
+      "evidence": [],
+      "completionCommit": null,
+      "reason": null
+    },
+    {
+      "id": "S08.8",
+      "kind": "task",
+      "parent": "S08",
+      "title": "Merkezi medya ve müzik Client geçişi",
+      "status": "pending",
+      "dependsOn": [
+        "S08.7",
+        "B2"
+      ],
+      "finishDependsOn": [],
+      "sources": [
+        "docs/remaining-core-integration-slices.md",
+        "docs/feature-expansion-plan-2026-09-05.md",
+        "docs/integrated-media-stack.md"
+      ],
+      "scope": "Tek mevcut ev bağlamı; F19 çoklu Core/ev federasyonu bu teslim değildir.",
+      "acceptance": [
+        "Katalog/arama/sağlayıcı/oynatıcı/kuyruk Larenor API’sini kullanır; doğrudan MA/Jellyfin adres-token onboarding gerektirmez. Eski ayarların açık geçişi ve yetki kaybı E2E."
+      ],
+      "requiredEvidence": [
+        "test",
+        "review",
+        "ci"
+      ],
+      "evidence": [],
+      "completionCommit": null,
+      "reason": null
+    },
+    {
+      "id": "S08.9",
+      "kind": "task",
+      "parent": "S08",
+      "title": "Merkezi ağ ve altyapı adaptörleri",
+      "status": "pending",
+      "dependsOn": [
+        "S08.7"
+      ],
+      "finishDependsOn": [],
+      "sources": [
+        "docs/remaining-core-integration-slices.md",
+        "docs/feature-expansion-plan-2026-09-05.md",
+        "docs/integrated-media-stack.md"
+      ],
+      "scope": "Tek mevcut ev bağlamı; F19 çoklu Core/ev federasyonu bu teslim değildir.",
+      "acceptance": [
+        "Mevcut Keenetic/Proxmox ve seçili servis yolları tek tek merkezi kaynak/komut yetkisine taşınır; direct yollar belgelenir, bilinmeyen durum başarı sayılmaz."
+      ],
+      "requiredEvidence": [
+        "test",
+        "review",
+        "ci"
+      ],
+      "evidence": [],
+      "completionCommit": null,
+      "reason": null
+    },
+    {
+      "id": "S08.10",
+      "kind": "task",
+      "parent": "S08",
+      "title": "Olay, komut sonucu ve sınırlı dosya/medya taşıma",
+      "status": "pending",
+      "dependsOn": [
+        "S08.6",
+        "S08.7"
+      ],
+      "finishDependsOn": [],
+      "sources": [
+        "docs/remaining-core-integration-slices.md",
+        "docs/feature-expansion-plan-2026-09-05.md",
+        "docs/integrated-media-stack.md"
+      ],
+      "scope": "Tek mevcut ev bağlamı; F19 çoklu Core/ev federasyonu bu teslim değildir.",
+      "acceptance": [
+        "İz ID’si, sıra/tekrar/kopuş/tazelik/iptal/idempotence; JSON kontrol yolundan ayrı bounded stream/transfer. Yetkisiz indirme, boyut ve geç olay testleri."
+      ],
+      "requiredEvidence": [
+        "test",
+        "review",
+        "ci"
+      ],
+      "evidence": [],
+      "completionCommit": null,
+      "reason": null
+    },
+    {
+      "id": "S08.11",
+      "kind": "task",
+      "parent": "S08",
+      "title": "Merkezi arama/widget/oda görünümü kabulü",
+      "status": "pending",
+      "dependsOn": [
+        "S08.8",
+        "S08.9",
+        "S08.10",
+        "B5"
+      ],
+      "finishDependsOn": [],
+      "sources": [
+        "docs/remaining-core-integration-slices.md",
+        "docs/feature-expansion-plan-2026-09-05.md",
+        "docs/integrated-media-stack.md"
+      ],
+      "scope": "Tek mevcut ev bağlamı; F19 çoklu Core/ev federasyonu bu teslim değildir.",
+      "acceptance": [
+        "Ortak kaynaklar arama/oda/kartlara yetkiye göre bağlanır; eski veri görünürdür ve hesap değişimi temizler. Aynı URL yeni Core, restart, restore ve logout çapraz akış E2E."
+      ],
+      "requiredEvidence": [
+        "test",
+        "review",
+        "ci"
+      ],
+      "evidence": [],
+      "completionCommit": null,
+      "reason": null
+    },
+    {
+      "id": "B4",
+      "kind": "group",
+      "parent": null,
+      "title": "Yazılım yedekleme ve kurtarma temeli"
+    },
+    {
+      "id": "S09",
+      "kind": "group",
+      "parent": "B4",
+      "title": "Tek kurulum, tutarlı yedek ve geri yükleme"
+    },
+    {
+      "id": "S09.1",
+      "kind": "task",
+      "parent": "S09",
+      "title": "Tek kurulum/güncelleme ve yedek sözleşmesi",
+      "status": "pending",
+      "dependsOn": [
+        "B1",
+        "S07.1",
+        "S08.5"
+      ],
+      "finishDependsOn": [],
+      "sources": [
+        "docs/integrated-media-stack.md",
+        "docs/feature-expansion-plan-2026-09-05.md",
+        "docs/PROGRESS.md"
+      ],
+      "scope": "B4 yazılım kapısı; ev kurulumu ve fiziksel kabul feature bağımlılığı yapılmaz.",
+      "acceptance": [
+        "DB/ayrı anahtar/yapılandırma/bileşen veri ve sürümleri tutarlı yedeklenir; çalışan işlemlerin kesilme sınırı, şema ve sürüm uyumu tanımlanır."
+      ],
+      "requiredEvidence": [
+        "test",
+        "review",
+        "ci"
+      ],
+      "evidence": [],
+      "completionCommit": null,
+      "reason": null
+    },
+    {
+      "id": "S09.2",
+      "kind": "task",
+      "parent": "S09",
+      "title": "Boş kurulumda doğrulanmış geri yükleme",
+      "status": "pending",
+      "dependsOn": [
+        "S09.1"
+      ],
+      "finishDependsOn": [],
+      "sources": [
+        "docs/integrated-media-stack.md",
+        "docs/feature-expansion-plan-2026-09-05.md",
+        "docs/PROGRESS.md"
+      ],
+      "scope": "B4 yazılım kapısı; ev kurulumu ve fiziksel kabul feature bağımlılığı yapılmaz.",
+      "acceptance": [
+        "Kesik/yanlış parola/bozuk imzalı veya uyumsuz yedekte sıfır kısmi kabul; boş izole ortamda anahtar ve veri/bağlantı geri okuma, restart ve kurtarma."
+      ],
+      "requiredEvidence": [
+        "test",
+        "review",
+        "ci"
+      ],
+      "evidence": [],
+      "completionCommit": null,
+      "reason": null
+    },
+    {
+      "id": "S09.3",
+      "kind": "task",
+      "parent": "S09",
+      "title": "Yazılım temiz kurulum/yükseltme/kurtarma CI’sı",
+      "status": "pending",
+      "dependsOn": [
+        "S09.2",
+        "B2"
+      ],
+      "finishDependsOn": [],
+      "sources": [
+        "docs/integrated-media-stack.md",
+        "docs/feature-expansion-plan-2026-09-05.md",
+        "docs/PROGRESS.md"
+      ],
+      "scope": "B4 yazılım kapısı; ev kurulumu ve fiziksel kabul feature bağımlılığı yapılmaz.",
+      "acceptance": [
+        "İki mimarili temiz kurulum ve sürüm yükseltme, Client restore sınırları ve bileşen sağlığı kanıtlanır; üretim otomasyonu veya ev cihazı çalıştırılmaz."
+      ],
+      "requiredEvidence": [
+        "test",
+        "review",
+        "ci"
+      ],
+      "evidence": [],
+      "completionCommit": null,
+      "reason": null
+    },
+    {
+      "id": "B5",
+      "kind": "group",
+      "parent": null,
+      "title": "Erken ortak tablet Client deneyimi"
+    },
+    {
+      "id": "B5.1",
+      "kind": "task",
+      "parent": "B5",
+      "title": "Ortak tablet düzeni ve erişilebilirlik sözleşmesi",
+      "status": "pending",
+      "dependsOn": [
+        "B0"
+      ],
+      "finishDependsOn": [],
+      "sources": [
+        "docs/feature-expansion-plan-2026-09-05.md",
+        "docs/product-implementation-plan-2026-09-05.md"
+      ],
+      "scope": "Son bütün ekran tasarım geçişi değildir; Core’suz kişisel uzak bağlantı için Core bağımlılığı koymaz.",
+      "acceptance": [
+        "Aynı kart/form/durum/gezinme dili; EN/TR 2× yazı, klavye/TalkBack, tablet ve DeX değişken pencere kabulü. Her modül aynı ölçütleri taşır."
+      ],
+      "requiredEvidence": [
+        "test",
+        "review",
+        "ci"
+      ],
+      "evidence": [],
+      "completionCommit": null,
+      "reason": null
+    },
+    {
+      "id": "B5.2",
+      "kind": "task",
+      "parent": "B5",
+      "title": "Kişisel profil ve hassas oturum Client sınırları",
+      "status": "pending",
+      "dependsOn": [
+        "B5.1"
+      ],
+      "finishDependsOn": [],
+      "sources": [
+        "docs/feature-expansion-plan-2026-09-05.md",
+        "docs/remote-access-plan-2026-09-05.md"
+      ],
+      "scope": "F61–F63 kişisel bağlantı başlangıcı Core/Proxmox/medya kurulumu istemez.",
+      "acceptance": [
+        "Yerel kişisel profil ile Core profili ayırılır; PIN/background/idle/route kapanışı ve sınırlı kaynak politikası ortak olur. Merkezi kaynak araması S08.11’de ayrıca bağlanır."
+      ],
+      "requiredEvidence": [
+        "test",
+        "review",
+        "ci"
+      ],
+      "evidence": [],
+      "completionCommit": null,
+      "reason": null
+    },
+    {
+      "id": "PRODUCT",
+      "kind": "group",
+      "parent": null,
+      "title": "Önceki ürün planının kalan yazılım işleri"
+    },
+    {
+      "id": "PRODUCT.APPLETV",
+      "kind": "task",
+      "parent": "PRODUCT",
+      "title": "Apple TV video ve medya hedefleri",
+      "status": "pending",
+      "dependsOn": [
+        "B2",
+        "S08.8"
+      ],
+      "finishDependsOn": [],
+      "sources": [
+        "docs/product-implementation-plan-2026-09-05.md",
+        "docs/PROGRESS.md"
+      ],
+      "scope": "Gerçek alıcı desteği manuel kabul edilene dek test edilmedi kalır.",
+      "acceptance": [
+        "Cast/Apple ses ile Apple TV video ayrılır; desteklenen taşıma/kimlik/hedef seçimi, reddedilen codec/DRM ve iptal/kopuş durumları fixture/native E2E ile sınanır."
+      ],
+      "requiredEvidence": [
+        "test",
+        "review",
+        "ci"
+      ],
+      "evidence": [],
+      "completionCommit": null,
+      "reason": null
+    },
+    {
+      "id": "PRODUCT.PROVIDERS",
+      "kind": "task",
+      "parent": "PRODUCT",
+      "title": "Spotify/Apple Music/YouTube Music kullanıcı akışı",
+      "status": "pending",
+      "dependsOn": [
+        "S07.3",
+        "S08.8"
+      ],
+      "finishDependsOn": [],
+      "sources": [
+        "docs/product-implementation-plan-2026-09-05.md",
+        "docs/integrated-media-stack.md"
+      ],
+      "scope": "Gerçek hesap yetkilendirmesi ve HomePod kuyruk/grup/çalma manuel kapıya bağlıdır.",
+      "acceptance": [
+        "Sağlayıcı onay/yenileme/iptal ve destek matrisi tek müzik merkezinde sunulur; üyelik doğrudan SDK veya bütün içerik hakkı sayılmaz; sırlar maskelenir."
+      ],
+      "requiredEvidence": [
+        "test",
+        "review",
+        "ci"
+      ],
+      "evidence": [],
+      "completionCommit": null,
+      "reason": null
+    },
+    {
+      "id": "PRODUCT.HEALTH",
+      "kind": "task",
+      "parent": "PRODUCT",
+      "title": "Huawei sağlık/tartı kalan sağlayıcı uyumu",
+      "status": "needs_user",
+      "dependsOn": [
+        "B5"
+      ],
+      "finishDependsOn": [],
+      "sources": [
+        "docs/product-implementation-plan-2026-09-05.md"
+      ],
+      "scope": "Native iOS/HealthKit kapsam dışı; sağlayıcı/cihaz yoksa tamamlandı denmez.",
+      "acceptance": [
+        "Huawei onay ve desteklenen veri/izin sözleşmesi doğrulanır; reddet/iptal/özel ekran/account sınırları ve eski Health Connect yolu korunur."
+      ],
+      "requiredEvidence": [
+        "test",
+        "review",
+        "ci"
+      ],
+      "evidence": [],
+      "completionCommit": null,
+      "reason": "Huawei geliştirici/sağlayıcı onayı ve uygun test cihazı gerekecek."
+    },
+    {
+      "id": "PRODUCT.CAMERA",
+      "kind": "task",
+      "parent": "PRODUCT",
+      "title": "İsteğe bağlı yaklaşma ve kişisel kamera görünümü",
+      "status": "pending",
+      "dependsOn": [
+        "B5"
+      ],
+      "finishDependsOn": [],
+      "sources": [
+        "docs/product-implementation-plan-2026-09-05.md"
+      ],
+      "scope": "Yüz tanıma yönetici veya sağlık kilidi değildir; gizli arka plan kayıt/uyandırma yok.",
+      "acceptance": [
+        "Önce açık izinli cihazda anonim yaklaşma; yüz kaydı/silme ve model lisans/donanım ölçümü ayrıca. İzin iptali, kamera meşgul, termal/batarya ve yanlış eşleme sınanır."
+      ],
+      "requiredEvidence": [
+        "test",
+        "review",
+        "ci"
+      ],
+      "evidence": [],
+      "completionCommit": null,
+      "reason": null
+    },
+    {
+      "id": "KIOSK",
+      "kind": "group",
+      "parent": "PRODUCT",
+      "title": "İleri kiosk dilimleri"
+    },
+    {
+      "id": "K03.remaining",
+      "kind": "task",
+      "parent": "KIOSK",
+      "title": "WebPanel ileri tarayıcı işlemleri",
+      "status": "pending",
+      "dependsOn": [
+        "B5"
+      ],
+      "finishDependsOn": [],
+      "sources": [
+        "docs/kiosk-capabilities-research-2026-09-05.md",
+        "docs/product-implementation-plan-2026-09-05.md"
+      ],
+      "scope": "K00–K06 önceki temelini yeniden tamamlandı sayma; fiziksel DPC/OEM ve donanım kabulü ayrı.",
+      "acceptance": [
+        "Upload/download/pop-up/intent, auth/sertifika ve renderer ölümü; origin/redirect/iframe sınırı, sır sızdırmadan sınırlı kurtarma."
+      ],
+      "requiredEvidence": [
+        "test",
+        "review",
+        "ci"
+      ],
+      "evidence": [],
+      "completionCommit": null,
+      "reason": null
+    },
+    {
+      "id": "K05.remaining",
+      "kind": "task",
+      "parent": "KIOSK",
+      "title": "Ortam ekranı video/PDF/web listeleri",
+      "status": "pending",
+      "dependsOn": [
+        "B5"
+      ],
+      "finishDependsOn": [],
+      "sources": [
+        "docs/kiosk-capabilities-research-2026-09-05.md",
+        "docs/product-implementation-plan-2026-09-05.md"
+      ],
+      "scope": "K00–K06 önceki temelini yeniden tamamlandı sayma; fiziksel DPC/OEM ve donanım kabulü ayrı.",
+      "acceptance": [
+        "Bozuk içerik atlama, offline cache kotası, hareket azaltma ve aktif medya sahipliği; format/izin/redirection ve kaynak limitleri."
+      ],
+      "requiredEvidence": [
+        "test",
+        "review",
+        "ci"
+      ],
+      "evidence": [],
+      "completionCommit": null,
+      "reason": null
+    },
+    {
+      "id": "K07",
+      "kind": "task",
+      "parent": "KIOSK",
+      "title": "Eşleştirilmiş uzaktan API ve MQTT",
+      "status": "pending",
+      "dependsOn": [
+        "S08.6",
+        "S08.10"
+      ],
+      "finishDependsOn": [],
+      "sources": [
+        "docs/kiosk-capabilities-research-2026-09-05.md",
+        "docs/product-implementation-plan-2026-09-05.md"
+      ],
+      "scope": "K00–K06 önceki temelini yeniden tamamlandı sayma; fiziksel DPC/OEM ve donanım kabulü ayrı.",
+      "acceptance": [
+        "Varsayılan dinleyici yok; scope/revoke/rate-limit/replay ve komut ack, tokenın URL/log/exporta girmemesi."
+      ],
+      "requiredEvidence": [
+        "test",
+        "review",
+        "ci"
+      ],
+      "evidence": [],
+      "completionCommit": null,
+      "reason": null
+    },
+    {
+      "id": "K08",
+      "kind": "task",
+      "parent": "KIOSK",
+      "title": "Sınırlı web→native köprü",
+      "status": "pending",
+      "dependsOn": [
+        "K03.remaining",
+        "K07"
+      ],
+      "finishDependsOn": [],
+      "sources": [
+        "docs/kiosk-capabilities-research-2026-09-05.md",
+        "docs/product-implementation-plan-2026-09-05.md"
+      ],
+      "scope": "K00–K06 önceki temelini yeniden tamamlandı sayma; fiziksel DPC/OEM ve donanım kabulü ayrı.",
+      "acceptance": [
+        "Sürümlü allowlist yöntem/üst-origin; yabancı iframe, downgrade, yeni sekme ve izin iptali komut çalıştıramaz."
+      ],
+      "requiredEvidence": [
+        "test",
+        "review",
+        "ci"
+      ],
+      "evidence": [],
+      "completionCommit": null,
+      "reason": null
+    },
+    {
+      "id": "K09",
+      "kind": "task",
+      "parent": "KIOSK",
+      "title": "Cihaz bilgisi ve kontrollü uzaktan görünüm",
+      "status": "pending",
+      "dependsOn": [
+        "K07"
+      ],
+      "finishDependsOn": [],
+      "sources": [
+        "docs/kiosk-capabilities-research-2026-09-05.md",
+        "docs/product-implementation-plan-2026-09-05.md"
+      ],
+      "scope": "K00–K06 önceki temelini yeniden tamamlandı sayma; fiziksel DPC/OEM ve donanım kabulü ayrı.",
+      "acceptance": [
+        "Sınırlı read-only cihaz ölçümü; uygulama görünümü ile MediaProjection ayrımı. Onay bitince kayıt biter, PIN/secret ekranları paylaşılmaz."
+      ],
+      "requiredEvidence": [
+        "test",
+        "review",
+        "ci"
+      ],
+      "evidence": [],
+      "completionCommit": null,
+      "reason": null
+    },
+    {
+      "id": "K10",
+      "kind": "task",
+      "parent": "KIOSK",
+      "title": "Hareket, karanlık ve cihaz sensörleri",
+      "status": "pending",
+      "dependsOn": [
+        "B5"
+      ],
+      "finishDependsOn": [],
+      "sources": [
+        "docs/kiosk-capabilities-research-2026-09-05.md",
+        "docs/product-implementation-plan-2026-09-05.md"
+      ],
+      "scope": "K00–K06 önceki temelini yeniden tamamlandı sayma; fiziksel DPC/OEM ve donanım kabulü ayrı.",
+      "acceptance": [
+        "Ön plan/izin iptali, minimum örnekleme, kamera meşgul ve olmayan sensör; 24 saat pil/termal ölçümü fiziksel kapıya kaydedilir."
+      ],
+      "requiredEvidence": [
+        "test",
+        "review",
+        "ci"
+      ],
+      "evidence": [],
+      "completionCommit": null,
+      "reason": null
+    },
+    {
+      "id": "K11",
+      "kind": "task",
+      "parent": "KIOSK",
+      "title": "QR/NFC/BLE/USB/TTS/print seçili çevre birimleri",
+      "status": "pending",
+      "dependsOn": [
+        "K03.remaining",
+        "K08"
+      ],
+      "finishDependsOn": [],
+      "sources": [
+        "docs/kiosk-capabilities-research-2026-09-05.md",
+        "docs/product-implementation-plan-2026-09-05.md"
+      ],
+      "scope": "K00–K06 önceki temelini yeniden tamamlandı sayma; fiziksel DPC/OEM ve donanım kabulü ayrı.",
+      "acceptance": [
+        "Bağımsız izin/etkinleştirme; GMS’siz cihaz, kablo çıkması ve yinelenen tarama. Tarama verisi otomatik komut/JS olmaz."
+      ],
+      "requiredEvidence": [
+        "test",
+        "review",
+        "ci"
+      ],
+      "evidence": [],
+      "completionCommit": null,
+      "reason": null
+    },
+    {
+      "id": "K12",
+      "kind": "task",
+      "parent": "KIOSK",
+      "title": "Watchdog ve yerel kullanım ölçümü",
+      "status": "pending",
+      "dependsOn": [
+        "K03.remaining"
+      ],
+      "finishDependsOn": [],
+      "sources": [
+        "docs/kiosk-capabilities-research-2026-09-05.md",
+        "docs/product-implementation-plan-2026-09-05.md"
+      ],
+      "scope": "K00–K06 önceki temelini yeniden tamamlandı sayma; fiziksel DPC/OEM ve donanım kabulü ayrı.",
+      "acceptance": [
+        "Crash/reconnect döngüsü sınırlı; güvenli bakım ekranı, içeriksiz sayım/retention ve CSV önizleme. Force-stop sonrası otomatik dirilme garantisi yok."
+      ],
+      "requiredEvidence": [
+        "test",
+        "review",
+        "ci"
+      ],
+      "evidence": [],
+      "completionCommit": null,
+      "reason": null
+    },
+    {
+      "id": "K13",
+      "kind": "task",
+      "parent": "KIOSK",
+      "title": "Yönetilen profil dağıtımı ve filo bağı",
+      "status": "pending",
+      "dependsOn": [
+        "K07",
+        "K12",
+        "F53"
+      ],
+      "finishDependsOn": [],
+      "sources": [
+        "docs/kiosk-capabilities-research-2026-09-05.md",
+        "docs/product-implementation-plan-2026-09-05.md"
+      ],
+      "scope": "K00–K06 önceki temelini yeniden tamamlandı sayma; fiziksel DPC/OEM ve donanım kabulü ayrı.",
+      "acceptance": [
+        "Sürümlü imzalı profil, dry-run/diff, aşamalı dağıtım ve restore; paket/imza/sürüm doğrulama. Sessiz kurulum yalnız gerçek yetkili cihazda."
+      ],
+      "requiredEvidence": [
+        "test",
+        "review",
+        "ci"
+      ],
+      "evidence": [],
+      "completionCommit": null,
+      "reason": null
+    },
+    {
+      "id": "POC",
+      "kind": "group",
+      "parent": null,
+      "title": "Erken donanım/motor fizibilite kayıtları"
+    },
+    {
+      "id": "POC.GMS",
+      "kind": "task",
+      "parent": "POC",
+      "title": "GMS’siz bildirim/OEM güç deneyi",
+      "status": "needs_user",
+      "dependsOn": [
+        "B0"
+      ],
+      "finishDependsOn": [],
+      "sources": [
+        "docs/feature-expansion-plan-2026-09-05.md",
+        "docs/remote-access-plan-2026-09-05.md"
+      ],
+      "scope": "Erken araştırma/donanım kapısı; ürün özelliği kabul sayacına girmez.",
+      "acceptance": [
+        "Huawei/Android bildirim/FGS/arka plan sınırları, eksik izin ve 24 saat pil ölçümü; F54 kabulünü tek başına kapatmaz."
+      ],
+      "requiredEvidence": [
+        "manual",
+        "review"
+      ],
+      "evidence": [],
+      "completionCommit": null,
+      "reason": "İzole uygun test cihazı/hostu ve açık fiziksel deney erişimi gerekli."
+    },
+    {
+      "id": "POC.DPC",
+      "kind": "task",
+      "parent": "POC",
+      "title": "Ayrı test cihazında Device Owner kurtarma deneyi",
+      "status": "needs_user",
+      "dependsOn": [
+        "B0"
+      ],
+      "finishDependsOn": [],
+      "sources": [
+        "docs/feature-expansion-plan-2026-09-05.md",
+        "docs/remote-access-plan-2026-09-05.md"
+      ],
+      "scope": "Erken araştırma/donanım kapısı; ürün özelliği kabul sayacına girmez.",
+      "acceptance": [
+        "Test cihazı sahiplik/çıkış/deprovision yolu; kişisel tablet sıfırlanmaz, izin verilmeyen API destekli sayılmaz."
+      ],
+      "requiredEvidence": [
+        "manual",
+        "review"
+      ],
+      "evidence": [],
+      "completionCommit": null,
+      "reason": "İzole uygun test cihazı/hostu ve açık fiziksel deney erişimi gerekli."
+    },
+    {
+      "id": "POC.DEX",
+      "kind": "task",
+      "parent": "POC",
+      "title": "DeX ikinci ekran ve giriş deneyi",
+      "status": "needs_user",
+      "dependsOn": [
+        "B0"
+      ],
+      "finishDependsOn": [],
+      "sources": [
+        "docs/feature-expansion-plan-2026-09-05.md",
+        "docs/remote-access-plan-2026-09-05.md"
+      ],
+      "scope": "Erken araştırma/donanım kapısı; ürün özelliği kabul sayacına girmez.",
+      "acceptance": [
+        "Hot-plug, odak/modifier release, dokunma/fare/klavye, yeniden boyut ve oynatıcı sahipliği; F52’nin nihai kabulü değildir."
+      ],
+      "requiredEvidence": [
+        "manual",
+        "review"
+      ],
+      "evidence": [],
+      "completionCommit": null,
+      "reason": "İzole uygun test cihazı/hostu ve açık fiziksel deney erişimi gerekli."
+    },
+    {
+      "id": "POC.VISION",
+      "kind": "task",
+      "parent": "POC",
+      "title": "Kamera model/CPU/mimari fizibilitesi",
+      "status": "needs_user",
+      "dependsOn": [
+        "B0"
+      ],
+      "finishDependsOn": [],
+      "sources": [
+        "docs/feature-expansion-plan-2026-09-05.md",
+        "docs/remote-access-plan-2026-09-05.md"
+      ],
+      "scope": "Erken araştırma/donanım kapısı; ürün özelliği kabul sayacına girmez.",
+      "acceptance": [
+        "Model lisansı ve çalışma koşulları, AVX/AVX2/ARM64 desteği ve kaynak bütçesi; F44/ürün kamera kabulünü kapatmaz."
+      ],
+      "requiredEvidence": [
+        "manual",
+        "review"
+      ],
+      "evidence": [],
+      "completionCommit": null,
+      "reason": "İzole uygun test cihazı/hostu ve açık fiziksel deney erişimi gerekli."
+    },
+    {
+      "id": "POC.STREAM",
+      "kind": "task",
+      "parent": "POC",
+      "title": "Oyun/uzak erişim native motor fizibilitesi",
+      "status": "needs_user",
+      "dependsOn": [
+        "B0"
+      ],
+      "finishDependsOn": [],
+      "sources": [
+        "docs/feature-expansion-plan-2026-09-05.md",
+        "docs/remote-access-plan-2026-09-05.md"
+      ],
+      "scope": "Erken araştırma/donanım kapısı; ürün özelliği kabul sayacına girmez.",
+      "acceptance": [
+        "Lisans/paketleme, Android JNI/parser sınırları, host/GPU/codec/Windows-NLA matrisi ve cihaz ölçümleri; üretim hosta bağlantı yok."
+      ],
+      "requiredEvidence": [
+        "manual",
+        "review"
+      ],
+      "evidence": [],
+      "completionCommit": null,
+      "reason": "İzole uygun test cihazı/hostu ve açık fiziksel deney erişimi gerekli."
+    },
+    {
+      "id": "G01",
+      "kind": "group",
+      "parent": null,
+      "title": "Güvenilir Core ve izlenebilir işlemler"
+    },
+    {
+      "id": "F13",
+      "kind": "task",
+      "parent": "G01",
+      "title": "Bileşen bazında internet izinleri",
+      "status": "pending",
+      "dependsOn": [
+        "B0",
+        "B5",
+        "B1",
+        "B3"
+      ],
+      "finishDependsOn": [],
+      "sources": [
+        "docs/feature-expansion-plan-2026-09-05.md",
+        "docs/feature-candidates-2026-09-05.json"
+      ],
+      "scope": "Yazılım teslim kapısı; gerçek cihaz/hesap kabulü MANUAL.* kayıtlarında ayrıca izlenir. İlk kapsam yönetilen bileşenler; host ağı kullanan müzik/keşif profilleri ayrıca çözülür. HTTPS içeriği okunmuş sayılmaz.",
+      "acceptance": [
+        "İzinli/engelli hedef politikası gerçek bağlantı yolunda uygulanır; DNS/redirect/yeniden bağlanma sınanır. LAN keşfi ve medya trafiği için gereken dar istisnalar görünürdür",
+        "Sürümlü sözleşme, gerçek Client→izole Core/servis E2E, yetki/iptal/bozuk veya geç cevap, limitler ve tam commit CI kanıtı; ilgili fiziksel koşul MANUAL.* matrisinde açık kalır; yazılım kabulü donanım kabulü değildir."
+      ],
+      "requiredEvidence": [
+        "test",
+        "review",
+        "ci"
+      ],
+      "evidence": [],
+      "completionCommit": null,
+      "reason": null
+    },
+    {
+      "id": "F15",
+      "kind": "task",
+      "parent": "G01",
+      "title": "Doğrulanabilir bileşen güncellemeleri",
+      "status": "pending",
+      "dependsOn": [
+        "B0",
+        "B5",
+        "B1",
+        "B4"
+      ],
+      "finishDependsOn": [],
+      "sources": [
+        "docs/feature-expansion-plan-2026-09-05.md",
+        "docs/feature-candidates-2026-09-05.json"
+      ],
+      "scope": "Yazılım teslim kapısı; gerçek cihaz/hesap kabulü MANUAL.* kayıtlarında ayrıca izlenir. Digest sabitlemenin ötesi; upstream imzası bulunmayabilir. İmza hatasızlık kanıtı değildir.",
+      "acceptance": [
+        "İmaj/paket kimliği ve kökeni politika ile doğrulanır; yanlış imza, değişmiş içerik ve izin verilmeyen sürüm reddedilir. Veritabanı geçişi geri dönüş planıyla sınanır",
+        "Sürümlü sözleşme, gerçek Client→izole Core/servis E2E, yetki/iptal/bozuk veya geç cevap, limitler ve tam commit CI kanıtı; ilgili fiziksel koşul MANUAL.* matrisinde açık kalır; yazılım kabulü donanım kabulü değildir."
+      ],
+      "requiredEvidence": [
+        "test",
+        "review",
+        "ci"
+      ],
+      "evidence": [],
+      "completionCommit": null,
+      "reason": null
+    },
+    {
+      "id": "F20",
+      "kind": "task",
+      "parent": "G01",
+      "title": "Değiştirilmesi fark edilen işlem günlüğü",
+      "status": "pending",
+      "dependsOn": [
+        "B0",
+        "B5",
+        "B3",
+        "B4"
+      ],
+      "finishDependsOn": [],
+      "sources": [
+        "docs/feature-expansion-plan-2026-09-05.md",
+        "docs/feature-candidates-2026-09-05.json"
+      ],
+      "scope": "Yazılım teslim kapısı; gerçek cihaz/hesap kabulü MANUAL.* kayıtlarında ayrıca izlenir. Core dışında güvenilen kontrol noktası gerekir; fiziksel olayın doğruluğunu tek başına kanıtlamaz.",
+      "acceptance": [
+        "Kayıt zincirinde değişiklik/kopma fark edilir; kontrol noktası ayrı korunur. Tüm yetkilere sahip saldırgana karşı mutlak değiştirilemezlik iddia edilmez",
+        "Sürümlü sözleşme, gerçek Client→izole Core/servis E2E, yetki/iptal/bozuk veya geç cevap, limitler ve tam commit CI kanıtı; ilgili fiziksel koşul MANUAL.* matrisinde açık kalır; yazılım kabulü donanım kabulü değildir."
+      ],
+      "requiredEvidence": [
+        "test",
+        "review",
+        "ci"
+      ],
+      "evidence": [],
+      "completionCommit": null,
+      "reason": null
+    },
+    {
+      "id": "F06",
+      "kind": "task",
+      "parent": "G01",
+      "title": "Bunu kim, neden yaptı?",
+      "status": "pending",
+      "dependsOn": [
+        "B0",
+        "B5",
+        "B3"
+      ],
+      "finishDependsOn": [],
+      "sources": [
+        "docs/feature-expansion-plan-2026-09-05.md",
+        "docs/feature-candidates-2026-09-05.json"
+      ],
+      "scope": "Yazılım teslim kapısı; gerçek cihaz/hesap kabulü MANUAL.* kayıtlarında ayrıca izlenir. Mevcut işlem/audit kayıtlarının uzantısı; yalnız zaman yakınlığı nedensellik sayılmaz.",
+      "acceptance": [
+        "Kullanıcı/kural/servis/komut/sonuç bağı aynı iz kimliğiyle gösterilir; sebebi bilinmeyen olay için zaman yakınlığından neden uydurulmaz. F20 bu izlerin bütünlük korumasını ayrıca genişletir",
+        "Sürümlü sözleşme, gerçek Client→izole Core/servis E2E, yetki/iptal/bozuk veya geç cevap, limitler ve tam commit CI kanıtı; ilgili fiziksel koşul MANUAL.* matrisinde açık kalır; yazılım kabulü donanım kabulü değildir."
+      ],
+      "requiredEvidence": [
+        "test",
+        "review",
+        "ci"
+      ],
+      "evidence": [],
+      "completionCommit": null,
+      "reason": null
+    },
+    {
+      "id": "F05",
+      "kind": "task",
+      "parent": "G01",
+      "title": "Uzun süren ev iş akışları",
+      "status": "pending",
+      "dependsOn": [
+        "B0",
+        "B5",
+        "B1",
+        "B3",
+        "F06"
+      ],
+      "finishDependsOn": [],
+      "sources": [
+        "docs/feature-expansion-plan-2026-09-05.md",
+        "docs/feature-candidates-2026-09-05.json"
+      ],
+      "scope": "Yazılım teslim kapısı; gerçek cihaz/hesap kabulü MANUAL.* kayıtlarında ayrıca izlenir. S06 işlerinden genel ev süreçlerine genişler; fiziksel komutlar körlemesine tekrarlanmaz. Temporal zorunlu bağımlılık değil, tasarım örneği.",
+      "acceptance": [
+        "Restart, zaman aşımı, iptal ve insan kararı beklemesinden devam; belirsiz fiziksel komut körlemesine tekrarlanmaz, kullanıcıya uzlaştırma sonucu sunulur",
+        "Sürümlü sözleşme, gerçek Client→izole Core/servis E2E, yetki/iptal/bozuk veya geç cevap, limitler ve tam commit CI kanıtı; ilgili fiziksel koşul MANUAL.* matrisinde açık kalır; yazılım kabulü donanım kabulü değildir."
+      ],
+      "requiredEvidence": [
+        "test",
+        "review",
+        "ci"
+      ],
+      "evidence": [],
+      "completionCommit": null,
+      "reason": null
+    },
+    {
+      "id": "G02",
+      "kind": "group",
+      "parent": null,
+      "title": "Kurtarma, yedek koruması ve güç"
+    },
+    {
+      "id": "F16",
+      "kind": "task",
+      "parent": "G02",
+      "title": "Otomatik kurtarma tatbikatı",
+      "status": "pending",
+      "dependsOn": [
+        "B0",
+        "B5",
+        "B4",
+        "F05"
+      ],
+      "finishDependsOn": [],
+      "sources": [
+        "docs/feature-expansion-plan-2026-09-05.md",
+        "docs/feature-candidates-2026-09-05.json"
+      ],
+      "scope": "Yazılım teslim kapısı; gerçek cihaz/hesap kabulü MANUAL.* kayıtlarında ayrıca izlenir. S09 yedeğinin uzantısı; ek disk/işlem bütçesi gerekir, test ortamı ev cihazlarına komut göndermez.",
+      "acceptance": [
+        "İzole boş ortama yedek açılır; veritabanı, anahtar ve bileşen sağlık kanıtı raporlanır. Tatbikat üretim otomasyonlarını çalıştıramaz",
+        "Sürümlü sözleşme, gerçek Client→izole Core/servis E2E, yetki/iptal/bozuk veya geç cevap, limitler ve tam commit CI kanıtı; ilgili fiziksel koşul MANUAL.* matrisinde açık kalır; yazılım kabulü donanım kabulü değildir."
+      ],
+      "requiredEvidence": [
+        "test",
+        "review",
+        "ci"
+      ],
+      "evidence": [],
+      "completionCommit": null,
+      "reason": null
+    },
+    {
+      "id": "F17",
+      "kind": "task",
+      "parent": "G02",
+      "title": "Yedekleri silmeye kapalı kurtarma hedefi",
+      "status": "pending",
+      "dependsOn": [
+        "B0",
+        "B5",
+        "F16"
+      ],
+      "finishDependsOn": [],
+      "sources": [
+        "docs/feature-expansion-plan-2026-09-05.md",
+        "docs/feature-candidates-2026-09-05.json"
+      ],
+      "scope": "Yazılım teslim kapısı; gerçek cihaz/hesap kabulü MANUAL.* kayıtlarında ayrıca izlenir. Ayrı yetki alanındaki NAS/uzak hedef gerekir; hedef yöneticisinin ele geçirilmesine karşı mutlak koruma değildir.",
+      "acceptance": [
+        "Günlük yedek kimliği mevcut yedeği silemez; saklama/kurtarma yetkisi ayrılır. Yanlış politika ve erişim iptali testleri, hedefe özgü kabul",
+        "Sürümlü sözleşme, gerçek Client→izole Core/servis E2E, yetki/iptal/bozuk veya geç cevap, limitler ve tam commit CI kanıtı; ilgili fiziksel koşul MANUAL.* matrisinde açık kalır; yazılım kabulü donanım kabulü değildir."
+      ],
+      "requiredEvidence": [
+        "test",
+        "review",
+        "ci"
+      ],
+      "evidence": [],
+      "completionCommit": null,
+      "reason": null
+    },
+    {
+      "id": "F18",
+      "kind": "task",
+      "parent": "G02",
+      "title": "Elektrik kesintisinde düzenli kapanış",
+      "status": "pending",
+      "dependsOn": [
+        "B0",
+        "B5",
+        "F05",
+        "F16"
+      ],
+      "finishDependsOn": [],
+      "sources": [
+        "docs/feature-expansion-plan-2026-09-05.md",
+        "docs/feature-candidates-2026-09-05.json"
+      ],
+      "scope": "Yazılım teslim kapısı; gerçek cihaz/hesap kabulü MANUAL.* kayıtlarında ayrıca izlenir. Desteklenen UPS ve işletim sistemi yetkileri gerekir; süre tahminidir, ağ cihazlarının gücü de hesaba katılır.",
+      "acceptance": [
+        "UPS olayında indirmeler/işler, veritabanı ve sunucu sırası korunur; sahte/tekrarlı olay ve enerji dönüşü sınanır. Gerçek kapanış ayrıca manuel kabul edilir",
+        "Sürümlü sözleşme, gerçek Client→izole Core/servis E2E, yetki/iptal/bozuk veya geç cevap, limitler ve tam commit CI kanıtı; ilgili fiziksel koşul MANUAL.* matrisinde açık kalır; yazılım kabulü donanım kabulü değildir."
+      ],
+      "requiredEvidence": [
+        "test",
+        "review",
+        "ci"
+      ],
+      "evidence": [],
+      "completionCommit": null,
+      "reason": null
+    },
+    {
+      "id": "G03",
+      "kind": "group",
+      "parent": null,
+      "title": "Erken bildirim, tablet ve ev görünümü"
+    },
+    {
+      "id": "F54",
+      "kind": "task",
+      "parent": "G03",
+      "title": "Google servislerinden bağımsız bildirim",
+      "status": "pending",
+      "dependsOn": [
+        "B0",
+        "B5",
+        "B3",
+        "F05"
+      ],
+      "finishDependsOn": [],
+      "sources": [
+        "docs/feature-expansion-plan-2026-09-05.md",
+        "docs/feature-candidates-2026-09-05.json"
+      ],
+      "scope": "Yazılım teslim kapısı; gerçek cihaz/hesap kabulü MANUAL.* kayıtlarında ayrıca izlenir. ntfy yaklaşımı kalıcı bildirimli foreground service gerektirebilir; kapatılırsa teslim gecikebilir. Ayrı ntfy uygulaması zorunlu hedef değil. Huawei/OEM Android ve güç davranışı cihazda sınanır.",
+      "acceptance": [
+        "Kayıp/tekrar/yeniden bağlantı, bildirim izni ve güvenli hedefe dönüş sınanır; hassas içerik kilit ekranında korunur. OEM güç kısıtları ve gerekebilen sürekli servis bildirimi cihazda doğrulanır",
+        "Sürümlü sözleşme, gerçek Client→izole Core/servis E2E, yetki/iptal/bozuk veya geç cevap, limitler ve tam commit CI kanıtı; ilgili fiziksel koşul MANUAL.* matrisinde açık kalır; yazılım kabulü donanım kabulü değildir."
+      ],
+      "requiredEvidence": [
+        "test",
+        "review",
+        "ci"
+      ],
+      "evidence": [],
+      "completionCommit": null,
+      "reason": null
+    },
+    {
+      "id": "F53",
+      "kind": "task",
+      "parent": "G03",
+      "title": "Evdeki tabletleri tek yerden yönetme",
+      "status": "pending",
+      "dependsOn": [
+        "B0",
+        "B5",
+        "F54",
+        "F13"
+      ],
+      "finishDependsOn": [],
+      "sources": [
+        "docs/feature-expansion-plan-2026-09-05.md",
+        "docs/feature-candidates-2026-09-05.json"
+      ],
+      "scope": "Yazılım teslim kapısı; gerçek cihaz/hesap kabulü MANUAL.* kayıtlarında ayrıca izlenir. Fully Kiosk/uzaktan yönetim planının ileri uzantısı; bazı işlemler device-owner ister, her Huawei/OEM izni varsayılmaz.",
+      "acceptance": [
+        "Kayıt/iptal, profil sürümü, kalp atışı ve komut sonucu; yanlış ev veya iptal edilmiş tablet işlem alamaz. Normal uygulama ile Device Owner yetenekleri ayrı gösterilir",
+        "Sürümlü sözleşme, gerçek Client→izole Core/servis E2E, yetki/iptal/bozuk veya geç cevap, limitler ve tam commit CI kanıtı; ilgili fiziksel koşul MANUAL.* matrisinde açık kalır; yazılım kabulü donanım kabulü değildir."
+      ],
+      "requiredEvidence": [
+        "test",
+        "review",
+        "ci"
+      ],
+      "evidence": [],
+      "completionCommit": null,
+      "reason": null
+    },
+    {
+      "id": "F51",
+      "kind": "task",
+      "parent": "G03",
+      "title": "Etkileşimli ev kat planı",
+      "status": "pending",
+      "dependsOn": [
+        "B0",
+        "B5",
+        "B3"
+      ],
+      "finishDependsOn": [],
+      "sources": [
+        "docs/feature-expansion-plan-2026-09-05.md",
+        "docs/feature-candidates-2026-09-05.json"
+      ],
+      "scope": "Yazılım teslim kapısı; gerçek cihaz/hesap kabulü MANUAL.* kayıtlarında ayrıca izlenir. Mevcut oda/kart düzeninin yeni sunumu; 3D performansı ayrıca sınanır, plan otomatik ölçülmüş sayılmaz.",
+      "acceptance": [
+        "Oda/cihaz yerleştirme, ortak kimlikle canlı durum ve yetkili eylem; erişilebilir liste alternatifi, ölçek/dokunma ve hesap değişimi",
+        "Sürümlü sözleşme, gerçek Client→izole Core/servis E2E, yetki/iptal/bozuk veya geç cevap, limitler ve tam commit CI kanıtı; ilgili fiziksel koşul MANUAL.* matrisinde açık kalır; yazılım kabulü donanım kabulü değildir."
+      ],
+      "requiredEvidence": [
+        "test",
+        "review",
+        "ci"
+      ],
+      "evidence": [],
+      "completionCommit": null,
+      "reason": null
+    },
+    {
+      "id": "F52",
+      "kind": "task",
+      "parent": "G03",
+      "title": "DeX'te iki ekrana farklı görev",
+      "status": "pending",
+      "dependsOn": [
+        "B0",
+        "B5",
+        "B3"
+      ],
+      "finishDependsOn": [],
+      "sources": [
+        "docs/feature-expansion-plan-2026-09-05.md",
+        "docs/feature-candidates-2026-09-05.json"
+      ],
+      "scope": "Yazılım teslim kapısı; gerçek cihaz/hesap kabulü MANUAL.* kayıtlarında ayrıca izlenir. Aynı Android uygulamasıdır. Mevcut pencere uyumundan ileri; OEM, dock ve korumalı medya yolu cihazda sınanır.",
+      "acceptance": [
+        "Aynı Android uygulamasında iki ekran rolü, yön/değişken pencere ve hot-plug; odak/oynatıcı sahipliği korunur, özel içerik yanlış ekrana taşınmaz. Kat planı isteğe bağlı ekran içeriğidir",
+        "Sürümlü sözleşme, gerçek Client→izole Core/servis E2E, yetki/iptal/bozuk veya geç cevap, limitler ve tam commit CI kanıtı; ilgili fiziksel koşul MANUAL.* matrisinde açık kalır; yazılım kabulü donanım kabulü değildir."
+      ],
+      "requiredEvidence": [
+        "test",
+        "review",
+        "ci"
+      ],
+      "evidence": [],
+      "completionCommit": null,
+      "reason": null
+    },
+    {
+      "id": "G04",
+      "kind": "group",
+      "parent": null,
+      "title": "AI ve denetlenebilir otomasyon"
+    },
+    {
+      "id": "F08",
+      "kind": "task",
+      "parent": "G04",
+      "title": "Yapay zekâ kaynak yöneticisi",
+      "status": "pending",
+      "dependsOn": [
+        "B0",
+        "B5",
+        "B1",
+        "B3",
+        "F05"
+      ],
+      "finishDependsOn": [],
+      "sources": [
+        "docs/feature-expansion-plan-2026-09-05.md",
+        "docs/feature-candidates-2026-09-05.json"
+      ],
+      "scope": "Yazılım teslim kapısı; gerçek cihaz/hesap kabulü MANUAL.* kayıtlarında ayrıca izlenir. Model ve donanıma göre ölçülür; küçük sunucuda büyük model hızı garanti edilmez.",
+      "acceptance": [
+        "Bellek/işlem/iş kuyruğu kotası ve öncelik; medya aktifken yük azaltma, iptal ve donanım yetersizliğinde açık durum. Gerçek yük ölçümü ayrıca kaydedilir",
+        "Sürümlü sözleşme, gerçek Client→izole Core/servis E2E, yetki/iptal/bozuk veya geç cevap, limitler ve tam commit CI kanıtı; ilgili fiziksel koşul MANUAL.* matrisinde açık kalır; yazılım kabulü donanım kabulü değildir."
+      ],
+      "requiredEvidence": [
+        "test",
+        "review",
+        "ci"
+      ],
+      "evidence": [],
+      "completionCommit": null,
+      "reason": null
+    },
+    {
+      "id": "F04",
+      "kind": "task",
+      "parent": "G04",
+      "title": "Çakışan kurallar hakemi",
+      "status": "pending",
+      "dependsOn": [
+        "B0",
+        "B5",
+        "B3",
+        "F06",
+        "F05"
+      ],
+      "finishDependsOn": [],
+      "sources": [
+        "docs/feature-expansion-plan-2026-09-05.md",
+        "docs/feature-candidates-2026-09-05.json"
+      ],
+      "scope": "Yazılım teslim kapısı; gerçek cihaz/hesap kabulü MANUAL.* kayıtlarında ayrıca izlenir. İlk kapsam Core üzerinden geçen eylemler; harici HA otomasyonları ayrıca eşlenir.",
+      "acceptance": [
+        "Aynı cihazda eşzamanlı kurallar, süreli sahiplik ve elle müdahale tutarlı çözülür; Core dışındaki HA yazmaları ayrı gözlenir, kontrol ediliyormuş gibi gösterilmez",
+        "Sürümlü sözleşme, gerçek Client→izole Core/servis E2E, yetki/iptal/bozuk veya geç cevap, limitler ve tam commit CI kanıtı; ilgili fiziksel koşul MANUAL.* matrisinde açık kalır; yazılım kabulü donanım kabulü değildir."
+      ],
+      "requiredEvidence": [
+        "test",
+        "review",
+        "ci"
+      ],
+      "evidence": [],
+      "completionCommit": null,
+      "reason": null
+    },
+    {
+      "id": "F02",
+      "kind": "task",
+      "parent": "G04",
+      "title": "Otomasyonun deneme haftası",
+      "status": "pending",
+      "dependsOn": [
+        "B0",
+        "B5",
+        "F04",
+        "F06"
+      ],
+      "finishDependsOn": [],
+      "sources": [
+        "docs/feature-expansion-plan-2026-09-05.md",
+        "docs/feature-candidates-2026-09-05.json"
+      ],
+      "scope": "Yazılım teslim kapısı; gerçek cihaz/hesap kabulü MANUAL.* kayıtlarında ayrıca izlenir. Rutinlere yeni deneme katmanı; fiziksel sonucu veya enerji tasarrufunu kanıtlamaz.",
+      "acceptance": [
+        "Gerçek/sentetik olayları değerlendirirken adaptöre sıfır yazma; tetiklenen/bastırılan karar raporu, zaman dilimi ve saat değişimi testleri",
+        "Sürümlü sözleşme, gerçek Client→izole Core/servis E2E, yetki/iptal/bozuk veya geç cevap, limitler ve tam commit CI kanıtı; ilgili fiziksel koşul MANUAL.* matrisinde açık kalır; yazılım kabulü donanım kabulü değildir."
+      ],
+      "requiredEvidence": [
+        "test",
+        "review",
+        "ci"
+      ],
+      "evidence": [],
+      "completionCommit": null,
+      "reason": null
+    },
+    {
+      "id": "F03",
+      "kind": "task",
+      "parent": "G04",
+      "title": "Geçmişte otomasyon sınaması",
+      "status": "pending",
+      "dependsOn": [
+        "B0",
+        "B5",
+        "F02",
+        "F06"
+      ],
+      "finishDependsOn": [],
+      "sources": [
+        "docs/feature-expansion-plan-2026-09-05.md",
+        "docs/feature-candidates-2026-09-05.json"
+      ],
+      "scope": "Yazılım teslim kapısı; gerçek cihaz/hesap kabulü MANUAL.* kayıtlarında ayrıca izlenir. Eksik geçmiş veri bilinmeyen olarak kalır; canlı deneme modundan ayrı bir tekrar testi.",
+      "acceptance": [
+        "Sürümlü olay/kuralla deterministik tekrar ve karar farkı; eksik geçmiş bilinmeyen kalır, canlı cihaz veya canlı kuyruğa yazılamaz",
+        "Sürümlü sözleşme, gerçek Client→izole Core/servis E2E, yetki/iptal/bozuk veya geç cevap, limitler ve tam commit CI kanıtı; ilgili fiziksel koşul MANUAL.* matrisinde açık kalır; yazılım kabulü donanım kabulü değildir."
+      ],
+      "requiredEvidence": [
+        "test",
+        "review",
+        "ci"
+      ],
+      "evidence": [],
+      "completionCommit": null,
+      "reason": null
+    },
+    {
+      "id": "F01",
+      "kind": "task",
+      "parent": "G04",
+      "title": "Konuşarak otomasyon taslağı",
+      "status": "pending",
+      "dependsOn": [
+        "B0",
+        "B5",
+        "F08",
+        "F02",
+        "F03",
+        "F04"
+      ],
+      "finishDependsOn": [],
+      "sources": [
+        "docs/feature-expansion-plan-2026-09-05.md",
+        "docs/feature-candidates-2026-09-05.json"
+      ],
+      "scope": "Yazılım teslim kapısı; gerçek cihaz/hesap kabulü MANUAL.* kayıtlarında ayrıca izlenir. Assist/rutinlerin üzerine eklenir; ses için STT/TTS ve yerel model gerekir. Model çıktısı doğrudan komut çalıştırmaz.",
+      "acceptance": [
+        "İzinli eylem kataloğundan şema doğrulanan taslak; hedef/adım/yan etki önizlemesi ve etkinleştirme onayı. Prompt enjeksiyonu veya model metni doğrudan komut çalıştıramaz",
+        "Sürümlü sözleşme, gerçek Client→izole Core/servis E2E, yetki/iptal/bozuk veya geç cevap, limitler ve tam commit CI kanıtı; ilgili fiziksel koşul MANUAL.* matrisinde açık kalır; yazılım kabulü donanım kabulü değildir."
+      ],
+      "requiredEvidence": [
+        "test",
+        "review",
+        "ci"
+      ],
+      "evidence": [],
+      "completionCommit": null,
+      "reason": null
+    },
+    {
+      "id": "F09",
+      "kind": "task",
+      "parent": "G04",
+      "title": "Görülebilir, süreli AI hafızası",
+      "status": "pending",
+      "dependsOn": [
+        "B0",
+        "B5",
+        "F08",
+        "F20"
+      ],
+      "finishDependsOn": [],
+      "sources": [
+        "docs/feature-expansion-plan-2026-09-05.md",
+        "docs/feature-candidates-2026-09-05.json"
+      ],
+      "scope": "Yazılım teslim kapısı; gerçek cihaz/hesap kabulü MANUAL.* kayıtlarında ayrıca izlenir. Arama filtresi tek başına yetki değildir; silme indeks ve yedek politikasına da bağlanır.",
+      "acceptance": [
+        "Kaynak/kullanıcı/süre açıklaması, düzeltme ve silme; indeks/önbellek dahil unutma ve hesap yalıtımı. Yedek geri yüklemede silinmiş tercihler yeniden etkinleşmez",
+        "Sürümlü sözleşme, gerçek Client→izole Core/servis E2E, yetki/iptal/bozuk veya geç cevap, limitler ve tam commit CI kanıtı; ilgili fiziksel koşul MANUAL.* matrisinde açık kalır; yazılım kabulü donanım kabulü değildir."
+      ],
+      "requiredEvidence": [
+        "test",
+        "review",
+        "ci"
+      ],
+      "evidence": [],
+      "completionCommit": null,
+      "reason": null
+    },
+    {
+      "id": "F07",
+      "kind": "task",
+      "parent": "G04",
+      "title": "Evin alışılmış düzeninden sapmalar",
+      "status": "pending",
+      "dependsOn": [
+        "B0",
+        "B5",
+        "F06",
+        "F08"
+      ],
+      "finishDependsOn": [],
+      "sources": [
+        "docs/feature-expansion-plan-2026-09-05.md",
+        "docs/feature-candidates-2026-09-05.json"
+      ],
+      "scope": "Yazılım teslim kapısı; gerçek cihaz/hesap kabulü MANUAL.* kayıtlarında ayrıca izlenir. İzleme ekranlarının uzantısı; yeterli geçmiş ve yanlış alarm ayarı gerekir.",
+      "acceptance": [
+        "Yeterli örnek ve veri tazeliği koşulu; yanlış alarm/normal işaretleme ve model sürümü. Eksik veri normal veya anomali diye kesinleştirilmez",
+        "Sürümlü sözleşme, gerçek Client→izole Core/servis E2E, yetki/iptal/bozuk veya geç cevap, limitler ve tam commit CI kanıtı; ilgili fiziksel koşul MANUAL.* matrisinde açık kalır; yazılım kabulü donanım kabulü değildir."
+      ],
+      "requiredEvidence": [
+        "test",
+        "review",
+        "ci"
+      ],
+      "evidence": [],
+      "completionCommit": null,
+      "reason": null
+    },
+    {
+      "id": "F10",
+      "kind": "task",
+      "parent": "G04",
+      "title": "Kanıta dayalı arıza yardımcısı",
+      "status": "pending",
+      "dependsOn": [
+        "B0",
+        "B5",
+        "F06",
+        "F08"
+      ],
+      "finishDependsOn": [],
+      "sources": [
+        "docs/feature-expansion-plan-2026-09-05.md",
+        "docs/feature-candidates-2026-09-05.json"
+      ],
+      "scope": "Yazılım teslim kapısı; gerçek cihaz/hesap kabulü MANUAL.* kayıtlarında ayrıca izlenir. Mevcut servis sağlığının uzantısı; sırlar modele aktarılmaz, değişiklikler ayrı kullanıcı kararıdır.",
+      "acceptance": [
+        "Her teşhis kaynağa/ölçüme bağlanır; bilinmeyeni açıklar, sırları çıktıdan çıkarır. F07 anomali bulguları ek kaynak olabilir; onarım önerisi ayrı önizleme ve mevcut işlem yetkisini gerektirir",
+        "Sürümlü sözleşme, gerçek Client→izole Core/servis E2E, yetki/iptal/bozuk veya geç cevap, limitler ve tam commit CI kanıtı; ilgili fiziksel koşul MANUAL.* matrisinde açık kalır; yazılım kabulü donanım kabulü değildir."
+      ],
+      "requiredEvidence": [
+        "test",
+        "review",
+        "ci"
+      ],
+      "evidence": [],
+      "completionCommit": null,
+      "reason": null
+    },
+    {
+      "id": "G05",
+      "kind": "group",
+      "parent": null,
+      "title": "Genişletilebilirlik, destek ve birden fazla ev"
+    },
+    {
+      "id": "F11",
+      "kind": "task",
+      "parent": "G05",
+      "title": "Sınırlı yetkili mini eklentiler",
+      "status": "pending",
+      "dependsOn": [
+        "B0",
+        "B5",
+        "F13",
+        "F15",
+        "F20",
+        "F05"
+      ],
+      "finishDependsOn": [],
+      "sources": [
+        "docs/feature-expansion-plan-2026-09-05.md",
+        "docs/feature-candidates-2026-09-05.json"
+      ],
+      "scope": "Yazılım teslim kapısı; gerçek cihaz/hesap kabulü MANUAL.* kayıtlarında ayrıca izlenir. S06 Docker bileşenlerinden ayrı bir eklenti sınıfı; sınırsız host işlevleri izolasyonu bozabilir.",
+      "acceptance": [
+        "API yetenek listesi, dosya/ağ/CPU/bellek sınırı ve durdurma; eklenti diğer evin verisine, anahtarlara veya sınırsız host yönetimine erişemez",
+        "Sürümlü sözleşme, gerçek Client→izole Core/servis E2E, yetki/iptal/bozuk veya geç cevap, limitler ve tam commit CI kanıtı; ilgili fiziksel koşul MANUAL.* matrisinde açık kalır; yazılım kabulü donanım kabulü değildir."
+      ],
+      "requiredEvidence": [
+        "test",
+        "review",
+        "ci"
+      ],
+      "evidence": [],
+      "completionCommit": null,
+      "reason": null
+    },
+    {
+      "id": "F12",
+      "kind": "task",
+      "parent": "G05",
+      "title": "Yetkili MCP kapısı",
+      "status": "pending",
+      "dependsOn": [
+        "B0",
+        "B5",
+        "B3",
+        "F13",
+        "F20"
+      ],
+      "finishDependsOn": [],
+      "sources": [
+        "docs/feature-expansion-plan-2026-09-05.md",
+        "docs/feature-candidates-2026-09-05.json"
+      ],
+      "scope": "Yazılım teslim kapısı; gerçek cihaz/hesap kabulü MANUAL.* kayıtlarında ayrıca izlenir. MCP uyumlu istemci gerekir; protokol desteği araçları güvenilir yapmaz.",
+      "acceptance": [
+        "Kullanıcı/istemci bazında araç yetkisi ve süre; iptal edilen token veya prompt kaynaklı yönlendirme yetkiyi aşamaz. Yazmalar aynı önizleme/sonuç yoluna girer",
+        "Sürümlü sözleşme, gerçek Client→izole Core/servis E2E, yetki/iptal/bozuk veya geç cevap, limitler ve tam commit CI kanıtı; ilgili fiziksel koşul MANUAL.* matrisinde açık kalır; yazılım kabulü donanım kabulü değildir."
+      ],
+      "requiredEvidence": [
+        "test",
+        "review",
+        "ci"
+      ],
+      "evidence": [],
+      "completionCommit": null,
+      "reason": null
+    },
+    {
+      "id": "F14",
+      "kind": "task",
+      "parent": "G05",
+      "title": "Süreli destek oturumu",
+      "status": "pending",
+      "dependsOn": [
+        "B0",
+        "B5",
+        "F13",
+        "F20",
+        "F54"
+      ],
+      "finishDependsOn": [],
+      "sources": [
+        "docs/feature-expansion-plan-2026-09-05.md",
+        "docs/feature-candidates-2026-09-05.json"
+      ],
+      "scope": "Yazılım teslim kapısı; gerçek cihaz/hesap kabulü MANUAL.* kayıtlarında ayrıca izlenir. Mevcut admin/member rollerinin ötesi; uzak bağlantı ve her API'de yetki denetimi gerekir.",
+      "acceptance": [
+        "Açıkça verilen dar yetki, süre sonu/elle iptal ve görülebilir oturum; log maskeleme, bağlantı kopuşu ve yetki yükseltme reddi",
+        "Sürümlü sözleşme, gerçek Client→izole Core/servis E2E, yetki/iptal/bozuk veya geç cevap, limitler ve tam commit CI kanıtı; ilgili fiziksel koşul MANUAL.* matrisinde açık kalır; yazılım kabulü donanım kabulü değildir."
+      ],
+      "requiredEvidence": [
+        "test",
+        "review",
+        "ci"
+      ],
+      "evidence": [],
+      "completionCommit": null,
+      "reason": null
+    },
+    {
+      "id": "F19",
+      "kind": "task",
+      "parent": "G05",
+      "title": "Birden fazla ev, bağımsız Core",
+      "status": "pending",
+      "dependsOn": [
+        "B0",
+        "B5",
+        "B3",
+        "B4",
+        "F16",
+        "F20",
+        "F54"
+      ],
+      "finishDependsOn": [],
+      "sources": [
+        "docs/feature-expansion-plan-2026-09-05.md",
+        "docs/feature-candidates-2026-09-05.json"
+      ],
+      "scope": "Yazılım teslim kapısı; gerçek cihaz/hesap kabulü MANUAL.* kayıtlarında ayrıca izlenir. Headscale yalnız bağlantı temeli; Larenor federasyonu, yetki ve eşitleme ayrıca geliştirilir.",
+      "acceptance": [
+        "Ev değişiminde veri/token/arama/önbellek yalıtımı; her Core çevrimdışı bağımsız işler. Evler arası hareket ayrı yetkiyle, geri yükleme kimlik çakışmalarıyla sınanır. F17 hedefi ayrıca bağlanabilir",
+        "Sürümlü sözleşme, gerçek Client→izole Core/servis E2E, yetki/iptal/bozuk veya geç cevap, limitler ve tam commit CI kanıtı; ilgili fiziksel koşul MANUAL.* matrisinde açık kalır; yazılım kabulü donanım kabulü değildir."
+      ],
+      "requiredEvidence": [
+        "test",
+        "review",
+        "ci"
+      ],
+      "evidence": [],
+      "completionCommit": null,
+      "reason": null
+    },
+    {
+      "id": "G06",
+      "kind": "group",
+      "parent": null,
+      "title": "Medya ve müzik"
+    },
+    {
+      "id": "F24",
+      "kind": "task",
+      "parent": "G06",
+      "title": "Akıllı altyazı ve dil tercihleri",
+      "status": "pending",
+      "dependsOn": [
+        "B0",
+        "B5",
+        "B2",
+        "B3"
+      ],
+      "finishDependsOn": [],
+      "sources": [
+        "docs/feature-expansion-plan-2026-09-05.md",
+        "docs/feature-candidates-2026-09-05.json"
+      ],
+      "scope": "Yazılım teslim kapısı; gerçek cihaz/hesap kabulü MANUAL.* kayıtlarında ayrıca izlenir. S07 altyazı adayının uzantısı; sağlayıcı hesabı/kotası gerekir. İstenen ses dili yalnız mevcut ve desteklenen ses izi varsa seçilir.",
+      "acceptance": [
+        "Kişi tercihleri mevcut altyazı/ses parçalarıyla eşlenir; eksik ses parçası bulunmuş sayılmaz. Jellyfin/oynatıcı seçimi ve altyazı motoru ayrı sözleşmelerle sınanır",
+        "Sürümlü sözleşme, gerçek Client→izole Core/servis E2E, yetki/iptal/bozuk veya geç cevap, limitler ve tam commit CI kanıtı; ilgili fiziksel koşul MANUAL.* matrisinde açık kalır; yazılım kabulü donanım kabulü değildir."
+      ],
+      "requiredEvidence": [
+        "test",
+        "review",
+        "ci"
+      ],
+      "evidence": [],
+      "completionCommit": null,
+      "reason": null
+    },
+    {
+      "id": "F26",
+      "kind": "task",
+      "parent": "G06",
+      "title": "Oynatma kalitesi danışmanı",
+      "status": "pending",
+      "dependsOn": [
+        "B0",
+        "B5",
+        "B2",
+        "B3",
+        "F06"
+      ],
+      "finishDependsOn": [],
+      "sources": [
+        "docs/feature-expansion-plan-2026-09-05.md",
+        "docs/feature-candidates-2026-09-05.json"
+      ],
+      "scope": "Yazılım teslim kapısı; gerçek cihaz/hesap kabulü MANUAL.* kayıtlarında ayrıca izlenir. Medya durumunun ileri uzantısı; HDR/codec gerçek cihazda sınanır, dosya bilgisi tek başına garanti değildir.",
+      "acceptance": [
+        "Codec/bitrate/ağ/alıcı kanıtıyla direct play/remux/transcode açıklaması; eksik telemetri açık durum, ölçümsüz kalite garantisi yok",
+        "Sürümlü sözleşme, gerçek Client→izole Core/servis E2E, yetki/iptal/bozuk veya geç cevap, limitler ve tam commit CI kanıtı; ilgili fiziksel koşul MANUAL.* matrisinde açık kalır; yazılım kabulü donanım kabulü değildir."
+      ],
+      "requiredEvidence": [
+        "test",
+        "review",
+        "ci"
+      ],
+      "evidence": [],
+      "completionCommit": null,
+      "reason": null
+    },
+    {
+      "id": "F25",
+      "kind": "task",
+      "parent": "G06",
+      "title": "Jenerik ve kapanış atlama",
+      "status": "pending",
+      "dependsOn": [
+        "B0",
+        "B5",
+        "B2",
+        "B3"
+      ],
+      "finishDependsOn": [],
+      "sources": [
+        "docs/feature-expansion-plan-2026-09-05.md",
+        "docs/feature-candidates-2026-09-05.json"
+      ],
+      "scope": "Yazılım teslim kapısı; gerçek cihaz/hesap kabulü MANUAL.* kayıtlarında ayrıca izlenir. Algılama hataları ve bölüm istisnaları görünür kalır; her istemcide eklenti desteği varsayılmaz.",
+      "acceptance": [
+        "Kaynak işaretlerini doğrulama, zaman sınırı, isteğe bağlı atlama; yanlış/eksik işaret ve farklı sürümde güvenli davranış",
+        "Sürümlü sözleşme, gerçek Client→izole Core/servis E2E, yetki/iptal/bozuk veya geç cevap, limitler ve tam commit CI kanıtı; ilgili fiziksel koşul MANUAL.* matrisinde açık kalır; yazılım kabulü donanım kabulü değildir."
+      ],
+      "requiredEvidence": [
+        "test",
+        "review",
+        "ci"
+      ],
+      "evidence": [],
+      "completionCommit": null,
+      "reason": null
+    },
+    {
+      "id": "F21",
+      "kind": "task",
+      "parent": "G06",
+      "title": "Birlikte senkron film izleme",
+      "status": "pending",
+      "dependsOn": [
+        "B0",
+        "B5",
+        "B2",
+        "B3"
+      ],
+      "finishDependsOn": [],
+      "sources": [
+        "docs/feature-expansion-plan-2026-09-05.md",
+        "docs/feature-candidates-2026-09-05.json"
+      ],
+      "scope": "Yazılım teslim kapısı; gerçek cihaz/hesap kabulü MANUAL.* kayıtlarında ayrıca izlenir. Desteklenen oynatıcılar ve gecikme testleri gerekir; her Cast/Apple TV hedefi otomatik uyumlu sayılmaz.",
+      "acceptance": [
+        "Oda/katılımcı yetkisi, lider değişimi, gecikme ve yeniden katılma; farklı alıcı yetenekleriyle ölçülen senkron toleransı kabul öncesi belirlenir",
+        "Sürümlü sözleşme, gerçek Client→izole Core/servis E2E, yetki/iptal/bozuk veya geç cevap, limitler ve tam commit CI kanıtı; ilgili fiziksel koşul MANUAL.* matrisinde açık kalır; yazılım kabulü donanım kabulü değildir."
+      ],
+      "requiredEvidence": [
+        "test",
+        "review",
+        "ci"
+      ],
+      "evidence": [],
+      "completionCommit": null,
+      "reason": null
+    },
+    {
+      "id": "F22",
+      "kind": "task",
+      "parent": "G06",
+      "title": "Kendi televizyon kanalların",
+      "status": "pending",
+      "dependsOn": [
+        "B0",
+        "B5",
+        "B2",
+        "F05"
+      ],
+      "finishDependsOn": [],
+      "sources": [
+        "docs/feature-expansion-plan-2026-09-05.md",
+        "docs/feature-candidates-2026-09-05.json"
+      ],
+      "scope": "Yazılım teslim kapısı; gerçek cihaz/hesap kabulü MANUAL.* kayıtlarında ayrıca izlenir. Sahip olunan/izinli arşivle çalışır; sürekli dönüştürme işlemci veya GPU kullanabilir.",
+      "acceptance": [
+        "İzinli kütüphaneden yayın akışı, program rehberi ve yeniden başlatma; silinmiş/erişilemeyen içerik için açık boşluk/yeniden planlama",
+        "Sürümlü sözleşme, gerçek Client→izole Core/servis E2E, yetki/iptal/bozuk veya geç cevap, limitler ve tam commit CI kanıtı; ilgili fiziksel koşul MANUAL.* matrisinde açık kalır; yazılım kabulü donanım kabulü değildir."
+      ],
+      "requiredEvidence": [
+        "test",
+        "review",
+        "ci"
+      ],
+      "evidence": [],
+      "completionCommit": null,
+      "reason": null
+    },
+    {
+      "id": "F23",
+      "kind": "task",
+      "parent": "G06",
+      "title": "Canlı TV ve kayıt merkezi",
+      "status": "pending",
+      "dependsOn": [
+        "B0",
+        "B5",
+        "B2",
+        "B3",
+        "F05"
+      ],
+      "finishDependsOn": [],
+      "sources": [
+        "docs/feature-expansion-plan-2026-09-05.md",
+        "docs/feature-candidates-2026-09-05.json"
+      ],
+      "scope": "Yazılım teslim kapısı; gerçek cihaz/hesap kabulü MANUAL.* kayıtlarında ayrıca izlenir. Uyumlu tuner veya yetkili yayın kaynağı ve EPG gerekir; abonelik yayınının kilidini açmaz.",
+      "acceptance": [
+        "Yetkili tuner/IPTV/EPG kaynağı, saat dilimi ve çakışan kayıtlar; disk kotası, kesilme ve kayıt yeniden başlatma. F22'nin kişisel kanal motoru zorunlu değildir",
+        "Sürümlü sözleşme, gerçek Client→izole Core/servis E2E, yetki/iptal/bozuk veya geç cevap, limitler ve tam commit CI kanıtı; ilgili fiziksel koşul MANUAL.* matrisinde açık kalır; yazılım kabulü donanım kabulü değildir."
+      ],
+      "requiredEvidence": [
+        "test",
+        "review",
+        "ci"
+      ],
+      "evidence": [],
+      "completionCommit": null,
+      "reason": null
+    },
+    {
+      "id": "F27",
+      "kind": "task",
+      "parent": "G06",
+      "title": "Seyahat için çevrimdışı medya",
+      "status": "pending",
+      "dependsOn": [
+        "B0",
+        "B5",
+        "B2",
+        "B3",
+        "B4"
+      ],
+      "finishDependsOn": [],
+      "sources": [
+        "docs/feature-expansion-plan-2026-09-05.md",
+        "docs/feature-candidates-2026-09-05.json"
+      ],
+      "scope": "Yazılım teslim kapısı; gerçek cihaz/hesap kabulü MANUAL.* kayıtlarında ayrıca izlenir. Önceki çevrimdışı müzik fikrini genişletir. Spotify/Apple Music/Netflix aboneliği dosya indirme veya DRM aşma yetkisi değildir.",
+      "acceptance": [
+        "İzinli indirilebilir içerik, alan/kota, kesilmeden devam ve bütünlük; hesap çıkışı/lisans süresi/cihaz değişiminde erişim. Sağlayıcı DRM kuralları aşılmaz",
+        "Sürümlü sözleşme, gerçek Client→izole Core/servis E2E, yetki/iptal/bozuk veya geç cevap, limitler ve tam commit CI kanıtı; ilgili fiziksel koşul MANUAL.* matrisinde açık kalır; yazılım kabulü donanım kabulü değildir."
+      ],
+      "requiredEvidence": [
+        "test",
+        "review",
+        "ci"
+      ],
+      "evidence": [],
+      "completionCommit": null,
+      "reason": null
+    },
+    {
+      "id": "F28",
+      "kind": "task",
+      "parent": "G06",
+      "title": "Sesli kitap ve podcast merkezi",
+      "status": "pending",
+      "dependsOn": [
+        "B0",
+        "B5",
+        "B2",
+        "B3"
+      ],
+      "finishDependsOn": [],
+      "sources": [
+        "docs/feature-expansion-plan-2026-09-05.md",
+        "docs/feature-candidates-2026-09-05.json"
+      ],
+      "scope": "Yazılım teslim kapısı; gerçek cihaz/hesap kabulü MANUAL.* kayıtlarında ayrıca izlenir. Önceki müzik planının uzantısı; kaynak erişimi gerekir, her ücretli kitap sağlayıcısı desteklenmez.",
+      "acceptance": [
+        "Bölüm/ilerleme/yer imi/uyku zamanlayıcısı; oturumlar arası çakışma ve MediaSession/arka planda devam. Sağlayıcı/format kapsamı görünürdür",
+        "Sürümlü sözleşme, gerçek Client→izole Core/servis E2E, yetki/iptal/bozuk veya geç cevap, limitler ve tam commit CI kanıtı; ilgili fiziksel koşul MANUAL.* matrisinde açık kalır; yazılım kabulü donanım kabulü değildir."
+      ],
+      "requiredEvidence": [
+        "test",
+        "review",
+        "ci"
+      ],
+      "evidence": [],
+      "completionCommit": null,
+      "reason": null
+    },
+    {
+      "id": "F29",
+      "kind": "task",
+      "parent": "G06",
+      "title": "Parti DJ'i ve ortak şarkı oylaması",
+      "status": "pending",
+      "dependsOn": [
+        "B0",
+        "B5",
+        "B2",
+        "F54"
+      ],
+      "finishDependsOn": [],
+      "sources": [
+        "docs/feature-expansion-plan-2026-09-05.md",
+        "docs/feature-candidates-2026-09-05.json"
+      ],
+      "scope": "Yazılım teslim kapısı; gerçek cihaz/hesap kabulü MANUAL.* kayıtlarında ayrıca izlenir. MA parti/kuyruk desteği temel alınır; oylama Larenor geliştirmesidir. Sağlayıcı ve oynatıcı izinleri korunur.",
+      "acceptance": [
+        "Music Assistant kuyruğu, kullanıcı başına oy ve sınır; eşzamanlı ekleme/atlama, katılımcı ayrılması ve bağlantı kopuşunda tutarlılık",
+        "Sürümlü sözleşme, gerçek Client→izole Core/servis E2E, yetki/iptal/bozuk veya geç cevap, limitler ve tam commit CI kanıtı; ilgili fiziksel koşul MANUAL.* matrisinde açık kalır; yazılım kabulü donanım kabulü değildir."
+      ],
+      "requiredEvidence": [
+        "test",
+        "review",
+        "ci"
+      ],
+      "evidence": [],
+      "completionCommit": null,
+      "reason": null
+    },
+    {
+      "id": "F30",
+      "kind": "task",
+      "parent": "G06",
+      "title": "Medya arşivi sağlık ve yer tasarrufu",
+      "status": "pending",
+      "dependsOn": [
+        "B0",
+        "B5",
+        "B2",
+        "F16",
+        "F05",
+        "F08"
+      ],
+      "finishDependsOn": [],
+      "sources": [
+        "docs/feature-expansion-plan-2026-09-05.md",
+        "docs/feature-candidates-2026-09-05.json"
+      ],
+      "scope": "Yazılım teslim kapısı; gerçek cihaz/hesap kabulü MANUAL.* kayıtlarında ayrıca izlenir. Unmanic işleme temeli; kopya eşleme ve önizleme Larenor'a ait. Varsayılan otomatik silme yok; kalite/kazanç ölçülür.",
+      "acceptance": [
+        "Bozuk/çift dosya ve dönüştürme önerisini kanıtla gösterme; önizleme, korunan orijinal, ortak kaynak kotası ve başarısız işten kurtarma. İnceleme otomatik silmeye dönüşmez",
+        "Sürümlü sözleşme, gerçek Client→izole Core/servis E2E, yetki/iptal/bozuk veya geç cevap, limitler ve tam commit CI kanıtı; ilgili fiziksel koşul MANUAL.* matrisinde açık kalır; yazılım kabulü donanım kabulü değildir."
+      ],
+      "requiredEvidence": [
+        "test",
+        "review",
+        "ci"
+      ],
+      "evidence": [],
+      "completionCommit": null,
+      "reason": null
+    },
+    {
+      "id": "G07",
+      "kind": "group",
+      "parent": null,
+      "title": "Aile ve ev yaşamı"
+    },
+    {
+      "id": "F31",
+      "kind": "task",
+      "parent": "G07",
+      "title": "Haftalık menü ve tarif merkezi",
+      "status": "pending",
+      "dependsOn": [
+        "B0",
+        "B5",
+        "B3"
+      ],
+      "finishDependsOn": [],
+      "sources": [
+        "docs/feature-expansion-plan-2026-09-05.md",
+        "docs/feature-candidates-2026-09-05.json"
+      ],
+      "scope": "Yazılım teslim kapısı; gerçek cihaz/hesap kabulü MANUAL.* kayıtlarında ayrıca izlenir. Mevcut basit alışveriş listesinden ayrı tarif modeli gerekir; kaynak siteden içe alma her sitede çalışmayabilir.",
+      "acceptance": [
+        "Porsiyon/birim, menü ve alışveriş listesi bağlantısı; tekrar ekleme, Türkçe içerik ve kişi yetkisi",
+        "Sürümlü sözleşme, gerçek Client→izole Core/servis E2E, yetki/iptal/bozuk veya geç cevap, limitler ve tam commit CI kanıtı; ilgili fiziksel koşul MANUAL.* matrisinde açık kalır; yazılım kabulü donanım kabulü değildir."
+      ],
+      "requiredEvidence": [
+        "test",
+        "review",
+        "ci"
+      ],
+      "evidence": [],
+      "completionCommit": null,
+      "reason": null
+    },
+    {
+      "id": "F32",
+      "kind": "task",
+      "parent": "G07",
+      "title": "Dolap stoğu ve son kullanma takibi",
+      "status": "pending",
+      "dependsOn": [
+        "B0",
+        "B5",
+        "F31"
+      ],
+      "finishDependsOn": [],
+      "sources": [
+        "docs/feature-expansion-plan-2026-09-05.md",
+        "docs/feature-candidates-2026-09-05.json"
+      ],
+      "scope": "Yazılım teslim kapısı; gerçek cihaz/hesap kabulü MANUAL.* kayıtlarında ayrıca izlenir. Stok doğruluğu girişlere bağlıdır; son kullanma bilgisi görüntüden kesin çıkarılmaz.",
+      "acceptance": [
+        "Birim/lot/tarih ve stok hareketleri; eşzamanlı tüketim, tekrar okutma ve geri alma tutarlılığı",
+        "Sürümlü sözleşme, gerçek Client→izole Core/servis E2E, yetki/iptal/bozuk veya geç cevap, limitler ve tam commit CI kanıtı; ilgili fiziksel koşul MANUAL.* matrisinde açık kalır; yazılım kabulü donanım kabulü değildir."
+      ],
+      "requiredEvidence": [
+        "test",
+        "review",
+        "ci"
+      ],
+      "evidence": [],
+      "completionCommit": null,
+      "reason": null
+    },
+    {
+      "id": "F33",
+      "kind": "task",
+      "parent": "G07",
+      "title": "Büyük ekran pişirme asistanı",
+      "status": "pending",
+      "dependsOn": [
+        "B0",
+        "B5",
+        "F31",
+        "F32"
+      ],
+      "finishDependsOn": [],
+      "sources": [
+        "docs/feature-expansion-plan-2026-09-05.md",
+        "docs/feature-candidates-2026-09-05.json"
+      ],
+      "scope": "Yazılım teslim kapısı; gerçek cihaz/hesap kabulü MANUAL.* kayıtlarında ayrıca izlenir. 31 ile ortak tarif temeli; fırın veya ocak kontrolü ilk kapsamda otomatik değildir.",
+      "acceptance": [
+        "Adım, çoklu zamanlayıcı, malzeme düşümü; tablet yön/pencere değişimi ve uygulama dönüşünde süre korunur",
+        "Sürümlü sözleşme, gerçek Client→izole Core/servis E2E, yetki/iptal/bozuk veya geç cevap, limitler ve tam commit CI kanıtı; ilgili fiziksel koşul MANUAL.* matrisinde açık kalır; yazılım kabulü donanım kabulü değildir."
+      ],
+      "requiredEvidence": [
+        "test",
+        "review",
+        "ci"
+      ],
+      "evidence": [],
+      "completionCommit": null,
+      "reason": null
+    },
+    {
+      "id": "F34",
+      "kind": "task",
+      "parent": "G07",
+      "title": "QR etiketli ev envanteri",
+      "status": "pending",
+      "dependsOn": [
+        "B0",
+        "B5",
+        "B3"
+      ],
+      "finishDependsOn": [],
+      "sources": [
+        "docs/feature-expansion-plan-2026-09-05.md",
+        "docs/feature-candidates-2026-09-05.json"
+      ],
+      "scope": "Yazılım teslim kapısı; gerçek cihaz/hesap kabulü MANUAL.* kayıtlarında ayrıca izlenir. Etiket ve garanti akışı Larenor tasarımıdır; QR kod tek başına özel belgeye erişim sağlamaz.",
+      "acceptance": [
+        "Sabit envanter kimliği, oda/cihaz/belge bağlantısı; bozuk/yabancı QR komut çalıştırmaz, yetkisiz öğe okunmaz",
+        "Sürümlü sözleşme, gerçek Client→izole Core/servis E2E, yetki/iptal/bozuk veya geç cevap, limitler ve tam commit CI kanıtı; ilgili fiziksel koşul MANUAL.* matrisinde açık kalır; yazılım kabulü donanım kabulü değildir."
+      ],
+      "requiredEvidence": [
+        "test",
+        "review",
+        "ci"
+      ],
+      "evidence": [],
+      "completionCommit": null,
+      "reason": null
+    },
+    {
+      "id": "F35",
+      "kind": "task",
+      "parent": "G07",
+      "title": "Ev belgeleri ve garanti hatırlatmaları",
+      "status": "pending",
+      "dependsOn": [
+        "B0",
+        "B5",
+        "F34",
+        "F05",
+        "F08"
+      ],
+      "finishDependsOn": [],
+      "sources": [
+        "docs/feature-expansion-plan-2026-09-05.md",
+        "docs/feature-candidates-2026-09-05.json"
+      ],
+      "scope": "Yazılım teslim kapısı; gerçek cihaz/hesap kabulü MANUAL.* kayıtlarında ayrıca izlenir. Önceki Paperless araştırmasını somutlaştırır; OCR ile çıkarılan garanti tarihi kullanıcıca doğrulanır.",
+      "acceptance": [
+        "Dosya aktarımı/OCR, garanti tarihi ve hatırlatma; yanlış OCR düzeltilebilir, ortak kaynak kotası ve özel belge/silme/yedek ilkeleri korunur",
+        "Sürümlü sözleşme, gerçek Client→izole Core/servis E2E, yetki/iptal/bozuk veya geç cevap, limitler ve tam commit CI kanıtı; ilgili fiziksel koşul MANUAL.* matrisinde açık kalır; yazılım kabulü donanım kabulü değildir."
+      ],
+      "requiredEvidence": [
+        "test",
+        "review",
+        "ci"
+      ],
+      "evidence": [],
+      "completionCommit": null,
+      "reason": null
+    },
+    {
+      "id": "F36",
+      "kind": "task",
+      "parent": "G07",
+      "title": "Adil ev işi paylaşımı",
+      "status": "pending",
+      "dependsOn": [
+        "B0",
+        "B5",
+        "F05",
+        "F54"
+      ],
+      "finishDependsOn": [],
+      "sources": [
+        "docs/feature-expansion-plan-2026-09-05.md",
+        "docs/feature-candidates-2026-09-05.json"
+      ],
+      "scope": "Yazılım teslim kapısı; gerçek cihaz/hesap kabulü MANUAL.* kayıtlarında ayrıca izlenir. Bugün listesinin ileri uzantısı; dış API erişim kapsamı hedef sürümde doğrulanır.",
+      "acceptance": [
+        "Tekrar eden görev, kişi sırası ve erteleme; saat dilimi, kullanıcı ayrılması ve tamamlandı bildiriminin tekrarları",
+        "Sürümlü sözleşme, gerçek Client→izole Core/servis E2E, yetki/iptal/bozuk veya geç cevap, limitler ve tam commit CI kanıtı; ilgili fiziksel koşul MANUAL.* matrisinde açık kalır; yazılım kabulü donanım kabulü değildir."
+      ],
+      "requiredEvidence": [
+        "test",
+        "review",
+        "ci"
+      ],
+      "evidence": [],
+      "completionCommit": null,
+      "reason": null
+    },
+    {
+      "id": "F37",
+      "kind": "task",
+      "parent": "G07",
+      "title": "Ortak ev masrafları",
+      "status": "pending",
+      "dependsOn": [
+        "B0",
+        "B5",
+        "B3",
+        "F20"
+      ],
+      "finishDependsOn": [],
+      "sources": [
+        "docs/feature-expansion-plan-2026-09-05.md",
+        "docs/feature-candidates-2026-09-05.json"
+      ],
+      "scope": "Yazılım teslim kapısı; gerçek cihaz/hesap kabulü MANUAL.* kayıtlarında ayrıca izlenir. Spliit ürün örneği; banka bağlantısı/ödeme otomasyonu yok. Para birimleri açık tutulur.",
+      "acceptance": [
+        "Para birimi/yuvarlama ve paylaştırma; düzenleme geçmişi, yetki ve dışa aktarım. Banka bağlantısı veya ödeme gerçekleştirme bu satırın kapsamı değildir",
+        "Sürümlü sözleşme, gerçek Client→izole Core/servis E2E, yetki/iptal/bozuk veya geç cevap, limitler ve tam commit CI kanıtı; ilgili fiziksel koşul MANUAL.* matrisinde açık kalır; yazılım kabulü donanım kabulü değildir."
+      ],
+      "requiredEvidence": [
+        "test",
+        "review",
+        "ci"
+      ],
+      "evidence": [],
+      "completionCommit": null,
+      "reason": null
+    },
+    {
+      "id": "F38",
+      "kind": "task",
+      "parent": "G07",
+      "title": "Aile anıları ve fotoğraf araması",
+      "status": "pending",
+      "dependsOn": [
+        "B0",
+        "B5",
+        "F08",
+        "F16",
+        "F13"
+      ],
+      "finishDependsOn": [],
+      "sources": [
+        "docs/feature-expansion-plan-2026-09-05.md",
+        "docs/feature-candidates-2026-09-05.json"
+      ],
+      "scope": "Yazılım teslim kapısı; gerçek cihaz/hesap kabulü MANUAL.* kayıtlarında ayrıca izlenir. Mevcut fotoğraf ortam ekranından ileriye gider; Türkçe model, bellek ve albüm izinleri ayrıca sınanır.",
+      "acceptance": [
+        "Dosya/bütünlük/kota, albüm yetkisi ve indeks silme; yüz etiketleme ayrı açık izinle. Orijinal ve indeksin geri yükleme koşulları doğrulanır",
+        "Sürümlü sözleşme, gerçek Client→izole Core/servis E2E, yetki/iptal/bozuk veya geç cevap, limitler ve tam commit CI kanıtı; ilgili fiziksel koşul MANUAL.* matrisinde açık kalır; yazılım kabulü donanım kabulü değildir."
+      ],
+      "requiredEvidence": [
+        "test",
+        "review",
+        "ci"
+      ],
+      "evidence": [],
+      "completionCommit": null,
+      "reason": null
+    },
+    {
+      "id": "F39",
+      "kind": "task",
+      "parent": "G07",
+      "title": "Canlı aile panosu ve beyaz tahta",
+      "status": "pending",
+      "dependsOn": [
+        "B0",
+        "B5",
+        "F54"
+      ],
+      "finishDependsOn": [],
+      "sources": [
+        "docs/feature-expansion-plan-2026-09-05.md",
+        "docs/feature-candidates-2026-09-05.json"
+      ],
+      "scope": "Yazılım teslim kapısı; gerçek cihaz/hesap kabulü MANUAL.* kayıtlarında ayrıca izlenir. Yjs bir işbirliği örneğidir; Flutter veri köprüsü ayrıca yapılır. Silinen özel notlar önbellekten de kaldırılır.",
+      "acceptance": [
+        "Eşzamanlı düzenleme, çevrimdışı birleştirme, geçmiş ve öğe yetkisi; büyük pano sınırı ve yeniden bağlantı",
+        "Sürümlü sözleşme, gerçek Client→izole Core/servis E2E, yetki/iptal/bozuk veya geç cevap, limitler ve tam commit CI kanıtı; ilgili fiziksel koşul MANUAL.* matrisinde açık kalır; yazılım kabulü donanım kabulü değildir."
+      ],
+      "requiredEvidence": [
+        "test",
+        "review",
+        "ci"
+      ],
+      "evidence": [],
+      "completionCommit": null,
+      "reason": null
+    },
+    {
+      "id": "F40",
+      "kind": "task",
+      "parent": "G07",
+      "title": "Ortak kaynak rezervasyonu",
+      "status": "pending",
+      "dependsOn": [
+        "B0",
+        "B5",
+        "F05",
+        "F54"
+      ],
+      "finishDependsOn": [],
+      "sources": [
+        "docs/feature-expansion-plan-2026-09-05.md",
+        "docs/feature-candidates-2026-09-05.json"
+      ],
+      "scope": "Yazılım teslim kapısı; gerçek cihaz/hesap kabulü MANUAL.* kayıtlarında ayrıca izlenir. Bugün takvim okumasının ötesi; kaynak kuralları Larenor'a ait, zaman dilimi ve çift kayıt testi gerekir.",
+      "acceptance": [
+        "Zaman dilimi/çakışma, kapasite ve iptal; aynı kaynağı eşzamanlı ayırma tek tutarlı sonuç üretir",
+        "Sürümlü sözleşme, gerçek Client→izole Core/servis E2E, yetki/iptal/bozuk veya geç cevap, limitler ve tam commit CI kanıtı; ilgili fiziksel koşul MANUAL.* matrisinde açık kalır; yazılım kabulü donanım kabulü değildir."
+      ],
+      "requiredEvidence": [
+        "test",
+        "review",
+        "ci"
+      ],
+      "evidence": [],
+      "completionCommit": null,
+      "reason": null
+    },
+    {
+      "id": "G08",
+      "kind": "group",
+      "parent": null,
+      "title": "Kamera ve olaylar"
+    },
+    {
+      "id": "F43",
+      "kind": "task",
+      "parent": "G08",
+      "title": "Evdeyken kamera kayıt profili",
+      "status": "pending",
+      "dependsOn": [
+        "B0",
+        "B5",
+        "B3",
+        "F13",
+        "F20"
+      ],
+      "finishDependsOn": [],
+      "sources": [
+        "docs/feature-expansion-plan-2026-09-05.md",
+        "docs/feature-candidates-2026-09-05.json"
+      ],
+      "scope": "Yazılım teslim kapısı; gerçek cihaz/hesap kabulü MANUAL.* kayıtlarında ayrıca izlenir. Frigate ses algılamasını kapatmak mikrofonu kapatmaz; kamera veya başka kayıtçılar çalışabilir. Gerçek mikrofon kapatma/kapak yalnız üretici API’siyle doğrulanır.",
+      "acceptance": [
+        "Desteklenen kayıt/algılama ayarlarının sonucu geri okunur; başarısız kısmi değişiklik görünürdür. Profil mikrofonu veya kameranın diğer kayıt sistemlerini kapattığını iddia etmez",
+        "Sürümlü sözleşme, gerçek Client→izole Core/servis E2E, yetki/iptal/bozuk veya geç cevap, limitler ve tam commit CI kanıtı; ilgili fiziksel koşul MANUAL.* matrisinde açık kalır; yazılım kabulü donanım kabulü değildir."
+      ],
+      "requiredEvidence": [
+        "test",
+        "review",
+        "ci"
+      ],
+      "evidence": [],
+      "completionCommit": null,
+      "reason": null
+    },
+    {
+      "id": "F42",
+      "kind": "task",
+      "parent": "G08",
+      "title": "Mahremiyet korumalı olay paylaşımı",
+      "status": "pending",
+      "dependsOn": [
+        "B0",
+        "B5",
+        "F43",
+        "F20"
+      ],
+      "finishDependsOn": [],
+      "sources": [
+        "docs/feature-expansion-plan-2026-09-05.md",
+        "docs/feature-candidates-2026-09-05.json"
+      ],
+      "scope": "Yazılım teslim kapısı; gerçek cihaz/hesap kabulü MANUAL.* kayıtlarında ayrıca izlenir. Frigate kayıt/export temel alınır; bulanıklaştırma ve link yetkisi Larenor geliştirmesidir. Sonuç kullanıcıca izlenir.",
+      "acceptance": [
+        "Maskeleme ve metadata temizliği çıktıda doğrulanır; alıcı/süre/iptal kontrollü paylaşım. Orijinal kayıt herkese açık hale gelmez",
+        "Sürümlü sözleşme, gerçek Client→izole Core/servis E2E, yetki/iptal/bozuk veya geç cevap, limitler ve tam commit CI kanıtı; ilgili fiziksel koşul MANUAL.* matrisinde açık kalır; yazılım kabulü donanım kabulü değildir."
+      ],
+      "requiredEvidence": [
+        "test",
+        "review",
+        "ci"
+      ],
+      "evidence": [],
+      "completionCommit": null,
+      "reason": null
+    },
+    {
+      "id": "F41",
+      "kind": "task",
+      "parent": "G08",
+      "title": "Kamera kayıtlarında doğal dille arama",
+      "status": "pending",
+      "dependsOn": [
+        "B0",
+        "B5",
+        "F43",
+        "F08"
+      ],
+      "finishDependsOn": [],
+      "sources": [
+        "docs/feature-expansion-plan-2026-09-05.md",
+        "docs/feature-candidates-2026-09-05.json"
+      ],
+      "scope": "Yazılım teslim kapısı; gerçek cihaz/hesap kabulü MANUAL.* kayıtlarında ayrıca izlenir. Frigate en az 8 GB RAM belirtiyor; Türkçe model ve sunucu mimarisi ayrıca doğrulanır. Sonuçlar olasılıksaldır.",
+      "acceptance": [
+        "İzinli klip/olay indeksleriyle sonuç ve zaman bağlantısı; silinen klip indeks/önbellekten çıkarılır, yanlış sonuç düzeltilebilir. Dışa paylaşım F42'nin ayrı yeteneğidir",
+        "Sürümlü sözleşme, gerçek Client→izole Core/servis E2E, yetki/iptal/bozuk veya geç cevap, limitler ve tam commit CI kanıtı; ilgili fiziksel koşul MANUAL.* matrisinde açık kalır; yazılım kabulü donanım kabulü değildir."
+      ],
+      "requiredEvidence": [
+        "test",
+        "review",
+        "ci"
+      ],
+      "evidence": [],
+      "completionCommit": null,
+      "reason": null
+    },
+    {
+      "id": "F44",
+      "kind": "task",
+      "parent": "G08",
+      "title": "Kameradan görsel sensörler",
+      "status": "pending",
+      "dependsOn": [
+        "B0",
+        "B5",
+        "F43",
+        "F08"
+      ],
+      "finishDependsOn": [],
+      "sources": [
+        "docs/feature-expansion-plan-2026-09-05.md",
+        "docs/feature-candidates-2026-09-05.json"
+      ],
+      "scope": "Yazılım teslim kapısı; gerçek cihaz/hesap kabulü MANUAL.* kayıtlarında ayrıca izlenir. Önce kavram kanıtı; Frigate yolu eğitim ve çıkarımda AVX/AVX2 ister, ARM64 Core desteği varsayılmaz. Kilit açma kimliği yerine kullanılmaz.",
+      "acceptance": [
+        "Model/sürüm, güven ve veri tazeliği; yanlış/eksik kare durumu. Seçilen motorun eğitim/çalıştırma donanım gereksinimi, AVX/AVX2 ve ARM64 desteği ayrıca doğrulanır",
+        "Sürümlü sözleşme, gerçek Client→izole Core/servis E2E, yetki/iptal/bozuk veya geç cevap, limitler ve tam commit CI kanıtı; ilgili fiziksel koşul MANUAL.* matrisinde açık kalır; yazılım kabulü donanım kabulü değildir."
+      ],
+      "requiredEvidence": [
+        "test",
+        "review",
+        "ci"
+      ],
+      "evidence": [],
+      "completionCommit": null,
+      "reason": null
+    },
+    {
+      "id": "F45",
+      "kind": "task",
+      "parent": "G08",
+      "title": "Havlama ve gürültü olayları",
+      "status": "pending",
+      "dependsOn": [
+        "B0",
+        "B5",
+        "F43",
+        "F54",
+        "F08"
+      ],
+      "finishDependsOn": [],
+      "sources": [
+        "docs/feature-expansion-plan-2026-09-05.md",
+        "docs/feature-candidates-2026-09-05.json"
+      ],
+      "scope": "Yazılım teslim kapısı; gerçek cihaz/hesap kabulü MANUAL.* kayıtlarında ayrıca izlenir. Mikrofonlu uyumlu kamera ve ev halkının tercihi gerekir; sertifikalı alarm veya acil durum sistemi yerine geçmez.",
+      "acceptance": [
+        "Açık ses işleme izni, olay/süre/yanlış alarm sınırı; ham ses saklama tercihi, iptal ve gizlilik. Sessiz veri gelmemesi sessizlik kanıtı sayılmaz",
+        "Sürümlü sözleşme, gerçek Client→izole Core/servis E2E, yetki/iptal/bozuk veya geç cevap, limitler ve tam commit CI kanıtı; ilgili fiziksel koşul MANUAL.* matrisinde açık kalır; yazılım kabulü donanım kabulü değildir."
+      ],
+      "requiredEvidence": [
+        "test",
+        "review",
+        "ci"
+      ],
+      "evidence": [],
+      "completionCommit": null,
+      "reason": null
+    },
+    {
+      "id": "G09",
+      "kind": "group",
+      "parent": null,
+      "title": "Enerji, iklim ve bahçe"
+    },
+    {
+      "id": "F50",
+      "kind": "task",
+      "parent": "G09",
+      "title": "Oda konforu ve havalandırma planı",
+      "status": "pending",
+      "dependsOn": [
+        "B0",
+        "B5",
+        "B3",
+        "F04"
+      ],
+      "finishDependsOn": [],
+      "sources": [
+        "docs/feature-expansion-plan-2026-09-05.md",
+        "docs/feature-candidates-2026-09-05.json"
+      ],
+      "scope": "Yazılım teslim kapısı; gerçek cihaz/hesap kabulü MANUAL.* kayıtlarında ayrıca izlenir. Enerji/oda kartlarının uzantısı; sensör ve kalibrasyon gerekir. Tıbbi veya kesin küf teşhisi üretmez.",
+      "acceptance": [
+        "Sıcaklık/nem/CO2 ve desteklenen iklim cihazı ayrı kaynaklarla doğrulanır; pencere/açık sensör/eksik veri ve elle müdahale davranışı",
+        "Sürümlü sözleşme, gerçek Client→izole Core/servis E2E, yetki/iptal/bozuk veya geç cevap, limitler ve tam commit CI kanıtı; ilgili fiziksel koşul MANUAL.* matrisinde açık kalır; yazılım kabulü donanım kabulü değildir."
+      ],
+      "requiredEvidence": [
+        "test",
+        "review",
+        "ci"
+      ],
+      "evidence": [],
+      "completionCommit": null,
+      "reason": null
+    },
+    {
+      "id": "F48",
+      "kind": "task",
+      "parent": "G09",
+      "title": "Ev güç bütçesi",
+      "status": "pending",
+      "dependsOn": [
+        "B0",
+        "B5",
+        "F04",
+        "F06"
+      ],
+      "finishDependsOn": [],
+      "sources": [
+        "docs/feature-expansion-plan-2026-09-05.md",
+        "docs/feature-candidates-2026-09-05.json"
+      ],
+      "scope": "Yazılım teslim kapısı; gerçek cihaz/hesap kabulü MANUAL.* kayıtlarında ayrıca izlenir. evcc load management deneysel; ilk kapsam uyumlu şarj yükleri. Evdeki tüm yükler veya elektrik koruması kapsanmış sayılmaz.",
+      "acceptance": [
+        "Taze sayaç verisi, yük önceliği ve salınım önleme; kritik yükler korunur, iletişim kaybında belirlenmiş cihaz davranışı ve manuel kontrol",
+        "Sürümlü sözleşme, gerçek Client→izole Core/servis E2E, yetki/iptal/bozuk veya geç cevap, limitler ve tam commit CI kanıtı; ilgili fiziksel koşul MANUAL.* matrisinde açık kalır; yazılım kabulü donanım kabulü değildir."
+      ],
+      "requiredEvidence": [
+        "test",
+        "review",
+        "ci"
+      ],
+      "evidence": [],
+      "completionCommit": null,
+      "reason": null
+    },
+    {
+      "id": "F46",
+      "kind": "task",
+      "parent": "G09",
+      "title": "Elektrikli araç şarj planlayıcısı",
+      "status": "pending",
+      "dependsOn": [
+        "B0",
+        "B5",
+        "F48",
+        "F05"
+      ],
+      "finishDependsOn": [],
+      "sources": [
+        "docs/feature-expansion-plan-2026-09-05.md",
+        "docs/feature-candidates-2026-09-05.json"
+      ],
+      "scope": "Yazılım teslim kapısı; gerçek cihaz/hesap kabulü MANUAL.* kayıtlarında ayrıca izlenir. Uyumlu araç/şarj cihazı gerekir; Türkiye tarifesi sabit veya elle tanımlı olabilir, dinamik fiyat API'si varsayılmaz.",
+      "acceptance": [
+        "Desteklenen şarj cihazı, ayrılış hedefi ve güç sınırı; bağlantı/saat/tarife kesintisi, iptal ve manuel üstüne alma",
+        "Sürümlü sözleşme, gerçek Client→izole Core/servis E2E, yetki/iptal/bozuk veya geç cevap, limitler ve tam commit CI kanıtı; ilgili fiziksel koşul MANUAL.* matrisinde açık kalır; yazılım kabulü donanım kabulü değildir."
+      ],
+      "requiredEvidence": [
+        "test",
+        "review",
+        "ci"
+      ],
+      "evidence": [],
+      "completionCommit": null,
+      "reason": null
+    },
+    {
+      "id": "F47",
+      "kind": "task",
+      "parent": "G09",
+      "title": "Güneş ve ev bataryası öncelikleri",
+      "status": "pending",
+      "dependsOn": [
+        "B0",
+        "B5",
+        "F48",
+        "F03"
+      ],
+      "finishDependsOn": [],
+      "sources": [
+        "docs/feature-expansion-plan-2026-09-05.md",
+        "docs/feature-candidates-2026-09-05.json"
+      ],
+      "scope": "Yazılım teslim kapısı; gerçek cihaz/hesap kabulü MANUAL.* kayıtlarında ayrıca izlenir. Uyumlu inverter/batarya gerekir; tahmin ayrı gösterilir. evcc optimizer şu anda deneysel ve bilgilendirici.",
+      "acceptance": [
+        "İnverter/batarya kabiliyeti ve minimum rezervle geçmişte sınama; eksik tahmin/veri, kapasite sınırları ve manuel tercih. EV bulunması şart değildir",
+        "Sürümlü sözleşme, gerçek Client→izole Core/servis E2E, yetki/iptal/bozuk veya geç cevap, limitler ve tam commit CI kanıtı; ilgili fiziksel koşul MANUAL.* matrisinde açık kalır; yazılım kabulü donanım kabulü değildir."
+      ],
+      "requiredEvidence": [
+        "test",
+        "review",
+        "ci"
+      ],
+      "evidence": [],
+      "completionCommit": null,
+      "reason": null
+    },
+    {
+      "id": "F49",
+      "kind": "task",
+      "parent": "G09",
+      "title": "Bahçe sulama ve su bütçesi",
+      "status": "pending",
+      "dependsOn": [
+        "B0",
+        "B5",
+        "F04",
+        "F05",
+        "F54"
+      ],
+      "finishDependsOn": [],
+      "sources": [
+        "docs/feature-expansion-plan-2026-09-05.md",
+        "docs/feature-candidates-2026-09-05.json"
+      ],
+      "scope": "Yazılım teslim kapısı; gerçek cihaz/hesap kabulü MANUAL.* kayıtlarında ayrıca izlenir. Uyumlu kontrolcü/vanalar, debi için ayrıca sayaç gerekir; elektronik kurulum bu yazılım adayıyla tamamlanmaz.",
+      "acceptance": [
+        "Bölge/süre/yağış ve vana/akış kanıtı; bağlantı kesilmesi, akış yokluğu, günlük kota ve güvenli durdurma",
+        "Sürümlü sözleşme, gerçek Client→izole Core/servis E2E, yetki/iptal/bozuk veya geç cevap, limitler ve tam commit CI kanıtı; ilgili fiziksel koşul MANUAL.* matrisinde açık kalır; yazılım kabulü donanım kabulü değildir."
+      ],
+      "requiredEvidence": [
+        "test",
+        "review",
+        "ci"
+      ],
+      "evidence": [],
+      "completionCommit": null,
+      "reason": null
+    },
+    {
+      "id": "G10",
+      "kind": "group",
+      "parent": null,
+      "title": "Ağ, varlık algısı ve yeni cihazlar"
+    },
+    {
+      "id": "F55",
+      "kind": "task",
+      "parent": "G10",
+      "title": "Zigbee/Thread ağ ve güncelleme merkezi",
+      "status": "pending",
+      "dependsOn": [
+        "B0",
+        "B5",
+        "B1",
+        "B3",
+        "F15",
+        "F16"
+      ],
+      "finishDependsOn": [],
+      "sources": [
+        "docs/feature-expansion-plan-2026-09-05.md",
+        "docs/feature-candidates-2026-09-05.json"
+      ],
+      "scope": "Yazılım teslim kapısı; gerçek cihaz/hesap kabulü MANUAL.* kayıtlarında ayrıca izlenir. Uygun koordinatör/border router gerekir; OTA ilk kapsamda desteklenen Zigbee modelleridir. Thread ve Matter aynı şey değildir; var olan HA ağı otomatik sahiplenilmez.",
+      "acceptance": [
+        "Önce Zigbee topolojisi/sağlık ve desteklenen OTA; Thread teşhisi ayrı. Koordinatör yedeği, başarısız OTA ve model yeteneği; her Matter/Thread cihazı güncellenebilir varsayılmaz",
+        "Sürümlü sözleşme, gerçek Client→izole Core/servis E2E, yetki/iptal/bozuk veya geç cevap, limitler ve tam commit CI kanıtı; ilgili fiziksel koşul MANUAL.* matrisinde açık kalır; yazılım kabulü donanım kabulü değildir."
+      ],
+      "requiredEvidence": [
+        "test",
+        "review",
+        "ci"
+      ],
+      "evidence": [],
+      "completionCommit": null,
+      "reason": null
+    },
+    {
+      "id": "F56",
+      "kind": "task",
+      "parent": "G10",
+      "title": "Eski cihazlar için akıllı kumanda",
+      "status": "pending",
+      "dependsOn": [
+        "B0",
+        "B5",
+        "B3",
+        "F06"
+      ],
+      "finishDependsOn": [],
+      "sources": [
+        "docs/feature-expansion-plan-2026-09-05.md",
+        "docs/feature-candidates-2026-09-05.json"
+      ],
+      "scope": "Yazılım teslim kapısı; gerçek cihaz/hesap kabulü MANUAL.* kayıtlarında ayrıca izlenir. IR alıcı/verici donanımı gerekir; gönderilmiş sinyal cihazın durumunu doğrulamaz, protokol desteği değişir.",
+      "acceptance": [
+        "Uyumlu IR köprüsü, tuş/öğrenme ve komut makbuzu; geri bildirim yoksa cihazın açıldığı kesinleştirilmez",
+        "Sürümlü sözleşme, gerçek Client→izole Core/servis E2E, yetki/iptal/bozuk veya geç cevap, limitler ve tam commit CI kanıtı; ilgili fiziksel koşul MANUAL.* matrisinde açık kalır; yazılım kabulü donanım kabulü değildir."
+      ],
+      "requiredEvidence": [
+        "test",
+        "review",
+        "ci"
+      ],
+      "evidence": [],
+      "completionCommit": null,
+      "reason": null
+    },
+    {
+      "id": "F57",
+      "kind": "task",
+      "parent": "G10",
+      "title": "Oda düzeyinde yerel varlık algısı",
+      "status": "pending",
+      "dependsOn": [
+        "B0",
+        "B5",
+        "B3",
+        "F13"
+      ],
+      "finishDependsOn": [],
+      "sources": [
+        "docs/feature-expansion-plan-2026-09-05.md",
+        "docs/feature-candidates-2026-09-05.json"
+      ],
+      "scope": "Yazılım teslim kapısı; gerçek cihaz/hesap kabulü MANUAL.* kayıtlarında ayrıca izlenir. ESP32 düğümler/uyumlu etiket gerekir; BLE yaklaşık sonuç verir ve kimlik doğrulama veya kapı açma anahtarı değildir.",
+      "acceptance": [
+        "Yerel beacon/alıcı eşlemesi, kişi izni, kalibrasyon ve geçiş histerezisi; odada bulunmak kimlik doğrulaması veya kapı açma yetkisi sağlamaz",
+        "Sürümlü sözleşme, gerçek Client→izole Core/servis E2E, yetki/iptal/bozuk veya geç cevap, limitler ve tam commit CI kanıtı; ilgili fiziksel koşul MANUAL.* matrisinde açık kalır; yazılım kabulü donanım kabulü değildir."
+      ],
+      "requiredEvidence": [
+        "test",
+        "review",
+        "ci"
+      ],
+      "evidence": [],
+      "completionCommit": null,
+      "reason": null
+    },
+    {
+      "id": "F58",
+      "kind": "task",
+      "parent": "G10",
+      "title": "E-paper mini ev ekranları",
+      "status": "pending",
+      "dependsOn": [
+        "B0",
+        "B5",
+        "B3",
+        "F53",
+        "F54"
+      ],
+      "finishDependsOn": [],
+      "sources": [
+        "docs/feature-expansion-plan-2026-09-05.md",
+        "docs/feature-candidates-2026-09-05.json"
+      ],
+      "scope": "Yazılım teslim kapısı; gerçek cihaz/hesap kabulü MANUAL.* kayıtlarında ayrıca izlenir. Desteklenen e-paper etiket ve erişim noktası gerekir; Android Client'ın yerini alan yeni bir tablet uygulaması değildir.",
+      "acceptance": [
+        "Uyumlu etiket/köprü, şablon, yenileme ve pil/son temas; ilk kapsam ortak ve hassas olmayan içerik. Kopuk ekran son görüntüyü koruyabilir; uzaktan silindiği varsayılmaz",
+        "Sürümlü sözleşme, gerçek Client→izole Core/servis E2E, yetki/iptal/bozuk veya geç cevap, limitler ve tam commit CI kanıtı; ilgili fiziksel koşul MANUAL.* matrisinde açık kalır; yazılım kabulü donanım kabulü değildir."
+      ],
+      "requiredEvidence": [
+        "test",
+        "review",
+        "ci"
+      ],
+      "evidence": [],
+      "completionCommit": null,
+      "reason": null
+    },
+    {
+      "id": "F59",
+      "kind": "task",
+      "parent": "G10",
+      "title": "3D yazıcı ve atölye merkezi",
+      "status": "pending",
+      "dependsOn": [
+        "B0",
+        "B5",
+        "F05",
+        "F54"
+      ],
+      "finishDependsOn": [],
+      "sources": [
+        "docs/feature-expansion-plan-2026-09-05.md",
+        "docs/feature-candidates-2026-09-05.json"
+      ],
+      "scope": "Yazılım teslim kapısı; gerçek cihaz/hesap kabulü MANUAL.* kayıtlarında ayrıca izlenir. Uyumlu yazıcı ve OctoPrint gerekir; ilk sürüm izleme odaklı, keyfi G-code veya otomatik uzaktan başlatma yok.",
+      "acceptance": [
+        "Desteklenen yazıcı API'siyle iş/ısı/durum izleme ve onaylı duraklatma/iptal; iletişim kopması cihazda doğrulanır. İlk kapsamda keyfi G-code veya baskı başlatma yok",
+        "Sürümlü sözleşme, gerçek Client→izole Core/servis E2E, yetki/iptal/bozuk veya geç cevap, limitler ve tam commit CI kanıtı; ilgili fiziksel koşul MANUAL.* matrisinde açık kalır; yazılım kabulü donanım kabulü değildir."
+      ],
+      "requiredEvidence": [
+        "test",
+        "review",
+        "ci"
+      ],
+      "evidence": [],
+      "completionCommit": null,
+      "reason": null
+    },
+    {
+      "id": "F60",
+      "kind": "task",
+      "parent": "G10",
+      "title": "Tablette ev bilgisayarından oyun yayını",
+      "status": "pending",
+      "dependsOn": [
+        "B0",
+        "B5",
+        "B3",
+        "F13"
+      ],
+      "finishDependsOn": [],
+      "sources": [
+        "docs/feature-expansion-plan-2026-09-05.md",
+        "docs/feature-candidates-2026-09-05.json"
+      ],
+      "scope": "Yazılım teslim kapısı; gerçek cihaz/hesap kabulü MANUAL.* kayıtlarında ayrıca izlenir. Önce kavram kanıtı; Sunshine uyumlu oyun bilgisayarı/GPU gerekir. Android native entegrasyon ve lisans koşulları ayrıca değerlendirilir.",
+      "acceptance": [
+        "Uyumlu host eşleme ve Android oynatma/girdi yolu; dokunma/gamepad, gecikme ve kopuş. F52/F26 ek iki ekran/kalite bütünleştirmesidir; host/GPU/codec/oyun yetkisi ayrıca doğrulanır",
+        "Sürümlü sözleşme, gerçek Client→izole Core/servis E2E, yetki/iptal/bozuk veya geç cevap, limitler ve tam commit CI kanıtı; ilgili fiziksel koşul MANUAL.* matrisinde açık kalır; yazılım kabulü donanım kabulü değildir."
+      ],
+      "requiredEvidence": [
+        "test",
+        "review",
+        "ci"
+      ],
+      "evidence": [],
+      "completionCommit": null,
+      "reason": null
+    },
+    {
+      "id": "G11",
+      "kind": "group",
+      "parent": null,
+      "title": "Proxmox'tan bağımsız uzak erişim"
+    },
+    {
+      "id": "REMOTE.COMMON",
+      "kind": "task",
+      "parent": "G11",
+      "title": "Uzak erişim ortak profil/güven ve oturum temeli",
+      "status": "pending",
+      "dependsOn": [
+        "B0",
+        "B5"
+      ],
+      "finishDependsOn": [],
+      "sources": [
+        "docs/remote-access-plan-2026-09-05.md",
+        "docs/remote-access-plan-2026-09-05.json"
+      ],
+      "scope": "Core ve Proxmox kişisel hızlı bağlantıda isteğe bağlıdır; ortak profil motoru hiçbir uzak komut çalıştırmaz.",
+      "acceptance": [
+        "IP/domain/IPv6/port doğrulama, yerel güvenli depo, host identity değişimi, Core’suz profil ve tablet girdi sınırı.",
+        "Kapanış matrisi: background/PIN/idle/Core logout-revoke/offline lease/DeX focus kaybında input/modifier, pano/mikrofon, tünel ve transfer kapsamı doğru kapanır; belirsiz komut tekrar edilmez."
+      ],
+      "requiredEvidence": [
+        "test",
+        "review",
+        "ci"
+      ],
+      "evidence": [],
+      "completionCommit": null,
+      "reason": null
+    },
+    {
+      "id": "F63",
+      "kind": "task",
+      "parent": "G11",
+      "title": "SSH terminal, SFTP ve güvenli tüneller",
+      "status": "pending",
+      "dependsOn": [
+        "B0",
+        "B5",
+        "REMOTE.COMMON"
+      ],
+      "finishDependsOn": [
+        "B3"
+      ],
+      "sources": [
+        "docs/remote-access-plan-2026-09-05.md",
+        "docs/remote-access-plan-2026-09-05.json",
+        "docs/feature-expansion-plan-2026-09-05.md"
+      ],
+      "scope": "Yazılım teslim kapısı; gerçek cihaz/hesap kabulü MANUAL.* kayıtlarında ayrıca izlenir. Kişisel yol B3 olmadan başlayabilir; tam seçili özellik kabulünde yönetilen profil B3 kapısı da kapanmalıdır. SSH komutu/tüneli otomatik tekrar yok.",
+      "acceptance": [
+        "Bağımsız IP/port, parola/anahtar/MFA, host-key doğrulama, PTY/Unicode/Türkçe, sekmeler ve SFTP; açık dosya/komut işlemleri. Kopunca komut tekrar çalışmaz; jump host/tünel kapsamı kapanır",
+        "Core’suz Client→izole gerçek test hostu handshake/kimlik/görüntü veya terminal/girdi/kopuş kapanışı; yönetilen profil için ayrıca Core yetki zinciri. Fiziksel Huawei/DeX ve gerekli Windows/NLA kabulü MANUAL.FEATURES içinde ayrıca kanıtlanır."
+      ],
+      "requiredEvidence": [
+        "test",
+        "review",
+        "ci"
+      ],
+      "evidence": [],
+      "completionCommit": null,
+      "reason": null
+    },
+    {
+      "id": "F62",
+      "kind": "task",
+      "parent": "G11",
+      "title": "Bağımsız RDP uzak masaüstü",
+      "status": "pending",
+      "dependsOn": [
+        "B0",
+        "B5",
+        "REMOTE.COMMON"
+      ],
+      "finishDependsOn": [
+        "B3"
+      ],
+      "sources": [
+        "docs/remote-access-plan-2026-09-05.md",
+        "docs/remote-access-plan-2026-09-05.json",
+        "docs/feature-expansion-plan-2026-09-05.md"
+      ],
+      "scope": "Yazılım teslim kapısı; gerçek cihaz/hesap kabulü MANUAL.* kayıtlarında ayrıca izlenir. Kişisel yol B3 olmadan başlayabilir; tam seçili özellik kabulünde yönetilen profil B3 kapısı da kapanmalıdır. SSH komutu/tüneli otomatik tekrar yok.",
+      "acceptance": [
+        "TLS/NLA/sertifika, gerçek uzak ekran ve girdi, çözünürlük/DPI/DeX; pano/ses/dosya izinleri. Windows/RD Gateway/ileri kanallar motor-host yetenek matrisi ve gerçek kabul ile açılır",
+        "Core’suz Client→izole gerçek test hostu handshake/kimlik/görüntü veya terminal/girdi/kopuş kapanışı; yönetilen profil için ayrıca Core yetki zinciri. Fiziksel Huawei/DeX ve gerekli Windows/NLA kabulü MANUAL.FEATURES içinde ayrıca kanıtlanır."
+      ],
+      "requiredEvidence": [
+        "test",
+        "review",
+        "ci"
+      ],
+      "evidence": [],
+      "completionCommit": null,
+      "reason": null
+    },
+    {
+      "id": "F61",
+      "kind": "task",
+      "parent": "G11",
+      "title": "Bağımsız VNC uzak ekran",
+      "status": "pending",
+      "dependsOn": [
+        "B0",
+        "B5",
+        "F63",
+        "REMOTE.COMMON"
+      ],
+      "finishDependsOn": [
+        "B3"
+      ],
+      "sources": [
+        "docs/remote-access-plan-2026-09-05.md",
+        "docs/remote-access-plan-2026-09-05.json",
+        "docs/feature-expansion-plan-2026-09-05.md"
+      ],
+      "scope": "Yazılım teslim kapısı; gerçek cihaz/hesap kabulü MANUAL.* kayıtlarında ayrıca izlenir. Kişisel yol B3 olmadan başlayabilir; tam seçili özellik kabulünde yönetilen profil B3 kapısı da kapanmalıdır. SSH komutu/tüneli otomatik tekrar yok.",
+      "acceptance": [
+        "IP/port ve desteklenen güvenli auth/TLS veya SSH tüneli, görüntü/kontrol modu, touchpad/klavye/zoom, sınırlı framebuffer; klasik VNC sessizce güvenli sayılmaz. Proxmox ticket adaptöründen bağımsız profil",
+        "Core’suz Client→izole gerçek test hostu handshake/kimlik/görüntü veya terminal/girdi/kopuş kapanışı; yönetilen profil için ayrıca Core yetki zinciri. Fiziksel Huawei/DeX ve gerekli Windows/NLA kabulü MANUAL.FEATURES içinde ayrıca kanıtlanır."
+      ],
+      "requiredEvidence": [
+        "test",
+        "review",
+        "ci"
+      ],
+      "evidence": [],
+      "completionCommit": null,
+      "reason": null
+    },
+    {
+      "id": "FINAL",
+      "kind": "group",
+      "parent": null,
+      "title": "Bütün yazılım sonrası son frontend ve yayın"
+    },
+    {
+      "id": "FINAL.UI",
+      "kind": "task",
+      "parent": "FINAL",
+      "title": "Son ortak Apple Home esintili tablet tasarım geçişi",
+      "status": "pending",
+      "dependsOn": [
+        "B1",
+        "B2",
+        "B3",
+        "B4",
+        "B5",
+        "PRODUCT",
+        "G01",
+        "G02",
+        "G03",
+        "G04",
+        "G05",
+        "G06",
+        "G07",
+        "G08",
+        "G09",
+        "G10",
+        "G11"
+      ],
+      "finishDependsOn": [],
+      "sources": [
+        "docs/product-implementation-plan-2026-09-05.md",
+        "docs/feature-expansion-plan-2026-09-05.md",
+        "docs/PROGRESS.md"
+      ],
+      "scope": "Tüm seçili yazılım tamamlanınca; bu kapı tamamlanmadan yeni final README görseli yok.",
+      "acceptance": [
+        "Dashboard/Media/Settings/Server ortak renk-tipografi-kart-form-dialog; gerçek akış, EN/TR 2× metin, klavye/TalkBack ve değişken DeX penceresi; tek slogan korunur."
+      ],
+      "requiredEvidence": [
+        "test",
+        "review",
+        "ci"
+      ],
+      "evidence": [],
+      "completionCommit": null,
+      "reason": null
+    },
+    {
+      "id": "FINAL.AUDIT",
+      "kind": "task",
+      "parent": "FINAL",
+      "title": "Özellikler arası bütünlük, performans ve güvenlik kabulü",
+      "status": "pending",
+      "dependsOn": [
+        "FINAL.UI"
+      ],
+      "finishDependsOn": [],
+      "sources": [
+        "docs/feature-expansion-plan-2026-09-05.md",
+        "docs/PROGRESS.md"
+      ],
+      "scope": "Önceki CI veya UI screenshotı yeni head kabulü yerine kullanılmaz.",
+      "acceptance": [
+        "Gerçek çok-adımlı Client/Core E2E, hesap/ev değişimi, hata kurtarma, payload/stream/job kaynak limitleri, mahremiyet ve bağımlılık denetimi."
+      ],
+      "requiredEvidence": [
+        "test",
+        "review",
+        "ci"
+      ],
+      "evidence": [],
+      "completionCommit": null,
+      "reason": null
+    },
+    {
+      "id": "FINAL.CI",
+      "kind": "task",
+      "parent": "FINAL",
+      "title": "Tam kaynak ve dağıtım doğrulama",
+      "status": "pending",
+      "dependsOn": [
+        "FINAL.AUDIT"
+      ],
+      "finishDependsOn": [],
+      "sources": [
+        "docs/PROGRESS.md",
+        "docs/readme-publication-plan.md"
+      ],
+      "scope": "Ev Server’a otomatik kurulum/yayın yok; CI artefact ile kalıcı Release ayrımı doğru anlatılır.",
+      "acceptance": [
+        "Aynı tam head Security/Server iki mimari/Android native-E2E-imzalı APK geçer; anonim image/APK erişimi, paket/sertifika/minSDK/artansürüm/hash ve final digest doğrulanır."
+      ],
+      "requiredEvidence": [
+        "test",
+        "review",
+        "ci"
+      ],
+      "evidence": [],
+      "completionCommit": null,
+      "reason": null
+    },
+    {
+      "id": "FINAL.GALLERY",
+      "kind": "task",
+      "parent": "FINAL",
+      "title": "Son gerçek tablet ekranları ve görsel kabul",
+      "status": "pending",
+      "dependsOn": [
+        "FINAL.CI"
+      ],
+      "finishDependsOn": [],
+      "sources": [
+        "docs/PROGRESS.md",
+        "docs/readme-publication-plan.md"
+      ],
+      "scope": "Sentetik ekran canlı ev/gerçek DeX kabulü değildir; mevcut eski screenshot otomatik tekrar kullanılmaz.",
+      "acceptance": [
+        "Dondurulmuş frontend’den gerçek widget/ekran, commit/viewport/theme/locale/sentetik fixture kaydı; yatay-dikey, DeX pencere ve okunabilir alt text. Telefon galerisi yok."
+      ],
+      "requiredEvidence": [
+        "test",
+        "review",
+        "ci"
+      ],
+      "evidence": [],
+      "completionCommit": null,
+      "reason": null
+    },
+    {
+      "id": "FINAL.README",
+      "kind": "task",
+      "parent": "FINAL",
+      "title": "Profesyonel README ve GitHub yayımlama doğrulaması",
+      "status": "pending",
+      "dependsOn": [
+        "FINAL.GALLERY"
+      ],
+      "finishDependsOn": [],
+      "sources": [
+        "docs/PROGRESS.md",
+        "docs/readme-publication-plan.md"
+      ],
+      "scope": "SEO spam, yıldız/AI görünürlüğü garantisi veya olmayan kurulum/release yok; son doküman commit’i ile kod CI SHA ayrılır.",
+      "acceptance": [
+        "İnsan/araç için açık belge gezinmesi; ayrı doğru Server/Client kurulum yolu ve mevcut versioned artifact/digest; rendered anchor/link/alt text. Gerçek kapsamla About/topics ve anonim erişim denetlenir."
+      ],
+      "requiredEvidence": [
+        "test",
+        "review",
+        "ci"
+      ],
+      "evidence": [],
+      "completionCommit": null,
+      "reason": null
+    },
+    {
+      "id": "MANUAL",
+      "kind": "group",
+      "parent": null,
+      "title": "Kullanıcıyla son kurulum ve fiziksel kabul"
+    },
+    {
+      "id": "MANUAL.INSTALL",
+      "kind": "task",
+      "parent": "MANUAL",
+      "title": "CasaOS/Proxmox üzerinde tek Larenor kurulumu",
+      "status": "needs_user",
+      "dependsOn": [
+        "FINAL.README"
+      ],
+      "finishDependsOn": [],
+      "sources": [
+        "docs/PROGRESS.md",
+        "docs/product-implementation-plan-2026-09-05.md",
+        "docs/feature-expansion-plan-2026-09-05.md"
+      ],
+      "scope": "En sonda açık kullanıcı/cihaz/hesap erişimiyle yürütülür; bu kuyruk bir canlı işlem yetkisi değildir.",
+      "acceptance": [
+        "Kullanıcının seçtiği ev hostunda manuel kurulum, mevcut veriyi koruma ve tek medya/MA yapılandırması; gerektiğinde rollback provası."
+      ],
+      "requiredEvidence": [
+        "manual",
+        "review"
+      ],
+      "evidence": [],
+      "completionCommit": null,
+      "reason": "Yazılım/yayın kapılarından sonra uygun gerçek cihaz/hesap ve manuel kullanıcı katılımı gerekli."
+    },
+    {
+      "id": "MANUAL.SERVICES",
+      "kind": "task",
+      "parent": "MANUAL",
+      "title": "Gerçek HA/ağ/altyapı ve 17 servis kabulü",
+      "status": "needs_user",
+      "dependsOn": [
+        "MANUAL.INSTALL"
+      ],
+      "finishDependsOn": [],
+      "sources": [
+        "docs/PROGRESS.md",
+        "docs/product-implementation-plan-2026-09-05.md",
+        "docs/feature-expansion-plan-2026-09-05.md"
+      ],
+      "scope": "En sonda açık kullanıcı/cihaz/hesap erişimiyle yürütülür; bu kuyruk bir canlı işlem yetkisi değildir.",
+      "acceptance": [
+        "S05 doğru kimlik/auth durumu ve merkezi adaptörler gerçek sürümlerde doğrulanır; üretim HA kontrolü ayrıca yetki verilmedikçe read-only kalır."
+      ],
+      "requiredEvidence": [
+        "manual",
+        "review"
+      ],
+      "evidence": [],
+      "completionCommit": null,
+      "reason": "Yazılım/yayın kapılarından sonra uygun gerçek cihaz/hesap ve manuel kullanıcı katılımı gerekli."
+    },
+    {
+      "id": "MANUAL.MEDIA",
+      "kind": "task",
+      "parent": "MANUAL",
+      "title": "Sağlayıcı ve gerçek HomePod/Cast/Apple TV",
+      "status": "needs_user",
+      "dependsOn": [
+        "MANUAL.INSTALL"
+      ],
+      "finishDependsOn": [],
+      "sources": [
+        "docs/PROGRESS.md",
+        "docs/product-implementation-plan-2026-09-05.md",
+        "docs/feature-expansion-plan-2026-09-05.md"
+      ],
+      "scope": "En sonda açık kullanıcı/cihaz/hesap erişimiyle yürütülür; bu kuyruk bir canlı işlem yetkisi değildir.",
+      "acceptance": [
+        "Spotify/Apple Music/YouTube Music açık yetkilendirme; arama/kuyruk/grup/oynatma, Apple TV video ve alıcı keşfi gerçek cihazda; desteklenmeyen görünür."
+      ],
+      "requiredEvidence": [
+        "manual",
+        "review"
+      ],
+      "evidence": [],
+      "completionCommit": null,
+      "reason": "Yazılım/yayın kapılarından sonra uygun gerçek cihaz/hesap ve manuel kullanıcı katılımı gerekli."
+    },
+    {
+      "id": "MANUAL.TABLET",
+      "kind": "task",
+      "parent": "MANUAL",
+      "title": "Huawei MatePad/Android tablet ve Samsung DeX",
+      "status": "needs_user",
+      "dependsOn": [
+        "MANUAL.INSTALL"
+      ],
+      "finishDependsOn": [],
+      "sources": [
+        "docs/PROGRESS.md",
+        "docs/product-implementation-plan-2026-09-05.md",
+        "docs/feature-expansion-plan-2026-09-05.md"
+      ],
+      "scope": "En sonda açık kullanıcı/cihaz/hesap erişimiyle yürütülür; bu kuyruk bir canlı işlem yetkisi değildir.",
+      "acceptance": [
+        "MatePad 11.5 S 2026/GMS’siz ve diğer tabletler, dokunmatik harici monitör, yön/klavye/fare, 2× yazı, kilit ekranı/ses/24 saat OEM güç ve Hot-plug ölçümü."
+      ],
+      "requiredEvidence": [
+        "manual",
+        "review"
+      ],
+      "evidence": [],
+      "completionCommit": null,
+      "reason": "Yazılım/yayın kapılarından sonra uygun gerçek cihaz/hesap ve manuel kullanıcı katılımı gerekli."
+    },
+    {
+      "id": "MANUAL.HEALTH",
+      "kind": "task",
+      "parent": "MANUAL",
+      "title": "Sağlık/tartı sağlayıcı izin kabulü",
+      "status": "needs_user",
+      "dependsOn": [
+        "MANUAL.TABLET"
+      ],
+      "finishDependsOn": [],
+      "sources": [
+        "docs/PROGRESS.md",
+        "docs/product-implementation-plan-2026-09-05.md",
+        "docs/feature-expansion-plan-2026-09-05.md"
+      ],
+      "scope": "En sonda açık kullanıcı/cihaz/hesap erişimiyle yürütülür; bu kuyruk bir canlı işlem yetkisi değildir.",
+      "acceptance": [
+        "Gerçek sağlayıcı onayı, özel ölçüm izni/iptali, hassas pencere/account sınırları; desteklenmeyen model açık kalır."
+      ],
+      "requiredEvidence": [
+        "manual",
+        "review"
+      ],
+      "evidence": [],
+      "completionCommit": null,
+      "reason": "Yazılım/yayın kapılarından sonra uygun gerçek cihaz/hesap ve manuel kullanıcı katılımı gerekli."
+    },
+    {
+      "id": "MANUAL.KIOSK",
+      "kind": "task",
+      "parent": "MANUAL",
+      "title": "Yönetilen kiosk/DPC ve çevre birimleri",
+      "status": "needs_user",
+      "dependsOn": [
+        "MANUAL.TABLET"
+      ],
+      "finishDependsOn": [],
+      "sources": [
+        "docs/PROGRESS.md",
+        "docs/product-implementation-plan-2026-09-05.md",
+        "docs/feature-expansion-plan-2026-09-05.md"
+      ],
+      "scope": "En sonda açık kullanıcı/cihaz/hesap erişimiyle yürütülür; bu kuyruk bir canlı işlem yetkisi değildir.",
+      "acceptance": [
+        "Ayrı cihazda Home/Recents/restart/çıkış/deprovision/kurtarma; QR/NFC/BLE/USB/TTS/print/sensör yetenekleri ve watchdog/pil ölçümü; kişisel cihaz sıfırlanmaz."
+      ],
+      "requiredEvidence": [
+        "manual",
+        "review"
+      ],
+      "evidence": [],
+      "completionCommit": null,
+      "reason": "Yazılım/yayın kapılarından sonra uygun gerçek cihaz/hesap ve manuel kullanıcı katılımı gerekli."
+    },
+    {
+      "id": "MANUAL.INTERCOM",
+      "kind": "task",
+      "parent": "MANUAL",
+      "title": "Netelsan Algan 7 elektronik köprü ve davranış",
+      "status": "needs_user",
+      "dependsOn": [
+        "MANUAL.INSTALL"
+      ],
+      "finishDependsOn": [],
+      "sources": [
+        "docs/PROGRESS.md",
+        "docs/product-implementation-plan-2026-09-05.md",
+        "docs/feature-expansion-plan-2026-09-05.md"
+      ],
+      "scope": "En sonda açık kullanıcı/cihaz/hesap erişimiyle yürütülür; bu kuyruk bir canlı işlem yetkisi değildir.",
+      "acceptance": [
+        "Tam donanım revizyonu ve güvenli elektronik köprü, gerçek zil/kamera/kontak ve ayrıca onaylı süreli kapı eylemi; yazılım temeli fiziksel bağlantı sayılmaz."
+      ],
+      "requiredEvidence": [
+        "manual",
+        "review"
+      ],
+      "evidence": [],
+      "completionCommit": null,
+      "reason": "Yazılım/yayın kapılarından sonra uygun gerçek cihaz/hesap ve manuel kullanıcı katılımı gerekli."
+    },
+    {
+      "id": "MANUAL.UPDATE",
+      "kind": "task",
+      "parent": "MANUAL",
+      "title": "Aynı imzalı Client güncelleme ve yeniden kurulum",
+      "status": "needs_user",
+      "dependsOn": [
+        "MANUAL.INSTALL",
+        "MANUAL.TABLET"
+      ],
+      "finishDependsOn": [],
+      "sources": [
+        "docs/PROGRESS.md",
+        "docs/product-implementation-plan-2026-09-05.md",
+        "docs/feature-expansion-plan-2026-09-05.md"
+      ],
+      "scope": "En sonda açık kullanıcı/cihaz/hesap erişimiyle yürütülür; bu kuyruk bir canlı işlem yetkisi değildir.",
+      "acceptance": [
+        "Gerçek Server’dan paket/imza/sürüm kabulü, kullanıcı sistem kurulum onayı; kaldır–kur–Server hesabı/kasa geri yükleme ve izin/PIN ayrımı."
+      ],
+      "requiredEvidence": [
+        "manual",
+        "review"
+      ],
+      "evidence": [],
+      "completionCommit": null,
+      "reason": "Yazılım/yayın kapılarından sonra uygun gerçek cihaz/hesap ve manuel kullanıcı katılımı gerekli."
+    },
+    {
+      "id": "MANUAL.FEATURES",
+      "kind": "task",
+      "parent": "MANUAL",
+      "title": "Seçili donanım/host özellikleri fiziksel matrisi",
+      "status": "needs_user",
+      "dependsOn": [
+        "MANUAL.INSTALL",
+        "MANUAL.TABLET"
+      ],
+      "finishDependsOn": [],
+      "sources": [
+        "docs/PROGRESS.md",
+        "docs/product-implementation-plan-2026-09-05.md",
+        "docs/feature-expansion-plan-2026-09-05.md"
+      ],
+      "scope": "En sonda açık kullanıcı/cihaz/hesap erişimiyle yürütülür; bu kuyruk bir canlı işlem yetkisi değildir.",
+      "acceptance": [
+        "UPS/güç/EV/solar/sulama, kamera modelleri, Zigbee/Thread/IR/varlık/e-paper/yazıcı/oyun/uzak protokoller ilgili gerçek host/modelde ölçülür. Eksik donanım/hesap feature kabulünü açık bırakır."
+      ],
+      "requiredEvidence": [
+        "manual",
+        "review"
+      ],
+      "evidence": [],
+      "completionCommit": null,
+      "reason": "Yazılım/yayın kapılarından sonra uygun gerçek cihaz/hesap ve manuel kullanıcı katılımı gerekli."
+    }
+  ]
+}
