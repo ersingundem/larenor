@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:larenor/core/direct_home_access.dart';
+import 'package:larenor/core/configuration_writes.dart';
 import 'package:larenor/core/home_session_controller.dart';
 import 'package:larenor/core/home_source_store.dart';
 import 'package:larenor/features/intercom/domain/door_station.dart';
@@ -31,9 +32,11 @@ class RoutinesPreferences extends InMemorySharedPreferencesStore {
   Future<void> Function()? afterWrite;
   bool failWrite = false;
   bool throwWrite = false;
+  bool throwRead = false;
   @override
   Future<Map<String, Object>> getAll() async {
     reads++;
+    if (throwRead) throw const FormatException('sentinel-private-read');
     final result = await super.getAll();
     await afterRead?.call();
     return result;
@@ -221,4 +224,211 @@ void main() {
       },
     );
   }
+  for (final movie in [false, true]) {
+    const changedPreset = MovieNightPreset(serverUrl:'https://changed.test', startEntityId:'scene.changed');
+    Future<void> save(
+      ProviderContainer container, {
+      bool Function()? current,
+    }) => movie
+        ? container
+              .read(movieNightStoreProvider)
+              .save(changedPreset, isCurrent: current ?? () => true)
+        : container.read(doorStationStoreProvider).save([], isCurrent: current);
+    final name = movie ? 'movie' : 'station';
+
+    for (final throws in [false, true]) {
+      test(
+        '$name ${throws ? 'throw' : 'false'} preference response is static and does not retry',
+        () async {
+          final (container, _) = await routinesHome('direct');
+          prefs.failWrite = !throws;
+          prefs.throwWrite = throws;
+          await expectLater(
+            save(container),
+            throwsA(
+              isA<DirectHomeAccessException>()
+                  .having((e) => e.code, 'code', 'write_unconfirmed')
+                  .having(
+                    (e) => e.toString(),
+                    'privacy',
+                    isNot(contains('sentinel')),
+                  ),
+            ),
+          );
+          expect(prefs.writes, hasLength(1));
+          prefs.failWrite = false;
+          prefs.throwWrite = false;
+          if (movie) {
+            expect(
+              (await container.read(movieNightStoreProvider).read())
+                  ?.startEntityId,
+              preset.startEntityId,
+            );
+          } else {
+            expect(await container.read(doorStationStoreProvider).read(), [
+              fixtureStation,
+            ]);
+          }
+        },
+      );
+    }
+
+    test('$name error after committed single value never rolls it back', () async {
+      final (container, _) = await routinesHome('direct');
+      prefs.afterWrite = () async {
+        throw StateError('sentinel-private-response');
+      };
+      await expectLater(
+        save(container),
+        throwsA(
+          isA<DirectHomeAccessException>().having(
+            (e) => e.code,
+            'code',
+            'write_unconfirmed',
+          ),
+        ),
+      );
+      expect(prefs.writes, hasLength(1));
+      prefs.afterWrite = null;
+      final restored = await prefs.getAll();
+      expect(
+        restored['flutter.${movie ? MovieNightPreset.storageKey : DoorStation.storageKey}'],
+        movie ? changedPreset.encodeStored() : DoorStation.encodeStored([]),
+      );
+    });
+
+    test(
+      '$name caller approval lost after dispatched effect is not reported as success',
+      () async {
+        final (container, _) = await routinesHome('direct');
+        var current = true;
+        prefs.afterWrite = () async {
+          current = false;
+        };
+        await expectLater(
+          save(container, current: () => current),
+          throwsA(
+            isA<DirectHomeAccessException>().having(
+              (e) => e.code,
+              'code',
+              'write_unconfirmed',
+            ),
+          ),
+        );
+        expect(prefs.writes, hasLength(1));
+      },
+    );
+
+    test(
+      '$name platform read failure is static and leaves storage untouched',
+      () async {
+        final (container, _) = await routinesHome('direct');
+        prefs.throwRead = true;
+        await expectLater(
+          movie
+              ? container.read(movieNightStoreProvider).read()
+              : container.read(doorStationStoreProvider).read(),
+          throwsA(
+            isA<DirectHomeAccessException>()
+                .having((e) => e.code, 'code', 'storage_failed')
+                .having(
+                  (e) => e.toString(),
+                  'privacy',
+                  isNot(contains('sentinel')),
+                ),
+          ),
+        );
+        expect(prefs.writes, isEmpty);
+      },
+    );
+
+    test(
+      '$name queued mutation loses Direct authority before any platform read',
+      () async {
+        final (container, home) = await routinesHome('direct');
+        final release = Completer<void>();
+        final holding = ConfigurationWrites.run(() => release.future);
+        final rejected = expectLater(
+          save(container),
+          throwsA(isA<DirectHomeAccessException>()),
+        );
+        await home.choose(HomeSource.verifiedCore);
+        release.complete();
+        await holding;
+        await rejected;
+        expect(prefs.reads, 0);
+        expect(prefs.writes, isEmpty);
+      },
+    );
+
+    test(
+      '$name retained object remains retired after Direct source returns',
+      () async {
+        final (container, home) = await routinesHome('direct');
+        final stationStore = container.read(doorStationStoreProvider);
+        final movieStore = container.read(movieNightStoreProvider);
+        await home.choose(HomeSource.verifiedCore);
+        await home.choose(HomeSource.directLocal);
+        await expectLater(
+          movie ? movieStore.read() : stationStore.read(),
+          throwsA(isA<DirectHomeAccessException>()),
+        );
+        await expectLater(
+          movie
+              ? movieStore.save(preset, isCurrent: () => true)
+              : stationStore.save([]),
+          throwsA(isA<DirectHomeAccessException>()),
+        );
+        expect(prefs.reads, 0);
+        expect(prefs.writes, isEmpty);
+      },
+    );
+
+    test(
+      '$name handle retained after container disposal cannot read or write',
+      () async {
+        final container = ProviderContainer();
+        final stationStore = container.read(doorStationStoreProvider);
+        final movieStore = container.read(movieNightStoreProvider);
+        container.dispose();
+        await expectLater(
+          movie ? movieStore.read() : stationStore.read(),
+          throwsA(isA<DirectHomeAccessException>()),
+        );
+        await expectLater(
+          movie
+              ? movieStore.save(preset, isCurrent: () => true)
+              : stationStore.save([]),
+          throwsA(isA<DirectHomeAccessException>()),
+        );
+        expect(prefs.reads, 0);
+        expect(prefs.writes, isEmpty);
+      },
+    );
+  }
+
+  test('cold Core door block/intent provider does not acquire old mapping storage', () async {
+    final (container, _) = await routinesHome('core');
+    expect(
+      container.read(doorReleaseBlockProvider(fixtureStation)),
+      DoorReleaseBlock.intentExpired,
+    );
+    expect(
+      () => container.read(doorReleaseIntentProvider)(fixtureStation),
+      throwsA(anything),
+    );
+    await Future<void>.delayed(Duration.zero);
+    expect(prefs.reads, 0);
+    expect(prefs.writes, isEmpty);
+  });
+  for (final malformed in ['sentinel-private-home', '{"private":"sentinel-private-home",']) {
+    test('movie malformed JSON remains a static FormatException without stored source', () async {
+      await prefs.setValue('String','flutter.${MovieNightPreset.storageKey}',malformed);
+      final (container, _) = await routinesHome('direct');
+      await expectLater(container.read(movieNightStoreProvider).read(), throwsA(isA<FormatException>()
+        .having((e)=>e.source,'source',isNull)
+        .having((e)=>e.toString(),'message',isNot(contains('sentinel-private-home')))));
+    });
+  }
+
 }
