@@ -216,7 +216,7 @@ void main() {
           (Object error) =>
               error is ProxmoxApiException &&
               error.statusCode == 400 &&
-                error.failure == ProxmoxFailure.invalidResponse &&
+              error.failure == ProxmoxFailure.invalidResponse &&
               !error.toString().contains('validation:') &&
               !error.toString().contains('private'),
         ),
