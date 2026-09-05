@@ -6,10 +6,10 @@
 
 ## Ürün sınırı
 
-- **Larenor Client:** Android tabletler ve Samsung DeX. Huawei MatePad 11.5 S 2026, değişken pencere, dokunmatik monitör ve klavye/fare kabul hedefleri. Apple Home esintili ortak tasarım korunur. Native iOS ve Apple HealthKit geliştirmesi şimdilik kapsam dışıdır; mevcut iOS dosyaları silinmez.
+- **Larenor Client:** Tablet öncelikli Android uygulaması. Samsung DeX, aynı uygulamanın değişken pencere ve harici ekran desteğidir; ayrı bir uygulama değildir. Huawei MatePad 11.5 S 2026, dokunmatik monitör ve klavye/fare kabul hedefleri. Apple Home esintili ortak tasarım korunur. Native iOS ve Apple HealthKit geliştirmesi şimdilik kapsam dışıdır; mevcut iOS dosyaları silinmez.
 - **Larenor Server:** Linux/CasaOS üzerinde Docker ile çalışan, veritabanı ve eklenti hizmetlerini sağlayan API uygulaması. Kurulum en sonda kullanıcıyla manuel yapılır. Ayrı bir Server web yönetim arayüzü geliştirilmez.
 - **Yönetim:** Client içindeki yönetici bölümünden kullanıcı, oturum, bağlantı, eklenti, kurulum işi, yedekleme ve güncelleme yönetimi. Yetki denetimi her API çağrısında Server'dadır; yerel Ayarlar PIN'i server admin yetkisi sağlamaz. Swagger/OpenAPI aynı API sözleşmesini belgeler.
-- **Music Assistant:** Larenor Server'ın yöneteceği ayrı bir servis. Android APK içine gömülü bir sunucu motoru değildir. Sağlayıcı hesap izinleri ve gerçek alıcı uyumluluğu ayrıca doğrulanır.
+- **Bütünleşik medya/müzik:** Music Assistant ve medya sistemi, tek Larenor Server kurulumunun dahili bileşenleridir. Yeni kurulumda ayrı servis/MA hesabı veya elle API anahtarı/adres eşleştirmesi istenmez. Larenor kurar, bağlar ve denetler; kullanıcı Client'tan ayarları yönetir. [Güncel kapsam ve kabul ölçütleri](integrated-media-stack.md). Bu otomasyon henüz tamamlanmadı.
 
 ## Uygulama sırası ve durum
 
@@ -20,18 +20,17 @@
 | S03 | İmzalı Android APK doğrulama, güncelleme bildirimi, indirme ve sistem kurulum akışı | Uygulandı; ilgili 92 Client testi geçti. Gerçek sunucu/cihaz yükseltme kabulü bekliyor |
 | S04 | Release yayın API'si, CI teslimi, saklama ve aynı imzayla güncelleme testi | API ve koşullu CI teslimi hazır; ev sunucusuna teslim/fiziksel güncelleme bekliyor |
 | S05 | Client yönetici paneli; kullanıcı/oturum, hizmet bağlantıları, işler ve denetim kayıtları | Kullanıcı/oturum/denetim, şifreli hizmet CRUD, 17 tür kontrol adaptörü ve Client ekranları uygulandı. Son yayın kontrolü sürüyor; kurulum işleri S06'da |
-| S06 | Eklenti kataloğu, kurulum önizlemesi, sınırlandırılmış Linux kurulum işçisi | Katalog/önizleme modelleri başladı; işçi ve kurulum API'leri sırada |
-| S07 | Mevcut CasaOS servislerini bağlama; yeni medya servislerini kurma/yapılandırma | S06 sonrasında |
+| S06 | Eklenti kataloğu, kurulum önizlemesi, sınırlandırılmış Linux kurulum işçisi | Katalog ve şifreli süreli önizleme API'si geliştiriliyor; işçi/kurulum otomasyonu henüz etkin değil |
+| S07 | Tek Larenor kurulumunda dahili medya/müzik bileşenleri ve otomatik API eşleştirmesi; mevcut CasaOS bağlantıları isteğe bağlı | S06 sonrasında |
 | S08 | HA/medya/ağ bağlantılarını Server'a taşıyan yetkili servis adaptörleri | S05 sonrasında, servis servis |
 | S09 | Otomatik kurulum paketi, yedek/geri yükleme, API/Client bütünlük ve fiziksel kabul | Son aşama |
 
 Bir satırın geliştirme sırasında olması, tamamlandığı veya gerçek ev cihazlarında doğrulandığı anlamına gelmez. Mevcut yerel HA bağlantısı ve şifreli dosya yedeği, Server akışı tamamlanırken kullanılabilir kalır. [Genel kuyruk](product-implementation-plan-2026-09-05.md), [test matrisi](testing-matrix-2026-09-05.md).
 
-[Server Docker paketi ve yayın CI'ı](server-container.md) eklendi. Yerel politika
-testleri geçti; amd64/arm64 imajları CI'da derlendi, ancak başlatma sırasında
-APK doğrulayıcı dosya izni hatası bulundu. Düzeltme yerelde doğrulandı; yeni
-imaj başlatma/yayın sonucu bekleniyor. Music Assistant
-ve diğer hizmetleri yönetecek eklenti/kurulum paketi bundan ayrı, sonraki iştir.
+[Server Docker paketi ve yayın CI'ı](server-container.md) `88c26fc` üzerinde
+iki mimaride tüm testleri geçti. Ortak imaj yayımlandı ve anonim indirme
+manifesti doğrulandı. Bu hesap/kasa/sürüm imajıdır; bütünleşik medya motorlarının
+kurulum ve otomatik bağlantı işini tamamlanmış göstermez.
 
 ## Hesap, oturum ve yapılandırma
 

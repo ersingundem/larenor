@@ -275,6 +275,9 @@ class LarenorServerApi {
       if (code == 'service_credentials_required' && status == 400) {
         return 'service_credentials_required';
       }
+      if (code == 'plugin_storage_unavailable' && status == 503) {
+        return 'plugin_storage_unavailable';
+      }
       if (status == 409 &&
           {
             'last_active_admin',
@@ -282,6 +285,9 @@ class LarenorServerApi {
             'username_unavailable',
             'user_limit_reached',
             'service_limit_reached',
+            'plugin_catalog_changed',
+            'plugin_preview_expired',
+            'plugin_preview_limit_reached',
           }.contains(code)) {
         return code as String;
       }

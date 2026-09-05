@@ -1,12 +1,15 @@
 # Larenor Server
 
-Larenor Server is the API backend for Larenor Client on Android tablets and
-Samsung DeX. It has no separate web admin application: administrative features
+Larenor Server is the API backend for Larenor Client, the tablet-first Android
+app. The same Android app supports Samsung DeX and resizable windows.
+It has no separate web admin application: administrative features
 belong in the Client and are authorized again by the Server.
 
-Accounts, the encrypted vault, user/session administration and signed Client
-release APIs are implemented. Client UI integration, container delivery and
-managed plugins are being completed. See the
+Accounts, the encrypted vault, user/session administration, encrypted service
+connections and signed Client release APIs have corresponding Client screens.
+The Server container has passed native amd64/arm64 CI checks. Internal component
+catalog and requirements-preview APIs are implemented; installation and automatic
+media wiring remain in development. See the
 [implementation plan](../docs/server-client-architecture-2026-09-05.md) for the
 current boundary; a planned operation is not an available endpoint.
 
@@ -79,6 +82,36 @@ and mandatory privacy metadata are accepted. AES-GCM encrypts stored documents;
 the Server can decrypt them for the authenticated owner. This is encryption at
 rest, not a zero-knowledge or end-to-end encryption claim. Revision conflicts
 return 409 and require a new read/preview before replacement.
+
+## Service connections and internal components
+
+Current administrators manage encrypted connection records and bounded service
+identity checks through `/api/v1/admin/services`. The
+[service connection guide](../docs/server-service-connections.md) documents the
+17 supported record types, revision checks and verification states. Storing or
+checking a connection does not install that service or transfer all of its
+operations to the Server.
+
+The component API provides these administrator-only routes:
+
+| Route | Result |
+| --- | --- |
+| `GET /api/v1/admin/plugins/catalog` | Six pinned component manifests and explicit unavailable-worker status |
+| `POST /api/v1/admin/plugins/previews` | Deterministic requirements preview for validated catalog settings and architecture |
+| `GET /api/v1/admin/plugins/previews/{id}` | Unexpired preview belonging to the same user and session family |
+
+Preview generation performs no host inspection, Docker action or remote service
+request. Plans are encrypted in the database, bound to the current catalog and
+administrator revision, and expire after ten minutes. Storage is capped at 128
+previews. Refreshing an access token within the same session family preserves
+access; another login or device cannot retrieve that preview.
+
+All catalog entries currently report `installable: false`. There is no public
+installation, confirmation or job endpoint. The isolated worker primitives have
+synthetic reconciliation tests but are not connected to API dispatch or an enabled
+installer. See the [component contract and evidence](larenor_server/plugins/README.md).
+The product target is [one integrated media/music installation](../docs/integrated-media-stack.md),
+with internal service credentials and automatic connections managed by Larenor.
 
 ## Client releases
 

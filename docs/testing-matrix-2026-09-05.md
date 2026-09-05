@@ -10,7 +10,7 @@ Bu matris 5 Eylül 2026 tarihindeki gerçek test dosyalarını eşler. Bir satı
 - [Server API & Storage Tests](../.github/workflows/server-test.yml): kilitli Python bağımlılıkları, hesap/rol, şifreli kasa, yönetim, kaynak/lisans ve sürüm yayımlama testleri. Java 17 ve SHA-256 ile sabitlenmiş resmi `apksig 9.1.0` kullanır; gerçek imza testleri araç eksikliği nedeniyle sessizce atlanmaz. Android Build'in imzalı APK işi bu kapıyı da bekler.
 - [Security](../.github/workflows/security.yml): sır taraması, bağımlılık taraması, [Python politika testleri](../tool/tests/security_policy_test.py), [imzalama testleri](../tool/tests/android_signing_test.py).
 
-E2E işinde secrets aktarılmaz, checkout kimlik bilgisi bırakılmaz, dış action'lar tam commit SHA ile sabitlenir. Emülatör boot sınırı 5 dakika, test komutu sınırı 18 dakika, iş sınırı 35 dakikadır. Başarısız E2E imzalı APK yayımlamayı engeller. Yalnız sentetik test runner çıktısı 7 gün saklanır; global logcat, uygulama depoları, kasa dosyaları ve sağlık verisi artifact değildir.
+E2E işinde secrets aktarılmaz, checkout kimlik bilgisi bırakılmaz, dış action'lar tam commit SHA ile sabitlenir. Emülatör boot sınırı 5 dakika, test komutu sınırı 18 dakika, iş sınırı 35 dakikadır. Başarısız E2E imzalı APK yayımlamayı engeller. Sentetik test runner çıktısı 7 gün saklanır. Native odak hatasında yalnız GitHub Actions içindeki doğrulanmış QEMU emülatöründen bir ekran görüntüsü ve filtrelenmiş güç/pencere/tuş kilidi durumları eklenir. Global logcat, ham dumpsys çıktısı, uygulama depoları, kasa dosyaları ve sağlık verisi artifact değildir.
 
 Test raporu artifact olarak ayrıca yüklenmeye çalışılır. Kota/servis nedeniyle
 yükleme başarısızsa uyarı ve iş özeti yazılır; asıl test adımının sonucu değişmez
@@ -67,6 +67,33 @@ Tablodaki dosyalar temsilî giriş noktalarıdır; aynı klasördeki diğer `_te
 | Kişisel sağlık / özel HA ölçümleri | [veri](../test/features/wellbeing/wellbeing_data_test.dart), [privacy](../test/features/wellbeing/wellbeing_privacy_test.dart) | [gated UI](../test/features/wellbeing/wellbeing_screen_test.dart) | [reader](../android/app/src/test/kotlin/com/ersingundem/larenor/wellbeing/WellbeingReaderTest.kt), [secure view](../android/app/src/test/kotlin/com/ersingundem/larenor/wellbeing/WellbeingPrivateViewTest.kt) | Yok | Gerçek Health Connect izinleri/uyumluluğu; Huawei/GMS'siz durum, HealthKit ayrı platform işi |
 
 ## Doğrulanan yerel koşum
+
+**S06 katalog/önizleme dilimi (5 Eylül):** **2.422 Flutter ve 700 Server testi**
+geçti. Tam Flutter analizi ve 753 Dart dosyasının biçim kontrolü temiz. Server
+koşumu bütün `server/tests` dosyalarını içerir; gerçek Java/apksig doğrulaması
+çalıştırıldı. S06 katalog/plan kuralları 99 testte, 318 statement ve 78 branch
+üzerinden %100 kapsam aldı. Bu dar kapsam bütün Server veya ürün kapsamı değildir.
+Client bileşen akışlarının ilgili 89 testi %97,6 satır kapsamı aldı; bunlar tam
+Flutter toplamına dahildir. Yeni paket önizlemesi fiziksel kurulum veya çalışan
+Docker işçisi kanıtı değildir.
+
+- [Katalog](../server/tests/test_plugin_catalog.py): altı paket/iki mimari,
+  değişmez plan, değiştirilmiş katalog/etki reddi ve plan hesaplanırken I/O olmaması.
+- [API](../server/tests/test_plugin_api.py): gerçek FastAPI route'ları, güncel
+  yönetici/oturum, şifreli önizleme, süre/revizyon, kapasite ve eşzamanlı istekler.
+- [Ortak JSON sözleşmesi](../server/tests/test_plugin_client_contract.py): aynı
+  14 planın gerçek API yanıtı ve [Dart ayrıştırıcısı](../test/features/server/server_plugins_test.dart)
+  üzerinden doğrulanması.
+- [İşçi ilkelleri](../server/tests/test_plugin_worker.py): kayıp yanıt, yeniden
+  başlama, işlem kaydı ve sahiplik uzlaştırması; gerçek Docker çalıştırılmaz.
+- [Client ekranı](../test/features/server/server_plugins_screen_test.dart): rol,
+  hesap/PIN/arka plan sınırları, tablet klavyesi, 2× metin, gereksinimler ve
+  kurulumun kullanılamadığının açık gösterimi.
+
+S05 gerçek socket iptal testinde görülen eşzamanlı descriptor kapatma yarışı
+[regresyonla](../server/tests/test_service_transport.py) düzeltildi; özgün kısa
+iptal sınırı değiştirilmeden 300 tekrar geçti. Son yayımlanmış `8346c01` Android
+CI hâlâ başarısızdır; yeni emülatör hazırlığı/tanılama ayrı CI doğrulaması bekler.
 
 **S05 son yayın kontrolü (5 Eylül, 13:49 TRT):** **2.333 Flutter**, **529 Server**
 ve **114 Python araç/politika testi** geçti. Tam analiz ve 747 Dart dosyasının

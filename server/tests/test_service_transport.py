@@ -426,3 +426,52 @@ def test_aws_ipv6_metadata_is_blocked_before_connecting(literal):
         with pytest.raises(ProbeTransportError, match="address_blocked"):
             transport.request("GET", "/api/config")
     assert attempts == []
+
+
+def test_close_shuts_down_read_but_owner_releases_descriptor_after_unwinding():
+    """Keep the fd alive across shutdown so concurrent socket polling can wake."""
+    entered_read = threading.Event()
+    release_read = threading.Event()
+    descriptor_closed = threading.Event()
+    shutdown_called = threading.Event()
+
+    class PausedReadSocket:
+        def settimeout(self, value):
+            pass
+
+        def sendall(self, value):
+            pass
+
+        def recv(self, count):
+            entered_read.set()
+            assert release_read.wait(1)
+            return b''
+
+        def shutdown(self, how):
+            shutdown_called.set()
+
+        def close(self):
+            descriptor_closed.set()
+
+    transport = ServiceTransport('http://service.test', timeout=2, resolver=loopback,
+                                 connector=lambda *args: PausedReadSocket())
+    results = []
+    def run():
+        try:
+            transport.request('GET', '/')
+        except ProbeTransportError as error:
+            results.append(error.code)
+    thread = threading.Thread(target=run, daemon=True)
+    thread.start()
+    try:
+        assert entered_read.wait(1)
+        transport.close()
+        assert shutdown_called.is_set()
+        assert not descriptor_closed.is_set()
+    finally:
+        release_read.set()
+        thread.join(0.3)
+        transport.close()
+    assert not thread.is_alive()
+    assert descriptor_closed.is_set()
+    assert results == ['transport_closed']

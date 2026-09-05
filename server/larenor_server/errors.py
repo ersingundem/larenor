@@ -41,6 +41,10 @@ MESSAGES = {
     "service_credentials_required": "Replace or clear credentials when changing the service address.",
     "service_limit_reached": "The service connection limit has been reached.",
     "service_unavailable": "The saved service connection is unavailable.",
+    "plugin_catalog_changed": "The plugin catalog or preview authority changed. Create a new preview.",
+    "plugin_preview_expired": "Create a new configuration preview.",
+    "plugin_preview_limit_reached": "The configuration preview limit has been reached.",
+    "plugin_storage_unavailable": "The saved plugin configuration is unavailable.",
 }
 
 

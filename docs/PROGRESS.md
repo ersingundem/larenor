@@ -1,6 +1,6 @@
 # Larenor — güncel ilerleme ve iş kuyruğu
 
-**Son güncelleme: 5 Eylül 2026, 13:49 (Türkiye saati).**
+**Son güncelleme: 5 Eylül 2026, 14:33 (Türkiye saati).**
 
 ```text
 Genel kapsam  █████████████░░░░░░░  ≈ %65
@@ -9,7 +9,7 @@ Genel kapsam  █████████████░░░░░░░  ≈ 
 **Yaklaşık %35 kapsam kaldı.** Bu oran kalan paketlerin büyüklüğüne göre
 mühendislik tahminidir; otomatik ölçülen test kapsamı veya cihaz uyumluluk oranı
 değildir. Tamamlanan görevleri sayarak hesaplanmaz; büyük paketler ayrıntılandıkça
-değişebilir. Büyük kalan işler S05–S09, ileri kiosk/kamera, son tablet tasarım
+değişebilir. Büyük kalan işler S06–S09, ileri kiosk/kamera, son tablet tasarım
 geçişi ve fiziksel kabuldür.
 
 Bu dosya yapılanları, devam eden işleri ve sıradaki paketleri tek yerde izlemek
@@ -24,18 +24,21 @@ GitHub'a gönderilmiş işlerin **anlık CI durumu**
 Bu yerel dosya geliştirme aşamalarında güncellenir; Actions ise çalışan
 derlemelerin ve test işlerinin kendi canlı durumunu gösterir.
 
-**Yayın durumu:** Son gönderilen commit `773a02e`; ana özellik paketi `473132e`.
-[Güvenlik CI](https://github.com/ersingundem/larenor/actions/runs/33960748048)
-son commit'te başarılı. Önceki [Android Build](https://github.com/ersingundem/larenor/actions/runs/33960748149)
-E2E adımında emülatör sürecini kaybetti; gerçek neden kesinleşmedi. CI bellek
-sınırları ve hata tanı çıktısı bu pakette eklendi.
-[Server Container Build](https://github.com/ersingundem/larenor/actions/runs/33960748157)
-iki mimariyi derledi ve gerçek APK imza kontrolünü geçti, ancak yeniden başlatma
-sağlık kontrolü başarısız. Testte eski geçici portun kullanılması hatası sentetik
-olarak doğrulandı ve düzeltildi; CI hatasının kesin nedeni yeni koşum ve ek
-tanı çıktısıyla doğrulanacak. Yayın engelli. S05 ve bu durum güncellemesi henüz
-commit edilmedi. Yerel dosya ile GitHub görüntüsünün zaman damgası farklı olabilir.
-CI tamamlanması fiziksel cihaz kabulü anlamına gelmez.
+**Yayın durumu:** Son gönderilen commit `8346c01`; S05 bağlantı yönetimi `88c26fc` içinde GitHub'da. [Güvenlik CI](https://github.com/ersingundem/larenor/actions/runs/33961874563)
+ve [Server Container Build](https://github.com/ersingundem/larenor/actions/runs/33961874782)
+başarılı: amd64/arm64 imajları, yeniden başlatma ve gerçek APK imza testi geçti;
+ortak imaj manifesti yayımlandı. Anonim manifest indirmesi de doğrulandı: `sha256:3012dd35fdce1523c8abae26abb6b2f3e5a70c7efe592acaaa985c7de7e8fa31`.
+`88c26fc` Android analiz/birim/debug işleri geçti; E2E'de native pencere odağı
+iddiası başarısız oldu ve daha sonra emülatör kayboldu. O anda bellek baskısı veya
+kernel OOM kaydı bulunmadı; süreç kaybının nedeni kesinleşmedi. `8346c01` gerçek
+pencere odağını bekliyor ve desteklenen yazılımsal grafik modunu kullanıyor.
+[Android CI](https://github.com/ersingundem/larenor/actions/runs/33962651642)
+aynı odak iddiasında başarısız oldu; Server ve güvenlik işleri geçti. Yeni yerel
+düzeltme yalnız doğrulanmış CI emülatörünü derleme sırasında uyanık tutuyor ve
+odak hatasında sınırlı ekran/güç/pencere kanıtı topluyor. Asıl iddialar korunuyor;
+süreç kaybının nedeni hâlâ kesinleşmedi, yeni CI doğrulaması bekleniyor.
+Bu yerel durum güncellemesi henüz commit edilmedi. Yerel dosya ile GitHub
+zaman damgası farklı olabilir. CI tamamlanması fiziksel cihaz kabulü değildir.
 
 Önceki `5331f22` commit'inin Android/analiz/güvenlik CI çalışmaları artifact
 depolama kotasına takıldı; taramalar bulgu üretmedi. Bu pakette rapor yükleme
@@ -46,9 +49,18 @@ kaldırıldı. Asıl test/tarama hataları ve imzalı APK teslim hataları hâl�
 
 | İş | Durum | Tamamlanma ölçütü |
 | --- | --- | --- |
-| S05 hizmet yönetimi ve denetimi | Client admin ekranı, şifreli Server kayıtları ve 17 servis türünün kontrol yolu uygulandı; 2.333 Flutter, 529 Server ve 114 araç testi geçti. Yayın kontrolü sürüyor | Son sır taraması, GitHub CI ve yayımlanan paketin doğrulanması |
-| S06 eklenti kataloğu | Katalog ve kurulum planı modelleri yazılıyor; işçi/API kurulumu henüz yok | Sabitlenmiş imajlar, doğrulanmış mimariler, açık kaynak/lisans bilgisi ve deterministik kurulum önizlemesi |
-| Gerçek Server imajı doğrulaması | Derleme/ilk başlatma/gerçek APK imzası geçti. Yeniden başlatma testinin geçici port varsayımı düzeltildi; yeni CI koşumu bekliyor | İki mimaride kalıcılık ve yeniden başlatma dahil bütün smoke testi başarılı olmadan ortak imaj etiketi yayımlanmaması |
+| S05 hizmet yönetimi ve denetimi | Client admin ekranı, şifreli Server kayıtları ve 17 servis türünün kontrol yolu uygulandı; 2.333 Flutter, 529 Server ve 114 araç testi geçti. Yayın kontrolü sürüyor | Sır taraması ve Server CI geçti; Android CI ve gerçek servis kabulü ayrı bekliyor |
+| S06 eklenti kataloğu | Altı sabitlenmiş paket, Client bileşen ekranı, şifreli/süreli gereksinim önizlemesi API'si ve işçi işlem kayıtları uygulandı. 2.422 Flutter ve 700 Server testi geçti; kurulum etkin değil | Kalıcı kurulum işleri, gerçek işçi bağlantısı, bütünleşik medya kurulumu ve otomatik eşleştirme ayrıca tamamlanacak |
+| Gerçek Server imajı doğrulaması | İki mimaride tüm smoke testleri ve manifest yayını geçti; anonim registry erişimi doğrulandı | Server imajı doğrulandı; Android CI ve fiziksel kabul ayrıca bekleniyor |
+
+**Son kapsam kararı:** Medya ve Music Assistant için ayrı uygulama kurulumu veya
+elle API bağlantısı yapılmayacak. Bileşenler Larenor Server'a dahil olacak;
+Client yalnız Larenor hesabı/API'si ve kullanıcı ayarlarını sunacak. Bu otomasyon
+henüz tamamlanmadı. [Güncel bütünleşik medya planı](integrated-media-stack.md).
+
+**Platform anlatımı:** Larenor Client tablet öncelikli Android uygulamasıdır.
+DeX ayrı bir uygulama değil; aynı uygulamanın değişken pencere ve harici ekran
+desteğidir. README, mimari belgeleri ve GitHub açıklaması buna göre güncellendi.
 
 ## Backend, Music Assistant ve HomePod: bugün nerede?
 
@@ -56,9 +68,9 @@ kaldırıldı. Asıl test/tarama hataları ve imzalı APK teslim hataları hâl�
 | --- | --- | --- |
 | Hesap, parola, oturum, rol, kullanıcı yönetimi | Larenor Server API ve veritabanında uygulandı | Gerçek sunucuya manuel kurulum |
 | Kasa ve güncelleme sürümleri | Server'da şifreli kasa ve sürüm API'leri; Client geri yükleme/güncelleme akışları mevcut | Gerçek imzalı Client yükseltmesi ve yeniden kurulum kabulü |
-| Entegrasyon bağlantı kayıtları | S05 şifreli Server kaydı, Client admin ekranı ve 17 türün kontrol yolu uygulandı | Son birleşik test, CI ve yayın; gerçek servis kabulü |
+| Entegrasyon bağlantı kayıtları | S05 şifreli Server kaydı, Client admin ekranı ve 17 türün kontrol yolu uygulandı | Yerel testler ve Server CI geçti; Android CI ve gerçek servis kabulü |
 | HA, medya ve ağ komutları | Mevcut kontrollerin çoğu hâlâ Client adaptörlerinde | S08 ile gerçek veri ve komut akışlarını Server'a taşıma; yalnızca token saklamak bu taşıma sayılmaz |
-| Music Assistant | Client müzik ekranı, ayrı Docker paketi ve yeni Server token/sürüm kontrolü var; ev sunucusuna kurulmadı | Gerçek Larenor Server paketine ayrı yönetilen servis olarak bağlama; sağlayıcı ve oynatıcı yönetimi |
+| Music Assistant | Client müzik ekranı, eski MA-only paket ve Server token/sürüm kontrolü var; ev sunucusuna kurulmadı | Tek Larenor kurulumu içinde dahili motor; Client üzerinden sağlayıcı/oynatıcı yönetimi, ayrı MA URL/token girişi olmaması |
 | HomePod / AirPlay | Music Assistant üzerinden hedef kapsamda; keşif, eşleştirme, kuyruk, ses ve oynatma akışları tamamlanıp doğrulanacak | Sağlayıcı oturumları, aynı ağda keşif/eşleştirme, gerçek ses/grup/yeniden bağlanma testleri |
 
 **Backend taşıması henüz tamamlanmadı; Music Assistant şu anda Larenor Server
@@ -85,25 +97,31 @@ kabul işleri aşağıda ayrıca tutulur.
 | Merkezi hizmet bağlantıları | 17 tür için şifreli kayıt, ekle/düzenle/unut/kontrol; hizmete uygun giriş alanları. HA, medya ve ağ komutlarının tamamının Server'a taşındığı anlamına gelmez |
 | Güncelleme altyapısı | APK paket/imza/hash/sürüm doğrulaması, sürüm API'leri, indirme ve Android kurucusuna geçiş; ayrı yayın kimliğiyle koşullu CI teslimi |
 | Otomatik güncelleme uyarısı | Ön planda açılış/dönüş ve 15 dakika aralıklı kontrol; oturumluk kapatma, PIN korumalı bağlantı, hesap/rota/arka plan sınırları. İlgili 92 test geçti |
-| Server Docker/CI kodu | Sabitlenmiş bağımlılıklar ve imza aracı, root olmayan süreç, ayrı veri/anahtar depoları; iki mimari ve gerçek APK imza kontrolü geçti. Yeniden başlatma testi düzeltilene kadar imaj yayını engelli |
+| Server Docker/CI kodu | Sabitlenmiş bağımlılıklar ve imza aracı, root olmayan süreç, ayrı veri/anahtar depoları; iki mimari ve gerçek APK imza kontrolü geçti. Yeniden başlatma testi de geçti ve ortak imaj yayımlandı; anonim manifest indirmesi doğrulandı |
 | Server ekran tasarımı | Altı gerçek-widget önizlemesi incelendi; admin seçili sekmesi belirginleştirildi; test matrisi ve README'ye görseller eklendi |
 | Bağımsız kod incelemesi | Server başlatma/kaynak/lisans/sürüm sözleşmeleri, Client güncelleme uyarısı ve Docker/CI akışında uygulanabilir ek bulgu çıkmadı; gerçek imaj çalışması yerine geçmez |
+| Sunucu bileşenleri önizlemesi | Altı sabitlenmiş katalog kaydı, yönetici/oturum/katalog revizyonuna bağlı şifreli ve süreli önizlemeler; Client gereksinim ekranı. Kurulum düğmesi veya çalışan kurulum API'si yok |
 | CI rapor kotası düzeltmesi | Test kanıtı yükleme hataları görünür uyarı üretir; Gitleaks/OSV taramaları artifact kotasına bağlı değildir. Gerçek tarama hatalarının engelleyici kaldığı test edildi |
 | Lisans ve kaynak | AGPL-3.0-only, üçüncü taraf bildirimleri, uygulama içi lisans ekranı ve Server kaynak/lisans API'si |
 | Geliştirme becerileri | İstenen frontend/CI seçkisinden 27 beceri kuruldu; 81 dosyanın kaynağı ve hash'i kaydedildi. Kurulum uygulama özelliği sayılmaz |
+
+Son yerel doğrulamada **2.422 Flutter ve 700 Server testi** geçti. Server paketinin
+wheel içindeki katalog kaynağı da doğrulandı. Gerçek soket iptalinde rastlanan
+eşzamanlı kapatma hatası düzeltildi; aynı regresyon 300 kez geçti. Bu sonuçlar
+otomatik medya kurulumu veya fiziksel cihaz kabulü yerine geçmez.
 
 ## Sıradaki geliştirme paketleri
 
 | Sıra | Paket / durum | Somut teslim ve bitti sayılma ölçütü |
 | --- | --- | --- |
-| 1 | **S05 — Hizmet yönetimi · yerelde uygulandı, yayın kontrolünde** | Client admin ekranından bağlantı ekle/düzenle/unut/doğrula; şifreli Server kaydı, altı açık doğrulama durumu, yetki/oturum/çakışma testleri. Servis kurulumu S06'da |
-| 2 | **S06 — Eklenti sistemi · katalog aşaması başladı** | Sürümlü katalog, kurulum önizlemesi, kalıcı iş durumu, sınırlı Linux işçisi; başarısız kurulumdan toparlanma ve yetki testleri |
-| 3 | **S07 — CasaOS ve Music Assistant · sırada** | Mevcut servisleri bağlama veya yeni servis kurma; Music Assistant'ı ayrı servis olarak ortak pakete alma; durum/sürüm/yedek ve sağlayıcı yapılandırma akışları |
+| 1 | **S05 — Hizmet yönetimi · GitHub'da, Android CI bekleniyor** | Client admin ekranından bağlantı ekle/düzenle/unut/doğrula; şifreli Server kaydı, altı açık doğrulama durumu, yetki/oturum/çakışma testleri. Servis kurulumu S06'da |
+| 2 | **S06 — Eklenti sistemi · katalog/önizleme uygulandı, kurulum işleri eksik** | Sürümlü katalog, kurulum önizlemesi, kalıcı iş durumu, sınırlı Linux işçisi; başarısız kurulumdan toparlanma ve yetki testleri |
+| 3 | **S07 — CasaOS ve Music Assistant · sırada** | Tek Larenor Server kurulumu içinde medya ve Music Assistant; otomatik API anahtarı/adres/kütüphane eşleştirmesi, durum doğrulaması; Client'tan yalnız ayar yönetimi |
 | 4 | **S08 — Merkezi entegrasyonlar · sırada** | Önce HA, ardından medya ve ağ adaptörleri; Client isteklerinin Server'dan geçmesi, yetkiler, olay akışı, hata ve widget sözleşmeleri. Client'ta kalan doğrudan yolları açıkça belgeleme |
 | 5 | **Kalan ürün yetenekleri · sırada** | İleri kiosk ve kamera seçenekleri, Apple TV video, müzik sağlayıcıları ve HomePod kuyruk/grup/oynatma; yetenek matrisindeki desteklenmeyen durumları açık gösterme |
-| 6 | **S09 — Ortak kurulum ve bütünlük · sırada** | Gerçek Server + ayrı yönetilen servisler için kurulum/yedek/geri yükleme; özellikler arası akışlar, hata kurtarma, performans/güvenlik ve CI testleri |
+| 6 | **S09 — Ortak kurulum ve bütünlük · sırada** | Tek Larenor kurulumu ve dahili bileşenleri için kurulum/yedek/geri yükleme; özellikler arası akışlar, hata kurtarma, performans/güvenlik ve CI testleri |
 | 7 | **Son arayüz geçişi · işlevler tamamlanınca** | Apple tasarım ilkeleriyle ortak renk, tipografi, kart, gezinme, form ve diyalog sistemi; Dashboard, Media, Settings ve Server panelleri aynı düzende. Tek slogan korunacak |
-| 8 | **Tablet / DeX görsel kabul ve README · en son** | Huawei MatePad 11.5 S 2026 ve diğer tabletler, yatay/dikey yön, yeniden boyutlanan DeX penceresi, dokunma/klavye erişilebilirliği. Frontend bittikten sonra gerçek tablet görselleri; profesyonel README, ayrı Server/Client kurulumu, doğru GitHub konu etiketleri/açıklama ve insan/AI için açık belge gezinmesi. Telefon için ayrı tasarım hedefi yok |
+| 8 | **Android tablet görsel kabul ve README · en son** | Huawei MatePad 11.5 S 2026 ve diğer tabletler, yatay/dikey yön, yeniden boyutlanan DeX penceresi, dokunma/klavye erişilebilirliği. Frontend bittikten sonra gerçek tablet görselleri; profesyonel README, ayrı Server/Client kurulumu, doğru GitHub konu etiketleri/açıklama ve insan/AI için açık belge gezinmesi. Telefon için ayrı tasarım hedefi yok |
 | 9 | **Manuel kurulum ve fiziksel kabul · kullanıcıyla en son** | CasaOS/Proxmox kurulumu; sağlayıcı girişleri, gerçek HomePod/Chromecast/Apple TV, güç/kilit ekranı, güncelleme/geri yükleme senaryolarının cihazda doğrulanması |
 
 Son tasarım aşamasında Flutter'a uygun Apple tasarım ve erişilebilirlik
@@ -111,8 +129,7 @@ becerileri uygulanacak; teknolojiye uymayan web becerileri uygulamaya zorlanmaya
 README görselleri gerçek tablet düzenini temsil edecek; hazırlanmış taslaklar
 çalışan uygulama ekranı gibi sunulmayacak.
 Profesyonel README, keşfedilebilirlik ve gerçek kurulum yollarının son kontrolü
-için [yayın hazırlık planı](readme-publication-plan.md) eklendi. Etiketler yalnız
-gerçek kapsamı anlatacak; yıldız veya AI görünürlüğü artışı garanti edilmeyecek.
+için [yayın hazırlık planı](readme-publication-plan.md) eklendi. GitHub açıklaması ve gerçek kapsamı anlatan 16 konu etiketi uygulandı; yıldız veya AI görünürlüğü artışı garanti edilmeyecek.
 
 ## Manuel kurulum ve fiziksel kabul
 
@@ -149,6 +166,24 @@ Test adetleri farklı zaman ve kapsamları temsil eder; toplanarak başarı oran
 üretilmez. GitHub CI sonucu yeni commit sonrasında ayrıca kaydedilecektir.
 
 ## Güncelleme kaydı
+
+- **14:14:** Katalog/önizleme dahil **653 Server testi** geçti; işçi testleri
+  bu koşuma henüz dahil değil. Ortak Python/Dart katalog-plan sözleşmesi için
+  ayrıca bir API testi geçti. Wheel içindeki paketlenmiş katalog bağımsız
+  açılarak doğrulandı. Android E2E odak/grafik düzeltmesi `8346c01` ile gönderildi;
+  yeni CI sürüyor. Birleşik medya kurulum otomasyonu sıradaki ana iştir.
+
+- **14:11:** Kullanıcının yeni kararı işlendi: Music Assistant ve tüm medya
+  bileşenleri tek Larenor Server kurulumu içinde, API bağlantıları otomatik;
+  Client'ta yalnız ayar yönetimi. Eski MA-only kurulum belgesi geçiş referansı
+  olarak işaretlendi. Katalog ekranı dahili bileşen gereksinimleri ekranına
+  uyarlandı; kurulum ve bağlantı otomasyonu henüz tamamlandı sayılmıyor.
+
+- **14:01:** S05 `88c26fc` ile yayımlandı. Güvenlik ve iki mimarili Server CI
+  başarılı; Android CI sürüyor. GitHub About açıklaması ve 16 konu etiketi
+  uygulandı ve geri okunarak doğrulandı. S06 katalog/önizleme/işçi geliştirmesi
+  sürüyor. Genel kapsam tahmini **%65** olarak korundu; henüz bitmemiş S06 veya
+  fiziksel kabul tamamlanmış sayılmadı. Final README ve görseller frontend sonrası.
 
 - **13:49:** S05 tamamlanmış kod dilimi: 17 servis türü, Client admin akışı,
   türüne uygun kimlik bilgisi alanları ve ortak JSON sözleşmesi. Son 2.333 Flutter,

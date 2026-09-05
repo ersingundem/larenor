@@ -17,6 +17,7 @@ import '../../client_updates/presentation/client_updates_screen.dart';
 import 'server_vault_screen.dart';
 import '../admin/presentation/server_admin_screen.dart';
 import '../services/presentation/server_services_screen.dart';
+import '../plugins/presentation/server_plugins_screen.dart';
 
 /// Account management is reached through SettingsGate. First-install access
 /// additionally observes PIN storage and fails closed if a PIN appears.
@@ -531,6 +532,30 @@ class _ServerConnectionScreenState
                                             CupertinoPageRoute(
                                               builder: (_) =>
                                                   const ServerServicesScreen(),
+                                            ),
+                                          );
+                                        })
+                                      : null,
+                                ),
+                              if (session.user.canAdminister)
+                                CupertinoListTile(
+                                  key: const ValueKey('server-plugins'),
+                                  leading: const Icon(CupertinoIcons.cube_box),
+                                  title: Text(l10n.serverPluginsTitle),
+                                  trailing: const CupertinoListTileChevron(),
+                                  onTap: _enabled
+                                      ? _callback(() {
+                                          if (_account
+                                                  .session
+                                                  ?.user
+                                                  .canAdminister !=
+                                              true) {
+                                            return;
+                                          }
+                                          Navigator.of(context).push<void>(
+                                            CupertinoPageRoute(
+                                              builder: (_) =>
+                                                  const ServerPluginsScreen(),
                                             ),
                                           );
                                         })

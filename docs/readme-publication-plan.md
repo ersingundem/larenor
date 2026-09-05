@@ -1,23 +1,24 @@
 # README publication plan
 
 Draft for the final publication pass. Research checked on **2026-09-05** against
-the working tree and GitHub. This document changes no README, repository metadata,
-release, host or image. **Capture and publish final screenshots only after the
-frontend is complete.** The product target is Android tablets and Samsung DeX;
+the working tree and GitHub. The plan itself changes no release, host or image. About metadata was applied
+on 2026-09-05 at 14:01 TRT and verified by reading the repository back. **Capture and publish final screenshots only after the
+frontend is complete.** Larenor Client is an Android app, designed primarily for
+tablets; Samsung DeX is a capability of the same app, not a separate application.
 the final gallery must contain tablet and resizable desktop-window layouts only.
 
 ## Publication facts to preserve
 
 | Item | Observed evidence | Consequence for the final README |
 | --- | --- | --- |
-| Repository | [ersingundem/larenor](https://github.com/ersingundem/larenor) is public; default branch `main`; About has a Client/Server description, no topics, and no homepage | Improve the existing About information; do not claim that public visibility proves a release is ready |
+| Repository | [ersingundem/larenor](https://github.com/ersingundem/larenor) is public; default branch `main`; About now describes a tablet-first Android app and retains 16 topics; homepage remains empty | DeX is a capability of the same Android app. Do not claim that public visibility proves a release is ready |
 | Public releases | `gh release list` returned no releases | No working `/releases/latest/download/...` or `v1.0.0` download can be advertised yet |
 | Android artifacts | An unexpired `app-signed-release-apk-63` exists for commit `668ac87b24887cca4c82e3d874460812e6d9a368`, [run 33938262799](https://github.com/ersingundem/larenor/actions/runs/33938262799), created 2026-09-05 02:36 UTC | This is evidence of an older CI artifact, not the completed product or a durable public release; do not make it the final download by default |
 | Current published source snapshot | Local HEAD `295750ba27c3e0b48f87be2bb788a55f9fafa24b`; its [Android run](https://github.com/ersingundem/larenor/actions/runs/33959624724) and [Server run](https://github.com/ersingundem/larenor/actions/runs/33959624719) failed | Recheck the final commit and its required jobs after ongoing repairs; do not carry these dated results into a later release claim |
-| Public Server image | An anonymous GHCR pull-token request for `ersingundem/larenor-server` returned HTTP 403 | Public image pull is unverified; this does not establish whether a private package exists. Verify anonymous access to the final digest before publishing a public install command |
+| Public Server image | Native amd64/arm64 checks and publication passed for `88c26fc`; its manifest was fetched anonymously at digest `sha256:3012dd35fdce1523c8abae26abb6b2f3e5a70c7efe592acaaa985c7de7e8fa31` | See the [container evidence](server-container.md); verify the final publication digest again before final install instructions |
 | Source versions | [Client manifest](../pubspec.yaml): `1.0.0+1`; [Server manifest](../server/pyproject.toml): `0.1.0` | Source version fields are not proof that matching release tags, APKs or image tags exist |
-| Android support | [Gradle configuration](../android/app/build.gradle.kts): `com.ersingundem.larenor`, minimum SDK 26, compile SDK 37 | Say Android 8.0/API 26 or later, aimed at tablets/DeX; qualify feature-specific Android requirements separately. iOS development is paused |
-| Existing Compose deployment | [deploy/larenor-server/compose.yaml](../deploy/larenor-server/compose.yaml) currently defines Music Assistant `2.10.2` with a digest pin | The directory name is misleading for installation purposes: it does not start the Python Larenor Server. Link it only as the separate Music Assistant component |
+| Android support | [Gradle configuration](../android/app/build.gradle.kts): `com.ersingundem.larenor`, minimum SDK 26, compile SDK 37 | Say Android app, Android 8.0/API 26 or later, designed primarily for tablets; include DeX under window/display capabilities. Qualify feature-specific Android requirements separately. iOS development is paused |
+| Existing Compose deployment | [deploy/larenor-server/compose.yaml](../deploy/larenor-server/compose.yaml) currently defines Music Assistant `2.10.2` with a digest pin | This legacy MA-only package is a migration reference, not the unified Larenor installer. The [integrated stack](integrated-media-stack.md) remains in development |
 | Server operation | [Server README](../server/README.md), [container guide](server-container.md), [runtime](../server/larenor_server/runtime.py) | API administration is in Client; no separate Server web admin UI. Private data and key mounts, initial password change, and a separate publisher credential are real requirements |
 
 GitHub Actions artifacts require a signed-in account with repository read access
@@ -25,11 +26,11 @@ and expire. The repository explicitly retains signed APK artifacts for 30 days,
 and selected debug artifacts for three days. Keep “CI artifact” distinct from
 “GitHub Release.” [GitHub artifact download documentation](https://docs.github.com/en/actions/how-tos/manage-workflow-runs/download-workflow-artifacts)
 
-## Proposed About metadata
+## Applied About metadata
 
-Description, ready to apply after the final feature wording is checked:
+Description and all 16 topics below applied and read back on 2026-09-05. Recheck the final feature wording before publication:
 
-> An Android tablet and Samsung DeX hub for Home Assistant, media and home infrastructure, with a self-hosted Larenor Server. Built with Flutter; AGPL-3.0-only.
+> An Android app for Home Assistant, media and home infrastructure, designed for tablets, with a self-hosted Larenor Server. Built with Flutter; AGPL-3.0-only.
 
 Use these **16** relevant topics, without filling unused slots for their own sake:
 

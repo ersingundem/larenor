@@ -5,10 +5,19 @@ encrypted configuration storage, and verified Client releases. The normal
 `larenor_server.cli` entry point assembles all four APIs. This image does not
 include Music Assistant or manage the host Docker daemon.
 
-The container build is defined here; a runnable release must first pass the
-hosted image workflow and receive a published image digest. Docker was not
-available during the initial local implementation, so local policy checks are
-not evidence that either architecture has built or started successfully.
+The `88c26fc` image passed native amd64/arm64 initialization, private-storage,
+restart and actual APK-signature smoke tests in
+[Server Container Build](https://github.com/ersingundem/larenor/actions/runs/33961874782).
+Its multiarchitecture manifest was fetched anonymously from GHCR:
+
+```text
+ghcr.io/ersingundem/larenor-server@sha256:3012dd35fdce1523c8abae26abb6b2f3e5a70c7efe592acaaa985c7de7e8fa31
+```
+
+This verifies the account/vault/update Server image for that source commit.
+The integrated media/musical components are still
+[in development](integrated-media-stack.md). No deployment to the user's home
+server or physical tablet acceptance has taken place.
 
 ## Build from a reviewed source commit
 

@@ -2,24 +2,28 @@
 
 **Development progress:** [completed work, active tasks and remaining queue](docs/PROGRESS.md).
 
-**Larenor Client** targets **Android tablets and Samsung DeX**. Native iOS
-development is paused; the Apple Home-inspired design remains shared across
-tablet orientations and resizable DeX windows. A separate phone interface is
+**Larenor Client** is an **Android app**, designed primarily for tablets. The same
+app supports resizable windows and external displays, including Samsung DeX.
+Native iOS development is paused; the Apple Home-inspired design remains shared
+across tablet orientations and window sizes. A separate phone interface is
 not a current design target; the gallery below focuses on tablet and desktop
 window layouts. **Larenor Server** provides accounts, an encrypted
 configuration vault, user/session administration and signed Client release APIs.
 The Client admin area also manages encrypted service connections and bounded
 identity checks for 17 service types. See the [connection guide and limitations](docs/server-service-connections.md).
-Client includes foreground update notices; the Server container and CI delivery
-are implemented and await hosted image verification. Managed service plugins
-remain in progress. Administration belongs in the Client; Server
+Client includes foreground update notices; the Server container passed native
+amd64/arm64 CI checks and anonymous registry access was verified. Internal
+component requirements previews are implemented; installation and automatic media
+wiring remain in progress. Administration belongs in the Client; Server
 provides authenticated APIs and OpenAPI documentation without a separate web
 admin application. See the [current architecture and implementation status](docs/server-client-architecture-2026-09-05.md).
 
-The existing [Music Assistant Docker package](docs/music-assistant-deployment.md)
-is the first deployment component. Installation on CasaOS or a Proxmox Linux VM
-is reserved for the final manual setup step; the full backend/plugin rollout
-is still in progress.
+The target is a **single Larenor Server installation with integrated media and
+music components**, including Music Assistant and automatic service-to-service
+configuration. This is [in development](docs/integrated-media-stack.md); the old
+Music Assistant-only Docker package is a migration reference, not the unified
+installer. Final CasaOS/Proxmox installation and physical-device acceptance are
+still pending.
 
 <img src="assets/icon/app_icon.png" alt="Larenor" width="96" />
 

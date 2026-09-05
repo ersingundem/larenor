@@ -2,9 +2,11 @@
 
 **5 Eylül 2026 · Kullanıcı onayıyla uygulama sürüyor.**
 
+**Son ürün kararı (5 Eylül):** Music Assistant ve medya uygulamaları tek Larenor Server kurulumuna dahil olacak; servisler arası API bağlantıları otomatik kurulacak. Client yalnız Larenor hesabı ve kullanıcı ayarlarını sunacak. [Kapsam ve kabul ölçütleri](integrated-media-stack.md). Eski ayrı servis kurulum notları bu hedefin tamamlandığını göstermez.
+
 **Güncel takip:** [Yapılanlar, aktif işler ve kalan kuyruk](PROGRESS.md). Bu plan ayrıntılı kapsamı ve önceki teslimlerin kanıtını saklar; en son çalışma durumu takip dosyasındadır.
 
-**Güncel platform ve mimari kararı:** Client yalnız **Android tabletler ve Samsung DeX** için geliştiriliyor; Apple Home esintili tasarım korunuyor, native iOS/HealthKit geliştirmesi kapsam dışı. **Larenor Server** veritabanı, hesap, şifreli yapılandırma, güncelleme ve eklenti API'lerini sağlar. Ayrı Server web arayüzü yoktur; tüm admin yönetimi Client içinde, Swagger/OpenAPI belgeli ve Server tarafında yetki kontrollüdür. Yeni S01–S09 sırası ve tamamlanma durumu [Server/Client mimarisinde](server-client-architecture-2026-09-05.md) izlenir. Kurulum en sonda manuel yapılır.
+**Güncel platform ve mimari kararı:** Client tablet öncelikli bir **Android uygulaması** olarak geliştiriliyor; Samsung DeX aynı uygulamanın harici ekran/değişken pencere desteğidir. Apple Home esintili tasarım korunuyor, native iOS/HealthKit geliştirmesi kapsam dışı. **Larenor Server** veritabanı, hesap, şifreli yapılandırma, güncelleme ve eklenti API'lerini sağlar. Ayrı Server web arayüzü yoktur; tüm admin yönetimi Client içinde, Swagger/OpenAPI belgeli ve Server tarafında yetki kontrollüdür. Yeni S01–S09 sırası ve tamamlanma durumu [Server/Client mimarisinde](server-client-architecture-2026-09-05.md) izlenir. Kurulum en sonda manuel yapılır.
 
 ## Uygulama takibi
 

@@ -1,6 +1,8 @@
-# Larenor Server — Proxmox / CasaOS manuel kurulum
+# Eski Music Assistant dağıtım dilimi — geçiş referansı
 
-Durum: **kurulum paketi hazır; canlı kurulum yapılmadı.** Kullanıcının tercihiyle kurulum diğer uygulama işleri tamamlandıktan sonra elle yapılacak. Proxmox üzerindeki ayrı Linux VM ve mevcut CasaOS sunucusu aynı Compose paketini kullanabilir. Bu belge belirli bir VM, ağ köprüsü, sağlayıcı hesabı veya hoparlör üzerinde doğrulanmış kurulum iddiası taşımaz.
+**Güncel karar:** Music Assistant ve medya bileşenleri tek Larenor Server kurulumuna dahil edilecek; ayrı MA kurulumu, hesabı ve elle Client tokenı hedef akış değildir. [Bütünleşik medya planını](integrated-media-stack.md) izleyin. Aşağıdaki adımlar önceki MA-only paketin geçiş referansıdır; yeni Larenor kurulum yönergesi olarak kullanılmaz.
+
+Eski dilimin durumu: **paket hazır; canlı kurulum yapılmadı.** Kullanıcının tercihiyle kurulum diğer uygulama işleri tamamlandıktan sonra elle yapılacak. Proxmox üzerindeki ayrı Linux VM ve mevcut CasaOS sunucusu aynı Compose paketini kullanabilir. Bu belge belirli bir VM, ağ köprüsü, sağlayıcı hesabı veya hoparlör üzerinde doğrulanmış kurulum iddiası taşımaz.
 
 **Geçiş notu:** Kullanıcının son kapsamıyla **Larenor Server**, kendi login/veritabanı, şifreli entegrasyon tokenı saklama ve Client güncelleme akışı olan gerçek backend ürünü olacak. Bu belgede tamamlanan mevcut Compose **yalnız Music Assistant dağıtım dilimidir**; söz konusu backend özelliklerini henüz sağlamaz. Birleşik paket hazırlanırken MA opsiyonel `music-assistant` iç servisine ayrılacak; aşağıdaki geçici `larenor-server` servis adı/path'leri o paketle birlikte güncellenecek. Bu ara paket tüm Larenor Server ürünü olarak kurulmuş veya tamamlanmış sayılmamalıdır.
 

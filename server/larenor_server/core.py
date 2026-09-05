@@ -14,6 +14,8 @@ from .config import Settings
 from .database import Database
 from .errors import StartupError
 from .files import checked_path, private_create, private_directory, private_read, sync_directory
+from .plugins.schema import migrate_plugins
+from .plugins.service import PluginManagement
 from .services.schema import migrate_services
 from .services.service import ServiceManagement
 from .services.probe_runner import ServiceProbeRunner
@@ -115,6 +117,7 @@ class CoreServices:
                                        (uuid.uuid4().hex, "admin", "admin", self.auth.hash_password(password), 1, settings.clock()))
                     connection.executemany("INSERT INTO metadata VALUES(?,?)", [("schema_version", "2"), ("key_check", check)])
                 migrate_services(connection)
+                migrate_plugins(connection)
             if not existed:
                 # Only publish the DB after its complete first transaction commits.
                 # Never expose an empty DB that a restart might treat as a reset.
@@ -137,6 +140,8 @@ class CoreServices:
             self.services = ServiceManagement(self.db, self.auth, settings, key)
             self.services.validate_storage()
             self.service_probe = ServiceProbeRunner(self.services)
+            self.plugins = PluginManagement(self.db, self.auth, settings, key)
+            self.plugins.validate_storage()
             self.clear_inactive_bootstrap()
 
     def clear_inactive_bootstrap(self) -> None:

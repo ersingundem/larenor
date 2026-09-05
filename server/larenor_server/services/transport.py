@@ -219,10 +219,10 @@ class _Deadline:
                     connection.shutdown(socket.SHUT_RDWR)
                 except OSError:
                     pass
-                try:
-                    connection.close()
-                except OSError:
-                    pass
+                # Wake pending I/O without releasing its descriptor underneath
+                # another thread's recv/select. Closing here can leave that
+                # thread blocked until its original timeout (observed on macOS).
+                # The request owner closes in finish() after I/O has unwound.
 
     def finish(self):
         self.timer.cancel()

@@ -157,6 +157,23 @@ void main() {
         kiosk = await AndroidKioskApi().snapshot();
         window = await WindowPolicyBridge().snapshot();
       }
+      if (!kiosk.resumed ||
+          !kiosk.focused ||
+          !window.isResumed ||
+          !window.hasWindowFocus ||
+          kiosk.keyguardLocked != false) {
+        // The CI-only runner watches this static marker and captures one
+        // filtered emulator screen/window/power snapshot at the failure.
+        // Booleans/enums only: no storage values or application data are logged.
+        debugPrint(
+          'LARENOR_E2E_NATIVE_FOCUS_FAILURE '
+          'kioskResumed=${kiosk.resumed} kioskFocused=${kiosk.focused} '
+          'keyguardLocked=${kiosk.keyguardLocked} '
+          'windowResumed=${window.isResumed} windowFocused=${window.hasWindowFocus} '
+          'windowReason=${window.reason.name}',
+          wrapWidth: 1024,
+        );
+      }
       expect(kiosk.supported, isTrue);
       expect(kiosk.deviceOwner, isFalse);
       expect(kiosk.permitted, isFalse);

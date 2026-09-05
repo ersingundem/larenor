@@ -1,0 +1,2830 @@
+{
+  "catalog": {
+    "catalogDigest": "2f5d16e764d4b6dab968986a4723fd47996e832e4670d9f68c6a2b7807a11749",
+    "entries": [
+      {
+        "catalogDigest": "2f5d16e764d4b6dab968986a4723fd47996e832e4670d9f68c6a2b7807a11749",
+        "manifestDigest": "5f45a6d9206d9a72517f5714d890be35a71d9544743cc755875aa554725c0eb8",
+        "manifest": {
+          "manifestVersion": 1,
+          "configSchemaVersion": 1,
+          "dataSchemaVersion": "upstream_managed_unverified",
+          "serviceId": "jellyfin",
+          "integrationRole": "managed_service",
+          "distributionId": "upstream",
+          "displayName": "Jellyfin",
+          "version": "10.11.11",
+          "upstreamRepository": "https://github.com/jellyfin/jellyfin",
+          "sourceRepository": "https://github.com/jellyfin/jellyfin",
+          "sourceRevision": "1fbd8739292cce610231be93daf43368733edf63",
+          "releaseUrl": "https://github.com/jellyfin/jellyfin/releases/tag/v10.11.11",
+          "license": "GPL-2.0",
+          "licenseUrl": "https://github.com/jellyfin/jellyfin/blob/v10.11.11/LICENSE",
+          "distributionLicense": "GPL-2.0",
+          "documentationUrls": [
+            "https://jellyfin.org/docs/general/installation/container/"
+          ],
+          "verifiedAt": "2026-09-05",
+          "repository": "ghcr.io/jellyfin/jellyfin",
+          "tag": "10.11.11",
+          "indexDigest": "sha256:45f648c382a0c8b552582fcea40e95cb17c5d475473a891cba0eb7523fb92112",
+          "images": [
+            {
+              "platform": "linux/amd64",
+              "digest": "sha256:ddf59965ae63fccc66dfe72384495df355c67ea5abd9cc04eb65988f9a6010d1",
+              "configDigest": "sha256:d57d4a0c18b3e51b913bd2f8f0f122eb7c7150ea37bb0e352df9cb329de11d24"
+            },
+            {
+              "platform": "linux/arm64",
+              "digest": "sha256:2961aa1e97515b4e3bca9149ad3fce1599bdd67df970e50bb28aaff1731def01",
+              "configDigest": "sha256:1546f3945380ad2662049751dab2ff761d5042144da181b3488f1984df4804a3"
+            }
+          ],
+          "installable": false,
+          "settings": [
+            {
+              "name": "instanceName",
+              "kind": "slug",
+              "default": "jellyfin",
+              "minimum": null,
+              "maximum": null
+            },
+            {
+              "name": "dataRootId",
+              "kind": "root_id",
+              "default": "appdata",
+              "minimum": null,
+              "maximum": null
+            },
+            {
+              "name": "webPort",
+              "kind": "port",
+              "default": 8096,
+              "minimum": 1024,
+              "maximum": 65535
+            },
+            {
+              "name": "mediaRootId",
+              "kind": "optional_root_id",
+              "default": null,
+              "minimum": null,
+              "maximum": null
+            }
+          ],
+          "security": {
+            "user": "1000:1000",
+            "privileged": false,
+            "capDrop": [
+              "ALL"
+            ],
+            "capAdd": [],
+            "noNewPrivileges": true,
+            "init": false
+          },
+          "network": {
+            "mode": "bridge",
+            "listeners": [
+              {
+                "protocol": "tcp",
+                "port": 8096,
+                "purpose": "web"
+              }
+            ],
+            "dynamicReceiverPorts": false
+          },
+          "mounts": [
+            {
+              "kind": "managed_appdata",
+              "rootId": "appdata",
+              "relativePath": "jellyfin/config",
+              "target": "/config",
+              "readOnly": false
+            },
+            {
+              "kind": "managed_appdata",
+              "rootId": "appdata",
+              "relativePath": "jellyfin/cache",
+              "target": "/cache",
+              "readOnly": false
+            }
+          ],
+          "ports": [
+            {
+              "protocol": "tcp",
+              "hostIp": "0.0.0.0",
+              "hostPort": 8096,
+              "containerPort": 8096
+            }
+          ],
+          "tmpfs": [],
+          "environment": [
+            {
+              "name": "TZ",
+              "value": "Etc/UTC"
+            }
+          ],
+          "resources": {
+            "memoryMiB": 4096,
+            "cpuMillis": 2000,
+            "pidsLimit": 512,
+            "minimumDiskMiB": 8192
+          },
+          "health": {
+            "profile": "jellyfin_public",
+            "path": "/health",
+            "port": 8096
+          },
+          "warnings": [
+            "lan_port_exposure",
+            "initial_setup_required",
+            "resource_budget_unverified",
+            "hardware_acceleration_not_configured",
+            "discovery_not_published"
+          ]
+        }
+      },
+      {
+        "catalogDigest": "2f5d16e764d4b6dab968986a4723fd47996e832e4670d9f68c6a2b7807a11749",
+        "manifestDigest": "c5ffd6ee0089ead9fe5de1bf20cf2768404c6900831531b9c36c3e061cdeb53a",
+        "manifest": {
+          "manifestVersion": 1,
+          "configSchemaVersion": 1,
+          "dataSchemaVersion": "upstream_managed_unverified",
+          "serviceId": "seerr",
+          "integrationRole": "managed_service",
+          "distributionId": "upstream",
+          "displayName": "Seerr",
+          "version": "3.4.1",
+          "upstreamRepository": "https://github.com/seerr-team/seerr",
+          "sourceRepository": "https://github.com/seerr-team/seerr",
+          "sourceRevision": "69f73a6f1486fdb51b8ddae9a94a8dfb629f461c",
+          "releaseUrl": "https://github.com/seerr-team/seerr/releases/tag/v3.4.1",
+          "license": "MIT",
+          "licenseUrl": "https://github.com/seerr-team/seerr/blob/v3.4.1/LICENSE",
+          "distributionLicense": "MIT",
+          "documentationUrls": [
+            "https://docs.seerr.dev/getting-started/docker/"
+          ],
+          "verifiedAt": "2026-09-05",
+          "repository": "ghcr.io/seerr-team/seerr",
+          "tag": "v3.4.1",
+          "indexDigest": "sha256:f4768de5f616248d723e05891f3345a1402123775d03bf0890dbfedc0831bda1",
+          "images": [
+            {
+              "platform": "linux/amd64",
+              "digest": "sha256:b21cf91bb7a10d70446e104e7b7b9c9c386aa22beeac535a3271cbfc5843d142",
+              "configDigest": "sha256:8921315d8f128b2c159abadee7733ec63dc16f46c2e6f56d9a57d7db3470f36a"
+            },
+            {
+              "platform": "linux/arm64",
+              "digest": "sha256:d62cf12dadc38f11095dbe13762ab2b908874d7ff51f080bd6f0f697867d22bf",
+              "configDigest": "sha256:ac222c422ee55750b25f75d451859384621c73478ab1ffa74a20549732a6981c"
+            }
+          ],
+          "installable": false,
+          "settings": [
+            {
+              "name": "instanceName",
+              "kind": "slug",
+              "default": "seerr",
+              "minimum": null,
+              "maximum": null
+            },
+            {
+              "name": "dataRootId",
+              "kind": "root_id",
+              "default": "appdata",
+              "minimum": null,
+              "maximum": null
+            },
+            {
+              "name": "webPort",
+              "kind": "port",
+              "default": 5055,
+              "minimum": 1024,
+              "maximum": 65535
+            }
+          ],
+          "security": {
+            "user": "1000:1000",
+            "privileged": false,
+            "capDrop": [
+              "ALL"
+            ],
+            "capAdd": [],
+            "noNewPrivileges": true,
+            "init": true
+          },
+          "network": {
+            "mode": "bridge",
+            "listeners": [
+              {
+                "protocol": "tcp",
+                "port": 5055,
+                "purpose": "web"
+              }
+            ],
+            "dynamicReceiverPorts": false
+          },
+          "mounts": [
+            {
+              "kind": "managed_appdata",
+              "rootId": "appdata",
+              "relativePath": "seerr/config",
+              "target": "/app/config",
+              "readOnly": false
+            }
+          ],
+          "ports": [
+            {
+              "protocol": "tcp",
+              "hostIp": "0.0.0.0",
+              "hostPort": 5055,
+              "containerPort": 5055
+            }
+          ],
+          "tmpfs": [],
+          "environment": [
+            {
+              "name": "TZ",
+              "value": "Etc/UTC"
+            },
+            {
+              "name": "PORT",
+              "value": "5055"
+            }
+          ],
+          "resources": {
+            "memoryMiB": 2048,
+            "cpuMillis": 2000,
+            "pidsLimit": 512,
+            "minimumDiskMiB": 8192
+          },
+          "health": {
+            "profile": "seerr_public",
+            "path": "/api/v1/settings/public",
+            "port": 5055
+          },
+          "warnings": [
+            "lan_port_exposure",
+            "initial_setup_required",
+            "resource_budget_unverified"
+          ]
+        }
+      },
+      {
+        "catalogDigest": "2f5d16e764d4b6dab968986a4723fd47996e832e4670d9f68c6a2b7807a11749",
+        "manifestDigest": "fff7c70598b95f1c9d3befc1b26182a76dd85fd9425693ed7108c1d9770e7edf",
+        "manifest": {
+          "manifestVersion": 1,
+          "configSchemaVersion": 1,
+          "dataSchemaVersion": "upstream_managed_unverified",
+          "serviceId": "sonarr",
+          "integrationRole": "managed_service",
+          "distributionId": "linuxserver",
+          "displayName": "Sonarr",
+          "version": "4.0.19.2979",
+          "upstreamRepository": "https://github.com/Sonarr/Sonarr",
+          "sourceRepository": "https://github.com/linuxserver/docker-sonarr",
+          "sourceRevision": "ccdf333222caedce7e559412cf93bf31d9264f1c",
+          "releaseUrl": "https://github.com/linuxserver/docker-sonarr/releases/tag/4.0.19.2979-ls323",
+          "license": "GPL-3.0",
+          "licenseUrl": "https://github.com/Sonarr/Sonarr/blob/v4.0.19.2979/LICENSE.md",
+          "distributionLicense": "GPL-3.0-only",
+          "documentationUrls": [
+            "https://docs.linuxserver.io/images/docker-sonarr/",
+            "https://docs.linuxserver.io/misc/non-root/",
+            "https://github.com/linuxserver/docker-sonarr/blob/4.0.19.2979-ls323/README.md"
+          ],
+          "verifiedAt": "2026-09-05",
+          "repository": "ghcr.io/linuxserver/sonarr",
+          "tag": "4.0.19.2979-ls323",
+          "indexDigest": "sha256:4d9df314875e1249ab7d6170c2b9b3dc1d8e6383f168ceb10dc9a5ad9b324739",
+          "images": [
+            {
+              "platform": "linux/amd64",
+              "digest": "sha256:580d419a949e9afadcf00cc33e38747f795ac162f20649649464b6640a5e971d",
+              "configDigest": "sha256:a4531ad37f198450fd7d12828a76970c52e2cce8fb3913b595b4817a11aa94ec"
+            },
+            {
+              "platform": "linux/arm64",
+              "digest": "sha256:083de4637ba01c9c54d111174ee2c7f8249b25fdc77cf37f7597d9875aba6e04",
+              "configDigest": "sha256:6777462442961519551769f9547990ce3f8843b4af09afb0b86c7b9295cf81c1"
+            }
+          ],
+          "installable": false,
+          "settings": [
+            {
+              "name": "instanceName",
+              "kind": "slug",
+              "default": "sonarr",
+              "minimum": null,
+              "maximum": null
+            },
+            {
+              "name": "dataRootId",
+              "kind": "root_id",
+              "default": "appdata",
+              "minimum": null,
+              "maximum": null
+            },
+            {
+              "name": "webPort",
+              "kind": "port",
+              "default": 8989,
+              "minimum": 1024,
+              "maximum": 65535
+            },
+            {
+              "name": "libraryRootId",
+              "kind": "root_id",
+              "default": "library",
+              "minimum": null,
+              "maximum": null
+            }
+          ],
+          "security": {
+            "user": "1000:1000",
+            "privileged": false,
+            "capDrop": [
+              "ALL"
+            ],
+            "capAdd": [],
+            "noNewPrivileges": true,
+            "init": false
+          },
+          "network": {
+            "mode": "bridge",
+            "listeners": [
+              {
+                "protocol": "tcp",
+                "port": 8989,
+                "purpose": "web"
+              }
+            ],
+            "dynamicReceiverPorts": false
+          },
+          "mounts": [
+            {
+              "kind": "managed_appdata",
+              "rootId": "appdata",
+              "relativePath": "sonarr/config",
+              "target": "/config",
+              "readOnly": false
+            },
+            {
+              "kind": "approved_library",
+              "rootId": "library",
+              "relativePath": "",
+              "target": "/data",
+              "readOnly": false
+            }
+          ],
+          "ports": [
+            {
+              "protocol": "tcp",
+              "hostIp": "0.0.0.0",
+              "hostPort": 8989,
+              "containerPort": 8989
+            }
+          ],
+          "tmpfs": [
+            {
+              "target": "/run",
+              "sizeMiB": 64,
+              "uid": 1000,
+              "gid": 1000,
+              "executable": true
+            },
+            {
+              "target": "/tmp",
+              "sizeMiB": 128,
+              "uid": 1000,
+              "gid": 1000,
+              "executable": false
+            }
+          ],
+          "environment": [
+            {
+              "name": "TZ",
+              "value": "Etc/UTC"
+            }
+          ],
+          "resources": {
+            "memoryMiB": 2048,
+            "cpuMillis": 2000,
+            "pidsLimit": 512,
+            "minimumDiskMiB": 8192
+          },
+          "health": {
+            "profile": "sonarr_public",
+            "path": "/ping",
+            "port": 8989
+          },
+          "warnings": [
+            "lan_port_exposure",
+            "initial_setup_required",
+            "resource_budget_unverified",
+            "writable_shared_library",
+            "library_paths_require_setup",
+            "non_root_ownership_required"
+          ]
+        }
+      },
+      {
+        "catalogDigest": "2f5d16e764d4b6dab968986a4723fd47996e832e4670d9f68c6a2b7807a11749",
+        "manifestDigest": "0cd23e0fb7916ef153299aaa8eb0a2b8a01dc2627d15a2bb8974949fe190d58c",
+        "manifest": {
+          "manifestVersion": 1,
+          "configSchemaVersion": 1,
+          "dataSchemaVersion": "upstream_managed_unverified",
+          "serviceId": "radarr",
+          "integrationRole": "managed_service",
+          "distributionId": "linuxserver",
+          "displayName": "Radarr",
+          "version": "6.3.0.10514",
+          "upstreamRepository": "https://github.com/Radarr/Radarr",
+          "sourceRepository": "https://github.com/linuxserver/docker-radarr",
+          "sourceRevision": "d37af7f113fb639a43bc872efa84997eb3c6e9c7",
+          "releaseUrl": "https://github.com/linuxserver/docker-radarr/releases/tag/6.3.0.10514-ls314",
+          "license": "GPL-3.0",
+          "licenseUrl": "https://github.com/Radarr/Radarr/blob/v6.3.0.10514/LICENSE",
+          "distributionLicense": "GPL-3.0-only",
+          "documentationUrls": [
+            "https://docs.linuxserver.io/images/docker-radarr/",
+            "https://docs.linuxserver.io/misc/non-root/",
+            "https://github.com/linuxserver/docker-radarr/blob/6.3.0.10514-ls314/README.md"
+          ],
+          "verifiedAt": "2026-09-05",
+          "repository": "ghcr.io/linuxserver/radarr",
+          "tag": "6.3.0.10514-ls314",
+          "indexDigest": "sha256:119aaa4a4f7349bcd2a136c5373a0d7925b5479915c7dfe0c0ad352db2a6d438",
+          "images": [
+            {
+              "platform": "linux/amd64",
+              "digest": "sha256:aafefadc432ef62018bd2d7773f47f11e384c478d0e3ce8c7b16a8cdad865c32",
+              "configDigest": "sha256:f1e01ab3fdde498a417c951313cf8825a905bef09554def202bdacec0f3a6622"
+            },
+            {
+              "platform": "linux/arm64",
+              "digest": "sha256:9494b045f25bf2fe69cb4a9991a4a0835de8e20930d5ab7e85cb0dc51d8a8545",
+              "configDigest": "sha256:658dca3e507e5e67d1f8127b0cdf2ef730bd270b00f8323b28b4348aa9d8ff46"
+            }
+          ],
+          "installable": false,
+          "settings": [
+            {
+              "name": "instanceName",
+              "kind": "slug",
+              "default": "radarr",
+              "minimum": null,
+              "maximum": null
+            },
+            {
+              "name": "dataRootId",
+              "kind": "root_id",
+              "default": "appdata",
+              "minimum": null,
+              "maximum": null
+            },
+            {
+              "name": "webPort",
+              "kind": "port",
+              "default": 7878,
+              "minimum": 1024,
+              "maximum": 65535
+            },
+            {
+              "name": "libraryRootId",
+              "kind": "root_id",
+              "default": "library",
+              "minimum": null,
+              "maximum": null
+            }
+          ],
+          "security": {
+            "user": "1000:1000",
+            "privileged": false,
+            "capDrop": [
+              "ALL"
+            ],
+            "capAdd": [],
+            "noNewPrivileges": true,
+            "init": false
+          },
+          "network": {
+            "mode": "bridge",
+            "listeners": [
+              {
+                "protocol": "tcp",
+                "port": 7878,
+                "purpose": "web"
+              }
+            ],
+            "dynamicReceiverPorts": false
+          },
+          "mounts": [
+            {
+              "kind": "managed_appdata",
+              "rootId": "appdata",
+              "relativePath": "radarr/config",
+              "target": "/config",
+              "readOnly": false
+            },
+            {
+              "kind": "approved_library",
+              "rootId": "library",
+              "relativePath": "",
+              "target": "/data",
+              "readOnly": false
+            }
+          ],
+          "ports": [
+            {
+              "protocol": "tcp",
+              "hostIp": "0.0.0.0",
+              "hostPort": 7878,
+              "containerPort": 7878
+            }
+          ],
+          "tmpfs": [
+            {
+              "target": "/run",
+              "sizeMiB": 64,
+              "uid": 1000,
+              "gid": 1000,
+              "executable": true
+            },
+            {
+              "target": "/tmp",
+              "sizeMiB": 128,
+              "uid": 1000,
+              "gid": 1000,
+              "executable": false
+            }
+          ],
+          "environment": [
+            {
+              "name": "TZ",
+              "value": "Etc/UTC"
+            }
+          ],
+          "resources": {
+            "memoryMiB": 2048,
+            "cpuMillis": 2000,
+            "pidsLimit": 512,
+            "minimumDiskMiB": 8192
+          },
+          "health": {
+            "profile": "radarr_public",
+            "path": "/ping",
+            "port": 7878
+          },
+          "warnings": [
+            "lan_port_exposure",
+            "initial_setup_required",
+            "resource_budget_unverified",
+            "writable_shared_library",
+            "library_paths_require_setup",
+            "non_root_ownership_required"
+          ]
+        }
+      },
+      {
+        "catalogDigest": "2f5d16e764d4b6dab968986a4723fd47996e832e4670d9f68c6a2b7807a11749",
+        "manifestDigest": "70d861e59da58953f8f95ea2806499bab5759b62d06cff2b95438dc53b3fdae8",
+        "manifest": {
+          "manifestVersion": 1,
+          "configSchemaVersion": 1,
+          "dataSchemaVersion": "upstream_managed_unverified",
+          "serviceId": "qbittorrent",
+          "integrationRole": "managed_service",
+          "distributionId": "linuxserver",
+          "displayName": "qBittorrent",
+          "version": "5.2.3",
+          "upstreamRepository": "https://github.com/qbittorrent/qBittorrent",
+          "sourceRepository": "https://github.com/linuxserver/docker-qbittorrent",
+          "sourceRevision": "66a3432c396f4f3dbdbef7bd7ed5ab2042537fd0",
+          "releaseUrl": "https://github.com/linuxserver/docker-qbittorrent/releases/tag/5.2.3_v2.0.14-ls474",
+          "license": "GPL-2.0-or-later; binary GPL-3.0-or-later; OpenSSL exception",
+          "licenseUrl": "https://github.com/qbittorrent/qBittorrent/blob/release-5.2.3/COPYING",
+          "distributionLicense": "GPL-3.0-only",
+          "documentationUrls": [
+            "https://docs.linuxserver.io/images/docker-qbittorrent/",
+            "https://docs.linuxserver.io/misc/non-root/",
+            "https://github.com/linuxserver/docker-qbittorrent/blob/5.2.3_v2.0.14-ls474/README.md"
+          ],
+          "verifiedAt": "2026-09-05",
+          "repository": "ghcr.io/linuxserver/qbittorrent",
+          "tag": "5.2.3_v2.0.14-ls474",
+          "indexDigest": "sha256:a00b6a597a3832a1814cde0ef60abc55c94644f3f80902c3432f6af6de8d4a96",
+          "images": [
+            {
+              "platform": "linux/amd64",
+              "digest": "sha256:a7dc3bef7fe25c4d0bbf821f188edf78198d9db1920841b232aa89dff7f00cfe",
+              "configDigest": "sha256:66e850c76cf6cc7a034abd2be2b891fb1f63d797a0edeaf7282a8317fb4b6663"
+            },
+            {
+              "platform": "linux/arm64",
+              "digest": "sha256:955498017ba69b99394527dc76154db4b2e7b0618e3c2d97f64a149f3346792f",
+              "configDigest": "sha256:b0dc5d2ab0e791643a10024cdcc1ba1cae554eb329e65a10afcf5c9b50250575"
+            }
+          ],
+          "installable": false,
+          "settings": [
+            {
+              "name": "instanceName",
+              "kind": "slug",
+              "default": "qbittorrent",
+              "minimum": null,
+              "maximum": null
+            },
+            {
+              "name": "dataRootId",
+              "kind": "root_id",
+              "default": "appdata",
+              "minimum": null,
+              "maximum": null
+            },
+            {
+              "name": "webPort",
+              "kind": "port",
+              "default": 8080,
+              "minimum": 1024,
+              "maximum": 65535
+            },
+            {
+              "name": "libraryRootId",
+              "kind": "root_id",
+              "default": "library",
+              "minimum": null,
+              "maximum": null
+            },
+            {
+              "name": "torrentPort",
+              "kind": "port",
+              "default": 6881,
+              "minimum": 1024,
+              "maximum": 65535
+            }
+          ],
+          "security": {
+            "user": "1000:1000",
+            "privileged": false,
+            "capDrop": [
+              "ALL"
+            ],
+            "capAdd": [],
+            "noNewPrivileges": true,
+            "init": false
+          },
+          "network": {
+            "mode": "bridge",
+            "listeners": [
+              {
+                "protocol": "tcp",
+                "port": 8080,
+                "purpose": "web"
+              },
+              {
+                "protocol": "tcp",
+                "port": 6881,
+                "purpose": "torrent"
+              },
+              {
+                "protocol": "udp",
+                "port": 6881,
+                "purpose": "torrent"
+              }
+            ],
+            "dynamicReceiverPorts": false
+          },
+          "mounts": [
+            {
+              "kind": "managed_appdata",
+              "rootId": "appdata",
+              "relativePath": "qbittorrent/config",
+              "target": "/config",
+              "readOnly": false
+            },
+            {
+              "kind": "approved_library",
+              "rootId": "library",
+              "relativePath": "",
+              "target": "/data",
+              "readOnly": false
+            }
+          ],
+          "ports": [
+            {
+              "protocol": "tcp",
+              "hostIp": "0.0.0.0",
+              "hostPort": 8080,
+              "containerPort": 8080
+            },
+            {
+              "protocol": "tcp",
+              "hostIp": "0.0.0.0",
+              "hostPort": 6881,
+              "containerPort": 6881
+            },
+            {
+              "protocol": "udp",
+              "hostIp": "0.0.0.0",
+              "hostPort": 6881,
+              "containerPort": 6881
+            }
+          ],
+          "tmpfs": [
+            {
+              "target": "/run",
+              "sizeMiB": 64,
+              "uid": 1000,
+              "gid": 1000,
+              "executable": true
+            },
+            {
+              "target": "/tmp",
+              "sizeMiB": 128,
+              "uid": 1000,
+              "gid": 1000,
+              "executable": false
+            }
+          ],
+          "environment": [
+            {
+              "name": "TZ",
+              "value": "Etc/UTC"
+            },
+            {
+              "name": "WEBUI_PORT",
+              "value": "8080"
+            },
+            {
+              "name": "TORRENTING_PORT",
+              "value": "6881"
+            }
+          ],
+          "resources": {
+            "memoryMiB": 2048,
+            "cpuMillis": 2000,
+            "pidsLimit": 512,
+            "minimumDiskMiB": 8192
+          },
+          "health": {
+            "profile": "qbittorrent_web",
+            "path": "/",
+            "port": 8080
+          },
+          "warnings": [
+            "lan_port_exposure",
+            "initial_setup_required",
+            "resource_budget_unverified",
+            "writable_shared_library",
+            "library_paths_require_setup",
+            "non_root_ownership_required"
+          ]
+        }
+      },
+      {
+        "catalogDigest": "2f5d16e764d4b6dab968986a4723fd47996e832e4670d9f68c6a2b7807a11749",
+        "manifestDigest": "20c4deb35ee6da9a697c1657f23261592643933f88e62dd3d8c8fd518df5e8c9",
+        "manifest": {
+          "manifestVersion": 1,
+          "configSchemaVersion": 1,
+          "dataSchemaVersion": "upstream_managed_unverified",
+          "serviceId": "music_assistant",
+          "integrationRole": "internal_engine",
+          "distributionId": "upstream",
+          "displayName": "Music Assistant",
+          "version": "2.10.2",
+          "upstreamRepository": "https://github.com/music-assistant/server",
+          "sourceRepository": "https://github.com/music-assistant/server",
+          "sourceRevision": "243c4561c1744501a3087101127c339f4269831b",
+          "releaseUrl": "https://github.com/music-assistant/server/releases/tag/2.10.2",
+          "license": "Apache-2.0",
+          "licenseUrl": "https://github.com/music-assistant/server/blob/2.10.2/LICENSE",
+          "distributionLicense": "Apache-2.0",
+          "documentationUrls": [
+            "https://www.music-assistant.io/installation/",
+            "https://github.com/music-assistant/server/blob/2.10.2/music_assistant/providers/airplay/README.md"
+          ],
+          "verifiedAt": "2026-09-05",
+          "repository": "ghcr.io/music-assistant/server",
+          "tag": "2.10.2",
+          "indexDigest": "sha256:09c02b4ee491976efa6d698265f72571f064031bb1a2c9a1c32e104392209690",
+          "images": [
+            {
+              "platform": "linux/amd64",
+              "digest": "sha256:1aaf808e3ef95d75e03448640e97c96f85440af2de240f66e4132a5725261afc",
+              "configDigest": "sha256:503297b9b9657a8e8dd92265bf3c4b3577fbb0fb319aae763506503e3838b970"
+            },
+            {
+              "platform": "linux/arm64",
+              "digest": "sha256:457b53cabd8963b17591a0710883e7e502fdadca96d80edf141d623fa630e7f7",
+              "configDigest": "sha256:26406623b9d7e23d6703ee3e2312a8590d4200f681dc7e9e02adad569a443984"
+            }
+          ],
+          "installable": false,
+          "settings": [
+            {
+              "name": "instanceName",
+              "kind": "slug",
+              "default": "music-assistant",
+              "minimum": null,
+              "maximum": null
+            },
+            {
+              "name": "dataRootId",
+              "kind": "root_id",
+              "default": "appdata",
+              "minimum": null,
+              "maximum": null
+            },
+            {
+              "name": "musicRootId",
+              "kind": "optional_root_id",
+              "default": null,
+              "minimum": null,
+              "maximum": null
+            }
+          ],
+          "security": {
+            "user": "0:0",
+            "privileged": false,
+            "capDrop": [
+              "ALL"
+            ],
+            "capAdd": [
+              "NET_BIND_SERVICE"
+            ],
+            "noNewPrivileges": true,
+            "init": false
+          },
+          "network": {
+            "mode": "host",
+            "listeners": [
+              {
+                "protocol": "tcp",
+                "port": 8095,
+                "purpose": "web"
+              },
+              {
+                "protocol": "tcp",
+                "port": 8097,
+                "purpose": "stream"
+              },
+              {
+                "protocol": "udp",
+                "port": 319,
+                "purpose": "airplay_ptp_event"
+              },
+              {
+                "protocol": "udp",
+                "port": 320,
+                "purpose": "airplay_ptp_general"
+              }
+            ],
+            "dynamicReceiverPorts": true
+          },
+          "mounts": [
+            {
+              "kind": "managed_appdata",
+              "rootId": "appdata",
+              "relativePath": "music-assistant/data",
+              "target": "/data",
+              "readOnly": false
+            }
+          ],
+          "ports": [],
+          "tmpfs": [],
+          "environment": [
+            {
+              "name": "LOG_LEVEL",
+              "value": "warning"
+            }
+          ],
+          "resources": {
+            "memoryMiB": 4096,
+            "cpuMillis": 2000,
+            "pidsLimit": 512,
+            "minimumDiskMiB": 8192
+          },
+          "health": {
+            "profile": "music_assistant_info",
+            "path": "/info",
+            "port": 8095
+          },
+          "warnings": [
+            "host_network",
+            "airplay_ptp_319_320",
+            "dynamic_receiver_ports",
+            "initial_setup_required",
+            "resource_budget_unverified"
+          ]
+        }
+      }
+    ],
+    "worker": {
+      "available": false,
+      "platform": null,
+      "reason": "worker_not_configured"
+    }
+  },
+  "plans": [
+    {
+      "serviceId": "jellyfin",
+      "platform": "linux/amd64",
+      "settings": {
+        "dataRootId": "appdata",
+        "instanceName": "jellyfin",
+        "mediaRootId": null,
+        "webPort": 8096
+      },
+      "plan": {
+        "schemaVersion": 1,
+        "serviceId": "jellyfin",
+        "integrationRole": "managed_service",
+        "distributionId": "upstream",
+        "instanceName": "jellyfin",
+        "catalogDigest": "2f5d16e764d4b6dab968986a4723fd47996e832e4670d9f68c6a2b7807a11749",
+        "manifestDigest": "5f45a6d9206d9a72517f5714d890be35a71d9544743cc755875aa554725c0eb8",
+        "planHash": "44e2bacd8f5c9a51a46e49e5c3c420d7a2db079f489490706d71d13c5016f4f8",
+        "installable": false,
+        "blockers": [
+          "worker_unverified",
+          "host_preflight_required"
+        ],
+        "settings": [
+          {
+            "name": "dataRootId",
+            "value": "appdata"
+          },
+          {
+            "name": "instanceName",
+            "value": "jellyfin"
+          },
+          {
+            "name": "mediaRootId",
+            "value": null
+          },
+          {
+            "name": "webPort",
+            "value": 8096
+          }
+        ],
+        "image": {
+          "repository": "ghcr.io/jellyfin/jellyfin",
+          "tag": "10.11.11",
+          "platform": "linux/amd64",
+          "digest": "sha256:ddf59965ae63fccc66dfe72384495df355c67ea5abd9cc04eb65988f9a6010d1",
+          "indexDigest": "sha256:45f648c382a0c8b552582fcea40e95cb17c5d475473a891cba0eb7523fb92112",
+          "reference": "ghcr.io/jellyfin/jellyfin:10.11.11@sha256:ddf59965ae63fccc66dfe72384495df355c67ea5abd9cc04eb65988f9a6010d1"
+        },
+        "security": {
+          "user": "1000:1000",
+          "privileged": false,
+          "capDrop": [
+            "ALL"
+          ],
+          "capAdd": [],
+          "noNewPrivileges": true,
+          "init": false
+        },
+        "network": {
+          "mode": "bridge",
+          "listeners": [
+            {
+              "protocol": "tcp",
+              "port": 8096,
+              "purpose": "web"
+            }
+          ],
+          "dynamicReceiverPorts": false
+        },
+        "mounts": [
+          {
+            "kind": "managed_appdata",
+            "rootId": "appdata",
+            "relativePath": "jellyfin/config",
+            "target": "/config",
+            "readOnly": false
+          },
+          {
+            "kind": "managed_appdata",
+            "rootId": "appdata",
+            "relativePath": "jellyfin/cache",
+            "target": "/cache",
+            "readOnly": false
+          }
+        ],
+        "ports": [
+          {
+            "protocol": "tcp",
+            "hostIp": "0.0.0.0",
+            "hostPort": 8096,
+            "containerPort": 8096
+          }
+        ],
+        "tmpfs": [],
+        "environment": [
+          {
+            "name": "TZ",
+            "value": "Etc/UTC"
+          }
+        ],
+        "resources": {
+          "memoryMiB": 4096,
+          "cpuMillis": 2000,
+          "pidsLimit": 512,
+          "minimumDiskMiB": 8192
+        },
+        "health": {
+          "profile": "jellyfin_public",
+          "path": "/health",
+          "port": 8096
+        },
+        "warnings": [
+          "lan_port_exposure",
+          "initial_setup_required",
+          "resource_budget_unverified",
+          "hardware_acceleration_not_configured",
+          "discovery_not_published"
+        ]
+      }
+    },
+    {
+      "serviceId": "jellyfin",
+      "platform": "linux/arm64",
+      "settings": {
+        "dataRootId": "appdata",
+        "instanceName": "jellyfin",
+        "mediaRootId": null,
+        "webPort": 8096
+      },
+      "plan": {
+        "schemaVersion": 1,
+        "serviceId": "jellyfin",
+        "integrationRole": "managed_service",
+        "distributionId": "upstream",
+        "instanceName": "jellyfin",
+        "catalogDigest": "2f5d16e764d4b6dab968986a4723fd47996e832e4670d9f68c6a2b7807a11749",
+        "manifestDigest": "5f45a6d9206d9a72517f5714d890be35a71d9544743cc755875aa554725c0eb8",
+        "planHash": "a7962b2d0538cd9667ad06d247cfc9e0ec5b924a8d39933ea573cd0ad56fc171",
+        "installable": false,
+        "blockers": [
+          "worker_unverified",
+          "host_preflight_required"
+        ],
+        "settings": [
+          {
+            "name": "dataRootId",
+            "value": "appdata"
+          },
+          {
+            "name": "instanceName",
+            "value": "jellyfin"
+          },
+          {
+            "name": "mediaRootId",
+            "value": null
+          },
+          {
+            "name": "webPort",
+            "value": 8096
+          }
+        ],
+        "image": {
+          "repository": "ghcr.io/jellyfin/jellyfin",
+          "tag": "10.11.11",
+          "platform": "linux/arm64",
+          "digest": "sha256:2961aa1e97515b4e3bca9149ad3fce1599bdd67df970e50bb28aaff1731def01",
+          "indexDigest": "sha256:45f648c382a0c8b552582fcea40e95cb17c5d475473a891cba0eb7523fb92112",
+          "reference": "ghcr.io/jellyfin/jellyfin:10.11.11@sha256:2961aa1e97515b4e3bca9149ad3fce1599bdd67df970e50bb28aaff1731def01"
+        },
+        "security": {
+          "user": "1000:1000",
+          "privileged": false,
+          "capDrop": [
+            "ALL"
+          ],
+          "capAdd": [],
+          "noNewPrivileges": true,
+          "init": false
+        },
+        "network": {
+          "mode": "bridge",
+          "listeners": [
+            {
+              "protocol": "tcp",
+              "port": 8096,
+              "purpose": "web"
+            }
+          ],
+          "dynamicReceiverPorts": false
+        },
+        "mounts": [
+          {
+            "kind": "managed_appdata",
+            "rootId": "appdata",
+            "relativePath": "jellyfin/config",
+            "target": "/config",
+            "readOnly": false
+          },
+          {
+            "kind": "managed_appdata",
+            "rootId": "appdata",
+            "relativePath": "jellyfin/cache",
+            "target": "/cache",
+            "readOnly": false
+          }
+        ],
+        "ports": [
+          {
+            "protocol": "tcp",
+            "hostIp": "0.0.0.0",
+            "hostPort": 8096,
+            "containerPort": 8096
+          }
+        ],
+        "tmpfs": [],
+        "environment": [
+          {
+            "name": "TZ",
+            "value": "Etc/UTC"
+          }
+        ],
+        "resources": {
+          "memoryMiB": 4096,
+          "cpuMillis": 2000,
+          "pidsLimit": 512,
+          "minimumDiskMiB": 8192
+        },
+        "health": {
+          "profile": "jellyfin_public",
+          "path": "/health",
+          "port": 8096
+        },
+        "warnings": [
+          "lan_port_exposure",
+          "initial_setup_required",
+          "resource_budget_unverified",
+          "hardware_acceleration_not_configured",
+          "discovery_not_published"
+        ]
+      }
+    },
+    {
+      "serviceId": "seerr",
+      "platform": "linux/amd64",
+      "settings": {
+        "dataRootId": "appdata",
+        "instanceName": "seerr",
+        "webPort": 5055
+      },
+      "plan": {
+        "schemaVersion": 1,
+        "serviceId": "seerr",
+        "integrationRole": "managed_service",
+        "distributionId": "upstream",
+        "instanceName": "seerr",
+        "catalogDigest": "2f5d16e764d4b6dab968986a4723fd47996e832e4670d9f68c6a2b7807a11749",
+        "manifestDigest": "c5ffd6ee0089ead9fe5de1bf20cf2768404c6900831531b9c36c3e061cdeb53a",
+        "planHash": "af081a89a7f35d5e077e5a6f609308a280708ee6cc1f313eb92a71664c41924a",
+        "installable": false,
+        "blockers": [
+          "worker_unverified",
+          "host_preflight_required"
+        ],
+        "settings": [
+          {
+            "name": "dataRootId",
+            "value": "appdata"
+          },
+          {
+            "name": "instanceName",
+            "value": "seerr"
+          },
+          {
+            "name": "webPort",
+            "value": 5055
+          }
+        ],
+        "image": {
+          "repository": "ghcr.io/seerr-team/seerr",
+          "tag": "v3.4.1",
+          "platform": "linux/amd64",
+          "digest": "sha256:b21cf91bb7a10d70446e104e7b7b9c9c386aa22beeac535a3271cbfc5843d142",
+          "indexDigest": "sha256:f4768de5f616248d723e05891f3345a1402123775d03bf0890dbfedc0831bda1",
+          "reference": "ghcr.io/seerr-team/seerr:v3.4.1@sha256:b21cf91bb7a10d70446e104e7b7b9c9c386aa22beeac535a3271cbfc5843d142"
+        },
+        "security": {
+          "user": "1000:1000",
+          "privileged": false,
+          "capDrop": [
+            "ALL"
+          ],
+          "capAdd": [],
+          "noNewPrivileges": true,
+          "init": true
+        },
+        "network": {
+          "mode": "bridge",
+          "listeners": [
+            {
+              "protocol": "tcp",
+              "port": 5055,
+              "purpose": "web"
+            }
+          ],
+          "dynamicReceiverPorts": false
+        },
+        "mounts": [
+          {
+            "kind": "managed_appdata",
+            "rootId": "appdata",
+            "relativePath": "seerr/config",
+            "target": "/app/config",
+            "readOnly": false
+          }
+        ],
+        "ports": [
+          {
+            "protocol": "tcp",
+            "hostIp": "0.0.0.0",
+            "hostPort": 5055,
+            "containerPort": 5055
+          }
+        ],
+        "tmpfs": [],
+        "environment": [
+          {
+            "name": "PORT",
+            "value": "5055"
+          },
+          {
+            "name": "TZ",
+            "value": "Etc/UTC"
+          }
+        ],
+        "resources": {
+          "memoryMiB": 2048,
+          "cpuMillis": 2000,
+          "pidsLimit": 512,
+          "minimumDiskMiB": 8192
+        },
+        "health": {
+          "profile": "seerr_public",
+          "path": "/api/v1/settings/public",
+          "port": 5055
+        },
+        "warnings": [
+          "lan_port_exposure",
+          "initial_setup_required",
+          "resource_budget_unverified"
+        ]
+      }
+    },
+    {
+      "serviceId": "seerr",
+      "platform": "linux/arm64",
+      "settings": {
+        "dataRootId": "appdata",
+        "instanceName": "seerr",
+        "webPort": 5055
+      },
+      "plan": {
+        "schemaVersion": 1,
+        "serviceId": "seerr",
+        "integrationRole": "managed_service",
+        "distributionId": "upstream",
+        "instanceName": "seerr",
+        "catalogDigest": "2f5d16e764d4b6dab968986a4723fd47996e832e4670d9f68c6a2b7807a11749",
+        "manifestDigest": "c5ffd6ee0089ead9fe5de1bf20cf2768404c6900831531b9c36c3e061cdeb53a",
+        "planHash": "6f57fa7d93d8305f13ee17bc29681f0171e35daa6ce5920aac9f9cc393dc0a61",
+        "installable": false,
+        "blockers": [
+          "worker_unverified",
+          "host_preflight_required"
+        ],
+        "settings": [
+          {
+            "name": "dataRootId",
+            "value": "appdata"
+          },
+          {
+            "name": "instanceName",
+            "value": "seerr"
+          },
+          {
+            "name": "webPort",
+            "value": 5055
+          }
+        ],
+        "image": {
+          "repository": "ghcr.io/seerr-team/seerr",
+          "tag": "v3.4.1",
+          "platform": "linux/arm64",
+          "digest": "sha256:d62cf12dadc38f11095dbe13762ab2b908874d7ff51f080bd6f0f697867d22bf",
+          "indexDigest": "sha256:f4768de5f616248d723e05891f3345a1402123775d03bf0890dbfedc0831bda1",
+          "reference": "ghcr.io/seerr-team/seerr:v3.4.1@sha256:d62cf12dadc38f11095dbe13762ab2b908874d7ff51f080bd6f0f697867d22bf"
+        },
+        "security": {
+          "user": "1000:1000",
+          "privileged": false,
+          "capDrop": [
+            "ALL"
+          ],
+          "capAdd": [],
+          "noNewPrivileges": true,
+          "init": true
+        },
+        "network": {
+          "mode": "bridge",
+          "listeners": [
+            {
+              "protocol": "tcp",
+              "port": 5055,
+              "purpose": "web"
+            }
+          ],
+          "dynamicReceiverPorts": false
+        },
+        "mounts": [
+          {
+            "kind": "managed_appdata",
+            "rootId": "appdata",
+            "relativePath": "seerr/config",
+            "target": "/app/config",
+            "readOnly": false
+          }
+        ],
+        "ports": [
+          {
+            "protocol": "tcp",
+            "hostIp": "0.0.0.0",
+            "hostPort": 5055,
+            "containerPort": 5055
+          }
+        ],
+        "tmpfs": [],
+        "environment": [
+          {
+            "name": "PORT",
+            "value": "5055"
+          },
+          {
+            "name": "TZ",
+            "value": "Etc/UTC"
+          }
+        ],
+        "resources": {
+          "memoryMiB": 2048,
+          "cpuMillis": 2000,
+          "pidsLimit": 512,
+          "minimumDiskMiB": 8192
+        },
+        "health": {
+          "profile": "seerr_public",
+          "path": "/api/v1/settings/public",
+          "port": 5055
+        },
+        "warnings": [
+          "lan_port_exposure",
+          "initial_setup_required",
+          "resource_budget_unverified"
+        ]
+      }
+    },
+    {
+      "serviceId": "sonarr",
+      "platform": "linux/amd64",
+      "settings": {
+        "dataRootId": "appdata",
+        "instanceName": "sonarr",
+        "libraryRootId": "library",
+        "webPort": 8989
+      },
+      "plan": {
+        "schemaVersion": 1,
+        "serviceId": "sonarr",
+        "integrationRole": "managed_service",
+        "distributionId": "linuxserver",
+        "instanceName": "sonarr",
+        "catalogDigest": "2f5d16e764d4b6dab968986a4723fd47996e832e4670d9f68c6a2b7807a11749",
+        "manifestDigest": "fff7c70598b95f1c9d3befc1b26182a76dd85fd9425693ed7108c1d9770e7edf",
+        "planHash": "c5ba94b860da7bbee59ed7b9ed5ac6b78e6a75fd156f68f8c2a830c68d988361",
+        "installable": false,
+        "blockers": [
+          "worker_unverified",
+          "host_preflight_required"
+        ],
+        "settings": [
+          {
+            "name": "dataRootId",
+            "value": "appdata"
+          },
+          {
+            "name": "instanceName",
+            "value": "sonarr"
+          },
+          {
+            "name": "libraryRootId",
+            "value": "library"
+          },
+          {
+            "name": "webPort",
+            "value": 8989
+          }
+        ],
+        "image": {
+          "repository": "ghcr.io/linuxserver/sonarr",
+          "tag": "4.0.19.2979-ls323",
+          "platform": "linux/amd64",
+          "digest": "sha256:580d419a949e9afadcf00cc33e38747f795ac162f20649649464b6640a5e971d",
+          "indexDigest": "sha256:4d9df314875e1249ab7d6170c2b9b3dc1d8e6383f168ceb10dc9a5ad9b324739",
+          "reference": "ghcr.io/linuxserver/sonarr:4.0.19.2979-ls323@sha256:580d419a949e9afadcf00cc33e38747f795ac162f20649649464b6640a5e971d"
+        },
+        "security": {
+          "user": "1000:1000",
+          "privileged": false,
+          "capDrop": [
+            "ALL"
+          ],
+          "capAdd": [],
+          "noNewPrivileges": true,
+          "init": false
+        },
+        "network": {
+          "mode": "bridge",
+          "listeners": [
+            {
+              "protocol": "tcp",
+              "port": 8989,
+              "purpose": "web"
+            }
+          ],
+          "dynamicReceiverPorts": false
+        },
+        "mounts": [
+          {
+            "kind": "managed_appdata",
+            "rootId": "appdata",
+            "relativePath": "sonarr/config",
+            "target": "/config",
+            "readOnly": false
+          },
+          {
+            "kind": "approved_library",
+            "rootId": "library",
+            "relativePath": "",
+            "target": "/data",
+            "readOnly": false
+          }
+        ],
+        "ports": [
+          {
+            "protocol": "tcp",
+            "hostIp": "0.0.0.0",
+            "hostPort": 8989,
+            "containerPort": 8989
+          }
+        ],
+        "tmpfs": [
+          {
+            "target": "/run",
+            "sizeMiB": 64,
+            "uid": 1000,
+            "gid": 1000,
+            "executable": true
+          },
+          {
+            "target": "/tmp",
+            "sizeMiB": 128,
+            "uid": 1000,
+            "gid": 1000,
+            "executable": false
+          }
+        ],
+        "environment": [
+          {
+            "name": "TZ",
+            "value": "Etc/UTC"
+          }
+        ],
+        "resources": {
+          "memoryMiB": 2048,
+          "cpuMillis": 2000,
+          "pidsLimit": 512,
+          "minimumDiskMiB": 8192
+        },
+        "health": {
+          "profile": "sonarr_public",
+          "path": "/ping",
+          "port": 8989
+        },
+        "warnings": [
+          "lan_port_exposure",
+          "initial_setup_required",
+          "resource_budget_unverified",
+          "writable_shared_library",
+          "library_paths_require_setup",
+          "non_root_ownership_required"
+        ]
+      }
+    },
+    {
+      "serviceId": "sonarr",
+      "platform": "linux/arm64",
+      "settings": {
+        "dataRootId": "appdata",
+        "instanceName": "sonarr",
+        "libraryRootId": "library",
+        "webPort": 8989
+      },
+      "plan": {
+        "schemaVersion": 1,
+        "serviceId": "sonarr",
+        "integrationRole": "managed_service",
+        "distributionId": "linuxserver",
+        "instanceName": "sonarr",
+        "catalogDigest": "2f5d16e764d4b6dab968986a4723fd47996e832e4670d9f68c6a2b7807a11749",
+        "manifestDigest": "fff7c70598b95f1c9d3befc1b26182a76dd85fd9425693ed7108c1d9770e7edf",
+        "planHash": "b93a6cd7d3252c51d2e94c06a5cf4f721424c56f76fad5280c4b90fd4365ed9b",
+        "installable": false,
+        "blockers": [
+          "worker_unverified",
+          "host_preflight_required"
+        ],
+        "settings": [
+          {
+            "name": "dataRootId",
+            "value": "appdata"
+          },
+          {
+            "name": "instanceName",
+            "value": "sonarr"
+          },
+          {
+            "name": "libraryRootId",
+            "value": "library"
+          },
+          {
+            "name": "webPort",
+            "value": 8989
+          }
+        ],
+        "image": {
+          "repository": "ghcr.io/linuxserver/sonarr",
+          "tag": "4.0.19.2979-ls323",
+          "platform": "linux/arm64",
+          "digest": "sha256:083de4637ba01c9c54d111174ee2c7f8249b25fdc77cf37f7597d9875aba6e04",
+          "indexDigest": "sha256:4d9df314875e1249ab7d6170c2b9b3dc1d8e6383f168ceb10dc9a5ad9b324739",
+          "reference": "ghcr.io/linuxserver/sonarr:4.0.19.2979-ls323@sha256:083de4637ba01c9c54d111174ee2c7f8249b25fdc77cf37f7597d9875aba6e04"
+        },
+        "security": {
+          "user": "1000:1000",
+          "privileged": false,
+          "capDrop": [
+            "ALL"
+          ],
+          "capAdd": [],
+          "noNewPrivileges": true,
+          "init": false
+        },
+        "network": {
+          "mode": "bridge",
+          "listeners": [
+            {
+              "protocol": "tcp",
+              "port": 8989,
+              "purpose": "web"
+            }
+          ],
+          "dynamicReceiverPorts": false
+        },
+        "mounts": [
+          {
+            "kind": "managed_appdata",
+            "rootId": "appdata",
+            "relativePath": "sonarr/config",
+            "target": "/config",
+            "readOnly": false
+          },
+          {
+            "kind": "approved_library",
+            "rootId": "library",
+            "relativePath": "",
+            "target": "/data",
+            "readOnly": false
+          }
+        ],
+        "ports": [
+          {
+            "protocol": "tcp",
+            "hostIp": "0.0.0.0",
+            "hostPort": 8989,
+            "containerPort": 8989
+          }
+        ],
+        "tmpfs": [
+          {
+            "target": "/run",
+            "sizeMiB": 64,
+            "uid": 1000,
+            "gid": 1000,
+            "executable": true
+          },
+          {
+            "target": "/tmp",
+            "sizeMiB": 128,
+            "uid": 1000,
+            "gid": 1000,
+            "executable": false
+          }
+        ],
+        "environment": [
+          {
+            "name": "TZ",
+            "value": "Etc/UTC"
+          }
+        ],
+        "resources": {
+          "memoryMiB": 2048,
+          "cpuMillis": 2000,
+          "pidsLimit": 512,
+          "minimumDiskMiB": 8192
+        },
+        "health": {
+          "profile": "sonarr_public",
+          "path": "/ping",
+          "port": 8989
+        },
+        "warnings": [
+          "lan_port_exposure",
+          "initial_setup_required",
+          "resource_budget_unverified",
+          "writable_shared_library",
+          "library_paths_require_setup",
+          "non_root_ownership_required"
+        ]
+      }
+    },
+    {
+      "serviceId": "radarr",
+      "platform": "linux/amd64",
+      "settings": {
+        "dataRootId": "appdata",
+        "instanceName": "radarr",
+        "libraryRootId": "library",
+        "webPort": 7878
+      },
+      "plan": {
+        "schemaVersion": 1,
+        "serviceId": "radarr",
+        "integrationRole": "managed_service",
+        "distributionId": "linuxserver",
+        "instanceName": "radarr",
+        "catalogDigest": "2f5d16e764d4b6dab968986a4723fd47996e832e4670d9f68c6a2b7807a11749",
+        "manifestDigest": "0cd23e0fb7916ef153299aaa8eb0a2b8a01dc2627d15a2bb8974949fe190d58c",
+        "planHash": "91bac1fc0e05fc8c12e7c09a3c2b17ab748f09803e0eb3ca680fca454f1d5749",
+        "installable": false,
+        "blockers": [
+          "worker_unverified",
+          "host_preflight_required"
+        ],
+        "settings": [
+          {
+            "name": "dataRootId",
+            "value": "appdata"
+          },
+          {
+            "name": "instanceName",
+            "value": "radarr"
+          },
+          {
+            "name": "libraryRootId",
+            "value": "library"
+          },
+          {
+            "name": "webPort",
+            "value": 7878
+          }
+        ],
+        "image": {
+          "repository": "ghcr.io/linuxserver/radarr",
+          "tag": "6.3.0.10514-ls314",
+          "platform": "linux/amd64",
+          "digest": "sha256:aafefadc432ef62018bd2d7773f47f11e384c478d0e3ce8c7b16a8cdad865c32",
+          "indexDigest": "sha256:119aaa4a4f7349bcd2a136c5373a0d7925b5479915c7dfe0c0ad352db2a6d438",
+          "reference": "ghcr.io/linuxserver/radarr:6.3.0.10514-ls314@sha256:aafefadc432ef62018bd2d7773f47f11e384c478d0e3ce8c7b16a8cdad865c32"
+        },
+        "security": {
+          "user": "1000:1000",
+          "privileged": false,
+          "capDrop": [
+            "ALL"
+          ],
+          "capAdd": [],
+          "noNewPrivileges": true,
+          "init": false
+        },
+        "network": {
+          "mode": "bridge",
+          "listeners": [
+            {
+              "protocol": "tcp",
+              "port": 7878,
+              "purpose": "web"
+            }
+          ],
+          "dynamicReceiverPorts": false
+        },
+        "mounts": [
+          {
+            "kind": "managed_appdata",
+            "rootId": "appdata",
+            "relativePath": "radarr/config",
+            "target": "/config",
+            "readOnly": false
+          },
+          {
+            "kind": "approved_library",
+            "rootId": "library",
+            "relativePath": "",
+            "target": "/data",
+            "readOnly": false
+          }
+        ],
+        "ports": [
+          {
+            "protocol": "tcp",
+            "hostIp": "0.0.0.0",
+            "hostPort": 7878,
+            "containerPort": 7878
+          }
+        ],
+        "tmpfs": [
+          {
+            "target": "/run",
+            "sizeMiB": 64,
+            "uid": 1000,
+            "gid": 1000,
+            "executable": true
+          },
+          {
+            "target": "/tmp",
+            "sizeMiB": 128,
+            "uid": 1000,
+            "gid": 1000,
+            "executable": false
+          }
+        ],
+        "environment": [
+          {
+            "name": "TZ",
+            "value": "Etc/UTC"
+          }
+        ],
+        "resources": {
+          "memoryMiB": 2048,
+          "cpuMillis": 2000,
+          "pidsLimit": 512,
+          "minimumDiskMiB": 8192
+        },
+        "health": {
+          "profile": "radarr_public",
+          "path": "/ping",
+          "port": 7878
+        },
+        "warnings": [
+          "lan_port_exposure",
+          "initial_setup_required",
+          "resource_budget_unverified",
+          "writable_shared_library",
+          "library_paths_require_setup",
+          "non_root_ownership_required"
+        ]
+      }
+    },
+    {
+      "serviceId": "radarr",
+      "platform": "linux/arm64",
+      "settings": {
+        "dataRootId": "appdata",
+        "instanceName": "radarr",
+        "libraryRootId": "library",
+        "webPort": 7878
+      },
+      "plan": {
+        "schemaVersion": 1,
+        "serviceId": "radarr",
+        "integrationRole": "managed_service",
+        "distributionId": "linuxserver",
+        "instanceName": "radarr",
+        "catalogDigest": "2f5d16e764d4b6dab968986a4723fd47996e832e4670d9f68c6a2b7807a11749",
+        "manifestDigest": "0cd23e0fb7916ef153299aaa8eb0a2b8a01dc2627d15a2bb8974949fe190d58c",
+        "planHash": "04b05f3edb50e58065f21de9a5288a36186cc9cccdb9a970d3c34141182f5cb0",
+        "installable": false,
+        "blockers": [
+          "worker_unverified",
+          "host_preflight_required"
+        ],
+        "settings": [
+          {
+            "name": "dataRootId",
+            "value": "appdata"
+          },
+          {
+            "name": "instanceName",
+            "value": "radarr"
+          },
+          {
+            "name": "libraryRootId",
+            "value": "library"
+          },
+          {
+            "name": "webPort",
+            "value": 7878
+          }
+        ],
+        "image": {
+          "repository": "ghcr.io/linuxserver/radarr",
+          "tag": "6.3.0.10514-ls314",
+          "platform": "linux/arm64",
+          "digest": "sha256:9494b045f25bf2fe69cb4a9991a4a0835de8e20930d5ab7e85cb0dc51d8a8545",
+          "indexDigest": "sha256:119aaa4a4f7349bcd2a136c5373a0d7925b5479915c7dfe0c0ad352db2a6d438",
+          "reference": "ghcr.io/linuxserver/radarr:6.3.0.10514-ls314@sha256:9494b045f25bf2fe69cb4a9991a4a0835de8e20930d5ab7e85cb0dc51d8a8545"
+        },
+        "security": {
+          "user": "1000:1000",
+          "privileged": false,
+          "capDrop": [
+            "ALL"
+          ],
+          "capAdd": [],
+          "noNewPrivileges": true,
+          "init": false
+        },
+        "network": {
+          "mode": "bridge",
+          "listeners": [
+            {
+              "protocol": "tcp",
+              "port": 7878,
+              "purpose": "web"
+            }
+          ],
+          "dynamicReceiverPorts": false
+        },
+        "mounts": [
+          {
+            "kind": "managed_appdata",
+            "rootId": "appdata",
+            "relativePath": "radarr/config",
+            "target": "/config",
+            "readOnly": false
+          },
+          {
+            "kind": "approved_library",
+            "rootId": "library",
+            "relativePath": "",
+            "target": "/data",
+            "readOnly": false
+          }
+        ],
+        "ports": [
+          {
+            "protocol": "tcp",
+            "hostIp": "0.0.0.0",
+            "hostPort": 7878,
+            "containerPort": 7878
+          }
+        ],
+        "tmpfs": [
+          {
+            "target": "/run",
+            "sizeMiB": 64,
+            "uid": 1000,
+            "gid": 1000,
+            "executable": true
+          },
+          {
+            "target": "/tmp",
+            "sizeMiB": 128,
+            "uid": 1000,
+            "gid": 1000,
+            "executable": false
+          }
+        ],
+        "environment": [
+          {
+            "name": "TZ",
+            "value": "Etc/UTC"
+          }
+        ],
+        "resources": {
+          "memoryMiB": 2048,
+          "cpuMillis": 2000,
+          "pidsLimit": 512,
+          "minimumDiskMiB": 8192
+        },
+        "health": {
+          "profile": "radarr_public",
+          "path": "/ping",
+          "port": 7878
+        },
+        "warnings": [
+          "lan_port_exposure",
+          "initial_setup_required",
+          "resource_budget_unverified",
+          "writable_shared_library",
+          "library_paths_require_setup",
+          "non_root_ownership_required"
+        ]
+      }
+    },
+    {
+      "serviceId": "qbittorrent",
+      "platform": "linux/amd64",
+      "settings": {
+        "dataRootId": "appdata",
+        "instanceName": "qbittorrent",
+        "libraryRootId": "library",
+        "torrentPort": 6881,
+        "webPort": 8080
+      },
+      "plan": {
+        "schemaVersion": 1,
+        "serviceId": "qbittorrent",
+        "integrationRole": "managed_service",
+        "distributionId": "linuxserver",
+        "instanceName": "qbittorrent",
+        "catalogDigest": "2f5d16e764d4b6dab968986a4723fd47996e832e4670d9f68c6a2b7807a11749",
+        "manifestDigest": "70d861e59da58953f8f95ea2806499bab5759b62d06cff2b95438dc53b3fdae8",
+        "planHash": "3bb3804d71ba4e21e5f97b7a0749a9cb974c7d49f3b9f3f0b00bbf8d5df67afc",
+        "installable": false,
+        "blockers": [
+          "worker_unverified",
+          "host_preflight_required"
+        ],
+        "settings": [
+          {
+            "name": "dataRootId",
+            "value": "appdata"
+          },
+          {
+            "name": "instanceName",
+            "value": "qbittorrent"
+          },
+          {
+            "name": "libraryRootId",
+            "value": "library"
+          },
+          {
+            "name": "torrentPort",
+            "value": 6881
+          },
+          {
+            "name": "webPort",
+            "value": 8080
+          }
+        ],
+        "image": {
+          "repository": "ghcr.io/linuxserver/qbittorrent",
+          "tag": "5.2.3_v2.0.14-ls474",
+          "platform": "linux/amd64",
+          "digest": "sha256:a7dc3bef7fe25c4d0bbf821f188edf78198d9db1920841b232aa89dff7f00cfe",
+          "indexDigest": "sha256:a00b6a597a3832a1814cde0ef60abc55c94644f3f80902c3432f6af6de8d4a96",
+          "reference": "ghcr.io/linuxserver/qbittorrent:5.2.3_v2.0.14-ls474@sha256:a7dc3bef7fe25c4d0bbf821f188edf78198d9db1920841b232aa89dff7f00cfe"
+        },
+        "security": {
+          "user": "1000:1000",
+          "privileged": false,
+          "capDrop": [
+            "ALL"
+          ],
+          "capAdd": [],
+          "noNewPrivileges": true,
+          "init": false
+        },
+        "network": {
+          "mode": "bridge",
+          "listeners": [
+            {
+              "protocol": "tcp",
+              "port": 8080,
+              "purpose": "web"
+            },
+            {
+              "protocol": "tcp",
+              "port": 6881,
+              "purpose": "torrent"
+            },
+            {
+              "protocol": "udp",
+              "port": 6881,
+              "purpose": "torrent"
+            }
+          ],
+          "dynamicReceiverPorts": false
+        },
+        "mounts": [
+          {
+            "kind": "managed_appdata",
+            "rootId": "appdata",
+            "relativePath": "qbittorrent/config",
+            "target": "/config",
+            "readOnly": false
+          },
+          {
+            "kind": "approved_library",
+            "rootId": "library",
+            "relativePath": "",
+            "target": "/data",
+            "readOnly": false
+          }
+        ],
+        "ports": [
+          {
+            "protocol": "tcp",
+            "hostIp": "0.0.0.0",
+            "hostPort": 8080,
+            "containerPort": 8080
+          },
+          {
+            "protocol": "tcp",
+            "hostIp": "0.0.0.0",
+            "hostPort": 6881,
+            "containerPort": 6881
+          },
+          {
+            "protocol": "udp",
+            "hostIp": "0.0.0.0",
+            "hostPort": 6881,
+            "containerPort": 6881
+          }
+        ],
+        "tmpfs": [
+          {
+            "target": "/run",
+            "sizeMiB": 64,
+            "uid": 1000,
+            "gid": 1000,
+            "executable": true
+          },
+          {
+            "target": "/tmp",
+            "sizeMiB": 128,
+            "uid": 1000,
+            "gid": 1000,
+            "executable": false
+          }
+        ],
+        "environment": [
+          {
+            "name": "TORRENTING_PORT",
+            "value": "6881"
+          },
+          {
+            "name": "TZ",
+            "value": "Etc/UTC"
+          },
+          {
+            "name": "WEBUI_PORT",
+            "value": "8080"
+          }
+        ],
+        "resources": {
+          "memoryMiB": 2048,
+          "cpuMillis": 2000,
+          "pidsLimit": 512,
+          "minimumDiskMiB": 8192
+        },
+        "health": {
+          "profile": "qbittorrent_web",
+          "path": "/",
+          "port": 8080
+        },
+        "warnings": [
+          "lan_port_exposure",
+          "initial_setup_required",
+          "resource_budget_unverified",
+          "writable_shared_library",
+          "library_paths_require_setup",
+          "non_root_ownership_required"
+        ]
+      }
+    },
+    {
+      "serviceId": "qbittorrent",
+      "platform": "linux/arm64",
+      "settings": {
+        "dataRootId": "appdata",
+        "instanceName": "qbittorrent",
+        "libraryRootId": "library",
+        "torrentPort": 6881,
+        "webPort": 8080
+      },
+      "plan": {
+        "schemaVersion": 1,
+        "serviceId": "qbittorrent",
+        "integrationRole": "managed_service",
+        "distributionId": "linuxserver",
+        "instanceName": "qbittorrent",
+        "catalogDigest": "2f5d16e764d4b6dab968986a4723fd47996e832e4670d9f68c6a2b7807a11749",
+        "manifestDigest": "70d861e59da58953f8f95ea2806499bab5759b62d06cff2b95438dc53b3fdae8",
+        "planHash": "bd3efacf038ded7605b648e870c1ef44d628718fb93c742bf50c547cc9953218",
+        "installable": false,
+        "blockers": [
+          "worker_unverified",
+          "host_preflight_required"
+        ],
+        "settings": [
+          {
+            "name": "dataRootId",
+            "value": "appdata"
+          },
+          {
+            "name": "instanceName",
+            "value": "qbittorrent"
+          },
+          {
+            "name": "libraryRootId",
+            "value": "library"
+          },
+          {
+            "name": "torrentPort",
+            "value": 6881
+          },
+          {
+            "name": "webPort",
+            "value": 8080
+          }
+        ],
+        "image": {
+          "repository": "ghcr.io/linuxserver/qbittorrent",
+          "tag": "5.2.3_v2.0.14-ls474",
+          "platform": "linux/arm64",
+          "digest": "sha256:955498017ba69b99394527dc76154db4b2e7b0618e3c2d97f64a149f3346792f",
+          "indexDigest": "sha256:a00b6a597a3832a1814cde0ef60abc55c94644f3f80902c3432f6af6de8d4a96",
+          "reference": "ghcr.io/linuxserver/qbittorrent:5.2.3_v2.0.14-ls474@sha256:955498017ba69b99394527dc76154db4b2e7b0618e3c2d97f64a149f3346792f"
+        },
+        "security": {
+          "user": "1000:1000",
+          "privileged": false,
+          "capDrop": [
+            "ALL"
+          ],
+          "capAdd": [],
+          "noNewPrivileges": true,
+          "init": false
+        },
+        "network": {
+          "mode": "bridge",
+          "listeners": [
+            {
+              "protocol": "tcp",
+              "port": 8080,
+              "purpose": "web"
+            },
+            {
+              "protocol": "tcp",
+              "port": 6881,
+              "purpose": "torrent"
+            },
+            {
+              "protocol": "udp",
+              "port": 6881,
+              "purpose": "torrent"
+            }
+          ],
+          "dynamicReceiverPorts": false
+        },
+        "mounts": [
+          {
+            "kind": "managed_appdata",
+            "rootId": "appdata",
+            "relativePath": "qbittorrent/config",
+            "target": "/config",
+            "readOnly": false
+          },
+          {
+            "kind": "approved_library",
+            "rootId": "library",
+            "relativePath": "",
+            "target": "/data",
+            "readOnly": false
+          }
+        ],
+        "ports": [
+          {
+            "protocol": "tcp",
+            "hostIp": "0.0.0.0",
+            "hostPort": 8080,
+            "containerPort": 8080
+          },
+          {
+            "protocol": "tcp",
+            "hostIp": "0.0.0.0",
+            "hostPort": 6881,
+            "containerPort": 6881
+          },
+          {
+            "protocol": "udp",
+            "hostIp": "0.0.0.0",
+            "hostPort": 6881,
+            "containerPort": 6881
+          }
+        ],
+        "tmpfs": [
+          {
+            "target": "/run",
+            "sizeMiB": 64,
+            "uid": 1000,
+            "gid": 1000,
+            "executable": true
+          },
+          {
+            "target": "/tmp",
+            "sizeMiB": 128,
+            "uid": 1000,
+            "gid": 1000,
+            "executable": false
+          }
+        ],
+        "environment": [
+          {
+            "name": "TORRENTING_PORT",
+            "value": "6881"
+          },
+          {
+            "name": "TZ",
+            "value": "Etc/UTC"
+          },
+          {
+            "name": "WEBUI_PORT",
+            "value": "8080"
+          }
+        ],
+        "resources": {
+          "memoryMiB": 2048,
+          "cpuMillis": 2000,
+          "pidsLimit": 512,
+          "minimumDiskMiB": 8192
+        },
+        "health": {
+          "profile": "qbittorrent_web",
+          "path": "/",
+          "port": 8080
+        },
+        "warnings": [
+          "lan_port_exposure",
+          "initial_setup_required",
+          "resource_budget_unverified",
+          "writable_shared_library",
+          "library_paths_require_setup",
+          "non_root_ownership_required"
+        ]
+      }
+    },
+    {
+      "serviceId": "music_assistant",
+      "platform": "linux/amd64",
+      "settings": {
+        "dataRootId": "appdata",
+        "instanceName": "music-assistant",
+        "musicRootId": null
+      },
+      "plan": {
+        "schemaVersion": 1,
+        "serviceId": "music_assistant",
+        "integrationRole": "internal_engine",
+        "distributionId": "upstream",
+        "instanceName": "music-assistant",
+        "catalogDigest": "2f5d16e764d4b6dab968986a4723fd47996e832e4670d9f68c6a2b7807a11749",
+        "manifestDigest": "20c4deb35ee6da9a697c1657f23261592643933f88e62dd3d8c8fd518df5e8c9",
+        "planHash": "49b3fe3b753516b9c15a7bce2bd323dab8a9de03fa6824a9675514e289d554b6",
+        "installable": false,
+        "blockers": [
+          "worker_unverified",
+          "host_preflight_required"
+        ],
+        "settings": [
+          {
+            "name": "dataRootId",
+            "value": "appdata"
+          },
+          {
+            "name": "instanceName",
+            "value": "music-assistant"
+          },
+          {
+            "name": "musicRootId",
+            "value": null
+          }
+        ],
+        "image": {
+          "repository": "ghcr.io/music-assistant/server",
+          "tag": "2.10.2",
+          "platform": "linux/amd64",
+          "digest": "sha256:1aaf808e3ef95d75e03448640e97c96f85440af2de240f66e4132a5725261afc",
+          "indexDigest": "sha256:09c02b4ee491976efa6d698265f72571f064031bb1a2c9a1c32e104392209690",
+          "reference": "ghcr.io/music-assistant/server:2.10.2@sha256:1aaf808e3ef95d75e03448640e97c96f85440af2de240f66e4132a5725261afc"
+        },
+        "security": {
+          "user": "0:0",
+          "privileged": false,
+          "capDrop": [
+            "ALL"
+          ],
+          "capAdd": [
+            "NET_BIND_SERVICE"
+          ],
+          "noNewPrivileges": true,
+          "init": false
+        },
+        "network": {
+          "mode": "host",
+          "listeners": [
+            {
+              "protocol": "tcp",
+              "port": 8095,
+              "purpose": "web"
+            },
+            {
+              "protocol": "tcp",
+              "port": 8097,
+              "purpose": "stream"
+            },
+            {
+              "protocol": "udp",
+              "port": 319,
+              "purpose": "airplay_ptp_event"
+            },
+            {
+              "protocol": "udp",
+              "port": 320,
+              "purpose": "airplay_ptp_general"
+            }
+          ],
+          "dynamicReceiverPorts": true
+        },
+        "mounts": [
+          {
+            "kind": "managed_appdata",
+            "rootId": "appdata",
+            "relativePath": "music-assistant/data",
+            "target": "/data",
+            "readOnly": false
+          }
+        ],
+        "ports": [],
+        "tmpfs": [],
+        "environment": [
+          {
+            "name": "LOG_LEVEL",
+            "value": "warning"
+          }
+        ],
+        "resources": {
+          "memoryMiB": 4096,
+          "cpuMillis": 2000,
+          "pidsLimit": 512,
+          "minimumDiskMiB": 8192
+        },
+        "health": {
+          "profile": "music_assistant_info",
+          "path": "/info",
+          "port": 8095
+        },
+        "warnings": [
+          "host_network",
+          "airplay_ptp_319_320",
+          "dynamic_receiver_ports",
+          "initial_setup_required",
+          "resource_budget_unverified"
+        ]
+      }
+    },
+    {
+      "serviceId": "music_assistant",
+      "platform": "linux/arm64",
+      "settings": {
+        "dataRootId": "appdata",
+        "instanceName": "music-assistant",
+        "musicRootId": null
+      },
+      "plan": {
+        "schemaVersion": 1,
+        "serviceId": "music_assistant",
+        "integrationRole": "internal_engine",
+        "distributionId": "upstream",
+        "instanceName": "music-assistant",
+        "catalogDigest": "2f5d16e764d4b6dab968986a4723fd47996e832e4670d9f68c6a2b7807a11749",
+        "manifestDigest": "20c4deb35ee6da9a697c1657f23261592643933f88e62dd3d8c8fd518df5e8c9",
+        "planHash": "44f39540b552f863acbebe91d91699b84d83fa14355ee0af723f7d0d5883c77e",
+        "installable": false,
+        "blockers": [
+          "worker_unverified",
+          "host_preflight_required"
+        ],
+        "settings": [
+          {
+            "name": "dataRootId",
+            "value": "appdata"
+          },
+          {
+            "name": "instanceName",
+            "value": "music-assistant"
+          },
+          {
+            "name": "musicRootId",
+            "value": null
+          }
+        ],
+        "image": {
+          "repository": "ghcr.io/music-assistant/server",
+          "tag": "2.10.2",
+          "platform": "linux/arm64",
+          "digest": "sha256:457b53cabd8963b17591a0710883e7e502fdadca96d80edf141d623fa630e7f7",
+          "indexDigest": "sha256:09c02b4ee491976efa6d698265f72571f064031bb1a2c9a1c32e104392209690",
+          "reference": "ghcr.io/music-assistant/server:2.10.2@sha256:457b53cabd8963b17591a0710883e7e502fdadca96d80edf141d623fa630e7f7"
+        },
+        "security": {
+          "user": "0:0",
+          "privileged": false,
+          "capDrop": [
+            "ALL"
+          ],
+          "capAdd": [
+            "NET_BIND_SERVICE"
+          ],
+          "noNewPrivileges": true,
+          "init": false
+        },
+        "network": {
+          "mode": "host",
+          "listeners": [
+            {
+              "protocol": "tcp",
+              "port": 8095,
+              "purpose": "web"
+            },
+            {
+              "protocol": "tcp",
+              "port": 8097,
+              "purpose": "stream"
+            },
+            {
+              "protocol": "udp",
+              "port": 319,
+              "purpose": "airplay_ptp_event"
+            },
+            {
+              "protocol": "udp",
+              "port": 320,
+              "purpose": "airplay_ptp_general"
+            }
+          ],
+          "dynamicReceiverPorts": true
+        },
+        "mounts": [
+          {
+            "kind": "managed_appdata",
+            "rootId": "appdata",
+            "relativePath": "music-assistant/data",
+            "target": "/data",
+            "readOnly": false
+          }
+        ],
+        "ports": [],
+        "tmpfs": [],
+        "environment": [
+          {
+            "name": "LOG_LEVEL",
+            "value": "warning"
+          }
+        ],
+        "resources": {
+          "memoryMiB": 4096,
+          "cpuMillis": 2000,
+          "pidsLimit": 512,
+          "minimumDiskMiB": 8192
+        },
+        "health": {
+          "profile": "music_assistant_info",
+          "path": "/info",
+          "port": 8095
+        },
+        "warnings": [
+          "host_network",
+          "airplay_ptp_319_320",
+          "dynamic_receiver_ports",
+          "initial_setup_required",
+          "resource_budget_unverified"
+        ]
+      }
+    },
+    {
+      "serviceId": "jellyfin",
+      "platform": "linux/arm64",
+      "settings": {
+        "dataRootId": "disk_a",
+        "instanceName": "living-room",
+        "mediaRootId": "movies",
+        "webPort": 18096
+      },
+      "plan": {
+        "schemaVersion": 1,
+        "serviceId": "jellyfin",
+        "integrationRole": "managed_service",
+        "distributionId": "upstream",
+        "instanceName": "living-room",
+        "catalogDigest": "2f5d16e764d4b6dab968986a4723fd47996e832e4670d9f68c6a2b7807a11749",
+        "manifestDigest": "5f45a6d9206d9a72517f5714d890be35a71d9544743cc755875aa554725c0eb8",
+        "planHash": "69ce5f4ffaf10eefb31bc6ab79b1a4dec08e9e4526646179f9abbbafe59ad4e3",
+        "installable": false,
+        "blockers": [
+          "worker_unverified",
+          "host_preflight_required"
+        ],
+        "settings": [
+          {
+            "name": "dataRootId",
+            "value": "disk_a"
+          },
+          {
+            "name": "instanceName",
+            "value": "living-room"
+          },
+          {
+            "name": "mediaRootId",
+            "value": "movies"
+          },
+          {
+            "name": "webPort",
+            "value": 18096
+          }
+        ],
+        "image": {
+          "repository": "ghcr.io/jellyfin/jellyfin",
+          "tag": "10.11.11",
+          "platform": "linux/arm64",
+          "digest": "sha256:2961aa1e97515b4e3bca9149ad3fce1599bdd67df970e50bb28aaff1731def01",
+          "indexDigest": "sha256:45f648c382a0c8b552582fcea40e95cb17c5d475473a891cba0eb7523fb92112",
+          "reference": "ghcr.io/jellyfin/jellyfin:10.11.11@sha256:2961aa1e97515b4e3bca9149ad3fce1599bdd67df970e50bb28aaff1731def01"
+        },
+        "security": {
+          "user": "1000:1000",
+          "privileged": false,
+          "capDrop": [
+            "ALL"
+          ],
+          "capAdd": [],
+          "noNewPrivileges": true,
+          "init": false
+        },
+        "network": {
+          "mode": "bridge",
+          "listeners": [
+            {
+              "protocol": "tcp",
+              "port": 8096,
+              "purpose": "web"
+            }
+          ],
+          "dynamicReceiverPorts": false
+        },
+        "mounts": [
+          {
+            "kind": "managed_appdata",
+            "rootId": "disk_a",
+            "relativePath": "living-room/config",
+            "target": "/config",
+            "readOnly": false
+          },
+          {
+            "kind": "managed_appdata",
+            "rootId": "disk_a",
+            "relativePath": "living-room/cache",
+            "target": "/cache",
+            "readOnly": false
+          },
+          {
+            "kind": "approved_library",
+            "rootId": "movies",
+            "relativePath": "",
+            "target": "/media",
+            "readOnly": true
+          }
+        ],
+        "ports": [
+          {
+            "protocol": "tcp",
+            "hostIp": "0.0.0.0",
+            "hostPort": 18096,
+            "containerPort": 8096
+          }
+        ],
+        "tmpfs": [],
+        "environment": [
+          {
+            "name": "TZ",
+            "value": "Etc/UTC"
+          }
+        ],
+        "resources": {
+          "memoryMiB": 4096,
+          "cpuMillis": 2000,
+          "pidsLimit": 512,
+          "minimumDiskMiB": 8192
+        },
+        "health": {
+          "profile": "jellyfin_public",
+          "path": "/health",
+          "port": 8096
+        },
+        "warnings": [
+          "lan_port_exposure",
+          "initial_setup_required",
+          "resource_budget_unverified",
+          "hardware_acceleration_not_configured",
+          "discovery_not_published"
+        ]
+      }
+    },
+    {
+      "serviceId": "qbittorrent",
+      "platform": "linux/arm64",
+      "settings": {
+        "dataRootId": "disk_b",
+        "instanceName": "downloads",
+        "libraryRootId": "media",
+        "torrentPort": 50000,
+        "webPort": 18080
+      },
+      "plan": {
+        "schemaVersion": 1,
+        "serviceId": "qbittorrent",
+        "integrationRole": "managed_service",
+        "distributionId": "linuxserver",
+        "instanceName": "downloads",
+        "catalogDigest": "2f5d16e764d4b6dab968986a4723fd47996e832e4670d9f68c6a2b7807a11749",
+        "manifestDigest": "70d861e59da58953f8f95ea2806499bab5759b62d06cff2b95438dc53b3fdae8",
+        "planHash": "370c5b59cebbcd922f31b287333c70fb9aa426bac12ec063a28685baf4238fd4",
+        "installable": false,
+        "blockers": [
+          "worker_unverified",
+          "host_preflight_required"
+        ],
+        "settings": [
+          {
+            "name": "dataRootId",
+            "value": "disk_b"
+          },
+          {
+            "name": "instanceName",
+            "value": "downloads"
+          },
+          {
+            "name": "libraryRootId",
+            "value": "media"
+          },
+          {
+            "name": "torrentPort",
+            "value": 50000
+          },
+          {
+            "name": "webPort",
+            "value": 18080
+          }
+        ],
+        "image": {
+          "repository": "ghcr.io/linuxserver/qbittorrent",
+          "tag": "5.2.3_v2.0.14-ls474",
+          "platform": "linux/arm64",
+          "digest": "sha256:955498017ba69b99394527dc76154db4b2e7b0618e3c2d97f64a149f3346792f",
+          "indexDigest": "sha256:a00b6a597a3832a1814cde0ef60abc55c94644f3f80902c3432f6af6de8d4a96",
+          "reference": "ghcr.io/linuxserver/qbittorrent:5.2.3_v2.0.14-ls474@sha256:955498017ba69b99394527dc76154db4b2e7b0618e3c2d97f64a149f3346792f"
+        },
+        "security": {
+          "user": "1000:1000",
+          "privileged": false,
+          "capDrop": [
+            "ALL"
+          ],
+          "capAdd": [],
+          "noNewPrivileges": true,
+          "init": false
+        },
+        "network": {
+          "mode": "bridge",
+          "listeners": [
+            {
+              "protocol": "tcp",
+              "port": 18080,
+              "purpose": "web"
+            },
+            {
+              "protocol": "tcp",
+              "port": 50000,
+              "purpose": "torrent"
+            },
+            {
+              "protocol": "udp",
+              "port": 50000,
+              "purpose": "torrent"
+            }
+          ],
+          "dynamicReceiverPorts": false
+        },
+        "mounts": [
+          {
+            "kind": "managed_appdata",
+            "rootId": "disk_b",
+            "relativePath": "downloads/config",
+            "target": "/config",
+            "readOnly": false
+          },
+          {
+            "kind": "approved_library",
+            "rootId": "media",
+            "relativePath": "",
+            "target": "/data",
+            "readOnly": false
+          }
+        ],
+        "ports": [
+          {
+            "protocol": "tcp",
+            "hostIp": "0.0.0.0",
+            "hostPort": 18080,
+            "containerPort": 18080
+          },
+          {
+            "protocol": "tcp",
+            "hostIp": "0.0.0.0",
+            "hostPort": 50000,
+            "containerPort": 50000
+          },
+          {
+            "protocol": "udp",
+            "hostIp": "0.0.0.0",
+            "hostPort": 50000,
+            "containerPort": 50000
+          }
+        ],
+        "tmpfs": [
+          {
+            "target": "/run",
+            "sizeMiB": 64,
+            "uid": 1000,
+            "gid": 1000,
+            "executable": true
+          },
+          {
+            "target": "/tmp",
+            "sizeMiB": 128,
+            "uid": 1000,
+            "gid": 1000,
+            "executable": false
+          }
+        ],
+        "environment": [
+          {
+            "name": "TORRENTING_PORT",
+            "value": "50000"
+          },
+          {
+            "name": "TZ",
+            "value": "Etc/UTC"
+          },
+          {
+            "name": "WEBUI_PORT",
+            "value": "18080"
+          }
+        ],
+        "resources": {
+          "memoryMiB": 2048,
+          "cpuMillis": 2000,
+          "pidsLimit": 512,
+          "minimumDiskMiB": 8192
+        },
+        "health": {
+          "profile": "qbittorrent_web",
+          "path": "/",
+          "port": 18080
+        },
+        "warnings": [
+          "lan_port_exposure",
+          "initial_setup_required",
+          "resource_budget_unverified",
+          "writable_shared_library",
+          "library_paths_require_setup",
+          "non_root_ownership_required"
+        ]
+      }
+    }
+  ]
+}
