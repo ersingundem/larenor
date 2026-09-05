@@ -5,7 +5,7 @@ that same stream before one operation. This proves no daemon namespace, actor,
 journal or installation authority. There is no raw API/IPC entry point, proxy,
 TCP fallback, retry, redirect, auth option, or general Docker client here.
 
-Only the existing pinned-image inspect/pull wire shapes are accepted. Catalog
+Only pinned-image inspect/pull and exact network list/inspect shapes are accepted. Catalog
 rederivation and response meaning belong to the adapter. The synchronous trusted
 consumer must validate its response; its bounded iterator is invalidated before
 exchange returns. No configuration or progress content is retained here.
@@ -69,6 +69,18 @@ def _reference(value):
     return type(value) is str and len(value) <= 240 and _REFERENCE.fullmatch(value) is not None
 
 
+def _network_read_target(target):
+    if re.fullmatch(r'/v1\.47/networks/[0-9a-f]{64}', target):
+        return True
+    prefix = '/v1.47/networks?'
+    if not target.startswith(prefix):
+        return False
+    pairs = parse_qsl(target[len(prefix):], keep_blank_values=True)
+    return (len(pairs) == 1 and pairs[0][0] == 'filters'
+            and re.fullmatch(r'\{"name":\["larenor-control-[0-9a-f]{32}"\]\}', pairs[0][1]) is not None
+            and prefix + urlencode(pairs) == target)
+
+
 @dataclass(frozen=True, repr=False)
 class EngineHttpRequest:
     """Closed wire shapes only; possession is not catalog/effect authorization."""
@@ -89,8 +101,9 @@ class EngineHttpRequest:
             prefix, suffix = '/v1.47/images/', '/json'
             encoded = self.target[len(prefix):-len(suffix)]
             reference = unquote(encoded)
-            valid = (self.target.startswith(prefix) and self.target.endswith(suffix)
-                     and _reference(reference) and quote(reference, safe='') == encoded)
+            valid = ((self.target.startswith(prefix) and self.target.endswith(suffix)
+                      and _reference(reference) and quote(reference, safe='') == encoded)
+                     or _network_read_target(self.target))
         else:
             prefix = '/v1.47/images/create?'
             pairs = parse_qsl(self.target[len(prefix):], keep_blank_values=True)
