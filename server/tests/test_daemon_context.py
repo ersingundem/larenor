@@ -2,11 +2,13 @@
 
 from dataclasses import FrozenInstanceError
 import os
+from itertools import cycle
 from pathlib import Path
 import socket
 import struct
 import sys
 import time
+from types import SimpleNamespace
 
 import pytest
 
@@ -56,6 +58,7 @@ def proc_tree(tmp_path, monkeypatch):
     # Only the fixture's executable trust anchor is synthetic; proc operations,
     # inode comparisons, bounded reads, pidfd polling and FD cleanup are real.
     monkeypatch.setattr(module, '_trusted_executable', lambda path, deadline: os.stat(path))
+    monkeypatch.setattr(module, '_mount_id', lambda fd, deadline: 41, raising=False)
     state = dict(proc=proc, worker=worker, peer=peer, executable=executable,
                  root=root, mnt=mnt, net=net, connection=Connection(), fds=received,
                  read_fd=read_fd, write_fd=write_fd)
@@ -149,6 +152,19 @@ def test_same_socket_dead_original_pidfd_rejects_reused_numeric_pid(proc_tree):
     assert capture(proc_tree) is None
 
 
+def test_same_inode_under_distinct_bind_mount_roots_is_not_same_process_root(proc_tree, monkeypatch):
+    mount_ids = cycle([41, 42])
+    monkeypatch.setattr(module, '_mount_id', lambda fd, deadline: next(mount_ids))
+    lease = capture(proc_tree)
+    assert lease is not None
+    try:
+        assert lease.context.same_mount_namespace is True
+        assert lease.context.same_process_root is False
+        assert lease.revalidate(time.monotonic() + 2)
+    finally:
+        lease.close()
+
+
 def test_original_process_exit_after_capture_invalidates_context(proc_tree):
     lease = capture(proc_tree)
     assert lease is not None
@@ -189,6 +205,78 @@ def test_operator_executable_trust_rejects_unprivileged_or_writable_anchor(tmp_p
     path.chmod(0o777)
     with pytest.raises((OSError, ValueError)):
         module._trusted_executable(str(path), time.monotonic() + 2)
+
+
+@pytest.mark.parametrize('changed_index,uid,mode', [
+    (None, 0, 0o100755), (0, 17, 0o40755), (1, 0, 0o40777),
+    (2, 0, 0o40775), (3, 17, 0o100755), (3, 0, 0o100775),
+    (3, 0, 0o100644), (3, 0, 0o120755),
+])
+def test_explicit_executable_anchor_checks_each_opened_parent_and_binary(monkeypatch, changed_index, uid, mode):
+    infos = [SimpleNamespace(st_uid=0, st_mode=0o40755) for _ in range(3)]
+    infos.append(SimpleNamespace(st_uid=0, st_mode=0o100755))
+    if changed_index is not None:
+        infos[changed_index] = SimpleNamespace(st_uid=uid, st_mode=mode)
+    opened, closed = [], []
+    def open_path(path, flags, **kwargs):
+        index = len(opened)
+        assert path == ['/', 'usr', 'bin', 'engine'][index]
+        if index:
+            assert flags & os.O_NOFOLLOW and kwargs['dir_fd'] == index - 1
+        opened.append(index)
+        return index
+    monkeypatch.setattr(module.os, 'open', open_path)
+    monkeypatch.setattr(module.os, 'fstat', lambda fd: infos[fd])
+    monkeypatch.setattr(module.os, 'close', closed.append)
+    if changed_index is None:
+        assert module._trusted_executable('/usr/bin/engine', time.monotonic() + 2) is infos[3]
+    else:
+        with pytest.raises(ValueError, match='^context_unavailable$'):
+            module._trusted_executable('/usr/bin/engine', time.monotonic() + 2)
+    assert sorted(closed) == opened
+
+
+@pytest.mark.parametrize('corrupt', [False, True])
+def test_all_proc_and_snapshot_descriptors_are_released(proc_tree, monkeypatch, corrupt):
+    if corrupt:
+        (proc_tree['proc'] / str(proc_tree['worker']) / 'status').write_text('invalid')
+    actual_open, actual_close = os.open, os.close
+    outstanding = set()
+    def tracked_open(*args, **kwargs):
+        fd = actual_open(*args, **kwargs)
+        outstanding.add(fd)
+        return fd
+    def tracked_close(fd):
+        outstanding.discard(fd)
+        return actual_close(fd)
+    with monkeypatch.context() as scope:
+        scope.setattr(module.os, 'open', tracked_open)
+        scope.setattr(module.os, 'close', tracked_close)
+        lease = capture(proc_tree)
+        if corrupt:
+            assert lease is None
+        else:
+            assert lease is not None
+            lease.revalidate(time.monotonic() + 2)
+            lease.close()
+        assert outstanding == set()
+
+
+@pytest.mark.parametrize('credentials', [(0, 0, 0), (-2, 0, 0), (14, -1, 0), (14, 0, -1), b'short'])
+def test_invalid_kernel_credentials_never_inspect_numeric_process_paths(proc_tree, monkeypatch, credentials):
+    monkeypatch.setattr(proc_tree['connection'], 'getsockopt',
+                        lambda *args: credentials if type(credentials) is bytes else struct.pack('3i', *credentials))
+    monkeypatch.setattr(module, '_trusted_executable', lambda *args: pytest.fail('peer not authenticated'))
+    assert capture(proc_tree) is None
+
+
+def test_revalidation_access_failure_and_closed_lease_are_unknown(proc_tree):
+    lease = capture(proc_tree)
+    assert lease is not None
+    (proc_tree['proc'] / str(proc_tree['peer']) / 'ns/mnt').unlink()
+    assert lease.revalidate(time.monotonic() + 2) is False
+    lease.close()
+    assert lease.revalidate(time.monotonic() + 2) is False
 
 
 @pytest.mark.skipif(sys.platform != 'linux', reason='Linux peer-pidfd/procfs integration')
