@@ -310,6 +310,7 @@ class _ServerConnectionScreenState
     'cancelled' => l10n.serverFailureCancelled,
     'logout_not_confirmed' => l10n.serverLogoutUnconfirmed,
     'invalid_request' => l10n.serverIncomplete,
+    'context_endpoint_unavailable' => l10n.serverContextEndpointUnavailable,
     _ => l10n.serverFailureConnection,
   };
 

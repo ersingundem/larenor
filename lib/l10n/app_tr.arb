@@ -1838,5 +1838,6 @@
   "serverMediaInspectionsCancelBody": "Bu gereksinim incelemesini iptal edin. Hazırlık, mevcut bileşenler ve medya dosyaları değişmez.",
   "serverContextPending": "Core ve ev doğrulaması",
   "serverContextPendingHint": "Sunucu özelliklerini açmadan önce Core ve ev kimliğini doğrulayın. Yeniden deneme tekrar giriş yapmaz.",
-  "serverContextRetry": "Bağlamı yeniden doğrula"
+  "serverContextRetry": "Bağlamı yeniden doğrula",
+  "serverContextEndpointUnavailable": "Bu adreste ev doğrulaması kullanılamıyor. Server adresini kontrol edin veya Larenor Server’ı güncelleyin, ardından yeniden deneyin."
 }

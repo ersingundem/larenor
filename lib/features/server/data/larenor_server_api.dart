@@ -269,6 +269,11 @@ class LarenorServerApi {
       bytes.addAll(chunk);
     }
     if (!isSuccess) {
+      if (response.statusCode == 404 &&
+          request.method == 'GET' &&
+          request.url == endpoint.api('/context')) {
+        throw const LarenorServerException('context_endpoint_unavailable');
+      }
       throw LarenorServerException(_errorCode(response.statusCode, bytes));
     }
     if (response.statusCode == 204 && allowEmpty && bytes.isEmpty) return null;
