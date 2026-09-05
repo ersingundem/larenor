@@ -37,6 +37,54 @@ class ServerEndpoint {
   String toString() => 'ServerEndpoint';
 }
 
+/// Identity reported by one Core. This value alone grants no session authority.
+final class ServerContext {
+  const ServerContext._({required this.coreId, required this.homeId});
+
+  factory ServerContext.fromJson(Object? json) {
+    final value = serverObject(json);
+    final schema = value['schemaVersion'];
+    if (value.length != 3 || schema is! int || schema != 1) {
+      throw const LarenorServerException('invalid_response');
+    }
+    String identity(Object? value) {
+      if (value is! String ||
+          value.length != 32 ||
+          !RegExp(r'^[0-9a-f]{32}$').hasMatch(value)) {
+        throw const LarenorServerException('invalid_response');
+      }
+      return value;
+    }
+
+    return ServerContext._(
+      coreId: identity(value['coreId']),
+      homeId: identity(value['homeId']),
+    );
+  }
+
+  int get schemaVersion => 1;
+  final String coreId;
+  final String homeId;
+
+  Map<String, dynamic> toJson() => {
+    'schemaVersion': schemaVersion,
+    'coreId': coreId,
+    'homeId': homeId,
+  };
+
+  @override
+  bool operator ==(Object other) =>
+      other is ServerContext &&
+      coreId == other.coreId &&
+      homeId == other.homeId;
+
+  @override
+  int get hashCode => Object.hash(coreId, homeId);
+
+  @override
+  String toString() => 'ServerContext';
+}
+
 enum ServerRole { admin, member }
 
 class ServerUser {

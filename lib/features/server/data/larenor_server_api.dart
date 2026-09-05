@@ -71,6 +71,11 @@ class LarenorServerApi {
     ),
   );
 
+  Future<ServerContext> context(String accessToken) async =>
+      ServerContext.fromJson(
+        await request('GET', '/context', token: accessToken),
+      );
+
   Future<ServerSession> changePassword({
     required String accessToken,
     required String currentPassword,
