@@ -85,7 +85,7 @@ def test_worker_identity_configuration_is_strict(server,value):
 
 def test_worker_socket_environment_is_explicit_and_absolute(monkeypatch,tmp_path):
     monkeypatch.setenv('LARENOR_PLUGIN_WORKER_SOCKET','relative.sock')
-    with pytest.raises(ValueError):Settings.from_environment()
+    with pytest.raises(StartupError,match="invalid_worker_configuration"):Settings.from_environment()
     monkeypatch.setenv('LARENOR_PLUGIN_WORKER_SOCKET',str(tmp_path/'preflight.sock'))
     monkeypatch.setenv('LARENOR_PLUGIN_WORKER_UID','1234')
     settings=Settings.from_environment()
