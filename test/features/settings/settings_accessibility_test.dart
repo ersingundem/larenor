@@ -2,6 +2,7 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter/semantics.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -80,6 +81,88 @@ void main() {
     SharedPreferences.setMockInitialValues({});
     FlutterSecureStorage.setMockInitialValues({});
   });
+
+  for (final language in ['en', 'tr']) {
+    testWidgets('root confirmation blocks both tablet panes $language 2x', (
+      tester,
+    ) async {
+      final semantics = tester.ensureSemantics();
+      try {
+        await _mount(tester, const SettingsSplitScreen(), language, 1200);
+        final l10n = AppLocalizations.of(
+          tester.element(find.byType(SettingsSplitScreen)),
+        );
+        final closed = showCupertinoDialog<void>(
+          context: tester.element(find.byType(SettingsSplitScreen)),
+          useRootNavigator: true,
+          builder: (context) => CupertinoAlertDialog(
+            title: Text(l10n.settingsSetPinTitle),
+            content: const CupertinoTextField(autofocus: true),
+            actions: [
+              CupertinoDialogAction(
+                onPressed: () => Navigator.of(context).pop(),
+                child: Text(l10n.commonCancel),
+              ),
+            ],
+          ),
+        );
+        await tester.pumpAndSettle();
+        expect(find.byType(CupertinoAlertDialog), findsOneWidget);
+        final cancel = find.widgetWithText(
+          CupertinoDialogAction,
+          l10n.commonCancel,
+        );
+        final cancelText = find.descendant(
+          of: cancel,
+          matching: find.byType(Text),
+        );
+        final node = tester.getSemantics(cancelText);
+        final labels = <String>[];
+        // Walk the exposed platform tree, including nodes outside the dialog.
+        void walk(SemanticsNode current) {
+          labels.add(current.label);
+          current.visitChildren((child) {
+            walk(child);
+            return true;
+          });
+        }
+
+        walk(node.owner!.rootSemanticsNode!);
+        expect(
+          labels.any((label) => label.contains(l10n.serverTitle)),
+          isFalse,
+        );
+        expect(
+          labels.any((label) => label.contains(l10n.commonNotConnected)),
+          isFalse,
+        );
+        for (var i = 0; i < 4; i++) {
+          await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+          await tester.pump();
+          expect(
+            FocusManager.instance.primaryFocus!.context!
+                .findAncestorWidgetOfExactType<CupertinoAlertDialog>(),
+            isNotNull,
+          );
+        }
+        await tester.tap(cancel);
+        await tester.pumpAndSettle();
+        expect(find.byType(CupertinoAlertDialog), findsNothing);
+        expect(
+          tester
+              .getSemantics(find.text(l10n.serverTitle))
+              .hasFlag(ui.SemanticsFlag.isButton),
+          isTrue,
+        );
+        await closed;
+        expect(tester.takeException(), isNull);
+      } finally {
+        await tester.pumpWidget(const SizedBox.shrink());
+        await tester.pump();
+        semantics.dispose();
+      }
+    });
+  }
   for (final language in ['en', 'tr']) {
     for (final width in [600.0, 1200.0]) {
       testWidgets(

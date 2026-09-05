@@ -26,6 +26,7 @@ class SettingsActionTile extends StatelessWidget {
             .resolveFrom(context);
     return Semantics(
       enabled: onTap != null,
+      blockUserActions: onTap == null,
       selected: selected,
       // CupertinoButton paints its focus outline outside the button. Keep it
       // inside the list section's clip, including the first and last rows.
@@ -35,7 +36,9 @@ class SettingsActionTile extends StatelessWidget {
           minimumSize: const Size(48, 48),
           padding: const EdgeInsetsDirectional.fromSTEB(16, 6, 10, 6),
           borderRadius: BorderRadius.circular(6),
-          focusColor: theme.primaryColor,
+          focusColor: CupertinoTheme.brightnessOf(context) == Brightness.dark
+              ? Color.lerp(theme.primaryColor, CupertinoColors.white, .12)
+              : theme.primaryColor,
           alignment: AlignmentDirectional.centerStart,
           onPressed: onTap,
           child: IconTheme.merge(

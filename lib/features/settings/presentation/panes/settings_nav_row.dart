@@ -1,11 +1,9 @@
 import 'package:flutter/cupertino.dart';
 
-import '../../../../shared/widgets/settings_action_tile.dart';
-
 import '../../../../shared/widgets/app_page_scaffold.dart';
-
 import '../../../../shared/widgets/brand_icon.dart';
 import '../../../../shared/widgets/icon_badge.dart';
+import '../../../../shared/widgets/settings_action_tile.dart';
 import '../../data/app_service.dart';
 
 /// A settings row that pushes another screen. In the split layout the push

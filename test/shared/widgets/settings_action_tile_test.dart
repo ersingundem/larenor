@@ -142,7 +142,11 @@ void main() {
                   CupertinoColors.secondarySystemGroupedBackground.resolveFrom(
                     context,
                   ),
-                  CupertinoColors.systemFill.resolveFrom(context),
+                  Color.alphaBlend(
+                    CupertinoColors.systemFill.resolveFrom(context),
+                    CupertinoColors.secondarySystemGroupedBackground
+                        .resolveFrom(context),
+                  ),
                 ]) {
                   final a = Color.alphaBlend(
                     side.color,

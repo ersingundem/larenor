@@ -1,26 +1,25 @@
-import 'dart:async';
-
 import 'package:flutter/cupertino.dart';
-
-import '../../../shared/widgets/settings_action_tile.dart';
-
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../l10n/generated/app_localizations.dart';
 import '../../../shared/theme/typography.dart';
 import '../../../shared/widgets/app_page_scaffold.dart';
+import '../../../shared/widgets/settings_action_tile.dart';
 import '../../../shared/widgets/settings_section.dart';
+import '../../client_updates/presentation/client_updates_screen.dart';
 import '../../media/hub/presentation/media_session_state.dart';
 import '../../settings/providers/settings_providers.dart';
+import '../admin/presentation/server_admin_screen.dart';
 import '../data/server_account_controller.dart';
 import '../domain/server_models.dart';
-import '../providers/server_providers.dart';
-import '../../client_updates/presentation/client_updates_screen.dart';
-import 'server_vault_screen.dart';
-import '../admin/presentation/server_admin_screen.dart';
-import '../services/presentation/server_services_screen.dart';
 import '../plugins/presentation/server_plugins_screen.dart';
+import '../providers/server_providers.dart';
+import '../services/presentation/server_services_screen.dart';
+
+import 'dart:async';
+
+import 'server_vault_screen.dart';
 
 /// Account management is reached through SettingsGate. First-install access
 /// additionally observes PIN storage and fails closed if a PIN appears.
