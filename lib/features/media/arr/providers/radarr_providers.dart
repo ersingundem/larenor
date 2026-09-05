@@ -20,27 +20,61 @@ ArrCredentialsStore radarrCredentialsStore(Ref ref) =>
 
 @riverpod
 class RadarrConnection extends _$RadarrConnection {
+  late final DirectHomeAccess _access = ref.read(directHomeAccessProvider);
+  int _operation = 0;
+  ArrClient? _checkingClient;
+
+  void _check([int? operation]) {
+    if (!ref.mounted || operation != null && operation != _operation) {
+      throw const DirectHomeAccessException('unavailable');
+    }
+    _access.check();
+  }
+  void _closeCheck() {
+    _checkingClient?.dispose();
+    _checkingClient = null;
+  }
+
   @override
   Future<ArrConfig?> build() async {
-    final access = ref.watch(directHomeAccessProvider);
-    access.check();
+    ref.watch(directHomeAccessProvider);
+    final operation = ++_operation;
+    ref.onDispose(() { _operation++; _closeCheck(); });
+    _check(operation);
     final result = await ref.watch(radarrCredentialsStoreProvider).read();
-    access.check();
-    if (!ref.mounted) throw const DirectHomeAccessException('unavailable');
+    _check(operation);
     return result;
   }
 
   Future<void> signIn({required String baseUrl, required String apiKey}) async {
+    _check();
+    if (_checkingClient != null) throw const DirectHomeAccessException('busy');
+    final operation = ++_operation;
+    final store = ref.read(radarrCredentialsStoreProvider);
     final config = ArrConfig(baseUrl: baseUrl, apiKey: apiKey);
-    await _client(config).checkConnection();
-    await ref
-        .read(radarrCredentialsStoreProvider)
-        .save(baseUrl: baseUrl, apiKey: apiKey);
-    state = AsyncData(config);
+    final client = _client(config);
+    _checkingClient = client;
+    try {
+      await client.checkConnection();
+      _check(operation);
+      await store.save(baseUrl: baseUrl, apiKey: apiKey);
+      _check(operation);
+      state = AsyncData(config);
+    } catch (_) {
+      _check(operation);
+      rethrow;
+    } finally {
+      if (identical(_checkingClient, client)) _closeCheck();
+    }
   }
 
   Future<void> signOut() async {
-    await ref.read(radarrCredentialsStoreProvider).clear();
+    _check();
+    final operation = ++_operation;
+    final store = ref.read(radarrCredentialsStoreProvider);
+    _closeCheck();
+    await store.clear();
+    _check(operation);
     state = const AsyncData(null);
   }
 

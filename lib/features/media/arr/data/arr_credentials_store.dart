@@ -13,12 +13,13 @@ class ArrCredentialsStore {
     required this.servicePrefix,
     FlutterSecureStorage? storage,
     DirectHomeAccess? access,
-  }) : _record = DirectCredentialRecord(
+  }) : _access = access, _record = DirectCredentialRecord(
          service: _service(servicePrefix), storage: storage, access: access,
        );
 
   final String servicePrefix;
   final DirectCredentialRecord _record;
+  final DirectHomeAccess? _access;
   static DirectCredentialService _service(String prefix) => switch (prefix) {
     'sonarr' => DirectCredentialService.sonarr,
     'radarr' => DirectCredentialService.radarr,
@@ -29,6 +30,7 @@ class ArrCredentialsStore {
 
   Future<ArrConfig?> read() async {
     final fields = await _record.readFields();
+    _access?.check();
     final baseUrl = fields['baseUrl'];
     final apiKey = fields['apiKey'];
     if (baseUrl == null || apiKey == null) return null;
