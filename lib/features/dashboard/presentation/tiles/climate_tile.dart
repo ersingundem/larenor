@@ -90,7 +90,8 @@ class _ClimateTileState extends DashboardEditState<ClimateTile>
                 child: validRange && supportsTemperature
                     ? Semantics(
                         key: ValueKey('climate-dial-$actionEntityId'),
-                        label: l10n.entityControlTemperature,
+                        label:
+                            '${entity.friendlyName}, ${l10n.entityControlTemperature}',
                         child: _RadialDial(
                           key: ValueKey(
                             '$actionEntityId-$tileActionGeneration',
@@ -241,6 +242,11 @@ class _RadialDialState extends State<_RadialDial> {
       slider: true,
       enabled: enabled,
       value: '$_value${widget.unit}',
+      hint: widget.currentTemperature == null
+          ? null
+          : AppLocalizations.of(context).climateCurrentReading(
+              '${widget.currentTemperature!.toStringAsFixed(1)}${widget.unit}',
+            ),
       increasedValue: enabled && _value < widget.max
           ? '${_snap(_value + widget.step)}${widget.unit}'
           : null,
@@ -308,25 +314,28 @@ class _RadialDialState extends State<_RadialDial> {
                     ),
                   ),
                   child: Center(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          '${double.parse(_value.toStringAsFixed(6))}${widget.unit}',
-                          style: AppText.title3,
-                        ),
-                        if (widget.currentTemperature != null)
+                    child: ExcludeSemantics(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
                           Text(
-                            AppLocalizations.of(context).climateCurrentReading(
-                              '${widget.currentTemperature!.toStringAsFixed(1)}${widget.unit}',
-                            ),
-                            style: AppText.caption2.copyWith(
-                              color: CupertinoColors.secondaryLabel.resolveFrom(
+                            '${double.parse(_value.toStringAsFixed(6))}${widget.unit}',
+                            style: AppText.title3,
+                          ),
+                          if (widget.currentTemperature != null)
+                            Text(
+                              AppLocalizations.of(
                                 context,
+                              ).climateCurrentReading(
+                                '${widget.currentTemperature!.toStringAsFixed(1)}${widget.unit}',
+                              ),
+                              style: AppText.caption2.copyWith(
+                                color: CupertinoColors.secondaryLabel
+                                    .resolveFrom(context),
                               ),
                             ),
-                          ),
-                      ],
+                        ],
+                      ),
                     ),
                   ),
                 ),
