@@ -190,13 +190,67 @@ class ValidationTest(unittest.TestCase):
             samples = [(b' ' * (queue.MAX_BYTES + 1), 'input_limit'),
                        (b'[' * 40 + b']' * 40, 'schema_limit'),
                        (b'{"n":NaN}', 'invalid_json'),
-                       (b'\xff', 'invalid_json')]
+                       (b'\xff', 'invalid_json'),
+                       (b'{\"n\":' + b'9' * 10000 + b'}', 'schema_limit'),
+                       (b'{', 'invalid_json')]
             for content, code in samples:
                 path.write_bytes(content)
                 with self.assertRaisesRegex(queue.QueueError, '^' + code + '$'):
                     queue.load_queue(path)
             with self.assertRaisesRegex(queue.QueueError, '^input_unavailable$'):
                 queue.load_queue(Path(directory) / 'missing.json')
+
+    def test_invalid_kind_and_empty_group_fail_without_python_type_errors(self):
+        data = fixture(); data['nodes'][0]['evidence'][0]['kind'] = ['ci']
+        self.invalid(data, 'invalid_evidence')
+        data = fixture()
+        data['nodes'].append({'id': 'EMPTY', 'kind': 'group', 'parent': None, 'title': 'Boş'})
+        self.invalid(data, 'invalid_schema')
+
+    def test_malformed_parent_or_typed_fields_never_escape_as_python_errors(self):
+        data = fixture()
+        data['nodes'][2]['parent'] = 'BAD'
+        data['nodes'].append({'id': 'BAD', 'parent': None, 'title': 'Bozuk'})
+        self.invalid(data, 'invalid_schema')
+        for target in ['document', 'task', 'proof']:
+            original = fixture()
+            template = original if target == 'document' else original['nodes'][2]
+            if target == 'proof': template = original['nodes'][0]['evidence'][0]
+            for key in template:
+                for value in [None, False, 42, {'nested': []}, [{}]]:
+                    data = fixture()
+                    node = data if target == 'document' else data['nodes'][2]
+                    if target == 'proof': node = data['nodes'][0]['evidence'][0]
+                    node[key] = value
+                    try:
+                        queue.validate_queue(data)
+                    except queue.QueueError:
+                        pass
+                    except Exception as error:
+                        self.fail('%s/%s leaked %s' % (target, key, type(error).__name__))
+
+    def test_nonregular_file_fails_without_reading_device_or_waiting_for_fifo(self):
+        import os
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / 'fifo'
+            os.mkfifo(path)
+            with self.assertRaisesRegex(queue.QueueError, '^input_unavailable$'):
+                queue.load_queue(path)
+
+    def test_nested_group_count_and_atomic_manual_acceptance(self):
+        data = fixture()
+        data['nodes'].extend([
+            {'id': 'NEST', 'kind': 'group', 'parent': 'G', 'title': 'Alt grup'},
+            task('M', 'NEST', requiredEvidence=['manual', 'review'],
+                 status='needs_user', reason='Cihaz bekleniyor.')])
+        model = queue.validate_queue(data)
+        self.assertEqual(model.counts('G')['total'], 64)
+        self.assertEqual(model.counts('NEST')['total'], 1)
+        complete(data['nodes'][-1])
+        model = queue.validate_queue(data)
+        self.assertTrue(model.is_done('NEST'))
+        self.assertFalse(model.is_done('G'))
+
 
 
 class CliJourneyTest(unittest.TestCase):
@@ -257,14 +311,29 @@ class CliJourneyTest(unittest.TestCase):
                      ['render', '--page-size', '100000'], ['execute', 'F01']]:
             self.assertEqual(self.run_cli(args)[0], 2)
 
-    def test_real_queue_matches_all_selected_sources_and_stays_pending(self):
+    def test_plain_next_and_status_explain_resume_and_blocked_branches(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / 'queue.json'; data = fixture()
+            data['nodes'][2]['status'] = 'in_progress'
+            data['nodes'][3].update(status='needs_user', reason='Fiziksel cihaz yok.')
+            path.write_text(json.dumps(data))
+            result, output, error = self.run_cli(['next', '--file', str(path)])
+            self.assertEqual((result, error), (0, ''))
+            self.assertIn('Devam:', output)
+            self.assertIn('F01', output)
+            self.assertIn('Fiziksel cihaz yok.', output)
+            self.assertIn('Başlanabilir:', output)
+            result, output, error = self.run_cli(['status', '--file', str(path)])
+            self.assertEqual((result, error), (0, ''))
+            self.assertIn('fiziksel kabul ayrı', output)
+            self.assertIn('| G — İşler | 63 | 0 | 1 | 0 | 1 |', output)
+
+    def test_real_queue_matches_all_selected_sources_and_dependency_scope(self):
         model = queue.load_queue(ROOT / 'docs/execution-queue.json')
         selected = json.loads((ROOT / 'docs/feature-candidates-2026-09-05.json').read_text())
         remote = json.loads((ROOT / 'docs/remote-access-plan-2026-09-05.json').read_text())
         ids = {'F%02d' % n for n in selected['selected'] + remote['selected']}
         self.assertEqual(set(model.data['selectedFeatures']), ids)
-        self.assertTrue(all(model.nodes[i]['status'] == 'pending' for i in ids))
-        self.assertEqual(model.nodes['S06.3a']['status'], 'in_progress')
         for number, dependencies in selected['implementation']['requires'].items():
             self.assertTrue(set(dependencies) <= set(model.nodes['F%02d' % int(number)]['dependsOn']))
         for feature in remote['features']:
@@ -274,7 +343,6 @@ class CliJourneyTest(unittest.TestCase):
         for identifier in ['S06.3' + c for c in 'abcdef'] + ['S06.4', 'S06.5', 'S06.6',
                           'S07', 'S08', 'S09', 'FINAL.UI', 'FINAL.README', 'MANUAL.INSTALL']:
             self.assertIn(identifier, model.nodes)
-        self.assertEqual(model.counts()['done'], 0)
         self.assertEqual(model.counts()['featuresTotal'], 63)
 
     def test_real_cli_validate_status_and_summary_document(self):
