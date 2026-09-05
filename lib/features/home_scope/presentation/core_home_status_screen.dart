@@ -3,13 +3,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/app_interaction_scope.dart';
+import '../../home_resources/presentation/core_home_resources.dart';
 import '../../../core/home_session_controller.dart';
 import '../../../l10n/generated/app_localizations.dart';
 import '../../../shared/widgets/app_page_scaffold.dart';
 import '../../../shared/widgets/settings_action_tile.dart';
 import '../../../shared/widgets/settings_section.dart';
 
-/// Safe account recovery; this version deliberately mounts no home adapters.
+/// Core metadata and independent account recovery; no home adapters are mounted.
 class CoreHomeStatusScreen extends ConsumerWidget {
   const CoreHomeStatusScreen({super.key});
   @override
@@ -32,53 +33,71 @@ class CoreHomeStatusScreen extends ConsumerWidget {
             alignment: Alignment.topCenter,
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 780),
-              child: ListView(
-                padding: const EdgeInsets.all(24),
-                children: [
-                  Semantics(
-                    header: true,
-                    child: Text(
-                      l10n.homeSourceCore,
-                      style: CupertinoTheme.of(context)
-                          .textTheme
-                          .navLargeTitleTextStyle,
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-                  Text(
-                    controller.failure != null
-                        ? l10n.homeSourceStorageError
-                        : controller.busy
-                        ? l10n.homeSourceLoading
-                        : controller.account.context != null
-                        ? l10n.homeCoreVerified
-                        : l10n.homeCoreVerificationRequired,
-                  ),
-                  const SizedBox(height: 16),
-                  Text(l10n.homeCoreUnavailable),
-                  const SizedBox(height: 24),
-                  SettingsSection(
-                    children: [
-                      if (controller.failure == null && !controller.busy)
-                        SettingsActionTile(
-                          title: Text(l10n.homeCoreManageAccount),
-                          onTap: !current()
-                              ? null
-                              : () {
-                                  if (current()) context.push('/settings');
-                                },
+              child: CustomScrollView(
+                slivers: [
+                  SliverPadding(
+                    padding: const EdgeInsets.all(24),
+                    sliver: SliverMainAxisGroup(
+                      slivers: [
+                        SliverToBoxAdapter(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              Semantics(
+                                header: true,
+                                child: Text(
+                                  l10n.homeSourceCore,
+                                  style: CupertinoTheme.of(context)
+                                      .textTheme
+                                      .navLargeTitleTextStyle,
+                                ),
+                              ),
+                              const SizedBox(height: 20),
+                              Text(
+                                controller.failure != null
+                                    ? l10n.homeSourceStorageError
+                                    : controller.busy
+                                    ? l10n.homeSourceLoading
+                                    : controller.account.context != null
+                                    ? l10n.homeCoreVerified
+                                    : l10n.homeCoreVerificationRequired,
+                              ),
+                              const SizedBox(height: 16),
+                              Text(l10n.homeCoreUnavailable),
+                              const SizedBox(height: 24),
+                              SettingsSection(
+                                children: [
+                                  if (controller.failure == null &&
+                                      !controller.busy)
+                                    SettingsActionTile(
+                                      title: Text(l10n.homeCoreManageAccount),
+                                      onTap: !current()
+                                          ? null
+                                          : () {
+                                              if (current())
+                                                context.push('/settings');
+                                            },
+                                    ),
+                                  SettingsActionTile(
+                                    title: Text(l10n.homeSourceTitle),
+                                    onTap: controller.busy || !current()
+                                        ? null
+                                        : () {
+                                            if (current()) {
+                                              context.push(
+                                                '/settings/home-source',
+                                              );
+                                            }
+                                          },
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
                         ),
-                      SettingsActionTile(
-                        title: Text(l10n.homeSourceTitle),
-                        onTap: controller.busy || !current()
-                            ? null
-                            : () {
-                                if (current()) {
-                                  context.push('/settings/home-source');
-                                }
-                              },
-                      ),
-                    ],
+                        const CoreHomeResources(),
+                      ],
+                    ),
                   ),
                 ],
               ),

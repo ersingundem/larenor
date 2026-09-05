@@ -30,10 +30,13 @@ import 'package:larenor/features/settings/data/screen_policy_controller.dart';
 import 'package:larenor/features/settings/presentation/screen_policy_runner.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import '../../core/home_scope_fixture.dart' show SourceMemory, ScopePower, flush;
+import '../../core/home_scope_fixture.dart'
+    show SourceMemory, ScopePower, flush;
 import '../server/server_connection_screen_test.dart' show Store;
 
-Map<String, dynamic> contract() => jsonDecode(File('contracts/home-resources.v1.json').readAsStringSync()) as Map<String, dynamic>;
+Map<String, dynamic> contract() =>
+    jsonDecode(File('contracts/home-resources.v1.json').readAsStringSync())
+        as Map<String, dynamic>;
 
 class ResourceHarness {
   final fixture = contract();
@@ -50,30 +53,71 @@ class ResourceHarness {
   Completer<http.Response>? pending;
   Completer<http.Response>? pendingContext;
   final requests = <http.Request>[];
-  Map<String, Object?> get user => {'id': userId, 'username': 'Fixture', 'role': 'member', 'mustChangePassword': false};
-  http.Response json(Object? value, [int code = 200]) => http.Response(jsonEncode(value), code, headers: {'content-type': 'application/json'});
+  Map<String, Object?> get user => {
+    'id': userId,
+    'username': 'Fixture',
+    'role': 'member',
+    'mustChangePassword': false,
+  };
+  http.Response json(Object? value, [int code = 200]) => http.Response(
+    jsonEncode(value),
+    code,
+    headers: {'content-type': 'application/json'},
+  );
   Future<http.Response> handle(http.Request request) async {
-    if (request.url.path.endsWith('/auth/login') || request.url.path.endsWith('/auth/refresh')) {
+    if (request.url.path.endsWith('/auth/login') ||
+        request.url.path.endsWith('/auth/refresh')) {
       authPosts++;
       if (request.url.path.endsWith('/auth/refresh')) refreshes++;
-      return json({'accessToken': (refreshes.isEven ? 'a' : 'c') * 43, 'refreshToken': 'b' * 43, 'expiresIn': 3600, 'user': user});
+      return json({
+        'accessToken': (refreshes.isEven ? 'a' : 'c') * 43,
+        'refreshToken': 'b' * 43,
+        'expiresIn': 3600,
+        'user': user,
+      });
     }
     if (request.url.path.endsWith('/auth/me')) return json({'user': user});
-    if (request.url.path.endsWith('/context')) return pendingContext?.future ?? json(contextResponse);
+    if (request.url.path.endsWith('/context'))
+      return pendingContext?.future ?? json(contextResponse);
     if (request.url.path.contains('/home-resources/')) {
       resourceReads++;
       requests.add(request);
       return pending?.future ?? json(response, status);
     }
-    if (request.url.path.endsWith('/auth/logout')) return http.Response('', 204);
+    if (request.url.path.endsWith('/auth/logout'))
+      return http.Response('', 204);
     throw StateError('Unexpected synthetic route');
   }
-  late final account = ServerAccountController(store: store, apiFactory: (endpoint) => LarenorServerApi(endpoint: endpoint, client: MockClient(handle), clock: () => now), clock: () => now);
-  ProviderContainer runtime(WidgetTester tester) => ProviderScope.containerOf(tester.element(find.byType(LarenorApp)), listen: false);
-  HomeSessionController home(WidgetTester tester) => runtime(tester).read(homeSessionControllerProvider)!;
+
+  late final account = ServerAccountController(
+    store: store,
+    apiFactory: (endpoint) => LarenorServerApi(
+      endpoint: endpoint,
+      client: MockClient(handle),
+      clock: () => now,
+    ),
+    clock: () => now,
+  );
+  ProviderContainer runtime(WidgetTester tester) => ProviderScope.containerOf(
+    tester.element(find.byType(LarenorApp)),
+    listen: false,
+  );
+  HomeSessionController home(WidgetTester tester) =>
+      runtime(tester).read(homeSessionControllerProvider)!;
   GoRouter router(WidgetTester tester) => runtime(tester).read(routerProvider);
-  Future<void> signIn() => account.signIn(baseUrl: 'https://synthetic.invalid', username: 'fixture', password: 'synthetic', deviceName: 'test');
-  Future<void> mount(WidgetTester tester, {String locale = 'en', double width = 600, double scale = 1, String? pin}) async {
+  Future<void> signIn() => account.signIn(
+    baseUrl: 'https://synthetic.invalid',
+    username: 'fixture',
+    password: 'synthetic',
+    deviceName: 'test',
+  );
+  Future<void> mount(
+    WidgetTester tester, {
+    String locale = 'en',
+    double width = 600,
+    double scale = 1,
+    String? pin,
+  }) async {
     SharedPreferences.setMockInitialValues({'enabled_services_migrated': true});
     FlutterSecureStorage.setMockInitialValues({'settings_pin': ?pin});
     tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
@@ -84,21 +128,60 @@ class ResourceHarness {
     addTearDown(tester.view.reset);
     addTearDown(tester.platformDispatcher.clearLocalesTestValue);
     addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
-    await tester.pumpWidget(ConfigurationScope(child: ProviderScope(overrides: [homeSourceStoreProvider.overrideWithValue(source), serverAccountControllerProvider.overrideWithValue(account)], child: HomeSessionScope(runtimeOverrides: [
-      homeResourcesApiFactoryProvider.overrideWithValue((endpoint) => LarenorServerApi(endpoint: endpoint, client: TrackedClient(handle, () => closed++), clock: () => now)),
-      homeResourcesClockProvider.overrideWithValue(() => now),
-      connectionConfigProvider.overrideWith(() => BlockHa(this)),
-      haRestClientFactoryProvider.overrideWithValue((_, _) {haReads++; throw StateError('Forbidden HA REST');}),
-      haWebSocketClientFactoryProvider.overrideWithValue((_, _) {haReads++; throw StateError('Forbidden HA WS');}),
-      clientUpdateApiProvider.overrideWithValue(AndroidClientUpdateApi(isAndroid: false)),
-      screenPolicyControllerProvider.overrideWithValue(ScreenPolicyController(power)),
-      windowPolicySnapshotProvider.overrideWith((_) => window.stream),
-    ]))));
-    window.add(const WindowPolicySnapshot(supported: true, isResumed: true, hasWindowFocus: true, reason: WindowRestrictionReason.none));
+    await tester.pumpWidget(
+      ConfigurationScope(
+        child: ProviderScope(
+          overrides: [
+            homeSourceStoreProvider.overrideWithValue(source),
+            serverAccountControllerProvider.overrideWithValue(account),
+          ],
+          child: HomeSessionScope(
+            runtimeOverrides: [
+              homeResourcesApiFactoryProvider.overrideWithValue(
+                (endpoint) => LarenorServerApi(
+                  endpoint: endpoint,
+                  client: TrackedClient(handle, () => closed++),
+                  clock: () => now,
+                ),
+              ),
+              homeResourcesClockProvider.overrideWithValue(() => now),
+              connectionConfigProvider.overrideWith(() => BlockHa(this)),
+              haRestClientFactoryProvider.overrideWithValue((_, _) {
+                haReads++;
+                throw StateError('Forbidden HA REST');
+              }),
+              haWebSocketClientFactoryProvider.overrideWithValue((_, _) {
+                haReads++;
+                throw StateError('Forbidden HA WS');
+              }),
+              clientUpdateApiProvider.overrideWithValue(
+                AndroidClientUpdateApi(isAndroid: false),
+              ),
+              screenPolicyControllerProvider.overrideWithValue(
+                ScreenPolicyController(power),
+              ),
+              windowPolicySnapshotProvider.overrideWith((_) => window.stream),
+            ],
+          ),
+        ),
+      ),
+    );
+    window.add(
+      const WindowPolicySnapshot(
+        supported: true,
+        isResumed: true,
+        hasWindowFocus: true,
+        reason: WindowRestrictionReason.none,
+      ),
+    );
     await flush(tester);
     addTearDown(() async {
-      pending?.complete(json(fixture['memberList'])); pending = null;
-      pendingContext?.complete(json(contextResponse)); pendingContext = null;
+      if (pending?.isCompleted == false)
+        pending!.complete(json(fixture['memberList']));
+      pending = null;
+      if (pendingContext?.isCompleted == false)
+        pendingContext!.complete(json(contextResponse));
+      pendingContext = null;
       await tester.pumpWidget(const SizedBox.shrink());
       await flush(tester);
       account.dispose();
@@ -106,15 +189,23 @@ class ResourceHarness {
     });
   }
 }
+
 class BlockHa extends ConnectionConfig {
   BlockHa(this.harness);
   final ResourceHarness harness;
   @override
-  Future<Never> build() async { harness.haReads++; throw StateError('Forbidden HA connection'); }
+  Future<Never> build() async {
+    harness.haReads++;
+    throw StateError('Forbidden HA connection');
+  }
 }
+
 class TrackedClient extends MockClient {
   TrackedClient(super.fn, this.onClose);
   final void Function() onClose;
   @override
-  void close() {onClose(); super.close();}
+  void close() {
+    onClose();
+    super.close();
+  }
 }

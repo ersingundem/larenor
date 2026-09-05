@@ -1867,7 +1867,7 @@
   "homeSourceLoading": "Ev kaynağı okunuyor…",
   "homeCoreVerified": "Core hesabı ve ev doğrulandı.",
   "homeCoreVerificationRequired": "Devam etmek için Core hesabınızı ve evinizi doğrulayın.",
-  "homeCoreUnavailable": "Core ev görünümü bu sürümde henüz kullanılamıyor. Core hesabınızı yönetebilir veya mevcut doğrudan Home Assistant bağlantınızı seçebilirsiniz.",
+  "homeCoreUnavailable": "Aşağıda izin verilen odaları ve kaynakları görüntüleyebilir, Core hesabınızı yönetebilir veya mevcut doğrudan Home Assistant bağlantınızı açıkça seçebilirsiniz.",
   "homeCoreManageAccount": "Core hesabını yönet",
   "homeLayoutPreviewTitle": "Yerel oda adlarını kopyala",
   "homeLayoutPreviewHint": "Bu Core evine eklenecek oda adlarını seçin. Yalnızca adlar ve sıraları kopyalanır; yerel düzeniniz korunur.",
@@ -1903,5 +1903,13 @@
   "homeLayoutRefresh": "Güncel düzeni incele",
   "homeLayoutExpired": "Bu inceleme artık güncel değil. Hesabınızı doğrulayıp düzeni yeniden inceleyin.",
   "homeLayoutStorageError": "Düzen okunamadı veya kaydetme doğrulanamadı. Yeniden denemeden önce güncel düzeni inceleyin.",
-  "homeLayoutRoomLimit": "Bu ev oda sınırına ulaştı. Oda adı eklenmedi."
+  "homeLayoutRoomLimit": "Bu ev oda sınırına ulaştı. Oda adı eklenmedi.",
+  "homeResourcesTitle": "Odalar ve kaynaklar",
+  "homeResourcesDescription": "Bu hesabın görüntüleyebildiği kayıtlar. Erişim değişikliklerini kontrol etmek için yenileyin. Cihaz kontrolleri henüz burada kullanılamıyor.",
+  "homeResourcesLoading": "Odalar ve kaynaklar yükleniyor…",
+  "homeResourcesError": "Odalar ve kaynaklar yüklenemedi. Yenileyerek tekrar deneyin.",
+  "homeResourcesEmpty": "Bu hesabın görüntüleyebildiği oda veya kaynak yok.",
+  "homeResourcesRoom": "Oda",
+  "homeResourcesResource": "Kaynak",
+  "homeResourcesLoadMore": "Daha fazla yükle"
 }
