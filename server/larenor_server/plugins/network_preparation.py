@@ -207,7 +207,7 @@ class JournaledNetworkOperations:
                 token = self._live(receipt, source, binding, event, intent)
                 expected_body = build_network_create_body(binding, intent)
                 state, candidate_id = self._list(receipt, source, binding, event, intent, token)
-            except _Unavailable:
+            except (_Unavailable, NetworkResourceError):
                 return self._uncertain(receipt)
             if state != 'missing':
                 return self._reconcile(receipt, source, binding, event,
