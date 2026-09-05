@@ -204,3 +204,16 @@ def test_worker_does_not_replace_unowned_socket_or_close_on_duplicate_start():
     with running() as (worker,client):
         with pytest.raises(PreflightIPCError):worker.start()
         assert client.status()['capability']=='preflight'
+
+
+def test_failed_thread_start_releases_only_this_workers_socket(monkeypatch):
+    with root() as folder:
+        path=folder/'worker.sock'
+        worker=PreflightWorkerServer(path,Inspector(),platform='linux/amd64',allowed_uid=os.getuid(),peer_uid=uid)
+        with monkeypatch.context() as patch:
+            patch.setattr(threading.Thread,'start',lambda _: (_ for _ in ()).throw(RuntimeError('private error')))
+            with pytest.raises(PreflightIPCError) as failure:worker.start()
+            assert 'private' not in str(failure.value)
+        assert not path.exists()
+        replacement=PreflightWorkerServer(path,Inspector(),platform='linux/amd64',allowed_uid=os.getuid(),peer_uid=uid)
+        replacement.start();replacement.close()
