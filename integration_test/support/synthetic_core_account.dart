@@ -8,6 +8,7 @@ import 'synthetic_core_resources.dart';
 class SyntheticCoreAccount {
   SyntheticCoreAccount({this.resources});
   final SyntheticCoreResources? resources;
+  late final _emptyResources = SyntheticCoreResources.empty(userId: userId);
   static const username = 'fixture-core-user';
   static const password = 'Synthetic account password 2026';
   static const accessToken = 'synthetic-core-access-session';
@@ -38,7 +39,7 @@ class SyntheticCoreAccount {
 
     try {
       final path = request.uri.path;
-      if (resources != null && path.startsWith('/api/v1/home-resources/')) {
+      if (path.startsWith('/api/v1/home-resources/')) {
         if (request.method != 'GET') {
           reject(403);
         } else if (request.headers.value('authorization') !=
@@ -47,7 +48,7 @@ class SyntheticCoreAccount {
         } else if (path != '/api/v1/home-resources/$coreId/$homeId') {
           reject(404);
         } else {
-          final (status, body) = resources!.list(
+          final (status, body) = (resources ?? _emptyResources).list(
             coreId,
             homeId,
             request.uri.queryParametersAll,
