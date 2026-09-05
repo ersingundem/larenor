@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/direct_home_access.dart';
 import '../../auth/data/ha_connection_config.dart';
 import '../../auth/providers/auth_providers.dart';
 import '../../ha_client/data/models/ha_entity.dart';
@@ -15,10 +16,19 @@ import '../../health/providers/health_providers.dart';
 import '../data/door_station_store.dart';
 import '../domain/door_station.dart';
 
-final doorStationStoreProvider = Provider((ref) => DoorStationStore());
-final doorStationsProvider = FutureProvider.autoDispose<List<DoorStation>>(
-  (ref) => ref.watch(doorStationStoreProvider).read(),
+final doorStationStoreProvider = Provider(
+  (ref) => DoorStationStore(access: ref.watch(directHomeAccessProvider)),
 );
+final doorStationsProvider = FutureProvider.autoDispose<List<DoorStation>>((
+  ref,
+) async {
+  final access = ref.watch(directHomeAccessProvider);
+  access.check();
+  final result = await ref.watch(doorStationStoreProvider).read();
+  access.check();
+  if (!ref.mounted) throw const DirectHomeAccessException('unavailable');
+  return result;
+});
 
 /// Injectable clock for deterministic expiry tests, evaluated at dispatch too.
 final doorReleaseClockProvider = Provider<DateTime Function()>(
