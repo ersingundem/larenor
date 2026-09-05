@@ -363,3 +363,40 @@ def test_environment_proxy_and_docker_host_are_unused(monkeypatch):
 def test_real_linux_peer_credentials_on_synthetic_unix_connection():
     with server() as (client, _):
         assert exchange(VerifiedEngineHttp(client._endpoint)) == (200, b'{}')
+
+
+def network_target(name='larenor-control-' + 'b' * 32):
+    return '/v1.47/networks?' + urlencode({'filters': json.dumps({'name': [name]}, separators=(',', ':'))})
+
+
+@pytest.mark.parametrize('target', [network_target(), '/v1.47/networks/' + 'c' * 64])
+def test_network_allowlist_is_get_only_without_request_body(target):
+    assert EngineHttpRequest('GET', target).target == target
+    for method, body in [('POST', None), ('DELETE', None), ('PUT', None), ('GET', b'{}')]:
+        with pytest.raises(EngineHttpError, match='^invalid_engine_request$'):
+            EngineHttpRequest(method, target, body=body)
+
+
+@pytest.mark.parametrize('target', [
+    '/v1.47/networks/create', '/v1.47/networks/prune', '/v1.47/networks/' + 'c' * 12,
+    '/v1.47/networks/' + 'C' * 64, '/v1.47/networks/' + 'c' * 64 + '/connect',
+    '/v1.47/networks/' + 'c' * 64 + '?verbose=true', '/v1.47/networks/' + '%63' * 64,
+    '/v1.47/networks/' + 'c' * 64 + '#fragment', '/v1.47/networks/../containers/json',
+    network_target() + '&scope=local', network_target() + '&filters=%7B%7D',
+    network_target('other-' + 'b' * 32), network_target('larenor-control-' + 'B' * 32),
+    network_target('larenor-control-' + 'b' * 31), network_target('larenor-control-' + 'b' * 33),
+    network_target().replace('filters=', 'filter='), network_target().replace('%7B', '%7b'),
+    '/v1.47/networks?' + urlencode({'filters': '{"name": ["larenor-control-' + 'b' * 32 + '"]}'}),
+    '/v1.47/networks?' + urlencode({'filters': '{"name":["larenor-control-' + 'b' * 32 + '"],"label":["owned"]}'}),
+    '/v1.47/networks?' + urlencode({'filters': '{"name":["larenor-control-' + 'b' * 32 + '","other"]}'}),
+    '/v1.47/networks?' + urlencode({'filters': '{"name":["larenor-control-' + 'b' * 32 + '"],"name":[]}'}),
+    'http://elsewhere' + network_target(), network_target() + '\r\nX: private',
+])
+def test_network_route_allowlist_rejects_aliases_partial_filters_and_extra_options(target):
+    with pytest.raises(EngineHttpError, match='^invalid_engine_request$'):
+        EngineHttpRequest('GET', target)
+
+
+def test_network_create_request_stays_unreachable():
+    with pytest.raises(EngineHttpError, match='^invalid_engine_request$'):
+        EngineHttpRequest('POST', '/v1.47/networks/create')
