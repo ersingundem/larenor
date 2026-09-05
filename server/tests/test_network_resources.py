@@ -207,6 +207,8 @@ def test_real_empty_default_options_and_allocated_ipam_are_accepted(prepared, op
 ])
 def test_unproven_or_custom_ipam_never_certifies_a_private_default_bridge(prepared, ipam):
     item = network(prepared)
+    if type(ipam) is dict and 'Driver' in ipam and 'Options' not in ipam:
+        ipam = {**ipam, 'Options': None}
     item['IPAM'] = ipam
     with pytest.raises(NetworkResourceError, match='^network_conflict$'):
         inspected(prepared, item)
@@ -245,3 +247,70 @@ def test_omitted_engine_option_observation_is_not_proof_of_default_settings(prep
         item['IPAM'].pop('Options')
     with pytest.raises(NetworkResourceError, match='^network_conflict$'):
         inspected(prepared, item)
+
+
+@pytest.mark.parametrize('configs', [None, []])
+def test_incomplete_list_ipam_is_only_a_candidate_never_an_inspect_proof(prepared, configs):
+    item = network(prepared)
+    item['IPAM']['Config'] = configs
+    assert listed(prepared, [item]).state == 'candidate'
+    with pytest.raises(NetworkResourceError, match='^network_conflict$'):
+        inspected(prepared, item)
+
+
+def test_uncertain_intent_can_only_be_inspected_without_reissuing_create_body(prepared):
+    _, binding, intent = prepared
+    item = network(prepared)
+    resumed = replace(intent, receipt=replace(intent.receipt, state='uncertain',
+                                             code='effect_uncertain', revision=3))
+    assert validate_network_inspect(response(item), binding, resumed, expected_id='1' * 64).network_id == '1' * 64
+    with pytest.raises(NetworkResourceError, match='^invalid_network_binding$'):
+        build_network_create_body(binding, resumed)
+
+
+@pytest.mark.parametrize('headers', [(), (('content-type', 'text/plain'),),
+    (('content-type', 'application/json'), ('content-type', 'application/json')),
+    (('content-type', 'application/json'), ('link', '<private>; rel=next')),
+    (('content-type', 'application/json'), ('content-range', 'items 0-2/10')),
+])
+def test_non_json_or_partial_list_envelopes_cannot_prove_missing(prepared, headers):
+    _, binding, intent = prepared
+    with pytest.raises(NetworkResourceError, match='^network_protocol$'):
+        validate_network_list(ProbeResponse(200, headers, b'[]'), binding, intent,
+                              request_target=network_list_target(binding))
+
+
+@pytest.mark.parametrize('value', [None, {}, {'Name': 'foreign', 'Id': 'short'},
+                                 {'Name': 'foreign\nprivate', 'Id': '2' * 64}])
+def test_malformed_unrelated_list_rows_cannot_hide_a_name_collision(prepared, value):
+    with pytest.raises(NetworkResourceError, match='^network_protocol$'):
+        listed(prepared, [value])
+
+
+def test_nonunique_unrelated_ids_are_not_a_complete_list(prepared):
+    with pytest.raises(NetworkResourceError, match='^network_protocol$'):
+        listed(prepared, [{'Name': name, 'Id': '2' * 64} for name in ('one', 'two')])
+
+
+def test_short_expected_id_and_foreign_resource_cannot_select_an_inspect_target(prepared):
+    source, binding, intent = prepared
+    with pytest.raises(NetworkResourceError, match='^invalid_network_binding$'):
+        validate_network_inspect(response(network(prepared)), binding, intent, expected_id='1' * 12)
+    with pytest.raises(NetworkResourceError, match='^invalid_network_binding$'):
+        network_binding(**source, resource_id=source['plan'].resources[0].resourceId)
+
+
+def test_helpers_never_observe_host_or_dispatch_a_docker_effect(prepared, monkeypatch):
+    import os
+    import socket
+    from pathlib import Path
+
+    def forbidden(*_, **__):
+        pytest.fail('pure network helper attempted host I/O')
+    item = network(prepared)
+    for owner, name in ((os, 'open'), (socket, 'socket'), (Path, 'read_bytes'), (Path, 'write_bytes')):
+        monkeypatch.setattr(owner, name, forbidden)
+    assert inspected(prepared, item).network_id == '1' * 64
+    assert listed(prepared, [item]).state == 'candidate'
+    assert listed(prepared, []).state == 'missing'
+    assert build_network_create_body(prepared[1], prepared[2])
