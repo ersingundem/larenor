@@ -224,6 +224,10 @@ class _SearchResultRow extends StatelessWidget {
             CupertinoIcons.calendar,
             l10n.navigationSearchPage,
           ),
+          HomePageTarget.energy => (
+            CupertinoIcons.bolt_fill,
+            l10n.navigationSearchPage,
+          ),
           HomePageTarget.intercom => (
             CupertinoIcons.bell,
             l10n.navigationSearchPage,
@@ -232,6 +236,7 @@ class _SearchResultRow extends StatelessWidget {
     };
     final title = switch (item.target) {
       HomePageNavigationTarget(page: HomePageTarget.today) => l10n.todayTitle,
+      HomePageNavigationTarget(page: HomePageTarget.energy) => l10n.energyTitle,
       HomePageNavigationTarget(page: HomePageTarget.intercom) =>
         l10n.intercomTitle,
       _ => item.title,

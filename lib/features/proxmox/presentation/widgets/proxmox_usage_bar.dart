@@ -1,6 +1,7 @@
 import 'package:flutter/cupertino.dart';
 
 import '../../../../shared/theme/typography.dart';
+import '../../../../l10n/generated/app_localizations.dart';
 
 /// A small labeled usage bar (e.g. "CPU 32%") — hand-rolled rather than a
 /// Material `LinearProgressIndicator`, matching the pattern already used
@@ -17,12 +18,18 @@ class ProxmoxUsageBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final value = (fraction ?? 0).clamp(0.0, 1.0);
+    final value =
+        fraction != null &&
+            fraction!.isFinite &&
+            fraction! >= 0 &&
+            fraction! <= 1
+        ? fraction
+        : null;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          '$label ${(value * 100).round()}%',
+          '$label ${value == null ? AppLocalizations.of(context).commonUnknown : '${(value * 100).round()}%'}',
           style: TextStyle(
             fontSize: AppText.caption1.fontSize,
             color: CupertinoColors.secondaryLabel.resolveFrom(context),
@@ -35,10 +42,14 @@ class ProxmoxUsageBar extends StatelessWidget {
             height: 6,
             color: CupertinoColors.systemGrey5.resolveFrom(context),
             alignment: Alignment.centerLeft,
-            child: FractionallySizedBox(
-              widthFactor: value,
-              child: Container(color: CupertinoTheme.of(context).primaryColor),
-            ),
+            child: value == null
+                ? null
+                : FractionallySizedBox(
+                    widthFactor: value,
+                    child: Container(
+                      color: CupertinoTheme.of(context).primaryColor,
+                    ),
+                  ),
           ),
         ),
       ],

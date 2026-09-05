@@ -56,6 +56,9 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          proxmoxConnectionProvider.overrideWithBuild(
+            (ref, notifier) async => config,
+          ),
           proxmoxClientProvider.overrideWith((ref) async => client),
           proxmoxGuestConfigProvider(
             'pve1',

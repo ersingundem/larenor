@@ -17,9 +17,11 @@ class MemoryRepository extends DashboardRepository {
   @override
   Future<DashboardLayout> load() async => layout;
   @override
-  Future<void> save(DashboardLayout value) async {
+  Future<void> save(DashboardLayout value, {bool Function()? isCurrent}) async {
+    if (isCurrent?.call() == false) throw StateError('Expired');
     saveCount++;
     if (saveCount == 1) await firstSave?.future;
+    if (isCurrent?.call() == false) throw StateError('Expired');
     layout = value;
   }
 }

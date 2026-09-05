@@ -7,6 +7,7 @@ import '../providers/jellyfin_providers.dart';
 import 'jellyfin_library_screen.dart';
 import 'jellyfin_series_screen.dart';
 import 'player/jellyfin_player_screen.dart';
+import '../../casting/presentation/remote_playback_button.dart';
 
 class JellyfinItemDetailScreen extends ConsumerWidget {
   const JellyfinItemDetailScreen({super.key, required this.item});
@@ -81,6 +82,7 @@ class JellyfinItemDetailScreen extends ConsumerWidget {
                 ),
                 child: Text(AppLocalizations.of(context).jellyfinBrowseButton),
               ),
+            if (item.isPlayable) RemotePlaybackButton(itemId: item.id),
           ],
         ),
       ),

@@ -284,7 +284,7 @@ void main() {
           isA<KeeneticApiException>().having(
             (error) => error.message,
             'message',
-            'Permission denied',
+            'Router rejected the command.',
           ),
         ),
       );

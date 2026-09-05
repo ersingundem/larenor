@@ -8,10 +8,14 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:larenor/features/proxmox/data/models/proxmox_task.dart';
 import 'package:larenor/features/proxmox/data/proxmox_client.dart';
-import 'package:larenor/features/proxmox/data/proxmox_config.dart';
+
+import 'proxmox_transport_security_test.dart' show fixtureConfig;
+
 import 'package:larenor/features/proxmox/presentation/proxmox_tasks_screen.dart';
 import 'package:larenor/features/proxmox/providers/proxmox_providers.dart';
 import 'package:larenor/l10n/generated/app_localizations.dart';
+
+import 'proxmox_providers_test.dart' show ControlledConnection;
 
 const _app = CupertinoApp(
   localizationsDelegates: AppLocalizations.localizationsDelegates,
@@ -28,6 +32,7 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          proxmoxConnectionProvider.overrideWith(ControlledConnection.new),
           proxmoxTasksProvider('pve').overrideWith((ref) {
             final result = Completer<List<ProxmoxTask>>();
             pending.add(result);
@@ -45,10 +50,14 @@ void main() {
     expect(pending, hasLength(2));
     await tester.pump(const Duration(seconds: 30));
     expect(pending, hasLength(2));
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.hidden);
     tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
     pending.last.complete([]);
     await tester.pump(const Duration(minutes: 5));
     expect(pending, hasLength(2));
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.hidden);
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
     tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
     await tester.pump();
     expect(pending, hasLength(3));
@@ -65,14 +74,7 @@ void main() {
       final status = Completer<http.Response>();
       final requests = <String>[];
       final client = ProxmoxClient(
-        config: const ProxmoxConfig(
-          host: 'pve.test',
-          port: 8006,
-          username: 'root',
-          realm: 'pam',
-          password: 'example',
-          allowSelfSigned: false,
-        ),
+        config: fixtureConfig,
         httpClient: MockClient((request) async {
           requests.add(request.url.path);
           if (request.url.path.endsWith('/access/ticket')) {
@@ -92,6 +94,7 @@ void main() {
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
+            proxmoxConnectionProvider.overrideWith(ControlledConnection.new),
             proxmoxClientProvider.overrideWith((ref) async => client),
             proxmoxTasksProvider('pve').overrideWith(
               (ref) async => const [

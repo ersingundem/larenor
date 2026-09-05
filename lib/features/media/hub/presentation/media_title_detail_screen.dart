@@ -22,6 +22,7 @@ import '../../jellyfin/providers/jellyfin_providers.dart';
 import '../../jellyseerr/data/models/jellyseerr_details.dart';
 import '../../jellyseerr/providers/jellyseerr_providers.dart';
 import '../../movie_night/presentation/movie_night_launcher.dart';
+import '../../casting/presentation/remote_playback_button.dart';
 import '../domain/media_identity.dart';
 import '../domain/media_title.dart';
 import '../providers/media_catalog_providers.dart';
@@ -252,6 +253,13 @@ class _MediaTitleDetailScreenState
                       ),
                       const SizedBox(height: 16),
                       _primaryAction(title, l10n, catalogue),
+                      if (title.isPlayable &&
+                          !title.isStale &&
+                          title.jellyfinItemId != null)
+                        RemotePlaybackButton(
+                          itemId: title.jellyfinItemId!,
+                          enabled: !_busy,
+                        ),
                       MovieNightLauncher(
                         key: ValueKey(
                           'media-movie-night:${widget.title.identity.key}:$_jellyfinHint',

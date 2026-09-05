@@ -19,6 +19,38 @@ void main() {
   tearDown(() => repository.dispose());
 
   test(
+    'explicit HA UTC alias reads calendars with UTC midnight boundaries',
+    () async {
+      api.config = {'time_zone': 'UTC'};
+      api.events['calendar.family'] = [
+        calendarEvent(from: '2026-09-05', until: '2026-09-06'),
+      ];
+      final snapshot = await repository.load();
+      expect(snapshot.timeZone, 'Etc/UTC');
+      expect(
+        snapshot.dayStart!.isAtSameMomentAs(DateTime.utc(2026, 9, 5)),
+        isTrue,
+      );
+      expect(
+        snapshot.dayEnd!.isAtSameMomentAs(DateTime.utc(2026, 9, 6)),
+        isTrue,
+      );
+      expect(
+        api.calendarCalls.single.start.isAtSameMomentAs(
+          DateTime.utc(2026, 9, 5),
+        ),
+        isTrue,
+      );
+      expect(snapshot.calendars.single.events.value, hasLength(1));
+      expect(
+        () => TodayTimeZone('Invalid/Fixture'),
+        throwsA(isA<TodayException>()),
+      );
+      expect(api.serviceCalls, isEmpty);
+    },
+  );
+
+  test(
     'HA day uses its timezone, DST calendar day and exclusive all-day end',
     () async {
       final spring = TodayTimeZone('Europe/Berlin')

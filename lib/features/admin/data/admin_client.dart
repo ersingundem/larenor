@@ -16,6 +16,9 @@ class HaAdminClient {
   final HaRestClient _rest;
   final HaWebSocketClient _ws;
 
+  /// Bind local reference updates to the server that accepted the rename.
+  String get baseUrl => _rest.baseUrl;
+
   // --- Config entries (integrations) -----------------------------------
 
   Future<List<ConfigEntry>> listConfigEntries() async {

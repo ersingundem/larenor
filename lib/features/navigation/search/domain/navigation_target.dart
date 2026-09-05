@@ -17,7 +17,7 @@ sealed class NavigationTarget {
   int get hashCode => location.hashCode;
 }
 
-enum HomePageTarget { today, intercom }
+enum HomePageTarget { today, intercom, energy }
 
 final class HomePageNavigationTarget extends NavigationTarget {
   const HomePageNavigationTarget(this.page);

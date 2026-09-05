@@ -1,3 +1,5 @@
+import 'proxmox_values.dart';
+
 enum ProxmoxGuestType {
   qemu,
   lxc;
@@ -57,8 +59,7 @@ class ProxmoxGuest {
     };
   }
 
-  double? get memFraction =>
-      (mem != null && maxMem != null && maxMem! > 0) ? mem! / maxMem! : null;
+  double? get memFraction => proxmoxRatio(mem, maxMem);
 
   factory ProxmoxGuest.fromJson(
     Map<String, dynamic> json, {
@@ -67,18 +68,23 @@ class ProxmoxGuest {
   }) => ProxmoxGuest(
     type: type,
     node: node,
-    vmid: (json['vmid'] as num?)?.toInt() ?? 0,
+    vmid:
+        proxmoxInteger(json['vmid'], min: 1) ??
+        (throw const FormatException('Invalid guest identity.')),
     name: json['name'] as String? ?? 'unknown',
     status: json['qmpstatus'] == 'paused'
         ? 'paused'
         : json['status'] as String? ?? 'unknown',
-    isTemplate: (json['template'] as num? ?? 0) == 1,
-    cpuFraction: (json['cpu'] as num?)?.toDouble(),
-    maxCpu: (json['maxcpu'] as num?)?.toInt(),
-    mem: (json['mem'] as num?)?.toInt(),
-    maxMem: (json['maxmem'] as num?)?.toInt(),
-    disk: (json['disk'] as num?)?.toInt(),
-    maxDisk: (json['maxdisk'] as num?)?.toInt(),
-    uptimeSeconds: (json['uptime'] as num?)?.toInt(),
+    isTemplate: json['template'] == null
+        ? false
+        : proxmoxFlag(json['template']) ??
+              (throw const FormatException('Invalid template flag.')),
+    cpuFraction: proxmoxFraction(json['cpu']),
+    maxCpu: proxmoxInteger(json['maxcpu']),
+    mem: proxmoxInteger(json['mem']),
+    maxMem: proxmoxInteger(json['maxmem']),
+    disk: proxmoxInteger(json['disk']),
+    maxDisk: proxmoxInteger(json['maxdisk']),
+    uptimeSeconds: proxmoxInteger(json['uptime']),
   );
 }

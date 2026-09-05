@@ -4,8 +4,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../l10n/generated/app_localizations.dart';
 import '../../../../shared/theme/category_colors.dart';
+import '../../../auth/providers/auth_providers.dart';
 import '../../../ha_client/data/models/ha_entity.dart';
 import '../../../ha_client/providers/ha_client_providers.dart';
+import '../../domain/dashboard_card_size.dart';
+import '../dashboard_card_presentation.dart';
+import '../dashboard_edit_guard.dart';
 import '../../providers/dashboard_providers.dart';
 import '../../providers/dashboard_live_providers.dart';
 import '../widgets/more_info_sheet.dart';
@@ -28,9 +32,19 @@ bool tapTogglesEntity(HaEntity entity) =>
 /// on/off state in its colouring, toggles on tap, and opens a context menu
 /// on long press.
 class HomeAccessoryTile extends ConsumerStatefulWidget {
-  const HomeAccessoryTile({super.key, required this.entity, this.roomId});
+  const HomeAccessoryTile({
+    super.key,
+    required this.entity,
+    this.roomId,
+    this.title,
+    this.enableContextMenu = true,
+  });
 
   final HaEntity entity;
+  final String? title;
+
+  /// Saved widget cards use the dashboard's widget menu instead.
+  final bool enableContextMenu;
 
   /// The room this tile is being shown in, when it's in one. Favourites
   /// aren't, so removing from a room isn't offered there.
@@ -56,14 +70,63 @@ class HomeAccessoryTile extends ConsumerStatefulWidget {
   ConsumerState<HomeAccessoryTile> createState() => _HomeAccessoryTileState();
 }
 
-class _HomeAccessoryTileState extends ConsumerState<HomeAccessoryTile> {
+class _HomeAccessoryTileState extends DashboardEditState<HomeAccessoryTile> {
   HaEntity get entity => widget.entity;
+  String get title => widget.title ?? entity.friendlyName;
   String? get roomId => widget.roomId;
   bool _busy = false;
+  bool _menuOpen = false;
+  Route<dynamic>? _menuRoute;
+
+  bool get _roomCurrent {
+    if (!mounted) return false;
+    if (roomId == null) return true;
+    final room = ref
+        .read(dashboardLayoutProvider)
+        .value
+        ?.rooms
+        .where((room) => room.id == roomId)
+        .firstOrNull;
+    return room != null && roomMatchesCurrentServer(ref, room);
+  }
+
+  @override
+  void invalidateDashboardInteraction() {
+    final route = _menuRoute;
+    _menuRoute = null;
+    if (route?.isActive == true) route!.navigator?.removeRoute(route);
+  }
+
+  @override
+  void didUpdateWidget(HomeAccessoryTile oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.entity.entityId != widget.entity.entityId ||
+        oldWidget.roomId != roomId) {
+      interactionGeneration++;
+      invalidateDashboardInteraction();
+    }
+  }
+
+  Future<String?> _menu(WidgetBuilder builder) async {
+    final route = CupertinoModalPopupRoute<String>(builder: builder);
+    _menuRoute = route;
+    try {
+      return await Navigator.of(context).push<String>(route);
+    } finally {
+      if (identical(_menuRoute, route)) _menuRoute = null;
+    }
+  }
+
   static const _glyphSize = HomeAccessoryTile._glyphSize;
 
   Future<void> _activate() async {
-    if (_busy) return;
+    final generation = interactionGeneration;
+    if (_busy ||
+        _menuOpen ||
+        !interactionCurrent(generation) ||
+        !_roomCurrent) {
+      return;
+    }
     if (!tapTogglesEntity(entity) ||
         {'unavailable', 'unknown'}.contains(entity.state)) {
       showEntityMoreInfo(context, entity.entityId);
@@ -74,17 +137,17 @@ class _HomeAccessoryTileState extends ConsumerState<HomeAccessoryTile> {
     try {
       await ref.read(entitiesProvider.notifier).toggle(entity);
     } catch (_) {
-      if (!mounted) return;
+      if (!mounted || !interactionCurrent(generation) || !_roomCurrent) return;
       setState(() => _busy = false);
       final l10n = AppLocalizations.of(context);
       await showCupertinoDialog<void>(
         context: context,
         builder: (dialogContext) => CupertinoAlertDialog(
-          title: Text(entity.friendlyName),
+          title: Text(title),
           content: Text(l10n.homeActionFailed),
           actions: [
             CupertinoDialogAction(
-              onPressed: () => Navigator.pop(dialogContext),
+              onPressed: () => closeDashboardModal(dialogContext),
               child: Text(l10n.commonOk),
             ),
           ],
@@ -97,6 +160,18 @@ class _HomeAccessoryTileState extends ConsumerState<HomeAccessoryTile> {
 
   @override
   Widget build(BuildContext context) {
+    if (roomId != null) {
+      final room = ref.watch(
+        dashboardLayoutProvider.select(
+          (layout) => layout.value?.rooms
+              .where((room) => room.id == roomId)
+              .firstOrNull,
+        ),
+      );
+      if (room?.areaBinding != null) ref.watch(connectionConfigProvider);
+    }
+    watchDashboardAccount();
+    final enabled = foreground && _roomCurrent;
     final categoryColor = categoryColorForDomain(
       context,
       entity.domain,
@@ -119,11 +194,14 @@ class _HomeAccessoryTileState extends ConsumerState<HomeAccessoryTile> {
 
     return Semantics(
       button: true,
-      label: '${entity.friendlyName}, ${entityStateLabel(context, entity)}',
-      onTap: _activate,
+      label: '$title, ${entityStateLabel(context, entity)}',
+      enabled: enabled,
+      onTap: enabled ? dashboardAction(_activate) : null,
       child: GestureDetector(
-        onTap: _activate,
-        onLongPress: () => _showActions(context, ref),
+        onTap: enabled ? dashboardAction(_activate) : null,
+        onLongPress: enabled && widget.enableContextMenu
+            ? dashboardAction(_showActions)
+            : null,
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 180),
           decoration: BoxDecoration(
@@ -181,7 +259,7 @@ class _HomeAccessoryTileState extends ConsumerState<HomeAccessoryTile> {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Text(
-                      entity.friendlyName,
+                      title,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: AppText.tileTitle.copyWith(
@@ -210,55 +288,127 @@ class _HomeAccessoryTileState extends ConsumerState<HomeAccessoryTile> {
     );
   }
 
-  Future<void> _showActions(BuildContext context, WidgetRef ref) async {
+  Future<void> _showActions() async {
+    final generation = interactionGeneration;
+    if (_menuOpen ||
+        _busy ||
+        !interactionCurrent(generation) ||
+        !_roomCurrent) {
+      return;
+    }
+    _menuOpen = true;
     final l10n = AppLocalizations.of(context);
+    final target = entity.entityId;
+    final name = title;
     final layout = ref.read(dashboardLayoutProvider).value;
-    final isFavourite =
-        layout?.favoriteEntityIds.contains(entity.entityId) ?? false;
-
-    await showCupertinoModalPopup<void>(
-      context: context,
-      builder: (sheetContext) => CupertinoActionSheet(
-        title: Text(entity.friendlyName),
-        actions: [
-          CupertinoActionSheetAction(
-            onPressed: () {
-              Navigator.of(sheetContext).pop();
-              showEntityMoreInfo(context, entity.entityId);
-            },
-            child: Text(l10n.homeActionMoreInfo),
-          ),
-          CupertinoActionSheetAction(
-            onPressed: () {
-              Navigator.of(sheetContext).pop();
-              ref
-                  .read(dashboardLayoutProvider.notifier)
-                  .toggleFavorite(entity.entityId);
-            },
-            child: Text(
-              isFavourite
+    final isFavourite = layout?.favoriteEntityIds.contains(target) ?? false;
+    try {
+      final action = await _menu(
+        (sheetContext) => CupertinoActionSheet(
+          title: Text(name),
+          actions: [
+            for (final entry in <String, String>{
+              'more': l10n.homeActionMoreInfo,
+              'size': l10n.dashboardCardSize,
+              'favorite': isFavourite
                   ? l10n.homeActionRemoveFavourite
                   : l10n.homeActionAddFavourite,
-            ),
+              if (roomId != null) 'remove': l10n.roomRemoveDevice,
+            }.entries)
+              CupertinoActionSheetAction(
+                isDestructiveAction: entry.key == 'remove',
+                onPressed: () {
+                  if (sheetContext.mounted &&
+                      ModalRoute.of(sheetContext)?.isCurrent == true) {
+                    closeDashboardModal(sheetContext, entry.key);
+                  }
+                },
+                child: Text(entry.value),
+              ),
+          ],
+          cancelButton: CupertinoActionSheetAction(
+            onPressed: () => closeDashboardModal(sheetContext),
+            child: Text(l10n.commonCancel),
           ),
-          if (roomId != null)
-            CupertinoActionSheetAction(
-              isDestructiveAction: true,
-              onPressed: () {
-                Navigator.of(sheetContext).pop();
-                ref
-                    .read(dashboardLayoutProvider.notifier)
-                    .removeEntityFromRoom(roomId!, entity.entityId);
-              },
-              child: Text(l10n.roomRemoveDevice),
-            ),
-        ],
-        cancelButton: CupertinoActionSheetAction(
-          onPressed: () => Navigator.of(sheetContext).pop(),
-          child: Text(l10n.commonCancel),
         ),
-      ),
-    );
+      );
+      if (!mounted ||
+          !interactionCurrent(generation) ||
+          !_roomCurrent ||
+          action == null) {
+        return;
+      }
+      switch (action) {
+        case 'more':
+          showEntityMoreInfo(context, target);
+        case 'favorite':
+          await ref
+              .read(dashboardLayoutProvider.notifier)
+              .toggleFavorite(target);
+        case 'remove':
+          await ref
+              .read(dashboardLayoutProvider.notifier)
+              .removeEntityFromRoom(roomId!, target);
+        case 'size':
+          final choice = await _menu(
+            (sheetContext) => CupertinoActionSheet(
+              title: Text(l10n.dashboardCardSize),
+              actions: [
+                for (final size in <DashboardCardSize?>[
+                  ...DashboardCardSize.values,
+                  null,
+                ])
+                  CupertinoActionSheetAction(
+                    onPressed: () {
+                      if (sheetContext.mounted &&
+                          ModalRoute.of(sheetContext)?.isCurrent == true) {
+                        closeDashboardModal(
+                          sheetContext,
+                          size?.name ?? 'default',
+                        );
+                      }
+                    },
+                    child: Text(cardSizeLabel(l10n, size)),
+                  ),
+              ],
+              cancelButton: CupertinoActionSheetAction(
+                onPressed: () => closeDashboardModal(sheetContext),
+                child: Text(l10n.commonCancel),
+              ),
+            ),
+          );
+          if (choice == null ||
+              !interactionCurrent(generation) ||
+              !_roomCurrent) {
+            return;
+          }
+          await ref
+              .read(dashboardLayoutProvider.notifier)
+              .setEntityCardSize(
+                target,
+                choice == 'default'
+                    ? null
+                    : DashboardCardSize.values.byName(choice),
+              );
+      }
+    } catch (_) {
+      if (mounted && interactionCurrent(generation)) {
+        await showCupertinoDialog<void>(
+          context: context,
+          builder: (dialogContext) => CupertinoAlertDialog(
+            content: Text(l10n.dashboardEditFailed),
+            actions: [
+              CupertinoDialogAction(
+                onPressed: () => closeDashboardModal(dialogContext),
+                child: Text(l10n.commonOk),
+              ),
+            ],
+          ),
+        );
+      }
+    } finally {
+      _menuOpen = false;
+    }
   }
 }
 

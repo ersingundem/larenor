@@ -88,7 +88,7 @@ void main() {
     await tester.tap(find.text('Turn Off'));
     await tester.pumpAndSettle();
     expect(writes, 1);
-    expect(find.text('Permission denied'), findsOneWidget);
+    expect(find.text('Router rejected the command.'), findsOneWidget);
     await tester.tap(find.text('OK'));
     await tester.pumpAndSettle();
     expect(

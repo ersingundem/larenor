@@ -8,21 +8,62 @@ import '../providers/proxmox_providers.dart';
 import 'proxmox_backups_screen.dart';
 import 'proxmox_create_guest_screen.dart';
 import 'proxmox_tasks_screen.dart';
+import 'proxmox_session_guard.dart';
 import 'widgets/proxmox_guest_row.dart';
 import 'widgets/proxmox_usage_bar.dart';
 import '../../../shared/widgets/settings_section.dart';
 
-class ProxmoxNodeDetailScreen extends ConsumerWidget {
-  const ProxmoxNodeDetailScreen({super.key, required this.nodeName});
+class ProxmoxNodeDetailScreen extends ConsumerStatefulWidget {
+  const ProxmoxNodeDetailScreen({
+    super.key,
+    required this.nodeName,
+    this.sourceCurrent,
+  });
 
   final String nodeName;
+  final bool Function()? sourceCurrent;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<ProxmoxNodeDetailScreen> createState() =>
+      _ProxmoxNodeDetailScreenState();
+}
+
+class _ProxmoxNodeDetailScreenState
+    extends ProxmoxSessionState<ProxmoxNodeDetailScreen> {
+  String get nodeName => widget.nodeName;
+  @override
+  bool sourceSessionCurrent() => widget.sourceCurrent?.call() ?? true;
+
+  @override
+  Widget build(BuildContext context) {
+    watchProxmoxSession();
+    if (!sessionAvailable) {
+      return CupertinoPageScaffold(
+        navigationBar: CupertinoNavigationBar(middle: Text(nodeName)),
+        child: SafeArea(
+          child: Center(
+            child: Text(AppLocalizations.of(context).proxmoxSessionExpired),
+          ),
+        ),
+      );
+    }
+    final generation = sessionGeneration;
+    bool current() =>
+        mounted &&
+        sessionAvailable &&
+        generation == sessionGeneration &&
+        ModalRoute.of(context)?.isCurrent != false;
+    void open(Widget page) {
+      if (!current()) return;
+      Navigator.of(context)
+          .push(CupertinoPageRoute<void>(builder: (_) => page));
+    }
+
     final guestsAsync = ref.watch(proxmoxGuestsProvider(nodeName));
     final storagesAsync = ref.watch(proxmoxStoragesProvider(nodeName));
 
     void refresh() {
+      if (!current()) return;
       ref.invalidate(proxmoxGuestsProvider(nodeName));
       ref.invalidate(proxmoxStoragesProvider(nodeName));
     }
@@ -40,9 +81,10 @@ class ProxmoxNodeDetailScreen extends ConsumerWidget {
             ),
             CupertinoButton(
               padding: EdgeInsets.zero,
-              onPressed: () => Navigator.of(context).push(
-                CupertinoPageRoute(
-                  builder: (_) => ProxmoxCreateGuestScreen(nodeName: nodeName),
+              onPressed: () => open(
+                ProxmoxCreateGuestScreen(
+                  nodeName: nodeName,
+                  sourceCurrent: captureProxmoxRouteSource(ref),
                 ),
               ),
               child: const Icon(CupertinoIcons.add),
@@ -52,12 +94,11 @@ class ProxmoxNodeDetailScreen extends ConsumerWidget {
       ),
       child: SafeArea(
         child: guestsAsync.when(
+          skipLoadingOnRefresh: false,
+          skipLoadingOnReload: false,
           loading: () => const Center(child: CupertinoActivityIndicator()),
-          error: (error, _) => Center(
-            child: Text(
-              AppLocalizations.of(context).adminLoadError(error.toString()),
-            ),
-          ),
+          error: (error, _) =>
+              Center(child: Text(AppLocalizations.of(context).commonError)),
           data: (guests) {
             final vms = guests.where((g) => g.type == ProxmoxGuestType.qemu);
             final containers = guests.where(
@@ -74,10 +115,10 @@ class ProxmoxNodeDetailScreen extends ConsumerWidget {
                         AppLocalizations.of(context).proxmoxTasksTitle,
                       ),
                       trailing: const CupertinoListTileChevron(),
-                      onTap: () => Navigator.of(context).push(
-                        CupertinoPageRoute<void>(
-                          builder: (_) =>
-                              ProxmoxTasksScreen(nodeName: nodeName),
+                      onTap: () => open(
+                        ProxmoxTasksScreen(
+                          nodeName: nodeName,
+                          sourceCurrent: captureProxmoxRouteSource(ref),
                         ),
                       ),
                     ),
@@ -110,13 +151,12 @@ class ProxmoxNodeDetailScreen extends ConsumerWidget {
                     ],
                   ),
                 storagesAsync.when(
+                  skipLoadingOnRefresh: false,
+                  skipLoadingOnReload: false,
                   loading: () => const SizedBox.shrink(),
                   error: (error, _) => Padding(
                     padding: const EdgeInsets.all(20),
-                    child: Text(
-                      AppLocalizations.of(context)
-                          .adminLoadError(error.toString()),
-                    ),
+                    child: Text(AppLocalizations.of(context).commonError),
                   ),
                   data: (storages) => storages.isEmpty
                       ? const SizedBox.shrink()
@@ -126,7 +166,18 @@ class ProxmoxNodeDetailScreen extends ConsumerWidget {
                           ),
                           children: [
                             for (final storage in storages)
-                              _StorageRow(nodeName: nodeName, storage: storage),
+                              _StorageRow(
+                                storage: storage,
+                                onOpen: () => open(
+                                  ProxmoxBackupsScreen(
+                                    nodeName: nodeName,
+                                    storageName: storage.name,
+                                    sourceCurrent: captureProxmoxRouteSource(
+                                      ref,
+                                    ),
+                                  ),
+                                ),
+                              ),
                           ],
                         ),
                 ),
@@ -140,9 +191,9 @@ class ProxmoxNodeDetailScreen extends ConsumerWidget {
 }
 
 class _StorageRow extends StatelessWidget {
-  const _StorageRow({required this.nodeName, required this.storage});
+  const _StorageRow({required this.onOpen, required this.storage});
 
-  final String nodeName;
+  final VoidCallback onOpen;
   final ProxmoxStorage storage;
 
   @override
@@ -159,16 +210,7 @@ class _StorageRow extends StatelessWidget {
       trailing: storage.supportsBackups
           ? const CupertinoListTileChevron()
           : null,
-      onTap: storage.supportsBackups
-          ? () => Navigator.of(context).push(
-              CupertinoPageRoute(
-                builder: (_) => ProxmoxBackupsScreen(
-                  nodeName: nodeName,
-                  storageName: storage.name,
-                ),
-              ),
-            )
-          : null,
+      onTap: storage.supportsBackups ? onOpen : null,
     );
   }
 }

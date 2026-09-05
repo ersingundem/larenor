@@ -30,7 +30,7 @@ This repository and its contents are proprietary — see [LICENSE](LICENSE).
   windows and tabs on smaller screens. Room selection and scroll position survive
   switching tabs; everyday service screens are reachable outside Settings.
 - Local search finds rooms, accessories, scenes, cached media and configured
-  services, plus Today and Intercom. Turkish spelling is normalized. Opening or
+  services, plus Today, Intercom and Energy & maintenance. Turkish spelling is normalized. Opening or
   typing in search does not initialize service connections or scan remote libraries.
 - Connection labels distinguish saved configuration, server contact and a valid
   data read. Partial media errors remain visible. An unchanged device state is not
@@ -89,22 +89,29 @@ This repository and its contents are proprietary — see [LICENSE](LICENSE).
 - Rooms are yours to create, rename, reorder and remove. Add multiple accessories
   to a room from the device picker; removing one from a room does not delete it
   from Home Assistant. Saved room layouts and favourites survive app restarts.
-- **Import Home Assistant rooms** provides an optional starting point. It resolves
-  an accessory's own `area_id`, then its device's area, and puts unassigned
-  accessories in "Other". Importing merges matching room names without duplicate
-  accessories; later HA registry updates do not overwrite your manual layout.
-  Without registry access, eligible entities can still be selected manually or
-  imported into "Other".
+- **Link a Home Assistant area** stores its server and area identity locally.
+  Read and preview additions/removals before applying them to Larenor. Manual
+  members and explicit exclusions survive synchronization; a missing area or
+  failed registry read never deletes the local room. Changing servers hides
+  mismatched bound-room devices until you relink. No area is edited in HA.
+- **Edit cards** adjusts sizes and order for accessories, services and custom
+  widgets. The responsive grid preserves reading order and builds visible cards
+  lazily; layout and binding metadata are included in the encrypted backup.
 - The picker focuses on controllable domains and useful sensor device classes
   (temperature, humidity, motion, door…) rather than diagnostic entities. The
   dashboard displays the accessories you selected, not every entity automatically.
 - Tap a supported accessory to toggle it; locks and covers open their detail sheet.
   Long-press for details, favourite/unfavourite, or removal from its room.
   Favourites appear at the top. Service-call failures are shown to the user.
-- A "Services" section carries the 11 external-service summary tiles (continue
-  watching, upcoming releases, active torrents, node CPU/RAM…), and a "Widgets"
-  section holds the two hand-added kinds with no HA entity behind them: a fullscreen
-  WebView (any URL, including the raw HA frontend) and a history/statistics graph.
+- A "Services" section carries external-service summaries. **Add widget** offers
+  entity, camera, climate, media player, scene, weather, numeric history, website
+  and Keenetic metric cards. Choosing a type filters compatible current-account
+  entities; previews never operate a device. Card selection and saving reject
+  stale accounts, background drafts and duplicate submissions.
+- History cards use real HA Recorder history for the previous 24 hours; unknown
+  samples break the graph instead of becoming zero. Website cards validate both
+  saved URLs and navigation, retire pages while hidden and show safe load errors.
+  They never inject an HA token, grant camera/microphone access or bypass TLS.
 - Tap-through "more info" popup on every accessory — full state, attributes, and
   controls, not just the inline toggle.
 - Connection-status banner ("Home Assistant unreachable, retrying…") instead of a
@@ -124,6 +131,24 @@ This repository and its contents are proprietary — see [LICENSE](LICENSE).
   class allows the same controls to serve many HA-supported brands, including
   entities exposed by HACS integrations. Actual support depends on each entity
   domain and the capabilities exposed by the server.
+
+### Energy & maintenance
+
+- Home and local search open recorded energy for today or the last seven days,
+  using HA's configured meters and time zone. Grid import/export, solar, battery,
+  device consumption and recorded costs remain separate; parent and child meters
+  are not added together as an invented house total.
+- Recorder statistics are read in bounded batches with validated units. Missing
+  hours, missing baselines, unfinished days and time-zone boundary limitations
+  are labeled. Missing data stays unknown. Costs use recorded currency statistics,
+  without applying the current tariff to historical usage.
+- Device maintenance lists low batteries, unavailable devices, problem sensors
+  and pending updates, scoped to dashboard selections or all current entities.
+  Open the normal device detail to investigate. The page does not install updates
+  or act on devices automatically.
+- Configured Proxmox nodes show CPU, memory and root filesystem capacity alongside
+  maintenance. Offline/unknown nodes do not display stale values as current usage;
+  shared storage is not added to node disk totals.
 
 ### Home Assistant actions, tools and administration
 
@@ -241,6 +266,21 @@ identity scheme (MusicBrainz/Goodreads, not TMDB) and suit a poster-row layout p
   is not device completion; failed or uncertain actions are not auto-retried, and
   no scene is automatically reversed. Choices are included in encrypted backups.
 
+### Play on a TV
+
+- A playable film or episode can be sent to an active, remotely controllable
+  Jellyfin TV session signed in as the same user. Opening the target picker starts
+  discovery; merely displaying the button does not. The item and receiver are
+  checked again before a named confirmation and a single play request.
+- Server acceptance, the receiver reporting the selected item, and an uncertain
+  outcome are distinct. An unchanged old playback state cannot confirm a new
+  request. Account changes and backgrounding invalidate pending confirmations;
+  uncertain playback requests are not automatically repeated.
+- This path sends the library item ID, never the tablet's streaming URL or token.
+  The receiving Jellyfin app negotiates its own codecs. Direct HA Cast/Apple TV
+  media-source playback is the next separate delivery; physical receiver testing
+  remains pending. See the [API and device review](docs/casting-implementation-review-2026-09-05.md).
+
 ### Media stack
 
 Nine independent, optional integrations for a self-hosted media server setup — the app
@@ -292,7 +332,8 @@ Management of nodes, guests, storage and tasks on a self-hosted Proxmox VE serve
 - Connect with host/port/realm/username/password and an "allow self-signed
   certificate" preference. Pasted HTTPS URLs and explicit ports are accepted;
   local discovery can suggest hosts. Ticket sessions renew before expiry and
-  recover once from an explicit authentication rejection.
+  retry a read once after an explicit authentication rejection. Writes are never
+  replayed automatically; duplicate guest mutations are guarded.
 - Node list with CPU/RAM usage, drilling into VMs, containers and storage usage.
 - Power control — start/shutdown/stop/reboot/suspend/resume — through a
   status-aware action sheet. Templates have no power menu; paused VMs expose
@@ -309,15 +350,25 @@ Management of nodes, guests, storage and tasks on a self-hosted Proxmox VE serve
 - **Activity** lists recent tasks and their running/success/failure states. Open
   a task to read its log; running tasks refresh automatically. The log currently
   shows up to the first 500 lines.
-- An authenticated in-app WebView loads the noVNC or xterm console served by the
-  connected Proxmox version. This uses the server's own ticket handling and
-  terminal protocol rather than the old bundled console wrappers. The same
-  self-signed certificate preference applies to the console.
+- The embedded noVNC/xterm page uses the connected server's frontend and its own
+  web sign-in, separate from the saved API account. API tickets are not injected
+  into the shared browser cookie store. It opens the normal web sign-in page first;
+  **Open console** then opens the selected console, with **Web sign-in** available
+  to return when that browser session expires.
+  Browser navigation stays on that HTTPS origin and certificate errors are
+  rejected, including subresource errors. The API's optional self-signed exception
+  does not apply to WebView; the embedded console requires a trusted certificate.
+  Hidden/background console pages stop loading and discard their active scripts.
+- Operation dialogs and drafts are bound to their original account and device.
+  Backgrounding, reconnecting or changing the account invalidates pending approvals;
+  an uncertain write is not replayed. Secret-bearing guest configuration fields
+  are excluded from the plain-text advanced editor.
 
 ### Keenetic router management
 
-A native client for Keenetic's unofficial RCI HTTP API, going further than Home
-Assistant's own Keenetic integration (which only exposes device-tracker presence):
+A native client for the router's local web-UI session API and read-only RCI
+telemetry. Support is capability-based and still requires firmware-specific
+acceptance on the actual router.
 
 - Connect with the router's admin URL and web-UI credentials (challenge/response
   session auth, the same model the router's own web interface uses) — the URL field
@@ -334,10 +385,21 @@ Assistant's own Keenetic integration (which only exposes device-tracker presence
   the tablet.
 - Read-only port-forwarding/static-NAT rule list; creating or changing rules is
   not implemented.
-- Session cookies are retained across challenge/response exchanges and renewed
-  after an explicit authentication rejection. Router command failures are
-  checked even when the HTTP response is successful. RCI is an unofficial API,
-  so firmware-specific behavior still needs testing on the actual router.
+- **Add widget → Keenetic** offers internet status, interface traffic, connected
+  device counts, CPU/RAM/uptime and interface inventory. Choose the traffic
+  interface from a fresh router read; opaque IDs never become command paths.
+- Visible cards share one telemetry controller. Metadata refreshes every 30 seconds
+  and traffic every 5 seconds; hidden/background cards release their demand.
+  Rates require two valid counter samples. Resets, reboots, clock reversal and
+  long sampling gaps remain unknown; retained readings carry stale/error labels.
+- Rates are interval averages in bits/s, not a speed test or link capacity.
+  Download/upload labels require fresh evidence that the selected interface is
+  the current gateway; other interfaces show received/sent. Interface IP is not
+  presented as a verified public IP, especially behind CGNAT.
+- Session cookies are scoped to the configured server and retained in memory.
+  Authentication rejection may recover reads; router changes are never replayed.
+  RCI command errors are checked even on HTTP 200. The separate HTTP Proxy Digest
+  authentication mode and universal firmware/API coverage are not implemented.
 
 ### Integrations management & dashboard widgets
 
@@ -455,6 +517,13 @@ server or physical-device acceptance test):
 <img src="docs/previews/today-phone.png" alt="Today on a phone, light theme" width="260" />
 <img src="docs/previews/today-tablet-dark.png" alt="Today on a tablet, dark theme" width="600" />
 
+Energy, card editing and router-widget selection use the same actual Flutter
+screens in these synthetic-data previews; they are not physical-device screenshots.
+
+<img src="docs/previews/energy-phone.png" alt="Recorded energy on a phone" width="300" />
+<img src="docs/previews/keenetic-widget-picker-phone.png" alt="Choosing a Keenetic dashboard widget" width="300" />
+<img src="docs/previews/dashboard-card-editor-tablet-dark.png" alt="Editing room card sizes and order on a tablet" width="600" />
+
 ## Status
 
 Actively developed. The features described above have implemented client flows,
@@ -480,8 +549,10 @@ Deferred work includes OAuth2/PKCE login, true Android kiosk lock-task mode, pus
 notifications, an Assist voice satellite, multi-profile/guest-mode dashboards,
 a theme editor, and iOS build/signing. Direct Netflix integration, Proxmox backup
 restore/migration/snapshot management, and Keenetic port-forwarding edits are not
-provided by the current UI. Release signing and distribution also require owner
-configuration; the development build is a debug APK.
+provided by the current UI. CI produces debug and persistently signed release
+APKs with certificate/package/version checks; physical-device acceptance remains
+separate. The [active implementation queue](docs/product-implementation-plan-2026-09-05.md)
+tracks casting, music, kiosk, wellbeing, DeX and the final design pass.
 
 ## Development setup (macOS)
 

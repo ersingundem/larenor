@@ -1,7 +1,12 @@
+import '../../dashboard/domain/dashboard_website_url.dart';
+
 import 'dart:convert';
 
 import '../../../shared/network/server_bound_client.dart';
 import '../../dashboard/domain/tile_config.dart';
+import '../../dashboard/domain/keenetic_tile_validation.dart';
+import '../../dashboard/domain/ha_area_binding.dart';
+import '../../dashboard/domain/dashboard_layout_validation.dart';
 import '../../intercom/domain/door_station.dart';
 import '../../media/movie_night/domain/movie_night_preset.dart';
 import '../../settings/data/app_service.dart';
@@ -280,11 +285,17 @@ void _validateConnection(String service, Object? value) {
 
 void _validateDashboard(Object? value) {
   final layout = _object(value, {
+    'schemaVersion',
     'rooms',
     'tiles',
     'favoriteEntityIds',
     'hiddenEntityIds',
+    'entityCardSizes',
+    'serviceCardSizes',
   });
+  if (layout.containsKey('schemaVersion')) {
+    _integer(layout['schemaVersion'], 1, 2);
+  }
   if (layout['rooms'] case final Object rooms) {
     if (rooms is! List || rooms.length > 500) {
       throw const BackupValidationException();
@@ -293,7 +304,7 @@ void _validateDashboard(Object? value) {
     for (final raw in rooms) {
       final room = _object(
         raw,
-        {'id', 'name', 'entityIds'},
+        {'id', 'name', 'entityIds', 'areaBinding'},
         required: {'id', 'name'},
       );
       if (!ids.add(_string(room['id'], maxLength: 256))) {
@@ -301,6 +312,25 @@ void _validateDashboard(Object? value) {
       }
       _string(room['name'], maxLength: 256);
       _entityIds(room['entityIds'] ?? <String>[]);
+      if (room['areaBinding'] != null) {
+        try {
+          validateHaAreaBindingJson(room['areaBinding']);
+          final binding = HaAreaBinding.fromJson(
+            room['areaBinding'] as Map<String, dynamic>,
+          );
+          final memberIds = (room['entityIds'] as List? ?? const [])
+              .cast<String>()
+              .toSet();
+          if (!memberIds.containsAll(binding.importedEntityIds) ||
+              memberIds
+                  .intersection(binding.excludedEntityIds.toSet())
+                  .isNotEmpty) {
+            throw const BackupValidationException();
+          }
+        } catch (_) {
+          throw const BackupValidationException();
+        }
+      }
     }
   }
   if (layout['tiles'] case final Object tiles) {
@@ -311,11 +341,24 @@ void _validateDashboard(Object? value) {
     for (final raw in tiles) {
       final tile = _object(
         raw,
-        {'id', 'type', 'x', 'y', 'width', 'height', 'entityId', 'url', 'title'},
+        {
+          'id',
+          'type',
+          'x',
+          'y',
+          'width',
+          'height',
+          'entityId',
+          'url',
+          'title',
+          'keeneticMetric',
+          'keeneticInterfaceId',
+        },
         required: {'id', 'type', 'x', 'y', 'width', 'height'},
       );
       if (!ids.add(_string(tile['id'], maxLength: 256)) ||
-          !TileType.values.map((e) => e.name).contains(tile['type'])) {
+          !TileType.values.map((e) => e.name).contains(tile['type']) ||
+          !hasValidKeeneticTileFields(tile)) {
         throw const BackupValidationException();
       }
       _integer(tile['x'], 0, 100000);
@@ -328,12 +371,7 @@ void _validateDashboard(Object? value) {
       }
       if (tile['url'] != null) {
         final url = _string(tile['url'], maxLength: 4096);
-        final uri = Uri.tryParse(url);
-        if (uri == null ||
-            !{'http', 'https'}.contains(uri.scheme) ||
-            uri.host.isEmpty ||
-            uri.userInfo.isNotEmpty ||
-            url.contains(RegExp(r'[\s\\]'))) {
+        if (dashboardWebsiteUrl(url) == null) {
           throw const BackupValidationException();
         }
       }
@@ -341,6 +379,17 @@ void _validateDashboard(Object? value) {
   }
   _entityIds(layout['favoriteEntityIds'] ?? <String>[]);
   _entityIds(layout['hiddenEntityIds'] ?? <String>[]);
+  try {
+    validateDashboardCardSizesJson(
+      layout['entityCardSizes'] ?? const <String, dynamic>{},
+    );
+    validateDashboardCardSizesJson(
+      layout['serviceCardSizes'] ?? const <String, dynamic>{},
+      services: true,
+    );
+  } catch (_) {
+    throw const BackupValidationException();
+  }
 }
 
 void _integer(Object? value, int min, int max) {

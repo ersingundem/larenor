@@ -140,6 +140,18 @@ class LocalSearchIndex {
           'bildirimler',
           'notifications',
         ],
+        HomePageTarget.energy => [
+          'Energy',
+          'Enerji',
+          'bakım',
+          'maintenance',
+          'tüketim',
+          'consumption',
+          'pil',
+          'battery',
+          'capacity',
+          'kapasite',
+        ],
         HomePageTarget.intercom => [
           'Intercom',
           'Diafon',

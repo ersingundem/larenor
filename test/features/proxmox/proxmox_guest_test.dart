@@ -45,13 +45,13 @@ void main() {
     expect(ProxmoxGuestType.lxc.label, 'Container');
   });
 
-  test('defaults missing fields to safe values', () {
+  test('missing optional fields remain unknown when identity is valid', () {
     final guest = ProxmoxGuest.fromJson(
-      {},
+      {'vmid': 100},
       type: ProxmoxGuestType.qemu,
       node: 'pve1',
     );
-    expect(guest.vmid, 0);
+    expect(guest.vmid, 100);
     expect(guest.name, 'unknown');
     expect(guest.status, 'unknown');
     expect(guest.isTemplate, isFalse);

@@ -1,3 +1,5 @@
+import 'proxmox_values.dart';
+
 class ProxmoxBackup {
   const ProxmoxBackup({
     required this.volumeId,
@@ -14,11 +16,12 @@ class ProxmoxBackup {
   final String? notes;
 
   factory ProxmoxBackup.fromJson(Map<String, dynamic> json) {
-    final ctime = (json['ctime'] as num?)?.toInt();
+    final rawTime = proxmoxInteger(json['ctime']);
+    final ctime = rawTime != null && rawTime <= 8640000000000 ? rawTime : null;
     return ProxmoxBackup(
-      volumeId: json['volid'] as String? ?? 'unknown',
-      vmid: (json['vmid'] as num?)?.toInt(),
-      sizeBytes: (json['size'] as num?)?.toInt(),
+      volumeId: proxmoxIdentity(json['volid']),
+      vmid: proxmoxInteger(json['vmid']),
+      sizeBytes: proxmoxInteger(json['size']),
       createdAt: ctime == null
           ? null
           : DateTime.fromMillisecondsSinceEpoch(ctime * 1000),

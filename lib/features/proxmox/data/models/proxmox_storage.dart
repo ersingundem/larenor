@@ -1,3 +1,5 @@
+import 'proxmox_values.dart';
+
 import 'proxmox_guest.dart';
 
 class ProxmoxStorage {
@@ -8,9 +10,10 @@ class ProxmoxStorage {
     this.total,
     this.used,
     this.available,
-    this.active = true,
-    this.enabled = true,
-  });
+    bool? active = true,
+    bool? enabled = true,
+  }) : activeState = active,
+       enabledState = enabled;
 
   final String name;
   final String type;
@@ -18,11 +21,12 @@ class ProxmoxStorage {
   final int? total;
   final int? used;
   final int? available;
-  final bool active;
-  final bool enabled;
+  final bool? activeState;
+  final bool? enabledState;
+  bool get active => activeState == true;
+  bool get enabled => enabledState == true;
 
-  double? get usedFraction =>
-      (used != null && total != null && total! > 0) ? used! / total! : null;
+  double? get usedFraction => proxmoxRatio(used, total);
 
   bool get supportsBackups =>
       active && enabled && contentTypes.contains('backup');
@@ -38,7 +42,7 @@ class ProxmoxStorage {
       contentTypes.contains('images') || contentTypes.contains('rootdir');
 
   factory ProxmoxStorage.fromJson(Map<String, dynamic> json) => ProxmoxStorage(
-    name: json['storage'] as String? ?? 'unknown',
+    name: proxmoxIdentity(json['storage']),
     type: json['type'] as String? ?? 'unknown',
     contentTypes:
         (json['content'] as String?)
@@ -46,10 +50,10 @@ class ProxmoxStorage {
             .map((e) => e.trim())
             .toList() ??
         const [],
-    total: (json['total'] as num?)?.toInt(),
-    used: (json['used'] as num?)?.toInt(),
-    available: (json['avail'] as num?)?.toInt(),
-    active: (json['active'] as num? ?? 1) == 1,
-    enabled: (json['enabled'] as num? ?? 1) == 1,
+    total: proxmoxInteger(json['total']),
+    used: proxmoxInteger(json['used']),
+    available: proxmoxInteger(json['avail']),
+    active: proxmoxFlag(json['active']),
+    enabled: proxmoxFlag(json['enabled']),
   );
 }

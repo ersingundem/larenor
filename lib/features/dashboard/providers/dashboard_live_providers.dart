@@ -1,9 +1,11 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../auth/providers/auth_providers.dart';
 import '../../ha_client/data/models/ha_entity.dart';
 import '../../ha_client/providers/ha_client_providers.dart';
 import '../domain/home_domains.dart';
+import '../domain/ha_area_binding.dart';
 import 'dashboard_providers.dart';
 
 /// Only saved, visible accessories participate in the dashboard structure.
@@ -12,10 +14,24 @@ import 'dashboard_providers.dart';
 final dashboardVisibleIdsProvider = Provider.autoDispose<Set<String>>((ref) {
   final layout = ref.watch(dashboardLayoutProvider).value;
   if (layout == null) return const {};
+  String? currentServer;
+  if (layout.rooms.any((room) => room.areaBinding != null)) {
+    final config = ref.watch(connectionConfigProvider);
+    if (!config.isLoading && !config.hasError && config.value != null) {
+      try {
+        currentServer = normalizedAreaServerUrl(config.value!.baseUrl);
+      } on FormatException {
+        /* Invalid saved URL cannot match a binding. */
+      }
+    }
+  }
   final hidden = layout.hiddenEntityIds.toSet();
   return {
     ...layout.favoriteEntityIds,
-    for (final room in layout.rooms) ...room.entityIds,
+    for (final room in layout.rooms)
+      if (room.areaBinding == null ||
+          room.areaBinding!.serverUrl == currentServer)
+        ...room.entityIds,
   }..removeAll(hidden);
 });
 
@@ -42,7 +58,8 @@ final dashboardCategoriesProvider = Provider.autoDispose<DashboardCategories>((
       (states) => DashboardCategories({
         for (final id in ids)
           id: homeCategoryForEntity(
-            states.value?[id] ?? HaEntity(entityId: id, state: 'unavailable'),
+            _visibleEntities(states)?[id] ??
+                HaEntity(entityId: id, state: 'unavailable'),
           ),
       }),
     ),
@@ -58,7 +75,7 @@ final dashboardSummaryProvider = Provider.autoDispose<DashboardSummary>((ref) {
       var lightsOn = 0;
       var unavailable = 0;
       for (final id in ids) {
-        final entity = states.value?[id];
+        final entity = _visibleEntities(states)?[id];
         if (entity?.domain == 'light' && entity!.isOn) lightsOn++;
         if (entity == null ||
             entity.state == 'unavailable' ||
@@ -81,6 +98,15 @@ final dashboardEntityProvider = Provider.autoDispose.family<HaEntity, String>((
   ref,
   id,
 ) {
-  return ref.watch(entitiesProvider.select((states) => states.value?[id])) ??
+  return ref.watch(
+        entitiesProvider.select((states) => _visibleEntities(states)?[id]),
+      ) ??
       HaEntity(entityId: id, state: 'unavailable');
 });
+
+// Riverpod can retain old values while another account is loading or after a
+// failed replacement. A disconnected socket with an unchanged AsyncData map
+// still shows the same account's last snapshot; replacement states never do.
+Map<String, HaEntity>? _visibleEntities(
+  AsyncValue<Map<String, HaEntity>> states,
+) => states.isLoading || states.hasError ? null : states.value;

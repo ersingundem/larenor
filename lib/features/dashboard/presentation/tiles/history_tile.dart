@@ -4,84 +4,65 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../l10n/generated/app_localizations.dart';
 import '../../../../shared/theme/category_colors.dart';
-import '../../../ha_client/providers/ha_client_providers.dart';
-import '../../domain/tile_config.dart';
 import '../../../../shared/theme/spacing.dart';
 import '../../../../shared/theme/typography.dart';
+import '../../../ha_client/providers/ha_client_providers.dart';
+import '../../data/entity_history.dart';
+import '../../domain/tile_config.dart';
+import '../../providers/entity_history_providers.dart';
 
 class HistoryTile extends ConsumerStatefulWidget {
   const HistoryTile({super.key, required this.tile});
-
   final TileConfig tile;
-
   @override
   ConsumerState<HistoryTile> createState() => _HistoryTileState();
 }
 
 class _HistoryTileState extends ConsumerState<HistoryTile> {
-  List<FlSpot>? _spots;
-  bool _loading = true;
-  String? _error;
-
+  late final AppLifecycleListener _lifecycle;
+  bool _foreground = true;
   @override
   void initState() {
     super.initState();
-    _load();
+    final state = WidgetsBinding.instance.lifecycleState;
+    _foreground = state == null || state == AppLifecycleState.resumed;
+    _lifecycle = AppLifecycleListener(
+      onStateChange: (state) {
+        if (mounted) {
+          setState(() => _foreground = state == AppLifecycleState.resumed);
+        }
+      },
+    );
   }
 
-  Future<void> _load() async {
-    final entityId = widget.tile.entityId;
-    final rest = ref.read(haRestClientProvider);
-    if (rest == null || entityId == null) {
-      setState(() => _loading = false);
-      return;
-    }
-    try {
-      final start = DateTime.now()
-          .toUtc()
-          .subtract(const Duration(hours: 24))
-          .toIso8601String();
-      final result = await rest.getJson(
-        '/api/history/period/$start?filter_entity_id=$entityId&minimal_response',
-      );
-
-      final series = (result is List && result.isNotEmpty)
-          ? result.first as List<dynamic>?
-          : null;
-
-      final spots = <FlSpot>[];
-      if (series != null) {
-        for (final point in series) {
-          final map = point as Map<String, dynamic>;
-          final value = double.tryParse('${map['state']}');
-          final changed = DateTime.tryParse(
-            map['last_changed'] as String? ?? '',
-          );
-          if (value == null || changed == null) continue;
-          spots.add(FlSpot(changed.millisecondsSinceEpoch.toDouble(), value));
-        }
-      }
-
-      if (mounted) {
-        setState(() {
-          _spots = spots;
-          _loading = false;
-        });
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(() {
-          _error = e.toString();
-          _loading = false;
-        });
-      }
-    }
+  @override
+  void dispose() {
+    _lifecycle.dispose();
+    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    final entity = ref.watch(entitiesProvider).value?[widget.tile.entityId];
-
+    final l10n = AppLocalizations.of(context);
+    final entityId = widget.tile.entityId;
+    final active =
+        _foreground && TickerMode.valuesOf(context).enabled && entityId != null;
+    final history = active
+        ? ref.watch(entityHistoryProvider(entityId))
+        : const AsyncData<EntityHistorySeries?>(null);
+    final entities = active ? ref.watch(entitiesProvider) : null;
+    final entity = entities == null || entities.isLoading || entities.hasError
+        ? null
+        : entities.value?[entityId];
+    final series = history.isLoading || history.hasError ? null : history.value;
+    final deviceClass = entity?.attributes['device_class'];
+    final color = entity == null
+        ? CupertinoColors.systemTeal
+        : categoryColorForDomain(
+            context,
+            entity.domain,
+            deviceClass: deviceClass is String ? deviceClass : null,
+          );
     return ColoredBox(
       color: CupertinoColors.secondarySystemGroupedBackground.resolveFrom(
         context,
@@ -92,21 +73,43 @@ class _HistoryTileState extends ConsumerState<HistoryTile> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              entity?.friendlyName ??
-                  widget.tile.entityId ??
-                  AppLocalizations.of(context).historyTileFallbackTitle,
+              widget.tile.title ??
+                  entity?.friendlyName ??
+                  entityId ??
+                  l10n.historyTileFallbackTitle,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: AppText.tileTitle,
             ),
             Expanded(
-              child: _loading
+              child: history.isLoading
                   ? const Center(child: CupertinoActivityIndicator())
-                  : (_spots == null || _spots!.isEmpty)
+                  : history.hasError
+                  ? Center(
+                      child: CupertinoButton(
+                        padding: EdgeInsets.zero,
+                        onPressed: active
+                            ? () {
+                                if (mounted &&
+                                    _foreground &&
+                                    TickerMode.valuesOf(context).enabled) {
+                                  ref.invalidate(
+                                    entityHistoryProvider(entityId),
+                                  );
+                                }
+                              }
+                            : null,
+                        child: Text(
+                          l10n.healthReadError,
+                          style: AppText.caption2,
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
+                    )
+                  : series?.hasValues != true
                   ? Center(
                       child: Text(
-                        _error ??
-                            AppLocalizations.of(context).historyTileNoData,
+                        l10n.historyTileNoData,
                         style: AppText.caption2,
                       ),
                     )
@@ -118,22 +121,25 @@ class _HistoryTileState extends ConsumerState<HistoryTile> {
                         lineTouchData: const LineTouchData(enabled: false),
                         lineBarsData: [
                           LineChartBarData(
-                            spots: _spots!,
-                            isCurved: true,
-                            color: entity == null
-                                ? CupertinoColors.systemTeal
-                                : categoryColorForDomain(
-                                    context,
-                                    entity.domain,
-                                    deviceClass:
-                                        entity.attributes['device_class']
-                                            as String?,
+                            spots: [
+                              for (final point in series!.points)
+                                if (point.value == null)
+                                  FlSpot.nullSpot
+                                else
+                                  FlSpot(
+                                    point.time.millisecondsSinceEpoch
+                                        .toDouble(),
+                                    point.value!,
                                   ),
+                            ],
+                            isCurved: false,
+                            color: color,
                             barWidth: 2,
                             dotData: const FlDotData(show: false),
                           ),
                         ],
                       ),
+                      duration: Duration.zero,
                     ),
             ),
           ],

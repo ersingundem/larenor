@@ -280,7 +280,7 @@ void main() {
     });
 
     test(
-      'retries a rejected mutation once with fresh cookie and CSRF',
+      'does not replay a rejected mutation or refresh its session',
       () async {
         var logins = 0;
         var writes = 0;
@@ -302,17 +302,23 @@ void main() {
                 : okData('UPID:pve1:start');
           }),
         );
-        expect(
-          await client.powerAction('pve1', ProxmoxGuestType.qemu, 100, 'start'),
-          'UPID:pve1:start',
+        await expectLater(
+          client.powerAction('pve1', ProxmoxGuestType.qemu, 100, 'start'),
+          throwsA(
+            isA<ProxmoxApiException>().having(
+              (e) => e.statusCode,
+              'HTTP status',
+              401,
+            ),
+          ),
         );
-        expect(logins, 2);
-        expect(writes, 2);
+        expect(logins, 1);
+        expect(writes, 1);
       },
     );
 
     test(
-      'permission errors do not retry or hide API validation details',
+      'permission errors do not retry or expose private server details',
       () async {
         var writes = 0;
         final client = await loggedInClient((request) async {
@@ -330,7 +336,7 @@ void main() {
             isA<ProxmoxApiException>().having(
               (error) => error.message,
               'message',
-              contains('storage: permission denied'),
+              'Proxmox request failed (HTTP 403).',
             ),
           ),
         );
@@ -386,7 +392,7 @@ void main() {
         isA<ProxmoxApiException>().having(
           (error) => error.message,
           'message',
-          'storage is full',
+          'Task did not complete successfully. Check Activity for details.',
         ),
       ),
     );

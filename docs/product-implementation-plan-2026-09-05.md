@@ -11,10 +11,10 @@
 - [x] 3. Bugün: listeler, takvim, bildirimler — 55 veri/UI testi; HA saat dilimi, UID, kısmi hata, hesap/arka plan sınırları. Cihaz kabulü bekliyor.
 - [x] 4. Medyada istekten oynatmaya ortak aşamalar — bağımsız istek/aktarım/import/sezon kanıtı, salt okunur ayrıntı çözümleme ve qBittorrent 4/5 istemci/UI akışı uygulandı. Gerçek medya sunucusu/oynatma kabulü ayrıca bekliyor.
 - [x] 5. Film gecesi rutinleri — sahne önizlemesi + doğrulanmış oynatıcı + ayrıca onaylı bitiş sahnesi; 14 akış testi dahil birleşik paket geçti. Sahne kabulü fiziksel cihaz sonucu sayılmıyor; üretim HA'da komut çalıştırılmadı.
-- [ ] 6. Kontrollü oda eşitleme ve kart düzenleme — sonraki uygulama aşaması; alan eşleme ve değişiklik önizlemesi hazırlandı.
-- [ ] 7. Enerji ve bakım özeti.
-- [ ] 8. Keenetic internet/IP/hız/uptime ve diğer cihazlar için seçilebilir canlı kartlar.
-- [ ] 9. Medya hedefleri: Chromecast/Apple TV; doğrulanmış yeteneklerle ortak uzaktan oynatma.
+- [x] 6. Kontrollü oda eşitleme ve kart düzenleme — alan önizlemesi/eşitleme, elle eklenenleri koruma, kart boyutları/sırası ve görünür kartları oluşturan grid uygulandı; birleşik testler geçti.
+- [x] 7. Enerji ve bakım özeti — HA saat diliminde kayıtlı sayaç/istatistikler, pil/çevrimdışı/bakım listesi ve Proxmox kapasitesi; telefon/tablet testleri ve birleşik paket geçti. Fiziksel cihaz kabulü bekliyor.
+- [x] 8. Keenetic internet/IP/hız/uptime ve diğer cihazlar için seçilebilir canlı kartlar — beş Keenetic ölçümü, ortak widget seçici ve geçmiş/hava durumu/WebView yaşam döngüsü tamamlandı. Bilinmeyen değerler sıfır sayılmıyor; firmware ve gerçek ağ kabulü bekliyor.
+- [ ] 9. Medya hedefleri: Chromecast/Apple TV — aynı kullanıcıya ait Jellyfin TV oturumuna gönderme uygulandı; ilgili 119 test geçti. HA medya kaynağı → Cast/Apple ses hedefi yolu geliştiriliyor; Apple TV video ve fiziksel alıcı kabulü ayrıca bekliyor.
 - [ ] 10. Spotify/Apple Music ve HomePod kontrolü için desteklenen sunucu/cihaz yolu.
 - [ ] 11. Uygulama içinde müzik merkezi; Music Assistant sunucu motorunun Android uyumluluk değerlendirmesi, üyelik sağlayıcılarının izin verdiği işlevler.
 - [ ] 12. Kilit ekranı medya bilgisi/kontrolleri, aktif oynatmada arka plan servisi, bildirim ve güç ayarları.
@@ -25,7 +25,9 @@
 - [ ] 17. İsteğe bağlı kamera/yüz özellikleri: anonim yaklaşma algılama ile ekran uyandırma, açık kayıt/izin ile kişisel görünüm; cihazda işleme ve silme, donanım/model lisansı/performans değerlendirmesi. Yüz tanıma tek başına yönetici veya kişisel sağlık erişim kilidi olmayacak.
 - [ ] Son GitHub frontend skill incelemesi, uçtan uca özellikler arası backend/frontend akış kontrolü, ortak tasarım, test/CI, ekran görüntülü README ve GitHub doğrulaması.
 
-**4–5. aşama yerel kontrolü:** 1.048 Flutter testi ve 23 Python testi geçti;
+**6–8 ve 9’un Jellyfin dilimi yerel kontrolü:** 1.484 Flutter testi ve 23 Python testi geçti. 173 test dosyası aynı pakette çalıştırıldı; 152 ilgili Dart dosyasının biçim/analiz kontrolü ve aşamaya alınmış 1,16 MB değişikliğin sır taraması temiz. Enerji, kart düzenleme ve Keenetic seçici görselleri gerçek Flutter widgetlarından sentetik veriyle üretildi. Canlı HA veya cihazlarda işlem yapılmadı.
+
+**Önceki 4–5. aşama yerel kontrolü:** 1.048 Flutter testi ve 23 Python testi geçti;
 tam analiz, 477 dosya biçim kontrolü ve aşamaya alınmış değişikliklerin sır
 taraması temiz. Bugün ekranının telefon/tablet açık/koyu görselleri gerçek
 Flutter widgetlarından sentetik veriyle üretildi. Bunlar fiziksel cihaz veya

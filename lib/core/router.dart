@@ -15,6 +15,7 @@ import '../features/settings/data/app_service.dart';
 import '../features/settings/presentation/settings_gate_screen.dart';
 import '../features/intercom/presentation/intercom_screen.dart';
 import '../features/today/presentation/today_screen.dart';
+import '../features/energy/presentation/energy_maintenance_screen.dart';
 
 final routerProvider = Provider<GoRouter>((ref) {
   final rootKey = GlobalKey<NavigatorState>();
@@ -33,6 +34,10 @@ final routerProvider = Provider<GoRouter>((ref) {
                 path: '/',
                 builder: (_, _) => const HomeDashboardScreen(embedded: true),
                 routes: [
+                  GoRoute(
+                    path: 'energy',
+                    builder: (_, _) => const EnergyMaintenanceScreen(),
+                  ),
                   GoRoute(
                     path: 'today',
                     builder: (_, _) => const TodayScreen(),

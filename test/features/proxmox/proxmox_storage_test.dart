@@ -12,6 +12,7 @@ void main() {
       'used': 250,
       'avail': 750,
       'active': 1,
+      'enabled': 1,
     });
 
     expect(storage.name, 'local');
@@ -44,10 +45,14 @@ void main() {
   test('clone storage matches guest content type and availability', () {
     final images = ProxmoxStorage.fromJson({
       'storage': 'images',
+      'active': 1,
+      'enabled': 1,
       'content': 'images',
     });
     final containers = ProxmoxStorage.fromJson({
       'storage': 'ct',
+      'active': 1,
+      'enabled': 1,
       'content': 'rootdir',
     });
     final offline = ProxmoxStorage.fromJson({

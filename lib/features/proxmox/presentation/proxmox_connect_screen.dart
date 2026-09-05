@@ -22,7 +22,7 @@ class _ProxmoxConnectScreenState extends ConsumerState<ProxmoxConnectScreen> {
   final _realmController = TextEditingController(text: 'pam');
   final _userController = TextEditingController(text: 'root');
   final _passwordController = TextEditingController();
-  bool _allowSelfSigned = true;
+  bool _allowSelfSigned = false;
   bool _connecting = false;
   String? _error;
 
@@ -37,6 +37,7 @@ class _ProxmoxConnectScreenState extends ConsumerState<ProxmoxConnectScreen> {
   }
 
   void _selectDiscovered(String baseUrl) {
+    if (!mounted) return;
     final uri = Uri.tryParse(baseUrl);
     if (uri == null) return;
     setState(() {
@@ -46,6 +47,9 @@ class _ProxmoxConnectScreenState extends ConsumerState<ProxmoxConnectScreen> {
   }
 
   Future<void> _connect() async {
+    if (!mounted || _connecting) return;
+    final state = WidgetsBinding.instance.lifecycleState;
+    if (state != null && state != AppLifecycleState.resumed) return;
     final input = _hostController.text.trim();
     final address = Uri.tryParse(
       input.contains('://') ? input : 'https://$input',
@@ -58,6 +62,8 @@ class _ProxmoxConnectScreenState extends ConsumerState<ProxmoxConnectScreen> {
     final username = _userController.text.trim();
     final password = _passwordController.text;
     if (host.isEmpty ||
+        input.contains('@') ||
+        RegExp(r'[\s\\]').hasMatch(input) ||
         address?.scheme != 'https' ||
         address!.userInfo.isNotEmpty ||
         address.hasQuery ||
@@ -89,7 +95,12 @@ class _ProxmoxConnectScreenState extends ConsumerState<ProxmoxConnectScreen> {
             password: password,
             allowSelfSigned: _allowSelfSigned,
           );
-      if (mounted) Navigator.of(context).pop();
+      if (mounted &&
+          ModalRoute.of(context)?.isCurrent == true &&
+          Navigator.of(context).canPop() &&
+          WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed) {
+        Navigator.of(context).pop();
+      }
     } on ProxmoxApiException catch (e) {
       if (!mounted) return;
       setState(() => _error = e.message);

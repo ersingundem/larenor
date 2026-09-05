@@ -2,6 +2,20 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:larenor/features/keenetic/data/models/keenetic_router_status.dart';
 
 void main() {
+  test(
+    'out-of-range measurements are unknown instead of plausible clamped values',
+    () {
+      final status = KeeneticRouterStatus.fromJson({}, {
+        'cpuload': 1000,
+        'memory': '-10/100',
+      });
+      expect(status.cpuPercent, isNull);
+      expect(status.memoryUsedKiB, isNull);
+      expect(status.memoryTotalKiB, isNull);
+      expect(status.memoryPercent, isNull);
+    },
+  );
+
   test('missing or malformed measurements remain unavailable', () {
     final router = KeeneticRouterStatus.fromJson({}, {
       'cpuload': 'invalid',

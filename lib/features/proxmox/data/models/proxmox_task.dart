@@ -1,3 +1,5 @@
+import 'proxmox_values.dart';
+
 class ProxmoxTask {
   const ProxmoxTask({
     required this.upid,
@@ -25,12 +27,12 @@ class ProxmoxTask {
   bool get isSuccess => status == 'OK';
 
   factory ProxmoxTask.fromJson(Map<String, dynamic> json) => ProxmoxTask(
-    upid: json['upid'] as String? ?? '',
+    upid: proxmoxIdentity(json['upid']),
     type: json['type'] as String? ?? 'unknown',
     resourceId: json['id'] as String?,
     user: json['user'] as String?,
     status: json['status'] as String?,
-    startTimeSeconds: (json['starttime'] as num?)?.toInt(),
-    endTimeSeconds: (json['endtime'] as num?)?.toInt(),
+    startTimeSeconds: proxmoxInteger(json['starttime']),
+    endTimeSeconds: proxmoxInteger(json['endtime']),
   );
 }

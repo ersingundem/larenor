@@ -19,6 +19,9 @@ void main() {
       for (final query in ['diafon', 'Netelsan', 'Algan', 'kapı']) {
         expect(index.search(query).single.target.location, '/intercom');
       }
+      for (final query in ['energy', 'enerji', 'bakım', 'kapasite']) {
+        expect(index.search(query).single.target.location, '/energy');
+      }
       expect(index.search('private task body'), isEmpty);
     },
   );

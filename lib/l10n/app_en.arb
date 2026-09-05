@@ -1341,5 +1341,178 @@
         "type": "String"
       }
     }
-  }
+  },
+  "dashboardEditLayout": "Edit layout",
+  "dashboardEditRoom": "Edit room cards",
+  "dashboardCardSize": "Card size",
+  "dashboardCardSmall": "Small",
+  "dashboardCardMedium": "Medium",
+  "dashboardCardLarge": "Large",
+  "dashboardCardDefault": "Default",
+  "dashboardMoveUp": "Move up",
+  "dashboardMoveDown": "Move down",
+  "dashboardEditHint": "Arrange cards and choose their sizes. These previews do not control devices. Changes are saved on this device.",
+  "dashboardEditFailed": "The layout could not be saved. Reload it and try again.",
+  "dashboardCardHidden": "Hidden",
+  "roomBindArea": "Link to a Home Assistant area",
+  "roomSyncArea": "Review area changes",
+  "roomSyncTitle": "Room and area",
+  "roomSyncLocalOnly": "This only updates your Larenor room. Home Assistant areas and devices are not changed.",
+  "roomSyncPickArea": "Choose an area",
+  "roomSyncPreview": "Preview changes",
+  "roomSyncApply": "Apply to this room",
+  "roomSyncAdded": "To add: {count}",
+  "roomSyncRemoved": "To remove: {count}",
+  "roomSyncHeld": "Kept because their area is uncertain: {count}",
+  "roomSyncNoChanges": "This room is already up to date.",
+  "roomSyncMissingArea": "This area was not returned by Home Assistant. The room and its devices are preserved.",
+  "roomSyncMismatch": "This room belongs to another Home Assistant connection, or its connection cannot be checked. Device controls are unavailable until you review the link.",
+  "roomSyncFailed": "The area could not be checked. Check the connection and try again.",
+  "roomSyncStale": "The connection, area or room changed. Create a fresh preview before applying.",
+  "roomSyncUnbind": "Remove area link",
+  "roomSyncUnbindConfirm": "Keep this room and its current device list, and remove its area link? If you changed servers, review the device list before using it.",
+  "roomSyncApplied": "The room was updated on this device.",
+  "roomSyncRename": "Room name: {name}",
+  "@roomSyncAdded": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "@roomSyncRemoved": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "@roomSyncHeld": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "@roomSyncRename": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "adminEditorSessionChanged": "The connection or app session changed. Reopen this editor before saving.",
+  "keeneticAddWidget": "Add a Keenetic widget",
+  "keeneticInternetStatus": "Internet connection",
+  "keeneticTraffic": "Network traffic",
+  "keeneticResources": "Router resources",
+  "keeneticInterfaces": "Network interfaces",
+  "keeneticWidgetHint": "Choose a read-only dashboard widget. Traffic uses measured counters; no speed test or router setting is changed.",
+  "keeneticChooseInterface": "Choose an interface",
+  "keeneticSelectInterfaceHint": "Choose the actual WAN interface for internet traffic. An interface address may be private; it is not necessarily your public IP.",
+  "keeneticReceiveRate": "Received",
+  "keeneticSendRate": "Sent",
+  "keeneticDownloadRate": "Download",
+  "keeneticUploadRate": "Upload",
+  "keeneticGateway": "Gateway",
+  "keeneticDnsCheck": "DNS check",
+  "keeneticHostCheck": "Internet host check",
+  "keeneticReachable": "Reachable",
+  "keeneticUnreachable": "Unreachable",
+  "keeneticInterfaceAddress": "Interface address",
+  "keeneticKnownDevices": "Known devices",
+  "keeneticUnmeasuredDevices": "Activity unknown",
+  "keeneticReceivedTotal": "Received counter",
+  "keeneticSentTotal": "Sent counter",
+  "keeneticSamplePending": "Waiting for two valid samples",
+  "keeneticMetricStale": "Last recorded values · refresh failed",
+  "keeneticMetricUnsupported": "This read is not supported by the router.",
+  "keeneticMetricRejected": "The router rejected this read.",
+  "keeneticMetricPaused": "Updates paused",
+  "keeneticMetricSessionChanged": "Connection changed. Reopen this picker.",
+  "keeneticMetricReadHint": "Values are reported by your router. Traffic is an interval average, not line capacity. Blank measurements remain unknown.",
+  "keeneticMetricMore": "Open details",
+  "keeneticUptimeDays": "d",
+  "keeneticUptimeHours": "h",
+  "keeneticUptimeMinutes": "min",
+  "dashboardWidgetPickerHint": "Choose a card, then its device. Adding a widget only changes this dashboard.",
+  "dashboardWidgetPickerReadOnly": "Device selection is read-only. No camera stream, graph, website or device control runs in this preview.",
+  "dashboardWidgetPickerExpired": "The connection or app session changed. Close this picker and open it again before adding a widget.",
+  "dashboardWidgetPickerRegistryPartial": "Device registry metadata could not be read. Only devices from the current state list are shown; hidden-device metadata could not be checked.",
+  "dashboardWidgetPickerNoCompatible": "No compatible devices are available for this card.",
+  "dashboardWidgetPickerSearchEmpty": "No matching devices. Try another search.",
+  "dashboardWidgetPickerHistoryHint": "Choose a device with numeric readings. Available history depends on Home Assistant recording this device.",
+  "dashboardWidgetPickerWebsiteHint": "Use an HTTP or HTTPS address without an embedded username or password. The website opens only after you add the widget.",
+  "dashboardWidgetPickerUnavailable": "Current device states could not be read. Retry before selecting a device.",
+  "energyTitle": "Energy & maintenance",
+  "energyRecorded": "Recorded energy",
+  "energyHint": "Readings follow your Home Assistant energy setup and time zone. Each meter is shown separately.",
+  "energyLast7Days": "Last 7 days",
+  "energyNotConfigured": "Energy is not configured in Home Assistant.",
+  "energyNoMeters": "No supported energy meters were returned.",
+  "energyGridImport": "From the grid",
+  "energyGridExport": "To the grid",
+  "energySolar": "Solar production",
+  "energyBatteryCharge": "Battery charging",
+  "energyBatteryDischarge": "Battery discharging",
+  "energyDevice": "Device consumption",
+  "energyCost": "Recorded cost",
+  "energyCompensation": "Recorded compensation",
+  "energyPartial": "Incomplete coverage",
+  "energyOngoing": "Current day is still in progress.",
+  "energyGap": "Some hours or days are missing. The displayed value is only the reported portion.",
+  "energyBaseline": "The preceding counter reading is missing; this change cannot be fully verified.",
+  "energyBoundary": "Hourly statistics cannot exactly match this time zone’s day boundaries.",
+  "energySourceIssue": "Some energy sources could not be read or validated.",
+  "energyUnitIssue": "The statistic or its unit could not be verified.",
+  "energyConfigurationIssue": "The energy setup or its time zone could not be validated.",
+  "energyDaily": "Daily readings",
+  "energyIncludedIn": "Included in",
+  "energyCurrencyHint": "Costs use recorded currency statistics. No estimate is made from today’s tariff.",
+  "maintenanceTitle": "Device maintenance",
+  "maintenanceHint": "Based on the latest Home Assistant device snapshot. Battery alerts use 20% or the device’s own low-battery flag.",
+  "maintenanceSelected": "On dashboard",
+  "maintenanceAll": "All devices",
+  "maintenanceNone": "No maintenance alerts in the checked entities.",
+  "maintenanceNoSelection": "No entities in this selection.",
+  "maintenanceLowBattery": "Low battery",
+  "maintenanceUnavailable": "Unavailable",
+  "maintenanceProblem": "Device problem",
+  "maintenanceUpdate": "Update available",
+  "maintenanceCapacity": "Server capacity",
+  "maintenanceCapacityHint": "CPU, memory and root filesystem usage reported by each Proxmox node. Shared storage is not added to these values.",
+  "maintenanceCpu": "CPU",
+  "maintenanceMemory": "Memory",
+  "maintenanceRootDisk": "Root filesystem",
+  "maintenanceOffline": "Node is offline; current capacity is unknown.",
+  "maintenanceNoNodes": "No nodes were returned for this account.",
+  "energyLastChecked": "Last check: {time}",
+  "@energyLastChecked": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "proxmoxSessionExpired": "The Proxmox connection changed. Close this screen and reopen the target.",
+  "proxmoxActionUnknown": "The result is not confirmed. Check Activity and the target before retrying.",
+  "proxmoxConsoleTrustedTlsRequired": "The embedded console requires a trusted server certificate. Install a trusted certificate or open the Proxmox interface separately.",
+  "proxmoxConsoleSignInRequired": "Sign in to the Proxmox interface to open this console. API credentials are not copied into web pages. This browser session is separate from the saved API account.",
+  "mediaRemoteTitle": "Play on a device",
+  "mediaRemoteHint": "Open Jellyfin on your TV with the same account. Supported active clients appear here.",
+  "mediaRemoteEmpty": "No compatible active Jellyfin clients were found.",
+  "mediaRemoteConfirm": "Start playback on this device?",
+  "mediaRemoteReplaceHint": "This replaces playback on the selected device. Following episodes may play automatically according to its settings.",
+  "mediaRemoteAccepted": "Playback was requested. Waiting for the target session.",
+  "mediaRemoteObserved": "The target session reports that this title is playing.",
+  "mediaRemoteUnconfirmed": "Playback is not confirmed. Check the target before sending again.",
+  "mediaRemoteUnavailable": "This target is no longer available. Refresh the device list.",
+  "mediaRemoteUnsupportedItem": "This item cannot be verified for playback on the current account.",
+  "mediaRemoteExpired": "This playback approval has expired. Select the device again.",
+  "mediaRemoteBusy": "Another playback request is in progress.",
+  "mediaRemoteAccountChanged": "The media connection changed. Close this screen and reopen the title.",
+  "mediaRemoteDevice": "Target device",
+  "mediaRemoteItem": "Selected title",
+  "proxmoxConsoleWebSignIn": "Web sign-in",
+  "proxmoxConsoleOpenSession": "Open console"
 }

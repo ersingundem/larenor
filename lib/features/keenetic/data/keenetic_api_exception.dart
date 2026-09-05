@@ -1,11 +1,15 @@
-/// Exception type for the Keenetic client — mirrors `HaApiException` /
-/// `MediaApiException` / `ProxmoxApiException`'s role, kept separate since
-/// Keenetic is an unrelated service with its own auth model.
+import 'keenetic_telemetry.dart';
+
+/// Safe, typed failure. Never include a server response body or credentials.
 class KeeneticApiException implements Exception {
-  KeeneticApiException(this.message);
-
+  KeeneticApiException(
+    this.message, {
+    this.statusCode,
+    this.failure = KeeneticReadFailure.invalidResponse,
+  });
   final String message;
-
+  final int? statusCode;
+  final KeeneticReadFailure failure;
   @override
   String toString() => 'KeeneticApiException: $message';
 }

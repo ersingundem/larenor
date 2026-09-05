@@ -8,6 +8,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../l10n/generated/app_localizations.dart';
 import '../../dashboard/providers/dashboard_providers.dart';
 import '../../ha_client/providers/ha_client_providers.dart';
+import '../data/admin_client.dart';
 import '../data/models/ha_device.dart';
 import '../data/models/ha_registry_entry.dart';
 import '../providers/admin_providers.dart';
@@ -43,9 +44,35 @@ class _RegistryEditorScreenState extends ConsumerState<RegistryEditorScreen> {
   late bool _hidden = widget.entity?.hiddenBy != null;
   bool _saving = false;
   String? _error;
+  HaAdminClient? _scopeClient;
+  late final AppLifecycleListener _lifecycle;
+  bool _scopeExpired = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _scopeClient = ref.read(haAdminClientProvider);
+    final lifecycle = WidgetsBinding.instance.lifecycleState;
+    _scopeExpired = lifecycle != null && lifecycle != AppLifecycleState.resumed;
+    _lifecycle = AppLifecycleListener(
+      onStateChange: (state) {
+        if (state != AppLifecycleState.resumed && mounted) {
+          setState(() => _scopeExpired = true);
+        }
+      },
+    );
+  }
+
+  bool _current() =>
+      mounted &&
+      !_scopeExpired &&
+      _scopeClient != null &&
+      identical(_scopeClient, ref.read(haAdminClientProvider));
 
   @override
   void dispose() {
+    _scopeExpired = true;
+    _lifecycle.dispose();
     _name.dispose();
     _icon.dispose();
     _entityId.dispose();
@@ -53,8 +80,8 @@ class _RegistryEditorScreenState extends ConsumerState<RegistryEditorScreen> {
   }
 
   Future<void> _save() async {
-    final client = ref.read(haAdminClientProvider);
-    if (client == null) return;
+    if (_saving || !_current()) return;
+    final client = _scopeClient!;
     final entity = widget.entity;
     final device = widget.device;
     final changes = <String, dynamic>{};
@@ -105,7 +132,7 @@ class _RegistryEditorScreenState extends ConsumerState<RegistryEditorScreen> {
       if (newId != null) {
         await ref.read(dashboardLayoutProvider.future);
       }
-      if (!mounted) return;
+      if (!mounted || !_current()) return;
       var restart = false;
       if (device != null) {
         await client.updateDevice(device.id, changes);
@@ -114,13 +141,18 @@ class _RegistryEditorScreenState extends ConsumerState<RegistryEditorScreen> {
         final result = await client.updateEntity(entity!.entityId, changes);
         remoteSaved = true;
         restart = result['require_restart'] == true;
-        if (newId != null && mounted) {
+        if (newId != null && _current()) {
           await ref
               .read(dashboardLayoutProvider.notifier)
-              .renameEntityReferences(entity.entityId, newId);
+              .renameEntityReferences(
+                entity.entityId,
+                newId,
+                serverUrl: client.baseUrl,
+                isCurrent: _current,
+              );
         }
       }
-      if (!mounted) return;
+      if (!mounted || !_current()) return;
       ref.invalidate(devicesProvider);
       ref.invalidate(entityRegistryProvider);
       ref.invalidate(entitiesProvider);
@@ -131,21 +163,24 @@ class _RegistryEditorScreenState extends ConsumerState<RegistryEditorScreen> {
           error: false,
         );
       }
-      if (mounted) Navigator.pop(context, changes['new_entity_id']);
-    } catch (error) {
-      if (mounted) {
+      if (mounted && _current()) {
+        Navigator.pop(context, changes['new_entity_id']);
+      }
+    } catch (_) {
+      if (mounted && _current()) {
         if (remoteSaved) {
           ref.invalidate(devicesProvider);
           ref.invalidate(entityRegistryProvider);
           ref.invalidate(entitiesProvider);
           await showAdminMessage(
             context,
-            AppLocalizations.of(context)
-                .adminLocalLayoutError(error.toString()),
+            AppLocalizations.of(
+              context,
+            ).adminLocalLayoutError(AppLocalizations.of(context).actionFailed),
           );
-          if (mounted) Navigator.pop(context, newId);
+          if (mounted && _current()) Navigator.pop(context, newId);
         } else {
-          setState(() => _error = error.toString());
+          setState(() => _error = AppLocalizations.of(context).actionFailed);
         }
       }
     } finally {
@@ -156,6 +191,12 @@ class _RegistryEditorScreenState extends ConsumerState<RegistryEditorScreen> {
 
   @override
   Widget build(BuildContext context) {
+    ref.watch(haAdminClientProvider);
+    ref.listen(haAdminClientProvider, (_, next) {
+      if (!identical(_scopeClient, next) && !_scopeExpired) {
+        setState(() => _scopeExpired = true);
+      }
+    });
     final l10n = AppLocalizations.of(context);
     final areas = ref.watch(areasProvider);
     final values = areas.value ?? [];
@@ -172,7 +213,7 @@ class _RegistryEditorScreenState extends ConsumerState<RegistryEditorScreen> {
           ),
           trailing: CupertinoButton(
             padding: EdgeInsets.zero,
-            onPressed: _saving ? null : _save,
+            onPressed: _saving || !_current() ? null : _save,
             child: _saving
                 ? const CupertinoActivityIndicator()
                 : Text(l10n.commonSave),
@@ -181,6 +222,11 @@ class _RegistryEditorScreenState extends ConsumerState<RegistryEditorScreen> {
         child: SafeArea(
           child: ListView(
             children: [
+              if (!_current())
+                Padding(
+                  padding: const EdgeInsets.all(20),
+                  child: Text(l10n.adminEditorSessionChanged),
+                ),
               SettingsSection(
                 footer: Text(l10n.adminRegistryHint),
                 children: [

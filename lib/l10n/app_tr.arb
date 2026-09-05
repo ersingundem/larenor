@@ -1020,5 +1020,178 @@
         "type": "String"
       }
     }
-  }
+  },
+  "dashboardEditLayout": "Düzeni değiştir",
+  "dashboardEditRoom": "Oda kartlarını düzenle",
+  "dashboardCardSize": "Kart boyutu",
+  "dashboardCardSmall": "Küçük",
+  "dashboardCardMedium": "Orta",
+  "dashboardCardLarge": "Büyük",
+  "dashboardCardDefault": "Varsayılan",
+  "dashboardMoveUp": "Yukarı taşı",
+  "dashboardMoveDown": "Aşağı taşı",
+  "dashboardEditHint": "Kartları sıralayın ve boyutlarını seçin. Bu önizlemeler cihazları çalıştırmaz. Değişiklikler bu cihazda kaydedilir.",
+  "dashboardEditFailed": "Düzen kaydedilemedi. Yeniden yükleyip tekrar deneyin.",
+  "dashboardCardHidden": "Gizli",
+  "roomBindArea": "Home Assistant alanına bağla",
+  "roomSyncArea": "Alan değişikliklerini incele",
+  "roomSyncTitle": "Oda ve alan",
+  "roomSyncLocalOnly": "Yalnızca Larenor odanız güncellenir. Home Assistant alanları ve cihazları değiştirilmez.",
+  "roomSyncPickArea": "Alan seçin",
+  "roomSyncPreview": "Değişiklikleri önizle",
+  "roomSyncApply": "Bu odaya uygula",
+  "roomSyncAdded": "Eklenecek: {count}",
+  "roomSyncRemoved": "Çıkarılacak: {count}",
+  "roomSyncHeld": "Alanı belirsiz olduğu için korunan: {count}",
+  "roomSyncNoChanges": "Oda zaten güncel.",
+  "roomSyncMissingArea": "Home Assistant bu alanı döndürmedi. Oda ve cihazları korunuyor.",
+  "roomSyncMismatch": "Bu oda başka bir Home Assistant bağlantısına ait veya bağlantısı doğrulanamıyor. Bağlantıyı inceleyene kadar cihaz kontrolleri kullanılamaz.",
+  "roomSyncFailed": "Alan kontrol edilemedi. Bağlantıyı kontrol edip tekrar deneyin.",
+  "roomSyncStale": "Bağlantı, alan veya oda değişti. Uygulamadan önce yeni bir önizleme oluşturun.",
+  "roomSyncUnbind": "Alan bağlantısını kaldır",
+  "roomSyncUnbindConfirm": "Oda ve mevcut cihaz listesi korunarak alan bağlantısı kaldırılsın mı? Sunucuyu değiştirdiyseniz kullanmadan önce cihaz listesini gözden geçirin.",
+  "roomSyncApplied": "Oda bu cihazda güncellendi.",
+  "roomSyncRename": "Oda adı: {name}",
+  "@roomSyncAdded": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "@roomSyncRemoved": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "@roomSyncHeld": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "@roomSyncRename": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "adminEditorSessionChanged": "Bağlantı veya uygulama oturumu değişti. Kaydetmeden önce bu düzenleyiciyi yeniden aç.",
+  "keeneticAddWidget": "Keenetic widgetı ekle",
+  "keeneticInternetStatus": "İnternet bağlantısı",
+  "keeneticTraffic": "Ağ trafiği",
+  "keeneticResources": "Yönlendirici kaynakları",
+  "keeneticInterfaces": "Ağ arayüzleri",
+  "keeneticWidgetHint": "Salt okunur bir dashboard widgetı seç. Trafik, ölçülen sayaçlardan hesaplanır; hız testi yapılmaz ve yönlendirici ayarı değiştirilmez.",
+  "keeneticChooseInterface": "Arayüz seç",
+  "keeneticSelectInterfaceHint": "İnternet trafiği için kullanılan WAN arayüzünü seç. Arayüz adresi yerel olabilir; genel IP adresin olmak zorunda değildir.",
+  "keeneticReceiveRate": "Alınan",
+  "keeneticSendRate": "Gönderilen",
+  "keeneticDownloadRate": "İndirme",
+  "keeneticUploadRate": "Yükleme",
+  "keeneticGateway": "Ağ geçidi",
+  "keeneticDnsCheck": "DNS kontrolü",
+  "keeneticHostCheck": "İnternet hedefi kontrolü",
+  "keeneticReachable": "Erişilebilir",
+  "keeneticUnreachable": "Erişilemiyor",
+  "keeneticInterfaceAddress": "Arayüz adresi",
+  "keeneticKnownDevices": "Bilinen cihazlar",
+  "keeneticUnmeasuredDevices": "Etkinliği bilinmeyen",
+  "keeneticReceivedTotal": "Alınan veri sayacı",
+  "keeneticSentTotal": "Gönderilen veri sayacı",
+  "keeneticSamplePending": "İki geçerli ölçüm bekleniyor",
+  "keeneticMetricStale": "Son kayıtlı değerler · yenileme başarısız",
+  "keeneticMetricUnsupported": "Yönlendirici bu okumayı desteklemiyor.",
+  "keeneticMetricRejected": "Yönlendirici bu okumayı reddetti.",
+  "keeneticMetricPaused": "Güncellemeler duraklatıldı",
+  "keeneticMetricSessionChanged": "Bağlantı değişti. Bu seçiciyi yeniden aç.",
+  "keeneticMetricReadHint": "Değerler yönlendiricinin bildirdiği verilerdir. Trafik, ölçüm aralığının ortalamasıdır; hat kapasitesi değildir. Eksik ölçümler bilinmiyor olarak kalır.",
+  "keeneticMetricMore": "Ayrıntıları aç",
+  "keeneticUptimeDays": "g",
+  "keeneticUptimeHours": "sa",
+  "keeneticUptimeMinutes": "dk",
+  "dashboardWidgetPickerHint": "Kartı, ardından cihazını seçin. Widget eklemek yalnızca bu panoyu değiştirir.",
+  "dashboardWidgetPickerReadOnly": "Cihaz seçimi salt okunurdur. Bu önizlemede kamera yayını, grafik, web sitesi veya cihaz kontrolü çalışmaz.",
+  "dashboardWidgetPickerExpired": "Bağlantı veya uygulama oturumu değişti. Widget eklemek için bu seçiciyi kapatıp yeniden açın.",
+  "dashboardWidgetPickerRegistryPartial": "Cihaz kayıt bilgileri okunamadı. Yalnızca güncel durum listesindeki cihazlar gösteriliyor; gizli cihaz bilgileri kontrol edilemedi.",
+  "dashboardWidgetPickerNoCompatible": "Bu kart için uygun cihaz bulunamadı.",
+  "dashboardWidgetPickerSearchEmpty": "Eşleşen cihaz yok. Başka bir arama deneyin.",
+  "dashboardWidgetPickerHistoryHint": "Sayısal değer veren bir cihaz seçin. Geçmiş verileri Home Assistant'ın bu cihazı kaydetmesine bağlıdır.",
+  "dashboardWidgetPickerWebsiteHint": "Kullanıcı adı veya parola içermeyen bir HTTP ya da HTTPS adresi kullanın. Site yalnızca widget eklendikten sonra açılır.",
+  "dashboardWidgetPickerUnavailable": "Güncel cihaz durumları okunamadı. Cihaz seçmeden önce yeniden deneyin.",
+  "energyTitle": "Enerji ve bakım",
+  "energyRecorded": "Kaydedilen enerji",
+  "energyHint": "Ölçümler Home Assistant enerji yapılandırmasını ve saat dilimini izler. Her sayaç ayrı gösterilir.",
+  "energyLast7Days": "Son 7 gün",
+  "energyNotConfigured": "Home Assistant üzerinde enerji yapılandırılmamış.",
+  "energyNoMeters": "Desteklenen bir enerji sayacı dönmedi.",
+  "energyGridImport": "Şebekeden alınan",
+  "energyGridExport": "Şebekeye verilen",
+  "energySolar": "Güneş üretimi",
+  "energyBatteryCharge": "Batarya şarjı",
+  "energyBatteryDischarge": "Batarya deşarjı",
+  "energyDevice": "Cihaz tüketimi",
+  "energyCost": "Kaydedilen maliyet",
+  "energyCompensation": "Kaydedilen satış geliri",
+  "energyPartial": "Eksik veri kapsamı",
+  "energyOngoing": "İçinde bulunduğumuz gün henüz tamamlanmadı.",
+  "energyGap": "Bazı saatler veya günler eksik. Gösterilen değer yalnızca kaydedilen bölümü içerir.",
+  "energyBaseline": "Önceki sayaç ölçümü eksik; bu değişim tam doğrulanamıyor.",
+  "energyBoundary": "Saatlik istatistikler bu saat diliminin gün sınırlarıyla tam örtüşmüyor.",
+  "energySourceIssue": "Bazı enerji kaynakları okunamadı veya doğrulanamadı.",
+  "energyUnitIssue": "İstatistik veya ölçü birimi doğrulanamadı.",
+  "energyConfigurationIssue": "Enerji yapılandırması veya saat dilimi doğrulanamadı.",
+  "energyDaily": "Günlük ölçümler",
+  "energyIncludedIn": "İçinde yer aldığı sayaç",
+  "energyCurrencyHint": "Maliyetler kaydedilen para birimi istatistiklerinden alınır. Bugünkü tarifeden geçmişe dönük tahmin yapılmaz.",
+  "maintenanceTitle": "Cihaz bakımı",
+  "maintenanceHint": "Son Home Assistant cihaz anlık görüntüsüne dayanır. Pil uyarıları %20 sınırını veya cihazın kendi düşük pil bildirimini kullanır.",
+  "maintenanceSelected": "Panodakiler",
+  "maintenanceAll": "Tüm cihazlar",
+  "maintenanceNone": "Kontrol edilen varlıklarda bakım uyarısı yok.",
+  "maintenanceNoSelection": "Bu seçimde varlık yok.",
+  "maintenanceLowBattery": "Düşük pil",
+  "maintenanceUnavailable": "Erişilemiyor",
+  "maintenanceProblem": "Cihaz sorunu",
+  "maintenanceUpdate": "Güncelleme mevcut",
+  "maintenanceCapacity": "Sunucu kapasitesi",
+  "maintenanceCapacityHint": "Her Proxmox düğümünün bildirdiği CPU, bellek ve kök dosya sistemi kullanımı. Paylaşılan depolama bu değerlere eklenmez.",
+  "maintenanceCpu": "CPU",
+  "maintenanceMemory": "Bellek",
+  "maintenanceRootDisk": "Kök dosya sistemi",
+  "maintenanceOffline": "Düğüm çevrimdışı; güncel kapasite bilinmiyor.",
+  "maintenanceNoNodes": "Bu hesap için düğüm dönmedi.",
+  "energyLastChecked": "Son kontrol: {time}",
+  "@energyLastChecked": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "proxmoxSessionExpired": "Proxmox bağlantısı değişti. Bu ekranı kapatıp hedefi yeniden açın.",
+  "proxmoxActionUnknown": "Sonuç doğrulanmadı. Yeniden denemeden önce Etkinlik ekranını ve hedefi kontrol edin.",
+  "proxmoxConsoleTrustedTlsRequired": "Uygulama içi konsol, güvenilir bir sunucu sertifikası gerektirir. Güvenilir sertifika kurun veya Proxmox arayüzünü ayrıca açın.",
+  "proxmoxConsoleSignInRequired": "Konsolu açmak için Proxmox arayüzünde oturum açın. API erişim bilgileri web sayfalarına kopyalanmaz. Bu tarayıcı oturumu kayıtlı API hesabından ayrıdır.",
+  "mediaRemoteTitle": "Bir cihazda oynat",
+  "mediaRemoteHint": "TV’de Jellyfin’i aynı hesapla açın. Desteklenen etkin istemciler burada görünür.",
+  "mediaRemoteEmpty": "Uyumlu ve etkin bir Jellyfin istemcisi bulunamadı.",
+  "mediaRemoteConfirm": "Bu cihazda oynatma başlatılsın mı?",
+  "mediaRemoteReplaceHint": "Bu işlem seçilen cihazdaki oynatımı değiştirir. Cihazın ayarlarına göre sonraki bölümler otomatik oynatılabilir.",
+  "mediaRemoteAccepted": "Oynatma istendi. Hedef oturumun durumu bekleniyor.",
+  "mediaRemoteObserved": "Hedef oturum bu içeriğin oynatıldığını bildiriyor.",
+  "mediaRemoteUnconfirmed": "Oynatma doğrulanmadı. Yeniden göndermeden önce hedefi kontrol edin.",
+  "mediaRemoteUnavailable": "Bu hedef artık kullanılabilir değil. Cihaz listesini yenileyin.",
+  "mediaRemoteUnsupportedItem": "Bu içeriğin mevcut hesapta oynatılabilir olduğu doğrulanamadı.",
+  "mediaRemoteExpired": "Oynatma onayının süresi doldu. Cihazı yeniden seçin.",
+  "mediaRemoteBusy": "Başka bir oynatma isteği sürüyor.",
+  "mediaRemoteAccountChanged": "Medya bağlantısı değişti. Bu ekranı kapatıp içeriği yeniden açın.",
+  "mediaRemoteDevice": "Hedef cihaz",
+  "mediaRemoteItem": "Seçilen içerik",
+  "proxmoxConsoleWebSignIn": "Web oturumu aç",
+  "proxmoxConsoleOpenSession": "Konsolu aç"
 }

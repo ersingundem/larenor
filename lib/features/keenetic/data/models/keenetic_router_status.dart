@@ -24,7 +24,8 @@ class KeeneticRouterStatus {
     final used = memoryUsedKiB;
     final total = memoryTotalKiB;
     if (used == null || total == null || total <= 0) return null;
-    return (used / total * 100).round().clamp(0, 100);
+    if (used < 0 || used > total) return null;
+    return (used / total * 100).round();
   }
 
   factory KeeneticRouterStatus.fromJson(
@@ -35,6 +36,14 @@ class KeeneticRouterStatus {
     final release = version['release'];
     final cpu = int.tryParse(system['cpuload']?.toString() ?? '');
     final uptime = int.tryParse(system['uptime']?.toString() ?? '');
+    final used = memory?.length == 2 ? int.tryParse(memory![0]) : null;
+    final total = memory?.length == 2 ? int.tryParse(memory![1]) : null;
+    final validMemory =
+        used != null &&
+        total != null &&
+        used >= 0 &&
+        total > 0 &&
+        used <= total;
     return KeeneticRouterStatus(
       model:
           _text(version['model']) ??
@@ -42,9 +51,9 @@ class KeeneticRouterStatus {
           'Keenetic',
       hostname: _text(system['hostname']),
       firmware: _text(release) ?? _text(version['title']),
-      cpuPercent: cpu?.clamp(0, 100),
-      memoryUsedKiB: memory?.length == 2 ? int.tryParse(memory![0]) : null,
-      memoryTotalKiB: memory?.length == 2 ? int.tryParse(memory![1]) : null,
+      cpuPercent: cpu != null && cpu >= 0 && cpu <= 100 ? cpu : null,
+      memoryUsedKiB: validMemory ? used : null,
+      memoryTotalKiB: validMemory ? total : null,
       uptimeSeconds: uptime == null || uptime < 0 ? null : uptime,
     );
   }

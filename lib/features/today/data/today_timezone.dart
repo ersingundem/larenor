@@ -10,7 +10,8 @@ class TodayTimeZone {
       _initialized = true;
     }
     try {
-      location = tz.getLocation(name);
+      // The compact database omits this valid Home Assistant timezone alias.
+      location = name == 'UTC' ? tz.UTC : tz.getLocation(name);
     } catch (_) {
       throw const TodayException('unknown_timezone');
     }

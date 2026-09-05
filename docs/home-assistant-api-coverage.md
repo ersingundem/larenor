@@ -27,7 +27,7 @@ The client implements the routes listed in the [official REST API reference](htt
 | `DELETE /api/states/{entity_id}` | `deleteState` | API console; no dedicated state removal editor |
 | `POST /api/services/{domain}/{service}` | `callService`, `callServiceWithResponse` | Accessory controls and dynamic Actions forms, including service response display |
 | `POST /api/events/{event_type}` | `fireEvent` | API console; Events tool itself lists/listens |
-| `GET /api/history/period[/{timestamp}]` | `getHistory` | History tool with entity and time range inputs; JSON results |
+| `GET /api/history/period[/{timestamp}]` | `getHistory` | History tool plus numeric dashboard history cards with real gaps |
 | `GET /api/logbook[/{timestamp}]` | `getLogbook` | Logbook tool with entity and time range inputs; JSON results |
 | `GET /api/calendars` and `/api/calendars/{entity_id}` | `getCalendars`, `getCalendarEvents` | Calendar list/event query tool; no calendar event editor |
 | `POST /api/template` | `renderTemplate` | Template tool; text result |
@@ -70,6 +70,8 @@ The client authenticates with the configured token and owns command IDs, result 
 | `config/entity_registry/list_for_display` | `sendCommand` | API console; native registry screens use the full registry APIs |
 | `homeassistant/expose_entity/list`, `homeassistant/expose_entity` | `sendCommand` | API console; no dedicated exposure editor |
 | Additional Core/integration subscriptions, e.g. `subscribe_entities` | `subscribeCommand` preserves event payloads | API console subscription mode; no automatic compact entity decoder |
+| `energy/get_prefs`, `energy/info` | Read-only `HaEnergyApi` | Native configured energy meters; configuration remains in HA |
+| `recorder/get_statistics_metadata`, `recorder/statistics_during_period` | Bounded daily/hourly reads | Native today / seven-day meter readings, unit and coverage validation |
 | `supported_features` / message coalescing | Incoming message arrays can be decoded | Coalescing is **not negotiated** during the initial handshake; no native switch |
 
 Generic commands use the current server's schema. For example, current Core `validate_config` uses `triggers`, `conditions` and `actions`, and panel results are keyed objects. [Core WebSocket commands](https://github.com/home-assistant/core/blob/dev/homeassistant/components/websocket_api/commands.py) and [frontend panel commands](https://github.com/home-assistant/core/blob/dev/homeassistant/components/frontend/__init__.py) are the implementation references; `dev` links may change after this audit.
@@ -86,14 +88,24 @@ Administration uses APIs also used by Home Assistant's frontend. These extend be
 | --- | --- | --- |
 | Installed integrations | List, reload, remove, rename, enable/disable | Integration behavior and permissions remain server controlled |
 | Integration setup | Discover handlers, start/cancel/submit flows, options and reconfiguration, resume pending discovery/reauth flows | Dynamic schema support has JSON fallbacks; integration-specific frontend extensions may require official frontend |
-| Areas | List, create, rename, delete | Other registry metadata available through generic commands |
+| Areas | List/create/rename/delete; optional local room binding, preview and apply | Room synchronization only changes Larenor layout; no automatic server edits |
 | Devices | List; edit user name, area and enabled state | Other device-specific configuration uses integration flows/actions or official frontend |
 | Entities | Registry list; name, icon, area, entity ID, enabled and hidden state | Not every registry metadata field has a dedicated control |
 | Automations | List, toggle, run, duplicate; configuration create/edit/delete | JSON-based configuration editor; no equivalent of the full visual automation/trace editor |
 | Cameras | List and image viewer | Snapshot transport is not complete WebRTC, HLS, recording or timeline support |
 | Actions | Live action discovery, parameter forms, target selection and response display | Unknown selectors use JSON input; custom integration UI is not reproduced |
 
-Energy dashboards, maps, Assist audio, complete media browsing, backups/restore, Supervisor/OS/add-on administration, user management, repairs, HACS, custom Lovelace cards and custom panels do not gain dedicated native workflows merely because a REST/WS transport exists. The official frontend entry is provided for these remaining workflows, subject to the server, login, platform and embedded browser support.
+Full Energy configuration/flow dashboards, maps, Assist audio, complete media browsing, backups/restore, Supervisor/OS/add-on administration, user management, repairs, HACS, custom Lovelace cards and custom panels do not gain dedicated native workflows merely because a REST/WS transport exists. The official frontend entry is provided for these remaining workflows, subject to the server, login, platform and embedded browser support.
+
+Native energy reads existing configuration and Recorder changes rather than
+subtracting raw sensor states. Daily readings keep separate source and coverage
+issues: missing hours, baseline gaps, unfinished days and non-hour-aligned time
+zones are not presented as complete totals. Device and parent meters remain
+separate. Recorded currency statistics require matching currency metadata; no
+current-price extrapolation is performed. The new dashboard and energy work was
+validated with synthetic API/widget tests, without another live HA audit.
+The source contracts were reviewed against [Core 2026.8.3 energy](https://github.com/home-assistant/core/blob/2026.8.3/homeassistant/components/energy/websocket_api.py)
+and [Recorder statistics](https://github.com/home-assistant/core/blob/2026.8.3/homeassistant/components/recorder/websocket_api.py).
 
 ## Verification and limits
 

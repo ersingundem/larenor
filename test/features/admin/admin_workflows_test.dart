@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:async';
 
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -60,6 +61,104 @@ Future<void> openScreen(
 }
 
 void main() {
+  testWidgets(
+    'registry save is single-flight and background invalidates local rename',
+    (tester) async {
+      SharedPreferences.setMockInitialValues({});
+      final repository = DashboardRepository();
+      await repository.save(
+        const DashboardLayout(
+          rooms: [
+            DashboardRoom(
+              id: 'room',
+              name: 'Room',
+              entityIds: ['light.kitchen'],
+            ),
+          ],
+        ),
+      );
+      final pending = Completer<dynamic>();
+      final socket = RecordingAdminSocket(respond: (_) => pending.future);
+      await openScreen(
+        tester,
+        const RegistryEditorScreen.entity(
+          HaRegistryEntry(entityId: 'light.kitchen'),
+        ),
+        fakeAdminClient(socket),
+      );
+      await tester.enterText(
+        find.byType(CupertinoTextFormFieldRow).at(1),
+        'light.dining',
+      );
+      final save = tester
+          .widget<CupertinoButton>(find.widgetWithText(CupertinoButton, 'Save'))
+          .onPressed!;
+      save();
+      save();
+      await tester.pump();
+      expect(socket.commands, hasLength(1));
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.hidden);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+      await tester.pump();
+      pending.complete(<String, dynamic>{});
+      await tester.pumpAndSettle();
+      expect((await repository.load()).rooms.single.entityIds, [
+        'light.kitchen',
+      ]);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.hidden);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+      await tester.pumpAndSettle();
+      save();
+      expect(socket.commands, hasLength(1));
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets('an old registry draft cannot write to a replacement client', (
+    tester,
+  ) async {
+    final oldSocket = RecordingAdminSocket();
+    final replacementSocket = RecordingAdminSocket();
+    await openScreen(
+      tester,
+      const RegistryEditorScreen.entity(
+        HaRegistryEntry(entityId: 'light.kitchen'),
+      ),
+      fakeAdminClient(oldSocket),
+    );
+    await tester.enterText(
+      find.byType(CupertinoTextFormFieldRow).first,
+      'New name',
+    );
+    final save = tester
+        .widget<CupertinoButton>(find.widgetWithText(CupertinoButton, 'Save'))
+        .onPressed!;
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(RegistryEditorScreen)),
+    );
+    container.updateOverrides([
+      haAdminClientProvider.overrideWithValue(
+        fakeAdminClient(replacementSocket),
+      ),
+      areasProvider.overrideWith(
+        (_) async => const [HaArea(areaId: 'kitchen', name: 'Kitchen')],
+      ),
+    ]);
+    await tester.pumpAndSettle();
+    save();
+    await tester.pump();
+    expect(oldSocket.commands, isEmpty);
+    expect(replacementSocket.commands, isEmpty);
+    expect(
+      tester
+          .widget<CupertinoButton>(find.widgetWithText(CupertinoButton, 'Save'))
+          .onPressed,
+      isNull,
+    );
+  });
+
   testWidgets(
     'successful entity ID rename migrates saved local room references',
     (tester) async {

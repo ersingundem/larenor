@@ -7,6 +7,10 @@ import '../../../shared/network/server_bound_client.dart';
 import 'proxmox_api_exception.dart';
 import 'proxmox_config.dart';
 import 'proxmox_http_client.dart';
+import 'proxmox_transport.dart';
+import '../../health/data/health_monitor.dart';
+import '../../health/data/integration_health.dart';
+import 'models/proxmox_values.dart';
 import 'models/proxmox_backup.dart';
 import 'models/proxmox_guest.dart';
 import 'models/proxmox_node.dart';
@@ -36,62 +40,109 @@ class ProxmoxTaskPoll {
 
 /// Hand-rolled client over the Proxmox VE REST API (`/api2/json/*`).
 ///
-/// Uses ticket/cookie auth (`POST /access/ticket`) rather than an API
-/// token: Proxmox's `/termproxy` endpoint (container console) only accepts
-/// ticket auth, not API tokens, and this client needs console access to
-/// both VMs and containers — so ticket auth is the one mode that works
-/// everywhere, verified against Proxmox's documented auth flow.
+/// Uses the existing ticket/cookie and CSRF authentication flow. Partial MFA
+/// challenge responses are rejected until the extra authentication is completed;
+/// they must never be stored as an established session.
 class ProxmoxClient {
   ProxmoxClient({
     required this.config,
     http.Client? httpClient,
     DateTime Function()? now,
-  }) : _now = now ?? DateTime.now,
-       _client = ServerBoundClient(
-         baseUrl: config.baseUrl,
-         inner:
-             httpClient ??
-             buildProxmoxHttpClient(
-               allowSelfSigned: config.allowSelfSigned,
-               server: Uri.parse(config.baseUrl),
-             ),
-       );
-
+    this.healthSession,
+    Duration requestTimeout = const Duration(seconds: 15),
+    Duration cloneTimeout = const Duration(seconds: 30),
+  }) : _now = now ?? DateTime.now {
+    _client = ProxmoxTransport(
+      inner: ServerBoundClient(
+        baseUrl: config.baseUrl,
+        inner:
+            httpClient ??
+            buildProxmoxHttpClient(
+              allowSelfSigned: config.allowSelfSigned,
+              server: Uri.parse(config.baseUrl),
+            ),
+      ),
+      onContact: () {
+        if (!_disposed) healthSession?.contact();
+      },
+      requestTimeout: requestTimeout,
+      cloneTimeout: cloneTimeout,
+    );
+  }
   final ProxmoxConfig config;
-  final http.Client _client;
-
-  String? _ticket;
-  String? _csrfToken;
+  late final ProxmoxTransport _client;
+  final HealthSession? healthSession;
   final DateTime Function() _now;
+  String? _ticket, _csrfToken;
   DateTime? _authenticatedAt;
   Future<void>? _loginFuture;
-
-  /// One shared login prevents a dashboard refresh from opening many sessions.
-  Future<void> login() => _loginFuture ??= _login().whenComplete(() {
-    _loginFuture = null;
-  });
-
-  Future<void> ensureAuthenticated() async {
-    if (_ticket == null ||
-        _authenticatedAt == null ||
-        _now().difference(_authenticatedAt!) >= const Duration(minutes: 110)) {
-      await login();
+  final _pendingMutations = <String>{};
+  bool _disposed = false;
+  int _sessionGeneration = 0;
+  bool get isAuthenticated =>
+      !_disposed && _ticket != null && _csrfToken != null;
+  void _checkActive() {
+    if (_disposed) {
+      throw ProxmoxApiException(
+        'Connection is no longer active.',
+        failure: ProxmoxFailure.inactive,
+      );
     }
   }
 
-  Future<http.Response> _authenticatedRequest(
-    Future<http.Response> Function() send,
-  ) async {
-    await ensureAuthenticated();
-    final ticket = _ticket;
-    var response = await send();
-    // A 401 means authentication rejected the request before execution. Do
-    // not retry 403s or transport errors: those could repeat a mutation.
-    if (response.statusCode == 401) {
-      if (_ticket == ticket) await login();
-      response = await send();
+  Future<void> login() {
+    _checkActive();
+    if (_loginFuture case final pending?) return pending;
+    late final Future<void> pending;
+    pending = _login().whenComplete(() {
+      if (identical(_loginFuture, pending)) _loginFuture = null;
+    });
+    _loginFuture = pending;
+    return pending;
+  }
+
+  Future<void> ensureAuthenticated() async {
+    _checkActive();
+    if (_ticket == null ||
+        _authenticatedAt == null ||
+        _now().isBefore(_authenticatedAt!) ||
+        _now().difference(_authenticatedAt!) >= const Duration(minutes: 110)) {
+      await login();
     }
-    return response;
+    _checkActive();
+  }
+
+  Future<http.Response> _authenticatedRequest(
+    Future<http.Response> Function() send, {
+    bool readOnly = true,
+    String? target,
+  }) async {
+    _checkActive();
+    if (!readOnly && (target == null || !_pendingMutations.add(target))) {
+      throw ProxmoxApiException(
+        'An action is already pending for this target.',
+        failure: ProxmoxFailure.actionPending,
+      );
+    }
+    try {
+      await ensureAuthenticated();
+      final generation = _sessionGeneration;
+      var response = await send();
+      _checkActive();
+      if (readOnly && response.statusCode == 401) {
+        if (generation == _sessionGeneration) await login();
+        _checkActive();
+        response = await send();
+      }
+      _checkActive();
+      _checkOk(response);
+      return response;
+    } on ProxmoxApiException catch (error) {
+      if (!_disposed) _report(error.failure);
+      rethrow;
+    } finally {
+      if (!readOnly) _pendingMutations.remove(target);
+    }
   }
 
   Uri _uri(String path, [Map<String, dynamic>? query]) {
@@ -113,37 +164,53 @@ class ProxmoxClient {
   }
 
   Future<void> _login() async {
-    final response = await _client
-        .post(
-          _uri('/access/ticket'),
-          body: {'username': config.userWithRealm, 'password': config.password},
-        )
-        .timeout(const Duration(seconds: 15));
-    if (response.statusCode != 200) {
-      throw ProxmoxApiException('Login failed (${response.statusCode}).');
+    _checkActive();
+    healthSession?.connecting();
+    _ticket = null;
+    _csrfToken = null;
+    _authenticatedAt = null;
+    try {
+      final response = await _client.post(
+        _uri('/access/ticket'),
+        body: {'username': config.userWithRealm, 'password': config.password},
+      );
+      _checkActive();
+      final data = _objectData(response);
+      final ticket = data['ticket'];
+      final csrf = data['CSRFPreventionToken'];
+      if (data['NeedTFA'] == 1 ||
+          data['NeedTFA'] == true ||
+          (ticket is String && ticket.contains('!tfa!'))) {
+        throw ProxmoxApiException(
+          'Additional authentication is required.',
+          failure: ProxmoxFailure.authentication,
+        );
+      }
+      if (!_safeSessionValue(ticket) || !_safeSessionValue(csrf)) {
+        throw _invalid();
+      }
+      _ticket = ticket as String;
+      _csrfToken = csrf as String;
+      _authenticatedAt = _now();
+      _sessionGeneration++;
+      // Auth is contact evidence only. A parsed resource read proves access.
+    } on ProxmoxApiException catch (error) {
+      if (!_disposed) _report(error.failure);
+      rethrow;
     }
-
-    final data = _dataOf(response) as Map<String, dynamic>?;
-    final ticket = data?['ticket'] as String?;
-    final csrf = data?['CSRFPreventionToken'] as String?;
-    if (ticket == null || csrf == null) {
-      throw ProxmoxApiException('Unexpected login response.');
-    }
-    _ticket = ticket;
-    _csrfToken = csrf;
-    _authenticatedAt = _now();
   }
+
+  bool _safeSessionValue(Object? value) =>
+      value is String &&
+      value.isNotEmpty &&
+      value.length <= 16384 &&
+      !value.contains(RegExp(r'[\x00-\x20\x7f;,]'));
 
   Future<List<ProxmoxNode>> getNodes() async {
     final response = await _authenticatedRequest(
-      () => _client
-          .get(_uri('/nodes'), headers: _headers)
-          .timeout(const Duration(seconds: 15)),
+      () => _client.get(_uri('/nodes'), headers: _headers),
     );
-    final data = _dataOf(response) as List<dynamic>;
-    return data
-        .map((e) => ProxmoxNode.fromJson(e as Map<String, dynamic>))
-        .toList();
+    return _readList(response, ProxmoxNode.fromJson);
   }
 
   Future<List<ProxmoxGuest>> getGuests(String node) async {
@@ -151,8 +218,14 @@ class ProxmoxClient {
       _getGuestsOfType(node, ProxmoxGuestType.qemu),
       _getGuestsOfType(node, ProxmoxGuestType.lxc),
     ]);
-    return [...results[0], ...results[1]]
-      ..sort((a, b) => a.vmid.compareTo(b.vmid));
+    _checkActive();
+    final guests = [...results[0], ...results[1]];
+    if (guests.map((guest) => guest.vmid).toSet().length != guests.length) {
+      _report(ProxmoxFailure.invalidResponse);
+      throw _invalid();
+    }
+    healthSession?.readSucceeded();
+    return guests..sort((a, b) => a.vmid.compareTo(b.vmid));
   }
 
   Future<List<ProxmoxGuest>> _getGuestsOfType(
@@ -160,26 +233,19 @@ class ProxmoxClient {
     ProxmoxGuestType type,
   ) async {
     final response = await _authenticatedRequest(
-      () => _client
-          .get(
-            _uri(
-              '/nodes/${_enc(node)}/${type.resourcePath}',
-              type == ProxmoxGuestType.qemu ? {'full': 1} : null,
-            ),
-            headers: _headers,
-          )
-          .timeout(const Duration(seconds: 15)),
+      () => _client.get(
+        _uri(
+          '/nodes/${_enc(node)}/${type.resourcePath}',
+          type == ProxmoxGuestType.qemu ? {'full': 1} : null,
+        ),
+        headers: _headers,
+      ),
     );
-    final data = _dataOf(response) as List<dynamic>;
-    return data
-        .map(
-          (e) => ProxmoxGuest.fromJson(
-            e as Map<String, dynamic>,
-            type: type,
-            node: node,
-          ),
-        )
-        .toList();
+    return _readList(
+      response,
+      (row) => ProxmoxGuest.fromJson(row, type: type, node: node),
+      markRead: false,
+    );
   }
 
   Future<List<ProxmoxGuest>> getTemplates(String node) async {
@@ -193,14 +259,12 @@ class ProxmoxClient {
     int vmid,
   ) async {
     final response = await _authenticatedRequest(
-      () => _client
-          .get(
-            _uri('/nodes/${_enc(node)}/${type.resourcePath}/$vmid/config'),
-            headers: _headers,
-          )
-          .timeout(const Duration(seconds: 15)),
+      () => _client.get(
+        _uri('/nodes/${_enc(node)}/${type.resourcePath}/$vmid/config'),
+        headers: _headers,
+      ),
     );
-    return _dataOf(response) as Map<String, dynamic>;
+    return _validated(() => _objectData(response));
   }
 
   Future<void> updateGuestConfig(
@@ -209,16 +273,17 @@ class ProxmoxClient {
     int vmid,
     Map<String, String> changes,
   ) async {
+    _validGuestId(vmid);
     final response = await _authenticatedRequest(
-      () => _client
-          .put(
-            _uri('/nodes/${_enc(node)}/${type.resourcePath}/$vmid/config'),
-            headers: _mutatingHeaders,
-            body: changes,
-          )
-          .timeout(const Duration(seconds: 15)),
+      () => _client.put(
+        _uri('/nodes/${_enc(node)}/${type.resourcePath}/$vmid/config'),
+        headers: _mutatingHeaders,
+        body: changes,
+      ),
+      readOnly: false,
+      target: 'guest:$vmid',
     );
-    _checkOk(response);
+    _dataOf(response);
   }
 
   /// [action] is one of `start`, `shutdown`, `stop`, `reboot`, `suspend`,
@@ -229,17 +294,29 @@ class ProxmoxClient {
     int vmid,
     String action,
   ) async {
+    if (!const {
+      'start',
+      'shutdown',
+      'stop',
+      'reboot',
+      'suspend',
+      'resume',
+    }.contains(action)) {
+      throw _invalid();
+    }
+    _validGuestId(vmid);
     final response = await _authenticatedRequest(
-      () => _client
-          .post(
-            _uri(
-              '/nodes/${_enc(node)}/${type.resourcePath}/$vmid/status/$action',
-            ),
-            headers: _mutatingHeaders,
-          )
-          .timeout(const Duration(seconds: 15)),
+      () => _client.post(
+        _uri('/nodes/${_enc(node)}/${type.resourcePath}/$vmid/status/$action'),
+        headers: _mutatingHeaders,
+      ),
+      readOnly: false,
+      target: 'guest:$vmid',
     );
-    return _dataOf(response) as String;
+    return _validated(
+      () => proxmoxIdentity(_dataOf(response)),
+      markRead: false,
+    );
   }
 
   /// Clones [vmid] (which should be flagged as a template) into a new
@@ -255,61 +332,61 @@ class ProxmoxClient {
     String? targetNode,
     bool full = true,
   }) async {
+    _validGuestId(vmid);
+    _validGuestId(newId);
+    if (vmid == newId) throw _invalid();
     final response = await _authenticatedRequest(
-      () => _client
-          .post(
-            _uri('/nodes/${_enc(node)}/${type.resourcePath}/$vmid/clone'),
-            headers: _mutatingHeaders,
-            body: {
-              'newid': '$newId',
-              'full': full ? '1' : '0',
-              (type == ProxmoxGuestType.lxc ? 'hostname' : 'name'): ?name,
-              if (full && targetStorage != null) 'storage': targetStorage,
-              'target': ?targetNode,
-            },
-          )
-          .timeout(const Duration(seconds: 30)),
+      () => _client.post(
+        _uri('/nodes/${_enc(node)}/${type.resourcePath}/$vmid/clone'),
+        headers: _mutatingHeaders,
+        body: {
+          'newid': '$newId',
+          'full': full ? '1' : '0',
+          (type == ProxmoxGuestType.lxc ? 'hostname' : 'name'): ?name,
+          if (full && targetStorage != null) 'storage': targetStorage,
+          'target': ?targetNode,
+        },
+      ),
+      readOnly: false,
+      target: 'guest:$vmid',
     );
-    return _dataOf(response) as String;
+    return _validated(
+      () => proxmoxIdentity(_dataOf(response)),
+      markRead: false,
+    );
   }
 
   /// Cluster-wide allocation avoids collisions with guests on another node.
   Future<int> getNextGuestId() async {
     final response = await _authenticatedRequest(
-      () => _client
-          .get(_uri('/cluster/nextid'), headers: _headers)
-          .timeout(const Duration(seconds: 15)),
+      () => _client.get(_uri('/cluster/nextid'), headers: _headers),
     );
-    return int.parse('${_dataOf(response)}');
+    return _validated(() {
+      final id = int.tryParse('${_dataOf(response)}');
+      if (id == null) throw _invalid();
+      _validGuestId(id);
+      return id;
+    });
   }
 
   Future<List<ProxmoxStorage>> getStorages(String node) async {
     final response = await _authenticatedRequest(
-      () => _client
-          .get(_uri('/nodes/${_enc(node)}/storage'), headers: _headers)
-          .timeout(const Duration(seconds: 15)),
+      () =>
+          _client.get(_uri('/nodes/${_enc(node)}/storage'), headers: _headers),
     );
-    final data = _dataOf(response) as List<dynamic>;
-    return data
-        .map((e) => ProxmoxStorage.fromJson(e as Map<String, dynamic>))
-        .toList();
+    return _readList(response, ProxmoxStorage.fromJson);
   }
 
   Future<List<ProxmoxBackup>> getBackups(String node, String storage) async {
     final response = await _authenticatedRequest(
-      () => _client
-          .get(
-            _uri('/nodes/${_enc(node)}/storage/${_enc(storage)}/content', {
-              'content': 'backup',
-            }),
-            headers: _headers,
-          )
-          .timeout(const Duration(seconds: 15)),
+      () => _client.get(
+        _uri('/nodes/${_enc(node)}/storage/${_enc(storage)}/content', {
+          'content': 'backup',
+        }),
+        headers: _headers,
+      ),
     );
-    final data = _dataOf(response) as List<dynamic>;
-    return data
-        .map((e) => ProxmoxBackup.fromJson(e as Map<String, dynamic>))
-        .toList();
+    return _readList(response, ProxmoxBackup.fromJson);
   }
 
   /// Triggers an on-demand `vzdump` backup. Returns the UPID of the task.
@@ -318,65 +395,63 @@ class ProxmoxClient {
     required int vmid,
     required String storage,
   }) async {
+    _validGuestId(vmid);
     final response = await _authenticatedRequest(
-      () => _client
-          .post(
-            _uri('/nodes/${_enc(node)}/vzdump'),
-            headers: _mutatingHeaders,
-            body: {'vmid': '$vmid', 'storage': storage},
-          )
-          .timeout(const Duration(seconds: 15)),
+      () => _client.post(
+        _uri('/nodes/${_enc(node)}/vzdump'),
+        headers: _mutatingHeaders,
+        body: {'vmid': '$vmid', 'storage': storage},
+      ),
+      readOnly: false,
+      target: 'guest:$vmid',
     );
-    return _dataOf(response) as String;
+    return _validated(
+      () => proxmoxIdentity(_dataOf(response)),
+      markRead: false,
+    );
   }
 
   Future<List<ProxmoxTask>> getTasks(String node, {int limit = 50}) async {
     final response = await _authenticatedRequest(
-      () => _client
-          .get(
-            _uri('/nodes/${_enc(node)}/tasks', {'limit': limit}),
-            headers: _headers,
-          )
-          .timeout(const Duration(seconds: 15)),
+      () => _client.get(
+        _uri('/nodes/${_enc(node)}/tasks', {'limit': limit}),
+        headers: _headers,
+      ),
     );
-    final data = _dataOf(response) as List<dynamic>;
-    return data
-        .map((e) => ProxmoxTask.fromJson(e as Map<String, dynamic>))
-        .toList();
+    return _readList(response, ProxmoxTask.fromJson);
   }
 
   Future<ProxmoxTaskPoll> getTaskStatus(String node, String upid) async {
     final response = await _authenticatedRequest(
-      () => _client
-          .get(
-            _uri('/nodes/${_enc(node)}/tasks/${_enc(upid)}/status'),
-            headers: _headers,
-          )
-          .timeout(const Duration(seconds: 15)),
+      () => _client.get(
+        _uri('/nodes/${_enc(node)}/tasks/${_enc(upid)}/status'),
+        headers: _headers,
+      ),
     );
-    final data = _dataOf(response) as Map<String, dynamic>;
-    final running = (data['status'] as String?) == 'running';
-    return ProxmoxTaskPoll(
-      isRunning: running,
-      exitStatus: running ? null : data['exitstatus'] as String?,
-    );
+    return _validated(() {
+      final data = _objectData(response);
+      if (!const {'running', 'stopped'}.contains(data['status'])) {
+        throw _invalid();
+      }
+      final running = data['status'] == 'running';
+      return ProxmoxTaskPoll(
+        isRunning: running,
+        exitStatus: running ? null : proxmoxText(data['exitstatus']),
+      );
+    });
   }
 
   Future<List<String>> getTaskLog(String node, String upid) async {
     final response = await _authenticatedRequest(
-      () => _client
-          .get(
-            _uri('/nodes/${_enc(node)}/tasks/${_enc(upid)}/log', {
-              'limit': 500,
-            }),
-            headers: _headers,
-          )
-          .timeout(const Duration(seconds: 15)),
+      () => _client.get(
+        _uri('/nodes/${_enc(node)}/tasks/${_enc(upid)}/log', {'limit': 500}),
+        headers: _headers,
+      ),
     );
-    final rows = _dataOf(response) as List<dynamic>;
-    return rows
-        .map((row) => '${(row as Map<String, dynamic>)['t'] ?? ''}')
-        .toList();
+    return _readList(response, (row) {
+      if (row['t'] is! String) throw _invalid();
+      return row['t'] as String;
+    });
   }
 
   /// The operation keeps running on the server if its screen is closed.
@@ -394,7 +469,8 @@ class ProxmoxClient {
       if (!result.isRunning) {
         if (!result.isSuccess) {
           throw ProxmoxApiException(
-            result.exitStatus ?? 'Task ended without an exit status.',
+            'Task did not complete successfully. Check Activity for details.',
+            failure: ProxmoxFailure.server,
           );
         }
         return result;
@@ -423,36 +499,46 @@ class ProxmoxClient {
   );
 
   Future<ProxmoxConsoleTicket> vncTicket(String node, int vmid) async {
+    _validGuestId(vmid);
     final response = await _authenticatedRequest(
-      () => _client
-          .post(
-            _uri('/nodes/${_enc(node)}/qemu/$vmid/vncproxy'),
-            headers: _mutatingHeaders,
-            body: {'websocket': '1'},
-          )
-          .timeout(const Duration(seconds: 15)),
+      () => _client.post(
+        _uri('/nodes/${_enc(node)}/qemu/$vmid/vncproxy'),
+        headers: _mutatingHeaders,
+        body: {'websocket': '1'},
+      ),
+      readOnly: false,
+      target: 'guest:$vmid',
     );
-    final data = _dataOf(response) as Map<String, dynamic>;
-    return ProxmoxConsoleTicket(
-      ticket: data['ticket'] as String,
-      port: (data['port'] as num).toInt(),
-    );
+    return _validated(() {
+      final data = _objectData(response);
+      final ticket = data['ticket'];
+      final port = proxmoxInteger(data['port'], min: 1);
+      if (!_safeSessionValue(ticket) || port == null || port > 65535) {
+        throw _invalid();
+      }
+      return ProxmoxConsoleTicket(ticket: ticket as String, port: port);
+    }, markRead: false);
   }
 
   Future<ProxmoxConsoleTicket> termTicket(String node, int vmid) async {
+    _validGuestId(vmid);
     final response = await _authenticatedRequest(
-      () => _client
-          .post(
-            _uri('/nodes/${_enc(node)}/lxc/$vmid/termproxy'),
-            headers: _mutatingHeaders,
-          )
-          .timeout(const Duration(seconds: 15)),
+      () => _client.post(
+        _uri('/nodes/${_enc(node)}/lxc/$vmid/termproxy'),
+        headers: _mutatingHeaders,
+      ),
+      readOnly: false,
+      target: 'guest:$vmid',
     );
-    final data = _dataOf(response) as Map<String, dynamic>;
-    return ProxmoxConsoleTicket(
-      ticket: data['ticket'] as String,
-      port: (data['port'] as num).toInt(),
-    );
+    return _validated(() {
+      final data = _objectData(response);
+      final ticket = data['ticket'];
+      final port = proxmoxInteger(data['port'], min: 1);
+      if (!_safeSessionValue(ticket) || port == null || port > 65535) {
+        throw _invalid();
+      }
+      return ProxmoxConsoleTicket(ticket: ticket as String, port: port);
+    }, markRead: false);
   }
 
   /// The websocket is served by the API server itself (`config.port`,
@@ -484,42 +570,132 @@ class ProxmoxClient {
     return uri.toString();
   }
 
-  String get authCookieValue => _ticket ?? '';
-
-  String _enc(String value) => Uri.encodeComponent(value);
-
-  dynamic _dataOf(http.Response response) {
-    _checkOk(response);
-    final body = decodeServerJson(response.body) as Map<String, dynamic>;
-    return body['data'];
+  String get authCookieValue => _disposed ? '' : _ticket ?? '';
+  void _validGuestId(int value) {
+    if (value < 1 || value > 999999999) throw _invalid();
   }
 
-  void _checkOk(http.Response response) {
-    if (response.statusCode < 200 || response.statusCode >= 300) {
-      String? detail;
-      try {
-        final body = decodeServerJson(response.body) as Map<String, dynamic>;
-        final errors = body['errors'];
-        if (errors is Map && errors.isNotEmpty) {
-          detail = errors.entries
-              .map((entry) => '${entry.key}: ${entry.value}')
-              .join('; ');
-        } else if (body['message'] is String) {
-          detail = body['message'] as String;
-        }
-      } on FormatException {
-        // Reverse proxies can return HTML; do not display it as an API error.
-      } on TypeError {
-        // Keep the status code when the error envelope is not an object.
+  String _enc(String value) {
+    if (value.isEmpty ||
+        value == '.' ||
+        value == '..' ||
+        value.length > 4096 ||
+        value.contains(RegExp(r'[\x00-\x1f\x7f]'))) {
+      throw _invalid();
+    }
+    return Uri.encodeComponent(value);
+  }
+
+  dynamic _dataOf(http.Response response) {
+    _checkActive();
+    _checkOk(response);
+    try {
+      final body = decodeServerJson(response.body);
+      if (body is! Map<String, dynamic> || !body.containsKey('data')) {
+        throw _invalid();
       }
-      throw ProxmoxApiException(
-        redactServerMessage(
-          'Request failed (${response.statusCode}).${detail == null ? '' : ' $detail'}',
-          [config.password, _ticket, _csrfToken],
-        ),
-      );
+      return body['data'];
+    } on ProxmoxApiException {
+      rethrow;
+    } catch (_) {
+      throw _invalid();
     }
   }
 
-  void dispose() => _client.close();
+  Map<String, dynamic> _objectData(http.Response response) {
+    final data = _dataOf(response);
+    if (data is! Map<String, dynamic>) throw _invalid();
+    return data;
+  }
+
+  List<T> _readList<T>(
+    http.Response response,
+    T Function(Map<String, dynamic>) parse, {
+    bool markRead = true,
+  }) => _validated(() {
+    final data = _dataOf(response);
+    if (data is! List ||
+        data.length > 10000 ||
+        data.any((row) => row is! Map<String, dynamic>)) {
+      throw _invalid();
+    }
+    final result = data.cast<Map<String, dynamic>>().map(parse).toList();
+    final ids = result
+        .map(
+          (item) => switch (item) {
+            ProxmoxNode node => node.name,
+            ProxmoxGuest guest => guest.vmid,
+            ProxmoxStorage storage => storage.name,
+            ProxmoxBackup backup => backup.volumeId,
+            ProxmoxTask task => task.upid,
+            _ => null,
+          },
+        )
+        .whereType<Object>()
+        .toList();
+    if (ids.toSet().length != ids.length) throw _invalid();
+    return List<T>.unmodifiable(result);
+  }, markRead: markRead);
+  T _validated<T>(T Function() decode, {bool markRead = true}) {
+    try {
+      _checkActive();
+      final result = decode();
+      if (markRead) healthSession?.readSucceeded();
+      return result;
+    } on ProxmoxApiException catch (error) {
+      if (!_disposed) _report(error.failure);
+      rethrow;
+    } catch (_) {
+      if (!_disposed) _report(ProxmoxFailure.invalidResponse);
+      throw _invalid();
+    }
+  }
+
+  ProxmoxApiException _invalid() =>
+      ProxmoxApiException('Proxmox returned an invalid response.');
+  void _checkOk(http.Response response) {
+    if (response.statusCode >= 200 && response.statusCode < 300) return;
+    final code = response.statusCode;
+    if (code == 401) {
+      _ticket = null;
+      _csrfToken = null;
+      _authenticatedAt = null;
+    }
+    throw ProxmoxApiException(
+      'Proxmox request failed (HTTP $code).',
+      statusCode: code,
+      failure: switch (code) {
+        401 => ProxmoxFailure.authentication,
+        403 => ProxmoxFailure.permission,
+        >= 500 => ProxmoxFailure.server,
+        _ => ProxmoxFailure.invalidResponse,
+      },
+    );
+  }
+
+  void _report(ProxmoxFailure failure) {
+    if (failure == ProxmoxFailure.inactive ||
+        failure == ProxmoxFailure.actionPending) {
+      return;
+    }
+    healthSession?.failed(switch (failure) {
+      ProxmoxFailure.authentication => HealthFailure.authentication,
+      ProxmoxFailure.permission => HealthFailure.permission,
+      ProxmoxFailure.transport => HealthFailure.transport,
+      ProxmoxFailure.timeout => HealthFailure.timeout,
+      ProxmoxFailure.server => HealthFailure.server,
+      _ => HealthFailure.invalidResponse,
+    });
+  }
+
+  void dispose() {
+    if (_disposed) return;
+    _disposed = true;
+    _sessionGeneration++;
+    _ticket = null;
+    _csrfToken = null;
+    _authenticatedAt = null;
+    _pendingMutations.clear();
+    _client.close();
+  }
 }

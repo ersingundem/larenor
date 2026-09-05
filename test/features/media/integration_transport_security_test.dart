@@ -16,8 +16,11 @@ import 'package:larenor/features/media/jellyseerr/data/jellyseerr_client.dart';
 import 'package:larenor/features/media/jellyseerr/data/jellyseerr_config.dart';
 import 'package:larenor/features/keenetic/data/keenetic_client.dart';
 import 'package:larenor/features/keenetic/data/keenetic_config.dart';
+import 'package:larenor/features/keenetic/data/keenetic_api_exception.dart';
+import 'package:larenor/features/keenetic/data/keenetic_telemetry.dart';
 import 'package:larenor/features/proxmox/data/proxmox_client.dart';
 import 'package:larenor/features/proxmox/data/proxmox_config.dart';
+import 'package:larenor/features/proxmox/data/proxmox_api_exception.dart';
 
 void main() {
   const baseUrl = 'https://media.example.test';
@@ -94,7 +97,19 @@ void main() {
         addTearDown(transport.close);
         await expectLater(
           probe.value(transport),
-          throwsA(isA<http.ClientException>()),
+          throwsA(switch (probe.key) {
+            'Keenetic' => isA<KeeneticApiException>().having(
+              (error) => error.failure,
+              'failure',
+              KeeneticReadFailure.transport,
+            ),
+            'Proxmox' => isA<ProxmoxApiException>().having(
+              (error) => error.failure,
+              'failure',
+              ProxmoxFailure.transport,
+            ),
+            _ => isA<http.ClientException>(),
+          }),
         );
         expect(calls, 1);
       },
@@ -161,57 +176,56 @@ void main() {
     );
   });
 
-  test(
-    'Proxmox validation errors retain detail while masking session secrets',
-    () async {
-      final client = ProxmoxClient(
-        config: const ProxmoxConfig(
-          host: 'proxmox.local',
-          port: 8006,
-          username: 'root',
-          realm: 'pam',
-          password: 'private/password',
-          allowSelfSigned: true,
-        ),
-        httpClient: MockClient((request) async {
-          if (request.url.path.endsWith('/access/ticket')) {
-            return http.Response(
-              jsonEncode({
-                'data': {
-                  'ticket': 'private-ticket',
-                  'CSRFPreventionToken': 'private-csrf',
-                },
-              }),
-              200,
-            );
-          }
+  test('Proxmox validation errors expose status without response bodies or secrets', () async {
+    final client = ProxmoxClient(
+      config: const ProxmoxConfig(
+        host: 'proxmox.local',
+        port: 8006,
+        username: 'root',
+        realm: 'pam',
+        password: 'private/password',
+        allowSelfSigned: true,
+      ),
+      httpClient: MockClient((request) async {
+        if (request.url.path.endsWith('/access/ticket')) {
           return http.Response(
             jsonEncode({
-              'errors': {
-                'validation': 'private/password private%2Fpassword private-ticket private-csrf',
+              'data': {
+                'ticket': 'private-ticket',
+                'CSRFPreventionToken': 'private-csrf',
               },
             }),
-            400,
+            200,
           );
-        }),
-      );
-      addTearDown(client.dispose);
-      await expectLater(
-        client.getNodes(),
-        throwsA(
-          predicate(
-            (Object error) =>
-                error.toString().contains('validation:') &&
-                error.toString().contains('[redacted]') &&
-                !error.toString().contains('private'),
-          ),
+        }
+        return http.Response(
+          jsonEncode({
+            'errors': {
+              'validation': 'private/password private%2Fpassword private-ticket private-csrf',
+            },
+          }),
+          400,
+        );
+      }),
+    );
+    addTearDown(client.dispose);
+    await expectLater(
+      client.getNodes(),
+      throwsA(
+        predicate(
+          (Object error) =>
+              error is ProxmoxApiException &&
+              error.statusCode == 400 &&
+                error.failure == ProxmoxFailure.invalidResponse &&
+              !error.toString().contains('validation:') &&
+              !error.toString().contains('private'),
         ),
-      );
-    },
-  );
+      ),
+    );
+  });
 
   test(
-    'Keenetic command errors mask password and session cookie values',
+    'Keenetic command rejection excludes password and session cookie values',
     () async {
       final client = KeeneticClient(
         config: const KeeneticConfig(
@@ -243,7 +257,8 @@ void main() {
         throwsA(
           predicate(
             (Object error) =>
-                error.toString().contains('[redacted]') &&
+                error is KeeneticApiException &&
+                error.failure == KeeneticReadFailure.rejected &&
                 !error.toString().contains('private'),
           ),
         ),

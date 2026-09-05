@@ -1,5 +1,7 @@
 import 'package:freezed_annotation/freezed_annotation.dart';
 
+import '../../keenetic/domain/keenetic_metric.dart';
+
 part 'tile_config.freezed.dart';
 part 'tile_config.g.dart';
 
@@ -37,6 +39,8 @@ abstract class TileConfig with _$TileConfig {
     String? entityId,
     String? url,
     String? title,
+    KeeneticMetricKind? keeneticMetric,
+    String? keeneticInterfaceId,
   }) = _TileConfig;
 
   const TileConfig._();

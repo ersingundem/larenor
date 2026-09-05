@@ -244,7 +244,7 @@ void main() {
       await container.read(dashboardLayoutProvider.future);
       container.listen(localSearchIndexProvider, (_, _) {});
       final index = container.read(localSearchIndexProvider);
-      expect(index.length, 5003);
+      expect(index.length, 5004);
       expect(index.search('salon light').single.id, 'entity:light.lamp_0');
       final changed = {
         for (final entry in initial.entries)

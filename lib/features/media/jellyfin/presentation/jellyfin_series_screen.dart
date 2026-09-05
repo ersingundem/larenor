@@ -1,3 +1,5 @@
+import '../../casting/presentation/remote_playback_button.dart';
+
 import 'dart:async';
 
 import 'package:cached_network_image/cached_network_image.dart';
@@ -405,96 +407,105 @@ class _JellyfinSeriesScreenState
                             .resolveFrom(context),
                         borderRadius: BorderRadius.circular(14),
                       ),
-                      child: CupertinoButton(
-                        key: ValueKey('media-episode-${episode.id}'),
-                        padding: const EdgeInsets.all(12),
-                        onPressed: enabled
-                            ? guardedMediaAction(() => _play(episode))
-                            : null,
-                        child: LayoutBuilder(
-                          builder: (context, constraints) {
-                            final wide = constraints.maxWidth >= 600;
-                            final content = Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  episode.name,
-                                  style: AppText.headline.copyWith(
-                                    color: CupertinoColors.label.resolveFrom(
-                                      context,
-                                    ),
-                                  ),
-                                ),
-                                if (episode.parentIndexNumber != null &&
-                                    episode.indexNumber != null)
-                                  Text(
-                                    l10n.mediaEpisodeLabel(
-                                      episode.parentIndexNumber!,
-                                      episode.indexNumber!,
-                                    ),
-                                    style: AppText.footnote,
-                                  ),
-                                if (!episode.isPlayable)
-                                  Text(
-                                    _eligibilityLabel(episode),
-                                    style: AppText.subhead,
-                                  ),
-                                if (episode.userData?.played == true)
-                                  Text(
-                                    l10n.commonDone,
-                                    style: AppText.footnote,
-                                  ),
-                                if (episode.overview?.isNotEmpty == true)
-                                  Text(
-                                    episode.overview!,
-                                    maxLines: 3,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: AppText.subhead,
-                                  ),
-                                if (episode.playedFraction.isFinite &&
-                                    episode.playedFraction > 0)
-                                  Padding(
-                                    padding: const EdgeInsets.only(top: 8),
-                                    child: FractionallySizedBox(
-                                      widthFactor: episode.playedFraction.clamp(
-                                        0,
-                                        1,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          CupertinoButton(
+                            key: ValueKey('media-episode-${episode.id}'),
+                            padding: const EdgeInsets.all(12),
+                            onPressed: enabled
+                                ? guardedMediaAction(() => _play(episode))
+                                : null,
+                            child: LayoutBuilder(
+                              builder: (context, constraints) {
+                                final wide = constraints.maxWidth >= 600;
+                                final content = Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      episode.name,
+                                      style: AppText.headline.copyWith(
+                                        color: CupertinoColors.label
+                                            .resolveFrom(context),
                                       ),
-                                      child: const SizedBox(
-                                        height: 3,
-                                        child: ColoredBox(
-                                          color: CupertinoColors.systemBlue,
+                                    ),
+                                    if (episode.parentIndexNumber != null &&
+                                        episode.indexNumber != null)
+                                      Text(
+                                        l10n.mediaEpisodeLabel(
+                                          episode.parentIndexNumber!,
+                                          episode.indexNumber!,
+                                        ),
+                                        style: AppText.footnote,
+                                      ),
+                                    if (!episode.isPlayable)
+                                      Text(
+                                        _eligibilityLabel(episode),
+                                        style: AppText.subhead,
+                                      ),
+                                    if (episode.userData?.played == true)
+                                      Text(
+                                        l10n.commonDone,
+                                        style: AppText.footnote,
+                                      ),
+                                    if (episode.overview?.isNotEmpty == true)
+                                      Text(
+                                        episode.overview!,
+                                        maxLines: 3,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: AppText.subhead,
+                                      ),
+                                    if (episode.playedFraction.isFinite &&
+                                        episode.playedFraction > 0)
+                                      Padding(
+                                        padding: const EdgeInsets.only(top: 8),
+                                        child: FractionallySizedBox(
+                                          widthFactor: episode.playedFraction
+                                              .clamp(0, 1),
+                                          child: const SizedBox(
+                                            height: 3,
+                                            child: ColoredBox(
+                                              color: CupertinoColors.systemBlue,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                  ],
+                                );
+                                if (!wide || artwork == null) return content;
+                                return Row(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    SizedBox(
+                                      width: 180,
+                                      child: AspectRatio(
+                                        aspectRatio: 16 / 9,
+                                        child: ClipRRect(
+                                          borderRadius: BorderRadius.circular(
+                                            10,
+                                          ),
+                                          child: CachedNetworkImage(
+                                            imageUrl: artwork,
+                                            fit: BoxFit.cover,
+                                            errorWidget: (_, _, _) =>
+                                                const SizedBox.shrink(),
+                                          ),
                                         ),
                                       ),
                                     ),
-                                  ),
-                              ],
-                            );
-                            if (!wide || artwork == null) return content;
-                            return Row(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                SizedBox(
-                                  width: 180,
-                                  child: AspectRatio(
-                                    aspectRatio: 16 / 9,
-                                    child: ClipRRect(
-                                      borderRadius: BorderRadius.circular(10),
-                                      child: CachedNetworkImage(
-                                        imageUrl: artwork,
-                                        fit: BoxFit.cover,
-                                        errorWidget: (_, _, _) =>
-                                            const SizedBox.shrink(),
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(width: 14),
-                                Expanded(child: content),
-                              ],
-                            );
-                          },
-                        ),
+                                    const SizedBox(width: 14),
+                                    Expanded(child: content),
+                                  ],
+                                );
+                              },
+                            ),
+                          ),
+                          if (enabled)
+                            RemotePlaybackButton(
+                              key: ValueKey('remote-episode-${episode.id}'),
+                              itemId: episode.id,
+                            ),
+                        ],
                       ),
                     ),
                   );

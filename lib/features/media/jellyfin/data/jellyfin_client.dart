@@ -6,6 +6,7 @@ import '../../../../shared/network/server_bound_client.dart';
 import '../../../health/data/health_monitor.dart';
 
 import '../../data/media_api_exception.dart';
+import '../../casting/domain/remote_playback_models.dart';
 import 'jellyfin_config.dart';
 import 'jellyfin_device_profile.dart';
 import 'models/jellyfin_item.dart';
@@ -292,6 +293,63 @@ class JellyfinClient {
       '/Items/${Uri.encodeComponent(itemId)}/Images/${Uri.encodeComponent(type)}',
       tag == null ? null : {'tag': tag},
     ).toString();
+  }
+
+  /// Server-filtered discovery. Do not accept arbitrary receiver IDs instead of
+  /// re-reading this list immediately before an explicit remote command.
+  Future<List<RemotePlaybackTarget>> getRemoteSessions() async {
+    final userId = remoteItemId(config.userId);
+    final response = await _client.get(
+      _uri('/Sessions', {
+        'controllableByUserId': userId,
+        'activeWithinSeconds': 60,
+      }),
+      headers: _headers,
+    );
+    _checkOk(response);
+    final targets = parseRemotePlaybackTargets(decodeServerJson(response.body));
+    final eligible = targets
+        .where(
+          (target) => target.eligibleFor(
+            userId: userId,
+            localDeviceId: config.deviceId,
+          ),
+        )
+        .toList(growable: false);
+    healthSession?.readSucceeded();
+    return List.unmodifiable(eligible);
+  }
+
+  /// v10.11.11 uses query fields, not a JSON PlayRequest body. The receiver
+  /// negotiates its own profile; no access token or stream URL leaves this server.
+  /// A 204 response means sent, not confirmed playback. Never automatically retry.
+  Future<void> playOnSession({
+    required String sessionId,
+    required String itemId,
+    Duration startPosition = Duration.zero,
+  }) async {
+    final id = remoteSessionId(sessionId);
+    final item = remoteItemId(itemId);
+    final ticks = startPosition.inMicroseconds * 10;
+    if (ticks < 0 || ticks > remoteMaximumPositionTicks) {
+      throw const RemotePlaybackException(
+        RemotePlaybackFailure.invalidResponse,
+      );
+    }
+    final response = await _client.post(
+      _uri('/Sessions/${Uri.encodeComponent(id)}/Playing', {
+        'playCommand': 'PlayNow',
+        'itemIds': item,
+        if (ticks != 0) 'startPositionTicks': ticks,
+      }),
+      headers: _headers,
+    );
+    _checkOk(response);
+    if (response.statusCode != 204) {
+      throw const RemotePlaybackException(
+        RemotePlaybackFailure.invalidResponse,
+      );
+    }
   }
 
   /// [maxStreamingBitrate] caps the stream at a given bits-per-second
