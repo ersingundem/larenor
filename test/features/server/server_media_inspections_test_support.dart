@@ -111,8 +111,9 @@ class MediaInspectionsFixture extends MediaPreparationsFixture {
       final previous = inspections.where(
         (r) => r['requestId'] == body['requestId'],
       );
-      if (previous.isNotEmpty)
+      if (previous.isNotEmpty) {
         return this.json({'inspection': previous.first}, 201);
+      }
       final record = mediaInspectionJson(index: inspections.length + 1)
         ..['requestId'] = body['requestId'];
       inspections.add(record);
@@ -122,10 +123,11 @@ class MediaInspectionsFixture extends MediaPreparationsFixture {
       final parts = path.split('/');
       final id = parts[parts.length - (path.endsWith('/cancel') ? 2 : 1)];
       final index = inspections.indexWhere((r) => r['id'] == id);
-      if (index < 0)
+      if (index < 0) {
         return this.json({
           'error': {'code': 'not_found'},
         }, 404);
+      }
       var record = inspections[index];
       if (path.endsWith('/cancel')) {
         if (jsonDecode(request.body)['expectedRevision'] !=

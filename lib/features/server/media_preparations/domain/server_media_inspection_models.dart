@@ -11,8 +11,9 @@ String _choice(Object? value, Set<String> choices) {
 String _digest(Object? value) {
   if (value is! String ||
       value.length != 64 ||
-      !RegExp(r'^[a-f0-9]{64}$').hasMatch(value))
+      !RegExp(r'^[a-f0-9]{64}$').hasMatch(value)) {
     _invalid();
+  }
   return value;
 }
 
@@ -24,8 +25,10 @@ bool _bool(Object? value) {
 DateTime _time(Object? value) {
   if (value is! String ||
       value.length != 24 ||
-      !RegExp(r'^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$').hasMatch(value))
+      !RegExp(r'^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$')
+          .hasMatch(value)) {
     _invalid();
+  }
   final time = DateTime.tryParse(value);
   if (time == null || time.toIso8601String() != value) _invalid();
   return time;
@@ -58,7 +61,7 @@ class ServerMediaInspection {
       catalogDigest = _digest(json['catalogDigest']),
       planHash = _digest(json['planHash']),
       platform = _choice(json['platform'], {'linux/amd64', 'linux/arm64'}),
-      revision = mediaInteger(json['revision']),
+      revision = mediaInteger(json['revision'], max: 0x7ffffffffffffffe),
       state = _choice(json['state'], pluginJobStates),
       phase = _choice(json['phase'], {
         'queued',
@@ -86,9 +89,11 @@ class ServerMediaInspection {
       if (phase != (state == 'queued' ? 'queued' : 'checking_requirements') ||
           result != null ||
           errorCode != null ||
-          (state == 'queued' && cancelRequested))
+          (state == 'queued' && (cancelRequested || revision != 1)) ||
+          (state == 'running' && revision < 2)) {
         _invalid();
-    } else if (phase != 'complete') {
+      }
+    } else if (phase != 'complete' || revision < 2) {
       _invalid();
     }
     if (state == 'succeeded') {
@@ -97,15 +102,17 @@ class ServerMediaInspection {
           cancelRequested ||
           result!.planHash != planHash ||
           result!.catalogDigest != catalogDigest ||
-          result!.platform != platform)
+          result!.platform != platform) {
         _invalid();
+      }
     } else if (result != null) {
       _invalid();
     }
     if (state == 'failed' &&
         (!{'worker_unavailable', 'invalid_worker_result'}.contains(errorCode) ||
-            cancelRequested))
+            cancelRequested)) {
       _invalid();
+    }
     if (state == 'needs_attention' &&
         (!{
               'authority_changed',
@@ -113,10 +120,12 @@ class ServerMediaInspection {
               'preparation_changed',
               'context_changed',
             }.contains(errorCode) ||
-            cancelRequested))
+            cancelRequested)) {
       _invalid();
-    if (state == 'cancelled' && (!cancelRequested || errorCode != null))
+    }
+    if (state == 'cancelled' && (!cancelRequested || errorCode != null)) {
       _invalid();
+    }
   }
   factory ServerMediaInspection.fromJson(Object? value) =>
       ServerMediaInspection._(

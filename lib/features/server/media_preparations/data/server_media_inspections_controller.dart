@@ -13,9 +13,13 @@ import 'server_media_inspections_api.dart';
 
 /// Route-owned observations. Only an explicit action sends or recovers a POST.
 class ServerMediaInspectionsController extends ChangeNotifier {
-  ServerMediaInspectionsController(this.account, {String Function()? requestId})
-    : _accountEpoch = account.generation,
-      _requestId = requestId ?? _randomId {
+  ServerMediaInspectionsController(
+    this.account, {
+    String Function()? requestId,
+    ServerContext? context,
+  }) : _identity = context,
+       _accountEpoch = account.generation,
+       _requestId = requestId ?? _randomId {
     account.addListener(_accountChanged);
   }
   final ServerAccountController account;
@@ -132,14 +136,16 @@ class ServerMediaInspectionsController extends ChangeNotifier {
   }
 
   void _bind(ServerContext identity) {
-    if (_identity != null && _identity != identity)
+    if (_identity != null && _identity != identity) {
       throw const LarenorServerException('invalid_response');
+    }
     _identity ??= identity;
   }
 
   void _checkRecords(List<ServerMediaInspection> records) {
-    if (records.any((r) => r.context != _identity))
+    if (records.any((r) => r.context != _identity)) {
       throw const LarenorServerException('invalid_response');
+    }
   }
 
   Future<void> load({required bool Function() current}) async {
@@ -317,8 +323,9 @@ class ServerMediaInspectionsController extends ChangeNotifier {
         !_authorized ||
         !current() ||
         selected?.active != true ||
-        failure != null)
+        failure != null) {
       return;
+    }
     if (_polls >= maximumPolls) {
       pollingPaused = true;
       _emit();
@@ -343,8 +350,9 @@ class ServerMediaInspectionsController extends ChangeNotifier {
         !previous.active ||
         previous.cancelRequested ||
         cancelNeedsRefresh ||
-        failure != null)
+        failure != null) {
       return;
+    }
     final success = await _run(current, (api, token, valid) async {
       final record = await ServerMediaInspectionsApi(
         api,

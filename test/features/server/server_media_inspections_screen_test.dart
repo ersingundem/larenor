@@ -1,7 +1,6 @@
 import 'dart:async';
 
 import 'package:flutter/cupertino.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -18,7 +17,6 @@ import 'package:larenor/features/settings/providers/settings_providers.dart';
 import 'package:larenor/l10n/generated/app_localizations.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import 'server_media_preparations_test_support.dart';
 import 'server_media_inspections_test_support.dart';
 
 void main() {
@@ -155,13 +153,23 @@ void main() {
       expect(f.mutations, isEmpty);
     },
   );
-  testWidgets('explicit refresh rechecks worker configuration without creating a job', (tester) async {
-    await mount(tester, review: true, configured: false);
-    f.configured = true;
-    await tap(tester, 'inspections-refresh');
-    expect(tester.widget<CupertinoButton>(find.byKey(const ValueKey('inspections-launch'))).onPressed, isNotNull);
-    expect(f.mutations, isEmpty);
-  });
+  testWidgets(
+    'explicit refresh rechecks worker configuration without creating a job',
+    (tester) async {
+      await mount(tester, review: true, configured: false);
+      f.configured = true;
+      await tap(tester, 'inspections-refresh');
+      expect(
+        tester
+            .widget<CupertinoButton>(
+              find.byKey(const ValueKey('inspections-launch')),
+            )
+            .onPressed,
+        isNotNull,
+      );
+      expect(f.mutations, isEmpty);
+    },
+  );
   for (final language in ['en', 'tr']) {
     testWidgets(
       '$language tablet 2x distinguishes local storage and daemon context from installation',
@@ -256,10 +264,11 @@ void main() {
           find.byKey(const ValueKey('inspections-cancel-confirm')),
           findsNothing,
         );
-        if (reason == 'background')
+        if (reason == 'background') {
           tester.binding.handleAppLifecycleStateChanged(
             AppLifecycleState.resumed,
           );
+        }
       },
     );
   }

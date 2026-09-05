@@ -100,6 +100,13 @@ class ServerPluginJobCheck {
       'availableMiB',
       'requiredMiB',
     });
+    if (json['code'] is String &&
+        (json['code'] as String).startsWith('daemon_') &&
+        (json['rootId'] != null ||
+            json['availableMiB'] != null ||
+            json['requiredMiB'] != null)) {
+      _invalid();
+    }
     return ServerPluginJobCheck._(
       _choice(json['code'], {
         'platform',

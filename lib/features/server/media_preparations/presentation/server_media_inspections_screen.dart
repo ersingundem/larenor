@@ -13,6 +13,7 @@ import '../../../../shared/widgets/settings_section.dart';
 import '../../../media/hub/presentation/media_session_state.dart';
 import '../../../settings/providers/settings_providers.dart';
 import '../../data/server_account_controller.dart';
+import '../../domain/server_models.dart';
 import '../../providers/server_providers.dart';
 import '../data/server_media_inspections_controller.dart';
 import '../domain/server_media_inspection_models.dart';
@@ -21,8 +22,13 @@ import '../domain/server_media_preparation_models.dart';
 /// Accessed from the PIN-protected Server component screen. Only durable
 /// requirements inspection is exposed; no provider credentials or install API.
 class ServerMediaInspectionsScreen extends ConsumerStatefulWidget {
-  const ServerMediaInspectionsScreen({super.key, this.preparation});
+  const ServerMediaInspectionsScreen({
+    super.key,
+    this.preparation,
+    this.context,
+  });
   final ServerMediaPreparation? preparation;
+  final ServerContext? context;
   @override
   ConsumerState<ServerMediaInspectionsScreen> createState() =>
       _ServerMediaInspectionsScreenState();
@@ -57,7 +63,19 @@ class _ServerMediaInspectionsScreenState
     super.initState();
     _account = ref.read(serverAccountControllerProvider);
     _accountEpoch = _account.generation;
-    _inspections = ServerMediaInspectionsController(_account);
+    final plan = widget.preparation?.plan;
+    _inspections = ServerMediaInspectionsController(
+      _account,
+      context:
+          widget.context ??
+          (plan == null
+              ? null
+              : ServerContext.fromJson({
+                  'schemaVersion': 1,
+                  'coreId': plan.coreId,
+                  'homeId': plan.homeId,
+                })),
+    );
     _account.addListener(_accountChanged);
   }
 
@@ -133,15 +151,13 @@ class _ServerMediaInspectionsScreenState
     };
   }
 
-  bool _reviewed = false;
   Future<void> _load(bool Function() current) async {
     await _inspections.load(current: current);
     final preparation = widget.preparation;
     if (current() &&
-        !_reviewed &&
+        !_inspections.canRetryLaunch &&
         preparation != null &&
         _inspections.failure == null) {
-      _reviewed = true;
       await _inspections.review(preparation, current: current);
     }
   }
@@ -258,8 +274,9 @@ class _ServerMediaInspectionsScreenState
     ref.listen(pinLockProvider, (previous, next) {
       if (next.isLoading ||
           next.hasError ||
-          (previous?.hasValue == true && previous?.value != next.value))
+          (previous?.hasValue == true && previous?.value != next.value)) {
         _expire();
+      }
     });
     if (_active && !_loaded) {
       _loaded = true;
@@ -279,7 +296,7 @@ class _ServerMediaInspectionsScreenState
         child: ListenableBuilder(
           listenable: _inspections,
           builder: (context, _) {
-            if (!_active)
+            if (!_active) {
               return Center(
                 child: Padding(
                   padding: const EdgeInsets.all(24),
@@ -290,6 +307,7 @@ class _ServerMediaInspectionsScreenState
                   ),
                 ),
               );
+            }
             final selected = _inspections.selected;
             final preparation = _inspections.preparation;
             return Align(

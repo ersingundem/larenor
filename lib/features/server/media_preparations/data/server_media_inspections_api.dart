@@ -43,8 +43,9 @@ class ServerMediaInspectionsApi {
     if (records.map((r) => r.id).toSet().length != records.length ||
         records.any((r) => r.context != records.first.context) ||
         (next != null &&
-            (records.isEmpty || (before != null && next >= before))))
+            (records.isEmpty || (before != null && next >= before)))) {
       _invalid();
+    }
     return MediaInspectionPage(List.unmodifiable(records), next);
   }
 
@@ -63,8 +64,9 @@ class ServerMediaInspectionsApi {
                 record.updatedAt.isBefore(previous.updatedAt) ||
                 (!previous.active &&
                     (record.state != previous.state ||
-                        record.revision != previous.revision)))))
+                        record.revision != previous.revision))))) {
       _invalid();
+    }
     return record;
   }
 
@@ -90,16 +92,20 @@ class ServerMediaInspectionsApi {
     );
   }
 
-  Future<ServerMediaInspection> cancel(ServerMediaInspection previous) async =>
-      _record(
-        await api.request(
-          'POST',
-          '$root/${previous.id}/cancel',
-          token: token,
-          body: {'expectedRevision': previous.revision},
-        ),
-        previous: previous,
-      );
+  Future<ServerMediaInspection> cancel(ServerMediaInspection previous) async {
+    final record = _record(
+      await api.request(
+        'POST',
+        '$root/${previous.id}/cancel',
+        token: token,
+        body: {'expectedRevision': previous.revision},
+      ),
+      previous: previous,
+    );
+    if (record.active && !record.cancelRequested) _invalid();
+    return record;
+  }
+
   @override
   String toString() => 'ServerMediaInspectionsApi';
 }

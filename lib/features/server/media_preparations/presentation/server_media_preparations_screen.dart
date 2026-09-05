@@ -13,6 +13,7 @@ import '../../../../shared/widgets/settings_section.dart';
 import '../../../media/hub/presentation/media_session_state.dart';
 import '../../../settings/providers/settings_providers.dart';
 import '../../data/server_account_controller.dart';
+import '../../domain/server_models.dart';
 import '../../providers/server_providers.dart';
 import '../data/server_media_preparations_controller.dart';
 import '../domain/server_media_preparation_models.dart';
@@ -199,9 +200,20 @@ class _ServerMediaPreparationsScreenState
     ServerMediaPreparation? preparation,
   ]) async {
     if (!_enabled || !current()) return;
+    final plan = preparation?.plan ?? _media.preparations.firstOrNull?.plan;
+    final identity = plan == null
+        ? null
+        : ServerContext.fromJson({
+            'schemaVersion': 1,
+            'coreId': plan.coreId,
+            'homeId': plan.homeId,
+          });
     await Navigator.of(context).push(
       CupertinoPageRoute<void>(
-        builder: (_) => ServerMediaInspectionsScreen(preparation: preparation),
+        builder: (_) => ServerMediaInspectionsScreen(
+          preparation: preparation,
+          context: identity,
+        ),
       ),
     );
   }
