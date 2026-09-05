@@ -1,0 +1,39 @@
+{
+  "validResponses": [
+    {
+      "name": "synthetic_context",
+      "value": {"schemaVersion": 1, "coreId": "0123456789abcdef0123456789abcdef", "homeId": "fedcba9876543210fedcba9876543210"}
+    },
+    {
+      "name": "hex_boundaries",
+      "value": {"schemaVersion": 1, "coreId": "00000000000000000000000000000000", "homeId": "ffffffffffffffffffffffffffffffff"}
+    }
+  ],
+  "invalidResponses": [
+    {"name": "null_root", "value": null},
+    {"name": "array_root", "value": []},
+    {"name": "string_root", "value": "synthetic-private-payload"},
+    {"name": "missing_schema", "value": {"coreId": "0123456789abcdef0123456789abcdef", "homeId": "fedcba9876543210fedcba9876543210"}},
+    {"name": "missing_core", "value": {"schemaVersion": 1, "homeId": "fedcba9876543210fedcba9876543210"}},
+    {"name": "missing_home", "value": {"schemaVersion": 1, "coreId": "0123456789abcdef0123456789abcdef"}},
+    {"name": "unknown_field", "value": {"schemaVersion": 1, "coreId": "0123456789abcdef0123456789abcdef", "homeId": "fedcba9876543210fedcba9876543210", "extra": "synthetic-private-payload"}},
+    {"name": "boolean_schema", "value": {"schemaVersion": true, "coreId": "0123456789abcdef0123456789abcdef", "homeId": "fedcba9876543210fedcba9876543210"}},
+    {"name": "float_schema", "value": {"schemaVersion": 1.0, "coreId": "0123456789abcdef0123456789abcdef", "homeId": "fedcba9876543210fedcba9876543210"}},
+    {"name": "string_schema", "value": {"schemaVersion": "1", "coreId": "0123456789abcdef0123456789abcdef", "homeId": "fedcba9876543210fedcba9876543210"}},
+    {"name": "unsupported_schema", "value": {"schemaVersion": 2, "coreId": "0123456789abcdef0123456789abcdef", "homeId": "fedcba9876543210fedcba9876543210"}},
+    {"name": "null_schema", "value": {"schemaVersion": null, "coreId": "0123456789abcdef0123456789abcdef", "homeId": "fedcba9876543210fedcba9876543210"}},
+    {"name": "uppercase_core", "value": {"schemaVersion": 1, "coreId": "0123456789ABCDEF0123456789ABCDEF", "homeId": "fedcba9876543210fedcba9876543210"}},
+    {"name": "short_core", "value": {"schemaVersion": 1, "coreId": "0123456789abcdef0123456789abcde", "homeId": "fedcba9876543210fedcba9876543210"}},
+    {"name": "long_core", "value": {"schemaVersion": 1, "coreId": "0123456789abcdef0123456789abcdef0", "homeId": "fedcba9876543210fedcba9876543210"}},
+    {"name": "nonhex_core", "value": {"schemaVersion": 1, "coreId": "g123456789abcdef0123456789abcdef", "homeId": "fedcba9876543210fedcba9876543210"}},
+    {"name": "null_core", "value": {"schemaVersion": 1, "coreId": null, "homeId": "fedcba9876543210fedcba9876543210"}},
+    {"name": "numeric_core", "value": {"schemaVersion": 1, "coreId": 123, "homeId": "fedcba9876543210fedcba9876543210"}},
+    {"name": "core_trailing_newline", "value": {"schemaVersion": 1, "coreId": "0123456789abcdef0123456789abcdef\n", "homeId": "fedcba9876543210fedcba9876543210"}},
+    {"name": "uppercase_home", "value": {"schemaVersion": 1, "coreId": "0123456789abcdef0123456789abcdef", "homeId": "FEDCBA9876543210FEDCBA9876543210"}},
+    {"name": "empty_home", "value": {"schemaVersion": 1, "coreId": "0123456789abcdef0123456789abcdef", "homeId": ""}},
+    {"name": "long_home", "value": {"schemaVersion": 1, "coreId": "0123456789abcdef0123456789abcdef", "homeId": "fedcba9876543210fedcba98765432100"}},
+    {"name": "home_whitespace", "value": {"schemaVersion": 1, "coreId": "0123456789abcdef0123456789abcdef", "homeId": " fedcba9876543210fedcba9876543210"}},
+    {"name": "null_home", "value": {"schemaVersion": 1, "coreId": "0123456789abcdef0123456789abcdef", "homeId": null}},
+    {"name": "object_home", "value": {"schemaVersion": 1, "coreId": "0123456789abcdef0123456789abcdef", "homeId": {"secret": "synthetic-private-payload"}}}
+  ]
+}
