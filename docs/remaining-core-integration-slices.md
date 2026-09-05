@@ -1,6 +1,6 @@
 # Core/Client bütünleştirmesinde sıradaki somut dilimler
 
-**5 Eylül 2026 · Durum: uygulama kuyruğu.** Bu belge yeni özellik seçimi
+**5 Eylül 2026 · Durum: S06 dilim 1 uygulandı; dilim 2 sırada.** Bu belge yeni özellik seçimi
 değildir; [S06–S09](PROGRESS.md#sıradaki-geliştirme-paketleri) ve
 [B1/B3 temellerinin](feature-expansion-plan-2026-09-05.md) açık bağlantılarını
 ayrıntılandırır. Aşağıdaki kutular teslim kanıtı oluşmadan tamamlanmış sayılmaz.
@@ -16,7 +16,7 @@ adımını ayıramaz; kurulum koordinatörü bunu alt işlemlere ayırmalıdır.
 
 | Sıra | Açık teslim | Kabul kanıtı |
 | --- | --- | --- |
-| 1 | Tek Larenor kurulumu için birleşik plan ve kalıcı hazırlık kaydı | Core/kurulum/bileşen ve adım kimlikleri; aynı istek ve restart aynı kimlikleri getirir. Sabit katalog dışında imaj, yol veya yetki eklenemez |
+| 1 | **Uygulandı:** tek Larenor kurulumu için birleşik plan ve kalıcı hazırlık kaydı | Altı bileşen, benzersiz işlem/adım kimlikleri, şifreli geçmiş, idempotent oluşturma, restart ve iptal; Client admin ekranı ve ortak HTTP sözleşmesi. [Kanıt ve sınırlar](media-preparations-implementation-2026-09-05.md); gerçek kurulum hâlâ kapalı |
 | 2 | Worker/daemon host bağlamı, depolama ve ağ doğrulaması | Worker namespace'inde boş portun daemon hostunda uygun sayılmaması; dosya sistemi ve alıcı keşfi kanıtı yoksa sonuç `unknown` |
 | 3 | Sahiplikli kaynak hazırlığı | Digest ile imaj edinme, veri dizini/mount ve özel kontrol ağı; yabancı kaynağı sahiplenmeme ve yarıda kalınca aynı kaynakla devam |
 | 4 | Dar, süreli kurulum adımlarının API/işçiye bağlanması | Her yan etkide güncel yetki/oturum/iptal/katalog kontrolü; serbest Docker seçenekleri yok; belirsiz create yanıtında sahiplik uzlaştırması |

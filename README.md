@@ -1,7 +1,7 @@
 # Larenor
 
 **Development progress:** [completed work, active tasks and remaining queue](docs/PROGRESS.md).
-**Approved expansion:** [60 selected Core/Android Client features, ordered by dependencies](docs/feature-expansion-plan-2026-09-05.md). Planned features are tracked separately from implemented capabilities.
+**Approved expansion:** [63 selected Core/Android Client features, ordered by dependencies](docs/feature-expansion-plan-2026-09-05.md), including independent [VNC, RDP and SSH remote access](docs/remote-access-plan-2026-09-05.md). Planned features are tracked separately from implemented capabilities.
 
 **Larenor Client** is an **Android app**, designed primarily for tablets. The same
 app supports resizable windows and external displays, including Samsung DeX.
@@ -18,7 +18,10 @@ component previews and durable **read-only requirements checks** are implemented
 including Client history, results and cancellation. The internal Linux worker
 checks allowed storage roots and capacity; installation and automatic media
 wiring remain in progress. A finished check does not mean every requirement
-passed. Administration belongs in the Client; Server
+passed. A [unified media preparation](docs/media-preparations-implementation-2026-09-05.md)
+now keeps all six components in one encrypted, restart-safe plan, with Client
+history and cancellation. Saving it does not start installation.
+Administration belongs in the Client; Server
 provides authenticated APIs and OpenAPI documentation without a separate web
 admin application. See the [current architecture and implementation status](docs/server-client-architecture-2026-09-05.md).
 
@@ -696,14 +699,17 @@ list, so the app stays uncluttered no matter how many services exist:
 See the [hardening review and next improvements](docs/performance-security-review-2026-09-05.md)
 for measured regression evidence, device-test limits and remaining transport work.
 
-The latest September 5 local integration passed **2,520 Flutter tests,
-1,103 Server tests and 159 Python tool/policy tests**. The Server suite includes
+The latest September 5 local integration passed **2,572 Flutter tests,
+1,273 Server tests and 169 Python tool/policy tests**. The Server suite includes
 the real Java/apksig verifier, persistent Core/home identity and HTTP-to-Unix-worker
 journeys with a synthetic Docker daemon. An explicit host policy enables read-only
 Docker API/platform checks; service installation remains unavailable. See the
 [Docker check evidence](docs/docker-preflight-implementation-2026-09-05.md) and
 [Core identity contract](docs/core-context-implementation-2026-09-05.md), shared
-by the Server response and Client reader. Session/cache binding and managed
+by the Server response and Client reader. The new unified media preparation
+has encrypted restart-safe history, protected Client administration and shared
+HTTP contract tests. Native container CI also exercises its create/restart/cancel
+journey before publishing each image. Session/cache binding and managed
 media installation remain in the [integration queue](docs/remaining-core-integration-slices.md).
 The previous Android native run
 passed **98 tests**; native tests were not rerun for this Dart/Python slice.

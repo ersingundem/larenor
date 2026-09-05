@@ -1,14 +1,18 @@
-# Larenor — seçilen 60 özelliğin uygulama sırası
+# Larenor — seçilen 63 özelliğin uygulama sırası
 
-**Karar: 5 Eylül 2026 · 60/60 seçildi · Yeni özellik kabulü: 0/60.**
+**Karar: 5 Eylül 2026 · 60 ilk seçim + 3 uzak erişim özelliği · Yeni özellik kabulü: 0/63.**
 
 Kullanıcı 01–60 arasındaki özelliklerin tamamını seçti. Bu belge onları mevcut
 S01–S09 ve ürün kuyruğuna bağımlılıklarıyla ekler. Her F numarası araştırmadaki
 aynı numaradır. Başlık, Core/Android sorumluluğu, gereksinim, efor ve birincil
 kaynaklar [60 özellik kataloğunda](feature-candidates-2026-09-05.md), seçim
 kaydı [JSON dosyasında](feature-candidates-2026-09-05.json) korunur.
+Ardından VNC, RDP ve SSH bağımsız IP/alan adıyla kullanılmak üzere ayrıca
+onaylandı; F61–F63 [uzak erişim planında](remote-access-plan-2026-09-05.md)
+ve [ek seçim JSON'unda](remote-access-plan-2026-09-05.json) kayıtlıdır.
+İlk 60 adayın numaraları ve seçim kaydı değiştirilmedi.
 
-**Durum:** Aşağıdaki 60 satırın tamamı **planlandı**. Mevcut altyapıdan yararlanan
+**Durum:** Aşağıdaki 63 satırın tamamı **planlandı**. Mevcut altyapıdan yararlanan
 satırlar da kendi kabul koşulları doğrulanmadan tamamlanmış sayılmaz. Önceki
 kapsamın yaklaşık %65 tahmini yeni genişlemenin yüzdesi değildir. Yeni toplam
 için ölçülmüş efor bulunmadığından birleşik yüzde henüz hesaplanmıyor.
@@ -22,7 +26,7 @@ için ölçülmüş efor bulunmadığından birleşik yüzde henüz hesaplanmıy
 - Bileşenleri Server kurar, birbirine bağlar ve denetler; kullanıcı Client'taki
   ayarları yönetir. Sağlayıcı hesaplarının kullanıcı girişleri, donanım ve
   gerekli ağ izinleri kurulum otomasyonundan ayrı koşullardır.
-- Seçilmiş olması 60 modülün aynı anda çalışmasını gerektirmez. Modüller
+- Seçilmiş olması 63 modülün aynı anda çalışmasını gerektirmez. Modüller
   gereksinimleri doğrulanarak etkinleştirilir; eksik cihaz/hesap açıkça gösterilir.
   Kaynak projeler mimari/API örneğidir; her biri için zorunlu fork veya yeni
   servis kararı verilmiş değildir.
@@ -97,6 +101,9 @@ flowchart TD
     G4 --> G9["G09: enerji ve konfor"]
     G2 --> G10["G10: ağ ve yeni cihazlar"]
     G3 --> G10
+    B0 --> G11["G11: Client VNC/RDP/SSH"]
+    B5 --> G11
+    B3 -. "Core profilleri" .-> G11
 ```
 
 Harita grupların genel ilişkisini gösterir; satırdaki F/B bağımlılıkları kesin
@@ -253,6 +260,22 @@ güncellemesinin parçası değildir.
 | F59 | 3D yazıcı ve atölye merkezi | F05, F54 | Desteklenen yazıcı API'siyle iş/ısı/durum izleme ve onaylı duraklatma/iptal; iletişim kopması cihazda doğrulanır. İlk kapsamda keyfi G-code veya baskı başlatma yok |
 | F60 | Tablette ev bilgisayarından oyun yayını | B3, F13 | Uyumlu host eşleme ve Android oynatma/girdi yolu; dokunma/gamepad, gecikme ve kopuş. F52/F26 ek iki ekran/kalite bütünleştirmesidir; host/GPU/codec/oyun yetkisi ayrıca doğrulanır |
 
+## G11 — Proxmox'tan bağımsız uzak erişim
+
+IP/alan adı eklenebilen ortak tablet çalışma alanı. Protokol oturumları
+Client'ta çalışır; Core ortak profil/yetki/şifreli saklama için kullanılır.
+Kişisel yerel profil ile Core profili ayrı kalır. G11, S06/S07 medya
+kurulumunu veya G01–G10'un tamamını beklemez; ortak B0/B5 ve yönetilen profil
+için B3 kapılarına göre paralel ilerler. Uygulama sırası SSH → RDP → VNC;
+VNC'nin güvenli tüneli SSH temelini kullanır. Tam yetenekler, testler ve motor
+araştırması [uzak erişim belgesindedir](remote-access-plan-2026-09-05.md).
+
+| ID | Özellik | Önkoşul | Özelliğe özgü kabul |
+| --- | --- | --- | --- |
+| F63 | SSH terminal, SFTP ve güvenli tüneller | B0, B5; Core profili için B3 | Bağımsız IP/port, parola/anahtar/MFA, host-key doğrulama, PTY/Unicode/Türkçe, sekmeler ve SFTP; açık dosya/komut işlemleri. Kopunca komut tekrar çalışmaz; jump host/tünel kapsamı kapanır |
+| F62 | Bağımsız RDP uzak masaüstü | B0, B5; Core profili için B3 | TLS/NLA/sertifika, gerçek uzak ekran ve girdi, çözünürlük/DPI/DeX; pano/ses/dosya izinleri. Windows/RD Gateway/ileri kanallar motor-host yetenek matrisi ve gerçek kabul ile açılır |
+| F61 | Bağımsız VNC uzak ekran | F63, B5; Core profili için B3 | IP/port ve desteklenen güvenli auth/TLS veya SSH tüneli, görüntü/kontrol modu, touchpad/klavye/zoom, sınırlı framebuffer; klasik VNC sessizce güvenli sayılmaz. Proxmox ticket adaptöründen bağımsız profil |
+
 ## Her teslimin tamamlanma kapısı
 
 Yeni modül yalnız bir API veya boş ekran teslimiyle bitmez. Her satırda şu
@@ -296,4 +319,4 @@ kalır; bütün ürün için yüzde yüz fiziksel uyumluluk iddiasına dönüşt
 **Bir sonraki somut iş:** B0/S06'nın son CI kanıtını kapat; ardından B1 gerçek
 gereksinim/kurulum yaşam döngüsü ve B3 ortak kimlik/yetki/olay temeli üzerinde
 paralel ilerle. G01 ilk yeni özellik grubu, B2 bütünleşik medya ise mevcut
-kuyruğun ana teslimidir. Yeni seçim istemeye gerek yok; 60 özellik onaylıdır.
+kuyruğun ana teslimidir. Yeni seçim istemeye gerek yok; 63 özellik onaylıdır.

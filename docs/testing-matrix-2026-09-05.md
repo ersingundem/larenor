@@ -2,16 +2,18 @@
 
 Bu matris 5 Eylül 2026 tarihindeki gerçek test dosyalarını eşler. Bir satırda test bulunması o özelliğin bütün sunucu sürümlerinde veya fiziksel cihazlarda doğrulandığı anlamına gelmez. Test adedi ve satır kapsamı bir ürünün “%100 çalıştığı” iddiası için kullanılmaz.
 
-**Son güncelleme: 5 Eylül 2026, 16:57 TRT.** Son yerel paket S06 Docker
-kontrolünü, B3 kalıcı bağlam/Client okuyucuyu ve emülatör düzeltmesini içerir.
+**Son güncelleme: 5 Eylül 2026, 17:40 TRT.** Yeni yerel paket S06 birleşik
+medya hazırlığını, kalıcı şifreli geçmişi ve Client yönetimini içerir.
 Aşağıdaki sonuçlar bu güncellemeyi içeren commit'in GitHub
 CI başarısı veya fiziksel cihaz kabulü olarak sunulmaz.
 
-**Yeni onaylı kapsam:** [60 özellik planındaki](feature-expansion-plan-2026-09-05.md)
-satırların tamamı planlandı; yeni özellik kabulü **0/60**. Core/Client sözleşme,
+**Yeni onaylı kapsam:** [63 özellik planındaki](feature-expansion-plan-2026-09-05.md)
+satırların tamamı planlandı; yeni özellik kabulü **0/63**. Bağımsız VNC/RDP/SSH
+için [protokol, CI ve cihaz kabulü](remote-access-plan-2026-09-05.md) ayrıca yazıldı.
+Core/Client sözleşme,
 birim/entegrasyon, E2E, yetki/mahremiyet, performans ve gerekiyorsa cihaz
 senaryoları her modülün gerçek koduyla mevcut CI'a eklenecek. Bugünkü test
-adetleri henüz uygulanmamış 60 modülü kapsıyor anlamına gelmez.
+adetleri henüz uygulanmamış 63 modülü kapsıyor anlamına gelmez.
 
 ## CI kapıları
 
@@ -32,7 +34,7 @@ ve çıktısı CI iş loglarında kalır. Test adımlarında hata görmezden gel
 Security işindeki mevcut `*_test.py` keşfine dahildir. Silme sınırı, en yeni üç
 debug APK, değişen/süresi dolan envanter, belirsiz DELETE sonucu, paket silme
 yasağı ve sınırlı subprocess çıktıları 20 sentetik testle kapsanır. Son tam araç
-koşumunda bu testler dahil **159 test** geçti; testler GitHub'a bağlanmaz.
+koşumunda bu testler dahil **169 test** geçti; testler GitHub'a bağlanmaz.
 
 ## Gerçek emülatör senaryoları
 
@@ -86,6 +88,38 @@ Tablodaki dosyalar temsilî giriş noktalarıdır; aynı klasördeki diğer `_te
 | Kişisel sağlık / özel HA ölçümleri | [veri](../test/features/wellbeing/wellbeing_data_test.dart), [privacy](../test/features/wellbeing/wellbeing_privacy_test.dart) | [gated UI](../test/features/wellbeing/wellbeing_screen_test.dart) | [reader](../android/app/src/test/kotlin/com/ersingundem/larenor/wellbeing/WellbeingReaderTest.kt), [secure view](../android/app/src/test/kotlin/com/ersingundem/larenor/wellbeing/WellbeingPrivateViewTest.kt) | Yok | Gerçek Health Connect izinleri/uyumluluğu; Huawei/GMS'siz durum, HealthKit ayrı platform işi |
 
 ## Doğrulanan yerel koşum
+
+**S06 birleşik medya hazırlığı:** Altı bileşen planner'ı 83 odaklı testle,
+API/depolama/ortak HTTP sözleşmesi 75 testle doğrulandı. Planner birleşik
+satır/dal kapsamı %97; dört API/depolama modülü %92, yeni şema ve API/model
+modülleri %100. Şema testleri boş tabloda eksik kolon/tekillik korumasını
+RED→GREEN ile yakaladı. Şifreli veri, tüm bağlanan metadata alanları,
+paralel tekrar/iptal, güncel yetki, katalog değişimi ve gerçek 8/256 sınırları
+ayrı senaryolardır.
+Tam yerel koşumda **2.572 Flutter, 1.273 Server ve 169 araç testi** geçti.
+Yeni Client alanında 52 test (18 widget), katalog/iş/bağlamlarla birlikte
+237 ilgili test ve %95,3 satır kapsamı var. Yeni container smoke helper'ı
+%100 satır/dal kapsamındadır; gerçek imaj kabulü ayrı CI sonucudur.
+
+- [Planner](../server/tests/test_media_stack_plan.py),
+  [gerçek HTTP akışları](../server/tests/test_media_preparations_api.py),
+  [depolama/güvenlik](../server/tests/test_media_preparations_storage.py) ve
+  [ortak sözleşme](../server/tests/test_media_preparations_contract.py) mevcut
+  Server CI test keşfindedir.
+- [Client model/controller](../test/features/server/server_media_preparations_test.dart)
+  ve [tablet widget akışları](../test/features/server/server_media_preparations_screen_test.dart)
+  aynı gerçek Server fixture'ını kullanır. Core karışımı, belirsiz POST,
+  PIN/arka plan/rota, eski kayıtların erişimi ve açık iptal kapsanır.
+- Jellyfin'in onaylı `library` kökünü yalnız salt okunur `/media` görünümünde
+  kullanması [host kontrolünde](../server/tests/test_host_preflight.py) sınanır;
+  HostInspector %100 satır/dal kapsamına sahiptir. Bu, gerçek host kapasite
+  veya alıcı ağı kabulü değildir.
+- İki mimarili container CI'a gerçek HTTP hazırlık oluşturma, container
+  restart sonrası aynı planı okuma ve iptal akışı eklendi. Test yalnız geçici
+  CI Server'ını kullanır; sonuç yayımlanan commit için ayrıca doğrulanır.
+
+Tam koşumlar ve yeni uzak CI için [PROGRESS](PROGRESS.md#son-test-kanıtı)
+esas alınır; yukarıdaki odaklı adetler tam toplamın üzerine eklenmez.
 
 **S06 Docker/B3 kimlik bütünleştirmesi (5 Eylül, 16:44 TRT):** Tam
 **2.520 Flutter, 1.103 Server ve 159 araç/politika testi** geçti. Gerçek

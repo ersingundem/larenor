@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "selectedAt": "2026-09-05",
+  "status": "planned",
+  "group": "G11",
+  "title": "Proxmox'tan bağımsız uzak erişim",
+  "plan": "remote-access-plan-2026-09-05.md",
+  "extends": "feature-candidates-2026-09-05.json",
+  "selected": [61, 62, 63],
+  "accepted": [],
+  "deliveryOrder": [63, 62, 61],
+  "runtime": "android_client",
+  "coreRole": "optional_encrypted_profiles_credentials_and_managed_access",
+  "requiresProxmox": false,
+  "features": [
+    {"id": 61, "title": "Bağımsız VNC uzak ekran", "dependsOn": ["B0", "B5", "F63"], "managedProfileDependsOn": ["B3"], "status": "planned"},
+    {"id": 62, "title": "Bağımsız RDP uzak masaüstü", "dependsOn": ["B0", "B5"], "managedProfileDependsOn": ["B3"], "status": "planned"},
+    {"id": 63, "title": "SSH terminal, SFTP ve güvenli tüneller", "dependsOn": ["B0", "B5"], "managedProfileDependsOn": ["B3"], "status": "planned"}
+  ]
+}

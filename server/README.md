@@ -8,7 +8,8 @@ belong in the Client and are authorized again by the Server.
 Accounts, the encrypted vault, user/session administration, encrypted service
 connections and signed Client release APIs have corresponding Client screens.
 The Server container has passed native amd64/arm64 CI checks. Internal component
-catalog, requirements previews and durable read-only inspection jobs are
+catalog, requirements previews, durable read-only inspection jobs and unified
+encrypted media preparation history are
 implemented, with an optional internal Linux worker and Client administration.
 Installation and automatic media wiring remain in development. See the
 [implementation plan](../docs/server-client-architecture-2026-09-05.md) for the
@@ -146,6 +147,32 @@ restart may repeat interrupted read-only inspection after those checks. One job
 runs at a time, at most 16 are queued, history is capped at 10,000 jobs, and only
 the newest 10,000 static activity events are retained. No Redis or separate public
 management API is involved.
+
+## Unified media preparations
+
+The administrator's **Server components → Media preparation** screen stores one
+plan for qBittorrent, Sonarr, Radarr, Jellyfin, Seerr and Music Assistant. Common
+settings select approved root IDs and architecture; no arbitrary host paths,
+images or permissions are accepted. This does not install or start components.
+
+`POST /api/v1/admin/media/preparations` returns `201 {preparation}`. The request
+includes a 32-hex `requestId`, `templateId: "media"`, reviewed Core/home context,
+catalog digest, platform and settings. Repeating the same user's identical
+request returns the same record, including after cancellation. Changed input
+or an active duplicate instance name returns a conflict.
+
+`GET` on that collection supports `limit` 1–10 and `before`; `GET /{id}` reads
+one record. `POST /{id}/cancel` takes `expectedRevision`; revision 1/prepared
+becomes 2/cancelled without deleting data. History survives restart and creator
+logout; current administrators can read/cancel it even after a catalog upgrade.
+`catalogCurrent` distinguishes an older plan from current package pins.
+
+Records are AES-GCM encrypted with bound metadata, capped at 256 total / 8
+active, and available without configuring the optional requirements worker.
+Stable component/operation/step IDs separate the six components. Requested
+resource totals are not measured host capacity. `installAvailable` remains
+false and bootstrap exposure unverified. See the
+[implemented contract and remaining steps](../docs/media-preparations-implementation-2026-09-05.md).
 
 ## Optional internal requirements worker
 

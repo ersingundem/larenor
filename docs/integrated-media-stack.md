@@ -10,8 +10,10 @@ istenmez. İç süreçlerin ve kalıcı verilerin ayrılması işletim detayıd�
 kullanıcıya ayrı sunucu ürünleri olarak sunulmaz.
 
 Bu hedef henüz tamamlanmadı. Bugün hesap/kasa/güncelleme ve mevcut hizmet
-bağlantı yönetimi çalışır; dahili katalog, süreli gereksinim önizlemesi ve
-kurulum işçisi geliştiriliyor. Eski MA-only Docker paketi birleşik ürünü
+bağlantı yönetimi çalışır; dahili katalog, süreli gereksinim önizlemesi,
+salt okunur işçi ve [altı bileşen için kalıcı birleşik hazırlık](media-preparations-implementation-2026-09-05.md)
+uygulandı. Kaynak oluşturma ve otomatik servis eşleştirmesi geliştirilecek.
+Eski MA-only Docker paketi birleşik ürünü
 karşılamaz ve yeni kurulum için hedef yol değildir.
 
 ## Client'taki akış
