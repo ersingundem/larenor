@@ -3,6 +3,7 @@ import 'package:qbittorrent_api/qbittorrent_api.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 import '../../../../core/configuration_writes.dart';
+import '../../../../core/direct_home_access.dart';
 import '../../../health/data/health_monitor.dart';
 import '../../../health/data/integration_health.dart';
 import '../../../health/providers/health_providers.dart';
@@ -27,7 +28,7 @@ final qbittorrentClientFactoryProvider = Provider<QbittorrentClientFactory>(
 
 @riverpod
 QbittorrentCredentialsStore qbittorrentCredentialsStore(Ref ref) =>
-    QbittorrentCredentialsStore();
+    QbittorrentCredentialsStore(access: ref.watch(directHomeAccessProvider));
 
 @riverpod
 class QbittorrentConnection extends _$QbittorrentConnection {
@@ -35,12 +36,16 @@ class QbittorrentConnection extends _$QbittorrentConnection {
   QbittorrentClient? _verificationClient;
 
   @override
-  Future<QbittorrentConfig?> build() {
+  Future<QbittorrentConfig?> build() async {
+    final access = ref.watch(directHomeAccessProvider);
+    access.check();
     ref.onDispose(() {
       _generation++;
       _verificationClient?.dispose();
     });
-    return ref.watch(qbittorrentCredentialsStoreProvider).read();
+    final value = await ref.watch(qbittorrentCredentialsStoreProvider).read();
+    access.check();
+    return value;
   }
 
   Future<void> signIn({
