@@ -19,6 +19,17 @@ bool validWellbeingLabel(String value) =>
 bool validWellbeingEntityId(String value) =>
     value.length <= 255 && RegExp(r'^sensor\.[a-z0-9_]+$').hasMatch(value);
 
+/// A captured private action can expire during platform I/O. Never expose a
+/// callback exception or treat a late platform response as fresh authority.
+void requireCurrentWellbeingAction(bool Function() isCurrent) {
+  try {
+    if (isCurrent()) return;
+  } catch (_) {
+    // Action callbacks contain no public diagnostic information.
+  }
+  throw const WellbeingException(WellbeingFailure.locked);
+}
+
 /// Separate secure namespace; never add this key to backup allowlists.
 class WellbeingStore {
   WellbeingStore({FlutterSecureStorage? storage})
@@ -41,26 +52,26 @@ class WellbeingStore {
     WellbeingSettings settings, {
     required bool Function() isCurrent,
   }) => ConfigurationWrites.run(() async {
-    if (!isCurrent()) throw const WellbeingException(WellbeingFailure.locked);
+    requireCurrentWellbeingAction(isCurrent);
     final encoded = encode(settings);
-    if (!isCurrent()) throw const WellbeingException(WellbeingFailure.locked);
+    requireCurrentWellbeingAction(isCurrent);
     try {
       await _storage.write(key: storageKey, value: jsonEncode(encoded));
     } catch (_) {
       throw const WellbeingException(WellbeingFailure.storageFailed);
     }
+    requireCurrentWellbeingAction(isCurrent);
   });
 
   Future<void> clear({required bool Function() isCurrent}) =>
       ConfigurationWrites.run(() async {
-        if (!isCurrent()) {
-          throw const WellbeingException(WellbeingFailure.locked);
-        }
+        requireCurrentWellbeingAction(isCurrent);
         try {
           await _storage.delete(key: storageKey);
         } catch (_) {
           throw const WellbeingException(WellbeingFailure.storageFailed);
         }
+        requireCurrentWellbeingAction(isCurrent);
       });
 
   static Map<String, dynamic> encode(WellbeingSettings settings) {

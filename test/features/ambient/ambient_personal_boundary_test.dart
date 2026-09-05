@@ -1,16 +1,39 @@
+import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
+import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:larenor/core/home_source_store.dart';
 import 'package:larenor/features/ambient/data/ambient_repository.dart';
 import 'package:larenor/features/ambient/domain/ambient_settings.dart';
 import 'package:larenor/features/ambient/providers/ambient_providers.dart';
+import 'package:larenor/features/ambient/presentation/ambient_screen.dart';
+import 'package:larenor/features/wellbeing/providers/wellbeing_privacy_providers.dart';
+import 'package:larenor/l10n/generated/app_localizations.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:shared_preferences_platform_interface/shared_preferences_platform_interface.dart';
 
 import '../../core/direct_home_boundary_test.dart' as home;
+
+class _Library extends AmbientRepository {
+  int lists = 0, reads = 0;
+  @override
+  Future<List<String>> list() async {
+    lists++;
+    return ['a' * 64];
+  }
+
+  @override
+  Future<Uint8List> readPhoto(String id) async {
+    reads++;
+    return base64Decode(
+      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=',
+    );
+  }
+}
 
 class _Preferences extends InMemorySharedPreferencesStore {
   _Preferences()
@@ -80,6 +103,48 @@ void main() {
       },
     );
   }
+  testWidgets(
+    'actual ambient screen hides cached enabled photos after a settings read failure',
+    (tester) async {
+      await prefs.setValue(
+        'String',
+        'flutter.${AmbientSettings.preferenceKey}',
+        const AmbientSettings(photosEnabled: true).encode(),
+      );
+      final library = _Library();
+      final (c, _) = await home.containerFor(
+        HomeSource.directLocal,
+        overrides: [
+          ambientRepositoryProvider.overrideWithValue(library),
+          publicHaEntitiesProvider.overrideWithValue(const AsyncData({})),
+        ],
+      );
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: c,
+          child: CupertinoApp(
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            home: const AmbientScreen(),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.byType(Image), findsOneWidget);
+      final reads = library.reads;
+      final lists = library.lists;
+      prefs.failRead = true;
+      c.invalidate(ambientSettingsProvider);
+      await tester.pumpAndSettle();
+      expect(c.read(ambientSettingsProvider).hasError, isTrue);
+      // Riverpod retains previous values for transitions. The actual consumer
+      // must reject them whenever the current state is loading or an error.
+      expect(find.byType(Image), findsNothing);
+      expect(library.reads, reads);
+      expect(library.lists, lists);
+      await tester.pumpWidget(const SizedBox());
+    },
+  );
   for (final failure in ['false', 'throw']) {
     test(
       '$failure preference write never reappears as a confirmed photo opt-in from memory cache',
@@ -98,7 +163,7 @@ void main() {
           throwsA(isA<AmbientException>()),
         );
         expect(c.read(ambientSettingsProvider).hasError, isTrue);
-        expect(c.read(ambientSettingsProvider).value, isNull);
+        expect(c.read(ambientSettingsProvider).unwrapPrevious().value, isNull);
         prefs.failWrite = false;
         prefs.throwWrite = false;
         c.invalidate(ambientSettingsProvider);
@@ -125,7 +190,7 @@ void main() {
       throwsA(isA<AmbientException>()),
     );
     expect(c.read(ambientSettingsProvider).hasError, isTrue);
-    expect(c.read(ambientSettingsProvider).value, isNull);
+    expect(c.read(ambientSettingsProvider).unwrapPrevious().value, isNull);
     expect(prefs.writes, 1); // Dispatched write is not rolled back or retried.
   });
   test('fresh provider read failure is static and cannot reuse an old opt-in cache', () async {
@@ -140,7 +205,7 @@ void main() {
       c.read(ambientSettingsProvider.future),
       throwsA(isA<AmbientException>()),
     );
-    expect(c.read(ambientSettingsProvider).value, isNull);
+    expect(c.read(ambientSettingsProvider).unwrapPrevious().value, isNull);
   });
   test(
     'throwing action cannot mutate preferences or disclose callback details',

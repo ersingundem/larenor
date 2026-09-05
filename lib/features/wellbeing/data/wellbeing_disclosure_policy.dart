@@ -70,16 +70,17 @@ class WellbeingDisclosureStore {
     WellbeingDisclosurePolicy policy, {
     required bool Function() isCurrent,
   }) => ConfigurationWrites.run(() async {
-    if (!isCurrent()) throw const WellbeingException(WellbeingFailure.locked);
+    requireCurrentWellbeingAction(isCurrent);
     final data = jsonEncode(
       WellbeingDisclosurePolicy.fromJson(policy.toJson()).toJson(),
     );
-    if (!isCurrent()) throw const WellbeingException(WellbeingFailure.locked);
+    requireCurrentWellbeingAction(isCurrent);
     try {
       await _storage.write(key: storageKey, value: data);
     } catch (_) {
       throw const WellbeingException(WellbeingFailure.storageFailed);
     }
+    requireCurrentWellbeingAction(isCurrent);
   });
 }
 
@@ -100,10 +101,22 @@ class WellbeingDisclosureNotifier
   Future<void> save(
     WellbeingDisclosurePolicy policy, {
     required bool Function() isCurrent,
-  }) async {
-    await ref
-        .read(wellbeingDisclosureStoreProvider)
-        .save(policy, isCurrent: () => ref.mounted && isCurrent());
-    if (ref.mounted) state = AsyncData(policy);
-  }
+  }) => ConfigurationWrites.run(() async {
+    bool current() => ref.mounted && isCurrent();
+    requireCurrentWellbeingAction(current);
+    state = const AsyncLoading();
+    try {
+      await ref
+          .read(wellbeingDisclosureStoreProvider)
+          .save(policy, isCurrent: current);
+      requireCurrentWellbeingAction(current);
+      state = AsyncData(policy);
+    } catch (error) {
+      final failure = error is WellbeingException
+          ? error
+          : const WellbeingException(WellbeingFailure.storageFailed);
+      if (ref.mounted) state = AsyncError(failure, StackTrace.empty);
+      throw failure;
+    }
+  });
 }

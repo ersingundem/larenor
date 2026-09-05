@@ -1,6 +1,7 @@
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/configuration_writes.dart';
 import '../../auth/providers/auth_providers.dart';
 import '../../ha_client/providers/ha_client_providers.dart';
 import '../../health/data/health_configuration.dart';
@@ -23,22 +24,45 @@ final wellbeingSettingsProvider =
 class WellbeingSettingsNotifier extends AsyncNotifier<WellbeingSettings> {
   @override
   Future<WellbeingSettings> build() => ref.watch(wellbeingStoreProvider).read();
+  Future<void> _mutate(
+    WellbeingSettings value,
+    Future<void> Function(bool Function()) write,
+    bool Function() isCurrent,
+  ) => ConfigurationWrites.run(() async {
+    bool current() => ref.mounted && isCurrent();
+    // A stale invocation must not disturb a newer confirmed state.
+    requireCurrentWellbeingAction(current);
+    state = const AsyncLoading();
+    try {
+      await write(current);
+      requireCurrentWellbeingAction(current);
+      state = AsyncData(value);
+    } catch (error) {
+      final failure = error is WellbeingException
+          ? error
+          : const WellbeingException(WellbeingFailure.storageFailed);
+      // The write may already have taken effect. Only an explicit local reread
+      // can confirm the stored privacy policy; do not retry or roll it back.
+      if (ref.mounted) state = AsyncError(failure, StackTrace.empty);
+      throw failure;
+    }
+  });
+
   Future<void> save(
     WellbeingSettings value, {
     required bool Function() isCurrent,
-  }) async {
-    await ref
-        .read(wellbeingStoreProvider)
-        .save(value, isCurrent: () => ref.mounted && isCurrent());
-    if (ref.mounted) state = AsyncData(value);
-  }
+  }) => _mutate(
+    value,
+    (current) =>
+        ref.read(wellbeingStoreProvider).save(value, isCurrent: current),
+    isCurrent,
+  );
 
-  Future<void> clear({required bool Function() isCurrent}) async {
-    await ref
-        .read(wellbeingStoreProvider)
-        .clear(isCurrent: () => ref.mounted && isCurrent());
-    if (ref.mounted) state = AsyncData(WellbeingSettings());
-  }
+  Future<void> clear({required bool Function() isCurrent}) => _mutate(
+    WellbeingSettings(),
+    (current) => ref.read(wellbeingStoreProvider).clear(isCurrent: current),
+    isCurrent,
+  );
 }
 
 /// Callers must treat loading/error as an unavailable privacy filter. Bindings

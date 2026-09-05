@@ -1911,5 +1911,7 @@
   "homeResourcesEmpty": "Bu hesabın görüntüleyebildiği oda veya kaynak yok.",
   "homeResourcesRoom": "Oda",
   "homeResourcesResource": "Kaynak",
-  "homeResourcesLoadMore": "Daha fazla yükle"
+  "homeResourcesLoadMore": "Daha fazla yükle",
+  "wellbeingReloadSettings": "Kayıtlı ayarları yeniden oku",
+  "wellbeingSettingsUnavailable": "Kayıtlı gizlilik ayarları doğrulanamadı. Devam etmeden önce yeniden okuyun."
 }
