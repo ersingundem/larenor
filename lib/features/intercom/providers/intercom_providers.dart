@@ -112,6 +112,9 @@ DoorReleaseBlock? _currentBlock(
   DoorStation station, {
   Map<String, HaEntityChange> observations = const {},
 }) {
+  if (!ref.mounted || !ref.read(directHomeAccessProvider).isCurrent) {
+    return DoorReleaseBlock.intentExpired;
+  }
   final config = ref.read(connectionConfigProvider);
   final mappings = ref.read(doorStationsProvider);
   if (mappings.isLoading ||
@@ -163,6 +166,9 @@ DoorReleaseBlock? _currentBlock(
 
 final doorReleaseBlockProvider = Provider.autoDispose
     .family<DoorReleaseBlock?, DoorStation>((ref, station) {
+      if (!ref.watch(directHomeAccessProvider).isCurrent) {
+        return DoorReleaseBlock.intentExpired;
+      }
       ref.watch(connectionConfigProvider);
       ref.watch(doorStationsProvider);
       ref.watch(entitiesProvider);
@@ -199,7 +205,9 @@ class DoorReleaseIntent {
 }
 
 final _doorReleaseCoordinatorProvider = Provider.autoDispose((ref) {
-  final coordinator = _DoorReleaseCoordinator(ref);
+  final access = ref.watch(directHomeAccessProvider);
+  access.check();
+  final coordinator = _DoorReleaseCoordinator(ref, access);
   ref.onDispose(coordinator.dispose);
   return coordinator;
 });
@@ -215,7 +223,7 @@ final doorReleaseActionProvider = Provider.autoDispose(
 );
 
 class _DoorReleaseCoordinator {
-  _DoorReleaseCoordinator(this.ref) {
+  _DoorReleaseCoordinator(this.ref, this._access) {
     ref.listen(connectionConfigProvider, (previous, next) {
       if (!identical(previous?.value, next.value) ||
           next.isLoading ||
@@ -267,6 +275,7 @@ class _DoorReleaseCoordinator {
   }
 
   final Ref ref;
+  final DirectHomeAccess _access;
   final _intents = <DoorReleaseIntent>{};
   // Only configured control/call entities are retained, bounded by 16 stations.
   final _observations = <String, HaEntityChange>{};
@@ -277,6 +286,7 @@ class _DoorReleaseCoordinator {
   static const _lifetime = Duration(seconds: 30);
 
   void _observe(HaEntityChange change) {
+    if (_disposed || !ref.mounted || !_access.isCurrent) return;
     final stations = ref.read(doorStationsProvider).value ?? const [];
     if (!stations.any(
       (station) =>
@@ -303,7 +313,7 @@ class _DoorReleaseCoordinator {
   }
 
   DoorReleaseIntent prepare(DoorStation station) {
-    if (_disposed || !_foreground) {
+    if (_disposed || !ref.mounted || !_access.isCurrent || !_foreground) {
       throw const DoorReleaseException(DoorReleaseBlock.intentExpired);
     }
     final block = _currentBlock(ref, station, observations: _observations);
@@ -327,7 +337,7 @@ class _DoorReleaseCoordinator {
   }
 
   Future<void> release(DoorReleaseIntent intent, {String? code}) async {
-    if (_disposed || !_foreground) {
+    if (_disposed || !ref.mounted || !_access.isCurrent || !_foreground) {
       throw const DoorReleaseException(DoorReleaseBlock.intentExpired);
     }
     final now = ref.read(doorReleaseClockProvider)();

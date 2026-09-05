@@ -44,6 +44,7 @@ class MovieNightLauncher extends ConsumerStatefulWidget {
 }
 
 class _MovieNightLauncherState extends MediaSessionState<MovieNightLauncher> {
+  late final _homeAccess = ref.read(directHomeAccessProvider);
   Route<MovieNightPreset>? _setupRoute;
   Route<bool>? _finishRoute;
   bool _busy = false;
@@ -63,7 +64,7 @@ class _MovieNightLauncherState extends MediaSessionState<MovieNightLauncher> {
   }
 
   bool _current(int generation, Object? connection) {
-    if (!mounted) return false;
+    if (!mounted || !_homeAccess.isCurrent) return false;
     final current = ref.read(connectionConfigProvider);
     return sessionCurrent(generation) &&
         !current.isLoading &&
@@ -73,7 +74,9 @@ class _MovieNightLauncherState extends MediaSessionState<MovieNightLauncher> {
   }
 
   Future<void> _launch() async {
-    if (_busy ||
+    if (!mounted ||
+        !_homeAccess.isCurrent ||
+        _busy ||
         !widget.enabled ||
         !foreground ||
         !interactionActive ||
@@ -227,6 +230,8 @@ class _MovieNightLauncherState extends MediaSessionState<MovieNightLauncher> {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
+    final ownsSource =
+        ref.watch(directHomeAccessProvider).isCurrent && _homeAccess.isCurrent;
     final connection = ref.watch(connectionConfigProvider);
     if (_busy) {
       ref.watch(haActionsProvider);
@@ -249,7 +254,8 @@ class _MovieNightLauncherState extends MediaSessionState<MovieNightLauncher> {
         CupertinoButton(
           padding: const EdgeInsets.symmetric(vertical: 12),
           onPressed:
-              !widget.enabled ||
+              !ownsSource ||
+                  !widget.enabled ||
                   !interactionActive ||
                   _busy ||
                   connection.isLoading ||

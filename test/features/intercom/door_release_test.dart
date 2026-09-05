@@ -44,7 +44,11 @@ class _Store extends DoorStationStore {
 }
 
 class _Fixture {
-  _Fixture({this.station = fixtureStation, this.codeRequired = false, this.home});
+  _Fixture({
+    this.station = fixtureStation,
+    this.codeRequired = false,
+    this.home,
+  });
   final HomeSessionController? home;
   final DoorStation station;
   final bool codeRequired;
@@ -144,7 +148,8 @@ class _Fixture {
         doorStationStoreProvider.overrideWithValue(store),
         // Retain independently supplied old mapping/state to prove that source
         // ownership is required even when those other checks still pass.
-        if (home != null) doorStationsProvider.overrideWith((_) async => [station]),
+        if (home != null)
+          doorStationsProvider.overrideWith((_) async => [station]),
         healthMonitorProvider.overrideWithValue(monitor),
         doorReleaseClockProvider.overrideWithValue(() => now),
         haRestClientProvider.overrideWith((_) => rest),
@@ -192,7 +197,11 @@ void main() {
     bool codeRequired = false,
     HomeSessionController? home,
   }) async {
-    final fixture = _Fixture(station: station, codeRequired: codeRequired, home: home);
+    final fixture = _Fixture(
+      station: station,
+      codeRequired: codeRequired,
+      home: home,
+    );
     addTearDown(fixture.dispose);
     await fixture.start();
     return fixture;
@@ -515,13 +524,15 @@ void main() {
     expect(f.writes, isEmpty);
   });
 
-  test('Core source rejects fresh door preparation despite matching old HA state', () async {
-    final (_, home) = await routinesHome('direct');
-    final f = await fixture(home: home);
-    final prepare = f.container.read(doorReleaseIntentProvider);
-    await home.choose(HomeSource.verifiedCore);
-    expect(() => prepare(f.station), blocked(DoorReleaseBlock.intentExpired));
-    expect(f.writes, isEmpty);
-  });
-
+  test(
+    'Core source rejects fresh door preparation despite matching old HA state',
+    () async {
+      final (_, home) = await routinesHome('direct');
+      final f = await fixture(home: home);
+      final prepare = f.container.read(doorReleaseIntentProvider);
+      await home.choose(HomeSource.verifiedCore);
+      expect(() => prepare(f.station), blocked(DoorReleaseBlock.intentExpired));
+      expect(f.writes, isEmpty);
+    },
+  );
 }
