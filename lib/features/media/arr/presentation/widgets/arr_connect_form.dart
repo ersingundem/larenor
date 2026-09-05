@@ -204,7 +204,9 @@ class _ArrConnectFormState extends MediaSessionState<ArrConnectForm> {
                   ),
                 SettingsSection(
                   footer: Text(
-                    widget.apiKeyHint ?? AppLocalizations.of(context).arrApiKeyHint(widget.title),
+                    widget.apiKeyHint ??
+                        AppLocalizations.of(context)
+                            .arrApiKeyHint(widget.title),
                   ),
                   children: [
                     CupertinoTextFormFieldRow(

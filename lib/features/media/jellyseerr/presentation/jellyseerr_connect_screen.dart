@@ -15,12 +15,19 @@ class JellyseerrConnectScreen extends ConsumerWidget {
     // Keep the exact connection notifier alive while this standalone route is open.
     final state = ref.watch(jellyseerrConnectionProvider);
     if (state.isLoading) {
-      return const CupertinoPageScaffold(child: Center(child: CupertinoActivityIndicator()));
+      return const CupertinoPageScaffold(
+        child: Center(child: CupertinoActivityIndicator()),
+      );
     }
     final error = state.error;
-    final pending = error is DirectHomeAccessException && error.code == 'pending_mutation';
+    final pending =
+        error is DirectHomeAccessException && error.code == 'pending_mutation';
     if (state.hasError && !pending) {
-      return CupertinoPageScaffold(child: Center(child: Text(AppLocalizations.of(context).mediaErrorUnreachable)));
+      return CupertinoPageScaffold(
+        child: Center(
+          child: Text(AppLocalizations.of(context).mediaErrorUnreachable),
+        ),
+      );
     }
     final connection = ref.read(jellyseerrConnectionProvider.notifier);
     final store = ref.read(jellyseerrCredentialsStoreProvider);
@@ -29,9 +36,15 @@ class JellyseerrConnectScreen extends ConsumerWidget {
       apiKeyHint: AppLocalizations.of(context).jellyseerrApiKeyHint,
       urlHint: pending ? '' : 'http://jellyseerr.local:5055',
       discoverySignature: pending ? null : ServiceSignatures.jellyseerr,
-      onClear: pending ? (isCurrent) => store.clear(isCurrent: isCurrent) : null,
+      onClear: pending
+          ? (isCurrent) => store.clear(isCurrent: isCurrent)
+          : null,
       onConnect: (url, key, isCurrent) async {
-        await connection.signIn(baseUrl: url, apiKey: key, isCurrent: isCurrent);
+        await connection.signIn(
+          baseUrl: url,
+          apiKey: key,
+          isCurrent: isCurrent,
+        );
         if (context.mounted && isCurrent()) {
           Navigator.of(context).maybePop();
         }

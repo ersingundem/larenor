@@ -91,7 +91,8 @@ class ProwlarrConnection extends _$ProwlarrConnection {
     state = const AsyncData(null);
   }
 
-  ProwlarrClient _client(ProwlarrConfig config) => ProwlarrClient(config: config);
+  ProwlarrClient _client(ProwlarrConfig config) =>
+      ProwlarrClient(config: config);
 }
 
 @riverpod
@@ -99,7 +100,9 @@ ProwlarrClient? prowlarrClient(Ref ref) {
   final access = ref.watch(directHomeAccessProvider);
   if (!access.isCurrent) return null;
   final connection = ref.watch(prowlarrConnectionProvider);
-  final config = connection.isLoading || connection.hasError ? null : connection.value;
+  final config = connection.isLoading || connection.hasError
+      ? null
+      : connection.value;
   if (config == null) return null;
   final client = ProwlarrClient(config: config);
   ref.onDispose(client.dispose);

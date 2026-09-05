@@ -95,7 +95,8 @@ class JellyseerrConnection extends _$JellyseerrConnection {
     state = const AsyncData(null);
   }
 
-  JellyseerrClient _client(JellyseerrConfig config) => JellyseerrClient(config: config);
+  JellyseerrClient _client(JellyseerrConfig config) =>
+      JellyseerrClient(config: config);
 }
 
 @riverpod

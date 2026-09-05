@@ -99,7 +99,9 @@ BazarrClient? bazarrClient(Ref ref) {
   final access = ref.watch(directHomeAccessProvider);
   if (!access.isCurrent) return null;
   final connection = ref.watch(bazarrConnectionProvider);
-  final config = connection.isLoading || connection.hasError ? null : connection.value;
+  final config = connection.isLoading || connection.hasError
+      ? null
+      : connection.value;
   if (config == null) return null;
   final client = BazarrClient(config: config);
   ref.onDispose(client.dispose);

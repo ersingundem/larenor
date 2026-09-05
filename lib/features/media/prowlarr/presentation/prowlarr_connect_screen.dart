@@ -15,12 +15,19 @@ class ProwlarrConnectScreen extends ConsumerWidget {
     // Keep the exact connection notifier alive while this standalone route is open.
     final state = ref.watch(prowlarrConnectionProvider);
     if (state.isLoading) {
-      return const CupertinoPageScaffold(child: Center(child: CupertinoActivityIndicator()));
+      return const CupertinoPageScaffold(
+        child: Center(child: CupertinoActivityIndicator()),
+      );
     }
     final error = state.error;
-    final pending = error is DirectHomeAccessException && error.code == 'pending_mutation';
+    final pending =
+        error is DirectHomeAccessException && error.code == 'pending_mutation';
     if (state.hasError && !pending) {
-      return CupertinoPageScaffold(child: Center(child: Text(AppLocalizations.of(context).mediaErrorUnreachable)));
+      return CupertinoPageScaffold(
+        child: Center(
+          child: Text(AppLocalizations.of(context).mediaErrorUnreachable),
+        ),
+      );
     }
     final connection = ref.read(prowlarrConnectionProvider.notifier);
     final store = ref.read(prowlarrCredentialsStoreProvider);
@@ -29,9 +36,15 @@ class ProwlarrConnectScreen extends ConsumerWidget {
       apiKeyHint: AppLocalizations.of(context).prowlarrApiKeyHint,
       urlHint: pending ? '' : 'http://prowlarr.local:9696',
       discoverySignature: pending ? null : ServiceSignatures.prowlarr,
-      onClear: pending ? (isCurrent) => store.clear(isCurrent: isCurrent) : null,
+      onClear: pending
+          ? (isCurrent) => store.clear(isCurrent: isCurrent)
+          : null,
       onConnect: (url, key, isCurrent) async {
-        await connection.signIn(baseUrl: url, apiKey: key, isCurrent: isCurrent);
+        await connection.signIn(
+          baseUrl: url,
+          apiKey: key,
+          isCurrent: isCurrent,
+        );
         if (context.mounted && isCurrent()) {
           Navigator.of(context).maybePop();
         }

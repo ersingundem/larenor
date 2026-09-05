@@ -22,10 +22,15 @@ class ProwlarrIndexersScreen extends ConsumerWidget {
         child: Center(child: CupertinoActivityIndicator()),
       ),
       error: (error, _) {
-        if (error is DirectHomeAccessException && error.code == 'pending_mutation') {
+        if (error is DirectHomeAccessException &&
+            error.code == 'pending_mutation') {
           return const ProwlarrConnectScreen();
         }
-        return CupertinoPageScaffold(child: Center(child: Text(AppLocalizations.of(context).mediaErrorUnreachable)));
+        return CupertinoPageScaffold(
+          child: Center(
+            child: Text(AppLocalizations.of(context).mediaErrorUnreachable),
+          ),
+        );
       },
       data: (config) {
         if (config == null) return const ProwlarrConnectScreen();
