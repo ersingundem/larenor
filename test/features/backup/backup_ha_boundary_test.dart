@@ -3,6 +3,9 @@ import 'dart:convert';
 
 import 'package:flutter/services.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+// Uses the pinned secure-storage plugin's public platform test seam.
+// ignore: depend_on_referenced_packages
+import 'package:flutter_secure_storage_platform_interface/flutter_secure_storage_platform_interface.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:larenor/core/configuration_writes.dart';
 import 'package:larenor/features/auth/data/credentials_store.dart';
@@ -159,6 +162,8 @@ void main() {
   test('platform non-string marker is unknown, never evidence of absence', () async {
     const channel = MethodChannel('plugins.it_nomads.com/flutter_secure_storage');
     final messenger = TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+    final previous = FlutterSecureStoragePlatform.instance;
+    FlutterSecureStoragePlatform.instance = MethodChannelFlutterSecureStorage();
     final readKeys = <String>[];
     messenger.setMockMethodCallHandler(channel, (call) async {
       if (call.method != 'read') fail('Unexpected secure storage mutation');
@@ -167,7 +172,10 @@ void main() {
       if (key == _marker) return false;
       return null;
     });
-    addTearDown(() => messenger.setMockMethodCallHandler(channel, null));
+    addTearDown(() {
+      messenger.setMockMethodCallHandler(channel, null);
+      FlutterSecureStoragePlatform.instance = previous;
+    });
     final repository = BackupRepository(
       storage: PlatformBackupStorage(secureStorage: const FlutterSecureStorage()),
     );

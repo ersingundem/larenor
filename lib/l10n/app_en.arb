@@ -990,6 +990,7 @@
   "backupSaved": "Encrypted backup saved. Keep the passphrase somewhere safe.",
   "backupCancelled": "Cancelled. No settings were changed.",
   "backupFailed": "The backup operation failed. Check the file or storage access and try again.",
+  "backupHaConnectionPending": "Reconnect Home Assistant, then try backing up or restoring connections again.",
   "backupDecryptFailed": "Could not unlock this backup. Check the passphrase and that the file is complete.",
   "backupTooLarge": "This file is too large to restore.",
   "backupSelectGroup": "Choose at least one content group.",
