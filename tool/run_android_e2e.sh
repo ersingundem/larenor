@@ -4,22 +4,16 @@ set -euo pipefail
 # Never select the first attached device: this target owns synthetic app state.
 # Require the caller's explicit disposable emulator and its QEMU proof.
 e2e_serial="${1:-}"
-if [[ ! "$e2e_serial" =~ ^emulator-[0-9]+$ ]] ||
-   [[ "$(adb -s "$e2e_serial" shell getprop ro.kernel.qemu | tr -d '\r')" != "1" ]]; then
+if [[ ! "$e2e_serial" =~ ^emulator-[0-9]+$ ]]; then
   echo "E2E requires an explicit disposable Android emulator serial." >&2
   exit 2
 fi
-# The first Gradle build can take several minutes after AVD boot. Keep this
-# verified disposable emulator awake through compilation and test launches.
-# AOSP's stayon=true command also wakes the display; no app/window focus flag,
-# keyguard credential or production Android setting is changed by the app.
+# The helper proves QEMU before touching power, then reapplies/reads at most
+# five times within one 10-second deadline. Only exact 7 or 15 may begin the build.
+# This tolerates transient preparation failures without diagnosing their cause.
+# svc stayon also wakes the display; no app focus flag or keyguard is changed.
 # https://android.googlesource.com/platform/frameworks/base/+/refs/heads/main/cmds/svc/src/com/android/commands/svc/PowerCommand.java
-adb -s "$e2e_serial" shell svc power stayon true
-e2e_stay_on="$(adb -s "$e2e_serial" shell settings get global stay_on_while_plugged_in | tr -d '\r')"
-if [[ "$e2e_stay_on" != 7 && "$e2e_stay_on" != 15 ]]; then
-  echo "The disposable emulator did not enable the required stay-awake setting." >&2
-  exit 2
-fi
+python3 "$(dirname "${BASH_SOURCE[0]}")/android_e2e_preparation.py" "$e2e_serial" || exit 2
 mkdir -p build/e2e
 # The hosted emulator shares memory with Gradle. The repository's developer
 # defaults permit an 8 GiB heap plus 4 GiB metaspace; keep the disposable CI
