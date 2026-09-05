@@ -103,7 +103,8 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
-          if (home != null) homeSessionControllerProvider.overrideWithValue(home),
+          if (home != null)
+            homeSessionControllerProvider.overrideWithValue(home),
           connectionConfigProvider.overrideWith(_Config.new),
           entitiesProvider.overrideWith(_Entities.new),
           haRestClientProvider.overrideWithValue(rest),
@@ -263,24 +264,33 @@ void main() {
       await tester.pumpWidget(const SizedBox());
     },
   );
-  testWidgets('old station editor Save cannot acquire new Direct store after source return', (tester) async {
-    final (_, home) = await routinesHome('direct');
-    final requests = await mount(tester, setup: true, home: home);
-    final add = find.byIcon(CupertinoIcons.add_circled);
-    await tester.tap(add);
-    await tester.pumpAndSettle();
-    await tester.enterText(find.byType(CupertinoTextField).first,'Private entry');
-    final save = tester.widget<CupertinoButton>(find.widgetWithText(CupertinoButton,'Kaydet')).onPressed!;
-    await home.choose(HomeSource.verifiedCore);
-    await home.choose(HomeSource.directLocal);
-    save();
-    await tester.pumpAndSettle();
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.reload();
-    expect(prefs.get(DoorStation.storageKey), isNull);
-    expect(requests,isEmpty);
-    expect(tester.takeException(),isNull);
-    await tester.pumpWidget(const SizedBox());
-  });
-
+  testWidgets(
+    'old station editor Save cannot acquire new Direct store after source return',
+    (tester) async {
+      final (_, home) = await routinesHome('direct');
+      final requests = await mount(tester, setup: true, home: home);
+      final add = find.byIcon(CupertinoIcons.add_circled);
+      await tester.tap(add);
+      await tester.pumpAndSettle();
+      await tester.enterText(
+        find.byType(CupertinoTextField).first,
+        'Private entry',
+      );
+      final save = tester
+          .widget<CupertinoButton>(
+            find.widgetWithText(CupertinoButton, 'Kaydet'),
+          )
+          .onPressed!;
+      await home.choose(HomeSource.verifiedCore);
+      await home.choose(HomeSource.directLocal);
+      save();
+      await tester.pumpAndSettle();
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.reload();
+      expect(prefs.get(DoorStation.storageKey), isNull);
+      expect(requests, isEmpty);
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox());
+    },
+  );
 }
