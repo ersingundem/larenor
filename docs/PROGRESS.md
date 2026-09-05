@@ -1,6 +1,6 @@
 # Larenor — güncel ilerleme ve iş kuyruğu
 
-**Son güncelleme: 6 Eylül 2026, 01:53 (Türkiye saati).**
+**Son güncelleme: 6 Eylül 2026, 02:57 (Türkiye saati).**
 
 ```text
 Önceki kapsam       █████████████░░░░░░░  ≈ %65
@@ -77,12 +77,44 @@ tek tam indirmeyle Java 17 + sabit apksig 9.1.0 kullanılarak ayrıca doğruland
 `1017d1405d4127dbed241a4957826ab6660b4fc2185c33d57bb334e5dba2a5c8`.
 Ev Server'ına koşullu Client yayını atlandı; ev/tablet kurulumu yapılmadı.
 
-**Sonraki yerel paket `808938e`:** diafon/film gecesi kaynak sınırı, Core'un
+**Yeni birleşik teslim `27def3d`:** Arr/backup ve eski Core fixture düzeltmesi ana dalda.
+`7f9a74f` üzerinde tam Client **3.421 PASS / 4:00**, tam analiz temiz,
+845 dosyada biçim kontrolü sıfır değişiklik. Ardından eklenen tek fixture testi
+ve genişletilen senaryo `27def3d` üzerinde **18 son destek testi**, dört dosyada
+temiz analiz/biçim ile doğrulandı. Kaynak incelemesi temiz. Yeni Android/Core
+CI ve imzalı APK ayrıca bekleniyor; son kabul edilen APK hâlâ 96.
+[Fixture düzeltmesi](core-resource-fixture-compat-2026-09-06.md).
+
+**Kaynak ekranı paketi `808938e`:** diafon/film gecesi kaynak sınırı, Core'un
 salt okunur oda/kaynak ekranı ve yeni yedinci Android yolculuğu birleştirildi.
 Birleşik yerel Client **3.115 testi 3:40 içinde geçti**; tam analiz sıfır
 bulgu, 838 dosyada biçim kontrolü sıfır değişiklik. Gerçek Server ortak
 kaynak sözleşmesi üç testi, kuyruk doğrulaması 24 testi geçti. Bu yeni
 ekran/yolculuk APK 96'da yoktur; yeni CI ve imzalı APK kabulü ayrıca izlenecek.
+
+**`20d92d7`: Core ve güvenlik geçti; Android 97 başarısız, APK üretilmedi.** [Güvenlik](https://github.com/ersingundem/larenor/actions/runs/33997176904)
+207 testi ve secret taramasını geçti. [Android 97](https://github.com/ersingundem/larenor/actions/runs/33997176965)
+içindeki Server işi 2.919, Flutter 3.115, JVM 98 testi geçti.
+E2E: dört native ve altı uygulama senaryosu geçti; eski scoped-layout senaryosu
+son temizlikte dört reddedilen istek nedeniyle durdu. Yeni kaynak ekranının
+yedinci uygulama senaryosu geçti. Eski admin test sunucusunda görünür ekranın
+oda/kaynak GET desteği eksikti; `1f7c6b4` bu eski kullanıcı/rolü değiştirmeden
+aynı kapsama ait boş liste yanıtını ekler. İstek/yetki/temizlik kontrolleri korunur.
+Bu düzeltmenin yeni Android kabulü henüz yoktur.
+[Core imajı](https://github.com/ersingundem/larenor/actions/runs/33997176958)
+ilk denemesinde 2.918 PASS ve bir Unix test düzeneği kapanış zaman aşımı var.
+İlk hata kaydı korunarak yalnız başarısız iş bir kez yeniden çalıştırıldı;
+ikinci deneme **2.919 test ve imaj işlerinde başarılı**. İlgili dokuz intent-değişimi senaryosu
+yerelde 20 ayrı koşuda, toplam 180 çalıştırmada geçti. Bu tekrarlar ilk Linux
+hatasının sebebini kesinleştirmez veya onun yerine geçmez.
+
+**Sıradaki birleşik paket `e4f0f15` ana dala alındı:** dört Arr bağlantısı
+ve yedek sınırı **3.418 tam Client testi**, temiz analiz ve 845 dosyada sıfır
+biçim değişikliğiyle doğrulandı. Bağımsız incelemeler temiz. Önceki yayının
+eksik Android kapısı düzeltilirken Jellyseerr/Bazarr/Prowlarr, qBittorrent ve kişisel sağlık/fotoğraf
+kayıtlarının sınırları ayrı dallarda ilerliyor. Bu paketler henüz CI kabulü almadı. Kişisel kayıt paketi `4eac0f6` 253 ilgili
+test ve bağımsız incelemeyle sonraki birleşim için hazır; diğer iki pilotun
+son UI/inceleme işleri devam ediyor.
 
 <details>
 <summary>Önceki tam doğrulanmış yayın: 394de0f / APK 95</summary>
@@ -245,7 +277,7 @@ kabulü değildir. Geçici çalışma kopyaları kalıcı arşiv yerine geçmez.
 | S08.4 kaynaklı düzen | `codex/client-scoped-layout` ve `codex/scoped-layout-e2e` | `3018c57` ve `115dfa1` ana dalda; 93 son ve 2.914 tam Client testi/analiz geçti. Altıncı Android yolculuğu ve APK 96 `8c3b60d` ile doğrulandı. |
 | S08.4 HA ve yedek sınırı | `codex/direct-home-boundary` ve `codex/ha-backup-boundary` | `d8edab5` ve `9b11195` → main `7ed736b`; 53/40 son test ve bağımsız incelemeler temiz. `8c3b60d` 2.989 Flutter/10 E2E ve bağımsız APK 96 kontrolü geçti. |
 | S08.4 diafon/film gecesi | `codex/direct-home-routines` | `cc3db2` → main `cc0d89d`; 542 test ve inceleme geçti. `808938e` birleşik Client 3.115 test/analiz geçti; yeni CI açık. |
-| S08.4 Arr bağlantıları ve yedek sınırı | `codex/direct-arr-credentials` ve `codex/direct-credential-backup` | Dört servis için tam credential kayıtları ve yarım kayıt kurtarması hazırlanıyor. Helper/provider ilk incelemesi temiz; yedek paketi 245 ilgili testten geçti. Son UI, bağımsız inceleme ve birleşik kabul açık. |
+| S08.4 Arr bağlantıları ve yedek sınırı | `codex/direct-arr-credentials` ve `codex/direct-credential-backup` | 0298c5a ve 6426d55 birleştirildi; 192 odaklı/547 ilgili Arr ve 245 ilgili backup testi, bağımsız incelemeler temiz. e4f0f15 birleşik 3.418 test/analiz geçti; yeni Android düzeltmesiyle CI açık. |
 | S08.6 Core kaynak listesi | `codex/core-home-resource-list` ve `codex/core-home-resources-e2e` | `73dba35` ve `c0b765c` → main `808938e`; 82 odaklı/940 ilgili test, tablet QA ve bağımsız inceleme geçti. Birleşik Client 3.115 test/analiz temiz; yedinci Android yolculuğu ve yeni CI açık. |
 | S08.6 Core kaynak/yetki kaydı | `codex/home-resource-registry` | `133786e` / `1b6b866` ana dalda; tam Server 2.906 PASS/10 Mac skip, 124 odaklı test, %95 dal kapsamı ve inceleme temiz. `8c3b60d` Linux 2.916/iki mimari geçti. Yeni Client liste/bütün yönetim kabulü açık. |
 | S08.3 Client ev runtime'ı | `codex/client-home-session-scope` · `/private/tmp/larenor-client-home-session-scope` | `10d3eb1` birleşti; `4b98680` dokuz E2E ve imzalı APK 94 ile S08.3 kabul edildi. |

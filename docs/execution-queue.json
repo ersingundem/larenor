@@ -963,7 +963,10 @@
         "docs/scoped-layout-android-journey-2026-09-06.md",
         "docs/direct-home-boundary-implementation-2026-09-06.md",
         "docs/ha-backup-boundary-implementation-2026-09-06.md",
-        "docs/direct-home-routines-implementation-2026-09-06.md"
+        "docs/direct-home-routines-implementation-2026-09-06.md",
+        "docs/direct-arr-credentials-implementation-2026-09-06.md",
+        "docs/direct-credential-backup-implementation-2026-09-06.md",
+        "docs/core-resource-fixture-compat-2026-09-06.md"
       ],
       "scope": "Tek mevcut ev bağlamı; F19 çoklu Core/ev federasyonu bu teslim değildir.",
       "acceptance": [
@@ -1056,10 +1059,66 @@
           "state": "completed",
           "result": "passed",
           "label": "Birleşik yerel Client 3.115 test, tam analiz ve 838 dosyada biçim kontrolü temiz; yeni Android/CI henüz kabul edilmedi"
+        },
+        {
+          "kind": "test",
+          "ref": "docs/direct-arr-credentials-implementation-2026-09-06.md",
+          "commit": "0298c5ae5d962eccddc0abeaa19cb551a2f5d943",
+          "state": "completed",
+          "result": "passed",
+          "label": "Dört Arr:192 odaklı/547 ilgili test, %86,3 ilgili satır kapsamı ve bağımsız kaynak incelemesi; diğer servisler açık"
+        },
+        {
+          "kind": "review",
+          "ref": "docs/direct-arr-credentials-implementation-2026-09-06.md",
+          "commit": "0298c5ae5d962eccddc0abeaa19cb551a2f5d943",
+          "state": "completed",
+          "result": "passed",
+          "label": "Dört Arr:192 odaklı/547 ilgili test, %86,3 ilgili satır kapsamı ve bağımsız kaynak incelemesi; diğer servisler açık"
+        },
+        {
+          "kind": "test",
+          "ref": "docs/direct-credential-backup-implementation-2026-09-06.md",
+          "commit": "6426d55203b8c95997768f3d099c28cb94810bdd",
+          "state": "completed",
+          "result": "passed",
+          "label": "Yarım Direct credential/yedek sınırı:245 ilgili test, repository %98,31 ve bağımsız inceleme; birleşik e4f0f15 Client3418 geçti"
+        },
+        {
+          "kind": "review",
+          "ref": "docs/direct-credential-backup-implementation-2026-09-06.md",
+          "commit": "6426d55203b8c95997768f3d099c28cb94810bdd",
+          "state": "completed",
+          "result": "passed",
+          "label": "Yarım Direct credential/yedek sınırı:245 ilgili test, repository %98,31 ve bağımsız inceleme; birleşik e4f0f15 Client3418 geçti"
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/33997176965",
+          "commit": "20d92d7144998e40eb465887ef3fcac681dab39e",
+          "state": "completed",
+          "result": "failed",
+          "label": "Android97:3115Flutter/98JVM;10E2E geçti,scoped_layout eski fixture kaynak GET yanıtı eksik. Yeni core_resources yolculuğu geçti; APK üretilmedi, düzeltme yeniCI bekliyor"
+        },
+        {
+          "kind": "test",
+          "ref": "docs/core-resource-fixture-compat-2026-09-06.md",
+          "commit": "27def3daee4b058a84f16a4cbf77455dc0ec3f51",
+          "state": "completed",
+          "result": "passed",
+          "label": "Arr/backup/fixture birleşimi:7f9a74f tam3421 PASS/analiz/biçim;27def3d son18 fixture test/analiz/biçim PASS. Yeni CI açık."
+        },
+        {
+          "kind": "review",
+          "ref": "docs/core-resource-fixture-compat-2026-09-06.md",
+          "commit": "c793c13263bfe773ce6984fa9241f47fadca5745",
+          "state": "completed",
+          "result": "passed",
+          "label": "Mevcut admin fixture boş kaynak GET desteği: bağımsız kaynak incelemesi temiz; eski kullanıcı/rol ve red/temizlik kontrolleri korundu."
         }
       ],
       "completionCommit": null,
-      "reason": "Scoped layout 3018c57 ve altıncı Android yolculuğu 115dfa1 ana dalda; fd23a3f tam Client 2.914 PASS/analiz temiz. Direct HA/EnabledServices d8edab5 ve HA yedek sınırı 9b11195 → main 7ed736b; 53/40 son test ve bağımsız incelemeler geçti, 7ed736b birleşik Client 2.989 PASS, analiz/biçim temiz; 8c3b60d 2.916 Linux/10 E2E/bağımsız APK96 kabulü geçti. Diafon/film gecesi cc3db2→main cc0d89d: 542 ilgili test ve inceleme geçti, 808938e birleşik Client 3.115 test/analiz geçti; yeni CI açık. Ortak credential helper+4 Arr servis pilotu codex/direct-arr-credentials üzerinde başladı; backup marker sınırıyla birlikte kapanacak. Diğer 11 Direct servis, özel wellbeing/ambient erişim testleri açık; typed ağ cache S08.7–9 kabulündedir."
+      "reason": "Scoped layout/Direct HA/HA yedek 8c3b60d CI ve APK96 kabulünü geçti; diafon/film gecesi cc3db2 ve Core Client listesi 20d92d7 içinde. Yeni Android97 eski scoped-layout fixture kaynak GET desteği eksikliğiyle kapıda kaldı, APK yok; düzeltme1f7c6b4 yeniCI bekliyor. Dört Arr0298c5a ve credential-backup6426d55 birleşik e4f0f15:3418 tamClient/analiz/biçim temiz, bağımsız incelemeler geçti; ana dala alındı. Kalan7servis, kişisel sağlık/fotoğraf kabulü ve bu paketinCI açık. Typed ağcache S08.7–9 kabulündedir."
     },
     {
       "id": "S08.5",
@@ -1106,7 +1165,8 @@
         "docs/integrated-media-stack.md",
         "docs/home-resource-registry-implementation-2026-09-06.md",
         "docs/core-home-resource-list-implementation-2026-09-06.md",
-        "docs/core-home-resources-android-journey-2026-09-06.md"
+        "docs/core-home-resources-android-journey-2026-09-06.md",
+        "docs/core-resource-fixture-compat-2026-09-06.md"
       ],
       "scope": "Tek mevcut ev bağlamı; F19 çoklu Core/ev federasyonu bu teslim değildir.",
       "acceptance": [
@@ -1165,10 +1225,34 @@
           "state": "completed",
           "result": "passed",
           "label": "Birleşik yerel Client 3.115 test, tam analiz ve 838 dosyada biçim kontrolü temiz; yeni Android/CI henüz kabul edilmedi"
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/33997176965",
+          "commit": "20d92d7144998e40eb465887ef3fcac681dab39e",
+          "state": "completed",
+          "result": "failed",
+          "label": "Android97:3115Flutter/98JVM;10E2E geçti,scoped_layout eski fixture kaynak GET yanıtı eksik. Yeni core_resources yolculuğu geçti; APK üretilmedi, düzeltme yeniCI bekliyor"
+        },
+        {
+          "kind": "test",
+          "ref": "docs/core-resource-fixture-compat-2026-09-06.md",
+          "commit": "27def3daee4b058a84f16a4cbf77455dc0ec3f51",
+          "state": "completed",
+          "result": "passed",
+          "label": "Arr/backup/fixture birleşimi:7f9a74f tam3421 PASS/analiz/biçim;27def3d son18 fixture test/analiz/biçim PASS. Yeni CI açık."
+        },
+        {
+          "kind": "review",
+          "ref": "docs/core-resource-fixture-compat-2026-09-06.md",
+          "commit": "c793c13263bfe773ce6984fa9241f47fadca5745",
+          "state": "completed",
+          "result": "passed",
+          "label": "Mevcut admin fixture boş kaynak GET desteği: bağımsız kaynak incelemesi temiz; eski kullanıcı/rol ve red/temizlik kontrolleri korundu."
         }
       ],
       "completionCommit": null,
-      "reason": "Kalıcı kayıt/API 133786e, 8c3b60d Linux 2.916/0 skip ve iki mimari CI ile geçti. Client salt okunur liste 73dba35 → main 808938e: 82 odaklı/940 ilgili test, %99,2 satır kapsamı, tablet QA ve bağımsız inceleme; birleşik Client 3.115 test/analiz geçti. Yedinci Android yolculuğu ve yeni CI açık. Admin metadata/ACL UI, ayrı hane kişileri, değişmez upstream bağları ve gerçek komut sözleşmesi henüz kabul edilmedi."
+      "reason": "Kalıcı registry20d92d7 Server CI attempt2:2919 test/imaj kapısı başarılı; ilk denemede1 Unix fixture timeout kaydı korunur. Client73dba35:82odaklı/940ilgili,%99,2kapsam ve bağımsızinceleme;3115tamClient geçti. Yeni kaynak Android yolculuğu geçti ancak eski scoped-layout fixture GET uyumsuzluğu tümAndroid97 kapısını durdurdu; düzeltme1f7c6b4 ayrıCI bekliyor. Adminmetadata/ACLUI,hane kişileri,upstreambağları ve gerçekkomut sözleşmesi açık."
     },
     {
       "id": "S08.7",
