@@ -1,11 +1,10 @@
 import 'package:flutter/cupertino.dart';
-
-import '../../../../shared/widgets/settings_section.dart';
-
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../l10n/generated/app_localizations.dart';
 import '../../../../shared/widgets/icon_badge.dart';
+import '../../../../shared/widgets/settings_action_tile.dart';
+import '../../../../shared/widgets/settings_section.dart';
 import '../../../auth/presentation/connect_screen.dart';
 import '../../../auth/providers/auth_providers.dart';
 import 'settings_nav_row.dart';
@@ -23,14 +22,13 @@ class ConnectionPane extends ConsumerWidget {
       children: [
         SettingsSection(
           children: [
-            CupertinoListTile(
+            SettingsActionTile(
               leading: const IconBadge(
                 icon: CupertinoIcons.house_fill,
                 color: CupertinoColors.systemBlue,
               ),
               title: Text(l10n.settingsHaServer),
               additionalInfo: Text(config?.baseUrl ?? l10n.commonNotConnected),
-              trailing: const CupertinoListTileChevron(),
               onTap: () => Navigator.of(context).push(
                 CupertinoPageRoute(
                   builder: (_) => ConnectScreen(initialUrl: config?.baseUrl),

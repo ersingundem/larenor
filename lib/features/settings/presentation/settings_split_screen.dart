@@ -1,12 +1,14 @@
 import 'package:flutter/cupertino.dart';
 
-import '../../../shared/widgets/settings_section.dart';
-
-import '../../../shared/widgets/app_page_scaffold.dart';
-
 import '../../../core/breakpoints.dart';
 import '../../../l10n/generated/app_localizations.dart';
+import '../../../shared/widgets/app_page_scaffold.dart';
 import '../../../shared/widgets/icon_badge.dart';
+import '../../../shared/widgets/settings_action_tile.dart';
+import '../../../shared/widgets/settings_section.dart';
+import '../../backup/presentation/backup_screen.dart';
+import '../../intercom/presentation/intercom_settings_screen.dart';
+import '../../server/presentation/server_connection_screen.dart';
 import 'panes/about_pane.dart';
 import 'panes/connection_pane.dart';
 import 'panes/display_pane.dart';
@@ -14,9 +16,6 @@ import 'panes/home_assistant_pane.dart';
 import 'panes/integrations_pane.dart';
 import 'panes/security_pane.dart';
 import 'settings_file_dialog.dart';
-import '../../backup/presentation/backup_screen.dart';
-import '../../intercom/presentation/intercom_settings_screen.dart';
-import '../../server/presentation/server_connection_screen.dart';
 
 /// The top-level settings categories, in the order they appear down the
 /// master list.
@@ -85,12 +84,17 @@ class _SettingsSplitScreenState extends State<SettingsSplitScreen> {
             color: CupertinoColors.separator.resolveFrom(context),
           ),
           Expanded(
-            child: Navigator(
-              key: _detailKey,
-              onGenerateRoute: (settings) => CupertinoPageRoute<void>(
-                settings: settings,
-                builder: (_) =>
-                    paneFor(_selected, runFileDialog: widget.runFileDialog),
+            // Confine the nested route's semantic barrier to the detail pane;
+            // the independently interactive category list stays accessible.
+            child: Semantics(
+              container: true,
+              child: Navigator(
+                key: _detailKey,
+                onGenerateRoute: (settings) => CupertinoPageRoute<void>(
+                  settings: settings,
+                  builder: (_) =>
+                      paneFor(_selected, runFileDialog: widget.runFileDialog),
+                ),
               ),
             ),
           ),
@@ -234,10 +238,12 @@ class _MasterList extends StatelessWidget {
                         color: category == selected
                             ? CupertinoColors.systemFill.resolveFrom(context)
                             : null,
-                        child: CupertinoListTile(
+                        child: SettingsActionTile(
                           leading: IconBadge(icon: icon, color: color),
                           title: Text(title),
-                          trailing: const CupertinoListTileChevron(),
+                          selected: selected == null
+                              ? null
+                              : category == selected,
                           onTap: () => onSelect(category),
                         ),
                       ),
