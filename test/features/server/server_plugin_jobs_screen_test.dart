@@ -30,6 +30,7 @@ void main() {
     bool catalog = false,
     bool preview = false,
     String state = 'queued',
+    List<Map<String, Object?>>? checks,
     ValueNotifier<bool>? visible,
     AppInteractionController? interaction,
     String language = 'en',
@@ -42,6 +43,7 @@ void main() {
     f = PluginJobsFixture(role: role)
       ..configured = configured
       ..job = pluginJobJson(state: state);
+    if (checks != null) f.job['result']['checks'] = checks;
     await f.account.initialize();
     tester.view.physicalSize = Size(width, 1000);
     tester.view.devicePixelRatio = 1;
@@ -142,6 +144,82 @@ void main() {
       expect(tester.takeException(), isNull);
     },
   );
+  for (final locale in [
+    (
+      language: 'en',
+      scale: 1.0,
+      docker: 'Docker API and platform compatibility',
+      ports: 'Port availability',
+      receiver: 'Receiver network',
+      passed: 'Passed',
+      unknown: 'Could not verify',
+      completed: 'Inspection completed',
+      note: 'completion does not mean every requirement passed',
+    ),
+    (
+      language: 'tr',
+      scale: 2.0,
+      docker: 'Docker API ve platform uyumluluğu',
+      ports: 'Port kullanılabilirliği',
+      receiver: 'Alıcı ağı',
+      passed: 'Karşılandı',
+      unknown: 'Doğrulanamadı',
+      completed: 'İnceleme tamamlandı',
+      note: 'tamamlanması tüm gereksinimlerin karşılandığı',
+    ),
+  ]) {
+    testWidgets(
+      '${locale.language} tablet distinguishes Docker compatibility from unchecked network requirements',
+      (tester) async {
+        await mount(
+          tester,
+          state: 'succeeded',
+          language: locale.language,
+          scale: locale.scale,
+          checks: [
+            for (final code in [
+              'docker_engine',
+              'port_availability',
+              'receiver_network',
+            ])
+              {
+                'code': code,
+                'status': code == 'docker_engine' ? 'passed' : 'unknown',
+                'rootId': null,
+                'availableMiB': null,
+                'requiredMiB': null,
+              },
+          ],
+        );
+        await tap(tester, 'job-view-${'a' * 32}');
+        expect(find.text(locale.completed), findsOneWidget);
+        expect(find.textContaining(locale.note), findsOneWidget);
+
+        for (final result in [
+          (label: locale.docker, status: locale.passed),
+          (label: locale.ports, status: locale.unknown),
+          (label: locale.receiver, status: locale.unknown),
+        ]) {
+          final label = find.text(result.label);
+          expect(label, findsOneWidget);
+          await tester.ensureVisible(label);
+          await tester.pumpAndSettle();
+          final row = find
+              .ancestor(of: label, matching: find.byType(Column))
+              .first;
+          expect(
+            find.descendant(of: row, matching: find.text(result.status)),
+            findsOneWidget,
+          );
+        }
+
+        expect(find.byKey(const ValueKey('jobs-cancel')), findsNothing);
+        expect(f.mutations, isEmpty);
+        expect(f.calls.any((r) => r.url.path.contains('/install')), isFalse);
+        expect(tester.takeException(), isNull);
+      },
+    );
+  }
   testWidgets(
     'active status polls one request at a time and stops when terminal',
     (tester) async {
