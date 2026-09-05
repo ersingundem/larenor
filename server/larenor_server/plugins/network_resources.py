@@ -174,11 +174,19 @@ def _response(response, maximum, cls):
             key, value = pair
             _require(len(key) <= 128 and len(value) <= 8192)
             key = key.lower()
-            if key in {'content-type', 'content-range', 'link'}:
+            if key in {'content-type', 'content-range', 'link', 'content-length',
+                       'transfer-encoding', 'content-encoding'}:
                 _require(key not in headers)
                 headers[key] = value
         _require('content-range' not in headers and 'link' not in headers
                  and headers.get('content-type', '').lower().split(';')[0].strip() == 'application/json')
+        _require(headers.get('content-encoding', 'identity').lower() == 'identity'
+                 and headers.get('transfer-encoding', 'chunked').lower() == 'chunked'
+                 and not ('content-length' in headers and 'transfer-encoding' in headers))
+        if 'content-length' in headers:
+            length = headers['content-length']
+            _require(re.fullmatch(r'[0-9]{1,20}', length) is not None
+                     and int(length) == len(response.body))
         value = json.loads(response.body, object_pairs_hook=_pairs,
                            parse_constant=lambda _: (_ for _ in ()).throw(ValueError()))
         nodes = 0
