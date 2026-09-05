@@ -1,6 +1,6 @@
 # Larenor — güncel ilerleme ve iş kuyruğu
 
-**Son güncelleme: 5 Eylül 2026, 21:55 (Türkiye saati).**
+**Son güncelleme: 5 Eylül 2026, 22:02 (Türkiye saati).**
 
 ```text
 Önceki kapsam       █████████████░░░░░░░  ≈ %65
@@ -70,25 +70,36 @@ ve taşınabilir yeniden üretimle desteklenen açıklamadır; eski CI hatası h
 errno'yu kaydetmedi. `b2ca01f` RED → `bff9b98` GREEN yalnız test fixture'ını
 değiştirir. Gerçek kapanış kanıtı, iptal sonucu ve bir saniyelik bekleme
 korundu; süre veya başka hata kabul edilmiyor. İlgili **333 test geçti,
-dört Linux testi Mac'te atlandı**; bağımsız inceleme temiz. Yeni Linux
-socketpair testi ve tam uzak kapılar sonraki düzeltme paketinde doğrulanacak.
+dört Linux testi Mac'te atlandı**; bağımsız inceleme temiz. Düzeltme `19dbcbe` ile gönderildi:
+[Server](https://github.com/ersingundem/larenor/actions/runs/33985459924) ve
+[Android](https://github.com/ersingundem/larenor/actions/runs/33985459959)
+çalışıyor; [güvenlik](https://github.com/ersingundem/larenor/actions/runs/33985459857)
+geçti. Linux Server test kapısı **2.298 geçti, sıfır atlama**: yeni gerçek
+socketpair deneyi ve iki iptal/kapanış varyantı geçti. İki mimarili yayın
+ve Android/imzalı APK kapılarının final sonucu hâlâ bekleniyor.
 [Ağ adaptörü ve CI düzeltmesi](network-read-transport-implementation-2026-09-05.md) ·
 [Client uyumluluğu](client-context-compatibility-2026-09-05.md) ·
 [Tablet](tablet-navigation-implementation-2026-09-05.md).
 
-**Yarım çalışmaları kaybetmeden devam:** aşağıdaki ayrı git çalışma
-kopyaları yerel geliştirmeyi içerir; henüz `main` içine birleştirilmedi veya
-yayımlanmadı. Yeniden başlayan yürütücü önce `git worktree list`, bu dalların
-git durumu ve çalışan agent/CI durumunu kontrol eder; aynı işi baştan açmaz.
-Yerel `/private/tmp` kopyalarının varlığı kalıcı arşiv garantisi değildir.
+**Sonraki paket yerel main içinde birleştirildi (`8767608`):** ayar
+satırlarının 38 odaklı/965 regresyon testi, ağ create taşımasının 741 testi
+ve dört Linux atlaması bağımsız incelemelerden geçti. Birleştirilmiş **2.454 Server testi geçti, yedi Linux testi Mac’te atlandı**
+(5:49,8); **2.739 Flutter testi** (3:50) ve tam analiz temiz; `19dbcbe` yayını bu daha yeni kodun kanıtı
+değildir. [Ayarlar](tablet-settings-accessibility-implementation-2026-09-05.md) ·
+[Ağ create taşıması](network-create-transport-implementation-2026-09-05.md).
 
-| İş | Dal | Yerel çalışma kopyası | Son inceleme noktası |
+**Yarım çalışmaları kaybetmeden devam:** yeniden başlayan yürütücü önce
+`git worktree list`, dal durumlarını ve çalışan agent/CI durumunu inceler.
+Aynı işi baştan açmaz. `/private/tmp` kopyalarının varlığı kalıcı arşiv
+garantisi değildir; tamamlanan checkpoint'ler yerel git geçmişindedir.
+
+| İş | Dal | Yerel çalışma kopyası | Durum |
 | --- | --- | --- | --- |
-| B5.1 ayar satırları, uzun adres ve klavye/semantics | `codex/tablet-settings-accessibility` | `/private/tmp/larenor-tablet-settings-accessibility` | `3894abb`; 38 odaklı test geçti, geniş doğrulama sürüyor |
-| S06.3e kontrollü ağ oluşturma taşıması | `codex/network-effect-bridge` | `/private/tmp/larenor-network-effect-bridge` | `ccc9137`; ilk 337 test geçti, üç Linux atlaması; sınır testleri sürüyor |
+| B5.1 ayar erişilebilirliği | `codex/tablet-settings-accessibility` | `/private/tmp/larenor-tablet-settings-accessibility` | `ba884f6` main içinde; birleştirilmiş tam yerel regresyon geçti. Agent sonraki S08.3 için yalnız kaynak incelemesi yapıyor. |
+| S06.3e ağ etki/journal bağlantısı | `codex/network-effect-bridge` | `/private/tmp/larenor-network-effect-bridge` | `aa23437` taşıma main içinde; bunun ardından yeni journal köprüsü aynı dalda başladı. |
 
 [Özel ağ create/journal planında](network-effect-bridge-plan-2026-09-05.md)
-önce tek create taşıması, ardından ayrı incelemeyle journal bağlantısı var.
+sıradaki iş kalıcı begin, tek create, yeni gözlem ve salt okuyarak kurtarma.
 Dizin için supervisor/daemon/UID eşlemesi ve gerçek oluşturma/yayımlama açık.
 
 S08.2 kendi CI kabulünü bekliyor. Ardından [ev runtime sınırı](client-home-scope-plan-2026-09-05.md)

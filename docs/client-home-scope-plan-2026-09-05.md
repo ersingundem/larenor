@@ -30,8 +30,10 @@ anlamına gelmez. Yürütme durumu [kuyrukta](EXECUTION_QUEUE.md) tutulur.
 1. **Kaynağı açıkça ayır.** Mevcut doğrudan HA deneyimi `directLocal` olarak
    kullanılabilir kalır. `verifiedCore` deneyimine geçiş eski yerel bağlantıları
    otomatik sahiplenmez. Server hesabına giriş veya çıkış, kaynağı sessizce
-   değiştirmez. Kaynak seçimi ve başlangıç davranışı uygulama öncesinde bu
-   kurala bağlanmalıdır; URL'den Core/ev kimliği türetilmez.
+   değiştirmez. Kaynak seçimi kullanıcıya açık ve cihazda kalıcı küçük bir tercih olur;
+   URL'den Core/ev kimliği türetilmez. Server hesabına giriş tek başına
+   kaynağı değiştirmez. Eski kurulumda anahtarın olmaması doğrudan yerel
+   kaynağı korur; bozuk kayıt veya okuma hatası sessiz fallback yapmaz.
 2. **Kimlik ve epoch sınırı kur.** Doğrulanmış anahtar yalnız
    `(coreId, homeId, userId)` olur; token, kullanıcı görünen adı veya `ServerSession`
    nesne kimliği olmaz. Anahtar yalnız controller'ın doğrulanmış oturumundan
@@ -75,10 +77,32 @@ taşıma önizlemesi ve merkezi HA/medya adaptörleri ayrı S08.4+ işleridir.
 Yerel ses veya ilerideki kişisel uzak bağlantılar sırf Server yönetim hesabı
 değişti diye Core verisi sayılmaz; kaynak sahipliği açık olmalıdır.
 
+## Kalıcı kaynak seçimi kararı
+
+5 Eylül ikinci kaynak incelemesinde başlangıç davranışı netleştirildi:
+`directLocal` / `verifiedCore` tercihi sır veya yetki içermeyen cihaz ayarıdır.
+Core seçimi restart, logout, context 404 ve ilk parola gereksiniminde korunur;
+kullanıcı açıkça değiştirmedikçe eski doğrudan HA evine geri dönülmez.
+Core adaptör/cache kapısı tamamlanana kadar gerçek doğrulama/kullanılabilirlik
+paneli ile korumalı hesap erişimi sunulur; eski HA/media provider'ları Core
+verisi görünümünde başlatılmaz.
+
+Tercih yazımı mevcut `ConfigurationWrites` sırasına uyar. `setString` false
+sonucu veya istisna başarılı geçiş sayılmaz. Eski callback epoch'u yazım
+beklemeden kapatılır; belirsiz tercih yeni kaynağı otomatik açamaz. Bozuk
+kaydı/okuma hatasını legacy missing-key varsayılanıyla karıştırmayan test gerekir.
+
+Mevcut yerel yedek fixed allowlist ile çalışır ve Server yönetim oturumunu
+aktarmaz. İlk teslim kaynak seçimini bu yedeğe eklemez: restore cihazın
+mevcut kaynak tercihini korur; tercihi veya tüm preferences'ı temizlemez.
+ConfigurationScope'un bütün iç/dış runtime'ı kaldırıp depolamaya sonra yazma
+sırası test edilir. Cache/kimlik taşıma ayrı S08.4 sınırında kalır.
+
 ## Önerilen dar dosya sahipliği
 
 - Yeni `lib/core/home_session_scope.dart` ve `test/core/home_session_scope_test.dart`:
-  anahtar, epoch, pending/retired sınırı ve container sahipliği.
+  anahtar, epoch, pending/retired sınırı ve container sahipliği. Küçük
+  `home_source_store.dart` cihaz tercihini ve hata durumunu sahiplenir.
 - `lib/app.dart`, `lib/core/router.dart`, gerekirse
   `lib/features/server/providers/server_providers.dart`: dış hesap ve iç
   runtime bağlantısı; bütün ikincil rotaların kapsanması.
