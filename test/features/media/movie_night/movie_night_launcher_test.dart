@@ -2,6 +2,8 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:larenor/core/app_interaction_scope.dart';
+import 'package:larenor/core/home_session_controller.dart';
+import 'package:larenor/core/home_source_store.dart';
 import 'package:larenor/features/dashboard/presentation/entity_picker_screen.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
@@ -19,6 +21,8 @@ import 'package:larenor/features/media/movie_night/domain/movie_night_preset.dar
 import 'package:larenor/features/media/movie_night/presentation/movie_night_launcher.dart';
 import 'package:larenor/l10n/generated/app_localizations.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
+import '../../../core/direct_home_routines_test.dart' show routinesHome;
 
 const _config = HaConnectionConfig(
   baseUrl: 'https://ha.test',
@@ -53,6 +57,7 @@ void main() {
     bool fresh = true,
     bool narrow = false,
     AppInteractionController? interaction,
+    HomeSessionController? home,
   }) async {
     final scope = interaction ?? AppInteractionController();
     if (interaction == null) addTearDown(scope.dispose);
@@ -85,6 +90,7 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          if (home != null) homeSessionControllerProvider.overrideWithValue(home),
           connectionConfigProvider.overrideWithBuild(
             (ref, notifier) async => _config,
           ),
@@ -280,4 +286,33 @@ void main() {
         .pop();
     await tester.pumpAndSettle();
   });
+  testWidgets('old movie launch cannot open setup after Direct source round trip', (tester) async {
+    final (_, home) = await routinesHome('direct');
+    final operations = <String>[];
+    await mount(tester, operations, home: home);
+    final launch = tester.widget<CupertinoButton>(find.widgetWithText(CupertinoButton,'Film gecesi')).onPressed!;
+    await home.choose(HomeSource.verifiedCore);
+    await home.choose(HomeSource.directLocal);
+    launch();
+    await tester.pump(); await tester.pump(const Duration(milliseconds:400));
+    expect(find.text('Sahneyi uygula ve oynatıcıyı aç'), findsNothing);
+    expect(operations, isEmpty);
+    await tester.pumpWidget(const SizedBox());
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('source switch cancels old movie Start even with unchanged HA account', (tester) async {
+    final (_, home) = await routinesHome('direct');
+    final operations = <String>[];
+    await mount(tester, operations, home: home);
+    await open(tester);
+    final start = tester.widget<CupertinoButton>(find.widgetWithText(CupertinoButton,'Sahneyi uygula ve oynatıcıyı aç')).onPressed!;
+    await home.choose(HomeSource.verifiedCore);
+    start();
+    await tester.pump(); await tester.pump(const Duration(milliseconds:400));
+    expect(operations, isEmpty);
+    await tester.pumpWidget(const SizedBox());
+    expect(tester.takeException(), isNull);
+  });
+
 }

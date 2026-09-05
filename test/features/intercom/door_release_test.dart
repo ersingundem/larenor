@@ -6,6 +6,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
+import 'package:larenor/core/home_session_controller.dart';
+import 'package:larenor/core/home_source_store.dart';
 import 'package:larenor/features/auth/data/ha_connection_config.dart';
 import 'package:larenor/features/auth/providers/auth_providers.dart';
 import 'package:larenor/features/ha_client/data/rest_client.dart';
@@ -23,6 +25,7 @@ import 'package:larenor/features/intercom/domain/door_station.dart';
 import 'package:larenor/features/intercom/providers/intercom_providers.dart';
 
 import '../ha_client/fake_socket.dart';
+import '../../core/direct_home_routines_test.dart' show routinesHome;
 import 'door_station_test.dart' show fixtureStation;
 
 class _Config extends ConnectionConfig {
@@ -41,7 +44,8 @@ class _Store extends DoorStationStore {
 }
 
 class _Fixture {
-  _Fixture({this.station = fixtureStation, this.codeRequired = false});
+  _Fixture({this.station = fixtureStation, this.codeRequired = false, this.home});
+  final HomeSessionController? home;
   final DoorStation station;
   final bool codeRequired;
   var now = DateTime.utc(2026, 9, 5);
@@ -135,8 +139,12 @@ class _Fixture {
     store = _Store([station]);
     container = ProviderContainer(
       overrides: [
+        if (home != null) homeSessionControllerProvider.overrideWithValue(home),
         connectionConfigProvider.overrideWith(() => _Config(config)),
         doorStationStoreProvider.overrideWithValue(store),
+        // Retain independently supplied old mapping/state to prove that source
+        // ownership is required even when those other checks still pass.
+        if (home != null) doorStationsProvider.overrideWith((_) async => [station]),
         healthMonitorProvider.overrideWithValue(monitor),
         doorReleaseClockProvider.overrideWithValue(() => now),
         haRestClientProvider.overrideWith((_) => rest),
@@ -182,8 +190,9 @@ void main() {
   Future<_Fixture> fixture({
     DoorStation station = fixtureStation,
     bool codeRequired = false,
+    HomeSessionController? home,
   }) async {
-    final fixture = _Fixture(station: station, codeRequired: codeRequired);
+    final fixture = _Fixture(station: station, codeRequired: codeRequired, home: home);
     addTearDown(fixture.dispose);
     await fixture.start();
     return fixture;
@@ -495,4 +504,24 @@ void main() {
       expect(lock.writes, isEmpty);
     },
   );
+  test('Direct source retirement invalidates prepared door command even after return', () async {
+    final (_, home) = await routinesHome('direct');
+    final f = await fixture(home: home);
+    final intent = f.prepare();
+    final release = f.container.read(doorReleaseActionProvider);
+    await home.choose(HomeSource.verifiedCore);
+    await home.choose(HomeSource.directLocal);
+    await expectLater(release(intent), blocked(DoorReleaseBlock.intentExpired));
+    expect(f.writes, isEmpty);
+  });
+
+  test('Core source rejects fresh door preparation despite matching old HA state', () async {
+    final (_, home) = await routinesHome('direct');
+    final f = await fixture(home: home);
+    final prepare = f.container.read(doorReleaseIntentProvider);
+    await home.choose(HomeSource.verifiedCore);
+    expect(() => prepare(f.station), blocked(DoorReleaseBlock.intentExpired));
+    expect(f.writes, isEmpty);
+  });
+
 }

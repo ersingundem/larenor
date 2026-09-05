@@ -77,12 +77,11 @@ Future<(ProviderContainer, HomeSessionController)> routinesHome(
     overrides: [homeSessionControllerProvider.overrideWithValue(home)],
     retry: (_, _) => null,
   );
-  addTearDown(() async {
+  addTearDown(() {
     container.dispose();
     home.dispose();
     account.dispose();
     source.pending?.complete(HomeSource.directLocal);
-    await initializing;
   });
   return (container, home);
 }
