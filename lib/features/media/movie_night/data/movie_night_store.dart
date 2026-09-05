@@ -67,8 +67,9 @@ class MovieNightStore {
           () => prefs.setString(MovieNightPreset.storageKey, encoded),
           mutation: true,
         );
-        if (!accepted)
+        if (!accepted) {
           throw const DirectHomeAccessException('write_unconfirmed');
+        }
         _check(isCurrent);
       } catch (_) {
         // The complete single-key value may have committed; never retry or

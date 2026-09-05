@@ -59,8 +59,9 @@ class DoorStationStore {
           () => prefs.setString(DoorStation.storageKey, encoded),
           mutation: true,
         );
-        if (!accepted)
+        if (!accepted) {
           throw const DirectHomeAccessException('write_unconfirmed');
+        }
         _check(isCurrent);
       } catch (_) {
         // A single preference may already have committed. Do not restore an

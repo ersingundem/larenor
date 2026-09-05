@@ -225,7 +225,10 @@ void main() {
     );
   }
   for (final movie in [false, true]) {
-    const changedPreset = MovieNightPreset(serverUrl:'https://changed.test', startEntityId:'scene.changed');
+    const changedPreset = MovieNightPreset(
+      serverUrl: 'https://changed.test',
+      startEntityId: 'scene.changed',
+    );
     Future<void> save(
       ProviderContainer container, {
       bool Function()? current,
@@ -407,28 +410,49 @@ void main() {
     );
   }
 
-  test('cold Core door block/intent provider does not acquire old mapping storage', () async {
-    final (container, _) = await routinesHome('core');
-    expect(
-      container.read(doorReleaseBlockProvider(fixtureStation)),
-      DoorReleaseBlock.intentExpired,
+  test(
+    'cold Core door block/intent provider does not acquire old mapping storage',
+    () async {
+      final (container, _) = await routinesHome('core');
+      expect(
+        container.read(doorReleaseBlockProvider(fixtureStation)),
+        DoorReleaseBlock.intentExpired,
+      );
+      expect(
+        () => container.read(doorReleaseIntentProvider)(fixtureStation),
+        throwsA(anything),
+      );
+      await Future<void>.delayed(Duration.zero);
+      expect(prefs.reads, 0);
+      expect(prefs.writes, isEmpty);
+    },
+  );
+  for (final malformed in [
+    'sentinel-private-home',
+    '{"private":"sentinel-private-home",',
+  ]) {
+    test(
+      'movie malformed JSON (${malformed.length} chars) remains a static FormatException without stored source',
+      () async {
+        await prefs.setValue(
+          'String',
+          'flutter.${MovieNightPreset.storageKey}',
+          malformed,
+        );
+        final (container, _) = await routinesHome('direct');
+        await expectLater(
+          container.read(movieNightStoreProvider).read(),
+          throwsA(
+            isA<FormatException>()
+                .having((e) => e.source, 'source', isNull)
+                .having(
+                  (e) => e.toString(),
+                  'message',
+                  isNot(contains('sentinel-private-home')),
+                ),
+          ),
+        );
+      },
     );
-    expect(
-      () => container.read(doorReleaseIntentProvider)(fixtureStation),
-      throwsA(anything),
-    );
-    await Future<void>.delayed(Duration.zero);
-    expect(prefs.reads, 0);
-    expect(prefs.writes, isEmpty);
-  });
-  for (final malformed in ['sentinel-private-home', '{"private":"sentinel-private-home",']) {
-    test('movie malformed JSON remains a static FormatException without stored source', () async {
-      await prefs.setValue('String','flutter.${MovieNightPreset.storageKey}',malformed);
-      final (container, _) = await routinesHome('direct');
-      await expectLater(container.read(movieNightStoreProvider).read(), throwsA(isA<FormatException>()
-        .having((e)=>e.source,'source',isNull)
-        .having((e)=>e.toString(),'message',isNot(contains('sentinel-private-home')))));
-    });
   }
-
 }
