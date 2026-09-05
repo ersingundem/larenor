@@ -15,6 +15,7 @@ import uuid
 from .catalog import load_catalog, verify_plan
 from .preflight_models import PreflightResult
 from .models import InstallPlan
+from .stack_plan import MediaStackPlan, verify_media_stack_plan
 from .worker import _safe_path, DockerWorkerError
 
 
@@ -138,6 +139,17 @@ class PreflightWorkerClient:
         except (ValueError, TypeError):
             raise PreflightIPCError("invalid_worker_result") from None
 
+    def inspect_stack(self, plan):
+        try:
+            selected = verify_media_stack_plan(plan, load_catalog())
+            observed = PreflightResult.model_validate(self._exchange('inspect_media', selected))
+            if (observed.catalogDigest, observed.planHash, observed.platform) != (
+                    selected.catalogDigest, selected.planHash, selected.platform):
+                raise PreflightIPCError('invalid_worker_result')
+            return observed
+        except (ValueError, TypeError):
+            raise PreflightIPCError('invalid_worker_result') from None
+
 
 class PreflightWorkerServer:
     def __init__(self, path, inspector, *, platform, allowed_uid, socket_gid=None, peer_uid=None, timeout=5):
@@ -188,19 +200,38 @@ class PreflightWorkerServer:
             self.close()
             raise PreflightIPCError() from None
 
-    def _answer(self, request):
+    def _answer(self, request, *, deadline=None):
+        deadline = time.monotonic() + self.timeout if deadline is None else deadline
+        if time.monotonic() >= deadline:
+            raise PreflightIPCError()
         operation = request.get("operation")
         if operation == "status" and set(request) == {"protocol", "requestId", "operation"}:
             return {"capability": "preflight", "installationAvailable": False,
                     "catalogDigest": self.catalog.digest, "platform": self.platform}
-        if operation != "inspect" or set(request) != {"protocol", "requestId", "operation", "plan"}:
+        if operation not in ("inspect", "inspect_media") or set(request) != {"protocol", "requestId", "operation", "plan"}:
             raise PreflightIPCError("invalid_request")
         try:
-            selected = verify_plan(InstallPlan.model_validate_json(json.dumps(request["plan"], allow_nan=False)), self.catalog)
+            raw = json.dumps(request['plan'], allow_nan=False)
+            if operation == 'inspect_media':
+                selected = verify_media_stack_plan(MediaStackPlan.model_validate_json(raw), self.catalog)
+                platform = selected.platform
+            else:
+                selected = verify_plan(InstallPlan.model_validate_json(raw), self.catalog)
+                platform = selected.image.platform
         except (ValueError, TypeError):
             raise PreflightIPCError("invalid_request") from None
-        result = PreflightResult.model_validate(self.inspector.inspect(selected))
-        if (result.catalogDigest, result.planHash, result.platform) != (selected.catalogDigest, selected.planHash, selected.image.platform):
+        if time.monotonic() >= deadline:
+            raise PreflightIPCError()
+        if operation == 'inspect_media':
+            observed = self.inspector.inspect_stack(selected, deadline=deadline)
+        elif callable(getattr(self.inspector, 'inspect_with_deadline', None)):
+            observed = self.inspector.inspect_with_deadline(selected, deadline)
+        else:
+            observed = self.inspector.inspect(selected)
+        result = PreflightResult.model_validate(observed)
+        if time.monotonic() >= deadline:
+            raise PreflightIPCError()
+        if (result.catalogDigest, result.planHash, result.platform) != (selected.catalogDigest, selected.planHash, platform):
             raise PreflightIPCError("invalid_worker_result")
         return result.model_dump(mode="json")
 
@@ -223,7 +254,7 @@ class PreflightWorkerServer:
                         continue
                     request = read_packet(connection, deadline)
                     try:
-                        result = self._answer(request)
+                        result = self._answer(request, deadline=deadline)
                         response = {"protocol": 1, "requestId": request["requestId"], "result": result}
                     except Exception as error:
                         code = error.code if isinstance(error, PreflightIPCError) and error.code == "invalid_request" else "worker_unavailable"
