@@ -4,6 +4,7 @@ from collections import deque
 from dataclasses import replace
 import sqlite3
 import threading
+from urllib.parse import parse_qs, unquote, urlsplit
 
 import pytest
 
@@ -15,6 +16,7 @@ from larenor_server.plugins.resource_journal import ResourceJournal, ResourceJou
 from larenor_server.plugins.resource_models import WorkerPolicyBinding
 from larenor_server.plugins.resource_plan import build_resource_plan
 from larenor_server.plugins.stack_plan import build_media_stack_plan
+from test_image_resources import VERSION, engine_server, image, response
 
 
 @pytest.fixture
@@ -307,3 +309,132 @@ def test_journal_write_failure_never_creates_unrecorded_or_repeated_effect(journ
             retry = Engine([matched(source)])
             assert apply(restarted, retry, source).state == 'ready'
             assert retry.calls == ['inspect']
+
+
+@pytest.mark.parametrize('engine', [None, object(), type('Incomplete', (), {'inspect': lambda: None})()])
+def test_constructor_rejects_missing_engine_contract_without_journal_changes(journal, engine):
+    rejected('invalid_image_preparation', lambda: JournaledImageOperations(journal, engine))
+    with journal.locked():
+        assert journal.list() == ()
+
+
+def test_constructor_rejects_nonjournal_dependency():
+    rejected('invalid_image_preparation', lambda: JournaledImageOperations(object(), Engine()))
+
+
+def test_arbitrary_error_text_is_never_exposed_as_a_diagnostic():
+    assert str(ImagePreparationError('private host and password')) == 'invalid_image_preparation'
+
+
+def test_cancel_from_first_authorization_keeps_prepared(journal, source):
+    event = threading.Event()
+    def authorize():
+        event.set()
+        return True
+    engine = Engine([None])
+    rejected('image_cancelled', lambda: apply(journal, engine, source, authorize_pull=authorize, cancelled=event))
+    assert current(journal, source).state == 'prepared' and engine.calls == ['inspect']
+
+
+def test_cancel_immediately_after_begin_prevents_fresh_cache_inspection(journal, source, monkeypatch):
+    event = threading.Event()
+    original = journal.begin
+    def begin(*args, **kwargs):
+        intent = original(*args, **kwargs)
+        event.set()
+        return intent
+    monkeypatch.setattr(journal, 'begin', begin)
+    engine = Engine([matched(source)])
+    receipt = apply(journal, engine, source, cancelled=event)
+    assert receipt.code == 'observation_unavailable' and engine.calls == ['inspect']
+
+
+@pytest.mark.parametrize('initial_cache', [True, False])
+def test_cancel_during_final_inspection_cannot_record_ready(journal, source, initial_cache):
+    event = threading.Event()
+    count = 0
+    def inspect(*_):
+        nonlocal count
+        count += 1
+        if count == 2:
+            event.set()
+    engine = Engine([matched(source) if initial_cache else None, matched(source)], on_inspect=inspect)
+    receipt = apply(journal, engine, source, cancelled=event, authorize_pull=lambda: True)
+    assert receipt.code == 'observation_unavailable' and receipt.state == 'uncertain'
+    assert engine.calls.count('pull') == (0 if initial_cache else 1)
+
+
+@pytest.mark.parametrize('value', [True, b'completed', ImageObservation('sha256:' + 'a' * 64, b'{}')])
+def test_unexpected_pull_return_cannot_be_treated_as_completed_stream(journal, source, value):
+    engine = Engine([None], on_pull=lambda *_: value)
+    assert apply(journal, engine, source, authorize_pull=lambda: True).state == 'uncertain'
+    assert engine.calls == ['inspect', 'pull']
+
+
+def test_dispatch_authorizer_cannot_change_the_verified_plan(journal, source):
+    calls = 0
+    def authorize():
+        nonlocal calls
+        calls += 1
+        if calls == 2:
+            object.__setattr__(source['plan'], 'installAvailable', True)
+        return True
+    engine = Engine([None])
+    assert apply(journal, engine, source, authorize_pull=authorize).state == 'uncertain'
+    assert engine.calls == ['inspect']
+
+
+def test_initial_authorizer_cannot_begin_an_intent_and_then_trigger_a_new_pull(journal, source):
+    def authorize():
+        journal.begin(identity(source), 1, **source)
+        return True
+    engine = Engine([None])
+    with pytest.raises(ResourceJournalError, match='^revision_conflict$'):
+        apply(journal, engine, source, authorize_pull=authorize)
+    assert current(journal, source).state == 'mutating' and engine.calls == ['inspect']
+
+
+def test_callback_changed_receipt_then_denied_does_not_overwrite_newer_state(journal, source):
+    calls = 0
+    def authorize():
+        nonlocal calls
+        calls += 1
+        if calls == 2:
+            journal.mark_uncertain(identity(source), 2)
+            return False
+        return True
+    engine = Engine([None])
+    receipt = apply(journal, engine, source, authorize_pull=authorize)
+    assert (receipt.state, receipt.revision) == ('uncertain', 3) and engine.calls == ['inspect']
+
+
+@pytest.mark.parametrize('platform', ['linux/amd64', 'linux/arm64'])
+@pytest.mark.parametrize('chunked', [False, True])
+def test_real_unix_engine_composes_with_durable_journal_without_storing_configuration(journal, source, platform, chunked):
+    # This is a synthetic Unix listener with an injected peer-UID observer,
+    # independent of host Docker availability and kernel peer-proof fixtures.
+    source['stack'] = build_media_stack_plan(source['catalog'], {}, platform,
+        ContextResponse(schemaVersion=1, coreId='a' * 32, homeId='b' * 32), 'c' * 32)
+    source['plan'] = build_resource_plan(source['stack'], source['catalog'], source['policy'])
+    binding = image_binding(**source, resource_id=identity(source))
+    arch = platform.split('/')[1]
+    verified = {**image(binding), 'Architecture': arch, 'Variant': 'v8' if arch == 'arm64' else ''}
+    replies = [response({}, status=404), response(b'{"status":"Done","id":"private-progress"}\n', chunked=chunked),
+               response(verified)]
+    with engine_server(replies, version={**VERSION, 'Arch': arch}) as (engine, calls):
+        result = apply(journal, engine, source, authorize_pull=lambda: True)
+    assert result.state == 'ready' and result.kind == 'ensure_image'
+    assert len(calls) == 6
+    assert all(call.startswith(b'GET /version HTTP/1.1\r\n') for call in calls[::2])
+    assert all(unquote(calls[index].split(b' ')[1].decode()) ==
+               '/v1.47/images/' + binding.reference + '/json' for index in (1, 5))
+    method, target, _ = calls[3].split(b' ', 2)
+    parsed = urlsplit(target.decode())
+    assert method == b'POST' and parsed.path == '/v1.47/images/create'
+    assert parse_qs(parsed.query) == {'fromImage': [binding.reference], 'platform': [platform]}
+    assert b'Content-Length: 0\r\n' in calls[3]
+    assert not any(b'Authorization' in call or b'X-Registry-Auth' in call for call in calls)
+    saved = (journal.directory / 'journal.sqlite').read_bytes()
+    assert all(secret not in saved for secret in (b'PRIVATE=never-display', b'private-progress'))
+    with ResourceJournal(journal.directory) as restarted:
+        assert apply(restarted, Engine(), source) == result
