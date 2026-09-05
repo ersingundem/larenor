@@ -2,7 +2,6 @@
 
 from dataclasses import FrozenInstanceError
 import os
-from pathlib import Path
 import sys
 import time
 
@@ -57,11 +56,22 @@ def test_only_kernel_path_escapes_are_decoded(encoded, decoded):
     assert record.root == decoded and record.mount_point == decoded
 
 
+def test_kernel_source_hash_escape_and_root_self_parent_are_supported():
+    raw = row().replace(b'41 1', b'41 41').replace(b'/dev/example', rb'/dev/disk\043name')
+    assert module.parse_mountinfo(raw)[0].mount_id == 41
+
+
+def test_non_utf8_filesystem_path_is_preserved_without_repr_disclosure():
+    record, = module.parse_mountinfo(row().replace(b'/private/data', b'/private/\xff'))
+    assert os.fsencode(record.mount_point) == b'/private/\xff'
+    assert '/private' not in repr(record)
+
+
 @pytest.mark.parametrize('data', [
     b'', b'\n', row()[:-1], row() + b'partial', row() + row(),
     row().replace(b'41 1', b'0 1'), row().replace(b'41 1', b'-1 1'),
     row().replace(b'41 1', b'01 1'), row().replace(b'41 1', b'41 0'),
-    row().replace(b'41 1', b'41 41'), row().replace(b'8:1', b'8'),
+    row().replace(b'8:1', b'8'),
     row().replace(b'8:1', b'8:1:2'), row().replace(b'8:1', b'-1:2'),
     row().replace(b'41 1', b'2147483648 1'), row().replace(b'8:1', b'4294967296:1'),
     row().replace(b' - ', b' '), row().replace(b' - ', b' - - '),
@@ -88,7 +98,7 @@ def test_parser_requires_bounded_bytes(value):
 def test_mountinfo_byte_line_row_and_decoded_path_bounds():
     for data in (b'x' * (module.MAX_MOUNTINFO_BYTES + 1),
                  row(super_options='rw,' + 'x' * module.MAX_LINE_BYTES),
-                 b''.join(row(i + 2) for i in range(module.MAX_MOUNT_ROWS + 1)),
+                 b''.join(row(i + 2, point='/', extra='') for i in range(module.MAX_MOUNT_ROWS + 1)),
                  row(point='/' + 'a' * 4096)):
         unavailable(lambda: module.parse_mountinfo(data))
 
@@ -261,6 +271,33 @@ def test_invalid_descriptor_is_rejected_without_read(fd):
 def test_invalid_or_elapsed_deadline_never_reads(proc_tree, monkeypatch, deadline):
     monkeypatch.setattr(module, '_read', lambda *args: pytest.fail('must not read'))
     unavailable(lambda: module.observe_fd_mount(proc_tree['fd'], deadline=deadline))
+
+
+def test_far_future_caller_deadline_still_has_two_second_observation_budget(proc_tree, monkeypatch):
+    now = [1000.0]
+    monkeypatch.setattr(module.time, 'monotonic', lambda: now[0])
+    original = module._read
+    def read(*args):
+        result = original(*args)
+        if args[1] == 'mountinfo':
+            now[0] = 1003.0
+        return result
+    monkeypatch.setattr(module, '_read', read)
+    unavailable(lambda: module.observe_fd_mount(proc_tree['fd'], deadline=2000.0))
+
+
+def test_close_failure_cannot_disclose_raw_error(tmp_path, monkeypatch):
+    (tmp_path / 'proc-file').write_bytes(b'complete\n')
+    directory = os.open(tmp_path, os.O_RDONLY | os.O_DIRECTORY)
+    original = os.close
+    def close(fd):
+        original(fd)
+        raise OSError('secret-host-path')
+    monkeypatch.setattr(module.os, 'close', close)
+    try:
+        assert module._read(directory, 'proc-file', 8192, time.monotonic() + 2) == b'complete\n'
+    finally:
+        original(directory)
 
 
 def test_non_linux_and_regular_files_are_not_directory_observations(proc_tree, monkeypatch, tmp_path):
