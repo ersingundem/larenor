@@ -532,6 +532,9 @@ String _check(AppLocalizations l10n, String code) => switch (code) {
   'storage_root' => l10n.serverJobsCheckRoot,
   'storage_capacity' => l10n.serverJobsCheckCapacity,
   'docker_engine' => l10n.serverJobsCheckDocker,
+  'daemon_mount_context' => l10n.serverJobsCheckDaemonMount,
+  'daemon_network_context' => l10n.serverJobsCheckDaemonNetwork,
+  'daemon_root_context' => l10n.serverJobsCheckDaemonRoot,
   'port_availability' => l10n.serverJobsCheckPorts,
   _ => l10n.serverJobsCheckNetwork,
 };

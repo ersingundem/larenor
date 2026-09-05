@@ -1768,8 +1768,8 @@
   "serverJobsCheckFailed": "Karşılanmadı",
   "serverJobsUnknown": "Doğrulanamadı",
   "serverJobsCheckPlatform": "Sunucu platformu",
-  "serverJobsCheckRoot": "Yönetilen depolama alanı",
-  "serverJobsCheckCapacity": "Depolama kapasitesi",
+  "serverJobsCheckRoot": "Çalışanın yerel depolama alanı",
+  "serverJobsCheckCapacity": "Çalışanın yerel depolama kapasitesi",
   "serverJobsCheckDocker": "Docker API ve platform uyumluluğu",
   "serverJobsCheckPorts": "Port kullanılabilirliği",
   "serverJobsCheckNetwork": "Alıcı ağı",
@@ -1819,5 +1819,8 @@
   "serverMediaCpu": "CPU bütçesi (millicore)",
   "serverMediaPids": "İşlem sınırı",
   "serverMediaPlannedComponents": "Planlanan bileşenler",
-  "serverMediaPlannedSteps": "Her bileşen için depolama hazırlığı, konteyner oluşturma, başlatma, ilk kurulum ve servis doğrulama adımları planlandı. Bu adımların hiçbiri çalıştırılmadı."
+  "serverMediaPlannedSteps": "Her bileşen için depolama hazırlığı, konteyner oluşturma, başlatma, ilk kurulum ve servis doğrulama adımları planlandı. Bu adımların hiçbiri çalıştırılmadı.",
+  "serverJobsCheckDaemonMount": "Docker daemon bağlama bağlamı",
+  "serverJobsCheckDaemonNetwork": "Docker daemon ağ bağlamı",
+  "serverJobsCheckDaemonRoot": "Docker daemon kök bağlamı"
 }

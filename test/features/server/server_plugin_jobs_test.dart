@@ -44,26 +44,38 @@ void main() {
       }
     },
   );
-  test('result distinguishes worker observations from daemon context proofs', () {
-    final value = pluginJobJson(state: 'succeeded');
-    value['result']['checks'] = [
-      for (final code in [
-        'storage_root', 'storage_capacity', 'daemon_mount_context',
-        'daemon_network_context', 'daemon_root_context',
-      ])
-        {
-          'code': code,
-          'status': code.startsWith('storage_') ? 'passed' : 'unknown',
-          'rootId': null, 'availableMiB': null, 'requiredMiB': null,
-        },
-    ];
-    final result = ServerPluginJob.fromJson(value).result!;
-    expect(result.checks.map((c) => c.status), [
-      'passed', 'passed', 'unknown', 'unknown', 'unknown',
-    ]);
-    value['result']['checks'][2]['code'] = 'synthetic-secret';
-    expect(() => ServerPluginJob.fromJson(value), invalid);
-  });
+  test(
+    'result distinguishes worker observations from daemon context proofs',
+    () {
+      final value = pluginJobJson(state: 'succeeded');
+      value['result']['checks'] = [
+        for (final code in [
+          'storage_root',
+          'storage_capacity',
+          'daemon_mount_context',
+          'daemon_network_context',
+          'daemon_root_context',
+        ])
+          {
+            'code': code,
+            'status': code.startsWith('storage_') ? 'passed' : 'unknown',
+            'rootId': null,
+            'availableMiB': null,
+            'requiredMiB': null,
+          },
+      ];
+      final result = ServerPluginJob.fromJson(value).result!;
+      expect(result.checks.map((c) => c.status), [
+        'passed',
+        'passed',
+        'unknown',
+        'unknown',
+        'unknown',
+      ]);
+      value['result']['checks'][2]['code'] = 'synthetic-secret';
+      expect(() => ServerPluginJob.fromJson(value), invalid);
+    },
+  );
   final bad = <String, void Function(Map<String, dynamic>)>{
     'unknown secret': (v) => v['token'] = 'synthetic-secret',
     'missing required nullable': (v) => v.remove('result'),

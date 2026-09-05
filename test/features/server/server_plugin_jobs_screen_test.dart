@@ -200,7 +200,8 @@ void main() {
               {
                 'code': code,
                 'status': code == 'docker_engine' || code.startsWith('storage_')
-                    ? 'passed' : 'unknown',
+                    ? 'passed'
+                    : 'unknown',
                 'rootId': null,
                 'availableMiB': null,
                 'requiredMiB': null,

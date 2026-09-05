@@ -2089,8 +2089,8 @@
   "serverJobsCheckFailed": "Not met",
   "serverJobsUnknown": "Could not verify",
   "serverJobsCheckPlatform": "Server platform",
-  "serverJobsCheckRoot": "Managed storage root",
-  "serverJobsCheckCapacity": "Storage capacity",
+  "serverJobsCheckRoot": "Worker-local storage root",
+  "serverJobsCheckCapacity": "Worker-local storage capacity",
   "serverJobsCheckDocker": "Docker API and platform compatibility",
   "serverJobsCheckPorts": "Port availability",
   "serverJobsCheckNetwork": "Receiver network",
@@ -2140,5 +2140,8 @@
   "serverMediaCpu": "CPU budget (millicores)",
   "serverMediaPids": "Process limit",
   "serverMediaPlannedComponents": "Planned components",
-  "serverMediaPlannedSteps": "Each component records planned storage preparation, container creation, startup, initial setup and service verification. None of these steps has run."
+  "serverMediaPlannedSteps": "Each component records planned storage preparation, container creation, startup, initial setup and service verification. None of these steps has run.",
+  "serverJobsCheckDaemonMount": "Docker daemon mount context",
+  "serverJobsCheckDaemonNetwork": "Docker daemon network context",
+  "serverJobsCheckDaemonRoot": "Docker daemon root context"
 }
