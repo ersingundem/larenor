@@ -5,7 +5,7 @@ that same stream before one operation. This proves no daemon namespace, actor,
 journal or installation authority. There is no raw API/IPC entry point, proxy,
 TCP fallback, retry, redirect, auth option, or general Docker client here.
 
-Only pinned-image inspect/pull and exact network list/inspect shapes are accepted. Catalog
+Only pinned-image inspect/pull and exact network list/inspect/create shapes are accepted. Catalog
 rederivation and response meaning belong to the adapter. The synchronous trusted
 consumer must validate its response; its bounded iterator is invalidated before
 exchange returns. No configuration or progress content is retained here.
@@ -23,15 +23,17 @@ from ..services.transport import (
     ProbeResponse, ProbeTransportError, _Deadline, _Reader, _remaining, _request_bytes,
 )
 from .docker_probe import DockerEndpoint, _compatibility, _identity, _linux_peer_uid
-from .worker import DockerWorkerError
+from .worker import DockerWorkerError, _canonical, _decode
 
 
 _CODES = frozenset({'invalid_engine_request', 'invalid_engine_limits', 'engine_protocol',
                     'engine_stream_limit', 'engine_unavailable', 'engine_timeout',
-                    'engine_cancelled', 'engine_api_unsupported'})
+                    'engine_cancelled', 'engine_api_unsupported', 'engine_dispatch_denied'})
 _TOKEN = re.compile(rb"[!#$%&'*+.^_`|~0-9A-Za-z-]+\Z")
 _REFERENCE = re.compile(r'ghcr\.io/[a-z0-9-]+/[a-z0-9-]+@sha256:[0-9a-f]{64}\Z')
 _HEADERS = (('Accept', 'application/json'),)
+_CREATE_HEADERS = (*_HEADERS, ('Content-Type', 'application/json'))
+_NETWORK_CREATE = '/v1.47/networks/create'
 _PLATFORMS = ('linux/amd64', 'linux/arm64')
 
 
@@ -81,6 +83,38 @@ def _network_read_target(target):
             and prefix + urlencode(pairs) == target)
 
 
+def _network_create_body(body):
+    """Closed wire schema only; the creator separately re-derives provenance."""
+    if type(body) is not bytes or len(body) > 4096:
+        return False
+    try:
+        value = _decode(body, limit=4096)
+        if (set(value) != {'Name', 'Driver', 'Scope', 'Internal', 'Attachable', 'Ingress',
+                          'ConfigOnly', 'EnableIPv6', 'Labels'}
+                or value['Driver'] != 'bridge' or value['Scope'] != 'local'
+                or value['Internal'] is not True
+                or any(value[name] is not False for name in ('Attachable', 'Ingress', 'ConfigOnly', 'EnableIPv6'))):
+            return False
+        labels = value['Labels']
+        ids = ('core', 'home', 'preparation', 'resource', 'operation', 'worker-journal', 'ownership-nonce')
+        hashes = ('specification', 'plan', 'stack-plan', 'catalog', 'worker-policy')
+        names = (*ids, *hashes, 'resource-schema', 'worker-policy-version')
+        if (type(labels) is not dict or set(labels) != {'org.larenor.' + name for name in names}
+                or any(type(item) is not str for item in labels.values())
+                or labels['org.larenor.resource-schema'] != '1'):
+            return False
+        for names, width in ((ids, 32), (hashes, 64)):
+            if any(re.fullmatch('[0-9a-f]{' + str(width) + '}', labels['org.larenor.' + name]) is None
+                   for name in names):
+                return False
+        version = labels['org.larenor.worker-policy-version']
+        return (re.fullmatch(r'[1-9][0-9]{0,9}', version) is not None and int(version) <= 2**31 - 1
+                and value['Name'] == 'larenor-control-' + labels['org.larenor.resource']
+                and _canonical(value) == body)
+    except (DockerWorkerError, ValueError, TypeError):
+        return False
+
+
 @dataclass(frozen=True, repr=False)
 class EngineHttpRequest:
     """Closed wire shapes only; possession is not catalog/effect authorization."""
@@ -91,12 +125,17 @@ class EngineHttpRequest:
     body: bytes | None = field(default=None, repr=False)
 
     def __post_init__(self):
+        creating_network = self.method == 'POST' and self.target == _NETWORK_CREATE
         _require(type(self.method) is str and self.method in ('GET', 'POST')
                  and type(self.target) is str and len(self.target) <= 512
-                 and type(self.headers) is tuple and self.headers == _HEADERS
+                 and type(self.headers) is tuple
+                 and self.headers == (_CREATE_HEADERS if creating_network else _HEADERS)
                  and all(type(pair) is tuple and all(type(item) is str for item in pair)
                          for pair in self.headers)
-                 and self.body is None, 'invalid_engine_request')
+                 and (creating_network or self.body is None), 'invalid_engine_request')
+        if creating_network:
+            _require(_network_create_body(self.body), 'invalid_engine_request')
+            return
         if self.method == 'GET':
             prefix, suffix = '/v1.47/images/', '/json'
             encoded = self.target[len(prefix):-len(suffix)]
@@ -231,7 +270,7 @@ class VerifiedEngineHttp:
         self._endpoint = endpoint
         self._peer_uid = _linux_peer_uid if peer_uid is None else peer_uid
 
-    def exchange(self, request, consume, *, platform, limits, cancelled=None):
+    def exchange(self, request, consume, *, platform, limits, cancelled=None, before_dispatch=None):
         _require(type(request) is EngineHttpRequest and callable(consume)
                  and type(platform) is str and platform in _PLATFORMS, 'invalid_engine_request')
         _require(type(limits) is EngineHttpLimits, 'invalid_engine_limits')
@@ -245,7 +284,11 @@ class VerifiedEngineHttp:
             limits = EngineHttpLimits(**vars(limits))
         except TypeError:
             raise EngineHttpError('invalid_engine_limits') from None
-        if request.method == 'POST':
+        creating_network = request.method == 'POST' and request.target == _NETWORK_CREATE
+        _require(callable(before_dispatch) if creating_network else before_dispatch is None,
+                 'engine_dispatch_denied')
+        image_pull = request.method == 'POST' and request.target.startswith('/v1.47/images/create?')
+        if image_pull:
             _require(parse_qsl(request.target.split('?', 1)[1])[1][1] == platform,
                      'invalid_engine_request')
         cancelled = threading.Event() if cancelled is None else cancelled
@@ -255,6 +298,7 @@ class VerifiedEngineHttp:
         watcher = None
         chunks = None
         try:
+            wire = _request_bytes(request.method, request.target, 'localhost', dict(request.headers), request.body)
             before = _identity(endpoint)
             watcher = _Deadline(deadline)
             connection = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
@@ -276,12 +320,23 @@ class VerifiedEngineHttp:
                      'engine_api_unsupported')
             _require(_identity(endpoint) == before, 'engine_unavailable')
             _require(not cancelled.is_set(), 'engine_cancelled')
+            if creating_network:
+                try:
+                    permitted = before_dispatch() is True
+                except Exception:
+                    raise EngineHttpError('engine_dispatch_denied') from None
+                _require(permitted, 'engine_dispatch_denied')
+                fresh = EngineHttpRequest(**vars(request))
+                _require(_request_bytes(fresh.method, fresh.target, 'localhost', dict(fresh.headers), fresh.body) == wire,
+                         'invalid_engine_request')
+                _require(_identity(endpoint) == before, 'engine_unavailable')
+                _require(not cancelled.is_set(), 'engine_cancelled')
+                _require(time.monotonic() < deadline, 'engine_timeout')
             connection.settimeout(min(_remaining(deadline), limits.idle_seconds))
-            connection.sendall(_request_bytes(request.method, request.target, 'localhost',
-                                               dict(request.headers), request.body))
+            connection.sendall(wire)
             status, headers = _headers(reader)
             chunks = _ScopedChunks(_body(reader, headers, limits.max_total_bytes, limits.max_chunks,
-                                         allow_eof=request.method == 'POST'))
+                                         allow_eof=image_pull))
             result = consume(status, headers, chunks)
             _require(_identity(endpoint) == before, 'engine_unavailable')
             _require(not cancelled.is_set(), 'engine_cancelled')
