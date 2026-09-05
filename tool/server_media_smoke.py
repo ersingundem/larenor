@@ -75,6 +75,12 @@ def _verify(name, healthy, platform):
     assert changed["user"]["role"] == "admin" and changed["user"]["mustChangePassword"] is False
     token = changed["accessToken"]
     del password, initial, changed
+    def disabled_inspections():
+        assert request("GET", "/admin/media/inspections/capabilities") == {
+            "inspectionConfigured": False, "installAvailable": False}
+        assert request("GET", "/admin/media/inspections") == {"inspections": [], "nextBefore": None}
+
+    disabled_inspections()
     context = request("GET", "/context")
     assert set(context) == {"schemaVersion", "coreId", "homeId"} and context["schemaVersion"] == 1
     assert all(re.fullmatch(r"[0-9a-f]{32}", context[key]) for key in ("coreId", "homeId"))
@@ -109,6 +115,7 @@ def _verify(name, healthy, platform):
     subprocess.run(["docker", "restart", "--time", "10", name], check=True,
                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=30)
     base = _base(healthy)
+    disabled_inspections()
     assert request("GET", "/context") == context
     assert request("GET", "/admin/media/preparations") == {"preparations": [record], "nextBefore": None}
     path = "/admin/media/preparations/" + record["id"]
