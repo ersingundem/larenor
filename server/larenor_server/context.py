@@ -7,7 +7,7 @@ import secrets
 import sqlite3
 from typing import Annotated, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from .errors import StartupError
 
@@ -21,6 +21,14 @@ class ContextResponse(BaseModel):
     schemaVersion: Literal[1]
     coreId: Identity
     homeId: Identity
+
+    @field_validator("schemaVersion", mode="before")
+    @classmethod
+    def integer_schema_version(cls, value):
+        # Literal equality alone also accepts True and 1.0; the wire type is int.
+        if type(value) is not int:
+            raise ValueError("invalid_context_schema")
+        return value
 
 
 def _authentication_tag(key: bytes, core_id: str, home_id: str) -> str:
