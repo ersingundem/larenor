@@ -66,12 +66,24 @@ void main() {
               await tester.pumpWidget(app());
             case 'background':
               tester.binding.handleAppLifecycleStateChanged(
-                AppLifecycleState.paused,
+                AppLifecycleState.inactive,
               );
               await tester.pump();
+              expect(button().onPressed, isNull);
+              tester.binding.handleAppLifecycleStateChanged(
+                AppLifecycleState.hidden,
+              );
+              tester.binding.handleAppLifecycleStateChanged(
+                AppLifecycleState.paused,
+              );
               oldCallback();
               expect(opens, 0);
-              expect(button().onPressed, isNull);
+              tester.binding.handleAppLifecycleStateChanged(
+                AppLifecycleState.hidden,
+              );
+              tester.binding.handleAppLifecycleStateChanged(
+                AppLifecycleState.inactive,
+              );
               tester.binding.handleAppLifecycleStateChanged(
                 AppLifecycleState.resumed,
               );
@@ -103,6 +115,16 @@ void main() {
           await tester.pumpAndSettle();
           expect(opens, 1);
         } finally {
+          if (tester.binding.lifecycleState == AppLifecycleState.paused) {
+            tester.binding.handleAppLifecycleStateChanged(
+              AppLifecycleState.hidden,
+            );
+          }
+          if (tester.binding.lifecycleState == AppLifecycleState.hidden) {
+            tester.binding.handleAppLifecycleStateChanged(
+              AppLifecycleState.inactive,
+            );
+          }
           tester.binding.handleAppLifecycleStateChanged(
             AppLifecycleState.resumed,
           );

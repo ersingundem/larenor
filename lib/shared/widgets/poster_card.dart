@@ -1,6 +1,7 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/cupertino.dart';
 
+import '../../core/app_interaction_scope.dart';
 import '../theme/radii.dart';
 import '../theme/spacing.dart';
 import '../theme/typography.dart';
@@ -13,7 +14,7 @@ import '../theme/typography.dart';
 /// too small — the Jellyfin row clipped its own captions at the default
 /// text size. Deriving the height from the same constants that lay the
 /// card out means the two can't drift apart again.
-class PosterCard extends StatelessWidget {
+class PosterCard extends StatefulWidget {
   const PosterCard({
     super.key,
     required this.title,
@@ -52,65 +53,143 @@ class PosterCard extends StatelessWidget {
   }
 
   @override
+  State<PosterCard> createState() => _PosterCardState();
+}
+
+class _PosterCardState extends State<PosterCard> {
+  late final AppLifecycleListener _lifecycle;
+  bool _foreground = true;
+  bool _exposed = true;
+  int _generation = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    final state = WidgetsBinding.instance.lifecycleState;
+    _foreground = state == null || state == AppLifecycleState.resumed;
+    _lifecycle = AppLifecycleListener(
+      onStateChange: (state) {
+        final foreground = state == AppLifecycleState.resumed;
+        if (_foreground == foreground) return;
+        if (!foreground) _generation++;
+        setState(() => _foreground = foreground);
+      },
+    );
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final exposed =
+        TickerMode.valuesOf(context).enabled &&
+        ModalRoute.of(context)?.isCurrent != false;
+    if (_exposed && !exposed) _generation++;
+    _exposed = exposed;
+  }
+
+  @override
+  void didUpdateWidget(covariant PosterCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.onTap != widget.onTap) _generation++;
+  }
+
+  @override
+  void dispose() {
+    _generation++;
+    _lifecycle.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final theme = CupertinoTheme.of(context);
-    return SizedBox(
-      width: width,
-      // Native focus extends outside the button; keep it inside row/grid clips.
-      child: Padding(
-        padding: const EdgeInsets.all(_focusInset),
-        child: CupertinoButton(
-          padding: EdgeInsets.zero,
-          minimumSize: const Size.square(48),
-          borderRadius: Radii.brArtwork,
-          focusColor: CupertinoTheme.brightnessOf(context) == Brightness.dark
-              ? Color.lerp(theme.primaryColor, CupertinoColors.white, .12)
-              : theme.primaryColor,
-          onPressed: onTap,
-          child: DefaultTextStyle(
-            style: DefaultTextStyle.of(context).style,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                AspectRatio(
-                  aspectRatio: 2 / 3,
-                  child: ClipRRect(
-                    borderRadius: Radii.brArtwork,
-                    child: Stack(
-                      fit: StackFit.expand,
-                      children: [
-                        _Artwork(url: imageUrl),
-                        if (overlay != null)
-                          Positioned(top: 6, right: 6, child: overlay!),
-                        if (progress != null && progress! > 0)
-                          Positioned(
-                            left: 0,
-                            right: 0,
-                            bottom: 0,
-                            child: _ProgressBar(
-                              value: progress!,
-                              color:
-                                  progressColor ??
-                                  CupertinoTheme.of(context).primaryColor,
+    final interaction = AppInteractionScope.maybeOf(context);
+    final epoch = interaction?.epoch;
+    final generation = _generation;
+    bool current() =>
+        mounted &&
+        _foreground &&
+        generation == _generation &&
+        identical(interaction, AppInteractionScope.maybeRead(context)) &&
+        interaction?.active != false &&
+        interaction?.epoch == epoch &&
+        TickerMode.valuesOf(context).enabled &&
+        ModalRoute.of(context)?.isCurrent != false;
+    // Preserve focus under temporary nonopaque routes; their old actions still
+    // expire. Hidden branches and inactive windows cannot receive focus.
+    final enabled =
+        _foreground &&
+        interaction?.active != false &&
+        TickerMode.valuesOf(context).enabled;
+    return Semantics(
+      enabled: enabled,
+      blockUserActions: !enabled,
+      child: SizedBox(
+        width: widget.width,
+        // Native focus extends outside the button; keep it inside row/grid clips.
+        child: Padding(
+          padding: const EdgeInsets.all(PosterCard._focusInset),
+          child: CupertinoButton(
+            padding: EdgeInsets.zero,
+            minimumSize: const Size.square(48),
+            borderRadius: Radii.brArtwork,
+            focusColor: CupertinoTheme.brightnessOf(context) == Brightness.dark
+                ? Color.lerp(theme.primaryColor, CupertinoColors.white, .12)
+                : theme.primaryColor,
+            onPressed: enabled
+                ? () {
+                    if (current()) widget.onTap();
+                  }
+                : null,
+            child: DefaultTextStyle(
+              style: DefaultTextStyle.of(context).style,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  AspectRatio(
+                    aspectRatio: 2 / 3,
+                    child: ClipRRect(
+                      borderRadius: Radii.brArtwork,
+                      child: Stack(
+                        fit: StackFit.expand,
+                        children: [
+                          _Artwork(url: widget.imageUrl),
+                          if (widget.overlay != null)
+                            Positioned(
+                              top: 6,
+                              right: 6,
+                              child: widget.overlay!,
                             ),
-                          ),
-                      ],
+                          if (widget.progress != null && widget.progress! > 0)
+                            Positioned(
+                              left: 0,
+                              right: 0,
+                              bottom: 0,
+                              child: _ProgressBar(
+                                value: widget.progress!,
+                                color:
+                                    widget.progressColor ??
+                                    CupertinoTheme.of(context).primaryColor,
+                              ),
+                            ),
+                        ],
+                      ),
                     ),
                   ),
-                ),
-                const SizedBox(height: _captionGap),
-                // Flexible so a caption that grows with the system text size
-                // shortens the card rather than overflowing it.
-                Flexible(
-                  child: Text(
-                    title,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: AppText.posterCaption,
+                  const SizedBox(height: PosterCard._captionGap),
+                  // Flexible so a caption that grows with the system text size
+                  // shortens the card rather than overflowing it.
+                  Flexible(
+                    child: Text(
+                      widget.title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppText.posterCaption,
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ),
