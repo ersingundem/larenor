@@ -89,7 +89,10 @@ yazılır. İptal, callback sırasında kaynak değişimi veya cevap kaybı beli
 korur. Restart yalnız inspect/uzlaştırma yapar; otomatik ikinci pull yoktur.
 Bu callback gerçek operatör/actor/kapasite politikasının uygulandığı iddiası
 değildir. Bağımsız inceleme ve hata sınırı regresyonları tamamlandı. Köprü,
-`483ec13` uzak CI paketinden **sonraki** değişikliktir; o CI kanıtına dahil değildir.
+`483ec13` uzak CI paketinden **sonraki** değişikliktir; o CI kanıtına dahil değildir. Köprü daha sonra `fc632b6` Linux CI
+paketinde **70 özel test dahil 1.890 atlamasız testle** doğrulandı; S06.3c
+bu özel taşıma/journal kapsamıyla kabul edildi. Gerçek Engine medya imajı
+edinme ve dispatcher yetkilendirmesi ayrı kapılardır.
 
 Bu ilkeller bir production dispatcher'a veya inspection API'sine bağlanmadı.
 Daemon image-store kapasitesi ve güncel actor/politika yetkisi ileride gerçek
@@ -136,3 +139,22 @@ dahili worker + ayrı API container kullanmalıdır. Birleşik installer bu work
 supervision, özel Unix socket ve açık politika kurulumunu henüz yapmıyor;
 bu, S07/S09 paketleme kabulünde tamamlanacak. API container'ına bu aşamada
 ek yetki verilmedi ve eski MA-only compose birleşik installer sayılmadı.
+
+Sonraki [native lease kararı](appdata-native-lease-plan-2026-09-05.md), gerçek
+host/daemon/mount/UID-GID kanıtını ayrı üretir. Linux 6.1 mountinfo yolu ile
+6.5+ peer-pidfd gereksinimi birbirinden ayrıldı; bütün CasaOS ortamlarında
+hazır destek iddiası yoktur. İlk `linux_mount_observation.py` katmanı
+`6d9db0d` RED → `0cf13a4` GREEN ile hazır; bağımsız incelemede geçerli `-`
+mount kaynağı için `6cbe53e` RED → `68cc660` GREEN düzeltmesi eklendi.
+**113 geçti, bir gerçek Linux testi Mac'te atlandı**; 217/217 statement ve
+24/24 dal çalıştı. Bounded mountinfo/fdinfo, tutulan FD/mount ID/device,
+namespace/root/thread ve önce/sonra gözlem bağları sınanır. `ro`/`idmapped`
+yalnız gözlem bayrağıdır; daemon, supervisor veya UID mapping yetkisi
+üretilmez. Raw proc/yol verisi hata çıktısına taşınmaz. İlk tam yerel Server
+regresyonu **2.087 geçti, üç Linux testi atlandı**; ardından iki dash-source
+regresyonunu da içeren odaklı paket tekrar geçti. Yeni Linux vakasının gerçek
+CI kabulü henüz ayrı bekler.
+
+S06.3e'nin [saf ağ sözleşmesi](network-resource-implementation-2026-09-05.md)
+88 testle yerelde hazır. İmaj ve ağın ortak taşıma katmanı için
+[sonraki uygulama sırası](network-transport-plan-2026-09-05.md) kayıtlıdır.

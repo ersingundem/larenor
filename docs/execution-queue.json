@@ -293,7 +293,7 @@
       "kind": "task",
       "parent": "S06.3",
       "title": "Seçili digest ile bounded imaj edinme",
-      "status": "awaiting_ci",
+      "status": "done",
       "dependsOn": [
         "B0"
       ],
@@ -318,22 +318,38 @@
         {
           "kind": "test",
           "ref": "docs/resource-preparation-implementation-2026-09-05.md",
-          "commit": "63680d6567d1ee61de567d2348aa031300198df2",
+          "commit": "fc632b63c21932bade21a5d868e8876d4a9086a6",
           "state": "completed",
           "result": "passed",
-          "label": "70 köprü testi; 289 ilgili test geçti, bir Linux testi Mac’te atlandı; köprü %99 kapsam."
+          "label": "Linux 1890 atlamasız test içinde 70 image bridge testi ve gerçek peer kanıtı."
         },
         {
           "kind": "review",
           "ref": "docs/resource-preparation-implementation-2026-09-05.md",
-          "commit": "63680d6567d1ee61de567d2348aa031300198df2",
+          "commit": "fc632b63c21932bade21a5d868e8876d4a9086a6",
           "state": "completed",
           "result": "passed",
-          "label": "Bağımsız kalıcılık/iptal/yetki/kayıp cevap ve sentetik Unix bileşim incelemesi."
+          "label": "Bağımsız inceleme: durable intent, iptal/kayıp cevap ve readonly replay; production dispatcher ayrı."
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/33981106713",
+          "commit": "fc632b63c21932bade21a5d868e8876d4a9086a6",
+          "state": "completed",
+          "result": "passed",
+          "label": "Server Linux test ve gerçek Core amd64/arm64 build/restart smoke başarılı."
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/33981106554",
+          "commit": "fc632b63c21932bade21a5d868e8876d4a9086a6",
+          "state": "completed",
+          "result": "passed",
+          "label": "202 araç testi ve güvenlik taraması başarılı."
         }
       ],
-      "completionCommit": null,
-      "reason": "Sabit digest taşıması ve journal köprüsü yerelde doğrulandı; 63680d6 henüz uzak CI’da değil. Gerçek daemon/kapasite dispatch politikası ayrıca kapalı."
+      "completionCommit": "fc632b63c21932bade21a5d868e8876d4a9086a6",
+      "reason": "Sabit digest taşıması ve özel journal köprüsü fc632b6 Linux Server/güvenlik CI ile kabul edildi. Gerçek daemon/kapasite dispatch ve iki mimaride media kaynak kurulumu ayrıca kapalı."
     },
     {
       "id": "S06.3d",
@@ -347,7 +363,8 @@
       "finishDependsOn": [],
       "sources": [
         "docs/media-resource-preparation-plan-2026-09-05.md",
-        "docs/remaining-core-integration-slices.md"
+        "docs/remaining-core-integration-slices.md",
+        "docs/appdata-native-lease-plan-2026-09-05.md"
       ],
       "scope": "installAvailable=false; Client kaynak adı/Docker seçenekleri üretmez. Gerçek ev sunucusuna işlem yok.",
       "acceptance": [
@@ -360,7 +377,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "İlk salt okunur alt adım1ef08fb: 84 test ve %97 kapsam; marker/parent değişimi regresyonları giderildi. Gerçek write lease, oluşturma/yayımlama ve Linux kabulü açık."
+      "reason": "Marker/parent84test; mount gözlemi68cc660 ile113test/1Linuxskip yerelde hazır. Supervisor/daemon/UIDmapping lease ve create/publish açık."
     },
     {
       "id": "S06.3e",
@@ -374,7 +391,9 @@
       "finishDependsOn": [],
       "sources": [
         "docs/media-resource-preparation-plan-2026-09-05.md",
-        "docs/remaining-core-integration-slices.md"
+        "docs/remaining-core-integration-slices.md",
+        "docs/network-resource-implementation-2026-09-05.md",
+        "docs/network-transport-plan-2026-09-05.md"
       ],
       "scope": "installAvailable=false; Client kaynak adı/Docker seçenekleri üretmez. Gerçek ev sunucusuna işlem yok.",
       "acceptance": [
@@ -387,7 +406,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Saf ağ binding/create-body ve sahiplik doğrulayıcısı hazırlanıyor. Transport, journal etki köprüsü ve gerçek Engine kabulü henüz yok."
+      "reason": "Saf sözleşme a814edc: 88 test, %100 birleşik kapsam; tam liste yalnız candidate, ayrı ID inspect gerekir. Unix transport/journal effect ve gerçek Engine kabulü açık."
     },
     {
       "id": "S06.3f",
@@ -637,7 +656,7 @@
       "kind": "task",
       "parent": "S08",
       "title": "Core/ev bağlamını oturuma atomik bağlama",
-      "status": "awaiting_ci",
+      "status": "done",
       "dependsOn": [
         "B0"
       ],
@@ -661,22 +680,46 @@
         {
           "kind": "test",
           "ref": "docs/client-context-implementation-2026-09-05.md",
-          "commit": "f7d9b832ffe415c194ba49ca89004ddb52b0f603",
+          "commit": "fc632b63c21932bade21a5d868e8876d4a9086a6",
           "state": "completed",
           "result": "passed",
-          "label": "520 Server/Client updates testi ve 14 dosyada temiz analiz; satır kapsamı %94,6–100."
+          "label": "2659 Flutter,98 JVM,8 emülatör senaryosu; Server1890atlamasız."
         },
         {
           "kind": "review",
           "ref": "docs/client-context-implementation-2026-09-05.md",
-          "commit": "f7d9b832ffe415c194ba49ca89004ddb52b0f603",
+          "commit": "fc632b63c21932bade21a5d868e8876d4a9086a6",
           "state": "completed",
           "result": "passed",
-          "label": "Bağımsız controller/store incelemesi; eski 401 üç RED→GREEN testiyle yeni oturumu koruyor."
+          "label": "Atomik auth intent/pending context, GET-onlyretry ve stale401 bağımsız incelemesi."
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/33981106645",
+          "commit": "fc632b63c21932bade21a5d868e8876d4a9086a6",
+          "state": "completed",
+          "result": "passed",
+          "label": "Android bütün işler ve imzalıAPK88 teslimi başarılı."
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/33981106713",
+          "commit": "fc632b63c21932bade21a5d868e8876d4a9086a6",
+          "state": "completed",
+          "result": "passed",
+          "label": "Server bağlam sözleşmesi dahil1890Linux testi, iki mimari build/restart başarılı."
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/33981106554",
+          "commit": "fc632b63c21932bade21a5d868e8876d4a9086a6",
+          "state": "completed",
+          "result": "passed",
+          "label": "202 araç testi ve güvenlik başarılı."
         }
       ],
-      "completionCommit": null,
-      "reason": "f7d9b83 yerel GREEN: 520 regresyon, analiz temiz; yeni token/pending-context saklama ve geç 401 koruması. Tam kaynak CI ve APK kapısı bekleniyor."
+      "completionCommit": "fc632b63c21932bade21a5d868e8876d4a9086a6",
+      "reason": "fc632b6 bütün Server/Android/güvenlik CI kapılarını, sekiz emülatör yolculuğunu ve imzalı APK88 teslimini geçti. S08.2–4 uyumluluk ve global kapsam/cache ayrımı ayrıca açık."
     },
     {
       "id": "S08.2",
@@ -1074,14 +1117,15 @@
       "kind": "task",
       "parent": "B5",
       "title": "Ortak tablet düzeni ve erişilebilirlik sözleşmesi",
-      "status": "pending",
+      "status": "in_progress",
       "dependsOn": [
         "B0"
       ],
       "finishDependsOn": [],
       "sources": [
         "docs/feature-expansion-plan-2026-09-05.md",
-        "docs/product-implementation-plan-2026-09-05.md"
+        "docs/product-implementation-plan-2026-09-05.md",
+        "docs/tablet-navigation-implementation-2026-09-05.md"
       ],
       "scope": "Son bütün ekran tasarım geçişi değildir; Core’suz kişisel uzak bağlantı için Core bağımlılığı koymaz.",
       "acceptance": [
@@ -1094,7 +1138,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": null
+      "reason": "Ortak alt gezinmede Enter/Space, Tab sırası ve 2× yazı simge boşluğu düzeltildi; EN/TR/tema/pencere testleri sürüyor. Bütün kart/form/ekran ve gerçek TalkBack kabulü ayrı."
     },
     {
       "id": "B5.2",

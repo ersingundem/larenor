@@ -59,10 +59,12 @@ Server'ın kalıcı Core/ev kimliği hazırdır. Ana Client ekranı hâlâ ayrı
 oturumuna ve bazı bağlamsız yerel kayıtlara dayanır. Sadece kimlik modelini
 Client'a eklemek eski ev verisinin yeni Core'da görünmesini engellemez.
 
-- [ ] **Doğrulanmış oturum:** Core/ev bağlamını oturumla atomik sakla. Başarılı
+- [x] **Doğrulanmış oturum (S08.1, fc632b6 tam CI):** Core/ev bağlamını oturumla atomik sakla. Başarılı
   login/refresh/password POST'undan sonra context GET başarısız olursa yeni
   tokenları koru, yalnız bağlam okumasını tekrar dene; eski refresh tokenını
   tekrar kullanma. Bağlam doğrulanmadan ev kapsamını açma.
+  [Kod/test/yayın kanıtı](client-context-implementation-2026-09-05.md);
+  aşağıdaki global provider/cache sınırı henüz açık.
 - [ ] **Geçiş ve uyumluluk:** İlk parola aşamasında korumalı bağlam API'sini
   çağırma; parola değişiminden sonra doğrula. Eski Server 404 veya bozuk yanıt
   halinde URL'den kimlik türetme. Saklanan kimlik tek başına yetki sayılmaz.

@@ -1,11 +1,11 @@
 # Larenor — güncel ilerleme ve iş kuyruğu
 
-**Son güncelleme: 5 Eylül 2026, 20:27 (Türkiye saati).**
+**Son güncelleme: 5 Eylül 2026, 20:56 (Türkiye saati).**
 
 ```text
 Önceki kapsam       █████████████░░░░░░░  ≈ %65
 S06 koordinatörü    ███████░░░░░░░░░░░░░  2/6 yazılım dilimi; test/yayın geçti
-S06.3 kaynak temeli  ███████░░░░░░░░░░░░░  2/6 alt adım; Linux CI ile kabul
+S06.3 kaynak temeli  ██████████░░░░░░░░░░  3/6 alt adım; Linux CI ile kabul
 Yeni 63 özellik     ░░░░░░░░░░░░░░░░░░░░  0/63 kabul edildi
 Genişletilmiş toplam                     Henüz hesaplanmadı
 ```
@@ -48,47 +48,61 @@ saatinde 03.15 sonrasında günde en fazla bir kez korunur. Bilgisayarın ve Cod
 uygulamasının açık, deponun erişilebilir olması gerekir; bu dosyanın kendisi
 bir servis değildir. Görev Codex'in zamanlanmış görevler ekranından durdurulabilir.
 
-**Aktif yazılım işi: S06.3 kaynak hazırlığı.** Saf kaynak planı `0de91a2`
-ile yerelde doğrulandı: 67 yeni odaklı test, mevcut katalog/stack ile birlikte
-249 test geçti; iki yeni modülde birleşik satır/dal kapsamı %95. Kalıcı kaynak
-makbuzu 92 odaklı testle, sabit digest imaj taşıması 60 testle yerelde doğrulandı;
-bir gerçek Linux peer testi Mac'te atlandı. İmaj/journal bağlantısı 70 yeni testle yerelde hazır; yeni paket CI kabulünü bekliyor. [Ayrıntılı uygulama kanıtı](resource-preparation-implementation-2026-09-05.md).
-Saf plan ve kalıcı journal artık Linux Server/güvenlik CI ile kabul edildi:
-**S06.3 içinde 2/6 alt adım**, kalan kuyruğun 2/125 somut işi kapandı.
-İmaj/dizin/ağ ve gerçek Engine kabulü açık olduğundan ana S06 sayacı **2/6**
-ve seçilen yeni özellik kabulü **0/63** olarak kalır.
+**Kuyrukta kabul edilen işler: 4/125.** Saf kaynak planı, kalıcı journal ve
+imaj/journal köprüsüyle **S06.3 içinde 3/6 alt adım** kapandı. **S08.1** de
+Core/ev bağlamını tokenlarla güvenle bağlama kapsamında tam CI kabulü aldı.
+Bu işler yeni 63 özelliğin kabul sayısı değildir; o sayaç **0/63**. Ana S06
+sayacı **2/6** kalır; dizin/ağ, kurulum ve gerçek Engine kabulü açıktır.
 
-**Yeni paket `483ec13` GitHub'da:** 1.734 Server testi yerelde geçti, yalnız
-iki Linux testi Mac'te atlandı; 202 araç testi geçti.
-[Server CI](https://github.com/ersingundem/larenor/actions/runs/33979199140)
-**1.736 testi atlamasız**, iki mimarili build/restart/medya smoke ile geçti.
-[Android CI](https://github.com/ersingundem/larenor/actions/runs/33979199144)
-sekiz E2E senaryosu ve imzalı APK 87 teslimi dahil başarılı. [Güvenlik](https://github.com/ersingundem/larenor/actions/runs/33979199030)
-202 araç testiyle başarılı. Aşağıdaki `62b2054` tam yayın kanıtı önceki taban olarak korunur.
-**S08.1 yerel GREEN `f7d9b83`:** dönen auth tokenlarını koruyarak Core/ev
-bağlamını doğrulama, yalnız başarısız context GET'i tekrar deneme ve eski 401
-yanıtlarının yeni oturumu silememesi. 520 regresyon geçti, analiz temiz;
-[uygulama kanıtı](client-context-implementation-2026-09-05.md). Uzak CI bekliyor.
-S06.3d salt okunur sahiplik marker/descriptor kontrolü `1ef08fb` ile 84 testi
-geçti. Dizin oluşturma/yayımlama ve gerçek native worker kabulü açık;
-S06.3e özel ağ sözleşmesi ayrı modülde başladı.
+**Şimdi çalışılanlar:** sahiplikli dizinler için salt okunur mount kanıtı,
+özel medya ağı sözleşmesi ve ortak tablet gezinmesi. Ağın saf katmanı 88
+odaklı testle hazır; transport/etki köprüsü henüz yok. Dizin marker/parent
+kontrolü 84 testle, Linux mount gözlemi son düzeltmesiyle 113 testle hazır;
+gerçek Linux testi Mac’te ayrıca atlanır. Bu gözlemler dizin oluşturmaz,
+daemon/UID eşlemesini doğrulamaz veya yazma yetkisi vermez.
+[Ağ](network-resource-implementation-2026-09-05.md) ·
+[Kaynak hazırlığı](resource-preparation-implementation-2026-09-05.md).
 
-`483ec13` imajı anonim registry erişimiyle ayrıca doğrulandı: commit etiketi,
-`stable` ve iki mimarinin kaynak/config bağları eşleşti.
-İndeks: `sha256:7b368f5e5575746de203e88c96a3c64fb99527032b6806dce538f816c73ced61`.
-Android analiz, **2.625 Flutter, 98 JVM ve sekiz E2E senaryosu** geçti;
-42 aşama/temizlik işareti doğrulandı. API 35 emülatör akışı 10:42 ile 18 dakika
-sınırında tamamlandı. [İmzalı APK 87 ve metadata](https://github.com/ersingundem/larenor/actions/runs/33979199144/artifacts/9973530086)
-indirildi; Java 17 + sabit apksig 9.1.0 ile paket, sertifika, kaynak commit,
-sürüm `100000087`, minSdk 26 ve `debuggable=false` ayrıca doğrulandı.
+[Ortak tablet gezinmesi](tablet-navigation-implementation-2026-09-05.md)
+Enter/Space, Tab/Shift+Tab, iki kat yazı, görünür odak ve DeX pencere geçişi
+ile düzeltildi. 97 regresyon ve EN/TR gerçek fontlu özel görsel QA geçti.
+Tam yerel **2.678 Flutter testi** geçti; analiz temiz. Server paketinde
+**2.087 test geçti, üç Linux testi Mac’te atlandı**; bunun ardından geçerli
+`-` mount kaynağı düzeltmesi 113 odaklı testle ayrıca geçti. Yeni ağ/mount ve
+gezinme değişiklikleri henüz aşağıdaki yayımlanmış commit'in CI kapsamına
+dahil değildir. Son tablet galerisi ve bütün ekran revizyonu ayrı sıradadır.
+
+**Son tam uzak yayın `fc632b6`:**
+[Server CI](https://github.com/ersingundem/larenor/actions/runs/33981106713),
+[Android CI](https://github.com/ersingundem/larenor/actions/runs/33981106645) ve
+[Güvenlik](https://github.com/ersingundem/larenor/actions/runs/33981106554)
+**imzalı APK 88 teslimi dahil başarılı**. 1.890 Linux Server testi atlamasız;
+2.659 Flutter, 98 JVM ve sekiz emülatör senaryosu geçti. Emülatör akışı
+10:04,7 ile 18 dakika sınırında; 42 aşama/temizlik işareti doğrulandı.
+
+AMD64/ARM64 Core imajları build/restart/medya hazırlığı/iptal kontrollerini
+geçti. Anonim commit/stable/index doğrulaması yapıldı:
+`sha256:00902e8b6142d546a9493e7db4a2b55a8fa166cbd44f9a4932894ae9fd5c4c22`.
+[İmzalı APK 88 ve metadata](https://github.com/ersingundem/larenor/actions/runs/33981106645/artifacts/9974067173)
+yüklendi; ayrıca bağımsız yerel paket/imza doğrulaması için indiriliyor.
+Yapılandırılmamış ev Server'ına Client yayın adımı atlandı; ev kurulumu yok.
+
+<details>
+<summary>Önceki doğrulanmış yayın: 483ec13 / APK 87</summary>
+
+[Server](https://github.com/ersingundem/larenor/actions/runs/33979199140),
+[Android](https://github.com/ersingundem/larenor/actions/runs/33979199144) ve
+[Güvenlik](https://github.com/ersingundem/larenor/actions/runs/33979199030)
+1.736 Linux Server, 2.625 Flutter, 98 JVM, sekiz E2E ve 202 araç testini geçti.
+İki mimarili imaj anonim doğrulandı:
+`sha256:7b368f5e5575746de203e88c96a3c64fb99527032b6806dce538f816c73ced61`.
+[APK 87](https://github.com/ersingundem/larenor/actions/runs/33979199144/artifacts/9973530086)
+Java 17 + sabit apksig 9.1.0 ile ayrıca doğrulandı: doğru paket/sertifika,
+`100000087`, minSdk 26, `debuggable=false` ve kaynak commit eşleşti.
 APK SHA-256: `1d642a628da571fbb5f4e0d453ac6c6bf94c2d69b6b5aa2109926df0730f3a76`.
-Daha yeni `63680d6` imaj/journal köprüsü, `f7d9b83` Client bağlamı ve `1ef08fb`
-dizin gözlem kontrolü bu eski CI kaynağının kapsamına dahil değildir.
+Bu önceki kanıt daha yeni Client bağlamı veya imaj/journal köprüsünü kapsamaz.
 
-**Son yerel paket:** 2.659 Flutter testi geçti, tam analiz temiz. Server
-tam regresyonunda 1.885 geçti, yalnız iki Linux testi Mac’te atlandı. Son
-dizin yarışı düzeltmesinden sonra 84 appdata + 70 imaj/journal testi ayrıca
-atlamasız geçti. Bunlar yeni paketin uzak CI sonucundan ayrı yerel kanıttır.
+</details>
 
 **S06 dilim 2 tamamlandı:** [birleşik medya gereksinim kontrolü](media-inspections-implementation-2026-09-05.md),
 şifreli kalıcı sonuç/geçmiş/iptal, Android yönetim ekranı, toplam disk bütçesi ve

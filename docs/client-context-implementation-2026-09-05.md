@@ -49,3 +49,8 @@ incelemesinde başka P1/P2 bulgu kalmadı.
 Bu commit yerel kanıttır. Tam kaynak commit'inin uzak CI ve APK teslimi
 [PROGRESS](PROGRESS.md) içinde ayrıca kaydedilir. `483ec13` önceki yayın
 olduğu için bu yeni Client davranışının kanıtı olarak kullanılamaz.
+
+Uzak yazılım kapısı daha sonra **fc632b6** ile geçti: 2.659 Flutter, 98 JVM,
+sekiz emülatör senaryosu ve imzalı APK 88 teslimi; 1.890 Linux Server testi
+atlamasız. S08.1 kapsamı kabul edildi. S08.2 özel eski Server anlatımı ve
+S08.3–4 global provider/cache sınırları ayrı kalır.

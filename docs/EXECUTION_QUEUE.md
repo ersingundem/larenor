@@ -5,7 +5,7 @@ kanıtını saklar. [PROGRESS](PROGRESS.md) güncel ürün özeti ve CI anlatım
 bu kuyruk ayrıntılı yürütme sırasıdır. Uygulanmış kabulün kapsamı veya kaynak
 plan değişirse iki belge birlikte güncellenir. 5 Eylül 2026 başlangıcında
 S06.3a/3b, 483ec13 Linux Server ve güvenlik CI ile kabul edildi. S06.3c
-imaj/journal bağlantısı sonraki CI paketini bekliyor; S08.1 yerel testi geçti ve CI bekliyor. S06.3d/e alt adımları sürüyor. F01–F63 yazılım teslimleri bekliyor. Önceki S06.1–2 ve
+imaj/journal bağlantısı fc632b6 Server/güvenlik CI ile kabul edildi; S08.1 aynı commit’in tam Android/yayın CI kapısıyla kabul edildi. S06.3d/e alt adımları sürüyor. F01–F63 yazılım teslimleri bekliyor. Önceki S06.1–2 ve
 kalıcı Core/ev kimliği tekrar yapılacak iş sayılmaz.
 
 Bu kayıt bir zamanlayıcı, agent başlatıcı veya işlem yetkisi değildir. Araç
@@ -18,17 +18,17 @@ bir dal, bağımsız ve hazır yazılım dallarını durdurmaz.
 ## Güncel kuyruk özeti
 
 <!-- queue-summary:start -->
-F01–F63 yazılım kapısı: **0/63** (fiziksel kabul ayrı). Kalan kuyruk: **2/125 iş kanıtla tamamlandı**.
+F01–F63 yazılım kapısı: **0/63** (fiziksel kabul ayrı). Kalan kuyruk: **4/125 iş kanıtla tamamlandı**.
 
 Gruplar ve önceki kabul checkpoint’leri iş sayısına dahil değildir.
 
 | Grup | İş | Biten | Çalışılan | CI | Kullanıcı |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| B1 — Yönetilen bileşen yaşam döngüsü | 9 | 2 | 2 | 1 | 0 |
+| B1 — Yönetilen bileşen yaşam döngüsü | 9 | 3 | 2 | 0 | 0 |
 | B2 — Bütünleşik medya ve müzik | 4 | 0 | 0 | 0 | 0 |
-| B3 — Merkezi kaynak, yetki ve olay sözleşmeleri | 11 | 0 | 0 | 1 | 0 |
+| B3 — Merkezi kaynak, yetki ve olay sözleşmeleri | 11 | 1 | 0 | 0 | 0 |
 | B4 — Yazılım yedekleme ve kurtarma temeli | 3 | 0 | 0 | 0 | 0 |
-| B5 — Erken ortak tablet Client deneyimi | 2 | 0 | 0 | 0 | 0 |
+| B5 — Erken ortak tablet Client deneyimi | 2 | 0 | 1 | 0 | 0 |
 | PRODUCT — Önceki ürün planının kalan yazılım işleri | 13 | 0 | 0 | 0 | 1 |
 | POC — Erken donanım/motor fizibilite kayıtları | 5 | 0 | 0 | 0 | 5 |
 | G01 — Güvenilir Core ve izlenebilir işlemler | 5 | 0 | 0 | 0 | 0 |
