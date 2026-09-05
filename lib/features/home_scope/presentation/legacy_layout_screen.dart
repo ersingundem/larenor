@@ -152,7 +152,8 @@ class _LegacyLayoutScreenState extends MediaSessionState<LegacyLayoutScreen> {
       return;
     final selected = Set<int>.of(_selected);
     final l10n = AppLocalizations.of(context);
-    final route = CupertinoDialogRoute<bool>(
+    late final CupertinoDialogRoute<bool> route;
+    route = CupertinoDialogRoute<bool>(
       context: context,
       builder: (dialogContext) => CupertinoAlertDialog(
         title: Text(l10n.homeLayoutCopySelected),
@@ -160,7 +161,7 @@ class _LegacyLayoutScreenState extends MediaSessionState<LegacyLayoutScreen> {
         actions: [
           CupertinoDialogAction(
             onPressed: () {
-              if (_current(generation, operation))
+              if (identical(_dialog, route) && route.isCurrent && _current(generation, operation))
                 Navigator.of(dialogContext).pop(false);
             },
             child: Text(l10n.commonCancel),
@@ -168,7 +169,7 @@ class _LegacyLayoutScreenState extends MediaSessionState<LegacyLayoutScreen> {
           CupertinoDialogAction(
             key: const ValueKey('home-layout-confirm-copy'),
             onPressed: () {
-              if (_current(generation, operation))
+              if (identical(_dialog, route) && route.isCurrent && _current(generation, operation))
                 Navigator.of(dialogContext).pop(true);
             },
             child: Text(l10n.homeLayoutCopySelected),
