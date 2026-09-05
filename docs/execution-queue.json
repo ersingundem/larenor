@@ -365,7 +365,8 @@
         "docs/media-resource-preparation-plan-2026-09-05.md",
         "docs/remaining-core-integration-slices.md",
         "docs/appdata-native-lease-plan-2026-09-05.md",
-        "docs/native-identity-observation-implementation-2026-09-05.md"
+        "docs/native-identity-observation-implementation-2026-09-05.md",
+        "docs/native-appdata-root-observation-implementation-2026-09-05.md"
       ],
       "scope": "installAvailable=false; Client kaynak adı/Docker seçenekleri üretmez. Gerçek ev sunucusuna işlem yok.",
       "acceptance": [
@@ -392,10 +393,26 @@
           "state": "completed",
           "result": "passed",
           "label": "Kimlik temeli ve iki mimarili Core hazırlık smoke geçti; gerçek appdata kurulumu açık."
+        },
+        {
+          "kind": "test",
+          "ref": "docs/native-appdata-root-observation-implementation-2026-09-05.md",
+          "commit": "0d9e2506ac86e00f2f6e1a0be513ee0cabb7b073",
+          "state": "completed",
+          "result": "passed",
+          "label": "Tam Server 2782 PASS/10 Linux skip; yeni gözlem87 PASS/1 skip ve dal dahil %99 kapsam."
+        },
+        {
+          "kind": "review",
+          "ref": "docs/native-appdata-root-observation-implementation-2026-09-05.md",
+          "commit": "0d9e2506ac86e00f2f6e1a0be513ee0cabb7b073",
+          "state": "completed",
+          "result": "passed",
+          "label": "Yeni tam kök modülü ve yarış/lifecycle/mount testleri bağımsız incelendi; açık P1/P2 yok."
         }
       ],
       "completionCommit": null,
-      "reason": "33cf1d9 kimlik gözlemi main içinde; 3dde2f8 Linux CI 2.704 atlamasız test ve gerçek socket/pidfd/thread kimliği geçti. Salt okunur exact-root resolver codex/native-appdata-root-observation dalında taban4ba7024, RED b44dd5e ile sürüyor. Supervisor, remap-disabled başlangıç kanıtı, gerçek issuer ve create/publish açık; bu dilim yazma yetkisi değildir."
+      "reason": "Native kimlik temeli 3dde2f8 Linux CI ile doğrulandı. Tam kök resolver b44dd5e RED → 879700b GREEN → 32254ad freeze, main 0d9e250 içinde; 87 odaklı/573 ilgili test ve bağımsız inceleme geçti. Tam Server 2.782 geçti, 10 Linux testi Mac’te atlandı (200,80 saniye); yeni gerçek Linux CI bekleniyor. Supervisor, remap-disabled başlangıç kanıtı, issuer ve create/publish açık; bu gözlem yazma yetkisi değildir."
     },
     {
       "id": "S06.3e",
@@ -852,7 +869,7 @@
       "kind": "task",
       "parent": "S08",
       "title": "Provider, route ve callback kapsam sınırı",
-      "status": "awaiting_ci",
+      "status": "done",
       "dependsOn": [
         "S08.2"
       ],
@@ -877,22 +894,46 @@
         {
           "kind": "test",
           "ref": "docs/client-home-session-scope-implementation-2026-09-05.md",
-          "commit": "8cc4665b2076cb80ad891bef10cf82931611ed7d",
+          "commit": "4b9868062434c8db970c1b38b1467b767e5015ce",
           "state": "completed",
           "result": "passed",
-          "label": "Birleşik main 2815 Flutter PASS; yeni modüller262/264 satır kapsamı, 50 odaklı/1093 ilgili PASS."
+          "label": "2815 Flutter,98 JVM ve4native+5uygulama=9E2E geçti; gerçek Direct→Core→Direct akışı doğrulandı."
         },
         {
           "kind": "review",
           "ref": "docs/client-home-session-scope-implementation-2026-09-05.md",
-          "commit": "8cc4665b2076cb80ad891bef10cf82931611ed7d",
+          "commit": "4b9868062434c8db970c1b38b1467b767e5015ce",
           "state": "completed",
           "result": "passed",
-          "label": "Bağımsız kaynak/hesap/PIN/route/container ve E2E harness incelemesi temiz; fiziksel kabul ayrı."
+          "label": "Aynı ev runtime, kaynak/hesap/PIN/provider/route sınırı ve gerçek harness bağımsız incelendi;8cc4665→4b98680 yalnız dokümantasyon farkı."
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/33989941216",
+          "commit": "4b9868062434c8db970c1b38b1467b767e5015ce",
+          "state": "completed",
+          "result": "passed",
+          "label": "Android94:2815 Flutter,98 JVM,9E2E; indirilen APK100000094 Java17/apksig9.1.0 ile bağımsız doğrulandı."
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/33989941147",
+          "commit": "4b9868062434c8db970c1b38b1467b767e5015ce",
+          "state": "completed",
+          "result": "passed",
+          "label": "2704 Linux Server atlamasız, iki mimaride Core hazırlık smoke ve anonim kaynak/lisans manifesti geçti."
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/33989940928",
+          "commit": "4b9868062434c8db970c1b38b1467b767e5015ce",
+          "state": "completed",
+          "result": "passed",
+          "label": "207 araç testi, gitleaks ve bağımlılık taraması geçti."
         }
       ],
-      "completionCommit": null,
-      "reason": "10d3eb1→4ba7024 main içinde. Kalıcı direct/Core seçimi, parentless runtime, account/tema/güç/PIN sahipliği, kaynak/ev değişiminde route/REST/WS/callback ve idle veri sınırı uygulandı. 50 odaklı, 1093 ilgili ve birleşik8cc4665 tam2815 test geçti; inceleme temiz. Gerçek production harness ve yeni beşinci uygulama yolculuğuyla toplam9 E2E yeni kaynak CI kapısını bekliyor; eski3dde8E2E bu teslimi kapsamaz."
+      "completionCommit": "4b9868062434c8db970c1b38b1467b767e5015ce",
+      "reason": null
     },
     {
       "id": "S08.4",
@@ -907,7 +948,8 @@
       "sources": [
         "docs/remaining-core-integration-slices.md",
         "docs/feature-expansion-plan-2026-09-05.md",
-        "docs/integrated-media-stack.md"
+        "docs/integrated-media-stack.md",
+        "docs/client-scoped-storage-plan-2026-09-05.md"
       ],
       "scope": "Tek mevcut ev bağlamı; F19 çoklu Core/ev federasyonu bu teslim değildir.",
       "acceptance": [
@@ -920,7 +962,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": null
+      "reason": "S08.3, 4b98680 tam CI ve APK 94 ile kabul edildi; başlangıç bağımlılığı açıldı. Sıradaki uygulama client-scoped-storage-plan belgesindeki kaynaklı düzen deposu ve korumalı önizleme dilimidir. Tasarım araştırması uygulama kabulü değildir."
     },
     {
       "id": "S08.5",
@@ -1244,7 +1286,8 @@
         "docs/product-implementation-plan-2026-09-05.md",
         "docs/tablet-navigation-implementation-2026-09-05.md",
         "docs/tablet-settings-accessibility-implementation-2026-09-05.md",
-        "docs/tablet-dashboard-accessibility-implementation-2026-09-05.md"
+        "docs/tablet-dashboard-accessibility-implementation-2026-09-05.md",
+        "docs/tablet-media-accessibility-implementation-2026-09-05.md"
       ],
       "scope": "Son bütün ekran tasarım geçişi değildir; Core’suz kişisel uzak bağlantı için Core bağımlılığı koymaz.",
       "acceptance": [
@@ -1287,10 +1330,34 @@
           "state": "completed",
           "result": "passed",
           "label": "Native kart, lifecycle/epoch, context menu, odak ve semantics bağımsız incelemesi temiz."
+        },
+        {
+          "kind": "test",
+          "ref": "docs/tablet-media-accessibility-implementation-2026-09-05.md",
+          "commit": "14b7b62c05d2b1475818acecc9d2270d55f9f2c9",
+          "state": "completed",
+          "result": "passed",
+          "label": "Medya733 ilgili/22 son test ve birleşik2837Client PASS; analiz0,803dosya format0değişiklik; iki dosya satır kapsamı%92,5."
+        },
+        {
+          "kind": "review",
+          "ref": "docs/tablet-media-accessibility-implementation-2026-09-05.md",
+          "commit": "14b7b62c05d2b1475818acecc9d2270d55f9f2c9",
+          "state": "completed",
+          "result": "passed",
+          "label": "Ortak poster/grid ve gerçek MediaHub/Jellyfin davranışları bağımsız incelendi; gerçek-font açık/koyu tablet PNG temiz."
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/33989941216",
+          "commit": "4b9868062434c8db970c1b38b1467b767e5015ce",
+          "state": "completed",
+          "result": "passed",
+          "label": "Ayarlar/dashboard kaynak kapısı:2815 Flutter,98 JVM,9E2E ve bağımsız APK94 doğrulaması geçti. Yeni medya posterleri bu sürüme dahil değil."
         }
       ],
       "completionCommit": null,
-      "reason": "Ayarlar ba884f6 için3dde2f8 Flutter2739/JVM98/E2E8 ve bağımsız imzalıAPK93 geçti. Dashboard5cf7f30→8cc4665 main içinde: klavye, menü, tekil semantics, odak kontrastı, eski servis callback korumaları;343 odaklı/49delta ve birleşik2815 test geçti. Yeni dashboard CI bekliyor; diğer ekran/editor/gesture ve gerçek TalkBack kabulü açık."
+      "reason": "Ayarlar ve dashboard için 4b98680 tam CI ve bağımsız imzalı APK 94 geçti. Medya posterleri cb792c0 → 14b7b62 main içinde: native klavye/semantics, 2× başlık alanı ve eski eylem korumaları. 733 ilgili/22 son test ve birleşik 2.837 Client testi geçti; analiz ve bağımsız kod/görsel inceleme temiz. Yeni medya kaynak CI kabulü, kalan ekran/editor/gesture işleri ve ayrı fiziksel TalkBack kabulü açık."
     },
     {
       "id": "B5.2",

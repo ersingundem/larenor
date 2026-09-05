@@ -11,7 +11,7 @@ kendiliğinden taşınmaz. Core ekranı bu sürümde ev görünümünün bulunma
 - Çalışma ağacı: `/private/tmp/larenor-client-home-session-scope`
 - Dal: `codex/client-home-session-scope`; taban `8678982fa19352fafb104489665d704692aaebaf`.
 - Kaynak/E2E hazırlığı `13586ae`, izole freeze `10d3eb1`; ana dala
-  `4ba7024` ile birleştirildi. Birleşik tam Client kontrolü geçti; emülatör CI kabulü ayrıca bekleniyor.
+  `4ba7024` ile birleştirildi. Birleşik tam Client kontrolü ve aşağıdaki `4b98680` emülatör/yayın kabulü geçti.
 - Ayrı kabul edilmiş S08.2 ve daha eski CI sonuçları bu yeni kodun CI kanıtı değildir.
 
 ## Davranış ve sahiplik
@@ -94,9 +94,8 @@ Direct HA → PIN → Core tercihi → eski WS kapanışı/HA okuması durması 
 PIN → açık Direct tercihi → yeni WS aboneliği yolunu doğrulayacak şekilde yazıldı.
 Dış ağ reddi, mock preference/secure storage, gerçek HA HTTP/WS loopback transportu,
 mevcut assertion/timeouts ve statik aşama/cleanup işaretleri korunur. Native dört
-senaryoyla toplam dokuz E2E senaryosunun **bu teslimde gerçek emülatör CI sonucu
-henüz yoktur**; yalnız kaynak analizi yapılmıştır. Fiziksel tablet/Huawei/DeX
-kabulü de ayrıdır.
+senaryoyla toplam **dokuz E2E**, `4b98680` gerçek emülatör CI üzerinde geçti.
+Fiziksel tablet/Huawei/DeX kabulü ayrıdır.
 
 Merkezi HA/medya adaptörleri, Core cache anahtarları ve kontrollü legacy veri
 aktarma S08.4+ sınırındadır. Bu ilk teslim çoklu ev/federasyon veya tüm B3/S08'in
@@ -109,6 +108,18 @@ S08.3 ve dashboard birlikte main `8cc4665b2076cb80ad891bef10cf82931611ed7d`
 üretilmiş çeviriler eski olduğundan durduruldu; `build_runner` ve `gen-l10n`
 yenilendikten sonraki bu tam koşu başarılıdır. Geçici çıktı
 `/private/tmp/larenor-home-dashboard-full-flutter-green.log`; gerçek emülatör
-ve bu yeni kaynak sürümünün uzak CI kabulü ayrıca beklenir.
+ve uzak CI kabulü aşağıdaki yeni kaynak üzerinde ayrıca doğrulandı.
 Tam `flutter analyze` 6,5 saniyede sıfır bulgu verdi; 801 Dart dosyasının biçim
 kontrolü sıfır değişiklikle geçti. 24 kuyruk testi ve gitleaks taraması temiz.
+
+## S08.3 yazılım kabulü — 4b98680 / APK 94
+
+`4b9868062434c8db970c1b38b1467b767e5015ce` üzerinde Server, Android ve
+güvenlik CI başarılı: 2.704 Linux Server, 2.815 Flutter, 98 JVM, dokuz E2E
+ve 207 araç testi geçti. [Android 94](https://github.com/ersingundem/larenor/actions/runs/33989941216)
+gerçek üretim harness'inde Direct → Core → Direct akışını doğruladı;
+48 aşama ve beş temizlik tamamlandı. APK 94, Java 17 + sabit apksig 9.1.0 ile
+indirilen dosyadan bağımsız doğrulandı: `100000094`, doğru paket/sertifika,
+minSdk 26, `debuggable=false` ve exact kaynak metadata'sı. S08.3 kabul edildi;
+S08.4 veri taşıma, sonraki adaptörler ve fiziksel cihaz kabulü açık kalır.
+[Toplu teslim kaydı](PROGRESS.md).

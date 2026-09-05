@@ -19,7 +19,7 @@ yeniden tasarlanmadı. Yeni CI ve fiziksel tablet kabulü ayrıca izlenmelidir.
 kullanır. Başlık ve mevcut durum rozeti aynı düğme semantiğinde kalır.
 Tab/Shift+Tab, Enter/Space ve görünür odak halkası vardır; odak halkası kart
 sınırının içinde tutulur. Önceden alınmış callback, etkileşim epoch'u,
-controller kimliği, yaşam döngüsü, rota görünürlüğü veya kart içeriği
+controller kimliği, yaşam döngüsü, rota görünürlüğü veya kartın eylem callback'i
 değişince geçersiz olur. Gizli/etkileşimsiz düğme etkinleştirilemez; yeni
 görünür callback klavyeyle çalışabilir.
 
@@ -79,3 +79,17 @@ Bütün Flutter/Dart komutları ortak kilit üzerinden çalıştırıldı:
 Görüntüler son testte `--dart-define=MEDIA_A11Y_PREVIEW_DIR=/private/tmp/larenor-media-a11y-preview`
 ile üretilebilir. Bu seçenek yalnız sentetik widget çıktısı yazar; gerçek
 sunucu, ev, oynatma veya Docker işlemi yapmaz.
+
+## Ana dal birleşimi
+
+İzole freeze `cb792c0bc7a5ca10a8d6cda1afbc66a7f13bea89`, bağımsız son
+kod/test/PNG incelemeleri temiz; ana dala
+`14b7b62c05d2b1475818acecc9d2270d55f9f2c9` ile birleştirildi. Root da
+600/TR/2× açık/koyu gerçek kütüphane görüntülerini kontrol etti.
+
+Birleşik main üzerinde tam Client **2.837 test PASS** (4:04), `flutter analyze`
+sıfır bulgu (4,5 saniye) ve 803 Dart dosyasında biçim kontrolü sıfır değişiklik
+verdi. Loglar `/private/tmp/larenor-root-media-full-flutter.log`,
+`/private/tmp/larenor-root-media-full-analyze.log`,
+`/private/tmp/larenor-root-media-format.log`. Yeni exact-source CI ve fiziksel
+tablet kabulü ayrıca beklenir.

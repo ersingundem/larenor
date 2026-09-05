@@ -53,3 +53,8 @@ yenilendikten sonraki bu tam koşu başarılıdır. Geçici çıktı
 ve bu yeni kaynak sürümünün uzak CI kabulü ayrıca beklenir.
 Tam `flutter analyze` 6,5 saniyede sıfır bulgu verdi; 801 Dart dosyasının biçim
 kontrolü sıfır değişiklikle geçti. 24 kuyruk testi ve gitleaks taraması temiz.
+
+Uzak kapı `4b98680` / APK 94 ile geçti: 2.815 Flutter, 98 JVM, dokuz
+emülatör E2E ve bağımsız APK imza/metadata doğrulaması başarılı. Bu dashboard
+diliminin yazılım kanıtıdır; genel B5.1 ve fiziksel cihaz kabulü açık kalır.
+[Güncel teslim](PROGRESS.md).

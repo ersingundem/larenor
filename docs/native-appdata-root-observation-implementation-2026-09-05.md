@@ -61,3 +61,21 @@ Sonraki bağımlılık aynı kalır: native supervisor'ın host/root/user/mount 
 daemon incarnation/remap-disabled başlangıç kanıtı, sonra policy/plan/journal
 bağlayan gerçek issuer, en son staging/marker/publish. Linux 6.1 mount gözlemi
 ayrı SO_PEERPIDFD 6.5+ gereksinimini veya güvenli supervisor fallback'ini çözmez.
+
+## Ana dal kontrolü
+
+`32254ad2d96e5e388025e8081264eca7ad7ee716` bağımsız son kod/test incelemesi
+açık P1/P2 olmadan tamamlandı; `0d9e2506ac86e00f2f6e1a0be513ee0cabb7b073`
+ile ana dala birleştirildi. İlk tam Server başlatmasında dört APK imza testi
+yerel `LARENOR_TEST_APKSIG_JAR` verilmediği için setup hatası aldı; doğru
+sabit apksig 9.1.0 ve Java 17 ile dört test geçti. Aynı doğru ortamda tam
+Server **2.782 geçti, 10 Linux testi Mac'te atlandı** (200,80 saniye).
+Bu hazırlık hatası başarılı koşu sayılmaz. Tam başarılı çıktı
+`/private/tmp/larenor-root-observation-full-server-green.log`; yeni Linux
+fixture'ın uzak kabulü ayrıca beklenir.
+
+Tam yerel Server kontrolünde Java 17'nin `java`/`javac` ikilisi PATH'te,
+`LARENOR_TEST_APKSIG_JAR` ise SHA-256 değeri
+`562cd0a88890960d2ece48e116c61f12872222f1dcc306890799382bc019b201`
+olan resmi apksig 9.1.0 JAR'ına ayarlı olmalıdır. Bu dosya bağımlılık
+önbelleğinde zaten bulunuyordu; test için indirici veya ev servisi çalıştırılmadı.

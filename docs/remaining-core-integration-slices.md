@@ -70,7 +70,7 @@ Client'a eklemek eski ev verisinin yeni Core'da görünmesini engellemez.
   halinde URL'den kimlik türetme. Saklanan kimlik tek başına yetki sayılmaz.
   `67cb058` ile yalnız bağlam GET 404 için adres kontrolü/güncelleme açıklaması
   eklendi; 531 regresyon ve son tam CI geçti. [Kapsam ve kanıt](client-context-compatibility-2026-09-05.md).
-- [ ] **Ekran/provider sınırı (S08.3, main içinde, CI kabulü bekliyor):** `(coreId, homeId, userId)` değişince eski ev
+- [x] **Ekran/provider sınırı (S08.3, 4b98680 tam CI/APK 94):** `(coreId, homeId, userId)` değişince eski ev
   ekranını, ikincil rotaları, istekleri, WS aboneliklerini ve callback'leri
   kapat. Aynı bağlamdaki token yenilemesi gereksiz ekran sıfırlaması yapmaz.
   Hesap controller'ı bu yeniden kurulan alt ağacın dışında kalır.
@@ -78,7 +78,7 @@ Client'a eklemek eski ev verisinin yeni Core'da görünmesini engellemez.
   parentless runtime ve boşta ekranı dahil veri sınırı uygulandı; 50 odaklı ve
   1.093 ilgili test ve dashboard ile birleşik 2.815 Flutter testi/analiz geçti.
   Gerçek uygulama başlangıcıyla beşinci emülatör
-  akışı eklendi; toplam dokuz cihaz senaryosunun yeni CI kabulü bekleniyor.
+  akışı eklendi; toplam dokuz E2E ve bağımsız imzalı APK 94 kabulü geçti.
 - [ ] **Kalıcı cache:** Dashboard ve diğer ev verilerini bağlamlı anahtarlara
   taşı. Eski `dashboard_layout`, `ha_base_url` ve `ha_token` verisini yeni
   Core'a sessizce bağlama; yalnız açık önizlemeli taşıma uygula.

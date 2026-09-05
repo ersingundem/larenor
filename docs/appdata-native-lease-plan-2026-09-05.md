@@ -11,9 +11,16 @@ Yerel tam Server 2.695 geçti, dokuz Linux testi Mac'te atlandı.
 [Kimlik gözleminin kanıtı ve sınırları](native-identity-observation-implementation-2026-09-05.md).
 Bu iki modül `NativeAppdataLeaseIssuer` veya yazma yetkisi değildir.
 
-**Kalan sıra:** (1) Onaylı tam köke `/` descriptor'ından ulaşan, tüm
+**Tam kök gözlemi güncellemesi:** `32254ad` → main `0d9e250` içinde
+`native_appdata_root_observation.py` eklendi. 87 odaklı ve 573 ilgili test
+geçti; Mac'te bir/beş Linux testi atlandı. %99 dal dahil kapsam ve bağımsız
+inceleme tamamlandı; tam Server 2.782 geçti/10 Linux skip (200,80 saniye).
+Yeni gerçek Linux CI kabulü ayrıca bekleniyor. [Kanıt ve sınırlar](native-appdata-root-observation-implementation-2026-09-05.md).
+
+**Kalan sıra:** (1) Yeni tam kök gözleminin gerçek Linux CI kabulü: `/` descriptor'ından ulaşan, tüm
 parent→name→child bağlarını ve gerçek mount gözlemini tutan resolver;
-eksik kökte en yakın parent'a düşmemeli. (2) Operatörün hostta kurduğu native
+eksik kökte en yakın parent'a düşmez. Alt kök traversal/mount sınırı sonraki
+yazma diliminde ayrıca uygulanacak. (2) Operatörün hostta kurduğu native
 supervisor'ın tuttuğu kök/user/mount bağları ve aynı daemon incarnation'ına
 ait remap-disabled başlangıç kanıtı. (3) Bu kanıtları, plan/journal/host-policy
 eşlemesini ve UID/GID mapping'i birleştiren özel issuer. (4) Ancak sonra
