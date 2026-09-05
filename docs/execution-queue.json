@@ -957,7 +957,12 @@
         "docs/remaining-core-integration-slices.md",
         "docs/feature-expansion-plan-2026-09-05.md",
         "docs/integrated-media-stack.md",
-        "docs/client-scoped-storage-plan-2026-09-05.md"
+        "docs/client-scoped-storage-plan-2026-09-05.md",
+        "docs/client-record-ownership-2026-09-06.md",
+        "docs/client-scoped-layout-implementation-2026-09-06.md",
+        "docs/scoped-layout-android-journey-2026-09-06.md",
+        "docs/direct-home-boundary-implementation-2026-09-06.md",
+        "docs/ha-backup-boundary-implementation-2026-09-06.md"
       ],
       "scope": "Tek mevcut ev bağlamı; F19 çoklu Core/ev federasyonu bu teslim değildir.",
       "acceptance": [
@@ -970,9 +975,58 @@
         "review",
         "ci"
       ],
-      "evidence": [],
+      "evidence": [
+        {
+          "kind": "test",
+          "ref": "docs/client-scoped-layout-implementation-2026-09-06.md",
+          "commit": "6b959009126015020d6351a80b361daa7be478d6",
+          "state": "completed",
+          "result": "passed",
+          "label": "Scoped layout: 93 son test ve bağımsız inceleme; bütün S08.4 kabulü değil"
+        },
+        {
+          "kind": "review",
+          "ref": "docs/client-scoped-layout-implementation-2026-09-06.md",
+          "commit": "6b959009126015020d6351a80b361daa7be478d6",
+          "state": "completed",
+          "result": "passed",
+          "label": "Scoped layout: 93 son test ve bağımsız inceleme; bütün S08.4 kabulü değil"
+        },
+        {
+          "kind": "test",
+          "ref": "docs/direct-home-boundary-implementation-2026-09-06.md",
+          "commit": "d8edab54974307e8c3f29e82f918e6d6bb2a9462",
+          "state": "completed",
+          "result": "passed",
+          "label": "Direct HA/seed: 53 son test, %99,5 satır kapsamı ve bağımsız inceleme"
+        },
+        {
+          "kind": "review",
+          "ref": "docs/direct-home-boundary-implementation-2026-09-06.md",
+          "commit": "d8edab54974307e8c3f29e82f918e6d6bb2a9462",
+          "state": "completed",
+          "result": "passed",
+          "label": "Direct HA/seed: 53 son test, %99,5 satır kapsamı ve bağımsız inceleme"
+        },
+        {
+          "kind": "test",
+          "ref": "docs/ha-backup-boundary-implementation-2026-09-06.md",
+          "commit": "a9c5576df91e433a7d13975a34437ab3b7e880f5",
+          "state": "completed",
+          "result": "passed",
+          "label": "HA yedek sınırı: 40 son test, repository %98,2 satır kapsamı ve bağımsız inceleme"
+        },
+        {
+          "kind": "review",
+          "ref": "docs/ha-backup-boundary-implementation-2026-09-06.md",
+          "commit": "a9c5576df91e433a7d13975a34437ab3b7e880f5",
+          "state": "completed",
+          "result": "passed",
+          "label": "HA yedek sınırı: 40 son test, repository %98,2 satır kapsamı ve bağımsız inceleme"
+        }
+      ],
       "completionCommit": null,
-      "reason": "İlk üretim dilimi codex/client-scoped-layout üzerinde başladı: Core/ev/kullanıcı anahtarlı düzen deposu, mevcut PIN altında salt düzen önizlemesi ve seçili pasif oda adlarının kopyası. Gerçek Android HTTP/PIN/restart yolculuğu codex/scoped-layout-e2e üzerinde paralel hazırlanıyor. Mevcut diğer kayıtların erişim envanteri/negatif testleri ayrıca açık; typed ağ cache ilgili adaptör S08.7–9 kabulündedir. Henüz bu ilk dilimin tamamlanma kanıtı yok."
+      "reason": "Scoped layout 3018c57 ve altıncı Android yolculuğu 115dfa1 ana dalda; fd23a3f tam Client 2.914 PASS/analiz temiz. Direct HA/EnabledServices d8edab5 ve HA yedek sınırı 9b11195 → main 7ed736b; 53/40 son test ve bağımsız incelemeler geçti, 7ed736b birleşik Client 2.989 PASS, analiz/biçim temiz; uzak CI bekleniyor. Diafon/film gecesi sınırları codex/direct-home-routines üzerinde başladı. Diğer 11 Direct servis, özel wellbeing/ambient erişim testleri açık; typed ağ cache S08.7–9 kabulündedir."
     },
     {
       "id": "S08.5",
@@ -1016,7 +1070,8 @@
       "sources": [
         "docs/remaining-core-integration-slices.md",
         "docs/feature-expansion-plan-2026-09-05.md",
-        "docs/integrated-media-stack.md"
+        "docs/integrated-media-stack.md",
+        "docs/home-resource-registry-implementation-2026-09-06.md"
       ],
       "scope": "Tek mevcut ev bağlamı; F19 çoklu Core/ev federasyonu bu teslim değildir.",
       "acceptance": [
@@ -1027,9 +1082,26 @@
         "review",
         "ci"
       ],
-      "evidence": [],
+      "evidence": [
+        {
+          "kind": "test",
+          "ref": "docs/home-resource-registry-implementation-2026-09-06.md",
+          "commit": "133786e58e2015a80a3b1b1d73c0e1c7c67442ac",
+          "state": "completed",
+          "result": "passed",
+          "label": "Oda/kaynak/hesap ACL HTTP kaydı: 124 odaklı, tam Server 2.906 PASS/10 Mac skip; bütün S08.6 kabulü değil"
+        },
+        {
+          "kind": "review",
+          "ref": "docs/home-resource-registry-implementation-2026-09-06.md",
+          "commit": "133786e58e2015a80a3b1b1d73c0e1c7c67442ac",
+          "state": "completed",
+          "result": "passed",
+          "label": "Oda/kaynak/hesap ACL HTTP kaydı: 124 odaklı, tam Server 2.906 PASS/10 Mac skip; bütün S08.6 kabulü değil"
+        }
+      ],
       "completionCommit": null,
-      "reason": "codex/home-resource-registry üzerinde üretim başladı: strict scope/resource/grant modellerini tüketen kalıcı oda/kaynak/ACL registry ve dar authenticated HTTP API. Kullanıcı grant subject’i HA person/hane profili değildir; tam kişi/provider bağlama kabulü ve Client yönetim ekranı ayrıca açık."
+      "reason": "Kalıcı şifreli room/resource kaydı, hesap ACL ve gerçek HTTP/OpenAPI dilimi 133786e / belge1b6b866 ile ana dalda. 124 odaklı test, dal dahil %95 kapsam, bağımsız inceleme ve tam Server 2.906 PASS / 10 Linux-only Mac skip geçti. Yeni Linux CI açık. Client salt okunur liste codex/core-home-resource-list üzerinde başladı; yönetim, ayrı hane kişileri, değişmez upstream bağları ve gerçek komut sözleşmesi henüz kabul edilmedi."
     },
     {
       "id": "S08.7",

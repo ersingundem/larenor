@@ -1,6 +1,6 @@
 # Larenor — güncel ilerleme ve iş kuyruğu
 
-**Son güncelleme: 6 Eylül 2026, 00:30 (Türkiye saati).**
+**Son güncelleme: 6 Eylül 2026, 01:10 (Türkiye saati).**
 
 ```text
 Önceki kapsam       █████████████░░░░░░░  ≈ %65
@@ -145,15 +145,38 @@ remap-disabled başlangıç kanıtı, issuer ve create/publish hâlâ açık.
 [Native kimlik](native-identity-observation-implementation-2026-09-05.md) ·
 [Kalan sıra](appdata-native-lease-plan-2026-09-05.md).
 S08.3 kabulüyle başlangıç bağımlılığı açılan [kapsamlı düzen deposu ve açık taşıma](client-scoped-storage-plan-2026-09-05.md)
-için ilk üretim dilimi `codex/client-scoped-layout` üzerinde başladı. Core/ev/kullanıcıya
-ayrı kayıt, PIN korumalı önizleme ve seçili pasif oda adlarının kopyası geliştiriliyor.
-`codex/scoped-layout-e2e` gerçek HTTP/PIN/restart yolculuğunu paralel hazırlıyor.
-Diğer ev kayıtları ve typed ağ cache kabulü açık; bu başlangıç tamamlanma değildir.
+ilk dilimi `3018c57` → main `fd23a3f` içinde. Core/ev/kullanıcıya ayrı kayıt,
+PIN korumalı önizleme ve seçili pasif oda adlarının kopyası eklendi.
+93 son test, %96,9 ilgili satır kapsamı, bağımsız inceleme ve dört gerçek-font
+görsel kontrolü geçti. `115dfa1` altıncı Android yolculuğu da birleşti;
+`fd23a3f` üzerinde tam Client **2.914 test**, temiz analiz ve 814 dosyada
+biçim kontrolü geçti. Bu yeni Android yolculuğu henüz CI kabulü almadı.
+[Diğer kayıtların envanteri](client-record-ownership-2026-09-06.md) çıkarıldı.
 
-**Paralel S08.6:** Kalıcı oda/kaynak/ACL registry ve dar authenticated HTTP API
-`codex/home-resource-registry` üzerinde başladı. İlk kimlik/yetki modelleri
-üretim API'sinde tüketilecek; kişi profilleri, HA adaptörü ve Client yönetim
-kabulü bu ilk parçadan tamamlanmış sayılmayacak.
+**S08.4 HA ve yedek sınırı ana dalda:** `d8edab5` ve `9b11195` → `7ed736b`.
+Gerçek HA provider/store ve EnabledServices seed erişimi Direct kaynak
+sahipliğine bağlı; Core veya eski callback sır okuma, kayıt veya HA transport
+oluşturamaz. Yarım HA adres/token kaydı kalıcı bir işaretle durur; yalnız açık,
+tam yeniden bağlantı veya silme bu belirsizliği kapatır. Böyle bir çift yeni
+yedeğe/restore hazırlığına giremez; mevcut journal kurtarması çalışır ve işareti
+silmez. Direct paketinde 53 son/482 ilgili test ve %99,5 satır kapsamı;
+yedekte 40 son/143 ilgili test, repository %98,2 ve ekran %94,4; bağımsız
+incelemeler ve analizler temiz. Toplamlar birbirine eklenmez. `7ed736b`
+birleşik Client **2.989 testi 3:58 içinde geçti**; analiz sıfır bulgu,
+820 dosyada biçim kontrolü sıfır değişiklik. Server kaynakları son
+2.906 PASS/10 Mac skip koşusuyla aynı. Uzak CI ve bütün S08.4 kabulü açık.
+[Direct kanıtı](direct-home-boundary-implementation-2026-09-06.md) ·
+[Yedek kanıtı](ha-backup-boundary-implementation-2026-09-06.md).
+Diafon/film gecesi kayıt ve eylem sınırı sıradaki aktif dilimdir.
+
+**Paralel S08.6 ana dalda:** Kalıcı, şifreli oda/kaynak/hesap izin kayıtları ve
+gerçek authenticated HTTP API `133786e` / belge `1b6b866` ile birleşti.
+Üye yalnız izinli kayıtları görür; opak sayfa özeti gizli kayıt hareketlerini
+açıklamaz. 124 odaklı test, dal dahil %95 kapsam, bağımsız inceleme ve tam
+Server **2.906 PASS / Mac üzerinde 10 Linux skip** geçti. Yeni Linux CI
+ayrıca bekleniyor. Client liste/yönetim ekranı, hane kişi profilleri, değişmez
+sağlayıcı bağları ve gerçek cihaz komutları henüz tamamlanmış sayılmıyor.
+[Uygulama ve kanıt](home-resource-registry-implementation-2026-09-06.md).
 
 **S08 kabul sırası netleştirildi:** Mevcut kayıt kapsamı S08.4, restore/journal
 S08.5, kimlik/yetki S08.6; gerçek HA eşlemesi ve typed cache S08.7, medya
@@ -171,7 +194,10 @@ kabulü değildir. Geçici çalışma kopyaları kalıcı arşiv yerine geçmez.
 | B5.1 medya posterleri | `codex/tablet-media-accessibility` · `/private/tmp/larenor-tablet-media-accessibility` | `cb792c0` → `14b7b62` main içinde; 733 ilgili/22 son test ve bağımsız görsel inceleme geçti. Tam Client 2.837 test/analiz ve `394de0f` dokuz E2E geçti; bağımsız imzalı APK 95 doğrulandı. |
 | B5.1 dashboard | `codex/tablet-dashboard-accessibility` · `/private/tmp/larenor-tablet-dashboard-accessibility` | `5cf7f30` birleşti; `4b98680` tam Android CI ve APK 94 kabulü geçti. |
 | S06.3e ağ journal köprüsü | `codex/network-effect-bridge` | `6a00168` main içinde; `9138e61` Server/güvenlik CI ile yazılım kabulü tamamlandı. |
-| S08.4 kaynaklı düzen | `codex/client-scoped-layout` ve `codex/scoped-layout-e2e` | Üretim ve ayrı Android yolculuğu başladı; henüz yerel/CI kabulü yok. |
+| S08.4 kaynaklı düzen | `codex/client-scoped-layout` ve `codex/scoped-layout-e2e` | `3018c57` ve `115dfa1` ana dalda; 93 son ve 2.914 tam Client testi/analiz geçti. Altıncı Android yolculuğunun CI kabulü açık. |
+| S08.4 HA ve yedek sınırı | `codex/direct-home-boundary` ve `codex/ha-backup-boundary` | `d8edab5` ve `9b11195` → main `7ed736b`; 53/40 son test ve bağımsız incelemeler temiz. Birleşik Client 2.989 PASS, analiz/biçim temiz; uzak CI açık. |
+| S08.4 diafon/film gecesi | `codex/direct-home-routines` | Yeni gerçek store/provider ve geç eylem sınırı üzerinde çalışılıyor; Core kaynak listesi Client dilimi de paralel başladı. |
+| S08.6 Core kaynak/yetki kaydı | `codex/home-resource-registry` | `133786e` / `1b6b866` ana dalda; tam Server 2.906 PASS/10 Mac skip, 124 odaklı test, %95 dal kapsamı ve inceleme temiz. Yeni CI/Client yönetim kabulü açık. |
 | S08.3 Client ev runtime'ı | `codex/client-home-session-scope` · `/private/tmp/larenor-client-home-session-scope` | `10d3eb1` birleşti; `4b98680` dokuz E2E ve imzalı APK 94 ile S08.3 kabul edildi. |
 | S06.3d appdata tam kök gözlemi | `codex/native-appdata-root-observation` · `/private/tmp/larenor-native-appdata-root-observation` | `32254ad` → `0d9e250` main içinde; `394de0f` gerçek Linux 2.792 test/0 skip ve iki mimarili hazırlık smoke geçti. Salt okunur gözlem yazma yetkisi değildir. |
 

@@ -1,0 +1,50 @@
+# S08.4 — Mevcut Client kayıtlarının sahipliği
+
+6 Eylül 2026. Envanter ana dal ve yeni kaynaklı düzen diliminin kodundan
+çıkarıldı. Bu tablo bütün kayıtların kabul testlerini geçtiği anlamına gelmez.
+S08.4, her satırın gerçek erişim sınırı doğrulandığında kapanır; yalnız oda
+adlarını kopyalamak yeterli değildir.
+
+| Kayıt / kaynak | Sahiplik | Core davranışı ve kalan kabul |
+| --- | --- | --- |
+| `dashboard_layout`, DashboardRepository | Eski Direct ev düzeni | Yalnız açık PIN önizlemesi oda adlarını tüketir; entity/alan/web referansları otomatik taşınmaz. Yeni dilimin 93 odaklı testi ve bağımsız incelemesi geçti; birleşik/CI kabulü ayrıca izlenir. |
+| `dashboard_layout_core_v1_*` | Core + ev + kullanıcı | Canonical tuple anahtarı, embedded tuple, revision ve kayıt özeti; bozuk kayıtta legacy fallback yok. Backend'de ortak oda registry'siyle henüz eşlenmez. |
+| HA CredentialsStore / connectionConfigProvider | Direct ev bağlantısı | URL/token Core'a otomatik bağlanmaz. d8edab5 gerçek provider/store/transport sınırını, eski write/clear callback reddini ve kalıcı yarım-kayıt kurtarmasını ekledi; son 53 test ve inceleme temiz, birleşik CI açık. |
+| Jellyfin, Jellyseerr, Sonarr/Radarr/Lidarr/Readarr, Bazarr, Prowlarr, qBittorrent | Direct medya bağlantısı | URL/kullanıcı/sırlar Core registry veya Music Assistant yetkisi değildir. Her provider/store için Core negatif okuma/yazma/ağ testleri açık. |
+| Keenetic ve Proxmox | Direct ağ/altyapı bağlantısı | Provider kurulumu login başlatabildiği için yalnız ekranı gizlemek yeterli değil. Core provider/store ve geç yanıt sınırları açık. |
+| `enabled_services` ve taşıma bayrağı | Direct servis yapılandırması | Core yetenek kataloğu değildir. İlk seed bütün Direct servis sırlarını tarayabilir; Jellyfin device ID de yazabilir. d8edab5 Core'da seed/taşıma/store erişimini ve kaynak değişiminden sonra device ID yazısını durdurur; olumlu Direct davranış ve kayıt hataları test edildi, birleşik CI açık. |
+| DoorStationStore / `DoorStation.storageKey` | Direct ev diafonu | HA adresi ve kamera/çağrı/kapı entity referansları içerir. Başka eve kopyalanmaz; provider/store erişim ve eski eylem negatif testleri codex/direct-home-routines üzerinde geliştiriliyor. |
+| MovieNightStore / `MovieNightPreset.storageKey` | Direct ev rutini | HA adresi ve başlangıç/bitiş sahne/script bağları içerir. Oda adı kopyası bu davranışları taşımaz; provider/store ve geç eylem sınırı codex/direct-home-routines üzerinde geliştiriliyor. |
+| WellbeingStore ve WellbeingDisclosureStore | Kişisel/cihaz özel veri + Direct HA bağları | Ortak ev kaydı olarak paylaşılmaz. Kaynak erişimi reddedildiğinde gizlilik filtresi boş/izinli hale gelemez; kişisel erişim ve PIN politikası korunur. Sınır testleri açık. |
+| `ambient_photos_v1` dosya arşivi | Kullanıcının seçtiği cihaz özel fotoğrafları | Core ambient ekranı arşivi yüklemiyor; doğrudan library provider erişimi için açık politika/negatif testler ayrıca gerekir. Arşiv silinmez veya otomatik paylaşılmaz. |
+| Görünüm/dil, PIN, ekran/güç/zamanlama, pencere/DeX | Cihaz ayarları | Core/ev kimliğinden türetilmez. Evler arasında kişisel düzen kopyası bunları değiştirmez. Mevcut cihaz davranışı regresyonları korunur. |
+| `home_source_v1` | Cihazın açık kaynak seçimi | Normal backup allowlist'ine alınmaz. Hatalı kayıt veya başarısız yazı sessiz Direct fallback üretmez. S08.3 kabulü mevcut. |
+| SecureServerSessionStore | Cihazın gizli Core oturumu | Normal preferences/backup değildir; saklanan tuple tek başına yetki vermez. Login/refresh/context ve parola kapıları S08.1–3'te kabul edildi. |
+| Backup restore journal ve allowlist | Açık yerel geri yükleme işlemi | Genel depo taramasıyla yeni Core anahtarları eklenmez. 9b11195 HA yarım-kayıt işaretini yeni snapshot/preview/restore dışında tutar; eski journal kurtarmasını engellemez veya işareti silmez. Tuple/revision bağlı preview/journal/rollback S08.5'in ayrı kabulüdür. |
+| Native `client_updates` staging | Geçici APK indirme/kurulum alanı | Ev snapshot'ı değildir. Mevcut session/source ve gerçek imza doğrulaması uygulanır; Core kayıt taşımasına katılmaz. |
+
+## Test sınırı
+
+S08.3, Core runtime'ının eski ev ekranlarını/provider tüketicilerini kurmamasını
+kanıtladı. Bu envanter daha dar bir ek şartı kaydeder: başka bir Core ekranı
+yanlışlıkla Direct provider/store'a erişse de kayıt veya ağ işlemi başlamamalı.
+Gerçek `connectionConfigProvider` ve sayaçlı platform deposu kullanılmalı;
+`ScopeHarness` içindeki bağlantı provider'ı override'ı bu yolu tek başına sınamaz.
+
+Core ready/pending/signed-out/first-password, kaynak loading/error,
+Direct→Core sırasında geciken okuma/login, eski signOut/save/clear ve Direct
+olumlu davranışları ayrı senaryolardır. Kaynak sahipliği, idle veya arka plan
+izniyle aynı şey değildir; geçerli Direct arka plan okumaları gereksiz yere
+kesilmez. Önceden yola çıkmış yazı otomatik geri alınmaz veya yeniden denenmez.
+
+Klasik SharedPreferences `getInstance/reload` altta tüm haritayı okuyabilir.
+Ölçülen sınır hedef kaydın tüketimi, yayınlanması, mutasyonu ve ağ erişimidir;
+bu aynı uygulama süreci içinde işletim sistemi seviyesinde bellek izolasyonu
+veya cihazda sıfır fiziksel preference okuması iddiası değildir.
+
+## Adaptörlere kalan işler
+
+HA kimlik/sır eşlemesi ve ilk typed snapshot cache S08.7'de, medya/müzik
+S08.8'de, altyapı S08.9'da kapanır. Web URL/origin izinleri ve özel sağlık
+bilgileri genel HA eşlemesine sessizce dahil edilmez. Bu sonraki işler
+S08.4→S08.5→S08.7→S08.4 biçiminde bir kabul döngüsü oluşturmaz.
