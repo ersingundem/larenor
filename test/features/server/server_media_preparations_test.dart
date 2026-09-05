@@ -429,6 +429,18 @@ void main() {
       expect(controller.canCreate, isFalse);
       expect(f.mutations, isEmpty);
     });
+    test('a server response cannot expand history beyond its 256 record bound', () async {
+      final rows = List.generate(260, (i) => pagedMediaPreparation(i + 1));
+      f.respond = (r) async {
+        final before = int.tryParse(r.url.queryParameters['before'] ?? '');
+        final start = before == null ? 0 : 261 - before;
+        return f.json({'preparations': rows.skip(start).take(10).toList(), 'nextBefore': start + 10 >= rows.length ? null : 251 - start});
+      };
+      await controller.load(current: () => true);
+      for (var page = 0; page < 25; page++) { await controller.loadMore(current: () => true); }
+      expect(controller.failure, 'invalid_response');
+      expect(controller.preparations, hasLength(250));
+    });
     test('account logout invalidates a delayed history read', () async {
       final held = Completer<http.Response>();
       f.respond = (_) => held.future;

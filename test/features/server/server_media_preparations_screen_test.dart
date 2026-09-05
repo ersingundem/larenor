@@ -400,4 +400,15 @@ void main() {
       expect(tester.takeException(), isNull);
     },
   );
+  testWidgets('common preparation inputs expose their localized labels to accessibility', (tester) async {
+    final semantics = tester.ensureSemantics();
+    addTearDown(semantics.dispose);
+    await mount(tester);
+    await tap(tester, 'media-new');
+    final field = find.byKey(const ValueKey('media-instanceName'));
+    await tester.ensureVisible(field);
+    await tester.pumpAndSettle();
+    expect(tester.getSemantics(field).label, contains('Instance name'));
+  });
+
 }
