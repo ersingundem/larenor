@@ -61,107 +61,173 @@ void main() {
         );
   });
 
-  test('pending state rejects before either credential key is consumed', () async {
-    platform.values[_pending] = '1';
-    await expectLater(CredentialsStore().read(), throwsA(staticFailure('pending_mutation')));
-    expect(platform.calls, [('read', _pending)]);
-    expect(platform.values['ha_token'], 'synthetic-secret');
-  });
+  test(
+    'pending state rejects before either credential key is consumed',
+    () async {
+      platform.values[_pending] = '1';
+      await expectLater(
+        CredentialsStore().read(),
+        throwsA(staticFailure('pending_mutation')),
+      );
+      expect(platform.calls, [('read', _pending)]);
+      expect(platform.values['ha_token'], 'synthetic-secret');
+    },
+  );
 
   for (final clear in [false, true]) {
-    test('partial ${clear ? 'clear' : 'save'} survives a new store instance', () async {
-      platform.before = (method, key) async {
-        if (key == 'ha_token' && method == (clear ? 'delete' : 'write')) {
-          throw const FormatException('sentinel-private-platform-error');
-        }
-      };
-      final store = CredentialsStore();
-      await expectLater(clear ? store.clear() : store.save(_replacement), throwsA(staticFailure('write_unconfirmed')));
-      expect(platform.values[_pending], isNotNull);
-      expect(platform.values['ha_base_url'], clear ? null : _replacement.baseUrl);
-      expect(platform.values['ha_token'], 'synthetic-secret');
-      platform.before = null;
-      platform.calls.clear();
-      await expectLater(CredentialsStore().read(), throwsA(staticFailure('pending_mutation')));
-      expect(platform.calls, [('read', _pending)]);
-      expect(platform.values[_pending], isNotNull);
-    });
+    test(
+      'partial ${clear ? 'clear' : 'save'} survives a new store instance',
+      () async {
+        platform.before = (method, key) async {
+          if (key == 'ha_token' && method == (clear ? 'delete' : 'write')) {
+            throw const FormatException('sentinel-private-platform-error');
+          }
+        };
+        final store = CredentialsStore();
+        await expectLater(
+          clear ? store.clear() : store.save(_replacement),
+          throwsA(staticFailure('write_unconfirmed')),
+        );
+        expect(platform.values[_pending], isNotNull);
+        expect(
+          platform.values['ha_base_url'],
+          clear ? null : _replacement.baseUrl,
+        );
+        expect(platform.values['ha_token'], 'synthetic-secret');
+        platform.before = null;
+        platform.calls.clear();
+        await expectLater(
+          CredentialsStore().read(),
+          throwsA(staticFailure('pending_mutation')),
+        );
+        expect(platform.calls, [('read', _pending)]);
+        expect(platform.values[_pending], isNotNull);
+      },
+    );
 
-    test('explicit complete ${clear ? 'clear' : 'save'} recovers pending state', () async {
-      platform.values[_pending] = '1';
-      final store = CredentialsStore();
-      if (clear) { await store.clear(); } else { await store.save(_replacement); }
-      expect(platform.values.containsKey(_pending), isFalse);
-      final restored = await CredentialsStore().read();
-      expect(restored?.baseUrl, clear ? null : _replacement.baseUrl);
-      expect(restored?.token, clear ? null : _replacement.token);
-      expect(platform.calls.take(4), [
-        ('write', _pending),
-        (clear ? 'delete' : 'write', 'ha_base_url'),
-        (clear ? 'delete' : 'write', 'ha_token'),
-        ('delete', _pending),
-      ]);
-    });
+    test(
+      'explicit complete ${clear ? 'clear' : 'save'} recovers pending state',
+      () async {
+        platform.values[_pending] = '1';
+        final store = CredentialsStore();
+        if (clear) {
+          await store.clear();
+        } else {
+          await store.save(_replacement);
+        }
+        expect(platform.values.containsKey(_pending), isFalse);
+        final restored = await CredentialsStore().read();
+        expect(restored?.baseUrl, clear ? null : _replacement.baseUrl);
+        expect(restored?.token, clear ? null : _replacement.token);
+        expect(platform.calls.take(4), [
+          ('write', _pending),
+          (clear ? 'delete' : 'write', 'ha_base_url'),
+          (clear ? 'delete' : 'write', 'ha_token'),
+          ('delete', _pending),
+        ]);
+      },
+    );
   }
 
   for (final afterEffect in [false, true]) {
-    test('marker write failure ${afterEffect ? 'after' : 'before'} effect never touches pair', () async {
-      Future<void> fail(String method, String? key) async {
-        if (method == 'write' && key == _pending) throw StateError('sentinel');
-      }
-      if (afterEffect) { platform.after = fail; } else { platform.before = fail; }
-      await expectLater(CredentialsStore().save(_replacement), throwsA(staticFailure('write_unconfirmed')));
-      expect(platform.values['ha_base_url'], 'https://synthetic.invalid');
-      expect(platform.values['ha_token'], 'synthetic-secret');
-      expect(platform.calls.where((c) => c.$2 != _pending), isEmpty);
-      platform.before = null;
-      platform.after = null;
-      if (afterEffect) {
-        await expectLater(CredentialsStore().read(), throwsA(staticFailure('pending_mutation')));
-      } else {
-        expect((await CredentialsStore().read())?.token, 'synthetic-secret');
-      }
-    });
+    test(
+      'marker write failure ${afterEffect ? 'after' : 'before'} effect never touches pair',
+      () async {
+        Future<void> fail(String method, String? key) async {
+          if (method == 'write' && key == _pending)
+            throw StateError('sentinel');
+        }
 
-    test('marker removal failure ${afterEffect ? 'after' : 'before'} effect never rolls back', () async {
-      Future<void> fail(String method, String? key) async {
-        if (method == 'delete' && key == _pending) throw StateError('sentinel');
-      }
-      if (afterEffect) { platform.after = fail; } else { platform.before = fail; }
-      await expectLater(CredentialsStore().save(_replacement), throwsA(staticFailure('write_unconfirmed')));
-      expect(platform.values['ha_base_url'], _replacement.baseUrl);
-      expect(platform.values['ha_token'], _replacement.token);
-      expect(platform.calls.where((c) => c.$1 == 'write').length, 3);
-      platform.before = null;
-      platform.after = null;
-      if (afterEffect) {
-        expect((await CredentialsStore().read())?.token, _replacement.token);
-      } else {
-        await expectLater(CredentialsStore().read(), throwsA(staticFailure('pending_mutation')));
-      }
-    });
+        if (afterEffect) {
+          platform.after = fail;
+        } else {
+          platform.before = fail;
+        }
+        await expectLater(
+          CredentialsStore().save(_replacement),
+          throwsA(staticFailure('write_unconfirmed')),
+        );
+        expect(platform.values['ha_base_url'], 'https://synthetic.invalid');
+        expect(platform.values['ha_token'], 'synthetic-secret');
+        expect(platform.calls.where((c) => c.$2 != _pending), isEmpty);
+        platform.before = null;
+        platform.after = null;
+        if (afterEffect) {
+          await expectLater(
+            CredentialsStore().read(),
+            throwsA(staticFailure('pending_mutation')),
+          );
+        } else {
+          expect((await CredentialsStore().read())?.token, 'synthetic-secret');
+        }
+      },
+    );
+
+    test(
+      'marker removal failure ${afterEffect ? 'after' : 'before'} effect never rolls back',
+      () async {
+        Future<void> fail(String method, String? key) async {
+          if (method == 'delete' && key == _pending)
+            throw StateError('sentinel');
+        }
+
+        if (afterEffect) {
+          platform.after = fail;
+        } else {
+          platform.before = fail;
+        }
+        await expectLater(
+          CredentialsStore().save(_replacement),
+          throwsA(staticFailure('write_unconfirmed')),
+        );
+        expect(platform.values['ha_base_url'], _replacement.baseUrl);
+        expect(platform.values['ha_token'], _replacement.token);
+        expect(platform.calls.where((c) => c.$1 == 'write').length, 3);
+        platform.before = null;
+        platform.after = null;
+        if (afterEffect) {
+          expect((await CredentialsStore().read())?.token, _replacement.token);
+        } else {
+          await expectLater(
+            CredentialsStore().read(),
+            throwsA(staticFailure('pending_mutation')),
+          );
+        }
+      },
+    );
   }
 
   test('source switch after URL effect retires writer and preserves pending marker', () async {
-    final (container, home) = await fixture.containerFor(HomeSource.directLocal);
+    final (container, home) = await fixture.containerFor(
+      HomeSource.directLocal,
+    );
     final sub = container.listen(credentialsStoreProvider, (_, _) {});
     addTearDown(sub.close);
     final store = sub.read();
     platform.after = (method, key) async {
-      if (method == 'write' && key == 'ha_base_url') await home.choose(HomeSource.verifiedCore);
+      if (method == 'write' && key == 'ha_base_url')
+        await home.choose(HomeSource.verifiedCore);
     };
-    await expectLater(store.save(_replacement), throwsA(staticFailure('write_unconfirmed')));
+    await expectLater(
+      store.save(_replacement),
+      throwsA(staticFailure('write_unconfirmed')),
+    );
     expect(platform.values[_pending], isNotNull);
     expect(platform.values['ha_token'], 'synthetic-secret');
     expect(platform.calls, [('write', _pending), ('write', 'ha_base_url')]);
     platform.after = null;
     await home.choose(HomeSource.directLocal);
     await expectLater(store.clear(), throwsA(staticFailure('unavailable')));
-    await expectLater(CredentialsStore().read(), throwsA(staticFailure('pending_mutation')));
+    await expectLater(
+      CredentialsStore().read(),
+      throwsA(staticFailure('pending_mutation')),
+    );
   });
 
   test('queued stale writer never writes marker or pair', () async {
-    final (container, home) = await fixture.containerFor(HomeSource.directLocal);
+    final (container, home) = await fixture.containerFor(
+      HomeSource.directLocal,
+    );
     final sub = container.listen(credentialsStoreProvider, (_, _) {});
     addTearDown(sub.close);
     final release = Completer<void>();
@@ -175,22 +241,25 @@ void main() {
     expect(platform.calls, isEmpty);
   });
 
-  test('read waits behind a mutation and never observes its partial pair', () async {
-    final reached = Completer<void>();
-    final release = Completer<void>();
-    platform.after = (method, key) async {
-      if (method == 'write' && key == 'ha_base_url') {
-        reached.complete();
-        await release.future;
-      }
-    };
-    final save = CredentialsStore().save(_replacement);
-    await reached.future;
-    final read = CredentialsStore().read();
-    await Future<void>.delayed(Duration.zero);
-    expect(platform.calls.where((c) => c.$1 == 'read'), isEmpty);
-    release.complete();
-    await save;
-    expect((await read)?.token, _replacement.token);
-  });
+  test(
+    'read waits behind a mutation and never observes its partial pair',
+    () async {
+      final reached = Completer<void>();
+      final release = Completer<void>();
+      platform.after = (method, key) async {
+        if (method == 'write' && key == 'ha_base_url') {
+          reached.complete();
+          await release.future;
+        }
+      };
+      final save = CredentialsStore().save(_replacement);
+      await reached.future;
+      final read = CredentialsStore().read();
+      await Future<void>.delayed(Duration.zero);
+      expect(platform.calls.where((c) => c.$1 == 'read'), isEmpty);
+      release.complete();
+      await save;
+      expect((await read)?.token, _replacement.token);
+    },
+  );
 }

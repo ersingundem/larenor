@@ -206,6 +206,6 @@ void main() {
     addTearDown(sub.close);
     final config = await container.read(connectionConfigProvider.future);
     expect(config?.token, 'synthetic-secret');
-    expect(secure.calls.where((call) => call.$1 == 'read').length, 2);
+    expect(secure.calls.where((call) => call.$1 == 'read').length, 3);
   });
 }
