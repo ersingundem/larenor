@@ -5,6 +5,8 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../l10n/generated/app_localizations.dart';
+import '../../../core/home_session_controller.dart';
+import '../../home_scope/presentation/home_source_screen.dart';
 import '../../../shared/theme/typography.dart';
 import '../../../shared/widgets/app_page_scaffold.dart';
 import '../../../shared/widgets/settings_action_tile.dart';
@@ -23,8 +25,13 @@ import 'server_vault_screen.dart';
 /// Account management is reached through SettingsGate. First-install access
 /// additionally observes PIN storage and fails closed if a PIN appears.
 class ServerConnectionScreen extends ConsumerStatefulWidget {
-  const ServerConnectionScreen({super.key, this.freshInstall = false});
+  const ServerConnectionScreen({
+    super.key,
+    this.freshInstall = false,
+    this.onExit,
+  });
   final bool freshInstall;
+  final VoidCallback? onExit;
   @override
   ConsumerState<ServerConnectionScreen> createState() =>
       _ServerConnectionScreenState();
@@ -335,6 +342,11 @@ class _ServerConnectionScreenState
     }
     return AppPageScaffold(
       navigationBar: CupertinoNavigationBar(
+        leading: widget.onExit == null
+            ? null
+            : CupertinoNavigationBarBackButton(
+                onPressed: _callback(widget.onExit!),
+              ),
         middle: Text(
           l10n.serverTitle,
           maxLines: 1,
@@ -369,6 +381,24 @@ class _ServerConnectionScreenState
                         padding: const EdgeInsets.symmetric(horizontal: 20),
                         child: Text(l10n.serverIntro, style: AppText.body),
                       ),
+                      if (ref.watch(homeSessionControllerProvider) != null)
+                        SettingsSection(
+                          children: [
+                            SettingsActionTile(
+                              title: Text(l10n.homeSourceTitle),
+                              onTap: _active
+                                  ? _callback(() {
+                                      Navigator.of(context).push(
+                                        CupertinoPageRoute<void>(
+                                          builder: (_) =>
+                                              const HomeSourceScreen(),
+                                        ),
+                                      );
+                                    })
+                                  : null,
+                            ),
+                          ],
+                        ),
                       if (!_account.initialized) ...[
                         Padding(
                           padding: const EdgeInsets.all(20),

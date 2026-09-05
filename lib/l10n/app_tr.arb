@@ -1843,5 +1843,17 @@
   "dashboardRoomMenuLabel": "Oda menüsü: {room}",
   "@dashboardRoomMenuLabel": {"placeholders": {"room": {"type": "String"}}},
   "dashboardEditSectionLabel": "{section} bölümünü düzenle",
-  "@dashboardEditSectionLabel": {"placeholders": {"section": {"type": "String"}}}
+  "@dashboardEditSectionLabel": {"placeholders": {"section": {"type": "String"}}},
+  "homeSourceTitle": "Ev kaynağı",
+  "homeSourceHint": "Android uygulamasının açacağı evi seçin. Bu cihaz tercihi, çıkış yaptığınızda veya yedek geri yüklediğinizde korunur.",
+  "homeSourceDirect": "Doğrudan Home Assistant",
+  "homeSourceCore": "Larenor Core",
+  "homeSourceDirectHint": "Bu cihazdaki mevcut Home Assistant bağlantısını ve yerel panoyu kullanın.",
+  "homeSourceCoreHint": "Doğrulanmış Core hesabını ve evini kullanın. Core ev görünümü bu sürümde henüz kullanılamıyor.",
+  "homeSourceStorageError": "Ev kaynağı güvenle okunamadı veya kaydedilemedi. Devam etmek için bir kaynağı yeniden seçin.",
+  "homeSourceLoading": "Ev kaynağı okunuyor…",
+  "homeCoreVerified": "Core hesabı ve ev doğrulandı.",
+  "homeCoreVerificationRequired": "Devam etmek için Core hesabınızı ve evinizi doğrulayın.",
+  "homeCoreUnavailable": "Core ev görünümü bu sürümde henüz kullanılamıyor. Core hesabınızı yönetebilir veya mevcut doğrudan Home Assistant bağlantınızı seçebilirsiniz.",
+  "homeCoreManageAccount": "Core hesabını yönet"
 }

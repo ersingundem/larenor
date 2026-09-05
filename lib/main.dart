@@ -1,7 +1,7 @@
 import 'package:flutter/widgets.dart';
 import 'package:media_kit/media_kit.dart';
 
-import 'app.dart';
+import 'core/home_session_scope.dart';
 import 'core/configuration_scope.dart';
 import 'features/backup/data/backup_repository.dart';
 
@@ -13,7 +13,7 @@ void main() {
       initialize: () async {
         await BackupRepository().recoverPendingRestore();
       },
-      child: const LarenorApp(),
+      child: const HomeSessionScope(),
     ),
   );
 }
