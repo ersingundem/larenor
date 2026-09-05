@@ -85,6 +85,51 @@ def test_root_purpose_is_bound_to_the_catalog_setting(roots, root_id, purpose):
     assert next(c for c in checks(result, 'storage_root') if c.rootId == root_id).status == 'failed'
 
 
+def test_unified_stack_jellyfin_can_observe_the_approved_library_readonly(roots):
+    from larenor_server.context import ContextResponse
+    from larenor_server.plugins.stack_plan import build_media_stack_plan
+    stack = build_media_stack_plan(load_catalog(), {}, 'linux/amd64',
+        ContextResponse(schemaVersion=1, coreId='a' * 32, homeId='b' * 32), 'c' * 32)
+    request = next(component.plan for component in stack.components if component.serviceId == 'jellyfin')
+    media = next(mount for mount in request.mounts if mount.target == '/media')
+    assert media.rootId == 'library' and media.readOnly and media.kind == 'approved_library'
+    result = inspector(roots).inspect(request)
+    assert [(check.rootId, check.status) for check in checks(result, 'storage_root')] == [
+        ('appdata', 'passed'), ('library', 'passed')]
+    # Read-only media is not another writable capacity charge or a new folder.
+    assert len(checks(result, 'storage_capacity')) == 1
+    assert checks(result, 'storage_capacity')[0].rootId == 'appdata'
+    assert all(not list(Path(root.path).iterdir()) for root in roots.values())
+    assert checks(result, 'docker_engine')[0].status == checks(result, 'receiver_network')[0].status == 'unknown'
+    assert stack.installAvailable is False and request.installable is False
+
+
+@pytest.mark.parametrize('service,settings,rejected_root', [
+    ('jellyfin', {'dataRootId': 'library'}, 'library'),
+    ('jellyfin', {'dataRootId': 'library', 'mediaRootId': 'library'}, 'library'),
+    ('jellyfin', {'mediaRootId': 'music'}, 'music'),
+    ('jellyfin', {'mediaRootId': 'appdata'}, 'appdata'),
+    ('music_assistant', {'musicRootId': 'library'}, 'library'),
+    ('sonarr', {'libraryRootId': 'media'}, 'media'),
+    ('radarr', {'libraryRootId': 'media'}, 'media'),
+    ('qbittorrent', {'libraryRootId': 'media'}, 'media'),
+])
+def test_jellyfin_library_view_does_not_broaden_other_service_or_purpose_authority(roots, service, settings, rejected_root):
+    result = inspector(roots).inspect(selected(service, settings))
+    assert next(check for check in checks(result, 'storage_root') if check.rootId == rejected_root).status == 'failed'
+
+
+@pytest.mark.parametrize('changed', [{'readOnly': False}, {'target': '/data'}, {'relativePath': 'other/config'}])
+def test_forged_shared_library_view_never_reaches_host_observation(roots, changed):
+    request = selected('jellyfin', {'mediaRootId': 'library'})
+    mounts = tuple(mount.model_copy(update=changed) if mount.target == '/media' else mount for mount in request.mounts)
+    calls = []
+    instance = HostInspector(HostPolicy(roots), platform_provider=lambda: calls.append('platform'))
+    with pytest.raises(HostPreflightError, match='^plan_untrusted$'):
+        instance.inspect(request.model_copy(update={'mounts': mounts}))
+    assert calls == []
+
+
 def test_missing_unknown_and_non_directory_roots_fail_without_path_disclosure(roots, tmp_path):
     for value in (HostRoot(str(tmp_path / 'missing'), 'data'), HostRoot(str(tmp_path / 'file'), 'data'), None):
         (tmp_path / 'file').write_text('private-secret')
