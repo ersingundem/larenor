@@ -1,6 +1,6 @@
 # Core/Client bütünleştirmesinde sıradaki somut dilimler
 
-**5 Eylül 2026 · Durum: S06 dilim 1 uygulandı; dilim 2 sırada.** Bu belge yeni özellik seçimi
+**5 Eylül 2026 · Durum: S06 dilim 1 kabul edildi; dilim 2 tam doğrulamada.** Bu belge yeni özellik seçimi
 değildir; [S06–S09](PROGRESS.md#sıradaki-geliştirme-paketleri) ve
 [B1/B3 temellerinin](feature-expansion-plan-2026-09-05.md) açık bağlantılarını
 ayrıntılandırır. Aşağıdaki kutular teslim kanıtı oluşmadan tamamlanmış sayılmaz.
@@ -17,7 +17,7 @@ adımını ayıramaz; kurulum koordinatörü bunu alt işlemlere ayırmalıdır.
 | Sıra | Açık teslim | Kabul kanıtı |
 | --- | --- | --- |
 | 1 | **Uygulandı:** tek Larenor kurulumu için birleşik plan ve kalıcı hazırlık kaydı | Altı bileşen, benzersiz işlem/adım kimlikleri, şifreli geçmiş, idempotent oluşturma, restart ve iptal; Client admin ekranı ve ortak HTTP sözleşmesi. [Kanıt ve sınırlar](media-preparations-implementation-2026-09-05.md); gerçek kurulum hâlâ kapalı |
-| 2 | Worker/daemon host bağlamı, depolama ve ağ doğrulaması | Worker namespace'inde boş portun daemon hostunda uygun sayılmaması; dosya sistemi ve alıcı keşfi kanıtı yoksa sonuç `unknown` |
+| 2 | **Uygulandı, tam test kapıları sürüyor:** birleşik gereksinim işleri, worker/daemon bağlamı ve depolama gözlemi | [Ayrı bağlam sonuçları, 49.152 MiB toplam disk bütçesi, kalıcı kontrol/geçmiş/iptal ve Client](media-inspections-implementation-2026-09-05.md). Port/alıcı ağı kanıtı yoksa `unknown`; kurulum kapalı |
 | 3 | Sahiplikli kaynak hazırlığı | Digest ile imaj edinme, veri dizini/mount ve özel kontrol ağı; yabancı kaynağı sahiplenmeme ve yarıda kalınca aynı kaynakla devam |
 | 4 | Dar, süreli kurulum adımlarının API/işçiye bağlanması | Her yan etkide güncel yetki/oturum/iptal/katalog kontrolü; serbest Docker seçenekleri yok; belirsiz create yanıtında sahiplik uzlaştırması |
 | 5 | Özel bootstrap ve otomatik servis eşleştirmesi | Kimlik bilgilerinin Server'da üretilip şifreli saklanması; ilk kullanıcı API'sinin denetimsiz LAN'a açılmaması; medya adres/anahtar/kütüphanelerinin otomatik eşleşmesi |
@@ -44,12 +44,14 @@ ayrı kanıtlardır. Bu gözlem kaynak ayırmaz ve kurulum yetkisi vermez.
 | 4 | Altı child aynı 16 GiB dosya sisteminde ayrı ayrı 8 GiB kontrolünü geçiyor | Birleşik 49.152 MiB isteği başarısız olmalı. Her child'ın bütçesi her ayrı yazılabilir dosya sistemine bir kez eklenir; config/cache ve kök alias'ları alanı çoğaltmaz, salt okunur Jellyfin görünümü yazma bütçesi eklemez |
 | 5 | Bağlam ve API uygun, port/alıcı için bağımsız kanıt yok | `port_availability` ve `receiver_network` hâlâ `unknown`; gözlem bind/listen, container start veya alıcı keşif trafiği üretmez |
 
-Bugün [DockerProbe](../server/larenor_server/plugins/docker_probe.py) peer
-UID'sini ve socket kimliğini doğrular. [HostInspector](../server/larenor_server/plugins/host_preflight.py)
-kapasiteyi yalnız bir child plan içindeki dosya sistemleri için birleştirir.
-Yeni sonuçlar API'ye açılınca [dar sonuç modeli](../server/larenor_server/plugins/preflight_models.py),
-Server/Client ortak sözleşmesi ve tablet açıklamaları birlikte değişir.
-Bu tablodaki senaryolar planlandı; uygulandı veya testleri geçti sayılmaz.
+[DockerProbe](../server/larenor_server/plugins/docker_probe.py) tek doğrulanmış
+socket'e bağlı peer/process/namespace/root gözlemini, açık v3 executable
+politikasıyla yapar. [HostInspector](../server/larenor_server/plugins/host_preflight.py)
+artık altı child'ın bütçesini dosya sistemi başına birlikte hesaplar ve dizin
+kimliğini ölçüm sonrasında yeniden doğrular. Sonuç modeli, Client tablet
+anlatımı ve [ortak gerçek HTTP sözleşmesi](../contracts/media-inspections.v1.json)
+birlikte eklendi. Bu senaryoların odaklı testleri geçti; tüm yerel/uzak CI
+kapıları tamamlandığında dilim kabul sayısı güncellenecek.
 
 ## B3/S08: kimliği gerçek Client kapsamına bağlama
 

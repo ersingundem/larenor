@@ -73,7 +73,7 @@ mevcut CI test keşfine dahildir. Ortak sözleşme iki tarafta aynı alanları v
 gerçek Server yanıtını sınar. Sayısal son sonuçlar ve uzak CI durumu
 [PROGRESS](PROGRESS.md#son-test-kanıtı) içinde tutulur.
 
-Sıradaki teslim [S06 dilim 2](remaining-core-integration-slices.md): worker ve
-Docker daemon'ın host bağlamını kanıtlamak; ortak depolama, port ve alıcı ağını
-doğrulamak. Sonraki kaynak hazırlığı ve bootstrap adımları geçmeden bu kayıtlar
+Devam teslimi [S06 dilim 2](media-inspections-implementation-2026-09-05.md)
+worker/daemon bağlamı ve birleşik disk bütçesini ayrı kontrol işi olarak
+uygular; port ve alıcı ağı bağımsız kanıt yokken `unknown` kalır. Sonraki kaynak hazırlığı ve bootstrap adımları geçmeden bu kayıtlar
 kuruluma açılmayacak. Ev sunucusuna kurulum en sonda kullanıcıyla yapılır.

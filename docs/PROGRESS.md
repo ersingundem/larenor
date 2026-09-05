@@ -1,10 +1,10 @@
 # Larenor — güncel ilerleme ve iş kuyruğu
 
-**Son güncelleme: 5 Eylül 2026, 18:24 (Türkiye saati).**
+**Son güncelleme: 5 Eylül 2026, 18:55 (Türkiye saati).**
 
 ```text
 Önceki kapsam       █████████████░░░░░░░  ≈ %65
-S06 koordinatörü    ███░░░░░░░░░░░░░░░░░  1/6 yazılım dilimi; test kapıları geçti
+S06 koordinatörü    ███░░░░░░░░░░░░░░░░░  1/6 kabul; 2. dilim doğrulanıyor
 Yeni 63 özellik     ░░░░░░░░░░░░░░░░░░░░  0/63 kabul edildi
 Genişletilmiş toplam                     Henüz hesaplanmadı
 ```
@@ -36,6 +36,14 @@ GitHub'a gönderilmiş işlerin **anlık CI durumu**
 [Actions ekranından](https://github.com/ersingundem/larenor/actions) izlenir.
 Bu yerel dosya geliştirme aşamalarında güncellenir; Actions ise çalışan
 derlemelerin ve test işlerinin kendi canlı durumunu gösterir.
+
+**Aktif çalışma — S06 dilim 2:** [birleşik medya gereksinim kontrolü](media-inspections-implementation-2026-09-05.md),
+şifreli kalıcı sonuç/geçmiş/iptal, Android yönetim akışı ve daemon bağlamı
+gözlemleri uygulandı. Bağımsız inceleme bulguları regresyonlarla düzeltildi;
+tam test ve yayın doğrulaması sürüyor. Altı
+bileşenin aynı dosya sistemindeki 49.152 MiB bütçesi birlikte hesaplanıyor.
+Gerçek HTTP → Unix işçisi → yeniden başlatma sözleşmesi geçti. Bu değişiklikler
+için GitHub CI henüz çalıştırılmadı; aşağıdaki önceki CI kanıtı yeni kodu kapsamaz.
 
 **Güncel doğrulanmış kod:** `19b14aa` için
 [Security](https://github.com/ersingundem/larenor/actions/runs/33973452663) ve

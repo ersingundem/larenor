@@ -104,6 +104,13 @@ Tablodaki dosyalar temsilî giriş noktalarıdır; aynı klasördeki diğer `_te
 
 ## Doğrulanan yerel koşum
 
+**S06 dilim 2 — doğrulama sürüyor:** [birleşik gereksinim kontrolü](media-inspections-implementation-2026-09-05.md)
+için gerçek HTTP → Unix işçisi → şifreli kayıt → restart sözleşmesi eklendi;
+Android aynı JSON örneğini tüketir. Kalıcı iş modüllerinde 116 odaklı test ve
+%99 satır/dal kapsamı var (model/API/şema %100). Host/IPC, daemon bağlamı,
+Android yaşam döngüsü ve tüm regresyon koşumları ayrıca tamamlanıyor.
+Bunlar aşağıdaki önceki 19b14aa CI sonuçlarına dahil değildir.
+
 **S06 birleşik medya hazırlığı:** Altı bileşen planner'ı 83 odaklı testle,
 API/depolama/ortak HTTP sözleşmesi 75 testle doğrulandı. Planner birleşik
 satır/dal kapsamı %97; dört API/depolama modülü %92, yeni şema ve API/model
