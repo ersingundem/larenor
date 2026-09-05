@@ -1,6 +1,7 @@
 # Larenor
 
 **Development progress:** [completed work, active tasks and remaining queue](docs/PROGRESS.md).
+**Execution queue:** [all remaining steps and resume instructions](docs/EXECUTION_QUEUE.md), with [validated task state and dependencies](docs/execution-queue.json). Local tests, CI acceptance and physical-device validation are tracked separately.
 **Approved expansion:** [63 selected Core/Android Client features, ordered by dependencies](docs/feature-expansion-plan-2026-09-05.md), including independent [VNC, RDP and SSH remote access](docs/remote-access-plan-2026-09-05.md). Planned features are tracked separately from implemented capabilities.
 
 **Larenor Client** is an **Android app**, designed primarily for tablets. The same

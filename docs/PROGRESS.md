@@ -1,6 +1,6 @@
 # Larenor — güncel ilerleme ve iş kuyruğu
 
-**Son güncelleme: 5 Eylül 2026, 19:22 (Türkiye saati).**
+**Son güncelleme: 5 Eylül 2026, 19:42 (Türkiye saati).**
 
 ```text
 Önceki kapsam       █████████████░░░░░░░  ≈ %65
@@ -25,8 +25,10 @@ paketin eforu ayrıntılandıkça genişletilmiş toplam ayrıca hesaplanacak;
 eski %35 kalan tahmini yeni toplam için kullanılmayacak.
 
 Bu dosya yapılanları, devam eden işleri ve sıradaki paketleri tek yerde izlemek
-içindir. Geliştirme sırasında tamamlanan dilim ve doğrulama sonuçları burada
-güncellenir; sürekli çalışan bir izleme servisi değildir. Ayrıntılı kapsam için
+içindir. Bütün kalan işler [yürütme kuyruğunda](EXECUTION_QUEUE.md), makinece
+doğrulanabilen durum ve bağımlılıklar [JSON kaydında](execution-queue.json)
+tutulur. Her doğrulanan dilimden sonra sıradaki uygun yazılım işine geçilir;
+yeniden “devam et” talimatı beklenmez. Ayrıntılı kapsam için
 [ürün planı](product-implementation-plan-2026-09-05.md),
 [Server/Client planı](server-client-architecture-2026-09-05.md) ve
 [test matrisi](testing-matrix-2026-09-05.md) kullanılır. Yeni onaylı özellikler
@@ -36,6 +38,23 @@ GitHub'a gönderilmiş işlerin **anlık CI durumu**
 [Actions ekranından](https://github.com/ersingundem/larenor/actions) izlenir.
 Bu yerel dosya geliştirme aşamalarında güncellenir; Actions ise çalışan
 derlemelerin ve test işlerinin kendi canlı durumunu gösterir.
+
+**Devam mekanizması etkin:** aynı Codex görevindeki “Larenor geliştirme ve
+bakım” takibi 15 dakikada bir bu planı, kuyruğu, git durumunu ve yarım kalan
+CI işlerini kontrol eder. Aynı iş için ikinci yürütücü başlatmaz; bir sonraki
+bağımsız adıma geçer. Günlük depolama temizliği aynı görev içinde, Türkiye
+saatinde 03.15 sonrasında günde en fazla bir kez korunur. Bilgisayarın ve Codex
+uygulamasının açık, deponun erişilebilir olması gerekir; bu dosyanın kendisi
+bir servis değildir. Görev Codex'in zamanlanmış görevler ekranından durdurulabilir.
+
+**Aktif yazılım işi: S06.3 kaynak hazırlığı.** Saf kaynak planı `0de91a2`
+ile yerelde doğrulandı: 67 yeni odaklı test, mevcut katalog/stack ile birlikte
+249 test geçti; iki yeni modülde birleşik satır/dal kapsamı %95. Kalıcı kaynak
+makbuzu 92 odaklı testle, sabit digest imaj taşıması 60 testle yerelde doğrulandı;
+bir gerçek Linux peer testi Mac'te atlandı. İmaj/journal bağlantısı ve uzak CI
+üzerinde çalışma sürüyor. [Ayrıntılı uygulama kanıtı](resource-preparation-implementation-2026-09-05.md).
+Bu yeni değişiklikler henüz CI/yayın kabulü almadı; S06 sayacı bu yüzden **2/6**
+ve seçilen yeni özellik kabulü **0/63** olarak kalır.
 
 **S06 dilim 2 tamamlandı:** [birleşik medya gereksinim kontrolü](media-inspections-implementation-2026-09-05.md),
 şifreli kalıcı sonuç/geçmiş/iptal, Android yönetim ekranı, toplam disk bütçesi ve
@@ -74,10 +93,11 @@ alıntısının docstring düzeltmesidir; çalıştırılabilir Python AST'si ay
 Client/test/workflow davranışı değişmedi. APK/imaj ve CI kanıtının kaynak
 commit'i **`62b2054`** olarak kalır.
 
-**Sıradaki teslim:** [S06 dilim 3 — sahiplikli kaynak hazırlığı](media-resource-preparation-plan-2026-09-05.md).
+**Devam eden teslim:** [S06 dilim 3 — sahiplikli kaynak hazırlığı](media-resource-preparation-plan-2026-09-05.md).
 Kaynak planı/journal → sabit digest ile imaj → sahiplikli appdata → özel kontrol
 ağı → yarım işlem kurtarma/iki mimarili kabul sırası ayrıntılandırıldı.
-Bu plan tamamlanmış özellik sayılmaz ve kurulum yetkisini açmaz.
+Saf plan/journal ve imaj taşıması yerel testlerden geçti; bütün dilimin kabulü
+henüz tamamlanmadı ve kurulum yetkisi açılmadı.
 
 **CI hazırlığı düzeltmesi:** `ce1ce38` E2E'si uygulama senaryoları başlamadan
 uyanık kalma ayarını doğrulayamadığı için durmuştu. `16dda6b` RED → `4e05b66`
@@ -158,7 +178,7 @@ kabul işleri aşağıda ayrıca tutulur.
 | Birleşik medya kontrolü | Toplam disk bütçesi, ayrı daemon mount/network/root gözlemleri, şifreli kalıcı kontrol işi ve tablet yönetimi; kaynak ayırma/servis kurma yok |
 | Dahili salt okunur işçi | Aynı Server paketindeki `larenor-preflight-worker`, Linux UID doğrulamalı Unix IPC; toplam kapasite/platform, Docker GET `/version` ve açık v3 politikasıyla socket/process bağlamı. Varsayılan kapalı; kurulum yok ve `installAvailable=false` |
 | Kalıcı Core/ev bağlamı | `/api/v1/context`, atomik şema 1→2→3 geçişi, HMAC doğrulaması; aynı 27 JSON örneğiyle Server ve Client okuyucu. Client oturum/cache bağlama henüz yok |
-| Düzenli GitHub temizliği | Günlük 03.15 Codex görevi ve testli araç; en yeni üç debug APK, bütün imzalı APK ve raporlar korunur. İlk koşumda beş eski debug APK (641.275.745 bayt) silindi; kalan 171 çıktı doğrulandı. GHCR izin ve manifest grafiği eksikliği nedeniyle silinmez |
+| Düzenli GitHub temizliği | Geliştirme/bakım takibi içinde günlük 03.15 sonrası kontrol ve testli araç; en yeni üç debug APK, bütün imzalı APK ve raporlar korunur. İlk koşumda beş eski debug APK (641.275.745 bayt) silindi; kalan 171 çıktı doğrulandı. GHCR izin ve manifest grafiği eksikliği nedeniyle silinmez |
 | CI rapor kotası düzeltmesi | Test kanıtı yükleme hataları görünür uyarı üretir; Gitleaks/OSV taramaları artifact kotasına bağlı değildir. Gerçek tarama hatalarının engelleyici kaldığı test edildi |
 | Lisans ve kaynak | AGPL-3.0-only, üçüncü taraf bildirimleri, uygulama içi lisans ekranı ve Server kaynak/lisans API'si |
 | Geliştirme becerileri | İstenen frontend/CI seçkisinden 27 beceri kuruldu; 81 dosyanın kaynağı ve hash'i kaydedildi. Kurulum uygulama özelliği sayılmaz |
@@ -258,6 +278,13 @@ Test adetleri farklı zaman ve kapsamları temsil eder; toplanarak başarı oran
 üretilmez. CI kanıtı yukarıda adı verilen commit içindir; yalnız belge değişiklikleri uygulama veya workflow kodunu değiştirmez.
 
 ## Güncelleme kaydı
+
+- **19:42:** Kullanıcının sürekli devam talimatıyla kalan adımların kalıcı
+  yürütme kuyruğu hazırlanıyor; mevcut takip 15 dakikalık geliştirme devamına
+  genişletildi, günlük debug APK temizliği aynı sınırlarla korundu.
+  S06.3a saf kaynak sözleşmesi `8ab8006` RED → `0de91a2` GREEN: 67 yeni,
+  katalog/stack ile 249 test geçti. Kaynak journal'ı ve imaj akışı paralel;
+  kurulum yetkisi açılmadı, fiziksel ev işlemi yapılmadı.
 
 - **19:22:** S06 dilim 2 tamamlandı, koordinatör **2/6**. `62b2054` bütün
   CI ve imzalı APK 86 teslimi geçti; APK yerelde ayrıca doğrulandı.

@@ -1,5 +1,9 @@
 # S06 dilim 3 — sahiplikli kaynak hazırlığı için dar karar notu
 
+**Uygulama durumu:** aşağıdaki metin başlangıç karar kaydıdır. Sonradan eklenen
+kod, test kanıtı ve ayrı journal kararı [uygulama kaydında](resource-preparation-implementation-2026-09-05.md)
+izlenir; bu nottaki öneriler tek başına kabul değildir.
+
 5 Eylül 2026. Salt okunur inceleme; kod, kurulum, Docker veya ev cihazı işlemi yapılmadı. İncelenen checkout: `62b2054`. Bu not uygulanmış özellik listesi değildir. Önerilen dilimde `installAvailable=false`, katalog `installable=false` ve özel bootstrap/otomatik eşleştirme engelleri korunur. Mevcut `/media/inspections` işi salt okunur kalır; kaynak hazırlığı onun durumlarının veya yetkisinin yeniden yorumlanmasıyla açılmaz.
 
 Mevcut temel: `server/larenor_server/plugins/worker.py` yalnız dahili, sınırlı container create/start ilkelleri sunar. `ContainerBinding` kalıcı mount'ları ve imajın `Config.Volumes` alanını reddeder; `_matches` mount içeren mevcut container'ı sahiplenmez. `UnixDockerEngine` sabit v1.47 Unix HTTP yollarını kullanır, yanıtı en çok 1 MiB olarak toplar; bu taşıma uzun pull akışına doğrudan uygun değildir. `WorkerJournal` v1 `(job, step)` ve `(installation, step)` benzersizliği ile hazırlanmış niyet/sonuç/belirsizlik saklar. `stack_plan.py` her bileşen için `installationId`, `operationId`, `stepId` türetir; fakat beş mevcut adım arasında image pull/ağ hazırlığı yoktur. `catalog.py` appdata alt yolunu bugün kullanıcıya görünen `instanceName` üzerinden kurar ve bridge bileşenlerinde `0.0.0.0` portları, Music Assistant'ta host ağı ister. Bu istekler güvenli bootstrap planı değildir.

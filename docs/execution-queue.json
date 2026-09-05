@@ -214,7 +214,7 @@
       "kind": "task",
       "parent": "S06.3",
       "title": "Kaynak journal’ı ve kesilmiş işlem sahipliği",
-      "status": "in_progress",
+      "status": "awaiting_ci",
       "dependsOn": [
         "B0"
       ],
@@ -235,9 +235,26 @@
         "review",
         "ci"
       ],
-      "evidence": [],
+      "evidence": [
+        {
+          "kind": "test",
+          "ref": "docs/resource-preparation-implementation-2026-09-05.md",
+          "commit": "9eaf7d10f0e351376e01e31d7c1f39fb13516bcf",
+          "state": "completed",
+          "result": "passed",
+          "label": "92 odaklı, 216 uyumluluk testi; 450/450 statement, 85/86 dal."
+        },
+        {
+          "kind": "review",
+          "ref": "docs/resource-preparation-implementation-2026-09-05.md",
+          "commit": "9eaf7d10f0e351376e01e31d7c1f39fb13516bcf",
+          "state": "completed",
+          "result": "passed",
+          "label": "Bağımsız yol/kilit/state incelemesi; toplu payload belleği sorunu streaming ve hedefli sorguyla giderildi."
+        }
+      ],
       "completionCommit": null,
-      "reason": "Önceki sözleşme yerelde dondurulunca ayrı modülde paralel draft geliştirme; kabul önceki işin CI kapısını bekler."
+      "reason": "Yerel journal ve bağımsız inceleme tamam; tam kaynak commit’inin uzak kapıları ile S06.3a kabulü bekleniyor."
     },
     {
       "id": "S06.3c",
