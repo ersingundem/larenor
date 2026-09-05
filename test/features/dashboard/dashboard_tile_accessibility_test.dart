@@ -160,12 +160,16 @@ void main() {
             visible.value = false;
             await tester.pump();
           case 'background-wake':
-            tester.binding.handleAppLifecycleStateChanged(
+            for (final state in [
+              AppLifecycleState.inactive,
+              AppLifecycleState.hidden,
               AppLifecycleState.paused,
-            );
-            tester.binding.handleAppLifecycleStateChanged(
+              AppLifecycleState.hidden,
+              AppLifecycleState.inactive,
               AppLifecycleState.resumed,
-            );
+            ]) {
+              tester.binding.handleAppLifecycleStateChanged(state);
+            }
           case 'covered':
             navigator.currentState!.push(
               CupertinoPageRoute<void>(
