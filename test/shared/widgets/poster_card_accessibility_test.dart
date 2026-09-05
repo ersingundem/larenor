@@ -7,11 +7,41 @@ import 'package:larenor/core/theme.dart';
 import 'package:larenor/shared/widgets/poster_card.dart';
 
 void main() {
+  testWidgets('reused poster slot retires the action for the previous item', (
+    tester,
+  ) async {
+    var oldOpens = 0;
+    var newOpens = 0;
+    Widget app(String title, VoidCallback action) => CupertinoApp(
+      home: CupertinoPageScaffold(
+        child: Center(
+          child: PosterCard(title: title, onTap: action),
+        ),
+      ),
+    );
+    await tester.pumpWidget(app('Old item', () => oldOpens++));
+    await tester.pumpAndSettle();
+    final callback = tester
+        .widget<CupertinoButton>(find.byType(CupertinoButton))
+        .onPressed!;
+    await tester.pumpWidget(app('Replacement item', () => newOpens++));
+    callback();
+    expect(oldOpens, 0);
+    expect(newOpens, 0);
+    await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+    await tester.pump();
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+    await tester.pumpAndSettle();
+    expect(oldOpens, 0);
+    expect(newOpens, 1);
+  });
+
   for (final interruption in [
     'idle',
     'hidden',
     'background',
     'covered',
+    'dialog',
     'reparented',
     'disposed',
   ]) {
@@ -89,11 +119,20 @@ void main() {
               );
               await tester.pump();
             case 'covered':
+            case 'dialog':
               navigator.currentState!.push(
-                CupertinoPageRoute<void>(
-                  builder: (_) =>
-                      const CupertinoPageScaffold(child: Text('Other route')),
-                ),
+                interruption == 'dialog'
+                    ? CupertinoDialogRoute<void>(
+                        context: navigator.currentContext!,
+                        builder: (_) => const CupertinoAlertDialog(
+                          title: Text('Modal dialog'),
+                        ),
+                      )
+                    : CupertinoPageRoute<void>(
+                        builder: (_) => const CupertinoPageScaffold(
+                          child: Text('Other route'),
+                        ),
+                      ),
               );
               await tester.pumpAndSettle();
               oldCallback();
@@ -150,6 +189,7 @@ void main() {
               child: PosterCard(
                 title: 'A Quiet Orbit',
                 overlay: const Text('Available'),
+                progress: .5,
                 onTap: () => opens++,
               ),
             ),
@@ -157,13 +197,19 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
-      final nodes =
-          tester.binding.pipelineOwner.semanticsOwner!.rootSemanticsNode!;
+      final nodes = tester
+          .binding
+          .renderViews
+          .single
+          .owner!
+          .semanticsOwner!
+          .rootSemanticsNode!;
       final matches = <SemanticsNode>[];
       void visit(SemanticsNode node) {
-        if (node.getSemanticsData().hasFlag(SemanticsFlag.isButton) &&
-            node.getSemanticsData().label.contains('A Quiet Orbit'))
+        if (node.getSemanticsData().flagsCollection.isButton &&
+            node.getSemanticsData().label.contains('A Quiet Orbit')) {
           matches.add(node);
+        }
         node.visitChildren((child) {
           visit(child);
           return true;
