@@ -283,3 +283,231 @@ def test_public_contract_rejects_incoherent_or_non_strict_records(inspections, c
     value = start(inspections)
     with pytest.raises(ValueError):
         MediaInspection.model_validate(value | change)
+
+
+@pytest.mark.parametrize('kind', ['symlink', 'public', 'hardlink', 'directory'])
+def test_dispatch_lock_requires_private_owned_single_file(server, inspections, kind):
+    manager, backend, _, _, _ = inspections
+    start(inspections)
+    path = server[2].data_dir / '.media-inspections.lock'
+    if kind == 'directory':
+        path.mkdir()
+    else:
+        target = server[2].data_dir / 'fixture-lock'
+        target.write_bytes(b'')
+        target.chmod(0o600)
+        if kind == 'symlink':
+            path.symlink_to(target)
+        elif kind == 'hardlink':
+            import os
+            os.link(target, path)
+        else:
+            path.write_bytes(b'')
+            path.chmod(0o644)
+    error('media_inspection_storage_unavailable', manager.tick)
+    assert backend.calls == []
+
+
+@pytest.mark.parametrize('mutation', ['demoted', 'disabled', 'password', 'revision', 'expired', 'removed'])
+def test_original_authority_binding_survives_history_without_authorizing_dispatch(inspections, mutation):
+    manager, backend, actor, _, _ = inspections
+    start(inspections)
+    with manager.db.transaction() as db:
+        if mutation == 'expired':
+            db.execute('UPDATE session_families SET expires_at=1 WHERE id=?', (actor.family_id,))
+        elif mutation == 'removed':
+            db.execute('DELETE FROM session_tokens WHERE family_id=?', (actor.family_id,))
+            db.execute('DELETE FROM session_families WHERE id=?', (actor.family_id,))
+        else:
+            field, value = {'demoted': ('role', 'member'), 'disabled': ('disabled', 1),
+                            'password': ('must_change_password', 1), 'revision': ('revision', 9)}[mutation]
+            db.execute(f'UPDATE users SET {field}=? WHERE id=?', (value, actor.id))
+    manager.validate_storage()
+    record = manager.tick()['inspection']
+    assert record['state'] == 'needs_attention' and record['errorCode'] == 'authority_changed'
+    assert backend.calls == []
+
+
+def test_access_rotation_preserves_work_but_stale_principal_cannot_read_or_replay(inspections):
+    manager, _, actor, pair, body = inspections
+    start(inspections)
+    replacement = manager.auth.refresh(pair['refreshToken'], 'synthetic')
+    assert manager.tick()['inspection']['state'] == 'succeeded'
+    error('invalid_session', lambda: manager.create(actor, body))
+    current = manager.auth.authenticate(replacement['accessToken'])
+    assert manager.create(current, body)['inspection']['state'] == 'succeeded'
+
+
+def test_context_change_never_returns_mixed_history_and_stops_dispatch(inspections):
+    manager, backend, actor, _, body = inspections
+    record = start(inspections)
+    manager.preparations.context = manager.preparations.context.model_copy(update={'homeId': 'f' * 32})
+    for action in (lambda: manager.get(actor, record['id']), lambda: manager.list(actor), lambda: manager.create(actor, body)):
+        error('media_context_changed', action)
+    result = manager.tick()['inspection']
+    assert result['state'] == 'needs_attention' and result['errorCode'] == 'context_changed'
+    assert backend.calls == []
+    with pytest.raises(StartupError, match='invalid_media_inspections_storage'):
+        manager.validate_storage()
+
+
+def test_preparation_missing_after_queue_is_attention_not_an_unbound_observation(inspections):
+    manager, backend, _, _, body = inspections
+    start(inspections)
+    with manager.db.transaction() as db:
+        db.execute('DELETE FROM media_preparations WHERE id=?', (body.preparationId,))
+    assert manager.tick()['inspection']['errorCode'] == 'preparation_changed'
+    assert backend.calls == []
+
+
+def test_disabled_worker_after_admission_is_explicit_failed(inspections):
+    manager, _, _, _, _ = inspections
+    start(inspections)
+    manager.backend = None
+    assert manager.tick()['inspection']['errorCode'] == 'worker_unavailable'
+
+
+def test_interrupted_running_cancellation_recovers_without_worker(server, inspections):
+    manager, backend, actor, _, _ = inspections
+    record = start(inspections)
+    backend.action = lambda _: (_ for _ in ()).throw(SystemExit())
+    with pytest.raises(SystemExit):
+        manager.tick()
+    manager.cancel(actor, record['id'], CancelMediaInspectionRequest(expectedRevision=2))
+    assert clone(manager, server).tick()['inspection']['state'] == 'cancelled'
+    assert len(backend.calls) == 1
+
+
+@pytest.mark.parametrize('method,args', [('get', ['bad']), ('cancel', ['bad', None]), ('get', ['f' * 32])])
+def test_internal_identifier_boundary(inspections, method, args):
+    manager, _, actor, _, _ = inspections
+    error('not_found' if args[0] == 'f' * 32 else 'invalid_request', lambda: getattr(manager, method)(actor, *args))
+
+
+@pytest.mark.parametrize('kwargs', [{'limit': True}, {'limit': 11}, {'before': 0}, {'before': True}])
+def test_internal_paging_boundary(inspections, kwargs):
+    manager, _, actor, _, _ = inspections
+    error('invalid_request', lambda: manager.list(actor, **kwargs))
+
+
+def test_internal_forged_model_copy_cannot_bypass_strict_request_validation(inspections):
+    manager, _, actor, _, body = inspections
+    error('invalid_request', lambda: manager.create(actor, body.model_copy(update={'expectedRevision': True})))
+    error('invalid_request', lambda: manager.create(actor, {}))
+
+
+@pytest.mark.parametrize('mutation', ['requestId', 'preparationId', 'planHash', 'expectedRevision', 'plan_self_hash'])
+def test_authenticated_payload_must_still_match_routing_and_plan_self_hash(inspections, mutation):
+    manager, _, actor, _, _ = inspections
+    start(inspections)
+    with manager.db.transaction() as db:
+        row = dict(db.execute('SELECT * FROM media_inspections').fetchone())
+        decoded = json.loads(manager._cipher.decrypt(row['nonce'], row['ciphertext'], manager._aad(row)))
+        if mutation == 'plan_self_hash':
+            decoded['plan']['settings']['instanceName'] = 'changed'
+        else:
+            decoded['request'][mutation] = 2 if mutation == 'expectedRevision' else 'f' * (64 if mutation == 'planHash' else 32)
+        ciphertext = manager._cipher.encrypt(row['nonce'], json.dumps(decoded).encode(), manager._aad(row))
+        db.execute('UPDATE media_inspections SET ciphertext=?', (ciphertext,))
+    error('media_inspection_storage_unavailable', lambda: manager.list(actor))
+
+
+@pytest.mark.parametrize('mutation', ['marker', 'missing_table', 'missing_marker', 'columns', 'index', 'unique'])
+def test_empty_current_schema_requires_exact_semantic_structure(server, inspections, mutation):
+    from larenor_server.plugins.media_inspection_schema import migrate_media_inspections
+    manager = inspections[0]
+    with manager.db.transaction() as db:
+        if mutation == 'marker':
+            db.execute("UPDATE metadata SET value='9' WHERE key='media_inspections_schema'")
+        elif mutation == 'missing_table':
+            db.execute('DROP TABLE media_inspections')
+        elif mutation == 'missing_marker':
+            db.execute("DELETE FROM metadata WHERE key='media_inspections_schema'")
+        elif mutation == 'columns':
+            db.execute('ALTER TABLE media_inspections ADD COLUMN secret TEXT')
+        elif mutation == 'index':
+            db.execute('DROP INDEX media_inspections_state')
+        else:
+            source = db.execute("SELECT sql FROM sqlite_master WHERE name='media_inspections'").fetchone()[0]
+            db.execute('DROP TABLE media_inspections')
+            db.execute(source.replace('UNIQUE(actor_id,request_id)', 'CHECK(1)'))
+            db.execute('CREATE INDEX media_inspections_state ON media_inspections(state,sequence)')
+    with manager.db.transaction() as db, pytest.raises(StartupError, match='^media_inspections_schema_unsupported$'):
+        migrate_media_inspections(db)
+
+
+def test_migration_rollback_preserves_existing_context_and_records(server, inspections, monkeypatch):
+    import sqlite3
+    import larenor_server.core as core_module
+    from larenor_server.app import create_app
+    manager = inspections[0]
+    with manager.db.transaction() as db:
+        db.execute('DROP TABLE media_inspections')
+        db.execute("DELETE FROM metadata WHERE key='media_inspections_schema'")
+    original = core_module.migrate_media_inspections
+    def interrupted(connection):
+        original(connection)
+        raise sqlite3.OperationalError('secret-path')
+    with monkeypatch.context() as patch:
+        patch.setattr(core_module, 'migrate_media_inspections', interrupted)
+        with pytest.raises(StartupError, match='^storage_initialization_failed$'):
+            create_app(server[2])
+    with manager.db.connection() as db:
+        assert db.execute("SELECT 1 FROM metadata WHERE key='media_inspections_schema'").fetchone() is None
+        assert db.execute("SELECT 1 FROM sqlite_master WHERE name='media_inspections'").fetchone() is None
+        assert db.execute('SELECT COUNT(*) FROM media_preparations').fetchone()[0] == 1
+    assert create_app(server[2]).state.core.context == manager.preparations.context
+
+
+def test_capacity_bounds_validate_retained_storage(inspections, monkeypatch):
+    import larenor_server.plugins.media_inspections as module
+    manager = inspections[0]
+    start(inspections)
+    monkeypatch.setattr(module, 'MAX_INSPECTIONS', 0)
+    with pytest.raises(StartupError, match='invalid_media_inspections_storage'):
+        manager.validate_storage()
+    monkeypatch.setattr(module, 'MAX_INSPECTIONS', 256)
+    monkeypatch.setattr(module, 'MAX_ACTIVE', 0)
+    with pytest.raises(StartupError, match='invalid_media_inspections_storage'):
+        manager.validate_storage()
+
+
+def test_different_preparations_compete_atomically_for_last_slot(server, inspections, monkeypatch):
+    import larenor_server.plugins.media_inspections as module
+    manager, _, actor, pair, body = inspections
+    _, prep = create_preparation(server[1], pair, request_id='2' * 32, name='other')
+    second = CreateMediaInspectionRequest(requestId='b' * 32, preparationId=prep['id'], expectedRevision=1,
+                                          planHash=prep['plan']['planHash'])
+    monkeypatch.setattr(module, 'MAX_ACTIVE', 1)
+    def submit(candidate):
+        try:
+            return manager.create(actor, candidate)['inspection']['state']
+        except ApiError as exc:
+            return exc.code
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        assert sorted(pool.map(submit, (body, second))) == ['media_inspection_limit_reached', 'queued']
+
+
+def test_real_256_retained_limit_preserves_terminal_replay(inspections):
+    from larenor_server.plugins.media_inspections import MAX_INSPECTIONS, MAX_ACTIVE
+    manager, _, actor, _, body = inspections
+    assert MAX_INSPECTIONS == 256 and MAX_ACTIVE == 16
+    for i in range(256):
+        candidate = body.model_copy(update={'requestId': f'{i:032x}'})
+        record = manager.create(actor, candidate)['inspection']
+        manager.cancel(actor, record['id'], CancelMediaInspectionRequest(expectedRevision=1))
+    error('media_inspection_limit_reached', lambda: manager.create(actor, body))
+    replay = manager.create(actor, body.model_copy(update={'requestId': '0' * 32}))['inspection']
+    assert replay['state'] == 'cancelled'
+    manager.validate_storage()
+
+
+def test_worker_model_copy_cannot_launder_boolean_capacity(inspections):
+    manager, backend, _, _, _ = inspections
+    start(inspections)
+    def forged(plan):
+        result = Backend().inspect_stack(plan)
+        bad = result.checks[0].model_copy(update={'availableMiB': True})
+        return result.model_copy(update={'checks': [bad]})
+    backend.action = forged
+    assert manager.tick()['inspection']['errorCode'] == 'invalid_worker_result'

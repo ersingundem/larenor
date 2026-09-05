@@ -94,3 +94,52 @@ def test_unconfigured_new_request_is_unavailable_without_receipt(server):
     response = client.post(BASE, headers=auth(pair), json=body)
     assert response.status_code == 503 and response.json()['error']['code'] == 'plugin_worker_unavailable'
     assert client.get(BASE, headers=auth(pair)).json()['inspections'] == []
+
+
+def test_runtime_dispatches_queued_receipt_and_waits_for_inflight_observation(server):
+    from concurrent.futures import ThreadPoolExecutor
+    from threading import Event
+    app, client, _, _ = server
+    pair, _, body = prepare(server)
+    record = client.post(BASE, headers=auth(pair), json=body).json()['inspection']
+    entered, release, stopping, stopped = Event(), Event(), Event(), Event()
+    backend = app.state.core.media_inspections.backend
+    def observe(plan):
+        entered.set()
+        assert release.wait(5)
+        return Backend().inspect_stack(plan)
+    backend.action = observe
+    def lifecycle():
+        with TestClient(app):
+            assert entered.wait(5)
+            stopping.set()
+        stopped.set()
+    with ThreadPoolExecutor(max_workers=1) as pool:
+        future = pool.submit(lifecycle)
+        try:
+            assert entered.wait(5) and stopping.wait(5)
+            assert not stopped.wait(.05)
+            assert app.state.media_inspection_dispatcher is not None
+        finally:
+            release.set()
+        future.result(timeout=5)
+    assert stopped.is_set()
+    assert client.get(BASE + '/' + record['id'], headers=auth(pair)).json()['inspection']['state'] == 'succeeded'
+
+
+def test_runtime_dispatch_errors_log_only_static_code_and_preserve_receipt(server, caplog):
+    from threading import Event
+    app, client, _, _ = server
+    pair, _, body = prepare(server)
+    record = client.post(BASE, headers=auth(pair), json=body).json()['inspection']
+    entered = Event()
+    manager = app.state.core.media_inspections
+    def broken_tick():
+        entered.set()
+        raise RuntimeError('secret-database-path')
+    manager.tick = broken_tick
+    with TestClient(app):
+        assert entered.wait(5)
+    assert 'media_inspection_dispatch_unavailable' in caplog.text
+    assert 'secret-database-path' not in caplog.text
+    assert client.get(BASE + '/' + record['id'], headers=auth(pair)).json()['inspection']['state'] == 'queued'
