@@ -2,6 +2,8 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'synthetic_core_account.dart';
+
 /// A loopback-only HA protocol fixture, owned by this test process. Writes are
 /// rejected except an explicitly enabled synthetic light action. No fallback.
 class SyntheticHaServer {
@@ -9,6 +11,7 @@ class SyntheticHaServer {
 
   static const token = 'synthetic-e2e-session';
   final HttpServer _server;
+  SyntheticCoreAccount? coreAccount;
   final _sockets = <WebSocket>[];
   final _stateSubscriptions = <WebSocket, int>{};
   bool allowLightActions = false;
@@ -97,6 +100,10 @@ class SyntheticHaServer {
   }
 
   Future<void> _handle(HttpRequest request) async {
+    if (coreAccount != null && request.uri.path.startsWith('/api/v1/')) {
+      await coreAccount!.handle(request);
+      return;
+    }
     if (request.uri.path == '/api/websocket' &&
         WebSocketTransformer.isUpgradeRequest(request)) {
       final socket = await WebSocketTransformer.upgrade(request);
