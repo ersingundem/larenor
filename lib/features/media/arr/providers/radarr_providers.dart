@@ -1,5 +1,7 @@
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
+import '../../../../core/direct_home_access.dart';
+
 import '../../../health/data/integration_health.dart';
 import '../../../health/providers/health_providers.dart';
 
@@ -14,13 +16,19 @@ part 'radarr_providers.g.dart';
 
 @riverpod
 ArrCredentialsStore radarrCredentialsStore(Ref ref) =>
-    ArrCredentialsStore(servicePrefix: 'radarr');
+    ArrCredentialsStore(servicePrefix: 'radarr', access: ref.watch(directHomeAccessProvider));
 
 @riverpod
 class RadarrConnection extends _$RadarrConnection {
   @override
-  Future<ArrConfig?> build() =>
-      ref.watch(radarrCredentialsStoreProvider).read();
+  Future<ArrConfig?> build() async {
+    final access = ref.watch(directHomeAccessProvider);
+    access.check();
+    final result = await ref.watch(radarrCredentialsStoreProvider).read();
+    access.check();
+    if (!ref.mounted) throw const DirectHomeAccessException('unavailable');
+    return result;
+  }
 
   Future<void> signIn({required String baseUrl, required String apiKey}) async {
     final config = ArrConfig(baseUrl: baseUrl, apiKey: apiKey);

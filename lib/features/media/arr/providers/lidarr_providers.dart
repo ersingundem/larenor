@@ -1,5 +1,7 @@
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
+import '../../../../core/direct_home_access.dart';
+
 import '../../data/media_api_exception.dart';
 import '../data/arr_client.dart';
 import '../data/arr_config.dart';
@@ -11,13 +13,19 @@ part 'lidarr_providers.g.dart';
 
 @riverpod
 ArrCredentialsStore lidarrCredentialsStore(Ref ref) =>
-    ArrCredentialsStore(servicePrefix: 'lidarr');
+    ArrCredentialsStore(servicePrefix: 'lidarr', access: ref.watch(directHomeAccessProvider));
 
 @riverpod
 class LidarrConnection extends _$LidarrConnection {
   @override
-  Future<ArrConfig?> build() =>
-      ref.watch(lidarrCredentialsStoreProvider).read();
+  Future<ArrConfig?> build() async {
+    final access = ref.watch(directHomeAccessProvider);
+    access.check();
+    final result = await ref.watch(lidarrCredentialsStoreProvider).read();
+    access.check();
+    if (!ref.mounted) throw const DirectHomeAccessException('unavailable');
+    return result;
+  }
 
   Future<void> signIn({required String baseUrl, required String apiKey}) async {
     final config = ArrConfig(baseUrl: baseUrl, apiKey: apiKey);
