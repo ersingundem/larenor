@@ -24,6 +24,7 @@ from .services.api import router as services_router
 from .services.probe_api import router as service_probe_router
 from .plugins.api import router as plugins_router
 from .plugins.job_api import router as plugin_jobs_router
+from .plugins.media_api import router as media_preparations_router
 
 
 Core = Annotated[CoreServices, Depends(get_core)]
@@ -157,6 +158,7 @@ def create_app(settings: Settings, *, routers: Iterable[APIRouter] = (),
     app.include_router(service_probe_router, prefix="/api/v1")
     app.include_router(plugins_router, prefix="/api/v1")
     app.include_router(plugin_jobs_router, prefix="/api/v1")
+    app.include_router(media_preparations_router, prefix="/api/v1")
     for extension in routers:
         # Only routers supplied by trusted, packaged server code are supported.
         app.include_router(extension, prefix="/api/v1")

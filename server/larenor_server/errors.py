@@ -49,6 +49,11 @@ MESSAGES = {
     "plugin_job_limit_reached": "The requirements job limit has been reached.",
     "plugin_job_conflict": "This request conflicts with a previously accepted job.",
     "plugin_job_storage_unavailable": "The saved requirements jobs are unavailable.",
+    "media_preparation_conflict": "This request conflicts with a saved media preparation.",
+    "media_catalog_changed": "The media catalog changed. Review the preparation again.",
+    "media_context_changed": "The Core or home changed. Review the preparation again.",
+    "media_preparation_limit_reached": "The media preparation limit has been reached.",
+    "media_preparation_storage_unavailable": "The saved media preparations are unavailable.",
 }
 
 
