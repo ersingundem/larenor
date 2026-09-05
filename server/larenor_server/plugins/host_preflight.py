@@ -309,11 +309,8 @@ class HostInspector:
         if endpoint is not None and actual_platform == expected_platform:
             try:
                 probe = DockerProbe(endpoint)
-                if getattr(endpoint, 'daemon_executable', None) is not None:
-                    observation = probe.observe(expected_platform, during=observe_storage, deadline=deadline)
-                    docker_status, context = observation.status, observation.context
-                else:
-                    docker_status = probe.inspect(expected_platform)
+                observation = probe.observe(expected_platform, during=observe_storage, deadline=deadline)
+                docker_status, context = observation.status, observation.context
             except Exception:
                 docker_status, context = 'unknown', None
         if type(docker_status) is not str or docker_status not in {'passed', 'failed', 'unknown'}:
