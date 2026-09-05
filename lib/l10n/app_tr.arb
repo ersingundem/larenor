@@ -1914,5 +1914,7 @@
   "homeResourcesResource": "Kaynak",
   "homeResourcesLoadMore": "Daha fazla yükle",
   "arrConnectionIncomplete": "Kayıtlı bağlantı tamamlanamadı. Adres ve API anahtarını yeniden girin veya kayıtlı bağlantıyı kaldırın.",
-  "arrRemoveConnection": "Kayıtlı bağlantıyı kaldır"
+  "arrRemoveConnection": "Kayıtlı bağlantıyı kaldır",
+  "qbittorrentConnectionIncomplete": "Bu bağlantı tamamlanmadı. Adres, kullanıcı adı ve parolayı yeniden girin veya kayıtlı bağlantıyı kaldırın.",
+  "qbittorrentRemoveConnection": "Kayıtlı bağlantıyı kaldır"
 }

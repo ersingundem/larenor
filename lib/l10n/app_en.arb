@@ -2235,5 +2235,7 @@
   "homeResourcesResource": "Resource",
   "homeResourcesLoadMore": "Load more",
   "arrConnectionIncomplete": "The saved connection is incomplete. Enter the complete address and API key again, or remove the saved connection.",
-  "arrRemoveConnection": "Remove saved connection"
+  "arrRemoveConnection": "Remove saved connection",
+  "qbittorrentConnectionIncomplete": "This connection is incomplete. Enter the URL, username and password again, or remove the saved connection.",
+  "qbittorrentRemoveConnection": "Remove saved connection"
 }

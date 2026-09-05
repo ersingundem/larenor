@@ -34,6 +34,8 @@ class QbittorrentConnection extends _$QbittorrentConnection {
   late final DirectHomeAccess _access = ref.read(directHomeAccessProvider);
   int _generation = 0;
   QbittorrentClient? _verificationClient;
+  bool Function()? _verificationOwner;
+  int? _verificationGeneration;
 
   void _check([int? generation]) {
     if (!ref.mounted) throw const DirectHomeAccessException('unavailable');
@@ -46,6 +48,17 @@ class QbittorrentConnection extends _$QbittorrentConnection {
   void _closeCheck() {
     _verificationClient?.dispose();
     _verificationClient = null;
+    _verificationOwner = null;
+    _verificationGeneration = null;
+  }
+
+  /// Cancels only this form's current verification transport. This performs no
+  /// storage, normal reader login, retry or rollback of an already sent request.
+  void cancelSignIn(bool Function() owner) {
+    if (identical(_verificationOwner, owner) &&
+        _verificationGeneration == _generation) {
+      _verificationClient?.dispose();
+    }
   }
 
   @override
@@ -77,12 +90,16 @@ class QbittorrentConnection extends _$QbittorrentConnection {
 
     _check();
     checkAction();
-    final previous = state.value;
+    final previous = state;
     final generation = ++_generation;
     final store = ref.read(qbittorrentCredentialsStoreProvider);
     final factory = ref.read(qbittorrentClientFactoryProvider);
     _closeCheck();
-    state = const AsyncLoading();
+    // Keep an empty/pending setup form alive while its own action verifies.
+    // A previously usable reader must still retire before account replacement.
+    if (!previous.isLoading && !previous.hasError && previous.value != null) {
+      state = const AsyncLoading();
+    }
     final config = QbittorrentConfig(
       baseUrl: baseUrl,
       username: username,
@@ -103,6 +120,8 @@ class QbittorrentConnection extends _$QbittorrentConnection {
     try {
       client = factory(config, null);
       _verificationClient = client;
+      _verificationOwner = isCurrent;
+      _verificationGeneration = generation;
       await client.login();
       _check(generation);
       checkAction();
@@ -117,17 +136,34 @@ class QbittorrentConnection extends _$QbittorrentConnection {
       state = AsyncData(config);
     } catch (error) {
       _check(generation);
+      try {
+        checkAction();
+      } on DirectHomeAccessException catch (expired) {
+        state = AsyncError(expired, StackTrace.empty);
+        rethrow;
+      }
       // A possibly persisted partial tuple must never republish a usable
       // connection. Its private marker requires explicit complete recovery.
       if (error is DirectHomeAccessException) {
         state = AsyncError(error, StackTrace.empty);
         rethrow;
       }
-      if (current()) state = AsyncData(previous);
+      if (current()) {
+        state = previous.isLoading
+            ? AsyncError(
+                const DirectHomeAccessException('unavailable'),
+                StackTrace.empty,
+              )
+            : previous;
+      }
       throw MediaApiException('Could not sign in — check URL and credentials.');
     } finally {
       client?.dispose();
-      if (identical(_verificationClient, client)) _verificationClient = null;
+      if (identical(_verificationClient, client)) {
+        _verificationClient = null;
+        _verificationOwner = null;
+        _verificationGeneration = null;
+      }
     }
   }
 
