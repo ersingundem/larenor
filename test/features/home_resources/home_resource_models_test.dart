@@ -6,7 +6,7 @@ Map<String, Object?> scope() => {'schemaVersion': 1, 'coreId': 'a' * 32, 'homeId
 Map<String, Object?> record([String id = '1']) => {
   'ref': {...scope(), 'kind': 'room', 'id': id * 32},
   'label': 'Kitchen', 'order': 2, 'revision': 1, 'aclRevision': 1,
-  'permissions': {'read': true, 'write': false},
+  'permissions': <String, Object?>{'read': true, 'write': false},
 };
 Map<String, Object?> page() => {'scope': scope(), 'entries': [record()], 'snapshot': 'a' * 64, 'nextAfter': null};
 Matcher get invalid => throwsA(isA<LarenorServerException>().having((e) => e.code, 'code', 'invalid_response'));

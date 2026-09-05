@@ -17,7 +17,7 @@ void main() {
       expect(request.url.queryParameters, query);
       expect(request.headers['authorization'], 'Bearer synthetic-token');
       expect(request.followRedirects, isFalse);
-      return http.Response(jsonEncode({'synthetic': true}), 200);
+      return http.Response(jsonEncode({'synthetic': true}), 200, headers: {'content-type': 'application/json'});
     }));
     addTearDown(api.close);
     expect(await api.request('GET', path, token: 'synthetic-token', queryParameters: query), {'synthetic': true});
