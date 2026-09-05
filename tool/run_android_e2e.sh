@@ -15,22 +15,10 @@ fi
 # https://android.googlesource.com/platform/frameworks/base/+/refs/heads/main/cmds/svc/src/com/android/commands/svc/PowerCommand.java
 python3 "$(dirname "${BASH_SOURCE[0]}")/android_e2e_preparation.py" "$e2e_serial" || exit 2
 mkdir -p build/e2e
-# The hosted emulator shares memory with Gradle. The repository's developer
-# defaults permit an 8 GiB heap plus 4 GiB metaspace; keep the disposable CI
-# build bounded without changing a developer's Gradle configuration.
-# User-home properties override project properties:
-# https://docs.gradle.org/current/userguide/build_environment.html
-if [[ "${GITHUB_ACTIONS:-false}" == "true" ]]; then
-  e2e_gradle_home="${RUNNER_TEMP:?CI requires RUNNER_TEMP}/larenor-e2e-gradle"
-  mkdir -p "$e2e_gradle_home"
-  cat > "$e2e_gradle_home/gradle.properties" <<'PROPERTIES'
-org.gradle.jvmargs=-Xmx3G -XX:MaxMetaspaceSize=1G -XX:ReservedCodeCacheSize=256m -Dfile.encoding=UTF-8
-org.gradle.workers.max=2
-org.gradle.parallel=false
-kotlin.compiler.execution.strategy=in-process
-PROPERTIES
-  export GRADLE_USER_HOME="$e2e_gradle_home"
-fi
+# Reuse the warm build's bounded Gradle daemon/cache. Standalone local runs
+# retain their developer configuration and still generate/build everything.
+# shellcheck source=tool/android_e2e_gradle.sh
+source "$(dirname "${BASH_SOURCE[0]}")/android_e2e_gradle.sh"
 
 # Invoked indirectly by the EXIT trap; exercised by failure-status regressions.
 # shellcheck disable=SC2329
