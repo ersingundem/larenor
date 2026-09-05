@@ -39,6 +39,9 @@ class DashboardRepository {
 
   void _check([bool Function()? isCurrent]) {
     if (_current?.call() == false || isCurrent?.call() == false) {
+      if (scope == null && _current == null) {
+        throw StateError('Dashboard edit expired');
+      }
       throw const DashboardStorageException('expired');
     }
   }
@@ -67,6 +70,8 @@ class DashboardRepository {
       return _decode(prefs.get(_key));
     } on DashboardStorageException {
       rethrow;
+    } on FormatException {
+      rethrow;
     } catch (_) {
       throw const DashboardStorageException('read_failed');
     }
@@ -83,7 +88,7 @@ class DashboardRepository {
     if (raw is! String ||
         utf8.encode(raw).length >
             (scope == null ? maxDashboardLayoutBytes : _maxRecordBytes)) {
-      throw const DashboardStorageException('invalid_record');
+      _invalidRecord();
     }
     try {
       final decoded = jsonDecode(raw);
@@ -117,8 +122,13 @@ class DashboardRepository {
       );
     } catch (_) {
       // Corruption never becomes an empty, writable or legacy-fallback record.
-      throw const DashboardStorageException('invalid_record');
+      _invalidRecord();
     }
+  }
+
+  Never _invalidRecord() {
+    if (scope == null) throw const FormatException('Invalid dashboard layout');
+    throw const DashboardStorageException('invalid_record');
   }
 
   Future<void> save(
@@ -153,11 +163,18 @@ class DashboardRepository {
         if (utf8.encode(record).length > _maxRecordBytes)
           throw const DashboardStorageException('invalid_record');
         _check(isCurrent);
-        if (!await prefs.setString(_key, record))
+        if (!await prefs.setString(_key, record)) {
+          if (scope == null && _current == null) throw StateError('Dashboard save failed');
           throw const DashboardStorageException('write_failed');
+        }
         _check(isCurrent);
       } on DashboardStorageException {
         rethrow;
+      } on FormatException {
+        rethrow;
+      } on StateError {
+        if (scope == null && _current == null) rethrow;
+        throw const DashboardStorageException('write_failed');
       } catch (_) {
         throw const DashboardStorageException('write_failed');
       }
