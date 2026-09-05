@@ -14,6 +14,15 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  analyze-test:
+    uses: ./.github/workflows/analyze-test.yml
+
+  end-to-end:
+    uses: ./.github/workflows/android-e2e.yml
+
+  server-test:
+    uses: ./.github/workflows/server-test.yml
+
   build-debug-apk:
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -55,12 +64,14 @@ jobs:
       - name: Build debug APK with a monotonic CI versionCode
         run: flutter build apk --debug --build-number "$(python3 tool/android_signing.py version-code)"
 
-      - name: Native audio, window, health privacy and platform contracts
+      - name: Native audio, kiosk, window, health privacy and platform contracts
         working-directory: android
         run: ./gradlew :app:testDebugUnitTest
 
       - name: Preserve native test evidence
+        id: test_evidence
         if: always()
+        continue-on-error: true
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: android-native-test-evidence
@@ -69,6 +80,12 @@ jobs:
             build/app/test-results/testDebugUnitTest/
           if-no-files-found: ignore
           retention-days: 14
+
+      - name: Report unavailable native test artifact
+        if: always() && steps.test_evidence.outcome == 'failure'
+        run: |
+          echo "::warning::Native test artifact upload failed. Test results remain in this job's logs; test failures still block delivery."
+          echo 'Native test artifact upload was unavailable. Inspect the native test step logs for results.' >> "$GITHUB_STEP_SUMMARY"
 
       - name: Release signing must fail closed without private keys
         working-directory: android
@@ -82,15 +99,19 @@ jobs:
           grep -F "Release signing is not configured" release-signing-check.log
 
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        # Main pushes publish the verified signed APK below. Keep large debug
+        # downloads for explicit manual runs and PR troubleshooting only.
+        if: github.event_name == 'workflow_dispatch' || github.event_name == 'pull_request'
         with:
           name: app-debug-apk
           path: build/app/outputs/flutter-apk/app-debug.apk
+          retention-days: 3
 
 
   # Signing secrets never enter pull-request builds or manually selected branches.
   build-signed-release-apk:
     if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
-    needs: build-debug-apk
+    needs: [build-debug-apk, analyze-test, end-to-end, server-test]
     runs-on: ubuntu-latest
     timeout-minutes: 40
     env:
@@ -182,6 +203,31 @@ jobs:
         run: |
           rm -f android/key.properties
           rm -rf "$RUNNER_TEMP/larenor-signing"
+
+      - name: Publish verified Client to the configured Larenor Server
+        if: success() && steps.signing.outputs.available == 'true' && vars.LARENOR_RELEASE_SERVER_URL != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          LARENOR_RELEASE_SERVER_URL: ${{ vars.LARENOR_RELEASE_SERVER_URL }}
+          LARENOR_RELEASE_PUBLISH_TOKEN: ${{ secrets.LARENOR_RELEASE_PUBLISH_TOKEN }}
+        run: |
+          current_main=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/main" --jq '.object.sha')
+          if [ "$current_main" != "$GITHUB_SHA" ]; then
+            echo "Refusing to publish an obsolete Client commit."
+            exit 1
+          fi
+          unset GH_TOKEN
+          python3 - <<'PY'
+          import os
+          from urllib.parse import urlsplit
+          endpoint = urlsplit(os.environ['LARENOR_RELEASE_SERVER_URL'])
+          if endpoint.scheme != 'https' or not endpoint.hostname:
+              raise SystemExit('CI publishing requires a configured HTTPS Server endpoint.')
+          PY
+          python3 tool/publish_client_release.py \
+            --server "$LARENOR_RELEASE_SERVER_URL" \
+            --apk build/app/outputs/flutter-apk/app-release.apk \
+            --metadata build/app/outputs/flutter-apk/release-metadata.json
 
       - name: Upload verified signed APK and public integrity metadata
         if: success() && steps.signing.outputs.available == 'true'

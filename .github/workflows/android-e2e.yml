@@ -1,0 +1,83 @@
+name: Android E2E
+
+on:
+  workflow_call:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: android-e2e-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  emulator-journeys:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: android-actions/setup-android@9fc6c4e9069bf8d3d10b2204b1fb8f6ef7065407 # v3
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
+        with:
+          channel: stable
+          flutter-version: "3.47.2"
+          cache: true
+      - run: flutter pub get --enforce-lockfile
+
+      - name: Prepare compile SDK
+        run: |
+          sdkmanager "platforms;android-37.0"
+          platform_dir="$ANDROID_HOME/platforms"
+          if [ -d "$platform_dir/android-37.0" ] && [ ! -e "$platform_dir/android-37" ]; then
+            ln -s "$platform_dir/android-37.0" "$platform_dir/android-37"
+          fi
+
+      - name: Enable hardware acceleration
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+          test -r /dev/kvm && test -w /dev/kvm
+
+      # Reviewed v2.37.0 tag resolves to this commit in the primary repository.
+      # AOSP image: these tests do not depend on a Google account or GMS.
+      - name: Run actual app journeys on API 35
+        uses: ReactiveCircus/android-emulator-runner@e89f39f1abbbd05b1113a29cf4db69e7540cae5a # v2.37.0
+        timeout-minutes: 25
+        with:
+          api-level: 35
+          arch: x86_64
+          target: default
+          profile: pixel_4
+          ram-size: 2048M
+          disk-size: 3072M
+          emulator-boot-timeout: 300
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -camera-back none -camera-front none
+          disable-animations: true
+          disable-spellchecker: true
+          disable-linux-hw-accel: false
+          script: timeout 18m bash tool/run_android_e2e.sh emulator-5554
+
+      - name: Preserve synthetic journey evidence
+        id: test_evidence
+        if: always()
+        continue-on-error: true
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: android-e2e-api35
+          path: build/e2e/android-e2e.log
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Report unavailable journey artifact
+        if: always() && steps.test_evidence.outcome == 'failure'
+        run: |
+          echo "::warning::Journey artifact upload failed. Test results remain in this job's logs; test failures still block delivery."
+          echo 'Journey artifact upload was unavailable. Inspect the emulator test step logs for results.' >> "$GITHUB_STEP_SUMMARY"

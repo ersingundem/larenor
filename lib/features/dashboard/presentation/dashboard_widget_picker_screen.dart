@@ -12,6 +12,7 @@ import '../../auth/providers/auth_providers.dart';
 import '../../ha_client/data/models/ha_entity.dart';
 import '../../ha_client/providers/ha_client_providers.dart';
 import '../../health/data/health_configuration.dart';
+import '../../web_panel/presentation/web_panel_settings_screen.dart';
 import '../../wellbeing/providers/wellbeing_privacy_providers.dart';
 import '../../keenetic/presentation/keenetic_widget_picker_screen.dart';
 import '../../keenetic/providers/keenetic_providers.dart';
@@ -157,6 +158,24 @@ class _DashboardWidgetPickerScreenState
     }
   }
 
+  Future<void> _websiteSettings() async {
+    if (!_current || _openingKeenetic) return;
+    final generation = interactionGeneration;
+    setState(() => _openingKeenetic = true);
+    try {
+      final tile = await pushDashboardPage<TileConfig>(
+        CupertinoPageRoute(
+          builder: (_) => WebPanelSettingsScreen(
+            initialTile: _draft(TileType.webview, url: _website.text),
+          ),
+        ),
+      );
+      if (tile != null && interactionCurrent(generation)) _complete(tile);
+    } finally {
+      if (mounted) setState(() => _openingKeenetic = false);
+    }
+  }
+
   void _selectEntity(HaEntity selected, int generation) {
     if (!interactionCurrent(generation) || !_current || _type == null) return;
     final config = ref.read(connectionConfigProvider);
@@ -255,6 +274,8 @@ class _DashboardWidgetPickerScreenState
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 Text(l10n.dashboardWidgetPickerWebsiteHint),
+                const SizedBox(height: 12),
+                Text(l10n.webPanelSessionHint),
                 const SizedBox(height: 20),
                 CupertinoTextField(
                   key: const ValueKey('widget-website-url'),
@@ -274,6 +295,13 @@ class _DashboardWidgetPickerScreenState
                     child: Text(l10n.homeInvalidUrl),
                   ),
                 const SizedBox(height: 16),
+                CupertinoButton(
+                  key: const ValueKey('widget-website-settings'),
+                  onPressed: _openingKeenetic
+                      ? null
+                      : dashboardAction(_websiteSettings),
+                  child: Text(l10n.webPanelSettings),
+                ),
                 CupertinoButton.filled(
                   key: const ValueKey('widget-website-add'),
                   onPressed: dashboardAction(() {

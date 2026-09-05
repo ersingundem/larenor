@@ -1,8 +1,13 @@
+import 'local_audio_artwork.dart';
+
+export 'local_audio_artwork.dart';
+
 enum LocalAudioPhase { idle, loading, ready, ended, error }
 
 enum LocalAudioFailure {
   unsupported,
   invalidSource,
+  invalidArtwork,
   invalidPosition,
   foregroundRequired,
   busy,
@@ -30,6 +35,7 @@ class LocalAudioSource {
     required String title,
     String? artist,
     String? album,
+    LocalAudioArtwork? artwork,
   }) {
     if (!RegExp(r'^[a-zA-Z0-9_-]{1,128}$').hasMatch(id) ||
         !mimeTypes.contains(mimeType)) {
@@ -39,7 +45,7 @@ class LocalAudioSource {
     _sourceText(title);
     if (artist != null) _sourceText(artist);
     if (album != null) _sourceText(album);
-    return LocalAudioSource._(id, uri, mimeType, title, artist, album);
+    return LocalAudioSource._(id, uri, mimeType, title, artist, album, artwork);
   }
   const LocalAudioSource._(
     this.id,
@@ -48,6 +54,7 @@ class LocalAudioSource {
     this.title,
     this.artist,
     this.album,
+    this.artwork,
   );
   static const mimeTypes = {
     'audio/mpeg',
@@ -60,6 +67,7 @@ class LocalAudioSource {
   final String id, mimeType, title;
   final Uri uri;
   final String? artist, album;
+  final LocalAudioArtwork? artwork;
 
   static void validateUri(Uri uri) {
     final value = uri.toString();
@@ -98,6 +106,7 @@ class LocalAudioSource {
     'title': title,
     'artist': artist,
     'album': album,
+    if (artwork != null) 'artworkBytes': artwork!.bytes,
   };
   @override
   String toString() => 'LocalAudioSource(redacted)';
@@ -119,6 +128,8 @@ class LocalAudioSnapshot {
     this.canSeek = false,
     this.canStop = false,
     this.failure,
+    this.artworkState = LocalAudioArtworkState.none,
+    this.artworkId,
   });
   factory LocalAudioSnapshot.fromChannel(Object? value) {
     final data = _map(value);
@@ -130,6 +141,18 @@ class LocalAudioSnapshot {
     if (phase == null) _invalid();
     final source = _text(data['sourceId'], 128);
     if (source != null && !RegExp(r'^[a-zA-Z0-9_-]{1,128}$').hasMatch(source)) {
+      _invalid();
+    }
+    final artworkState = LocalAudioArtworkState.values
+        .where((v) => v.name == (data['artworkState'] ?? 'none'))
+        .firstOrNull;
+    final artworkId = _text(data['artworkId'], 128);
+    if (artworkState == null ||
+        (artworkId != null &&
+            !RegExp(r'^[a-zA-Z0-9_-]{1,128}$').hasMatch(artworkId)) ||
+        ((artworkState == LocalAudioArtworkState.ready) !=
+            (artworkId != null)) ||
+        (artworkState != LocalAudioArtworkState.none && source == null)) {
       _invalid();
     }
     final position = _duration(data['positionMs']);
@@ -160,6 +183,8 @@ class LocalAudioSnapshot {
       canSeek: canSeek,
       canStop: canStop,
       failure: _failure(data['failure']),
+      artworkState: artworkState,
+      artworkId: artworkId,
     );
   }
   final bool supported, isPlaying, canPlay, canPause, canSeek, canStop;
@@ -167,6 +192,8 @@ class LocalAudioSnapshot {
   final String? sourceId, title, artist, album;
   final Duration? position, duration;
   final LocalAudioFailure? failure;
+  final LocalAudioArtworkState artworkState;
+  final String? artworkId;
 }
 
 class LocalAudioPowerStatus {
@@ -215,7 +242,15 @@ Map<Object?, Object?> _map(Object? value) {
       value.length > 24 ||
       value.keys.any((key) => key is! String) ||
       value.keys.any(
-        (key) => {'uri', 'url', 'headers', 'token'}.contains(key),
+        (key) => {
+          'uri',
+          'url',
+          'headers',
+          'token',
+          'bytes',
+          'artworkBytes',
+          'artworkUri',
+        }.contains(key),
       )) {
     _invalid();
   }

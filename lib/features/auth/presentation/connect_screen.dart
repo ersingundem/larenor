@@ -13,6 +13,9 @@ import '../../../shared/theme/typography.dart';
 import '../../../shared/widgets/settings_section.dart';
 import '../../backup/presentation/backup_screen.dart';
 import '../../settings/providers/settings_providers.dart';
+import '../../settings/presentation/settings_gate_screen.dart';
+import '../../server/presentation/server_connection_screen.dart';
+import '../../../core/app_interaction_scope.dart';
 
 final haDiscoveryFactoryProvider = Provider<HaDiscoveryService Function()>(
   (ref) => HaDiscoveryService.new,
@@ -30,7 +33,8 @@ class ConnectScreen extends ConsumerStatefulWidget {
   ConsumerState<ConnectScreen> createState() => _ConnectScreenState();
 }
 
-class _ConnectScreenState extends ConsumerState<ConnectScreen> {
+class _ConnectScreenState extends ConsumerState<ConnectScreen>
+    with WidgetsBindingObserver {
   late final _urlController = TextEditingController(
     text: widget.initialUrl ?? 'http://homeassistant.local:8123',
   );
@@ -43,11 +47,13 @@ class _ConnectScreenState extends ConsumerState<ConnectScreen> {
 
   bool _isConnecting = false;
   bool _openingBackup = false;
+  int _serverNavigationEpoch = 0;
   String? _errorMessage;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _discovery = ref.read(haDiscoveryFactoryProvider)();
     _startDiscovery();
   }
@@ -69,11 +75,18 @@ class _ConnectScreenState extends ConsumerState<ConnectScreen> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _discovery.stop();
     _urlController.dispose();
     _tokenController.dispose();
     _tokenFocusNode.dispose();
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state != AppLifecycleState.resumed) _serverNavigationEpoch++;
+    if (mounted) setState(() {});
   }
 
   void _selectDiscovered(DiscoveredHaServer server) {
@@ -108,6 +121,44 @@ class _ConnectScreenState extends ConsumerState<ConnectScreen> {
     }
   }
 
+  Future<void> _openServer() async {
+    if (_isConnecting || _openingBackup) return;
+    final lifecycle = WidgetsBinding.instance.lifecycleState;
+    if (lifecycle != null && lifecycle != AppLifecycleState.resumed) return;
+    final epoch = _serverNavigationEpoch;
+    final interaction = AppInteractionScope.maybeRead(context);
+    final interactionEpoch = interaction?.epoch;
+    if (interaction?.active == false) return;
+    setState(() => _openingBackup = true);
+    try {
+      final pin = await ref.read(pinLockStoreProvider).read();
+      if (!mounted ||
+          epoch != _serverNavigationEpoch ||
+          interaction?.active == false ||
+          interaction?.epoch != interactionEpoch ||
+          ModalRoute.of(context)?.isCurrent != true) {
+        return;
+      }
+      await Navigator.of(context).push<void>(
+        CupertinoPageRoute(
+          builder: (_) => pin == null
+              ? const ServerConnectionScreen(freshInstall: true)
+              : const SettingsGateScreen(),
+        ),
+      );
+    } catch (_) {
+      if (mounted) {
+        setState(
+          () =>
+              _errorMessage = AppLocalizations.of(context)
+                  .settingsGateStorageError,
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _openingBackup = false);
+    }
+  }
+
   Future<void> _connect() async {
     if (_isConnecting || _openingBackup) return;
     final urlInput = _urlController.text.trim();
@@ -125,18 +176,35 @@ class _ConnectScreenState extends ConsumerState<ConnectScreen> {
       _errorMessage = null;
     });
 
-    final config = HaConnectionConfig(
-      baseUrl: HaConnectionConfig.normalizeBaseUrl(urlInput),
-      token: tokenInput,
-    );
-
-    final client = HaRestClient(baseUrl: config.baseUrl, token: config.token);
+    HaRestClient? client;
     try {
+      final config = HaConnectionConfig(
+        baseUrl: HaConnectionConfig.normalizeBaseUrl(urlInput),
+        token: tokenInput,
+      );
+      client = HaRestClient(baseUrl: config.baseUrl, token: config.token);
       await client.checkConnection();
       if (!mounted) return;
       await ref.read(connectionConfigProvider.notifier).signIn(config);
     } on HaApiException catch (e) {
-      if (mounted) setState(() => _errorMessage = e.message);
+      if (!mounted) return;
+      final l10n = AppLocalizations.of(context);
+      setState(
+        () => _errorMessage = switch (e.statusCode) {
+          401 => l10n.connectErrorAuthentication,
+          403 => l10n.connectErrorPermission,
+          _ =>
+            e.code == 'invalid_response'
+                ? l10n.connectErrorNotHomeAssistant
+                : l10n.connectErrorUnreachable,
+        },
+      );
+    } on FormatException {
+      if (mounted) {
+        setState(
+          () => _errorMessage = AppLocalizations.of(context).connectErrorUrl,
+        );
+      }
     } catch (_) {
       if (!mounted) return;
       setState(
@@ -145,7 +213,7 @@ class _ConnectScreenState extends ConsumerState<ConnectScreen> {
                 .connectErrorUnreachable,
       );
     } finally {
-      client.dispose();
+      client?.dispose();
       if (mounted) setState(() => _isConnecting = false);
     }
   }
@@ -153,6 +221,7 @@ class _ConnectScreenState extends ConsumerState<ConnectScreen> {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
+    final serverEpoch = _serverNavigationEpoch;
     final pin = ref.watch(pinLockProvider);
     final connection = ref.watch(connectionConfigProvider);
     final canRestore =
@@ -251,6 +320,21 @@ class _ConnectScreenState extends ConsumerState<ConnectScreen> {
                             ),
                           ),
                         ],
+                        const SizedBox(height: 12),
+                        CupertinoButton(
+                          key: const ValueKey('connect-larenor-server'),
+                          onPressed: _isConnecting || _openingBackup
+                              ? null
+                              : () {
+                                  if (serverEpoch == _serverNavigationEpoch) {
+                                    _openServer();
+                                  }
+                                },
+                          child: Text(
+                            l10n.serverConnectEntry,
+                            textAlign: TextAlign.center,
+                          ),
+                        ),
                         const SizedBox(height: 12),
                         Text(
                           l10n.connectTokenHint,

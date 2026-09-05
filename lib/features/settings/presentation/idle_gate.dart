@@ -3,15 +3,12 @@ import 'dart:async';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:intl/intl.dart';
 
 import '../../../core/app_interaction_scope.dart';
+import '../../../core/idle_prevention.dart';
 import '../../../l10n/generated/app_localizations.dart';
-import '../../auth/providers/auth_providers.dart';
-import '../../ha_client/data/models/ha_entity.dart';
-import '../../wellbeing/providers/wellbeing_privacy_providers.dart';
 import '../providers/settings_providers.dart';
-import '../../../shared/theme/typography.dart';
+import '../../ambient/presentation/ambient_screen.dart';
 
 /// An ambient clock after inactivity. Its first input wakes the window only;
 /// the mounted application and native audio service retain their lifetimes.
@@ -33,6 +30,7 @@ class _IdleGateState extends ConsumerState<IdleGate>
   final _focusScope = FocusScopeNode(debugLabel: 'Application interaction');
   final _clockFocus = FocusNode(debugLabel: 'Ambient clock');
   late final AppInteractionController _interaction;
+  late final IdlePreventionController _prevention;
 
   @override
   void initState() {
@@ -41,6 +39,8 @@ class _IdleGateState extends ConsumerState<IdleGate>
     final state = WidgetsBinding.instance.lifecycleState;
     _foreground = state == null || state == AppLifecycleState.resumed;
     _interaction = AppInteractionController(active: _foreground);
+    _prevention = ref.read(idlePreventionProvider);
+    _prevention.addListener(_preventionChanged);
     FocusManager.instance.addEarlyKeyEventHandler(_keyEvent);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) _resetTimer();
@@ -49,6 +49,7 @@ class _IdleGateState extends ConsumerState<IdleGate>
 
   @override
   void dispose() {
+    _prevention.removeListener(_preventionChanged);
     _timer?.cancel();
     FocusManager.instance.removeEarlyKeyEventHandler(_keyEvent);
     _focusScope.dispose();
@@ -56,6 +57,15 @@ class _IdleGateState extends ConsumerState<IdleGate>
     _interaction.dispose();
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
+  }
+
+  void _preventionChanged() {
+    _timer?.cancel();
+    // A video can acquire its lease while its page is building. Reconcile the
+    // overlay after that frame rather than rebuilding an ancestor mid-build.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _resetTimer();
+    });
   }
 
   @override
@@ -99,7 +109,12 @@ class _IdleGateState extends ConsumerState<IdleGate>
     final settings = reading.isLoading || reading.hasError
         ? null
         : reading.value;
-    if (!_foreground || settings == null || !settings.enabled) return;
+    if (!_foreground ||
+        _prevention.prevented ||
+        settings == null ||
+        !settings.enabled) {
+      return;
+    }
     if (settings.timeoutMinutes < 1 || settings.timeoutMinutes > 1440) return;
 
     _timer = Timer(Duration(minutes: settings.timeoutMinutes), () {
@@ -159,145 +174,12 @@ class _IdleGateState extends ConsumerState<IdleGate>
                         // Only the clock participates in the wake gesture's
                         // hit-test path, including its later move/up events.
                         behavior: HitTestBehavior.opaque,
-                        child: _IdleClockScreen(),
+                        child: AmbientScreen(),
                       ),
                     ),
                   ),
                 ),
             ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _IdleClockScreen extends ConsumerStatefulWidget {
-  const _IdleClockScreen();
-
-  @override
-  ConsumerState<_IdleClockScreen> createState() => _IdleClockScreenState();
-}
-
-class _IdleClockScreenState extends ConsumerState<_IdleClockScreen>
-    with WidgetsBindingObserver {
-  late DateTime _now = DateTime.now();
-  Timer? _ticker;
-
-  @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addObserver(this);
-    _scheduleTick();
-  }
-
-  @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    _ticker?.cancel();
-    if (state == AppLifecycleState.resumed) _scheduleTick();
-  }
-
-  void _scheduleTick() {
-    final now = DateTime.now();
-    final nextMinute = DateTime(
-      now.year,
-      now.month,
-      now.day,
-      now.hour,
-      now.minute + 1,
-    );
-    _ticker = Timer(nextMinute.difference(now), () {
-      if (!mounted) return;
-      setState(() => _now = DateTime.now());
-      _scheduleTick();
-    });
-  }
-
-  @override
-  void dispose() {
-    _ticker?.cancel();
-    WidgetsBinding.instance.removeObserver(this);
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final config = ref.watch(connectionConfigProvider);
-    final reading = ref.watch(publicHaEntitiesProvider);
-    final entities =
-        config.isLoading ||
-            config.hasError ||
-            config.value == null ||
-            reading.isLoading ||
-            reading.hasError
-        ? null
-        : reading.value;
-    HaEntity? weather;
-    if (entities != null) {
-      for (final entity in entities.values) {
-        final temperature = entity.attributes['temperature'];
-        if (entity.domain == 'weather' &&
-            !{'unknown', 'unavailable'}.contains(entity.state) &&
-            temperature is num &&
-            temperature.isFinite) {
-          weather = entity;
-          break;
-        }
-      }
-    }
-
-    final locale = Localizations.localeOf(context).toString();
-    final time =
-        '${_now.hour.toString().padLeft(2, '0')}:${_now.minute.toString().padLeft(2, '0')}';
-    final date = DateFormat.MMMMEEEEd(locale).format(_now);
-
-    return ColoredBox(
-      color: CupertinoColors.black,
-      child: SafeArea(
-        child: LayoutBuilder(
-          builder: (context, constraints) => SingleChildScrollView(
-            child: ConstrainedBox(
-              constraints: BoxConstraints(minHeight: constraints.maxHeight),
-              child: Padding(
-                padding: const EdgeInsets.all(24),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    FittedBox(
-                      fit: BoxFit.scaleDown,
-                      child: Text(
-                        time,
-                        style: AppText.ambientClock.copyWith(
-                          color: CupertinoColors.white,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      date,
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        color: CupertinoColors.systemGrey,
-                        fontFamily: AppText.fontFamily,
-                        fontSize: AppText.title3.fontSize,
-                      ),
-                    ),
-                    if (weather != null) ...[
-                      const SizedBox(height: 24),
-                      Text(
-                        '${weather.attributes['temperature']}° · ${weather.state}',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          color: CupertinoColors.systemGrey2,
-                          fontFamily: AppText.fontFamily,
-                          fontSize: AppText.callout.fontSize,
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-            ),
           ),
         ),
       ),

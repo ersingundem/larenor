@@ -93,6 +93,45 @@ class LocalAudioBridge {
     }
   }
 
+  Future<LocalAudioArtwork> prepareArtwork(Uint8List bytes) async {
+    LocalAudioArtwork.validateInput(bytes);
+    return _readArtwork('prepareArtwork', Uint8List.fromList(bytes));
+  }
+
+  Future<LocalAudioArtwork> artwork({
+    required String sourceId,
+    required String artworkId,
+  }) {
+    for (final id in [sourceId, artworkId]) {
+      if (!RegExp(r'^[a-zA-Z0-9_-]{1,128}$').hasMatch(id)) {
+        throw const LocalAudioException(LocalAudioFailure.invalidArtwork);
+      }
+    }
+    return _readArtwork('artwork', {
+      'sourceId': sourceId,
+      'artworkId': artworkId,
+    });
+  }
+
+  Future<LocalAudioArtwork> _readArtwork(String name, Object payload) async {
+    if (!_isAndroid) {
+      throw const LocalAudioException(LocalAudioFailure.unsupported);
+    }
+    try {
+      return LocalAudioArtwork.fromChannel(
+        await _methods
+            .invokeMethod<Object?>(name, payload)
+            .timeout(const Duration(seconds: 15)),
+      );
+    } on MissingPluginException {
+      throw const LocalAudioException(LocalAudioFailure.unsupported);
+    } on PlatformException catch (error) {
+      throw _safeError(error);
+    } on TimeoutException {
+      throw const LocalAudioException(LocalAudioFailure.unavailable);
+    }
+  }
+
   Future<void> play(LocalAudioSource source) =>
       _command('play', payload: source.toChannel());
   Future<void> pause({String? expectedSourceId}) =>

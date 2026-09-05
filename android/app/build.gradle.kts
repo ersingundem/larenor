@@ -88,6 +88,7 @@ flutter {
 }
 
 dependencies {
+    implementation("com.android.tools.build:apksig:9.1.0")
     implementation("androidx.health.connect:connect-client:1.1.0")
     // Official stable AndroidX release; keep all Media3 modules in lockstep.
     val media3Version = "1.11.0"

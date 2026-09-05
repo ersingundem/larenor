@@ -26,6 +26,11 @@ jobs:
       - uses: gitleaks/gitleaks-action@ff98106e4c7b2bc287b24eaf42907196329070c7 # v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Preserve the blocking scan and redacted job summary without using
+          # artifact storage (supported by this exact action revision).
+          GITLEAKS_ENABLE_UPLOAD_ARTIFACT: "false"
+          GITLEAKS_ENABLE_SUMMARY: "true"
+          GITLEAKS_ENABLE_COMMENTS: "false"
 
   platform-policy:
     runs-on: ubuntu-latest
@@ -39,16 +44,40 @@ jobs:
       - run: python3 tool/check_security_policy.py
 
   dependency-scan:
-    permissions:
-      actions: read
-      # Required by the pinned reusable workflow, even with SARIF upload disabled.
-      security-events: write
-      contents: read
-    uses: google/osv-scanner-action/.github/workflows/osv-scanner-reusable.yml@8deb546fdb875b9996d27d4950be7312dac076a1 # v2.5.0
-    with:
-      # This is a private repo without GitHub Advanced Security, so Code
-      # Scanning isn't available — just run the scan, don't try to upload
-      # SARIF results to it.
-      upload-sarif: false
-      scan-args: |-
-        --lockfile=./pubspec.lock
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - name: Scan locked dependencies
+        id: osv
+        # The reusable workflow always uploads an artifact. Its scanner-action
+        # wrapper also masks exit 128; invoke the official CLI directly so every
+        # scan error and vulnerability stays blocking. Evidence remains in logs.
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s pubspec.lock
+          test -s server/uv.lock
+          docker run --rm --read-only \
+            --tmpfs /tmp:rw,noexec,nosuid,size=64m \
+            --cap-drop=ALL --security-opt=no-new-privileges \
+            --user "$(id -u):$(id -g)" --env HOME=/tmp \
+            --mount "type=bind,src=$GITHUB_WORKSPACE,dst=/src,readonly" \
+            --workdir /src \
+            ghcr.io/google/osv-scanner:v2.5.0@sha256:5b8b38e45bb2c5c4976f0f1f07860551ea6e1f235f642cf215f74d266fec2c1b \
+            scan source --format=table \
+            --lockfile=./pubspec.lock \
+            --lockfile=./server/uv.lock
+      - name: Summarize dependency scan
+        if: ${{ always() }}
+        env:
+          SCAN_OUTCOME: ${{ steps.osv.outcome }}
+        run: |
+          {
+            echo '### Dependency scan'
+            printf 'OSV result: **%s**.\n\n' "$SCAN_OUTCOME"
+            echo 'Required inputs: pubspec.lock and server/uv.lock.'
+            echo 'Full findings and scan errors are in the **Scan locked dependencies** log; no artifact upload is required.'
+          } >> "$GITHUB_STEP_SUMMARY"

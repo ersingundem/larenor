@@ -9,12 +9,14 @@ import '../data/local_audio_bridge.dart';
 import '../domain/local_audio_models.dart';
 import '../providers/local_audio_providers.dart';
 import 'playback_power_screen.dart';
+import 'local_audio_artwork_view.dart';
 
 String localAudioFailureLabel(AppLocalizations l10n, Object? error) {
   final failure = error is LocalAudioException ? error.failure : error;
   return switch (failure) {
     LocalAudioFailure.unsupported => l10n.localAudioUnsupported,
     LocalAudioFailure.invalidSource => l10n.localAudioInvalidSource,
+    LocalAudioFailure.invalidArtwork => l10n.localAudioArtworkInvalid,
     LocalAudioFailure.foregroundRequired => l10n.localAudioForeground,
     LocalAudioFailure.network => l10n.localAudioNetworkError,
     LocalAudioFailure.unsupportedFormat => l10n.localAudioFormatError,
@@ -38,6 +40,11 @@ class _LocalAudioScreenState extends ConsumerState<LocalAudioScreen>
   bool _busy = false;
   int _generation = 0;
   double? _seekSeconds;
+  LocalAudioArtwork? _draftArtwork;
+  bool _artworkBusy = false;
+  int _artworkGeneration = 0;
+  String? _observedSourceId;
+  bool _hasObservedSource = false;
 
   @override
   void initState() {
@@ -59,6 +66,7 @@ class _LocalAudioScreenState extends ConsumerState<LocalAudioScreen>
   @override
   void dispose() {
     _generation++;
+    _artworkGeneration++;
     WidgetsBinding.instance.removeObserver(this);
     _title.dispose();
     _address.dispose();
@@ -120,7 +128,7 @@ class _LocalAudioScreenState extends ConsumerState<LocalAudioScreen>
   }
 
   void _play() {
-    if (!_canAct || _busy) return;
+    if (!_canAct || _busy || _artworkBusy) return;
     try {
       final text = _address.text.trim();
       // Check raw authority before Uri can normalize an empty user-info part.
@@ -137,6 +145,7 @@ class _LocalAudioScreenState extends ConsumerState<LocalAudioScreen>
         uri: Uri.parse(text),
         mimeType: _mime,
         title: _title.text.trim(),
+        artwork: _draftArtwork,
       );
       _run((bridge) => bridge.play(source));
     } catch (_) {
@@ -146,15 +155,92 @@ class _LocalAudioScreenState extends ConsumerState<LocalAudioScreen>
     }
   }
 
+  Future<void> _chooseArtwork() async {
+    if (!_canAct || _busy || _artworkBusy) return;
+    final token = ++_artworkGeneration;
+    final bridge = ref.read(localAudioBridgeProvider);
+    final previousSource = ref.read(localAudioProvider).value?.sourceId;
+    final interaction = AppInteractionScope.maybeRead(context);
+    setState(() {
+      _artworkBusy = true;
+      _error = null;
+    });
+    bool ownerCurrent() =>
+        mounted &&
+        token == _artworkGeneration &&
+        identical(bridge, ref.read(localAudioBridgeProvider)) &&
+        identical(interaction, AppInteractionScope.maybeRead(context));
+    try {
+      final bytes = await ref.read(localAudioArtworkFileAccessProvider).pick();
+      if (bytes == null || !ownerCurrent()) return;
+      // The OS picker legitimately pauses the Activity. Its result is merely
+      // a draft; returning never starts playback or revives a command ticket.
+      await WidgetsBinding.instance.endOfFrame;
+      if (!ownerCurrent() || !_canAct) return;
+      final epoch = interaction?.epoch;
+      final generation = _generation;
+      bool current() =>
+          ownerCurrent() &&
+          _canAct &&
+          epoch == interaction?.epoch &&
+          generation == _generation;
+      final state = await bridge.snapshot();
+      if (!current() || state.sourceId != previousSource) return;
+      setState(() => _draftArtwork = null);
+      final result = await bridge.prepareArtwork(bytes);
+      if (!current()) return;
+      final latest = await bridge.snapshot();
+      if (!current() || latest.sourceId != previousSource) return;
+      setState(() => _draftArtwork = result);
+    } catch (_) {
+      if (ownerCurrent() && _canAct) {
+        setState(() {
+          _draftArtwork = null;
+          _error = AppLocalizations.of(context).localAudioArtworkInvalid;
+        });
+      }
+    } finally {
+      if (mounted && token == _artworkGeneration) {
+        setState(() => _artworkBusy = false);
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final active = _foreground && TickerMode.valuesOf(context).enabled;
+    ref.listen(localAudioBridgeProvider, (previous, next) {
+      if (previous != null && !identical(previous, next)) {
+        setState(() {
+          _artworkGeneration++;
+          _draftArtwork = null;
+          _artworkBusy = false;
+        });
+      }
+    });
+    if (active) {
+      ref.listen(localAudioProvider, (previous, next) {
+        if (next.isLoading || next.hasError) return;
+        final sourceId = next.value?.sourceId;
+        final changed = _hasObservedSource && _observedSourceId != sourceId;
+        _hasObservedSource = true;
+        _observedSourceId = sourceId;
+        if (changed) {
+          setState(() {
+            _artworkGeneration++;
+            _draftArtwork = null;
+            _artworkBusy = false;
+          });
+        }
+      });
+    }
     final reading = active ? ref.watch(localAudioProvider) : null;
     final state = reading == null || reading.isLoading || reading.hasError
         ? null
         : reading.value;
     final ready = active && !_busy && state?.supported == true;
+    final canSelect = ready && !_artworkBusy;
     final duration = state?.duration?.inMilliseconds.toDouble();
     final position = state?.position?.inMilliseconds.toDouble();
     return AppPageScaffold(
@@ -182,14 +268,7 @@ class _LocalAudioScreenState extends ConsumerState<LocalAudioScreen>
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
-                          state!.title ?? l10n.localAudioIdle,
-                          style: AppText.title2,
-                        ),
-                        if (state.artist != null)
-                          Text(state.artist!, style: AppText.body),
-                        if (state.album != null)
-                          Text(state.album!, style: AppText.subhead),
+                        _AudioMetadataHeader(snapshot: state!),
                         const SizedBox(height: 12),
                         Text(switch (state.phase) {
                           LocalAudioPhase.idle => l10n.localAudioIdle,
@@ -343,10 +422,47 @@ class _LocalAudioScreenState extends ConsumerState<LocalAudioScreen>
                       ),
                       const SizedBox(height: 12),
                       Text(l10n.localAudioSourceHint, style: AppText.footnote),
+                      const SizedBox(height: 20),
+                      Text(
+                        l10n.localAudioArtworkTitle,
+                        style: AppText.headline,
+                      ),
+                      const SizedBox(height: 8),
+                      Text(l10n.localAudioArtworkHint, style: AppText.footnote),
+                      if (_draftArtwork != null) ...[
+                        const SizedBox(height: 12),
+                        LocalAudioCover(
+                          artwork: _draftArtwork,
+                          imageKey: const ValueKey('local-audio-draft-cover'),
+                        ),
+                      ],
+                      if (_artworkBusy) Text(l10n.localAudioArtworkLoading),
+                      Wrap(
+                        spacing: 8,
+                        children: [
+                          CupertinoButton(
+                            key: const ValueKey('local-audio-artwork-choose'),
+                            onPressed: canSelect ? _chooseArtwork : null,
+                            child: Text(l10n.localAudioArtworkChoose),
+                          ),
+                          if (_draftArtwork != null)
+                            CupertinoButton(
+                              key: const ValueKey('local-audio-artwork-remove'),
+                              onPressed: canSelect
+                                  ? () {
+                                      if (_canAct) {
+                                        setState(() => _draftArtwork = null);
+                                      }
+                                    }
+                                  : null,
+                              child: Text(l10n.localAudioArtworkRemove),
+                            ),
+                        ],
+                      ),
                       const SizedBox(height: 16),
                       CupertinoButton.filled(
                         key: const ValueKey('local-audio-start'),
-                        onPressed: ready ? _play : null,
+                        onPressed: canSelect ? _play : null,
                         child: _busy
                             ? const CupertinoActivityIndicator()
                             : Text(l10n.localAudioTitle),
@@ -370,6 +486,48 @@ class _LocalAudioScreenState extends ConsumerState<LocalAudioScreen>
           ),
         ),
       ),
+    );
+  }
+}
+
+class _AudioMetadataHeader extends StatelessWidget {
+  const _AudioMetadataHeader({required this.snapshot});
+  final LocalAudioSnapshot snapshot;
+  @override
+  Widget build(BuildContext context) {
+    final text = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          snapshot.title ?? AppLocalizations.of(context).localAudioIdle,
+          style: AppText.title2,
+        ),
+        if (snapshot.artist != null)
+          Text(snapshot.artist!, style: AppText.body),
+        if (snapshot.album != null)
+          Text(snapshot.album!, style: AppText.subhead),
+      ],
+    );
+    if (snapshot.sourceId == null) return text;
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final cover = LocalAudioArtworkView(snapshot: snapshot);
+        if (constraints.maxWidth >= 520 &&
+            MediaQuery.textScalerOf(context).scale(16) < 24) {
+          return Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              SizedBox(width: 176, child: cover),
+              const SizedBox(width: 20),
+              Expanded(child: text),
+            ],
+          );
+        }
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [cover, const SizedBox(height: 12), text],
+        );
+      },
     );
   }
 }

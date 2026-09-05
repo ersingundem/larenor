@@ -12,11 +12,14 @@ import 'package:larenor/features/auth/providers/auth_providers.dart';
 import 'package:larenor/features/ha_client/providers/ha_client_providers.dart';
 import 'package:larenor/features/ha_tools/presentation/ha_frontend_screen.dart';
 import 'package:larenor/features/web_panel/domain/web_panel_policy.dart';
+import 'package:larenor/features/web_panel/domain/web_panel_options.dart';
+import 'package:larenor/features/web_panel/data/web_panel_data.dart';
 import 'package:larenor/features/web_panel/presentation/web_panel_view.dart';
 import 'package:larenor/l10n/generated/app_localizations.dart';
 import 'package:webview_flutter_platform_interface/webview_flutter_platform_interface.dart';
 
 import '../dashboard/webview_tile_test.dart' show TestWebViewPlatform;
+import 'web_panel_data_test.dart' show Api;
 
 class Connection extends ConnectionConfig {
   @override
@@ -50,6 +53,8 @@ class Harness {
     bool ha = false,
     Size? size,
     double scale = 1,
+    WebPanelOptions? options,
+    WebPanelDataCoordinator? coordinator,
   }) async {
     final previous = WebViewPlatform.instance;
     WebViewPlatform.instance = platform;
@@ -94,9 +99,15 @@ class Harness {
                     : CupertinoPageScaffold(
                         child: WebPanelView(
                           key: panel,
-                          policy: WebPanelPolicy.fromUrl(
-                            'https://fixture.invalid/start?token=fixture-secret',
-                          ),
+                          options: options,
+                          dataCoordinator: coordinator,
+                          policy:
+                              options?.policyFor(
+                                'https://fixture.invalid/start',
+                              ) ??
+                              WebPanelPolicy.fromUrl(
+                                'https://fixture.invalid/start?token=fixture-secret',
+                              ),
                         ),
                       );
               },
@@ -128,6 +139,76 @@ void resume(WidgetTester tester) {
 }
 
 void main() {
+  testWidgets(
+    'explicit source origins and zoom preferences reach only the configured panel',
+    (tester) async {
+      final h = Harness();
+      await h.mount(
+        tester,
+        options: WebPanelOptions(
+          additionalOrigins: ['https://login.invalid:8443'],
+          zoomEnabled: false,
+        ),
+      );
+      final controller = h.platform.controllers.single;
+      expect(controller.zoomOptions, [false]);
+      expect(
+        await controller.delegate.navigation(
+          const NavigationRequest(
+            url: 'https://login.invalid:8443/oauth',
+            isMainFrame: true,
+          ),
+        ),
+        NavigationDecision.navigate,
+      );
+      expect(
+        await controller.delegate.navigation(
+          const NavigationRequest(
+            url: 'https://login.invalid/oauth',
+            isMainFrame: true,
+          ),
+        ),
+        NavigationDecision.prevent,
+      );
+      await h.close(tester);
+    },
+  );
+  testWidgets(
+    'global clear retires old callbacks and blocks restart until native clear finishes',
+    (tester) async {
+      final api = Api()..cookies = Completer<void>();
+      final data = WebPanelDataCoordinator(api: api);
+      final h = Harness();
+      await h.mount(tester, coordinator: data);
+      final old = h.platform.controllers.single;
+      final pending = data.clear(isCurrent: () => true);
+      await tester.pump();
+      expect(old.html, ['<html></html>']);
+      expect(
+        await old.delegate.navigation(
+          const NavigationRequest(
+            url: 'https://fixture.invalid/next',
+            isMainFrame: true,
+          ),
+        ),
+        NavigationDecision.prevent,
+      );
+      h.panel.currentState!.restart();
+      await tester.pump();
+      expect(h.platform.controllers, hasLength(1));
+      api.cookies!.complete();
+      expect(await pending, true);
+      await tester.pump();
+      await tester.pump();
+      expect(h.platform.controllers, hasLength(2));
+      expect(h.platform.controllers.last.requests, hasLength(1));
+      old.delegate.finished('https://fixture.invalid/old');
+      await tester.pump();
+      expect(old.requests, hasLength(1));
+      await h.close(tester);
+      data.dispose();
+    },
+  );
   testWidgets('late HA setup cannot navigate after account changes', (
     tester,
   ) async {

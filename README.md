@@ -1,5 +1,22 @@
 # Larenor
 
+**Development progress:** [completed work, active tasks and remaining queue](docs/PROGRESS.md).
+
+**Larenor Client** targets **Android tablets and Samsung DeX**. Native iOS
+development is paused; the Apple Home-inspired design remains shared across
+Android screen sizes. **Larenor Server** provides accounts, an encrypted
+configuration vault, user/session administration and signed Client release APIs.
+Client includes foreground update notices; the Server container and CI delivery
+are implemented and await hosted image verification. Managed service plugins
+remain in progress. Administration belongs in the Client; Server
+provides authenticated APIs and OpenAPI documentation without a separate web
+admin application. See the [current architecture and implementation status](docs/server-client-architecture-2026-09-05.md).
+
+The existing [Music Assistant Docker package](docs/music-assistant-deployment.md)
+is the first deployment component. Installation on CasaOS or a Proxmox Linux VM
+is reserved for the final manual setup step; the full backend/plugin rollout
+is still in progress.
+
 <img src="assets/icon/app_icon.png" alt="Larenor" width="96" />
 
 *Unus Lar, omnem domum servat.*
@@ -10,8 +27,10 @@ turns an Android tablet into an Apple Home-inspired wall panel — plus an in-ap
 panel, a unified Netflix-style media hub over a self-hosted Jellyfin/*arr/qBittorrent
 stack, and infrastructure management for Proxmox VE and Keenetic routers.
 
-This is not a fork of Home Assistant. It is a standalone client; you still need a
-running Home Assistant instance on your network.
+Home Assistant currently runs as an existing service on your network. The
+adapter and distribution design allows future upstream forks where source
+changes become necessary; no Home Assistant or CasaOS fork has been created
+as part of this work.
 
 Larenor's original Client, Server and project code is licensed under
 **GNU AGPL version 3 only** (`AGPL-3.0-only`): see [LICENSE](LICENSE) and
@@ -20,11 +39,33 @@ Larenor's original Client, Server and project code is licensed under
 are available in this repository. Forks and distributed builds must preserve
 the applicable source and license obligations.
 
-**Current platform focus:** Android tablets and Samsung DeX. Native iOS
-development is paused. Larenor Client/Server separation and API-based
-administration are under development; server installation is a final manual step.
-
 ## Features
+
+### Larenor Server and Client account
+
+- The first Server start creates a private bootstrap administrator credential;
+  changing its password is mandatory. Access and rotating refresh sessions are
+  verified by the Server, with role/revocation checks on administrative actions.
+- Client can sign in, inspect its Server account, preview a configuration vault,
+  upload a selected snapshot and restore it after reinstalling. Connection
+  credentials require explicit selection; stale revisions require a new preview.
+  Local photo bytes and operating-system permissions are not restored from the vault.
+- The Client administrator screen manages users, roles, temporary password
+  resets, sessions and audit history. The last active administrator is protected.
+  Background, idle, PIN, route and account changes invalidate open confirmations.
+- Signed Client updates use a separate publishing credential, bounded storage,
+  APK signature/package/hash/version verification and explicit Android installer
+  approval. CI publishing is disabled until a reachable HTTPS Server endpoint and
+  its dedicated credential are configured at the final manual deployment step.
+- On Android, foreground startup/resume and periodic checks can show a verified
+  new-release notice. Opening it enters the PIN-protected update page; downloading
+  and installing each update remain explicit actions.
+- The [Server container](docs/server-container.md) packages the API and APK
+  verifier for amd64/arm64. Its CI tests each native image before publication;
+  local policy tests alone do not establish a runnable container release.
+- [Server setup and API documentation](server/README.md) describes the actual
+  endpoints, OpenAPI access, dependency lock and test prerequisites. Service
+  plugins and central integration adapters remain in the implementation queue.
 
 ### Localization
 
@@ -218,8 +259,24 @@ representation; physical devices are controlled through actions.
   window, desktop caption, external display, multi-window or keyboard. DeX and
   Huawei compatibility still require testing on the actual device and OS build.
 - Keep-screen-on toggle (wakelock).
-- Scheduled application brightness; the night screen-off preference releases the
-  wake lock and lets Android sleep. It does not force-lock or power off the device.
+- **Screen program** schedules up to 16 weekly periods with named days, overnight
+  ranges, application dimming and keep-awake/system-timeout choices. The last
+  matching rule wins. Policies apply only to a focused foreground window and are
+  released on exit. Older night schedules migrate and restore correctly; this
+  does not force-lock or power off the device.
+- **Ambient screen** displays a clock, optional public weather and explicitly
+  selected local photos. Photos are copied privately, stripped of metadata and
+  bounded by file/pixel/album limits; originals remain untouched. Reorder, remove,
+  fit, duration and reduced-motion-aware clock shifting share the Settings design.
+  Corrupt albums fall back to the clock. Hidden screens stop reads and timers;
+  active foreground Jellyfin video postpones app idle mode.
+- **Managed kiosk** reads Android device-owner/allowlist/lock-task evidence and
+  offers explicit, freshly PIN-confirmed actions. Only Larenor Client's allowlist
+  entry is edited; other packages and existing power-menu features are preserved.
+  Entering requires a permitted primary foreground window; it never falls back
+  silently to screen pinning. No automatic enrollment, wiping or policy activation.
+  [Setup and recovery](docs/kiosk-managed-implementation-2026-09-05.md) still require
+  dedicated-device acceptance.
 - Idle/ambient mode responds to touch, keyboard and pointer activity. The first
   wake gesture is consumed; hidden controls cannot receive it. Pending private,
   settings, door and media confirmations expire when the panel becomes idle.
@@ -373,9 +430,11 @@ identity scheme (MusicBrainz/Goodreads, not TMDB) and suit a poster-row layout p
   anonymous HTTP(S) audio files or radio streams. MP3/AAC/M4A/OGG/FLAC/WAV source
   types are supported subject to the actual stream and device codecs. User-started
   playback can continue with the screen off and exposes title, artist, album,
-  progress and transport controls to Android's lock screen. Artwork is not yet
-  supplied. Authenticated URLs, query tokens and subscription web links are not
-  accepted as direct audio sources.
+  progress and transport controls to Android's lock screen. A selected JPEG/PNG
+  cover is bounded, re-encoded and attached to the current session. Unselected
+  stream tags, remote artwork URLs and embedded artwork are removed from both
+  metadata getters and controller/listener/timeline updates. Authenticated URLs,
+  query tokens and subscription web links are not accepted as direct audio sources.
 - A single local audio session handles audio focus and headphone disconnection;
   opening Jellyfin video first stops local audio. Closing the audio screen does
   not stop an ongoing track. Process restart does not silently restart playback.
@@ -592,6 +651,11 @@ list, so the app stays uncluttered no matter how many services exist:
   proxy-path escapes and malformed authentication headers. Configure the final
   server URL directly. Proxmox's optional self-signed TLS exception is restricted
   to its configured host/port. Local HTTP remains supported.
+- Website cards support explicit exact-origin navigation permissions, pinch zoom
+  and Android text scaling. Settings → Display → Website data retires all live
+  panels before clearing shared cookies, local storage and cache with fresh PIN
+  verification. Some other browser databases may remain. Site credentials never
+  enter the encrypted configuration vault.
 - Settings PIN attempts are serialized and persisted in secure storage. Five wrong
   attempts cause a 30-second pause, escalating to five minutes; backgrounding
   relocks Settings and closes protected drilldown screens. New PINs require 4–12
@@ -602,15 +666,31 @@ list, so the app stays uncluttered no matter how many services exist:
 - CI pins external actions and Flutter, enforces the dependency lockfile, cancels
   superseded runs, limits job/test duration, preserves test logs/coverage, and
   tests Android backup policies and release-signing failure without private keys.
-- Android CI also runs native audio, window policy, Health Connect and private
-  capture regression tests and retains their reports. Flutter tests cover source/target
+  Test artifacts are attempted separately: storage-quota failures produce a
+  warning and summary while test results remain in job logs. Actual test failures
+  still block delivery; signed APK publication is not treated as optional evidence.
+- The Android build calls the analysis/unit, Android E2E and Server workflows at
+  the same commit. Signed APK production waits for those jobs and native/debug checks.
+  E2E runs the real app on a disposable API 35 AOSP emulator, using a local
+  synthetic HA HTTP/WebSocket server and no production accounts.
+- [The feature test matrix](docs/testing-matrix-2026-09-05.md) separates unit,
+  widget/API, native, emulator journeys and physical-device acceptance. Tests
+  do not imply every server version, device or protocol is universally supported.
+- Android CI also runs native audio/artwork, managed kiosk, window policy,
+  Health Connect and private capture regressions and retains their reports. Flutter tests cover source/target
   changes, stale confirmations, reconnects, paging, hidden queues, foreground
   transitions and local-audio/video handoff without production credentials.
 
 See the [hardening review and next improvements](docs/performance-security-review-2026-09-05.md)
 for measured regression evidence, device-test limits and remaining transport work.
 
-The September 5 window/privacy/WebPanel delivery passed **1,913 Flutter tests,
+The latest September 5 local integration passed **2,297 Flutter tests,
+98 Android native tests, 154 Server tests and 97 Python tool/policy tests**.
+Static analysis, workflow lint and publishable-file secret scanning passed.
+These are local results; hosted CI, container execution and physical-device
+acceptance are tracked separately in [development progress](docs/PROGRESS.md).
+
+The earlier September 5 window/privacy/WebPanel delivery passed **1,913 Flutter tests,
 23 Python tests and 44 Android native tests**, full static analysis and the
 652-file Dart format check. The staged text changes passed secret scanning.
 See the [cross-feature and design review](docs/design-and-flow-review-2026-09-05.md)
@@ -654,6 +734,27 @@ health values below are synthetic fixtures, rendered without reading a provider:
 <img src="docs/previews/window-panel-desktop-dark.png" alt="Observed desktop window state" width="600" />
 <img src="docs/previews/wellbeing-tablet-dark.png" alt="Synthetic private health readings on a tablet" width="600" />
 
+New panel controls, rendered from the application widgets with synthetic content:
+
+<img src="docs/previews/ambient-settings-phone.png" alt="Ambient clock and photo preferences" width="300" />
+<img src="docs/previews/screen-program-phone.png" alt="Weekly screen program with overnight periods" width="300" />
+<img src="docs/previews/ambient-tablet-dark.png" alt="Ambient display with a synthetic landscape fixture" width="600" />
+<img src="docs/previews/web-panel-settings-tablet-dark.png" alt="Website navigation and zoom settings" width="600" />
+
+Server account, administration, vault review and signed Client updates use the
+same interface on phones and tablets. These are actual Flutter widgets rendered
+with synthetic accounts and releases; they do not show a deployed home server.
+
+<img src="docs/previews/server-connect-tablet-light.png" alt="Larenor Server connection form in light appearance" width="600" />
+<img src="docs/previews/server-account-tablet-dark.png" alt="Larenor Server account and session in dark appearance" width="600" />
+<img src="docs/previews/server-admin-users-phone.png" alt="Server user administration on a narrow phone" width="260" />
+<img src="docs/previews/server-admin-users-tablet-dark.png" alt="Server user administration on a tablet" width="600" />
+<img src="docs/previews/server-vault-review-tablet-light.png" alt="Explicit configuration vault restore review" width="600" />
+<img src="docs/previews/server-client-update-tablet-dark.png" alt="Verified Client release available for explicit download" width="600" />
+
+[Panel and media implementation notes](docs/panel-and-media-implementation-2026-09-05.md)
+describe storage limits, migration behavior and the associated regressions.
+
 ## Status
 
 Actively developed. The features described above have implemented client flows,
@@ -675,12 +776,13 @@ The [next integration plan](docs/integration-roadmap-2026-09-04.md) compares oth
 GitHub projects and proposes Music Assistant, Frigate, AdGuard Home/Uptime Kuma,
 Immich and Paperless-ngx in phases. These are proposals, not shipped integrations.
 
-Deferred work includes OAuth2/PKCE login, true Android kiosk lock-task mode, push
-notifications, an Assist voice satellite, multi-profile/guest-mode dashboards,
+Deferred work includes OAuth2/PKCE login, broader DPC policies and physical kiosk
+acceptance, ambient video/PDF playlists, push notifications, an Assist voice satellite, multi-profile/guest-mode dashboards,
 a theme editor, and iOS build/signing. Direct Netflix integration, Proxmox backup
 restore/migration/snapshot management, and Keenetic port-forwarding edits are not
-provided by the current UI. CI produces debug and persistently signed release
-APKs with certificate/package/version checks; physical-device acceptance remains
+provided by the current UI. Main CI publishes persistently signed release APKs
+with certificate/package/version checks. Debug APK downloads are retained for
+manual runs and pull requests for three days; physical-device acceptance remains
 separate. The [active implementation queue](docs/product-implementation-plan-2026-09-05.md)
 tracks casting, music, kiosk, wellbeing, DeX and the final design pass.
 
@@ -716,6 +818,9 @@ regenerated automatically by `flutter pub get`/`flutter run` (via
 ```sh
 flutter analyze                    # static analysis
 flutter test --coverage             # unit, widget, security + performance regressions
+python3 -m unittest discover -s tool/tests -p '*_test.py' -v
+# Only on an explicitly selected disposable Android emulator:
+bash tool/run_android_e2e.sh emulator-5554
 flutter build apk --debug          # debug Android build
 dart run flutter_launcher_icons    # regenerate app icons after changing assets/icon/*.png
 ```

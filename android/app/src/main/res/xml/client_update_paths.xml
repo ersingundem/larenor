@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<paths xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Only cryptographically verified APKs, never incoming files or app data. -->
+    <cache-path name="verified_updates" path="client_updates/install/" />
+</paths>

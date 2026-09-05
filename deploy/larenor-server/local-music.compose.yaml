@@ -1,0 +1,17 @@
+{
+  "services": {
+    "larenor-server": {
+      "volumes": [
+        {
+          "type": "bind",
+          "source": "/srv/music",
+          "target": "/media",
+          "read_only": true,
+          "bind": {
+            "create_host_path": false
+          }
+        }
+      ]
+    }
+  }
+}

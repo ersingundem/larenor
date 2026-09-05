@@ -13,11 +13,12 @@ class AudioSource private constructor(
     val title: String,
     val artist: String?,
     val album: String?,
+    val artworkBytes: ByteArray?,
 ) {
     override fun toString() = "AudioSource(redacted)"
     companion object {
         val mimeTypes = setOf("audio/mpeg", "audio/aac", "audio/mp4", "audio/ogg", "audio/flac", "audio/wav")
-        private val keys = setOf("id", "uri", "mimeType", "title", "artist", "album")
+        private val keys = setOf("id", "uri", "mimeType", "title", "artist", "album", "artworkBytes")
         fun parse(value: Any?): AudioSource {
             val map = value as? Map<*, *> ?: throw AudioRejected("invalidSource")
             if (map.keys.any { it !in keys }) throw AudioRejected("invalidSource")
@@ -27,7 +28,8 @@ class AudioSource private constructor(
             if (mime !in mimeTypes) throw AudioRejected("invalidSource")
             return AudioSource(id, safeUri(map["uri"]), mime!!,
                 text(map["title"], 256) ?: throw AudioRejected("invalidSource"),
-                text(map["artist"], 256), text(map["album"], 256))
+                text(map["artist"], 256), text(map["album"], 256),
+                map["artworkBytes"]?.let { AudioArtwork.input(it, AudioArtwork.MAX_OUTPUT_BYTES) })
         }
 
         fun text(value: Any?, limit: Int): String? {
@@ -72,6 +74,8 @@ data class AudioSnapshot(
     val canSeek: Boolean = false,
     val canStop: Boolean = false,
     val failure: String? = null,
+    val artworkState: String = "none",
+    val artworkId: String? = null,
 ) {
     fun toMap(): Map<String, Any?> = mapOf(
         "supported" to true, "phase" to phase, "sourceId" to sourceId,
@@ -79,6 +83,7 @@ data class AudioSnapshot(
         "isPlaying" to isPlaying, "positionMs" to positionMs, "durationMs" to durationMs,
         "canPlay" to canPlay, "canPause" to canPause, "canSeek" to canSeek,
         "canStop" to canStop, "failure" to failure,
+        "artworkState" to artworkState, "artworkId" to artworkId,
     )
 }
 
@@ -88,6 +93,7 @@ interface AudioOwner {
     fun seek(positionMs: Long)
     fun shutdown()
     fun snapshot(): AudioSnapshot
+    fun artwork(sourceId: String, artworkId: String): Map<String, Any> = throw AudioRejected("unavailable")
 }
 
 /** Main-thread owner and single-use launch gate. No URLs are stored in Android
@@ -158,6 +164,12 @@ class AudioCoordinator(private val nowMs: () -> Long) {
         if (pending == null) owner?.let { publish(it.snapshot()) }
     }
 
+    fun artwork(sourceId: String, artworkId: String): Map<String, Any> {
+        requireSource(sourceId)
+        if (state.artworkId != artworkId || state.artworkState != "ready") throw AudioRejected("unavailable")
+        return owner?.artwork(sourceId, artworkId) ?: throw AudioRejected("unavailable")
+    }
+
     fun requireSource(expected: String?) {
         if (expected != null && (state.sourceId != expected || pending != null)) {
             throw AudioRejected("unavailable")
@@ -214,6 +226,16 @@ interface AudioCommandHost {
 class AudioCommandRouter(private val host: AudioCommandHost) {
     fun call(method: String, arguments: Any?): Any? = when (method) {
         "snapshot" -> { host.coordinator.refreshSnapshot(); host.coordinator.state.toMap() }
+        "artwork" -> {
+            if (!host.foreground) throw AudioRejected("foregroundRequired")
+            val map = arguments as? Map<*, *> ?: throw AudioRejected("invalidArtwork")
+            val source = map["sourceId"] as? String ?: throw AudioRejected("invalidArtwork")
+            val artwork = map["artworkId"] as? String ?: throw AudioRejected("invalidArtwork")
+            if (map.keys != setOf("sourceId", "artworkId") ||
+                !Regex("[a-zA-Z0-9_-]{1,128}").matches(source) ||
+                !Regex("[a-zA-Z0-9_-]{1,128}").matches(artwork)) throw AudioRejected("invalidArtwork")
+            host.coordinator.artwork(source, artwork)
+        }
         "play" -> {
             val source = AudioSource.parse(arguments)
             val ticket = host.coordinator.request(source, host.foreground)

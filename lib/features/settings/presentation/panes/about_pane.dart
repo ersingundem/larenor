@@ -9,6 +9,7 @@ import '../../../../l10n/generated/app_localizations.dart';
 import '../../../../shared/widgets/larenor_brand.dart';
 import '../../../../shared/theme/typography.dart';
 import '../../../auth/providers/auth_providers.dart';
+import '../../../legal/presentation/legal_screen.dart';
 import 'settings_nav_row.dart';
 
 class AboutPane extends ConsumerWidget {
@@ -53,6 +54,13 @@ class AboutPane extends ConsumerWidget {
         ),
         SettingsSection(
           children: [
+            CupertinoListTile(
+              title: Text(l10n.legalTitle),
+              trailing: const CupertinoListTileChevron(),
+              onTap: () => Navigator.of(context).push(
+                CupertinoPageRoute<void>(builder: (_) => const LegalScreen()),
+              ),
+            ),
             CupertinoListTile(
               title: Center(
                 child: Text(

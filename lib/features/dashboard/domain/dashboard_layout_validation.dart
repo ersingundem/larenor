@@ -7,6 +7,7 @@ import 'dashboard_card_size.dart';
 import '../../settings/data/app_service.dart';
 import 'tile_config.dart';
 import 'keenetic_tile_validation.dart';
+import '../../web_panel/domain/web_panel_options.dart';
 
 const maxDashboardLayoutBytes = 2 * 1024 * 1024;
 
@@ -69,12 +70,14 @@ void validateDashboardLayoutJson(Object? value) {
         'title',
         'keeneticMetric',
         'keeneticInterfaceId',
+        'webPanel',
       },
       required: {'id', 'type', 'x', 'y', 'width', 'height'},
     );
     if (!tileIds.add(_string(tile['id'], 256)) ||
         !TileType.values.any((type) => type.name == tile['type']) ||
-        !hasValidKeeneticTileFields(tile)) {
+        !hasValidKeeneticTileFields(tile) ||
+        !hasValidWebPanelTileFields(tile)) {
       throw invalid;
     }
     _integer(tile['x'], 0, 100000);

@@ -5,6 +5,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:larenor/core/router.dart';
 import 'package:larenor/features/auth/data/ha_connection_config.dart';
 import 'package:larenor/features/auth/providers/auth_providers.dart';
+import 'package:larenor/features/client_updates/data/client_update_api.dart';
+import 'package:larenor/features/client_updates/providers/client_update_providers.dart';
 import 'package:larenor/features/dashboard/domain/dashboard_layout.dart';
 import 'package:larenor/features/dashboard/domain/dashboard_room.dart';
 import 'package:larenor/features/dashboard/providers/dashboard_providers.dart';
@@ -66,6 +68,10 @@ Future<ProviderContainer> openApp(WidgetTester tester, {String? pin}) async {
   final container = ProviderContainer(
     overrides: [
       connectionConfigProvider.overrideWith(_Connection.new),
+      // Navigation fixtures do not emulate Android's updater channel.
+      clientUpdateApiProvider.overrideWithValue(
+        AndroidClientUpdateApi(isAndroid: false),
+      ),
       dashboardLayoutProvider.overrideWith(_Layout.new),
       entitiesProvider.overrideWith(_Entities.new),
       haRestClientProvider.overrideWithValue(null),

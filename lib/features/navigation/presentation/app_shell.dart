@@ -8,6 +8,7 @@ import '../../../shared/theme/typography.dart';
 import '../../../shared/widgets/larenor_brand.dart';
 import '../../auth/presentation/connect_screen.dart';
 import '../../auth/providers/auth_providers.dart';
+import '../../client_updates/presentation/client_update_notice.dart';
 import '../../dashboard/providers/dashboard_providers.dart';
 import 'app_shell_actions.dart';
 import 'navigation_shortcuts.dart';
@@ -161,6 +162,10 @@ class AppShell extends ConsumerWidget {
               Expanded(
                 child: Column(
                   children: [
+                    ClientUpdateNotice(
+                      location: location.toString(),
+                      onOpen: () => context.push('/settings/client-updates'),
+                    ),
                     Expanded(child: navigationShell),
                     if (!wide)
                       CupertinoTabBar(

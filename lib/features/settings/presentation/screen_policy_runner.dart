@@ -1,21 +1,27 @@
 import 'dart:async';
+import 'dart:ui' show ViewFocusEvent, ViewFocusState;
 
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:screen_brightness/screen_brightness.dart';
-import 'package:wakelock_plus/wakelock_plus.dart';
 
+import '../../../core/window/window_policy_models.dart';
+import '../../../core/window/window_policy_providers.dart';
+import '../data/screen_policy_controller.dart';
+import '../domain/screen_program.dart';
+import '../providers/screen_program_provider.dart';
 import '../providers/settings_providers.dart';
 
-const _dimBrightness = 0.05;
+final screenPolicyControllerProvider = Provider<ScreenPolicyController>(
+  (ref) => ScreenPolicyController.application,
+);
+final screenPolicyClockProvider = Provider<DateTime Function()>(
+  (ref) => DateTime.now,
+);
 
-/// One serialized owner for the app's night brightness and wakelock policy.
-/// Backgrounding releases both overrides; resuming uses the latest settings.
+/// Foreground, local wall-clock policy only. No alarms or screen-off command.
 class ScreenPolicyRunner extends ConsumerStatefulWidget {
   const ScreenPolicyRunner({super.key, required this.child});
-
   final Widget child;
-
   @override
   ConsumerState<ScreenPolicyRunner> createState() => _ScreenPolicyRunnerState();
 }
@@ -23,100 +29,102 @@ class ScreenPolicyRunner extends ConsumerStatefulWidget {
 class _ScreenPolicyRunnerState extends ConsumerState<ScreenPolicyRunner>
     with WidgetsBindingObserver {
   Timer? _timer;
-  bool _foreground = true;
-  bool _applying = false;
-  bool _pending = false;
-  bool _disposed = false;
-  bool? _lastWakelock;
-  bool _dimmed = false;
-
+  bool _foreground = true, _focused = true;
+  late final ScreenPolicyController _controller;
+  late final Object _owner;
+  int? _viewId;
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     final state = WidgetsBinding.instance.lifecycleState;
     _foreground = state == null || state == AppLifecycleState.resumed;
-    _restartTimer();
-    _apply();
+    _controller = ref.read(screenPolicyControllerProvider);
+    _owner = _controller.claim();
   }
 
-  void _restartTimer() {
-    _timer?.cancel();
-    if (_foreground && !_disposed) {
-      _timer = Timer.periodic(const Duration(minutes: 1), (_) => _apply());
-    }
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _viewId = View.of(context).viewId;
+    _apply(force: true);
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     _foreground = state == AppLifecycleState.resumed;
-    _restartTimer();
-    _apply();
+    _apply(force: true);
   }
 
   @override
-  void dispose() {
-    _disposed = true;
-    _foreground = false;
-    _timer?.cancel();
-    WidgetsBinding.instance.removeObserver(this);
-    // Reconcile after an outstanding plugin call rather than racing it.
-    _apply();
-    super.dispose();
+  void didChangeViewFocus(ViewFocusEvent event) {
+    if (event.viewId != _viewId) return;
+    _focused = event.state == ViewFocusState.focused;
+    _apply(force: true);
   }
 
-  Future<void> _apply() async {
-    _pending = true;
-    if (_applying) return;
-    _applying = true;
-    try {
-      while (_pending) {
-        _pending = false;
-        final keepOn =
-            !_disposed && (ref.read(keepScreenOnProvider).value ?? false);
-        final window = _disposed ? null : ref.read(nightWindowProvider).value;
-        final isNight = window?.isNightNow() ?? false;
-        final stayOn =
-            _foreground &&
-            keepOn &&
-            !(window?.screenOffAtNight == true && isNight);
-        if (_lastWakelock != stayOn) {
-          try {
-            await WakelockPlus.toggle(enable: stayOn);
-            _lastWakelock = stayOn;
-          } catch (_) {
-            // Unsupported devices/platform failures must not escape a timer.
-          }
-        }
-        // The desired state may have changed during the platform call.
-        if (_pending) continue;
-        final dim =
-            _foreground && isNight && window?.dimBrightnessAtNight == true;
-        if (dim != _dimmed) {
-          try {
-            if (dim) {
-              await ScreenBrightness.instance.setApplicationScreenBrightness(
-                _dimBrightness,
-              );
-            } else {
-              await ScreenBrightness.instance
-                  .resetApplicationScreenBrightness();
-            }
-            _dimmed = dim;
-          } catch (_) {
-            // Restoring the device preference needs no WRITE_SETTINGS grant.
-          }
-        }
-      }
-    } finally {
-      _applying = false;
+  bool _windowAvailable() {
+    final reading = ref.read(windowPolicySnapshotProvider);
+    if (reading.isLoading || reading.hasError || !reading.hasValue) {
+      return false;
+    }
+    final window = reading.requireValue;
+    // The Android-specific bridge is absent on other supported Flutter hosts.
+    if (!window.supported) return true;
+    return window.isResumed &&
+        window.hasWindowFocus &&
+        !window.isPictureInPicture &&
+        !window.isExternalDisplay &&
+        window.reason != WindowRestrictionReason.unknown;
+  }
+
+  void _apply({bool force = false}) {
+    if (!mounted) return;
+    _timer?.cancel();
+    final active = _foreground && _focused && _windowAvailable();
+    final reading = ref.read(screenProgramProvider);
+    final keep = ref.read(keepScreenOnProvider);
+    final now = ref.read(screenPolicyClockProvider)();
+    final valid =
+        !reading.isLoading &&
+        !reading.hasError &&
+        reading.hasValue &&
+        !keep.isLoading &&
+        !keep.hasError &&
+        keep.hasValue;
+    _controller.update(
+      _owner,
+      active && valid
+          ? reading.requireValue.evaluate(
+              now,
+              defaultKeepAwake: keep.requireValue,
+            )
+          : ScreenPolicy.released,
+      force: force,
+    );
+    if (active) {
+      // Real elapsed scheduling, wall-time evaluation: jumps, folds and a
+      // changed device timezone are reconciled within the next foreground minute.
+      final delay = Duration(
+        milliseconds: 60000 - now.second * 1000 - now.millisecond,
+      );
+      _timer = Timer(delay, () => _apply());
     }
   }
 
   @override
+  void dispose() {
+    _timer?.cancel();
+    WidgetsBinding.instance.removeObserver(this);
+    _controller.release(_owner);
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
+    ref.listen(screenProgramProvider, (_, _) => _apply());
     ref.listen(keepScreenOnProvider, (_, _) => _apply());
-    ref.listen(nightWindowProvider, (_, _) => _apply());
+    ref.listen(windowPolicySnapshotProvider, (_, _) => _apply(force: true));
     return widget.child;
   }
 }

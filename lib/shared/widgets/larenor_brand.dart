@@ -13,7 +13,7 @@ class LarenorLogo extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Semantics(
-    label: 'Larenor',
+    label: 'Larenor Client',
     image: true,
     child: ClipPath(
       clipper: ShapeBorderClipper(
@@ -60,13 +60,13 @@ class LarenorBrand extends StatelessWidget {
             logoSize +
             14 +
             MediaQuery.textScalerOf(context).scale(wordmarkStyle.fontSize!) *
-                4.3;
+                7.4;
         final stacked = centered || constraints.maxWidth < minRowWidth;
         final alignment = centered
             ? CrossAxisAlignment.center
             : CrossAxisAlignment.start;
         final logo = ExcludeSemantics(child: LarenorLogo(size: logoSize));
-        final wordmark = Text('Larenor', style: wordmarkStyle);
+        final wordmark = Text('Larenor Client', style: wordmarkStyle);
         return Column(
           crossAxisAlignment: alignment,
           mainAxisSize: MainAxisSize.min,

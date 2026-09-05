@@ -10,6 +10,9 @@ import '../../dashboard/domain/dashboard_layout_validation.dart';
 import '../../intercom/domain/door_station.dart';
 import '../../media/movie_night/domain/movie_night_preset.dart';
 import '../../settings/data/app_service.dart';
+import '../../settings/domain/screen_program.dart';
+import '../../ambient/domain/ambient_settings.dart';
+import '../../web_panel/domain/web_panel_options.dart';
 import '../../wellbeing/data/wellbeing_disclosure_policy.dart';
 
 class BackupException implements Exception {
@@ -114,6 +117,8 @@ const backupPreferenceKeys = <String>{
   'keep_screen_on',
   'appearance',
   'window_profile',
+  ScreenProgram.preferenceKey,
+  AmbientSettings.preferenceKey,
   'night_start_minutes',
   'night_end_minutes',
   'dim_brightness_at_night',
@@ -238,6 +243,12 @@ void _validateSettings(Object? value) {
     final v = entry.value;
     if (v == null) continue;
     switch (entry.key) {
+      case ScreenProgram.preferenceKey:
+        if (v is! String) throw const BackupValidationException();
+        ScreenProgram.decode(v);
+      case AmbientSettings.preferenceKey:
+        if (v is! String) throw const BackupValidationException();
+        AmbientSettings.decode(v);
       case DoorStation.storageKey:
         DoorStation.decodeStored(v);
       case MovieNightPreset.storageKey:
@@ -369,12 +380,14 @@ void _validateDashboard(Object? value) {
           'title',
           'keeneticMetric',
           'keeneticInterfaceId',
+          'webPanel',
         },
         required: {'id', 'type', 'x', 'y', 'width', 'height'},
       );
       if (!ids.add(_string(tile['id'], maxLength: 256)) ||
           !TileType.values.map((e) => e.name).contains(tile['type']) ||
-          !hasValidKeeneticTileFields(tile)) {
+          !hasValidKeeneticTileFields(tile) ||
+          !hasValidWebPanelTileFields(tile)) {
         throw const BackupValidationException();
       }
       _integer(tile['x'], 0, 100000);

@@ -1,5 +1,7 @@
 import 'dart:async';
 
+import '../../../../../core/idle_prevention.dart';
+
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -679,7 +681,12 @@ class _JellyfinPlayerScreenState extends ConsumerState<JellyfinPlayerScreen>
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) => PreventAmbientDisplay(
+    active: _playing && !_loading && _error == null,
+    child: _buildPage(context),
+  );
+
+  Widget _buildPage(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     return CupertinoPageScaffold(
       backgroundColor: CupertinoColors.black,

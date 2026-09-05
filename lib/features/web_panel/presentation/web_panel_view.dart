@@ -7,6 +7,8 @@ import '../../../../core/app_interaction_scope.dart';
 import '../../../../l10n/generated/app_localizations.dart';
 import '../data/web_panel_navigation_budget.dart';
 import '../data/web_panel_platform.dart';
+import '../data/web_panel_data.dart';
+import '../domain/web_panel_options.dart';
 import '../domain/web_panel_policy.dart';
 
 enum _Failure { invalidUrl, blocked, timeout, load }
@@ -19,10 +21,14 @@ class WebPanelView extends StatefulWidget {
     required this.policy,
     this.sourceIdentity,
     this.sourceCurrent,
+    this.options,
+    this.dataCoordinator,
   });
   final WebPanelPolicy? policy;
   final Object? sourceIdentity;
   final bool Function()? sourceCurrent;
+  final WebPanelOptions? options;
+  final WebPanelDataCoordinator? dataCoordinator;
   @override
   State<WebPanelView> createState() => WebPanelViewState();
 }
@@ -38,10 +44,14 @@ class WebPanelViewState extends State<WebPanelView> {
   Timer? _watchdog;
   final _sinceRestart = Stopwatch();
   bool _backBusy = false;
+  late WebPanelDataCoordinator _data;
 
   @override
   void initState() {
     super.initState();
+    _data = widget.dataCoordinator ?? WebPanelDataCoordinator.shared;
+    _data.register(_clearRetire);
+    _data.addListener(_dataChanged);
     final state = WidgetsBinding.instance.lifecycleState;
     _foreground = state == null || state == AppLifecycleState.resumed;
     _lifecycle = AppLifecycleListener(
@@ -76,8 +86,18 @@ class WebPanelViewState extends State<WebPanelView> {
   @override
   void didUpdateWidget(covariant WebPanelView oldWidget) {
     super.didUpdateWidget(oldWidget);
+    final data = widget.dataCoordinator ?? WebPanelDataCoordinator.shared;
+    if (!identical(_data, data)) {
+      _data.unregister(_clearRetire);
+      _data.removeListener(_dataChanged);
+      _retire();
+      _data = data;
+      _data.register(_clearRetire);
+      _data.addListener(_dataChanged);
+    }
     if (oldWidget.policy != widget.policy ||
-        oldWidget.sourceIdentity != widget.sourceIdentity) {
+        oldWidget.sourceIdentity != widget.sourceIdentity ||
+        oldWidget.options != widget.options) {
       _retire();
       _failure = null;
     }
@@ -88,10 +108,25 @@ class WebPanelViewState extends State<WebPanelView> {
       mounted &&
       _foreground &&
       _visible &&
+      !_data.blocked &&
       (_interaction?.active ?? true) &&
       _route?.isCurrent != false &&
       (widget.sourceCurrent?.call() ?? true);
   bool _current(int generation) => _active && generation == _generation;
+
+  void _dataChanged() {
+    if (mounted) setState(_sync);
+  }
+
+  Future<void> _clearRetire() {
+    _retire();
+    return Future.value();
+  }
+
+  Future<void> _blankForClear(WebViewController controller) async {
+    await controller.setJavaScriptMode(JavaScriptMode.disabled);
+    await controller.loadHtmlString('<html></html>');
+  }
 
   /// Invalidates callbacks immediately, before a parent account/idle rebuild.
   void suspend() {
@@ -238,6 +273,7 @@ class WebPanelViewState extends State<WebPanelView> {
         ),
       );
       await restrictWebPanelPlatform(controller, step);
+      await configureWebPanelAppearance(controller, widget.options, step);
       await step(
         () => controller.setJavaScriptMode(JavaScriptMode.unrestricted),
       );
@@ -266,12 +302,7 @@ class WebPanelViewState extends State<WebPanelView> {
     final controller = _controller;
     _controller = null;
     _ready = false;
-    if (controller != null) unawaited(_blank(controller));
-  }
-
-  Future<void> _blank(WebViewController controller) async {
-    await _ignore(() => controller.setJavaScriptMode(JavaScriptMode.disabled));
-    await _ignore(() => controller.loadHtmlString('<html></html>'));
+    if (controller != null) _data.retire(() => _blankForClear(controller));
   }
 
   static Future<void> _ignore(FutureOr<void> Function() operation) async {
@@ -285,6 +316,8 @@ class WebPanelViewState extends State<WebPanelView> {
   @override
   void dispose() {
     _interaction?.removeListener(_interactionChanged);
+    _data.unregister(_clearRetire);
+    _data.removeListener(_dataChanged);
     _lifecycle.dispose();
     _retire();
     super.dispose();
@@ -293,6 +326,14 @@ class WebPanelViewState extends State<WebPanelView> {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
+    if (_data.blocked) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Text(l10n.webPanelDataPaused, textAlign: TextAlign.center),
+        ),
+      );
+    }
     if (!_active) return const SizedBox.shrink();
     if (_failure != null) {
       return Center(

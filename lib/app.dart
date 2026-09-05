@@ -19,7 +19,7 @@ class LarenorApp extends ConsumerWidget {
         ref.watch(appearanceProvider).value ?? AppAppearance.system;
 
     return CupertinoApp.router(
-      title: 'Larenor',
+      title: 'Larenor Client',
       debugShowCheckedModeBanner: false,
       theme: larenorTheme(brightness: appearance.brightness),
       // No `locale:` override — this follows the device's own language

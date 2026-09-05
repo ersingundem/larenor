@@ -1,0 +1,76 @@
+{
+  "name": "larenor-server",
+  "services": {
+    "larenor-server": {
+      "image": "ghcr.io/music-assistant/server:2.10.2@sha256:09c02b4ee491976efa6d698265f72571f064031bb1a2c9a1c32e104392209690",
+      "container_name": "larenor-server",
+      "user": "0:0",
+      "network_mode": "host",
+      "restart": "unless-stopped",
+      "stop_grace_period": "60s",
+      "cap_drop": [
+        "ALL"
+      ],
+      "security_opt": [
+        "no-new-privileges:true"
+      ],
+      "environment": {
+        "LOG_LEVEL": "warning"
+      },
+      "volumes": [
+        {
+          "type": "bind",
+          "source": "/var/lib/larenor-server/data",
+          "target": "/data",
+          "bind": {
+            "create_host_path": false
+          }
+        }
+      ],
+      "logging": {
+        "driver": "json-file",
+        "options": {
+          "max-size": "10m",
+          "max-file": "3"
+        }
+      },
+      "cap_add": [
+        "NET_BIND_SERVICE"
+      ]
+    }
+  },
+  "x-casaos": {
+    "main": "larenor-server",
+    "architectures": [
+      "amd64",
+      "arm64"
+    ],
+    "title": {
+      "en_us": "Larenor Server",
+      "tr_tr": "Larenor Server"
+    },
+    "tagline": {
+      "en_us": "Unus Lar, omnem domum servat.",
+      "tr_tr": "Unus Lar, omnem domum servat."
+    },
+    "description": {
+      "en_us": "Larenor deployment package using the official Music Assistant server. Music Assistant remains the upstream engine and web interface. Manual setup required.",
+      "tr_tr": "Resmi Music Assistant sunucusunu kullanan Larenor kurulum paketi. Motor ve web arayüzü Music Assistant projesine aittir. Manuel kurulum gerektirir."
+    },
+    "author": "Larenor",
+    "developer": "Music Assistant / Open Home Foundation",
+    "category": "Media",
+    "icon": "",
+    "thumbnail": "",
+    "screenshot_link": [],
+    "scheme": "http",
+    "port_map": "8095",
+    "index": "/",
+    "tips": {
+      "before_install": {
+        "en_us": "Read docs/music-assistant-deployment.md first. Prepare a private root-owned /var/lib/larenor-server/data directory. Preserve host networking and the pinned image digest. Do not add privileged mode. Check ports and the imported runtime configuration before configuring accounts.",
+        "tr_tr": "Önce docs/music-assistant-deployment.md belgesini okuyun. /var/lib/larenor-server/data dizinini root sahibi ve 0700 izinli hazırlayın. Host ağını ve imaj özetini koruyun; privileged eklemeyin. Hesap kurmadan önce portları ve import sonrası çalışan yapılandırmayı denetleyin."
+      }
+    }
+  }
+}

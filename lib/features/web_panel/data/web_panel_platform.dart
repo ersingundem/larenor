@@ -2,6 +2,20 @@ import 'package:webview_flutter/webview_flutter.dart';
 import 'package:webview_flutter_android/webview_flutter_android.dart';
 import 'package:webview_flutter_wkwebview/webview_flutter_wkwebview.dart';
 
+import '../domain/web_panel_options.dart';
+
+Future<void> configureWebPanelAppearance(
+  WebViewController controller,
+  WebPanelOptions? options,
+  Future<void> Function(Future<void> Function()) step,
+) async {
+  await step(() => controller.enableZoom(options?.zoomEnabled ?? true));
+  final platform = controller.platform;
+  if (platform is AndroidWebViewController) {
+    await step(() => platform.setTextZoom(options?.textZoom ?? 100));
+  }
+}
+
 WebViewController createWebPanelController() {
   PlatformWebViewControllerCreationParams params =
       const PlatformWebViewControllerCreationParams();

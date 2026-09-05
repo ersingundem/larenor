@@ -16,11 +16,13 @@ import 'panes/security_pane.dart';
 import 'settings_file_dialog.dart';
 import '../../backup/presentation/backup_screen.dart';
 import '../../intercom/presentation/intercom_settings_screen.dart';
+import '../../server/presentation/server_connection_screen.dart';
 
 /// The top-level settings categories, in the order they appear down the
 /// master list.
 enum SettingsCategory {
   connection,
+  server,
   display,
   security,
   homeAssistant,
@@ -118,8 +120,10 @@ Widget paneFor(
   switch (category) {
     case SettingsCategory.connection:
       return const ConnectionPane();
+    case SettingsCategory.server:
+      return const ServerConnectionScreen();
     case SettingsCategory.display:
-      return const DisplayPane();
+      return DisplayPane(runFileDialog: runFileDialog);
     case SettingsCategory.security:
       return const SecurityPane();
     case SettingsCategory.homeAssistant:
@@ -158,6 +162,12 @@ class _MasterList extends StatelessWidget {
         CupertinoIcons.house_fill,
         CupertinoColors.systemBlue,
         l10n.settingsCategoryConnection,
+      ),
+      (
+        SettingsCategory.server,
+        CupertinoIcons.cloud,
+        CupertinoColors.systemIndigo,
+        l10n.serverTitle,
       ),
       (
         SettingsCategory.display,

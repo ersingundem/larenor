@@ -1,0 +1,79 @@
+name: Server API & Storage Tests
+
+on:
+  workflow_call:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: server-test-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  server-test:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      - name: Select isolated Server test paths
+        run: |
+          {
+            echo "UV_PROJECT_ENVIRONMENT=$RUNNER_TEMP/larenor-server-venv"
+            echo "UV_PYTHON_INSTALL_DIR=$RUNNER_TEMP/larenor-test-python"
+            echo "LARENOR_TEST_APKSIG_JAR=$RUNNER_TEMP/larenor-verifier/apksig.jar"
+          } >> "$GITHUB_ENV"
+
+      - name: Prepare APK signature verifier toolchain
+        uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Fetch and verify the pinned Android APK signature library
+        run: |
+          mkdir -p "$(dirname "$LARENOR_TEST_APKSIG_JAR")"
+          curl --fail --show-error --silent --location --proto '=https' --tlsv1.2 --max-time 60 \
+            'https://dl.google.com/dl/android/maven2/com/android/tools/build/apksig/9.1.0/apksig-9.1.0.jar' \
+            --output "$LARENOR_TEST_APKSIG_JAR"
+          printf '%s  %s\n' '562cd0a88890960d2ece48e116c61f12872222f1dcc306890799382bc019b201' "$LARENOR_TEST_APKSIG_JAR" | sha256sum --check --strict
+
+      - name: Prepare isolated pinned Python tooling
+        run: |
+          python3 -m venv "$RUNNER_TEMP/larenor-ci-tools"
+          "$RUNNER_TEMP/larenor-ci-tools/bin/python" -m pip install --disable-pip-version-check --only-binary=:all: uv==0.12.10
+          echo "$RUNNER_TEMP/larenor-ci-tools/bin" >> "$GITHUB_PATH"
+
+      - name: Install the reviewed Server dependency lock
+        working-directory: server
+        run: uv sync --locked --python 3.12.14
+
+      - name: Check installed dependency consistency
+        run: uv pip check --python "$UV_PROJECT_ENVIRONMENT/bin/python"
+
+      - name: Exercise authentication, authorization, encrypted storage and API contracts
+        working-directory: server
+        run: |
+          mkdir -p "$GITHUB_WORKSPACE/test-results"
+          uv run --locked --no-sync python -m pytest tests --junitxml="$GITHUB_WORKSPACE/test-results/larenor-server.xml"
+
+      - name: Preserve synthetic test evidence
+        id: test_evidence
+        if: always()
+        continue-on-error: true
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: larenor-server-test-evidence
+          path: test-results/larenor-server.xml
+          if-no-files-found: ignore
+          retention-days: 14
+
+      - name: Report unavailable Server test artifact
+        if: always() && steps.test_evidence.outcome == 'failure'
+        run: |
+          echo "::warning::Server test artifact upload failed. Test results remain in this job's logs; test failures still block delivery."
+          echo 'Server test artifact upload was unavailable. Inspect the Server test step logs for results.' >> "$GITHUB_STEP_SUMMARY"

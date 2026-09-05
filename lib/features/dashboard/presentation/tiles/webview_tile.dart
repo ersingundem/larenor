@@ -10,7 +10,10 @@ class WebviewTile extends StatelessWidget {
   final TileConfig tile;
   @override
   Widget build(BuildContext context) => WebPanelView(
-    policy: WebPanelPolicy.fromUrl(tile.url ?? ''),
+    policy:
+        tile.webPanel?.policyFor(tile.url ?? '') ??
+        WebPanelPolicy.fromUrl(tile.url ?? ''),
     sourceIdentity: tile.id,
+    options: tile.webPanel,
   );
 }

@@ -9,6 +9,9 @@ import 'package:larenor/features/settings/presentation/idle_gate.dart';
 import 'package:larenor/features/settings/presentation/screen_policy_runner.dart';
 import 'package:larenor/features/settings/providers/settings_providers.dart';
 import 'package:larenor/l10n/generated/app_localizations.dart';
+import 'package:larenor/core/window/window_policy_providers.dart';
+import 'package:larenor/core/window/window_policy_bridge.dart';
+import 'package:larenor/features/settings/providers/screen_program_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class _WakelockCodec extends StandardMessageCodec {
@@ -51,7 +54,13 @@ void main() {
         () => tester.binding.defaultBinaryMessenger
             .setMockDecodedMessageHandler(_wakelockChannel, null),
       );
-      final container = ProviderContainer();
+      final container = ProviderContainer(
+        overrides: [
+          windowPolicyBridgeProvider.overrideWithValue(
+            WindowPolicyBridge(isAndroid: false),
+          ),
+        ],
+      );
       addTearDown(container.dispose);
       await tester.pumpWidget(
         UncontrolledProviderScope(
@@ -62,6 +71,11 @@ void main() {
         ),
       );
       await tester.pump();
+      for (var i = 0; i < 5; i++) {
+        await tester.pump();
+      }
+      expect(container.read(screenProgramProvider).hasValue, isTrue);
+      expect(container.read(windowPolicySnapshotProvider).hasValue, isTrue);
       expect(values.last, isTrue);
       await container.read(keepScreenOnProvider.notifier).set(false);
       await tester.pump();
@@ -113,7 +127,13 @@ void main() {
           null,
         );
       });
-      final container = ProviderContainer();
+      final container = ProviderContainer(
+        overrides: [
+          windowPolicyBridgeProvider.overrideWithValue(
+            WindowPolicyBridge(isAndroid: false),
+          ),
+        ],
+      );
       addTearDown(container.dispose);
       await tester.pumpWidget(
         UncontrolledProviderScope(
@@ -124,6 +144,11 @@ void main() {
         ),
       );
       await tester.pump();
+      for (var i = 0; i < 5; i++) {
+        await tester.pump();
+      }
+      expect(container.read(screenProgramProvider).hasValue, isTrue);
+      expect(container.read(windowPolicySnapshotProvider).hasValue, isTrue);
       expect(brightness, ['setApplicationScreenBrightness']);
       tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
       await tester.pump();
@@ -161,8 +186,13 @@ void main() {
       ),
     );
     await tester.pumpWidget(
-      const ProviderScope(
-        child: CupertinoApp(home: ScreenPolicyRunner(child: SizedBox())),
+      ProviderScope(
+        overrides: [
+          windowPolicyBridgeProvider.overrideWithValue(
+            WindowPolicyBridge(isAndroid: false),
+          ),
+        ],
+        child: const CupertinoApp(home: ScreenPolicyRunner(child: SizedBox())),
       ),
     );
     await tester.pump();

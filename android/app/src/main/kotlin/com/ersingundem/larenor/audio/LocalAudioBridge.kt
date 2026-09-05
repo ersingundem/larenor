@@ -16,9 +16,12 @@ import androidx.media3.common.util.UnstableApi
 import io.flutter.plugin.common.BinaryMessenger
 import io.flutter.plugin.common.EventChannel
 import io.flutter.plugin.common.MethodChannel
+import java.util.concurrent.Executors
+import java.util.concurrent.ExecutorService
 
 @UnstableApi
-class LocalAudioBridge(private val activity: Activity, messenger: BinaryMessenger) : AudioCommandHost {
+class LocalAudioBridge(private val activity: Activity, messenger: BinaryMessenger,
+    private val artworkWorker: ExecutorService = Executors.newSingleThreadExecutor()) : AudioCommandHost {
     companion object {
         const val METHODS = "com.ersingundem.larenor/local_audio"
         const val EVENTS = "com.ersingundem.larenor/local_audio_events"
@@ -31,6 +34,9 @@ class LocalAudioBridge(private val activity: Activity, messenger: BinaryMessenge
     private var resumed = false
     private val handler = Handler(Looper.getMainLooper())
     private var disposed = false
+    private var artworkResult: MethodChannel.Result? = null
+    private var artworkProcessing = false
+    private var artworkGeneration = 0L
     override val foreground get() = resumed && !disposed && !activity.isFinishing
     override val coordinator get() = LocalAudioRuntime.coordinator
     private val ticker = object : Runnable {
@@ -42,6 +48,10 @@ class LocalAudioBridge(private val activity: Activity, messenger: BinaryMessenge
 
     init {
         methods.setMethodCallHandler { call, result ->
+            if (call.method == "prepareArtwork") {
+                prepareArtwork(call.arguments, result)
+                return@setMethodCallHandler
+            }
             try {
                 result.success(router.call(call.method, call.arguments))
             } catch (error: AudioRejected) {
@@ -59,10 +69,39 @@ class LocalAudioBridge(private val activity: Activity, messenger: BinaryMessenge
         })
     }
 
+    private fun prepareArtwork(raw: Any?, result: MethodChannel.Result) {
+        if (!foreground || artworkProcessing) {
+            result.error(if (artworkProcessing) "busy" else "foregroundRequired", "Artwork unavailable", null)
+            return
+        }
+        val bytes = try { AudioArtwork.input(raw) } catch (_: Exception) {
+            result.error("invalidArtwork", "Artwork unavailable", null); return
+        }
+        artworkResult = result
+        artworkProcessing = true
+        val generation = artworkGeneration
+        artworkWorker.submit {
+            val prepared = try { AudioArtwork.prepare(bytes) } catch (_: Exception) { null }
+            handler.post {
+                artworkProcessing = false
+                if (artworkResult !== result) return@post
+                artworkResult = null
+                if (disposed || !foreground || generation != artworkGeneration) {
+                    result.error("unavailable", "Artwork unavailable", null)
+                } else if (prepared == null) {
+                    result.error("invalidArtwork", "Artwork unavailable", null)
+                } else result.success(prepared.packet())
+            }
+        }
+    }
+
     fun setResumed(value: Boolean) {
         resumed = value
         LocalAudioRuntime.setForeground(this, foreground)
         if (!foreground) {
+            artworkGeneration++
+            artworkResult?.error("unavailable", "Artwork unavailable", null)
+            artworkResult = null
             coordinator.cancelPending()
             unsubscribe()
         } else subscribe()
@@ -80,7 +119,7 @@ class LocalAudioBridge(private val activity: Activity, messenger: BinaryMessenge
     private fun unsubscribe() {
         removeObserver?.invoke()
         removeObserver = null
-        handler.removeCallbacksAndMessages(null)
+        handler.removeCallbacks(ticker)
     }
 
     override fun start(ticket: String) {
@@ -127,6 +166,8 @@ class LocalAudioBridge(private val activity: Activity, messenger: BinaryMessenge
 
     fun dispose() {
         disposed = true
+        artworkGeneration++
+        artworkWorker.shutdownNow()
         setResumed(false)
         sink = null
         methods.setMethodCallHandler(null)

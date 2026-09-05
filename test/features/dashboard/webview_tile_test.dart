@@ -56,6 +56,9 @@ class _Controller extends PlatformWebViewController {
   final modes = <JavaScriptMode>[];
   final html = <String>[];
   final htmlBaseUrls = <String?>[];
+  final zoomOptions = <bool>[];
+  @override
+  Future<void> enableZoom(bool enabled) async => zoomOptions.add(enabled);
   @override
   Future<void> setBackgroundColor(Color color) async {}
 

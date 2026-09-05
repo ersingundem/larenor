@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import '../../../core/configuration_writes.dart';
 import '../../intercom/domain/door_station.dart';
+import '../../settings/domain/screen_program.dart';
 import '../../wellbeing/data/wellbeing_store.dart';
 import '../../wellbeing/data/wellbeing_disclosure_policy.dart';
 import 'backup_snapshot.dart';
@@ -197,6 +198,26 @@ class BackupRepository {
       }
       if (selection.settings && snapshot.hasSettings) {
         final settings = groups['settings'] as Map<String, dynamic>;
+        // Older backups only contain the nightly schedule. Replacing those
+        // settings must also retire a newer weekly override, in the same
+        // rollback journal, so the imported schedule can take effect.
+        if (replace &&
+            !settings.containsKey(ScreenProgram.preferenceKey) &&
+            const {
+              'night_start_minutes',
+              'night_end_minutes',
+              'dim_brightness_at_night',
+              'screen_off_at_night',
+            }.any(settings.containsKey)) {
+          final previous = await _storage.readPreference(
+            ScreenProgram.preferenceKey,
+          );
+          if (previous != null) {
+            changes.add(
+              _Change(false, ScreenProgram.preferenceKey, previous, null),
+            );
+          }
+        }
         for (final entry in settings.entries) {
           final previous = await _storage.readPreference(entry.key);
           if (!replace && previous != null) continue;

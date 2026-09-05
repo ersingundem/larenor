@@ -16,7 +16,7 @@ class AudioContractTest {
         }
     }
     private class Owner : AudioOwner {
-        var pauses = 0; var resumes = 0; var stops = 0
+        var pauses = 0; var resumes = 0; var stops = 0; var artworkReads = 0
         val seeks = mutableListOf<Long>()
         var current = AudioSnapshot(phase = "ready", sourceId = "station-one", title = "Station",
             isPlaying = false, positionMs = 1000, durationMs = 10000, canPlay = true,
@@ -26,6 +26,27 @@ class AudioContractTest {
         override fun seek(positionMs: Long) { seeks.add(positionMs) }
         override fun shutdown() { stops++ }
         override fun snapshot() = current
+        override fun artwork(sourceId: String, artworkId: String): Map<String, Any> {
+            artworkReads++
+            return mapOf("bytes" to byteArrayOf(1), "width" to 1, "height" to 1)
+        }
+    }
+
+    @Test fun artworkReadIsBoundToCurrentSourceCoverAndNoPendingReplacement() {
+        val coordinator = AudioCoordinator { 0 }
+        val owner = Owner()
+        owner.current = owner.current.copy(artworkState = "ready", artworkId = "cover-one")
+        coordinator.attach(owner); coordinator.report(owner, owner.current)
+        coordinator.artwork("station-one", "cover-one")
+        assertEquals(1, owner.artworkReads)
+        reject("unavailable") { coordinator.artwork("other-source", "cover-one") }
+        reject("unavailable") { coordinator.artwork("station-one", "old-cover") }
+        coordinator.request(source(), true)
+        reject("unavailable") { coordinator.artwork("station-one", "cover-one") }
+        coordinator.stop()
+        reject("unavailable") { coordinator.artwork("station-one", "cover-one") }
+        assertEquals(1, owner.artworkReads)
+        assertFalse(coordinator.state.toMap().containsKey("bytes"))
     }
 
     @Test fun sourcesRejectCredentialsSchemesMalformedPortsAndPayloads() {

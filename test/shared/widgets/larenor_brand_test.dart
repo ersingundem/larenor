@@ -20,7 +20,7 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    expect(find.text('Larenor'), findsOneWidget);
+    expect(find.text('Larenor Client'), findsOneWidget);
     expect(find.byType(SelectableText), findsOneWidget);
     expect(
       tester.widget<SelectableText>(find.byType(SelectableText)).data,

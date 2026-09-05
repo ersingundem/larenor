@@ -1,0 +1,37 @@
+# Dockerfile-specific allowlist for: docker build -f server/Dockerfile .
+# Only these reviewed inputs enter the build context.
+**
+!LICENSE
+!NOTICE
+!THIRD_PARTY_NOTICES.md
+!server/
+!server/Dockerfile
+!server/pyproject.toml
+!server/uv.lock
+!server/larenor_server/
+!server/larenor_server/**
+!android/
+!android/app/
+!android/app/src/
+!android/app/src/test/
+!android/app/src/test/resources/
+!android/app/src/test/resources/updater/
+!android/app/src/test/resources/updater/LICENSE.apksig
+**/__pycache__/
+**/.git/
+**/.venv/
+**/tests/
+**/data/
+**/secrets/
+**/private/
+**/*.pyc
+**/*.pyo
+**/.env
+**/.env.*
+**/*.key
+**/*.token
+**/*.jks
+**/*.keystore
+**/*.pem
+**/bootstrap-admin.txt
+**/*.sqlite3*

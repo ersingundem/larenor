@@ -126,6 +126,17 @@ Bunlar Larenor için önerilen ürün kabul kurallarıdır:
 - Erişilebilirlik servisi, kullanıcının verdiği görevden bağımsız olarak diğer uygulamalara dokunmak veya sistem izinlerini otomatik onaylamak için kullanılmaz. OS kilidi için DPC yolu tercih edilir.
 - İstatistiklerde URL/query, tuş içeriği, ekran görüntüsü, HA tokenı, konum veya yüz kimliği tutulmaz. Yerel saklama süresi ve dışa aktarma önizlemesi bulunur. Kamera görüntüsü ile tanı raporu ayrı paylaşım işlemleridir.
 
+## Uygulama durumu — 5 Eylül ek dilimi
+
+K03 için tam web kökeni/zoom/metin ölçeği ve paylaşılan site verisi temizleme;
+K04 için açık PIN onaylı kendi paket allowlist/görev kilidi işlemleri; K05 için
+özel, sınırlı yerel fotoğraf koleksiyonu ve aktif videoda idle erteleme; K06 için
+haftalık ekran programı kodlandı. [Panel/medya uygulaması](panel-and-media-implementation-2026-09-05.md)
+ve [DPC kurulumu/kurtarması](kiosk-managed-implementation-2026-09-05.md) kapsamı
+belgeler. Bu işler aşağıdaki satırların bütün kabul kriterlerinin sağlandığı
+anlamına gelmez: DPC/OEM donanım kabulü, ileri tarayıcı işlemleri, video/PDF,
+sensörler ve uzak yönetim açık kalır.
+
 ## Öncelikli iş listesi ve kabul kriterleri
 
 Eforlar tek geliştirici için ilk mühendislik tahminidir: **S ≤2 gün**, **M 3–5 gün**, **L 6–10 gün**, **XL >10 gün**. Gerçek cihaz erişimi, OEM hataları ve mağaza/kurumsal kayıt süreleri dahil değildir. İşler test sonucu görülmeden “tamamlandı” sayılmaz.

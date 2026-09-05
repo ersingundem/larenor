@@ -147,6 +147,12 @@ final routerProvider = Provider<GoRouter>((ref) {
         ),
       ),
       GoRoute(path: '/settings', builder: (_, _) => const SettingsGateScreen()),
+      GoRoute(
+        path: '/settings/client-updates',
+        builder: (_, _) => const SettingsGateScreen(
+          initialDestination: SettingsGateDestination.clientUpdates,
+        ),
+      ),
       GoRoute(path: '/wellbeing', builder: (_, _) => const WellbeingGate()),
     ],
   );

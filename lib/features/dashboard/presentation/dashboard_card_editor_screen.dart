@@ -10,6 +10,8 @@ import '../../wellbeing/providers/wellbeing_privacy_providers.dart';
 import '../../wellbeing/providers/wellbeing_providers.dart';
 import '../domain/dashboard_card_size.dart';
 import '../domain/dashboard_layout.dart';
+import '../domain/tile_config.dart';
+import '../../web_panel/presentation/web_panel_settings_screen.dart';
 import '../providers/dashboard_providers.dart';
 import 'dashboard_card_presentation.dart';
 import 'dashboard_edit_guard.dart';
@@ -38,6 +40,7 @@ class _DashboardCardEditorScreenState
   bool _busy = false;
   String? _message;
   Route<DashboardCardSize?>? _sizeRoute;
+  Route<TileConfig>? _webRoute;
 
   @override
   void invalidateDashboardInteraction() {
@@ -45,6 +48,9 @@ class _DashboardCardEditorScreenState
     final route = _sizeRoute;
     _sizeRoute = null;
     if (route?.isActive == true) route!.navigator?.removeRoute(route);
+    final webRoute = _webRoute;
+    _webRoute = null;
+    if (webRoute?.isActive == true) webRoute!.navigator?.removeRoute(webRoute);
   }
 
   Future<void> _change(Future<void> Function() change, int generation) async {
@@ -160,6 +166,32 @@ class _DashboardCardEditorScreenState
           );
       }
     }, generation);
+  }
+
+  Future<void> _webSettings(TileConfig tile, int generation) async {
+    if (_busy ||
+        _webRoute != null ||
+        _sizeRoute != null ||
+        !interactionCurrent(generation)) {
+      return;
+    }
+    final route = CupertinoPageRoute<TileConfig>(
+      builder: (_) => WebPanelSettingsScreen(initialTile: tile),
+    );
+    _webRoute = route;
+    final updated = await pushDashboardPage(route);
+    if (identical(_webRoute, route)) _webRoute = null;
+    if (updated == null || !interactionCurrent(generation)) return;
+    await _change(
+      () => ref
+          .read(dashboardLayoutProvider.notifier)
+          .updateTile(
+            updated,
+            expectedTile: tile,
+            isCurrent: () => interactionCurrent(generation),
+          ),
+      generation,
+    );
   }
 
   @override
@@ -324,6 +356,21 @@ class _DashboardCardEditorScreenState
                                         crossAxisAlignment:
                                             WrapCrossAlignment.center,
                                         children: [
+                                          if (tile?.type == TileType.webview)
+                                            CupertinoButton(
+                                              key: ValueKey(
+                                                'dashboard-web-settings-$id',
+                                              ),
+                                              onPressed: _busy
+                                                  ? null
+                                                  : () => _webSettings(
+                                                      tile!,
+                                                      generation,
+                                                    ),
+                                              child: Text(
+                                                l10n.webPanelSettings,
+                                              ),
+                                            ),
                                           CupertinoButton(
                                             key: ValueKey(
                                               'dashboard-edit-size-$id',

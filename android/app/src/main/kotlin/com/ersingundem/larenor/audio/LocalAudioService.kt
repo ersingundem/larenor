@@ -8,9 +8,7 @@ import android.os.Process
 import android.os.SystemClock
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
-import androidx.media3.common.ForwardingPlayer
 import androidx.media3.common.MediaItem
-import androidx.media3.common.MediaMetadata
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
@@ -26,6 +24,10 @@ import androidx.media3.session.SessionResult
 import com.ersingundem.larenor.MainActivity
 import com.google.common.util.concurrent.Futures
 import com.google.common.util.concurrent.ListenableFuture
+import java.util.concurrent.ThreadPoolExecutor
+import java.util.concurrent.ArrayBlockingQueue
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.Future
 
 object LocalAudioRuntime {
     val coordinator = AudioCoordinator(SystemClock::elapsedRealtime)
@@ -51,6 +53,9 @@ class LocalAudioService : MediaSessionService(), AudioOwner {
     private val coordinator get() = LocalAudioRuntime.coordinator
     private val transport = SafeAudioHttp.client()
     private var lastFailure: String? = null
+    private val artwork = AudioArtworkState()
+    private val artworkWorker = ThreadPoolExecutor(1, 1, 0, TimeUnit.MILLISECONDS, ArrayBlockingQueue<Runnable>(1))
+    private var artworkJob: Future<*>? = null
 
     override fun onCreate() {
         super.onCreate()
@@ -102,22 +107,28 @@ class LocalAudioService : MediaSessionService(), AudioOwner {
                 shutdown()
             }
         })
-        val exposedPlayer = object : ForwardingPlayer(player) {
-            override fun stop() { coordinator.stop() }
-            override fun play() {
-                if (source != null && !releasing) this@LocalAudioService.resume()
+        val exposedPlayer = object : SelectedAudioPlayer(player, {
+            source?.let { current ->
+                MediaItem.Builder().setMediaId(current.id)
+                    .setMediaMetadata(selectedAudioMetadata(current, artwork.artwork)).build()
             }
-            override fun pause() {
-                if (source != null && !releasing) this@LocalAudioService.pause()
+        }) {
+            override fun handleStop(): ListenableFuture<*> {
+                coordinator.stop()
+                return Futures.immediateVoidFuture()
             }
-            override fun setPlayWhenReady(value: Boolean) {
-                if (value) play() else pause()
+            override fun handleSetPlayWhenReady(value: Boolean): ListenableFuture<*> {
+                if (source != null && !releasing) {
+                    if (value) this@LocalAudioService.resume() else this@LocalAudioService.pause()
+                }
+                return Futures.immediateVoidFuture()
             }
         }
         val activity = PendingIntent.getActivity(this, 0,
             Intent(this, MainActivity::class.java), PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
         session = MediaSession.Builder(this, exposedPlayer)
             .setSessionActivity(activity)
+            .setBitmapLoader(SelectedAudioBitmapLoader(artwork))
             .setCallback(object : MediaSession.Callback {
                 override fun onConnectAsync(session: MediaSession, controller: MediaSession.ControllerInfo): ListenableFuture<MediaSession.ConnectionResult> {
                     if (!allowed(session, controller)) return Futures.immediateFuture(MediaSession.ConnectionResult.reject())
@@ -160,17 +171,35 @@ class LocalAudioService : MediaSessionService(), AudioOwner {
             if (next != null) {
                 replacing = true
                 source = next
+                artworkJob?.cancel(true)
+                artworkWorker.purge()
+                val artworkTicket = artwork.begin(next.id, next.artworkBytes != null)
                 lastFailure = null
                 player.stop()
                 player.clearMediaItems()
-                val metadata = MediaMetadata.Builder().setTitle(next.title).setArtist(next.artist)
-                    .setAlbumTitle(next.album).setIsBrowsable(false).setIsPlayable(true).build()
+                val metadata = selectedAudioMetadata(next, null)
                 player.setMediaItem(MediaItem.Builder().setMediaId(next.id).setUri(next.uri.toString())
                     .setMimeType(next.mimeType).setMediaMetadata(metadata).build())
                 player.prepare()
                 player.play()
                 replacing = false
                 publish()
+                next.artworkBytes?.let { bytes ->
+                    artworkJob = artworkWorker.submit {
+                        val prepared = try { AudioArtwork.prepare(bytes) } catch (_: Exception) { null }
+                        handler.post {
+                            if (!releasing && source === next && artwork.complete(artworkTicket, prepared)) {
+                                val current = player.currentMediaItem
+                                if (current != null && current.mediaId == next.id) {
+                                    val updated = selectedAudioMetadata(next, prepared)
+                                    player.replaceMediaItem(player.currentMediaItemIndex,
+                                        current.buildUpon().setMediaMetadata(updated).build())
+                                }
+                                publish()
+                            }
+                        }
+                    }
+                }
             } else if (source == null) shutdown()
         } else if (intent != null && source != null) {
             // The service is exported for real media controllers; malformed
@@ -198,9 +227,12 @@ class LocalAudioService : MediaSessionService(), AudioOwner {
             canPlay = usable && (!player.playWhenReady || player.playbackState == Player.STATE_ENDED),
             canPause = usable && player.playWhenReady && player.playbackState != Player.STATE_ENDED,
             canSeek = usable && duration != null && player.isCurrentMediaItemSeekable,
-            canStop = !releasing, failure = lastFailure)
+            canStop = !releasing, failure = lastFailure,
+            artworkState = if (lastFailure == null) artwork.phase else "none",
+            artworkId = if (lastFailure == null) artwork.artworkId else null)
     }
 
+    override fun artwork(sourceId: String, artworkId: String) = artwork.read(sourceId, artworkId)
     private fun publish() { coordinator.report(this, snapshot()) }
     override fun pause() { player.pause(); publish() }
     override fun resume() {
@@ -212,6 +244,9 @@ class LocalAudioService : MediaSessionService(), AudioOwner {
         if (releasing) return
         releasing = true
         handler.removeCallbacksAndMessages(null)
+        artwork.clear()
+        artworkJob?.cancel(true)
+        artworkWorker.shutdownNow()
         player.stop()
         player.clearMediaItems()
         session?.let { removeSession(it); it.release() }

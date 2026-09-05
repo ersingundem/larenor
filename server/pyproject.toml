@@ -1,0 +1,32 @@
+[project]
+name = "larenor-server"
+version = "0.1.0"
+license = "AGPL-3.0-only"
+description = "Private Larenor account and encrypted configuration service"
+requires-python = ">=3.12,<3.15"
+dependencies = [
+  "fastapi==0.141.1",
+  "uvicorn==0.52.4",
+  "argon2-cffi==25.1.0",
+  "cryptography==50.0.1",
+]
+
+[dependency-groups]
+dev = [
+  "httpx==0.28.1",
+  "pytest==9.1.1",
+]
+
+[project.scripts]
+larenor-server = "larenor_server.cli:main"
+
+[build-system]
+requires = ["hatchling==1.29.0"]
+build-backend = "hatchling.build"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+
+[project.urls]
+Source = "https://github.com/ersingundem/larenor"

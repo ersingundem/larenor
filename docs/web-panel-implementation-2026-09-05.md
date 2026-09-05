@@ -59,3 +59,14 @@ Sonraki tarayıcı dilimi: açık ek köken yönetimi, izinli harici giriş akı
 etkilenen bütün web oturumlarını belirten temizleme, native renderer kurtarma ve
 oturum izolasyonu. Huawei'nin gerçek WebView sürümü, iOS upload ve servis-worker
 ömrü cihaz kabulünde sınanmalıdır. [Tam kiosk planı](kiosk-capabilities-research-2026-09-05.md).
+
+## Aynı gün eklenen kart ve veri yönetimi
+
+Kart seçici/düzenleyicisinde `WebPanelOptions` artık tam köken izinleri,
+yakınlaştırma ve Android metin ölçeğini saklar; dashboard/şifreli kasa doğrulaması
+aynı şemayı kullanır. Ayarlar'daki web verisi temizliği güncel PIN doğrulamasıyla
+bütün renderer'ları durdurur; gecikmiş native boşaltma işlemleri de ortak bariyere
+dahildir. Hata halinde temizlenmiş varsayılmaz ve eski renderer yeniden açılmaz.
+Bu katman çerez/local storage/cache temizler; bütün site veritabanlarını veya
+sunucu oturumlarını silme garantisi vermez. Ayrıntılar ve test dosyaları
+[panel geliştirmeleri belgesinde](panel-and-media-implementation-2026-09-05.md).

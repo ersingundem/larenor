@@ -11,12 +11,30 @@ class WebOrigin {
   final int port;
 
   static WebOrigin? parse(String url) {
+    final rawAuthority = RegExp(
+      r'^https?://([^/?#]*)',
+      caseSensitive: false,
+    ).firstMatch(url)?.group(1);
+    if (rawAuthority == null || rawAuthority.contains('%')) return null;
     final valid = dashboardWebsiteUrl(url);
     if (valid == null) return null;
     final uri = Uri.parse(valid);
     // Reject encoded authorities rather than guessing how WebView decodes them.
-    if (uri.authority.contains('%')) return null;
+    if (uri.authority.contains('%') || uri.host.contains('*')) return null;
     return WebOrigin._(uri.scheme, uri.host.toLowerCase(), uri.port);
+  }
+
+  /// User grants must name only a whole origin, never a path or OAuth query.
+  static WebOrigin? parseExact(String url) {
+    final origin = parse(url);
+    if (origin == null) return null;
+    final uri = Uri.parse(url);
+    if ((uri.path.isNotEmpty && uri.path != '/') ||
+        uri.hasQuery ||
+        uri.hasFragment) {
+      return null;
+    }
+    return origin;
   }
 
   /// Contains no path, query, username or fragment.

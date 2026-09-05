@@ -1,0 +1,116 @@
+from typing import Annotated, Iterable
+
+from fastapi import APIRouter, Depends, FastAPI, Request, Response
+from fastapi.exceptions import RequestValidationError
+from starlette.exceptions import HTTPException
+from starlette.responses import JSONResponse
+
+from .admin.api import router as admin_router
+from .auth import Principal
+from .boundary import SafeBoundaryMiddleware
+from .config import Settings
+from .core import CoreServices
+from .dependencies import get_core, require_admin, require_ready_user, require_user
+from .errors import ApiError, StartupError, error_body
+from .legal import SourceInformation, SourceResponse, server_version
+from .models import (ErrorResponse, HealthResponse, LoginRequest, LogoutRequest,
+                     PasswordRequest, RefreshRequest, SessionPair, UserResponse,
+                     VaultRequest, VaultResponse)
+
+
+Core = Annotated[CoreServices, Depends(get_core)]
+User = Annotated[Principal, Depends(require_user)]
+ReadyUser = Annotated[Principal, Depends(require_ready_user)]
+Admin = Annotated[Principal, Depends(require_admin)]
+
+
+def create_app(settings: Settings, *, routers: Iterable[APIRouter] = (),
+               source: SourceInformation | None = None) -> FastAPI:
+    source = source or SourceInformation.from_environment()
+    app = FastAPI(title="Larenor Server", version=server_version(), docs_url=None,
+                  redoc_url=None, openapi_url=None,
+                  license_info={"name": "GNU Affero General Public License v3.0 only",
+                                "identifier": "AGPL-3.0-only"})
+    app.state.core = CoreServices(settings)
+    app.add_middleware(SafeBoundaryMiddleware)
+
+    @app.exception_handler(ApiError)
+    async def api_error(_request, error):
+        return JSONResponse(error_body(error.code), status_code=error.status)
+
+    @app.exception_handler(RequestValidationError)
+    async def validation_error(_request, _error):
+        return JSONResponse(error_body("invalid_request"), status_code=400)
+
+    @app.exception_handler(HTTPException)
+    async def http_error(_request, error):
+        code = {404: "not_found", 405: "method_not_allowed"}.get(error.status_code, "invalid_request")
+        return JSONResponse(error_body(code), status_code=error.status_code)
+
+    router = APIRouter(prefix="/api/v1", responses={
+        400: {"model": ErrorResponse, "description": "Invalid request or password policy"},
+        401: {"model": ErrorResponse, "description": "Invalid credentials or expired/revoked session"},
+        403: {"model": ErrorResponse, "description": "password_change_required or insufficient role"},
+        408: {"model": ErrorResponse, "description": "Request body timeout"},
+        409: {"model": ErrorResponse, "description": "Vault revision_conflict"},
+        413: {"model": ErrorResponse, "description": "Bounded request size exceeded"},
+        429: {"model": ErrorResponse, "description": "Authentication rate/concurrency limit"},
+        503: {"model": ErrorResponse, "description": "Storage or service temporarily unavailable"},
+    })
+
+    @router.get("/health", tags=["Health"], response_model=HealthResponse)
+    def health():
+        return {"service": "larenor-server", "apiVersion": 1}
+
+    @router.get("/source", tags=["Source and license"], response_model=SourceResponse)
+    def source_information():
+        return source.response()
+
+    @router.post("/auth/login", tags=["Authentication"], response_model=SessionPair)
+    def login(body: LoginRequest, request: Request, core: Core):
+        peer = request.client.host if request.client else "unknown"
+        return core.auth.login(body.username, body.password, body.deviceName, peer)
+
+    @router.post("/auth/refresh", tags=["Authentication"], response_model=SessionPair)
+    def refresh(body: RefreshRequest, request: Request, core: Core):
+        peer = request.client.host if request.client else "unknown"
+        return core.auth.refresh(body.refreshToken, peer)
+
+    @router.post("/auth/logout", status_code=204, tags=["Authentication"])
+    def logout(principal: User, core: Core, body: LogoutRequest | None = None):
+        core.auth.logout(principal, body.refreshToken if body else None)
+        return Response(status_code=204)
+
+    @router.get("/auth/me", tags=["Authentication"], response_model=UserResponse)
+    def me(principal: User):
+        return {"user": principal.public_user()}
+
+    @router.post("/auth/password", tags=["Authentication"], response_model=SessionPair)
+    def password(body: PasswordRequest, principal: User, core: Core):
+        pair = core.auth.change_password(principal, body.currentPassword, body.newPassword)
+        try:
+            core.clear_inactive_bootstrap()
+        except (OSError, StartupError):
+            # The old bootstrap password is already invalid. Retry cleanup on
+            # restart; never turn a committed password change into a lost pair.
+            core.bootstrap_cleanup_pending = True
+        return pair
+
+    @router.get("/vault", tags=["Configuration vault"], response_model=VaultResponse)
+    def get_vault(principal: ReadyUser, core: Core):
+        return core.vault.get(principal)
+
+    @router.put("/vault", tags=["Configuration vault"], response_model=VaultResponse)
+    def put_vault(body: VaultRequest, principal: ReadyUser, core: Core):
+        return core.vault.put(principal, body.expectedRevision, body.document)
+
+    @router.get("/openapi.json", include_in_schema=False)
+    def protected_openapi(_principal: Admin):
+        return app.openapi()
+
+    app.include_router(router)
+    app.include_router(admin_router, prefix="/api/v1")
+    for extension in routers:
+        # Only routers supplied by trusted, packaged server code are supported.
+        app.include_router(extension, prefix="/api/v1")
+    return app

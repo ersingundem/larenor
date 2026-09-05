@@ -48,14 +48,23 @@ class DashboardLayoutNotifier extends _$DashboardLayoutNotifier {
       tiles: current.tiles.where((t) => t.id != id).toList(),
     ),
   );
-  Future<void> updateTile(TileConfig tile) => _mutate(
-    (current) => current.copyWith(
+  Future<void> updateTile(
+    TileConfig tile, {
+    TileConfig? expectedTile,
+    bool Function()? isCurrent,
+  }) => _mutate((current) {
+    if (expectedTile != null &&
+        current.tiles.where((t) => t.id == tile.id).firstOrNull !=
+            expectedTile) {
+      throw const RoomAreaSyncException('layout_changed');
+    }
+    return current.copyWith(
       tiles: [
         for (final t in current.tiles)
           if (t.id == tile.id) tile else t,
       ],
-    ),
-  );
+    );
+  }, isCurrent: isCurrent);
 
   Future<void> renameEntityReferences(
     String oldId,

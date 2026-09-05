@@ -1,7 +1,7 @@
 name: larenor
-description: "A private, proprietary Home Assistant companion app."
+description: "Larenor Client: an Android smart home and media app with Larenor Server."
 # The following line prevents the package from being accidentally published to
-# pub.dev using `flutter pub publish`. This is preferred for private packages.
+# pub.dev using `flutter pub publish`. This is an application, not a package.
 publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 
 # The following defines the version and build number for your application.
@@ -58,6 +58,7 @@ dependencies:
   media_kit_video: ^2.0.1
   media_kit_libs_video: ^1.0.7
   file_picker: ^12.1.2
+  path_provider: ^2.1.6
   crypto: ^3.0.7
   network_info_plus: ^8.2.1
   cached_network_image: ^4.0.0
@@ -66,6 +67,8 @@ dependencies:
 
 dev_dependencies:
   fake_async: ^1.3.3
+  integration_test:
+    sdk: flutter
   flutter_test:
     sdk: flutter
 
@@ -86,7 +89,7 @@ dev_dependencies:
 # changing assets/icon/*.png to regenerate every platform size.
 flutter_launcher_icons:
   android: true
-  ios: true
+  ios: false
   image_path: "assets/icon/app_icon.png"
   # Android adaptive/themed icons use native vectors in res/drawable.
   # Keep the hand-authored mipmap-anydpi-v26/ic_launcher.xml when regenerating.
@@ -123,11 +126,17 @@ flutter:
   # lib/features/proxmox/presentation/console/. Flutter asset directories
   # aren't recursive, so every subdirectory needs its own entry.
   assets:
+    - LICENSE
+    - NOTICE
+    - THIRD_PARTY_NOTICES.md
+    - assets/licenses/
     - assets/icon/app_icon.png
     - assets/brand_icons/
     - assets/fonts/OFL.txt
     - assets/console/
     - assets/console/novnc/
+    - assets/console/novnc/docs/
+    - assets/console/novnc/vendor/pako/LICENSE
     - assets/console/novnc/core/
     - assets/console/novnc/core/crypto/
     - assets/console/novnc/core/decoders/

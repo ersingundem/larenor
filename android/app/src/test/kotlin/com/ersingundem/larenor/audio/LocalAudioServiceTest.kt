@@ -4,6 +4,9 @@ import android.app.Application
 import android.app.Service
 import android.content.Intent
 import androidx.media3.common.C
+import androidx.media3.common.MediaItem
+import androidx.media3.common.MediaMetadata
+import android.net.Uri
 import org.junit.After
 import org.junit.Assert.*
 import org.junit.Test
@@ -38,6 +41,26 @@ class LocalAudioServiceTest {
             assertTrue(actual.sessions.isEmpty())
             assertTrue(Shadows.shadowOf(actual).isStoppedBySelf)
             assertEquals("idle", LocalAudioRuntime.coordinator.state.phase)
+        } finally { service.destroy() }
+    }
+
+    @Test fun actualSessionCannotExposeUnselectedEmbeddedArtworkOrMetadataUrl() {
+        val service = Robolectric.buildService(LocalAudioService::class.java).create()
+        try {
+            val session = service.get().sessions.single()
+            // No prepare/play: exercise the real MediaSession's public metadata
+            // projection without opening any socket or starting audio.
+            session.player.setMediaItem(MediaItem.Builder().setMediaId("opaque")
+                .setUri("https://fixture.invalid/audio")
+                .setMediaMetadata(MediaMetadata.Builder().setTitle("unselected stream tag")
+                    .setArtworkUri(Uri.parse("https://example/private?token=secret"))
+                    .setArtworkData(byteArrayOf(1, 2, 3), MediaMetadata.PICTURE_TYPE_FRONT_COVER).build()).build())
+            assertNull(session.player.mediaMetadata.artworkUri)
+            assertNull(session.player.mediaMetadata.artworkData)
+            assertNull(session.player.mediaMetadata.title)
+            try { session.bitmapLoader.loadBitmap(Uri.parse("https://example/image")).get(); fail() }
+            catch (_: java.util.concurrent.ExecutionException) { }
+            assertNull(Shadows.shadowOf(service.get()).lastForegroundNotification)
         } finally { service.destroy() }
     }
 
