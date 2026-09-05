@@ -67,7 +67,11 @@ jobs:
           ram-size: 2048M
           disk-size: 3072M
           emulator-boot-timeout: 300
-          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -camera-back none -camera-front none
+          # swiftshader_indirect is deprecated since Emulator 36.4.9. Let the
+          # current emulator choose its supported software backend; retain the
+          # app's real renderer and all UI assertions.
+          # https://developer.android.com/studio/run/emulator-acceleration
+          emulator-options: -no-window -gpu software -no-snapshot -noaudio -no-boot-anim -camera-back none -camera-front none
           disable-animations: true
           disable-spellchecker: true
           disable-linux-hw-accel: false

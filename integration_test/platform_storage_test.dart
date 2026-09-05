@@ -142,8 +142,21 @@ void main() {
 
       // Read-only: no prepare/execute, startLockTask, allowlist, admin enrollment,
       // profile change, permission request, or power setting is invoked.
-      final kiosk = await AndroidKioskApi().snapshot();
-      final window = await WindowPolicyBridge().snapshot();
+      var kiosk = await AndroidKioskApi().snapshot();
+      var window = await WindowPolicyBridge().snapshot();
+      // Flutter settling does not establish native window focus: the Android
+      // activity can still be receiving its focus callback after launch. Wait
+      // for that observable state, then keep every foreground assertion below.
+      final focusDeadline = DateTime.now().add(const Duration(seconds: 5));
+      while ((!kiosk.resumed ||
+              !kiosk.focused ||
+              !window.isResumed ||
+              !window.hasWindowFocus) &&
+          DateTime.now().isBefore(focusDeadline)) {
+        await tester.pump(const Duration(milliseconds: 100));
+        kiosk = await AndroidKioskApi().snapshot();
+        window = await WindowPolicyBridge().snapshot();
+      }
       expect(kiosk.supported, isTrue);
       expect(kiosk.deviceOwner, isFalse);
       expect(kiosk.permitted, isFalse);
