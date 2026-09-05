@@ -109,3 +109,11 @@ def test_shared_contract_preserves_visible_acl_and_pagination():
     assert fixture['otherContextList']['scope'] != first['scope']
     assert len(fixture['unicodeRecord']['record']['label']) == 80
 
+
+def test_other_core_labels_make_wrong_scope_rendering_observable():
+    fixture = json.loads(FIXTURE.read_text())
+    original = fixture['memberList']['entries']
+    other = fixture['otherContextList']['entries']
+    # Identical resource IDs are intentional: Core/home is part of identity.
+    assert [r['ref']['id'] for r in original] == [r['ref']['id'] for r in other]
+    assert {r['label'] for r in original}.isdisjoint(r['label'] for r in other)
