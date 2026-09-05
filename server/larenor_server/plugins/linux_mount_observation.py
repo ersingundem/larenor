@@ -147,8 +147,9 @@ def parse_mountinfo(data):
     seen = set()
     for line in _lines(data, MAX_MOUNTINFO_BYTES, MAX_MOUNT_ROWS):
         fields = line.split(b' ')
-        _require(all(fields) and fields.count(b'-') == 1)
-        separator = fields.index(b'-')
+        # The source after the separator may itself be the literal "-".
+        _require(all(fields) and b'-' in fields[6:])
+        separator = fields.index(b'-', 6)
         _require(separator >= 6 and len(fields) == separator + 4)
         mount_id, parent_id = _number(fields[0]), _number(fields[1])
         _require(mount_id not in seen)
