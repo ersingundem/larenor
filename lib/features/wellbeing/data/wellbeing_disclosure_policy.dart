@@ -96,27 +96,33 @@ final wellbeingDisclosureProvider =
 class WellbeingDisclosureNotifier
     extends AsyncNotifier<WellbeingDisclosurePolicy> {
   @override
-  Future<WellbeingDisclosurePolicy> build() =>
-      ref.watch(wellbeingDisclosureStoreProvider).read();
+  Future<WellbeingDisclosurePolicy> build() {
+    final store = ref.watch(wellbeingDisclosureStoreProvider);
+    return ConfigurationWrites.run(store.read);
+  }
+
   Future<void> save(
     WellbeingDisclosurePolicy policy, {
     required bool Function() isCurrent,
-  }) => ConfigurationWrites.run(() async {
-    bool current() => ref.mounted && isCurrent();
-    requireCurrentWellbeingAction(current);
-    state = const AsyncLoading();
-    try {
-      await ref
-          .read(wellbeingDisclosureStoreProvider)
-          .save(policy, isCurrent: current);
+  }) {
+    final captured = ref;
+    return ConfigurationWrites.run(() async {
+      bool current() => captured.mounted && isCurrent();
       requireCurrentWellbeingAction(current);
-      state = AsyncData(policy);
-    } catch (error) {
-      final failure = error is WellbeingException
-          ? error
-          : const WellbeingException(WellbeingFailure.storageFailed);
-      if (ref.mounted) state = AsyncError(failure, StackTrace.empty);
-      throw failure;
-    }
-  });
+      state = const AsyncLoading();
+      try {
+        await captured
+            .read(wellbeingDisclosureStoreProvider)
+            .save(policy, isCurrent: current);
+        requireCurrentWellbeingAction(current);
+        state = AsyncData(policy);
+      } catch (error) {
+        final failure = error is WellbeingException
+            ? error
+            : const WellbeingException(WellbeingFailure.storageFailed);
+        if (captured.mounted) state = AsyncError(failure, StackTrace.empty);
+        throw failure;
+      }
+    });
+  }
 }

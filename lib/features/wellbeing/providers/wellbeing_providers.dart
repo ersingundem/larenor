@@ -23,44 +23,54 @@ final wellbeingSettingsProvider =
 
 class WellbeingSettingsNotifier extends AsyncNotifier<WellbeingSettings> {
   @override
-  Future<WellbeingSettings> build() => ref.watch(wellbeingStoreProvider).read();
+  Future<WellbeingSettings> build() {
+    final store = ref.watch(wellbeingStoreProvider);
+    // Invalidation cannot confirm old privacy while a dispatched write is
+    // unresolved. Keep the filter loading until the serialized fresh read.
+    return ConfigurationWrites.run(store.read);
+  }
+
   Future<void> _mutate(
     WellbeingSettings value,
-    Future<void> Function(bool Function()) write,
+    Future<void> Function(Ref, bool Function()) write,
     bool Function() isCurrent,
-  ) => ConfigurationWrites.run(() async {
-    bool current() => ref.mounted && isCurrent();
-    // A stale invocation must not disturb a newer confirmed state.
-    requireCurrentWellbeingAction(current);
-    state = const AsyncLoading();
-    try {
-      await write(current);
+  ) {
+    final captured = ref;
+    return ConfigurationWrites.run(() async {
+      bool current() => captured.mounted && isCurrent();
+      // A stale invocation must not disturb a newer confirmed state.
       requireCurrentWellbeingAction(current);
-      state = AsyncData(value);
-    } catch (error) {
-      final failure = error is WellbeingException
-          ? error
-          : const WellbeingException(WellbeingFailure.storageFailed);
-      // The write may already have taken effect. Only an explicit local reread
-      // can confirm the stored privacy policy; do not retry or roll it back.
-      if (ref.mounted) state = AsyncError(failure, StackTrace.empty);
-      throw failure;
-    }
-  });
+      state = const AsyncLoading();
+      try {
+        await write(captured, current);
+        requireCurrentWellbeingAction(current);
+        state = AsyncData(value);
+      } catch (error) {
+        final failure = error is WellbeingException
+            ? error
+            : const WellbeingException(WellbeingFailure.storageFailed);
+        // The write may already have taken effect. Only an explicit local reread
+        // can confirm the stored privacy policy; do not retry or roll it back.
+        if (captured.mounted) state = AsyncError(failure, StackTrace.empty);
+        throw failure;
+      }
+    });
+  }
 
   Future<void> save(
     WellbeingSettings value, {
     required bool Function() isCurrent,
   }) => _mutate(
     value,
-    (current) =>
-        ref.read(wellbeingStoreProvider).save(value, isCurrent: current),
+    (captured, current) =>
+        captured.read(wellbeingStoreProvider).save(value, isCurrent: current),
     isCurrent,
   );
 
   Future<void> clear({required bool Function() isCurrent}) => _mutate(
     WellbeingSettings(),
-    (current) => ref.read(wellbeingStoreProvider).clear(isCurrent: current),
+    (captured, current) =>
+        captured.read(wellbeingStoreProvider).clear(isCurrent: current),
     isCurrent,
   );
 }

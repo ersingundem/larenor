@@ -24,7 +24,7 @@ final ambientSettingsProvider =
 
 class AmbientSettingsNotifier extends AsyncNotifier<AmbientSettings> {
   @override
-  Future<AmbientSettings> build() async {
+  Future<AmbientSettings> build() => ConfigurationWrites.run(() async {
     try {
       final prefs = await SharedPreferences.getInstance();
       // Legacy SharedPreferences updates its cache before platform success.
@@ -37,11 +37,11 @@ class AmbientSettingsNotifier extends AsyncNotifier<AmbientSettings> {
     } catch (_) {
       throw const AmbientException();
     }
-  }
+  });
 
-  bool _current(bool Function() isCurrent) {
+  bool _current(Ref captured, bool Function() isCurrent) {
     try {
-      return ref.mounted && isCurrent();
+      return captured.mounted && isCurrent();
     } catch (_) {
       throw const AmbientException();
     }
@@ -50,24 +50,27 @@ class AmbientSettingsNotifier extends AsyncNotifier<AmbientSettings> {
   Future<void> set(
     AmbientSettings settings, {
     required bool Function() isCurrent,
-  }) => ConfigurationWrites.run(() async {
-    if (!_current(isCurrent)) return;
-    final raw = settings.encode();
-    AmbientSettings.decode(raw);
-    state = const AsyncLoading();
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      if (!_current(isCurrent)) throw const AmbientException();
-      if (!await prefs.setString(AmbientSettings.preferenceKey, raw)) {
+  }) {
+    final captured = ref;
+    return ConfigurationWrites.run(() async {
+      if (!_current(captured, isCurrent)) return;
+      final raw = settings.encode();
+      AmbientSettings.decode(raw);
+      state = const AsyncLoading();
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        if (!_current(captured, isCurrent)) throw const AmbientException();
+        if (!await prefs.setString(AmbientSettings.preferenceKey, raw)) {
+          throw const AmbientException();
+        }
+        if (!_current(captured, isCurrent)) throw const AmbientException();
+        state = AsyncData(settings);
+      } catch (_) {
+        if (captured.mounted) {
+          state = AsyncError(const AmbientException(), StackTrace.empty);
+        }
         throw const AmbientException();
       }
-      if (!_current(isCurrent)) throw const AmbientException();
-      state = AsyncData(settings);
-    } catch (_) {
-      if (ref.mounted) {
-        state = AsyncError(const AmbientException(), StackTrace.empty);
-      }
-      throw const AmbientException();
-    }
-  });
+    });
+  }
 }
