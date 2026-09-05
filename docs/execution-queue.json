@@ -376,9 +376,26 @@
         "review",
         "ci"
       ],
-      "evidence": [],
+      "evidence": [
+        {
+          "kind": "test",
+          "ref": "docs/native-identity-observation-implementation-2026-09-05.md",
+          "commit": "3dde2f8b73763741f6d87f903eba6ef7da9f7f91",
+          "state": "completed",
+          "result": "passed",
+          "label": "Salt okunur kimlik gözlemi: 2704 Linux test, sıfır skip; S06.3d tamamlanması değildir."
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/33988283387",
+          "commit": "3dde2f8b73763741f6d87f903eba6ef7da9f7f91",
+          "state": "completed",
+          "result": "passed",
+          "label": "Kimlik temeli ve iki mimarili Core hazırlık smoke geçti; gerçek appdata kurulumu açık."
+        }
+      ],
       "completionCommit": null,
-      "reason": "33cf1d9 salt okunur native kimlik modülü 81caaf2 main içinde: 194 odaklı geçti/3 Linux skip, 577 regresyon/4 skip, %98 coverage ve iki bağımsız review. 5fecbfc üzerinde tam Server 2.695 geçti/9 Linux skip (199,66s). Gerçek socket→pidfd→proc→map birleşimi yeni Linux CI bekliyor. Supervisor/remap-disabled grant ve create/publish hâlâ açık."
+      "reason": "33cf1d9 kimlik gözlemi main içinde; 3dde2f8 Linux CI 2.704 atlamasız test ve gerçek socket/pidfd/thread kimliği geçti. Salt okunur exact-root resolver codex/native-appdata-root-observation dalında taban4ba7024, RED b44dd5e ile sürüyor. Supervisor, remap-disabled başlangıç kanıtı, gerçek issuer ve create/publish açık; bu dilim yazma yetkisi değildir."
     },
     {
       "id": "S06.3e",
@@ -835,7 +852,7 @@
       "kind": "task",
       "parent": "S08",
       "title": "Provider, route ve callback kapsam sınırı",
-      "status": "in_progress",
+      "status": "awaiting_ci",
       "dependsOn": [
         "S08.2"
       ],
@@ -844,7 +861,8 @@
         "docs/remaining-core-integration-slices.md",
         "docs/feature-expansion-plan-2026-09-05.md",
         "docs/integrated-media-stack.md",
-        "docs/client-home-scope-plan-2026-09-05.md"
+        "docs/client-home-scope-plan-2026-09-05.md",
+        "docs/client-home-session-scope-implementation-2026-09-05.md"
       ],
       "scope": "Tek mevcut ev bağlamı; F19 çoklu Core/ev federasyonu bu teslim değildir.",
       "acceptance": [
@@ -855,9 +873,26 @@
         "review",
         "ci"
       ],
-      "evidence": [],
+      "evidence": [
+        {
+          "kind": "test",
+          "ref": "docs/client-home-session-scope-implementation-2026-09-05.md",
+          "commit": "8cc4665b2076cb80ad891bef10cf82931611ed7d",
+          "state": "completed",
+          "result": "passed",
+          "label": "Birleşik main 2815 Flutter PASS; yeni modüller262/264 satır kapsamı, 50 odaklı/1093 ilgili PASS."
+        },
+        {
+          "kind": "review",
+          "ref": "docs/client-home-session-scope-implementation-2026-09-05.md",
+          "commit": "8cc4665b2076cb80ad891bef10cf82931611ed7d",
+          "state": "completed",
+          "result": "passed",
+          "label": "Bağımsız kaynak/hesap/PIN/route/container ve E2E harness incelemesi temiz; fiziksel kabul ayrı."
+        }
+      ],
       "completionCommit": null,
-      "reason": "S08.2 19dbcbe tam CI/APK91 ile kabul edildi. İzole codex/client-home-session-scope: store43ea7cf 22 test; runtime0ceb1a0 ilk GREEN. Gerçek hesap ekranı, aynı bağlam/ev değişimi, restore ve ortak ayarlar regresyonları sürüyor; main içinde değil."
+      "reason": "10d3eb1→4ba7024 main içinde. Kalıcı direct/Core seçimi, parentless runtime, account/tema/güç/PIN sahipliği, kaynak/ev değişiminde route/REST/WS/callback ve idle veri sınırı uygulandı. 50 odaklı, 1093 ilgili ve birleşik8cc4665 tam2815 test geçti; inceleme temiz. Gerçek production harness ve yeni beşinci uygulama yolculuğuyla toplam9 E2E yeni kaynak CI kapısını bekliyor; eski3dde8E2E bu teslimi kapsamaz."
     },
     {
       "id": "S08.4",
@@ -1208,7 +1243,8 @@
         "docs/feature-expansion-plan-2026-09-05.md",
         "docs/product-implementation-plan-2026-09-05.md",
         "docs/tablet-navigation-implementation-2026-09-05.md",
-        "docs/tablet-settings-accessibility-implementation-2026-09-05.md"
+        "docs/tablet-settings-accessibility-implementation-2026-09-05.md",
+        "docs/tablet-dashboard-accessibility-implementation-2026-09-05.md"
       ],
       "scope": "Son bütün ekran tasarım geçişi değildir; Core’suz kişisel uzak bağlantı için Core bağımlılığı koymaz.",
       "acceptance": [
@@ -1227,10 +1263,34 @@
           "state": "completed",
           "result": "failed",
           "label": "2739 Flutter/98 JVM/dörtjourney geçti; launcher ANR nativefocus başarısız, imzalı APK92skip."
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/33988283337",
+          "commit": "3dde2f8b73763741f6d87f903eba6ef7da9f7f91",
+          "state": "completed",
+          "result": "passed",
+          "label": "Ayarlar ve emülatör hazırlığı:2739Flutter/98JVM/8E2E+imzalıAPK93; yeni dashboard bunun kapsamında değil."
+        },
+        {
+          "kind": "test",
+          "ref": "docs/tablet-dashboard-accessibility-implementation-2026-09-05.md",
+          "commit": "8cc4665b2076cb80ad891bef10cf82931611ed7d",
+          "state": "completed",
+          "result": "passed",
+          "label": "Dashboard343/son49delta ve birleşik2815Flutter PASS; owned5dosya satır kapsamı88.1%."
+        },
+        {
+          "kind": "review",
+          "ref": "docs/tablet-dashboard-accessibility-implementation-2026-09-05.md",
+          "commit": "8cc4665b2076cb80ad891bef10cf82931611ed7d",
+          "state": "completed",
+          "result": "passed",
+          "label": "Native kart, lifecycle/epoch, context menu, odak ve semantics bağımsız incelemesi temiz."
         }
       ],
       "completionCommit": null,
-      "reason": "Ayar satırları ba884f6 main içinde;9138e61 2.739 Flutter/98 JVM geçti, dörtjourney geçti. Quickstep ANR nativefocus testini engelledi: E2E7/8, APK92skip. Yük azaltan host-only precompile d36a6bc main5fecbfc içinde,42 ilgili/207 araç testi+review geçti; gerçek yeniCI bekliyor. Dashboard kartları ayrı dalda sıradaki inceleme. Bütün ekranlar ve gerçek TalkBack açık."
+      "reason": "Ayarlar ba884f6 için3dde2f8 Flutter2739/JVM98/E2E8 ve bağımsız imzalıAPK93 geçti. Dashboard5cf7f30→8cc4665 main içinde: klavye, menü, tekil semantics, odak kontrastı, eski servis callback korumaları;343 odaklı/49delta ve birleşik2815 test geçti. Yeni dashboard CI bekliyor; diğer ekran/editor/gesture ve gerçek TalkBack kabulü açık."
     },
     {
       "id": "B5.2",

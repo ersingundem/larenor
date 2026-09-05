@@ -1,6 +1,6 @@
 # Core/Client bütünleştirmesinde sıradaki somut dilimler
 
-**5 Eylül 2026 · Durum: S06 ilk iki dilim kabul edildi; dilim 3 sırada.** Bu belge yeni özellik seçimi
+**5 Eylül 2026 · Durum: S06 ilk iki dilim ve kaynak temelinin 4/6 alt adımı kabul edildi.** Bu belge yeni özellik seçimi
 değildir; [S06–S09](PROGRESS.md#sıradaki-geliştirme-paketleri) ve
 [B1/B3 temellerinin](feature-expansion-plan-2026-09-05.md) açık bağlantılarını
 ayrıntılandırır. Aşağıdaki kutular teslim kanıtı oluşmadan tamamlanmış sayılmaz.
@@ -18,7 +18,7 @@ adımını ayıramaz; kurulum koordinatörü bunu alt işlemlere ayırmalıdır.
 | --- | --- | --- |
 | 1 | **Uygulandı:** tek Larenor kurulumu için birleşik plan ve kalıcı hazırlık kaydı | Altı bileşen, benzersiz işlem/adım kimlikleri, şifreli geçmiş, idempotent oluşturma, restart ve iptal; Client admin ekranı ve ortak HTTP sözleşmesi. [Kanıt ve sınırlar](media-preparations-implementation-2026-09-05.md); gerçek kurulum hâlâ kapalı |
 | 2 | **Uygulandı, test/yayın kapıları geçti:** birleşik gereksinim işleri, worker/daemon bağlamı ve depolama gözlemi | [Ayrı bağlam sonuçları, 49.152 MiB toplam disk bütçesi, kalıcı kontrol/geçmiş/iptal ve Client](media-inspections-implementation-2026-09-05.md). Port/alıcı ağı kanıtı yoksa `unknown`; kurulum kapalı |
-| 3 | [Altı alt adıma ayrılan sahiplikli kaynak hazırlığı](media-resource-preparation-plan-2026-09-05.md) | Digest ile imaj edinme, veri dizini/mount ve özel kontrol ağı; yabancı kaynağı sahiplenmeme ve yarıda kalınca aynı kaynakla devam |
+| 3 | [Altı alt adıma ayrılan sahiplikli kaynak hazırlığı](media-resource-preparation-plan-2026-09-05.md), **4/6 kabul** | Saf plan, kalıcı journal, imaj/journal ve ağ/journal yazılımı kabul edildi. Appdata gerçek yetki/yazma ve iki mimarili gerçek kaynak kurulumu açık |
 | 4 | Dar, süreli kurulum adımlarının API/işçiye bağlanması | Her yan etkide güncel yetki/oturum/iptal/katalog kontrolü; serbest Docker seçenekleri yok; belirsiz create yanıtında sahiplik uzlaştırması |
 | 5 | Özel bootstrap ve otomatik servis eşleştirmesi | Kimlik bilgilerinin Server'da üretilip şifreli saklanması; ilk kullanıcı API'sinin denetimsiz LAN'a açılmaması; medya adres/anahtar/kütüphanelerinin otomatik eşleşmesi |
 | 6 | Tamamlama, iptal ve kurtarma | Create/start makbuzu yerine doğrulanmış servis sonucu; iptal/hata veriyi otomatik silmez. İki mimarili geçici Linux CI'da gerçek bileşen kabulü |
@@ -65,15 +65,20 @@ Client'a eklemek eski ev verisinin yeni Core'da görünmesini engellemez.
   tekrar kullanma. Bağlam doğrulanmadan ev kapsamını açma.
   [Kod/test/yayın kanıtı](client-context-implementation-2026-09-05.md);
   aşağıdaki global provider/cache sınırı henüz açık.
-- [ ] **Geçiş ve uyumluluk (S08.2, kod/test hazır; CI bekliyor):** İlk parola aşamasında korumalı bağlam API'sini
+- [x] **Geçiş ve uyumluluk (S08.2, 19dbcbe tam CI/APK 91):** İlk parola aşamasında korumalı bağlam API'sini
   çağırma; parola değişiminden sonra doğrula. Eski Server 404 veya bozuk yanıt
   halinde URL'den kimlik türetme. Saklanan kimlik tek başına yetki sayılmaz.
   `67cb058` ile yalnız bağlam GET 404 için adres kontrolü/güncelleme açıklaması
-  eklendi; 531 regresyon geçti. [Kapsam ve kanıt](client-context-compatibility-2026-09-05.md).
-- [ ] **Ekran/provider sınırı:** `(coreId, homeId, userId)` değişince eski ev
+  eklendi; 531 regresyon ve son tam CI geçti. [Kapsam ve kanıt](client-context-compatibility-2026-09-05.md).
+- [ ] **Ekran/provider sınırı (S08.3, main içinde, CI kabulü bekliyor):** `(coreId, homeId, userId)` değişince eski ev
   ekranını, ikincil rotaları, istekleri, WS aboneliklerini ve callback'leri
   kapat. Aynı bağlamdaki token yenilemesi gereksiz ekran sıfırlaması yapmaz.
   Hesap controller'ı bu yeniden kurulan alt ağacın dışında kalır.
+  `10d3eb1` → main `4ba7024` içinde kalıcı doğrudan HA/Core seçimi,
+  parentless runtime ve boşta ekranı dahil veri sınırı uygulandı; 50 odaklı ve
+  1.093 ilgili test ve dashboard ile birleşik 2.815 Flutter testi/analiz geçti.
+  Gerçek uygulama başlangıcıyla beşinci emülatör
+  akışı eklendi; toplam dokuz cihaz senaryosunun yeni CI kabulü bekleniyor.
 - [ ] **Kalıcı cache:** Dashboard ve diğer ev verilerini bağlamlı anahtarlara
   taşı. Eski `dashboard_layout`, `ha_base_url` ve `ha_token` verisini yeni
   Core'a sessizce bağlama; yalnız açık önizlemeli taşıma uygula.

@@ -10,7 +10,8 @@ kendiliğinden taşınmaz. Core ekranı bu sürümde ev görünümünün bulunma
 
 - Çalışma ağacı: `/private/tmp/larenor-client-home-session-scope`
 - Dal: `codex/client-home-session-scope`; taban `8678982fa19352fafb104489665d704692aaebaf`.
-- Kaynak/donanım E2E hazırlığı: `13586ae`; ana dala birleştirme veya push yapılmadı.
+- Kaynak/E2E hazırlığı `13586ae`, izole freeze `10d3eb1`; ana dala
+  `4ba7024` ile birleştirildi. Birleşik tam Client kontrolü geçti; emülatör CI kabulü ayrıca bekleniyor.
 - Ayrı kabul edilmiş S08.2 ve daha eski CI sonuçları bu yeni kodun CI kanıtı değildir.
 
 ## Davranış ve sahiplik
@@ -100,3 +101,14 @@ kabulü de ayrıdır.
 Merkezi HA/medya adaptörleri, Core cache anahtarları ve kontrollü legacy veri
 aktarma S08.4+ sınırındadır. Bu ilk teslim çoklu ev/federasyon veya tüm B3/S08'in
 bittiği anlamına gelmez.
+
+## Birleşik Client kontrolü
+
+S08.3 ve dashboard birlikte main `8cc4665b2076cb80ad891bef10cf82931611ed7d`
+üzerinde **2.815 Flutter testini 3:46 içinde geçti**. İlk başlatma yerel
+üretilmiş çeviriler eski olduğundan durduruldu; `build_runner` ve `gen-l10n`
+yenilendikten sonraki bu tam koşu başarılıdır. Geçici çıktı
+`/private/tmp/larenor-home-dashboard-full-flutter-green.log`; gerçek emülatör
+ve bu yeni kaynak sürümünün uzak CI kabulü ayrıca beklenir.
+Tam `flutter analyze` 6,5 saniyede sıfır bulgu verdi; 801 Dart dosyasının biçim
+kontrolü sıfır değişiklikle geçti. 24 kuyruk testi ve gitleaks taraması temiz.

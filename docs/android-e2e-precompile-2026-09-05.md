@@ -1,7 +1,8 @@
 # Android E2E — emülatör öncesi native derleme
 
 5 Eylül 2026. Değişiklik `d53f8c3` RED → `d36a6bc` GREEN;
-ana dal birleşimi `5fecbfc`. Yeni gerçek CI sonucu henüz alınmadı.
+ana dal birleşimi `5fecbfc`. `3dde2f8` gerçek Android CI, imzalı APK 93
+teslimi ve indirilen dosyanın bağımsız imza/metadata kontrolü geçti.
 
 ## Ölçülen sorun
 
@@ -47,6 +48,27 @@ Yeni `android-precompile.log`, mevcut test/odak kanıtlarıyla birlikte saklanı
 - `actionlint`, üç script için `shellcheck -x` ve diff kontrolü temiz.
 - Bağımsız işlevsel inceleme tamamlandı; açık P1/P2 bulgusu yok.
 - Yeni gerçek CI'da ilk hazırlık derlemesi, test harness derleme süreleri,
-  native odak, dört uygulama akışı ve imzalı APK kapısı ayrıca doğrulanacak.
+  native odak, dört uygulama akışı ve imzalı APK kapısı aşağıda ayrıca doğrulandı.
 
 Bu değişiklik ev sunucusuna veya fiziksel Android cihaza işlem yapmaz.
+
+## İlk gerçek CI ölçümü — 3dde2f8
+
+[Android 93](https://github.com/ersingundem/larenor/actions/runs/33988283337)
+2.739 Flutter/98 JVM ve dört native + dört uygulama senaryosunu geçti.
+Hazırlık adımı emülatörden önce yaklaşık 403 saniye sürdü; bunun Gradle kısmı
+349,7 saniye. Emülatör başladıktan sonraki ilk/ikinci Gradle derlemeleri
+23,9 ve 36,0 saniye oldu (önceki koşuda 363,9 ve 36,1 saniye).
+Test komutu 231,793 saniyede tamamlandı; 18 dakika sınırında 848,207 saniye kaldı.
+Toplam hazırlık süresi bu ölçümden ayrı tutulur; uygulamanın veya bütün CI'nın
+aynı oranda hızlandığı söylenmez.
+
+Emülatör 36.1.9/build 13823996 ve ilk denemede stay-awake koşulu doğrulandı;
+42 faz/dört temizlik tamamlandı. Odak hata işareti veya hata ekran görüntüsü
+oluşmadı. Bu tek başarılı koşu, Quickstep ANR'nin kesin kök nedenini veya
+sonraki bütün çalışmalarda tekrarlanmayacağını kanıtlamaz.
+
+İmzalı APK 93 teslimi ve Java 17 + sabit apksig 9.1.0 ile bağımsız paket,
+sertifika, kaynak ve metadata eşleşmesi de başarılı. S08.3 sonradan beşinci
+uygulama akışını ekledi; yeni toplam dokuz E2E bu sekiz senaryoluk kanıtın
+kapsamına girmez. [Güncel teslim kaydı](PROGRESS.md).

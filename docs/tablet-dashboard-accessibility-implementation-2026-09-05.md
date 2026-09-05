@@ -41,4 +41,15 @@ Gerçek widget tema renklerinden hesaplanan odak kontrastı: kart açık **4,02:
 
 Bütün Flutter/Dart komutları ortak `/private/tmp/larenor-flutter-check.py` kilidiyle bu izole worktree’de çalıştırıldı. Hazırlık offline pub ve mevcut build_runner codegen kullanır. Geçici kanıtlar: `/private/tmp/larenor-dashboard-final-regression.log`, `/private/tmp/larenor-dashboard-final-delta.log`, `/private/tmp/larenor-dashboard-final-analyze-green.log`, `/private/tmp/larenor-dashboard-final-lcov.info`.
 
-Yeni exact-head GitHub CI, tam Client suite ve fiziksel Huawei/DeX/TalkBack kabulü bu yerel dilimin kanıtına dahil değildir. Genel B5.1 kapsamında diğer kart/editor/gesture yüzeyleri ayrıca ele alınacaktır; gerçek HA veya ev servisine bağlanılmadı.
+Yeni exact-head GitHub CI ve fiziksel Huawei/DeX/TalkBack kabulü bu yerel dilimin kanıtına dahil değildir. Birleşik tam Client kontrolü aşağıdadır. Genel B5.1 kapsamında diğer kart/editor/gesture yüzeyleri ayrıca ele alınacaktır; gerçek HA veya ev servisine bağlanılmadı.
+
+## Birleşik Client kontrolü
+
+S08.3 ve dashboard birlikte main `8cc4665b2076cb80ad891bef10cf82931611ed7d`
+üzerinde **2.815 Flutter testini 3:46 içinde geçti**. İlk başlatma yerel
+üretilmiş çeviriler eski olduğundan durduruldu; `build_runner` ve `gen-l10n`
+yenilendikten sonraki bu tam koşu başarılıdır. Geçici çıktı
+`/private/tmp/larenor-home-dashboard-full-flutter-green.log`; gerçek emülatör
+ve bu yeni kaynak sürümünün uzak CI kabulü ayrıca beklenir.
+Tam `flutter analyze` 6,5 saniyede sıfır bulgu verdi; 801 Dart dosyasının biçim
+kontrolü sıfır değişiklikle geçti. 24 kuyruk testi ve gitleaks taraması temiz.

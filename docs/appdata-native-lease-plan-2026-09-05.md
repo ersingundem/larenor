@@ -2,6 +2,25 @@
 
 2026-09-05 · İncelenen kod: `1ef08fb` · Tasarım/kanıt araştırması; repo değişikliği, host/Docker işlemi veya yeni kabul iddiası yok.
 
+**5 Eylül uygulama güncellemesi:** Aşağıdaki ilk araştırma daha sonra iki
+salt okunur parçaya uygulandı. `linux_mount_observation.py` gerçek Linux CI
+ile doğrulandı. `linux_identity_observation.py` ve özel ContextLease birleşimi
+`33cf1d9` → main `81caaf2` içinde; `3dde2f8` Linux CI'sı 2.704 testi
+atlamasız geçti. Gerçek socket/pidfd/kimlik ve thread yaşam döngüsü doğrulandı.
+Yerel tam Server 2.695 geçti, dokuz Linux testi Mac'te atlandı.
+[Kimlik gözleminin kanıtı ve sınırları](native-identity-observation-implementation-2026-09-05.md).
+Bu iki modül `NativeAppdataLeaseIssuer` veya yazma yetkisi değildir.
+
+**Kalan sıra:** (1) Onaylı tam köke `/` descriptor'ından ulaşan, tüm
+parent→name→child bağlarını ve gerçek mount gözlemini tutan resolver;
+eksik kökte en yakın parent'a düşmemeli. (2) Operatörün hostta kurduğu native
+supervisor'ın tuttuğu kök/user/mount bağları ve aynı daemon incarnation'ına
+ait remap-disabled başlangıç kanıtı. (3) Bu kanıtları, plan/journal/host-policy
+eşlemesini ve UID/GID mapping'i birleştiren özel issuer. (4) Ancak sonra
+durable journal öncesi/sonrası yenilenerek staging/marker/publish işlemi.
+Birbirine eşit namespace veya UID 0 bu adımları atlatan bir başarı alanına
+çevrilmeyecek. Gerçek ev kurulumu son manuel aşamada kalır.
+
 **Karar:** Önce gerçek kanıt üreticisini salt okunur uygula; mevcut `AppdataRootLease` test callback’lerini üretim yetkisi sayma. Sonraki mkdir/publish ayrı dilimdir. Hedef, hostta çalışan özel native worker ve ayrı, UID 10001 API container’dır. API’ye Docker socket, host yolları veya lease FD’leri verilmez. `DockerProbe.during` kesinlikle mutator olmaz: mevcut gözlem callback’i başarısız/eksik daemon kanıtında da çağrılabilir ve son kontrolü callback’ten sonradır.
 
 **Dar API:** `NativeAppdataLeaseIssuer(host_policy, policy_binding, native_anchor).acquire(binding, intent, *, deadline) -> ContextManager[AppdataRootLease]`. Başarısızlık yalnız sabit `context_unavailable`, `mapping_unavailable`, `root_conflict`, `lease_expired`; hiçbir yol/raw `/info`/config çıktısı dışarı çıkmaz. `native_anchor`, native supervisor’ın tuttuğu host root/user/mount namespace FD’leri ile aynı daemon incarnation’ına bağlı pidfd/start-time/executable ve remap-disabled başlangıç kanıtıdır; JSON boolean veya Client girdisi değildir. Bu gerçek üretici henüz yoktur: sıradan policy digest’i böyle bir kanıtın yerine geçmez. Kaynak plan, journal intent/nonce/spec ve opaque policy kimliği edinimde yeniden türetilir; policy kimliği yüklenmiş gerçek host ayarlarına ayrıca bağlanır.

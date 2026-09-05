@@ -1,6 +1,6 @@
 # S06.3d — Salt okunur native kimlik gözlemi
 
-2026-09-05 · İzole dal `codex/native-identity-observation`, başlangıç `8678982fa19352fafb104489665d704692aaebaf`. Üretim GREEN `474f6de`, son test checkpoint `b757118`. Bu belge yalnız bu alt adımın yerel kanıtıdır; yeni GitHub/Linux CI veya S06.3d kurulum kabulü değildir.
+2026-09-05 · İzole dal `codex/native-identity-observation`, başlangıç `8678982fa19352fafb104489665d704692aaebaf`. Üretim GREEN `474f6de`, son test checkpoint `b757118`. Aşağıdaki yerel checkpoint kanıtına ek olarak `3dde2f8` Linux CI geçti; bu S06.3d kurulum kabulü değildir.
 
 ## Uygulanan dar sözleşme
 
@@ -33,3 +33,13 @@ Native supervisor/host-root anchor, remap-disabled başlangıç kanıtı, katalo
 - Sentetik testler ayrıca UID/GID-only değişim, namespace değişimi, max map/byte sınırı, symlink/FIFO/dizin reddi, borrowed/closed/reused FD, snapshot alias mutation, yanlış thread/process, cancel/deadline, reentry, parent close/restart, son revalidation ve kesinti temizliğini doğrular.
 
 İzole import doğrulandı: `/private/tmp/larenor-native-identity-observation/server/larenor_server/__init__.py`. Python 3.12 runtime: `/private/tmp/larenor-server-project-env/bin/python`, cwd izole `server`, `PYTHONPATH=.`. Kanıt logları yerel geçici dosyalardır: `/private/tmp/larenor-native-identity-final-coverage.log` ve `/private/tmp/larenor-native-identity-combined-final.log`; coverage dosyası diğer agentlardan ayrıdır.
+
+## Linux CI doğrulaması — 3dde2f8
+
+[Server CI](https://github.com/ersingundem/larenor/actions/runs/33988283387)
+**2.704 testi atlamasız** geçti (325,184 saniye). Üç gerçek kernel kanıtı da
+geçti: socket-pidfd→proc→kimlik birleşimi, native-thread UID/GID/map gözlemi ve
+bitmiş thread'in tutulan proc FD'sinin reddi. amd64/arm64 Core restart,
+medya hazırlığı/iptal smoke'u ve anonim sourceRevision yayını doğrulandı.
+[207 araç testi ve güvenlik](https://github.com/ersingundem/larenor/actions/runs/33988283178)
+başarılı. Gerçek medya kurulumu, supervisor/remap grant ve appdata yazma açık kalır.

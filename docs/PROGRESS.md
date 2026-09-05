@@ -1,6 +1,6 @@
 # Larenor — güncel ilerleme ve iş kuyruğu
 
-**Son güncelleme: 5 Eylül 2026, 22:45 (Türkiye saati).**
+**Son güncelleme: 5 Eylül 2026, 23:22 (Türkiye saati).**
 
 ```text
 Önceki kapsam       █████████████░░░░░░░  ≈ %65
@@ -55,58 +55,97 @@ Core/ev bağlamını tokenlarla güvenle bağlama kapsamında tam CI kabulü ald
 ile kabul edildi. Bu işler yeni 63 özelliğin kabul sayısı değildir; o sayaç **0/63**. Ana S06
 sayacı **2/6** kalır; dizin, kurulum ve gerçek Engine kabulü açıktır.
 
-**9138e61 Core doğrulandı; Android teslimi açık:** Linux **2.566 test
-atlamasız geçti**; amd64/arm64 Core restart, medya hazırlığı ve iptal smoke'u,
-anonim imaj sourceRevision ve güvenlik kontrolleri başarılı. Bu kanıtla ağ
-journal/kurtarma yazılımı **S06.3e kabul edildi**; S06.3c ile aynı backend
-kapıları kullanıldı. Gerçek Docker kaynak kurulumu ayrı S06.3f adımıdır.
-[Server](https://github.com/ersingundem/larenor/actions/runs/33986835291) ·
-[Güvenlik](https://github.com/ersingundem/larenor/actions/runs/33986835178).
-İki mimarili imaj: `sha256:7902dc0fcf299c0b2b7e598943a6293c8af6e5e60efd0e13f1f27ac28216d805`.
+**Son tam doğrulanmış yayın `3dde2f8` / APK 93:** Server, Android ve güvenlik başarılı.
+Linux **2.704 test atlamasız**, 2.739 Flutter, 98 JVM, dört native + dört
+uygulama E2E senaryosu ve 207 araç testi geçti. İndirilen APK 93, Java 17 +
+sabit apksig 9.1.0 ile ayrıca doğrulandı: doğru paket/sertifika, `100000093`,
+minSdk 26, `debuggable=false`, kaynak commit ve metadata eşleşti.
+[İmzalı APK 93 ve metadata](https://github.com/ersingundem/larenor/actions/runs/33988283337/artifacts/9976135162).
+APK SHA-256: `b9582694525493255641ab172aa90630d114ed88218a821accff5556f3695065`.
+[Server](https://github.com/ersingundem/larenor/actions/runs/33988283387) ·
+[Android](https://github.com/ersingundem/larenor/actions/runs/33988283337) ·
+[Güvenlik](https://github.com/ersingundem/larenor/actions/runs/33988283178).
 
-[Android 92](https://github.com/ersingundem/larenor/actions/runs/33986835301)
-**2.739 Flutter, 98 JVM ve dört uygulama akışını geçti**; native odak testi
-Quickstep “yanıt vermiyor” penceresi nedeniyle başarısız: **E2E 7/8**,
-imzalı APK 92 üretilmedi. QEMU/adb canlı, ekran uyanık ve kilitsizdi;
-OOM veya emülatör çökmesi kanıtlanmadı. Akış 11:13,2 ile 18 dakika sınırında;
-42 aşama ve dört temizlik tamamlandı. Son tam Android yayını APK 91'dir.
+AMD64/ARM64 Core restart, medya **hazırlığı** ve iptal smoke'u geçti; anonim
+commit/stable/index ve iki mimarinin kaynak/lisans kayıtları doğrulandı:
+`sha256:e77b7a11907ac009d8000ec374fcb94745614602331c9da307d41ca97fb895d6`.
+Gerçek medya bileşeni kurulumu bu smoke kapsamında değildir; ev Server'ına
+koşullu Client yayını atlandı, ev/cihaz kurulumu yapılmadı.
 
-**Yeni paket yayına hazır (kaynak `5fecbfc`):** salt okunur native kimlik gözlemi
-`33cf1d9` birleşti; 194 odaklı / 577 ilgili test geçti (Mac'te üç/dört Linux
-atlaması), %98 kapsam ve bağımsız incelemeler tamamlandı. Tam Server **2.695 geçti, dokuz Linux testi Mac'te atlandı** (3:19,7).
-Client kaynakları değişmedi; 9138e61 üzerinde 2.739 Flutter/analiz kanıtı var. CI'da ağır native derleme emülatör başlamadan hazırlanacak; gerçek
-Flutter test harness'i yeniden derlenecek ve tüm odak testleri korunacak.
-Bu CI değişikliği 42 ilgili / 207 araç testini geçti; Quickstep için çözüm
-veya süre kazancı yeni gerçek CI görülmeden doğrulanmış sayılmayacak.
-[Ayarlar](tablet-settings-accessibility-implementation-2026-09-05.md) ·
-[Ağ journal/kurtarma](network-preparation-implementation-2026-09-05.md) ·
+**Emülatör hazırlığı gerçek CI'da doğrulandı:** ağır derleme emülatörden önce
+403 saniyede tamamlandı. Emülatör açıkken ilk Gradle derlemesi önceki koşudaki
+363,9 saniyeden 23,9 saniyeye indi; ikinci derleme 36,0 saniye. Test komutu
+231,793 saniye sürdü; 42 aşama ve dört temizlik tamamlandı. Native odak testi
+geçti. Bu tek koşu, önceki Quickstep ANR'nin kesin kök nedenini veya kalıcı
+çözümünü kanıtlamaz; toplam CI aynı oranda hızlanmış değildir.
+[Ölçüm ve sınırlar](android-e2e-precompile-2026-09-05.md).
+
+**Yeni Client paketi main içinde (`8cc4665`): tam 2.815 yerel test ve analiz geçti; yeni CI sırada.**
+
+- **S08.3 ev kaynak sınırı:** `10d3eb1` → `4ba7024`; açık, kalıcı doğrudan
+  HA/Core seçimi ve bağımsız ev runtime'ı. Eski evin route/WS/callback'leri
+  kapanır; hesap, PIN, tema ve güç ayarları ortak sahiplikte kalır. Core
+  adaptörleri hazır olmadan eski yerel HA/medya verisi Core ekranına sızmaz.
+  50 odaklı ve 1.093 ilgili test, %99,2 yeni modül satır kapsamı ve bağımsız
+  inceleme geçti. Yeni beşinci uygulama akışıyla **dokuz cihaz E2E senaryosu**
+  yeni CI bekliyor. [Uygulama kanıtı](client-home-session-scope-implementation-2026-09-05.md).
+- **B5.1 dashboard:** `5cf7f30` → `8cc4665`; kartlarda Tab/Enter/Space,
+  menü tuşu, tekil ekran okuyucu duyurusu ve görünür odak. Servis kartları
+  gizli/eski oturumdan sayfa açamaz; termostat ok tuşlarıyla ayarlanır.
+  343 dashboard ve 49 son delta testi, kapsam %88,1, scoped analiz ve
+  bağımsız inceleme geçti. Genel B5.1 ve fiziksel TalkBack kabulü açık.
+  [Uygulama kanıtı](tablet-dashboard-accessibility-implementation-2026-09-05.md).
+
+Yeni birleşimde ilk yerel test başlangıcı eski üretilmiş çeviri dosyaları
+nedeniyle durduruldu; kaynak üretimi ve çeviriler yenilendikten sonra tam
+Client suite **2.815 testi 3:46 içinde geçti**. Bu hazırlık hatası başarı olarak sayılmaz.
+`3dde2f8` sonucu bu daha yeni Client kodunun CI kabulü değildir.
+
+**Sıradaki bağımlı çalışma:** S06.3d'de salt okunur native kimlik gözlemi
+`3dde2f8` Linux CI ile doğrulandı. Şimdi onaylı tam appdata kökünün bütün
+parent/name/descriptor bağlarını tutan resolver uygulanıyor. Supervisor,
+remap-disabled başlangıç kanıtı, issuer ve create/publish hâlâ açık.
 [Native kimlik](native-identity-observation-implementation-2026-09-05.md) ·
-[Emülatör hazırlığı](android-e2e-precompile-2026-09-05.md).
+[Kalan sıra](appdata-native-lease-plan-2026-09-05.md).
 
-**S08.2 kabul edildi; S08.3 başladı:** [ev runtime sınırı](client-home-scope-plan-2026-09-05.md)
-izole dalda uygulanıyor. Kullanıcının seçtiği doğrudan HA veya Core kaynağı açık ve kalıcı
-olacak; hesap girişi yerel veriyi kendiliğinden Core'a bağlamayacak. Token
-rotasyonu gezinmeyi koruyacak; gerçek ev/kullanıcı değişimi eski istek ve
-rotaları kapatacak. Cache/adaptör hazır olmadan legacy veri Core ekranında
-açılmayacak. Tema, güç ve PIN provider'ları ayrı kopyalara bölünmeyecek.
-
-**Yarım çalışmaları kaybetmeden devam:** önce `git worktree list`, dal
-ve agent/CI durumları incelenir; aynı iş yeniden başlatılmaz. `/private/tmp`
-kopyalarının varlığı kalıcı arşiv garantisi değildir. Tamamlanan checkpoint'ler
-yerel git geçmişinde korunur; ana dala birleşme uzak CI kabulü değildir.
+**Yarım çalışmaları kaybetmeden devam:** önce çalışma kopyaları, dallar,
+agent ve CI durumları incelenir; aynı iş yeniden başlatılmaz. Tamamlanan
+RED/GREEN checkpoint'leri git geçmişinde tutulur; ana dala birleşme uzak CI
+kabulü değildir. Geçici çalışma kopyaları kalıcı arşiv yerine geçmez.
 
 | İş | Dal / çalışma kopyası | Durum |
 | --- | --- | --- |
-| B5.1 tablet ayarları | `codex/tablet-settings-accessibility` · `/private/tmp/larenor-tablet-settings-accessibility` | `ba884f6` main içinde; Flutter/JVM geçti, Quickstep ANR nedeniyle APK92 yok; ön derleme değişikliği yeni CI bekliyor. |
-| S06.3e ağ journal köprüsü | `codex/network-effect-bridge` · `/private/tmp/larenor-network-effect-bridge` | `6a00168` main içinde; `9138e61` Linux Server/güvenlik CI ile yazılım kabulü tamamlandı. |
-| S08.3 Client ev runtime'ı | `codex/client-home-session-scope` · `/private/tmp/larenor-client-home-session-scope` | Store `43ea7cf`, ilk runtime GREEN `0ceb1a0`; gerçek ekran/restore/bağlam regresyonları sürüyor, main içinde değil. |
-| S06.3d appdata host kanıtı | `codex/native-identity-observation` · `/private/tmp/larenor-native-identity-observation` | `33cf1d9` main içinde; yerel test/review geçti, tam Server 2.695/9 skip geçti, yeni Linux CI bekliyor; mapping/grant veya yazma yetkisi değildir. |
+| B5.1 tablet ayarları | `codex/tablet-settings-accessibility` | `ba884f6` main içinde; yeni `3dde2f8` sekiz E2E ve Android CI geçti. |
+| B5.1 dashboard | `codex/tablet-dashboard-accessibility` · `/private/tmp/larenor-tablet-dashboard-accessibility` | `5cf7f30` birleşti; tam Client 2.815 test geçti, yeni CI bekliyor. |
+| S06.3e ağ journal köprüsü | `codex/network-effect-bridge` | `6a00168` main içinde; `9138e61` Server/güvenlik CI ile yazılım kabulü tamamlandı. |
+| S08.3 Client ev runtime'ı | `codex/client-home-session-scope` · `/private/tmp/larenor-client-home-session-scope` | `10d3eb1` birleşti; yeni dokuz E2E'nin CI kabulü bekleniyor. |
+| S06.3d appdata tam kök gözlemi | `codex/native-appdata-root-observation` · `/private/tmp/larenor-native-appdata-root-observation` | Taban `4ba7024`; salt okunur resolver/test dilimi sürüyor, yazma yetkisi değildir. |
 
-Ağ yazılım diliminin sonraki gerçek Engine/iki mimarili kaynak kabulü
-**S06.3f** içindedir. Production dispatcher/host grant, appdata oluşturma ve
-medya kurulumu açık kalır; `installAvailable=false` değişmedi.
+Ağ yazılımının gerçek Engine/iki mimarili kaynak kabulü **S06.3f** içindedir.
+Production dispatcher/host grant, appdata oluşturma ve medya kurulumu açık;
+`installAvailable=false` değişmedi.
 
-**Son tam uzak yayın `19dbcbe`:**
+<details>
+<summary>Önceki koşu: 9138e61 Core kabulü, Android 92 hatası</summary>
+
+Linux 2.566 test atlamasız, iki mimarili Core hazırlık/restart/iptal ve
+güvenlik kontrolleri geçti; bu backend kanıtıyla **S06.3e** kabul edildi.
+[Server](https://github.com/ersingundem/larenor/actions/runs/33986835291) ·
+[Güvenlik](https://github.com/ersingundem/larenor/actions/runs/33986835178).
+İmaj `sha256:7902dc0fcf299c0b2b7e598943a6293c8af6e5e60efd0e13f1f27ac28216d805`.
+
+[Android 92](https://github.com/ersingundem/larenor/actions/runs/33986835301)
+2.739 Flutter, 98 JVM ve dört uygulama akışını geçti. Quickstep ANR nedeniyle
+native odak testi başarısız oldu: E2E 7/8, imzalı APK 92 üretilmedi.
+QEMU/adb canlı, ekran uyanık ve kilitsizdi; OOM veya emülatör çökmesi
+kanıtlanmadı. 673,224 saniye, 42 aşama ve dört temizlik kaydedildi.
+
+</details>
+
+<details>
+<summary>Önceki doğrulanmış yayın: 19dbcbe / APK 91</summary>
+
+**Önceki tam uzak yayın `19dbcbe`:**
 [Server](https://github.com/ersingundem/larenor/actions/runs/33985459924),
 [Android](https://github.com/ersingundem/larenor/actions/runs/33985459959) ve
 [Güvenlik](https://github.com/ersingundem/larenor/actions/runs/33985459857)
@@ -124,7 +163,10 @@ Java 17 + sabit apksig 9.1.0 ile ayrıca doğrulandı: doğru paket/sertifika,
 `100000091`, minSdk 26, `debuggable=false`, kaynak commit ve metadata eşleşti.
 APK SHA-256: `caf77a39de2586b1250c3dcf1ebe3cbd2a3b66f4a73f3b1342b28e7319ccc498`.
 Ev Server'ına koşullu Client yayını atlandı; ev/cihaz kurulumu yapılmadı.
-Bu kanıt daha yeni `6ec4af3` kaynaklarını kapsamaz.
+Bu kanıt sonraki kaynak değişikliklerini kapsamaz.
+
+
+</details>
 
 <details>
 <summary>Önceki doğrulanmış yayın: 1408e80 / APK 89</summary>
