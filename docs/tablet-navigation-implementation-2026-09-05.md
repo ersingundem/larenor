@@ -38,3 +38,33 @@ uygulamanın tamamı için WCAG sertifikası iddia edilmez.
 Görseller özel QA çıktılarıdır. README'nin son tablet galerisi, plandaki bütün
 frontend işleri bittikten sonra üretilecek. [B5 kuyruğu](EXECUTION_QUEUE.md)
 kart/form/durum sözleşmelerini ve kalan ortak ekran kabulünü açık tutar.
+
+## Bölüm başlıkları ve oda menüleri
+
+`e3d884b` runtime RED, ortak başlıkların ekran okuyucuya heading olarak
+aktarılmadığını ve dashboard'un simgeli oda menülerinin adsız, 44×44 hedefler
+olduğunu gösterdi. `8a7b31e` GREEN ile `SectionHeader` başlığı ayrı heading
+semantics'i taşır; yanındaki eylem başlığa katılmaz. Aynı ortak bileşeni
+kullanan dashboard, Jellyfin ve ARR başlıkları bu davranışı paylaşır.
+
+Dashboard oda menüsü Türkçe/İngilizce oda adıyla, servis ve bileşen düzenleme
+düğmeleri ilgili bölüm adıyla anons edilir. Native Cupertino butonunun
+rolü/odak/etkinleştirme davranışı korunur; ikon etiketi ikinci kez okunmaz.
+Bu menülerin hedefi en az 48×48 olur. Görünen simge, yazı ve renkler değişmez.
+
+**12 odaklı test**; ortak widget, dashboard ve gezinme paketiyle **522
+regresyon geçti**. EN/TR, 600/1.200 piksel tablet penceresi ve iki kat yazıda
+başlık/eylem ayrı düğümler, tek etiket, hedef boyutu, Space ve semantics tap
+ile gerçek menü/editor açılışı sınanır. Menü açmak düzeni kaydetmez veya silme
+eylemini çalıştırmaz. Dört Dart dosyasının analizi/biçim kontrolü temizdir;
+bağımsız kök incelemesinde P1/P2 bulgu kalmadı.
+
+Satır kapsamı: ortak başlık **17/17**, değişen dashboard başlık fonksiyonu
+**11/11**. Eski büyük dashboard dosyasının tamamı bu regresyonda **499/691
+(%72,2)**; fonksiyon kapsamı bütün ekranın kapsamı gibi sunulmaz. Tam Client
+ve uzak CI sonucu [PROGRESS](PROGRESS.md) içinde kendi kaynak commit'iyle
+ayrılır. Önceki `1408e80` CI'ı yalnız gezinmenin önceki adımını kapsar.
+
+Son `3076f5f` kaynak paketinde **2.701 tam Flutter testi geçti**, tam analiz
+temiz. Ayar satırlarının klavye erişimi ve uzun adres taşması sonraki bağımsız
+tablet dilimidir; bu doğrulanmış paketin çalışma kopyası sabit tutulur.

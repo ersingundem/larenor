@@ -2,7 +2,8 @@
 
 5 Eylül 2026. Mevcut imaj taşımasının doğrulanmış Unix bağlantısı ve sınırlı
 HTTP okuması `plugins/engine_http.py` içinde toplandı. Bu adım özel ağ
-oluşturmaz; ağ list/inspect adaptörü sonraki ayrı dilimdir.
+oluşturmaz; sonraki [ağ list/inspect adaptörü](network-read-transport-implementation-2026-09-05.md)
+aynı katmanı kullanır.
 
 Her çağrı yeni bir Unix bağlantısı açar. Socket ve parent kimliği, beklenen
 peer UID, aynı bağlantıda `/version` ve API 1.47/platform uygunluğu kontrol
@@ -10,8 +11,9 @@ edildikten sonra tek sabit istek gönderilir. Yanıttan sonra socket kimliği,
 iptal ve süre yeniden denetlenir. Bu kanıt daemon namespace'i, mount/UID
 eşlemesi veya kurulum yetkisi yerine geçmez.
 
-Özel istek kaydı şu aşamada yalnız katalog imajlarının canonical digest ile
-inspect/pull biçimlerini kabul eder. Serbest yöntem, URL, header, body, TCP,
+Özel istek kaydı ilk aşamada katalog imajlarının canonical digest ile
+inspect/pull biçimlerini kabul eder. `b09c12e` ile yalnız canonical adla ağ
+listesi ve tam ID inspect GET biçimleri eklendi. Serbest yöntem, URL, header, body, TCP,
 proxy, redirect, kimlik bilgisi veya otomatik retry eklenmedi. Immutable
 kayıtlar yanlışlıkla süreç içinde değiştirilmiş olsalar bile I/O öncesi
 yeniden doğrulanır. Katalog/planın tekrar türetilmesi imaj adaptöründe kalır.
@@ -45,5 +47,5 @@ tam yerel regresyon **2.165 geçti, dört Linux testi Mac'te atlandı**;
 202 araç testi ve commit aralığı güvenlik taraması da geçti. Uzak Linux
 CI sonuçları [PROGRESS](PROGRESS.md) içinde kendi kaynak commit'leriyle
 kaydedilir. Önceki `1408e80` CI'ı bu yeni modülü kapsamaz. `installAvailable=false`
-korunur; ağ transportu, ağ create/journal köprüsü ve gerçek bileşen kurulumu
+korunur; ağ create/journal köprüsü ve gerçek bileşen kurulumu
 [kuyrukta](EXECUTION_QUEUE.md) açık kalır.

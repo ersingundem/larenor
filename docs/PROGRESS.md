@@ -1,6 +1,6 @@
 # Larenor — güncel ilerleme ve iş kuyruğu
 
-**Son güncelleme: 5 Eylül 2026, 21:17 (Türkiye saati).**
+**Son güncelleme: 5 Eylül 2026, 21:33 (Türkiye saati).**
 
 ```text
 Önceki kapsam       █████████████░░░░░░░  ≈ %65
@@ -54,50 +54,63 @@ Core/ev bağlamını tokenlarla güvenle bağlama kapsamında tam CI kabulü ald
 Bu işler yeni 63 özelliğin kabul sayısı değildir; o sayaç **0/63**. Ana S06
 sayacı **2/6** kalır; dizin/ağ, kurulum ve gerçek Engine kabulü açıktır.
 
-**Şimdi çalışılanlar:** özel medya ağı için list/inspect adaptörü ve tablet
-başlık/menü erişilebilirliği. İmajın [ortak HTTP taşıması](engine-http-implementation-2026-09-05.md)
-çıkarıldı: `0582837` kaynaklarıyla **2.165 Server testi geçti, dört Linux testi
-Mac’te atlandı**. 202 araç testi ve güvenlik taraması temiz. Ağın saf sözleşmesi
-hazır; oluşturma/journal bağlantısı henüz yok. Dizin gözlemleri gerçek Linux
-CI’da geçti; supervisor/daemon/UID eşlemesi ve dizin oluşturma/yayımlama açık.
-[Ağ](network-resource-implementation-2026-09-05.md) ·
-[Kaynak hazırlığı](resource-preparation-implementation-2026-09-05.md).
+**Yeni paket yerelde doğrulandı:** özel ağ list/inspect adaptörü, eski Server
+bağlamı için açıklayıcı yeniden deneme akışı ve tablet başlık/menü
+semantics'i. `3076f5f` kaynaklarıyla **2.291 Server testi geçti, beş Linux
+testi Mac’te atlandı**. **2.701 Flutter testi**, temiz tam analiz, 202 araç
+testi ve güvenlik taraması tamamlandı. Yeni paketin uzak CI kabulü sırada;
+aşağıdaki `1408e80` yayını bu yeni kodun kanıtı değildir.
+[Ağ adaptörü](network-read-transport-implementation-2026-09-05.md) ·
+[Client uyumluluğu](client-context-compatibility-2026-09-05.md) ·
+[Tablet](tablet-navigation-implementation-2026-09-05.md).
 
-**S08.2 kod/test hazır:** eski Server veya yanlış proxy adresindeki bağlam
-404 cevabı için EN/TR açıklama ve yalnız GET ile güvenli yeniden deneme.
-**531 regresyon geçti**, analiz ve bağımsız inceleme tamamlandı; kendi uzak
-CI kabulünü bekliyor. Sonraki [ev runtime sınırı](client-home-scope-plan-2026-09-05.md)
-planlandı: token yenilemesi gezinmeyi koruyacak, gerçek Core/ev/kullanıcı
+**Sıradaki çalışma başladı:** DeX/tablet ayar satırlarının klavye erişimi ve
+iki kat yazıda uzun HA adresinin taşması ayrı çalışma kopyasında düzeltiliyor.
+Böylece yayın paketinin kaynağı sabit kalıyor. Özel ağ create/journal köprüsü
+ayrıca hazırlanıyor. Dizin için supervisor/daemon/UID eşlemesi ve gerçek
+oluşturma/yayımlama hâlâ açık.
+
+S08.2 kendi CI kabulünü bekliyor. Ardından [ev runtime sınırı](client-home-scope-plan-2026-09-05.md)
+uygulanacak: token yenilemesi gezinmeyi koruyacak, gerçek Core/ev/kullanıcı
 değişimi eski ekran ve istekleri kapatacak. Yerel HA/cache yeni Core’a
-kendiliğinden bağlanmayacak. Bu sınır henüz uygulanmadı.
+kendiliğinden bağlanmayacak. Bu sınır şu anda plandır.
 
-[Ortak tablet gezinmesi](tablet-navigation-implementation-2026-09-05.md)
-Enter/Space, Tab/Shift+Tab, iki kat yazı, görünür odak ve DeX pencere geçişi
-ile düzeltildi. Tam yerel **2.678 Flutter testi** geçti; analiz temiz.
-`1408e80` paketinin [Server](https://github.com/ersingundem/larenor/actions/runs/33982544738)
-ve [güvenlik](https://github.com/ersingundem/larenor/actions/runs/33982544575)
-CI’ları başarılı: **2.092 Linux Server testi atlamasız**, iki mimarili Core
-restart/medya hazırlığı/iptal kontrolü geçti. [Android CI](https://github.com/ersingundem/larenor/actions/runs/33982544696)
-2.678 Flutter, 98 JVM ve sekiz emülatör senaryosunu geçti; imzalı APK 89 işi
-henüz tamamlanmadı. Bu CI, sonraki S08.2 veya ortak HTTP kaynaklarını kapsamaz.
-Son tablet galerisi ve bütün ekran revizyonu ayrı sıradadır.
+**Son tam uzak yayın `1408e80`:**
+[Server CI](https://github.com/ersingundem/larenor/actions/runs/33982544738),
+[Android CI](https://github.com/ersingundem/larenor/actions/runs/33982544696) ve
+[Güvenlik](https://github.com/ersingundem/larenor/actions/runs/33982544575)
+**imzalı APK 89 dahil başarılı**. 2.092 Linux Server testi atlamasız;
+2.678 Flutter, 98 JVM, sekiz emülatör senaryosu ve 202 araç testi geçti.
+Üç gerçek Linux peer/mount vakası ayrıca doğrulandı. Emülatör akışı 9:59,2
+ile 18 dakika sınırında; 42 aşama işareti ve dört tamamlanmış temizlik var.
 
-**Son tam uzak yayın `fc632b6`:**
-[Server CI](https://github.com/ersingundem/larenor/actions/runs/33981106713),
-[Android CI](https://github.com/ersingundem/larenor/actions/runs/33981106645) ve
+AMD64/ARM64 Core imajları restart/medya hazırlığı/iptal kontrolünü geçti;
+anonim commit/stable/index ve iki mimarinin sourceRevision değerleri doğrulandı:
+`sha256:2c639e795687b28290de3f83bd3e85dad658812e79f03e094863aa86a0e27523`.
+[İmzalı APK 89 ve metadata](https://github.com/ersingundem/larenor/actions/runs/33982544696/artifacts/9974481883)
+Java 17 + sabit apksig 9.1.0 ile ayrıca doğrulandı: doğru paket/sertifika,
+`100000089`, minSdk 26, `debuggable=false`, kaynak commit ve metadata eşleşti.
+APK SHA-256: `6829fd342d629931b2ef60ab7911af0d445340642d2b7cee1eb96023ca363243`.
+Ev Server’ına koşullu Client yayını atlandı; cihaz/Server kurulumu yapılmadı.
+
+<details>
+<summary>Önceki doğrulanmış yayın: fc632b6 / APK 88</summary>
+
+[Server](https://github.com/ersingundem/larenor/actions/runs/33981106713),
+[Android](https://github.com/ersingundem/larenor/actions/runs/33981106645) ve
 [Güvenlik](https://github.com/ersingundem/larenor/actions/runs/33981106554)
-**imzalı APK 88 teslimi dahil başarılı**. 1.890 Linux Server testi atlamasız;
-2.659 Flutter, 98 JVM ve sekiz emülatör senaryosu geçti. Emülatör akışı
-10:04,7 ile 18 dakika sınırında; 42 aşama/temizlik işareti doğrulandı.
-
-AMD64/ARM64 Core imajları build/restart/medya hazırlığı/iptal kontrollerini
-geçti. Anonim commit/stable/index doğrulaması yapıldı:
+imzalı APK 88 dahil başarılı. 1.890 Linux Server testi atlamasız; 2.659
+Flutter, 98 JVM ve sekiz emülatör senaryosu geçti. Emülatör akışı 10:04,7;
+42 aşama/temizlik işareti doğrulandı. Bu paket S06.3c ve S08.1 kabulüdür.
+İki mimarili imaj anonim doğrulandı:
 `sha256:00902e8b6142d546a9493e7db4a2b55a8fa166cbd44f9a4932894ae9fd5c4c22`.
-[İmzalı APK 88 ve metadata](https://github.com/ersingundem/larenor/actions/runs/33981106645/artifacts/9974067173)
-indirildi ve Java 17 + sabit apksig 9.1.0 ile ayrıca doğrulandı: doğru paket,
-sertifika, `100000088`, minSdk 26, `debuggable=false` ve kaynak commit eşleşti.
-APK SHA-256: `757b63032d51b3289f8ecb9d189f451bf777828e1867273d75e13eb485d75a47`.
-Yapılandırılmamış ev Server'ına Client yayın adımı atlandı; ev kurulumu yok.
+[APK 88](https://github.com/ersingundem/larenor/actions/runs/33981106645/artifacts/9974067173)
+Java 17 + sabit apksig ile ayrıca doğrulandı; `100000088`, doğru sertifika ve
+`debuggable=false`. APK SHA-256:
+`757b63032d51b3289f8ecb9d189f451bf777828e1867273d75e13eb485d75a47`.
+Ev Server'ına yayın atlandı; ev kurulumu yok.
+
+</details>
 
 <details>
 <summary>Önceki doğrulanmış yayın: 483ec13 / APK 87</summary>
@@ -115,6 +128,9 @@ APK SHA-256: `1d642a628da571fbb5f4e0d453ac6c6bf94c2d69b6b5aa2109926df0730f3a76`.
 Bu önceki kanıt daha yeni Client bağlamı veya imaj/journal köprüsünü kapsamaz.
 
 </details>
+
+<details>
+<summary>Önceki temel kabul ve CI düzeltmeleri: 62b2054 ve öncesi</summary>
 
 **S06 dilim 2 tamamlandı:** [birleşik medya gereksinim kontrolü](media-inspections-implementation-2026-09-05.md),
 şifreli kalıcı sonuç/geçmiş/iptal, Android yönetim ekranı, toplam disk bütçesi ve
@@ -172,14 +188,16 @@ depolama kotasına takıldı; taramalar bulgu üretmedi. Bu pakette rapor yükle
 hatası açık uyarıyla ayrıldı, güvenlik taramalarının artifact bağımlılığı
 kaldırıldı. Asıl test/tarama hataları ve imzalı APK teslim hataları hâlâ engelleyicidir.
 
+</details>
+
 ## Şu anda çalışılanlar
 
 | İş | Durum | Tamamlanma ölçütü |
 | --- | --- | --- |
 | S05 hizmet yönetimi ve denetimi | Client admin ekranı, şifreli Server kayıtları ve 17 servis türünün kontrol yolu uygulandı | `19b14aa` Server/Güvenlik/Android ve imzalı APK teslimi geçti; gerçek servis kabulü ayrı |
 | S06 birleşik medya hazırlığı/kontrolü | İlk iki dilim: hazırlık, toplam disk ve daemon bağlamı gözlemi, şifreli kontrol geçmişi/iptal ve Client akışı uygulandı | `62b2054` bütün CI ve imzalı APK geçti. Kaynak hazırlığı → kurulum adımları → özel bootstrap → kurtarma açık; port/alıcı ağı henüz `unknown` |
-| B3 kalıcı Core/ev bağlamı | Korumalı `/api/v1/context`, şema 3 migration, restart koruması ve Client typed okuyucu uygulandı | `19b14aa` ortak sözleşme CI'ı geçti; oturum/cache bağlama, merkezi adaptörler ve kaynak yetkileri açık |
-| Gerçek Server imajı doğrulaması | `62b2054` iki mimaride medya oluştur/restart/iptal ve inspection yetenek sınırı dahil geçti ve yayımlandı | Anonim manifest doğrulandı; gerçek ev kurulumu ve medya motorlarının kurulması ayrı |
+| B3 kalıcı Core/ev bağlamı | Korumalı kimlik API'si ve S08.1 atomik Client oturumu kabul edildi; S08.2 uyumluluk kod/testi hazır | S08.1 `fc632b6` tam CI; S08.2 kendi CI'ını bekliyor. Global provider/route/cache sınırı, merkezi adaptörler ve kaynak yetkileri açık |
+| Gerçek Server imajı doğrulaması | `1408e80` AMD64/ARM64 Core restart/medya hazırlığı/iptal kontrolünü geçti ve yayımlandı | Anonim index ve kaynak kimliği doğrulandı; gerçek ev kurulumu ve medya motorlarının kurulması ayrı |
 | Seçilen 63 özelliğin bağımlılık planı | İlk 60 seçim ve bağımsız VNC/RDP/SSH kaydedildi; 11 grup ve mevcut temel kapıları | Yeni özellik kabulü 0/63; SSH/tünel temeli → RDP → VNC, Proxmox veya medya kurulumu zorunlu değil |
 
 **Son kapsam kararı:** Medya ve Music Assistant için ayrı uygulama kurulumu veya

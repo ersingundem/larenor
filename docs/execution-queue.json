@@ -377,7 +377,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Sahiplik/parent kontrolü 84 testle; mount gözlemi 68cc660 ile 113 testle yerelde hazır, bir Linux testi Mac’te atlandı. Supervisor/daemon/UID mapping lease ve create/publish açık."
+      "reason": "Sahiplik/parent kontrolü ve mount gözlemi 1408e80 içinde 2.092 atlamasız Linux Server testiyle geçti. Supervisor/daemon/UID mapping lease ve create/publish açık."
     },
     {
       "id": "S06.3e",
@@ -394,7 +394,8 @@
         "docs/remaining-core-integration-slices.md",
         "docs/network-resource-implementation-2026-09-05.md",
         "docs/network-transport-plan-2026-09-05.md",
-        "docs/engine-http-implementation-2026-09-05.md"
+        "docs/engine-http-implementation-2026-09-05.md",
+        "docs/network-read-transport-implementation-2026-09-05.md"
       ],
       "scope": "installAvailable=false; Client kaynak adı/Docker seçenekleri üretmez. Gerçek ev sunucusuna işlem yok.",
       "acceptance": [
@@ -407,7 +408,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Saf ağ sözleşmesi 1408e80 Linux CI’da geçti. Ortak Unix HTTP taşıması f2431c7 ile çıkarıldı; 365 regresyon, iki Mac/Linux atlaması ve bağımsız inceleme tamamlandı. Ağ list/inspect adaptörü, oluşturma/journal bağlantısı ve gerçek Engine kabulü açık."
+      "reason": "List/inspect adaptörü 3076f5f ile hazır: 579 bağlı regresyon ve iki inceleme geçti. Tam Server 2.291 geçti, beş Linux testi Mac’te atlandı; bu yeni paketin uzak CI’ı sırada. Ağ create/journal köprüsü ve gerçek Engine kabulü açık."
     },
     {
       "id": "S06.3f",
@@ -766,7 +767,7 @@
         }
       ],
       "completionCommit": null,
-      "reason": "41ce750 RED → 67cb058 GREEN; 70 odaklı ve 531 regresyon testi, temiz analiz ve bağımsız inceleme tamamlandı. Bu kaynağı içeren uzak CI kabulü bekleniyor."
+      "reason": "41ce750 RED → 67cb058 GREEN; 70 odaklı ve 531 regresyon, bağımsız inceleme tamamlandı. Son paketle 2.701 tam Flutter testi ve temiz analiz geçti; kendi uzak CI kabulü bekleniyor."
     },
     {
       "id": "S08.3",
@@ -1158,7 +1159,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Alt gezinme 97 regresyon, 2.678 tam Flutter testi ve gerçek fontlu görsel QA ile yerelde hazır; 1408e80 CI’ı sürüyor. Bütün kart/form/ekran ve gerçek TalkBack kabulü ayrı."
+      "reason": "Alt gezinme 1408e80 tam CI/APK 89 ile doğrulandı. Başlık/menü e3d884b RED → 8a7b31e GREEN; 522 regresyon ve 2.701 tam Flutter testi geçti. Ayar satırlarının klavye/uzun URL düzeltmesi ayrı çalışma kopyasında başladı. Bütün ekranlar ve gerçek TalkBack ayrı."
     },
     {
       "id": "B5.2",

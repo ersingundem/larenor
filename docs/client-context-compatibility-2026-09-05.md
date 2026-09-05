@@ -43,3 +43,6 @@ incelemesinde kapsam dışı hata sınıflandırması veya token tekrar kullanı
 bulgusu kalmadı. Bunlar fiziksel cihaz veya eski Server kurulumu kabulü
 değildir. Global provider/route/callback sınırı ve kalıcı ev cache'i
 S08.3–4 kapsamında açık kalır.
+
+Son `3076f5f` kaynak paketindeki tam Client regresyonu **2.701 testle** geçti;
+tam analiz temiz. S08.2'nin kendi uzak CI kabulü ayrıca beklenir.

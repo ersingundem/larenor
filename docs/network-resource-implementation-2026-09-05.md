@@ -36,7 +36,7 @@ SQLite niyeti ve sentetik HTTP cevabı kullanır; gerçek Engine ağı yaratmaz.
 `1408e80` uzak Linux CI'ında 88 özel test dahil **2.092 test atlamasız** geçti.
 Bu kabul saf ağ sözleşmesinindir; aşağıdaki transport/etki kapıları ayrı kalır.
 
-Bir sonraki [transport dilimi](network-transport-plan-2026-09-05.md), imajın
-mevcut bağlantı/peer/sürüm/iptal/framing katmanını koruyarak önce salt list/inspect
-sağlayacaktır. Journal etki köprüsü, gerçek actor/daemon/kapasite yetkisi ve
+Sonraki [transport dilimi](network-read-transport-implementation-2026-09-05.md), imajın
+mevcut bağlantı/peer/sürüm/iptal/framing katmanını koruyarak salt list/inspect
+sağladı; kendi tam CI kabulü ayrıca izlenir. Journal etki köprüsü, gerçek actor/daemon/kapasite yetkisi ve
 iki mimarili geçici Engine kabulü açık olduğundan S06.3e bütünü kapanmaz.
