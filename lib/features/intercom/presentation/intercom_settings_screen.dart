@@ -1,6 +1,7 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/direct_home_access.dart';
 import '../../../l10n/generated/app_localizations.dart';
 import '../../../shared/widgets/app_page_scaffold.dart';
 import '../../../shared/widgets/settings_section.dart';
@@ -78,6 +79,7 @@ class _StationEditor extends ConsumerStatefulWidget {
 }
 
 class _StationEditorState extends ConsumerState<_StationEditor> {
+  late final _homeAccess = ref.read(directHomeAccessProvider);
   late final _name = TextEditingController(text: widget.initial?.name ?? '');
   late final _connection = ref.read(connectionConfigProvider).value;
   late String? _camera = widget.initial?.cameraEntityId;
@@ -92,10 +94,13 @@ class _StationEditorState extends ConsumerState<_StationEditor> {
   bool _busy = false;
   bool _failed = false;
 
-  bool get _sameConnection => sameHealthConfiguration(
-    _connection,
-    ref.read(connectionConfigProvider).value,
-  );
+  bool get _sameConnection =>
+      mounted &&
+      _homeAccess.isCurrent &&
+      sameHealthConfiguration(
+        _connection,
+        ref.read(connectionConfigProvider).value,
+      );
 
   @override
   void dispose() {
@@ -178,6 +183,7 @@ class _StationEditorState extends ConsumerState<_StationEditor> {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
+    ref.watch(directHomeAccessProvider);
     final states = ref.watch(entitiesProvider);
     final connection = ref.watch(connectionConfigProvider);
     final changed = connection.isReloading || !_sameConnection;
