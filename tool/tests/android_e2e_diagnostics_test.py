@@ -81,7 +81,8 @@ unrelated app data: synthetic-secret
         replies = {
             ("shell", "getprop", "ro.kernel.qemu"): b"1\r\n",
             ("shell", "dumpsys", "power"): b"mWakefulness=Awake\nsecret-power-data",
-            ("shell", "dumpsys", "window", "windows"): b"mCurrentFocus=Window{StatusBar secret-title}",
+            # API 35 emits focus ownership in the display dump, not `windows`.
+            ("shell", "dumpsys", "window", "displays"): b"mCurrentFocus=Window{Application Not Responding: synthetic-secret}",
             ("shell", "dumpsys", "window", "policy"): b"showing=true\nsecret-policy-data",
             ("exec-out", "screencap", "-p"): diagnostics.PNG_SIGNATURE + b"synthetic-image",
         }
@@ -97,6 +98,7 @@ unrelated app data: synthetic-secret
                 state = (output / "native-focus.json").read_text()
                 self.assertNotIn("secret", state)
                 self.assertTrue(json.loads(state)["screenshotAvailable"])
+                self.assertEqual(json.loads(state)["windows"]["mCurrentFocus"], ["application_error_dialog"])
                 self.assertEqual(set(p.name for p in output.iterdir()), {"native-focus.json", "native-focus.png"})
 
     def test_partial_device_failure_still_preserves_available_filtered_evidence(self):
