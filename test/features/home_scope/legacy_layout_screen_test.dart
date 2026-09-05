@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:shared_preferences_platform_interface/shared_preferences_platform_interface.dart';
 import 'package:larenor/core/app_interaction_scope.dart';
 import 'package:larenor/core/home_data_scope.dart';
 import 'package:larenor/features/dashboard/data/dashboard_repository.dart';
@@ -44,6 +45,19 @@ DashboardRepository repository(WidgetTester tester, ScopeHarness h) {
   final subscription = h.runtime(tester).listen(dashboardRepositoryProvider, (_, _) {});
   addTearDown(subscription.close);
   return subscription.read();
+}
+class CopyPlatform extends InMemorySharedPreferencesStore {
+  CopyPlatform(Map<String, Object> values) : super.withData({for (final entry in values.entries) 'flutter.${entry.key}': entry.value});
+  bool commit = false, throwing = false;
+  int copies = 0;
+  @override
+  Future<bool> setValue(String valueType, String key, Object value) async {
+    if (!key.startsWith('flutter.dashboard_layout_core_v1_')) return super.setValue(valueType, key, value);
+    copies++;
+    if (commit) await super.setValue(valueType, key, value);
+    if (throwing) throw StateError('private diagnostic');
+    return false;
+  }
 }
 void main() {
   testWidgets(
@@ -156,4 +170,94 @@ void main() {
     expect(await fresh.load(), localLayout);
     expect(access.isCurrent, isFalse);
   });
+
+  testWidgets('saved scope survives app remount while other Core home stays empty', (tester) async {
+    final h = ScopeHarness(HomeSource.verifiedCore);
+    await h.mount(tester, pin: '1234', preferences: {'dashboard_layout': jsonEncode(localLayout.toJson())});
+    await h.signIn(); await flush(tester); await openPreview(tester, h);
+    await layoutPress(tester, 'home-layout-room-0');
+    await layoutPress(tester, 'home-layout-copy-selected');
+    await layoutPress(tester, 'home-layout-confirm-copy');
+    final prefs = await SharedPreferences.getInstance(); await prefs.reload();
+    final persisted = {for (final key in prefs.getKeys()) key: prefs.get(key)!};
+    await tester.pumpWidget(const SizedBox.shrink()); await flush(tester);
+    final restored = ScopeHarness(HomeSource.verifiedCore)..store.value = h.store.value;
+    await restored.mount(tester, pin: '1234', preferences: persisted);
+    expect(restored.api.meReads, 1); expect(restored.api.contextReads, 1);
+    expect((await repository(tester, restored).load()).rooms.map((r) => r.name), ['Kitchen']);
+    restored.api.homeId = 'c' * 32;
+    restored.now = restored.account.session!.expiresAt.subtract(const Duration(seconds: 20));
+    final refreshing = restored.account.ensureSession();
+    restored.now = DateTime.now(); await refreshing; await flush(tester);
+    expect((await repository(tester, restored).load()).rooms, isEmpty);
+    expect((await SharedPreferences.getInstance()).getString(scopeA.storageKey), persisted[scopeA.storageKey]);
+    expect(restored.connectionReads, 0);
+  });
+  testWidgets('Direct repository stays legacy when a Server account signs in', (tester) async {
+    final h = ScopeHarness(HomeSource.directLocal);
+    await h.mount(tester, preferences: {'dashboard_layout': jsonEncode(localLayout.toJson())});
+    final before = repository(tester, h);
+    expect(before.scope, isNull); expect(await before.load(), localLayout);
+    await h.signIn(); await flush(tester);
+    expect(identical(before, repository(tester, h)), isTrue);
+    expect(await before.load(), localLayout);
+    expect((await SharedPreferences.getInstance()).get(scopeA.storageKey), isNull);
+  });
+  testWidgets('keyboard selection, cancel and hidden route invalidate captured action', (tester) async {
+    final h = ScopeHarness(HomeSource.verifiedCore);
+    await h.mount(tester, pin: '1234', preferences: {'dashboard_layout': jsonEncode(localLayout.toJson())});
+    await h.signIn(); await flush(tester); await openPreview(tester, h);
+    final choose = find.byKey(const ValueKey('home-layout-room-0'));
+    await tester.ensureVisible(choose); await flush(tester);
+    final button = find.descendant(of: choose, matching: find.byType(CupertinoButton));
+    final focus = Focus.of(tester.element(find.descendant(of: button, matching: find.byType(Text)).first));
+    focus.requestFocus(); await flush(tester);
+    await tester.sendKeyEvent(LogicalKeyboardKey.space); await flush(tester);
+    expect(tester.widget<SettingsActionTile>(choose).selected, isTrue);
+    await tester.sendKeyEvent(LogicalKeyboardKey.tab); await flush(tester);
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
+    await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft); await flush(tester);
+    expect(focus.hasFocus, isTrue);
+    await layoutPress(tester, 'home-layout-copy-selected');
+    await tester.tap(find.text('Cancel')); await flush(tester);
+    expect((await SharedPreferences.getInstance()).get(scopeA.storageKey), isNull);
+    final old = tester.widget<SettingsActionTile>(find.byKey(const ValueKey('home-layout-copy-selected'))).onTap!;
+    final navigator = Navigator.of(tester.element(choose));
+    navigator.push(CupertinoPageRoute<void>(builder: (_) => const CupertinoPageScaffold(child: Text('Other local page'))));
+    await flush(tester); old(); await flush(tester);
+    expect(find.byType(CupertinoAlertDialog), findsNothing);
+    navigator.pop(); await flush(tester); old(); await flush(tester);
+    expect(find.byType(CupertinoAlertDialog), findsNothing);
+    expect((await SharedPreferences.getInstance()).get(scopeA.storageKey), isNull);
+  });
+  for (final commit in [false, true]) {
+    for (final throwing in [false, true]) {
+      testWidgets('uncertain copy $commit/$throwing never confirms or automatically retries', (tester) async {
+        final h = ScopeHarness(HomeSource.verifiedCore);
+        await h.mount(tester, pin: '1234', preferences: {'dashboard_layout': jsonEncode(localLayout.toJson())});
+        await h.signIn(); await flush(tester);
+        final initial = await SharedPreferences.getInstance();
+        final values = {for (final key in initial.getKeys()) key: initial.get(key)!};
+        SharedPreferences.resetStatic();
+        final platform = CopyPlatform(values)..commit = commit..throwing = throwing;
+        SharedPreferencesStorePlatform.instance = platform;
+        await openPreview(tester, h);
+        await layoutPress(tester, 'home-layout-room-0');
+        await layoutPress(tester, 'home-layout-copy-selected');
+        final stale = tester.widget<CupertinoDialogAction>(find.byKey(const ValueKey('home-layout-confirm-copy'))).onPressed!;
+        await layoutPress(tester, 'home-layout-confirm-copy');
+        expect(find.byKey(const ValueKey('home-layout-copy-complete')), findsNothing);
+        expect(find.textContaining('save could not be confirmed'), findsOneWidget);
+        expect(platform.copies, 1);
+        // Once a dialog completed, its captured callback cannot act on a later route.
+        stale(); await flush(tester);
+        expect(platform.copies, 1);
+        await layoutPress(tester, 'home-layout-refresh-preview');
+        final current = find.byKey(const ValueKey('home-layout-current-room-0'));
+        expect(current, commit ? findsOneWidget : findsNothing);
+        expect(platform.copies, 1);
+      });
+    }
+  }
 }
