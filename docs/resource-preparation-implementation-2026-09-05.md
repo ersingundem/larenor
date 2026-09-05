@@ -22,7 +22,8 @@ ek alanlar ve bool→int normalizasyonu ham alan doğrulamasında reddedilir.
 Yerel kanıt: **67 yeni odaklı test**, mevcut katalog/stack ile **249 test**;
 iki yeni modülde birleşik satır/dal kapsamı **%95**. Bağımsız kök incelemesi
 sözleşme, katalog pinleri, sıfır I/O ve geçmiş v1 sınırını doğruladı. Uzak CI
-sonucu henüz bu yeni dilime eklenmedi.
+sonucu: `483ec13` Linux Server CI **1.736 atlamasız test**, güvenlik CI
+**202 araç testi** ile başarılı. Saf planın sınırları içinde S06.3a kabul edildi.
 
 ## Kalıcı kaynak makbuzu: S06.3b
 
@@ -43,6 +44,8 @@ incelemede geçmişin bütün payload'larını belleğe alma sorunu giderildi:
 hedefli kayıt sorgusu ve akış halinde doğrulama kullanılır. Gerçek ayrı process
 kilit çakışması, transaction rollback, eksik/değişmiş SQLite şeması, bozuk
 makbuz, stale revision, restart ve belirsiz sonuç durumları sınandı.
+`483ec13` aynı journal kaynaklarıyla Linux Server ve güvenlik CI'ını geçti;
+S06.3b bu özel journal kapsamında kabul edildi.
 
 ## İmaj taşıması: S06.3c
 
@@ -72,7 +75,22 @@ sentetik daemon ile sınandı. Gerçek Linux SO_PEERCRED testi CI için kayıtl�
 Bağımsız incelemedeki 404 son-kontrol atlaması iki başarısız regresyonla
 yeniden üretildi ve düzeltildi.
 
-Journal ile kayıp yanıt/yeniden başlama bağlantısı ayrıca uygulanıyor.
+Journal ile kayıp yanıt/yeniden başlama bağlantısı `image_preparation.py` içinde
+eklendi: `f43ea2a` RED → `1dc6a4d` GREEN, ek regresyonlar `63680d6`.
+**70 test**, ilgili plan/journal/image paketiyle **289 geçti, bir Linux testi
+Mac'te atlandı**; yeni köprü modülünde birleşik kapsam **%99**. Gerçek SQLite
+journal + sentetik Unix Engine birleşimi AMD64/ARM64 ve sabit uzunluk/chunked
+yanıtlarla sınandı; altı kesin HTTP isteği içinde yalnız bir digest-pinned pull
+vardır. `Config`, environment ve progress makbuzda saklanmaz.
+
+Cache hit salt okunur doğrulama ile makbuzlanır. Cache miss için güvenilen
+dahili yetki callback'i iki kez tam `True` dönmelidir; etki öncesi niyet diske
+yazılır. İptal, callback sırasında kaynak değişimi veya cevap kaybı belirsizliği
+korur. Restart yalnız inspect/uzlaştırma yapar; otomatik ikinci pull yoktur.
+Bu callback gerçek operatör/actor/kapasite politikasının uygulandığı iddiası
+değildir. Bağımsız inceleme ve hata sınırı regresyonları tamamlandı. Köprü,
+`483ec13` uzak CI paketinden **sonraki** değişikliktir; o CI kanıtına dahil değildir.
+
 Bu ilkeller bir production dispatcher'a veya inspection API'sine bağlanmadı.
 Daemon image-store kapasitesi ve güncel actor/politika yetkisi ileride gerçek
 dispatch öncesi ayrıca kanıtlanacak; appdata kapasitesi bu koşulu karşılamaz.
@@ -84,3 +102,37 @@ Linux AMD64/ARM64 Engine kabulü henüz tamamlanmadı. Ardından dar kurulum,
 özel bootstrap ve otomatik medya bağlantıları gelir. Container mount koruması,
 media inspection salt okunur yetkisi ve gerçek evde manuel kurulum sınırı
 değişmedi. Sonuçlar [kalıcı kuyrukta](EXECUTION_QUEUE.md) ayrı kapanır.
+
+S06.3d için ilk uygulama, ayrı `appdata_resources.py` içinde saf binding,
+sahiplik marker sözleşmesi ve descriptor tabanlı salt okunur kontroldür:
+`ff2a6da` RED → `edd228d` GREEN. Bağımsız incelemede açılmış parent taşınınca
+eski descriptor üzerinde ENOENT'in yanlış `missing` dönebildiği yeniden
+üretildi: `5f3a1af` RED → `1ef08fb` GREEN. Marker okuma sonrası içerik
+değişimi de son kontrol aşamasında boyut/mtime/ctime ile reddedilir.
+**84 odaklı test**, birleşik statement/dal kapsamı **%97**. Gerçek geçici
+yerel dizin/FD ve enjekte edilen mount kanıtları kullanılır; Linux write lease
+ve Docker bağlamının fiziksel kanıtı değildir. `partial` yalnız bağlı marker
+altında eksik leaf gözlemidir, tamamlama veya onarma yetkisi sağlamaz.
+Bu alt adım dizin oluşturma/yayımlama yeteneği değildir. Sonraki
+mutation aşaması için incelemede saptanan sınırlar:
+
+- `HostInspector._managed_descriptor` eksik alt yol yerine mevcut parent'ı
+  döndürebilir; creation helper olarak kullanılmaz.
+- `DockerProbe.observe(during=...)` belirsiz gözlemde de callback'i çağırır ve
+  sonucu sonra doğrular. Yazma işlemi bu callback'e konulmaz. Yeni write lease,
+  ilk mkdir/chown ve yayın öncesi root/mount/UID eşleme kanıtını doğrulamalıdır.
+- Belirsiz resource intent yalnız salt okunur uzlaştırılabilir. Partial staging
+  korunur ve attention olarak kalır; sonradan publish için ayrı sürümlü phase
+  intent ve güncel yetki gerekir. Aynı adlı boş dizin sahiplik değildir.
+- Linux `RENAME_NOREPLACE`, aynı parent altında staging ve bütün gerekli
+  dizin fsync'leri gerekir; overwrite eden rename/replace fallback'i yoktur.
+  Symlink/hardlink, aynı device üzerindeki başka mount, UID/GID ve inode
+  değişimi, iptal ve her crash sınırı ayrı regresyon olacaktır.
+
+Bugünkü UID 10001 API container'ı, host dockerd ile aynı process root/mount
+bağlamında değildir. Yalnız Docker socket, host PID veya host network eklemek
+mevcut kanıtı sağlamaz. İlk gerçek fixture aynı Linux host bağlamında native
+dahili worker + ayrı API container kullanmalıdır. Birleşik installer bu worker,
+supervision, özel Unix socket ve açık politika kurulumunu henüz yapmıyor;
+bu, S07/S09 paketleme kabulünde tamamlanacak. API container'ına bu aşamada
+ek yetki verilmedi ve eski MA-only compose birleşik installer sayılmadı.

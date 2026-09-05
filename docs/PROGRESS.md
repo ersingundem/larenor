@@ -1,10 +1,11 @@
 # Larenor — güncel ilerleme ve iş kuyruğu
 
-**Son güncelleme: 5 Eylül 2026, 19:42 (Türkiye saati).**
+**Son güncelleme: 5 Eylül 2026, 20:27 (Türkiye saati).**
 
 ```text
 Önceki kapsam       █████████████░░░░░░░  ≈ %65
 S06 koordinatörü    ███████░░░░░░░░░░░░░  2/6 yazılım dilimi; test/yayın geçti
+S06.3 kaynak temeli  ███████░░░░░░░░░░░░░  2/6 alt adım; Linux CI ile kabul
 Yeni 63 özellik     ░░░░░░░░░░░░░░░░░░░░  0/63 kabul edildi
 Genişletilmiş toplam                     Henüz hesaplanmadı
 ```
@@ -51,10 +52,36 @@ bir servis değildir. Görev Codex'in zamanlanmış görevler ekranından durdur
 ile yerelde doğrulandı: 67 yeni odaklı test, mevcut katalog/stack ile birlikte
 249 test geçti; iki yeni modülde birleşik satır/dal kapsamı %95. Kalıcı kaynak
 makbuzu 92 odaklı testle, sabit digest imaj taşıması 60 testle yerelde doğrulandı;
-bir gerçek Linux peer testi Mac'te atlandı. İmaj/journal bağlantısı ve uzak CI
-üzerinde çalışma sürüyor. [Ayrıntılı uygulama kanıtı](resource-preparation-implementation-2026-09-05.md).
-Bu yeni değişiklikler henüz CI/yayın kabulü almadı; S06 sayacı bu yüzden **2/6**
+bir gerçek Linux peer testi Mac'te atlandı. İmaj/journal bağlantısı 70 yeni testle yerelde hazır; yeni paket CI kabulünü bekliyor. [Ayrıntılı uygulama kanıtı](resource-preparation-implementation-2026-09-05.md).
+Saf plan ve kalıcı journal artık Linux Server/güvenlik CI ile kabul edildi:
+**S06.3 içinde 2/6 alt adım**, kalan kuyruğun 2/125 somut işi kapandı.
+İmaj/dizin/ağ ve gerçek Engine kabulü açık olduğundan ana S06 sayacı **2/6**
 ve seçilen yeni özellik kabulü **0/63** olarak kalır.
+
+**Yeni paket `483ec13` GitHub'da:** 1.734 Server testi yerelde geçti, yalnız
+iki Linux testi Mac'te atlandı; 202 araç testi geçti.
+[Server CI](https://github.com/ersingundem/larenor/actions/runs/33979199140)
+**1.736 testi atlamasız**, iki mimarili build/restart/medya smoke ile geçti.
+[Android CI](https://github.com/ersingundem/larenor/actions/runs/33979199144)
+sekiz E2E senaryosu ve imzalı APK 87 teslimi dahil başarılı. [Güvenlik](https://github.com/ersingundem/larenor/actions/runs/33979199030)
+202 araç testiyle başarılı. Aşağıdaki `62b2054` tam yayın kanıtı önceki taban olarak korunur.
+**S08.1 yerel GREEN `f7d9b83`:** dönen auth tokenlarını koruyarak Core/ev
+bağlamını doğrulama, yalnız başarısız context GET'i tekrar deneme ve eski 401
+yanıtlarının yeni oturumu silememesi. 520 regresyon geçti, analiz temiz;
+[uygulama kanıtı](client-context-implementation-2026-09-05.md). Uzak CI bekliyor.
+S06.3d salt okunur sahiplik marker/descriptor kontrolü `1ef08fb` ile 84 testi
+geçti. Dizin oluşturma/yayımlama ve gerçek native worker kabulü açık;
+S06.3e özel ağ sözleşmesi ayrı modülde başladı.
+
+`483ec13` imajı anonim registry erişimiyle ayrıca doğrulandı: commit etiketi,
+`stable` ve iki mimarinin kaynak/config bağları eşleşti.
+İndeks: `sha256:7b368f5e5575746de203e88c96a3c64fb99527032b6806dce538f816c73ced61`.
+Android analiz, **2.625 Flutter, 98 JVM ve sekiz E2E senaryosu** geçti;
+42 aşama/temizlik işareti doğrulandı. API 35 emülatör akışı 10:42 ile 18 dakika
+sınırında tamamlandı. [İmzalı APK 87 ve metadata](https://github.com/ersingundem/larenor/actions/runs/33979199144/artifacts/9973530086)
+yüklendi; ayrıca yerel indirme ve bağımsız paket/imza doğrulaması sürüyor.
+Daha yeni `63680d6` imaj/journal köprüsü, `f7d9b83` Client bağlamı ve `1ef08fb`
+dizin gözlem kontrolü bu eski CI kaynağının kapsamına dahil değildir.
 
 **S06 dilim 2 tamamlandı:** [birleşik medya gereksinim kontrolü](media-inspections-implementation-2026-09-05.md),
 şifreli kalıcı sonuç/geçmiş/iptal, Android yönetim ekranı, toplam disk bütçesi ve

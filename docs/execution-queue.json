@@ -169,7 +169,7 @@
       "kind": "task",
       "parent": "S06.3",
       "title": "Worker kaynak planı ve değişmez kimlikler",
-      "status": "awaiting_ci",
+      "status": "done",
       "dependsOn": [
         "B0"
       ],
@@ -192,29 +192,45 @@
         {
           "kind": "test",
           "ref": "docs/resource-preparation-implementation-2026-09-05.md",
-          "commit": "0de91a2f6aefeeeb318050552993940d7dc3a7ef",
+          "commit": "483ec13bbaba2141e8f96ac7ff5eaeabeddfce19",
           "state": "completed",
           "result": "passed",
-          "label": "67 yeni odaklı; katalog/stack ile 249 geçti, birleşik kapsam %95"
+          "label": "Değişmeyen Server kaynakları: yerelde 1734 geçti / 2 Linux atlaması; Linux CI 1736 geçti / sıfır atlama. Odaklı kapsam ve sınırlar belgede."
         },
         {
           "kind": "review",
           "ref": "docs/resource-preparation-implementation-2026-09-05.md",
-          "commit": "0de91a2f6aefeeeb318050552993940d7dc3a7ef",
+          "commit": "483ec13bbaba2141e8f96ac7ff5eaeabeddfce19",
           "state": "completed",
           "result": "passed",
-          "label": "Kök bağımsız inceleme: sözleşme/pin/sıfır I/O/v1 geçmiş sınırı"
+          "label": "Dondurulmuş kaynakta bağımsız katalog/kimlik/kilit/bozulma/kurtarma incelemesi, bulgular regresyonla giderildi."
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/33979199140",
+          "commit": "483ec13bbaba2141e8f96ac7ff5eaeabeddfce19",
+          "state": "completed",
+          "result": "passed",
+          "label": "Linux Server 1736 test, native amd64/arm64 imaj ve restart/media smoke."
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/33979199030",
+          "commit": "483ec13bbaba2141e8f96ac7ff5eaeabeddfce19",
+          "state": "completed",
+          "result": "passed",
+          "label": "202 araç testi, güvenlik ve bağımlılık taraması."
         }
       ],
-      "completionCommit": null,
-      "reason": "Yerel 249 test ve bağımsız inceleme geçti; bu commit için uzak CI kapısı henüz açık."
+      "completionCommit": "483ec13bbaba2141e8f96ac7ff5eaeabeddfce19",
+      "reason": "Saf plan/journal kapsamı Linux Server ve güvenlik CI ile kabul edildi; imaj/dizin/ağ, tam kurulum ve fiziksel kabul ayrı."
     },
     {
       "id": "S06.3b",
       "kind": "task",
       "parent": "S06.3",
       "title": "Kaynak journal’ı ve kesilmiş işlem sahipliği",
-      "status": "awaiting_ci",
+      "status": "done",
       "dependsOn": [
         "B0"
       ],
@@ -239,29 +255,45 @@
         {
           "kind": "test",
           "ref": "docs/resource-preparation-implementation-2026-09-05.md",
-          "commit": "9eaf7d10f0e351376e01e31d7c1f39fb13516bcf",
+          "commit": "483ec13bbaba2141e8f96ac7ff5eaeabeddfce19",
           "state": "completed",
           "result": "passed",
-          "label": "92 odaklı, 216 uyumluluk testi; 450/450 statement, 85/86 dal."
+          "label": "Değişmeyen Server kaynakları: yerelde 1734 geçti / 2 Linux atlaması; Linux CI 1736 geçti / sıfır atlama. Odaklı kapsam ve sınırlar belgede."
         },
         {
           "kind": "review",
           "ref": "docs/resource-preparation-implementation-2026-09-05.md",
-          "commit": "9eaf7d10f0e351376e01e31d7c1f39fb13516bcf",
+          "commit": "483ec13bbaba2141e8f96ac7ff5eaeabeddfce19",
           "state": "completed",
           "result": "passed",
-          "label": "Bağımsız yol/kilit/state incelemesi; toplu payload belleği sorunu streaming ve hedefli sorguyla giderildi."
+          "label": "Dondurulmuş kaynakta bağımsız katalog/kimlik/kilit/bozulma/kurtarma incelemesi, bulgular regresyonla giderildi."
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/33979199140",
+          "commit": "483ec13bbaba2141e8f96ac7ff5eaeabeddfce19",
+          "state": "completed",
+          "result": "passed",
+          "label": "Linux Server 1736 test, native amd64/arm64 imaj ve restart/media smoke."
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/33979199030",
+          "commit": "483ec13bbaba2141e8f96ac7ff5eaeabeddfce19",
+          "state": "completed",
+          "result": "passed",
+          "label": "202 araç testi, güvenlik ve bağımlılık taraması."
         }
       ],
-      "completionCommit": null,
-      "reason": "Yerel journal ve bağımsız inceleme tamam; tam kaynak commit’inin uzak kapıları ile S06.3a kabulü bekleniyor."
+      "completionCommit": "483ec13bbaba2141e8f96ac7ff5eaeabeddfce19",
+      "reason": "Saf plan/journal kapsamı Linux Server ve güvenlik CI ile kabul edildi; imaj/dizin/ağ, tam kurulum ve fiziksel kabul ayrı."
     },
     {
       "id": "S06.3c",
       "kind": "task",
       "parent": "S06.3",
       "title": "Seçili digest ile bounded imaj edinme",
-      "status": "in_progress",
+      "status": "awaiting_ci",
       "dependsOn": [
         "B0"
       ],
@@ -282,16 +314,33 @@
         "review",
         "ci"
       ],
-      "evidence": [],
+      "evidence": [
+        {
+          "kind": "test",
+          "ref": "docs/resource-preparation-implementation-2026-09-05.md",
+          "commit": "63680d6567d1ee61de567d2348aa031300198df2",
+          "state": "completed",
+          "result": "passed",
+          "label": "70 köprü testi; 289 ilgili test geçti, bir Linux testi Mac’te atlandı; köprü %99 kapsam."
+        },
+        {
+          "kind": "review",
+          "ref": "docs/resource-preparation-implementation-2026-09-05.md",
+          "commit": "63680d6567d1ee61de567d2348aa031300198df2",
+          "state": "completed",
+          "result": "passed",
+          "label": "Bağımsız kalıcılık/iptal/yetki/kayıp cevap ve sentetik Unix bileşim incelemesi."
+        }
+      ],
       "completionCommit": null,
-      "reason": "Önceki sözleşme yerelde dondurulunca ayrı modülde paralel draft geliştirme; kabul önceki işin CI kapısını bekler."
+      "reason": "Sabit digest taşıması ve journal köprüsü yerelde doğrulandı; 63680d6 henüz uzak CI’da değil. Gerçek daemon/kapasite dispatch politikası ayrıca kapalı."
     },
     {
       "id": "S06.3d",
       "kind": "task",
       "parent": "S06.3",
       "title": "Onaylı kökte sahiplikli appdata",
-      "status": "pending",
+      "status": "in_progress",
       "dependsOn": [
         "S06.3b"
       ],
@@ -311,14 +360,14 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": null
+      "reason": "İlk salt okunur alt adım1ef08fb: 84 test ve %97 kapsam; marker/parent değişimi regresyonları giderildi. Gerçek write lease, oluşturma/yayımlama ve Linux kabulü açık."
     },
     {
       "id": "S06.3e",
       "kind": "task",
       "parent": "S06.3",
       "title": "Sahiplikli özel kontrol ağı",
-      "status": "pending",
+      "status": "in_progress",
       "dependsOn": [
         "S06.3b"
       ],
@@ -338,7 +387,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": null
+      "reason": "Saf ağ binding/create-body ve sahiplik doğrulayıcısı hazırlanıyor. Transport, journal etki köprüsü ve gerçek Engine kabulü henüz yok."
     },
     {
       "id": "S06.3f",
@@ -588,7 +637,7 @@
       "kind": "task",
       "parent": "S08",
       "title": "Core/ev bağlamını oturuma atomik bağlama",
-      "status": "pending",
+      "status": "awaiting_ci",
       "dependsOn": [
         "B0"
       ],
@@ -596,7 +645,8 @@
       "sources": [
         "docs/remaining-core-integration-slices.md",
         "docs/feature-expansion-plan-2026-09-05.md",
-        "docs/integrated-media-stack.md"
+        "docs/integrated-media-stack.md",
+        "docs/client-context-implementation-2026-09-05.md"
       ],
       "scope": "Tek mevcut ev bağlamı; F19 çoklu Core/ev federasyonu bu teslim değildir.",
       "acceptance": [
@@ -607,9 +657,26 @@
         "review",
         "ci"
       ],
-      "evidence": [],
+      "evidence": [
+        {
+          "kind": "test",
+          "ref": "docs/client-context-implementation-2026-09-05.md",
+          "commit": "f7d9b832ffe415c194ba49ca89004ddb52b0f603",
+          "state": "completed",
+          "result": "passed",
+          "label": "520 Server/Client updates testi ve 14 dosyada temiz analiz; satır kapsamı %94,6–100."
+        },
+        {
+          "kind": "review",
+          "ref": "docs/client-context-implementation-2026-09-05.md",
+          "commit": "f7d9b832ffe415c194ba49ca89004ddb52b0f603",
+          "state": "completed",
+          "result": "passed",
+          "label": "Bağımsız controller/store incelemesi; eski 401 üç RED→GREEN testiyle yeni oturumu koruyor."
+        }
+      ],
       "completionCommit": null,
-      "reason": null
+      "reason": "f7d9b83 yerel GREEN: 520 regresyon, analiz temiz; yeni token/pending-context saklama ve geç 401 koruması. Tam kaynak CI ve APK kapısı bekleniyor."
     },
     {
       "id": "S08.2",
