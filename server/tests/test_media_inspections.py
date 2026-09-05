@@ -511,3 +511,59 @@ def test_worker_model_copy_cannot_launder_boolean_capacity(inspections):
         return result.model_copy(update={'checks': [bad]})
     backend.action = forged
     assert manager.tick()['inspection']['errorCode'] == 'invalid_worker_result'
+
+
+def test_terminal_contracts_reject_incoherent_failures_and_foreign_observations(inspections):
+    manager, _, _, _, _ = inspections
+    queued = start(inspections)
+    succeeded = manager.tick()['inspection']
+    # Each invalid contract crosses a different terminal invariant, using one
+    # real successful observation so fabricated fixtures cannot hide drift.
+    variants = [succeeded | {'result': None}, succeeded | {'cancelRequested': True},
+                succeeded | {'result': succeeded['result'].model_copy(update={'catalogDigest': '0' * 64})},
+                succeeded | {'state': 'failed', 'errorCode': 'worker_unavailable'},
+                succeeded | {'state': 'failed', 'result': None, 'errorCode': None},
+                succeeded | {'state': 'needs_attention', 'result': None, 'errorCode': 'worker_unavailable'},
+                succeeded | {'state': 'cancelled', 'result': None, 'cancelRequested': False},
+                queued | {'state': 'running', 'phase': 'checking_requirements'},
+                queued | {'state': 'cancelled', 'phase': 'complete', 'cancelRequested': True}]
+    for value in variants:
+        with pytest.raises(ValueError):
+            MediaInspection.model_validate(value)
+
+
+@pytest.mark.parametrize('column,value', [('id', 'BAD'), ('sequence', 0), ('nonce', b'x'),
+                                         ('ciphertext', b'x' * 131073), ('created_at', -1)])
+def test_corrupt_storage_bounds_reject_before_decryption(inspections, column, value):
+    manager, _, actor, _, _ = inspections
+    start(inspections)
+    with manager.db.connection() as db:
+        db.execute('PRAGMA ignore_check_constraints=ON')
+        db.execute(f'UPDATE media_inspections SET {column}=?', (value,))
+    error('media_inspection_storage_unavailable', lambda: manager.list(actor))
+
+
+def test_catalog_cache_and_packaged_pins_must_agree_for_create_and_dispatch(inspections, monkeypatch):
+    from types import SimpleNamespace
+    manager, backend, actor, _, body = inspections
+    with monkeypatch.context() as changed:
+        changed.setattr('larenor_server.plugins.media_inspections.load_catalog', lambda: SimpleNamespace(digest='0' * 64))
+        error('media_catalog_changed', lambda: manager.create(actor, body))
+    start(inspections)
+    monkeypatch.setattr('larenor_server.plugins.media_inspections.load_catalog', lambda: SimpleNamespace(digest='0' * 64))
+    assert manager.tick()['inspection']['errorCode'] == 'catalog_changed'
+    assert backend.calls == []
+
+
+def test_authenticated_impossible_two_running_receipts_fail_startup(server, inspections):
+    manager, _, actor, pair, _ = inspections
+    start(inspections)
+    _, prep = create_preparation(server[1], pair, request_id='2' * 32, name='other')
+    manager.create(actor, CreateMediaInspectionRequest(requestId='b' * 32, preparationId=prep['id'],
+                    expectedRevision=1, planHash=prep['plan']['planHash']))
+    with manager.db.transaction() as db:
+        rows = db.execute('SELECT * FROM media_inspections').fetchall()
+        for row in rows:
+            manager._transition(db, row, manager._decode(row), state='running')
+    with pytest.raises(StartupError, match='invalid_media_inspections_storage'):
+        manager.validate_storage()

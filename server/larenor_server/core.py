@@ -21,6 +21,8 @@ from .plugins.job_schema import migrate_plugin_jobs
 from .plugins.jobs import JobManagement
 from .plugins.media_schema import migrate_media_preparations
 from .plugins.media_preparations import MediaPreparationManagement
+from .plugins.media_inspection_schema import migrate_media_inspections
+from .plugins.media_inspections import MediaInspectionManagement
 from .plugins.preflight_ipc import PreflightWorkerClient
 from .services.schema import migrate_services
 from .services.service import ServiceManagement
@@ -127,6 +129,7 @@ class CoreServices:
                 migrate_plugins(connection)
                 migrate_plugin_jobs(connection)
                 migrate_media_preparations(connection)
+                migrate_media_inspections(connection)
             if not existed:
                 # Only publish the DB after its complete first transaction commits.
                 # Never expose an empty DB that a restart might treat as a reset.
@@ -157,6 +160,8 @@ class CoreServices:
             self.plugin_jobs.validate_storage()
             self.media_preparations = MediaPreparationManagement(self.db, self.auth, settings, key, self.plugins, self.context)
             self.media_preparations.validate_storage()
+            self.media_inspections = MediaInspectionManagement(self.db, self.auth, settings, key, self.media_preparations, backend)
+            self.media_inspections.validate_storage()
             self.clear_inactive_bootstrap()
 
     def clear_inactive_bootstrap(self) -> None:
