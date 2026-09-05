@@ -37,7 +37,7 @@ class IdentityObservationError(Exception):
         super().__init__(code if code == 'identity_observation_busy' else 'identity_observation_unavailable')
 
 
-_ERRORS = (OSError, ValueError, TypeError, AttributeError, RuntimeError, OverflowError, IdentityObservationError)
+_ERRORS = (OSError, ValueError, TypeError, AttributeError, RuntimeError, OverflowError, IndexError, IdentityObservationError)
 
 
 def _require(value):
