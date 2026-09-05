@@ -7,6 +7,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:larenor/core/theme.dart';
+import 'package:larenor/core/app_interaction_scope.dart';
 import 'package:larenor/features/dashboard/presentation/dashboard_card_presentation.dart';
 import 'package:larenor/features/dashboard/presentation/tiles/home_accessory_tile.dart';
 import 'package:larenor/features/dashboard/presentation/tiles/dashboard_tile_button.dart';
@@ -42,6 +43,9 @@ Future<void> mount(
   Brightness brightness = Brightness.light,
   double scale = 1,
   _Entities? entities,
+  AppInteractionController? interaction,
+  ValueNotifier<bool>? visible,
+  GlobalKey<NavigatorState>? navigator,
 }) async {
   await tester.pumpWidget(
     ProviderScope(
@@ -52,15 +56,32 @@ Future<void> mount(
         if (entities != null) entitiesProvider.overrideWith(() => entities),
       ],
       child: CupertinoApp(
+        navigatorKey: navigator,
         theme: larenorTheme(brightness: brightness),
         locale: Locale(language),
         localizationsDelegates: AppLocalizations.localizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
-        builder: (context, child) => MediaQuery(
-          data: MediaQuery.of(context)
-              .copyWith(textScaler: TextScaler.linear(scale)),
-          child: child!,
-        ),
+        builder: (context, child) {
+          Widget content = child!;
+          if (visible != null) {
+            final body = content;
+            content = ValueListenableBuilder<bool>(
+              valueListenable: visible,
+              builder: (_, active, _) =>
+                  TickerMode(enabled: active, child: body),
+            );
+          }
+          if (interaction != null)
+            content = AppInteractionScope(
+              controller: interaction,
+              child: content,
+            );
+          return MediaQuery(
+            data: MediaQuery.of(context)
+                .copyWith(textScaler: TextScaler.linear(scale)),
+            child: content,
+          );
+        },
         home: CupertinoPageScaffold(
           child: Center(child: Builder(builder: child)),
         ),
@@ -85,6 +106,94 @@ List<SemanticsNode> buttons(WidgetTester tester) {
 }
 
 void main() {
+  for (final change in [
+    'idle-wake',
+    'hidden',
+    'background-wake',
+    'covered',
+    'reparent',
+    'disposed',
+  ]) {
+    testWidgets(
+      'service navigation captured before $change cannot reopen a route',
+      (tester) async {
+        final interaction = AppInteractionController();
+        final visible = ValueNotifier(true);
+        final navigator = GlobalKey<NavigatorState>();
+        addTearDown(interaction.dispose);
+        addTearDown(visible.dispose);
+        var routes = 0;
+        Widget tile(BuildContext context) => SizedBox(
+          width: 180,
+          height: dashboardServiceRowExtent(context),
+          child: ServiceTileShell(
+            icon: CupertinoIcons.play,
+            title: 'Jellyfin',
+            connected: true,
+            lines: const ['Synthetic library'],
+            onTap: () {
+              routes++;
+              navigator.currentState!.push(
+                CupertinoPageRoute<void>(
+                  builder: (_) =>
+                      const Center(child: Text('Service destination')),
+                ),
+              );
+            },
+          ),
+        );
+        await mount(
+          tester,
+          tile,
+          interaction: interaction,
+          visible: visible,
+          navigator: navigator,
+        );
+        final captured = tester
+            .widget<CupertinoButton>(find.byType(CupertinoButton))
+            .onPressed!;
+        switch (change) {
+          case 'idle-wake':
+            interaction.setActive(false);
+            interaction.setActive(true);
+          case 'hidden':
+            visible.value = false;
+            await tester.pump();
+          case 'background-wake':
+            tester.binding.handleAppLifecycleStateChanged(
+              AppLifecycleState.paused,
+            );
+            tester.binding.handleAppLifecycleStateChanged(
+              AppLifecycleState.resumed,
+            );
+          case 'covered':
+            navigator.currentState!.push(
+              CupertinoPageRoute<void>(
+                builder: (_) => const Center(child: Text('Covering route')),
+              ),
+            );
+            await tester.pumpAndSettle();
+          case 'reparent':
+            final other = AppInteractionController();
+            addTearDown(other.dispose);
+            await mount(
+              tester,
+              tile,
+              interaction: other,
+              visible: visible,
+              navigator: navigator,
+            );
+          case 'disposed':
+            await tester.pumpWidget(const SizedBox.shrink());
+        }
+        captured();
+        await tester.pumpAndSettle();
+        expect(routes, 0);
+        expect(find.text('Service destination'), findsNothing);
+        expect(tester.takeException(), isNull);
+      },
+    );
+  }
   testWidgets(
     'disabled whole-card actions stay out of keyboard and semantics activation',
     (tester) async {
