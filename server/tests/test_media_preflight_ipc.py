@@ -69,3 +69,14 @@ def test_foreign_or_malformed_result_is_not_accepted(field, value):
     with running(Wrong()) as (_, client):
         with pytest.raises(PreflightIPCError):
             client.inspect_stack(stack())
+
+
+@pytest.mark.parametrize('value', [True, 1.0])
+def test_malformed_nested_worker_model_is_not_normalized_by_json_wire(value):
+    class Wrong(StackInspector):
+        def inspect_stack(self, selected, *, deadline):
+            result = super().inspect_stack(selected, deadline=deadline)
+            return result.model_copy(update={'checks': [result.checks[0].model_copy(update={'availableMiB': value})]})
+    with running(Wrong()) as (_, client):
+        with pytest.raises(PreflightIPCError):
+            client.inspect_stack(stack())
