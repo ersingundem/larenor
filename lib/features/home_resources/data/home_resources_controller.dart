@@ -56,8 +56,9 @@ class HomeResourcesController extends ChangeNotifier {
         session == null ||
         session.context == null ||
         session.authMutationPending ||
-        session.user.mustChangePassword)
+        session.user.mustChangePassword) {
       return null;
+    }
     return session;
   }
 
@@ -155,8 +156,9 @@ class HomeResourcesController extends ChangeNotifier {
     HomeResourcePage? page;
     try {
       await home.account.withSession((_, session) async {
-        if (!current() || !sameScope(session) || !fresh)
+        if (!current() || !sameScope(session) || !fresh) {
           throw const LarenorServerException('cancelled');
+        }
         _preparing = false;
         _boundSession = session;
         _expiry?.cancel();
@@ -183,15 +185,17 @@ class HomeResourcesController extends ChangeNotifier {
           }
           rethrow;
         }
-        if (!current() || !identical(_ready, session) || !fresh)
+        if (!current() || !identical(_ready, session) || !fresh) {
           throw const LarenorServerException('cancelled');
+        }
       });
       if (!current() || !fresh || page == null) return;
       final combined = [...previous.where((_) => more), ...page!.entries];
       if (combined.length > HomeResourcePage.maximumRecords ||
           combined.length == HomeResourcePage.maximumRecords &&
-              page!.nextAfter != null)
+              page!.nextAfter != null) {
         throw const LarenorServerException('invalid_response');
+      }
       entries = List.unmodifiable(combined);
       nextAfter = page!.nextAfter;
       _snapshot = page!.snapshot;

@@ -31,8 +31,8 @@ final class HomeResourcesApi {
       token: token,
       queryParameters: {
         'limit': '$limit',
-        if (after != null) 'after': after,
-        if (snapshot != null) 'expectedSnapshot': snapshot,
+        'after': ?after,
+        'expectedSnapshot': ?snapshot,
       },
     );
     return HomeResourcePage.fromJson(

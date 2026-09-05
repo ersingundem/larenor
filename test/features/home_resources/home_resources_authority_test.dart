@@ -1,7 +1,6 @@
 import 'dart:async';
 
 import 'package:flutter/cupertino.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:larenor/core/home_source_store.dart';
@@ -255,13 +254,43 @@ void main() {
       expect(find.byType(Text).evaluate().length, lessThan(100));
     },
   );
-  testWidgets('Server login alone preserves the actual direct HA app route', (tester) async {
-    final h = ScopeHarness(HomeSource.directLocal); await h.mount(tester);
+  testWidgets('Server login alone preserves the actual direct HA app route', (
+    tester,
+  ) async {
+    final h = ScopeHarness(HomeSource.directLocal);
+    await h.mount(tester);
     final router = h.router(tester), reads = h.connectionReads;
-    await h.signIn(); await flush(tester);
-    expect(h.router(tester), same(router)); expect(h.connectionReads, reads);
+    await h.signIn();
+    await flush(tester);
+    expect(h.router(tester), same(router));
+    expect(h.connectionReads, reads);
     expect(key('home-resources-list'), findsNothing);
     expect(h.home(tester).usesLocalHome, isTrue);
   });
 
+  testWidgets(
+    'restored account in a fresh app instance refetches metadata instead of reviving old rows',
+    (tester) async {
+      final first = ResourceHarness();
+      await first.mount(tester);
+      await first.signIn();
+      await flush(tester);
+      final saved = first.store.value;
+      expect(find.text('Salon'), findsOneWidget);
+      await tester.pumpWidget(const SizedBox.shrink());
+      await flush(tester);
+      final restarted = ResourceHarness();
+      restarted.store.value = saved;
+      restarted.response = restarted.fixture['emptyList'];
+      await restarted.mount(tester);
+      await flush(tester);
+      expect(restarted.account.context, isNotNull);
+      expect(restarted.store.reads, 1);
+      expect(restarted.authPosts, 0);
+      expect(restarted.resourceReads, 1);
+      expect(find.text('Salon'), findsNothing);
+      expect(key('home-resources-empty'), findsOneWidget);
+      expect(restarted.haReads, 0);
+    },
+  );
 }

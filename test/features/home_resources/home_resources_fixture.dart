@@ -24,7 +24,6 @@ import 'package:larenor/features/ha_client/providers/ha_client_providers.dart';
 import 'package:larenor/features/home_resources/data/home_resources_api.dart';
 import 'package:larenor/features/server/data/larenor_server_api.dart';
 import 'package:larenor/features/server/data/server_account_controller.dart';
-import 'package:larenor/features/server/domain/server_models.dart';
 import 'package:larenor/features/server/providers/server_providers.dart';
 import 'package:larenor/features/settings/data/screen_policy_controller.dart';
 import 'package:larenor/features/settings/presentation/screen_policy_runner.dart';
@@ -85,8 +84,9 @@ class ResourceHarness {
       });
     }
     if (request.url.path.endsWith('/auth/me')) return json({'user': user});
-    if (request.url.path.endsWith('/context'))
+    if (request.url.path.endsWith('/context')) {
       return pendingContext?.future ?? json(contextResponse);
+    }
     if (request.url.path.contains('/home-resources/')) {
       resourceReads++;
       requests.add(request);
@@ -96,8 +96,9 @@ class ResourceHarness {
             status,
           );
     }
-    if (request.url.path.endsWith('/auth/logout'))
+    if (request.url.path.endsWith('/auth/logout')) {
       return http.Response('', 204);
+    }
     throw StateError('Unexpected synthetic route');
   }
 
@@ -146,46 +147,49 @@ class ResourceHarness {
     addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
     window.stream.listen((value) => currentWindow = value);
     await tester.pumpWidget(
-      RepaintBoundary(key: boundary, child: ConfigurationScope(
-        child: ProviderScope(
-          overrides: [
-            homeSourceStoreProvider.overrideWithValue(source),
-            serverAccountControllerProvider.overrideWithValue(account),
-          ],
-          child: HomeSessionScope(
-            runtimeOverrides: [
-              homeResourcesApiFactoryProvider.overrideWithValue(
-                (endpoint) => LarenorServerApi(
-                  endpoint: endpoint,
-                  client: TrackedClient(handle, () => closed++),
-                  clock: () => now,
-                ),
-              ),
-              homeResourcesClockProvider.overrideWithValue(() => now),
-              connectionConfigProvider.overrideWith(() => BlockHa(this)),
-              haRestClientFactoryProvider.overrideWithValue((_, _) {
-                haReads++;
-                throw StateError('Forbidden HA REST');
-              }),
-              haWebSocketClientFactoryProvider.overrideWithValue((_, _) {
-                haReads++;
-                throw StateError('Forbidden HA WS');
-              }),
-              clientUpdateApiProvider.overrideWithValue(
-                AndroidClientUpdateApi(isAndroid: false),
-              ),
-              screenPolicyControllerProvider.overrideWithValue(
-                ScreenPolicyController(power),
-              ),
-              windowPolicySnapshotProvider.overrideWith((_) async* {
-                yield currentWindow;
-                yield* window.stream;
-              }),
+      RepaintBoundary(
+        key: boundary,
+        child: ConfigurationScope(
+          child: ProviderScope(
+            overrides: [
+              homeSourceStoreProvider.overrideWithValue(source),
+              serverAccountControllerProvider.overrideWithValue(account),
             ],
+            child: HomeSessionScope(
+              runtimeOverrides: [
+                homeResourcesApiFactoryProvider.overrideWithValue(
+                  (endpoint) => LarenorServerApi(
+                    endpoint: endpoint,
+                    client: TrackedClient(handle, () => closed++),
+                    clock: () => now,
+                  ),
+                ),
+                homeResourcesClockProvider.overrideWithValue(() => now),
+                connectionConfigProvider.overrideWith(() => BlockHa(this)),
+                haRestClientFactoryProvider.overrideWithValue((_, _) {
+                  haReads++;
+                  throw StateError('Forbidden HA REST');
+                }),
+                haWebSocketClientFactoryProvider.overrideWithValue((_, _) {
+                  haReads++;
+                  throw StateError('Forbidden HA WS');
+                }),
+                clientUpdateApiProvider.overrideWithValue(
+                  AndroidClientUpdateApi(isAndroid: false),
+                ),
+                screenPolicyControllerProvider.overrideWithValue(
+                  ScreenPolicyController(power),
+                ),
+                windowPolicySnapshotProvider.overrideWith((_) async* {
+                  yield currentWindow;
+                  yield* window.stream;
+                }),
+              ],
+            ),
           ),
         ),
       ),
-    ));
+    );
     window.add(
       const WindowPolicySnapshot(
         supported: true,
@@ -196,11 +200,13 @@ class ResourceHarness {
     );
     await flush(tester);
     addTearDown(() async {
-      if (pending?.isCompleted == false)
+      if (pending?.isCompleted == false) {
         pending!.complete(json(fixture['memberList']));
+      }
       pending = null;
-      if (pendingContext?.isCompleted == false)
+      if (pendingContext?.isCompleted == false) {
         pendingContext!.complete(json(contextResponse));
+      }
       pendingContext = null;
       await tester.pumpWidget(const SizedBox.shrink());
       await flush(tester);

@@ -50,8 +50,9 @@ class _CoreHomeResourcesState extends ConsumerState<CoreHomeResources>
       ModalRoute.of(context)?.isCurrent == true;
   bool _windowAvailable() {
     final reading = ref.read(windowPolicySnapshotProvider);
-    if (reading.isLoading || reading.hasError || !reading.hasValue)
+    if (reading.isLoading || reading.hasError || !reading.hasValue) {
       return false;
+    }
     final window = reading.requireValue;
     return !window.supported ||
         (window.isResumed &&
@@ -113,8 +114,9 @@ class _CoreHomeResourcesState extends ConsumerState<CoreHomeResources>
     return ListenableBuilder(
       listenable: _controller,
       builder: (_, _) {
-        if (!_current())
+        if (!_current()) {
           return const SliverToBoxAdapter(child: SizedBox.shrink());
+        }
         final epoch = _controller.epoch, generation = _generation;
         final interaction = AppInteractionScope.maybeRead(context),
             interactionEpoch = interaction?.epoch;
@@ -141,7 +143,10 @@ class _CoreHomeResourcesState extends ConsumerState<CoreHomeResources>
           child: Text(label, textAlign: TextAlign.center),
         );
         final visibleEntries = _controller.fresh
-            ? _controller.entries
+            ? (_controller.entries.toList()..sort((a, b) {
+                final order = a.order.compareTo(b.order);
+                return order == 0 ? a.id.compareTo(b.id) : order;
+              }))
             : const <HomeResourceRecord>[];
         return SliverMainAxisGroup(
           slivers: [
@@ -200,6 +205,12 @@ class _CoreHomeResourcesState extends ConsumerState<CoreHomeResources>
             SliverList.builder(
               key: const ValueKey('home-resources-list'),
               itemCount: visibleEntries.length,
+              findChildIndexCallback: (key) {
+                final index = visibleEntries.indexWhere(
+                  (entry) => key == ValueKey('home-resource-${entry.id}'),
+                );
+                return index < 0 ? null : index;
+              },
               itemBuilder: (context, index) {
                 final entry = visibleEntries[index];
                 final kind = entry.kind == HomeResourceKind.room

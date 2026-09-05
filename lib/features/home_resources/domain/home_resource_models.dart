@@ -4,16 +4,18 @@ Never _invalid() => throw const LarenorServerException('invalid_response');
 Map<Object?, Object?> _object(Object? value, Set<String> keys) {
   if (value is! Map ||
       value.length != keys.length ||
-      !keys.every(value.containsKey))
+      !keys.every(value.containsKey)) {
     _invalid();
+  }
   return value;
 }
 
 String _hex(Object? value, int length) {
   if (value is! String ||
       value.length != length ||
-      !RegExp(r'^[0-9a-f]+$').hasMatch(value))
+      !RegExp(r'^[0-9a-f]+$').hasMatch(value)) {
     _invalid();
+  }
   return value;
 }
 
@@ -77,13 +79,15 @@ final class HomeResourceRecord {
         label.runes.any(
           (rune) =>
               rune < 32 || rune == 127 || rune >= 0xd800 && rune <= 0xdfff,
-        ))
+        )) {
       _invalid();
+    }
     final trimmed = label.replaceAll(_edgeWhitespace, '');
     if (trimmed.isEmpty) _invalid();
     final permissions = _object(value['permissions'], {'read', 'write'});
-    if (permissions['read'] != true || permissions['write'] is! bool)
+    if (permissions['read'] != true || permissions['write'] is! bool) {
       _invalid();
+    }
     return HomeResourceRecord._(
       context: context,
       id: _hex(ref['id'], 32),
@@ -125,8 +129,9 @@ final class HomeResourcePage {
     final context = ServerContext.fromJson(value['scope']);
     if (context != expectedContext) _invalid();
     final snapshot = _hex(value['snapshot'], 64);
-    if (expectedSnapshot != null && snapshot != _hex(expectedSnapshot, 64))
+    if (expectedSnapshot != null && snapshot != _hex(expectedSnapshot, 64)) {
       _invalid();
+    }
     if (after != null) {
       _hex(after, 32);
       if (expectedSnapshot == null) _invalid();
@@ -144,8 +149,9 @@ final class HomeResourcePage {
     final next = value['nextAfter'] == null
         ? null
         : _hex(value['nextAfter'], 32);
-    if (next != null && (entries.isEmpty || next != entries.last.id))
+    if (next != null && (entries.isEmpty || next != entries.last.id)) {
       _invalid();
+    }
     return HomeResourcePage._(
       context,
       List.unmodifiable(entries),

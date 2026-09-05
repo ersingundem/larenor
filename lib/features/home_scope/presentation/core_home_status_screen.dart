@@ -74,8 +74,9 @@ class CoreHomeStatusScreen extends ConsumerWidget {
                                       onTap: !current()
                                           ? null
                                           : () {
-                                              if (current())
+                                              if (current()) {
                                                 context.push('/settings');
+                                              }
                                             },
                                     ),
                                   SettingsActionTile(
