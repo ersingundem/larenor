@@ -44,6 +44,12 @@ class ResourceHarness {
   final store = Store();
   final power = ScopePower();
   final window = StreamController<WindowPolicySnapshot>.broadcast();
+  WindowPolicySnapshot currentWindow = const WindowPolicySnapshot(
+    supported: true,
+    isResumed: true,
+    hasWindowFocus: true,
+    reason: WindowRestrictionReason.none,
+  );
   DateTime now = DateTime.now();
   int haReads = 0, authPosts = 0, refreshes = 0, resourceReads = 0, closed = 0;
   int status = 200;
@@ -128,6 +134,7 @@ class ResourceHarness {
     addTearDown(tester.view.reset);
     addTearDown(tester.platformDispatcher.clearLocalesTestValue);
     addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+    window.stream.listen((value) => currentWindow = value);
     await tester.pumpWidget(
       ConfigurationScope(
         child: ProviderScope(
@@ -160,7 +167,10 @@ class ResourceHarness {
               screenPolicyControllerProvider.overrideWithValue(
                 ScreenPolicyController(power),
               ),
-              windowPolicySnapshotProvider.overrideWith((_) => window.stream),
+              windowPolicySnapshotProvider.overrideWith((_) async* {
+                yield currentWindow;
+                yield* window.stream;
+              }),
             ],
           ),
         ),

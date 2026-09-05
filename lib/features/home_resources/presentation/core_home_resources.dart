@@ -1,10 +1,12 @@
 import 'dart:async';
+import 'dart:ui' show ViewFocusEvent, ViewFocusState;
 
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/app_interaction_scope.dart';
 import '../../../core/home_session_controller.dart';
+import '../../../core/window/window_policy_providers.dart';
 import '../../../l10n/generated/app_localizations.dart';
 import '../data/home_resources_api.dart';
 import '../data/home_resources_controller.dart';
@@ -20,7 +22,8 @@ class CoreHomeResources extends ConsumerStatefulWidget {
 class _CoreHomeResourcesState extends ConsumerState<CoreHomeResources>
     with WidgetsBindingObserver {
   late final HomeResourcesController _controller;
-  bool _foreground = true, _scheduled = false;
+  bool _foreground = true, _focused = true, _scheduled = false;
+  int? _viewId;
   int _generation = 0;
   @override
   void initState() {
@@ -40,12 +43,39 @@ class _CoreHomeResourcesState extends ConsumerState<CoreHomeResources>
   bool _current() =>
       mounted &&
       _foreground &&
+      _focused &&
+      _windowAvailable() &&
       (AppInteractionScope.maybeRead(context)?.active ?? true) &&
       TickerMode.valuesOf(context).enabled &&
       ModalRoute.of(context)?.isCurrent == true;
+  bool _windowAvailable() {
+    final reading = ref.read(windowPolicySnapshotProvider);
+    if (reading.isLoading || reading.hasError || !reading.hasValue)
+      return false;
+    final window = reading.requireValue;
+    return !window.supported ||
+        (window.isResumed &&
+            window.hasWindowFocus &&
+            !window.isPictureInPicture);
+  }
+
+  void _windowChanged() {
+    if (!_windowAvailable()) _generation++;
+    _controller.setVisible(_current());
+  }
+
+  @override
+  void didChangeViewFocus(ViewFocusEvent event) {
+    if (event.viewId != _viewId) return;
+    _focused = event.state == ViewFocusState.focused;
+    if (!_focused) _generation++;
+    _controller.setVisible(_current());
+  }
+
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
+    _viewId = View.of(context).viewId;
     AppInteractionScope.maybeOf(context);
     TickerMode.valuesOf(context);
     ModalRoute.of(context);
@@ -77,6 +107,7 @@ class _CoreHomeResourcesState extends ConsumerState<CoreHomeResources>
 
   @override
   Widget build(BuildContext context) {
+    ref.listen(windowPolicySnapshotProvider, (_, _) => _windowChanged());
     _syncLater();
     final l10n = AppLocalizations.of(context);
     return ListenableBuilder(
