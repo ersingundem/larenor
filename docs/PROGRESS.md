@@ -1,6 +1,6 @@
 # Larenor — güncel ilerleme ve iş kuyruğu
 
-**Son güncelleme: 5 Eylül 2026, 21:33 (Türkiye saati).**
+**Son güncelleme: 5 Eylül 2026, 21:55 (Türkiye saati).**
 
 ```text
 Önceki kapsam       █████████████░░░░░░░  ≈ %65
@@ -54,21 +54,42 @@ Core/ev bağlamını tokenlarla güvenle bağlama kapsamında tam CI kabulü ald
 Bu işler yeni 63 özelliğin kabul sayısı değildir; o sayaç **0/63**. Ana S06
 sayacı **2/6** kalır; dizin/ağ, kurulum ve gerçek Engine kabulü açıktır.
 
-**Yeni paket yerelde doğrulandı:** özel ağ list/inspect adaptörü, eski Server
-bağlamı için açıklayıcı yeniden deneme akışı ve tablet başlık/menü
-semantics'i. `3076f5f` kaynaklarıyla **2.291 Server testi geçti, beş Linux
-testi Mac’te atlandı**. **2.701 Flutter testi**, temiz tam analiz, 202 araç
-testi ve güvenlik taraması tamamlandı. Yeni paketin uzak CI kabulü sırada;
-aşağıdaki `1408e80` yayını bu yeni kodun kanıtı değildir.
-[Ağ adaptörü](network-read-transport-implementation-2026-09-05.md) ·
+**Son paket `54a677b` CI sonucunda bir test hatası verdi:**
+[Server](https://github.com/ersingundem/larenor/actions/runs/33984554100)
+2.295 geçti, bir bağlantı kapanışı testi başarısız; atlama yok.
+[Android](https://github.com/ersingundem/larenor/actions/runs/33984554028)
+2.701 Flutter, 98 JVM ve sekiz emülatör senaryosunu geçti; analiz temiz.
+Emülatör 9:58,1; 42 aşama ve dört temizlik doğrulandı.
+[Güvenlik](https://github.com/ersingundem/larenor/actions/runs/33984553960)
+202 araç testi ve sır taramasını geçti. Server kapısı nedeniyle yeni Core
+imajı ve imzalı APK 90 yayımlanmadı; son tam yayın aşağıdaki `1408e80` kaldı.
+
+**Dar CI düzeltmesi hazır:** test, Linux'un bağlantı kapanışını EOF yerine
+`ConnectionResetError` olarak bildirebilmesini hesaba katmıyordu. Bu, kaynak
+ve taşınabilir yeniden üretimle desteklenen açıklamadır; eski CI hatası ham
+errno'yu kaydetmedi. `b2ca01f` RED → `bff9b98` GREEN yalnız test fixture'ını
+değiştirir. Gerçek kapanış kanıtı, iptal sonucu ve bir saniyelik bekleme
+korundu; süre veya başka hata kabul edilmiyor. İlgili **333 test geçti,
+dört Linux testi Mac'te atlandı**; bağımsız inceleme temiz. Yeni Linux
+socketpair testi ve tam uzak kapılar sonraki düzeltme paketinde doğrulanacak.
+[Ağ adaptörü ve CI düzeltmesi](network-read-transport-implementation-2026-09-05.md) ·
 [Client uyumluluğu](client-context-compatibility-2026-09-05.md) ·
 [Tablet](tablet-navigation-implementation-2026-09-05.md).
 
-**Sıradaki çalışma başladı:** DeX/tablet ayar satırlarının klavye erişimi ve
-iki kat yazıda uzun HA adresinin taşması ayrı çalışma kopyasında düzeltiliyor.
-Böylece yayın paketinin kaynağı sabit kalıyor. Özel ağ create/journal köprüsü
-ayrıca hazırlanıyor. Dizin için supervisor/daemon/UID eşlemesi ve gerçek
-oluşturma/yayımlama hâlâ açık.
+**Yarım çalışmaları kaybetmeden devam:** aşağıdaki ayrı git çalışma
+kopyaları yerel geliştirmeyi içerir; henüz `main` içine birleştirilmedi veya
+yayımlanmadı. Yeniden başlayan yürütücü önce `git worktree list`, bu dalların
+git durumu ve çalışan agent/CI durumunu kontrol eder; aynı işi baştan açmaz.
+Yerel `/private/tmp` kopyalarının varlığı kalıcı arşiv garantisi değildir.
+
+| İş | Dal | Yerel çalışma kopyası | Son inceleme noktası |
+| --- | --- | --- | --- |
+| B5.1 ayar satırları, uzun adres ve klavye/semantics | `codex/tablet-settings-accessibility` | `/private/tmp/larenor-tablet-settings-accessibility` | `3894abb`; 38 odaklı test geçti, geniş doğrulama sürüyor |
+| S06.3e kontrollü ağ oluşturma taşıması | `codex/network-effect-bridge` | `/private/tmp/larenor-network-effect-bridge` | `ccc9137`; ilk 337 test geçti, üç Linux atlaması; sınır testleri sürüyor |
+
+[Özel ağ create/journal planında](network-effect-bridge-plan-2026-09-05.md)
+önce tek create taşıması, ardından ayrı incelemeyle journal bağlantısı var.
+Dizin için supervisor/daemon/UID eşlemesi ve gerçek oluşturma/yayımlama açık.
 
 S08.2 kendi CI kabulünü bekliyor. Ardından [ev runtime sınırı](client-home-scope-plan-2026-09-05.md)
 uygulanacak: token yenilemesi gezinmeyi koruyacak, gerçek Core/ev/kullanıcı

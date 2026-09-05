@@ -55,3 +55,25 @@ Mac'te atlandı**; 202 araç testi ve yeni commit aralığının güvenlik taram
 da geçti. Son Client paketinde **2.701 Flutter testi** ve temiz tam analiz var.
 Create/journal etki köprüsü ve gerçek Engine kabulü açık olduğundan S06.3e
 bütünü tamamlanmış sayılmaz.
+
+## Linux CI bağlantı kapanışı düzeltmesi
+
+`54a677b` Server CI'ında 2.295 test geçti, yalnız iptal sonrası peer kapanışı
+bekleyen test başarısız oldu. İstemcinin `network_cancelled` beklentisi geçti;
+fixture `recv` için yalnız EOF kabul ediyordu. Linux, okunmamış Unix stream
+verisiyle kapanışta peer'a ECONNRESET bildirir ([sabit Linux v6.8 kaynağı](https://github.com/torvalds/linux/blob/v6.8/net/unix/af_unix.c#L605-L610)).
+Eski fixture reset istisnasını dış yardımcıda yuttuğundan CI logu errno'yu
+kanıtlamaz; bu açıklama kaynak ve kontrollü yeniden üretimle desteklenir.
+
+`b2ca01f` RED: gerçek bağlantı EOF'u alındıktan sonra sentetik reset üreten
+parametre, eski fixture'da başarısız oldu. `bff9b98` GREEN: yalnız
+`ConnectionResetError` da kapanış sayılır. Gerçek EOF/reset olmadan event
+ayarlanamaz; veri, timeout ve diğer hatalar hâlâ başarısız. `closed.wait(1)`
+değişmedi, üretim kodu değişmedi. Ayrı Linux socketpair testi okunmamış veri
+kapanışının gerçek kernel sonucunu denetler; Mac'te atlanır.
+
+Odaklı koşu **2 geçti / 1 Linux atlaması**; network/shared HTTP/image regresyonu
+**333 geçti / 4 Linux atlaması** (24,06 saniye). Bağımsız inceleme kapanış
+kanıtının zayıflatılmadığını doğruladı. Yeni uzak Linux sonucu kendi yayın
+commit'iyle [PROGRESS](PROGRESS.md) içinde kaydedilecek; eski başarısız koşu
+başarılı sayılmaz ve ev daemon'una herhangi bir işlem yapılmadı.

@@ -395,7 +395,8 @@
         "docs/network-resource-implementation-2026-09-05.md",
         "docs/network-transport-plan-2026-09-05.md",
         "docs/engine-http-implementation-2026-09-05.md",
-        "docs/network-read-transport-implementation-2026-09-05.md"
+        "docs/network-read-transport-implementation-2026-09-05.md",
+        "docs/network-effect-bridge-plan-2026-09-05.md"
       ],
       "scope": "installAvailable=false; Client kaynak adı/Docker seçenekleri üretmez. Gerçek ev sunucusuna işlem yok.",
       "acceptance": [
@@ -408,7 +409,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "List/inspect adaptörü 3076f5f ile hazır: 579 bağlı regresyon ve iki inceleme geçti. Tam Server 2.291 geçti, beş Linux testi Mac’te atlandı; bu yeni paketin uzak CI’ı sırada. Ağ create/journal köprüsü ve gerçek Engine kabulü açık."
+      "reason": "Salt list/inspect 54a677b CI’ında 2.295 geçti/1 kapanış fixture hatası. bff9b98 dar düzeltmesi hazır. codex/network-effect-bridge dalı /private/tmp/larenor-network-effect-bridge kopyasında create taşıması ccc9137: ilk 337 geçti/3 Linux atlaması; sınır testleri, journal köprüsü ve gerçek Engine kabulü açık."
     },
     {
       "id": "S06.3f",
@@ -764,10 +765,34 @@
           "state": "completed",
           "result": "passed",
           "label": "Tam GET bağlam URL’si, sınırlı hata gövdesi, aday token ve yalnız GET ile tekrar bağımsız incelendi."
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/33984554100",
+          "commit": "54a677b4eed619e72999fcce0ecab4431783fcfd",
+          "state": "completed",
+          "result": "failed",
+          "label": "Linux bağlantı kapanışı fixture hatası; ilgili kapı başarısız, yeni yayın atlandı."
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/33984554028",
+          "commit": "54a677b4eed619e72999fcce0ecab4431783fcfd",
+          "state": "completed",
+          "result": "failed",
+          "label": "Linux bağlantı kapanışı fixture hatası; ilgili kapı başarısız, yeni yayın atlandı."
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/33984553960",
+          "commit": "54a677b4eed619e72999fcce0ecab4431783fcfd",
+          "state": "completed",
+          "result": "passed",
+          "label": "202 araç testi ve güvenlik taraması başarılı."
         }
       ],
       "completionCommit": null,
-      "reason": "41ce750 RED → 67cb058 GREEN; 70 odaklı ve 531 regresyon, bağımsız inceleme tamamlandı. Son paketle 2.701 tam Flutter testi ve temiz analiz geçti; kendi uzak CI kabulü bekleniyor."
+      "reason": "54a677b: 2.701 Flutter, 98 JVM, sekiz E2E ve güvenlik geçti; ortak Server kapısında 2.295 geçti/1 fixture hatası. b2ca01f RED → bff9b98 test-only düzeltme 333 regresyon/4 Linux atlaması ve bağımsız incelemeyle hazır; yeni CI kabulü bekleniyor."
     },
     {
       "id": "S08.3",
@@ -1159,7 +1184,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Alt gezinme 1408e80 tam CI/APK 89 ile doğrulandı. Başlık/menü e3d884b RED → 8a7b31e GREEN; 522 regresyon ve 2.701 tam Flutter testi geçti. Ayar satırlarının klavye/uzun URL düzeltmesi ayrı çalışma kopyasında başladı. Bütün ekranlar ve gerçek TalkBack ayrı."
+      "reason": "Alt gezinme 1408e80 tam CI/APK 89 ile doğrulandı. Başlık/menü 54a677b CI’ında 2.701 Flutter/98 JVM/8 E2E geçti; ortak Server fixture kapısı başarısız. codex/tablet-settings-accessibility dalı /private/tmp/larenor-tablet-settings-accessibility kopyasında 3894abb: 38 odaklı test geçti, geniş doğrulama sürüyor. Tüm ekranlar ve gerçek TalkBack açık."
     },
     {
       "id": "B5.2",
