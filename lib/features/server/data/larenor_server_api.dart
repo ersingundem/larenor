@@ -141,6 +141,7 @@ class LarenorServerApi {
       final readQuery =
           method == 'GET' &&
           !path.startsWith('/admin/plugins/jobs') &&
+          !path.startsWith('/admin/media/preparations') &&
           queryParameters.length <= keys.length &&
           !queryParameters.entries.any(
             (entry) =>
@@ -168,6 +169,21 @@ class LarenorServerApi {
               _ => false,
             };
           });
+      final mediaQuery =
+          method == 'GET' &&
+          path == '/admin/media/preparations' &&
+          queryParameters.entries.every((entry) {
+            final number = int.tryParse(entry.value);
+            if (number == null ||
+                number > 9223372036854775807 ||
+                !RegExp(r'^[1-9][0-9]{0,18}$').hasMatch(entry.value))
+              return false;
+            return switch (entry.key) {
+              'limit' => number <= 10,
+              'before' => true,
+              _ => false,
+            };
+          });
       final revision = queryParameters['expectedRevision'];
       final revisionNumber = int.tryParse(revision ?? '');
       final forgetQuery =
@@ -178,7 +194,7 @@ class LarenorServerApi {
           RegExp(r'^[1-9][0-9]{0,18}$').hasMatch(revision) &&
           revisionNumber != null &&
           revisionNumber < 9223372036854775807;
-      if (!readQuery && !forgetQuery && !jobsQuery) {
+      if (!readQuery && !forgetQuery && !jobsQuery && !mediaQuery) {
         throw const LarenorServerException('invalid_request');
       }
       uri = uri.replace(queryParameters: Map.of(queryParameters));
@@ -306,6 +322,7 @@ class LarenorServerApi {
             'plugin_storage_unavailable',
             'plugin_worker_unavailable',
             'plugin_job_storage_unavailable',
+            'media_preparation_storage_unavailable',
           }.contains(code)) {
         return code as String;
       }
@@ -321,6 +338,10 @@ class LarenorServerApi {
             'plugin_preview_limit_reached',
             'plugin_job_conflict',
             'plugin_job_limit_reached',
+            'media_preparation_conflict',
+            'media_catalog_changed',
+            'media_context_changed',
+            'media_preparation_limit_reached',
           }.contains(code)) {
         return code as String;
       }

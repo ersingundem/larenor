@@ -11,17 +11,26 @@ import 'package:larenor/features/server/media_preparations/domain/server_media_p
 import 'server_media_preparations_test_support.dart';
 
 void main() {
-  final invalid = throwsA(isA<LarenorServerException>().having(
-    (e) => e.code, 'code', 'invalid_response',
-  ));
+  final invalid = throwsA(
+    isA<LarenorServerException>().having(
+      (e) => e.code,
+      'code',
+      'invalid_response',
+    ),
+  );
   test('actual Server contract is immutable preparation metadata only', () {
     for (final cancelled in [false, true]) {
-      final record = ServerMediaPreparation.fromJson(mediaPreparationJson(cancelled: cancelled));
+      final record = ServerMediaPreparation.fromJson(
+        mediaPreparationJson(cancelled: cancelled),
+      );
       expect(record.prepared, !cancelled);
       expect(record.plan.components, hasLength(6));
       expect(record.plan.installAvailable, isFalse);
       expect(() => record.plan.components.clear(), throwsUnsupportedError);
-      expect(record.plan.components.last.plan.integrationRole, 'internal_engine');
+      expect(
+        record.plan.components.last.plan.integrationRole,
+        'internal_engine',
+      );
     }
   });
   for (final mutation in <String, void Function(Map<String, dynamic>)>{
@@ -39,11 +48,16 @@ void main() {
     'missing component': (r) => r['plan']['components'].removeLast(),
     'reordered component': (r) {
       final c = r['plan']['components'];
-      final first = c[0]; c[0] = c[1]; c[1] = first;
+      final first = c[0];
+      c[0] = c[1];
+      c[1] = first;
     },
-    'component wrong platform': (r) => r['plan']['components'][0]['plan']['image']['platform'] = 'linux/arm64',
-    'component wrong catalog': (r) => r['plan']['components'][0]['plan']['catalogDigest'] = 'f' * 64,
-    'resource total mismatch': (r) => r['plan']['requestedResources']['memoryMiB'] = 1,
+    'component wrong platform': (r) =>
+        r['plan']['components'][0]['plan']['image']['platform'] = 'linux/arm64',
+    'component wrong catalog': (r) =>
+        r['plan']['components'][0]['plan']['catalogDigest'] = 'f' * 64,
+    'resource total mismatch': (r) =>
+        r['plan']['requestedResources']['memoryMiB'] = 1,
   }.entries) {
     test('record rejects ${mutation.key}', () {
       final record = mediaPreparationJson();
@@ -51,100 +65,356 @@ void main() {
       expect(() => ServerMediaPreparation.fromJson(record), invalid);
     });
   }
+  test('settings reject terminal newline, paths and unknown credentials', () {
+    final valid = {
+      'instanceName': 'larenor',
+      'dataRootId': 'appdata',
+      'libraryRootId': 'library',
+      'musicRootId': null,
+    };
+    for (final changes in [
+      {'instanceName': 'larenor\n'},
+      {'dataRootId': 'appdata\n'},
+      {'dataRootId': '/mnt/data'},
+      {'instanceName': 'a' * 21},
+      {'musicRootId': 'm' * 33},
+      {'token': 'synthetic-secret'},
+    ]) {
+      expect(
+        () => MediaPreparationSettings.fromJson({...valid, ...changes}),
+        invalid,
+      );
+    }
+  });
   group('guarded durable preparations', () {
     late MediaPreparationsFixture f;
     late ServerMediaPreparationsController controller;
     setUp(() async {
       f = MediaPreparationsFixture();
       await f.account.initialize();
-      controller = ServerMediaPreparationsController(f.account, requestId: () => mediaFixtureJson()['createRequest']['requestId']);
+      controller = ServerMediaPreparationsController(
+        f.account,
+        requestId: () => mediaFixtureJson()['createRequest']['requestId'],
+      );
     });
-    tearDown(() { controller.dispose(); f.account.dispose(); });
+    tearDown(() {
+      controller.dispose();
+      f.account.dispose();
+    });
     Future<void> create() async {
       await controller.prepareDraft(current: () => true);
-      await controller.create(platform: 'linux/amd64', settings: MediaPreparationSettings.fromJson(mediaFixtureJson()['createRequest']['settings']), current: () => true);
+      await controller.create(
+        platform: 'linux/amd64',
+        settings: MediaPreparationSettings.fromJson(
+          mediaFixtureJson()['createRequest']['settings'],
+        ),
+        current: () => true,
+      );
     }
+
     test('open history is independent of context catalog and worker; no auto writes', () async {
       f.records.add(mediaPreparationJson()..['catalogCurrent'] = false);
-      f.respond = (r) async => r.url.path.endsWith('/media/preparations') ? f.pluginResponse(r) : f.json({}, 503);
+      f.respond = (r) async => r.url.path.endsWith('/media/preparations')
+          ? f.pluginResponse(r)
+          : f.json({}, 503);
       await controller.load(current: () => true);
       expect(controller.preparations.single.catalogCurrent, isFalse);
       expect(f.mutations, isEmpty);
-      expect(f.adminCalls.map((r) => r.url.path), ['/prefix/api/v1/admin/media/preparations']);
+      expect(f.adminCalls.map((r) => r.url.path), [
+        '/prefix/api/v1/admin/media/preparations',
+      ]);
     });
     test('explicit create then a fresh controller recovers the Server record and cancels with revision', () async {
       await controller.load(current: () => true);
       expect(f.mutations, isEmpty);
       await create();
       expect(controller.selected!.prepared, isTrue);
-      expect(jsonDecode(f.mutations.single.body), mediaFixtureJson()['createRequest']);
+      expect(
+        jsonDecode(f.mutations.single.body),
+        mediaFixtureJson()['createRequest'],
+      );
       controller.dispose();
       controller = ServerMediaPreparationsController(f.account);
       await controller.load(current: () => true);
-      await controller.select(controller.preparations.single, current: () => true);
+      await controller.select(
+        controller.preparations.single,
+        current: () => true,
+      );
       await controller.cancelSelected(current: () => true);
       expect(controller.selected!.prepared, isFalse);
       expect(jsonDecode(f.mutations.last.body), {'expectedRevision': 1});
-      expect(f.calls.any((r) => RegExp(r'/(jobs|install|previews|check)(/|$)').hasMatch(r.url.path)), isFalse);
+      expect(
+        f.calls.any(
+          (r) =>
+              RegExp(r'/(jobs|install|previews|check)(/|$)')
+                  .hasMatch(r.url.path),
+        ),
+        isFalse,
+      );
     });
-    for (final outcome in ['connection_failed', 'server_error', 'invalid_response']) {
-      test('$outcome after a committed create retries manually with the exact same request', () async {
-        var writes = 0;
-        f.respond = (r) async {
-          final response = f.pluginResponse(r);
-          if (r.method == 'POST' && r.url.path.endsWith('/preparations') && ++writes == 1) {
-            if (outcome == 'connection_failed') throw http.ClientException('synthetic-secret');
-            return outcome == 'server_error' ? http.Response('synthetic-secret', 502) : f.json({'secret': 'synthetic-secret'}, 201);
-          }
-          return response;
-        };
-        await create();
-        expect(controller.canRetryCreate, isTrue);
-        expect(f.records, hasLength(1));
-        await controller.create(platform: 'linux/amd64', settings: MediaPreparationSettings.fromJson(mediaFixtureJson()['createRequest']['settings']), current: () => true);
-        expect(writes, 1);
-        await controller.retryCreate(current: () => true);
-        expect(writes, 2);
-        expect(f.mutations.last.body, f.mutations.first.body);
-        expect(f.records, hasLength(1));
-        expect(controller.selected, isNotNull);
-      });
+    for (final outcome in [
+      'connection_failed',
+      'server_error',
+      'invalid_response',
+    ]) {
+      test(
+        '$outcome after a committed create retries manually with the exact same request',
+        () async {
+          var writes = 0;
+          f.respond = (r) async {
+            final response = f.pluginResponse(r);
+            if (r.method == 'POST' &&
+                r.url.path.endsWith('/preparations') &&
+                ++writes == 1) {
+              if (outcome == 'connection_failed')
+                throw http.ClientException('synthetic-secret');
+              return outcome == 'server_error'
+                  ? http.Response('synthetic-secret', 502)
+                  : f.json({'secret': 'synthetic-secret'}, 201);
+            }
+            return response;
+          };
+          await create();
+          expect(controller.canRetryCreate, isTrue);
+          expect(f.records, hasLength(1));
+          await controller.create(
+            platform: 'linux/amd64',
+            settings: MediaPreparationSettings.fromJson(
+              mediaFixtureJson()['createRequest']['settings'],
+            ),
+            current: () => true,
+          );
+          expect(writes, 1);
+          await controller.retryCreate(current: () => true);
+          expect(writes, 2);
+          expect(f.mutations.last.body, f.mutations.first.body);
+          expect(f.records, hasLength(1));
+          expect(controller.selected, isNotNull);
+        },
+      );
     }
-    test('hidden delayed create cannot expose a record or retain retry authority', () async {
-      final held = Completer<http.Response>();
-      f.respond = (r) => r.method == 'POST' ? held.future : Future.value(f.pluginResponse(r));
-      final creating = create();
-      while (f.mutations.isEmpty) { await Future<void>.delayed(Duration.zero); }
-      controller.invalidate();
-      held.complete(f.json({'preparation': mediaPreparationJson()}, 201));
-      await creating;
-      expect(controller.selected, isNull);
-      expect(controller.canRetryCreate, isFalse);
-      expect(controller.preparations, isEmpty);
+    test(
+      'hidden delayed create cannot expose a record or retain retry authority',
+      () async {
+        final held = Completer<http.Response>();
+        f.respond = (r) => r.method == 'POST'
+            ? held.future
+            : Future.value(f.pluginResponse(r));
+        final creating = create();
+        while (f.mutations.isEmpty) {
+          await Future<void>.delayed(Duration.zero);
+        }
+        controller.invalidate();
+        held.complete(f.json({'preparation': mediaPreparationJson()}, 201));
+        await creating;
+        expect(controller.selected, isNull);
+        expect(controller.canRetryCreate, isFalse);
+        expect(controller.preparations, isEmpty);
+      },
+    );
+    test(
+      'single flight suppresses duplicate list and create while busy',
+      () async {
+        final held = Completer<http.Response>();
+        f.respond = (_) => held.future;
+        final loading = controller.load(current: () => true);
+        await Future<void>.delayed(Duration.zero);
+        await controller.load(current: () => true);
+        expect(f.adminCalls, hasLength(1));
+        held.complete(f.json({'preparations': [], 'nextBefore': null}));
+        await loading;
+      },
+    );
+    test('paging applies only to the exact media list and known positive bounded keys', () async {
+      await f.account.withSession((api, session) async {
+        f.respond = (_) async =>
+            f.json({'preparations': [], 'nextBefore': null});
+        await ServerMediaPreparationsApi(
+          api,
+          session.accessToken,
+        ).list(before: 9);
+        expect(f.adminCalls.last.url.queryParameters, {
+          'limit': '10',
+          'before': '9',
+        });
+        for (final sample in [
+          (
+            method: 'GET',
+            path: '/admin/media/preparations',
+            query: {'limit': '11'},
+          ),
+          (
+            method: 'GET',
+            path: '/admin/media/preparations',
+            query: {'before': '0'},
+          ),
+          (
+            method: 'GET',
+            path: '/admin/media/preparations',
+            query: {'after': '1'},
+          ),
+          (
+            method: 'GET',
+            path: '/admin/media/preparations/',
+            query: {'limit': '10'},
+          ),
+          (
+            method: 'GET',
+            path: '/admin/media/preparations/${'a' * 32}',
+            query: {'limit': '1'},
+          ),
+          (
+            method: 'POST',
+            path: '/admin/media/preparations',
+            query: {'limit': '10'},
+          ),
+        ]) {
+          final count = f.calls.length;
+          await expectLater(
+            api.request(
+              sample.method,
+              sample.path,
+              token: session.accessToken,
+              queryParameters: sample.query,
+            ),
+            throwsA(
+              isA<LarenorServerException>().having(
+                (e) => e.code,
+                'code',
+                'invalid_request',
+              ),
+            ),
+          );
+          expect(f.calls, hasLength(count));
+        }
+      });
     });
-    test('single flight suppresses duplicate list and create while busy', () async {
+    test(
+      'media errors are status bound and unknown response values never escape',
+      () async {
+        await f.account.withSession((api, session) async {
+          for (final code in [
+            'media_preparation_conflict',
+            'media_catalog_changed',
+            'media_context_changed',
+            'media_preparation_limit_reached',
+            'media_preparation_storage_unavailable',
+          ]) {
+            final status = code.endsWith('storage_unavailable') ? 503 : 409;
+            f.respond = (_) async => f.json({
+              'error': {'code': code, 'message': 'synthetic-secret'},
+            }, status);
+            await expectLater(
+              api.request(
+                'GET',
+                '/admin/media/preparations',
+                token: session.accessToken,
+              ),
+              throwsA(
+                isA<LarenorServerException>().having(
+                  (e) => e.code,
+                  'code',
+                  code,
+                ),
+              ),
+            );
+            f.respond = (_) async => f.json({
+              'error': {'code': code},
+            }, 400);
+            await expectLater(
+              api.request(
+                'GET',
+                '/admin/media/preparations',
+                token: session.accessToken,
+              ),
+              throwsA(
+                isA<LarenorServerException>().having(
+                  (e) => e.code,
+                  'code',
+                  'invalid_request',
+                ),
+              ),
+            );
+          }
+          f.respond = (_) async => f.json({
+            'error': {'code': 'synthetic-secret'},
+          }, 409);
+          await expectLater(
+            api.request(
+              'GET',
+              '/admin/media/preparations',
+              token: session.accessToken,
+            ),
+            throwsA(
+              isA<LarenorServerException>().having(
+                (e) => e.code,
+                'code',
+                'conflict',
+              ),
+            ),
+          );
+        });
+      },
+    );
+    test(
+      'pagination follows a bounded cursor and clears it at the final page',
+      () async {
+        f.respond = (r) async => f.json({
+          'preparations': r.url.queryParameters.containsKey('before')
+              ? []
+              : [mediaPreparationJson()],
+          'nextBefore': r.url.queryParameters.containsKey('before') ? null : 5,
+        });
+        await controller.load(current: () => true);
+        expect(controller.nextBefore, 5);
+        await controller.loadMore(current: () => true);
+        expect(controller.preparations, hasLength(1));
+        expect(controller.nextBefore, isNull);
+        expect(f.adminCalls.last.url.queryParameters, {
+          'limit': '10',
+          'before': '5',
+        });
+      },
+    );
+    test('account logout invalidates a delayed history read', () async {
       final held = Completer<http.Response>();
       f.respond = (_) => held.future;
       final loading = controller.load(current: () => true);
       await Future<void>.delayed(Duration.zero);
-      await controller.load(current: () => true);
-      expect(f.adminCalls, hasLength(1));
-      held.complete(f.json({'preparations': [], 'nextBefore': null}));
+      await f.account.signOut();
+      held.complete(
+        f.json({
+          'preparations': [mediaPreparationJson()],
+          'nextBefore': null,
+        }),
+      );
       await loading;
+      expect(controller.preparations, isEmpty);
+      expect(controller.selected, isNull);
     });
     test('API rejects oversized duplicate and nonprogressing pages and mismatched IDs', () async {
       await f.account.withSession((api, session) async {
         final media = ServerMediaPreparationsApi(api, session.accessToken);
         for (final payload in [
-          {'preparations': List.generate(11, (_) => mediaPreparationJson()), 'nextBefore': null},
-          {'preparations': [mediaPreparationJson(), mediaPreparationJson()], 'nextBefore': null},
-          {'preparations': [mediaPreparationJson()], 'nextBefore': 5},
+          {
+            'preparations': List.generate(11, (_) => mediaPreparationJson()),
+            'nextBefore': null,
+          },
+          {
+            'preparations': [mediaPreparationJson(), mediaPreparationJson()],
+            'nextBefore': null,
+          },
+          {
+            'preparations': [mediaPreparationJson()],
+            'nextBefore': 5,
+          },
           {'preparations': [], 'nextBefore': 1},
         ]) {
           f.respond = (_) async => f.json(payload);
           await expectLater(media.list(before: 5), invalid);
         }
-        f.respond = (_) async => f.json({'preparation': mediaPreparationJson()});
+        f.respond = (_) async =>
+            f.json({'preparation': mediaPreparationJson()});
         await expectLater(media.get('f' * 32), invalid);
       });
     });

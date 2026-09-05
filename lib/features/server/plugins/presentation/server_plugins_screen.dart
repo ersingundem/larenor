@@ -15,6 +15,7 @@ import '../../../settings/providers/settings_providers.dart';
 import '../../data/server_account_controller.dart';
 import '../../providers/server_providers.dart';
 import '../data/server_plugins_controller.dart';
+import '../../media_preparations/presentation/server_media_preparations_screen.dart';
 import '../domain/server_plugin_models.dart';
 import '../../services/presentation/server_services_screen.dart';
 import 'server_plugin_jobs_screen.dart';
@@ -216,6 +217,15 @@ class _ServerPluginsScreenState extends MediaSessionState<ServerPluginsScreen> {
     );
   }
 
+  void _openMedia() {
+    if (!_active || _plugins.busy || _dialog != null) return;
+    Navigator.of(context).pushReplacement(
+      CupertinoPageRoute<void>(
+        builder: (_) => const ServerMediaPreparationsScreen(),
+      ),
+    );
+  }
+
   void _openJobs([ServerPluginPreview? preview]) {
     if (!_active || _plugins.busy || _dialog != null) return;
     Navigator.of(context).pushReplacement(
@@ -293,6 +303,13 @@ class _ServerPluginsScreenState extends MediaSessionState<ServerPluginsScreen> {
                       padding: const EdgeInsets.symmetric(horizontal: 8),
                       child: Wrap(
                         children: [
+                          CupertinoButton(
+                            key: const ValueKey('plugins-media'),
+                            onPressed: _active && !_plugins.busy
+                                ? _callback(_openMedia)
+                                : null,
+                            child: Text(l10n.serverMediaTitle),
+                          ),
                           CupertinoButton(
                             key: const ValueKey('plugins-jobs'),
                             onPressed: _active && !_plugins.busy
