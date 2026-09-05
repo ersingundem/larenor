@@ -1,0 +1,17 @@
+Larenor Client and Larenor Server
+Copyright (C) 2026 Ersin Gündem and Larenor contributors
+
+Original Larenor code and documentation in this repository are licensed under
+the GNU Affero General Public License, version 3 only (AGPL-3.0-only).
+See LICENSE for the complete terms. The software is provided without warranty.
+
+Source and build instructions: https://github.com/ersingundem/larenor
+
+Third-party components retain their own copyright and license notices.
+See THIRD_PARTY_NOTICES.md and the notices stored alongside those components.
+This notice does not relicense third-party code, fonts, artwork or trademarks.
+
+Original Larenor code was relicensed from its earlier proprietary terms to
+AGPL-3.0-only by the copyright holder's instruction on 2026-09-05. Earlier
+historical files may retain their former notices; this notice describes the
+current release. Third-party rights are unaffected.

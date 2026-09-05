@@ -4,7 +4,7 @@
 
 *Unus Lar, omnem domum servat.*
 
-A private, custom Home Assistant companion app built with Flutter. Larenor connects to
+An open-source Home Assistant companion app built with Flutter. Larenor connects to
 an existing self-hosted Home Assistant server over its REST and WebSocket APIs and
 turns an Android tablet into an Apple Home-inspired wall panel — plus an in-app admin
 panel, a unified Netflix-style media hub over a self-hosted Jellyfin/*arr/qBittorrent
@@ -13,7 +13,16 @@ stack, and infrastructure management for Proxmox VE and Keenetic routers.
 This is not a fork of Home Assistant. It is a standalone client; you still need a
 running Home Assistant instance on your network.
 
-This repository and its contents are proprietary — see [LICENSE](LICENSE).
+Larenor's original Client, Server and project code is licensed under
+**GNU AGPL version 3 only** (`AGPL-3.0-only`): see [LICENSE](LICENSE) and
+[NOTICE](NOTICE). Third-party files retain their own licenses; see
+[third-party notices](THIRD_PARTY_NOTICES.md). Source, build scripts and changes
+are available in this repository. Forks and distributed builds must preserve
+the applicable source and license obligations.
+
+**Current platform focus:** Android tablets and Samsung DeX. Native iOS
+development is paused. Larenor Client/Server separation and API-based
+administration are under development; server installation is a final manual step.
 
 ## Features
 
