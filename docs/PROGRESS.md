@@ -79,9 +79,16 @@ S06.3e özel ağ sözleşmesi ayrı modülde başladı.
 Android analiz, **2.625 Flutter, 98 JVM ve sekiz E2E senaryosu** geçti;
 42 aşama/temizlik işareti doğrulandı. API 35 emülatör akışı 10:42 ile 18 dakika
 sınırında tamamlandı. [İmzalı APK 87 ve metadata](https://github.com/ersingundem/larenor/actions/runs/33979199144/artifacts/9973530086)
-yüklendi; ayrıca yerel indirme ve bağımsız paket/imza doğrulaması sürüyor.
+indirildi; Java 17 + sabit apksig 9.1.0 ile paket, sertifika, kaynak commit,
+sürüm `100000087`, minSdk 26 ve `debuggable=false` ayrıca doğrulandı.
+APK SHA-256: `1d642a628da571fbb5f4e0d453ac6c6bf94c2d69b6b5aa2109926df0730f3a76`.
 Daha yeni `63680d6` imaj/journal köprüsü, `f7d9b83` Client bağlamı ve `1ef08fb`
 dizin gözlem kontrolü bu eski CI kaynağının kapsamına dahil değildir.
+
+**Son yerel paket:** 2.659 Flutter testi geçti, tam analiz temiz. Server
+tam regresyonunda 1.885 geçti, yalnız iki Linux testi Mac’te atlandı. Son
+dizin yarışı düzeltmesinden sonra 84 appdata + 70 imaj/journal testi ayrıca
+atlamasız geçti. Bunlar yeni paketin uzak CI sonucundan ayrı yerel kanıttır.
 
 **S06 dilim 2 tamamlandı:** [birleşik medya gereksinim kontrolü](media-inspections-implementation-2026-09-05.md),
 şifreli kalıcı sonuç/geçmiş/iptal, Android yönetim ekranı, toplam disk bütçesi ve
