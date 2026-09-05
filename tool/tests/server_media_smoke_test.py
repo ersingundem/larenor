@@ -10,7 +10,7 @@ import unittest
 from unittest.mock import Mock, patch
 from urllib.error import HTTPError
 
-from tool.server_media_smoke import verify_media_preparation
+from tool.server_media_smoke import _NoRedirect, verify_media_preparation
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -167,6 +167,45 @@ class MediaSmokeProtocolTest(unittest.TestCase):
             self.exercise(protocol)
         self.assertFalse(protocol.commands)
         self.assertFalse(protocol.calls)
+
+    def test_bad_or_oversized_bootstrap_never_reaches_http_or_diagnostics(self):
+        for raw, returncode in ((b"synthetic-private", 0), (b"x" * 2049, 0),
+                                (b"synthetic-private", 1)):
+            with self.subTest(returncode=returncode, length=len(raw)):
+                protocol = Protocol()
+                protocol.run = Mock(return_value=SimpleNamespace(stdout=raw, returncode=returncode))
+                with self.assertRaisesRegex(RuntimeError, "^Media preparation smoke failed$"):
+                    self.exercise(protocol)
+                self.assertFalse(protocol.calls)
+
+    def test_oversized_or_wrong_status_response_blocks_before_creation(self):
+        for oversized in (False, True):
+            with self.subTest(oversized=oversized):
+                protocol = Protocol()
+                protocol.fault = lambda path, body: Response(
+                    "x" * 1048576 if oversized else {}, 200 if oversized else 201)
+                with self.assertRaises(RuntimeError):
+                    self.exercise(protocol)
+                self.assertFalse(protocol.created)
+
+    def test_non_smoke_container_and_platform_mismatch_are_rejected(self):
+        runner = Mock()
+        with patch("tool.server_media_smoke.subprocess.run", runner):
+            for name, platform in (("production", "linux/amd64"),
+                                   ("larenor-smoke-amd64", "linux/arm64")):
+                with self.assertRaises(RuntimeError):
+                    verify_media_preparation(name, lambda: "http://127.0.0.1:41001/api/v1", platform)
+        self.assertFalse(runner.called)
+
+    def test_authenticated_http_disables_redirects_and_environment_proxies(self):
+        protocol = Protocol()
+        with patch("tool.server_media_smoke.subprocess.run", protocol.run), \
+             patch("tool.server_media_smoke.build_opener", return_value=SimpleNamespace(open=protocol.open)) as opener:
+            verify_media_preparation("larenor-smoke-amd64", protocol.healthy, "linux/amd64")
+        proxy, redirect = opener.call_args.args
+        self.assertEqual(proxy.proxies, {})
+        self.assertIsInstance(redirect, _NoRedirect)
+        self.assertIsNone(redirect.redirect_request(None, None, 307, None, {}, "https://example.invalid"))
 
 
 if __name__ == "__main__":
