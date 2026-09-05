@@ -31,8 +31,8 @@ class RadarrScreen extends ConsumerWidget {
           return ArrConnectForm(
             title: 'Radarr',
             urlHint: '',
-            onConnect: (url, key) =>
-                connection.signIn(baseUrl: url, apiKey: key),
+            onConnect: (url, key, isCurrent) =>
+                connection.signIn(baseUrl: url, apiKey: key, isCurrent: isCurrent),
           );
         }
         return CupertinoPageScaffold(
@@ -47,9 +47,9 @@ class RadarrScreen extends ConsumerWidget {
             title: 'Radarr',
             urlHint: 'http://radarr.local:7878',
             discoverySignature: ServiceSignatures.radarr,
-            onConnect: (url, key) => ref
+            onConnect: (url, key, isCurrent) => ref
                 .read(radarrConnectionProvider.notifier)
-                .signIn(baseUrl: url, apiKey: key),
+                .signIn(baseUrl: url, apiKey: key, isCurrent: isCurrent),
           );
         }
 

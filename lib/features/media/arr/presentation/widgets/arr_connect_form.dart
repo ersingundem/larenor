@@ -23,7 +23,7 @@ class ArrConnectForm extends ConsumerStatefulWidget {
 
   final String title;
   final String urlHint;
-  final Future<void> Function(String baseUrl, String apiKey) onConnect;
+  final Future<void> Function(String baseUrl, String apiKey, bool Function() isCurrent) onConnect;
   final LanServiceSignature? discoverySignature;
 
   @override
@@ -79,7 +79,7 @@ class _ArrConnectFormState extends MediaSessionState<ArrConnectForm> {
   }
 
   Future<void> _connect(int generation,
-      Future<void> Function(String, String) connect) async {
+      Future<void> Function(String, String, bool Function()) connect) async {
     if (!_current(generation) || _connecting ||
         !identical(widget.onConnect, connect)) return;
     final url = _urlController.text.trim();
@@ -98,6 +98,7 @@ class _ArrConnectFormState extends MediaSessionState<ArrConnectForm> {
       await connect(
         url.endsWith('/') ? url.substring(0, url.length - 1) : url,
         key,
+        () => _current(generation) && identical(widget.onConnect, connect),
       );
     } catch (_) {
       if (!_current(generation)) return;

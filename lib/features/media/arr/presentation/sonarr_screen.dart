@@ -31,8 +31,8 @@ class SonarrScreen extends ConsumerWidget {
           return ArrConnectForm(
             title: 'Sonarr',
             urlHint: '',
-            onConnect: (url, key) =>
-                connection.signIn(baseUrl: url, apiKey: key),
+            onConnect: (url, key, isCurrent) =>
+                connection.signIn(baseUrl: url, apiKey: key, isCurrent: isCurrent),
           );
         }
         return CupertinoPageScaffold(
@@ -47,9 +47,9 @@ class SonarrScreen extends ConsumerWidget {
             title: 'Sonarr',
             urlHint: 'http://sonarr.local:8989',
             discoverySignature: ServiceSignatures.sonarr,
-            onConnect: (url, key) => ref
+            onConnect: (url, key, isCurrent) => ref
                 .read(sonarrConnectionProvider.notifier)
-                .signIn(baseUrl: url, apiKey: key),
+                .signIn(baseUrl: url, apiKey: key, isCurrent: isCurrent),
           );
         }
 

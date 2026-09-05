@@ -52,15 +52,31 @@ final class DirectCredentialRecord {
   final DirectCredentialService service;
   final FlutterSecureStorage _storage;
   final DirectHomeAccess? _access;
-  void _check() => _access?.check();
-
-  Future<T> _call<T>(Future<T> Function() operation, {bool mutation = false}) async {
-    _check();
-    if (_access != null) return _access.storage(operation, mutation: mutation);
+  void _check([bool Function()? isCurrent]) {
+    _access?.check();
+    if (isCurrent == null) return;
     try {
-      return await operation();
-    } catch (_) {
-      throw DirectHomeAccessException(mutation ? 'write_unconfirmed' : 'storage_failed');
+      if (isCurrent()) return;
+    } catch (_) { /* Private action failure is never a storage diagnostic. */ }
+    throw const DirectHomeAccessException('unavailable');
+  }
+
+  Future<T> _call<T>(Future<T> Function() operation, {
+    bool mutation = false, bool Function()? isCurrent,
+  }) async {
+    _check(isCurrent);
+    try {
+      final result = _access == null ? await operation() :
+          await _access.storage(() {
+            _check(isCurrent);
+            return operation();
+          }, mutation: mutation);
+      _check(isCurrent);
+      return result;
+    } catch (error) {
+      if (mutation) throw const DirectHomeAccessException('write_unconfirmed');
+      if (error is DirectHomeAccessException) rethrow;
+      throw const DirectHomeAccessException('storage_failed');
     }
   }
 
@@ -77,31 +93,31 @@ final class DirectCredentialRecord {
     return Map.unmodifiable(result);
   });
 
-  Future<void> replaceAll(Map<String, String> fields) {
+  Future<void> replaceAll(Map<String, String> fields, {bool Function()? isCurrent}) {
     // Freeze before waiting for the queue; never retain the caller's map.
     if (fields.length != service._fields.length ||
         !service._fields.keys.every(fields.containsKey)) {
       throw ArgumentError('invalid_fields');
     }
     final values = Map<String, String>.unmodifiable(fields);
-    return _mutate(values);
+    return _mutate(values, isCurrent);
   }
 
-  Future<void> clear() => _mutate(null);
+  Future<void> clear({bool Function()? isCurrent}) => _mutate(null, isCurrent);
 
-  Future<void> _mutate(Map<String, String>? values) => ConfigurationWrites.run(() async {
-    _check();
-    await _call(() => _storage.write(key: service.pendingMutationKey, value: '1'), mutation: true);
+  Future<void> _mutate(Map<String, String>? values, bool Function()? isCurrent) => ConfigurationWrites.run(() async {
+    _check(isCurrent);
+    await _call(() => _storage.write(key: service.pendingMutationKey, value: '1'), mutation: true, isCurrent: isCurrent);
     for (final field in service._fields.entries) {
-      _check();
+      _check(isCurrent);
       if (values == null) {
-        await _call(() => _storage.delete(key: field.value), mutation: true);
+        await _call(() => _storage.delete(key: field.value), mutation: true, isCurrent: isCurrent);
       } else {
-        await _call(() => _storage.write(key: field.value, value: values[field.key]!), mutation: true);
+        await _call(() => _storage.write(key: field.value, value: values[field.key]!), mutation: true, isCurrent: isCurrent);
       }
     }
-    _check();
-    await _call(() => _storage.delete(key: service.pendingMutationKey), mutation: true);
+    _check(isCurrent);
+    await _call(() => _storage.delete(key: service.pendingMutationKey), mutation: true, isCurrent: isCurrent);
   });
 
   @override

@@ -43,7 +43,13 @@ class LidarrConnection extends _$LidarrConnection {
     return result;
   }
 
-  Future<void> signIn({required String baseUrl, required String apiKey}) async {
+  Future<void> signIn({required String baseUrl, required String apiKey,
+      bool Function()? isCurrent}) async {
+    void checkAction() {
+      try { if (isCurrent == null || isCurrent()) return; } catch (_) {}
+      throw const DirectHomeAccessException('unavailable');
+    }
+    checkAction();
     _check();
     if (_checkingClient != null) throw const DirectHomeAccessException('busy');
     final operation = ++_operation;
@@ -54,8 +60,10 @@ class LidarrConnection extends _$LidarrConnection {
     try {
       await client.checkConnection();
       _check(operation);
-      await store.save(baseUrl: baseUrl, apiKey: apiKey);
+      checkAction();
+      await store.save(baseUrl: baseUrl, apiKey: apiKey, isCurrent: isCurrent);
       _check(operation);
+      checkAction();
       state = AsyncData(config);
     } catch (_) {
       _check(operation);

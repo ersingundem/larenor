@@ -31,8 +31,8 @@ class LidarrScreen extends ConsumerWidget {
           return ArrConnectForm(
             title: 'Lidarr',
             urlHint: '',
-            onConnect: (url, key) =>
-                connection.signIn(baseUrl: url, apiKey: key),
+            onConnect: (url, key, isCurrent) =>
+                connection.signIn(baseUrl: url, apiKey: key, isCurrent: isCurrent),
           );
         }
         return CupertinoPageScaffold(
@@ -47,9 +47,9 @@ class LidarrScreen extends ConsumerWidget {
             title: 'Lidarr',
             urlHint: 'http://lidarr.local:8686',
             discoverySignature: ServiceSignatures.lidarr,
-            onConnect: (url, key) => ref
+            onConnect: (url, key, isCurrent) => ref
                 .read(lidarrConnectionProvider.notifier)
-                .signIn(baseUrl: url, apiKey: key),
+                .signIn(baseUrl: url, apiKey: key, isCurrent: isCurrent),
           );
         }
 

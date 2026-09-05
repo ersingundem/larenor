@@ -37,8 +37,8 @@ class ArrCredentialsStore {
     return ArrConfig(baseUrl: baseUrl, apiKey: apiKey);
   }
 
-  Future<void> save({required String baseUrl, required String apiKey}) =>
-      _record.replaceAll({'baseUrl': baseUrl, 'apiKey': apiKey});
+  Future<void> save({required String baseUrl, required String apiKey, bool Function()? isCurrent}) =>
+      _record.replaceAll({'baseUrl': baseUrl, 'apiKey': apiKey}, isCurrent: isCurrent);
 
-  Future<void> clear() => _record.clear();
+  Future<void> clear({bool Function()? isCurrent}) => _record.clear(isCurrent: isCurrent);
 }

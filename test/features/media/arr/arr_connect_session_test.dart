@@ -22,8 +22,8 @@ void main() {
       final (c,home)=await routinesHome('direct');
       final interaction=AppInteractionController(); addTearDown(interaction.dispose);
       final navigator=GlobalKey<NavigatorState>(); var calls=0;
-      Future<void> first(String _,String _) async {calls++;}
-      Future<void> second(String _,String _) async {calls+=10;}
+      Future<void> first(String _,String _,bool Function() _) async {calls++;}
+      Future<void> second(String _,String _,bool Function() _) async {calls+=10;}
       var connect=first; var visible=true;
       Widget tree()=>UncontrolledProviderScope(container:c,child:CupertinoApp(
         localizationsDelegates:AppLocalizations.localizationsDelegates,supportedLocales:AppLocalizations.supportedLocales,
@@ -60,7 +60,7 @@ void main() {
       final (c,_)=await routinesHome('direct'); final response=Completer<void>();
       await tester.pumpWidget(UncontrolledProviderScope(container:c,child:CupertinoApp(
         localizationsDelegates:AppLocalizations.localizationsDelegates,supportedLocales:AppLocalizations.supportedLocales,
-        home:ArrConnectForm(title:'Sonarr',urlHint:'https://synthetic.invalid',onConnect:(_,_)=>response.future),
+        home:ArrConnectForm(title:'Sonarr',urlHint:'https://synthetic.invalid',onConnect:(_,_,_)=>response.future),
       )));
       await frames(tester); await tester.enterText(find.byType(CupertinoTextFormFieldRow).at(1),'synthetic-key');
       await tester.tap(find.widgetWithText(CupertinoButton,'Connect')); await tester.pump();
@@ -73,7 +73,7 @@ void main() {
     final (c,_)=await routinesHome('core'); var calls=0;
     await tester.pumpWidget(UncontrolledProviderScope(container:c,child:CupertinoApp(
       localizationsDelegates:AppLocalizations.localizationsDelegates,supportedLocales:AppLocalizations.supportedLocales,
-      home:ArrConnectForm(title:'Sonarr',urlHint:'',discoverySignature:ServiceSignatures.sonarr,onConnect:(_,_) async {calls++;}),
+      home:ArrConnectForm(title:'Sonarr',urlHint:'',discoverySignature:ServiceSignatures.sonarr,onConnect:(_,_,_) async {calls++;}),
     ))); await frames(tester);
     expect(find.byType(LanDiscoverySection),findsNothing);
     expect(find.byType(CupertinoTextFormFieldRow),findsNothing); expect(calls,0);

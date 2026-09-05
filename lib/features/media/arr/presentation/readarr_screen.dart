@@ -31,8 +31,8 @@ class ReadarrScreen extends ConsumerWidget {
           return ArrConnectForm(
             title: 'Readarr',
             urlHint: '',
-            onConnect: (url, key) =>
-                connection.signIn(baseUrl: url, apiKey: key),
+            onConnect: (url, key, isCurrent) =>
+                connection.signIn(baseUrl: url, apiKey: key, isCurrent: isCurrent),
           );
         }
         return CupertinoPageScaffold(
@@ -47,9 +47,9 @@ class ReadarrScreen extends ConsumerWidget {
             title: 'Readarr',
             urlHint: 'http://readarr.local:8787',
             discoverySignature: ServiceSignatures.readarr,
-            onConnect: (url, key) => ref
+            onConnect: (url, key, isCurrent) => ref
                 .read(readarrConnectionProvider.notifier)
-                .signIn(baseUrl: url, apiKey: key),
+                .signIn(baseUrl: url, apiKey: key, isCurrent: isCurrent),
           );
         }
 
