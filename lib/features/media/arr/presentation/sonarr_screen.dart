@@ -28,9 +28,11 @@ class SonarrScreen extends ConsumerWidget {
         if (error is DirectHomeAccessException &&
             error.code == 'pending_mutation') {
           final connection = ref.read(sonarrConnectionProvider.notifier);
+          final store = ref.read(sonarrCredentialsStoreProvider);
           return ArrConnectForm(
             title: 'Sonarr',
             urlHint: '',
+            onClear: (isCurrent) => store.clear(isCurrent: isCurrent),
             onConnect: (url, key, isCurrent) =>
                 connection.signIn(baseUrl: url, apiKey: key, isCurrent: isCurrent),
           );

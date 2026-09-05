@@ -28,9 +28,11 @@ class LidarrScreen extends ConsumerWidget {
         if (error is DirectHomeAccessException &&
             error.code == 'pending_mutation') {
           final connection = ref.read(lidarrConnectionProvider.notifier);
+          final store = ref.read(lidarrCredentialsStoreProvider);
           return ArrConnectForm(
             title: 'Lidarr',
             urlHint: '',
+            onClear: (isCurrent) => store.clear(isCurrent: isCurrent),
             onConnect: (url, key, isCurrent) =>
                 connection.signIn(baseUrl: url, apiKey: key, isCurrent: isCurrent),
           );

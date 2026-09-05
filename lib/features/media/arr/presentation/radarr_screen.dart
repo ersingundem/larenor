@@ -28,9 +28,11 @@ class RadarrScreen extends ConsumerWidget {
         if (error is DirectHomeAccessException &&
             error.code == 'pending_mutation') {
           final connection = ref.read(radarrConnectionProvider.notifier);
+          final store = ref.read(radarrCredentialsStoreProvider);
           return ArrConnectForm(
             title: 'Radarr',
             urlHint: '',
+            onClear: (isCurrent) => store.clear(isCurrent: isCurrent),
             onConnect: (url, key, isCurrent) =>
                 connection.signIn(baseUrl: url, apiKey: key, isCurrent: isCurrent),
           );

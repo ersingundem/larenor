@@ -19,12 +19,14 @@ class ArrConnectForm extends ConsumerStatefulWidget {
     required this.urlHint,
     required this.onConnect,
     this.discoverySignature,
+    this.onClear,
   });
 
   final String title;
   final String urlHint;
   final Future<void> Function(String baseUrl, String apiKey, bool Function() isCurrent) onConnect;
   final LanServiceSignature? discoverySignature;
+  final Future<void> Function(bool Function() isCurrent)? onClear;
 
   @override
   ConsumerState<ArrConnectForm> createState() => _ArrConnectFormState();
@@ -37,6 +39,7 @@ class _ArrConnectFormState extends MediaSessionState<ArrConnectForm> {
   bool _visible = true;
   bool _connecting = false;
   String? _error;
+  bool _cleared = false;
 
   bool _current(int generation) =>
       sessionCurrent(generation) && _access.isCurrent &&
@@ -57,7 +60,8 @@ class _ArrConnectFormState extends MediaSessionState<ArrConnectForm> {
   @override
   void didUpdateWidget(covariant ArrConnectForm oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (!identical(widget.onConnect, oldWidget.onConnect)) {
+    if (!identical(widget.onConnect, oldWidget.onConnect) ||
+        !identical(widget.onClear, oldWidget.onClear)) {
       sessionGeneration++;
       clearPendingInteraction();
     }
@@ -69,6 +73,7 @@ class _ArrConnectFormState extends MediaSessionState<ArrConnectForm> {
     _keyController.clear();
     _connecting = false;
     _error = null;
+    _cleared = false;
   }
 
   @override
@@ -110,11 +115,32 @@ class _ArrConnectFormState extends MediaSessionState<ArrConnectForm> {
     }
   }
 
+  Future<void> _clear(int generation,
+      Future<void> Function(bool Function()) clear) async {
+    bool current() => _current(generation) && identical(widget.onClear, clear);
+    if (!current() || _connecting) return;
+    setState(() { _connecting = true; _error = null; _cleared = false; });
+    try {
+      await clear(current);
+      if (!current()) return;
+      setState(() {
+        _urlController.clear();
+        _keyController.clear();
+        _cleared = true;
+      });
+    } catch (_) {
+      if (current()) setState(() => _error = AppLocalizations.of(context).mediaErrorUnreachable);
+    } finally {
+      if (current()) setState(() => _connecting = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     ref.watch(directHomeAccessProvider);
     final generation = sessionGeneration;
     final connect = widget.onConnect;
+    final clear = widget.onClear;
     if (!_access.isCurrent) {
       return CupertinoPageScaffold(child: Center(child:
         Text(AppLocalizations.of(context).mediaErrorUnreachable)));
@@ -130,6 +156,12 @@ class _ArrConnectFormState extends MediaSessionState<ArrConnectForm> {
               padding: const EdgeInsets.all(24),
               children: [
                 const SizedBox(height: 16),
+                if (clear != null) ...[
+                  Text(_cleared ? AppLocalizations.of(context).commonDone :
+                      AppLocalizations.of(context).arrConnectionIncomplete,
+                      textAlign: TextAlign.center),
+                  const SizedBox(height: 16),
+                ],
                 if (active && widget.discoverySignature != null)
                   LanDiscoverySection(
                     signature: widget.discoverySignature!,
@@ -179,6 +211,14 @@ class _ArrConnectFormState extends MediaSessionState<ArrConnectForm> {
                         )
                       : Text(AppLocalizations.of(context).commonConnect),
                 ),
+                if (clear != null) ...[
+                  const SizedBox(height: 12),
+                  CupertinoButton(
+                    onPressed: _connecting || !active ? null : () => _clear(generation, clear),
+                    child: Text(AppLocalizations.of(context).arrRemoveConnection,
+                        textAlign: TextAlign.center),
+                  ),
+                ],
               ],
             ),
           ),

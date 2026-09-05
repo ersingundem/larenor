@@ -2224,5 +2224,7 @@
   "homeLayoutRefresh": "Review current layout",
   "homeLayoutExpired": "This review is no longer current. Verify your account and review the layout again.",
   "homeLayoutStorageError": "The layout could not be read or the save could not be confirmed. Review the current layout before trying again.",
-  "homeLayoutRoomLimit": "This home has reached its room limit. No room names were added."
+  "homeLayoutRoomLimit": "This home has reached its room limit. No room names were added.",
+  "arrConnectionIncomplete": "The saved connection is incomplete. Enter the complete address and API key again, or remove the saved connection.",
+  "arrRemoveConnection": "Remove saved connection"
 }

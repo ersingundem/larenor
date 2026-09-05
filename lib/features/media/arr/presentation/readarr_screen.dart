@@ -28,9 +28,11 @@ class ReadarrScreen extends ConsumerWidget {
         if (error is DirectHomeAccessException &&
             error.code == 'pending_mutation') {
           final connection = ref.read(readarrConnectionProvider.notifier);
+          final store = ref.read(readarrCredentialsStoreProvider);
           return ArrConnectForm(
             title: 'Readarr',
             urlHint: '',
+            onClear: (isCurrent) => store.clear(isCurrent: isCurrent),
             onConnect: (url, key, isCurrent) =>
                 connection.signIn(baseUrl: url, apiKey: key, isCurrent: isCurrent),
           );
