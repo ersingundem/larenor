@@ -331,6 +331,10 @@ void main() {
       fixture.now = fixture.now.add(const Duration(hours: 2));
       fixture.refresh = Completer();
       await tap(tester, 'admin-submit-user');
+      // Rotation now durably stores its intent before dispatching the POST.
+      await tester.runAsync(() => Future<void>.delayed(Duration.zero));
+      await tester.pump();
+      expect(fixture.store.value?.authMutationPending, isTrue);
       expect(
         fixture.calls
             .where((request) => request.url.path.endsWith('/auth/refresh'))

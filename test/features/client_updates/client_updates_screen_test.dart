@@ -47,6 +47,8 @@ void main() {
         client: MockClient(
           (request) async => request.url.path.endsWith('/logout')
               ? http.Response('', 204)
+              : request.url.path.endsWith('/context')
+              ? account_fixture.jsonResponse(account_fixture.contextJson())
               : account_fixture.jsonResponse(
                   account_fixture.pair(change: false),
                 ),

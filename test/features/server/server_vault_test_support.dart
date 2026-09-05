@@ -80,6 +80,13 @@ class VaultApi extends LarenorServerApi {
   Completer<ServerSession>? pendingRefresh;
   String? writeError, readError;
   @override
+  Future<ServerContext> context(String accessToken) async =>
+      ServerContext.fromJson({
+        'schemaVersion': 1,
+        'coreId': 'a' * 32,
+        'homeId': 'b' * 32,
+      });
+  @override
   Future<ServerUser> me(String accessToken) async => vaultSession().user;
   @override
   Future<void> logout(ServerSession session) async {}

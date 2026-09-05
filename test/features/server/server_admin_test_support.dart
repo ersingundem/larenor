@@ -148,6 +148,12 @@ class AdminFixture {
 
   http.Response defaultResponse(http.Request request) {
     final path = request.url.path;
+    if (request.url.path.endsWith('/context')) {
+      return user.mustChangePassword
+          ? json({}, 403)
+          : json({'schemaVersion': 1, 'coreId': 'a' * 32, 'homeId': 'b' * 32});
+    }
+
     if (request.method == 'GET' && path.endsWith('/admin/users')) {
       return json({'users': users});
     }

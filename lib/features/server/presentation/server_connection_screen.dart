@@ -377,6 +377,31 @@ class _ServerConnectionScreenState
                             onPressed: _callback(_initialize),
                             child: Text(l10n.commonRetry),
                           ),
+                      ] else if (_account.hasPendingContext) ...[
+                        SettingsSection(
+                          header: Text(l10n.serverContextPending),
+                          children: [
+                            Padding(
+                              padding: const EdgeInsets.all(16),
+                              child: Text(
+                                l10n.serverContextPendingHint,
+                                style: AppText.body,
+                              ),
+                            ),
+                          ],
+                        ),
+                        _button(
+                          'server-context-retry',
+                          l10n.serverContextRetry,
+                          () => _run(_account.retryContext),
+                        ),
+                        CupertinoButton(
+                          key: const ValueKey('server-sign-out'),
+                          onPressed: _enabled && _dialog == null
+                              ? _callback(_signOut)
+                              : null,
+                          child: Text(l10n.serverSignOut),
+                        ),
                       ] else if (session == null) ...[
                         SettingsSection(
                           children: [

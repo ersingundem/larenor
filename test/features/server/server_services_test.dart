@@ -32,6 +32,7 @@ class ServicesFixture extends AdminFixture {
   }
   final records = <Map<String, dynamic>>[];
   http.Response serviceResponse(http.Request request) {
+    if (request.url.path.endsWith('/context')) return defaultResponse(request);
     if (request.method == 'GET') return this.json({'services': records});
     if (request.method == 'DELETE') {
       if (request.url.queryParameters['expectedRevision'] !=

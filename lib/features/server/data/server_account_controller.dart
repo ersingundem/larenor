@@ -24,6 +24,8 @@ class ServerAccountController extends ChangeNotifier {
   final DateTime Function() _clock;
   LarenorServerApi? _api;
   ServerSession? _session;
+  ServerSession? _pendingSession;
+  bool _candidateSaved = false;
   bool _disposed = false;
   bool _working = false;
   bool _initialized = false;
@@ -34,6 +36,8 @@ class ServerAccountController extends ChangeNotifier {
   bool _mutationInFlight = false;
 
   ServerSession? get session => _session;
+  ServerContext? get context => _session?.context;
+  bool get hasPendingContext => _pendingSession != null;
   bool get working => _working;
   bool get initialized => _initialized;
   String? get failure => _failure;
@@ -57,6 +61,14 @@ class ServerAccountController extends ChangeNotifier {
       final stored = await _store.read();
       _check(generation);
       if (stored == null) return;
+      if (stored.authMutationPending) {
+        await _reject(
+          const LarenorServerException('invalid_session'),
+          generation,
+          preserveStored: true,
+        );
+        return;
+      }
       final api = _factory(stored.endpoint);
       _api = api;
       // Validate cached access through a read first. A temporarily offline
@@ -74,6 +86,8 @@ class ServerAccountController extends ChangeNotifier {
       if (fresh == null) {
         mutationStarted = true;
         _mutationInFlight = true;
+        await _persist(stored.withAuthMutationPending(), generation);
+        _check(generation);
         fresh = await api.refresh(stored.refreshToken);
       }
       _checkIdentity(stored, fresh);
@@ -81,6 +95,7 @@ class ServerAccountController extends ChangeNotifier {
     } catch (error) {
       if (isCurrent(generation)) {
         retryable =
+            _pendingSession == null &&
             !mutationStarted &&
             {
               'connection_failed',
@@ -88,12 +103,14 @@ class ServerAccountController extends ChangeNotifier {
               'server_error',
               'rate_limited',
             }.contains(_safeCode(error));
-        if (retryable) {
+        if (_pendingSession != null) {
+          await _contextFailure(error, generation);
+        } else if (retryable) {
           _api?.close();
           _api = null;
           _failure = _safeCode(error);
         } else {
-          await _reject(error, generation);
+          await _reject(error, generation, preserveStored: mutationStarted);
         }
       }
     } finally {
@@ -113,7 +130,7 @@ class ServerAccountController extends ChangeNotifier {
     required String deviceName,
   }) async {
     if (_disposed) return;
-    if (_session != null) {
+    if (_session != null || _pendingSession != null) {
       throw const LarenorServerException('already_signed_in');
     }
     final generation = ++_generation;
@@ -140,7 +157,13 @@ class ServerAccountController extends ChangeNotifier {
       );
       await _accept(value, generation);
     } catch (error) {
-      if (isCurrent(generation)) await _reject(error, generation);
+      if (isCurrent(generation)) {
+        if (_pendingSession != null) {
+          await _contextFailure(error, generation);
+        } else {
+          await _reject(error, generation);
+        }
+      }
     } finally {
       if (isCurrent(generation)) {
         _mutationInFlight = false;
@@ -152,19 +175,24 @@ class ServerAccountController extends ChangeNotifier {
   }
 
   Future<ServerSession> ensureSession() {
+    if (_disposed) {
+      return Future.error(const LarenorServerException('unauthorized'));
+    }
+    if (_refreshing case final Future<ServerSession> pending) return pending;
+    if (_pendingSession != null) {
+      return Future.error(const LarenorServerException('context_pending'));
+    }
     final session = _session;
-    if (_disposed || session == null) {
+    if (session == null) {
       return Future.error(const LarenorServerException('unauthorized'));
     }
     if (_working) {
       return Future.error(const LarenorServerException('busy'));
     }
-    if (_refreshing case final Future<ServerSession> pending) return pending;
     if (!session.expiresSoon(_clock())) return Future.value(session);
     final generation = _generation;
     final future = _rotate(session, generation);
     _refreshing = future;
-    // Clear the single flight without creating an unhandled error future.
     unawaited(
       future.then<void>(
         (_) {
@@ -181,18 +209,54 @@ class ServerAccountController extends ChangeNotifier {
   Future<ServerSession> _rotate(ServerSession previous, int generation) async {
     _mutationInFlight = true;
     try {
+      // A process death after POST must never make the old refresh reusable.
+      await _persist(previous.withAuthMutationPending(), generation);
+      _check(generation);
       final next = await _api!.refresh(previous.refreshToken);
       _checkIdentity(previous, next);
       await _accept(next, generation);
       _emit();
-      return next;
+      return _session!;
     } catch (error) {
-      if (isCurrent(generation)) await _reject(error, generation);
-      // Refresh may have reached the server before a network timeout. Retrying
-      // that token could revoke the family, so require a fresh login instead.
+      if (isCurrent(generation)) {
+        if (_pendingSession != null) {
+          await _contextFailure(error, generation);
+        } else {
+          await _reject(error, generation, preserveStored: true);
+        }
+      }
       throw LarenorServerException(_safeCode(error));
     } finally {
       if (isCurrent(generation)) _mutationInFlight = false;
+    }
+  }
+
+  /// Explicit recovery only. Never calls ensureSession or repeats an auth POST.
+  Future<void> retryContext() async {
+    if (_disposed ||
+        _working ||
+        _refreshing != null ||
+        _pendingSession == null) {
+      return;
+    }
+    final generation = _generation;
+    _working = true;
+    _failure = null;
+    _emit();
+    try {
+      if (!_candidateSaved) {
+        await _persist(_pendingSession, generation);
+        _check(generation);
+        _candidateSaved = true;
+      }
+      await _bindContext(generation);
+    } catch (error) {
+      if (isCurrent(generation)) await _contextFailure(error, generation);
+    } finally {
+      if (isCurrent(generation)) {
+        _working = false;
+        _emit();
+      }
     }
   }
 
@@ -209,9 +273,24 @@ class ServerAccountController extends ChangeNotifier {
     try {
       final result = await action(_api!, current);
       _check(generation);
+      final active = _session;
+      if (active == null ||
+          active.context != current.context ||
+          active.user.id != current.user.id ||
+          active.endpoint.baseUrl != current.endpoint.baseUrl ||
+          (requiresReady && active.user.mustChangePassword)) {
+        throw const LarenorServerException('cancelled');
+      }
       return result;
     } on LarenorServerException catch (error) {
-      if (error.code == 'unauthorized' && isCurrent(generation)) {
+      if (error.code == 'unauthorized') {
+        // A response only revokes the exact authenticated pair it used. A
+        // concurrent rotation may already have saved or bound its replacement.
+        if (!isCurrent(generation) ||
+            !identical(_session, current) ||
+            _pendingSession != null) {
+          throw const LarenorServerException('cancelled');
+        }
         await _reject(error, generation);
       }
       rethrow;
@@ -224,13 +303,18 @@ class ServerAccountController extends ChangeNotifier {
   }) async {
     if (_disposed || _working) return;
     final generation = _generation;
+    ServerSession? previous;
+    var postStarted = false;
     try {
-      final previous = await ensureSession();
+      previous = await ensureSession();
       _check(generation);
       _working = true;
       _mutationInFlight = true;
       _failure = null;
       _emit();
+      await _persist(previous.withAuthMutationPending(), generation);
+      _check(generation);
+      postStarted = true;
       final next = await _api!.changePassword(
         accessToken: previous.accessToken,
         currentPassword: currentPassword,
@@ -240,16 +324,29 @@ class ServerAccountController extends ChangeNotifier {
       await _accept(next, generation);
     } catch (error) {
       if (isCurrent(generation)) {
-        _failure = _safeCode(error);
-        // Only a known rejection can safely keep the previous tokens. A lost
-        // successful password-change response has already revoked them.
-        if (!{
-          'invalid_request',
-          'rate_limited',
-          'forbidden',
-          'busy',
-        }.contains(_failure)) {
-          await _reject(error, generation);
+        if (_pendingSession != null) {
+          await _contextFailure(error, generation);
+        } else if (postStarted &&
+            previous != null &&
+            {
+              'invalid_request',
+              'rate_limited',
+              'forbidden',
+              'busy',
+            }.contains(_safeCode(error))) {
+          // Only these known rejections guarantee no replacement token pair.
+          try {
+            await _persist(previous, generation);
+            _check(generation);
+            _session = previous;
+            _failure = _safeCode(error);
+          } catch (storageError) {
+            if (isCurrent(generation)) {
+              await _reject(storageError, generation, preserveStored: true);
+            }
+          }
+        } else {
+          await _reject(error, generation, preserveStored: true);
         }
       }
     } finally {
@@ -263,11 +360,13 @@ class ServerAccountController extends ChangeNotifier {
 
   Future<void> signOut() async {
     if (_disposed) return;
-    final old = _session;
+    final old = _pendingSession ?? _session;
     final generation = ++_generation;
     _api?.close();
     _api = null;
     _session = null;
+    _pendingSession = null;
+    _candidateSaved = false;
     _refreshing = null;
     _mutationInFlight = false;
     _working = false;
@@ -307,15 +406,22 @@ class ServerAccountController extends ChangeNotifier {
     _working = false;
     _mutationInFlight = false;
     _failure = 'cancelled';
-    if (mutation) _session = null;
-    _initialized = mutation || _session != null;
-    if (_session case final ServerSession active) {
-      _api = _factory(active.endpoint);
-    }
-    _emit();
     if (mutation) {
+      _session = null;
+      _pendingSession = null;
+      _candidateSaved = false;
+    }
+    _initialized = mutation || _session != null || _pendingSession != null;
+    final active = _pendingSession ?? _session;
+    if (active != null) _api = _factory(active.endpoint);
+    _emit();
+    if (mutation || _pendingSession != null) {
       try {
-        await _persist(null, generation);
+        // Serialize after any interrupted save. A known replacement survives
+        // cancellation of its read-only context GET; a sign-out still clears it.
+        await _persist(mutation ? null : _pendingSession, generation);
+        _check(generation);
+        _candidateSaved = _pendingSession != null;
       } catch (_) {
         if (isCurrent(generation)) _failure = 'storage_failed';
       }
@@ -325,21 +431,64 @@ class ServerAccountController extends ChangeNotifier {
 
   Future<void> _accept(ServerSession value, int generation) async {
     _check(generation);
-    await _persist(value, generation);
+    _pendingSession = value.withContext(null);
+    _candidateSaved = false;
+    _session = null;
+    // The POST returned a validated pair. Failures from here concern saving or
+    // binding that new pair, never whether the previous refresh is reusable.
+    _mutationInFlight = false;
+    _emit();
+    await _persist(_pendingSession, generation);
     _check(generation);
-    _session = value;
+    _candidateSaved = true;
+    await _bindContext(generation);
+  }
+
+  Future<void> _bindContext(int generation) async {
+    _check(generation);
+    final candidate = _pendingSession!;
+    final ServerSession bound;
+    if (candidate.user.mustChangePassword) {
+      bound = candidate;
+    } else {
+      final identity = await _api!.context(candidate.accessToken);
+      _check(generation);
+      bound = candidate.withContext(identity);
+      await _persist(bound, generation);
+      _check(generation);
+    }
+    _session = bound;
+    _pendingSession = null;
+    _candidateSaved = false;
     _failure = null;
   }
 
-  Future<void> _reject(Object error, int generation) async {
+  Future<void> _contextFailure(Object error, int generation) async {
+    if (_safeCode(error) == 'unauthorized') {
+      await _reject(error, generation);
+    } else {
+      _failure = _safeCode(error);
+      _emit();
+    }
+  }
+
+  Future<void> _reject(
+    Object error,
+    int generation, {
+    bool preserveStored = false,
+  }) async {
     _session = null;
+    _pendingSession = null;
+    _candidateSaved = false;
     _api?.close();
     _api = null;
     _failure = _safeCode(error);
-    try {
-      await _persist(null, generation);
-    } catch (_) {
-      if (isCurrent(generation)) _failure = 'storage_failed';
+    if (!preserveStored) {
+      try {
+        await _persist(null, generation);
+      } catch (_) {
+        if (isCurrent(generation)) _failure = 'storage_failed';
+      }
     }
     if (isCurrent(generation)) _emit();
   }
@@ -378,6 +527,7 @@ class ServerAccountController extends ChangeNotifier {
     _generation++;
     _api?.close();
     _session = null;
+    _pendingSession = null;
     super.dispose();
   }
 }

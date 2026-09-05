@@ -7,7 +7,9 @@ abstract interface class ServerSessionPersistence {
   Future<void> write(ServerSession? session);
 }
 
-/// One atomic record binds credentials to their server/account. Excluded from
+/// One atomic v2 record binds credentials, pending-auth intent and Core context.
+/// The existing key also reads legacy v1 records without trusting their scope.
+/// Excluded from
 /// BackupSnapshot's allowlist; a restored configuration never restores sessions.
 class SecureServerSessionStore implements ServerSessionPersistence {
   SecureServerSessionStore({FlutterSecureStorage? storage})

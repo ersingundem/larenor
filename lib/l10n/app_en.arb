@@ -2156,5 +2156,8 @@
   "serverMediaInspectionsCapacity": "The Server has reached its inspection limit.",
   "serverMediaInspectionsStorageUnavailable": "Inspection history is temporarily unavailable. Try reading it again.",
   "serverMediaInspectionsPreparationId": "Preparation ID",
-  "serverMediaInspectionsCancelBody": "Cancel this requirements inspection. The preparation and existing components or media files remain unchanged."
+  "serverMediaInspectionsCancelBody": "Cancel this requirements inspection. The preparation and existing components or media files remain unchanged.",
+  "serverContextPending": "Core and home verification",
+  "serverContextPendingHint": "Verify this Core and home before opening Server features. Retrying will not sign in again.",
+  "serverContextRetry": "Retry context check"
 }

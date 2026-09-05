@@ -134,6 +134,8 @@ class ServerSession {
     required this.refreshToken,
     required this.expiresAt,
     required this.user,
+    this.context,
+    this.authMutationPending = false,
   });
 
   factory ServerSession.fromResponse(
@@ -160,6 +162,12 @@ class ServerSession {
   final DateTime expiresAt;
   final ServerUser user;
 
+  /// Persisted identity is a hint until this process revalidates it with Core.
+  final ServerContext? context;
+
+  /// A token-changing POST may have consumed the stored refresh token.
+  final bool authMutationPending;
+
   bool expiresSoon(DateTime now) =>
       !expiresAt.isAfter(now.add(const Duration(seconds: 30)));
 
@@ -169,15 +177,38 @@ class ServerSession {
     refreshToken: refreshToken,
     expiresAt: expiresAt,
     user: value,
+    context: context,
+    authMutationPending: authMutationPending,
+  );
+
+  ServerSession withContext(ServerContext? value) => ServerSession(
+    endpoint: endpoint,
+    accessToken: accessToken,
+    refreshToken: refreshToken,
+    expiresAt: expiresAt,
+    user: user,
+    context: value,
+  );
+
+  ServerSession withAuthMutationPending() => ServerSession(
+    endpoint: endpoint,
+    accessToken: accessToken,
+    refreshToken: refreshToken,
+    expiresAt: expiresAt,
+    user: user,
+    context: context,
+    authMutationPending: true,
   );
 
   String encodeStorage() => jsonEncode({
-    'version': 1,
+    'version': 2,
     'baseUrl': endpoint.baseUrl,
     'accessToken': accessToken,
     'refreshToken': refreshToken,
     'expiresAt': expiresAt.toUtc().toIso8601String(),
     'user': user.toJson(),
+    'context': context?.toJson(),
+    'authMutationPending': authMutationPending,
   });
 
   static ServerSession decodeStorage(String encoded) {
@@ -186,7 +217,22 @@ class ServerSession {
         throw const LarenorServerException('invalid_session');
       }
       final json = serverObject(jsonDecode(encoded));
-      if (json['version'] != 1) {
+      final version = json['version'];
+      if (version is! int || (version != 1 && version != 2)) {
+        throw const LarenorServerException('invalid_session');
+      }
+      final expected = {
+        'version',
+        'baseUrl',
+        'accessToken',
+        'refreshToken',
+        'expiresAt',
+        'user',
+        if (version == 2) ...['context', 'authMutationPending'],
+      };
+      if (json.length != expected.length ||
+          !json.keys.every(expected.contains) ||
+          (version == 2 && json['authMutationPending'] is! bool)) {
         throw const LarenorServerException('invalid_session');
       }
       return ServerSession(
@@ -195,6 +241,11 @@ class ServerSession {
         refreshToken: _token(json['refreshToken']),
         expiresAt: DateTime.parse(serverText(json['expiresAt'], max: 40)),
         user: ServerUser.fromJson(serverObject(json['user'])),
+        context: version == 2 && json['context'] != null
+            ? ServerContext.fromJson(json['context'])
+            : null,
+        authMutationPending:
+            version == 2 && json['authMutationPending'] == true,
       );
     } catch (_) {
       throw const LarenorServerException('invalid_session');

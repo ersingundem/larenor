@@ -31,6 +31,12 @@ Map<String, Object?> pair({
   },
 };
 
+Map<String, Object?> contextJson() => {
+  'schemaVersion': 1,
+  'coreId': 'a' * 32,
+  'homeId': 'b' * 32,
+};
+
 http.Response jsonResponse(Object? body, [int status = 200]) => http.Response(
   jsonEncode(body),
   status,
@@ -287,7 +293,11 @@ void main() {
         apiFactory: (endpoint) => LarenorServerApi(
           endpoint: endpoint,
           clock: () => clock,
-          client: MockClient((request) => handler(request)),
+          client: MockClient(
+            (request) => request.url.path.endsWith('/context')
+                ? Future.value(jsonResponse(contextJson()))
+                : handler(request),
+          ),
         ),
       );
     });
@@ -487,30 +497,24 @@ void main() {
       },
     );
 
-    test(
-      'failed refresh clears session and is never automatically retried',
-      () async {
-        handler = (_) async => jsonResponse(pair(change: false));
-        await login();
-        clock = now.add(const Duration(hours: 1));
-        var calls = 0;
-        handler = (_) async {
-          calls++;
-          throw http.ClientException('secret $access');
-        };
-        await expectLater(
-          account.ensureSession(),
-          throwsA(code('connection_failed')),
-        );
-        await expectLater(
-          account.ensureSession(),
-          throwsA(code('unauthorized')),
-        );
-        expect(account.session, isNull);
-        expect(store.value, isNull);
-        expect(calls, 1);
-      },
-    );
+    test('failed refresh retains unusable intent and is never automatically retried', () async {
+      handler = (_) async => jsonResponse(pair(change: false));
+      await login();
+      clock = now.add(const Duration(hours: 1));
+      var calls = 0;
+      handler = (_) async {
+        calls++;
+        throw http.ClientException('secret $access');
+      };
+      await expectLater(
+        account.ensureSession(),
+        throwsA(code('connection_failed')),
+      );
+      await expectLater(account.ensureSession(), throwsA(code('unauthorized')));
+      expect(account.session, isNull);
+      expect(store.value?.authMutationPending, isTrue);
+      expect(calls, 1);
+    });
 
     test(
       'logout before a late login response never persists the account',

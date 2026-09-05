@@ -73,6 +73,9 @@ class NoticeHarness {
         endpoint: endpoint,
         clock: () => accounts.now,
         client: MockClient((request) async {
+          if (request.url.path.endsWith('/context')) {
+            return accounts.jsonResponse(accounts.contextJson());
+          }
           if (request.url.path.endsWith('/logout')) {
             return http.Response('', 204);
           }
