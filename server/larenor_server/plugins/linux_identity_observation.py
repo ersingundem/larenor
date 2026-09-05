@@ -285,3 +285,94 @@ def capture_process_identity(proc_fd, *, pid, deadline, cancelled=None):
             _close(fd)
         if proc >= 0:
             _close(proc)
+
+
+class HeldContextIdentities:
+    """Opt-in socket-pidfd/proc-bound facts; parent context remains caller-owned.
+
+    This authenticates the already verified peer incarnation, not an initial
+    host namespace, native supervisor or remap-disabled daemon startup.
+    """
+
+    def __init__(self, context, peer, worker, event):
+        self._context, self._peer, self._worker, self._event = context, peer, worker, event
+        self._owner = os.getpid(), threading.get_native_id()
+        self._mutex = threading.Lock()
+        self._closed = False
+
+    def __repr__(self):
+        return 'HeldContextIdentities(<private>)'
+
+    @property
+    def peer(self):
+        return self._peer.snapshot
+
+    @property
+    def worker(self):
+        return self._worker.snapshot
+
+    def _dispose(self):
+        self._closed = True
+        self._peer.close()
+        self._worker.close()
+
+    def check(self, deadline):
+        if not self._mutex.acquire(blocking=False):
+            raise IdentityObservationError('identity_observation_busy') from None
+        try:
+            _guard(deadline, self._event)
+            deadline = min(deadline, time.monotonic() + 2)
+            _require(not self._closed and self._owner == (os.getpid(), threading.get_native_id())
+                     and self._context._identity_owner == self._owner and self._context.revalidate(deadline))
+            self._peer.check(deadline)
+            self._worker.check(deadline)
+            _require(self._context.revalidate(deadline))
+            _guard(deadline, self._event)
+        except _ERRORS:
+            self._dispose()
+            raise IdentityObservationError() from None
+        finally:
+            self._mutex.release()
+
+    def close(self):
+        if not self._mutex.acquire(blocking=False):
+            raise IdentityObservationError('identity_observation_busy') from None
+        try:
+            self._dispose()
+        finally:
+            self._mutex.release()
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        self.close()
+
+
+def _capture_context_identities(context, deadline, *, cancelled=None):
+    from .daemon_context import _ContextLease
+    peer, worker, pair = None, None, None
+    try:
+        _require(type(context) is _ContextLease
+                 and (cancelled is None or type(cancelled) is threading.Event))
+        event = threading.Event() if cancelled is None else cancelled
+        _guard(deadline, event)
+        deadline = min(deadline, time.monotonic() + 2)
+        _require(context._identity_owner == (os.getpid(), threading.get_native_id())
+                 and context.revalidate(deadline))
+        # These private descriptors come from capture_daemon_context's verified
+        # socket peer/pidfd path, not from arbitrary JSON/FD-number input.
+        peer = capture_process_identity(context._fds[1], pid=context._peer_pid, deadline=deadline, cancelled=event)
+        worker = capture_process_identity(context._fds[2], pid=context._worker_pid, deadline=deadline, cancelled=event)
+        pair = HeldContextIdentities(context, peer, worker, event)
+        pair.check(deadline)
+        return pair
+    except _ERRORS:
+        if pair is not None:
+            pair.close()
+        else:
+            if worker is not None:
+                worker.close()
+            if peer is not None:
+                peer.close()
+        raise IdentityObservationError() from None
