@@ -149,6 +149,11 @@ void main() {
       language: 'en',
       scale: 1.0,
       docker: 'Docker API and platform compatibility',
+      root: 'Worker-local storage root',
+      capacity: 'Worker-local storage capacity',
+      mount: 'Docker daemon mount context',
+      network: 'Docker daemon network context',
+      daemonRoot: 'Docker daemon root context',
       ports: 'Port availability',
       receiver: 'Receiver network',
       passed: 'Passed',
@@ -160,6 +165,11 @@ void main() {
       language: 'tr',
       scale: 2.0,
       docker: 'Docker API ve platform uyumluluğu',
+      root: 'Çalışanın yerel depolama alanı',
+      capacity: 'Çalışanın yerel depolama kapasitesi',
+      mount: 'Docker daemon bağlama bağlamı',
+      network: 'Docker daemon ağ bağlamı',
+      daemonRoot: 'Docker daemon kök bağlamı',
       ports: 'Port kullanılabilirliği',
       receiver: 'Alıcı ağı',
       passed: 'Karşılandı',
@@ -179,12 +189,18 @@ void main() {
           checks: [
             for (final code in [
               'docker_engine',
+              'storage_root',
+              'storage_capacity',
+              'daemon_mount_context',
+              'daemon_network_context',
+              'daemon_root_context',
               'port_availability',
               'receiver_network',
             ])
               {
                 'code': code,
-                'status': code == 'docker_engine' ? 'passed' : 'unknown',
+                'status': code == 'docker_engine' || code.startsWith('storage_')
+                    ? 'passed' : 'unknown',
                 'rootId': null,
                 'availableMiB': null,
                 'requiredMiB': null,
@@ -197,6 +213,11 @@ void main() {
 
         for (final result in [
           (label: locale.docker, status: locale.passed),
+          (label: locale.root, status: locale.passed),
+          (label: locale.capacity, status: locale.passed),
+          (label: locale.mount, status: locale.unknown),
+          (label: locale.network, status: locale.unknown),
+          (label: locale.daemonRoot, status: locale.unknown),
           (label: locale.ports, status: locale.unknown),
           (label: locale.receiver, status: locale.unknown),
         ]) {
