@@ -131,25 +131,31 @@ void main() {
     );
   }
 
-  test('all selected connections stop even if incoming file has only another service', () async {
-    final storage = _Storage(secrets: {_marker: '1'});
-    final backup = BackupSnapshot.fromJson({
-      'version': 1,
-      'createdAt': '2026-09-06T00:00:00.000Z',
-      'groups': {
-        'connections': {
-          'sonarr': {
-            'baseUrl': 'https://arr.example.test',
-            'apiKey': 'synthetic',
+  test(
+    'HA pending does not block an imported unrelated Sonarr record',
+    () async {
+      final storage = _Storage(secrets: {_marker: '1'});
+      final backup = BackupSnapshot.fromJson({
+        'version': 1,
+        'createdAt': '2026-09-06T00:00:00.000Z',
+        'groups': {
+          'connections': {
+            'sonarr': {
+              'baseUrl': 'https://arr.example.test',
+              'apiKey': 'synthetic',
+            },
           },
         },
-      },
-    });
-    final repository = BackupRepository(storage: storage);
-    await expectLater(repository.preview(backup), _pending);
-    await expectLater(repository.restore(backup, _connections), _pending);
-    expect(storage.writes, isEmpty);
-  });
+      });
+      final repository = BackupRepository(storage: storage);
+      expect((await repository.preview(backup)).services, ['sonarr']);
+      await repository.restore(backup, _connections);
+      expect(storage.secrets['sonarr_api_key'], 'synthetic');
+      expect(storage.secrets[_marker], '1');
+      expect(storage.reads, isNot(contains('secret:$_marker')));
+      expect(storage.writes, isNot(contains('secret:$_marker')));
+    },
+  );
 
   for (final failure in [
     StateError('synthetic private detail'),
