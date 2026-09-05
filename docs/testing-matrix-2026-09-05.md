@@ -68,6 +68,29 @@ Tablodaki dosyalar temsilî giriş noktalarıdır; aynı klasördeki diğer `_te
 
 ## Doğrulanan yerel koşum
 
+**S05 son yayın kontrolü (5 Eylül, 13:49 TRT):** **2.333 Flutter**, **529 Server**
+ve **114 Python araç/politika testi** geçti. Tam analiz ve 747 Dart dosyasının
+biçim kontrolü temiz. Server koşumu yalnız geliştirilmekte olan S06 katalog test
+dosyasını dışarıda bırakır; o dosya S05 yayın paketine dahil değildir. Yeni
+Keenetic açık oturum çerezi ve Client kimlik bilgisi alanları bu son koşumlarda
+yer alır. Ortak [JSON sözleşmesi](../contracts/service-connections.v1.json)
+aynı yaşam döngüsünü hem gerçek FastAPI route'ları hem Dart Client üzerinden
+doğrular. Önceki alt paket adetleri bu toplamlara tekrar eklenmez.
+
+**S05 bütünleştirme kontrolü (5 Eylül, 13:32 TRT):** Yeni hizmet yönetimi dahil
+**2.327 Flutter testi** geçti; tam analiz temiz. **106 Python araç/politika
+testi** geçti. Server bağlantı kayıtları 63 test; HTTP taşıması, bağımsız
+incelemenin iki düzeltmesiyle 87 test; admin kontrol API'si ve gerçek yerel HTTP
+akışı 17 test geçti. Servis adaptörleri genişletiliyor; bu ara sayılar son birleşik
+Server koşumunun yerine geçmez. Yeni Client alanları önceki 98 native testi
+değiştirmedi; gerçek CI/emülatör sonucu ayrıca izlenir.
+
+S05 kanıt dosyaları ve sınırları
+[merkezi hizmet bağlantıları](server-service-connections.md#test-kanıtı-ve-sınırlar)
+belgesindedir. Yeni `server/tests/` ve `test/` dosyaları mevcut CI keşfine dahildir.
+Kontrol sırasında revizyon/rol/oturum değişimi, secret redaksiyonu, TLS/DNS,
+boyut/süre sınırları ve tablet klavyesi ayrı regresyonlarla kapsanır.
+
 **Son birleşik yerel kontrol (5 Eylül, 12:45 TRT):** 2.297 Flutter testi,
 18 pakette 98 Android native testi, 154 Server testi ve 97 Python araç/politika
 testi geçti. Tam Flutter analizi, workflow actionlint kontrolü ve yayımlanabilir
@@ -113,6 +136,11 @@ flutter test test/shared/server_design_preview_test.dart \
 ## Yerel çalıştırma
 
 Yalnız silinebilir emülatör kullanılır; script fiziksel cihaz seri numarasını ve QEMU olmayan hedefi reddeder. App journey testleri cihaz depolarını bellekte taklit eder; ayrı platform testi kendi native test anahtarlarını yazıp siler. APK kurulumu mevcut emülatör uygulamasını değiştirebilir.
+
+Script temiz checkout için Freezed/Riverpod kaynak üretimini testten önce yapar.
+Üretim başarısızsa cihaz ayarlarına ve app journey testlerine geçilmez; üretim
+çıktısı da aynı kanıt günlüğüne yazılır. Bu hata kapıları
+[hazırlık regresyonlarıyla](../tool/tests/android_e2e_preparation_test.py) sınanır.
 
 ```sh
 flutter pub get --enforce-lockfile

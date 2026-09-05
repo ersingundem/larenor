@@ -14,6 +14,9 @@ from .config import Settings
 from .database import Database
 from .errors import StartupError
 from .files import checked_path, private_create, private_directory, private_read, sync_directory
+from .services.schema import migrate_services
+from .services.service import ServiceManagement
+from .services.probe_runner import ServiceProbeRunner
 from .vault import VaultService
 
 
@@ -111,6 +114,7 @@ class CoreServices:
                     connection.execute("INSERT INTO users(id,username,role,password_hash,must_change_password,created_at) VALUES(?,?,?,?,?,?)",
                                        (uuid.uuid4().hex, "admin", "admin", self.auth.hash_password(password), 1, settings.clock()))
                     connection.executemany("INSERT INTO metadata VALUES(?,?)", [("schema_version", "2"), ("key_check", check)])
+                migrate_services(connection)
             if not existed:
                 # Only publish the DB after its complete first transaction commits.
                 # Never expose an empty DB that a restart might treat as a reset.
@@ -130,6 +134,9 @@ class CoreServices:
                     raise StartupError("initialized_marker_invalid")
             self.vault = VaultService(self.db, self.auth, settings, key)
             self.admin = AdminService(self.db, self.auth, settings)
+            self.services = ServiceManagement(self.db, self.auth, settings, key)
+            self.services.validate_storage()
+            self.service_probe = ServiceProbeRunner(self.services)
             self.clear_inactive_bootstrap()
 
     def clear_inactive_bootstrap(self) -> None:

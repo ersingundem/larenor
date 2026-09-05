@@ -4,8 +4,12 @@
 
 **Larenor Client** targets **Android tablets and Samsung DeX**. Native iOS
 development is paused; the Apple Home-inspired design remains shared across
-Android screen sizes. **Larenor Server** provides accounts, an encrypted
+tablet orientations and resizable DeX windows. A separate phone interface is
+not a current design target; the gallery below focuses on tablet and desktop
+window layouts. **Larenor Server** provides accounts, an encrypted
 configuration vault, user/session administration and signed Client release APIs.
+The Client admin area also manages encrypted service connections and bounded
+identity checks for 17 service types. See the [connection guide and limitations](docs/server-service-connections.md).
 Client includes foreground update notices; the Server container and CI delivery
 are implemented and await hosted image verification. Managed service plugins
 remain in progress. Administration belongs in the Client; Server
@@ -703,51 +707,40 @@ for remaining platform and physical-device acceptance work.
 - App branding and launcher icons share the house/guardian emblem. Android includes
   adaptive and monochrome vectors; iOS includes the generated icon sizes.
 - Home, Settings and Media share an adaptive page surface and Inter/Cupertino type
-  hierarchy. Phone/tablet, light/dark and larger-text layouts are checked in widget
+  hierarchy. Resizable tablet, light/dark and larger-text layouts are checked in widget
   tests. [Design previews](docs/previews/) use synthetic fixture data.
 
 Today, rendered from the actual Flutter widgets with synthetic data (not a live
 server or physical-device acceptance test):
 
-<img src="docs/previews/today-phone.png" alt="Today on a phone, light theme" width="260" />
 <img src="docs/previews/today-tablet-dark.png" alt="Today on a tablet, dark theme" width="600" />
 
-Energy, card editing and router-widget selection use the same actual Flutter
-screens in these synthetic-data previews; they are not physical-device screenshots.
+Room card editing, rendered from the actual Flutter screen with synthetic data:
 
-<img src="docs/previews/energy-phone.png" alt="Recorded energy on a phone" width="300" />
-<img src="docs/previews/keenetic-widget-picker-phone.png" alt="Choosing a Keenetic dashboard widget" width="300" />
 <img src="docs/previews/dashboard-card-editor-tablet-dark.png" alt="Editing room card sizes and order on a tablet" width="600" />
 
-Music and local audio, also rendered from real widgets with synthetic data:
+Music library and playback preferences, also rendered from real widgets with synthetic data:
 
-<img src="docs/previews/music-outputs-phone.png" alt="Music outputs on a phone" width="300" />
-<img src="docs/previews/local-audio-phone.png" alt="Local audio and source selection on a phone" width="300" />
 <img src="docs/previews/music-library-tablet-dark.png" alt="Music library on a tablet in dark appearance" width="600" />
 <img src="docs/previews/playback-power-tablet-dark.png" alt="Playback and power settings on a tablet" width="600" />
 
 Window settings and the private health view use the same design system. All
 health values below are synthetic fixtures, rendered without reading a provider:
 
-<img src="docs/previews/window-panel-phone.png" alt="Adaptive and wall-panel window preferences" width="300" />
-<img src="docs/previews/wellbeing-phone.png" alt="Synthetic private health readings on a phone" width="300" />
 <img src="docs/previews/window-panel-desktop-dark.png" alt="Observed desktop window state" width="600" />
 <img src="docs/previews/wellbeing-tablet-dark.png" alt="Synthetic private health readings on a tablet" width="600" />
 
 New panel controls, rendered from the application widgets with synthetic content:
 
-<img src="docs/previews/ambient-settings-phone.png" alt="Ambient clock and photo preferences" width="300" />
-<img src="docs/previews/screen-program-phone.png" alt="Weekly screen program with overnight periods" width="300" />
 <img src="docs/previews/ambient-tablet-dark.png" alt="Ambient display with a synthetic landscape fixture" width="600" />
 <img src="docs/previews/web-panel-settings-tablet-dark.png" alt="Website navigation and zoom settings" width="600" />
 
 Server account, administration, vault review and signed Client updates use the
-same interface on phones and tablets. These are actual Flutter widgets rendered
+same tablet design system. These are actual Flutter widgets rendered
 with synthetic accounts and releases; they do not show a deployed home server.
 
 <img src="docs/previews/server-connect-tablet-light.png" alt="Larenor Server connection form in light appearance" width="600" />
 <img src="docs/previews/server-account-tablet-dark.png" alt="Larenor Server account and session in dark appearance" width="600" />
-<img src="docs/previews/server-admin-users-phone.png" alt="Server user administration on a narrow phone" width="260" />
 <img src="docs/previews/server-admin-users-tablet-dark.png" alt="Server user administration on a tablet" width="600" />
 <img src="docs/previews/server-vault-review-tablet-light.png" alt="Explicit configuration vault restore review" width="600" />
 <img src="docs/previews/server-client-update-tablet-dark.png" alt="Verified Client release available for explicit download" width="600" />

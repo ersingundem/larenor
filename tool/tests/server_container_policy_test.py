@@ -12,7 +12,9 @@ from pathlib import Path
 import re
 import shlex
 import subprocess
+from types import SimpleNamespace
 import unittest
+from unittest.mock import Mock
 from urllib.error import HTTPError, URLError
 
 
@@ -28,6 +30,61 @@ def step_named(name, steps=STEPS):
 
 def python_blocks(script):
     return re.findall(r"<<'PY'[^\n]*\n(.*?)\nPY(?:\n|$)", script, re.DOTALL)
+
+
+class SmokeRestartTest(unittest.TestCase):
+    def health_function(self, ports, opener):
+        script = python_blocks(step_named("Smoke-test the exact image before publication")["run"])[0]
+        node = next(node for node in ast.parse(script).body if isinstance(node, ast.FunctionDef) and node.name == "healthy")
+        docker = SimpleNamespace(check_output=Mock(side_effect=ports), run=Mock(),
+                                 CalledProcessError=subprocess.CalledProcessError,
+                                 TimeoutExpired=subprocess.TimeoutExpired)
+        clock = SimpleNamespace(sleep=Mock())
+        namespace = {"subprocess": docker, "name": "synthetic-smoke", "json": json, "re": re,
+                     "time": clock, "urlopen": opener, "URLError": URLError,
+                     "base": "http://127.0.0.1:41001/api/v1"}
+        exec(compile(ast.Module(body=[node], type_ignores=[]), "smoke_health", "exec"), namespace)
+        return namespace["healthy"], docker, clock
+
+    def test_restart_discovers_new_ephemeral_port(self):
+        urls = []
+        def opener(url, timeout):
+            self.assertEqual(timeout, 2)
+            urls.append(url)
+            return io.BytesIO(b'{"service":"larenor-server","apiVersion":1}')
+        healthy, docker, clock = self.health_function(["127.0.0.1:41001\n", "127.0.0.1:42002\n"], opener)
+        self.assertEqual(healthy(), "http://127.0.0.1:41001/api/v1")
+        self.assertEqual(healthy(), "http://127.0.0.1:42002/api/v1")
+        self.assertEqual(urls, ["http://127.0.0.1:41001/api/v1/health", "http://127.0.0.1:42002/api/v1/health"])
+        self.assertEqual(docker.check_output.call_count, 2)
+        self.assertFalse(clock.sleep.called)
+
+    def test_genuine_health_failure_still_blocks_and_emits_bounded_diagnostics(self):
+        opener = Mock(side_effect=URLError("synthetic connection refused"))
+        healthy, docker, clock = self.health_function(["127.0.0.1:41001\n"] * 60, opener)
+        with self.assertRaises(AssertionError):
+            healthy()
+        self.assertEqual(opener.call_count, 60)
+        self.assertEqual(clock.sleep.call_count, 60)
+        commands = [call.args[0] for call in docker.run.call_args_list]
+        self.assertIn(["docker", "logs", "--tail", "80", "synthetic-smoke"], commands)
+        self.assertTrue(any(command[:3] == ["docker", "inspect", "--format"] for command in commands))
+        self.assertTrue(all(call.kwargs.get("timeout") == 10 for call in docker.run.call_args_list))
+
+    def test_wrong_service_health_payload_fails_immediately(self):
+        healthy, _, clock = self.health_function(["127.0.0.1:41001\n"], lambda *_args, **_kwargs: io.BytesIO(b'{"service":"other","apiVersion":1}'))
+        with self.assertRaises(AssertionError):
+            healthy()
+        self.assertFalse(clock.sleep.called)
+
+    def test_health_discovery_rejects_non_loopback_or_multiple_bindings(self):
+        for binding in ("0.0.0.0:41001\n", "127.0.0.1:0\n", "127.0.0.1:70000\n", "127.0.0.1:41001\n[::]:41001\n"):
+            with self.subTest(binding=binding):
+                opener = Mock()
+                healthy, _, _ = self.health_function([binding], opener)
+                with self.assertRaises(AssertionError):
+                    healthy()
+                self.assertFalse(opener.called)
 
 
 class ContainerBoundaryTest(unittest.TestCase):

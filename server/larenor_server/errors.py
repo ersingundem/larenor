@@ -38,6 +38,9 @@ MESSAGES = {
     "user_limit_reached": "The user limit has been reached.",
     "username_unavailable": "This username is unavailable.",
     "self_password_reset_forbidden": "Use your account password change action.",
+    "service_credentials_required": "Replace or clear credentials when changing the service address.",
+    "service_limit_reached": "The service connection limit has been reached.",
+    "service_unavailable": "The saved service connection is unavailable.",
 }
 
 

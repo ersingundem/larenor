@@ -1,0 +1,51 @@
+{
+  "createRequest": {
+    "name": "Örnek ev",
+    "kind": "home_assistant",
+    "baseUrl": "https://fixture.invalid/%C3%B6",
+    "credentials": {"token": "synthetic-contract-only"}
+  },
+  "createdResponse": {
+    "service": {
+      "id": "cccccccccccccccccccccccccccccccc",
+      "name": "Örnek ev",
+      "kind": "home_assistant",
+      "baseUrl": "https://fixture.invalid/%C3%B6",
+      "revision": 1,
+      "credentialKeys": ["token"],
+      "verification": {"state": "never", "checkedAt": null, "version": null}
+    }
+  },
+  "updateRequest": {
+    "expectedRevision": 1,
+    "name": "Salon",
+    "baseUrl": "https://fixture.invalid/%C3%B6"
+  },
+  "updatedResponse": {
+    "service": {
+      "id": "cccccccccccccccccccccccccccccccc",
+      "name": "Salon",
+      "kind": "home_assistant",
+      "baseUrl": "https://fixture.invalid/%C3%B6",
+      "revision": 2,
+      "credentialKeys": ["token"],
+      "verification": {"state": "never", "checkedAt": null, "version": null}
+    }
+  },
+  "checkRequest": {"expectedRevision": 2},
+  "checkedResponse": {
+    "service": {
+      "id": "cccccccccccccccccccccccccccccccc",
+      "name": "Salon",
+      "kind": "home_assistant",
+      "baseUrl": "https://fixture.invalid/%C3%B6",
+      "revision": 2,
+      "credentialKeys": ["token"],
+      "verification": {
+        "state": "authenticated",
+        "checkedAt": "2026-09-05T12:00:00.000Z",
+        "version": "2026.9.1"
+      }
+    }
+  }
+}

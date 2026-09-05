@@ -133,14 +133,26 @@ class LarenorServerApi {
     var uri = endpoint.api(path);
     if (queryParameters != null && queryParameters.isNotEmpty) {
       const keys = {'userId', 'cursor', 'limit', 'platform', 'channel'};
-      if (method != 'GET' ||
-          queryParameters.length > keys.length ||
-          queryParameters.entries.any(
+      final readQuery =
+          method == 'GET' &&
+          queryParameters.length <= keys.length &&
+          !queryParameters.entries.any(
             (entry) =>
                 !keys.contains(entry.key) ||
                 entry.value.length > 512 ||
                 entry.value.contains(RegExp(r'[\x00-\x1f\x7f]')),
-          )) {
+          );
+      final revision = queryParameters['expectedRevision'];
+      final revisionNumber = int.tryParse(revision ?? '');
+      final forgetQuery =
+          method == 'DELETE' &&
+          RegExp(r'^/admin/services/[0-9a-f]{32}$').hasMatch(path) &&
+          queryParameters.length == 1 &&
+          revision != null &&
+          RegExp(r'^[1-9][0-9]{0,18}$').hasMatch(revision) &&
+          revisionNumber != null &&
+          revisionNumber < 9223372036854775807;
+      if (!readQuery && !forgetQuery) {
         throw const LarenorServerException('invalid_request');
       }
       uri = uri.replace(queryParameters: Map.of(queryParameters));
@@ -260,12 +272,16 @@ class LarenorServerApi {
       if (code == 'self_password_reset_forbidden' && status == 403) {
         return 'self_password_reset_forbidden';
       }
+      if (code == 'service_credentials_required' && status == 400) {
+        return 'service_credentials_required';
+      }
       if (status == 409 &&
           {
             'last_active_admin',
             'revision_conflict',
             'username_unavailable',
             'user_limit_reached',
+            'service_limit_reached',
           }.contains(code)) {
         return code as String;
       }

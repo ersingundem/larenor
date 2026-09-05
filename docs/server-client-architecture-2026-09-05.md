@@ -19,8 +19,8 @@
 | S02 | Android Client sunucu girişi, hesap/rol, oturum yenileme, kasa önizleme/geri yükleme | Uygulandı; birim/widget akışları geçti |
 | S03 | İmzalı Android APK doğrulama, güncelleme bildirimi, indirme ve sistem kurulum akışı | Uygulandı; ilgili 92 Client testi geçti. Gerçek sunucu/cihaz yükseltme kabulü bekliyor |
 | S04 | Release yayın API'si, CI teslimi, saklama ve aynı imzayla güncelleme testi | API ve koşullu CI teslimi hazır; ev sunucusuna teslim/fiziksel güncelleme bekliyor |
-| S05 | Client yönetici paneli; kullanıcı/oturum, hizmet bağlantıları, işler ve denetim kayıtları | Kullanıcı/oturum/denetim hazır; hizmet ve kurulum işleri sırada |
-| S06 | Eklenti kataloğu, kurulum önizlemesi, sınırlandırılmış Linux kurulum işçisi | S05 sonrasında |
+| S05 | Client yönetici paneli; kullanıcı/oturum, hizmet bağlantıları, işler ve denetim kayıtları | Kullanıcı/oturum/denetim, şifreli hizmet CRUD, 17 tür kontrol adaptörü ve Client ekranları uygulandı. Son yayın kontrolü sürüyor; kurulum işleri S06'da |
+| S06 | Eklenti kataloğu, kurulum önizlemesi, sınırlandırılmış Linux kurulum işçisi | Katalog/önizleme modelleri başladı; işçi ve kurulum API'leri sırada |
 | S07 | Mevcut CasaOS servislerini bağlama; yeni medya servislerini kurma/yapılandırma | S06 sonrasında |
 | S08 | HA/medya/ağ bağlantılarını Server'a taşıyan yetkili servis adaptörleri | S05 sonrasında, servis servis |
 | S09 | Otomatik kurulum paketi, yedek/geri yükleme, API/Client bütünlük ve fiziksel kabul | Son aşama |
@@ -28,8 +28,9 @@
 Bir satırın geliştirme sırasında olması, tamamlandığı veya gerçek ev cihazlarında doğrulandığı anlamına gelmez. Mevcut yerel HA bağlantısı ve şifreli dosya yedeği, Server akışı tamamlanırken kullanılabilir kalır. [Genel kuyruk](product-implementation-plan-2026-09-05.md), [test matrisi](testing-matrix-2026-09-05.md).
 
 [Server Docker paketi ve yayın CI'ı](server-container.md) eklendi. Yerel politika
-testleri geçti; Docker bu geliştirme ortamında bulunmadığı için amd64/arm64
-imajının gerçek derleme ve başlatma doğrulaması CI'da bekliyor. Music Assistant
+testleri geçti; amd64/arm64 imajları CI'da derlendi, ancak başlatma sırasında
+APK doğrulayıcı dosya izni hatası bulundu. Düzeltme yerelde doğrulandı; yeni
+imaj başlatma/yayın sonucu bekleniyor. Music Assistant
 ve diğer hizmetleri yönetecek eklenti/kurulum paketi bundan ayrı, sonraki iştir.
 
 ## Hesap, oturum ve yapılandırma
@@ -61,7 +62,15 @@ Sürüm öneki `/api/v1`. Reverse proxy altında bir yol önekiyle kurulabilir. 
 | `GET /client/releases/{versionCode}/apk` | Yetkili, doğrulanmış Client paketi |
 | `/admin/*` | Server'da doğrulanan admin rolü; yetkisiz kullanıcı 403 |
 
-Kullanıcı/oturum/denetim ve üç aşamalı Client yayın API'leri uygulandı. Bağlantı, katalog, iş ve sunucu yedekleme API'leri sırada. OpenAPI şeması ve Swagger gerçek route modellerinden üretilir; dokümandaki kuyruk maddesi henüz çalışan endpoint değildir. Swagger yönetim arayüzünün yerine ayrı ürün değildir; API inceleme ve kontrollü deneme aracıdır.
+Bağlantı durumları, API ve saklama davranışı:
+[Merkezi hizmet bağlantıları](server-service-connections.md).
+
+Kullanıcı/oturum/denetim ve üç aşamalı Client yayın API'leri uygulandı.
+`/admin/services` bağlantı listeleme/ekleme, `/{id}` revizyon kontrollü
+düzenleme/unutma ve `/{id}/check` doğrulama route'ları yerelde eklendi;
+Client/servis adaptörleriyle bütünleştirildi. Katalog, iş ve sunucu
+yedekleme API'leri sırada. OpenAPI şeması gerçek route modellerinden üretilir;
+plan maddesi henüz çalışan endpoint anlamına gelmez.
 
 ## Güncelleme dağıtımı
 
@@ -95,6 +104,7 @@ Her fork için upstream tabanı, yerel değişiklik gerekçesi, uyumluluk testle
 
 ## Kabul ölçütleri
 
+- Son arayüz geçişi tablet ve DeX'i esas alır; telefon için ayrı bir tasarım hedefi yoktur. Dashboard/Media/Settings/Server aynı renk, tipografi, kart, gezinme, form ve diyalog düzenini kullanır. Tek Latin slogan korunur. README görselleri gerçek tablet düzenlerinden üretilir; sentetik widget önizlemeleri ile fiziksel cihaz ekran görüntüleri açıkça ayrılır.
 - Varsayılan parolayla yönetim engellenir; member kullanıcı Client ekranını atlasa bile admin yazamaz. Son yönetici kaybı önlenir; parola/rol değişikliği eski yetkiyi düşürür.
 - Tokenlar DB/log/Swagger örneklerinde açık bulunmaz; refresh yarışı/replay, logout, hesap değişimi, çevrimdışı ve storage hataları test edilir.
 - Kasa yeniden kurulumdan alınır; yanlış sürüm/gizlilik içeriği, büyük/bozuk veri ve eski revizyon hiçbir yerel ayarı değiştirmez.

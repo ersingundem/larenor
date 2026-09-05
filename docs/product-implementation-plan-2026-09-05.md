@@ -141,7 +141,9 @@ flowchart TD
     L --- A[Ortak arama · bildirimler · hesap ve ayarlar]
 ```
 
-Telefonun alt gezinmesi ve tabletin kenar çubuğu aynı dört hedefi kullanmalı.
+Tablet kenar çubuğu ve daraltılmış DeX penceresindeki gezinme aynı dört hedefi
+kullanmalı. Telefon için ayrı arayüz geliştirme hedefi yoktur. Son tasarım
+geçişi ve README görselleri tabletin yatay/dikey düzenini esas alır.
 Ayarlar hesap, entegrasyon yapılandırması ve uygulama tercihlerini içermeli.
 Medya oynatma veya VM durumuna bakmak için Ayarlar'a girmek gerekmemeli.
 Bağlı olmayan özelliklerde ekranın yeri kaybolmamalı; o ekranda anlaşılır bir

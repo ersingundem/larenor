@@ -16,6 +16,8 @@ from .legal import SourceInformation, SourceResponse, server_version
 from .models import (ErrorResponse, HealthResponse, LoginRequest, LogoutRequest,
                      PasswordRequest, RefreshRequest, SessionPair, UserResponse,
                      VaultRequest, VaultResponse)
+from .services.api import router as services_router
+from .services.probe_api import router as service_probe_router
 
 
 Core = Annotated[CoreServices, Depends(get_core)]
@@ -110,6 +112,8 @@ def create_app(settings: Settings, *, routers: Iterable[APIRouter] = (),
 
     app.include_router(router)
     app.include_router(admin_router, prefix="/api/v1")
+    app.include_router(services_router, prefix="/api/v1")
+    app.include_router(service_probe_router, prefix="/api/v1")
     for extension in routers:
         # Only routers supplied by trusted, packaged server code are supported.
         app.include_router(extension, prefix="/api/v1")
