@@ -33,6 +33,21 @@ def python_blocks(script):
 
 
 class SmokeRestartTest(unittest.TestCase):
+    def test_media_http_journey_is_inside_both_architecture_smokes_after_private_restart(self):
+        script = python_blocks(step_named("Smoke-test the exact image before publication")["run"])[0]
+        nodes = ast.parse(script).body
+        calls = [node for node in nodes if isinstance(node, ast.Expr)
+                 and isinstance(node.value, ast.Call)
+                 and isinstance(node.value.func, ast.Name)
+                 and node.value.func.id == "verify_media_preparation"]
+        self.assertEqual(len(calls), 1, "Actual media HTTP smoke must gate image publication")
+        call = calls[0]
+        private_assert = next(node for node in nodes if isinstance(node, ast.Assert)
+                              and "private_state" in ast.unparse(node))
+        self.assertGreater(call.lineno, private_assert.lineno)
+        self.assertEqual(ast.unparse(call.value),
+                         "verify_media_preparation(name, healthy, 'linux/' + os.environ['ARCH'])")
+
     def health_function(self, ports, opener):
         script = python_blocks(step_named("Smoke-test the exact image before publication")["run"])[0]
         node = next(node for node in ast.parse(script).body if isinstance(node, ast.FunctionDef) and node.name == "healthy")
