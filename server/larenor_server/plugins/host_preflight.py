@@ -203,7 +203,17 @@ class HostInspector:
         for identity in sorted({mount.rootId for mount in verified.mounts}):
             mounts = [mount for mount in verified.mounts if mount.rootId == identity]
             root = self._policy.roots.get(identity)
-            valid, facts = (False, []) if root is None or purposes.get(identity) != {root.purpose} else self._observe_root(root, mounts)
+            # The integrated stack gives Jellyfin a read-only view of the same
+            # approved library Arr/qBittorrent use. This does not authorize a
+            # data directory, another service, or a writable media view.
+            library_media_view = (
+                root is not None and root.purpose == "library"
+                and verified.serviceId == "jellyfin" and purposes.get(identity) == {"media"}
+                and len(mounts) == 1 and mounts[0].kind == "approved_library"
+                and mounts[0].readOnly is True and mounts[0].target == "/media"
+                and mounts[0].relativePath == "")
+            purpose_matches = root is not None and (purposes.get(identity) == {root.purpose} or library_media_view)
+            valid, facts = self._observe_root(root, mounts) if purpose_matches else (False, [])
             checks.append(PreflightCheck(code="storage_root", status="passed" if valid else "failed", rootId=identity))
             if not valid and any(not mount.readOnly for mount in mounts):
                 checks.append(PreflightCheck(code="storage_capacity", status="unknown", rootId=identity, requiredMiB=required))
