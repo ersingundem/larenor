@@ -60,8 +60,8 @@ COPY android/app/src/test/resources/updater/LICENSE.apksig /usr/share/doc/lareno
 # The verifier deliberately clears ambient environment variables. Keep Java's
 # native support libraries private and set their path in this fixed launcher.
 RUN python3 -c 'import os,re; assert re.fullmatch(r"[0-9a-f]{40}", os.environ["LARENOR_SOURCE_REVISION"]), "A full source commit is required"' \
-    && groupadd --gid 10001 larenor \
-    && useradd --uid 10001 --gid 10001 --no-create-home --home-dir /tmp --shell /usr/sbin/nologin larenor \
+    && /usr/sbin/groupadd --gid 10001 larenor \
+    && /usr/sbin/useradd --uid 10001 --gid 10001 --no-create-home --home-dir /tmp --shell /usr/sbin/nologin larenor \
     && install -d -m 0700 -o 10001 -g 10001 /data /secrets \
     && printf '%s\n' '#!/bin/sh' 'export LD_LIBRARY_PATH=/opt/larenor/java-native' 'exec /opt/larenor/java/bin/java "$@"' > /usr/bin/java \
     && chmod 0755 /usr/bin/java \

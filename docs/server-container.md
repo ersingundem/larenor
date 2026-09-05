@@ -190,3 +190,30 @@ The AMD64 configuration identifies source revision
 entrypoint. Offline tests exercise successful scans, six nonzero exits, and
 both missing-lockfile cases using a synthetic Docker executable; they do not
 claim that a real container ran locally.
+
+## First hosted build findings
+
+For source revision `473132e6dec125fa9679be5cc533323c6c29b7e7`,
+[Server run 33958862649](https://github.com/ersingundem/larenor/actions/runs/33958862649)
+passed the reusable Server tests. Both native image builds installed the locked
+Python package and compiled the Java verifier, then failed at account creation:
+`groupadd: not found`. The runtime PATH intentionally omits `/usr/sbin`; account
+creation now uses absolute paths. A read-only inspection of the pinned Python
+AMD64 base layer confirmed both `/usr/sbin/groupadd` and `/usr/sbin/useradd`
+are executable. No additional package installation is needed.
+
+The corresponding
+[Android run 33958862643](https://github.com/ersingundem/larenor/actions/runs/33958862643)
+passed debug/native, Flutter and Server checks, but stopped in KVM preparation
+before launching its E2E emulator. The old step checked access immediately
+after an asynchronous udev trigger and provided no failure diagnostic. It now
+checks that the hosted VM exposes a KVM character device, applies the same
+device permission directly, and verifies access synchronously. Missing devices
+and failed permission changes remain blocking and produce explicit errors.
+The emulator and signed-release test gates are unchanged.
+
+Neither Server architecture reached publication in that run. A future green
+build must still be followed by an anonymous GHCR manifest/blob access check;
+public repository visibility does not establish public container visibility.
+Local validation covers shell syntax, publication policies and synthetic KVM
+failure handling. The complete image and emulator must pass on hosted runners.
