@@ -24,10 +24,13 @@ void main() {
   testWidgets(
     'cold start → rejected login → dashboard → routines → PIN protected settings',
     (tester) async {
+      debugPrint('LARENOR_E2E_PHASE cold_start.begin');
       final app = await AppHarness.start();
       try {
         await app.mount(tester);
+        debugPrint('LARENOR_E2E_PHASE cold_start.mounted');
         await waitFor(tester, find.byType(ConnectScreen));
+        debugPrint('LARENOR_E2E_PHASE cold_start.connect_screen_ready');
         final inputs = find.byType(CupertinoTextField);
         await tester.enterText(inputs.at(0), app.server.baseUrl);
         await tester.enterText(inputs.at(1), 'synthetic-rejected-token');
@@ -36,6 +39,7 @@ void main() {
           find.widgetWithText(CupertinoButton, 'Connect'),
         );
         await waitFor(tester, find.text('Invalid or expired access token.'));
+        debugPrint('LARENOR_E2E_PHASE cold_start.login_rejected');
         expect(app.server.rejectedLogins, 1);
         expect(find.byType(HomeDashboardScreen), findsNothing);
         await tester.enterText(inputs.at(1), SyntheticHaServer.token);
@@ -44,6 +48,7 @@ void main() {
           find.widgetWithText(CupertinoButton, 'Connect'),
         );
         await waitFor(tester, find.text('Fixture temperature'));
+        debugPrint('LARENOR_E2E_PHASE cold_start.dashboard_ready');
         expect(app.server.reads, contains('/api/states'));
         expect(app.server.subscriptions, greaterThan(0));
         await tapVisible(
@@ -58,6 +63,7 @@ void main() {
           find.byKey(const ValueKey('routine-scene.fixture_evening')),
         );
         await waitFor(tester, find.byType(EntityDestinationScreen));
+        debugPrint('LARENOR_E2E_PHASE cold_start.routine_detail_ready');
         expect(
           app.server.rejectedWrites,
           0,
@@ -73,6 +79,7 @@ void main() {
           ),
         );
         await waitFor(tester, find.text('Home Assistant'));
+        debugPrint('LARENOR_E2E_PHASE cold_start.system_ready');
         await tapVisible(
           tester,
           find.descendant(
@@ -88,27 +95,34 @@ void main() {
           ),
         );
         await waitFor(tester, find.text('Fixture temperature'));
+        debugPrint('LARENOR_E2E_PHASE cold_start.dashboard_returned');
         await tapVisible(tester, find.byKey(const ValueKey('global-settings')));
         await waitFor(tester, find.text('Unlock'));
+        debugPrint('LARENOR_E2E_PHASE cold_start.pin_prompt_ready');
         expect(find.byType(BackupScreen), findsNothing);
         await tester.enterText(find.byType(CupertinoTextField), '0000');
         await tapVisible(tester, find.text('Unlock'));
         await waitFor(tester, find.text('Incorrect PIN'));
+        debugPrint('LARENOR_E2E_PHASE cold_start.pin_rejected');
         expect(find.text('Backup & Restore'), findsNothing);
         await tester.enterText(find.byType(CupertinoTextField), AppHarness.pin);
         await tapVisible(tester, find.text('Unlock'));
         await waitFor(tester, find.byType(SettingsSplitScreen));
+        debugPrint('LARENOR_E2E_PHASE cold_start.settings_unlocked');
         await tester.pageBack();
         await tester.pump(const Duration(milliseconds: 400));
         await tapVisible(tester, find.byKey(const ValueKey('global-settings')));
         await waitFor(tester, find.text('Unlock'));
+        debugPrint('LARENOR_E2E_PHASE cold_start.settings_relocked');
         expect(
           find.text('Backup & Restore'),
           findsNothing,
           reason: 'Leaving Settings drops unlock authority',
         );
       } finally {
+        debugPrint('LARENOR_E2E_PHASE cold_start.cleanup_begin');
         await app.close(tester);
+        debugPrint('LARENOR_E2E_PHASE cold_start.cleanup_complete');
       }
     },
     timeout: const Timeout(Duration(minutes: 3)),
@@ -117,11 +131,14 @@ void main() {
   testWidgets(
     'encrypted vault → cancelled picker → wrong password → preview → local restore and fresh PIN',
     (tester) async {
+      debugPrint('LARENOR_E2E_PHASE vault_restore.begin');
       final app = await AppHarness.start(connected: true);
       try {
         await app.mount(tester);
+        debugPrint('LARENOR_E2E_PHASE vault_restore.mounted');
         await waitFor(tester, find.text('Fixture temperature'));
         await openSettings(tester);
+        debugPrint('LARENOR_E2E_PHASE vault_restore.settings_unlocked');
         expect(app.wsClientsCreated, greaterThan(0));
         await tapVisible(tester, find.text('Backup & Restore'));
         await waitFor(tester, find.byType(BackupScreen));
@@ -149,6 +166,7 @@ void main() {
           ),
           timeout: const Duration(seconds: 30),
         );
+        debugPrint('LARENOR_E2E_PHASE vault_restore.export_saved');
         expect(app.files.saves, 1);
         expect(app.files.filename, endsWith('.larenor-vault'));
         final raw = utf8.decode(app.files.ciphertext!, allowMalformed: true);
@@ -173,6 +191,7 @@ void main() {
           tester,
           find.text('Cancelled. No settings were changed.'),
         );
+        debugPrint('LARENOR_E2E_PHASE vault_restore.picker_cancelled');
         expect(
           (await DashboardRepository().load()).rooms.single.name,
           'Later local room',
@@ -190,6 +209,7 @@ void main() {
           ),
           timeout: const Duration(seconds: 30),
         );
+        debugPrint('LARENOR_E2E_PHASE vault_restore.passphrase_rejected');
         expect(find.byKey(const ValueKey('backup-apply')), findsNothing);
         expect(
           (await DashboardRepository().load()).rooms.single.name,
@@ -214,6 +234,7 @@ void main() {
           find.text('Restore preview'),
           timeout: const Duration(seconds: 30),
         );
+        debugPrint('LARENOR_E2E_PHASE vault_restore.preview_ready');
         await tapVisible(tester, find.text('Replace selected'));
         await tapVisible(tester, find.byKey(const ValueKey('backup-apply')));
         await waitFor(tester, find.text('Restore this device?'));
@@ -236,6 +257,7 @@ void main() {
           find.text('Fixture temperature'),
           timeout: const Duration(seconds: 30),
         );
+        debugPrint('LARENOR_E2E_PHASE vault_restore.dashboard_restored');
         expect(
           (await DashboardRepository().load()).rooms.single.name,
           'Fixture room',
@@ -262,9 +284,12 @@ void main() {
         expect(find.byType(BackupScreen), findsNothing);
         await tapVisible(tester, find.byKey(const ValueKey('global-settings')));
         await waitFor(tester, find.text('Unlock'));
+        debugPrint('LARENOR_E2E_PHASE vault_restore.settings_relocked');
         expect(find.text('Backup & Restore'), findsNothing);
       } finally {
+        debugPrint('LARENOR_E2E_PHASE vault_restore.cleanup_begin');
         await app.close(tester);
+        debugPrint('LARENOR_E2E_PHASE vault_restore.cleanup_complete');
       }
     },
     timeout: const Timeout(Duration(minutes: 3)),
@@ -273,11 +298,14 @@ void main() {
   testWidgets(
     'fixture light command → accepted receipt → fresh WS state confirmation',
     (tester) async {
+      debugPrint('LARENOR_E2E_PHASE light_action.begin');
       final app = await AppHarness.start(connected: true);
       app.server.allowLightActions = true;
       try {
         await app.mount(tester);
+        debugPrint('LARENOR_E2E_PHASE light_action.mounted');
         await waitFor(tester, find.text('Fixture temperature'));
+        debugPrint('LARENOR_E2E_PHASE light_action.dashboard_ready');
         await tapVisible(tester, find.byKey(const ValueKey('global-search')));
         await waitFor(tester, find.byType(CupertinoSearchTextField));
         await tester.enterText(
@@ -289,6 +317,7 @@ void main() {
           find.byKey(const ValueKey('entity:light.fixture_lamp')),
         );
         await waitFor(tester, find.byType(EntityDestinationScreen));
+        debugPrint('LARENOR_E2E_PHASE light_action.detail_ready');
         await tapVisible(
           tester,
           find.descendant(
@@ -300,6 +329,7 @@ void main() {
           tester,
           find.text('Request accepted · waiting for state'),
         );
+        debugPrint('LARENOR_E2E_PHASE light_action.request_accepted');
         expect(app.server.acceptedActions, ['light.turn_on']);
         expect(app.server.entities[1]['state'], 'off');
         expect(
@@ -311,12 +341,15 @@ void main() {
           tester,
           find.text('Requested state reported by Home Assistant'),
         );
+        debugPrint('LARENOR_E2E_PHASE light_action.state_observed');
         expect(app.server.entities[1]['state'], 'on');
         expect(app.server.acceptedActions, [
           'light.turn_on',
         ], reason: 'No retry or duplicate write');
       } finally {
+        debugPrint('LARENOR_E2E_PHASE light_action.cleanup_begin');
         await app.close(tester);
+        debugPrint('LARENOR_E2E_PHASE light_action.cleanup_complete');
       }
     },
     timeout: const Timeout(Duration(minutes: 3)),
@@ -325,11 +358,14 @@ void main() {
   testWidgets(
     'PIN settings → weekly schedule → explicit save → new app scope preserves schedule',
     (tester) async {
+      debugPrint('LARENOR_E2E_PHASE screen_schedule.begin');
       final app = await AppHarness.start(connected: true);
       try {
         await app.mount(tester);
+        debugPrint('LARENOR_E2E_PHASE screen_schedule.mounted');
         await waitFor(tester, find.text('Fixture temperature'));
         await openSettings(tester);
+        debugPrint('LARENOR_E2E_PHASE screen_schedule.settings_unlocked');
         await tapVisible(tester, find.text('Display & Brightness'));
         await tapVisible(tester, find.text('Screen schedule'));
         final initial = await PreferenceScreenProgramStore().read();
@@ -367,11 +403,13 @@ void main() {
               find.byKey(const ValueKey('screen-rule-name')).evaluate().isEmpty,
         );
         await waitFor(tester, find.text('Fixture weekdays'));
+        debugPrint('LARENOR_E2E_PHASE screen_schedule.rule_saved');
         await tapVisible(
           tester,
           find.byKey(const ValueKey('screen-program-enabled')),
         );
         final saved = await PreferenceScreenProgramStore().read();
+        debugPrint('LARENOR_E2E_PHASE screen_schedule.persisted_program_read');
         final program = ScreenProgram.decode(saved!);
         expect(program.enabled, isTrue);
         final rule = program.rules.single;
@@ -384,11 +422,13 @@ void main() {
         await tester.pumpWidget(const SizedBox.shrink());
         await tester.pump(const Duration(milliseconds: 300));
         await app.mount(tester);
+        debugPrint('LARENOR_E2E_PHASE screen_schedule.remounted');
         await waitFor(tester, find.text('Fixture temperature'));
         await openSettings(tester);
         await tapVisible(tester, find.text('Display & Brightness'));
         await tapVisible(tester, find.text('Screen schedule'));
         await waitFor(tester, find.text('Fixture weekdays'));
+        debugPrint('LARENOR_E2E_PHASE screen_schedule.saved_rule_visible');
         expect(await PreferenceScreenProgramStore().read(), saved);
         expect(
           tester
@@ -399,7 +439,9 @@ void main() {
           isTrue,
         );
       } finally {
+        debugPrint('LARENOR_E2E_PHASE screen_schedule.cleanup_begin');
         await app.close(tester);
+        debugPrint('LARENOR_E2E_PHASE screen_schedule.cleanup_complete');
       }
     },
     timeout: const Timeout(Duration(minutes: 3)),
