@@ -397,6 +397,111 @@ def test_network_route_allowlist_rejects_aliases_partial_filters_and_extra_optio
         EngineHttpRequest('GET', target)
 
 
-def test_network_create_request_stays_unreachable():
+def test_network_create_requires_explicit_closed_body_and_headers():
     with pytest.raises(EngineHttpError, match='^invalid_engine_request$'):
         EngineHttpRequest('POST', '/v1.47/networks/create')
+
+
+def create_document():
+    labels = {'org.larenor.' + key: 'b' * 32 for key in (
+        'core', 'home', 'preparation', 'resource', 'operation', 'worker-journal', 'ownership-nonce')}
+    labels.update({'org.larenor.' + key: 'c' * 64 for key in (
+        'specification', 'plan', 'stack-plan', 'catalog', 'worker-policy')})
+    labels.update({'org.larenor.resource-schema': '1', 'org.larenor.worker-policy-version': '3'})
+    return dict(Name='larenor-control-' + 'b' * 32, Driver='bridge', Scope='local', Internal=True,
+                Attachable=False, Ingress=False, ConfigOnly=False, EnableIPv6=False, Labels=labels)
+
+
+def create_request(document=None, **changes):
+    raw = json.dumps(create_document() if document is None else document,
+                     sort_keys=True, separators=(',', ':')).encode()
+    return EngineHttpRequest(**(dict(method='POST', target='/v1.47/networks/create', body=raw,
+        headers=(('Accept', 'application/json'), ('Content-Type', 'application/json'))) | changes))
+
+
+@pytest.mark.parametrize('key,value', [
+    ('Driver', 'overlay'), ('Scope', 'swarm'), ('Internal', False), ('Internal', 1),
+    ('Attachable', True), ('Attachable', 0), ('Ingress', True), ('ConfigOnly', True),
+    ('EnableIPv6', True), ('EnableIPv4', True), ('Options', {}), ('IPAM', {}),
+    ('ConfigFrom', {'Network': ''}), ('CheckDuplicate', True),
+    ('Name', 'operator-network'), ('Name', 'larenor-control-' + 'a' * 32),
+    ('Labels', {}), ('Labels', []), ('Labels', None),
+])
+def test_create_wire_schema_rejects_arbitrary_network_options(key, value):
+    with pytest.raises(EngineHttpError, match='^invalid_engine_request$'):
+        create_request(create_document() | {key: value})
+
+
+@pytest.mark.parametrize('key,value', [
+    ('resource-schema', '2'), ('resource-schema', 1), ('core', 'b' * 31),
+    ('home', 'B' * 32), ('worker-journal', ''), ('ownership-nonce', 'g' * 32),
+    ('plan', 'c' * 63), ('specification', None), ('catalog', 'C' * 64),
+    ('worker-policy-version', '0'), ('worker-policy-version', '01'),
+    ('worker-policy-version', '2147483648'), ('worker-policy-version', '1.0'),
+    ('worker-policy-version', '9' * 11), ('arbitrary-label', 'secret'),
+])
+def test_create_wire_schema_rejects_incomplete_or_untyped_ownership_labels(key, value):
+    document = create_document()
+    document['Labels']['org.larenor.' + key] = value
+    with pytest.raises(EngineHttpError, match='^invalid_engine_request$'):
+        create_request(document)
+
+
+@pytest.mark.parametrize('body', [None, b'{}', b'[]', b'null', b'bad', b'\xff', b' ' * 4097,
+    bytearray(b'{}'), b'{"Name":"x","Name":"y"}',
+    json.dumps(create_document(), indent=2).encode()])
+def test_create_wire_body_must_be_canonical_bounded_bytes(body):
+    with pytest.raises(EngineHttpError, match='^invalid_engine_request$'):
+        create_request(body=body)
+
+
+@pytest.mark.parametrize('changes', [
+    {'method': 'GET'}, {'method': 'PUT'}, {'target': '/v1.47/networks/create?duplicate=true'},
+    {'target': 'http://localhost/v1.47/networks/create'}, {'target': '//host/v1.47/networks/create'},
+    {'target': '/v1.47/networks/create\r\nX: injected'},
+    {'headers': (('Accept', 'application/json'),)},
+    {'headers': (('Accept', 'application/json'), ('Content-Type', 'application/json\r\nX: injected'))},
+    {'headers': (('Accept', 'application/json'), ('Content-Type', 'application/json'), ('Authorization', 'secret'))},
+])
+def test_create_route_and_headers_are_not_general_proxy_options(changes):
+    with pytest.raises(EngineHttpError, match='^invalid_engine_request$'):
+        create_request(**changes)
+
+
+@pytest.mark.parametrize('gate', [None, False, 1, 'true'])
+def test_shared_create_requires_callable_gate_before_connection(gate):
+    with server() as (client, calls):
+        with pytest.raises(EngineHttpError, match='^engine_dispatch_denied$'):
+            client.exchange(create_request(), lambda *_: None, platform='linux/amd64',
+                            limits=EngineHttpLimits(2, 1, 4096, 128), before_dispatch=gate)
+    assert calls == []
+
+
+@pytest.mark.parametrize('operation', [EngineHttpRequest('GET', TARGET), EngineHttpRequest('POST', pull_target()),
+    EngineHttpRequest('GET', network_target())])
+def test_dispatch_gate_does_not_widen_image_or_read_operation_interface(operation):
+    with server() as (client, calls):
+        with pytest.raises(EngineHttpError, match='^engine_dispatch_denied$'):
+            client.exchange(operation, lambda *_: None, platform='linux/amd64',
+                            limits=EngineHttpLimits(2, 1, 4096, 128), before_dispatch=lambda: True)
+    assert calls == []
+
+
+def test_shared_wire_is_recomputed_and_compared_after_authority_gate(monkeypatch):
+    from larenor_server.plugins import engine_http
+    original = engine_http._request_bytes
+    gate_passed = False
+    def encode(*args):
+        wire = original(*args)
+        # Simulate an in-process encoder change during trusted callback code.
+        return wire + b'changed' if gate_passed else wire
+    def gate():
+        nonlocal gate_passed
+        gate_passed = True
+        return True
+    monkeypatch.setattr(engine_http, '_request_bytes', encode)
+    with server() as (client, calls):
+        with pytest.raises(EngineHttpError, match='^invalid_engine_request$'):
+            client.exchange(create_request(), lambda *_: None, platform='linux/amd64',
+                            limits=EngineHttpLimits(2, 1, 4096, 128), before_dispatch=gate)
+    assert len(calls) == 1
