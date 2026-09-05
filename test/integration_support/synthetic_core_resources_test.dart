@@ -123,7 +123,10 @@ void main() {
       expect((await get(path(), method: 'POST')).$1, 403);
       expect((await get('/admin${path()}', method: 'POST')).$1, 403);
       host.coreAccount = SyntheticCoreAccount();
-      expect((await get(path())).$1, 403);
+      final (status, empty) = await get(path());
+      expect(status, 200);
+      expect(empty['entries'], isEmpty);
+      expect(host.coreAccount!.user['role'], 'admin');
       expect(resources.reads, 0);
       expect(host.requests, 0);
       expect(host.acceptedActions, isEmpty);

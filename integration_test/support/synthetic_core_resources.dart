@@ -1,5 +1,7 @@
 import 'dart:convert';
 
+import 'package:crypto/crypto.dart';
+
 import 'home_resource_contract_fixture.dart';
 
 enum SyntheticCoreResourceView { member, revoked, empty }
@@ -7,6 +9,14 @@ enum SyntheticCoreResourceView { member, revoked, empty }
 /// Opt-in, read-only responses for a disposable loopback Core fixture.
 /// These public records come from the real Server contract, not home services.
 class SyntheticCoreResources {
+  SyntheticCoreResources() : _emptyUserId = null;
+
+  /// Existing account-only journeys have no registry data. Keep their actor
+  /// unchanged and expose only an empty page in that account's current scope.
+  SyntheticCoreResources.empty({required String userId})
+    : _emptyUserId = userId;
+
+  final String? _emptyUserId;
   final Map<String, dynamic> _contract =
       jsonDecode(homeResourceContractFixture) as Map<String, dynamic>;
   SyntheticCoreResourceView view = SyntheticCoreResourceView.member;
@@ -42,21 +52,47 @@ class SyntheticCoreResources {
         (snapshot != null && !RegExp(r'^[0-9a-f]{64}$').hasMatch(snapshot))) {
       return error(400, 'invalid_request');
     }
-    final String name;
-    if (coreId == 'a' * 32 && homeId == 'b' * 32) {
-      name = switch (view) {
-        SyntheticCoreResourceView.member => 'memberList',
-        SyntheticCoreResourceView.revoked => 'revokedList',
-        SyntheticCoreResourceView.empty => 'emptyList',
+    final Map<String, dynamic> source;
+    if (_emptyUserId != null) {
+      if (!RegExp(r'^[0-9a-f]{32}$').hasMatch(coreId) ||
+          !RegExp(r'^[0-9a-f]{32}$').hasMatch(homeId)) {
+        return error(404, 'not_found');
+      }
+      // Synthetic opaque cursor only, never a production Server HMAC or grant.
+      final token = sha256
+          .convert(
+            utf8.encode(
+              jsonEncode([
+                'larenor-e2e-empty-resources-v1',
+                coreId,
+                homeId,
+                _emptyUserId,
+              ]),
+            ),
+          )
+          .toString();
+      source = {
+        'scope': {'schemaVersion': 1, 'coreId': coreId, 'homeId': homeId},
+        'entries': <Map<String, dynamic>>[],
+        'snapshot': token,
+        'nextAfter': null,
       };
-    } else if (coreId == 'c' * 32 && homeId == 'd' * 32) {
-      name = 'otherContextList';
     } else {
-      return error(404, 'not_found');
+      final String name;
+      if (coreId == 'a' * 32 && homeId == 'b' * 32) {
+        name = switch (view) {
+          SyntheticCoreResourceView.member => 'memberList',
+          SyntheticCoreResourceView.revoked => 'revokedList',
+          SyntheticCoreResourceView.empty => 'emptyList',
+        };
+      } else if (coreId == 'c' * 32 && homeId == 'd' * 32) {
+        name = 'otherContextList';
+      } else {
+        return error(404, 'not_found');
+      }
+      // Clone at the fixture boundary so callers cannot mutate our source.
+      source = jsonDecode(jsonEncode(_contract[name])) as Map<String, dynamic>;
     }
-    // Clone at the fixture boundary so test callers cannot mutate our source.
-    final source =
-        jsonDecode(jsonEncode(_contract[name])) as Map<String, dynamic>;
     if (snapshot != null && snapshot != source['snapshot']) {
       return error(409, 'revision_conflict');
     }
