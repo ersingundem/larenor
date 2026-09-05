@@ -4,6 +4,11 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 import 'package:larenor/shared/widgets/app_navigation_bar.dart';
+import 'package:larenor/core/home_source_store.dart';
+import 'package:larenor/features/home_scope/presentation/core_home_status_screen.dart';
+import 'package:larenor/features/home_scope/presentation/home_source_screen.dart';
+import 'package:larenor/features/server/presentation/server_connection_screen.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:larenor/features/auth/presentation/connect_screen.dart';
 import 'package:larenor/features/backup/data/backup_codec.dart';
 import 'package:larenor/features/backup/presentation/backup_screen.dart';
@@ -443,6 +448,74 @@ void main() {
         debugPrint('LARENOR_E2E_PHASE screen_schedule.cleanup_begin');
         await app.close(tester);
         debugPrint('LARENOR_E2E_PHASE screen_schedule.cleanup_complete');
+      }
+    },
+    timeout: const Timeout(Duration(minutes: 3)),
+  );
+  testWidgets(
+    'direct HA → PIN protected Core choice → retired HA → explicit direct reconnection',
+    (tester) async {
+      debugPrint('LARENOR_E2E_PHASE home_source.begin');
+      final app = await AppHarness.start(connected: true);
+      try {
+        await app.mount(tester);
+        await waitFor(tester, find.text('Fixture temperature'));
+        await waitUntil(tester, () => app.server.subscriptions > 0);
+        debugPrint('LARENOR_E2E_PHASE home_source.direct_ready');
+        final oldClients = app.wsClientsCreated;
+        final oldSubscriptions = app.server.subscriptions;
+        await openSettings(tester);
+        await tapVisible(tester, find.text('Larenor Server'));
+        await waitFor(tester, find.byType(ServerConnectionScreen));
+        await tapVisible(tester, find.text('Home source'));
+        await waitFor(tester, find.byType(HomeSourceScreen));
+        await tapVisible(
+          tester,
+          find.byKey(const ValueKey('home-source-verifiedCore')),
+        );
+        await waitFor(tester, find.byType(CoreHomeStatusScreen));
+        await waitUntil(tester, () => app.server.closedSockets >= oldClients);
+        debugPrint('LARENOR_E2E_PHASE home_source.core_retired_local');
+        expect(find.byType(HomeDashboardScreen), findsNothing);
+        expect(find.text('Fixture temperature'), findsNothing);
+        expect(app.wsClientsCreated, oldClients);
+        expect(
+          (await SharedPreferences.getInstance()).getString(
+            SharedPreferencesHomeSourceStore.key,
+          ),
+          HomeSource.verifiedCore.name,
+        );
+        final reads = app.server.reads.length;
+        await tester.pump(const Duration(milliseconds: 500));
+        expect(app.server.reads.length, reads);
+        await tapVisible(tester, find.text('Home source'));
+        await waitFor(tester, find.text('Unlock'));
+        expect(find.byType(HomeSourceScreen), findsNothing);
+        await tester.enterText(find.byType(CupertinoTextField), AppHarness.pin);
+        await tapVisible(tester, find.text('Unlock'));
+        await waitFor(tester, find.byType(HomeSourceScreen));
+        await tapVisible(
+          tester,
+          find.byKey(const ValueKey('home-source-directLocal')),
+        );
+        await waitFor(tester, find.text('Fixture temperature'));
+        await waitUntil(
+          tester,
+          () => app.server.subscriptions > oldSubscriptions,
+        );
+        debugPrint('LARENOR_E2E_PHASE home_source.direct_reconnected');
+        expect(app.wsClientsCreated, greaterThan(oldClients));
+        expect(
+          (await SharedPreferences.getInstance()).getString(
+            SharedPreferencesHomeSourceStore.key,
+          ),
+          HomeSource.directLocal.name,
+        );
+        expect(find.byType(CoreHomeStatusScreen), findsNothing);
+      } finally {
+        debugPrint('LARENOR_E2E_PHASE home_source.cleanup_begin');
+        await app.close(tester);
+        debugPrint('LARENOR_E2E_PHASE home_source.cleanup_complete');
       }
     },
     timeout: const Timeout(Duration(minutes: 3)),

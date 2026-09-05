@@ -3,10 +3,10 @@ import 'dart:typed_data';
 
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_riverpod/misc.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:larenor/app.dart';
+import 'package:larenor/core/home_session_scope.dart';
+import 'package:larenor/core/home_source_store.dart';
 import 'package:larenor/core/configuration_scope.dart';
 import 'package:larenor/features/auth/data/ha_discovery.dart';
 import 'package:larenor/features/auth/presentation/connect_screen.dart';
@@ -58,30 +58,6 @@ class FixtureVaultFiles extends BackupFileAccess {
 class _NoNetworkDiscovery extends HaDiscoveryService {
   @override
   Future<void> start() async {}
-}
-
-/// A fresh root container is owned by the subtree removed during restore.
-/// Nested ProviderScope overrides otherwise do not scope generated providers
-/// that lack declared dependencies, allowing the outer scope's factories back in.
-class _FixtureProviderRoot extends StatefulWidget {
-  const _FixtureProviderRoot({required this.overrides});
-  final List<Override> overrides;
-  @override
-  State<_FixtureProviderRoot> createState() => _FixtureProviderRootState();
-}
-
-class _FixtureProviderRootState extends State<_FixtureProviderRoot> {
-  late final container = ProviderContainer(overrides: widget.overrides);
-  @override
-  Widget build(BuildContext context) => UncontrolledProviderScope(
-    container: container,
-    child: const LarenorApp(),
-  );
-  @override
-  void dispose() {
-    container.dispose();
-    super.dispose();
-  }
 }
 
 class AppHarness {
@@ -145,31 +121,38 @@ class AppHarness {
     await tester.pumpWidget(
       ConfigurationScope(
         initialize: BackupRepository().recoverPendingRestore,
-        child: _FixtureProviderRoot(
+        child: ProviderScope(
           overrides: [
-            haDiscoveryFactoryProvider.overrideWithValue(
-              _NoNetworkDiscovery.new,
-            ),
-            backupFileAccessProvider.overrideWithValue(files),
-            // dart:io caches its default WebSocket HttpClient for the entire
-            // isolate. Give each real HA client its fixture-bound transport,
-            // so a previous journey's closed port cannot survive a new test.
-            haWebSocketClientFactoryProvider.overrideWith(
-              (ref) => (config, health) {
-                wsClientsCreated++;
-                final http = network.createHttpClient(null);
-                ref.onDispose(() => http.close(force: true));
-                return HaWebSocketClient(
-                  baseUrl: config.baseUrl,
-                  token: config.token,
-                  connectionObserver: (event) =>
-                      observeHaConnection(health, event),
-                  channelFactory: (uri) =>
-                      IOWebSocketChannel.connect(uri, customClient: http),
-                );
-              },
+            homeSourceStoreProvider.overrideWithValue(
+              SharedPreferencesHomeSourceStore(),
             ),
           ],
+          child: HomeSessionScope(
+            runtimeOverrides: [
+              haDiscoveryFactoryProvider.overrideWithValue(
+                _NoNetworkDiscovery.new,
+              ),
+              backupFileAccessProvider.overrideWithValue(files),
+              // dart:io caches its default WebSocket HttpClient for the entire
+              // isolate. Give each real HA client its fixture-bound transport,
+              // so a previous journey's closed port cannot survive a new test.
+              haWebSocketClientFactoryProvider.overrideWith(
+                (ref) => (config, health) {
+                  wsClientsCreated++;
+                  final http = network.createHttpClient(null);
+                  ref.onDispose(() => http.close(force: true));
+                  return HaWebSocketClient(
+                    baseUrl: config.baseUrl,
+                    token: config.token,
+                    connectionObserver: (event) =>
+                        observeHaConnection(health, event),
+                    channelFactory: (uri) =>
+                        IOWebSocketChannel.connect(uri, customClient: http),
+                  );
+                },
+              ),
+            ],
+          ),
         ),
       ),
     );

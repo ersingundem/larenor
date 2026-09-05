@@ -62,6 +62,11 @@ class _HomeSourceScreenState extends MediaSessionState<HomeSourceScreen> {
                       for (final source in HomeSource.values)
                         SettingsActionTile(
                           key: ValueKey('home-source-${source.name}'),
+                          leading:
+                              controller.source == source &&
+                                  controller.failure == null
+                              ? const Icon(CupertinoIcons.check_mark)
+                              : const SizedBox.shrink(),
                           title: Text(
                             source == HomeSource.directLocal
                                 ? l10n.homeSourceDirect

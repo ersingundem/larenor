@@ -14,6 +14,7 @@ import '../../../shared/widgets/settings_section.dart';
 import '../../client_updates/presentation/client_updates_screen.dart';
 import '../../media/hub/presentation/media_session_state.dart';
 import '../../settings/providers/settings_providers.dart';
+import '../../settings/presentation/settings_gate_screen.dart';
 import '../admin/presentation/server_admin_screen.dart';
 import '../data/server_account_controller.dart';
 import '../domain/server_models.dart';
@@ -390,8 +391,13 @@ class _ServerConnectionScreenState
                                   ? _callback(() {
                                       Navigator.of(context).push(
                                         CupertinoPageRoute<void>(
-                                          builder: (_) =>
-                                              const HomeSourceScreen(),
+                                          builder: (_) => widget.freshInstall
+                                              ? const SettingsGateScreen(
+                                                  initialDestination:
+                                                      SettingsGateDestination
+                                                          .homeSource,
+                                                )
+                                              : const HomeSourceScreen(),
                                         ),
                                       );
                                     })
