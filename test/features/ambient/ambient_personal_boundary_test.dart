@@ -7,6 +7,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:larenor/core/home_source_store.dart';
+import 'package:larenor/core/configuration_writes.dart';
 import 'package:larenor/features/ambient/data/ambient_repository.dart';
 import 'package:larenor/features/ambient/domain/ambient_settings.dart';
 import 'package:larenor/features/ambient/providers/ambient_providers.dart';
@@ -44,6 +45,7 @@ class _Preferences extends InMemorySharedPreferencesStore {
   bool failWrite = false, throwWrite = false, failRead = false;
   int writes = 0;
   void Function()? afterEffect;
+  Future<void> Function()? beforeEffect;
   @override
   Future<Map<String, Object>> getAll() async {
     if (failRead) throw StateError('synthetic private preferences');
@@ -53,6 +55,7 @@ class _Preferences extends InMemorySharedPreferencesStore {
   @override
   Future<bool> setValue(String type, String key, Object value) async {
     writes++;
+    await beforeEffect?.call();
     if (throwWrite) throw StateError('synthetic private write');
     if (failWrite) return false;
     final result = await super.setValue(type, key, value);
@@ -206,6 +209,70 @@ void main() {
       throwsA(isA<AmbientException>()),
     );
     expect(c.read(ambientSettingsProvider).unwrapPrevious().value, isNull);
+  });
+  test('ambient provider reread waits for a dispatched write before reading persisted opt-in', () async {
+    final (c, _) = await home.containerFor(HomeSource.directLocal);
+    await c.read(ambientSettingsProvider.future);
+    final entered = Completer<void>(), released = Completer<void>();
+    prefs.beforeEffect = () async {
+      entered.complete();
+      await released.future;
+    };
+    var current = true;
+    final first = c
+        .read(ambientSettingsProvider.notifier)
+        .set(
+          const AmbientSettings(photosEnabled: true),
+          isCurrent: () => current,
+        );
+    final assertion = expectLater(first, throwsA(isA<AmbientException>()));
+    await entered.future;
+    c.invalidate(ambientSettingsProvider);
+    var confirmed = false;
+    final reread = c.read(ambientSettingsProvider.future).then((value) {
+      confirmed = true;
+      return value;
+    });
+    await Future<void>.delayed(Duration.zero);
+    try {
+      expect(confirmed, isFalse);
+    } finally {
+      current = false;
+      released.complete();
+      await assertion;
+      await reread;
+    }
+    expect(
+      (await reread).photosEnabled,
+      isTrue,
+    ); // Explicit fresh read of the actual effect.
+    expect(prefs.writes, 1);
+  });
+  test('queued expired photo action keeps the confirmed preference and performs no write', () async {
+    final (c, _) = await home.containerFor(HomeSource.directLocal);
+    final old = await c.read(ambientSettingsProvider.future);
+    final started = Completer<void>(), released = Completer<void>();
+    final blocker = ConfigurationWrites.run(() async {
+      started.complete();
+      await released.future;
+    });
+    await started.future;
+    var current = true;
+    final action = c
+        .read(ambientSettingsProvider.notifier)
+        .set(
+          const AmbientSettings(photosEnabled: true),
+          isCurrent: () => current,
+        );
+    current = false;
+    released.complete();
+    await blocker;
+    await action;
+    expect(
+      identical(c.read(ambientSettingsProvider).requireValue, old),
+      isTrue,
+    );
+    expect(prefs.writes, 0);
   });
   test(
     'throwing action cannot mutate preferences or disclose callback details',

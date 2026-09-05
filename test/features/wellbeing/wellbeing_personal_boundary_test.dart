@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/services.dart';
@@ -39,6 +40,7 @@ class _Secure extends home.SecurePlatform {
   bool failWrite = false;
   bool failAfterEffect = false;
   void Function()? afterEffect;
+  Future<void> Function()? beforeEffect;
   @override
   Future<Object?> handle(MethodCall call) async {
     final key = (call.arguments as Map)['key'];
@@ -46,6 +48,7 @@ class _Secure extends home.SecurePlatform {
       throw PlatformException(code: 'private-read', message: 'private detail');
     }
     final mutation = call.method == 'write' || call.method == 'delete';
+    if (mutation) await beforeEffect?.call();
     if (mutation && failWrite && !failAfterEffect) {
       throw PlatformException(code: 'private-write', message: 'private detail');
     }
@@ -137,6 +140,146 @@ void main() {
       );
     }
   }
+
+  for (final operation in ['settings', 'disclosure']) {
+    test(
+      '$operation provider reread waits for an already dispatched write before confirming privacy',
+      () async {
+        final (c, _) = await routinesHome('core');
+        await _ready(c);
+        final entered = Completer<void>(), released = Completer<void>();
+        secure.beforeEffect = () async {
+          entered.complete();
+          await released.future;
+        };
+        var current = true;
+        final first = operation == 'settings'
+            ? c
+                  .read(wellbeingSettingsProvider.notifier)
+                  .save(_private, isCurrent: () => current)
+            : c
+                  .read(wellbeingDisclosureProvider.notifier)
+                  .save(_restricted, isCurrent: () => current);
+        final assertion = expectLater(
+          first,
+          throwsA(isA<WellbeingException>()),
+        );
+        await entered.future;
+        Future<Object> reload;
+        if (operation == 'settings') {
+          c.invalidate(wellbeingSettingsProvider);
+          reload = c.read(wellbeingSettingsProvider.future);
+        } else {
+          c.invalidate(wellbeingDisclosureProvider);
+          reload = c.read(wellbeingDisclosureProvider.future);
+        }
+        var confirmed = false;
+        final reread = reload.then((_) => confirmed = true);
+        await Future<void>.delayed(Duration.zero);
+        try {
+          expect(confirmed, isFalse);
+          expect(
+            isPublicHaEntity(
+              c.read(wellbeingPrivateEntityIdsProvider),
+              'sensor.scale',
+            ),
+            isFalse,
+          );
+        } finally {
+          current = false;
+          released.complete();
+          await assertion;
+          await reread;
+        }
+        expect(
+          c.read(wellbeingPrivateEntityIdsProvider).requireValue,
+          operation == 'settings' ? {'sensor.scale'} : {'sensor.other_scale'},
+        );
+        expect(secure.calls.where((e) => e.$1 == 'write'), hasLength(1));
+      },
+    );
+  }
+
+  for (final operation in ['settings', 'disclosure', 'clear']) {
+    test(
+      '$operation expires while queued without disturbing confirmed privacy',
+      () async {
+        final (c, _) = await routinesHome('core');
+        await _ready(c);
+        final prior = c.read(wellbeingPrivateEntityIdsProvider).requireValue;
+        final released = Completer<void>();
+        final started = Completer<void>();
+        final blocker = ConfigurationWrites.run(() async {
+          started.complete();
+          await released.future;
+        });
+        await started.future;
+        var current = true;
+        final action = switch (operation) {
+          'settings' =>
+            c
+                .read(wellbeingSettingsProvider.notifier)
+                .save(_private, isCurrent: () => current),
+          'disclosure' =>
+            c
+                .read(wellbeingDisclosureProvider.notifier)
+                .save(_restricted, isCurrent: () => current),
+          _ =>
+            c
+                .read(wellbeingSettingsProvider.notifier)
+                .clear(isCurrent: () => current),
+        };
+        final assertion = expectLater(
+          action,
+          throwsA(isA<WellbeingException>()),
+        );
+        current = false;
+        released.complete();
+        await blocker;
+        await assertion;
+        expect(c.read(wellbeingPrivateEntityIdsProvider).requireValue, prior);
+        expect(secure.calls.where((e) => e.$1 != 'read'), isEmpty);
+      },
+    );
+  }
+  test('pending old write closes disclosure and cannot overwrite a later queued confirmed policy', () async {
+    final (c, _) = await routinesHome('core');
+    await _ready(c);
+    final entered = Completer<void>(), released = Completer<void>();
+    secure.beforeEffect = () async {
+      if (!entered.isCompleted) {
+        entered.complete();
+        await released.future;
+      }
+    };
+    var current = true;
+    final first = c
+        .read(wellbeingDisclosureProvider.notifier)
+        .save(_restricted, isCurrent: () => current);
+    final assertion = expectLater(first, throwsA(isA<WellbeingException>()));
+    await entered.future;
+    final during = c.read(wellbeingPrivateEntityIdsProvider);
+    expect(during.isLoading, isTrue);
+    expect(isPublicHaEntity(during, 'sensor.scale'), isFalse);
+    final next = WellbeingDisclosurePolicy(entityIds: {'sensor.final_private'});
+    final second = c
+        .read(wellbeingDisclosureProvider.notifier)
+        .save(next, isCurrent: () => true);
+    current = false;
+    released.complete();
+    await assertion;
+    await second;
+    expect(c.read(wellbeingPrivateEntityIdsProvider).requireValue, {
+      'sensor.final_private',
+    });
+    expect(
+      WellbeingDisclosurePolicy.decode(
+        secure.values[WellbeingDisclosureStore.storageKey],
+      ).entityIds,
+      {'sensor.final_private'},
+    );
+    expect(secure.calls.where((e) => e.$1 == 'write'), hasLength(2));
+  });
 
   for (final operation in ['settings', 'disclosure', 'clear']) {
     for (final after in [false, true]) {
