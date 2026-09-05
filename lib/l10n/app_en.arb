@@ -2188,7 +2188,7 @@
   "homeSourceLoading": "Reading the home source…",
   "homeCoreVerified": "The Core account and home are verified.",
   "homeCoreVerificationRequired": "Verify your Core account and home to continue.",
-  "homeCoreUnavailable": "The Core home view is not available in this version. You can manage your Core account or explicitly choose your existing direct Home Assistant connection.",
+  "homeCoreUnavailable": "You can view permitted rooms and resources below, manage your Core account, or explicitly choose your existing direct Home Assistant connection.",
   "homeCoreManageAccount": "Manage Core account",
   "homeLayoutPreviewTitle": "Copy local room names",
   "homeLayoutPreviewHint": "Choose room names to add to this Core home. Only names and their order are copied; your local layout stays unchanged.",
@@ -2224,5 +2224,13 @@
   "homeLayoutRefresh": "Review current layout",
   "homeLayoutExpired": "This review is no longer current. Verify your account and review the layout again.",
   "homeLayoutStorageError": "The layout could not be read or the save could not be confirmed. Review the current layout before trying again.",
-  "homeLayoutRoomLimit": "This home has reached its room limit. No room names were added."
+  "homeLayoutRoomLimit": "This home has reached its room limit. No room names were added.",
+  "homeResourcesTitle": "Rooms and resources",
+  "homeResourcesDescription": "Items this account can view. Refresh to check for changes to access. Device controls are not available here yet.",
+  "homeResourcesLoading": "Loading rooms and resources…",
+  "homeResourcesError": "Rooms and resources could not be loaded. Refresh to try again.",
+  "homeResourcesEmpty": "There are no rooms or resources this account can view.",
+  "homeResourcesRoom": "Room",
+  "homeResourcesResource": "Resource",
+  "homeResourcesLoadMore": "Load more"
 }

@@ -143,6 +143,7 @@ class LarenorServerApi {
           !path.startsWith('/admin/plugins/jobs') &&
           !path.startsWith('/admin/media/preparations') &&
           !path.startsWith('/admin/media/inspections') &&
+          !path.startsWith('/home-resources') &&
           queryParameters.length <= keys.length &&
           !queryParameters.entries.any(
             (entry) =>
@@ -188,6 +189,24 @@ class LarenorServerApi {
             };
           });
       final revision = queryParameters['expectedRevision'];
+      final homeResourcesQuery =
+          method == 'GET' &&
+          RegExp(r'^/home-resources/[0-9a-f]{32}/[0-9a-f]{32}$')
+              .hasMatch(path) &&
+          (!queryParameters.containsKey('after') ||
+              queryParameters.containsKey('expectedSnapshot')) &&
+          queryParameters.entries.every(
+            (entry) => switch (entry.key) {
+              'limit' =>
+                RegExp(r'^[1-9][0-9]{0,2}$').hasMatch(entry.value) &&
+                    (int.tryParse(entry.value) ?? 0) <= 100,
+              'after' => RegExp(r'^[0-9a-f]{32}$').hasMatch(entry.value),
+              'expectedSnapshot' => RegExp(
+                r'^[0-9a-f]{64}$',
+              ).hasMatch(entry.value),
+              _ => false,
+            },
+          );
       final revisionNumber = int.tryParse(revision ?? '');
       final forgetQuery =
           method == 'DELETE' &&
@@ -197,7 +216,11 @@ class LarenorServerApi {
           RegExp(r'^[1-9][0-9]{0,18}$').hasMatch(revision) &&
           revisionNumber != null &&
           revisionNumber < 9223372036854775807;
-      if (!readQuery && !forgetQuery && !jobsQuery && !mediaQuery) {
+      if (!readQuery &&
+          !forgetQuery &&
+          !jobsQuery &&
+          !mediaQuery &&
+          !homeResourcesQuery) {
         throw const LarenorServerException('invalid_request');
       }
       uri = uri.replace(queryParameters: Map.of(queryParameters));
