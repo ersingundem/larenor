@@ -134,8 +134,9 @@ void main() {
       'marker write failure ${afterEffect ? 'after' : 'before'} effect never touches pair',
       () async {
         Future<void> fail(String method, String? key) async {
-          if (method == 'write' && key == _pending)
+          if (method == 'write' && key == _pending) {
             throw StateError('sentinel');
+          }
         }
 
         if (afterEffect) {
@@ -167,8 +168,9 @@ void main() {
       'marker removal failure ${afterEffect ? 'after' : 'before'} effect never rolls back',
       () async {
         Future<void> fail(String method, String? key) async {
-          if (method == 'delete' && key == _pending)
+          if (method == 'delete' && key == _pending) {
             throw StateError('sentinel');
+          }
         }
 
         if (afterEffect) {
@@ -205,8 +207,9 @@ void main() {
     addTearDown(sub.close);
     final store = sub.read();
     platform.after = (method, key) async {
-      if (method == 'write' && key == 'ha_base_url')
+      if (method == 'write' && key == 'ha_base_url') {
         await home.choose(HomeSource.verifiedCore);
+      }
     };
     await expectLater(
       store.save(_replacement),

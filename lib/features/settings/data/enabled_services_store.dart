@@ -9,6 +9,8 @@ import 'app_service.dart';
 /// they're connected — disabling a service only hides it, it doesn't clear
 /// its saved credentials, so re-enabling it doesn't require reconnecting.
 class EnabledServicesStore {
+  // Keep the public parameter name while the ownership field stays private.
+  // ignore: prefer_initializing_formals
   EnabledServicesStore({DirectHomeAccess? access}) : _access = access;
   final DirectHomeAccess? _access;
   static const _key = 'enabled_services';

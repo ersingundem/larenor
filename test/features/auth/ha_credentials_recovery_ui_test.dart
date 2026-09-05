@@ -1,4 +1,8 @@
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/services.dart';
+// Uses the pinned secure-storage plugin's public platform test seam.
+// ignore: depend_on_referenced_packages
+import 'package:flutter_secure_storage_platform_interface/flutter_secure_storage_platform_interface.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -70,4 +74,47 @@ void main() {
       },
     );
   }
+  testWidgets(
+    'unconfirmed platform storage error does not open recovery form',
+    (tester) async {
+      SharedPreferences.setMockInitialValues({});
+      final previous = FlutterSecureStoragePlatform.instance;
+      FlutterSecureStoragePlatform.instance =
+          MethodChannelFlutterSecureStorage();
+      const channel = MethodChannel(
+        'plugins.it_nomads.com/flutter_secure_storage',
+      );
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(channel, (_) async {
+            throw const FormatException('sentinel-private-platform-value');
+          });
+      addTearDown(() {
+        FlutterSecureStoragePlatform.instance = previous;
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+            .setMockMethodCallHandler(channel, null);
+      });
+      final container = ProviderContainer(retry: (_, _) => null);
+      addTearDown(container.dispose);
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: CupertinoApp.router(
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            routerConfig: container.read(routerProvider),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.byType(ConnectScreen), findsNothing);
+      expect(find.byType(CupertinoTextField), findsNothing);
+      expect(find.textContaining('sentinel'), findsNothing);
+      expect(
+        find.text('Secure storage is unavailable. Settings remain locked.'),
+        findsOneWidget,
+      );
+      await tester.pumpWidget(const SizedBox());
+      expect(tester.takeException(), isNull);
+    },
+  );
 }

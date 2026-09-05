@@ -1,7 +1,6 @@
-import 'dart:async';
-
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
 // The app's pinned secure-storage plugin owns this public platform seam.
 // Restore its channel implementation after testExecutable's memory default.
@@ -81,8 +80,9 @@ class SecurePlatform {
 }
 
 Future<(ProviderContainer, HomeSessionController)> containerFor(
-  HomeSource source,
-) async {
+  HomeSource source, {
+  List<Override> overrides = const [],
+}) async {
   final account = ServerAccountController(store: SessionStore());
   final home = HomeSessionController(
     store: SourceStore(source),
@@ -91,7 +91,10 @@ Future<(ProviderContainer, HomeSessionController)> containerFor(
   await home.initialize();
   home.runtimeMounted(home.runtimeIdentity);
   final container = ProviderContainer(
-    overrides: [homeSessionControllerProvider.overrideWithValue(home)],
+    overrides: [
+      homeSessionControllerProvider.overrideWithValue(home),
+      ...overrides,
+    ],
     retry: (_, _) => null,
   );
   addTearDown(() {

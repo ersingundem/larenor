@@ -9,6 +9,8 @@ import 'ha_connection_config.dart';
 /// platform Keystore/Keychain via [FlutterSecureStorage].
 class CredentialsStore {
   CredentialsStore({FlutterSecureStorage? storage, DirectHomeAccess? access})
+    // Keep the public parameter name while the ownership field stays private.
+    // ignore: prefer_initializing_formals
     : _access = access,
       _storage = storage ?? const FlutterSecureStorage();
 
