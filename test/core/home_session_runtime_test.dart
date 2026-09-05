@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:ui' as ui;
 
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -541,18 +542,31 @@ void main() {
       expect(h.source.writes, 0);
     },
   );
-  testWidgets('source picker visibly marks exactly the persisted source', (tester) async {
+  testWidgets('source picker visibly marks exactly the persisted source', (
+    tester,
+  ) async {
     final h = ScopeHarness(HomeSource.verifiedCore);
     await h.mount(tester);
     h.router(tester).push('/settings/home-source');
     await flush(tester);
     expect(find.byIcon(CupertinoIcons.check_mark), findsOneWidget);
-    final selected = tester.widget<SettingsActionTile>(find.byKey(const ValueKey('home-source-verifiedCore')));
-    final other = tester.widget<SettingsActionTile>(find.byKey(const ValueKey('home-source-directLocal')));
+    final selected = tester.widget<SettingsActionTile>(
+      find.byKey(const ValueKey('home-source-verifiedCore')),
+    );
+    final other = tester.widget<SettingsActionTile>(
+      find.byKey(const ValueKey('home-source-directLocal')),
+    );
     expect(selected.selected, isTrue);
     expect(other.selected, isFalse);
     expect(selected.leading, isA<Icon>());
     expect(other.leading, isA<SizedBox>());
+    final coreSemantics = tester.getSemantics(find.text('Larenor Core'));
+    final directSemantics = tester.getSemantics(
+      find.text('Direct Home Assistant'),
+    );
+    expect(coreSemantics.flagsCollection.isSelected, ui.Tristate.isTrue);
+    expect(directSemantics.flagsCollection.isSelected, ui.Tristate.isFalse);
+    expect(coreSemantics.id, isNot(directSemantics.id));
+    expect('Larenor Core'.allMatches(coreSemantics.label).length, 1);
   });
-
 }
