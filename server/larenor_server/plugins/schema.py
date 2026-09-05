@@ -29,5 +29,6 @@ def migrate_plugins(connection: sqlite3.Connection) -> None:
         connection.execute(TABLE)
         connection.execute("CREATE INDEX plugin_previews_expiry ON plugin_previews(expires_at)")
         connection.execute("INSERT INTO metadata(key,value) VALUES('plugins_schema','1')")
-    elif marker["value"] != "1" or tables != {"plugin_previews"}:
+    elif marker["value"] != "1" or tables not in (
+            {"plugin_previews"}, {"plugin_previews", "plugin_jobs", "plugin_job_events"}):
         raise StartupError("plugins_schema_unsupported")

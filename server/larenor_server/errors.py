@@ -45,6 +45,10 @@ MESSAGES = {
     "plugin_preview_expired": "Create a new configuration preview.",
     "plugin_preview_limit_reached": "The configuration preview limit has been reached.",
     "plugin_storage_unavailable": "The saved plugin configuration is unavailable.",
+    "plugin_worker_unavailable": "The requirements worker is not configured.",
+    "plugin_job_limit_reached": "The requirements job limit has been reached.",
+    "plugin_job_conflict": "This request conflicts with a previously accepted job.",
+    "plugin_job_storage_unavailable": "The saved requirements jobs are unavailable.",
 }
 
 

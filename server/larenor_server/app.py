@@ -1,4 +1,7 @@
 from typing import Annotated, Iterable
+import asyncio
+from contextlib import asynccontextmanager
+import logging
 
 from fastapi import APIRouter, Depends, FastAPI, Request, Response
 from fastapi.exceptions import RequestValidationError
@@ -19,6 +22,7 @@ from .models import (ErrorResponse, HealthResponse, LoginRequest, LogoutRequest,
 from .services.api import router as services_router
 from .services.probe_api import router as service_probe_router
 from .plugins.api import router as plugins_router
+from .plugins.job_api import router as plugin_jobs_router
 
 
 Core = Annotated[CoreServices, Depends(get_core)]
@@ -30,11 +34,42 @@ Admin = Annotated[Principal, Depends(require_admin)]
 def create_app(settings: Settings, *, routers: Iterable[APIRouter] = (),
                source: SourceInformation | None = None) -> FastAPI:
     source = source or SourceInformation.from_environment()
+    @asynccontextmanager
+    async def lifespan(application):
+        manager = application.state.core.plugin_jobs
+        stop = asyncio.Event()
+
+        async def dispatch():
+            while not stop.is_set():
+                try:
+                    await asyncio.to_thread(manager.tick)
+                except Exception:
+                    # Persisted jobs remain recoverable. Never log payloads,
+                    # storage exceptions or host paths from the worker.
+                    logging.getLogger("larenor").error("preflight_dispatch_unavailable")
+                try:
+                    await asyncio.wait_for(stop.wait(), timeout=1)
+                except TimeoutError:
+                    pass
+
+        task = asyncio.create_task(dispatch()) if manager.backend is not None else None
+        application.state.plugin_job_dispatcher = task
+        try:
+            yield
+        finally:
+            stop.set()
+            if task is not None:
+                # Worker IPC has one bounded deadline. Do not cancel its DB
+                # receipt write or release a dispatch lock before it unwinds.
+                await task
+
     app = FastAPI(title="Larenor Server", version=server_version(), docs_url=None,
                   redoc_url=None, openapi_url=None,
+                  lifespan=lifespan,
                   license_info={"name": "GNU Affero General Public License v3.0 only",
                                 "identifier": "AGPL-3.0-only"})
     app.state.core = CoreServices(settings)
+    app.state.plugin_job_dispatcher = None
     app.add_middleware(SafeBoundaryMiddleware)
 
     @app.exception_handler(ApiError)
@@ -116,6 +151,7 @@ def create_app(settings: Settings, *, routers: Iterable[APIRouter] = (),
     app.include_router(services_router, prefix="/api/v1")
     app.include_router(service_probe_router, prefix="/api/v1")
     app.include_router(plugins_router, prefix="/api/v1")
+    app.include_router(plugin_jobs_router, prefix="/api/v1")
     for extension in routers:
         # Only routers supplied by trusted, packaged server code are supported.
         app.include_router(extension, prefix="/api/v1")

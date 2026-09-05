@@ -16,6 +16,9 @@ from .errors import StartupError
 from .files import checked_path, private_create, private_directory, private_read, sync_directory
 from .plugins.schema import migrate_plugins
 from .plugins.service import PluginManagement
+from .plugins.job_schema import migrate_plugin_jobs
+from .plugins.jobs import JobManagement
+from .plugins.preflight_ipc import PreflightWorkerClient
 from .services.schema import migrate_services
 from .services.service import ServiceManagement
 from .services.probe_runner import ServiceProbeRunner
@@ -118,6 +121,7 @@ class CoreServices:
                     connection.executemany("INSERT INTO metadata VALUES(?,?)", [("schema_version", "2"), ("key_check", check)])
                 migrate_services(connection)
                 migrate_plugins(connection)
+                migrate_plugin_jobs(connection)
             if not existed:
                 # Only publish the DB after its complete first transaction commits.
                 # Never expose an empty DB that a restart might treat as a reset.
@@ -142,6 +146,10 @@ class CoreServices:
             self.service_probe = ServiceProbeRunner(self.services)
             self.plugins = PluginManagement(self.db, self.auth, settings, key)
             self.plugins.validate_storage()
+            backend = None if settings.plugin_worker_socket is None else PreflightWorkerClient(
+                settings.plugin_worker_socket, owner_uid=settings.plugin_worker_uid)
+            self.plugin_jobs = JobManagement(self.db, self.auth, settings, key, self.plugins, backend)
+            self.plugin_jobs.validate_storage()
             self.clear_inactive_bootstrap()
 
     def clear_inactive_bootstrap(self) -> None:
