@@ -2091,7 +2091,7 @@
   "serverJobsCheckPlatform": "Server platform",
   "serverJobsCheckRoot": "Managed storage root",
   "serverJobsCheckCapacity": "Storage capacity",
-  "serverJobsCheckDocker": "Container engine",
+  "serverJobsCheckDocker": "Docker API and platform compatibility",
   "serverJobsCheckPorts": "Port availability",
   "serverJobsCheckNetwork": "Receiver network",
   "serverJobsAvailableSpace": "Available space",

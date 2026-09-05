@@ -1770,7 +1770,7 @@
   "serverJobsCheckPlatform": "Sunucu platformu",
   "serverJobsCheckRoot": "Yönetilen depolama alanı",
   "serverJobsCheckCapacity": "Depolama kapasitesi",
-  "serverJobsCheckDocker": "Kapsayıcı motoru",
+  "serverJobsCheckDocker": "Docker API ve platform uyumluluğu",
   "serverJobsCheckPorts": "Port kullanılabilirliği",
   "serverJobsCheckNetwork": "Alıcı ağı",
   "serverJobsAvailableSpace": "Kullanılabilir alan",
