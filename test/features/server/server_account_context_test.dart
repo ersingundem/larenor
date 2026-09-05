@@ -232,6 +232,51 @@ void main() {
     expect(account.context, _context);
   });
 
+  for (final destination in ['pending', 'same_context', 'other_context']) {
+    test('late unauthorized cannot reject rotated $destination session', () async {
+      await login();
+      final response = Completer<void>();
+      final started = Completer<void>();
+      final oldRequest = account.withSession((_, _) {
+        started.complete();
+        return response.future;
+      });
+      await started.future;
+      final oldResult = expectLater(
+        oldRequest,
+        throwsA(isA<LarenorServerException>().having(
+          (error) => error.code, 'code', 'cancelled',
+        )),
+      );
+      clock = _now.add(const Duration(minutes: 21));
+      api.next = _session(2);
+      final nextContext = destination == 'other_context'
+          ? ServerContext.fromJson({
+              'schemaVersion': 1, 'coreId': 'c' * 32, 'homeId': 'd' * 32,
+            })
+          : _context;
+      final contextGate = Completer<ServerContext>();
+      api.contextReply = () => destination == 'pending'
+          ? contextGate.future
+          : Future.value(nextContext);
+      final rotation = account.ensureSession();
+      await Future<void>.delayed(Duration.zero);
+      if (destination != 'pending') await rotation;
+      response.completeError(const LarenorServerException('unauthorized'));
+      await oldResult;
+      expect(store.value?.refreshToken, api.next.refreshToken);
+      expect(store.value?.authMutationPending, isFalse);
+      expect(account.failure, isNull);
+      if (destination == 'pending') {
+        expect(account.hasPendingContext, isTrue);
+        contextGate.complete(nextContext);
+        await rotation;
+      }
+      expect(account.context, nextContext);
+      expect(account.session?.refreshToken, api.next.refreshToken);
+    });
+  }
+
   test(
     'first-password session never calls context; ready actions stay denied',
     () async {
