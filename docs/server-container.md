@@ -217,3 +217,25 @@ build must still be followed by an anonymous GHCR manifest/blob access check;
 public repository visibility does not establish public container visibility.
 Local validation covers shell syntax, publication policies and synthetic KVM
 failure handling. The complete image and emulator must pass on hosted runners.
+
+## Nonroot verifier input regression
+
+For source revision `295750ba27c3e0b48f87be2bb788a55f9fafa24b`,
+[Server run 33959624719](https://github.com/ersingundem/larenor/actions/runs/33959624719)
+built both native images and initialized their private state, then failed the
+real APK smoke check with `release_verifier_unavailable`. Neither architecture
+reached publication.
+
+The remote `ADD` of `apksig.jar` omitted an explicit file mode. Docker gives
+[files downloaded by ADD](https://docs.docker.com/reference/dockerfile/#adding-files-from-a-url)
+mode `0600`; the root-owned file kept that mode when copied into the final stage.
+Root could compile the helper, but UID 10001 could not read the JAR to verify its
+hash. The download now specifies `--chmod=0644`. It remains root-owned and is
+readable, but not writable, by the application user. A build step after `USER
+10001:10001` reads and hashes the JAR and reads the compiled helper using that
+exact identity. The native signed-APK smoke test remains required.
+
+The local permission-policy regression and real Java/apksig fixture tests can
+be run without Docker; they do not prove that the corrected images build or
+pass the complete hosted smoke test. Docker is unavailable on the development
+Mac, so a new hosted run must verify both architectures before publication.

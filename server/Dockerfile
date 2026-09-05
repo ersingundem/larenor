@@ -4,7 +4,8 @@ FROM ghcr.io/astral-sh/uv:0.12.10@sha256:2bb3ebca0a796a155094a27773d290c4b074572
 
 FROM eclipse-temurin:17-jdk-jammy@sha256:400014962ad7224461f945bb1cc3d7d5a1927ce15b8245b72d9cedcda554cd2a AS verifier
 WORKDIR /build
-ADD --checksum=sha256:562cd0a88890960d2ece48e116c61f12872222f1dcc306890799382bc019b201 https://dl.google.com/dl/android/maven2/com/android/tools/build/apksig/9.1.0/apksig-9.1.0.jar /opt/larenor/verifier/apksig.jar
+# Remote ADD defaults to root-only 0600; the final nonroot verifier must read it.
+ADD --checksum=sha256:562cd0a88890960d2ece48e116c61f12872222f1dcc306890799382bc019b201 --chmod=0644 https://dl.google.com/dl/android/maven2/com/android/tools/build/apksig/9.1.0/apksig-9.1.0.jar /opt/larenor/verifier/apksig.jar
 COPY server/larenor_server/releases/java/VerifyApk.java ./VerifyApk.java
 RUN javac --release 17 -cp /opt/larenor/verifier/apksig.jar \
       -d /opt/larenor/verifier/classes VerifyApk.java \
@@ -68,6 +69,8 @@ RUN python3 -c 'import os,re; assert re.fullmatch(r"[0-9a-f]{40}", os.environ["L
     && /usr/bin/java -version \
     && python3 -c 'from larenor_server.legal import SourceInformation; SourceInformation.from_environment()'
 USER 10001:10001
+# Exercise the exact runtime user's file access before declaring the image built.
+RUN python -c 'import hashlib,os; from pathlib import Path; from larenor_server.releases.verifier import APKSIG_SHA256; assert os.geteuid() == 10001; jar=Path("/opt/larenor/verifier/apksig.jar"); assert hashlib.sha256(jar.read_bytes()).hexdigest() == APKSIG_SHA256; assert Path("/opt/larenor/verifier/classes/org/larenor/updates/VerifyApk.class").read_bytes()'
 EXPOSE 8098
 STOPSIGNAL SIGTERM
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \

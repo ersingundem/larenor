@@ -10,6 +10,7 @@ import io
 import json
 from pathlib import Path
 import re
+import shlex
 import subprocess
 import unittest
 from urllib.error import HTTPError, URLError
@@ -54,6 +55,28 @@ class ContainerBoundaryTest(unittest.TestCase):
         self.assertIn("javac --release 17", DOCKERFILE)
         self.assertIn("jdk.crypto.ec", DOCKERFILE)
         self.assertIn('exec /opt/larenor/java/bin/java "$@"', DOCKERFILE)
+
+    def test_remote_verifier_download_is_readable_without_runtime_write_access(self):
+        # Remote ADD defaults to root:root 0600, even if root can compile with
+        # the artifact. The copied JAR must remain readable by UID 10001.
+        instruction = next(line for line in DOCKERFILE.splitlines()
+                           if line.startswith("ADD ") and "apksig.jar" in line)
+        flags = shlex.split(instruction)
+        self.assertIn("--chmod=0644", flags)
+        mode = int(next(flag.split("=", 1)[1] for flag in flags if flag.startswith("--chmod=")), 8)
+        self.assertTrue(mode & 0o004)
+        self.assertFalse(mode & 0o022)
+
+    def test_final_image_checks_verifier_inputs_as_the_runtime_user(self):
+        runtime_user_steps = DOCKERFILE.split("USER 10001:10001\n", 1)[1]
+        check = next(line[4:] for line in runtime_user_steps.splitlines() if line.startswith("RUN "))
+        command = shlex.split(check)
+        self.assertEqual(command[:2], ["python", "-c"])
+        compile(command[2], "nonroot_verifier_inputs", "exec")
+        self.assertIn("os.geteuid() == 10001", command[2])
+        self.assertIn("hashlib.sha256(jar.read_bytes()).hexdigest() == APKSIG_SHA256", command[2])
+        self.assertIn("VerifyApk.class", command[2])
+        self.assertIn(".read_bytes()", command[2])
 
     def test_runtime_is_nonroot_and_separates_private_persistent_state(self):
         runtime = DOCKERFILE.rsplit(" AS runtime\n", 1)[1]
