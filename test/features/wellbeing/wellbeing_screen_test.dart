@@ -185,6 +185,47 @@ _PrivateStore _enabled() => _PrivateStore()
   );
 
 void main() {
+  testWidgets(
+    'private config retry only rereads local stores and expires with its PIN session',
+    (tester) async {
+      final store = _enabled()
+        ..failure = StateError('synthetic private storage');
+      final native = FakeNative();
+      final privacy = _Privacy();
+      final interaction = AppInteractionController();
+      addTearDown(interaction.dispose);
+      await _mount(
+        tester,
+        store: store,
+        native: native,
+        privacy: privacy,
+        interaction: interaction,
+      );
+      expect(find.byKey(const ValueKey('wellbeing-reload')), findsNothing);
+      await _unlock(tester);
+      final retry = find.byKey(const ValueKey('wellbeing-reload'));
+      expect(retry, findsOneWidget);
+      final old = tester.widget<CupertinoButton>(retry).onPressed!;
+      final before = store.reads;
+      store.failure = null;
+      await tester.ensureVisible(retry);
+      await tester.tap(retry);
+      await tester.pumpAndSettle();
+      expect(store.reads, before + 1);
+      expect(find.byKey(const ValueKey('wellbeing-reload')), findsNothing);
+      expect(native.probes + native.permissions + native.reads, 0);
+      expect(privacy.calls, contains(true));
+      interaction.setActive(false);
+      await tester.pumpAndSettle();
+      final after = store.reads;
+      old();
+      await tester.pumpAndSettle();
+      expect(store.reads, after);
+      expect(find.byType(WellbeingScreen), findsNothing);
+      expect(native.probes + native.permissions + native.reads, 0);
+    },
+  );
+
   testWidgets('an unrelated root dialog permanently expires private access', (
     tester,
   ) async {
