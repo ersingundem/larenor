@@ -6,8 +6,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:larenor/core/app_interaction_scope.dart';
-import 'package:larenor/features/auth/data/ha_discovery.dart';
 import 'package:larenor/features/auth/data/credentials_store.dart';
+import 'package:larenor/features/auth/data/ha_discovery.dart';
 import 'package:larenor/features/auth/presentation/connect_screen.dart';
 import 'package:larenor/features/backup/data/backup_codec.dart';
 import 'package:larenor/features/backup/data/backup_repository.dart';
@@ -180,7 +180,8 @@ Future<void> _mount(
         supportedLocales: AppLocalizations.supportedLocales,
         locale: locale,
         builder: (context, child) => MediaQuery(
-          data: MediaQuery.of(context).copyWith(textScaler: TextScaler.linear(textScale)),
+          data: MediaQuery.of(context)
+              .copyWith(textScaler: TextScaler.linear(textScale)),
           child: interaction == null
               ? child!
               : AppInteractionScope(controller: interaction, child: child!),
@@ -229,49 +230,64 @@ void _resume(WidgetTester tester) {
 void main() {
   for (final language in ['en', 'tr']) {
     for (final operation in ['export', 'preview']) {
-      testWidgets('pending HA $operation gives $language recovery guidance at tablet 2x', (tester) async {
-        const pendingKey = CredentialsStore.pendingMutationKey;
-        final storage = MemoryBackupStorage(secrets: {
-          'ha_base_url': 'https://synthetic.example.test',
-          'ha_token': 'synthetic-private-token',
-          pendingKey: '1',
-        });
-        final codec = _Codec();
-        final files = _Files();
-        await _mount(
-          tester,
-          repository: BackupRepository(storage: storage),
-          codec: codec,
-          files: files,
-          freshInstall: operation != 'export',
-          locale: Locale(language),
-          size: Size(language == 'tr' ? 600 : 1200, 1000),
-          textScale: 2,
-        );
-        if (operation == 'export') {
-          await _tap(tester, 'backup-connections');
-          await tester.enterText(find.byKey(const ValueKey('backup-passphrase')), 'correct backup phrase');
-          await tester.enterText(find.byKey(const ValueKey('backup-confirm-passphrase')), 'correct backup phrase');
-          await _tap(tester, 'backup-export');
-        } else {
-          await _importPreview(tester);
-
-        }
-        await tester.pumpAndSettle();
-        final message = find.text(language == 'en'
-            ? 'Reconnect Home Assistant, then try backing up or restoring connections again.'
-            : 'Home Assistant bağlantısını yeniden kurun, ardından bağlantıları yedeklemeyi veya geri yüklemeyi tekrar deneyin.');
-        expect(message, findsOneWidget);
-        await tester.ensureVisible(message);
-        expect(tester.getRect(message).width, lessThanOrEqualTo(language == 'tr' ? 600 : 1200));
-        expect(storage.writes, isEmpty);
-        expect(storage.secrets[pendingKey], '1');
-        expect(codec.encryptCalls, 0);
-        expect(files.savedBytes, isNull);
-        expect(find.textContaining('synthetic-private'), findsNothing);
-        expect(tester.takeException(), isNull);
-        await tester.pumpWidget(const SizedBox());
-      });
+      testWidgets(
+        'pending HA $operation gives $language recovery guidance at tablet 2x',
+        (tester) async {
+          const pendingKey = CredentialsStore.pendingMutationKey;
+          final storage = MemoryBackupStorage(
+            secrets: {
+              'ha_base_url': 'https://synthetic.example.test',
+              'ha_token': 'synthetic-private-token',
+              pendingKey: '1',
+            },
+          );
+          final codec = _Codec();
+          final files = _Files();
+          await _mount(
+            tester,
+            repository: BackupRepository(storage: storage),
+            codec: codec,
+            files: files,
+            freshInstall: operation != 'export',
+            locale: Locale(language),
+            size: Size(language == 'tr' ? 600 : 1200, 1000),
+            textScale: 2,
+          );
+          if (operation == 'export') {
+            await _tap(tester, 'backup-connections');
+            await tester.enterText(
+              find.byKey(const ValueKey('backup-passphrase')),
+              'correct backup phrase',
+            );
+            await tester.enterText(
+              find.byKey(const ValueKey('backup-confirm-passphrase')),
+              'correct backup phrase',
+            );
+            await _tap(tester, 'backup-export');
+          } else {
+            await _importPreview(tester);
+          }
+          await tester.pumpAndSettle();
+          final message = find.text(
+            language == 'en'
+                ? 'Reconnect Home Assistant, then try backing up or restoring connections again.'
+                : 'Home Assistant bağlantısını yeniden kurun, ardından bağlantıları yedeklemeyi veya geri yüklemeyi tekrar deneyin.',
+          );
+          expect(message, findsOneWidget);
+          await tester.ensureVisible(message);
+          expect(
+            tester.getRect(message).width,
+            lessThanOrEqualTo(language == 'tr' ? 600 : 1200),
+          );
+          expect(storage.writes, isEmpty);
+          expect(storage.secrets[pendingKey], '1');
+          expect(codec.encryptCalls, 0);
+          expect(files.savedBytes, isNull);
+          expect(find.textContaining('synthetic-private'), findsNothing);
+          expect(tester.takeException(), isNull);
+          await tester.pumpWidget(const SizedBox());
+        },
+      );
     }
   }
   testWidgets(

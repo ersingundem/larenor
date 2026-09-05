@@ -170,7 +170,8 @@ class BackupRepository {
       );
     }
     await _requireRecovered();
-    final includesConnections = selection.connections && snapshot.hasConnections;
+    final includesConnections =
+        selection.connections && snapshot.hasConnections;
     if (includesConnections) await _requireStableHaConnection();
     final changes = <_Change>[];
     final replace = conflictPolicy == BackupConflictPolicy.replaceSelected;
@@ -350,7 +351,8 @@ class BackupRepository {
   /// mutation marker, and an existing restore must still be able to roll back.
   Future<void> _requireStableHaConnection() async {
     try {
-      if (await _storage.readSecret(CredentialsStore.pendingMutationKey) == null) {
+      if (await _storage.readSecret(CredentialsStore.pendingMutationKey) ==
+          null) {
         return;
       }
     } catch (_) {
