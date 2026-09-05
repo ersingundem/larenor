@@ -234,3 +234,14 @@ def test_diagnostics_and_results_never_reflect_network_values(prepared):
     result = listed(prepared, [network(prepared)])
     assert '1' * 64 not in repr(result)
     assert 'larenor-control' not in repr(result)
+
+
+@pytest.mark.parametrize('field', ['Options', 'IPAM.Options'])
+def test_omitted_engine_option_observation_is_not_proof_of_default_settings(prepared, field):
+    item = network(prepared)
+    if field == 'Options':
+        item.pop(field)
+    else:
+        item['IPAM'].pop('Options')
+    with pytest.raises(NetworkResourceError, match='^network_conflict$'):
+        inspected(prepared, item)
