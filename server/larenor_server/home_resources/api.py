@@ -8,7 +8,7 @@ from ..dependencies import get_core, require_admin, require_ready_user
 from ..models import ErrorResponse
 from .api_models import (CreateRecordRequest, GrantResponse, GrantsResponse, ListResponse,
                          RecordResponse, SetGrantRequest, UpdateRecordRequest)
-from .models import Identity
+from .models import Identity, Snapshot
 
 
 Core = Annotated[CoreServices, Depends(get_core)]
@@ -24,9 +24,9 @@ ADMIN = '/admin' + PUBLIC
 
 @router.get(PUBLIC, response_model=ListResponse)
 def records(core_id: Identity, home_id: Identity, actor: Ready, core: Core,
-            after: Identity | None = None, expectedRegistryRevision: Expected | None = None, limit: Limit = 25):
+            after: Identity | None = None, expectedSnapshot: Snapshot | None = None, limit: Limit = 25):
     return core.home_resources.list(actor, core_id, home_id, after=after,
-        expected_registry_revision=expectedRegistryRevision, limit=limit)
+        expected_snapshot=expectedSnapshot, limit=limit)
 
 
 @router.get(PUBLIC + '/{record_id}', response_model=RecordResponse)

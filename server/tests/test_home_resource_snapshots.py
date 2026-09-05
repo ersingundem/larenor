@@ -1,3 +1,4 @@
+import pytest
 from fastapi.testclient import TestClient
 
 from conftest import auth, ready
@@ -74,3 +75,39 @@ def test_scope_binding_holds_even_with_same_key_user_id_revision_and_empty_data(
         assert pair['user']['id'] == admin['user']['id']
         assert other.get(other_path, headers=auth(pair), params={'expectedSnapshot': old}).status_code == 409
         assert other.get(other_path, headers=auth(pair)).json()['snapshot'] != old
+
+
+def test_snapshot_survives_refresh_restart_and_hidden_acl_changes(server):
+    app, client, settings, _ = server; admin = ready(server); public, base = paths(app)
+    create_user(client, admin); member = activate(client, 'member')
+    create_user(client, admin, 'second'); second = activate(client, 'second')
+    record = create(client, admin, base); hidden = create(client, admin, base)
+    grant(client, admin, base, record, member['user']['id'])
+    initial = client.get(public, headers=auth(member)).json()
+    grant(client, admin, base, hidden, second['user']['id'])
+    refreshed = client.post('/api/v1/auth/refresh', json={'refreshToken': member['refreshToken']})
+    assert refreshed.status_code == 200
+    member = refreshed.json()
+    assert client.get(public, headers=auth(member)).json() == initial
+    with TestClient(create_app(settings)) as restarted:
+        assert restarted.get(public, headers=auth(member)).json() == initial
+    grant(client, admin, base, record, member['user']['id'], revision=2, write=True)
+    assert client.get(public, headers=auth(member), params={'expectedSnapshot': initial['snapshot']}).status_code == 409
+    current = client.get(public, headers=auth(member)).json()
+    assert current['entries'][0]['permissions'] == {'read': True, 'write': True}
+
+
+@pytest.mark.parametrize('token', ['', 'a' * 63, 'a' * 65, 'A' * 64, 'x' * 64, 'true'])
+def test_http_snapshot_token_has_a_closed_canonical_shape(server, token):
+    app, client, _, _ = server; admin = ready(server); public, _ = paths(app)
+    assert client.get(public, headers=auth(admin), params={'expectedSnapshot': token}).status_code == 400
+
+
+def test_missing_and_hidden_cursor_are_indistinguishable_with_current_snapshot(server):
+    app, client, _, _ = server; admin = ready(server); public, base = paths(app)
+    create_user(client, admin); member = activate(client, 'member'); hidden = create(client, admin, base)
+    snapshot = client.get(public, headers=auth(member)).json()['snapshot']
+    responses = [client.get(public, headers=auth(member), params={
+        'after': identity, 'expectedSnapshot': snapshot}) for identity in [hidden['ref']['id'], 'f' * 32]]
+    assert responses[0].status_code == responses[1].status_code == 404
+    assert responses[0].json() == responses[1].json()

@@ -5,6 +5,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 
 
 Identity = Annotated[str, Field(min_length=32, max_length=32, pattern=r'^[0-9a-f]{32}$')]
+Snapshot = Annotated[str, Field(min_length=64, max_length=64, pattern=r'^[0-9a-f]{64}$')]
 Revision = Annotated[int, Field(ge=1, le=2**63 - 1)]
 Kind = Literal['room', 'resource']
 Action = Literal['read', 'write']

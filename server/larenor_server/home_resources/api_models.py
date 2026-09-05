@@ -2,7 +2,7 @@
 from pydantic import Field
 
 from .models import (FrozenModel, GrantSnapshot, HomeScope, Identity, Kind, LabelFields,
-                     Permissions, RegistryRecord, Revision)
+                     Permissions, RegistryRecord, Revision, Snapshot)
 
 
 class CreateRecordRequest(LabelFields):
@@ -30,7 +30,7 @@ class RecordResponse(FrozenModel):
 class ListResponse(FrozenModel):
     scope: HomeScope
     entries: list[RegistryRecord] = Field(max_length=100)
-    registryRevision: Revision
+    snapshot: Snapshot
     nextAfter: Identity | None
 
 

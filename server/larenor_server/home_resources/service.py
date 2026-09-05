@@ -1,6 +1,7 @@
 """Encrypted metadata registry. No providers, credentials, filesystem or device operations."""
 from contextlib import contextmanager
 import hmac
+import json
 import re
 import secrets
 import sqlite3
@@ -188,29 +189,51 @@ class HomeResourceRegistry:
         except (ApiError, InvalidTag, ValueError, TypeError, sqlite3.Error, OverflowError):
             raise StartupError('home_resource_storage_invalid') from None
 
-    def list(self, actor, core_id, home_id, *, after=None, expected_registry_revision=None, limit=25):
-        if type(limit) is not int or not 1 <= limit <= 100 or (after is not None and expected_registry_revision is None):
+    def list(self, actor, core_id, home_id, *, after=None, expected_snapshot=None, limit=25):
+        if type(limit) is not int or not 1 <= limit <= 100 or (after is not None and expected_snapshot is None):
             raise ApiError('invalid_request')
         if after is not None:
             self._id(after)
-        if expected_registry_revision is not None:
-            self._revision(expected_registry_revision)
+        if expected_snapshot is not None and (type(expected_snapshot) is not str or
+                not re.fullmatch('[0-9a-f]{64}', expected_snapshot)):
+            raise ApiError('invalid_request')
         with self._transaction(actor, core_id, home_id) as (c, facts):
             state = self._state(c)
-            if expected_registry_revision is not None and expected_registry_revision != state['revision']:
-                raise ApiError('revision_conflict', 409)
-            if after is not None:
-                self._require(facts, *self._target(c, after))
+            digest = hmac.new(self._key, b'larenor:home-resource-visible-snapshot:v1\0', 'sha256')
+
+            def bind(value):
+                raw = json.dumps(value, sort_keys=True, separators=(',', ':'), ensure_ascii=False,
+                                 allow_nan=False).encode('utf-8')
+                digest.update(len(raw).to_bytes(4, 'big')); digest.update(raw)
+
+            bind({'scope': self.scope.model_dump(), 'userId': facts.userId, 'userRevision': facts.revision})
             entries = []
-            for row in c.execute('SELECT * FROM home_resource_records WHERE id > ? ORDER BY id LIMIT ?',
-                                 (after or '', schema.MAX_RECORDS + 1)):
+            records = grants = 0
+            cursor_visible = after is None
+            # Hash the entire authorized view, independently of page size/cursor. Hidden
+            # changes and the private global integrity counter never enter this token.
+            for row in c.execute('SELECT * FROM home_resource_records ORDER BY id LIMIT ?',
+                                 (schema.MAX_RECORDS + 1,)):
+                records += 1
+                if records > schema.MAX_RECORDS:
+                    raise ValueError('invalid_storage')
                 ref, data = self._decode(row)
+                grants += len(data.grants)
                 if self._decision(facts, row, ref, data, 'read').allowed:
-                    entries.append(self._public(facts, row, ref, data))
-                    if len(entries) > limit:
-                        break
+                    public = self._public(facts, row, ref, data); bind(public)
+                    if row['id'] == after:
+                        cursor_visible = True
+                    if row['id'] > (after or '') and len(entries) <= limit:
+                        entries.append(public)
+            if (records, grants) != (state['record_count'], state['grant_count']):
+                raise ValueError('invalid_storage')
+            snapshot = digest.hexdigest()
+            if expected_snapshot is not None and not hmac.compare_digest(expected_snapshot, snapshot):
+                raise ApiError('revision_conflict', 409)
+            if not cursor_visible:
+                raise ApiError('not_found', 404)
             return {'scope': self.scope.model_dump(), 'entries': entries[:limit],
-                    'registryRevision': state['revision'], 'nextAfter': entries[limit - 1]['ref']['id'] if len(entries) > limit else None}
+                    'snapshot': snapshot, 'nextAfter': entries[limit - 1]['ref']['id'] if len(entries) > limit else None}
 
     def get(self, actor, core_id, home_id, record_id):
         with self._transaction(actor, core_id, home_id) as (c, facts):
