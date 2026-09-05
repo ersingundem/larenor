@@ -42,15 +42,17 @@ class ServerMediaPreparationsApi {
           (record) =>
               record.plan.coreId != records.first.plan.coreId ||
               record.plan.homeId != records.first.plan.homeId,
-        ))
+        )) {
       _invalid();
+    }
     final next = map['nextBefore'] == null
         ? null
         : mediaInteger(map['nextBefore']);
     if (records.map((r) => r.id).toSet().length != records.length ||
         (next != null &&
-            (records.isEmpty || (before != null && next >= before))))
+            (records.isEmpty || (before != null && next >= before)))) {
       _invalid();
+    }
     return MediaPreparationPage(List.unmodifiable(records), next);
   }
 
@@ -79,8 +81,9 @@ class ServerMediaPreparationsApi {
   ) {
     if (!before.sameIdentity(after) ||
         after.revision < before.revision ||
-        after.updatedAt.isBefore(before.updatedAt))
+        after.updatedAt.isBefore(before.updatedAt)) {
       _invalid();
+    }
   }
 
   Future<ServerMediaPreparation> cancel(ServerMediaPreparation previous) async {

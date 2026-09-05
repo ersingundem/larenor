@@ -154,10 +154,12 @@ class ServerMediaPreparationsController extends ChangeNotifier {
         api,
         token,
       ).list(before: cursor);
-      if (page.preparations.any(
-        (r) => preparations.any((old) => old.id == r.id),
-      ))
+      if (preparations.length + page.preparations.length > maximumHistory ||
+          page.preparations.any(
+            (r) => preparations.any((old) => old.id == r.id),
+          )) {
         throw const LarenorServerException('invalid_response');
+      }
       if (valid()) {
         _rememberRecords(page.preparations);
         preparations = List.unmodifiable([
@@ -270,8 +272,9 @@ class ServerMediaPreparationsController extends ChangeNotifier {
 
   Future<void> cancelSelected({required bool Function() current}) async {
     final record = selected;
-    if (record == null || !record.prepared || cancelNeedsRefresh || busy)
+    if (record == null || !record.prepared || cancelNeedsRefresh || busy) {
       return;
+    }
     final success = await _run(current, (api, token, valid) async {
       final result = await ServerMediaPreparationsApi(
         api,

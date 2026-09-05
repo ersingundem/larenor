@@ -30,16 +30,18 @@ Never _invalid() => throw const LarenorServerException('invalid_response');
 Map<String, dynamic> mediaObject(Object? value, Set<String> keys) {
   if (value is! Map<String, dynamic> ||
       value.length != keys.length ||
-      !value.keys.every(keys.contains))
+      !value.keys.every(keys.contains)) {
     _invalid();
+  }
   return value;
 }
 
 String _pattern(Object? value, String pattern, int max) {
   if (value is! String ||
       value.length > max ||
-      !RegExp(pattern).hasMatch(value))
+      !RegExp(pattern).hasMatch(value)) {
     _invalid();
+  }
   return value;
 }
 
@@ -179,8 +181,9 @@ class MediaStackPlan {
     mediaInteger(map['schemaVersion'], max: 1);
     if (map['templateId'] != 'media' ||
         map['installAvailable'] != false ||
-        map['bootstrapExposure'] != 'unverified')
+        map['bootstrapExposure'] != 'unverified') {
       _invalid();
+    }
     final blockers = _list(map['blockers'], 4);
     for (var i = 0; i < blockers.length; i++) {
       if (blockers[i] != mediaBlockers[i]) _invalid();
@@ -196,13 +199,15 @@ class MediaStackPlan {
       final child = components[i];
       if (child.serviceId != mediaComponentOrder[i] ||
           child.plan.catalogDigest != catalogDigest ||
-          child.plan.image.platform != platform)
+          child.plan.image.platform != platform) {
         _invalid();
+      }
       final requested = settings.componentSettings(child.serviceId);
       if (requested.entries.any(
         (entry) => child.plan.settings[entry.key] != entry.value,
-      ))
+      )) {
         _invalid();
+      }
       String identity(String kind, [String step = '']) => sha256
           .convert(
             utf8.encode(
@@ -220,8 +225,9 @@ class MediaStackPlan {
           .toString()
           .substring(0, 32);
       if (child.installationId != identity('installation') ||
-          child.operationId != identity('operation'))
+          child.operationId != identity('operation')) {
         _invalid();
+      }
       for (var j = 0; j < child.stepIds.length; j++) {
         if (child.stepIds[j] != identity('step', mediaStepKinds[j])) _invalid();
       }
@@ -246,8 +252,9 @@ class MediaStackPlan {
     final bytes = utf8.encode(
       jsonEncode(_canonical({...map}..remove('planHash'))),
     );
-    if (bytes.length > 65536 || sha256.convert(bytes).toString() != planHash)
+    if (bytes.length > 65536 || sha256.convert(bytes).toString() != planHash) {
       _invalid();
+    }
   }
   factory MediaStackPlan.fromJson(Object? value) => MediaStackPlan._(
     mediaObject(value, {
@@ -300,8 +307,9 @@ class ServerMediaPreparation {
     final revision = mediaInteger(map['revision'], max: 2);
     final state = map['state'];
     if ((state != 'prepared' || revision != 1) &&
-        (state != 'cancelled' || revision != 2))
+        (state != 'cancelled' || revision != 2)) {
       _invalid();
+    }
     final created = _time(map['createdAt']), updated = _time(map['updatedAt']);
     if (updated.isBefore(created) || map['catalogCurrent'] is! bool) _invalid();
     final plan = MediaStackPlan.fromJson(map['plan']);
@@ -358,8 +366,9 @@ class MediaPreparationRequest {
         plan.homeId != context.homeId ||
         plan.catalogDigest != catalog.digest ||
         plan.platform != platform ||
-        !plan.settings.sameAs(settings))
+        !plan.settings.sameAs(settings)) {
       return false;
+    }
     for (final component in plan.components) {
       final entries = catalog.entries.where(
         (entry) => entry.manifest.serviceId == component.serviceId,
@@ -370,8 +379,9 @@ class MediaPreparationRequest {
           spec.name: spec.defaultValue,
         ...settings.componentSettings(component.serviceId),
       };
-      if (!component.plan.matches(entries.single, platform, expected))
+      if (!component.plan.matches(entries.single, platform, expected)) {
         return false;
+      }
     }
     return true;
   }

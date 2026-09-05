@@ -19,8 +19,9 @@ class MediaPreparationsFixture extends PluginsFixture {
   @override
   http.Response pluginResponse(http.Request request) {
     final path = request.url.path;
-    if (path.endsWith('/context'))
+    if (path.endsWith('/context')) {
       return this.json(mediaFixtureJson()['context']);
+    }
     if (path.endsWith('/media/preparations')) {
       if (request.method == 'GET') {
         return this.json({'preparations': records, 'nextBefore': null});
@@ -29,8 +30,9 @@ class MediaPreparationsFixture extends PluginsFixture {
       final existing = records.where(
         (r) => r['requestId'] == body['requestId'],
       );
-      if (existing.isNotEmpty)
+      if (existing.isNotEmpty) {
         return this.json({'preparation': existing.first}, 201);
+      }
       final record = mediaPreparationJson()..['requestId'] = body['requestId'];
       records.add(record);
       return this.json({'preparation': record}, 201);
@@ -39,10 +41,11 @@ class MediaPreparationsFixture extends PluginsFixture {
       final parts = path.split('/');
       final id = parts[parts.length - (path.endsWith('/cancel') ? 2 : 1)];
       final found = records.indexWhere((r) => r['id'] == id);
-      if (found < 0)
+      if (found < 0) {
         return this.json({
           'error': {'code': 'not_found'},
         }, 404);
+      }
       if (path.endsWith('/cancel')) {
         final previous = records[found];
         if (jsonDecode(request.body)['expectedRevision'] !=

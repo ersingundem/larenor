@@ -299,8 +299,9 @@ void main() {
         final response = f.pluginResponse(r);
         if (r.method == 'POST' &&
             r.url.path.endsWith('/preparations') &&
-            ++writes == 1)
+            ++writes == 1) {
           return http.Response('synthetic-secret', 502);
+        }
         return response;
       };
       await tap(tester, 'media-new');
@@ -373,8 +374,9 @@ void main() {
           selected['revision'] = 2;
           return f.json({'preparation': selected});
         }
-        if (r.url.path.endsWith('/${selected['id']}'))
+        if (r.url.path.endsWith('/${selected['id']}')) {
           return f.json({'preparation': selected});
+        }
         return f.pluginResponse(r);
       };
       await tap(tester, 'media-refresh');
@@ -400,15 +402,20 @@ void main() {
       expect(tester.takeException(), isNull);
     },
   );
-  testWidgets('common preparation inputs expose their localized labels to accessibility', (tester) async {
-    final semantics = tester.ensureSemantics();
-    addTearDown(semantics.dispose);
-    await mount(tester);
-    await tap(tester, 'media-new');
-    final field = find.byKey(const ValueKey('media-instanceName'));
-    await tester.ensureVisible(field);
-    await tester.pumpAndSettle();
-    expect(tester.getSemantics(field).label, contains('Instance name'));
-  });
-
+  testWidgets(
+    'common preparation inputs expose their localized labels to accessibility',
+    (tester) async {
+      final semantics = tester.ensureSemantics();
+      try {
+        await mount(tester);
+        await tap(tester, 'media-new');
+        final field = find.byKey(const ValueKey('media-instanceName'));
+        await tester.ensureVisible(field);
+        await tester.pumpAndSettle();
+        expect(tester.getSemantics(field).label, contains('Instance name'));
+      } finally {
+        semantics.dispose();
+      }
+    },
+  );
 }

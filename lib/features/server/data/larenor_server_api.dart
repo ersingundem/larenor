@@ -176,8 +176,9 @@ class LarenorServerApi {
             final number = int.tryParse(entry.value);
             if (number == null ||
                 number > 9223372036854775807 ||
-                !RegExp(r'^[1-9][0-9]{0,18}$').hasMatch(entry.value))
+                !RegExp(r'^[1-9][0-9]{0,18}$').hasMatch(entry.value)) {
               return false;
+            }
             return switch (entry.key) {
               'limit' => number <= 10,
               'before' => true,

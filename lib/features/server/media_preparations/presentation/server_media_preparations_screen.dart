@@ -298,8 +298,9 @@ class _ServerMediaPreparationsScreenState
     ref.listen(pinLockProvider, (previous, next) {
       if (next.isLoading ||
           next.hasError ||
-          (previous?.hasValue == true && previous?.value != next.value))
+          (previous?.hasValue == true && previous?.value != next.value)) {
         _expire();
+      }
     });
     if (_active && !_loaded) {
       _loaded = true;
@@ -319,7 +320,7 @@ class _ServerMediaPreparationsScreenState
         child: ListenableBuilder(
           listenable: _media,
           builder: (context, _) {
-            if (!_active)
+            if (!_active) {
               return Center(
                 child: Padding(
                   padding: const EdgeInsets.all(24),
@@ -330,6 +331,7 @@ class _ServerMediaPreparationsScreenState
                   ),
                 ),
               );
+            }
             final selected = _media.selected;
             return Align(
               alignment: Alignment.topCenter,
@@ -420,6 +422,12 @@ class _ServerMediaPreparationsScreenState
     );
   }
 
+  String _fieldLabel(AppLocalizations l, String key) => switch (key) {
+    'instanceName' => l.serverPluginsSettingInstanceName,
+    'dataRootId' => l.serverPluginsSettingDataRootId,
+    'libraryRootId' => l.serverPluginsSettingLibraryRootId,
+    _ => l.serverPluginsSettingMusicRootId,
+  };
   Widget _draft(AppLocalizations l) => _section(l.serverMediaNew, [
     Text(l.serverMediaComponents),
     Text(l.serverMediaSettingsHelp),
@@ -433,10 +441,11 @@ class _ServerMediaPreparationsScreenState
         'linux/arm64': Text('ARM64'),
       },
       onValueChanged: (value) {
-        if (_enabled && value != null)
+        if (_enabled && value != null) {
           setState(() {
             _platform = value;
           });
+        }
       },
     ),
     for (final entry in _fields.entries)
@@ -445,24 +454,22 @@ class _ServerMediaPreparationsScreenState
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text(switch (entry.key) {
-              'instanceName' => l.serverPluginsSettingInstanceName,
-              'dataRootId' => l.serverPluginsSettingDataRootId,
-              'libraryRootId' => l.serverPluginsSettingLibraryRootId,
-              _ => l.serverPluginsSettingMusicRootId,
-            }),
+            Text(_fieldLabel(l, entry.key)),
             const SizedBox(height: 6),
-            CupertinoTextField(
-              key: ValueKey('media-${entry.key}'),
-              controller: entry.value,
-              enabled: _enabled,
-              autocorrect: false,
-              enableSuggestions: false,
-              maxLength: entry.key == 'instanceName' ? 20 : 32,
-              textInputAction: TextInputAction.next,
-              onChanged: (_) {
-                if (_active) setState(() {});
-              },
+            Semantics(
+              label: _fieldLabel(l, entry.key),
+              child: CupertinoTextField(
+                key: ValueKey('media-${entry.key}'),
+                controller: entry.value,
+                enabled: _enabled,
+                autocorrect: false,
+                enableSuggestions: false,
+                maxLength: entry.key == 'instanceName' ? 20 : 32,
+                textInputAction: TextInputAction.next,
+                onChanged: (_) {
+                  if (_active) setState(() {});
+                },
+              ),
             ),
           ],
         ),
