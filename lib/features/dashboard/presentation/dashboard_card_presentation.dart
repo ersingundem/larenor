@@ -7,6 +7,7 @@ import '../../../shared/theme/spacing.dart';
 import '../../../shared/theme/typography.dart';
 import '../domain/dashboard_card_size.dart';
 import 'tiles/home_accessory_tile.dart';
+import 'tiles/dashboard_tile_button.dart';
 import 'widgets/dashboard_grid_delegate.dart';
 
 DashboardGridSpan cardSizeSpan(DashboardCardSize size) => switch (size) {
@@ -29,7 +30,8 @@ double dashboardServiceRowExtent(BuildContext context) {
   final scaler = MediaQuery.textScalerOf(context);
   return math.max(
     HomeAccessoryTile.heightFor(context),
-    Gap.md * 2 +
+    DashboardTileButton.focusInset * 2 +
+        Gap.md * 2 +
         Gap.sm +
         math.max(34, scaler.scale(AppText.tileTitle.fontSize!) * 1.35) +
         3 * (scaler.scale(AppText.tileSubtitle.fontSize!) * 1.35 + 2),

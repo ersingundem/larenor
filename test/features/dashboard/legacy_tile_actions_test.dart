@@ -156,11 +156,11 @@ void main() {
             controller: interaction,
             child: ValueListenableBuilder<bool>(
               valueListenable: visible,
-              builder: (_, enabled, _) =>
-                  MediaQuery(
-                    data: MediaQuery.of(context).copyWith(textScaler: TextScaler.linear(textScale)),
-                    child: TickerMode(enabled: enabled, child: child!),
-                  ),
+              builder: (_, enabled, _) => MediaQuery(
+                data: MediaQuery.of(context)
+                    .copyWith(textScaler: TextScaler.linear(textScale)),
+                child: TickerMode(enabled: enabled, child: child!),
+              ),
             ),
           ),
           locale: Locale(language),
@@ -204,23 +204,35 @@ void main() {
   Map<String, dynamic> body() =>
       jsonDecode(requests.last.body) as Map<String, dynamic>;
 
-  testWidgets('climate dial keyboard changes one step and respects inactive scope', (tester) async {
-    await mount(tester, _climate, ['set_temperature']);
-    await tester.sendKeyEvent(LogicalKeyboardKey.tab);
-    await tester.sendKeyEvent(LogicalKeyboardKey.arrowUp);
-    await tester.pumpAndSettle();
-    expect(requests, hasLength(1));
-    expect(body()['temperature'], 20.5);
-    interaction.setActive(false);
-    await tester.pumpAndSettle();
-    await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
-    await tester.pumpAndSettle();
-    expect(requests, hasLength(1));
-  });
+  testWidgets(
+    'climate dial keyboard changes one step and respects inactive scope',
+    (tester) async {
+      await mount(tester, _climate, ['set_temperature']);
+      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowUp);
+      await tester.pumpAndSettle();
+      expect(requests, hasLength(1));
+      expect(body()['temperature'], 20.5);
+      interaction.setActive(false);
+      await tester.pumpAndSettle();
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+      await tester.pumpAndSettle();
+      expect(requests, hasLength(1));
+    },
+  );
 
   for (final language in ['en', 'tr']) {
-    testWidgets('climate dial text fits 2x in compact cell ($language)', (tester) async {
-      await mount(tester, _climate, ['set_temperature'], tileHeight: 98, textScale: 2, language: language);
+    testWidgets('climate dial text fits 2x in compact cell ($language)', (
+      tester,
+    ) async {
+      await mount(
+        tester,
+        _climate,
+        ['set_temperature'],
+        tileHeight: 98,
+        textScale: 2,
+        language: language,
+      );
       expect(tester.takeException(), isNull);
       expect(requests, isEmpty);
     });

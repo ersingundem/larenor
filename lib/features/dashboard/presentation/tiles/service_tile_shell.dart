@@ -1,5 +1,7 @@
 import 'package:flutter/cupertino.dart';
 
+import 'dashboard_tile_button.dart';
+
 import '../../../../l10n/generated/app_localizations.dart';
 import '../../../settings/data/app_service.dart';
 import '../../../../shared/widgets/brand_icon.dart';
@@ -38,8 +40,15 @@ class ServiceTileShell extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final service = this.service;
-    return GestureDetector(
-      onTap: onTap,
+    return DashboardTileButton(
+      label: [
+        title,
+        if (connected)
+          ...lines
+        else
+          AppLocalizations.of(context).commonNotConnected,
+      ].join(', '),
+      onPressed: onTap,
       child: ColoredBox(
         color: CupertinoColors.secondarySystemGroupedBackground.resolveFrom(
           context,

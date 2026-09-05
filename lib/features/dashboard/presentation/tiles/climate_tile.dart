@@ -1,6 +1,7 @@
 import 'dart:math';
 
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../l10n/generated/app_localizations.dart';
@@ -139,6 +140,11 @@ class _ClimateTileState extends DashboardEditState<ClimateTile>
   }
 }
 
+class _AdjustTemperatureIntent extends Intent {
+  const _AdjustTemperatureIntent(this.direction);
+  final int direction;
+}
+
 class _RadialDial extends StatefulWidget {
   const _RadialDial({
     super.key,
@@ -164,6 +170,7 @@ class _RadialDial extends StatefulWidget {
 class _RadialDialState extends State<_RadialDial> {
   late double _value = widget.value;
   bool _dragging = false;
+  bool _showFocus = false;
 
   @override
   void didUpdateWidget(covariant _RadialDial oldWidget) {
@@ -217,6 +224,12 @@ class _RadialDialState extends State<_RadialDial> {
     if ((selected - widget.value).abs() > 0.0001) widget.onCommitted!(selected);
   }
 
+  void _adjust(int direction) {
+    if (!mounted || widget.onCommitted == null) return;
+    final selected = _snap(widget.value + widget.step * direction);
+    if ((selected - widget.value).abs() > 0.0001) widget.onCommitted!(selected);
+  }
+
   @override
   Widget build(BuildContext context) {
     final fraction = ((_value - widget.min) / (widget.max - widget.min)).clamp(
@@ -225,6 +238,8 @@ class _RadialDialState extends State<_RadialDial> {
     );
     final enabled = widget.onCommitted != null;
     return Semantics(
+      slider: true,
+      enabled: enabled,
       value: '$_value${widget.unit}',
       increasedValue: enabled && _value < widget.max
           ? '${_snap(_value + widget.step)}${widget.unit}'
@@ -232,61 +247,93 @@ class _RadialDialState extends State<_RadialDial> {
       decreasedValue: enabled && _value > widget.min
           ? '${_snap(_value - widget.step)}${widget.unit}'
           : null,
-      onIncrease: enabled && _value < widget.max
-          ? () => widget.onCommitted!(_snap(_value + widget.step))
-          : null,
-      onDecrease: enabled && _value > widget.min
-          ? () => widget.onCommitted!(_snap(_value - widget.step))
-          : null,
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final size = Size(constraints.maxWidth, constraints.maxHeight);
-          return GestureDetector(
-            behavior: HitTestBehavior.opaque,
-            onPanStart: enabled
-                ? (details) => _handlePan(details.localPosition, size)
-                : null,
-            onPanUpdate: enabled
-                ? (details) => _handlePan(details.localPosition, size)
-                : null,
-            onPanEnd: enabled ? (_) => _commit() : null,
-            onPanCancel: enabled
-                ? () => setState(() {
-                    _dragging = false;
-                    _value = widget.value;
-                  })
-                : null,
-            child: CustomPaint(
-              painter: _DialPainter(
-                fraction: fraction,
-                color: categoryColorForDomain(context, 'climate'),
-                trackColor: CupertinoColors.systemGrey4.resolveFrom(context),
-              ),
-              child: Center(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      '${double.parse(_value.toStringAsFixed(6))}${widget.unit}',
-                      style: AppText.title3,
-                    ),
-                    if (widget.currentTemperature != null)
-                      Text(
-                        AppLocalizations.of(context).climateCurrentReading(
-                          '${widget.currentTemperature!.toStringAsFixed(1)}${widget.unit}',
-                        ),
-                        style: AppText.caption2.copyWith(
-                          color: CupertinoColors.secondaryLabel.resolveFrom(
-                            context,
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-            ),
-          );
+      onIncrease: enabled && _value < widget.max ? () => _adjust(1) : null,
+      onDecrease: enabled && _value > widget.min ? () => _adjust(-1) : null,
+      child: FocusableActionDetector(
+        enabled: enabled,
+        onShowFocusHighlight: (value) => setState(() => _showFocus = value),
+        shortcuts: const {
+          SingleActivator(LogicalKeyboardKey.arrowUp): _AdjustTemperatureIntent(
+            1,
+          ),
+          SingleActivator(LogicalKeyboardKey.arrowRight):
+              _AdjustTemperatureIntent(1),
+          SingleActivator(LogicalKeyboardKey.arrowDown):
+              _AdjustTemperatureIntent(-1),
+          SingleActivator(LogicalKeyboardKey.arrowLeft):
+              _AdjustTemperatureIntent(-1),
         },
+        actions: {
+          _AdjustTemperatureIntent: CallbackAction<_AdjustTemperatureIntent>(
+            onInvoke: (intent) {
+              _adjust(intent.direction);
+              return null;
+            },
+          ),
+        },
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(12),
+            border: enabled && _showFocus
+                ? Border.all(
+                    color: CupertinoTheme.of(context).primaryColor,
+                    width: 3.5,
+                  )
+                : null,
+          ),
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final size = Size(constraints.maxWidth, constraints.maxHeight);
+              return GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onPanStart: enabled
+                    ? (details) => _handlePan(details.localPosition, size)
+                    : null,
+                onPanUpdate: enabled
+                    ? (details) => _handlePan(details.localPosition, size)
+                    : null,
+                onPanEnd: enabled ? (_) => _commit() : null,
+                onPanCancel: enabled
+                    ? () => setState(() {
+                        _dragging = false;
+                        _value = widget.value;
+                      })
+                    : null,
+                child: CustomPaint(
+                  painter: _DialPainter(
+                    fraction: fraction,
+                    color: categoryColorForDomain(context, 'climate'),
+                    trackColor: CupertinoColors.systemGrey4.resolveFrom(
+                      context,
+                    ),
+                  ),
+                  child: Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          '${double.parse(_value.toStringAsFixed(6))}${widget.unit}',
+                          style: AppText.title3,
+                        ),
+                        if (widget.currentTemperature != null)
+                          Text(
+                            AppLocalizations.of(context).climateCurrentReading(
+                              '${widget.currentTemperature!.toStringAsFixed(1)}${widget.unit}',
+                            ),
+                            style: AppText.caption2.copyWith(
+                              color: CupertinoColors.secondaryLabel.resolveFrom(
+                                context,
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
       ),
     );
   }
