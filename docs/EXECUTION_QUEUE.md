@@ -5,7 +5,7 @@ kanıtını saklar. [PROGRESS](PROGRESS.md) güncel ürün özeti ve CI anlatım
 bu kuyruk ayrıntılı yürütme sırasıdır. Uygulanmış kabulün kapsamı veya kaynak
 plan değişirse iki belge birlikte güncellenir. 5 Eylül 2026 başlangıcında
 S06.3a/3b, 483ec13 Linux Server ve güvenlik CI ile kabul edildi. S06.3c
-imaj/journal bağlantısı fc632b6 Server/güvenlik CI ile kabul edildi; S08.1 aynı commit’in tam Android/yayın CI kapısıyla kabul edildi. S06.3d/e alt adımları sürüyor. F01–F63 yazılım teslimleri bekliyor. Önceki S06.1–2 ve
+imaj/journal bağlantısı fc632b6 Server/güvenlik CI ile kabul edildi; S08.1 aynı commit’in tam Android/yayın CI kapısıyla kabul edildi. S06.3e ağ yazılımı 9138e61 Server/güvenlik CI ile kabul edildi; S06.3d sürüyor. F01–F63 yazılım teslimleri bekliyor. Önceki S06.1–2 ve
 kalıcı Core/ev kimliği tekrar yapılacak iş sayılmaz.
 
 Bu kayıt bir zamanlayıcı, agent başlatıcı veya işlem yetkisi değildir. Araç
@@ -18,13 +18,13 @@ bir dal, bağımsız ve hazır yazılım dallarını durdurmaz.
 ## Güncel kuyruk özeti
 
 <!-- queue-summary:start -->
-F01–F63 yazılım kapısı: **0/63** (fiziksel kabul ayrı). Kalan kuyruk: **5/125 iş kanıtla tamamlandı**.
+F01–F63 yazılım kapısı: **0/63** (fiziksel kabul ayrı). Kalan kuyruk: **6/125 iş kanıtla tamamlandı**.
 
 Gruplar ve önceki kabul checkpoint’leri iş sayısına dahil değildir.
 
 | Grup | İş | Biten | Çalışılan | CI | Kullanıcı |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| B1 — Yönetilen bileşen yaşam döngüsü | 9 | 3 | 1 | 1 | 0 |
+| B1 — Yönetilen bileşen yaşam döngüsü | 9 | 4 | 1 | 0 | 0 |
 | B2 — Bütünleşik medya ve müzik | 4 | 0 | 0 | 0 | 0 |
 | B3 — Merkezi kaynak, yetki ve olay sözleşmeleri | 11 | 2 | 1 | 0 | 0 |
 | B4 — Yazılım yedekleme ve kurtarma temeli | 3 | 0 | 0 | 0 | 0 |

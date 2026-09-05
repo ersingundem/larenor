@@ -1,5 +1,15 @@
 # S06.3e — özel network journal köprüsü
 
+**Uzak yazılım kabulü:** `9138e617a35d40fc4ab811f980021fb9e3e7a403`,
+[Server CI](https://github.com/ersingundem/larenor/actions/runs/33986835291) ve
+[güvenlik](https://github.com/ersingundem/larenor/actions/runs/33986835178)
+başarılı: 2.566 Linux testi atlamasız, 202 araç testi, iki mimarili Core
+restart/medya hazırlığı/iptal smoke'u ve anonim yayın doğrulandı.
+Bu backend dilimi S06.3c ile aynı kapılardan kabul edildi. Aynı commit'in
+Android odak testi Quickstep ANR nedeniyle başarısızdır ve APK 92 yoktur;
+tablet teslimi B5.1 içinde açık kalır. Gerçek Engine üzerinde kaynak kurulumu
+S06.3f'ye, host yetkisi ve dispatcher sonraki kendi adımlarına aittir.
+
 **Uygulanan dilim:** `JournaledNetworkOperations` artık sabit katalog/resource planı, mevcut özel `ResourceJournal`, salt okunur `UnixNetworkEngine` ve ayrı `UnixNetworkCreator` arasında senkron bir köprü kurar. Bu dilim özel worker primitive'idir. API/IPC/CLI, dispatcher, gerçek host/daemon yetki üreticisi veya otomatik kurulum bağlantısı eklenmedi; `installAvailable=false` korunur. Network attach/delete/prune ve container işlemi yoktur. Önceki [protokol ve etki tasarımı](network-effect-bridge-plan-2026-09-05.md) geçerlidir.
 
 ```python

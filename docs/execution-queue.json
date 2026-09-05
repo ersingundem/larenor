@@ -364,7 +364,8 @@
       "sources": [
         "docs/media-resource-preparation-plan-2026-09-05.md",
         "docs/remaining-core-integration-slices.md",
-        "docs/appdata-native-lease-plan-2026-09-05.md"
+        "docs/appdata-native-lease-plan-2026-09-05.md",
+        "docs/native-identity-observation-implementation-2026-09-05.md"
       ],
       "scope": "installAvailable=false; Client kaynak adı/Docker seçenekleri üretmez. Gerçek ev sunucusuna işlem yok.",
       "acceptance": [
@@ -377,14 +378,14 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Sahiplik/parent ve mount gözlemi 1408e80 CI ile doğrulandı. codex/native-identity-observation dalı /private/tmp/larenor-native-identity-observation kopyasında 8678982 tabanında gerçek salt okunur UID/GID/user-namespace/map capture başladı. Supervisor/remap-disabled grant ve create/publish hâlâ açık."
+      "reason": "33cf1d9 salt okunur native kimlik modülü 81caaf2 main içinde: 194 odaklı geçti/3 Linux skip, 577 regresyon/4 skip, %98 coverage ve iki bağımsız review. 5fecbfc üzerinde tam Server 2.695 geçti/9 Linux skip (199,66s). Gerçek socket→pidfd→proc→map birleşimi yeni Linux CI bekliyor. Supervisor/remap-disabled grant ve create/publish hâlâ açık."
     },
     {
       "id": "S06.3e",
       "kind": "task",
       "parent": "S06.3",
       "title": "Sahiplikli özel kontrol ağı",
-      "status": "awaiting_ci",
+      "status": "done",
       "dependsOn": [
         "S06.3b"
       ],
@@ -413,22 +414,38 @@
         {
           "kind": "test",
           "ref": "docs/network-preparation-implementation-2026-09-05.md",
-          "commit": "6ec4af3697888af43c14d07472cc032e24265203",
+          "commit": "9138e617a35d40fc4ab811f980021fb9e3e7a403",
           "state": "completed",
           "result": "passed",
-          "label": "105 bridge / 846 ilgili regresyon; tam Server 2.559 geçti, yedi Linux testi Mac’te atlandı."
+          "label": "Linux 2.566 atlamasız test; 105 journal köprüsü ve gerçek Unix peer/network-create protokol kanıtı."
         },
         {
           "kind": "review",
           "ref": "docs/network-preparation-implementation-2026-09-05.md",
-          "commit": "6ec4af3697888af43c14d07472cc032e24265203",
+          "commit": "9138e617a35d40fc4ab811f980021fb9e3e7a403",
           "state": "completed",
           "result": "passed",
           "label": "Kalıcı intent, tek create, ACK-ID gözlemi, iptal/reentry/alias ve readonly replay bağımsız incelendi; açık P1/P2 yok."
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/33986835291",
+          "commit": "9138e617a35d40fc4ab811f980021fb9e3e7a403",
+          "state": "completed",
+          "result": "passed",
+          "label": "Server test, amd64/arm64 Core restart/hazırlık/iptal smoke ve anonim imaj yayını başarılı."
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/33986835178",
+          "commit": "9138e617a35d40fc4ab811f980021fb9e3e7a403",
+          "state": "completed",
+          "result": "passed",
+          "label": "202 araç testi ve güvenlik taraması başarılı."
         }
       ],
-      "completionCommit": null,
-      "reason": "6a00168 köprüsü 6ec4af3 main içinde; tam Server 2.559 geçti/7 Linux atlaması, 2.739 Flutter/analiz ve inceleme temiz. Yeni uzak CI bekleniyor. Yazılım dilimi; gerçek Engine/iki mimarili kaynak kabulü S06.3f ve production grant/dispatcher ayrıca açık."
+      "completionCommit": "9138e617a35d40fc4ab811f980021fb9e3e7a403",
+      "reason": "9138e61 Linux Server/güvenlik CI ile ağ taşıma/journal/kurtarma yazılım dilimi kabul edildi; imaj dilimi S06.3c ile aynı backend kapıları. Android native focus Quickstep ANR ve APK92 atlaması B5.1 teslimini açık bırakır. Gerçek Engine/iki mimarili kaynak kurulumu S06.3f; production grant/dispatcher ayrıca açık."
     },
     {
       "id": "S06.3f",
@@ -840,7 +857,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "S08.2 19dbcbe tam CI/APK91 ile kabul edildi. codex/client-home-session-scope dalı /private/tmp/larenor-client-home-session-scope kopyasında 8678982 tabanından başladı: açık kalıcı kaynak, dış hesap, ayrı runtime/epoch, restore ve ortak ayar provider sahipliği. Kod henüz kabul edilmedi."
+      "reason": "S08.2 19dbcbe tam CI/APK91 ile kabul edildi. İzole codex/client-home-session-scope: store43ea7cf 22 test; runtime0ceb1a0 ilk GREEN. Gerçek hesap ekranı, aynı bağlam/ev değişimi, restore ve ortak ayarlar regresyonları sürüyor; main içinde değil."
     },
     {
       "id": "S08.4",
@@ -1202,9 +1219,18 @@
         "review",
         "ci"
       ],
-      "evidence": [],
+      "evidence": [
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/33986835301",
+          "commit": "9138e617a35d40fc4ab811f980021fb9e3e7a403",
+          "state": "completed",
+          "result": "failed",
+          "label": "2739 Flutter/98 JVM/dörtjourney geçti; launcher ANR nativefocus başarısız, imzalı APK92skip."
+        }
+      ],
       "completionCommit": null,
-      "reason": "Alt gezinme 1408e80 tam CI/APK 89. Başlık/menü 54a677b Android testleri geçti, Server fixture düzeltmesi 19dbcbe CI’da. Ayar satırları ba884f6: 38 odaklı/965 regresyon, analiz ve inceleme temiz; 8767608 yerel main birleşti, birleştirilmiş 2.739 Flutter testi ve tam analiz geçti. Yeni paket henüz uzak CI kabulü almadı. Bütün ekranlar ve gerçek TalkBack açık."
+      "reason": "Ayar satırları ba884f6 main içinde;9138e61 2.739 Flutter/98 JVM geçti, dörtjourney geçti. Quickstep ANR nativefocus testini engelledi: E2E7/8, APK92skip. Yük azaltan host-only precompile d36a6bc main5fecbfc içinde,42 ilgili/207 araç testi+review geçti; gerçek yeniCI bekliyor. Dashboard kartları ayrı dalda sıradaki inceleme. Bütün ekranlar ve gerçek TalkBack açık."
     },
     {
       "id": "B5.2",

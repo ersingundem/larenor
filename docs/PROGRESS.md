@@ -1,11 +1,11 @@
 # Larenor — güncel ilerleme ve iş kuyruğu
 
-**Son güncelleme: 5 Eylül 2026, 22:20 (Türkiye saati).**
+**Son güncelleme: 5 Eylül 2026, 22:45 (Türkiye saati).**
 
 ```text
 Önceki kapsam       █████████████░░░░░░░  ≈ %65
 S06 koordinatörü    ███████░░░░░░░░░░░░░  2/6 yazılım dilimi; test/yayın geçti
-S06.3 kaynak temeli  ██████████░░░░░░░░░░  3/6 alt adım; Linux CI ile kabul
+S06.3 kaynak temeli  █████████████░░░░░░░  4/6 alt adım; Linux CI ile kabul
 Yeni 63 özellik     ░░░░░░░░░░░░░░░░░░░░  0/63 kabul edildi
 Genişletilmiş toplam                     Henüz hesaplanmadı
 ```
@@ -48,22 +48,40 @@ saatinde 03.15 sonrasında günde en fazla bir kez korunur. Bilgisayarın ve Cod
 uygulamasının açık, deponun erişilebilir olması gerekir; bu dosyanın kendisi
 bir servis değildir. Görev Codex'in zamanlanmış görevler ekranından durdurulabilir.
 
-**Kuyrukta kabul edilen işler: 5/125.** Saf kaynak planı, kalıcı journal ve
-imaj/journal köprüsüyle **S06.3 içinde 3/6 alt adım** kapandı. **S08.1** de
+**Kuyrukta kabul edilen işler: 6/125.** Saf kaynak planı, kalıcı journal,
+imaj/journal ve ağ/journal köprüleriyle **S06.3 içinde 4/6 alt adım** kapandı. **S08.1** de
 Core/ev bağlamını tokenlarla güvenle bağlama kapsamında tam CI kabulü aldı.
 **S08.2** ilk parola/eski Server uyumluluğu da `19dbcbe` tam CI ve APK 91
 ile kabul edildi. Bu işler yeni 63 özelliğin kabul sayısı değildir; o sayaç **0/63**. Ana S06
-sayacı **2/6** kalır; dizin/ağ, kurulum ve gerçek Engine kabulü açıktır.
+sayacı **2/6** kalır; dizin, kurulum ve gerçek Engine kabulü açıktır.
 
-**Yeni paket yerelde hazır (`6ec4af3`):** ortak tablet ayar satırları,
-kontrollü özel ağ create taşıması ve kalıcı journal/kurtarma bağlantısı
-birleştirildi. Tam Server **2.559 geçti, yedi Linux testi Mac'te atlandı**
-(3:10,4); **2.739 Flutter testi** (3:50), tam analiz, ilgili kuyruk kontrolleri
-ve güvenlik taraması temiz. Yeni bridge'in 105 testi, birleşik 846 regresyonu
-ve bağımsız incelemeleri tamamlandı. Bu paket henüz uzak CI kabulü almadı.
+**9138e61 Core doğrulandı; Android teslimi açık:** Linux **2.566 test
+atlamasız geçti**; amd64/arm64 Core restart, medya hazırlığı ve iptal smoke'u,
+anonim imaj sourceRevision ve güvenlik kontrolleri başarılı. Bu kanıtla ağ
+journal/kurtarma yazılımı **S06.3e kabul edildi**; S06.3c ile aynı backend
+kapıları kullanıldı. Gerçek Docker kaynak kurulumu ayrı S06.3f adımıdır.
+[Server](https://github.com/ersingundem/larenor/actions/runs/33986835291) ·
+[Güvenlik](https://github.com/ersingundem/larenor/actions/runs/33986835178).
+İki mimarili imaj: `sha256:7902dc0fcf299c0b2b7e598943a6293c8af6e5e60efd0e13f1f27ac28216d805`.
+
+[Android 92](https://github.com/ersingundem/larenor/actions/runs/33986835301)
+**2.739 Flutter, 98 JVM ve dört uygulama akışını geçti**; native odak testi
+Quickstep “yanıt vermiyor” penceresi nedeniyle başarısız: **E2E 7/8**,
+imzalı APK 92 üretilmedi. QEMU/adb canlı, ekran uyanık ve kilitsizdi;
+OOM veya emülatör çökmesi kanıtlanmadı. Akış 11:13,2 ile 18 dakika sınırında;
+42 aşama ve dört temizlik tamamlandı. Son tam Android yayını APK 91'dir.
+
+**Yeni paket yayına hazır (kaynak `5fecbfc`):** salt okunur native kimlik gözlemi
+`33cf1d9` birleşti; 194 odaklı / 577 ilgili test geçti (Mac'te üç/dört Linux
+atlaması), %98 kapsam ve bağımsız incelemeler tamamlandı. Tam Server **2.695 geçti, dokuz Linux testi Mac'te atlandı** (3:19,7).
+Client kaynakları değişmedi; 9138e61 üzerinde 2.739 Flutter/analiz kanıtı var. CI'da ağır native derleme emülatör başlamadan hazırlanacak; gerçek
+Flutter test harness'i yeniden derlenecek ve tüm odak testleri korunacak.
+Bu CI değişikliği 42 ilgili / 207 araç testini geçti; Quickstep için çözüm
+veya süre kazancı yeni gerçek CI görülmeden doğrulanmış sayılmayacak.
 [Ayarlar](tablet-settings-accessibility-implementation-2026-09-05.md) ·
-[Ağ create](network-create-transport-implementation-2026-09-05.md) ·
-[Journal/kurtarma](network-preparation-implementation-2026-09-05.md).
+[Ağ journal/kurtarma](network-preparation-implementation-2026-09-05.md) ·
+[Native kimlik](native-identity-observation-implementation-2026-09-05.md) ·
+[Emülatör hazırlığı](android-e2e-precompile-2026-09-05.md).
 
 **S08.2 kabul edildi; S08.3 başladı:** [ev runtime sınırı](client-home-scope-plan-2026-09-05.md)
 izole dalda uygulanıyor. Kullanıcının seçtiği doğrudan HA veya Core kaynağı açık ve kalıcı
@@ -79,10 +97,10 @@ yerel git geçmişinde korunur; ana dala birleşme uzak CI kabulü değildir.
 
 | İş | Dal / çalışma kopyası | Durum |
 | --- | --- | --- |
-| B5.1 tablet ayarları | `codex/tablet-settings-accessibility` · `/private/tmp/larenor-tablet-settings-accessibility` | `ba884f6` main içinde; yeni yayın kapısı bekliyor. |
-| S06.3e ağ journal köprüsü | `codex/network-effect-bridge` · `/private/tmp/larenor-network-effect-bridge` | `6a00168` main içinde; tam yerel test geçti, yeni CI bekliyor. |
-| S08.3 Client ev runtime'ı | `codex/client-home-session-scope` · `/private/tmp/larenor-client-home-session-scope` | `8678982` tabanında TDD başladı; ana dala birleştirilmedi. |
-| S06.3d appdata host kanıtı | `codex/native-identity-observation` · `/private/tmp/larenor-native-identity-observation` | `8678982` tabanında gerçek salt okunur UID/GID/user-namespace kanıtı başladı; mapping/grant veya yazma yetkisi değildir. |
+| B5.1 tablet ayarları | `codex/tablet-settings-accessibility` · `/private/tmp/larenor-tablet-settings-accessibility` | `ba884f6` main içinde; Flutter/JVM geçti, Quickstep ANR nedeniyle APK92 yok; ön derleme değişikliği yeni CI bekliyor. |
+| S06.3e ağ journal köprüsü | `codex/network-effect-bridge` · `/private/tmp/larenor-network-effect-bridge` | `6a00168` main içinde; `9138e61` Linux Server/güvenlik CI ile yazılım kabulü tamamlandı. |
+| S08.3 Client ev runtime'ı | `codex/client-home-session-scope` · `/private/tmp/larenor-client-home-session-scope` | Store `43ea7cf`, ilk runtime GREEN `0ceb1a0`; gerçek ekran/restore/bağlam regresyonları sürüyor, main içinde değil. |
+| S06.3d appdata host kanıtı | `codex/native-identity-observation` · `/private/tmp/larenor-native-identity-observation` | `33cf1d9` main içinde; yerel test/review geçti, tam Server 2.695/9 skip geçti, yeni Linux CI bekliyor; mapping/grant veya yazma yetkisi değildir. |
 
 Ağ yazılım diliminin sonraki gerçek Engine/iki mimarili kaynak kabulü
 **S06.3f** içindedir. Production dispatcher/host grant, appdata oluşturma ve
