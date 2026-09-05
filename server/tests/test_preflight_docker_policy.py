@@ -2,6 +2,7 @@
 
 import json
 import os
+import time
 from dataclasses import replace
 from types import SimpleNamespace
 
@@ -113,9 +114,11 @@ def test_worker_publishes_only_observed_engine_status_without_install_or_receive
     class Probe:
         def __init__(self, endpoint):
             calls.append(endpoint.path)
-        def inspect(self, expected_platform):
+        def observe(self, expected_platform, *, during, deadline):
+            from larenor_server.plugins.docker_probe import DockerObservation
             calls.append(expected_platform)
-            return observed
+            assert deadline > time.monotonic()
+            return DockerObservation(observed, None, during())
     monkeypatch.setattr(host, 'DockerProbe', Probe, raising=False)
     result = inspect(runtime.load_policy(policy_file))
     state = statuses(result)
@@ -132,19 +135,21 @@ def test_worker_publishes_only_observed_engine_status_without_install_or_receive
 def test_malformed_probe_observation_is_unknown_without_disclosing_it(policy_file, monkeypatch, value):
     class Probe:
         def __init__(self, _endpoint): pass
-        def inspect(self, _platform): return value
+        def observe(self, _platform, *, during, deadline):
+            from larenor_server.plugins.docker_probe import DockerObservation
+            return DockerObservation(value, None, during())
     monkeypatch.setattr(host, 'DockerProbe', Probe, raising=False)
     result = inspect(runtime.load_policy(policy_file))
     assert statuses(result)['docker_engine'] == 'unknown'
     assert 'private-sentinel' not in result.model_dump_json()
 
 
-@pytest.mark.parametrize('stage', ['construct', 'inspect'])
+@pytest.mark.parametrize('stage', ['construct', 'observe'])
 def test_probe_error_preserves_other_checks_and_has_no_raw_exception_result(policy_file, monkeypatch, stage):
     class Probe:
         def __init__(self, _endpoint):
             if stage == 'construct': raise OSError('private-sentinel')
-        def inspect(self, _platform): raise OSError('private-sentinel')
+        def observe(self, _platform, *, during, deadline): raise OSError('private-sentinel')
     monkeypatch.setattr(host, 'DockerProbe', Probe, raising=False)
     result = inspect(runtime.load_policy(policy_file))
     assert statuses(result)['docker_engine'] == 'unknown'
