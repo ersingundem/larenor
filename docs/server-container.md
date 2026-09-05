@@ -108,8 +108,11 @@ for the exact operator interface. Malformed API worker configuration produces a
 static startup error without exposing its environment value.
 
 The worker checks platform and existing approved storage/capacity without
-creating directories or accessing Docker. Docker availability, port availability
-and receiver networking remain unverified results. Client **Requirements checks**
+creating directories. An explicit version-2 private policy may give only the
+worker a Unix Docker endpoint for the fixed, bounded `GET /version` API/platform
+check. The default policy never discovers Docker; the API container receives
+no Docker socket. Port availability and receiver networking remain unverified.
+Client **Requirements checks**
 shows job history and each observation; `succeeded` means the inspection finished,
 including when individual requirements failed. It never means a component was
 installed or media playback passed.

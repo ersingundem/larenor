@@ -234,9 +234,11 @@ Phases are `queued`, `checking_requirements` and `complete`. A successful result
 contains the catalog digest, plan hash, requested platform, observation time and
 1–32 checks. Each check has a static `code`, `status` (`passed`, `failed` or
 `unknown`) and nullable `rootId`, `availableMiB`, `requiredMiB`. The current worker
-checks platform and approved storage roots/capacity. It deliberately reports
-`docker_engine`, `port_availability` and `receiver_network` as `unknown`: it does
-not contact Docker, bind ports or probe players. Disk requirements are proposed
+checks platform and approved storage roots/capacity. With an explicit version-2
+operator policy, `docker_engine` reports observed API/platform compatibility;
+without it, this check remains `unknown`. `port_availability` and
+`receiver_network` remain `unknown`: no ports are bound or players probed.
+Disk requirements are proposed
 catalog budgets, not measurements of upstream applications' actual minima.
 
 ## Persistence, dispatch and recovery
@@ -318,6 +320,38 @@ version-1 form is:
   ]
 }
 ```
+
+Version 1 remains supported and never discovers a Docker endpoint. Version 2
+requires an explicit `docker` field: `null` disables the check, or this exact
+object selects an operator-owned Unix endpoint:
+
+```json
+{
+  "version": 2,
+  "roots": [
+    {"id": "appdata", "path": "/srv/larenor/appdata", "purpose": "data"}
+  ],
+  "docker": {"socketPath": "/run/docker.sock", "ownerUid": 0}
+}
+```
+
+The socket path must be canonical and absolute; `/run/docker.sock` is only an
+example, not an auto-discovered default. Socket and ancestor ownership/modes,
+symlinks, inode identity and the connected Linux peer UID are checked. For a
+rootless daemon, configure its actual endpoint and owner UID. `DOCKER_HOST`,
+proxy settings, TCP endpoints and Client request fields cannot select a daemon.
+`--check-config` validates syntax and the private policy file without checking
+that Docker exists or opening its socket.
+
+[`docker_probe.py`](docker_probe.py) issues only **GET `/version`**, with a
+two-second maximum deadline and a 64 KiB body bound. It checks Linux and the
+plan's architecture, and requires the daemon's API range to include **1.47**,
+the version used by the existing isolated Engine primitives. A valid response
+with an incompatible API or platform is `failed`; an unavailable endpoint,
+untrusted peer, malformed/ambiguous response or HTTP error is `unknown`.
+`passed` does not establish image availability, container readiness, engine
+mutation rights, host port availability or receiver discovery. Docker API
+reference: [version 1.47](https://docs.docker.com/reference/api/engine/version/v1.47/).
 
 There must be 1–16 distinct root IDs. Purposes are `data`, `library`, `media` and
 `music`, matched to the plan's corresponding setting. Paths are absolute,

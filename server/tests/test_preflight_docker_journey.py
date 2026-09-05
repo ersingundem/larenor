@@ -17,17 +17,18 @@ import pytest
 
 from conftest import auth, ready
 from test_plugin_api import preview
-from test_plugin_preflight_ipc import running
+from test_plugin_preflight_ipc import root as worker_directory
 from larenor_server.app import create_app
 from larenor_server.plugins import host_preflight as host
 from larenor_server.plugins.docker_probe import DockerEndpoint, DockerProbe
+from larenor_server.plugins.preflight_ipc import PreflightWorkerServer
 
 
 BASE = '/api/v1/admin/plugins/jobs'
 
 
 @contextmanager
-def engine_response(status, payload):
+def engine_response(status, payload, *, delay=0):
     requests = []
     body = json.dumps(payload).encode()
     wire = (f'HTTP/1.1 {status} Test\r\nContent-Type: application/json\r\n'
@@ -43,7 +44,13 @@ def engine_response(status, payload):
                     return
                 data.extend(chunk)
             requests.append(bytes(data))
-            self.request.sendall(wire)
+            if delay:
+                time.sleep(delay)
+            try:
+                self.request.sendall(wire)
+            except OSError:
+                # A bounded probe may close while this synthetic daemon stalls.
+                pass
 
     with tempfile.TemporaryDirectory(prefix='ln-dj-', dir='/tmp') as directory:
         path = Path(directory).resolve() / 'engine.sock'
@@ -59,13 +66,27 @@ def engine_response(status, payload):
                 assert not thread.is_alive()
 
 
-@pytest.mark.parametrize('status,payload,expected', [
-    (200, {'Os': 'linux', 'Arch': 'amd64', 'ApiVersion': '1.53', 'MinAPIVersion': '1.44'}, 'passed'),
-    (200, {'Os': 'linux', 'Arch': 'amd64', 'ApiVersion': '1.40', 'MinAPIVersion': '1.24'}, 'failed'),
-    (503, {'message': 'private-engine-error-sentinel'}, 'unknown'),
+@contextmanager
+def production_worker(inspector):
+    with worker_directory() as directory:
+        peer = None if hasattr(socket, 'SO_PEERCRED') else lambda _: os.getuid()
+        worker = PreflightWorkerServer(directory / 'worker.sock', inspector,
+            platform='linux/amd64', allowed_uid=os.getuid(), peer_uid=peer)
+        worker.start()
+        try:
+            yield worker
+        finally:
+            worker.close()
+
+
+@pytest.mark.parametrize('status,payload,expected,delay', [
+    (200, {'Os': 'linux', 'Arch': 'amd64', 'ApiVersion': '1.53', 'MinAPIVersion': '1.44'}, 'passed', 0),
+    (200, {'Os': 'linux', 'Arch': 'amd64', 'ApiVersion': '1.40', 'MinAPIVersion': '1.24'}, 'failed', 0),
+    (503, {'message': 'private-engine-error-sentinel'}, 'unknown', 0),
+    (200, {'Os': 'linux', 'Arch': 'amd64', 'ApiVersion': '1.53', 'MinAPIVersion': '1.44'}, 'unknown', 2.25),
 ])
 def test_admin_observes_docker_result_with_unknown_ports_and_restart_safe_history(
-        server, tmp_path, monkeypatch, status, payload, expected):
+        server, tmp_path, monkeypatch, status, payload, expected, delay):
     pair = ready(server)
     settings = server[2]
     root = tmp_path / 'component-data'
@@ -74,12 +95,12 @@ def test_admin_observes_docker_result_with_unknown_ports_and_restart_safe_histor
         monkeypatch.setattr('larenor_server.plugins.preflight_ipc._peer_uid', lambda _: os.getuid())
         monkeypatch.setattr(host, 'DockerProbe', lambda endpoint: DockerProbe(endpoint, peer_uid=lambda _: os.getuid()))
 
-    with engine_response(status, payload) as (path, requests):
+    with engine_response(status, payload, delay=delay) as (path, requests):
         policy = host.HostPolicy({'appdata': host.HostRoot(str(root), 'data')},
                                  docker=DockerEndpoint(str(path), owner_uid=os.getuid()))
         inspector = host.HostInspector(policy, platform_provider=lambda: 'linux/amd64',
             statvfs_provider=lambda _: SimpleNamespace(f_bavail=16384, f_frsize=1048576, f_flag=0))
-        with running(inspector) as (worker, _):
+        with production_worker(inspector) as worker:
             configured = replace(settings, plugin_worker_socket=worker.path, plugin_worker_uid=os.getuid())
             with TestClient(create_app(configured)) as client:
                 record = preview(client, pair)
@@ -88,7 +109,7 @@ def test_admin_observes_docker_result_with_unknown_ports_and_restart_safe_histor
                 accepted = client.post(BASE, headers=auth(pair), json=body)
                 assert accepted.status_code == 202
                 identifier = accepted.json()['job']['id']
-                deadline = time.monotonic() + 4
+                deadline = time.monotonic() + 8
                 while True:
                     response = client.get(BASE + '/' + identifier, headers=auth(pair))
                     assert response.status_code == 200
@@ -102,6 +123,7 @@ def test_admin_observes_docker_result_with_unknown_ports_and_restart_safe_histor
                 checks = {item['code']: item['status'] for item in job['result']['checks']}
                 assert checks['docker_engine'] == expected
                 assert checks['port_availability'] == checks['receiver_network'] == 'unknown'
+                assert checks['storage_root'] == checks['storage_capacity'] == 'passed'
                 assert client.get(BASE + '/capabilities', headers=auth(pair)).json()['installAvailable'] is False
                 assert client.post(BASE, headers=auth(pair), json=body).json()['job']['id'] == identifier
                 assert str(path) not in response.text

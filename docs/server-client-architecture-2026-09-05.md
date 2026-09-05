@@ -44,6 +44,14 @@ uzak Android E2E başarısızlığı ve ayrıntılı sınırlar [ilerleme kaydı
 
 ## Hesap, oturum ve yapılandırma
 
+**B3 kimlik temeli:** `GET /api/v1/context` hazır kullanıcıya kalıcı Core/ev
+kimliğini verir. Ana DB şeması 3; eski 1→2→3 geçişi ve kimliğin kasa anahtarıyla
+HMAC bağı aynı başlangıç işlemi içinde doğrulanır. Yeni modülde 28, eski
+migration ile 31 test geçti; bozuk mevcut kimlik otomatik üretilmez.
+[Sözleşme ve kanıt](core-context-implementation-2026-09-05.md).
+Bu dilim merkezi HA/medya adaptörlerini, Client önbelleğini veya çoklu ev
+yetkisini henüz taşımaz.
+
 İlk kurulum tek `admin` hesabı oluşturur. Rastgele ilk parola yalnızca özel izinli yerel bootstrap dosyasına yazılır; sabit parola, kaynak kodda parola ve logda token bulunmaz. İlk girişte parola değişmeden kasa, eklenti veya yönetim API'si kullanılamaz. Parolalar Argon2id ile hash edilir.
 
 Access token kısa ömürlüdür; refresh token tek kullanımla döner, veritabanında yalnız hash'i tutulur. Tekrar kullanılan refresh token ilgili cihazın oturum ailesini iptal eder. Parola değişimi önceki oturumları iptal eder. Client session bilgisini Android güvenli deposunda saklar; giriş parolasını saklamaz. Giriş/çıkış veya Server adresi değişimi eski istek ve indirme sonuçlarını geçersiz kılar.
@@ -126,8 +134,9 @@ değiştirmiş yönetici gerektirir:
 `needs_attention` durumlarından biri kaydedilir. **`succeeded` inceleme
 tamamlandı demektir:** sonuçtaki kontroller ayrıca `passed`, `failed` veya
 `unknown` olabilir. Kurulum başarı durumu değildir. Platform, izinli veri kökü
-ve kapasite okunur; Docker motoru, port ve alıcı ağı kontrolleri `unknown`
-kalır. İş planı/sonucu şifrelidir; API host yollarını veya ham işçi hatalarını
+ve kapasite okunur; açık v2 işletmeci politikasıyla Docker API/platform
+uyumluluğu da okunabilir. Port ve alıcı ağı kontrolleri `unknown` kalır.
+İş planı/sonucu şifrelidir; API host yollarını veya ham işçi hatalarını
 göstermez. Bir önizleme tek işe bağlanır; kabul edilen iş önizlemenin süresi
 dolsa da geçmişte korunur. Bir etkin iş ve 16 kuyruk sınırı vardır.
 
@@ -157,7 +166,10 @@ Ayrıntılı komut/politika ve durdurma sözleşmesi
 [işçi belgesindedir](../server/larenor_server/plugins/README.md);
 [container sınırları](server-container.md) gerçek dağıtım kabulünden ayrıdır.
 
-Mevcut worker Docker işlemi yapmaz; API süreci ham Docker socket erişimi almaz.
+Mevcut worker Docker'da değişiklik yapmaz; API süreci ham Docker socket erişimi
+almaz. V1 politikası Docker'a bağlanmaz; v2'de açık `docker` nesnesi yalnız
+worker'ın sabit `GET /version` kontrolüne izin verir. `docker: null` kontrolü
+kapalı tutar. API 1.47/platform uyumu, kurulum veya alıcı kabulü değildir.
 Sonraki kurulum dilimi yalnız doğrulanmış katalog, özel kontrol ağı, yönetilen
 veri ve kayıtlı onay üzerinden çalışacak; yarım kurulum, sağlık sonucu ve
 otomatik API eşleştirmesi ayrıca uygulanıp test edilecek. Client'tan serbest

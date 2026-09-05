@@ -66,6 +66,14 @@ vault reads/writes. Roles are `admin` and `member`; the first password change is
 mandatory before protected application APIs can be used. Refresh tokens rotate
 once and are stored as hashes; password changes revoke prior sessions.
 
+`GET /api/v1/context` returns `{schemaVersion: 1, coreId, homeId}` to a ready
+authenticated user. These opaque IDs survive restart and belong to the one
+current Core/home; this is not multi-home administration. Main database schema
+3 adds the identity atomically after validating the existing vault key. Missing
+or corrupt current identity fails startup rather than generating replacements;
+legacy schema 1/2 upgrades preserve accounts and vaults. See the
+[context implementation and migration tests](../docs/core-context-implementation-2026-09-05.md).
+
 `GET /api/v1/openapi.json` returns the actual typed OpenAPI contract to an
 authenticated administrator who has changed the initial password. Supply an
 access token in the `Authorization: Bearer …` header, never in a URL. Import
@@ -125,8 +133,9 @@ user installation or URL/token setup flow.
 
 A job state of `succeeded` means **inspection completed**. Individual checks may
 still be `failed` or `unknown`. The current worker observes platform and approved
-storage roots/capacity; Docker, port availability and receiver networking remain
-`unknown`. It never pulls an image, creates component storage, starts a service,
+storage roots/capacity. An explicit version-2 operator policy can also check
+Docker API/platform compatibility. Port availability and receiver networking
+remain `unknown`. It never pulls an image, creates component storage, starts a service,
 changes host configuration or enables installation. Every catalog plan remains
 `installable: false`, and job capabilities always report `installAvailable: false`.
 
@@ -144,7 +153,9 @@ The default Server has no configured preflight worker. History remains available
 creating a job returns `plugin_worker_unavailable`. The same Server package ships
 `larenor-preflight-worker`, an internal operator/runtime entry point for Linux
 AMD64/ARM64. It uses a private Unix socket and real Linux peer credentials, with
-no TCP listener, Docker socket or shared Client token. It is not another product
+no TCP listener or shared Client token. Only the worker may receive an explicitly
+configured Docker socket for its fixed read-only version check; the API does not
+receive that socket. It is not another product
 or an end-user application to configure separately.
 
 The future unified installer must supply its private policy, approved root IDs
