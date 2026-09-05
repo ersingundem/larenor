@@ -78,8 +78,9 @@ class _Storage extends MemoryBackupStorage {
   Future<void> Function(String)? afterWrite;
   @override
   Future<String?> readSecret(String key) async {
-    if (failedMarkers.contains(key))
+    if (failedMarkers.contains(key)) {
       throw StateError('synthetic private payload');
+    }
     final value = await super.readSecret(key);
     await afterRead?.call(key);
     return value;
@@ -248,8 +249,11 @@ void main() {
         final storage = _Storage(secrets: _old('sonarr'));
         storage.afterRead = (key) async {
           if (key ==
-              (operation == 'preview' ? 'dashboard_layout' : 'sonarr_api_key'))
+              (operation == 'preview'
+                  ? 'dashboard_layout'
+                  : 'sonarr_api_key')) {
             storage.secrets[marker] = '1';
+          }
         };
         final repository = BackupRepository(storage: storage);
         await expectLater(switch (operation) {
