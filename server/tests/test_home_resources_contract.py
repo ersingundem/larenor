@@ -19,7 +19,7 @@ from larenor_server.files import private_create
 FIXTURE = Path(__file__).resolve().parents[2] / 'contracts/home-resources.v1.json'
 
 
-def actual_journey(root, *, core_id='a' * 32, home_id='b' * 32):
+def actual_journey(root, *, core_id='a' * 32, home_id='b' * 32, label_prefix=''):
     """Only generated identities and a synthetic test key are deterministic.
 
     Auth, password change, encryption, ACL, pagination and snapshot generation
@@ -53,9 +53,9 @@ def actual_journey(root, *, core_id='a' * 32, home_id='b' * 32):
         record_ids = iter(str(i) * 32 for i in range(1, 5))
         with patch('larenor_server.home_resources.service.uuid',
                    SimpleNamespace(uuid4=lambda: UUID(hex=next(record_ids)))):
-            for kind, label, order in [('room', 'Salon', 1),
-                                       ('room', 'Mutfak', 0),
-                                       ('resource', 'Okuma lambası', 2),
+            for kind, label, order in [('room', label_prefix + 'Salon', 1),
+                                       ('room', label_prefix + 'Mutfak', 0),
+                                       ('resource', label_prefix + 'Okuma lambası', 2),
                                        ('resource', '🌿' * 80, 10000)]:
                 records.append(create(client, admin, base,
                                       kind=kind, label=label, order=order))
@@ -83,7 +83,8 @@ def actual_journey(root, *, core_id='a' * 32, home_id='b' * 32):
 def actual_contract(root):
     result = actual_journey(root / 'first')
     result['otherContextList'] = actual_journey(
-        root / 'other', core_id='c' * 32, home_id='d' * 32)['memberList']
+        root / 'other', core_id='c' * 32, home_id='d' * 32,
+        label_prefix='İkinci ev · ')['memberList']
     return result
 
 
@@ -109,3 +110,11 @@ def test_shared_contract_preserves_visible_acl_and_pagination():
     assert fixture['otherContextList']['scope'] != first['scope']
     assert len(fixture['unicodeRecord']['record']['label']) == 80
 
+
+def test_other_core_labels_make_wrong_scope_rendering_observable():
+    fixture = json.loads(FIXTURE.read_text())
+    original = fixture['memberList']['entries']
+    other = fixture['otherContextList']['entries']
+    # Identical resource IDs are intentional: Core/home is part of identity.
+    assert [r['ref']['id'] for r in original] == [r['ref']['id'] for r in other]
+    assert {r['label'] for r in original}.isdisjoint(r['label'] for r in other)
