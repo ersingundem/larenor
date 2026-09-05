@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
+import 'package:larenor/shared/widgets/app_navigation_bar.dart';
 import 'package:larenor/features/auth/presentation/connect_screen.dart';
 import 'package:larenor/features/backup/data/backup_codec.dart';
 import 'package:larenor/features/backup/presentation/backup_screen.dart';
@@ -54,7 +55,7 @@ void main() {
         await tapVisible(
           tester,
           find.descendant(
-            of: find.byType(CupertinoTabBar),
+            of: find.byType(AppNavigationBar),
             matching: find.text('Routines'),
           ),
         );
@@ -74,7 +75,7 @@ void main() {
         await tapVisible(
           tester,
           find.descendant(
-            of: find.byType(CupertinoTabBar),
+            of: find.byType(AppNavigationBar),
             matching: find.text('System'),
           ),
         );
@@ -83,14 +84,14 @@ void main() {
         await tapVisible(
           tester,
           find.descendant(
-            of: find.byType(CupertinoTabBar),
+            of: find.byType(AppNavigationBar),
             matching: find.text('Media'),
           ),
         );
         await tapVisible(
           tester,
           find.descendant(
-            of: find.byType(CupertinoTabBar),
+            of: find.byType(AppNavigationBar),
             matching: find.text('Home'),
           ),
         );

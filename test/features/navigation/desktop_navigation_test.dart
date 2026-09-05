@@ -1,6 +1,7 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:larenor/shared/widgets/app_navigation_bar.dart';
 import 'package:larenor/core/router.dart';
 import 'package:larenor/features/navigation/search/presentation/local_search_screen.dart';
 
@@ -96,7 +97,7 @@ void main() {
       final container = await openApp(tester);
       final router = container.read(routerProvider);
       var sends = 0;
-      final context = tester.element(find.byType(CupertinoTabBar));
+      final context = tester.element(find.byType(AppNavigationBar));
       final pending = showCupertinoDialog<void>(
         context: context,
         builder: (dialogContext) => CupertinoAlertDialog(

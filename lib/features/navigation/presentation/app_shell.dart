@@ -6,6 +6,7 @@ import '../../../l10n/generated/app_localizations.dart';
 import '../../../shared/theme/app_colors.dart';
 import '../../../shared/theme/typography.dart';
 import '../../../shared/widgets/larenor_brand.dart';
+import '../../../shared/widgets/app_navigation_bar.dart';
 import '../../auth/presentation/connect_screen.dart';
 import '../../auth/providers/auth_providers.dart';
 import '../../client_updates/presentation/client_update_notice.dart';
@@ -168,12 +169,9 @@ class AppShell extends ConsumerWidget {
                     ),
                     Expanded(child: navigationShell),
                     if (!wide)
-                      CupertinoTabBar(
+                      AppNavigationBar(
                         currentIndex: navigationShell.currentIndex,
                         onTap: select,
-                        backgroundColor: AppColors.navigation.resolveFrom(
-                          context,
-                        ),
                         items: [
                           for (final root in roots)
                             BottomNavigationBarItem(
