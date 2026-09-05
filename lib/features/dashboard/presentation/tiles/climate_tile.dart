@@ -227,7 +227,7 @@ class _RadialDialState extends State<_RadialDial> {
 
   void _adjust(int direction) {
     if (!mounted || widget.onCommitted == null) return;
-    final selected = _snap(widget.value + widget.step * direction);
+    final selected = _snap(_value + widget.step * direction);
     if ((selected - widget.value).abs() > 0.0001) widget.onCommitted!(selected);
   }
 
