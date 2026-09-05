@@ -8,6 +8,8 @@ import 'package:larenor/features/dashboard/data/dashboard_repository.dart';
 import 'package:larenor/features/dashboard/domain/dashboard_layout.dart';
 import 'package:larenor/features/dashboard/domain/dashboard_room.dart';
 import 'package:larenor/features/dashboard/domain/ha_area_binding.dart';
+import 'package:larenor/features/dashboard/domain/tile_config.dart';
+import 'package:larenor/features/web_panel/domain/web_panel_options.dart';
 import 'package:larenor/features/home_scope/data/legacy_layout_controller.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -181,5 +183,85 @@ void main() {
       (await SharedPreferences.getInstance()).get(scope.storageKey),
       isNull,
     );
+  });
+
+  test('web addresses, origins, scenes and service cards never enter passive destination', () async {
+    final source = legacy.copyWith(
+      tiles: [
+        TileConfig(
+          id: 'private-web',
+          type: TileType.webview,
+          x: 0,
+          y: 0,
+          width: 1,
+          height: 1,
+          url: 'https://private.example/panel?token=synthetic-secret',
+          webPanel: WebPanelOptions(
+            additionalOrigins: ['https://second.private.example'],
+          ),
+        ),
+        const TileConfig(
+          id: 'private-scene',
+          type: TileType.scene,
+          x: 1,
+          y: 0,
+          width: 1,
+          height: 1,
+          entityId: 'scene.private',
+        ),
+        const TileConfig(
+          id: 'private-service',
+          type: TileType.jellyfin,
+          x: 2,
+          y: 0,
+          width: 1,
+          height: 1,
+        ),
+      ],
+    );
+    await DashboardRepository().save(source);
+    final c = controller();
+    final preview = await c.preview();
+    expect(preview.excludedCards, 3);
+    await c.apply(preview, {1});
+    final raw = (await SharedPreferences.getInstance()).getString(
+      scope.storageKey,
+    )!;
+    for (final forbidden in [
+      'private.example',
+      'synthetic-secret',
+      'private-scene',
+      'jellyfin',
+      'scene.private',
+      'areaId',
+      'old-two',
+    ]) {
+      expect(raw, isNot(contains(forbidden)));
+    }
+    expect((await destination.load()).rooms.single.name, 'Living room');
+    expect(await DashboardRepository().load(), source);
+  });
+  test('target room cap is checked without partial append', () async {
+    await destination.save(
+      DashboardLayout(
+        rooms: [
+          for (var i = 0; i < 500; i++)
+            DashboardRoom(id: 'existing-$i', name: 'Room $i'),
+        ],
+      ),
+    );
+    final c = controller();
+    final preview = await c.preview();
+    await expectLater(
+      c.apply(preview, {0}),
+      throwsA(
+        isA<DashboardStorageException>().having(
+          (e) => e.code,
+          'code',
+          'room_limit',
+        ),
+      ),
+    );
+    expect((await destination.readSnapshot()).revision, 1);
   });
 }

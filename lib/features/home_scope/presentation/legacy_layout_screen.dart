@@ -93,8 +93,9 @@ class _LegacyLayoutScreenState extends MediaSessionState<LegacyLayoutScreen> {
 
   Future<void> _load() async {
     final generation = sessionGeneration;
-    if (_busy || !sessionCurrent(generation) || !_visible || _dialog != null)
+    if (_busy || !sessionCurrent(generation) || !_visible || _dialog != null) {
       return;
+    }
     _invalidate();
     final access = homeLayoutAccess(
       _home,
@@ -107,7 +108,10 @@ class _LegacyLayoutScreenState extends MediaSessionState<LegacyLayoutScreen> {
     _access = access;
     final operation = _operation;
     final destination = ref.read(dashboardRepositoryProvider);
-    if (destination.scope != access.scope) { setState(_invalidate); return; }
+    if (destination.scope != access.scope) {
+      setState(_invalidate);
+      return;
+    }
     final controller = LegacyLayoutController(
       destination: destination,
       isCurrent: () => _current(generation, operation),
@@ -133,8 +137,9 @@ class _LegacyLayoutScreenState extends MediaSessionState<LegacyLayoutScreen> {
         if (mounted && _operation == operation) setState(_invalidate);
       });
     } catch (error) {
-      if (_current(generation, operation))
+      if (_current(generation, operation)) {
         setState(() => _failure = _code(error));
+      }
     } finally {
       if (mounted && _operation == operation) setState(() => _busy = false);
     }
@@ -148,8 +153,9 @@ class _LegacyLayoutScreenState extends MediaSessionState<LegacyLayoutScreen> {
         _dialog != null ||
         preview == null ||
         controller == null ||
-        _selected.isEmpty)
+        _selected.isEmpty) {
       return;
+    }
     final selected = Set<int>.of(_selected);
     final l10n = AppLocalizations.of(context);
     late final CupertinoDialogRoute<bool> route;
@@ -161,16 +167,22 @@ class _LegacyLayoutScreenState extends MediaSessionState<LegacyLayoutScreen> {
         actions: [
           CupertinoDialogAction(
             onPressed: () {
-              if (identical(_dialog, route) && route.isCurrent && _current(generation, operation))
+              if (identical(_dialog, route) &&
+                  route.isCurrent &&
+                  _current(generation, operation)) {
                 Navigator.of(dialogContext).pop(false);
+              }
             },
             child: Text(l10n.commonCancel),
           ),
           CupertinoDialogAction(
             key: const ValueKey('home-layout-confirm-copy'),
             onPressed: () {
-              if (identical(_dialog, route) && route.isCurrent && _current(generation, operation))
+              if (identical(_dialog, route) &&
+                  route.isCurrent &&
+                  _current(generation, operation)) {
                 Navigator.of(dialogContext).pop(true);
+              }
             },
             child: Text(l10n.homeLayoutCopySelected),
           ),
@@ -187,20 +199,22 @@ class _LegacyLayoutScreenState extends MediaSessionState<LegacyLayoutScreen> {
     });
     try {
       await controller.apply(preview, selected);
-      if (_current(generation, operation))
+      if (_current(generation, operation)) {
         setState(() {
           _copied = true;
           _preview = null;
           _selected.clear();
           _expiry?.cancel();
         });
+      }
     } catch (error) {
-      if (_current(generation, operation))
+      if (_current(generation, operation)) {
         setState(() {
           _failure = _code(error);
           _preview = null;
           _selected.clear();
         });
+      }
     } finally {
       if (mounted && _operation == operation) setState(() => _busy = false);
     }
@@ -325,11 +339,14 @@ class _LegacyLayoutScreenState extends MediaSessionState<LegacyLayoutScreen> {
                           onTap: !current || _busy
                               ? null
                               : () {
-                                  if (_current(generation, operation) && !_busy)
+                                  if (_current(generation, operation) &&
+                                      !_busy) {
                                     setState(() {
-                                      if (!_selected.remove(i))
+                                      if (!_selected.remove(i)) {
                                         _selected.add(i);
+                                      }
                                     });
+                                  }
                                 },
                         ),
                     ],
@@ -357,8 +374,9 @@ class _LegacyLayoutScreenState extends MediaSessionState<LegacyLayoutScreen> {
                           ? () {
                               if (sessionCurrent(generation) &&
                                   _operation == operation &&
-                                  _visible)
+                                  _visible) {
                                 _load();
+                              }
                             }
                           : null,
                     ),

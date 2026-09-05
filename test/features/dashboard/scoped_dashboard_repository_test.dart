@@ -128,7 +128,7 @@ void main() {
       final before = await repo.readSnapshot();
       await repo.save(local);
       await expectLater(
-        repo.save(const DashboardLayout(), expected: before),
+        repo.saveIfUnchanged(const DashboardLayout(), expected: before),
         throwsA(isA<DashboardStorageException>()),
       );
       expect(await repo.load(), local);

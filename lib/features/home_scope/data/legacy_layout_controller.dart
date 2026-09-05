@@ -13,8 +13,9 @@ class LegacyLayoutController {
   }) : _destination = destination,
        _current = isCurrent,
        _clock = clock ?? DateTime.now {
-    if (destination.scope == null)
+    if (destination.scope == null) {
       throw const DashboardStorageException('expired');
+    }
   }
   static const lifetime = Duration(minutes: 5);
   final DashboardRepository _destination;
@@ -112,7 +113,7 @@ class LegacyLayoutController {
               DashboardRoom(id: newId(), name: preview.roomNames[i]),
         ],
       );
-      await _destination.save(
+      await _destination.saveIfUnchanged(
         next,
         expected: preview._target,
         isCurrent: () => _valid(preview),

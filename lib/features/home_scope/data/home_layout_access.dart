@@ -18,8 +18,9 @@ HomeLayoutAccess? homeLayoutAccess(
       home.source != HomeSource.verifiedCore ||
       home.busy ||
       home.failure != null ||
-      !home.interaction.active)
+      !home.interaction.active) {
     return null;
+  }
   final account = home.account;
   final session = account.session;
   final context = session?.context;
@@ -31,8 +32,9 @@ HomeLayoutAccess? homeLayoutAccess(
       context == null ||
       session.authMutationPending ||
       session.user.mustChangePassword ||
-      session.expiresSoon(now()))
+      session.expiresSoon(now())) {
     return null;
+  }
   return HomeLayoutAccess._(
     home,
     session,

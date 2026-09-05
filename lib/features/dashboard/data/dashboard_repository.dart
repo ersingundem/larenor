@@ -78,13 +78,14 @@ class DashboardRepository {
   });
 
   DashboardSnapshot _decode(Object? raw) {
-    if (raw == null)
+    if (raw == null) {
       return DashboardSnapshot._(
         scope,
         0,
         const DashboardLayout(),
         _digest('missing'),
       );
+    }
     if (raw is! String ||
         utf8.encode(raw).length >
             (scope == null ? maxDashboardLayoutBytes : _maxRecordBytes)) {
@@ -105,11 +106,13 @@ class DashboardRepository {
             }) ||
             decoded['version'] is! int ||
             decoded['version'] != 1 ||
-            HomeDataScope.fromJson(decoded['scope']) != scope)
+            HomeDataScope.fromJson(decoded['scope']) != scope) {
           throw const FormatException();
+        }
         final rev = decoded['revision'];
-        if (rev is! int || rev < 1 || rev > _maxRevision)
+        if (rev is! int || rev < 1 || rev > _maxRevision) {
           throw const FormatException();
+        }
         revision = rev;
         value = decoded['layout'];
       }
@@ -131,7 +134,16 @@ class DashboardRepository {
     throw const DashboardStorageException('invalid_record');
   }
 
-  Future<void> save(
+  Future<void> save(DashboardLayout layout, {bool Function()? isCurrent}) =>
+      _save(layout, isCurrent: isCurrent);
+
+  Future<void> saveIfUnchanged(
+    DashboardLayout layout, {
+    required DashboardSnapshot expected,
+    bool Function()? isCurrent,
+  }) => _save(layout, expected: expected, isCurrent: isCurrent);
+
+  Future<void> _save(
     DashboardLayout layout, {
     bool Function()? isCurrent,
     DashboardSnapshot? expected,
@@ -150,8 +162,9 @@ class DashboardRepository {
                 expected.fingerprint != current.fingerprint)) {
           throw const DashboardStorageException('changed');
         }
-        if (current.revision >= _maxRevision)
+        if (current.revision >= _maxRevision) {
           throw const DashboardStorageException('invalid_record');
+        }
         final record = scope == null
             ? encoded
             : jsonEncode({
@@ -160,11 +173,14 @@ class DashboardRepository {
                 'revision': current.revision + 1,
                 'layout': jsonDecode(encoded),
               });
-        if (utf8.encode(record).length > _maxRecordBytes)
+        if (utf8.encode(record).length > _maxRecordBytes) {
           throw const DashboardStorageException('invalid_record');
+        }
         _check(isCurrent);
         if (!await prefs.setString(_key, record)) {
-          if (scope == null && _current == null) throw StateError('Dashboard save failed');
+          if (scope == null && _current == null) {
+            throw StateError('Dashboard save failed');
+          }
           throw const DashboardStorageException('write_failed');
         }
         _check(isCurrent);

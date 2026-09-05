@@ -16,8 +16,9 @@ final class HomeDataScope {
     String identity(Object? input) {
       if (input is! String ||
           input.length != 32 ||
-          !RegExp(r'^[a-f0-9]{32}$').hasMatch(input))
+          !RegExp(r'^[a-f0-9]{32}$').hasMatch(input)) {
         throw invalid;
+      }
       return input;
     }
 
@@ -25,8 +26,9 @@ final class HomeDataScope {
     if (user is! String ||
         user.isEmpty ||
         user.length > 128 ||
-        user.contains(RegExp(r'[\x00-\x1f\x7f]')))
+        user.contains(RegExp(r'[\x00-\x1f\x7f]'))) {
       throw invalid;
+    }
     return HomeDataScope._(
       identity(value['coreId']),
       identity(value['homeId']),
