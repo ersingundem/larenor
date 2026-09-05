@@ -26,7 +26,7 @@ class Backend:
             return self.action(plan)
         return PreflightResult.model_validate({
             "catalogDigest": plan.catalogDigest, "planHash": plan.planHash,
-            "platform": plan.platform, "checkedAt": "2026-09-05T12:00:00.000Z",
+            "platform": plan.image.platform, "checkedAt": "2026-09-05T12:00:00.000Z",
             "checks": [{"code": "docker_engine", "status": "failed"}],
         })
 
@@ -271,7 +271,10 @@ def test_tampered_jobs_fail_closed_without_worker_call_or_reset(server, jobs, fi
     expect_error("plugin_job_storage_unavailable", lambda: manager.get(actor, job["id"]))
     with pytest.raises(StartupError, match="invalid_plugin_jobs_storage"):
         manager.validate_storage()
-    expect_error("plugin_job_storage_unavailable", manager.tick)
+    if field == "state":
+        assert manager.tick() is None  # A forged terminal row cannot dispatch.
+    else:
+        expect_error("plugin_job_storage_unavailable", manager.tick)
     assert backend.calls == []
 
 
@@ -298,4 +301,68 @@ def test_schema_is_additive_and_unknown_or_partial_state_is_rejected(server, job
         assert connection.execute("SELECT COUNT(*) FROM users").fetchone()[0] == 1
         connection.execute("UPDATE metadata SET value='9' WHERE key='plugin_jobs_schema'")
     with manager.db.transaction() as connection, pytest.raises(StartupError, match="plugin_jobs_schema_unsupported"):
+        migrate_plugin_jobs(connection)
+
+
+def test_restart_resumes_interrupted_read_only_inspection_after_reauth(server, jobs):
+    manager, backend, actor, _ = jobs
+    job = create(server, jobs)
+    def interrupted(_plan):
+        raise SystemExit("synthetic interrupted process")
+    backend.action = interrupted
+    with pytest.raises(SystemExit):
+        manager.tick()
+    assert manager.get(actor, job["id"])["job"]["state"] == "running"
+    backend.action = None
+    restarted = JobManagement(manager.db, manager.auth, manager.settings, server[2].key_file.read_bytes(), manager.previews, backend)
+    assert restarted.tick()["job"]["state"] == "succeeded"
+    assert len(backend.calls) == 2
+    assert [row["code"] for row in manager.events(actor, job["id"])["events"]] == ["job_queued", "job_started", "job_resumed", "job_completed"]
+
+
+def test_event_payload_is_authenticated_and_retention_is_bounded(server, jobs, monkeypatch):
+    import larenor_server.plugins.jobs as module
+    manager, _, actor, _ = jobs
+    monkeypatch.setattr(module, "MAX_EVENTS", 3)
+    first = create(server, jobs)
+    manager.tick()
+    second = create(server, jobs, request_id="b" * 32)
+    manager.tick()
+    assert manager.events(actor, first["id"])["events"] == []
+    assert len(manager.events(actor, second["id"])["events"]) == 3
+    with manager.db.connection() as connection:
+        connection.execute("UPDATE plugin_job_events SET code='job_cancelled' WHERE sequence=(SELECT MAX(sequence) FROM plugin_job_events)")
+    expect_error("plugin_job_storage_unavailable", lambda: manager.events(actor, second["id"]))
+    with pytest.raises(StartupError, match="invalid_plugin_jobs_storage"):
+        manager.validate_storage()
+
+
+def test_session_history_retention_does_not_remove_job_or_block_login(server, jobs):
+    manager, backend, actor, pair = jobs
+    job = create(server, jobs)
+    with manager.db.transaction() as connection:
+        for index in range(31):
+            connection.execute("INSERT INTO session_families VALUES(?,?,?,?,?,NULL)",
+                               (f"{index+1:032x}", actor.id, "Fixture tablet", server[3].now + index + 1, server[3].now + 10000))
+    new_pair = login(server[1], "admin", "Synthetic new password 2026", "New tablet").json()
+    current = manager.auth.authenticate(new_pair["accessToken"])
+    assert manager.get(current, job["id"])["job"] == job
+    assert manager.tick()["job"]["errorCode"] == "authority_changed"
+    assert backend.calls == []
+
+
+@pytest.mark.parametrize("method,args", [("list", {"before": 0}), ("list", {"limit": True}),
+                                          ("list", {"limit": 101}), ("events", {"after": -1}),
+                                          ("events", {"after": None}), ("events", {"after": True})])
+def test_internal_paging_is_strict(server, jobs, method, args):
+    manager, _, actor, _ = jobs
+    job = create(server, jobs)
+    target = lambda: getattr(manager, method)(actor, *([job["id"]] if method == "events" else []), **args)
+    expect_error("invalid_request", target)
+
+
+def test_schema_rejects_partial_tables(server, jobs):
+    with jobs[0].db.transaction() as connection:
+        connection.execute("DROP TABLE plugin_job_events")
+    with jobs[0].db.transaction() as connection, pytest.raises(StartupError, match="plugin_jobs_schema_unsupported"):
         migrate_plugin_jobs(connection)
