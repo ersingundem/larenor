@@ -1,0 +1,291 @@
+{
+  "capabilities": {
+    "inspectionConfigured": true,
+    "installAvailable": false
+  },
+  "createRequest": {
+    "requestId": "dddddddddddddddddddddddddddddddd",
+    "preparationId": "cccccccccccccccccccccccccccccccc",
+    "expectedRevision": 1,
+    "planHash": "2bef1181959bec44b39970d3d216aeee685f8dfb30c75b2977a0009c982f7dc3"
+  },
+  "queued": {
+    "id": "11111111111111111111111111111111",
+    "requestId": "dddddddddddddddddddddddddddddddd",
+    "preparationId": "cccccccccccccccccccccccccccccccc",
+    "preparationRevision": 1,
+    "coreId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "homeId": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "catalogDigest": "2f5d16e764d4b6dab968986a4723fd47996e832e4670d9f68c6a2b7807a11749",
+    "planHash": "2bef1181959bec44b39970d3d216aeee685f8dfb30c75b2977a0009c982f7dc3",
+    "platform": "linux/amd64",
+    "revision": 1,
+    "state": "queued",
+    "phase": "queued",
+    "cancelRequested": false,
+    "createdAt": "2026-09-05T12:00:00.000Z",
+    "updatedAt": "2026-09-05T12:00:00.000Z",
+    "result": null,
+    "errorCode": null
+  },
+  "succeeded": {
+    "id": "11111111111111111111111111111111",
+    "requestId": "dddddddddddddddddddddddddddddddd",
+    "preparationId": "cccccccccccccccccccccccccccccccc",
+    "preparationRevision": 1,
+    "coreId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "homeId": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "catalogDigest": "2f5d16e764d4b6dab968986a4723fd47996e832e4670d9f68c6a2b7807a11749",
+    "planHash": "2bef1181959bec44b39970d3d216aeee685f8dfb30c75b2977a0009c982f7dc3",
+    "platform": "linux/amd64",
+    "revision": 3,
+    "state": "succeeded",
+    "phase": "complete",
+    "cancelRequested": false,
+    "createdAt": "2026-09-05T12:00:00.000Z",
+    "updatedAt": "2026-09-05T12:00:00.000Z",
+    "result": {
+      "catalogDigest": "2f5d16e764d4b6dab968986a4723fd47996e832e4670d9f68c6a2b7807a11749",
+      "planHash": "2bef1181959bec44b39970d3d216aeee685f8dfb30c75b2977a0009c982f7dc3",
+      "platform": "linux/amd64",
+      "checkedAt": "2026-09-05T12:00:00.000Z",
+      "checks": [
+        {
+          "code": "platform",
+          "status": "passed",
+          "rootId": null,
+          "availableMiB": null,
+          "requiredMiB": null
+        },
+        {
+          "code": "storage_root",
+          "status": "passed",
+          "rootId": "appdata",
+          "availableMiB": null,
+          "requiredMiB": null
+        },
+        {
+          "code": "storage_root",
+          "status": "passed",
+          "rootId": "library",
+          "availableMiB": null,
+          "requiredMiB": null
+        },
+        {
+          "code": "storage_capacity",
+          "status": "failed",
+          "rootId": "appdata",
+          "availableMiB": 16384,
+          "requiredMiB": 49152
+        },
+        {
+          "code": "docker_engine",
+          "status": "unknown",
+          "rootId": null,
+          "availableMiB": null,
+          "requiredMiB": null
+        },
+        {
+          "code": "daemon_mount_context",
+          "status": "unknown",
+          "rootId": null,
+          "availableMiB": null,
+          "requiredMiB": null
+        },
+        {
+          "code": "daemon_network_context",
+          "status": "unknown",
+          "rootId": null,
+          "availableMiB": null,
+          "requiredMiB": null
+        },
+        {
+          "code": "daemon_root_context",
+          "status": "unknown",
+          "rootId": null,
+          "availableMiB": null,
+          "requiredMiB": null
+        },
+        {
+          "code": "port_availability",
+          "status": "unknown",
+          "rootId": null,
+          "availableMiB": null,
+          "requiredMiB": null
+        },
+        {
+          "code": "receiver_network",
+          "status": "unknown",
+          "rootId": null,
+          "availableMiB": null,
+          "requiredMiB": null
+        }
+      ]
+    },
+    "errorCode": null
+  },
+  "cancelCreateRequest": {
+    "requestId": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+    "preparationId": "cccccccccccccccccccccccccccccccc",
+    "expectedRevision": 1,
+    "planHash": "2bef1181959bec44b39970d3d216aeee685f8dfb30c75b2977a0009c982f7dc3"
+  },
+  "queuedForCancel": {
+    "id": "22222222222222222222222222222222",
+    "requestId": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+    "preparationId": "cccccccccccccccccccccccccccccccc",
+    "preparationRevision": 1,
+    "coreId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "homeId": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "catalogDigest": "2f5d16e764d4b6dab968986a4723fd47996e832e4670d9f68c6a2b7807a11749",
+    "planHash": "2bef1181959bec44b39970d3d216aeee685f8dfb30c75b2977a0009c982f7dc3",
+    "platform": "linux/amd64",
+    "revision": 1,
+    "state": "queued",
+    "phase": "queued",
+    "cancelRequested": false,
+    "createdAt": "2026-09-05T12:00:00.000Z",
+    "updatedAt": "2026-09-05T12:00:00.000Z",
+    "result": null,
+    "errorCode": null
+  },
+  "cancelled": {
+    "id": "22222222222222222222222222222222",
+    "requestId": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+    "preparationId": "cccccccccccccccccccccccccccccccc",
+    "preparationRevision": 1,
+    "coreId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "homeId": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "catalogDigest": "2f5d16e764d4b6dab968986a4723fd47996e832e4670d9f68c6a2b7807a11749",
+    "planHash": "2bef1181959bec44b39970d3d216aeee685f8dfb30c75b2977a0009c982f7dc3",
+    "platform": "linux/amd64",
+    "revision": 2,
+    "state": "cancelled",
+    "phase": "complete",
+    "cancelRequested": true,
+    "createdAt": "2026-09-05T12:00:00.000Z",
+    "updatedAt": "2026-09-05T12:00:00.000Z",
+    "result": null,
+    "errorCode": null
+  },
+  "history": {
+    "inspections": [
+      {
+        "id": "22222222222222222222222222222222",
+        "requestId": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        "preparationId": "cccccccccccccccccccccccccccccccc",
+        "preparationRevision": 1,
+        "coreId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "homeId": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "catalogDigest": "2f5d16e764d4b6dab968986a4723fd47996e832e4670d9f68c6a2b7807a11749",
+        "planHash": "2bef1181959bec44b39970d3d216aeee685f8dfb30c75b2977a0009c982f7dc3",
+        "platform": "linux/amd64",
+        "revision": 2,
+        "state": "cancelled",
+        "phase": "complete",
+        "cancelRequested": true,
+        "createdAt": "2026-09-05T12:00:00.000Z",
+        "updatedAt": "2026-09-05T12:00:00.000Z",
+        "result": null,
+        "errorCode": null
+      },
+      {
+        "id": "11111111111111111111111111111111",
+        "requestId": "dddddddddddddddddddddddddddddddd",
+        "preparationId": "cccccccccccccccccccccccccccccccc",
+        "preparationRevision": 1,
+        "coreId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "homeId": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "catalogDigest": "2f5d16e764d4b6dab968986a4723fd47996e832e4670d9f68c6a2b7807a11749",
+        "planHash": "2bef1181959bec44b39970d3d216aeee685f8dfb30c75b2977a0009c982f7dc3",
+        "platform": "linux/amd64",
+        "revision": 3,
+        "state": "succeeded",
+        "phase": "complete",
+        "cancelRequested": false,
+        "createdAt": "2026-09-05T12:00:00.000Z",
+        "updatedAt": "2026-09-05T12:00:00.000Z",
+        "result": {
+          "catalogDigest": "2f5d16e764d4b6dab968986a4723fd47996e832e4670d9f68c6a2b7807a11749",
+          "planHash": "2bef1181959bec44b39970d3d216aeee685f8dfb30c75b2977a0009c982f7dc3",
+          "platform": "linux/amd64",
+          "checkedAt": "2026-09-05T12:00:00.000Z",
+          "checks": [
+            {
+              "code": "platform",
+              "status": "passed",
+              "rootId": null,
+              "availableMiB": null,
+              "requiredMiB": null
+            },
+            {
+              "code": "storage_root",
+              "status": "passed",
+              "rootId": "appdata",
+              "availableMiB": null,
+              "requiredMiB": null
+            },
+            {
+              "code": "storage_root",
+              "status": "passed",
+              "rootId": "library",
+              "availableMiB": null,
+              "requiredMiB": null
+            },
+            {
+              "code": "storage_capacity",
+              "status": "failed",
+              "rootId": "appdata",
+              "availableMiB": 16384,
+              "requiredMiB": 49152
+            },
+            {
+              "code": "docker_engine",
+              "status": "unknown",
+              "rootId": null,
+              "availableMiB": null,
+              "requiredMiB": null
+            },
+            {
+              "code": "daemon_mount_context",
+              "status": "unknown",
+              "rootId": null,
+              "availableMiB": null,
+              "requiredMiB": null
+            },
+            {
+              "code": "daemon_network_context",
+              "status": "unknown",
+              "rootId": null,
+              "availableMiB": null,
+              "requiredMiB": null
+            },
+            {
+              "code": "daemon_root_context",
+              "status": "unknown",
+              "rootId": null,
+              "availableMiB": null,
+              "requiredMiB": null
+            },
+            {
+              "code": "port_availability",
+              "status": "unknown",
+              "rootId": null,
+              "availableMiB": null,
+              "requiredMiB": null
+            },
+            {
+              "code": "receiver_network",
+              "status": "unknown",
+              "rootId": null,
+              "availableMiB": null,
+              "requiredMiB": null
+            }
+          ]
+        },
+        "errorCode": null
+      }
+    ],
+    "nextBefore": null
+  }
+}
