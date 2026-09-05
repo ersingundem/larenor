@@ -76,7 +76,7 @@ def test_exact_approved_root_retains_parents_and_borrows_only_complete_target(tr
             assert os.fstat(fd).st_ino == tree['target'].stat().st_ino
             assert os.get_inheritable(fd) is False
         assert held.mount.mount_id == 41
-        assert 'approved' not in repr(held) and 'data' not in repr(held)
+        assert '/approved/data' not in repr(held) and str(tree['anchor']) not in repr(held)
     unavailable(lambda: held.check(deadline()))
 
 
