@@ -200,10 +200,12 @@ class JournaledNetworkOperations:
                     return current
                 raise NetworkPreparationError('invalid_network_binding') from None
             intent = self._journal.begin(resource_id, receipt.revision, **source)
-            receipt = intent.receipt
-            token = self._live(receipt, source, binding, event, intent)
-            expected_body = build_network_create_body(binding, intent)
+            # Preserve our expected revision independently of the private intent
+            # handed to callbacks; frozen dataclasses can still be mutated locally.
+            receipt = ResourceReceipt(**vars(intent.receipt))
             try:
+                token = self._live(receipt, source, binding, event, intent)
+                expected_body = build_network_create_body(binding, intent)
                 state, candidate_id = self._list(receipt, source, binding, event, intent, token)
             except _Unavailable:
                 return self._uncertain(receipt)
