@@ -460,3 +460,28 @@ def test_marker_changed_after_validation_cannot_reset_the_observed_fingerprint(p
         return result
     monkeypatch.setattr(module, 'validate_appdata_marker', changed)
     assert inspect(prepared).state == 'conflict'
+
+
+def test_missing_child_of_replaced_parent_is_not_reported_as_current_tree_missing(prepared, monkeypatch):
+    namespace = prepared['root'] / 'larenor-managed-v1'
+    namespace.mkdir(mode=0o700)
+    real_open = os.open
+    changed = False
+    def replace_before_child_lookup(path, flags, *args, **kwargs):
+        nonlocal changed
+        if not changed and path == prepared['source']['stack'].coreId:
+            changed = True
+            namespace.rename(namespace.with_name('retired-namespace'))
+            # The named, current tree is complete. Only the old held parent
+            # lacks this child, so its ENOENT is not a current-path observation.
+            make_tree(prepared)
+        return real_open(path, flags, *args, **kwargs)
+    monkeypatch.setattr(os, 'open', replace_before_child_lookup)
+    assert inspect(prepared).state == 'conflict'
+    assert inspect(prepared).state == 'matched'
+    assert list(namespace.with_name('retired-namespace').iterdir()) == []
+
+
+def test_missing_child_under_unchanged_existing_parent_remains_missing(prepared):
+    (prepared['root'] / 'larenor-managed-v1').mkdir(mode=0o700)
+    assert inspect(prepared).state == 'missing'
