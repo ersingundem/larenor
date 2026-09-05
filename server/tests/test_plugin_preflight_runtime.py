@@ -180,3 +180,58 @@ def test_startup_and_bounded_shutdown_errors_are_static(configuration, monkeypat
     assert events.count('close') == 1
     assert 'private-policy-secret' not in capsys.readouterr().err
     assert all(handlers[value] == f'original-{value}' for value in (signal.SIGINT, signal.SIGTERM))
+
+
+def test_nonregular_policy_is_rejected_before_opening(configuration, monkeypatch):
+    configuration.unlink()
+    os.mkfifo(configuration, mode=0o600)
+    monkeypatch.setattr(os, 'open', lambda *args, **kwargs: pytest.fail('must not open a FIFO'))
+    assert runtime.main(arguments(configuration, '--check-config')) != 0
+
+
+def test_wrong_file_owner_is_rejected_by_private_read(configuration, monkeypatch):
+    original = os.fstat
+    def metadata(fd):
+        values = list(original(fd))
+        values[4] = os.getuid() + 1000000
+        return os.stat_result(values)
+    monkeypatch.setattr(os, 'fstat', metadata)
+    assert runtime.main(arguments(configuration, '--check-config')) != 0
+
+
+def test_signal_setup_failure_restores_handlers_without_constructing_worker(configuration, monkeypatch, capsys):
+    events, handlers = install_lifecycle(monkeypatch)
+    original = runtime.signal.signal
+    def install(number, handler):
+        if number == signal.SIGTERM and callable(handler):
+            raise ValueError('private-signal-error')
+        return original(number, handler)
+    monkeypatch.setattr(runtime.signal, 'signal', install)
+    assert runtime.main(arguments(configuration)) == 1
+    assert 'construct' not in events
+    assert handlers[signal.SIGINT] == f'original-{signal.SIGINT}'
+    assert 'private-signal-error' not in capsys.readouterr().err
+
+
+def test_failed_signal_restoration_is_reported_after_worker_close(configuration, monkeypatch):
+    events, _ = install_lifecycle(monkeypatch)
+    original = runtime.signal.signal
+    def install(number, handler):
+        if isinstance(handler, str):
+            raise OSError('private-signal-error')
+        return original(number, handler)
+    monkeypatch.setattr(runtime.signal, 'signal', install)
+    assert runtime.main(arguments(configuration)) == 1
+    assert events.count('close') == 1
+
+
+def test_module_help_entrypoint_does_not_start_runtime(monkeypatch, capsys):
+    import runpy
+    monkeypatch.setattr('sys.argv', ['larenor-preflight-worker', '--help'])
+    # The module is already imported by these tests; runpy warns before testing
+    # its real __main__ guard in another globals dictionary.
+    with pytest.warns(RuntimeWarning, match='found in sys.modules'):
+        with pytest.raises(SystemExit) as result:
+            runpy.run_module('larenor_server.plugins.preflight_runtime', run_name='__main__')
+    assert result.value.code == 0
+    assert 'larenor-preflight-worker' in capsys.readouterr().out
