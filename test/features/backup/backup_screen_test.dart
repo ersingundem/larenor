@@ -7,6 +7,7 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:larenor/core/app_interaction_scope.dart';
 import 'package:larenor/features/auth/data/ha_discovery.dart';
+import 'package:larenor/features/auth/data/credentials_store.dart';
 import 'package:larenor/features/auth/presentation/connect_screen.dart';
 import 'package:larenor/features/backup/data/backup_codec.dart';
 import 'package:larenor/features/backup/data/backup_repository.dart';
@@ -18,6 +19,8 @@ import 'package:larenor/features/settings/presentation/settings_gate_screen.dart
 import 'package:larenor/features/settings/providers/settings_providers.dart';
 import 'package:larenor/l10n/generated/app_localizations.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
+import 'backup_test_storage.dart';
 
 final _snapshot = BackupSnapshot.fromJson({
   'version': 1,
@@ -143,7 +146,7 @@ class _NoDiscovery extends HaDiscoveryService {
 
 Future<void> _mount(
   WidgetTester tester, {
-  _Repository? repository,
+  BackupRepository? repository,
   _Codec? codec,
   _Files? files,
   _Pin? pin,
@@ -151,10 +154,13 @@ Future<void> _mount(
   bool gate = false,
   bool connect = false,
   AppInteractionController? interaction,
+  Locale locale = const Locale('en'),
+  Size size = const Size(700, 1600),
+  double textScale = 1,
 }) async {
   SharedPreferences.setMockInitialValues({});
   FlutterSecureStorage.setMockInitialValues({});
-  tester.view.physicalSize = const Size(700, 1600);
+  tester.view.physicalSize = size;
   tester.view.devicePixelRatio = 1;
   addTearDown(tester.view.reset);
   await tester.pumpWidget(
@@ -172,10 +178,13 @@ Future<void> _mount(
       child: CupertinoApp(
         localizationsDelegates: AppLocalizations.localizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
-        locale: const Locale('en'),
-        builder: (_, child) => interaction == null
-            ? child!
-            : AppInteractionScope(controller: interaction, child: child!),
+        locale: locale,
+        builder: (context, child) => MediaQuery(
+          data: MediaQuery.of(context).copyWith(textScaler: TextScaler.linear(textScale)),
+          child: interaction == null
+              ? child!
+              : AppInteractionScope(controller: interaction, child: child!),
+        ),
         home: gate
             ? const SettingsGateScreen()
             : connect
@@ -218,6 +227,53 @@ void _resume(WidgetTester tester) {
 }
 
 void main() {
+  for (final language in ['en', 'tr']) {
+    for (final operation in ['export', 'preview']) {
+      testWidgets('pending HA $operation gives $language recovery guidance at tablet 2x', (tester) async {
+        const pendingKey = CredentialsStore.pendingMutationKey;
+        final storage = MemoryBackupStorage(secrets: {
+          'ha_base_url': 'https://synthetic.example.test',
+          'ha_token': 'synthetic-private-token',
+          pendingKey: '1',
+        });
+        final codec = _Codec();
+        final files = _Files();
+        await _mount(
+          tester,
+          repository: BackupRepository(storage: storage),
+          codec: codec,
+          files: files,
+          freshInstall: operation != 'export',
+          locale: Locale(language),
+          size: Size(language == 'tr' ? 600 : 1200, 1000),
+          textScale: 2,
+        );
+        if (operation == 'export') {
+          await _tap(tester, 'backup-connections');
+          await tester.enterText(find.byKey(const ValueKey('backup-passphrase')), 'correct backup phrase');
+          await tester.enterText(find.byKey(const ValueKey('backup-confirm-passphrase')), 'correct backup phrase');
+          await _tap(tester, 'backup-export');
+        } else {
+          await _importPreview(tester);
+
+        }
+        await tester.pumpAndSettle();
+        final message = find.text(language == 'en'
+            ? 'Reconnect Home Assistant, then try backing up or restoring connections again.'
+            : 'Home Assistant bağlantısını yeniden kurun, ardından bağlantıları yedeklemeyi veya geri yüklemeyi tekrar deneyin.');
+        expect(message, findsOneWidget);
+        await tester.ensureVisible(message);
+        expect(tester.getRect(message).width, lessThanOrEqualTo(language == 'tr' ? 600 : 1200));
+        expect(storage.writes, isEmpty);
+        expect(storage.secrets[pendingKey], '1');
+        expect(codec.encryptCalls, 0);
+        expect(files.savedBytes, isNull);
+        expect(find.textContaining('synthetic-private'), findsNothing);
+        expect(tester.takeException(), isNull);
+        await tester.pumpWidget(const SizedBox());
+      });
+    }
+  }
   testWidgets(
     'fresh-install idle expires decrypted preview and old confirmation performs zero restores',
     (tester) async {
