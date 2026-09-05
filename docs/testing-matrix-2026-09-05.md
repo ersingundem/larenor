@@ -17,6 +17,12 @@ yükleme başarısızsa uyarı ve iş özeti yazılır; asıl test adımının s
 ve çıktısı CI iş loglarında kalır. Test adımlarında hata görmezden gelinmez.
 İmzalı APK teslimi bu isteğe bağlı rapor yüklemesi kapsamında değildir.
 
+[GitHub saklama aracı testleri](../tool/tests/github_storage_cleanup_test.py) de
+Security işindeki mevcut `*_test.py` keşfine dahildir. Silme sınırı, en yeni üç
+debug APK, değişen/süresi dolan envanter, belirsiz DELETE sonucu, paket silme
+yasağı ve sınırlı subprocess çıktıları 20 sentetik testle kapsanır. Son tam araç
+koşumunda bu testler dahil **157 test** geçti; testler GitHub'a bağlanmaz.
+
 ## Gerçek emülatör senaryoları
 
 [app_journeys_test.dart](../integration_test/app_journeys_test.dart) `IntegrationTestWidgetsFlutterBinding` kullanır. [App harness](../integration_test/support/app_harness.dart) gerçek `LarenorApp`, router, PIN doğrulama, backup codec/repository ve `ConfigurationScope` yeniden kurulumunu çalıştırır. Metin girişi Flutter'ın resmi test keyboard kanalıyla sağlanır; gerçek Android IME sınanmaz. Widget'ların `onTap` callback'leri elle çağrılmaz; ekrana dokunma, metin girişi ve geri gezinme kullanılır.

@@ -1,6 +1,6 @@
 # Larenor — güncel ilerleme ve iş kuyruğu
 
-**Son güncelleme: 5 Eylül 2026, 14:33 (Türkiye saati).**
+**Son güncelleme: 5 Eylül 2026, 14:45 (Türkiye saati).**
 
 ```text
 Genel kapsam  █████████████░░░░░░░  ≈ %65
@@ -24,7 +24,7 @@ GitHub'a gönderilmiş işlerin **anlık CI durumu**
 Bu yerel dosya geliştirme aşamalarında güncellenir; Actions ise çalışan
 derlemelerin ve test işlerinin kendi canlı durumunu gösterir.
 
-**Yayın durumu:** Son gönderilen commit `8346c01`; S05 bağlantı yönetimi `88c26fc` içinde GitHub'da. [Güvenlik CI](https://github.com/ersingundem/larenor/actions/runs/33961874563)
+**CI tabanı ve yeni paket:** S05 bağlantı yönetimi `88c26fc` içinde GitHub'da. Sonuçları tamamlanmış önceki CI tabanı `8346c01`; yeni S06 katalog/önizleme ve emülatör hazırlığı `aa2eeb1` commit'inde. Bu paket ve depolama temizliği birlikte gönderilir; yeni koşumun sonucu [Actions](https://github.com/ersingundem/larenor/actions) üzerinden ayrıca izlenir. [Güvenlik CI](https://github.com/ersingundem/larenor/actions/runs/33961874563)
 ve [Server Container Build](https://github.com/ersingundem/larenor/actions/runs/33961874782)
 başarılı: amd64/arm64 imajları, yeniden başlatma ve gerçek APK imza testi geçti;
 ortak imaj manifesti yayımlandı. Anonim manifest indirmesi de doğrulandı: `sha256:3012dd35fdce1523c8abae26abb6b2f3e5a70c7efe592acaaa985c7de7e8fa31`.
@@ -37,8 +37,8 @@ aynı odak iddiasında başarısız oldu; Server ve güvenlik işleri geçti. Ye
 düzeltme yalnız doğrulanmış CI emülatörünü derleme sırasında uyanık tutuyor ve
 odak hatasında sınırlı ekran/güç/pencere kanıtı topluyor. Asıl iddialar korunuyor;
 süreç kaybının nedeni hâlâ kesinleşmedi, yeni CI doğrulaması bekleniyor.
-Bu yerel durum güncellemesi henüz commit edilmedi. Yerel dosya ile GitHub
-zaman damgası farklı olabilir. CI tamamlanması fiziksel cihaz kabulü değildir.
+Yerel dosya ile GitHub zaman damgası farklı olabilir. Yeni CI tamamlanması da
+fiziksel cihaz kabulü değildir.
 
 Önceki `5331f22` commit'inin Android/analiz/güvenlik CI çalışmaları artifact
 depolama kotasına takıldı; taramalar bulgu üretmedi. Bu pakette rapor yükleme
@@ -101,14 +101,20 @@ kabul işleri aşağıda ayrıca tutulur.
 | Server ekran tasarımı | Altı gerçek-widget önizlemesi incelendi; admin seçili sekmesi belirginleştirildi; test matrisi ve README'ye görseller eklendi |
 | Bağımsız kod incelemesi | Server başlatma/kaynak/lisans/sürüm sözleşmeleri, Client güncelleme uyarısı ve Docker/CI akışında uygulanabilir ek bulgu çıkmadı; gerçek imaj çalışması yerine geçmez |
 | Sunucu bileşenleri önizlemesi | Altı sabitlenmiş katalog kaydı, yönetici/oturum/katalog revizyonuna bağlı şifreli ve süreli önizlemeler; Client gereksinim ekranı. Kurulum düğmesi veya çalışan kurulum API'si yok |
+| Düzenli GitHub temizliği | Günlük 03.15 Codex görevi ve testli araç; en yeni üç debug APK, bütün imzalı APK ve raporlar korunur. İlk koşumda beş eski debug APK (641.275.745 bayt) silindi; kalan 171 çıktı doğrulandı. GHCR izin ve manifest grafiği eksikliği nedeniyle silinmez |
 | CI rapor kotası düzeltmesi | Test kanıtı yükleme hataları görünür uyarı üretir; Gitleaks/OSV taramaları artifact kotasına bağlı değildir. Gerçek tarama hatalarının engelleyici kaldığı test edildi |
 | Lisans ve kaynak | AGPL-3.0-only, üçüncü taraf bildirimleri, uygulama içi lisans ekranı ve Server kaynak/lisans API'si |
 | Geliştirme becerileri | İstenen frontend/CI seçkisinden 27 beceri kuruldu; 81 dosyanın kaynağı ve hash'i kaydedildi. Kurulum uygulama özelliği sayılmaz |
 
-Son yerel doğrulamada **2.422 Flutter ve 700 Server testi** geçti. Server paketinin
+Son yerel doğrulamada **2.422 Flutter, 700 Server ve 157 araç testi** geçti. Server paketinin
 wheel içindeki katalog kaynağı da doğrulandı. Gerçek soket iptalinde rastlanan
 eşzamanlı kapatma hatası düzeltildi; aynı regresyon 300 kez geçti. Bu sonuçlar
 otomatik medya kurulumu veya fiziksel cihaz kabulü yerine geçmez.
+
+GitHub saklama politikası ve günlük görevin çalışma koşulları
+[depolama temizliği belgesinde](github-storage-retention.md). Görevin çalışması için
+Codex hostunun kullanılabilir olması gerekir; GitHub Actions cron işi değildir.
+Container paketleri bu otomasyonun silme kapsamında değildir.
 
 ## Sıradaki geliştirme paketleri
 
