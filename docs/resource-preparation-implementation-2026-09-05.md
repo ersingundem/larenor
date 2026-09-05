@@ -153,8 +153,11 @@ yalnız gözlem bayrağıdır; daemon, supervisor veya UID mapping yetkisi
 üretilmez. Raw proc/yol verisi hata çıktısına taşınmaz. İlk tam yerel Server
 regresyonu **2.087 geçti, üç Linux testi atlandı**; ardından iki dash-source
 regresyonunu da içeren odaklı paket tekrar geçti. Yeni Linux vakasının gerçek
-CI kabulü henüz ayrı bekler.
+CI kabulü daha sonra `1408e80` ile geçti: 2.092 Linux Server testi atlamasız;
+üç gerçek Linux peer/mount senaryosu ayrıca doğrulandı. Bu yayın
+appdata oluşturma veya write lease üretme yeteneği eklemez.
 
 S06.3e'nin [saf ağ sözleşmesi](network-resource-implementation-2026-09-05.md)
-88 testle yerelde hazır. İmaj ve ağın ortak taşıma katmanı için
-[sonraki uygulama sırası](network-transport-plan-2026-09-05.md) kayıtlıdır.
+88 testle hazır ve `1408e80` Linux CI paketinde geçti. Ortak taşıma katmanı
+sonraki `f2431c7` ile çıkarıldı; [kod/test kaydı](engine-http-implementation-2026-09-05.md)
+ve [ağ adaptörü sırası](network-transport-plan-2026-09-05.md) ayrı izlenir.

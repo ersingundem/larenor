@@ -1,8 +1,9 @@
 # S08.1 — doğrulanmış Core/ev oturumu
 
 5 Eylül 2026. [Kalıcı kuyruktaki](EXECUTION_QUEUE.md) S08.1'in kod ve
-test kaydıdır. Tek mevcut ev bağlamını kapsar; çoklu ev federasyonu, bütün
-provider/cache taşınması ve eski Server için özel ürün açıklaması ayrı işlerdir.
+test kaydıdır. Tek mevcut ev bağlamını kapsar; çoklu ev federasyonu ve bütün
+provider/cache taşınması ayrı işlerdir. Eski Server için özel ürün açıklaması
+[S08.2'de](client-context-compatibility-2026-09-05.md) izlenir.
 
 ## Davranış
 
@@ -52,5 +53,6 @@ olduğu için bu yeni Client davranışının kanıtı olarak kullanılamaz.
 
 Uzak yazılım kapısı daha sonra **fc632b6** ile geçti: 2.659 Flutter, 98 JVM,
 sekiz emülatör senaryosu ve imzalı APK 88 teslimi; 1.890 Linux Server testi
-atlamasız. S08.1 kapsamı kabul edildi. S08.2 özel eski Server anlatımı ve
-S08.3–4 global provider/cache sınırları ayrı kalır.
+atlamasız. S08.1 kapsamı kabul edildi. S08.2 özel eski Server anlatımının
+kod/testi daha sonra `67cb058` ile hazırlandı; kendi uzak kabulü ve S08.3–4
+global provider/cache sınırları ayrı kalır.

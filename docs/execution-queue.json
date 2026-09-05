@@ -377,7 +377,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Marker/parent84test; mount gözlemi68cc660 ile113test/1Linuxskip yerelde hazır. Supervisor/daemon/UIDmapping lease ve create/publish açık."
+      "reason": "Sahiplik/parent kontrolü 84 testle; mount gözlemi 68cc660 ile 113 testle yerelde hazır, bir Linux testi Mac’te atlandı. Supervisor/daemon/UID mapping lease ve create/publish açık."
     },
     {
       "id": "S06.3e",
@@ -393,7 +393,8 @@
         "docs/media-resource-preparation-plan-2026-09-05.md",
         "docs/remaining-core-integration-slices.md",
         "docs/network-resource-implementation-2026-09-05.md",
-        "docs/network-transport-plan-2026-09-05.md"
+        "docs/network-transport-plan-2026-09-05.md",
+        "docs/engine-http-implementation-2026-09-05.md"
       ],
       "scope": "installAvailable=false; Client kaynak adı/Docker seçenekleri üretmez. Gerçek ev sunucusuna işlem yok.",
       "acceptance": [
@@ -406,7 +407,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Saf sözleşme a814edc: 88 test, %100 birleşik kapsam; tam liste yalnız candidate, ayrı ID inspect gerekir. Unix transport/journal effect ve gerçek Engine kabulü açık."
+      "reason": "Saf ağ sözleşmesi 1408e80 Linux CI’da geçti. Ortak Unix HTTP taşıması f2431c7 ile çıkarıldı; 365 regresyon, iki Mac/Linux atlaması ve bağımsız inceleme tamamlandı. Ağ list/inspect adaptörü, oluşturma/journal bağlantısı ve gerçek Engine kabulü açık."
     },
     {
       "id": "S06.3f",
@@ -683,7 +684,7 @@
           "commit": "fc632b63c21932bade21a5d868e8876d4a9086a6",
           "state": "completed",
           "result": "passed",
-          "label": "2659 Flutter,98 JVM,8 emülatör senaryosu; Server1890atlamasız."
+          "label": "2.659 Flutter, 98 JVM, 8 emülatör senaryosu; Server 1.890 atlamasız."
         },
         {
           "kind": "review",
@@ -691,7 +692,7 @@
           "commit": "fc632b63c21932bade21a5d868e8876d4a9086a6",
           "state": "completed",
           "result": "passed",
-          "label": "Atomik auth intent/pending context, GET-onlyretry ve stale401 bağımsız incelemesi."
+          "label": "Atomik auth intent/pending context, yalnız GET ile yeniden deneme ve gecikmiş 401 bağımsız incelemesi."
         },
         {
           "kind": "ci",
@@ -699,7 +700,7 @@
           "commit": "fc632b63c21932bade21a5d868e8876d4a9086a6",
           "state": "completed",
           "result": "passed",
-          "label": "Android bütün işler ve imzalıAPK88 teslimi başarılı."
+          "label": "Android bütün işler ve imzalı APK 88 teslimi başarılı."
         },
         {
           "kind": "ci",
@@ -707,7 +708,7 @@
           "commit": "fc632b63c21932bade21a5d868e8876d4a9086a6",
           "state": "completed",
           "result": "passed",
-          "label": "Server bağlam sözleşmesi dahil1890Linux testi, iki mimari build/restart başarılı."
+          "label": "Server bağlam sözleşmesi dahil 1.890 Linux testi, iki mimari build/restart başarılı."
         },
         {
           "kind": "ci",
@@ -726,7 +727,7 @@
       "kind": "task",
       "parent": "S08",
       "title": "İlk parola ve eski Server uyumluluğu",
-      "status": "pending",
+      "status": "awaiting_ci",
       "dependsOn": [
         "S08.1"
       ],
@@ -734,7 +735,8 @@
       "sources": [
         "docs/remaining-core-integration-slices.md",
         "docs/feature-expansion-plan-2026-09-05.md",
-        "docs/integrated-media-stack.md"
+        "docs/integrated-media-stack.md",
+        "docs/client-context-compatibility-2026-09-05.md"
       ],
       "scope": "Tek mevcut ev bağlamı; F19 çoklu Core/ev federasyonu bu teslim değildir.",
       "acceptance": [
@@ -745,9 +747,26 @@
         "review",
         "ci"
       ],
-      "evidence": [],
+      "evidence": [
+        {
+          "kind": "test",
+          "ref": "docs/client-context-compatibility-2026-09-05.md",
+          "commit": "67cb0585f0b123206e330d661442c9e1f8af27e8",
+          "state": "completed",
+          "result": "passed",
+          "label": "70 odaklı ve 531 Server/Client güncelleme regresyon testi; analiz temiz."
+        },
+        {
+          "kind": "review",
+          "ref": "docs/client-context-compatibility-2026-09-05.md",
+          "commit": "67cb0585f0b123206e330d661442c9e1f8af27e8",
+          "state": "completed",
+          "result": "passed",
+          "label": "Tam GET bağlam URL’si, sınırlı hata gövdesi, aday token ve yalnız GET ile tekrar bağımsız incelendi."
+        }
+      ],
       "completionCommit": null,
-      "reason": null
+      "reason": "41ce750 RED → 67cb058 GREEN; 70 odaklı ve 531 regresyon testi, temiz analiz ve bağımsız inceleme tamamlandı. Bu kaynağı içeren uzak CI kabulü bekleniyor."
     },
     {
       "id": "S08.3",
@@ -762,7 +781,8 @@
       "sources": [
         "docs/remaining-core-integration-slices.md",
         "docs/feature-expansion-plan-2026-09-05.md",
-        "docs/integrated-media-stack.md"
+        "docs/integrated-media-stack.md",
+        "docs/client-home-scope-plan-2026-09-05.md"
       ],
       "scope": "Tek mevcut ev bağlamı; F19 çoklu Core/ev federasyonu bu teslim değildir.",
       "acceptance": [
@@ -775,7 +795,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": null
+      "reason": "S08.2 kod/test hazır; uzak kabulü beklenirken mevcut route/provider kapsamı salt okunur inceleniyor. Uygulama başlangıcı S08.2 kabul kapısına bağlı."
     },
     {
       "id": "S08.4",
@@ -1138,7 +1158,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Ortak alt gezinmede Enter/Space, Tab sırası ve 2× yazı simge boşluğu düzeltildi; EN/TR/tema/pencere testleri sürüyor. Bütün kart/form/ekran ve gerçek TalkBack kabulü ayrı."
+      "reason": "Alt gezinme 97 regresyon, 2.678 tam Flutter testi ve gerçek fontlu görsel QA ile yerelde hazır; 1408e80 CI’ı sürüyor. Bütün kart/form/ekran ve gerçek TalkBack kabulü ayrı."
     },
     {
       "id": "B5.2",

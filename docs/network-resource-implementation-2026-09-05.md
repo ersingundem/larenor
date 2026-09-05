@@ -33,6 +33,8 @@ adları için `a0c753a` / `cc02b4c` RED → `5b12c66` GREEN; framing için
 dal ile **%100** kapsam. Bu yalnız yeni saf modülün kapsamıdır.
 Bağımsız kök incelemesinde somut P1/P2 bulgu kalmadı. Testler geçici özel
 SQLite niyeti ve sentetik HTTP cevabı kullanır; gerçek Engine ağı yaratmaz.
+`1408e80` uzak Linux CI'ında 88 özel test dahil **2.092 test atlamasız** geçti.
+Bu kabul saf ağ sözleşmesinindir; aşağıdaki transport/etki kapıları ayrı kalır.
 
 Bir sonraki [transport dilimi](network-transport-plan-2026-09-05.md), imajın
 mevcut bağlantı/peer/sürüm/iptal/framing katmanını koruyarak önce salt list/inspect

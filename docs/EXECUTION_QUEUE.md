@@ -26,7 +26,7 @@ Gruplar ve önceki kabul checkpoint’leri iş sayısına dahil değildir.
 | --- | ---: | ---: | ---: | ---: | ---: |
 | B1 — Yönetilen bileşen yaşam döngüsü | 9 | 3 | 2 | 0 | 0 |
 | B2 — Bütünleşik medya ve müzik | 4 | 0 | 0 | 0 | 0 |
-| B3 — Merkezi kaynak, yetki ve olay sözleşmeleri | 11 | 1 | 0 | 0 | 0 |
+| B3 — Merkezi kaynak, yetki ve olay sözleşmeleri | 11 | 1 | 0 | 1 | 0 |
 | B4 — Yazılım yedekleme ve kurtarma temeli | 3 | 0 | 0 | 0 | 0 |
 | B5 — Erken ortak tablet Client deneyimi | 2 | 0 | 1 | 0 | 0 |
 | PRODUCT — Önceki ürün planının kalan yazılım işleri | 13 | 0 | 0 | 0 | 1 |

@@ -65,9 +65,11 @@ Client'a eklemek eski ev verisinin yeni Core'da görünmesini engellemez.
   tekrar kullanma. Bağlam doğrulanmadan ev kapsamını açma.
   [Kod/test/yayın kanıtı](client-context-implementation-2026-09-05.md);
   aşağıdaki global provider/cache sınırı henüz açık.
-- [ ] **Geçiş ve uyumluluk:** İlk parola aşamasında korumalı bağlam API'sini
+- [ ] **Geçiş ve uyumluluk (S08.2, kod/test hazır; CI bekliyor):** İlk parola aşamasında korumalı bağlam API'sini
   çağırma; parola değişiminden sonra doğrula. Eski Server 404 veya bozuk yanıt
   halinde URL'den kimlik türetme. Saklanan kimlik tek başına yetki sayılmaz.
+  `67cb058` ile yalnız bağlam GET 404 için adres kontrolü/güncelleme açıklaması
+  eklendi; 531 regresyon geçti. [Kapsam ve kanıt](client-context-compatibility-2026-09-05.md).
 - [ ] **Ekran/provider sınırı:** `(coreId, homeId, userId)` değişince eski ev
   ekranını, ikincil rotaları, istekleri, WS aboneliklerini ve callback'leri
   kapat. Aynı bağlamdaki token yenilemesi gereksiz ekran sıfırlaması yapmaz.

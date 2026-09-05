@@ -1,6 +1,6 @@
 # S06.3e sonraki dar transport dilimi — salt okunur tasarım
 
-Mevcut kaynaklar: image_resources.py, worker.py::UnixDockerEngine, services/transport.py ve network_resources.py (a814edc). Bu incelemede repo/test/commit değişmedi.
+Mevcut kaynaklar: image_resources.py, worker.py::UnixDockerEngine, services/transport.py ve network_resources.py (a814edc). İlk salt okunur tasarımın ardından ortak taşıma `9a9e44b` RED → `f2431c7` GREEN ile uygulandı; [kod/test kaydı](engine-http-implementation-2026-09-05.md). Aşağıdaki ağ list/inspect adaptörü ve create köprüsü henüz bu teslimin parçası değildir.
 
 **Öneri:** image_resources içindeki mevcut doğrulanmış Unix bağlantısı ve bounded HTTP okumasını küçük, özel `plugins/engine_http.py` katmanına taşı; yeni ağ adaptörü aynı katmanı kullansın. Önce yalnız list/inspect transportu açılsın. Ağ create gövdesi saf kalır; create gönderimi ve journal effect köprüsü sonraki ayrı teslimdir. Image API ve hata kodları değişmez.
 

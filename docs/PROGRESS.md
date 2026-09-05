@@ -1,6 +1,6 @@
 # Larenor — güncel ilerleme ve iş kuyruğu
 
-**Son güncelleme: 5 Eylül 2026, 20:56 (Türkiye saati).**
+**Son güncelleme: 5 Eylül 2026, 21:17 (Türkiye saati).**
 
 ```text
 Önceki kapsam       █████████████░░░░░░░  ≈ %65
@@ -54,23 +54,33 @@ Core/ev bağlamını tokenlarla güvenle bağlama kapsamında tam CI kabulü ald
 Bu işler yeni 63 özelliğin kabul sayısı değildir; o sayaç **0/63**. Ana S06
 sayacı **2/6** kalır; dizin/ağ, kurulum ve gerçek Engine kabulü açıktır.
 
-**Şimdi çalışılanlar:** sahiplikli dizinler için salt okunur mount kanıtı,
-özel medya ağı sözleşmesi ve ortak tablet gezinmesi. Ağın saf katmanı 88
-odaklı testle hazır; transport/etki köprüsü henüz yok. Dizin marker/parent
-kontrolü 84 testle, Linux mount gözlemi son düzeltmesiyle 113 testle hazır;
-gerçek Linux testi Mac’te ayrıca atlanır. Bu gözlemler dizin oluşturmaz,
-daemon/UID eşlemesini doğrulamaz veya yazma yetkisi vermez.
+**Şimdi çalışılanlar:** özel medya ağı için list/inspect adaptörü ve tablet
+başlık/menü erişilebilirliği. İmajın [ortak HTTP taşıması](engine-http-implementation-2026-09-05.md)
+çıkarıldı: `0582837` kaynaklarıyla **2.165 Server testi geçti, dört Linux testi
+Mac’te atlandı**. 202 araç testi ve güvenlik taraması temiz. Ağın saf sözleşmesi
+hazır; oluşturma/journal bağlantısı henüz yok. Dizin gözlemleri gerçek Linux
+CI’da geçti; supervisor/daemon/UID eşlemesi ve dizin oluşturma/yayımlama açık.
 [Ağ](network-resource-implementation-2026-09-05.md) ·
 [Kaynak hazırlığı](resource-preparation-implementation-2026-09-05.md).
 
+**S08.2 kod/test hazır:** eski Server veya yanlış proxy adresindeki bağlam
+404 cevabı için EN/TR açıklama ve yalnız GET ile güvenli yeniden deneme.
+**531 regresyon geçti**, analiz ve bağımsız inceleme tamamlandı; kendi uzak
+CI kabulünü bekliyor. Sonraki [ev runtime sınırı](client-home-scope-plan-2026-09-05.md)
+planlandı: token yenilemesi gezinmeyi koruyacak, gerçek Core/ev/kullanıcı
+değişimi eski ekran ve istekleri kapatacak. Yerel HA/cache yeni Core’a
+kendiliğinden bağlanmayacak. Bu sınır henüz uygulanmadı.
+
 [Ortak tablet gezinmesi](tablet-navigation-implementation-2026-09-05.md)
 Enter/Space, Tab/Shift+Tab, iki kat yazı, görünür odak ve DeX pencere geçişi
-ile düzeltildi. 97 regresyon ve EN/TR gerçek fontlu özel görsel QA geçti.
-Tam yerel **2.678 Flutter testi** geçti; analiz temiz. Server paketinde
-**2.087 test geçti, üç Linux testi Mac’te atlandı**; bunun ardından geçerli
-`-` mount kaynağı düzeltmesi 113 odaklı testle ayrıca geçti. Yeni ağ/mount ve
-gezinme değişiklikleri henüz aşağıdaki yayımlanmış commit'in CI kapsamına
-dahil değildir. Son tablet galerisi ve bütün ekran revizyonu ayrı sıradadır.
+ile düzeltildi. Tam yerel **2.678 Flutter testi** geçti; analiz temiz.
+`1408e80` paketinin [Server](https://github.com/ersingundem/larenor/actions/runs/33982544738)
+ve [güvenlik](https://github.com/ersingundem/larenor/actions/runs/33982544575)
+CI’ları başarılı: **2.092 Linux Server testi atlamasız**, iki mimarili Core
+restart/medya hazırlığı/iptal kontrolü geçti. [Android CI](https://github.com/ersingundem/larenor/actions/runs/33982544696)
+2.678 Flutter, 98 JVM ve sekiz emülatör senaryosunu geçti; imzalı APK 89 işi
+henüz tamamlanmadı. Bu CI, sonraki S08.2 veya ortak HTTP kaynaklarını kapsamaz.
+Son tablet galerisi ve bütün ekran revizyonu ayrı sıradadır.
 
 **Son tam uzak yayın `fc632b6`:**
 [Server CI](https://github.com/ersingundem/larenor/actions/runs/33981106713),
@@ -84,7 +94,9 @@ AMD64/ARM64 Core imajları build/restart/medya hazırlığı/iptal kontrollerini
 geçti. Anonim commit/stable/index doğrulaması yapıldı:
 `sha256:00902e8b6142d546a9493e7db4a2b55a8fa166cbd44f9a4932894ae9fd5c4c22`.
 [İmzalı APK 88 ve metadata](https://github.com/ersingundem/larenor/actions/runs/33981106645/artifacts/9974067173)
-yüklendi; ayrıca bağımsız yerel paket/imza doğrulaması için indiriliyor.
+indirildi ve Java 17 + sabit apksig 9.1.0 ile ayrıca doğrulandı: doğru paket,
+sertifika, `100000088`, minSdk 26, `debuggable=false` ve kaynak commit eşleşti.
+APK SHA-256: `757b63032d51b3289f8ecb9d189f451bf777828e1867273d75e13eb485d75a47`.
 Yapılandırılmamış ev Server'ına Client yayın adımı atlandı; ev kurulumu yok.
 
 <details>
