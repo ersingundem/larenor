@@ -1,5 +1,7 @@
 import 'package:flutter/cupertino.dart';
 
+import '../../../../shared/widgets/settings_action_tile.dart';
+
 import '../../../../shared/widgets/app_page_scaffold.dart';
 
 import '../../../../shared/widgets/brand_icon.dart';
@@ -32,12 +34,12 @@ class SettingsNavRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final service = this.service;
-    return CupertinoListTile(
+    return SettingsActionTile(
       leading: service != null && hasBrandIcon(service)
           ? BrandIcon(service: service)
           : IconBadge(icon: icon, color: color),
       title: Text(title),
-      trailing: const CupertinoListTileChevron(),
+
       // `title` auto-populates the pushed screen's back button, so it
       // reads the section's name rather than a generic "Back".
       onTap: () =>

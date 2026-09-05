@@ -9,6 +9,7 @@ import 'package:larenor/features/server/domain/server_models.dart';
 import 'package:larenor/features/server/presentation/server_vault_screen.dart';
 
 import 'server_connection_screen_test.dart' as fixture;
+import '../client_updates/client_updates_test.dart' show FakeApi;
 
 void main() {
   for (final language in ['en', 'tr']) {
@@ -21,6 +22,8 @@ void main() {
             final api = fixture.Api()
               ..requireChange = false
               ..role = ServerRole.member;
+            final updatesApi = FakeApi();
+            addTearDown(updatesApi.events.close);
             final account = ServerAccountController(
               store: fixture.Store()
                 ..value = fixture.session(role: ServerRole.member),
@@ -32,6 +35,7 @@ void main() {
               language: language,
               width: width,
               scale: 2,
+              updates: updatesApi,
             );
             final vault = find.byKey(const ValueKey('server-vault'));
             final vaultText = find.descendant(
@@ -69,8 +73,12 @@ void main() {
             expect(find.byType(ClientUpdatesScreen), findsOneWidget);
             expect(api.logouts, 0);
             expect(api.changes, 0);
+            expect(updatesApi.downloads, 0);
+            expect(updatesApi.installs, 0);
             expect(tester.takeException(), isNull);
           } finally {
+            await tester.pumpWidget(const SizedBox.shrink());
+            await tester.pump();
             semantics.dispose();
           }
         },

@@ -7,6 +7,8 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:larenor/core/theme.dart';
 import 'package:larenor/features/auth/data/ha_connection_config.dart';
+import 'package:larenor/features/auth/data/ha_discovery.dart';
+import 'package:larenor/shared/widgets/settings_action_tile.dart';
 import 'package:larenor/features/auth/presentation/connect_screen.dart';
 import 'package:larenor/features/auth/providers/auth_providers.dart';
 import 'package:larenor/features/kiosk/presentation/kiosk_screen.dart';
@@ -19,6 +21,11 @@ import 'package:shared_preferences/shared_preferences.dart';
 const address =
     'https://tablet-settings-accessibility-example.'
     'private-home-assistant-instance.example:8123';
+
+class _NoDiscovery extends HaDiscoveryService {
+  @override
+  Future<void> start() async {}
+}
 
 class _Connection extends ConnectionConfig {
   _Connection(this.saved);
@@ -43,6 +50,7 @@ Future<void> _mount(
     ProviderScope(
       overrides: [
         connectionConfigProvider.overrideWith(() => _Connection(saved)),
+        haDiscoveryFactoryProvider.overrideWithValue(_NoDiscovery.new),
       ],
       child: CupertinoApp(
         theme: larenorTheme(brightness: Brightness.light),
@@ -84,7 +92,12 @@ void main() {
             final l10n = AppLocalizations.of(
               tester.element(find.byType(SettingsSplitScreen)),
             );
-            final connection = find.text(l10n.settingsCategoryConnection).first;
+            final connection = find
+                .descendant(
+                  of: find.byType(SettingsActionTile),
+                  matching: find.text(l10n.settingsCategoryConnection),
+                )
+                .first;
             final server = find.text(l10n.serverTitle).first;
             final display = find.text(l10n.settingsCategoryDisplay).first;
             final node = tester.getSemantics(connection);
@@ -126,6 +139,8 @@ void main() {
             expect(find.byType(KioskScreen), findsOneWidget);
             expect(tester.takeException(), isNull);
           } finally {
+            await tester.pumpWidget(const SizedBox.shrink());
+            await tester.pump();
             semantics.dispose();
           }
         },
@@ -166,6 +181,8 @@ void main() {
             );
             expect(tester.takeException(), isNull);
           } finally {
+            await tester.pumpWidget(const SizedBox.shrink());
+            await tester.pump();
             semantics.dispose();
           }
         },

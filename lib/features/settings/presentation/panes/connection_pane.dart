@@ -1,5 +1,7 @@
 import 'package:flutter/cupertino.dart';
 
+import '../../../../shared/widgets/settings_action_tile.dart';
+
 import '../../../../shared/widgets/settings_section.dart';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -23,14 +25,14 @@ class ConnectionPane extends ConsumerWidget {
       children: [
         SettingsSection(
           children: [
-            CupertinoListTile(
+            SettingsActionTile(
               leading: const IconBadge(
                 icon: CupertinoIcons.house_fill,
                 color: CupertinoColors.systemBlue,
               ),
               title: Text(l10n.settingsHaServer),
               additionalInfo: Text(config?.baseUrl ?? l10n.commonNotConnected),
-              trailing: const CupertinoListTileChevron(),
+
               onTap: () => Navigator.of(context).push(
                 CupertinoPageRoute(
                   builder: (_) => ConnectScreen(initialUrl: config?.baseUrl),

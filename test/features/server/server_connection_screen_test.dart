@@ -5,6 +5,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:larenor/shared/widgets/settings_action_tile.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:larenor/core/app_interaction_scope.dart';
@@ -18,6 +19,8 @@ import 'package:larenor/features/server/providers/server_providers.dart';
 import 'package:larenor/l10n/generated/app_localizations.dart';
 import 'package:larenor/features/settings/providers/settings_providers.dart';
 import 'package:larenor/features/client_updates/presentation/client_updates_screen.dart';
+import 'package:larenor/features/client_updates/data/client_update_api.dart';
+import 'package:larenor/features/client_updates/providers/client_update_providers.dart';
 
 ServerSession session({
   bool requiredChange = false,
@@ -122,6 +125,7 @@ Future<void> mount(
   String language = 'en',
   AppInteractionController? interaction,
   ValueNotifier<bool>? visible,
+  ClientUpdateApi? updates,
 }) async {
   FlutterSecureStorage.setMockInitialValues({'settings_pin': ?pin});
   tester.view.physicalSize = Size(width, 1000);
@@ -129,7 +133,10 @@ Future<void> mount(
   addTearDown(tester.view.reset);
   await tester.pumpWidget(
     ProviderScope(
-      overrides: [serverAccountControllerProvider.overrideWithValue(account)],
+      overrides: [
+        serverAccountControllerProvider.overrideWithValue(account),
+        if (updates != null) clientUpdateApiProvider.overrideWithValue(updates),
+      ],
       child: CupertinoApp(
         locale: Locale(language),
         localizationsDelegates: AppLocalizations.localizationsDelegates,
@@ -467,7 +474,7 @@ void main() {
     );
     await mount(tester, account);
     final open = tester
-        .widget<CupertinoListTile>(
+        .widget<SettingsActionTile>(
           find.byKey(const ValueKey('server-client-updates')),
         )
         .onTap!;

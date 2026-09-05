@@ -1,6 +1,9 @@
 import 'dart:async';
 
 import 'package:flutter/cupertino.dart';
+
+import '../../../shared/widgets/settings_action_tile.dart';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -587,11 +590,10 @@ class _ServerConnectionScreenState
                                         })
                                       : null,
                                 ),
-                              CupertinoListTile(
+                              SettingsActionTile(
                                 key: const ValueKey('server-vault'),
                                 leading: const Icon(CupertinoIcons.lock_shield),
                                 title: Text(l10n.serverVaultTitle),
-                                trailing: const CupertinoListTileChevron(),
                                 onTap: _enabled
                                     ? _callback(
                                         () => Navigator.of(context).push<void>(
@@ -604,13 +606,12 @@ class _ServerConnectionScreenState
                                       )
                                     : null,
                               ),
-                              CupertinoListTile(
+                              SettingsActionTile(
                                 key: const ValueKey('server-client-updates'),
                                 leading: const Icon(
                                   CupertinoIcons.arrow_down_circle,
                                 ),
                                 title: Text(l10n.clientUpdatesTitle),
-                                trailing: const CupertinoListTileChevron(),
                                 onTap: _enabled
                                     ? _callback(
                                         () => Navigator.of(context).push<void>(
