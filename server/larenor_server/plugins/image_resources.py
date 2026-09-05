@@ -11,16 +11,11 @@ Schema: https://docs.docker.com/reference/api/engine/version/v1.47.yaml
 
 from dataclasses import dataclass, field
 import math
-import re
-import socket
 import threading
-import time
 from urllib.parse import quote, urlencode
 
-from ..services.transport import (
-    ProbeResponse, ProbeTransportError, _Deadline, _Reader, _remaining, _request_bytes,
-)
-from .docker_probe import DockerEndpoint, _compatibility, _identity, _linux_peer_uid
+from .docker_probe import DockerEndpoint, _linux_peer_uid
+from .engine_http import EngineHttpError, EngineHttpLimits, EngineHttpRequest, VerifiedEngineHttp
 from .resource_plan import ResourcePlanError, verify_resource_plan
 from .worker import DockerWorkerError, _canonical, _decode
 
@@ -28,7 +23,6 @@ from .worker import DockerWorkerError, _canonical, _decode
 _CODES = frozenset({'invalid_image_binding', 'invalid_image_limits', 'image_protocol',
                     'image_stream_limit', 'image_pull_failed', 'image_engine_unavailable',
                     'image_timeout', 'image_cancelled', 'image_unverified', 'image_api_unsupported'})
-_TOKEN = re.compile(rb"[!#$%&'*+.^_`|~0-9A-Za-z-]+\Z")
 
 
 class ImageResourceError(Exception):
@@ -120,92 +114,6 @@ def _inspect(value, binding):
     return ImageObservation(binding.config_digest, configuration)
 
 
-class _ImageReader(_Reader):
-    def __init__(self, connection, deadline, limits, cancelled):
-        super().__init__(connection, deadline)
-        self.limits, self.cancelled = limits, cancelled
-
-    def receive(self, count):
-        idle_end = time.monotonic() + self.limits.idle_seconds
-        while True:
-            _require(not self.cancelled.is_set(), 'image_cancelled')
-            left = min(self.deadline, idle_end) - time.monotonic()
-            _require(left > 0, 'image_timeout')
-            self.connection.settimeout(min(left, 0.25))
-            try:
-                data = self.connection.recv(count)
-            except socket.timeout:
-                continue
-            _require(not self.cancelled.is_set(), 'image_cancelled')
-            _require(time.monotonic() < self.deadline, 'image_timeout')
-            return data
-
-
-def _headers(reader):
-    first = reader.line(8192)
-    match = re.fullmatch(rb'HTTP/1\.1 ([2-5][0-9]{2})(?: [\x20-\x7e]*)?\r\n', first)
-    _require(match is not None)
-    total, headers = len(first), []
-    while True:
-        line = reader.line(min(8192, 32768 - total))
-        total += len(line)
-        if line == b'\r\n':
-            break
-        _require(len(headers) < 100 and b':' in line)
-        name, value = line[:-2].split(b':', 1)
-        _require(_TOKEN.fullmatch(name) is not None
-                 and not any(byte < 32 and byte != 9 or byte == 127 for byte in value))
-        headers.append((name.decode('ascii').lower(), value.decode('latin1').strip(' \t')))
-    return int(match[1]), tuple(headers)
-
-
-def _body(reader, headers, max_bytes, max_chunks, *, allow_eof=False):
-    framing = {}
-    for key, value in headers:
-        if key in {'content-length', 'transfer-encoding', 'content-encoding', 'content-type'}:
-            _require(key not in framing)
-            framing[key] = value.lower()
-    _require(framing.get('content-encoding', 'identity') == 'identity')
-    _require(framing.get('content-type', '').split(';')[0].strip() == 'application/json')
-    length, transfer = framing.get('content-length'), framing.get('transfer-encoding')
-    _require(transfer in (None, 'chunked') and not (length is not None and transfer is not None))
-    total = 0
-    if length is not None:
-        _require(re.fullmatch(r'[0-9]{1,20}', length) is not None)
-        remaining = int(length)
-        _require(remaining <= max_bytes, 'image_stream_limit')
-        while remaining:
-            piece = reader.exact(min(16384, remaining))
-            remaining -= len(piece)
-            yield piece
-    elif transfer is not None:
-        chunks = 0
-        while True:
-            line = reader.line(128)
-            _require(re.fullmatch(rb'[0-9A-Fa-f]{1,16}\r\n', line) is not None)
-            size = int(line[:-2], 16)
-            if size == 0:
-                _require(reader.line(8192) == b'\r\n')
-                break
-            chunks += 1
-            _require(chunks <= max_chunks and size <= max_bytes - total, 'image_stream_limit')
-            total += size
-            while size:
-                piece = reader.exact(min(16384, size))
-                size -= len(piece)
-                yield piece
-            _require(reader.exact(2) == b'\r\n')
-    else:
-        _require(allow_eof)
-        while True:
-            piece = reader.receive(min(16384, max_bytes - total + 1))
-            if not piece:
-                break
-            total += len(piece)
-            _require(total <= max_bytes, 'image_stream_limit')
-            yield piece
-
-
 def _json(data):
     try:
         return _decode(data)
@@ -268,60 +176,30 @@ class UnixImageEngine:
         _require(not cancelled.is_set(), 'image_cancelled')
         # Revalidate frozen values against accidental in-process mutation too.
         limits = ImagePullLimits(**vars(self._limits))
-        deadline = time.monotonic() + (limits.total_seconds if pull else min(limits.total_seconds, 30))
-        watcher = None
-        try:
-            before = _identity(self._endpoint)
-            watcher = _Deadline(deadline)
-            connection = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-            watcher.attach(connection)
-            connection.settimeout(min(_remaining(deadline), limits.idle_seconds))
-            connection.connect(self._endpoint.path)
-            _require(_identity(self._endpoint) == before, 'image_engine_unavailable')
-            peer = self._peer_uid(connection)
-            _require(type(peer) is int and peer == self._endpoint.owner_uid, 'image_engine_unavailable')
-            reader = _ImageReader(connection, deadline, limits, cancelled)
-            request = _request_bytes('GET', '/version', 'localhost', {'Accept': 'application/json'}, None)
-            connection.sendall(request.replace(b'Connection: close\r\n', b'Connection: keep-alive\r\n', 1))
-            status, headers = _headers(reader)
-            version = b''.join(_body(reader, headers, 65536, 4096))
-            _require(_compatibility(ProbeResponse(status, headers, version), binding.platform) == 'passed',
-                     'image_api_unsupported')
-            _require(not any(key == 'connection' and 'close' in value.lower() for key, value in headers),
-                     'image_api_unsupported')
-            _require(_identity(self._endpoint) == before, 'image_engine_unavailable')
-            _require(not cancelled.is_set(), 'image_cancelled')
-            connection.settimeout(min(_remaining(deadline), limits.idle_seconds))
-            target = ('/images/create?' + urlencode({'fromImage': binding.reference, 'platform': binding.platform})
-                      if pull else '/images/' + quote(binding.reference, safe='') + '/json')
-            connection.sendall(_request_bytes('POST' if pull else 'GET', '/v1.47' + target, 'localhost',
-                                               {'Accept': 'application/json'}, None))
-            status, headers = _headers(reader)
+        target = ('/images/create?' + urlencode({'fromImage': binding.reference, 'platform': binding.platform})
+                  if pull else '/images/' + quote(binding.reference, safe='') + '/json')
+
+        def consume(status, _headers, chunks):
             if not pull and status == 404:
-                result = None
-            else:
-                _require(status == 200, 'image_pull_failed' if pull else 'image_engine_unavailable')
-                if pull:
-                    _progress(_body(reader, headers, limits.max_total_bytes, limits.max_chunks, allow_eof=True), limits)
-                    result = None
-                else:
-                    result = _inspect(_json(b''.join(_body(reader, headers, 1048576, 4096))), binding)
-            _require(_identity(self._endpoint) == before, 'image_engine_unavailable')
-            _require(not cancelled.is_set(), 'image_cancelled')
-            _require(time.monotonic() < deadline, 'image_timeout')
-            return result
-        except ImageResourceError:
-            raise
-        except (OSError, ValueError, TypeError, RuntimeError, DockerWorkerError, ProbeTransportError) as error:
-            if cancelled.is_set():
-                code = 'image_cancelled'
-            elif time.monotonic() >= deadline or isinstance(error, TimeoutError):
-                code = 'image_timeout'
-            elif isinstance(error, ProbeTransportError):
-                code = 'image_protocol'
-            else:
-                code = 'image_engine_unavailable'
+                return None
+            _require(status == 200, 'image_pull_failed' if pull else 'image_engine_unavailable')
+            if pull:
+                _progress(chunks, limits)
+                return None
+            return _inspect(_json(b''.join(chunks)), binding)
+
+        try:
+            request = EngineHttpRequest('POST' if pull else 'GET', '/v1.47' + target)
+            transport_limits = EngineHttpLimits(
+                limits.total_seconds if pull else min(limits.total_seconds, 30), limits.idle_seconds,
+                limits.max_total_bytes if pull else 1048576, limits.max_chunks if pull else 4096,
+            )
+            return VerifiedEngineHttp(self._endpoint, peer_uid=self._peer_uid).exchange(
+                request, consume, platform=binding.platform, limits=transport_limits, cancelled=cancelled,
+            )
+        except EngineHttpError as error:
+            code = {'invalid_engine_request': 'invalid_image_binding',
+                    'invalid_engine_limits': 'invalid_image_limits',
+                    'engine_unavailable': 'image_engine_unavailable'}.get(
+                        error.code, error.code.replace('engine_', 'image_', 1))
             raise ImageResourceError(code) from None
-        finally:
-            if watcher is not None:
-                watcher.finish()

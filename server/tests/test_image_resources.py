@@ -168,9 +168,9 @@ def test_missing_cache_reply_cannot_bypass_endpoint_revalidation(binding):
 
 
 def test_missing_cache_reply_cannot_bypass_cancellation(binding, monkeypatch):
-    from larenor_server.plugins import image_resources
+    from larenor_server.plugins import engine_http
     cancelled = threading.Event()
-    original = image_resources._headers
+    original = engine_http._headers
 
     def headers(reader):
         status, values = original(reader)
@@ -178,7 +178,7 @@ def test_missing_cache_reply_cannot_bypass_cancellation(binding, monkeypatch):
             cancelled.set()
         return status, values
 
-    monkeypatch.setattr(image_resources, '_headers', headers)
+    monkeypatch.setattr(engine_http, '_headers', headers)
     with engine_server([response({}, status=404)]) as (engine, calls):
         with pytest.raises(ImageResourceError, match='^image_cancelled$'):
             engine.inspect(binding, cancelled=cancelled)
