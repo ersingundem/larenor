@@ -142,6 +142,7 @@ class LarenorServerApi {
           method == 'GET' &&
           !path.startsWith('/admin/plugins/jobs') &&
           !path.startsWith('/admin/media/preparations') &&
+          !path.startsWith('/admin/media/inspections') &&
           queryParameters.length <= keys.length &&
           !queryParameters.entries.any(
             (entry) =>
@@ -171,7 +172,8 @@ class LarenorServerApi {
           });
       final mediaQuery =
           method == 'GET' &&
-          path == '/admin/media/preparations' &&
+          (path == '/admin/media/preparations' ||
+              path == '/admin/media/inspections') &&
           queryParameters.entries.every((entry) {
             final number = int.tryParse(entry.value);
             if (number == null ||
@@ -324,6 +326,7 @@ class LarenorServerApi {
             'plugin_worker_unavailable',
             'plugin_job_storage_unavailable',
             'media_preparation_storage_unavailable',
+            'media_inspection_storage_unavailable',
           }.contains(code)) {
         return code as String;
       }
@@ -340,6 +343,9 @@ class LarenorServerApi {
             'plugin_job_conflict',
             'plugin_job_limit_reached',
             'media_preparation_conflict',
+            'media_preparation_changed',
+            'media_inspection_conflict',
+            'media_inspection_limit_reached',
             'media_catalog_changed',
             'media_context_changed',
             'media_preparation_limit_reached',

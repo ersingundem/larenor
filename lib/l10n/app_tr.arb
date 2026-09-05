@@ -1822,5 +1822,18 @@
   "serverMediaPlannedSteps": "Her bileşen için depolama hazırlığı, konteyner oluşturma, başlatma, ilk kurulum ve servis doğrulama adımları planlandı. Bu adımların hiçbiri çalıştırılmadı.",
   "serverJobsCheckDaemonMount": "Docker daemon bağlama bağlamı",
   "serverJobsCheckDaemonNetwork": "Docker daemon ağ bağlamı",
-  "serverJobsCheckDaemonRoot": "Docker daemon kök bağlamı"
+  "serverJobsCheckDaemonRoot": "Docker daemon kök bağlamı",
+  "serverMediaInspectionsTitle": "Medya incelemeleri",
+  "serverMediaInspectionsIntro": "Kayıtlı medya hazırlığını yapılandırılmış çalışanla inceleyin. Bu işlem sunucu gereksinimlerini okur ve gözlemleri Server üzerinde saklar; bileşen kurmaz veya bağlantılarını yapılandırmaz.",
+  "serverMediaInspectionsReview": "Hazırlık incelemesi",
+  "serverMediaInspectionsLaunch": "Gereksinimleri incele",
+  "serverMediaInspectionsHistory": "İnceleme geçmişi",
+  "serverMediaInspectionsConfigured": "Bir inceleme çalışanı yapılandırılmış; bağlantısı henüz doğrulanmadı.",
+  "serverMediaInspectionsUnconfigured": "Bir inceleme çalışanı yapılandırılmamış. Kayıtlı incelemeler kullanılabilir.",
+  "serverMediaInspectionsReviewUnavailable": "Bu hazırlık iptal edildi veya kataloğu değişti. Yeniden incelemeden önce güncel bir hazırlık oluşturun.",
+  "serverMediaInspectionsPreparationChanged": "Hazırlık değişti. Yeni inceleme istemeden önce güncel durumunu gözden geçirin.",
+  "serverMediaInspectionsCapacity": "Server inceleme sınırına ulaştı.",
+  "serverMediaInspectionsStorageUnavailable": "İnceleme geçmişi geçici olarak kullanılamıyor. Yeniden okumayı deneyin.",
+  "serverMediaInspectionsPreparationId": "Hazırlık kimliği",
+  "serverMediaInspectionsCancelBody": "Bu gereksinim incelemesini iptal edin. Hazırlık, mevcut bileşenler ve medya dosyaları değişmez."
 }

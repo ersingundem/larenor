@@ -16,6 +16,7 @@ import '../../data/server_account_controller.dart';
 import '../../providers/server_providers.dart';
 import '../data/server_media_preparations_controller.dart';
 import '../domain/server_media_preparation_models.dart';
+import 'server_media_inspections_screen.dart';
 
 /// One durable preparation, accessed through PIN-protected Server settings.
 /// No installation or provider credential entry is exposed.
@@ -191,6 +192,18 @@ class _ServerMediaPreparationsScreenState
         _media.selected?.revision == selected.revision) {
       await _media.cancelSelected(current: current);
     }
+  }
+
+  Future<void> _openInspections(
+    bool Function() current, [
+    ServerMediaPreparation? preparation,
+  ]) async {
+    if (!_enabled || !current()) return;
+    await Navigator.of(context).push(
+      CupertinoPageRoute<void>(
+        builder: (_) => ServerMediaInspectionsScreen(preparation: preparation),
+      ),
+    );
   }
 
   final _fields = {
@@ -381,6 +394,11 @@ class _ServerMediaPreparationsScreenState
                               allowed: !_media.canRetryCreate,
                             ),
                             _button('media-refresh', l.commonRefresh, _load),
+                            _button(
+                              'media-inspections-history',
+                              l.serverMediaInspectionsHistory,
+                              _openInspections,
+                            ),
                           ],
                         ),
                         if (_media.preparations.isEmpty && !_media.busy)
@@ -515,6 +533,12 @@ class _ServerMediaPreparationsScreenState
             'media-refresh-selected',
             l.commonRefresh,
             (current) => _media.refreshSelected(current: current),
+          ),
+          _button(
+            'media-inspect',
+            l.serverMediaInspectionsLaunch,
+            (current) => _openInspections(current, record),
+            allowed: record.prepared && record.catalogCurrent,
           ),
           if (record.prepared)
             _button(

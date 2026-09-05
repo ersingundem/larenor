@@ -2143,5 +2143,18 @@
   "serverMediaPlannedSteps": "Each component records planned storage preparation, container creation, startup, initial setup and service verification. None of these steps has run.",
   "serverJobsCheckDaemonMount": "Docker daemon mount context",
   "serverJobsCheckDaemonNetwork": "Docker daemon network context",
-  "serverJobsCheckDaemonRoot": "Docker daemon root context"
+  "serverJobsCheckDaemonRoot": "Docker daemon root context",
+  "serverMediaInspectionsTitle": "Media inspections",
+  "serverMediaInspectionsIntro": "Inspect the saved media preparation with the configured worker. This reads host requirements and keeps the observations on your Server; it does not install components or configure their connections.",
+  "serverMediaInspectionsReview": "Preparation inspection",
+  "serverMediaInspectionsLaunch": "Inspect requirements",
+  "serverMediaInspectionsHistory": "Inspection history",
+  "serverMediaInspectionsConfigured": "An inspection worker is configured; its connectivity has not been verified.",
+  "serverMediaInspectionsUnconfigured": "An inspection worker is not configured. Saved inspections remain available.",
+  "serverMediaInspectionsReviewUnavailable": "This preparation was cancelled or its catalog has changed. Create a current preparation before inspecting again.",
+  "serverMediaInspectionsPreparationChanged": "The preparation changed. Review its current state before requesting another inspection.",
+  "serverMediaInspectionsCapacity": "The Server has reached its inspection limit.",
+  "serverMediaInspectionsStorageUnavailable": "Inspection history is temporarily unavailable. Try reading it again.",
+  "serverMediaInspectionsPreparationId": "Preparation ID",
+  "serverMediaInspectionsCancelBody": "Cancel this requirements inspection. The preparation and existing components or media files remain unchanged."
 }
