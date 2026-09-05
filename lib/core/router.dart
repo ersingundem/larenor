@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../features/dashboard/presentation/home_dashboard_screen.dart';
+import '../features/home_scope/presentation/core_home_status_screen.dart';
+import 'home_session_controller.dart';
 import '../features/media/hub/domain/media_title.dart';
 import '../features/media/hub/presentation/media_hub_screen.dart';
 import '../features/navigation/presentation/app_shell.dart';
@@ -23,6 +25,31 @@ import '../features/wellbeing/presentation/wellbeing_gate.dart';
 
 final routerProvider = Provider<GoRouter>((ref) {
   final rootKey = GlobalKey<NavigatorState>();
+  final home = ref.read(homeSessionControllerProvider);
+  if (home != null && !home.usesLocalHome) {
+    final router = GoRouter(
+      navigatorKey: rootKey,
+      initialLocation: '/',
+      errorBuilder: (_, _) => const CoreHomeStatusScreen(),
+      routes: [
+        GoRoute(path: '/', builder: (_, _) => const CoreHomeStatusScreen()),
+        GoRoute(
+          path: '/settings',
+          builder: (_, _) => const SettingsGateScreen(
+            initialDestination: SettingsGateDestination.serverAccount,
+          ),
+        ),
+        GoRoute(
+          path: '/settings/home-source',
+          builder: (_, _) => const SettingsGateScreen(
+            initialDestination: SettingsGateDestination.homeSource,
+          ),
+        ),
+      ],
+    );
+    ref.onDispose(router.dispose);
+    return router;
+  }
   final router = GoRouter(
     navigatorKey: rootKey,
     initialLocation: '/',
@@ -147,6 +174,13 @@ final routerProvider = Provider<GoRouter>((ref) {
         ),
       ),
       GoRoute(path: '/settings', builder: (_, _) => const SettingsGateScreen()),
+      if (home != null)
+        GoRoute(
+          path: '/settings/home-source',
+          builder: (_, _) => const SettingsGateScreen(
+            initialDestination: SettingsGateDestination.homeSource,
+          ),
+        ),
       GoRoute(
         path: '/settings/client-updates',
         builder: (_, _) => const SettingsGateScreen(

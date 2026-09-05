@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
 import '../../../shared/theme/typography.dart';
+import '../../../core/home_session_controller.dart';
 import '../../auth/providers/auth_providers.dart';
 import '../../ha_client/data/models/ha_entity.dart';
 import '../../wellbeing/providers/wellbeing_privacy_providers.dart';
@@ -81,7 +82,13 @@ class _AmbientScreenState extends ConsumerState<AmbientScreen>
 
   @override
   Widget build(BuildContext context) {
-    final settingsReading = ref.watch(ambientSettingsProvider);
+    // The legacy weather/photo namespace belongs to the explicit local home.
+    // Until Core adapters exist, idle mode is a clock with no home data reads.
+    final localHome =
+        ref.watch(homeSessionControllerProvider)?.usesLocalHome ?? true;
+    final settingsReading = localHome
+        ? ref.watch(ambientSettingsProvider)
+        : const AsyncData(AmbientSettings());
     final settings = settingsReading.isLoading || settingsReading.hasError
         ? const AmbientSettings()
         : settingsReading.value ?? const AmbientSettings();
@@ -91,10 +98,12 @@ class _AmbientScreenState extends ConsumerState<AmbientScreen>
     final photos = library.isLoading || library.hasError
         ? const <String>[]
         : library.value ?? const <String>[];
-    final config = ref.watch(connectionConfigProvider);
-    final reading = ref.watch(publicHaEntitiesProvider);
+    final config = localHome ? ref.watch(connectionConfigProvider) : null;
+    final reading = localHome ? ref.watch(publicHaEntitiesProvider) : null;
     final entities =
-        config.isLoading ||
+        config == null ||
+            reading == null ||
+            config.isLoading ||
             config.hasError ||
             config.value == null ||
             reading.isLoading ||

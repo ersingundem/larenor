@@ -2164,5 +2164,17 @@
   "dashboardRoomMenuLabel": "Room menu: {room}",
   "@dashboardRoomMenuLabel": {"placeholders": {"room": {"type": "String"}}},
   "dashboardEditSectionLabel": "Edit {section} section",
-  "@dashboardEditSectionLabel": {"placeholders": {"section": {"type": "String"}}}
+  "@dashboardEditSectionLabel": {"placeholders": {"section": {"type": "String"}}},
+  "homeSourceTitle": "Home source",
+  "homeSourceHint": "Choose which home this Android app opens. This device preference is kept when you sign out or restore a backup.",
+  "homeSourceDirect": "Direct Home Assistant",
+  "homeSourceCore": "Larenor Core",
+  "homeSourceDirectHint": "Use this device’s existing Home Assistant connection and local dashboard.",
+  "homeSourceCoreHint": "Use the verified Core account and home. The Core home view is not available in this version.",
+  "homeSourceStorageError": "The home source could not be safely read or saved. Choose a source again to continue.",
+  "homeSourceLoading": "Reading the home source…",
+  "homeCoreVerified": "The Core account and home are verified.",
+  "homeCoreVerificationRequired": "Verify your Core account and home to continue.",
+  "homeCoreUnavailable": "The Core home view is not available in this version. You can manage your Core account or explicitly choose your existing direct Home Assistant connection.",
+  "homeCoreManageAccount": "Manage Core account"
 }

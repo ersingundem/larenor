@@ -2,6 +2,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'core/immersive_mode_guard.dart';
+import 'core/home_interaction_gate.dart';
 import 'core/router.dart';
 import 'core/theme.dart';
 import 'features/settings/presentation/idle_gate.dart';
@@ -30,7 +31,9 @@ class LarenorApp extends ConsumerWidget {
       routerConfig: router,
       builder: (context, child) => ImmersiveModeGuard(
         child: ScreenPolicyRunner(
-          child: IdleGate(child: child ?? const SizedBox.shrink()),
+          child: IdleGate(
+            child: HomeInteractionGate(child: child ?? const SizedBox.shrink()),
+          ),
         ),
       ),
     );

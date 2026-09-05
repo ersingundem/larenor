@@ -4,13 +4,20 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/app_interaction_scope.dart';
 import '../../../shared/widgets/app_page_scaffold.dart';
 import '../../client_updates/presentation/client_updates_screen.dart';
+import '../../home_scope/presentation/home_source_screen.dart';
+import '../../server/presentation/server_connection_screen.dart';
 
 import '../../../l10n/generated/app_localizations.dart';
 import '../providers/settings_providers.dart';
 import 'settings_split_screen.dart';
 import 'settings_file_dialog.dart';
 
-enum SettingsGateDestination { settings, clientUpdates }
+enum SettingsGateDestination {
+  settings,
+  clientUpdates,
+  serverAccount,
+  homeSource,
+}
 
 /// Gates access to [SettingsSplitScreen] behind a PIN, if one has been set —
 /// protects the connection config and admin panel from casual tampering on
@@ -151,7 +158,21 @@ class _SettingsGateScreenState extends ConsumerState<SettingsGateScreen>
                       onGenerateRoute: (_) => CupertinoPageRoute<void>(
                         builder: (_) =>
                             widget.initialDestination ==
-                                SettingsGateDestination.clientUpdates
+                                SettingsGateDestination.serverAccount
+                            ? ServerConnectionScreen(
+                                onExit: Navigator.of(context).canPop()
+                                    ? _exit
+                                    : null,
+                              )
+                            : widget.initialDestination ==
+                                  SettingsGateDestination.homeSource
+                            ? HomeSourceScreen(
+                                onExit: Navigator.of(context).canPop()
+                                    ? _exit
+                                    : null,
+                              )
+                            : widget.initialDestination ==
+                                  SettingsGateDestination.clientUpdates
                             ? ClientUpdatesScreen(
                                 onExit: Navigator.of(context).canPop()
                                     ? _exit
