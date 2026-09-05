@@ -1,6 +1,6 @@
 # Larenor — güncel ilerleme ve iş kuyruğu
 
-**Son güncelleme: 6 Eylül 2026, 01:10 (Türkiye saati).**
+**Son güncelleme: 6 Eylül 2026, 01:53 (Türkiye saati).**
 
 ```text
 Önceki kapsam       █████████████░░░░░░░  ≈ %65
@@ -56,7 +56,38 @@ ile kabul edildi. **S08.3** ev runtime sınırı da `4b98680` tam CI ve APK 94
 ile kabul edildi. Bu işler yeni 63 özelliğin kabul sayısı değildir; o sayaç **0/63**. Ana S06
 sayacı **2/6** kalır; dizin, kurulum ve gerçek Engine kabulü açıktır.
 
-**Son tam doğrulanmış yayın `394de0f` / APK 95: üç CI ve bağımsız APK kontrolü başarılı.** 2.792 Linux Server testi
+**Son tam doğrulanmış yayın `8c3b60d` / APK 96: üç CI ve bağımsız APK kontrolü başarılı.**
+Linux Server **2.916 testi atlamasız**, Flutter **2.989**, JVM **98** ve
+**dört native + altı uygulama = 10 E2E** geçti. Güvenlik CI 207 testi ve
+secret taramasını geçti. Yeni Core login/PIN/oda kopyası/remount/başka Core
+akışı gerçek Android CI'da doğrulandı. 57 faz, altı temizlik; E2E komutu
+322,195 saniye, 18 dakika sınırında 757,805 saniye pay var.
+[Android 96](https://github.com/ersingundem/larenor/actions/runs/33995289219) ·
+[Server](https://github.com/ersingundem/larenor/actions/runs/33995289140) ·
+[Güvenlik](https://github.com/ersingundem/larenor/actions/runs/33995288940).
+
+AMD64/ARM64 Core medya **hazırlığı**/restart/iptal smoke'u ve anonim yayın
+başarılı: `sha256:d3a2b48c07634be20c59b14e2a84b2b6f3e89e69c1094205f4e7f7be3355c027`.
+Bu kontroller gerçek medya bileşeni veya ev kurulumu değildir.
+
+[İmzalı APK 96 ve metadata](https://github.com/ersingundem/larenor/actions/runs/33995289219/artifacts/9978185451)
+tek tam indirmeyle Java 17 + sabit apksig 9.1.0 kullanılarak ayrıca doğrulandı:
+`com.ersingundem.larenor`, sürüm kodu `100000096`, minSdk 26,
+`debuggable=false`, kalıcı sertifika ve kaynak commit eşleşti. APK SHA-256:
+`1017d1405d4127dbed241a4957826ab6660b4fc2185c33d57bb334e5dba2a5c8`.
+Ev Server'ına koşullu Client yayını atlandı; ev/tablet kurulumu yapılmadı.
+
+**Sonraki yerel paket `808938e`:** diafon/film gecesi kaynak sınırı, Core'un
+salt okunur oda/kaynak ekranı ve yeni yedinci Android yolculuğu birleştirildi.
+Birleşik yerel Client **3.115 testi 3:40 içinde geçti**; tam analiz sıfır
+bulgu, 838 dosyada biçim kontrolü sıfır değişiklik. Gerçek Server ortak
+kaynak sözleşmesi üç testi, kuyruk doğrulaması 24 testi geçti. Bu yeni
+ekran/yolculuk APK 96'da yoktur; yeni CI ve imzalı APK kabulü ayrıca izlenecek.
+
+<details>
+<summary>Önceki tam doğrulanmış yayın: 394de0f / APK 95</summary>
+
+**Önceki tam doğrulanmış yayın `394de0f` / APK 95: üç CI ve bağımsız APK kontrolü başarılı.** 2.792 Linux Server testi
 atlamasız, 2.837 Flutter, 98 JVM, dört native + beş uygulama = dokuz E2E ve
 207 araç testi geçti. Yeni gerçek Linux tam kök/proc/mount/descriptor fixture'ı
 0,204 saniyede geçti. Android akışı 260,80 saniye; Gradle ağır derlemesi cihaz
@@ -77,6 +108,8 @@ Bu kontroller gerçek medya bileşeni veya ev kurulumu değildir.
 Ev Server'ına koşullu Client yayını atlandı; ev veya cihaz kurulumu yapılmadı.
 İlk bağımsız indirme hazırlığı geçici dizin adı hatasıyla 0 bayt yazmadan durdu;
 yol düzeltildikten sonra tek tam indirme ve kontrol başarılı oldu.
+
+</details>
 
 <details>
 <summary>Önceki tam doğrulanmış yayın: 4b98680 / APK 94</summary>
@@ -150,7 +183,7 @@ PIN korumalı önizleme ve seçili pasif oda adlarının kopyası eklendi.
 93 son test, %96,9 ilgili satır kapsamı, bağımsız inceleme ve dört gerçek-font
 görsel kontrolü geçti. `115dfa1` altıncı Android yolculuğu da birleşti;
 `fd23a3f` üzerinde tam Client **2.914 test**, temiz analiz ve 814 dosyada
-biçim kontrolü geçti. Bu yeni Android yolculuğu henüz CI kabulü almadı.
+biçim kontrolü geçti. Bu altıncı Android yolculuğu `8c3b60d` ve APK 96 ile CI kabulü aldı.
 [Diğer kayıtların envanteri](client-record-ownership-2026-09-06.md) çıkarıldı.
 
 **S08.4 HA ve yedek sınırı ana dalda:** `d8edab5` ve `9b11195` → `7ed736b`.
@@ -163,19 +196,34 @@ silmez. Direct paketinde 53 son/482 ilgili test ve %99,5 satır kapsamı;
 yedekte 40 son/143 ilgili test, repository %98,2 ve ekran %94,4; bağımsız
 incelemeler ve analizler temiz. Toplamlar birbirine eklenmez. `7ed736b`
 birleşik Client **2.989 testi 3:58 içinde geçti**; analiz sıfır bulgu,
-820 dosyada biçim kontrolü sıfır değişiklik. Server kaynakları son
-2.906 PASS/10 Mac skip koşusuyla aynı. Uzak CI ve bütün S08.4 kabulü açık.
+820 dosyada biçim kontrolü sıfır değişiklik. Aynı dilimler `8c3b60d`
+2.916 Linux, 10 E2E ve APK 96 ile de geçti. Bütün S08.4 kabulü açık.
 [Direct kanıtı](direct-home-boundary-implementation-2026-09-06.md) ·
 [Yedek kanıtı](ha-backup-boundary-implementation-2026-09-06.md).
-Diafon/film gecesi kayıt ve eylem sınırı sıradaki aktif dilimdir.
+**Diafon/film gecesi sınırı da `cc3db2` → main `cc0d89d` içinde:**
+eski kaynak callback'leri kayıt yapamaz, kapı komutu veya film akışı
+başlatamaz. 542 ilişkili test, %86,2 ilgili satır kapsamı, temiz analiz
+ve bağımsız inceleme geçti. `808938e` birleşik Client 3.115 testi ve analizi
+geçti; yeni CI kabulü açık.
+[Kanıt](direct-home-routines-implementation-2026-09-06.md).
+Sıradaki pilot ortak credential kayıt sınırıyla Sonarr/Radarr/Lidarr/Readarr
+bağlantılarıdır; çok alanlı kayıt belirsizliği ve yedek kontrolleri birlikte
+tamamlanmadan bu pilot birleştirilmeyecek.
 
 **Paralel S08.6 ana dalda:** Kalıcı, şifreli oda/kaynak/hesap izin kayıtları ve
 gerçek authenticated HTTP API `133786e` / belge `1b6b866` ile birleşti.
 Üye yalnız izinli kayıtları görür; opak sayfa özeti gizli kayıt hareketlerini
 açıklamaz. 124 odaklı test, dal dahil %95 kapsam, bağımsız inceleme ve tam
-Server **2.906 PASS / Mac üzerinde 10 Linux skip** geçti. Yeni Linux CI
-ayrıca bekleniyor. Client liste/yönetim ekranı, hane kişi profilleri, değişmez
-sağlayıcı bağları ve gerçek cihaz komutları henüz tamamlanmış sayılmıyor.
+Server **2.906 PASS / Mac üzerinde 10 Linux skip** geçti. `8c3b60d` Linux CI **2.916 testi atlamasız** ve iki mimarili
+imaj kapısını da geçti. Client salt okunur liste ekranı `codex/core-home-resource-list` üzerinde
+`73dba35` → main `808938e` içinde. 82 odaklı/940 ilgili test,
+%99,2 yeni feature satır kapsamı, 8 gerçek-font tablet kontrolü ve bağımsız
+inceleme geçti; `808938e` birleşik Client 3.115 testi ve analizi geçti.
+Yeni yedinci Android yolculuğu ve CI kabulü açık.
+[Client kanıtı](core-home-resource-list-implementation-2026-09-06.md) ve
+[yedinci Android yolculuğu](core-home-resources-android-journey-2026-09-06.md)
+yeni teslim kapsamını ayırır. Yönetim ekranı, hane kişi profilleri, değişmez sağlayıcı bağları
+ve gerçek cihaz komutları henüz tamamlanmış sayılmıyor.
 [Uygulama ve kanıt](home-resource-registry-implementation-2026-09-06.md).
 
 **S08 kabul sırası netleştirildi:** Mevcut kayıt kapsamı S08.4, restore/journal
@@ -194,10 +242,12 @@ kabulü değildir. Geçici çalışma kopyaları kalıcı arşiv yerine geçmez.
 | B5.1 medya posterleri | `codex/tablet-media-accessibility` · `/private/tmp/larenor-tablet-media-accessibility` | `cb792c0` → `14b7b62` main içinde; 733 ilgili/22 son test ve bağımsız görsel inceleme geçti. Tam Client 2.837 test/analiz ve `394de0f` dokuz E2E geçti; bağımsız imzalı APK 95 doğrulandı. |
 | B5.1 dashboard | `codex/tablet-dashboard-accessibility` · `/private/tmp/larenor-tablet-dashboard-accessibility` | `5cf7f30` birleşti; `4b98680` tam Android CI ve APK 94 kabulü geçti. |
 | S06.3e ağ journal köprüsü | `codex/network-effect-bridge` | `6a00168` main içinde; `9138e61` Server/güvenlik CI ile yazılım kabulü tamamlandı. |
-| S08.4 kaynaklı düzen | `codex/client-scoped-layout` ve `codex/scoped-layout-e2e` | `3018c57` ve `115dfa1` ana dalda; 93 son ve 2.914 tam Client testi/analiz geçti. Altıncı Android yolculuğunun CI kabulü açık. |
-| S08.4 HA ve yedek sınırı | `codex/direct-home-boundary` ve `codex/ha-backup-boundary` | `d8edab5` ve `9b11195` → main `7ed736b`; 53/40 son test ve bağımsız incelemeler temiz. Birleşik Client 2.989 PASS, analiz/biçim temiz; uzak CI açık. |
-| S08.4 diafon/film gecesi | `codex/direct-home-routines` | Yeni gerçek store/provider ve geç eylem sınırı üzerinde çalışılıyor; Core kaynak listesi Client dilimi de paralel başladı. |
-| S08.6 Core kaynak/yetki kaydı | `codex/home-resource-registry` | `133786e` / `1b6b866` ana dalda; tam Server 2.906 PASS/10 Mac skip, 124 odaklı test, %95 dal kapsamı ve inceleme temiz. Yeni CI/Client yönetim kabulü açık. |
+| S08.4 kaynaklı düzen | `codex/client-scoped-layout` ve `codex/scoped-layout-e2e` | `3018c57` ve `115dfa1` ana dalda; 93 son ve 2.914 tam Client testi/analiz geçti. Altıncı Android yolculuğu ve APK 96 `8c3b60d` ile doğrulandı. |
+| S08.4 HA ve yedek sınırı | `codex/direct-home-boundary` ve `codex/ha-backup-boundary` | `d8edab5` ve `9b11195` → main `7ed736b`; 53/40 son test ve bağımsız incelemeler temiz. `8c3b60d` 2.989 Flutter/10 E2E ve bağımsız APK 96 kontrolü geçti. |
+| S08.4 diafon/film gecesi | `codex/direct-home-routines` | `cc3db2` → main `cc0d89d`; 542 test ve inceleme geçti. `808938e` birleşik Client 3.115 test/analiz geçti; yeni CI açık. |
+| S08.4 Arr bağlantıları ve yedek sınırı | `codex/direct-arr-credentials` ve `codex/direct-credential-backup` | Dört servis için tam credential kayıtları ve yarım kayıt kurtarması hazırlanıyor. Helper/provider ilk incelemesi temiz; yedek paketi 245 ilgili testten geçti. Son UI, bağımsız inceleme ve birleşik kabul açık. |
+| S08.6 Core kaynak listesi | `codex/core-home-resource-list` ve `codex/core-home-resources-e2e` | `73dba35` ve `c0b765c` → main `808938e`; 82 odaklı/940 ilgili test, tablet QA ve bağımsız inceleme geçti. Birleşik Client 3.115 test/analiz temiz; yedinci Android yolculuğu ve yeni CI açık. |
+| S08.6 Core kaynak/yetki kaydı | `codex/home-resource-registry` | `133786e` / `1b6b866` ana dalda; tam Server 2.906 PASS/10 Mac skip, 124 odaklı test, %95 dal kapsamı ve inceleme temiz. `8c3b60d` Linux 2.916/iki mimari geçti. Yeni Client liste/bütün yönetim kabulü açık. |
 | S08.3 Client ev runtime'ı | `codex/client-home-session-scope` · `/private/tmp/larenor-client-home-session-scope` | `10d3eb1` birleşti; `4b98680` dokuz E2E ve imzalı APK 94 ile S08.3 kabul edildi. |
 | S06.3d appdata tam kök gözlemi | `codex/native-appdata-root-observation` · `/private/tmp/larenor-native-appdata-root-observation` | `32254ad` → `0d9e250` main içinde; `394de0f` gerçek Linux 2.792 test/0 skip ve iki mimarili hazırlık smoke geçti. Salt okunur gözlem yazma yetkisi değildir. |
 

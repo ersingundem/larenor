@@ -962,7 +962,8 @@
         "docs/client-scoped-layout-implementation-2026-09-06.md",
         "docs/scoped-layout-android-journey-2026-09-06.md",
         "docs/direct-home-boundary-implementation-2026-09-06.md",
-        "docs/ha-backup-boundary-implementation-2026-09-06.md"
+        "docs/ha-backup-boundary-implementation-2026-09-06.md",
+        "docs/direct-home-routines-implementation-2026-09-06.md"
       ],
       "scope": "Tek mevcut ev bağlamı; F19 çoklu Core/ev federasyonu bu teslim değildir.",
       "acceptance": [
@@ -1023,10 +1024,42 @@
           "state": "completed",
           "result": "passed",
           "label": "HA yedek sınırı: 40 son test, repository %98,2 satır kapsamı ve bağımsız inceleme"
+        },
+        {
+          "kind": "test",
+          "ref": "docs/direct-home-routines-implementation-2026-09-06.md",
+          "commit": "cc3db20073efb132dbbd8c45101c1875ac332624",
+          "state": "completed",
+          "result": "passed",
+          "label": "Diafon/film gecesi: 542 ilgili test, %86,2 satır kapsamı ve bağımsız inceleme; bütün S08.4 kabulü değil"
+        },
+        {
+          "kind": "review",
+          "ref": "docs/direct-home-routines-implementation-2026-09-06.md",
+          "commit": "cc3db20073efb132dbbd8c45101c1875ac332624",
+          "state": "completed",
+          "result": "passed",
+          "label": "Diafon/film gecesi: 542 ilgili test, %86,2 satır kapsamı ve bağımsız inceleme; bütün S08.4 kabulü değil"
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/33995289219",
+          "commit": "8c3b60dba0cf14e661a0a8d239c4ec292a761847",
+          "state": "completed",
+          "result": "passed",
+          "label": "Scoped layout/Direct HA ve HA yedek dilimleri: 2.989 Flutter, 98 JVM, 10 E2E ve bağımsız APK96; bütün S08.4 değil"
+        },
+        {
+          "kind": "test",
+          "ref": "docs/PROGRESS.md",
+          "commit": "808938e27976f420339145d5c046c56151beb5ca",
+          "state": "completed",
+          "result": "passed",
+          "label": "Birleşik yerel Client 3.115 test, tam analiz ve 838 dosyada biçim kontrolü temiz; yeni Android/CI henüz kabul edilmedi"
         }
       ],
       "completionCommit": null,
-      "reason": "Scoped layout 3018c57 ve altıncı Android yolculuğu 115dfa1 ana dalda; fd23a3f tam Client 2.914 PASS/analiz temiz. Direct HA/EnabledServices d8edab5 ve HA yedek sınırı 9b11195 → main 7ed736b; 53/40 son test ve bağımsız incelemeler geçti, 7ed736b birleşik Client 2.989 PASS, analiz/biçim temiz; uzak CI bekleniyor. Diafon/film gecesi sınırları codex/direct-home-routines üzerinde başladı. Diğer 11 Direct servis, özel wellbeing/ambient erişim testleri açık; typed ağ cache S08.7–9 kabulündedir."
+      "reason": "Scoped layout 3018c57 ve altıncı Android yolculuğu 115dfa1 ana dalda; fd23a3f tam Client 2.914 PASS/analiz temiz. Direct HA/EnabledServices d8edab5 ve HA yedek sınırı 9b11195 → main 7ed736b; 53/40 son test ve bağımsız incelemeler geçti, 7ed736b birleşik Client 2.989 PASS, analiz/biçim temiz; 8c3b60d 2.916 Linux/10 E2E/bağımsız APK96 kabulü geçti. Diafon/film gecesi cc3db2→main cc0d89d: 542 ilgili test ve inceleme geçti, 808938e birleşik Client 3.115 test/analiz geçti; yeni CI açık. Ortak credential helper+4 Arr servis pilotu codex/direct-arr-credentials üzerinde başladı; backup marker sınırıyla birlikte kapanacak. Diğer 11 Direct servis, özel wellbeing/ambient erişim testleri açık; typed ağ cache S08.7–9 kabulündedir."
     },
     {
       "id": "S08.5",
@@ -1071,7 +1104,9 @@
         "docs/remaining-core-integration-slices.md",
         "docs/feature-expansion-plan-2026-09-05.md",
         "docs/integrated-media-stack.md",
-        "docs/home-resource-registry-implementation-2026-09-06.md"
+        "docs/home-resource-registry-implementation-2026-09-06.md",
+        "docs/core-home-resource-list-implementation-2026-09-06.md",
+        "docs/core-home-resources-android-journey-2026-09-06.md"
       ],
       "scope": "Tek mevcut ev bağlamı; F19 çoklu Core/ev federasyonu bu teslim değildir.",
       "acceptance": [
@@ -1098,10 +1133,42 @@
           "state": "completed",
           "result": "passed",
           "label": "Oda/kaynak/hesap ACL HTTP kaydı: 124 odaklı, tam Server 2.906 PASS/10 Mac skip; bütün S08.6 kabulü değil"
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/33995289140",
+          "commit": "8c3b60dba0cf14e661a0a8d239c4ec292a761847",
+          "state": "completed",
+          "result": "passed",
+          "label": "Kalıcı kaynak/ACL API dilimi: 2.916 Linux testi atlamasız ve iki mimarili image smoke; Client yönetim ve bütün S08.6 açık"
+        },
+        {
+          "kind": "test",
+          "ref": "docs/core-home-resource-list-implementation-2026-09-06.md",
+          "commit": "73dba351a54a306f789e977ddb005a9b126022df",
+          "state": "completed",
+          "result": "passed",
+          "label": "Salt okunur Client listesi:82 odaklı/940 ilgili test, %99,2 satır kapsamı ve bağımsız inceleme; admin/komut kapsamı değil"
+        },
+        {
+          "kind": "review",
+          "ref": "docs/core-home-resource-list-implementation-2026-09-06.md",
+          "commit": "73dba351a54a306f789e977ddb005a9b126022df",
+          "state": "completed",
+          "result": "passed",
+          "label": "Salt okunur Client listesi:82 odaklı/940 ilgili test, %99,2 satır kapsamı ve bağımsız inceleme; admin/komut kapsamı değil"
+        },
+        {
+          "kind": "test",
+          "ref": "docs/PROGRESS.md",
+          "commit": "808938e27976f420339145d5c046c56151beb5ca",
+          "state": "completed",
+          "result": "passed",
+          "label": "Birleşik yerel Client 3.115 test, tam analiz ve 838 dosyada biçim kontrolü temiz; yeni Android/CI henüz kabul edilmedi"
         }
       ],
       "completionCommit": null,
-      "reason": "Kalıcı şifreli room/resource kaydı, hesap ACL ve gerçek HTTP/OpenAPI dilimi 133786e / belge1b6b866 ile ana dalda. 124 odaklı test, dal dahil %95 kapsam, bağımsız inceleme ve tam Server 2.906 PASS / 10 Linux-only Mac skip geçti. Yeni Linux CI açık. Client salt okunur liste codex/core-home-resource-list üzerinde başladı; yönetim, ayrı hane kişileri, değişmez upstream bağları ve gerçek komut sözleşmesi henüz kabul edilmedi."
+      "reason": "Kalıcı kayıt/API 133786e, 8c3b60d Linux 2.916/0 skip ve iki mimari CI ile geçti. Client salt okunur liste 73dba35 → main 808938e: 82 odaklı/940 ilgili test, %99,2 satır kapsamı, tablet QA ve bağımsız inceleme; birleşik Client 3.115 test/analiz geçti. Yedinci Android yolculuğu ve yeni CI açık. Admin metadata/ACL UI, ayrı hane kişileri, değişmez upstream bağları ve gerçek komut sözleşmesi henüz kabul edilmedi."
     },
     {
       "id": "S08.7",
