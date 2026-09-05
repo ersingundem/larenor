@@ -53,6 +53,7 @@ class ResourceHarness {
   DateTime now = DateTime.now();
   int haReads = 0, authPosts = 0, refreshes = 0, resourceReads = 0, closed = 0;
   int status = 200;
+  Object? Function(http.Request)? resourceResponse;
   String userId = '9' * 32;
   late Object? response = fixture['memberList'];
   late Object? contextResponse = fixture['context'];
@@ -88,7 +89,7 @@ class ResourceHarness {
     if (request.url.path.contains('/home-resources/')) {
       resourceReads++;
       requests.add(request);
-      return pending?.future ?? json(response, status);
+      return pending?.future ?? json(resourceResponse == null ? response : resourceResponse!(request), status);
     }
     if (request.url.path.endsWith('/auth/logout'))
       return http.Response('', 204);
@@ -123,8 +124,9 @@ class ResourceHarness {
     double width = 600,
     double scale = 1,
     String? pin,
+    Map<String, Object> preferences = const {},
   }) async {
-    SharedPreferences.setMockInitialValues({'enabled_services_migrated': true});
+    SharedPreferences.setMockInitialValues({'enabled_services_migrated': true, ...preferences});
     FlutterSecureStorage.setMockInitialValues({'settings_pin': ?pin});
     tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
     tester.view.devicePixelRatio = 1;

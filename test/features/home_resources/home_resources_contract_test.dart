@@ -19,11 +19,11 @@ void main() {
   test('actual one-record pages and Unicode maximum remain valid', () {
     final first = HomeResourcePage.fromJson(
       fixture['firstPage'],
-      expectedContext: context,
+      expectedContext: context, limit: 1,
     );
     final second = HomeResourcePage.fromJson(
       fixture['secondPage'],
-      expectedContext: context,
+      expectedContext: context, limit: 1,
       after: first.nextAfter,
       expectedSnapshot: first.snapshot,
     );
