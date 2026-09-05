@@ -151,22 +151,24 @@ class PreflightWorkerServer:
         self.catalog = load_catalog()
         self._listener = self._thread = self._lock = self._identity = None
         self._stopped = threading.Event()
+        self._connection_lock = threading.Lock()
+        self._active = None
 
     def start(self):
+        # An invalid second start must not tear down an existing instance.
+        if self._listener is not None or self._lock is not None:
+            raise PreflightIPCError()
         try:
             _safe_path(self.path.parent, uid=os.getuid(), kind=stat.S_ISDIR)
-            if self._listener is not None:
-                raise PreflightIPCError()
             lock_path = self.path.parent / (self.path.name + ".lock")
             descriptor = os.open(lock_path, os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW, 0o600)
             self._lock = descriptor
             _safe_path(lock_path, uid=os.getuid(), kind=stat.S_ISREG, private=True)
             fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
-            # Only the process holding this private lock may replace a stale
-            # owned socket. Never remove ordinary files or an external socket.
+            # A matching UID is not worker ownership. A pre-existing endpoint
+            # requires operator/runtime-directory recovery, never blind unlink.
             if self.path.exists() or self.path.is_symlink():
-                _safe_path(self.path, uid=os.getuid(), kind=stat.S_ISSOCK)
-                self.path.unlink()
+                raise PreflightIPCError()
             listener = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
             self._listener = listener
             listener.bind(str(self.path))
@@ -180,7 +182,7 @@ class PreflightWorkerServer:
             self._stopped.clear()
             self._thread = threading.Thread(target=self._serve, name="larenor-preflight", daemon=True)
             self._thread.start()
-        except (OSError, DockerWorkerError, PreflightIPCError):
+        except (OSError, RuntimeError, DockerWorkerError, PreflightIPCError):
             self.close()
             raise PreflightIPCError() from None
 
@@ -209,7 +211,10 @@ class PreflightWorkerServer:
             except OSError:
                 break
             with connection:
-                request = None
+                with self._connection_lock:
+                    if self._stopped.is_set():
+                        break
+                    self._active = connection
                 deadline = time.monotonic() + self.timeout
                 try:
                     if self.peer_uid(connection) != self.allowed_uid:
@@ -224,13 +229,26 @@ class PreflightWorkerServer:
                     write_packet(connection, response, deadline)
                 except (OSError, PreflightIPCError):
                     pass
+                finally:
+                    with self._connection_lock:
+                        self._active = None
 
     def close(self):
         self._stopped.set()
         if self._listener is not None:
             self._listener.close()
-        if self._thread is not None:
+        with self._connection_lock:
+            if self._active is not None:
+                try:
+                    self._active.shutdown(socket.SHUT_RDWR)
+                except OSError:
+                    pass
+        if self._thread is not None and self._thread.ident is not None:
             self._thread.join(self.timeout + .5)
+            if self._thread.is_alive():
+                # A blocked filesystem observation must not let a replacement
+                # daemon acquire this process's worker identity concurrently.
+                raise PreflightIPCError()
         if self._identity is not None:
             try:
                 info = self.path.lstat()
