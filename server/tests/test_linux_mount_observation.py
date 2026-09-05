@@ -61,6 +61,11 @@ def test_kernel_source_hash_escape_and_root_self_parent_are_supported():
     assert module.parse_mountinfo(raw)[0].mount_id == 41
 
 
+def test_literal_dash_source_is_not_an_additional_separator():
+    record, = module.parse_mountinfo(b'41 40 0:7 / /safe rw - tmpfs - rw\n')
+    assert record.mount_id == 41 and record.filesystem == 'tmpfs'
+
+
 def test_non_utf8_filesystem_path_is_preserved_without_repr_disclosure():
     record, = module.parse_mountinfo(row().replace(b'/private/data', b'/private/\xff'))
     assert os.fsencode(record.mount_point) == b'/private/\xff'
@@ -201,6 +206,12 @@ def test_same_device_different_mount_is_not_interchangeable(proc_tree):
     second = observe(proc_tree)
     assert first.directory_identity == second.directory_identity
     assert first.mount_id != second.mount_id
+
+
+def test_real_descriptor_observation_accepts_literal_dash_source(proc_tree):
+    (proc_tree['task'] / 'mountinfo').write_bytes(
+        row(device=proc_tree['device']).replace(b'/dev/example', b'-'))
+    assert observe(proc_tree).mount_id == 41
 
 
 @pytest.mark.parametrize('options,super_options', [('rw,idmapped', 'rw'), ('ro', 'rw'), ('rw', 'ro')])
