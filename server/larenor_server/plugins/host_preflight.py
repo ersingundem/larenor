@@ -23,6 +23,7 @@ from types import MappingProxyType
 from .catalog import load_catalog, verify_plan
 from .docker_probe import DockerEndpoint, DockerProbe
 from .preflight_models import PreflightCheck, PreflightResult
+from .stack_plan import verify_media_stack_plan
 
 
 _ROOT_ID = re.compile(r"[a-z][a-z0-9_-]{0,39}\Z")
@@ -137,6 +138,12 @@ def _capacity(value):
     return available if available <= _MAX_MIB else None
 
 
+def _within(deadline):
+    if (type(deadline) not in (int, float) or not math.isfinite(deadline)
+            or time.monotonic() >= deadline):
+        raise HostPreflightError('inspection_unavailable')
+
+
 class HostInspector:
     def __init__(self, policy, *, platform_provider=None, clock=None,
                  statvfs_provider=None, stat_provider=None):
@@ -174,73 +181,145 @@ class HostInspector:
             # path-bearing exceptions. A failed root never contributes capacity.
             return False, []
 
-    def inspect(self, plan):
-        invalid = False
+    def _fingerprint(self, root, mounts):
+        """Private path identities, never a reservation or a public identifier."""
+        def identity(fd):
+            info = self._stat(fd)
+            return (info.st_dev, info.st_ino, info.st_mode, info.st_uid, info.st_gid)
+        with _root_descriptor(root.path, self._policy.owner_uid, self._stat) as descriptor:
+            values = [identity(descriptor)]
+            for mount in mounts:
+                with _managed_descriptor(descriptor, mount.relativePath, self._policy.owner_uid, self._stat) as child:
+                    values.append(identity(child))
+            return tuple(values)
+
+    def _storage(self, plans, deadline):
+        by_root = {}
+        for index, plan in enumerate(plans):
+            purposes = {}
+            for setting in plan.settings:
+                if setting.name in _SETTING_PURPOSES and setting.value is not None:
+                    purposes.setdefault(setting.value, set()).add(_SETTING_PURPOSES[setting.name])
+            for identity in {mount.rootId for mount in plan.mounts}:
+                mounts = [mount for mount in plan.mounts if mount.rootId == identity]
+                by_root.setdefault(identity, []).append((index, plan, mounts, purposes.get(identity)))
+        before = {}
+        for identity, groups in by_root.items():
+            try:
+                before[identity] = self._fingerprint(self._policy.roots[identity], [m for _, _, mounts, _ in groups for m in mounts])
+            except Exception:
+                before[identity] = None
+        roots = []
+        for identity in sorted(by_root):
+            _within(deadline)
+            groups = by_root[identity]
+            root = self._policy.roots.get(identity)
+            valid, facts = before[identity] is not None, []
+            for index, plan, mounts, purposes in groups:
+                library_view = (root is not None and root.purpose == 'library'
+                    and plan.serviceId == 'jellyfin' and purposes == {'media'}
+                    and len(mounts) == 1 and mounts[0].kind == 'approved_library'
+                    and mounts[0].readOnly is True and mounts[0].target == '/media'
+                    and mounts[0].relativePath == '')
+                matches = root is not None and (purposes == {root.purpose} or library_view)
+                observed, current = self._observe_root(root, mounts) if matches and valid else (False, [])
+                valid = valid and observed
+                facts.extend((index, plan.resources.minimumDiskMiB, identity, *fact) for fact in current)
+                _within(deadline)
+            roots.append([identity, valid, groups, facts])
+        # A held descriptor may refer to a replaced directory. Re-open ALL names
+        # after measurement before assigning its capacity to the current path.
+        for row in roots:
+            identity, valid, groups, facts = row
+            try:
+                current = self._fingerprint(self._policy.roots[identity], [m for _, _, mounts, _ in groups for m in mounts])
+                row[1] = valid and current == before[identity]
+            except Exception:
+                row[1] = False
+        result, filesystems = [], {}
+        for identity, valid, groups, facts in roots:
+            result.append(PreflightCheck(code='storage_root', rootId=identity, status='passed' if valid else 'failed'))
+            if valid:
+                for index, budget, root_id, device, available, status in facts:
+                    filesystems.setdefault(device, []).append((index, budget, root_id, available, status))
+            else:
+                budgets = {index: plan.resources.minimumDiskMiB for index, plan, mounts, _ in groups if any(not m.readOnly for m in mounts)}
+                if budgets:
+                    result.append(PreflightCheck(code='storage_capacity', rootId=identity, status='unknown', requiredMiB=sum(budgets.values())))
+        for facts in sorted(filesystems.values(), key=lambda items: min(item[2] for item in items)):
+            # Each child once per writable filesystem. Aliased roots and
+            # config/cache mounts multiply neither free space nor the budget.
+            required = sum({item[0]: item[1] for item in facts}.values())
+            available = min((item[3] for item in facts if item[3] is not None), default=None)
+            states = {item[4] for item in facts}
+            status = 'failed' if 'failed' in states else 'unknown' if 'unknown' in states else 'passed' if available >= required else 'failed'
+            result.append(PreflightCheck(code='storage_capacity', rootId=min(item[2] for item in facts),
+                availableMiB=available, requiredMiB=required, status=status))
+        _within(deadline)
+        return result
+
+    def inspect(self, plan, *, deadline=None):
         try:
-            verified = verify_plan(plan, load_catalog())
+            selected = verify_plan(plan, load_catalog())
         except (ValueError, TypeError):
-            invalid = True
-        if invalid:
-            raise HostPreflightError("plan_untrusted")
+            raise HostPreflightError('plan_untrusted') from None
+        return self._inspect((selected,), selected.catalogDigest, selected.planHash, selected.image.platform, deadline)
+
+    def inspect_with_deadline(self, plan, deadline):
+        return self.inspect(plan, deadline=deadline)
+
+    def inspect_stack(self, plan, *, deadline=None):
+        try:
+            selected = verify_media_stack_plan(plan, load_catalog())
+        except (ValueError, TypeError):
+            raise HostPreflightError('plan_untrusted') from None
+        return self._inspect(tuple(c.plan for c in selected.components), selected.catalogDigest,
+                             selected.planHash, selected.platform, deadline)
+
+    def _inspect(self, plans, catalog_digest, plan_hash, expected_platform, deadline):
+        if deadline is None:
+            deadline = time.monotonic() + 5
+        _within(deadline)
         failed = False
         try:
             timestamp = self._clock()
             if type(timestamp) not in (int, float) or not math.isfinite(timestamp):
                 raise ValueError()
-            checked = datetime.fromtimestamp(timestamp, timezone.utc).isoformat(timespec="milliseconds").replace("+00:00", "Z")
+            checked = datetime.fromtimestamp(timestamp, timezone.utc).isoformat(timespec='milliseconds').replace('+00:00', 'Z')
             actual_platform = self._platform()
         except Exception:
             failed = True
         if failed:
-            raise HostPreflightError("inspection_unavailable")
-        checks = [PreflightCheck(code="platform", status="passed" if actual_platform == verified.image.platform else "failed")]
-        purposes = {}
-        for setting in verified.settings:
-            if setting.name in _SETTING_PURPOSES and setting.value is not None:
-                purposes.setdefault(setting.value, set()).add(_SETTING_PURPOSES[setting.name])
-        filesystems = {}
-        required = verified.resources.minimumDiskMiB
-        for identity in sorted({mount.rootId for mount in verified.mounts}):
-            mounts = [mount for mount in verified.mounts if mount.rootId == identity]
-            root = self._policy.roots.get(identity)
-            # The integrated stack gives Jellyfin a read-only view of the same
-            # approved library Arr/qBittorrent use. This does not authorize a
-            # data directory, another service, or a writable media view.
-            library_media_view = (
-                root is not None and root.purpose == "library"
-                and verified.serviceId == "jellyfin" and purposes.get(identity) == {"media"}
-                and len(mounts) == 1 and mounts[0].kind == "approved_library"
-                and mounts[0].readOnly is True and mounts[0].target == "/media"
-                and mounts[0].relativePath == "")
-            purpose_matches = root is not None and (purposes.get(identity) == {root.purpose} or library_media_view)
-            valid, facts = self._observe_root(root, mounts) if purpose_matches else (False, [])
-            checks.append(PreflightCheck(code="storage_root", status="passed" if valid else "failed", rootId=identity))
-            if not valid and any(not mount.readOnly for mount in mounts):
-                checks.append(PreflightCheck(code="storage_capacity", status="unknown", rootId=identity, requiredMiB=required))
-            for device, available, status in facts:
-                filesystems.setdefault(device, []).append((identity, available, status))
-        # One proposed plan budget per distinct writable filesystem, even when
-        # config/cache or multiple approved roots alias it. Different filesystems
-        # each need the whole budget because the catalog does not split it yet.
-        for facts in sorted(filesystems.values(), key=lambda items: min(item[0] for item in items)):
-            identity = min(item[0] for item in facts)
-            available = min((item[1] for item in facts if item[1] is not None), default=None)
-            states = {item[2] for item in facts}
-            status = "failed" if "failed" in states else "unknown" if "unknown" in states else "passed" if available >= required else "failed"
-            checks.append(PreflightCheck(code="storage_capacity", status=status, rootId=identity,
-                                         availableMiB=available, requiredMiB=required))
-        docker_status = "unknown"
-        if self._policy.docker is not None and actual_platform == verified.image.platform:
+            raise HostPreflightError('inspection_unavailable')
+        values = None
+        def observe_storage():
+            nonlocal values
+            if values is None:
+                values = self._storage(plans, deadline)
+            return values
+        docker_status, context = 'unknown', None
+        endpoint = self._policy.docker
+        if endpoint is not None and actual_platform == expected_platform:
             try:
-                observed = DockerProbe(self._policy.docker).inspect(verified.image.platform)
-                if type(observed) is str and observed in {"passed", "failed", "unknown"}:
-                    docker_status = observed
+                probe = DockerProbe(endpoint)
+                if getattr(endpoint, 'daemon_executable', None) is not None:
+                    observation = probe.observe(expected_platform, during=observe_storage, deadline=deadline)
+                    docker_status, context = observation.status, observation.context
+                else:
+                    docker_status = probe.inspect(expected_platform)
             except Exception:
-                # Preserve independent checks without publishing the socket path
-                # or raw Engine/protocol exception in the result or error chain.
-                pass
-        checks.append(PreflightCheck(code="docker_engine", status=docker_status))
-        checks.extend(PreflightCheck(code=code, status="unknown") for code in (
-            "port_availability", "receiver_network"))
-        return PreflightResult(catalogDigest=verified.catalogDigest, planHash=verified.planHash,
-                               platform=verified.image.platform, checkedAt=checked, checks=checks)
+                docker_status, context = 'unknown', None
+        if type(docker_status) is not str or docker_status not in {'passed', 'failed', 'unknown'}:
+            docker_status, context = 'unknown', None
+        storage = observe_storage()
+        result = [PreflightCheck(code='platform', status='passed' if actual_platform == expected_platform else 'failed'), *storage,
+                  PreflightCheck(code='docker_engine', status=docker_status)]
+        for code, attribute in (('daemon_mount_context', 'same_mount_namespace'),
+                                ('daemon_network_context', 'same_network_namespace'),
+                                ('daemon_root_context', 'same_process_root')):
+            value = getattr(context, attribute, None)
+            result.append(PreflightCheck(code=code, status='passed' if value is True else 'failed' if value is False else 'unknown'))
+        result.extend(PreflightCheck(code=code, status='unknown') for code in ('port_availability', 'receiver_network'))
+        _within(deadline)
+        return PreflightResult(catalogDigest=catalog_digest, planHash=plan_hash, platform=expected_platform,
+                               checkedAt=checked, checks=result)

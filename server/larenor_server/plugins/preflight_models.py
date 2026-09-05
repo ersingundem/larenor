@@ -3,7 +3,7 @@
 from datetime import datetime
 from typing import Annotated, Literal
 
-from pydantic import Field, StringConstraints, field_validator
+from pydantic import Field, StringConstraints, field_validator, model_validator
 
 from ..models import StrictModel
 from .models import Digest, Platform
@@ -15,11 +15,19 @@ Mebibytes = Annotated[int, Field(ge=0, le=2**63 - 1)]
 
 class PreflightCheck(StrictModel):
     code: Literal["platform", "storage_root", "storage_capacity", "docker_engine",
-                  "port_availability", "receiver_network"]
+                  "port_availability", "receiver_network", "daemon_mount_context",
+                  "daemon_network_context", "daemon_root_context"]
     status: Literal["passed", "failed", "unknown"]
     rootId: RootId | None = None
     availableMiB: Mebibytes | None = None
     requiredMiB: Mebibytes | None = None
+
+    @model_validator(mode='after')
+    def context_has_no_private_identifiers(self):
+        if self.code.startswith('daemon_') and any(value is not None for value in (
+                self.rootId, self.availableMiB, self.requiredMiB)):
+            raise ValueError('invalid_context_check')
+        return self
 
 
 class PreflightResult(StrictModel):
