@@ -218,10 +218,10 @@ class ScopeHarness {
     tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
     tester.view.devicePixelRatio = 1;
     tester.view.physicalSize = Size(width, 1000);
-    tester.platformDispatcher.localeTestValue = Locale(locale);
+    tester.platformDispatcher.localesTestValue = [Locale(locale)];
     tester.platformDispatcher.textScaleFactorTestValue = scale;
     addTearDown(tester.view.reset);
-    addTearDown(tester.platformDispatcher.clearLocaleTestValue);
+    addTearDown(tester.platformDispatcher.clearLocalesTestValue);
     addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
     await tester.pumpWidget(
       ConfigurationScope(

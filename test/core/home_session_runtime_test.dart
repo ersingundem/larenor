@@ -321,6 +321,10 @@ void main() {
           h.router(tester).push('/settings/home-source');
           await flush(tester);
           expect(find.byType(HomeSourceScreen), findsOneWidget);
+          expect(
+            find.text(language == 'tr' ? 'Ev kaynağı' : 'Home source'),
+            findsOneWidget,
+          );
           for (final source in HomeSource.values) {
             final row = find.byKey(ValueKey('home-source-${source.name}'));
             await tester.ensureVisible(row);
@@ -507,23 +511,48 @@ void main() {
       expect(tester.takeException(), isNull);
     },
   );
-  testWidgets('first install source page closes when a settings PIN is created', (tester) async {
-    final h = ScopeHarness(HomeSource.directLocal);
+  testWidgets(
+    'first install source page closes when a settings PIN is created',
+    (tester) async {
+      final h = ScopeHarness(HomeSource.directLocal);
+      await h.mount(tester);
+      await press(tester, 'connect-larenor-server');
+      expect(
+        tester
+            .widget<ServerConnectionScreen>(find.byType(ServerConnectionScreen))
+            .freshInstall,
+        isTrue,
+      );
+      await tester.tap(find.text('Home source'));
+      await flush(tester);
+      expect(find.byType(HomeSourceScreen), findsOneWidget);
+      final old = tester
+          .widget<SettingsActionTile>(
+            find.byKey(const ValueKey('home-source-verifiedCore')),
+          )
+          .onTap!;
+      await h.runtime(tester).read(pinLockProvider.notifier).setPin('1234');
+      await flush(tester);
+      expect(find.text('Unlock'), findsOneWidget);
+      expect(find.byType(HomeSourceScreen), findsNothing);
+      old();
+      await flush(tester);
+      expect(h.source.value, HomeSource.directLocal);
+      expect(h.source.writes, 0);
+    },
+  );
+  testWidgets('source picker visibly marks exactly the persisted source', (tester) async {
+    final h = ScopeHarness(HomeSource.verifiedCore);
     await h.mount(tester);
-    await press(tester, 'connect-larenor-server');
-    expect(tester.widget<ServerConnectionScreen>(find.byType(ServerConnectionScreen)).freshInstall, isTrue);
-    await tester.tap(find.text('Home source'));
+    h.router(tester).push('/settings/home-source');
     await flush(tester);
-    expect(find.byType(HomeSourceScreen), findsOneWidget);
-    final old = tester.widget<SettingsActionTile>(find.byKey(const ValueKey('home-source-verifiedCore'))).onTap!;
-    await h.runtime(tester).read(pinLockProvider.notifier).setPin('1234');
-    await flush(tester);
-    expect(find.text('Unlock'), findsOneWidget);
-    expect(find.byType(HomeSourceScreen), findsNothing);
-    old();
-    await flush(tester);
-    expect(h.source.value, HomeSource.directLocal);
-    expect(h.source.writes, 0);
+    expect(find.byIcon(CupertinoIcons.check_mark), findsOneWidget);
+    final selected = tester.widget<SettingsActionTile>(find.byKey(const ValueKey('home-source-verifiedCore')));
+    final other = tester.widget<SettingsActionTile>(find.byKey(const ValueKey('home-source-directLocal')));
+    expect(selected.selected, isTrue);
+    expect(other.selected, isFalse);
+    expect(selected.leading, isA<Icon>());
+    expect(other.leading, isA<SizedBox>());
   });
 
 }
