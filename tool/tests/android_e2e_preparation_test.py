@@ -148,7 +148,7 @@ class AndroidE2EPreparationTest(unittest.TestCase):
         self.assertIn("kioskFocused=false keyguardLocked=true", log)
         self.assertIn("native focus snapshot captured", log)
         self.assertIn("adb -s emulator-5554 exec-out screencap -p", commands)
-        self.assertIn("adb -s emulator-5554 shell dumpsys window windows", commands)
+        self.assertIn("adb -s emulator-5554 shell dumpsys window displays", commands)
         self.assertIsNotNone(result.focus_snapshot)
         self.assertNotIn("logcat", commands)
 

@@ -141,7 +141,9 @@ def capture(serial: str, output: Path) -> bool:
     state = {
         "scope": "disposable_ci_emulator_native_focus_failure",
         "power": summarize_power(_adb(serial, ["shell", "dumpsys", "power"])),
-        "windows": summarize_windows(_adb(serial, ["shell", "dumpsys", "window", "windows"])),
+        # Android 15 reports current focus in DisplayContent, not the windows
+        # section. Keep the same fixed classifications; never retain raw titles.
+        "windows": summarize_windows(_adb(serial, ["shell", "dumpsys", "window", "displays"])),
         "policy": summarize_policy(_adb(serial, ["shell", "dumpsys", "window", "policy"])),
     }
     state["screenshotAvailable"] = image is not None and image.startswith(PNG_SIGNATURE)
