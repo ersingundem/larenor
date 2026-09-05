@@ -364,3 +364,34 @@ def test_real_unix_peer_uid_passes_in_linux_ci(binding):
     with engine_server([response(image(binding))]) as (engine, _):
         production = UnixImageEngine(engine._endpoint)
         assert production.inspect(binding).image_id == binding.config_digest
+
+
+@pytest.mark.parametrize('variant', ['', 'v8'])
+def test_arm64_uses_its_own_pinned_config_and_manifest(source, variant):
+    _, _, catalog, policy = source
+    stack = build_media_stack_plan(catalog, {}, 'linux/arm64',
+                                  ContextResponse(schemaVersion=1, coreId='a' * 32, homeId='b' * 32), 'c' * 32)
+    plan = build_resource_plan(stack, catalog, policy)
+    selected = image_binding(plan, stack, catalog, policy, plan.resources[0].resourceId)
+    value = {**image(selected), 'Architecture': 'arm64', 'Variant': variant}
+    with engine_server([response(value), response(b'{"status":"Done"}\n')],
+                       version={**VERSION, 'Arch': 'arm64'}) as (engine, calls):
+        assert engine.inspect(selected).image_id == plan.resources[0].image.configDigest
+        assert engine.pull(selected) is None
+    assert selected.config_digest != source[0].resources[0].image.configDigest
+    assert parse_qs(urlsplit(calls[-1].split(b' ')[1].decode()).query)['platform'] == ['linux/arm64']
+
+
+@pytest.mark.parametrize('change', ['variant', 'amd64_config'])
+def test_arm64_rejects_foreign_variant_or_amd64_config(source, change):
+    _, _, catalog, policy = source
+    stack = build_media_stack_plan(catalog, {}, 'linux/arm64',
+                                  ContextResponse(schemaVersion=1, coreId='a' * 32, homeId='b' * 32), 'c' * 32)
+    plan = build_resource_plan(stack, catalog, policy)
+    selected = image_binding(plan, stack, catalog, policy, plan.resources[0].resourceId)
+    value = {**image(selected), 'Architecture': 'arm64', 'Variant': 'v8'}
+    value.update({'Variant': 'v7'} if change == 'variant'
+                 else {'Id': source[0].resources[0].image.configDigest})
+    with engine_server([response(value)], version={**VERSION, 'Arch': 'arm64'}) as (engine, _):
+        with pytest.raises(ImageResourceError, match='^image_unverified$'):
+            engine.inspect(selected)
