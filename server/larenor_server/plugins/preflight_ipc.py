@@ -172,11 +172,13 @@ class PreflightWorkerServer:
             listener = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
             self._listener = listener
             listener.bind(str(self.path))
+            # Record ownership before any later setup can fail. close() may
+            # remove this inode, but must preserve a replacement endpoint.
+            info = self.path.lstat()
+            self._identity = (info.st_dev, info.st_ino)
             if self.socket_gid is not None:
                 os.chown(self.path, -1, self.socket_gid)
             os.chmod(self.path, 0o660 if self.socket_gid is not None else 0o600)
-            info = self.path.lstat()
-            self._identity = (info.st_dev, info.st_ino)
             listener.listen(4)
             listener.settimeout(.2)
             self._stopped.clear()

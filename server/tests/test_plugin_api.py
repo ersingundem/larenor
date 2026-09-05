@@ -50,8 +50,12 @@ def test_catalog_and_preview_are_typed_and_do_not_claim_a_running_worker(server)
     schema = client.get("/api/v1/openapi.json", headers=auth(pair)).json()
     assert schema["paths"][BASE + "/previews"]["post"]["security"] == [{"DeviceAccessToken": []}]
     assert schema["paths"][BASE + "/catalog"]["get"]["responses"]["200"]["content"]["application/json"]["schema"]["$ref"].endswith("PluginCatalogResponse")
-    # No fake queue or installation route exists until a worker is integrated.
-    assert BASE + "/jobs" not in schema["paths"]
+    # Durable requirements checks are available; no operation can install a service.
+    assert BASE + "/jobs" in schema["paths"]
+    assert schema["components"]["schemas"]["CreateJobRequest"]["properties"]["operation"]["const"] == "preflight"
+    assert client.get(BASE + "/jobs/capabilities", headers=auth(pair)).json() == {
+        "preflightConfigured": False, "installAvailable": False,
+    }
     assert not hasattr(app.state.core, "docker")
 
 

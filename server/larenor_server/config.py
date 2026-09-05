@@ -4,6 +4,8 @@ from pathlib import Path
 import time
 from typing import Callable
 
+from .errors import StartupError
+
 
 @dataclass(frozen=True)
 class Settings:
@@ -24,7 +26,8 @@ class Settings:
             raise ValueError("invalid_worker_configuration")
         if self.plugin_worker_socket is not None and (
                 not isinstance(self.plugin_worker_socket, Path) or not self.plugin_worker_socket.is_absolute()
-                or ".." in self.plugin_worker_socket.parts):
+                or ".." in self.plugin_worker_socket.parts
+                or any(ord(char) < 32 or ord(char) == 127 for char in str(self.plugin_worker_socket))):
             raise ValueError("invalid_worker_configuration")
 
     @property
@@ -37,9 +40,14 @@ class Settings:
 
     @classmethod
     def from_environment(cls) -> "Settings":
-        return cls(
-            data_dir=Path(os.environ.get("LARENOR_DATA_DIR", "/data")),
-            key_file=Path(os.environ.get("LARENOR_KEY_FILE", "/secrets/vault.key")),
-            plugin_worker_socket=Path(os.environ["LARENOR_PLUGIN_WORKER_SOCKET"]) if os.environ.get("LARENOR_PLUGIN_WORKER_SOCKET") else None,
-            plugin_worker_uid=int(os.environ.get("LARENOR_PLUGIN_WORKER_UID", "0")),
-        )
+        try:
+            return cls(
+                data_dir=Path(os.environ.get("LARENOR_DATA_DIR", "/data")),
+                key_file=Path(os.environ.get("LARENOR_KEY_FILE", "/secrets/vault.key")),
+                plugin_worker_socket=Path(os.environ["LARENOR_PLUGIN_WORKER_SOCKET"]) if os.environ.get("LARENOR_PLUGIN_WORKER_SOCKET") else None,
+                plugin_worker_uid=int(os.environ.get("LARENOR_PLUGIN_WORKER_UID", "0")),
+            )
+        except ValueError:
+            # int() errors include their input. Environment values must never
+            # escape through the CLI or another configured-app entry point.
+            raise StartupError("invalid_worker_configuration") from None

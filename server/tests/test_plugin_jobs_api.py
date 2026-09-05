@@ -5,7 +5,6 @@ import pytest
 from conftest import auth, login
 from test_admin import TEMPORARY, activate, create as create_user
 from test_plugin_jobs import jobs, submission
-from larenor_server.plugins.job_api import router
 
 
 BASE = "/api/v1/admin/plugins/jobs"
@@ -15,8 +14,6 @@ BASE = "/api/v1/admin/plugins/jobs"
 def api(server, jobs):
     app, client, _, _ = server
     app.state.core.plugin_jobs = jobs[0]
-    if not any(getattr(route, "path", None) == BASE for route in app.routes):
-        app.include_router(router, prefix="/api/v1")
     app.openapi_schema = None
     return client
 

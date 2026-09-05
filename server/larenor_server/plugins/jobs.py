@@ -146,10 +146,12 @@ class JobManagement:
                 connection.execute("BEGIN")
                 for table, maximum, decode in (("plugin_jobs", MAX_JOBS, self._decode),
                                                 ("plugin_job_events", MAX_EVENTS, self._decode_event)):
-                    rows = connection.execute(f"SELECT * FROM {table} LIMIT ?", (maximum + 1,)).fetchall()
-                    if len(rows) > maximum:
-                        raise ApiError("plugin_job_storage_unavailable", 503)
-                    for row in rows:
+                    rows = connection.execute(f"SELECT * FROM {table} LIMIT ?", (maximum + 1,))
+                    # Decode each accepted row before requesting the next one;
+                    # retained encrypted history must not accumulate in memory.
+                    for count, row in enumerate(rows, start=1):
+                        if count > maximum:
+                            raise ApiError("plugin_job_storage_unavailable", 503)
                         decode(row)
         except (ApiError, sqlite3.Error):
             raise StartupError("invalid_plugin_jobs_storage") from None
