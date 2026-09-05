@@ -28,6 +28,8 @@ from .services.schema import migrate_services
 from .services.service import ServiceManagement
 from .services.probe_runner import ServiceProbeRunner
 from .vault import VaultService
+from .home_resources.schema import migrate_home_resources
+from .home_resources.service import HomeResourceRegistry
 
 
 class CoreServices:
@@ -125,6 +127,7 @@ class CoreServices:
                                        (uuid.uuid4().hex, "admin", "admin", self.auth.hash_password(password), 1, settings.clock()))
                     connection.executemany("INSERT INTO metadata VALUES(?,?)", [("schema_version", "2"), ("key_check", check)])
                 self.context = migrate_context(connection, key)
+                migrate_home_resources(connection, self.context, key)
                 migrate_services(connection)
                 migrate_plugins(connection)
                 migrate_plugin_jobs(connection)
@@ -148,6 +151,8 @@ class CoreServices:
                 if private_read(initialized_marker, 64) != b"larenor-schema-1\n":
                     raise StartupError("initialized_marker_invalid")
             self.vault = VaultService(self.db, self.auth, settings, key)
+            self.home_resources = HomeResourceRegistry(self.db, self.auth, settings, key, self.context)
+            self.home_resources.validate_storage()
             self.admin = AdminService(self.db, self.auth, settings)
             self.services = ServiceManagement(self.db, self.auth, settings, key)
             self.services.validate_storage()

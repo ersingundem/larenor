@@ -21,6 +21,7 @@ from .models import (ErrorResponse, HealthResponse, LoginRequest, LogoutRequest,
                      PasswordRequest, RefreshRequest, SessionPair, UserResponse,
                      VaultRequest, VaultResponse)
 from .services.api import router as services_router
+from .home_resources.api import router as home_resources_router
 from .services.probe_api import router as service_probe_router
 from .plugins.api import router as plugins_router
 from .plugins.job_api import router as plugin_jobs_router
@@ -162,6 +163,7 @@ def create_app(settings: Settings, *, routers: Iterable[APIRouter] = (),
     app.include_router(router)
     app.include_router(admin_router, prefix="/api/v1")
     app.include_router(services_router, prefix="/api/v1")
+    app.include_router(home_resources_router, prefix="/api/v1")
     app.include_router(service_probe_router, prefix="/api/v1")
     app.include_router(plugins_router, prefix="/api/v1")
     app.include_router(plugin_jobs_router, prefix="/api/v1")
