@@ -71,7 +71,9 @@ void main() {
       expect(find.textContaining('synthetic-old-key'),findsNothing);
       expect(secure.values['${name}_connection_pending_v1'],'1');
       expect(tester.takeException(),isNull);
-      await tester.pumpWidget(const SizedBox.shrink()); await settle(tester);
+      await tester.pumpWidget(const SizedBox.shrink());
+      container.dispose(); // Dispose its health clock before widget-test timer checks.
+      await settle(tester);
     });
   }
 }

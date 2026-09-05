@@ -2,6 +2,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../l10n/generated/app_localizations.dart';
+import '../../../../core/direct_home_access.dart';
 import '../../../health/data/integration_health.dart';
 import '../../../../shared/discovery/service_signatures.dart';
 import '../providers/lidarr_providers.dart';
@@ -23,11 +24,23 @@ class LidarrScreen extends ConsumerWidget {
       loading: () => const CupertinoPageScaffold(
         child: Center(child: CupertinoActivityIndicator()),
       ),
-      error: (error, _) => CupertinoPageScaffold(
-        child: Center(
-          child: Text(AppLocalizations.of(context).mediaErrorUnreachable),
-        ),
-      ),
+      error: (error, _) {
+        if (error is DirectHomeAccessException &&
+            error.code == 'pending_mutation') {
+          final connection = ref.read(lidarrConnectionProvider.notifier);
+          return ArrConnectForm(
+            title: 'Lidarr',
+            urlHint: '',
+            onConnect: (url, key) =>
+                connection.signIn(baseUrl: url, apiKey: key),
+          );
+        }
+        return CupertinoPageScaffold(
+          child: Center(
+            child: Text(AppLocalizations.of(context).mediaErrorUnreachable),
+          ),
+        );
+      },
       data: (config) {
         if (config == null) {
           return ArrConnectForm(
