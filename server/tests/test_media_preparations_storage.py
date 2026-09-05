@@ -373,6 +373,9 @@ def test_missing_or_weakened_unique_constraints_fail_at_startup(server, preparat
             assert replaced == 1
         connection.execute("DROP TABLE media_preparations")
         connection.execute(schema)
+        # Keep unrelated schema evidence intact so each case isolates its
+        # missing uniqueness guarantee rather than the state lookup index.
+        connection.execute("CREATE INDEX media_preparations_state ON media_preparations(state,sequence)")
         if missing == "partial_sequence":
             connection.execute("CREATE UNIQUE INDEX media_sequence_partial ON media_preparations(sequence) WHERE sequence>10")
         elif missing == "composite_request":
