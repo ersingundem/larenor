@@ -366,6 +366,9 @@ class AppdataInspector:
                 try:
                     child = os.open(part, _FLAGS, dir_fd=parent)
                 except FileNotFoundError:
+                    # ENOENT on a held but renamed parent is not evidence
+                    # about the current root-relative path.
+                    self._recheck_links(links, deadline)
                     return AppdataInspection('missing')
                 except OSError as error:
                     if error.errno in (errno.ELOOP, errno.ENOTDIR):
@@ -402,16 +405,23 @@ class AppdataInspector:
                 links.append((envelope, name, child, _fingerprint(os.fstat(child))))
             # Re-open names through their held parents. An old descriptor alone
             # must not certify a directory that has been renamed/replaced.
-            for parent, name, descriptor, before in links:
-                self._lease._check(deadline)
-                after = os.stat(name, dir_fd=parent, follow_symlinks=False)
-                _check(_fingerprint(after) == before == _fingerprint(os.fstat(descriptor)))
-                self._lease._check_mount(descriptor, deadline)
+            self._recheck_links(links, deadline)
             self._names(envelope, names, deadline)
             return AppdataInspection('partial' if absent else 'matched', None if absent else expected)
         finally:
             for descriptor in reversed(opened):
                 os.close(descriptor)
+
+    def _recheck_links(self, links, deadline):
+        self._lease._check(deadline)
+        for parent, name, descriptor, before in links:
+            self._lease._check(deadline)
+            try:
+                after = os.stat(name, dir_fd=parent, follow_symlinks=False)
+            except FileNotFoundError:
+                raise _InspectionFailure('conflict') from None
+            _check(_fingerprint(after) == before == _fingerprint(os.fstat(descriptor)))
+            self._lease._check_mount(descriptor, deadline)
 
     def _names(self, envelope, expected, deadline):
         with os.scandir(envelope) as entries:
