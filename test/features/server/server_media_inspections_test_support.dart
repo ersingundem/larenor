@@ -6,7 +6,7 @@ import 'server_media_preparations_test_support.dart';
 
 Map<String, dynamic> mediaInspectionJson({
   String state = 'queued',
-  int revision = 1,
+  int? revision,
   int index = 1,
 }) {
   final preparation = mediaPreparationJson();
@@ -21,7 +21,7 @@ Map<String, dynamic> mediaInspectionJson({
     'catalogDigest': plan['catalogDigest'],
     'planHash': plan['planHash'],
     'platform': plan['platform'],
-    'revision': revision,
+    'revision': revision ?? (state == 'queued' ? 1 : 2),
     'state': state,
     'phase': state == 'queued'
         ? 'queued'

@@ -76,6 +76,16 @@ void main() {
       expect(() => ServerPluginJob.fromJson(value), invalid);
     },
   );
+  test('daemon context checks reject identifiers and capacity fields', () {
+    for (final code in ['daemon_mount_context', 'daemon_network_context', 'daemon_root_context']) {
+      for (final field in ['rootId', 'availableMiB', 'requiredMiB']) {
+        final value = <String, Object?>{'code': code, 'status': 'passed', 'rootId': null,
+          'availableMiB': null, 'requiredMiB': null};
+        value[field] = field == 'rootId' ? 'private_root' : 1;
+        expect(() => ServerPluginJobCheck.fromJson(value), invalid);
+      }
+    }
+  });
   final bad = <String, void Function(Map<String, dynamic>)>{
     'unknown secret': (v) => v['token'] = 'synthetic-secret',
     'missing required nullable': (v) => v.remove('result'),

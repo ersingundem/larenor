@@ -155,6 +155,13 @@ void main() {
       expect(f.mutations, isEmpty);
     },
   );
+  testWidgets('explicit refresh rechecks worker configuration without creating a job', (tester) async {
+    await mount(tester, review: true, configured: false);
+    f.configured = true;
+    await tap(tester, 'inspections-refresh');
+    expect(tester.widget<CupertinoButton>(find.byKey(const ValueKey('inspections-launch'))).onPressed, isNotNull);
+    expect(f.mutations, isEmpty);
+  });
   for (final language in ['en', 'tr']) {
     testWidgets(
       '$language tablet 2x distinguishes local storage and daemon context from installation',

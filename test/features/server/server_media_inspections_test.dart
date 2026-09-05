@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
@@ -44,6 +45,21 @@ void main() {
       }
     }
   });
+  test('actual HTTP worker and restart fixture binds aggregate observations to the saved preparation', () {
+    final fixture = jsonDecode(File('contracts/media-inspections.v1.json').readAsStringSync());
+    final request = ServerMediaInspectionRequest(preparation(), fixture['createRequest']['requestId']);
+    expect(request.toJson(), fixture['createRequest']);
+    for (final key in ['queued', 'succeeded', 'queuedForCancel', 'cancelled']) {
+      final inspection = ServerMediaInspection.fromJson(fixture[key]);
+      expect(inspection.matchesPreparation(preparation()), isTrue);
+      if (key == 'succeeded') {
+        expect(request.accepts(inspection), isTrue);
+        expect(inspection.result!.checks.where((c) => c.code.startsWith('daemon_')).map((c) => c.status), everyElement('unknown'));
+        expect(inspection.result!.checks.any((c) => c.code == 'storage_capacity' && c.requiredMiB == 16384), isTrue);
+      }
+    }
+    expect(ServerMediaInspectionCapabilities.fromJson(fixture['capabilities']).inspectionConfigured, isTrue);
+  });
   for (final mutation in <String, void Function(Map<String, dynamic>)>{
     'secret': (r) => r['token'] = 'synthetic-secret',
     'missing nullable': (r) => r.remove('result'),
@@ -78,6 +94,14 @@ void main() {
       expect(() => ServerMediaInspection.fromJson(value), invalid);
     });
   }
+  test('inspection state revisions match the persisted Server transition contract', () {
+    for (final value in [
+      mediaInspectionJson(revision: 2),
+      mediaInspectionJson(state: 'running', revision: 1),
+      mediaInspectionJson(state: 'succeeded', revision: 1),
+      mediaInspectionJson(state: 'running', revision: 0x7fffffffffffffff),
+    ]) {expect(() => ServerMediaInspection.fromJson(value), invalid);}
+  });
   test('result is bound to catalog, plan and platform but allows worker clock difference', () {
     for (final key in ['catalogDigest', 'planHash', 'platform']) {
       final value = mediaInspectionJson(state: 'succeeded');
@@ -234,6 +258,22 @@ void main() {
         expect(c.canLaunch, isFalse);
       },
     );
+    test('a preparation entry binds Core and home before any returned history can appear', () async {
+      c.dispose();
+      c = ServerMediaInspectionsController(f.account,
+        context: ServerContext.fromJson(mediaFixtureJson()['context']));
+      f.respond = (r) async => r.url.path.endsWith('/context')
+          ? f.json({'schemaVersion': 1, 'coreId': 'd' * 32, 'homeId': 'e' * 32}) : f.pluginResponse(r);
+      await c.load(current: () => true);
+      expect(c.failure, 'invalid_response'); expect(c.inspections, isEmpty);
+      expect(f.calls.any((r) => r.url.path.endsWith('/inspections')), isFalse);
+    });
+    test('cancel acknowledgement cannot retain an active uncancelled row', () async {
+      final previous = ServerMediaInspection.fromJson(mediaInspectionJson());
+      f.respond = (r) async => f.json({'inspection': mediaInspectionJson()});
+      await expectLater(f.account.withSession((api, session) =>
+        ServerMediaInspectionsApi(api, session.accessToken).cancel(previous)), invalid);
+    });
     test('bounded pages reach all 256 records and reject duplicate or nondecreasing cursors', () async {
       f.inspections.addAll([
         for (var i = 1; i <= 256; i++)
