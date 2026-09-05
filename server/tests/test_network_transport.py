@@ -373,7 +373,13 @@ def test_cancel_during_stalled_read_closes_socket(prepared, disconnect):
                 raise ConnectionResetError('synthetic unread-data disconnect')
             return value
 
-        assert receive_disconnect() == b''
+        try:
+            remaining = receive_disconnect()
+        except ConnectionResetError:
+            # Linux may discard unread response headers with ECONNRESET.
+            # This is a peer disconnect too; timeouts and other errors fail.
+            remaining = b''
+        assert remaining == b''
         closed.set()
 
     with server(reply=reply) as (client, _):
