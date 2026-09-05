@@ -16,6 +16,7 @@ class RecordingAdminSocket extends HaWebSocketClient {
   Future<dynamic> sendCommand(
     Map<String, dynamic> command, {
     Duration timeout = const Duration(seconds: 15),
+    bool Function()? isCurrent,
   }) async {
     commands.add(Map.of(command));
     return respond == null ? <String, dynamic>{} : await respond!(command);

@@ -16,6 +16,9 @@ import '../features/settings/presentation/settings_gate_screen.dart';
 import '../features/intercom/presentation/intercom_screen.dart';
 import '../features/today/presentation/today_screen.dart';
 import '../features/energy/presentation/energy_maintenance_screen.dart';
+import '../features/media/ha_playback/presentation/ha_playback_screen.dart';
+import '../features/media/music/presentation/music_center_screen.dart';
+import '../features/media/local_audio/presentation/local_audio_screen.dart';
 
 final routerProvider = Provider<GoRouter>((ref) {
   final rootKey = GlobalKey<NavigatorState>();
@@ -62,6 +65,18 @@ final routerProvider = Provider<GoRouter>((ref) {
                 path: '/media',
                 builder: (_, _) => const MediaHubScreen(embedded: true),
                 routes: [
+                  GoRoute(
+                    path: 'sources',
+                    builder: (_, _) => const HaPlaybackScreen(),
+                  ),
+                  GoRoute(
+                    path: 'music',
+                    builder: (_, _) => const MusicCenterScreen(),
+                  ),
+                  GoRoute(
+                    path: 'audio',
+                    builder: (_, _) => const LocalAudioScreen(),
+                  ),
                   GoRoute(
                     path: 'title',
                     builder: (_, state) => MediaDestinationScreen(

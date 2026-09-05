@@ -10,6 +10,25 @@ import 'package:larenor/features/settings/data/app_service.dart';
 
 void main() {
   test(
+    'music and receiver pages resolve locally without indexing credentials',
+    () {
+      final index = LocalSearchIndex.build(mediaPages: MediaPageTarget.values);
+      for (final text in ['MÜZİK', 'Spotify', 'Apple Music', 'YouTube Music']) {
+        expect(index.search(text).single.target.location, '/media/music');
+      }
+      for (final text in ['Chromecast', 'AirPlay', 'HomePod', 'Apple TV']) {
+        expect(index.search(text).single.target.location, '/media/sources');
+      }
+      expect(
+        index.search('kilit ekranı').single.target.location,
+        '/media/audio',
+      );
+      expect(index.search('secret-token'), isEmpty);
+      expect(index.length, 3);
+    },
+  );
+
+  test(
     'home pages are searchable without indexing private contents or actions',
     () {
       final index = LocalSearchIndex.build(pages: HomePageTarget.values);

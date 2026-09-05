@@ -7,12 +7,27 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:larenor/features/dashboard/presentation/widgets/entity_controls.dart';
+import 'package:larenor/features/auth/data/ha_connection_config.dart';
+import 'package:larenor/features/auth/providers/auth_providers.dart';
 import 'package:larenor/features/ha_client/data/models/ha_entity.dart';
 import 'package:larenor/features/ha_client/data/rest_client.dart';
 import 'package:larenor/features/ha_client/providers/ha_client_providers.dart';
 import 'package:larenor/features/ha_tools/domain/ha_action.dart';
 import 'package:larenor/features/ha_tools/presentation/ha_actions_screen.dart';
 import 'package:larenor/l10n/generated/app_localizations.dart';
+
+class _Connection extends ConnectionConfig {
+  @override
+  Future<HaConnectionConfig?> build() async =>
+      const HaConnectionConfig(baseUrl: 'http://ha.test', token: 'fixture');
+}
+
+class _Entities extends Entities {
+  _Entities(this.entity);
+  final HaEntity entity;
+  @override
+  Future<Map<String, HaEntity>> build() async => {entity.entityId: entity};
+}
 
 void main() {
   final requests = <http.Request>[];
@@ -36,6 +51,9 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          connectionConfigProvider.overrideWith(_Connection.new),
+          entitiesProvider.overrideWith(() => _Entities(entity)),
+          haWebSocketClientProvider.overrideWith((ref) => null),
           haRestClientProvider.overrideWith((ref) => client),
           haActionsProvider.overrideWith(
             (ref) async => [
@@ -274,6 +292,7 @@ void main() {
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 400));
       await tester.enterText(find.byType(CupertinoTextField), '1234');
+      await tester.pump();
       await tester.tap(find.widgetWithText(CupertinoDialogAction, 'Unlock'));
       await tester.pumpAndSettle();
       expect(body(), {'entity_id': 'lock.example', 'code': '1234'});

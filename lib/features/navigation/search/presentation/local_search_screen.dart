@@ -218,27 +218,36 @@ class _SearchResultRow extends StatelessWidget {
         CupertinoIcons.square_stack_3d_up,
         l10n.navigationSearchSystem,
       ),
-      LocalSearchKind.page =>
-        switch ((item.target as HomePageNavigationTarget).page) {
-          HomePageTarget.today => (
-            CupertinoIcons.calendar,
-            l10n.navigationSearchPage,
-          ),
-          HomePageTarget.energy => (
-            CupertinoIcons.bolt_fill,
-            l10n.navigationSearchPage,
-          ),
-          HomePageTarget.intercom => (
-            CupertinoIcons.bell,
-            l10n.navigationSearchPage,
-          ),
-        },
+      LocalSearchKind.page => switch (item.target) {
+        HomePageNavigationTarget(page: HomePageTarget.today) => (
+          CupertinoIcons.calendar,
+          l10n.navigationSearchPage,
+        ),
+        HomePageNavigationTarget(page: HomePageTarget.energy) => (
+          CupertinoIcons.bolt_fill,
+          l10n.navigationSearchPage,
+        ),
+        HomePageNavigationTarget(page: HomePageTarget.intercom) => (
+          CupertinoIcons.bell,
+          l10n.navigationSearchPage,
+        ),
+        MediaPageNavigationTarget(page: MediaPageTarget.sources) => (
+          CupertinoIcons.tv,
+          l10n.navigationSearchPage,
+        ),
+        _ => (CupertinoIcons.music_note_2, l10n.navigationSearchPage),
+      },
     };
     final title = switch (item.target) {
       HomePageNavigationTarget(page: HomePageTarget.today) => l10n.todayTitle,
       HomePageNavigationTarget(page: HomePageTarget.energy) => l10n.energyTitle,
       HomePageNavigationTarget(page: HomePageTarget.intercom) =>
         l10n.intercomTitle,
+      MediaPageNavigationTarget(page: MediaPageTarget.music) => l10n.musicTitle,
+      MediaPageNavigationTarget(page: MediaPageTarget.sources) =>
+        l10n.haMediaTitle,
+      MediaPageNavigationTarget(page: MediaPageTarget.audio) =>
+        l10n.localAudioTitle,
       _ => item.title,
     };
     final details = [

@@ -7,6 +7,7 @@ import '../../../../shared/widgets/icon_badge.dart';
 import '../../providers/settings_providers.dart';
 import 'settings_nav_row.dart';
 import '../../../../shared/widgets/settings_section.dart';
+import '../../../media/local_audio/presentation/playback_power_screen.dart';
 
 class DisplayPane extends ConsumerWidget {
   const DisplayPane({super.key});
@@ -26,6 +27,19 @@ class DisplayPane extends ConsumerWidget {
         SettingsSection(
           header: Text(l10n.settingsSectionDisplay),
           children: [
+            CupertinoListTile(
+              leading: const IconBadge(
+                icon: CupertinoIcons.music_note_2,
+                color: CupertinoColors.systemPurple,
+              ),
+              title: Text(l10n.localAudioPowerTitle),
+              trailing: const CupertinoListTileChevron(),
+              onTap: () => Navigator.of(context).push(
+                CupertinoPageRoute<void>(
+                  builder: (_) => const PlaybackPowerScreen(),
+                ),
+              ),
+            ),
             CupertinoListTile(
               leading: const IconBadge(
                 icon: CupertinoIcons.circle_lefthalf_fill,

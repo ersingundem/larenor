@@ -123,8 +123,50 @@ class LocalSearchIndex {
     Iterable<MediaTitle> media = const [],
     Iterable<AppService> services = const [],
     Iterable<HomePageTarget> pages = const [],
+    Iterable<MediaPageTarget> mediaPages = const [],
   }) {
     final documents = <String, _Document>{};
+    for (final page in mediaPages.toSet()) {
+      final aliases = switch (page) {
+        MediaPageTarget.music => [
+          'Music',
+          'Müzik',
+          'Music Assistant',
+          'Spotify',
+          'Apple Music',
+          'YouTube Music',
+          'çalma listesi',
+          'playlist',
+          'hoparlör',
+        ],
+        MediaPageTarget.sources => [
+          'Home media',
+          'Ev medyası',
+          'Chromecast',
+          'Google Cast',
+          'Apple TV',
+          'AirPlay',
+          'HomePod',
+          'medya kaynağı',
+        ],
+        MediaPageTarget.audio => [
+          'Play on this device',
+          'Bu cihazda çal',
+          'yerel ses',
+          'radyo',
+          'radio',
+          'kilit ekranı',
+          'lock screen',
+        ],
+      };
+      final item = LocalSearchItem(
+        id: 'media-page:${page.name}',
+        title: aliases.first,
+        kind: LocalSearchKind.page,
+        target: MediaPageNavigationTarget(page),
+      );
+      documents[item.id] = _Document(item, aliases, const []);
+    }
     for (final page in pages.toSet()) {
       final aliases = switch (page) {
         HomePageTarget.today => [

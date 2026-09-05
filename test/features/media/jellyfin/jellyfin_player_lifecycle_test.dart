@@ -10,6 +10,8 @@ import 'package:larenor/features/media/jellyfin/data/jellyfin_config.dart';
 import 'package:larenor/features/media/jellyfin/data/models/jellyfin_item.dart';
 import 'package:larenor/features/media/jellyfin/presentation/player/jellyfin_player_screen.dart';
 import 'package:larenor/features/media/jellyfin/providers/jellyfin_providers.dart';
+import 'package:larenor/features/media/local_audio/data/local_audio_bridge.dart';
+import 'package:larenor/features/media/local_audio/providers/local_audio_providers.dart';
 import 'package:larenor/l10n/generated/app_localizations.dart';
 import 'package:media_kit/media_kit.dart';
 
@@ -65,8 +67,17 @@ class _FakePlayer extends PlatformPlayer {
   }
 }
 
+// These tests exercise video lifecycle after the OS audio boundary. Dedicated
+// local_audio_video_handoff_test cases cover pending and failed native stops.
+class _StoppedAudio extends LocalAudioBridge {
+  _StoppedAudio() : super(isAndroid: false);
+  @override
+  Future<void> stopForVideo() async {}
+}
+
 Widget _app(_DelayedClient? client, _FakePlayer player) => ProviderScope(
   overrides: [
+    localAudioBridgeProvider.overrideWithValue(_StoppedAudio()),
     jellyfinClientProvider.overrideWithValue(client),
     jellyfinPlayerFactoryProvider.overrideWithValue(
       () => Player(platformPlayer: player),

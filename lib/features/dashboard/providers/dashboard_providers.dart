@@ -287,13 +287,15 @@ class DashboardLayoutNotifier extends _$DashboardLayoutNotifier {
     );
   }, isCurrent: isCurrent);
 
-  Future<void> toggleFavorite(String entityId) => _mutate(
-    (current) => current.copyWith(
-      favoriteEntityIds: current.favoriteEntityIds.contains(entityId)
-          ? current.favoriteEntityIds.where((id) => id != entityId).toList()
-          : [...current.favoriteEntityIds, entityId],
-    ),
-  );
+  Future<void> toggleFavorite(String entityId, {bool Function()? isCurrent}) =>
+      _mutate(
+        (current) => current.copyWith(
+          favoriteEntityIds: current.favoriteEntityIds.contains(entityId)
+              ? current.favoriteEntityIds.where((id) => id != entityId).toList()
+              : [...current.favoriteEntityIds, entityId],
+        ),
+        isCurrent: isCurrent,
+      );
 
   Future<void> hideEntity(String entityId) => _mutate((current) {
     if (current.hiddenEntityIds.contains(entityId)) return current;

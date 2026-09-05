@@ -6,6 +6,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:larenor/features/ha_client/data/rest_client.dart';
+import 'package:larenor/features/ha_client/data/models/ha_entity.dart';
+import 'package:larenor/features/auth/data/ha_connection_config.dart';
+import 'package:larenor/features/auth/providers/auth_providers.dart';
 import 'package:larenor/features/ha_client/providers/ha_client_providers.dart';
 import 'package:larenor/features/ha_tools/domain/ha_action.dart';
 import 'package:larenor/features/ha_tools/presentation/ha_actions_screen.dart';
@@ -53,8 +56,24 @@ final catalog = HaAction.parseCatalog([
   },
 ]);
 
+class _Connection extends ConnectionConfig {
+  @override
+  Future<HaConnectionConfig?> build() async =>
+      const HaConnectionConfig(baseUrl: 'http://ha.test', token: 'fixture');
+}
+
+class _Entities extends Entities {
+  @override
+  Future<Map<String, HaEntity>> build() async => {
+    'light.desk': const HaEntity(entityId: 'light.desk', state: 'on'),
+  };
+}
+
 Widget app(Widget child, HaRestClient client) => ProviderScope(
   overrides: [
+    connectionConfigProvider.overrideWith(_Connection.new),
+    entitiesProvider.overrideWith(_Entities.new),
+    haWebSocketClientProvider.overrideWith((ref) => null),
     haRestClientProvider.overrideWith((ref) => client),
     haActionsProvider.overrideWith((ref) async => catalog),
   ],

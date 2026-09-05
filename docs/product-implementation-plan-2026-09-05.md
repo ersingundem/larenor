@@ -14,16 +14,18 @@
 - [x] 6. Kontrollü oda eşitleme ve kart düzenleme — alan önizlemesi/eşitleme, elle eklenenleri koruma, kart boyutları/sırası ve görünür kartları oluşturan grid uygulandı; birleşik testler geçti.
 - [x] 7. Enerji ve bakım özeti — HA saat diliminde kayıtlı sayaç/istatistikler, pil/çevrimdışı/bakım listesi ve Proxmox kapasitesi; telefon/tablet testleri ve birleşik paket geçti. Fiziksel cihaz kabulü bekliyor.
 - [x] 8. Keenetic internet/IP/hız/uptime ve diğer cihazlar için seçilebilir canlı kartlar — beş Keenetic ölçümü, ortak widget seçici ve geçmiş/hava durumu/WebView yaşam döngüsü tamamlandı. Bilinmeyen değerler sıfır sayılmıyor; firmware ve gerçek ağ kabulü bekliyor.
-- [ ] 9. Medya hedefleri: Chromecast/Apple TV — aynı kullanıcıya ait Jellyfin TV oturumuna gönderme uygulandı; ilgili 119 test geçti. HA medya kaynağı → Cast/Apple ses hedefi yolu geliştiriliyor; Apple TV video ve fiziksel alıcı kabulü ayrıca bekliyor.
-- [ ] 10. Spotify/Apple Music ve HomePod kontrolü için desteklenen sunucu/cihaz yolu.
-- [ ] 11. Uygulama içinde müzik merkezi; Music Assistant sunucu motorunun Android uyumluluk değerlendirmesi, üyelik sağlayıcılarının izin verdiği işlevler.
-- [ ] 12. Kilit ekranı medya bilgisi/kontrolleri, aktif oynatmada arka plan servisi, bildirim ve güç ayarları.
+- [ ] 9. Medya hedefleri: Chromecast/Apple TV — aynı kullanıcıya ait Jellyfin TV oturumuna gönderme ve HA medya kaynağı → yetenek doğrulanan Cast/Apple ses hedefi yolu uygulandı. HA kaynağında 60 veri/akış/UI testi geçti. Apple TV video ve fiziksel alıcı kabulü ayrıca bekliyor.
+- [ ] 10. Spotify/Apple Music ve HomePod — HA üzerinden Music Assistant kütüphane/arama/kuyruk/oynatma istemcisi uygulandı. Kullanıcının sunucusu kurulu değil; sağlayıcı kurulumu, yetkilendirme ve gerçek HomePod kabulü bekliyor. Üyelik doğrudan SDK bağlantısı sayılmıyor.
+- [ ] 11. Uygulama içinde müzik merkezi — yerel dört sekmeli ekran, sayfalı katalog, açık arama, kuyruk özeti, kaynak/hedef onayı ve çıktı kontrolleri uygulandı. Tam Music Assistant sunucu motoru Android APK içinde çalışmıyor; harici motor gereksinimi açık gösteriliyor.
+- [ ] 12. Kilit ekranı/arka plan/güç — Android Media3/MediaSessionService, yerel ses bilgisi/kontrolleri, tek oynatıcı ve Jellyfin video geçişi, güç ayarları uygulandı; 37 Dart ve 14 native test geçti. Gerçek cihazda ekran kapalı oynatma, OEM güç yönetimi ve kilit ekranı kabulü bekliyor; kapak görseli henüz yok.
 - [ ] 13. Samsung DeX: değişken pencere boyutu, harici dokunmatik monitör, klavye/fare odağı, çoklu pencere yaşam döngüsü.
 - [ ] 14. Kişisel sağlık/tartı verileri: Apple Health, Health Connect, Huawei Health, Xiaomi/Mi Fitness ve üretici/HA yolları; platform desteği ve izinlere göre.
 - [ ] 15. Fully Kiosk Browser kapsamı: resmi özellik matrisi, kiosk/web paneli, yönetici kilidi, otomatik açılış, ekran/boşta davranışı ve uzaktan yönetim; cihaz sahibi yetkisi ve Huawei/DeX sınırlarıyla.
 - [x] 16. Superapp araştırması: 12 projenin resmi kaynakları/lisansları karşılaştırıldı; 9 ortak ürün paketi mevcut aşamalara ve kabul testlerine bağlandı. Bkz. [araştırma](superapp-patterns-research-2026-09-05.md). Özelliklerin uygulaması ilgili aşamalarda izlenir.
 - [ ] 17. İsteğe bağlı kamera/yüz özellikleri: anonim yaklaşma algılama ile ekran uyandırma, açık kayıt/izin ile kişisel görünüm; cihazda işleme ve silme, donanım/model lisansı/performans değerlendirmesi. Yüz tanıma tek başına yönetici veya kişisel sağlık erişim kilidi olmayacak.
 - [ ] Son GitHub frontend skill incelemesi, uçtan uca özellikler arası backend/frontend akış kontrolü, ortak tasarım, test/CI, ekran görüntülü README ve GitHub doğrulaması.
+
+**9–12 müzik/oynatma dilimi yerel kontrolü:** 1.674 Flutter testi, 23 Python testi ve 14 Android native testi geçti. Tam analiz ve 609 Dart dosyasının biçim kontrolü temiz. HA cihaz/işlem ekranlarında eski hesap veya gizlenmiş onayla komut gönderme regresyonları kapatıldı; müzik kütüphane/kuyruk ve telefon/tablet görselleri sentetik verili gerçek widgetlardan üretildi. Fiziksel cihaz veya üretim sunucusunda komut çalıştırılmadı.
 
 **6–8 ve 9’un Jellyfin dilimi yerel kontrolü:** 1.484 Flutter testi ve 23 Python testi geçti. 173 test dosyası aynı pakette çalıştırıldı; 152 ilgili Dart dosyasının biçim/analiz kontrolü ve aşamaya alınmış 1,16 MB değişikliğin sır taraması temiz. Enerji, kart düzenleme ve Keenetic seçici görselleri gerçek Flutter widgetlarından sentetik veriyle üretildi. Canlı HA veya cihazlarda işlem yapılmadı.
 

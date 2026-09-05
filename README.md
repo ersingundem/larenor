@@ -277,9 +277,48 @@ identity scheme (MusicBrainz/Goodreads, not TMDB) and suit a poster-row layout p
   request. Account changes and backgrounding invalidate pending confirmations;
   uncertain playback requests are not automatically repeated.
 - This path sends the library item ID, never the tablet's streaming URL or token.
-  The receiving Jellyfin app negotiates its own codecs. Direct HA Cast/Apple TV
-  media-source playback is the next separate delivery; physical receiver testing
-  remains pending. See the [API and device review](docs/casting-implementation-review-2026-09-05.md).
+  The receiving Jellyfin app negotiates its own codecs.
+- **Home media** browses the connected Home Assistant media-source tree and
+  offers registered, available receivers with the advertised playback capability.
+  Choose a source, choose an output, then confirm the named request. Source and
+  receiver identities are checked again before sending one command; account,
+  connection and visibility changes invalidate pending requests.
+- Audio can use compatible Cast or Apple/AirPlay outputs through HA. Video requires
+  an explicitly identified display receiver. The HA 2026.8.3 Apple TV media-source
+  path is audio-only here; direct Apple TV video and physical receiver acceptance
+  remain pending. See the [API and device review](docs/casting-implementation-review-2026-09-05.md).
+
+### Music and background audio
+
+- **Music** joins output devices, their latest playback metadata, library, search
+  and queue summary. Catalog reads use explicit server selection, bounded pages
+  and submitted searches. Queue reads run while visible and refresh on request;
+  unavailable data is distinguished from an empty library.
+- An installed **Music Assistant** integration in Home Assistant enables the
+  supported library/search/queue services. Select a catalog item and output,
+  then confirm playback. The app rechecks the catalog and receiver before one
+  request, and distinguishes server acceptance from observed playback. The queue
+  view shows the current and next items returned by HA, not a fabricated full queue.
+- Spotify, Apple Music and YouTube Music require supported provider setup on a
+  Music Assistant server. Subscriptions alone do not configure that server.
+  Larenor includes a native music interface, not the Music Assistant server engine;
+  running that complete engine inside Android and direct subscription SDK login
+  are not implemented. No server is installed or account connected automatically.
+- **Play on this device** uses an Android Media3 player and MediaSessionService for
+  anonymous HTTP(S) audio files or radio streams. MP3/AAC/M4A/OGG/FLAC/WAV source
+  types are supported subject to the actual stream and device codecs. User-started
+  playback can continue with the screen off and exposes title, artist, album,
+  progress and transport controls to Android's lock screen. Artwork is not yet
+  supplied. Authenticated URLs, query tokens and subscription web links are not
+  accepted as direct audio sources.
+- A single local audio session handles audio focus and headphone disconnection;
+  opening Jellyfin video first stops local audio. Closing the audio screen does
+  not stop an ongoing track. Process restart does not silently restart playback.
+- **Playback & power** reads the device's notification/background/battery state
+  and opens the relevant system settings on request. It does not silently grant
+  permissions or exempt the app from OEM power management. The local player does
+  not require GMS. Actual Huawei/DeX background and lock-screen acceptance remains
+  a device test; remote speaker playback is performed by that speaker/server.
 
 ### Media stack
 
@@ -498,6 +537,10 @@ list, so the app stays uncluttered no matter how many services exist:
 - CI pins external actions and Flutter, enforces the dependency lockfile, cancels
   superseded runs, limits job/test duration, preserves test logs/coverage, and
   tests Android backup policies and release-signing failure without private keys.
+- Android CI also runs native audio lifecycle, source-policy and MediaSession
+  regression tests and retains their reports. Flutter tests cover source/target
+  changes, stale confirmations, reconnects, paging, hidden queues, foreground
+  transitions and local-audio/video handoff without production credentials.
 
 See the [hardening review and next improvements](docs/performance-security-review-2026-09-05.md)
 for measured regression evidence, device-test limits and remaining transport work.
@@ -523,6 +566,13 @@ screens in these synthetic-data previews; they are not physical-device screensho
 <img src="docs/previews/energy-phone.png" alt="Recorded energy on a phone" width="300" />
 <img src="docs/previews/keenetic-widget-picker-phone.png" alt="Choosing a Keenetic dashboard widget" width="300" />
 <img src="docs/previews/dashboard-card-editor-tablet-dark.png" alt="Editing room card sizes and order on a tablet" width="600" />
+
+Music and local audio, also rendered from real widgets with synthetic data:
+
+<img src="docs/previews/music-outputs-phone.png" alt="Music outputs on a phone" width="300" />
+<img src="docs/previews/local-audio-phone.png" alt="Local audio and source selection on a phone" width="300" />
+<img src="docs/previews/music-library-tablet-dark.png" alt="Music library on a tablet in dark appearance" width="600" />
+<img src="docs/previews/playback-power-tablet-dark.png" alt="Playback and power settings on a tablet" width="600" />
 
 ## Status
 

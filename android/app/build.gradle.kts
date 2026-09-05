@@ -22,6 +22,9 @@ val validateReleaseSigning by tasks.registering {
 }
 tasks.configureEach {
     if (name == "preReleaseBuild") dependsOn(validateReleaseSigning)
+    // AGP's host-test resource package consumes Flutter's merged assets too.
+    // Declare the producer so Gradle 9 validates the real dependency graph.
+    if (name == "packageDebugUnitTestForUnitTest") dependsOn("copyFlutterAssetsDebug")
 }
 
 android {
@@ -34,6 +37,10 @@ android {
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
+    }
+
+    testOptions {
+        unitTests.isIncludeAndroidResources = true
     }
 
     defaultConfig {
@@ -76,4 +83,16 @@ kotlin {
 
 flutter {
     source = "../.."
+}
+
+dependencies {
+    // Official stable AndroidX release; keep all Media3 modules in lockstep.
+    val media3Version = "1.11.0"
+    implementation("androidx.media3:media3-exoplayer:$media3Version")
+    implementation("androidx.media3:media3-session:$media3Version")
+    implementation("androidx.media3:media3-datasource-okhttp:$media3Version")
+    implementation("com.squareup.okhttp3:okhttp:4.12.0")
+    testImplementation("junit:junit:4.13.2")
+    testImplementation("com.squareup.okhttp3:mockwebserver:4.12.0")
+    testImplementation("org.robolectric:robolectric:4.16.1")
 }

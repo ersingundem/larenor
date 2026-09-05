@@ -3,6 +3,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../l10n/generated/app_localizations.dart';
 import '../../../ha_client/data/models/ha_entity.dart';
+import '../../../ha_client/providers/ha_client_providers.dart';
+import '../../../ha_tools/presentation/ha_session_guard.dart';
+import '../../presentation/dashboard_edit_guard.dart';
 import '../../../ha_tools/presentation/ha_actions_screen.dart';
 import '../../../health/providers/ha_actions.dart';
 import '../../../../shared/widgets/action_status_indicator.dart';
@@ -12,15 +15,17 @@ import '../../../../shared/widgets/action_status_indicator.dart';
 /// the live catalog, and feature flags/attributes constrain entity support.
 /// Flag definitions: home-assistant/core components/{domain}/const.py.
 class EntityControls extends ConsumerStatefulWidget {
-  const EntityControls({super.key, required this.entity});
+  const EntityControls({super.key, required this.entity, this.sourceCurrent});
+  final bool Function()? sourceCurrent;
   final HaEntity entity;
 
   @override
   ConsumerState<EntityControls> createState() => _EntityControlsState();
 }
 
-class _EntityControlsState extends ConsumerState<EntityControls> {
-  bool _busy = false;
+class _EntityControlsState extends HaSessionState<EntityControls> {
+  bool _busy = false, _sending = false;
+  Route<dynamic>? _modal;
   final _drafts = <String, double>{};
   String? _error;
   static const _domains = {
@@ -35,21 +40,56 @@ class _EntityControlsState extends ConsumerState<EntityControls> {
     'media_player',
   };
 
-  HaEntity get _entity => widget.entity;
+  @override
+  bool sourceSessionCurrent() => widget.sourceCurrent?.call() ?? true;
+  HaEntity? get _currentEntity {
+    if (!haSessionAvailable) return null;
+    final states = ref.read(entitiesProvider);
+    return states.isLoading || states.hasError
+        ? null
+        : states.value?[widget.entity.entityId];
+  }
+
+  HaEntity get _entity => _currentEntity ?? widget.entity;
+  @override
+  void clearPendingInteraction() {
+    _drafts.clear();
+    _error = null;
+    _busy = false;
+    _sending = false;
+    final route = _modal;
+    _modal = null;
+    if (route?.isActive == true) route!.navigator?.removeRoute(route);
+  }
+
+  bool _current(HaSessionLease lease, String entityId) =>
+      isHaSessionCurrent(lease) &&
+      entityId == widget.entity.entityId &&
+      _currentEntity != null;
+
   Map<String, dynamic> get _attributes => _entity.attributes;
   AppLocalizations get _l10n => AppLocalizations.of(context);
-  bool get _disabled => _busy || _entity.state == 'unavailable';
-  bool _feature(int flag) =>
-      (_number(_attributes['supported_features'])?.toInt() ?? 0) & flag != 0;
-  bool _service(String service) =>
-      ref
-          .read(haActionsProvider)
-          .value
-          ?.any(
-            (action) =>
-                action.domain == _entity.domain && action.service == service,
-          ) ??
-      false;
+  bool get _disabled =>
+      _busy ||
+      !haSessionAvailable ||
+      _currentEntity == null ||
+      _entity.state == 'unavailable';
+  bool _feature(int flag) {
+    final value = _attributes['supported_features'];
+    return value is int && value >= 0 && value & flag != 0;
+  }
+
+  bool _service(String service) {
+    final catalog = ref.read(haActionsProvider);
+    return !catalog.isLoading &&
+        !catalog.hasError &&
+        (catalog.value?.any(
+              (action) =>
+                  action.domain == _entity.domain && action.service == service,
+            ) ??
+            false);
+  }
+
   List<String> _options(String key) => (_attributes[key] is List)
       ? (_attributes[key] as List).whereType<String>().toSet().toList()
       : [];
@@ -63,8 +103,8 @@ class _EntityControlsState extends ConsumerState<EntityControls> {
   void didUpdateWidget(covariant EntityControls oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.entity.entityId != _entity.entityId) {
-      _drafts.clear();
-      _error = null;
+      sessionGeneration++;
+      clearPendingInteraction();
     }
   }
 
@@ -73,7 +113,10 @@ class _EntityControlsState extends ConsumerState<EntityControls> {
     Map<String, dynamic> data = const {},
   ]) async {
     if (_disabled || !_service(service)) return;
+    final lease = captureHaSession();
+    if (lease == null) return;
     final entity = _entity;
+    final executor = ref.read(haActionExecutorProvider);
     setState(() {
       _busy = true;
       _error = null;
@@ -82,31 +125,152 @@ class _EntityControlsState extends ConsumerState<EntityControls> {
       final payload = Map<String, dynamic>.of(data);
       if (entity.domain == 'lock' &&
           (service == 'unlock' || entity.attributes['code_format'] != null)) {
-        final confirmed = await showCupertinoDialog<Map<String, dynamic>>(
+        final route = CupertinoDialogRoute<Map<String, dynamic>>(
           context: context,
           builder: (_) =>
               _LockConfirmation(entity: entity, unlock: service == 'unlock'),
         );
-        if (confirmed == null || !mounted) return;
+        _modal = route;
+        final confirmed = await Navigator.of(context).push(route);
+        if (identical(_modal, route)) _modal = null;
+        if (confirmed == null || !_current(lease, entity.entityId)) return;
         payload.addAll(confirmed);
       }
-      await ref
-          .read(haActionExecutorProvider)
-          .execute(
-            domain: entity.domain,
-            service: service,
-            entityId: entity.entityId,
-            serviceData: payload,
-          );
+      await _dispatch(lease, entity.entityId, executor, service, payload);
     } catch (error) {
-      if (mounted) setState(() => _error = actionErrorLabel(_l10n, error));
-    } finally {
-      if (mounted) {
-        setState(() {
-          _busy = false;
-          _drafts.clear();
-        });
+      if (_current(lease, entity.entityId)) {
+        setState(() => _error = actionErrorLabel(_l10n, error));
       }
+    } finally {
+      _finish(lease);
+    }
+  }
+
+  Future<void> _dispatch(
+    HaSessionLease lease,
+    String entityId,
+    HaActionExecutor executor,
+    String service,
+    Map<String, dynamic> payload,
+  ) async {
+    if (!_current(lease, entityId) ||
+        !_service(service) ||
+        !identical(ref.read(haActionExecutorProvider), executor) ||
+        !_supportedPayload(service, payload)) {
+      return;
+    }
+    setState(() => _sending = true);
+    await executor.execute(
+      domain: _entity.domain,
+      service: service,
+      entityId: entityId,
+      serviceData: payload,
+    );
+  }
+
+  void _finish(HaSessionLease lease) {
+    if (mounted && sessionCurrent(lease.generation)) {
+      setState(() {
+        _busy = false;
+        _sending = false;
+        _drafts.clear();
+      });
+    }
+  }
+
+  bool _supportedPayload(String service, Map<String, dynamic> data) {
+    if (_entity.state == 'unavailable' ||
+        data.values.any((value) => value is num && !value.isFinite)) {
+      return false;
+    }
+    bool flag(int mask) => _feature(mask);
+    switch (_entity.domain) {
+      case 'cover':
+        final required = {
+          'open_cover': 1,
+          'close_cover': 2,
+          'set_cover_position': 4,
+          'stop_cover': 8,
+        }[service];
+        return required != null &&
+            flag(required) &&
+            (service != 'set_cover_position' ||
+                (data['position'] is int &&
+                    (data['position'] as int) >= 0 &&
+                    (data['position'] as int) <= 100));
+      case 'lock':
+        return {'lock', 'unlock'}.contains(service) &&
+            (_attributes['code_format'] == null ||
+                _attributes['code_format'] == '' ||
+                (data['code'] is String &&
+                    (data['code'] as String).isNotEmpty &&
+                    (data['code'] as String).length <= 128));
+      case 'climate':
+        final option = {
+          'set_hvac_mode': ('hvac_mode', 'hvac_modes', 0),
+          'set_fan_mode': ('fan_mode', 'fan_modes', 8),
+          'set_preset_mode': ('preset_mode', 'preset_modes', 16),
+        }[service];
+        if (option != null) {
+          return (option.$3 == 0 || flag(option.$3)) &&
+              _options(option.$2).contains(data[option.$1]);
+        }
+        if (service != 'set_temperature') return false;
+        final min = _number(_attributes['min_temp']),
+            max = _number(_attributes['max_temp']);
+        if (min == null || max == null) return false;
+        bool range(Object? value) =>
+            value is num && value >= min && value <= max;
+        if (data.containsKey('temperature')) {
+          return flag(1) && range(data['temperature']);
+        }
+        final low = data['target_temp_low'], high = data['target_temp_high'];
+        return flag(2) &&
+            range(low) &&
+            range(high) &&
+            (low as num) <= (high as num);
+      case 'fan':
+        return service == 'set_percentage'
+            ? flag(1) &&
+                  data['percentage'] is int &&
+                  (data['percentage'] as int) >= 0 &&
+                  (data['percentage'] as int) <= 100
+            : service == 'set_preset_mode' &&
+                  (flag(1) || flag(8)) &&
+                  _options('preset_modes').contains(data['preset_mode']);
+      case 'number':
+      case 'input_number':
+        final min = _number(_attributes['min']),
+            max = _number(_attributes['max']),
+            value = data['value'];
+        return service == 'set_value' &&
+            min != null &&
+            max != null &&
+            value is num &&
+            value >= min &&
+            value <= max;
+      case 'select':
+      case 'input_select':
+        return service == 'select_option' &&
+            _options('options').contains(data['option']);
+      case 'media_player':
+        final required = {
+          'media_pause': 1,
+          'media_play': 16384,
+          'media_previous_track': 16,
+          'media_next_track': 32,
+          'media_stop': 4096,
+          'volume_set': 4,
+          'volume_mute': 8,
+        }[service];
+        if (required == null || !flag(required)) return false;
+        if (service == 'volume_set') {
+          final value = data['volume_level'];
+          return value is num && value >= 0 && value <= 1;
+        }
+        return service != 'volume_mute' || data['is_volume_muted'] is bool;
+      default:
+        return false;
     }
   }
 
@@ -116,7 +280,7 @@ class _EntityControlsState extends ConsumerState<EntityControls> {
     Map<String, dynamic> data = const {},
   }) => CupertinoButton(
     key: ValueKey('entity-control-$service'),
-    onPressed: _disabled ? null : () => _execute(service, data),
+    onPressed: _disabled ? null : haCallback(() => _execute(service, data)),
     child: Text(label),
   );
 
@@ -138,6 +302,8 @@ class _EntityControlsState extends ConsumerState<EntityControls> {
         !step.isFinite) {
       return const SizedBox.shrink();
     }
+    final lease = captureHaSession();
+    final entityId = _entity.entityId;
     double snap(double raw) => double.parse(
       (min + ((raw - min) / step).round() * step)
           .clamp(min, max)
@@ -159,17 +325,24 @@ class _EntityControlsState extends ConsumerState<EntityControls> {
               min: min,
               max: max,
               divisions: divisions > 0 && divisions <= 1000 ? divisions : null,
-              onChanged: _disabled
+              onChanged: _disabled || lease == null
                   ? null
-                  : (value) => setState(() => _drafts[field] = snap(value)),
-              onChangeEnd: _disabled
+                  : (value) {
+                      if (value.isFinite && _current(lease, entityId)) {
+                        setState(() => _drafts[field] = snap(value));
+                      }
+                    },
+              onChangeEnd: _disabled || lease == null
                   ? null
-                  : (value) => _execute(service, {
-                      ...extra,
-                      field: {'position', 'percentage'}.contains(field)
-                          ? snap(value).round()
-                          : snap(value),
-                    }),
+                  : (value) {
+                      if (!value.isFinite || !_current(lease, entityId)) return;
+                      _execute(service, {
+                        ...extra,
+                        field: {'position', 'percentage'}.contains(field)
+                            ? snap(value).round()
+                            : snap(value),
+                      });
+                    },
             ),
           ),
         ],
@@ -190,45 +363,92 @@ class _EntityControlsState extends ConsumerState<EntityControls> {
       trailing: const CupertinoListTileChevron(),
       onTap: _disabled
           ? null
-          : () async {
-              final selected = await showCupertinoModalPopup<String>(
-                context: context,
-                builder: (context) => CupertinoActionSheet(
-                  title: Text(label),
-                  actions: [
-                    for (final option in options)
-                      CupertinoActionSheetAction(
-                        isDefaultAction: option == value,
-                        onPressed: () => Navigator.pop(context, option),
-                        child: Text(option),
-                      ),
-                  ],
-                  cancelButton: CupertinoActionSheetAction(
-                    onPressed: () => Navigator.pop(context),
-                    child: Text(_l10n.commonCancel),
+          : haCallback(() async {
+              if (_busy) return;
+              final lease = captureHaSession();
+              if (lease == null) return;
+              final entityId = _entity.entityId,
+                  executor = ref.read(haActionExecutorProvider);
+              setState(() {
+                _busy = true;
+                _error = null;
+              });
+              try {
+                final route = CupertinoModalPopupRoute<String>(
+                  builder: (context) => CupertinoActionSheet(
+                    title: Text(label),
+                    actions: [
+                      for (final option in options)
+                        CupertinoActionSheetAction(
+                          isDefaultAction: option == value,
+                          onPressed: () => closeDashboardModal(context, option),
+                          child: Text(option),
+                        ),
+                    ],
+                    cancelButton: CupertinoActionSheetAction(
+                      onPressed: () => closeDashboardModal(context),
+                      child: Text(_l10n.commonCancel),
+                    ),
                   ),
-                ),
-              );
-              if (selected != null && mounted) {
-                await _execute(service, {field: selected});
+                );
+                _modal = route;
+                final selected = await Navigator.of(context).push(route);
+                if (identical(_modal, route)) _modal = null;
+                if (selected != null) {
+                  await _dispatch(lease, entityId, executor, service, {
+                    field: selected,
+                  });
+                }
+              } catch (error) {
+                if (_current(lease, entityId)) {
+                  setState(() => _error = actionErrorLabel(_l10n, error));
+                }
+              } finally {
+                _finish(lease);
               }
-            },
+            }),
     );
   }
 
   @override
   Widget build(BuildContext context) {
+    watchHaSession();
+    ref.watch(
+      entitiesProvider.select(
+        (value) => (
+          value.isLoading,
+          value.hasError,
+          value.value?[widget.entity.entityId],
+        ),
+      ),
+    );
+    ref.listen(entitiesProvider, (previous, next) {
+      if (next.isLoading ||
+          next.hasError ||
+          next.value?[widget.entity.entityId] == null) {
+        setState(() {
+          sessionGeneration++;
+          clearPendingInteraction();
+        });
+      }
+    });
+    if (!haSessionAvailable || _currentEntity == null) {
+      return const SizedBox.shrink();
+    }
+    ref.watch(haActionExecutorProvider);
     if (!_domains.contains(_entity.domain)) return const SizedBox.shrink();
     final catalog = ref.watch(haActionsProvider);
-    if (catalog.isLoading && !catalog.hasValue) {
+    if (catalog.isLoading) {
       return const CupertinoActivityIndicator();
     }
-    if (catalog.hasError && !catalog.hasValue) {
+    if (catalog.hasError) {
       return CupertinoButton(
-        onPressed: () => ref.invalidate(haActionsProvider),
+        onPressed: haCallback(() => ref.invalidate(haActionsProvider)),
         child: Text('${_l10n.commonError} · ${_l10n.commonRetry}'),
       );
     }
+    final controlsLease = captureHaSession();
+    final controlsEntityId = _entity.entityId;
     final controls = <Widget>[];
     final buttons = <Widget>[];
     void button(String label, String service, {bool supported = true}) {
@@ -449,10 +669,13 @@ class _EntityControlsState extends ConsumerState<EntityControls> {
               title: Text(_l10n.entityControlMute),
               trailing: CupertinoSwitch(
                 value: _attributes['is_volume_muted'] as bool,
-                onChanged: _disabled
+                onChanged: _disabled || controlsLease == null
                     ? null
-                    : (value) =>
-                          _execute('volume_mute', {'is_volume_muted': value}),
+                    : (value) {
+                        if (_current(controlsLease, controlsEntityId)) {
+                          _execute('volume_mute', {'is_volume_muted': value});
+                        }
+                      },
               ),
             ),
           );
@@ -461,7 +684,9 @@ class _EntityControlsState extends ConsumerState<EntityControls> {
     if (buttons.isNotEmpty) {
       controls.insert(0, Wrap(spacing: 4, children: buttons));
     }
-    if (_busy) controls.add(const Center(child: CupertinoActivityIndicator()));
+    if (_sending) {
+      controls.add(const Center(child: CupertinoActivityIndicator()));
+    }
     if (_error != null) {
       controls.add(
         Padding(
@@ -522,22 +747,28 @@ class _LockConfirmationState extends State<_LockConfirmation> {
                 obscureText: true,
                 autocorrect: false,
                 enableSuggestions: false,
-                onChanged: (_) => setState(() {}),
+                onChanged: (_) {
+                  if (mounted) setState(() {});
+                },
               ),
             ),
         ],
       ),
       actions: [
         CupertinoDialogAction(
-          onPressed: () => Navigator.pop(context),
+          onPressed: () => closeDashboardModal(context),
           child: Text(l10n.commonCancel),
         ),
         CupertinoDialogAction(
           isDestructiveAction: widget.unlock,
-          onPressed: () => Navigator.pop(context, <String, dynamic>{
-            if (_needsCode && _code.text.trim().isNotEmpty)
-              'code': _code.text.trim(),
-          }),
+          onPressed:
+              _needsCode &&
+                  (_code.text.trim().isEmpty || _code.text.length > 128)
+              ? null
+              : () => closeDashboardModal(context, <String, dynamic>{
+                  if (_needsCode && _code.text.trim().isNotEmpty)
+                    'code': _code.text.trim(),
+                }),
           child: Text(
             widget.unlock ? l10n.entityControlUnlock : l10n.entityControlLock,
           ),

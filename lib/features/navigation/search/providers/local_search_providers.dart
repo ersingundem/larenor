@@ -106,6 +106,7 @@ class LocalSearchIndexController extends Notifier<LocalSearchIndex> {
     ];
     return _index = LocalSearchIndex.build(
       pages: HomePageTarget.values,
+      mediaPages: MediaPageTarget.values,
       rooms: rooms,
       entities: [
         for (final entry in names.names.entries)

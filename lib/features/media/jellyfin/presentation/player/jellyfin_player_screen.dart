@@ -13,6 +13,7 @@ import '../../providers/jellyfin_providers.dart';
 import '../../../../../shared/theme/typography.dart';
 import '../../../../../shared/utils/foreground_poller.dart';
 import 'playback_reporter.dart';
+import '../../../local_audio/providers/local_audio_providers.dart';
 
 final jellyfinPlayerFactoryProvider = Provider<Player Function()>(
   (ref) => Player.new,
@@ -166,14 +167,21 @@ class _JellyfinPlayerScreenState extends ConsumerState<JellyfinPlayerScreen>
       return;
     }
     _client = client;
+    final generation = _generation;
 
     try {
+      await ref.read(localAudioBridgeProvider).stopForVideo();
+      if (!mounted ||
+          generation != _generation ||
+          !identical(ref.read(jellyfinClientProvider), client)) {
+        return;
+      }
       await _openSource(startPosition: widget.item.resumePosition);
       if (mounted) setState(() => _loading = false);
-    } catch (e) {
+    } catch (_) {
       if (mounted) {
         setState(() {
-          _error = '$e';
+          _error = AppLocalizations.of(context).mediaReadFailedTitle;
           _loading = false;
         });
       }

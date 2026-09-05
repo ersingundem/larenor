@@ -1,4 +1,5 @@
 import 'package:flutter/cupertino.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../../shared/widgets/app_page_scaffold.dart';
 
@@ -23,6 +24,8 @@ import '../../../../shared/theme/spacing.dart';
 import '../../../../shared/theme/typography.dart';
 import '../../../../shared/theme/icon_sizes.dart';
 import '../../../navigation/presentation/app_shell_actions.dart';
+import '../../ha_playback/presentation/ha_playback_screen.dart';
+import '../../music/presentation/music_center_screen.dart';
 
 /// One browse surface across every connected media service — the library
 /// you already have and the catalogue you could request, in the same
@@ -81,6 +84,50 @@ class _MediaHubScreenState extends ConsumerState<MediaHubScreen> {
                 runSpacing: 12,
                 crossAxisAlignment: WrapCrossAlignment.center,
                 children: [
+                  CupertinoButton(
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                    onPressed: () {
+                      if (widget.embedded) {
+                        context.push('/media/music');
+                      } else {
+                        Navigator.of(context).push(
+                          CupertinoPageRoute<void>(
+                            builder: (_) => const MusicCenterScreen(),
+                          ),
+                        );
+                      }
+                    },
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(CupertinoIcons.music_note_2, size: 18),
+                        const SizedBox(width: 8),
+                        Flexible(child: Text(l10n.musicTitle)),
+                      ],
+                    ),
+                  ),
+                  CupertinoButton(
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                    onPressed: () {
+                      if (widget.embedded) {
+                        context.push('/media/sources');
+                      } else {
+                        Navigator.of(context).push(
+                          CupertinoPageRoute<void>(
+                            builder: (_) => const HaPlaybackScreen(),
+                          ),
+                        );
+                      }
+                    },
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(CupertinoIcons.tv, size: 18),
+                        const SizedBox(width: 8),
+                        Flexible(child: Text(l10n.haMediaTitle)),
+                      ],
+                    ),
+                  ),
                   CupertinoSlidingSegmentedControl<int>(
                     groupValue: _filter,
                     children: {
@@ -113,7 +160,7 @@ class _MediaHubScreenState extends ConsumerState<MediaHubScreen> {
                         children: [
                           const Icon(CupertinoIcons.rectangle_stack, size: 18),
                           const SizedBox(width: 8),
-                          Text(l10n.mediaLibraryTitle),
+                          Flexible(child: Text(l10n.mediaLibraryTitle)),
                         ],
                       ),
                     ),

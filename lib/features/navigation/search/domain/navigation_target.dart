@@ -19,6 +19,15 @@ sealed class NavigationTarget {
 
 enum HomePageTarget { today, intercom, energy }
 
+enum MediaPageTarget { music, sources, audio }
+
+final class MediaPageNavigationTarget extends NavigationTarget {
+  const MediaPageNavigationTarget(this.page);
+  final MediaPageTarget page;
+  @override
+  Uri get uri => Uri(path: '/media/${page.name}');
+}
+
 final class HomePageNavigationTarget extends NavigationTarget {
   const HomePageNavigationTarget(this.page);
   final HomePageTarget page;

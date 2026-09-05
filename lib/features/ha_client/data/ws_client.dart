@@ -112,8 +112,15 @@ class HaWebSocketClient {
   Future<dynamic> sendCommand(
     Map<String, dynamic> command, {
     Duration timeout = const Duration(seconds: 15),
+    bool Function()? isCurrent,
   }) async {
     await _waitUntilConnected();
+    if (isCurrent != null && !isCurrent()) {
+      throw HaApiException(
+        'Operation is no longer current.',
+        code: 'cancelled',
+      );
+    }
     return _sendCommand(command, timeout: timeout);
   }
 
@@ -175,14 +182,19 @@ class HaWebSocketClient {
     Map<String, dynamic>? serviceData,
     Map<String, dynamic>? target,
     bool returnResponse = false,
-  }) => sendCommand({
-    'type': 'call_service',
-    'domain': domain,
-    'service': service,
-    'service_data': ?serviceData,
-    'target': ?target,
-    if (returnResponse) 'return_response': true,
-  }, timeout: const Duration(seconds: 30));
+    bool Function()? isCurrent,
+  }) => sendCommand(
+    {
+      'type': 'call_service',
+      'domain': domain,
+      'service': service,
+      'service_data': ?serviceData,
+      'target': ?target,
+      if (returnResponse) 'return_response': true,
+    },
+    timeout: const Duration(seconds: 30),
+    isCurrent: isCurrent,
+  );
 
   /// Returns only after HA acknowledges the subscription. Early events are
   /// buffered until a listener attaches. Disconnect closes this stream with

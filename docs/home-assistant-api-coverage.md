@@ -54,6 +54,35 @@ Configuration validation may return HTTP 200 with `result: invalid`; the native 
 
 The client authenticates with the configured token and owns command IDs, result matching, timeouts and disconnect cleanup. `sendCommand` is the generic one-shot operation. `subscribeCommand` returns a `HaSubscription` with `events` and `cancel()`. It waits for the subscription acknowledgment, buffers early events, and uses `unsubscribe_events` when cancelled. See the [official WebSocket protocol](https://developers.home-assistant.io/docs/api/websocket/).
 
+Media commands can supply a current-session predicate. It is checked again after
+waiting for a socket connection, immediately before sending: a confirmation from
+a hidden screen, prior account or expired source selection cannot be replayed by
+a late reconnect. This is an additional local guard, not a server permission.
+
+### Media-source and Music Assistant native flows
+
+`media_source/browse_media` supplies a bounded source tree. The native picker reads
+states, services and entity registry identity before offering receivers, and
+rechecks source/target capability before `media_player.play_media`. It sends source
+IDs, not resolved stream URLs or the tablet's token. HA 2026.8.3 Apple TV
+media-source playback is restricted to audio in this client; video requires an
+explicit supported display receiver. Server acceptance and matching newly
+observed playback are separate receipts.
+
+The optional Music Assistant client discovers loaded config entries and their
+registered players. It uses the advertised `music_assistant.get_library`, `search`
+and `get_queue` service responses for bounded native library/search and current/next
+queue summaries. A selected catalog reference can be sent with
+`music_assistant.play_media`, one receiver and `enqueue: play`, after fresh catalog,
+entry, service and receiver checks and user confirmation. This inserts/starts the
+selection at the current queue position; it does not request replacing the entire
+queue. Full queue editing, provider account setup and running the Music Assistant
+server inside Android are outside this implementation. Missing integration,
+permission failure and empty results remain distinct.
+
+These paths have mocked protocol/controller/UI tests. They do not establish
+physical receiver, subscription-provider or universal HA-version compatibility.
+
 | Commands or capability | Implementation | Native UI exposure |
 | --- | --- | --- |
 | Authentication, matching `result`/error responses | Built into client | Connection status and errors |

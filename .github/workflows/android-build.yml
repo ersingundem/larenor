@@ -55,6 +55,21 @@ jobs:
       - name: Build debug APK with a monotonic CI versionCode
         run: flutter build apk --debug --build-number "$(python3 tool/android_signing.py version-code)"
 
+      - name: Native audio lifecycle, source policy and platform contracts
+        working-directory: android
+        run: ./gradlew :app:testDebugUnitTest
+
+      - name: Preserve native test evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: android-native-test-evidence
+          path: |
+            build/app/reports/tests/testDebugUnitTest/
+            build/app/test-results/testDebugUnitTest/
+          if-no-files-found: ignore
+          retention-days: 14
+
       - name: Release signing must fail closed without private keys
         working-directory: android
         run: |
