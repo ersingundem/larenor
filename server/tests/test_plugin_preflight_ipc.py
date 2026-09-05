@@ -147,3 +147,60 @@ def test_existing_worker_lock_prevents_second_daemon_from_replacing_socket():
         assert client.status()['installationAvailable'] is False
         second.close()
         assert client.status()['capability'] == 'preflight'
+
+
+def test_stalled_inspection_cannot_release_worker_lock_early():
+    entered, release = threading.Event(), threading.Event()
+    class Stalled(Inspector):
+        def inspect(self, selected):
+            entered.set()
+            assert release.wait(3)
+            return super().inspect(selected)
+    with root() as folder:
+        path=folder/'worker.sock'
+        worker=PreflightWorkerServer(path,Stalled(),platform='linux/amd64',allowed_uid=os.getuid(),peer_uid=uid,timeout=.1)
+        worker.start()
+        outcomes=[]
+        def run():
+            try:PreflightWorkerClient(path,owner_uid=os.getuid(),peer_uid=uid,timeout=.2).inspect(chosen())
+            except PreflightIPCError:outcomes.append('bounded_failure')
+        thread=threading.Thread(target=run);thread.start()
+        try:
+            assert entered.wait(1)
+            with pytest.raises(PreflightIPCError):worker.close()
+            second=PreflightWorkerServer(path,Inspector(),platform='linux/amd64',allowed_uid=os.getuid(),peer_uid=uid)
+            with pytest.raises(PreflightIPCError):second.start()
+            second.close()
+        finally:
+            release.set();thread.join(1);worker.close()
+        assert outcomes == ['bounded_failure']
+
+
+def test_real_linux_peer_credentials_or_explicit_unsupported_platform():
+    with root() as folder:
+        path=folder/'worker.sock'
+        worker=PreflightWorkerServer(path,Inspector(),platform='linux/amd64',allowed_uid=os.getuid(),timeout=.2)
+        worker.start()
+        try:
+            client=PreflightWorkerClient(path,owner_uid=os.getuid(),timeout=.4)
+            if hasattr(socket,'SO_PEERCRED'):
+                assert client.status()['capability']=='preflight'
+            else:
+                with pytest.raises(PreflightIPCError):client.status()
+        finally:worker.close()
+
+
+def test_worker_does_not_replace_unowned_socket_or_close_on_duplicate_start():
+    with root() as folder:
+        path=folder/'other.sock'
+        with socket.socket(socket.AF_UNIX) as other:
+            other.bind(str(path));os.chmod(path,0o600);other.listen(1)
+            identity=path.stat().st_ino
+            worker=PreflightWorkerServer(path,Inspector(),platform='linux/amd64',allowed_uid=os.getuid(),peer_uid=uid)
+            try:
+                with pytest.raises(PreflightIPCError):worker.start()
+                assert path.stat().st_ino==identity
+            finally:worker.close()
+    with running() as (worker,client):
+        with pytest.raises(PreflightIPCError):worker.start()
+        assert client.status()['capability']=='preflight'
