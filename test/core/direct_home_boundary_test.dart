@@ -59,26 +59,46 @@ class SecurePlatform {
     final key = args['key'] as String?;
     calls.add((call.method, key));
     switch (call.method) {
-      case 'read': return values[key];
-      case 'write': values[key!] = args['value'] as String; return null;
-      case 'delete': values.remove(key); return null;
-      case 'readAll': return Map<String, String>.of(values);
-      case 'deleteAll': values.clear(); return null;
-      case 'containsKey': return values.containsKey(key);
-      default: throw StateError('Unexpected secure storage method');
+      case 'read':
+        return values[key];
+      case 'write':
+        values[key!] = args['value'] as String;
+        return null;
+      case 'delete':
+        values.remove(key);
+        return null;
+      case 'readAll':
+        return Map<String, String>.of(values);
+      case 'deleteAll':
+        values.clear();
+        return null;
+      case 'containsKey':
+        return values.containsKey(key);
+      default:
+        throw StateError('Unexpected secure storage method');
     }
   }
 }
 
-Future<(ProviderContainer, HomeSessionController)> containerFor(HomeSource source) async {
+Future<(ProviderContainer, HomeSessionController)> containerFor(
+  HomeSource source,
+) async {
   final account = ServerAccountController(store: SessionStore());
-  final home = HomeSessionController(store: SourceStore(source), account: account);
+  final home = HomeSessionController(
+    store: SourceStore(source),
+    account: account,
+  );
   await home.initialize();
   home.runtimeMounted(home.runtimeIdentity);
-  final container = ProviderContainer(overrides: [
-    homeSessionControllerProvider.overrideWithValue(home),
-  ], retry: (_, _) => null);
-  addTearDown(() { container.dispose(); home.dispose(); account.dispose(); });
+  final container = ProviderContainer(
+    overrides: [homeSessionControllerProvider.overrideWithValue(home)],
+    retry: (_, _) => null,
+  );
+  addTearDown(() {
+    container.dispose();
+    home.dispose();
+    account.dispose();
+  });
   return (container, home);
 }
 
@@ -91,7 +111,10 @@ void main() {
     secure = SecurePlatform();
     previousSecure = FlutterSecureStoragePlatform.instance;
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-        .setMockMethodCallHandler(const MethodChannel('plugins.it_nomads.com/flutter_secure_storage'), secure.handle);
+        .setMockMethodCallHandler(
+          const MethodChannel('plugins.it_nomads.com/flutter_secure_storage'),
+          secure.handle,
+        );
     FlutterSecureStoragePlatform.instance = MethodChannelFlutterSecureStorage();
     SharedPreferences.resetStatic();
     preferences = PreferencePlatform();
@@ -100,50 +123,81 @@ void main() {
   tearDown(() {
     FlutterSecureStoragePlatform.instance = previousSecure;
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-        .setMockMethodCallHandler(const MethodChannel('plugins.it_nomads.com/flutter_secure_storage'), null);
+        .setMockMethodCallHandler(
+          const MethodChannel('plugins.it_nomads.com/flutter_secure_storage'),
+          null,
+        );
   });
 
   test('Core direct HA provider rejects before reading credentials', () async {
     final (container, _) = await containerFor(HomeSource.verifiedCore);
     final sub = container.listen(connectionConfigProvider, (_, _) {});
     addTearDown(sub.close);
-    await expectLater(container.read(connectionConfigProvider.future), throwsA(isA<Exception>()));
+    await expectLater(
+      container.read(connectionConfigProvider.future),
+      throwsA(isA<Exception>()),
+    );
     expect(secure.calls, isEmpty);
   });
 
-  test('Core store handle cannot bypass source ownership for read save clear', () async {
-    final (container, _) = await containerFor(HomeSource.verifiedCore);
-    final sub = container.listen(credentialsStoreProvider, (_, _) {});
-    addTearDown(sub.close);
-    final store = sub.read();
-    for (final operation in <Future<void> Function()>[
-      () async { await store.read(); },
-      () => store.save(const HaConnectionConfig(baseUrl: 'https://synthetic.invalid', token: 'replacement')),
-      store.clear,
-    ]) {
-      await expectLater(Future<void>.sync(operation), throwsA(isA<Exception>()));
-    }
-    expect(secure.calls, isEmpty);
-  });
+  test(
+    'Core store handle cannot bypass source ownership for read save clear',
+    () async {
+      final (container, _) = await containerFor(HomeSource.verifiedCore);
+      final sub = container.listen(credentialsStoreProvider, (_, _) {});
+      addTearDown(sub.close);
+      final store = sub.read();
+      for (final operation in <Future<void> Function()>[
+        () async {
+          await store.read();
+        },
+        () => store.save(
+          const HaConnectionConfig(
+            baseUrl: 'https://synthetic.invalid',
+            token: 'replacement',
+          ),
+        ),
+        store.clear,
+      ]) {
+        await expectLater(
+          Future<void>.sync(operation),
+          throwsA(isA<Exception>()),
+        );
+      }
+      expect(secure.calls, isEmpty);
+    },
+  );
 
-  test('Core enabled services does not scan secrets or mark migration', () async {
-    final (container, _) = await containerFor(HomeSource.verifiedCore);
-    final sub = container.listen(enabledServicesProvider, (_, _) {});
-    addTearDown(sub.close);
-    await expectLater(container.read(enabledServicesProvider.future), throwsA(isA<Exception>()));
-    expect(secure.calls, isEmpty);
-    expect(preferences.writes, isEmpty);
-  });
+  test(
+    'Core enabled services does not scan secrets or mark migration',
+    () async {
+      final (container, _) = await containerFor(HomeSource.verifiedCore);
+      final sub = container.listen(enabledServicesProvider, (_, _) {});
+      addTearDown(sub.close);
+      await expectLater(
+        container.read(enabledServicesProvider.future),
+        throwsA(isA<Exception>()),
+      );
+      expect(secure.calls, isEmpty);
+      expect(preferences.writes, isEmpty);
+    },
+  );
 
-  test('Core enabled store cannot read or mutate the Direct preference', () async {
-    final (container, _) = await containerFor(HomeSource.verifiedCore);
-    final sub = container.listen(enabledServicesStoreProvider, (_, _) {});
-    addTearDown(sub.close);
-    final store = sub.read();
-    await expectLater(store.read(), throwsA(isA<Exception>()));
-    await expectLater(store.save({AppService.jellyfin}, markMigrated: true), throwsA(isA<Exception>()));
-    expect(preferences.writes, isEmpty);
-  });
+  test(
+    'Core enabled store cannot read or mutate the Direct preference',
+    () async {
+      final (container, _) = await containerFor(HomeSource.verifiedCore);
+      final sub = container.listen(enabledServicesStoreProvider, (_, _) {});
+      addTearDown(sub.close);
+      final store = sub.read();
+      await expectLater(store.read(), throwsA(isA<Exception>()));
+      await expectLater(
+        store.save({AppService.jellyfin}, markMigrated: true),
+        throwsA(isA<Exception>()),
+      );
+      expect(preferences.writes, isEmpty);
+    },
+  );
 
   test('Direct background ownership survives inactive interaction', () async {
     final (container, home) = await containerFor(HomeSource.directLocal);
