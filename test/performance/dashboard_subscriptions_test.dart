@@ -14,6 +14,8 @@ import 'package:larenor/features/dashboard/providers/dashboard_live_providers.da
 import 'package:larenor/features/dashboard/providers/dashboard_providers.dart';
 import 'package:larenor/features/ha_client/data/models/ha_entity.dart';
 import 'package:larenor/features/ha_client/providers/ha_client_providers.dart';
+import 'package:larenor/features/wellbeing/providers/wellbeing_providers.dart';
+import 'package:larenor/features/wellbeing/data/wellbeing_disclosure_policy.dart';
 
 class _Entities extends Entities {
   _Entities(this.initial);
@@ -126,6 +128,8 @@ void main() {
       container.listen(dashboardLayoutProvider, (_, _) {});
       await container.read(dashboardLayoutProvider.future);
       await container.read(entitiesProvider.future);
+      await container.read(wellbeingSettingsProvider.future);
+      await container.read(wellbeingDisclosureProvider.future);
       var structureChanges = 0;
       var summaryChanges = 0;
       var lampChanges = 0;

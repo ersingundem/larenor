@@ -11,6 +11,7 @@ import '../../../ha_tools/presentation/ha_actions_screen.dart';
 import '../../../health/data/integration_health.dart';
 import '../../../health/providers/action_providers.dart';
 import '../../../health/providers/ha_actions.dart';
+import '../dashboard_edit_guard.dart';
 
 double? finiteTileNumber(dynamic value) {
   final number = value is num ? value.toDouble() : double.tryParse('$value');
@@ -24,11 +25,41 @@ bool tileHasFeature(HaEntity entity, int flag) =>
 
 /// Tile controls share the same target lock and result semantics as More Info.
 /// Draft gestures and late UI completions belong to one entity/account epoch.
-mixin TileActionSupport<T extends ConsumerStatefulWidget> on ConsumerState<T> {
+mixin TileActionSupport<T extends ConsumerStatefulWidget>
+    on DashboardEditState<T> {
   String? get actionEntityId;
   bool tileActionBusy = false;
   String? tileActionError;
   int tileActionGeneration = 0;
+  bool _tileVisible = true;
+
+  @override
+  void invalidateDashboardInteraction() {
+    resetTileAction();
+    super.invalidateDashboardInteraction();
+  }
+
+  VoidCallback tileAction(VoidCallback action) {
+    final generation = interactionGeneration;
+    final tileGeneration = tileActionGeneration;
+    return () {
+      if (interactionCurrent(generation) &&
+          tileGeneration == tileActionGeneration) {
+        action();
+      }
+    };
+  }
+
+  ValueChanged<V> tileValueAction<V>(ValueChanged<V> action) {
+    final generation = interactionGeneration;
+    final tileGeneration = tileActionGeneration;
+    return (value) {
+      if (interactionCurrent(generation) &&
+          tileGeneration == tileActionGeneration) {
+        action(value);
+      }
+    };
+  }
 
   void resetTileDrafts() {}
 
@@ -40,16 +71,20 @@ mixin TileActionSupport<T extends ConsumerStatefulWidget> on ConsumerState<T> {
   }
 
   void watchTileActions() {
+    ref.watch(connectionConfigProvider);
+    watchDashboardAccount();
+    final visible =
+        TickerMode.valuesOf(context).enabled &&
+        ModalRoute.of(context)?.isCurrent != false;
+    if (_tileVisible && !visible) resetTileAction();
+    _tileVisible = visible;
     ref.watch(haActionsProvider);
-    ref.listen(connectionConfigProvider, (previous, next) {
-      if (previous?.value != next.value && mounted) {
-        setState(resetTileAction);
-      }
-    });
   }
 
   bool tileServiceAvailable(HaEntity entity, String service, {int? feature}) {
-    if (entity.entityId != actionEntityId || entity.state == 'unavailable') {
+    if (!interactionCurrent(interactionGeneration) ||
+        entity.entityId != actionEntityId ||
+        entity.state == 'unavailable') {
       return false;
     }
     if (feature != null && !tileHasFeature(entity, feature)) return false;
@@ -68,14 +103,23 @@ mixin TileActionSupport<T extends ConsumerStatefulWidget> on ConsumerState<T> {
     int? feature,
     Map<String, dynamic> serviceData = const {},
   }) async {
-    if (!mounted || tileActionBusy) return;
-    final entity = ref.read(entitiesProvider).value?[actionEntityId];
+    if (!interactionCurrent(interactionGeneration) || tileActionBusy) return;
+    final states = ref.read(entitiesProvider);
+    final account = ref.read(connectionConfigProvider);
+    if (states.isLoading ||
+        states.hasError ||
+        account.isLoading ||
+        account.hasError) {
+      return;
+    }
+    final entity = states.value?[actionEntityId];
     if (entity == null ||
         entity.domain != domain ||
         !tileServiceAvailable(entity, service, feature: feature)) {
       return;
     }
     final generation = tileActionGeneration;
+    final interaction = interactionGeneration;
     setState(() {
       tileActionBusy = true;
       tileActionError = null;
@@ -90,7 +134,8 @@ mixin TileActionSupport<T extends ConsumerStatefulWidget> on ConsumerState<T> {
             serviceData: serviceData,
           );
     } catch (error) {
-      if (mounted && generation == tileActionGeneration) {
+      if (interactionCurrent(interaction) &&
+          generation == tileActionGeneration) {
         setState(
           () => tileActionError = actionErrorLabel(
             AppLocalizations.of(context),
@@ -99,7 +144,8 @@ mixin TileActionSupport<T extends ConsumerStatefulWidget> on ConsumerState<T> {
         );
       }
     } finally {
-      if (mounted && generation == tileActionGeneration) {
+      if (interactionCurrent(interaction) &&
+          generation == tileActionGeneration) {
         setState(() => tileActionBusy = false);
       }
     }

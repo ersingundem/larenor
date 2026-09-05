@@ -6,6 +6,7 @@ import '../../admin/data/models/ha_registry_entry.dart';
 import '../../admin/providers/admin_providers.dart';
 import '../../ha_client/data/models/ha_entity.dart';
 import '../../ha_client/providers/ha_client_providers.dart';
+import '../../wellbeing/providers/wellbeing_providers.dart';
 import '../domain/home_domains.dart';
 import 'dashboard_providers.dart';
 
@@ -129,6 +130,15 @@ HomeDashboardData buildHomeDashboard({
 /// registries, and live state from [entitiesProvider].
 @riverpod
 Future<HomeDashboardData> homeDashboard(Ref ref) async {
+  final privacy = ref.watch(wellbeingPrivateEntityIdsProvider);
+  if (privacy.isLoading || privacy.hasError || !privacy.hasValue) {
+    return const HomeDashboardData(
+      rooms: [],
+      unassigned: [],
+      favorites: [],
+      lightsOn: 0,
+    );
+  }
   final entities = await ref.watch(entitiesProvider.future);
   final layout = await ref.watch(dashboardLayoutProvider.future);
 
@@ -149,7 +159,9 @@ Future<HomeDashboardData> homeDashboard(Ref ref) async {
   }
 
   return buildHomeDashboard(
-    entities: entities.values.toList(),
+    entities: entities.values
+        .where((entity) => !privacy.requireValue.contains(entity.entityId))
+        .toList(),
     areas: areas,
     registry: registry,
     devices: devices,

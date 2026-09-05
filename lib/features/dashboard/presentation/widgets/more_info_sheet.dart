@@ -5,7 +5,7 @@ import '../../../../l10n/generated/app_localizations.dart';
 import '../../../ha_client/data/models/ha_entity.dart';
 import '../../../ha_tools/presentation/ha_session_guard.dart';
 import '../../../ha_tools/presentation/ha_actions_screen.dart';
-import '../../../ha_client/providers/ha_client_providers.dart';
+import '../../../wellbeing/providers/wellbeing_privacy_providers.dart';
 import '../../../health/providers/ha_actions.dart';
 import '../../../../shared/widgets/action_status_indicator.dart';
 import '../../providers/dashboard_providers.dart';
@@ -77,7 +77,7 @@ class _EntityMoreInfoState extends HaSessionState<EntityMoreInfo> {
 
   bool _current(HaSessionLease lease, String id) {
     if (!isHaSessionCurrent(lease) || id != entityId) return false;
-    final states = ref.read(entitiesProvider);
+    final states = ref.read(publicHaEntitiesProvider);
     return !states.isLoading && !states.hasError && states.value?[id] != null;
   }
 
@@ -133,11 +133,11 @@ class _EntityMoreInfoState extends HaSessionState<EntityMoreInfo> {
   Widget build(BuildContext context) {
     watchHaSession();
     final states = ref.watch(
-      entitiesProvider.select(
+      publicHaEntitiesProvider.select(
         (value) => (value.isLoading, value.hasError, value.value?[entityId]),
       ),
     );
-    ref.listen(entitiesProvider, (previous, next) {
+    ref.listen(publicHaEntitiesProvider, (previous, next) {
       if (next.isLoading || next.hasError || next.value?[entityId] == null) {
         setState(() {
           sessionGeneration++;
@@ -307,7 +307,7 @@ class _EntityQuickControlsState extends HaSessionState<_EntityQuickControls> {
 
   HaEntity? get _entity {
     if (!haSessionAvailable) return null;
-    final states = ref.read(entitiesProvider);
+    final states = ref.read(publicHaEntitiesProvider);
     return states.isLoading || states.hasError
         ? null
         : states.value?[widget.entity.entityId];
@@ -374,7 +374,7 @@ class _EntityQuickControlsState extends HaSessionState<_EntityQuickControls> {
   Widget build(BuildContext context) {
     watchHaSession();
     ref.watch(
-      entitiesProvider.select(
+      publicHaEntitiesProvider.select(
         (states) => (
           states.isLoading,
           states.hasError,

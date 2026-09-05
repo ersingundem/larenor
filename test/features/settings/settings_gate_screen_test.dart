@@ -4,6 +4,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:larenor/core/app_interaction_scope.dart';
 import 'package:larenor/features/settings/data/pin_lock_store.dart';
 import 'package:larenor/features/settings/presentation/settings_gate_screen.dart';
 import 'package:larenor/features/settings/providers/settings_providers.dart';
@@ -23,6 +24,7 @@ Future<void> showGate(
   PinLockStore? store,
   String? initialPin = '1234',
   bool pushGate = false,
+  AppInteractionController? interaction,
 }) async {
   SharedPreferences.setMockInitialValues({});
   FlutterSecureStorage.setMockInitialValues({'settings_pin': ?initialPin});
@@ -37,6 +39,9 @@ Future<void> showGate(
       child: CupertinoApp(
         localizationsDelegates: AppLocalizations.localizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
+        builder: (_, child) => interaction == null
+            ? child!
+            : AppInteractionScope(controller: interaction, child: child!),
         home: pushGate
             ? Builder(
                 builder: (context) => CupertinoPageScaffold(
@@ -71,6 +76,145 @@ class PendingSaveStore extends PinLockStore {
 }
 
 void main() {
+  testWidgets(
+    'owned settings navigator preserves pane back and app back navigation',
+    (tester) async {
+      await showGate(tester, initialPin: null, pushGate: true);
+      await tester.tap(find.text('Display & Brightness'));
+      await tester.pumpAndSettle();
+      expect(find.text('Keep screen on'), findsOneWidget);
+      await tester.pageBack();
+      await tester.pumpAndSettle();
+      expect(find.text('Security'), findsOneWidget);
+      await tester.pageBack();
+      await tester.pumpAndSettle();
+      expect(find.text('Open settings'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox());
+    },
+  );
+
+  testWidgets(
+    'idle clears an uncommitted first PIN even when no PIN was configured',
+    (tester) async {
+      final scope = AppInteractionController();
+      addTearDown(scope.dispose);
+      await showGate(tester, initialPin: null, interaction: scope);
+      await tester.tap(find.text('Security'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Set PIN'));
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byType(CupertinoTextField), '9876');
+      final old = tester
+          .widget<CupertinoDialogAction>(
+            find.widgetWithText(CupertinoDialogAction, 'Save'),
+          )
+          .onPressed!;
+      scope.setActive(false);
+      await tester.pump();
+      scope.setActive(true);
+      await tester.pumpAndSettle();
+      old();
+      await tester.pumpAndSettle();
+      expect(await PinLockStore().read(), isNull);
+      expect(find.byType(CupertinoAlertDialog), findsNothing);
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox());
+    },
+  );
+  testWidgets(
+    'idle relocks settings and expires an old PIN-save dialog without changing PIN',
+    (tester) async {
+      final scope = AppInteractionController();
+      addTearDown(scope.dispose);
+      await showGate(tester, interaction: scope, pushGate: true);
+      await tester.enterText(find.byType(CupertinoTextField), '1234');
+      await tester.tap(find.text('Unlock'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Security'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Change PIN'));
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byType(CupertinoTextField), '9876');
+      final old = tester
+          .widget<CupertinoDialogAction>(
+            find.widgetWithText(CupertinoDialogAction, 'Save'),
+          )
+          .onPressed!;
+      scope.setActive(false);
+      await tester.pump();
+      scope.setActive(true);
+      await tester.pumpAndSettle();
+      old();
+      await tester.pumpAndSettle();
+      expect(find.text('Unlock'), findsOneWidget);
+      expect(find.text('Open settings'), findsNothing);
+      expect(await PinLockStore().read(), '1234');
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox());
+    },
+  );
+
+  testWidgets(
+    'idle keeps an unrelated root dialog while clearing owned settings routes',
+    (tester) async {
+      final scope = AppInteractionController();
+      addTearDown(scope.dispose);
+      await showGate(tester, interaction: scope, pushGate: true);
+      await tester.enterText(find.byType(CupertinoTextField), '1234');
+      await tester.tap(find.text('Unlock'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Display & Brightness'));
+      await tester.pumpAndSettle();
+      final context = tester.element(find.byType(SettingsGateScreen));
+      showCupertinoDialog<void>(
+        context: context,
+        builder: (dialog) => CupertinoAlertDialog(
+          title: const Text('Unrelated root dialog'),
+          actions: [
+            CupertinoDialogAction(
+              onPressed: () => Navigator.pop(dialog),
+              child: const Text('Close unrelated'),
+            ),
+          ],
+        ),
+      );
+      await tester.pumpAndSettle();
+      scope.setActive(false);
+      await tester.pump();
+      scope.setActive(true);
+      await tester.pumpAndSettle();
+      expect(find.text('Unrelated root dialog'), findsOneWidget);
+      await tester.tap(find.text('Close unrelated'));
+      await tester.pumpAndSettle();
+      expect(find.text('Unlock'), findsOneWidget);
+      expect(find.text('Keep screen on'), findsNothing);
+      expect(find.text('Open settings'), findsNothing);
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox());
+    },
+  );
+
+  testWidgets('verification begun before idle cannot unlock after wake', (
+    tester,
+  ) async {
+    final scope = AppInteractionController();
+    addTearDown(scope.dispose);
+    final store = PendingStore();
+    await showGate(tester, store: store, interaction: scope);
+    await tester.enterText(find.byType(CupertinoTextField), '1234');
+    await tester.tap(find.text('Unlock'));
+    await tester.pump();
+    scope.setActive(false);
+    await tester.pump();
+    scope.setActive(true);
+    await tester.pump();
+    store.completion.complete(const PinAttemptResult(accepted: true));
+    await tester.pumpAndSettle();
+    expect(find.text('Unlock'), findsOneWidget);
+    expect(find.text('Security'), findsNothing);
+    await tester.pumpWidget(const SizedBox());
+  });
   testWidgets(
     'first PIN creation closes a pane opened without authentication',
     (tester) async {

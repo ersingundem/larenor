@@ -4,6 +4,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../auth/providers/auth_providers.dart';
 import '../../ha_client/data/models/ha_entity.dart';
 import '../../ha_client/providers/ha_client_providers.dart';
+import '../../wellbeing/providers/wellbeing_providers.dart';
+import '../../wellbeing/providers/wellbeing_privacy_providers.dart';
 import '../domain/home_domains.dart';
 import '../domain/ha_area_binding.dart';
 import 'dashboard_providers.dart';
@@ -12,6 +14,10 @@ import 'dashboard_providers.dart';
 /// Diagnostic entities and state/attribute updates do not rebuild the room
 /// grids, navigation, or service widgets.
 final dashboardVisibleIdsProvider = Provider.autoDispose<Set<String>>((ref) {
+  final privacy = ref.watch(wellbeingPrivateEntityIdsProvider);
+  if (privacy.isLoading || privacy.hasError || !privacy.hasValue) {
+    return const {};
+  }
   final layout = ref.watch(dashboardLayoutProvider).value;
   if (layout == null) return const {};
   String? currentServer;
@@ -25,7 +31,7 @@ final dashboardVisibleIdsProvider = Provider.autoDispose<Set<String>>((ref) {
       }
     }
   }
-  final hidden = layout.hiddenEntityIds.toSet();
+  final hidden = {...layout.hiddenEntityIds, ...privacy.requireValue};
   return {
     ...layout.favoriteEntityIds,
     for (final room in layout.rooms)
@@ -98,6 +104,9 @@ final dashboardEntityProvider = Provider.autoDispose.family<HaEntity, String>((
   ref,
   id,
 ) {
+  if (!isPublicHaEntity(ref.watch(wellbeingPrivateEntityIdsProvider), id)) {
+    return HaEntity(entityId: id, state: 'unavailable');
+  }
   return ref.watch(
         entitiesProvider.select((states) => _visibleEntities(states)?[id]),
       ) ??

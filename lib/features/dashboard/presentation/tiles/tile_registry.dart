@@ -1,4 +1,8 @@
 import 'package:flutter/widgets.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../../../wellbeing/providers/wellbeing_providers.dart';
+import '../../../wellbeing/providers/wellbeing_privacy_providers.dart';
 
 import '../../domain/tile_config.dart';
 import 'bazarr_tile.dart';
@@ -22,6 +26,21 @@ import 'weather_tile.dart';
 import 'webview_tile.dart';
 
 Widget buildTileContent(TileConfig tile) {
+  if (tile.entityId != null) {
+    return Consumer(
+      builder: (context, ref, _) =>
+          isPublicHaEntity(
+            ref.watch(wellbeingPrivateEntityIdsProvider),
+            tile.entityId,
+          )
+          ? _buildTileContent(tile)
+          : const SizedBox.shrink(),
+    );
+  }
+  return _buildTileContent(tile);
+}
+
+Widget _buildTileContent(TileConfig tile) {
   return switch (tile.type) {
     TileType.entity => EntityTile(tile: tile),
     TileType.webview => WebviewTile(tile: tile),

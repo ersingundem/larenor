@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
+import 'package:larenor/core/app_interaction_scope.dart';
 import 'package:larenor/features/auth/data/ha_connection_config.dart';
 import 'package:larenor/features/auth/providers/auth_providers.dart';
 import 'package:larenor/features/dashboard/domain/tile_config.dart';
@@ -25,6 +26,10 @@ class _Entities extends Entities {
   @override
   Future<Map<String, HaEntity>> build() async => {initial.entityId: initial};
   void replace(HaEntity entity) => state = AsyncData({entity.entityId: entity});
+  void reload() {
+    // ignore: invalid_use_of_internal_member
+    state = const AsyncLoading<Map<String, HaEntity>>().copyWithPrevious(state);
+  }
 }
 
 class _Connection extends ConnectionConfig {
@@ -95,6 +100,9 @@ void main() {
   final requests = <http.Request>[];
   late _Entities entities;
   late _Connection connection;
+  late AppInteractionController interaction;
+  late GlobalKey<NavigatorState> navigator;
+  late ValueNotifier<bool> visible;
 
   Future<void> mount(
     WidgetTester tester,
@@ -105,6 +113,11 @@ void main() {
     double tileHeight = 240,
   }) async {
     requests.clear();
+    interaction = AppInteractionController();
+    navigator = GlobalKey<NavigatorState>();
+    visible = ValueNotifier(true);
+    addTearDown(interaction.dispose);
+    addTearDown(visible.dispose);
     entities = _Entities(entity);
     connection = _Connection();
     final client = HaRestClient(
@@ -135,6 +148,15 @@ void main() {
           ),
         ],
         child: CupertinoApp(
+          navigatorKey: navigator,
+          builder: (context, child) => AppInteractionScope(
+            controller: interaction,
+            child: ValueListenableBuilder<bool>(
+              valueListenable: visible,
+              builder: (_, enabled, _) =>
+                  TickerMode(enabled: enabled, child: child!),
+            ),
+          ),
           locale: const Locale('en'),
           localizationsDelegates: AppLocalizations.localizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
@@ -176,6 +198,145 @@ void main() {
   Map<String, dynamic> body() =>
       jsonDecode(requests.last.body) as Map<String, dynamic>;
 
+  testWidgets('idle then wake never renews a captured scene callback', (
+    tester,
+  ) async {
+    await mount(tester, _scene, ['turn_on']);
+    VoidCallback tap() => tester
+        .widget<GestureDetector>(
+          find.byKey(const ValueKey('scene-action-scene.evening')),
+        )
+        .onTap!;
+    final old = tap();
+    interaction.setActive(false);
+    interaction.setActive(
+      true,
+    ); // Deliberately no frame between idle/wake/callback.
+    old();
+    await tester.pumpAndSettle();
+    expect(requests, isEmpty);
+    tap()();
+    await tester.pumpAndSettle();
+    expect(requests.length, 1);
+  });
+
+  testWidgets(
+    'media volume gesture from before idle cannot commit after wake',
+    (tester) async {
+      await mount(tester, _media, _mediaServices);
+      final old = volume(tester);
+      old.onChangeStart!(0.2);
+      old.onChanged!(0.8);
+      interaction.setActive(false);
+      interaction.setActive(true);
+      old.onChangeEnd!(0.8);
+      await tester.pumpAndSettle();
+      expect(requests, isEmpty);
+      expect(volume(tester).value, 0.2);
+      volume(tester).onChangeStart!(0.2);
+      volume(tester).onChangeEnd!(0.6);
+      await tester.pumpAndSettle();
+      expect(requests.length, 1);
+      expect(body()['volume_level'], 0.6);
+    },
+  );
+
+  testWidgets('climate pan ending after idle cannot dispatch an old draft', (
+    tester,
+  ) async {
+    await mount(tester, _climate, ['set_temperature']);
+    final old = dial(tester);
+    final size = tester.getSize(dialFinder());
+    old.onPanStart!(
+      DragStartDetails(localPosition: Offset(0, size.height / 2)),
+    );
+    interaction.setActive(false);
+    interaction.setActive(true);
+    old.onPanEnd!(DragEndDetails());
+    await tester.pumpAndSettle();
+    expect(requests, isEmpty);
+    expect(find.text('20.0°'), findsOneWidget);
+    dial(tester).onPanStart!(
+      DragStartDetails(localPosition: Offset(0, size.height / 2)),
+    );
+    dial(tester).onPanEnd!(DragEndDetails());
+    await tester.pumpAndSettle();
+    expect(requests.length, 1);
+  });
+
+  testWidgets(
+    'background expires scene actions even after returning to resumed',
+    (tester) async {
+      await mount(tester, _scene, ['turn_on']);
+      final old = tester
+          .widget<GestureDetector>(
+            find.byKey(const ValueKey('scene-action-scene.evening')),
+          )
+          .onTap!;
+      for (final state in [
+        AppLifecycleState.inactive,
+        AppLifecycleState.resumed,
+      ]) {
+        tester.binding.handleAppLifecycleStateChanged(state);
+      }
+      old();
+      await tester.pumpAndSettle();
+      expect(requests, isEmpty);
+    },
+  );
+
+  testWidgets('covered and hidden routes cannot keep scene callbacks alive', (
+    tester,
+  ) async {
+    await mount(tester, _scene, ['turn_on']);
+    VoidCallback tap() => tester
+        .widget<GestureDetector>(
+          find.byKey(const ValueKey('scene-action-scene.evening')),
+        )
+        .onTap!;
+    final covered = tap();
+    unawaited(
+      navigator.currentState!.push(
+        CupertinoPageRoute<void>(
+          builder: (_) =>
+              const CupertinoPageScaffold(child: Text('Other page')),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    covered();
+    navigator.currentState!.pop();
+    await tester.pumpAndSettle();
+    covered();
+    expect(requests, isEmpty);
+    final hidden = tap();
+    visible.value = false;
+    await tester.pump();
+    hidden();
+    visible.value = true;
+    await tester.pumpAndSettle();
+    hidden();
+    expect(requests, isEmpty);
+    tap()();
+    await tester.pumpAndSettle();
+    expect(requests.length, 1);
+  });
+
+  testWidgets(
+    'retained entity loading cannot dispatch through a saved tile action',
+    (tester) async {
+      await mount(tester, _scene, ['turn_on']);
+      final old = tester
+          .widget<GestureDetector>(
+            find.byKey(const ValueKey('scene-action-scene.evening')),
+          )
+          .onTap!;
+      entities.reload();
+      old(); // No frame: the previous entity remains in AsyncValue.value.
+      await tester.pumpAndSettle();
+      expect(requests, isEmpty);
+    },
+  );
   testWidgets('scene taps use the target guard and show server acceptance', (
     tester,
   ) async {

@@ -45,6 +45,7 @@ abstract class HaSessionState<T extends ConsumerStatefulWidget>
   bool get haSessionAvailable {
     if (!mounted ||
         !foreground ||
+        !interactionActive ||
         !_visible ||
         sessionExpired ||
         !sourceSessionCurrent()) {

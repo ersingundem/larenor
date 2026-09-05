@@ -1,6 +1,7 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/app_interaction_scope.dart';
 import '../../../shared/widgets/app_page_scaffold.dart';
 
 import '../../../l10n/generated/app_localizations.dart';
@@ -27,6 +28,31 @@ class _SettingsGateScreenState extends ConsumerState<SettingsGateScreen>
   String? _error;
   bool _fileDialogActive = false;
   bool _settingsOpened = false;
+  GlobalKey<NavigatorState> _settingsNavigator = GlobalKey<NavigatorState>();
+  Route<bool>? _reauthRoute;
+  AppInteractionController? _interaction;
+  int _interactionEpoch = 0;
+  bool get _interactive => _interaction?.active ?? true;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final next = AppInteractionScope.maybeOf(context);
+    if (identical(next, _interaction)) return;
+    _interaction?.removeListener(_interactionChanged);
+    _interaction = next;
+    _interactionEpoch = next?.epoch ?? 0;
+    next?.addListener(_interactionChanged);
+  }
+
+  void _interactionChanged() {
+    if (!mounted) return;
+    final epoch = _interaction?.epoch ?? 0;
+    if (epoch != _interactionEpoch) {
+      _interactionEpoch = epoch;
+      _lockSettings();
+    }
+  }
 
   @override
   void initState() {
@@ -47,27 +73,29 @@ class _SettingsGateScreenState extends ConsumerState<SettingsGateScreen>
     // Invalidate a pending verification as well as an already unlocked session.
     _generation++;
     _controller.clear();
-    if (!_unlocked && !_checking && ref.read(pinLockProvider).value == null) {
-      return;
-    }
+    final reauth = _reauthRoute;
+    _reauthRoute = null;
+    if (reauth?.isActive == true) reauth!.navigator?.removeRoute(reauth);
     setState(() {
       _unlocked = false;
       _checking = false;
       _error = null;
+      if (!_fileDialogActive) {
+        _settingsOpened = false;
+        _settingsNavigator = GlobalKey<NavigatorState>();
+      }
     });
     // A native picker may background the app. Its already-open route can
     // retain ciphertext, but cannot continue until the gate reauthenticates.
     if (_fileDialogActive) return;
-    _settingsOpened = false;
-    // Phone settings push routes above this gate; remove those routes as well.
-    // Tablet detail routes disappear with the SettingsSplitScreen subtree.
-    final gate = ModalRoute.of(context);
-    if (gate != null) Navigator.of(context).popUntil((route) => route == gate);
+    // The nested Navigator owns settings pages and their dialogs. Resetting its
+    // key closes only these routes, preserving unrelated root overlays.
   }
 
   @override
   void dispose() {
     _generation++;
+    _interaction?.removeListener(_interactionChanged);
     WidgetsBinding.instance.removeObserver(this);
     _controller.dispose();
     super.dispose();
@@ -106,7 +134,29 @@ class _SettingsGateScreenState extends ConsumerState<SettingsGateScreen>
                 offstage: !unlocked,
                 child: TickerMode(
                   enabled: unlocked,
-                  child: SettingsSplitScreen(runFileDialog: _runFileDialog),
+                  child: NavigatorPopHandler(
+                    enabled: unlocked,
+                    onPopWithResult: (_) =>
+                        _settingsNavigator.currentState?.maybePop(),
+                    child: Navigator(
+                      key: _settingsNavigator,
+                      onGenerateRoute: (_) => CupertinoPageRoute<void>(
+                        builder: (_) => SettingsSplitScreen(
+                          runFileDialog: _runFileDialog,
+                          onExit: Navigator.of(context).canPop()
+                              ? () {
+                                  if (mounted &&
+                                      _interactive &&
+                                      ModalRoute.of(context)?.isCurrent ==
+                                          true) {
+                                    Navigator.of(context).maybePop();
+                                  }
+                                }
+                              : null,
+                        ),
+                      ),
+                    ),
+                  ),
                 ),
               ),
             if (!unlocked) Positioned.fill(child: _buildPinEntry(context)),
@@ -118,17 +168,31 @@ class _SettingsGateScreenState extends ConsumerState<SettingsGateScreen>
 
   Future<T?> _runFileDialog<T>(Future<T?> Function() operation) async {
     if (_fileDialogActive) return null;
+    final generation = _generation;
     final store = ref.read(pinLockStoreProvider);
     final pin = await store.read();
-    if (!mounted || (pin != null && !_unlocked)) return null;
+    if (!mounted ||
+        !_interactive ||
+        generation != _generation ||
+        (pin != null && !_unlocked)) {
+      return null;
+    }
     _fileDialogActive = true;
     try {
       final result = await operation();
-      if (!mounted || result == null) return null;
+      if (!mounted || !_interactive || result == null) return null;
       if (!_unlocked && await store.read() != null) {
         if (!mounted) return null;
-        final accepted = await reauthenticateSettingsFileDialog(context, store);
-        if (!mounted || !accepted) return null;
+        final epoch = _generation;
+        final accepted = await reauthenticateSettingsFileDialog(
+          context,
+          store,
+          onRoute: (route) => _reauthRoute = route,
+        );
+        _reauthRoute = null;
+        if (!mounted || !_interactive || epoch != _generation || !accepted) {
+          return null;
+        }
         setState(() => _unlocked = true);
       }
       return result;
@@ -199,7 +263,7 @@ class _SettingsGateScreenState extends ConsumerState<SettingsGateScreen>
   }
 
   Future<void> _submit(AppLocalizations l10n) async {
-    if (_checking) return;
+    if (!mounted || !_interactive || _checking) return;
     final generation = _generation;
     final candidate = _controller.text;
     setState(() => _checking = true);

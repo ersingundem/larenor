@@ -5,6 +5,8 @@ import '../../../dashboard/domain/dashboard_room.dart';
 import '../../../dashboard/providers/dashboard_providers.dart';
 import '../../../ha_client/providers/ha_client_providers.dart';
 import '../../../ha_client/data/models/ha_entity.dart';
+import '../../../wellbeing/providers/wellbeing_providers.dart';
+import '../../../wellbeing/providers/wellbeing_privacy_providers.dart';
 import '../../../keenetic/providers/keenetic_providers.dart';
 import '../../../media/arr/providers/lidarr_providers.dart';
 import '../../../media/arr/providers/radarr_providers.dart';
@@ -54,6 +56,7 @@ class LocalSearchIndexController extends Notifier<LocalSearchIndex> {
 
   @override
   LocalSearchIndex build() {
+    final privacy = ref.watch(wellbeingPrivateEntityIdsProvider);
     final names = ref.exists(entitiesProvider)
         ? ref.watch(
             entitiesProvider.select(
@@ -61,7 +64,8 @@ class LocalSearchIndexController extends Notifier<LocalSearchIndex> {
                 for (final entry
                     in _visibleCache(states)?.entries ??
                         const <MapEntry<String, HaEntity>>[])
-                  entry.key: entry.value.friendlyName,
+                  if (isPublicHaEntity(privacy, entry.key))
+                    entry.key: entry.value.friendlyName,
               }),
             ),
           )

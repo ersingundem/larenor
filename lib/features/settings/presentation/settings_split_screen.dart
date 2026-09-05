@@ -35,9 +35,10 @@ enum SettingsCategory {
 /// narrow for two useful panes it falls back to the plain iOS behaviour of
 /// pushing each category full-screen.
 class SettingsSplitScreen extends StatefulWidget {
-  const SettingsSplitScreen({super.key, this.runFileDialog});
+  const SettingsSplitScreen({super.key, this.runFileDialog, this.onExit});
 
   final SettingsFileDialogRunner? runFileDialog;
+  final VoidCallback? onExit;
 
   @override
   State<SettingsSplitScreen> createState() => _SettingsSplitScreenState();
@@ -69,6 +70,7 @@ class _SettingsSplitScreenState extends State<SettingsSplitScreen> {
           SizedBox(
             width: 320,
             child: _MasterList(
+              onExit: widget.onExit,
               selected: _selected,
               onSelect: (category) => setState(() {
                 _selected = category;
@@ -97,6 +99,7 @@ class _SettingsSplitScreenState extends State<SettingsSplitScreen> {
 
   Widget _buildNarrow(BuildContext context) {
     return _MasterList(
+      onExit: widget.onExit,
       selected: null,
       onSelect: (category) => Navigator.of(context).push(
         CupertinoPageRoute(
@@ -133,12 +136,17 @@ Widget paneFor(
 }
 
 class _MasterList extends StatelessWidget {
-  const _MasterList({required this.selected, required this.onSelect});
+  const _MasterList({
+    required this.selected,
+    required this.onSelect,
+    this.onExit,
+  });
 
   /// `null` in the narrow layout, where nothing stays selected because the
   /// detail screen covers the list entirely.
   final SettingsCategory? selected;
   final ValueChanged<SettingsCategory> onSelect;
+  final VoidCallback? onExit;
 
   @override
   Widget build(BuildContext context) {
@@ -199,6 +207,9 @@ class _MasterList extends StatelessWidget {
       child: CustomScrollView(
         slivers: [
           CupertinoSliverNavigationBar(
+            leading: onExit == null
+                ? null
+                : CupertinoNavigationBarBackButton(onPressed: onExit),
             largeTitle: Text(l10n.settingsScreenTitle),
           ),
           SliverSafeArea(

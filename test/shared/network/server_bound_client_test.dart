@@ -2,8 +2,13 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
+import 'package:http/io_client.dart';
 import 'package:http/testing.dart';
 import 'package:larenor/shared/network/server_bound_client.dart';
+
+// This single integration fixture deliberately exercises real loopback sockets.
+// Widget-suite initialization otherwise replaces HttpClient with HTTP 400 mocks.
+class _LoopbackTransport extends HttpOverrides {}
 
 void main() {
   group('authenticated server boundary', () {
@@ -105,6 +110,7 @@ void main() {
         });
         final client = ServerBoundClient(
           baseUrl: 'http://127.0.0.1:${source.port}',
+          inner: IOClient(_LoopbackTransport().createHttpClient(null)),
         );
         addTearDown(client.close);
         await expectLater(

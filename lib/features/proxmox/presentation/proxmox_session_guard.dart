@@ -1,6 +1,7 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/app_interaction_scope.dart';
 import '../../health/data/health_configuration.dart';
 import '../data/proxmox_client.dart';
 import '../data/proxmox_config.dart';
@@ -45,6 +46,36 @@ abstract class ProxmoxSessionState<T extends ConsumerStatefulWidget>
   bool foreground = true;
   int sessionGeneration = 0;
   late final AppLifecycleListener _lifecycle;
+  AppInteractionController? _interaction;
+  int _interactionEpoch = 0;
+  bool get interactionActive => _interaction?.active ?? true;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final next = AppInteractionScope.maybeOf(context);
+    if (identical(next, _interaction)) return;
+    final hadScope = _interaction != null;
+    _interaction?.removeListener(_interactionChanged);
+    _interaction = next;
+    _interactionEpoch = next?.epoch ?? 0;
+    next?.addListener(_interactionChanged);
+    if (hadScope || !interactionActive) {
+      sessionGeneration++;
+      onSessionInvalidated();
+    }
+  }
+
+  void _interactionChanged() {
+    if (!mounted) return;
+    final epoch = _interaction?.epoch ?? 0;
+    if (epoch != _interactionEpoch) {
+      _interactionEpoch = epoch;
+      sessionGeneration++;
+      onSessionInvalidated();
+    }
+    setState(() {});
+  }
 
   bool get sessionExpired => _changed || _unresolved;
 
@@ -97,6 +128,7 @@ abstract class ProxmoxSessionState<T extends ConsumerStatefulWidget>
   bool get sessionAvailable {
     if (!mounted ||
         !foreground ||
+        !interactionActive ||
         sessionExpired ||
         _source == null ||
         !sourceSessionCurrent()) {
@@ -164,6 +196,7 @@ abstract class ProxmoxSessionState<T extends ConsumerStatefulWidget>
   @override
   void dispose() {
     sessionGeneration++;
+    _interaction?.removeListener(_interactionChanged);
     _lifecycle.dispose();
     super.dispose();
   }

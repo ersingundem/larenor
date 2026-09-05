@@ -2,6 +2,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../l10n/generated/app_localizations.dart';
+import '../../../health/data/integration_health.dart';
 import '../../../../shared/discovery/service_signatures.dart';
 import '../providers/radarr_providers.dart';
 import 'widgets/arr_add_screen.dart';
@@ -17,11 +18,16 @@ class RadarrScreen extends ConsumerWidget {
     final connectionAsync = ref.watch(radarrConnectionProvider);
 
     return connectionAsync.when(
+      skipLoadingOnReload: false,
+      skipLoadingOnRefresh: false,
       loading: () => const CupertinoPageScaffold(
         child: Center(child: CupertinoActivityIndicator()),
       ),
-      error: (error, _) =>
-          CupertinoPageScaffold(child: Center(child: Text('$error'))),
+      error: (error, _) => CupertinoPageScaffold(
+        child: Center(
+          child: Text(AppLocalizations.of(context).mediaErrorUnreachable),
+        ),
+      ),
       data: (config) {
         if (config == null) {
           return ArrConnectForm(
@@ -49,29 +55,16 @@ class RadarrScreen extends ConsumerWidget {
           ),
           trailing: CupertinoButton(
             padding: EdgeInsets.zero,
-            onPressed: () => Navigator.of(context).push(
-              CupertinoPageRoute(
-                builder: (_) => ArrAddScreen(
-                  title: AppLocalizations.of(context).arrAddMovieTitle,
-                  searchHint: AppLocalizations.of(context).arrSearchMovies,
-                  onLookup: (term) =>
-                      ref.read(radarrClientProvider)!.lookup(term),
-                  loadQualityProfiles: () =>
-                      ref.read(radarrClientProvider)!.getQualityProfiles(),
-                  loadRootFolders: () =>
-                      ref.read(radarrClientProvider)!.getRootFolders(),
-                  onAdd: (result, profileId, folder, _) async {
-                    await ref
-                        .read(radarrClientProvider)!
-                        .add(
-                          result: result,
-                          qualityProfileId: profileId,
-                          rootFolderPath: folder,
-                        );
-                    ref.invalidate(radarrCalendarProvider);
-                  },
-                ),
-              ),
+            onPressed: () => openArrAddScreen(
+              context: context,
+              ref: ref,
+              integration: IntegrationId.radarr,
+              connectionProvider: radarrConnectionProvider,
+              clientProvider: radarrClientProvider,
+              title: AppLocalizations.of(context).arrAddMovieTitle,
+              searchHint: AppLocalizations.of(context).arrSearchMovies,
+              metadata: false,
+              onAdded: () => ref.invalidate(radarrCalendarProvider),
             ),
             child: const Icon(CupertinoIcons.add),
           ),

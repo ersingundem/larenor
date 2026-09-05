@@ -55,7 +55,7 @@ jobs:
       - name: Build debug APK with a monotonic CI versionCode
         run: flutter build apk --debug --build-number "$(python3 tool/android_signing.py version-code)"
 
-      - name: Native audio lifecycle, source policy and platform contracts
+      - name: Native audio, window, health privacy and platform contracts
         working-directory: android
         run: ./gradlew :app:testDebugUnitTest
 

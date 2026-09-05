@@ -7,6 +7,7 @@ import '../../../../shared/theme/spacing.dart';
 import '../../../../shared/theme/typography.dart';
 import '../../../ha_client/providers/ha_client_providers.dart';
 import '../../domain/tile_config.dart';
+import '../dashboard_edit_guard.dart';
 import 'tile_action_support.dart';
 
 class MediaPlayerTile extends ConsumerStatefulWidget {
@@ -16,7 +17,7 @@ class MediaPlayerTile extends ConsumerStatefulWidget {
   ConsumerState<MediaPlayerTile> createState() => _MediaPlayerTileState();
 }
 
-class _MediaPlayerTileState extends ConsumerState<MediaPlayerTile>
+class _MediaPlayerTileState extends DashboardEditState<MediaPlayerTile>
     with TileActionSupport<MediaPlayerTile> {
   double? _draftVolume;
   int? _volumeGestureGeneration;
@@ -66,10 +67,12 @@ class _MediaPlayerTileState extends ConsumerState<MediaPlayerTile>
           minimumSize: const Size.square(IconSizes.minTapTarget),
           onPressed: tileActionBusy
               ? null
-              : () => executeTileAction(
-                  'media_player',
-                  service,
-                  feature: feature,
+              : tileAction(
+                  () => executeTileAction(
+                    'media_player',
+                    service,
+                    feature: feature,
+                  ),
                 ),
           child: Icon(icon, size: size, semanticLabel: label),
         ),
@@ -155,11 +158,13 @@ class _MediaPlayerTileState extends ConsumerState<MediaPlayerTile>
                           divisions: 100,
                           onChangeStart: tileActionBusy
                               ? null
-                              : (_) => _volumeGestureGeneration =
-                                    tileActionGeneration,
+                              : tileValueAction(
+                                  (_) => _volumeGestureGeneration =
+                                      tileActionGeneration,
+                                ),
                           onChanged: tileActionBusy
                               ? null
-                              : (value) {
+                              : tileValueAction((value) {
                                   if (!mounted ||
                                       !value.isFinite ||
                                       _volumeGestureGeneration !=
@@ -171,10 +176,10 @@ class _MediaPlayerTileState extends ConsumerState<MediaPlayerTile>
                                         (value.clamp(0.0, 1.0) * 100).round() /
                                         100,
                                   );
-                                },
+                                }),
                           onChangeEnd: tileActionBusy
                               ? null
-                              : (value) {
+                              : tileValueAction((value) {
                                   if (!mounted ||
                                       !value.isFinite ||
                                       _volumeGestureGeneration !=
@@ -194,7 +199,7 @@ class _MediaPlayerTileState extends ConsumerState<MediaPlayerTile>
                                     feature: 4,
                                     serviceData: {'volume_level': selected},
                                   );
-                                },
+                                }),
                         ),
                       ),
                     ),

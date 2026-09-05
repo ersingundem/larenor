@@ -6,6 +6,8 @@ import '../../../../l10n/generated/app_localizations.dart';
 import '../../../../shared/theme/category_colors.dart';
 import '../../../auth/providers/auth_providers.dart';
 import '../../../ha_client/data/models/ha_entity.dart';
+import '../../../wellbeing/providers/wellbeing_providers.dart';
+import '../../../wellbeing/providers/wellbeing_privacy_providers.dart';
 import '../../../ha_client/providers/ha_client_providers.dart';
 import '../../domain/dashboard_card_size.dart';
 import '../dashboard_card_presentation.dart';
@@ -80,6 +82,12 @@ class _HomeAccessoryTileState extends DashboardEditState<HomeAccessoryTile> {
 
   bool get _roomCurrent {
     if (!mounted) return false;
+    if (!isPublicHaEntity(
+      ref.read(wellbeingPrivateEntityIdsProvider),
+      entity.entityId,
+    )) {
+      return false;
+    }
     if (roomId == null) return true;
     final room = ref
         .read(dashboardLayoutProvider)
@@ -160,6 +168,16 @@ class _HomeAccessoryTileState extends DashboardEditState<HomeAccessoryTile> {
 
   @override
   Widget build(BuildContext context) {
+    final privacy = ref.watch(wellbeingPrivateEntityIdsProvider);
+    ref.listen(wellbeingPrivateEntityIdsProvider, (previous, next) {
+      if (!isPublicHaEntity(next, entity.entityId)) {
+        interactionGeneration++;
+        invalidateDashboardInteraction();
+      }
+    });
+    if (!isPublicHaEntity(privacy, entity.entityId)) {
+      return const SizedBox.shrink();
+    }
     if (roomId != null) {
       final room = ref.watch(
         dashboardLayoutProvider.select(

@@ -6,6 +6,8 @@ import '../../../shared/theme/typography.dart';
 import '../../../shared/widgets/app_page_scaffold.dart';
 import '../../ha_client/providers/ha_client_providers.dart';
 import '../../settings/data/app_service.dart';
+import '../../wellbeing/providers/wellbeing_privacy_providers.dart';
+import '../../wellbeing/providers/wellbeing_providers.dart';
 import '../domain/dashboard_card_size.dart';
 import '../domain/dashboard_layout.dart';
 import '../providers/dashboard_providers.dart';
@@ -165,6 +167,7 @@ class _DashboardCardEditorScreenState
     watchDashboardAccount();
     final l10n = AppLocalizations.of(context);
     final state = ref.watch(dashboardLayoutProvider);
+    final privacy = ref.watch(wellbeingPrivateEntityIdsProvider);
     final generation = interactionGeneration;
     return AppPageScaffold(
       navigationBar: CupertinoNavigationBar(
@@ -230,6 +233,16 @@ class _DashboardCardEditorScreenState
                           itemBuilder: (context, index) {
                             final id = ids[index];
                             final tile = tilesById[id];
+                            final entityId =
+                                widget.mode == DashboardEditorMode.room
+                                ? id
+                                : tile?.entityId;
+                            if (entityId != null &&
+                                !isPublicHaEntity(privacy, entityId)) {
+                              return SizedBox.shrink(
+                                key: ValueKey('dashboard-edit-$id'),
+                              );
+                            }
                             final name = switch (widget.mode) {
                               DashboardEditorMode.room =>
                                 names?[id]?.friendlyName ?? id,

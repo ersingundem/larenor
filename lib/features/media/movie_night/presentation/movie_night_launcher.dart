@@ -15,6 +15,7 @@ import '../../../health/data/health_configuration.dart';
 import '../../../health/data/integration_health.dart';
 import '../../../health/providers/ha_actions.dart';
 import '../../../health/providers/health_providers.dart';
+import '../../hub/presentation/media_session_state.dart';
 import '../data/movie_night_store.dart';
 import '../domain/movie_night_preset.dart';
 import '../domain/movie_night_runner.dart';
@@ -39,40 +40,29 @@ class MovieNightLauncher extends ConsumerStatefulWidget {
   ConsumerState<MovieNightLauncher> createState() => _MovieNightLauncherState();
 }
 
-class _MovieNightLauncherState extends ConsumerState<MovieNightLauncher> {
-  late final AppLifecycleListener _lifecycle;
-  int _generation = 0;
-  bool _foreground = true;
+class _MovieNightLauncherState extends MediaSessionState<MovieNightLauncher> {
+  Route<MovieNightPreset>? _setupRoute;
+  Route<bool>? _finishRoute;
   bool _busy = false;
   String? _message;
   String? _activeEntity;
 
   @override
-  void initState() {
-    super.initState();
-    final state = WidgetsBinding.instance.lifecycleState;
-    _foreground = state == null || state == AppLifecycleState.resumed;
-    _lifecycle = AppLifecycleListener(
-      onStateChange: (state) {
-        _foreground = state == AppLifecycleState.resumed;
-        if (!_foreground) _generation++;
-      },
-    );
-  }
-
-  @override
-  void dispose() {
-    _generation++;
-    _lifecycle.dispose();
-    super.dispose();
+  void clearPendingInteraction() {
+    _message = null;
+    _activeEntity = null;
+    final setup = _setupRoute;
+    final finish = _finishRoute;
+    _setupRoute = null;
+    _finishRoute = null;
+    if (finish?.isActive == true) finish!.navigator?.removeRoute(finish);
+    if (setup?.isActive == true) setup!.navigator?.removeRoute(setup);
   }
 
   bool _current(int generation, Object? connection) {
     if (!mounted) return false;
     final current = ref.read(connectionConfigProvider);
-    return mounted &&
-        _foreground &&
-        generation == _generation &&
+    return sessionCurrent(generation) &&
         !current.isLoading &&
         !current.hasError &&
         sameHealthConfiguration(connection, current.value) &&
@@ -82,13 +72,20 @@ class _MovieNightLauncherState extends ConsumerState<MovieNightLauncher> {
   Future<void> _launch() async {
     if (_busy ||
         !widget.enabled ||
-        !_foreground ||
+        !foreground ||
+        !interactionActive ||
+        ModalRoute.of(context)?.isCurrent != true ||
         !widget.isPlaybackCurrent()) {
       return;
     }
-    final connection = ref.read(connectionConfigProvider).value;
-    if (connection == null) return;
-    final generation = ++_generation;
+    final connectionState = ref.read(connectionConfigProvider);
+    final connection = connectionState.value;
+    if (connectionState.isLoading ||
+        connectionState.hasError ||
+        connection == null) {
+      return;
+    }
+    final generation = ++sessionGeneration;
     bool current() => _current(generation, connection);
     final l10n = AppLocalizations.of(context);
     setState(() {
@@ -107,16 +104,17 @@ class _MovieNightLauncherState extends ConsumerState<MovieNightLauncher> {
       final saved = await ref.read(movieNightStoreProvider).read();
       if (!mounted || !current()) return;
       final baseUrl = parseServerUrl(connection.baseUrl).toString();
-      final selected = await Navigator.of(context).push<MovieNightPreset>(
-        CupertinoPageRoute(
-          builder: (_) => _MovieNightSetupScreen(
-            title: widget.title,
-            serverUrl: baseUrl,
-            initial: saved?.serverUrl == baseUrl ? saved : null,
-            isCurrent: current,
-          ),
+      final setupRoute = CupertinoPageRoute<MovieNightPreset>(
+        builder: (_) => _MovieNightSetupScreen(
+          title: widget.title,
+          serverUrl: baseUrl,
+          initial: saved?.serverUrl == baseUrl ? saved : null,
+          isCurrent: current,
         ),
       );
+      _setupRoute = setupRoute;
+      final selected = await Navigator.of(context).push(setupRoute);
+      if (identical(_setupRoute, setupRoute)) _setupRoute = null;
       if (selected == null || !current() || !widget.enabled) return;
       await ref
           .read(movieNightStoreProvider)
@@ -170,7 +168,7 @@ class _MovieNightLauncherState extends ConsumerState<MovieNightLauncher> {
         final entity = ref
             .read(entitiesProvider)
             .value?[selected.finishEntityId];
-        final finish = await showCupertinoDialog<bool>(
+        final finishRoute = CupertinoDialogRoute<bool>(
           context: context,
           builder: (dialogContext) => CupertinoAlertDialog(
             title: Text(l10n.movieNightFinish),
@@ -181,16 +179,30 @@ class _MovieNightLauncherState extends ConsumerState<MovieNightLauncher> {
             ),
             actions: [
               CupertinoDialogAction(
-                onPressed: () => Navigator.pop(dialogContext, false),
+                onPressed: () {
+                  if (dialogContext.mounted &&
+                      ModalRoute.of(dialogContext)?.isCurrent == true) {
+                    Navigator.pop(dialogContext, false);
+                  }
+                },
                 child: Text(l10n.commonCancel),
               ),
               CupertinoDialogAction(
-                onPressed: () => Navigator.pop(dialogContext, true),
+                onPressed: () {
+                  if (current() &&
+                      dialogContext.mounted &&
+                      ModalRoute.of(dialogContext)?.isCurrent == true) {
+                    Navigator.pop(dialogContext, true);
+                  }
+                },
                 child: Text(l10n.movieNightApply),
               ),
             ],
           ),
         );
+        _finishRoute = finishRoute;
+        final finish = await Navigator.of(context).push(finishRoute);
+        if (identical(_finishRoute, finishRoute)) _finishRoute = null;
         if (finish == true && current()) {
           final applied = await runner.finish();
           if (current()) {
@@ -224,9 +236,8 @@ class _MovieNightLauncherState extends ConsumerState<MovieNightLauncher> {
       if (next.isLoading ||
           next.hasError ||
           !sameHealthConfiguration(previous?.value, next.value)) {
-        _generation++;
-        _message = null;
-        _activeEntity = null;
+        sessionGeneration++;
+        clearPendingInteraction();
       }
     });
     return Column(
@@ -236,6 +247,7 @@ class _MovieNightLauncherState extends ConsumerState<MovieNightLauncher> {
           padding: const EdgeInsets.symmetric(vertical: 12),
           onPressed:
               !widget.enabled ||
+                  !interactionActive ||
                   _busy ||
                   connection.isLoading ||
                   connection.value == null ||
@@ -280,7 +292,17 @@ class _MovieNightSetupScreen extends ConsumerStatefulWidget {
 }
 
 class _MovieNightSetupScreenState
-    extends ConsumerState<_MovieNightSetupScreen> {
+    extends MediaSessionState<_MovieNightSetupScreen> {
+  Route<HaEntity>? _picker;
+  @override
+  void clearPendingInteraction() {
+    _start = null;
+    _finish = null;
+    final route = _picker;
+    _picker = null;
+    if (route?.isActive == true) route!.navigator?.removeRoute(route);
+  }
+
   late String? _start = widget.initial?.startEntityId;
   late String? _finish = widget.initial?.finishEntityId;
   bool _submitted = false;
@@ -294,25 +316,26 @@ class _MovieNightSetupScreenState
         catalog.hasError) {
       return;
     }
-    final entity = await Navigator.of(context).push<HaEntity>(
-      CupertinoPageRoute(
-        builder: (_) => EntityPickerScreen(
-          entities: (states.value?.values ?? const <HaEntity>[])
-              .where(
-                (entity) =>
-                    MovieNightPreset.validEntity(entity.entityId) &&
-                    entity.state != 'unavailable' &&
-                    (catalog.value?.any(
-                          (action) =>
-                              action.domain == entity.domain &&
-                              action.service == 'turn_on',
-                        ) ??
-                        false),
-              )
-              .toList(),
-        ),
+    final route = CupertinoPageRoute<HaEntity>(
+      builder: (_) => EntityPickerScreen(
+        entities: (states.value?.values ?? const <HaEntity>[])
+            .where(
+              (entity) =>
+                  MovieNightPreset.validEntity(entity.entityId) &&
+                  entity.state != 'unavailable' &&
+                  (catalog.value?.any(
+                        (action) =>
+                            action.domain == entity.domain &&
+                            action.service == 'turn_on',
+                      ) ??
+                      false),
+            )
+            .toList(),
       ),
     );
+    _picker = route;
+    final entity = await Navigator.of(context).push(route);
+    if (identical(_picker, route)) _picker = null;
     if (mounted && widget.isCurrent() && entity != null) {
       setState(() {
         if (finish) {

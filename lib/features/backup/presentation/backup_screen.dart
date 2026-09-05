@@ -2,6 +2,9 @@ import 'dart:typed_data';
 
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../../../core/app_interaction_scope.dart';
+
 import 'package:intl/intl.dart';
 
 import '../../../core/configuration_scope.dart';
@@ -68,7 +71,44 @@ class _BackupScreenState extends ConsumerState<BackupScreen>
   bool _busy = false;
   bool _fileDialog = false;
   bool _suspended = false;
+  bool _foreground = true;
   int _generation = 0;
+  AppInteractionController? _interaction;
+  int _interactionEpoch = 0;
+  Route<bool>? _applyConfirmation;
+  bool get _interactive => _foreground && (_interaction?.active ?? true);
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final next = AppInteractionScope.maybeOf(context);
+    if (identical(next, _interaction)) return;
+    final hadScope = _interaction != null;
+    _interaction?.removeListener(_interactionChanged);
+    _interaction = next;
+    _interactionEpoch = next?.epoch ?? 0;
+    next?.addListener(_interactionChanged);
+    if (hadScope || !_interactive) {
+      _generation++;
+      _clearSecrets();
+      _suspended = !_interactive;
+    }
+  }
+
+  void _interactionChanged() {
+    if (!mounted) return;
+    final epoch = _interaction?.epoch ?? 0;
+    if (epoch != _interactionEpoch) {
+      _interactionEpoch = epoch;
+      _generation++;
+      _clearSecrets();
+    }
+    setState(() {
+      if (!_interactive) _suspended = true;
+      if (_interactive && !_fileDialog) _suspended = false;
+    });
+  }
+
   String? _message;
   bool _isError = false;
   Uint8List? _file;
@@ -85,12 +125,15 @@ class _BackupScreenState extends ConsumerState<BackupScreen>
   @override
   void initState() {
     super.initState();
+    final lifecycle = WidgetsBinding.instance.lifecycleState;
+    _foreground = lifecycle == null || lifecycle == AppLifecycleState.resumed;
     _restoreMode = widget.freshInstall;
     WidgetsBinding.instance.addObserver(this);
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
+    _foreground = state == AppLifecycleState.resumed;
     if (state == AppLifecycleState.hidden ||
         state == AppLifecycleState.paused) {
       _generation++;
@@ -102,6 +145,9 @@ class _BackupScreenState extends ConsumerState<BackupScreen>
   }
 
   void _clearSecrets() {
+    final route = _applyConfirmation;
+    _applyConfirmation = null;
+    if (route?.isActive == true) route!.navigator?.removeRoute(route);
     _passphrase.clear();
     _confirmation.clear();
     _restorePassphrase.clear();
@@ -112,6 +158,7 @@ class _BackupScreenState extends ConsumerState<BackupScreen>
   @override
   void dispose() {
     _generation++;
+    _interaction?.removeListener(_interactionChanged);
     WidgetsBinding.instance.removeObserver(this);
     _file = null;
     _snapshot = null;
@@ -123,9 +170,11 @@ class _BackupScreenState extends ConsumerState<BackupScreen>
   }
 
   Future<bool> _authorized() async {
+    if (!mounted || !_interactive) return false;
+    final generation = _generation;
     if (!widget.freshInstall) return true;
     final pin = await ref.read(pinLockStoreProvider).read();
-    if (!mounted) return false;
+    if (!mounted || !_interactive || generation != _generation) return false;
     if (pin == null) return true;
     _showMessage(AppLocalizations.of(context).backupLocked, error: true);
     return false;
@@ -158,12 +207,12 @@ class _BackupScreenState extends ConsumerState<BackupScreen>
       return runner == null ? await operation() : await runner<T>(operation);
     } finally {
       _fileDialog = false;
-      if (mounted) setState(() => _suspended = false);
+      if (mounted) setState(() => _suspended = !_interactive);
     }
   }
 
   Future<void> _export() async {
-    if (_busy) return;
+    if (!mounted || !_interactive || _busy) return;
     final l10n = AppLocalizations.of(context);
     final passphrase = _passphrase.text;
     if (_selection.isEmpty) {
@@ -218,7 +267,7 @@ class _BackupScreenState extends ConsumerState<BackupScreen>
   }
 
   Future<void> _chooseFile() async {
-    if (_busy) return;
+    if (!mounted || !_interactive || _busy) return;
     final l10n = AppLocalizations.of(context);
     final files = ref.read(backupFileAccessProvider);
     setState(() {
@@ -244,7 +293,7 @@ class _BackupScreenState extends ConsumerState<BackupScreen>
   }
 
   Future<void> _decrypt() async {
-    if (_busy || _file == null) return;
+    if (!mounted || !_interactive || _busy || _file == null) return;
     final l10n = AppLocalizations.of(context);
     final passphrase = _restorePassphrase.text;
     if (passphrase.runes.length < 12) {
@@ -285,34 +334,54 @@ class _BackupScreenState extends ConsumerState<BackupScreen>
   }
 
   Future<void> _apply() async {
-    if (_busy || _snapshot == null || _selection.isEmpty) return;
+    if (!mounted ||
+        !_interactive ||
+        _busy ||
+        _snapshot == null ||
+        _selection.isEmpty) {
+      return;
+    }
     final l10n = AppLocalizations.of(context);
     final generation = _generation;
     var handedOff = false;
     setState(() => _busy = true);
     try {
       if (!await _authorized() || !mounted || generation != _generation) return;
-      final accepted =
-          await showCupertinoDialog<bool>(
-            context: context,
-            builder: (context) => CupertinoAlertDialog(
-              title: Text(l10n.backupApplyTitle),
-              content: Text(l10n.backupApplyMessage),
-              actions: [
-                CupertinoDialogAction(
-                  onPressed: () => Navigator.pop(context, false),
-                  child: Text(l10n.commonCancel),
-                ),
-                CupertinoDialogAction(
-                  isDestructiveAction:
-                      _conflict == BackupConflictPolicy.replaceSelected,
-                  onPressed: () => Navigator.pop(context, true),
-                  child: Text(l10n.backupApply),
-                ),
-              ],
+      final route = CupertinoDialogRoute<bool>(
+        context: context,
+        builder: (context) => CupertinoAlertDialog(
+          title: Text(l10n.backupApplyTitle),
+          content: Text(l10n.backupApplyMessage),
+          actions: [
+            CupertinoDialogAction(
+              onPressed: () {
+                if (context.mounted &&
+                    ModalRoute.of(context)?.isCurrent == true) {
+                  Navigator.pop(context, false);
+                }
+              },
+              child: Text(l10n.commonCancel),
             ),
-          ) ??
-          false;
+            CupertinoDialogAction(
+              isDestructiveAction:
+                  _conflict == BackupConflictPolicy.replaceSelected,
+              onPressed: () {
+                if (mounted &&
+                    _interactive &&
+                    generation == _generation &&
+                    context.mounted &&
+                    ModalRoute.of(context)?.isCurrent == true) {
+                  Navigator.pop(context, true);
+                }
+              },
+              child: Text(l10n.backupApply),
+            ),
+          ],
+        ),
+      );
+      _applyConfirmation = route;
+      final accepted = await Navigator.of(context).push(route) ?? false;
+      if (identical(_applyConfirmation, route)) _applyConfirmation = null;
       if (!mounted ||
           generation != _generation ||
           !accepted ||
@@ -505,6 +574,8 @@ class _BackupScreenState extends ConsumerState<BackupScreen>
       ),
     ),
     _note(l10n.backupConflictHint),
+    _note(l10n.backupPrivacyPolicyHint),
+    if (preview.requiresPrivacyReview) _note(l10n.backupPrivacyReviewRequired),
     if (preview.requiresCertificateReview && _connections)
       _note(l10n.backupCertificateReview),
     _button(

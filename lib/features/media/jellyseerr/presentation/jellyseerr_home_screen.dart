@@ -2,6 +2,11 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../l10n/generated/app_localizations.dart';
+import '../../../health/data/action_receipt.dart';
+import '../../../health/data/integration_health.dart';
+import '../../../health/providers/action_providers.dart';
+import '../../data/media_api_exception.dart';
+import '../../hub/presentation/media_session_state.dart';
 import '../data/models/jellyseerr_result.dart';
 import '../providers/jellyseerr_providers.dart';
 import 'jellyseerr_connect_screen.dart';
@@ -19,11 +24,16 @@ class JellyseerrHomeScreen extends ConsumerWidget {
     final connectionAsync = ref.watch(jellyseerrConnectionProvider);
 
     return connectionAsync.when(
+      skipLoadingOnReload: false,
+      skipLoadingOnRefresh: false,
       loading: () => const CupertinoPageScaffold(
         child: Center(child: CupertinoActivityIndicator()),
       ),
-      error: (error, _) =>
-          CupertinoPageScaffold(child: Center(child: Text(error.toString()))),
+      error: (error, _) => CupertinoPageScaffold(
+        child: Center(
+          child: Text(AppLocalizations.of(context).mediaErrorUnreachable),
+        ),
+      ),
       data: (config) {
         if (config == null) return const JellyseerrConnectScreen();
         return const _JellyseerrSearchScreen();
@@ -41,52 +51,170 @@ class _JellyseerrSearchScreen extends ConsumerStatefulWidget {
 }
 
 class _JellyseerrSearchScreenState
-    extends ConsumerState<_JellyseerrSearchScreen> {
+    extends MediaSessionState<_JellyseerrSearchScreen> {
   List<JellyseerrResult>? _results;
-  String? _lastQuery;
   bool _searching = false;
-  final _requestingIds = <int>{};
+  final _requestingIds = <String>{};
+  final _blockedIds = <String>{};
+  final _receipts = <String, String>{};
+  int _queryGeneration = 0;
+  bool _visible = true;
+  String? _message;
+  String _key(JellyseerrResult result) => '${result.mediaType}:${result.id}';
+  bool _current(int generation) =>
+      sessionCurrent(generation) &&
+      _visible &&
+      ModalRoute.of(context)?.isCurrent == true;
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final visible = TickerMode.valuesOf(context).enabled;
+    if (_visible && !visible) {
+      sessionGeneration++;
+      clearPendingInteraction();
+    }
+    _visible = visible;
+  }
+
+  @override
+  void clearPendingInteraction() {
+    _queryGeneration++;
+    _results = null;
+    _searching = false;
+    _message = null;
+    // An accepted/uncertain write is never made replayable by idle or hiding.
+  }
 
   Future<void> _search(String query) async {
+    final generation = sessionGeneration;
+    if (!_current(generation)) return;
+    final config = ref.read(jellyseerrConnectionProvider);
+    if (config.isLoading || config.hasError || config.value == null) return;
+    final sequence = ++_queryGeneration;
     final client = ref.read(jellyseerrClientProvider);
     if (client == null || query.trim().isEmpty) {
-      setState(() => _results = null);
+      setState(() {
+        _results = null;
+        _searching = false;
+      });
       return;
     }
-    _lastQuery = query.trim();
-    setState(() => _searching = true);
+    bool current() =>
+        _current(generation) &&
+        sequence == _queryGeneration &&
+        identical(client, ref.read(jellyseerrClientProvider));
+    setState(() {
+      _searching = true;
+      _results = null;
+      _message = null;
+    });
     try {
       final results = await client.search(query.trim());
-      if (mounted) setState(() => _results = results);
-    } catch (_) {
-      if (mounted) setState(() => _results = []);
+      if (current()) setState(() => _results = results);
+    } catch (error) {
+      if (current()) setState(() => _message = _readFailure(error));
     } finally {
-      if (mounted) setState(() => _searching = false);
+      if (current()) setState(() => _searching = false);
     }
   }
 
-  Future<void> _request(JellyseerrResult result) async {
+  String _readFailure(Object error) {
+    final l10n = AppLocalizations.of(context);
+    return switch (error) {
+      MediaApiException(statusCode: 401) => l10n.healthAuthenticationRequired,
+      MediaApiException(statusCode: 403) => l10n.healthPermissionDenied,
+      _ => l10n.mediaErrorUnreachable,
+    };
+  }
+
+  Future<void> _request(
+    JellyseerrResult result,
+    int generation,
+    int queryGeneration,
+  ) async {
+    final key = _key(result);
+    if (!_current(generation) ||
+        queryGeneration != _queryGeneration ||
+        _requestingIds.contains(key) ||
+        _blockedIds.contains(key) ||
+        _results?.contains(result) != true ||
+        result.status != JellyseerrMediaStatus.unknown) {
+      return;
+    }
+    final config = ref.read(jellyseerrConnectionProvider);
+    if (config.isLoading || config.hasError || config.value == null) return;
     final client = ref.read(jellyseerrClientProvider);
     if (client == null) return;
-    setState(() => _requestingIds.add(result.id));
+    final l10n = AppLocalizations.of(context);
+    setState(() => _requestingIds.add(key));
     try {
-      await client.requestMedia(
-        mediaType: result.mediaType,
-        mediaId: result.id,
-      );
-      // Re-run the last search so the row picks up its new "pending" status.
-      final query = _lastQuery;
-      if (query != null) await _search(query);
-    } catch (_) {
-      // The row's status simply won't update; user can retry.
+      final receipt = await ref
+          .read(actionControllerProvider)
+          .execute<void>(
+            key: ActionKey(
+              integration: IntegrationId.jellyseerr,
+              target: 'legacy:$key',
+              action: 'request',
+            ),
+            send: () async {
+              if (!_current(generation) ||
+                  queryGeneration != _queryGeneration ||
+                  !identical(client, ref.read(jellyseerrClientProvider))) {
+                throw MediaApiException('Selection expired', statusCode: 409);
+              }
+              await client.requestMedia(
+                mediaType: result.mediaType,
+                mediaId: result.id,
+              );
+            },
+            classifyFailure: (error) => switch (error) {
+              MediaApiException(statusCode: 401) =>
+                ActionFailure.authentication,
+              MediaApiException(statusCode: 403) => ActionFailure.permission,
+              MediaApiException(statusCode: final int code)
+                  when code >= 400 && code < 500 =>
+                ActionFailure.rejected,
+              _ => ActionFailure.unknown,
+            },
+          );
+      if (receipt.status == ActionStatus.accepted ||
+          receipt.status == ActionStatus.confirmed ||
+          receipt.status == ActionStatus.unknown) {
+        _blockedIds.add(key);
+      }
+      _receipts[key] = switch (receipt.status) {
+        ActionStatus.accepted ||
+        ActionStatus.confirmed => l10n.mediaRequestAccepted,
+        ActionStatus.unknown => l10n.mediaWriteUnknown,
+        _ => switch (receipt.failure) {
+          ActionFailure.authentication => l10n.healthAuthenticationRequired,
+          ActionFailure.permission => l10n.healthPermissionDenied,
+          _ => l10n.mediaErrorUnreachable,
+        },
+      };
+      if (!_current(generation)) return;
+      setState(() {});
+      if (receipt.status == ActionStatus.accepted ||
+          receipt.status == ActionStatus.confirmed) {
+        ref.invalidate(jellyseerrMyRequestsProvider);
+      }
+    } catch (error) {
+      // Controller lifetime/transport ambiguity must not reopen an old request.
+      _blockedIds.add(key);
+      _receipts[key] = l10n.mediaWriteUnknown;
     } finally {
-      if (mounted) setState(() => _requestingIds.remove(result.id));
+      _requestingIds.remove(key);
+      if (mounted) setState(() {});
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final results = _results;
+    watchMediaAccount(IntegrationId.jellyseerr, jellyseerrConnectionProvider);
+    final generation = sessionGeneration;
+    final queryGeneration = _queryGeneration;
+    final ready = _current(generation);
+    final results = ready ? _results : null;
 
     return ServiceRootScaffold(
       title: 'Jellyseerr',
@@ -104,13 +232,25 @@ class _JellyseerrSearchScreenState
             child: CupertinoSearchTextField(
               placeholder: AppLocalizations.of(context)
                   .jellyseerrSearchPlaceholder,
+              enabled: ready,
               onSubmitted: _search,
               onChanged: (value) {
-                if (value.trim().isEmpty) setState(() => _results = null);
+                if (value.trim().isEmpty) _search(value);
               },
             ),
           ),
         ),
+        if (sessionExpired || _message != null)
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.all(Gap.md),
+              child: Text(
+                sessionExpired
+                    ? AppLocalizations.of(context).mediaSelectionExpired
+                    : _message!,
+              ),
+            ),
+          ),
         if (_searching)
           const SliverToBoxAdapter(
             child: Center(child: CupertinoActivityIndicator()),
@@ -125,8 +265,10 @@ class _JellyseerrSearchScreenState
               final result = results[index];
               return _ResultTile(
                 result: result,
-                requesting: _requestingIds.contains(result.id),
-                onRequest: () => _request(result),
+                requesting: _requestingIds.contains(_key(result)),
+                receipt: _receipts[_key(result)],
+                enabled: ready && !_blockedIds.contains(_key(result)),
+                onRequest: () => _request(result, generation, queryGeneration),
               );
             }, childCount: results.length),
           ),
@@ -140,11 +282,15 @@ class _ResultTile extends ConsumerWidget {
     required this.result,
     required this.requesting,
     required this.onRequest,
+    required this.enabled,
+    this.receipt,
   });
 
   final JellyseerrResult result;
   final bool requesting;
   final VoidCallback onRequest;
+  final bool enabled;
+  final String? receipt;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -173,7 +319,12 @@ class _ResultTile extends ConsumerWidget {
             ? AppLocalizations.of(context).jellyseerrTvShow
             : AppLocalizations.of(context).jellyseerrMovie,
       ),
-      trailing: alreadyRequested
+      trailing: receipt != null
+          ? ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 180),
+              child: Text(receipt!, style: AppText.caption1),
+            )
+          : alreadyRequested
           ? Text(
               jellyseerrStatusLabel(context, result.status),
               style: TextStyle(
@@ -185,7 +336,7 @@ class _ResultTile extends ConsumerWidget {
           ? const CupertinoActivityIndicator()
           : CupertinoButton(
               padding: EdgeInsets.zero,
-              onPressed: onRequest,
+              onPressed: enabled ? onRequest : null,
               child: Text(AppLocalizations.of(context).jellyseerrRequestButton),
             ),
     );

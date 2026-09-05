@@ -10,6 +10,7 @@ import '../../dashboard/domain/dashboard_layout_validation.dart';
 import '../../intercom/domain/door_station.dart';
 import '../../media/movie_night/domain/movie_night_preset.dart';
 import '../../settings/data/app_service.dart';
+import '../../wellbeing/data/wellbeing_disclosure_policy.dart';
 
 class BackupException implements Exception {
   const BackupException(this.code, this.message);
@@ -89,6 +90,8 @@ class BackupPreview {
     required this.existingDashboard,
     required this.existingServices,
     required this.requiresCertificateReview,
+    this.requiresPrivacyReview = false,
+    this.protectedEntityCount = 0,
   });
   final DateTime createdAt;
   final bool hasSettings;
@@ -103,11 +106,14 @@ class BackupPreview {
   final bool existingDashboard;
   final List<String> existingServices;
   final bool requiresCertificateReview;
+  final bool requiresPrivacyReview;
+  final int protectedEntityCount;
 }
 
 const backupPreferenceKeys = <String>{
   'keep_screen_on',
   'appearance',
+  'window_profile',
   'night_start_minutes',
   'night_end_minutes',
   'dim_brightness_at_night',
@@ -170,7 +176,7 @@ void validateBackupJson(Object? value) {
       required: {'version', 'createdAt', 'groups'},
     );
     if (root['version'] is! int ||
-        root['version'] != 1 ||
+        !{1, 2}.contains(root['version']) ||
         root['createdAt'] is! String ||
         DateTime.tryParse(root['createdAt'] as String) == null ||
         (root['createdAt'] as String).length > 40) {
@@ -180,11 +186,17 @@ void validateBackupJson(Object? value) {
       'settings',
       'dashboard',
       'connections',
+      'privacy',
     });
-    if (groups.isEmpty) {
+    if (groups.isEmpty || groups.keys.every((key) => key == 'privacy')) {
       throw const BackupValidationException(
         'Select at least one backup group.',
       );
+    }
+    if (root['version'] == 2) {
+      WellbeingDisclosurePolicy.fromJson(groups['privacy']);
+    } else if (groups.containsKey('privacy')) {
+      throw const BackupValidationException();
     }
     if (groups.containsKey('settings')) _validateSettings(groups['settings']);
     if (groups.containsKey('dashboard')) {
@@ -232,6 +244,10 @@ void _validateSettings(Object? value) {
         MovieNightPreset.decodeStored(v);
       case 'appearance':
         if (!{'system', 'light', 'dark'}.contains(v)) {
+          throw const BackupValidationException();
+        }
+      case 'window_profile':
+        if (!{'adaptive', 'panel'}.contains(v)) {
           throw const BackupValidationException();
         }
       case 'night_start_minutes':

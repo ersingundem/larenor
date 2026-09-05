@@ -2,6 +2,8 @@ import 'dart:convert';
 
 import '../../../core/configuration_writes.dart';
 import '../../intercom/domain/door_station.dart';
+import '../../wellbeing/data/wellbeing_store.dart';
+import '../../wellbeing/data/wellbeing_disclosure_policy.dart';
 import 'backup_snapshot.dart';
 import 'backup_storage.dart';
 
@@ -26,6 +28,27 @@ class BackupRepository {
         await _requireRecovered();
         try {
           final groups = <String, dynamic>{};
+          final policy = WellbeingDisclosurePolicy.decode(
+            await _storage.readSecret(WellbeingDisclosureStore.storageKey),
+          );
+          final privateRaw = await _storage.readSecret(
+            WellbeingStore.storageKey,
+          );
+          if (privateRaw != null && privateRaw.length > 32768) {
+            throw const BackupValidationException();
+          }
+          final privateSettings = privateRaw == null
+              ? null
+              : WellbeingStore.decode(jsonDecode(privateRaw));
+          groups['privacy'] = WellbeingDisclosurePolicy.fromJson(
+            WellbeingDisclosurePolicy(
+              entityIds: {
+                ...policy.entityIds,
+                ...?privateSettings?.bindings.map((v) => v.entityId),
+              },
+              reviewRequired: policy.reviewRequired,
+            ).toJson(),
+          ).toJson();
           if (selection.settings) {
             groups['settings'] = <String, dynamic>{
               for (final key in backupPreferenceKeys)
@@ -52,7 +75,7 @@ class BackupRepository {
             groups['connections'] = records;
           }
           return BackupSnapshot.fromJson({
-            'version': 1,
+            'version': 2,
             'createdAt': _now().toUtc().toIso8601String(),
             'groups': groups,
           });
@@ -76,6 +99,9 @@ class BackupRepository {
     final settings = groups['settings'] as Map<String, dynamic>? ?? {};
     final dashboard = groups['dashboard'] as Map<String, dynamic>? ?? {};
     final connections = groups['connections'] as Map<String, dynamic>? ?? {};
+    final privacy = groups['privacy'] == null
+        ? null
+        : WellbeingDisclosurePolicy.fromJson(groups['privacy']);
     try {
       var existingSettings = 0;
       for (final key in settings.keys) {
@@ -102,6 +128,10 @@ class BackupRepository {
         existingServices: List.unmodifiable(existingServices),
         requiresCertificateReview:
             (connections['proxmox'] as Map?)?['allowSelfSigned'] == 'true',
+        requiresPrivacyReview:
+            privacy?.reviewRequired ??
+            (snapshot.hasDashboard || connections.containsKey('ha')),
+        protectedEntityCount: privacy?.entityIds.length ?? 0,
       );
     } catch (_) {
       throw const BackupException(
@@ -134,6 +164,37 @@ class BackupRepository {
     final changes = <_Change>[];
     final replace = conflictPolicy == BackupConflictPolicy.replaceSelected;
     try {
+      final previousPrivacy = await _storage.readSecret(
+        WellbeingDisclosureStore.storageKey,
+      );
+      final previousPolicy = WellbeingDisclosurePolicy.decode(previousPrivacy);
+      final incoming = groups['privacy'] == null
+          ? WellbeingDisclosurePolicy(
+              reviewRequired:
+                  (selection.dashboard && snapshot.hasDashboard) ||
+                  (selection.connections &&
+                      (groups['connections'] as Map?)?.containsKey('ha') ==
+                          true),
+            )
+          : WellbeingDisclosurePolicy.fromJson(groups['privacy']);
+      final combined = WellbeingDisclosurePolicy.fromJson(
+        WellbeingDisclosurePolicy(
+          entityIds: {...previousPolicy.entityIds, ...incoming.entityIds},
+          reviewRequired:
+              previousPolicy.reviewRequired || incoming.reviewRequired,
+        ).toJson(),
+      );
+      if (jsonEncode(previousPolicy.toJson()) !=
+          jsonEncode(combined.toJson())) {
+        changes.add(
+          _Change(
+            true,
+            WellbeingDisclosureStore.storageKey,
+            previousPrivacy,
+            jsonEncode(combined.toJson()),
+          ),
+        );
+      }
       if (selection.settings && snapshot.hasSettings) {
         final settings = groups['settings'] as Map<String, dynamic>;
         for (final entry in settings.entries) {
@@ -318,9 +379,9 @@ class BackupRepository {
           (json['changes'] as List).length > 100) {
         throw const FormatException();
       }
-      final secretKeys = backupConnectionFields.values
-          .expand((v) => v.values)
-          .toSet();
+      final secretKeys =
+          backupConnectionFields.values.expand((v) => v.values).toSet()
+            ..add(WellbeingDisclosureStore.storageKey);
       final preferenceKeys = {
         ...backupPreferenceKeys,
         _dashboardKey,
@@ -344,7 +405,11 @@ class BackupRepository {
         final value = raw['before'];
         if (secret &&
             value != null &&
-            (value is! String || value.length > 16384)) {
+            (value is! String ||
+                value.length >
+                    (key == WellbeingDisclosureStore.storageKey
+                        ? 70000
+                        : 16384))) {
           throw const FormatException();
         }
         if (!secret &&

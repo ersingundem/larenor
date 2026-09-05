@@ -2,6 +2,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../l10n/generated/app_localizations.dart';
+import '../../../health/data/integration_health.dart';
 import '../../../../shared/discovery/service_signatures.dart';
 import '../providers/readarr_providers.dart';
 import 'widgets/arr_add_screen.dart';
@@ -17,11 +18,16 @@ class ReadarrScreen extends ConsumerWidget {
     final connectionAsync = ref.watch(readarrConnectionProvider);
 
     return connectionAsync.when(
+      skipLoadingOnReload: false,
+      skipLoadingOnRefresh: false,
       loading: () => const CupertinoPageScaffold(
         child: Center(child: CupertinoActivityIndicator()),
       ),
-      error: (error, _) =>
-          CupertinoPageScaffold(child: Center(child: Text('$error'))),
+      error: (error, _) => CupertinoPageScaffold(
+        child: Center(
+          child: Text(AppLocalizations.of(context).mediaErrorUnreachable),
+        ),
+      ),
       data: (config) {
         if (config == null) {
           return ArrConnectForm(
@@ -49,32 +55,16 @@ class ReadarrScreen extends ConsumerWidget {
           ),
           trailing: CupertinoButton(
             padding: EdgeInsets.zero,
-            onPressed: () => Navigator.of(context).push(
-              CupertinoPageRoute(
-                builder: (_) => ArrAddScreen(
-                  title: AppLocalizations.of(context).arrAddAuthorTitle,
-                  searchHint: AppLocalizations.of(context).arrSearchAuthors,
-                  onLookup: (term) =>
-                      ref.read(readarrClientProvider)!.lookup(term),
-                  loadQualityProfiles: () =>
-                      ref.read(readarrClientProvider)!.getQualityProfiles(),
-                  loadRootFolders: () =>
-                      ref.read(readarrClientProvider)!.getRootFolders(),
-                  loadMetadataProfiles: () =>
-                      ref.read(readarrClientProvider)!.getMetadataProfiles(),
-                  onAdd: (result, profileId, folder, metadataProfileId) async {
-                    await ref
-                        .read(readarrClientProvider)!
-                        .add(
-                          result: result,
-                          qualityProfileId: profileId,
-                          rootFolderPath: folder,
-                          metadataProfileId: metadataProfileId,
-                        );
-                    ref.invalidate(readarrCalendarProvider);
-                  },
-                ),
-              ),
+            onPressed: () => openArrAddScreen(
+              context: context,
+              ref: ref,
+              integration: IntegrationId.readarr,
+              connectionProvider: readarrConnectionProvider,
+              clientProvider: readarrClientProvider,
+              title: AppLocalizations.of(context).arrAddAuthorTitle,
+              searchHint: AppLocalizations.of(context).arrSearchAuthors,
+              metadata: true,
+              onAdded: () => ref.invalidate(readarrCalendarProvider),
             ),
             child: const Icon(CupertinoIcons.add),
           ),

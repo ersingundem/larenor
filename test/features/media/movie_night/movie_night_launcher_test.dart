@@ -1,6 +1,8 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:larenor/core/app_interaction_scope.dart';
+import 'package:larenor/features/dashboard/presentation/entity_picker_screen.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:larenor/features/auth/data/ha_connection_config.dart';
@@ -50,7 +52,10 @@ void main() {
     List<String> operations, {
     bool fresh = true,
     bool narrow = false,
+    AppInteractionController? interaction,
   }) async {
+    final scope = interaction ?? AppInteractionController();
+    if (interaction == null) addTearDown(scope.dispose);
     SharedPreferences.setMockInitialValues({
       MovieNightPreset.storageKey: _preset.encodeStored(),
     });
@@ -100,7 +105,7 @@ void main() {
           builder: (context, child) => MediaQuery(
             data: MediaQuery.of(context)
                 .copyWith(textScaler: TextScaler.linear(narrow ? 2 : 1)),
-            child: child!,
+            child: AppInteractionScope(controller: scope, child: child!),
           ),
           home: CupertinoPageScaffold(
             child: SafeArea(
@@ -126,6 +131,88 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 400));
   }
+
+  testWidgets('idle removes the owned scene picker above its setup page', (
+    tester,
+  ) async {
+    final scope = AppInteractionController();
+    addTearDown(scope.dispose);
+    final operations = <String>[];
+    await mount(tester, operations, interaction: scope);
+    await open(tester);
+    await tester.tap(find.text('Başlangıç sahnesi veya betiği'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(find.byType(EntityPickerScreen), findsOneWidget);
+    scope.setActive(false);
+    await tester.pump();
+    scope.setActive(true);
+    await tester.pumpAndSettle();
+    expect(find.byType(EntityPickerScreen), findsNothing);
+    expect(find.text('Sahneyi uygula ve oynatıcıyı aç'), findsNothing);
+    expect(operations, isEmpty);
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox());
+  });
+
+  testWidgets(
+    'idle closes owned setup and an old Start cannot dispatch after wake',
+    (tester) async {
+      final scope = AppInteractionController();
+      addTearDown(scope.dispose);
+      final operations = <String>[];
+      await mount(tester, operations, interaction: scope);
+      await open(tester);
+      final start = tester
+          .widget<CupertinoButton>(
+            find.widgetWithText(
+              CupertinoButton,
+              'Sahneyi uygula ve oynatıcıyı aç',
+            ),
+          )
+          .onPressed!;
+      scope.setActive(false);
+      await tester.pump();
+      scope.setActive(true);
+      await tester.pumpAndSettle();
+      start();
+      await tester.pumpAndSettle();
+      expect(operations, isEmpty);
+      expect(find.text('Sahneyi uygula ve oynatıcıyı aç'), findsNothing);
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox());
+    },
+  );
+
+  testWidgets(
+    'idle closes only finish confirmation and never applies its old scene',
+    (tester) async {
+      final scope = AppInteractionController();
+      addTearDown(scope.dispose);
+      final operations = <String>[];
+      await mount(tester, operations, interaction: scope);
+      await open(tester);
+      await tester.tap(find.text('Sahneyi uygula ve oynatıcıyı aç'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 500));
+      final finish = tester
+          .widget<CupertinoDialogAction>(
+            find.widgetWithText(CupertinoDialogAction, 'Sahneyi uygula'),
+          )
+          .onPressed!;
+      expect(operations.length, 2);
+      scope.setActive(false);
+      await tester.pump();
+      scope.setActive(true);
+      await tester.pumpAndSettle();
+      finish();
+      await tester.pumpAndSettle();
+      expect(operations.length, 2);
+      expect(find.text('Bitiş sahnesi uygulansın mı?'), findsNothing);
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox());
+    },
+  );
 
   testWidgets(
     'preview sends nothing and cancellation keeps the scene unchanged',

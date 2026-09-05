@@ -7,6 +7,8 @@ import '../../../../shared/theme/category_colors.dart';
 import '../../../../shared/theme/spacing.dart';
 import '../../../../shared/theme/typography.dart';
 import '../../../ha_client/providers/ha_client_providers.dart';
+import '../../../wellbeing/providers/wellbeing_providers.dart';
+import '../../../wellbeing/providers/wellbeing_privacy_providers.dart';
 import '../../data/entity_history.dart';
 import '../../domain/tile_config.dart';
 import '../../providers/entity_history_providers.dart';
@@ -43,6 +45,12 @@ class _HistoryTileState extends ConsumerState<HistoryTile> {
 
   @override
   Widget build(BuildContext context) {
+    if (!isPublicHaEntity(
+      ref.watch(wellbeingPrivateEntityIdsProvider),
+      widget.tile.entityId,
+    )) {
+      return const SizedBox.shrink();
+    }
     final l10n = AppLocalizations.of(context);
     final entityId = widget.tile.entityId;
     final active =

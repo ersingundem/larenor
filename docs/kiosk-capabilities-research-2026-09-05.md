@@ -2,6 +2,14 @@
 
 Tarih: 2026-09-05. Kullanıcı referansı **Fully Kiosk Browser** olarak doğruladı. İnceleme, `b2eb72f` tabanı ve o sırada çalışma ağacındaki Phase 2 değişiklikleri üzerinde yapıldı. Bu belge araştırma ve uygulama planıdır; cihaz kurulumu, izin, launcher, Home Assistant veya Android yönetim politikası değiştirilmedi.
 
+**Uygulama güncellemesi:** Aşağıdaki “mevcut kod” bulguları araştırma anının
+fotoğrafıdır. Sonraki dilimde native pencere gözlemi, uyarlanabilir/panel profili,
+DeX gezinmesi, ortak idle/işlem koruması ve ilk WebPanel katmanı uygulandı.
+[Pencere uygulaması](window-panel-implementation-2026-09-05.md),
+[WebPanel uygulaması](web-panel-implementation-2026-09-05.md).
+Güncel minimum Android API 26, hedef 36'dır. Yönetilen DPC kilidi, tam tarayıcı
+izolasyonu, uzaktan filo yönetimi ve kamera algılama aşağıdaki kuyrukta kalır.
+
 ## Karar
 
 Larenor'un native ev/medya deneyimine kiosk yetenekleri eklenebilir. Ancak tek bir “kiosk açık” anahtarı bütün Android sürümlerinde aynı güvenceyi vermez. Önerilen ürün modeli:

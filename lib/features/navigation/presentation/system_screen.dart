@@ -25,6 +25,7 @@ import '../../media/qbittorrent/presentation/qbittorrent_torrents_screen.dart';
 import '../../proxmox/presentation/proxmox_nodes_screen.dart';
 import '../../settings/data/app_service.dart';
 import '../../settings/providers/enabled_services_providers.dart';
+import '../../wellbeing/data/wellbeing_disclosure_policy.dart';
 import '../providers/service_connection_providers.dart';
 import '../search/domain/local_search_index.dart';
 import 'app_shell_actions.dart';
@@ -36,6 +37,7 @@ class SystemScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context);
     final enabled = ref.watch(enabledServicesProvider);
+    final privacy = ref.watch(wellbeingDisclosureProvider);
     final connections = {
       for (final service in AppService.values)
         service: ref.watch(savedServiceConnectionProvider(service)),
@@ -64,6 +66,28 @@ class SystemScreen extends ConsumerWidget {
             trailing: const AppShellActions(),
           ),
           const SliverToBoxAdapter(child: _HomeAssistantHealthCard()),
+          SliverToBoxAdapter(
+            child: SettingsSection(
+              children: [
+                CupertinoListTile(
+                  leading: const IconBadge(
+                    icon: CupertinoIcons.heart,
+                    color: CupertinoColors.systemPink,
+                  ),
+                  title: Text(l10n.wellbeingTitle),
+                  trailing: const CupertinoListTileChevron(),
+                  onTap: () => context.push('/wellbeing'),
+                ),
+                if (!privacy.isLoading &&
+                    !privacy.hasError &&
+                    privacy.value?.reviewRequired == true)
+                  Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Text(l10n.backupPrivacyReviewRequired),
+                  ),
+              ],
+            ),
+          ),
           if (enabled.hasError)
             SliverToBoxAdapter(
               child: _ConnectionMessage(

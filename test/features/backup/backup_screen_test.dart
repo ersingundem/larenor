@@ -5,6 +5,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:larenor/core/app_interaction_scope.dart';
 import 'package:larenor/features/auth/data/ha_discovery.dart';
 import 'package:larenor/features/auth/presentation/connect_screen.dart';
 import 'package:larenor/features/backup/data/backup_codec.dart';
@@ -149,6 +150,7 @@ Future<void> _mount(
   bool freshInstall = false,
   bool gate = false,
   bool connect = false,
+  AppInteractionController? interaction,
 }) async {
   SharedPreferences.setMockInitialValues({});
   FlutterSecureStorage.setMockInitialValues({});
@@ -171,6 +173,9 @@ Future<void> _mount(
         localizationsDelegates: AppLocalizations.localizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
         locale: const Locale('en'),
+        builder: (_, child) => interaction == null
+            ? child!
+            : AppInteractionScope(controller: interaction, child: child!),
         home: gate
             ? const SettingsGateScreen()
             : connect
@@ -213,6 +218,77 @@ void _resume(WidgetTester tester) {
 }
 
 void main() {
+  testWidgets(
+    'fresh-install idle expires decrypted preview and old confirmation performs zero restores',
+    (tester) async {
+      final scope = AppInteractionController();
+      addTearDown(scope.dispose);
+      final repository = _Repository();
+      await _mount(
+        tester,
+        freshInstall: true,
+        repository: repository,
+        interaction: scope,
+      );
+      await _importPreview(tester);
+      expect(find.text('Restore preview'), findsOneWidget);
+      await _tap(tester, 'backup-apply');
+      // Applying remains pending behind its confirmation spinner.
+      await tester.pump(const Duration(milliseconds: 400));
+      final old = tester
+          .widget<CupertinoDialogAction>(
+            find.widgetWithText(
+              CupertinoDialogAction,
+              'Restore selected content',
+            ),
+          )
+          .onPressed!;
+      scope.setActive(false);
+      await tester.pump();
+      scope.setActive(true);
+      await tester.pumpAndSettle();
+      old();
+      await tester.pumpAndSettle();
+      expect(repository.restoreCalls, 0);
+      expect(find.text('Restore preview'), findsNothing);
+      expect(find.byType(CupertinoAlertDialog), findsNothing);
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox());
+    },
+  );
+
+  testWidgets(
+    'decrypt finishing after idle and wake cannot republish plaintext preview',
+    (tester) async {
+      final scope = AppInteractionController();
+      addTearDown(scope.dispose);
+      final codec = _Codec()..pending = Completer<BackupSnapshot>();
+      final repository = _Repository();
+      await _mount(
+        tester,
+        freshInstall: true,
+        repository: repository,
+        codec: codec,
+        interaction: scope,
+      );
+      await _tap(tester, 'backup-pick');
+      await tester.enterText(
+        find.byKey(const ValueKey('backup-restore-passphrase')),
+        'correct backup phrase',
+      );
+      await _tap(tester, 'backup-decrypt');
+      scope.setActive(false);
+      await tester.pump();
+      scope.setActive(true);
+      await tester.pump();
+      codec.pending!.complete(_snapshot);
+      await tester.pumpAndSettle();
+      expect(find.text('Restore preview'), findsNothing);
+      expect(repository.restoreCalls, 0);
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox());
+    },
+  );
   testWidgets(
     'export excludes credentials by default and saves ciphertext with portable extension',
     (tester) async {

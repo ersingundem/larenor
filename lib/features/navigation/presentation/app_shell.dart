@@ -10,6 +10,7 @@ import '../../auth/presentation/connect_screen.dart';
 import '../../auth/providers/auth_providers.dart';
 import '../../dashboard/providers/dashboard_providers.dart';
 import 'app_shell_actions.dart';
+import 'navigation_shortcuts.dart';
 
 /// Branch navigators retain each root's selection, drilldown and scroll state.
 class AppShell extends ConsumerWidget {
@@ -24,7 +25,7 @@ class AppShell extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final connection = ref.watch(connectionConfigProvider);
-    if (connection.isLoading && !connection.hasValue) {
+    if (connection.isLoading) {
       return const CupertinoPageScaffold(
         child: Center(child: CupertinoActivityIndicator()),
       );
@@ -52,127 +53,135 @@ class AppShell extends ConsumerWidget {
     );
     return AppShellScope(
       hasSidebar: wide,
-      child: CupertinoPageScaffold(
-        backgroundColor: AppColors.canvas.resolveFrom(context),
-        child: Row(
-          children: [
-            if (wide)
-              Container(
-                width: 238,
-                decoration: BoxDecoration(
-                  color: AppColors.navigation.resolveFrom(context),
-                  border: Border(
-                    right: BorderSide(
-                      color: CupertinoColors.separator.resolveFrom(context),
-                      width: 0.5,
+      child: NavigationShortcuts(
+        onSearch: () => context.push('/search?focus=1'),
+        onSelectRoot: (index) =>
+            navigationShell.goBranch(index, initialLocation: false),
+        child: CupertinoPageScaffold(
+          backgroundColor: AppColors.canvas.resolveFrom(context),
+          child: Row(
+            children: [
+              if (wide)
+                Container(
+                  width: 238,
+                  decoration: BoxDecoration(
+                    color: AppColors.navigation.resolveFrom(context),
+                    border: Border(
+                      right: BorderSide(
+                        color: CupertinoColors.separator.resolveFrom(context),
+                        width: 0.5,
+                      ),
                     ),
                   ),
-                ),
-                child: SafeArea(
-                  right: false,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Padding(
-                        padding: EdgeInsets.fromLTRB(24, 28, 20, 28),
-                        child: LarenorBrand(compact: true),
-                      ),
-                      for (var i = 0; i < roots.length; i++)
-                        _NavigationRow(
-                          label: roots[i].label,
-                          icon: roots[i].icon,
-                          selected: navigationShell.currentIndex == i,
-                          onPressed: () => select(i),
+                  child: SafeArea(
+                    right: false,
+                    child: ListView(
+                      key: const PageStorageKey('app-sidebar'),
+                      padding: EdgeInsets.zero,
+                      children: [
+                        const Padding(
+                          padding: EdgeInsets.fromLTRB(24, 28, 20, 28),
+                          child: LarenorBrand(compact: true),
                         ),
-                      Expanded(
-                        child: ListView(
+                        for (var i = 0; i < roots.length; i++)
+                          _NavigationRow(
+                            label: roots[i].label,
+                            icon: roots[i].icon,
+                            selected: navigationShell.currentIndex == i,
+                            onPressed: () => select(i),
+                          ),
+                        _NavigationRow(
+                          label: l10n.navigationSearch,
+                          icon: CupertinoIcons.search,
+                          onPressed: () => context.push('/search'),
+                        ),
+                        _NavigationRow(
+                          label: l10n.settingsScreenTitle,
+                          icon: CupertinoIcons.settings,
+                          onPressed: () => context.push('/settings'),
+                        ),
+                        Padding(
                           padding: const EdgeInsets.symmetric(vertical: 20),
-                          children: [
-                            if (navigationShell.currentIndex == 0) ...[
-                              _NavigationRow(
-                                label: l10n.todayTitle,
-                                icon: CupertinoIcons.calendar,
-                                selected: location.path == '/today',
-                                onPressed: () => context.go('/today'),
-                              ),
-                              _NavigationRow(
-                                label: l10n.intercomTitle,
-                                icon: CupertinoIcons.bell,
-                                selected: location.path == '/intercom',
-                                onPressed: () => context.go('/intercom'),
-                              ),
-                              Padding(
-                                padding: const EdgeInsets.fromLTRB(
-                                  26,
-                                  0,
-                                  20,
-                                  8,
-                                ),
-                                child: Text(
-                                  l10n.homeRooms,
-                                  style: AppText.footnote,
-                                ),
-                              ),
-                              for (final room
-                                  in ref
-                                          .watch(dashboardLayoutProvider)
-                                          .value
-                                          ?.rooms ??
-                                      [])
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              if (navigationShell.currentIndex == 0) ...[
                                 _NavigationRow(
-                                  label: room.name,
-                                  icon: CupertinoIcons.square_grid_2x2,
-                                  selected:
-                                      location.pathSegments.length == 2 &&
-                                      location.pathSegments.first == 'rooms' &&
-                                      location.pathSegments.last == room.id,
-                                  onPressed: () => context.go(
-                                    Uri(pathSegments: ['', 'rooms', room.id])
-                                        .toString(),
+                                  label: l10n.todayTitle,
+                                  icon: CupertinoIcons.calendar,
+                                  selected: location.path == '/today',
+                                  onPressed: () => context.go('/today'),
+                                ),
+                                _NavigationRow(
+                                  label: l10n.intercomTitle,
+                                  icon: CupertinoIcons.bell,
+                                  selected: location.path == '/intercom',
+                                  onPressed: () => context.go('/intercom'),
+                                ),
+                                Padding(
+                                  padding: const EdgeInsets.fromLTRB(
+                                    26,
+                                    0,
+                                    20,
+                                    8,
+                                  ),
+                                  child: Text(
+                                    l10n.homeRooms,
+                                    style: AppText.footnote,
                                   ),
                                 ),
+                                for (final room
+                                    in ref
+                                            .watch(dashboardLayoutProvider)
+                                            .value
+                                            ?.rooms ??
+                                        [])
+                                  _NavigationRow(
+                                    label: room.name,
+                                    icon: CupertinoIcons.square_grid_2x2,
+                                    selected:
+                                        location.pathSegments.length == 2 &&
+                                        location.pathSegments.first ==
+                                            'rooms' &&
+                                        location.pathSegments.last == room.id,
+                                    onPressed: () => context.go(
+                                      Uri(pathSegments: ['', 'rooms', room.id])
+                                          .toString(),
+                                    ),
+                                  ),
+                              ],
                             ],
-                          ],
-                        ),
-                      ),
-                      _NavigationRow(
-                        label: l10n.navigationSearch,
-                        icon: CupertinoIcons.search,
-                        onPressed: () => context.push('/search'),
-                      ),
-                      _NavigationRow(
-                        label: l10n.settingsScreenTitle,
-                        icon: CupertinoIcons.settings,
-                        onPressed: () => context.push('/settings'),
-                      ),
-                      const SizedBox(height: 16),
-                    ],
-                  ),
-                ),
-              ),
-            Expanded(
-              child: Column(
-                children: [
-                  Expanded(child: navigationShell),
-                  if (!wide)
-                    CupertinoTabBar(
-                      currentIndex: navigationShell.currentIndex,
-                      onTap: select,
-                      backgroundColor: AppColors.navigation.resolveFrom(
-                        context,
-                      ),
-                      items: [
-                        for (final root in roots)
-                          BottomNavigationBarItem(
-                            icon: Icon(root.icon),
-                            label: root.label,
                           ),
+                        ),
+                        const SizedBox(height: 16),
                       ],
                     ),
-                ],
+                  ),
+                ),
+              Expanded(
+                child: Column(
+                  children: [
+                    Expanded(child: navigationShell),
+                    if (!wide)
+                      CupertinoTabBar(
+                        currentIndex: navigationShell.currentIndex,
+                        onTap: select,
+                        backgroundColor: AppColors.navigation.resolveFrom(
+                          context,
+                        ),
+                        items: [
+                          for (final root in roots)
+                            BottomNavigationBarItem(
+                              icon: Icon(root.icon),
+                              label: root.label,
+                            ),
+                        ],
+                      ),
+                  ],
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

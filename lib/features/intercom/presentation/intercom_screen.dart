@@ -12,6 +12,7 @@ import '../../auth/providers/auth_providers.dart';
 import '../../ha_client/providers/ha_client_providers.dart';
 import '../../health/data/integration_health.dart';
 import '../../navigation/presentation/app_shell_actions.dart';
+import '../../media/hub/presentation/media_session_state.dart';
 import '../domain/door_station.dart';
 import '../providers/intercom_providers.dart';
 
@@ -85,46 +86,44 @@ class _DoorStationCard extends ConsumerStatefulWidget {
   ConsumerState<_DoorStationCard> createState() => _DoorStationCardState();
 }
 
-class _DoorStationCardState extends ConsumerState<_DoorStationCard>
-    with WidgetsBindingObserver {
+class _DoorStationCardState extends MediaSessionState<_DoorStationCard> {
   bool _busy = false;
   bool _confirming = false;
   String? _error;
-  int _interaction = 0;
+  Route<Map<String, String>>? _confirmation;
+  TextEditingController? _code;
 
   @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addObserver(this);
-  }
-
-  @override
-  void dispose() {
-    _interaction++;
-    WidgetsBinding.instance.removeObserver(this);
-    super.dispose();
-  }
-
-  @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state != AppLifecycleState.resumed) _interaction++;
+  void clearPendingInteraction() {
+    _code?.clear();
+    _error = null;
+    final route = _confirmation;
+    _confirmation = null;
+    if (route?.isActive == true) route!.navigator?.removeRoute(route);
   }
 
   @override
   void didUpdateWidget(covariant _DoorStationCard oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (!identical(oldWidget.station, widget.station)) _interaction++;
+    if (!identical(oldWidget.station, widget.station)) {
+      sessionGeneration++;
+      clearPendingInteraction();
+    }
   }
 
   Future<void> _release() async {
-    if (_busy) return;
+    if (_busy ||
+        !sessionCurrent(sessionGeneration) ||
+        ModalRoute.of(context)?.isCurrent != true) {
+      return;
+    }
     final l10n = AppLocalizations.of(context);
     setState(() {
       _busy = true;
       _confirming = true;
       _error = null;
     });
-    final interaction = _interaction;
+    final interaction = sessionGeneration;
     final station = widget.station;
     try {
       final intent = ref.read(doorReleaseIntentProvider)(station);
@@ -134,9 +133,10 @@ class _DoorStationCardState extends ConsumerState<_DoorStationCard>
           entity?.attributes['code_format'] is String &&
           (entity!.attributes['code_format'] as String).isNotEmpty;
       final code = TextEditingController();
+      _code = code;
       Map<String, String>? approved;
       try {
-        approved = await showCupertinoDialog<Map<String, String>>(
+        final route = CupertinoDialogRoute<Map<String, String>>(
           context: context,
           builder: (dialogContext) => CupertinoAlertDialog(
             title: Text(l10n.intercomConfirmTitle(station.name)),
@@ -159,24 +159,38 @@ class _DoorStationCardState extends ConsumerState<_DoorStationCard>
             ),
             actions: [
               CupertinoDialogAction(
-                onPressed: () => Navigator.pop(dialogContext),
+                onPressed: () {
+                  if (dialogContext.mounted &&
+                      ModalRoute.of(dialogContext)?.isCurrent == true) {
+                    Navigator.pop(dialogContext);
+                  }
+                },
                 child: Text(l10n.commonCancel),
               ),
               CupertinoDialogAction(
                 isDestructiveAction: true,
-                onPressed: () =>
-                    Navigator.pop(dialogContext, {'code': code.text}),
+                onPressed: () {
+                  if (sessionCurrent(interaction) &&
+                      dialogContext.mounted &&
+                      ModalRoute.of(dialogContext)?.isCurrent == true) {
+                    Navigator.pop(dialogContext, {'code': code.text});
+                  }
+                },
                 child: Text(l10n.intercomOpenDoor),
               ),
             ],
           ),
         );
+        _confirmation = route;
+        approved = await Navigator.of(context).push(route);
+        if (identical(_confirmation, route)) _confirmation = null;
       } finally {
+        if (identical(_code, code)) _code = null;
         code.dispose();
         if (mounted) setState(() => _confirming = false);
       }
       if (approved == null || !mounted) return;
-      if (interaction != _interaction) {
+      if (!sessionCurrent(interaction)) {
         setState(() => _error = l10n.intercomRecheck);
         return;
       }
@@ -199,6 +213,7 @@ class _DoorStationCardState extends ConsumerState<_DoorStationCard>
 
   @override
   Widget build(BuildContext context) {
+    watchMediaAccount(IntegrationId.ha, connectionConfigProvider);
     final l10n = AppLocalizations.of(context);
     final station = widget.station;
     final config = ref.watch(connectionConfigProvider);

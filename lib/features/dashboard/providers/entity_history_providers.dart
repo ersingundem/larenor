@@ -1,12 +1,20 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../ha_client/providers/ha_client_providers.dart';
+import '../../wellbeing/providers/wellbeing_providers.dart';
+import '../../wellbeing/providers/wellbeing_privacy_providers.dart';
 import '../data/entity_history.dart';
 
 /// One read per observed entity/account. Old clients cannot publish into a
 /// replacement generation. The tile hides retained data during reload/error.
 final entityHistoryProvider = FutureProvider.autoDispose
     .family<EntityHistorySeries?, String>((ref, entityId) async {
+      if (!isPublicHaEntity(
+        ref.watch(wellbeingPrivateEntityIdsProvider),
+        entityId,
+      )) {
+        return null;
+      }
       if (!RegExp(r'^[a-z_]+\.[a-z0-9_]+$').hasMatch(entityId)) {
         throw const FormatException('Invalid history entity');
       }

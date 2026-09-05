@@ -60,6 +60,31 @@ class _Controller extends PlatformWebViewController {
   Future<void> setBackgroundColor(Color color) async {}
 
   late _Delegate delegate;
+  int backCalls = 0;
+  Completer<bool>? backGate;
+  late Future<void> Function(JavaScriptAlertDialogRequest) alert;
+  late Future<bool> Function(JavaScriptConfirmDialogRequest) confirm;
+  late Future<String> Function(JavaScriptTextInputDialogRequest) prompt;
+  @override
+  Future<void> setOnJavaScriptAlertDialog(
+    Future<void> Function(JavaScriptAlertDialogRequest) callback,
+  ) async => alert = callback;
+  @override
+  Future<void> setOnJavaScriptConfirmDialog(
+    Future<bool> Function(JavaScriptConfirmDialogRequest) callback,
+  ) async => confirm = callback;
+  @override
+  Future<void> setOnJavaScriptTextInputDialog(
+    Future<String> Function(JavaScriptTextInputDialogRequest) callback,
+  ) async => prompt = callback;
+  @override
+  Future<bool> canGoBack() async =>
+      backGate == null ? false : await backGate!.future;
+  @override
+  Future<void> goBack() async {
+    backCalls++;
+  }
+
   late void Function(PlatformWebViewPermissionRequest) permission;
 
   @override
@@ -100,6 +125,10 @@ class _Delegate extends PlatformNavigationDelegate {
   _Delegate(super.params) : super.implementation();
   late NavigationRequestCallback navigation;
   late PageEventCallback started, finished;
+  late UrlChangeCallback urlChange;
+  @override
+  Future<void> setOnUrlChange(UrlChangeCallback callback) async =>
+      urlChange = callback;
   late WebResourceErrorCallback resourceError;
   late HttpAuthRequestCallback auth;
   late SslAuthErrorCallback ssl;
@@ -353,7 +382,7 @@ void main() {
     await tester.pump();
     expect(oldSsl.decisions, ['cancel']);
     expect(find.byType(CupertinoActivityIndicator), findsOneWidget);
-    expect(find.text(h.l10n.commonError), findsNothing);
+    expect(find.text(h.l10n.webPanelLoadFailed), findsNothing);
     current.delegate.finished(h.url.value);
     await tester.pump();
     old.delegate.started('https://old.example/');
@@ -369,6 +398,10 @@ void main() {
       final h = _Harness();
       await h.mount(tester);
       final callback = h.platform.controllers.single.delegate.navigation;
+      expect(
+        await callback(NavigationRequest(url: h.url.value, isMainFrame: true)),
+        NavigationDecision.navigate,
+      );
       for (final url in [
         'javascript:alert(1)',
         'file:///secret',
@@ -385,15 +418,6 @@ void main() {
           );
         }
       }
-      expect(
-        await callback(
-          const NavigationRequest(
-            url: 'http://192.0.2.1/ui',
-            isMainFrame: true,
-          ),
-        ),
-        NavigationDecision.navigate,
-      );
       h.visible.value = false;
       await tester.pump();
       expect(
@@ -447,7 +471,7 @@ void main() {
     await tester.pump();
     expect(old.html, ['<html></html>']);
     expect(old.htmlBaseUrls, [null]);
-    expect(find.text(h.l10n.commonError), findsOneWidget);
+    expect(find.text(h.l10n.webPanelLoadFailed), findsOneWidget);
     expect(find.textContaining('private.invalid'), findsNothing);
     await tester.tap(find.text(h.l10n.commonRetry));
     await tester.pump();
@@ -470,10 +494,10 @@ void main() {
       ),
     );
     await tester.pump();
-    expect(find.text(h.l10n.commonError), findsNothing);
+    expect(find.text(h.l10n.webPanelLoadFailed), findsNothing);
     controller.delegate.resourceError(_privateError);
     await tester.pump();
-    expect(find.text(h.l10n.commonError), findsOneWidget);
+    expect(find.text(h.l10n.webPanelLoadFailed), findsOneWidget);
     expect(find.textContaining('private.server'), findsNothing);
     await tester.pump();
     expect(controller.html, ['<html></html>']);
@@ -487,7 +511,7 @@ void main() {
       final h = _Harness();
       h.platform.failNextLoad = true;
       await h.mount(tester);
-      expect(find.text(h.l10n.commonError), findsOneWidget);
+      expect(find.text(h.l10n.webPanelLoadFailed), findsOneWidget);
       expect(find.textContaining('private.server'), findsNothing);
       expect(tester.takeException(), isNull);
       await h.close(tester);

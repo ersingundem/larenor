@@ -1,6 +1,7 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../core/app_interaction_scope.dart';
 import '../../../../l10n/generated/app_localizations.dart';
 import '../../../../shared/theme/typography.dart';
 import '../../../../shared/widgets/app_page_scaffold.dart';
@@ -68,6 +69,7 @@ class _LocalAudioScreenState extends ConsumerState<LocalAudioScreen>
   bool get _canAct =>
       mounted &&
       _foreground &&
+      AppInteractionScope.maybeRead(context)?.active != false &&
       TickerMode.valuesOf(context).enabled &&
       ModalRoute.of(context)?.isCurrent == true;
 
@@ -77,6 +79,13 @@ class _LocalAudioScreenState extends ConsumerState<LocalAudioScreen>
   }) async {
     if (!_canAct || _busy) return;
     final generation = _generation;
+    final interaction = AppInteractionScope.maybeRead(context);
+    final epoch = interaction?.epoch;
+    bool current() =>
+        _canAct &&
+        generation == _generation &&
+        identical(interaction, AppInteractionScope.maybeRead(context)) &&
+        interaction?.epoch == epoch;
     final bridge = ref.read(localAudioBridgeProvider);
     setState(() {
       _busy = true;
@@ -85,14 +94,14 @@ class _LocalAudioScreenState extends ConsumerState<LocalAudioScreen>
     try {
       if (expectedSourceId != null) {
         final latest = await bridge.snapshot();
-        if (!_canAct || generation != _generation) return;
+        if (!current()) return;
         if (latest.sourceId != expectedSourceId) {
           throw const LocalAudioException(LocalAudioFailure.unavailable);
         }
       }
       await action(bridge);
     } catch (error) {
-      if (mounted && generation == _generation) {
+      if (current()) {
         setState(
           () => _error = localAudioFailureLabel(
             AppLocalizations.of(context),

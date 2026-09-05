@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:larenor/core/app_interaction_scope.dart';
 import 'package:larenor/features/admin/data/models/ha_area.dart';
 import 'package:larenor/features/admin/data/models/ha_registry_entry.dart';
 import 'package:larenor/features/auth/data/ha_connection_config.dart';
@@ -126,6 +127,8 @@ class _Harness {
   final connection = _Connection();
   final entities = _Entities();
   final reader = _Reader();
+  final interaction = AppInteractionController();
+  final navigator = GlobalKey<NavigatorState>();
   late ProviderContainer container;
   Future<void> mount(
     WidgetTester tester,
@@ -151,6 +154,7 @@ class _Harness {
       ],
     );
     addTearDown(container.dispose);
+    addTearDown(interaction.dispose);
     if (!passive) {
       await container.read(connectionConfigProvider.future);
       await container.read(entitiesProvider.future);
@@ -159,13 +163,17 @@ class _Harness {
       UncontrolledProviderScope(
         container: container,
         child: CupertinoApp(
+          navigatorKey: navigator,
           localizationsDelegates: AppLocalizations.localizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
           home: child,
-          builder: (context, child) => MediaQuery(
-            data: MediaQuery.of(context)
-                .copyWith(textScaler: TextScaler.linear(scale)),
-            child: child!,
+          builder: (context, child) => AppInteractionScope(
+            controller: interaction,
+            child: MediaQuery(
+              data: MediaQuery.of(context)
+                  .copyWith(textScaler: TextScaler.linear(scale)),
+              child: child!,
+            ),
           ),
         ),
       ),
@@ -192,6 +200,80 @@ Future<void> _preview(WidgetTester tester) async {
 }
 
 void main() {
+  testWidgets(
+    'room deletion confirmation expires on idle and cannot pop an unrelated modal',
+    (tester) async {
+      final harness = _Harness();
+      await harness.mount(tester, const HomeDashboardScreen());
+      await _tap(tester, 'home-room-menu-room');
+      await _tap(tester, 'room-menu-remove');
+      final oldDelete = tester
+          .widget<CupertinoDialogAction>(
+            find.widgetWithText(CupertinoDialogAction, 'Delete'),
+          )
+          .onPressed!;
+      unawaited(
+        harness.navigator.currentState!.push(
+          CupertinoDialogRoute<void>(
+            context: harness.navigator.currentContext!,
+            builder: (_) =>
+                const CupertinoAlertDialog(title: Text('Unrelated dialog')),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      harness.interaction.setActive(false);
+      harness.interaction.setActive(true);
+      oldDelete();
+      await tester.pumpAndSettle();
+      oldDelete();
+      expect(harness.repository.writes, 0);
+      expect(harness.repository.saved.rooms.single, _room);
+      expect(find.text('Unrelated dialog'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets('new room prompt loses its save authority across idle and wake', (
+    tester,
+  ) async {
+    final harness = _Harness();
+    await harness.mount(tester, const HomeDashboardScreen());
+    await tester.tap(find.byIcon(CupertinoIcons.add_circled));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Add a room'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(CupertinoTextField), 'Stale room');
+    final save = tester
+        .widget<CupertinoDialogAction>(
+          find.widgetWithText(CupertinoDialogAction, 'Save'),
+        )
+        .onPressed!;
+    harness.interaction.setActive(false);
+    harness.interaction.setActive(true);
+    save();
+    await tester.pumpAndSettle();
+    expect(harness.repository.writes, 0);
+    expect(harness.repository.saved.rooms.single, _room);
+    expect(find.byType(CupertinoTextField), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets(
+    'normal room deletion still requires and accepts its own confirmation',
+    (tester) async {
+      final harness = _Harness();
+      await harness.mount(tester, const HomeDashboardScreen());
+      await _tap(tester, 'home-room-menu-room');
+      await _tap(tester, 'room-menu-remove');
+      expect(harness.repository.writes, 0);
+      await tester.tap(find.widgetWithText(CupertinoDialogAction, 'Delete'));
+      await tester.pumpAndSettle();
+      expect(harness.repository.writes, 1);
+      expect(harness.repository.saved.rooms, isEmpty);
+    },
+  );
+
   testWidgets(
     '5000 editor rows stay lazy and do not initialize network providers',
     (tester) async {

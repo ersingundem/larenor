@@ -1,3 +1,5 @@
+import 'package:larenor/features/wellbeing/providers/wellbeing_providers.dart';
+
 import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -90,6 +92,9 @@ void main() {
     final container = ProviderContainer(
       retry: (_, _) => null,
       overrides: [
+        wellbeingPrivateEntityIdsProvider.overrideWithValue(
+          const AsyncData({}),
+        ),
         connectionConfigProvider.overrideWith(_Connection.new),
         entitiesProvider.overrideWith(() => _AccountEntities(replacement)),
         dashboardLayoutProvider.overrideWith(
@@ -163,6 +168,9 @@ void main() {
     () async {
       final container = ProviderContainer(
         overrides: [
+          wellbeingPrivateEntityIdsProvider.overrideWithValue(
+            const AsyncData({}),
+          ),
           connectionConfigProvider.overrideWith(_Connection.new),
           entitiesProvider.overrideWith(_Entities.new),
           dashboardLayoutProvider.overrideWith(
@@ -230,6 +238,9 @@ void main() {
       var connectionReads = 0;
       final container = ProviderContainer(
         overrides: [
+          wellbeingPrivateEntityIdsProvider.overrideWithValue(
+            const AsyncData({}),
+          ),
           connectionConfigProvider.overrideWithBuild((ref, notifier) async {
             connectionReads++;
             return null;

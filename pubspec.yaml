@@ -44,6 +44,8 @@ dependencies:
   web_socket_channel: ^3.0.3
   flutter_secure_storage: ^11.0.0
   webview_flutter: ^4.14.1
+  webview_flutter_android: ^4.14.1
+  webview_flutter_wkwebview: ^3.26.1
   wakelock_plus: ^1.7.0
   freezed_annotation: ^3.1.0
   json_annotation: ^4.12.0

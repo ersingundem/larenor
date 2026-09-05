@@ -1,6 +1,8 @@
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/app_interaction_scope.dart';
 import '../../auth/providers/auth_providers.dart';
 import '../../health/data/health_configuration.dart';
 import '../domain/dashboard_room.dart';
@@ -13,6 +15,46 @@ abstract class DashboardEditState<T extends ConsumerStatefulWidget>
   int interactionGeneration = 0;
   bool foreground = true;
   late final AppLifecycleListener _lifecycle;
+  AppInteractionController? _interaction;
+  int? _interactionEpoch;
+  bool _hasInteractionScope = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final next = AppInteractionScope.maybeOf(context);
+    if (!identical(next, _interaction)) {
+      _interaction?.removeListener(_interactionChanged);
+      if (_hasInteractionScope) _expireInteraction();
+      _interaction = next;
+      _interactionEpoch = next?.epoch;
+      next?.addListener(_interactionChanged);
+    }
+    _hasInteractionScope = true;
+  }
+
+  void _interactionChanged() {
+    if (!mounted) return;
+    final nextEpoch = _interaction?.epoch;
+    if (nextEpoch == _interactionEpoch) return;
+    _interactionEpoch = nextEpoch;
+    _expireInteraction();
+  }
+
+  void _expireInteraction() {
+    // Expire synchronously even when idle and wake happen before a frame.
+    interactionGeneration++;
+    void invalidate() {
+      if (mounted) setState(invalidateDashboardInteraction);
+    }
+
+    if (SchedulerBinding.instance.schedulerPhase ==
+        SchedulerPhase.persistentCallbacks) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => invalidate());
+    } else {
+      invalidate();
+    }
+  }
 
   @override
   void initState() {
@@ -51,8 +93,23 @@ abstract class DashboardEditState<T extends ConsumerStatefulWidget>
 
   void invalidateDashboardInteraction() {}
 
+  /// A popped page returns its value before Flutter restores the parent's
+  /// ticker visibility. Wait for its transition before validating a local save.
+  Future<R?> pushDashboardPage<R>(CupertinoPageRoute<R> route) async {
+    final result = await Navigator.of(context).push<R>(route);
+    await route.completed;
+    return result;
+  }
+
   bool interactionCurrent(int generation) =>
-      mounted && foreground && interactionGeneration == generation;
+      mounted &&
+      foreground &&
+      interactionGeneration == generation &&
+      identical(_interaction, AppInteractionScope.maybeRead(context)) &&
+      _interaction?.active != false &&
+      _interaction?.epoch == _interactionEpoch &&
+      TickerMode.valuesOf(context).enabled &&
+      ModalRoute.of(context)?.isCurrent != false;
 
   VoidCallback dashboardAction(VoidCallback action) {
     final generation = interactionGeneration;
@@ -64,6 +121,7 @@ abstract class DashboardEditState<T extends ConsumerStatefulWidget>
   @override
   void dispose() {
     interactionGeneration++;
+    _interaction?.removeListener(_interactionChanged);
     _lifecycle.dispose();
     super.dispose();
   }

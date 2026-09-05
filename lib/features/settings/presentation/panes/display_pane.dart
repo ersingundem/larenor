@@ -1,6 +1,7 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../core/app_interaction_scope.dart';
 import '../../../../core/theme.dart';
 import '../../../../l10n/generated/app_localizations.dart';
 import '../../../../shared/widgets/icon_badge.dart';
@@ -8,6 +9,7 @@ import '../../providers/settings_providers.dart';
 import 'settings_nav_row.dart';
 import '../../../../shared/widgets/settings_section.dart';
 import '../../../media/local_audio/presentation/playback_power_screen.dart';
+import '../window_panel_screen.dart';
 
 class DisplayPane extends ConsumerWidget {
   const DisplayPane({super.key});
@@ -27,6 +29,12 @@ class DisplayPane extends ConsumerWidget {
         SettingsSection(
           header: Text(l10n.settingsSectionDisplay),
           children: [
+            SettingsNavRow(
+              icon: CupertinoIcons.rectangle_on_rectangle,
+              color: CupertinoColors.systemTeal,
+              title: l10n.windowTitle,
+              builder: (_) => const WindowPanelScreen(),
+            ),
             CupertinoListTile(
               leading: const IconBadge(
                 icon: CupertinoIcons.music_note_2,
@@ -155,16 +163,31 @@ class DisplayPane extends ConsumerWidget {
     WidgetRef ref,
     AppAppearance current,
   ) async {
+    if (!context.mounted) return;
+    final interaction = AppInteractionScope.maybeRead(context);
+    final epoch = interaction?.epoch;
+    bool interactionCurrent() =>
+        context.mounted &&
+        interaction?.active != false &&
+        epoch == interaction?.epoch;
+    if (!interactionCurrent()) return;
     final l10n = AppLocalizations.of(context);
     final choice = await showCupertinoModalPopup<AppAppearance>(
       context: context,
+      useRootNavigator: false,
       builder: (sheetContext) => CupertinoActionSheet(
         title: Text(l10n.settingsAppearance),
         message: Text(l10n.settingsAppearanceSystemHint),
         actions: [
           for (final option in AppAppearance.values)
             CupertinoActionSheetAction(
-              onPressed: () => Navigator.pop(sheetContext, option),
+              onPressed: () {
+                if (interactionCurrent() &&
+                    sheetContext.mounted &&
+                    ModalRoute.of(sheetContext)?.isCurrent == true) {
+                  Navigator.pop(sheetContext, option);
+                }
+              },
               child: Text(
                 _appearanceLabel(l10n, option),
                 style: option == current
@@ -174,12 +197,17 @@ class DisplayPane extends ConsumerWidget {
             ),
         ],
         cancelButton: CupertinoActionSheetAction(
-          onPressed: () => Navigator.pop(sheetContext),
+          onPressed: () {
+            if (sheetContext.mounted &&
+                ModalRoute.of(sheetContext)?.isCurrent == true) {
+              Navigator.pop(sheetContext);
+            }
+          },
           child: Text(l10n.commonCancel),
         ),
       ),
     );
-    if (choice != null) {
+    if (choice != null && interactionCurrent()) {
       await ref.read(appearanceProvider.notifier).set(choice);
     }
   }
@@ -195,6 +223,14 @@ class DisplayPane extends ConsumerWidget {
     required int initialMinutes,
     required ValueChanged<int> onPicked,
   }) async {
+    if (!context.mounted) return;
+    final interaction = AppInteractionScope.maybeRead(context);
+    final epoch = interaction?.epoch;
+    bool interactionCurrent() =>
+        context.mounted &&
+        interaction?.active != false &&
+        epoch == interaction?.epoch;
+    if (!interactionCurrent()) return;
     var selected = initialMinutes;
     final now = DateTime.now();
     final initial = DateTime(
@@ -207,6 +243,7 @@ class DisplayPane extends ConsumerWidget {
 
     await showCupertinoModalPopup<void>(
       context: context,
+      useRootNavigator: false,
       builder: (context) => Container(
         height: 260,
         color: CupertinoColors.systemBackground.resolveFrom(context),
@@ -218,6 +255,11 @@ class DisplayPane extends ConsumerWidget {
                 CupertinoButton(
                   child: Text(AppLocalizations.of(context).commonDone),
                   onPressed: () {
+                    if (!interactionCurrent() ||
+                        !context.mounted ||
+                        ModalRoute.of(context)?.isCurrent != true) {
+                      return;
+                    }
                     onPicked(selected);
                     Navigator.of(context).pop();
                   },
@@ -240,27 +282,46 @@ class DisplayPane extends ConsumerWidget {
   }
 
   Future<void> _showTimeoutPicker(BuildContext context, WidgetRef ref) async {
+    if (!context.mounted) return;
+    final interaction = AppInteractionScope.maybeRead(context);
+    final epoch = interaction?.epoch;
+    bool interactionCurrent() =>
+        context.mounted &&
+        interaction?.active != false &&
+        epoch == interaction?.epoch;
+    if (!interactionCurrent()) return;
     const options = [1, 2, 5, 10, 15, 30];
     final choice = await showCupertinoModalPopup<int>(
       context: context,
+      useRootNavigator: false,
       builder: (context) => CupertinoActionSheet(
         title: Text(AppLocalizations.of(context).settingsIdleAfterTitle),
         actions: [
           for (final minutes in options)
             CupertinoActionSheetAction(
-              onPressed: () => Navigator.pop(context, minutes),
+              onPressed: () {
+                if (interactionCurrent() &&
+                    context.mounted &&
+                    ModalRoute.of(context)?.isCurrent == true) {
+                  Navigator.pop(context, minutes);
+                }
+              },
               child: Text(
                 AppLocalizations.of(context).settingsMinutesShort(minutes),
               ),
             ),
         ],
         cancelButton: CupertinoActionSheetAction(
-          onPressed: () => Navigator.pop(context),
+          onPressed: () {
+            if (context.mounted && ModalRoute.of(context)?.isCurrent == true) {
+              Navigator.pop(context);
+            }
+          },
           child: Text(AppLocalizations.of(context).commonCancel),
         ),
       ),
     );
-    if (choice != null) {
+    if (choice != null && interactionCurrent()) {
       await ref.read(idleModeProvider.notifier).setTimeoutMinutes(choice);
     }
   }

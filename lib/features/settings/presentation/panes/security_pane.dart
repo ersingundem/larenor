@@ -1,6 +1,7 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../core/app_interaction_scope.dart';
 import '../../../../l10n/generated/app_localizations.dart';
 import '../../../../shared/widgets/icon_badge.dart';
 import '../../providers/settings_providers.dart';
@@ -49,12 +50,17 @@ class SecurityPane extends ConsumerWidget {
   }
 
   Future<void> _clearPin(BuildContext context, WidgetRef ref) async {
+    if (!context.mounted ||
+        AppInteractionScope.maybeRead(context)?.active == false) {
+      return;
+    }
     try {
       await ref.read(pinLockProvider.notifier).clearPin();
     } catch (_) {
       if (!context.mounted) return;
       await showCupertinoDialog<void>(
         context: context,
+        useRootNavigator: false,
         builder: (context) => CupertinoAlertDialog(
           content: Text(AppLocalizations.of(context).settingsPinSaveError),
           actions: [
@@ -68,11 +74,17 @@ class SecurityPane extends ConsumerWidget {
     }
   }
 
-  Future<void> _showSetPinDialog(BuildContext context, WidgetRef ref) =>
-      showCupertinoDialog<void>(
-        context: context,
-        builder: (_) => const _PinDialog(),
-      );
+  Future<void> _showSetPinDialog(BuildContext context, WidgetRef ref) async {
+    if (!context.mounted ||
+        AppInteractionScope.maybeRead(context)?.active == false) {
+      return;
+    }
+    await showCupertinoDialog<void>(
+      context: context,
+      useRootNavigator: false,
+      builder: (_) => const _PinDialog(),
+    );
+  }
 }
 
 class _PinDialog extends ConsumerStatefulWidget {
@@ -94,7 +106,11 @@ class _PinDialogState extends ConsumerState<_PinDialog> {
   }
 
   Future<void> _save() async {
-    if (_saving) return;
+    if (!mounted ||
+        _saving ||
+        AppInteractionScope.maybeRead(context)?.active == false) {
+      return;
+    }
     final l10n = AppLocalizations.of(context);
     final pin = _controller.text.trim();
     if (!RegExp(r'^\d{4,12}$').hasMatch(pin)) {

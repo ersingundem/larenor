@@ -8,6 +8,7 @@ import 'package:larenor/features/ha_client/providers/ha_client_providers.dart';
 import 'package:larenor/features/settings/presentation/idle_gate.dart';
 import 'package:larenor/features/settings/presentation/screen_policy_runner.dart';
 import 'package:larenor/features/settings/providers/settings_providers.dart';
+import 'package:larenor/l10n/generated/app_localizations.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class _WakelockCodec extends StandardMessageCodec {
@@ -184,7 +185,11 @@ void main() {
             haRestClientProvider.overrideWithValue(null),
             haWebSocketClientProvider.overrideWithValue(null),
           ],
-          child: const CupertinoApp(home: IdleGate(child: SizedBox())),
+          child: const CupertinoApp(
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            home: IdleGate(child: SizedBox()),
+          ),
         ),
       );
       await tester.pump();

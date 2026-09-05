@@ -7,6 +7,8 @@ import 'package:larenor/features/backup/data/backup_snapshot.dart';
 import 'package:larenor/features/dashboard/domain/dashboard_layout.dart';
 import 'package:larenor/features/dashboard/domain/dashboard_room.dart';
 import 'package:larenor/features/dashboard/domain/tile_config.dart';
+import 'package:larenor/features/wellbeing/data/wellbeing_store.dart';
+import 'package:larenor/features/wellbeing/data/wellbeing_disclosure_policy.dart';
 
 import 'backup_test_storage.dart';
 
@@ -50,6 +52,8 @@ void main() {
     expect(json, isNot(contains('settings_pin')));
     expect(storage.reads.where((key) => key.startsWith('secret:')), [
       'secret:${BackupRepository.restoreJournalKey}',
+      'secret:${WellbeingDisclosureStore.storageKey}',
+      'secret:${WellbeingStore.storageKey}',
     ]);
   });
 
@@ -322,7 +326,8 @@ void main() {
     final interrupted = target.durableImages.where(
       (image) => image.secrets.containsKey(BackupRepository.restoreJournalKey),
     );
-    expect(interrupted.length, 4);
+    // Journal + display privacy policy + appearance + complete HA record.
+    expect(interrupted.length, 5);
     for (final image in interrupted) {
       expect(
         await BackupRepository(storage: image).recoverPendingRestore(),

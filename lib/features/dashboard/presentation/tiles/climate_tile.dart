@@ -9,6 +9,7 @@ import '../../../../shared/theme/spacing.dart';
 import '../../../../shared/theme/typography.dart';
 import '../../../ha_client/providers/ha_client_providers.dart';
 import '../../domain/tile_config.dart';
+import '../dashboard_edit_guard.dart';
 import 'tile_action_support.dart';
 
 class ClimateTile extends ConsumerStatefulWidget {
@@ -18,7 +19,7 @@ class ClimateTile extends ConsumerStatefulWidget {
   ConsumerState<ClimateTile> createState() => _ClimateTileState();
 }
 
-class _ClimateTileState extends ConsumerState<ClimateTile>
+class _ClimateTileState extends DashboardEditState<ClimateTile>
     with TileActionSupport<ClimateTile> {
   @override
   String? get actionEntityId => widget.tile.entityId;
@@ -100,11 +101,13 @@ class _ClimateTileState extends ConsumerState<ClimateTile>
                           unit: unit,
                           currentTemperature: current,
                           onCommitted: canSetTemperature
-                              ? (value) => executeTileAction(
-                                  'climate',
-                                  'set_temperature',
-                                  feature: 1,
-                                  serviceData: {'temperature': value},
+                              ? tileValueAction(
+                                  (value) => executeTileAction(
+                                    'climate',
+                                    'set_temperature',
+                                    feature: 1,
+                                    serviceData: {'temperature': value},
+                                  ),
                                 )
                               : null,
                         ),

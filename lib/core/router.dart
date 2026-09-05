@@ -19,6 +19,7 @@ import '../features/energy/presentation/energy_maintenance_screen.dart';
 import '../features/media/ha_playback/presentation/ha_playback_screen.dart';
 import '../features/media/music/presentation/music_center_screen.dart';
 import '../features/media/local_audio/presentation/local_audio_screen.dart';
+import '../features/wellbeing/presentation/wellbeing_gate.dart';
 
 final routerProvider = Provider<GoRouter>((ref) {
   final rootKey = GlobalKey<NavigatorState>();
@@ -131,7 +132,8 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: '/search',
-        builder: (context, _) => LocalSearchScreen(
+        builder: (context, state) => LocalSearchScreen(
+          autofocus: state.uri.queryParameters['focus'] == '1',
           onOpenTarget: (target) {
             if (target is EntityNavigationTarget) {
               context.push(target.location);
@@ -145,6 +147,7 @@ final routerProvider = Provider<GoRouter>((ref) {
         ),
       ),
       GoRoute(path: '/settings', builder: (_, _) => const SettingsGateScreen()),
+      GoRoute(path: '/wellbeing', builder: (_, _) => const WellbeingGate()),
     ],
   );
   ref.onDispose(router.dispose);

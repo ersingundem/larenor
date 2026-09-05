@@ -1,11 +1,13 @@
 import 'dart:async';
 
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:media_kit/media_kit.dart';
 import 'package:media_kit_video/media_kit_video.dart';
 import 'package:screen_brightness/screen_brightness.dart';
 
+import '../../../../../core/app_interaction_scope.dart';
 import '../../../../../l10n/generated/app_localizations.dart';
 import '../../data/jellyfin_client.dart';
 import '../../data/models/jellyfin_item.dart';
@@ -18,6 +20,14 @@ import '../../../local_audio/providers/local_audio_providers.dart';
 final jellyfinPlayerFactoryProvider = Provider<Player Function()>(
   (ref) => Player.new,
 );
+
+/// Keeps native rendering separate from command/session tests; the controller
+/// stays lazy and is constructed only once by the owning route.
+final jellyfinVideoSurfaceProvider =
+    Provider<Widget Function(VideoController Function())>(
+      (ref) =>
+          (controller) => Video(controller: controller(), controls: null),
+    );
 
 /// A manual "quality" ceiling — mirrors the bitrate ladder real Jellyfin
 /// clients offer. `null` means no cap: Direct Play whenever the declared
@@ -73,6 +83,116 @@ class _JellyfinPlayerScreenState extends ConsumerState<JellyfinPlayerScreen>
   bool _opening = false;
   int _generation = 0;
   bool _foreground = true;
+  AppInteractionController? _interaction;
+  int? _scopeEpoch;
+  int _interactionGeneration = 0;
+  bool _scopeInitialized = false;
+  bool _pickerBusy = false;
+  Route<dynamic>? _pickerRoute;
+  int? _dragInteraction;
+  int? _seekInteraction;
+  Duration? _seekDraft;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final next = AppInteractionScope.maybeOf(context);
+    if (!identical(next, _interaction)) {
+      _interaction?.removeListener(_scopeChanged);
+      if (_scopeInitialized) _expireInteraction();
+      _interaction = next;
+      _scopeEpoch = next?.epoch;
+      next?.addListener(_scopeChanged);
+    }
+    _scopeInitialized = true;
+  }
+
+  void _scopeChanged() {
+    if (!mounted || _scopeEpoch == _interaction?.epoch) return;
+    _scopeEpoch = _interaction?.epoch;
+    _expireInteraction();
+  }
+
+  void _closePicker() {
+    final route = _pickerRoute;
+    _pickerRoute = null;
+    void close() {
+      if (route?.isActive == true) route!.navigator?.removeRoute(route);
+    }
+
+    if (SchedulerBinding.instance.schedulerPhase ==
+        SchedulerPhase.persistentCallbacks) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => close());
+    } else {
+      close();
+    }
+  }
+
+  void _expireInteraction() {
+    _interactionGeneration++;
+    _dragInteraction = null;
+    _seekInteraction = null;
+    _seekDraft = null;
+    _draggingBrightness = false;
+    _draggingVolume = false;
+    _hideControlsTimer?.cancel();
+    _hudTimer?.cancel();
+    _hudKind = null;
+    _controlsVisible = true;
+    _closePicker();
+    void redraw() {
+      if (mounted) setState(() {});
+    }
+
+    if (SchedulerBinding.instance.schedulerPhase ==
+        SchedulerPhase.persistentCallbacks) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => redraw());
+    } else {
+      redraw();
+    }
+  }
+
+  bool _interactionCurrent(int generation, {Route<dynamic>? picker}) =>
+      mounted &&
+      _foreground &&
+      generation == _interactionGeneration &&
+      identical(_interaction, AppInteractionScope.maybeRead(context)) &&
+      _scopeEpoch == _interaction?.epoch &&
+      _interaction?.active != false &&
+      (picker == null
+          ? TickerMode.valuesOf(context).enabled &&
+                ModalRoute.of(context)?.isCurrent != false
+          : identical(_pickerRoute, picker) && picker.isCurrent);
+
+  VoidCallback _interactionAction(VoidCallback action) {
+    final generation = _interactionGeneration;
+    return () {
+      if (_interactionCurrent(generation)) action();
+    };
+  }
+
+  ValueChanged<V> _interactionValueAction<V>(ValueChanged<V> action) {
+    final generation = _interactionGeneration;
+    return (value) {
+      if (_interactionCurrent(generation)) action(value);
+    };
+  }
+
+  @override
+  void didUpdateWidget(covariant JellyfinPlayerScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.item.id != widget.item.id) {
+      _generation++;
+      _expireInteraction();
+      _progressPoller.stop();
+      unawaited(_reporter?.stop(_position));
+      _reporter = null;
+      _ignoreFailure(_player.stop);
+      _error = AppLocalizations.of(context).jellyfinPlayerNotConnected;
+      _loading = false;
+    }
+  }
+
   StreamSubscription<Duration>? _positionSub;
   StreamSubscription<Duration>? _durationSub;
   StreamSubscription<bool>? _playingSub;
@@ -116,6 +236,7 @@ class _JellyfinPlayerScreenState extends ConsumerState<JellyfinPlayerScreen>
       if (identical(previous, next) || _client == null) return;
       // Never continue a session with credentials from a previous account.
       _generation++;
+      _expireInteraction();
       _progressPoller.stop();
       unawaited(_reporter?.stop(_position));
       _reporter = null;
@@ -137,6 +258,7 @@ class _JellyfinPlayerScreenState extends ConsumerState<JellyfinPlayerScreen>
   void didChangeAppLifecycleState(AppLifecycleState state) {
     _foreground = state == AppLifecycleState.resumed;
     if (!_foreground) {
+      _expireInteraction();
       _hideControlsTimer?.cancel();
       _hudTimer?.cancel();
       if (state == AppLifecycleState.paused ||
@@ -177,9 +299,11 @@ class _JellyfinPlayerScreenState extends ConsumerState<JellyfinPlayerScreen>
         return;
       }
       await _openSource(startPosition: widget.item.resumePosition);
-      if (mounted) setState(() => _loading = false);
+      if (mounted && generation == _generation) {
+        setState(() => _loading = false);
+      }
     } catch (_) {
-      if (mounted) {
+      if (mounted && generation == _generation) {
         setState(() {
           _error = AppLocalizations.of(context).mediaReadFailedTitle;
           _loading = false;
@@ -188,30 +312,48 @@ class _JellyfinPlayerScreenState extends ConsumerState<JellyfinPlayerScreen>
     }
   }
 
-  Future<void> _openSource({required Duration startPosition}) async {
-    if (_opening) return;
+  Future<bool> _openSource({
+    required Duration startPosition,
+    int? maxBitrate,
+    int? interaction,
+  }) async {
+    if (_opening) return false;
     _opening = true;
     final generation = _generation;
     final client = _client!;
+    bool current() =>
+        mounted &&
+        generation == _generation &&
+        identical(ref.read(jellyfinClientProvider), client) &&
+        (interaction == null || _interactionCurrent(interaction));
     try {
+      if (!current()) return false;
       final source = await client.getPlaybackInfo(
         widget.item.id,
-        maxStreamingBitrate: _selectedMaxBitrate,
+        maxStreamingBitrate: interaction == null
+            ? _selectedMaxBitrate
+            : maxBitrate,
       );
-      if (!mounted || generation != _generation) return;
+      if (!current()) return false;
       _progressPoller.stop();
       await _reporter?.stop(_position);
       _reporter = null;
-      if (!mounted || generation != _generation) return;
+      if (!current()) return false;
+      // Old track IDs cannot authorize selection in a replacement source.
+      setState(() {
+        _tracks = const Tracks();
+        _currentTrack = const Track();
+      });
       await _player.open(Media(source.streamUrl), play: _foreground);
-      if (!mounted) return;
+      if (!mounted) return false;
       if (generation != _generation) {
         await _ignoreFailure(_player.stop);
-        return;
+        return false;
       }
+      if (!current()) return false;
       if (startPosition > Duration.zero) {
         await _player.seek(startPosition);
-        if (!mounted || generation != _generation) return;
+        if (!current()) return false;
       }
       final reporter = PlaybackReporter(
         client: client,
@@ -220,7 +362,7 @@ class _JellyfinPlayerScreenState extends ConsumerState<JellyfinPlayerScreen>
       );
       _reporter = reporter;
       await reporter.start(startPosition);
-      if (!mounted || generation != _generation) return;
+      if (!current()) return false;
 
       _positionSub?.cancel();
       _positionSub = _player.stream.position.listen((position) {
@@ -246,6 +388,7 @@ class _JellyfinPlayerScreenState extends ConsumerState<JellyfinPlayerScreen>
       });
 
       _progressPoller.start(immediately: false);
+      return true;
     } finally {
       _opening = false;
     }
@@ -255,21 +398,28 @@ class _JellyfinPlayerScreenState extends ConsumerState<JellyfinPlayerScreen>
     await _reporter?.progress(_position, isPaused: !_player.state.playing);
   }
 
-  Future<void> _changeQuality(int? maxBitrate) async {
-    if (_opening || maxBitrate == _selectedMaxBitrate) return;
-    final previousBitrate = _selectedMaxBitrate;
+  Future<void> _changeQuality(int? maxBitrate, int interaction) async {
+    if (!_interactionCurrent(interaction) ||
+        _opening ||
+        maxBitrate == _selectedMaxBitrate) {
+      return;
+    }
     final resumeAt = _position;
     final wasPlaying = _playing;
-    setState(() => _selectedMaxBitrate = maxBitrate);
     try {
-      await _openSource(startPosition: resumeAt);
-      if (mounted && !wasPlaying) await _player.pause();
+      final opened = await _openSource(
+        startPosition: resumeAt,
+        maxBitrate: maxBitrate,
+        interaction: interaction,
+      );
+      if (!opened || !_interactionCurrent(interaction)) return;
+      setState(() => _selectedMaxBitrate = maxBitrate);
+      if (!wasPlaying) await _player.pause();
     } catch (_) {
-      if (mounted) {
+      if (_interactionCurrent(interaction)) {
         await _ignoreFailure(_player.pause);
-        if (!mounted) return;
+        if (!_interactionCurrent(interaction)) return;
         setState(() {
-          _selectedMaxBitrate = previousBitrate;
           _error = AppLocalizations.of(context)
               .jellyfinPlayerQualityChangeFailed;
         });
@@ -314,14 +464,22 @@ class _JellyfinPlayerScreenState extends ConsumerState<JellyfinPlayerScreen>
   }
 
   Future<void> _handleVerticalDragStart(DragStartDetails details) async {
+    final generation = _interactionGeneration;
+    if (!_interactionCurrent(generation)) return;
+    _dragInteraction = generation;
     final width = MediaQuery.of(context).size.width;
     _dragStartY = details.globalPosition.dy;
     if (details.globalPosition.dx < width / 2) {
       _draggingBrightness = true;
       try {
-        _dragStartValue = await ScreenBrightness().application;
+        final value = await ScreenBrightness().application;
+        if (_interactionCurrent(generation) && _dragInteraction == generation) {
+          _dragStartValue = value;
+        }
       } catch (_) {
-        _dragStartValue = 0.5;
+        if (_interactionCurrent(generation) && _dragInteraction == generation) {
+          _dragStartValue = 0.5;
+        }
       }
     } else {
       _draggingVolume = true;
@@ -330,7 +488,11 @@ class _JellyfinPlayerScreenState extends ConsumerState<JellyfinPlayerScreen>
   }
 
   void _handleVerticalDragUpdate(DragUpdateDetails details) {
-    if (!_draggingBrightness && !_draggingVolume) return;
+    if (_dragInteraction != _interactionGeneration ||
+        !_interactionCurrent(_interactionGeneration) ||
+        (!_draggingBrightness && !_draggingVolume)) {
+      return;
+    }
     final height = MediaQuery.of(context).size.height;
     final delta = (_dragStartY - details.globalPosition.dy) / height;
     final value = (_dragStartValue + delta).clamp(0.0, 1.0);
@@ -347,6 +509,7 @@ class _JellyfinPlayerScreenState extends ConsumerState<JellyfinPlayerScreen>
   }
 
   void _handleVerticalDragEnd(DragEndDetails details) {
+    _dragInteraction = null;
     _draggingBrightness = false;
     _draggingVolume = false;
     _hudTimer?.cancel();
@@ -363,99 +526,122 @@ class _JellyfinPlayerScreenState extends ConsumerState<JellyfinPlayerScreen>
     });
   }
 
-  Future<void> _showSubtitlePicker() async {
-    final l10n = AppLocalizations.of(context);
-    final options = [SubtitleTrack.no(), ..._tracks.subtitle];
-    final chosen = await showCupertinoModalPopup<SubtitleTrack>(
-      context: context,
-      builder: (context) => CupertinoActionSheet(
-        title: Text(l10n.jellyfinPlayerSubtitlesTitle),
+  Future<void> _pick<R>({
+    required String title,
+    required List<R> options,
+    required Widget Function(R) label,
+    required bool Function(R) available,
+    required Future<void> Function(R, int) apply,
+  }) async {
+    final generation = _interactionGeneration;
+    if (_pickerBusy ||
+        _opening ||
+        _loading ||
+        _error != null ||
+        _client == null ||
+        !_interactionCurrent(generation)) {
+      return;
+    }
+    _pickerBusy = true;
+    _hideControlsTimer?.cancel();
+    late final CupertinoModalPopupRoute<R> route;
+    void choose([R? selected]) {
+      if (!_interactionCurrent(generation, picker: route)) return;
+      route.navigator?.pop(selected);
+    }
+
+    route = CupertinoModalPopupRoute<R>(
+      builder: (_) => CupertinoActionSheet(
+        title: Text(title),
         actions: [
-          for (final track in options)
+          for (final option in options)
             CupertinoActionSheetAction(
-              onPressed: () => Navigator.pop(context, track),
-              child: Text(
-                _trackLabel(track, l10n, isOff: track.id == 'no'),
-                style: track.id == _currentTrack.subtitle.id
-                    ? const TextStyle(fontWeight: FontWeight.bold)
-                    : null,
-              ),
+              onPressed: () => choose(option),
+              child: label(option),
             ),
         ],
         cancelButton: CupertinoActionSheetAction(
-          onPressed: () => Navigator.pop(context),
-          child: Text(l10n.commonCancel),
+          onPressed: choose,
+          child: Text(AppLocalizations.of(context).commonCancel),
         ),
       ),
     );
-    if (!mounted) return;
-    if (chosen != null) {
-      await _ignoreFailure(() => _player.setSubtitleTrack(chosen));
+    _pickerRoute = route;
+    try {
+      final selected = await Navigator.of(
+        context,
+        rootNavigator: true,
+      ).push<R>(route);
+      await route.completed;
+      if (selected != null &&
+          _interactionCurrent(generation) &&
+          available(selected)) {
+        await apply(selected, generation);
+      }
+    } finally {
+      if (identical(_pickerRoute, route)) _pickerRoute = null;
+      _pickerBusy = false;
+      if (_interactionCurrent(generation)) _scheduleHideControls();
     }
-    _scheduleHideControls();
   }
 
-  Future<void> _showAudioPicker() async {
+  Future<void> _showSubtitlePicker() {
     final l10n = AppLocalizations.of(context);
-    if (_tracks.audio.isEmpty) return;
-    final chosen = await showCupertinoModalPopup<AudioTrack>(
-      context: context,
-      builder: (context) => CupertinoActionSheet(
-        title: Text(l10n.jellyfinPlayerAudioTitle),
-        actions: [
-          for (final track in _tracks.audio)
-            CupertinoActionSheetAction(
-              onPressed: () => Navigator.pop(context, track),
-              child: Text(
-                _trackLabel(track, l10n, isOff: false),
-                style: track.id == _currentTrack.audio.id
-                    ? const TextStyle(fontWeight: FontWeight.bold)
-                    : null,
-              ),
-            ),
-        ],
-        cancelButton: CupertinoActionSheetAction(
-          onPressed: () => Navigator.pop(context),
-          child: Text(l10n.commonCancel),
-        ),
+    return _pick<SubtitleTrack>(
+      title: l10n.jellyfinPlayerSubtitlesTitle,
+      options: [
+        SubtitleTrack.no(),
+        ..._tracks.subtitle.where((track) => track.id != 'no'),
+      ],
+      label: (track) => Text(
+        _trackLabel(track, l10n, isOff: track.id == 'no'),
+        style: track.id == _currentTrack.subtitle.id
+            ? const TextStyle(fontWeight: FontWeight.bold)
+            : null,
       ),
+      available: (track) =>
+          track.id == 'no' ||
+          _tracks.subtitle.any((current) => identical(current, track)),
+      apply: (track, _) =>
+          _ignoreFailure(() => _player.setSubtitleTrack(track)),
     );
-    if (!mounted) return;
-    if (chosen != null) {
-      await _ignoreFailure(() => _player.setAudioTrack(chosen));
-    }
-    _scheduleHideControls();
   }
 
-  Future<void> _showQualityPicker() async {
+  Future<void> _showAudioPicker() {
     final l10n = AppLocalizations.of(context);
-    final chosen = await showCupertinoModalPopup<_QualityOption>(
-      context: context,
-      builder: (context) => CupertinoActionSheet(
-        title: Text(l10n.jellyfinPlayerQualityTitle),
-        actions: [
-          for (final option in _qualityOptions)
-            CupertinoActionSheetAction(
-              onPressed: () => Navigator.pop(context, option),
-              child: Text(
-                option.maxBitrate == null
-                    ? l10n.jellyfinPlayerQualityAuto
-                    : '${(option.maxBitrate! / 1000000).round()} Mbps',
-                style: option.maxBitrate == _selectedMaxBitrate
-                    ? const TextStyle(fontWeight: FontWeight.bold)
-                    : null,
-              ),
-            ),
-        ],
-        cancelButton: CupertinoActionSheetAction(
-          onPressed: () => Navigator.pop(context),
-          child: Text(l10n.commonCancel),
-        ),
+    if (_tracks.audio.isEmpty) return Future.value();
+    return _pick<AudioTrack>(
+      title: l10n.jellyfinPlayerAudioTitle,
+      options: List.of(_tracks.audio),
+      label: (track) => Text(
+        _trackLabel(track, l10n, isOff: false),
+        style: track.id == _currentTrack.audio.id
+            ? const TextStyle(fontWeight: FontWeight.bold)
+            : null,
       ),
+      available: (track) =>
+          _tracks.audio.any((current) => identical(current, track)),
+      apply: (track, _) => _ignoreFailure(() => _player.setAudioTrack(track)),
     );
-    if (!mounted) return;
-    if (chosen != null) await _changeQuality(chosen.maxBitrate);
-    _scheduleHideControls();
+  }
+
+  Future<void> _showQualityPicker() {
+    final l10n = AppLocalizations.of(context);
+    return _pick<_QualityOption>(
+      title: l10n.jellyfinPlayerQualityTitle,
+      options: _qualityOptions,
+      label: (option) => Text(
+        option.maxBitrate == null
+            ? l10n.jellyfinPlayerQualityAuto
+            : '${(option.maxBitrate! / 1000000).round()} Mbps',
+        style: option.maxBitrate == _selectedMaxBitrate
+            ? const TextStyle(fontWeight: FontWeight.bold)
+            : null,
+      ),
+      available: _qualityOptions.contains,
+      apply: (option, generation) =>
+          _changeQuality(option.maxBitrate, generation),
+    );
   }
 
   String _trackLabel(
@@ -474,6 +660,9 @@ class _JellyfinPlayerScreenState extends ConsumerState<JellyfinPlayerScreen>
 
   @override
   void dispose() {
+    _interactionGeneration++;
+    _interaction?.removeListener(_scopeChanged);
+    _closePicker();
     _hideControlsTimer?.cancel();
     _hudTimer?.cancel();
     _generation++;
@@ -499,7 +688,9 @@ class _JellyfinPlayerScreenState extends ConsumerState<JellyfinPlayerScreen>
               backgroundColor: CupertinoColors.black,
               leading: CupertinoButton(
                 padding: EdgeInsets.zero,
-                onPressed: () => Navigator.of(context).maybePop(),
+                onPressed: _interactionAction(
+                  () => Navigator.of(context).maybePop(),
+                ),
                 child: const Icon(
                   CupertinoIcons.chevron_back,
                   color: CupertinoColors.white,
@@ -529,15 +720,27 @@ class _JellyfinPlayerScreenState extends ConsumerState<JellyfinPlayerScreen>
           : Stack(
               fit: StackFit.expand,
               children: [
-                Center(child: Video(controller: _controller, controls: null)),
+                Center(
+                  child: ref.watch(jellyfinVideoSurfaceProvider)(
+                    () => _controller,
+                  ),
+                ),
                 Positioned.fill(
                   child: GestureDetector(
                     behavior: HitTestBehavior.opaque,
-                    onTap: _toggleControls,
-                    onDoubleTapDown: _handleDoubleTapDown,
-                    onVerticalDragStart: _handleVerticalDragStart,
-                    onVerticalDragUpdate: _handleVerticalDragUpdate,
-                    onVerticalDragEnd: _handleVerticalDragEnd,
+                    onTap: _interactionAction(_toggleControls),
+                    onDoubleTapDown: _interactionValueAction(
+                      _handleDoubleTapDown,
+                    ),
+                    onVerticalDragStart: _interactionValueAction(
+                      _handleVerticalDragStart,
+                    ),
+                    onVerticalDragUpdate: _interactionValueAction(
+                      _handleVerticalDragUpdate,
+                    ),
+                    onVerticalDragEnd: _interactionValueAction(
+                      _handleVerticalDragEnd,
+                    ),
                     child: const SizedBox.expand(),
                   ),
                 ),
@@ -601,7 +804,9 @@ class _JellyfinPlayerScreenState extends ConsumerState<JellyfinPlayerScreen>
             children: [
               CupertinoButton(
                 padding: EdgeInsets.zero,
-                onPressed: () => Navigator.of(context).pop(),
+                onPressed: _interactionAction(
+                  () => Navigator.of(context).pop(),
+                ),
                 child: const Icon(
                   CupertinoIcons.chevron_back,
                   color: CupertinoColors.white,
@@ -620,7 +825,7 @@ class _JellyfinPlayerScreenState extends ConsumerState<JellyfinPlayerScreen>
               if (_tracks.subtitle.isNotEmpty)
                 CupertinoButton(
                   padding: EdgeInsets.zero,
-                  onPressed: _showSubtitlePicker,
+                  onPressed: _interactionAction(_showSubtitlePicker),
                   child: const Icon(
                     CupertinoIcons.captions_bubble,
                     color: CupertinoColors.white,
@@ -629,7 +834,7 @@ class _JellyfinPlayerScreenState extends ConsumerState<JellyfinPlayerScreen>
               if (_tracks.audio.length > 1)
                 CupertinoButton(
                   padding: EdgeInsets.zero,
-                  onPressed: _showAudioPicker,
+                  onPressed: _interactionAction(_showAudioPicker),
                   child: const Icon(
                     CupertinoIcons.speaker_2,
                     color: CupertinoColors.white,
@@ -637,7 +842,7 @@ class _JellyfinPlayerScreenState extends ConsumerState<JellyfinPlayerScreen>
                 ),
               CupertinoButton(
                 padding: EdgeInsets.zero,
-                onPressed: _showQualityPicker,
+                onPressed: _interactionAction(_showQualityPicker),
                 child: const Icon(
                   CupertinoIcons.settings,
                   color: CupertinoColors.white,
@@ -652,7 +857,7 @@ class _JellyfinPlayerScreenState extends ConsumerState<JellyfinPlayerScreen>
 
   Widget _buildBottomBar(AppLocalizations l10n) {
     final maxSeconds = _duration.inSeconds.toDouble();
-    final valueSeconds = _position.inSeconds.toDouble().clamp(
+    final valueSeconds = (_seekDraft ?? _position).inSeconds.toDouble().clamp(
       0.0,
       maxSeconds <= 0 ? 1.0 : maxSeconds,
     );
@@ -692,19 +897,43 @@ class _JellyfinPlayerScreenState extends ConsumerState<JellyfinPlayerScreen>
                       value: valueSeconds,
                       min: 0,
                       max: maxSeconds <= 0 ? 1.0 : maxSeconds,
+                      onChangeStart: maxSeconds <= 0
+                          ? null
+                          : _interactionValueAction(
+                              (_) => _seekInteraction = _interactionGeneration,
+                            ),
                       onChanged: maxSeconds <= 0
                           ? null
-                          : (value) => setState(
-                              () =>
-                                  _position = Duration(seconds: value.round()),
-                            ),
+                          : _interactionValueAction((value) {
+                              if (_seekInteraction != _interactionGeneration ||
+                                  !value.isFinite) {
+                                return;
+                              }
+                              setState(
+                                () => _seekDraft = Duration(
+                                  seconds: value.clamp(0, maxSeconds).round(),
+                                ),
+                              );
+                            }),
                       onChangeEnd: maxSeconds <= 0
                           ? null
-                          : (value) => _ignoreFailure(
-                              () => _player.seek(
-                                Duration(seconds: value.round()),
-                              ),
-                            ),
+                          : _interactionValueAction((value) {
+                              if (_seekInteraction != _interactionGeneration ||
+                                  !value.isFinite) {
+                                return;
+                              }
+                              setState(() {
+                                _seekInteraction = null;
+                                _seekDraft = null;
+                              });
+                              _ignoreFailure(
+                                () => _player.seek(
+                                  Duration(
+                                    seconds: value.clamp(0, maxSeconds).round(),
+                                  ),
+                                ),
+                              );
+                            }),
                     ),
                   ),
                   Text(
@@ -718,7 +947,7 @@ class _JellyfinPlayerScreenState extends ConsumerState<JellyfinPlayerScreen>
               ),
               CupertinoButton(
                 padding: EdgeInsets.zero,
-                onPressed: _togglePlaying,
+                onPressed: _interactionAction(_togglePlaying),
                 child: Icon(
                   _playing
                       ? CupertinoIcons.pause_fill

@@ -2,6 +2,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../l10n/generated/app_localizations.dart';
+import '../../../health/data/integration_health.dart';
 import '../../../../shared/discovery/service_signatures.dart';
 import '../providers/lidarr_providers.dart';
 import 'widgets/arr_add_screen.dart';
@@ -17,11 +18,16 @@ class LidarrScreen extends ConsumerWidget {
     final connectionAsync = ref.watch(lidarrConnectionProvider);
 
     return connectionAsync.when(
+      skipLoadingOnReload: false,
+      skipLoadingOnRefresh: false,
       loading: () => const CupertinoPageScaffold(
         child: Center(child: CupertinoActivityIndicator()),
       ),
-      error: (error, _) =>
-          CupertinoPageScaffold(child: Center(child: Text('$error'))),
+      error: (error, _) => CupertinoPageScaffold(
+        child: Center(
+          child: Text(AppLocalizations.of(context).mediaErrorUnreachable),
+        ),
+      ),
       data: (config) {
         if (config == null) {
           return ArrConnectForm(
@@ -49,32 +55,16 @@ class LidarrScreen extends ConsumerWidget {
           ),
           trailing: CupertinoButton(
             padding: EdgeInsets.zero,
-            onPressed: () => Navigator.of(context).push(
-              CupertinoPageRoute(
-                builder: (_) => ArrAddScreen(
-                  title: AppLocalizations.of(context).arrAddArtistTitle,
-                  searchHint: AppLocalizations.of(context).arrSearchArtists,
-                  onLookup: (term) =>
-                      ref.read(lidarrClientProvider)!.lookup(term),
-                  loadQualityProfiles: () =>
-                      ref.read(lidarrClientProvider)!.getQualityProfiles(),
-                  loadRootFolders: () =>
-                      ref.read(lidarrClientProvider)!.getRootFolders(),
-                  loadMetadataProfiles: () =>
-                      ref.read(lidarrClientProvider)!.getMetadataProfiles(),
-                  onAdd: (result, profileId, folder, metadataProfileId) async {
-                    await ref
-                        .read(lidarrClientProvider)!
-                        .add(
-                          result: result,
-                          qualityProfileId: profileId,
-                          rootFolderPath: folder,
-                          metadataProfileId: metadataProfileId,
-                        );
-                    ref.invalidate(lidarrCalendarProvider);
-                  },
-                ),
-              ),
+            onPressed: () => openArrAddScreen(
+              context: context,
+              ref: ref,
+              integration: IntegrationId.lidarr,
+              connectionProvider: lidarrConnectionProvider,
+              clientProvider: lidarrClientProvider,
+              title: AppLocalizations.of(context).arrAddArtistTitle,
+              searchHint: AppLocalizations.of(context).arrSearchArtists,
+              metadata: true,
+              onAdded: () => ref.invalidate(lidarrCalendarProvider),
             ),
             child: const Icon(CupertinoIcons.add),
           ),

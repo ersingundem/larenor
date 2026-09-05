@@ -8,6 +8,7 @@ import '../../../../shared/theme/spacing.dart';
 import '../../../../shared/theme/typography.dart';
 import '../../../ha_client/providers/ha_client_providers.dart';
 import '../../domain/tile_config.dart';
+import '../dashboard_edit_guard.dart';
 import 'tile_action_support.dart';
 
 class SceneTile extends ConsumerStatefulWidget {
@@ -17,7 +18,7 @@ class SceneTile extends ConsumerStatefulWidget {
   ConsumerState<SceneTile> createState() => _SceneTileState();
 }
 
-class _SceneTileState extends ConsumerState<SceneTile>
+class _SceneTileState extends DashboardEditState<SceneTile>
     with TileActionSupport<SceneTile> {
   @override
   String? get actionEntityId => widget.tile.entityId;
@@ -46,7 +47,9 @@ class _SceneTileState extends ConsumerState<SceneTile>
       enabled: enabled,
       child: GestureDetector(
         key: ValueKey('scene-action-$actionEntityId'),
-        onTap: enabled ? () => executeTileAction('scene', 'turn_on') : null,
+        onTap: enabled
+            ? tileAction(() => executeTileAction('scene', 'turn_on'))
+            : null,
         child: ColoredBox(
           color: CupertinoColors.secondarySystemGroupedBackground.resolveFrom(
             context,

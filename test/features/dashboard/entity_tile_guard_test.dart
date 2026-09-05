@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:larenor/core/app_interaction_scope.dart';
 import 'package:larenor/features/auth/data/ha_connection_config.dart';
 import 'package:larenor/features/auth/providers/auth_providers.dart';
 import 'package:larenor/features/dashboard/domain/tile_config.dart';
@@ -63,6 +64,7 @@ class _Entities extends Entities {
 class _Harness {
   final connection = _Connection();
   final entities = _Entities();
+  final interaction = AppInteractionController();
   late ProviderContainer container;
   int menus = 0;
   Future<void> mount(WidgetTester tester) async {
@@ -74,6 +76,7 @@ class _Harness {
       ],
     );
     addTearDown(container.dispose);
+    addTearDown(interaction.dispose);
     final accountSubscription = container.listen(
       connectionConfigProvider,
       (_, _) {},
@@ -87,6 +90,8 @@ class _Harness {
       UncontrolledProviderScope(
         container: container,
         child: CupertinoApp(
+          builder: (_, child) =>
+              AppInteractionScope(controller: interaction, child: child!),
           locale: const Locale('en'),
           localizationsDelegates: AppLocalizations.localizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
@@ -121,6 +126,23 @@ class _Harness {
 }
 
 void main() {
+  testWidgets(
+    'idle expires an accessory callback even when wake precedes the next frame',
+    (tester) async {
+      final h = _Harness();
+      await h.mount(tester);
+      final old = h.tap(tester);
+      h.interaction.setActive(false);
+      h.interaction.setActive(true);
+      old();
+      expect(h.entities.writes, 0);
+      await tester.pumpAndSettle();
+      h.tap(tester)();
+      await tester.pumpAndSettle();
+      expect(h.entities.writes, 1);
+    },
+  );
+
   testWidgets(
     'saved entity delegates guarded control and preserves custom title/menu',
     (tester) async {

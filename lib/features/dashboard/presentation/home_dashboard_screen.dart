@@ -13,6 +13,8 @@ import '../../health/data/health_configuration.dart';
 import '../../keenetic/providers/keenetic_providers.dart';
 import '../../ha_client/data/ws_client.dart';
 import '../../ha_client/providers/ha_client_providers.dart';
+import '../../wellbeing/providers/wellbeing_providers.dart';
+import '../../wellbeing/providers/wellbeing_privacy_providers.dart';
 import '../../settings/data/app_service.dart';
 import '../../settings/providers/enabled_services_providers.dart';
 import '../domain/dashboard_card_size.dart';
@@ -65,9 +67,24 @@ class _HomeDashboardScreenState
   Route<String>? _addMenuRoute;
   bool _addMenuBusy = false;
   bool _widgetBusy = false;
+  final _ownedInteractionRoutes = <Route<dynamic>>{};
+
+  Future<R?> _pushDashboardModal<R>(Route<R> route) async {
+    _ownedInteractionRoutes.add(route);
+    try {
+      return await Navigator.of(context).push<R>(route);
+    } finally {
+      _ownedInteractionRoutes.remove(route);
+    }
+  }
 
   @override
   void invalidateDashboardInteraction() {
+    final owned = _ownedInteractionRoutes.toList();
+    _ownedInteractionRoutes.clear();
+    for (final route in owned) {
+      if (route.isActive) route.navigator?.removeRoute(route);
+    }
     final addRoute = _addMenuRoute;
     _addMenuRoute = null;
     if (addRoute?.isActive == true) addRoute!.navigator?.removeRoute(addRoute);
@@ -173,7 +190,7 @@ class _HomeDashboardScreenState
                       children: [
                         const Icon(CupertinoIcons.calendar, size: 20),
                         const SizedBox(width: 8),
-                        Text(l10n.todayTitle),
+                        Flexible(child: Text(l10n.todayTitle)),
                       ],
                     ),
                   ),
@@ -184,7 +201,7 @@ class _HomeDashboardScreenState
                       children: [
                         const Icon(CupertinoIcons.bell, size: 20),
                         const SizedBox(width: 8),
-                        Text(l10n.intercomTitle),
+                        Flexible(child: Text(l10n.intercomTitle)),
                       ],
                     ),
                   ),
@@ -603,31 +620,37 @@ class _HomeDashboardScreenState
     ),
   );
 
-  Widget _tileGrid(List<TileConfig> tiles, {bool dismissible = false}) =>
-      SliverPadding(
-        padding: Insets.page,
-        sliver: SliverGrid(
-          gridDelegate: _gridDelegate([
-            for (final tile in tiles)
-              DashboardGridSpan(
-                tile.width.clamp(1, 6),
-                tile.height.clamp(1, 4),
-              ),
-          ], service: true),
-          delegate: SliverChildBuilderDelegate((context, index) {
-            final tile = tiles[index];
-            final content = ClipRRect(
-              borderRadius: Radii.brLarge,
-              child: buildTileContent(tile),
-            );
-            if (!dismissible) return content;
-            return GestureDetector(
-              onLongPress: dashboardAction(() => _confirmRemoveWidget(tile)),
-              child: content,
-            );
-          }, childCount: tiles.length),
-        ),
-      );
+  Widget _tileGrid(List<TileConfig> tiles, {bool dismissible = false}) {
+    final privacy = ref.watch(wellbeingPrivateEntityIdsProvider);
+    final visibleTiles = tiles
+        .where(
+          (tile) =>
+              tile.entityId == null || isPublicHaEntity(privacy, tile.entityId),
+        )
+        .toList();
+    if (visibleTiles.isEmpty) return const SliverToBoxAdapter();
+    return SliverPadding(
+      padding: Insets.page,
+      sliver: SliverGrid(
+        gridDelegate: _gridDelegate([
+          for (final tile in visibleTiles)
+            DashboardGridSpan(tile.width.clamp(1, 6), tile.height.clamp(1, 4)),
+        ], service: true),
+        delegate: SliverChildBuilderDelegate((context, index) {
+          final tile = visibleTiles[index];
+          final content = ClipRRect(
+            borderRadius: Radii.brLarge,
+            child: buildTileContent(tile),
+          );
+          if (!dismissible) return content;
+          return GestureDetector(
+            onLongPress: dashboardAction(() => _confirmRemoveWidget(tile)),
+            child: content,
+          );
+        }, childCount: visibleTiles.length),
+      ),
+    );
+  }
 
   void _openEditor(
     DashboardEditorMode mode, {
@@ -656,39 +679,41 @@ class _HomeDashboardScreenState
   }
 
   Future<void> _confirmRemoveWidget(TileConfig tile) async {
+    final generation = interactionGeneration;
+    if (!interactionCurrent(generation)) return;
     final l10n = AppLocalizations.of(context);
-    await showCupertinoModalPopup<void>(
-      context: context,
-      builder: (sheetContext) => CupertinoActionSheet(
-        title: Text(tile.title ?? tile.url ?? l10n.homeWidgets),
-        actions: [
-          CupertinoActionSheetAction(
-            onPressed: () {
-              closeDashboardModal(sheetContext);
-              if (mounted) _openEditor(DashboardEditorMode.widgets);
-            },
-            child: Text(l10n.dashboardCardSize),
+    final action = await _pushDashboardModal(
+      CupertinoModalPopupRoute<String>(
+        builder: (sheetContext) => CupertinoActionSheet(
+          title: Text(tile.title ?? tile.url ?? l10n.homeWidgets),
+          actions: [
+            CupertinoActionSheetAction(
+              onPressed: () => closeDashboardModal(sheetContext, 'edit'),
+              child: Text(l10n.dashboardCardSize),
+            ),
+            CupertinoActionSheetAction(
+              isDestructiveAction: true,
+              onPressed: () => closeDashboardModal(sheetContext, 'remove'),
+              child: Text(l10n.commonRemove),
+            ),
+          ],
+          cancelButton: CupertinoActionSheetAction(
+            onPressed: () => closeDashboardModal(sheetContext),
+            child: Text(l10n.commonCancel),
           ),
-          CupertinoActionSheetAction(
-            isDestructiveAction: true,
-            onPressed: () {
-              closeDashboardModal(sheetContext);
-              ref.read(dashboardLayoutProvider.notifier).removeTile(tile.id);
-            },
-            child: Text(l10n.commonRemove),
-          ),
-        ],
-        cancelButton: CupertinoActionSheetAction(
-          onPressed: () => closeDashboardModal(sheetContext),
-          child: Text(l10n.commonCancel),
         ),
       ),
     );
+    if (!interactionCurrent(generation)) return;
+    if (action == 'edit') _openEditor(DashboardEditorMode.widgets);
+    if (action == 'remove') {
+      await ref.read(dashboardLayoutProvider.notifier).removeTile(tile.id);
+    }
   }
 
   Future<void> _showAddMenu() async {
-    if (!foreground || _addMenuBusy || _widgetBusy) return;
     final generation = interactionGeneration;
+    if (!interactionCurrent(generation) || _addMenuBusy || _widgetBusy) return;
     final l10n = AppLocalizations.of(context);
     final hasRooms =
         ref.read(dashboardLayoutProvider).value?.rooms.isNotEmpty ?? false;
@@ -744,14 +769,14 @@ class _HomeDashboardScreenState
   }
 
   Future<void> _addWidget({TileType? initialType}) async {
-    if (!foreground || _widgetBusy) return;
+    if (!interactionCurrent(interactionGeneration) || _widgetBusy) return;
     _widgetBusy = true;
     final failureMessage = AppLocalizations.of(context).dashboardEditFailed;
     final generation = interactionGeneration;
     void Function()? closeAccount;
     var accountValid = true;
     try {
-      final tile = await Navigator.of(context).push<TileConfig>(
+      final tile = await pushDashboardPage<TileConfig>(
         CupertinoPageRoute(
           builder: (_) => DashboardWidgetPickerScreen(initialType: initialType),
         ),
@@ -824,24 +849,28 @@ class _HomeDashboardScreenState
     TextInputType? keyboardType,
   }) {
     final l10n = AppLocalizations.of(context);
-    return showCupertinoDialog<String>(
-      context: context,
-      builder: (_) => _DashboardTextDialog(
-        title: title,
-        initial: initial,
-        placeholder: placeholder ?? l10n.roomNamePlaceholder,
-        confirmLabel: confirmLabel ?? l10n.commonSave,
-        cancelLabel: l10n.commonCancel,
-        keyboardType: keyboardType,
+    return _pushDashboardModal(
+      CupertinoDialogRoute<String>(
+        context: context,
+        builder: (_) => _DashboardTextDialog(
+          title: title,
+          initial: initial,
+          placeholder: placeholder ?? l10n.roomNamePlaceholder,
+          confirmLabel: confirmLabel ?? l10n.commonSave,
+          cancelLabel: l10n.commonCancel,
+          keyboardType: keyboardType,
+        ),
       ),
     );
   }
 
   Future<void> _promptAddRoom() async {
+    final generation = interactionGeneration;
+    if (!interactionCurrent(generation)) return;
     final name = await _promptName(
       title: AppLocalizations.of(context).roomAddTitle,
     );
-    if (name == null || name.isEmpty || !mounted) return;
+    if (name == null || name.isEmpty || !interactionCurrent(generation)) return;
     await ref.read(dashboardLayoutProvider.notifier).addRoom(name);
   }
 
@@ -927,22 +956,24 @@ class _HomeDashboardScreenState
             await notifier.reorderRooms(currentIndex, currentIndex + 1);
           }
         case 'remove':
-          final confirmed = await showCupertinoDialog<bool>(
-            context: context,
-            builder: (dialogContext) => CupertinoAlertDialog(
-              title: Text(l10n.roomRemove),
-              content: Text(l10n.homeRemoveRoomMessage),
-              actions: [
-                CupertinoDialogAction(
-                  onPressed: () => closeDashboardModal(dialogContext, false),
-                  child: Text(l10n.commonCancel),
-                ),
-                CupertinoDialogAction(
-                  isDestructiveAction: true,
-                  onPressed: () => closeDashboardModal(dialogContext, true),
-                  child: Text(l10n.commonDelete),
-                ),
-              ],
+          final confirmed = await _pushDashboardModal(
+            CupertinoDialogRoute<bool>(
+              context: context,
+              builder: (dialogContext) => CupertinoAlertDialog(
+                title: Text(l10n.roomRemove),
+                content: Text(l10n.homeRemoveRoomMessage),
+                actions: [
+                  CupertinoDialogAction(
+                    onPressed: () => closeDashboardModal(dialogContext, false),
+                    child: Text(l10n.commonCancel),
+                  ),
+                  CupertinoDialogAction(
+                    isDestructiveAction: true,
+                    onPressed: () => closeDashboardModal(dialogContext, true),
+                    child: Text(l10n.commonDelete),
+                  ),
+                ],
+              ),
             ),
           );
           if (confirmed == true && interactionCurrent(generation)) {
@@ -959,34 +990,35 @@ class _HomeDashboardScreenState
   }
 
   Future<void> _pickRoomThenAddDevices() async {
+    final generation = interactionGeneration;
+    if (!interactionCurrent(generation)) return;
     final layout = ref.read(dashboardLayoutProvider).value;
     final rooms = layout?.rooms ?? const <DashboardRoom>[];
-    if (rooms.any((room) => room.areaBinding != null)) {
-      ref.watch(connectionConfigProvider);
-    }
-    watchDashboardAccount();
     if (rooms.isEmpty) return;
     if (rooms.length == 1) return _addDevicesToRoom(rooms.first);
 
     final l10n = AppLocalizations.of(context);
-    final chosen = await showCupertinoModalPopup<DashboardRoom>(
-      context: context,
-      builder: (sheetContext) => CupertinoActionSheet(
-        title: Text(l10n.roomPickTitle),
-        actions: [
-          for (final room in rooms)
-            CupertinoActionSheetAction(
-              onPressed: () => closeDashboardModal(sheetContext, room),
-              child: Text(room.name),
-            ),
-        ],
-        cancelButton: CupertinoActionSheetAction(
-          onPressed: () => closeDashboardModal(sheetContext),
-          child: Text(l10n.commonCancel),
+    final chosen = await _pushDashboardModal(
+      CupertinoModalPopupRoute<DashboardRoom>(
+        builder: (sheetContext) => CupertinoActionSheet(
+          title: Text(l10n.roomPickTitle),
+          actions: [
+            for (final room in rooms)
+              CupertinoActionSheetAction(
+                onPressed: () => closeDashboardModal(sheetContext, room),
+                child: Text(room.name),
+              ),
+          ],
+          cancelButton: CupertinoActionSheetAction(
+            onPressed: () => closeDashboardModal(sheetContext),
+            child: Text(l10n.commonCancel),
+          ),
         ),
       ),
     );
-    if (chosen != null) await _addDevicesToRoom(chosen);
+    if (chosen != null && interactionCurrent(generation)) {
+      await _addDevicesToRoom(chosen);
+    }
   }
 
   Future<void> _addDevicesToRoom(DashboardRoom room) async {
@@ -1012,16 +1044,36 @@ class _HomeDashboardScreenState
     // Only things worth putting on a wall panel, and nothing the room
     // already holds — there's no useful action for those here.
     final existing = room.entityIds.toSet();
+    final privacy = ref.read(wellbeingPrivateEntityIdsProvider);
     final candidates = allById.values
-        .where((e) => isHomeEntity(e) && !existing.contains(e.entityId))
+        .where(
+          (e) =>
+              isHomeEntity(e) &&
+              !existing.contains(e.entityId) &&
+              isPublicHaEntity(privacy, e.entityId),
+        )
         .toList();
 
-    final picked = await Navigator.of(context).push<List<String>>(
+    final picked = await pushDashboardPage<List<String>>(
       CupertinoPageRoute(
-        builder: (_) => EntityMultiPickerScreen(
-          entities: candidates,
-          title: l10n.roomAddDevicesTo(room.name),
-          emptyMessage: allById.isEmpty ? l10n.entityPickerNotConnected : null,
+        builder: (_) => Consumer(
+          builder: (_, pickerRef, _) {
+            final currentPrivacy = pickerRef.watch(
+              wellbeingPrivateEntityIdsProvider,
+            );
+            return EntityMultiPickerScreen(
+              entities: candidates
+                  .where(
+                    (entity) =>
+                        isPublicHaEntity(currentPrivacy, entity.entityId),
+                  )
+                  .toList(),
+              title: l10n.roomAddDevicesTo(room.name),
+              emptyMessage: allById.isEmpty
+                  ? l10n.entityPickerNotConnected
+                  : null,
+            );
+          },
         ),
       ),
     );
@@ -1032,36 +1084,40 @@ class _HomeDashboardScreenState
         !roomMatchesCurrentServer(ref, room)) {
       return;
     }
+    final currentPrivacy = ref.read(wellbeingPrivateEntityIdsProvider);
+    final publicPicked = picked
+        .where((id) => isPublicHaEntity(currentPrivacy, id))
+        .toList();
+    if (publicPicked.isEmpty) return;
     await ref
         .read(dashboardLayoutProvider.notifier)
-        .addEntitiesToRoom(room.id, picked);
+        .addEntitiesToRoom(room.id, publicPicked);
   }
 
   /// Seeds rooms from Home Assistant's areas. A convenience, not a link —
   /// once imported the rooms are the user's to edit.
   Future<void> _importHaAreas() async {
+    final generation = interactionGeneration;
+    if (!interactionCurrent(generation)) return;
+    final l10n = AppLocalizations.of(context);
     HomeDashboardData data;
     try {
       data = await ref.read(homeDashboardProvider.future);
     } catch (_) {
-      if (mounted) {
-        await _showMessage(
-          AppLocalizations.of(context).dashboardUnreachableMessage,
-        );
+      if (interactionCurrent(generation)) {
+        await _showMessage(l10n.dashboardUnreachableMessage);
       }
       return;
     }
-    if (!mounted) return;
+    if (!interactionCurrent(generation)) return;
     if (data.rooms.isEmpty && data.unassigned.isEmpty) {
-      await _showMessage(AppLocalizations.of(context).homeImportEmpty);
+      await _showMessage(l10n.homeImportEmpty);
       return;
     }
 
     await ref.read(dashboardLayoutProvider.notifier).importRooms({
       if (data.unassigned.isNotEmpty)
-        AppLocalizations.of(context).homeOtherRoom: [
-          for (final e in data.unassigned) e.entityId,
-        ],
+        l10n.homeOtherRoom: [for (final e in data.unassigned) e.entityId],
       for (final room in data.rooms)
         room.area.name: [for (final e in room.entities) e.entityId],
     });

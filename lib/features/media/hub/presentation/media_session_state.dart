@@ -2,6 +2,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart';
 
+import '../../../../core/app_interaction_scope.dart';
 import '../../../health/data/integration_health.dart';
 import '../../../health/data/health_configuration.dart';
 import '../../arr/providers/radarr_providers.dart';
@@ -21,6 +22,36 @@ abstract class MediaSessionState<T extends ConsumerStatefulWidget>
   bool sessionExpired = false;
   bool foreground = true;
   int sessionGeneration = 0;
+  AppInteractionController? _interaction;
+  int _interactionEpoch = 0;
+  bool get interactionActive => _interaction?.active ?? true;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final next = AppInteractionScope.maybeOf(context);
+    if (identical(next, _interaction)) return;
+    final hadScope = _interaction != null;
+    _interaction?.removeListener(_interactionChanged);
+    _interaction = next;
+    _interactionEpoch = next?.epoch ?? 0;
+    next?.addListener(_interactionChanged);
+    if (hadScope || !interactionActive) {
+      sessionGeneration++;
+      clearPendingInteraction();
+    }
+  }
+
+  void _interactionChanged() {
+    if (!mounted) return;
+    final epoch = _interaction?.epoch ?? 0;
+    if (epoch != _interactionEpoch) {
+      _interactionEpoch = epoch;
+      sessionGeneration++;
+      clearPendingInteraction();
+    }
+    setState(() {});
+  }
 
   @override
   void initState() {
@@ -93,6 +124,7 @@ abstract class MediaSessionState<T extends ConsumerStatefulWidget>
   bool sessionCurrent(int generation) =>
       mounted &&
       foreground &&
+      interactionActive &&
       !sessionExpired &&
       generation == sessionGeneration;
 
@@ -106,6 +138,7 @@ abstract class MediaSessionState<T extends ConsumerStatefulWidget>
   @override
   void dispose() {
     sessionGeneration++;
+    _interaction?.removeListener(_interactionChanged);
     _lifecycle.dispose();
     super.dispose();
   }

@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../l10n/generated/app_localizations.dart';
 import '../../../ha_client/data/models/ha_entity.dart';
-import '../../../ha_client/providers/ha_client_providers.dart';
+import '../../../wellbeing/providers/wellbeing_privacy_providers.dart';
 import '../../../ha_tools/presentation/ha_session_guard.dart';
 import '../../presentation/dashboard_edit_guard.dart';
 import '../../../ha_tools/presentation/ha_actions_screen.dart';
@@ -44,7 +44,7 @@ class _EntityControlsState extends HaSessionState<EntityControls> {
   bool sourceSessionCurrent() => widget.sourceCurrent?.call() ?? true;
   HaEntity? get _currentEntity {
     if (!haSessionAvailable) return null;
-    final states = ref.read(entitiesProvider);
+    final states = ref.read(publicHaEntitiesProvider);
     return states.isLoading || states.hasError
         ? null
         : states.value?[widget.entity.entityId];
@@ -414,7 +414,7 @@ class _EntityControlsState extends HaSessionState<EntityControls> {
   Widget build(BuildContext context) {
     watchHaSession();
     ref.watch(
-      entitiesProvider.select(
+      publicHaEntitiesProvider.select(
         (value) => (
           value.isLoading,
           value.hasError,
@@ -422,7 +422,7 @@ class _EntityControlsState extends HaSessionState<EntityControls> {
         ),
       ),
     );
-    ref.listen(entitiesProvider, (previous, next) {
+    ref.listen(publicHaEntitiesProvider, (previous, next) {
       if (next.isLoading ||
           next.hasError ||
           next.value?[widget.entity.entityId] == null) {

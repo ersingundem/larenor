@@ -2,7 +2,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../l10n/generated/app_localizations.dart';
-import '../../../ha_client/providers/ha_client_providers.dart';
+import '../../../wellbeing/providers/wellbeing_privacy_providers.dart';
 import '../../domain/tile_config.dart';
 import 'home_accessory_tile.dart';
 
@@ -14,7 +14,7 @@ class EntityTile extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final (loading, failed, entity) = ref.watch(
-      entitiesProvider.select(
+      publicHaEntitiesProvider.select(
         (states) => (
           states.isLoading,
           states.hasError,

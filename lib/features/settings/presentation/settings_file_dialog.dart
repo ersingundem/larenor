@@ -1,5 +1,6 @@
 import 'package:flutter/cupertino.dart';
 
+import '../../../core/app_interaction_scope.dart';
 import '../../../l10n/generated/app_localizations.dart';
 import '../data/pin_lock_store.dart';
 
@@ -11,14 +12,16 @@ typedef SettingsFileDialogRunner = Future<T?> Function<T>(
 
 Future<bool> reauthenticateSettingsFileDialog(
   BuildContext context,
-  PinLockStore store,
-) async =>
-    await showCupertinoDialog<bool>(
-      context: context,
-      useRootNavigator: true,
-      builder: (_) => _FileDialogPinPrompt(store: store),
-    ) ??
-    false;
+  PinLockStore store, {
+  ValueChanged<Route<bool>>? onRoute,
+}) async {
+  final route = CupertinoDialogRoute<bool>(
+    context: context,
+    builder: (_) => _FileDialogPinPrompt(store: store),
+  );
+  onRoute?.call(route);
+  return await Navigator.of(context).push(route) ?? false;
+}
 
 class _FileDialogPinPrompt extends StatefulWidget {
   const _FileDialogPinPrompt({required this.store});
@@ -55,13 +58,21 @@ class _FileDialogPinPromptState extends State<_FileDialogPinPrompt>
   }
 
   Future<void> _submit() async {
-    if (_checking) return;
+    if (!mounted) return;
+    final interaction = AppInteractionScope.maybeRead(context);
+    if (_checking || interaction?.active == false) return;
+    final epoch = interaction?.epoch;
     final generation = _generation;
     final l10n = AppLocalizations.of(context);
     setState(() => _checking = true);
     try {
       final result = await widget.store.verify(_controller.text);
-      if (!mounted || generation != _generation) return;
+      if (!mounted ||
+          generation != _generation ||
+          interaction?.active == false ||
+          epoch != interaction?.epoch) {
+        return;
+      }
       _controller.clear();
       if (result.accepted) {
         Navigator.of(context).pop(true);

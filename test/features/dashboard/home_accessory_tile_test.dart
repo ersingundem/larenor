@@ -7,6 +7,7 @@ import 'package:larenor/features/dashboard/presentation/tiles/home_accessory_til
 import 'package:larenor/features/ha_client/data/models/ha_entity.dart';
 import 'package:larenor/features/ha_client/providers/ha_client_providers.dart';
 import 'package:larenor/l10n/generated/app_localizations.dart';
+import 'package:larenor/features/wellbeing/providers/wellbeing_providers.dart';
 
 HaEntity entity(
   String id, {
@@ -15,6 +16,9 @@ HaEntity entity(
 }) => HaEntity(entityId: id, state: state, attributes: attributes);
 
 Widget wrap(Widget child) => ProviderScope(
+  overrides: [
+    wellbeingPrivateEntityIdsProvider.overrideWithValue(const AsyncData({})),
+  ],
   child: CupertinoApp(
     localizationsDelegates: AppLocalizations.localizationsDelegates,
     supportedLocales: AppLocalizations.supportedLocales,
@@ -62,7 +66,12 @@ void main() {
         final notifier = ControlledEntities();
         await tester.pumpWidget(
           ProviderScope(
-            overrides: [entitiesProvider.overrideWith(() => notifier)],
+            overrides: [
+              entitiesProvider.overrideWith(() => notifier),
+              wellbeingPrivateEntityIdsProvider.overrideWithValue(
+                const AsyncData({}),
+              ),
+            ],
             child: CupertinoApp(
               localizationsDelegates: AppLocalizations.localizationsDelegates,
               supportedLocales: AppLocalizations.supportedLocales,

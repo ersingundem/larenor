@@ -749,6 +749,11 @@ class _MediaTitleDetailScreenState
     await Navigator.of(context).push(
       CupertinoPageRoute<void>(
         builder: (_) => ArrAddScreen(
+          sourceCurrent: () => sessionCurrent(generation),
+          integration: title.isTv ? IntegrationId.sonarr : IntegrationId.radarr,
+          connectionProvider: title.isTv
+              ? sonarrConnectionProvider
+              : radarrConnectionProvider,
           title: l10n.mediaActionAdd,
           searchHint: title.title,
           initialQuery: title.isTv && title.identity.tvdbId != null

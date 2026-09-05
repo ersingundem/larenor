@@ -29,6 +29,9 @@ This repository and its contents are proprietary — see [LICENSE](LICENSE).
 - Home, Media, Routines and System share stable routes, with a sidebar on wide
   windows and tabs on smaller screens. Room selection and scroll position survive
   switching tabs; everyday service screens are reachable outside Settings.
+- On a hardware keyboard, Ctrl+K opens and focuses search; Ctrl+1–4 switches the
+  four main pages while preserving the selected room. The entire sidebar scrolls
+  in short desktop windows. Shortcuts respect open dialogs and protected pages.
 - Local search finds rooms, accessories, scenes, cached media and configured
   services, plus Today, Intercom and Energy & maintenance. Turkish spelling is normalized. Opening or
   typing in search does not initialize service connections or scan remote libraries.
@@ -198,14 +201,67 @@ representation; physical devices are controlled through actions.
 ### Kiosk / wall-panel mode
 
 - Android `HOME` intent-filter so the app can be set as the tablet's default launcher.
-- Always runs fullscreen (status/navigation bars hidden), reapplied automatically on
-  every resume so it stays hidden after backgrounding, permission dialogs, etc.
+- Settings → Display & Brightness → Window & panel offers **Adaptive** (default)
+  and an explicit **Wall panel** preference. Native Android window observations
+  show the actual system-bar state, keyboard, external display and multi-window
+  restrictions; requesting panel mode is not proof that the bars disappeared.
+- Adaptive windows preserve system controls. Panel requests pause for an unfocused
+  window, desktop caption, external display, multi-window or keyboard. DeX and
+  Huawei compatibility still require testing on the actual device and OS build.
 - Keep-screen-on toggle (wakelock).
-- Scheduled day/night screen brightness dimming and screen-off/do-not-disturb hours.
-- Idle/ambient mode — after N minutes of no touch input, switch to a low-distraction
-  clock + weather screen (reduces burn-in on an always-on panel).
-- PIN lock on Settings, so leaving kiosk mode or changing the server connection
-  requires a PIN.
+- Scheduled application brightness; the night screen-off preference releases the
+  wake lock and lets Android sleep. It does not force-lock or power off the device.
+- Idle/ambient mode responds to touch, keyboard and pointer activity. The first
+  wake gesture is consumed; hidden controls cannot receive it. Pending private,
+  settings, door and media confirmations expire when the panel becomes idle.
+  Native background audio retains its session.
+- Settings PIN protects application configuration. The window page separately
+  reports observed screen pinning/managed lock-task state and DPC permission.
+  Larenor does not provision a device owner or claim an OS lock from its PIN.
+- See the [window implementation and device matrix](docs/window-panel-implementation-2026-09-05.md)
+  and the remaining [Fully Kiosk capability plan](docs/kiosk-capabilities-research-2026-09-05.md).
+
+### Personal health and scales
+
+- System → Personal health is a separate PIN-protected view. It loads records only
+  after explicit source selection and a read request. Backgrounding, idle, PIN or
+  HA account changes close the private session and discard pending results.
+- Android Health Connect reads selected weight, body-fat percentage and daily
+  aggregated steps. Permissions are read-only and requested separately; granting
+  permission never starts a read. Reads are bounded to 30 days and 500 records.
+- Link an existing HA measurement sensor to the correct person explicitly. A
+  generic weight sensor is never inferred to describe a person. HA update time,
+  measurement time and read time are shown separately; an unknown time stays unknown.
+- Bound HA sensors are excluded from shared cards, picker lists, summaries,
+  history and local search, including previously saved cards. Private labels and
+  person bindings live in secure local storage outside backups; readings stay in memory.
+  Version 2 vaults carry only the entity hiding rules, so restoring a dashboard
+  cannot expose a formerly private sensor. Existing rules are merged. Older
+  vaults require a PIN-protected privacy review before shared HA lists appear.
+  This is application-level privacy, not a replacement for HA account permissions.
+- The app now requires **Android 8 / API 26**. Health Connect itself requires a
+  compatible **Android 9+** device/provider. Huawei availability is checked at
+  runtime. Mi Fitness data requires an actual sync into a supported source;
+  Huawei Health developer approval and native Apple Health integration remain
+  external/pending paths, not connected accounts. See the [provider matrix](docs/wellbeing-implementation-2026-09-05.md).
+- Android verifies window capture protection before opening the private view.
+  Backgrounding revokes the read session while retaining capture protection until
+  a masked foreground frame is painted. Actual OEM/Recents behavior remains a
+  physical-device acceptance check.
+
+### Website panels
+
+- HA frontend and dashboard website cards share an origin policy, bounded loading
+  and retry, safe error messages, and account/foreground/idle guards. A configured
+  page can navigate within its origin; another website must be configured separately.
+- Web sign-in is separate from native connections. No HA token is injected into
+  page headers, cookies or JavaScript. Camera/microphone, HTTP-auth prompts,
+  certificate bypass and native JavaScript commands are not granted by a card.
+- Hidden panels retire their page and scripts. Android file/content access,
+  mixed content, geolocation, file picking and third-party cookies are restricted.
+  Navigation filtering is not a firewall for every subresource or POST, and the
+  plugin does not provide isolated cookie stores per panel. See the
+  [implemented WebPanel scope](docs/web-panel-implementation-2026-09-05.md).
 
 ### Media hub
 
@@ -537,13 +593,20 @@ list, so the app stays uncluttered no matter how many services exist:
 - CI pins external actions and Flutter, enforces the dependency lockfile, cancels
   superseded runs, limits job/test duration, preserves test logs/coverage, and
   tests Android backup policies and release-signing failure without private keys.
-- Android CI also runs native audio lifecycle, source-policy and MediaSession
-  regression tests and retains their reports. Flutter tests cover source/target
+- Android CI also runs native audio, window policy, Health Connect and private
+  capture regression tests and retains their reports. Flutter tests cover source/target
   changes, stale confirmations, reconnects, paging, hidden queues, foreground
   transitions and local-audio/video handoff without production credentials.
 
 See the [hardening review and next improvements](docs/performance-security-review-2026-09-05.md)
 for measured regression evidence, device-test limits and remaining transport work.
+
+The September 5 window/privacy/WebPanel delivery passed **1,913 Flutter tests,
+23 Python tests and 44 Android native tests**, full static analysis and the
+652-file Dart format check. The staged text changes passed secret scanning.
+See the [cross-feature and design review](docs/design-and-flow-review-2026-09-05.md)
+and the [implementation queue](docs/product-implementation-plan-2026-09-05.md)
+for remaining platform and physical-device acceptance work.
 
 ### Brand and design
 
@@ -573,6 +636,14 @@ Music and local audio, also rendered from real widgets with synthetic data:
 <img src="docs/previews/local-audio-phone.png" alt="Local audio and source selection on a phone" width="300" />
 <img src="docs/previews/music-library-tablet-dark.png" alt="Music library on a tablet in dark appearance" width="600" />
 <img src="docs/previews/playback-power-tablet-dark.png" alt="Playback and power settings on a tablet" width="600" />
+
+Window settings and the private health view use the same design system. All
+health values below are synthetic fixtures, rendered without reading a provider:
+
+<img src="docs/previews/window-panel-phone.png" alt="Adaptive and wall-panel window preferences" width="300" />
+<img src="docs/previews/wellbeing-phone.png" alt="Synthetic private health readings on a phone" width="300" />
+<img src="docs/previews/window-panel-desktop-dark.png" alt="Observed desktop window state" width="600" />
+<img src="docs/previews/wellbeing-tablet-dark.png" alt="Synthetic private health readings on a tablet" width="600" />
 
 ## Status
 

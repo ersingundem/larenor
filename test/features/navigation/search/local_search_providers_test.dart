@@ -1,3 +1,5 @@
+import 'package:larenor/features/wellbeing/providers/wellbeing_providers.dart';
+
 import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -65,6 +67,9 @@ void main() {
     final nextRows = Completer<List<MediaRowData>>();
     final container = ProviderContainer(
       overrides: [
+        wellbeingPrivateEntityIdsProvider.overrideWithValue(
+          const AsyncData({}),
+        ),
         entitiesProvider.overrideWith(() => _AccountEntities(nextEntities)),
         mediaLibraryIndexProvider.overrideWith((ref) async {
           if (ref.watch(_accountProvider) == 0) {
@@ -150,6 +155,9 @@ void main() {
     var coldReads = 0;
     final container = ProviderContainer(
       overrides: [
+        wellbeingPrivateEntityIdsProvider.overrideWithValue(
+          const AsyncData({}),
+        ),
         entitiesProvider.overrideWithBuild((ref, notifier) async {
           coldReads++;
           return {};
@@ -223,6 +231,9 @@ void main() {
       final entities = _Entities(initial);
       final container = ProviderContainer(
         overrides: [
+          wellbeingPrivateEntityIdsProvider.overrideWithValue(
+            const AsyncData({}),
+          ),
           entitiesProvider.overrideWith(() => entities),
           dashboardLayoutProvider.overrideWithBuild(
             (ref, notifier) async => const DashboardLayout(
@@ -283,6 +294,9 @@ void main() {
       var reads = 0;
       final container = ProviderContainer(
         overrides: [
+          wellbeingPrivateEntityIdsProvider.overrideWithValue(
+            const AsyncData({}),
+          ),
           mediaLibraryIndexProvider.overrideWith((ref) async {
             reads++;
             return MediaLibraryIndex.build(
@@ -324,6 +338,9 @@ void main() {
       var connectionReads = 0;
       final container = ProviderContainer(
         overrides: [
+          wellbeingPrivateEntityIdsProvider.overrideWithValue(
+            const AsyncData({}),
+          ),
           enabledServicesProvider.overrideWith(() => enabled),
           keeneticConnectionProvider.overrideWithBuild((ref, notifier) async {
             connectionReads++;

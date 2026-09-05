@@ -1,4 +1,14 @@
 import 'package:flutter/cupertino.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/misc.dart';
+
+import '../../../../../core/app_interaction_scope.dart';
+import '../../../../health/data/health_configuration.dart';
+import '../../../../health/data/integration_health.dart';
+import '../../../data/media_api_exception.dart';
+import '../../../hub/presentation/media_session_state.dart';
+import '../../data/arr_client.dart';
+import '../../data/arr_config.dart';
 
 import '../../../../../l10n/generated/app_localizations.dart';
 import '../../data/models/arr_lookup_result.dart';
@@ -8,7 +18,7 @@ import '../../data/models/arr_picker_options.dart';
 /// pick a result → pick quality profile + root folder (+ metadata profile
 /// for Lidarr/Readarr) → confirm. Parameterized entirely by callbacks so
 /// the same widget drives all four services.
-class ArrAddScreen extends StatefulWidget {
+class ArrAddScreen extends ConsumerStatefulWidget {
   const ArrAddScreen({
     super.key,
     required this.title,
@@ -19,8 +29,14 @@ class ArrAddScreen extends StatefulWidget {
     required this.onAdd,
     this.loadMetadataProfiles,
     this.initialQuery,
+    this.sourceCurrent,
+    this.connectionProvider,
+    this.integration = IntegrationId.radarr,
   });
 
+  final bool Function()? sourceCurrent;
+  final ProviderListenable<AsyncValue<ArrConfig?>>? connectionProvider;
+  final IntegrationId integration;
   final String title;
   final String searchHint;
   final String? initialQuery;
@@ -41,10 +57,46 @@ class ArrAddScreen extends StatefulWidget {
   onAdd;
 
   @override
-  State<ArrAddScreen> createState() => _ArrAddScreenState();
+  ConsumerState<ArrAddScreen> createState() => _ArrAddScreenState();
 }
 
-class _ArrAddScreenState extends State<ArrAddScreen> {
+class _ArrAddScreenState extends MediaSessionState<ArrAddScreen> {
+  int _queryGeneration = 0;
+  bool _submissionBlocked = false;
+  Route<bool>? _confirmation;
+  bool _visible = true;
+  bool get _sourceCurrent => widget.sourceCurrent?.call() ?? true;
+  bool _current(int epoch, {bool ownModal = false}) =>
+      sessionCurrent(epoch) &&
+      _sourceCurrent &&
+      _visible &&
+      (ModalRoute.of(context)?.isCurrent == true ||
+          (ownModal && _confirmation?.isCurrent == true));
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final visible =
+        TickerMode.valuesOf(context).enabled ||
+        _confirmation?.isCurrent == true;
+    if (_visible && !visible) {
+      sessionGeneration++;
+      clearPendingInteraction();
+    }
+    _visible = visible;
+  }
+
+  @override
+  void clearPendingInteraction() {
+    _queryGeneration++;
+    _results = null;
+    _searching = false;
+    _adding = false;
+    final route = _confirmation;
+    _confirmation = null;
+    if (route?.isActive == true) route!.navigator?.removeRoute(route);
+  }
+
   List<ArrLookupResult>? _results;
   bool _searching = false;
   bool _adding = false;
@@ -55,7 +107,9 @@ class _ArrAddScreenState extends State<ArrAddScreen> {
   void initState() {
     super.initState();
     _controller = TextEditingController(text: widget.initialQuery);
-    if (widget.initialQuery != null) _search(widget.initialQuery!);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && widget.initialQuery != null) _search(widget.initialQuery!);
+    });
   }
 
   @override
@@ -66,16 +120,25 @@ class _ArrAddScreenState extends State<ArrAddScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final provider = widget.connectionProvider;
+    if (provider != null) watchMediaAccount(widget.integration, provider);
+    final ready = _current(sessionGeneration);
     return CupertinoPageScaffold(
       navigationBar: CupertinoNavigationBar(middle: Text(widget.title)),
       child: SafeArea(
         child: Column(
           children: [
+            if (sessionExpired || !_sourceCurrent)
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: Text(AppLocalizations.of(context).mediaSelectionExpired),
+              ),
             Padding(
               padding: const EdgeInsets.all(12),
               child: CupertinoSearchTextField(
                 placeholder: widget.searchHint,
                 controller: _controller,
+                enabled: ready && !_adding && !_submissionBlocked,
                 onSubmitted: _search,
               ),
             ),
@@ -89,7 +152,7 @@ class _ArrAddScreenState extends State<ArrAddScreen> {
                 ),
               ),
             Expanded(
-              child: _results == null
+              child: !ready || _results == null
                   ? Center(
                       child: Text(AppLocalizations.of(context).arrSearchToAdd),
                     )
@@ -107,7 +170,10 @@ class _ArrAddScreenState extends State<ArrAddScreen> {
                                   AppLocalizations.of(context).arrAlreadyAdded,
                                 )
                               : const CupertinoListTileChevron(),
-                          onTap: result.alreadyAdded || _adding
+                          onTap:
+                              result.alreadyAdded ||
+                                  _adding ||
+                                  _submissionBlocked
                               ? null
                               : () => _openAddSheet(result),
                         );
@@ -121,40 +187,59 @@ class _ArrAddScreenState extends State<ArrAddScreen> {
   }
 
   Future<void> _search(String query) async {
+    final epoch = sessionGeneration;
+    if (!_current(epoch) || _adding || _submissionBlocked) return;
+    final sequence = ++_queryGeneration;
     if (query.trim().isEmpty) {
-      setState(() => _results = null);
+      setState(() {
+        _results = null;
+        _searching = false;
+      });
       return;
     }
     setState(() {
       _searching = true;
+      _results = null;
       _error = null;
     });
+    bool current() => _current(epoch) && sequence == _queryGeneration;
     try {
       final results = await widget.onLookup(query.trim());
-      if (mounted) setState(() => _results = results);
+      if (current()) setState(() => _results = results);
     } catch (_) {
-      if (mounted) {
+      if (current()) {
         setState(() {
-          _results = [];
+          _results = null;
           _error = AppLocalizations.of(context).mediaErrorUnreachable;
         });
       }
     } finally {
-      if (mounted) setState(() => _searching = false);
+      if (current()) setState(() => _searching = false);
     }
   }
 
   Future<void> _openAddSheet(ArrLookupResult result) async {
-    if (_adding) return;
+    final epoch = sessionGeneration;
+    if (_adding ||
+        _submissionBlocked ||
+        !_current(epoch) ||
+        _results?.contains(result) != true) {
+      return;
+    }
+    bool current({bool ownModal = false}) =>
+        _current(epoch, ownModal: ownModal);
+    var submitted = false;
     setState(() {
       _adding = true;
       _error = null;
     });
     try {
       final profiles = await widget.loadQualityProfiles();
+      if (!current()) return;
       final folders = await widget.loadRootFolders();
+      if (!current()) return;
       final metadataProfiles = await widget.loadMetadataProfiles?.call();
-      if (!mounted) return;
+      if (!mounted || !current()) return;
       if (profiles.isEmpty || folders.isEmpty) {
         setState(
           () => _error = AppLocalizations.of(context).arrMissingConfiguration,
@@ -173,8 +258,7 @@ class _ArrAddScreenState extends State<ArrAddScreen> {
       ArrRootFolder selectedFolder = folders.first;
       ArrMetadataProfile? selectedMetadataProfile = metadataProfiles?.first;
 
-      final confirmed = await showCupertinoModalPopup<bool>(
-        context: context,
+      final route = CupertinoModalPopupRoute<bool>(
         builder: (context) => StatefulBuilder(
           builder: (context, setSheetState) {
             final l10n = AppLocalizations.of(context);
@@ -191,8 +275,11 @@ class _ArrAddScreenState extends State<ArrAddScreen> {
               actions: [
                 for (final profile in profiles)
                   CupertinoActionSheetAction(
-                    onPressed: () =>
-                        setSheetState(() => selectedProfile = profile),
+                    onPressed: () {
+                      if (current(ownModal: true)) {
+                        setSheetState(() => selectedProfile = profile);
+                      }
+                    },
                     child: Text(
                       selectedProfile.id == profile.id
                           ? l10n.arrQualityOptionSelected(profile.name)
@@ -201,8 +288,11 @@ class _ArrAddScreenState extends State<ArrAddScreen> {
                   ),
                 for (final folder in folders)
                   CupertinoActionSheetAction(
-                    onPressed: () =>
-                        setSheetState(() => selectedFolder = folder),
+                    onPressed: () {
+                      if (current(ownModal: true)) {
+                        setSheetState(() => selectedFolder = folder);
+                      }
+                    },
                     child: Text(
                       selectedFolder.id == folder.id
                           ? l10n.arrFolderOptionSelected(folder.path)
@@ -212,9 +302,13 @@ class _ArrAddScreenState extends State<ArrAddScreen> {
                 if (metadataProfiles != null)
                   for (final profile in metadataProfiles)
                     CupertinoActionSheetAction(
-                      onPressed: () => setSheetState(
-                        () => selectedMetadataProfile = profile,
-                      ),
+                      onPressed: () {
+                        if (current(ownModal: true)) {
+                          setSheetState(
+                            () => selectedMetadataProfile = profile,
+                          );
+                        }
+                      },
                       child: Text(
                         selectedMetadataProfile?.id == profile.id
                             ? l10n.arrMetadataOptionSelected(profile.name)
@@ -223,35 +317,135 @@ class _ArrAddScreenState extends State<ArrAddScreen> {
                     ),
                 CupertinoActionSheetAction(
                   isDefaultAction: true,
-                  onPressed: () => Navigator.pop(context, true),
+                  onPressed: () {
+                    if (current(ownModal: true) &&
+                        ModalRoute.of(context)?.isCurrent == true) {
+                      Navigator.pop(context, true);
+                    }
+                  },
                   child: Text(l10n.commonAdd),
                 ),
               ],
               cancelButton: CupertinoActionSheetAction(
-                onPressed: () => Navigator.pop(context),
+                onPressed: () {
+                  if (context.mounted &&
+                      ModalRoute.of(context)?.isCurrent == true) {
+                    Navigator.pop(context);
+                  }
+                },
                 child: Text(l10n.commonCancel),
               ),
             );
           },
         ),
       );
-      if (confirmed == true) {
+      _confirmation = route;
+      final confirmed = await Navigator.of(context).push(route);
+      if (identical(_confirmation, route)) _confirmation = null;
+      if (confirmed == true && current()) {
+        submitted = true;
+        _submissionBlocked = true;
         await widget.onAdd(
           result,
           selectedProfile.id,
           selectedFolder.path,
           selectedMetadataProfile?.id,
         );
-        if (mounted) Navigator.of(context).pop(true);
+        if (mounted && current()) Navigator.of(context).pop(true);
       }
-    } catch (_) {
-      if (mounted) {
+    } catch (error) {
+      final rejected =
+          error is MediaApiException &&
+          error.statusCode != null &&
+          error.statusCode! >= 400 &&
+          error.statusCode! < 500;
+      if (submitted && rejected) _submissionBlocked = false;
+      if (mounted && current()) {
+        final l10n = AppLocalizations.of(context);
         setState(
-          () => _error = AppLocalizations.of(context).mediaErrorUnreachable,
+          () => _error = switch (error) {
+            MediaApiException(statusCode: 401) =>
+              l10n.healthAuthenticationRequired,
+            MediaApiException(statusCode: 403) => l10n.healthPermissionDenied,
+            _ =>
+              submitted && !rejected
+                  ? l10n.mediaWriteUnknown
+                  : l10n.mediaErrorUnreachable,
+          },
         );
       }
     } finally {
-      if (mounted) setState(() => _adding = false);
+      if (current()) setState(() => _adding = false);
     }
   }
+}
+
+/// Capture the account before navigation; a later confirmation never fetches
+/// a replacement client. The container anchor survives a covered parent row.
+Future<void> openArrAddScreen({
+  required BuildContext context,
+  required WidgetRef ref,
+  required IntegrationId integration,
+  required ProviderListenable<AsyncValue<ArrConfig?>> connectionProvider,
+  required ProviderListenable<ArrClient?> clientProvider,
+  required String title,
+  required String searchHint,
+  bool metadata = false,
+  VoidCallback? onAdded,
+}) async {
+  final interaction = AppInteractionScope.maybeRead(context);
+  final epoch = interaction?.epoch;
+  final lifecycle = WidgetsBinding.instance.lifecycleState;
+  if (!context.mounted ||
+      interaction?.active == false ||
+      !TickerMode.valuesOf(context).enabled ||
+      (lifecycle != null && lifecycle != AppLifecycleState.resumed) ||
+      ModalRoute.of(context)?.isCurrent != true) {
+    return;
+  }
+  final config = ref.read(connectionProvider);
+  if (config.isLoading || config.hasError || config.value == null) return;
+  final client = ref.read(clientProvider);
+  if (client == null) return;
+  final captured = config.value;
+  final container = ProviderScope.containerOf(context, listen: false);
+  bool current() {
+    try {
+      final next = container.read(connectionProvider);
+      return interaction?.active != false &&
+          interaction?.epoch == epoch &&
+          !next.isLoading &&
+          !next.hasError &&
+          sameHealthConfiguration(captured, next.value) &&
+          identical(client, container.read(clientProvider));
+    } catch (_) {
+      return false;
+    }
+  }
+
+  final added = await Navigator.of(context).push<bool>(
+    CupertinoPageRoute(
+      builder: (_) => ArrAddScreen(
+        title: title,
+        searchHint: searchHint,
+        integration: integration,
+        connectionProvider: connectionProvider,
+        sourceCurrent: current,
+        onLookup: client.lookup,
+        loadQualityProfiles: client.getQualityProfiles,
+        loadRootFolders: client.getRootFolders,
+        loadMetadataProfiles: metadata ? client.getMetadataProfiles : null,
+        onAdd: (result, profile, folder, metadataProfile) async {
+          if (!current()) throw StateError('Selection expired');
+          await client.add(
+            result: result,
+            qualityProfileId: profile,
+            rootFolderPath: folder,
+            metadataProfileId: metadataProfile,
+          );
+        },
+      ),
+    ),
+  );
+  if (added == true && ref.context.mounted && current()) onAdded?.call();
 }

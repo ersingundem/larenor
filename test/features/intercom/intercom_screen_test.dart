@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:larenor/core/app_interaction_scope.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:larenor/features/auth/data/ha_connection_config.dart';
@@ -60,7 +61,10 @@ void main() {
     bool fresh = true,
     bool setup = false,
     bool narrow = false,
+    AppInteractionController? interaction,
   }) async {
+    final scope = interaction ?? AppInteractionController();
+    if (interaction == null) addTearDown(scope.dispose);
     SharedPreferences.setMockInitialValues({});
     final requests = <http.Request>[];
     final rest = HaRestClient(
@@ -114,7 +118,7 @@ void main() {
           builder: (context, child) => MediaQuery(
             data: MediaQuery.of(context)
                 .copyWith(textScaler: TextScaler.linear(narrow ? 2 : 1)),
-            child: child!,
+            child: AppInteractionScope(controller: scope, child: child!),
           ),
           home: setup ? const IntercomSettingsScreen() : const IntercomScreen(),
         ),
@@ -156,12 +160,17 @@ void main() {
     },
   );
 
-  testWidgets('backgrounding invalidates a still-visible door confirmation', (
+  testWidgets('backgrounding closes the owned door confirmation', (
     tester,
   ) async {
     final requests = await mount(tester);
     await tester.tap(find.text('Kapıyı aç'));
     await tester.pumpAndSettle();
+    final old = tester
+        .widget<CupertinoDialogAction>(
+          find.widgetWithText(CupertinoDialogAction, 'Kapıyı aç'),
+        )
+        .onPressed!;
     for (final state in [
       AppLifecycleState.inactive,
       AppLifecycleState.hidden,
@@ -173,17 +182,38 @@ void main() {
       tester.binding.handleAppLifecycleStateChanged(state);
     }
     await tester.pump();
-    await tester.tap(find.widgetWithText(CupertinoDialogAction, 'Kapıyı aç'));
+    old();
     await tester.pumpAndSettle();
     expect(requests, isEmpty);
-    expect(
-      find.text(
-        'Diafon hazır değil. Güncel görüşmeyi, bağlantıyı ve kurulumu kontrol et.',
-      ),
-      findsOneWidget,
-    );
+    expect(find.byType(CupertinoAlertDialog), findsNothing);
     await tester.pumpWidget(const SizedBox());
   });
+
+  testWidgets(
+    'idle cancels door confirmation before its TTL and wake never revives it',
+    (tester) async {
+      final scope = AppInteractionController();
+      addTearDown(scope.dispose);
+      final requests = await mount(tester, interaction: scope);
+      await tester.tap(find.text('Kapıyı aç'));
+      await tester.pumpAndSettle();
+      final old = tester
+          .widget<CupertinoDialogAction>(
+            find.widgetWithText(CupertinoDialogAction, 'Kapıyı aç'),
+          )
+          .onPressed!;
+      scope.setActive(false);
+      await tester.pump();
+      scope.setActive(true);
+      await tester.pumpAndSettle();
+      old();
+      await tester.pumpAndSettle();
+      expect(find.byType(CupertinoAlertDialog), findsNothing);
+      expect(requests, isEmpty);
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox());
+    },
+  );
 
   testWidgets('stale state cannot release and unknown chime is not idle', (
     tester,

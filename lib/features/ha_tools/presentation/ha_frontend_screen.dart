@@ -1,71 +1,48 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:webview_flutter/webview_flutter.dart';
 
 import '../../../l10n/generated/app_localizations.dart';
+import '../../../shared/widgets/app_page_scaffold.dart';
 import '../../auth/providers/auth_providers.dart';
+import '../../web_panel/domain/web_panel_policy.dart';
+import '../../web_panel/presentation/web_panel_view.dart';
+import 'ha_session_guard.dart';
 
-/// The official frontend supplies server-specific panels and features for
-/// which Larenor has no native screen yet. It owns its own login session: the
-/// long-lived API credential is never injected into browser scripts/storage.
+/// The official frontend owns a separate website login. Larenor's long-lived
+/// API credential never enters its headers, JavaScript, cookies or URL.
 class HaFrontendScreen extends ConsumerStatefulWidget {
   const HaFrontendScreen({super.key});
   @override
   ConsumerState<HaFrontendScreen> createState() => _HaFrontendScreenState();
 }
 
-class _HaFrontendScreenState extends ConsumerState<HaFrontendScreen> {
-  WebViewController? _controller;
-  String? _error;
-  int _progress = 0;
+class _HaFrontendScreenState extends HaSessionState<HaFrontendScreen> {
+  final _panel = GlobalKey<WebPanelViewState>();
   @override
-  void initState() {
-    super.initState();
-    final config = ref.read(connectionConfigProvider).value;
-    if (config == null) return;
-    _controller = WebViewController()
-      ..setJavaScriptMode(JavaScriptMode.unrestricted)
-      ..setNavigationDelegate(
-        NavigationDelegate(
-          onProgress: (value) {
-            if (mounted) setState(() => _progress = value);
-          },
-          onPageStarted: (_) {
-            if (mounted) setState(() => _error = null);
-          },
-          onNavigationRequest: (request) {
-            final uri = Uri.tryParse(request.url);
-            return uri != null &&
-                    {'http', 'https', 'about'}.contains(uri.scheme)
-                ? NavigationDecision.navigate
-                : NavigationDecision.prevent;
-          },
-          onWebResourceError: (error) {
-            if (mounted && error.isForMainFrame == true) {
-              setState(() => _error = error.description);
-            }
-          },
-        ),
-      )
-      ..loadRequest(Uri.parse(config.baseUrl));
+  void clearPendingInteraction() => _panel.currentState?.suspend();
+
+  Future<void> _back() async {
+    final route = ModalRoute.of(context);
+    final consumed = await (_panel.currentState?.back() ?? Future.value(false));
+    if (!mounted || consumed || route?.isCurrent != true) return;
+    Navigator.of(context).pop();
   }
 
   @override
   Widget build(BuildContext context) {
+    watchHaSession();
     final l10n = AppLocalizations.of(context);
-    final controller = _controller;
-    return CupertinoPageScaffold(
+    final current = ref.watch(connectionConfigProvider);
+    final config = !current.isLoading && !current.hasError
+        ? current.value
+        : null;
+    final lease = captureHaSession();
+    return AppPageScaffold(
       navigationBar: CupertinoNavigationBar(
         middle: Text(l10n.haFrontend),
         leading: CupertinoButton(
           padding: EdgeInsets.zero,
-          onPressed: () async {
-            if (controller != null && await controller.canGoBack()) {
-              await controller.goBack();
-            } else if (context.mounted) {
-              Navigator.of(context).pop();
-            }
-          },
+          onPressed: _back,
           child: Semantics(
             label: l10n.commonBack,
             child: const Icon(CupertinoIcons.back),
@@ -73,26 +50,40 @@ class _HaFrontendScreenState extends ConsumerState<HaFrontendScreen> {
         ),
         trailing: CupertinoButton(
           padding: EdgeInsets.zero,
-          onPressed: controller?.reload,
-          child: const Icon(CupertinoIcons.refresh),
+          onPressed: lease == null
+              ? null
+              : () {
+                  if (isHaSessionCurrent(lease)) _panel.currentState?.restart();
+                },
+          child: Semantics(
+            label: l10n.commonRetry,
+            child: const Icon(CupertinoIcons.refresh),
+          ),
         ),
       ),
       child: SafeArea(
-        child: controller == null
-            ? Center(child: Text(l10n.haDisconnected))
+        child: lease == null || config == null
+            ? Center(
+                child: Text(
+                  sessionExpired
+                      ? l10n.mediaSelectionExpired
+                      : l10n.haDisconnected,
+                ),
+              )
             : Column(
                 children: [
-                  if (_progress < 100)
-                    const Padding(
-                      padding: EdgeInsets.all(8),
-                      child: CupertinoActivityIndicator(),
+                  Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: Text(l10n.webPanelSeparateSession),
+                  ),
+                  Expanded(
+                    child: WebPanelView(
+                      key: _panel,
+                      policy: WebPanelPolicy.fromUrl(config.baseUrl),
+                      sourceIdentity: sessionGeneration,
+                      sourceCurrent: () => isHaSessionCurrent(lease),
                     ),
-                  if (_error != null)
-                    Padding(
-                      padding: const EdgeInsets.all(16),
-                      child: Text(_error!),
-                    ),
-                  Expanded(child: WebViewWidget(controller: controller)),
+                  ),
                 ],
               ),
       ),

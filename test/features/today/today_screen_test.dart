@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:larenor/core/app_interaction_scope.dart';
 import 'package:go_router/go_router.dart';
 import 'package:larenor/features/auth/data/ha_connection_config.dart';
 import 'package:larenor/features/auth/providers/auth_providers.dart';
@@ -137,6 +138,7 @@ TodaySnapshot _snapshot({
 class _Harness {
   _Harness(this.current);
   TodaySnapshot current;
+  final interaction = AppInteractionController();
   final actions = _Actions();
   final controller = _Controller();
   final connection = _Connection();
@@ -189,6 +191,7 @@ class _Harness {
       ],
     );
     addTearDown(() async {
+      interaction.dispose();
       router.dispose();
       container.dispose();
       await changes.close();
@@ -204,7 +207,7 @@ class _Harness {
           builder: (context, child) => MediaQuery(
             data: MediaQuery.of(context)
                 .copyWith(textScaler: TextScaler.linear(scale)),
-            child: child!,
+            child: AppInteractionScope(controller: interaction, child: child!),
           ),
         ),
       ),
@@ -252,6 +255,63 @@ Future<void> _resume(WidgetTester tester) async {
 }
 
 void main() {
+  testWidgets('idle erases a draft and old Save cannot run after waking', (
+    tester,
+  ) async {
+    final h = _Harness(_snapshot(list: _list(features: 1 | 4)));
+    await h.mount(tester);
+    await _tap(tester, 'today-add-todo.shopping');
+    await tester.enterText(
+      find.byKey(const ValueKey('today-task-title')),
+      'Private idle draft',
+    );
+    final save = tester
+        .widget<CupertinoButton>(find.byKey(const ValueKey('today-save-task')))
+        .onPressed!;
+    h.interaction.setActive(false);
+    await tester.pump();
+    h.interaction.setActive(true);
+    await tester.pump();
+    save();
+    await tester.pumpAndSettle();
+    expect(find.text('Private idle draft'), findsNothing);
+    expect(find.byKey(const ValueKey('today-save-task')), findsNothing);
+    expect(h.actions.calls, isEmpty);
+  });
+
+  testWidgets('idle expires notification dismiss confirmation permanently', (
+    tester,
+  ) async {
+    final h = _Harness(
+      _snapshot(
+        notifications: TodayRead(
+          value: [
+            TodayNotification(
+              id: 'notice-idle',
+              message: 'Private notice',
+              createdAt: _now,
+            ),
+          ],
+        ),
+      ),
+    );
+    await h.mount(tester);
+    await _tap(tester, 'today-notification-notice-idle');
+    await _tap(tester, 'today-dismiss');
+    final confirm = tester
+        .widget<CupertinoButton>(
+          find.byKey(const ValueKey('today-confirm-dismiss')),
+        )
+        .onPressed!;
+    h.interaction.setActive(false);
+    await tester.pump();
+    h.interaction.setActive(true);
+    await tester.pump();
+    confirm();
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('today-confirm-dismiss')), findsNothing);
+    expect(h.actions.calls, isEmpty);
+  });
   testWidgets('unread, failed, empty and retained stale reads stay distinct', (
     tester,
   ) async {

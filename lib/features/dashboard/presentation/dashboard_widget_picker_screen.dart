@@ -12,6 +12,7 @@ import '../../auth/providers/auth_providers.dart';
 import '../../ha_client/data/models/ha_entity.dart';
 import '../../ha_client/providers/ha_client_providers.dart';
 import '../../health/data/health_configuration.dart';
+import '../../wellbeing/providers/wellbeing_privacy_providers.dart';
 import '../../keenetic/presentation/keenetic_widget_picker_screen.dart';
 import '../../keenetic/providers/keenetic_providers.dart';
 import '../domain/tile_config.dart';
@@ -147,8 +148,7 @@ class _DashboardWidgetPickerScreenState
     final generation = interactionGeneration;
     setState(() => _openingKeenetic = true);
     try {
-      final tile = await Navigator.push<TileConfig>(
-        context,
+      final tile = await pushDashboardPage<TileConfig>(
         CupertinoPageRoute(builder: (_) => const KeeneticWidgetPickerScreen()),
       );
       if (tile != null && interactionCurrent(generation)) _complete(tile);
@@ -160,7 +160,7 @@ class _DashboardWidgetPickerScreenState
   void _selectEntity(HaEntity selected, int generation) {
     if (!interactionCurrent(generation) || !_current || _type == null) return;
     final config = ref.read(connectionConfigProvider);
-    final states = ref.read(entitiesProvider);
+    final states = ref.read(publicHaEntitiesProvider);
     final registry = ref.read(dashboardWidgetRegistryProvider);
     if (config.isLoading ||
         config.hasError ||
@@ -311,7 +311,7 @@ class _DashboardWidgetPickerScreenState
         SliverToBoxAdapter(child: _message(l10n.entityPickerNotConnected)),
       );
     } else {
-      final states = ref.watch(entitiesProvider);
+      final states = ref.watch(publicHaEntitiesProvider);
       final registry = ref.watch(dashboardWidgetRegistryProvider);
       slivers.add(
         SliverToBoxAdapter(

@@ -2,6 +2,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
+import '../../../core/app_interaction_scope.dart';
 import '../../../l10n/generated/app_localizations.dart';
 import '../../../shared/theme/typography.dart';
 import '../../../shared/widgets/action_status_indicator.dart';
@@ -18,6 +19,36 @@ abstract class TodayConsumerState<T extends ConsumerStatefulWidget>
   int generation = 0;
   bool foreground = true;
   TodaySnapshot? _blockedSnapshot;
+  AppInteractionController? _interaction;
+  int _interactionEpoch = 0;
+  bool get interactionActive => _interaction?.active ?? true;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final next = AppInteractionScope.maybeOf(context);
+    if (identical(next, _interaction)) return;
+    final hadScope = _interaction != null;
+    _interaction?.removeListener(_interactionChanged);
+    _interaction = next;
+    _interactionEpoch = next?.epoch ?? 0;
+    next?.addListener(_interactionChanged);
+    if (hadScope || !interactionActive) {
+      generation++;
+      clearSession();
+    }
+  }
+
+  void _interactionChanged() {
+    if (!mounted) return;
+    final epoch = _interaction?.epoch ?? 0;
+    if (epoch != _interactionEpoch) {
+      _interactionEpoch = epoch;
+      generation++;
+      clearSession();
+    }
+    setState(() {});
+  }
 
   @override
   void initState() {
@@ -47,14 +78,18 @@ abstract class TodayConsumerState<T extends ConsumerStatefulWidget>
     final connection = ref.watch(connectionConfigProvider);
     ref.listen(connectionConfigProvider, (previous, next) {
       if (previous == null || previous == next) return;
-      _blockedSnapshot = ref.read(todayProvider).value;
+      _blockedSnapshot = ref.exists(todayProvider)
+          ? ref.read(todayProvider).value
+          : null;
       setState(() {
         generation++;
         clearSession();
       });
     });
+    if (!interactionActive) return null;
     final state = ref.watch(todayProvider);
     if (!foreground ||
+        !interactionActive ||
         connection.isLoading ||
         connection.hasError ||
         state.isLoading ||
@@ -66,6 +101,7 @@ abstract class TodayConsumerState<T extends ConsumerStatefulWidget>
   }
 
   TodaySnapshot? readSnapshot() {
+    if (!interactionActive) return null;
     final connection = ref.read(connectionConfigProvider);
     final state = ref.read(todayProvider);
     if (!foreground ||
@@ -86,11 +122,13 @@ abstract class TodayConsumerState<T extends ConsumerStatefulWidget>
     };
   }
 
-  bool isCurrent(int epoch) => mounted && foreground && generation == epoch;
+  bool isCurrent(int epoch) =>
+      mounted && foreground && interactionActive && generation == epoch;
 
   @override
   void dispose() {
     generation++;
+    _interaction?.removeListener(_interactionChanged);
     _lifecycle.dispose();
     super.dispose();
   }
