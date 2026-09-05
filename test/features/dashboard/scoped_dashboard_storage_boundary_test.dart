@@ -21,10 +21,12 @@ const layout = DashboardLayout(
 class StoragePlatform extends InMemorySharedPreferencesStore {
   StoragePlatform() : super.withData({'flutter.unrelated': 'kept'});
   bool commitFirst = false, throwWrite = false, failRead = false;
+  bool formatRead = false, formatWrite = false;
   int writes = 0;
   @override
   Future<bool> setValue(String valueType, String key, Object value) async {
     writes++;
+    if (formatWrite) throw const FormatException('synthetic private platform payload');
     if (commitFirst) await super.setValue(valueType, key, value);
     if (throwWrite) throw StateError('private details');
     return false;
@@ -32,6 +34,7 @@ class StoragePlatform extends InMemorySharedPreferencesStore {
 
   @override
   Future<Map<String, Object>> getAll() async {
+    if (formatRead) throw const FormatException('synthetic private platform payload');
     if (failRead) throw StateError('private details');
     return super.getAll();
   }
@@ -140,6 +143,24 @@ void main() {
           },
         );
       }
+    }
+  }
+
+  for (final core in [false, true]) {
+    for (final write in [false, true]) {
+      test('platform FormatException is static for ${core ? "Core" : "Direct"} ${write ? "write" : "read"}', () async {
+        SharedPreferences.resetStatic();
+        final platform = StoragePlatform();
+        SharedPreferencesStorePlatform.instance = platform;
+        await SharedPreferences.getInstance();
+        platform.formatWrite = write; platform.formatRead = !write;
+        final repo = core ? DashboardRepository.core(scope: scope, isCurrent: () => true) : DashboardRepository();
+        final matcher = core
+          ? isA<DashboardStorageException>().having((e) => e.code, 'code', write ? 'write_failed' : 'read_failed')
+          : isA<FormatException>();
+        await expectLater(write ? repo.save(layout) : repo.load(), throwsA(allOf(matcher,
+          predicate<Object>((e) => !e.toString().contains('synthetic private platform payload'), 'static error message'))));
+      });
     }
   }
 }
