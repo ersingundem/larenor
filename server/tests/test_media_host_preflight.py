@@ -186,3 +186,24 @@ def test_extended_caller_deadline_does_not_extend_worker_inspection_budget(roots
     monkeypatch.setattr(host, '_storage', lambda plans, deadline: received.append(deadline) or [])
     host.inspect_stack(stack(), deadline=1000.0)
     assert received == [105.0]
+
+
+def test_legacy_docker_policy_shares_incoming_deadline_and_storage_observation(roots, monkeypatch):
+    from larenor_server.plugins.docker_probe import DockerEndpoint, DockerObservation
+    calls = []
+    monkeypatch.setattr('larenor_server.plugins.host_preflight.time.monotonic', lambda: 100.0)
+    class Probe:
+        def __init__(self, endpoint):
+            assert endpoint.daemon_executable is None
+        def inspect(self, platform):
+            raise AssertionError('unbudgeted inspection')
+        def observe(self, platform, *, during, deadline):
+            calls.append((platform, deadline, during()))
+            return DockerObservation('passed', None, calls[-1][2])
+    monkeypatch.setattr('larenor_server.plugins.host_preflight.DockerProbe', Probe)
+    host = HostInspector(HostPolicy(roots, docker=DockerEndpoint('/run/docker.sock')),
+        platform_provider=lambda: 'linux/amd64', statvfs_provider=lambda _: volume(65536))
+    result = host.inspect_stack(stack(), deadline=100.05)
+    assert len(calls) == 1 and calls[0][:2] == ('linux/amd64', 100.05)
+    assert checks(result, 'docker_engine')[0].status == 'passed'
+    assert checks(result, 'daemon_mount_context')[0].status == 'unknown'
