@@ -8,7 +8,7 @@ import 'package:larenor/core/home_source_store.dart';
 import 'package:larenor/features/server/presentation/server_connection_screen.dart';
 import 'package:larenor/l10n/generated/app_localizations.dart';
 
-import '../../core/home_scope_fixture.dart' show flush, press;
+import '../../core/home_scope_fixture.dart' show flush, press, ScopeHarness;
 import 'home_resources_fixture.dart';
 
 Finder key(String value) => find.byKey(ValueKey(value));
@@ -255,4 +255,13 @@ void main() {
       expect(find.byType(Text).evaluate().length, lessThan(100));
     },
   );
+  testWidgets('Server login alone preserves the actual direct HA app route', (tester) async {
+    final h = ScopeHarness(HomeSource.directLocal); await h.mount(tester);
+    final router = h.router(tester), reads = h.connectionReads;
+    await h.signIn(); await flush(tester);
+    expect(h.router(tester), same(router)); expect(h.connectionReads, reads);
+    expect(key('home-resources-list'), findsNothing);
+    expect(h.home(tester).usesLocalHome, isTrue);
+  });
+
 }

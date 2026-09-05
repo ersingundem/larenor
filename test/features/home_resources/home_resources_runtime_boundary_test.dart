@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:ui' show ViewFocusEvent, ViewFocusState, ViewFocusDirection;
 
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -121,8 +122,6 @@ void main() {
             await h.account.signOut();
             h.contextResponse = h.fixture['otherContextList']['scope'];
             h.response = contract()['otherContextList'];
-            ((h.response as Map)['entries'] as List).first['label'] =
-                'Other home room';
             await h.signIn();
         }
         await flush(tester);
@@ -131,6 +130,7 @@ void main() {
         delayed.complete(h.json(h.fixture['memberList']));
         await flush(tester);
         expect(find.text('Salon'), findsNothing);
+        if (cause == 'home') expect(find.text('İkinci ev · Salon'), findsOneWidget);
         expect(h.resourceReads, requestsAfterLoss);
         expect(h.closed, greaterThanOrEqualTo(2));
         expect(h.haReads, 0);
@@ -202,4 +202,26 @@ void main() {
       expect(h.haReads, 0);
     },
   );
+  testWidgets('native focus is view-specific and old callbacks stay retired after focus returns', (tester) async {
+    final h = ResourceHarness(); await h.mount(tester); await h.signIn(); await flush(tester);
+    final callback = refreshCallback(tester);
+    void focus(int id, ViewFocusState state) => tester.binding.handleViewFocusChanged(ViewFocusEvent(viewId:id,state:state,direction:ViewFocusDirection.undefined));
+    focus(tester.view.viewId + 1, ViewFocusState.unfocused); await flush(tester);
+    expect(find.text('Salon'), findsOneWidget);
+    focus(tester.view.viewId, ViewFocusState.unfocused); await flush(tester);
+    expect(find.text('Salon'), findsNothing); callback(); expect(h.resourceReads, 1);
+    focus(tester.view.viewId, ViewFocusState.focused); await flush(tester);
+    expect(find.text('Salon'), findsOneWidget); callback(); await flush(tester); expect(h.resourceReads, 2);
+  });
+  testWidgets('unknown and picture-in-picture clear reads, focused external display and unsupported host remain usable', (tester) async {
+    final h = ResourceHarness(); await h.mount(tester); await h.signIn(); await flush(tester);
+    for (final snapshot in [WindowPolicySnapshot.unknown, const WindowPolicySnapshot(supported:true,isResumed:true,hasWindowFocus:true,isPictureInPicture:true)]) {
+      h.window.add(snapshot); await flush(tester); expect(find.text('Salon'), findsNothing);
+      h.window.add(const WindowPolicySnapshot(supported:true,isResumed:true,hasWindowFocus:true,isExternalDisplay:true,reason:WindowRestrictionReason.externalDisplay)); await flush(tester);
+      expect(find.text('Salon'), findsOneWidget);
+    }
+    h.window.add(const WindowPolicySnapshot(supported:false)); await flush(tester);
+    await press(tester, 'home-resources-refresh'); expect(find.text('Salon'), findsOneWidget); expect(h.haReads, 0);
+  });
+
 }

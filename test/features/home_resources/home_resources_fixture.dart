@@ -40,6 +40,7 @@ Map<String, dynamic> contract() =>
 
 class ResourceHarness {
   final fixture = contract();
+  final boundary = GlobalKey();
   final source = SourceMemory(HomeSource.verifiedCore);
   final store = Store();
   final power = ScopePower();
@@ -145,7 +146,7 @@ class ResourceHarness {
     addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
     window.stream.listen((value) => currentWindow = value);
     await tester.pumpWidget(
-      ConfigurationScope(
+      RepaintBoundary(key: boundary, child: ConfigurationScope(
         child: ProviderScope(
           overrides: [
             homeSourceStoreProvider.overrideWithValue(source),
@@ -184,7 +185,7 @@ class ResourceHarness {
           ),
         ),
       ),
-    );
+    ));
     window.add(
       const WindowPolicySnapshot(
         supported: true,
