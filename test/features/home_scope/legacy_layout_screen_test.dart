@@ -504,8 +504,9 @@ void main() {
         preferences: {'dashboard_layout': jsonEncode(localLayout.toJson())},
       );
       if (phase == 'first-password') h.api.requireChange = true;
-      if (phase == 'context404')
+      if (phase == 'context404') {
         h.api.contextFailure = 'context_endpoint_unavailable';
+      }
       if (phase != 'signed-out') {
         await h.signIn();
         await flush(tester);

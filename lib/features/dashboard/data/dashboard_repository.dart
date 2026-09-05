@@ -71,7 +71,10 @@ class DashboardRepository {
     } on DashboardStorageException {
       rethrow;
     } on FormatException {
-      rethrow;
+      if (scope == null) {
+        throw const FormatException('Invalid dashboard layout');
+      }
+      throw const DashboardStorageException('read_failed');
     } catch (_) {
       throw const DashboardStorageException('read_failed');
     }
@@ -187,9 +190,12 @@ class DashboardRepository {
       } on DashboardStorageException {
         rethrow;
       } on FormatException {
-        rethrow;
+        if (scope == null) throw const FormatException('Dashboard save failed');
+        throw const DashboardStorageException('write_failed');
       } on StateError {
-        if (scope == null && _current == null) rethrow;
+        if (scope == null && _current == null) {
+          throw StateError('Dashboard save failed');
+        }
         throw const DashboardStorageException('write_failed');
       } catch (_) {
         throw const DashboardStorageException('write_failed');
