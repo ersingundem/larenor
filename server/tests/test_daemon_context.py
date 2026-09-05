@@ -345,3 +345,47 @@ def test_actual_linux_socket_peer_context_without_a_docker_service(monkeypatch):
     finally:
         left.close()
         right.close()
+
+
+def _identity_tree(proc_tree, monkeypatch):
+    from larenor_server.plugins import linux_identity_observation
+    for name in ('peer_path', 'worker_path', 'leader_path'):
+        path = proc_tree[name]
+        with (path / 'status').open('a') as file:
+            file.write(f'Gid:\t{os.getgid()}\t{os.getgid()}\t{os.getgid()}\t{os.getgid()}\n')
+        (path / 'uid_map').write_text('0 0 4294967295\n')
+        (path / 'gid_map').write_text('0 0 4294967295\n')
+        (path / 'ns/user').symlink_to(proc_tree['mnt'])
+    monkeypatch.setattr(linux_identity_observation, '_PROC_ROOT', proc_tree['proc'])
+    return linux_identity_observation
+
+
+def test_optional_identity_capture_binds_held_peer_and_worker_without_changing_public_context(proc_tree, monkeypatch):
+    identity = _identity_tree(proc_tree, monkeypatch)
+    lease = capture(proc_tree)
+    assert lease is not None
+    try:
+        with lease.capture_identities(time.monotonic() + 2) as pair:
+            assert pair.peer.pid == proc_tree['peer'] and pair.worker.pid == proc_tree['worker']
+            assert pair.peer.uids == (os.getuid(),) * 4 and pair.peer.gids == (os.getgid(),) * 4
+            assert pair.peer.uid_map == identity.parse_id_map(b'0 0 4294967295\n')
+            assert pair.check(time.monotonic() + 2) is None
+            assert lease.context == module.DaemonContext(True, True, True)
+            assert str(proc_tree['peer']) not in repr(pair)
+    finally:
+        lease.close()
+
+
+def test_optional_identity_failure_leaves_old_readonly_context_contract_unchanged(proc_tree, monkeypatch):
+    identity = _identity_tree(proc_tree, monkeypatch)
+    lease = capture(proc_tree)
+    assert lease is not None
+    try:
+        with lease.capture_identities(time.monotonic() + 2) as pair:
+            path = proc_tree['peer_path'] / 'gid_map'
+            path.write_text('0 100000 65536\n')
+            with pytest.raises(identity.IdentityObservationError, match='^identity_observation_unavailable$'):
+                pair.check(time.monotonic() + 2)
+            assert lease.revalidate(time.monotonic() + 2)
+    finally:
+        lease.close()
