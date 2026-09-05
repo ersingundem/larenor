@@ -1,39 +1,53 @@
-import 'package:larenor/core/configuration_writes.dart';
+import 'package:larenor/core/direct_credential_record.dart';
+import 'package:larenor/core/direct_home_access.dart';
 
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 import 'arr_config.dart';
 
-/// Shared credentials store for Sonarr and Radarr — same auth shape
-/// (URL + API key) for both, keyed by a [servicePrefix] so one class
-/// covers both instead of two near-duplicate stores.
+/// Shared URL/API-key record for Sonarr, Radarr, Lidarr and Readarr.
+/// Only these four closed [servicePrefix] values select local storage keys.
 class ArrCredentialsStore {
   ArrCredentialsStore({
     required this.servicePrefix,
     FlutterSecureStorage? storage,
-  }) : _storage = storage ?? const FlutterSecureStorage();
+    DirectHomeAccess? access,
+  }) : _access = access,
+       _record = DirectCredentialRecord(
+         service: _service(servicePrefix),
+         storage: storage,
+         access: access,
+       );
 
   final String servicePrefix;
-  final FlutterSecureStorage _storage;
-
-  String get _baseUrlKey => '${servicePrefix}_base_url';
-  String get _apiKeyKey => '${servicePrefix}_api_key';
+  final DirectCredentialRecord _record;
+  final DirectHomeAccess? _access;
+  static DirectCredentialService _service(String prefix) => switch (prefix) {
+    'sonarr' => DirectCredentialService.sonarr,
+    'radarr' => DirectCredentialService.radarr,
+    'lidarr' => DirectCredentialService.lidarr,
+    'readarr' => DirectCredentialService.readarr,
+    _ => throw ArgumentError('unsupported_service'),
+  };
 
   Future<ArrConfig?> read() async {
-    final baseUrl = await _storage.read(key: _baseUrlKey);
-    final apiKey = await _storage.read(key: _apiKeyKey);
+    final fields = await _record.readFields();
+    _access?.check();
+    final baseUrl = fields['baseUrl'];
+    final apiKey = fields['apiKey'];
     if (baseUrl == null || apiKey == null) return null;
     return ArrConfig(baseUrl: baseUrl, apiKey: apiKey);
   }
 
-  Future<void> save({required String baseUrl, required String apiKey}) =>
-      ConfigurationWrites.run(() async {
-        await _storage.write(key: _baseUrlKey, value: baseUrl);
-        await _storage.write(key: _apiKeyKey, value: apiKey);
-      });
+  Future<void> save({
+    required String baseUrl,
+    required String apiKey,
+    bool Function()? isCurrent,
+  }) => _record.replaceAll({
+    'baseUrl': baseUrl,
+    'apiKey': apiKey,
+  }, isCurrent: isCurrent);
 
-  Future<void> clear() => ConfigurationWrites.run(() async {
-    await _storage.delete(key: _baseUrlKey);
-    await _storage.delete(key: _apiKeyKey);
-  });
+  Future<void> clear({bool Function()? isCurrent}) =>
+      _record.clear(isCurrent: isCurrent);
 }

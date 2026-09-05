@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:larenor/core/app_interaction_scope.dart';
+import 'package:larenor/core/direct_credential_record.dart';
 import 'package:larenor/features/auth/data/credentials_store.dart';
 import 'package:larenor/features/auth/data/ha_discovery.dart';
 import 'package:larenor/features/auth/presentation/connect_screen.dart';
@@ -89,6 +90,7 @@ class _Repository extends BackupRepository {
 
 class _Codec extends BackupCodec {
   Completer<BackupSnapshot>? pending;
+  BackupSnapshot? snapshot;
   Object? failure;
   int encryptCalls = 0;
   int decryptCalls = 0;
@@ -102,7 +104,7 @@ class _Codec extends BackupCodec {
   Future<BackupSnapshot> decrypt(Uint8List bytes, String passphrase) async {
     decryptCalls++;
     if (failure != null) throw failure!;
-    return pending == null ? _snapshot : pending!.future;
+    return pending == null ? snapshot ?? _snapshot : pending!.future;
   }
 }
 
@@ -272,6 +274,80 @@ void main() {
             language == 'en'
                 ? 'Reconnect Home Assistant, then try backing up or restoring connections again.'
                 : 'Home Assistant bağlantısını yeniden kurun, ardından bağlantıları yedeklemeyi veya geri yüklemeyi tekrar deneyin.',
+          );
+          expect(message, findsOneWidget);
+          await tester.ensureVisible(message);
+          expect(
+            tester.getRect(message).width,
+            lessThanOrEqualTo(language == 'tr' ? 600 : 1200),
+          );
+          expect(storage.writes, isEmpty);
+          expect(storage.secrets[pendingKey], '1');
+          expect(codec.encryptCalls, 0);
+          expect(files.savedBytes, isNull);
+          expect(find.textContaining('synthetic-private'), findsNothing);
+          expect(tester.takeException(), isNull);
+          await tester.pumpWidget(const SizedBox());
+        },
+      );
+    }
+  }
+  for (final language in ['en', 'tr']) {
+    for (final operation in ['export', 'preview']) {
+      testWidgets(
+        'pending Direct $operation gives $language recovery guidance at tablet 2x',
+        (tester) async {
+          final pendingKey = DirectCredentialService.sonarr.pendingMutationKey;
+          final storage = MemoryBackupStorage(
+            secrets: {
+              'sonarr_base_url': 'https://synthetic.example.test',
+              'sonarr_api_key': 'synthetic-private-token',
+              pendingKey: '1',
+            },
+          );
+          final codec = _Codec()
+            ..snapshot = BackupSnapshot.fromJson({
+              'version': 1,
+              'createdAt': '2026-09-06T00:00:00.000Z',
+              'groups': {
+                'connections': {
+                  'sonarr': {
+                    'baseUrl': 'https://incoming.example.test',
+                    'apiKey': 'synthetic-incoming',
+                  },
+                },
+              },
+            });
+          final files = _Files();
+          await _mount(
+            tester,
+            repository: BackupRepository(storage: storage),
+            codec: codec,
+            files: files,
+            freshInstall: operation != 'export',
+            locale: Locale(language),
+            size: Size(language == 'tr' ? 600 : 1200, 1000),
+            textScale: 2,
+          );
+          if (operation == 'export') {
+            await _tap(tester, 'backup-connections');
+            await tester.enterText(
+              find.byKey(const ValueKey('backup-passphrase')),
+              'correct backup phrase',
+            );
+            await tester.enterText(
+              find.byKey(const ValueKey('backup-confirm-passphrase')),
+              'correct backup phrase',
+            );
+            await _tap(tester, 'backup-export');
+          } else {
+            await _importPreview(tester);
+          }
+          await tester.pumpAndSettle();
+          final message = find.text(
+            language == 'en'
+                ? 'Complete the unfinished service connection in its settings, then try backing up or restoring connections again.'
+                : 'Yarım kalan servis bağlantısını ayarlarından yeniden tamamlayın, ardından bağlantıları yedeklemeyi veya geri yüklemeyi tekrar deneyin.',
           );
           expect(message, findsOneWidget);
           await tester.ensureVisible(message);

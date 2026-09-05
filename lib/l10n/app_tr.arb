@@ -670,6 +670,7 @@
   "backupCancelled": "İptal edildi. Ayarlar değiştirilmedi.",
   "backupFailed": "Yedekleme işlemi başarısız oldu. Dosyayı veya depolama erişimini kontrol edip tekrar deneyin.",
   "backupHaConnectionPending": "Home Assistant bağlantısını yeniden kurun, ardından bağlantıları yedeklemeyi veya geri yüklemeyi tekrar deneyin.",
+  "backupConnectionPending": "Yarım kalan servis bağlantısını ayarlarından yeniden tamamlayın, ardından bağlantıları yedeklemeyi veya geri yüklemeyi tekrar deneyin.",
   "backupDecryptFailed": "Yedeğin kilidi açılamadı. Parolayı ve dosyanın eksiksiz olduğunu kontrol edin.",
   "backupTooLarge": "Bu dosya geri yüklemek için çok büyük.",
   "backupSelectGroup": "En az bir içerik grubu seçin.",
@@ -1911,5 +1912,7 @@
   "homeResourcesEmpty": "Bu hesabın görüntüleyebildiği oda veya kaynak yok.",
   "homeResourcesRoom": "Oda",
   "homeResourcesResource": "Kaynak",
-  "homeResourcesLoadMore": "Daha fazla yükle"
+  "homeResourcesLoadMore": "Daha fazla yükle",
+  "arrConnectionIncomplete": "Kayıtlı bağlantı tamamlanamadı. Adres ve API anahtarını yeniden girin veya kayıtlı bağlantıyı kaldırın.",
+  "arrRemoveConnection": "Kayıtlı bağlantıyı kaldır"
 }

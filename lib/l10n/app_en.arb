@@ -991,6 +991,7 @@
   "backupCancelled": "Cancelled. No settings were changed.",
   "backupFailed": "The backup operation failed. Check the file or storage access and try again.",
   "backupHaConnectionPending": "Reconnect Home Assistant, then try backing up or restoring connections again.",
+  "backupConnectionPending": "Complete the unfinished service connection in its settings, then try backing up or restoring connections again.",
   "backupDecryptFailed": "Could not unlock this backup. Check the passphrase and that the file is complete.",
   "backupTooLarge": "This file is too large to restore.",
   "backupSelectGroup": "Choose at least one content group.",
@@ -2232,5 +2233,7 @@
   "homeResourcesEmpty": "There are no rooms or resources this account can view.",
   "homeResourcesRoom": "Room",
   "homeResourcesResource": "Resource",
-  "homeResourcesLoadMore": "Load more"
+  "homeResourcesLoadMore": "Load more",
+  "arrConnectionIncomplete": "The saved connection is incomplete. Enter the complete address and API key again, or remove the saved connection.",
+  "arrRemoveConnection": "Remove saved connection"
 }

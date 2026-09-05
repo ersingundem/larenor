@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import '../../../core/configuration_writes.dart';
+import '../../../core/direct_credential_record.dart';
 import '../../auth/data/credentials_store.dart';
 import '../../intercom/domain/door_station.dart';
 import '../../settings/domain/screen_program.dart';
@@ -28,7 +29,9 @@ class BackupRepository {
           );
         }
         await _requireRecovered();
-        if (selection.connections) await _requireStableHaConnection();
+        if (selection.connections) {
+          await _requireStableConnections(backupConnectionFields.keys);
+        }
         try {
           final groups = <String, dynamic>{};
           final policy = WellbeingDisclosurePolicy.decode(
@@ -77,7 +80,9 @@ class BackupRepository {
             }
             groups['connections'] = records;
           }
-          if (selection.connections) await _requireStableHaConnection();
+          if (selection.connections) {
+            await _requireStableConnections(backupConnectionFields.keys);
+          }
           return BackupSnapshot.fromJson({
             'version': 2,
             'createdAt': _now().toUtc().toIso8601String(),
@@ -106,7 +111,7 @@ class BackupRepository {
     final privacy = groups['privacy'] == null
         ? null
         : WellbeingDisclosurePolicy.fromJson(groups['privacy']);
-    if (snapshot.hasConnections) await _requireStableHaConnection();
+    await _requireStableConnections(connections.keys);
     try {
       var existingSettings = 0;
       for (final key in settings.keys) {
@@ -119,7 +124,7 @@ class BackupRepository {
       final existingDashboard =
           snapshot.hasDashboard &&
           await _storage.readPreference(_dashboardKey) != null;
-      if (snapshot.hasConnections) await _requireStableHaConnection();
+      await _requireStableConnections(connections.keys);
       return BackupPreview(
         createdAt: snapshot.createdAt,
         hasSettings: snapshot.hasSettings,
@@ -172,7 +177,10 @@ class BackupRepository {
     await _requireRecovered();
     final includesConnections =
         selection.connections && snapshot.hasConnections;
-    if (includesConnections) await _requireStableHaConnection();
+    final affectedServices = includesConnections
+        ? (groups['connections'] as Map<String, dynamic>).keys
+        : const <String>[];
+    await _requireStableConnections(affectedServices);
     final changes = <_Change>[];
     final replace = conflictPolicy == BackupConflictPolicy.replaceSelected;
     try {
@@ -278,7 +286,7 @@ class BackupRepository {
           }
         }
       }
-      if (includesConnections) await _requireStableHaConnection();
+      await _requireStableConnections(affectedServices);
       if (changes.isEmpty) return;
       final journal = _encodeJournal(changes);
       // Persist rollback data before the first preference/credential mutation.
@@ -292,18 +300,19 @@ class BackupRepository {
       );
     }
     try {
-      if (includesConnections) await _requireStableHaConnection();
+      await _requireStableConnections(affectedServices);
       for (final change in changes) {
         await _write(change, previous: false);
       }
-      if (includesConnections) await _requireStableHaConnection();
+      await _requireStableConnections(affectedServices);
       // This is the commit point. A surviving journal means rollback on boot.
       await _storage.writeSecret(restoreJournalKey, null);
     } catch (error) {
       final complete = await _rollback(changes);
       if (complete &&
           error is BackupException &&
-          error.code == 'ha_connection_pending') {
+          (error.code == 'ha_connection_pending' ||
+              error.code == 'connection_pending')) {
         rethrow;
       }
       throw BackupRestoreException(rollbackComplete: complete);
@@ -342,6 +351,27 @@ class BackupRepository {
       throw const BackupException(
         'storage_failed',
         'Restore status could not be checked.',
+      );
+    }
+  }
+
+  // Capture scans every supported connection; an import checks only its own
+  // selected records. Markers are private recovery state, never journal fields.
+  Future<void> _requireStableConnections(Iterable<String> services) async {
+    final affected = services.toSet();
+    if (affected.contains('ha')) await _requireStableHaConnection();
+    for (final service in DirectCredentialService.values) {
+      if (!affected.contains(service.name)) continue;
+      try {
+        if (await _storage.readSecret(service.pendingMutationKey) == null) {
+          continue;
+        }
+      } catch (_) {
+        // An unreadable marker cannot establish a complete connection record.
+      }
+      throw const BackupException(
+        'connection_pending',
+        'Complete the service connection again before backing up or restoring connections.',
       );
     }
   }

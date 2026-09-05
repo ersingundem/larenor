@@ -2,6 +2,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../l10n/generated/app_localizations.dart';
+import '../../../../core/direct_home_access.dart';
 import '../../../health/data/integration_health.dart';
 import '../../../../shared/discovery/service_signatures.dart';
 import '../providers/radarr_providers.dart';
@@ -23,20 +24,37 @@ class RadarrScreen extends ConsumerWidget {
       loading: () => const CupertinoPageScaffold(
         child: Center(child: CupertinoActivityIndicator()),
       ),
-      error: (error, _) => CupertinoPageScaffold(
-        child: Center(
-          child: Text(AppLocalizations.of(context).mediaErrorUnreachable),
-        ),
-      ),
+      error: (error, _) {
+        if (error is DirectHomeAccessException &&
+            error.code == 'pending_mutation') {
+          final connection = ref.read(radarrConnectionProvider.notifier);
+          final store = ref.read(radarrCredentialsStoreProvider);
+          return ArrConnectForm(
+            title: 'Radarr',
+            urlHint: '',
+            onClear: (isCurrent) => store.clear(isCurrent: isCurrent),
+            onConnect: (url, key, isCurrent) => connection.signIn(
+              baseUrl: url,
+              apiKey: key,
+              isCurrent: isCurrent,
+            ),
+          );
+        }
+        return CupertinoPageScaffold(
+          child: Center(
+            child: Text(AppLocalizations.of(context).mediaErrorUnreachable),
+          ),
+        );
+      },
       data: (config) {
         if (config == null) {
           return ArrConnectForm(
             title: 'Radarr',
             urlHint: 'http://radarr.local:7878',
             discoverySignature: ServiceSignatures.radarr,
-            onConnect: (url, key) => ref
+            onConnect: (url, key, isCurrent) => ref
                 .read(radarrConnectionProvider.notifier)
-                .signIn(baseUrl: url, apiKey: key),
+                .signIn(baseUrl: url, apiKey: key, isCurrent: isCurrent),
           );
         }
 

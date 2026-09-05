@@ -196,6 +196,9 @@ class _BackupScreenState extends ConsumerState<BackupScreen>
     if (error is BackupException && error.code == 'ha_connection_pending') {
       return l10n.backupHaConnectionPending;
     }
+    if (error is BackupException && error.code == 'connection_pending') {
+      return l10n.backupConnectionPending;
+    }
     if (error is BackupFileTooLarge ||
         error is BackupException && error.code == 'too_large') {
       return l10n.backupTooLarge;

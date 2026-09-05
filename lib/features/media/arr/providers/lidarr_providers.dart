@@ -1,5 +1,7 @@
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
+import '../../../../core/direct_home_access.dart';
+
 import '../../data/media_api_exception.dart';
 import '../data/arr_client.dart';
 import '../data/arr_config.dart';
@@ -10,26 +12,86 @@ import '../data/models/arr_queue_item.dart';
 part 'lidarr_providers.g.dart';
 
 @riverpod
-ArrCredentialsStore lidarrCredentialsStore(Ref ref) =>
-    ArrCredentialsStore(servicePrefix: 'lidarr');
+ArrCredentialsStore lidarrCredentialsStore(Ref ref) => ArrCredentialsStore(
+  servicePrefix: 'lidarr',
+  access: ref.watch(directHomeAccessProvider),
+);
 
 @riverpod
 class LidarrConnection extends _$LidarrConnection {
-  @override
-  Future<ArrConfig?> build() =>
-      ref.watch(lidarrCredentialsStoreProvider).read();
+  late final DirectHomeAccess _access = ref.read(directHomeAccessProvider);
+  int _operation = 0;
+  ArrClient? _checkingClient;
 
-  Future<void> signIn({required String baseUrl, required String apiKey}) async {
+  void _check([int? operation]) {
+    if (!ref.mounted || operation != null && operation != _operation) {
+      throw const DirectHomeAccessException('unavailable');
+    }
+    _access.check();
+  }
+
+  void _closeCheck() {
+    _checkingClient?.dispose();
+    _checkingClient = null;
+  }
+
+  @override
+  Future<ArrConfig?> build() async {
+    ref.watch(directHomeAccessProvider);
+    final operation = ++_operation;
+    ref.onDispose(() {
+      _operation++;
+      _closeCheck();
+    });
+    _check(operation);
+    final result = await ref.watch(lidarrCredentialsStoreProvider).read();
+    _check(operation);
+    return result;
+  }
+
+  Future<void> signIn({
+    required String baseUrl,
+    required String apiKey,
+    bool Function()? isCurrent,
+  }) async {
+    void checkAction() {
+      try {
+        if (isCurrent == null || isCurrent()) return;
+      } catch (_) {}
+      throw const DirectHomeAccessException('unavailable');
+    }
+
+    checkAction();
+    _check();
+    if (_checkingClient != null) throw const DirectHomeAccessException('busy');
+    final operation = ++_operation;
+    final store = ref.read(lidarrCredentialsStoreProvider);
     final config = ArrConfig(baseUrl: baseUrl, apiKey: apiKey);
-    await _client(config).checkConnection();
-    await ref
-        .read(lidarrCredentialsStoreProvider)
-        .save(baseUrl: baseUrl, apiKey: apiKey);
-    state = AsyncData(config);
+    final client = _client(config);
+    _checkingClient = client;
+    try {
+      await client.checkConnection();
+      _check(operation);
+      checkAction();
+      await store.save(baseUrl: baseUrl, apiKey: apiKey, isCurrent: isCurrent);
+      _check(operation);
+      checkAction();
+      state = AsyncData(config);
+    } catch (_) {
+      _check(operation);
+      rethrow;
+    } finally {
+      if (identical(_checkingClient, client)) _closeCheck();
+    }
   }
 
   Future<void> signOut() async {
-    await ref.read(lidarrCredentialsStoreProvider).clear();
+    _check();
+    final operation = ++_operation;
+    final store = ref.read(lidarrCredentialsStoreProvider);
+    _closeCheck();
+    await store.clear();
+    _check(operation);
     state = const AsyncData(null);
   }
 
