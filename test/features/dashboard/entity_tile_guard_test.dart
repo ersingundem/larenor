@@ -114,15 +114,15 @@ class _Harness {
   }
 
   VoidCallback tap(WidgetTester tester) => tester
-      .widget<GestureDetector>(
+      .widget<CupertinoButton>(
         find
             .descendant(
               of: find.byType(HomeAccessoryTile),
-              matching: find.byType(GestureDetector),
+              matching: find.byType(CupertinoButton),
             )
             .first,
       )
-      .onTap!;
+      .onPressed!;
 }
 
 void main() {

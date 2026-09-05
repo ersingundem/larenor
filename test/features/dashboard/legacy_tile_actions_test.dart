@@ -206,6 +206,32 @@ void main() {
       jsonDecode(requests.last.body) as Map<String, dynamic>;
 
   testWidgets(
+    'climate increase action matches its announced value during a dial preview',
+    (tester) async {
+      final semantics = tester.ensureSemantics();
+      try {
+        await mount(tester, _climate, ['set_temperature']);
+        final size = tester.getSize(dialFinder());
+        dial(tester).onPanStart!(
+          DragStartDetails(localPosition: Offset(0, size.height / 2)),
+        );
+        await tester.pump();
+        final node = tester.getSemantics(
+          find.byKey(const ValueKey('climate-dial-climate.living')),
+        );
+        expect(node.value, '25.0°');
+        expect(node.increasedValue, '25.5°');
+        node.owner!.performAction(node.id, ui.SemanticsAction.increase);
+        await tester.pumpAndSettle();
+        expect(requests, hasLength(1));
+        expect(body()['temperature'], 25.5);
+      } finally {
+        semantics.dispose();
+      }
+    },
+  );
+
+  testWidgets(
     'climate slider announces one target and preserves current reading',
     (tester) async {
       final semantics = tester.ensureSemantics();

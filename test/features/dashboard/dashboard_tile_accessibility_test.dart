@@ -9,6 +9,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:larenor/core/theme.dart';
 import 'package:larenor/features/dashboard/presentation/dashboard_card_presentation.dart';
 import 'package:larenor/features/dashboard/presentation/tiles/home_accessory_tile.dart';
+import 'package:larenor/features/dashboard/presentation/tiles/dashboard_tile_button.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:larenor/features/dashboard/presentation/tiles/service_tile_shell.dart';
 import 'package:larenor/features/ha_client/data/models/ha_entity.dart';
@@ -85,6 +86,147 @@ List<SemanticsNode> buttons(WidgetTester tester) {
 
 void main() {
   testWidgets(
+    'disabled whole-card actions stay out of keyboard and semantics activation',
+    (tester) async {
+      final semantics = tester.ensureSemantics();
+      try {
+        await mount(
+          tester,
+          (_) => const SizedBox(
+            width: 164,
+            height: 128,
+            child: DashboardTileButton(
+              label: 'Unavailable card',
+              onPressed: null,
+              child: Text('Unavailable card'),
+            ),
+          ),
+        );
+        await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+        await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+        final node = buttons(tester).single;
+        expect(node.label, 'Unavailable card');
+        expect(
+          node.getSemanticsData().hasAction(ui.SemanticsAction.tap),
+          isFalse,
+        );
+        expect(
+          node.getSemanticsData().hasAction(ui.SemanticsAction.longPress),
+          isFalse,
+        );
+        expect(
+          tester.widget<CupertinoButton>(find.byType(CupertinoButton)).enabled,
+          isFalse,
+        );
+      } finally {
+        semantics.dispose();
+      }
+    },
+  );
+
+  testWidgets(
+    'busy accessory ignores duplicate keyboard and screen-reader commands',
+    (tester) async {
+      final semantics = tester.ensureSemantics();
+      final entities = _Entities()..pending = Completer<void>();
+      try {
+        await mount(
+          tester,
+          (context) => SizedBox(
+            width: 180,
+            height: HomeAccessoryTile.heightFor(context),
+            child: HomeAccessoryTile(
+              entity: const HaEntity(entityId: 'light.desk', state: 'on'),
+            ),
+          ),
+          entities: entities,
+        );
+        await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+        await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+        await tester.pump();
+        await tester.sendKeyEvent(LogicalKeyboardKey.space);
+        final node = buttons(tester).single;
+        node.owner!.performAction(node.id, ui.SemanticsAction.tap);
+        expect(entities.calls, 1);
+        entities.pending!.complete();
+        await tester.pumpAndSettle();
+        expect(tester.takeException(), isNull);
+      } finally {
+        semantics.dispose();
+      }
+    },
+  );
+
+  for (final brightness in Brightness.values) {
+    testWidgets(
+      'native card focus outline has contrast and remains inside grid clip ($brightness)',
+      (tester) async {
+        late Color surface;
+        await mount(
+          tester,
+          (context) {
+            surface = CupertinoColors.secondarySystemGroupedBackground
+                .resolveFrom(context);
+            return ClipRRect(
+              key: const ValueKey('tile-clip'),
+              borderRadius: BorderRadius.circular(22),
+              child: SizedBox(
+                width: 164,
+                height: dashboardServiceRowExtent(context),
+                child: ServiceTileShell(
+                  icon: CupertinoIcons.wifi,
+                  title: 'Keenetic',
+                  connected: true,
+                  onTap: () {},
+                  lines: const ['3 devices online'],
+                ),
+              ),
+            );
+          },
+          brightness: brightness,
+          scale: 2,
+        );
+        await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+        await tester.pumpAndSettle();
+        final button = find.byType(CupertinoButton);
+        final outline = find.descendant(
+          of: button,
+          matching: find.byWidgetPredicate(
+            (widget) =>
+                widget is DecoratedBox &&
+                widget.decoration is ShapeDecoration &&
+                (widget.decoration as ShapeDecoration).shape
+                    is OutlinedBorder &&
+                ((widget.decoration as ShapeDecoration).shape as OutlinedBorder)
+                        .side
+                        .width >
+                    0,
+          ),
+        );
+        expect(outline, findsOneWidget);
+        final side =
+            (tester.widget<DecoratedBox>(outline).decoration as ShapeDecoration)
+                    .shape
+                as OutlinedBorder;
+        final a = side.side.color.computeLuminance(),
+            b = surface.computeLuminance();
+        final contrast =
+            (a > b ? a + .05 : b + .05) / (a > b ? b + .05 : a + .05);
+        expect(contrast, greaterThanOrEqualTo(3));
+        final rect = tester.getRect(button),
+            clip = tester.getRect(find.byKey(const ValueKey('tile-clip')));
+        expect(clip.contains(rect.inflate(side.side.width).topLeft), isTrue);
+        expect(
+          clip.contains(rect.inflate(side.side.width).bottomRight),
+          isTrue,
+        );
+        expect(rect.width, greaterThanOrEqualTo(48));
+        expect(rect.height, greaterThanOrEqualTo(48));
+        expect(tester.takeException(), isNull);
+      },
+    );
+  }
+  testWidgets(
     'accessory menu is reachable with the standard context-menu key',
     (tester) async {
       SharedPreferences.setMockInitialValues({});
@@ -105,12 +247,21 @@ void main() {
         entities: entities,
       );
       await tester.sendKeyEvent(LogicalKeyboardKey.tab);
-      await tester.sendKeyEvent(LogicalKeyboardKey.contextMenu);
-      await tester.pumpAndSettle();
-      expect(find.byType(CupertinoActionSheet), findsOneWidget);
-      expect(entities.calls, 0);
-      await tester.tap(find.text('Cancel'));
-      await tester.pumpAndSettle();
+      for (final key in [
+        LogicalKeyboardKey.contextMenu,
+        LogicalKeyboardKey.f10,
+      ]) {
+        if (key == LogicalKeyboardKey.f10)
+          await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
+        await tester.sendKeyEvent(key);
+        if (key == LogicalKeyboardKey.f10)
+          await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
+        await tester.pumpAndSettle();
+        expect(find.byType(CupertinoActionSheet), findsOneWidget);
+        expect(entities.calls, 0);
+        await tester.tap(find.text('Cancel'));
+        await tester.pumpAndSettle();
+      }
     },
   );
   for (final language in ['en', 'tr']) {
