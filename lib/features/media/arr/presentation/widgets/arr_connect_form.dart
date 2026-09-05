@@ -24,7 +24,12 @@ class ArrConnectForm extends ConsumerStatefulWidget {
 
   final String title;
   final String urlHint;
-  final Future<void> Function(String baseUrl, String apiKey, bool Function() isCurrent) onConnect;
+  final Future<void> Function(
+    String baseUrl,
+    String apiKey,
+    bool Function() isCurrent,
+  )
+  onConnect;
   final LanServiceSignature? discoverySignature;
   final Future<void> Function(bool Function() isCurrent)? onClear;
 
@@ -42,13 +47,16 @@ class _ArrConnectFormState extends MediaSessionState<ArrConnectForm> {
   bool _cleared = false;
 
   bool _current(int generation) =>
-      sessionCurrent(generation) && _access.isCurrent &&
-      TickerMode.of(context) && (ModalRoute.of(context)?.isCurrent ?? true);
+      sessionCurrent(generation) &&
+      _access.isCurrent &&
+      TickerMode.valuesOf(context).enabled &&
+      (ModalRoute.of(context)?.isCurrent ?? true);
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    final visible = TickerMode.of(context) &&
+    final visible =
+        TickerMode.valuesOf(context).enabled &&
         (ModalRoute.of(context)?.isCurrent ?? true);
     if (_visible && !visible) {
       sessionGeneration++;
@@ -83,10 +91,15 @@ class _ArrConnectFormState extends MediaSessionState<ArrConnectForm> {
     super.dispose();
   }
 
-  Future<void> _connect(int generation,
-      Future<void> Function(String, String, bool Function()) connect) async {
-    if (!_current(generation) || _connecting ||
-        !identical(widget.onConnect, connect)) return;
+  Future<void> _connect(
+    int generation,
+    Future<void> Function(String, String, bool Function()) connect,
+  ) async {
+    if (!_current(generation) ||
+        _connecting ||
+        !identical(widget.onConnect, connect)) {
+      return;
+    }
     final url = _urlController.text.trim();
     final key = _keyController.text.trim();
     if (url.isEmpty || key.isEmpty) {
@@ -115,11 +128,17 @@ class _ArrConnectFormState extends MediaSessionState<ArrConnectForm> {
     }
   }
 
-  Future<void> _clear(int generation,
-      Future<void> Function(bool Function()) clear) async {
+  Future<void> _clear(
+    int generation,
+    Future<void> Function(bool Function()) clear,
+  ) async {
     bool current() => _current(generation) && identical(widget.onClear, clear);
     if (!current() || _connecting) return;
-    setState(() { _connecting = true; _error = null; _cleared = false; });
+    setState(() {
+      _connecting = true;
+      _error = null;
+      _cleared = false;
+    });
     try {
       await clear(current);
       if (!current()) return;
@@ -129,7 +148,11 @@ class _ArrConnectFormState extends MediaSessionState<ArrConnectForm> {
         _cleared = true;
       });
     } catch (_) {
-      if (current()) setState(() => _error = AppLocalizations.of(context).mediaErrorUnreachable);
+      if (current()) {
+        setState(
+          () => _error = AppLocalizations.of(context).mediaErrorUnreachable,
+        );
+      }
     } finally {
       if (current()) setState(() => _connecting = false);
     }
@@ -142,8 +165,11 @@ class _ArrConnectFormState extends MediaSessionState<ArrConnectForm> {
     final connect = widget.onConnect;
     final clear = widget.onClear;
     if (!_access.isCurrent) {
-      return CupertinoPageScaffold(child: Center(child:
-        Text(AppLocalizations.of(context).mediaErrorUnreachable)));
+      return CupertinoPageScaffold(
+        child: Center(
+          child: Text(AppLocalizations.of(context).mediaErrorUnreachable),
+        ),
+      );
     }
     final active = _current(generation);
     return CupertinoPageScaffold(
@@ -157,9 +183,12 @@ class _ArrConnectFormState extends MediaSessionState<ArrConnectForm> {
               children: [
                 const SizedBox(height: 16),
                 if (clear != null) ...[
-                  Text(_cleared ? AppLocalizations.of(context).commonDone :
-                      AppLocalizations.of(context).arrConnectionIncomplete,
-                      textAlign: TextAlign.center),
+                  Text(
+                    _cleared
+                        ? AppLocalizations.of(context).commonDone
+                        : AppLocalizations.of(context).arrConnectionIncomplete,
+                    textAlign: TextAlign.center,
+                  ),
                   const SizedBox(height: 16),
                 ],
                 if (active && widget.discoverySignature != null)
@@ -204,7 +233,9 @@ class _ArrConnectFormState extends MediaSessionState<ArrConnectForm> {
                 ],
                 const SizedBox(height: 20),
                 CupertinoButton.filled(
-                  onPressed: _connecting || !active ? null : () => _connect(generation, connect),
+                  onPressed: _connecting || !active
+                      ? null
+                      : () => _connect(generation, connect),
                   child: _connecting
                       ? const CupertinoActivityIndicator(
                           color: CupertinoColors.white,
@@ -214,9 +245,13 @@ class _ArrConnectFormState extends MediaSessionState<ArrConnectForm> {
                 if (clear != null) ...[
                   const SizedBox(height: 12),
                   CupertinoButton(
-                    onPressed: _connecting || !active ? null : () => _clear(generation, clear),
-                    child: Text(AppLocalizations.of(context).arrRemoveConnection,
-                        textAlign: TextAlign.center),
+                    onPressed: _connecting || !active
+                        ? null
+                        : () => _clear(generation, clear),
+                    child: Text(
+                      AppLocalizations.of(context).arrRemoveConnection,
+                      textAlign: TextAlign.center,
+                    ),
                   ),
                 ],
               ],

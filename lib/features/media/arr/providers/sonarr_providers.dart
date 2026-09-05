@@ -15,8 +15,10 @@ import '../data/models/arr_queue_item.dart';
 part 'sonarr_providers.g.dart';
 
 @riverpod
-ArrCredentialsStore sonarrCredentialsStore(Ref ref) =>
-    ArrCredentialsStore(servicePrefix: 'sonarr', access: ref.watch(directHomeAccessProvider));
+ArrCredentialsStore sonarrCredentialsStore(Ref ref) => ArrCredentialsStore(
+  servicePrefix: 'sonarr',
+  access: ref.watch(directHomeAccessProvider),
+);
 
 @riverpod
 class SonarrConnection extends _$SonarrConnection {
@@ -30,6 +32,7 @@ class SonarrConnection extends _$SonarrConnection {
     }
     _access.check();
   }
+
   void _closeCheck() {
     _checkingClient?.dispose();
     _checkingClient = null;
@@ -39,19 +42,28 @@ class SonarrConnection extends _$SonarrConnection {
   Future<ArrConfig?> build() async {
     ref.watch(directHomeAccessProvider);
     final operation = ++_operation;
-    ref.onDispose(() { _operation++; _closeCheck(); });
+    ref.onDispose(() {
+      _operation++;
+      _closeCheck();
+    });
     _check(operation);
     final result = await ref.watch(sonarrCredentialsStoreProvider).read();
     _check(operation);
     return result;
   }
 
-  Future<void> signIn({required String baseUrl, required String apiKey,
-      bool Function()? isCurrent}) async {
+  Future<void> signIn({
+    required String baseUrl,
+    required String apiKey,
+    bool Function()? isCurrent,
+  }) async {
     void checkAction() {
-      try { if (isCurrent == null || isCurrent()) return; } catch (_) {}
+      try {
+        if (isCurrent == null || isCurrent()) return;
+      } catch (_) {}
       throw const DirectHomeAccessException('unavailable');
     }
+
     checkAction();
     _check();
     if (_checkingClient != null) throw const DirectHomeAccessException('busy');

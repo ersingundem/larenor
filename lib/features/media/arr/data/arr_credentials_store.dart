@@ -5,16 +5,18 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 import 'arr_config.dart';
 
-/// Shared credentials store for Sonarr and Radarr — same auth shape
-/// (URL + API key) for both, keyed by a [servicePrefix] so one class
-/// covers both instead of two near-duplicate stores.
+/// Shared URL/API-key record for Sonarr, Radarr, Lidarr and Readarr.
+/// Only these four closed [servicePrefix] values select local storage keys.
 class ArrCredentialsStore {
   ArrCredentialsStore({
     required this.servicePrefix,
     FlutterSecureStorage? storage,
     DirectHomeAccess? access,
-  }) : _access = access, _record = DirectCredentialRecord(
-         service: _service(servicePrefix), storage: storage, access: access,
+  }) : _access = access,
+       _record = DirectCredentialRecord(
+         service: _service(servicePrefix),
+         storage: storage,
+         access: access,
        );
 
   final String servicePrefix;
@@ -37,8 +39,15 @@ class ArrCredentialsStore {
     return ArrConfig(baseUrl: baseUrl, apiKey: apiKey);
   }
 
-  Future<void> save({required String baseUrl, required String apiKey, bool Function()? isCurrent}) =>
-      _record.replaceAll({'baseUrl': baseUrl, 'apiKey': apiKey}, isCurrent: isCurrent);
+  Future<void> save({
+    required String baseUrl,
+    required String apiKey,
+    bool Function()? isCurrent,
+  }) => _record.replaceAll({
+    'baseUrl': baseUrl,
+    'apiKey': apiKey,
+  }, isCurrent: isCurrent);
 
-  Future<void> clear({bool Function()? isCurrent}) => _record.clear(isCurrent: isCurrent);
+  Future<void> clear({bool Function()? isCurrent}) =>
+      _record.clear(isCurrent: isCurrent);
 }

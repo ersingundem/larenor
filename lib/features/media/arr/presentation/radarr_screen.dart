@@ -33,8 +33,11 @@ class RadarrScreen extends ConsumerWidget {
             title: 'Radarr',
             urlHint: '',
             onClear: (isCurrent) => store.clear(isCurrent: isCurrent),
-            onConnect: (url, key, isCurrent) =>
-                connection.signIn(baseUrl: url, apiKey: key, isCurrent: isCurrent),
+            onConnect: (url, key, isCurrent) => connection.signIn(
+              baseUrl: url,
+              apiKey: key,
+              isCurrent: isCurrent,
+            ),
           );
         }
         return CupertinoPageScaffold(
