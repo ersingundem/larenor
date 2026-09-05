@@ -1,6 +1,9 @@
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 import '../../../core/configuration_writes.dart';
+import '../../../core/home_session_controller.dart';
+import '../../../core/home_source_store.dart';
+import '../../home_scope/data/home_layout_access.dart';
 import '../data/dashboard_repository.dart';
 import '../data/room_area_sync_reader.dart';
 import '../domain/dashboard_layout.dart';
@@ -13,7 +16,34 @@ import '../domain/tile_config.dart';
 part 'dashboard_providers.g.dart';
 
 @riverpod
-DashboardRepository dashboardRepository(Ref ref) => DashboardRepository();
+DashboardRepository dashboardRepository(Ref ref) {
+  final home = ref.watch(homeSessionControllerProvider);
+  // Standalone direct-HA consumers predate the production HomeSessionScope.
+  if (home == null) return DashboardRepository();
+  home.addListener(ref.invalidateSelf);
+  ref.onDispose(() => home.removeListener(ref.invalidateSelf));
+  final epoch = home.interaction.epoch;
+  bool current() =>
+      ref.mounted &&
+      home.interaction.active &&
+      home.interaction.epoch == epoch &&
+      !home.busy &&
+      home.failure == null;
+  if (home.source == HomeSource.directLocal) {
+    return DashboardRepository(
+      isCurrent: () => current() && home.source == HomeSource.directLocal,
+    );
+  }
+  final access = homeLayoutAccess(
+    home,
+    clock: ref.watch(homeLayoutClockProvider),
+  );
+  if (access == null) return DashboardRepository.unavailable();
+  return DashboardRepository.core(
+    scope: access.scope,
+    isCurrent: () => current() && access.isCurrent,
+  );
+}
 
 @riverpod
 class DashboardLayoutNotifier extends _$DashboardLayoutNotifier {

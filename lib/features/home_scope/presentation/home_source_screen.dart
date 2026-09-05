@@ -8,6 +8,8 @@ import '../../../shared/widgets/app_page_scaffold.dart';
 import '../../../shared/widgets/settings_action_tile.dart';
 import '../../../shared/widgets/settings_section.dart';
 import '../../media/hub/presentation/media_session_state.dart';
+import '../data/home_layout_access.dart';
+import 'legacy_layout_screen.dart';
 
 /// Reached only through SettingsGate, including recovery from a bad preference.
 class HomeSourceScreen extends ConsumerStatefulWidget {
@@ -41,59 +43,89 @@ class _HomeSourceScreenState extends MediaSessionState<HomeSourceScreen> {
       child: SafeArea(
         child: ListenableBuilder(
           listenable: controller,
-          builder: (_, _) => Align(
-            alignment: Alignment.topCenter,
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 780),
-              child: ListView(
-                padding: const EdgeInsets.symmetric(vertical: 20),
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.all(20),
-                    child: Text(l10n.homeSourceHint),
-                  ),
-                  if (controller.failure != null)
+          builder: (_, _) {
+            final access = homeLayoutAccess(
+              controller,
+              clock: ref.watch(homeLayoutClockProvider),
+            );
+            return Align(
+              alignment: Alignment.topCenter,
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 780),
+                child: ListView(
+                  padding: const EdgeInsets.symmetric(vertical: 20),
+                  children: [
                     Padding(
                       padding: const EdgeInsets.all(20),
-                      child: Text(l10n.homeSourceStorageError),
+                      child: Text(l10n.homeSourceHint),
                     ),
-                  SettingsSection(
-                    children: [
-                      for (final source in HomeSource.values)
-                        SettingsActionTile(
-                          key: ValueKey('home-source-${source.name}'),
-                          leading:
-                              controller.source == source &&
-                                  controller.failure == null
-                              ? const Icon(CupertinoIcons.check_mark)
-                              : const SizedBox.shrink(),
-                          title: Text(
-                            source == HomeSource.directLocal
-                                ? l10n.homeSourceDirect
-                                : l10n.homeSourceCore,
+                    if (controller.failure != null)
+                      Padding(
+                        padding: const EdgeInsets.all(20),
+                        child: Text(l10n.homeSourceStorageError),
+                      ),
+                    SettingsSection(
+                      children: [
+                        for (final source in HomeSource.values)
+                          SettingsActionTile(
+                            key: ValueKey('home-source-${source.name}'),
+                            leading:
+                                controller.source == source &&
+                                    controller.failure == null
+                                ? const Icon(CupertinoIcons.check_mark)
+                                : const SizedBox.shrink(),
+                            title: Text(
+                              source == HomeSource.directLocal
+                                  ? l10n.homeSourceDirect
+                                  : l10n.homeSourceCore,
+                            ),
+                            additionalInfo: Text(
+                              source == HomeSource.directLocal
+                                  ? l10n.homeSourceDirectHint
+                                  : l10n.homeSourceCoreHint,
+                            ),
+                            selected:
+                                controller.source == source &&
+                                controller.failure == null,
+                            onTap: controller.busy || !current()
+                                ? null
+                                : () {
+                                    if (current() && !controller.busy) {
+                                      controller.choose(source);
+                                    }
+                                  },
                           ),
-                          additionalInfo: Text(
-                            source == HomeSource.directLocal
-                                ? l10n.homeSourceDirectHint
-                                : l10n.homeSourceCoreHint,
+                      ],
+                    ),
+                    if (controller.source == HomeSource.verifiedCore)
+                      SettingsSection(
+                        children: [
+                          SettingsActionTile(
+                            key: const ValueKey('home-layout-preview-entry'),
+                            title: Text(l10n.homeLayoutPreviewTitle),
+                            additionalInfo: access == null
+                                ? Text(l10n.homeLayoutUnavailable)
+                                : null,
+                            onTap: access == null || !current()
+                                ? null
+                                : () {
+                                    if (current() && access.isCurrent) {
+                                      Navigator.of(context).push(
+                                        CupertinoPageRoute<void>(
+                                          builder: (_) =>
+                                              const LegacyLayoutScreen(),
+                                        ),
+                                      );
+                                    }
+                                  },
                           ),
-                          selected:
-                              controller.source == source &&
-                              controller.failure == null,
-                          onTap: controller.busy || !current()
-                              ? null
-                              : () {
-                                  if (current() && !controller.busy) {
-                                    controller.choose(source);
-                                  }
-                                },
-                        ),
-                    ],
-                  ),
-                ],
+                        ],
+                      ),
+                  ],
+                ),
               ),
-            ),
-          ),
+            );
+          },
         ),
       ),
     );

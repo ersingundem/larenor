@@ -9,10 +9,12 @@ import '../domain/dashboard_layout.dart';
 import '../domain/dashboard_layout_validation.dart';
 
 class DashboardRepository {
-  DashboardRepository({Future<SharedPreferences> Function()? loadPreferences})
-    : scope = null,
-      _current = null,
-      _preferences = loadPreferences ?? SharedPreferences.getInstance;
+  DashboardRepository({
+    Future<SharedPreferences> Function()? loadPreferences,
+    bool Function()? isCurrent,
+  }) : scope = null,
+       _current = isCurrent,
+       _preferences = loadPreferences ?? SharedPreferences.getInstance;
 
   DashboardRepository.core({
     required HomeDataScope this.scope,
@@ -52,11 +54,17 @@ class DashboardRepository {
     return prefs;
   }
 
-  Future<DashboardLayout> load() async => (await readSnapshot()).layout;
+  Future<DashboardLayout> load() async {
+    final snapshot = await readSnapshot();
+    _check();
+    return snapshot.layout;
+  }
 
   Future<DashboardSnapshot> readSnapshot() => ConfigurationWrites.run(() async {
     try {
-      return _decode((await _durable()).get(_key));
+      final prefs = await _durable();
+      _check();
+      return _decode(prefs.get(_key));
     } on DashboardStorageException {
       rethrow;
     } catch (_) {

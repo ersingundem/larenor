@@ -14,14 +14,26 @@ import 'package:shared_preferences/shared_preferences.dart';
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   final scope = HomeDataScope.fromJson({
-    'coreId': 'a' * 32, 'homeId': 'b' * 32, 'userId': 'one',
+    'coreId': 'a' * 32,
+    'homeId': 'b' * 32,
+    'userId': 'one',
   });
   final legacy = DashboardLayout(
     rooms: [
-      DashboardRoom(id: 'old-one', name: 'Kitchen', entityIds: ['light.private']),
-      DashboardRoom(id: 'old-two', name: 'Living room', areaBinding: HaAreaBinding(
-        serverUrl: 'https://private.example', areaId: 'private-area', sourceName: 'Living room',
-      )),
+      DashboardRoom(
+        id: 'old-one',
+        name: 'Kitchen',
+        entityIds: ['light.private'],
+      ),
+      DashboardRoom(
+        id: 'old-two',
+        name: 'Living room',
+        areaBinding: HaAreaBinding(
+          serverUrl: 'https://private.example',
+          areaId: 'private-area',
+          sourceName: 'Living room',
+        ),
+      ),
       DashboardRoom(id: 'old-three', name: 'Office'),
     ],
     favoriteEntityIds: ['scene.private'],
@@ -38,11 +50,20 @@ void main() {
   setUp(() {
     current = true;
     now = DateTime.utc(2026, 9, 6);
-    SharedPreferences.setMockInitialValues({'dashboard_layout': jsonEncode(legacy.toJson())});
-    destination = DashboardRepository.core(scope: scope, isCurrent: () => current);
+    SharedPreferences.setMockInitialValues({
+      'dashboard_layout': jsonEncode(legacy.toJson()),
+    });
+    destination = DashboardRepository.core(
+      scope: scope,
+      isCurrent: () => current,
+    );
   });
   test('explicit preview copies selected passive room names in source order and appends', () async {
-    await destination.save(const DashboardLayout(rooms: [DashboardRoom(id: 'existing', name: 'Existing')]));
+    await destination.save(
+      const DashboardLayout(
+        rooms: [DashboardRoom(id: 'existing', name: 'Existing')],
+      ),
+    );
     final c = controller();
     final preview = await c.preview();
     expect(preview.roomNames, ['Kitchen', 'Living room', 'Office']);
@@ -50,37 +71,72 @@ void main() {
     expect(preview.excludedEntityReferences, 3);
     expect(preview.excludedAreaBindings, 1);
     expect(preview.toString(), 'LegacyLayoutPreview');
-    final before = (await SharedPreferences.getInstance()).getString('dashboard_layout');
+    final before = (await SharedPreferences.getInstance()).getString(
+      'dashboard_layout',
+    );
     await c.apply(preview, {2, 0});
     final stored = await destination.load();
     expect(stored.rooms.map((r) => r.name), ['Existing', 'Kitchen', 'Office']);
-    expect(stored.rooms.skip(1).every((r) => r.entityIds.isEmpty && r.areaBinding == null), isTrue);
+    expect(
+      stored.rooms
+          .skip(1)
+          .every((r) => r.entityIds.isEmpty && r.areaBinding == null),
+      isTrue,
+    );
     expect(stored.rooms.skip(1).map((r) => r.id), isNot(contains('old-one')));
     expect(stored.favoriteEntityIds, isEmpty);
     expect(stored.hiddenEntityIds, isEmpty);
     expect(stored.tiles, isEmpty);
-    expect((await SharedPreferences.getInstance()).getString('dashboard_layout'), before);
-    await expectLater(c.apply(preview, {0}), throwsA(isA<DashboardStorageException>()));
+    expect(
+      (await SharedPreferences.getInstance()).getString('dashboard_layout'),
+      before,
+    );
+    await expectLater(
+      c.apply(preview, {0}),
+      throwsA(isA<DashboardStorageException>()),
+    );
     expect((await destination.readSnapshot()).revision, 2);
   });
-  for (final cause in ['source', 'destination', 'expiry', 'clock-backwards', 'authority', 'owner', 'closed']) {
+  for (final cause in [
+    'source',
+    'destination',
+    'expiry',
+    'clock-backwards',
+    'authority',
+    'owner',
+    'closed',
+  ]) {
     test('stale preview rejects $cause without writing', () async {
       final c = controller();
       final preview = await c.preview();
       switch (cause) {
         case 'source':
-          await DashboardRepository().save(legacy.copyWith(rooms: legacy.rooms.reversed.toList()));
+          await DashboardRepository().save(
+            legacy.copyWith(rooms: legacy.rooms.reversed.toList()),
+          );
         case 'destination':
-          await destination.save(const DashboardLayout(rooms: [DashboardRoom(id: 'new', name: 'New')]));
-        case 'expiry': now = now.add(const Duration(minutes: 5));
-        case 'clock-backwards': now = now.subtract(const Duration(seconds: 1));
-        case 'authority': current = false;
-        case 'owner': break;
-        case 'closed': c.close();
+          await destination.save(
+            const DashboardLayout(
+              rooms: [DashboardRoom(id: 'new', name: 'New')],
+            ),
+          );
+        case 'expiry':
+          now = now.add(const Duration(minutes: 5));
+        case 'clock-backwards':
+          now = now.subtract(const Duration(seconds: 1));
+        case 'authority':
+          current = false;
+        case 'owner':
+          break;
+        case 'closed':
+          c.close();
       }
       final prefs = await SharedPreferences.getInstance();
       final before = prefs.get(scope.storageKey);
-      await expectLater((cause == 'owner' ? controller() : c).apply(preview, {0}), throwsA(isA<DashboardStorageException>()));
+      await expectLater(
+        (cause == 'owner' ? controller() : c).apply(preview, {0}),
+        throwsA(isA<DashboardStorageException>()),
+      );
       await prefs.reload();
       expect(prefs.get(scope.storageKey), before);
     });
@@ -90,21 +146,40 @@ void main() {
     final preview = await c.preview();
     final entered = Completer<void>();
     final release = Completer<void>();
-    final blocking = ConfigurationWrites.run(() async { entered.complete(); await release.future; });
+    final blocking = ConfigurationWrites.run(() async {
+      entered.complete();
+      await release.future;
+    });
     await entered.future;
     final applying = c.apply(preview, {0});
-    final rejected = expectLater(applying, throwsA(isA<DashboardStorageException>()));
+    final rejected = expectLater(
+      applying,
+      throwsA(isA<DashboardStorageException>()),
+    );
     current = false;
     release.complete();
     await blocking;
     await rejected;
-    expect((await SharedPreferences.getInstance()).get(scope.storageKey), isNull);
+    expect(
+      (await SharedPreferences.getInstance()).get(scope.storageKey),
+      isNull,
+    );
   });
   test('invalid or empty selection never modifies destination', () async {
-    for (final selection in [<int>{}, {-1}, {3}]) {
+    for (final selection in [
+      <int>{},
+      {-1},
+      {3},
+    ]) {
       final c = controller();
-      await expectLater(c.apply(await c.preview(), selection), throwsA(isA<DashboardStorageException>()));
+      await expectLater(
+        c.apply(await c.preview(), selection),
+        throwsA(isA<DashboardStorageException>()),
+      );
     }
-    expect((await SharedPreferences.getInstance()).get(scope.storageKey), isNull);
+    expect(
+      (await SharedPreferences.getInstance()).get(scope.storageKey),
+      isNull,
+    );
   });
 }
