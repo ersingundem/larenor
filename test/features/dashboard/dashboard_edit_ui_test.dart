@@ -552,9 +552,9 @@ void main() {
       await harness.mount(tester, const HomeDashboardScreen());
       final tile = find.byType(HomeAccessoryTile).first;
       final gesture = find
-          .descendant(of: tile, matching: find.byType(GestureDetector))
+          .descendant(of: tile, matching: find.byType(CupertinoButton))
           .first;
-      final tap = tester.widget<GestureDetector>(gesture).onTap!;
+      final tap = tester.widget<CupertinoButton>(gesture).onPressed!;
       harness.connection.change();
       await tester.pumpAndSettle();
       expect(find.byType(LiveHomeAccessoryTile), findsNothing);

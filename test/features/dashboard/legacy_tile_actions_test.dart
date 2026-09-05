@@ -1,12 +1,15 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:ui' as ui;
 
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:larenor/core/app_interaction_scope.dart';
+import 'package:larenor/core/theme.dart';
 import 'package:larenor/features/auth/data/ha_connection_config.dart';
 import 'package:larenor/features/auth/providers/auth_providers.dart';
 import 'package:larenor/features/dashboard/domain/tile_config.dart';
@@ -111,6 +114,9 @@ void main() {
     Future<http.Response> Function(http.Request)? response,
     bool duplicate = false,
     double tileHeight = 240,
+    double textScale = 1,
+    String language = 'en',
+    Brightness brightness = Brightness.light,
   }) async {
     requests.clear();
     interaction = AppInteractionController();
@@ -148,16 +154,20 @@ void main() {
           ),
         ],
         child: CupertinoApp(
+          theme: larenorTheme(brightness: brightness),
           navigatorKey: navigator,
           builder: (context, child) => AppInteractionScope(
             controller: interaction,
             child: ValueListenableBuilder<bool>(
               valueListenable: visible,
-              builder: (_, enabled, _) =>
-                  TickerMode(enabled: enabled, child: child!),
+              builder: (_, enabled, _) => MediaQuery(
+                data: MediaQuery.of(context)
+                    .copyWith(textScaler: TextScaler.linear(textScale)),
+                child: TickerMode(enabled: enabled, child: child!),
+              ),
             ),
           ),
-          locale: const Locale('en'),
+          locale: Locale(language),
           localizationsDelegates: AppLocalizations.localizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
           home: CupertinoPageScaffold(
@@ -197,6 +207,144 @@ void main() {
   GestureDetector dial(WidgetTester tester) => tester.widget(dialFinder());
   Map<String, dynamic> body() =>
       jsonDecode(requests.last.body) as Map<String, dynamic>;
+
+  for (final brightness in Brightness.values) {
+    testWidgets('climate keyboard focus has 3:1 contrast ($brightness)', (
+      tester,
+    ) async {
+      await mount(
+        tester,
+        _climate,
+        ['set_temperature'],
+        brightness: brightness,
+        textScale: 2,
+      );
+      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+      await tester.pumpAndSettle();
+      final outline = find.descendant(
+        of: find.byType(ClimateTile),
+        matching: find.byWidgetPredicate(
+          (widget) =>
+              widget is DecoratedBox &&
+              widget.decoration is BoxDecoration &&
+              (widget.decoration as BoxDecoration).border is Border &&
+              ((widget.decoration as BoxDecoration).border as Border)
+                      .top
+                      .width ==
+                  3.5,
+        ),
+      );
+      expect(outline, findsOneWidget);
+      final foreground =
+          ((tester.widget<DecoratedBox>(outline).decoration as BoxDecoration)
+                      .border
+                  as Border)
+              .top
+              .color;
+      final background = tester
+          .widget<ColoredBox>(
+            find
+                .descendant(
+                  of: find.byType(ClimateTile),
+                  matching: find.byType(ColoredBox),
+                )
+                .first,
+          )
+          .color;
+      final a = foreground.computeLuminance(),
+          b = background.computeLuminance();
+      final ratio = (a > b ? a + .05 : b + .05) / (a > b ? b + .05 : a + .05);
+      expect(ratio, greaterThanOrEqualTo(3));
+      debugPrint(
+        'Climate focus $brightness contrast: ${ratio.toStringAsFixed(2)}',
+      );
+      expect(requests, isEmpty);
+      expect(tester.takeException(), isNull);
+    });
+  }
+
+  testWidgets(
+    'climate increase action matches its announced value during a dial preview',
+    (tester) async {
+      final semantics = tester.ensureSemantics();
+      try {
+        await mount(tester, _climate, ['set_temperature']);
+        final size = tester.getSize(dialFinder());
+        dial(tester).onPanStart!(
+          DragStartDetails(localPosition: Offset(0, size.height / 2)),
+        );
+        await tester.pump();
+        final node = tester.getSemantics(
+          find.byKey(const ValueKey('climate-dial-climate.living')),
+        );
+        expect(node.value, '25.0°');
+        expect(node.increasedValue, '25.5°');
+        node.owner!.performAction(node.id, ui.SemanticsAction.increase);
+        await tester.pumpAndSettle();
+        expect(requests, hasLength(1));
+        expect(body()['temperature'], 25.5);
+      } finally {
+        semantics.dispose();
+      }
+    },
+  );
+
+  testWidgets(
+    'climate slider announces one target and preserves current reading',
+    (tester) async {
+      final semantics = tester.ensureSemantics();
+      try {
+        await mount(tester, _climate, ['set_temperature']);
+        final node = tester.getSemantics(
+          find.byKey(const ValueKey('climate-dial-climate.living')),
+        );
+        expect(node.label, 'Thermostat, Target temperature');
+        expect(node.value, '20.0°');
+        expect(node.hint, 'Current: 19.0°');
+        expect(node.getSemanticsData().flagsCollection.isSlider, isTrue);
+        expect(
+          node.getSemanticsData().hasAction(ui.SemanticsAction.increase),
+          isTrue,
+        );
+      } finally {
+        semantics.dispose();
+      }
+    },
+  );
+
+  testWidgets(
+    'climate dial keyboard changes one step and respects inactive scope',
+    (tester) async {
+      await mount(tester, _climate, ['set_temperature']);
+      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowUp);
+      await tester.pumpAndSettle();
+      expect(requests, hasLength(1));
+      expect(body()['temperature'], 20.5);
+      interaction.setActive(false);
+      await tester.pumpAndSettle();
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+      await tester.pumpAndSettle();
+      expect(requests, hasLength(1));
+    },
+  );
+
+  for (final language in ['en', 'tr']) {
+    testWidgets('climate dial text fits 2x in compact cell ($language)', (
+      tester,
+    ) async {
+      await mount(
+        tester,
+        _climate,
+        ['set_temperature'],
+        tileHeight: 98,
+        textScale: 2,
+        language: language,
+      );
+      expect(tester.takeException(), isNull);
+      expect(requests, isEmpty);
+    });
+  }
 
   testWidgets('idle then wake never renews a captured scene callback', (
     tester,

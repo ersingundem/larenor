@@ -20,6 +20,7 @@ import '../../../../shared/theme/typography.dart';
 import '../../../../shared/theme/spacing.dart';
 import '../../../../shared/theme/icon_sizes.dart';
 import 'entity_state_label.dart';
+import 'dashboard_tile_button.dart';
 
 /// Domains where a plain tap is safe to treat as "toggle this".
 ///
@@ -65,7 +66,12 @@ class HomeAccessoryTile extends ConsumerStatefulWidget {
     const lineFactor = 1.35;
     final title = scaler.scale(AppText.tileTitle.fontSize!) * lineFactor;
     final subtitle = scaler.scale(AppText.tileSubtitle.fontSize!) * lineFactor;
-    return Gap.md * 2 + _glyphSize + Gap.xxs + title + subtitle;
+    return DashboardTileButton.focusInset * 2 +
+        Gap.md * 2 +
+        _glyphSize +
+        Gap.xxs +
+        title +
+        subtitle;
   }
 
   @override
@@ -210,96 +216,91 @@ class _HomeAccessoryTileState extends DashboardEditState<HomeAccessoryTile> {
         ? CupertinoColors.white
         : CupertinoColors.secondaryLabel.resolveFrom(context);
 
-    return Semantics(
-      button: true,
+    return DashboardTileButton(
       label: '$title, ${entityStateLabel(context, entity)}',
-      enabled: enabled,
-      onTap: enabled ? dashboardAction(_activate) : null,
-      child: GestureDetector(
-        onTap: enabled ? dashboardAction(_activate) : null,
-        onLongPress: enabled && widget.enableContextMenu
-            ? dashboardAction(_showActions)
-            : null,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 180),
-          decoration: BoxDecoration(
-            color: background,
-            borderRadius: BorderRadius.circular(22),
-            border: Border.all(
-              color: isOn
-                  ? categoryColor.withValues(alpha: 0.18)
-                  : CupertinoColors.white.withValues(alpha: dark ? 0.04 : 0.35),
-            ),
-            boxShadow: isOn
-                ? [
-                    BoxShadow(
-                      color: categoryColor.withValues(alpha: 0.07),
-                      blurRadius: 16,
-                      offset: const Offset(0, 4),
-                    ),
-                  ]
-                : null,
+      onPressed: enabled ? dashboardAction(_activate) : null,
+      onLongPress: enabled && widget.enableContextMenu
+          ? dashboardAction(_showActions)
+          : null,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        decoration: BoxDecoration(
+          color: background,
+          borderRadius: BorderRadius.circular(22),
+          border: Border.all(
+            color: isOn
+                ? categoryColor.withValues(alpha: 0.18)
+                : CupertinoColors.white.withValues(alpha: dark ? 0.04 : 0.35),
           ),
-          child: Padding(
-            padding: Insets.tile,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Container(
-                      width: _glyphSize,
-                      height: _glyphSize,
-                      decoration: BoxDecoration(
-                        color: glyphBackground,
-                        shape: BoxShape.circle,
-                      ),
-                      child: Icon(
-                        iconForEntity(entity),
-                        size: IconSizes.body,
-                        color: glyphColor,
+          boxShadow: isOn
+              ? [
+                  BoxShadow(
+                    color: categoryColor.withValues(alpha: 0.07),
+                    blurRadius: 16,
+                    offset: const Offset(0, 4),
+                  ),
+                ]
+              : null,
+        ),
+        child: Padding(
+          padding: Insets.tile,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Container(
+                    width: _glyphSize,
+                    height: _glyphSize,
+                    decoration: BoxDecoration(
+                      color: glyphBackground,
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(
+                      iconForEntity(entity),
+                      size: IconSizes.body,
+                      color: glyphColor,
+                    ),
+                  ),
+                  if (_busy)
+                    const CupertinoActivityIndicator(radius: 8)
+                  else if (isOn)
+                    Icon(
+                      CupertinoIcons.circle_fill,
+                      size: 6,
+                      color: categoryColor,
+                    ),
+                ],
+              ),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppText.tileTitle.copyWith(
+                      color: CupertinoColors.label.resolveFrom(context),
+                    ),
+                  ),
+                  const SizedBox(height: Gap.xxs),
+                  Text(
+                    entityStateLabel(context, entity),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: AppText.tileSubtitle.fontSize,
+                      color: CupertinoColors.secondaryLabel.resolveFrom(
+                        context,
                       ),
                     ),
-                    if (_busy)
-                      const CupertinoActivityIndicator(radius: 8)
-                    else if (isOn)
-                      Icon(
-                        CupertinoIcons.circle_fill,
-                        size: 6,
-                        color: categoryColor,
-                      ),
-                  ],
-                ),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      title,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: AppText.tileTitle.copyWith(
-                        color: CupertinoColors.label.resolveFrom(context),
-                      ),
-                    ),
-                    const SizedBox(height: Gap.xxs),
-                    Text(
-                      entityStateLabel(context, entity),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontSize: AppText.tileSubtitle.fontSize,
-                        color: CupertinoColors.secondaryLabel.resolveFrom(
-                          context,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
+                  ),
+                ],
+              ),
+            ],
           ),
         ),
       ),
