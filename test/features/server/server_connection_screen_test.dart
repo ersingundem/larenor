@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -201,6 +202,139 @@ Future<void> resume(WidgetTester tester) async {
 }
 
 void main() {
+  for (final language in ['en', 'tr']) {
+    testWidgets(
+      'password success then real context 404 keeps tokens and offers GET-only recovery ($language tablet 2x)',
+      (tester) async {
+        final store = Store();
+        final initial = session(requiredChange: true);
+        final changed = ServerSession(
+          endpoint: initial.endpoint,
+          accessToken: 'synthetic_changed_access_123',
+          refreshToken: 'synthetic_changed_refresh_123',
+          expiresAt: initial.expiresAt,
+          user: session().user,
+        );
+        final calls = <String>[];
+        var contextAvailable = false;
+        http.Response pair(ServerSession value) => http.Response(
+          jsonEncode({
+            'accessToken': value.accessToken,
+            'refreshToken': value.refreshToken,
+            'expiresIn': 3600,
+            'user': value.user.toJson(),
+          }),
+          200,
+          headers: {'content-type': 'application/json'},
+        );
+        final api = LarenorServerApi(
+          endpoint: initial.endpoint,
+          client: MockClient((request) async {
+            calls.add('${request.method} ${request.url.path}');
+            switch (request.url.path) {
+              case '/api/v1/auth/login':
+                return pair(initial);
+              case '/api/v1/auth/password':
+                expect(store.value?.authMutationPending, isTrue);
+                expect(
+                  request.headers['authorization'],
+                  'Bearer ${initial.accessToken}',
+                );
+                return pair(changed);
+              case '/api/v1/context':
+                expect(request.method, 'GET');
+                expect(
+                  request.headers['authorization'],
+                  'Bearer ${changed.accessToken}',
+                );
+                expect(store.value?.refreshToken, changed.refreshToken);
+                expect(store.value?.authMutationPending, isFalse);
+                if (!contextAvailable) {
+                  return http.Response(
+                    '<html>synthetic-private-proxy-content</html>',
+                    404,
+                  );
+                }
+                return http.Response(
+                  jsonEncode({
+                    'schemaVersion': 1,
+                    'coreId': 'a' * 32,
+                    'homeId': 'b' * 32,
+                  }),
+                  200,
+                  headers: {'content-type': 'application/json'},
+                );
+              default:
+                fail('Unexpected request in synthetic account flow');
+            }
+          }),
+        );
+        final account = ServerAccountController(
+          store: store,
+          apiFactory: (_) => api,
+        );
+        await mount(tester, account, width: 900, scale: 2, language: language);
+        await loginFields(tester);
+        await tap(tester, 'server-sign-in');
+        await tester.pumpAndSettle();
+        expect(calls, ['POST /api/v1/auth/login']);
+        expect(account.session?.user.mustChangePassword, isTrue);
+        expect(account.context, isNull);
+        expect(find.byKey(const ValueKey('server-admin')), findsNothing);
+        for (final entry in {
+          'server-current-password': 'Synthetic initial password',
+          'server-new-password': 'A new synthetic password',
+          'server-confirm-password': 'A new synthetic password',
+        }.entries) {
+          await tester.enterText(find.byKey(ValueKey(entry.key)), entry.value);
+        }
+        await tap(tester, 'server-change-password');
+        await tester.pumpAndSettle();
+        final explanation = language == 'en'
+            ? 'Home verification is unavailable at this address. Check the Server address or update Larenor Server, then retry.'
+            : 'Bu adreste ev doğrulaması kullanılamıyor. Server adresini kontrol edin veya Larenor Server’ı güncelleyin, ardından yeniden deneyin.';
+        expect(find.text(explanation), findsOneWidget);
+        await tester.ensureVisible(find.text(explanation));
+        await tester.pumpAndSettle();
+        expect(find.text(explanation).hitTestable(), findsOneWidget);
+        expect(account.failure, 'context_endpoint_unavailable');
+        expect(account.hasPendingContext, isTrue);
+        expect(account.session, isNull);
+        expect(store.value?.refreshToken, changed.refreshToken);
+        expect(store.value?.context, isNull);
+        expect(find.byKey(const ValueKey('server-admin')), findsNothing);
+        expect(
+          find.byKey(const ValueKey('server-current-password')),
+          findsNothing,
+        );
+        expect(find.textContaining('synthetic_changed_'), findsNothing);
+        expect(
+          find.textContaining('synthetic-private-proxy-content'),
+          findsNothing,
+        );
+        expect(
+          find.textContaining('context_endpoint_unavailable'),
+          findsNothing,
+        );
+        expect(tester.takeException(), isNull);
+        contextAvailable = true;
+        await tap(tester, 'server-context-retry');
+        await tester.pumpAndSettle();
+        expect(calls, [
+          'POST /api/v1/auth/login',
+          'POST /api/v1/auth/password',
+          'GET /api/v1/context',
+          'GET /api/v1/context',
+        ]);
+        expect(account.context?.coreId, 'a' * 32);
+        expect(store.value?.refreshToken, changed.refreshToken);
+        expect(find.text(explanation), findsNothing);
+        expect(find.byKey(const ValueKey('server-admin')), findsOneWidget);
+        expect(tester.takeException(), isNull);
+      },
+    );
+  }
+
   for (final language in ['en', 'tr']) {
     testWidgets(
       'pending context has a guarded GET-only recovery at tablet 2x ($language)',

@@ -139,11 +139,110 @@ void main() {
         final code = switch (status) {
           401 => 'unauthorized',
           403 => 'forbidden',
+          404 => 'context_endpoint_unavailable',
           429 => 'rate_limited',
           _ => 'server_error',
         };
         await expectLater(api.context(_access), throwsA(_failure(code)));
         expect(calls, 1);
+      },
+    );
+  }
+
+  test(
+    'context 404 from a proxy is localized without exposing its HTML',
+    () async {
+      var calls = 0;
+      final api = LarenorServerApi(
+        endpoint: ServerEndpoint('https://fixture.invalid/larenor/'),
+        client: MockClient((request) async {
+          calls++;
+          expect(request.url.path, '/larenor/api/v1/context');
+          return http.Response(
+            '<html>$_privatePayload $_access</html>',
+            404,
+            headers: {'content-type': 'text/html'},
+          );
+        }),
+      );
+      addTearDown(api.close);
+      await expectLater(
+        api.context(_access),
+        throwsA(_failure('context_endpoint_unavailable')),
+      );
+      expect(calls, 1);
+    },
+  );
+
+  for (final target in [
+    (method: 'GET', path: '/auth/me', query: <String, String>{}),
+    (method: 'POST', path: '/context', query: <String, String>{}),
+    (method: 'GET', path: '/context/other', query: <String, String>{}),
+    (method: 'GET', path: '/context', query: {'limit': '1'}),
+  ]) {
+    test('only exact context GET maps 404: $target', () async {
+      final api = LarenorServerApi(
+        endpoint: ServerEndpoint('https://fixture.invalid/prefix'),
+        client: MockClient(
+          (_) async => _json({
+            'error': {
+              'code': 'context_endpoint_unavailable',
+              'message': _privatePayload,
+            },
+          }, status: 404),
+        ),
+      );
+      addTearDown(api.close);
+      await expectLater(
+        api.request(
+          target.method,
+          target.path,
+          token: _access,
+          queryParameters: target.query,
+        ),
+        throwsA(_failure('server_error')),
+      );
+    });
+  }
+
+  test('context 404 classification keeps the error-body byte bound', () async {
+    final api = LarenorServerApi(
+      endpoint: ServerEndpoint('https://fixture.invalid'),
+      client: MockClient((_) async => http.Response('x' * 8193, 404)),
+    );
+    addTearDown(api.close);
+    await expectLater(
+      api.context(_access),
+      throwsA(_failure('invalid_response')),
+    );
+  });
+
+  for (final status in [200, 401, 503]) {
+    test(
+      'server body cannot spoof the local context failure at HTTP $status',
+      () async {
+        final api = LarenorServerApi(
+          endpoint: ServerEndpoint('https://fixture.invalid'),
+          client: MockClient(
+            (_) async => _json({
+              'error': {
+                'code': 'context_endpoint_unavailable',
+                'message': _privatePayload,
+              },
+            }, status: status),
+          ),
+        );
+        addTearDown(api.close);
+        await expectLater(
+          api.context(_access),
+          throwsA(
+            _failure(switch (status) {
+              200 => 'invalid_response',
+              401 => 'unauthorized',
+              _ => 'server_error',
+            }),
+          ),
+        );
       },
     );
   }
