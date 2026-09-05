@@ -2,7 +2,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart' show Provider;
 import 'package:qbittorrent_api/qbittorrent_api.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
-import '../../../../core/configuration_writes.dart';
 import '../../../../core/direct_home_access.dart';
 import '../../../health/data/health_monitor.dart';
 import '../../../health/data/integration_health.dart';
@@ -32,19 +31,34 @@ QbittorrentCredentialsStore qbittorrentCredentialsStore(Ref ref) =>
 
 @riverpod
 class QbittorrentConnection extends _$QbittorrentConnection {
+  late final DirectHomeAccess _access = ref.read(directHomeAccessProvider);
   int _generation = 0;
   QbittorrentClient? _verificationClient;
 
+  void _check([int? generation]) {
+    if (!ref.mounted) throw const DirectHomeAccessException('unavailable');
+    _access.check();
+    if (generation != null && generation != _generation) {
+      throw MediaApiException('Connection is no longer active.');
+    }
+  }
+
+  void _closeCheck() {
+    _verificationClient?.dispose();
+    _verificationClient = null;
+  }
+
   @override
   Future<QbittorrentConfig?> build() async {
-    final access = ref.watch(directHomeAccessProvider);
-    access.check();
+    ref.watch(directHomeAccessProvider);
+    final generation = ++_generation;
     ref.onDispose(() {
       _generation++;
-      _verificationClient?.dispose();
+      _closeCheck();
     });
+    _check(generation);
     final value = await ref.watch(qbittorrentCredentialsStoreProvider).read();
-    access.check();
+    _check(generation);
     return value;
   }
 
@@ -52,10 +66,22 @@ class QbittorrentConnection extends _$QbittorrentConnection {
     required String baseUrl,
     required String username,
     required String password,
+    bool Function()? isCurrent,
   }) async {
+    void checkAction() {
+      try {
+        if (isCurrent == null || isCurrent()) return;
+      } catch (_) {}
+      throw const DirectHomeAccessException('unavailable');
+    }
+
+    _check();
+    checkAction();
     final previous = state.value;
     final generation = ++_generation;
-    _verificationClient?.dispose();
+    final store = ref.read(qbittorrentCredentialsStoreProvider);
+    final factory = ref.read(qbittorrentClientFactoryProvider);
+    _closeCheck();
     state = const AsyncLoading();
     final config = QbittorrentConfig(
       baseUrl: baseUrl,
@@ -63,19 +89,40 @@ class QbittorrentConnection extends _$QbittorrentConnection {
       password: password,
     );
     QbittorrentClient? client;
-    bool current() => ref.mounted && _generation == generation;
+    bool current() =>
+        ref.mounted && _access.isCurrent && _generation == generation;
+    bool actionCurrent() {
+      if (!current()) return false;
+      try {
+        return isCurrent == null || isCurrent();
+      } catch (_) {
+        return false;
+      }
+    }
+
     try {
-      client = ref.read(qbittorrentClientFactoryProvider)(config, null);
+      client = factory(config, null);
       _verificationClient = client;
       await client.login();
-      await ConfigurationWrites.run(() async {
-        if (!current()) return;
-        await ref
-            .read(qbittorrentCredentialsStoreProvider)
-            .save(baseUrl: baseUrl, username: username, password: password);
-        if (current()) state = AsyncData(config);
-      });
-    } catch (_) {
+      _check(generation);
+      checkAction();
+      await store.save(
+        baseUrl: baseUrl,
+        username: username,
+        password: password,
+        isCurrent: actionCurrent,
+      );
+      _check(generation);
+      checkAction();
+      state = AsyncData(config);
+    } catch (error) {
+      _check(generation);
+      // A possibly persisted partial tuple must never republish a usable
+      // connection. Its private marker requires explicit complete recovery.
+      if (error is DirectHomeAccessException) {
+        state = AsyncError(error, StackTrace.empty);
+        rethrow;
+      }
       if (current()) state = AsyncData(previous);
       throw MediaApiException('Could not sign in — check URL and credentials.');
     } finally {
@@ -85,22 +132,34 @@ class QbittorrentConnection extends _$QbittorrentConnection {
   }
 
   Future<void> signOut() async {
+    _check();
     final generation = ++_generation;
-    _verificationClient?.dispose();
+    final store = ref.read(qbittorrentCredentialsStoreProvider);
+    _closeCheck();
     state = const AsyncLoading();
-    await ConfigurationWrites.run(() async {
-      if (!ref.mounted || generation != _generation) return;
-      await ref.read(qbittorrentCredentialsStoreProvider).clear();
-      if (ref.mounted && generation == _generation) {
-        state = const AsyncData(null);
-      }
-    });
+    try {
+      await store.clear(
+        isCurrent: () =>
+            ref.mounted && _access.isCurrent && generation == _generation,
+      );
+      _check(generation);
+      state = const AsyncData(null);
+    } catch (error) {
+      _check(generation);
+      state = AsyncError(
+        const DirectHomeAccessException('write_unconfirmed'),
+        StackTrace.empty,
+      );
+      rethrow;
+    }
   }
 }
 
 // Session acquisition and writes must never be automatically retried by Riverpod.
 @Riverpod(retry: _noRetry)
 Future<QbittorrentClient?> qbittorrentClient(Ref ref) async {
+  final access = ref.watch(directHomeAccessProvider);
+  access.check();
   final connection = ref.watch(qbittorrentConnectionProvider);
   final config = connection.isLoading || connection.hasError
       ? null
@@ -118,6 +177,7 @@ Future<QbittorrentClient?> qbittorrentClient(Ref ref) async {
   ref.onDispose(client.dispose);
   try {
     await client.login();
+    access.check();
     if (!ref.mounted) {
       client.dispose();
       return null;

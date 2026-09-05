@@ -38,11 +38,13 @@ class QbittorrentCredentialsStore {
     required String baseUrl,
     required String username,
     required String password,
+    bool Function()? isCurrent,
   }) => _record.replaceAll({
     'baseUrl': baseUrl,
     'username': username,
     'password': password,
-  });
+  }, isCurrent: isCurrent);
 
-  Future<void> clear() => _record.clear();
+  Future<void> clear({bool Function()? isCurrent}) =>
+      _record.clear(isCurrent: isCurrent);
 }
