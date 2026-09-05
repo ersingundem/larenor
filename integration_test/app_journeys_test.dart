@@ -26,6 +26,7 @@ import 'package:larenor/features/settings/domain/screen_program.dart';
 import 'support/app_harness.dart';
 import 'support/synthetic_ha_server.dart';
 import 'support/synthetic_core_account.dart';
+import 'support/synthetic_core_resources.dart';
 
 void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
@@ -720,6 +721,121 @@ void main() {
         debugPrint('LARENOR_E2E_PHASE scoped_layout.cleanup_begin');
         await app.close(tester);
         debugPrint('LARENOR_E2E_PHASE scoped_layout.cleanup_complete');
+      }
+    },
+    timeout: const Timeout(Duration(minutes: 3)),
+  );
+
+  testWidgets(
+    'Core member resources → revoked permission → explicit refresh → another Core',
+    (tester) async {
+      debugPrint('LARENOR_E2E_PHASE core_resources.begin');
+      final app = await AppHarness.start(
+        connected: true,
+        coreSource: true,
+        coreResources: true,
+      );
+      final core = app.server.coreAccount!;
+      final resources = core.resources!;
+      final room = find.byKey(ValueKey('home-resource-${'1' * 32}'));
+      final lamp = find.byKey(ValueKey('home-resource-${'3' * 32}'));
+      final refresh = find.byKey(const ValueKey('home-resources-refresh'));
+      final empty = find.byKey(const ValueKey('home-resources-empty'));
+
+      Future<void> remount(String expectedLabel) async {
+        final meReads = core.meReads, contextReads = core.contextReads;
+        await tester.pumpWidget(const SizedBox.shrink());
+        await tester.pump(const Duration(milliseconds: 200));
+        await app.mount(tester);
+        await waitFor(tester, find.text(expectedLabel));
+        expect(core.meReads, greaterThan(meReads));
+        expect(core.contextReads, greaterThan(contextReads));
+      }
+
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        final legacy = prefs.getString('dashboard_layout');
+        await app.mount(tester);
+        await waitFor(tester, find.byType(CoreHomeStatusScreen));
+        expect(room, findsNothing);
+        expect(lamp, findsNothing);
+        expect(resources.reads, 0);
+        await tapVisible(tester, find.text('Manage Core account'));
+        await waitFor(tester, find.text('Unlock'));
+        await tester.enterText(find.byType(CupertinoTextField), AppHarness.pin);
+        await tapVisible(tester, find.text('Unlock'));
+        await waitFor(tester, find.byType(ServerConnectionScreen));
+        await tester.enterText(
+          find.byKey(const ValueKey('server-url')),
+          app.server.baseUrl,
+        );
+        await tester.enterText(
+          find.byKey(const ValueKey('server-username')),
+          SyntheticCoreAccount.username,
+        );
+        await tester.enterText(
+          find.byKey(const ValueKey('server-password')),
+          SyntheticCoreAccount.password,
+        );
+        await tapVisible(tester, find.byKey(const ValueKey('server-sign-in')));
+        await waitFor(tester, room);
+        await waitFor(tester, lamp);
+        expect(core.user['role'], 'member');
+        expect(find.byKey(ValueKey('home-resource-${'2' * 32}')), findsNothing);
+        expect(find.byKey(ValueKey('home-resource-${'4' * 32}')), findsNothing);
+        expect(resources.reads, 1);
+        debugPrint('LARENOR_E2E_PHASE core_resources.member_visible_only');
+
+        // ACL changes are observed on a new authorized request, not a pretend
+        // push channel. A refresh must replace the prior permission snapshot.
+        resources.view = SyntheticCoreResourceView.revoked;
+        await tapVisible(tester, refresh);
+        await waitFor(tester, lamp);
+        expect(room, findsNothing);
+        expect(resources.reads, 2);
+        debugPrint('LARENOR_E2E_PHASE core_resources.revoked_after_refresh');
+
+        resources.view = SyntheticCoreResourceView.empty;
+        await tapVisible(tester, refresh);
+        await waitFor(tester, empty);
+        expect(room, findsNothing);
+        expect(lamp, findsNothing);
+        expect(find.text('Fixture room'), findsNothing);
+        expect(resources.reads, 3);
+        debugPrint('LARENOR_E2E_PHASE core_resources.empty_without_legacy');
+
+        core.coreId = 'c' * 32;
+        core.homeId = 'd' * 32;
+        await remount('İkinci ev · Salon');
+        expect(find.text('Salon'), findsNothing);
+        expect(find.text('Okuma lambası'), findsNothing);
+        expect(find.text('İkinci ev · Okuma lambası'), findsOneWidget);
+        expect(resources.requestedScopes.last, ('c' * 32, 'd' * 32));
+        expect(resources.reads, 4);
+        debugPrint('LARENOR_E2E_PHASE core_resources.other_core_verified');
+
+        core.coreId = 'a' * 32;
+        core.homeId = 'b' * 32;
+        resources.view = SyntheticCoreResourceView.member;
+        await remount('Salon');
+        expect(find.text('İkinci ev · Salon'), findsNothing);
+        expect(find.text('İkinci ev · Okuma lambası'), findsNothing);
+        expect(find.text('Okuma lambası'), findsOneWidget);
+        expect(resources.requestedScopes.last, ('a' * 32, 'b' * 32));
+        expect(resources.reads, 5);
+        await prefs.reload();
+        expect(prefs.getString('dashboard_layout'), legacy);
+        expect(app.server.requests, 0);
+        expect(app.server.rejectedLogins, 0);
+        expect(app.server.acceptedActions, isEmpty);
+        expect(app.wsClientsCreated, 0);
+        expect(app.server.subscriptions, 0);
+        expect(core.rejectedRequests, 0);
+        debugPrint('LARENOR_E2E_PHASE core_resources.original_scope_restored');
+      } finally {
+        debugPrint('LARENOR_E2E_PHASE core_resources.cleanup_begin');
+        await app.close(tester);
+        debugPrint('LARENOR_E2E_PHASE core_resources.cleanup_complete');
       }
     },
     timeout: const Timeout(Duration(minutes: 3)),

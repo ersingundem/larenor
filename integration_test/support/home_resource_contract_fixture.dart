@@ -277,7 +277,7 @@ const homeResourceContractFixture = r'''
     },
     "entries": [
       {
-        "label": "Salon",
+        "label": "İkinci ev · Salon",
         "order": 1,
         "ref": {
           "schemaVersion": 1,
@@ -294,7 +294,7 @@ const homeResourceContractFixture = r'''
         }
       },
       {
-        "label": "Okuma lambası",
+        "label": "İkinci ev · Okuma lambası",
         "order": 2,
         "ref": {
           "schemaVersion": 1,
@@ -311,7 +311,7 @@ const homeResourceContractFixture = r'''
         }
       }
     ],
-    "snapshot": "2dc19055cecde9b4a06eb9da8b0d02b05510e33f3ff9da1e1107e3928ddb5c02",
+    "snapshot": "2029d4260c51a7811504509758cfb74062fa5140f8c0ccecc79cbfa3083f7b48",
     "nextAfter": null
   }
 }
