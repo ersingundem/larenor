@@ -2,6 +2,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../l10n/generated/app_localizations.dart';
+import '../../../../core/direct_home_access.dart';
 import '../providers/prowlarr_providers.dart';
 import 'prowlarr_connect_screen.dart';
 import '../../../../shared/widgets/service_root_scaffold.dart';
@@ -15,11 +16,17 @@ class ProwlarrIndexersScreen extends ConsumerWidget {
     final connectionAsync = ref.watch(prowlarrConnectionProvider);
 
     return connectionAsync.when(
+      skipLoadingOnReload: false,
+      skipLoadingOnRefresh: false,
       loading: () => const CupertinoPageScaffold(
         child: Center(child: CupertinoActivityIndicator()),
       ),
-      error: (error, _) =>
-          CupertinoPageScaffold(child: Center(child: Text(error.toString()))),
+      error: (error, _) {
+        if (error is DirectHomeAccessException && error.code == 'pending_mutation') {
+          return const ProwlarrConnectScreen();
+        }
+        return CupertinoPageScaffold(child: Center(child: Text(AppLocalizations.of(context).mediaErrorUnreachable)));
+      },
       data: (config) {
         if (config == null) return const ProwlarrConnectScreen();
         return const _IndexersList();

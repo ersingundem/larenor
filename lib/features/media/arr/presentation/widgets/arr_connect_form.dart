@@ -20,10 +20,12 @@ class ArrConnectForm extends ConsumerStatefulWidget {
     required this.onConnect,
     this.discoverySignature,
     this.onClear,
+    this.apiKeyHint,
   });
 
   final String title;
   final String urlHint;
+  final String? apiKeyHint;
   final Future<void> Function(
     String baseUrl,
     String apiKey,
@@ -202,7 +204,7 @@ class _ArrConnectFormState extends MediaSessionState<ArrConnectForm> {
                   ),
                 SettingsSection(
                   footer: Text(
-                    AppLocalizations.of(context).arrApiKeyHint(widget.title),
+                    widget.apiKeyHint ?? AppLocalizations.of(context).arrApiKeyHint(widget.title),
                   ),
                   children: [
                     CupertinoTextFormFieldRow(
