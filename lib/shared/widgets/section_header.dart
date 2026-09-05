@@ -20,10 +20,13 @@ class SectionHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final text = Text(
-      title,
-      style: AppText.sectionHeader.copyWith(
-        color: CupertinoColors.label.resolveFrom(context),
+    final text = Semantics(
+      header: true,
+      child: Text(
+        title,
+        style: AppText.sectionHeader.copyWith(
+          color: CupertinoColors.label.resolveFrom(context),
+        ),
       ),
     );
 

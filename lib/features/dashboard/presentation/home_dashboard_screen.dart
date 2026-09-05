@@ -579,11 +579,16 @@ class _HomeDashboardScreenState
         : CupertinoButton(
             key: room == null ? null : ValueKey('home-room-menu-${room.id}'),
             padding: EdgeInsets.zero,
-            minimumSize: const Size.square(IconSizes.minTapTarget),
+            minimumSize: const Size.square(48),
             onPressed: dashboardAction(onEdit ?? () => _showRoomMenu(room!)),
-            child: const Icon(
+            child: Icon(
               CupertinoIcons.ellipsis_circle,
               size: IconSizes.body,
+              semanticLabel: room == null
+                  ? AppLocalizations.of(context)
+                        .dashboardEditSectionLabel(title)
+                  : AppLocalizations.of(context)
+                        .dashboardRoomMenuLabel(room.name),
             ),
           ),
   );

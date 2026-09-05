@@ -73,194 +73,198 @@ void main() {
           SharedPreferences.setMockInitialValues({});
           FlutterSecureStorage.setMockInitialValues({});
           final semantics = tester.ensureSemantics();
-          addTearDown(semantics.dispose);
-          tester.view.physicalSize = Size(width, 1000);
-          tester.view.devicePixelRatio = 1;
-          addTearDown(tester.view.reset);
-          final roomName = language == 'en' ? 'Living room' : 'Oturma odası';
-          final roomLabel = language == 'en'
-              ? '$roomName room menu'
-              : '$roomName oda menüsü';
-          final services = language == 'en' ? 'Services' : 'Servisler';
-          final widgets = language == 'en' ? 'Widgets' : 'Bileşenler';
-          final repository = _Repository(roomName);
-          final initial = repository.saved;
-          final navigator = GlobalKey<NavigatorState>();
-          final container = ProviderContainer(
-            overrides: [
-              dashboardRepositoryProvider.overrideWithValue(repository),
-              connectionConfigProvider.overrideWithBuild(
-                (ref, notifier) async => const HaConnectionConfig(
-                  baseUrl: 'https://ha.invalid',
-                  token: 'synthetic-only',
+          try {
+            tester.view.physicalSize = Size(width, 1000);
+            tester.view.devicePixelRatio = 1;
+            addTearDown(tester.view.reset);
+            final roomName = language == 'en' ? 'Living room' : 'Oturma odası';
+            final roomLabel = language == 'en'
+                ? 'Room menu: $roomName'
+                : 'Oda menüsü: $roomName';
+            final services = language == 'en' ? 'Services' : 'Servisler';
+            final widgets = language == 'en' ? 'Widgets' : 'Bileşenler';
+            final repository = _Repository(roomName);
+            final initial = repository.saved;
+            final navigator = GlobalKey<NavigatorState>();
+            final container = ProviderContainer(
+              overrides: [
+                dashboardRepositoryProvider.overrideWithValue(repository),
+                connectionConfigProvider.overrideWithBuild(
+                  (ref, notifier) async => const HaConnectionConfig(
+                    baseUrl: 'https://ha.invalid',
+                    token: 'synthetic-only',
+                  ),
+                ),
+                entitiesProvider.overrideWithBuild((ref, notifier) async => {}),
+                haRestClientProvider.overrideWithValue(null),
+                haWebSocketClientProvider.overrideWithValue(null),
+                haConnectionStatusProvider.overrideWith(
+                  (ref) => Stream.value(HaConnectionStatus.connected),
+                ),
+                enabledServicesProvider.overrideWithBuild(
+                  (ref, notifier) async => {AppService.sonarr},
+                ),
+                sonarrConnectionProvider.overrideWithBuild(
+                  (ref, notifier) async => null,
+                ),
+                sonarrCalendarProvider.overrideWith((ref) async => []),
+              ],
+            );
+            addTearDown(() async {
+              await tester.pumpWidget(const SizedBox.shrink());
+              container.dispose();
+            });
+            await tester.pumpWidget(
+              UncontrolledProviderScope(
+                container: container,
+                child: CupertinoApp(
+                  navigatorKey: navigator,
+                  theme: larenorTheme(),
+                  locale: Locale(language),
+                  localizationsDelegates:
+                      AppLocalizations.localizationsDelegates,
+                  supportedLocales: AppLocalizations.supportedLocales,
+                  builder: (context, child) => MediaQuery(
+                    data: MediaQuery.of(context)
+                        .copyWith(textScaler: TextScaler.linear(2)),
+                    child: child!,
+                  ),
+                  home: const HomeDashboardScreen(embedded: true),
                 ),
               ),
-              entitiesProvider.overrideWithBuild((ref, notifier) async => {}),
-              haRestClientProvider.overrideWithValue(null),
-              haWebSocketClientProvider.overrideWithValue(null),
-              haConnectionStatusProvider.overrideWith(
-                (ref) => Stream.value(HaConnectionStatus.connected),
-              ),
-              enabledServicesProvider.overrideWithBuild(
-                (ref, notifier) async => {AppService.sonarr},
-              ),
-              sonarrConnectionProvider.overrideWithBuild(
-                (ref, notifier) async => null,
-              ),
-              sonarrCalendarProvider.overrideWith((ref) async => []),
-            ],
-          );
-          addTearDown(() async {
-            await tester.pumpWidget(const SizedBox.shrink());
-            container.dispose();
-          });
-          await tester.pumpWidget(
-            UncontrolledProviderScope(
-              container: container,
-              child: CupertinoApp(
-                navigatorKey: navigator,
-                theme: larenorTheme(),
-                locale: Locale(language),
-                localizationsDelegates: AppLocalizations.localizationsDelegates,
-                supportedLocales: AppLocalizations.supportedLocales,
-                builder: (context, child) => MediaQuery(
-                  data: MediaQuery.of(context)
-                      .copyWith(textScaler: TextScaler.linear(2)),
-                  child: child!,
-                ),
-                home: const HomeDashboardScreen(embedded: true),
-              ),
-            ),
-          );
-          await tester.pumpAndSettle();
-          final mainScroll = find
-              .descendant(
-                of: find.byKey(const PageStorageKey('home-overview')),
-                matching: find.byType(Scrollable),
-              )
-              .first;
-
-          Future<Finder> verifyHeader(String title, String action) async {
-            final section = find.byWidgetPredicate(
-              (widget) => widget is SectionHeader && widget.title == title,
-            );
-            await tester.scrollUntilVisible(
-              section,
-              240,
-              scrollable: mainScroll,
-            );
-            await Scrollable.ensureVisible(
-              tester.element(section),
-              alignment: 0.35,
             );
             await tester.pumpAndSettle();
-            final button = find.descendant(
-              of: section,
-              matching: find.byType(CupertinoButton),
-            );
-            final node = tester.getSemantics(
-              find.descendant(of: button, matching: find.byType(Icon)),
-            );
-            expect(
-              node,
-              isSemantics(
-                label: action,
-                isButton: true,
-                isHeader: false,
-                hasTapAction: true,
-                isFocusable: true,
-              ),
-            );
-            expect(labelCount(node.owner!.rootSemanticsNode!, action), 1);
-            final heading = tester.getSemantics(
-              find.descendant(of: section, matching: find.text(title)),
-            );
-            expect(
-              heading,
-              isSemantics(
-                label: title,
-                isHeader: true,
-                isButton: false,
-                hasTapAction: false,
-              ),
-            );
-            expect(heading.id, isNot(node.id));
-            final rect = tester.getRect(button);
-            expect(rect.width, greaterThanOrEqualTo(48));
-            expect(rect.height, greaterThanOrEqualTo(48));
-            expect(rect.left, greaterThanOrEqualTo(0));
-            expect(rect.right, lessThanOrEqualTo(width));
-            expect(tester.takeException(), isNull);
-            return button;
-          }
+            final mainScroll = find
+                .descendant(
+                  of: find.byKey(const PageStorageKey('home-overview')),
+                  matching: find.byType(Scrollable),
+                )
+                .first;
 
-          final room = await verifyHeader(roomName, roomLabel);
-          for (final keyboard in [true, false]) {
-            if (keyboard) {
-              Focus.of(
-                tester.element(
-                  find.descendant(of: room, matching: find.byType(Icon)),
-                ),
-              ).requestFocus();
-              await tester.pump();
-              await tester.sendKeyEvent(LogicalKeyboardKey.space);
-            } else {
+            Future<Finder> verifyHeader(String title, String action) async {
+              final section = find.byWidgetPredicate(
+                (widget) => widget is SectionHeader && widget.title == title,
+              );
+              await tester.scrollUntilVisible(
+                section,
+                240,
+                scrollable: mainScroll,
+              );
+              await Scrollable.ensureVisible(
+                tester.element(section),
+                alignment: 0.35,
+              );
+              await tester.pumpAndSettle();
+              final button = find.descendant(
+                of: section,
+                matching: find.byType(CupertinoButton),
+              );
               final node = tester.getSemantics(
-                find.descendant(of: room, matching: find.byType(Icon)),
+                find.descendant(of: button, matching: find.byType(Icon)),
+              );
+              expect(
+                node,
+                isSemantics(
+                  label: action,
+                  isButton: true,
+                  isHeader: false,
+                  hasTapAction: true,
+                  isFocusable: true,
+                ),
+              );
+              expect(labelCount(node.owner!.rootSemanticsNode!, action), 1);
+              final heading = tester.getSemantics(
+                find.descendant(of: section, matching: find.text(title)),
+              );
+              expect(
+                heading,
+                isSemantics(
+                  label: title,
+                  isHeader: true,
+                  isButton: false,
+                  hasTapAction: false,
+                ),
+              );
+              expect(heading.id, isNot(node.id));
+              final rect = tester.getRect(button);
+              expect(rect.width, greaterThanOrEqualTo(48));
+              expect(rect.height, greaterThanOrEqualTo(48));
+              expect(rect.left, greaterThanOrEqualTo(0));
+              expect(rect.right, lessThanOrEqualTo(width));
+              expect(tester.takeException(), isNull);
+              return button;
+            }
+
+            final room = await verifyHeader(roomName, roomLabel);
+            for (final keyboard in [true, false]) {
+              if (keyboard) {
+                Focus.of(
+                  tester.element(
+                    find.descendant(of: room, matching: find.byType(Icon)),
+                  ),
+                ).requestFocus();
+                await tester.pump();
+                await tester.sendKeyEvent(LogicalKeyboardKey.space);
+              } else {
+                final node = tester.getSemantics(
+                  find.descendant(of: room, matching: find.byType(Icon)),
+                );
+                node.owner!.performAction(node.id, ui.SemanticsAction.tap);
+              }
+              await tester.pumpAndSettle();
+              expect(find.byType(CupertinoActionSheet), findsOneWidget);
+              expect(
+                find.byKey(const ValueKey('room-menu-edit')),
+                findsOneWidget,
+              );
+              expect(
+                find.byKey(const ValueKey('room-menu-remove')),
+                findsOneWidget,
+              );
+              expect(find.byType(CupertinoAlertDialog), findsNothing);
+              expect(repository.saved, initial);
+              expect(repository.writes, 0);
+              final cancel = find.widgetWithText(
+                CupertinoActionSheetAction,
+                language == 'en' ? 'Cancel' : 'İptal',
+              );
+              await tester.tap(cancel);
+              await tester.pumpAndSettle();
+              expect(find.byType(CupertinoActionSheet), findsNothing);
+            }
+            for (final entry in [
+              (services, DashboardEditorMode.services),
+              (widgets, DashboardEditorMode.widgets),
+            ]) {
+              final label = language == 'en'
+                  ? 'Edit ${entry.$1} section'
+                  : '${entry.$1} bölümünü düzenle';
+              final button = await verifyHeader(entry.$1, label);
+              final node = tester.getSemantics(
+                find.descendant(of: button, matching: find.byType(Icon)),
               );
               node.owner!.performAction(node.id, ui.SemanticsAction.tap);
+              await tester.pumpAndSettle();
+              expect(
+                tester
+                    .widget<DashboardCardEditorScreen>(
+                      find.byType(DashboardCardEditorScreen),
+                    )
+                    .mode,
+                entry.$2,
+              );
+              expect(repository.saved, initial);
+              expect(repository.writes, 0);
+              navigator.currentState!.pop();
+              await tester.pumpAndSettle();
+              expect(find.byType(DashboardCardEditorScreen), findsNothing);
             }
-            await tester.pumpAndSettle();
-            expect(find.byType(CupertinoActionSheet), findsOneWidget);
-            expect(
-              find.byKey(const ValueKey('room-menu-edit')),
-              findsOneWidget,
-            );
-            expect(
-              find.byKey(const ValueKey('room-menu-remove')),
-              findsOneWidget,
-            );
-            expect(find.byType(CupertinoAlertDialog), findsNothing);
             expect(repository.saved, initial);
             expect(repository.writes, 0);
-            final cancel = find.widgetWithText(
-              CupertinoActionSheetAction,
-              language == 'en' ? 'Cancel' : 'İptal',
-            );
-            await tester.tap(cancel);
-            await tester.pumpAndSettle();
-            expect(find.byType(CupertinoActionSheet), findsNothing);
+            expect(tester.takeException(), isNull);
+          } finally {
+            semantics.dispose();
           }
-          for (final entry in [
-            (services, DashboardEditorMode.services),
-            (widgets, DashboardEditorMode.widgets),
-          ]) {
-            final label = language == 'en'
-                ? 'Edit ${entry.$1} section'
-                : '${entry.$1} bölümünü düzenle';
-            final button = await verifyHeader(entry.$1, label);
-            final node = tester.getSemantics(
-              find.descendant(of: button, matching: find.byType(Icon)),
-            );
-            node.owner!.performAction(node.id, ui.SemanticsAction.tap);
-            await tester.pumpAndSettle();
-            expect(
-              tester
-                  .widget<DashboardCardEditorScreen>(
-                    find.byType(DashboardCardEditorScreen),
-                  )
-                  .mode,
-              entry.$2,
-            );
-            expect(repository.saved, initial);
-            expect(repository.writes, 0);
-            navigator.currentState!.pop();
-            await tester.pumpAndSettle();
-            expect(find.byType(DashboardCardEditorScreen), findsNothing);
-          }
-          expect(repository.saved, initial);
-          expect(repository.writes, 0);
-          expect(tester.takeException(), isNull);
         },
       );
     }

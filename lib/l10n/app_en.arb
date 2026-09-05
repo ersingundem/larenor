@@ -2160,5 +2160,9 @@
   "serverContextPending": "Core and home verification",
   "serverContextPendingHint": "Verify this Core and home before opening Server features. Retrying will not sign in again.",
   "serverContextRetry": "Retry context check",
-  "serverContextEndpointUnavailable": "Home verification is unavailable at this address. Check the Server address or update Larenor Server, then retry."
+  "serverContextEndpointUnavailable": "Home verification is unavailable at this address. Check the Server address or update Larenor Server, then retry.",
+  "dashboardRoomMenuLabel": "Room menu: {room}",
+  "@dashboardRoomMenuLabel": {"placeholders": {"room": {"type": "String"}}},
+  "dashboardEditSectionLabel": "Edit {section} section",
+  "@dashboardEditSectionLabel": {"placeholders": {"section": {"type": "String"}}}
 }

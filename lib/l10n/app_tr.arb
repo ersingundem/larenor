@@ -1839,5 +1839,9 @@
   "serverContextPending": "Core ve ev doğrulaması",
   "serverContextPendingHint": "Sunucu özelliklerini açmadan önce Core ve ev kimliğini doğrulayın. Yeniden deneme tekrar giriş yapmaz.",
   "serverContextRetry": "Bağlamı yeniden doğrula",
-  "serverContextEndpointUnavailable": "Bu adreste ev doğrulaması kullanılamıyor. Server adresini kontrol edin veya Larenor Server’ı güncelleyin, ardından yeniden deneyin."
+  "serverContextEndpointUnavailable": "Bu adreste ev doğrulaması kullanılamıyor. Server adresini kontrol edin veya Larenor Server’ı güncelleyin, ardından yeniden deneyin.",
+  "dashboardRoomMenuLabel": "Oda menüsü: {room}",
+  "@dashboardRoomMenuLabel": {"placeholders": {"room": {"type": "String"}}},
+  "dashboardEditSectionLabel": "{section} bölümünü düzenle",
+  "@dashboardEditSectionLabel": {"placeholders": {"section": {"type": "String"}}}
 }
