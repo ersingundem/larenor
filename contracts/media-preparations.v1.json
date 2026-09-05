@@ -3801,5 +3801,953 @@
       }
     ],
     "nextBefore": null
+  },
+  "otherContextPrepared": {
+    "id": "ffffffffffffffffffffffffffffffff",
+    "requestId": "11111111111111111111111111111111",
+    "revision": 1,
+    "state": "prepared",
+    "createdAt": "2026-09-05T12:00:00.000Z",
+    "updatedAt": "2026-09-05T12:00:00.000Z",
+    "catalogCurrent": true,
+    "plan": {
+      "schemaVersion": 1,
+      "templateId": "media",
+      "coreId": "dddddddddddddddddddddddddddddddd",
+      "homeId": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+      "preparationId": "ffffffffffffffffffffffffffffffff",
+      "platform": "linux/amd64",
+      "settings": {
+        "instanceName": "larenor",
+        "dataRootId": "appdata",
+        "libraryRootId": "library",
+        "musicRootId": null
+      },
+      "catalogDigest": "2f5d16e764d4b6dab968986a4723fd47996e832e4670d9f68c6a2b7807a11749",
+      "planHash": "7a37628ea890d0f75b9fa3fcb2e0ec5eb0913dfcf04dd6a93a1d1fe1bb3b6e4e",
+      "installAvailable": false,
+      "bootstrapExposure": "unverified",
+      "blockers": [
+        "managed_install_unavailable",
+        "host_preflight_required",
+        "private_bootstrap_required",
+        "auto_wiring_required"
+      ],
+      "requestedResources": {
+        "memoryMiB": 16384,
+        "cpuMillis": 12000,
+        "pidsLimit": 3072,
+        "minimumDiskMiB": 49152
+      },
+      "components": [
+        {
+          "serviceId": "qbittorrent",
+          "installationId": "9e7268e7c5f0e675d2ad8f2ba9bf3a0b",
+          "operationId": "2b694de97a5833dbb313bc12de5f3177",
+          "plan": {
+            "schemaVersion": 1,
+            "serviceId": "qbittorrent",
+            "integrationRole": "managed_service",
+            "distributionId": "linuxserver",
+            "instanceName": "larenor-qbittorrent",
+            "catalogDigest": "2f5d16e764d4b6dab968986a4723fd47996e832e4670d9f68c6a2b7807a11749",
+            "manifestDigest": "70d861e59da58953f8f95ea2806499bab5759b62d06cff2b95438dc53b3fdae8",
+            "planHash": "eee7121649ef403b352ff4d4996fded634c0ac2e021130df9b50f249f75dafaa",
+            "installable": false,
+            "blockers": [
+              "worker_unverified",
+              "host_preflight_required"
+            ],
+            "settings": [
+              {
+                "name": "dataRootId",
+                "value": "appdata"
+              },
+              {
+                "name": "instanceName",
+                "value": "larenor-qbittorrent"
+              },
+              {
+                "name": "libraryRootId",
+                "value": "library"
+              },
+              {
+                "name": "torrentPort",
+                "value": 6881
+              },
+              {
+                "name": "webPort",
+                "value": 8080
+              }
+            ],
+            "image": {
+              "repository": "ghcr.io/linuxserver/qbittorrent",
+              "tag": "5.2.3_v2.0.14-ls474",
+              "platform": "linux/amd64",
+              "digest": "sha256:a7dc3bef7fe25c4d0bbf821f188edf78198d9db1920841b232aa89dff7f00cfe",
+              "indexDigest": "sha256:a00b6a597a3832a1814cde0ef60abc55c94644f3f80902c3432f6af6de8d4a96",
+              "reference": "ghcr.io/linuxserver/qbittorrent:5.2.3_v2.0.14-ls474@sha256:a7dc3bef7fe25c4d0bbf821f188edf78198d9db1920841b232aa89dff7f00cfe"
+            },
+            "security": {
+              "user": "1000:1000",
+              "privileged": false,
+              "capDrop": [
+                "ALL"
+              ],
+              "capAdd": [],
+              "noNewPrivileges": true,
+              "init": false
+            },
+            "network": {
+              "mode": "bridge",
+              "listeners": [
+                {
+                  "protocol": "tcp",
+                  "port": 8080,
+                  "purpose": "web"
+                },
+                {
+                  "protocol": "tcp",
+                  "port": 6881,
+                  "purpose": "torrent"
+                },
+                {
+                  "protocol": "udp",
+                  "port": 6881,
+                  "purpose": "torrent"
+                }
+              ],
+              "dynamicReceiverPorts": false
+            },
+            "mounts": [
+              {
+                "kind": "managed_appdata",
+                "rootId": "appdata",
+                "relativePath": "larenor-qbittorrent/config",
+                "target": "/config",
+                "readOnly": false
+              },
+              {
+                "kind": "approved_library",
+                "rootId": "library",
+                "relativePath": "",
+                "target": "/data",
+                "readOnly": false
+              }
+            ],
+            "ports": [
+              {
+                "protocol": "tcp",
+                "hostIp": "0.0.0.0",
+                "hostPort": 8080,
+                "containerPort": 8080
+              },
+              {
+                "protocol": "tcp",
+                "hostIp": "0.0.0.0",
+                "hostPort": 6881,
+                "containerPort": 6881
+              },
+              {
+                "protocol": "udp",
+                "hostIp": "0.0.0.0",
+                "hostPort": 6881,
+                "containerPort": 6881
+              }
+            ],
+            "tmpfs": [
+              {
+                "target": "/run",
+                "sizeMiB": 64,
+                "uid": 1000,
+                "gid": 1000,
+                "executable": true
+              },
+              {
+                "target": "/tmp",
+                "sizeMiB": 128,
+                "uid": 1000,
+                "gid": 1000,
+                "executable": false
+              }
+            ],
+            "environment": [
+              {
+                "name": "TORRENTING_PORT",
+                "value": "6881"
+              },
+              {
+                "name": "TZ",
+                "value": "Etc/UTC"
+              },
+              {
+                "name": "WEBUI_PORT",
+                "value": "8080"
+              }
+            ],
+            "resources": {
+              "memoryMiB": 2048,
+              "cpuMillis": 2000,
+              "pidsLimit": 512,
+              "minimumDiskMiB": 8192
+            },
+            "health": {
+              "profile": "qbittorrent_web",
+              "path": "/",
+              "port": 8080
+            },
+            "warnings": [
+              "lan_port_exposure",
+              "initial_setup_required",
+              "resource_budget_unverified",
+              "writable_shared_library",
+              "library_paths_require_setup",
+              "non_root_ownership_required"
+            ]
+          },
+          "steps": [
+            {
+              "kind": "prepare_storage",
+              "stepId": "3702001f9fe66105f2c443cfb881df8e"
+            },
+            {
+              "kind": "create_container",
+              "stepId": "eea8935323500053b458de362a7b72b5"
+            },
+            {
+              "kind": "start_container",
+              "stepId": "4a521ff69fa8240cee9c81800184d6ea"
+            },
+            {
+              "kind": "bootstrap",
+              "stepId": "e2c6e3701a9b4104c79c2f84733572f0"
+            },
+            {
+              "kind": "verify_service",
+              "stepId": "e16f19f8efbed80066fff6b0e157076b"
+            }
+          ]
+        },
+        {
+          "serviceId": "sonarr",
+          "installationId": "5ee2471e398c79e01ef6589b152ac15c",
+          "operationId": "f225c72a75c1389c0430dab0fe1de25c",
+          "plan": {
+            "schemaVersion": 1,
+            "serviceId": "sonarr",
+            "integrationRole": "managed_service",
+            "distributionId": "linuxserver",
+            "instanceName": "larenor-sonarr",
+            "catalogDigest": "2f5d16e764d4b6dab968986a4723fd47996e832e4670d9f68c6a2b7807a11749",
+            "manifestDigest": "fff7c70598b95f1c9d3befc1b26182a76dd85fd9425693ed7108c1d9770e7edf",
+            "planHash": "e02ba648ae7fafae961194b47eecd379648bc6552ef1f2f9acc1d60151048f11",
+            "installable": false,
+            "blockers": [
+              "worker_unverified",
+              "host_preflight_required"
+            ],
+            "settings": [
+              {
+                "name": "dataRootId",
+                "value": "appdata"
+              },
+              {
+                "name": "instanceName",
+                "value": "larenor-sonarr"
+              },
+              {
+                "name": "libraryRootId",
+                "value": "library"
+              },
+              {
+                "name": "webPort",
+                "value": 8989
+              }
+            ],
+            "image": {
+              "repository": "ghcr.io/linuxserver/sonarr",
+              "tag": "4.0.19.2979-ls323",
+              "platform": "linux/amd64",
+              "digest": "sha256:580d419a949e9afadcf00cc33e38747f795ac162f20649649464b6640a5e971d",
+              "indexDigest": "sha256:4d9df314875e1249ab7d6170c2b9b3dc1d8e6383f168ceb10dc9a5ad9b324739",
+              "reference": "ghcr.io/linuxserver/sonarr:4.0.19.2979-ls323@sha256:580d419a949e9afadcf00cc33e38747f795ac162f20649649464b6640a5e971d"
+            },
+            "security": {
+              "user": "1000:1000",
+              "privileged": false,
+              "capDrop": [
+                "ALL"
+              ],
+              "capAdd": [],
+              "noNewPrivileges": true,
+              "init": false
+            },
+            "network": {
+              "mode": "bridge",
+              "listeners": [
+                {
+                  "protocol": "tcp",
+                  "port": 8989,
+                  "purpose": "web"
+                }
+              ],
+              "dynamicReceiverPorts": false
+            },
+            "mounts": [
+              {
+                "kind": "managed_appdata",
+                "rootId": "appdata",
+                "relativePath": "larenor-sonarr/config",
+                "target": "/config",
+                "readOnly": false
+              },
+              {
+                "kind": "approved_library",
+                "rootId": "library",
+                "relativePath": "",
+                "target": "/data",
+                "readOnly": false
+              }
+            ],
+            "ports": [
+              {
+                "protocol": "tcp",
+                "hostIp": "0.0.0.0",
+                "hostPort": 8989,
+                "containerPort": 8989
+              }
+            ],
+            "tmpfs": [
+              {
+                "target": "/run",
+                "sizeMiB": 64,
+                "uid": 1000,
+                "gid": 1000,
+                "executable": true
+              },
+              {
+                "target": "/tmp",
+                "sizeMiB": 128,
+                "uid": 1000,
+                "gid": 1000,
+                "executable": false
+              }
+            ],
+            "environment": [
+              {
+                "name": "TZ",
+                "value": "Etc/UTC"
+              }
+            ],
+            "resources": {
+              "memoryMiB": 2048,
+              "cpuMillis": 2000,
+              "pidsLimit": 512,
+              "minimumDiskMiB": 8192
+            },
+            "health": {
+              "profile": "sonarr_public",
+              "path": "/ping",
+              "port": 8989
+            },
+            "warnings": [
+              "lan_port_exposure",
+              "initial_setup_required",
+              "resource_budget_unverified",
+              "writable_shared_library",
+              "library_paths_require_setup",
+              "non_root_ownership_required"
+            ]
+          },
+          "steps": [
+            {
+              "kind": "prepare_storage",
+              "stepId": "9d517be10e90ad190bd5a3c6485cda2d"
+            },
+            {
+              "kind": "create_container",
+              "stepId": "77156c013b84a90ad0f525a3396d604d"
+            },
+            {
+              "kind": "start_container",
+              "stepId": "2c9d59be17f1fbac72d2d0c5a03e5732"
+            },
+            {
+              "kind": "bootstrap",
+              "stepId": "12dc2cfe4d70f03656966fc0c3f65a79"
+            },
+            {
+              "kind": "verify_service",
+              "stepId": "f40d95c918d41f7165af04bcc035958b"
+            }
+          ]
+        },
+        {
+          "serviceId": "radarr",
+          "installationId": "0e71d439cc63ddd9faad6b343950e159",
+          "operationId": "f7d9a003ca1e8d9b3e67e31e480a35aa",
+          "plan": {
+            "schemaVersion": 1,
+            "serviceId": "radarr",
+            "integrationRole": "managed_service",
+            "distributionId": "linuxserver",
+            "instanceName": "larenor-radarr",
+            "catalogDigest": "2f5d16e764d4b6dab968986a4723fd47996e832e4670d9f68c6a2b7807a11749",
+            "manifestDigest": "0cd23e0fb7916ef153299aaa8eb0a2b8a01dc2627d15a2bb8974949fe190d58c",
+            "planHash": "379bc06672c08f2b7192604dc68a18e40ecb63a4c7745b0206226d66cf965c60",
+            "installable": false,
+            "blockers": [
+              "worker_unverified",
+              "host_preflight_required"
+            ],
+            "settings": [
+              {
+                "name": "dataRootId",
+                "value": "appdata"
+              },
+              {
+                "name": "instanceName",
+                "value": "larenor-radarr"
+              },
+              {
+                "name": "libraryRootId",
+                "value": "library"
+              },
+              {
+                "name": "webPort",
+                "value": 7878
+              }
+            ],
+            "image": {
+              "repository": "ghcr.io/linuxserver/radarr",
+              "tag": "6.3.0.10514-ls314",
+              "platform": "linux/amd64",
+              "digest": "sha256:aafefadc432ef62018bd2d7773f47f11e384c478d0e3ce8c7b16a8cdad865c32",
+              "indexDigest": "sha256:119aaa4a4f7349bcd2a136c5373a0d7925b5479915c7dfe0c0ad352db2a6d438",
+              "reference": "ghcr.io/linuxserver/radarr:6.3.0.10514-ls314@sha256:aafefadc432ef62018bd2d7773f47f11e384c478d0e3ce8c7b16a8cdad865c32"
+            },
+            "security": {
+              "user": "1000:1000",
+              "privileged": false,
+              "capDrop": [
+                "ALL"
+              ],
+              "capAdd": [],
+              "noNewPrivileges": true,
+              "init": false
+            },
+            "network": {
+              "mode": "bridge",
+              "listeners": [
+                {
+                  "protocol": "tcp",
+                  "port": 7878,
+                  "purpose": "web"
+                }
+              ],
+              "dynamicReceiverPorts": false
+            },
+            "mounts": [
+              {
+                "kind": "managed_appdata",
+                "rootId": "appdata",
+                "relativePath": "larenor-radarr/config",
+                "target": "/config",
+                "readOnly": false
+              },
+              {
+                "kind": "approved_library",
+                "rootId": "library",
+                "relativePath": "",
+                "target": "/data",
+                "readOnly": false
+              }
+            ],
+            "ports": [
+              {
+                "protocol": "tcp",
+                "hostIp": "0.0.0.0",
+                "hostPort": 7878,
+                "containerPort": 7878
+              }
+            ],
+            "tmpfs": [
+              {
+                "target": "/run",
+                "sizeMiB": 64,
+                "uid": 1000,
+                "gid": 1000,
+                "executable": true
+              },
+              {
+                "target": "/tmp",
+                "sizeMiB": 128,
+                "uid": 1000,
+                "gid": 1000,
+                "executable": false
+              }
+            ],
+            "environment": [
+              {
+                "name": "TZ",
+                "value": "Etc/UTC"
+              }
+            ],
+            "resources": {
+              "memoryMiB": 2048,
+              "cpuMillis": 2000,
+              "pidsLimit": 512,
+              "minimumDiskMiB": 8192
+            },
+            "health": {
+              "profile": "radarr_public",
+              "path": "/ping",
+              "port": 7878
+            },
+            "warnings": [
+              "lan_port_exposure",
+              "initial_setup_required",
+              "resource_budget_unverified",
+              "writable_shared_library",
+              "library_paths_require_setup",
+              "non_root_ownership_required"
+            ]
+          },
+          "steps": [
+            {
+              "kind": "prepare_storage",
+              "stepId": "e44e1b553a0aba47fbda3f845a3487e6"
+            },
+            {
+              "kind": "create_container",
+              "stepId": "fb8320db997acfc478925fec447c5f07"
+            },
+            {
+              "kind": "start_container",
+              "stepId": "94132081ea789f9f68069104ed3d4074"
+            },
+            {
+              "kind": "bootstrap",
+              "stepId": "42c280f7cff6aecff0da6be2cf683462"
+            },
+            {
+              "kind": "verify_service",
+              "stepId": "6f194803b16dd525ce32bbbdd7377d09"
+            }
+          ]
+        },
+        {
+          "serviceId": "jellyfin",
+          "installationId": "f7fb4c8bf79b105e55539b5f561914f0",
+          "operationId": "73c83220d7849ad065bcabdfdcbe2f84",
+          "plan": {
+            "schemaVersion": 1,
+            "serviceId": "jellyfin",
+            "integrationRole": "managed_service",
+            "distributionId": "upstream",
+            "instanceName": "larenor-jellyfin",
+            "catalogDigest": "2f5d16e764d4b6dab968986a4723fd47996e832e4670d9f68c6a2b7807a11749",
+            "manifestDigest": "5f45a6d9206d9a72517f5714d890be35a71d9544743cc755875aa554725c0eb8",
+            "planHash": "d3db14092634d15707fd30a8d53853a901788a3d6bb430c70f8146dfce2cc5aa",
+            "installable": false,
+            "blockers": [
+              "worker_unverified",
+              "host_preflight_required"
+            ],
+            "settings": [
+              {
+                "name": "dataRootId",
+                "value": "appdata"
+              },
+              {
+                "name": "instanceName",
+                "value": "larenor-jellyfin"
+              },
+              {
+                "name": "mediaRootId",
+                "value": "library"
+              },
+              {
+                "name": "webPort",
+                "value": 8096
+              }
+            ],
+            "image": {
+              "repository": "ghcr.io/jellyfin/jellyfin",
+              "tag": "10.11.11",
+              "platform": "linux/amd64",
+              "digest": "sha256:ddf59965ae63fccc66dfe72384495df355c67ea5abd9cc04eb65988f9a6010d1",
+              "indexDigest": "sha256:45f648c382a0c8b552582fcea40e95cb17c5d475473a891cba0eb7523fb92112",
+              "reference": "ghcr.io/jellyfin/jellyfin:10.11.11@sha256:ddf59965ae63fccc66dfe72384495df355c67ea5abd9cc04eb65988f9a6010d1"
+            },
+            "security": {
+              "user": "1000:1000",
+              "privileged": false,
+              "capDrop": [
+                "ALL"
+              ],
+              "capAdd": [],
+              "noNewPrivileges": true,
+              "init": false
+            },
+            "network": {
+              "mode": "bridge",
+              "listeners": [
+                {
+                  "protocol": "tcp",
+                  "port": 8096,
+                  "purpose": "web"
+                }
+              ],
+              "dynamicReceiverPorts": false
+            },
+            "mounts": [
+              {
+                "kind": "managed_appdata",
+                "rootId": "appdata",
+                "relativePath": "larenor-jellyfin/config",
+                "target": "/config",
+                "readOnly": false
+              },
+              {
+                "kind": "managed_appdata",
+                "rootId": "appdata",
+                "relativePath": "larenor-jellyfin/cache",
+                "target": "/cache",
+                "readOnly": false
+              },
+              {
+                "kind": "approved_library",
+                "rootId": "library",
+                "relativePath": "",
+                "target": "/media",
+                "readOnly": true
+              }
+            ],
+            "ports": [
+              {
+                "protocol": "tcp",
+                "hostIp": "0.0.0.0",
+                "hostPort": 8096,
+                "containerPort": 8096
+              }
+            ],
+            "tmpfs": [],
+            "environment": [
+              {
+                "name": "TZ",
+                "value": "Etc/UTC"
+              }
+            ],
+            "resources": {
+              "memoryMiB": 4096,
+              "cpuMillis": 2000,
+              "pidsLimit": 512,
+              "minimumDiskMiB": 8192
+            },
+            "health": {
+              "profile": "jellyfin_public",
+              "path": "/health",
+              "port": 8096
+            },
+            "warnings": [
+              "lan_port_exposure",
+              "initial_setup_required",
+              "resource_budget_unverified",
+              "hardware_acceleration_not_configured",
+              "discovery_not_published"
+            ]
+          },
+          "steps": [
+            {
+              "kind": "prepare_storage",
+              "stepId": "ebe2ee1635034d0c153a11dc85599893"
+            },
+            {
+              "kind": "create_container",
+              "stepId": "afb53e8e26b2d123f5480fe0ff7d381a"
+            },
+            {
+              "kind": "start_container",
+              "stepId": "4d9979a82b96de886f4832873ab311a7"
+            },
+            {
+              "kind": "bootstrap",
+              "stepId": "d9724deaa82ff6339611c27ad12dc26b"
+            },
+            {
+              "kind": "verify_service",
+              "stepId": "e2c0507b3cc3ff2a2092910c978cf891"
+            }
+          ]
+        },
+        {
+          "serviceId": "seerr",
+          "installationId": "5d4b3c069879d7a8eca73460439fd33a",
+          "operationId": "d7a9b81a15eab0947a8e229e53813f18",
+          "plan": {
+            "schemaVersion": 1,
+            "serviceId": "seerr",
+            "integrationRole": "managed_service",
+            "distributionId": "upstream",
+            "instanceName": "larenor-seerr",
+            "catalogDigest": "2f5d16e764d4b6dab968986a4723fd47996e832e4670d9f68c6a2b7807a11749",
+            "manifestDigest": "c5ffd6ee0089ead9fe5de1bf20cf2768404c6900831531b9c36c3e061cdeb53a",
+            "planHash": "4a88ccea4ed833f133bc885226c71a5f4c31ab24598357314b63ee339ba8412e",
+            "installable": false,
+            "blockers": [
+              "worker_unverified",
+              "host_preflight_required"
+            ],
+            "settings": [
+              {
+                "name": "dataRootId",
+                "value": "appdata"
+              },
+              {
+                "name": "instanceName",
+                "value": "larenor-seerr"
+              },
+              {
+                "name": "webPort",
+                "value": 5055
+              }
+            ],
+            "image": {
+              "repository": "ghcr.io/seerr-team/seerr",
+              "tag": "v3.4.1",
+              "platform": "linux/amd64",
+              "digest": "sha256:b21cf91bb7a10d70446e104e7b7b9c9c386aa22beeac535a3271cbfc5843d142",
+              "indexDigest": "sha256:f4768de5f616248d723e05891f3345a1402123775d03bf0890dbfedc0831bda1",
+              "reference": "ghcr.io/seerr-team/seerr:v3.4.1@sha256:b21cf91bb7a10d70446e104e7b7b9c9c386aa22beeac535a3271cbfc5843d142"
+            },
+            "security": {
+              "user": "1000:1000",
+              "privileged": false,
+              "capDrop": [
+                "ALL"
+              ],
+              "capAdd": [],
+              "noNewPrivileges": true,
+              "init": true
+            },
+            "network": {
+              "mode": "bridge",
+              "listeners": [
+                {
+                  "protocol": "tcp",
+                  "port": 5055,
+                  "purpose": "web"
+                }
+              ],
+              "dynamicReceiverPorts": false
+            },
+            "mounts": [
+              {
+                "kind": "managed_appdata",
+                "rootId": "appdata",
+                "relativePath": "larenor-seerr/config",
+                "target": "/app/config",
+                "readOnly": false
+              }
+            ],
+            "ports": [
+              {
+                "protocol": "tcp",
+                "hostIp": "0.0.0.0",
+                "hostPort": 5055,
+                "containerPort": 5055
+              }
+            ],
+            "tmpfs": [],
+            "environment": [
+              {
+                "name": "PORT",
+                "value": "5055"
+              },
+              {
+                "name": "TZ",
+                "value": "Etc/UTC"
+              }
+            ],
+            "resources": {
+              "memoryMiB": 2048,
+              "cpuMillis": 2000,
+              "pidsLimit": 512,
+              "minimumDiskMiB": 8192
+            },
+            "health": {
+              "profile": "seerr_public",
+              "path": "/api/v1/settings/public",
+              "port": 5055
+            },
+            "warnings": [
+              "lan_port_exposure",
+              "initial_setup_required",
+              "resource_budget_unverified"
+            ]
+          },
+          "steps": [
+            {
+              "kind": "prepare_storage",
+              "stepId": "c99860f6cb9b5a76498737d50ac686a9"
+            },
+            {
+              "kind": "create_container",
+              "stepId": "37e43b8e04e4317e2a2839bde9c87b5a"
+            },
+            {
+              "kind": "start_container",
+              "stepId": "df98f822bfff09e9ac7c0e1c17051806"
+            },
+            {
+              "kind": "bootstrap",
+              "stepId": "926cbbaad82614225cef92a8896ba46c"
+            },
+            {
+              "kind": "verify_service",
+              "stepId": "e35b581699a00dea711a23f5725630af"
+            }
+          ]
+        },
+        {
+          "serviceId": "music_assistant",
+          "installationId": "e4830a5a7e50a1ce553b4cdc5c72b439",
+          "operationId": "921025681d1d9cc8b1e16673fa05208f",
+          "plan": {
+            "schemaVersion": 1,
+            "serviceId": "music_assistant",
+            "integrationRole": "internal_engine",
+            "distributionId": "upstream",
+            "instanceName": "larenor-music-assistant",
+            "catalogDigest": "2f5d16e764d4b6dab968986a4723fd47996e832e4670d9f68c6a2b7807a11749",
+            "manifestDigest": "20c4deb35ee6da9a697c1657f23261592643933f88e62dd3d8c8fd518df5e8c9",
+            "planHash": "bd0a450f6542afe4fb9210b3b5684a8d6ff191ac059685952aa8ca566944497e",
+            "installable": false,
+            "blockers": [
+              "worker_unverified",
+              "host_preflight_required"
+            ],
+            "settings": [
+              {
+                "name": "dataRootId",
+                "value": "appdata"
+              },
+              {
+                "name": "instanceName",
+                "value": "larenor-music-assistant"
+              },
+              {
+                "name": "musicRootId",
+                "value": null
+              }
+            ],
+            "image": {
+              "repository": "ghcr.io/music-assistant/server",
+              "tag": "2.10.2",
+              "platform": "linux/amd64",
+              "digest": "sha256:1aaf808e3ef95d75e03448640e97c96f85440af2de240f66e4132a5725261afc",
+              "indexDigest": "sha256:09c02b4ee491976efa6d698265f72571f064031bb1a2c9a1c32e104392209690",
+              "reference": "ghcr.io/music-assistant/server:2.10.2@sha256:1aaf808e3ef95d75e03448640e97c96f85440af2de240f66e4132a5725261afc"
+            },
+            "security": {
+              "user": "0:0",
+              "privileged": false,
+              "capDrop": [
+                "ALL"
+              ],
+              "capAdd": [
+                "NET_BIND_SERVICE"
+              ],
+              "noNewPrivileges": true,
+              "init": false
+            },
+            "network": {
+              "mode": "host",
+              "listeners": [
+                {
+                  "protocol": "tcp",
+                  "port": 8095,
+                  "purpose": "web"
+                },
+                {
+                  "protocol": "tcp",
+                  "port": 8097,
+                  "purpose": "stream"
+                },
+                {
+                  "protocol": "udp",
+                  "port": 319,
+                  "purpose": "airplay_ptp_event"
+                },
+                {
+                  "protocol": "udp",
+                  "port": 320,
+                  "purpose": "airplay_ptp_general"
+                }
+              ],
+              "dynamicReceiverPorts": true
+            },
+            "mounts": [
+              {
+                "kind": "managed_appdata",
+                "rootId": "appdata",
+                "relativePath": "larenor-music-assistant/data",
+                "target": "/data",
+                "readOnly": false
+              }
+            ],
+            "ports": [],
+            "tmpfs": [],
+            "environment": [
+              {
+                "name": "LOG_LEVEL",
+                "value": "warning"
+              }
+            ],
+            "resources": {
+              "memoryMiB": 4096,
+              "cpuMillis": 2000,
+              "pidsLimit": 512,
+              "minimumDiskMiB": 8192
+            },
+            "health": {
+              "profile": "music_assistant_info",
+              "path": "/info",
+              "port": 8095
+            },
+            "warnings": [
+              "host_network",
+              "airplay_ptp_319_320",
+              "dynamic_receiver_ports",
+              "initial_setup_required",
+              "resource_budget_unverified"
+            ]
+          },
+          "steps": [
+            {
+              "kind": "prepare_storage",
+              "stepId": "59482c74ca9ef61bf34e8217d37f958b"
+            },
+            {
+              "kind": "create_container",
+              "stepId": "7143ae239efb9cff83e915d42e076756"
+            },
+            {
+              "kind": "start_container",
+              "stepId": "63d1a3c3bb463db2c899ec7c1aa4dd2b"
+            },
+            {
+              "kind": "bootstrap",
+              "stepId": "d32e26460f30c6236b79594f97842168"
+            },
+            {
+              "kind": "verify_service",
+              "stepId": "cd25283a1001647030d2c4b402c369c0"
+            }
+          ]
+        }
+      ]
+    }
   }
 }
