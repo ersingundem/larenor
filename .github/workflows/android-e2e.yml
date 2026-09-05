@@ -39,6 +39,10 @@ jobs:
             ln -s "$platform_dir/android-37.0" "$platform_dir/android-37"
           fi
 
+      - name: Compile Android dependencies before starting the emulator
+        timeout-minutes: 12
+        run: bash tool/prepare_android_e2e_build.sh
+
       - name: Enable hardware acceleration
         run: |
           # This disposable hosted VM already provides KVM. Apply the intended
@@ -88,6 +92,7 @@ jobs:
         with:
           name: android-e2e-api35
           path: |
+            build/e2e/android-precompile.log
             build/e2e/android-e2e.log
             build/e2e/native-focus.json
             build/e2e/native-focus.png
