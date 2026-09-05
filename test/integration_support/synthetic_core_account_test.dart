@@ -187,6 +187,25 @@ void main() {
     );
     expect(core.rejectedRequests, 3);
     expect(host.requests, 0);
+    core.coreId = 'a' * 32;
+    core.homeId = 'b' * 32;
+    expect(
+      (await request(
+        'GET',
+        resourcesPath(),
+        token: SyntheticCoreAccount.accessToken,
+      )).$2,
+      first,
+    );
+    host.coreAccount = SyntheticCoreAccount();
+    expect(
+      (await request(
+        'GET',
+        resourcesPath(),
+        token: SyntheticCoreAccount.accessToken,
+      )).$2,
+      first,
+    );
   });
 
   test(

@@ -60,6 +60,28 @@ void main() {
     },
   );
 
+  test(
+    'empty fixture snapshots bind actor and scope without cached entries',
+    () {
+      final empty = SyntheticCoreResources.empty(userId: 'fixture-admin');
+      final (_, first) = empty.list('e' * 32, 'f' * 32, const {});
+      final (_, otherActor) = SyntheticCoreResources.empty(
+        userId: 'other-admin',
+      ).list('e' * 32, 'f' * 32, const {});
+      final (_, otherScope) = empty.list('a' * 32, 'b' * 32, const {});
+      expect(first['scope'], {
+        'schemaVersion': 1,
+        'coreId': 'e' * 32,
+        'homeId': 'f' * 32,
+      });
+      expect(first['snapshot'], isNot(otherActor['snapshot']));
+      expect(first['snapshot'], isNot(otherScope['snapshot']));
+      (first['entries'] as List).add({'unexpected': true});
+      expect(empty.list('e' * 32, 'f' * 32, const {}).$2['entries'], isEmpty);
+      expect(empty.list('malformed', 'f' * 32, const {}).$1, 404);
+    },
+  );
+
   test('opt-in member list and pages use the actual shared responses', () async {
     final contract = jsonDecode(homeResourceContractFixture) as Map;
     expect(core.user['role'], 'member');
