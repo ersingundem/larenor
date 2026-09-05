@@ -4,6 +4,7 @@ from dataclasses import replace
 import json
 import os
 from pathlib import Path
+import socket
 import sys
 import threading
 import time
@@ -354,7 +355,8 @@ def test_cancel_cannot_return_a_read_observation(prepared, when, monkeypatch):
     assert len(calls) == {'before': 0, 'after_version': 1, 'after_validation': 2}[when]
 
 
-def test_cancel_during_stalled_read_closes_socket(prepared):
+@pytest.mark.parametrize('disconnect', ['native', 'reset'])
+def test_cancel_during_stalled_read_closes_socket(prepared, disconnect):
     _, binding, intent, _ = prepared
     cancelled = threading.Event()
     closed = threading.Event()
@@ -362,13 +364,35 @@ def test_cancel_during_stalled_read_closes_socket(prepared):
     def reply(connection):
         connection.sendall(b'HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: 2\r\n\r\n')
         cancelled.set()
-        assert connection.recv(1) == b''
+
+        def receive_disconnect():
+            value = connection.recv(1)
+            # Model Linux's unread-data close on every test host, but only
+            # after the real connection has demonstrably disconnected.
+            if value == b'' and disconnect == 'reset':
+                raise ConnectionResetError('synthetic unread-data disconnect')
+            return value
+
+        assert receive_disconnect() == b''
         closed.set()
 
     with server(reply=reply) as (client, _):
         with pytest.raises(NetworkTransportError, match='^network_cancelled$'):
             engine(client).list(binding, intent, cancelled=cancelled)
         assert closed.wait(1)
+
+
+@pytest.mark.skipif(sys.platform != 'linux', reason='Linux unread Unix stream close semantics')
+def test_linux_unread_unix_stream_close_reports_connection_reset():
+    # unix_release_sock sets ECONNRESET when a stream closes with unread data:
+    # https://github.com/torvalds/linux/blob/v6.8/net/unix/af_unix.c#L605-L610
+    receiver, sender = socket.socketpair(socket.AF_UNIX, socket.SOCK_STREAM)
+    with receiver, sender:
+        sender.settimeout(1)
+        sender.sendall(b'unread')
+        receiver.close()
+        with pytest.raises(ConnectionResetError):
+            sender.recv(1)
 
 
 @pytest.mark.parametrize('limits', [NetworkReadLimits(total_seconds=0.1, idle_seconds=1),
