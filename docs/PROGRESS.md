@@ -1,6 +1,6 @@
 # Larenor — güncel ilerleme ve iş kuyruğu
 
-**Son güncelleme: 5 Eylül 2026, 22:18 (Türkiye saati).**
+**Son güncelleme: 5 Eylül 2026, 22:20 (Türkiye saati).**
 
 ```text
 Önceki kapsam       █████████████░░░░░░░  ≈ %65
@@ -65,8 +65,8 @@ ve bağımsız incelemeleri tamamlandı. Bu paket henüz uzak CI kabulü almadı
 [Ağ create](network-create-transport-implementation-2026-09-05.md) ·
 [Journal/kurtarma](network-preparation-implementation-2026-09-05.md).
 
-**S08.2 kabul edildi; sıradaki S08.3:** [ev runtime sınırı](client-home-scope-plan-2026-09-05.md)
-uygulanacak. Kullanıcının seçtiği doğrudan HA veya Core kaynağı açık ve kalıcı
+**S08.2 kabul edildi; S08.3 başladı:** [ev runtime sınırı](client-home-scope-plan-2026-09-05.md)
+izole dalda uygulanıyor. Kullanıcının seçtiği doğrudan HA veya Core kaynağı açık ve kalıcı
 olacak; hesap girişi yerel veriyi kendiliğinden Core'a bağlamayacak. Token
 rotasyonu gezinmeyi koruyacak; gerçek ev/kullanıcı değişimi eski istek ve
 rotaları kapatacak. Cache/adaptör hazır olmadan legacy veri Core ekranında
@@ -81,7 +81,8 @@ yerel git geçmişinde korunur; ana dala birleşme uzak CI kabulü değildir.
 | --- | --- | --- |
 | B5.1 tablet ayarları | `codex/tablet-settings-accessibility` · `/private/tmp/larenor-tablet-settings-accessibility` | `ba884f6` main içinde; yeni yayın kapısı bekliyor. |
 | S06.3e ağ journal köprüsü | `codex/network-effect-bridge` · `/private/tmp/larenor-network-effect-bridge` | `6a00168` main içinde; tam yerel test geçti, yeni CI bekliyor. |
-| S06.3d appdata host kanıtı | Henüz yeni kod dalı açılmadı | Sonraki gerçek salt okunur kimlik/UID/GID kanıt üreticisi için dar kaynak kararı hazırlanıyor. |
+| S08.3 Client ev runtime'ı | `codex/client-home-session-scope` · `/private/tmp/larenor-client-home-session-scope` | `8678982` tabanında TDD başladı; ana dala birleştirilmedi. |
+| S06.3d appdata host kanıtı | `codex/native-identity-observation` · `/private/tmp/larenor-native-identity-observation` | `8678982` tabanında gerçek salt okunur UID/GID/user-namespace kanıtı başladı; mapping/grant veya yazma yetkisi değildir. |
 
 Ağ yazılım diliminin sonraki gerçek Engine/iki mimarili kaynak kabulü
 **S06.3f** içindedir. Production dispatcher/host grant, appdata oluşturma ve

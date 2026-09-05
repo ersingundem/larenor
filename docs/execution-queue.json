@@ -377,7 +377,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Sahiplik/parent kontrolü ve mount gözlemi 1408e80 CI ile doğrulandı. Sıradaki gerçek salt okunur native kimlik/UID/GID kanıt üreticisi için kaynak kararı hazırlanıyor; kod/grant yok. Supervisor/daemon/UID mapping lease ve create/publish açık."
+      "reason": "Sahiplik/parent ve mount gözlemi 1408e80 CI ile doğrulandı. codex/native-identity-observation dalı /private/tmp/larenor-native-identity-observation kopyasında 8678982 tabanında gerçek salt okunur UID/GID/user-namespace/map capture başladı. Supervisor/remap-disabled grant ve create/publish hâlâ açık."
     },
     {
       "id": "S06.3e",
@@ -818,7 +818,7 @@
       "kind": "task",
       "parent": "S08",
       "title": "Provider, route ve callback kapsam sınırı",
-      "status": "pending",
+      "status": "in_progress",
       "dependsOn": [
         "S08.2"
       ],
@@ -840,7 +840,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "S08.2 kod/test hazır; uzak kabulü beklenirken mevcut route/provider kapsamı salt okunur inceleniyor. Uygulama başlangıcı S08.2 kabul kapısına bağlı."
+      "reason": "S08.2 19dbcbe tam CI/APK91 ile kabul edildi. codex/client-home-session-scope dalı /private/tmp/larenor-client-home-session-scope kopyasında 8678982 tabanından başladı: açık kalıcı kaynak, dış hesap, ayrı runtime/epoch, restore ve ortak ayar provider sahipliği. Kod henüz kabul edilmedi."
     },
     {
       "id": "S08.4",
