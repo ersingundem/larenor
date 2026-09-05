@@ -50,12 +50,15 @@ void main() {
 
   String path() => '/home-resources/${core.coreId}/${core.homeId}';
 
-  test('Android fixture payload exactly matches actual Server HTTP contract', () {
-    expect(
-      jsonDecode(homeResourceContractFixture),
-      jsonDecode(File('contracts/home-resources.v1.json').readAsStringSync()),
-    );
-  });
+  test(
+    'Android fixture payload exactly matches actual Server HTTP contract',
+    () {
+      expect(
+        jsonDecode(homeResourceContractFixture),
+        jsonDecode(File('contracts/home-resources.v1.json').readAsStringSync()),
+      );
+    },
+  );
 
   test('opt-in member list and pages use the actual shared responses', () async {
     final contract = jsonDecode(homeResourceContractFixture) as Map;
@@ -79,7 +82,9 @@ void main() {
     final contract = jsonDecode(homeResourceContractFixture) as Map;
     expect((await get(path())).$2, contract['revokedList']);
     expect(
-      (await get('${path()}?limit=1&after=${first['nextAfter']}&expectedSnapshot=${first['snapshot']}')).$1,
+      (await get(
+        '${path()}?limit=1&after=${first['nextAfter']}&expectedSnapshot=${first['snapshot']}',
+      )).$1,
       409,
     );
     resources.view = SyntheticCoreResourceView.empty;
@@ -87,30 +92,41 @@ void main() {
     expect(host.requests, 0);
   });
 
-  test('other Core has only its own actual scope and rejects wrong paths', () async {
-    final oldPath = path();
-    core.coreId = 'c' * 32;
-    core.homeId = 'd' * 32;
-    final contract = jsonDecode(homeResourceContractFixture) as Map;
-    expect((await get(path())).$2, contract['otherContextList']);
-    expect((await get(oldPath)).$1, 404);
-    expect(host.requests, 0);
-  });
+  test(
+    'other Core has only its own actual scope and rejects wrong paths',
+    () async {
+      final oldPath = path();
+      core.coreId = 'c' * 32;
+      core.homeId = 'd' * 32;
+      final contract = jsonDecode(homeResourceContractFixture) as Map;
+      expect((await get(path())).$2, contract['otherContextList']);
+      expect((await get(oldPath)).$1, 404);
+      expect(host.requests, 0);
+    },
+  );
 
-  test('fixture never exposes write, auth-free or unbounded query paths', () async {
-    for (final suffix in [
-      '?limit=0', '?limit=101', '?limit=1&limit=2', '?token=private',
-      '?after=${'1' * 32}', '?limit=01', '?expectedSnapshot=${'g' * 64}',
-    ]) {
-      expect((await get('${path()}$suffix')).$1, 400);
-    }
-    expect((await get(path(), authorized: false)).$1, 401);
-    expect((await get(path(), method: 'POST')).$1, 403);
-    expect((await get('/admin${path()}', method: 'POST')).$1, 403);
-    host.coreAccount = SyntheticCoreAccount();
-    expect((await get(path())).$1, 403);
-    expect(resources.reads, 0);
-    expect(host.requests, 0);
-    expect(host.acceptedActions, isEmpty);
-  });
+  test(
+    'fixture never exposes write, auth-free or unbounded query paths',
+    () async {
+      for (final suffix in [
+        '?limit=0',
+        '?limit=101',
+        '?limit=1&limit=2',
+        '?token=private',
+        '?after=${'1' * 32}',
+        '?limit=01',
+        '?expectedSnapshot=${'g' * 64}',
+      ]) {
+        expect((await get('${path()}$suffix')).$1, 400);
+      }
+      expect((await get(path(), authorized: false)).$1, 401);
+      expect((await get(path(), method: 'POST')).$1, 403);
+      expect((await get('/admin${path()}', method: 'POST')).$1, 403);
+      host.coreAccount = SyntheticCoreAccount();
+      expect((await get(path())).$1, 403);
+      expect(resources.reads, 0);
+      expect(host.requests, 0);
+      expect(host.acceptedActions, isEmpty);
+    },
+  );
 }

@@ -315,4 +315,4 @@ const homeResourceContractFixture = r'''
     "nextAfter": null
   }
 }
-''' ;
+''';
