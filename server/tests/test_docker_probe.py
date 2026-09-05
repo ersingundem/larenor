@@ -47,14 +47,14 @@ def synthetic_engine(reply=None):
 
         def serve():
             try:
-                while not stopped.is_set():
+                while True:
                     try:
                         connection, _ = listener.accept()
                         break
                     except TimeoutError:
+                        if stopped.is_set():
+                            return
                         continue
-                else:
-                    return
                 state.connection = connection
                 with connection:
                     connection.settimeout(0.5)
@@ -87,8 +87,8 @@ def synthetic_engine(reply=None):
                     state.connection.shutdown(socket.SHUT_RDWR)
                 except OSError:
                     pass
-            listener.close()
             thread.join(1)
+            listener.close()
             assert not thread.is_alive()
             assert not state.errors
 

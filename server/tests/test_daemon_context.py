@@ -1,6 +1,7 @@
 """Kernel-bound peer identity, with synthetic proc trees and no Docker calls."""
 
 from dataclasses import FrozenInstanceError
+from concurrent.futures import ThreadPoolExecutor
 import errno
 import os
 from itertools import cycle
@@ -302,7 +303,7 @@ def test_revalidation_access_failure_and_closed_lease_are_unknown(proc_tree):
                                               ('mnt_id: 1\nmnt_id: 2\n', None),
                                               ('mnt_id: secret\n', None), ('missing\n', None)])
 def test_held_root_mount_id_is_bounded_and_unambiguous(tmp_path, monkeypatch, contents, expected):
-    directory = tmp_path / str(os.getpid()) / 'fdinfo'
+    directory = tmp_path / str(os.getpid()) / 'task' / str(threading.get_native_id()) / 'fdinfo'
     directory.mkdir(parents=True)
     (directory / '19').write_text(contents)
     monkeypatch.setattr(module, '_PROC_ROOT', tmp_path)
@@ -330,13 +331,17 @@ def test_actual_linux_socket_peer_context_without_a_docker_service(monkeypatch):
             assert unsupported_old_kernel or error.errno in (errno.EACCES, errno.EPERM)
             assert module.capture_daemon_context(left, os.getuid(), executable, time.monotonic() + 2) is None
             return
-        lease = module.capture_daemon_context(left, os.getuid(), executable, time.monotonic() + 2)
-        assert lease is not None
-        try:
-            assert lease.context == module.DaemonContext(True, True, True)
-            assert lease.revalidate(time.monotonic() + 2)
-        finally:
-            lease.close()
+        def in_worker_thread():
+            assert threading.get_native_id() != os.getpid()
+            lease = module.capture_daemon_context(left, os.getuid(), executable, time.monotonic() + 2)
+            assert lease is not None
+            try:
+                assert lease.context == module.DaemonContext(True, True, True)
+                assert lease.revalidate(time.monotonic() + 2)
+            finally:
+                lease.close()
+        with ThreadPoolExecutor(max_workers=1) as executor:
+            executor.submit(in_worker_thread).result(timeout=3)
     finally:
         left.close()
         right.close()

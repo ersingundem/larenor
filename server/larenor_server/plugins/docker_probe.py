@@ -28,6 +28,7 @@ from ..services.transport import (
     _Deadline, _Reader, _remaining, _request_bytes, _response, ProbeTransportError,
 )
 from .worker import _safe_path, DockerWorkerError
+from .daemon_context import DaemonContext, capture_daemon_context
 
 
 _API_VERSION = (1, 47)
@@ -43,6 +44,7 @@ class DockerEndpoint:
 
     path: str = field(repr=False)
     owner_uid: int = 0
+    daemon_executable: str | None = field(default=None, repr=False)
 
     def __post_init__(self):
         try:
@@ -54,11 +56,27 @@ class DockerEndpoint:
                 and not any(unicodedata.category(char).startswith('C') for char in self.path)
                 and len(self.path.encode('utf-8')) <= 107
                 and type(self.owner_uid) is int and 0 <= self.owner_uid < 2**31
+                and (self.daemon_executable is None or _canonical_executable(self.daemon_executable))
             )
         except (ValueError, UnicodeError):
             valid = False
         if not valid:
             raise ValueError('invalid_docker_endpoint') from None
+
+
+def _canonical_executable(path):
+    return (type(path) is str and path.startswith('/') and not path.startswith('//')
+            and path != '/' and PurePosixPath(path).as_posix() == path
+            and '..' not in PurePosixPath(path).parts and '\\' not in path
+            and not any(unicodedata.category(char).startswith('C') for char in path)
+            and len(path.encode('utf-8')) <= 4096)
+
+
+@dataclass(frozen=True)
+class DockerObservation:
+    status: Literal['passed', 'failed', 'unknown']
+    context: DaemonContext | None
+    value: object = field(default=None, repr=False)
 
 
 def _linux_peer_uid(connection):
@@ -150,36 +168,75 @@ class DockerProbe:
         self._peer_uid = _linux_peer_uid if peer_uid is None else peer_uid
 
     def inspect(self, expected_platform: str) -> Literal['passed', 'failed', 'unknown']:
+        return self._observe(expected_platform, None, None, False).status
+
+    def observe(self, expected_platform: str, *, during=None, deadline=None) -> DockerObservation:
+        """Bracket one trusted local callback without retrying or discarding it.
+
+        This callback is independently budgeted by the caller. An overrun can
+        retain its local value, but never publish passed Docker/context facts.
+        No executable policy or older kernels still permit API compatibility.
+        """
+        if (during is not None and not callable(during)
+                or deadline is not None and (type(deadline) not in (int, float) or not math.isfinite(deadline))):
+            raise ValueError('invalid_observation')
+        return self._observe(expected_platform, during, deadline, True)
+
+    def _observe(self, expected_platform, during, deadline, observe_context):
         if type(expected_platform) is not str or expected_platform not in ('linux/amd64', 'linux/arm64'):
             raise ValueError('invalid_platform')
-        if self._peer_uid is _linux_peer_uid and (sys.platform != 'linux' or not hasattr(socket, 'SO_PEERCRED')):
-            return 'unknown'
-        deadline = time.monotonic() + self._timeout
+        own_deadline = time.monotonic() + self._timeout
+        deadline = own_deadline if deadline is None else min(own_deadline, deadline)
         watchdog = None
+        lease = None
+        result = 'unknown'
+        context = None
         try:
-            before = _identity(self._endpoint)
-            watchdog = _Deadline(deadline)
-            connection = self._socket_factory(socket.AF_UNIX, socket.SOCK_STREAM)
-            watchdog.attach(connection)
-            connection.settimeout(_remaining(deadline))
-            connection.connect(self._endpoint.path)
-            if _identity(self._endpoint) != before:
-                return 'unknown'
-            peer = self._peer_uid(connection)
-            if type(peer) is not int or peer != self._endpoint.owner_uid:
-                return 'unknown'
-            connection.settimeout(_remaining(deadline))
-            connection.sendall(_REQUEST)
-            response = _response(_Reader(connection, deadline), _MAX_BODY)
-            if _identity(self._endpoint) != before:
-                return 'unknown'
-            result = _compatibility(response, expected_platform)
-            _remaining(deadline)
-            return result
-        except (OSError, ValueError, TypeError, RuntimeError, struct.error,
-                ProbeTransportError, DockerWorkerError):
-            # No response, path, credential or raw exception reaches the API.
-            return 'unknown'
+            try:
+                _remaining(deadline)
+                if self._peer_uid is _linux_peer_uid and (sys.platform != 'linux' or not hasattr(socket, 'SO_PEERCRED')):
+                    raise OSError('peer_unavailable')
+                before = _identity(self._endpoint)
+                watchdog = _Deadline(deadline)
+                connection = self._socket_factory(socket.AF_UNIX, socket.SOCK_STREAM)
+                watchdog.attach(connection)
+                connection.settimeout(_remaining(deadline))
+                connection.connect(self._endpoint.path)
+                if _identity(self._endpoint) != before:
+                    raise ValueError('endpoint_changed')
+                peer = self._peer_uid(connection)
+                if type(peer) is not int or peer != self._endpoint.owner_uid:
+                    raise ValueError('peer_unavailable')
+                if observe_context and self._endpoint.daemon_executable is not None:
+                    lease = capture_daemon_context(connection, self._endpoint.owner_uid,
+                                                   self._endpoint.daemon_executable, deadline)
+                connection.settimeout(_remaining(deadline))
+                connection.sendall(_REQUEST)
+                response = _response(_Reader(connection, deadline), _MAX_BODY)
+                if _identity(self._endpoint) != before:
+                    raise ValueError('endpoint_changed')
+                result = _compatibility(response, expected_platform)
+                _remaining(deadline)
+            except (OSError, ValueError, TypeError, RuntimeError, struct.error,
+                    ProbeTransportError, DockerWorkerError):
+                result = 'unknown'
+            # Callback errors intentionally propagate after cleanup. Catching
+            # them as transport errors could cause the caller to retry work.
+            value = during() if during is not None else None
+            try:
+                _remaining(deadline)
+                if result != 'unknown':
+                    if _identity(self._endpoint) != before:
+                        raise ValueError('endpoint_changed')
+                    if lease is not None and lease.revalidate(deadline):
+                        context = lease.context
+                    _remaining(deadline)
+            except (OSError, ValueError, TypeError, RuntimeError, struct.error,
+                    ProbeTransportError, DockerWorkerError):
+                result, context = 'unknown', None
+            return DockerObservation(result, context, value)
         finally:
+            if lease is not None:
+                lease.close()
             if watchdog is not None:
                 watchdog.finish()
