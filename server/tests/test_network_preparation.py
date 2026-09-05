@@ -150,3 +150,27 @@ def test_candidate_is_relisted_with_fresh_intent_before_final_inspect(journal, s
     receipt = apply(journal, reader, creator, source, authorize_create=lambda: True)
     assert receipt.state == 'ready' and creator.calls == []
     assert reader.calls == [('list', None), ('list', None), ('inspect', NETWORK_ID)]
+
+
+def test_cancellation_immediately_after_durable_begin_becomes_uncertain(journal, source, monkeypatch):
+    event = threading.Event()
+    begin = journal.begin
+    def committed(*args, **kwargs):
+        intent = begin(*args, **kwargs)
+        event.set()
+        return intent
+    monkeypatch.setattr(journal, 'begin', committed)
+    reader, creator = Reader(), Creator()
+    receipt = apply(journal, reader, creator, source, authorize_create=lambda: True, cancelled=event)
+    assert (receipt.state, receipt.code, receipt.revision) == ('uncertain', 'effect_uncertain', 3)
+    assert reader.calls == creator.calls == []
+
+
+def test_callback_cannot_mutate_the_bridge_expected_receipt_via_intent_alias(journal, source):
+    def change_receipt(_method, _binding, intent, _event):
+        object.__setattr__(intent.receipt, 'revision', 99)
+    reader = Reader([NetworkListObservation('missing')], on_read=change_receipt)
+    creator = Creator()
+    receipt = apply(journal, reader, creator, source, authorize_create=lambda: True)
+    assert (receipt.state, receipt.code, receipt.revision) == ('uncertain', 'effect_uncertain', 3)
+    assert creator.calls == []
