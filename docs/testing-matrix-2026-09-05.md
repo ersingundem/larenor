@@ -2,14 +2,15 @@
 
 Bu matris 5 Eylül 2026 tarihindeki gerçek test dosyalarını eşler. Bir satırda test bulunması o özelliğin bütün sunucu sürümlerinde veya fiziksel cihazlarda doğrulandığı anlamına gelmez. Test adedi ve satır kapsamı bir ürünün “%100 çalıştığı” iddiası için kullanılmaz.
 
-**Son güncelleme: 5 Eylül 2026, 18:00 TRT.** S06 birleşik medya hazırlığı,
-kalıcı şifreli geçmiş ve Client yönetimi `ce1ce38` ile yayımlandı. Bu commit'in
-[Server CI'ı](https://github.com/ersingundem/larenor/actions/runs/33972698733)
-1.273 test ve iki mimaride gerçek medya restart akışını geçti. Android
-analiz/2.572 test ve debug/native başarılı; E2E, uyanık kalma önkoşulunda
-uygulama testleri başlamadan durdu. İmzalı APK üretilmedi. Aşağıdaki yerel
-hazırlık düzeltmesinin gerçek emülatör sonucu ayrıca doğrulanacak; fiziksel
-tablet kabulü değildir.
+**Son güncelleme: 5 Eylül 2026, 18:24 TRT.** S06 birleşik medya hazırlığı,
+kalıcı şifreli geçmiş ve Client yönetimi `19b14aa` kod tabanında doğrulandı.
+[Server CI](https://github.com/ersingundem/larenor/actions/runs/33973453144)
+1.273 test ve iki mimaride gerçek medya restart akışını;
+[Android CI](https://github.com/ersingundem/larenor/actions/runs/33973452933)
+analiz/2.572 testi, debug/native kontrollerini ve dört native + dört uygulama
+E2E senaryosunu geçti. İmzalı APK 84 teslimi ve imza/paket/sürüm/non-debuggable
+kontrolleri de başarılı; indirilen dosya yerel resmi apksig aracıyla da
+doğrulandı. Bu sonuçlar fiziksel tablet veya gerçek medya cihazı kabulü değildir.
 
 **Yeni onaylı kapsam:** [63 özellik planındaki](feature-expansion-plan-2026-09-05.md)
 satırların tamamı planlandı; yeni özellik kabulü **0/63**. Bağımsız VNC/RDP/SSH
@@ -41,7 +42,8 @@ sınırı vardır; stderr/ham değer loglanmaz. Yalnız tam `7` veya `15` kabul
 edilir. Kalıcı sıfır/null/bozuk değer, ADB hatası ve süre aşımı derlemeyi
 başlatmaz. [21 regresyon](../tool/tests/android_e2e_preparation_test.py)
 RED→GREEN geçti; önceki tek okuma hatasının kesin nedeni bu kanıttan
-çıkarılmaz. Test iddiaları ve 18 dakikalık genel sınır değişmedi.
+çıkarılmaz. `19b14aa` gerçek koşusunda ilk denemede doğrulandı ve sekiz E2E
+senaryosu geçti. Test iddiaları ve 18 dakikalık genel sınır değişmedi.
 
 [GitHub saklama aracı testleri](../tool/tests/github_storage_cleanup_test.py) de
 Security işindeki mevcut `*_test.py` keşfine dahildir. Silme sınırı, en yeni üç
@@ -80,7 +82,7 @@ Tablodaki dosyalar temsilî giriş noktalarıdır; aynı klasördeki diğer `_te
 | Larenor Server hesabı ve şifreli kasa | [Server auth/storage](../server/tests/test_auth.py), [API sınırı](../server/tests/test_api_boundary.py), [Client hesap](../test/features/server/server_account_test.dart), [kasa controller](../test/features/server/server_vault_controller_test.dart) | [hesap](../test/features/server/server_connection_screen_test.dart), [kasa](../test/features/server/server_vault_screen_test.dart), [korumalı giriş](../test/features/server/server_entry_points_test.dart) | Bu dilimde host fixture | Yok | Gerçek sunucu/TLS, fiziksel cihaz depolaması, CasaOS kurulumu ve cihazlar arası taşıma kabulü |
 | Larenor Server kullanıcı, oturum ve işlem günlüğü yönetimi | [Server admin](../server/tests/test_admin.py), [migration](../server/tests/test_admin_migration.py), [Client admin controller](../test/features/server/server_admin_controller_test.dart) | [admin UI](../test/features/server/server_admin_screen_test.dart): revision çatışması, son etkin yönetici, geçici parola, iptal/onay, sayfalama ve yaşam döngüsü | — | Yok | Gerçek sunucu rol matrisi, cihaz oturumu kapatma ve erişilebilirlik teknolojileriyle fiziksel kabul |
 | Server bileşen kataloğu ve gereksinim işleri | [katalog](../server/tests/test_plugin_catalog.py), [şifreli işler](../server/tests/test_plugin_jobs.py), [API](../server/tests/test_plugin_jobs_api.py), [Docker journey](../server/tests/test_preflight_docker_journey.py), [Client sözleşmesi](../test/features/server/server_plugin_jobs_test.dart) | [iş/geçmiş ekranı](../test/features/server/server_plugin_jobs_screen_test.dart): açık istek kurtarma, ayrı Docker/port/alıcı sonuçları, PIN/arka plan/hesap sınırları | — | Yok | Varsayılan işçi kapalı; gerçek daemon kabulü, port/alıcı ağı, yönetilen kurulum ve CasaOS kabulü yok |
-| Kalıcı Core/ev kimliği | [bağlam API/migration](../server/tests/test_core_context.py), [Server sözleşmesi](../server/tests/test_core_context_contract.py), [Client okuyucu](../test/features/server/server_context_test.dart): restart, bozulma, rollback, strict JSON, iptal/ret | Client oturum/cache bağlama sonraki dilim | — | Yok | `e73533e` container kimlik/restart smoke'u geçti; son sözleşme düzeltmesinin CI'ı, multi-home, kaynak yetkileri ve Client cache henüz açık |
+| Kalıcı Core/ev kimliği | [bağlam API/migration](../server/tests/test_core_context.py), [Server sözleşmesi](../server/tests/test_core_context_contract.py), [Client okuyucu](../test/features/server/server_context_test.dart): restart, bozulma, rollback, strict JSON, iptal/ret | Client oturum/cache bağlama sonraki dilim | — | Yok | `19b14aa` container kimlik/restart ve ortak sözleşme kontrolleri geçti; multi-home, kaynak yetkileri ve Client cache henüz açık |
 | Client APK yayımlama ve güncelleme | [staging/atomiklik/kota](../server/tests/test_releases.py), [gerçek APK imzası](../server/tests/test_releases_verifier.py), [publisher](../tool/tests/publish_client_release_test.py), [Client protokol](../test/features/client_updates/client_updates_test.dart) | [güncelleme UI](../test/features/client_updates/client_updates_screen_test.dart): yayımlanmamış sürüm, hata, indir/doğrula/kur ayrımı ve eski hesap engeli | [APK imzası](../android/app/src/test/kotlin/com/ersingundem/larenor/updater/ApkSignatureTest.kt), [köprü](../android/app/src/test/kotlin/com/ersingundem/larenor/updater/ClientUpdaterBridgeTest.kt), [güvenlik](../android/app/src/test/kotlin/com/ersingundem/larenor/updater/UpdateSecurityTest.kt) | Yok | Fiziksel Android installer, bilinmeyen kaynak izni, süreç ölümü ve gerçek yükseltme; bu doğrulamada sürüm yayımlanmadı |
 | HA admin, otomasyon, servis formları | [admin API](../test/features/admin/admin_client_test.dart), [şemalar](../test/features/admin/admin_models_test.dart) | [admin flows](../test/features/admin/admin_workflows_test.dart), [actions](../test/features/ha_tools/ha_actions_test.dart) | — | Yok | Yetki ve sunucu sürümü matrisi; yalnız ayrı test ortamında yazma |
 | Today / todo / takvim / bildirim | [API](../test/features/today/today_api_test.dart), [actions](../test/features/today/today_actions_test.dart) | [Today](../test/features/today/today_screen_test.dart) | — | Yok | Saat dilimi, izinler ve gerçek entegrasyon verileri |
@@ -112,7 +114,7 @@ ayrı senaryolardır.
 Tam yerel koşumda **2.572 Flutter, 1.273 Server ve 176 araç testi** geçti.
 Yeni Client alanında 52 test (18 widget), katalog/iş/bağlamlarla birlikte
 237 ilgili test ve %95,3 satır kapsamı var. Yeni container smoke helper'ı
-%100 satır/dal kapsamındadır. `ce1ce38` için gerçek amd64 ve arm64 imajlarında
+%100 satır/dal kapsamındadır. `19b14aa` için gerçek amd64 ve arm64 imajlarında
 oluştur/restart/aynı geçmiş/iptal kabulü geçti; gerçek medya motorlarını
 kurmak veya HomePod'da oynatmak bu testin kapsamında değildir.
 

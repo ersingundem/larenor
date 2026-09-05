@@ -712,10 +712,12 @@ HTTP contract tests. Native container CI also exercises its create/restart/cance
 journey before publishing each image. Session/cache binding and managed
 media installation remain in the [integration queue](docs/remaining-core-integration-slices.md).
 The previous local Android native run passed **98 tests**. The published
-`ce1ce38` CI also passed analysis and debug/native checks; Android E2E stopped
-at emulator preparation before application scenarios, so no new signed APK
-was produced. A bounded preparation fix passed 21 regression tests and awaits
-its own emulator run. Current results are tracked in [PROGRESS](docs/PROGRESS.md).
+`19b14aa` CI also passed analysis, debug/native checks and all **four native plus
+four application E2E scenarios** on the API 35 emulator. The bounded emulator
+preparation fix passed 21 regression tests and its real emulator run.
+[Verified signed APK 84](https://github.com/ersingundem/larenor/actions/runs/33973452933/artifacts/9971908242)
+includes public integrity metadata; current results are tracked in
+[PROGRESS](docs/PROGRESS.md).
 Physical-device acceptance remains separate from these local and CI results.
 
 The earlier September 5 window/privacy/WebPanel delivery passed **1,913 Flutter tests,

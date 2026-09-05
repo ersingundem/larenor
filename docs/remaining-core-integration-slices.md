@@ -29,6 +29,28 @@ aynı Larenor kurulumu altında yönetilmesi S07'nin teslimidir. Eski MA-only
 Compose dosyası bu koordinatörün yerine geçirilmez. Kullanıcının ev sunucusuna
 kurulum en sonda manuel yapılır.
 
+### Dilim 2'nin ilk uygulama ve kabul sırası
+
+İlk artış, mevcut doğrulanmış Unix bağlantısına bağlı **daemon bağlamı
+gözlemi** olur. `docker_engine` API/platform sonucunun anlamı korunur;
+worker'ın yerel disk ölçümü ile daemon'ın mount/network/process-root bağlamı
+ayrı kanıtlardır. Bu gözlem kaynak ayırmaz ve kurulum yetkisi vermez.
+
+| Sıra | Yeni kabul senaryosu | Beklenen sonuç |
+| --- | --- | --- |
+| 1 | Doğru UID/API/platform, farklı worker/daemon namespace'i | Worker'daki dizin veya boş port daemon için uygun sayılmaz; API kontrolü geçebilir, host bağlamı doğrulanmamış kalır |
+| 2 | Erişilemeyen namespace/root, proxy peer, değişen süreç kimliği veya süre aşımı | Sonuç `unknown`; ham PID/yol/hata yayılmaz. Ortak 5 saniyelik IPC bütçesi alt gözlemlerde yeniden başlatılmaz |
+| 3 | Aynı yol metni farklı process root/dizine işaret ediyor veya mount/dizin kimliği değişiyor | Önceki dosya sistemi/kapasite kanıtı yeni hedefe taşınmaz |
+| 4 | Altı child aynı 16 GiB dosya sisteminde ayrı ayrı 8 GiB kontrolünü geçiyor | Birleşik 49.152 MiB isteği başarısız olmalı. Her child'ın bütçesi her ayrı yazılabilir dosya sistemine bir kez eklenir; config/cache ve kök alias'ları alanı çoğaltmaz, salt okunur Jellyfin görünümü yazma bütçesi eklemez |
+| 5 | Bağlam ve API uygun, port/alıcı için bağımsız kanıt yok | `port_availability` ve `receiver_network` hâlâ `unknown`; gözlem bind/listen, container start veya alıcı keşif trafiği üretmez |
+
+Bugün [DockerProbe](../server/larenor_server/plugins/docker_probe.py) peer
+UID'sini ve socket kimliğini doğrular. [HostInspector](../server/larenor_server/plugins/host_preflight.py)
+kapasiteyi yalnız bir child plan içindeki dosya sistemleri için birleştirir.
+Yeni sonuçlar API'ye açılınca [dar sonuç modeli](../server/larenor_server/plugins/preflight_models.py),
+Server/Client ortak sözleşmesi ve tablet açıklamaları birlikte değişir.
+Bu tablodaki senaryolar planlandı; uygulandı veya testleri geçti sayılmaz.
+
 ## B3/S08: kimliği gerçek Client kapsamına bağlama
 
 Server'ın kalıcı Core/ev kimliği hazırdır. Ana Client ekranı hâlâ ayrı HA

@@ -1,10 +1,10 @@
 # Larenor — güncel ilerleme ve iş kuyruğu
 
-**Son güncelleme: 5 Eylül 2026, 18:00 (Türkiye saati).**
+**Son güncelleme: 5 Eylül 2026, 18:24 (Türkiye saati).**
 
 ```text
 Önceki kapsam       █████████████░░░░░░░  ≈ %65
-S06 koordinatörü    ███░░░░░░░░░░░░░░░░░  1/6 yazılım dilimi; Android E2E açık
+S06 koordinatörü    ███░░░░░░░░░░░░░░░░░  1/6 yazılım dilimi; test kapıları geçti
 Yeni 63 özellik     ░░░░░░░░░░░░░░░░░░░░  0/63 kabul edildi
 Genişletilmiş toplam                     Henüz hesaplanmadı
 ```
@@ -37,44 +37,45 @@ GitHub'a gönderilmiş işlerin **anlık CI durumu**
 Bu yerel dosya geliştirme aşamalarında güncellenir; Actions ise çalışan
 derlemelerin ve test işlerinin kendi canlı durumunu gösterir.
 
-**Son bütünüyle başarılı Android teslimi:** `21bbf58` için
-[Güvenlik](https://github.com/ersingundem/larenor/actions/runs/33970380704) ve
-[Server Container Build](https://github.com/ersingundem/larenor/actions/runs/33970380889)
-başarılı; amd64/arm64 imajları, korumalı bağlam API'si ve yeniden başlatmada
-Core kimliği test edilip yayımlandı.
-[Android CI](https://github.com/ersingundem/larenor/actions/runs/33970380876)
-analiz, debug/native ve **4 native + 4 uygulama E2E** kapılarını geçti;
-**imzalı APK teslimi dahil tamamı başarılı**. Emülatör 36.1.9/build 13823996
-gerçek logda doğrulandı. [APK ve doğrulanmış metadata](https://github.com/ersingundem/larenor/actions/runs/33970380876/artifacts/9971022343)
-`app-signed-release-apk-82` çıktısında; gerçek imza, sertifika, paket, sürüm
-ve non-debuggable kontrolü geçti. Henüz yapılandırılmamış ev Server'ına
-otomatik Client yayını adımı atlandı; gerçek cihaz kurulumu yapılmadı.
-Önceki `5deb1e6` Android E2E'sinde dört native senaryo geçmiş, uygulama
-akışları sırasında QEMU bağlantısı kaybolmuştu; OOM kanıtı yoktu.
+**Güncel doğrulanmış kod:** `19b14aa` için
+[Security](https://github.com/ersingundem/larenor/actions/runs/33973452663) ve
+[Server CI](https://github.com/ersingundem/larenor/actions/runs/33973453144)
+başarılı: 1.273 Server testi ve gerçek amd64/arm64 container'larında
+hazırlık oluştur → restart → aynı kaydı oku → iptal akışı geçti.
+Yayımlanan `sha256:affdadf7d616993ef40e32c69e5e9c14fbf0e64282b3121d83c5d5e1765783a8`
+imaj indeksinin iki mimarisi ve anonim manifest erişimi doğrulandı.
+[Android CI](https://github.com/ersingundem/larenor/actions/runs/33973452933)
+2.572 testi, analizi, debug/native kontrollerini ve **4 native + 4 uygulama
+E2E senaryosunu** geçti. Emülatör 36.1.9/build 13823996, 42 aşama/cleanup
+işareti ve 18 dakikalık komut sınırı içinde yaklaşık 9 dakika 56 saniye
+logdan doğrulandı. **İmzalı APK teslimi dahil bütün CI başarılı.**
+[İmzalı APK 84 ve doğrulanmış metadata](https://github.com/ersingundem/larenor/actions/runs/33973452933/artifacts/9971908242)
+`app-signed-release-apk-84` çıktısında; imza, sertifika, paket, sürüm ve
+non-debuggable kontrolleri geçti. İndirilen APK, yerelde Java 17 ve hash ile
+sabitlenmiş resmi apksig 9.1.0 ile ayrıca doğrulandı: APK hash'i, kaynak
+commit'i, paket/sertifika ve `100000084` sürümü metadata ile eşleşti.
+Henüz yapılandırılmamış ev Server'ına
+Client yayını adımı atlandı. Gerçek cihaz kurulumu yapılmadı.
 
-**Yayımlanan yeni dilim:** S06'nın ilk küçük teslimi olan
-[birleşik medya hazırlığı](media-preparations-implementation-2026-09-05.md)
+Sonuçları kaydeden belge güncellemesi uygulama, test veya workflow kodunu
+değiştirmez; test edilen ve APK/imaj üretilen kod commit'i `19b14aa`dır.
+
+**S06 birleşik medya hazırlığı:**
+[İlk yazılım dilimi](media-preparations-implementation-2026-09-05.md)
 uygulandı: altı bileşen için tek plan, şifreli kalıcı kayıt, aynı isteği kurtarma,
 geçmiş ve iptal; Client yönetici ekranı ve ortak gerçek HTTP sözleşmesi.
 Bağımsız inceleme tamamlandı; **2.572 Flutter, 1.273 Server ve 176 araç testi**
-geçti. `ce1ce38` için [Security](https://github.com/ersingundem/larenor/actions/runs/33972698632)
-ve [Server CI](https://github.com/ersingundem/larenor/actions/runs/33972698733)
-başarılı: 1.273 Server testi ve gerçek amd64/arm64 container'larında
-hazırlık oluştur → restart → aynı kaydı oku → iptal akışı geçti.
-Yayımlanan `sha256:a2a741b1b3a6519c2e69a354f610dea00e060f28a7de9f3478c27cca1f51376a`
-imaj indeksinin iki mimarisi ve anonim manifest erişimi doğrulandı.
-[Android CI](https://github.com/ersingundem/larenor/actions/runs/33972698712)
-2.572 testi, analizi ve debug/native derlemesini geçti; E2E, uygulama
-senaryoları başlamadan emülatörün uyanık kalma ayarı doğrulanamadığı için
-durdu. İmzalı APK işi atlandı; APK 82 bu yeni medya kodunu içermez.
+geçti. `prepared` bir hazırlık kaydıdır; servis kurulmuş veya host/ağ/depolama
+uygunluğu doğrulanmış demek değildir. Host bağlamı ve toplam disk ihtiyacı
+[sıradaki dilimde](remaining-core-integration-slices.md) ele alınacak.
 
-**CI hazırlığı düzeltmesi:** `16dda6b` RED → `4e05b66` GREEN. Yalnız açıkça
-seçilmiş QEMU emülatöründe, toplam 10 saniye ve en fazla beş denemeyle ayarı
-uygula/oku; sadece tam `7` veya `15` değeri testi başlatır. Kalıcı hata,
-ADB hatası, taşan çıktı ve süre sınırı başarısız kalır; 21 regresyon geçti.
-Bu hazırlık düzeltmesinin gerçek emülatör sonucu yeni CI ile doğrulanacak.
-`prepared` bir hazırlık kaydıdır; servis kurulmuş veya ağ/depolama doğrulanmış
-demek değildir. Önceki başarılı CI bu yeni kodun sonucu yerine sayılmaz.
+**CI hazırlığı düzeltmesi:** `ce1ce38` E2E'si uygulama senaryoları başlamadan
+uyanık kalma ayarını doğrulayamadığı için durmuştu. `16dda6b` RED → `4e05b66`
+GREEN ile yalnız seçilmiş QEMU emülatöründe toplam 10 saniye/en fazla beş
+uygula-oku denemesi eklendi. Tam `7` veya `15` dışındaki kalıcı değer, ADB
+hatası, taşan çıktı ve süre aşımı başarısız kalır; 21 regresyon geçti.
+`19b14aa` gerçek koşusunda önkoşul ilk denemede doğrulandı ve bütün sekiz E2E
+senaryosu geçti. Önceki hatanın kesin kök nedeni bu koşudan çıkarılmaz.
 
 Önceki `5331f22` commit'inin Android/analiz/güvenlik CI çalışmaları artifact
 depolama kotasına takıldı; taramalar bulgu üretmedi. Bu pakette rapor yükleme
@@ -85,10 +86,10 @@ kaldırıldı. Asıl test/tarama hataları ve imzalı APK teslim hataları hâl�
 
 | İş | Durum | Tamamlanma ölçütü |
 | --- | --- | --- |
-| S05 hizmet yönetimi ve denetimi | Client admin ekranı, şifreli Server kayıtları ve 17 servis türünün kontrol yolu uygulandı | `21bbf58` Server/Güvenlik/Android ve imzalı APK teslimi geçti; gerçek servis kabulü ayrı |
-| S06 birleşik medya hazırlığı | Altı bileşen için tek plan ve şifreli kalıcı kayıt; Client geçmiş/iptal ve aynı isteği kurtarma uygulandı | Yerel test, inceleme ve iki mimarili Server CI geçti. Android E2E hazırlık düzeltmesi yeniden doğrulanacak. Host/depolama/alıcı ağı doğrulaması, kaynak hazırlığı ve yönetilen kurulum açık |
-| B3 kalıcı Core/ev bağlamı | Korumalı `/api/v1/context`, şema 3 migration, restart koruması ve Client typed okuyucu uygulandı | `21bbf58` ortak sözleşme CI'ı geçti; oturum/cache bağlama, merkezi adaptörler ve kaynak yetkileri açık |
-| Gerçek Server imajı doğrulaması | `ce1ce38` iki mimaride yeni medya oluştur/restart/iptal yolculuğu dahil geçti ve yayımlandı | Anonim manifest doğrulandı; gerçek ev kurulumu ve medya motorlarının kurulması ayrı |
+| S05 hizmet yönetimi ve denetimi | Client admin ekranı, şifreli Server kayıtları ve 17 servis türünün kontrol yolu uygulandı | `19b14aa` Server/Güvenlik/Android ve imzalı APK teslimi geçti; gerçek servis kabulü ayrı |
+| S06 birleşik medya hazırlığı | Altı bileşen için tek plan ve şifreli kalıcı kayıt; Client geçmiş/iptal ve aynı isteği kurtarma uygulandı | Yerel test, inceleme ve iki mimarili Server CI geçti. `19b14aa` Android E2E de geçti. Host/depolama/alıcı ağı doğrulaması, kaynak hazırlığı ve yönetilen kurulum açık |
+| B3 kalıcı Core/ev bağlamı | Korumalı `/api/v1/context`, şema 3 migration, restart koruması ve Client typed okuyucu uygulandı | `19b14aa` ortak sözleşme CI'ı geçti; oturum/cache bağlama, merkezi adaptörler ve kaynak yetkileri açık |
+| Gerçek Server imajı doğrulaması | `19b14aa` iki mimaride yeni medya oluştur/restart/iptal yolculuğu dahil geçti ve yayımlandı | Anonim manifest doğrulandı; gerçek ev kurulumu ve medya motorlarının kurulması ayrı |
 | Seçilen 63 özelliğin bağımlılık planı | İlk 60 seçim ve bağımsız VNC/RDP/SSH kaydedildi; 11 grup ve mevcut temel kapıları | Yeni özellik kabulü 0/63; SSH/tünel temeli → RDP → VNC, Proxmox veya medya kurulumu zorunlu değil |
 
 **Son kapsam kararı:** Medya ve Music Assistant için ayrı uygulama kurulumu veya
@@ -225,8 +226,8 @@ geliştirmesi güncel kapsam dışındadır.
 | Birleşik medya planner'ı | **83 geçti**, **%97 birleşik kapsam** | Altı bileşen, güvenli katalog, değişmez hash/kimlikler; host I/O veya kurulum yok |
 | Medya API/depolama/ortak sözleşme | **75 geçti**, **%92 birleşik kapsam** | Şema/API/model %100; şifreleme/AAD, paralel tekrar/iptal, restart, katalog/yetki ve 8/256 sınırları |
 | Client medya hazırlığı | **52 geçti**, 18 widget; **%95,3 satır** | İlgili katalog/iş/bağlamlarla birlikte 237 test; farklı Core, 256 kayıt erişimi, belirsiz POST, 2× yazı ve erişilebilir alanlar |
-| Container medya smoke protokolü | **29 ilgili test**, helper **%100 kapsam** | `ce1ce38` CI'ında gerçek amd64/arm64 imajlarında oluştur/restart/iptal geçti; medya servisleri kurulmadı |
-| Emülatör hazırlığı | **21 araç regresyonu geçti** | Sınırlı tekrar, QEMU kanıtı, kesin ayar değeri ve hata halinde derleme başlamaması; gerçek emülatör sonucu yeni CI'da |
+| Container medya smoke protokolü | **29 ilgili test**, helper **%100 kapsam** | `19b14aa` CI'ında gerçek amd64/arm64 imajlarında oluştur/restart/iptal geçti; medya servisleri kurulmadı |
+| Emülatör hazırlığı | **21 araç regresyonu geçti** | Sınırlı tekrar, QEMU kanıtı, kesin ayar değeri ve hata halinde derleme başlamaması; `19b14aa` gerçek E2E önkoşulu ilk denemede geçti |
 | Client gereksinim işleri | **53 geçti**, 19 widget; **%94,8 satır** | Tam Flutter toplamının içindeki odaklı kapsam; fiziksel tablet kabulü değil |
 | Docker ve politika bütünleştirmesi | **236 geçti**, üç modülde **%99 birleşik satır/dal** | Docker probe %96; host/runtime %100. Sonradan eklenen dördüncü yavaş-daemon journey de geçti; fiziksel daemon kabulü değil |
 | Kalıcı Core/ev kimliği ve ortak sözleşme | **59 Server / 63 Client testi geçti** | Yeni Server modülü ve Client model/metot %100 kapsam; çoklu ev ve Client oturum/cache henüz yok |
@@ -234,14 +235,21 @@ geliştirmesi güncel kapsam dışındadır.
 | İşçi IPC bağımsız incelemesi | **83 testlik ilgili koşum**; 201/216 statement, 59/68 dal | 16 temel IPC testi ve başlatma hataları dahil; kapsamdaki diğer dosyalarla toplanmaz |
 | Kalıcı iş bağımsız incelemesi | **55 geçti**, **%89 birleşik kapsam** | Yetki, kalıcılık, iptal, idempotence, bozulma ve restart; Server toplamının içindedir |
 | Önceki yerel Android native koşumu | **98 geçti**, 18 test paketi | Güncel S06 için yeni fiziksel kurulum/oynatma kanıtı değildir |
-| Uzak API 35 x86_64 E2E (`21bbf58`) | **4 uygulama + 4 platform senaryosu geçti** | Gerçek emülatör 36.1.9; 42 aşama/cleanup işareti tamam, 18 dakika içinde 9 dakika 54 saniye. Fiziksel tablet kabulü değil |
+| Uzak API 35 x86_64 E2E (`19b14aa`) | **4 uygulama + 4 platform senaryosu geçti** | Gerçek emülatör 36.1.9; 42 aşama/cleanup işareti tamam, 18 dakika içinde yaklaşık 9 dakika 56 saniye. Fiziksel tablet kabulü değil |
 
 Test dosyaları, kapsam ve açıklar [test matrisinde](testing-matrix-2026-09-05.md).
 Test adetleri farklı zaman ve kapsamları temsil eder; toplanarak başarı oranı
-üretilmez. GitHub CI sonucu yeni commit sonrasında ayrıca kaydedilecektir.
+üretilmez. CI kanıtı yukarıda adı verilen commit içindir; yalnız belge değişiklikleri uygulama veya workflow kodunu değiştirmez.
 
 ## Güncelleme kaydı
 
+- **18:24:** `19b14aa` Güvenlik, Server ve Android CI'ı imzalı APK 84 teslimi
+  dahil başarılı. 1.273 Server, 2.572 Flutter ve yerelde 176 araç testi;
+  gerçek emülatörde 4 native + 4 uygulama senaryosu, 42 aşama işareti geçti.
+  İki mimarili medya restart/iptal imajı yayımlandı, anonim manifest doğrulandı.
+  Dilim 2 için daemon bağlamı, ortak süre sınırı, değişen yol, toplam dosya
+  sistemi bütçesi ve ağ bilinmezliği beş somut kabul senaryosuna ayrıldı.
+  Uzak erişim F61–F63 planlandı; protokol motorları henüz uygulanmadı.
 - **18:00:** `ce1ce38` Server/Güvenlik ve gerçek iki mimarili medya restart
   akışı geçti; anonim imaj manifesti doğrulandı. Android analiz ve debug/native
   başarılı; E2E hazırlıkta durdu, imzalı APK üretilmedi. Ayarı doğrulamayı
