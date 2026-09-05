@@ -19,31 +19,89 @@ JellyseerrCredentialsStore jellyseerrCredentialsStore(Ref ref) =>
 
 @riverpod
 class JellyseerrConnection extends _$JellyseerrConnection {
+  late final DirectHomeAccess _access = ref.read(directHomeAccessProvider);
+  int _operation = 0;
+  JellyseerrClient? _checkingClient;
+
+  void _check([int? operation]) {
+    if (!ref.mounted || operation != null && operation != _operation) {
+      throw const DirectHomeAccessException('unavailable');
+    }
+    _access.check();
+  }
+
+  void _closeCheck() {
+    _checkingClient?.dispose();
+    _checkingClient = null;
+  }
+
   @override
   Future<JellyseerrConfig?> build() async {
-    final access = ref.watch(directHomeAccessProvider);
+    ref.watch(directHomeAccessProvider);
+    final operation = ++_operation;
+    ref.onDispose(() {
+      _operation++;
+      _closeCheck();
+    });
+    _check(operation);
     final result = await ref.watch(jellyseerrCredentialsStoreProvider).read();
-    access.check();
+    _check(operation);
     return result;
   }
 
-  Future<void> signIn({required String baseUrl, required String apiKey}) async {
+  Future<void> signIn({
+    required String baseUrl,
+    required String apiKey,
+    bool Function()? isCurrent,
+  }) async {
+    void checkAction() {
+      try {
+        if (isCurrent == null || isCurrent()) return;
+      } catch (_) {}
+      throw const DirectHomeAccessException('unavailable');
+    }
+
+    checkAction();
+    _check();
+    if (_checkingClient != null) throw const DirectHomeAccessException('busy');
+    final operation = ++_operation;
+    final store = ref.read(jellyseerrCredentialsStoreProvider);
     final config = JellyseerrConfig(baseUrl: baseUrl, apiKey: apiKey);
-    await JellyseerrClient(config: config).checkConnection();
-    await ref
-        .read(jellyseerrCredentialsStoreProvider)
-        .save(baseUrl: baseUrl, apiKey: apiKey);
-    state = AsyncData(config);
+    final client = _client(config);
+    _checkingClient = client;
+    try {
+      await client.checkConnection();
+      _check(operation);
+      checkAction();
+      await store.save(baseUrl: baseUrl, apiKey: apiKey, isCurrent: isCurrent);
+      _check(operation);
+      checkAction();
+      state = AsyncData(config);
+    } catch (_) {
+      _check(operation);
+      rethrow;
+    } finally {
+      if (identical(_checkingClient, client)) _closeCheck();
+    }
   }
 
   Future<void> signOut() async {
-    await ref.read(jellyseerrCredentialsStoreProvider).clear();
+    _check();
+    final operation = ++_operation;
+    final store = ref.read(jellyseerrCredentialsStoreProvider);
+    _closeCheck();
+    await store.clear();
+    _check(operation);
     state = const AsyncData(null);
   }
+
+  JellyseerrClient _client(JellyseerrConfig config) => JellyseerrClient(config: config);
 }
 
 @riverpod
 JellyseerrClient? jellyseerrClient(Ref ref) {
+  final access = ref.watch(directHomeAccessProvider);
+  if (!access.isCurrent) return null;
   final connection = ref.watch(jellyseerrConnectionProvider);
   final config = connection.isLoading || connection.hasError
       ? null
