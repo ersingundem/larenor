@@ -38,63 +38,81 @@ class PosterCard extends StatelessWidget {
   final Widget? overlay;
 
   static const _captionGap = Gap.sm;
+  static const _focusInset = 4.0;
 
   /// The total height a [PosterCard] of [width] occupies, including its
   /// caption line. Row containers should use this rather than a literal.
   static double heightFor(double width, BuildContext context) {
     final scaler = MediaQuery.textScalerOf(context);
     final captionHeight = scaler.scale(AppText.posterCaption.fontSize!) * 1.4;
-    return width * 1.5 + _captionGap + captionHeight;
+    return (width - _focusInset * 2) * 1.5 +
+        _captionGap +
+        captionHeight +
+        _focusInset * 2;
   }
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: SizedBox(
-        width: width,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            AspectRatio(
-              aspectRatio: 2 / 3,
-              child: ClipRRect(
-                borderRadius: Radii.brArtwork,
-                child: Stack(
-                  fit: StackFit.expand,
-                  children: [
-                    _Artwork(url: imageUrl),
-                    if (overlay != null)
-                      Positioned(top: 6, right: 6, child: overlay!),
-                    if (progress != null && progress! > 0)
-                      Positioned(
-                        left: 0,
-                        right: 0,
-                        bottom: 0,
-                        child: _ProgressBar(
-                          value: progress!,
-                          color:
-                              progressColor ??
-                              CupertinoTheme.of(context).primaryColor,
-                        ),
-                      ),
-                  ],
+    final theme = CupertinoTheme.of(context);
+    return SizedBox(
+      width: width,
+      // Native focus extends outside the button; keep it inside row/grid clips.
+      child: Padding(
+        padding: const EdgeInsets.all(_focusInset),
+        child: CupertinoButton(
+          padding: EdgeInsets.zero,
+          minimumSize: const Size.square(48),
+          borderRadius: Radii.brArtwork,
+          focusColor: CupertinoTheme.brightnessOf(context) == Brightness.dark
+              ? Color.lerp(theme.primaryColor, CupertinoColors.white, .12)
+              : theme.primaryColor,
+          onPressed: onTap,
+          child: DefaultTextStyle(
+            style: DefaultTextStyle.of(context).style,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                AspectRatio(
+                  aspectRatio: 2 / 3,
+                  child: ClipRRect(
+                    borderRadius: Radii.brArtwork,
+                    child: Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        _Artwork(url: imageUrl),
+                        if (overlay != null)
+                          Positioned(top: 6, right: 6, child: overlay!),
+                        if (progress != null && progress! > 0)
+                          Positioned(
+                            left: 0,
+                            right: 0,
+                            bottom: 0,
+                            child: _ProgressBar(
+                              value: progress!,
+                              color:
+                                  progressColor ??
+                                  CupertinoTheme.of(context).primaryColor,
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
                 ),
-              ),
+                const SizedBox(height: _captionGap),
+                // Flexible so a caption that grows with the system text size
+                // shortens the card rather than overflowing it.
+                Flexible(
+                  child: Text(
+                    title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppText.posterCaption,
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(height: _captionGap),
-            // Flexible so a caption that grows with the system text size
-            // shortens the card rather than overflowing it.
-            Flexible(
-              child: Text(
-                title,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: AppText.posterCaption,
-              ),
-            ),
-          ],
+          ),
         ),
       ),
     );

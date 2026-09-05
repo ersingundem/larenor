@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -40,25 +42,41 @@ class JellyfinLibraryScreen extends ConsumerWidget {
                 child: Text(AppLocalizations.of(context).jellyfinLibraryEmpty),
               );
             }
-            return GridView.builder(
-              padding: const EdgeInsets.all(12),
-              gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-                maxCrossAxisExtent: 140,
-                mainAxisSpacing: 12,
-                crossAxisSpacing: 12,
-                childAspectRatio: 0.62,
-              ),
-              itemCount: items.length,
-              itemBuilder: (context, index) {
-                final item = items[index];
-                return JellyfinPoster(
-                  item: item,
-                  width: double.infinity,
-                  onTap: () => Navigator.of(context).push(
-                    CupertinoPageRoute(
-                      builder: (_) => JellyfinItemDetailScreen(item: item),
+            return LayoutBuilder(
+              builder: (context, constraints) {
+                const spacing = 12.0;
+                const maxWidth = 140.0;
+                final usableWidth = constraints.maxWidth - spacing * 2;
+                final columns = math.max(
+                  1,
+                  (usableWidth / (maxWidth + spacing)).ceil(),
+                );
+                final posterWidth =
+                    (usableWidth - spacing * (columns - 1)) / columns;
+                return GridView.builder(
+                  padding: const EdgeInsets.all(12),
+                  gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: columns,
+                    mainAxisSpacing: spacing,
+                    crossAxisSpacing: spacing,
+                    mainAxisExtent: JellyfinPoster.heightFor(
+                      posterWidth,
+                      context,
                     ),
                   ),
+                  itemCount: items.length,
+                  itemBuilder: (context, index) {
+                    final item = items[index];
+                    return JellyfinPoster(
+                      item: item,
+                      width: double.infinity,
+                      onTap: () => Navigator.of(context).push(
+                        CupertinoPageRoute(
+                          builder: (_) => JellyfinItemDetailScreen(item: item),
+                        ),
+                      ),
+                    );
+                  },
                 );
               },
             );
