@@ -129,3 +129,60 @@ def test_context_checks_are_bounded_observations_without_private_identifiers(cod
     for extra in ({'rootId': 'appdata'}, {'availableMiB': 1}, {'requiredMiB': 1}):
         with pytest.raises(ValueError):
             PreflightCheck(code=code, status='passed', **extra)
+
+
+def test_failed_storage_callback_is_not_retried_or_accepted(roots, monkeypatch):
+    from larenor_server.plugins.docker_probe import DockerEndpoint
+    calls = []
+    class Probe:
+        def __init__(self, endpoint):
+            pass
+        def observe(self, platform, *, during, deadline):
+            return during()
+    monkeypatch.setattr('larenor_server.plugins.host_preflight.DockerProbe', Probe)
+    host = HostInspector(HostPolicy(roots, docker=DockerEndpoint('/run/docker.sock', daemon_executable='/usr/bin/dockerd')),
+        platform_provider=lambda: 'linux/amd64')
+    def storage(*args):
+        calls.append('storage')
+        if len(calls) == 1:
+            raise OSError('private observation failed')
+        return []
+    monkeypatch.setattr(host, '_storage', storage)
+    with pytest.raises(HostPreflightError, match='inspection_unavailable'):
+        host.inspect_stack(stack())
+    assert calls == ['storage']
+
+
+@pytest.mark.parametrize('context,expected', [
+    ((True, True, True), ['passed']*3),
+    ((False, True, False), ['failed', 'passed', 'failed']),
+    (None, ['unknown']*3),
+])
+def test_configured_daemon_context_is_separate_from_worker_local_storage(roots, monkeypatch, context, expected):
+    from larenor_server.plugins.docker_probe import DockerEndpoint, DockerObservation
+    from larenor_server.plugins.daemon_context import DaemonContext
+    calls = []
+    class Probe:
+        def __init__(self, endpoint):
+            pass
+        def observe(self, platform, *, during, deadline):
+            calls.append(during())
+            return DockerObservation('passed', None if context is None else DaemonContext(*context), calls[-1])
+    monkeypatch.setattr('larenor_server.plugins.host_preflight.DockerProbe', Probe)
+    host = HostInspector(HostPolicy(roots, docker=DockerEndpoint('/run/docker.sock', daemon_executable='/usr/bin/dockerd')),
+        platform_provider=lambda: 'linux/amd64', statvfs_provider=lambda _: volume(65536))
+    result = host.inspect_stack(stack())
+    assert len(calls) == 1
+    assert checks(result, 'docker_engine')[0].status == 'passed'
+    assert checks(result, 'storage_capacity')[0].status == 'passed'
+    assert [checks(result, c)[0].status for c in ('daemon_mount_context', 'daemon_network_context', 'daemon_root_context')] == expected
+    assert checks(result, 'port_availability')[0].status == 'unknown'
+
+
+def test_extended_caller_deadline_does_not_extend_worker_inspection_budget(roots, monkeypatch):
+    monkeypatch.setattr('larenor_server.plugins.host_preflight.time.monotonic', lambda: 100.0)
+    host = inspector(roots)
+    received = []
+    monkeypatch.setattr(host, '_storage', lambda plans, deadline: received.append(deadline) or [])
+    host.inspect_stack(stack(), deadline=1000.0)
+    assert received == [105.0]
