@@ -52,6 +52,7 @@ class AppNavigationBar extends StatelessWidget {
                       child: CupertinoButton(
                         key: ValueKey('root-navigation-$i'),
                         minimumSize: const Size(48, 48),
+                        focusColor: CupertinoTheme.of(context).primaryColor,
                         padding: const EdgeInsets.symmetric(
                           horizontal: 4,
                           vertical: 8,
