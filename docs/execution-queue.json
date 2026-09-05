@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "title": "Larenor kalıcı yürütme kuyruğu",
-  "updatedAt": "2026-09-05",
+  "updatedAt": "2026-09-06",
   "selectedFeatures": [
     "F01",
     "F02",
@@ -409,10 +409,18 @@
           "state": "completed",
           "result": "passed",
           "label": "Yeni tam kök modülü ve yarış/lifecycle/mount testleri bağımsız incelendi; açık P1/P2 yok."
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/33991460310",
+          "commit": "394de0fc5e0f7e672dda8847c83b6e8d3b50e61b",
+          "state": "completed",
+          "result": "passed",
+          "label": "Tam kök gözlemi:2792 gerçek Linux test0skip; iki mimarili hazırlık/restart/iptal ve anonim imaj doğrulandı. S06.3d yazma kabulü açık."
         }
       ],
       "completionCommit": null,
-      "reason": "Native kimlik temeli 3dde2f8 Linux CI ile doğrulandı. Tam kök resolver b44dd5e RED → 879700b GREEN → 32254ad freeze, main 0d9e250 içinde; 87 odaklı/573 ilgili test ve bağımsız inceleme geçti. Tam Server 2.782 geçti, 10 Linux testi Mac’te atlandı (200,80 saniye); yeni gerçek Linux CI bekleniyor. Supervisor, remap-disabled başlangıç kanıtı, issuer ve create/publish açık; bu gözlem yazma yetkisi değildir."
+      "reason": "Tam kök resolver 32254ad → 0d9e250 ana dalda; 394de0f Linux CI 2.792 testi atlamasız geçti ve yeni gerçek root/proc/mount/descriptor testi doğrulandı. İki mimarili Core hazırlık smoke geçti. Supervisor, remap-disabled başlangıç kanıtı, issuer ve create/publish açık; bu gözlem yazma yetkisi değildir."
     },
     {
       "id": "S06.3e",
@@ -940,7 +948,7 @@
       "kind": "task",
       "parent": "S08",
       "title": "Bağlamlı kalıcı cache ve açık eski veri taşıması",
-      "status": "pending",
+      "status": "in_progress",
       "dependsOn": [
         "S08.3"
       ],
@@ -962,7 +970,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "S08.3, 4b98680 tam CI ve APK 94 ile kabul edildi; başlangıç bağımlılığı açıldı. Sıradaki uygulama client-scoped-storage-plan belgesindeki kaynaklı düzen deposu ve korumalı önizleme dilimidir. Tasarım araştırması uygulama kabulü değildir."
+      "reason": "İlk üretim dilimi codex/client-scoped-layout üzerinde başladı: Core/ev/kullanıcı anahtarlı düzen deposu, mevcut PIN altında salt düzen önizlemesi ve seçili pasif oda adlarının kopyası. Gerçek Android HTTP/PIN/restart yolculuğu codex/scoped-layout-e2e üzerinde paralel hazırlanıyor. Diğer ev kayıtları ve typed ağ cache kabulü açık; henüz tamamlanma kanıtı yok."
     },
     {
       "id": "S08.5",
@@ -1354,10 +1362,18 @@
           "state": "completed",
           "result": "passed",
           "label": "Ayarlar/dashboard kaynak kapısı:2815 Flutter,98 JVM,9E2E ve bağımsız APK94 doğrulaması geçti. Yeni medya posterleri bu sürüme dahil değil."
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/33991460336",
+          "commit": "394de0fc5e0f7e672dda8847c83b6e8d3b50e61b",
+          "state": "completed",
+          "result": "passed",
+          "label": "Medya kaynak kapısı:2837 Flutter,98 JVM,9E2E ve signed APK95 build geçti. Bağımsız Java17/apksig doğrulaması da başarılı."
         }
       ],
       "completionCommit": null,
-      "reason": "Ayarlar ve dashboard için 4b98680 tam CI ve bağımsız imzalı APK 94 geçti. Medya posterleri cb792c0 → 14b7b62 main içinde: native klavye/semantics, 2× başlık alanı ve eski eylem korumaları. 733 ilgili/22 son test ve birleşik 2.837 Client testi geçti; analiz ve bağımsız kod/görsel inceleme temiz. Yeni medya kaynak CI kabulü, kalan ekran/editor/gesture işleri ve ayrı fiziksel TalkBack kabulü açık."
+      "reason": "Ayarlar/dashboard 4b98680 tam CI ve APK94 ile doğrulandı. Yeni medya posterleri de 394de0f Android CI içinde 2.837 Flutter,98 JVM,9E2E ve signed build kapılarını geçti; bağımsız APK95 doğrulaması geçti. Diğer ekran/editor/gesture işleri ve fiziksel TalkBack kabulü açık."
     },
     {
       "id": "B5.2",

@@ -93,3 +93,14 @@ verdi. Loglar `/private/tmp/larenor-root-media-full-flutter.log`,
 `/private/tmp/larenor-root-media-full-analyze.log`,
 `/private/tmp/larenor-root-media-format.log`. Yeni exact-source CI ve fiziksel
 tablet kabulü ayrıca beklenir.
+
+## Uzak kaynak kabulü — 394de0f
+
+[Android CI](https://github.com/ersingundem/larenor/actions/runs/33991460336)
+`394de0fc5e0f7e672dda8847c83b6e8d3b50e61b` üzerinde **2.837 Flutter**,
+98 JVM ve **dört native + beş uygulama = dokuz E2E** testini geçti; analiz
+sıfır bulgu. 48 faz/beş temizlik, 260,80 saniye test süresi; ağır Gradle
+derlemesi emülatör başlatılmadan önce tamamlandı. İmzalı APK 95 üretildi;
+bağımsız Java 17/apksig 9.1.0 kontrolü paket, sürüm, kaynak ve kalıcı imzayı
+doğruladı. SHA-256: `e12a90c81ff1b22ab1bf5dc1ca272dc6675de65dac2587cd311f594f6ce67be1`.
+Fiziksel tablet/TalkBack kabulü ve B5.1'in diğer ekran işleri açık kalır.

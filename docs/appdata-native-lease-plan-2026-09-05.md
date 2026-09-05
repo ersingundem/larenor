@@ -15,15 +15,17 @@ Bu iki modül `NativeAppdataLeaseIssuer` veya yazma yetkisi değildir.
 `native_appdata_root_observation.py` eklendi. 87 odaklı ve 573 ilgili test
 geçti; Mac'te bir/beş Linux testi atlandı. %99 dal dahil kapsam ve bağımsız
 inceleme tamamlandı; tam Server 2.782 geçti/10 Linux skip (200,80 saniye).
-Yeni gerçek Linux CI kabulü ayrıca bekleniyor. [Kanıt ve sınırlar](native-appdata-root-observation-implementation-2026-09-05.md).
+Yeni `394de0f` gerçek Linux CI 2.792 testi atlamasız geçti; tam kök fixture'ı doğrulandı. [Kanıt ve sınırlar](native-appdata-root-observation-implementation-2026-09-05.md).
 
-**Kalan sıra:** (1) Yeni tam kök gözleminin gerçek Linux CI kabulü: `/` descriptor'ından ulaşan, tüm
+**Doğrulanan temel:** Yeni tam kök gözlemi `394de0f` Linux CI ile kabul edildi: `/` descriptor'ından ulaşan, tüm
 parent→name→child bağlarını ve gerçek mount gözlemini tutan resolver;
 eksik kökte en yakın parent'a düşmez. Alt kök traversal/mount sınırı sonraki
-yazma diliminde ayrıca uygulanacak. (2) Operatörün hostta kurduğu native
+yazma diliminde ayrıca uygulanacak.
+
+**Kalan sıra:** (1) Operatörün hostta kurduğu native
 supervisor'ın tuttuğu kök/user/mount bağları ve aynı daemon incarnation'ına
-ait remap-disabled başlangıç kanıtı. (3) Bu kanıtları, plan/journal/host-policy
-eşlemesini ve UID/GID mapping'i birleştiren özel issuer. (4) Ancak sonra
+ait remap-disabled başlangıç kanıtı. (2) Bu kanıtları, plan/journal/host-policy
+eşlemesini ve UID/GID mapping'i birleştiren özel issuer. (3) Ancak sonra
 durable journal öncesi/sonrası yenilenerek staging/marker/publish işlemi.
 Birbirine eşit namespace veya UID 0 bu adımları atlatan bir başarı alanına
 çevrilmeyecek. Gerçek ev kurulumu son manuel aşamada kalır.

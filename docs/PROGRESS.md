@@ -1,6 +1,6 @@
 # Larenor — güncel ilerleme ve iş kuyruğu
 
-**Son güncelleme: 5 Eylül 2026, 23:53 (Türkiye saati).**
+**Son güncelleme: 6 Eylül 2026, 00:30 (Türkiye saati).**
 
 ```text
 Önceki kapsam       █████████████░░░░░░░  ≈ %65
@@ -56,6 +56,31 @@ ile kabul edildi. **S08.3** ev runtime sınırı da `4b98680` tam CI ve APK 94
 ile kabul edildi. Bu işler yeni 63 özelliğin kabul sayısı değildir; o sayaç **0/63**. Ana S06
 sayacı **2/6** kalır; dizin, kurulum ve gerçek Engine kabulü açıktır.
 
+**Son tam doğrulanmış yayın `394de0f` / APK 95: üç CI ve bağımsız APK kontrolü başarılı.** 2.792 Linux Server testi
+atlamasız, 2.837 Flutter, 98 JVM, dört native + beş uygulama = dokuz E2E ve
+207 araç testi geçti. Yeni gerçek Linux tam kök/proc/mount/descriptor fixture'ı
+0,204 saniyede geçti. Android akışı 260,80 saniye; Gradle ağır derlemesi cihaz
+başlatılmadan önce tamamlandı. İmzalı APK 95, Java 17 ve sabit apksig 9.1.0
+ile ayrıca doğrulandı.
+[Android](https://github.com/ersingundem/larenor/actions/runs/33991460336) ·
+[Server](https://github.com/ersingundem/larenor/actions/runs/33991460310) ·
+[Güvenlik](https://github.com/ersingundem/larenor/actions/runs/33991460186).
+
+AMD64/ARM64 Core medya hazırlığı/restart/iptal smoke'u ve anonim yayın
+başarılı: `sha256:1dcc66fcc964d6f5d1ab6a1d0df653f43d21c7562bb5f19bd098815f89461642`.
+Bu kontroller gerçek medya bileşeni veya ev kurulumu değildir.
+
+[İmzalı APK 95 ve metadata](https://github.com/ersingundem/larenor/actions/runs/33991460336/artifacts/9977060537):
+`com.ersingundem.larenor`, sürüm kodu `100000095`, minSdk 26,
+`debuggable=false`, kalıcı imza ve kaynak commit eşleşti. APK SHA-256:
+`e12a90c81ff1b22ab1bf5dc1ca272dc6675de65dac2587cd311f594f6ce67be1`.
+Ev Server'ına koşullu Client yayını atlandı; ev veya cihaz kurulumu yapılmadı.
+İlk bağımsız indirme hazırlığı geçici dizin adı hatasıyla 0 bayt yazmadan durdu;
+yol düzeltildikten sonra tek tam indirme ve kontrol başarılı oldu.
+
+<details>
+<summary>Önceki tam doğrulanmış yayın: 4b98680 / APK 94</summary>
+
 **Son tam doğrulanmış yayın `4b98680` / APK 94:** üç CI ve bağımsız APK
 kontrolü başarılı. **2.704 Linux Server testi atlamasız**, 2.815 Flutter,
 98 JVM, **dört native + beş uygulama = dokuz E2E** ve 207 araç testi geçti.
@@ -80,6 +105,8 @@ Java 17 + sabit apksig 9.1.0 ile ayrıca doğrulandı: doğru paket/sertifika,
 APK SHA-256: `44d505607e282ff23bb24ffeb349dd12f5e71ea6533d5be6db65812f3a3f6bbf`.
 Ev Server'ına koşullu Client yayını atlandı; ev/cihaz kurulumu yapılmadı.
 
+</details>
+
 - **S08.3 ev kaynak sınırı kabul edildi:** `10d3eb1` → `4ba7024`; açık, kalıcı doğrudan
   HA/Core seçimi ve bağımsız ev runtime'ı. Eski evin route/WS/callback'leri
   kapanır; hesap, PIN, tema ve güç ayarları ortak sahiplikte kalır. Core
@@ -100,24 +127,28 @@ nedeniyle durduruldu; kaynak üretimi ve çeviriler yenilendikten sonra tam
 Client suite **2.815 testi 3:46 içinde geçti**. Bu hazırlık hatası başarı olarak sayılmaz.
 Bu hazırlık düzeltmesinden sonra aynı kaynak uzak CI ve APK 94 kabulünü de geçti.
 
-**Sonraki yerel paket (`14b7b62`):** appdata tam kök gözlemi ve medya posterleri
+**Yeni CI ile doğrulanan paket (`14b7b62` → `394de0f`):** appdata tam kök gözlemi ve medya posterleri
 birleşti. Medya kartları native klavye odağına sahip; 2× başlık satırı gerçek
 ızgara genişliğine göre hesaplanıyor. 733 ilgili/22 son test, %92,5 ilgili
 satır kapsamı, bağımsız kod ve açık/koyu gerçek-font görsel incelemesi geçti.
 Tam Client **2.837 testi 4:04 içinde geçti**; analiz sıfır bulgu, 803 dosyada
-biçim kontrolü sıfır değişiklik. Bu değişiklikler `4b98680` CI'nın
-kapsamında değildir. [Medya kanıtı](tablet-media-accessibility-implementation-2026-09-05.md).
+biçim kontrolü sıfır değişiklik. Aynı üretim kaynakları yeni `394de0f`
+Android CI içinde 2.837 Flutter, 98 JVM ve dokuz E2E ile doğrulandı. [Medya kanıtı](tablet-media-accessibility-implementation-2026-09-05.md).
 
 **Sıradaki bağımlı çalışma:** S06.3d'de salt okunur native kimlik gözlemi
 `3dde2f8` Linux CI ile doğrulandı. Onaylı tam appdata kökünün bütün parent/name/descriptor bağlarını tutan
 resolver `32254ad` → `0d9e250` main içinde. 87 odaklı/573 ilgili test ve
 bağımsız inceleme geçti. Tam Server **2.782 geçti, 10 Linux testi Mac'te
-atlandı** (3:20,8); yeni gerçek Linux CI bekliyor. Supervisor,
+atlandı** (3:20,8). Ardından `394de0f` Linux CI **2.792 testi atlamasız**
+geçti; yeni gerçek kök fixture'ı doğrulandı. Supervisor,
 remap-disabled başlangıç kanıtı, issuer ve create/publish hâlâ açık.
 [Native kimlik](native-identity-observation-implementation-2026-09-05.md) ·
 [Kalan sıra](appdata-native-lease-plan-2026-09-05.md).
 S08.3 kabulüyle başlangıç bağımlılığı açılan [kapsamlı düzen deposu ve açık taşıma](client-scoped-storage-plan-2026-09-05.md)
-için mevcut kayıt/backup bağlantıları incelendi; bu araştırma uygulama kabulü değildir.
+için ilk üretim dilimi `codex/client-scoped-layout` üzerinde başladı. Core/ev/kullanıcıya
+ayrı kayıt, PIN korumalı önizleme ve seçili pasif oda adlarının kopyası geliştiriliyor.
+`codex/scoped-layout-e2e` gerçek HTTP/PIN/restart yolculuğunu paralel hazırlıyor.
+Diğer ev kayıtları ve typed ağ cache kabulü açık; bu başlangıç tamamlanma değildir.
 
 **Yarım çalışmaları kaybetmeden devam:** önce çalışma kopyaları, dallar,
 agent ve CI durumları incelenir; aynı iş yeniden başlatılmaz. Tamamlanan
@@ -127,11 +158,12 @@ kabulü değildir. Geçici çalışma kopyaları kalıcı arşiv yerine geçmez.
 | İş | Dal / çalışma kopyası | Durum |
 | --- | --- | --- |
 | B5.1 tablet ayarları | `codex/tablet-settings-accessibility` | `ba884f6` main içinde; yeni `3dde2f8` sekiz E2E ve Android CI geçti. |
-| B5.1 medya posterleri | `codex/tablet-media-accessibility` · `/private/tmp/larenor-tablet-media-accessibility` | `cb792c0` → `14b7b62` main içinde; 733 ilgili/22 son test ve bağımsız görsel inceleme geçti. Tam Client 2.837 test/analiz geçti; yeni CI bekleniyor. |
+| B5.1 medya posterleri | `codex/tablet-media-accessibility` · `/private/tmp/larenor-tablet-media-accessibility` | `cb792c0` → `14b7b62` main içinde; 733 ilgili/22 son test ve bağımsız görsel inceleme geçti. Tam Client 2.837 test/analiz ve `394de0f` dokuz E2E geçti; bağımsız imzalı APK 95 doğrulandı. |
 | B5.1 dashboard | `codex/tablet-dashboard-accessibility` · `/private/tmp/larenor-tablet-dashboard-accessibility` | `5cf7f30` birleşti; `4b98680` tam Android CI ve APK 94 kabulü geçti. |
 | S06.3e ağ journal köprüsü | `codex/network-effect-bridge` | `6a00168` main içinde; `9138e61` Server/güvenlik CI ile yazılım kabulü tamamlandı. |
+| S08.4 kaynaklı düzen | `codex/client-scoped-layout` ve `codex/scoped-layout-e2e` | Üretim ve ayrı Android yolculuğu başladı; henüz yerel/CI kabulü yok. |
 | S08.3 Client ev runtime'ı | `codex/client-home-session-scope` · `/private/tmp/larenor-client-home-session-scope` | `10d3eb1` birleşti; `4b98680` dokuz E2E ve imzalı APK 94 ile S08.3 kabul edildi. |
-| S06.3d appdata tam kök gözlemi | `codex/native-appdata-root-observation` · `/private/tmp/larenor-native-appdata-root-observation` | `32254ad` → `0d9e250` main içinde; tam Server 2.782 geçti/10 Linux skip, yeni Linux CI bekliyor. Salt okunur gözlem yazma yetkisi değildir. |
+| S06.3d appdata tam kök gözlemi | `codex/native-appdata-root-observation` · `/private/tmp/larenor-native-appdata-root-observation` | `32254ad` → `0d9e250` main içinde; `394de0f` gerçek Linux 2.792 test/0 skip ve iki mimarili hazırlık smoke geçti. Salt okunur gözlem yazma yetkisi değildir. |
 
 Ağ yazılımının gerçek Engine/iki mimarili kaynak kabulü **S06.3f** içindedir.
 Production dispatcher/host grant, appdata oluşturma ve medya kurulumu açık;

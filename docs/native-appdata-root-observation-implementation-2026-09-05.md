@@ -79,3 +79,17 @@ Tam yerel Server kontrolünde Java 17'nin `java`/`javac` ikilisi PATH'te,
 `562cd0a88890960d2ece48e116c61f12872222f1dcc306890799382bc019b201`
 olan resmi apksig 9.1.0 JAR'ına ayarlı olmalıdır. Bu dosya bağımlılık
 önbelleğinde zaten bulunuyordu; test için indirici veya ev servisi çalıştırılmadı.
+
+## Gerçek Linux kabulü — 394de0f
+
+[Server CI](https://github.com/ersingundem/larenor/actions/runs/33991460310),
+`394de0fc5e0f7e672dda8847c83b6e8d3b50e61b` üzerinde **2.792 PASS,
+0 skip/failure/error** (327,402 saniye) verdi. Yeni
+`test_linux_real_exact_root_uses_actual_proc_mount_and_named_descriptors`
+0,204 saniyede geçti; kernel proc/mount/name/descriptor verisi bu vakada
+sentetik değildir. Önceki socket/native-thread/exited-thread testleri de geçti.
+
+İki mimarili Core medya **hazırlığı**, restart geçmişi ve iptal smoke'u
+doğrulandı. Gerçek bileşen kurulumu ve yazma issuer kabulü değildir;
+`installAvailable=false` kalır. Anonim kaynak/lisans kayıtları ve imaj index'i
+doğrulandı: `sha256:1dcc66fcc964d6f5d1ab6a1d0df653f43d21c7562bb5f19bd098815f89461642`.
