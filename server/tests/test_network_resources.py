@@ -314,3 +314,26 @@ def test_helpers_never_observe_host_or_dispatch_a_docker_effect(prepared, monkey
     assert listed(prepared, [item]).state == 'candidate'
     assert listed(prepared, []).state == 'missing'
     assert build_network_create_body(prepared[1], prepared[2])
+
+
+@pytest.mark.parametrize('extra', [
+    (('content-length', '10'),), (('content-length', '-1'),),
+    (('content-length', '2'), ('content-length', '2')),
+    (('content-encoding', 'gzip'),), (('transfer-encoding', 'unknown'),),
+    (('content-length', '2'), ('transfer-encoding', 'chunked')),
+])
+def test_contradictory_framing_metadata_never_establishes_a_complete_empty_list(prepared, extra):
+    _, binding, intent = prepared
+    with pytest.raises(NetworkResourceError, match='^network_protocol$'):
+        validate_network_list(ProbeResponse(200, (('content-type', 'application/json'),) + extra, b'[]'),
+                              binding, intent, request_target=network_list_target(binding))
+
+
+def test_regular_complete_metadata_and_missing_optional_gateway_are_accepted(prepared):
+    _, binding, intent = prepared
+    item = network(prepared)
+    item['IPAM']['Config'][0].pop('Gateway')
+    raw = json.dumps(item).encode()
+    reply = ProbeResponse(200, (('content-type', 'application/json'), ('content-length', str(len(raw))),
+                               ('date', 'Sat, 05 Sep 2026 09:00:00 GMT')), raw)
+    assert validate_network_inspect(reply, binding, intent, expected_id='1' * 64).network_id == '1' * 64
