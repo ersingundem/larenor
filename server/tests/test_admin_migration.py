@@ -15,6 +15,7 @@ def downgrade_to_known_v1(app):
         connection.execute("ALTER TABLE users DROP COLUMN disabled")
         connection.execute("ALTER TABLE users DROP COLUMN revision")
         connection.execute("DROP TABLE admin_audit")
+        connection.execute("DROP TABLE core_context")
         connection.execute("UPDATE metadata SET value='1' WHERE key='schema_version'")
 
 
@@ -34,7 +35,7 @@ def test_schema_v1_migrates_atomically_without_reset_or_key_rotation(server):
     assert not restored.state.core.bootstrap_created
     assert not settings.effective_bootstrap_file.exists()
     with restored.state.core.db.connection() as connection:
-        assert connection.execute("SELECT value FROM metadata WHERE key='schema_version'").fetchone()[0] == "2"
+        assert connection.execute("SELECT value FROM metadata WHERE key='schema_version'").fetchone()[0] == "3"
         after = dict(connection.execute("SELECT * FROM users").fetchone())
         assert after["disabled"] == 0 and after["revision"] == 1
         for name in ["id", "username", "role", "password_hash", "must_change_password", "created_at"]:
@@ -61,7 +62,7 @@ def test_migration_failure_rolls_back_and_can_retry(server, monkeypatch):
     monkeypatch.setattr(Database, "migrate_v1", staticmethod(original))
     restored = create_app(settings)
     with restored.state.core.db.connection() as connection:
-        assert connection.execute("SELECT value FROM metadata WHERE key='schema_version'").fetchone()[0] == "2"
+        assert connection.execute("SELECT value FROM metadata WHERE key='schema_version'").fetchone()[0] == "3"
 
 
 def test_wrong_key_never_runs_schema_migration(server, monkeypatch):

@@ -11,6 +11,7 @@ import uuid
 from .admin.service import AdminService
 from .auth import AuthService
 from .config import Settings
+from .context import migrate_context
 from .database import Database
 from .errors import StartupError
 from .files import checked_path, private_create, private_directory, private_read, sync_directory
@@ -96,7 +97,7 @@ class CoreServices:
                 stored_key = connection.execute("SELECT value FROM metadata WHERE key='key_check'").fetchone()
                 users = connection.execute("SELECT * FROM users").fetchall()
                 if version:
-                    if version["value"] not in ("1", "2") or not stored_key or not hmac.compare_digest(stored_key["value"], check) or not users:
+                    if version["value"] not in ("1", "2", "3") or not stored_key or not hmac.compare_digest(stored_key["value"], check) or not users:
                         raise StartupError("existing_database_invalid_or_wrong_key")
                     if version["value"] == "1":
                         self.db.migrate_v1(connection)
@@ -119,6 +120,7 @@ class CoreServices:
                     connection.execute("INSERT INTO users(id,username,role,password_hash,must_change_password,created_at) VALUES(?,?,?,?,?,?)",
                                        (uuid.uuid4().hex, "admin", "admin", self.auth.hash_password(password), 1, settings.clock()))
                     connection.executemany("INSERT INTO metadata VALUES(?,?)", [("schema_version", "2"), ("key_check", check)])
+                self.context = migrate_context(connection, key)
                 migrate_services(connection)
                 migrate_plugins(connection)
                 migrate_plugin_jobs(connection)

@@ -12,6 +12,7 @@ from .admin.api import router as admin_router
 from .auth import Principal
 from .boundary import SafeBoundaryMiddleware
 from .config import Settings
+from .context import ContextResponse
 from .core import CoreServices
 from .dependencies import get_core, require_admin, require_ready_user, require_user
 from .errors import ApiError, StartupError, error_body
@@ -103,6 +104,10 @@ def create_app(settings: Settings, *, routers: Iterable[APIRouter] = (),
     @router.get("/source", tags=["Source and license"], response_model=SourceResponse)
     def source_information():
         return source.response()
+
+    @router.get("/context", tags=["Core context"], response_model=ContextResponse)
+    def context(_principal: ReadyUser, core: Core):
+        return core.context
 
     @router.post("/auth/login", tags=["Authentication"], response_model=SessionPair)
     def login(body: LoginRequest, request: Request, core: Core):
