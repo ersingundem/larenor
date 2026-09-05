@@ -48,12 +48,16 @@ fiziksel kabulüne kadar durmaz.
 | B4 — Yeniden kurulum ve kurtarma | S09 yazılım bölümü; B1/B3 ile bütünleşir | Veritabanı, anahtarlar, yapılandırma ve dahili bileşen sürümlerinin tutarlı yedeği; boş test kurulumuna doğrulanmış geri yükleme; kesilmiş aktarım ve şema uyumsuzluğunda koruma |
 | B5 — Ortak Client deneyimi | Mevcut ortak tasarım; her teslimde | Kaynak/oda/kişi kimliğiyle arama ve gezinme; aynı kart/form/durum dili, erişilebilir tablet düzeni, yetkiye göre görünürlük ve hesap değişiminde temizleme. Yeni sayfalar buraya bağlanır |
 
-S06'nın şu anki salt okunur işçisi B1'in tamamı değildir. B3'ün kimlik/yetki
-temeli erken hazırlanır; HA, medya ve ağ adaptörlerinin taşınması kendi
+S06'nın şu anki salt okunur işçisi ve isteğe bağlı Docker uyumluluk kontrolü
+B1'in tamamı değildir. B3'te kalıcı Core/ev kimliği ve Client sözleşme okuyucusu
+eklendi; oturum/cache bağlama ve kaynak yetkileri henüz açık. Somut sıra ve
+kabul koşulları [kalan bütünleştirme dilimlerinde](remaining-core-integration-slices.md)
+izlenir. HA, medya ve ağ adaptörlerinin taşınması kendi
 doğrulamalarıyla sürer. Bir MiB sınırındaki mevcut bağlantı kontrol transportu
 büyük medya dosyaları için büyütülmez; akış, aralık isteği, iptal ve aktarım
 kotaları ayrı yoldadır. Çok evli kullanımın tam arayüzü F19'da olsa da kaynak
-kimlikleri ve evler arası yalıtım B3 şemasından itibaren korunur.
+kimlikleri ve evler arası yalıtım B3 şemasından itibaren sağlanmalıdır;
+bugünkü kimlik endpoint'i tek başına bu yalıtımın tamamlandığı anlamına gelmez.
 
 B1'in CPU/GPU/bellek/disk/ağ bütçesi tüm işlere ortaktır; F08 bunun AI model ve
 öncelik yönetimini genişletir. B3'ün içerik politikası izin değişimi/silmenin

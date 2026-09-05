@@ -2,8 +2,9 @@
 
 Bu matris 5 Eylül 2026 tarihindeki gerçek test dosyalarını eşler. Bir satırda test bulunması o özelliğin bütün sunucu sürümlerinde veya fiziksel cihazlarda doğrulandığı anlamına gelmez. Test adedi ve satır kapsamı bir ürünün “%100 çalıştığı” iddiası için kullanılmaz.
 
-**Son güncelleme: 5 Eylül 2026, 16:32 TRT.** Son yerel paket S06 Docker
-kontrolünü, B3 kalıcı bağlamı ve emülatör düzeltmesini içerir. Aşağıdaki sonuçlar bu güncellemeyi içeren commit'in GitHub
+**Son güncelleme: 5 Eylül 2026, 16:57 TRT.** Son yerel paket S06 Docker
+kontrolünü, B3 kalıcı bağlam/Client okuyucuyu ve emülatör düzeltmesini içerir.
+Aşağıdaki sonuçlar bu güncellemeyi içeren commit'in GitHub
 CI başarısı veya fiziksel cihaz kabulü olarak sunulmaz.
 
 **Yeni onaylı kapsam:** [60 özellik planındaki](feature-expansion-plan-2026-09-05.md)
@@ -64,7 +65,7 @@ Tablodaki dosyalar temsilî giriş noktalarıdır; aynı klasördeki diğer `_te
 | Larenor Server hesabı ve şifreli kasa | [Server auth/storage](../server/tests/test_auth.py), [API sınırı](../server/tests/test_api_boundary.py), [Client hesap](../test/features/server/server_account_test.dart), [kasa controller](../test/features/server/server_vault_controller_test.dart) | [hesap](../test/features/server/server_connection_screen_test.dart), [kasa](../test/features/server/server_vault_screen_test.dart), [korumalı giriş](../test/features/server/server_entry_points_test.dart) | Bu dilimde host fixture | Yok | Gerçek sunucu/TLS, fiziksel cihaz depolaması, CasaOS kurulumu ve cihazlar arası taşıma kabulü |
 | Larenor Server kullanıcı, oturum ve işlem günlüğü yönetimi | [Server admin](../server/tests/test_admin.py), [migration](../server/tests/test_admin_migration.py), [Client admin controller](../test/features/server/server_admin_controller_test.dart) | [admin UI](../test/features/server/server_admin_screen_test.dart): revision çatışması, son etkin yönetici, geçici parola, iptal/onay, sayfalama ve yaşam döngüsü | — | Yok | Gerçek sunucu rol matrisi, cihaz oturumu kapatma ve erişilebilirlik teknolojileriyle fiziksel kabul |
 | Server bileşen kataloğu ve gereksinim işleri | [katalog](../server/tests/test_plugin_catalog.py), [şifreli işler](../server/tests/test_plugin_jobs.py), [API](../server/tests/test_plugin_jobs_api.py), [Docker journey](../server/tests/test_preflight_docker_journey.py), [Client sözleşmesi](../test/features/server/server_plugin_jobs_test.dart) | [iş/geçmiş ekranı](../test/features/server/server_plugin_jobs_screen_test.dart): açık istek kurtarma, ayrı Docker/port/alıcı sonuçları, PIN/arka plan/hesap sınırları | — | Yok | Varsayılan işçi kapalı; gerçek daemon kabulü, port/alıcı ağı, yönetilen kurulum ve CasaOS kabulü yok |
-| Kalıcı Core/ev kimliği | [bağlam API/migration](../server/tests/test_core_context.py), [eski şema](../server/tests/test_admin_migration.py): restart, bozulma, rollback, key bağı, oturum/rol | Client bağlama sonraki dilim | — | Yok | Yeni container kimlik/restart smoke'u CI'da bekliyor; multi-home, kaynak yetkileri ve Client cache henüz yok |
+| Kalıcı Core/ev kimliği | [bağlam API/migration](../server/tests/test_core_context.py), [Server sözleşmesi](../server/tests/test_core_context_contract.py), [Client okuyucu](../test/features/server/server_context_test.dart): restart, bozulma, rollback, strict JSON, iptal/ret | Client oturum/cache bağlama sonraki dilim | — | Yok | `e73533e` container kimlik/restart smoke'u geçti; son sözleşme düzeltmesinin CI'ı, multi-home, kaynak yetkileri ve Client cache henüz açık |
 | Client APK yayımlama ve güncelleme | [staging/atomiklik/kota](../server/tests/test_releases.py), [gerçek APK imzası](../server/tests/test_releases_verifier.py), [publisher](../tool/tests/publish_client_release_test.py), [Client protokol](../test/features/client_updates/client_updates_test.dart) | [güncelleme UI](../test/features/client_updates/client_updates_screen_test.dart): yayımlanmamış sürüm, hata, indir/doğrula/kur ayrımı ve eski hesap engeli | [APK imzası](../android/app/src/test/kotlin/com/ersingundem/larenor/updater/ApkSignatureTest.kt), [köprü](../android/app/src/test/kotlin/com/ersingundem/larenor/updater/ClientUpdaterBridgeTest.kt), [güvenlik](../android/app/src/test/kotlin/com/ersingundem/larenor/updater/UpdateSecurityTest.kt) | Yok | Fiziksel Android installer, bilinmeyen kaynak izni, süreç ölümü ve gerçek yükseltme; bu doğrulamada sürüm yayımlanmadı |
 | HA admin, otomasyon, servis formları | [admin API](../test/features/admin/admin_client_test.dart), [şemalar](../test/features/admin/admin_models_test.dart) | [admin flows](../test/features/admin/admin_workflows_test.dart), [actions](../test/features/ha_tools/ha_actions_test.dart) | — | Yok | Yetki ve sunucu sürümü matrisi; yalnız ayrı test ortamında yazma |
 | Today / todo / takvim / bildirim | [API](../test/features/today/today_api_test.dart), [actions](../test/features/today/today_actions_test.dart) | [Today](../test/features/today/today_screen_test.dart) | — | Yok | Saat dilimi, izinler ve gerçek entegrasyon verileri |
@@ -86,8 +87,8 @@ Tablodaki dosyalar temsilî giriş noktalarıdır; aynı klasördeki diğer `_te
 
 ## Doğrulanan yerel koşum
 
-**S06 Docker/B3 kimlik bütünleştirmesi (5 Eylül, 16:32 TRT):** Tam
-**2.479 Flutter, 1.075 Server ve 159 araç/politika testi** geçti. Gerçek
+**S06 Docker/B3 kimlik bütünleştirmesi (5 Eylül, 16:44 TRT):** Tam
+**2.520 Flutter, 1.103 Server ve 159 araç/politika testi** geçti. Gerçek
 Java/apksig, tam Flutter analizi ve workflow kontrolleri temiz.
 
 - [Docker probe](../server/tests/test_docker_probe.py): 91 test, %96 modül kapsamı;
@@ -99,8 +100,11 @@ Java/apksig, tam Flutter analizi ve workflow kontrolleri temiz.
   uyumlu, uyumsuz, HTTP hatalı ve yavaş sentetik daemon; üretim 5 s IPC sınırı,
   idempotence ve yeniden başlatma. Docker tamamlanmasa da disk sonucu korunur.
 - [Core bağlamı](../server/tests/test_core_context.py) ve eski şema migration:
-  31 test, yeni modülde %100 kapsam. Context API koruması ve restart parmak izi
-  gerçek iki mimarili container smoke'una eklendi; yeni CI sonucu bekleniyor.
+  ortak sözleşme ile 59 test, yeni modülde %100 kapsam. Client reader/mevcut
+  hesap diliminde 63 test geçti. Aynı 27 JSON örneği iki dilde doğrulanır;
+  bool/float şema kabulü reddedildi. Yeni model/metot satır kapsamı %100.
+  Context API koruması ve restart parmak izi `e73533e` iki mimarili
+  container smoke'unda geçti; son sözleşme düzeltmesinin CI'ı ayrıca izlenir.
 - Client jobs/katalog 144 test ve %96,6 satır kapsamı; Docker label/mixed sonuç
   testleri EN/TR tablet ve 2× metinle geçti. Bu sayılar tam testlerin içindedir.
 
@@ -144,17 +148,23 @@ koşumlara eklenmez. Kapsam yüzdeleri yalnız ölçülen modüllere aittir.
 kurulmaz; Docker'da değişiklik yapılmaz. `installAvailable=false` korunur. Bu dilim
 gerçek Linux/CasaOS dağıtımı veya HomePod/receiver ağı kabulü değildir.
 
-**Uzak CI kanıtı:** `5deb1e6` için
-[Güvenlik](https://github.com/ersingundem/larenor/actions/runs/33967613099) ve
-[iki mimarili Server yayını](https://github.com/ersingundem/larenor/actions/runs/33967613287)
-başarılıdır. [Android](https://github.com/ersingundem/larenor/actions/runs/33967613378)
-yalnız E2E işinde başarısızdır: native platform 4/4 geçti, uygulama akışında
-QEMU bağlantısı kayboldu. Önceki Quickstep odak hatası tekrarlanmadı; OOM
-kanıtı yoktur. Yeni emülatör build `13823996`/`swangle_indirect` profili
+**Uzak CI kanıtı:** `e73533e` için
+[Güvenlik](https://github.com/ersingundem/larenor/actions/runs/33969285457) ve
+[iki mimarili Server yayını](https://github.com/ersingundem/larenor/actions/runs/33969285470)
+başarılıdır. [Android](https://github.com/ersingundem/larenor/actions/runs/33969285507)
+analiz, debug/native ve **4 platform + 4 uygulama E2E** kapılarını geçti;
+imzalı APK da gerçek imza/paket/sürüm kontrolüyle
+[teslim edildi](https://github.com/ersingundem/larenor/actions/runs/33969285507/artifacts/9970696211).
+Ev Server'ına koşullu yayın adımı atlandı; cihaz kurulumu yapılmadı.
+Önceki `5deb1e6` koşumunda native platform 4/4 geçti, uygulama akışında
+QEMU bağlantısı kayboldu; OOM kanıtı yoktu. Yeni emülatör build
+`13823996`/`swangle_indirect` profili
 [upstream düzeltmesiyle](https://github.com/bdero/flutter_scene/issues/314)
 eşleşir. 36 ilgili runtime/tanılama testi geçti; test iddiaları ve 18 dakika
-sınırı korundu. Dört uygulama akışına 42 sabit aşama işareti eklendi;
-URL/token/veri yazdırılmaz. Gerçek emülatör kabulü yeni CI koşusunu bekler.
+sınırı korundu. Dört uygulama akışının 42 sabit aşama işareti kaynak sırasıyla
+tamamlandı; URL/token/veri yazdırılmaz. Gerçek emulator 36.1.9/build 13823996
+ve SwANGLE profili logda doğrulandı. Dış 18 dakika komutu 9 dakika 52 saniyede
+geçti; bu cihaz performans ölçümü veya fiziksel tablet kabulü değildir.
 
 ### Önceki dilimlerin kanıtı
 
@@ -183,7 +193,7 @@ Docker işçisi kanıtı değildir.
 S05 gerçek socket iptal testinde görülen eşzamanlı descriptor kapatma yarışı
 [regresyonla](../server/tests/test_service_transport.py) düzeltildi; özgün kısa
 iptal sınırı değiştirilmeden 300 tekrar geçti. Bu önceki koşumun Android CI
-tabanı `8346c01` idi; güncel uzak sonuç yukarıda `5deb1e6` için ayrı kaydedildi.
+tabanı `8346c01` idi; güncel uzak sonuç yukarıda `e73533e` için ayrı kaydedildi.
 
 **S05 son yayın kontrolü (5 Eylül, 13:49 TRT):** **2.333 Flutter**, **529 Server**
 ve **114 Python araç/politika testi** geçti. Tam analiz ve 747 Dart dosyasının

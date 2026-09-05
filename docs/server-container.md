@@ -6,17 +6,21 @@ and durable read-only requirements jobs. The normal `larenor_server.cli` entry
 point assembles these APIs. It does not start Music Assistant or the other media
 components, and it does not manage the host Docker daemon.
 
-The `88c26fc` image passed native amd64/arm64 initialization, private-storage,
-restart and actual APK-signature smoke tests in
-[Server Container Build](https://github.com/ersingundem/larenor/actions/runs/33961874782).
-Its multiarchitecture manifest was fetched anonymously from GHCR:
+The `e73533e` image passed native amd64/arm64 initialization, private-storage,
+protected context API, persistent Core identity across restart and actual
+APK-signature smoke tests in
+[Server Container Build](https://github.com/ersingundem/larenor/actions/runs/33969285470).
+Its commit and stable indexes were fetched anonymously from GHCR and their
+SHA-256 and two platform entries verified:
 
 ```text
-ghcr.io/ersingundem/larenor-server@sha256:3012dd35fdce1523c8abae26abb6b2f3e5a70c7efe592acaaa985c7de7e8fa31
+ghcr.io/ersingundem/larenor-server@sha256:f95c917ce94206757278b2c5dc734f7d350b7576cd1c76eaa3a56a66ff2fe705
 ```
 
-This verifies the account/vault/update Server image for that source commit; the
-historical digest is not acceptance evidence for the newer requirements worker.
+This verifies the Server image for that source commit, including the packaged
+requirements worker and Core identity foundation. The smoke does not install
+media services or connect the worker to a production Docker daemon. The later
+shared Client/Server context contract refinement requires its own CI result.
 Build and verify the exact reviewed source revision before deploying new code.
 The integrated media/music components are still
 [in development](integrated-media-stack.md). No deployment to the user's home

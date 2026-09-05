@@ -1,6 +1,6 @@
 # Larenor — güncel ilerleme ve iş kuyruğu
 
-**Son güncelleme: 5 Eylül 2026, 16:32 (Türkiye saati).**
+**Son güncelleme: 5 Eylül 2026, 16:57 (Türkiye saati).**
 
 ```text
 Önceki kapsam       █████████████░░░░░░░  ≈ %65
@@ -33,23 +33,31 @@ GitHub'a gönderilmiş işlerin **anlık CI durumu**
 Bu yerel dosya geliştirme aşamalarında güncellenir; Actions ise çalışan
 derlemelerin ve test işlerinin kendi canlı durumunu gösterir.
 
-**Yayımlanmış CI tabanı:** `5deb1e6` için
-[Güvenlik](https://github.com/ersingundem/larenor/actions/runs/33967613099) ve
-[Server Container Build](https://github.com/ersingundem/larenor/actions/runs/33967613287)
-başarılı; amd64/arm64 imajları test edilip yayımlandı.
-[Android CI](https://github.com/ersingundem/larenor/actions/runs/33967613378)
-yalnız E2E işinde başarısız oldu: dört native platform senaryosu geçti, uygulama
-akışları başlarken QEMU bağlantısı kayboldu. Önceki Quickstep odak hatası
-tekrarlanmadı; OOM kanıtı yok. İmzalı APK işi bu nedenle çalışmadı.
+**Yayımlanmış CI tabanı:** `e73533e` için
+[Güvenlik](https://github.com/ersingundem/larenor/actions/runs/33969285457) ve
+[Server Container Build](https://github.com/ersingundem/larenor/actions/runs/33969285470)
+başarılı; amd64/arm64 imajları, korumalı bağlam API'si ve yeniden başlatmada
+Core kimliği test edilip yayımlandı.
+[Android CI](https://github.com/ersingundem/larenor/actions/runs/33969285507)
+analiz, debug/native ve **4 native + 4 uygulama E2E** kapılarını geçti;
+**imzalı APK teslimi dahil tamamı başarılı**. Emülatör 36.1.9/build 13823996
+gerçek logda doğrulandı. [APK ve doğrulanmış metadata](https://github.com/ersingundem/larenor/actions/runs/33969285507/artifacts/9970696211)
+`app-signed-release-apk-81` çıktısında; gerçek imza, sertifika, paket, sürüm
+ve non-debuggable kontrolü geçti. Henüz yapılandırılmamış ev Server'ına
+otomatik Client yayını adımı atlandı; gerçek cihaz kurulumu yapılmadı.
+Önceki `5deb1e6` Android E2E'sinde dört native senaryo geçmiş, uygulama
+akışları sırasında QEMU bağlantısı kaybolmuştu; OOM kanıtı yoktu.
 
-**Yeni yerel dilim:** Açık politikayla salt okunur Docker API/platform kontrolü,
-kalıcı Core/ev kimliği ve Android emülatör düzeltmesi tamamlandı. Tam
-**2.479 Flutter, 1.075 Server ve 159 araç testi** geçti. Emülatör, benzer Flutter
+**Yeni yerel dilim:** Yayımlanan Docker/kimlik temelinin üzerine Client bağlam
+okuyucusu ve ortak JSON sözleşmesi eklendi. Son tam Server koşumunda **1.103
+test** geçti; Client'ta yeni sözleşme/mevcut hesap dilimi **63 test** ve temiz
+analizle doğrulandı. Tam Flutter koşumunda **2.520**, son araç koşumunda
+**159 test** geçti. Emülatör, benzer Flutter
 çökmesi için [upstream'de doğrulanan](https://github.com/bdero/flutter_scene/issues/314)
 36.1.9/SwANGLE profiline sabitlendi; API 35, test iddiaları ve süre sınırları
 korundu. Uygulama E2E'sine özel veri içermeyen aşama işaretleri eklendi.
 Bu güncellemeyi içeren commit'in GitHub CI sonucu ayrıca izlenecek; önceki
-başarılı Server yayını yeni Docker/kimlik diliminin imaj doğrulaması değildir.
+başarılı Server yayını son ortak sözleşme düzeltmesinin imaj doğrulaması değildir.
 
 Önceki `5331f22` commit'inin Android/analiz/güvenlik CI çalışmaları artifact
 depolama kotasına takıldı; taramalar bulgu üretmedi. Bu pakette rapor yükleme
@@ -60,10 +68,10 @@ kaldırıldı. Asıl test/tarama hataları ve imzalı APK teslim hataları hâl�
 
 | İş | Durum | Tamamlanma ölçütü |
 | --- | --- | --- |
-| S05 hizmet yönetimi ve denetimi | Client admin ekranı, şifreli Server kayıtları ve 17 servis türünün kontrol yolu uygulandı | Uzak güvenlik ve Server CI geçti; Android E2E düzeltmesi ve gerçek servis kabulü açık |
+| S05 hizmet yönetimi ve denetimi | Client admin ekranı, şifreli Server kayıtları ve 17 servis türünün kontrol yolu uygulandı | `e73533e` Server/Güvenlik/Android ve imzalı APK teslimi geçti; gerçek servis kabulü ayrı |
 | S06 gereksinim işleri | Kalıcı işler/Client geçmişi ve açık politikayla Docker API/platform kontrolü uygulandı; HTTP→DB→Unix worker→sentetik Docker zinciri doğrulandı | Yeni CI; port/alıcı ağı ve yönetilen kurulum hâlâ açık |
-| B3 kalıcı Core/ev bağlamı | Korumalı `/api/v1/context`, şema 3 migration ve restart kimlik koruması uygulandı | Client önbellek bağlama, merkezi adaptörler ve kaynak yetkileri sonraki dilimler |
-| Gerçek Server imajı doğrulaması | `5deb1e6` iki mimaride smoke testlerini geçti ve yayımlandı | Yeni Docker/kimlik diliminin imaj ve kimlik restart kontrolü CI'da ayrıca doğrulanacak |
+| B3 kalıcı Core/ev bağlamı | Korumalı `/api/v1/context`, şema 3 migration, restart koruması ve Client typed okuyucu uygulandı | Ortak sözleşmenin yeni CI'ı; oturum/cache bağlama, merkezi adaptörler ve kaynak yetkileri açık |
+| Gerçek Server imajı doğrulaması | `e73533e` iki mimaride Docker/bağlam/restart smoke testlerini geçti ve yayımlandı | Son sözleşme düzeltmesini içeren yeni head ayrıca doğrulanacak |
 | Seçilen 60 özelliğin bağımlılık planı | 60/60 seçim kaydedildi; 10 gruba ve mevcut temel kapılarına bağlandı | Yeni özellik kabulü 0/60; uygulama/test kanıtları tamamlandıkça tek tek güncellenecek |
 
 **Son kapsam kararı:** Medya ve Music Assistant için ayrı uygulama kurulumu veya
@@ -81,9 +89,9 @@ desteğidir. README, mimari belgeleri ve GitHub açıklaması buna göre güncel
 | --- | --- | --- |
 | Hesap, parola, oturum, rol, kullanıcı yönetimi | Larenor Server API ve veritabanında uygulandı | Gerçek sunucuya manuel kurulum |
 | Kasa ve güncelleme sürümleri | Server'da şifreli kasa ve sürüm API'leri; Client geri yükleme/güncelleme akışları mevcut | Gerçek imzalı Client yükseltmesi ve yeniden kurulum kabulü |
-| Entegrasyon bağlantı kayıtları | S05 şifreli Server kaydı, Client admin ekranı ve 17 türün kontrol yolu uygulandı | Yerel testler ve Server CI geçti; Android CI ve gerçek servis kabulü |
+| Entegrasyon bağlantı kayıtları | S05 şifreli Server kaydı, Client admin ekranı ve 17 türün kontrol yolu uygulandı | Yerel/uzak testler geçti; gerçek servis kabulü ve S08 adaptör taşıması |
 | Gereksinim kontrolü ve iş geçmişi | Kalıcı şifreli işler, Linux işçisi ve açık politikayla Docker API/platform kontrolü uygulandı | Port ve alıcı ağı `unknown`; medya kurma/başlatma ve otomatik eşleştirme henüz yok |
-| Core ve ev kimliği | Server'da kalıcı, anahtarla doğrulanan kimlikler ve oturum korumalı bağlam API'si | Client cache ve kaynak kimliklerine bağlama; çoklu ev/federasyon henüz yok |
+| Core ve ev kimliği | Server'da kalıcı, anahtarla doğrulanan kimlikler; korumalı API ve Client sözleşme okuyucusu | Client oturum/cache ve kaynak kimliklerine bağlama; çoklu ev/federasyon henüz yok |
 | HA, medya ve ağ komutları | Mevcut kontrollerin çoğu hâlâ Client adaptörlerinde | S08 ile gerçek veri ve komut akışlarını Server'a taşıma; yalnızca token saklamak bu taşıma sayılmaz |
 | Music Assistant | Client müzik ekranı, eski MA-only paket ve Server token/sürüm kontrolü var; ev sunucusuna kurulmadı | Tek Larenor kurulumu içinde dahili motor; Client üzerinden sağlayıcı/oynatıcı yönetimi, ayrı MA URL/token girişi olmaması |
 | HomePod / AirPlay | Music Assistant üzerinden hedef kapsamda; keşif, eşleştirme, kuyruk, ses ve oynatma akışları tamamlanıp doğrulanacak | Sağlayıcı oturumları, aynı ağda keşif/eşleştirme, gerçek ses/grup/yeniden bağlanma testleri |
@@ -118,13 +126,13 @@ kabul işleri aşağıda ayrıca tutulur.
 | Sunucu bileşenleri önizlemesi | Altı sabitlenmiş katalog kaydı, yönetici/oturum/katalog revizyonuna bağlı şifreli ve süreli önizlemeler; Client gereksinim ekranı. Kurulum düğmesi veya çalışan kurulum API'si yok |
 | Kalıcı gereksinim işleri | Yönetici oluşturma/geçmiş/olay/iptal API'leri, şifreli plan/sonuç, belirsiz isteği aynı kimlikle kurtarma, restart ve güncel yetki denetimi. `succeeded` inceleme tamamlandı demektir; bütün kontrollerin geçtiği veya kurulum yapıldığı anlamına gelmez |
 | Dahili salt okunur işçi | Aynı Server paketindeki `larenor-preflight-worker`, Linux UID doğrulamalı Unix IPC; kök dizin/kapasite/platform ve açık v2 politikasıyla Docker GET `/version`. Varsayılan kapalı; kurulum yok ve `installAvailable=false` |
-| Kalıcı Core/ev bağlamı | `/api/v1/context`, atomik şema 1→2→3 geçişi, HMAC doğrulaması, restart/bozulma/oturum testleri. Client cache bağlama henüz yok |
+| Kalıcı Core/ev bağlamı | `/api/v1/context`, atomik şema 1→2→3 geçişi, HMAC doğrulaması; aynı 27 JSON örneğiyle Server ve Client okuyucu. Client oturum/cache bağlama henüz yok |
 | Düzenli GitHub temizliği | Günlük 03.15 Codex görevi ve testli araç; en yeni üç debug APK, bütün imzalı APK ve raporlar korunur. İlk koşumda beş eski debug APK (641.275.745 bayt) silindi; kalan 171 çıktı doğrulandı. GHCR izin ve manifest grafiği eksikliği nedeniyle silinmez |
 | CI rapor kotası düzeltmesi | Test kanıtı yükleme hataları görünür uyarı üretir; Gitleaks/OSV taramaları artifact kotasına bağlı değildir. Gerçek tarama hatalarının engelleyici kaldığı test edildi |
 | Lisans ve kaynak | AGPL-3.0-only, üçüncü taraf bildirimleri, uygulama içi lisans ekranı ve Server kaynak/lisans API'si |
 | Geliştirme becerileri | İstenen frontend/CI seçkisinden 27 beceri kuruldu; 81 dosyanın kaynağı ve hash'i kaydedildi. Kurulum uygulama özelliği sayılmaz |
 
-Son yerel doğrulamada **2.479 Flutter, 1.075 Server ve 159 araç testi** geçti.
+Son yerel doğrulamada **2.520 Flutter, 1.103 Server ve 159 araç testi** geçti.
 Server koşumunda gerçek Java/apksig kullanıldı. Workflow `actionlint` ve diff
 kontrolü ve tam Flutter analizi temiz. Bağımsız incelemede bulunan
 iş geçmişini belleğe topluca alma, hatalı worker ortam değerlerini güvenle
@@ -146,9 +154,14 @@ S09'un yazılım kurtarma bölümü erkenden tamamlanır. Yeni modüller yalnız
 bağımlılıklarını bekler. Son ortak tasarım, README ve fiziksel kabul tüm
 seçili yazılım dilimlerinin ardından kalır.
 
+Yarıda kalmaması için S06 kurulum koordinatörü ve B3 oturum/cache taşıması
+[küçük teslimlere ayrıldı](remaining-core-integration-slices.md). Her dilimin
+somut kabul koşulu vardır; yalnız model veya worker ilkeli eklemek uçtan uca
+kurulum/yalıtımın tamamlandığı anlamına gelmez.
+
 | Sıra | Paket / durum | Somut teslim ve bitti sayılma ölçütü |
 | --- | --- | --- |
-| 1 | **S05 — Hizmet yönetimi · GitHub'da, Android E2E düzeltmesi bekleniyor** | Client admin ekranından bağlantı ekle/düzenle/unut/doğrula; şifreli Server kaydı, altı açık doğrulama durumu, yetki/oturum/çakışma testleri. Servis kurulumu S06'da |
+| 1 | **S05 — Hizmet yönetimi · kod ve uzak testler geçti** | Client admin ekranından bağlantı ekle/düzenle/unut/doğrula; şifreli Server kaydı, altı açık doğrulama durumu, yetki/oturum/çakışma testleri. Gerçek servis kabulü ayrı, servis kurulumu S06'da |
 | 2 | **S06 — Eklenti sistemi · Docker kontrolü eklendi, kurulum eksik** | Katalog/önizleme, kalıcı işler, Linux IPC, Client ve açık politikayla Docker API/platform kontrolü mevcut. Sırada port/alıcı ağı kontrolleri, yönetilen kurulum ve başarısız kurulumdan toparlanma |
 | 3 | **S07 — CasaOS ve Music Assistant · sırada** | Tek Larenor Server kurulumu içinde medya ve Music Assistant; otomatik API anahtarı/adres/kütüphane eşleştirmesi, durum doğrulaması; Client'tan yalnız ayar yönetimi |
 | 4 | **S08 — Merkezi entegrasyonlar · kimlik temeli eklendi** | Kalıcı Core/ev kimliği ve korumalı API hazır. Sırada Client cache sınırı, önce HA sonra medya/ağ adaptörleri, kaynak yetkileri, olay akışı ve widget sözleşmeleri; mevcut doğrudan yollar belgelenir |
@@ -187,23 +200,40 @@ geliştirmesi güncel kapsam dışındadır.
 
 | Çalıştırma | Sonuç | Sınır |
 | --- | --- | --- |
-| Tam Server API/depolama/sürüm/iş paketi | **1.075 geçti** | Gerçek Java/apksig dahil bütün `server/tests`; sentetik servisler ve yerel IPC, canlı ev sunucusu değil |
-| Tam Flutter paketi | **2.479 geçti** | Katalog, kalıcı işler, hesap/yaşam döngüsü ve ortak JSON sözleşmeleri dahil unit/widget kapsamı |
+| Tam Server API/depolama/sürüm/iş paketi | **1.103 geçti** | Gerçek Java/apksig dahil bütün `server/tests`; sentetik servisler ve yerel IPC, canlı ev sunucusu değil |
+| Tam Flutter paketi | **2.520 geçti** | Katalog, kalıcı işler, hesap/yaşam döngüsü ve ortak JSON sözleşmeleri dahil unit/widget kapsamı |
 | Bütün Python araç/politika testleri | **159 geçti** | Emülatör/politika/tanılama kapsamı dahil; hosted CI sonucu ayrı bekliyor |
 | Client gereksinim işleri | **53 geçti**, 19 widget; **%94,8 satır** | Tam Flutter toplamının içindeki odaklı kapsam; fiziksel tablet kabulü değil |
 | Docker ve politika bütünleştirmesi | **236 geçti**, üç modülde **%99 birleşik satır/dal** | Docker probe %96; host/runtime %100. Sonradan eklenen dördüncü yavaş-daemon journey de geçti; fiziksel daemon kabulü değil |
-| Kalıcı Core/ev kimliği | **31 geçti**, yeni modülde **%100 kapsam** | Restart, migration, rollback, bozulma ve güncel oturum; çoklu ev ve Client cache henüz yok |
+| Kalıcı Core/ev kimliği ve ortak sözleşme | **59 Server / 63 Client testi geçti** | Yeni Server modülü ve Client model/metot %100 kapsam; çoklu ev ve Client oturum/cache henüz yok |
 | Dahili işçi CLI | **47 geçti**, **%100 kapsam** | Politika/izin, statik hata ve durdurma testleri; gerçek kurulum yok |
 | İşçi IPC bağımsız incelemesi | **83 testlik ilgili koşum**; 201/216 statement, 59/68 dal | 16 temel IPC testi ve başlatma hataları dahil; kapsamdaki diğer dosyalarla toplanmaz |
 | Kalıcı iş bağımsız incelemesi | **55 geçti**, **%89 birleşik kapsam** | Yetki, kalıcılık, iptal, idempotence, bozulma ve restart; Server toplamının içindedir |
 | Önceki yerel Android native koşumu | **98 geçti**, 18 test paketi | Güncel S06 için yeni fiziksel kurulum/oynatma kanıtı değildir |
-| Önceki yerel API 35 ARM64 E2E | **4 uygulama + 4 platform senaryosu geçti** | Son uzak x86_64 Android E2E başarısızdır; yerel başarı onun yerine geçmez |
+| Uzak API 35 x86_64 E2E (`e73533e`) | **4 uygulama + 4 platform senaryosu geçti** | Gerçek emülatör 36.1.9; 42 aşama/cleanup işareti tamam, 18 dakika içinde 9 dakika 52 saniye. Fiziksel tablet kabulü değil |
 
 Test dosyaları, kapsam ve açıklar [test matrisinde](testing-matrix-2026-09-05.md).
 Test adetleri farklı zaman ve kapsamları temsil eder; toplanarak başarı oranı
 üretilmez. GitHub CI sonucu yeni commit sonrasında ayrıca kaydedilecektir.
 
 ## Güncelleme kaydı
+
+- **16:57:** `e73533e` Android/Güvenlik/Server CI tamamen başarılı;
+  `app-signed-release-apk-81` imzası doğrulanarak teslim edildi. Gerçek ev
+  Server'ına yayın yapılandırılmadığından atlandı. Son ortak sözleşme dilimi
+  1.103 Server, 2.520 Flutter, 159 araç testi, analiz/format/sır taraması
+  kanıtlarıyla yeni push için hazır; önceki koşum onun CI'ı yerine sayılmaz.
+
+- **16:50:** `e73533e` uzak Android E2E **8/8 geçti**. Emülatör pininin
+  gerçekten yüklendiği ve bütün uygulama aşamalarının tamamlandığı doğrulandı;
+  timeout/assertion sınırları gevşetilmedi. İmzalı APK işi sürüyor.
+
+- **16:44:** `e73533e` Server/Güvenlik CI başarılı; iki mimaride kimlik restart
+  kontrolü geçti, Android sürüyor. Ortak 27 JSON örneği Server ve Client'a
+  bağlandı; bool/float şema kabulü düzeltildi. Tam Server 1.103 test geçti;
+  Client 63 ilgili test ve tam 2.520 Flutter testi geçti; analiz temiz.
+  [Sonraki küçük teslimler](remaining-core-integration-slices.md)
+  açıklandı; cache izolasyonu ve otomatik medya kurulumu hâlâ açık.
 
 - **16:32:** Kesilen işlerden S06 Docker kontrolü ve B3 kalıcı Core/ev kimliği
   tamamlandı; tam 1.075 Server, 2.479 Flutter ve 159 araç testi geçti.

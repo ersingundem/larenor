@@ -696,13 +696,15 @@ list, so the app stays uncluttered no matter how many services exist:
 See the [hardening review and next improvements](docs/performance-security-review-2026-09-05.md)
 for measured regression evidence, device-test limits and remaining transport work.
 
-The latest September 5 local integration passed **2,479 Flutter tests,
-1,075 Server tests and 159 Python tool/policy tests**. The Server suite includes
+The latest September 5 local integration passed **2,520 Flutter tests,
+1,103 Server tests and 159 Python tool/policy tests**. The Server suite includes
 the real Java/apksig verifier, persistent Core/home identity and HTTP-to-Unix-worker
 journeys with a synthetic Docker daemon. An explicit host policy enables read-only
 Docker API/platform checks; service installation remains unavailable. See the
 [Docker check evidence](docs/docker-preflight-implementation-2026-09-05.md) and
-[Core identity contract](docs/core-context-implementation-2026-09-05.md).
+[Core identity contract](docs/core-context-implementation-2026-09-05.md), shared
+by the Server response and Client reader. Session/cache binding and managed
+media installation remain in the [integration queue](docs/remaining-core-integration-slices.md).
 The previous Android native run
 passed **98 tests**; native tests were not rerun for this Dart/Python slice.
 These are local results; hosted CI, container execution and physical-device
