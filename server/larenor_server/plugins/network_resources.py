@@ -209,7 +209,7 @@ def _empty_map(value):
 
 
 def _ipam(value, *, detailed):
-    _require(type(value) is dict and set(value) <= {'Driver', 'Config', 'Options'}
+    _require(type(value) is dict and set(value) == {'Driver', 'Config', 'Options'}
              and value.get('Driver') == 'default' and _empty_map(value.get('Options')))
     configs = value.get('Config')
     if not detailed and (configs is None or configs == []):
@@ -238,6 +238,7 @@ def _properties(value, selected, labels, *, detailed):
              and value.get('Ingress') is False and value.get('ConfigOnly') is False
              and value.get('EnableIPv6') is False and value.get('EnableIPv4', True) is True)
     _require(type(value.get('Labels')) is dict and value['Labels'] == labels
+             and 'Options' in value
              and _empty_map(value.get('Options')))
     config_from = value.get('ConfigFrom')
     _require(type(config_from) is dict and config_from in ({}, {'Network': ''}))
@@ -268,7 +269,9 @@ def validate_network_list(response, binding, intent, *, request_target):
     try:
         for value in values:
             _require(type(value) is dict and type(value.get('Name')) is str
-                     and 1 <= len(value['Name']) <= 256 and _matches(value.get('Id'), _HASH))
+                     and 1 <= len(value['Name']) <= 256
+                     and not any(ord(char) < 32 or ord(char) == 127 for char in value['Name'])
+                     and _matches(value.get('Id'), _HASH))
         matches = [value for value in values if value['Name'] == selected.resource.name]
         if len(matches) > 1:
             raise NetworkResourceError('network_multiple')
