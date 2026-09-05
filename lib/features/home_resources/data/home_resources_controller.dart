@@ -168,11 +168,21 @@ class HomeResourcesController extends ChangeNotifier {
           _changed,
         );
         _transport = factory(session.endpoint);
-        page = await HomeResourcesApi(
-          _transport!,
-          session.accessToken,
-          session.context!,
-        ).list(after: cursor, snapshot: snapshot);
+        try {
+          page = await HomeResourcesApi(
+            _transport!,
+            session.accessToken,
+            session.context!,
+          ).list(after: cursor, snapshot: snapshot);
+        } catch (_) {
+          // Only the still-authoritative read may revoke this account on 401.
+          // Closing this page's transport does not guarantee an HTTP error was
+          // not already delivered by the underlying client.
+          if (!current() || !identical(_ready, session) || !fresh) {
+            throw const LarenorServerException('cancelled');
+          }
+          rethrow;
+        }
         if (!current() || !identical(_ready, session) || !fresh)
           throw const LarenorServerException('cancelled');
       });

@@ -89,7 +89,11 @@ class ResourceHarness {
     if (request.url.path.contains('/home-resources/')) {
       resourceReads++;
       requests.add(request);
-      return pending?.future ?? json(resourceResponse == null ? response : resourceResponse!(request), status);
+      return pending?.future ??
+          json(
+            resourceResponse == null ? response : resourceResponse!(request),
+            status,
+          );
     }
     if (request.url.path.endsWith('/auth/logout'))
       return http.Response('', 204);
@@ -126,7 +130,10 @@ class ResourceHarness {
     String? pin,
     Map<String, Object> preferences = const {},
   }) async {
-    SharedPreferences.setMockInitialValues({'enabled_services_migrated': true, ...preferences});
+    SharedPreferences.setMockInitialValues({
+      'enabled_services_migrated': true,
+      ...preferences,
+    });
     FlutterSecureStorage.setMockInitialValues({'settings_pin': ?pin});
     tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
     tester.view.devicePixelRatio = 1;
