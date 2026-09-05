@@ -1,7 +1,8 @@
 """Internal Linux entry point for Larenor's read-only host preflight worker.
 
 The eventual unified installer supplies this operator-owned policy and private
-runtime directory. This is not a separate service-setup flow. It never invokes
+runtime directory. This is not a separate service-setup flow. Version 2 policy
+may enable a fixed read-only Docker API/platform check. The worker never mutates
 Docker, creates storage roots or enables component installation. An occupied
 socket is refused, including after a crash; recovery of a stale endpoint belongs
 to the operator/runtime-directory manager until the managed installer exists.
@@ -19,6 +20,7 @@ import threading
 
 from ..errors import StartupError
 from ..files import checked_path, private_read
+from .docker_probe import DockerEndpoint
 from .host_preflight import HostInspector, HostPolicy, HostRoot, _host_platform
 from .preflight_ipc import PreflightWorkerServer
 from .worker import _safe_path
@@ -72,8 +74,9 @@ def load_policy(path):
         raw = private_read(source, MAX_POLICY_BYTES)
         value = json.loads(raw.decode('utf-8'), object_pairs_hook=_pairs,
                            parse_float=_reject_number, parse_constant=_reject_number)
-        if (type(value) is not dict or set(value) != {'version', 'roots'}
-                or type(value['version']) is not int or value['version'] != 1
+        if (type(value) is not dict or type(value.get('version')) is not int
+                or value['version'] not in (1, 2)
+                or set(value) != ({'version', 'roots'} if value['version'] == 1 else {'version', 'roots', 'docker'})
                 or type(value['roots']) is not list or not 1 <= len(value['roots']) <= 16):
             raise _ConfigurationError()
         roots = {}
@@ -81,7 +84,13 @@ def load_policy(path):
             if type(root) is not dict or set(root) != {'id', 'path', 'purpose'} or type(root['id']) is not str or root['id'] in roots:
                 raise _ConfigurationError()
             roots[root['id']] = HostRoot(root['path'], root['purpose'])
-        policy = HostPolicy(roots)
+        docker = value.get('docker')
+        endpoint = None
+        if docker is not None:
+            if type(docker) is not dict or set(docker) != {'socketPath', 'ownerUid'}:
+                raise _ConfigurationError()
+            endpoint = DockerEndpoint(path=docker['socketPath'], owner_uid=docker['ownerUid'])
+        policy = HostPolicy(roots, docker=endpoint)
     except Exception:
         # Neither argparse nor OS/JSON/Pydantic errors may echo a host path or
         # policy value. Raise outside the handler to avoid a raw exception chain.

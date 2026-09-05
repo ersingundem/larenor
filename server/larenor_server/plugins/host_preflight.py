@@ -1,8 +1,9 @@
 """Read-only observations for internal components of the Larenor installation.
 
 Only worker-owned policy resolves opaque catalog root IDs to host directories.
-No path, hostname or raw OS error leaves this module. Observations neither enable
-installation nor prove Docker, published ports, receiver discovery or playback.
+No path, hostname or raw OS error leaves this module. An explicit operator policy
+can enable the fixed read-only Docker API/platform probe. Observations neither
+enable installation nor prove published ports, receiver discovery or playback.
 Disk requirements are the catalog's proposed budgets, not measured app minima.
 """
 
@@ -20,6 +21,7 @@ import time
 from types import MappingProxyType
 
 from .catalog import load_catalog, verify_plan
+from .docker_probe import DockerEndpoint, DockerProbe
 from .preflight_models import PreflightCheck, PreflightResult
 
 
@@ -55,10 +57,12 @@ class HostRoot:
 class HostPolicy:
     roots: Mapping[str, HostRoot] = field(repr=False)
     owner_uid: int = field(default_factory=os.getuid)
+    docker: DockerEndpoint | None = field(default=None, repr=False)
 
     def __post_init__(self):
         if (not isinstance(self.roots, Mapping) or not 0 <= len(self.roots) <= 16
-                or type(self.owner_uid) is not int or not 0 <= self.owner_uid <= 2**31 - 1):
+                or type(self.owner_uid) is not int or not 0 <= self.owner_uid <= 2**31 - 1
+                or self.docker is not None and type(self.docker) is not DockerEndpoint):
             raise HostPreflightError("invalid_policy")
         copied = dict(self.roots)
         if any(type(key) is not str or not _ROOT_ID.fullmatch(key) or type(value) is not HostRoot
@@ -215,7 +219,18 @@ class HostInspector:
             status = "failed" if "failed" in states else "unknown" if "unknown" in states else "passed" if available >= required else "failed"
             checks.append(PreflightCheck(code="storage_capacity", status=status, rootId=identity,
                                          availableMiB=available, requiredMiB=required))
+        docker_status = "unknown"
+        if self._policy.docker is not None and actual_platform == verified.image.platform:
+            try:
+                observed = DockerProbe(self._policy.docker).inspect(verified.image.platform)
+                if type(observed) is str and observed in {"passed", "failed", "unknown"}:
+                    docker_status = observed
+            except Exception:
+                # Preserve independent checks without publishing the socket path
+                # or raw Engine/protocol exception in the result or error chain.
+                pass
+        checks.append(PreflightCheck(code="docker_engine", status=docker_status))
         checks.extend(PreflightCheck(code=code, status="unknown") for code in (
-            "docker_engine", "port_availability", "receiver_network"))
+            "port_availability", "receiver_network"))
         return PreflightResult(catalogDigest=verified.catalogDigest, planHash=verified.planHash,
                                platform=verified.image.platform, checkedAt=checked, checks=checks)
