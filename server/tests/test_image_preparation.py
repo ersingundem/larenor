@@ -93,10 +93,9 @@ def test_authorized_pull_is_durable_before_effect_and_freshly_verified(journal, 
             # The process lease remains held, but no SQLite write transaction spans I/O.
             db.execute('BEGIN IMMEDIATE')
             db.rollback()
-        with ResourceJournal(journal.directory) as other:
-            with pytest.raises(ResourceJournalError, match='^worker_busy$'):
-                with other.locked():
-                    pass
+        # Opening another journal instance already requires the same lease.
+        with pytest.raises(ResourceJournalError, match='^worker_busy$'):
+            ResourceJournal(journal.directory)
         order.append('pull')
 
     engine = Engine([None, matched(source)], on_pull=pull)
