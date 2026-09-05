@@ -135,6 +135,7 @@ class LarenorServerApi {
       const keys = {'userId', 'cursor', 'limit', 'platform', 'channel'};
       final readQuery =
           method == 'GET' &&
+          !path.startsWith('/admin/plugins/jobs') &&
           queryParameters.length <= keys.length &&
           !queryParameters.entries.any(
             (entry) =>
@@ -142,6 +143,26 @@ class LarenorServerApi {
                 entry.value.length > 512 ||
                 entry.value.contains(RegExp(r'[\x00-\x1f\x7f]')),
           );
+      final jobsList = path == '/admin/plugins/jobs';
+      final jobsEvents = RegExp(r'^/admin/plugins/jobs/[0-9a-f]{32}/events$')
+          .hasMatch(path);
+      final jobsQuery =
+          method == 'GET' &&
+          (jobsList || jobsEvents) &&
+          queryParameters.entries.every((entry) {
+            final number = int.tryParse(entry.value);
+            if (number == null ||
+                number > 9223372036854775807 ||
+                !RegExp(r'^(0|[1-9][0-9]{0,18})$').hasMatch(entry.value)) {
+              return false;
+            }
+            return switch (entry.key) {
+              'limit' => number >= 1 && number <= 100,
+              'before' => jobsList && number >= 1,
+              'after' => jobsEvents && number >= 0,
+              _ => false,
+            };
+          });
       final revision = queryParameters['expectedRevision'];
       final revisionNumber = int.tryParse(revision ?? '');
       final forgetQuery =
@@ -152,7 +173,7 @@ class LarenorServerApi {
           RegExp(r'^[1-9][0-9]{0,18}$').hasMatch(revision) &&
           revisionNumber != null &&
           revisionNumber < 9223372036854775807;
-      if (!readQuery && !forgetQuery) {
+      if (!readQuery && !forgetQuery && !jobsQuery) {
         throw const LarenorServerException('invalid_request');
       }
       uri = uri.replace(queryParameters: Map.of(queryParameters));
@@ -275,8 +296,13 @@ class LarenorServerApi {
       if (code == 'service_credentials_required' && status == 400) {
         return 'service_credentials_required';
       }
-      if (code == 'plugin_storage_unavailable' && status == 503) {
-        return 'plugin_storage_unavailable';
+      if (status == 503 &&
+          {
+            'plugin_storage_unavailable',
+            'plugin_worker_unavailable',
+            'plugin_job_storage_unavailable',
+          }.contains(code)) {
+        return code as String;
       }
       if (status == 409 &&
           {
@@ -288,6 +314,8 @@ class LarenorServerApi {
             'plugin_catalog_changed',
             'plugin_preview_expired',
             'plugin_preview_limit_reached',
+            'plugin_job_conflict',
+            'plugin_job_limit_reached',
           }.contains(code)) {
         return code as String;
       }
