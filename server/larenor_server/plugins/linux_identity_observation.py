@@ -143,7 +143,8 @@ def _take(proc, pid, deadline, event):
     try:
         _guard(deadline, event)
         owner = os.getpid(), threading.get_native_id()
-        opener = os.open(_PROC_ROOT / str(owner[0]) / 'task' / str(owner[1]), _DIRECTORY_FLAGS)
+        opener_path = _PROC_ROOT / str(owner[0]) / 'task' / str(owner[1])
+        opener = os.open(opener_path, _DIRECTORY_FLAGS)
         handles.append(opener)
         opener_identity = _identity(opener, directory=True)
         opener_start = _start(_read(opener, 'stat', deadline, event), owner[1])
@@ -161,6 +162,13 @@ def _take(proc, pid, deadline, event):
         _require(_start(_read(proc, 'stat', deadline, event), pid) == start
                  and _credentials(_read(proc, 'status', deadline, event)) == credentials
                  and _start(_read(opener, 'stat', deadline, event), owner[1]) == opener_start)
+        # Reopen the fixed current-thread path as well: a still-held old proc
+        # directory must not stand in for the namespace interpreting the maps.
+        current_opener = os.open(opener_path, _DIRECTORY_FLAGS)
+        handles.append(current_opener)
+        _require(_identity(current_opener, directory=True) == opener_identity
+                 and _start(_read(current_opener, 'stat', deadline, event), owner[1]) == opener_start
+                 and _namespace(current_opener, handles, deadline, event) == opener_namespace)
         _require(_identity(proc, directory=True) == proc_identity
                  and (os.getpid(), threading.get_native_id()) == owner)
         _guard(deadline, event)
@@ -234,6 +242,9 @@ class HeldProcessIdentity:
         except _ERRORS:
             self._dispose()
             raise IdentityObservationError() from None
+        except BaseException:
+            self._dispose()
+            raise
         finally:
             for fd in reversed(fresh):
                 _close(fd)
@@ -280,6 +291,10 @@ def capture_process_identity(proc_fd, *, pid, deadline, cancelled=None):
         if held is not None:
             held.close()
         raise IdentityObservationError() from None
+    except BaseException:
+        if held is not None:
+            held.close()
+        raise
     finally:
         for fd in reversed(handles):
             _close(fd)
@@ -313,8 +328,10 @@ class HeldContextIdentities:
 
     def _dispose(self):
         self._closed = True
-        self._peer.close()
-        self._worker.close()
+        try:
+            self._peer.close()
+        finally:
+            self._worker.close()
 
     def check(self, deadline):
         if not self._mutex.acquire(blocking=False):
@@ -331,6 +348,9 @@ class HeldContextIdentities:
         except _ERRORS:
             self._dispose()
             raise IdentityObservationError() from None
+        except BaseException:
+            self._dispose()
+            raise
         finally:
             self._mutex.release()
 
@@ -367,7 +387,7 @@ def _capture_context_identities(context, deadline, *, cancelled=None):
         pair = HeldContextIdentities(context, peer, worker, event)
         pair.check(deadline)
         return pair
-    except _ERRORS:
+    except BaseException as error:
         if pair is not None:
             pair.close()
         else:
@@ -375,4 +395,6 @@ def _capture_context_identities(context, deadline, *, cancelled=None):
                 worker.close()
             if peer is not None:
                 peer.close()
-        raise IdentityObservationError() from None
+        if isinstance(error, _ERRORS):
+            raise IdentityObservationError() from None
+        raise
