@@ -18,6 +18,7 @@ class SyntheticHaServer {
   final acceptedActions = <String>[];
   String? _pendingLight;
   final reads = <String>[];
+  int requests = 0;
   int rejectedWrites = 0;
   int rejectedLogins = 0;
   int subscriptions = 0;
@@ -104,6 +105,7 @@ class SyntheticHaServer {
       await coreAccount!.handle(request);
       return;
     }
+    requests++;
     if (request.uri.path == '/api/websocket' &&
         WebSocketTransformer.isUpgradeRequest(request)) {
       final socket = await WebSocketTransformer.upgrade(request);

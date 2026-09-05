@@ -70,6 +70,7 @@ void main() {
     expect(context['coreId'], core.coreId);
     expect(context['homeId'], core.homeId);
     expect(host.reads, isEmpty);
+    expect(host.requests, 0);
     expect(host.subscriptions, 0);
     expect(core.rejectedRequests, 0);
   });
@@ -90,6 +91,23 @@ void main() {
     expect(first, isNot(second));
     expect(second['coreId'], core.coreId);
     expect(core.contextReads, 2);
+  });
+
+  test('HA counter also detects a wrong-scope rejected read', () async {
+    final request = await client.getUrl(
+      Uri.parse('${host.baseUrl}/api/states'),
+    );
+    request.headers.set(
+      'authorization',
+      'Bearer ${SyntheticCoreAccount.accessToken}',
+    );
+    final response = await request.close();
+    expect(response.statusCode, 401);
+    await response.drain<void>();
+    expect(host.reads, isEmpty);
+    expect(host.rejectedLogins, 1);
+    expect(host.requests, 1);
+    expect(core.contextReads, 0);
   });
 
   test(

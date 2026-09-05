@@ -26,6 +26,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:web_socket_channel/io.dart';
 
 import 'synthetic_ha_server.dart';
+import 'synthetic_core_account.dart';
 
 /// OS file dialogs use ciphertext in memory. Preferences and credential storage
 /// are also replaced in AppHarness; encryption, schema validation, repository
@@ -70,13 +71,17 @@ class AppHarness {
   static const pin = '2468';
   static const passphrase = 'Synthetic vault passphrase 2026';
 
-  static Future<AppHarness> start({bool connected = false}) async {
+  static Future<AppHarness> start({
+    bool connected = false,
+    bool coreSource = false,
+  }) async {
     if (!const bool.fromEnvironment('LARENOR_E2E')) {
       throw StateError(
         'Use tool/run_android_e2e.sh with a disposable emulator.',
       );
     }
     final server = await SyntheticHaServer.start();
+    if (coreSource) server.coreAccount = SyntheticCoreAccount();
     final harness = AppHarness._(
       server,
       FixtureNetwork(server.port),
@@ -94,6 +99,8 @@ class AppHarness {
       'enabled_services': <String>[],
       'idle_mode_enabled': false,
       'keep_screen_on': false,
+      if (coreSource)
+        SharedPreferencesHomeSourceStore.key: HomeSource.verifiedCore.name,
       ScreenProgram.preferenceKey: ScreenProgram().encode(),
     });
     await DashboardRepository().save(
@@ -171,6 +178,7 @@ class AppHarness {
       0,
       reason: 'Only explicitly allowed fixture actions',
     );
+    expect(server.coreAccount?.rejectedRequests ?? 0, 0);
   }
 }
 

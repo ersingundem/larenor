@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:flutter/cupertino.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 import 'package:larenor/shared/widgets/app_navigation_bar.dart';
@@ -15,6 +16,7 @@ import 'package:larenor/features/backup/presentation/backup_screen.dart';
 import 'package:larenor/features/dashboard/data/dashboard_repository.dart';
 import 'package:larenor/features/dashboard/domain/dashboard_layout.dart';
 import 'package:larenor/features/dashboard/domain/dashboard_room.dart';
+import 'package:larenor/features/dashboard/providers/dashboard_providers.dart';
 import 'package:larenor/features/dashboard/presentation/home_dashboard_screen.dart';
 import 'package:larenor/features/navigation/presentation/destination_screens.dart';
 import 'package:larenor/features/settings/presentation/settings_split_screen.dart';
@@ -23,6 +25,7 @@ import 'package:larenor/features/settings/domain/screen_program.dart';
 
 import 'support/app_harness.dart';
 import 'support/synthetic_ha_server.dart';
+import 'support/synthetic_core_account.dart';
 
 void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
@@ -516,6 +519,207 @@ void main() {
         debugPrint('LARENOR_E2E_PHASE home_source.cleanup_begin');
         await app.close(tester);
         debugPrint('LARENOR_E2E_PHASE home_source.cleanup_complete');
+      }
+    },
+    timeout: const Timeout(Duration(minutes: 3)),
+  );
+
+  testWidgets(
+    'Core login → PIN room copy → app remount → another Core stays empty',
+    (tester) async {
+      debugPrint('LARENOR_E2E_PHASE scoped_layout.begin');
+      final app = await AppHarness.start(connected: true, coreSource: true);
+      final core = app.server.coreAccount!;
+
+      Future<void> unlock() async {
+        await waitFor(tester, find.text('Unlock'));
+        await tester.enterText(find.byType(CupertinoTextField), AppHarness.pin);
+        await tapVisible(tester, find.text('Unlock'));
+      }
+
+      Future<void> openSource() async {
+        await tapVisible(tester, find.text('Home source'));
+        await unlock();
+        await waitFor(tester, find.byType(HomeSourceScreen));
+      }
+
+      Future<DashboardLayout> currentLayout() async {
+        final container = ProviderScope.containerOf(
+          tester.element(find.byType(HomeSourceScreen)),
+        );
+        // Match a mounted consumer's lifetime while the auto-disposed
+        // repository performs its guarded asynchronous read.
+        final subscription = container.listen(
+          dashboardRepositoryProvider,
+          (_, _) {},
+        );
+        try {
+          return await subscription.read().load();
+        } finally {
+          subscription.close();
+        }
+      }
+
+      Future<void> remount() async {
+        await tester.pumpWidget(const SizedBox.shrink());
+        await tester.pump(const Duration(milliseconds: 200));
+        await app.mount(tester);
+        await waitFor(
+          tester,
+          find.text('The Core account and home are verified.'),
+        );
+      }
+
+      try {
+        final preferences = await SharedPreferences.getInstance();
+        final legacyBefore = preferences.getString('dashboard_layout');
+        await app.mount(tester);
+        await waitFor(tester, find.byType(CoreHomeStatusScreen));
+        expect(find.text('Fixture room'), findsNothing);
+        expect(app.server.reads, isEmpty);
+        expect(app.wsClientsCreated, 0);
+        expect(app.server.requests, 0);
+
+        await tapVisible(tester, find.text('Manage Core account'));
+        await waitFor(tester, find.text('Unlock'));
+        expect(find.byType(ServerConnectionScreen), findsNothing);
+        await tester.enterText(find.byType(CupertinoTextField), '0000');
+        await tapVisible(tester, find.text('Unlock'));
+        await waitFor(tester, find.text('Incorrect PIN'));
+        expect(core.logins, 0);
+        await unlock();
+        await waitFor(tester, find.byType(ServerConnectionScreen));
+        await tester.enterText(
+          find.byKey(const ValueKey('server-url')),
+          app.server.baseUrl,
+        );
+        await tester.enterText(
+          find.byKey(const ValueKey('server-username')),
+          SyntheticCoreAccount.username,
+        );
+        await tester.enterText(
+          find.byKey(const ValueKey('server-password')),
+          SyntheticCoreAccount.password,
+        );
+        await tapVisible(tester, find.byKey(const ValueKey('server-sign-in')));
+        await waitFor(
+          tester,
+          find.text('The Core account and home are verified.'),
+        );
+        expect(core.logins, 1);
+        expect(core.contextReads, 1);
+        debugPrint('LARENOR_E2E_PHASE scoped_layout.account_verified');
+
+        await openSource();
+        expect((await currentLayout()).rooms, isEmpty);
+        expect(find.text('Fixture room'), findsNothing);
+        await tapVisible(
+          tester,
+          find.byKey(const ValueKey('home-layout-preview-entry')),
+        );
+        await waitFor(
+          tester,
+          find.byKey(const ValueKey('home-layout-preview-screen')),
+        );
+        await waitFor(tester, find.text('Fixture room'));
+        debugPrint('LARENOR_E2E_PHASE scoped_layout.preview_ready');
+        // Approval is a separate interaction; entering preview creates no record.
+        expect(
+          preferences.getKeys().where(
+            (key) => key.startsWith('dashboard_layout_core_v1_'),
+          ),
+          isEmpty,
+        );
+        await tapVisible(
+          tester,
+          find.byKey(const ValueKey('home-layout-room-0')),
+        );
+        await tapVisible(
+          tester,
+          find.byKey(const ValueKey('home-layout-copy-selected')),
+        );
+        await waitFor(
+          tester,
+          find.byKey(const ValueKey('home-layout-confirm-copy')),
+        );
+        expect(
+          preferences.getKeys().where(
+            (key) => key.startsWith('dashboard_layout_core_v1_'),
+          ),
+          isEmpty,
+        );
+        await tapVisible(
+          tester,
+          find.byKey(const ValueKey('home-layout-confirm-copy')),
+        );
+        await waitFor(
+          tester,
+          find.byKey(const ValueKey('home-layout-copy-complete')),
+        );
+        // Preferences/secure storage are synthetic in this harness. Reload and
+        // app remount prove the plugin persistence boundary and fresh provider
+        // ownership, not an Android process restart or physical-device disk.
+        await preferences.reload();
+        final scopedKey = preferences.getKeys().singleWhere(
+          (key) => key.startsWith('dashboard_layout_core_v1_'),
+        );
+        final stored = jsonDecode(
+          preferences.getString(scopedKey)!,
+        ) as Map<String, dynamic>;
+        expect(stored['scope'], {
+          'coreId': core.coreId,
+          'homeId': core.homeId,
+          'userId': core.userId,
+        });
+        expect(
+          jsonEncode(stored),
+          isNot(contains('sensor.fixture_temperature')),
+        );
+        expect(jsonEncode(stored), isNot(contains('light.fixture_lamp')));
+        expect(preferences.getString('dashboard_layout'), legacyBefore);
+        debugPrint('LARENOR_E2E_PHASE scoped_layout.copy_saved');
+
+        final originalCore = core.coreId, originalHome = core.homeId;
+        await remount();
+        await openSource();
+        final restored = await currentLayout();
+        expect(restored.rooms.single.name, 'Fixture room');
+        expect(restored.rooms.single.entityIds, isEmpty);
+        expect(restored.rooms.single.areaBinding, isNull);
+        expect(restored.favoriteEntityIds, isEmpty);
+        debugPrint('LARENOR_E2E_PHASE scoped_layout.remount_restored');
+
+        core.coreId = 'c' * 32;
+        core.homeId = 'd' * 32;
+        await remount();
+        await openSource();
+        expect((await currentLayout()).rooms, isEmpty);
+        expect(
+          preferences.getKeys().where(
+            (key) => key.startsWith('dashboard_layout_core_v1_'),
+          ),
+          [scopedKey],
+        );
+        debugPrint('LARENOR_E2E_PHASE scoped_layout.other_core_empty');
+
+        core.coreId = originalCore;
+        core.homeId = originalHome;
+        await remount();
+        await openSource();
+        expect((await currentLayout()).rooms.single.name, 'Fixture room');
+        expect(core.meReads, 3);
+        expect(core.contextReads, 4);
+        expect(app.server.reads, isEmpty);
+        expect(app.server.requests, 0);
+        expect(app.server.rejectedLogins, 0);
+        expect(app.wsClientsCreated, 0);
+        expect(app.server.subscriptions, 0);
+        expect(preferences.getString('dashboard_layout'), legacyBefore);
+        debugPrint('LARENOR_E2E_PHASE scoped_layout.original_core_restored');
+      } finally {
+        debugPrint('LARENOR_E2E_PHASE scoped_layout.cleanup_begin');
+        await app.close(tester);
+        debugPrint('LARENOR_E2E_PHASE scoped_layout.cleanup_complete');
       }
     },
     timeout: const Timeout(Duration(minutes: 3)),
