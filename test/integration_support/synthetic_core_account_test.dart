@@ -2,6 +2,8 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:larenor/features/home_resources/domain/home_resource_models.dart';
+import 'package:larenor/features/server/domain/server_models.dart';
 
 import '../../integration_test/support/synthetic_core_account.dart';
 import '../../integration_test/support/synthetic_ha_server.dart';
@@ -91,6 +93,94 @@ void main() {
     expect(first, isNot(second));
     expect(second['coreId'], core.coreId);
     expect(core.contextReads, 2);
+  });
+
+  String resourcesPath() => '/home-resources/${core.coreId}/${core.homeId}';
+
+  test('default admin supports its visible empty Core list without rejection', () async {
+    final originalUser = Map<String, Object?>.of(core.user);
+    expect(originalUser['id'], 'fixture-core-user-id');
+    expect(originalUser['role'], 'admin');
+    final (status, body) = await request(
+      'GET',
+      '${resourcesPath()}?limit=25',
+      token: SyntheticCoreAccount.accessToken,
+    );
+    expect(status, 200);
+    final page = HomeResourcePage.fromJson(
+      body,
+      expectedContext: ServerContext.fromJson({
+        'schemaVersion': 1,
+        'coreId': core.coreId,
+        'homeId': core.homeId,
+      }),
+    );
+    expect(page.entries, isEmpty);
+    expect(page.nextAfter, isNull);
+    expect(core.user, originalUser);
+    expect(core.resources, isNull);
+    expect(core.rejectedRequests, 0);
+    expect(host.requests, 0);
+    expect(host.acceptedActions, isEmpty);
+  });
+
+  test('empty admin list follows current Core and rejects old scope and snapshot', () async {
+    final oldPath = resourcesPath();
+    final (_, first) = await request(
+      'GET', oldPath, token: SyntheticCoreAccount.accessToken,
+    );
+    expect(first['snapshot'], isA<String>());
+    core.coreId = 'c' * 32;
+    core.homeId = 'd' * 32;
+    final (status, second) = await request(
+      'GET', resourcesPath(), token: SyntheticCoreAccount.accessToken,
+    );
+    expect(status, 200);
+    final page = HomeResourcePage.fromJson(
+      second,
+      expectedContext: ServerContext.fromJson({
+        'schemaVersion': 1,
+        'coreId': core.coreId,
+        'homeId': core.homeId,
+      }),
+    );
+    expect(page.entries, isEmpty);
+    expect(second['snapshot'], isNot(first['snapshot']));
+    expect((await request('GET', oldPath,
+      token: SyntheticCoreAccount.accessToken)).$1, 404);
+    expect((await request('GET', '${resourcesPath()}?expectedSnapshot=${first['snapshot']}',
+      token: SyntheticCoreAccount.accessToken)).$1, 409);
+    expect((await request('GET', '${resourcesPath()}?expectedSnapshot=${second['snapshot']}',
+      token: SyntheticCoreAccount.accessToken)).$2, second);
+    expect((await request('GET', '${resourcesPath()}?after=${'1' * 32}&expectedSnapshot=${second['snapshot']}',
+      token: SyntheticCoreAccount.accessToken)).$1, 404);
+    expect(core.rejectedRequests, 3);
+    expect(host.requests, 0);
+  });
+
+  test('default list keeps strict verb bearer path and query boundaries', () async {
+    final path = resourcesPath();
+    for (final suffix in [
+      '?limit=0', '?limit=101', '?limit=01', '?limit=x',
+      '?limit=1&limit=2', '?token=private', '?after=${'1' * 32}',
+      '?expectedSnapshot=${'g' * 64}',
+    ]) {
+      expect((await request('GET', '$path$suffix',
+        token: SyntheticCoreAccount.accessToken)).$1, 400);
+    }
+    expect((await request('GET', path)).$1, 401);
+    expect((await request('GET', path, token: 'wrong')).$1, 401);
+    for (final method in ['POST', 'PATCH', 'DELETE']) {
+      expect((await request(method, path,
+        token: SyntheticCoreAccount.accessToken)).$1, 403);
+    }
+    expect((await request('GET', '$path/extra',
+      token: SyntheticCoreAccount.accessToken)).$1, 404);
+    expect((await request('GET', '/admin$path',
+      token: SyntheticCoreAccount.accessToken)).$1, 403);
+    expect(core.rejectedRequests, 15);
+    expect(host.requests, 0);
+    expect(host.acceptedActions, isEmpty);
   });
 
   test('HA counter also detects a wrong-scope rejected read', () async {
