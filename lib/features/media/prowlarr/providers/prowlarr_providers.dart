@@ -1,5 +1,7 @@
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
+import '../../../../core/direct_home_access.dart';
+
 import '../data/prowlarr_client.dart';
 import '../data/prowlarr_config.dart';
 import '../data/prowlarr_credentials_store.dart';
@@ -9,13 +11,17 @@ part 'prowlarr_providers.g.dart';
 
 @riverpod
 ProwlarrCredentialsStore prowlarrCredentialsStore(Ref ref) =>
-    ProwlarrCredentialsStore();
+    ProwlarrCredentialsStore(access: ref.watch(directHomeAccessProvider));
 
 @riverpod
 class ProwlarrConnection extends _$ProwlarrConnection {
   @override
-  Future<ProwlarrConfig?> build() =>
-      ref.watch(prowlarrCredentialsStoreProvider).read();
+  Future<ProwlarrConfig?> build() async {
+    final access = ref.watch(directHomeAccessProvider);
+    final result = await ref.watch(prowlarrCredentialsStoreProvider).read();
+    access.check();
+    return result;
+  }
 
   Future<void> signIn({required String baseUrl, required String apiKey}) async {
     final config = ProwlarrConfig(baseUrl: baseUrl, apiKey: apiKey);

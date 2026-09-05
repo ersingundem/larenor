@@ -1,5 +1,7 @@
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
+import '../../../../core/direct_home_access.dart';
+
 import '../data/bazarr_client.dart';
 import '../data/bazarr_config.dart';
 import '../data/bazarr_credentials_store.dart';
@@ -9,13 +11,17 @@ part 'bazarr_providers.g.dart';
 
 @riverpod
 BazarrCredentialsStore bazarrCredentialsStore(Ref ref) =>
-    BazarrCredentialsStore();
+    BazarrCredentialsStore(access: ref.watch(directHomeAccessProvider));
 
 @riverpod
 class BazarrConnection extends _$BazarrConnection {
   @override
-  Future<BazarrConfig?> build() =>
-      ref.watch(bazarrCredentialsStoreProvider).read();
+  Future<BazarrConfig?> build() async {
+    final access = ref.watch(directHomeAccessProvider);
+    final result = await ref.watch(bazarrCredentialsStoreProvider).read();
+    access.check();
+    return result;
+  }
 
   Future<void> signIn({required String baseUrl, required String apiKey}) async {
     final config = BazarrConfig(baseUrl: baseUrl, apiKey: apiKey);

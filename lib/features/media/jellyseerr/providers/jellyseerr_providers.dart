@@ -1,5 +1,7 @@
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
+import '../../../../core/direct_home_access.dart';
+
 import '../../../health/data/integration_health.dart';
 import '../../../health/providers/health_providers.dart';
 
@@ -13,13 +15,17 @@ part 'jellyseerr_providers.g.dart';
 
 @riverpod
 JellyseerrCredentialsStore jellyseerrCredentialsStore(Ref ref) =>
-    JellyseerrCredentialsStore();
+    JellyseerrCredentialsStore(access: ref.watch(directHomeAccessProvider));
 
 @riverpod
 class JellyseerrConnection extends _$JellyseerrConnection {
   @override
-  Future<JellyseerrConfig?> build() =>
-      ref.watch(jellyseerrCredentialsStoreProvider).read();
+  Future<JellyseerrConfig?> build() async {
+    final access = ref.watch(directHomeAccessProvider);
+    final result = await ref.watch(jellyseerrCredentialsStoreProvider).read();
+    access.check();
+    return result;
+  }
 
   Future<void> signIn({required String baseUrl, required String apiKey}) async {
     final config = JellyseerrConfig(baseUrl: baseUrl, apiKey: apiKey);
