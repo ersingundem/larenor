@@ -434,3 +434,78 @@ def test_real_linux_native_thread_reads_only_actual_kernel_identity():
             os.close(proc)
     with ThreadPoolExecutor(max_workers=1) as executor:
         executor.submit(in_native_thread).result(timeout=5)
+
+
+def test_elapsed_first_snapshot_does_not_reset_overall_capture_deadline(synthetic, monkeypatch):
+    module = synthetic['module']
+    now = [10.0]
+    original = module._take
+    def slow_first_snapshot(*args):
+        result = original(*args)
+        now[0] = 13.0
+        return result
+    descriptors = track_descriptors(module, monkeypatch)
+    with monkeypatch.context() as patch:
+        patch.setattr(module.time, 'monotonic', lambda: now[0])
+        patch.setattr(module, '_take', slow_first_snapshot)
+        with pytest.raises(module.IdentityObservationError):
+            module.capture_process_identity(synthetic['fd'], pid=9001, deadline=100.0)
+    assert_closed(descriptors)
+
+
+def test_close_is_idempotent_even_after_kernel_reuses_an_owned_fd(synthetic, tmp_path):
+    module = synthetic['module']
+    held = module.capture_process_identity(synthetic['fd'], pid=9001, deadline=time.monotonic() + 2)
+    owned = set(held._handles)
+    held.close()
+    unrelated = os.open(tmp_path, os.O_RDONLY | os.O_DIRECTORY)
+    try:
+        assert unrelated in owned
+        held.close()
+        os.fstat(unrelated)
+    finally:
+        os.close(unrelated)
+
+
+def test_closed_borrowed_or_non_directory_descriptor_is_unavailable(synthetic, tmp_path):
+    module = synthetic['module']
+    caller = os.dup(synthetic['fd'])
+    os.close(caller)
+    with pytest.raises(module.IdentityObservationError):
+        module.capture_process_identity(caller, pid=9001, deadline=time.monotonic() + 2)
+    path = tmp_path / 'regular-file'
+    path.touch()
+    with path.open('rb') as file:
+        with pytest.raises(module.IdentityObservationError):
+            module.capture_process_identity(file.fileno(), pid=9001, deadline=time.monotonic() + 2)
+
+
+def test_real_linux_exited_thread_invalidates_held_proc_without_numeric_reopen():
+    import sys
+    from queue import Queue
+    if sys.platform != 'linux':
+        pytest.skip('Linux held native-thread proc FD exit integration')
+    module = implementation()
+    stop, ready = threading.Event(), Queue()
+    def target():
+        ready.put(threading.get_native_id())
+        stop.wait(10)
+    worker = threading.Thread(target=target)
+    worker.start()
+    try:
+        tid = ready.get(timeout=3)
+        proc = os.open(f'/proc/{os.getpid()}/task/{tid}', os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC)
+        try:
+            with module.capture_process_identity(proc, pid=tid, deadline=time.monotonic() + 2) as held:
+                assert held.snapshot.pid == tid
+                stop.set()
+                worker.join(timeout=3)
+                assert not worker.is_alive()
+                with pytest.raises(module.IdentityObservationError, match='^identity_observation_unavailable$'):
+                    held.check(time.monotonic() + 2)
+        finally:
+            os.close(proc)
+    finally:
+        stop.set()
+        worker.join(timeout=3)
+        assert not worker.is_alive()

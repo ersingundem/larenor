@@ -338,6 +338,19 @@ def test_actual_linux_socket_peer_context_without_a_docker_service(monkeypatch):
             try:
                 assert lease.context == module.DaemonContext(True, True, True)
                 assert lease.revalidate(time.monotonic() + 2)
+                # Real socket pidfd + kernel proc/ns/maps, through the opt-in
+                # seam. The synthetic executable trust policy above remains
+                # separate: this is no native supervisor or remap grant.
+                with lease.capture_identities(time.monotonic() + 2) as pair:
+                    assert pair.peer.pid == os.getpid()
+                    assert pair.worker.pid == threading.get_native_id()
+                    assert pair.peer.uids[:3] == pair.worker.uids[:3] == os.getresuid()
+                    assert pair.peer.gids[:3] == pair.worker.gids[:3] == os.getresgid()
+                    assert pair.peer.target_user_namespace == pair.worker.target_user_namespace
+                    assert pair.peer.opener == pair.worker.opener == (os.getpid(), threading.get_native_id())
+                    assert pair.peer.uid_map == pair.worker.uid_map
+                    assert pair.peer.gid_map == pair.worker.gid_map
+                    assert pair.check(time.monotonic() + 2) is None
             finally:
                 lease.close()
         with ThreadPoolExecutor(max_workers=1) as executor:
