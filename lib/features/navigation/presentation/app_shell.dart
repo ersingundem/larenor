@@ -2,6 +2,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/direct_home_access.dart';
 import '../../../l10n/generated/app_localizations.dart';
 import '../../../shared/theme/app_colors.dart';
 import '../../../shared/theme/typography.dart';
@@ -31,6 +32,13 @@ class AppShell extends ConsumerWidget {
       return const CupertinoPageScaffold(
         child: Center(child: CupertinoActivityIndicator()),
       );
+    }
+    if (connection.error case DirectHomeAccessException(
+      code: 'pending_mutation',
+    )) {
+      // No old URL/token is read or prefilled. Recovery is an explicit complete
+      // sign-in, while every other storage failure stays fail closed.
+      return const ConnectScreen(initialUrl: '');
     }
     if (connection.hasError) {
       return CupertinoPageScaffold(
