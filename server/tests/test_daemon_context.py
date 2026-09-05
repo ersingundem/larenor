@@ -389,3 +389,27 @@ def test_optional_identity_failure_leaves_old_readonly_context_contract_unchange
             assert lease.revalidate(time.monotonic() + 2)
     finally:
         lease.close()
+
+
+def test_optional_identity_interrupt_closes_first_capture_without_closing_parent(proc_tree, monkeypatch):
+    from test_linux_identity_observation import track_descriptors, assert_closed
+    identity = _identity_tree(proc_tree, monkeypatch)
+    lease = capture(proc_tree)
+    assert lease is not None
+    try:
+        descriptors = track_descriptors(identity, monkeypatch)
+        original = identity.capture_process_identity
+        calls = 0
+        def interrupt_worker(*args, **kwargs):
+            nonlocal calls
+            calls += 1
+            if calls == 2:
+                raise KeyboardInterrupt()
+            return original(*args, **kwargs)
+        monkeypatch.setattr(identity, 'capture_process_identity', interrupt_worker)
+        with pytest.raises(KeyboardInterrupt):
+            lease.capture_identities(time.monotonic() + 2)
+        assert_closed(descriptors)
+        assert lease.revalidate(time.monotonic() + 2)
+    finally:
+        lease.close()

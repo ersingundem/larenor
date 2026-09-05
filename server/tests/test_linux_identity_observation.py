@@ -90,3 +90,58 @@ def test_closed_observation_cannot_be_reused(synthetic):
     held.close()
     with pytest.raises(module.IdentityObservationError, match='^identity_observation_unavailable$'):
         held.check(time.monotonic() + 2)
+
+
+def track_descriptors(module, monkeypatch):
+    descriptors = []
+    opened, duplicated = module.os.open, module.os.dup
+    def open_fd(*args, **kwargs):
+        fd = opened(*args, **kwargs)
+        descriptors.append(fd)
+        return fd
+    def dup_fd(*args, **kwargs):
+        fd = duplicated(*args, **kwargs)
+        descriptors.append(fd)
+        return fd
+    monkeypatch.setattr(module.os, 'open', open_fd)
+    monkeypatch.setattr(module.os, 'dup', dup_fd)
+    return descriptors
+
+
+def assert_closed(descriptors):
+    assert descriptors
+    for fd in set(descriptors):
+        with pytest.raises(OSError):
+            os.fstat(fd)
+
+
+def test_interruption_after_first_capture_closes_owned_descriptors(synthetic, monkeypatch):
+    module = synthetic['module']
+    descriptors = track_descriptors(module, monkeypatch)
+    original = module._take
+    calls = 0
+    def interrupted(*args):
+        nonlocal calls
+        calls += 1
+        if calls == 2:
+            raise KeyboardInterrupt()
+        return original(*args)
+    monkeypatch.setattr(module, '_take', interrupted)
+    with pytest.raises(KeyboardInterrupt):
+        module.capture_process_identity(synthetic['fd'], pid=synthetic['pid'], deadline=time.monotonic() + 2)
+    assert_closed(descriptors)
+
+
+def test_replaced_reader_proc_path_during_check_cannot_leave_a_stale_namespace_claim(synthetic, monkeypatch):
+    module = synthetic['module']
+    with module.capture_process_identity(synthetic['fd'], pid=synthetic['pid'], deadline=time.monotonic() + 2) as held:
+        original = module._read
+        def replaced(proc, name, deadline, event):
+            value = original(proc, name, deadline, event)
+            if name == 'gid_map':
+                synthetic['opener'].rename(synthetic['opener'].with_name('old-thread'))
+                synthetic['opener'].mkdir()
+            return value
+        monkeypatch.setattr(module, '_read', replaced)
+        with pytest.raises(module.IdentityObservationError, match='^identity_observation_unavailable$'):
+            held.check(time.monotonic() + 2)
