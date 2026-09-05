@@ -9,6 +9,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:larenor/core/theme.dart';
 import 'package:larenor/features/dashboard/presentation/dashboard_card_presentation.dart';
 import 'package:larenor/features/dashboard/presentation/tiles/home_accessory_tile.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:larenor/features/dashboard/presentation/tiles/service_tile_shell.dart';
 import 'package:larenor/features/ha_client/data/models/ha_entity.dart';
 import 'package:larenor/features/ha_client/providers/ha_client_providers.dart';
@@ -83,6 +84,35 @@ List<SemanticsNode> buttons(WidgetTester tester) {
 }
 
 void main() {
+  testWidgets(
+    'accessory menu is reachable with the standard context-menu key',
+    (tester) async {
+      SharedPreferences.setMockInitialValues({});
+      final entities = _Entities();
+      await mount(
+        tester,
+        (context) => SizedBox(
+          width: 180,
+          height: HomeAccessoryTile.heightFor(context),
+          child: HomeAccessoryTile(
+            entity: const HaEntity(
+              entityId: 'light.desk',
+              state: 'on',
+              attributes: {'friendly_name': 'Desk'},
+            ),
+          ),
+        ),
+        entities: entities,
+      );
+      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+      await tester.sendKeyEvent(LogicalKeyboardKey.contextMenu);
+      await tester.pumpAndSettle();
+      expect(find.byType(CupertinoActionSheet), findsOneWidget);
+      expect(entities.calls, 0);
+      await tester.tap(find.text('Cancel'));
+      await tester.pumpAndSettle();
+    },
+  );
   for (final language in ['en', 'tr']) {
     testWidgets('service tile is one named keyboard button ($language)', (
       tester,

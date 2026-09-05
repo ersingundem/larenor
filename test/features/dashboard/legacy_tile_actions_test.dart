@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:ui' as ui;
 
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
@@ -203,6 +204,29 @@ void main() {
   GestureDetector dial(WidgetTester tester) => tester.widget(dialFinder());
   Map<String, dynamic> body() =>
       jsonDecode(requests.last.body) as Map<String, dynamic>;
+
+  testWidgets(
+    'climate slider announces one target and preserves current reading',
+    (tester) async {
+      final semantics = tester.ensureSemantics();
+      try {
+        await mount(tester, _climate, ['set_temperature']);
+        final node = tester.getSemantics(
+          find.byKey(const ValueKey('climate-dial-climate.living')),
+        );
+        expect(node.label, 'Thermostat, Target temperature');
+        expect(node.value, '20.0°');
+        expect(node.hint, 'Current: 19.0°');
+        expect(node.getSemanticsData().flagsCollection.isSlider, isTrue);
+        expect(
+          node.getSemanticsData().hasAction(ui.SemanticsAction.increase),
+          isTrue,
+        );
+      } finally {
+        semantics.dispose();
+      }
+    },
+  );
 
   testWidgets(
     'climate dial keyboard changes one step and respects inactive scope',
