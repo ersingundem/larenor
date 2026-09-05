@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
@@ -111,6 +112,8 @@ void main() {
     Future<http.Response> Function(http.Request)? response,
     bool duplicate = false,
     double tileHeight = 240,
+    double textScale = 1,
+    String language = 'en',
   }) async {
     requests.clear();
     interaction = AppInteractionController();
@@ -154,10 +157,13 @@ void main() {
             child: ValueListenableBuilder<bool>(
               valueListenable: visible,
               builder: (_, enabled, _) =>
-                  TickerMode(enabled: enabled, child: child!),
+                  MediaQuery(
+                    data: MediaQuery.of(context).copyWith(textScaler: TextScaler.linear(textScale)),
+                    child: TickerMode(enabled: enabled, child: child!),
+                  ),
             ),
           ),
-          locale: const Locale('en'),
+          locale: Locale(language),
           localizationsDelegates: AppLocalizations.localizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
           home: CupertinoPageScaffold(
@@ -197,6 +203,28 @@ void main() {
   GestureDetector dial(WidgetTester tester) => tester.widget(dialFinder());
   Map<String, dynamic> body() =>
       jsonDecode(requests.last.body) as Map<String, dynamic>;
+
+  testWidgets('climate dial keyboard changes one step and respects inactive scope', (tester) async {
+    await mount(tester, _climate, ['set_temperature']);
+    await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowUp);
+    await tester.pumpAndSettle();
+    expect(requests, hasLength(1));
+    expect(body()['temperature'], 20.5);
+    interaction.setActive(false);
+    await tester.pumpAndSettle();
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+    await tester.pumpAndSettle();
+    expect(requests, hasLength(1));
+  });
+
+  for (final language in ['en', 'tr']) {
+    testWidgets('climate dial text fits 2x in compact cell ($language)', (tester) async {
+      await mount(tester, _climate, ['set_temperature'], tileHeight: 98, textScale: 2, language: language);
+      expect(tester.takeException(), isNull);
+      expect(requests, isEmpty);
+    });
+  }
 
   testWidgets('idle then wake never renews a captured scene callback', (
     tester,
