@@ -228,7 +228,10 @@ class PreflightWorkerServer:
             observed = self.inspector.inspect_with_deadline(selected, deadline)
         else:
             observed = self.inspector.inspect(selected)
-        result = PreflightResult.model_validate(observed)
+        # Revalidate nested models without JSON coercing bool/float to int.
+        # model_validate(model) may otherwise trust an unchecked model_copy.
+        result = PreflightResult.model_validate(
+            observed.model_dump(mode='python', warnings=False) if isinstance(observed, PreflightResult) else observed)
         if time.monotonic() >= deadline:
             raise PreflightIPCError()
         if (result.catalogDigest, result.planHash, result.platform) != (selected.catalogDigest, selected.planHash, platform):
