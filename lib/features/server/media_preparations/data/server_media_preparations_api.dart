@@ -37,6 +37,13 @@ class ServerMediaPreparationsApi {
     final values = map['preparations'];
     if (values is! List || values.length > pageSize) _invalid();
     final records = values.map(ServerMediaPreparation.fromJson).toList();
+    if (records.isNotEmpty &&
+        records.any(
+          (record) =>
+              record.plan.coreId != records.first.plan.coreId ||
+              record.plan.homeId != records.first.plan.homeId,
+        ))
+      _invalid();
     final next = map['nextBefore'] == null
         ? null
         : mediaInteger(map['nextBefore']);

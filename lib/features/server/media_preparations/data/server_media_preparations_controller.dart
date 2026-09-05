@@ -31,6 +31,8 @@ class ServerMediaPreparationsController extends ChangeNotifier {
     ).join();
   }
 
+  static const maximumHistory = 256;
+  ServerContext? _historyContext;
   int _epoch = 0;
   bool _disposed = false;
   bool busy = false, cancelNeedsRefresh = false;
@@ -64,6 +66,7 @@ class ServerMediaPreparationsController extends ChangeNotifier {
     preparations = const [];
     selected = null;
     nextBefore = null;
+    _historyContext = null;
     context = null;
     catalog = null;
     _pending = null;
@@ -113,10 +116,30 @@ class ServerMediaPreparationsController extends ChangeNotifier {
     }
   }
 
+  void _checkContext(ServerContext identity) {
+    if (_historyContext != null && _historyContext != identity) {
+      throw const LarenorServerException('invalid_response');
+    }
+  }
+
+  ServerContext _recordContext(ServerMediaPreparation record) =>
+      ServerContext.fromJson({
+        'schemaVersion': 1,
+        'coreId': record.plan.coreId,
+        'homeId': record.plan.homeId,
+      });
+  void _rememberRecords(List<ServerMediaPreparation> records) {
+    if (records.isEmpty) return;
+    final identity = _recordContext(records.first);
+    _checkContext(identity);
+    _historyContext ??= identity;
+  }
+
   Future<void> load({required bool Function() current}) async {
     await _run(current, (api, token, valid) async {
       final page = await ServerMediaPreparationsApi(api, token).list();
       if (valid()) {
+        _rememberRecords(page.preparations);
         preparations = page.preparations;
         nextBefore = page.nextBefore;
       }
@@ -125,7 +148,7 @@ class ServerMediaPreparationsController extends ChangeNotifier {
 
   Future<void> loadMore({required bool Function() current}) async {
     final cursor = nextBefore;
-    if (cursor == null || preparations.length >= 100) return;
+    if (cursor == null || preparations.length >= maximumHistory) return;
     await _run(current, (api, token, valid) async {
       final page = await ServerMediaPreparationsApi(
         api,
@@ -136,6 +159,7 @@ class ServerMediaPreparationsController extends ChangeNotifier {
       ))
         throw const LarenorServerException('invalid_response');
       if (valid()) {
+        _rememberRecords(page.preparations);
         preparations = List.unmodifiable([
           ...preparations,
           ...page.preparations,
@@ -150,8 +174,10 @@ class ServerMediaPreparationsController extends ChangeNotifier {
     await _run(current, (api, token, valid) async {
       final identity = await api.context(token);
       if (!valid()) return;
+      _checkContext(identity);
       final entries = await ServerPluginsApi(api, token).catalog();
       if (valid()) {
+        _historyContext ??= identity;
         context = identity;
         catalog = entries;
         selected = null;
@@ -229,6 +255,7 @@ class ServerMediaPreparationsController extends ChangeNotifier {
         token,
       ).get(record.id, previous: record);
       if (valid()) {
+        _rememberRecords([result]);
         selected = result;
         _replace(result);
         cancelNeedsRefresh = false;
@@ -271,7 +298,10 @@ class ServerMediaPreparationsController extends ChangeNotifier {
 
   void _replace(ServerMediaPreparation record) {
     preparations = List.unmodifiable(
-      [record, ...preparations.where((r) => r.id != record.id)].take(100),
+      [
+        record,
+        ...preparations.where((r) => r.id != record.id),
+      ].take(maximumHistory),
     );
   }
 

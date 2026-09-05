@@ -383,41 +383,32 @@ class _ServerMediaPreparationsScreenState
                         ),
                         if (_media.preparations.isEmpty && !_media.busy)
                           Text(l.serverMediaEmpty),
-                        for (final record in _media.preparations)
-                          Padding(
-                            padding: const EdgeInsets.only(top: 12),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.stretch,
-                              children: [
-                                Text(
-                                  record.plan.settings.instanceName,
-                                  style: AppText.headline,
-                                ),
-                                Text(
-                                  '${record.plan.platform} · ${_date(l, record.createdAt)}',
-                                ),
-                                Text(
-                                  record.prepared
-                                      ? l.serverMediaPrepared
-                                      : l.serverMediaCancelled,
-                                ),
-                                _button(
-                                  'media-view-${record.id}',
-                                  l.serverMediaView,
-                                  (current) =>
-                                      _media.select(record, current: current),
-                                ),
-                              ],
-                            ),
-                          ),
-                        if (_media.nextBefore != null &&
-                            _media.preparations.length < 100)
-                          _button(
-                            'media-more',
-                            l.serverAdminMore,
-                            (current) => _media.loadMore(current: current),
-                          ),
                       ]),
+                      for (final record in _media.preparations)
+                        _section(record.plan.settings.instanceName, [
+                          Text(
+                            '${record.plan.platform} · ${_date(l, record.createdAt)}',
+                          ),
+                          Text(
+                            record.prepared
+                                ? l.serverMediaPrepared
+                                : l.serverMediaCancelled,
+                          ),
+                          _button(
+                            'media-view-${record.id}',
+                            l.serverMediaView,
+                            (current) =>
+                                _media.select(record, current: current),
+                          ),
+                        ]),
+                      if (_media.nextBefore != null &&
+                          _media.preparations.length <
+                              ServerMediaPreparationsController.maximumHistory)
+                        _button(
+                          'media-more',
+                          l.serverAdminMore,
+                          (current) => _media.loadMore(current: current),
+                        ),
                     ],
                   ],
                 ),
