@@ -1,11 +1,11 @@
 """Synthetic Unix Engine only: digest pins, bounded progress and no raw errors."""
 
 from contextlib import contextmanager
-import copy
 import json
 import os
 from pathlib import Path
 import socket
+import sys
 import tempfile
 import threading
 import time
@@ -60,7 +60,7 @@ VERSION = {'MinAPIVersion': '1.24', 'ApiVersion': '1.47', 'Os': 'linux', 'Arch':
 @contextmanager
 def engine_server(replies, *, version=VERSION, limits=None, peer=None):
     """Each reconnect must check version on the same authenticated socket."""
-    with tempfile.TemporaryDirectory(prefix='li-', dir='/private/tmp') as directory:
+    with tempfile.TemporaryDirectory(prefix='li-', dir='/private/tmp' if sys.platform == 'darwin' else '/tmp') as directory:
         path = Path(directory) / 'engine.sock'
         listener = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
         listener.bind(str(path))
@@ -154,6 +154,35 @@ def test_missing_cache_is_explicit_and_not_an_implicit_pull(binding):
     with engine_server([response({'message': 'private registry details'}, status=404)]) as (engine, calls):
         assert engine.inspect(binding) is None
     assert len(calls) == 2 and not any(b'POST' in call for call in calls)
+
+
+def test_missing_cache_reply_cannot_bypass_endpoint_revalidation(binding):
+    def changed(connection):
+        Path(engine._endpoint.path).chmod(0o666)
+        connection.sendall(response({'message': 'not found'}, status=404))
+
+    with engine_server([changed]) as (engine, calls):
+        with pytest.raises(ImageResourceError, match='^image_engine_unavailable$'):
+            engine.inspect(binding)
+    assert len(calls) == 2
+
+
+def test_missing_cache_reply_cannot_bypass_cancellation(binding, monkeypatch):
+    from larenor_server.plugins import image_resources
+    cancelled = threading.Event()
+    original = image_resources._headers
+
+    def headers(reader):
+        status, values = original(reader)
+        if status == 404:
+            cancelled.set()
+        return status, values
+
+    monkeypatch.setattr(image_resources, '_headers', headers)
+    with engine_server([response({}, status=404)]) as (engine, calls):
+        with pytest.raises(ImageResourceError, match='^image_cancelled$'):
+            engine.inspect(binding, cancelled=cancelled)
+    assert len(calls) == 2
 
 
 @pytest.mark.parametrize('chunked', [False, True])
@@ -259,3 +288,79 @@ def test_idle_timeout_is_shorter_than_total_budget(binding):
     with engine_server([stalled], limits=ImagePullLimits(total_seconds=1, idle_seconds=0.05)) as (engine, _):
         with pytest.raises(ImageResourceError, match='^image_timeout$'):
             engine.pull(binding)
+
+
+@pytest.mark.parametrize('raw', [
+    b'HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: 50\r\n\r\n{}\n',
+    b'HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nTransfer-Encoding: chunked\r\n\r\n3\r\n{}\n\r\n',
+    b'HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: 3\r\nContent-Length: 3\r\n\r\n{}\n',
+    b'HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Encoding: gzip\r\nContent-Length: 3\r\n\r\n{}\n',
+    b'HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nTransfer-Encoding: chunked\r\nContent-Length: 3\r\n\r\n{}\n',
+    b'HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: 3\r\n\r\n{}\n',
+    b'HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nTransfer-Encoding: chunked\r\n\r\n3;extension=x\r\n{}\n\r\n0\r\n\r\n',
+    b'HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nTransfer-Encoding: chunked\r\n\r\n0\r\nAuthorization: hidden\r\n\r\n',
+])
+def test_truncated_or_ambiguous_http_is_not_a_success(binding, raw):
+    with engine_server([raw]) as (engine, _):
+        with pytest.raises(ImageResourceError, match='^image_protocol$'):
+            engine.pull(binding)
+
+
+def test_close_delimited_progress_is_still_bounded_and_must_be_inspected(binding):
+    raw = b'HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nConnection: close\r\n\r\n{"status":"Done"}\n'
+    with engine_server([raw]) as (engine, _):
+        assert engine.pull(binding) is None
+
+
+def test_cancellation_during_stalled_read_closes_connection_promptly(binding):
+    cancelled, receiving = threading.Event(), threading.Event()
+
+    def stalled(connection):
+        receiving.set()
+        assert connection.recv(1) == b''
+
+    with engine_server([stalled], limits=ImagePullLimits(total_seconds=5, idle_seconds=3)) as (engine, _):
+        failures = []
+
+        def pull():
+            try:
+                engine.pull(binding, cancelled=cancelled)
+            except ImageResourceError as error:
+                failures.append(error.code)
+
+        thread = threading.Thread(target=pull)
+        thread.start()
+        assert receiving.wait(1)
+        cancelled.set()
+        thread.join(1)
+        assert not thread.is_alive() and failures == ['image_cancelled']
+
+
+def test_missing_socket_is_static_without_host_path_leak(binding):
+    engine = UnixImageEngine(DockerEndpoint('/missing-private-engine.sock', os.getuid()))
+    with pytest.raises(ImageResourceError, match='^image_engine_unavailable$'):
+        engine.inspect(binding)
+
+
+def test_binding_fields_cannot_be_changed_independently_of_source_catalog(binding):
+    from dataclasses import replace
+    changed = replace(binding, reference='ghcr.io/attacker/image@sha256:' + '0' * 64)
+    with engine_server([]) as (engine, calls):
+        with pytest.raises(ImageResourceError, match='^invalid_image_binding$'):
+            engine.pull(changed)
+    assert not calls
+
+
+def test_configuration_is_bounded_and_only_returned_privately(binding):
+    snapshot = image(binding)
+    snapshot['Config'] = {'Env': ['SECRET=' + 'x' * 65536]}
+    with engine_server([response(snapshot)]) as (engine, _):
+        with pytest.raises(ImageResourceError, match='^image_unverified$'):
+            engine.inspect(binding)
+
+
+@pytest.mark.skipif(sys.platform != 'linux', reason='real SO_PEERCRED requires Linux')
+def test_real_unix_peer_uid_passes_in_linux_ci(binding):
+    with engine_server([response(image(binding))]) as (engine, _):
+        production = UnixImageEngine(engine._endpoint)
+        assert production.inspect(binding).image_id == binding.config_digest
