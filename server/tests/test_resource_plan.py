@@ -118,6 +118,8 @@ def test_hash_is_order_canonical_and_ids_are_independent_of_display_and_policy(c
     changed = policy.model_copy(update={'workerPolicyDigest': 'e' * 64})
     other = build_resource_plan(selected, catalog, changed)
     assert ids(other) == ids(value) and other.planHash != value.planHash
+    with pytest.raises(ResourcePlanError, match='^resource_plan_untrusted$'):
+        verify_resource_plan(value, selected, catalog, changed)
     assert build_resource_plan(selected, catalog, policy.model_copy(update={'workerPolicyVersion': 4})).planHash != value.planHash
     previous_ids = {identity for component in selected.components for identity in (
         component.installationId, component.operationId, *(step.stepId for step in component.steps))}
@@ -236,6 +238,55 @@ def test_models_are_immutable_and_returned_wire_is_detached(catalog, policy):
     wire = value.model_dump(mode='json')
     wire['resources'].clear()
     assert len(value.resources) == 13
+
+
+@pytest.mark.parametrize('case', ['readonly_appdata', 'mount_mapping', 'duplicate_mount', 'owned_root',
+                                'resource_order', 'missing_resource', 'duplicate_identity', 'wrong_final_kind'])
+def test_resource_structure_cannot_claim_ambiguous_or_unbound_effects(catalog, policy, case):
+    wire = build_resource_plan(stack(catalog), catalog, policy).model_dump(mode='json')
+    if case == 'readonly_appdata':
+        wire['resources'][1]['mounts'][0]['readOnly'] = True
+    elif case == 'mount_mapping':
+        wire['resources'][1]['mounts'][0]['proposedRelativePath'] += 'x'
+    elif case == 'duplicate_mount':
+        wire['resources'][1]['mounts'] *= 2
+    elif case == 'owned_root':
+        wire['resources'][1]['relativePath'] = wire['resources'][1]['relativePath'].replace('a'*32, 'e'*32)
+        wire['resources'][1]['mounts'][0]['proposedRelativePath'] = wire['resources'][1]['relativePath'] + '/config'
+    elif case == 'resource_order':
+        wire['resources'][0], wire['resources'][1] = wire['resources'][1], wire['resources'][0]
+    elif case == 'missing_resource':
+        wire['resources'].pop()
+    elif case == 'duplicate_identity':
+        wire['resources'][0]['resourceId'] = wire['resources'][2]['resourceId']
+    else:
+        wire['resources'][-1] = wire['resources'][0]
+    with pytest.raises(ValidationError):
+        ResourcePreparationPlan.model_validate_json(json.dumps(wire))
+
+
+def test_forged_catalog_image_configuration_pin_cannot_supply_an_image_id(catalog, policy):
+    entry = catalog.entries[0]
+    manifest = entry.manifest.model_copy(update={'images': tuple(
+        image.model_copy(update={'configDigest': 'sha256:' + 'f'*64}) for image in entry.manifest.images)})
+    forged = catalog.model_copy(update={'entries': (entry.model_copy(update={'manifest': manifest}), *catalog.entries[1:])})
+    with pytest.raises(ResourcePlanError, match='^resource_inputs_untrusted$'):
+        build_resource_plan(stack(catalog), forged, policy)
+
+
+@pytest.mark.parametrize('case', ['wrong_plan_type', 'missing_constructed_field', 'unknown_scalar'])
+def test_constructed_objects_are_not_a_trust_boundary(catalog, policy, case):
+    selected = stack(catalog)
+    value = build_resource_plan(selected, catalog, policy)
+    if case == 'wrong_plan_type':
+        changed = value.model_dump()
+    elif case == 'missing_constructed_field':
+        changed = ResourcePreparationPlan.model_construct(**{
+            name: field for name, field in value.__dict__.items() if name != 'planHash'})
+    else:
+        changed = value.model_copy(update={'workerPolicyDigest': object()})
+    with pytest.raises(ResourcePlanError, match='^resource_plan_untrusted$'):
+        verify_resource_plan(changed, selected, catalog, policy)
 
 
 def test_pure_build_and_verify_do_not_read_write_network_spawn_or_load_catalog(catalog, policy, monkeypatch):
