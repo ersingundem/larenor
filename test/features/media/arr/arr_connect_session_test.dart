@@ -41,7 +41,7 @@ void main() {
       final old=tester.widget<CupertinoButton>(button).onPressed!;
       switch(transition) {
         case 'idle': interaction.setActive(false); await frames(tester); interaction.setActive(true); await frames(tester);
-        case 'background': tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused); await frames(tester); tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed); await frames(tester);
+        case 'background': for(final state in [AppLifecycleState.inactive,AppLifecycleState.hidden,AppLifecycleState.paused,AppLifecycleState.hidden,AppLifecycleState.inactive,AppLifecycleState.resumed]) { tester.binding.handleAppLifecycleStateChanged(state); await frames(tester); }
         case 'hidden': visible=false; await tester.pumpWidget(tree()); await frames(tester); visible=true; await tester.pumpWidget(tree()); await frames(tester);
         case 'route': navigator.currentState!.push(CupertinoPageRoute<void>(builder:(_)=>const CupertinoPageScaffold(child:Text('Covered')))); await frames(tester); navigator.currentState!.pop(); await frames(tester);
         case 'source': await home.choose(HomeSource.verifiedCore); await frames(tester); await home.choose(HomeSource.directLocal); await frames(tester);
