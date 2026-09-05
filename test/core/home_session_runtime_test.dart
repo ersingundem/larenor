@@ -489,4 +489,22 @@ void main() {
       expect(h.connectionReads, 0);
     },
   );
+  testWidgets(
+    'direct home idle mode retains its explicit local photo library',
+    (tester) async {
+      final h = ScopeHarness(HomeSource.directLocal)..ambientPhotos = true;
+      await h.mount(tester);
+      await h.runtime(tester).read(idleModeProvider.notifier).setEnabled(true);
+      await h
+          .runtime(tester)
+          .read(idleModeProvider.notifier)
+          .setTimeoutMinutes(1);
+      await flush(tester);
+      await tester.pump(const Duration(minutes: 1));
+      await flush(tester);
+      expect(h.ambientReads, 1);
+      expect(h.connectionReads, 1);
+      expect(tester.takeException(), isNull);
+    },
+  );
 }

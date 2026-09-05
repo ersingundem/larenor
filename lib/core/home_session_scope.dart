@@ -54,8 +54,9 @@ class _HomeSessionScopeState extends ConsumerState<HomeSessionScope> {
   }
 
   void _changed() {
-    if (!mounted || _retiring || _identity == _controller.runtimeIdentity)
+    if (!mounted || _retiring || _identity == _controller.runtimeIdentity) {
       return;
+    }
     setState(() => _retiring = true);
     // First unmount every route/dialog and their consumers; only then dispose
     // their provider container. A later identity wins while this frame closes.

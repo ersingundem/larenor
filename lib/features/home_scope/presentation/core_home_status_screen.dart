@@ -22,7 +22,7 @@ class CoreHomeStatusScreen extends ConsumerWidget {
         context.mounted &&
         (interaction?.active ?? true) &&
         interaction?.epoch == epoch &&
-        TickerMode.of(context) &&
+        TickerMode.valuesOf(context).enabled &&
         ModalRoute.of(context)?.isCurrent == true;
     return AppPageScaffold(
       child: SafeArea(
@@ -73,8 +73,9 @@ class CoreHomeStatusScreen extends ConsumerWidget {
                         onTap: controller.busy || !current()
                             ? null
                             : () {
-                                if (current())
+                                if (current()) {
                                   context.push('/settings/home-source');
+                                }
                               },
                       ),
                     ],

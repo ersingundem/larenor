@@ -25,7 +25,7 @@ class _HomeSourceScreenState extends MediaSessionState<HomeSourceScreen> {
     final generation = sessionGeneration;
     bool current() =>
         sessionCurrent(generation) &&
-        TickerMode.of(context) &&
+        TickerMode.valuesOf(context).enabled &&
         ModalRoute.of(context)?.isCurrent == true;
     return AppPageScaffold(
       navigationBar: CupertinoNavigationBar(
@@ -78,8 +78,9 @@ class _HomeSourceScreenState extends MediaSessionState<HomeSourceScreen> {
                           onTap: controller.busy || !current()
                               ? null
                               : () {
-                                  if (current() && !controller.busy)
+                                  if (current() && !controller.busy) {
                                     controller.choose(source);
+                                  }
                                 },
                         ),
                     ],

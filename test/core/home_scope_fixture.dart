@@ -207,8 +207,12 @@ class ScopeHarness {
     double width = 600,
     double scale = 1,
   }) async {
-    SharedPreferences.setMockInitialValues({'enabled_services_migrated': true,
-      if (ambientPhotos) AmbientSettings.preferenceKey: const AmbientSettings(photosEnabled: true).encode(),
+    SharedPreferences.setMockInitialValues({
+      'enabled_services_migrated': true,
+      if (ambientPhotos)
+        AmbientSettings.preferenceKey: const AmbientSettings(
+          photosEnabled: true,
+        ).encode(),
     });
     FlutterSecureStorage.setMockInitialValues({'settings_pin': ?pin});
     tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
@@ -230,7 +234,10 @@ class ScopeHarness {
             runtimeOverrides: [
               connectionConfigProvider.overrideWith(() => Connection(this)),
               haDiscoveryFactoryProvider.overrideWithValue(NoDiscovery.new),
-            ambientLibraryProvider.overrideWith((_) async { ambientReads++; return const []; }),
+              ambientLibraryProvider.overrideWith((_) async {
+                ambientReads++;
+                return const [];
+              }),
               clientUpdateApiProvider.overrideWithValue(
                 AndroidClientUpdateApi(isAndroid: false),
               ),
