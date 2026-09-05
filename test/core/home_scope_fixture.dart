@@ -12,6 +12,7 @@ import 'package:larenor/core/home_session_controller.dart';
 import 'package:larenor/core/configuration_scope.dart';
 import 'package:larenor/core/home_session_scope.dart';
 import 'package:larenor/core/home_source_store.dart';
+import 'package:larenor/features/home_scope/data/home_layout_access.dart';
 import 'package:larenor/core/router.dart';
 import 'package:larenor/core/window/window_policy_models.dart';
 import 'package:larenor/core/window/window_policy_providers.dart';
@@ -206,9 +207,11 @@ class ScopeHarness {
     String locale = 'en',
     double width = 600,
     double scale = 1,
+    Map<String, Object> preferences = const {},
   }) async {
     SharedPreferences.setMockInitialValues({
       'enabled_services_migrated': true,
+      ...preferences,
       if (ambientPhotos)
         AmbientSettings.preferenceKey: const AmbientSettings(
           photosEnabled: true,
@@ -232,6 +235,7 @@ class ScopeHarness {
           ],
           child: HomeSessionScope(
             runtimeOverrides: [
+              homeLayoutClockProvider.overrideWithValue(() => now),
               connectionConfigProvider.overrideWith(() => Connection(this)),
               haDiscoveryFactoryProvider.overrideWithValue(NoDiscovery.new),
               ambientLibraryProvider.overrideWith((_) async {
