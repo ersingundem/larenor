@@ -2,15 +2,15 @@
 
 Bu matris 5 Eylül 2026 tarihindeki gerçek test dosyalarını eşler. Bir satırda test bulunması o özelliğin bütün sunucu sürümlerinde veya fiziksel cihazlarda doğrulandığı anlamına gelmez. Test adedi ve satır kapsamı bir ürünün “%100 çalıştığı” iddiası için kullanılmaz.
 
-**Son güncelleme: 5 Eylül 2026, 18:24 TRT.** S06 birleşik medya hazırlığı,
-kalıcı şifreli geçmiş ve Client yönetimi `19b14aa` kod tabanında doğrulandı.
-[Server CI](https://github.com/ersingundem/larenor/actions/runs/33973453144)
-1.273 test ve iki mimaride gerçek medya restart akışını;
-[Android CI](https://github.com/ersingundem/larenor/actions/runs/33973452933)
-analiz/2.572 testi, debug/native kontrollerini ve dört native + dört uygulama
-E2E senaryosunu geçti. İmzalı APK 84 teslimi ve imza/paket/sürüm/non-debuggable
-kontrolleri de başarılı; indirilen dosya yerel resmi apksig aracıyla da
-doğrulandı. Bu sonuçlar fiziksel tablet veya gerçek medya cihazı kabulü değildir.
+**Son doğrulanan kod: `62b2054`.** S06 birleşik medya kontrolü için
+[Server CI](https://github.com/ersingundem/larenor/actions/runs/33976443375)
+**1.516 test / sıfır atlama** ve gerçek AMD64/ARM64 imaj kontrollerini geçti.
+Linux peer-context testi JUnit raporunda başarılı. [Android CI](https://github.com/ersingundem/larenor/actions/runs/33976443371)
+**2.625 Flutter, 98 JVM/Robolectric, 4 platform + 4 uygulama E2E** senaryosunu
+geçti. Emulator 36.1.9.0/build 13823996; 42/42 aşama/temizlik işareti,
+18 dakika sınırı içinde yaklaşık 8:39 script süresi. İmzalı **APK 86** teslimi
+ve indirilen APK'nın yerel apksig doğrulaması geçti; [kanıt](PROGRESS.md).
+Fiziksel tablet ve gerçek medya cihazı kabulü ayrı kalır.
 
 **Yeni onaylı kapsam:** [63 özellik planındaki](feature-expansion-plan-2026-09-05.md)
 satırların tamamı planlandı; yeni özellik kabulü **0/63**. Bağımsız VNC/RDP/SSH
@@ -104,12 +104,25 @@ Tablodaki dosyalar temsilî giriş noktalarıdır; aynı klasördeki diğer `_te
 
 ## Doğrulanan yerel koşum
 
-**S06 dilim 2 — doğrulama sürüyor:** [birleşik gereksinim kontrolü](media-inspections-implementation-2026-09-05.md)
+**S06 dilim 2:** [birleşik gereksinim kontrolü](media-inspections-implementation-2026-09-05.md)
 için gerçek HTTP → Unix işçisi → şifreli kayıt → restart sözleşmesi eklendi;
 Android aynı JSON örneğini tüketir. Kalıcı iş modüllerinde 116 odaklı test ve
-%99 satır/dal kapsamı var (model/API/şema %100). Host/IPC, daemon bağlamı,
-Android yaşam döngüsü ve tüm regresyon koşumları ayrıca tamamlanıyor.
-Bunlar aşağıdaki önceki 19b14aa CI sonuçlarına dahil değildir.
+%99 satır/dal kapsamı var (model/API/şema %100). Daemon/Docker alanında
+179 test + Mac'te bir Linux atlaması, %94 satır/dal; Host/IPC son bağımsız
+incelemede 120 test ve %95 satır/dal geçti. Android yeni alanı 680/725 satır
+(%93,8), ilişkili 160 testle doğrulandı. Bu adetler tam toplamın alt kümeleridir.
+
+Tam yerel koşum **1.515 Server + bir Linux atlaması, 2.625 Flutter ve 178 araç
+testi** geçti. Tam analiz temiz; yerel biçim kontrolü 776, CI biçim kontrolü
+777 dosyada değişiklik bulmadı. İki mimarili gerçek imaj kontrolü paketlenmiş
+inspection API'sinin işçi yapılandırılmadığında kapalı/boş kaldığını restart
+öncesi/sonrası doğrular; medya motorlarını veya HomePod oynatmasını sınamaz.
+
+Bağımsız inceleme disk ölçümünün yeniden denenmesi, eski politika yolunda
+süre bütçesinin yenilenmesi ve unchecked nested modelin JSON'da boolean'ı
+sayıya çevirmesi sorunlarını RED→GREEN ile yakaladı. Son tam koşum eski
+Docker test taklitlerinin de yeni bounded gözlem çağrısına uyarlanmasını
+sağladı. Eski ve yeni protokol başarı/hata senaryoları korunur.
 
 **S06 birleşik medya hazırlığı:** Altı bileşen planner'ı 83 odaklı testle,
 API/depolama/ortak HTTP sözleşmesi 75 testle doğrulandı. Planner birleşik

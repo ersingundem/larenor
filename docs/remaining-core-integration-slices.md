@@ -1,6 +1,6 @@
 # Core/Client bütünleştirmesinde sıradaki somut dilimler
 
-**5 Eylül 2026 · Durum: S06 dilim 1 kabul edildi; dilim 2 tam doğrulamada.** Bu belge yeni özellik seçimi
+**5 Eylül 2026 · Durum: S06 ilk iki dilim kabul edildi; dilim 3 sırada.** Bu belge yeni özellik seçimi
 değildir; [S06–S09](PROGRESS.md#sıradaki-geliştirme-paketleri) ve
 [B1/B3 temellerinin](feature-expansion-plan-2026-09-05.md) açık bağlantılarını
 ayrıntılandırır. Aşağıdaki kutular teslim kanıtı oluşmadan tamamlanmış sayılmaz.
@@ -17,8 +17,8 @@ adımını ayıramaz; kurulum koordinatörü bunu alt işlemlere ayırmalıdır.
 | Sıra | Açık teslim | Kabul kanıtı |
 | --- | --- | --- |
 | 1 | **Uygulandı:** tek Larenor kurulumu için birleşik plan ve kalıcı hazırlık kaydı | Altı bileşen, benzersiz işlem/adım kimlikleri, şifreli geçmiş, idempotent oluşturma, restart ve iptal; Client admin ekranı ve ortak HTTP sözleşmesi. [Kanıt ve sınırlar](media-preparations-implementation-2026-09-05.md); gerçek kurulum hâlâ kapalı |
-| 2 | **Uygulandı, tam test kapıları sürüyor:** birleşik gereksinim işleri, worker/daemon bağlamı ve depolama gözlemi | [Ayrı bağlam sonuçları, 49.152 MiB toplam disk bütçesi, kalıcı kontrol/geçmiş/iptal ve Client](media-inspections-implementation-2026-09-05.md). Port/alıcı ağı kanıtı yoksa `unknown`; kurulum kapalı |
-| 3 | Sahiplikli kaynak hazırlığı | Digest ile imaj edinme, veri dizini/mount ve özel kontrol ağı; yabancı kaynağı sahiplenmeme ve yarıda kalınca aynı kaynakla devam |
+| 2 | **Uygulandı, test/yayın kapıları geçti:** birleşik gereksinim işleri, worker/daemon bağlamı ve depolama gözlemi | [Ayrı bağlam sonuçları, 49.152 MiB toplam disk bütçesi, kalıcı kontrol/geçmiş/iptal ve Client](media-inspections-implementation-2026-09-05.md). Port/alıcı ağı kanıtı yoksa `unknown`; kurulum kapalı |
+| 3 | [Altı alt adıma ayrılan sahiplikli kaynak hazırlığı](media-resource-preparation-plan-2026-09-05.md) | Digest ile imaj edinme, veri dizini/mount ve özel kontrol ağı; yabancı kaynağı sahiplenmeme ve yarıda kalınca aynı kaynakla devam |
 | 4 | Dar, süreli kurulum adımlarının API/işçiye bağlanması | Her yan etkide güncel yetki/oturum/iptal/katalog kontrolü; serbest Docker seçenekleri yok; belirsiz create yanıtında sahiplik uzlaştırması |
 | 5 | Özel bootstrap ve otomatik servis eşleştirmesi | Kimlik bilgilerinin Server'da üretilip şifreli saklanması; ilk kullanıcı API'sinin denetimsiz LAN'a açılmaması; medya adres/anahtar/kütüphanelerinin otomatik eşleşmesi |
 | 6 | Tamamlama, iptal ve kurtarma | Create/start makbuzu yerine doğrulanmış servis sonucu; iptal/hata veriyi otomatik silmez. İki mimarili geçici Linux CI'da gerçek bileşen kabulü |
@@ -50,8 +50,8 @@ politikasıyla yapar. [HostInspector](../server/larenor_server/plugins/host_pref
 artık altı child'ın bütçesini dosya sistemi başına birlikte hesaplar ve dizin
 kimliğini ölçüm sonrasında yeniden doğrular. Sonuç modeli, Client tablet
 anlatımı ve [ortak gerçek HTTP sözleşmesi](../contracts/media-inspections.v1.json)
-birlikte eklendi. Bu senaryoların odaklı testleri geçti; tüm yerel/uzak CI
-kapıları tamamlandığında dilim kabul sayısı güncellenecek.
+birlikte eklendi. `62b2054` tam yerel/uzak test ve imzalı APK teslimini geçti;
+S06 yazılım kabulü **2/6**. Port/alıcı ağı kanıtı ve gerçek kurulum ayrı kalır.
 
 ## B3/S08: kimliği gerçek Client kapsamına bağlama
 

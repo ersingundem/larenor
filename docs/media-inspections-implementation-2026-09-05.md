@@ -1,7 +1,7 @@
 # S06 dilim 2 — birleşik medya gereksinim kontrolü
 
-5 Eylül 2026. Yazılım uygulandı; tam yerel ve GitHub doğrulaması sürüyor.
-Güncel teslim kanıtı [PROGRESS.md](PROGRESS.md) üzerinden izlenir.
+5 Eylül 2026. Yazılım uygulandı; `62b2054` tam yerel/GitHub testlerini,
+iki mimarili imaj yayınını ve imzalı APK 86 teslimini geçti. Güncel teslim kanıtı [PROGRESS.md](PROGRESS.md) üzerinden izlenir.
 
 ## Kullanıcının göreceği değişiklik
 
@@ -49,7 +49,7 @@ bütçeleridir, upstream uygulamalarının ölçülmüş asgari ihtiyaçları de
 Daemon kanıtı özel **v3 işçi politikası** ile seçilmiş canonical
 `docker.daemonExecutable` yolunu gerektirir; v1/v2 politikalarının yetkisi
 sessizce artırılmaz. Root'a ait, başkalarınca yazılamayan executable'ın kimliği
-socket peer'iyle karşılaştırılır. Linux 6.8'in socket'e bağlı `SO_PEERPIDFD`
+socket peer'iyle karşılaştırılır. Linux 6.5'in socket'e bağlı `SO_PEERPIDFD`
 tanıtıcısı, tutulmuş proc/namespace/root descriptor'ları ve süreç başlangıcı
 ölçüm öncesi/sonrası kontrol edilir. İşçinin ölçüm yapan thread'i esas alınır.
 Sadece süreç adı, PID sayısı veya socket yolunun metni kimlik kanıtı sayılmaz.
@@ -102,5 +102,6 @@ Teknik kaynaklar: [Linux procfs](https://docs.kernel.org/filesystems/proc.html),
 [process root](https://man7.org/linux/man-pages/man5/proc_pid_root.5.html),
 [thread bağlamı](https://man7.org/linux/man-pages/man5/proc_pid_task.5.html),
 [fdinfo mount kimliği](https://man7.org/linux/man-pages/man5/proc_pid_fdinfo.5.html),
-[Linux 6.8 socket uygulaması](https://github.com/torvalds/linux/blob/v6.8/net/core/sock.c),
+[SO_PEERPIDFD kaynak değişikliği](https://github.com/torvalds/linux/commit/7b26952a91cf65ff1cc867a2382a8964d8c0ee7d),
+[Linux 6.5 UAPI](https://github.com/torvalds/linux/blob/v6.5/include/uapi/asm-generic/socket.h),
 [descriptor ile kapasite ölçümü](https://docs.python.org/3/library/os.html#os.fstatvfs).

@@ -10,7 +10,7 @@ https://docs.kernel.org/filesystems/proc.html
 https://man7.org/linux/man-pages/man7/namespaces.7.html
 https://man7.org/linux/man-pages/man5/proc_pid_root.5.html
 https://man7.org/linux/man-pages/man5/proc_pid_fdinfo.5.html
-https://github.com/torvalds/linux/blob/v6.8/net/core/sock.c
+https://github.com/torvalds/linux/commit/7b26952a91cf65ff1cc867a2382a8964d8c0ee7d
 """
 
 from dataclasses import dataclass, field
@@ -256,7 +256,7 @@ class _ContextLease:
 def capture_daemon_context(connection, expected_uid, daemon_executable, deadline):
     """Capture from this verified connection, or return None without detail.
 
-    Linux 6.8 introduced SO_PEERPIDFD (77 on the supported amd64/arm64 ABIs).
+    Linux 6.5 introduced SO_PEERPIDFD (77 on the supported amd64/arm64 ABIs).
     Its absence affects context evidence only; GET /version remains usable.
     """
     descriptors = []

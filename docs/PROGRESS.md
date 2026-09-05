@@ -1,10 +1,10 @@
 # Larenor — güncel ilerleme ve iş kuyruğu
 
-**Son güncelleme: 5 Eylül 2026, 18:55 (Türkiye saati).**
+**Son güncelleme: 5 Eylül 2026, 19:22 (Türkiye saati).**
 
 ```text
 Önceki kapsam       █████████████░░░░░░░  ≈ %65
-S06 koordinatörü    ███░░░░░░░░░░░░░░░░░  1/6 kabul; 2. dilim doğrulanıyor
+S06 koordinatörü    ███████░░░░░░░░░░░░░  2/6 yazılım dilimi; test/yayın geçti
 Yeni 63 özellik     ░░░░░░░░░░░░░░░░░░░░  0/63 kabul edildi
 Genişletilmiş toplam                     Henüz hesaplanmadı
 ```
@@ -37,45 +37,47 @@ GitHub'a gönderilmiş işlerin **anlık CI durumu**
 Bu yerel dosya geliştirme aşamalarında güncellenir; Actions ise çalışan
 derlemelerin ve test işlerinin kendi canlı durumunu gösterir.
 
-**Aktif çalışma — S06 dilim 2:** [birleşik medya gereksinim kontrolü](media-inspections-implementation-2026-09-05.md),
-şifreli kalıcı sonuç/geçmiş/iptal, Android yönetim akışı ve daemon bağlamı
-gözlemleri uygulandı. Bağımsız inceleme bulguları regresyonlarla düzeltildi;
-tam test ve yayın doğrulaması sürüyor. Altı
-bileşenin aynı dosya sistemindeki 49.152 MiB bütçesi birlikte hesaplanıyor.
-Gerçek HTTP → Unix işçisi → yeniden başlatma sözleşmesi geçti. Bu değişiklikler
-için GitHub CI henüz çalıştırılmadı; aşağıdaki önceki CI kanıtı yeni kodu kapsamaz.
+**S06 dilim 2 tamamlandı:** [birleşik medya gereksinim kontrolü](media-inspections-implementation-2026-09-05.md),
+şifreli kalıcı sonuç/geçmiş/iptal, Android yönetim ekranı, toplam disk bütçesi ve
+ayrı daemon bağlamı gözlemleri uygulandı. Bağımsız inceleme bulguları
+regresyonlarla düzeltildi. İlk dilimdeki altı bileşenli hazırlık korunur;
+`prepared` kurulum, `succeeded` ise bütün gereksinimler geçti demek değildir.
 
-**Güncel doğrulanmış kod:** `19b14aa` için
-[Security](https://github.com/ersingundem/larenor/actions/runs/33973452663) ve
-[Server CI](https://github.com/ersingundem/larenor/actions/runs/33973453144)
-başarılı: 1.273 Server testi ve gerçek amd64/arm64 container'larında
-hazırlık oluştur → restart → aynı kaydı oku → iptal akışı geçti.
-Yayımlanan `sha256:affdadf7d616993ef40e32c69e5e9c14fbf0e64282b3121d83c5d5e1765783a8`
-imaj indeksinin iki mimarisi ve anonim manifest erişimi doğrulandı.
-[Android CI](https://github.com/ersingundem/larenor/actions/runs/33973452933)
-2.572 testi, analizi, debug/native kontrollerini ve **4 native + 4 uygulama
-E2E senaryosunu** geçti. Emülatör 36.1.9/build 13823996, 42 aşama/cleanup
-işareti ve 18 dakikalık komut sınırı içinde yaklaşık 9 dakika 56 saniye
-logdan doğrulandı. **İmzalı APK teslimi dahil bütün CI başarılı.**
-[İmzalı APK 84 ve doğrulanmış metadata](https://github.com/ersingundem/larenor/actions/runs/33973452933/artifacts/9971908242)
-`app-signed-release-apk-84` çıktısında; imza, sertifika, paket, sürüm ve
-non-debuggable kontrolleri geçti. İndirilen APK, yerelde Java 17 ve hash ile
-sabitlenmiş resmi apksig 9.1.0 ile ayrıca doğrulandı: APK hash'i, kaynak
-commit'i, paket/sertifika ve `100000084` sürümü metadata ile eşleşti.
-Henüz yapılandırılmamış ev Server'ına
-Client yayını adımı atlandı. Gerçek cihaz kurulumu yapılmadı.
+**Doğrulanan kod ve yayın: `62b2054`.**
+[Security](https://github.com/ersingundem/larenor/actions/runs/33976443262),
+[Server](https://github.com/ersingundem/larenor/actions/runs/33976443375) ve
+[Android](https://github.com/ersingundem/larenor/actions/runs/33976443371)
+CI'larının tamamı **imzalı APK teslimi dahil başarılı**.
 
-Sonuçları kaydeden belge güncellemesi uygulama, test veya workflow kodunu
-değiştirmez; test edilen ve APK/imaj üretilen kod commit'i `19b14aa`dır.
+- **1.516 Linux Server testi, sıfır atlama**; gerçek Linux socket/peer-context
+  testi JUnit raporunda geçti. Yerelde 1.515 geçti, bir Linux testi Mac'te atlandı.
+- **2.625 Flutter, 98 JVM/Robolectric ve 8 cihaz E2E senaryosu** geçti.
+  Emulator 36.1.9.0/build 13823996; dört platform + dört uygulama senaryosu,
+  42/42 aşama/temizlik işareti. Script yaklaşık 8:39 ile 18 dakika sınırında;
+  bütün action yaklaşık 9:50. Analiz temiz; 178 araç testi geçti.
+- **AMD64 ve ARM64 imajları** gerçek container restart/medya hazırlığı/iptal,
+  APK doğrulayıcı ve kapalı inspection yeteneği kontrollerini geçti. Anonim
+  erişimle commit ve `stable` için aynı imaj indeksi doğrulandı:
+  `sha256:7ff0e5ef2322ad1711be7b9bcd6d79119695a2b9aa6718ce40e224b007875e70`.
+- [**İmzalı APK 86 ve metadata**](https://github.com/ersingundem/larenor/actions/runs/33976443371/artifacts/9972729514)
+  indirildi ve Java 17 + hash ile sabitlenmiş resmi apksig 9.1.0 ile ayrıca
+  doğrulandı. Paket `com.ersingundem.larenor`, sürüm `100000086`, minSdk 26,
+  doğru sertifika ve `debuggable=false`; kaynak commit ve APK SHA-256 eşleşti:
+  `f5fa27b755331d8389985f4aa53ac8ef7b58f0e2f5de2615db06d849b91f70dc`.
 
-**S06 birleşik medya hazırlığı:**
-[İlk yazılım dilimi](media-preparations-implementation-2026-09-05.md)
-uygulandı: altı bileşen için tek plan, şifreli kalıcı kayıt, aynı isteği kurtarma,
-geçmiş ve iptal; Client yönetici ekranı ve ortak gerçek HTTP sözleşmesi.
-Bağımsız inceleme tamamlandı; **2.572 Flutter, 1.273 Server ve 176 araç testi**
-geçti. `prepared` bir hazırlık kaydıdır; servis kurulmuş veya host/ağ/depolama
-uygunluğu doğrulanmış demek değildir. Host bağlamı ve toplam disk ihtiyacı
-[sıradaki dilimde](remaining-core-integration-slices.md) ele alınacak.
+Ev Server'ı henüz yapılandırılmadığından koşullu Client yayın adımı atlandı.
+Ev cihazına veya sunucusuna kurulum yapılmadı. Medya motorlarını kurma,
+otomatik eşleştirme ve gerçek HomePod oynatma kabulü hâlâ açık.
+
+Bu sonuçları kaydeden son değişiklikler belgeler ve bir kaynak sürümü
+alıntısının docstring düzeltmesidir; çalıştırılabilir Python AST'si aynı,
+Client/test/workflow davranışı değişmedi. APK/imaj ve CI kanıtının kaynak
+commit'i **`62b2054`** olarak kalır.
+
+**Sıradaki teslim:** [S06 dilim 3 — sahiplikli kaynak hazırlığı](media-resource-preparation-plan-2026-09-05.md).
+Kaynak planı/journal → sabit digest ile imaj → sahiplikli appdata → özel kontrol
+ağı → yarım işlem kurtarma/iki mimarili kabul sırası ayrıntılandırıldı.
+Bu plan tamamlanmış özellik sayılmaz ve kurulum yetkisini açmaz.
 
 **CI hazırlığı düzeltmesi:** `ce1ce38` E2E'si uygulama senaryoları başlamadan
 uyanık kalma ayarını doğrulayamadığı için durmuştu. `16dda6b` RED → `4e05b66`
@@ -95,9 +97,9 @@ kaldırıldı. Asıl test/tarama hataları ve imzalı APK teslim hataları hâl�
 | İş | Durum | Tamamlanma ölçütü |
 | --- | --- | --- |
 | S05 hizmet yönetimi ve denetimi | Client admin ekranı, şifreli Server kayıtları ve 17 servis türünün kontrol yolu uygulandı | `19b14aa` Server/Güvenlik/Android ve imzalı APK teslimi geçti; gerçek servis kabulü ayrı |
-| S06 birleşik medya hazırlığı | Altı bileşen için tek plan ve şifreli kalıcı kayıt; Client geçmiş/iptal ve aynı isteği kurtarma uygulandı | Yerel test, inceleme ve iki mimarili Server CI geçti. `19b14aa` Android E2E de geçti. Host/depolama/alıcı ağı doğrulaması, kaynak hazırlığı ve yönetilen kurulum açık |
+| S06 birleşik medya hazırlığı/kontrolü | İlk iki dilim: hazırlık, toplam disk ve daemon bağlamı gözlemi, şifreli kontrol geçmişi/iptal ve Client akışı uygulandı | `62b2054` bütün CI ve imzalı APK geçti. Kaynak hazırlığı → kurulum adımları → özel bootstrap → kurtarma açık; port/alıcı ağı henüz `unknown` |
 | B3 kalıcı Core/ev bağlamı | Korumalı `/api/v1/context`, şema 3 migration, restart koruması ve Client typed okuyucu uygulandı | `19b14aa` ortak sözleşme CI'ı geçti; oturum/cache bağlama, merkezi adaptörler ve kaynak yetkileri açık |
-| Gerçek Server imajı doğrulaması | `19b14aa` iki mimaride yeni medya oluştur/restart/iptal yolculuğu dahil geçti ve yayımlandı | Anonim manifest doğrulandı; gerçek ev kurulumu ve medya motorlarının kurulması ayrı |
+| Gerçek Server imajı doğrulaması | `62b2054` iki mimaride medya oluştur/restart/iptal ve inspection yetenek sınırı dahil geçti ve yayımlandı | Anonim manifest doğrulandı; gerçek ev kurulumu ve medya motorlarının kurulması ayrı |
 | Seçilen 63 özelliğin bağımlılık planı | İlk 60 seçim ve bağımsız VNC/RDP/SSH kaydedildi; 11 grup ve mevcut temel kapıları | Yeni özellik kabulü 0/63; SSH/tünel temeli → RDP → VNC, Proxmox veya medya kurulumu zorunlu değil |
 
 **Son kapsam kararı:** Medya ve Music Assistant için ayrı uygulama kurulumu veya
@@ -117,7 +119,7 @@ desteğidir. README, mimari belgeleri ve GitHub açıklaması buna göre güncel
 | Kasa ve güncelleme sürümleri | Server'da şifreli kasa ve sürüm API'leri; Client geri yükleme/güncelleme akışları mevcut | Gerçek imzalı Client yükseltmesi ve yeniden kurulum kabulü |
 | Entegrasyon bağlantı kayıtları | S05 şifreli Server kaydı, Client admin ekranı ve 17 türün kontrol yolu uygulandı | Yerel/uzak testler geçti; gerçek servis kabulü ve S08 adaptör taşıması |
 | Gereksinim kontrolü ve iş geçmişi | Kalıcı şifreli işler, Linux işçisi ve açık politikayla Docker API/platform kontrolü uygulandı | Port ve alıcı ağı `unknown`; medya kurma/başlatma ve otomatik eşleştirme henüz yok |
-| Birleşik medya hazırlığı | Tek ortak ayarla altı bileşen planı, Core/ev/bileşen/adım kimlikleri, şifreli kayıt ve Client yönetimi | Host bağlamı/depolama/ağ doğrulaması, kaynak hazırlığı ve özel bootstrap; plan kurulum yetkisi değil |
+| Birleşik medya hazırlığı/kontrolü | Altı bileşen planı, kalıcı kontrol, toplam disk ve ayrı daemon bağlamı sonuçları; Client geçmiş/iptal | Kaynak hazırlığı ve özel bootstrap; port/alıcı ağı `unknown`, kurulum kapalı |
 | Core ve ev kimliği | Server'da kalıcı, anahtarla doğrulanan kimlikler; korumalı API ve Client sözleşme okuyucusu | Client oturum/cache ve kaynak kimliklerine bağlama; çoklu ev/federasyon henüz yok |
 | HA, medya ve ağ komutları | Mevcut kontrollerin çoğu hâlâ Client adaptörlerinde | S08 ile gerçek veri ve komut akışlarını Server'a taşıma; yalnızca token saklamak bu taşıma sayılmaz |
 | Music Assistant | Client müzik ekranı, eski MA-only paket ve Server token/sürüm kontrolü var; ev sunucusuna kurulmadı | Tek Larenor kurulumu içinde dahili motor; Client üzerinden sağlayıcı/oynatıcı yönetimi, ayrı MA URL/token girişi olmaması |
@@ -153,14 +155,16 @@ kabul işleri aşağıda ayrıca tutulur.
 | Sunucu bileşenleri önizlemesi | Altı sabitlenmiş katalog kaydı, yönetici/oturum/katalog revizyonuna bağlı şifreli ve süreli önizlemeler; Client gereksinim ekranı. Kurulum düğmesi veya çalışan kurulum API'si yok |
 | Kalıcı gereksinim işleri | Yönetici oluşturma/geçmiş/olay/iptal API'leri, şifreli plan/sonuç, belirsiz isteği aynı kimlikle kurtarma, restart ve güncel yetki denetimi. `succeeded` inceleme tamamlandı demektir; bütün kontrollerin geçtiği veya kurulum yapıldığı anlamına gelmez |
 | Birleşik medya hazırlığı | Altı sabitlenmiş bileşen için tek kalıcı plan ve toplam istenen kaynak bütçesi; yönetici oluşturma/geçmiş/iptal, restart ve idempotence. Katalog değişse de geçmiş okunur; `installAvailable=false`. Jellyfin ortak kütüphaneyi yalnız salt okunur kullanır |
-| Dahili salt okunur işçi | Aynı Server paketindeki `larenor-preflight-worker`, Linux UID doğrulamalı Unix IPC; kök dizin/kapasite/platform ve açık v2 politikasıyla Docker GET `/version`. Varsayılan kapalı; kurulum yok ve `installAvailable=false` |
+| Birleşik medya kontrolü | Toplam disk bütçesi, ayrı daemon mount/network/root gözlemleri, şifreli kalıcı kontrol işi ve tablet yönetimi; kaynak ayırma/servis kurma yok |
+| Dahili salt okunur işçi | Aynı Server paketindeki `larenor-preflight-worker`, Linux UID doğrulamalı Unix IPC; toplam kapasite/platform, Docker GET `/version` ve açık v3 politikasıyla socket/process bağlamı. Varsayılan kapalı; kurulum yok ve `installAvailable=false` |
 | Kalıcı Core/ev bağlamı | `/api/v1/context`, atomik şema 1→2→3 geçişi, HMAC doğrulaması; aynı 27 JSON örneğiyle Server ve Client okuyucu. Client oturum/cache bağlama henüz yok |
 | Düzenli GitHub temizliği | Günlük 03.15 Codex görevi ve testli araç; en yeni üç debug APK, bütün imzalı APK ve raporlar korunur. İlk koşumda beş eski debug APK (641.275.745 bayt) silindi; kalan 171 çıktı doğrulandı. GHCR izin ve manifest grafiği eksikliği nedeniyle silinmez |
 | CI rapor kotası düzeltmesi | Test kanıtı yükleme hataları görünür uyarı üretir; Gitleaks/OSV taramaları artifact kotasına bağlı değildir. Gerçek tarama hatalarının engelleyici kaldığı test edildi |
 | Lisans ve kaynak | AGPL-3.0-only, üçüncü taraf bildirimleri, uygulama içi lisans ekranı ve Server kaynak/lisans API'si |
 | Geliştirme becerileri | İstenen frontend/CI seçkisinden 27 beceri kuruldu; 81 dosyanın kaynağı ve hash'i kaydedildi. Kurulum uygulama özelliği sayılmaz |
 
-Son yerel doğrulamada **2.572 Flutter, 1.273 Server ve 176 araç testi** geçti.
+Son yerel doğrulamada **2.625 Flutter, 1.515 Server ve 178 araç testi** geçti.
+Gerçek Linux peer-context testi macOS'ta atlandı; Linux CI'da 1.516 testin tamamı atlamasız geçti.
 Server koşumunda gerçek Java/apksig kullanıldı. Workflow `actionlint` ve diff
 kontrolü ve tam Flutter analizi temiz. Bağımsız incelemede bulunan
 iş geçmişini belleğe topluca alma, hatalı worker ortam değerlerini güvenle
@@ -190,7 +194,7 @@ kurulum/yalıtımın tamamlandığı anlamına gelmez.
 | Sıra | Paket / durum | Somut teslim ve bitti sayılma ölçütü |
 | --- | --- | --- |
 | 1 | **S05 — Hizmet yönetimi · kod ve uzak testler geçti** | Client admin ekranından bağlantı ekle/düzenle/unut/doğrula; şifreli Server kaydı, altı açık doğrulama durumu, yetki/oturum/çakışma testleri. Gerçek servis kabulü ayrı, servis kurulumu S06'da |
-| 2 | **S06 — Eklenti sistemi · birleşik hazırlık uygulandı, kurulum eksik** | Altı bileşen için kalıcı hazırlık ve Client yönetimi; katalog/önizleme, kalıcı işler, Linux IPC ve açık politikayla Docker API/platform kontrolü mevcut. Sıradaki küçük teslim: worker/daemon host bağlamı, depolama ve ağ doğrulaması; ardından sahiplikli kaynak hazırlığı |
+| 2 | **S06 — Eklenti sistemi · birleşik hazırlık uygulandı, kurulum eksik** | Altı bileşen için kalıcı hazırlık ve Client yönetimi; katalog/önizleme, kalıcı işler, Linux IPC ve açık politikayla Docker API/platform kontrolü mevcut. Birleşik kontrol ve daemon bağlamı da uygulandı. Sıradaki teslim: [sahiplikli imaj/dizin/ağ kaynakları](media-resource-preparation-plan-2026-09-05.md); ardından dar kurulum ve bootstrap |
 | 3 | **S07 — CasaOS ve Music Assistant · sırada** | Tek Larenor Server kurulumu içinde medya ve Music Assistant; otomatik API anahtarı/adres/kütüphane eşleştirmesi, durum doğrulaması; Client'tan yalnız ayar yönetimi |
 | 4 | **S08 — Merkezi entegrasyonlar · kimlik temeli eklendi** | Kalıcı Core/ev kimliği ve korumalı API hazır. Sırada Client cache sınırı, önce HA sonra medya/ağ adaptörleri, kaynak yetkileri, olay akışı ve widget sözleşmeleri; mevcut doğrudan yollar belgelenir |
 | 5 | **Kalan ürün yetenekleri · sırada** | İleri kiosk ve kamera seçenekleri, Apple TV video, müzik sağlayıcıları ve HomePod kuyruk/grup/oynatma; yetenek matrisindeki desteklenmeyen durumları açık gösterme |
@@ -228,9 +232,13 @@ geliştirmesi güncel kapsam dışındadır.
 
 | Çalıştırma | Sonuç | Sınır |
 | --- | --- | --- |
-| Tam Server API/depolama/sürüm/iş paketi | **1.273 geçti** | Gerçek Java/apksig dahil bütün `server/tests`; sentetik servisler ve yerel IPC, canlı ev sunucusu değil |
-| Tam Flutter paketi | **2.572 geçti** | Birleşik medya hazırlığı, bağlam ve sayfalama, hesap/yaşam döngüsü ve ortak JSON sözleşmeleri dahil unit/widget kapsamı |
-| Bütün Python araç/politika testleri | **176 geçti** | Yeni container medya yolculuğu dahil; gerçek imaj çalışması GitHub CI'da ayrıca doğrulanır |
+| Tam Server API/depolama/sürüm/iş paketi | **1.515 geçti; 1 Linux testi Mac’te atlandı** | Gerçek Java/apksig dahil bütün `server/tests`; sentetik servisler ve yerel IPC, canlı ev sunucusu değil |
+| Tam Flutter paketi | **2.625 geçti** | Birleşik medya hazırlığı, bağlam ve sayfalama, hesap/yaşam döngüsü ve ortak JSON sözleşmeleri dahil unit/widget kapsamı |
+| Bütün Python araç/politika testleri | **178 geçti** | Yeni container medya yolculuğu dahil; gerçek imaj çalışması GitHub CI'da ayrıca doğrulanır |
+| Birleşik medya kontrol işleri | **116 odaklı test**, **%99 satır/dal** | Model/API/şema %100; gerçek HTTP→Unix→restart ortak JSON, şifreli sonuç, idempotence, iptal ve yetki yarışları |
+| Client birleşik kontrol | **160 ilgili test**, **%93,8 satır** | Yeni alan 680/725 satır; aynı Server JSON örneği, beklenen Core/ev sınırı, EN/TR ve büyük yazı |
+| Daemon bağlamı | **179 geçti; 1 Linux testi Mac’te atlandı**, **%94 satır/dal** | Socket pidfd, thread/proc/root/mount kimlikleri; gerçek ev Docker'ı kullanılmadı |
+| Host/IPC son bağımsız inceleme | **120 geçti**, **%95 satır/dal** | Host %98, IPC %91; ortak bütçe, path değişimi, tek süre sınırı, bozuk nested sonucun reddi |
 | Birleşik medya planner'ı | **83 geçti**, **%97 birleşik kapsam** | Altı bileşen, güvenli katalog, değişmez hash/kimlikler; host I/O veya kurulum yok |
 | Medya API/depolama/ortak sözleşme | **75 geçti**, **%92 birleşik kapsam** | Şema/API/model %100; şifreleme/AAD, paralel tekrar/iptal, restart, katalog/yetki ve 8/256 sınırları |
 | Client medya hazırlığı | **52 geçti**, 18 widget; **%95,3 satır** | İlgili katalog/iş/bağlamlarla birlikte 237 test; farklı Core, 256 kayıt erişimi, belirsiz POST, 2× yazı ve erişilebilir alanlar |
@@ -243,13 +251,21 @@ geliştirmesi güncel kapsam dışındadır.
 | İşçi IPC bağımsız incelemesi | **83 testlik ilgili koşum**; 201/216 statement, 59/68 dal | 16 temel IPC testi ve başlatma hataları dahil; kapsamdaki diğer dosyalarla toplanmaz |
 | Kalıcı iş bağımsız incelemesi | **55 geçti**, **%89 birleşik kapsam** | Yetki, kalıcılık, iptal, idempotence, bozulma ve restart; Server toplamının içindedir |
 | Önceki yerel Android native koşumu | **98 geçti**, 18 test paketi | Güncel S06 için yeni fiziksel kurulum/oynatma kanıtı değildir |
-| Uzak API 35 x86_64 E2E (`19b14aa`) | **4 uygulama + 4 platform senaryosu geçti** | Gerçek emülatör 36.1.9; 42 aşama/cleanup işareti tamam, 18 dakika içinde yaklaşık 9 dakika 56 saniye. Fiziksel tablet kabulü değil |
+| Uzak API 35 x86_64 E2E (`62b2054`) | **4 uygulama + 4 platform senaryosu geçti** | Gerçek emülatör 36.1.9.0; 42/42 işaret ve yaklaşık 8:39 script süresi. Fiziksel tablet kabulü değil |
 
 Test dosyaları, kapsam ve açıklar [test matrisinde](testing-matrix-2026-09-05.md).
 Test adetleri farklı zaman ve kapsamları temsil eder; toplanarak başarı oranı
 üretilmez. CI kanıtı yukarıda adı verilen commit içindir; yalnız belge değişiklikleri uygulama veya workflow kodunu değiştirmez.
 
 ## Güncelleme kaydı
+
+- **19:22:** S06 dilim 2 tamamlandı, koordinatör **2/6**. `62b2054` bütün
+  CI ve imzalı APK 86 teslimi geçti; APK yerelde ayrıca doğrulandı.
+  1.516 Linux Server, 2.625 Flutter, 98 JVM/Robolectric, 8 E2E, 178 araç testi;
+  iki mimarili imaj ve anonim index doğrulaması başarılı. `072aa8a` son tam
+  regresyonunda bulunan üç eski test taklidi `62b2054` ile güncellendi;
+  eski koşular concurrency ile iptal edildi. Sonraki kaynak hazırlığı altı
+  adıma ayrıldı; yeni özellik kabulü hâlâ 0/63, gerçek ev kurulumu yok.
 
 - **18:24:** `19b14aa` Güvenlik, Server ve Android CI'ı imzalı APK 84 teslimi
   dahil başarılı. 1.273 Server, 2.572 Flutter ve yerelde 176 araç testi;

@@ -246,6 +246,27 @@ without it, this check remains `unknown`. `port_availability` and
 Disk requirements are proposed
 catalog budgets, not measurements of upstream applications' actual minima.
 
+## Aggregate media observations
+
+The [media inspection API](media_inspection_api.py) exposes a separate durable
+`/admin/media/inspections` collection for a complete prepared stack. It retains
+original Core/home/plan/preparation and actor/session bindings, rechecks them
+before and after worker IPC, and keeps at most 256 records / 16 active. Each
+preparation has at most one active inspection. It has no events or install route.
+The existing single-component job collection keeps its own history and limits.
+Both use the same bounded, serialized read-only Unix worker.
+
+`inspect_media` rederives the six-component plan and aggregates requested disk
+budgets once per child per distinct writable filesystem. Read-only views add no
+write budget. Reopened root/directory identities must match after observation.
+The strict result model adds `daemon_mount_context`, `daemon_network_context`
+and `daemon_root_context`; these checks carry no root ID or capacity fields.
+Storage observations remain worker-local. API success, matching contexts,
+port availability and receiver reachability are separate claims.
+
+See the [API, Client, test and policy contract](../../../docs/media-inspections-implementation-2026-09-05.md)
+for precise fallback semantics. No installation capability is added.
+
 ## Persistence, dispatch and recovery
 
 [`jobs.py`](jobs.py) uses the existing FastAPI/SQLite account store with separate
@@ -345,6 +366,20 @@ example, not an auto-discovered default. Socket and ancestor ownership/modes,
 symlinks, inode identity and the connected Linux peer UID are checked. For a
 rootless daemon, configure its actual endpoint and owner UID. `DOCKER_HOST`,
 proxy settings, TCP endpoints and Client request fields cannot select a daemon.
+Version 3 keeps `version`, `roots`, `docker` as its only top-level fields.
+Its required non-null `docker` object has exactly `socketPath`, `ownerUid`,
+and `daemonExecutable`. The last is the operator-selected canonical absolute
+executable path, with no symlink, dot, dot-dot, empty or control-character
+segments. A root-owned, non-writable path/executable must match the socket
+peer before process context is trusted. It is not inferred from a process name.
+
+The verified connection supplies Linux 6.5+ `SO_PEERPIDFD`; retained proc,
+namespace and root descriptors are revalidated around the storage callback.
+The worker's actual calling thread is compared to the peer. Unsupported kernel,
+proxy peer, unavailable proc evidence or changed identity keeps context `unknown`.
+Version 1/2 policies do not opt into this additional proof. All versions share
+the incoming deadline; a Docker observation cannot restart the IPC budget.
+
 `--check-config` validates syntax and the private policy file without checking
 that Docker exists or opening its socket.
 
@@ -441,7 +476,7 @@ prepared-image container create/start operations. It is not exposed by the
 preflight command, protocol or job API, and cannot promote disabled catalog plans
 into installation support. Its synthetic Engine tests are separate evidence.
 
-The next provisioning slice still needs a single-stack plan and policy binding,
+A single-stack preparation and aggregate inspection now exist. The next provisioning slice still needs resource policy binding,
 private control networking, image/storage/network preparation, exact resource
 ownership and restart reconciliation, generated credentials and bootstrap
 adapters, automatic component interconnections and real disposable Linux image

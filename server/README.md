@@ -174,6 +174,34 @@ resource totals are not measured host capacity. `installAvailable` remains
 false and bootstrap exposure unverified. See the
 [implemented contract and remaining steps](../docs/media-preparations-implementation-2026-09-05.md).
 
+## Aggregate media inspections
+
+From a current media preparation, **Check requirements** creates an encrypted,
+durable observation through `/api/v1/admin/media/inspections`. `POST` takes
+`requestId`, `preparationId`, `expectedRevision` and `planHash`, returning
+`201 {inspection}`. `GET` lists at most ten records per page; `GET /{id}` reads
+one result and `POST /{id}/cancel` uses `expectedRevision`. `/capabilities`
+reports `inspectionConfigured` and `installAvailable: false`.
+
+The six components' disk budgets are aggregated per writable filesystem;
+shared storage must accommodate the combined 49,152 MiB proposal. Worker-local
+storage and Docker API compatibility remain separate from daemon mount,
+network and process-root context observations. Missing context evidence leaves
+those checks `unknown`; ports and receiver networking remain `unknown`.
+
+Only an explicit version-3 worker policy with an operator-selected trusted
+`docker.daemonExecutable` can enable Linux peer-context evidence. Version-1/2
+policies keep their existing scope. The same socket's peer pidfd requires Linux
+6.5 or later; unsupported kernels or unavailable process evidence do not prevent
+ordinary API checks, but do not prove matching host context.
+
+History survives restart and supports the same request ID after an uncertain
+response. Original actor/session, preparation, catalog and Core/home authority
+are rechecked before and after observations. The bounded store holds at most
+256 inspections, 16 active, and one active inspection per preparation. No
+container installation is enabled. See the [implemented contract, test evidence
+and limits](../docs/media-inspections-implementation-2026-09-05.md).
+
 ## Optional internal requirements worker
 
 The default Server has no configured preflight worker. History remains available;
