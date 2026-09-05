@@ -16,6 +16,10 @@ def downgrade_to_known_v1(app):
         connection.execute("ALTER TABLE users DROP COLUMN revision")
         connection.execute("DROP TABLE admin_audit")
         connection.execute("DROP TABLE core_context")
+        # This context-bound extension did not exist in the shipped v1 database.
+        for table in ('home_resource_records', 'home_resource_state', 'home_resource_audit'):
+            connection.execute(f'DROP TABLE {table}')
+        connection.execute("DELETE FROM metadata WHERE key='home_resources_schema'")
         connection.execute("UPDATE metadata SET value='1' WHERE key='schema_version'")
 
 
