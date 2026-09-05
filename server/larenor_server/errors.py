@@ -54,6 +54,10 @@ MESSAGES = {
     "media_context_changed": "The Core or home changed. Review the preparation again.",
     "media_preparation_limit_reached": "The media preparation limit has been reached.",
     "media_preparation_storage_unavailable": "The saved media preparations are unavailable.",
+    "media_inspection_conflict": "This request conflicts with a saved media inspection.",
+    "media_inspection_limit_reached": "The media inspection limit has been reached.",
+    "media_preparation_changed": "The media preparation changed. Review it again.",
+    "media_inspection_storage_unavailable": "The saved media inspections are unavailable.",
 }
 
 

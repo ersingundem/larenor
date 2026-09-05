@@ -75,7 +75,7 @@ def load_policy(path):
         value = json.loads(raw.decode('utf-8'), object_pairs_hook=_pairs,
                            parse_float=_reject_number, parse_constant=_reject_number)
         if (type(value) is not dict or type(value.get('version')) is not int
-                or value['version'] not in (1, 2)
+                or value['version'] not in (1, 2, 3)
                 or set(value) != ({'version', 'roots'} if value['version'] == 1 else {'version', 'roots', 'docker'})
                 or type(value['roots']) is not list or not 1 <= len(value['roots']) <= 16):
             raise _ConfigurationError()
@@ -86,10 +86,19 @@ def load_policy(path):
             roots[root['id']] = HostRoot(root['path'], root['purpose'])
         docker = value.get('docker')
         endpoint = None
+        if value['version'] == 3 and docker is None:
+            raise _ConfigurationError()
         if docker is not None:
-            if type(docker) is not dict or set(docker) != {'socketPath', 'ownerUid'}:
+            keys = {'socketPath', 'ownerUid'} | ({'daemonExecutable'} if value['version'] == 3 else set())
+            if type(docker) is not dict or set(docker) != keys:
                 raise _ConfigurationError()
-            endpoint = DockerEndpoint(path=docker['socketPath'], owner_uid=docker['ownerUid'])
+            if value['version'] == 3:
+                if type(docker['daemonExecutable']) is not str:
+                    raise _ConfigurationError()
+                endpoint = DockerEndpoint(path=docker['socketPath'], owner_uid=docker['ownerUid'],
+                                          daemon_executable=docker['daemonExecutable'])
+            else:
+                endpoint = DockerEndpoint(path=docker['socketPath'], owner_uid=docker['ownerUid'])
         policy = HostPolicy(roots, docker=endpoint)
     except Exception:
         # Neither argparse nor OS/JSON/Pydantic errors may echo a host path or

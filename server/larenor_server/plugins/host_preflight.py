@@ -280,6 +280,7 @@ class HostInspector:
         if deadline is None:
             deadline = time.monotonic() + 5
         _within(deadline)
+        deadline = min(deadline, time.monotonic() + 5)
         failed = False
         try:
             timestamp = self._clock()
@@ -291,11 +292,17 @@ class HostInspector:
             failed = True
         if failed:
             raise HostPreflightError('inspection_unavailable')
-        values = None
+        values, attempted = None, False
         def observe_storage():
-            nonlocal values
+            nonlocal values, attempted
+            if not attempted:
+                attempted = True
+                try:
+                    values = self._storage(plans, deadline)
+                except Exception:
+                    pass
             if values is None:
-                values = self._storage(plans, deadline)
+                raise HostPreflightError('inspection_unavailable')
             return values
         docker_status, context = 'unknown', None
         endpoint = self._policy.docker
