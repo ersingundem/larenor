@@ -17,6 +17,7 @@ import '../../providers/server_providers.dart';
 import '../data/server_plugins_controller.dart';
 import '../domain/server_plugin_models.dart';
 import '../../services/presentation/server_services_screen.dart';
+import 'server_plugin_jobs_screen.dart';
 
 /// Reached through the Settings PIN gate and a signed-in administrator account.
 class ServerPluginsScreen extends ConsumerStatefulWidget {
@@ -196,13 +197,14 @@ class _ServerPluginsScreenState extends MediaSessionState<ServerPluginsScreen> {
     if (!current()) return;
     final preview = _plugins.preview;
     if (preview != null) {
-      await _show<void>(
+      final inspect = await _show<bool>(
         (context, valid) => _PreviewView(
           preview: preview,
           name: entry.manifest.displayName,
           current: valid,
         ),
       );
+      if (inspect == true && current()) _openJobs(preview);
     }
     if (mounted) _plugins.clearPreview();
   }
@@ -211,6 +213,15 @@ class _ServerPluginsScreenState extends MediaSessionState<ServerPluginsScreen> {
     if (!_enabled || _dialog != null) return;
     Navigator.of(context).pushReplacement(
       CupertinoPageRoute<void>(builder: (_) => const ServerServicesScreen()),
+    );
+  }
+
+  void _openJobs([ServerPluginPreview? preview]) {
+    if (!_active || _plugins.busy || _dialog != null) return;
+    Navigator.of(context).pushReplacement(
+      CupertinoPageRoute<void>(
+        builder: (_) => ServerPluginJobsScreen(preview: preview),
+      ),
     );
   }
 
@@ -282,6 +293,13 @@ class _ServerPluginsScreenState extends MediaSessionState<ServerPluginsScreen> {
                       padding: const EdgeInsets.symmetric(horizontal: 8),
                       child: Wrap(
                         children: [
+                          CupertinoButton(
+                            key: const ValueKey('plugins-jobs'),
+                            onPressed: _active && !_plugins.busy
+                                ? _callback(_openJobs)
+                                : null,
+                            child: Text(l10n.serverJobsHistory),
+                          ),
                           CupertinoButton(
                             key: const ValueKey('plugins-refresh'),
                             onPressed: _active && !_plugins.busy
@@ -709,6 +727,16 @@ class _PreviewViewState extends State<_PreviewView> {
             if (widget.current()) Navigator.pop(context);
           },
           child: Text(l10n.commonClose),
+        ),
+        CupertinoButton(
+          key: const ValueKey('plugin-preview-inspect'),
+          onPressed:
+              !_expired && !widget.preview.expired(DateTime.now().toUtc())
+              ? () {
+                  if (widget.current()) Navigator.pop(context, true);
+                }
+              : null,
+          child: Text(l10n.serverJobsTitle),
         ),
       ],
     );

@@ -70,8 +70,9 @@ void main() {
                   .copyWith(textScaler: TextScaler.linear(scale)),
               child: child!,
             );
-            if (interaction != null)
+            if (interaction != null) {
               view = AppInteractionScope(controller: interaction, child: view);
+            }
             return view;
           },
           home: visible == null
@@ -397,6 +398,79 @@ void main() {
         f.mutations.where((r) => r.url.path.endsWith('/jobs')),
         hasLength(1),
       );
+    },
+  );
+  testWidgets('lost submission recovery is explicit and uses the same body', (
+    tester,
+  ) async {
+    await mount(tester, preview: true);
+    var writes = 0;
+    f.respond = (request) async {
+      if (request.method == 'POST' &&
+          request.url.path.endsWith('/jobs') &&
+          ++writes == 1) {
+        return http.Response('synthetic-secret', 502);
+      }
+      return f.pluginResponse(request);
+    };
+    await tap(tester, 'jobs-launch');
+    expect(find.textContaining('submission result is unknown'), findsOneWidget);
+    expect(find.textContaining('synthetic-secret'), findsNothing);
+    await tester.pump(const Duration(seconds: 30));
+    expect(writes, 1);
+    await tap(tester, 'jobs-recover');
+    expect(writes, 2);
+    expect(f.mutations.elementAt(1).body, f.mutations.first.body);
+    expect(find.text('Queued'), findsWidgets);
+  });
+  testWidgets(
+    'history and activity use their returned cursors on explicit pagination',
+    (tester) async {
+      await mount(tester);
+      final second = {
+        ...pluginJobJson(state: 'failed', revision: 3),
+        'id': 'b' * 32,
+        'requestId': 'c' * 32,
+      };
+      f.respond = (request) async {
+        if (request.url.path.endsWith('/jobs')) {
+          return f.json({
+            'jobs': request.url.queryParameters['before'] == null
+                ? [pluginJobJson()]
+                : [second],
+            'nextBefore': request.url.queryParameters['before'] == null
+                ? 50
+                : null,
+          });
+        }
+        if (request.url.path.endsWith('/jobs/${'b' * 32}')) {
+          return f.json({'job': second});
+        }
+        if (request.url.path.endsWith('/events')) {
+          return f.json({
+            'events': [
+              pluginJobEventJson(
+                sequence: request.url.queryParameters['after'] == '0' ? 1 : 2,
+                code: request.url.queryParameters['after'] == '0'
+                    ? 'job_queued'
+                    : 'job_failed',
+                revision: request.url.queryParameters['after'] == '0' ? 1 : 3,
+              ),
+            ],
+            'nextAfter': request.url.queryParameters['after'] == '0' ? 1 : null,
+          });
+        }
+        return f.pluginResponse(request);
+      };
+      await tap(tester, 'jobs-refresh');
+      await tap(tester, 'jobs-more');
+      expect(f.calls.last.url.queryParameters, {'before': '50', 'limit': '25'});
+      await tap(tester, 'job-view-${'b' * 32}');
+      await tap(tester, 'job-more-events');
+      expect(f.calls.last.url.queryParameters, {'after': '1', 'limit': '25'});
+      expect(find.textContaining('Inspection failed'), findsWidgets);
+      expect(f.mutations, isEmpty);
+      expect(tester.takeException(), isNull);
     },
   );
   testWidgets(
