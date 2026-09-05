@@ -151,7 +151,7 @@ def test_member_pagination_is_bounded_and_rejects_context_or_acl_changes(server)
         r = create(client, admin, base, label=f'Room {i}'); grant(client, admin, base, r, member['user']['id'])
     page = client.get(public + '?limit=1', headers=auth(member)).json()
     assert len(page['entries']) == 1 and page['nextAfter']
-    query = {'limit': 1, 'after': page['nextAfter'], 'expectedRegistryRevision': page['registryRevision']}
+    query = {'limit': 1, 'after': page['nextAfter'], 'expectedSnapshot': page['snapshot']}
     assert len(client.get(public, headers=auth(member), params=query).json()['entries']) == 1
     grant(client, admin, base, r, member['user']['id'], revision=2, read=False)
     assert client.get(public, headers=auth(member), params=query).status_code == 409
