@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import '../../../core/configuration_writes.dart';
+import '../../auth/data/credentials_store.dart';
 import '../../intercom/domain/door_station.dart';
 import '../../settings/domain/screen_program.dart';
 import '../../wellbeing/data/wellbeing_store.dart';
@@ -27,6 +28,7 @@ class BackupRepository {
           );
         }
         await _requireRecovered();
+        if (selection.connections) await _requireStableHaConnection();
         try {
           final groups = <String, dynamic>{};
           final policy = WellbeingDisclosurePolicy.decode(
@@ -75,6 +77,7 @@ class BackupRepository {
             }
             groups['connections'] = records;
           }
+          if (selection.connections) await _requireStableHaConnection();
           return BackupSnapshot.fromJson({
             'version': 2,
             'createdAt': _now().toUtc().toIso8601String(),
@@ -103,6 +106,7 @@ class BackupRepository {
     final privacy = groups['privacy'] == null
         ? null
         : WellbeingDisclosurePolicy.fromJson(groups['privacy']);
+    if (snapshot.hasConnections) await _requireStableHaConnection();
     try {
       var existingSettings = 0;
       for (final key in settings.keys) {
@@ -112,6 +116,10 @@ class BackupRepository {
       for (final service in connections.keys) {
         if (await _hasConnection(service)) existingServices.add(service);
       }
+      final existingDashboard =
+          snapshot.hasDashboard &&
+          await _storage.readPreference(_dashboardKey) != null;
+      if (snapshot.hasConnections) await _requireStableHaConnection();
       return BackupPreview(
         createdAt: snapshot.createdAt,
         hasSettings: snapshot.hasSettings,
@@ -123,9 +131,7 @@ class BackupRepository {
         favoriteCount: (dashboard['favoriteEntityIds'] as List? ?? []).length,
         services: List.unmodifiable(connections.keys),
         existingSettingsCount: existingSettings,
-        existingDashboard:
-            snapshot.hasDashboard &&
-            await _storage.readPreference(_dashboardKey) != null,
+        existingDashboard: existingDashboard,
         existingServices: List.unmodifiable(existingServices),
         requiresCertificateReview:
             (connections['proxmox'] as Map?)?['allowSelfSigned'] == 'true',
@@ -134,6 +140,8 @@ class BackupRepository {
             (snapshot.hasDashboard || connections.containsKey('ha')),
         protectedEntityCount: privacy?.entityIds.length ?? 0,
       );
+    } on BackupException {
+      rethrow;
     } catch (_) {
       throw const BackupException(
         'storage_failed',
@@ -162,6 +170,9 @@ class BackupRepository {
       );
     }
     await _requireRecovered();
+    final includesConnections =
+        selection.connections && snapshot.hasConnections;
+    if (includesConnections) await _requireStableHaConnection();
     final changes = <_Change>[];
     final replace = conflictPolicy == BackupConflictPolicy.replaceSelected;
     try {
@@ -267,6 +278,7 @@ class BackupRepository {
           }
         }
       }
+      if (includesConnections) await _requireStableHaConnection();
       if (changes.isEmpty) return;
       final journal = _encodeJournal(changes);
       // Persist rollback data before the first preference/credential mutation.
@@ -280,13 +292,20 @@ class BackupRepository {
       );
     }
     try {
+      if (includesConnections) await _requireStableHaConnection();
       for (final change in changes) {
         await _write(change, previous: false);
       }
+      if (includesConnections) await _requireStableHaConnection();
       // This is the commit point. A surviving journal means rollback on boot.
       await _storage.writeSecret(restoreJournalKey, null);
-    } catch (_) {
+    } catch (error) {
       final complete = await _rollback(changes);
+      if (complete &&
+          error is BackupException &&
+          error.code == 'ha_connection_pending') {
+        rethrow;
+      }
       throw BackupRestoreException(rollbackComplete: complete);
     }
   });
@@ -325,6 +344,24 @@ class BackupRepository {
         'Restore status could not be checked.',
       );
     }
+  }
+
+  /// A partially persisted URL/token pair is not a connection snapshot. Keep
+  /// this outside journal recovery: only CredentialsStore may resolve its
+  /// mutation marker, and an existing restore must still be able to roll back.
+  Future<void> _requireStableHaConnection() async {
+    try {
+      if (await _storage.readSecret(CredentialsStore.pendingMutationKey) ==
+          null) {
+        return;
+      }
+    } catch (_) {
+      // An unreadable or malformed marker is not proof that the pair is safe.
+    }
+    throw const BackupException(
+      'ha_connection_pending',
+      'Reconnect Home Assistant before backing up or restoring connections.',
+    );
   }
 
   Future<bool> _hasConnection(String service) async {

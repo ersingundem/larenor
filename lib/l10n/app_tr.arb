@@ -669,6 +669,7 @@
   "backupSaved": "Şifreli yedek kaydedildi. Parolayı güvenli bir yerde saklayın.",
   "backupCancelled": "İptal edildi. Ayarlar değiştirilmedi.",
   "backupFailed": "Yedekleme işlemi başarısız oldu. Dosyayı veya depolama erişimini kontrol edip tekrar deneyin.",
+  "backupHaConnectionPending": "Home Assistant bağlantısını yeniden kurun, ardından bağlantıları yedeklemeyi veya geri yüklemeyi tekrar deneyin.",
   "backupDecryptFailed": "Yedeğin kilidi açılamadı. Parolayı ve dosyanın eksiksiz olduğunu kontrol edin.",
   "backupTooLarge": "Bu dosya geri yüklemek için çok büyük.",
   "backupSelectGroup": "En az bir içerik grubu seçin.",
