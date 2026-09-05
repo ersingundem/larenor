@@ -9,6 +9,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:larenor/core/app_interaction_scope.dart';
+import 'package:larenor/core/theme.dart';
 import 'package:larenor/features/auth/data/ha_connection_config.dart';
 import 'package:larenor/features/auth/providers/auth_providers.dart';
 import 'package:larenor/features/dashboard/domain/tile_config.dart';
@@ -115,6 +116,7 @@ void main() {
     double tileHeight = 240,
     double textScale = 1,
     String language = 'en',
+    Brightness brightness = Brightness.light,
   }) async {
     requests.clear();
     interaction = AppInteractionController();
@@ -152,6 +154,7 @@ void main() {
           ),
         ],
         child: CupertinoApp(
+          theme: larenorTheme(brightness: brightness),
           navigatorKey: navigator,
           builder: (context, child) => AppInteractionScope(
             controller: interaction,
@@ -204,6 +207,61 @@ void main() {
   GestureDetector dial(WidgetTester tester) => tester.widget(dialFinder());
   Map<String, dynamic> body() =>
       jsonDecode(requests.last.body) as Map<String, dynamic>;
+
+  for (final brightness in Brightness.values) {
+    testWidgets('climate keyboard focus has 3:1 contrast ($brightness)', (
+      tester,
+    ) async {
+      await mount(
+        tester,
+        _climate,
+        ['set_temperature'],
+        brightness: brightness,
+        textScale: 2,
+      );
+      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+      await tester.pumpAndSettle();
+      final outline = find.descendant(
+        of: find.byType(ClimateTile),
+        matching: find.byWidgetPredicate(
+          (widget) =>
+              widget is DecoratedBox &&
+              widget.decoration is BoxDecoration &&
+              (widget.decoration as BoxDecoration).border is Border &&
+              ((widget.decoration as BoxDecoration).border as Border)
+                      .top
+                      .width ==
+                  3.5,
+        ),
+      );
+      expect(outline, findsOneWidget);
+      final foreground =
+          ((tester.widget<DecoratedBox>(outline).decoration as BoxDecoration)
+                      .border
+                  as Border)
+              .top
+              .color;
+      final background = tester
+          .widget<ColoredBox>(
+            find
+                .descendant(
+                  of: find.byType(ClimateTile),
+                  matching: find.byType(ColoredBox),
+                )
+                .first,
+          )
+          .color;
+      final a = foreground.computeLuminance(),
+          b = background.computeLuminance();
+      final ratio = (a > b ? a + .05 : b + .05) / (a > b ? b + .05 : a + .05);
+      expect(ratio, greaterThanOrEqualTo(3));
+      debugPrint(
+        'Climate focus $brightness contrast: ${ratio.toStringAsFixed(2)}',
+      );
+      expect(requests, isEmpty);
+      expect(tester.takeException(), isNull);
+    });
+  }
 
   testWidgets(
     'climate increase action matches its announced value during a dial preview',

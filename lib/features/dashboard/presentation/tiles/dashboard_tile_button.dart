@@ -114,7 +114,7 @@ class _DashboardTileButtonState extends State<DashboardTileButton> {
               if (onLongPress != null)
                 _TileMenuIntent: CallbackAction<_TileMenuIntent>(
                   onInvoke: (_) {
-                    onLongPress?.call();
+                    onLongPress.call();
                     return null;
                   },
                 ),

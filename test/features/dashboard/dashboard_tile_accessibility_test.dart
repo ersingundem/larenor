@@ -36,7 +36,7 @@ class _Entities extends Entities {
   }
 }
 
-Future<void> mount(
+Future<void> _mount(
   WidgetTester tester,
   WidgetBuilder child, {
   String language = 'en',
@@ -71,11 +71,12 @@ Future<void> mount(
                   TickerMode(enabled: active, child: body),
             );
           }
-          if (interaction != null)
+          if (interaction != null) {
             content = AppInteractionScope(
               controller: interaction,
               child: content,
             );
+          }
           return MediaQuery(
             data: MediaQuery.of(context)
                 .copyWith(textScaler: TextScaler.linear(scale)),
@@ -101,7 +102,9 @@ List<SemanticsNode> buttons(WidgetTester tester) {
     });
   }
 
-  visit(tester.binding.pipelineOwner.semanticsOwner!.rootSemanticsNode!);
+  visit(
+    tester.binding.renderViews.single.owner!.semanticsOwner!.rootSemanticsNode!,
+  );
   return result;
 }
 
@@ -142,7 +145,7 @@ void main() {
             },
           ),
         );
-        await mount(
+        await _mount(
           tester,
           tile,
           interaction: interaction,
@@ -180,7 +183,7 @@ void main() {
           case 'reparent':
             final other = AppInteractionController();
             addTearDown(other.dispose);
-            await mount(
+            await _mount(
               tester,
               tile,
               interaction: other,
@@ -195,6 +198,16 @@ void main() {
         expect(routes, 0);
         expect(find.text('Service destination'), findsNothing);
         expect(tester.takeException(), isNull);
+        if (change != 'disposed') {
+          if (change == 'covered') navigator.currentState!.pop();
+          visible.value = true;
+          await tester.pumpAndSettle();
+          await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+          await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+          await tester.pumpAndSettle();
+          expect(routes, 1);
+          expect(find.text('Service destination'), findsOneWidget);
+        }
       },
     );
   }
@@ -203,7 +216,7 @@ void main() {
     (tester) async {
       final semantics = tester.ensureSemantics();
       try {
-        await mount(
+        await _mount(
           tester,
           (_) => const SizedBox(
             width: 164,
@@ -243,7 +256,7 @@ void main() {
       final semantics = tester.ensureSemantics();
       final entities = _Entities()..pending = Completer<void>();
       try {
-        await mount(
+        await _mount(
           tester,
           (context) => SizedBox(
             width: 180,
@@ -275,7 +288,7 @@ void main() {
       'native card focus outline has contrast and remains inside grid clip ($brightness)',
       (tester) async {
         late Color surface;
-        await mount(
+        await _mount(
           tester,
           (context) {
             surface = CupertinoColors.secondarySystemGroupedBackground
@@ -326,6 +339,9 @@ void main() {
         final contrast =
             (a > b ? a + .05 : b + .05) / (a > b ? b + .05 : a + .05);
         expect(contrast, greaterThanOrEqualTo(3));
+        debugPrint(
+          'Dashboard card focus $brightness contrast: ${contrast.toStringAsFixed(2)}',
+        );
         final rect = tester.getRect(button),
             clip = tester.getRect(find.byKey(const ValueKey('tile-clip')));
         expect(clip.contains(rect.inflate(side.side.width).topLeft), isTrue);
@@ -344,7 +360,7 @@ void main() {
     (tester) async {
       SharedPreferences.setMockInitialValues({});
       final entities = _Entities();
-      await mount(
+      await _mount(
         tester,
         (context) => SizedBox(
           width: 180,
@@ -364,11 +380,13 @@ void main() {
         LogicalKeyboardKey.contextMenu,
         LogicalKeyboardKey.f10,
       ]) {
-        if (key == LogicalKeyboardKey.f10)
+        if (key == LogicalKeyboardKey.f10) {
           await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
+        }
         await tester.sendKeyEvent(key);
-        if (key == LogicalKeyboardKey.f10)
+        if (key == LogicalKeyboardKey.f10) {
           await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
+        }
         await tester.pumpAndSettle();
         expect(find.byType(CupertinoActionSheet), findsOneWidget);
         expect(entities.calls, 0);
@@ -387,7 +405,7 @@ void main() {
         final summary = language == 'en'
             ? '3 devices online'
             : '3 cihaz çevrimiçi';
-        await mount(
+        await _mount(
           tester,
           (context) => SizedBox(
             width: 180,
@@ -430,7 +448,7 @@ void main() {
         final semantics = tester.ensureSemantics();
         try {
           final entities = _Entities();
-          await mount(
+          await _mount(
             tester,
             (context) => SizedBox(
               width: 180,
@@ -468,7 +486,7 @@ void main() {
       testWidgets(
         'shared tiles fit narrow cells at 2x ($language $brightness)',
         (tester) async {
-          await mount(
+          await _mount(
             tester,
             (context) => Column(
               mainAxisSize: MainAxisSize.min,
