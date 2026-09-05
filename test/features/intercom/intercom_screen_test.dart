@@ -4,6 +4,8 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:larenor/core/app_interaction_scope.dart';
+import 'package:larenor/core/home_session_controller.dart';
+import 'package:larenor/core/home_source_store.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:larenor/features/auth/data/ha_connection_config.dart';
@@ -23,6 +25,8 @@ import 'package:larenor/features/intercom/presentation/intercom_settings_screen.
 import 'package:larenor/features/intercom/providers/intercom_providers.dart';
 import 'package:larenor/l10n/generated/app_localizations.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
+import '../../core/direct_home_routines_test.dart' show routinesHome;
 
 const _config = HaConnectionConfig(baseUrl: 'http://ha.test', token: 'fixture');
 const _station = DoorStation(
@@ -62,6 +66,7 @@ void main() {
     bool setup = false,
     bool narrow = false,
     AppInteractionController? interaction,
+    HomeSessionController? home,
   }) async {
     final scope = interaction ?? AppInteractionController();
     if (interaction == null) addTearDown(scope.dispose);
@@ -98,6 +103,7 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          if (home != null) homeSessionControllerProvider.overrideWithValue(home),
           connectionConfigProvider.overrideWith(_Config.new),
           entitiesProvider.overrideWith(_Entities.new),
           haRestClientProvider.overrideWithValue(rest),
@@ -257,4 +263,24 @@ void main() {
       await tester.pumpWidget(const SizedBox());
     },
   );
+  testWidgets('old station editor Save cannot acquire new Direct store after source return', (tester) async {
+    final (_, home) = await routinesHome('direct');
+    final requests = await mount(tester, setup: true, home: home);
+    final add = find.byIcon(CupertinoIcons.add_circled);
+    await tester.tap(add);
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(CupertinoTextField).first,'Private entry');
+    final save = tester.widget<CupertinoButton>(find.widgetWithText(CupertinoButton,'Kaydet')).onPressed!;
+    await home.choose(HomeSource.verifiedCore);
+    await home.choose(HomeSource.directLocal);
+    save();
+    await tester.pumpAndSettle();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.reload();
+    expect(prefs.get(DoorStation.storageKey), isNull);
+    expect(requests,isEmpty);
+    expect(tester.takeException(),isNull);
+    await tester.pumpWidget(const SizedBox());
+  });
+
 }
