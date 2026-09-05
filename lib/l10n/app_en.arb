@@ -2162,9 +2162,21 @@
   "serverContextRetry": "Retry context check",
   "serverContextEndpointUnavailable": "Home verification is unavailable at this address. Check the Server address or update Larenor Server, then retry.",
   "dashboardRoomMenuLabel": "Room menu: {room}",
-  "@dashboardRoomMenuLabel": {"placeholders": {"room": {"type": "String"}}},
+  "@dashboardRoomMenuLabel": {
+    "placeholders": {
+      "room": {
+        "type": "String"
+      }
+    }
+  },
   "dashboardEditSectionLabel": "Edit {section} section",
-  "@dashboardEditSectionLabel": {"placeholders": {"section": {"type": "String"}}},
+  "@dashboardEditSectionLabel": {
+    "placeholders": {
+      "section": {
+        "type": "String"
+      }
+    }
+  },
   "homeSourceTitle": "Home source",
   "homeSourceHint": "Choose which home this Android app opens. This device preference is kept when you sign out or restore a backup.",
   "homeSourceDirect": "Direct Home Assistant",
@@ -2176,5 +2188,40 @@
   "homeCoreVerified": "The Core account and home are verified.",
   "homeCoreVerificationRequired": "Verify your Core account and home to continue.",
   "homeCoreUnavailable": "The Core home view is not available in this version. You can manage your Core account or explicitly choose your existing direct Home Assistant connection.",
-  "homeCoreManageAccount": "Manage Core account"
+  "homeCoreManageAccount": "Manage Core account",
+  "homeLayoutPreviewTitle": "Copy local room names",
+  "homeLayoutPreviewHint": "Choose room names to add to this Core home. Only names and their order are copied; your local layout stays unchanged.",
+  "homeLayoutUnavailable": "Verify your Core account before reviewing local room names.",
+  "homeLayoutExcluded": "Devices, scenes, service actions, cards, Home Assistant area links, web addresses and permissions, and connection credentials are not copied.",
+  "homeLayoutExcludedCounts": "Excluded: {entities} entity references, {areas} area links and {cards} cards.",
+  "@homeLayoutExcludedCounts": {
+    "placeholders": {
+      "entities": {
+        "type": "int"
+      },
+      "areas": {
+        "type": "int"
+      },
+      "cards": {
+        "type": "int"
+      }
+    }
+  },
+  "homeLayoutCurrentRooms": "Rooms already saved for this Core home",
+  "homeLayoutLocalRooms": "Local room names",
+  "homeLayoutNoRooms": "No room names are saved here.",
+  "homeLayoutCopySelected": "Copy selected names",
+  "homeLayoutConfirm": "Add {count} room names to this Core home? Existing rooms and the local layout will be kept.",
+  "@homeLayoutConfirm": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "homeLayoutCopied": "Selected room names were saved for this Core home.",
+  "homeLayoutRefresh": "Review current layout",
+  "homeLayoutExpired": "This review is no longer current. Verify your account and review the layout again.",
+  "homeLayoutStorageError": "The layout could not be read or the save could not be confirmed. Review the current layout before trying again.",
+  "homeLayoutRoomLimit": "This home has reached its room limit. No room names were added."
 }

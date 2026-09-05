@@ -1841,9 +1841,21 @@
   "serverContextRetry": "Bağlamı yeniden doğrula",
   "serverContextEndpointUnavailable": "Bu adreste ev doğrulaması kullanılamıyor. Server adresini kontrol edin veya Larenor Server’ı güncelleyin, ardından yeniden deneyin.",
   "dashboardRoomMenuLabel": "Oda menüsü: {room}",
-  "@dashboardRoomMenuLabel": {"placeholders": {"room": {"type": "String"}}},
+  "@dashboardRoomMenuLabel": {
+    "placeholders": {
+      "room": {
+        "type": "String"
+      }
+    }
+  },
   "dashboardEditSectionLabel": "{section} bölümünü düzenle",
-  "@dashboardEditSectionLabel": {"placeholders": {"section": {"type": "String"}}},
+  "@dashboardEditSectionLabel": {
+    "placeholders": {
+      "section": {
+        "type": "String"
+      }
+    }
+  },
   "homeSourceTitle": "Ev kaynağı",
   "homeSourceHint": "Android uygulamasının açacağı evi seçin. Bu cihaz tercihi, çıkış yaptığınızda veya yedek geri yüklediğinizde korunur.",
   "homeSourceDirect": "Doğrudan Home Assistant",
@@ -1855,5 +1867,40 @@
   "homeCoreVerified": "Core hesabı ve ev doğrulandı.",
   "homeCoreVerificationRequired": "Devam etmek için Core hesabınızı ve evinizi doğrulayın.",
   "homeCoreUnavailable": "Core ev görünümü bu sürümde henüz kullanılamıyor. Core hesabınızı yönetebilir veya mevcut doğrudan Home Assistant bağlantınızı seçebilirsiniz.",
-  "homeCoreManageAccount": "Core hesabını yönet"
+  "homeCoreManageAccount": "Core hesabını yönet",
+  "homeLayoutPreviewTitle": "Yerel oda adlarını kopyala",
+  "homeLayoutPreviewHint": "Bu Core evine eklenecek oda adlarını seçin. Yalnızca adlar ve sıraları kopyalanır; yerel düzeniniz korunur.",
+  "homeLayoutUnavailable": "Yerel oda adlarını incelemeden önce Core hesabınızı doğrulayın.",
+  "homeLayoutExcluded": "Cihazlar, sahneler, servis eylemleri, kartlar, Home Assistant alan bağlantıları, web adresleri ve izinleri ile bağlantı bilgileri kopyalanmaz.",
+  "homeLayoutExcludedCounts": "Hariç tutulanlar: {entities} varlık referansı, {areas} alan bağlantısı ve {cards} kart.",
+  "@homeLayoutExcludedCounts": {
+    "placeholders": {
+      "entities": {
+        "type": "int"
+      },
+      "areas": {
+        "type": "int"
+      },
+      "cards": {
+        "type": "int"
+      }
+    }
+  },
+  "homeLayoutCurrentRooms": "Bu Core evi için kayıtlı odalar",
+  "homeLayoutLocalRooms": "Yerel oda adları",
+  "homeLayoutNoRooms": "Burada kayıtlı oda adı yok.",
+  "homeLayoutCopySelected": "Seçili adları kopyala",
+  "homeLayoutConfirm": "Bu Core evine {count} oda adı eklensin mi? Mevcut odalar ve yerel düzen korunacak.",
+  "@homeLayoutConfirm": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "homeLayoutCopied": "Seçili oda adları bu Core evi için kaydedildi.",
+  "homeLayoutRefresh": "Güncel düzeni incele",
+  "homeLayoutExpired": "Bu inceleme artık güncel değil. Hesabınızı doğrulayıp düzeni yeniden inceleyin.",
+  "homeLayoutStorageError": "Düzen okunamadı veya kaydetme doğrulanamadı. Yeniden denemeden önce güncel düzeni inceleyin.",
+  "homeLayoutRoomLimit": "Bu ev oda sınırına ulaştı. Oda adı eklenmedi."
 }
