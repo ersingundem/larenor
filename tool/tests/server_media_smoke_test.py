@@ -76,6 +76,11 @@ class Protocol:
             return Response({"preflightConfigured": False, "installAvailable": False})
         if path == "/admin/plugins/jobs":
             return Response({"jobs": [], "nextBefore": None})
+        if path == "/admin/media/inspections/capabilities":
+            return Response({"inspectionConfigured": False, "installAvailable": False})
+        if path == "/admin/media/inspections":
+            assert request.method == "GET"
+            return Response({"inspections": [], "nextBefore": None})
         if path == "/admin/media/preparations":
             if request.method == "POST":
                 assert body["context"] == FIXTURE["context"]
@@ -115,6 +120,26 @@ class MediaSmokeProtocolTest(unittest.TestCase):
         for secret in (protocol.bootstrap, protocol.token, protocol.password):
             self.assertNotIn(secret, rendered)
         self.assertEqual(output.getvalue(), "")
+
+    def test_aggregate_inspection_routes_are_checked_before_and_after_restart(self):
+        protocol = Protocol()
+        self.exercise(protocol)
+        for suffix in ("/admin/media/inspections", "/admin/media/inspections/capabilities"):
+            calls = [r for r in protocol.calls if r.full_url.endswith(suffix)]
+            self.assertEqual(len(calls), 2)
+            self.assertTrue(all(r.method == "GET" for r in calls))
+
+    def test_unconfigured_image_cannot_claim_aggregate_inspections_or_persisted_jobs(self):
+        for suffix, payload in (
+            ("/admin/media/inspections/capabilities", {"inspectionConfigured": True, "installAvailable": False}),
+            ("/admin/media/inspections/capabilities", {"inspectionConfigured": False, "installAvailable": True}),
+            ("/admin/media/inspections", {"inspections": [{"state": "succeeded"}], "nextBefore": None}),
+        ):
+            with self.subTest(suffix=suffix, payload=payload):
+                protocol = Protocol()
+                protocol.fault = lambda path, body: Response(payload) if path == suffix else None
+                with self.assertRaises(RuntimeError):
+                    self.exercise(protocol)
 
     def test_restart_must_recover_identical_record_and_context(self):
         for fault in ("missing", "plan", "context", "revision", "cancel"):
