@@ -151,7 +151,8 @@ void main() {
         expect(
           tester
               .getSemantics(find.text(l10n.serverTitle))
-              .hasFlag(ui.SemanticsFlag.isButton),
+              .flagsCollection
+              .isButton,
           isTrue,
         );
         await closed;
@@ -184,7 +185,7 @@ void main() {
             final server = find.text(l10n.serverTitle).first;
             final display = find.text(l10n.settingsCategoryDisplay).first;
             final node = tester.getSemantics(connection);
-            expect(node.hasFlag(ui.SemanticsFlag.isButton), isTrue);
+            expect(node.flagsCollection.isButton, isTrue);
             expect(
               node.getSemanticsData().hasAction(ui.SemanticsAction.tap),
               isTrue,
@@ -213,10 +214,7 @@ void main() {
             }
             final kiosk = find.text(l10n.kioskTitle);
             expect(Focus.of(tester.element(kiosk)).hasPrimaryFocus, isTrue);
-            expect(
-              tester.getSemantics(kiosk).hasFlag(ui.SemanticsFlag.isButton),
-              isTrue,
-            );
+            expect(tester.getSemantics(kiosk).flagsCollection.isButton, isTrue);
             await tester.sendKeyEvent(LogicalKeyboardKey.space);
             await tester.pumpAndSettle();
             expect(find.byType(KioskScreen), findsOneWidget);
@@ -248,7 +246,7 @@ void main() {
                   .settingsHaServer,
             );
             final node = tester.getSemantics(title);
-            expect(node.hasFlag(ui.SemanticsFlag.isButton), isTrue);
+            expect(node.flagsCollection.isButton, isTrue);
             expect(node.label.split(address).length - 1, 1);
             expect(tester.getRect(value).right, lessThanOrEqualTo(width));
             expect(tester.getSize(title).width, greaterThan(48));

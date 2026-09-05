@@ -94,8 +94,11 @@ void main() {
                 for (var i = 0; i < labels.length; i++) {
                   final node = tester.getSemantics(find.text(labels[i]));
                   expect(node.label, labels[i]);
-                  expect(node.hasFlag(ui.SemanticsFlag.isButton), isTrue);
-                  expect(node.hasFlag(ui.SemanticsFlag.isEnabled), i != 1);
+                  expect(node.flagsCollection.isButton, isTrue);
+                  expect(
+                    node.flagsCollection.isEnabled == ui.Tristate.isTrue,
+                    i != 1,
+                  );
                   expect(
                     node.getSemanticsData().hasAction(ui.SemanticsAction.tap),
                     i != 1,
@@ -104,8 +107,10 @@ void main() {
                 }
                 expect(
                   tester
-                      .getSemantics(find.text(labels[0]))
-                      .hasFlag(ui.SemanticsFlag.isSelected),
+                          .getSemantics(find.text(labels[0]))
+                          .flagsCollection
+                          .isSelected ==
+                      ui.Tristate.isTrue,
                   isTrue,
                 );
                 Focus.of(tester.element(find.text(labels[0]))).requestFocus();
@@ -219,10 +224,10 @@ Future<void> _capture(WidgetTester tester, GlobalKey key, String name) async {
   if (directory.isEmpty) return;
   final boundary =
       key.currentContext!.findRenderObject()! as RenderRepaintBoundary;
-  final image = await boundary.toImage();
-  final bytes = await image.toByteData(format: ui.ImageByteFormat.png);
-  image.dispose();
   await tester.runAsync(() async {
+    final image = await boundary.toImage();
+    final bytes = await image.toByteData(format: ui.ImageByteFormat.png);
+    image.dispose();
     await Directory(directory).create(recursive: true);
     await File('$directory/$name.png')
         .writeAsBytes(bytes!.buffer.asUint8List());

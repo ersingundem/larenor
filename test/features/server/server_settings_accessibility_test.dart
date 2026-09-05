@@ -1,5 +1,3 @@
-import 'dart:ui' as ui;
-
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -124,7 +122,7 @@ void main() {
             await tester.ensureVisible(vault);
             await tester.pumpAndSettle();
             final node = tester.getSemantics(vaultText);
-            expect(node.hasFlag(ui.SemanticsFlag.isButton), isTrue);
+            expect(node.flagsCollection.isButton, isTrue);
             expect(node.rect.height, greaterThanOrEqualTo(48));
             expect(node.label, tester.widget<Text>(vaultText).data);
             Focus.of(tester.element(vaultText)).requestFocus();
