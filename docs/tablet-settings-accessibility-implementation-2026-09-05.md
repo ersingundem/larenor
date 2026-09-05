@@ -2,7 +2,10 @@
 
 Bu çalışma `3076f5f` başlangıcından, yalnız
 `codex/tablet-settings-accessibility` dalındaki izole çalışma ağacında yapıldı.
-Ana yayın ağacı değiştirilmedi; dal push veya merge edilmedi.
+Çalışma ağacı: `/private/tmp/larenor-tablet-settings-accessibility`.
+Doğrulama/inceleme checkpoint'i: `0e132d0703cfcdbb1b9660afc770ce832c26152d`;
+üretim davranışı `3894abb` ile sabittir. Sonraki import/boşluk temizliği
+bu davranışı değiştirmez. Ana yayın ağacı değiştirilmedi; dal push veya merge edilmedi.
 
 ## Davranış
 

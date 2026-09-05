@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -16,9 +18,6 @@ import '../domain/server_models.dart';
 import '../plugins/presentation/server_plugins_screen.dart';
 import '../providers/server_providers.dart';
 import '../services/presentation/server_services_screen.dart';
-
-import 'dart:async';
-
 import 'server_vault_screen.dart';
 
 /// Account management is reached through SettingsGate. First-install access

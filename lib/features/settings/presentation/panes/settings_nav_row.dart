@@ -37,7 +37,6 @@ class SettingsNavRow extends StatelessWidget {
           ? BrandIcon(service: service)
           : IconBadge(icon: icon, color: color),
       title: Text(title),
-
       // `title` auto-populates the pushed screen's back button, so it
       // reads the section's name rather than a generic "Back".
       onTap: () =>

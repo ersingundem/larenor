@@ -244,7 +244,6 @@ class _MasterList extends StatelessWidget {
                           selected: selected == null
                               ? null
                               : category == selected,
-
                           onTap: () => onSelect(category),
                         ),
                       ),

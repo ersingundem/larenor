@@ -29,7 +29,6 @@ class ConnectionPane extends ConsumerWidget {
               ),
               title: Text(l10n.settingsHaServer),
               additionalInfo: Text(config?.baseUrl ?? l10n.commonNotConnected),
-
               onTap: () => Navigator.of(context).push(
                 CupertinoPageRoute(
                   builder: (_) => ConnectScreen(initialUrl: config?.baseUrl),
