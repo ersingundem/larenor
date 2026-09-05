@@ -507,4 +507,23 @@ void main() {
       expect(tester.takeException(), isNull);
     },
   );
+  testWidgets('first install source page closes when a settings PIN is created', (tester) async {
+    final h = ScopeHarness(HomeSource.directLocal);
+    await h.mount(tester);
+    await press(tester, 'connect-larenor-server');
+    expect(tester.widget<ServerConnectionScreen>(find.byType(ServerConnectionScreen)).freshInstall, isTrue);
+    await tester.tap(find.text('Home source'));
+    await flush(tester);
+    expect(find.byType(HomeSourceScreen), findsOneWidget);
+    final old = tester.widget<SettingsActionTile>(find.byKey(const ValueKey('home-source-verifiedCore'))).onTap!;
+    await h.runtime(tester).read(pinLockProvider.notifier).setPin('1234');
+    await flush(tester);
+    expect(find.text('Unlock'), findsOneWidget);
+    expect(find.byType(HomeSourceScreen), findsNothing);
+    old();
+    await flush(tester);
+    expect(h.source.value, HomeSource.directLocal);
+    expect(h.source.writes, 0);
+  });
+
 }
