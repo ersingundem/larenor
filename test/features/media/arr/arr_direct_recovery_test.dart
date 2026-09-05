@@ -80,7 +80,10 @@ void main() {
     });
   }
   for(final name in arrServices) {
-    testWidgets('$name pending seed still has PIN settings route to blank explicit recovery', (tester) async {
+   for(final action in ['view','clear','connect']) {
+    testWidgets('$name pending seed PIN route supports explicit $action without old prefill', (tester) async {
+      var requests=0;
+      await http.runWithClient(() async {
       secure.values['${name}_connection_pending_v1'] = '1';
       final (container, _) = await routinesHome('direct');
       final interaction = AppInteractionController(); addTearDown(interaction.dispose);
@@ -107,10 +110,37 @@ void main() {
       expect(find.textContaining('https://old.invalid'),findsNothing);
       expect(find.textContaining('synthetic-old-key'),findsNothing);
       expect(secure.values['${name}_connection_pending_v1'],'1');
+      if(action=='clear') {
+        await tap(tester,'Remove saved connection');
+        expect(secure.values.containsKey('${name}_connection_pending_v1'),isFalse);
+        expect(secure.values.containsKey('${name}_base_url'),isFalse);
+        expect(secure.values.containsKey('${name}_api_key'),isFalse);
+        expect(find.text('Done'),findsOneWidget);
+        expect(find.byType(LanDiscoverySection),findsNothing);
+        expect(tester.widgetList<CupertinoTextFormFieldRow>(find.byType(CupertinoTextFormFieldRow)).map((f)=>f.controller!.text),everyElement(isEmpty));
+        expect(requests,0);
+      } else if(action=='connect') {
+        await tester.enterText(find.byType(CupertinoTextFormFieldRow).at(0),'https://new.invalid');
+        await tester.enterText(find.byType(CupertinoTextFormFieldRow).at(1),'synthetic-new-key');
+        await tap(tester,'Connect');
+        expect(secure.values['${name}_base_url'],'https://new.invalid');
+        expect(secure.values['${name}_api_key'],'synthetic-new-key');
+        expect(secure.values.containsKey('${name}_connection_pending_v1'),isFalse);
+        expect(find.byType(ArrConnectForm),findsNothing);
+        expect(requests,greaterThanOrEqualTo(1));
+      } else { expect(requests,0); }
+
       expect(tester.takeException(),isNull);
       await tester.pumpWidget(const SizedBox.shrink());
       container.dispose(); // Dispose its health clock before widget-test timer checks.
       await settle(tester);
+      },()=>MockClient((request) async {
+        requests++;
+        expect(request.url.host,'new.invalid');
+        final body=request.url.path.endsWith('/queue') ? '{"records":[]}' : request.url.path.endsWith('/calendar') ? '[]' : '{}';
+        return http.Response(body,200);
+      }));
     });
+   }
   }
 }
