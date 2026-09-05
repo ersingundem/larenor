@@ -60,7 +60,9 @@ class HomeResourceRegistry:
         rows = c.execute('SELECT * FROM home_resource_state LIMIT 2').fetchall()
         if len(rows) != 1 or rows[0]['singleton'] != 1:
             raise ValueError('invalid_state')
-        r = rows[0]; self._revision(r['revision'])
+        r = rows[0]
+        if type(r['revision']) is not int or not 1 <= r['revision'] <= 2**63 - 1:
+            raise ValueError('invalid_state')
         for field, limit in [('record_count', schema.MAX_RECORDS), ('grant_count', schema.MAX_TOTAL_GRANTS)]:
             if type(r[field]) is not int or not 0 <= r[field] <= limit:
                 raise ValueError('invalid_state')
@@ -82,7 +84,10 @@ class HomeResourceRegistry:
                 f'{row["id"]}:{row["kind"]}:{row["revision"]}:{row["acl_revision"]}').encode('ascii')
 
     def _decode(self, row):
-        self._id(row['id']); self._revision(row['revision']); self._revision(row['acl_revision'])
+        try:
+            self._id(row['id']); self._revision(row['revision']); self._revision(row['acl_revision'])
+        except ApiError:
+            raise ValueError('invalid_storage') from None
         ref = ResourceRef(**self.scope.model_dump(), id=row['id'], kind=row['kind'])
         if (type(row['nonce']) is not bytes or len(row['nonce']) != 12 or
                 type(row['ciphertext']) is not bytes or not 16 <= len(row['ciphertext']) <= 32768):
