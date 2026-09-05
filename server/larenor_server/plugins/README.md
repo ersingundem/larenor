@@ -1,7 +1,8 @@
 # S06: internal components and requirements checks
 
 The delivered slice, 5 September 2026, includes the immutable component catalog,
-offline requirements previews, encrypted durable inspection jobs, Client
+offline requirements previews, encrypted durable inspection jobs, unified
+media preparation records, Client
 administration and an optional internal Linux requirements worker. The actual
 contracts are in [`models.py`](models.py), [`api_models.py`](api_models.py),
 [`job_models.py`](job_models.py) and [`preflight_models.py`](preflight_models.py).
@@ -15,8 +16,12 @@ settings through Larenor, without separately installing these applications or
 copying their URLs/API keys. `managed_service` describes the five internally
 managed media components; `internal_engine` identifies Music Assistant as the
 Larenor music engine. Neither role means an independent user installation.
-Per-component plans are internal building blocks for a later complete-stack
-preview and provisioning job. Existing external S05 connections remain an
+Per-component plans are internal building blocks for the implemented
+complete-stack preparation and a future provisioning job. The
+[unified preparation contract](../../../docs/media-preparations-implementation-2026-09-05.md)
+keeps six component plans, stable operation/step IDs and encrypted history,
+with Client create/read/cancel actions; it enables no host execution.
+Existing external S05 connections remain an
 optional compatibility path. The job and worker interfaces documented below
 are implemented for read-only inspection. Complete-stack installation,
 bootstrap and interconnection are future work, described separately at the end.

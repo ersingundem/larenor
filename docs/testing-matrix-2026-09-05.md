@@ -2,10 +2,14 @@
 
 Bu matris 5 Eylül 2026 tarihindeki gerçek test dosyalarını eşler. Bir satırda test bulunması o özelliğin bütün sunucu sürümlerinde veya fiziksel cihazlarda doğrulandığı anlamına gelmez. Test adedi ve satır kapsamı bir ürünün “%100 çalıştığı” iddiası için kullanılmaz.
 
-**Son güncelleme: 5 Eylül 2026, 17:40 TRT.** Yeni yerel paket S06 birleşik
-medya hazırlığını, kalıcı şifreli geçmişi ve Client yönetimini içerir.
-Aşağıdaki sonuçlar bu güncellemeyi içeren commit'in GitHub
-CI başarısı veya fiziksel cihaz kabulü olarak sunulmaz.
+**Son güncelleme: 5 Eylül 2026, 18:00 TRT.** S06 birleşik medya hazırlığı,
+kalıcı şifreli geçmiş ve Client yönetimi `ce1ce38` ile yayımlandı. Bu commit'in
+[Server CI'ı](https://github.com/ersingundem/larenor/actions/runs/33972698733)
+1.273 test ve iki mimaride gerçek medya restart akışını geçti. Android
+analiz/2.572 test ve debug/native başarılı; E2E, uyanık kalma önkoşulunda
+uygulama testleri başlamadan durdu. İmzalı APK üretilmedi. Aşağıdaki yerel
+hazırlık düzeltmesinin gerçek emülatör sonucu ayrıca doğrulanacak; fiziksel
+tablet kabulü değildir.
 
 **Yeni onaylı kapsam:** [63 özellik planındaki](feature-expansion-plan-2026-09-05.md)
 satırların tamamı planlandı; yeni özellik kabulü **0/63**. Bağımsız VNC/RDP/SSH
@@ -30,11 +34,20 @@ yükleme başarısızsa uyarı ve iş özeti yazılır; asıl test adımının s
 ve çıktısı CI iş loglarında kalır. Test adımlarında hata görmezden gelinmez.
 İmzalı APK teslimi bu isteğe bağlı rapor yüklemesi kapsamında değildir.
 
+[Hazırlık aracı](../tool/android_e2e_preparation.py), hedef seri numarası ve
+QEMU kanıtından sonra mevcut `svc power stayon true` işlemini en fazla beş
+kez uygular/okur. Toplam 10 saniye, komut başına 2 saniye ve 256 bayt çıktı
+sınırı vardır; stderr/ham değer loglanmaz. Yalnız tam `7` veya `15` kabul
+edilir. Kalıcı sıfır/null/bozuk değer, ADB hatası ve süre aşımı derlemeyi
+başlatmaz. [21 regresyon](../tool/tests/android_e2e_preparation_test.py)
+RED→GREEN geçti; önceki tek okuma hatasının kesin nedeni bu kanıttan
+çıkarılmaz. Test iddiaları ve 18 dakikalık genel sınır değişmedi.
+
 [GitHub saklama aracı testleri](../tool/tests/github_storage_cleanup_test.py) de
 Security işindeki mevcut `*_test.py` keşfine dahildir. Silme sınırı, en yeni üç
 debug APK, değişen/süresi dolan envanter, belirsiz DELETE sonucu, paket silme
 yasağı ve sınırlı subprocess çıktıları 20 sentetik testle kapsanır. Son tam araç
-koşumunda bu testler dahil **169 test** geçti; testler GitHub'a bağlanmaz.
+koşumunda bu testler dahil **176 test** geçti; testler GitHub'a bağlanmaz.
 
 ## Gerçek emülatör senaryoları
 
@@ -96,10 +109,12 @@ modülleri %100. Şema testleri boş tabloda eksik kolon/tekillik korumasını
 RED→GREEN ile yakaladı. Şifreli veri, tüm bağlanan metadata alanları,
 paralel tekrar/iptal, güncel yetki, katalog değişimi ve gerçek 8/256 sınırları
 ayrı senaryolardır.
-Tam yerel koşumda **2.572 Flutter, 1.273 Server ve 169 araç testi** geçti.
+Tam yerel koşumda **2.572 Flutter, 1.273 Server ve 176 araç testi** geçti.
 Yeni Client alanında 52 test (18 widget), katalog/iş/bağlamlarla birlikte
 237 ilgili test ve %95,3 satır kapsamı var. Yeni container smoke helper'ı
-%100 satır/dal kapsamındadır; gerçek imaj kabulü ayrı CI sonucudur.
+%100 satır/dal kapsamındadır. `ce1ce38` için gerçek amd64 ve arm64 imajlarında
+oluştur/restart/aynı geçmiş/iptal kabulü geçti; gerçek medya motorlarını
+kurmak veya HomePod'da oynatmak bu testin kapsamında değildir.
 
 - [Planner](../server/tests/test_media_stack_plan.py),
   [gerçek HTTP akışları](../server/tests/test_media_preparations_api.py),

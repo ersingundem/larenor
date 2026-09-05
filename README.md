@@ -700,7 +700,7 @@ See the [hardening review and next improvements](docs/performance-security-revie
 for measured regression evidence, device-test limits and remaining transport work.
 
 The latest September 5 local integration passed **2,572 Flutter tests,
-1,273 Server tests and 169 Python tool/policy tests**. The Server suite includes
+1,273 Server tests and 176 Python tool/policy tests**. The Server suite includes
 the real Java/apksig verifier, persistent Core/home identity and HTTP-to-Unix-worker
 journeys with a synthetic Docker daemon. An explicit host policy enables read-only
 Docker API/platform checks; service installation remains unavailable. See the
@@ -711,10 +711,12 @@ has encrypted restart-safe history, protected Client administration and shared
 HTTP contract tests. Native container CI also exercises its create/restart/cancel
 journey before publishing each image. Session/cache binding and managed
 media installation remain in the [integration queue](docs/remaining-core-integration-slices.md).
-The previous Android native run
-passed **98 tests**; native tests were not rerun for this Dart/Python slice.
-These are local results; hosted CI, container execution and physical-device
-acceptance are tracked separately in [development progress](docs/PROGRESS.md).
+The previous local Android native run passed **98 tests**. The published
+`ce1ce38` CI also passed analysis and debug/native checks; Android E2E stopped
+at emulator preparation before application scenarios, so no new signed APK
+was produced. A bounded preparation fix passed 21 regression tests and awaits
+its own emulator run. Current results are tracked in [PROGRESS](docs/PROGRESS.md).
+Physical-device acceptance remains separate from these local and CI results.
 
 The earlier September 5 window/privacy/WebPanel delivery passed **1,913 Flutter tests,
 23 Python tests and 44 Android native tests**, full static analysis and the

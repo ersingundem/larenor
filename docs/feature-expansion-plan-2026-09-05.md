@@ -32,6 +32,9 @@ için ölçülmüş efor bulunmadığından birleşik yüzde henüz hesaplanmıy
   servis kararı verilmiş değildir.
 - Tüm yönetim Server'da yetki kontrollü API ve OpenAPI üzerinden Client içinde
   olur. Yeni route, şema veya üçüncü taraf motor bu planla uygulanmış sayılmaz.
+  F61–F63'ün kişisel hızlı/yerel bağlantıları bu merkezi yönetim zorunluluğunun
+  dışındadır: Core kurulmadan doğrudan hedefe bağlanabilir. Core'da paylaşılan
+  veya yönetilen profiller merkezi yetki ve kapsam sözleşmesine bağlıdır.
 - Üretim Home Assistant kontrolleri **salt okunur** kalır. Geliştirmedeki yazma,
   kurulum, güç, kapı ve kamera senaryoları sentetik ortamda sınanır. Ev sunucusu
   kurulumu ve fiziksel kabul en sonda kullanıcıyla manuel yapılır.
@@ -83,7 +86,7 @@ flowchart TD
     B1 --> B2["B2: S07 medya ve Music Assistant"]
     B1 --> B4["B4: S09 yazılım kurtarma"]
     B3 --> B4
-    B3 --> B5["B5: ortak Client deneyimi"]
+    B3 -. "merkezi kaynak deneyimi" .-> B5["B5: ortak Client deneyimi"]
     B1 --> G1["G01: güvenilir Core"]
     B3 --> G1
     B4 --> G1
@@ -283,6 +286,8 @@ kayıtlar PROGRESS ve [test matrisine](testing-matrix-2026-09-05.md) bağlanır:
 
 1. **Core:** Sürümlü veri/API sözleşmesi, migration/geri alma, yetki, kota,
    iptal/idempotence, sır maskeleme ve gerekli iş/olay yaşam döngüsü.
+   Yalnız cihazdaki F61–F63 kişisel bağlantısında Core kurulumu zorunlu
+   değildir; bu kapı paylaşılan/yönetilen profil yoluna uygulanır.
 2. **Client:** Ortak arama/oda/kişi bağlantısı; kurulum/boş/bekliyor/hata/eski
    veri/başarı durumları; tablet, klavye/TalkBack, hesap/PIN/arka plan sınırları.
 3. **Birim ve entegrasyon:** Karar mantığı, kalıcılık/restart, yetki reddi,
@@ -290,6 +295,8 @@ kayıtlar PROGRESS ve [test matrisine](testing-matrix-2026-09-05.md) bağlanır:
 4. **E2E:** Gerçek Client → yerel test Core → sentetik servis zinciri; en az
    başarılı kullanıcı yolu ve önemli başarısızlık/kurtarma yolu. Yetkisiz kişi,
    ev değişimi, ağ kopması veya eski onayın tekrar kullanımı riskine göre eklenir.
+   F61–F63'te ayrıca **Core olmadan Client → izole test hostu** hızlı bağlantısı
+   sınanır; yönetilen profilin ayrı zinciri Core üzerinden yetkilendirilir.
 5. **Performans ve security:** İş kuyruğu/bellek/aktarım/disk sınırı; saldırgan
    dosya/model/eklenti girdisi; log/indeks/yedek gizliliği ve bağımlılık taraması.
    Cihaz FPS/pil veya ağ gecikmesi, yalnız birim testiyle kanıtlanmış sayılmaz.

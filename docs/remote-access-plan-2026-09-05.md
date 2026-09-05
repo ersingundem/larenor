@@ -33,6 +33,25 @@ tanımlanır; Core çıkışı veya hesap değişimi başka evin önbelleğiyle 
 açamaz. Süreli, merkezi ağ geçidi istenirse ayrı yetkili modül olarak
 değerlendirilir; ilk kurulumda internet portu veya VPN otomatik açılmaz.
 
+Core'un kurulum işçisi genel SSH komut çalıştırma kanalı olarak kullanılmaz.
+Kişisel profilin çalışması Core hesabı/kurulumu gerektirmez; Core'a kaydetme
+ve yönetilen erişim yolları ayrı yetki ve saklama sözleşmeleridir.
+
+## Açık oturumların kapanış politikası
+
+| Olay | Gerekli davranış |
+| --- | --- |
+| Profil/hedef veya ev/hesap değişimi | Eski oturumun girdisi kesilir; socket, tünel, transfer ve kanal callback'leri kapanır. Sır belleği ve oturuma ait pano/ekran kopyası bırakılmaz; geç cevap yeni hedefe uygulanamaz |
+| Core çıkışı veya gözlenen yönetici yetkisi iptali | Yönetilen açık oturumlar, transferler, mikrofon/pano ve geçitler kapatılır; yeni sır alınamaz. İptal edilmiş profil kişisel profile sessizce kopyalanmaz |
+| Core'a erişim kaybı | Yönetilen oturum yenilenmesi sınırlı erişim süresine bağlıdır; süre yenilenemezse giriş/aktarım kapanır. Çevrimdışıyken anlık merkezi iptal garantisi verilmez. Kişisel doğrudan profil merkezi bağlantı kaybından ayrı değerlendirilir |
+| DeX odak/ekran kaybı, pencere küçülmesi | Basılı modifier/tuş/düğmeler için bırakma ve pointer-capture temizliği; gizli hedefe giriş gönderilmez. İkinci ekran doğru oturum kimliğine bağlanır |
+| Ekran kilidi veya arka plan | Varsayılan etkileşim ve hassas görünüm kapanır; sürdürme ancak açık oturum politikası, görünür Android bildirimi ve süre sınırıyla. Mikrofon ve otomatik pano aktarımı durur |
+| Bağlantı kopması veya kapat eylemi | Tüm yerel kanal ve tüneller kapanır; yarım dosya/komut sonucu belirsiz olarak gösterilir. Bağlantıyı kesmek uzaktaki sürecin sonlandığı anlamına gelmez; komut veya dosya yazması otomatik tekrar edilmez |
+
+Erişim süresi, yeniden bağlanma bütçesi ve kaynak üst sınırları uygulama
+aşamasında somut ayarlarla test edilir. Bağlantı sahibi ekran kapanırken
+asenkron native callback'in kaynak/odak değiştirmesi ayrı regresyondur.
+
 ## Ortak uzak erişim bölümü
 
 | Alan | Planlanan davranış |
