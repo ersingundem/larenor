@@ -1,6 +1,6 @@
 # Larenor — güncel ilerleme ve iş kuyruğu
 
-**Son güncelleme: 5 Eylül 2026, 22:02 (Türkiye saati).**
+**Son güncelleme: 5 Eylül 2026, 22:18 (Türkiye saati).**
 
 ```text
 Önceki kapsam       █████████████░░░░░░░  ≈ %65
@@ -48,64 +48,67 @@ saatinde 03.15 sonrasında günde en fazla bir kez korunur. Bilgisayarın ve Cod
 uygulamasının açık, deponun erişilebilir olması gerekir; bu dosyanın kendisi
 bir servis değildir. Görev Codex'in zamanlanmış görevler ekranından durdurulabilir.
 
-**Kuyrukta kabul edilen işler: 4/125.** Saf kaynak planı, kalıcı journal ve
+**Kuyrukta kabul edilen işler: 5/125.** Saf kaynak planı, kalıcı journal ve
 imaj/journal köprüsüyle **S06.3 içinde 3/6 alt adım** kapandı. **S08.1** de
 Core/ev bağlamını tokenlarla güvenle bağlama kapsamında tam CI kabulü aldı.
-Bu işler yeni 63 özelliğin kabul sayısı değildir; o sayaç **0/63**. Ana S06
+**S08.2** ilk parola/eski Server uyumluluğu da `19dbcbe` tam CI ve APK 91
+ile kabul edildi. Bu işler yeni 63 özelliğin kabul sayısı değildir; o sayaç **0/63**. Ana S06
 sayacı **2/6** kalır; dizin/ağ, kurulum ve gerçek Engine kabulü açıktır.
 
-**Son paket `54a677b` CI sonucunda bir test hatası verdi:**
-[Server](https://github.com/ersingundem/larenor/actions/runs/33984554100)
-2.295 geçti, bir bağlantı kapanışı testi başarısız; atlama yok.
-[Android](https://github.com/ersingundem/larenor/actions/runs/33984554028)
-2.701 Flutter, 98 JVM ve sekiz emülatör senaryosunu geçti; analiz temiz.
-Emülatör 9:58,1; 42 aşama ve dört temizlik doğrulandı.
-[Güvenlik](https://github.com/ersingundem/larenor/actions/runs/33984553960)
-202 araç testi ve sır taramasını geçti. Server kapısı nedeniyle yeni Core
-imajı ve imzalı APK 90 yayımlanmadı; son tam yayın aşağıdaki `1408e80` kaldı.
+**Yeni paket yerelde hazır (`6ec4af3`):** ortak tablet ayar satırları,
+kontrollü özel ağ create taşıması ve kalıcı journal/kurtarma bağlantısı
+birleştirildi. Tam Server **2.559 geçti, yedi Linux testi Mac'te atlandı**
+(3:10,4); **2.739 Flutter testi** (3:50), tam analiz, ilgili kuyruk kontrolleri
+ve güvenlik taraması temiz. Yeni bridge'in 105 testi, birleşik 846 regresyonu
+ve bağımsız incelemeleri tamamlandı. Bu paket henüz uzak CI kabulü almadı.
+[Ayarlar](tablet-settings-accessibility-implementation-2026-09-05.md) ·
+[Ağ create](network-create-transport-implementation-2026-09-05.md) ·
+[Journal/kurtarma](network-preparation-implementation-2026-09-05.md).
 
-**Dar CI düzeltmesi hazır:** test, Linux'un bağlantı kapanışını EOF yerine
-`ConnectionResetError` olarak bildirebilmesini hesaba katmıyordu. Bu, kaynak
-ve taşınabilir yeniden üretimle desteklenen açıklamadır; eski CI hatası ham
-errno'yu kaydetmedi. `b2ca01f` RED → `bff9b98` GREEN yalnız test fixture'ını
-değiştirir. Gerçek kapanış kanıtı, iptal sonucu ve bir saniyelik bekleme
-korundu; süre veya başka hata kabul edilmiyor. İlgili **333 test geçti,
-dört Linux testi Mac'te atlandı**; bağımsız inceleme temiz. Düzeltme `19dbcbe` ile gönderildi:
-[Server](https://github.com/ersingundem/larenor/actions/runs/33985459924) ve
-[Android](https://github.com/ersingundem/larenor/actions/runs/33985459959)
-çalışıyor; [güvenlik](https://github.com/ersingundem/larenor/actions/runs/33985459857)
-geçti. Linux Server test kapısı **2.298 geçti, sıfır atlama**: yeni gerçek
-socketpair deneyi ve iki iptal/kapanış varyantı geçti. İki mimarili yayın
-ve Android/imzalı APK kapılarının final sonucu hâlâ bekleniyor.
-[Ağ adaptörü ve CI düzeltmesi](network-read-transport-implementation-2026-09-05.md) ·
-[Client uyumluluğu](client-context-compatibility-2026-09-05.md) ·
-[Tablet](tablet-navigation-implementation-2026-09-05.md).
+**S08.2 kabul edildi; sıradaki S08.3:** [ev runtime sınırı](client-home-scope-plan-2026-09-05.md)
+uygulanacak. Kullanıcının seçtiği doğrudan HA veya Core kaynağı açık ve kalıcı
+olacak; hesap girişi yerel veriyi kendiliğinden Core'a bağlamayacak. Token
+rotasyonu gezinmeyi koruyacak; gerçek ev/kullanıcı değişimi eski istek ve
+rotaları kapatacak. Cache/adaptör hazır olmadan legacy veri Core ekranında
+açılmayacak. Tema, güç ve PIN provider'ları ayrı kopyalara bölünmeyecek.
 
-**Sonraki paket yerel main içinde birleştirildi (`8767608`):** ayar
-satırlarının 38 odaklı/965 regresyon testi, ağ create taşımasının 741 testi
-ve dört Linux atlaması bağımsız incelemelerden geçti. Birleştirilmiş **2.454 Server testi geçti, yedi Linux testi Mac’te atlandı**
-(5:49,8); **2.739 Flutter testi** (3:50) ve tam analiz temiz; `19dbcbe` yayını bu daha yeni kodun kanıtı
-değildir. [Ayarlar](tablet-settings-accessibility-implementation-2026-09-05.md) ·
-[Ağ create taşıması](network-create-transport-implementation-2026-09-05.md).
+**Yarım çalışmaları kaybetmeden devam:** önce `git worktree list`, dal
+ve agent/CI durumları incelenir; aynı iş yeniden başlatılmaz. `/private/tmp`
+kopyalarının varlığı kalıcı arşiv garantisi değildir. Tamamlanan checkpoint'ler
+yerel git geçmişinde korunur; ana dala birleşme uzak CI kabulü değildir.
 
-**Yarım çalışmaları kaybetmeden devam:** yeniden başlayan yürütücü önce
-`git worktree list`, dal durumlarını ve çalışan agent/CI durumunu inceler.
-Aynı işi baştan açmaz. `/private/tmp` kopyalarının varlığı kalıcı arşiv
-garantisi değildir; tamamlanan checkpoint'ler yerel git geçmişindedir.
+| İş | Dal / çalışma kopyası | Durum |
+| --- | --- | --- |
+| B5.1 tablet ayarları | `codex/tablet-settings-accessibility` · `/private/tmp/larenor-tablet-settings-accessibility` | `ba884f6` main içinde; yeni yayın kapısı bekliyor. |
+| S06.3e ağ journal köprüsü | `codex/network-effect-bridge` · `/private/tmp/larenor-network-effect-bridge` | `6a00168` main içinde; tam yerel test geçti, yeni CI bekliyor. |
+| S06.3d appdata host kanıtı | Henüz yeni kod dalı açılmadı | Sonraki gerçek salt okunur kimlik/UID/GID kanıt üreticisi için dar kaynak kararı hazırlanıyor. |
 
-| İş | Dal | Yerel çalışma kopyası | Durum |
-| --- | --- | --- | --- |
-| B5.1 ayar erişilebilirliği | `codex/tablet-settings-accessibility` | `/private/tmp/larenor-tablet-settings-accessibility` | `ba884f6` main içinde; birleştirilmiş tam yerel regresyon geçti. Agent sonraki S08.3 için yalnız kaynak incelemesi yapıyor. |
-| S06.3e ağ etki/journal bağlantısı | `codex/network-effect-bridge` | `/private/tmp/larenor-network-effect-bridge` | `aa23437` taşıma main içinde; bunun ardından yeni journal köprüsü aynı dalda başladı. |
+Ağ yazılım diliminin sonraki gerçek Engine/iki mimarili kaynak kabulü
+**S06.3f** içindedir. Production dispatcher/host grant, appdata oluşturma ve
+medya kurulumu açık kalır; `installAvailable=false` değişmedi.
 
-[Özel ağ create/journal planında](network-effect-bridge-plan-2026-09-05.md)
-sıradaki iş kalıcı begin, tek create, yeni gözlem ve salt okuyarak kurtarma.
-Dizin için supervisor/daemon/UID eşlemesi ve gerçek oluşturma/yayımlama açık.
+**Son tam uzak yayın `19dbcbe`:**
+[Server](https://github.com/ersingundem/larenor/actions/runs/33985459924),
+[Android](https://github.com/ersingundem/larenor/actions/runs/33985459959) ve
+[Güvenlik](https://github.com/ersingundem/larenor/actions/runs/33985459857)
+**imzalı APK 91 dahil başarılı**. **2.298 Linux Server testi atlamasız**;
+2.701 Flutter, 98 JVM, sekiz emülatör senaryosu ve 202 araç testi geçti.
+Linux'un unread Unix stream reset davranışı ve iki iptal/kapanış varyantı
+ayrıca geçti; önceki `54a677b` hatası kapandı. Emülatör 9:34,4 ile 18 dakika
+sınırında; 42 aşama ve dört tamamlanmış temizlik var.
 
-S08.2 kendi CI kabulünü bekliyor. Ardından [ev runtime sınırı](client-home-scope-plan-2026-09-05.md)
-uygulanacak: token yenilemesi gezinmeyi koruyacak, gerçek Core/ev/kullanıcı
-değişimi eski ekran ve istekleri kapatacak. Yerel HA/cache yeni Core’a
-kendiliğinden bağlanmayacak. Bu sınır şu anda plandır.
+AMD64/ARM64 Core restart/medya hazırlığı/iptal smoke'u ve anonim
+commit/stable/index/child/sourceRevision doğrulaması geçti:
+`sha256:9867d551fb10cf141bc513569eab523162485eb04caaa181abd06249a840b8cd`.
+[İmzalı APK 91 ve metadata](https://github.com/ersingundem/larenor/actions/runs/33985459959/artifacts/9975280844)
+Java 17 + sabit apksig 9.1.0 ile ayrıca doğrulandı: doğru paket/sertifika,
+`100000091`, minSdk 26, `debuggable=false`, kaynak commit ve metadata eşleşti.
+APK SHA-256: `caf77a39de2586b1250c3dcf1ebe3cbd2a3b66f4a73f3b1342b28e7319ccc498`.
+Ev Server'ına koşullu Client yayını atlandı; ev/cihaz kurulumu yapılmadı.
+Bu kanıt daha yeni `6ec4af3` kaynaklarını kapsamaz.
+
+<details>
+<summary>Önceki doğrulanmış yayın: 1408e80 / APK 89</summary>
 
 **Son tam uzak yayın `1408e80`:**
 [Server CI](https://github.com/ersingundem/larenor/actions/runs/33982544738),
@@ -124,6 +127,8 @@ Java 17 + sabit apksig 9.1.0 ile ayrıca doğrulandı: doğru paket/sertifika,
 `100000089`, minSdk 26, `debuggable=false`, kaynak commit ve metadata eşleşti.
 APK SHA-256: `6829fd342d629931b2ef60ab7911af0d445340642d2b7cee1eb96023ca363243`.
 Ev Server’ına koşullu Client yayını atlandı; cihaz/Server kurulumu yapılmadı.
+
+</details>
 
 <details>
 <summary>Önceki doğrulanmış yayın: fc632b6 / APK 88</summary>

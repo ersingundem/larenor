@@ -377,14 +377,14 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Sahiplik/parent kontrolü ve mount gözlemi 1408e80 içinde 2.092 atlamasız Linux Server testiyle geçti. Supervisor/daemon/UID mapping lease ve create/publish açık."
+      "reason": "Sahiplik/parent kontrolü ve mount gözlemi 1408e80 CI ile doğrulandı. Sıradaki gerçek salt okunur native kimlik/UID/GID kanıt üreticisi için kaynak kararı hazırlanıyor; kod/grant yok. Supervisor/daemon/UID mapping lease ve create/publish açık."
     },
     {
       "id": "S06.3e",
       "kind": "task",
       "parent": "S06.3",
       "title": "Sahiplikli özel kontrol ağı",
-      "status": "in_progress",
+      "status": "awaiting_ci",
       "dependsOn": [
         "S06.3b"
       ],
@@ -397,7 +397,8 @@
         "docs/engine-http-implementation-2026-09-05.md",
         "docs/network-read-transport-implementation-2026-09-05.md",
         "docs/network-effect-bridge-plan-2026-09-05.md",
-        "docs/network-create-transport-implementation-2026-09-05.md"
+        "docs/network-create-transport-implementation-2026-09-05.md",
+        "docs/network-preparation-implementation-2026-09-05.md"
       ],
       "scope": "installAvailable=false; Client kaynak adı/Docker seçenekleri üretmez. Gerçek ev sunucusuna işlem yok.",
       "acceptance": [
@@ -408,9 +409,26 @@
         "review",
         "ci"
       ],
-      "evidence": [],
+      "evidence": [
+        {
+          "kind": "test",
+          "ref": "docs/network-preparation-implementation-2026-09-05.md",
+          "commit": "6ec4af3697888af43c14d07472cc032e24265203",
+          "state": "completed",
+          "result": "passed",
+          "label": "105 bridge / 846 ilgili regresyon; tam Server 2.559 geçti, yedi Linux testi Mac’te atlandı."
+        },
+        {
+          "kind": "review",
+          "ref": "docs/network-preparation-implementation-2026-09-05.md",
+          "commit": "6ec4af3697888af43c14d07472cc032e24265203",
+          "state": "completed",
+          "result": "passed",
+          "label": "Kalıcı intent, tek create, ACK-ID gözlemi, iptal/reentry/alias ve readonly replay bağımsız incelendi; açık P1/P2 yok."
+        }
+      ],
       "completionCommit": null,
-      "reason": "Salt list/inspect için 19dbcbe düzeltme CI çalışıyor. Create taşıması aa23437: 741 geçti/4 Linux atlaması, iki inceleme temiz; 8767608 yerel main birleşti; tam Server 2.454 geçti/7 Linux atlaması. codex/network-effect-bridge dalı /private/tmp/larenor-network-effect-bridge kopyasında şimdi journal bağlantısına devam ediyor. Gerçek Engine kabulü açık."
+      "reason": "6a00168 köprüsü 6ec4af3 main içinde; tam Server 2.559 geçti/7 Linux atlaması, 2.739 Flutter/analiz ve inceleme temiz. Yeni uzak CI bekleniyor. Yazılım dilimi; gerçek Engine/iki mimarili kaynak kabulü S06.3f ve production grant/dispatcher ayrıca açık."
     },
     {
       "id": "S06.3f",
@@ -730,7 +748,7 @@
       "kind": "task",
       "parent": "S08",
       "title": "İlk parola ve eski Server uyumluluğu",
-      "status": "awaiting_ci",
+      "status": "done",
       "dependsOn": [
         "S08.1"
       ],
@@ -754,34 +772,34 @@
         {
           "kind": "test",
           "ref": "docs/client-context-compatibility-2026-09-05.md",
-          "commit": "67cb0585f0b123206e330d661442c9e1f8af27e8",
+          "commit": "19dbcbe5545a1ada8cda5754ae4fbc7664c90fce",
           "state": "completed",
           "result": "passed",
-          "label": "70 odaklı ve 531 Server/Client güncelleme regresyon testi; analiz temiz."
+          "label": "Aynı Client kaynağında 2.701 Flutter, 98 JVM, sekiz E2E; Server 2.298 atlamasız, 202 araç testi geçti."
         },
         {
           "kind": "review",
           "ref": "docs/client-context-compatibility-2026-09-05.md",
-          "commit": "67cb0585f0b123206e330d661442c9e1f8af27e8",
+          "commit": "19dbcbe5545a1ada8cda5754ae4fbc7664c90fce",
           "state": "completed",
           "result": "passed",
-          "label": "Tam GET bağlam URL’si, sınırlı hata gövdesi, aday token ve yalnız GET ile tekrar bağımsız incelendi."
+          "label": "S08.2 bağlam/ilk parola/GET retry kaynağı bağımsız incelendi; APK 91 ayrıca imza/paket/sürüm olarak doğrulandı."
         },
         {
           "kind": "ci",
           "ref": "https://github.com/ersingundem/larenor/actions/runs/33985459924",
           "commit": "19dbcbe5545a1ada8cda5754ae4fbc7664c90fce",
-          "state": "in_progress",
-          "result": null,
-          "label": "Dar kapanış fixture düzeltmesinin yeni tam CI/yayın kapısı çalışıyor."
+          "state": "completed",
+          "result": "passed",
+          "label": "2.298 atlamasız Linux test, yeni reset/kapanış kanıtı, iki mimarili Core ve anonim yayın başarılı."
         },
         {
           "kind": "ci",
           "ref": "https://github.com/ersingundem/larenor/actions/runs/33985459959",
           "commit": "19dbcbe5545a1ada8cda5754ae4fbc7664c90fce",
-          "state": "in_progress",
-          "result": null,
-          "label": "Dar kapanış fixture düzeltmesinin yeni tam CI/yayın kapısı çalışıyor."
+          "state": "completed",
+          "result": "passed",
+          "label": "2.701 Flutter, 98 JVM, sekiz emülatör senaryosu ve bağımsız doğrulanmış imzalı APK 91 başarılı."
         },
         {
           "kind": "ci",
@@ -792,8 +810,8 @@
           "label": "202 araç testi ve güvenlik taraması başarılı."
         }
       ],
-      "completionCommit": null,
-      "reason": "19dbcbe Linux Server test kapısı 2.298 geçti/0 atlama; yeni gerçek reset ve iki kapanış varyantı geçti. Güvenlik başarılı; iki mimarili yayın ve Android/imzalı APK final kapıları bekleniyor. S08.3 kabulü bekler."
+      "completionCommit": "19dbcbe5545a1ada8cda5754ae4fbc7664c90fce",
+      "reason": "19dbcbe tam Server/Android/güvenlik ve APK 91 bağımsız imza kabulü tamamlandı. S08.3 başlayabilir; ev runtime/cache ayrımı bu kabul değildir."
     },
     {
       "id": "S08.3",

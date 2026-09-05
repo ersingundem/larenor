@@ -18,15 +18,15 @@ bir dal, bağımsız ve hazır yazılım dallarını durdurmaz.
 ## Güncel kuyruk özeti
 
 <!-- queue-summary:start -->
-F01–F63 yazılım kapısı: **0/63** (fiziksel kabul ayrı). Kalan kuyruk: **4/125 iş kanıtla tamamlandı**.
+F01–F63 yazılım kapısı: **0/63** (fiziksel kabul ayrı). Kalan kuyruk: **5/125 iş kanıtla tamamlandı**.
 
 Gruplar ve önceki kabul checkpoint’leri iş sayısına dahil değildir.
 
 | Grup | İş | Biten | Çalışılan | CI | Kullanıcı |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| B1 — Yönetilen bileşen yaşam döngüsü | 9 | 3 | 2 | 0 | 0 |
+| B1 — Yönetilen bileşen yaşam döngüsü | 9 | 3 | 1 | 1 | 0 |
 | B2 — Bütünleşik medya ve müzik | 4 | 0 | 0 | 0 | 0 |
-| B3 — Merkezi kaynak, yetki ve olay sözleşmeleri | 11 | 1 | 0 | 1 | 0 |
+| B3 — Merkezi kaynak, yetki ve olay sözleşmeleri | 11 | 2 | 0 | 0 | 0 |
 | B4 — Yazılım yedekleme ve kurtarma temeli | 3 | 0 | 0 | 0 | 0 |
 | B5 — Erken ortak tablet Client deneyimi | 2 | 0 | 1 | 0 | 0 |
 | PRODUCT — Önceki ürün planının kalan yazılım işleri | 13 | 0 | 0 | 0 | 1 |

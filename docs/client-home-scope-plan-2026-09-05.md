@@ -44,7 +44,12 @@ anlamına gelmez. Yürütme durumu [kuyrukta](EXECUTION_QUEUE.md) tutulur.
    Yalnız iç içe `ProviderScope(key: ...)` yeterli değildir: mevcut Riverpod
    sürümü scope'a özel override/dependency yoksa provider'ı üst container'da
    tutabilir. Ayrı container, dış hesabı `overrideWithValue` ile paylaşabilir;
-   paylaşılan hesabın dispose sorumluluğu dışarıda kalır.
+   paylaşılan hesabın dispose sorumluluğu dışarıda kalır. Mevcut
+   `CupertinoApp.router`, appearance izlemesi, ScreenPolicyRunner ve IdleGate
+   aynı runtime container içinde tutulmalıdır; dış theme/power provider'ı ile
+   iç Settings yazıcısı iki farklı cache'e bölünmemelidir. Alternatif paylaşım
+   ancak bütün ilgili provider ömürleri açıkça bağlanıp davranışla sınanırsa
+   kullanılabilir. Hesap/store/kaynak dışında global provider çoğaltılmaz.
 4. **Geçişi iki aşamada yap.** Gerçek Core/ev/kullanıcı değişiminde önce eski
    epoch senkron olarak kapatılır; eski callback aynı frame içinde yeniden
    çalışamaz. Sonra eski router/container tamamen kaldırılır ve yeni runtime
@@ -132,7 +137,8 @@ değiştirilmedi ve test çalıştırılmadı.
 - Doğrudan HA, Core olmadan çalışır. Server hesabı açılması legacy veriyi
   otomatik Core'a bağlamaz; Core logout'u sessiz direct-HA fallback yapmaz.
 - Restore, Settings PIN/native picker yeniden doğrulaması, idle/background,
-  tablet pencere değişimi ve mevcut doğrudan HA gezinmesi korunur.
+  tablet pencere değişimi, Settings tema/güç değişikliğinin uygulamaya
+  anında yansıması ve mevcut doğrudan HA gezinmesi korunur.
 
 Bu testler gerçek repository/provider/router akışını sentetik API/WS ile
 çalıştırmalı; yalnız yeni sınıfın kendi alanlarını tekrar eden testlerle kabul

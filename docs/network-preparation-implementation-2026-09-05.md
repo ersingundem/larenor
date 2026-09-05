@@ -3,10 +3,10 @@
 **Uygulanan dilim:** `JournaledNetworkOperations` artık sabit katalog/resource planı, mevcut özel `ResourceJournal`, salt okunur `UnixNetworkEngine` ve ayrı `UnixNetworkCreator` arasında senkron bir köprü kurar. Bu dilim özel worker primitive'idir. API/IPC/CLI, dispatcher, gerçek host/daemon yetki üreticisi veya otomatik kurulum bağlantısı eklenmedi; `installAvailable=false` korunur. Network attach/delete/prune ve container işlemi yoktur. Önceki [protokol ve etki tasarımı](network-effect-bridge-plan-2026-09-05.md) geçerlidir.
 
 ```python
-JournaledNetworkOperations(journal, reader, creator).apply(
+receipt = JournaledNetworkOperations(journal, reader, creator).apply(
     plan, stack, catalog, policy, resource_id,
     authorize_create=None, cancelled=None,
-) -> ResourceReceipt
+)
 ```
 
 `authorize_create` ve `cancelled` keyword-only parametrelerdir. Bağımlılıkların yaşamını çağıran taraf yönetir; köprü constructor'ı I/O yapmaz. Tüm `apply` boyunca process/file lease tutulur, HTTP çağrıları boyunca SQLite write transaction tutulmaz.
@@ -30,3 +30,10 @@ Testler gerçek geçici SQLite journal'ı ve sentetik Unix socket'leri kullanır
 RED/GREEN checkpoint'leri: `bd0c763` → `5257939`; begin/receipt yarışları `a094a63` → `fb986c0`; body-derivation yarışı `0c88991` → `20d8ed6`. Son bağımsız kaynak/test incelemesinde yeni P1/P2 bulgu çıkmadı.
 
 `ready` yalnız geçmişteki internal ownership/özellik gözlemidir. Güncel sağlık, atomik list+inspect, firewall/egress izolasyonu, receiver ağı veya private bootstrap yetkisi vermez. Private authorizer gerçek actor/session/preparation/catalog/policy/daemon/host/disk grant'i üretmez; bu güncellik future caller/dispatcher sorumluluğudur. En uzun fresh akış dört HTTP exchange yapar; her transport çağrısı 10 saniyeye kadar bütçe kullanabilir. Güvenilir callback'in kendi bounded sözleşmesi ayrıca gerekir. Bu akış 5 saniyelik preflight IPC veya doğrudan Client isteğine bağlanmadı.
+
+Yerel main birleştirmesi `6ec4af3697888af43c14d07472cc032e24265203`:
+tam Server **2.559 PASS / 7 Linux-only skip**, 190,40 saniye; birleşme
+aralığının sır taraması temiz. Client kaynağı önceki doğrulamayla aynı:
+**2.739 test ve tam analiz geçti**. Üç kaynak incelemesinde P1/P2 kalmadı.
+S06.3e yazılım/Unix protokol kapısı kendi sonraki CI'ını bekler; izole gerçek
+Engine ile iki mimarili kaynak kurulumu S06.3f'ye aittir, döngüsel önkoşul değildir.

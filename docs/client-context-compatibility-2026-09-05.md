@@ -46,3 +46,16 @@ S08.3–4 kapsamında açık kalır.
 
 Son `3076f5f` kaynak paketindeki tam Client regresyonu **2.701 testle** geçti;
 tam analiz temiz. S08.2'nin kendi uzak CI kabulü ayrıca beklenir.
+
+## Uzak kabul — 19dbcbe / APK 91
+
+S08.2 `19dbcbe5545a1ada8cda5754ae4fbc7664c90fce` ile kabul edildi.
+[Server](https://github.com/ersingundem/larenor/actions/runs/33985459924),
+[Android](https://github.com/ersingundem/larenor/actions/runs/33985459959) ve
+[güvenlik](https://github.com/ersingundem/larenor/actions/runs/33985459857)
+başarılı: 2.298 atlamasız Linux Server, 2.701 Flutter, 98 JVM, sekiz E2E ve
+202 araç testi. Aynı Client uyumluluk kaynağı bağımsız incelendi; eski
+`54a677b` koşusundaki Server kapanış fixture hatası test-only RED/GREEN ile
+kapatıldı ve yeni Linux testiyle doğrulandı. APK 91 bağımsız Java 17/sabit
+apksig doğrulamasını geçti; `100000091`, doğru sertifika, debug kapalı.
+Ev kurulumu yok. S08.3 runtime ve S08.4 cache ayrımı bu kabul değildir.
