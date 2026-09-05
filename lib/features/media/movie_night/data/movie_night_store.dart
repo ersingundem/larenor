@@ -41,8 +41,16 @@ class MovieNightStore {
 
   Future<MovieNightPreset?> read() => ConfigurationWrites.run(() async {
     final prefs = await _preferences();
+    _check(); // Recheck in this continuation before consuming the cache.
     final value = prefs.get(MovieNightPreset.storageKey);
-    return value == null ? null : MovieNightPreset.decodeStored(value);
+    if (value == null) return null;
+    try {
+      return MovieNightPreset.decodeStored(value);
+    } on FormatException {
+      // jsonDecode includes the original JSON in FormatException.source.
+      // Preserve the legacy error type without exposing the stored record.
+      throw const FormatException('Invalid movie night settings');
+    }
   });
 
   Future<void> save(

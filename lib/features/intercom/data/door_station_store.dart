@@ -41,6 +41,7 @@ class DoorStationStore {
 
   Future<List<DoorStation>> read() => ConfigurationWrites.run(() async {
     final prefs = await _preferences();
+    _check(); // Recheck in this continuation before consuming the cache.
     final raw = prefs.get(DoorStation.storageKey);
     if (raw == null) return const [];
     return DoorStation.decodeStored(raw);
