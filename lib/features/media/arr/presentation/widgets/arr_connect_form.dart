@@ -1,37 +1,88 @@
 import 'package:flutter/cupertino.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../../../../../core/direct_home_access.dart';
+import '../../../hub/presentation/media_session_state.dart';
 
 import '../../../../../l10n/generated/app_localizations.dart';
 import '../../../../../shared/discovery/lan_discovery_section.dart';
 import '../../../../../shared/discovery/lan_scanner.dart';
-import '../../../data/media_api_exception.dart';
 import '../../../../../shared/widgets/settings_section.dart';
 
 /// Shared connect UI for Sonarr/Radarr/Lidarr/Readarr — identical shape
 /// (URL + API key), just parameterized by title/hint/the actual sign-in
 /// call/discovery signature.
-class ArrConnectForm extends StatefulWidget {
+class ArrConnectForm extends ConsumerStatefulWidget {
   const ArrConnectForm({
     super.key,
     required this.title,
     required this.urlHint,
     required this.onConnect,
     this.discoverySignature,
+    this.onClear,
   });
 
   final String title;
   final String urlHint;
-  final Future<void> Function(String baseUrl, String apiKey) onConnect;
+  final Future<void> Function(
+    String baseUrl,
+    String apiKey,
+    bool Function() isCurrent,
+  )
+  onConnect;
   final LanServiceSignature? discoverySignature;
+  final Future<void> Function(bool Function() isCurrent)? onClear;
 
   @override
-  State<ArrConnectForm> createState() => _ArrConnectFormState();
+  ConsumerState<ArrConnectForm> createState() => _ArrConnectFormState();
 }
 
-class _ArrConnectFormState extends State<ArrConnectForm> {
+class _ArrConnectFormState extends MediaSessionState<ArrConnectForm> {
   late final _urlController = TextEditingController(text: widget.urlHint);
   final _keyController = TextEditingController();
+  late final DirectHomeAccess _access = ref.read(directHomeAccessProvider);
+  bool _visible = true;
   bool _connecting = false;
   String? _error;
+  bool _cleared = false;
+
+  bool _current(int generation) =>
+      sessionCurrent(generation) &&
+      _access.isCurrent &&
+      TickerMode.valuesOf(context).enabled &&
+      (ModalRoute.of(context)?.isCurrent ?? true);
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final visible =
+        TickerMode.valuesOf(context).enabled &&
+        (ModalRoute.of(context)?.isCurrent ?? true);
+    if (_visible && !visible) {
+      sessionGeneration++;
+      clearPendingInteraction();
+    }
+    _visible = visible;
+  }
+
+  @override
+  void didUpdateWidget(covariant ArrConnectForm oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!identical(widget.onConnect, oldWidget.onConnect) ||
+        !identical(widget.onClear, oldWidget.onClear)) {
+      sessionGeneration++;
+      clearPendingInteraction();
+    }
+  }
+
+  @override
+  void clearPendingInteraction() {
+    _urlController.clear();
+    _keyController.clear();
+    _connecting = false;
+    _error = null;
+    _cleared = false;
+  }
 
   @override
   void dispose() {
@@ -40,7 +91,15 @@ class _ArrConnectFormState extends State<ArrConnectForm> {
     super.dispose();
   }
 
-  Future<void> _connect() async {
+  Future<void> _connect(
+    int generation,
+    Future<void> Function(String, String, bool Function()) connect,
+  ) async {
+    if (!_current(generation) ||
+        _connecting ||
+        !identical(widget.onConnect, connect)) {
+      return;
+    }
     final url = _urlController.text.trim();
     final key = _keyController.text.trim();
     if (url.isEmpty || key.isEmpty) {
@@ -54,23 +113,65 @@ class _ArrConnectFormState extends State<ArrConnectForm> {
       _error = null;
     });
     try {
-      await widget.onConnect(
+      await connect(
         url.endsWith('/') ? url.substring(0, url.length - 1) : url,
         key,
+        () => _current(generation) && identical(widget.onConnect, connect),
       );
-    } on MediaApiException catch (e) {
-      setState(() => _error = e.message);
     } catch (_) {
+      if (!_current(generation)) return;
       setState(
         () => _error = AppLocalizations.of(context).mediaErrorUnreachable,
       );
     } finally {
-      if (mounted) setState(() => _connecting = false);
+      if (_current(generation)) setState(() => _connecting = false);
+    }
+  }
+
+  Future<void> _clear(
+    int generation,
+    Future<void> Function(bool Function()) clear,
+  ) async {
+    bool current() => _current(generation) && identical(widget.onClear, clear);
+    if (!current() || _connecting) return;
+    setState(() {
+      _connecting = true;
+      _error = null;
+      _cleared = false;
+    });
+    try {
+      await clear(current);
+      if (!current()) return;
+      setState(() {
+        _urlController.clear();
+        _keyController.clear();
+        _cleared = true;
+      });
+    } catch (_) {
+      if (current()) {
+        setState(
+          () => _error = AppLocalizations.of(context).mediaErrorUnreachable,
+        );
+      }
+    } finally {
+      if (current()) setState(() => _connecting = false);
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    ref.watch(directHomeAccessProvider);
+    final generation = sessionGeneration;
+    final connect = widget.onConnect;
+    final clear = widget.onClear;
+    if (!_access.isCurrent) {
+      return CupertinoPageScaffold(
+        child: Center(
+          child: Text(AppLocalizations.of(context).mediaErrorUnreachable),
+        ),
+      );
+    }
+    final active = _current(generation);
     return CupertinoPageScaffold(
       navigationBar: CupertinoNavigationBar(middle: Text(widget.title)),
       child: SafeArea(
@@ -81,11 +182,23 @@ class _ArrConnectFormState extends State<ArrConnectForm> {
               padding: const EdgeInsets.all(24),
               children: [
                 const SizedBox(height: 16),
-                if (widget.discoverySignature != null)
+                if (clear != null) ...[
+                  Text(
+                    _cleared
+                        ? AppLocalizations.of(context).commonDone
+                        : AppLocalizations.of(context).arrConnectionIncomplete,
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 16),
+                ],
+                if (active && widget.discoverySignature != null)
                   LanDiscoverySection(
                     signature: widget.discoverySignature!,
-                    onSelected: (url) =>
-                        setState(() => _urlController.text = url),
+                    onSelected: (url) {
+                      if (_current(generation)) {
+                        setState(() => _urlController.text = url);
+                      }
+                    },
                   ),
                 SettingsSection(
                   footer: Text(
@@ -120,13 +233,27 @@ class _ArrConnectFormState extends State<ArrConnectForm> {
                 ],
                 const SizedBox(height: 20),
                 CupertinoButton.filled(
-                  onPressed: _connecting ? null : _connect,
+                  onPressed: _connecting || !active
+                      ? null
+                      : () => _connect(generation, connect),
                   child: _connecting
                       ? const CupertinoActivityIndicator(
                           color: CupertinoColors.white,
                         )
                       : Text(AppLocalizations.of(context).commonConnect),
                 ),
+                if (clear != null) ...[
+                  const SizedBox(height: 12),
+                  CupertinoButton(
+                    onPressed: _connecting || !active
+                        ? null
+                        : () => _clear(generation, clear),
+                    child: Text(
+                      AppLocalizations.of(context).arrRemoveConnection,
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                ],
               ],
             ),
           ),

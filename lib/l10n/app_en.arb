@@ -2232,5 +2232,7 @@
   "homeResourcesEmpty": "There are no rooms or resources this account can view.",
   "homeResourcesRoom": "Room",
   "homeResourcesResource": "Resource",
-  "homeResourcesLoadMore": "Load more"
+  "homeResourcesLoadMore": "Load more",
+  "arrConnectionIncomplete": "The saved connection is incomplete. Enter the complete address and API key again, or remove the saved connection.",
+  "arrRemoveConnection": "Remove saved connection"
 }

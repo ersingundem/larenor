@@ -1911,5 +1911,7 @@
   "homeResourcesEmpty": "Bu hesabın görüntüleyebildiği oda veya kaynak yok.",
   "homeResourcesRoom": "Oda",
   "homeResourcesResource": "Kaynak",
-  "homeResourcesLoadMore": "Daha fazla yükle"
+  "homeResourcesLoadMore": "Daha fazla yükle",
+  "arrConnectionIncomplete": "Kayıtlı bağlantı tamamlanamadı. Adres ve API anahtarını yeniden girin veya kayıtlı bağlantıyı kaldırın.",
+  "arrRemoveConnection": "Kayıtlı bağlantıyı kaldır"
 }
