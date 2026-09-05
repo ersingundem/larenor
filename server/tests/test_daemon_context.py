@@ -338,6 +338,19 @@ def test_actual_linux_socket_peer_context_without_a_docker_service(monkeypatch):
             try:
                 assert lease.context == module.DaemonContext(True, True, True)
                 assert lease.revalidate(time.monotonic() + 2)
+                # Real socket pidfd + kernel proc/ns/maps, through the opt-in
+                # seam. The synthetic executable trust policy above remains
+                # separate: this is no native supervisor or remap grant.
+                with lease.capture_identities(time.monotonic() + 2) as pair:
+                    assert pair.peer.pid == os.getpid()
+                    assert pair.worker.pid == threading.get_native_id()
+                    assert pair.peer.uids[:3] == pair.worker.uids[:3] == os.getresuid()
+                    assert pair.peer.gids[:3] == pair.worker.gids[:3] == os.getresgid()
+                    assert pair.peer.target_user_namespace == pair.worker.target_user_namespace
+                    assert pair.peer.opener == pair.worker.opener == (os.getpid(), threading.get_native_id())
+                    assert pair.peer.uid_map == pair.worker.uid_map
+                    assert pair.peer.gid_map == pair.worker.gid_map
+                    assert pair.check(time.monotonic() + 2) is None
             finally:
                 lease.close()
         with ThreadPoolExecutor(max_workers=1) as executor:
@@ -345,3 +358,223 @@ def test_actual_linux_socket_peer_context_without_a_docker_service(monkeypatch):
     finally:
         left.close()
         right.close()
+
+
+def _identity_tree(proc_tree, monkeypatch):
+    from larenor_server.plugins import linux_identity_observation
+    for name in ('peer_path', 'worker_path', 'leader_path'):
+        path = proc_tree[name]
+        with (path / 'status').open('a') as file:
+            file.write(f'Gid:\t{os.getgid()}\t{os.getgid()}\t{os.getgid()}\t{os.getgid()}\n')
+        (path / 'uid_map').write_text('0 0 4294967295\n')
+        (path / 'gid_map').write_text('0 0 4294967295\n')
+        (path / 'ns/user').symlink_to(proc_tree['mnt'])
+    monkeypatch.setattr(linux_identity_observation, '_PROC_ROOT', proc_tree['proc'])
+    return linux_identity_observation
+
+
+def test_optional_identity_capture_binds_held_peer_and_worker_without_changing_public_context(proc_tree, monkeypatch):
+    identity = _identity_tree(proc_tree, monkeypatch)
+    lease = capture(proc_tree)
+    assert lease is not None
+    try:
+        with lease.capture_identities(time.monotonic() + 2) as pair:
+            assert pair.peer.pid == proc_tree['peer'] and pair.worker.pid == proc_tree['worker']
+            assert pair.peer.uids == (os.getuid(),) * 4 and pair.peer.gids == (os.getgid(),) * 4
+            assert pair.peer.uid_map == identity.parse_id_map(b'0 0 4294967295\n')
+            assert pair.check(time.monotonic() + 2) is None
+            assert lease.context == module.DaemonContext(True, True, True)
+            assert str(proc_tree['peer']) not in repr(pair)
+    finally:
+        lease.close()
+
+
+def test_optional_identity_failure_leaves_old_readonly_context_contract_unchanged(proc_tree, monkeypatch):
+    identity = _identity_tree(proc_tree, monkeypatch)
+    lease = capture(proc_tree)
+    assert lease is not None
+    try:
+        with lease.capture_identities(time.monotonic() + 2) as pair:
+            path = proc_tree['peer_path'] / 'gid_map'
+            path.write_text('0 100000 65536\n')
+            with pytest.raises(identity.IdentityObservationError, match='^identity_observation_unavailable$'):
+                pair.check(time.monotonic() + 2)
+            assert lease.revalidate(time.monotonic() + 2)
+    finally:
+        lease.close()
+
+
+def test_optional_identity_interrupt_closes_first_capture_without_closing_parent(proc_tree, monkeypatch):
+    from test_linux_identity_observation import track_descriptors, assert_closed
+    identity = _identity_tree(proc_tree, monkeypatch)
+    lease = capture(proc_tree)
+    assert lease is not None
+    try:
+        descriptors = track_descriptors(identity, monkeypatch)
+        original = identity.capture_process_identity
+        calls = 0
+        def interrupt_worker(*args, **kwargs):
+            nonlocal calls
+            calls += 1
+            if calls == 2:
+                raise KeyboardInterrupt()
+            return original(*args, **kwargs)
+        monkeypatch.setattr(identity, 'capture_process_identity', interrupt_worker)
+        with pytest.raises(KeyboardInterrupt):
+            lease.capture_identities(time.monotonic() + 2)
+        assert_closed(descriptors)
+        assert lease.revalidate(time.monotonic() + 2)
+    finally:
+        lease.close()
+
+
+@pytest.mark.parametrize('change', ['parent_closed', 'pidfd_dead', 'peer_start', 'worker_start', 'executable',
+                                    'peer_map', 'worker_map', 'peer_gid', 'target_userns', 'reader_userns'])
+def test_optional_identity_recheck_rejects_changed_context_or_mapping(proc_tree, monkeypatch, tmp_path, change):
+    identity = _identity_tree(proc_tree, monkeypatch)
+    lease = capture(proc_tree)
+    assert lease is not None
+    try:
+        with lease.capture_identities(time.monotonic() + 2) as pair:
+            if change == 'parent_closed':
+                lease.close()
+            elif change == 'pidfd_dead':
+                os.write(proc_tree['write_fd'], b'1')
+            elif change in ('peer_start', 'worker_start'):
+                who = change.split('_')[0]
+                (proc_tree[who + '_path'] / 'stat').write_text(process_stat(proc_tree[who], start=124))
+            elif change == 'executable':
+                proc_tree['executable'].write_bytes(b'different executable')
+            elif change in ('peer_map', 'worker_map'):
+                who = change.split('_')[0]
+                (proc_tree[who + '_path'] / 'uid_map').write_text('0 100000 65536\n')
+            elif change == 'peer_gid':
+                path = proc_tree['peer_path'] / 'status'
+                path.write_text(path.read_text().replace(f'Gid:\t{os.getgid()}', 'Gid:\t12345'))
+            else:
+                other = tmp_path / 'other-user-namespace'
+                other.touch()
+                who = 'peer_path' if change == 'target_userns' else 'worker_path'
+                path = proc_tree[who] / 'ns/user'
+                path.unlink()
+                path.symlink_to(other)
+            with pytest.raises(identity.IdentityObservationError, match='^identity_observation_unavailable$'):
+                pair.check(time.monotonic() + 2)
+            with pytest.raises(identity.IdentityObservationError):
+                pair.check(time.monotonic() + 2)
+    finally:
+        lease.close()
+
+
+@pytest.mark.parametrize('change', ['cancel', 'worker_capture_error', 'first_revalidate', 'last_revalidate'])
+def test_optional_identity_capture_failure_closes_every_owned_handle(proc_tree, monkeypatch, change):
+    from test_linux_identity_observation import track_descriptors, assert_closed
+    identity = _identity_tree(proc_tree, monkeypatch)
+    lease = capture(proc_tree)
+    assert lease is not None
+    event = threading.Event()
+    try:
+        descriptors = track_descriptors(identity, monkeypatch)
+        original = identity.capture_process_identity
+        calls = 0
+        def change_after_peer(*args, **kwargs):
+            nonlocal calls
+            calls += 1
+            if calls == 2 and change == 'worker_capture_error':
+                raise ValueError('secret raw error')
+            result = original(*args, **kwargs)
+            if calls == 1 and change == 'cancel':
+                event.set()
+            return result
+        monkeypatch.setattr(identity, 'capture_process_identity', change_after_peer)
+        if change in ('first_revalidate', 'last_revalidate'):
+            original_revalidate = lease.revalidate
+            validations = 0
+            def validate(deadline):
+                nonlocal validations
+                validations += 1
+                if validations == (1 if change == 'first_revalidate' else 3):
+                    return False
+                return original_revalidate(deadline)
+            monkeypatch.setattr(lease, 'revalidate', validate)
+        with pytest.raises(identity.IdentityObservationError, match='^identity_observation_unavailable$'):
+            lease.capture_identities(time.monotonic() + 2, cancelled=event)
+        if change == 'first_revalidate':
+            assert not descriptors
+        else:
+            assert_closed(descriptors)
+        os.fstat(lease._fds[0])  # The borrowed parent remains owned by its caller.
+    finally:
+        lease.close()
+
+
+@pytest.mark.parametrize('operation', ['check', 'close'])
+def test_optional_identity_pair_reentry_is_busy_and_outer_check_stays_valid(proc_tree, monkeypatch, operation):
+    identity = _identity_tree(proc_tree, monkeypatch)
+    lease = capture(proc_tree)
+    try:
+        with lease.capture_identities(time.monotonic() + 2) as pair:
+            original = lease.revalidate
+            def reenter(deadline):
+                with pytest.raises(identity.IdentityObservationError, match='^identity_observation_busy$'):
+                    pair.check(deadline) if operation == 'check' else pair.close()
+                return original(deadline)
+            monkeypatch.setattr(lease, 'revalidate', reenter)
+            pair.check(time.monotonic() + 2)
+    finally:
+        lease.close()
+
+
+@pytest.mark.parametrize('target', ['peer', 'worker', 'parent'])
+def test_optional_identity_pair_interruption_closes_both_observations(proc_tree, monkeypatch, target):
+    from test_linux_identity_observation import track_descriptors, assert_closed
+    identity = _identity_tree(proc_tree, monkeypatch)
+    lease = capture(proc_tree)
+    try:
+        descriptors = track_descriptors(identity, monkeypatch)
+        pair = lease.capture_identities(time.monotonic() + 2)
+        def interrupt(*args):
+            raise KeyboardInterrupt()
+        if target == 'parent':
+            monkeypatch.setattr(lease, 'revalidate', interrupt)
+        else:
+            monkeypatch.setattr(getattr(pair, '_' + target), 'check', interrupt)
+        with pytest.raises(KeyboardInterrupt):
+            pair.check(time.monotonic() + 2)
+        assert_closed(descriptors)
+    finally:
+        lease.close()
+
+
+def test_optional_identity_capture_rejects_wrong_thread_and_cancelled_or_invalid_events(proc_tree, monkeypatch):
+    identity = _identity_tree(proc_tree, monkeypatch)
+    lease = capture(proc_tree)
+    try:
+        for event in (True, object()):
+            with pytest.raises(identity.IdentityObservationError):
+                lease.capture_identities(time.monotonic() + 2, cancelled=event)
+        event = threading.Event()
+        event.set()
+        with pytest.raises(identity.IdentityObservationError):
+            lease.capture_identities(time.monotonic() + 2, cancelled=event)
+        monkeypatch.setattr(identity.threading, 'get_native_id', lambda: 9)
+        with pytest.raises(identity.IdentityObservationError):
+            lease.capture_identities(time.monotonic() + 2)
+    finally:
+        lease.close()
+
+
+def test_optional_identity_parent_close_after_precheck_has_only_static_failure(proc_tree, monkeypatch):
+    identity = _identity_tree(proc_tree, monkeypatch)
+    lease = capture(proc_tree)
+    original = lease.revalidate
+    def closed_after_check(deadline):
+        result = original(deadline)
+        lease.close()
+        return result
+    monkeypatch.setattr(lease, 'revalidate', closed_after_check)
+    try:
+        with pytest.raises(identity.IdentityObservationError, match='^identity_observation_unavailable$'):
+            lease.capture_identities(time.monotonic() + 2)
+    finally:
+        lease.close()

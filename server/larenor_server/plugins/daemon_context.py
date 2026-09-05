@@ -204,6 +204,7 @@ class _ContextLease:
     """Private held descriptors; only the final booleans may leave the probe."""
 
     def __init__(self, pidfd, peer_pid, peer_fd, worker_pid, worker_fd, executable):
+        self._identity_owner = os.getpid(), threading.get_native_id()
         self._fds = [pidfd, peer_fd, worker_fd]
         self._peer_pid = peer_pid
         self._worker_pid = worker_pid
@@ -251,6 +252,15 @@ class _ContextLease:
         descriptors, self._fds = self._fds, []
         for fd in reversed(descriptors):
             _close(fd)
+
+    def capture_identities(self, deadline, *, cancelled=None):
+        """Optional private UID/GID/maps, bound to these held proc/pidfd handles.
+
+        The existing three public context booleans retain their old contract.
+        This supplies process provenance, never host/remap or write authority.
+        """
+        from .linux_identity_observation import _capture_context_identities
+        return _capture_context_identities(self, deadline, cancelled=cancelled)
 
 
 def capture_daemon_context(connection, expected_uid, daemon_executable, deadline):
