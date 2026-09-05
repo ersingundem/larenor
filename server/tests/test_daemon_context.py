@@ -1,6 +1,7 @@
 """Kernel-bound peer identity, with synthetic proc trees and no Docker calls."""
 
 from dataclasses import FrozenInstanceError
+import errno
 import os
 from itertools import cycle
 from pathlib import Path
@@ -8,6 +9,7 @@ import socket
 import struct
 import sys
 import time
+import threading
 from types import SimpleNamespace
 
 import pytest
@@ -32,10 +34,10 @@ def proc_tree(tmp_path, monkeypatch):
     net = tmp_path / 'network-namespace'
     mnt.touch()
     net.touch()
-    worker, peer = os.getpid(), os.getpid() + 10000
-    for pid in (worker, peer):
-        path = proc / str(pid)
-        path.mkdir()
+    leader, worker, peer = os.getpid(), os.getpid() + 20000, os.getpid() + 10000
+    worker_path = proc / str(leader) / 'task' / str(worker)
+    for path, pid in ((proc / str(leader), leader), (worker_path, worker), (proc / str(peer), peer)):
+        path.mkdir(parents=True)
         (path / 'ns').mkdir()
         (path / 'stat').write_text(process_stat(pid))
         (path / 'status').write_text(f'Name:\tdockerd\nUid:\t{os.getuid()}\t{os.getuid()}\t{os.getuid()}\t{os.getuid()}\n')
@@ -54,12 +56,14 @@ def proc_tree(tmp_path, monkeypatch):
             received.append(duplicate)
             return struct.pack('i', duplicate)
     monkeypatch.setattr(module.sys, 'platform', 'linux')
+    monkeypatch.setattr(threading, 'get_native_id', lambda: worker)
     monkeypatch.setattr(module, '_PROC_ROOT', proc)
     # Only the fixture's executable trust anchor is synthetic; proc operations,
     # inode comparisons, bounded reads, pidfd polling and FD cleanup are real.
     monkeypatch.setattr(module, '_trusted_executable', lambda path, deadline: os.stat(path))
     monkeypatch.setattr(module, '_mount_id', lambda fd, deadline: 41, raising=False)
     state = dict(proc=proc, worker=worker, peer=peer, executable=executable,
+                 worker_path=worker_path, peer_path=proc / str(peer), leader_path=proc / str(leader),
                  root=root, mnt=mnt, net=net, connection=Connection(), fds=received,
                  read_fd=read_fd, write_fd=write_fd)
     yield state
@@ -118,7 +122,7 @@ def test_changed_identity_during_observation_is_unknown(proc_tree, tmp_path, fie
     assert lease is not None
     try:
         pid = proc_tree[actor]
-        path = proc_tree['proc'] / str(pid) / field
+        path = proc_tree[f'{actor}_path'] / field
         if field == 'stat':
             path.write_text(process_stat(pid, start=999))
         elif field == 'status':
@@ -160,6 +164,20 @@ def test_same_inode_under_distinct_bind_mount_roots_is_not_same_process_root(pro
     try:
         assert lease.context.same_mount_namespace is True
         assert lease.context.same_process_root is False
+        assert lease.revalidate(time.monotonic() + 2)
+    finally:
+        lease.close()
+
+
+@pytest.mark.parametrize('actor,expected', [('leader', True), ('worker', False)])
+def test_worker_context_belongs_to_the_callback_thread_not_process_leader(proc_tree, tmp_path, actor, expected):
+    other = tmp_path / 'isolated-thread-network'
+    other.touch()
+    replace_link(proc_tree[f'{actor}_path'] / 'ns/net', other)
+    lease = capture(proc_tree)
+    assert lease is not None
+    try:
+        assert lease.context.same_network_namespace is expected
         assert lease.revalidate(time.monotonic() + 2)
     finally:
         lease.close()
@@ -239,7 +257,7 @@ def test_explicit_executable_anchor_checks_each_opened_parent_and_binary(monkeyp
 @pytest.mark.parametrize('corrupt', [False, True])
 def test_all_proc_and_snapshot_descriptors_are_released(proc_tree, monkeypatch, corrupt):
     if corrupt:
-        (proc_tree['proc'] / str(proc_tree['worker']) / 'status').write_text('invalid')
+        (proc_tree['worker_path'] / 'status').write_text('invalid')
     actual_open, actual_close = os.open, os.close
     outstanding = set()
     def tracked_open(*args, **kwargs):
@@ -279,6 +297,22 @@ def test_revalidation_access_failure_and_closed_lease_are_unknown(proc_tree):
     assert lease.revalidate(time.monotonic() + 2) is False
 
 
+@pytest.mark.parametrize('contents,expected', [('pos: 0\nmnt_id:\t41\nflags: 0\n', 41),
+                                              ('mnt_id: 0\n', None), ('mnt_id: -1\n', None),
+                                              ('mnt_id: 1\nmnt_id: 2\n', None),
+                                              ('mnt_id: secret\n', None), ('missing\n', None)])
+def test_held_root_mount_id_is_bounded_and_unambiguous(tmp_path, monkeypatch, contents, expected):
+    directory = tmp_path / str(os.getpid()) / 'fdinfo'
+    directory.mkdir(parents=True)
+    (directory / '19').write_text(contents)
+    monkeypatch.setattr(module, '_PROC_ROOT', tmp_path)
+    if expected is None:
+        with pytest.raises(ValueError, match='^context_unavailable$'):
+            module._mount_id(19, time.monotonic() + 2)
+    else:
+        assert module._mount_id(19, time.monotonic() + 2) == expected
+
+
 @pytest.mark.skipif(sys.platform != 'linux', reason='Linux peer-pidfd/procfs integration')
 def test_actual_linux_socket_peer_context_without_a_docker_service(monkeypatch):
     # The operator selects this test's running executable explicitly. A socket
@@ -290,7 +324,10 @@ def test_actual_linux_socket_peer_context_without_a_docker_service(monkeypatch):
         try:
             raw = left.getsockopt(socket.SOL_SOCKET, getattr(socket, 'SO_PEERPIDFD', 77), 4)
             os.close(struct.unpack('i', raw)[0])
-        except OSError:
+        except OSError as error:
+            version = tuple(int(part) for part in os.uname().release.split('-')[0].split('.')[:2])
+            unsupported_old_kernel = (version < (6, 8) and error.errno in (errno.ENOPROTOOPT, errno.EOPNOTSUPP))
+            assert unsupported_old_kernel or error.errno in (errno.EACCES, errno.EPERM)
             assert module.capture_daemon_context(left, os.getuid(), executable, time.monotonic() + 2) is None
             return
         lease = module.capture_daemon_context(left, os.getuid(), executable, time.monotonic() + 2)
