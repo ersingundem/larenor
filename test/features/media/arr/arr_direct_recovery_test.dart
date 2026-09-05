@@ -1,4 +1,8 @@
+import 'dart:async';
+
 import 'package:flutter/cupertino.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -13,6 +17,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../core/direct_arr_credentials_test.dart';
 import '../../../core/direct_home_routines_test.dart' show routinesHome;
+import 'package:larenor/features/media/arr/presentation/sonarr_screen.dart';
 
 Future<void> settle(WidgetTester tester) async {
   for (var i=0;i<8;i++) { await tester.pump(const Duration(milliseconds:100)); }
@@ -42,6 +47,38 @@ void main() {
       const MethodChannel('plugins.it_nomads.com/flutter_secure_storage'), null,
     );
   });
+  for(final point in ['http', 'field']) {
+    testWidgets('pending recovery loses window permission during $point without later key effects', (tester) async {
+      secure.values['sonarr_connection_pending_v1']='1';
+      final (c,_)=await routinesHome('direct');
+      final interaction=AppInteractionController(); addTearDown(interaction.dispose);
+      final response=Completer<http.Response>(); var calls=0;
+      final channel=TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+      channel.setMockMethodCallHandler(const MethodChannel('plugins.it_nomads.com/flutter_secure_storage'), (call) async {
+        final result=await secure.handle(call);
+        if(point=='field' && call.method=='write' && (call.arguments as Map)['key']=='sonarr_base_url') interaction.setActive(false);
+        return result;
+      });
+      await http.runWithClient(() async {
+        await tester.pumpWidget(UncontrolledProviderScope(container:c,child:CupertinoApp(
+          localizationsDelegates:AppLocalizations.localizationsDelegates,supportedLocales:AppLocalizations.supportedLocales,
+          builder:(_,child)=>AppInteractionScope(controller:interaction,child:child!),home:const SonarrScreen(),
+        ))); await settle(tester);
+        final fields=find.byType(CupertinoTextFormFieldRow);
+        await tester.enterText(fields.at(0),'https://new.invalid'); await tester.enterText(fields.at(1),'synthetic-new-key');
+        secure.calls.clear();
+        await tester.tap(find.widgetWithText(CupertinoButton,'Connect')); await settle(tester);
+        expect(calls,1);
+        if(point=='http') interaction.setActive(false);
+        response.complete(http.Response('{}',200)); await settle(tester);
+        expect(secure.values['sonarr_api_key'],'synthetic-old-key');
+        expect(secure.values['sonarr_connection_pending_v1'],'1');
+        if(point=='http') expect(secure.calls.where((call)=>call.$1!='read'),isEmpty);
+        expect(tester.takeException(),isNull);
+        await tester.pumpWidget(const SizedBox.shrink());c.dispose();await settle(tester);
+      },()=>MockClient((request) {calls++; return response.future;}));
+    });
+  }
   for(final name in arrServices) {
     testWidgets('$name pending seed still has PIN settings route to blank explicit recovery', (tester) async {
       secure.values['${name}_connection_pending_v1'] = '1';
