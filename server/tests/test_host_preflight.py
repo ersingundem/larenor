@@ -189,3 +189,136 @@ def test_policy_is_copied_and_rejects_unknown_id_and_excess_entries(roots):
     for values in ({'../secret': next(iter(policy.roots.values()))}, {f'root{i}': next(iter(policy.roots.values())) for i in range(17)}):
         with pytest.raises(HostPreflightError, match='^invalid_policy$'):
             HostPolicy(values)
+
+
+def test_distinct_writable_filesystems_each_need_catalog_budget(roots):
+    data_inode = Path(roots['appdata'].path).stat().st_ino
+    library_inode = Path(roots['library'].path).stat().st_ino
+    def metadata(fd):
+        original = os.fstat(fd)
+        if original.st_ino == library_inode:
+            values = list(original)
+            values[2] += 1000000  # trusted seam: a distinct mounted filesystem
+            return os.stat_result(values)
+        return original
+    instance = HostInspector(HostPolicy(roots), platform_provider=lambda: 'linux/amd64', clock=lambda: NOW,
+                             stat_provider=metadata,
+                             statvfs_provider=lambda fd: space(5000 if os.fstat(fd).st_ino == data_inode else 9000))
+    result = instance.inspect(selected('sonarr'))
+    assert [(c.rootId, c.requiredMiB, c.availableMiB, c.status) for c in checks(result, 'storage_capacity')] == [
+        ('appdata', 8192, 5000, 'failed'), ('library', 8192, 9000, 'passed')]
+
+
+def test_foreign_owner_and_managed_mount_escape_fail(roots):
+    child = Path(roots['appdata'].path) / 'jellyfin'
+    child.mkdir(mode=0o700)
+    inode = child.stat().st_ino
+    for column in (2, 4):  # stat tuple device or uid
+        def metadata(fd):
+            original = os.fstat(fd)
+            if original.st_ino == inode:
+                values = list(original)
+                values[column] += 1000000
+                return os.stat_result(values)
+            return original
+        instance = HostInspector(HostPolicy(roots), platform_provider=lambda: 'linux/amd64', clock=lambda: NOW,
+                                 stat_provider=metadata)
+        result = instance.inspect(selected())
+        assert checks(result, 'storage_root')[0].status == 'failed'
+
+
+def test_existing_private_managed_children_pass_without_changes(roots):
+    base = Path(roots['appdata'].path)
+    for name in ('config', 'cache'):
+        (base / 'jellyfin' / name).mkdir(parents=True, mode=0o700)
+    assert checks(inspector(roots).inspect(selected()), 'storage_root')[0].status == 'passed'
+    assert sorted(path.name for path in (base / 'jellyfin').iterdir()) == ['cache', 'config']
+
+
+def test_readonly_media_root_does_not_receive_writable_budget(roots):
+    result = inspector(roots).inspect(selected('jellyfin', {'mediaRootId': 'media'}))
+    assert [(c.rootId, c.status) for c in checks(result, 'storage_root')] == [('appdata', 'passed'), ('media', 'passed')]
+    assert [c.rootId for c in checks(result, 'storage_capacity')] == ['appdata']
+
+
+def test_readonly_filesystem_cannot_pass_writable_capacity(roots):
+    value = space()
+    value.f_flag = os.ST_RDONLY
+    instance = HostInspector(HostPolicy(roots), platform_provider=lambda: 'linux/amd64', clock=lambda: NOW,
+                             statvfs_provider=lambda fd: value)
+    assert checks(instance.inspect(selected()), 'storage_capacity')[0].status == 'failed'
+
+
+@pytest.mark.parametrize('system,machine,expected', [('Linux', 'x86_64', 'passed'), ('Linux', 'amd64', 'passed'),
+    ('Linux', 'aarch64', 'failed'), ('Linux', 'arm64', 'failed'), ('Darwin', 'x86_64', 'failed'), ('Linux', 'riscv64', 'failed')])
+def test_default_platform_discovery_is_linux_and_architecture_specific(roots, monkeypatch, system, machine, expected):
+    import larenor_server.plugins.host_preflight as module
+    monkeypatch.setattr(module.platform, 'system', lambda: system)
+    monkeypatch.setattr(module.platform, 'machine', lambda: machine)
+    instance = HostInspector(HostPolicy(roots), clock=lambda: NOW)
+    assert checks(instance.inspect(selected()), 'platform')[0].status == expected
+
+
+def test_arm64_plan_passes_only_on_matching_host(roots):
+    instance = HostInspector(HostPolicy(roots), platform_provider=lambda: 'linux/arm64', clock=lambda: NOW)
+    assert checks(instance.inspect(selected(platform='linux/arm64')), 'platform')[0].status == 'passed'
+
+
+@pytest.mark.parametrize('clock', [lambda: float('nan'), lambda: True, lambda: 'private-secret', lambda: 10**20])
+def test_clock_errors_are_static_and_have_no_raw_context(roots, clock):
+    instance = HostInspector(HostPolicy(roots), clock=clock)
+    with pytest.raises(HostPreflightError, match='^inspection_unavailable$') as error:
+        instance.inspect(selected())
+    assert error.value.__context__ is None
+
+
+def test_bad_policy_owner_or_provider_is_rejected(roots):
+    for uid in (True, -1, 'private-secret'):
+        with pytest.raises(HostPreflightError, match='^invalid_policy$'):
+            HostPolicy(roots, owner_uid=uid)
+    with pytest.raises(HostPreflightError, match='^invalid_policy$'):
+        HostInspector(roots)
+    with pytest.raises(HostPreflightError, match='^invalid_policy$'):
+        HostInspector(HostPolicy(roots), clock='private-secret')
+
+
+def test_inspection_opens_directories_readonly_and_never_mutates_or_networks(roots, monkeypatch):
+    import socket
+    import subprocess
+    request = selected('sonarr')
+    snapshot = {identity: sorted(Path(root.path).iterdir()) for identity, root in roots.items()}
+    original_open = os.open
+    calls = []
+    def read_only_open(path, flags, *args, **kwargs):
+        assert not flags & (os.O_WRONLY | os.O_RDWR | os.O_CREAT | os.O_TRUNC | os.O_APPEND)
+        calls.append(flags)
+        return original_open(path, flags, *args, **kwargs)
+    def forbidden(*args, **kwargs):
+        pytest.fail('preflight attempted a mutation or network operation')
+    with monkeypatch.context() as scoped:
+        scoped.setattr(os, 'open', read_only_open)
+        scoped.setattr(Path, 'mkdir', forbidden)
+        scoped.setattr(socket, 'socket', forbidden)
+        scoped.setattr(subprocess, 'Popen', forbidden)
+        result = inspector(roots).inspect(request)
+    assert calls and checks(result, 'storage_root')[0].status == 'passed'
+    assert snapshot == {identity: sorted(Path(root.path).iterdir()) for identity, root in roots.items()}
+
+
+def test_root_filesystem_ownership_check_fails_closed(roots):
+    root_inode = Path('/').stat().st_ino
+    def metadata(fd):
+        original = os.fstat(fd)
+        if original.st_ino == root_inode:
+            values = list(original)
+            values[4] = os.getuid() + 1000000
+            return os.stat_result(values)
+        return original
+    instance = HostInspector(HostPolicy(roots), clock=lambda: NOW, stat_provider=metadata)
+    assert checks(instance.inspect(selected()), 'storage_root')[0].status == 'failed'
+
+
+@pytest.mark.parametrize('provider', [False, 0, ''])
+def test_explicit_falsey_noncallable_provider_is_not_silently_replaced(roots, provider):
+    with pytest.raises(HostPreflightError, match='^invalid_policy$'):
+        HostInspector(HostPolicy(roots), clock=provider)
