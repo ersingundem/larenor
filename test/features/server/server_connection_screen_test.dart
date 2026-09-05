@@ -59,6 +59,22 @@ class Api extends LarenorServerApi {
   bool requireChange = true, offline = false;
   ServerRole role = ServerRole.admin;
   Completer<ServerSession>? pendingLogin;
+  int contextReads = 0;
+  String? contextFailure;
+  Completer<ServerContext>? pendingContext;
+  @override
+  Future<ServerContext> context(String accessToken) async {
+    contextReads++;
+    if (contextFailure != null) throw LarenorServerException(contextFailure!);
+    return pendingContext == null
+        ? ServerContext.fromJson({
+            'schemaVersion': 1,
+            'coreId': 'a' * 32,
+            'homeId': 'b' * 32,
+          })
+        : pendingContext!.future;
+  }
+
   @override
   Future<ServerSession> login({
     required String username,
@@ -185,6 +201,81 @@ Future<void> resume(WidgetTester tester) async {
 }
 
 void main() {
+  for (final language in ['en', 'tr']) {
+    testWidgets(
+      'pending context has a guarded GET-only recovery at tablet 2x ($language)',
+      (tester) async {
+        final store = Store()..value = session();
+        final api = Api()
+          ..requireChange = false
+          ..contextFailure = 'timeout';
+        final account = ServerAccountController(
+          store: store,
+          apiFactory: (_) => api,
+        );
+        await mount(tester, account, width: 900, scale: 2, language: language);
+        expect(account.hasPendingContext, isTrue);
+        expect(
+          find.byKey(const ValueKey('server-context-retry')),
+          findsOneWidget,
+        );
+        expect(find.byKey(const ValueKey('server-password')), findsNothing);
+        expect(find.byKey(const ValueKey('server-admin')), findsNothing);
+        expect(find.byKey(const ValueKey('server-vault')), findsNothing);
+        expect(tester.takeException(), isNull);
+        api.contextFailure = null;
+        await tap(tester, 'server-context-retry');
+        expect(api.contextReads, 2);
+        expect(api.logins, 0);
+        expect(api.changes, 0);
+        expect(account.context, isNotNull);
+        expect(
+          find.byKey(const ValueKey('server-context-retry')),
+          findsNothing,
+        );
+        expect(find.byKey(const ValueKey('server-admin')), findsOneWidget);
+        expect(tester.takeException(), isNull);
+      },
+    );
+  }
+
+  testWidgets(
+    'background cancels only the context read and late success cannot unlock the account',
+    (tester) async {
+      final store = Store()..value = session();
+      final api = Api()
+        ..requireChange = false
+        ..contextFailure = 'timeout';
+      final account = ServerAccountController(
+        store: store,
+        apiFactory: (_) => api,
+      );
+      await mount(tester, account);
+      api.contextFailure = null;
+      api.pendingContext = Completer<ServerContext>();
+      await tap(tester, 'server-context-retry');
+      await background(tester);
+      api.pendingContext!.complete(
+        ServerContext.fromJson({
+          'schemaVersion': 1,
+          'coreId': 'a' * 32,
+          'homeId': 'b' * 32,
+        }),
+      );
+      await tester.pump();
+      expect(account.context, isNull);
+      expect(account.hasPendingContext, isTrue);
+      expect(store.value, isNotNull);
+      await resume(tester);
+      expect(api.contextReads, 2);
+      api.pendingContext = null;
+      await tap(tester, 'server-context-retry');
+      expect(account.context, isNotNull);
+      expect(api.contextReads, 3);
+      expect(api.logins, 0);
+    },
+  );
+
   testWidgets('member vault/update access has no administrator entry', (
     tester,
   ) async {
