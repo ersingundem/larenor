@@ -80,7 +80,7 @@ void main(){
   test('$name credential reload cannot expose a previously configured HTTP client',() async {
    final entered=Completer<void>(),release=Completer<void>();
    await http.runWithClient(() async {
-    final(c,_)=await routinesHome('direct');final sub=holdServiceRead(c,name);addTearDown(sub.close);await serviceRead(c,name);
+    final(c,_)=await routinesHome('direct');final configSub=holdApiKey(c,name);addTearDown(configSub.close);await apiKeyConnection(c,name);final sub=holdServiceRead(c,name);addTearDown(sub.close);await serviceRead(c,name);
     secure.afterEffect=(call) async {if(call.method=='read'&&(call.arguments as Map)['key']=='${name}_connection_pending_v1'){if(!entered.isCompleted)entered.complete();await release.future;}};
     switch(name){case 'jellyseerr':c.invalidate(jellyseerrConnectionProvider);case 'bazarr':c.invalidate(bazarrConnectionProvider);case 'prowlarr':c.invalidate(prowlarrConnectionProvider);}
     final refreshing=apiKeyConnection(c,name);await entered.future;
@@ -95,13 +95,14 @@ void main(){
    await http.runWithClient(() async {
     final(c,_)=await routinesHome('core');final sub=holdServiceRead(c,name);addTearDown(sub.close);
     try{await serviceRead(c,name);}on DirectHomeAccessException{/* Allowed typed denial. */}
+    await c.pump();await Future<void>.delayed(Duration.zero);
     expect(clients,0);expect(requests,0);expect(secure.calls,isEmpty);
    },(){clients++;return MockClient((_)async{requests++;return http.Response(name=='prowlarr'?'[]':'{"results":[],"data":[]}',200);});});
   });
   test('$name source revocation disposes old client and cannot refetch old configuration',() async {
    var requests=0,closed=0;
    await http.runWithClient(() async {
-    final(c,home)=await routinesHome('direct');final sub=holdServiceRead(c,name);addTearDown(sub.close);await serviceRead(c,name);expect(requests,1);requests=0;
+    final(c,home)=await routinesHome('direct');final configSub=holdApiKey(c,name);addTearDown(configSub.close);await apiKeyConnection(c,name);final sub=holdServiceRead(c,name);addTearDown(sub.close);await serviceRead(c,name);expect(requests,1);requests=0;
     await home.choose(HomeSource.verifiedCore);
     await expectLater(apiKeyConnection(c,name),throwsA(isA<DirectHomeAccessException>()));await c.pump();
     expect(requests,0);expect(closed,1);
