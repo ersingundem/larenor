@@ -77,3 +77,19 @@ restore sırasında kaynak özeti değişimi, false/throw yazı ve EN/TR
 taşıma testleridir. Restore dilimi açıldığında backup/configuration_scope
 testleri de genişletilir. Bu araştırmada test çalıştırılmadı; kabul sayacı
 artırılmadı, ev servisine veya sırlarına erişilmedi.
+
+## 6 Eylül — Kabul sahipliği ve döngüsüz sıra
+
+S08.4 mevcut kayıtların güvenli kapsam temelidir. İlk pasif oda kopyası yanında
+mevcut dashboard, Direct bağlantılar/sırlar, diafon, film gecesi, wellbeing ve
+cihaz tercihleri fiili provider/repository erişimiyle incelenir. Her kayıt Core
+kapsamlı, Core'dan erişilemeyen Direct veya kişisel/cihaz sahipliğine atanır;
+başka ev ve backup allowlist negatif testleri olmadan S08.4 kapanmaz.
+
+Tuple/revision bağlı restore/journal/rollback S08.5'e; sabit oda/kaynak/kişi
+kimliği ve izin S08.6'ya aittir. Tam HA eşlemesi ve ilk typed ağ snapshot cache
+S08.7'de, medya/müzik S08.8'de, altyapı S08.9'da açık kabul koşuludur. Bunlar
+S08.4'ün bitiş önkoşulu yapılmaz: aksi halde S08.4→5→7→4 kabul döngüsü oluşur.
+Bu düzenleme kapsamı veya kabul sayısını azaltmaz; her requirement kuyrukta
+somut sahibinde kalır. Genel web URL/origin izinleri açık eşleme olmadan
+taşınmaz.

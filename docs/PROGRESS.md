@@ -150,6 +150,16 @@ ayrı kayıt, PIN korumalı önizleme ve seçili pasif oda adlarının kopyası 
 `codex/scoped-layout-e2e` gerçek HTTP/PIN/restart yolculuğunu paralel hazırlıyor.
 Diğer ev kayıtları ve typed ağ cache kabulü açık; bu başlangıç tamamlanma değildir.
 
+**Paralel S08.6:** Kalıcı oda/kaynak/ACL registry ve dar authenticated HTTP API
+`codex/home-resource-registry` üzerinde başladı. İlk kimlik/yetki modelleri
+üretim API'sinde tüketilecek; kişi profilleri, HA adaptörü ve Client yönetim
+kabulü bu ilk parçadan tamamlanmış sayılmayacak.
+
+**S08 kabul sırası netleştirildi:** Mevcut kayıt kapsamı S08.4, restore/journal
+S08.5, kimlik/yetki S08.6; gerçek HA eşlemesi ve typed cache S08.7, medya
+S08.8, altyapı S08.9. Böylece bir adım kendi sonraki adaptörünü bitiş önkoşulu
+olarak beklemiyor. Kapsam ve 125 işlik kuyruk korunuyor; kabul sayısı 7/125.
+
 **Yarım çalışmaları kaybetmeden devam:** önce çalışma kopyaları, dallar,
 agent ve CI durumları incelenir; aynı iş yeniden başlatılmaz. Tamamlanan
 RED/GREEN checkpoint'leri git geçmişinde tutulur; ana dala birleşme uzak CI

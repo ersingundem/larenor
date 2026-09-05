@@ -79,9 +79,16 @@ Client'a eklemek eski ev verisinin yeni Core'da görünmesini engellemez.
   1.093 ilgili test ve dashboard ile birleşik 2.815 Flutter testi/analiz geçti.
   Gerçek uygulama başlangıcıyla beşinci emülatör
   akışı eklendi; toplam dokuz E2E ve bağımsız imzalı APK 94 kabulü geçti.
-- [ ] **Kalıcı cache:** Dashboard ve diğer ev verilerini bağlamlı anahtarlara
-  taşı. Eski `dashboard_layout`, `ha_base_url` ve `ha_token` verisini yeni
-  Core'a sessizce bağlama; yalnız açık önizlemeli taşıma uygula.
+- [ ] **Mevcut kalıcı kayıt kapsam temeli (S08.4):** Core'dan erişilebilir ev
+  düzenini tuple/revision kaydıyla sakla. Diğer mevcut kayıtları gerçek erişim
+  testleriyle Core kapsamlı, Direct-only veya kişisel/cihaz olarak sahiplen.
+  Eski `dashboard_layout`, `ha_base_url` ve `ha_token` yeni Core'a sessizce
+  bağlanmaz. İlk PIN korumalı pasif oda kopyası bütün bu kabulü kapatmaz.
+- [ ] **Typed adaptör cache ve tam eşleme (S08.7–9):** İlk HA snapshot'ı
+  resource/tuple/sürüm/TTL/kota sınırına bağla; alan/entity/scene/service ve
+  bağlantı/sır eşlemesi açık preview/onay ister. Medya ve altyapı karşılıkları
+  S08.8/9'da kapanır. Web URL/origin izinleri sessiz eşleme dışındadır.
+  Bu adaptör işleri S08.4/5'in başlamasını bekleten bir önkoşul değildir.
 - [ ] **Restore ve logout:** Restore önizlemesi ve journal hedefi doğrulanmış
   bağlama bağlı olsun; inceleme A evinde, onay B evinde yapılamasın. Yedek
   oturum/bağlam kimliği geri yüklemesin. Logout kapsamı kapatsın ve tokenı

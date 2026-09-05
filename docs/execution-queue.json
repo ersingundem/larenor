@@ -947,7 +947,7 @@
       "id": "S08.4",
       "kind": "task",
       "parent": "S08",
-      "title": "Bağlamlı kalıcı cache ve açık eski veri taşıması",
+      "title": "Kalıcı ev kayıt sınırı ve açık eski düzen taşıması",
       "status": "in_progress",
       "dependsOn": [
         "S08.3"
@@ -961,7 +961,9 @@
       ],
       "scope": "Tek mevcut ev bağlamı; F19 çoklu Core/ev federasyonu bu teslim değildir.",
       "acceptance": [
-        "Dashboard ve ev kayıtları bağlamlı anahtarla saklanır. Eski dashboard_layout/ha_base_url/ha_token yalnız açık önizlemeyle taşınır; geç cevap/restart çapraz ev verisi göstermez."
+        "Core’dan erişilebilir kalıcı ev kaydı canonical Core/ev/kullanıcı anahtarı, embedded tuple ve revision ile saklanır; eksik/bozuk kayıtta Direct fallback olmaz. PIN/epoch/geç yanıt ve false/throw/reload belirsizliği test edilir.",
+        "Mevcut dashboard, Direct bağlantı ve sırlar, diafon, film gecesi, wellbeing, cihaz tercihleri envanteri çıkarılır; her kayıt scope’lu Core, Core’dan erişilemeyen Direct veya kişisel/cihaz sahipliğine atanır. Gerçek provider/repository yolunda karşı ev okuma-yazma, yeniden açılış ve backup allowlist negatif testleri gerekir.",
+        "Eski dashboard yalnız açık, süreli önizleme ve seçili pasif oda kopyasıyla taşınır; ha_base_url/ha_token ve entity/scene/service/alan/web URL izinleri sessiz aktarılmaz. Tam HA eşlemesi ve ilk typed ağ cache S08.7, medya S08.8, altyapı S08.9 kabulünde kalır; pasif oda kopyası tek başına bu işi kapatmaz."
       ],
       "requiredEvidence": [
         "test",
@@ -970,7 +972,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "İlk üretim dilimi codex/client-scoped-layout üzerinde başladı: Core/ev/kullanıcı anahtarlı düzen deposu, mevcut PIN altında salt düzen önizlemesi ve seçili pasif oda adlarının kopyası. Gerçek Android HTTP/PIN/restart yolculuğu codex/scoped-layout-e2e üzerinde paralel hazırlanıyor. Diğer ev kayıtları ve typed ağ cache kabulü açık; henüz tamamlanma kanıtı yok."
+      "reason": "İlk üretim dilimi codex/client-scoped-layout üzerinde başladı: Core/ev/kullanıcı anahtarlı düzen deposu, mevcut PIN altında salt düzen önizlemesi ve seçili pasif oda adlarının kopyası. Gerçek Android HTTP/PIN/restart yolculuğu codex/scoped-layout-e2e üzerinde paralel hazırlanıyor. Mevcut diğer kayıtların erişim envanteri/negatif testleri ayrıca açık; typed ağ cache ilgili adaptör S08.7–9 kabulündedir. Henüz bu ilk dilimin tamamlanma kanıtı yok."
     },
     {
       "id": "S08.5",
@@ -989,7 +991,8 @@
       ],
       "scope": "Tek mevcut ev bağlamı; F19 çoklu Core/ev federasyonu bu teslim değildir.",
       "acceptance": [
-        "A evindeki restore önizlemesi B’de onaylanamaz. Yedek oturum/Core kimliği geri yüklemez; logout tokenı siler ve scope’u kapatır, diğer kayıtları topluca silmez."
+        "A evindeki restore önizlemesi B’de onaylanamaz. Yedek oturum/Core kimliği geri yüklemez; logout tokenı siler ve scope’u kapatır, diğer kayıtları topluca silmez.",
+        "Restore preview/onay/journal/rollback aynı güncel tuple, kaynak özeti ve hedef revision’a bağlıdır; başka evin veya cihaz/kişisel kayıtlarının hedefleri sessiz değişmez. Typed HA cache bu temel adımın önkoşulu değildir."
       ],
       "requiredEvidence": [
         "test",
@@ -1005,7 +1008,7 @@
       "kind": "task",
       "parent": "S08",
       "title": "Kişi/oda/kaynak kimliği ve yetki sözleşmesi",
-      "status": "pending",
+      "status": "in_progress",
       "dependsOn": [
         "S08.3"
       ],
@@ -1026,7 +1029,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": null
+      "reason": "codex/home-resource-registry üzerinde üretim başladı: strict scope/resource/grant modellerini tüketen kalıcı oda/kaynak/ACL registry ve dar authenticated HTTP API. Kullanıcı grant subject’i HA person/hane profili değildir; tam kişi/provider bağlama kabulü ve Client yönetim ekranı ayrıca açık."
     },
     {
       "id": "S08.7",
@@ -1046,7 +1049,9 @@
       ],
       "scope": "Tek mevcut ev bağlamı; F19 çoklu Core/ev federasyonu bu teslim değildir.",
       "acceptance": [
-        "HA kaynak/komut/sonuç yolunu Server’a taşı; doğrudan HA’ya otomatik fallback eski ev verisi getiremez. Sır maskeleme, yetki, timeout ve belirsiz komut tekrarı sınanır."
+        "HA kaynak/komut/sonuç yolunu Server’a taşı; doğrudan HA’ya otomatik fallback eski ev verisi getiremez. Sır maskeleme, yetki, timeout ve belirsiz komut tekrarı sınanır.",
+        "Eski HA bağlantı/sırları ve alan/entity/scene/service kimlikleri yalnız açık preview/onay ve doğrulanmış provider/source eşlemesiyle aktarılır; web URL/origin izinleri bu eşlemeye sessizce dahil edilmez.",
+        "İlk typed snapshot cache Core/ev/kullanıcı/resource kimliği, şema sürümü, TTL ve boyut kotasıyla sınırlıdır. Tazelik, ağ kesintisi, yetki kaybı ve eski bağlamda kalan yanıtlar test edilir; otomatik Direct fallback yoktur."
       ],
       "requiredEvidence": [
         "test",
@@ -1075,7 +1080,8 @@
       ],
       "scope": "Tek mevcut ev bağlamı; F19 çoklu Core/ev federasyonu bu teslim değildir.",
       "acceptance": [
-        "Katalog/arama/sağlayıcı/oynatıcı/kuyruk Larenor API’sini kullanır; doğrudan MA/Jellyfin adres-token onboarding gerektirmez. Eski ayarların açık geçişi ve yetki kaybı E2E."
+        "Katalog/arama/sağlayıcı/oynatıcı/kuyruk Larenor API’sini kullanır; doğrudan MA/Jellyfin adres-token onboarding gerektirmez. Eski ayarların açık geçişi ve yetki kaybı E2E.",
+        "Medya/müzik kalıcı kayıt ve typed cache’leri tuple/resource/sürüm/TTL/kota kuralına geçer; eski sağlayıcı/oynatıcı eşlemesi açık onaylıdır. Yetki kaybı veya başka Core’a geçiş eski kayıtları göstermez."
       ],
       "requiredEvidence": [
         "test",
@@ -1103,7 +1109,8 @@
       ],
       "scope": "Tek mevcut ev bağlamı; F19 çoklu Core/ev federasyonu bu teslim değildir.",
       "acceptance": [
-        "Mevcut Keenetic/Proxmox ve seçili servis yolları tek tek merkezi kaynak/komut yetkisine taşınır; direct yollar belgelenir, bilinmeyen durum başarı sayılmaz."
+        "Mevcut Keenetic/Proxmox ve seçili servis yolları tek tek merkezi kaynak/komut yetkisine taşınır; direct yollar belgelenir, bilinmeyen durum başarı sayılmaz.",
+        "Ağ/altyapı kalıcı kayıt ve typed cache’leri tuple/resource/sürüm/TTL/kota kuralını uygular; bağlantı kaydı değiştiğinde eski kaynağın komut yetkisi yeni adrese taşınmaz. Geç cevap/yeniden açılış/yetki kaybı ayrı sınanır."
       ],
       "requiredEvidence": [
         "test",
