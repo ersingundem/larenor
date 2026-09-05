@@ -8,8 +8,9 @@ belong in the Client and are authorized again by the Server.
 Accounts, the encrypted vault, user/session administration, encrypted service
 connections and signed Client release APIs have corresponding Client screens.
 The Server container has passed native amd64/arm64 CI checks. Internal component
-catalog and requirements-preview APIs are implemented; installation and automatic
-media wiring remain in development. See the
+catalog, requirements previews and durable read-only inspection jobs are
+implemented, with an optional internal Linux worker and Client administration.
+Installation and automatic media wiring remain in development. See the
 [implementation plan](../docs/server-client-architecture-2026-09-05.md) for the
 current boundary; a planned operation is not an available endpoint.
 
@@ -96,9 +97,15 @@ The component API provides these administrator-only routes:
 
 | Route | Result |
 | --- | --- |
-| `GET /api/v1/admin/plugins/catalog` | Six pinned component manifests and explicit unavailable-worker status |
+| `GET /api/v1/admin/plugins/catalog` | Six pinned component manifests; installation capability remains disabled |
 | `POST /api/v1/admin/plugins/previews` | Deterministic requirements preview for validated catalog settings and architecture |
 | `GET /api/v1/admin/plugins/previews/{id}` | Unexpired preview belonging to the same user and session family |
+| `GET /api/v1/admin/plugins/jobs/capabilities` | `preflightConfigured` and `installAvailable: false`; configuration does not prove worker connectivity |
+| `POST /api/v1/admin/plugins/jobs` | `202 {job}` for `operation: "preflight"`, exact preview revision/hash and a 32-hex `requestId` |
+| `GET /api/v1/admin/plugins/jobs` | Current administrators' shared job history, paginated by `before` / `nextBefore` |
+| `GET /api/v1/admin/plugins/jobs/{id}` | Durable status and bounded observation results, including after preview expiry |
+| `GET /api/v1/admin/plugins/jobs/{id}/events` | Static activity codes, paginated by `after` / `nextAfter` |
+| `POST /api/v1/admin/plugins/jobs/{id}/cancel` | Revision-checked cancellation of queued work or a cancellation request for running inspection |
 
 Preview generation performs no host inspection, Docker action or remote service
 request. Plans are encrypted in the database, bound to the current catalog and
@@ -106,12 +113,55 @@ administrator revision, and expire after ten minutes. Storage is capped at 128
 previews. Refreshing an access token within the same session family preserves
 access; another login or device cannot retrieve that preview.
 
-All catalog entries currently report `installable: false`. There is no public
-installation, confirmation or job endpoint. The isolated worker primitives have
-synthetic reconciliation tests but are not connected to API dispatch or an enabled
-installer. See the [component contract and evidence](larenor_server/plugins/README.md).
-The product target is [one integrated media/music installation](../docs/integrated-media-stack.md),
-with internal service credentials and automatic connections managed by Larenor.
+In the Client, a signed-in administrator opens **Server components** through
+Settings and its PIN gate, reviews a component's requirements, then chooses
+**Check requirements** when the optional worker is configured. **Check history**
+shows durable jobs, per-requirement results and activity, with explicit refresh
+and cancellation. A lost submission can be recovered using the same request ID;
+the Client does not automatically create a replacement job. Backgrounding,
+leaving the protected route or changing account retires its active interactions.
+Music Assistant remains a planned internal music engine, without a separate
+user installation or URL/token setup flow.
+
+A job state of `succeeded` means **inspection completed**. Individual checks may
+still be `failed` or `unknown`. The current worker observes platform and approved
+storage roots/capacity; Docker, port availability and receiver networking remain
+`unknown`. It never pulls an image, creates component storage, starts a service,
+changes host configuration or enables installation. Every catalog plan remains
+`installable: false`, and job capabilities always report `installAvailable: false`.
+
+Jobs keep their encrypted plan/results after the preview expires. Dispatch checks
+the original administrator revision and session family before inspection and
+again before publishing results; normal access-token refresh is allowed. An API
+restart may repeat interrupted read-only inspection after those checks. One job
+runs at a time, at most 16 are queued, history is capped at 10,000 jobs, and only
+the newest 10,000 static activity events are retained. No Redis or separate public
+management API is involved.
+
+## Optional internal requirements worker
+
+The default Server has no configured preflight worker. History remains available;
+creating a job returns `plugin_worker_unavailable`. The same Server package ships
+`larenor-preflight-worker`, an internal operator/runtime entry point for Linux
+AMD64/ARM64. It uses a private Unix socket and real Linux peer credentials, with
+no TCP listener, Docker socket or shared Client token. It is not another product
+or an end-user application to configure separately.
+
+The future unified installer must supply its private policy, approved root IDs
+and process supervision. For the current operator interface, policy format,
+`--check-config`, socket ownership and recovery, see the
+[implemented worker contract](larenor_server/plugins/README.md#internal-worker-configuration-and-lifecycle).
+The API selects its optional connection through `LARENOR_PLUGIN_WORKER_SOCKET`
+(an absolute socket path) and `LARENOR_PLUGIN_WORKER_UID` (the actual worker UID,
+default `0`). Invalid values fail startup with the static code
+`invalid_worker_configuration`, without echoing environment values. The API
+container's default entry point starts only the API, not this worker.
+
+The product target remains [one integrated media/music installation](../docs/integrated-media-stack.md),
+with users managing settings in Larenor Client and internal credentials and
+connections managed by Larenor. Complete-stack provisioning, service bootstrap,
+private control networking and actual media runtime deployment are still future
+work. The current job API rejects installation operations.
 
 ## Client releases
 

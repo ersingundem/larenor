@@ -1,11 +1,13 @@
-# S06: internal component catalog and provisioning plans
+# S06: internal components and requirements checks
 
-The delivered offline slice, 5 September 2026, consists of
-[`models.py`](models.py), [`catalog.py`](catalog.py), and
-[`packagedcatalog.json`](packagedcatalog.json). It validates six immutable
-component manifests and calculates typed, deterministic requirements plans.
-All six records have `installable: false`. This is not evidence that any image
-has been started, installed on CasaOS, or tested with a physical player.
+The delivered slice, 5 September 2026, includes the immutable component catalog,
+offline requirements previews, encrypted durable inspection jobs, Client
+administration and an optional internal Linux requirements worker. The actual
+contracts are in [`models.py`](models.py), [`api_models.py`](api_models.py),
+[`job_models.py`](job_models.py) and [`preflight_models.py`](preflight_models.py).
+All six component records remain `installable: false`. Completed inspections do
+not establish that an image was started, installed on CasaOS or tested with a
+physical player.
 
 The product boundary is **one Larenor Server installation and account**, with
 the media components provisioned and connected internally. Users manage media
@@ -15,8 +17,9 @@ managed media components; `internal_engine` identifies Music Assistant as the
 Larenor music engine. Neither role means an independent user installation.
 Per-component plans are internal building blocks for a later complete-stack
 preview and provisioning job. Existing external S05 connections remain an
-optional compatibility path. The job/worker sections below are design proposals;
-API persistence and worker implementation have separate tests and evidence.
+optional compatibility path. The job and worker interfaces documented below
+are implemented for read-only inspection. Complete-stack installation,
+bootstrap and interconnection are future work, described separately at the end.
 
 The scope comes from the [Client/Server plan](../../../docs/server-client-architecture-2026-09-05.md#eklenti-ve-casaos-yönetimi):
 a versioned catalog, reviewable installation plans, persistent jobs, and a
@@ -72,8 +75,9 @@ to `/app/config`, and Music Assistant maps `<instance>/data` to `/data`.
 Jellyfin/MA optional media mounts are read-only. Sonarr/Radarr/qBittorrent share
 one approved writable library root at `/data`, allowing bootstrap to configure
 consistent download/library paths without separate mounts breaking hardlinks.
-The future worker must check root purpose, ownership, free space, symlink
-boundaries, and existing resources before any mutation.
+The delivered inspector checks approved root purpose, ownership, free space and
+symlink boundaries without creating directories. A future provisioner must also
+validate resource ownership and conflicts before any mutation.
 
 Default web ports are Jellyfin 8096, Seerr 5055, Sonarr 8989, Radarr 7878, and
 qBittorrent 8080. qBittorrent's peer port is 6881 TCP/UDP. Changing its WebUI or
@@ -162,286 +166,248 @@ the licenses of bundled FFmpeg/native/provider components. Keep upstream brand
 attribution in Larenor's legal/source surface and inventory the actual shipped
 image's third-party obligations before redistributing an integrated image.
 
-## Fit with the existing Server
+## Implemented Client and API flow
 
-Keep the current FastAPI process and SQLite database. Extend
-[`CoreServices`](../core.py), [`runtime.py`](../runtime.py), and the existing
-admin dependency when implementation starts. The current API container runs as
-UID/GID 10001 with one Uvicorn worker and needs no Docker socket; preserve that
-contract. No Redis, Celery, dynamic Python imports, marketplace downloader, or
-second public management API is needed for S06.
+Administration stays in Larenor Client, behind its Settings PIN and a current
+Server administrator account whose initial password has been changed. In
+**Server components**, review a supported component's settings and platform,
+then open **Check requirements** from its preview. The check screen shows whether
+the internal worker is configured and asks for an explicit check. **Check
+history** is also available without creating a preview. Music Assistant is
+presented as Larenor's planned internal engine, with no standalone installation
+or engine URL/token setup action.
 
-[`services/`](../services/) already owns connections to existing services,
-encrypted credentials, configuration revisions, and read-only verification.
-Plugin installation must have separate records and authority. Forgetting an S05
-connection never removes a container, and completing an installation never
-silently adopts an existing CasaOS container or transfers its credentials.
+The Client distinguishes **Inspection completed** from each requirement's
+**Passed**, **Not met** or **Could not verify** result. It supports bounded
+foreground polling, manual refresh, earlier history/activity pages and explicit
+cancellation. After an uncertain submission, **Recover submission** reuses the
+original request body and ID; it does not silently request another preview or
+launch another job. Leaving the protected route, backgrounding, PIN changes or
+account changes retire pending UI interactions. The Server independently checks
+authorization for every API operation.
 
-Worker verification may start with one reviewed component through disposable
-fixtures, then reuse that path for the remaining components. The user-facing
-operation remains one stack installation. Each component becomes usable only after its exact
-image, architecture, configuration, and health behavior pass the same checks.
-Catalog entries lacking this evidence can be visible with a static unavailable
-reason. Their presence must not be presented as installation support.
+All routes below have the `/api/v1` prefix. The actual router and models are
+[`api.py`](api.py), [`job_api.py`](job_api.py), [`api_models.py`](api_models.py)
+and [`job_models.py`](job_models.py). The protected OpenAPI document is the
+machine-readable contract; no separate web administration app is provided.
 
-## Catalog and immutable plans
-
-Ship a small, validated JSON catalog with the Server and worker packages. The
-worker loads its own operator-owned copy and rejects a different catalog
-digest. A Client cannot supply another catalog URL, image, command, Compose
-document, Python module, host path, or Docker option. Updating the catalog is
-initially a reviewed package update, not a background remote fetch.
-
-The exact delivered models are in `models.py`. The following table also includes
-future worker/job metadata and must not be treated as an implemented wire schema:
-
-| Field | Meaning |
+| Route | Implemented request / result |
 | --- | --- |
-| `serviceId`, `distributionId`, `version` | Stable service family, selected distribution, human-readable release |
-| `upstreamRepository`, `sourceRepository`, `sourceRevision`, `license` | Source and licensing provenance for the selected distribution |
-| `manifestVersion`, `configSchemaVersion`, `dataSchemaVersion`, `apiCompatibility` | Explicit validation and compatibility boundaries |
-| `images` | Exact repository plus SHA-256 digest for each supported `linux/amd64` or `linux/arm64` platform; no floating tags |
-| `capabilities` | Initially `install`; future upgrade/removal support requires its own reviewed contract |
-| `configSchema` | Packaged allowlist of typed, bounded settings and defaults; unknown fields rejected |
-| `ports`, `storage`, `network`, `resources`, `health` | Required ports, storage roles/minimum free bytes, network profile, resource limits, and packaged health-check identifier |
+| `GET /admin/plugins/catalog` | `{catalogDigest, entries, worker}`; six immutable manifests, installation disabled |
+| `POST /admin/plugins/previews` | `{serviceId, distributionId, manifestDigest, platform, settings}` → `201 {preview}` |
+| `GET /admin/plugins/previews/{id}` | `{preview}` for the original user/session family while unexpired |
+| `GET /admin/plugins/jobs/capabilities` | `{preflightConfigured, installAvailable: false}`; configuration is not connectivity evidence |
+| `POST /admin/plugins/jobs` | `{operation: "preflight", previewId, expectedRevision, planHash, requestId}` → `202 {job}` |
+| `GET /admin/plugins/jobs?before=…&limit=…` | `{jobs, nextBefore}`; descending durable sequence, default 25 / maximum 100 |
+| `GET /admin/plugins/jobs/{id}` | `{job}`; current administrator access to durable status |
+| `GET /admin/plugins/jobs/{id}/events?after=…&limit=…` | `{events, nextAfter}`; ascending global event sequence, `after` defaults to 0, same page limits |
+| `POST /admin/plugins/jobs/{id}/cancel` | `{expectedRevision}` → `{job}`; optimistic revision check |
 
-Public responses include a `catalogDigest` and per-entry `manifestDigest` over
-canonical JSON. Digests are lowercase SHA-256; identifiers are bounded ASCII;
-integers are bounded and booleans are strict. Schema definitions have no remote
-references. The JSON canonicalization rules are part of manifest version 1:
-UTF-8, sorted keys, compact separators, no floats, and rejection of duplicate
-keys. Do not invent current upstream versions or image digests while preparing
-the framework; pin and verify them when adding each actual entry.
+The catalog's existing `worker` field describes disabled installation support.
+Read `/jobs/capabilities` for the separately configured read-only worker. Neither
+field enables installation. No operation in this component API accepts `install`, an arbitrary
+command, image, host path, catalog URL, Docker option or provider credential.
 
-An `InstallPlan` selects one manifest, architecture, and image digest. It includes
-the normalized settings, generated installation/resource identities, explicit
-port bindings, storage-root IDs, requested capabilities, disk requirements,
-health-check profile, and ordered steps. Worker-owned configuration resolves
-storage-root IDs to paths. The Client never supplies an arbitrary absolute path.
-S06 preview settings contain no provider credentials. The provisioning layer
-must generate and retain internal credentials privately, bootstrap service
-accounts, and connect Seerr/Jellyfin/Arr/download components without asking the
-user to copy URLs or API keys. External provider accounts still require explicit
-user settings when the provider demands them. S05 is optional for existing
-external services, not a required step in a new Larenor installation.
+IDs and request IDs are 32 lowercase hex characters; digests are 64 lowercase
+hex characters. Times are canonical UTC ISO 8601 with milliseconds. Previews
+have revision 1, expire after ten minutes and contain the full `InstallPlan`.
+Preview calculation does not contact the worker or inspect the host. Storage is
+capped at 128 previews. Opaque storage IDs are resolved only by worker policy.
 
-Plans expire after 10 minutes and contain `id`, `revision`, `planHash`,
-`createdAt`, `expiresAt`, `workerId`, `workerPolicyDigest`, `catalogDigest`, and
-the actor identity/revision that requested the preview. A hash covers the full
-immutable plan, including defaults and privilege requests. Public previews show
-the selected source/image/version, effects, ports, storage, network access,
-capacity observations, and static conflict/warning codes.
+A job exposes `id`, `revision`, `operation`, `previewId`, `requestId`, `serviceId`,
+`distributionId`, `planHash`, `platform`, `state`, `phase`, `cancelRequested`,
+`createdAt`, `updatedAt`, `result` and `errorCode`. Its full plan stays encrypted
+internally instead of appearing in paginated history. Events expose only
+`sequence`, `code`, `createdAt` and `jobRevision`; there are no engine logs,
+absolute host paths, credentials or exception messages.
 
-Preview asks the worker only for read-only inspection. It does not pull images,
-create directories, reserve ports, start containers, or write external settings.
-Port/free-space observations are advisory: the worker checks again before the
-first mutation, and an actual Docker bind failure is an explicit conflict. Any
-plan, catalog, worker policy, or selected-input change requires a fresh preview
-and confirmation; the worker cannot silently choose a different port or image.
-
-## Proposed Client API
-
-All routes have the `/api/v1` prefix and require a current Server administrator
-whose initial password has been changed. Use the existing strict models,
-`ObjectId`, static error envelope, body limit, and transaction-time admin check.
-IDs use the existing 32-character lowercase hex format. Times use UTC ISO 8601;
-revisions use the existing bounded positive integer convention.
-
-| Route | Request and result |
+| Job state | Meaning |
 | --- | --- |
-| `GET /admin/plugins/catalog` | `{catalogDigest, entries, worker}`; `worker` reports availability/platform, not arbitrary host inventory |
-| `POST /admin/plugins/previews` | `{serviceId, distributionId, manifestDigest, settings}` → `201 {preview}` |
-| `POST /admin/plugins/jobs` | `{previewId, expectedRevision, planHash, requestId}` → `202 {job}`; explicit installation confirmation |
-| `GET /admin/plugins/jobs?before=…&limit=…` | `{jobs, nextCursor}`; stable descending pagination, default 25 and maximum 100 |
-| `GET /admin/plugins/jobs/{id}` | `{job}`; admin-only status after reconnect or uncertain submission |
-| `GET /admin/plugins/jobs/{id}/events?after=…&limit=…` | `{events, nextCursor}`; monotonically numbered, bounded, redacted phase/outcome events |
-| `POST /admin/plugins/jobs/{id}/cancel` | `{expectedRevision}` → `{job}`; stop undispatched work and request a stop at the next safe boundary |
+| `queued` | Accepted durably, awaiting inspection |
+| `running` | Checking requirements, possibly with cancellation requested |
+| `succeeded` | Inspection completed; individual requirements may still fail or remain unknown |
+| `failed` | Worker unavailable or returned an invalid result; no installation occurred |
+| `cancelled` | Queued inspection cancelled, or a running inspection returned after cancellation was requested |
+| `needs_attention` | Original authority or catalog no longer permits dispatch/result publication |
 
-`requestId` is a Client-generated 32-hex idempotency key scoped to the submitting
-user. Persist a unique `(actorId, requestId)` index and the confirmation payload
-digest atomically with the job. The same payload returns the same job, including
-after a lost response; a different payload returns 409. The same preview cannot
-create a second job under a new key. Client retries must preserve `requestId`.
+Phases are `queued`, `checking_requirements` and `complete`. A successful result
+contains the catalog digest, plan hash, requested platform, observation time and
+1–32 checks. Each check has a static `code`, `status` (`passed`, `failed` or
+`unknown`) and nullable `rootId`, `availableMiB`, `requiredMiB`. The current worker
+checks platform and approved storage roots/capacity. It deliberately reports
+`docker_engine`, `port_availability` and `receiver_network` as `unknown`: it does
+not contact Docker, bind ports or probe players. Disk requirements are proposed
+catalog budgets, not measurements of upstream applications' actual minima.
 
-A public job contains `id`, `revision`, `installationId`, `serviceId`,
-`distributionId`, `planHash`, `state`, `phase`, `cancelRequested`, timestamps,
-and a typed `outcome` with a static code and optional installation summary.
-States are `queued`, `running`, `succeeded`, `failed`, `cancelled`, and
-`needs_attention`. Phase codes describe observed work; a percentage is omitted
-unless an adapter provides a meaningful bounded measurement. Engine output,
-container environment, credential values, and raw exception text are never job
-events or API responses.
+## Persistence, dispatch and recovery
 
-Cancellation is not rollback. A running step may finish before cancellation is
-observed, and created data is preserved. A successful job means its catalog
-runtime health criterion passed; it does not mean provider authentication,
-media playback, casting, or physical-device operation succeeded. Return the
-suggested S05 kind/base URL for a separate explicit connection action.
+[`jobs.py`](jobs.py) uses the existing FastAPI/SQLite account store with separate
+`plugin_jobs_schema=1` migration metadata in [`job_schema.py`](job_schema.py).
+The preview migration remains `plugins_schema=1`. Unknown or partial schemas
+fail startup without resetting accounts, previews or S05 connections.
 
-## Persistence, dispatch, and authorization
+Complete job requests, plans and results are AES-GCM encrypted with the private
+vault key. Distinct AAD binds job identity, sequence, revision, original actor
+and session family, request/preview IDs, state and timestamps. Static events
+also have authenticated metadata. The worker receives neither this key nor the
+API database. Corruption fails closed; startup validates retained rows one at a
+time, with a count bound, instead of accumulating all encrypted history in RAM.
 
-Add `plugins_schema=1` under the existing initialization lock and database
-transaction, following [`services/schema.py`](../services/schema.py). Reject
-unknown versions or partial tables. Proposed tables are `plugin_previews`,
-`plugin_jobs`, `plugin_job_events`, and `plugin_installations`; migrations must
-not reset accounts, the vault, or S05 records.
+Creation rechecks current administrator authority and the exact unexpired
+preview in a `BEGIN IMMEDIATE` transaction. A unique `(actor_id, request_id)`
+record makes identical submissions return the same job, including after preview
+expiry or a lost response. Different payloads under that ID, or a second job
+for the same preview, return `plugin_job_conflict`. An existing idempotent reply
+remains readable even if the worker is later unconfigured. Newly accepted work
+requires a configured backend; actual connectivity is established during the job.
 
-Keep indexed IDs, state, revision, actor/request identities, timestamps, and
-static event codes in normal columns. Encrypt settings, complete plans, worker
-receipts, and installation configuration using the existing private vault key
-with a distinct `larenor:plugins:schema=1:record-type:id:revision` AAD. AAD must
-bind the actual type/ID/revision, and each write uses a fresh nonce. Do not share
-that key or the main database with the worker. Corrupt records fail closed;
-startup does not manufacture replacements. Each terminal job's compact
-idempotency record remains durable even when its verbose events are pruned.
+The immutable dispatch authority is the original user revision and session-family
+ID, not an access token. The user must still be enabled, be an administrator,
+have completed password change and retain that revision; the family must still
+exist and be unrevoked/unexpired. These facts are checked before inspection and
+again before publishing its result. Access-token refresh within that family is
+allowed. Jobs have no foreign key to a preview or session family: preview expiry
+and login's old-session retention cannot delete jobs or prevent another login.
+Any current administrator may read history or request cancellation.
 
-Start with one active installation globally and at most 16 queued jobs, 128
-unexpired previews, 10,000 jobs/idempotency records, and 10,000 retained job
-events. Reject new work at capacity;
-expire unused previews and prune terminal events deterministically. Keep
-installation ownership records and idempotency tombstones until an explicit
-future retention policy permits removal. Page through jobs rather than loading
-unbounded history. Existing job status remains readable when the worker is
-offline; preview/confirmation returns a static unavailable error.
+One inspection runs globally at a time, with at most 16 queued jobs. Accepted job
+history/idempotency records have a hard cap of 10,000; new jobs are rejected at
+capacity. The newest 10,000 static events are retained, so older event pages can
+be empty even though their jobs remain readable. No job deletion/retention-reset
+API is provided by this slice.
 
-Use one lifespan-managed dispatcher in the current single-process Server. It
-claims and advances persisted work using `BEGIN IMMEDIATE`, revision checks,
-and a process lock; FastAPI response background tasks are not the durable queue.
-Never hold a database transaction open during IPC, image pulling, or health
-checks. Claim a step before sending it; persist its receipt before advancing.
-On startup reconcile unfinished steps before dispatching new ones.
+The API's lifespan dispatcher exists only when a backend was configured at
+startup. It calls `JobManagement.tick()` outside response background tasks. A
+local process lock spans an inspection; short SQLite transactions claim work
+and persist transitions. No DB transaction stays open during worker IPC. On API
+shutdown, the dispatcher stops scheduling and awaits the bounded request/result
+write. On restart, queued or interrupted running jobs can repeat **read-only**
+inspection only after fresh checks of the recorded authority and packaged plan.
+Terminal jobs are not automatically retried. There is no mutation to reconcile
+or roll back in this protocol.
 
-Confirmation rechecks the live principal and preview ownership inside the
-transaction. Store the actor's user revision and session-family ID as the durable
-authorization scope, not an access/refresh token. Before dispatching each new
-mutating step, check that this user is still enabled, is still an administrator,
-has the recorded user revision, has completed password change, and the session
-family is neither revoked nor expired. Normal access-token refresh must not
-cancel an approved job. Demotion, password reset, logout, family revocation,
-cancellation, or preview expiry before job acceptance prevents new work.
+Cancelling a queued job completes it immediately. Cancelling running work records
+`cancelRequested`; when the call returns, its result is discarded and the job
+becomes `cancelled`. Cancellation cannot forcibly interrupt a blocked filesystem
+observation. No service, file or media data is removed. Worker failure becomes a
+static failed job; authority loss becomes `needs_attention`. Retained history
+remains available while the worker is stopped.
 
-An accepted worker step is bounded but cannot be retroactively undone when
-authority changes. Its receipt can still be recorded by the internal dispatcher;
-later mutation steps stop. If resources were already created, report
-`needs_attention` with their managed identities rather than claiming a clean
-cancellation. Administrator recovery requires a new preview/approval if it would
-perform a new mutation. Read-only reconciliation can run without reviving the
-original authorization.
+## Internal worker configuration and lifecycle
 
-## Worker boundary and interfaces
+The same Server Python package exports
+`larenor-preflight-worker = larenor_server.plugins.preflight_runtime:main`.
+[`preflight_runtime.py`](preflight_runtime.py) is an internal operator/runtime
+entry point, not a second user product or a separate media-app setup flow. A
+future unified installer must supply its policy and supervision. The default
+API/container entry point does not launch it. Current support requires Linux
+`amd64` or `arm64`; production uses real `SO_PEERCRED` peer UIDs. Mac tests use
+synthetic fixtures where required and do not establish a supported Mac daemon.
 
-Package a separate Linux-only `larenor-plugin-worker` process, installed manually
-by the operator. It owns the Docker connection and a private durable journal.
-The API can reach only its narrow Unix-domain socket, mounted into the API
-container separately from the Docker socket. Socket/parent ownership and modes,
-Linux peer UID checks, and an explicitly configured allowed API UID establish
-the local caller boundary. Reject unexpected peers and symlinked socket/state
-paths. There is no TCP listener or shared end-user bearer token in S06.
+Policy is a regular, single-link file, mode **0600**, owned by the worker UID.
+Its parents must be trusted and it cannot be a symlink. It is capped at 32 KiB;
+unknown fields, duplicate keys, floats and invalid paths are rejected. Its exact
+version-1 form is:
 
-The worker is trusted host-level code: access to the Docker daemon is not a
-sandbox against a compromised worker. Its own catalog, policy, and executable
-must be operator-owned and unavailable for API writes. The worker independently
-validates the catalog/plan digest, requested fields, expiry, identities, and
-allowed step order. Peer authentication alone does not authorize arbitrary
-Docker operations.
-
-Proposed internal interfaces; these are names for later code, not exports:
-
-```python
-Catalog.get(service_id, distribution_id, manifest_digest) -> CatalogEntry
-PluginManagement.preview(actor, request) -> PreviewResponse
-PluginManagement.confirm(actor, request) -> JobResponse
-PluginManagement.jobs(actor, cursor, limit) -> JobsResponse
-PluginManagement.cancel(actor, job_id, expected_revision) -> JobResponse
-JobDispatcher.tick() -> None
-
-WorkerClient.inspect(manifest_digest, settings) -> HostObservation
-WorkerClient.apply_step(command: StepCommand) -> StepReceipt
-WorkerClient.observe(job_id, step_id) -> StepReceipt
+```json
+{
+  "version": 1,
+  "roots": [
+    {"id": "appdata", "path": "/srv/larenor/appdata", "purpose": "data"},
+    {"id": "library", "path": "/srv/larenor/library", "purpose": "library"}
+  ]
+}
 ```
 
-`StepCommand` carries the immutable plan, `jobId`, `installationId`, `stepId`,
-an allowed step enum, a one-use dispatch ID, and a short start deadline. It
-contains no shell/Compose payload. A command already durably accepted returns
-the same receipt even if the start deadline has passed; an unseen expired
-command is rejected. Changed content under an existing identity is a conflict.
-Preview expiry governs accepting a new job. Once confirmation is durably
-accepted before that expiry, its plan remains immutable for that job's bounded
-lifetime; later steps use their own short start deadlines. An expired preview
-must not invalidate an already completed step or authorize a second job.
-The worker serializes operations with a process lock and records its intent
-before each Engine mutation. Small versioned, length-prefixed JSON messages
-over the Unix socket are sufficient: cap messages at 64 KiB, fail unknown
-fields/versions, and bound each IPC exchange. Long operations return a receipt
-to poll, never an open-ended HTTP request from the Client.
+There must be 1–16 distinct root IDs. Purposes are `data`, `library`, `media` and
+`music`, matched to the plan's corresponding setting. Paths are absolute,
+canonical directories, with no traversal, control characters or symlink
+resolution. Existing roots and their traversed directories must have trusted
+ownership and not be group/world writable. The inspector walks directories by
+file descriptor, rejects unsafe existing managed children and does not create
+missing component subdirectories. It measures available space once per distinct
+writable filesystem. It never exposes resolved host paths to the Client.
 
-Start with fixed steps `preflight`, `pull_image`, `create_resources`,
-`start_container`, and `check_health`. Preflight/health are read-only.
-`create_resources` is a journaled sequence of individually identified network,
-volume/directory, and container operations, not a purported atomic Docker
-transaction. Use a narrow Engine adapter with explicit typed operations; do not
-invoke a shell, pass user input as CLI flags, or enable arbitrary Engine paths.
-Pull only the selected digest and verify the resulting platform/image identity.
-Initial bounds: one active operation, 10 minutes per pull, 2 minutes for health,
-and 30 minutes for a job. Timeouts after a mutation create uncertainty to inspect,
-not permission to blindly replay it.
+For an operator-prepared Linux runtime, these are the command forms. The example
+assumes a worker running as UID 0 and an API running as UID 10001; actual UIDs,
+group access and policy locations must match the chosen runtime:
 
-Resource names and labels include an operator-established Server instance ID,
-installation ID, manifest/plan digest, and worker journal identity. A matching
-name alone proves no ownership. A resource with conflicting labels or an
-unrecorded external origin is a conflict, including existing CasaOS applications.
-Before reusing a resource after restart, compare its full managed specification
-and journal entry. Missing or corrupt journal state requires attention; never
-infer ownership by scanning names and recreate a clean journal.
+```sh
+larenor-preflight-worker --policy /etc/larenor/preflight.json \
+  --socket /run/larenor/preflight/worker.sock \
+  --api-uid 10001 --socket-gid 10001 --check-config
 
-Worker-owned storage roots use generated per-installation subdirectories and
-explicit media mount roles. Validate real ownership and resolved boundaries;
-reject symlinks, path traversal, and mount escape. Existing media roots, when
-explicitly configured by the operator and selected in the preview, are mounted
-read-only by default. API secrets, Docker socket, host root, and worker state
-can never be mount targets. No `privileged`, arbitrary devices, host PID/IPC,
-capability additions, or unreviewed network profile is accepted. A service such
-as Music Assistant may need a reviewed discovery/network exception; expose it
-in that entry's preview and keep installation unavailable until the policy and
-fixture tests support it. Do not silently weaken the default for all entries.
+larenor-preflight-worker --policy /etc/larenor/preflight.json \
+  --socket /run/larenor/preflight/worker.sock \
+  --api-uid 10001 --socket-gid 10001
+```
 
-S06 exposes no removal, upgrade, automatic cleanup, or arbitrary ownership-adopt
-operation. On failure, preserve created storage and report the exact managed
-resources. A later reviewed recovery/removal plan can stop or remove only those
-resources; existing media and provider data are never an implicit rollback.
+`--check-config` validates arguments, platform and the private policy only. It
+opens no socket and does not inspect approved roots or establish their capacity.
+It returns 0 without output on success. It is not a deployment or readiness test.
 
-## Recovery and acceptance before implementation is complete
+The socket parent must already exist and be worker-owned with trusted ancestors.
+For different worker/API UIDs, `--socket-gid` is required; the runtime must give
+the API appropriate group traversal/connect access without allowing it to write
+the policy or runtime directory. The socket is mode 0660 with a selected group,
+or 0600 for the same-UID configuration. Peer-UID checks still apply in either
+case. Only length-prefixed JSON `status` and `inspect` operations are accepted;
+packets are capped at 64 KiB and each exchange has a shared five-second deadline.
+There is no TCP listener, shell command, Docker request or install operation.
 
-| Interruption or race | Required behavior |
-| --- | --- |
-| Confirmation response lost | Retry the same request ID; return the original job |
-| API dies before dispatch | Persisted queued job is re-authorized before dispatch |
-| Worker accepts a command but reply is lost | Observe the same job/step ID; do not submit a fresh installation |
-| Worker dies after create/start but before receipt | Reconcile its recorded intent against exact managed resource identity/specification |
-| Worker unavailable or outcome cannot be proven | Preserve status/data and use `needs_attention`; no blind retry or destructive rollback |
-| Catalog/policy/image or inputs change | Old plan cannot be confirmed/executed; require a new preview |
-| Port, disk, or ownership changes after preview | Fail explicitly at recheck; never relocate or adopt resources automatically |
-| Actor loses authority or cancels during a step | Record the actual step result, stop further mutation steps, preserve resources |
+On the API side, `LARENOR_PLUGIN_WORKER_SOCKET` selects the absolute socket path
+visible to that process and `LARENOR_PLUGIN_WORKER_UID` selects the expected
+worker UID (default 0). Leaving the socket unset keeps the dispatcher disabled.
+Changing these values requires an API restart. Invalid values raise the static
+startup code `invalid_worker_configuration`, without echoing environment text.
+The internal worker CLI reports only `invalid_arguments` (exit 2),
+`worker_platform_unsupported`, `worker_configuration_invalid` or
+`worker_unavailable` (exit 1); successful checks and normal shutdown return 0.
 
-Implement meaningful tests before claiming S06 delivery: all admin/initial
-password/member and stale-principal gates; request-ID and preview races;
-plan/digest/expiry validation; separate encryption AAD and restart/tamper;
-worker peer/protocol/path/catalog limits; authority loss between steps; every
-intent/Engine-result/receipt crash boundary; and no secret/raw Engine output in
-API errors, event feeds, logs, or OpenAPI examples. Tests must distinguish
-runtime health from service authentication and retain existing S05 semantics.
+SIGINT/SIGTERM stop the worker and restore its signal handlers. Its server closes
+active socket reads, waits for inspection to unwind and removes only the inode
+it recorded after binding. Even a permission-setting failure cleans only that
+newly created inode. If inspection is still blocked at the shutdown deadline,
+shutdown fails instead of releasing a live worker's lock for a replacement.
+The API connection has its own bounded deadline and can fail before that host
+observation returns.
 
-Use an in-memory fake Engine for deterministic failure injection, Unix sockets
-and temporary SQLite state for worker integration, then a disposable Linux
-Docker fixture for real pull/create/start/restart reconciliation. A fake Engine
-pass does not establish a working Docker install. Test both supported Linux
-architectures and the actual packaged worker before enabling an entry. No live
-Home Assistant, media library, CasaOS installation, or physical receiver is
-needed or authorized for this preparation.
+An occupied endpoint is never adopted, replaced or blindly unlinked, including
+a stale socket after a crash. Until managed runtime recovery is implemented,
+the owning operator/runtime-directory manager must prove the old process has
+exited and establish ownership before recovering that specific endpoint. Do not
+delete arbitrary socket files or clear job state to force startup. A new worker
+can serve later checks after safe recovery; failed terminal jobs need a new
+explicit review/check, while interrupted API jobs retain their existing identity.
 
-Suggested implementation order: strict catalog/plan models and persistence;
-preview/confirmation/status API with a fake worker; Unix worker journal and
-fixed Engine operations; restart/uncertain-outcome integration tests; Client
-catalog/preview/job screens; then reviewed per-service entries and disposable
-Linux acceptance. Keep S07 provider setup/adoption and S08 remote device actions
-outside the initial S06 contract.
+## Evidence and remaining provisioning work
+
+Tests use synthetic accounts, temporary SQLite databases, bounded private Unix
+sockets and disposable filesystem fixtures. They cover exact request identity,
+concurrent queue admission, cancellation during inspection, access-token refresh,
+revocation/demotion/session retention, interrupted-job recovery, encrypted
+metadata tampering, history limits and startup memory bounds. Runtime tests cover
+HTTP → SQLite → Unix inspection, API restart, peer credentials, malformed packets,
+permission failures, socket ownership, signals and static errors. The relevant
+files are [`tests/test_plugin_jobs.py`](../../tests/test_plugin_jobs.py),
+[`test_plugin_job_runtime.py`](../../tests/test_plugin_job_runtime.py),
+[`test_plugin_preflight_ipc.py`](../../tests/test_plugin_preflight_ipc.py),
+[`test_host_preflight.py`](../../tests/test_host_preflight.py) and
+[`test_plugin_preflight_runtime.py`](../../tests/test_plugin_preflight_runtime.py).
+These results do not prove production CasaOS deployment, Docker installation,
+HomePod operation or physical tablet acceptance.
+
+[`worker.py`](worker.py) also contains an isolated, journaled foundation for
+prepared-image container create/start operations. It is not exposed by the
+preflight command, protocol or job API, and cannot promote disabled catalog plans
+into installation support. Its synthetic Engine tests are separate evidence.
+
+The next provisioning slice still needs a single-stack plan and policy binding,
+private control networking, image/storage/network preparation, exact resource
+ownership and restart reconciliation, generated credentials and bootstrap
+adapters, automatic component interconnections and real disposable Linux image
+acceptance on both architectures. It must preserve data on uncertain mutations,
+refuse to adopt unrelated CasaOS resources, and retain separate licensing/source
+obligations. Playback/discovery/provider acceptance requires its own evidence.
+No removal, upgrade, automatic cleanup or device-changing operation is enabled.
+The final user flow remains one Larenor installation and Client-managed settings.

@@ -1,0 +1,1477 @@
+{
+  "title": "Larenor Core / Android Client — 60 özellik adayı",
+  "researchedAt": "2026-09-05",
+  "status": "planned",
+  "selectedAt": "2026-09-05",
+  "selected": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11,
+    12,
+    13,
+    14,
+    15,
+    16,
+    17,
+    18,
+    19,
+    20,
+    21,
+    22,
+    23,
+    24,
+    25,
+    26,
+    27,
+    28,
+    29,
+    30,
+    31,
+    32,
+    33,
+    34,
+    35,
+    36,
+    37,
+    38,
+    39,
+    40,
+    41,
+    42,
+    43,
+    44,
+    45,
+    46,
+    47,
+    48,
+    49,
+    50,
+    51,
+    52,
+    53,
+    54,
+    55,
+    56,
+    57,
+    58,
+    59,
+    60
+  ],
+  "recommended": [
+    1,
+    2,
+    4,
+    6,
+    16,
+    21,
+    24,
+    31,
+    34,
+    51,
+    54
+  ],
+  "groups": [
+    "Yapay zekâ ve otomasyon",
+    "Core, güvenlik ve dayanıklılık",
+    "Medya ve müzik",
+    "Aile ve ev yaşamı",
+    "Kamera, enerji ve konfor",
+    "Tablet ve yeni cihazlar"
+  ],
+  "features": [
+    {
+      "id": 1,
+      "title": "Konuşarak otomasyon taslağı",
+      "benefit": "Ev boşalınca ne yapılacağını anlat; düzenlenebilir bir rutin taslağı oluşsun.",
+      "core": "Yerel model, izinli eylem kataloğu ve plan doğrulaması.",
+      "client": "Etkilenen cihazlar, adımlar ve etkinleştirme onayı.",
+      "effort": "Büyük",
+      "overlap": "Genişleme",
+      "constraint": "Assist/rutinlerin üzerine eklenir; ses için STT/TTS ve yerel model gerekir. Model çıktısı doğrudan komut çalıştırmaz.",
+      "sources": [
+        {
+          "title": "Ollama yapılandırılmış çıktılar",
+          "url": "https://docs.ollama.com/capabilities/structured-outputs"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "title": "Otomasyonun deneme haftası",
+      "benefit": "Kural cihazları değiştirmeden bir hafta izlesin; gereksiz tetiklemeleri görelim.",
+      "core": "Gerçek olayları yan etkisiz değerlendirip olası eylemleri kaydetme.",
+      "client": "Deneme sonuçları ve etkinleştirme kararı.",
+      "effort": "Büyük",
+      "overlap": "Genişleme",
+      "constraint": "Rutinlere yeni deneme katmanı; fiziksel sonucu veya enerji tasarrufunu kanıtlamaz.",
+      "sources": [
+        {
+          "title": "Home Assistant olay modeli",
+          "url": "https://www.home-assistant.io/docs/configuration/events/"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "title": "Geçmişte otomasyon sınaması",
+      "benefit": "Yeni kural geçen salı çalışsaydı hangi kararları verirdi, karşılaştır.",
+      "core": "Kayıtlı olayları sahte adaptörlerde tekrar yürütme ve sürüm karşılaştırması.",
+      "client": "Tarih seçimi, eski/yeni karar farkı.",
+      "effort": "Büyük",
+      "overlap": "Yeni",
+      "constraint": "Eksik geçmiş veri bilinmeyen olarak kalır; canlı deneme modundan ayrı bir tekrar testi.",
+      "sources": [
+        {
+          "title": "Temporal test ve tekrar araçları",
+          "url": "https://docs.temporal.io/develop/python/best-practices/testing-suite"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "title": "Çakışan kurallar hakemi",
+      "benefit": "Uyku, misafir ve temizlik rutinleri aynı ışığı birbirine karşı yönetmesin.",
+      "core": "Öncelik, süreli cihaz sahipliği ve çatışma çözümü.",
+      "client": "Bekleme gerekçesi ve süreli elle geçersiz kılma.",
+      "effort": "Büyük",
+      "overlap": "Yeni",
+      "constraint": "İlk kapsam Core üzerinden geçen eylemler; harici HA otomasyonları ayrıca eşlenir.",
+      "sources": [
+        {
+          "title": "OPA politika dili",
+          "url": "https://www.openpolicyagent.org/docs/policy-language"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "title": "Uzun süren ev iş akışları",
+      "benefit": "Servisler arasında ilerleyen bir süreç yeniden başlatmada yerini kaybetmesin.",
+      "core": "Kalıcı durum, son tarihler, insan kararı bekleme ve telafi adımları.",
+      "client": "İlerleme, devam ve iptal ekranı.",
+      "effort": "Büyük",
+      "overlap": "Genişleme",
+      "constraint": "S06 işlerinden genel ev süreçlerine genişler; fiziksel komutlar körlemesine tekrarlanmaz. Temporal zorunlu bağımlılık değil, tasarım örneği.",
+      "sources": [
+        {
+          "title": "Temporal kalıcı yürütme",
+          "url": "https://docs.temporal.io/workflow-execution"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "title": "Bunu kim, neden yaptı?",
+      "benefit": "Kapanan ışığın veya duran müziğin hangi kullanıcı ya da kuralla ilişkili olduğunu gör.",
+      "core": "Bağlam kimlikleriyle kullanıcı, kural, servis ve sonuç zinciri.",
+      "client": "Anlaşılır neden açıklaması ve ilgili kurala bağlantı.",
+      "effort": "Orta",
+      "overlap": "Genişleme",
+      "constraint": "Mevcut işlem/audit kayıtlarının uzantısı; yalnız zaman yakınlığı nedensellik sayılmaz.",
+      "sources": [
+        {
+          "title": "Home Assistant olay bağlamı",
+          "url": "https://www.home-assistant.io/docs/configuration/events/"
+        },
+        {
+          "title": "OpenTelemetry izleri",
+          "url": "https://opentelemetry.io/docs/concepts/signals/traces/"
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "title": "Evin alışılmış düzeninden sapmalar",
+      "benefit": "Her gece kopan hub veya giderek geciken servis için erken inceleme önerisi al.",
+      "core": "Yerel istatistikler ve değişim algılama.",
+      "client": "Kanıt grafiği, normal olarak işaretleme ve uyarı ayarı.",
+      "effort": "Büyük",
+      "overlap": "Genişleme",
+      "constraint": "İzleme ekranlarının uzantısı; yeterli geçmiş ve yanlış alarm ayarı gerekir.",
+      "sources": [
+        {
+          "title": "River anomali ve değişim algılama",
+          "url": "https://github.com/online-ml/river"
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "title": "Yapay zekâ kaynak yöneticisi",
+      "benefit": "Film izlenirken ağır AI işleri beklesin; hızlı komutlar öncelik alsın.",
+      "core": "Model yükleme, kuyruk ve bellek/işlem bütçeleri.",
+      "client": "Bekleme nedeni ile hız/kalite seçimi.",
+      "effort": "Büyük",
+      "overlap": "Yeni",
+      "constraint": "Model ve donanıma göre ölçülür; küçük sunucuda büyük model hızı garanti edilmez.",
+      "sources": [
+        {
+          "title": "Ollama bellek ve paralellik",
+          "url": "https://docs.ollama.com/faq"
+        }
+      ]
+    },
+    {
+      "id": 9,
+      "title": "Görülebilir, süreli AI hafızası",
+      "benefit": "Asistanın hangi tercihini neden hatırladığını gör; düzelt veya unuttur.",
+      "core": "Kişi ve kaynak bazlı bağlam, sona erme ve silme.",
+      "client": "Hafıza listesi ve kişi/oda/süre kontrolleri.",
+      "effort": "Büyük",
+      "overlap": "Yeni",
+      "constraint": "Arama filtresi tek başına yetki değildir; silme indeks ve yedek politikasına da bağlanır.",
+      "sources": [
+        {
+          "title": "Qdrant filtreleme temeli",
+          "url": "https://qdrant.tech/documentation/search/filtering/"
+        }
+      ]
+    },
+    {
+      "id": 10,
+      "title": "Kanıta dayalı arıza yardımcısı",
+      "benefit": "Jellyfin açılmıyorsa ağ, disk ve bağımlılıkları bir arada inceleyen yardım al.",
+      "core": "Sınırlı tanılama, bağımlılık haritası ve kanıt toplama.",
+      "client": "Olası neden, doğrulanan neden ve sonraki adımı ayırma.",
+      "effort": "Büyük",
+      "overlap": "Genişleme",
+      "constraint": "Mevcut servis sağlığının uzantısı; sırlar modele aktarılmaz, değişiklikler ayrı kullanıcı kararıdır.",
+      "sources": [
+        {
+          "title": "OpenTelemetry hassas veriler",
+          "url": "https://opentelemetry.io/docs/security/handling-sensitive-data/"
+        }
+      ]
+    },
+    {
+      "id": 11,
+      "title": "Sınırlı yetkili mini eklentiler",
+      "benefit": "Özel hesaplama ve kural işlevi eklerken tüm sunucuyu açmak gerekmesin.",
+      "core": "WebAssembly, süre/bellek sınırı ve izinli host işlevleri.",
+      "client": "İstenen yetkiler, sürüm ve devre dışı bırakma.",
+      "effort": "Çok büyük",
+      "overlap": "Genişleme",
+      "constraint": "S06 Docker bileşenlerinden ayrı bir eklenti sınıfı; sınırsız host işlevleri izolasyonu bozabilir.",
+      "sources": [
+        {
+          "title": "Extism manifesti",
+          "url": "https://extism.org/docs/concepts/manifest/"
+        }
+      ]
+    },
+    {
+      "id": 12,
+      "title": "Yetkili MCP kapısı",
+      "benefit": "Seçtiğin AI uygulaması yalnız izin verdiğin Larenor bilgileri ve araçlarına ulaşsın.",
+      "core": "Dar araç kataloğu, kimlik, izin ve çağrı sınırı.",
+      "client": "Asistan yetkilerini inceleme ve iptal etme.",
+      "effort": "Büyük",
+      "overlap": "Yeni",
+      "constraint": "MCP uyumlu istemci gerekir; protokol desteği araçları güvenilir yapmaz.",
+      "sources": [
+        {
+          "title": "MCP mimarisi",
+          "url": "https://modelcontextprotocol.io/docs/learn/architecture"
+        }
+      ]
+    },
+    {
+      "id": 13,
+      "title": "Bileşen bazında internet izinleri",
+      "benefit": "Hangi bileşenin hangi dış adrese bağlandığını gör ve gereksiz çıkışları kapat.",
+      "core": "Yönetilen ağlar ve zorunlu çıkış geçidi.",
+      "client": "Bağlantı amacı, hedef listesi ve izin farkları.",
+      "effort": "Çok büyük",
+      "overlap": "Genişleme",
+      "constraint": "İlk kapsam yönetilen bileşenler; host ağı kullanan müzik/keşif profilleri ayrıca çözülür. HTTPS içeriği okunmuş sayılmaz.",
+      "sources": [
+        {
+          "title": "Docker bridge ağları",
+          "url": "https://docs.docker.com/engine/network/drivers/bridge/"
+        },
+        {
+          "title": "Squid hedef kuralları",
+          "url": "https://www.squid-cache.org/Doc/config/acl/"
+        }
+      ]
+    },
+    {
+      "id": 14,
+      "title": "Süreli destek oturumu",
+      "benefit": "Yardım eden kişiye 20 dakika yalnız seçtiğin servislerin tanılamasını aç.",
+      "core": "Nesne/eylem/süre bazlı yetki ve anlık iptal.",
+      "client": "Kapsam, kalan süre ve yapılan işlemler.",
+      "effort": "Büyük",
+      "overlap": "Genişleme",
+      "constraint": "Mevcut admin/member rollerinin ötesi; uzak bağlantı ve her API'de yetki denetimi gerekir.",
+      "sources": [
+        {
+          "title": "OpenFGA süreli koşullar",
+          "url": "https://openfga.dev/docs/modeling/conditions"
+        }
+      ]
+    },
+    {
+      "id": 15,
+      "title": "Doğrulanabilir bileşen güncellemeleri",
+      "benefit": "Yeni bileşenin yayıncısını ve değişen izinlerini güncellemeden önce gör.",
+      "core": "İmza, üretici kimliği, digest ve derleme kanıtı doğrulama.",
+      "client": "Kaynak/izin farkı ve yayın tercihi.",
+      "effort": "Büyük",
+      "overlap": "Genişleme",
+      "constraint": "Digest sabitlemenin ötesi; upstream imzası bulunmayabilir. İmza hatasızlık kanıtı değildir.",
+      "sources": [
+        {
+          "title": "Sigstore doğrulama",
+          "url": "https://docs.sigstore.dev/cosign/verifying/verify/"
+        }
+      ]
+    },
+    {
+      "id": 16,
+      "title": "Otomatik kurtarma tatbikatı",
+      "benefit": "Yedeğin yalnız var olduğunu değil, izole ortamda gerçekten açıldığını gör.",
+      "core": "Geri yükleme, veritabanı ve uygulama smoke kontrolleri.",
+      "client": "Son başarılı tatbikat, kapsam ve ölçülen süre.",
+      "effort": "Büyük",
+      "overlap": "Genişleme",
+      "constraint": "S09 yedeğinin uzantısı; ek disk/işlem bütçesi gerekir, test ortamı ev cihazlarına komut göndermez.",
+      "sources": [
+        {
+          "title": "restic bütünlük kontrolü",
+          "url": "https://restic.readthedocs.io/en/stable/045_working_with_repos.html"
+        }
+      ]
+    },
+    {
+      "id": 17,
+      "title": "Yedekleri silmeye kapalı kurtarma hedefi",
+      "benefit": "Core'daki yedekleme hesabı ele geçirilse bile eski uzak kopyaları silemesin.",
+      "core": "Şifreli, yalnız ekleme yetkili kopyalar ve kota izlemesi.",
+      "client": "Korunan tarih aralığı ve geri dönüş noktaları.",
+      "effort": "Büyük",
+      "overlap": "Genişleme",
+      "constraint": "Ayrı yetki alanındaki NAS/uzak hedef gerekir; hedef yöneticisinin ele geçirilmesine karşı mutlak koruma değildir.",
+      "sources": [
+        {
+          "title": "rest-server append-only",
+          "url": "https://github.com/restic/rest-server"
+        }
+      ]
+    },
+    {
+      "id": 18,
+      "title": "Elektrik kesintisinde düzenli kapanış",
+      "benefit": "UPS azalırken ağır işleri durdur; enerji gelince servisleri doğru sırayla aç.",
+      "core": "UPS olayları ve bağımlılığa göre kapanış/başlangıç.",
+      "client": "Kalan kapasite ve yürütülen adımlar.",
+      "effort": "Büyük",
+      "overlap": "Yeni",
+      "constraint": "Desteklenen UPS ve işletim sistemi yetkileri gerekir; süre tahminidir, ağ cihazlarının gücü de hesaba katılır.",
+      "sources": [
+        {
+          "title": "Network UPS Tools",
+          "url": "https://networkupstools.org/features.html"
+        }
+      ]
+    },
+    {
+      "id": 19,
+      "title": "Birden fazla ev, bağımsız Core",
+      "benefit": "Ev ve yazlık aynı Client'ta görünsün; her ev bağlantı kopsa da yerel çalışsın.",
+      "core": "Evler arası güven, izinli veri paylaşımı ve bağımsız yerel kararlar.",
+      "client": "Ev seçimi, bağlantı ve güncellik görünümü.",
+      "effort": "Çok büyük",
+      "overlap": "Yeni",
+      "constraint": "Headscale yalnız bağlantı temeli; Larenor federasyonu, yetki ve eşitleme ayrıca geliştirilir.",
+      "sources": [
+        {
+          "title": "Headscale kapsamı",
+          "url": "https://headscale.net/"
+        }
+      ]
+    },
+    {
+      "id": 20,
+      "title": "Değiştirilmesi fark edilen işlem günlüğü",
+      "benefit": "Kritik izin ve işlem kayıtlarının sonradan oynanıp oynanmadığını denetle.",
+      "core": "Kriptografik kayıt zinciri ve doğrulama noktaları.",
+      "client": "Doğrulama, güvenilen kontrol noktasını dışa aktarma.",
+      "effort": "Büyük",
+      "overlap": "Genişleme",
+      "constraint": "Core dışında güvenilen kontrol noktası gerekir; fiziksel olayın doğruluğunu tek başına kanıtlamaz.",
+      "sources": [
+        {
+          "title": "immudb doğrulama mekanizmaları",
+          "url": "https://github.com/codenotary/immudb"
+        }
+      ]
+    },
+    {
+      "id": 21,
+      "title": "Birlikte senkron film izleme",
+      "benefit": "Aile üyeleri farklı ekranlarda aynı filmi ortak duraklatma ve konumla izlesin.",
+      "core": "Jellyfin SyncPlay grup/oturum eşleme ve erişim denetimi.",
+      "client": "İzleme odası, davet ve ortak oynatma kontrolleri.",
+      "effort": "Büyük",
+      "overlap": "Yeni",
+      "constraint": "Desteklenen oynatıcılar ve gecikme testleri gerekir; her Cast/Apple TV hedefi otomatik uyumlu sayılmaz.",
+      "sources": [
+        {
+          "title": "Jellyfin SyncPlay API kaynağı",
+          "url": "https://github.com/jellyfin/jellyfin/blob/master/Jellyfin.Api/Controllers/SyncPlayController.cs"
+        }
+      ]
+    },
+    {
+      "id": 22,
+      "title": "Kendi televizyon kanalların",
+      "benefit": "Arşivinden çizgi film, belgesel veya nostalji kanalı ve yayın akışı oluştur.",
+      "core": "Tunarr benzeri zamanlama ve dahili Jellyfin kaynak eşlemesi.",
+      "client": "Kanal rehberi ve sürüklenebilir yayın planı.",
+      "effort": "Büyük",
+      "overlap": "Yeni",
+      "constraint": "Sahip olunan/izinli arşivle çalışır; sürekli dönüştürme işlemci veya GPU kullanabilir.",
+      "sources": [
+        {
+          "title": "Tunarr kanal ve zamanlama özellikleri",
+          "url": "https://github.com/chrisbenincasa/tunarr"
+        }
+      ]
+    },
+    {
+      "id": 23,
+      "title": "Canlı TV ve kayıt merkezi",
+      "benefit": "Yayın rehberini, tek program veya dizi kayıtlarını medya ekranından yönet.",
+      "core": "Jellyfin tuner, EPG ve kayıt zamanlaması adaptörü.",
+      "client": "Rehber, kayıt çakışması ve kayıtlı yayınlar.",
+      "effort": "Büyük",
+      "overlap": "Yeni",
+      "constraint": "Uyumlu tuner veya yetkili yayın kaynağı ve EPG gerekir; abonelik yayınının kilidini açmaz.",
+      "sources": [
+        {
+          "title": "Jellyfin Live TV",
+          "url": "https://jellyfin.org/docs/general/server/live-tv/"
+        }
+      ]
+    },
+    {
+      "id": 24,
+      "title": "Akıllı altyazı ve dil tercihleri",
+      "benefit": "Türkçe altyazı, işitme desteği ve tercih edilen ses dili başlığa göre hazır olsun.",
+      "core": "Bazarr altyazı profilleri ve Jellyfin mevcut ses izlerinin eşlenmesi.",
+      "client": "Kişisel altyazı/ses dili tercihi, mevcut oynatıcı kanalları ve eksik dil durumu.",
+      "effort": "Orta",
+      "overlap": "Genişleme",
+      "constraint": "S07 altyazı adayının uzantısı; sağlayıcı hesabı/kotası gerekir. İstenen ses dili yalnız mevcut ve desteklenen ses izi varsa seçilir.",
+      "sources": [
+        {
+          "title": "Bazarr dil profilleri",
+          "url": "https://wiki.bazarr.media/Getting-Started/Setup-Guide/"
+        },
+        {
+          "title": "Android Media3 kanal seçimi",
+          "url": "https://developer.android.com/media/media3/exoplayer/track-selection"
+        }
+      ]
+    },
+    {
+      "id": 25,
+      "title": "Jenerik ve kapanış atlama",
+      "benefit": "Dizilerde giriş veya kapanış bölümlerini tercihinle atla.",
+      "core": "Intro Skipper segmentleri ve sürüm uyumluluğu.",
+      "client": "Atla düğmesi ve kullanıcıya özel otomatik atlama seçimi.",
+      "effort": "Orta",
+      "overlap": "Yeni",
+      "constraint": "Algılama hataları ve bölüm istisnaları görünür kalır; her istemcide eklenti desteği varsayılmaz.",
+      "sources": [
+        {
+          "title": "Intro Skipper",
+          "url": "https://github.com/intro-skipper/intro-skipper"
+        }
+      ]
+    },
+    {
+      "id": 26,
+      "title": "Oynatma kalitesi danışmanı",
+      "benefit": "Bu filmi tablette veya TV'de neden doğrudan oynatamıyorum, anlaşılır biçimde gör.",
+      "core": "Codec, ses, altyazı, bitrate ve transcode kanıtlarını birleştirme.",
+      "client": "Cihaz uyumu ve kalite/işlem yükü seçenekleri.",
+      "effort": "Büyük",
+      "overlap": "Genişleme",
+      "constraint": "Medya durumunun ileri uzantısı; HDR/codec gerçek cihazda sınanır, dosya bilgisi tek başına garanti değildir.",
+      "sources": [
+        {
+          "title": "Jellyfin transcoding",
+          "url": "https://jellyfin.org/docs/general/post-install/transcoding/"
+        }
+      ]
+    },
+    {
+      "id": 27,
+      "title": "Seyahat için çevrimdışı medya",
+      "benefit": "İzinli film ve müziği kota belirleyerek tablete al; bağlantısız devam et.",
+      "core": "İndirme yetkisi, uygun sürüm ve hesap sahipliği.",
+      "client": "İndirme yöneticisi, yarıda devam ve depolama bütçesi.",
+      "effort": "Büyük",
+      "overlap": "Genişleme",
+      "constraint": "Önceki çevrimdışı müzik fikrini genişletir. Spotify/Apple Music/Netflix aboneliği dosya indirme veya DRM aşma yetkisi değildir.",
+      "sources": [
+        {
+          "title": "Android Media3 indirme",
+          "url": "https://developer.android.com/media/media3/exoplayer/downloading-media"
+        },
+        {
+          "title": "Finamp çevrimdışı müzik",
+          "url": "https://github.com/finamp-app/finamp"
+        }
+      ]
+    },
+    {
+      "id": 28,
+      "title": "Sesli kitap ve podcast merkezi",
+      "benefit": "Bölümler, yer imleri, hız ve kaldığın yer farklı tabletlerde korunsun.",
+      "core": "Audiobookshelf/RSS ve kullanıcı ilerlemesi eşlemesi.",
+      "client": "Bölüm listesi, yer imi, uyku sayacı ve oynatma.",
+      "effort": "Büyük",
+      "overlap": "Genişleme",
+      "constraint": "Önceki müzik planının uzantısı; kaynak erişimi gerekir, her ücretli kitap sağlayıcısı desteklenmez.",
+      "sources": [
+        {
+          "title": "Audiobookshelf özellikleri",
+          "url": "https://audiobookshelf.org/docs/documentation/introduction/"
+        }
+      ]
+    },
+    {
+      "id": 29,
+      "title": "Parti DJ'i ve ortak şarkı oylaması",
+      "benefit": "Misafirler sınırlı bir oturumda şarkı önersin; ev sahibi sırayı kontrol etsin.",
+      "core": "Music Assistant kuyruğuna bağlanan Larenor oy/istek kuralları.",
+      "client": "Ortak liste, oy ve ev sahibinin onayı.",
+      "effort": "Büyük",
+      "overlap": "Yeni",
+      "constraint": "MA parti/kuyruk desteği temel alınır; oylama Larenor geliştirmesidir. Sağlayıcı ve oynatıcı izinleri korunur.",
+      "sources": [
+        {
+          "title": "Music Assistant Party",
+          "url": "https://www.music-assistant.io/plugins/party/"
+        },
+        {
+          "title": "Music Assistant API",
+          "url": "https://www.music-assistant.io/api/"
+        }
+      ]
+    },
+    {
+      "id": 30,
+      "title": "Medya arşivi sağlık ve yer tasarrufu",
+      "benefit": "Bozuk, gereksiz büyük veya gereksiz kopya içerikleri işlemden önce incele.",
+      "core": "Dosya analizi, dönüştürme adayları ve doğrulanmış kopya işlemleri.",
+      "client": "Kazanım tahmini, kalite farkı ve seçili işlem onayı.",
+      "effort": "Büyük",
+      "overlap": "Yeni",
+      "constraint": "Unmanic işleme temeli; kopya eşleme ve önizleme Larenor'a ait. Varsayılan otomatik silme yok; kalite/kazanç ölçülür.",
+      "sources": [
+        {
+          "title": "Unmanic Library Optimiser",
+          "url": "https://github.com/Unmanic/unmanic"
+        }
+      ]
+    },
+    {
+      "id": 31,
+      "title": "Haftalık menü ve tarif merkezi",
+      "benefit": "Tarifleri içe al, haftanın menüsünü planla ve gerekenleri alışverişe aktar.",
+      "core": "Mealie tarif, menü ve alışveriş eşlemesi.",
+      "client": "Haftalık tablet görünümü ve porsiyon seçimi.",
+      "effort": "Orta",
+      "overlap": "Yeni",
+      "constraint": "Mevcut basit alışveriş listesinden ayrı tarif modeli gerekir; kaynak siteden içe alma her sitede çalışmayabilir.",
+      "sources": [
+        {
+          "title": "Mealie özellikleri",
+          "url": "https://docs.mealie.io/documentation/getting-started/features/"
+        }
+      ]
+    },
+    {
+      "id": 32,
+      "title": "Dolap stoğu ve son kullanma takibi",
+      "benefit": "Barkodla ekle; evde ne var, önce ne tüketilmeli gör.",
+      "core": "Grocy stok, miktar, tarih ve ürün eşlemesi.",
+      "client": "Barkod tarama, tüketim ve eksilenleri listeleme.",
+      "effort": "Orta",
+      "overlap": "Yeni",
+      "constraint": "Stok doğruluğu girişlere bağlıdır; son kullanma bilgisi görüntüden kesin çıkarılmaz.",
+      "sources": [
+        {
+          "title": "Grocy stok ve barkod özellikleri",
+          "url": "https://grocy.info/"
+        }
+      ]
+    },
+    {
+      "id": 33,
+      "title": "Büyük ekran pişirme asistanı",
+      "benefit": "Tarifi büyük adımlarla izle; birden fazla zamanlayıcıyı aynı ekranda yönet.",
+      "core": "Tarif oturumu ve ev üyeleri arasında adım eşitleme.",
+      "client": "Dokunmatik pişirme görünümü, porsiyon ve adım zamanlayıcıları.",
+      "effort": "Orta",
+      "overlap": "Yeni",
+      "constraint": "31 ile ortak tarif temeli; fırın veya ocak kontrolü ilk kapsamda otomatik değildir.",
+      "sources": [
+        {
+          "title": "Mealie tarif/API temeli",
+          "url": "https://docs.mealie.io/documentation/getting-started/api-usage/"
+        }
+      ]
+    },
+    {
+      "id": 34,
+      "title": "QR etiketli ev envanteri",
+      "benefit": "Eşyayı tara; bulunduğu yer, garanti tarihi, fatura ve bakım geçmişini aç.",
+      "core": "HomeBox envanterine oda/cihaz ve belge ilişkileri ekleme.",
+      "client": "QR üretme/tarama ve eşya ayrıntısı.",
+      "effort": "Orta",
+      "overlap": "Yeni",
+      "constraint": "Etiket ve garanti akışı Larenor tasarımıdır; QR kod tek başına özel belgeye erişim sağlamaz.",
+      "sources": [
+        {
+          "title": "HomeBox envanter projesi",
+          "url": "https://github.com/sysadminsmedia/homebox"
+        }
+      ]
+    },
+    {
+      "id": 35,
+      "title": "Ev belgeleri ve garanti hatırlatmaları",
+      "benefit": "Fatura ve kılavuzları metinle ara; cihazın yanında doğru belgeyi bul.",
+      "core": "Paperless OCR/arşiv eşlemesi ve tarihli hatırlatmalar.",
+      "client": "Yetkili belge arama, önizleme ve cihaz bağlantısı.",
+      "effort": "Orta",
+      "overlap": "Genişleme",
+      "constraint": "Önceki Paperless araştırmasını somutlaştırır; OCR ile çıkarılan garanti tarihi kullanıcıca doğrulanır.",
+      "sources": [
+        {
+          "title": "Paperless-ngx",
+          "url": "https://github.com/paperless-ngx/paperless-ngx"
+        }
+      ]
+    },
+    {
+      "id": 36,
+      "title": "Adil ev işi paylaşımı",
+      "benefit": "Ev işleri sırayla paylaşılsın; geciken işlerde sonraki tarih gerçek tamamlamaya göre oluşsun.",
+      "core": "Donetick benzeri görev dönüşümü, tekrar ve tamamlanma geçmişi.",
+      "client": "Kişisel görevler, devretme ve aile görünümü.",
+      "effort": "Orta",
+      "overlap": "Genişleme",
+      "constraint": "Bugün listesinin ileri uzantısı; dış API erişim kapsamı hedef sürümde doğrulanır.",
+      "sources": [
+        {
+          "title": "Donetick atama ve zamanlama",
+          "url": "https://github.com/donetick/donetick"
+        }
+      ]
+    },
+    {
+      "id": 37,
+      "title": "Ortak ev masrafları",
+      "benefit": "Market, aidat ve ortak harcamalarda kimin ne ödediği görülsün.",
+      "core": "Paylaşım kuralları, kayıtlar ve hesaplama.",
+      "client": "Fiş ekleme ve kişi bazında denge özeti.",
+      "effort": "Orta",
+      "overlap": "Yeni",
+      "constraint": "Spliit ürün örneği; banka bağlantısı/ödeme otomasyonu yok. Para birimleri açık tutulur.",
+      "sources": [
+        {
+          "title": "Spliit ortak masraflar",
+          "url": "https://github.com/spliit-app/spliit"
+        }
+      ]
+    },
+    {
+      "id": 38,
+      "title": "Aile anıları ve fotoğraf araması",
+      "benefit": "Aile fotoğraflarını konu veya tarihle bul; seçilen anıları tablet albümüne ekle.",
+      "core": "Immich arama ve izinli albüm/asset eşlemesi.",
+      "client": "Anı seçimi ve kişisel/paylaşılan albüm sınırı.",
+      "effort": "Büyük",
+      "overlap": "Genişleme",
+      "constraint": "Mevcut fotoğraf ortam ekranından ileriye gider; Türkçe model, bellek ve albüm izinleri ayrıca sınanır.",
+      "sources": [
+        {
+          "title": "Immich arama",
+          "url": "https://docs.immich.app/features/searching/"
+        }
+      ]
+    },
+    {
+      "id": 39,
+      "title": "Canlı aile panosu ve beyaz tahta",
+      "benefit": "Bir tablette yazılan not veya çizim diğer aile ekranında anında görünsün.",
+      "core": "Paylaşılan belge durumu, sürümler ve yetki.",
+      "client": "Kalem/dokunma ile not ve çizim; bağlantı sonrası uzlaştırma.",
+      "effort": "Büyük",
+      "overlap": "Yeni",
+      "constraint": "Yjs bir işbirliği örneğidir; Flutter veri köprüsü ayrıca yapılır. Silinen özel notlar önbellekten de kaldırılır.",
+      "sources": [
+        {
+          "title": "Yjs ortak veri yapıları",
+          "url": "https://github.com/yjs/yjs"
+        }
+      ]
+    },
+    {
+      "id": 40,
+      "title": "Ortak kaynak rezervasyonu",
+      "benefit": "Araba, çalışma odası veya ortak ekipman için çakışmayan kullanım planı yap.",
+      "core": "Takvim müsaitliği ve rezervasyon çakışma denetimi.",
+      "client": "Kaynak/saat seçimi ve aile takvimi.",
+      "effort": "Büyük",
+      "overlap": "Genişleme",
+      "constraint": "Bugün takvim okumasının ötesi; kaynak kuralları Larenor'a ait, zaman dilimi ve çift kayıt testi gerekir.",
+      "sources": [
+        {
+          "title": "Nextcloud Calendar",
+          "url": "https://docs.nextcloud.com/server/latest/user_manual/en/groupware/calendar.html"
+        }
+      ]
+    },
+    {
+      "id": 41,
+      "title": "Kamera kayıtlarında doğal dille arama",
+      "benefit": "Dün kapının önündeki kırmızı çantayı veya arabayı tarif ederek kaydı bul.",
+      "core": "Frigate yerel anlamsal indeks ve yetkili olay araması.",
+      "client": "Metin/görüntü araması ve olay önizlemesi.",
+      "effort": "Büyük",
+      "overlap": "Yeni",
+      "constraint": "Frigate en az 8 GB RAM belirtiyor; Türkçe model ve sunucu mimarisi ayrıca doğrulanır. Sonuçlar olasılıksaldır.",
+      "sources": [
+        {
+          "title": "Frigate Semantic Search",
+          "url": "https://docs.frigate.video/configuration/semantic_search/"
+        }
+      ]
+    },
+    {
+      "id": 42,
+      "title": "Mahremiyet korumalı olay paylaşımı",
+      "benefit": "Seçili kamera klibini kırp, özel bölgeyi bulanıklaştır ve süreli paylaş.",
+      "core": "Yetkili export, yeniden kodlama ve süreli erişim.",
+      "client": "Klip aralığı, gizlenecek bölge ve paylaşım önizlemesi.",
+      "effort": "Büyük",
+      "overlap": "Yeni",
+      "constraint": "Frigate kayıt/export temel alınır; bulanıklaştırma ve link yetkisi Larenor geliştirmesidir. Sonuç kullanıcıca izlenir.",
+      "sources": [
+        {
+          "title": "Frigate kayıt sistemi",
+          "url": "https://docs.frigate.video/configuration/record/"
+        }
+      ]
+    },
+    {
+      "id": 43,
+      "title": "Evdeyken kamera kayıt profili",
+      "benefit": "Seçtiğin odalarda Frigate kayıt ve algılama ayarlarını evde/misafir durumuna göre yönet.",
+      "core": "Frigate kayıt/algılama politikası ve varsa üreticiye özgü gizlilik API doğrulaması.",
+      "client": "Oda bazında görünür gizlilik durumu ve elle kontrol.",
+      "effort": "Büyük",
+      "overlap": "Genişleme",
+      "constraint": "Frigate ses algılamasını kapatmak mikrofonu kapatmaz; kamera veya başka kayıtçılar çalışabilir. Gerçek mikrofon kapatma/kapak yalnız üretici API’siyle doğrulanır.",
+      "sources": [
+        {
+          "title": "Frigate MQTT kayıt/ses kontrolleri",
+          "url": "https://docs.frigate.video/integrations/mqtt/"
+        }
+      ]
+    },
+    {
+      "id": 44,
+      "title": "Kameradan görsel sensörler",
+      "benefit": "Sabit görüntü alanından garaj açık mı veya çöp kutusu dışarıda mı öğren.",
+      "core": "Kullanıcı örnekleriyle sınıflandırma ve güven eşiği.",
+      "client": "Alan çizimi, doğru/yanlış örnek ve bilinmiyor durumu.",
+      "effort": "Büyük",
+      "overlap": "Yeni",
+      "constraint": "Önce kavram kanıtı; Frigate yolu eğitim ve çıkarımda AVX/AVX2 ister, ARM64 Core desteği varsayılmaz. Kilit açma kimliği yerine kullanılmaz.",
+      "sources": [
+        {
+          "title": "Frigate State Classification",
+          "url": "https://docs.frigate.video/configuration/custom_classification/state_classification/"
+        }
+      ]
+    },
+    {
+      "id": 45,
+      "title": "Havlama ve gürültü olayları",
+      "benefit": "Seçili mikrofonlu kamerada olağandışı sesin zamanını ve kısa kaydını gör.",
+      "core": "Yerel ses sınıflandırması, eşik ve olay saklama.",
+      "client": "İzinli ses türleri, sessiz saatler ve yanlış alarm geri bildirimi.",
+      "effort": "Orta",
+      "overlap": "Yeni",
+      "constraint": "Mikrofonlu uyumlu kamera ve ev halkının tercihi gerekir; sertifikalı alarm veya acil durum sistemi yerine geçmez.",
+      "sources": [
+        {
+          "title": "Frigate Audio Detectors",
+          "url": "https://docs.frigate.video/configuration/audio_detectors/"
+        }
+      ]
+    },
+    {
+      "id": 46,
+      "title": "Elektrikli araç şarj planlayıcısı",
+      "benefit": "Sabah hedef şarja hazır ol; uygun tarife veya güneş üretimini kullan.",
+      "core": "evcc şarj planı, sayaç ve araç yetenekleri.",
+      "client": "Ayrılış saati, hedef doluluk ve maliyet görünümü.",
+      "effort": "Büyük",
+      "overlap": "Yeni",
+      "constraint": "Uyumlu araç/şarj cihazı gerekir; Türkiye tarifesi sabit veya elle tanımlı olabilir, dinamik fiyat API'si varsayılmaz.",
+      "sources": [
+        {
+          "title": "evcc tarife ve şarj planı",
+          "url": "https://docs.evcc.io/en/features/dynamic-prices/"
+        }
+      ]
+    },
+    {
+      "id": 47,
+      "title": "Güneş ve ev bataryası öncelikleri",
+      "benefit": "Üretilen enerjinin önce eve, bataryaya veya araca ayrılmasını ayarla.",
+      "core": "İnverter/sayaç durumu ve desteklenen batarya kontrolü.",
+      "client": "Enerji akışı, rezerv ve öncelik ayarı.",
+      "effort": "Büyük",
+      "overlap": "Yeni",
+      "constraint": "Uyumlu inverter/batarya gerekir; tahmin ayrı gösterilir. evcc optimizer şu anda deneysel ve bilgilendirici.",
+      "sources": [
+        {
+          "title": "evcc Home Battery",
+          "url": "https://docs.evcc.io/en/features/battery/"
+        },
+        {
+          "title": "evcc deneysel optimizer",
+          "url": "https://docs.evcc.io/en/features/optimizer/"
+        }
+      ]
+    },
+    {
+      "id": 48,
+      "title": "Ev güç bütçesi",
+      "benefit": "Yüksek tüketimli işler aynı anda yığılmasın; ertelenebilenler sıraya alınsın.",
+      "core": "Sayaç verisi, öncelikler ve desteklenen yük sınırları.",
+      "client": "Anlık bütçe ve hangi işin neden beklendiği.",
+      "effort": "Büyük",
+      "overlap": "Yeni",
+      "constraint": "evcc load management deneysel; ilk kapsam uyumlu şarj yükleri. Evdeki tüm yükler veya elektrik koruması kapsanmış sayılmaz.",
+      "sources": [
+        {
+          "title": "evcc Load Management",
+          "url": "https://docs.evcc.io/en/features/loadmanagement/"
+        }
+      ]
+    },
+    {
+      "id": 49,
+      "title": "Bahçe sulama ve su bütçesi",
+      "benefit": "Sulama bölgelerini, sürelerini ve mevcut ölçümle tüketimi birlikte yönet.",
+      "core": "OpenSprinkler programları, hava/yağmur ve varsa debi verisi.",
+      "client": "Bölge haritası, program ve su kullanım görünümü.",
+      "effort": "Büyük",
+      "overlap": "Yeni",
+      "constraint": "Uyumlu kontrolcü/vanalar, debi için ayrıca sayaç gerekir; elektronik kurulum bu yazılım adayıyla tamamlanmaz.",
+      "sources": [
+        {
+          "title": "OpenSprinkler Firmware",
+          "url": "https://github.com/OpenSprinkler/OpenSprinkler-Firmware"
+        }
+      ]
+    },
+    {
+      "id": 50,
+      "title": "Oda konforu ve havalandırma planı",
+      "benefit": "Sıcaklık, nem ve varsa CO₂ verisini birleştir; hangi odayla ilgilenileceğini gör.",
+      "core": "HA sensör/iklim adaptörleri; veri birleştirme ve havalandırma önceliği Larenor geliştirmesidir.",
+      "client": "Oda karşılaştırması, ölçüm kaynağı ve kullanıcı eşikleri.",
+      "effort": "Orta",
+      "overlap": "Genişleme",
+      "constraint": "Enerji/oda kartlarının uzantısı; sensör ve kalibrasyon gerekir. Tıbbi veya kesin küf teşhisi üretmez.",
+      "sources": [
+        {
+          "title": "Home Assistant Mold Indicator modeli",
+          "url": "https://www.home-assistant.io/integrations/mold_indicator/"
+        },
+        {
+          "title": "Home Assistant Sensor",
+          "url": "https://www.home-assistant.io/integrations/sensor/"
+        },
+        {
+          "title": "Home Assistant Climate",
+          "url": "https://www.home-assistant.io/integrations/climate/"
+        }
+      ]
+    },
+    {
+      "id": 51,
+      "title": "Etkileşimli ev kat planı",
+      "benefit": "Işık, kamera ve sensörleri kart listesi yerine ev çizimi üzerinde kullan.",
+      "core": "Kalıcı oda/cihaz eşlemeleri ve yetkili durum akışı.",
+      "client": "Dokunulabilir 2D plan; isteğe bağlı hafif 3D görünüm.",
+      "effort": "Büyük",
+      "overlap": "Genişleme",
+      "constraint": "Mevcut oda/kart düzeninin yeni sunumu; 3D performansı ayrıca sınanır, plan otomatik ölçülmüş sayılmaz.",
+      "sources": [
+        {
+          "title": "HA Floorplan",
+          "url": "https://github.com/ExperienceLovelace/ha-floorplan"
+        }
+      ]
+    },
+    {
+      "id": 52,
+      "title": "DeX'te iki ekrana farklı görev",
+      "benefit": "Harici ekranda film veya ev özeti, tablette kumanda ve ayrıntı göster.",
+      "core": "Aynı kullanıcıya ait ortak medya/durum oturumu.",
+      "client": "Bağlı ekran yönetimi ve ekran başına farklı görünüm.",
+      "effort": "Büyük",
+      "overlap": "Genişleme",
+      "constraint": "Aynı Android uygulamasıdır. Mevcut pencere uyumundan ileri; OEM, dock ve korumalı medya yolu cihazda sınanır.",
+      "sources": [
+        {
+          "title": "Android bağlı ekranlar",
+          "url": "https://developer.android.com/develop/ui/compose/layouts/adaptive/support-connected-displays"
+        }
+      ]
+    },
+    {
+      "id": 53,
+      "title": "Evdeki tabletleri tek yerden yönetme",
+      "benefit": "Mutfak ve salon tabletine ayrı düzen, ekran programı ve güncelleme grubu uygula.",
+      "core": "Cihaz kaydı, sürümlü profiller ve kademeli dağıtım.",
+      "client": "Profil önizlemesi, uygulanma kanıtı ve yerel acil çıkış.",
+      "effort": "Büyük",
+      "overlap": "Genişleme",
+      "constraint": "Fully Kiosk/uzaktan yönetim planının ileri uzantısı; bazı işlemler device-owner ister, her Huawei/OEM izni varsayılmaz.",
+      "sources": [
+        {
+          "title": "Android dedicated devices",
+          "url": "https://developer.android.com/work/dpc/dedicated-devices"
+        }
+      ]
+    },
+    {
+      "id": 54,
+      "title": "Google servislerinden bağımsız bildirim",
+      "benefit": "Desteklenen Huawei/Android tablette Larenor olaylarını Google push'a bağlı olmadan al.",
+      "core": "Kendi bildirim akışı, kimlik ve teslim/okunma ayrımı.",
+      "client": "İzinli arka plan alıcısı ve pil politikası.",
+      "effort": "Büyük",
+      "overlap": "Genişleme",
+      "constraint": "ntfy yaklaşımı kalıcı bildirimli foreground service gerektirebilir; kapatılırsa teslim gecikebilir. Ayrı ntfy uygulaması zorunlu hedef değil. Huawei/OEM Android ve güç davranışı cihazda sınanır.",
+      "sources": [
+        {
+          "title": "ntfy Google bağımsız Android teslimi",
+          "url": "https://docs.ntfy.sh/subscribe/phone/"
+        }
+      ]
+    },
+    {
+      "id": 55,
+      "title": "Zigbee/Thread ağ ve güncelleme merkezi",
+      "benefit": "Cihaz ağını, zayıf bağlantıları ve uygun firmware güncellemelerini aynı yerden gör.",
+      "core": "Zigbee koordinatörü OTA/ağ adaptörü ve Thread border router durum bilgisi.",
+      "client": "Ağ haritası, pil/uyumluluk önizlemesi ve güncelleme takibi.",
+      "effort": "Çok büyük",
+      "overlap": "Yeni",
+      "constraint": "Uygun koordinatör/border router gerekir; OTA ilk kapsamda desteklenen Zigbee modelleridir. Thread ve Matter aynı şey değildir; var olan HA ağı otomatik sahiplenilmez.",
+      "sources": [
+        {
+          "title": "Zigbee2MQTT OTA",
+          "url": "https://www.zigbee2mqtt.io/guide/usage/ota_updates.html"
+        },
+        {
+          "title": "OpenThread Border Router",
+          "url": "https://openthread.io/guides/border-router"
+        }
+      ]
+    },
+    {
+      "id": 56,
+      "title": "Eski cihazlar için akıllı kumanda",
+      "benefit": "IR kumandalı TV, klima veya ampliyi Larenor'da oda kumandasına ekle.",
+      "core": "ESPHome köprüsü, kod/protokol ve izinli komut kaydı.",
+      "client": "Kumanda öğrenme ve cihaza uygun kontrol yüzeyi.",
+      "effort": "Orta",
+      "overlap": "Yeni",
+      "constraint": "IR alıcı/verici donanımı gerekir; gönderilmiş sinyal cihazın durumunu doğrulamaz, protokol desteği değişir.",
+      "sources": [
+        {
+          "title": "ESPHome Remote Transmitter",
+          "url": "https://esphome.io/components/remote_transmitter/"
+        }
+      ]
+    },
+    {
+      "id": 57,
+      "title": "Oda düzeyinde yerel varlık algısı",
+      "benefit": "İzin verdiğin etiketin hangi odada olabileceğini kullanarak oda deneyimini öner.",
+      "core": "ESPresense/BLE ölçümleri, güven eşiği ve yerel geçmiş sınırı.",
+      "client": "Katılım, oda kalibrasyonu ve öneri onayı.",
+      "effort": "Büyük",
+      "overlap": "Yeni",
+      "constraint": "ESP32 düğümler/uyumlu etiket gerekir; BLE yaklaşık sonuç verir ve kimlik doğrulama veya kapı açma anahtarı değildir.",
+      "sources": [
+        {
+          "title": "ESPresense",
+          "url": "https://espresense.com/"
+        }
+      ]
+    },
+    {
+      "id": 58,
+      "title": "E-paper mini ev ekranları",
+      "benefit": "Oda etiketi, çöp günü veya enerji özetini küçük, düşük tüketimli ekranlara gönder.",
+      "core": "OpenEPaperLink şablonları, veri seçimi ve güncelleme bütçesi.",
+      "client": "Ekran eşleştirme ve tasarım önizlemesi.",
+      "effort": "Büyük",
+      "overlap": "Yeni",
+      "constraint": "Desteklenen e-paper etiket ve erişim noktası gerekir; Android Client'ın yerini alan yeni bir tablet uygulaması değildir.",
+      "sources": [
+        {
+          "title": "OpenEPaperLink",
+          "url": "https://github.com/OpenEPaperLink/OpenEPaperLink"
+        }
+      ]
+    },
+    {
+      "id": 59,
+      "title": "3D yazıcı ve atölye merkezi",
+      "benefit": "Baskı süresi, sıcaklık, kamera ve tamamlanmayı ev panelinde takip et.",
+      "core": "OctoPrint iş/cihaz API'leri ve sınırlı eylemler.",
+      "client": "Baskı kartı, olaylar ve açık onaylı duraklatma/iptal.",
+      "effort": "Büyük",
+      "overlap": "Yeni",
+      "constraint": "Uyumlu yazıcı ve OctoPrint gerekir; ilk sürüm izleme odaklı, keyfi G-code veya otomatik uzaktan başlatma yok.",
+      "sources": [
+        {
+          "title": "OctoPrint REST API",
+          "url": "https://docs.octoprint.org/en/main/api/index.html"
+        }
+      ]
+    },
+    {
+      "id": 60,
+      "title": "Tablette ev bilgisayarından oyun yayını",
+      "benefit": "Oyun bilgisayarını seç, eşleştir ve tableti/DeX ekranını oyun ekranına dönüştür.",
+      "core": "Desteklenen oyun hostu keşfi, yetki ve oturum yönetimi.",
+      "client": "Moonlight tabanlı yerel yayın, gamepad ve gecikme kontrolleri.",
+      "effort": "Çok büyük",
+      "overlap": "Yeni",
+      "constraint": "Önce kavram kanıtı; Sunshine uyumlu oyun bilgisayarı/GPU gerekir. Android native entegrasyon ve lisans koşulları ayrıca değerlendirilir.",
+      "sources": [
+        {
+          "title": "Moonlight ve Sunshine",
+          "url": "https://moonlight-stream.org/"
+        }
+      ]
+    }
+  ],
+  "implementation": {
+    "plan": "feature-expansion-plan-2026-09-05.md",
+    "status": "planned",
+    "acceptedFeatureIds": [],
+    "commonDeliveryGates": [
+      "B0",
+      "B5"
+    ],
+    "deliveryGroups": [
+      {
+        "id": "G01",
+        "title": "Güvenilir Core ve izlenebilir işlemler",
+        "featureIds": [
+          13,
+          15,
+          20,
+          6,
+          5
+        ]
+      },
+      {
+        "id": "G02",
+        "title": "Kurtarma, yedek koruması ve güç",
+        "featureIds": [
+          16,
+          17,
+          18
+        ]
+      },
+      {
+        "id": "G03",
+        "title": "Erken bildirim, tablet ve ev görünümü",
+        "featureIds": [
+          54,
+          53,
+          51,
+          52
+        ]
+      },
+      {
+        "id": "G04",
+        "title": "AI ve denetlenebilir otomasyon",
+        "featureIds": [
+          8,
+          4,
+          2,
+          3,
+          1,
+          9,
+          7,
+          10
+        ]
+      },
+      {
+        "id": "G05",
+        "title": "Genişletilebilirlik, destek ve birden fazla ev",
+        "featureIds": [
+          11,
+          12,
+          14,
+          19
+        ]
+      },
+      {
+        "id": "G06",
+        "title": "Medya ve müzik",
+        "featureIds": [
+          24,
+          26,
+          25,
+          21,
+          22,
+          23,
+          27,
+          28,
+          29,
+          30
+        ]
+      },
+      {
+        "id": "G07",
+        "title": "Aile ve ev yaşamı",
+        "featureIds": [
+          31,
+          32,
+          33,
+          34,
+          35,
+          36,
+          37,
+          38,
+          39,
+          40
+        ]
+      },
+      {
+        "id": "G08",
+        "title": "Kamera ve olaylar",
+        "featureIds": [
+          43,
+          42,
+          41,
+          44,
+          45
+        ]
+      },
+      {
+        "id": "G09",
+        "title": "Enerji, iklim ve bahçe",
+        "featureIds": [
+          50,
+          48,
+          46,
+          47,
+          49
+        ]
+      },
+      {
+        "id": "G10",
+        "title": "Ağ, varlık algısı ve yeni cihazlar",
+        "featureIds": [
+          55,
+          56,
+          57,
+          58,
+          59,
+          60
+        ]
+      }
+    ],
+    "requires": {
+      "13": [
+        "B1",
+        "B3"
+      ],
+      "15": [
+        "B1",
+        "B4"
+      ],
+      "20": [
+        "B3",
+        "B4"
+      ],
+      "6": [
+        "B3"
+      ],
+      "5": [
+        "B1",
+        "B3",
+        "F06"
+      ],
+      "16": [
+        "B4",
+        "F05"
+      ],
+      "17": [
+        "F16"
+      ],
+      "18": [
+        "F05",
+        "F16"
+      ],
+      "54": [
+        "B3",
+        "F05"
+      ],
+      "53": [
+        "F54",
+        "F13"
+      ],
+      "51": [
+        "B3"
+      ],
+      "52": [
+        "B3"
+      ],
+      "8": [
+        "B1",
+        "B3",
+        "F05"
+      ],
+      "4": [
+        "B3",
+        "F06",
+        "F05"
+      ],
+      "2": [
+        "F04",
+        "F06"
+      ],
+      "3": [
+        "F02",
+        "F06"
+      ],
+      "1": [
+        "F08",
+        "F02",
+        "F03",
+        "F04"
+      ],
+      "9": [
+        "F08",
+        "F20"
+      ],
+      "7": [
+        "F06",
+        "F08"
+      ],
+      "10": [
+        "F06",
+        "F08"
+      ],
+      "11": [
+        "F13",
+        "F15",
+        "F20",
+        "F05"
+      ],
+      "12": [
+        "B3",
+        "F13",
+        "F20"
+      ],
+      "14": [
+        "F13",
+        "F20",
+        "F54"
+      ],
+      "19": [
+        "B3",
+        "B4",
+        "F16",
+        "F20",
+        "F54"
+      ],
+      "24": [
+        "B2",
+        "B3"
+      ],
+      "26": [
+        "B2",
+        "B3",
+        "F06"
+      ],
+      "25": [
+        "B2",
+        "B3"
+      ],
+      "21": [
+        "B2",
+        "B3"
+      ],
+      "22": [
+        "B2",
+        "F05"
+      ],
+      "23": [
+        "B2",
+        "B3",
+        "F05"
+      ],
+      "27": [
+        "B2",
+        "B3",
+        "B4"
+      ],
+      "28": [
+        "B2",
+        "B3"
+      ],
+      "29": [
+        "B2",
+        "F54"
+      ],
+      "30": [
+        "B2",
+        "F16",
+        "F05",
+        "F08"
+      ],
+      "31": [
+        "B3"
+      ],
+      "32": [
+        "F31"
+      ],
+      "33": [
+        "F31",
+        "F32"
+      ],
+      "34": [
+        "B3"
+      ],
+      "35": [
+        "F34",
+        "F05",
+        "F08"
+      ],
+      "36": [
+        "F05",
+        "F54"
+      ],
+      "37": [
+        "B3",
+        "F20"
+      ],
+      "38": [
+        "F08",
+        "F16",
+        "F13"
+      ],
+      "39": [
+        "F54"
+      ],
+      "40": [
+        "F05",
+        "F54"
+      ],
+      "43": [
+        "B3",
+        "F13",
+        "F20"
+      ],
+      "42": [
+        "F43",
+        "F20"
+      ],
+      "41": [
+        "F43",
+        "F08"
+      ],
+      "44": [
+        "F43",
+        "F08"
+      ],
+      "45": [
+        "F43",
+        "F54",
+        "F08"
+      ],
+      "50": [
+        "B3",
+        "F04"
+      ],
+      "48": [
+        "F04",
+        "F06"
+      ],
+      "46": [
+        "F48",
+        "F05"
+      ],
+      "47": [
+        "F48",
+        "F03"
+      ],
+      "49": [
+        "F04",
+        "F05",
+        "F54"
+      ],
+      "55": [
+        "B1",
+        "B3",
+        "F15",
+        "F16"
+      ],
+      "56": [
+        "B3",
+        "F06"
+      ],
+      "57": [
+        "B3",
+        "F13"
+      ],
+      "58": [
+        "B3",
+        "F53",
+        "F54"
+      ],
+      "59": [
+        "F05",
+        "F54"
+      ],
+      "60": [
+        "B3",
+        "F13"
+      ]
+    }
+  }
+}

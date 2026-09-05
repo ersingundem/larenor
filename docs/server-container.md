@@ -1,9 +1,10 @@
 # Larenor Server container
 
 `server/Dockerfile` packages the Python Larenor Server: accounts, administration,
-encrypted configuration storage, and verified Client releases. The normal
-`larenor_server.cli` entry point assembles all four APIs. This image does not
-include Music Assistant or manage the host Docker daemon.
+encrypted configuration storage, verified Client releases, component previews
+and durable read-only requirements jobs. The normal `larenor_server.cli` entry
+point assembles these APIs. It does not start Music Assistant or the other media
+components, and it does not manage the host Docker daemon.
 
 The `88c26fc` image passed native amd64/arm64 initialization, private-storage,
 restart and actual APK-signature smoke tests in
@@ -14,8 +15,10 @@ Its multiarchitecture manifest was fetched anonymously from GHCR:
 ghcr.io/ersingundem/larenor-server@sha256:3012dd35fdce1523c8abae26abb6b2f3e5a70c7efe592acaaa985c7de7e8fa31
 ```
 
-This verifies the account/vault/update Server image for that source commit.
-The integrated media/musical components are still
+This verifies the account/vault/update Server image for that source commit; the
+historical digest is not acceptance evidence for the newer requirements worker.
+Build and verify the exact reviewed source revision before deploying new code.
+The integrated media/music components are still
 [in development](integrated-media-stack.md). No deployment to the user's home
 server or physical tablet acceptance has taken place.
 
@@ -75,6 +78,58 @@ The default environment sets `LARENOR_DATA_DIR`, `LARENOR_KEY_FILE`,
 `LARENOR_APKSIG_CLASSES` to the packaged locations. Dependencies and verifier
 classes are prepared during the build; startup never installs packages.
 Operator installation on Linux or CasaOS is a separate, explicit manual step.
+
+## Optional internal requirements worker
+
+The current package also defines `larenor-preflight-worker`, implemented in
+[`preflight_runtime.py`](../server/larenor_server/plugins/preflight_runtime.py).
+The container's default entry point starts only the API. No worker socket or
+host storage inspection is enabled by default. The public job capability
+`preflightConfigured` describes explicit configuration, not a successful
+connection; `installAvailable` is always `false`.
+
+A reviewed Linux runtime can run the internal worker with an operator-owned
+policy file and a private Unix socket directory. The API needs access only to
+that worker socket, with the configured worker UID verified through Linux peer
+credentials. It does not need the worker policy, approved host data roots,
+Docker socket or additional capabilities. If the API is containerized, the
+runtime must arrange access to the worker's socket directory and its group
+traversal permissions while keeping it unwritable by the API. No such host
+mounts or supervisor are automatically created by this Dockerfile.
+
+Set `LARENOR_PLUGIN_WORKER_SOCKET` to the absolute socket path visible inside the
+API container and `LARENOR_PLUGIN_WORKER_UID` to the worker's actual UID (default
+`0`). The worker's `--api-uid` must match the API's UID, normally `10001` for this
+image. Distinct process UIDs require `--socket-gid` plus corresponding runtime
+group access; neither a group membership nor a matching socket filename
+replaces the peer-UID check. See the
+[policy and command reference](../server/larenor_server/plugins/README.md#internal-worker-configuration-and-lifecycle)
+for the exact operator interface. Malformed API worker configuration produces a
+static startup error without exposing its environment value.
+
+The worker checks platform and existing approved storage/capacity without
+creating directories or accessing Docker. Docker availability, port availability
+and receiver networking remain unverified results. Client **Requirements checks**
+shows job history and each observation; `succeeded` means the inspection finished,
+including when individual requirements failed. It never means a component was
+installed or media playback passed.
+
+On API shutdown, the lifespan dispatcher stops accepting another tick and awaits
+the bounded IPC call and durable result write. Accepted jobs remain in SQLite
+across restart and preview expiry. Interrupted queued/running checks can resume
+only after the original administrator revision and session family are validated
+again. Worker shutdown handles SIGINT/SIGTERM and removes only its own recorded
+socket inode after the serving thread stops. An occupied or stale socket fails
+closed; recovery belongs to the owner of that runtime directory after proving
+the old process has exited. Never remove an unrelated or live socket to make a
+startup succeed.
+
+This worker is an internal component of the one Larenor installation. It has no
+separate end-user account, public service URL or product setup flow. Unified
+media process supervision, private bootstrap networking, generated service
+credentials, automatic interconnections and complete-stack deployment still
+need implementation and acceptance. The isolated Docker primitives in
+`plugins/worker.py` are not exposed by the preflight protocol or job API.
 
 ## APK verifier and notices
 

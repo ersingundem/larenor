@@ -1,6 +1,7 @@
 # Larenor
 
 **Development progress:** [completed work, active tasks and remaining queue](docs/PROGRESS.md).
+**Approved expansion:** [60 selected Core/Android Client features, ordered by dependencies](docs/feature-expansion-plan-2026-09-05.md). Planned features are tracked separately from implemented capabilities.
 
 **Larenor Client** is an **Android app**, designed primarily for tablets. The same
 app supports resizable windows and external displays, including Samsung DeX.
@@ -13,8 +14,11 @@ The Client admin area also manages encrypted service connections and bounded
 identity checks for 17 service types. See the [connection guide and limitations](docs/server-service-connections.md).
 Client includes foreground update notices; the Server container passed native
 amd64/arm64 CI checks and anonymous registry access was verified. Internal
-component requirements previews are implemented; installation and automatic media
-wiring remain in progress. Administration belongs in the Client; Server
+component previews and durable **read-only requirements checks** are implemented,
+including Client history, results and cancellation. The internal Linux worker
+checks allowed storage roots and capacity; installation and automatic media
+wiring remain in progress. A finished check does not mean every requirement
+passed. Administration belongs in the Client; Server
 provides authenticated APIs and OpenAPI documentation without a separate web
 admin application. See the [current architecture and implementation status](docs/server-client-architecture-2026-09-05.md).
 
@@ -692,9 +696,11 @@ list, so the app stays uncluttered no matter how many services exist:
 See the [hardening review and next improvements](docs/performance-security-review-2026-09-05.md)
 for measured regression evidence, device-test limits and remaining transport work.
 
-The latest September 5 local integration passed **2,297 Flutter tests,
-98 Android native tests, 154 Server tests and 97 Python tool/policy tests**.
-Static analysis, workflow lint and publishable-file secret scanning passed.
+The latest September 5 local integration passed **2,477 Flutter tests,
+921 Server tests and 157 Python tool/policy tests**. The Server suite includes
+the real Java/apksig verifier and HTTP-to-Unix-worker persistence journeys;
+worker checks do not install Docker services. The previous Android native run
+passed **98 tests**; native tests were not rerun for this Dart/Python slice.
 These are local results; hosted CI, container execution and physical-device
 acceptance are tracked separately in [development progress](docs/PROGRESS.md).
 

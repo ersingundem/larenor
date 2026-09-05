@@ -2,6 +2,16 @@
 
 Bu matris 5 Eylül 2026 tarihindeki gerçek test dosyalarını eşler. Bir satırda test bulunması o özelliğin bütün sunucu sürümlerinde veya fiziksel cihazlarda doğrulandığı anlamına gelmez. Test adedi ve satır kapsamı bir ürünün “%100 çalıştığı” iddiası için kullanılmaz.
 
+**Son güncelleme: 5 Eylül 2026, 15:55 TRT.** Yerel doğrulamanın kod tabanı
+`5c6b83b` paketidir. Aşağıdaki sonuçlar bu güncellemeyi içeren commit'in GitHub
+CI başarısı veya fiziksel cihaz kabulü olarak sunulmaz.
+
+**Yeni onaylı kapsam:** [60 özellik planındaki](feature-expansion-plan-2026-09-05.md)
+satırların tamamı planlandı; yeni özellik kabulü **0/60**. Core/Client sözleşme,
+birim/entegrasyon, E2E, yetki/mahremiyet, performans ve gerekiyorsa cihaz
+senaryoları her modülün gerçek koduyla mevcut CI'a eklenecek. Bugünkü test
+adetleri henüz uygulanmamış 60 modülü kapsıyor anlamına gelmez.
+
 ## CI kapıları
 
 - [Analyze & Test](../.github/workflows/analyze-test.yml): biçim, statik analiz, bütün `test/` unit/widget regresyonları ve LCOV. `test/performance/` altındaki kontroller abonelik/istek ve veri işleme davranışını sınar; cihaz FPS veya pil ölçümü değildir.
@@ -53,6 +63,7 @@ Tablodaki dosyalar temsilî giriş noktalarıdır; aynı klasördeki diğer `_te
 | Şifreli backup / restore | [codec](../test/features/backup/backup_codec_test.dart), [transaction](../test/features/backup/backup_repository_test.dart), [privacy](../test/features/backup/backup_disclosure_test.dart) | [backup ekranı](../test/features/backup/backup_screen_test.dart), [scope](../test/core/configuration_scope_test.dart) | Android backup-exclusion XML'i Python politikasıyla | Gerçek şifreleme, iptal, yanlış parola, preview, restore, scope reset | OS DocumentsUI/cloud provider, process kill / disk-full / gerçek secure storage |
 | Larenor Server hesabı ve şifreli kasa | [Server auth/storage](../server/tests/test_auth.py), [API sınırı](../server/tests/test_api_boundary.py), [Client hesap](../test/features/server/server_account_test.dart), [kasa controller](../test/features/server/server_vault_controller_test.dart) | [hesap](../test/features/server/server_connection_screen_test.dart), [kasa](../test/features/server/server_vault_screen_test.dart), [korumalı giriş](../test/features/server/server_entry_points_test.dart) | Bu dilimde host fixture | Yok | Gerçek sunucu/TLS, fiziksel cihaz depolaması, CasaOS kurulumu ve cihazlar arası taşıma kabulü |
 | Larenor Server kullanıcı, oturum ve işlem günlüğü yönetimi | [Server admin](../server/tests/test_admin.py), [migration](../server/tests/test_admin_migration.py), [Client admin controller](../test/features/server/server_admin_controller_test.dart) | [admin UI](../test/features/server/server_admin_screen_test.dart): revision çatışması, son etkin yönetici, geçici parola, iptal/onay, sayfalama ve yaşam döngüsü | — | Yok | Gerçek sunucu rol matrisi, cihaz oturumu kapatma ve erişilebilirlik teknolojileriyle fiziksel kabul |
+| Server bileşen kataloğu ve gereksinim işleri | [katalog](../server/tests/test_plugin_catalog.py), [şifreli işler](../server/tests/test_plugin_jobs.py), [API](../server/tests/test_plugin_jobs_api.py), [işçi runtime](../server/tests/test_plugin_job_runtime.py), [Client sözleşmesi](../test/features/server/server_plugin_jobs_test.dart) | [iş/geçmiş ekranı](../test/features/server/server_plugin_jobs_screen_test.dart): açık istek kurtarma, iptal, sayfalama, PIN/arka plan/hesap sınırları | — | Yok | Varsayılan işçi kapalı; gerçek kurulum, Docker/port/alıcı ağı doğrulaması ve CasaOS kabulü yok |
 | Client APK yayımlama ve güncelleme | [staging/atomiklik/kota](../server/tests/test_releases.py), [gerçek APK imzası](../server/tests/test_releases_verifier.py), [publisher](../tool/tests/publish_client_release_test.py), [Client protokol](../test/features/client_updates/client_updates_test.dart) | [güncelleme UI](../test/features/client_updates/client_updates_screen_test.dart): yayımlanmamış sürüm, hata, indir/doğrula/kur ayrımı ve eski hesap engeli | [APK imzası](../android/app/src/test/kotlin/com/ersingundem/larenor/updater/ApkSignatureTest.kt), [köprü](../android/app/src/test/kotlin/com/ersingundem/larenor/updater/ClientUpdaterBridgeTest.kt), [güvenlik](../android/app/src/test/kotlin/com/ersingundem/larenor/updater/UpdateSecurityTest.kt) | Yok | Fiziksel Android installer, bilinmeyen kaynak izni, süreç ölümü ve gerçek yükseltme; bu doğrulamada sürüm yayımlanmadı |
 | HA admin, otomasyon, servis formları | [admin API](../test/features/admin/admin_client_test.dart), [şemalar](../test/features/admin/admin_models_test.dart) | [admin flows](../test/features/admin/admin_workflows_test.dart), [actions](../test/features/ha_tools/ha_actions_test.dart) | — | Yok | Yetki ve sunucu sürümü matrisi; yalnız ayrı test ortamında yazma |
 | Today / todo / takvim / bildirim | [API](../test/features/today/today_api_test.dart), [actions](../test/features/today/today_actions_test.dart) | [Today](../test/features/today/today_screen_test.dart) | — | Yok | Saat dilimi, izinler ve gerçek entegrasyon verileri |
@@ -74,7 +85,54 @@ Tablodaki dosyalar temsilî giriş noktalarıdır; aynı klasördeki diğer `_te
 
 ## Doğrulanan yerel koşum
 
-**S06 katalog/önizleme dilimi (5 Eylül):** **2.422 Flutter ve 700 Server testi**
+**S06 kalıcı gereksinim işleri (5 Eylül, 15:40 TRT):** Son tam koşumda
+**2.477 Flutter, 921 Server ve 157 Python araç/politika testi** geçti.
+Server koşumu gerçek Java/apksig ile bütün `server/tests` dosyalarını içerir.
+`actionlint`, diff kontrolü ve tam Flutter analizi temiz.
+Bu toplamlar aşağıdaki odaklı testleri içerir; satırlar birbirine veya tam
+koşumlara eklenmez. Kapsam yüzdeleri yalnız ölçülen modüllere aittir.
+
+| Odaklı doğrulama | Kanıt | Sınır |
+| --- | --- | --- |
+| Client iş sözleşmesi/controller/ekran | 53 test, 19'u widget; %94,8 satır | Gerçek API sözleşmesi, belirsiz POST sonucunda aynı istekle açık kurtarma, sayfalama ve yaşam döngüsü; fiziksel cihaz değil |
+| Salt okunur host kontrolü | 64 test; %100 satır/dal | Platform, izinli kök ve kapasite kontrolleri; Docker/port/alıcı ağı `unknown` |
+| Dahili işçi CLI | 47 test; %100 kapsam | Özel politika dosyası, argüman/izin, sinyal ve statik hata sınırları |
+| IPC bağımsız incelemesi | 83 testlik ilgili koşum; IPC'de 201/216 statement ve 59/68 dal | 16 temel IPC testi ve başlatma hataları dahil; Linux UID, boyut/süre sınırı, kapanış ve yalnız sahip olunan socket'in temizlenmesi |
+| Kalıcı işler bağımsız incelemesi | 55 test; %89 birleşik kapsam | Yetki/oturum, şifreleme/bozulma, kapasite, eşzamanlılık, iptal ve restart |
+
+- [İş yönetimi](../server/tests/test_plugin_jobs.py),
+  [API](../server/tests/test_plugin_jobs_api.py) ve
+  [bellek sınırı](../server/tests/test_plugin_jobs_storage_memory.py): aynı
+  istek/önizleme bağlama, süresi dolmuş önizlemeden sonra geçmişi koruma,
+  revizyonlu iptal ve başlangıçta kayıtları sırayla doğrulama.
+- [Gerçek yerel HTTP → SQLite → Unix akışı](../server/tests/test_plugin_job_runtime.py):
+  isteğe bağlı dispatcher, kalıcılık, restart ve salt okunur sonuç teslimi.
+- [Host](../server/tests/test_host_preflight.py),
+  [IPC](../server/tests/test_plugin_preflight_ipc.py),
+  [CLI](../server/tests/test_plugin_preflight_runtime.py) ve
+  [sonuç modelleri](../server/tests/test_plugin_preflight_models.py): katalog/plan
+  kimliğini yeniden doğrulama, güvenilir dizin sınırı ve dar sonuç sözleşmesi.
+- [Client veri/controller](../test/features/server/server_plugin_jobs_test.dart)
+  ve [ekran](../test/features/server/server_plugin_jobs_screen_test.dart):
+  `succeeded` durumunu “inceleme tamamlandı” olarak gösterme; başarısız/bilinmeyen
+  kontrolleri ayrı sunma, sınırlı ön plan yenilemesi, açık kurtarma ve yetki sınırları.
+
+İşçiler testlerde yalnız sentetik veya geçici yerel kaynakları inceler. Medya
+kurulmaz; Docker işlemi yapılmaz. `installAvailable=false` korunur. Bu dilim
+gerçek Linux/CasaOS dağıtımı veya HomePod/receiver ağı kabulü değildir.
+
+**Uzak CI kanıtı:** `09729be` için
+[Güvenlik](https://github.com/ersingundem/larenor/actions/runs/33964170717) ve
+[iki mimarili Server yayını](https://github.com/ersingundem/larenor/actions/runs/33964170947)
+başarılıdır. [Android](https://github.com/ersingundem/larenor/actions/runs/33964170901)
+yalnız E2E işinde başarısızdır: odak ekranında Quickstep ANR görülür; sonraki
+QEMU çıkışının nedeni bilinmez ve OOM kanıtı yoktur. Yeni yerel API 35
+pencere/display tanılama değişikliğinin 30 testi, 157 araç testinin içindedir;
+asıl odak iddiası gevşetilmedi ve yeni hosted koşum henüz yoktur.
+
+### Önceki dilimlerin kanıtı
+
+**S06 katalog/önizleme dilimi (5 Eylül, önceki koşum):** **2.422 Flutter ve 700 Server testi**
 geçti. Tam Flutter analizi ve 753 Dart dosyasının biçim kontrolü temiz. Server
 koşumu bütün `server/tests` dosyalarını içerir; gerçek Java/apksig doğrulaması
 çalıştırıldı. S06 katalog/plan kuralları 99 testte, 318 statement ve 78 branch
@@ -98,8 +156,8 @@ Docker işçisi kanıtı değildir.
 
 S05 gerçek socket iptal testinde görülen eşzamanlı descriptor kapatma yarışı
 [regresyonla](../server/tests/test_service_transport.py) düzeltildi; özgün kısa
-iptal sınırı değiştirilmeden 300 tekrar geçti. Son yayımlanmış `8346c01` Android
-CI hâlâ başarısızdır; yeni emülatör hazırlığı/tanılama ayrı CI doğrulaması bekler.
+iptal sınırı değiştirilmeden 300 tekrar geçti. Bu önceki koşumun Android CI
+tabanı `8346c01` idi; güncel uzak sonuç yukarıda `09729be` için ayrı kaydedildi.
 
 **S05 son yayın kontrolü (5 Eylül, 13:49 TRT):** **2.333 Flutter**, **529 Server**
 ve **114 Python araç/politika testi** geçti. Tam analiz ve 747 Dart dosyasının
@@ -124,7 +182,7 @@ belgesindedir. Yeni `server/tests/` ve `test/` dosyaları mevcut CI keşfine dah
 Kontrol sırasında revizyon/rol/oturum değişimi, secret redaksiyonu, TLS/DNS,
 boyut/süre sınırları ve tablet klavyesi ayrı regresyonlarla kapsanır.
 
-**Son birleşik yerel kontrol (5 Eylül, 12:45 TRT):** 2.297 Flutter testi,
+**Önceki birleşik yerel kontrol (5 Eylül, 12:45 TRT):** 2.297 Flutter testi,
 18 pakette 98 Android native testi, 154 Server testi ve 97 Python araç/politika
 testi geçti. Tam Flutter analizi, workflow actionlint kontrolü ve yayımlanabilir
 dosyaların sır taraması temizdir. Aşağıdaki alt paket sayıları bu sonuçlara yeniden

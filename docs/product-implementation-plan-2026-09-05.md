@@ -6,6 +6,13 @@
 
 **Güncel takip:** [Yapılanlar, aktif işler ve kalan kuyruk](PROGRESS.md). Bu plan ayrıntılı kapsamı ve önceki teslimlerin kanıtını saklar; en son çalışma durumu takip dosyasındadır.
 
+**Yeni onaylı genişleme (5 Eylül):** Kullanıcı araştırmadaki **60 özelliğin
+tamamını seçti**. [Bağımlılıklara göre 60 özellik planı](feature-expansion-plan-2026-09-05.md)
+mevcut S06–S09 temellerini ve 10 yeni teslim grubunu birleştirir. Her özellik
+planlandı durumundadır; yeni kabul 0/60. Önceki yaklaşık %65 tahmini
+genişletilmiş toplamın yüzdesi değildir. Aşağıdaki mevcut açık işler korunur;
+son ortak tablet tasarımı, README ve manuel cihaz kabulü en sonda kalır.
+
 **Güncel platform ve mimari kararı:** Client tablet öncelikli bir **Android uygulaması** olarak geliştiriliyor; Samsung DeX aynı uygulamanın harici ekran/değişken pencere desteğidir. Apple Home esintili tasarım korunuyor, native iOS/HealthKit geliştirmesi kapsam dışı. **Larenor Server** veritabanı, hesap, şifreli yapılandırma, güncelleme ve eklenti API'lerini sağlar. Ayrı Server web arayüzü yoktur; tüm admin yönetimi Client içinde, Swagger/OpenAPI belgeli ve Server tarafında yetki kontrollüdür. Yeni S01–S09 sırası ve tamamlanma durumu [Server/Client mimarisinde](server-client-architecture-2026-09-05.md) izlenir. Kurulum en sonda manuel yapılır.
 
 ## Uygulama takibi

@@ -46,7 +46,7 @@ void main() {
         (events, {'limit': '0'}),
         (events, {'after': '0', 'userId': 'x'}),
         ('/auth/me', {'after': '0'}),
-        (jobs + '/capabilities', {'limit': '1'}),
+        ('$jobs/capabilities', {'limit': '1'}),
       ]) {
         await expectLater(
           api.request('GET', entry.$1, queryParameters: entry.$2),
