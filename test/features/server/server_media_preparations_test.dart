@@ -376,6 +376,35 @@ void main() {
         });
       },
     );
+    test('history rejects mixed Core and home contexts inside one page', () async {
+      final other = mediaFixtureJson()['otherContextPrepared'];
+      expect(ServerMediaPreparation.fromJson(other).plan.coreId, isNot(mediaPreparationJson()['plan']['coreId']));
+      f.respond = (_) async => f.json({'preparations': [mediaPreparationJson(), other], 'nextBefore': null});
+      await controller.load(current: () => true);
+      expect(controller.failure, 'invalid_response');
+      expect(controller.preparations, isEmpty);
+    });
+    test('history rejects a different Core on subsequent pages and refresh', () async {
+      f.respond = (_) async => f.json({'preparations': [mediaPreparationJson()], 'nextBefore': 5});
+      await controller.load(current: () => true);
+      f.respond = (_) async => f.json({'preparations': [mediaFixtureJson()['otherContextPrepared']], 'nextBefore': null});
+      await controller.loadMore(current: () => true);
+      expect(controller.failure, 'invalid_response');
+      expect(controller.preparations.single.id, mediaPreparationJson()['id']);
+      await controller.load(current: () => true);
+      expect(controller.failure, 'invalid_response');
+      expect(controller.preparations.single.id, mediaPreparationJson()['id']);
+    });
+    test('a new draft cannot switch the history home context', () async {
+      f.records.add(mediaPreparationJson());
+      await controller.load(current: () => true);
+      final other = mediaFixtureJson()['otherContextPrepared']['plan'];
+      f.respond = (r) async => r.url.path.endsWith('/context') ? f.json({'schemaVersion': 1, 'coreId': other['coreId'], 'homeId': other['homeId']}) : f.pluginResponse(r);
+      await controller.prepareDraft(current: () => true);
+      expect(controller.failure, 'invalid_response');
+      expect(controller.canCreate, isFalse);
+      expect(f.mutations, isEmpty);
+    });
     test('account logout invalidates a delayed history read', () async {
       final held = Completer<http.Response>();
       f.respond = (_) => held.future;

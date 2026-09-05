@@ -86,6 +86,7 @@ void main() {
   Future<void> tap(WidgetTester tester, String key) async {
     final target = find.byKey(ValueKey(key));
     await tester.ensureVisible(target);
+    await tester.pumpAndSettle();
     await tester.tap(target);
     await tester.pumpAndSettle();
   }
@@ -348,4 +349,37 @@ void main() {
       expect(f.mutations, hasLength(1));
     },
   );
+  testWidgets('an older active record remains reachable beyond one hundred cancelled preparations', (tester) async {
+    await mount(tester);
+    final rows = List.generate(101, (i) => pagedMediaPreparation(i + 1, cancelled: i < 100));
+    f.respond = (r) async {
+      if (r.method == 'GET' && r.url.path.endsWith('/media/preparations')) {
+        final before = int.tryParse(r.url.queryParameters['before'] ?? '');
+        final start = before == null ? 0 : 102 - before;
+        final page = rows.skip(start).take(10).toList();
+        return f.json({'preparations': page, 'nextBefore': start + 10 >= rows.length ? null : 92 - start});
+      }
+      final selected = rows.last;
+      if (r.url.path.endsWith('/${selected['id']}/cancel')) {
+        selected['state'] = 'cancelled'; selected['revision'] = 2;
+        return f.json({'preparation': selected});
+      }
+      if (r.url.path.endsWith('/${selected['id']}')) return f.json({'preparation': selected});
+      return f.pluginResponse(r);
+    };
+    await tap(tester, 'media-refresh');
+    for (var page = 0; page < 10; page++) {
+      await tester.scrollUntilVisible(find.byKey(const ValueKey('media-more')).hitTestable(), 600, maxScrolls: 100);
+      await tap(tester, 'media-more');
+    }
+    final key = 'media-view-${rows.last['id']}';
+    await tester.scrollUntilVisible(find.byKey(ValueKey(key)).hitTestable(), 600, maxScrolls: 100);
+    await tap(tester, key);
+    await tap(tester, 'media-cancel');
+    await tap(tester, 'media-cancel-confirm');
+    expect(rows.last['state'], 'cancelled');
+    expect(f.mutations, hasLength(1));
+    expect(tester.takeException(), isNull);
+  });
+
 }

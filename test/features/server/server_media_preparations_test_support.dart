@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:http/http.dart' as http;
+import 'package:crypto/crypto.dart';
 
 import 'server_plugins_test_support.dart';
 
@@ -57,4 +58,32 @@ class MediaPreparationsFixture extends PluginsFixture {
     }
     return super.pluginResponse(request);
   }
+}
+
+/// Distinct synthetic records for history paging, based on the real HTTP
+/// fixture and the public deterministic identity/hash format.
+Map<String, dynamic> pagedMediaPreparation(int index, {bool cancelled = true}) {
+  final record = mediaPreparationJson(cancelled: cancelled);
+  final id = index.toRadixString(16).padLeft(32, '0');
+  record['id'] = id;
+  record['requestId'] = (index + 256).toRadixString(16).padLeft(32, '0');
+  final plan = record['plan'] as Map<String, dynamic>;
+  plan['preparationId'] = id;
+  String identity(String kind, String service, [String step = '']) => sha256.convert(utf8.encode(['larenor-media-stack-v1', kind, plan['coreId'], plan['homeId'], id, service, step].join('\u0000'))).toString().substring(0, 32);
+  for (final component in plan['components']) {
+    final service = component['serviceId'] as String;
+    component['installationId'] = identity('installation', service);
+    component['operationId'] = identity('operation', service);
+    for (final step in component['steps']) { step['stepId'] = identity('step', service, step['kind']); }
+  }
+  Object? canonical(Object? value) {
+    if (value is Map<String, dynamic>) {
+      final keys = value.keys.toList()..sort();
+      return {for (final key in keys) key: canonical(value[key])};
+    }
+    if (value is List) return value.map(canonical).toList();
+    return value;
+  }
+  plan['planHash'] = sha256.convert(utf8.encode(jsonEncode(canonical({...plan}..remove('planHash'))))).toString();
+  return record;
 }
