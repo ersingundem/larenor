@@ -31,7 +31,7 @@ class Inspector:
     def inspect(self, selected):
         self.calls += 1
         return PreflightResult(catalogDigest=selected.catalogDigest, planHash=selected.planHash,
-            platform=selected.platform, checkedAt=datetime.now(timezone.utc).isoformat(timespec='milliseconds').replace('+00:00','Z'),
+            platform=selected.image.platform, checkedAt=datetime.now(timezone.utc).isoformat(timespec='milliseconds').replace('+00:00','Z'),
             checks=[PreflightCheck(code='docker_engine', status='unknown')])
 
 
