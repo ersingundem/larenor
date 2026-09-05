@@ -38,6 +38,10 @@ def context(client, pair):
 def legacy_v2(app):
     with app.state.core.db.transaction() as connection:
         connection.execute("DROP TABLE IF EXISTS core_context")
+        # A v2 snapshot predates the context-bound home registry.
+        for table in ('home_resource_records', 'home_resource_state', 'home_resource_audit'):
+            connection.execute(f'DROP TABLE {table}')
+        connection.execute("DELETE FROM metadata WHERE key='home_resources_schema'")
         connection.execute("UPDATE metadata SET value='2' WHERE key='schema_version'")
 
 
