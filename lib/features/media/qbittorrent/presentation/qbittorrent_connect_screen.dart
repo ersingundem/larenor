@@ -34,6 +34,7 @@ class _QbittorrentConnectScreenState
   }
 
   Future<void> _connect() async {
+    if (!mounted || _connecting) return;
     final url = _urlController.text.trim();
     final username = _userController.text.trim();
     final password = _passwordController.text;
@@ -57,11 +58,13 @@ class _QbittorrentConnectScreenState
           );
       if (mounted) Navigator.of(context).pop();
     } on MediaApiException catch (e) {
-      setState(() => _error = e.message);
+      if (mounted) setState(() => _error = e.message);
     } catch (_) {
-      setState(
-        () => _error = AppLocalizations.of(context).mediaErrorUnreachable,
-      );
+      if (mounted) {
+        setState(
+          () => _error = AppLocalizations.of(context).mediaErrorUnreachable,
+        );
+      }
     } finally {
       if (mounted) setState(() => _connecting = false);
     }

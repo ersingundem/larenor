@@ -3,14 +3,17 @@ import 'package:freezed_annotation/freezed_annotation.dart';
 part 'jellyseerr_result.freezed.dart';
 part 'jellyseerr_result.g.dart';
 
-/// Jellyseerr's numeric media availability status.
-/// See Overseerr/Jellyseerr's `MediaStatus` enum (stable across both forks).
+/// Current Seerr numeric media status, distinct from request approval.
+/// Source: seerr-team/seerr server/constants/media.ts. Unknown future values
+/// never imply availability; older fork-specific codes need version adapters.
 enum JellyseerrMediaStatus {
   unknown,
   pending,
   processing,
   partiallyAvailable,
-  available;
+  available,
+  blocklisted,
+  deleted;
 
   static JellyseerrMediaStatus fromCode(int? code) {
     switch (code) {
@@ -22,6 +25,10 @@ enum JellyseerrMediaStatus {
         return JellyseerrMediaStatus.partiallyAvailable;
       case 5:
         return JellyseerrMediaStatus.available;
+      case 6:
+        return JellyseerrMediaStatus.blocklisted;
+      case 7:
+        return JellyseerrMediaStatus.deleted;
       default:
         return JellyseerrMediaStatus.unknown;
     }
@@ -33,6 +40,8 @@ enum JellyseerrMediaStatus {
     JellyseerrMediaStatus.processing => 'Processing',
     JellyseerrMediaStatus.partiallyAvailable => 'Partially available',
     JellyseerrMediaStatus.available => 'Available',
+    JellyseerrMediaStatus.blocklisted => 'Blocked',
+    JellyseerrMediaStatus.deleted => 'Deleted',
   };
 }
 
@@ -43,9 +52,9 @@ abstract class JellyseerrMediaInfo with _$JellyseerrMediaInfo {
     @JsonKey(name: 'tmdbId') int? tmdbId,
     @JsonKey(name: 'tvdbId') int? tvdbId,
 
-    /// Jellyseerr records the Jellyfin item it matched a title to. That's
-    /// a direct bridge — when it's present the hub can jump straight to
-    /// playback without resolving through external ids at all.
+    /// An unverified Jellyfin association from the request server. It may
+    /// identify a Series or belong to another Jellyfin account/server. Resolve
+    /// and authorize it with the current Jellyfin client before any playback.
     @JsonKey(name: 'jellyfinMediaId') String? jellyfinMediaId,
   }) = _JellyseerrMediaInfo;
 

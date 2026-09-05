@@ -3,6 +3,7 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 import '../../../health/data/integration_health.dart';
 import '../../../health/providers/health_providers.dart';
 
+import '../../data/media_api_exception.dart';
 import '../data/jellyseerr_client.dart';
 import '../data/jellyseerr_config.dart';
 import '../data/jellyseerr_credentials_store.dart';
@@ -37,10 +38,17 @@ class JellyseerrConnection extends _$JellyseerrConnection {
 
 @riverpod
 JellyseerrClient? jellyseerrClient(Ref ref) {
-  final config = ref.watch(jellyseerrConnectionProvider).value;
+  final connection = ref.watch(jellyseerrConnectionProvider);
+  final config = connection.isLoading || connection.hasError
+      ? null
+      : connection.value;
   final health = ref
       .watch(healthMonitorProvider)
-      .bind(IntegrationId.jellyseerr, configured: config != null);
+      .bind(
+        IntegrationId.jellyseerr,
+        configured: config != null,
+        configurationIdentity: config,
+      );
   ref.onDispose(health.close);
   if (config == null) return null;
   final client = JellyseerrClient(config: config, healthSession: health);
@@ -48,7 +56,7 @@ JellyseerrClient? jellyseerrClient(Ref ref) {
   return client;
 }
 
-@riverpod
+@Riverpod(retry: noMediaReadRetry)
 Future<List<JellyseerrRequestItem>> jellyseerrMyRequests(Ref ref) async {
   final client = ref.watch(jellyseerrClientProvider);
   if (client == null) return [];

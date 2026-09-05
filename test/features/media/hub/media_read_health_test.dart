@@ -325,8 +325,18 @@ void main() {
       container.listen(mediaSearchProvider('movie'), (_, _) {});
       final result = await container.read(mediaSearchProvider('movie').future);
       expect(result.single.title, 'Local movie');
-      expect(result.readIssues.single.read.service, IntegrationId.jellyseerr);
-      expect(result.readIssues.single.failure, HealthFailure.permission);
+      expect(result.readIssues.map((issue) => issue.read.operation).toSet(), {
+        MediaReadOperation.search,
+        MediaReadOperation.requests,
+      });
+      expect(
+        result.readIssues.every(
+          (issue) =>
+              issue.read.service == IntegrationId.jellyseerr &&
+              issue.failure == HealthFailure.permission,
+        ),
+        isTrue,
+      );
     },
   );
 

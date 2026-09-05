@@ -900,5 +900,125 @@
     }
   },
   "todayTaskIncludeTime": "Saat ekle",
-  "navigationSearchPage": "Sayfa"
+  "navigationSearchPage": "Sayfa",
+  "mediaStatusQueued": "Kuyrukta",
+  "mediaStatusImporting": "Kitaplığa aktarılıyor",
+  "mediaStatusPartiallyAvailable": "Kısmen mevcut",
+  "mediaStatusAvailable": "Dosyanın mevcut olduğu bildirildi",
+  "mediaStatusFailed": "İlgilenmeniz gerekiyor",
+  "mediaStatusUnknown": "Durum doğrulanmadı",
+  "mediaAccountChanged": "Medya bağlantısı değişti. Bu içeriği yeniden açın.",
+  "mediaProgressUnknown": "İlerleme bilgisi bildirilmedi.",
+  "mediaProgressStale": "Eski bilgiler gösteriliyor. İşlem yapmadan önce yenileyin.",
+  "mediaEpisodeMissing": "Bu sunucuda eksik",
+  "mediaEpisodeUnavailable": "Bu sunucuda oynatılamıyor",
+  "mediaEpisodeUnaired": "Henüz yayınlanmadı",
+  "mediaKnownCoverage": "Yalnızca bu Jellyfin hesabının bildirdiği bölümler gösterilir. Listelenmeyen bölümler de eksik olabilir.",
+  "mediaCoverageUnknown": "Sezonun tamamının durumu bilinmiyor.",
+  "mediaRequestAccepted": "İstek kabul edildi. Kullanılabilirlik yeniden kontrol edilecek.",
+  "mediaRequestPendingApproval": "Onay bekliyor",
+  "mediaRequestDeclined": "İstek reddedildi",
+  "mediaRequestApproved": "İstek onaylandı",
+  "mediaRequestChooseSeasons": "İstenecek sezonları seçin",
+  "mediaRequestSelectSeason": "En az bir sezon seçin.",
+  "mediaOpenService": "{service} ekranını aç",
+  "@mediaOpenService": {
+    "placeholders": {
+      "service": {
+        "type": "String"
+      }
+    }
+  },
+  "mediaProgressUpdated": "Son okuma: {time}",
+  "@mediaProgressUpdated": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "mediaPlayableCount": "{count} oynatılabilir bölüm",
+  "@mediaPlayableCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "mediaMissingCount": "Eksik olduğu bilinen {count} bölüm",
+  "@mediaMissingCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "mediaDownloadedCount": "{service}, {count} dosya bildirdi",
+  "@mediaDownloadedCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      },
+      "service": {
+        "type": "String"
+      }
+    }
+  },
+  "mediaExpectedCount": "Katalogda {count} bölüm",
+  "@mediaExpectedCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "movieNightTitle": "Film gecesi",
+  "movieNightStart": "Başlangıç sahnesi veya betiği",
+  "movieNightFinish": "Bitiş sahnesi uygulansın mı?",
+  "movieNightFinishOptional": "Bitiş sahnesi · isteğe bağlı",
+  "movieNightChoose": "Sahne veya betik seç",
+  "movieNightNone": "Yok",
+  "movieNightClearFinish": "Bitiş sahnesini kaldır",
+  "movieNightStartAndPlay": "Sahneyi uygula ve oynatıcıyı aç",
+  "movieNightExplanation": "Seçtiğin sahne veya betik, oynatıcı açılmadan önce Home Assistant’a gönderilir. Sunucu kabulü, bütün cihazların işlemi tamamladığını doğrulamaz. Döndüğünde bitiş sahnesi ayrıca sunulur; otomatik geri alma yapılmaz.",
+  "movieNightReturned": "Oynatıcıdan döndün.",
+  "movieNightSceneFailed": "Sahne sonucu doğrulanamadı. Oynatma otomatik başlatılmadı. Yeniden denemeden önce cihazları kontrol et.",
+  "movieNightPlaybackFailed": "Başlangıç sahnesi kabul edildi ancak oynatıcı açılamadı. Cihaz işlemleri geri alınmadı.",
+  "movieNightCancelled": "Bu seçim geçerliliğini yitirdi. Devam etmek için Film gecesini yeniden aç.",
+  "movieNightSetupFailed": "Film gecesine devam edilemedi. Yeniden denemeden önce bağlantıyı, ayarları ve varsa işlem durumunu kontrol et.",
+  "movieNightNeedsHa": "Sahneleri oynatmayla birleştirmek için Home Assistant’ı bağla.",
+  "movieNightSceneAccepted": "Home Assistant sahneyi kabul etti.",
+  "movieNightApply": "Sahneyi uygula",
+  "movieNightFinishConfirm": "“{name}” Home Assistant’a gönderilsin mi? Bu ayrı bir işlemdir; başlangıç sahnesini geri almaz.",
+  "@movieNightFinishConfirm": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "mediaStatusPaused": "Duraklatıldı",
+  "mediaSeasonNotListed": "Bu sezon Jellyfin tarafından listelenmiyor.",
+  "mediaRequestCompleted": "İstek tamamlandı",
+  "movieNightFinishFailed": "Bitiş sahnesinin sonucu belirsiz. Yeniden denemeden önce işlem durumunu ve cihazları kontrol et.",
+  "qbittorrentActionAccepted": "qBittorrent isteği kabul etti. Güncel durumu kontrol etmek için listeyi yenileyin.",
+  "qbittorrentActionUnknown": "İşlemin sonucu doğrulanamadı. Tekrar denemeden önce listeyi yenileyip kontrol edin.",
+  "qbittorrentDeleteConfirmation": "{name} qBittorrent listesinden kaldırılsın mı? İndirilen dosyalar korunacak.",
+  "qbittorrentFileConfirmation": "{name} qBittorrent’e eklensin mi?",
+  "qbittorrentInvalidMagnet": "Geçerli bir magnet bağlantısı girin.",
+  "qbittorrentFileError": "Torrent dosyası okunamadı. 10 MiB’den küçük bir .torrent dosyası seçin.",
+  "@qbittorrentDeleteConfirmation": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "@qbittorrentFileConfirmation": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  }
 }

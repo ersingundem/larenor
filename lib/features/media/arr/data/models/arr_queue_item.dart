@@ -11,6 +11,9 @@ class ArrQueueItem {
     this.tvdbId,
     this.imdbId,
     this.downloadId,
+    this.trackedDownloadState,
+    this.trackedDownloadStatus,
+    this.seasonNumber,
   });
 
   final int id;
@@ -35,12 +38,21 @@ class ArrQueueItem {
   /// The download client's own id for this grab — for a torrent that's
   /// the info hash, i.e. the join to qBittorrent's torrent list.
   final String? downloadId;
+  final String? trackedDownloadState;
+  final String? trackedDownloadStatus;
+  final int? seasonNumber;
 
   factory ArrQueueItem.fromJson(Map<String, dynamic> json) {
     final size = (json['size'] as num?)?.toDouble();
     final sizeLeft = (json['sizeleft'] as num?)?.toDouble();
     double? progress;
-    if (size != null && size > 0 && sizeLeft != null) {
+    if (size != null &&
+        size.isFinite &&
+        size > 0 &&
+        sizeLeft != null &&
+        sizeLeft.isFinite &&
+        sizeLeft >= 0 &&
+        sizeLeft <= size) {
       progress = ((size - sizeLeft) / size).clamp(0.0, 1.0);
     }
 
@@ -61,6 +73,9 @@ class ArrQueueItem {
       tvdbId: nested?['tvdbId'] as int?,
       imdbId: nested?['imdbId'] as String?,
       downloadId: json['downloadId'] as String?,
+      trackedDownloadState: json['trackedDownloadState'] as String?,
+      trackedDownloadStatus: json['trackedDownloadStatus'] as String?,
+      seasonNumber: json['seasonNumber'] as int?,
     );
   }
 }

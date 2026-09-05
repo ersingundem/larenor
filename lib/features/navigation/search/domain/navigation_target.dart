@@ -51,7 +51,7 @@ final class MediaNavigationTarget extends NavigationTarget {
   factory MediaNavigationTarget.fromTitle(MediaTitle title) =>
       MediaNavigationTarget(
         identity: title.identity,
-        jellyfinItemId: title.jellyfinItemId,
+        jellyfinItemId: title.jellyfinItemId ?? title.jellyfinLookupId,
         jellyfinSeriesId: title.jellyfinSeriesId,
         snapshot: title,
       );

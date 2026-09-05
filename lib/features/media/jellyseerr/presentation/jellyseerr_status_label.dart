@@ -18,6 +18,8 @@ String jellyseerrStatusLabel(
     JellyseerrMediaStatus.partiallyAvailable =>
       l10n.jellyseerrStatusPartiallyAvailable,
     JellyseerrMediaStatus.available => l10n.jellyseerrStatusAvailable,
+    JellyseerrMediaStatus.blocklisted => l10n.mediaStatusFailed,
+    JellyseerrMediaStatus.deleted => l10n.mediaStatusNotAvailable,
   };
 }
 
@@ -33,5 +35,8 @@ String jellyseerrRequestStatusLabel(
       l10n.jellyseerrRequestStatusPendingApproval,
     JellyseerrRequestStatus.approved => l10n.jellyseerrRequestStatusApproved,
     JellyseerrRequestStatus.declined => l10n.jellyseerrRequestStatusDeclined,
+    JellyseerrRequestStatus.unknown => l10n.mediaStatusUnknown,
+    JellyseerrRequestStatus.failed => l10n.mediaStatusFailed,
+    JellyseerrRequestStatus.completed => l10n.mediaRequestCompleted,
   };
 }

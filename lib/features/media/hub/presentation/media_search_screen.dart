@@ -85,6 +85,8 @@ class _MediaSearchScreenState extends ConsumerState<MediaSearchScreen> {
     final resultsAsync = ref.watch(mediaSearchProvider(_query));
 
     return resultsAsync.when(
+      skipLoadingOnRefresh: false,
+      skipLoadingOnReload: false,
       loading: () => const Center(child: CupertinoActivityIndicator()),
       error: (error, _) => _Hint(text: l10n.healthReadError),
       data: (titles) {
@@ -129,7 +131,16 @@ class _MediaSearchScreenState extends ConsumerState<MediaSearchScreen> {
                       return MediaPoster(
                         title: title,
                         width: double.infinity,
-                        onTap: () => openMediaTitle(context, title),
+                        onTap: () {
+                          if (!mounted) return;
+                          final current = ref.read(mediaSearchProvider(_query));
+                          if (current.isLoading ||
+                              current.hasError ||
+                              !identical(current.value, titles)) {
+                            return;
+                          }
+                          openMediaTitle(context, title);
+                        },
                       );
                     }, childCount: titles.length),
                   ),

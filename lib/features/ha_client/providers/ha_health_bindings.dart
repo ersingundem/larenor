@@ -11,7 +11,10 @@ import '../data/ha_api_exception.dart';
 import '../data/ws_client.dart';
 
 final haHealthSessionProvider = Provider.autoDispose<HealthSession>((ref) {
-  final config = ref.watch(connectionConfigProvider).value;
+  final connection = ref.watch(connectionConfigProvider);
+  final config = connection.isLoading || connection.hasError
+      ? null
+      : connection.value;
   final session = ref
       .watch(healthMonitorProvider)
       .bind(

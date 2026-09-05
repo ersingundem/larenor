@@ -15,12 +15,35 @@ String? fakePoster(String? path) =>
 
 void main() {
   group('mediaTitleFromJellyfin', () {
+    test(
+      'unknown movie remains a read-only metadata target without granting Play',
+      () {
+        final title = mediaTitleFromJellyfin(
+          const JellyfinItem(id: 'unknown', name: 'Unverified', type: 'Movie'),
+          imageUrl: fakeImage,
+        )!;
+        expect(title.identity.isEmpty, isTrue);
+        expect(title.jellyfinLookupId, 'unknown');
+        expect(title.jellyfinItemId, isNull);
+        expect(title.isPlayable, isFalse);
+        expect(dedupeTitles([title, title]), hasLength(1));
+        final current = MediaLibraryIndex.empty.enrich(
+          title,
+          preserveVerifiedPlayback: true,
+        );
+        expect(current.jellyfinLookupId, 'unknown');
+        expect(current.isPlayable, isFalse);
+        expect(MediaLibraryIndex.empty.enrich(title).jellyfinLookupId, isNull);
+      },
+    );
     test('maps a film, marking it playable and in-library', () {
       final title = mediaTitleFromJellyfin(
         const JellyfinItem(
           id: 'i1',
           name: 'The Matrix',
           type: 'Movie',
+          locationType: 'FileSystem',
+          playAccess: 'Full',
           productionYear: 1999,
           providerIds: {'Tmdb': '603'},
           imageTags: {'Primary': 'abc'},
@@ -42,6 +65,8 @@ void main() {
           id: 'e1',
           name: 'Pilot',
           type: 'Episode',
+          locationType: 'FileSystem',
+          playAccess: 'Full',
           seriesName: 'Breaking Bad',
           providerIds: {'Tvdb': '81189'},
         ),
@@ -64,6 +89,8 @@ void main() {
         id: 'ep',
         name: 'Pilot',
         type: 'Episode',
+        locationType: 'FileSystem',
+        playAccess: 'Full',
         seriesId: 'show',
         seriesName: 'Show',
         providerIds: {'Tmdb': '999'},
@@ -75,7 +102,7 @@ void main() {
         imageUrl: fakeImage,
       )!;
       final enriched = MediaLibraryIndex.build(jellyfinItems: [series])
-          .enrich(title);
+          .enrich(title, preserveVerifiedPlayback: true);
       expect(enriched.identity.tmdbId, 10);
       expect(enriched.jellyfinItemId, 'ep');
       expect(enriched.playedFraction, 0.4);
@@ -149,15 +176,16 @@ void main() {
       expect(title.availability, MediaAvailability.requested);
     });
 
-    test('an available result carries the Jellyfin bridge id', () {
+    test('an available result has only an unverified Jellyfin bridge hint', () {
       final title = mediaTitleFromJellyseerr(
         result(status: 5, jellyfinMediaId: 'jf-42'),
         posterUrl: fakePoster,
         backdropUrl: fakePoster,
       );
-      expect(title.availability, MediaAvailability.inLibrary);
-      expect(title.jellyfinItemId, 'jf-42');
-      expect(title.isPlayable, isTrue);
+      expect(title.availability, MediaAvailability.available);
+      expect(title.jellyfinItemId, isNull);
+      expect(title.jellyseerrMediaId, 'jf-42');
+      expect(title.isPlayable, isFalse);
     });
 
     test('a tv result resolves to the tv kind', () {

@@ -15,6 +15,8 @@ JellyfinItem jf(
   id: id,
   name: id,
   type: type,
+  locationType: 'FileSystem',
+  playAccess: 'Full',
   providerIds: providerIds,
   userData: played == null ? null : JellyfinUserData(playedPercentage: played),
 );
@@ -133,7 +135,7 @@ void main() {
       expect(index.lookup(identity)?.arrItemId, 7);
     });
 
-    test('a Radarr movie with its file reads as in-library', () {
+    test('a Radarr movie with its file is available without playback', () {
       final index = MediaLibraryIndex.build(
         radarrLibrary: [
           const ArrLibraryItem(
@@ -149,7 +151,7 @@ void main() {
         index.availabilityOf(
           const MediaIdentity(kind: MediaKind.movie, tmdbId: 603),
         ),
-        MediaAvailability.inLibrary,
+        MediaAvailability.available,
       );
     });
 
@@ -225,9 +227,10 @@ void main() {
         const MediaIdentity(kind: MediaKind.tv, tvdbId: 81189),
       );
 
-      expect(byTmdb?.jellyfinItemId, 'show1');
+      expect(byTmdb?.jellyfinSeriesId, 'show1');
+      expect(byTmdb?.jellyfinItemId, isNull);
       expect(byTmdb?.arrItemId, 3);
-      expect(byTvdb?.jellyfinItemId, 'show1');
+      expect(byTvdb?.jellyfinSeriesId, 'show1');
     });
 
     test('a movie and a series sharing a tmdb id stay separate', () {
@@ -299,6 +302,7 @@ void main() {
           title: 'Requested thing',
           availability: MediaAvailability.requested,
         ),
+        preserveVerifiedPlayback: true,
       );
       expect(enriched.availability, MediaAvailability.requested);
     });
@@ -357,7 +361,11 @@ void main() {
         'title': 'Show',
         'monitored': true,
         'tvdbId': 5,
-        'statistics': {'episodeCount': total, 'episodeFileCount': have},
+        'statistics': {
+          'episodeCount': total,
+          'episodeFileCount': have,
+          'totalEpisodeCount': total,
+        },
       });
 
       expect(withStats(10, 10).isComplete, isTrue);

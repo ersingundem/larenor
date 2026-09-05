@@ -140,7 +140,8 @@ class BackupRepository {
           final previous = await _storage.readPreference(entry.key);
           if (!replace && previous != null) continue;
           // A restored door mapping never imports physical-control approval.
-          final next = entry.key == DoorStation.storageKey && entry.value != null
+          final next =
+              entry.key == DoorStation.storageKey && entry.value != null
               ? DoorStation.uncommissionStored(entry.value as String)
               : entry.value;
           changes.add(_Change(false, entry.key, previous, next));

@@ -37,9 +37,15 @@ class MediaHubScreen extends ConsumerStatefulWidget {
 
 class _MediaHubScreenState extends ConsumerState<MediaHubScreen> {
   int _filter = 0;
+  int _catalogGeneration = 0;
 
   @override
-  Widget build(BuildContext context) => MediaTheme(builder: _build);
+  Widget build(BuildContext context) {
+    ref.listen(mediaHubRowsProvider, (previous, next) {
+      if (next.isLoading || next.hasError) _catalogGeneration++;
+    });
+    return MediaTheme(builder: _build);
+  }
 
   Widget _build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
@@ -116,6 +122,8 @@ class _MediaHubScreenState extends ConsumerState<MediaHubScreen> {
             ),
           ),
           ...rowsAsync.when(
+            skipLoadingOnRefresh: false,
+            skipLoadingOnReload: false,
             loading: () => const [
               SliverFillRemaining(
                 hasScrollBody: false,
@@ -203,10 +211,7 @@ class _MediaHubScreenState extends ConsumerState<MediaHubScreen> {
     return [
       ...warnings,
       SliverToBoxAdapter(
-        child: MediaHero(
-          title: featured,
-          onTap: () => openMediaTitle(context, featured),
-        ),
+        child: MediaHero(title: featured, onTap: _openCurrentTitle(featured)),
       ),
       SliverList(
         delegate: SliverChildBuilderDelegate((context, index) {
@@ -214,12 +219,40 @@ class _MediaHubScreenState extends ConsumerState<MediaHubScreen> {
           return MediaRow(
             title: _rowTitle(l10n, row.id),
             titles: row.titles,
-            onTapTitle: (title) => openMediaTitle(context, title),
+            onTapTitle: _openRowTitle(),
           );
         }, childCount: rows.length),
       ),
       const SliverToBoxAdapter(child: SizedBox(height: Gap.xxxl)),
     ];
+  }
+
+  VoidCallback _openCurrentTitle(MediaTitle title) {
+    final generation = _catalogGeneration;
+    return () {
+      if (!mounted) return;
+      final current = ref.read(mediaHubRowsProvider);
+      if (generation != _catalogGeneration ||
+          current.isLoading ||
+          current.hasError) {
+        return;
+      }
+      openMediaTitle(context, title);
+    };
+  }
+
+  void Function(MediaTitle) _openRowTitle() {
+    final generation = _catalogGeneration;
+    return (title) {
+      if (!mounted) return;
+      final current = ref.read(mediaHubRowsProvider);
+      if (generation != _catalogGeneration ||
+          current.isLoading ||
+          current.hasError) {
+        return;
+      }
+      openMediaTitle(context, title);
+    };
   }
 
   String _rowTitle(AppLocalizations l10n, MediaRowId id) => switch (id) {

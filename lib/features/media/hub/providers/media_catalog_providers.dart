@@ -12,6 +12,7 @@ import '../../arr/providers/sonarr_providers.dart';
 import '../../jellyfin/data/models/jellyfin_item.dart';
 import '../../jellyfin/providers/jellyfin_providers.dart';
 import '../../jellyseerr/data/models/jellyseerr_result.dart';
+import '../../jellyseerr/data/models/jellyseerr_request_item.dart';
 import '../../jellyseerr/providers/jellyseerr_providers.dart';
 import '../../../health/data/health_monitor.dart';
 import '../../../health/data/integration_health.dart';
@@ -29,6 +30,7 @@ class _MediaReads {
   final issues = <MediaReadIssue>[];
   final successful = <MediaReadKey>{};
   final _freshSuccessful = <MediaReadKey>{};
+  final readTimes = <MediaReadKey, DateTime>{};
 
   Future<T> read<T>(
     MediaReadKey key,
@@ -42,7 +44,10 @@ class _MediaReads {
       successful.add(key);
       // Queue providers own their parsed-read timestamps: their Future may
       // already be cached, so consuming it cannot make that read fresh again.
-      if (key.operation != MediaReadOperation.queue) _freshSuccessful.add(key);
+      if (key.operation != MediaReadOperation.queue) {
+        _freshSuccessful.add(key);
+        readTimes[key] = DateTime.now();
+      }
       return value;
     } catch (error) {
       issues.add(MediaReadIssue(key, _failureOf(error)));
@@ -94,6 +99,7 @@ HealthFailure _failureOf(Object error) {
 Future<MediaLibraryIndex> mediaLibraryIndex(Ref ref) async {
   final reads = _MediaReads();
   final jellyfin = ref.watch(jellyfinClientProvider);
+  final jellyseerr = ref.watch(jellyseerrClientProvider);
   final sonarr = ref.watch(sonarrClientProvider);
   final radarr = ref.watch(radarrClientProvider);
 
@@ -128,14 +134,31 @@ Future<MediaLibraryIndex> mediaLibraryIndex(Ref ref) async {
       () => ref.watch(radarrQueueProvider.future),
       const [],
     ),
+    reads.read<List<JellyseerrRequestItem>>(
+      const MediaReadKey(IntegrationId.jellyseerr, MediaReadOperation.requests),
+      jellyseerr != null,
+      () => jellyseerr!.myRequests(),
+      const [],
+    ),
   ]);
 
   reads.publish(ref, [
     jellyfin?.healthSession,
     sonarr?.healthSession,
     radarr?.healthSession,
+    jellyseerr?.healthSession,
   ]);
+  final libraryTimes =
+      reads.readTimes.entries
+          .where((entry) => entry.key.operation == MediaReadOperation.library)
+          .map((entry) => entry.value)
+          .toList()
+        ..sort();
   return MediaLibraryIndex.build(
+    readAt: libraryTimes.isEmpty ? null : libraryTimes.first,
+    // This endpoint is a bounded recent-request view. Absence is not evidence
+    // that no request exists; only matching records contribute status.
+    requests: results[5] as List<JellyseerrRequestItem>,
     readIssues: reads.issues,
     successfulReads: reads.successful,
     jellyfinItems: results[0] as List<JellyfinItem>,
@@ -186,7 +209,8 @@ MediaTitle? mediaTitleFromJellyfin(
             tag: metadata.backdropImageTags!.first,
           )
         : null,
-    jellyfinItemId: item.id,
+    jellyfinItemId: item.isPlayable ? item.id : null,
+    jellyfinLookupId: item.id,
     jellyfinSeriesId: item.type == 'Series' ? item.id : item.seriesId,
     playedFraction: item.playedFraction > 0 ? item.playedFraction : null,
     rating: item.communityRating,
@@ -210,8 +234,11 @@ MediaTitle mediaTitleFromJellyseerr(
   final availability = switch (result.status) {
     JellyseerrMediaStatus.pending ||
     JellyseerrMediaStatus.processing => MediaAvailability.requested,
-    JellyseerrMediaStatus.available ||
-    JellyseerrMediaStatus.partiallyAvailable => MediaAvailability.inLibrary,
+    JellyseerrMediaStatus.available => MediaAvailability.available,
+    JellyseerrMediaStatus.partiallyAvailable =>
+      MediaAvailability.partiallyAvailable,
+    JellyseerrMediaStatus.blocklisted => MediaAvailability.failed,
+    JellyseerrMediaStatus.deleted => MediaAvailability.notAvailable,
     JellyseerrMediaStatus.unknown => MediaAvailability.notAvailable,
   };
 
@@ -223,7 +250,7 @@ MediaTitle mediaTitleFromJellyseerr(
     overview: result.overview,
     posterUrl: posterUrl(result.posterPath),
     backdropUrl: backdropUrl(result.backdropPath),
-    jellyfinItemId: result.mediaInfo?.jellyfinMediaId,
+    jellyseerrMediaId: result.mediaInfo?.jellyfinMediaId,
     rating: result.voteAverage,
   );
 }
@@ -241,7 +268,7 @@ MediaTitle? mediaTitleFromCalendar(ArrCalendarItem item, MediaKind kind) {
     identity: identity,
     title: item.title,
     availability: item.hasFile
-        ? MediaAvailability.inLibrary
+        ? MediaAvailability.available
         : MediaAvailability.monitored,
     posterUrl: item.posterUrl,
   );
@@ -257,6 +284,7 @@ List<MediaTitle> dedupeTitles(Iterable<MediaTitle> titles) {
       ...title.identity.allKeys,
       if (title.jellyfinSeriesId != null) 'jellyfin:${title.jellyfinSeriesId}',
       if (title.jellyfinItemId != null) 'jellyfin:${title.jellyfinItemId}',
+      if (title.jellyfinLookupId != null) 'jellyfin:${title.jellyfinLookupId}',
     ];
     // Titles with no external ids can't be deduped, so they're kept
     // as-is rather than collapsed onto each other.
@@ -361,7 +389,7 @@ Future<List<MediaRowData>> mediaHubRows(Ref ref) async {
           ),
         )
         .whereType<MediaTitle>()
-        .map(index.enrich),
+        .map((title) => index.enrich(title, preserveVerifiedPlayback: true)),
   );
 
   final comingSoon = dedupeTitles(
@@ -372,7 +400,7 @@ Future<List<MediaRowData>> mediaHubRows(Ref ref) async {
       ...(results[4] as List<ArrCalendarItem>)
           .map((e) => mediaTitleFromCalendar(e, MediaKind.movie))
           .whereType<MediaTitle>(),
-    ].map(index.enrich),
+    ].map((title) => index.enrich(title, preserveVerifiedPlayback: true)),
   );
 
   final downloading = dedupeTitles(
@@ -387,11 +415,12 @@ Future<List<MediaRowData>> mediaHubRows(Ref ref) async {
               imdbId: item.imdbId,
             ),
             title: item.title,
-            availability: MediaAvailability.downloading,
-            downloadProgress: item.progressFraction,
+            availability: mediaTransferFromQueue(item).stage,
+            downloadProgress: mediaTransferFromQueue(item).progress,
+            transfers: List.unmodifiable([mediaTransferFromQueue(item)]),
           );
         })
-        .map(index.enrich),
+        .map((title) => index.enrich(title, preserveVerifiedPlayback: true)),
   );
 
   final rows = <MediaRowData>[
@@ -414,7 +443,9 @@ Future<List<MediaRowData>> mediaHubRows(Ref ref) async {
                 backdropUrl: (p) => jellyseerr?.backdropUrl(p),
               ),
             )
-            .map(index.enrich),
+            .map(
+              (title) => index.enrich(title, preserveVerifiedPlayback: true),
+            ),
       ),
     ),
     MediaRowData(id: MediaRowId.comingSoon, titles: comingSoon),
@@ -512,7 +543,7 @@ Future<List<MediaTitle>> mediaSearch(Ref ref, String query) async {
       ...(results[3] as List<ArrLookupResult>).map(
         (item) => mediaTitleFromArrLookup(item, MediaKind.movie),
       ),
-    ].map(index.enrich),
+    ].map((title) => index.enrich(title, preserveVerifiedPlayback: true)),
   );
   reads.publish(ref, [
     jellyfin?.healthSession,

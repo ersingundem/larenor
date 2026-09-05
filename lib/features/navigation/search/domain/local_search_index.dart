@@ -282,6 +282,8 @@ Iterable<_Document> _mediaDocuments(Iterable<MediaTitle> media) sync* {
         '$kind:jellyfin:${title.jellyfinSeriesId}',
       if (title.jellyfinItemId != null)
         '$kind:jellyfin:${title.jellyfinItemId}',
+      if (title.jellyfinLookupId != null)
+        '$kind:jellyfin:${title.jellyfinLookupId}',
     };
     if (keys.isEmpty) continue;
     final index = records.length;
@@ -322,6 +324,7 @@ Iterable<_Document> _mediaDocuments(Iterable<MediaTitle> media) sync* {
         identity: title.identity.mergedWith(other.identity),
         year: title.year ?? other.year,
         jellyfinItemId: title.jellyfinItemId ?? other.jellyfinItemId,
+        jellyfinLookupId: title.jellyfinLookupId ?? other.jellyfinLookupId,
         jellyfinSeriesId: title.jellyfinSeriesId ?? other.jellyfinSeriesId,
         overview: title.overview ?? other.overview,
         posterUrl: title.posterUrl ?? other.posterUrl,
@@ -335,7 +338,7 @@ Iterable<_Document> _mediaDocuments(Iterable<MediaTitle> media) sync* {
     }
     final stableKey = !title.identity.isEmpty
         ? title.identity.key
-        : '${title.identity.kind.name}:jellyfin:${title.jellyfinSeriesId ?? title.jellyfinItemId}';
+        : '${title.identity.kind.name}:jellyfin:${title.jellyfinSeriesId ?? title.jellyfinItemId ?? title.jellyfinLookupId}';
     final item = LocalSearchItem(
       id: 'media:$stableKey',
       title: title.title,

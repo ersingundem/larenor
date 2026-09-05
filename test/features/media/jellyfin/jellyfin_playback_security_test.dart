@@ -25,7 +25,12 @@ void main() {
           jsonEncode({
             'PlaySessionId': 'session',
             'MediaSources': [
-              {'Id': sourceId, 'TranscodingUrl': ?streamPath},
+              {
+                'Id': sourceId,
+                'TranscodingUrl': ?streamPath,
+                'SupportsDirectPlay': streamPath == null,
+                'SupportsTranscoding': streamPath != null,
+              },
             ],
           }),
           200,

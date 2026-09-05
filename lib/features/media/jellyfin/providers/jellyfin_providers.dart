@@ -48,10 +48,17 @@ class JellyfinConnection extends _$JellyfinConnection {
 
 @riverpod
 JellyfinClient? jellyfinClient(Ref ref) {
-  final config = ref.watch(jellyfinConnectionProvider).value;
+  final connection = ref.watch(jellyfinConnectionProvider);
+  final config = connection.isLoading || connection.hasError
+      ? null
+      : connection.value;
   final health = ref
       .watch(healthMonitorProvider)
-      .bind(IntegrationId.jellyfin, configured: config != null);
+      .bind(
+        IntegrationId.jellyfin,
+        configured: config != null,
+        configurationIdentity: config,
+      );
   ref.onDispose(health.close);
   if (config == null) return null;
   final client = JellyfinClient(config: config, healthSession: health);

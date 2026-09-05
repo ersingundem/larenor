@@ -15,6 +15,7 @@ import 'package:larenor/features/media/hub/domain/media_title.dart';
 import 'package:larenor/features/media/hub/providers/media_catalog_providers.dart';
 import 'package:larenor/features/media/jellyfin/data/models/jellyfin_item.dart';
 import 'package:larenor/features/navigation/search/domain/local_search_index.dart';
+import 'package:larenor/features/navigation/search/domain/navigation_target.dart';
 import 'package:larenor/features/navigation/search/providers/local_search_providers.dart';
 import 'package:larenor/features/settings/data/app_service.dart';
 import 'package:larenor/features/settings/providers/enabled_services_providers.dart';
@@ -110,6 +111,16 @@ void main() {
       container.read(localSearchIndexProvider).search('private'),
       hasLength(3),
     );
+    final movieHit = container
+        .read(localSearchIndexProvider)
+        .search('private movie')
+        .singleWhere((hit) => hit.id == 'media:movie:jellyfin:old-local');
+    final movieTarget = movieHit.target as MediaNavigationTarget;
+    expect(movieHit.id, 'media:movie:jellyfin:old-local');
+    expect(movieTarget.uri.queryParameters['jellyfin'], 'old-local');
+    expect(movieTarget.snapshot!.jellyfinLookupId, 'old-local');
+    expect(movieTarget.snapshot!.jellyfinItemId, isNull);
+    expect(movieTarget.snapshot!.isPlayable, isFalse);
     container.read(_accountProvider.notifier).change();
     await container.pump();
     expect(container.read(entitiesProvider).isReloading, isTrue);

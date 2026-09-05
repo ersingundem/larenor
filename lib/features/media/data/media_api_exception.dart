@@ -10,3 +10,7 @@ class MediaApiException implements Exception {
   @override
   String toString() => 'MediaApiException: $message';
 }
+
+/// User-visible read failures must remain the original 401/403/transport error.
+/// A user refresh or an existing lifecycle poll is the bounded retry policy.
+Duration? noMediaReadRetry(int retryCount, Object error) => null;

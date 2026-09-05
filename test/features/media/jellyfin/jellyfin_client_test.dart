@@ -17,6 +17,41 @@ void main() {
   );
 
   group('TV browsing and complete library index', () {
+    test('includeMissing omits missing-only filter and preserves specials metadata', () async {
+      final client = JellyfinClient(
+        config: config,
+        httpClient: MockClient((request) async {
+          expect(request.url.queryParameters.containsKey('IsMissing'), isFalse);
+          expect(request.url.queryParameters['UserId'], config.userId);
+          return http.Response(
+            jsonEncode({
+              'Items': [
+                {
+                  'Id': 'special',
+                  'Name': 'Special',
+                  'Type': 'Episode',
+                  'IndexNumber': 1,
+                  'ParentIndexNumber': 0,
+                  'LocationType': 'Virtual',
+                  'PlayAccess': 'Full',
+                },
+              ],
+            }),
+            200,
+          );
+        }),
+      );
+      addTearDown(client.dispose);
+      await client.getSeasons('series', includeMissing: true);
+      final items = await client.getEpisodes(
+        'series',
+        seasonId: 'specials',
+        includeMissing: true,
+      );
+      expect(items.single.parentIndexNumber, 0);
+      expect(items.single.isVirtual, isTrue);
+      expect(items.single.isPlayable, isFalse);
+    });
     test(
       'requests available seasons and episodes scoped to the user',
       () async {
@@ -30,6 +65,18 @@ void main() {
             expect(
               request.url.queryParameters['Fields'],
               isNot(contains('ImageTags')),
+            );
+            expect(
+              request.url.queryParameters['Fields'],
+              contains('PlayAccess'),
+            );
+            expect(
+              request.url.queryParameters['Fields'],
+              contains('MediaSourceCount'),
+            );
+            expect(
+              request.url.queryParameters['Fields']!.split(','),
+              isNot(contains('MediaSources')),
             );
             return http.Response('{"Items":[]}', 200);
           }),
@@ -131,8 +178,98 @@ void main() {
   });
 
   group('getPlaybackInfo', () {
+    for (final source in [
+      {'Id': 'source'},
+      {
+        'Id': 'source',
+        'SupportsDirectPlay': false,
+        'SupportsDirectStream': false,
+        'SupportsTranscoding': false,
+      },
+      {'Id': 'source', 'SupportsTranscoding': true},
+      {'Id': 'source', 'SupportsDirectStream': true},
+      {'Id': 'source', 'SupportsDirectPlay': true, 'RequiresOpening': true},
+      {'Id': '', 'SupportsDirectPlay': true},
+    ]) {
+      test(
+        'rejects unsupported source without inventing a direct URL: $source',
+        () async {
+          final client = JellyfinClient(
+            config: config,
+            httpClient: MockClient(
+              (_) async => http.Response(
+                jsonEncode({
+                  'PlaySessionId': 'session',
+                  'MediaSources': [source],
+                }),
+                200,
+              ),
+            ),
+          );
+          addTearDown(client.dispose);
+          await expectLater(
+            client.getPlaybackInfo('item'),
+            throwsA(isA<MediaApiException>()),
+          );
+        },
+      );
+    }
+
     test(
-      'prefers the direct-stream URL when the server does not transcode',
+      'server playback error overrides even an apparently valid media source',
+      () async {
+        final client = JellyfinClient(
+          config: config,
+          httpClient: MockClient(
+            (_) async => http.Response(
+              jsonEncode({
+                'PlaySessionId': 'session',
+                'ErrorCode': 'NotAllowed',
+                'MediaSources': [
+                  {'Id': 'source', 'SupportsDirectPlay': true},
+                ],
+              }),
+              200,
+            ),
+          ),
+        );
+        addTearDown(client.dispose);
+        await expectLater(
+          client.getPlaybackInfo('item'),
+          throwsA(isA<MediaApiException>()),
+        );
+      },
+    );
+
+    test('skips unsupported alternatives and uses the approved direct-stream/remux URL', () async {
+      final client = JellyfinClient(
+        config: config,
+        httpClient: MockClient(
+          (_) async => http.Response(
+            jsonEncode({
+              'PlaySessionId': 'session',
+              'MediaSources': [
+                {'Id': 'unsupported'},
+                {
+                  'Id': 'remux',
+                  'SupportsDirectPlay': false,
+                  'SupportsDirectStream': true,
+                  'SupportsTranscoding': false,
+                  'TranscodingUrl': '/Videos/item/master.m3u8',
+                },
+              ],
+            }),
+            200,
+          ),
+        ),
+      );
+      addTearDown(client.dispose);
+      final source = await client.getPlaybackInfo('item');
+      expect(source.mediaSourceId, 'remux');
+      expect(source.streamUrl, '$baseUrl/Videos/item/master.m3u8');
+    });
+    test(
+      'uses a static URL only when the server approves direct play',
       () async {
         final client = JellyfinClient(
           config: config,
@@ -142,7 +279,7 @@ void main() {
               jsonEncode({
                 'PlaySessionId': 'session1',
                 'MediaSources': [
-                  {'Id': 'source1'},
+                  {'Id': 'source1', 'SupportsDirectPlay': true},
                 ],
               }),
               200,
@@ -173,6 +310,7 @@ void main() {
                   {
                     'Id': 'transcode',
                     'SupportsDirectPlay': false,
+                    'SupportsTranscoding': true,
                     'TranscodingUrl': '/transcode.m3u8',
                   },
                   {
@@ -203,6 +341,7 @@ void main() {
               'MediaSources': [
                 {
                   'Id': 'source1',
+                  'SupportsTranscoding': true,
                   'TranscodingUrl': '/videos/item1/master.m3u8?a=b',
                 },
               ],
@@ -230,7 +369,7 @@ void main() {
               jsonEncode({
                 'PlaySessionId': 'session1',
                 'MediaSources': [
-                  {'Id': 'source1'},
+                  {'Id': 'source1', 'SupportsDirectPlay': true},
                 ],
               }),
               200,
@@ -252,7 +391,7 @@ void main() {
             jsonEncode({
               'PlaySessionId': 'session1',
               'MediaSources': [
-                {'Id': 'source1'},
+                {'Id': 'source1', 'SupportsDirectPlay': true},
               ],
             }),
             200,

@@ -3,7 +3,7 @@ import 'package:larenor/features/media/jellyseerr/data/models/jellyseerr_request
 
 void main() {
   group('JellyseerrRequestStatus.fromCode', () {
-    test('maps known codes, defaults to pendingApproval', () {
+    test('maps known codes and leaves missing evidence unknown', () {
       expect(
         JellyseerrRequestStatus.fromCode(1),
         JellyseerrRequestStatus.pendingApproval,
@@ -18,11 +18,11 @@ void main() {
       );
       expect(
         JellyseerrRequestStatus.fromCode(null),
-        JellyseerrRequestStatus.pendingApproval,
+        JellyseerrRequestStatus.unknown,
       );
       expect(
         JellyseerrRequestStatus.fromCode(99),
-        JellyseerrRequestStatus.pendingApproval,
+        JellyseerrRequestStatus.unknown,
       );
     });
   });

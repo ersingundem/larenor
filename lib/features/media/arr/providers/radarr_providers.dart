@@ -3,6 +3,7 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 import '../../../health/data/integration_health.dart';
 import '../../../health/providers/health_providers.dart';
 
+import '../../data/media_api_exception.dart';
 import '../data/arr_client.dart';
 import '../data/arr_config.dart';
 import '../data/arr_credentials_store.dart';
@@ -41,10 +42,17 @@ class RadarrConnection extends _$RadarrConnection {
 
 @riverpod
 ArrClient? radarrClient(Ref ref) {
-  final config = ref.watch(radarrConnectionProvider).value;
+  final connection = ref.watch(radarrConnectionProvider);
+  final config = connection.isLoading || connection.hasError
+      ? null
+      : connection.value;
   final health = ref
       .watch(healthMonitorProvider)
-      .bind(IntegrationId.radarr, configured: config != null);
+      .bind(
+        IntegrationId.radarr,
+        configured: config != null,
+        configurationIdentity: config,
+      );
   ref.onDispose(health.close);
   if (config == null) return null;
   final client = ArrClient(
@@ -64,7 +72,7 @@ Future<List<ArrCalendarItem>> radarrCalendar(Ref ref) async {
   return client.getCalendar();
 }
 
-@riverpod
+@Riverpod(retry: noMediaReadRetry)
 Future<List<ArrQueueItem>> radarrQueue(Ref ref) async {
   final client = ref.watch(radarrClientProvider);
   if (client == null) return [];

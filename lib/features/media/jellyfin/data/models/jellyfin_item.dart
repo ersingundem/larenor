@@ -3,6 +3,8 @@ import 'package:freezed_annotation/freezed_annotation.dart';
 part 'jellyfin_item.freezed.dart';
 part 'jellyfin_item.g.dart';
 
+enum JellyfinPlaybackEligibility { unknown, unavailable, eligible, container }
+
 @freezed
 abstract class JellyfinItem with _$JellyfinItem {
   const factory JellyfinItem({
@@ -27,6 +29,17 @@ abstract class JellyfinItem with _$JellyfinItem {
     @JsonKey(name: 'CommunityRating') double? communityRating,
     @JsonKey(name: 'Genres') List<String>? genres,
 
+    /// Compatibility flags may be returned by older servers/plugins. Current
+    /// Jellyfin describes virtual/missing items through LocationType instead.
+    @JsonKey(name: 'IsMissing') bool? isMissing,
+    @JsonKey(name: 'IsVirtualItem') bool? isVirtualItem,
+    @JsonKey(name: 'LocationType') String? locationType,
+    @JsonKey(name: 'PlayAccess') String? playAccess,
+
+    /// The server deliberately omits a count of one; null is not zero.
+    @JsonKey(name: 'MediaSourceCount') int? mediaSourceCount,
+    @JsonKey(name: 'PremiereDate') DateTime? premiereDate,
+
     /// Per-image-type content hashes. Appending one to an image URL makes
     /// it immutable, so a cached poster is only re-fetched when the
     /// artwork itself actually changes.
@@ -39,7 +52,33 @@ abstract class JellyfinItem with _$JellyfinItem {
   factory JellyfinItem.fromJson(Map<String, dynamic> json) =>
       _$JellyfinItemFromJson(json);
 
-  bool get isPlayable => type == 'Movie' || type == 'Episode';
+  bool get isVirtual => isVirtualItem == true || locationType == 'Virtual';
+
+  /// Eligible to negotiate playback, based on this account's library metadata.
+  /// A Movie/Episode identifier alone is not a media file. PlaybackInfo must
+  /// still approve a source for the actual device; file presence/decoding is
+  /// not guaranteed by a cached library response.
+  bool get isPlayable =>
+      playbackEligibility == JellyfinPlaybackEligibility.eligible;
+
+  JellyfinPlaybackEligibility get playbackEligibility {
+    if ({'Series', 'Season', 'CollectionFolder', 'Folder'}.contains(type)) {
+      return JellyfinPlaybackEligibility.container;
+    }
+    if ((type != 'Movie' && type != 'Episode') ||
+        isMissing == true ||
+        isVirtual ||
+        locationType == 'Offline' ||
+        playAccess == 'None' ||
+        (mediaSourceCount != null && mediaSourceCount! <= 0)) {
+      return JellyfinPlaybackEligibility.unavailable;
+    }
+    if ((locationType != 'FileSystem' && locationType != 'Remote') ||
+        playAccess != 'Full') {
+      return JellyfinPlaybackEligibility.unknown;
+    }
+    return JellyfinPlaybackEligibility.eligible;
+  }
 
   Duration get resumePosition {
     if (userData?.played == true) return Duration.zero;

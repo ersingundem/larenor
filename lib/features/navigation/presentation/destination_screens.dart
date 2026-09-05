@@ -8,11 +8,11 @@ import '../../dashboard/presentation/widgets/more_info_sheet.dart';
 import '../../dashboard/presentation/home_dashboard_screen.dart';
 import '../../dashboard/providers/dashboard_providers.dart';
 import '../../ha_client/providers/ha_client_providers.dart';
-import '../../media/hub/domain/media_identity.dart';
 import '../../media/hub/domain/media_title.dart';
 import '../../media/hub/presentation/media_title_detail_screen.dart';
-import '../../media/hub/providers/media_catalog_providers.dart';
-import '../../media/jellyfin/providers/jellyfin_providers.dart';
+import '../providers/media_destination_provider.dart';
+
+export '../providers/media_destination_provider.dart';
 
 class RoomDestinationScreen extends ConsumerWidget {
   const RoomDestinationScreen({super.key, required this.roomId});
@@ -60,66 +60,6 @@ class EntityDestinationScreen extends ConsumerWidget {
   }
 }
 
-MediaIdentity? mediaIdentityFromLocation(Uri location) {
-  final query = location.queryParameters;
-  final kind = MediaKind.values
-      .where((v) => v.name == query['kind'])
-      .firstOrNull;
-  if (kind == null) return null;
-  int? positive(String? value) {
-    if (value == null) return null;
-    final id = int.tryParse(value);
-    return id != null && id > 0 ? id : null;
-  }
-
-  final tmdb = positive(query['tmdb']);
-  final tvdb = positive(query['tvdb']);
-  final imdb = query['imdb'];
-  if ((query.containsKey('tmdb') && tmdb == null) ||
-      (query.containsKey('tvdb') && tvdb == null) ||
-      (imdb != null && !RegExp(r'^tt[0-9]+$').hasMatch(imdb))) {
-    return null;
-  }
-  final jellyfin = query['jellyfin'];
-  if (jellyfin != null &&
-      !RegExp(r'^[a-zA-Z0-9_-]{1,128}$').hasMatch(jellyfin)) {
-    return null;
-  }
-  final identity = MediaIdentity(
-    kind: kind,
-    tmdbId: tmdb,
-    tvdbId: tvdb,
-    imdbId: imdb,
-  );
-  return identity.isEmpty && jellyfin == null ? null : identity;
-}
-
-final mediaDestinationProvider = FutureProvider.autoDispose
-    .family<MediaTitle?, Uri>((ref, location) async {
-      final identity = mediaIdentityFromLocation(location);
-      if (identity == null) return null;
-      final index = await ref.watch(mediaLibraryIndexProvider.future);
-      final itemId =
-          location.queryParameters['jellyfin'] ??
-          index.lookup(identity)?.jellyfinItemId;
-      if (!ref.mounted) return null;
-      final client = ref.watch(jellyfinClientProvider);
-      if (itemId != null && client != null) {
-        final item = await client.getItem(itemId);
-        final title = mediaTitleFromJellyfin(item, imageUrl: client.imageUrl);
-        if (title != null) return index.enrich(title);
-      }
-      // Deep links without a presentation snapshot resolve against refreshed
-      // catalog data. No action/request is sent by resolving a destination.
-      final rows = await ref.watch(mediaHubRowsProvider.future);
-      for (final row in rows) {
-        for (final title in row.titles) {
-          if (title.identity.matches(identity)) return index.enrich(title);
-        }
-      }
-      return null;
-    });
-
 class MediaDestinationScreen extends ConsumerWidget {
   const MediaDestinationScreen({
     super.key,
@@ -131,16 +71,8 @@ class MediaDestinationScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final identity = mediaIdentityFromLocation(location);
-    final initial = snapshot;
-    if (identity != null &&
-        initial != null &&
-        (initial.identity.matches(identity) ||
-            initial.jellyfinItemId != null &&
-                initial.jellyfinItemId ==
-                    location.queryParameters['jellyfin'])) {
-      return MediaTitleDetailScreen(title: initial);
-    }
+    // A route's presentation snapshot does not prove which account supplied
+    // its item IDs. Resolve afresh before making those IDs actionable.
     final result = ref.watch(mediaDestinationProvider(location));
     return result.when(
       data: (title) => title == null

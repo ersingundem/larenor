@@ -4,14 +4,14 @@
 
 ## Uygulama takibi
 
-- [x] 0. Şifreli yapılandırma kasası — Şifreli kasa ve kalıcı imza CI altyapısı eklendi. Birleşik 865 Flutter / 23 Python testi geçti; Build Tools 37 sertifika çıktısı düzeltildi, sonraki CI release doğrulaması bekleniyor. Gerçek cihaz kabulü bekliyor.
+- [x] 0. Şifreli yapılandırma kasası — Şifreli kasa ve kalıcı imza CI altyapısı eklendi. Birleşik 865 Flutter / 23 Python testi geçti; Build Tools 37 sertifika çıktısı düzeltildi; d2166cd için kalıcı imzalı release APK, sertifika/paket/sürüm doğrulaması CI’da geçti. Gerçek cihaz kabulü bekliyor.
 - [x] 1. Ortak gezinme ve arama — 50 yönlendirme/arama/sistem/rutin testi geçti; oda/kaydırma ve pencere boyutu geçişi doğrulandı.
 - [x] 2. Bağlantı ve işlem durumları — HA kontrol makbuzları, geçerli veri/erişim ayrımı ve medya kısmi hata kanıtı; diğer servislerin ayrıntılı okuma kanıtı ilgili entegrasyon aşamasında genişletilecek.
 - [x] 2a. Netelsan Algan 7 diafon temeli — yerel eşleştirme ekranı, zil/kamera/kapı kontağı ve süreli onayla açma; diafon + yedekleme 106 test geçti. Elektronik mimari belgelendi; tam revizyon, donanım köprüsü ve fiziksel kabul bekliyor.
 - [x] 3. Bugün: listeler, takvim, bildirimler — 55 veri/UI testi; HA saat dilimi, UID, kısmi hata, hesap/arka plan sınırları. Cihaz kabulü bekliyor.
-- [ ] 4. Medyada istekten oynatmaya ortak aşamalar — sıradaki uygulama aşaması.
-- [ ] 5. Film gecesi rutinleri.
-- [ ] 6. Kontrollü oda eşitleme ve kart düzenleme.
+- [x] 4. Medyada istekten oynatmaya ortak aşamalar — bağımsız istek/aktarım/import/sezon kanıtı, salt okunur ayrıntı çözümleme ve qBittorrent 4/5 istemci/UI akışı uygulandı. Gerçek medya sunucusu/oynatma kabulü ayrıca bekliyor.
+- [x] 5. Film gecesi rutinleri — sahne önizlemesi + doğrulanmış oynatıcı + ayrıca onaylı bitiş sahnesi; 14 akış testi dahil birleşik paket geçti. Sahne kabulü fiziksel cihaz sonucu sayılmıyor; üretim HA'da komut çalıştırılmadı.
+- [ ] 6. Kontrollü oda eşitleme ve kart düzenleme — sonraki uygulama aşaması; alan eşleme ve değişiklik önizlemesi hazırlandı.
 - [ ] 7. Enerji ve bakım özeti.
 - [ ] 8. Keenetic internet/IP/hız/uptime ve diğer cihazlar için seçilebilir canlı kartlar.
 - [ ] 9. Medya hedefleri: Chromecast/Apple TV; doğrulanmış yeteneklerle ortak uzaktan oynatma.
@@ -21,9 +21,15 @@
 - [ ] 13. Samsung DeX: değişken pencere boyutu, harici dokunmatik monitör, klavye/fare odağı, çoklu pencere yaşam döngüsü.
 - [ ] 14. Kişisel sağlık/tartı verileri: Apple Health, Health Connect, Huawei Health, Xiaomi/Mi Fitness ve üretici/HA yolları; platform desteği ve izinlere göre.
 - [ ] 15. Fully Kiosk Browser kapsamı: resmi özellik matrisi, kiosk/web paneli, yönetici kilidi, otomatik açılış, ekran/boşta davranışı ve uzaktan yönetim; cihaz sahibi yetkisi ve Huawei/DeX sınırlarıyla.
-- [ ] 16. Superapp fikirleri: diğer akıllı ev/dashboard/smart screen/medya projelerinin resmi kaynaklarla karşılaştırılması; seçilen fikirlerin mevcut aşamalara ve kabul testlerine bağlanması.
+- [x] 16. Superapp araştırması: 12 projenin resmi kaynakları/lisansları karşılaştırıldı; 9 ortak ürün paketi mevcut aşamalara ve kabul testlerine bağlandı. Bkz. [araştırma](superapp-patterns-research-2026-09-05.md). Özelliklerin uygulaması ilgili aşamalarda izlenir.
 - [ ] 17. İsteğe bağlı kamera/yüz özellikleri: anonim yaklaşma algılama ile ekran uyandırma, açık kayıt/izin ile kişisel görünüm; cihazda işleme ve silme, donanım/model lisansı/performans değerlendirmesi. Yüz tanıma tek başına yönetici veya kişisel sağlık erişim kilidi olmayacak.
 - [ ] Son GitHub frontend skill incelemesi, uçtan uca özellikler arası backend/frontend akış kontrolü, ortak tasarım, test/CI, ekran görüntülü README ve GitHub doğrulaması.
+
+**4–5. aşama yerel kontrolü:** 1.048 Flutter testi ve 23 Python testi geçti;
+tam analiz, 477 dosya biçim kontrolü ve aşamaya alınmış değişikliklerin sır
+taraması temiz. Bugün ekranının telefon/tablet açık/koyu görselleri gerçek
+Flutter widgetlarından sentetik veriyle üretildi. Bunlar fiziksel cihaz veya
+canlı servis kabulü yerine geçmez.
 
 Aşağıdaki araştırma önerileri bu teslimlerin gerekçesidir. Hesap/Assist ve yeni
 Frigate entegrasyonu ayrıca değerlendirilmek üzere sonraki
@@ -42,7 +48,8 @@ kaldır–kur doğrulaması bekler. İki tamamlayıcı teslim:
 
 1. **Kaldırmadan güncelleme:** aynı uygulama kimliği ve kalıcı imza anahtarıyla
    APK üretmek; artan sürüm kodu. CI için kalıcı imza anahtarı sağlandı ve debug/release işleri ayrıldı. Release APK derlendi; Build Tools 37 sertifika çıktı biçimi değişikliğine göre doğrulayıcı
-   düzeltildi ve aynı APK üzerinde eski/yeni araçla test edildi. Son CI kabulü bekliyor. Mevcut kurulu
+   düzeltildi ve aynı APK üzerinde eski/yeni araçla test edildi. `d2166cd` için Android
+   debug ve imzalı release işleri CI’da geçti. Mevcut kurulu
    sürümün imzası ölçülmeden kullanıcıdaki kaldırma gereğinin nedeni kesin
    söylenemez. İmza değişimine geçişten önce mevcut uygulamadan yedek alınmalı.
 2. **Yedekle ve geri yükle:** odalar/kartlar/favoriler, tercihler, etkin servisler

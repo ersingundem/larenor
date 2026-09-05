@@ -129,7 +129,11 @@ class JellyfinClient {
   /// Fields Jellyfin leaves out of list responses unless asked for.
   /// `ProviderIds` is the important one — without it a library item can't
   /// be matched against the same title in Jellyseerr, Radarr or Sonarr.
-  static const _itemFields = 'ProviderIds,Overview,Genres';
+  // LocationType and PremiereDate are unconditional DTO fields. Request cheap
+  // source-count + account playback permission evidence instead of resolving
+  // MediaSources for every entry of a potentially large library.
+  static const _itemFields =
+      'ProviderIds,Overview,Genres,MediaSourceCount,PlayAccess';
 
   Future<List<JellyfinItem>> getResumeItems() async {
     final response = await _client.get(
@@ -212,12 +216,15 @@ class JellyfinClient {
     return items;
   }
 
-  Future<List<JellyfinItem>> getSeasons(String seriesId) async {
+  Future<List<JellyfinItem>> getSeasons(
+    String seriesId, {
+    bool includeMissing = false,
+  }) async {
     final response = await _client
         .get(
           _uri('/Shows/${Uri.encodeComponent(seriesId)}/Seasons', {
             'UserId': config.userId,
-            'IsMissing': false,
+            if (!includeMissing) 'IsMissing': false,
             'Fields': _itemFields,
           }),
           headers: _headers,
@@ -229,13 +236,17 @@ class JellyfinClient {
   Future<List<JellyfinItem>> getEpisodes(
     String seriesId, {
     String? seasonId,
+    bool includeMissing = false,
   }) async {
     final response = await _client
         .get(
           _uri('/Shows/${Uri.encodeComponent(seriesId)}/Episodes', {
             'UserId': config.userId,
             'SeasonId': ?seasonId,
-            'IsMissing': false,
+            // IsMissing=true means ONLY missing. Omitting the filter includes
+            // known missing entries if the server user's DisplayMissingEpisodes
+            // setting allows them; this does not create a complete TV catalog.
+            if (!includeMissing) 'IsMissing': false,
             'Fields': _itemFields,
           }),
           headers: _headers,
@@ -303,17 +314,49 @@ class JellyfinClient {
     );
     _checkOk(response);
 
-    final body = decodeServerJson(response.body) as Map<String, dynamic>;
-    final playSessionId = body['PlaySessionId'] as String;
-    final mediaSources = body['MediaSources'] as List<dynamic>? ?? [];
-    if (mediaSources.isEmpty) {
+    final body = decodeServerJson(response.body);
+    if (body is! Map<String, dynamic> || body['ErrorCode'] != null) {
+      throw MediaApiException(
+        'Playback negotiation was rejected by the server.',
+      );
+    }
+    final playSessionId = body['PlaySessionId'];
+    final mediaSources = body['MediaSources'];
+    if (playSessionId is! String ||
+        playSessionId.isEmpty ||
+        mediaSources is! List ||
+        mediaSources.isEmpty ||
+        mediaSources.length > 100) {
       throw MediaApiException('No playable media source for this item.');
     }
-
-    final sources = mediaSources.cast<Map<String, dynamic>>();
-    final source = sources.firstWhere(
+    final approved = <Map<String, dynamic>>[];
+    for (final source in mediaSources) {
+      if (source is! Map<String, dynamic>) {
+        throw MediaApiException(
+          'Server returned invalid playback information.',
+        );
+      }
+      final id = source['Id'];
+      if (id is! String || id.isEmpty || source['RequiresOpening'] == true) {
+        continue;
+      }
+      final url = source['TranscodingUrl'];
+      if (source['SupportsDirectPlay'] == true ||
+          ((source['SupportsTranscoding'] == true ||
+                  source['SupportsDirectStream'] == true) &&
+              url is String &&
+              url.isNotEmpty)) {
+        approved.add(source);
+      }
+    }
+    if (approved.isEmpty) {
+      throw MediaApiException(
+        'No server-approved playback method for this item.',
+      );
+    }
+    final source = approved.firstWhere(
       (source) => source['SupportsDirectPlay'] == true,
-      orElse: () => sources.first,
+      orElse: () => approved.first,
     );
     final mediaSourceId = source['Id'] as String;
     final transcodingUrl = source['SupportsDirectPlay'] == true

@@ -1,8 +1,11 @@
 import 'dart:async';
 
+import 'package:flutter_riverpod/flutter_riverpod.dart' show Provider;
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 import '../../auth/providers/auth_providers.dart';
+import '../../auth/data/ha_connection_config.dart';
+import '../../health/data/health_monitor.dart';
 import '../../health/providers/ha_actions.dart';
 import '../data/models/ha_entity.dart';
 import '../data/rest_client.dart';
@@ -11,33 +14,52 @@ import 'ha_health_bindings.dart';
 
 part 'ha_client_providers.g.dart';
 
+/// Construction seams keep provider/account lifecycle tests off the network.
+final haRestClientFactoryProvider =
+    Provider<HaRestClient Function(HaConnectionConfig, HealthSession)>(
+      (ref) =>
+          (config, health) => HaRestClient(
+            baseUrl: config.baseUrl,
+            token: config.token,
+            observer: health.observeTransport,
+            healthSession: health,
+          ),
+    );
+final haWebSocketClientFactoryProvider =
+    Provider<HaWebSocketClient Function(HaConnectionConfig, HealthSession)>(
+      (ref) =>
+          (config, health) => HaWebSocketClient(
+            baseUrl: config.baseUrl,
+            token: config.token,
+            connectionObserver: (event) => observeHaConnection(health, event),
+          ),
+    );
+
 @riverpod
 HaRestClient? haRestClient(Ref ref) {
-  final config = ref.watch(connectionConfigProvider).value;
+  final connection = ref.watch(connectionConfigProvider);
+  final config = connection.isLoading || connection.hasError
+      ? null
+      : connection.value;
   final health = ref.watch(haHealthSessionProvider);
   if (config == null) return null;
 
-  final client = HaRestClient(
-    baseUrl: config.baseUrl,
-    token: config.token,
-    observer: health.observeTransport,
-    healthSession: health,
-  );
+  final client = ref.watch(haRestClientFactoryProvider)(config, health);
   ref.onDispose(client.dispose);
   return client;
 }
 
 @riverpod
 HaWebSocketClient? haWebSocketClient(Ref ref) {
-  final config = ref.watch(connectionConfigProvider).value;
+  final connection = ref.watch(connectionConfigProvider);
+  final config = connection.isLoading || connection.hasError
+      ? null
+      : connection.value;
   final health = ref.watch(haHealthSessionProvider);
   if (config == null) return null;
 
-  final client = HaWebSocketClient(
-    baseUrl: config.baseUrl,
-    token: config.token,
-    connectionObserver: (event) => observeHaConnection(health, event),
-  )..connect();
+  final client = ref.watch(haWebSocketClientFactoryProvider)(config, health)
+    ..connect();
   ref.onDispose(client.dispose);
   return client;
 }

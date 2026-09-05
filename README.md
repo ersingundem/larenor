@@ -222,6 +222,25 @@ Netflix playback are not implemented; playback uses your connected Jellyfin serv
 Lidarr and Readarr stay on their own screens — music and books need a different
 identity scheme (MusicBrainz/Goodreads, not TMDB) and suit a poster-row layout poorly.
 
+### Media progress and movie night
+
+- Each title separates request approval, transfer/queue progress, import state,
+  files reported by Arr/Seerr and playback candidates verified by the current
+  Jellyfin account. Unknown progress stays unknown; a series may contain available
+  episodes while another season is downloading.
+- Season coverage retains its source and unknown counts. Missing, virtual,
+  inaccessible and unverified Jellyfin items cannot start playback. The episode
+  browser shows the coverage this server/account reports; it does not claim to
+  enumerate every episode that exists in external catalogues.
+- Direct film/TV links resolve through authenticated item or catalogue detail
+  reads, including titles outside discover feeds. Account changes invalidate old
+  item actions, drafts and asynchronous completions.
+- **Movie night** previews a chosen HA scene/script, sends it once, then opens the
+  playable item's player after server acceptance. Returning from the player offers
+  a separately selected finishing scene with its own confirmation. Scene acceptance
+  is not device completion; failed or uncertain actions are not auto-retried, and
+  no scene is automatically reversed. Choices are included in encrypted backups.
+
 ### Media stack
 
 Nine independent, optional integrations for a self-hosted media server setup — the app
@@ -252,7 +271,12 @@ generic icon:
   root-folder pickers before confirming.
 - **qBittorrent** — connect with a server URL + username/password; view torrents with
   progress/speed/state, pause/resume/delete; add torrents via a pasted magnet link or
-  by uploading a `.torrent` file from the device.
+  by uploading a `.torrent` file from the device. The authenticated client verifies
+  the application/Web API versions and selects the qBittorrent 4 or 5 control paths.
+  Credentials and cookies remain bound to the configured server/proxy path. File
+  selection is followed by a fresh filename confirmation; removal keeps downloaded
+  files. Pending/uncertain actions block repeat submissions until an explicit
+  successful refresh, and unavailable progress is not displayed as zero.
 - **Bazarr** — connect with a server URL + API key; view movies and episodes missing
   subtitles, trigger a search-and-download per missing language.
 - **Prowlarr** — connect with a server URL + API key; list configured indexers with an
@@ -425,11 +449,18 @@ for measured regression evidence, device-test limits and remaining transport wor
   hierarchy. Phone/tablet, light/dark and larger-text layouts are checked in widget
   tests. [Design previews](docs/previews/) use synthetic fixture data.
 
+Today, rendered from the actual Flutter widgets with synthetic data (not a live
+server or physical-device acceptance test):
+
+<img src="docs/previews/today-phone.png" alt="Today on a phone, light theme" width="260" />
+<img src="docs/previews/today-tablet-dark.png" alt="Today on a tablet, dark theme" width="600" />
+
 ## Status
 
 Actively developed. The features described above have implemented client flows,
-with unit/widget tests and CI workflows for formatting, static analysis and a debug
-Android build. This is not a claim of complete coverage of every Home Assistant
+with unit/widget tests and CI workflows for formatting, static analysis, debug
+and signed release Android builds. The release certificate, application ID and
+version are verified in CI. This is not a claim of complete coverage of every Home Assistant
 entity, media configuration, Proxmox operation or Keenetic firmware. Live router, media playback,
 server mutation and Android-device verification remains separate from mocked API tests.
 

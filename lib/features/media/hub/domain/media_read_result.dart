@@ -10,6 +10,7 @@ enum MediaReadOperation {
   trending,
   calendar,
   search,
+  requests,
 }
 
 /// Identifies an attempted read without storing URLs, queries or credentials.

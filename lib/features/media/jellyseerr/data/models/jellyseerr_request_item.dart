@@ -4,20 +4,30 @@ part 'jellyseerr_request_item.freezed.dart';
 part 'jellyseerr_request_item.g.dart';
 
 /// Jellyseerr's numeric *request* status (distinct from media availability
-/// status) — 1=pending approval, 2=approved, 3=declined.
+/// status). Current Seerr source also defines 4=failed and 5=completed.
+/// Missing/future status is unknown, never assumed pending approval.
 enum JellyseerrRequestStatus {
   pendingApproval,
   approved,
-  declined;
+  declined,
+  failed,
+  completed,
+  unknown;
 
   static JellyseerrRequestStatus fromCode(int? code) {
     switch (code) {
+      case 1:
+        return JellyseerrRequestStatus.pendingApproval;
       case 2:
         return JellyseerrRequestStatus.approved;
       case 3:
         return JellyseerrRequestStatus.declined;
+      case 4:
+        return JellyseerrRequestStatus.failed;
+      case 5:
+        return JellyseerrRequestStatus.completed;
       default:
-        return JellyseerrRequestStatus.pendingApproval;
+        return JellyseerrRequestStatus.unknown;
     }
   }
 
@@ -25,6 +35,9 @@ enum JellyseerrRequestStatus {
     JellyseerrRequestStatus.pendingApproval => 'Pending approval',
     JellyseerrRequestStatus.approved => 'Approved',
     JellyseerrRequestStatus.declined => 'Declined',
+    JellyseerrRequestStatus.failed => 'Failed',
+    JellyseerrRequestStatus.completed => 'Completed',
+    JellyseerrRequestStatus.unknown => 'Unknown',
   };
 }
 

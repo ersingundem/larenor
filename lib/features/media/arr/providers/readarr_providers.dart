@@ -1,5 +1,6 @@
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
+import '../../data/media_api_exception.dart';
 import '../data/arr_client.dart';
 import '../data/arr_config.dart';
 import '../data/arr_credentials_store.dart';
@@ -42,7 +43,10 @@ class ReadarrConnection extends _$ReadarrConnection {
 
 @riverpod
 ArrClient? readarrClient(Ref ref) {
-  final config = ref.watch(readarrConnectionProvider).value;
+  final connection = ref.watch(readarrConnectionProvider);
+  final config = connection.isLoading || connection.hasError
+      ? null
+      : connection.value;
   if (config == null) return null;
   final client = ArrClient(
     config: config,
@@ -61,7 +65,7 @@ Future<List<ArrCalendarItem>> readarrCalendar(Ref ref) async {
   return client.getCalendar();
 }
 
-@riverpod
+@Riverpod(retry: noMediaReadRetry)
 Future<List<ArrQueueItem>> readarrQueue(Ref ref) async {
   final client = ref.watch(readarrClientProvider);
   if (client == null) return [];

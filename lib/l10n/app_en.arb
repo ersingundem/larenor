@@ -1221,5 +1221,125 @@
     }
   },
   "todayTaskIncludeTime": "Include time",
-  "navigationSearchPage": "Page"
+  "navigationSearchPage": "Page",
+  "mediaStatusQueued": "Queued",
+  "mediaStatusImporting": "Importing",
+  "mediaStatusPartiallyAvailable": "Partly available",
+  "mediaStatusAvailable": "File reported available",
+  "mediaStatusFailed": "Needs attention",
+  "mediaStatusUnknown": "Status not verified",
+  "mediaAccountChanged": "The media connection changed. Open this title again.",
+  "mediaProgressUnknown": "Progress is not reported.",
+  "mediaProgressStale": "Showing older information. Refresh before acting.",
+  "mediaEpisodeMissing": "Missing from this server",
+  "mediaEpisodeUnavailable": "Not playable on this server",
+  "mediaEpisodeUnaired": "Not released yet",
+  "mediaKnownCoverage": "Only episodes reported by this Jellyfin account are shown. Unlisted episodes may still be missing.",
+  "mediaCoverageUnknown": "Full season coverage is unknown.",
+  "mediaRequestAccepted": "The request was accepted. Availability will be checked again.",
+  "mediaRequestPendingApproval": "Waiting for approval",
+  "mediaRequestDeclined": "Request declined",
+  "mediaRequestApproved": "Request approved",
+  "mediaRequestChooseSeasons": "Choose seasons to request",
+  "mediaRequestSelectSeason": "Select at least one season.",
+  "mediaOpenService": "Open {service}",
+  "@mediaOpenService": {
+    "placeholders": {
+      "service": {
+        "type": "String"
+      }
+    }
+  },
+  "mediaProgressUpdated": "Last read: {time}",
+  "@mediaProgressUpdated": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "mediaPlayableCount": "{count} playable episodes",
+  "@mediaPlayableCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "mediaMissingCount": "{count} known missing episodes",
+  "@mediaMissingCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "mediaDownloadedCount": "{count} files reported by {service}",
+  "@mediaDownloadedCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      },
+      "service": {
+        "type": "String"
+      }
+    }
+  },
+  "mediaExpectedCount": "{count} episodes in catalogue",
+  "@mediaExpectedCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "movieNightTitle": "Movie night",
+  "movieNightStart": "Starting scene or script",
+  "movieNightFinish": "Apply the finishing scene?",
+  "movieNightFinishOptional": "Finishing scene · optional",
+  "movieNightChoose": "Choose a scene or script",
+  "movieNightNone": "None",
+  "movieNightClearFinish": "Remove finishing scene",
+  "movieNightStartAndPlay": "Apply scene and open player",
+  "movieNightExplanation": "Your chosen scene or script will be sent to Home Assistant before opening the player. Server acceptance does not confirm that every device completed its action. The finishing scene is offered separately when you return; nothing is automatically undone.",
+  "movieNightReturned": "You returned from the player.",
+  "movieNightSceneFailed": "Scene result could not be confirmed. Playback was not started automatically. Check the devices before trying again.",
+  "movieNightPlaybackFailed": "The starting scene was accepted, but the player could not be opened. Device actions were not undone.",
+  "movieNightCancelled": "This selection expired. Open Movie night again to continue.",
+  "movieNightSetupFailed": "Movie night could not continue. Check the connection, settings and any action receipt before trying again.",
+  "movieNightNeedsHa": "Connect Home Assistant to combine scenes with playback.",
+  "movieNightSceneAccepted": "Home Assistant accepted the scene.",
+  "movieNightApply": "Apply scene",
+  "movieNightFinishConfirm": "Send “{name}” to Home Assistant? This is a separate action, not a reversal of the starting scene.",
+  "@movieNightFinishConfirm": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "mediaStatusPaused": "Paused",
+  "mediaSeasonNotListed": "This season is not listed by Jellyfin.",
+  "mediaRequestCompleted": "Request completed",
+  "movieNightFinishFailed": "The finishing scene result is uncertain. Check the action receipt and devices before retrying.",
+  "qbittorrentActionAccepted": "qBittorrent accepted the request. Refresh the list to check its current state.",
+  "qbittorrentActionUnknown": "The result is not confirmed. Refresh and check the list before retrying.",
+  "qbittorrentDeleteConfirmation": "Remove {name} from qBittorrent? Downloaded files will be kept.",
+  "qbittorrentFileConfirmation": "Add {name} to qBittorrent?",
+  "qbittorrentInvalidMagnet": "Enter a valid magnet link.",
+  "qbittorrentFileError": "The torrent file could not be read. Choose a .torrent file smaller than 10 MiB.",
+  "@qbittorrentDeleteConfirmation": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "@qbittorrentFileConfirmation": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  }
 }

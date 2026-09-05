@@ -4,11 +4,13 @@ import 'package:http/http.dart' as http;
 
 import '../../../../shared/network/server_bound_client.dart';
 import '../../../health/data/health_monitor.dart';
+import '../../../health/data/integration_health.dart';
 
 import '../../data/media_api_exception.dart';
 import 'jellyseerr_config.dart';
 import 'models/jellyseerr_request_item.dart';
 import 'models/jellyseerr_result.dart';
+import 'models/jellyseerr_details.dart';
 
 /// Thin hand-rolled client over Jellyseerr's REST API (`/api/v1/*`),
 /// verified against Jellyseerr's own route/model source (not guessed) —
@@ -124,6 +126,33 @@ class JellyseerrClient {
         })
         .map((e) => JellyseerrResult.fromJson(e as Map<String, dynamic>))
         .toList();
+  }
+
+  /// Direct catalogue resolution, independent of discover feed pagination.
+  /// Seerr routes: GET /movie/:movieId and GET /tv/:tvId.
+  Future<JellyseerrDetails> getDetails({
+    required String mediaType,
+    required int mediaId,
+  }) async {
+    if ((mediaType != 'movie' && mediaType != 'tv') || mediaId <= 0) {
+      throw ArgumentError('Invalid media identity');
+    }
+    final response = await _client
+        .get(_uri('/$mediaType/$mediaId'), headers: _headers)
+        .timeout(const Duration(seconds: 15));
+    _checkOk(response);
+    try {
+      final details = JellyseerrDetails.fromJson(
+        decodeServerJson(response.body) as Map<String, dynamic>,
+        mediaType: mediaType,
+        mediaId: mediaId,
+      );
+      healthSession?.readSucceeded();
+      return details;
+    } catch (_) {
+      healthSession?.failed(HealthFailure.invalidResponse);
+      rethrow;
+    }
   }
 
   Future<void> requestMedia({
