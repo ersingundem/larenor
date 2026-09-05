@@ -27,6 +27,7 @@ import 'package:web_socket_channel/io.dart';
 
 import 'synthetic_ha_server.dart';
 import 'synthetic_core_account.dart';
+import 'synthetic_core_resources.dart';
 
 /// OS file dialogs use ciphertext in memory. Preferences and credential storage
 /// are also replaced in AppHarness; encryption, schema validation, repository
@@ -74,6 +75,7 @@ class AppHarness {
   static Future<AppHarness> start({
     bool connected = false,
     bool coreSource = false,
+    bool coreResources = false,
   }) async {
     if (!const bool.fromEnvironment('LARENOR_E2E')) {
       throw StateError(
@@ -81,7 +83,11 @@ class AppHarness {
       );
     }
     final server = await SyntheticHaServer.start();
-    if (coreSource) server.coreAccount = SyntheticCoreAccount();
+    if (coreSource) {
+      server.coreAccount = SyntheticCoreAccount(
+        resources: coreResources ? SyntheticCoreResources() : null,
+      );
+    }
     final harness = AppHarness._(
       server,
       FixtureNetwork(server.port),

@@ -1,16 +1,20 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'synthetic_core_resources.dart';
+
 /// Minimal, opt-in Core account protocol for this process's loopback fixture.
 /// No production account/API override, external service, or media write path.
 class SyntheticCoreAccount {
+  SyntheticCoreAccount({this.resources});
+  final SyntheticCoreResources? resources;
   static const username = 'fixture-core-user';
   static const password = 'Synthetic account password 2026';
   static const accessToken = 'synthetic-core-access-session';
   static const refreshToken = 'synthetic-core-refresh-session';
   String coreId = 'a' * 32;
   String homeId = 'b' * 32;
-  final userId = 'fixture-core-user-id';
+  String get userId => resources == null ? 'fixture-core-user-id' : 'e' * 32;
   int logins = 0;
   int meReads = 0;
   int contextReads = 0;
@@ -19,7 +23,7 @@ class SyntheticCoreAccount {
   Map<String, Object?> get user => {
     'id': userId,
     'username': username,
-    'role': 'admin',
+    'role': resources == null ? 'admin' : 'member',
     'mustChangePassword': false,
   };
 
@@ -34,7 +38,25 @@ class SyntheticCoreAccount {
 
     try {
       final path = request.uri.path;
-      if (request.uri.hasQuery) {
+      if (resources != null && path.startsWith('/api/v1/home-resources/')) {
+        if (request.method != 'GET') {
+          reject(403);
+        } else if (request.headers.value('authorization') !=
+            'Bearer $accessToken') {
+          reject(401);
+        } else if (path != '/api/v1/home-resources/$coreId/$homeId') {
+          reject(404);
+        } else {
+          final (status, body) = resources!.list(
+            coreId,
+            homeId,
+            request.uri.queryParametersAll,
+          );
+          if (status != 200) rejectedRequests++;
+          response.statusCode = status;
+          response.write(jsonEncode(body));
+        }
+      } else if (request.uri.hasQuery) {
         reject(403);
       } else if (request.method == 'POST' && path == '/api/v1/auth/login') {
         final bytes = <int>[];
