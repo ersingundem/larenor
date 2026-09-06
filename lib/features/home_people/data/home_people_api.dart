@@ -12,8 +12,8 @@ final class HomePeopleApi {
     this._api,
     this._token,
     this._context, {
-    required bool Function() isCurrent,
-  }) : _isCurrent = isCurrent;
+    required this._isCurrent,
+  });
 
   final LarenorServerApi _api;
   final String _token;
@@ -60,7 +60,10 @@ final class HomePeopleApi {
     if (body == null || body.length != 1 || !body.containsKey('person')) {
       throw const LarenorServerException('invalid_response');
     }
-    final value = HomePersonRecord.fromJson(body['person'], expectedContext: _context);
+    final value = HomePersonRecord.fromJson(
+      body['person'],
+      expectedContext: _context,
+    );
     if (id != null && value.id != id) {
       throw const LarenorServerException('invalid_response');
     }
@@ -68,23 +71,44 @@ final class HomePeopleApi {
   }
 
   void _metadata(HomePersonRecord record, HomePersonMetadata desired) {
-    if (record.label != desired.label || record.order != desired.order || !record.canWrite) {
+    if (record.label != desired.label ||
+        record.order != desired.order ||
+        !record.canWrite) {
       throw const LarenorServerException('invalid_response');
     }
   }
 
-  Future<HomePeoplePage> list({String? after, String? snapshot, int limit = HomePeoplePage.pageSize}) => _operation(() async {
-    if (limit < 1 || limit > 100 || after != null && (!_identity(after) || snapshot == null) ||
-        snapshot != null && (snapshot.length != 64 || !RegExp(r'^[0-9a-f]{64}$').hasMatch(snapshot))) {
+  Future<HomePeoplePage> list({
+    String? after,
+    String? snapshot,
+    int limit = HomePeoplePage.pageSize,
+  }) => _operation(() async {
+    if (limit < 1 ||
+        limit > 100 ||
+        after != null && (!_identity(after) || snapshot == null) ||
+        snapshot != null &&
+            (snapshot.length != 64 ||
+                !RegExp(r'^[0-9a-f]{64}$').hasMatch(snapshot))) {
       throw const LarenorServerException('invalid_request');
     }
-    final body = await _api.request('GET', _path, token: _token, queryParameters: {
-      if (limit != HomePeoplePage.pageSize) 'limit': '$limit',
-      'after': ?after,
-      'expectedSnapshot': ?snapshot,
-    });
+    final body = await _api.request(
+      'GET',
+      _path,
+      token: _token,
+      queryParameters: {
+        if (limit != HomePeoplePage.pageSize) 'limit': '$limit',
+        'after': ?after,
+        'expectedSnapshot': ?snapshot,
+      },
+    );
     _check();
-    return HomePeoplePage.fromJson(body, expectedContext: _context, after: after, expectedSnapshot: snapshot, limit: limit);
+    return HomePeoplePage.fromJson(
+      body,
+      expectedContext: _context,
+      after: after,
+      expectedSnapshot: snapshot,
+      limit: limit,
+    );
   });
 
   Future<HomePersonRecord> get(String id) => _operation(() async {
@@ -94,60 +118,120 @@ final class HomePeopleApi {
     return _record(body, id: id);
   });
 
-  Future<HomePersonRecord> create({required String label, required int order}) => _operation(() async {
+  Future<HomePersonRecord> create({
+    required String label,
+    required int order,
+  }) => _operation(() async {
     final desired = HomePersonMetadata(label: label, order: order);
-    final body = await _api.request('POST', _admin, token: _token, body: desired.toJson());
+    final body = await _api.request(
+      'POST',
+      _admin,
+      token: _token,
+      body: desired.toJson(),
+    );
     _check();
     final value = _record(body);
     _metadata(value, desired);
-    if (value.revision != 1 || value.aclRevision != 1) throw const LarenorServerException('invalid_response');
+    if (value.revision != 1 || value.aclRevision != 1) {
+      throw const LarenorServerException('invalid_response');
+    }
     return value;
   });
 
-  Future<HomePersonRecord> update(HomePersonRecord target, {required String label, required int order}) => _operation(() async {
+  Future<HomePersonRecord> update(
+    HomePersonRecord target, {
+    required String label,
+    required int order,
+  }) => _operation(() async {
     _target(target);
     final desired = HomePersonMetadata(label: label, order: order);
-    final changed = desired.label != target.label || desired.order != target.order;
-    if (changed && target.revision == HomePersonGrants.maximumRevision) throw const LarenorServerException('revision_conflict');
-    final body = await _api.request('PATCH', '$_admin/${target.id}', token: _token, body: {
-      'expectedRevision': target.revision,
-      'expectedAclRevision': target.aclRevision,
-      ...desired.toJson(),
-    });
+    final changed =
+        desired.label != target.label || desired.order != target.order;
+    if (changed && target.revision == HomePersonGrants.maximumRevision) {
+      throw const LarenorServerException('revision_conflict');
+    }
+    final body = await _api.request(
+      'PATCH',
+      '$_admin/${target.id}',
+      token: _token,
+      body: {
+        'expectedRevision': target.revision,
+        'expectedAclRevision': target.aclRevision,
+        ...desired.toJson(),
+      },
+    );
     _check();
     final value = _record(body, id: target.id);
     _metadata(value, desired);
-    if (value.aclRevision != target.aclRevision || value.revision != target.revision + (changed ? 1 : 0)) throw const LarenorServerException('invalid_response');
+    if (value.aclRevision != target.aclRevision ||
+        value.revision != target.revision + (changed ? 1 : 0)) {
+      throw const LarenorServerException('invalid_response');
+    }
     return value;
   });
 
   Future<void> delete(HomePersonRecord target) => _operation(() async {
     _target(target);
-    final body = await _api.request('DELETE', '$_admin/${target.id}', token: _token, queryParameters: {
-      'expectedRevision': '${target.revision}', 'expectedAclRevision': '${target.aclRevision}',
-    }, allowEmpty: true);
+    final body = await _api.request(
+      'DELETE',
+      '$_admin/${target.id}',
+      token: _token,
+      queryParameters: {
+        'expectedRevision': '${target.revision}',
+        'expectedAclRevision': '${target.aclRevision}',
+      },
+      allowEmpty: true,
+    );
     _check();
     if (body != null) throw const LarenorServerException('invalid_response');
   });
 
-  Future<HomePersonGrants> grants(HomePersonRecord target) => _operation(() async {
-    _target(target);
-    final body = await _api.request('GET', '$_admin/${target.id}/grants', token: _token);
-    _check();
-    return HomePersonGrants.fromJson(body, target: target);
-  });
+  Future<HomePersonGrants> grants(HomePersonRecord target) =>
+      _operation(() async {
+        _target(target);
+        final body = await _api.request(
+          'GET',
+          '$_admin/${target.id}/grants',
+          token: _token,
+        );
+        _check();
+        return HomePersonGrants.fromJson(body, target: target);
+      });
 
-  Future<HomePersonGrants> setGrant(HomePersonGrants snapshot, {required String subjectId, required HomePersonPermission permission}) => _operation(() async {
+  Future<HomePersonGrants> setGrant(
+    HomePersonGrants snapshot, {
+    required String subjectId,
+    required HomePersonPermission permission,
+  }) => _operation(() async {
     _target(snapshot.target);
-    if (!_identity(subjectId)) throw const LarenorServerException('invalid_request');
+    if (!_identity(subjectId)) {
+      throw const LarenorServerException('invalid_request');
+    }
     final before = snapshot.permissionFor(subjectId);
-    if (before != permission && snapshot.aclRevision == HomePersonGrants.maximumRevision) throw const LarenorServerException('revision_conflict');
-    if (before == HomePersonPermission.none && permission != HomePersonPermission.none && snapshot.grants.length == HomePersonGrants.maximumGrants) throw const LarenorServerException('invalid_request');
-    final body = await _api.request('PUT', '$_admin/${snapshot.target.id}/grants/$subjectId', token: _token, body: {
-      'expectedAclRevision': snapshot.aclRevision, 'permissions': permission.toJson(),
-    });
+    if (before != permission &&
+        snapshot.aclRevision == HomePersonGrants.maximumRevision) {
+      throw const LarenorServerException('revision_conflict');
+    }
+    if (before == HomePersonPermission.none &&
+        permission != HomePersonPermission.none &&
+        snapshot.grants.length == HomePersonGrants.maximumGrants) {
+      throw const LarenorServerException('invalid_request');
+    }
+    final body = await _api.request(
+      'PUT',
+      '$_admin/${snapshot.target.id}/grants/$subjectId',
+      token: _token,
+      body: {
+        'expectedAclRevision': snapshot.aclRevision,
+        'permissions': permission.toJson(),
+      },
+    );
     _check();
-    return snapshot.withUpdatedGrant(body, subjectId: subjectId, permission: permission);
+    return snapshot.withUpdatedGrant(
+      body,
+      subjectId: subjectId,
+      permission: permission,
+    );
   });
 
   @override

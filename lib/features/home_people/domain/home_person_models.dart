@@ -30,7 +30,6 @@ final _edgeWhitespace = RegExp(
   r'^[\x09-\x0d\x1c-\x20\u0085\u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000]+|[\x09-\x0d\x1c-\x20\u0085\u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000]+$',
 );
 
-
 /// Household profile metadata. It is neither an account nor an upstream person.
 /// Permissions are observations, not current authorization or device commands.
 final class HomePersonRecord {
@@ -189,16 +188,13 @@ final class HomePersonMetadata {
   String toString() => 'HomePersonMetadata';
 }
 
-
 String _subject(Object? value) {
   if (value is! String || !HomePersonGrants.isSubjectId(value)) _invalid();
   return value;
 }
 
 int _revision(Object? value) {
-  if (value is! int ||
-      value < 1 ||
-      value > HomePersonGrants.maximumRevision) {
+  if (value is! int || value < 1 || value > HomePersonGrants.maximumRevision) {
     _invalid();
   }
   return value;
