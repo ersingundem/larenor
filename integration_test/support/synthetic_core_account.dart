@@ -49,13 +49,19 @@ class SyntheticCoreAccount {
           (path.startsWith('/api/v1/admin/home-resources/') ||
               path.startsWith('/api/v1/home-resources/'))) {
         final authorization = request.headers['authorization'];
-        if (authorization == null || authorization.length != 1 ||
+        if (authorization == null ||
+            authorization.length != 1 ||
             authorization.single != 'Bearer $accessToken') {
           reject(401);
         } else if (user['role'] != 'admin') {
           reject(403);
         } else {
-          final (status, body) = await adminResources!.handle(request, coreId, homeId, userId);
+          final (status, body) = await adminResources!.handle(
+            request,
+            coreId,
+            homeId,
+            userId,
+          );
           if (status >= 400) rejectedRequests++;
           response.statusCode = status;
           if (body != null) response.write(jsonEncode(body));

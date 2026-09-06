@@ -28,6 +28,7 @@ import 'package:web_socket_channel/io.dart';
 import 'synthetic_ha_server.dart';
 import 'synthetic_core_account.dart';
 import 'synthetic_core_resources.dart';
+import 'synthetic_core_resource_admin.dart';
 
 /// OS file dialogs use ciphertext in memory. Preferences and credential storage
 /// are also replaced in AppHarness; encryption, schema validation, repository
@@ -76,16 +77,23 @@ class AppHarness {
     bool connected = false,
     bool coreSource = false,
     bool coreResources = false,
+    bool coreResourceAdmin = false,
   }) async {
     if (!const bool.fromEnvironment('LARENOR_E2E')) {
       throw StateError(
         'Use tool/run_android_e2e.sh with a disposable emulator.',
       );
     }
+    if (coreResourceAdmin && (!coreSource || coreResources)) {
+      throw ArgumentError(
+        'Admin fixture requires its own explicit Core source.',
+      );
+    }
     final server = await SyntheticHaServer.start();
     if (coreSource) {
       server.coreAccount = SyntheticCoreAccount(
         resources: coreResources ? SyntheticCoreResources() : null,
+        adminResources: coreResourceAdmin ? SyntheticCoreResourceAdmin() : null,
       );
     }
     final harness = AppHarness._(
@@ -177,6 +185,7 @@ class AppHarness {
     tester.platformDispatcher.clearLocalesTestValue();
     tester.testTextInput.unregister();
     HttpOverrides.global = previousNetwork;
+    server.coreAccount?.adminResources?.close();
     await server.close();
     expect(network.blocked, 0, reason: 'No production/external destinations');
     expect(
