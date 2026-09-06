@@ -2,6 +2,7 @@ import 'dart:ui' show ViewFocusEvent, ViewFocusState;
 import 'dart:typed_data';
 
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -429,16 +430,16 @@ class _BackupScreenState extends ConsumerState<BackupScreen>
             const SizedBox(height:8),Text(l10n.backupApplyMessage),
           ]),
           actions: [
-            CupertinoDialogAction(
+            _RestoreDialogAction(
               onPressed: () {
                 if (context.mounted &&
                     ModalRoute.of(context)?.isCurrent == true) {
                   Navigator.pop(context, false);
                 }
               },
-              child: Text(l10n.commonCancel),
+              label: l10n.commonCancel,
             ),
-            CupertinoDialogAction(
+            _RestoreDialogAction(
               isDestructiveAction:
                   conflict == BackupConflictPolicy.replaceSelected,
               onPressed: () {
@@ -450,7 +451,7 @@ class _BackupScreenState extends ConsumerState<BackupScreen>
                   Navigator.pop(context, true);
                 }
               },
-              child: Text(l10n.backupApply),
+              label: l10n.backupApply,
             ),
           ],
         ),
@@ -817,3 +818,31 @@ String _serviceName(String id) =>
       'keenetic': 'Keenetic',
     }[id] ??
     id;
+
+
+/// Cupertino's large-text action content omits the regular button semantics.
+/// Keep explicit semantics and keyboard activation across both sizing modes.
+class _RestoreDialogAction extends StatefulWidget {
+  const _RestoreDialogAction({required this.onPressed, required this.label, this.isDestructiveAction=false});
+  final VoidCallback onPressed;
+  final String label;
+  final bool isDestructiveAction;
+  @override State<_RestoreDialogAction> createState()=>_RestoreDialogActionState();
+}
+class _RestoreDialogActionState extends State<_RestoreDialogAction> {
+  bool _focused=false;
+  @override Widget build(BuildContext context)=>CupertinoDialogAction(
+    onPressed:widget.onPressed,isDestructiveAction:widget.isDestructiveAction,
+    child:FocusableActionDetector(
+      onShowFocusHighlight:(value)=>setState(()=>_focused=value),
+      shortcuts:const {SingleActivator(LogicalKeyboardKey.enter):ActivateIntent(),SingleActivator(LogicalKeyboardKey.space):ActivateIntent()},
+      actions:{ActivateIntent:CallbackAction<ActivateIntent>(onInvoke:(_){widget.onPressed();return null;})},
+      child:Semantics(button:true,enabled:true,label:widget.label,onTap:widget.onPressed,excludeSemantics:true,
+        child:Container(constraints:const BoxConstraints(minHeight:32),alignment:Alignment.center,
+          decoration:BoxDecoration(border:Border.all(width:2,color:_focused ? CupertinoTheme.of(context).primaryColor : CupertinoColors.transparent),borderRadius:BorderRadius.circular(4)),
+          child:Text(widget.label),
+        ),
+      ),
+    ),
+  );
+}

@@ -143,7 +143,7 @@ void main() {
     for(final width in [320.0,600.0,1280.0]) {
       testWidgets('prepared confirmation real fonts $locale $width at 2x', (tester)async {
         await loadFonts(tester);
-        final semantics=tester.ensureSemantics();addTearDown(semantics.dispose);
+        final semantics=tester.ensureSemantics();try {
         final h=_ScreenHarness();await h.mount(tester,locale:locale,width:width,height:1000,scale:2);await h.confirm(tester);
         final dialog=find.byType(CupertinoAlertDialog);
         final l10n=AppLocalizations.of(tester.element(dialog));
@@ -167,6 +167,7 @@ void main() {
           });
         }
         await tester.tap(cancel);await flush(tester);expect(find.byType(CupertinoAlertDialog),findsNothing);expect(h.storage.writes,isEmpty);
+        } finally {semantics.dispose();}
       });
     }
   }
