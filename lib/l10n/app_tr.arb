@@ -1918,5 +1918,7 @@
   "wellbeingReloadSettings": "Kayıtlı ayarları yeniden oku",
   "wellbeingSettingsUnavailable": "Kayıtlı gizlilik ayarları doğrulanamadı. Devam etmeden önce yeniden okuyun.",
   "qbittorrentConnectionIncomplete": "Bu bağlantı tamamlanmadı. Adres, kullanıcı adı ve parolayı yeniden girin veya kayıtlı bağlantıyı kaldırın.",
-  "qbittorrentRemoveConnection": "Kayıtlı bağlantıyı kaldır"
+  "qbittorrentRemoveConnection": "Kayıtlı bağlantıyı kaldır",
+  "keeneticConnectionIncomplete": "Kaydedilen Keenetic bağlantısı doğrulanamadı. Bağlantı bilgilerini yeniden girin veya kayıtlı bağlantıyı kaldırın. Yönlendirici ayarları değişmez.",
+  "keeneticRemoveConnection": "Kayıtlı bağlantıyı kaldır"
 }

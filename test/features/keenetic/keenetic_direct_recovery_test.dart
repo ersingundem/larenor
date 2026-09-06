@@ -229,13 +229,21 @@ void main() {
             await settle(tester);
             interaction.setActive(true);
           } else if (change == 'background') {
-            tester.binding.handleAppLifecycleStateChanged(
+            for (final state in [
+              AppLifecycleState.inactive,
+              AppLifecycleState.hidden,
               AppLifecycleState.paused,
-            );
+            ]) {
+              tester.binding.handleAppLifecycleStateChanged(state);
+            }
             await settle(tester);
-            tester.binding.handleAppLifecycleStateChanged(
+            for (final state in [
+              AppLifecycleState.hidden,
+              AppLifecycleState.inactive,
               AppLifecycleState.resumed,
-            );
+            ]) {
+              tester.binding.handleAppLifecycleStateChanged(state);
+            }
           } else if (change == 'ticker') {
             visible.value = false;
             await settle(tester);

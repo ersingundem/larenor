@@ -1,59 +1,121 @@
-import 'package:flutter/cupertino.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:network_info_plus/network_info_plus.dart';
+import 'dart:async';
+import 'dart:io';
 
+import 'package:flutter/cupertino.dart';
+import 'package:network_info_plus/network_info_plus.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../../../core/direct_home_access.dart';
 import '../../../l10n/generated/app_localizations.dart';
-import '../data/keenetic_api_exception.dart';
+import '../../media/hub/presentation/media_session_state.dart';
 import '../data/keenetic_config.dart';
+import '../data/keenetic_credentials_store.dart';
 import '../providers/keenetic_providers.dart';
-import '../../../shared/widgets/settings_section.dart';
 
 class KeeneticConnectScreen extends ConsumerStatefulWidget {
-  const KeeneticConnectScreen({super.key});
+  const KeeneticConnectScreen({
+    super.key,
+    this.recovery = false,
+    this.popOnSuccess = true,
+  });
+  final bool recovery;
+  final bool popOnSuccess;
 
   @override
   ConsumerState<KeeneticConnectScreen> createState() =>
       _KeeneticConnectScreenState();
 }
 
-class _KeeneticConnectScreenState extends ConsumerState<KeeneticConnectScreen> {
+class _KeeneticConnectScreenState
+    extends MediaSessionState<KeeneticConnectScreen> {
   static const _defaultUrl = 'http://192.168.1.1';
-
-  final _urlController = TextEditingController(text: _defaultUrl);
-  final _userController = TextEditingController(text: 'admin');
+  bool _gatewayRequested = false;
+  late final _urlController = TextEditingController(
+    text: widget.recovery ? '' : _defaultUrl,
+  );
+  late final _userController = TextEditingController(
+    text: widget.recovery ? '' : 'admin',
+  );
   final _passwordController = TextEditingController();
+  late final DirectHomeAccess _access = ref.read(directHomeAccessProvider);
+  KeeneticConnection? _connection;
+  bool Function()? _operationOwner;
+  bool _visible = true;
   bool _connecting = false;
+  late bool _recovery = widget.recovery;
+  bool _cleared = false;
   String? _error;
 
+  bool _current(int generation) =>
+      sessionCurrent(generation) &&
+      _access.isCurrent &&
+      TickerMode.valuesOf(context).enabled &&
+      (ModalRoute.of(context)?.isCurrent ?? true);
+
   @override
-  void initState() {
-    super.initState();
-    _prefillGatewayIp();
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final visible =
+        TickerMode.valuesOf(context).enabled &&
+        (ModalRoute.of(context)?.isCurrent ?? true);
+    if (_visible && !visible) {
+      sessionGeneration++;
+      clearPendingInteraction();
+    }
+    _visible = visible;
   }
 
-  /// The router is almost always reachable at the device's default
-  /// gateway — a much cheaper and more reliable "discovery" than sweeping
-  /// the subnet, since there's exactly one gateway to check.
-  Future<void> _prefillGatewayIp() async {
+  Future<void> _prefillGatewayIp(int generation) async {
+    if (!_current(generation) || _recovery) return;
     try {
       final gateway = await NetworkInfo().getWifiGatewayIP();
-      if (!mounted || gateway == null) return;
-      if (_urlController.text != _defaultUrl) return;
-      setState(() => _urlController.text = 'http://$gateway');
+      if (!_current(generation) ||
+          _recovery ||
+          gateway == null ||
+          gateway.length > 45 ||
+          InternetAddress.tryParse(gateway) == null ||
+          _urlController.text != _defaultUrl ||
+          _userController.text != 'admin' ||
+          _passwordController.text.isNotEmpty)
+        return;
+      setState(
+        () =>
+            _urlController.text = Uri(scheme: 'http', host: gateway).toString(),
+      );
     } catch (_) {
-      // Keep the manual default — nothing to prefill with.
+      // Gateway discovery never changes a confirmed or recovery credential tuple.
     }
+  }
+
+  void _clearFields() {
+    _urlController.clear();
+    _userController.clear();
+    _passwordController.clear();
+  }
+
+  @override
+  void clearPendingInteraction() {
+    final owner = _operationOwner;
+    if (owner != null) _connection?.cancelSignIn(owner);
+    _operationOwner = null;
+    _clearFields();
+    _connecting = false;
+    _error = null;
+    _cleared = false;
   }
 
   @override
   void dispose() {
+    clearPendingInteraction();
     _urlController.dispose();
     _userController.dispose();
     _passwordController.dispose();
     super.dispose();
   }
 
-  Future<void> _connect() async {
+  Future<void> _connect(int generation, KeeneticConnection connection) async {
+    bool current() => _current(generation);
+    if (!current() || _connecting) return;
     final rawUrl = _urlController.text.trim();
     final username = _userController.text.trim();
     final password = _passwordController.text;
@@ -74,29 +136,103 @@ class _KeeneticConnectScreenState extends ConsumerState<KeeneticConnectScreen> {
     setState(() {
       _connecting = true;
       _error = null;
+      _cleared = false;
     });
+    _connection = connection;
+    _operationOwner = current;
     try {
-      await ref
-          .read(keeneticConnectionProvider.notifier)
-          .signIn(baseUrl: url, username: username, password: password);
-      if (mounted && Navigator.of(context).canPop()) {
+      await connection.signIn(
+        baseUrl: url.endsWith('/') ? url.substring(0, url.length - 1) : url,
+        username: username,
+        password: password,
+        isCurrent: current,
+      );
+      if (mounted &&
+          current() &&
+          widget.popOnSuccess &&
+          Navigator.of(context).canPop()) {
         Navigator.of(context).pop();
       }
-    } on KeeneticApiException catch (e) {
-      if (mounted) setState(() => _error = e.message);
     } catch (_) {
-      if (mounted) {
+      if (current()) {
         setState(
           () => _error = AppLocalizations.of(context).keeneticErrorUnreachable,
         );
       }
     } finally {
-      if (mounted) setState(() => _connecting = false);
+      if (identical(_operationOwner, current)) _operationOwner = null;
+      if (current()) setState(() => _connecting = false);
     }
   }
 
+  Future<void> _clear(int generation, KeeneticCredentialsStore store) async {
+    bool current() => _current(generation);
+    if (!current() || _connecting) return;
+    setState(() {
+      _connecting = true;
+      _error = null;
+      _cleared = false;
+    });
+    try {
+      await store.clear(isCurrent: current);
+      if (current()) {
+        setState(() {
+          _clearFields();
+          _cleared = true;
+        });
+      }
+    } catch (_) {
+      if (current()) {
+        setState(
+          () => _error = AppLocalizations.of(context).keeneticErrorUnreachable,
+        );
+      }
+    } finally {
+      if (current()) setState(() => _connecting = false);
+    }
+  }
+
+  Widget _fieldLabel(String label) => ConstrainedBox(
+    constraints: const BoxConstraints(maxWidth: 96),
+    child: Text(label),
+  );
+
   @override
   Widget build(BuildContext context) {
+    ref.watch(directHomeAccessProvider);
+    final l10n = AppLocalizations.of(context);
+    if (!_access.isCurrent) {
+      return CupertinoPageScaffold(
+        child: Center(child: Text(l10n.keeneticErrorUnreachable)),
+      );
+    }
+    // A standalone form also owns the provider subscription during verification.
+    final reading = ref.watch(keeneticConnectionProvider);
+    final error = reading.error;
+    if (!_recovery && error is DirectHomeAccessException) {
+      _recovery = true;
+      _clearFields();
+    }
+    if (reading.isLoading && !_connecting) {
+      return const CupertinoPageScaffold(
+        child: Center(child: CupertinoActivityIndicator()),
+      );
+    }
+    if (reading.hasError && !_recovery) {
+      return CupertinoPageScaffold(
+        child: Center(child: Text(l10n.keeneticErrorUnreachable)),
+      );
+    }
+    final generation = sessionGeneration;
+    final active = _current(generation);
+    if (active && !_recovery && !_gatewayRequested) {
+      _gatewayRequested = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        unawaited(_prefillGatewayIp(generation));
+      });
+    }
+    final connection = ref.read(keeneticConnectionProvider.notifier);
+    final store = ref.read(keeneticCredentialsStoreProvider);
     return CupertinoPageScaffold(
       navigationBar: const CupertinoNavigationBar(middle: Text('Keenetic')),
       child: SafeArea(
@@ -107,36 +243,34 @@ class _KeeneticConnectScreenState extends ConsumerState<KeeneticConnectScreen> {
               padding: const EdgeInsets.all(24),
               children: [
                 const SizedBox(height: 16),
-                SettingsSection(
-                  footer: Text(
-                    AppLocalizations.of(context).keeneticCredentialsHint,
+                if (_recovery) ...[
+                  Text(
+                    _cleared
+                        ? l10n.commonDone
+                        : l10n.keeneticConnectionIncomplete,
+                    textAlign: TextAlign.center,
                   ),
+                  const SizedBox(height: 16),
+                ],
+                CupertinoListSection.insetGrouped(
+                  footer: Text(l10n.keeneticCredentialsHint),
                   children: [
                     CupertinoTextFormFieldRow(
                       controller: _urlController,
-                      prefix: Text(
-                        AppLocalizations.of(context).connectUrlLabel,
-                      ),
+                      enabled: active && !_connecting,
+                      prefix: _fieldLabel(l10n.connectUrlLabel),
                       keyboardType: TextInputType.url,
-                      autocorrect: false,
-                      enabled: !_connecting,
                     ),
                     CupertinoTextFormFieldRow(
                       controller: _userController,
-                      prefix: Text(AppLocalizations.of(context).mediaUserLabel),
-                      autocorrect: false,
-                      enabled: !_connecting,
+                      enabled: active && !_connecting,
+                      prefix: _fieldLabel(l10n.mediaUserLabel),
                     ),
                     CupertinoTextFormFieldRow(
                       controller: _passwordController,
-                      prefix: Text(
-                        AppLocalizations.of(context).mediaPasswordLabel,
-                      ),
+                      enabled: active && !_connecting,
+                      prefix: _fieldLabel(l10n.mediaPasswordLabel),
                       obscureText: true,
-                      enabled: !_connecting,
-                      onFieldSubmitted: (_) {
-                        if (!_connecting) _connect();
-                      },
                     ),
                   ],
                 ),
@@ -152,13 +286,27 @@ class _KeeneticConnectScreenState extends ConsumerState<KeeneticConnectScreen> {
                 ],
                 const SizedBox(height: 20),
                 CupertinoButton.filled(
-                  onPressed: _connecting ? null : _connect,
+                  onPressed: _connecting || !active
+                      ? null
+                      : () => _connect(generation, connection),
                   child: _connecting
                       ? const CupertinoActivityIndicator(
                           color: CupertinoColors.white,
                         )
-                      : Text(AppLocalizations.of(context).commonConnect),
+                      : Text(l10n.commonConnect),
                 ),
+                if (_recovery) ...[
+                  const SizedBox(height: 12),
+                  CupertinoButton(
+                    onPressed: _connecting || !active
+                        ? null
+                        : () => _clear(generation, store),
+                    child: Text(
+                      l10n.keeneticRemoveConnection,
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                ],
               ],
             ),
           ),
