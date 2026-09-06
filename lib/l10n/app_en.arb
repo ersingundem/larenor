@@ -2312,5 +2312,30 @@
         "type": "int"
       }
     }
-  }
+  },
+  "coreLayoutArchiveTitle": "Core room archive",
+  "coreLayoutArchiveHint": "Save or replace room names and their order for this Core home and your account. Other homes, device settings and connections stay unchanged.",
+  "coreLayoutArchiveExport": "Save encrypted archive",
+  "coreLayoutArchiveImport": "Choose room archive",
+  "coreLayoutArchivePassword": "Archive password",
+  "coreLayoutArchiveRepeat": "Repeat archive password",
+  "coreLayoutArchivePasswordHint": "Use at least 12 characters, different from your Settings PIN. Keep this password to open the archive.",
+  "coreLayoutArchiveOpen": "Open and review",
+  "coreLayoutArchiveCurrent": "Current rooms in this Core home",
+  "coreLayoutArchiveSavedRooms": "Rooms in the archive",
+  "coreLayoutArchiveEmpty": "No rooms.",
+  "coreLayoutArchiveReplace": "Replace room layout",
+  "coreLayoutArchiveConfirm": "Replace the current rooms with the rooms shown in this archive? This changes only your room layout in this Core home.",
+  "coreLayoutArchiveSaved": "Encrypted room archive saved.",
+  "coreLayoutArchiveApplied": "Room layout replaced and verified.",
+  "coreLayoutArchiveCancelled": "File selection cancelled.",
+  "coreLayoutArchiveInvalidPassword": "Enter matching passwords of at least 12 characters, different from the Settings PIN.",
+  "coreLayoutArchiveDecryptFailed": "The room archive could not be opened. Check its password and file.",
+  "coreLayoutArchiveWrongHome": "This archive belongs to a different Core home or account. No rooms were changed.",
+  "coreLayoutArchiveExpired": "This review has ended. Go back and open the room archive again.",
+  "coreLayoutArchiveChanged": "The current layout changed. Open the archive again to review it before replacing rooms.",
+  "coreLayoutArchiveUncertain": "The save could not be confirmed. Read the current rooms before starting a new review. No automatic retry was made.",
+  "coreLayoutArchiveUnsupported": "Only room names and their order are supported. This layout contains other data and cannot be archived or replaced here.",
+  "coreLayoutArchiveFileFailed": "Choose a valid .larenor-core-layout file, up to 3 MiB. The file operation could not be completed.",
+  "coreLayoutArchiveRefresh": "Read current rooms"
 }

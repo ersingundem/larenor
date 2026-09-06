@@ -37,5 +37,6 @@ void main(){
     expect(h.files.picks,0);expect(otherFiles.picks,0);expect(find.text('sensitive draft'),findsNothing);
     expect(find.byKey(const ValueKey('core-layout-archive-pick')),findsNothing);
     expect(h.home.account.session,isNotNull);expect(h.home.interaction.active,isTrue);
+    await tester.pumpWidget(const SizedBox.shrink());await flush(tester);
   });
 }

@@ -151,6 +151,7 @@ class _SettingsGateScreenState extends ConsumerState<SettingsGateScreen>
       data: (pin) {
         final unlocked = pin == null || _unlocked;
         final resourceGeneration = _generation;
+        final archiveNavigator = _settingsNavigator;
         if (unlocked) _settingsOpened = true;
         return Stack(
           children: [
@@ -199,6 +200,15 @@ class _SettingsGateScreenState extends ConsumerState<SettingsGateScreen>
                             : widget.initialDestination ==
                                   SettingsGateDestination.homeSource
                             ? HomeSourceScreen(
+                                runFileDialog: _runFileDialog,
+                                archiveGateCurrent: () {
+                                  if (!mounted || !_interactive ||
+                                      !identical(archiveNavigator, _settingsNavigator) ||
+                                      ModalRoute.of(context)?.isCurrent != true) return false;
+                                  final value = ref.read(pinLockProvider);
+                                  return !value.isLoading && !value.hasError && value.hasValue &&
+                                      (value.value == null || _unlocked);
+                                },
                                 onExit: Navigator.of(context).canPop()
                                     ? _exit
                                     : null,

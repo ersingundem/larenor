@@ -50,13 +50,13 @@ class ArchiveHarness {
       windowPolicySnapshotProvider.overrideWith((_)=>Stream.value(const WindowPolicySnapshot(supported:true,isResumed:true,hasWindowFocus:true))),
     ]);
     // The actual scoped repository/provider stays alive through route changes.
-    final subscription=container.listen(dashboardRepositoryProvider,(_,_){});
+    container.listen(dashboardRepositoryProvider,(_,_){});
     await tester.pumpWidget(UncontrolledProviderScope(container:container,child:AppInteractionScope(controller:home.interaction,child:CupertinoApp(
       navigatorKey:navigator,locale:Locale(language),localizationsDelegates:AppLocalizations.localizationsDelegates,supportedLocales:AppLocalizations.supportedLocales,
       home:const SettingsGateScreen(initialDestination:SettingsGateDestination.homeSource),
     ))));
     await flush(tester);
-    addTearDown(() async { await tester.pumpWidget(const SizedBox.shrink()); subscription.close();container.dispose();home.dispose();session.account.dispose(); });
+    addTearDown(() async { await tester.pumpWidget(const SizedBox.shrink()); await tester.pump();container.dispose();home.dispose();session.account.dispose(); });
   }
   DashboardRepository get repository=>container.read(dashboardRepositoryProvider);
   Future<void> open(WidgetTester tester,{String language='en'}) async {

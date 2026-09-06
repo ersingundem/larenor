@@ -119,8 +119,8 @@ void main(){
     final h=ArchiveHarness();await h.mount(tester);await h.open(tester);
     final pending=Completer<Uint8List?>();h.files.onPick=()=>pending.future;
     await archivePress(tester,'core-layout-archive-pick');
-    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);await flush(tester);
-    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);pending.complete(encrypted);await flush(tester);
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.hidden);tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);await flush(tester);
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.hidden);tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);pending.complete(encrypted);await flush(tester);
     expect(find.byKey(const ValueKey('backup-reauth-pin')),findsOneWidget);
     await tester.enterText(find.byKey(const ValueKey('backup-reauth-pin')),'1234');await tester.tap(find.text('Unlock').last);await flush(tester);
     await tester.enterText(find.byKey(const ValueKey('core-layout-archive-open-password')),passphrase);await archivePress(tester,'core-layout-archive-decrypt');await cryptoWait(tester,find.byKey(const ValueKey('core-layout-archive-preview')));
