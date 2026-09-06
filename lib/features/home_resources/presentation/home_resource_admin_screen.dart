@@ -9,6 +9,7 @@ import '../../../core/home_session_controller.dart';
 import '../../../core/window/window_policy_providers.dart';
 import '../../../l10n/generated/app_localizations.dart';
 import '../../../shared/widgets/app_page_scaffold.dart';
+import '../../../shared/theme/app_colors.dart';
 import '../data/home_resources_api.dart';
 import '../data/home_resources_controller.dart';
 import '../domain/home_resource_models.dart';
@@ -347,8 +348,9 @@ class _HomeResourceAdminScreenState
     };
     return AppPageScaffold(
       key: const ValueKey('home-resource-admin'),
-      navigationBar: CupertinoNavigationBar(
-        middle: Text(
+      navigationBar: _MetadataNavigationBar(
+        height: MediaQuery.textScalerOf(context).scale(24) + 24,
+        title: Text(
           l10n.homeResourceAdminTitle,
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
@@ -598,4 +600,60 @@ class _HomeResourceAdminScreenState
       ),
     );
   }
+}
+
+/// Unlike the native 44px toolbar, this Android/DeX header keeps its back
+/// target at least 48px and grows with the user's text size.
+class _MetadataNavigationBar extends StatelessWidget
+    implements ObstructingPreferredSizeWidget {
+  const _MetadataNavigationBar({
+    required this.height,
+    required this.title,
+    required this.leading,
+  });
+  final double height;
+  final Widget title, leading;
+  double get _height => height < 48 ? 48 : height;
+  @override
+  Size get preferredSize => Size.fromHeight(_height);
+  @override
+  bool shouldFullyObstruct(BuildContext context) => true;
+  @override
+  Widget build(BuildContext context) => DecoratedBox(
+    decoration: BoxDecoration(
+      color: AppColors.navigation.resolveFrom(context),
+      border: Border(
+        bottom: BorderSide(
+          color: CupertinoColors.separator.resolveFrom(context),
+          width: .5,
+        ),
+      ),
+    ),
+    child: SafeArea(
+      bottom: false,
+      child: SizedBox(
+        height: _height,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 8),
+          child: Row(
+            children: [
+              leading,
+              const SizedBox(width: 8),
+              Expanded(
+                child: Center(
+                  child: DefaultTextStyle(
+                    style: CupertinoTheme.of(context)
+                        .textTheme
+                        .navTitleTextStyle,
+                    child: title,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 48),
+            ],
+          ),
+        ),
+      ),
+    ),
+  );
 }
