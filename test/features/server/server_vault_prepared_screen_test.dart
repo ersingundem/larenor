@@ -51,7 +51,7 @@ class _Harness {
 
   Future<void> mount(WidgetTester tester, {
     bool core = false, bool protected = false, String language = 'en',
-    double width = 800, double scale = 1,
+    double width = 800, double scale = 1, bool openConfirmation = true,
   }) async {
     SharedPreferences.setMockInitialValues({
       if (core) SharedPreferencesHomeSourceStore.key: HomeSource.verifiedCore.name,
@@ -125,6 +125,7 @@ class _Harness {
     }
     await tap(tester, 'server-vault-replace');
     await tap(tester, 'server-vault-review');
+    if (!openConfirmation) return;
     final l10n = AppLocalizations.of(tester.element(find.byType(ServerVaultScreen)));
     expect(find.text(l10n.serverVaultRevision(7)), findsOneWidget);
     expect(storage.writes, isEmpty);
@@ -272,6 +273,19 @@ void main() {
     await h.accept(tester);
     expect(h.storage.writes, isEmpty); expect(h.disposals, 0);
     expect(h.storage.preferences['appearance'], 'light');
+  });
+
+  testWidgets('Core Direct groups show the target restriction without credential reads', (tester) async {
+    final h = _Harness();
+    h.api.value = ServerVault(revision: 7, snapshot: vaultSnapshot());
+    await h.mount(tester, core: true, openConfirmation: false);
+    final l10n = AppLocalizations.of(tester.element(find.byType(ServerVaultScreen)));
+    expect(find.text(l10n.backupRestoreDirectTarget), findsOneWidget);
+    expect(find.text(l10n.serverVaultReadFailed), findsNothing);
+    expect(h.storage.reads, isEmpty);
+    expect(h.storage.writes, isEmpty);
+    expect(h.api.reads, 1); expect(h.api.writes, 0);
+    expect(find.byKey(const ValueKey('server-vault-apply')), findsNothing);
   });
 
   for (final replacement in ['account', 'repository', 'container', 'modal repository']) {
