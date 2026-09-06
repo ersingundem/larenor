@@ -1766,7 +1766,8 @@
         "docs/core-plugin-jobs-tablet-accessibility-2026-09-06.md",
         "docs/restore-dialog-targets-2026-09-06.md",
         "docs/tablet-core-volume-integration-2026-09-06.md",
-        "docs/client-delivery-108-2026-09-06.md"
+        "docs/client-delivery-108-2026-09-06.md",
+        "docs/core-services-tablet-accessibility-2026-09-06.md"
       ],
       "scope": "Son bütün ekran tasarım geçişi değildir; Core’suz kişisel uzak bağlantı için Core bağımlılığı koymaz.",
       "acceptance": [
@@ -1953,10 +1954,26 @@
           "state": "in_progress",
           "result": null,
           "label": "Security108 exact960691c başlatıldı; kendi sonucu ve bağımsız imzalıAPK kabulü bekleniyor. Yerel5150Client/3435Core12Linuxskip/207politika sonuçları remoteCI yerine geçmez."
+        },
+        {
+          "kind": "test",
+          "ref": "docs/core-services-tablet-accessibility-2026-09-06.md",
+          "commit": "09c04b7ef8367fecf6a4bc75f6fc5cecb4810c86",
+          "state": "completed",
+          "result": "passed",
+          "label": "Services tablet:46odaklı/186ilgiliPASS,son16deltaPASS ayrı;538/551satır,analiz2/0format2/0. Effectiveheader/actionadları,modal48px/IMEtekNext/lightfocus; rootfinalsource+2PNG CLEAR. Mainbirleşti, CI108dahil değil. TamClientve yeniCI ayrı açık."
+        },
+        {
+          "kind": "review",
+          "ref": "docs/core-services-tablet-accessibility-2026-09-06.md",
+          "commit": "09c04b7ef8367fecf6a4bc75f6fc5cecb4810c86",
+          "state": "completed",
+          "result": "passed",
+          "label": "Services tablet:46odaklı/186ilgiliPASS,son16deltaPASS ayrı;538/551satır,analiz2/0format2/0. Effectiveheader/actionadları,modal48px/IMEtekNext/lightfocus; rootfinalsource+2PNG CLEAR. Mainbirleşti, CI108dahil değil. TamClientve yeniCI ayrı açık."
         }
       ],
       "completionCommit": null,
-      "reason": "Katalog, Jobs ve Backup/Vault/Archive modal tablet düzeltmeleri main ile birleşti. Sabit643cbdd:5150tamClientPASS/coverage,analiz0/971format0; gerçekfonttablet/source incelemesi temiz. Services sonraki bağımsız dalda; kendiCI ve bütünB5.1/fizikselTalkBack kabulü açık. Yayın960691c:Android108/Core34/Security108 başlatıldı; yeniCI/APK sonucu bekleniyor."
+      "reason": "CI108 exact960691c önceki katalog/Jobs/restore/route paketini doğruluyor. Sonraki Services09c04b7 main ile birleşti:46yeni/186ilgiliPASS,rootCLEAR. Login veadmin formundaki aynı IME çiftNext adayı ayrıdalda actualRED ile kontrol ediliyor. Bu ikiUIpaketi sonrası tek yeni tamClient;B5.1/fiziksel kabul açık."
     },
     {
       "id": "B5.2",

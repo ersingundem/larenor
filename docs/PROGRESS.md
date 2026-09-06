@@ -102,7 +102,12 @@ normal yazı boyutu,48px dokunma alanı ve Tab/ShiftTab/Enter için152 ilgili te
 [Android108](https://github.com/ersingundem/larenor/actions/runs/34019042417),
 [Core34](https://github.com/ersingundem/larenor/actions/runs/34019042355) ve
 [Security108](https://github.com/ersingundem/larenor/actions/runs/34019042181) çalışıyor;
-imzalı APK kabulü henüz yok. Services ekranı sonraki ayrı dalda.
+imzalı APK kabulü henüz yok.
+**[Sonraki Services tablet paketi](core-services-tablet-accessibility-2026-09-06.md) yerelde birleşti:**
+46 yeni/186 ilgili test geçti; tam bağlantı adları,48px alanlar, görünür klavye odağı ve
+IME “Sonraki” ile alan atlama düzeltildi. CI108 bu sonraki paketi içermez.
+Login ve yönetici formlarındaki aynı IME davranışı ayrı dar regresyonla inceleniyor;
+sonrasında bu değişiklikler tek yeni Client birleşim koşumunda doğrulanacak.
 Core tarafında [kalıcı volume oluşturma protokolü](managed-volume-create-implementation-2026-09-06.md)
 main ile birleşti:887 ilgili test geçti,7 Linux testi yerelde atlandı; iki bağımsız kaynak incelemesi temiz.
 [Aynı Server kaynak ağacında tek tam Core koşumu](managed-volume-full-core-verification-2026-09-06.md)
