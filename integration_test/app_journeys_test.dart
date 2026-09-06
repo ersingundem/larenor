@@ -26,6 +26,7 @@ import 'package:larenor/features/settings/data/screen_program_store.dart';
 import 'package:larenor/features/settings/domain/screen_program.dart';
 
 import 'support/app_harness.dart';
+import 'support/single_element_ready.dart';
 import 'support/synthetic_ha_server.dart';
 import 'support/synthetic_core_account.dart';
 import 'support/synthetic_core_resources.dart';
@@ -1295,14 +1296,14 @@ void main() {
         // backends and the loopback account remain the same. Not an OS restart.
         await app.mount(tester);
         await waitFor(tester, find.byType(CoreHomeStatusScreen));
-        await waitUntil(tester, () {
-          final container = ProviderScope.containerOf(
-            tester.element(find.byType(CoreHomeStatusScreen)),
-            listen: false,
-          );
-          final account = container.read(serverAccountControllerProvider);
-          return account.initialized && !account.working;
-        });
+        await waitUntil(
+          tester,
+          () => singleElementReady(find.byType(CoreHomeStatusScreen), (element) {
+            final container = ProviderScope.containerOf(element, listen: false);
+            final account = container.read(serverAccountControllerProvider);
+            return account.initialized && !account.working;
+          }),
+        );
         expect(await SecureServerSessionStore().read(), isNull);
         expect(
           find.text('Verify your Core account and home to continue.'),
