@@ -46,6 +46,11 @@ void main() {
           'Archive effective dialog target and painted label $language $width ${scale}x',
           (tester) async {
             await loadFonts(tester);
+            tester.platformDispatcher.platformBrightnessTestValue =
+                language == 'tr' ? Brightness.dark : Brightness.light;
+            addTearDown(
+              tester.platformDispatcher.clearPlatformBrightnessTestValue,
+            );
             final semantics = tester.ensureSemantics();
             try {
               final h = ArchiveHarness();
@@ -70,14 +75,17 @@ void main() {
                 labels: [l10n.commonCancel, l10n.coreLayoutArchiveReplace],
                 cancel: cancel,
               );
-              Focus.of(
-                tester.element(
-                  find
-                      .descendant(of: cancel, matching: find.byType(Text))
-                      .first,
-                ),
-              ).requestFocus();
-              await flush(tester);
+              await focusRestoreCancel(tester, cancel, flush);
+              if ((language == 'en' &&
+                      (width == 600 && scale == 1 ||
+                          width == 1280 && scale == 2)) ||
+                  (language == 'tr' && width == 600 && scale == 2)) {
+                await captureRestoreDialog(
+                  tester,
+                  h.boundary,
+                  'archive-$language-${width.toInt()}-${scale.toInt()}x',
+                );
+              }
               await tester.sendKeyEvent(LogicalKeyboardKey.enter);
               await flush(tester);
               expect(find.byType(CupertinoAlertDialog), findsNothing);

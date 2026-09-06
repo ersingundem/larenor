@@ -1,7 +1,9 @@
-import 'dart:ui' show SemanticsAction;
+import 'dart:io';
+import 'dart:ui' as ui;
 
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/rendering.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 /// Inspect effective platform nodes, excluding children merged into a parent.
@@ -15,7 +17,9 @@ List<String> restoreDialogGeometryFailures(
   final nodes = <SemanticsNode>[];
   final root = tester.getSemantics(cancel).owner!.rootSemanticsNode!;
   void visit(SemanticsNode node) {
-    if (!node.isMergedIntoParent) nodes.add(node);
+    if (!node.isMergedIntoParent) {
+      nodes.add(node);
+    }
     node.visitChildren((child) {
       visit(child);
       return true;
@@ -38,7 +42,7 @@ List<String> restoreDialogGeometryFailures(
     final node = matches.single;
     final data = node.getSemanticsData();
     if (!data.flagsCollection.isButton ||
-        !data.hasAction(SemanticsAction.tap)) {
+        !data.hasAction(ui.SemanticsAction.tap)) {
       failures.add('$label: missing button/tap semantics');
     }
     if (node.rect.width + 1e-9 < 48 || node.rect.height + 1e-9 < 48) {
@@ -51,10 +55,12 @@ List<String> restoreDialogGeometryFailures(
       .where(
         (n) =>
             n.getSemanticsData().flagsCollection.isButton &&
-            n.getSemanticsData().hasAction(SemanticsAction.tap),
+            n.getSemanticsData().hasAction(ui.SemanticsAction.tap),
       )
       .length;
-  if (taps != 2) failures.add('effective tap buttons: $taps, expected 2');
+  if (taps != 2) {
+    failures.add('effective tap buttons: $taps, expected 2');
+  }
   final paragraph = tester.renderObject<RenderParagraph>(
     find.descendant(of: cancel, matching: find.byType(Text)).first,
   );
@@ -69,4 +75,44 @@ List<String> restoreDialogGeometryFailures(
     );
   }
   return failures;
+}
+
+Future<void> focusRestoreCancel(
+  WidgetTester tester,
+  Finder cancel,
+  Future<void> Function(WidgetTester) flush,
+) async {
+  final text = find.descendant(of: cancel, matching: find.byType(Text)).first;
+  final node = Focus.of(tester.element(text));
+  node.requestFocus();
+  await flush(tester);
+  await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+  await flush(tester);
+  expect(node.hasPrimaryFocus, isFalse);
+  await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
+  await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+  await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
+  await flush(tester);
+  expect(node.hasPrimaryFocus, isTrue);
+}
+
+Future<void> captureRestoreDialog(
+  WidgetTester tester,
+  GlobalKey boundary,
+  String name,
+) async {
+  const output = String.fromEnvironment('RESTORE_DIALOG_PREVIEW_DIR');
+  if (output.isEmpty) return;
+  await tester.runAsync(() async {
+    final render =
+        boundary.currentContext!.findRenderObject()! as RenderRepaintBoundary;
+    final image = await render.toImage(pixelRatio: 1);
+    try {
+      final bytes = await image.toByteData(format: ui.ImageByteFormat.png);
+      await Directory(output).create(recursive: true);
+      await File('$output/$name.png').writeAsBytes(bytes!.buffer.asUint8List());
+    } finally {
+      image.dispose();
+    }
+  });
 }

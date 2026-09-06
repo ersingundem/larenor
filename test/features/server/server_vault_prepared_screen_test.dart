@@ -28,6 +28,7 @@ import '../../support/restore_dialog_geometry.dart';
 import 'server_vault_test_support.dart';
 
 class _Harness {
+  final boundary = GlobalKey();
   final api = VaultApi()
     ..value = ServerVault(
       revision: 7,
@@ -115,7 +116,10 @@ class _Harness {
               builder: (context, child) => MediaQuery(
                 data: MediaQuery.of(context)
                     .copyWith(textScaler: TextScaler.linear(scale)),
-                child: IdleGate(child: child!),
+                child: RepaintBoundary(
+                  key: boundary,
+                  child: IdleGate(child: child!),
+                ),
               ),
               home: Consumer(
                 builder: (context, ref, _) {
@@ -195,6 +199,11 @@ void main() {
           'Vault effective dialog target and painted label $language $width ${scale}x',
           (tester) async {
             await loadFonts(tester);
+            tester.platformDispatcher.platformBrightnessTestValue =
+                language == 'tr' ? Brightness.dark : Brightness.light;
+            addTearDown(
+              tester.platformDispatcher.clearPlatformBrightnessTestValue,
+            );
             final semantics = tester.ensureSemantics();
             try {
               final h = _Harness();
@@ -216,14 +225,17 @@ void main() {
                 labels: [l10n.commonCancel, l10n.backupApply],
                 cancel: cancel,
               );
-              Focus.of(
-                tester.element(
-                  find
-                      .descendant(of: cancel, matching: find.byType(Text))
-                      .first,
-                ),
-              ).requestFocus();
-              await flush(tester);
+              await focusRestoreCancel(tester, cancel, flush);
+              if ((language == 'en' &&
+                      (width == 600 && scale == 1 ||
+                          width == 1280 && scale == 2)) ||
+                  (language == 'tr' && width == 600 && scale == 2)) {
+                await captureRestoreDialog(
+                  tester,
+                  h.boundary,
+                  'vault-$language-${width.toInt()}-${scale.toInt()}x',
+                );
+              }
               await tester.sendKeyEvent(LogicalKeyboardKey.enter);
               await flush(tester);
               expect(find.byType(CupertinoAlertDialog), findsNothing);
