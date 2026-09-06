@@ -1396,9 +1396,9 @@
           "kind": "ci",
           "ref": "https://github.com/ersingundem/larenor/actions/runs/34016755111",
           "commit": "e7c15ad6f62352f77379e369f3e8524028c42aab",
-          "state": "in_progress",
-          "result": null,
-          "label": "Android106 exact e7c15ad:5056 tamFlutterPASS, analiz0/966format0 ve98JVM. E2E ve bağımsız imzalıAPK kabulü sürüyor; workflow henüz tamamlanmadı."
+          "state": "completed",
+          "result": "failed",
+          "label": "Android106 exact e7c15ad:5056FlutterPASS/analiz0/966format0/98JVM; E2E16PASS1FAIL/130faz, archive.cancel sonrasıfindsNothing assertionı. Timeout değil; signedSKIPPED/APK0. Sonimmutablemakbuz korunur."
         },
         {
           "kind": "ci",
@@ -1418,7 +1418,7 @@
         }
       ],
       "completionCommit": null,
-      "reason": "CI106 exact e7c15ad: Flutter5056PASS/analiz0/966format0, Core3311LinuxPASS/0skip ve Security207PASS; iki mimarili Core anonim doğrulandı. E2E ve bağımsız imzalı APK106 kabulü açık; önceki105 timeout kanıtı korunur."
+      "reason": "CI106 exact e7c15ad: Flutter5056/Core3311/98JVM/Security207 geçti; E2E16PASS1FAIL,130/133faz. Arşiv cancel sonrası dialog kaldırma assertionı başarısız; signedAPKskipped/transfer0. Dar actualUI geçiş regresyonu ayrı dalda hazırlanıyor; yeniCI kabulü açık."
     },
     {
       "id": "S08.6",
@@ -1663,9 +1663,9 @@
           "kind": "ci",
           "ref": "https://github.com/ersingundem/larenor/actions/runs/34016755111",
           "commit": "e7c15ad6f62352f77379e369f3e8524028c42aab",
-          "state": "in_progress",
-          "result": null,
-          "label": "Android106 exact e7c15ad:5056 tamFlutterPASS, analiz0/966format0 ve98JVM. E2E ve bağımsız imzalıAPK kabulü sürüyor; workflow henüz tamamlanmadı."
+          "state": "completed",
+          "result": "failed",
+          "label": "Android106 exact e7c15ad:5056FlutterPASS/analiz0/966format0/98JVM; E2E16PASS1FAIL/130faz, archive.cancel sonrasıfindsNothing assertionı. Timeout değil; signedSKIPPED/APK0. Sonimmutablemakbuz korunur."
         },
         {
           "kind": "ci",
@@ -1685,7 +1685,7 @@
         }
       ],
       "completionCommit": null,
-      "reason": "CI106 exact e7c15ad: Flutter5056PASS/analiz0/966format0, Core3311LinuxPASS/0skip ve Security207PASS; iki mimarili Core anonim doğrulandı. E2E ve bağımsız imzalı APK106 kabulü açık; önceki105 timeout kanıtı korunur."
+      "reason": "CI106 exact e7c15ad: Flutter5056/Core3311/98JVM/Security207 geçti; E2E16PASS1FAIL,130/133faz. Arşiv cancel sonrası dialog kaldırma assertionı başarısız; signedAPKskipped/transfer0. Dar actualUI geçiş regresyonu ayrı dalda hazırlanıyor; yeniCI kabulü açık."
     },
     {
       "id": "S08.7",

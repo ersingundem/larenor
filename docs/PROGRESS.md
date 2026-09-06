@@ -1,6 +1,6 @@
 # Larenor — güncel ilerleme ve iş kuyruğu
 
-**Son güncelleme: 6 Eylül 2026 — CI106 gönderildi, doğrulama sürüyor.**
+**Son güncelleme: 6 Eylül 2026 — CI106 sonuçlandı; Android E2E düzeltmesi sürüyor.**
 
 ```text
 Önceki kapsam       █████████████░░░░░░░  ≈ %65
@@ -69,14 +69,15 @@ anonim doğrulandı. [APK104, CI ve teslim kanıtı](client-delivery-104-2026-09
 | Çıkış / yeniden açılış onarımı | APK104 ve14 E2E ile doğrulandı |
 | S08.5 — hazırlanmış restore ve Core oda arşivi | Model, şifreleme, controller ve tablet ekranı birleşti; tam Client geçti, Android ve yayın CI bekliyor |
 | S08.6 — kişi ve izin yönetimi | Server ve tablet ekranları birleşti; üye ve yönetici/ACL Android senaryoları hazır, kendi CI kabulü açık |
-| Birleşim yayını CI106 | `e7c15ad` gönderildi; aynı uygulama/test ağacında yerel Client 5.056 PASS. Core 3.311 Linux PASS / 0 skip ve güvenlik207 geçti; Android ve kendi imzalı APK kabulü sürüyor |
+| Birleşim yayını CI106 | `e7c15ad`: Flutter5.056/Core3.311/güvenlik207 geçti; E2E16PASS/1FAIL. Arşivde iptal penceresi kontrolü için dar regresyon/düzeltme sürüyor; APK106 atlandı |
 | B5.1 — Core eklenti kataloğu | Yerelde birleşti: 5.088 tam Client PASS, analiz0 ve967dosya biçim farkı0; başlıklar, erişilebilir adlar ve görünür klavye odağı düzeltildi. Kendi yayın kapısı açık; CI106'ya dahil değil |
 
 **CI105 tamamlandı:17 E2E/133faz, Core3.311/0skip ve güvenlik207 geçti.**
 Flutter coverage işi15dk sınırında4.282kısmi ilerlemeyle durdu; imzalıAPK105
 atlanmış durumda. [Tam sonuç ve korunan hata kanıtı](client-delivery-105-2026-09-06.md).
 Dar25dk iş bütçesi onarımı207politika testi ve incelemeyi geçti.
-**CI106 GitHub'da çalışıyor:** [Android](https://github.com/ersingundem/larenor/actions/runs/34016755111),
+**CI106 sonuçlandı: Android E2E16 PASS/1 FAIL; imzalıAPK atlandı.** Flutter5.056, Core3.311 ve güvenlik207 geçti.
+Koşular: [Android](https://github.com/ersingundem/larenor/actions/runs/34016755111),
 [Core](https://github.com/ersingundem/larenor/actions/runs/34016755141),
 [güvenlik](https://github.com/ersingundem/larenor/actions/runs/34016754957).
 [Güncel paket ve sınırlar](client-delivery-106-2026-09-06.md).
