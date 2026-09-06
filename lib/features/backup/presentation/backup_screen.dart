@@ -2,6 +2,7 @@ import 'dart:ui' show ViewFocusEvent, ViewFocusState;
 import 'dart:typed_data';
 
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/app_interaction_scope.dart';
@@ -117,7 +118,9 @@ class _BackupScreenState extends ConsumerState<BackupScreen>
   void didChangeDependencies() {
     super.didChangeDependencies();
     _viewId=View.of(context).viewId;
-    TickerMode.valuesOf(context);
+    final ticking=TickerMode.valuesOf(context).enabled;
+    if(!ticking) {_generation++;_clearSecrets();}
+    _suspended=!_interactive || !ticking;
     final next = AppInteractionScope.maybeOf(context);
     if (identical(next, _interaction)) return;
     final hadScope = _interaction != null;
@@ -186,7 +189,12 @@ class _BackupScreenState extends ConsumerState<BackupScreen>
     _prepared?.retire();_prepared=null;
     final route = _applyConfirmation;
     _applyConfirmation = null;
-    if (route?.isActive == true) route!.navigator?.removeRoute(route);
+    if(route?.isActive==true) {
+      void remove() {if(route?.isActive==true) route!.navigator?.removeRoute(route);}
+      if(SchedulerBinding.instance.schedulerPhase==SchedulerPhase.persistentCallbacks) {
+        WidgetsBinding.instance.addPostFrameCallback((_)=>remove());
+      } else {remove();}
+    }
     _passphrase.clear();
     _confirmation.clear();
     _restorePassphrase.clear();
