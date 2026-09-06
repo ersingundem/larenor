@@ -1,5 +1,7 @@
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
+import '../../../../core/direct_home_access.dart';
+
 import '../../../health/data/integration_health.dart';
 import '../../../health/providers/health_providers.dart';
 
@@ -12,7 +14,7 @@ part 'jellyfin_providers.g.dart';
 
 @riverpod
 JellyfinCredentialsStore jellyfinCredentialsStore(Ref ref) =>
-    JellyfinCredentialsStore();
+    JellyfinCredentialsStore(access: ref.watch(directHomeAccessProvider));
 
 @riverpod
 class JellyfinConnection extends _$JellyfinConnection {
