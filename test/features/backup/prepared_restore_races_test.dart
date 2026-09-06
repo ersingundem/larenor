@@ -76,4 +76,28 @@ void main() {
     expect(storage.writes.where((key)=>key=='secret:$journalKey'),hasLength(1));
   });
 
+  for(final phase in ['applying','committed']) {
+    test('recovery $phase final validation preserves late drift and intent', () async {
+      final initial=_Storage();
+      await fixtures.apply(await fixtures.prepare(BackupRepository(storage:initial),fixtures.TestRestoreAccess(),fixtures.restoreFixture({'appearance':'light','keep_screen_on':true})));
+      final image=initial.durableImages.firstWhere((i)=>i.preferences['keep_screen_on']==true && i.secrets[journalKey]!=null && (jsonDecode(i.secrets[journalKey]!) as Map)['phase']==phase);
+      final storage=_Storage();storage.preferences..clear()..addAll(image.preferences);storage.secrets.addAll(image.secrets);
+      if(phase=='committed') {
+        storage.afterRead=(key) {if(key=='keep_screen_on') {storage.afterRead=null;storage.preferences['appearance']='system';}};
+      } else {
+        storage.afterWrite=(key) {if(key=='appearance') storage.preferences['keep_screen_on']='foreign-platform-value';};
+      }
+      await expectLater(BackupRepository(storage:storage).recoverPendingRestore(),throwsA(isA<BackupException>()));
+      expect(storage.secrets[journalKey],image.secrets[journalKey]);
+      expect(storage.preferences[phase=='committed' ? 'appearance':'keep_screen_on'],phase=='committed' ? 'system':'foreign-platform-value');
+    });
+  }
+  test('identical payloads still produce distinct private transaction identities', () async {
+    Future<String> intent()async {
+      final storage=_Storage();await fixtures.apply(await fixtures.prepare(BackupRepository(storage:storage),fixtures.TestRestoreAccess()));
+      return storage.durableImages.firstWhere((i)=>i.secrets[journalKey]!=null).secrets[journalKey]!;
+    }
+    expect(await intent(),isNot(await intent()));
+  });
+
 }
