@@ -7,6 +7,11 @@ import '../data/jellyfin_discovery.dart';
 import '../providers/jellyfin_providers.dart';
 import '../../../../shared/widgets/settings_section.dart';
 
+// Internal dependency seam; production still uses the existing UDP discovery.
+final jellyfinDiscoveryFactoryProvider = Provider<JellyfinDiscoveryService Function()>(
+  (ref) => JellyfinDiscoveryService.new,
+);
+
 class JellyfinConnectScreen extends ConsumerStatefulWidget {
   const JellyfinConnectScreen({super.key});
 
@@ -25,7 +30,7 @@ class _JellyfinConnectScreenState extends ConsumerState<JellyfinConnectScreen> {
   bool _connecting = false;
   String? _error;
 
-  final _discovery = JellyfinDiscoveryService();
+  late final _discovery = ref.read(jellyfinDiscoveryFactoryProvider)();
   List<DiscoveredJellyfinServer> _discovered = [];
   bool _scanning = true;
 

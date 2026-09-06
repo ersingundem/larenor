@@ -15,6 +15,9 @@ class DiscoveredJellyfinServer {
 /// `{"Address": "http://host:port", "Id": "...", "Name": "..."}` —
 /// see https://jellyfin.org/docs/general/networking/#udp-based-discovery.
 class JellyfinDiscoveryService {
+  JellyfinDiscoveryService({Future<RawDatagramSocket> Function()? bind})
+    : _bind = bind ?? (() => RawDatagramSocket.bind(InternetAddress.anyIPv4, 0));
+  final Future<RawDatagramSocket> Function() _bind;
   static const _port = 7359;
   static const _probeMessage = 'Who is JellyfinServer?';
 
@@ -25,8 +28,8 @@ class JellyfinDiscoveryService {
 
   Stream<List<DiscoveredJellyfinServer>> get servers => _controller.stream;
 
-  Future<void> start() async {
-    final socket = await RawDatagramSocket.bind(InternetAddress.anyIPv4, 0);
+  Future<void> start({bool Function()? isCurrent}) async {
+    final socket = await _bind();
     _socket = socket;
     socket.broadcastEnabled = true;
 
