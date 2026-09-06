@@ -1914,5 +1914,7 @@
   "homeResourcesResource": "Kaynak",
   "homeResourcesLoadMore": "Daha fazla yükle",
   "arrConnectionIncomplete": "Kayıtlı bağlantı tamamlanamadı. Adres ve API anahtarını yeniden girin veya kayıtlı bağlantıyı kaldırın.",
-  "arrRemoveConnection": "Kayıtlı bağlantıyı kaldır"
+  "arrRemoveConnection": "Kayıtlı bağlantıyı kaldır",
+  "proxmoxConnectionIncomplete": "Bu bağlantı tamamlanmadı. Sunucu, port, realm, kullanıcı adı ve parolayı yeniden girip sertifika tercihini gözden geçirin veya kayıtlı bağlantıyı kaldırın.",
+  "proxmoxRemoveConnection": "Kayıtlı bağlantıyı kaldır"
 }

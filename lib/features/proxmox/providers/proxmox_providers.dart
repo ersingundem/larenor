@@ -1,7 +1,7 @@
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart' show Provider;
 
-import '../../../core/configuration_writes.dart';
+import '../../../core/direct_home_access.dart';
 import '../../health/data/health_monitor.dart';
 import '../../health/data/integration_health.dart';
 import '../../health/providers/health_providers.dart';
@@ -44,19 +44,52 @@ final proxmoxHealthSessionProvider = Provider.autoDispose<HealthSession>((ref) {
 
 @riverpod
 ProxmoxCredentialsStore proxmoxCredentialsStore(Ref ref) =>
-    ProxmoxCredentialsStore();
+    ProxmoxCredentialsStore(access: ref.watch(directHomeAccessProvider));
 
 @riverpod
 class ProxmoxConnection extends _$ProxmoxConnection {
+  late final DirectHomeAccess _access = ref.read(directHomeAccessProvider);
   int _generation = 0;
   ProxmoxClient? _verificationClient;
+  bool Function()? _verificationOwner;
+  int? _verificationGeneration;
+
+  void _check([int? generation]) {
+    if (!ref.mounted) throw const DirectHomeAccessException('unavailable');
+    _access.check();
+    if (generation != null && generation != _generation) {
+      throw const DirectHomeAccessException('unavailable');
+    }
+  }
+
+  void _closeCheck() {
+    _verificationClient?.dispose();
+    _verificationClient = null;
+    _verificationOwner = null;
+    _verificationGeneration = null;
+  }
+
+  /// Only the owner of this verification may close its transport. Normal
+  /// readers and a newer sign-in are independent; no storage or retry occurs.
+  void cancelSignIn(bool Function() owner) {
+    if (identical(owner, _verificationOwner) &&
+        _verificationGeneration == _generation) {
+      _verificationClient?.dispose();
+    }
+  }
+
   @override
-  Future<ProxmoxConfig?> build() {
+  Future<ProxmoxConfig?> build() async {
+    ref.watch(directHomeAccessProvider);
+    final generation = ++_generation;
     ref.onDispose(() {
       _generation++;
-      _verificationClient?.dispose();
+      _closeCheck();
     });
-    return ref.watch(proxmoxCredentialsStoreProvider).read();
+    _check(generation);
+    final value = await ref.watch(proxmoxCredentialsStoreProvider).read();
+    _check(generation);
+    return value;
   }
 
   Future<void> signIn({
@@ -66,13 +99,39 @@ class ProxmoxConnection extends _$ProxmoxConnection {
     required String realm,
     required String password,
     required bool allowSelfSigned,
+    bool Function()? isCurrent,
   }) async {
-    final previous = state.value;
+    void checkAction() {
+      try {
+        if (isCurrent == null || isCurrent()) return;
+      } catch (_) {}
+      throw const DirectHomeAccessException('unavailable');
+    }
+
+    _check();
+    checkAction();
+    final previous = state;
     final generation = ++_generation;
-    _verificationClient?.dispose();
-    state = const AsyncLoading();
+    final store = ref.read(proxmoxCredentialsStoreProvider);
+    final factory = ref.read(proxmoxClientFactoryProvider);
+    _closeCheck();
+    // Empty/pending setup owns its form while verifying. An existing reader
+    // still retires before replacement, so retained config cannot authenticate.
+    if (!previous.isLoading && !previous.hasError && previous.value != null) {
+      state = const AsyncLoading();
+    }
+    bool current() =>
+        ref.mounted && _access.isCurrent && generation == _generation;
+    bool actionCurrent() {
+      if (!current()) return false;
+      try {
+        return isCurrent == null || isCurrent();
+      } catch (_) {
+        return false;
+      }
+    }
+
     ProxmoxClient? client;
-    bool current() => ref.mounted && generation == _generation;
     try {
       final config = ProxmoxConfig(
         host: host,
@@ -82,52 +141,100 @@ class ProxmoxConnection extends _$ProxmoxConnection {
         password: password,
         allowSelfSigned: allowSelfSigned,
       );
-      client = ref.read(proxmoxClientFactoryProvider)(config, null);
+      client = factory(config, null);
       _verificationClient = client;
+      _verificationOwner = isCurrent;
+      _verificationGeneration = generation;
       await client.login();
-      if (!current()) return;
+      _check(generation);
+      checkAction();
       await client.getNodes();
-      await ConfigurationWrites.run(() async {
-        if (!current()) return;
-        await ref
-            .read(proxmoxCredentialsStoreProvider)
-            .save(
-              host: host,
-              port: port,
-              username: username,
-              realm: realm,
-              password: password,
-              allowSelfSigned: allowSelfSigned,
-            );
-        if (current()) state = AsyncData(config);
-      });
-    } catch (_) {
-      if (current()) state = AsyncData(previous);
+      _check(generation);
+      checkAction();
+      await store.save(
+        host: host,
+        port: port,
+        username: username,
+        realm: realm,
+        password: password,
+        allowSelfSigned: allowSelfSigned,
+        isCurrent: actionCurrent,
+      );
+      _check(generation);
+      checkAction();
+      state = AsyncData(config);
+    } catch (error) {
+      _check(generation);
+      try {
+        checkAction();
+      } on DirectHomeAccessException catch (expired) {
+        state = AsyncError(expired, StackTrace.empty);
+        rethrow;
+      }
+      if (error is DirectHomeAccessException) {
+        state = AsyncError(error, StackTrace.empty);
+        rethrow;
+      }
+      if (current()) {
+        state = previous.isLoading
+            ? AsyncError(
+                const DirectHomeAccessException('unavailable'),
+                StackTrace.empty,
+              )
+            : previous;
+      }
       throw ProxmoxApiException(
         'Could not sign in — check host/port and credentials.',
       );
     } finally {
       client?.dispose();
-      if (identical(client, _verificationClient)) _verificationClient = null;
+      if (identical(client, _verificationClient)) {
+        _verificationClient = null;
+        _verificationOwner = null;
+        _verificationGeneration = null;
+      }
     }
   }
 
-  Future<void> signOut() async {
-    final generation = ++_generation;
-    _verificationClient?.dispose();
-    state = const AsyncLoading();
-    await ConfigurationWrites.run(() async {
-      if (!ref.mounted || generation != _generation) return;
-      await ref.read(proxmoxCredentialsStoreProvider).clear();
-      if (ref.mounted && generation == _generation) {
-        state = const AsyncData(null);
+  Future<void> signOut({bool Function()? isCurrent}) async {
+    bool actionCurrent(int generation) {
+      if (!ref.mounted || !_access.isCurrent || generation != _generation)
+        return false;
+      try {
+        return isCurrent == null || isCurrent();
+      } catch (_) {
+        return false;
       }
-    });
+    }
+
+    _check();
+    if (!actionCurrent(_generation))
+      throw const DirectHomeAccessException('unavailable');
+    final generation = ++_generation;
+    final store = ref.read(proxmoxCredentialsStoreProvider);
+    _closeCheck();
+    state = const AsyncLoading();
+    try {
+      await store.clear(isCurrent: () => actionCurrent(generation));
+      _check(generation);
+      if (!actionCurrent(generation))
+        throw const DirectHomeAccessException('unavailable');
+      state = const AsyncData(null);
+    } catch (_) {
+      _check(generation);
+      state = AsyncError(
+        const DirectHomeAccessException('write_unconfirmed'),
+        StackTrace.empty,
+      );
+      rethrow;
+    }
   }
 }
 
 @Riverpod(retry: _noRetry)
 Future<ProxmoxClient?> proxmoxClient(Ref ref) async {
+  final access = ref.watch(directHomeAccessProvider);
+  access.check();
   final connection = ref.watch(proxmoxConnectionProvider);
   final config = connection.isLoading || connection.hasError
       ? null
@@ -138,6 +245,7 @@ Future<ProxmoxClient?> proxmoxClient(Ref ref) async {
   ref.onDispose(client.dispose);
   try {
     await client.login();
+    access.check();
     if (!ref.mounted) {
       client.dispose();
       return null;

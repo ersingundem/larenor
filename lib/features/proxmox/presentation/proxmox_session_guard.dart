@@ -2,6 +2,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/app_interaction_scope.dart';
+import '../../../core/direct_home_access.dart';
 import '../../health/data/health_configuration.dart';
 import '../data/proxmox_client.dart';
 import '../data/proxmox_config.dart';
@@ -12,6 +13,8 @@ import '../providers/proxmox_providers.dart';
 /// configuration reloads. It never follows a new account into an old route.
 bool Function()? captureProxmoxRouteSource(WidgetRef ref) {
   if (!ref.context.mounted) return null;
+  final access = ref.read(directHomeAccessProvider);
+  if (!access.isCurrent) return null;
   final container = ProviderScope.containerOf(ref.context, listen: false);
   final value = ref.read(proxmoxConnectionProvider);
   final source = value.isLoading || value.hasError ? null : value.value;
@@ -20,6 +23,7 @@ bool Function()? captureProxmoxRouteSource(WidgetRef ref) {
     // The source row can legitimately unmount when its covered route releases
     // polling demand. Scope identity belongs to the container, not that row.
     try {
+      if (!access.isCurrent) return false;
       final current = container.read(proxmoxConnectionProvider);
       return !current.isLoading &&
           !current.hasError &&

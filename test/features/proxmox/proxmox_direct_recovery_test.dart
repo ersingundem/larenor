@@ -9,6 +9,7 @@ import 'package:flutter_secure_storage_platform_interface/flutter_secure_storage
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:larenor/core/app_interaction_scope.dart';
+import 'package:larenor/core/direct_home_access.dart';
 import 'package:larenor/core/home_source_store.dart';
 import 'package:larenor/features/proxmox/data/proxmox_client.dart';
 import 'package:larenor/features/proxmox/presentation/proxmox_connect_screen.dart';
@@ -118,6 +119,8 @@ class SourceCapture extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     ref.watch(proxmoxConnectionProvider);
+    // The overridden connection omits production's source subscription.
+    ref.watch(directHomeAccessProvider);
     capture(captureProxmoxRouteSource(ref));
     return const SizedBox();
   }

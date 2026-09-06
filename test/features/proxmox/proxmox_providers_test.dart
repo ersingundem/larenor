@@ -28,7 +28,7 @@ class MemoryStore extends ProxmoxCredentialsStore {
   @override
   Future<ProxmoxConfig?> read() async => saved;
   @override
-  Future<void> clear() async {
+  Future<void> clear({bool Function()? isCurrent}) async {
     saved = null;
   }
 
@@ -40,6 +40,7 @@ class MemoryStore extends ProxmoxCredentialsStore {
     required String realm,
     required String password,
     required bool allowSelfSigned,
+    bool Function()? isCurrent,
   }) async {
     saves++;
     saved = ProxmoxConfig(

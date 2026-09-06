@@ -2235,5 +2235,7 @@
   "homeResourcesResource": "Resource",
   "homeResourcesLoadMore": "Load more",
   "arrConnectionIncomplete": "The saved connection is incomplete. Enter the complete address and API key again, or remove the saved connection.",
-  "arrRemoveConnection": "Remove saved connection"
+  "arrRemoveConnection": "Remove saved connection",
+  "proxmoxConnectionIncomplete": "This connection is incomplete. Enter the host, port, realm, username and password again, and review the certificate setting, or remove the saved connection.",
+  "proxmoxRemoveConnection": "Remove saved connection"
 }
