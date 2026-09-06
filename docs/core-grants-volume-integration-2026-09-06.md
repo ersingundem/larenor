@@ -62,3 +62,13 @@ henüz yok. S08.6/S06.3d sayaçları bu alt dilimler nedeniyle kapatılmaz.
 - [Dokuzuncu Android yolculuğu](core-resource-grants-android-journey-2026-09-06.md)
 - [Volume journal kanıtı](managed-volume-journal-implementation-2026-09-06.md)
 - [Önceki birleşim](core-client-integration-2026-09-06.md)
+
+## Exact-source CI takibi
+
+`a27abeaa55a2ea94a0a0eaec1b9a74743c086a9c` main'e gönderildi.
+[Android101](https://github.com/ersingundem/larenor/actions/runs/34005590269),
+[Core](https://github.com/ersingundem/larenor/actions/runs/34005590288) ve
+[güvenlik](https://github.com/ersingundem/larenor/actions/runs/34005590189)
+ilk denemede çalışıyor. Hedef13 E2E/89faz; bu kayıt başarı veya imzalı APK
+kabulü değildir. Gönderim öncesi29 commit'te redakte secret taraması temiz.
+Volume Unix reader ve S08.5 logout/restore bu kaynağa dahil değil.
