@@ -1,6 +1,6 @@
 # Larenor — güncel ilerleme ve iş kuyruğu
 
-**Son güncelleme: 6 Eylül 2026, 03:55 (Türkiye saati).**
+**Son güncelleme: 6 Eylül 2026, 04:14 (Türkiye saati).**
 
 ```text
 Önceki kapsam       █████████████░░░░░░░  ≈ %65
@@ -56,17 +56,23 @@ ile kabul edildi. **S08.3** ev runtime sınırı da `4b98680` tam CI ve APK 94
 ile kabul edildi. Bu işler yeni 63 özelliğin kabul sayısı değildir; o sayaç **0/63**. Ana S06
 sayacı **2/6** kalır; dizin, kurulum ve gerçek Engine kabulü açıktır.
 
-**Yeni paket `4bc79dc` GitHub'a gönderildi; kendi CI kabulü sürüyor.**
-Güvenlik workflow'u başarılı. Android workflow'undaki Core test işi
-**2.951 PASS** verdi; tam Android, bağımsız Core image yayını ve imzalı APK
-doğrulaması henüz tamamlanmadı.
+**Son tam doğrulanmış yayın `4bc79dc` / APK 99.** Üç CI başarılı:
+Core **2.951 PASS**, güvenlik **207 PASS**, Flutter **3.941 PASS**, JVM
+**98 PASS**, **4 native + 7 uygulama = 11 E2E PASS**. Analiz sıfır bulgu,
+860 dosyada sıfır biçim farkı. 65 E2E fazı sıralı tamamlandı.
 [Android](https://github.com/ersingundem/larenor/actions/runs/34002121963) ·
 [Core](https://github.com/ersingundem/larenor/actions/runs/34002121806) ·
 [Güvenlik](https://github.com/ersingundem/larenor/actions/runs/34002121729).
-Sonraki değişiklikler ayrı dallarda hazırlanır; önceki APK'nın kanıtı yeni
-paket için kullanılmaz.
+[İmzalı APK 99](https://github.com/ersingundem/larenor/actions/runs/34002121963/artifacts/9980085515)
+tek tam indirme sonrası Java 17 + sabit apksig ile ayrıca doğrulandı:
+kalıcı sertifika, kaynak commit, paket `com.ersingundem.larenor`, sürüm kodu
+`100000099`, minSdk 26 ve `debuggable=false` eşleşti. APK SHA-256:
+`099476a93aa3492c8c4aae283be8868d3c536f448ddcfecdab9c9b980a93b396`.
+İki mimarili Core yayını anonim doğrulandı. Ev Core'una yayın ve cihaz
+kurulumu yapılmadı. [Teslim kanıtı](client-delivery-99-2026-09-06.md).
+Sonraki yerel paketler için yeni birleşik test ve CI ayrıca gerekir.
 
-**Son tam doğrulanmış yayın `a2658ec` / APK 98.** Linux Server **2.919 PASS**,
+**Önceki tam doğrulanmış yayın `a2658ec` / APK 98.** Linux Server **2.919 PASS**,
 güvenlik **207 PASS**, Flutter **3.422 PASS**, JVM **98 PASS**, temiz analiz,
 845 dosyada sıfır biçim farkı ve **dört native + yedi uygulama = 11 E2E PASS**.
 Eski scoped-layout fixture düzeltmesi gerçek Android akışını geçti. Üç workflow
@@ -104,8 +110,10 @@ entegrasyon API'lerinin veya fiziksel cihazların kabulü değildir.
 ekranı; Core yönetici kayıt ekranı; medya depolamasının sahiplik gözlemi.
 Core metadata mutasyon API'si `8e00548` yerel dalında **87 odaklı / 656 ilgili
 Client ve 40 Server testi**, temiz analiz ve bağımsız inceleme ile doğrulandı.
-Bu API henüz UI'ye bağlı değildir; PIN korumalı oluşturma, ad/sıra değiştirme
-ve kayıt silme akışı şimdi ekleniyor. ACL editörü ve gerçek cihaz komutları
+Bu API'nin PIN korumalı oluşturma, ad/sıra değiştirme ve kayıt silme UI'si
+`68e77b8` yerel diliminde **431 ilgili test**, temiz analiz, 12 tablet/DeX
+boyut-tema-dil kontrolü ve bağımsız inceleme ile geçti. Yeni Android E2E
+yolculuğu ekleniyor; bu UI henüz APK 99'da değildir. ACL editörü ve gerçek cihaz komutları
 ayrı açık işlerdir. Kuyrukta kabul sayısı bu alt dilimler için artırılmadı.
 
 **S06.3d depolama alternatifi:** Core'a ait yönetilen volume önerisi saf plan

@@ -1065,9 +1065,9 @@
           "kind": "ci",
           "ref": "https://github.com/ersingundem/larenor/actions/runs/34002121963",
           "commit": "4bc79dcc66eb9e3ce2a5044bd240db2fafd0d695",
-          "state": "in_progress",
-          "result": null,
-          "label": "Yeni birleşik Android99 CI devam ediyor; önceki bağımsız APK98 kabulü bu sürüm için kullanılamaz."
+          "state": "completed",
+          "result": "passed",
+          "label": "Android99:3941Flutter/98JVM/11E2E; Core2951 ve Security207 PASS. Tek tam indirmeyle Java17/apksig bağımsız APK99 doğrulandı. Kaynak4bc79dc; sonraki yerel pilotlar dahil değil."
         },
         {
           "kind": "test",
@@ -1087,7 +1087,7 @@
         }
       ],
       "completionCommit": null,
-      "reason": "4bc79dc birleşimi main/origin üzerinde: kişisel veri, yedi API-key belirsiz kayıt düzeltmesi, qBittorrent, Jellyfin ve Proxmox yerel test/incelemeyle gönderildi. Exact CI sürüyor; Android workflow Core işi 2951 PASS, güvenlik başarılı. Son tam bağımsız teslim APK98/a2658ec. WebviewTile0a742a9 ayrı dalda79 ilgili test+inceleme ile geçti; Keenetic pilot ve operational-actions açık. Bütün S08.4 ve typed ağcache S08.7–9 açık."
+      "reason": "4bc79dc/APK99 kendi üç CI ve bağımsız imza kontrolüyle doğrulandı:3941Flutter/98JVM/11E2E/2951Core. WebviewTile0a742a9 ve Keenetic bağlantı pilotudc87062 sonraki yerel birleşimde. Keenetic operational-actions son testte. Bütün S08.4 ve typed ağcache S08.7–9 açık."
     },
     {
       "id": "S08.5",

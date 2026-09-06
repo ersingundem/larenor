@@ -48,9 +48,12 @@ Son tam analiz **0 bulgu**, tüm ağaçta formatter **860 dosya / 0 değişiklik
 Secret taraması **61 commit / sıfır bulgu**; belge tesliminde son aralık da
 kontrol edilir. Kuyruk doğrulaması ve **24 araç testi** geçti.
 
-Yeni birleşimi içeren Android/Linux CI ve bağımsız imzalı APK doğrulaması
-henüz ayrı kapılardır. Önceki **a2658ec / Android 98** için 3422 Flutter,
-11 E2E ve bağımsız APK kontrolü, bu tablodaki yeni kodun kanıtı sayılmaz.
+Bu birleşimi içeren **4bc79dc / Android 99** kendi CI kabulünü aldı:
+3.941 Flutter, 98 JVM, 11 E2E, 2.951 Linux Server testi ve 207 güvenlik araç
+testi geçti. İmzalı APK ayrıca tek indirmeyle bağımsız doğrulandı.
+[Teslim kanıtı](client-delivery-99-2026-09-06.md) bu tam kaynağa bağlıdır;
+sonraki yerel pilotlar için kullanılmaz. Önceki **a2658ec / Android 98**
+kanıtı ayrı tarihsel kayıt olarak korunur.
 
 ## Ayrıntılı kayıtlar
 
