@@ -471,8 +471,9 @@ void main() {
               requests++;
               if (request.url.path.endsWith(
                 phase == 'ticket' ? '/access/ticket' : '/nodes',
-              ))
+              )) {
                 active = false;
+              }
               return request.url.path.endsWith('/access/ticket')
                   ? authResponse()
                   : dataResponse([]);
@@ -611,8 +612,9 @@ void main() {
     messenger.setMockMethodCallHandler(proxmoxStorageChannel, (call) async {
       final result = await secure.handle(call);
       if (call.method == 'delete' &&
-          (call.arguments as Map)['key'] == 'proxmox_host')
+          (call.arguments as Map)['key'] == 'proxmox_host') {
         active = false;
+      }
       return result;
     });
     await expectLater(

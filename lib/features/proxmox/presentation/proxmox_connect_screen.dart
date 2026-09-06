@@ -1,3 +1,5 @@
+import 'dart:ui' show ViewFocusEvent, ViewFocusState;
+
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -23,8 +25,8 @@ class ProxmoxConnectScreen extends ConsumerStatefulWidget {
       _ProxmoxConnectScreenState();
 }
 
-class _ProxmoxConnectScreenState
-    extends MediaSessionState<ProxmoxConnectScreen> {
+class _ProxmoxConnectScreenState extends MediaSessionState<ProxmoxConnectScreen>
+    with WidgetsBindingObserver {
   final _hostController = TextEditingController();
   late final _portController = TextEditingController(
     text: widget.recovery ? '' : '8006',
@@ -46,10 +48,13 @@ class _ProxmoxConnectScreenState
   late bool _recovery = widget.recovery;
   String? _error;
   bool _expectOwnLoading = false;
+  int? _viewId;
+  bool _focused = true;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     ref.listenManual(proxmoxConnectionProvider, (previous, next) {
       if (!next.isLoading || previous?.isLoading == true) return;
       // signIn retires a confirmed reader synchronously before its first await.
@@ -70,6 +75,7 @@ class _ProxmoxConnectScreenState
 
   bool _current(int generation) =>
       sessionCurrent(generation) &&
+      _focused &&
       _access.isCurrent &&
       TickerMode.valuesOf(context).enabled &&
       (ModalRoute.of(context)?.isCurrent ?? true);
@@ -77,6 +83,12 @@ class _ProxmoxConnectScreenState
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
+    final viewId = View.of(context).viewId;
+    if (_viewId != null && _viewId != viewId) {
+      sessionGeneration++;
+      clearPendingInteraction();
+    }
+    _viewId = viewId;
     final visible =
         TickerMode.valuesOf(context).enabled &&
         (ModalRoute.of(context)?.isCurrent ?? true);
@@ -85,6 +97,20 @@ class _ProxmoxConnectScreenState
       clearPendingInteraction();
     }
     _visible = visible;
+  }
+
+  @override
+  void didChangeViewFocus(ViewFocusEvent event) {
+    if (!mounted || event.viewId != _viewId) return;
+    final focused = event.state == ViewFocusState.focused;
+    if (_focused == focused) return;
+    setState(() {
+      _focused = focused;
+      if (!focused) {
+        sessionGeneration++;
+        clearPendingInteraction();
+      }
+    });
   }
 
   void _clearFields() {
@@ -109,6 +135,7 @@ class _ProxmoxConnectScreenState
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     clearPendingInteraction();
     _hostController.dispose();
     _portController.dispose();
@@ -192,10 +219,11 @@ class _ProxmoxConnectScreenState
         Navigator.of(context).pop();
       }
     } catch (_) {
-      if (current())
+      if (current()) {
         setState(
           () => _error = AppLocalizations.of(context).mediaErrorUnreachable,
         );
+      }
     } finally {
       _expectOwnLoading = false;
       if (identical(_operationOwner, current)) _operationOwner = null;
@@ -213,16 +241,18 @@ class _ProxmoxConnectScreenState
     });
     try {
       await store.clear(isCurrent: current);
-      if (current())
+      if (current()) {
         setState(() {
           _clearFields();
           _cleared = true;
         });
+      }
     } catch (_) {
-      if (current())
+      if (current()) {
         setState(
           () => _error = AppLocalizations.of(context).mediaErrorUnreachable,
         );
+      }
     } finally {
       if (current()) setState(() => _connecting = false);
     }
@@ -237,10 +267,11 @@ class _ProxmoxConnectScreenState
   Widget build(BuildContext context) {
     ref.watch(directHomeAccessProvider);
     final l10n = AppLocalizations.of(context);
-    if (!_access.isCurrent)
+    if (!_access.isCurrent) {
       return CupertinoPageScaffold(
         child: Center(child: Text(l10n.mediaErrorUnreachable)),
       );
+    }
     final reading = ref.watch(proxmoxConnectionProvider);
     final error = reading.error;
     if (!_recovery &&
@@ -249,14 +280,16 @@ class _ProxmoxConnectScreenState
       _recovery = true;
       _clearFields();
     }
-    if (reading.isLoading && !_connecting)
+    if (reading.isLoading && !_connecting) {
       return const CupertinoPageScaffold(
         child: Center(child: CupertinoActivityIndicator()),
       );
-    if (reading.hasError && !_recovery)
+    }
+    if (reading.hasError && !_recovery) {
       return CupertinoPageScaffold(
         child: Center(child: Text(l10n.mediaErrorUnreachable)),
       );
+    }
     final generation = sessionGeneration;
     final active = _current(generation);
     final connection = ref.read(proxmoxConnectionProvider.notifier);
@@ -328,8 +361,9 @@ class _ProxmoxConnectScreenState
                         value: _allowSelfSigned,
                         onChanged: active && !_connecting
                             ? (value) {
-                                if (_current(generation))
+                                if (_current(generation)) {
                                   setState(() => _allowSelfSigned = value);
+                                }
                               }
                             : null,
                       ),

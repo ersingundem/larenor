@@ -1,3 +1,5 @@
+import 'dart:ui' show ViewFocusEvent, ViewFocusState;
+
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -21,17 +23,31 @@ class ProxmoxNodesScreen extends ConsumerStatefulWidget {
   ConsumerState<ProxmoxNodesScreen> createState() => _ProxmoxNodesScreenState();
 }
 
-class _ProxmoxNodesScreenState extends MediaSessionState<ProxmoxNodesScreen> {
+class _ProxmoxNodesScreenState extends MediaSessionState<ProxmoxNodesScreen>
+    with WidgetsBindingObserver {
   late final DirectHomeAccess _access = ref.read(directHomeAccessProvider);
   bool _visible = true;
+  int? _viewId;
+  bool _focused = true;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
   bool _current(int generation) =>
       sessionCurrent(generation) &&
+      _focused &&
       _access.isCurrent &&
       TickerMode.valuesOf(context).enabled &&
       (ModalRoute.of(context)?.isCurrent ?? true);
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
+    final viewId = View.of(context).viewId;
+    if (_viewId != null && _viewId != viewId) sessionGeneration++;
+    _viewId = viewId;
     final visible =
         TickerMode.valuesOf(context).enabled &&
         (ModalRoute.of(context)?.isCurrent ?? true);
@@ -40,13 +56,31 @@ class _ProxmoxNodesScreenState extends MediaSessionState<ProxmoxNodesScreen> {
   }
 
   @override
+  void didChangeViewFocus(ViewFocusEvent event) {
+    if (!mounted || event.viewId != _viewId) return;
+    final focused = event.state == ViewFocusState.focused;
+    if (_focused == focused) return;
+    setState(() {
+      _focused = focused;
+      if (!focused) sessionGeneration++;
+    });
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     ref.watch(directHomeAccessProvider);
     final connectionAsync = ref.watch(proxmoxConnectionProvider);
     if (!_access.isCurrent ||
         !foreground ||
-        !TickerMode.valuesOf(context).enabled)
+        !TickerMode.valuesOf(context).enabled) {
       return const SizedBox.shrink();
+    }
     final generation = sessionGeneration;
     final error = connectionAsync.error;
     final recovery =
@@ -98,8 +132,9 @@ class _NodesList extends ConsumerWidget {
       leading: CupertinoButton(
         padding: EdgeInsets.zero,
         onPressed: () {
-          if (context.mounted && current())
+          if (context.mounted && current()) {
             ref.invalidate(proxmoxNodesProvider);
+          }
         },
         child: const Icon(CupertinoIcons.refresh),
       ),

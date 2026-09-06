@@ -335,8 +335,9 @@ void main() {
           await tester.pumpWidget(const SizedBox());
         }
         await frames(tester);
-        if (find.byType(CupertinoTextFormFieldRow).evaluate().length == 5)
+        if (find.byType(CupertinoTextFormFieldRow).evaluate().length == 5) {
           await fill(tester);
+        }
         secure.calls.clear();
         held();
         await frames(tester);
@@ -375,7 +376,7 @@ void main() {
       await frames(tester);
       await c
           .read(proxmoxConnectionProvider.future)
-          .catchError((Object_) => null);
+          .catchError((Object _) => null);
       expect(held(), isFalse);
       await finish(tester, c);
     },
@@ -390,8 +391,10 @@ void main() {
         addTearDown(interaction.dispose);
         messenger.setMockMethodCallHandler(proxmoxStorageChannel, (call) async {
           final result = await secure.handle(call);
-          if (call.method == 'write' && (call.arguments as Map)['key'] == field)
+          if (call.method == 'write' &&
+              (call.arguments as Map)['key'] == field) {
             interaction.setActive(false);
+          }
           return result;
         });
         await mount(tester, c, interaction);
@@ -448,12 +451,13 @@ void main() {
           await click(tester, 'Connect');
           expect(requests, phase == 'ticket' ? 1 : 2);
           if (reason == 'window') interaction.setActive(false);
-          if (reason == 'background')
+          if (reason == 'background') {
             tester.binding.handleAppLifecycleStateChanged(
               AppLifecycleState.inactive,
             );
+          }
           if (reason == 'ticker') visible.value = false;
-          if (reason == 'route')
+          if (reason == 'route') {
             Navigator.of(tester.element(find.byType(ProxmoxConnectScreen)))
                 .push(
                   CupertinoPageRoute(
@@ -461,6 +465,7 @@ void main() {
                         const CupertinoPageScaffold(child: Text('other')),
                   ),
                 );
+          }
           if (reason == 'source') await home.choose(HomeSource.verifiedCore);
           if (reason == 'dispose') await tester.pumpWidget(const SizedBox());
           await frames(tester);

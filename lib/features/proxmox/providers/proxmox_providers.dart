@@ -198,8 +198,9 @@ class ProxmoxConnection extends _$ProxmoxConnection {
 
   Future<void> signOut({bool Function()? isCurrent}) async {
     bool actionCurrent(int generation) {
-      if (!ref.mounted || !_access.isCurrent || generation != _generation)
+      if (!ref.mounted || !_access.isCurrent || generation != _generation) {
         return false;
+      }
       try {
         return isCurrent == null || isCurrent();
       } catch (_) {
@@ -208,8 +209,9 @@ class ProxmoxConnection extends _$ProxmoxConnection {
     }
 
     _check();
-    if (!actionCurrent(_generation))
+    if (!actionCurrent(_generation)) {
       throw const DirectHomeAccessException('unavailable');
+    }
     final generation = ++_generation;
     final store = ref.read(proxmoxCredentialsStoreProvider);
     _closeCheck();
@@ -217,8 +219,9 @@ class ProxmoxConnection extends _$ProxmoxConnection {
     try {
       await store.clear(isCurrent: () => actionCurrent(generation));
       _check(generation);
-      if (!actionCurrent(generation))
+      if (!actionCurrent(generation)) {
         throw const DirectHomeAccessException('unavailable');
+      }
       state = const AsyncData(null);
     } catch (_) {
       _check(generation);
