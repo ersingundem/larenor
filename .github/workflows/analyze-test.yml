@@ -14,7 +14,9 @@ concurrency:
 jobs:
   analyze-test:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    # CI105 reached 4,282 of 5,056 tests before the 15-minute job deadline.
+    # Allow setup and the full coverage suite; individual tests stay at 90s.
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
