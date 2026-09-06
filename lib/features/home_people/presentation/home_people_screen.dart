@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/app_interaction_scope.dart';
 import '../../../core/home_session_controller.dart';
 import '../../../core/home_source_store.dart';
+import '../../../core/window/window_policy_providers.dart';
 import '../../../l10n/generated/app_localizations.dart';
 import '../../../shared/widgets/settings_action_tile.dart';
 import '../../../shared/widgets/settings_section.dart';
@@ -18,10 +19,18 @@ import 'home_people_widgets.dart';
 import 'home_person_grants_screen.dart';
 
 /// Explicit entry only: building the Core home never instantiates a person API.
-class HomePeopleEntry extends ConsumerWidget {
+class HomePeopleEntry extends ConsumerStatefulWidget {
   const HomePeopleEntry({super.key});
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<HomePeopleEntry> createState() => _HomePeopleEntryState();
+}
+
+class _HomePeopleEntryState extends ConsumerState<HomePeopleEntry> {
+  int _windowEpoch = 0;
+  @override
+  Widget build(BuildContext context) {
+    ref.watch(windowPolicySnapshotProvider);
+    ref.listen(windowPolicySnapshotProvider, (_, _) => _windowEpoch++);
     final home = ref.watch(homeSessionControllerProvider)!;
     final interaction = AppInteractionScope.maybeOf(context),
         container = ProviderScope.containerOf(context, listen: false);
@@ -30,29 +39,53 @@ class HomePeopleEntry extends ConsumerWidget {
       builder: (_, _) {
         final session = home.account.session,
             generation = home.account.generation,
-            epoch = interaction?.epoch;
-        bool current() =>
-            context.mounted &&
-            identical(
-              ProviderScope.containerOf(context, listen: false),
-              container,
-            ) &&
-            identical(ref.read(homeSessionControllerProvider), home) &&
-            home.source == HomeSource.verifiedCore &&
-            !home.busy &&
-            home.failure == null &&
-            home.interaction.active &&
-            home.account.isCurrent(generation) &&
-            !home.account.working &&
-            !home.account.hasPendingContext &&
-            identical(home.account.session, session) &&
-            session?.context != null &&
-            session?.user.mustChangePassword == false &&
-            !session!.expiresSoon(ref.read(homePeopleClockProvider)()) &&
-            (interaction?.active ?? false) &&
-            interaction?.epoch == epoch &&
-            TickerMode.valuesOf(context).enabled &&
-            ModalRoute.of(context)?.isCurrent == true;
+            epoch = interaction?.epoch,
+            windowEpoch = _windowEpoch;
+        var retired = false;
+        bool current() {
+          if (retired) return false;
+          try {
+            final state = ref.read(windowPolicySnapshotProvider);
+            final windowCurrent =
+                !state.isLoading &&
+                !state.hasError &&
+                state.hasValue &&
+                (!state.requireValue.supported ||
+                    state.requireValue.isResumed &&
+                        state.requireValue.hasWindowFocus &&
+                        !state.requireValue.isPictureInPicture);
+            final valid =
+                context.mounted &&
+                windowCurrent &&
+                windowEpoch == _windowEpoch &&
+                identical(
+                  ProviderScope.containerOf(context, listen: false),
+                  container,
+                ) &&
+                identical(ref.read(homeSessionControllerProvider), home) &&
+                home.source == HomeSource.verifiedCore &&
+                !home.busy &&
+                home.failure == null &&
+                home.interaction.active &&
+                home.account.isCurrent(generation) &&
+                !home.account.working &&
+                !home.account.hasPendingContext &&
+                identical(home.account.session, session) &&
+                session?.context != null &&
+                session?.user.mustChangePassword == false &&
+                !session!.expiresSoon(ref.read(homePeopleClockProvider)()) &&
+                (interaction?.active ?? false) &&
+                interaction?.epoch == epoch &&
+                TickerMode.valuesOf(context).enabled &&
+                ModalRoute.of(context)?.isCurrent == true;
+            if (!valid) retired = true;
+            return valid;
+          } catch (_) {
+            retired = true;
+            return false;
+          }
+        }
+
         return SettingsActionTile(
           key: const ValueKey('home-people-entry'),
           title: Text(AppLocalizations.of(context).homePeopleTitle),

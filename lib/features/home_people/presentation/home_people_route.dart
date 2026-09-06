@@ -36,6 +36,7 @@ class _HomePeopleRouteState extends ConsumerState<HomePeopleRoute>
   HomeSessionController? _home;
   Object? _identity;
   int? _generation, _homeEpoch, _viewId;
+  int _navigationEpoch = 0;
   AppInteractionController? _interaction;
   HomePeopleOwner? _owner;
   bool _closed = false, _scheduled = false, _foreground = true, _focused = true;
@@ -97,6 +98,7 @@ class _HomePeopleRouteState extends ConsumerState<HomePeopleRoute>
   }
 
   void _changed() {
+    _navigationEpoch++;
     _owner?.synchronize();
     _schedule();
   }
@@ -190,12 +192,20 @@ class _HomePeopleRouteState extends ConsumerState<HomePeopleRoute>
     final owner = _owner;
     if (owner != null && owner.isCurrent)
       return KeyedSubtree(key: ObjectKey(owner), child: widget.builder(owner));
+    final navigationEpoch = _navigationEpoch;
     return PeoplePage(
       title: widget.title,
       backKey: widget.backKey,
-      onBack: () => widget.onExit != null
-          ? widget.onExit!()
-          : Navigator.of(context).maybePop(),
+      onBack: !_current()
+          ? null
+          : () {
+              if (navigationEpoch != _navigationEpoch || !_current()) return;
+              if (widget.onExit != null) {
+                widget.onExit!();
+              } else {
+                Navigator.of(context).maybePop();
+              }
+            },
       slivers: [
         peopleBlock([Text(AppLocalizations.of(context).homePeopleRequired)]),
       ],
