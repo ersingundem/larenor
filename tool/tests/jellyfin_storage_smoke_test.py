@@ -1,11 +1,14 @@
 """Offline fixture boundary tests; never instantiate a real daemon."""
 import importlib
 import importlib.util
+import copy
 import json
 import os
 from pathlib import Path
 import stat
 import sys
+import tempfile
+import shutil
 from types import SimpleNamespace
 
 import pytest
@@ -181,6 +184,133 @@ def test_container_inspection_rejects_anonymous_copyup_or_wrong_user():
     current['Mounts'].append({'Type':'volume','Name':'foreign','Destination':'/extra','RW':True})
     with pytest.raises(m.SmokeError):
         m.verify_container(current, source, expected)
+
+
+@pytest.fixture
+def protocol(tmp_path, monkeypatch, request):
+    m = api()
+    tmp_path = Path(tempfile.mkdtemp(prefix='jf-protocol-', dir='/private/tmp' if Path('/private/tmp').exists() else '/tmp'))
+    request.addfinalizer(lambda:shutil.rmtree(tmp_path))
+    from larenor_server.plugins.image_resources import ImageObservation
+    source = m.fixture_source('linux/amd64')
+    image_config = {'Entrypoint':['/jellyfin/jellyfin'],'Cmd':None,
+                    'Volumes':{'/config':{},'/cache':{}}}
+    monkeypatch.setenv('GITHUB_SHA','a'*40)
+    monkeypatch.setattr(m, 'prepare_storage', lambda *a: {
+        'imageState':'ready','volumeStates':['observed_requires_bootstrap']*2})
+    class Images:
+        def inspect(self, binding):
+            return ImageObservation(binding.config_digest, json.dumps(image_config).encode())
+    class Docker:
+        root = tmp_path
+        platform = 'linux/amd64'
+        fault = None
+        restarted = False
+        calls = []
+        seen = {}
+        def docker(self, args, **kwargs):
+            self.calls.append(list(args))
+            if args[0] == 'build':
+                (tmp_path/'helper.iid').write_text('sha256:'+'f'*64)
+                return b''
+            if args[:2] == ['image','inspect']:
+                return json.dumps({'Id':'sha256:'+'f'*64,'Os':'linux','Architecture':'amd64',
+                                   'RepoDigests':[]}).encode()
+            if args[0] == 'create':
+                return ('c'*64+'\n').encode()
+            if args[0] in {'start','restart'}:
+                if args[0] == self.fault:
+                    raise m.SmokeError('fixture_command_failed')
+                self.restarted |= args[0] == 'restart'
+                return ('c'*64+'\n').encode()
+            if args[:2] == ['container','inspect']:
+                value = {'Id':'c'*64,'Image':source.image.image.configDigest,
+                    'Config':dict(image_config,User='1000:1000'),
+                    'HostConfig':{'NetworkMode':'none','Privileged':False,'CapDrop':['ALL'],
+                        'Mounts':[{'Type':'volume','Source':v.name,'Target':v.target,
+                            'VolumeOptions':{'NoCopy':True}} for v in source.targets]},
+                    'Mounts':[{'Type':'volume','Name':v.name,'Driver':'local','Destination':v.target,'RW':True}
+                        for v in source.targets]}
+                if self.fault == 'mount':
+                    value['Mounts'].append({'Type':'volume','Name':'foreign','Destination':'/extra'})
+                return json.dumps(value).encode()
+            assert args[0] == 'run'
+            mode = args[-1]
+            if mode == self.fault:
+                raise m.SmokeError('fixture_command_failed')
+            if mode == 'image_seed':
+                value = {'imageSeed':True}
+            elif mode == 'writable':
+                mount = next(a for a in args if a.startswith('--mount='))
+                n = self.seen.get(mount,0)
+                self.seen[mount] = n+1
+                value = {'writable':n>0,'uid':1000,'gid':1000}
+            elif mode in {'check','initialize_empty_root','verify_root'}:
+                value = {'schemaVersion':1,'state':{'check':'empty_uninitialized',
+                    'initialize_empty_root':'empty_initialized','verify_root':'root_verified'}[mode]}
+            elif mode == 'health':
+                value = {'id': ('b' if self.restarted and self.fault == 'identity' else 'a')*32,
+                    'version':'10.11.11','wizardCompleted':False}
+            elif mode == 'initial_data':
+                value = {'database':True,'configuration':True}
+            elif mode == 'app_identity':
+                value = {'uid':1000,'gid':1000}
+            else:
+                assert mode in {'write_sentinel','verify_sentinel'}
+                value = {'sentinel':'verified','uid':1000,'gid':1000}
+            return json.dumps(value).encode()
+    return m, source, Docker(), Images()
+
+
+def test_complete_protocol_uses_two_nocopy_mounts_and_one_restart(protocol):
+    m, source, docker, images = protocol
+    result = m.characterize(docker, source=source, images=images, volumes=object())
+    assert result['result'] == 'characterized' and result['volumeCount'] == 2
+    assert result['installAvailable'] is False and result['bootstrapAccountConfigured'] is False
+    assert sum(c[0]=='create' for c in docker.calls) == 1
+    assert sum(c[0]=='start' for c in docker.calls) == 1
+    assert sum(c[0]=='restart' for c in docker.calls) == 1
+    creates = next(c for c in docker.calls if c[0]=='create')
+    assert len([a for a in creates if a.startswith('--mount=')]) == 2
+    assert '--network=none' in creates and '--user=1000:1000' in creates
+    assert not any(a.startswith(('--publish','--privileged','--volume=')) for c in docker.calls for a in c)
+    assert sum(c[-1]=='initialize_empty_root' for c in docker.calls) == 2
+    assert sum(c[-1]=='verify_sentinel' for c in docker.calls) == 2
+
+
+@pytest.mark.parametrize('fault', ['initialize_empty_root','start','restart','identity','mount','initial_data'])
+def test_lost_or_conflicting_reply_never_repeats_a_mutation(protocol, fault):
+    m, source, docker, images = protocol
+    docker.fault = fault
+    with pytest.raises(m.SmokeError):
+        m.characterize(docker, source=source, images=images, volumes=object())
+    assert sum(c[0]=='create' for c in docker.calls) <= 1
+    assert sum(c[0]=='start' for c in docker.calls) <= 1
+    assert sum(c[0]=='restart' for c in docker.calls) <= 1
+    assert not any(c[0] in {'rm','volume','system'} for c in docker.calls)
+
+
+def test_application_uid_is_observed_not_only_requested_in_config(protocol):
+    m, source, docker, images = protocol
+    m.characterize(docker, source=source, images=images, volumes=object())
+    calls = [c for c in docker.calls if c[-1]=='app_identity']
+    assert len(calls) == 2
+    assert all('--pid=container:'+'c'*64 in c for c in calls)
+
+
+def test_unexpected_library_exception_is_not_printed_by_cli(monkeypatch, capsys):
+    m = api()
+    class Owned:
+        def __enter__(self):
+            return self
+        def __exit__(self,*_):
+            self.closed=True
+    owner = Owned()
+    monkeypatch.setattr(m,'EphemeralDaemon',lambda:owner)
+    monkeypatch.setattr(m,'characterize',lambda _: (_ for _ in ()).throw(RuntimeError('synthetic-private')))
+    assert m.main(['--run-ephemeral-ci']) == 1
+    assert owner.closed
+    assert capsys.readouterr().err == 'storage_characterization_failed\n'
     current['Mounts'].pop()
     current['HostConfig']['Mounts'][0]['VolumeOptions']['NoCopy'] = False
     with pytest.raises(m.SmokeError):

@@ -90,3 +90,14 @@ def test_health_bound_to_loopback_no_proxy_or_redirect(monkeypatch):
     assert requests == ['/health','/System/Info/Public']
     with pytest.raises(m.ProbeError):
         m.NoRedirect().redirect_request(None,None,302,'',{},'http://outside')
+
+
+def test_application_uid_parser_rejects_mixed_or_root_credentials(monkeypatch):
+    m = api()
+    for raw in (b'Uid:\t0\t0\t0\t0\nGid:\t1000\t1000\t1000\t1000\n',
+                b'Uid:\t1000\t1000\t0\t1000\nGid:\t1000\t1000\t1000\t1000\n'):
+        monkeypatch.setattr(m, '_process_status', lambda:raw, raising=False)
+        with pytest.raises(m.ProbeError):
+            m.run('app_identity')
+    monkeypatch.setattr(m,'_process_status',lambda:b'Uid:\t1000\t1000\t1000\t1000\nGid:\t1000\t1000\t1000\t1000\n',raising=False)
+    assert m.run('app_identity') == {'uid':1000,'gid':1000}
