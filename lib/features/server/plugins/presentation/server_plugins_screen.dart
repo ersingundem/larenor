@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
@@ -305,6 +306,7 @@ class _ServerPluginsScreenState extends MediaSessionState<ServerPluginsScreen> {
                         children: [
                           _catalogButton(
                             context,
+                            current: _capture(),
                             key: const ValueKey('plugins-media'),
                             onPressed: _active && !_plugins.busy
                                 ? _callback(_openMedia)
@@ -313,6 +315,7 @@ class _ServerPluginsScreenState extends MediaSessionState<ServerPluginsScreen> {
                           ),
                           _catalogButton(
                             context,
+                            current: _capture(),
                             key: const ValueKey('plugins-jobs'),
                             onPressed: _active && !_plugins.busy
                                 ? _callback(_openJobs)
@@ -321,6 +324,7 @@ class _ServerPluginsScreenState extends MediaSessionState<ServerPluginsScreen> {
                           ),
                           _catalogButton(
                             context,
+                            current: _capture(),
                             key: const ValueKey('plugins-refresh'),
                             onPressed: _active && !_plugins.busy
                                 ? _callback(_load)
@@ -329,6 +333,7 @@ class _ServerPluginsScreenState extends MediaSessionState<ServerPluginsScreen> {
                           ),
                           _catalogButton(
                             context,
+                            current: _capture(),
                             key: const ValueKey('plugins-connect'),
                             onPressed: _enabled ? _callback(_connect) : null,
                             child: Text(l10n.serverPluginsConnectExisting),
@@ -398,6 +403,7 @@ class _ServerPluginsScreenState extends MediaSessionState<ServerPluginsScreen> {
                   alignment: AlignmentDirectional.centerStart,
                   child: _catalogButton(
                     context,
+                    current: _capture(),
                     key: ValueKey('plugin-review-${manifest.serviceId}'),
                     onPressed: _enabled
                         ? _callback(() => _review(entry))
@@ -421,6 +427,7 @@ class _ServerPluginsScreenState extends MediaSessionState<ServerPluginsScreen> {
 // label separate from surrounding catalogue metadata and the focus ring visible.
 Widget _catalogButton(
   BuildContext context, {
+  required bool Function() current,
   Key? key,
   required VoidCallback? onPressed,
   required Widget child,
@@ -436,11 +443,35 @@ Widget _catalogButton(
         minimumSize: const Size(48, 48),
         focusColor: CupertinoTheme.of(context).primaryColor,
         onFocusChange: (focused) {
-          if (focused) {
-            // Native Tab scrolling exposes the button edge, but its focus
-            // ring paints outside it. Keep the whole focused action in view.
-            Scrollable.ensureVisible(buttonContext, alignment: .5);
-          }
+          if (!focused || onPressed == null) return;
+          final node = FocusManager.instance.primaryFocus;
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            // Read geometry after native Tab scrolling has laid out its offset.
+            // An old focus notification cannot scroll a retired or covered page.
+            if (!buttonContext.mounted ||
+                node == null ||
+                !node.hasPrimaryFocus ||
+                !identical(FocusManager.instance.primaryFocus, node) ||
+                !current() ||
+                ModalRoute.of(buttonContext)?.isCurrent != true ||
+                !TickerMode.of(buttonContext))
+              return;
+            final box = buttonContext.findRenderObject();
+            final viewport = RenderAbstractViewport.maybeOf(box);
+            if (box is! RenderBox || viewport is! RenderBox) return;
+            final ring =
+                (box.localToGlobal(Offset.zero, ancestor: viewport) & box.size)
+                    .inflate(4);
+            final visible = Offset.zero & (viewport as RenderBox).size;
+            // Native Tab reveals the button edge; its focus ring paints outside.
+            // Reveal only a clipped ring and leave already visible rows still.
+            if (ring.top < visible.top ||
+                ring.bottom > visible.bottom ||
+                ring.left < visible.left ||
+                ring.right > visible.right) {
+              Scrollable.ensureVisible(buttonContext, alignment: .5);
+            }
+          });
         },
         onPressed: onPressed,
         child: child,
