@@ -26,7 +26,10 @@ class SonarrScreen extends ConsumerWidget {
       ),
       error: (error, _) {
         if (error is DirectHomeAccessException &&
-            error.code == 'pending_mutation') {
+            const {
+              'pending_mutation',
+              'write_unconfirmed',
+            }.contains(error.code)) {
           final connection = ref.read(sonarrConnectionProvider.notifier);
           final store = ref.read(sonarrCredentialsStoreProvider);
           return ArrConnectForm(

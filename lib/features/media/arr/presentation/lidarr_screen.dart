@@ -26,7 +26,10 @@ class LidarrScreen extends ConsumerWidget {
       ),
       error: (error, _) {
         if (error is DirectHomeAccessException &&
-            error.code == 'pending_mutation') {
+            const {
+              'pending_mutation',
+              'write_unconfirmed',
+            }.contains(error.code)) {
           final connection = ref.read(lidarrConnectionProvider.notifier);
           final store = ref.read(lidarrCredentialsStoreProvider);
           return ArrConnectForm(

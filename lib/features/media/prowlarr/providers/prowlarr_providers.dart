@@ -73,8 +73,8 @@ class ProwlarrConnection extends _$ProwlarrConnection {
       _check(operation);
       checkAction();
       state = AsyncData(config);
-    } catch (_) {
-      _check(operation);
+    } catch (error, stack) {
+      _recordFailure(operation, error, stack);
       rethrow;
     } finally {
       if (identical(_checkingClient, client)) _closeCheck();
@@ -86,9 +86,27 @@ class ProwlarrConnection extends _$ProwlarrConnection {
     final operation = ++_operation;
     final store = ref.read(prowlarrCredentialsStoreProvider);
     _closeCheck();
-    await store.clear();
+    try {
+      await store.clear();
+      _check(operation);
+      state = const AsyncData(null);
+    } catch (error, stack) {
+      _recordFailure(operation, error, stack);
+      rethrow;
+    }
+  }
+
+  void _recordFailure(int operation, Object error, StackTrace stack) {
+    // An old action must not publish a failure into a newer source or login.
     _check(operation);
-    state = const AsyncData(null);
+    if (error is DirectHomeAccessException &&
+        const {
+          'write_unconfirmed',
+          'pending_mutation',
+          'storage_failed',
+        }.contains(error.code)) {
+      state = AsyncError(error, stack);
+    }
   }
 
   ProwlarrClient _client(ProwlarrConfig config) =>
