@@ -256,6 +256,7 @@ void registerCoreArchiveJourney() {
 
         await press('core-layout-archive-replace');
         await press('core-layout-archive-confirm-cancel');
+        await coreArchiveJourneyConfirmationDismissed(tester);
         expect(key('core-layout-archive-confirm'), findsNothing);
         expect(key('core-layout-archive-preview'), findsOneWidget);
         expect(
@@ -313,6 +314,19 @@ Finder coreArchiveJourneyScrollable() => find
       matching: find.byType(Scrollable),
     )
     .first;
+
+Future<void> coreArchiveJourneyConfirmationDismissed(
+  WidgetTester tester,
+) async {
+  expect(
+    find.byKey(const ValueKey('core-layout-archive-confirm')),
+    findsNothing,
+  );
+  expect(
+    find.byKey(const ValueKey('core-layout-archive-confirm-cancel')),
+    findsNothing,
+  );
+}
 
 Future<void> coreArchiveJourneyTop(WidgetTester tester) async {
   final scroll = coreArchiveJourneyScrollable();
