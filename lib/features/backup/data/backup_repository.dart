@@ -359,10 +359,23 @@ class BackupRepository {
     }
     if (raw == null) return false;
     final changes = _decodeJournal(raw);
-    if (!await _rollback(changes)) {
-      throw const BackupRestoreException(rollbackComplete: false);
+    try {
+      // V1 persisted no after-values or transaction owner. A different current
+      // value cannot be attributed to this old operation and is never replaced.
+      for(var pass=0;pass<2;pass++) {
+        for(final change in changes) {
+          if(!_same(await _readChange(this,change),change.before)) _recoveryRequired();
+        }
+      }
+      if(await _storage.readSecret(restoreJournalKey)!=raw) _recoveryRequired();
+      try {await _storage.writeSecret(restoreJournalKey,null);} catch(_) {
+        if(await _storage.readSecret(restoreJournalKey)!=null) rethrow;
+      }
+      if(await _storage.readSecret(restoreJournalKey)!=null) _recoveryRequired();
+      return true;
+    } catch(_) {
+      throw const BackupRestoreException(rollbackComplete:false);
     }
-    return true;
   });
 
   Future<void> _requireRecovered() async {
