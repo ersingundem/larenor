@@ -184,6 +184,14 @@ def test_container_inspection_rejects_anonymous_copyup_or_wrong_user():
     current['Mounts'].append({'Type':'volume','Name':'foreign','Destination':'/extra','RW':True})
     with pytest.raises(m.SmokeError):
         m.verify_container(current, source, expected)
+    current['Mounts'].pop()
+    current['HostConfig']['Mounts'][0]['VolumeOptions']['NoCopy'] = False
+    with pytest.raises(m.SmokeError):
+        m.verify_container(current, source, expected)
+    current['HostConfig']['Mounts'][0]['VolumeOptions']['NoCopy'] = True
+    current['Config']['User'] = '0:0'
+    with pytest.raises(m.SmokeError):
+        m.verify_container(current, source, expected)
 
 
 @pytest.fixture
@@ -311,11 +319,3 @@ def test_unexpected_library_exception_is_not_printed_by_cli(monkeypatch, capsys)
     assert m.main(['--run-ephemeral-ci']) == 1
     assert owner.closed
     assert capsys.readouterr().err == 'storage_characterization_failed\n'
-    current['Mounts'].pop()
-    current['HostConfig']['Mounts'][0]['VolumeOptions']['NoCopy'] = False
-    with pytest.raises(m.SmokeError):
-        m.verify_container(current, source, expected)
-    current['HostConfig']['Mounts'][0]['VolumeOptions']['NoCopy'] = True
-    current['Config']['User'] = '0:0'
-    with pytest.raises(m.SmokeError):
-        m.verify_container(current, source, expected)
