@@ -177,11 +177,22 @@ class _CoreHomeResourcesState extends ConsumerState<CoreHomeResources>
                     _controller.refresh,
                   ),
                   if (_controller.canManage)
-                    button('home-resources-manage', l10n.homeResourceAdminManage, true, () async {
-                      if (!current() || !_controller.canManage) return;
-                      await Navigator.of(context).push<void>(CupertinoPageRoute(builder: (_) =>
-                        const SettingsGateScreen(initialDestination: SettingsGateDestination.homeResources)));
-                    }),
+                    button(
+                      'home-resources-manage',
+                      l10n.homeResourceAdminManage,
+                      true,
+                      () async {
+                        if (!current() || !_controller.canManage) return;
+                        await Navigator.of(context).push<void>(
+                          CupertinoPageRoute(
+                            builder: (_) => const SettingsGateScreen(
+                              initialDestination:
+                                  SettingsGateDestination.homeResources,
+                            ),
+                          ),
+                        );
+                      },
+                    ),
                   if (_controller.busy)
                     Semantics(
                       liveRegion: true,

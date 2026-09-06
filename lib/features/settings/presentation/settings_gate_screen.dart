@@ -128,7 +128,8 @@ class _SettingsGateScreenState extends ConsumerState<SettingsGateScreen>
       }
       if (previous?.hasValue == true &&
           next.hasValue &&
-          next.value != null &&
+          (next.value != null ||
+              widget.initialDestination == SettingsGateDestination.homeResources) &&
           previous?.value != next.value) {
         // First PIN creation also closes a phone pane pushed while no PIN was
         // configured. A locked gate underneath that pane is not sufficient.
@@ -176,13 +177,22 @@ class _SettingsGateScreenState extends ConsumerState<SettingsGateScreen>
                                   SettingsGateDestination.homeResources
                             ? HomeResourceAdminScreen(
                                 gateCurrent: () {
-                                  if (!mounted || !_interactive || resourceGeneration != _generation ||
-                                      ModalRoute.of(context)?.isCurrent != true) return false;
+                                  if (!mounted ||
+                                      !_interactive ||
+                                      resourceGeneration != _generation ||
+                                      ModalRoute.of(context)?.isCurrent != true) {
+                                    return false;
+                                  }
                                   final currentPin = ref.read(pinLockProvider);
-                                  return !currentPin.isLoading && !currentPin.hasError && currentPin.hasValue &&
-                                      currentPin.value == pin && (pin == null || _unlocked);
+                                  return !currentPin.isLoading &&
+                                      !currentPin.hasError &&
+                                      currentPin.hasValue &&
+                                      currentPin.value == pin &&
+                                      (pin == null || _unlocked);
                                 },
-                                onExit: Navigator.of(context).canPop() ? _exit : null,
+                                onExit: Navigator.of(context).canPop()
+                                    ? _exit
+                                    : null,
                               )
                             : widget.initialDestination ==
                                   SettingsGateDestination.homeSource

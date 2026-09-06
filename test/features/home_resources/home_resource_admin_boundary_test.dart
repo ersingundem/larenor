@@ -102,9 +102,10 @@ void main() {
             container.invalidate(pinLockProvider);
             expect(container.read(pinLockProvider).isLoading, isTrue);
           }
-          if (boundary == 'pin-rotation')
+          if (boundary == 'pin-rotation') {
             await container.read(pinLockProvider.notifier).setPin('5678');
-          if (boundary == 'root-route')
+          }
+          if (boundary == 'root-route') {
             unawaited(
               Navigator.of(
                 tester.element(adminKey('home-resource-admin')),
@@ -116,6 +117,7 @@ void main() {
                 ),
               ),
             );
+          }
           // Deliberately no pump: old nested page still exists in this frame.
           if (pending) {
             late.complete(
@@ -210,8 +212,9 @@ void main() {
       );
       h.pendingMutation = null;
       await flush(tester);
-      if (!['logout', 'role'].contains(loss))
+      if (!['logout', 'role'].contains(loss)) {
         expect(h.account.session, same(session));
+      }
       if (loss == 'role') expect(h.account.session!.user.role.name, 'member');
       expect(adminKey('home-resource-mutation-saved'), findsNothing);
       expect(find.text('Private draft'), findsNothing);
