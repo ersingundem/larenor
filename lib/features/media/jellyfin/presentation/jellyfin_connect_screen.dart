@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:ui' show ViewFocusEvent, ViewFocusState;
 
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -20,12 +21,14 @@ class JellyfinConnectScreen extends ConsumerStatefulWidget {
   @override ConsumerState<JellyfinConnectScreen> createState() => _JellyfinConnectScreenState();
 }
 
-class _JellyfinConnectScreenState extends MediaSessionState<JellyfinConnectScreen> {
+class _JellyfinConnectScreenState extends MediaSessionState<JellyfinConnectScreen> with WidgetsBindingObserver {
   final _urlController = TextEditingController();
   final _userController = TextEditingController();
   final _passwordController = TextEditingController();
   late final DirectHomeAccess _access = ref.read(directHomeAccessProvider);
   JellyfinConnection? _connection;
+  bool _focused = true;
+  int? _viewId;
   bool _initialized = false, _pendingRecovery = false, _visible = true;
   bool _connecting = false, _cleared = false, _scanning = false, _discoveryAttempted = false;
   String? _error;
@@ -34,12 +37,33 @@ class _JellyfinConnectScreenState extends MediaSessionState<JellyfinConnectScree
   Timer? _discoveryTimer;
   List<DiscoveredJellyfinServer> _discovered = [];
 
-  bool _current(int generation) => sessionCurrent(generation) && _access.isCurrent &&
+  bool _current(int generation) => sessionCurrent(generation) && _focused && _access.isCurrent &&
+    !ref.read(jellyfinConnectionProvider).isLoading &&
     TickerMode.valuesOf(context).enabled && (ModalRoute.of(context)?.isCurrent ?? true) &&
     _connection != null && identical(_connection, ref.read(jellyfinConnectionProvider.notifier));
 
+  @override void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override void didChangeViewFocus(ViewFocusEvent event) {
+    if (event.viewId != _viewId) return;
+    final focused = event.state == ViewFocusState.focused;
+    if (focused == _focused) return;
+    setState(() {
+      _focused = focused;
+      if (!focused) { sessionGeneration++; clearPendingInteraction(); }
+    });
+  }
+
   @override void didChangeDependencies() {
     super.didChangeDependencies();
+    final viewId = View.of(context).viewId;
+    if (_viewId != null && _viewId != viewId) {
+      _focused = false; sessionGeneration++; clearPendingInteraction();
+    }
+    _viewId = viewId;
     final visible = TickerMode.valuesOf(context).enabled && (ModalRoute.of(context)?.isCurrent ?? true);
     if (_visible && !visible) { sessionGeneration++; clearPendingInteraction(); }
     _visible = visible;
@@ -83,6 +107,7 @@ class _JellyfinConnectScreenState extends MediaSessionState<JellyfinConnectScree
   }
 
   @override void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _stopDiscovery();
     _urlController.dispose(); _userController.dispose(); _passwordController.dispose();
     super.dispose();
@@ -129,6 +154,14 @@ class _JellyfinConnectScreenState extends MediaSessionState<JellyfinConnectScree
   @override Widget build(BuildContext context) {
     ref.watch(directHomeAccessProvider);
     final state = ref.watch(jellyfinConnectionProvider);
+    ref.listen(jellyfinConnectionProvider, (previous, next) {
+      if (!_initialized) return;
+      // A notifier can retain its Dart identity across rebuilds. Loading must
+      // expire callbacks synchronously, even if it resolves before the next frame.
+      if (next.isLoading || !_connecting && previous != null && !identical(previous, next)) {
+        setState(() { sessionGeneration++; clearPendingInteraction(); });
+      }
+    });
     final l10n = AppLocalizations.of(context);
     final pending = state.error is DirectHomeAccessException &&
       (state.error as DirectHomeAccessException).code == 'pending_mutation';
