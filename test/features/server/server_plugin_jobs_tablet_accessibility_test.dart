@@ -94,7 +94,9 @@ void main() {
                 .copyWith(textScaler: TextScaler.linear(scale)),
             child: RepaintBoundary(
               key: boundary,
-              child: interaction == null ? child! : AppInteractionScope(controller: interaction, child: child!),
+              child: interaction == null
+                  ? child!
+                  : AppInteractionScope(controller: interaction, child: child!),
             ),
           ),
           home: const ServerPluginJobsScreen(),
@@ -141,7 +143,8 @@ void main() {
     const output = String.fromEnvironment('JOBS_TABLET_PREVIEW_DIR');
     if (output.isEmpty) return;
     await tester.runAsync(() async {
-      final render = boundary.currentContext!.findRenderObject()! as RenderRepaintBoundary;
+      final render =
+          boundary.currentContext!.findRenderObject()! as RenderRepaintBoundary;
       final image = await render.toImage(pixelRatio: 1);
       final data = await image.toByteData(format: ui.ImageByteFormat.png);
       await File('$output/$name.png').writeAsBytes(data!.buffer.asUint8List());
@@ -317,6 +320,7 @@ void main() {
                 language: language,
                 width: width,
                 scale: scale,
+                dark: language == 'tr',
               );
               await select(tester);
               final cancel = key('jobs-cancel');
@@ -371,6 +375,14 @@ void main() {
                 ),
                 hasLength(2),
               );
+              if (scale == 1) {
+                // The short Back label fits at the native 17px font size.
+                // Measure painted geometry, not only the unscaled Text widget.
+                final text = tester.renderObject<RenderParagraph>(caption(back));
+                final painted = MatrixUtils.transformRect(text.getTransformTo(null), Offset.zero & text.size);
+                expect(painted.height / text.size.height, closeTo(1, 1e-9),
+                  reason: 'short dialog label must keep its normal painted font size');
+              }
               final detector = tester.widget<FocusableActionDetector>(
                 find.descendant(
                   of: confirm,
@@ -390,7 +402,7 @@ void main() {
               expect(focus(tester, back).hasPrimaryFocus, isTrue);
               await tester.sendKeyEvent(LogicalKeyboardKey.tab);
               await tester.pumpAndSettle();
-              if (scale == 2) await preview(tester, 'jobs-modal-$language-${width.toInt()}-2x');
+              await preview(tester, 'jobs-modal-$language-${width.toInt()}-${scale.toInt()}x');
               await tester.sendKeyEvent(LogicalKeyboardKey.enter);
               await tester.pumpAndSettle();
               expect(confirm, findsNothing);
@@ -410,6 +422,179 @@ void main() {
       }
     }
   }
+  testWidgets(
+    'busy history has no semantic tap and held View cannot dispatch',
+    (tester) async {
+      final semantics = tester.ensureSemantics();
+      final pending = Completer<http.Response>();
+      try {
+        await mount(tester);
+        final view = key('job-view-${'a' * 32}');
+        await visible(tester, view);
+        final oldView = tester.widget<CupertinoButton>(view).onPressed!;
+        final normal = fixture.respond!;
+        fixture.respond = (request) => request.url.path.endsWith('/jobs')
+            ? pending.future
+            : normal(request);
+        final refresh = key('jobs-refresh');
+        Scrollable.of(tester.element(view)).position.jumpTo(0);
+        await tester.pumpAndSettle();
+        focus(tester, refresh).requestFocus();
+        await tester.pump();
+        await tester.sendKeyEvent(LogicalKeyboardKey.space);
+        await tester.pump();
+        await tester.pump();
+        expect(tester.widget<CupertinoButton>(view).onPressed, isNull);
+        final node = action(tester, view);
+        expect(node.flagsCollection.isEnabled, ui.Tristate.isFalse);
+        expect(
+          node.getSemanticsData().hasAction(ui.SemanticsAction.tap),
+          isFalse,
+        );
+        final before = fixture.calls.length;
+        node.owner!.performAction(node.id, ui.SemanticsAction.tap);
+        oldView();
+        await tester.pump();
+        expect(fixture.calls.length, before);
+        expect(key('job-refresh'), findsNothing);
+        pending.complete(
+          fixture.json({'jobs': fixture.records, 'nextBefore': null}),
+        );
+        await tester.pumpAndSettle();
+        expect(fixture.mutations, isEmpty);
+        expect(tester.takeException(), isNull);
+      } finally {
+        if (!pending.isCompleted) pending.complete(http.Response('{}', 503));
+        semantics.dispose();
+      }
+    },
+  );
+  for (final retirement in ['route', 'idle']) {
+    testWidgets(
+      '$retirement before focus frame prevents stale Jobs scroll or GET',
+      (tester) async {
+        final interaction = AppInteractionController();
+        addTearDown(interaction.dispose);
+        await mount(tester, interaction: interaction);
+        tester.view.physicalSize = const Size(600, 900);
+        await tester.pumpAndSettle();
+        final view = key('job-view-${'a' * 32}');
+        await visible(tester, view);
+        final position = Scrollable.of(tester.element(view)).position;
+        final retained = tester.widget<CupertinoButton>(view).onPressed!;
+        position.jumpTo(
+          position.pixels +
+              tester.getRect(view).top -
+              tester.getRect(find.byType(CupertinoNavigationBar)).bottom,
+        );
+        await tester.pumpAndSettle();
+        expect(
+          tester.getRect(view).top - 3.5,
+          lessThan(tester.getRect(find.byType(CupertinoNavigationBar)).bottom),
+        );
+        focus(tester, view).requestFocus();
+        FocusManager.instance.applyFocusChangesIfNeeded();
+        final offset = position.pixels, reads = fixture.calls.length;
+        if (retirement == 'route') {
+          unawaited(
+            Navigator.of(tester.element(view)).push(
+              CupertinoPageRoute<void>(
+                builder: (_) =>
+                    const CupertinoPageScaffold(child: Text('Covered')),
+              ),
+            ),
+          );
+        } else {
+          interaction.setActive(false);
+        }
+        await tester.pumpAndSettle();
+        expect(position.pixels, offset);
+        retained();
+        await tester.pumpAndSettle();
+        expect(fixture.calls.length, reads);
+        expect(fixture.mutations, isEmpty);
+        expect(tester.takeException(), isNull);
+      },
+    );
+    testWidgets('$retirement invalidates retained Jobs modal keyboard action', (
+      tester,
+    ) async {
+      final semantics = tester.ensureSemantics();
+      final interaction = AppInteractionController();
+      addTearDown(interaction.dispose);
+      try {
+        await mount(tester, interaction: interaction);
+        await select(tester);
+        final cancel = key('jobs-cancel');
+        await visible(tester, cancel);
+        focus(tester, cancel).requestFocus();
+        await tester.pump();
+        await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+        await tester.pumpAndSettle();
+        final confirm = key('jobs-cancel-confirm');
+        final detector = tester.widget<FocusableActionDetector>(
+          find.descendant(
+            of: confirm,
+            matching: find.byType(FocusableActionDetector),
+          ),
+        );
+        final retained = detector.actions![ActivateIntent]!;
+        if (retirement == 'route') {
+          unawaited(
+            Navigator.of(tester.element(confirm)).push(
+              CupertinoPageRoute<void>(
+                builder: (_) =>
+                    const CupertinoPageScaffold(child: Text('Covered')),
+              ),
+            ),
+          );
+        } else {
+          interaction.setActive(false);
+        }
+        await tester.pumpAndSettle();
+        final requests = fixture.calls.length;
+        retained.invoke(const ActivateIntent());
+        await tester.pumpAndSettle();
+        expect(fixture.calls.length, requests);
+        expect(fixture.mutations, isEmpty);
+        expect(tester.takeException(), isNull);
+      } finally {
+        semantics.dispose();
+      }
+    });
+  }
+  testWidgets('visible detail toolbar forward reverse Tab preserves offset', (
+    tester,
+  ) async {
+    await mount(tester, width: 1280, completed: true);
+    await select(tester);
+    final refresh = key('job-refresh'), cancel = key('jobs-history');
+    final position = Scrollable.of(tester.element(refresh)).position;
+    position.jumpTo(20);
+    await tester.pumpAndSettle();
+    final top = tester.getRect(find.byType(CupertinoNavigationBar)).bottom;
+    for (final button in [refresh, cancel]) {
+      final ring = tester.getRect(button).inflate(4);
+      expect(ring.top, greaterThanOrEqualTo(top));
+      expect(ring.bottom, lessThan(1000));
+    }
+    focus(tester, refresh).requestFocus();
+    await tester.pumpAndSettle();
+    expect(position.pixels, 20);
+    await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+    await tester.pumpAndSettle();
+    expect(focus(tester, cancel).hasPrimaryFocus, isTrue);
+    expect(position.pixels, 20);
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
+    await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
+    await tester.pumpAndSettle();
+    expect(focus(tester, refresh).hasPrimaryFocus, isTrue);
+    expect(position.pixels, 20);
+    expect(fixture.mutations, isEmpty);
+    expect(tester.takeException(), isNull);
+  });
+
   for (final dark in [false, true]) {
     for (final width in [600.0, 1280.0]) {
       testWidgets(
@@ -453,7 +638,10 @@ void main() {
                 tester.getRect(find.byType(CupertinoNavigationBar)).bottom,
               ),
             );
-            expect(ring.bottom, lessThanOrEqualTo(1000 - tester.view.padding.bottom));
+            expect(
+              ring.bottom,
+              lessThanOrEqualTo(1000 - tester.view.padding.bottom),
+            );
             expect(ring.left, greaterThanOrEqualTo(0));
             expect(ring.right, lessThanOrEqualTo(width));
             final background = CupertinoColors.secondarySystemGroupedBackground
@@ -473,7 +661,11 @@ void main() {
             await tester.sendKeyEvent(LogicalKeyboardKey.tab);
             await tester.pumpAndSettle();
             await check(record['id'] as String);
-            if (record == fixture.records.first) await preview(tester, 'jobs-history-${dark ? 'tr-dark' : 'en-light'}-${width.toInt()}-2x');
+            if (record == fixture.records.first)
+              await preview(
+                tester,
+                'jobs-history-${dark ? 'tr-dark' : 'en-light'}-${width.toInt()}-2x',
+              );
           }
           for (final record in fixture.records.reversed.skip(1)) {
             await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
