@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:qbittorrent_api/qbittorrent_api.dart';
 
 import '../../../../l10n/generated/app_localizations.dart';
+import '../../../../core/direct_home_access.dart';
 import '../../../../shared/theme/spacing.dart';
 import '../../../../shared/widgets/operational_service_scope.dart';
 import '../../../../shared/widgets/service_root_scaffold.dart';
@@ -25,11 +26,40 @@ class QbittorrentTorrentsScreen extends ConsumerStatefulWidget {
 
 class _QbittorrentTorrentsScreenState
     extends MediaSessionState<QbittorrentTorrentsScreen> {
+  late final DirectHomeAccess _access = ref.read(directHomeAccessProvider);
+  bool _visible = true;
+  bool _hasAccount = false;
   bool _pending = false;
   bool _dispatched = false;
   bool _uncertain = false;
   String? _message;
   Route<dynamic>? _modal;
+
+  bool get _viewCurrent =>
+      TickerMode.valuesOf(context).enabled &&
+      ((ModalRoute.of(context)?.isCurrent ?? true) ||
+          _modal?.isCurrent == true);
+
+  bool _current(int generation) =>
+      sessionCurrent(generation) && _access.isCurrent && _viewCurrent;
+
+  VoidCallback _guardedAction(VoidCallback action) {
+    final generation = sessionGeneration;
+    return () {
+      if (_current(generation)) action();
+    };
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final visible = _viewCurrent;
+    if (_visible && !visible) {
+      sessionGeneration++;
+      clearPendingInteraction();
+    }
+    _visible = visible;
+  }
 
   QbittorrentClient? get _client {
     final state = ref.read(qbittorrentClientProvider);
@@ -38,8 +68,8 @@ class _QbittorrentTorrentsScreenState
 
   bool Function()? _capture(QbittorrentClient client) {
     final generation = sessionGeneration;
-    if (!sessionCurrent(generation) || !identical(_client, client)) return null;
-    return () => sessionCurrent(generation) && identical(_client, client);
+    if (!_current(generation) || !identical(_client, client)) return null;
+    return () => _current(generation) && identical(_client, client);
   }
 
   @override
@@ -285,10 +315,21 @@ class _QbittorrentTorrentsScreenState
 
   @override
   Widget build(BuildContext context) {
-    watchMediaAccount(IntegrationId.qbittorrent, qbittorrentConnectionProvider);
+    ref.watch(directHomeAccessProvider);
     final connection = ref.watch(qbittorrentConnectionProvider);
+    if (!connection.isLoading &&
+        !connection.hasError &&
+        connection.value != null) {
+      _hasAccount = true;
+    }
+    if (_hasAccount) {
+      watchMediaAccount(
+        IntegrationId.qbittorrent,
+        qbittorrentConnectionProvider,
+      );
+    }
     final l10n = AppLocalizations.of(context);
-    if (!foreground || sessionExpired) {
+    if (!foreground || sessionExpired || !_access.isCurrent) {
       return CupertinoPageScaffold(
         child: !foreground
             ? const SizedBox.expand()
@@ -300,11 +341,18 @@ class _QbittorrentTorrentsScreenState
               ),
       );
     }
+    final error = connection.error;
+    final recovery =
+        error is DirectHomeAccessException &&
+        {'pending_mutation', 'write_unconfirmed'}.contains(error.code);
     if (!connection.isLoading &&
-        !connection.hasError &&
-        connection.value == null &&
-        OperationalServiceScope.maybeOf(context) == null) {
-      return const QbittorrentConnectScreen();
+        OperationalServiceScope.maybeOf(context) == null &&
+        (recovery || !connection.hasError && connection.value == null)) {
+      return QbittorrentConnectScreen(
+        key: ValueKey(recovery),
+        recovery: recovery,
+        popOnSuccess: false,
+      );
     }
     final torrents = ref.watch(qbittorrentTorrentsProvider);
     final client = ref.watch(qbittorrentClientProvider);
@@ -322,7 +370,7 @@ class _QbittorrentTorrentsScreenState
         padding: EdgeInsets.zero,
         onPressed: _pending
             ? null
-            : guardedMediaAction(() {
+            : _guardedAction(() {
                 if (ready) {
                   _refresh();
                 } else {
@@ -337,7 +385,7 @@ class _QbittorrentTorrentsScreenState
         padding: EdgeInsets.zero,
         onPressed: _pending || _uncertain || !ready
             ? null
-            : guardedMediaAction(_add),
+            : _guardedAction(_add),
         child: const Icon(CupertinoIcons.add),
       ),
       slivers: [
@@ -389,7 +437,7 @@ class _QbittorrentTorrentsScreenState
                                     !_validHash(torrent.hash)
                                 ? null
                                 : () {
-                                    if (sessionCurrent(generation) &&
+                                    if (_current(generation) &&
                                         identical(
                                           ref
                                               .read(qbittorrentTorrentsProvider)

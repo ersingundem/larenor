@@ -1,26 +1,31 @@
-import 'package:larenor/core/configuration_writes.dart';
-
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
+import '../../../../core/direct_credential_record.dart';
+import '../../../../core/direct_home_access.dart';
 import 'qbittorrent_config.dart';
 
-/// qBittorrent's WebUI API is cookie-session based (no long-lived token),
-/// so the username/password are kept (Keystore/Keychain-backed) to
-/// re-authenticate on every app launch rather than a single stored token.
+/// Cookie-session login uses one complete, private URL/user/password record.
+/// An uncertain field write stays quarantined until explicit save or clear.
 class QbittorrentCredentialsStore {
-  QbittorrentCredentialsStore({FlutterSecureStorage? storage})
-    : _storage = storage ?? const FlutterSecureStorage();
+  QbittorrentCredentialsStore({
+    FlutterSecureStorage? storage,
+    DirectHomeAccess? access,
+  }) : _access = access,
+       _record = DirectCredentialRecord(
+         service: DirectCredentialService.qbittorrent,
+         storage: storage,
+         access: access,
+       );
 
-  static const _baseUrlKey = 'qbittorrent_base_url';
-  static const _usernameKey = 'qbittorrent_username';
-  static const _passwordKey = 'qbittorrent_password';
-
-  final FlutterSecureStorage _storage;
+  final DirectHomeAccess? _access;
+  final DirectCredentialRecord _record;
 
   Future<QbittorrentConfig?> read() async {
-    final baseUrl = await _storage.read(key: _baseUrlKey);
-    final username = await _storage.read(key: _usernameKey);
-    final password = await _storage.read(key: _passwordKey);
+    final fields = await _record.readFields();
+    _access?.check();
+    final baseUrl = fields['baseUrl'];
+    final username = fields['username'];
+    final password = fields['password'];
     if (baseUrl == null || username == null || password == null) return null;
     return QbittorrentConfig(
       baseUrl: baseUrl,
@@ -33,15 +38,13 @@ class QbittorrentCredentialsStore {
     required String baseUrl,
     required String username,
     required String password,
-  }) => ConfigurationWrites.run(() async {
-    await _storage.write(key: _baseUrlKey, value: baseUrl);
-    await _storage.write(key: _usernameKey, value: username);
-    await _storage.write(key: _passwordKey, value: password);
-  });
+    bool Function()? isCurrent,
+  }) => _record.replaceAll({
+    'baseUrl': baseUrl,
+    'username': username,
+    'password': password,
+  }, isCurrent: isCurrent);
 
-  Future<void> clear() => ConfigurationWrites.run(() async {
-    await _storage.delete(key: _baseUrlKey);
-    await _storage.delete(key: _usernameKey);
-    await _storage.delete(key: _passwordKey);
-  });
+  Future<void> clear({bool Function()? isCurrent}) =>
+      _record.clear(isCurrent: isCurrent);
 }

@@ -1916,5 +1916,7 @@
   "arrConnectionIncomplete": "Kayıtlı bağlantı tamamlanamadı. Adres ve API anahtarını yeniden girin veya kayıtlı bağlantıyı kaldırın.",
   "arrRemoveConnection": "Kayıtlı bağlantıyı kaldır",
   "wellbeingReloadSettings": "Kayıtlı ayarları yeniden oku",
-  "wellbeingSettingsUnavailable": "Kayıtlı gizlilik ayarları doğrulanamadı. Devam etmeden önce yeniden okuyun."
+  "wellbeingSettingsUnavailable": "Kayıtlı gizlilik ayarları doğrulanamadı. Devam etmeden önce yeniden okuyun.",
+  "qbittorrentConnectionIncomplete": "Bu bağlantı tamamlanmadı. Adres, kullanıcı adı ve parolayı yeniden girin veya kayıtlı bağlantıyı kaldırın.",
+  "qbittorrentRemoveConnection": "Kayıtlı bağlantıyı kaldır"
 }

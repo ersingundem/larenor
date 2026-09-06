@@ -38,6 +38,7 @@ class MemoryStore extends QbittorrentCredentialsStore {
     required String baseUrl,
     required String username,
     required String password,
+    bool Function()? isCurrent,
   }) async {
     saves++;
     config = QbittorrentConfig(
@@ -48,7 +49,7 @@ class MemoryStore extends QbittorrentCredentialsStore {
   }
 
   @override
-  Future<void> clear() async {
+  Future<void> clear({bool Function()? isCurrent}) async {
     clears++;
     config = null;
   }
