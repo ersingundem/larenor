@@ -14,6 +14,7 @@ import '../data/home_resources_api.dart';
 import '../data/home_resources_controller.dart';
 import '../domain/home_resource_models.dart';
 import '../domain/home_resource_mutations.dart';
+import 'home_resource_grants_screen.dart';
 
 enum _Editor { create, update, delete }
 
@@ -560,6 +561,22 @@ class _HomeResourceAdminScreenState
                                                 ? () => _begin(
                                                     _Editor.update,
                                                     row,
+                                                  )
+                                                : null,
+                                          ),
+                                          _button(
+                                            'home-resource-grants-${row.id}',
+                                            l10n.resourceGrantsManage,
+                                            _controller.canMutate
+                                                ? () => Navigator.of(context).push(
+                                                    CupertinoPageRoute<void>(
+                                                      builder: (_) =>
+                                                          HomeResourceGrantsScreen(
+                                                            target: row,
+                                                            gateCurrent: widget
+                                                                .gateCurrent,
+                                                          ),
+                                                    ),
                                                   )
                                                 : null,
                                           ),
