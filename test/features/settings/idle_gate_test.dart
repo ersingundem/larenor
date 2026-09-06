@@ -8,7 +8,9 @@ import 'package:flutter_riverpod/misc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:larenor/core/app_interaction_scope.dart';
+import 'package:larenor/features/ambient/providers/ambient_providers.dart';
 import 'package:larenor/features/auth/data/ha_connection_config.dart';
 import 'package:larenor/features/auth/providers/auth_providers.dart';
 import 'package:larenor/features/dashboard/presentation/widgets/entity_controls.dart';
@@ -27,6 +29,7 @@ import 'package:larenor/features/proxmox/providers/proxmox_providers.dart';
 import 'package:larenor/features/settings/presentation/idle_gate.dart';
 import 'package:larenor/features/settings/providers/settings_providers.dart';
 import 'package:larenor/features/wellbeing/providers/wellbeing_providers.dart';
+import 'package:larenor/features/wellbeing/data/wellbeing_disclosure_policy.dart';
 import 'package:larenor/l10n/generated/app_localizations.dart';
 
 import '../media/local_audio/local_audio_ui_fixture.dart';
@@ -191,6 +194,12 @@ class _Harness {
     final configLease = container.listen(connectionConfigProvider, (_, _) {});
     addTearDown(entityLease.close);
     addTearDown(configLease.close);
+    // The real privacy providers now wait behind the same configuration queue
+    // as ambient preferences. Establish a confirmed local baseline before
+    // exercising idle and stale HA states; never override the privacy result.
+    await container.read(ambientSettingsProvider.future);
+    await container.read(wellbeingSettingsProvider.future);
+    await container.read(wellbeingDisclosureProvider.future);
     await tester.pumpWidget(
       UncontrolledProviderScope(
         container: container,
@@ -251,6 +260,7 @@ void _resume(WidgetTester tester) {
 }
 
 void main() {
+  setUp(() => SharedPreferences.setMockInitialValues({}));
   for (final privacy in <AsyncValue<Set<String>>>[
     const AsyncData({'weather.home'}),
     const AsyncLoading(),
