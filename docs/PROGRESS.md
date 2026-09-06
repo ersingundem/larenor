@@ -1,6 +1,6 @@
 # Larenor — güncel ilerleme ve iş kuyruğu
 
-**Son güncelleme: 6 Eylül 2026, 08:34 (Türkiye saati).**
+**Son güncelleme: 6 Eylül 2026, 08:47 (Türkiye saati).**
 
 ```text
 Önceki kapsam       █████████████░░░░░░░  ≈ %65
@@ -68,7 +68,7 @@ anonim doğrulandı. [APK104, CI ve teslim kanıtı](client-delivery-104-2026-09
 | --- | --- |
 | Çıkış / yeniden açılış onarımı | APK104 ve14 E2E ile doğrulandı |
 | S08.5 — hazırlanmış restore ve Core oda arşivi | Model/şifreleme/controller birleşti; gerçek ekran, tablet ve native yolculuk doğrulaması sürüyor |
-| S08.6 — kişi ve izin yönetimi | Server ve Client controller birleşti; PIN korumalı tablet ekranı ve ayrı Android yolculuğu hazırlanıyor |
+| S08.6 — kişi ve izin yönetimi | Server, controller ve PIN korumalı tablet ekranı birleşti; üye Android testi hazır, admin/ACL yolculuğu hazırlanıyor |
 | Sonraki birleşim yayını | Yerel4.870 PASS mevcut; yeni ekranlar eklendikten sonra tam test ve kendi CI/APK kabulü gerekli |
 
 Yeni kişi/arşiv ekranları APK104'e dahil değildir. S08.5/S08.6 ve yeni63
@@ -133,11 +133,16 @@ Android kişi modeli/API adaptörü yerelde birleşti:77 yeni/278 ilgili test,
 analiz0 ve bağımsız inceleme geçti. Gerçek HTTP sözleşmesi birleşimde2 testle
 yeniden doğrulandı. Kişi provider/controller4184289 yerelde birleşti:58 yeni/135 kişi/418 ilgili
 PASS; analiz0 ve bağımsız inceleme temiz. Üye listesi, PIN korumalı admin
-profilleri/izin ekranları ve arşiv tablet ekranı şimdi gerçek arayüze bağlanıyor;
-Yeni birleşimin634bc10 kaynağında **4.870 tam Client PASS / 5:14**, analiz0
-ve931dosya biçim farkı0 elde edildi. Kişi ekranı
-ve arşiv arayüzü kabulü açık;
-model dilimi CI102'ye dahil değildir.
+profilleri/izin ekranları eed3916 ile gerçek arayüze bağlandı: **55 yeni/608 ilgili
+PASS**, satır kapsamı%96,29, analiz0 ve12dosya biçim farkı0. EN/TR,2×,
+320/600/1280 ve klavye kontrolleri ile bağımsız inceleme geçti.
+[Kişi ekranı kanıtı](home-people-ui-implementation-2026-09-06.md).
+Read-only Android fixture113 destek testiyle birleşti. Üye yolculuğu754d87e
+hazır: eski10gövde/99faz aynı,8yeni faz; henüz Android'de çalıştırılmadı.
+Admin/ACL yolculuğu ayrıca hazırlanıyor. Önceki634bc10 kaynağında
+**4.870 tam Client PASS / 5:14**, analiz0 ve931dosya biçim farkı0 vardı;
+bu sayı yeni ekranları/fixture testlerini içermez. Birleşimin yeni tam test
+ve kendi CI/APK kabulü açık; bu kişi paketi APK104'e dahil değildir.
 [Model kanıtı](home-people-contract-implementation-2026-09-06.md).
 
 **S08.4 kabul edildi:** üç madde ve 22 kayıt sınıfı exact `1c2db57` kaynağında

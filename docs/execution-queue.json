@@ -1337,7 +1337,10 @@
         "docs/home-people-registry-implementation-2026-09-06.md",
         "docs/home-people-client-contract-implementation-2026-09-06.md",
         "docs/home-identity-evidence-archive-2026-09-06.json",
-        "docs/home-people-controller-implementation-2026-09-06.md"
+        "docs/home-people-controller-implementation-2026-09-06.md",
+        "docs/home-people-ui-implementation-2026-09-06.md",
+        "docs/core-people-read-fixture-2026-09-06.md",
+        "docs/core-people-android-journey-2026-09-06.md"
       ],
       "scope": "Tek mevcut ev bağlamı; F19 çoklu Core/ev federasyonu bu teslim değildir.",
       "acceptance": [
@@ -1444,10 +1447,50 @@
           "state": "completed",
           "result": "passed",
           "label": "Kişi listesi/metadata/ACL controller ve gerçek provider lifetime:58 yeni/135 kişi/418 ilgili PASS;470/478 satır, analiz7/0format7/0; root kaynakCLEAR. Kişi UI/PIN gate ve Android kabulü ayrı açık."
+        },
+        {
+          "kind": "test",
+          "ref": "docs/home-people-ui-implementation-2026-09-06.md",
+          "commit": "eed39166d8e04bf95f5ed39db612f54364ad7448",
+          "state": "completed",
+          "result": "passed",
+          "label": "Gerçek PIN/kişi/ACL tabletUI:55 yeni/608 ilgili PASS,%96.29 satır,analyze0,12format0 ve bağımsızCLEAR. EN/TR320/600/1280 2x; yeniAndroidCI veadminnative kabulü açık."
+        },
+        {
+          "kind": "review",
+          "ref": "docs/home-people-ui-implementation-2026-09-06.md",
+          "commit": "eed39166d8e04bf95f5ed39db612f54364ad7448",
+          "state": "completed",
+          "result": "passed",
+          "label": "Gerçek PIN/kişi/ACL tabletUI:55 yeni/608 ilgili PASS,%96.29 satır,analyze0,12format0 ve bağımsızCLEAR. EN/TR320/600/1280 2x; yeniAndroidCI veadminnative kabulü açık."
+        },
+        {
+          "kind": "test",
+          "ref": "docs/core-people-read-fixture-2026-09-06.md",
+          "commit": "c322b8f985b5570999959da839c0cfb90d1f4645",
+          "state": "completed",
+          "result": "passed",
+          "label": "İsteğe bağlı read-only kişi loopbackfixture:22 yeni/113 destek PASS,actualServerJSON birebir,strictauth/scope/query; bağımsızCLEAR. GerçekServerauth/native kabulü yerine geçmez."
+        },
+        {
+          "kind": "review",
+          "ref": "docs/core-people-read-fixture-2026-09-06.md",
+          "commit": "c322b8f985b5570999959da839c0cfb90d1f4645",
+          "state": "completed",
+          "result": "passed",
+          "label": "İsteğe bağlı read-only kişi loopbackfixture:22 yeni/113 destek PASS,actualServerJSON birebir,strictauth/scope/query; bağımsızCLEAR. GerçekServerauth/native kabulü yerine geçmez."
+        },
+        {
+          "kind": "review",
+          "ref": "docs/core-people-android-journey-2026-09-06.md",
+          "commit": "754d87eceeb0f0f9e9bbb8059339e353898dada3",
+          "state": "completed",
+          "result": "passed",
+          "label": "YeniüyeAndroid yolculuğu source reviewCLEAR/analyze0; eski10body/99faz aynı,8yenifaz. Nativeçalıştırılmadı; admin/ACL yolculuğu ayrı hazırlanıyor."
         }
       ],
       "completionCommit": null,
-      "reason": "Oda/kaynak metadata ve ACL ekranları a27/APK101 ile kabul edilmişti; önceki23 kanıt arşivde korunur. Ayrı kişi HTTP API/şifreli kayıt, Client sözleşme/model/adapter yerelde geçti. Tam Server3298 PASS/11 Linux skip. Kişi provider/controller ve gerçek tablet ekranı, yeni exact CI/Android kabulü açık."
+      "reason": "Kişi Server/API/model/controller ve gerçek PIN korumalı tablet ekranları yerelde birleşti:55yeni/608ilgili UI PASS+review. Üye Android yolculuğu hazır, çalıştırılmadı; kişiadmin/ACL native akışı ayrı hazırlanıyor. Yeni birleşik test/CI/APK ve S08.6 kabulü açık."
     },
     {
       "id": "S08.7",
