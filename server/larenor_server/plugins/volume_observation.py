@@ -48,10 +48,10 @@ class JournaledVolumeObservations:
             if event.is_set():
                 raise VolumeObservationError('volume_cancelled')
             receipt = journal.prepare(**source, resource_id=resource_id)
-            if receipt.state in {'labels_observed', 'needs_attention'}:
-                return receipt
             if event.is_set():
                 raise VolumeObservationError('volume_cancelled')
+            if receipt.state in {'labels_observed', 'needs_attention'}:
+                return receipt
             if receipt.state == 'prepared':
                 receipt = journal.begin_observation(resource_id, receipt.revision, **source).receipt
 
