@@ -15,6 +15,9 @@ from types import SimpleNamespace
 
 import pytest
 
+# The Server CI runs from server/; load only this checkout's offline tool code.
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+
 
 def api():
     name = 'tool.jellyfin_storage_smoke'

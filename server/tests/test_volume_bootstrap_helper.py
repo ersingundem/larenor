@@ -6,9 +6,13 @@ import os
 from pathlib import Path
 import re
 import stat
+import sys
 from types import SimpleNamespace
 
 import pytest
+
+# Collected by the pinned Server pytest job, not dependency-free tool unittest.
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 
 def api():

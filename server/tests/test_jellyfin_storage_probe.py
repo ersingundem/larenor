@@ -4,8 +4,12 @@ import importlib.util
 import json
 import os
 from pathlib import Path
+import sys
 
 import pytest
+
+# Keep pytest-only fixture coverage in the existing pinned Server test job.
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 
 def api():
