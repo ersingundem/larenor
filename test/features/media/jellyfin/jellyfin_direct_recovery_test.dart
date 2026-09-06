@@ -1,3 +1,5 @@
+import 'dart:async';
+import 'dart:ui' show ViewFocusDirection, ViewFocusEvent, ViewFocusState;
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -7,6 +9,8 @@ import 'package:flutter_secure_storage_platform_interface/flutter_secure_storage
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:larenor/core/app_interaction_scope.dart';
+import 'package:larenor/core/home_source_store.dart';
+import 'package:larenor/features/media/jellyfin/providers/jellyfin_providers.dart';
 import 'package:larenor/features/media/jellyfin/data/jellyfin_discovery.dart';
 import 'package:larenor/features/media/jellyfin/presentation/jellyfin_connect_screen.dart';
 import 'package:larenor/features/settings/presentation/settings_gate_screen.dart';
@@ -56,4 +60,50 @@ void main(){
    },()=>MockClient((request)async{expect(request.url.host,'new.invalid');if(request.method=='POST'){posts++;return http.Response(jellyfinLoginBody,200);}return http.Response('{"Items":[]}',200);}));
   });
  }
+ for(final mode in ['idle','background','route','ticker','native_focus','source','provider']) {
+  testWidgets('old connect callback cannot return after $mode retirement',(tester) async {
+   secure.values['jellyfin_connection_pending_v1']='1';final(c,home)=await routinesHome('direct');final discovery=FakeJellyfinDiscovery();final interaction=AppInteractionController();addTearDown(interaction.dispose);final ticker=ValueNotifier(true);addTearDown(ticker.dispose);final navigator=GlobalKey<NavigatorState>();var requests=0,factories=0;
+   await http.runWithClient(() async {
+    try {
+     await tester.pumpWidget(jellyfinHarness(c,ValueListenableBuilder<bool>(valueListenable:ticker,builder:(_,enabled,child)=>TickerMode(enabled:enabled,child:child!),child:const JellyfinConnectScreen()),discovery:discovery,factory:()=>factories++,interaction:interaction,navigator:navigator));await pumpJellyfinFrames(tester);
+     await tester.enterText(find.byType(CupertinoTextFormFieldRow).at(0),'https://new.invalid');await tester.enterText(find.byType(CupertinoTextFormFieldRow).at(1),'old-draft-user');await tester.enterText(find.byType(CupertinoTextFormFieldRow).at(2),'old-draft-password');
+     final old=tester.widget<CupertinoButton>(find.widgetWithText(CupertinoButton,'Connect')).onPressed!;
+     if(mode=='idle'){interaction.setActive(false);await pumpJellyfinFrames(tester);interaction.setActive(true);}
+     if(mode=='background'){for(final state in [AppLifecycleState.inactive,AppLifecycleState.hidden,AppLifecycleState.paused,AppLifecycleState.hidden,AppLifecycleState.inactive,AppLifecycleState.resumed]){tester.binding.handleAppLifecycleStateChanged(state);await pumpJellyfinFrames(tester);}}
+     if(mode=='route'){unawaited(navigator.currentState!.push<void>(CupertinoPageRoute(builder:(_)=>const CupertinoPageScaffold(child:Text('Other route')))));await pumpJellyfinFrames(tester);old();await pumpJellyfinFrames(tester);expect(requests,0);navigator.currentState!.pop();}
+     if(mode=='ticker'){ticker.value=false;await pumpJellyfinFrames(tester);ticker.value=true;}
+     if(mode=='native_focus'){for(final state in [ViewFocusState.unfocused,ViewFocusState.focused]){tester.binding.handleViewFocusChanged(ViewFocusEvent(viewId:tester.view.viewId,state:state,direction:ViewFocusDirection.undefined));await pumpJellyfinFrames(tester);}}
+     if(mode=='source'){await home.choose(HomeSource.verifiedCore);await home.choose(HomeSource.directLocal);}
+     if(mode=='provider'){c.invalidate(jellyfinConnectionProvider);await pumpJellyfinFrames(tester);}
+     await pumpJellyfinFrames(tester);
+     if(!['source','provider'].contains(mode)){await tester.enterText(find.byType(CupertinoTextFormFieldRow).at(0),'https://new.invalid');await tester.enterText(find.byType(CupertinoTextFormFieldRow).at(1),'new-user');await tester.enterText(find.byType(CupertinoTextFormFieldRow).at(2),'new-password');}
+     secure.calls.clear();old();await pumpJellyfinFrames(tester);expect(requests,0);expect(secure.calls,isEmpty);expect(factories,0);expect(tester.takeException(),isNull);
+    }finally{await tester.pumpWidget(const SizedBox.shrink());c.dispose();await tester.pump(const Duration(seconds:5));}
+   },()=>MockClient((_)async{requests++;return http.Response(jellyfinLoginBody,200);}));
+  });
+ }
+ for(final point in ['device','http','field']) {
+  testWidgets('window permission loss during $point await prevents remaining login effects',(tester) async {
+   secure.values['jellyfin_connection_pending_v1']='1';if(point=='device')secure.values.remove('jellyfin_device_id');final(c,_)=await routinesHome('direct');final discovery=FakeJellyfinDiscovery();final interaction=AppInteractionController();addTearDown(interaction.dispose);var requests=0;final response=Completer<http.Response>();
+   TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(channel,(call)async{final result=await secure.handle(call);final key=(call.arguments as Map)['key'];if(call.method=='write'&&(point=='device'&&key=='jellyfin_device_id'||point=='field'&&key=='jellyfin_base_url'))interaction.setActive(false);return result;});
+   await http.runWithClient(() async {
+    try{
+     await tester.pumpWidget(jellyfinHarness(c,const JellyfinConnectScreen(),discovery:discovery,factory:(){},interaction:interaction));await pumpJellyfinFrames(tester);
+     await tester.enterText(find.byType(CupertinoTextFormFieldRow).at(0),'https://new.invalid');await tester.enterText(find.byType(CupertinoTextFormFieldRow).at(1),'new-user');await tester.enterText(find.byType(CupertinoTextFormFieldRow).at(2),'new-password');await tapJellyfinText(tester,'Connect');
+     if(point=='http')interaction.setActive(false);response.complete(http.Response(jellyfinLoginBody,200));await pumpJellyfinFrames(tester);
+     expect(requests,point=='device'?0:1);expect(secure.values['jellyfin_access_token'],'synthetic-secret');expect(secure.values['jellyfin_connection_pending_v1'],'1');expect(tester.takeException(),isNull);
+    }finally{await tester.pumpWidget(const SizedBox.shrink());c.dispose();await tester.pump(const Duration(seconds:5));}
+   },()=>MockClient((_){requests++;return response.future;}));
+  });
+ }
+ testWidgets('successful standalone pushed login returns to its original route',(tester)async{
+  secure.values['jellyfin_connection_pending_v1']='1';final(c,_)=await routinesHome('direct');final navigator=GlobalKey<NavigatorState>();final discovery=FakeJellyfinDiscovery();var requests=0;
+  await http.runWithClient(()async{
+   try{
+    await tester.pumpWidget(jellyfinHarness(c,CupertinoPageScaffold(child:CupertinoButton(onPressed:()=>navigator.currentState!.push<void>(CupertinoPageRoute(builder:(_)=>const JellyfinConnectScreen())),child:const Text('Original route'))),discovery:discovery,factory:(){},navigator:navigator));await pumpJellyfinFrames(tester);await tapJellyfinText(tester,'Original route');expect(navigator.currentState!.canPop(),isTrue);
+    await tester.enterText(find.byType(CupertinoTextFormFieldRow).at(0),'https://new.invalid');await tester.enterText(find.byType(CupertinoTextFormFieldRow).at(1),'new-user');await tester.enterText(find.byType(CupertinoTextFormFieldRow).at(2),'new-password');await tapJellyfinText(tester,'Connect');expect(requests,1);expect(navigator.currentState!.canPop(),isFalse);expect(find.text('Original route'),findsOneWidget);expect(find.byType(JellyfinConnectScreen),findsNothing);expect(secure.values['jellyfin_device_id'],'fixed-device');expect(tester.takeException(),isNull);
+   }finally{await tester.pumpWidget(const SizedBox.shrink());c.dispose();await tester.pump(const Duration(seconds:5));}
+  },()=>MockClient((_)async{requests++;return http.Response(jellyfinLoginBody,200);}));
+ });
+
 }
