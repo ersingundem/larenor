@@ -116,6 +116,19 @@ UID/bootstrap ve gerçek kurulum etkileri açıktır.
 [Değerlendirme](managed-volume-storage-assessment-2026-09-06.md) ·
 [Uygulama kanıtı](managed-volume-proposal-implementation-2026-09-06.md).
 
+**Volume gözlemi sonraki yerel birleşime alındı:** `4baa55a`, yedi managed
+hedefi tam plan/kimlik/etiketlerle eşleştiren katı Engine yanıt denetimini
+ekler. **95 odaklı / 282 ilgili test**, 124 satır ve 24 dalda %100 kapsam;
+bağımsız inceleme temiz. Host dizini açılmaz ve gözlem kurulum yetkisi sayılmaz.
+Kalıcı volume journal'ı, gerçek bootstrap ve Engine işlem bağlantısı açık.
+[Gözlem kanıtı](managed-volume-observation-implementation-2026-09-06.md).
+
+S08.4'ün önceki 31 ayrıntılı kanıt kaydı
+[özgün kayıt arşivinde](client-boundary-evidence-archive-2026-09-06.json)
+aynen korunur. Yürütme kuyruğu yerel test/inceleme özetlerini buraya bağlar;
+başarılı ve başarısız CI kayıtları kuyrukta da kalır. Bu düzenleme kabul
+sayılarını veya tarihsel test sonuçlarını değiştirmez.
+
 **6 Eylül günlük depolama bakımı tamamlandı:** bir eski debug APK çıktısı,
 **129.424.470 bayt** temizlendi. En yeni üç debug APK korundu; imzalı çıktılar
 ve test raporları silinmedi. Sonraki envanter silinen kaydın yokluğunu ve

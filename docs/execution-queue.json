@@ -435,6 +435,22 @@
           "state": "completed",
           "result": "passed",
           "label": "Saf managed-volume önerisi:32 yeni/182 ilgili test;85satır/16dal100%, üretim82c9433 bağımsız CLEAR. Engine/HTTP bağlantısı ve gerçekkurulum yok; installAvailable=false."
+        },
+        {
+          "kind": "test",
+          "ref": "docs/managed-volume-observation-implementation-2026-09-06.md",
+          "commit": "4baa55a4ab3022378f705f72aafe496a949b689c",
+          "state": "completed",
+          "result": "passed",
+          "label": "Saf volume gözlemi:95 odaklı/282 ilgili test;124satır/24dal100%, üretim74f436c bağımsız CLEAR. labels_matched yalnız gözlem; durable journal/Engine dispatch/bootstrap açık, installAvailable=false."
+        },
+        {
+          "kind": "review",
+          "ref": "docs/managed-volume-observation-implementation-2026-09-06.md",
+          "commit": "4baa55a4ab3022378f705f72aafe496a949b689c",
+          "state": "completed",
+          "result": "passed",
+          "label": "Saf volume gözlemi:95 odaklı/282 ilgili test;124satır/24dal100%, üretim74f436c bağımsız CLEAR. labels_matched yalnız gözlem; durable journal/Engine dispatch/bootstrap açık, installAvailable=false."
         }
       ],
       "completionCommit": null,
@@ -1007,67 +1023,19 @@
       "evidence": [
         {
           "kind": "test",
-          "ref": "docs/client-scoped-layout-implementation-2026-09-06.md",
-          "commit": "6b959009126015020d6351a80b361daa7be478d6",
+          "ref": "docs/client-boundary-evidence-archive-2026-09-06.json",
+          "commit": "4bc79dcc66eb9e3ce2a5044bd240db2fafd0d695",
           "state": "completed",
           "result": "passed",
-          "label": "Scoped layout: 93 son test ve bağımsız inceleme; bütün S08.4 kabulü değil"
+          "label": "15 önceki test alt dilim kaydı özgün commit/ref/sonuçlarıyla arşivlendi. Sayılar örtüşür; tüm S08.4 kabulü veya yeni tam test koşusu değildir."
         },
         {
           "kind": "review",
-          "ref": "docs/client-scoped-layout-implementation-2026-09-06.md",
-          "commit": "6b959009126015020d6351a80b361daa7be478d6",
+          "ref": "docs/client-boundary-evidence-archive-2026-09-06.json",
+          "commit": "4bc79dcc66eb9e3ce2a5044bd240db2fafd0d695",
           "state": "completed",
           "result": "passed",
-          "label": "Scoped layout: 93 son test ve bağımsız inceleme; bütün S08.4 kabulü değil"
-        },
-        {
-          "kind": "test",
-          "ref": "docs/direct-home-boundary-implementation-2026-09-06.md",
-          "commit": "d8edab54974307e8c3f29e82f918e6d6bb2a9462",
-          "state": "completed",
-          "result": "passed",
-          "label": "Direct HA/seed: 53 son test, %99,5 satır kapsamı ve bağımsız inceleme"
-        },
-        {
-          "kind": "review",
-          "ref": "docs/direct-home-boundary-implementation-2026-09-06.md",
-          "commit": "d8edab54974307e8c3f29e82f918e6d6bb2a9462",
-          "state": "completed",
-          "result": "passed",
-          "label": "Direct HA/seed: 53 son test, %99,5 satır kapsamı ve bağımsız inceleme"
-        },
-        {
-          "kind": "test",
-          "ref": "docs/ha-backup-boundary-implementation-2026-09-06.md",
-          "commit": "a9c5576df91e433a7d13975a34437ab3b7e880f5",
-          "state": "completed",
-          "result": "passed",
-          "label": "HA yedek sınırı: 40 son test, repository %98,2 satır kapsamı ve bağımsız inceleme"
-        },
-        {
-          "kind": "review",
-          "ref": "docs/ha-backup-boundary-implementation-2026-09-06.md",
-          "commit": "a9c5576df91e433a7d13975a34437ab3b7e880f5",
-          "state": "completed",
-          "result": "passed",
-          "label": "HA yedek sınırı: 40 son test, repository %98,2 satır kapsamı ve bağımsız inceleme"
-        },
-        {
-          "kind": "test",
-          "ref": "docs/direct-home-routines-implementation-2026-09-06.md",
-          "commit": "cc3db20073efb132dbbd8c45101c1875ac332624",
-          "state": "completed",
-          "result": "passed",
-          "label": "Diafon/film gecesi: 542 ilgili test, %86,2 satır kapsamı ve bağımsız inceleme; bütün S08.4 kabulü değil"
-        },
-        {
-          "kind": "review",
-          "ref": "docs/direct-home-routines-implementation-2026-09-06.md",
-          "commit": "cc3db20073efb132dbbd8c45101c1875ac332624",
-          "state": "completed",
-          "result": "passed",
-          "label": "Diafon/film gecesi: 542 ilgili test, %86,2 satır kapsamı ve bağımsız inceleme; bütün S08.4 kabulü değil"
+          "label": "13 önceki review alt dilim kaydı özgün commit/ref/sonuçlarıyla arşivlendi. Sayılar örtüşür; tüm S08.4 kabulü veya yeni tam test koşusu değildir."
         },
         {
           "kind": "ci",
@@ -1078,132 +1046,12 @@
           "label": "Scoped layout/Direct HA ve HA yedek dilimleri: 2.989 Flutter, 98 JVM, 10 E2E ve bağımsız APK96; bütün S08.4 değil"
         },
         {
-          "kind": "test",
-          "ref": "docs/PROGRESS.md",
-          "commit": "808938e27976f420339145d5c046c56151beb5ca",
-          "state": "completed",
-          "result": "passed",
-          "label": "Birleşik yerel Client 3.115 test, tam analiz ve 838 dosyada biçim kontrolü temiz; yeni Android/CI henüz kabul edilmedi"
-        },
-        {
-          "kind": "test",
-          "ref": "docs/direct-arr-credentials-implementation-2026-09-06.md",
-          "commit": "0298c5ae5d962eccddc0abeaa19cb551a2f5d943",
-          "state": "completed",
-          "result": "passed",
-          "label": "Dört Arr:192 odaklı/547 ilgili test, %86,3 ilgili satır kapsamı ve bağımsız kaynak incelemesi; diğer servisler açık"
-        },
-        {
-          "kind": "review",
-          "ref": "docs/direct-arr-credentials-implementation-2026-09-06.md",
-          "commit": "0298c5ae5d962eccddc0abeaa19cb551a2f5d943",
-          "state": "completed",
-          "result": "passed",
-          "label": "Dört Arr:192 odaklı/547 ilgili test, %86,3 ilgili satır kapsamı ve bağımsız kaynak incelemesi; diğer servisler açık"
-        },
-        {
-          "kind": "test",
-          "ref": "docs/direct-credential-backup-implementation-2026-09-06.md",
-          "commit": "6426d55203b8c95997768f3d099c28cb94810bdd",
-          "state": "completed",
-          "result": "passed",
-          "label": "Yarım Direct credential/yedek sınırı:245 ilgili test, repository %98,31 ve bağımsız inceleme; birleşik e4f0f15 Client3418 geçti"
-        },
-        {
-          "kind": "review",
-          "ref": "docs/direct-credential-backup-implementation-2026-09-06.md",
-          "commit": "6426d55203b8c95997768f3d099c28cb94810bdd",
-          "state": "completed",
-          "result": "passed",
-          "label": "Yarım Direct credential/yedek sınırı:245 ilgili test, repository %98,31 ve bağımsız inceleme; birleşik e4f0f15 Client3418 geçti"
-        },
-        {
           "kind": "ci",
           "ref": "https://github.com/ersingundem/larenor/actions/runs/33997176965",
           "commit": "20d92d7144998e40eb465887ef3fcac681dab39e",
           "state": "completed",
           "result": "failed",
           "label": "Android97:3115Flutter/98JVM;10E2E geçti,scoped_layout eski fixture kaynak GET yanıtı eksik. Yeni core_resources yolculuğu geçti; APK üretilmedi, düzeltme yeniCI bekliyor"
-        },
-        {
-          "kind": "test",
-          "ref": "docs/core-resource-fixture-compat-2026-09-06.md",
-          "commit": "27def3daee4b058a84f16a4cbf77455dc0ec3f51",
-          "state": "completed",
-          "result": "passed",
-          "label": "Arr/backup/fixture birleşimi:7f9a74f tam3421 PASS/analiz/biçim;27def3d son18 fixture test/analiz/biçim PASS. Yeni CI açık."
-        },
-        {
-          "kind": "review",
-          "ref": "docs/core-resource-fixture-compat-2026-09-06.md",
-          "commit": "c793c13263bfe773ce6984fa9241f47fadca5745",
-          "state": "completed",
-          "result": "passed",
-          "label": "Mevcut admin fixture boş kaynak GET desteği: bağımsız kaynak incelemesi temiz; eski kullanıcı/rol ve red/temizlik kontrolleri korundu."
-        },
-        {
-          "kind": "test",
-          "ref": "docs/personal-data-boundary-implementation-2026-09-06.md",
-          "commit": "4eac0f6d3aa5817e691ee8329bfc73765af3bc05",
-          "state": "completed",
-          "result": "passed",
-          "label": "Kişisel veri:253 ilgili test; kaynak bağımsız ayarlar ve fail-closed gizlilik; yeniCI açık."
-        },
-        {
-          "kind": "review",
-          "ref": "docs/personal-data-boundary-implementation-2026-09-06.md",
-          "commit": "4eac0f6d3aa5817e691ee8329bfc73765af3bc05",
-          "state": "completed",
-          "result": "passed",
-          "label": "Kişisel veri:253 ilgili test; kaynak bağımsız ayarlar ve fail-closed gizlilik; yeniCI açık."
-        },
-        {
-          "kind": "test",
-          "ref": "docs/direct-api-key-credentials-implementation-2026-09-06.md",
-          "commit": "37bd4c8fe41fc4ff62aefef86b4b490966d1efc7",
-          "state": "completed",
-          "result": "passed",
-          "label": "Üç API-key:151 yeni/241 ilgili test ve bağımsız inceleme; yedi servis belirsiz kayıt ekdenetimi ayrı."
-        },
-        {
-          "kind": "review",
-          "ref": "docs/direct-api-key-credentials-implementation-2026-09-06.md",
-          "commit": "37bd4c8fe41fc4ff62aefef86b4b490966d1efc7",
-          "state": "completed",
-          "result": "passed",
-          "label": "Üç API-key:151 yeni/241 ilgili test ve bağımsız inceleme; yedi servis belirsiz kayıt ekdenetimi ayrı."
-        },
-        {
-          "kind": "test",
-          "ref": "docs/direct-qbittorrent-boundary-implementation-2026-09-06.md",
-          "commit": "13d022adbb23cc6248dade01be48f57ea10a0752",
-          "state": "completed",
-          "result": "passed",
-          "label": "qBittorrent:121 odaklı/531 ilgili test ve bağımsız inceleme; pending recovery/cancel/2x UI; yeniCI açık."
-        },
-        {
-          "kind": "review",
-          "ref": "docs/direct-qbittorrent-boundary-implementation-2026-09-06.md",
-          "commit": "13d022adbb23cc6248dade01be48f57ea10a0752",
-          "state": "completed",
-          "result": "passed",
-          "label": "qBittorrent:121 odaklı/531 ilgili test ve bağımsız inceleme; pending recovery/cancel/2x UI; yeniCI açık."
-        },
-        {
-          "kind": "test",
-          "ref": "docs/direct-jellyfin-boundary-implementation-2026-09-06.md",
-          "commit": "142dc36e72df5a91aa3f29864cbd1303b24aefdb",
-          "state": "completed",
-          "result": "passed",
-          "label": "Jellyfin:98 yeni/297 ilgili test; bağımsız inceleme, nativefocus/reload ve belirsiz kayıtta reader retirement; yeniCI açık."
-        },
-        {
-          "kind": "review",
-          "ref": "docs/direct-jellyfin-boundary-implementation-2026-09-06.md",
-          "commit": "142dc36e72df5a91aa3f29864cbd1303b24aefdb",
-          "state": "completed",
-          "result": "passed",
-          "label": "Jellyfin:98 yeni/297 ilgili test; bağımsız inceleme, nativefocus/reload ve belirsiz kayıtta reader retirement; yeniCI açık."
         },
         {
           "kind": "ci",
@@ -1214,44 +1062,28 @@
           "label": "Android98:3422Flutter/98JVM/11E2E ve bağımsız Java17/apksig signedAPK kontrolü geçti; fixture düzeltmesi kabul edildi. Sonraki yerel pilotlar dahil değil."
         },
         {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/34002121963",
+          "commit": "4bc79dcc66eb9e3ce2a5044bd240db2fafd0d695",
+          "state": "in_progress",
+          "result": null,
+          "label": "Yeni birleşik Android99 CI devam ediyor; önceki bağımsız APK98 kabulü bu sürüm için kullanılamaz."
+        },
+        {
           "kind": "test",
-          "ref": "docs/media-credential-confirmation-implementation-2026-09-06.md",
-          "commit": "7553a3f0a12fa91d90b22d28a721d0236bbbda1a",
+          "ref": "docs/direct-web-panel-boundary-implementation-2026-09-06.md",
+          "commit": "0a742a91004524c6471e480e61bf3a2e9ce7530e",
           "state": "completed",
           "result": "passed",
-          "label": "YediAPI-key belirsizkayıt:63provider+14gerçekPIN/370ilgili PASS;provider veUI ayrı bağımsız CLEAR. Eski okuyucu kapanır;lostACK kodu korunur, açık boş recovery; yeniCI beklenir."
+          "label": "Dashboard web paneli:79 ilgili test ve bağımsız kaynak incelemesi geçti. GlobalKey/reparent ve gecikmiş native WebView girişleri Direct sahibiyle bağlandı; yeni birleşim CI henüz yok."
         },
         {
           "kind": "review",
-          "ref": "docs/media-credential-confirmation-implementation-2026-09-06.md",
-          "commit": "7553a3f0a12fa91d90b22d28a721d0236bbbda1a",
+          "ref": "docs/direct-web-panel-boundary-implementation-2026-09-06.md",
+          "commit": "0a742a91004524c6471e480e61bf3a2e9ce7530e",
           "state": "completed",
           "result": "passed",
-          "label": "YediAPI-key belirsizkayıt:63provider+14gerçekPIN/370ilgili PASS;provider veUI ayrı bağımsız CLEAR. Eski okuyucu kapanır;lostACK kodu korunur, açık boş recovery; yeniCI beklenir."
-        },
-        {
-          "kind": "test",
-          "ref": "docs/direct-proxmox-boundary-implementation-2026-09-06.md",
-          "commit": "48289ebc8fa35d267d7c935f630f3c4eb6cdfeea",
-          "state": "completed",
-          "result": "passed",
-          "label": "Proxmox:213odaklı/665ilgili PASS;5dosya%86,8; bağımsız CLEAR. StrictTLS/6tuple, gerçekPIN, nativefocus/providerreload, belirsizkayıt recovery; yeniCI açık."
-        },
-        {
-          "kind": "review",
-          "ref": "docs/direct-proxmox-boundary-implementation-2026-09-06.md",
-          "commit": "48289ebc8fa35d267d7c935f630f3c4eb6cdfeea",
-          "state": "completed",
-          "result": "passed",
-          "label": "Proxmox:213odaklı/665ilgili PASS;5dosya%86,8; bağımsız CLEAR. StrictTLS/6tuple, gerçekPIN, nativefocus/providerreload, belirsizkayıt recovery; yeniCI açık."
-        },
-        {
-          "kind": "test",
-          "ref": "docs/client-boundary-integration-2026-09-06.md",
-          "commit": "ad5f86699aeda6024d064c1359b7fdec64811134",
-          "state": "completed",
-          "result": "passed",
-          "label": "Birleşim1b260ce:3923PASS/tekfixturecompileFAIL; ad5f866SystemScreen18PASS+bağımsızCLEAR, üretim değişmedi. Tamanaliz0,860format0. Tek koşuda tüm-yeşil yerel sonuç iddiası yok; yeniCI açık."
+          "label": "Dashboard web paneli:79 ilgili test ve bağımsız kaynak incelemesi geçti. GlobalKey/reparent ve gecikmiş native WebView girişleri Direct sahibiyle bağlandı; yeni birleşim CI henüz yok."
         }
       ],
       "completionCommit": null,
@@ -1394,6 +1226,22 @@
           "state": "completed",
           "result": "passed",
           "label": "Salt okunur Core oda/kaynak ekranı:Android98 3422Flutter/11E2E ve bağımsızAPK kontrolü geçti. Yeni yedinci journey ve eski fixturecleanup başarılı; adminmetadata UI/ACL/commands açık."
+        },
+        {
+          "kind": "test",
+          "ref": "docs/core-home-resource-admin-api-implementation-2026-09-06.md",
+          "commit": "8e00548da8d55a1d071d6b92c7dfcbe0c3a54af5",
+          "state": "completed",
+          "result": "passed",
+          "label": "Metadata admin API:87 odaklı/656 ilgili Client,40 gerçek Server fixture/registry testi;64/64 yeni satır ve bağımsız inceleme. Henüz UI’ye bağlı değil; ACL/editor/devicecommands açık."
+        },
+        {
+          "kind": "review",
+          "ref": "docs/core-home-resource-admin-api-implementation-2026-09-06.md",
+          "commit": "8e00548da8d55a1d071d6b92c7dfcbe0c3a54af5",
+          "state": "completed",
+          "result": "passed",
+          "label": "Metadata admin API:87 odaklı/656 ilgili Client,40 gerçek Server fixture/registry testi;64/64 yeni satır ve bağımsız inceleme. Henüz UI’ye bağlı değil; ACL/editor/devicecommands açık."
         }
       ],
       "completionCommit": null,
