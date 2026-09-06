@@ -160,6 +160,8 @@ void main() {
   );
 
   final malformed = <Map<String, String>>[
+    for (final url in ['https://router.invalid:0', 'https://router.invalid:65536', 'https://router.invalid/%252e%252e/private', r'https://router.invalid/path\private'])
+      {...keeneticRecord, 'keenetic_base_url': url},
     for (final missing in keeneticRecord.keys)
       Map.of(keeneticRecord)..remove(missing),
     {

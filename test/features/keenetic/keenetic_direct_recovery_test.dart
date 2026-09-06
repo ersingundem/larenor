@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 // ignore: depend_on_referenced_packages
 import 'package:flutter_secure_storage_platform_interface/flutter_secure_storage_platform_interface.dart';
@@ -14,6 +15,7 @@ import 'package:larenor/features/keenetic/presentation/keenetic_connect_screen.d
 import 'package:larenor/features/keenetic/presentation/keenetic_home_screen.dart';
 import 'package:larenor/features/settings/presentation/settings_gate_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:larenor/features/keenetic/providers/keenetic_providers.dart';
 
 import '../../core/direct_home_boundary_test.dart' show SecurePlatform;
 import '../../core/direct_home_routines_test.dart' show routinesHome;
@@ -285,4 +287,67 @@ void main() {
       );
     });
   }
+
+  testWidgets('connected root explicit sign-out clears the complete tuple', (tester) async {
+    secure.values.addAll(keeneticRecord);
+    final (c, _) = await routinesHome('direct');
+    final interaction = AppInteractionController();
+    addTearDown(interaction.dispose);
+    await http.runWithClient(() async {
+      await mount(tester, c, interaction, child: const KeeneticHomeScreen());
+      await tester.tap(find.byKey(const ValueKey('service-account-action')));
+      await settle(tester);
+      expect(secure.values.keys.where((k) => k.startsWith('keenetic_')), isEmpty);
+      expect(await c.read(keeneticConnectionProvider.future), isNull);
+      expect(tester.takeException(), isNull);
+      await finish(tester, c);
+    }, () => MockClient((r) async => keeneticReply(r)));
+  });
+
+  for (final field in ['http', ...keeneticRecord.keys]) {
+    testWidgets('verification loses window during $field and cannot finish tuple', (tester) async {
+      secure.values.addAll({...keeneticRecord, marker: '1'});
+      final (c, _) = await routinesHome('direct');
+      final interaction = AppInteractionController();
+      addTearDown(interaction.dispose);
+      var reached = false;
+      messenger.setMockMethodCallHandler(storageChannel, (call) async {
+        final result = await secure.handle(call);
+        final args = call.arguments as Map;
+        if (call.method == 'write' && args['key'] == field) {
+          reached = true;
+          interaction.setActive(false);
+        }
+        return result;
+      });
+      await http.runWithClient(() async {
+        await mount(tester, c, interaction, child: const KeeneticHomeScreen());
+        await fill(tester);
+        await tap(tester, 'Connect');
+        expect(reached, isTrue);
+        expect(secure.values[marker], '1');
+        expect(c.read(keeneticConnectionProvider).hasError, isTrue);
+        expect(tester.widgetList<CupertinoTextFormFieldRow>(find.byType(CupertinoTextFormFieldRow))
+            .map((f) => f.controller!.text), everyElement(isEmpty));
+        final writes = secure.calls.where((x) => x.$1 == 'write').map((x) => x.$2).toList();
+        if (field == 'http') { expect(writes, isEmpty); }
+        else {
+          final index = keeneticRecord.keys.toList().indexOf(field);
+          expect(writes, [marker, ...keeneticRecord.keys.take(index + 1)]);
+        }
+        interaction.setActive(true);
+        await settle(tester);
+        expect(c.read(keeneticConnectionProvider).hasError, isTrue);
+        expect(tester.takeException(), isNull);
+        await finish(tester, c);
+      }, () => MockClient((r) async {
+        if (field == 'http' && r.url.path.endsWith('/version')) {
+          reached = true;
+          interaction.setActive(false);
+        }
+        return keeneticReply(r);
+      }));
+    });
+  }
+
 }
