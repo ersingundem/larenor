@@ -378,10 +378,18 @@ void main() {
               if (scale == 1) {
                 // The short Back label fits at the native 17px font size.
                 // Measure painted geometry, not only the unscaled Text widget.
-                final text = tester.renderObject<RenderParagraph>(caption(back));
-                final painted = MatrixUtils.transformRect(text.getTransformTo(null), Offset.zero & text.size);
-                expect(painted.height / text.size.height, closeTo(1, 1e-9),
-                  reason: 'short dialog label must keep its normal painted font size');
+                final text = tester.renderObject<RenderParagraph>(
+                  caption(back),
+                );
+                final painted = MatrixUtils.transformRect(
+                  text.getTransformTo(null),
+                  Offset.zero & text.size,
+                );
+                expect(
+                  painted.height / text.size.height,
+                  closeTo(1, 1e-9),
+                  reason: 'short dialog label must keep its normal painted font size',
+                );
               }
               final detector = tester.widget<FocusableActionDetector>(
                 find.descendant(
@@ -402,7 +410,10 @@ void main() {
               expect(focus(tester, back).hasPrimaryFocus, isTrue);
               await tester.sendKeyEvent(LogicalKeyboardKey.tab);
               await tester.pumpAndSettle();
-              await preview(tester, 'jobs-modal-$language-${width.toInt()}-${scale.toInt()}x');
+              await preview(
+                tester,
+                'jobs-modal-$language-${width.toInt()}-${scale.toInt()}x',
+              );
               await tester.sendKeyEvent(LogicalKeyboardKey.enter);
               await tester.pumpAndSettle();
               expect(confirm, findsNothing);

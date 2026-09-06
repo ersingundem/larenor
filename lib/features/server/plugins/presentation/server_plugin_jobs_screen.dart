@@ -649,7 +649,6 @@ class _JobDialogActionState extends State<_JobDialogAction> {
           excludeSemantics: true,
           child: Container(
             constraints: const BoxConstraints(minHeight: 32),
-            alignment: Alignment.center,
             decoration: BoxDecoration(
               border: Border.all(
                 width: 2,
@@ -659,7 +658,11 @@ class _JobDialogActionState extends State<_JobDialogAction> {
               ),
               borderRadius: BorderRadius.circular(4),
             ),
-            child: Text(widget.label),
+            child: Center(
+              widthFactor: 1,
+              heightFactor: 1,
+              child: Text(widget.label),
+            ),
           ),
         ),
       ),
