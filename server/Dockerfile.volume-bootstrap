@@ -1,0 +1,9 @@
+# A locally built, separately identified characterization helper. No published
+# helper manifest digest is claimed until an actual build/attestation exists.
+FROM python:3.12.14-slim-bookworm@sha256:782412e85d0f0984994c290652577d4018aff08145c85b262bb63dc0c7522254
+ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
+COPY tool/volume_bootstrap_helper.py /opt/larenor/volume_bootstrap_helper.py
+COPY LICENSE NOTICE /usr/share/doc/larenor-volume-bootstrap/
+USER 0:0
+ENTRYPOINT ["/usr/local/bin/python", "-I", "/opt/larenor/volume_bootstrap_helper.py"]
+CMD ["check"]
