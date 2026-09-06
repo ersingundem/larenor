@@ -5,11 +5,14 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
+import '../../../core/home_session_controller.dart';
 import '../../../l10n/generated/app_localizations.dart';
 import '../../../shared/theme/typography.dart';
 import '../../../shared/widgets/app_page_scaffold.dart';
 import '../../../shared/widgets/settings_section.dart';
 import '../../backup/data/backup_snapshot.dart';
+import '../../backup/data/backup_repository.dart';
+import '../../backup/data/backup_restore_access_provider.dart';
 import '../../backup/presentation/backup_screen.dart';
 import '../../media/hub/presentation/media_session_state.dart';
 import '../../settings/providers/settings_providers.dart';
@@ -29,6 +32,9 @@ class ServerVaultScreen extends ConsumerStatefulWidget {
 
 class _ServerVaultScreenState extends MediaSessionState<ServerVaultScreen> {
   late final ServerAccountController _account;
+  late final HomeSessionController? _home;
+  late final BackupRepository _repository;
+  ProviderContainer? _container;
   late final ServerVaultController _vault;
   late final int _accountGeneration;
   ValueListenable<TickerModeData>? _ticker;
@@ -49,9 +55,18 @@ class _ServerVaultScreenState extends MediaSessionState<ServerVaultScreen> {
   Route<bool>? _dialog;
   String? _message;
   bool _error = false;
+  bool _scopeChanged = false;
+
+  bool get _sameScope =>
+      identical(ref.read(serverAccountControllerProvider), _account) &&
+      identical(ref.read(homeSessionControllerProvider), _home) &&
+      identical(ref.read(backupRepositoryProvider), _repository) &&
+      identical(ProviderScope.containerOf(context, listen: false), _container);
 
   bool get _active =>
       sessionCurrent(sessionGeneration) &&
+      !_scopeChanged &&
+      _sameScope &&
       _visible &&
       _pinResolved &&
       !_pinChanged &&
@@ -73,10 +88,12 @@ class _ServerVaultScreenState extends MediaSessionState<ServerVaultScreen> {
   void initState() {
     super.initState();
     _account = ref.read(serverAccountControllerProvider);
+    _home = ref.read(homeSessionControllerProvider);
+    _repository = ref.read(backupRepositoryProvider);
     _accountGeneration = _account.generation;
     _vault = ServerVaultController(
       account: _account,
-      repository: ref.read(backupRepositoryProvider),
+      repository: _repository,
       isCurrent: () => _active,
     );
     _account.addListener(_accountChanged);
@@ -95,6 +112,11 @@ class _ServerVaultScreenState extends MediaSessionState<ServerVaultScreen> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
+    _container ??= ProviderScope.containerOf(context, listen: false);
+    if (!_sameScope && !_scopeChanged) {
+      _scopeChanged = true;
+      _invalidate(deferDialogRemoval: true);
+    }
     final ticker = TickerMode.getValuesNotifier(context);
     if (!identical(ticker, _ticker)) {
       _ticker?.removeListener(_visibilityChanged);
@@ -117,7 +139,7 @@ class _ServerVaultScreenState extends MediaSessionState<ServerVaultScreen> {
   @override
   void clearPendingInteraction() => _invalidate();
 
-  void _invalidate() {
+  void _invalidate({bool deferDialogRemoval = false}) {
     final wasBusy = _busy;
     sessionGeneration++;
     _vault.invalidate();
@@ -127,7 +149,15 @@ class _ServerVaultScreenState extends MediaSessionState<ServerVaultScreen> {
     _connections = false;
     final route = _dialog;
     _dialog = null;
-    if (route?.isActive == true) route!.navigator?.removeRoute(route);
+    void removeDialog() {
+      if (route?.isActive == true) route!.navigator?.removeRoute(route);
+    }
+
+    if (deferDialogRemoval) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => removeDialog());
+    } else {
+      removeDialog();
+    }
     // Only an owned transfer can have initiated this token refresh. Stop a
     // refresh that is waiting to send, without issuing a remote logout.
     if (wasBusy && !_account.working) unawaited(_account.cancelPending());
@@ -158,10 +188,18 @@ class _ServerVaultScreenState extends MediaSessionState<ServerVaultScreen> {
       _review = null;
     });
     try {
+      final access = _direction == ServerVaultDirection.restore
+          ? await ref.read(backupRestoreAccessFactoryProvider)(
+              expectedPin: _initialPin,
+              isCurrent: () => sessionCurrent(epoch) && _active,
+            )
+          : null;
+      if (!sessionCurrent(epoch) || !_active) return;
       final review = await _vault.prepare(
         direction: _direction,
         selection: _selection,
         conflictPolicy: _conflict,
+        access: access,
       );
       if (!sessionCurrent(epoch) || !_active) return;
       setState(() {
@@ -183,13 +221,23 @@ class _ServerVaultScreenState extends MediaSessionState<ServerVaultScreen> {
 
   void _showFailure(Object error, {bool uploading = false}) {
     final l10n = AppLocalizations.of(context);
-    final code = error is LarenorServerException ? error.code : '';
+    final code = switch (error) {
+      LarenorServerException() => error.code,
+      BackupException() => error.code,
+      _ => '',
+    };
     setState(() {
       _review = null;
       _error = true;
       _message = switch (code) {
         'conflict' || 'revision_conflict' => l10n.serverVaultConflict,
-        'review_expired' || 'cancelled' => l10n.serverVaultExpired,
+        'review_expired' ||
+        'cancelled' ||
+        'restore_expired' ||
+        'restore_changed' => l10n.serverVaultExpired,
+        'ha_connection_pending' => l10n.backupHaConnectionPending,
+        'connection_pending' => l10n.backupConnectionPending,
+        'restore_target_mismatch' => l10n.backupRestoreDirectTarget,
         'empty_selection' => l10n.backupSelectGroup,
         'empty_vault' => l10n.serverVaultEmpty,
         'unauthorized' => l10n.serverFailureAuthentication,
@@ -251,6 +299,7 @@ class _ServerVaultScreenState extends MediaSessionState<ServerVaultScreen> {
       },
     );
     _dialog = route;
+    PreparedBackupRestore? prepared;
     try {
       final confirmed = await Navigator.of(context).push(route);
       if (identical(_dialog, route)) _dialog = null;
@@ -269,18 +318,21 @@ class _ServerVaultScreenState extends MediaSessionState<ServerVaultScreen> {
           _error = false;
         });
       } else {
-        final operation = await _vault.takeRestore(review);
+        prepared = await _vault.takeRestore(review);
         if (!mounted || !sessionCurrent(epoch) || !_active) return;
-        final handler = ref.read(backupRestoreHandlerProvider);
-        _handedOff = true;
-        await handler(context, operation, l10n);
+        final handler = ref.read(preparedBackupRestoreHandlerProvider);
+        await handler(context, prepared, l10n);
+        _handedOff = prepared.wasHandedOff;
         // The boundary owns success/failure. The old provider tree is gone.
       }
     } catch (error) {
+      _handedOff = prepared?.wasHandedOff ?? _handedOff;
       if (!_handedOff && sessionCurrent(epoch) && _active) {
         _showFailure(error, uploading: uploading);
       }
     } finally {
+      _handedOff = prepared?.wasHandedOff ?? _handedOff;
+      prepared?.retire();
       if (!_handedOff && mounted) {
         setState(() {
           if (sessionCurrent(epoch)) _busy = false;

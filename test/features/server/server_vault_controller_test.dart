@@ -28,7 +28,21 @@ void main() {
     direction: direction,
     selection: selection,
     conflictPolicy: policy,
+    access: direction == ServerVaultDirection.restore
+        ? VaultRestoreAccess(isCurrent: () => current)
+        : null,
   );
+
+  Future<void> applyPrepared(
+    PreparedBackupRestore prepared, {
+    void Function()? afterClaim,
+  }) async {
+    final owner = Object();
+    await prepared.checkBeforeHandoff();
+    prepared.claimForHandoff(owner);
+    afterClaim?.call();
+    await prepared.applyAfterHandoff(owner, isCurrentBoundary: () => true);
+  }
 
   setUp(() async {
     clock = DateTime.now();
@@ -319,6 +333,63 @@ void main() {
     },
   );
 
+  for (final finalRead in [false, true]) {
+    test(
+      'retired ${finalRead ? 'final' : 'preview'} Vault GET cannot reject the current account with a late 401',
+      () async {
+        final review = finalRead
+            ? await prepare(direction: ServerVaultDirection.restore)
+            : null;
+        api.pendingRead = Completer();
+        final pending = finalRead
+            ? controller.takeRestore(review!)
+            : prepare(direction: ServerVaultDirection.restore);
+        final rejected = expectLater(
+          pending,
+          throwsA(isA<LarenorServerException>()),
+        );
+        await Future<void>.delayed(Duration.zero);
+        controller.invalidate();
+        api.pendingRead!.completeError(
+          const LarenorServerException('unauthorized'),
+        );
+        await rejected;
+        expect(account.session, isNotNull);
+        expect(account.failure, isNull);
+        expect(storage.writes, isEmpty);
+      },
+    );
+  }
+
+  test('active Vault GET unauthorized still rejects the account', () async {
+    api.readError = 'unauthorized';
+    await expectLater(prepare(), throwsA(isA<LarenorServerException>()));
+    expect(account.session, isNull);
+    expect(account.failure, 'unauthorized');
+  });
+
+  test(
+    'final Vault GET 401 after review expiry cannot reject the current account',
+    () async {
+      final review = await prepare(direction: ServerVaultDirection.restore);
+      api.pendingRead = Completer();
+      final pending = controller.takeRestore(review);
+      final expired = expectLater(
+        pending,
+        throwsA(isA<LarenorServerException>()),
+      );
+      await Future<void>.delayed(Duration.zero);
+      clock = clock.add(const Duration(minutes: 5));
+      api.pendingRead!.completeError(
+        const LarenorServerException('unauthorized'),
+      );
+      await expired;
+      expect(account.session, isNotNull);
+      expect(account.failure, isNull);
+      expect(storage.writes, isEmpty);
+    },
+  );
+
   for (final policy in BackupConflictPolicy.values) {
     test(
       'restore $policy delegates local journal work after old controller disposal',
@@ -332,8 +403,7 @@ void main() {
         expect(review.remote!.requiresPrivacyReview, isTrue);
         final restore = await controller.takeRestore(review);
         expect(storage.writes, isEmpty);
-        controller.dispose();
-        await restore();
+        await applyPrepared(restore, afterClaim: controller.dispose);
         expect(
           storage.preferences['appearance'],
           policy == BackupConflictPolicy.keepExisting ? 'light' : 'dark',
@@ -365,7 +435,10 @@ void main() {
           isNot(contains(BackupRepository.restoreJournalKey)),
         );
         final count = storage.writeCount;
-        await expectLater(restore(), throwsA(isA<LarenorServerException>()));
+        await expectLater(
+          applyPrepared(restore),
+          throwsA(isA<BackupException>()),
+        );
         expect(storage.writeCount, count);
         expect(api.writes, 0);
       },
@@ -381,7 +454,10 @@ void main() {
       );
       final restore = await controller.takeRestore(review);
       storage.failWrites.add(3);
-      await expectLater(restore(), throwsA(isA<BackupRestoreException>()));
+      await expectLater(
+        applyPrepared(restore),
+        throwsA(isA<BackupException>()),
+      );
       expect(storage.preferences['appearance'], 'light');
       expect(storage.secrets['settings_pin'], 'fixture-pin');
     },

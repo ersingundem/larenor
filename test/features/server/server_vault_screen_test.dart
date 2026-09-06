@@ -13,6 +13,7 @@ import 'package:larenor/features/server/presentation/server_vault_screen.dart';
 import 'package:larenor/features/server/providers/server_providers.dart';
 import 'package:larenor/features/settings/providers/settings_providers.dart';
 import 'package:larenor/l10n/generated/app_localizations.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../backup/backup_test_storage.dart';
 import 'server_vault_test_support.dart';
@@ -55,6 +56,7 @@ void main() {
       apiFactory: (_) => api,
     );
     await account.initialize();
+    SharedPreferences.setMockInitialValues({});
     FlutterSecureStorage.setMockInitialValues({'settings_pin': ?pin});
     tester.view.physicalSize = Size(width, 1200);
     tester.view.devicePixelRatio = 1;
@@ -67,13 +69,19 @@ void main() {
           backupRepositoryProvider.overrideWithValue(
             BackupRepository(storage: storage),
           ),
-          backupRestoreHandlerProvider.overrideWithValue((
+          preparedBackupRestoreHandlerProvider.overrideWithValue((
             context,
-            operation,
+            prepared,
             l10n,
           ) async {
             restoreHandoffs++;
-            restoreOperation = operation;
+            final owner = Object();
+            await prepared.checkBeforeHandoff();
+            prepared.claimForHandoff(owner);
+            restoreOperation = () => prepared.applyAfterHandoff(
+              owner,
+              isCurrentBoundary: () => true,
+            );
           }),
         ],
         child: CupertinoApp(
