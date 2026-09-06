@@ -28,7 +28,7 @@ class MemoryStore extends KeeneticCredentialsStore {
   @override
   Future<KeeneticConfig?> read() async => saved;
   @override
-  Future<void> clear() async {
+  Future<void> clear({bool Function()? isCurrent}) async {
     saved = null;
   }
 
@@ -37,6 +37,7 @@ class MemoryStore extends KeeneticCredentialsStore {
     required String baseUrl,
     required String username,
     required String password,
+    bool Function()? isCurrent,
   }) async {
     saves++;
     saved = KeeneticConfig(

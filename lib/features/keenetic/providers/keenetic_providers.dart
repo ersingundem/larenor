@@ -2,6 +2,7 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart' show Provider;
 
 import '../../../core/configuration_writes.dart';
+import '../../../core/direct_home_access.dart';
 import '../../health/data/health_monitor.dart';
 import '../../health/data/integration_health.dart';
 import '../../health/providers/health_providers.dart';
@@ -46,19 +47,28 @@ final keeneticHealthSessionProvider = Provider.autoDispose<HealthSession>((
 
 @riverpod
 KeeneticCredentialsStore keeneticCredentialsStore(Ref ref) =>
-    KeeneticCredentialsStore();
+    KeeneticCredentialsStore(access: ref.watch(directHomeAccessProvider));
 
-@riverpod
+@Riverpod(retry: _noRetry)
 class KeeneticConnection extends _$KeeneticConnection {
+  late final DirectHomeAccess _access = ref.read(directHomeAccessProvider);
   int _generation = 0;
   KeeneticClient? _verificationClient;
   @override
-  Future<KeeneticConfig?> build() {
+  Future<KeeneticConfig?> build() async {
+    ref.watch(directHomeAccessProvider);
+    _access.check();
+    final generation = ++_generation;
     ref.onDispose(() {
       _generation++;
       _verificationClient?.dispose();
     });
-    return ref.watch(keeneticCredentialsStoreProvider).read();
+    final value = await ref.watch(keeneticCredentialsStoreProvider).read();
+    _access.check();
+    if (!ref.mounted || generation != _generation) {
+      throw const DirectHomeAccessException('unavailable');
+    }
+    return value;
   }
 
   Future<void> signIn({
@@ -121,6 +131,8 @@ class KeeneticConnection extends _$KeeneticConnection {
 
 @Riverpod(retry: _noRetry)
 Future<KeeneticClient?> keeneticClient(Ref ref) async {
+  final access = ref.watch(directHomeAccessProvider);
+  if (!access.isCurrent) return null;
   final connection = ref.watch(keeneticConnectionProvider);
   final config = connection.isLoading || connection.hasError
       ? null
@@ -131,6 +143,7 @@ Future<KeeneticClient?> keeneticClient(Ref ref) async {
   ref.onDispose(client.dispose);
   try {
     await client.login();
+    access.check();
     if (!ref.mounted) {
       client.dispose();
       return null;
