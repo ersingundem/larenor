@@ -20,18 +20,29 @@ class _WebviewTileState extends ConsumerState<WebviewTile> {
   // Retain this owner for the whole widget lifetime: a source round trip cannot
   // give an old tile or its native callbacks a newly created Direct capability.
   late final DirectHomeAccess _access = ref.read(directHomeAccessProvider);
+  bool _retired = false;
+
+  bool get _sourceCurrent {
+    if (!mounted || _retired) return false;
+    if (!_access.isCurrent ||
+        !identical(ref.read(directHomeAccessProvider), _access)) {
+      _retired = true;
+      return false;
+    }
+    return true;
+  }
 
   @override
   Widget build(BuildContext context) {
     ref.watch(directHomeAccessProvider);
-    if (!_access.isCurrent) return const SizedBox.shrink();
+    if (!_sourceCurrent) return const SizedBox.shrink();
     final tile = widget.tile;
     return WebPanelView(
       policy:
           tile.webPanel?.policyFor(tile.url ?? '') ??
           WebPanelPolicy.fromUrl(tile.url ?? ''),
       sourceIdentity: (_access, tile.id),
-      sourceCurrent: () => _access.isCurrent,
+      sourceCurrent: () => _sourceCurrent,
       options: tile.webPanel,
     );
   }
