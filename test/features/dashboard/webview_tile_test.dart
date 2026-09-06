@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/cupertino.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:larenor/features/dashboard/domain/tile_config.dart';
 import 'package:larenor/features/dashboard/presentation/tiles/webview_tile.dart';
@@ -211,7 +212,7 @@ class _Harness {
       mounted.dispose();
     });
     await tester.pumpWidget(
-      CupertinoApp(
+      ProviderScope(child: CupertinoApp(
         locale: const Locale('en'),
         localizationsDelegates: AppLocalizations.localizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
@@ -248,7 +249,7 @@ class _Harness {
             );
           },
         ),
-      ),
+      )),
     );
     await tester.pump();
   }
