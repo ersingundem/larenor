@@ -9,6 +9,7 @@ import 'package:larenor/features/home_scope/data/core_layout_archive_codec.dart'
 import 'package:larenor/l10n/generated/app_localizations.dart';
 
 import '../home_resources/home_resources_tablet_test.dart' show loadFonts;
+import '../../support/restore_dialog_geometry.dart';
 import 'core_layout_archive_ui_fixture.dart';
 import 'core_layout_archive_screen_test.dart'
     show archive, passphrase, importArchive;
@@ -38,6 +39,64 @@ void main() {
       passphrase,
     );
   });
+  for (final language in ['en', 'tr']) {
+    for (final width in [600.0, 1280.0]) {
+      for (final scale in [1.0, 2.0]) {
+        testWidgets(
+          'Archive effective dialog target and painted label $language $width ${scale}x',
+          (tester) async {
+            await loadFonts(tester);
+            final semantics = tester.ensureSemantics();
+            try {
+              final h = ArchiveHarness();
+              await h.mount(
+                tester,
+                language: language,
+                width: width,
+                scale: scale,
+              );
+              await h.open(tester, language: language);
+              await importArchive(tester, h, encrypted);
+              final before = await h.repository.readSnapshot();
+              await archivePress(tester, 'core-layout-archive-replace');
+              final l10n = AppLocalizations.of(
+                tester.element(find.byType(CupertinoAlertDialog)),
+              );
+              final cancel = find.byKey(
+                const ValueKey('core-layout-archive-confirm-cancel'),
+              );
+              final failures = restoreDialogGeometryFailures(
+                tester,
+                labels: [l10n.commonCancel, l10n.coreLayoutArchiveReplace],
+                cancel: cancel,
+              );
+              Focus.of(
+                tester.element(
+                  find
+                      .descendant(of: cancel, matching: find.byType(Text))
+                      .first,
+                ),
+              ).requestFocus();
+              await flush(tester);
+              await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+              await flush(tester);
+              expect(find.byType(CupertinoAlertDialog), findsNothing);
+              expect(
+                (await h.repository.readSnapshot()).revision,
+                before.revision,
+              );
+              expect(h.files.saves, 0);
+              expect(h.session.connectionReads, 0);
+              expect(tester.takeException(), isNull);
+              expect(failures, isEmpty);
+            } finally {
+              semantics.dispose();
+            }
+          },
+        );
+      }
+    }
+  }
   for (final language in ['en', 'tr']) {
     for (final width in [320.0, 600.0, 1280.0]) {
       testWidgets(
