@@ -242,6 +242,8 @@ class _BackupScreenState extends ConsumerState<BackupScreen>
     AppLocalizations l10n, {
     bool decrypting = false,
   }) {
+    if(error is BackupException && {'restore_changed','restore_expired'}.contains(error.code)) return l10n.backupRestoreReviewAgain;
+    if(error is BackupException && error.code=='restore_target_mismatch') return l10n.backupRestoreDirectTarget;
     if (error is BackupException && error.code == 'ha_connection_pending') {
       return l10n.backupHaConnectionPending;
     }
@@ -412,11 +414,20 @@ class _BackupScreenState extends ConsumerState<BackupScreen>
       prepared=await repository.prepareRestore(snapshot,selection,conflictPolicy:conflict,access:access);
       if(!mounted || generation!=_generation || !_current()) {prepared.retire();return;}
       _prepared=prepared;
+      final proposal=prepared;
       final route = CupertinoDialogRoute<bool>(
         context: context,
         builder: (context) => CupertinoAlertDialog(
           title: Text(l10n.backupApplyTitle),
-          content: Text(l10n.backupApplyMessage),
+          content: Column(mainAxisSize:MainAxisSize.min,children:[
+            Text(proposal.targetsDirect ? l10n.backupRestoreTargetDirect : l10n.backupRestoreTargetDevice),
+            const SizedBox(height:8),
+            Text([if(selection.settings) l10n.backupSettings,if(selection.dashboard) l10n.backupDashboard,if(selection.connections) l10n.backupConnections].join(' · ')),
+            Text(l10n.backupCountSummary(proposal.summary.settingCount,proposal.summary.roomCount,proposal.summary.tileCount,proposal.summary.favoriteCount)),
+            Text(l10n.backupExistingSummary(proposal.summary.existingSettingsCount,proposal.summary.existingServices.length)),
+            Text(conflict==BackupConflictPolicy.replaceSelected ? l10n.backupReplaceSelected : l10n.backupKeepExisting),
+            const SizedBox(height:8),Text(l10n.backupApplyMessage),
+          ]),
           actions: [
             CupertinoDialogAction(
               onPressed: () {
@@ -429,7 +440,7 @@ class _BackupScreenState extends ConsumerState<BackupScreen>
             ),
             CupertinoDialogAction(
               isDestructiveAction:
-                  _conflict == BackupConflictPolicy.replaceSelected,
+                  conflict == BackupConflictPolicy.replaceSelected,
               onPressed: () {
                 if (mounted &&
                     _current(confirmation:true) &&
@@ -459,9 +470,9 @@ class _BackupScreenState extends ConsumerState<BackupScreen>
       final restore=ref.read(preparedBackupRestoreHandlerProvider);
       await restore(context,prepared,l10n);
       handedOff=prepared.wasHandedOff;
-    } catch (_) {
+    } catch (error) {
       if (!handedOff && mounted && generation == _generation) {
-        _showMessage(l10n.backupFailed, error: true);
+        _showMessage(_failure(error,l10n), error: true);
       }
     } finally {
       handedOff=prepared?.wasHandedOff??handedOff;
@@ -558,7 +569,9 @@ class _BackupScreenState extends ConsumerState<BackupScreen>
   List<Widget> _previewWidgets(
     AppLocalizations l10n,
     BackupPreview preview,
-  ) => [
+  ) {
+    final generation=_generation;
+    return [
     SettingsSection(
       header: Text(l10n.backupPreview),
       children: [
@@ -628,7 +641,7 @@ class _BackupScreenState extends ConsumerState<BackupScreen>
           ),
         },
         onValueChanged: (value) {
-          if (!_busy && value != null) setState(() => _conflict = value);
+          if (mounted && !_busy && value != null && generation==_generation && _current()) setState(() {_generation++;_conflict=value;});
         },
       ),
     ),
@@ -643,10 +656,11 @@ class _BackupScreenState extends ConsumerState<BackupScreen>
       'backup-apply',
     ),
     CupertinoButton(
-      onPressed: _busy ? null : () => setState(_clearSecrets),
+      onPressed: _busy ? null : () {if(mounted && generation==_generation && _current()) setState(() {_generation++;_clearSecrets();});},
       child: Text(l10n.commonCancel),
     ),
   ];
+  }
 
   @override
   Widget build(BuildContext context) {
