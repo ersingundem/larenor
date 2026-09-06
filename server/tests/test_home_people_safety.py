@@ -106,6 +106,56 @@ def test_schema_and_integrity_tampering_is_preserved_and_rejected_on_restart(ser
         assert '\n'.join(connection.iterdump()) == before
 
 
+@pytest.mark.parametrize('table,column', [
+    ('home_people_records', 'kind'),
+    ('home_people_state', 'singleton'),
+    ('home_people_audit', 'sequence'),
+])
+@pytest.mark.parametrize('object_kind', ['unique_index', 'ignore_insert_trigger'])
+def test_foreign_named_attached_schema_objects_fail_restart_without_changes(
+        server, table, column, object_kind):
+    app, client, settings, _ = server
+    admin = ready(server); _, base = paths(app)
+    create(client, admin, base)
+    # Names deliberately lack the domain prefix; ownership comes from the
+    # attached table. Neither uniqueness nor silent ignored writes is permitted.
+    statement = (
+        f'CREATE UNIQUE INDEX unrelated_index ON {table}({column})'
+        if object_kind == 'unique_index' else
+        f'CREATE TRIGGER unrelated_trigger BEFORE INSERT ON {table} '
+        'BEGIN SELECT RAISE(IGNORE); END'
+    )
+    with app.state.core.db.transaction() as connection:
+        connection.execute(statement)
+    with app.state.core.db.connection() as connection:
+        before = '\n'.join(connection.iterdump())
+    with pytest.raises(StartupError, match='^home_people_storage_invalid$'):
+        create_app(settings)
+    with app.state.core.db.connection() as connection:
+        assert '\n'.join(connection.iterdump()) == before
+
+
+def test_valid_primary_key_index_and_unrelated_table_objects_survive_restart(server):
+    app, client, settings, _ = server
+    admin = ready(server); public, base = paths(app)
+    person = create(client, admin, base)
+    with app.state.core.db.transaction() as connection:
+        indexes = connection.execute('PRAGMA index_list(home_people_records)').fetchall()
+        assert len(indexes) == 1 and indexes[0]['origin'] == 'pk'
+        assert indexes[0]['unique'] == 1 and indexes[0]['partial'] == 0
+        connection.execute('CREATE TABLE unrelated_fixture (id INTEGER)')
+        connection.execute('CREATE UNIQUE INDEX unrelated_index ON unrelated_fixture(id)')
+        connection.execute('CREATE TRIGGER unrelated_trigger BEFORE INSERT ON unrelated_fixture '
+                           'BEGIN SELECT RAISE(IGNORE); END')
+    with app.state.core.db.connection() as connection:
+        before = '\n'.join(connection.iterdump())
+    restarted = create_app(settings)
+    with app.state.core.db.connection() as connection:
+        assert '\n'.join(connection.iterdump()) == before
+    with TestClient(restarted) as next_client:
+        assert next_client.get(public + '/' + person['ref']['id'], headers=auth(admin)).json()['person'] == person
+
+
 def test_additive_people_migration_preserves_old_context_users_tokens_resources_and_vault(server):
     app, client, settings, _ = server; admin = ready(server)
     scope = app.state.core.context
