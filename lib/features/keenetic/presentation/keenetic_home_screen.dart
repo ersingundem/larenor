@@ -1,7 +1,12 @@
+import 'dart:async';
+
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../l10n/generated/app_localizations.dart';
+import '../../../core/direct_home_access.dart';
+import '../../media/hub/presentation/media_session_state.dart';
+import '../../health/data/integration_health.dart';
 import '../providers/keenetic_providers.dart';
 import '../data/models/keenetic_router_status.dart';
 import 'keenetic_connect_screen.dart';
@@ -12,38 +17,136 @@ import '../../../shared/widgets/service_root_scaffold.dart';
 import '../../../shared/widgets/operational_service_scope.dart';
 import '../../../shared/theme/spacing.dart';
 
-class KeeneticHomeScreen extends ConsumerWidget {
+class KeeneticHomeScreen extends ConsumerStatefulWidget {
   const KeeneticHomeScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<KeeneticHomeScreen> createState() => _KeeneticHomeScreenState();
+}
+
+class _KeeneticHomeScreenState extends MediaSessionState<KeeneticHomeScreen> {
+  late final DirectHomeAccess _access = ref.read(directHomeAccessProvider);
+  bool _visible = true;
+
+  bool _current(int generation) =>
+      sessionCurrent(generation) &&
+      _access.isCurrent &&
+      identical(_access, ref.read(directHomeAccessProvider)) &&
+      TickerMode.valuesOf(context).enabled &&
+      (ModalRoute.of(context)?.isCurrent ?? true);
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final visible =
+        TickerMode.valuesOf(context).enabled &&
+        (ModalRoute.of(context)?.isCurrent ?? true);
+    if (_visible && !visible) sessionGeneration++;
+    _visible = visible;
+  }
+
+  // This route owns removal across its own loading state. The connected child
+  // may disappear without revoking the route's still-current user action.
+  Future<void> _signOut(int generation) async {
+    if (!_current(generation)) return;
+    final connection = ref.read(keeneticConnectionProvider.notifier);
+    try {
+      await connection.signOut(isCurrent: () => _current(generation));
+    } catch (_) {
+      // The provider exposes the static recovery state, never platform errors.
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final access = ref.watch(directHomeAccessProvider);
+    if (!access.isCurrent || !identical(access, _access)) {
+      return CupertinoPageScaffold(
+        child: Center(
+          child: Text(AppLocalizations.of(context).keeneticErrorUnreachable),
+        ),
+      );
+    }
     final connectionAsync = ref.watch(keeneticConnectionProvider);
 
     return connectionAsync.when(
+      skipLoadingOnRefresh: false,
+      skipLoadingOnReload: false,
+      skipError: false,
       loading: () => const CupertinoPageScaffold(
         child: Center(child: CupertinoActivityIndicator()),
       ),
-      error: (error, _) =>
-          CupertinoPageScaffold(child: Center(child: Text(error.toString()))),
+      error: (error, _) => error is DirectHomeAccessException
+          ? const KeeneticConnectScreen(recovery: true, popOnSuccess: false)
+          : CupertinoPageScaffold(
+              child: Center(
+                child: Text(
+                  AppLocalizations.of(context).keeneticErrorUnreachable,
+                ),
+              ),
+            ),
       data: (config) {
-        if (config == null) return const KeeneticConnectScreen();
-        return const _KeeneticMenu();
+        if (config == null) {
+          return const KeeneticConnectScreen(popOnSuccess: false);
+        }
+        final generation = sessionGeneration;
+        return _KeeneticMenu(onSignOut: () => unawaited(_signOut(generation)));
       },
     );
   }
 }
 
-class _KeeneticMenu extends ConsumerWidget {
-  const _KeeneticMenu();
+class _KeeneticMenu extends ConsumerStatefulWidget {
+  const _KeeneticMenu({required this.onSignOut});
+  final VoidCallback onSignOut;
+  @override
+  ConsumerState<_KeeneticMenu> createState() => _KeeneticMenuState();
+}
+
+class _KeeneticMenuState extends MediaSessionState<_KeeneticMenu> {
+  late final DirectHomeAccess _access = ref.read(directHomeAccessProvider);
+  bool _visible = true;
+  bool _refreshing = false;
+  bool _current(int generation) =>
+      sessionCurrent(generation) &&
+      _access.isCurrent &&
+      identical(_access, ref.read(directHomeAccessProvider)) &&
+      TickerMode.valuesOf(context).enabled &&
+      (ModalRoute.of(context)?.isCurrent ?? true);
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final visible =
+        TickerMode.valuesOf(context).enabled &&
+        (ModalRoute.of(context)?.isCurrent ?? true);
+    if (_visible && !visible) {
+      sessionGeneration++;
+      clearPendingInteraction();
+    }
+    _visible = visible;
+  }
+
+  VoidCallback _open(WidgetBuilder builder) {
+    final generation = sessionGeneration;
+    return () {
+      if (_current(generation)) {
+        Navigator.of(context).push(CupertinoPageRoute<void>(builder: builder));
+      }
+    };
+  }
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
+    watchMediaAccount(IntegrationId.keenetic, keeneticConnectionProvider);
+    final generation = sessionGeneration;
     final l10n = AppLocalizations.of(context);
     final status = ref.watch(keeneticRouterStatusProvider);
     final devices = ref.watch(keeneticDevicesProvider);
     final accessPoints = ref.watch(keeneticAccessPointsProvider);
 
     Future<void> refresh() async {
+      if (!_current(generation) || _refreshing) return;
+      setState(() => _refreshing = true);
       if (ref.read(keeneticClientProvider).hasError) {
         ref.invalidate(keeneticClientProvider);
       }
@@ -59,6 +162,8 @@ class _KeeneticMenu extends ConsumerWidget {
         ]);
       } catch (_) {
         // Each card renders its own provider's failure and retry control.
+      } finally {
+        if (mounted) setState(() => _refreshing = false);
       }
     }
 
@@ -76,8 +181,10 @@ class _KeeneticMenu extends ConsumerWidget {
             ),
           ),
           ServiceAccountAction(
-            onSignOut: () =>
-                ref.read(keeneticConnectionProvider.notifier).signOut(),
+            onSignOut: () {
+              if (!_current(generation)) return;
+              widget.onSignOut();
+            },
           ),
         ],
       ),
@@ -108,10 +215,7 @@ class _KeeneticMenu extends ConsumerWidget {
                           size: 32,
                         ),
                         const SizedBox(height: 12),
-                        Text(
-                          l10n.adminLoadError(error.toString()),
-                          textAlign: TextAlign.center,
-                        ),
+                        Text(l10n.healthReadError, textAlign: TextAlign.center),
                         CupertinoButton(
                           onPressed: refresh,
                           child: Text(l10n.commonRetry),
@@ -143,11 +247,7 @@ class _KeeneticMenu extends ConsumerWidget {
                     ),
                   ),
                   trailing: const CupertinoListTileChevron(),
-                  onTap: () => Navigator.of(context).push(
-                    CupertinoPageRoute(
-                      builder: (_) => const KeeneticDevicesScreen(),
-                    ),
-                  ),
+                  onTap: _open((_) => const KeeneticDevicesScreen()),
                 ),
                 CupertinoListTile(
                   leading: const Icon(CupertinoIcons.wifi),
@@ -163,11 +263,7 @@ class _KeeneticMenu extends ConsumerWidget {
                     ),
                   ),
                   trailing: const CupertinoListTileChevron(),
-                  onTap: () => Navigator.of(context).push(
-                    CupertinoPageRoute(
-                      builder: (_) => const KeeneticWifiScreen(),
-                    ),
-                  ),
+                  onTap: _open((_) => const KeeneticWifiScreen()),
                 ),
                 CupertinoListTile(
                   leading: const Icon(CupertinoIcons.arrow_right_arrow_left),
@@ -175,11 +271,7 @@ class _KeeneticMenu extends ConsumerWidget {
                     AppLocalizations.of(context).keeneticPortForwarding,
                   ),
                   trailing: const CupertinoListTileChevron(),
-                  onTap: () => Navigator.of(context).push(
-                    CupertinoPageRoute(
-                      builder: (_) => const KeeneticPortForwardingScreen(),
-                    ),
-                  ),
+                  onTap: _open((_) => const KeeneticPortForwardingScreen()),
                 ),
               ],
             ),

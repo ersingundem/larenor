@@ -1920,5 +1920,7 @@
   "qbittorrentConnectionIncomplete": "Bu bağlantı tamamlanmadı. Adres, kullanıcı adı ve parolayı yeniden girin veya kayıtlı bağlantıyı kaldırın.",
   "qbittorrentRemoveConnection": "Kayıtlı bağlantıyı kaldır",
   "proxmoxConnectionIncomplete": "Bu bağlantı tamamlanmadı. Sunucu, port, realm, kullanıcı adı ve parolayı yeniden girip sertifika tercihini gözden geçirin veya kayıtlı bağlantıyı kaldırın.",
-  "proxmoxRemoveConnection": "Kayıtlı bağlantıyı kaldır"
+  "proxmoxRemoveConnection": "Kayıtlı bağlantıyı kaldır",
+  "keeneticConnectionIncomplete": "Kaydedilen Keenetic bağlantısı doğrulanamadı. Bağlantı bilgilerini yeniden girin veya kayıtlı bağlantıyı kaldırın. Yönlendirici ayarları değişmez.",
+  "keeneticRemoveConnection": "Kayıtlı bağlantıyı kaldır"
 }

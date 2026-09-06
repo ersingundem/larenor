@@ -1,5 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/direct_home_access.dart';
+
 import '../data/keenetic_telemetry.dart';
 import 'keenetic_providers.dart';
 import 'keenetic_telemetry_controller.dart';
@@ -8,6 +10,12 @@ export '../data/keenetic_telemetry.dart';
 
 final keeneticTelemetryControllerProvider =
     Provider.autoDispose<KeeneticTelemetryController>((ref) {
+      final access = ref.watch(directHomeAccessProvider);
+      if (!access.isCurrent) {
+        final controller = KeeneticTelemetryController(client: null);
+        ref.onDispose(controller.dispose);
+        return controller;
+      }
       final connection = ref.watch(keeneticConnectionProvider);
       final config = connection.isLoading || connection.hasError
           ? null

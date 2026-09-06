@@ -1,7 +1,7 @@
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart' show Provider;
 
-import '../../../core/configuration_writes.dart';
+import '../../../core/direct_home_access.dart';
 import '../../health/data/health_monitor.dart';
 import '../../health/data/integration_health.dart';
 import '../../health/providers/health_providers.dart';
@@ -21,10 +21,18 @@ typedef KeeneticClientFactory = KeeneticClient Function(
   KeeneticConfig config,
   HealthSession? health,
 );
-final keeneticClientFactoryProvider = Provider<KeeneticClientFactory>(
-  (ref) =>
-      (config, health) => KeeneticClient(config: config, healthSession: health),
-);
+final keeneticClientFactoryProvider = Provider<KeeneticClientFactory>((ref) {
+  final access = ref.watch(directHomeAccessProvider);
+  return (config, health) {
+    access.check();
+    if (!ref.mounted) throw const DirectHomeAccessException('unavailable');
+    return KeeneticClient(
+      config: config,
+      healthSession: health,
+      isCurrent: () => ref.mounted && access.isCurrent,
+    );
+  };
+});
 
 final keeneticHealthSessionProvider = Provider.autoDispose<HealthSession>((
   ref,
@@ -46,81 +54,213 @@ final keeneticHealthSessionProvider = Provider.autoDispose<HealthSession>((
 
 @riverpod
 KeeneticCredentialsStore keeneticCredentialsStore(Ref ref) =>
-    KeeneticCredentialsStore();
+    KeeneticCredentialsStore(access: ref.watch(directHomeAccessProvider));
 
-@riverpod
+@Riverpod(retry: _noRetry)
 class KeeneticConnection extends _$KeeneticConnection {
+  late final DirectHomeAccess _access = ref.read(directHomeAccessProvider);
   int _generation = 0;
   KeeneticClient? _verificationClient;
+  bool Function()? _verificationOwner;
+  int? _verificationGeneration;
+  bool _publishingLoading = false;
+
+  /// Only the synchronous loading publication for this exact form action.
+  /// An external reload cannot borrow this one-shot transition.
+  bool publishesLoadingFor(bool Function() owner) =>
+      _publishingLoading && ownsVerification(owner);
+
+  /// Reload can occur while already loading without another loading emission.
+  bool ownsVerification(bool Function() owner) =>
+      identical(owner, _verificationOwner) &&
+      _verificationGeneration == _generation;
+
+  void _check([int? generation]) {
+    if (!ref.mounted) throw const DirectHomeAccessException('unavailable');
+    _access.check();
+    if (generation != null && generation != _generation) {
+      throw KeeneticApiException('Connection is no longer active.');
+    }
+  }
+
+  void _closeCheck() {
+    _verificationClient?.dispose();
+    _verificationClient = null;
+    _verificationOwner = null;
+    _verificationGeneration = null;
+  }
+
+  /// Cancels only this form's current verification transport. This performs no
+  /// storage, normal reader login, retry or rollback of an already sent request.
+  void cancelSignIn(bool Function() owner) {
+    if (identical(_verificationOwner, owner) &&
+        _verificationGeneration == _generation) {
+      _verificationClient?.dispose();
+    }
+  }
+
   @override
-  Future<KeeneticConfig?> build() {
+  Future<KeeneticConfig?> build() async {
+    ref.watch(directHomeAccessProvider);
+    final generation = ++_generation;
     ref.onDispose(() {
       _generation++;
-      _verificationClient?.dispose();
+      _closeCheck();
     });
-    return ref.watch(keeneticCredentialsStoreProvider).read();
+    _check(generation);
+    final value = await ref.watch(keeneticCredentialsStoreProvider).read();
+    _check(generation);
+    return value;
   }
 
   Future<void> signIn({
     required String baseUrl,
     required String username,
     required String password,
+    bool Function()? isCurrent,
   }) async {
-    final previous = state.value;
+    void checkAction() {
+      try {
+        if (isCurrent == null || isCurrent()) return;
+      } catch (_) {}
+      throw const DirectHomeAccessException('unavailable');
+    }
+
+    _check();
+    checkAction();
+    final previous = state;
     final generation = ++_generation;
-    _verificationClient?.dispose();
-    state = const AsyncLoading();
+    final store = ref.read(keeneticCredentialsStoreProvider);
+    final factory = ref.read(keeneticClientFactoryProvider);
+    _closeCheck();
     KeeneticClient? client;
-    bool current() => ref.mounted && generation == _generation;
+    bool current() =>
+        ref.mounted && _access.isCurrent && _generation == generation;
+    bool actionCurrent() {
+      if (!current()) return false;
+      try {
+        return isCurrent == null || isCurrent();
+      } catch (_) {
+        return false;
+      }
+    }
+
     try {
+      _verificationOwner = isCurrent;
+      _verificationGeneration = generation;
+      // Retire a former reader without cancelling this form's own transition.
+      if (!previous.isLoading && !previous.hasError && previous.value != null) {
+        _publishingLoading = true;
+        try {
+          state = const AsyncLoading();
+        } finally {
+          _publishingLoading = false;
+        }
+      }
+      _check(generation);
+      checkAction();
       final config = KeeneticConfig(
         baseUrl: KeeneticConfig.normalizeBaseUrl(baseUrl),
         username: username,
         password: password,
       );
-      client = ref.read(keeneticClientFactoryProvider)(config, null);
+      client = factory(config, null);
       _verificationClient = client;
+      _verificationOwner = isCurrent;
+      _verificationGeneration = generation;
       await client.login();
-      if (!current()) return;
+      _check(generation);
+      checkAction();
       await client.checkConnection();
-      await ConfigurationWrites.run(() async {
-        if (!current()) return;
-        await ref
-            .read(keeneticCredentialsStoreProvider)
-            .save(
-              baseUrl: config.baseUrl,
-              username: username,
-              password: password,
-            );
-        if (current()) state = AsyncData(config);
-      });
-    } catch (_) {
-      if (current()) state = AsyncData(previous);
+      _check(generation);
+      checkAction();
+      await store.save(
+        baseUrl: config.baseUrl,
+        username: username,
+        password: password,
+        isCurrent: actionCurrent,
+      );
+      _check(generation);
+      checkAction();
+      state = AsyncData(config);
+    } catch (error) {
+      _check(generation);
+      try {
+        checkAction();
+      } on DirectHomeAccessException catch (expired) {
+        state = AsyncError(expired, StackTrace.empty);
+        rethrow;
+      }
+      // A possibly persisted partial tuple must never republish a usable
+      // connection. Its private marker requires explicit complete recovery.
+      if (error is DirectHomeAccessException) {
+        state = AsyncError(error, StackTrace.empty);
+        rethrow;
+      }
+      if (current()) {
+        state = previous.isLoading
+            ? AsyncError(
+                const DirectHomeAccessException('unavailable'),
+                StackTrace.empty,
+              )
+            : previous;
+      }
       throw KeeneticApiException(
         'Could not sign in — check URL and credentials.',
       );
     } finally {
       client?.dispose();
-      if (identical(client, _verificationClient)) _verificationClient = null;
+      if (identical(_verificationClient, client)) {
+        _verificationClient = null;
+        _verificationOwner = null;
+        _verificationGeneration = null;
+      }
     }
   }
 
-  Future<void> signOut() async {
-    final generation = ++_generation;
-    _verificationClient?.dispose();
-    state = const AsyncLoading();
-    await ConfigurationWrites.run(() async {
-      if (!ref.mounted || generation != _generation) return;
-      await ref.read(keeneticCredentialsStoreProvider).clear();
-      if (ref.mounted && generation == _generation) {
-        state = const AsyncData(null);
+  Future<void> signOut({bool Function()? isCurrent}) async {
+    _check();
+    bool actionCurrent() {
+      try {
+        return isCurrent == null || isCurrent();
+      } catch (_) {
+        return false;
       }
-    });
+    }
+
+    if (!actionCurrent()) throw const DirectHomeAccessException('unavailable');
+    final generation = ++_generation;
+    final store = ref.read(keeneticCredentialsStoreProvider);
+    _closeCheck();
+    state = const AsyncLoading();
+    try {
+      await store.clear(
+        isCurrent: () =>
+            ref.mounted &&
+            _access.isCurrent &&
+            generation == _generation &&
+            actionCurrent(),
+      );
+      _check(generation);
+      if (!actionCurrent()) {
+        throw const DirectHomeAccessException('unavailable');
+      }
+      state = const AsyncData(null);
+    } catch (error) {
+      _check(generation);
+      state = AsyncError(
+        const DirectHomeAccessException('write_unconfirmed'),
+        StackTrace.empty,
+      );
+      rethrow;
+    }
   }
 }
 
 @Riverpod(retry: _noRetry)
 Future<KeeneticClient?> keeneticClient(Ref ref) async {
+  final access = ref.watch(directHomeAccessProvider);
+  if (!access.isCurrent) return null;
   final connection = ref.watch(keeneticConnectionProvider);
   final config = connection.isLoading || connection.hasError
       ? null
@@ -131,6 +271,7 @@ Future<KeeneticClient?> keeneticClient(Ref ref) async {
   ref.onDispose(client.dispose);
   try {
     await client.login();
+    access.check();
     if (!ref.mounted) {
       client.dispose();
       return null;

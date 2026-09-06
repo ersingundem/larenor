@@ -28,6 +28,7 @@ class KeeneticClient {
     this.healthSession,
     this.requestTimeout = const Duration(seconds: 15),
     DateTime Function()? now,
+    this._isCurrent,
   }) : _client = ServerBoundClient(baseUrl: config.baseUrl, inner: httpClient),
        _now = now ?? DateTime.now;
 
@@ -36,6 +37,15 @@ class KeeneticClient {
   final HealthSession? healthSession;
   final Duration requestTimeout;
   final DateTime Function() _now;
+  final bool Function()? _isCurrent;
+  bool get _sourceCurrent {
+    try {
+      return _isCurrent?.call() ?? true;
+    } catch (_) {
+      return false;
+    }
+  }
+
   final _cookies = <String, (Cookie, DateTime?)>{};
   final _aborts = <Completer<void>>{};
   final _pendingMutations = <String>{};
@@ -44,11 +54,12 @@ class KeeneticClient {
   int _requestGeneration = 0;
   bool _disposed = false;
   bool _authenticated = false;
-  bool get isAuthenticated => !_disposed && _authenticated;
+  bool get isAuthenticated => !_disposed && _sourceCurrent && _authenticated;
 
   Uri _uri(String path) =>
       _client.baseUri.replace(path: '${_client.baseUri.path}$path');
   void _checkActive([int? generation]) {
+    if (!_sourceCurrent) dispose();
     if (_disposed || (generation != null && generation != _requestGeneration)) {
       throw KeeneticApiException(
         'Connection is no longer active.',
