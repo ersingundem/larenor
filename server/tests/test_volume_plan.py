@@ -139,3 +139,35 @@ def test_names_and_policy_identity_are_not_an_execution_receipt(source):
     assert not {'ownershipNonce', 'journalId', 'ready', 'grants', 'created'} & raw.keys()
     assert raw['installAvailable'] is False
     assert all(r['readiness'] == 'requires_bootstrap_validation' for r in raw['resources'])
+
+
+def test_changed_requested_storage_does_not_silently_adopt_old_plan(source):
+    stack, catalog, policy = source
+    original = build_volume_plan(*source)
+    changed = build_media_stack_plan(catalog,
+        {'instanceName': 'changed', 'dataRootId': 'private_appdata'}, stack.platform,
+        ContextResponse(schemaVersion=1, coreId=stack.coreId, homeId=stack.homeId), stack.preparationId)
+    alternate = build_volume_plan(changed, catalog, policy)
+    assert [r.name for r in original.resources] == [r.name for r in alternate.resources]
+    assert original.stackPlanHash != alternate.stackPlanHash
+    assert original.planHash != alternate.planHash
+    for before, after in zip(original.resources, alternate.resources):
+        assert after.requestedRootId == 'private_appdata'
+        assert before.requestedRelativePath != after.requestedRelativePath
+        assert before.childPlanHash != after.childPlanHash
+    with pytest.raises(VolumePlanError, match='^volume_plan_untrusted$'):
+        verify_volume_plan(original, changed, catalog, policy)
+
+
+@pytest.mark.parametrize('index', [0, 1, 2])
+def test_untyped_source_is_not_a_valid_input(source, index):
+    changed = list(source)
+    changed[index] = changed[index].model_dump()
+    with pytest.raises(VolumePlanError, match='^volume_inputs_untrusted$'):
+        build_volume_plan(*changed)
+
+
+def test_native_plan_and_plain_wire_are_not_volume_models(source):
+    for candidate in [build_resource_plan(*source), build_volume_plan(*source).model_dump(), None]:
+        with pytest.raises(VolumePlanError, match='^volume_plan_untrusted$'):
+            verify_volume_plan(candidate, *source)
