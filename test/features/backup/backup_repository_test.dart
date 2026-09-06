@@ -329,14 +329,24 @@ void main() {
     );
     // Journal + display privacy policy + appearance + complete HA record.
     expect(interrupted.length, 5);
-    for (final (index,image) in interrupted.indexed) {
-      if(index==0) {
-        expect(await BackupRepository(storage:image).recoverPendingRestore(),isTrue);
-        expect(image.preferences,initialPrefs);expect(image.secrets,initialSecrets);
+    for (final (index, image) in interrupted.indexed) {
+      if (index == 0) {
+        expect(
+          await BackupRepository(storage: image).recoverPendingRestore(),
+          isTrue,
+        );
+        expect(image.preferences, initialPrefs);
+        expect(image.secrets, initialSecrets);
       } else {
-        final prefs=Map.of(image.preferences),secrets=Map.of(image.secrets);
-        await expectLater(BackupRepository(storage:image).recoverPendingRestore(),throwsA(isA<BackupException>()));
-        expect(image.preferences,prefs);expect(image.secrets,secrets);expect(image.writes,isEmpty);
+        final prefs = Map.of(image.preferences),
+            secrets = Map.of(image.secrets);
+        await expectLater(
+          BackupRepository(storage: image).recoverPendingRestore(),
+          throwsA(isA<BackupException>()),
+        );
+        expect(image.preferences, prefs);
+        expect(image.secrets, secrets);
+        expect(image.writes, isEmpty);
       }
     }
     final committed = target.durableImages.last;

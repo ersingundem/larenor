@@ -330,16 +330,29 @@ void main() {
     storage.failWrites.clear();
     storage.failedMarkers.addAll(_markers);
     final beforeReads = storage.reads.length;
-    final uncertain=Map.of(storage.secrets);
-    await expectLater(repository.recoverPendingRestore(),throwsA(isA<BackupException>()));
-    expect(storage.secrets,uncertain);
-    expect(storage.reads.skip(beforeReads).every((key)=>{
-      'secret:${BackupRepository.restoreJournalKey}','secret:backup_restore_journal_v2',
-      'secret:wellbeing_disclosure_policy_v1','secret:sonarr_base_url','secret:sonarr_api_key',
-    }.contains(key)),isTrue);
+    final uncertain = Map.of(storage.secrets);
+    await expectLater(
+      repository.recoverPendingRestore(),
+      throwsA(isA<BackupException>()),
+    );
+    expect(storage.secrets, uncertain);
+    expect(
+      storage.reads
+          .skip(beforeReads)
+          .every(
+            (key) => {
+              'secret:${BackupRepository.restoreJournalKey}',
+              'secret:backup_restore_journal_v2',
+              'secret:wellbeing_disclosure_policy_v1',
+              'secret:sonarr_base_url',
+              'secret:sonarr_api_key',
+            }.contains(key),
+          ),
+      isTrue,
+    );
     // Before-only legacy recovery can clean up after an explicit repair.
     storage.secrets.addAll(_old('sonarr'));
-    expect(await repository.recoverPendingRestore(),isTrue);
+    expect(await repository.recoverPendingRestore(), isTrue);
     expect(storage.secrets, {..._old('sonarr'), marker: '1'});
     expect(await repository.recoverPendingRestore(), isFalse);
     expect(storage.writes, isNot(contains('secret:$marker')));

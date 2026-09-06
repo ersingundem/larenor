@@ -1,6 +1,8 @@
 import 'dart:convert';
 import 'dart:math';
+
 import 'package:crypto/crypto.dart';
+
 import '../../../core/home_source_store.dart';
 import '../../server/data/server_session_store.dart';
 import '../../server/domain/server_models.dart';
@@ -19,11 +21,13 @@ import 'backup_restore_access.dart';
 part 'backup_restore_transaction.dart';
 
 class BackupRepository {
-  BackupRepository({BackupStorage? storage, DateTime Function()? now, HomeSourcePersistence? recoverySourceStore, ServerSessionPersistence? recoverySessionStore})
-    : _storage = storage ?? PlatformBackupStorage(),
-      _now = now ?? DateTime.now,
-      _recoverySourceStore=recoverySourceStore,
-      _recoverySessionStore=recoverySessionStore;
+  BackupRepository({
+    BackupStorage? storage,
+    DateTime Function()? now,
+    this._recoverySourceStore,
+    this._recoverySessionStore,
+  }) : _storage = storage ?? PlatformBackupStorage(),
+       _now = now ?? DateTime.now;
   final HomeSourcePersistence? _recoverySourceStore;
   final ServerSessionPersistence? _recoverySessionStore;
   final BackupStorage _storage;
@@ -328,7 +332,10 @@ class BackupRepository {
     try {
       await _storage.writeSecret(restoreJournalKey, _encodeJournal(changes));
     } catch (_) {
-      throw const BackupException('storage_failed', 'Restore could not be prepared.');
+      throw const BackupException(
+        'storage_failed',
+        'Restore could not be prepared.',
+      );
     }
     try {
       await _requireStableConnections(affectedServices);
@@ -359,7 +366,7 @@ class BackupRepository {
       raw = await _storage.readSecret(restoreJournalKey);
       final newer = await _storage.readSecret(_journalV2Key);
       if (raw != null && newer != null) _recoveryRequired();
-      if (newer != null) return await _recoverV2(this,expected:{newer});
+      if (newer != null) return await _recoverV2(this, expected: {newer});
     } catch (_) {
       throw const BackupRestoreException(rollbackComplete: false);
     }
@@ -368,25 +375,34 @@ class BackupRepository {
     try {
       // V1 persisted no after-values or transaction owner. A different current
       // value cannot be attributed to this old operation and is never replaced.
-      for(var pass=0;pass<2;pass++) {
-        for(final change in changes) {
-          if(!_same(await _readChange(this,change),change.before)) _recoveryRequired();
+      for (var pass = 0; pass < 2; pass++) {
+        for (final change in changes) {
+          if (!_same(await _readChange(this, change), change.before)) {
+            _recoveryRequired();
+          }
         }
       }
-      if(await _storage.readSecret(restoreJournalKey)!=raw) _recoveryRequired();
-      try {await _storage.writeSecret(restoreJournalKey,null);} catch(_) {
-        if(await _storage.readSecret(restoreJournalKey)!=null) rethrow;
+      if (await _storage.readSecret(restoreJournalKey) != raw) {
+        _recoveryRequired();
       }
-      if(await _storage.readSecret(restoreJournalKey)!=null) _recoveryRequired();
+      try {
+        await _storage.writeSecret(restoreJournalKey, null);
+      } catch (_) {
+        if (await _storage.readSecret(restoreJournalKey) != null) rethrow;
+      }
+      if (await _storage.readSecret(restoreJournalKey) != null) {
+        _recoveryRequired();
+      }
       return true;
-    } catch(_) {
-      throw const BackupRestoreException(rollbackComplete:false);
+    } catch (_) {
+      throw const BackupRestoreException(rollbackComplete: false);
     }
   });
 
   Future<void> _requireRecovered() async {
     try {
-      if (await _storage.readSecret(restoreJournalKey) != null || await _storage.readSecret(_journalV2Key) != null) {
+      if (await _storage.readSecret(restoreJournalKey) != null ||
+          await _storage.readSecret(_journalV2Key) != null) {
         throw const BackupException(
           'recovery_required',
           'An interrupted restore needs recovery before continuing.',

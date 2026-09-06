@@ -143,45 +143,44 @@ void main() {
     },
   );
 
-  test(
-    'failed legacy restore rolls back weekly removal with old night settings',
-    () async {
-      final before = <String, Object?>{
-        ScreenProgram.preferenceKey: program,
-        'night_start_minutes': 1200,
-        'night_end_minutes': 420,
-      };
-      final target = MemoryBackupStorage(preferences: before)
-        ..failWrites.add(4);
-      await expectLater(
-        BackupRepository(storage: target).restore(
-          _legacy({'night_start_minutes': 1260, 'night_end_minutes': 480}),
-          _settingsOnly,
-          conflictPolicy: BackupConflictPolicy.replaceSelected,
-        ),
-        throwsA(isA<BackupRestoreException>()),
-      );
-      expect(target.preferences, before);
-      expect(
-        target.secrets,
-        isNot(contains(BackupRepository.restoreJournalKey)),
-      );
-      // Legacy boot has only before values: changed crash images stay unresolved.
-      for (final crashImage in target.durableImages.where(
-        (v) => v.secrets.containsKey(BackupRepository.restoreJournalKey),
-      )) {
-        if(crashImage.preferences.length==before.length && before.entries.every((entry)=>crashImage.preferences[entry.key]==entry.value)) {
-          await BackupRepository(storage: crashImage).recoverPendingRestore();
-          expect(crashImage.preferences,before);
-        } else {
-          final held=jsonEncode([crashImage.preferences,crashImage.secrets]);
-          await expectLater(BackupRepository(storage:crashImage).recoverPendingRestore(),throwsA(isA<BackupRestoreException>()));
-          expect(jsonEncode([crashImage.preferences,crashImage.secrets]),held);
-          expect(crashImage.writes,isEmpty);
-        }
+  test('failed legacy restore rolls back weekly removal with old night settings', () async {
+    final before = <String, Object?>{
+      ScreenProgram.preferenceKey: program,
+      'night_start_minutes': 1200,
+      'night_end_minutes': 420,
+    };
+    final target = MemoryBackupStorage(preferences: before)..failWrites.add(4);
+    await expectLater(
+      BackupRepository(storage: target).restore(
+        _legacy({'night_start_minutes': 1260, 'night_end_minutes': 480}),
+        _settingsOnly,
+        conflictPolicy: BackupConflictPolicy.replaceSelected,
+      ),
+      throwsA(isA<BackupRestoreException>()),
+    );
+    expect(target.preferences, before);
+    expect(target.secrets, isNot(contains(BackupRepository.restoreJournalKey)));
+    // Legacy boot has only before values: changed crash images stay unresolved.
+    for (final crashImage in target.durableImages.where(
+      (v) => v.secrets.containsKey(BackupRepository.restoreJournalKey),
+    )) {
+      if (crashImage.preferences.length == before.length &&
+          before.entries.every(
+            (entry) => crashImage.preferences[entry.key] == entry.value,
+          )) {
+        await BackupRepository(storage: crashImage).recoverPendingRestore();
+        expect(crashImage.preferences, before);
+      } else {
+        final held = jsonEncode([crashImage.preferences, crashImage.secrets]);
+        await expectLater(
+          BackupRepository(storage: crashImage).recoverPendingRestore(),
+          throwsA(isA<BackupRestoreException>()),
+        );
+        expect(jsonEncode([crashImage.preferences, crashImage.secrets]), held);
+        expect(crashImage.writes, isEmpty);
       }
-    },
-  );
+    }
+  });
 
   test(
     'corrupt panel preferences are rejected before storage access',

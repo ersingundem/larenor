@@ -1,5 +1,4 @@
 import 'dart:ui' show ViewFocusEvent, ViewFocusState;
-import 'dart:typed_data';
 
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
@@ -50,8 +49,22 @@ final backupRestoreHandlerProvider = Provider<BackupRestoreHandler>(
       ),
 );
 
-typedef PreparedBackupRestoreHandler=Future<void> Function(BuildContext context,PreparedBackupRestore prepared,AppLocalizations l10n);
-final preparedBackupRestoreHandlerProvider=Provider<PreparedBackupRestoreHandler>((ref)=>(context,prepared,l10n)=>ConfigurationScope.restorePrepared(context,prepared:prepared,progressLabel:l10n.backupProgress,failureLabel:l10n.backupRestoreFailed,continueLabel:l10n.backupContinue));
+typedef PreparedBackupRestoreHandler = Future<void> Function(
+  BuildContext context,
+  PreparedBackupRestore prepared,
+  AppLocalizations l10n,
+);
+final preparedBackupRestoreHandlerProvider =
+    Provider<PreparedBackupRestoreHandler>(
+      (ref) =>
+          (context, prepared, l10n) => ConfigurationScope.restorePrepared(
+            context,
+            prepared: prepared,
+            progressLabel: l10n.backupProgress,
+            failureLabel: l10n.backupRestoreFailed,
+            continueLabel: l10n.backupContinue,
+          ),
+    );
 
 /// Configuration migration only: every mutation is to this device's storage.
 class BackupScreen extends ConsumerStatefulWidget {
@@ -77,9 +90,9 @@ class _BackupScreenState extends ConsumerState<BackupScreen>
   final _restorePassphrase = TextEditingController();
   late final HomeSessionController? _home;
   PreparedBackupRestore? _prepared;
-  bool _pinResolved=false;
+  bool _pinResolved = false;
   String? _pinValue;
-  bool _focused=true;
+  bool _focused = true;
   int? _viewId;
   bool _restoreMode = false;
   bool _settings = true;
@@ -94,34 +107,64 @@ class _BackupScreenState extends ConsumerState<BackupScreen>
   int _interactionEpoch = 0;
   Route<bool>? _applyConfirmation;
   bool get _interactive => _foreground && (_interaction?.active ?? true);
-  bool _current({bool confirmation=false}) {
-    if(!mounted || !_interactive || !_focused || !identical(ref.read(homeSessionControllerProvider),_home) || widget.gateCurrent?.call()==false || !TickerMode.valuesOf(context).enabled) return false;
-    final pin=ref.read(pinLockProvider);
-    if(!_pinResolved || pin.isLoading || pin.hasError || !pin.hasValue || pin.value!=_pinValue) return false;
-    final window=ref.read(windowPolicySnapshotProvider);
-    if(window.isLoading || window.hasError || !window.hasValue) return false;
-    final value=window.requireValue;
-    if(value.supported && (!value.isResumed || !value.hasWindowFocus || value.isPictureInPicture)) return false;
-    return ModalRoute.of(context)?.isCurrent==true || confirmation && _applyConfirmation?.isCurrent==true;
+  bool _current({bool confirmation = false}) {
+    if (!mounted ||
+        !_interactive ||
+        !_focused ||
+        !identical(ref.read(homeSessionControllerProvider), _home) ||
+        widget.gateCurrent?.call() == false ||
+        !TickerMode.valuesOf(context).enabled) {
+      return false;
+    }
+    final pin = ref.read(pinLockProvider);
+    if (!_pinResolved ||
+        pin.isLoading ||
+        pin.hasError ||
+        !pin.hasValue ||
+        pin.value != _pinValue) {
+      return false;
+    }
+    final window = ref.read(windowPolicySnapshotProvider);
+    if (window.isLoading || window.hasError || !window.hasValue) return false;
+    final value = window.requireValue;
+    if (value.supported &&
+        (!value.isResumed ||
+            !value.hasWindowFocus ||
+            value.isPictureInPicture)) {
+      return false;
+    }
+    return ModalRoute.of(context)?.isCurrent == true ||
+        confirmation && _applyConfirmation?.isCurrent == true;
   }
+
   void _homeChanged() {
-    if(!mounted) return;
-    _generation++;_clearSecrets();setState(() {});
+    if (!mounted) return;
+    _generation++;
+    _clearSecrets();
+    setState(() {});
   }
-  @override void didChangeViewFocus(ViewFocusEvent event) {
-    if(event.viewId!=_viewId) return;
-    _focused=event.state==ViewFocusState.focused;
-    if(!_focused) {_generation++;_clearSecrets();}
-    if(mounted) setState(() {});
+
+  @override
+  void didChangeViewFocus(ViewFocusEvent event) {
+    if (event.viewId != _viewId) return;
+    _focused = event.state == ViewFocusState.focused;
+    if (!_focused) {
+      _generation++;
+      _clearSecrets();
+    }
+    if (mounted) setState(() {});
   }
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    _viewId=View.of(context).viewId;
-    final ticking=TickerMode.valuesOf(context).enabled;
-    if(!ticking) {_generation++;_clearSecrets();}
-    _suspended=!_interactive || !ticking;
+    _viewId = View.of(context).viewId;
+    final ticking = TickerMode.valuesOf(context).enabled;
+    if (!ticking) {
+      _generation++;
+      _clearSecrets();
+    }
+    _suspended = !_interactive || !ticking;
     final next = AppInteractionScope.maybeOf(context);
     if (identical(next, _interaction)) return;
     final hadScope = _interaction != null;
@@ -166,7 +209,7 @@ class _BackupScreenState extends ConsumerState<BackupScreen>
   @override
   void initState() {
     super.initState();
-    _home=ref.read(homeSessionControllerProvider);
+    _home = ref.read(homeSessionControllerProvider);
     _home?.addListener(_homeChanged);
     final lifecycle = WidgetsBinding.instance.lifecycleState;
     _foreground = lifecycle == null || lifecycle == AppLifecycleState.resumed;
@@ -187,14 +230,21 @@ class _BackupScreenState extends ConsumerState<BackupScreen>
   }
 
   void _clearSecrets() {
-    _prepared?.retire();_prepared=null;
+    _prepared?.retire();
+    _prepared = null;
     final route = _applyConfirmation;
     _applyConfirmation = null;
-    if(route?.isActive==true) {
-      void remove() {if(route?.isActive==true) route!.navigator?.removeRoute(route);}
-      if(SchedulerBinding.instance.schedulerPhase==SchedulerPhase.persistentCallbacks) {
-        WidgetsBinding.instance.addPostFrameCallback((_)=>remove());
-      } else {remove();}
+    if (route?.isActive == true) {
+      void remove() {
+        if (route?.isActive == true) route!.navigator?.removeRoute(route);
+      }
+
+      if (SchedulerBinding.instance.schedulerPhase ==
+          SchedulerPhase.persistentCallbacks) {
+        WidgetsBinding.instance.addPostFrameCallback((_) => remove());
+      } else {
+        remove();
+      }
     }
     _passphrase.clear();
     _confirmation.clear();
@@ -206,7 +256,8 @@ class _BackupScreenState extends ConsumerState<BackupScreen>
   @override
   void dispose() {
     _generation++;
-    _prepared?.retire();_prepared=null;
+    _prepared?.retire();
+    _prepared = null;
     _home?.removeListener(_homeChanged);
     _interaction?.removeListener(_interactionChanged);
     WidgetsBinding.instance.removeObserver(this);
@@ -243,8 +294,13 @@ class _BackupScreenState extends ConsumerState<BackupScreen>
     AppLocalizations l10n, {
     bool decrypting = false,
   }) {
-    if(error is BackupException && {'restore_changed','restore_expired'}.contains(error.code)) return l10n.backupRestoreReviewAgain;
-    if(error is BackupException && error.code=='restore_target_mismatch') return l10n.backupRestoreDirectTarget;
+    if (error is BackupException &&
+        {'restore_changed', 'restore_expired'}.contains(error.code)) {
+      return l10n.backupRestoreReviewAgain;
+    }
+    if (error is BackupException && error.code == 'restore_target_mismatch') {
+      return l10n.backupRestoreDirectTarget;
+    }
     if (error is BackupException && error.code == 'ha_connection_pending') {
       return l10n.backupHaConnectionPending;
     }
@@ -406,38 +462,108 @@ class _BackupScreenState extends ConsumerState<BackupScreen>
     setState(() => _busy = true);
     try {
       if (!await _authorized() || !mounted || generation != _generation) return;
-      if(!_current()) return;
-      final snapshot=BackupSnapshot.fromJson(_snapshot!.toJson());
-      final selection=_selection,conflict=_conflict;
-      final repository=ref.read(backupRepositoryProvider);
-      final access=await ref.read(backupRestoreAccessFactoryProvider)(expectedPin:_pinValue,isCurrent:()=>mounted && generation==_generation && _current(confirmation:true));
-      if(!mounted || generation!=_generation || !_current()) return;
-      prepared=await repository.prepareRestore(snapshot,selection,conflictPolicy:conflict,access:access);
-      if(!mounted || generation!=_generation || !_current()) {prepared.retire();return;}
-      _prepared=prepared;
-      final proposal=prepared;
+      if (!_current()) return;
+      final snapshot = BackupSnapshot.fromJson(_snapshot!.toJson());
+      final selection = _selection, conflict = _conflict;
+      final repository = ref.read(backupRepositoryProvider);
+      final access = await ref.read(backupRestoreAccessFactoryProvider)(
+        expectedPin: _pinValue,
+        isCurrent: () =>
+            mounted &&
+            generation == _generation &&
+            _current(confirmation: true),
+      );
+      if (!mounted || generation != _generation || !_current()) return;
+      prepared = await repository.prepareRestore(
+        snapshot,
+        selection,
+        conflictPolicy: conflict,
+        access: access,
+      );
+      if (!mounted || generation != _generation || !_current()) {
+        prepared.retire();
+        return;
+      }
+      _prepared = prepared;
+      final proposal = prepared;
       final route = CupertinoDialogRoute<bool>(
         context: context,
         builder: (context) => CupertinoAlertDialog(
           title: Text(l10n.backupApplyTitle),
-          content: Column(mainAxisSize:MainAxisSize.min,children:[
-            Text(proposal.targetsDirect ? l10n.backupRestoreTargetDirect : l10n.backupRestoreTargetDevice),
-            const SizedBox(height:8),
-            Text([if(selection.settings) l10n.backupSettings,if(selection.dashboard) l10n.backupDashboard,if(selection.connections) l10n.backupConnections].join(' · ')),
-            const SizedBox(height:8),
-            Text(l10n.backupRestoreFromBackup,style:const TextStyle(fontWeight:FontWeight.w600)),
-            if(selection.settings) Text(l10n.backupRestorePreferenceCount(proposal.summary.settingCount)),
-            if(selection.dashboard) Text(l10n.backupRestoreLayoutCount(proposal.summary.roomCount,proposal.summary.tileCount,proposal.summary.favoriteCount)),
-            if(selection.connections) Text(l10n.backupRestoreConnectionCount(proposal.summary.services.length)),
-            const SizedBox(height:8),
-            Text(l10n.backupExistingData,style:const TextStyle(fontWeight:FontWeight.w600)),
-            if(selection.settings) Text(l10n.backupRestorePreferenceCount(proposal.summary.existingSettingsCount)),
-            if(selection.dashboard) Text(proposal.summary.existingDashboard ? l10n.backupDashboard : l10n.commonNone),
-            if(selection.connections) Text(l10n.backupRestoreConnectionCount(proposal.summary.existingServices.length)),
-            const SizedBox(height:8),
-            Text(conflict==BackupConflictPolicy.replaceSelected ? l10n.backupReplaceSelected : l10n.backupKeepExisting),
-            const SizedBox(height:8),Text(l10n.backupApplyMessage),
-          ]),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                proposal.targetsDirect
+                    ? l10n.backupRestoreTargetDirect
+                    : l10n.backupRestoreTargetDevice,
+              ),
+              const SizedBox(height: 8),
+              Text(
+                [
+                  if (selection.settings) l10n.backupSettings,
+                  if (selection.dashboard) l10n.backupDashboard,
+                  if (selection.connections) l10n.backupConnections,
+                ].join(' · '),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                l10n.backupRestoreFromBackup,
+                style: const TextStyle(fontWeight: FontWeight.w600),
+              ),
+              if (selection.settings)
+                Text(
+                  l10n.backupRestorePreferenceCount(
+                    proposal.summary.settingCount,
+                  ),
+                ),
+              if (selection.dashboard)
+                Text(
+                  l10n.backupRestoreLayoutCount(
+                    proposal.summary.roomCount,
+                    proposal.summary.tileCount,
+                    proposal.summary.favoriteCount,
+                  ),
+                ),
+              if (selection.connections)
+                Text(
+                  l10n.backupRestoreConnectionCount(
+                    proposal.summary.services.length,
+                  ),
+                ),
+              const SizedBox(height: 8),
+              Text(
+                l10n.backupExistingData,
+                style: const TextStyle(fontWeight: FontWeight.w600),
+              ),
+              if (selection.settings)
+                Text(
+                  l10n.backupRestorePreferenceCount(
+                    proposal.summary.existingSettingsCount,
+                  ),
+                ),
+              if (selection.dashboard)
+                Text(
+                  proposal.summary.existingDashboard
+                      ? l10n.backupDashboard
+                      : l10n.commonNone,
+                ),
+              if (selection.connections)
+                Text(
+                  l10n.backupRestoreConnectionCount(
+                    proposal.summary.existingServices.length,
+                  ),
+                ),
+              const SizedBox(height: 8),
+              Text(
+                conflict == BackupConflictPolicy.replaceSelected
+                    ? l10n.backupReplaceSelected
+                    : l10n.backupKeepExisting,
+              ),
+              const SizedBox(height: 8),
+              Text(l10n.backupApplyMessage),
+            ],
+          ),
           actions: [
             _RestoreDialogAction(
               onPressed: () {
@@ -453,7 +579,7 @@ class _BackupScreenState extends ConsumerState<BackupScreen>
                   conflict == BackupConflictPolicy.replaceSelected,
               onPressed: () {
                 if (mounted &&
-                    _current(confirmation:true) &&
+                    _current(confirmation: true) &&
                     generation == _generation &&
                     context.mounted &&
                     ModalRoute.of(context)?.isCurrent == true) {
@@ -476,16 +602,16 @@ class _BackupScreenState extends ConsumerState<BackupScreen>
       }
       // A PIN could have been installed while the confirmation was open.
       if (!await _authorized() || !mounted || generation != _generation) return;
-      if(!_current()) return;
-      final restore=ref.read(preparedBackupRestoreHandlerProvider);
-      await restore(context,prepared,l10n);
-      handedOff=prepared.wasHandedOff;
+      if (!_current()) return;
+      final restore = ref.read(preparedBackupRestoreHandlerProvider);
+      await restore(context, prepared, l10n);
+      handedOff = prepared.wasHandedOff;
     } catch (error) {
       if (!handedOff && mounted && generation == _generation) {
-        _showMessage(_failure(error,l10n), error: true);
+        _showMessage(_failure(error, l10n), error: true);
       }
     } finally {
-      handedOff=prepared?.wasHandedOff??handedOff;
+      handedOff = prepared?.wasHandedOff ?? handedOff;
       prepared?.retire();
       if (!handedOff && mounted) setState(() => _busy = false);
     }
@@ -526,17 +652,27 @@ class _BackupScreenState extends ConsumerState<BackupScreen>
     bool available,
     ValueChanged<bool> change,
   ) {
-    final generation=_generation;
+    final generation = _generation;
     return CupertinoListTile(
-    title: Text(title, maxLines: 2),
-    trailing: CupertinoSwitch(
-      key: ValueKey(key),
-      value: value,
-      onChanged: _busy || !available
-          ? null
-          : (next) {if(mounted && !_busy && generation==_generation && _current()) setState(() { _generation++;change(next);});},
-    ),
-  );
+      title: Text(title, maxLines: 2),
+      trailing: CupertinoSwitch(
+        key: ValueKey(key),
+        value: value,
+        onChanged: _busy || !available
+            ? null
+            : (next) {
+                if (mounted &&
+                    !_busy &&
+                    generation == _generation &&
+                    _current()) {
+                  setState(() {
+                    _generation++;
+                    change(next);
+                  });
+                }
+              },
+      ),
+    );
   }
 
   Widget _password(
@@ -559,11 +695,25 @@ class _BackupScreenState extends ConsumerState<BackupScreen>
     ),
   );
 
-  Widget _button(String label,VoidCallback? onPressed,String key) {
-    final generation=_generation;
-    return Padding(padding:const EdgeInsets.symmetric(horizontal:20,vertical:8),child:CupertinoButton.filled(key:ValueKey(key),onPressed:_busy || onPressed==null ? null : () {
-      if(mounted && generation==_generation && _interactive && (key!='backup-apply' || _current())) onPressed();
-    },child:Text(label,textAlign:TextAlign.center)));
+  Widget _button(String label, VoidCallback? onPressed, String key) {
+    final generation = _generation;
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+      child: CupertinoButton.filled(
+        key: ValueKey(key),
+        onPressed: _busy || onPressed == null
+            ? null
+            : () {
+                if (mounted &&
+                    generation == _generation &&
+                    _interactive &&
+                    (key != 'backup-apply' || _current())) {
+                  onPressed();
+                }
+              },
+        child: Text(label, textAlign: TextAlign.center),
+      ),
+    );
   }
 
   Widget _note(String text) => Padding(
@@ -576,112 +726,140 @@ class _BackupScreenState extends ConsumerState<BackupScreen>
     ),
   );
 
-  List<Widget> _previewWidgets(
-    AppLocalizations l10n,
-    BackupPreview preview,
-  ) {
-    final generation=_generation;
+  List<Widget> _previewWidgets(AppLocalizations l10n, BackupPreview preview) {
+    final generation = _generation;
     return [
-    SettingsSection(
-      header: Text(l10n.backupPreview),
-      children: [
-        CupertinoListTile(
-          title: Text(l10n.backupCreatedAt),
-          additionalInfo: Text(
-            DateFormat.yMMMd(Localizations.localeOf(context).toString())
-                .format(preview.createdAt.toLocal()),
-          ),
-        ),
-        Padding(
-          padding: const EdgeInsets.all(16),
-          child: Text(
-            l10n.backupCountSummary(
-              preview.settingCount,
-              preview.roomCount,
-              preview.tileCount,
-              preview.favoriteCount,
-            ),
-          ),
-        ),
-        CupertinoListTile(
-          title: Text(l10n.backupServices),
-          subtitle: Text(
-            preview.services.isEmpty
-                ? l10n.backupNoServices
-                : preview.services.map(_serviceName).join(', '),
-            maxLines: 4,
-          ),
-        ),
-      ],
-    ),
-    _groups(l10n, preview: preview),
-    SettingsSection(
-      header: Text(l10n.backupExistingData),
-      children: [
-        Padding(
-          padding: const EdgeInsets.all(16),
-          child: Text(
-            l10n.backupExistingSummary(
-              preview.existingSettingsCount,
-              preview.existingServices.length,
-            ),
-          ),
-        ),
-        if (preview.existingDashboard)
+      SettingsSection(
+        header: Text(l10n.backupPreview),
+        children: [
           CupertinoListTile(
-            title: Text(l10n.backupDashboard),
-            trailing: const Icon(CupertinoIcons.checkmark),
+            title: Text(l10n.backupCreatedAt),
+            additionalInfo: Text(
+              DateFormat.yMMMd(Localizations.localeOf(context).toString())
+                  .format(preview.createdAt.toLocal()),
+            ),
           ),
-        if (preview.existingServices.isNotEmpty)
           Padding(
             padding: const EdgeInsets.all(16),
-            child: Text(preview.existingServices.map(_serviceName).join(', ')),
+            child: Text(
+              l10n.backupCountSummary(
+                preview.settingCount,
+                preview.roomCount,
+                preview.tileCount,
+                preview.favoriteCount,
+              ),
+            ),
           ),
-      ],
-    ),
-    _note(l10n.backupConflicts),
-    Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20),
-      child: CupertinoSlidingSegmentedControl<BackupConflictPolicy>(
-        groupValue: _conflict,
-        children: {
-          BackupConflictPolicy.keepExisting: Text(l10n.backupKeepExisting),
-          BackupConflictPolicy.replaceSelected: Text(
-            l10n.backupReplaceSelected,
+          CupertinoListTile(
+            title: Text(l10n.backupServices),
+            subtitle: Text(
+              preview.services.isEmpty
+                  ? l10n.backupNoServices
+                  : preview.services.map(_serviceName).join(', '),
+              maxLines: 4,
+            ),
           ),
-        },
-        onValueChanged: (value) {
-          if (mounted && !_busy && value != null && generation==_generation && _current()) setState(() {_generation++;_conflict=value;});
-        },
+        ],
       ),
-    ),
-    _note(l10n.backupConflictHint),
-    _note(l10n.backupPrivacyPolicyHint),
-    if (preview.requiresPrivacyReview) _note(l10n.backupPrivacyReviewRequired),
-    if (preview.requiresCertificateReview && _connections)
-      _note(l10n.backupCertificateReview),
-    _button(
-      l10n.backupApply,
-      _selection.isEmpty ? null : _apply,
-      'backup-apply',
-    ),
-    CupertinoButton(
-      onPressed: _busy ? null : () {if(mounted && generation==_generation && _current()) setState(() {_generation++;_clearSecrets();});},
-      child: Text(l10n.commonCancel),
-    ),
-  ];
+      _groups(l10n, preview: preview),
+      SettingsSection(
+        header: Text(l10n.backupExistingData),
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Text(
+              l10n.backupExistingSummary(
+                preview.existingSettingsCount,
+                preview.existingServices.length,
+              ),
+            ),
+          ),
+          if (preview.existingDashboard)
+            CupertinoListTile(
+              title: Text(l10n.backupDashboard),
+              trailing: const Icon(CupertinoIcons.checkmark),
+            ),
+          if (preview.existingServices.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Text(
+                preview.existingServices.map(_serviceName).join(', '),
+              ),
+            ),
+        ],
+      ),
+      _note(l10n.backupConflicts),
+      Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 20),
+        child: CupertinoSlidingSegmentedControl<BackupConflictPolicy>(
+          groupValue: _conflict,
+          children: {
+            BackupConflictPolicy.keepExisting: Text(l10n.backupKeepExisting),
+            BackupConflictPolicy.replaceSelected: Text(
+              l10n.backupReplaceSelected,
+            ),
+          },
+          onValueChanged: (value) {
+            if (mounted &&
+                !_busy &&
+                value != null &&
+                generation == _generation &&
+                _current()) {
+              setState(() {
+                _generation++;
+                _conflict = value;
+              });
+            }
+          },
+        ),
+      ),
+      _note(l10n.backupConflictHint),
+      _note(l10n.backupPrivacyPolicyHint),
+      if (preview.requiresPrivacyReview)
+        _note(l10n.backupPrivacyReviewRequired),
+      if (preview.requiresCertificateReview && _connections)
+        _note(l10n.backupCertificateReview),
+      _button(
+        l10n.backupApply,
+        _selection.isEmpty ? null : _apply,
+        'backup-apply',
+      ),
+      CupertinoButton(
+        onPressed: _busy
+            ? null
+            : () {
+                if (mounted && generation == _generation && _current()) {
+                  setState(() {
+                    _generation++;
+                    _clearSecrets();
+                  });
+                }
+              },
+        child: Text(l10n.commonCancel),
+      ),
+    ];
   }
 
   @override
   Widget build(BuildContext context) {
     ref.watch(homeSessionControllerProvider);
-    ref.listen(pinLockProvider,(previous,next) {
-      final resolved=!next.isLoading && !next.hasError && next.hasValue;
-      if(!resolved || _pinResolved && next.value!=_pinValue) {_generation++;_clearSecrets();}
-      _pinResolved=resolved;_pinValue=resolved ? next.value : null;
+    ref.listen(pinLockProvider, (previous, next) {
+      final resolved = !next.isLoading && !next.hasError && next.hasValue;
+      if (!resolved || _pinResolved && next.value != _pinValue) {
+        _generation++;
+        _clearSecrets();
+      }
+      _pinResolved = resolved;
+      _pinValue = resolved ? next.value : null;
     });
-    final observedPin=ref.watch(pinLockProvider);
-    if(!_pinResolved && !observedPin.isLoading && !observedPin.hasError && observedPin.hasValue) {_pinResolved=true;_pinValue=observedPin.value;}
+    final observedPin = ref.watch(pinLockProvider);
+    if (!_pinResolved &&
+        !observedPin.isLoading &&
+        !observedPin.hasError &&
+        observedPin.hasValue) {
+      _pinResolved = true;
+      _pinValue = observedPin.value;
+    }
     ref.watch(windowPolicySnapshotProvider);
 
     final l10n = AppLocalizations.of(context);
@@ -828,28 +1006,60 @@ String _serviceName(String id) =>
     }[id] ??
     id;
 
-
 /// Cupertino's large-text action content omits the regular button semantics.
 /// Keep explicit semantics and keyboard activation across both sizing modes.
 class _RestoreDialogAction extends StatefulWidget {
-  const _RestoreDialogAction({required this.onPressed, required this.label, this.isDestructiveAction=false});
+  const _RestoreDialogAction({
+    required this.onPressed,
+    required this.label,
+    this.isDestructiveAction = false,
+  });
   final VoidCallback onPressed;
   final String label;
   final bool isDestructiveAction;
-  @override State<_RestoreDialogAction> createState()=>_RestoreDialogActionState();
+  @override
+  State<_RestoreDialogAction> createState() => _RestoreDialogActionState();
 }
+
 class _RestoreDialogActionState extends State<_RestoreDialogAction> {
-  bool _focused=false;
-  @override Widget build(BuildContext context)=>CupertinoDialogAction(
-    onPressed:widget.onPressed,isDestructiveAction:widget.isDestructiveAction,
-    child:FocusableActionDetector(
-      onShowFocusHighlight:(value)=>setState(()=>_focused=value),
-      shortcuts:const {SingleActivator(LogicalKeyboardKey.enter):ActivateIntent(),SingleActivator(LogicalKeyboardKey.space):ActivateIntent()},
-      actions:{ActivateIntent:CallbackAction<ActivateIntent>(onInvoke:(_){widget.onPressed();return null;})},
-      child:Semantics(button:true,enabled:true,label:widget.label,onTap:widget.onPressed,excludeSemantics:true,
-        child:Container(constraints:const BoxConstraints(minHeight:32),alignment:Alignment.center,
-          decoration:BoxDecoration(border:Border.all(width:2,color:_focused ? CupertinoTheme.of(context).primaryColor : CupertinoColors.transparent),borderRadius:BorderRadius.circular(4)),
-          child:Text(widget.label),
+  bool _focused = false;
+  @override
+  Widget build(BuildContext context) => CupertinoDialogAction(
+    onPressed: widget.onPressed,
+    isDestructiveAction: widget.isDestructiveAction,
+    child: FocusableActionDetector(
+      onShowFocusHighlight: (value) => setState(() => _focused = value),
+      shortcuts: const {
+        SingleActivator(LogicalKeyboardKey.enter): ActivateIntent(),
+        SingleActivator(LogicalKeyboardKey.space): ActivateIntent(),
+      },
+      actions: {
+        ActivateIntent: CallbackAction<ActivateIntent>(
+          onInvoke: (_) {
+            widget.onPressed();
+            return null;
+          },
+        ),
+      },
+      child: Semantics(
+        button: true,
+        enabled: true,
+        label: widget.label,
+        onTap: widget.onPressed,
+        excludeSemantics: true,
+        child: Container(
+          constraints: const BoxConstraints(minHeight: 32),
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            border: Border.all(
+              width: 2,
+              color: _focused
+                  ? CupertinoTheme.of(context).primaryColor
+                  : CupertinoColors.transparent,
+            ),
+            borderRadius: BorderRadius.circular(4),
+          ),
+          child: Text(widget.label),
         ),
       ),
     ),

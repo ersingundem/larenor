@@ -366,12 +366,18 @@ void main() {
     expect(storage.secrets[_marker], '1');
     expect(storage.secrets, contains(BackupRepository.restoreJournalKey));
     storage.failWrites.clear();
-    final uncertain=Map.of(storage.secrets);
-    await expectLater(BackupRepository(storage:storage).recoverPendingRestore(),throwsA(isA<BackupException>()));
-    expect(storage.secrets,uncertain);
+    final uncertain = Map.of(storage.secrets);
+    await expectLater(
+      BackupRepository(storage: storage).recoverPendingRestore(),
+      throwsA(isA<BackupException>()),
+    );
+    expect(storage.secrets, uncertain);
     // Explicit external repair is represented only by this synthetic fixture.
     storage.secrets.addAll(_oldPair);
-    expect(await BackupRepository(storage:storage).recoverPendingRestore(),isTrue);
+    expect(
+      await BackupRepository(storage: storage).recoverPendingRestore(),
+      isTrue,
+    );
     expect(storage.secrets, {..._oldPair, _marker: '1'});
     expect(storage.writes, isNot(contains('secret:$_marker')));
   });
@@ -390,20 +396,33 @@ void main() {
             image.secrets.containsKey(BackupRepository.restoreJournalKey),
       );
       expect(interrupted, isNotEmpty);
-      for (final (index,image) in interrupted.indexed) {
+      for (final (index, image) in interrupted.indexed) {
         final pending = _Storage(secrets: {...image.secrets, _marker: '1'})
           ..markerFailure = StateError('Recovery must not read marker');
-        if(index==0) {
-          expect(await BackupRepository(storage:pending).recoverPendingRestore(),isTrue);
-          expect(pending.secrets,{..._oldPair,_marker:'1'});
-          expect(await BackupRepository(storage:pending).recoverPendingRestore(),isFalse);
-          await expectLater(BackupRepository(storage:pending).capture(_connections),_pending);
+        if (index == 0) {
+          expect(
+            await BackupRepository(storage: pending).recoverPendingRestore(),
+            isTrue,
+          );
+          expect(pending.secrets, {..._oldPair, _marker: '1'});
+          expect(
+            await BackupRepository(storage: pending).recoverPendingRestore(),
+            isFalse,
+          );
+          await expectLater(
+            BackupRepository(storage: pending).capture(_connections),
+            _pending,
+          );
         } else {
-          final before=Map.of(pending.secrets);
-          await expectLater(BackupRepository(storage:pending).recoverPendingRestore(),throwsA(isA<BackupException>()));
-          expect(pending.secrets,before);expect(pending.writes,isEmpty);
+          final before = Map.of(pending.secrets);
+          await expectLater(
+            BackupRepository(storage: pending).recoverPendingRestore(),
+            throwsA(isA<BackupException>()),
+          );
+          expect(pending.secrets, before);
+          expect(pending.writes, isEmpty);
         }
-        expect(pending.writes,isNot(contains('secret:$_marker')));
+        expect(pending.writes, isNot(contains('secret:$_marker')));
       }
     },
   );
@@ -430,9 +449,12 @@ void main() {
     expect(storage.secrets[BackupRepository.restoreJournalKey], journal);
     expect(storage.secrets[_marker], '1');
     storage.failWrites.clear();
-    await expectLater(repository.recoverPendingRestore(),throwsA(isA<BackupException>()));
-    expect(storage.secrets['ha_token'],'partial');
-    storage.secrets['ha_token']=_oldPair['ha_token']!;
+    await expectLater(
+      repository.recoverPendingRestore(),
+      throwsA(isA<BackupException>()),
+    );
+    expect(storage.secrets['ha_token'], 'partial');
+    storage.secrets['ha_token'] = _oldPair['ha_token']!;
     expect(await repository.recoverPendingRestore(), isTrue);
     expect(storage.secrets[_marker], '1');
     expect(storage.secrets['ha_token'], _oldPair['ha_token']);

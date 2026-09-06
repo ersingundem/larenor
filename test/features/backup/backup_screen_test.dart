@@ -53,11 +53,24 @@ final _snapshot = BackupSnapshot.fromJson({
 });
 
 class _Repository extends BackupRepository {
-  _Repository():super(storage:MemoryBackupStorage());
-  @override Future<PreparedBackupRestore> prepareRestore(BackupSnapshot snapshot,BackupSelection selection,{required BackupConflictPolicy conflictPolicy,required BackupRestoreAccess access}) {
-    restored=selection;conflict=conflictPolicy;
-    return super.prepareRestore(snapshot,selection,conflictPolicy:conflictPolicy,access:access);
+  _Repository() : super(storage: MemoryBackupStorage());
+  @override
+  Future<PreparedBackupRestore> prepareRestore(
+    BackupSnapshot snapshot,
+    BackupSelection selection, {
+    required BackupConflictPolicy conflictPolicy,
+    required BackupRestoreAccess access,
+  }) {
+    restored = selection;
+    conflict = conflictPolicy;
+    return super.prepareRestore(
+      snapshot,
+      selection,
+      conflictPolicy: conflictPolicy,
+      access: access,
+    );
   }
+
   BackupSelection? captured;
   BackupSelection? restored;
   BackupConflictPolicy? conflict;
@@ -173,7 +186,7 @@ Future<void> _mount(
   tester.view.physicalSize = size;
   tester.view.devicePixelRatio = 1;
   addTearDown(tester.view.reset);
-  final selectedRepository=repository??_Repository();
+  final selectedRepository = repository ?? _Repository();
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
@@ -182,12 +195,24 @@ Future<void> _mount(
         backupFileAccessProvider.overrideWithValue(files ?? _Files()),
         pinLockStoreProvider.overrideWithValue(pin ?? _Pin(null)),
         haDiscoveryFactoryProvider.overrideWithValue(_NoDiscovery.new),
-        windowPolicySnapshotProvider.overrideWith((_)=>Stream.value(const WindowPolicySnapshot())),
-        preparedBackupRestoreHandlerProvider.overrideWithValue((context,prepared,l10n) async {
+        windowPolicySnapshotProvider.overrideWith(
+          (_) => Stream.value(const WindowPolicySnapshot()),
+        ),
+        preparedBackupRestoreHandlerProvider.overrideWithValue((
+          context,
+          prepared,
+          l10n,
+        ) async {
           await prepared.checkBeforeHandoff();
-          final owner=Object();prepared.claimForHandoff(owner);
-          await prepared.applyAfterHandoff(owner,isCurrentBoundary:()=>true);
-          if(selectedRepository is _Repository) selectedRepository.restoreCalls++;
+          final owner = Object();
+          prepared.claimForHandoff(owner);
+          await prepared.applyAfterHandoff(
+            owner,
+            isCurrentBoundary: () => true,
+          );
+          if (selectedRepository is _Repository) {
+            selectedRepository.restoreCalls++;
+          }
         }),
       ],
       child: CupertinoApp(

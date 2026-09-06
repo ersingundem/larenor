@@ -36,7 +36,12 @@ enum SettingsCategory {
 /// narrow for two useful panes it falls back to the plain iOS behaviour of
 /// pushing each category full-screen.
 class SettingsSplitScreen extends StatefulWidget {
-  const SettingsSplitScreen({super.key, this.runFileDialog, this.onExit, this.backupGateCurrent});
+  const SettingsSplitScreen({
+    super.key,
+    this.runFileDialog,
+    this.onExit,
+    this.backupGateCurrent,
+  });
 
   final SettingsFileDialogRunner? runFileDialog;
   final VoidCallback? onExit;
@@ -93,8 +98,11 @@ class _SettingsSplitScreenState extends State<SettingsSplitScreen> {
                 key: _detailKey,
                 onGenerateRoute: (settings) => CupertinoPageRoute<void>(
                   settings: settings,
-                  builder: (_) =>
-                      paneFor(_selected, runFileDialog: widget.runFileDialog,backupGateCurrent:widget.backupGateCurrent),
+                  builder: (_) => paneFor(
+                    _selected,
+                    runFileDialog: widget.runFileDialog,
+                    backupGateCurrent: widget.backupGateCurrent,
+                  ),
                 ),
               ),
             ),
@@ -110,8 +118,11 @@ class _SettingsSplitScreenState extends State<SettingsSplitScreen> {
       selected: null,
       onSelect: (category) => Navigator.of(context).push(
         CupertinoPageRoute(
-          builder: (_) =>
-              paneFor(category, runFileDialog: widget.runFileDialog,backupGateCurrent:widget.backupGateCurrent),
+          builder: (_) => paneFor(
+            category,
+            runFileDialog: widget.runFileDialog,
+            backupGateCurrent: widget.backupGateCurrent,
+          ),
         ),
       ),
     );
@@ -139,7 +150,10 @@ Widget paneFor(
     case SettingsCategory.integrations:
       return const IntegrationsPane();
     case SettingsCategory.backup:
-      return BackupScreen(runFileDialog: runFileDialog,gateCurrent:backupGateCurrent);
+      return BackupScreen(
+        runFileDialog: runFileDialog,
+        gateCurrent: backupGateCurrent,
+      );
     case SettingsCategory.about:
       return const AboutPane();
   }
