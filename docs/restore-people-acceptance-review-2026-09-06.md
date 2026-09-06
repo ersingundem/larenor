@@ -21,6 +21,13 @@ Zengin mevcut düzen oda arşiviyle sessizce azaltılmaz. Kalıcı depoya tüm
 yazma/silme ve uzak revoke birlikte başarısızsa süreçler arası garanti
 kurulamaz; uygulama bunu başarı göstermeden recovery hatasını korur.
 
+`ConfigurationWrites` aynı süreç içindeki yazıları sıralar; kalıcı yeniden
+okuma gözlenen değişiklikleri reddeder. Bu, çok süreçli atomik CAS, dış
+yazara karşı kilit veya arada değişip eski değerine dönen kaydı (ABA)
+ayırt etme garantisi değildir. [Uygulama sınırı](prepared-backup-restore-implementation-2026-09-06.md)
+bu kabul özetinde de korunur. Bağımsız ikinci inceleme kapsamı CLEAR
+buldu; bu sınır cümlesi onun önerisiyle eklendi.
+
 ## S08.6: kişi, oda, kaynak ve izin sözleşmesi
 
 | Kabul ölçütü | Üretim yolu ve sınır | İncelenen karşılık |
