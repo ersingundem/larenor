@@ -86,10 +86,15 @@ class UnixVolumeReader:
             # Preserve framing metadata so the pure validator also rejects
             # partial/encoded replies; Mountpoint is validated then discarded.
             response = ProbeResponse(status, headers, b''.join(chunks))
-            return validate_volume_inspect(response, binding, request_target=target)
+            result = validate_volume_inspect(response, binding, request_target=target)
+            # Keep final source/nonce validation inside the transport's last
+            # deadline/cancellation/socket checks, before any result is returned.
+            if volume_expected_labels(binding) != labels:
+                raise VolumeResourceError('invalid_volume_binding')
+            return result
 
         try:
-            result = self._http.exchange(
+            return self._http.exchange(
                 EngineHttpRequest('GET', target), consume, platform=selected.source[0].platform,
                 limits=EngineHttpLimits(limits.total_seconds, limits.idle_seconds,
                                         MAX_INSPECT_BYTES, limits.max_chunks),
@@ -97,7 +102,3 @@ class UnixVolumeReader:
             )
         except EngineHttpError as error:
             _transport_error(error)
-        # Do not publish an observation after a source/nonce alias changed.
-        if volume_expected_labels(binding) != labels:
-            raise VolumeResourceError('invalid_volume_binding')
-        return result
