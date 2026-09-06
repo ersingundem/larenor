@@ -506,7 +506,7 @@
         }
       ],
       "completionCommit": null,
-      "reason": "Native root resolver önceki Linux CI ile doğrulandı; trusted supervisor/remap-disabled producer/issuer/create-publish açık. Volume plan+gözlem1c2 CI/APK100 kaynağında; kalıcı volume journal a27 CI101 bekliyor. Unix reader0d86fa1 sonraki ayrı3d9075f birleşiminde tamCore testinde. UID/bootstrap/Engine kurulum yetkisi ve installAvailable=false sürer."
+      "reason": "Native root resolver önceki Linux CI ile doğrulandı; trusted supervisor/remap-disabled producer/issuer/create-publish açık. Volume plan+gözlem 1c2 CI/APK100 kaynağında; volume journal a27 Linux CI101 içinde 3104 PASS/0skip ile geçti. Unix reader 0d86fa1 sonraki ayrı birleşimde 3192 tam Core PASS/11Linuxskip verdi; yeni Linux CI açık. UID/bootstrap/Engine kurulum yetkisi açık ve installAvailable=false sürer."
     },
     {
       "id": "S06.3e",
@@ -1188,7 +1188,7 @@
         }
       ],
       "completionCommit": null,
-      "reason": "Logout2911ac9 yerel25/1547test ve rootincelemeyle geçti; onuncuAndroidjourney ayrıdalda. Restore prepared/scopehandoff/journalv2 ve DirectHAorigin bağları uygulanıyor; bütünS08.5 ve kendiCI kabulü açık."
+      "reason": "Logout 2911ac9 yerel 25/1547 test ve root incelemesiyle geçti; onuncu Android yolculuğu 0bf1258 sonraki pakete birleşti, 87 fixture PASS. Restore prepared/scope handoff/journalv2 ve Direct HA origin bağları ayrı dalda uygulanıyor; dosya ve ServerVault üretim yolları birlikte kabul edilmeli. Bütün S08.5 ve kendi CI kabulü açık."
     },
     {
       "id": "S08.6",
@@ -1373,9 +1373,9 @@
           "kind": "ci",
           "ref": "https://github.com/ersingundem/larenor/actions/runs/34004246242",
           "commit": "1c2db575e7377e28e41bbd83aa34d4408e2029c1",
-          "state": "in_progress",
-          "result": null,
-          "label": "Yeni birleşimin CI çalışması sürüyor; başarılı sonuç veya imzalı APK kabulü henüz yok. ACL ekranı ab678df ve volume journal f9a3faa bu kaynakta değil."
+          "state": "completed",
+          "result": "passed",
+          "label": "Exact 1c2 / Android100: 4301 Flutter, 98 JVM, 12 E2E / 76 sıralı faz; tek indirme sonrası imzalı APK ayrıca doğrulandı. Metadata ekranı dahil; sonraki ACL ekranı ve volume journal bu kaynakta değil."
         },
         {
           "kind": "test",
