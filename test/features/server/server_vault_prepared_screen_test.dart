@@ -24,9 +24,11 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../backup/backup_test_storage.dart';
 import '../home_resources/home_resources_tablet_test.dart' show loadFonts;
+import '../../support/restore_dialog_geometry.dart';
 import 'server_vault_test_support.dart';
 
 class _Harness {
+  final boundary = GlobalKey();
   final api = VaultApi()
     ..value = ServerVault(
       revision: 7,
@@ -114,7 +116,10 @@ class _Harness {
               builder: (context, child) => MediaQuery(
                 data: MediaQuery.of(context)
                     .copyWith(textScaler: TextScaler.linear(scale)),
-                child: IdleGate(child: child!),
+                child: RepaintBoundary(
+                  key: boundary,
+                  child: IdleGate(child: child!),
+                ),
               ),
               home: Consumer(
                 builder: (context, ref, _) {
@@ -187,6 +192,67 @@ int _labelCount(SemanticsNode node, String label) {
 }
 
 void main() {
+  for (final language in ['en', 'tr']) {
+    for (final width in [600.0, 1280.0]) {
+      for (final scale in [1.0, 2.0]) {
+        testWidgets(
+          'Vault effective dialog target and painted label $language $width ${scale}x',
+          (tester) async {
+            await loadFonts(tester);
+            tester.platformDispatcher.platformBrightnessTestValue =
+                language == 'tr' ? Brightness.dark : Brightness.light;
+            addTearDown(
+              tester.platformDispatcher.clearPlatformBrightnessTestValue,
+            );
+            final semantics = tester.ensureSemantics();
+            try {
+              final h = _Harness();
+              await h.mount(
+                tester,
+                language: language,
+                width: width,
+                scale: scale,
+              );
+              final l10n = AppLocalizations.of(
+                tester.element(find.byType(CupertinoAlertDialog)),
+              );
+              final cancel = find.widgetWithText(
+                CupertinoDialogAction,
+                l10n.commonCancel,
+              );
+              final failures = restoreDialogGeometryFailures(
+                tester,
+                labels: [l10n.commonCancel, l10n.backupApply],
+                cancel: cancel,
+              );
+              await focusRestoreCancel(tester, cancel, flush);
+              if ((language == 'en' &&
+                      (width == 600 && scale == 1 ||
+                          width == 1280 && scale == 2)) ||
+                  (language == 'tr' && width == 600 && scale == 2)) {
+                await captureRestoreDialog(
+                  tester,
+                  h.boundary,
+                  'vault-$language-${width.toInt()}-${scale.toInt()}x',
+                );
+              }
+              await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+              await flush(tester);
+              expect(find.byType(CupertinoAlertDialog), findsNothing);
+              expect(h.storage.writes, isEmpty);
+              expect(h.api.writes, 0);
+              expect(h.disposals, 0);
+              expect(tester.takeException(), isNull);
+              expect(failures, isEmpty);
+            } finally {
+              semantics.dispose();
+            }
+          },
+        );
+      }
+    }
+  }
+
   for (final language in ['en', 'tr']) {
     for (final width in [320.0, 600.0, 1280.0]) {
       testWidgets('Vault confirmation semantics $language $width at 2x', (

@@ -25,6 +25,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'backup_test_storage.dart';
 import 'prepared_restore_test.dart' as f;
 import '../home_resources/home_resources_tablet_test.dart' show loadFonts;
+import '../../support/restore_dialog_geometry.dart';
 
 class _Codec extends BackupCodec {
   @override
@@ -160,6 +161,68 @@ Future<void> tap(WidgetTester tester, String key) async {
 }
 
 void main() {
+  for (final language in ['en', 'tr']) {
+    for (final width in [600.0, 1280.0]) {
+      for (final scale in [1.0, 2.0]) {
+        testWidgets(
+          'Backup effective dialog target and painted label $language $width ${scale}x',
+          (tester) async {
+            await loadFonts(tester);
+            tester.platformDispatcher.platformBrightnessTestValue =
+                language == 'tr' ? Brightness.dark : Brightness.light;
+            addTearDown(
+              tester.platformDispatcher.clearPlatformBrightnessTestValue,
+            );
+            final semantics = tester.ensureSemantics();
+            try {
+              final h = _ScreenHarness();
+              await h.mount(
+                tester,
+                locale: language,
+                width: width,
+                height: 1000,
+                scale: scale,
+              );
+              await h.confirm(tester);
+              final l10n = AppLocalizations.of(
+                tester.element(find.byType(CupertinoAlertDialog)),
+              );
+              final cancel = find.widgetWithText(
+                CupertinoDialogAction,
+                l10n.commonCancel,
+              );
+              final failures = restoreDialogGeometryFailures(
+                tester,
+                labels: [l10n.commonCancel, l10n.backupApply],
+                cancel: cancel,
+              );
+              await focusRestoreCancel(tester, cancel, flush);
+              if ((language == 'en' &&
+                      (width == 600 && scale == 1 ||
+                          width == 1280 && scale == 2)) ||
+                  (language == 'tr' && width == 600 && scale == 2)) {
+                await captureRestoreDialog(
+                  tester,
+                  h.boundary,
+                  'backup-$language-${width.toInt()}-${scale.toInt()}x',
+                );
+              }
+              await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+              await flush(tester);
+              expect(find.byType(CupertinoAlertDialog), findsNothing);
+              expect(h.storage.writes, isEmpty);
+              expect(h.disposals, 0);
+              expect(tester.takeException(), isNull);
+              expect(failures, isEmpty);
+            } finally {
+              semantics.dispose();
+            }
+          },
+        );
+      }
+    }
+  }
+
   testWidgets(
     'actual BackupScreen hands off typed v2 intent and mounts fresh providers',
     (tester) async {
