@@ -840,4 +840,171 @@ void main() {
     },
     timeout: const Timeout(Duration(minutes: 3)),
   );
+
+  testWidgets(
+    'Core admin → PIN → create → rename and order → confirm delete → fresh read',
+    (tester) async {
+      debugPrint('LARENOR_E2E_PHASE core_resource_admin.begin');
+      final app = await AppHarness.start(
+        connected: true,
+        coreSource: true,
+        coreResourceAdmin: true,
+      );
+      final core = app.server.coreAccount!;
+      final resources = core.adminResources!;
+      final id = '1' * 32;
+      Finder key(String name) => find.byKey(ValueKey(name));
+      final row = key('home-resource-admin-row-$id');
+      const originalLabel = 'Fixture managed room';
+      const renamedLabel = 'Fixture room renamed';
+
+      Future<void> waitEnabled(String name) async {
+        final button = key(name);
+        await waitFor(tester, button);
+        await waitUntil(
+          tester,
+          () =>
+              button.evaluate().isNotEmpty &&
+              tester.widget<CupertinoButton>(button).onPressed != null,
+        );
+      }
+
+      Future<void> press(String name) async {
+        await waitEnabled(name);
+        await tapVisible(tester, key(name));
+      }
+
+      Future<void> unlock() async {
+        await waitFor(tester, find.text('Unlock'));
+        await tester.enterText(find.byType(CupertinoTextField), AppHarness.pin);
+        await tapVisible(tester, find.text('Unlock'));
+      }
+
+      void noHomeEffects() {
+        expect(app.server.requests, 0);
+        expect(app.server.rejectedLogins, 0);
+        expect(app.server.acceptedActions, isEmpty);
+        expect(app.wsClientsCreated, 0);
+        expect(app.server.subscriptions, 0);
+        expect(core.rejectedRequests, 0);
+      }
+
+      try {
+        final preferences = await SharedPreferences.getInstance();
+        final legacy = preferences.getString('dashboard_layout');
+        await app.mount(tester);
+        await waitFor(tester, find.byType(CoreHomeStatusScreen));
+        expect(key('home-resources-manage'), findsNothing);
+        expect(resources.reads, 0);
+        expect(resources.mutations, isEmpty);
+        noHomeEffects();
+        await tapVisible(tester, find.text('Manage Core account'));
+        await unlock();
+        await waitFor(tester, find.byType(ServerConnectionScreen));
+        await tester.enterText(key('server-url'), app.server.baseUrl);
+        await tester.enterText(
+          key('server-username'),
+          SyntheticCoreAccount.username,
+        );
+        await tester.enterText(
+          key('server-password'),
+          SyntheticCoreAccount.password,
+        );
+        await press('server-sign-in');
+        await waitFor(tester, key('home-resources-manage'));
+        expect(core.logins, 1);
+        expect(core.contextReads, 1);
+        expect(core.user['role'], 'admin');
+        debugPrint('LARENOR_E2E_PHASE core_resource_admin.account_verified');
+
+        await press('home-resources-manage');
+        await waitFor(tester, find.text('Unlock'));
+        expect(key('home-resource-admin'), findsNothing);
+        await tester.enterText(find.byType(CupertinoTextField), '0000');
+        await tapVisible(tester, find.text('Unlock'));
+        await waitFor(tester, find.text('Incorrect PIN'));
+        expect(resources.mutations, isEmpty);
+        expect(key('home-resource-admin'), findsNothing);
+        debugPrint('LARENOR_E2E_PHASE core_resource_admin.wrong_pin_denied');
+        await unlock();
+        await waitEnabled('home-resource-admin-create');
+        expect(key('home-resource-admin'), findsOneWidget);
+        expect(resources.mutations, isEmpty);
+        debugPrint('LARENOR_E2E_PHASE core_resource_admin.pin_unlocked');
+
+        await press('home-resource-admin-create');
+        await press('home-resource-kind-room');
+        await tester.enterText(key('home-resource-label'), originalLabel);
+        await tester.enterText(key('home-resource-order'), '7');
+        expect(resources.mutations, isEmpty);
+        await press('home-resource-save');
+        await waitFor(tester, key('home-resource-mutation-saved'));
+        await waitFor(tester, row);
+        expect(find.text(originalLabel), findsOneWidget);
+        expect(resources.mutations, ['POST']);
+        expect(resources.records.single['label'], originalLabel);
+        expect(resources.records.single['order'], 7);
+        expect(resources.records.single['revision'], 1);
+        expect(resources.records.single['aclRevision'], 1);
+        debugPrint('LARENOR_E2E_PHASE core_resource_admin.created');
+
+        await press('home-resource-edit-$id');
+        await tester.enterText(key('home-resource-label'), renamedLabel);
+        await tester.enterText(key('home-resource-order'), '2');
+        await press('home-resource-save');
+        await waitFor(tester, key('home-resource-mutation-saved'));
+        await waitFor(tester, find.text(renamedLabel));
+        expect(find.text(originalLabel), findsNothing);
+        expect(row, findsOneWidget);
+        expect(resources.mutations, ['POST', 'PATCH']);
+        expect(resources.records.single['label'], renamedLabel);
+        expect(resources.records.single['order'], 2);
+        expect(resources.records.single['revision'], 2);
+        expect(resources.records.single['aclRevision'], 1);
+        debugPrint('LARENOR_E2E_PHASE core_resource_admin.renamed_reordered');
+
+        await press('home-resource-delete-$id');
+        await waitFor(tester, key('home-resource-delete-confirmation'));
+        expect(resources.mutations, ['POST', 'PATCH']);
+        await press('home-resource-cancel-edit');
+        expect(key('home-resource-delete-confirmation'), findsNothing);
+        expect(row, findsOneWidget);
+        expect(resources.records.single['label'], renamedLabel);
+        expect(resources.mutations, ['POST', 'PATCH']);
+        debugPrint('LARENOR_E2E_PHASE core_resource_admin.delete_cancelled');
+        await press('home-resource-delete-$id');
+        await waitFor(tester, key('home-resource-delete-confirmation'));
+        expect(resources.mutations, ['POST', 'PATCH']);
+        await press('home-resource-confirm-delete');
+        await waitFor(tester, key('home-resource-mutation-deleted'));
+        expect(row, findsNothing);
+        expect(find.text(renamedLabel), findsNothing);
+        expect(resources.records, isEmpty);
+        expect(resources.mutations, ['POST', 'PATCH', 'DELETE']);
+        debugPrint('LARENOR_E2E_PHASE core_resource_admin.delete_confirmed');
+
+        await press('home-resource-admin-back');
+        // Wait for the automatic return-to-route read to finish before taking
+        // the counter baseline; only the explicit refresh may advance it.
+        await waitEnabled('home-resources-refresh');
+        final beforeRefresh = resources.reads;
+        await press('home-resources-refresh');
+        await waitUntil(tester, () => resources.reads > beforeRefresh);
+        await waitFor(tester, key('home-resources-empty'));
+        expect(key('home-resource-admin'), findsNothing);
+        expect(find.text(originalLabel), findsNothing);
+        expect(find.text(renamedLabel), findsNothing);
+        expect(resources.mutations, ['POST', 'PATCH', 'DELETE']);
+        await preferences.reload();
+        expect(preferences.getString('dashboard_layout'), legacy);
+        noHomeEffects();
+        debugPrint('LARENOR_E2E_PHASE core_resource_admin.fresh_empty_read');
+      } finally {
+        debugPrint('LARENOR_E2E_PHASE core_resource_admin.cleanup_begin');
+        await app.close(tester);
+        debugPrint('LARENOR_E2E_PHASE core_resource_admin.cleanup_complete');
+      }
+    },
+    timeout: const Timeout(Duration(minutes: 3)),
+  );
 }
