@@ -1,6 +1,6 @@
 # Larenor — güncel ilerleme ve iş kuyruğu
 
-**Son güncelleme: 6 Eylül 2026, 04:33 (Türkiye saati).**
+**Son güncelleme: 6 Eylül 2026, 04:38 (Türkiye saati).**
 
 ```text
 Önceki kapsam       █████████████░░░░░░░  ≈ %65
@@ -55,6 +55,14 @@ Core/ev bağlamını tokenlarla güvenle bağlama kapsamında tam CI kabulü ald
 ile kabul edildi. **S08.3** ev runtime sınırı da `4b98680` tam CI ve APK 94
 ile kabul edildi. Bu işler yeni 63 özelliğin kabul sayısı değildir; o sayaç **0/63**. Ana S06
 sayacı **2/6** kalır; dizin, kurulum ve gerçek Engine kabulü açıktır.
+
+**Yeni birleşim GitHub'da: `1c2db57`.** [Android 100](https://github.com/ersingundem/larenor/actions/runs/34004246242),
+[Core](https://github.com/ersingundem/larenor/actions/runs/34004246308) ve
+[güvenlik](https://github.com/ersingundem/larenor/actions/runs/34004246204)
+çalışıyor. Yeni Android hedefi 12 E2E; henüz başarılı sonuç veya yeni imzalı
+APK kabulü yok. Sonraki ayrı pakette ACL yönetim ekranı `ab678df` ile
+volume journal `f9a3faa` birleştirildi; birleşik testleri ve ACL Android
+senaryosu sürüyor. Bu iki yeni dilim Android 100 kaynağına dahil değildir.
 
 **Son tam doğrulanmış yayın `4bc79dc` / APK 99.** Üç CI başarılı:
 Core **2.951 PASS**, güvenlik **207 PASS**, Flutter **3.941 PASS**, JVM
