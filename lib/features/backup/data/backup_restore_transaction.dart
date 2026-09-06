@@ -198,6 +198,8 @@ final class PreparedBackupRestore {
         await _access.checkDurable();
         boundary();
       }
+      await _repository._requireStableConnections(_plan.services);
+      boundary();
     }
     try {
       await current();
