@@ -1012,77 +1012,163 @@ void main() {
     'Core admin → PIN → users → read-only → read/write → revoke confirmation → fresh grants',
     (tester) async {
       debugPrint('LARENOR_E2E_PHASE core_resource_grants.begin');
-      final app = await AppHarness.start(connected: true, coreSource: true, coreResourceGrants: true);
+      final app = await AppHarness.start(
+        connected: true,
+        coreSource: true,
+        coreResourceGrants: true,
+      );
       final core = app.server.coreAccount!, grants = core.grants!;
       final subject = '3' * 32, id = '1' * 32;
       Finder key(String name) => find.byKey(ValueKey(name));
       Future<void> waitEnabled(String name) async {
-        final button=key(name);await waitFor(tester,button);
-        await waitUntil(tester,()=>button.evaluate().isNotEmpty&&tester.widget<CupertinoButton>(button).onPressed!=null);
+        final button = key(name);
+        await waitFor(tester, button);
+        await waitUntil(
+          tester,
+          () =>
+              button.evaluate().isNotEmpty &&
+              tester.widget<CupertinoButton>(button).onPressed != null,
+        );
       }
-      Future<void> press(String name) async {await waitEnabled(name);await tapVisible(tester,key(name));}
+
+      Future<void> press(String name) async {
+        await waitEnabled(name);
+        await tapVisible(tester, key(name));
+      }
+
       Future<void> unlock() async {
-        await waitFor(tester,find.text('Unlock'));
-        await tester.enterText(find.byType(CupertinoTextField),AppHarness.pin);
-        await tapVisible(tester,find.text('Unlock'));
+        await waitFor(tester, find.text('Unlock'));
+        await tester.enterText(find.byType(CupertinoTextField), AppHarness.pin);
+        await tapVisible(tester, find.text('Unlock'));
       }
-      void noHomeEffects(){
-        expect(app.server.requests,0);expect(app.server.rejectedLogins,0);expect(app.server.acceptedActions,isEmpty);
-        expect(app.wsClientsCreated,0);expect(app.server.subscriptions,0);
+
+      void noHomeEffects() {
+        expect(app.server.requests, 0);
+        expect(app.server.rejectedLogins, 0);
+        expect(app.server.acceptedActions, isEmpty);
+        expect(app.wsClientsCreated, 0);
+        expect(app.server.subscriptions, 0);
       }
+
       try {
-        await app.mount(tester);await waitFor(tester,find.byType(CoreHomeStatusScreen));
-        expect(key('home-resources-manage'),findsNothing);expect(grants.mutations,isEmpty);expect(grants.usersReads,0);
-        await tapVisible(tester,find.text('Manage Core account'));await unlock();
-        await waitFor(tester,find.byType(ServerConnectionScreen));
-        await tester.enterText(key('server-url'),app.server.baseUrl);
-        await tester.enterText(key('server-username'),SyntheticCoreAccount.username);
-        await tester.enterText(key('server-password'),SyntheticCoreAccount.password);
-        await press('server-sign-in');await waitEnabled('home-resources-manage');
-        expect(core.logins,1);expect(core.contextReads,1);expect(core.user['role'],'admin');
+        await app.mount(tester);
+        await waitFor(tester, find.byType(CoreHomeStatusScreen));
+        expect(key('home-resources-manage'), findsNothing);
+        expect(grants.mutations, isEmpty);
+        expect(grants.usersReads, 0);
+        await tapVisible(tester, find.text('Manage Core account'));
+        await unlock();
+        await waitFor(tester, find.byType(ServerConnectionScreen));
+        await tester.enterText(key('server-url'), app.server.baseUrl);
+        await tester.enterText(
+          key('server-username'),
+          SyntheticCoreAccount.username,
+        );
+        await tester.enterText(
+          key('server-password'),
+          SyntheticCoreAccount.password,
+        );
+        await press('server-sign-in');
+        await waitEnabled('home-resources-manage');
+        expect(core.logins, 1);
+        expect(core.contextReads, 1);
+        expect(core.user['role'], 'admin');
         debugPrint('LARENOR_E2E_PHASE core_resource_grants.account_verified');
-        await press('home-resources-manage');await waitFor(tester,find.text('Unlock'));
-        expect(key('home-resource-admin'),findsNothing);expect(grants.usersReads,0);await unlock();
+        await press('home-resources-manage');
+        await waitFor(tester, find.text('Unlock'));
+        expect(key('home-resource-admin'), findsNothing);
+        expect(grants.usersReads, 0);
+        await unlock();
         await waitEnabled('home-resource-grants-$id');
         debugPrint('LARENOR_E2E_PHASE core_resource_grants.pin_unlocked');
-        await press('home-resource-grants-$id');await waitEnabled('resource-grants-user-$subject');
-        expect(grants.usersReads,1);expect(grants.grantReads,1);expect(grants.mutations,isEmpty);expect(find.text('person_3'),findsOneWidget);
+        await press('home-resource-grants-$id');
+        await waitEnabled('resource-grants-user-$subject');
+        expect(grants.usersReads, 1);
+        expect(grants.grantReads, 1);
+        expect(grants.mutations, isEmpty);
+        expect(find.text('person_3'), findsOneWidget);
         debugPrint('LARENOR_E2E_PHASE core_resource_grants.users_loaded');
-        await press('resource-grants-user-$subject');expect(find.byType(CupertinoTextField),findsNothing);
-        expect(find.descendant(of:key('resource-grants-readOnly'),matching:find.byIcon(CupertinoIcons.checkmark)),findsOneWidget);
-        await press('resource-grants-save');await waitFor(tester,key('resource-grants-saved'));
-        expect(grants.grants[subject],{'read':true,'write':false});expect(grants.aclRevision,2);expect(grants.putRequests,1);
+        await press('resource-grants-user-$subject');
+        expect(find.byType(CupertinoTextField), findsNothing);
+        expect(
+          find.descendant(
+            of: key('resource-grants-readOnly'),
+            matching: find.byIcon(CupertinoIcons.checkmark),
+          ),
+          findsOneWidget,
+        );
+        await press('resource-grants-save');
+        await waitFor(tester, key('resource-grants-saved'));
+        expect(grants.grants[subject], {'read': true, 'write': false});
+        expect(grants.aclRevision, 2);
+        expect(grants.putRequests, 1);
         debugPrint('LARENOR_E2E_PHASE core_resource_grants.read_only_saved');
-        await press('resource-grants-user-$subject');await press('resource-grants-readWrite');await press('resource-grants-save');await waitFor(tester,key('resource-grants-saved'));
-        expect(grants.grants[subject],{'read':true,'write':true});expect(grants.aclRevision,3);expect(grants.putRequests,2);
+        await press('resource-grants-user-$subject');
+        await press('resource-grants-readWrite');
+        await press('resource-grants-save');
+        await waitFor(tester, key('resource-grants-saved'));
+        expect(grants.grants[subject], {'read': true, 'write': true});
+        expect(grants.aclRevision, 3);
+        expect(grants.putRequests, 2);
         debugPrint('LARENOR_E2E_PHASE core_resource_grants.read_write_saved');
         // One successful in-memory effect loses its acknowledgement. Only an
         // explicit GET may resolve it; never call a production callback directly.
-        await press('resource-grants-user-$subject');await press('resource-grants-readOnly');grants.failNextPutReply=true;
-        await press('resource-grants-save');await waitFor(tester,key('resource-grants-uncertain'));
-        expect(key('resource-grants-user-$subject'),findsNothing);expect(grants.putRequests,3);expect(grants.grantReads,1);
+        await press('resource-grants-user-$subject');
+        await press('resource-grants-readOnly');
+        grants.failNextPutReply = true;
+        await press('resource-grants-save');
+        await waitFor(tester, key('resource-grants-uncertain'));
+        expect(key('resource-grants-user-$subject'), findsNothing);
+        expect(grants.putRequests, 3);
+        expect(grants.grantReads, 1);
         debugPrint('LARENOR_E2E_PHASE core_resource_grants.save_uncertain');
-        await press('resource-grants-refresh');await waitEnabled('resource-grants-user-$subject');
-        expect(grants.putRequests,3);expect(grants.grantReads,2);expect(grants.grants[subject],{'read':true,'write':false});expect(grants.aclRevision,4);
+        await press('resource-grants-refresh');
+        await waitEnabled('resource-grants-user-$subject');
+        expect(grants.putRequests, 3);
+        expect(grants.grantReads, 2);
+        expect(grants.grants[subject], {'read': true, 'write': false});
+        expect(grants.aclRevision, 4);
         debugPrint('LARENOR_E2E_PHASE core_resource_grants.recovery_read');
-        await press('resource-grants-user-$subject');await press('resource-grants-none');await press('resource-grants-save');await waitFor(tester,key('resource-grants-revoke-confirmation'));
-        expect(grants.putRequests,3);await press('resource-grants-cancel');await waitEnabled('resource-grants-user-$subject');
-        expect(grants.putRequests,3);expect(grants.grants.containsKey(subject),isTrue);
+        await press('resource-grants-user-$subject');
+        await press('resource-grants-none');
+        await press('resource-grants-save');
+        await waitFor(tester, key('resource-grants-revoke-confirmation'));
+        expect(grants.putRequests, 3);
+        await press('resource-grants-cancel');
+        await waitEnabled('resource-grants-user-$subject');
+        expect(grants.putRequests, 3);
+        expect(grants.grants.containsKey(subject), isTrue);
         debugPrint('LARENOR_E2E_PHASE core_resource_grants.revoke_cancelled');
-        await press('resource-grants-user-$subject');await press('resource-grants-none');await press('resource-grants-save');await waitFor(tester,key('resource-grants-revoke-confirmation'));
-        expect(grants.putRequests,3);await press('resource-grants-confirm-revoke');await waitFor(tester,key('resource-grants-revoked'));
-        expect(grants.putRequests,4);expect(grants.aclRevision,5);expect(grants.grants,isEmpty);
+        await press('resource-grants-user-$subject');
+        await press('resource-grants-none');
+        await press('resource-grants-save');
+        await waitFor(tester, key('resource-grants-revoke-confirmation'));
+        expect(grants.putRequests, 3);
+        await press('resource-grants-confirm-revoke');
+        await waitFor(tester, key('resource-grants-revoked'));
+        expect(grants.putRequests, 4);
+        expect(grants.aclRevision, 5);
+        expect(grants.grants, isEmpty);
         debugPrint('LARENOR_E2E_PHASE core_resource_grants.revoke_confirmed');
-        await press('resource-grants-back');await waitEnabled('home-resource-grants-$id');
-        final beforeRead=grants.grantReads;await press('home-resource-grants-$id');await waitEnabled('resource-grants-user-$subject');
-        expect(grants.grantReads,greaterThan(beforeRead));expect(grants.grants,isEmpty);expect(grants.aclRevision,5);expect(grants.putRequests,4);
-        expect(core.logins,1);expect(core.rejectedRequests,1);noHomeEffects();
+        await press('resource-grants-back');
+        await waitEnabled('home-resource-grants-$id');
+        final beforeRead = grants.grantReads;
+        await press('home-resource-grants-$id');
+        await waitEnabled('resource-grants-user-$subject');
+        expect(grants.grantReads, greaterThan(beforeRead));
+        expect(grants.grants, isEmpty);
+        expect(grants.aclRevision, 5);
+        expect(grants.putRequests, 4);
+        expect(core.logins, 1);
+        expect(core.rejectedRequests, 1);
+        noHomeEffects();
         debugPrint('LARENOR_E2E_PHASE core_resource_grants.fresh_empty_read');
       } finally {
-        debugPrint('LARENOR_E2E_PHASE core_resource_grants.cleanup_begin');await app.close(tester);
+        debugPrint('LARENOR_E2E_PHASE core_resource_grants.cleanup_begin');
+        await app.close(tester);
         debugPrint('LARENOR_E2E_PHASE core_resource_grants.cleanup_complete');
       }
     },
-    timeout: const Timeout(Duration(minutes:3)),
+    timeout: const Timeout(Duration(minutes: 3)),
   );
 }

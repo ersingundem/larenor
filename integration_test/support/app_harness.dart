@@ -91,8 +91,11 @@ class AppHarness {
         'Admin fixture requires its own explicit Core source.',
       );
     }
-    if (coreResourceGrants && (!coreSource || coreResources || coreResourceAdmin)) {
-      throw ArgumentError('Grants fixture requires its own explicit Core source.');
+    if (coreResourceGrants &&
+        (!coreSource || coreResources || coreResourceAdmin)) {
+      throw ArgumentError(
+        'Grants fixture requires its own explicit Core source.',
+      );
     }
     final server = await SyntheticHaServer.start();
     if (coreSource) {
