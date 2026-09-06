@@ -143,10 +143,14 @@ void registerCorePeopleJourney() {
   );
 }
 
-/// Wait for the journey's existing Core route readiness predicate.
+/// A current Core route can precede disposal of the outgoing people route.
+/// Keep both observations within the journey's existing bounded wait.
 Future<void> corePeopleJourneyWaitForReturn(WidgetTester tester) => waitUntil(
   tester,
-  () => singleElementReady(
+  () => find.byKey(
+    const ValueKey('home-people-list'),
+    skipOffstage: false,
+  ).evaluate().isEmpty && singleElementReady(
     find.byType(CoreHomeStatusScreen),
     (element) =>
         ModalRoute.of(element)?.isCurrent == true &&

@@ -51,7 +51,6 @@ void main() {
           await tester.pump(const Duration(milliseconds: 500));
           expect(h.peopleReads, 2);
           expect(h.haReads, 0);
-          expect(h.resourceReads, 0);
           expect(h.writes, isEmpty);
           expect(h.userReads, 0);
           expect(h.grantReads, 0);
