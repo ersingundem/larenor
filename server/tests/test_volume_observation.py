@@ -10,7 +10,7 @@ import pytest
 from larenor_server.plugins.resource_journal import ResourceJournal, ResourceJournalError
 from larenor_server.plugins.volume_journal import VolumeJournal
 from larenor_server.plugins.volume_observation import JournaledVolumeObservations, VolumeObservationError
-from larenor_server.plugins.volume_resources import volume_binding, volume_expected_labels
+from larenor_server.plugins.volume_resources import volume_binding
 from larenor_server.plugins.volume_transport import UnixVolumeReader
 from test_engine_http import server, response
 from test_volume_journal import inputs
@@ -24,14 +24,10 @@ def reader(client):
 
 def bound(journal, data, resource_id):
     """Inspect the committed row from an independent SQLite connection."""
-    with sqlite3.connect(journal_path(journal) / 'journal.sqlite') as db:
+    with sqlite3.connect(journal.directory / 'journal.sqlite') as db:
         row = db.execute('SELECT state,revision,nonce FROM resources WHERE resource_id=?', (resource_id,)).fetchone()
     assert row is not None and row[0] in {'observing', 'uncertain'}
     return volume_binding(**data, resource_id=resource_id, journal_id=journal.identity, ownership_nonce=row[2]), row
-
-
-def journal_path(journal):
-    return journal.test_path
 
 
 @pytest.fixture
@@ -40,7 +36,6 @@ def scenario(tmp_path, source):
     rid = data['plan'].resources[0].resourceId
     path = tmp_path / 'volumes'
     with VolumeJournal(path, initialize=True) as journal:
-        journal.test_path = path
         yield data, rid, journal, path
 
 
@@ -73,7 +68,6 @@ def test_restart_recovers_observing_with_same_nonce_and_journal_identity(tmp_pat
         intent = journal.begin_observation(rid, 1, **data)
         identity, nonce = journal.identity, intent.binding.ownership_nonce
     with VolumeJournal(path) as reopened:
-        reopened.test_path = path
         def reply(connection):
             binding, _ = bound(reopened, data, rid)
             assert binding.journal_id == identity and binding.ownership_nonce == nonce
@@ -170,3 +164,25 @@ def test_native_journal_and_missing_reader_are_rejected_without_io(tmp_path, sce
             JournaledVolumeObservations(native, Observer())
     with pytest.raises(VolumeObservationError, match='^invalid_volume_observation$'):
         JournaledVolumeObservations(volume, object())
+
+
+def test_cancel_during_terminal_history_read_does_not_publish_retired_result(scenario, monkeypatch):
+    data, rid, journal, _ = scenario
+    event = threading.Event()
+    def reply(connection):
+        binding, _ = bound(journal, data, rid)
+        connection.sendall(response(body(binding)))
+    with server(reply=reply) as (client, calls):
+        operations = JournaledVolumeObservations(journal, reader(client))
+        historical = operations.observe(**data, resource_id=rid)
+        original = journal.prepare
+        def cancel(*args, **kwargs):
+            result = original(*args, **kwargs)
+            event.set()
+            return result
+        monkeypatch.setattr(journal, 'prepare', cancel)
+        with pytest.raises(VolumeObservationError, match='^volume_cancelled$'):
+            operations.observe(**data, resource_id=rid, cancelled=event)
+    assert len(calls) == 2
+    with journal.locked():
+        assert journal.get(rid) == historical
