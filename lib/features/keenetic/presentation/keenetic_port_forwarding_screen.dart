@@ -31,10 +31,11 @@ class KeeneticPortForwardingScreen extends ConsumerWidget {
         child: Center(child: Text(l10n.healthReadError)),
       ),
       data: (config) {
-        if (config == null)
+        if (config == null) {
           return CupertinoPageScaffold(
             child: Center(child: Text(l10n.commonNotConnected)),
           );
+        }
         return const _RulesList();
       },
     );
@@ -52,12 +53,13 @@ class _RulesListState extends KeeneticSessionState<_RulesList> {
   Widget build(BuildContext context) {
     watchKeeneticSession();
     final generation = sessionGeneration;
-    if (!keeneticAvailable)
+    if (!keeneticAvailable) {
       return CupertinoPageScaffold(
         child: Center(
           child: Text(AppLocalizations.of(context).commonNotConnected),
         ),
       );
+    }
     final rulesAsync = ref.watch(keeneticPortForwardingProvider);
 
     return CupertinoPageScaffold(

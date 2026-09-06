@@ -32,10 +32,11 @@ class KeeneticDevicesScreen extends ConsumerWidget {
         child: Center(child: Text(l10n.healthReadError)),
       ),
       data: (config) {
-        if (config == null)
+        if (config == null) {
           return CupertinoPageScaffold(
             child: Center(child: Text(l10n.commonNotConnected)),
           );
+        }
         return const _DevicesList();
       },
     );
@@ -72,12 +73,13 @@ class _DevicesListState extends KeeneticSessionState<_DevicesList> {
   Widget build(BuildContext context) {
     watchKeeneticSession();
     final generation = sessionGeneration;
-    if (!keeneticAvailable)
+    if (!keeneticAvailable) {
       return CupertinoPageScaffold(
         child: Center(
           child: Text(AppLocalizations.of(context).commonNotConnected),
         ),
       );
+    }
     final devicesAsync = ref.watch(keeneticDevicesProvider);
     final l10n = AppLocalizations.of(context);
 
@@ -131,8 +133,9 @@ class _DevicesListState extends KeeneticSessionState<_DevicesList> {
                   child: CupertinoSearchTextField(
                     placeholder: l10n.commonSearch,
                     onChanged: (value) {
-                      if (keeneticCurrent(generation))
+                      if (keeneticCurrent(generation)) {
                         setState(() => _query = value);
+                      }
                     },
                   ),
                 ),
@@ -145,8 +148,9 @@ class _DevicesListState extends KeeneticSessionState<_DevicesList> {
                       true: Text(l10n.keeneticOnline),
                     },
                     onValueChanged: (value) {
-                      if (value != null && keeneticCurrent(generation))
+                      if (value != null && keeneticCurrent(generation)) {
                         setState(() => _onlineOnly = value);
+                      }
                     },
                   ),
                 ),

@@ -4,7 +4,6 @@ import 'dart:ui' show ViewFocusDirection, ViewFocusEvent, ViewFocusState;
 
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 // The app's pinned secure-storage plugin owns this public platform test seam.
 // ignore: depend_on_referenced_packages
@@ -35,12 +34,13 @@ const storageChannel = MethodChannel(
 );
 
 http.Response responseFor(http.Request request) {
-  if (request.url.path.endsWith('/auth'))
+  if (request.url.path.endsWith('/auth')) {
     return http.Response(
       '',
       200,
       headers: {'set-cookie': 'session=synthetic; Path=/'},
     );
+  }
   if (request.method == 'POST') return http.Response('', 200);
   if (request.url.path.endsWith('/show/interface')) {
     return http.Response(
@@ -61,13 +61,15 @@ http.Response responseFor(http.Request request) {
       200,
     );
   }
-  if (request.url.path.endsWith('/ip/static'))
+  if (request.url.path.endsWith('/ip/static')) {
     return http.Response(
       '[{"protocol":"tcp","port":8123,"to":"192.0.2.7","comment":"Synthetic rule"}]',
       200,
     );
-  if (request.url.path.endsWith('/version'))
+  }
+  if (request.url.path.endsWith('/version')) {
     return http.Response('{"model":"Synthetic router","release":"1.0"}', 200);
+  }
   return http.Response('{}', 200);
 }
 
@@ -306,6 +308,17 @@ void main() {
             old();
             await settle(tester);
             expect(requests, before);
+            final fresh = tester
+                .widgetList<CupertinoButton>(find.byType(CupertinoButton))
+                .firstWhere(
+                  (b) =>
+                      b.child is Icon &&
+                      (b.child as Icon).icon == CupertinoIcons.refresh,
+                )
+                .onPressed!;
+            fresh();
+            await settle(tester);
+            expect(requests, greaterThan(before));
             expect(tester.takeException(), isNull);
             await finish(tester, c);
           },
@@ -607,6 +620,135 @@ void main() {
           return r.method == 'POST'
               ? pending.future
               : Future.value(responseFor(r));
+        }),
+      );
+    },
+  );
+
+  testWidgets(
+    'a retained Direct container cannot authorize a child reparented to Core',
+    (tester) async {
+      final (direct, _) = await routinesHome('direct');
+      final (core, _) = await routinesHome('core');
+      final interaction = AppInteractionController();
+      addTearDown(interaction.dispose);
+      final key = GlobalKey();
+      final child = KeeneticWifiScreen(key: key);
+      final requests = <http.Request>[];
+      await http.runWithClient(
+        () async {
+          await mount(tester, direct, interaction, child: child);
+          final element = key.currentContext;
+          final old = tester
+              .widget<CupertinoSwitch>(find.byType(CupertinoSwitch))
+              .onChanged!;
+          final lease = direct.listen(keeneticClientProvider, (_, _) {});
+          addTearDown(lease.close);
+          final ready = lease.read().value;
+          expect(ready, isNotNull);
+          final before = requests.length;
+          secure.calls.clear();
+          await mount(tester, core, interaction, child: child);
+          expect(key.currentContext, same(element));
+          expect(direct.read(keeneticClientProvider).value, same(ready));
+          old(false);
+          await settle(tester);
+          expect(requests.length, before);
+          expect(secure.calls, isEmpty);
+          expect(find.byType(CupertinoAlertDialog), findsNothing);
+          expect(find.byType(CupertinoSwitch), findsNothing);
+          expect(tester.takeException(), isNull);
+          await finish(tester, core);
+          direct.dispose();
+        },
+        () => MockClient((r) async {
+          requests.add(r);
+          return responseFor(r);
+        }),
+      );
+    },
+  );
+
+  testWidgets('invalid interface observation never offers a command', (
+    tester,
+  ) async {
+    final (c, _) = await routinesHome('direct');
+    final interaction = AppInteractionController();
+    addTearDown(interaction.dispose);
+    var commands = 0;
+    await http.runWithClient(
+      () async {
+        await mount(tester, c, interaction, child: const KeeneticWifiScreen());
+        expect(
+          tester
+              .widget<CupertinoSwitch>(find.byType(CupertinoSwitch))
+              .onChanged,
+          isNull,
+        );
+        await tester.tap(find.byType(CupertinoSwitch));
+        await settle(tester);
+        expect(find.byType(CupertinoAlertDialog), findsNothing);
+        expect(commands, 0);
+        await finish(tester, c);
+      },
+      () => MockClient((r) async {
+        if (r.method == 'POST') commands++;
+        if (r.url.path.endsWith('/show/interface')) {
+          return http.Response(
+            '{"Other0":{"type":"AccessPoint","description":"Synthetic unsupported interface","state":"up"}}',
+            200,
+          );
+        }
+        return responseFor(r);
+      }),
+    );
+  });
+
+  testWidgets(
+    'active command failure remains explicit and an expired error action cannot pop a route',
+    (tester) async {
+      final (c, _) = await routinesHome('direct');
+      final interaction = AppInteractionController();
+      addTearDown(interaction.dispose);
+      var commands = 0;
+      await http.runWithClient(
+        () async {
+          await mount(
+            tester,
+            c,
+            interaction,
+            child: const KeeneticWifiScreen(),
+          );
+          await tester.tap(find.byType(CupertinoSwitch));
+          await settle(tester);
+          await tester.tap(find.text('Turn Off'));
+          await settle(tester);
+          expect(commands, 1);
+          expect(find.text('Error'), findsOneWidget);
+          expect(find.textContaining('private-device-payload'), findsNothing);
+          final old = tester
+              .widget<CupertinoDialogAction>(
+                find.widgetWithText(CupertinoDialogAction, 'OK'),
+              )
+              .onPressed!;
+          interaction.setActive(false);
+          await settle(tester);
+          interaction.setActive(true);
+          await settle(tester);
+          old();
+          await settle(tester);
+          expect(find.byType(KeeneticWifiScreen), findsOneWidget);
+          expect(find.byType(CupertinoAlertDialog), findsNothing);
+          expect(commands, 1);
+          expect(tester.takeException(), isNull);
+          await finish(tester, c);
+        },
+        () => MockClient((r) async {
+          if (r.method == 'POST') {
+            commands++;
+            return http.Response('private-device-payload', 401);
+          }
+          return responseFor(r);
         }),
       );
     },

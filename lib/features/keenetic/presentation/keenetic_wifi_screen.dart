@@ -32,10 +32,11 @@ class KeeneticWifiScreen extends ConsumerWidget {
         child: Center(child: Text(l10n.healthReadError)),
       ),
       data: (config) {
-        if (config == null)
+        if (config == null) {
           return CupertinoPageScaffold(
             child: Center(child: Text(l10n.commonNotConnected)),
           );
+        }
         return const _AccessPointsList();
       },
     );
@@ -59,8 +60,9 @@ class _AccessPointsListState extends KeeneticSessionState<_AccessPointsList> {
   ) async {
     if (!keeneticCurrent(generation) ||
         _pending.contains(ap.id) ||
-        ownedModal != null)
+        ownedModal != null) {
       return;
+    }
     final reading = ref.read(keeneticClientProvider);
     final client = reading.isLoading || reading.hasError ? null : reading.value;
     if (client == null) return;
@@ -114,7 +116,7 @@ class _AccessPointsListState extends KeeneticSessionState<_AccessPointsList> {
       await client.setInterfaceUp(ap.id, value);
       if (current()) ref.invalidate(keeneticAccessPointsProvider);
     } catch (error) {
-      if (!current()) return;
+      if (!mounted || !current()) return;
       setState(() => _pending.remove(ap.id));
       late final CupertinoDialogRoute<void> route;
       route = CupertinoDialogRoute<void>(
@@ -152,12 +154,13 @@ class _AccessPointsListState extends KeeneticSessionState<_AccessPointsList> {
   Widget build(BuildContext context) {
     watchKeeneticSession();
     final generation = sessionGeneration;
-    if (!keeneticAvailable)
+    if (!keeneticAvailable) {
       return CupertinoPageScaffold(
         child: Center(
           child: Text(AppLocalizations.of(context).commonNotConnected),
         ),
       );
+    }
     final apsAsync = ref.watch(keeneticAccessPointsProvider);
     final clientAsync = ref.watch(keeneticClientProvider);
 

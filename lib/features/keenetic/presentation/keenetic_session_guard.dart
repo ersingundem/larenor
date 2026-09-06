@@ -23,8 +23,9 @@ abstract class KeeneticSessionState<T extends ConsumerStatefulWidget>
     if (!mounted ||
         sessionExpired ||
         !_access.isCurrent ||
-        !identical(_access, ref.read(directHomeAccessProvider)))
+        !identical(_access, ref.read(directHomeAccessProvider))) {
       return false;
+    }
     final reading = ref.read(keeneticConnectionProvider);
     return !reading.isLoading && !reading.hasError && reading.value != null;
   }
