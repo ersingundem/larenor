@@ -172,6 +172,18 @@ def test_partial_ambiguous_or_encoded_envelope_cannot_match(prepared, headers):
             prepared, request_target=volume_inspect_target(prepared))
 
 
+@pytest.mark.parametrize('framing', ['length', 'chunked'])
+def test_complete_engine_framing_and_unrelated_headers_are_accepted(prepared, framing):
+    raw = json.dumps(body(prepared)).encode()
+    headers = (('Content-Type', 'application/json; charset=utf-8'),
+               ('Api-Version', '1.47'), ('Content-Encoding', 'identity'),
+               ('Content-Length', str(len(raw))) if framing == 'length'
+               else ('Transfer-Encoding', 'chunked'))
+    result = validate_volume_inspect(ProbeResponse(200, headers, raw), prepared,
+                                    request_target=volume_inspect_target(prepared))
+    assert result.state == 'labels_matched'
+
+
 @pytest.mark.parametrize('target', ['/volumes/a', '/v1.48/volumes/a', '/v1.47/volumes', None])
 def test_response_must_belong_to_generated_exact_inspect_target(prepared, target):
     with pytest.raises(VolumeResourceError, match='^volume_protocol$'):
