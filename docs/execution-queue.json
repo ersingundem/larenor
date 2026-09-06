@@ -369,7 +369,8 @@
         "docs/native-appdata-root-observation-implementation-2026-09-05.md",
         "docs/managed-volume-storage-assessment-2026-09-06.md",
         "docs/managed-volume-proposal-implementation-2026-09-06.md",
-        "docs/managed-volume-observation-implementation-2026-09-06.md"
+        "docs/managed-volume-observation-implementation-2026-09-06.md",
+        "docs/managed-volume-journal-implementation-2026-09-06.md"
       ],
       "scope": "installAvailable=false; Client kaynak adı/Docker seçenekleri üretmez. Gerçek ev sunucusuna işlem yok.",
       "acceptance": [
@@ -459,11 +460,27 @@
           "commit": "1c2db575e7377e28e41bbd83aa34d4408e2029c1",
           "state": "in_progress",
           "result": null,
-          "label": "Yeni birleşim CI çalışıyor; sonuç/imzalı APK kabulü henüz yok. ACLUI ab678df ve volumejournal f9a3faa bu kaynakta değil."
+          "label": "Yeni birleşimin CI çalışması sürüyor; başarılı sonuç veya imzalı APK kabulü henüz yok. ACL ekranı ab678df ve volume journal f9a3faa bu kaynakta değil."
+        },
+        {
+          "kind": "test",
+          "ref": "docs/managed-volume-journal-implementation-2026-09-06.md",
+          "commit": "f9a3faa485dd619d00107eb3cff8dc303cb9b124",
+          "state": "completed",
+          "result": "passed",
+          "label": "Kalıcı volume journal: 54 odaklı/273 ilgili test geçti; 139 statement ve 8 branch yüzde 100 kapsamda; root bağımsız incelemesi temiz. Üçüncü birleşimde tam Server/CI açık. Engine işlemi veya UID/bootstrap yetkisi eklenmedi; APK 100 kaynağında yok."
+        },
+        {
+          "kind": "review",
+          "ref": "docs/managed-volume-journal-implementation-2026-09-06.md",
+          "commit": "f9a3faa485dd619d00107eb3cff8dc303cb9b124",
+          "state": "completed",
+          "result": "passed",
+          "label": "Kalıcı volume journal: 54 odaklı/273 ilgili test geçti; 139 statement ve 8 branch yüzde 100 kapsamda; root bağımsız incelemesi temiz. Üçüncü birleşimde tam Server/CI açık. Engine işlemi veya UID/bootstrap yetkisi eklenmedi; APK 100 kaynağında yok."
         }
       ],
       "completionCommit": null,
-      "reason": "Kök resolver394de0f Linux CI2792 test ve gerçek root/proc/mount/descriptor kabulünden geçti. Safvolumeplanb5d4164 APK99/CoreCI içinde; volumeobserver4baa55a95/282PASS+review yeni yerelbirleşimde. Ayrıcodex/managed-volume-journal dalıf9a3faa54odaklı/273ilgiliPASS+rootreview ile hazır; mevcut tamServer/CIpaketine dahil değil. Remap/UID/bootstrap ve Engine işlem bağlantısı açık; installAvailable=false."
+      "reason": "Native kök resolver Linux CI ile doğrulandı; volume planı APK 99, saf gözlemci 1c2db57/CI 100 paketinde. Sonraki birleşim 5e82c0e, ayrı volume journal f9a3faa ekledi: 54 odaklı/273 ilgili test ve bağımsız inceleme geçti; tam Server/CI sürüyor. Remap, UID/bootstrap ve Engine işlem bağlantısı açık; installAvailable=false."
     },
     {
       "id": "S06.3e",
@@ -1145,7 +1162,7 @@
           "commit": "1c2db575e7377e28e41bbd83aa34d4408e2029c1",
           "state": "in_progress",
           "result": null,
-          "label": "Yeni birleşim CI çalışıyor; sonuç/imzalı APK kabulü henüz yok. ACLUI ab678df ve volumejournal f9a3faa bu kaynakta değil."
+          "label": "Yeni birleşimin CI çalışması sürüyor; başarılı sonuç veya imzalı APK kabulü henüz yok. ACL ekranı ab678df ve volume journal f9a3faa bu kaynakta değil."
         }
       ],
       "completionCommit": null,
@@ -1200,7 +1217,8 @@
         "docs/core-resource-fixture-compat-2026-09-06.md",
         "docs/core-home-resource-admin-api-implementation-2026-09-06.md",
         "docs/core-home-resource-admin-ui-implementation-2026-09-06.md",
-        "docs/core-home-resource-grants-contract-2026-09-06.md"
+        "docs/core-home-resource-grants-contract-2026-09-06.md",
+        "docs/core-home-resource-grants-ui-implementation-2026-09-06.md"
       ],
       "scope": "Tek mevcut ev bağlamı; F19 çoklu Core/ev federasyonu bu teslim değildir.",
       "acceptance": [
@@ -1346,7 +1364,7 @@
           "commit": "0d297550adc6abfdc670ca429341205fabc163cb",
           "state": "completed",
           "result": "passed",
-          "label": "Sekizinci Android yönetim yolculuğu:43account/member/admin fixture PASS ve iki bağımsız CLEAR. Birleşimde48integration_support PASS; 8app/76marker+4native henüz Android CI kabulü değil."
+          "label": "Sekizinci Android yönetim yolculuğu: 43 hesap/üye/yönetici fixture testi ve iki bağımsız inceleme geçti. Birleşimde 48 integration_support testi başarılı. 8 uygulama/76 aşama + 4 native hedefi henüz Android CI kabulü değildir."
         },
         {
           "kind": "review",
@@ -1354,7 +1372,7 @@
           "commit": "0d297550adc6abfdc670ca429341205fabc163cb",
           "state": "completed",
           "result": "passed",
-          "label": "Sekizinci Android yönetim yolculuğu:43account/member/admin fixture PASS ve iki bağımsız CLEAR. Birleşimde48integration_support PASS; 8app/76marker+4native henüz Android CI kabulü değil."
+          "label": "Sekizinci Android yönetim yolculuğu: 43 hesap/üye/yönetici fixture testi ve iki bağımsız inceleme geçti. Birleşimde 48 integration_support testi başarılı. 8 uygulama/76 aşama + 4 native hedefi henüz Android CI kabulü değildir."
         },
         {
           "kind": "ci",
@@ -1362,11 +1380,27 @@
           "commit": "1c2db575e7377e28e41bbd83aa34d4408e2029c1",
           "state": "in_progress",
           "result": null,
-          "label": "Yeni birleşim CI çalışıyor; sonuç/imzalı APK kabulü henüz yok. ACLUI ab678df ve volumejournal f9a3faa bu kaynakta değil."
+          "label": "Yeni birleşimin CI çalışması sürüyor; başarılı sonuç veya imzalı APK kabulü henüz yok. ACL ekranı ab678df ve volume journal f9a3faa bu kaynakta değil."
+        },
+        {
+          "kind": "test",
+          "ref": "docs/core-home-resource-grants-ui-implementation-2026-09-06.md",
+          "commit": "ab678df714a619d8a47fef7644f984ac2dedd962",
+          "state": "completed",
+          "result": "passed",
+          "label": "Kaynak erişim ekranı: 52 odaklı/371 ilgili Client ve 2 gerçek Server sözleşme testi geçti; root ve bağımsız inceleme temiz. Birleşimde 52 test başarılı. Yeni Android ACL yolculuğu ve tam CI açık; APK 100 kaynağında yok."
+        },
+        {
+          "kind": "review",
+          "ref": "docs/core-home-resource-grants-ui-implementation-2026-09-06.md",
+          "commit": "ab678df714a619d8a47fef7644f984ac2dedd962",
+          "state": "completed",
+          "result": "passed",
+          "label": "Kaynak erişim ekranı: 52 odaklı/371 ilgili Client ve 2 gerçek Server sözleşme testi geçti; root ve bağımsız inceleme temiz. Birleşimde 52 test başarılı. Yeni Android ACL yolculuğu ve tam CI açık; APK 100 kaynağında yok."
         }
       ],
       "completionCommit": null,
-      "reason": "MetadataUI036a356/grantAPIa65691d ve E2E8fixture0d29755 birleşimde. Tam4271Client koşusundan sonra48fixture PASS/analiz0/881format0; yeni Android CI bekliyor. ACLcontroller/UI ayrı sonraki pakette. S08.6 kişi/oda/kaynak yetki ve iptal kabulü açık; cihaz komutları S08.7–9."
+      "reason": "Metadata ekranı 036a356, grant API a65691d ve sekizinci Android fixture 0d29755, 1c2db57/CI 100 paketinde; CI sürüyor. Sonraki birleşim 5e82c0e, erişim ekranı ab678df ile 52 odaklı testi geçti. Tam test ve dokuzuncu Android ACL yolculuğu açık. S08.6 kişi/oda/kaynak yetki ve iptal kabulüdür; cihaz komutları S08.7–9 kapsamındadır."
     },
     {
       "id": "S08.7",

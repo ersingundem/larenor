@@ -61,8 +61,9 @@ sayacı **2/6** kalır; dizin, kurulum ve gerçek Engine kabulü açıktır.
 [güvenlik](https://github.com/ersingundem/larenor/actions/runs/34004246204)
 çalışıyor. Yeni Android hedefi 12 E2E; henüz başarılı sonuç veya yeni imzalı
 APK kabulü yok. Sonraki ayrı pakette ACL yönetim ekranı `ab678df` ile
-volume journal `f9a3faa` birleştirildi; birleşik testleri ve ACL Android
-senaryosu sürüyor. Bu iki yeni dilim Android 100 kaynağına dahil değildir.
+volume journal `f9a3faa` birleştirildi; tam Client **4.353 PASS / 5:29**
+verdi. Tam Core testi ve ACL Android senaryosu sürüyor.
+[Üçüncü birleşim kanıtı](core-grants-volume-integration-2026-09-06.md). Bu iki yeni dilim Android 100 kaynağına dahil değildir.
 
 **Son tam doğrulanmış yayın `4bc79dc` / APK 99.** Üç CI başarılı:
 Core **2.951 PASS**, güvenlik **207 PASS**, Flutter **3.941 PASS**, JVM
