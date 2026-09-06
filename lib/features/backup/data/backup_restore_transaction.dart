@@ -19,18 +19,23 @@ bool _directTarget(bool secret,String key) => secret
   : {'dashboard_layout','enabled_services','enabled_services_migrated',DoorStation.storageKey,'movie_night_v1'}.contains(key);
 
 class _PreparedChanges {
-  _PreparedChanges(this.changes,this.services);
+  _PreparedChanges(List<_Change> changes,List<String> services)
+    : changes=List.unmodifiable(changes.map((c)=>_Change(c.secret,c.key,_cloneValue(c.before),_cloneValue(c.after)))),
+      services=List.unmodifiable(services);
   final List<_Change> changes;
   final List<String> services;
 }
 class _ReadRecorder implements BackupStorage {
-  _ReadRecorder(this.inner);
+  _ReadRecorder(this.inner,this.current);
+  final Future<void> Function() current;
   final BackupStorage inner;
   final Map<String,Object?> values = {};
   Future<Object?> read(bool secret,String key) async {
+    await current();
     final id='${secret ? 's' : 'p'}:$key';
     if (_mutable(secret,key) && values.containsKey(id)) return _cloneValue(values[id]);
     final value=secret ? await inner.readSecret(key) : await inner.readPreference(key);
+    await current();
     if (_mutable(secret,key)) {
       values[id]=_cloneValue(value);
       if (values.length>100 || utf8.encode(_canonical(values)).length>BackupRepository._maxJournalBytes) _recoveryRequired();
@@ -43,43 +48,52 @@ class _ReadRecorder implements BackupStorage {
   @override Future<void> writeSecret(String key,String? value) async => throw StateError('Read-only restore preparation');
 }
 
-Future<PreparedBackupRestore> _prepareRestore(BackupRepository repository,BackupSnapshot snapshot,BackupSelection selection,BackupConflictPolicy conflict,BackupRestoreAccess access) => ConfigurationWrites.run(() async {
-  access.checkLive();
-  await access.checkDurable();
-  access.checkLive();
-  final owner=_cloneValue(access.ownership) as Map<String,dynamic>;
-  _checkRestoreOwner(owner);
-  final json=snapshot.toJson();
-  validateBackupJson(json);
-  final groups=json['groups'] as Map<String,dynamic>;
-  final selected=<String,dynamic>{
-    if(groups.containsKey('privacy')) 'privacy':groups['privacy'],
-    if(selection.settings && snapshot.hasSettings) 'settings':groups['settings'],
-    if(selection.dashboard && snapshot.hasDashboard) 'dashboard':groups['dashboard'],
-    if(selection.connections && snapshot.hasConnections) 'connections':groups['connections'],
-  };
-  final narrowed=BackupSnapshot.fromJson({...json,'groups':selected});
-  if(access.source==HomeSource.verifiedCore && (
-    narrowed.hasDashboard || narrowed.hasConnections ||
-    ((selected['settings'] as Map?)?.keys.any((key)=>_directTarget(false,key as String)) ?? false)
-  )) throw const BackupException('restore_target_mismatch','This backup targets Direct home data.');
-  final reads=_ReadRecorder(repository._storage);
-  final reader=BackupRepository(storage:reads,now:repository._now);
-  // Keep-existing is still bound to the entire selected connection tuple.
-  for(final service in ((selected['connections'] as Map?)?.keys ?? const [])) {
-    for(final key in backupConnectionFields[service]!.values) { await reads.readSecret(key); access.checkLive(); }
-  }
-  final changes=await reader._buildChanges(snapshot,selection,conflict);
-  final summary=await reader.preview(narrowed);
-  await repository._requireStableConnections(changes.services);
-  await access.checkDurable();
-  access.checkLive();
-  if(!_same(owner,access.ownership)) _expiredRestore();
-  final prepared=PreparedBackupRestore._(repository,access,owner,changes,reads.values,summary,_restoreDigest({'snapshot':json,'selection':[selection.settings,selection.dashboard,selection.connections],'conflict':conflict.name}),repository._now().toUtc().add(const Duration(minutes:5)));
-  await prepared._verifyReadSet();
-  access.checkLive();
-  return prepared;
-});
+Future<PreparedBackupRestore> _prepareRestore(BackupRepository repository,BackupSnapshot snapshot,BackupSelection selection,BackupConflictPolicy conflict,BackupRestoreAccess access) async {
+  try {
+    // Copy synchronously before waiting for the global configuration queue.
+    final frozen=BackupSnapshot.fromJson(snapshot.toJson());
+    final chosen=BackupSelection(settings:selection.settings,dashboard:selection.dashboard,connections:selection.connections);
+    return await ConfigurationWrites.run(() async {
+      access.checkLive();
+      final owner=_cloneValue(access.ownership) as Map<String,dynamic>;
+      _checkRestoreOwner(owner);
+      Future<void> current() async {
+        access.checkLive();
+        if(!_same(owner,access.ownership)) _expiredRestore();
+        await access.checkDurable();
+        access.checkLive();
+        if(!_same(owner,access.ownership)) _expiredRestore();
+      }
+      await current();
+      final json=frozen.toJson();
+      final groups=json['groups'] as Map<String,dynamic>;
+      final selected=<String,dynamic>{
+        if(groups.containsKey('privacy')) 'privacy':groups['privacy'],
+        if(chosen.settings && frozen.hasSettings) 'settings':groups['settings'],
+        if(chosen.dashboard && frozen.hasDashboard) 'dashboard':groups['dashboard'],
+        if(chosen.connections && frozen.hasConnections) 'connections':groups['connections'],
+      };
+      final narrowed=BackupSnapshot.fromJson({...json,'groups':selected});
+      if(access.source==HomeSource.verifiedCore && (
+        narrowed.hasDashboard || narrowed.hasConnections ||
+        ((selected['settings'] as Map?)?.keys.any((key)=>_directTarget(false,key as String)) ?? false)
+      )) throw const BackupException('restore_target_mismatch','This backup targets Direct home data.');
+      final reads=_ReadRecorder(repository._storage,current);
+      final reader=BackupRepository(storage:reads,now:repository._now);
+      for(final service in ((selected['connections'] as Map?)?.keys ?? const [])) {
+        for(final key in backupConnectionFields[service]!.values) { await reads.readSecret(key); }
+      }
+      final changes=await reader._buildChanges(narrowed,chosen,conflict);
+      final summary=await reader.preview(narrowed);
+      await repository._requireStableConnections(changes.services);
+      await current();
+      final prepared=PreparedBackupRestore._(repository,access,owner,changes,reads.values,summary,_restoreDigest({'snapshot':json,'selection':[chosen.settings,chosen.dashboard,chosen.connections],'conflict':conflict.name}),repository._now().toUtc().add(const Duration(minutes:5)));
+      await prepared._verifyReadSet(current);
+      await current();
+      return prepared;
+    });
+  } on BackupException { rethrow; } catch(_) { _recoveryRequired(); }
+}
 
 /// One-use process capability. Payload/owner/read-set are private and redacted.
 final class PreparedBackupRestore {
@@ -105,9 +119,11 @@ final class PreparedBackupRestore {
     if(!_repository._now().toUtc().isBefore(expiresAt) || !_same(_ownership,_access.ownership)) _expiredRestore();
     _owner=owner; _state=1;
   }
-  Future<void> _verifyReadSet() async {
+  Future<void> _verifyReadSet(Future<void> Function() current) async {
     for(final entry in _readSet.entries) {
+      await current();
       final value=entry.key.startsWith('s:') ? await _repository._storage.readSecret(entry.key.substring(2)) : await _repository._storage.readPreference(entry.key.substring(2));
+      await current();
       if(!_same(value,entry.value)) _changedRestore();
     }
   }
@@ -123,7 +139,7 @@ final class PreparedBackupRestore {
       await current();
       await _repository._requireRecovered();
       await _repository._requireStableConnections(_plan.services);
-      await _verifyReadSet();
+      await _verifyReadSet(current);
       await current();
       if(_plan.changes.isEmpty) return;
       final journal=_encodeV2(_repository,_plan.changes,_ownership,_snapshotDigest,_restoreDigest(_readSet),'applying');
@@ -135,12 +151,22 @@ final class PreparedBackupRestore {
           await _repository._requireStableConnections(_plan.services);
           await current();
           final before=await _readChange(_repository,change);
+          await current();
+          await _requireJournal(_repository,journal);
+          await current();
           if(!_same(before,change.before)) _changedRestore();
           await _repository._write(change,previous:false);
           await current();
           if(!_same(await _readChange(_repository,change),change.after)) _recoveryRequired();
         }
         await _repository._requireStableConnections(_plan.services);
+        await current();
+        for(final change in _plan.changes) {
+          final after=await _readChange(_repository,change);
+          await current();
+          if(!_same(after,change.after)) _recoveryRequired();
+        }
+        await _requireJournal(_repository,journal);
         await current();
         final committed=_encodeV2(_repository,_plan.changes,_ownership,_snapshotDigest,_restoreDigest(_readSet),'committed');
         try { await _repository._storage.writeSecret(_journalV2Key,committed); } catch(_) {
@@ -153,7 +179,7 @@ final class PreparedBackupRestore {
         rethrow;
       }
       await _recoverV2(_repository);
-    } finally { _state=3; _owner=null; }
+    } on BackupException { rethrow; } catch(_) { _recoveryRequired(); } finally { _state=3; _owner=null; }
   });
   @override String toString()=>'PreparedBackupRestore';
 }
@@ -193,7 +219,11 @@ String _encodeV2(BackupRepository repo,List<_Change> changes,Map<String,dynamic>
     return(data['phase'] as String,changes);
   } catch(_) { _recoveryRequired(); }
 }
+Future<void> _requireJournal(BackupRepository repo,String expected) async {
+  if(await repo._storage.readSecret(_journalV2Key)!=expected) _recoveryRequired();
+}
 Future<bool> _recoverV2(BackupRepository repo) async {
+  try {
   final raw=await repo._storage.readSecret(_journalV2Key);
   if(raw==null) return false;
   final (phase,changes)=_decodeV2(repo,raw);
@@ -206,13 +236,16 @@ Future<bool> _recoverV2(BackupRepository repo) async {
       final now=await _readChange(repo,c);
       if(_same(now,c.before)) continue;
       if(!_same(now,c.after)) _recoveryRequired();
+      await _requireJournal(repo,raw);
       await repo._write(c,previous:true);
       if(!_same(await _readChange(repo,c),c.before)) _recoveryRequired();
     }
   }
+  await _requireJournal(repo,raw);
   try { await repo._storage.writeSecret(_journalV2Key,null); } catch(_) {
     if(await repo._storage.readSecret(_journalV2Key)!=null) rethrow;
   }
   if(await repo._storage.readSecret(_journalV2Key)!=null) _recoveryRequired();
   return true;
+  } on BackupException { rethrow; } catch(_) { _recoveryRequired(); }
 }

@@ -52,6 +52,7 @@ void main() {
     expect(json, isNot(contains('settings_pin')));
     expect(storage.reads.where((key) => key.startsWith('secret:')), [
       'secret:${BackupRepository.restoreJournalKey}',
+      'secret:backup_restore_journal_v2',
       'secret:${WellbeingDisclosureStore.storageKey}',
       'secret:${WellbeingStore.storageKey}',
     ]);

@@ -544,7 +544,8 @@ void main() {
                 (call) =>
                     call.$1 == 'read' &&
                     (call.$2 == _marker ||
-                        call.$2 == BackupRepository.restoreJournalKey),
+                        call.$2 == BackupRepository.restoreJournalKey ||
+                        call.$2 == 'backup_restore_journal_v2'),
               ),
           isTrue,
         );

@@ -334,6 +334,7 @@ void main() {
     expect(storage.secrets, {..._old('sonarr'), marker: '1'});
     expect(storage.reads.skip(beforeReads), [
       'secret:${BackupRepository.restoreJournalKey}',
+      'secret:backup_restore_journal_v2',
     ]);
     expect(await repository.recoverPendingRestore(), isFalse);
     expect(storage.writes, isNot(contains('secret:$marker')));
