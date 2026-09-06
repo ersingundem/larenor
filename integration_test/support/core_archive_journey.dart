@@ -47,7 +47,9 @@ void registerCoreArchiveJourney() {
           await tester.scrollUntilVisible(
             finder,
             250,
-            scrollable: find.byType(Scrollable).last,
+            scrollable: key('core-layout-archive-screen').evaluate().isEmpty
+                ? find.byType(Scrollable).last
+                : coreArchiveJourneyScrollable(),
             maxScrolls: 20,
           );
         }
@@ -84,19 +86,7 @@ void registerCoreArchiveJourney() {
         await tester.enterText(key(name), value);
       }
 
-      Future<void> top() async {
-        final scroll = find.byType(Scrollable).last;
-        for (
-          var i = 0;
-          i < 20 && tester.state<ScrollableState>(scroll).position.pixels > 0;
-          i++
-        ) {
-          await tester.drag(scroll, const Offset(0, 700));
-          await tester.pump(const Duration(milliseconds: 100));
-        }
-        expect(tester.state<ScrollableState>(scroll).position.pixels, 0);
-      }
-
+      Future<void> top() => coreArchiveJourneyTop(tester);
       Future<void> message(String text) async {
         await top();
         await waitUntil(tester, () => find.text(text).evaluate().length == 1);
@@ -312,3 +302,19 @@ void registerCoreArchiveJourney() {
     timeout: const Timeout(Duration(minutes: 3)),
   );
 }
+
+Finder coreArchiveJourneyScrollable() => find.byType(Scrollable).last;
+
+Future<void> coreArchiveJourneyTop(WidgetTester tester) async {
+        final scroll = coreArchiveJourneyScrollable();
+        for (
+          var i = 0;
+          i < 20 && tester.state<ScrollableState>(scroll).position.pixels > 0;
+          i++
+        ) {
+          await tester.drag(scroll, const Offset(0, 700));
+          await tester.pump(const Duration(milliseconds: 100));
+        }
+        expect(tester.state<ScrollableState>(scroll).position.pixels, 0);
+      }
+
