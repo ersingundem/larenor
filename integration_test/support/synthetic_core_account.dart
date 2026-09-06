@@ -2,12 +2,18 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'synthetic_core_resources.dart';
+import 'synthetic_core_resource_admin.dart';
 
 /// Minimal, opt-in Core account protocol for this process's loopback fixture.
 /// No production account/API override, external service, or media write path.
 class SyntheticCoreAccount {
-  SyntheticCoreAccount({this.resources});
+  SyntheticCoreAccount({this.resources, this.adminResources}) {
+    if (resources != null && adminResources != null) {
+      throw ArgumentError('Choose one synthetic registry fixture.');
+    }
+  }
   final SyntheticCoreResources? resources;
+  final SyntheticCoreResourceAdmin? adminResources;
   late final _emptyResources = SyntheticCoreResources.empty(userId: userId);
   static const username = 'fixture-core-user';
   static const password = 'Synthetic account password 2026';
@@ -39,7 +45,28 @@ class SyntheticCoreAccount {
 
     try {
       final path = request.uri.path;
-      if (path.startsWith('/api/v1/home-resources/')) {
+      if (adminResources != null &&
+          (path.startsWith('/api/v1/admin/home-resources/') ||
+              path.startsWith('/api/v1/home-resources/'))) {
+        final authorization = request.headers['authorization'];
+        if (authorization == null ||
+            authorization.length != 1 ||
+            authorization.single != 'Bearer $accessToken') {
+          reject(401);
+        } else if (user['role'] != 'admin') {
+          reject(403);
+        } else {
+          final (status, body) = await adminResources!.handle(
+            request,
+            coreId,
+            homeId,
+            userId,
+          );
+          if (status >= 400) rejectedRequests++;
+          response.statusCode = status;
+          if (body != null) response.write(jsonEncode(body));
+        }
+      } else if (path.startsWith('/api/v1/home-resources/')) {
         if (request.method != 'GET') {
           reject(403);
         } else if (request.headers.value('authorization') !=
