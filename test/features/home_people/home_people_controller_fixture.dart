@@ -116,6 +116,7 @@ class PeopleHarness {
     clock: () => now,
   );
   late final home = HomeSessionController(store: source, account: account);
+  bool Function()? current;
   final requests = <http.Request>[];
   int transports = 0, closes = 0;
   String listStep = 'adminList',
@@ -123,7 +124,9 @@ class PeopleHarness {
       writeStep = 'updatePerson';
   Future<http.Response> Function(http.Request)? reply;
   late final owner = HomePeopleOwner(
-    isCurrent: () => throwsOwner ? throw StateError('private') : pin && route,
+    isCurrent: () => throwsOwner
+        ? throw StateError('private')
+        : pin && route && (current?.call() ?? true),
     interaction: interaction,
   );
   late final container = makeContainer();
@@ -144,10 +147,11 @@ class PeopleHarness {
           client: TrackedClient((request) async {
             requests.add(request);
             if (reply != null) return reply!(request);
-            if (request.url.path.endsWith('/users'))
+            if (request.url.path.endsWith('/users')) {
               return jsonResponse({
                 'users': [user()],
               });
+            }
             final step = request.method == 'GET'
                 ? (request.url.path.endsWith('/grants') ? grantStep : listStep)
                 : writeStep;

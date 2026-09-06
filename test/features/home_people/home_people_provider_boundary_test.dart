@@ -5,7 +5,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:larenor/features/home_people/data/home_people_providers.dart';
-import 'package:larenor/features/home_people/data/home_people_controller.dart';
 import 'package:larenor/features/server/domain/server_models.dart';
 
 import 'home_people_controller_fixture.dart';
@@ -163,6 +162,42 @@ void main() {
       await action;
       expect(c.mutationOutcome, isNull);
       expect(c.entries.isEmpty, isTrue);
+    },
+  );
+  testWidgets(
+    'actual covered route retires pending read and pop never revives it',
+    (tester) async {
+      final h = PeopleHarness(),
+          key = GlobalKey<PeopleProbeState>(),
+          late = Completer<http.Response>();
+      h.current = () =>
+          key.currentContext != null &&
+          ModalRoute.of(key.currentContext!)?.isCurrent == true;
+      h.reply = (_) => late.future;
+      await h.mount(tester, key: key);
+      expect(h.requests.length, 1);
+      final navigator = Navigator.of(key.currentContext!);
+      final covered = navigator.push<void>(
+        CupertinoPageRoute(
+          builder: (_) => const CupertinoPageScaffold(child: Text('Covered')),
+        ),
+      );
+      await tester.pumpAndSettle();
+      // No lifecycle notification is required for the response-time route fence.
+      late.complete(
+        jsonResponse({
+          'error': {'code': 'unauthorized'},
+        }, 401),
+      );
+      await settle(tester);
+      expect(h.list!.entries, isEmpty);
+      expect(h.account.session, isNotNull);
+      expect(h.owner.isCurrent, isFalse);
+      navigator.pop();
+      await covered;
+      await tester.pumpAndSettle();
+      await h.list!.refresh();
+      expect(h.requests.length, 1);
     },
   );
 }

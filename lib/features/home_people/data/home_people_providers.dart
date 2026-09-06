@@ -29,10 +29,11 @@ class HomePeopleOwner extends ChangeNotifier {
   bool get isCurrent {
     if (_retired || _disposed) return false;
     try {
-      if (_interaction.active && _interaction.epoch == _epoch && _current())
+      if (_interaction.active && _interaction.epoch == _epoch && _current()) {
         return true;
+      }
     } catch (_) {
-      /* A failing owner check confers no permission. */
+      // A failing owner check confers no permission.
     }
     retire();
     return false;
