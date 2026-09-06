@@ -18,7 +18,7 @@ _WRITE_TEST = '.larenor-write-probe-v1'
 _SENTINEL = '.larenor-storage-fixture-v1'
 _IMAGE_SEED = '.larenor-image-seed-v1'
 _CONTENT = b'larenor-owned-ci-storage-fixture-v1\n'
-_MODES = {'writable','write_sentinel','verify_sentinel','initial_data','health','image_seed'}
+_MODES = {'writable','write_sentinel','verify_sentinel','initial_data','health','image_seed','app_identity'}
 
 
 class ProbeError(Exception):
@@ -62,10 +62,25 @@ def _read(path):
         return body
 
 
+def _process_status():
+    # The runner shares only its own Jellyfin container's PID namespace. It
+    # never passes --pid=host. Observe the application PID, not this probe UID.
+    with open('/proc/1/status', 'rb') as source:
+        return source.read(4097)
+
+
 def run(mode):
     _require(type(mode) is str and mode in _MODES)
     fd = None
     try:
+        if mode == 'app_identity':
+            raw = _process_status()
+            _require(type(raw) is bytes and len(raw) <= 4096)
+            for field in (b'Uid', b'Gid'):
+                rows = re.findall(rb'^'+field+rb':\s*([0-9]+)\s+([0-9]+)\s+([0-9]+)\s+([0-9]+)$',
+                                  raw, re.MULTILINE)
+                _require(rows == [(b'1000',)*4])
+            return {'uid':1000,'gid':1000}
         if mode == 'health':
             _require(_read('/health').strip() == b'Healthy')
             value = json.loads(_read('/System/Info/Public'))

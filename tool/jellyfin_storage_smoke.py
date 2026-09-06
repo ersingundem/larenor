@@ -27,11 +27,15 @@ import uuid
 REPOSITORY = Path(__file__).resolve().parents[1]
 _HASH = re.compile(r'sha256:[0-9a-f]{64}\Z')
 _COMMIT = re.compile(r'[0-9a-f]{40}\Z')
+_CODES = {'storage_characterization_failed','native_ephemeral_ci_required','fixture_command_failed',
+    'owned_daemon_lost','owned_daemon_unavailable','owned_cleanup_failed','fixture_image_unresolved',
+    'fixture_volume_unresolved','fixture_protocol_failed','jellyfin_startup_timeout',
+    'unexpected_image_volume','unexpected_initial_write_access','restart_identity_changed'}
 
 
 class SmokeError(Exception):
     def __init__(self, code='storage_characterization_failed'):
-        super().__init__(code)
+        super().__init__(code if code in _CODES else 'storage_characterization_failed')
 
 
 def require(value, code='storage_characterization_failed'):
@@ -260,7 +264,10 @@ def _decoded(raw):
 def _helper(daemon, image_id, mode, *, target=None, bootstrap=False, network='none'):
     args = ['run','--rm','--network='+network,'--read-only','--cap-drop=ALL',
         '--security-opt=no-new-privileges','--pids-limit=32','--memory=64m',
-        '--user='+('0:0' if bootstrap else '1000:1000')]
+        '--user='+('0:0' if bootstrap and mode != 'verify_root' else '1000:1000')]
+    if mode == 'app_identity':
+        require(re.fullmatch(r'container:[0-9a-f]{64}', network) is not None)
+        args.append('--pid='+network)
     if bootstrap:
         if mode == 'initialize_empty_root':
             args.append('--cap-add=CHOWN')
@@ -346,12 +353,16 @@ def characterize(daemon, *, source=None, images=None, volumes=None):
     inspect()
     daemon.docker(['start',container_id], limit=128)
     first = _health(daemon, helper_id, container_id)
+    require(_helper(daemon, helper_id, 'app_identity', network='container:'+container_id)
+            == {'uid':1000,'gid':1000})
     config_target = next(v for v in source.targets if v.target == '/config')
     require(_helper(daemon, helper_id, 'initial_data', target=config_target)
             == {'database':True,'configuration':True})
     daemon.docker(['restart','--time=10',container_id], timeout=30, limit=128)
     second = _health(daemon, helper_id, container_id)
     require(second == first, 'restart_identity_changed')
+    require(_helper(daemon, helper_id, 'app_identity', network='container:'+container_id)
+            == {'uid':1000,'gid':1000})
     inspect()
     for target in source.targets:
         require(_helper(daemon, helper_id, 'verify_root', target=target, bootstrap=True)
@@ -379,6 +390,9 @@ def main(arguments=None):
         return 0
     except SmokeError as error:
         print(str(error), file=sys.stderr)
+        return 1
+    except Exception:
+        print('storage_characterization_failed', file=sys.stderr)
         return 1
 
 
