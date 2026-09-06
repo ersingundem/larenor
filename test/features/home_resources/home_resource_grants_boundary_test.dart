@@ -17,6 +17,18 @@ Future<void> select(WidgetTester tester,{bool revoke=false}) async {
  if(revoke){await adminPress(tester,'resource-grants-none');await adminPress(tester,'resource-grants-save');}
 }
 void main(){
+ testWidgets('held Save cannot bypass the separate revoke confirmation',(tester)async{
+  final h=GrantsHarness()..grants['3'*32]={'read':true,'write':true};await openGrants(tester,h);await select(tester);
+  await adminPress(tester,'resource-grants-none');final save=callback(tester,'resource-grants-save');save();await flush(tester);
+  expect(adminKey('resource-grants-revoke-confirmation'),findsOneWidget);save();await flush(tester);expect(h.puts,isEmpty);
+  await adminPress(tester,'resource-grants-confirm-revoke');expect(h.puts.length,1);expect(h.grants,isEmpty);
+ });
+ testWidgets('held permission action cannot change a frozen revoke proposal',(tester)async{
+  final h=GrantsHarness()..grants['3'*32]={'read':true,'write':true};await openGrants(tester,h);await select(tester);
+  final read=callback(tester,'resource-grants-readOnly');await adminPress(tester,'resource-grants-none');await adminPress(tester,'resource-grants-save');read();await flush(tester);
+  expect(h.puts,isEmpty);await adminPress(tester,'resource-grants-confirm-revoke');expect(h.puts.length,1);expect(h.grants,isEmpty);
+ });
+
  for(final loss in ['window','native','background','interaction','route','dispose','source','logout','role','expiry']) {
   for(final revoke in [false,true]) {
    testWidgets('${revoke?'revoke':'save'} old grant callback on $loss never PUTs',(tester) async {
