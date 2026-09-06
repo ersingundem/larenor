@@ -6,12 +6,15 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:larenor/core/app_interaction_scope.dart';
+import 'package:larenor/core/window/window_policy_models.dart';
+import 'package:larenor/core/window/window_policy_providers.dart';
 import 'package:larenor/core/direct_credential_record.dart';
 import 'package:larenor/features/auth/data/credentials_store.dart';
 import 'package:larenor/features/auth/data/ha_discovery.dart';
 import 'package:larenor/features/auth/presentation/connect_screen.dart';
 import 'package:larenor/features/backup/data/backup_codec.dart';
 import 'package:larenor/features/backup/data/backup_repository.dart';
+import 'package:larenor/features/backup/data/backup_restore_access.dart';
 import 'package:larenor/features/backup/data/backup_snapshot.dart';
 import 'package:larenor/features/backup/presentation/backup_file_access.dart';
 import 'package:larenor/features/backup/presentation/backup_screen.dart';
@@ -50,6 +53,11 @@ final _snapshot = BackupSnapshot.fromJson({
 });
 
 class _Repository extends BackupRepository {
+  _Repository():super(storage:MemoryBackupStorage());
+  @override Future<PreparedBackupRestore> prepareRestore(BackupSnapshot snapshot,BackupSelection selection,{required BackupConflictPolicy conflictPolicy,required BackupRestoreAccess access}) {
+    restored=selection;conflict=conflictPolicy;
+    return super.prepareRestore(snapshot,selection,conflictPolicy:conflictPolicy,access:access);
+  }
   BackupSelection? captured;
   BackupSelection? restored;
   BackupConflictPolicy? conflict;
@@ -165,17 +173,22 @@ Future<void> _mount(
   tester.view.physicalSize = size;
   tester.view.devicePixelRatio = 1;
   addTearDown(tester.view.reset);
+  final selectedRepository=repository??_Repository();
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
-        backupRepositoryProvider.overrideWithValue(repository ?? _Repository()),
+        backupRepositoryProvider.overrideWithValue(selectedRepository),
         backupCodecProvider.overrideWithValue(codec ?? _Codec()),
         backupFileAccessProvider.overrideWithValue(files ?? _Files()),
         pinLockStoreProvider.overrideWithValue(pin ?? _Pin(null)),
         haDiscoveryFactoryProvider.overrideWithValue(_NoDiscovery.new),
-        backupRestoreHandlerProvider.overrideWithValue(
-          (context, operation, l10n) => operation(),
-        ),
+        windowPolicySnapshotProvider.overrideWith((_)=>Stream.value(const WindowPolicySnapshot())),
+        preparedBackupRestoreHandlerProvider.overrideWithValue((context,prepared,l10n) async {
+          await prepared.checkBeforeHandoff();
+          final owner=Object();prepared.claimForHandoff(owner);
+          await prepared.applyAfterHandoff(owner,isCurrentBoundary:()=>true);
+          if(selectedRepository is _Repository) selectedRepository.restoreCalls++;
+        }),
       ],
       child: CupertinoApp(
         localizationsDelegates: AppLocalizations.localizationsDelegates,

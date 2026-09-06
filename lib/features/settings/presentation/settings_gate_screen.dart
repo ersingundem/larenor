@@ -211,6 +211,11 @@ class _SettingsGateScreenState extends ConsumerState<SettingsGateScreen>
                                     : null,
                               )
                             : SettingsSplitScreen(
+                                backupGateCurrent:() {
+                                  if(!mounted || !_interactive || resourceGeneration!=_generation || ModalRoute.of(context)?.isCurrent!=true) return false;
+                                  final value=ref.read(pinLockProvider);
+                                  return !value.isLoading && !value.hasError && value.hasValue && (value.value==null || _unlocked);
+                                },
                                 runFileDialog: _runFileDialog,
                                 onExit: Navigator.of(context).canPop()
                                     ? () {
