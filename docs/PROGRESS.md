@@ -1,6 +1,6 @@
 # Larenor — güncel ilerleme ve iş kuyruğu
 
-**Son güncelleme: 6 Eylül 2026, 09:32 (Türkiye saati).**
+**Son güncelleme: 6 Eylül 2026 — CI106 gönderildi, doğrulama sürüyor.**
 
 ```text
 Önceki kapsam       █████████████░░░░░░░  ≈ %65
@@ -69,12 +69,17 @@ anonim doğrulandı. [APK104, CI ve teslim kanıtı](client-delivery-104-2026-09
 | Çıkış / yeniden açılış onarımı | APK104 ve14 E2E ile doğrulandı |
 | S08.5 — hazırlanmış restore ve Core oda arşivi | Model, şifreleme, controller ve tablet ekranı birleşti; tam Client geçti, Android ve yayın CI bekliyor |
 | S08.6 — kişi ve izin yönetimi | Server ve tablet ekranları birleşti; üye ve yönetici/ACL Android senaryoları hazır, kendi CI kabulü açık |
-| Sonraki birleşim yayını | `bd9d425` tam Client5.056 PASS/5:19; Core3.300 PASS/11Linuxskip; analiz0,966dosya biçim farkı0. Android hedef17 E2E/133faz ve kendi imzalı APK/CI kabulü sırada |
+| Birleşim yayını CI106 | `e7c15ad` gönderildi; aynı uygulama/test ağacında yerel Client 5.056 PASS. Güvenlik geçti; Android, Core ve kendi imzalı APK kabulü sürüyor |
+| B5.1 — Core eklenti kataloğu | Ayrı dalda 32 yeni tablet testi dahil 273 ilgili PASS; başlıklar, erişilebilir adlar ve görünür klavye odağı düzeltildi. Tam Client birleşim testi sürüyor; CI106'ya dahil değil |
 
 **CI105 tamamlandı:17 E2E/133faz, Core3.311/0skip ve güvenlik207 geçti.**
 Flutter coverage işi15dk sınırında4.282kısmi ilerlemeyle durdu; imzalıAPK105
 atlanmış durumda. [Tam sonuç ve korunan hata kanıtı](client-delivery-105-2026-09-06.md).
-Dar25dk iş bütçesi onarımı207politika testi ve incelemeyi geçti; yeniCI sırada.
+Dar25dk iş bütçesi onarımı207politika testi ve incelemeyi geçti.
+**CI106 GitHub'da çalışıyor:** [Android](https://github.com/ersingundem/larenor/actions/runs/34016755111),
+[Core](https://github.com/ersingundem/larenor/actions/runs/34016755141),
+[güvenlik](https://github.com/ersingundem/larenor/actions/runs/34016754957).
+[Güncel paket ve sınırlar](client-delivery-106-2026-09-06.md).
 
 Yeni kişi/arşiv ekranları APK104'e dahil değildir. S08.5/S08.6 ve yeni63
 özellik bu yayınla tamamlandı sayılmaz; fiziksel tablet kabulü de açıktır.

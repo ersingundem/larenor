@@ -1159,7 +1159,8 @@
         "docs/client-delivery-104-2026-09-06.md",
         "docs/core-layout-archive-ui-implementation-2026-09-06.md",
         "docs/core-archive-android-journey-2026-09-06.md",
-        "docs/client-ci-budget-2026-09-06.md"
+        "docs/client-ci-budget-2026-09-06.md",
+        "docs/client-delivery-106-2026-09-06.md"
       ],
       "scope": "Tek mevcut ev bağlamı; F19 çoklu Core/ev federasyonu bu teslim değildir.",
       "acceptance": [
@@ -1387,10 +1388,34 @@
           "state": "completed",
           "result": "passed",
           "label": "Security exact38e78a3 ilk deneme; yayın105 gözlemi. Android/Core koşuları ve bağımsız imzalıAPK kabulü ayrı izlenir."
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/34016755111",
+          "commit": "e7c15ad6f62352f77379e369f3e8524028c42aab",
+          "state": "in_progress",
+          "result": null,
+          "label": "Android106, exact e7c15ad, ilk deneme. Ayrıntılı teslim makbuzu ve bağımsız APK106 doğrulaması ayrı bekleniyor."
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/34016755141",
+          "commit": "e7c15ad6f62352f77379e369f3e8524028c42aab",
+          "state": "in_progress",
+          "result": null,
+          "label": "Core33, exact e7c15ad, ilk deneme. Ayrıntılı teslim makbuzu ve bağımsız APK106 doğrulaması ayrı bekleniyor."
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/34016754957",
+          "commit": "e7c15ad6f62352f77379e369f3e8524028c42aab",
+          "state": "completed",
+          "result": "passed",
+          "label": "Security106, exact e7c15ad, ilk deneme. Ayrıntılı teslim makbuzu ve bağımsız APK106 doğrulaması ayrı bekleniyor."
         }
       ],
       "completionCommit": null,
-      "reason": "CI105 native17E2E/133faz,Core3311/0skip veSecurity207 geçti; Fluttercoverage job15dk timeout nedeniyleAPK105skipped. Dar15→25dk jobbudget onarımı207policyPASS+reviewCLEAR; yeniCI bekleniyor."
+      "reason": "CI106 exact e7c15ad gönderildi: Security geçti, Android/Core sürüyor. CI105 17 E2E/133 faz geçti fakat Flutter işi 15dk sınırında kaldı; 25dk bütçe onarımı 207 politika testiyle doğrulandı. Kendi tam CI ve imzalı APK106 kabulü açık."
     },
     {
       "id": "S08.6",
@@ -1426,7 +1451,8 @@
         "docs/core-people-android-journey-2026-09-06.md",
         "docs/prepared-vault-household-integration-2026-09-06.md",
         "docs/core-people-admin-android-journey-2026-09-06.md",
-        "docs/client-ci-budget-2026-09-06.md"
+        "docs/client-ci-budget-2026-09-06.md",
+        "docs/client-delivery-106-2026-09-06.md"
       ],
       "scope": "Tek mevcut ev bağlamı; F19 çoklu Core/ev federasyonu bu teslim değildir.",
       "acceptance": [
@@ -1629,10 +1655,34 @@
           "state": "completed",
           "result": "passed",
           "label": "Security exact38e78a3 ilk deneme; yayın105 gözlemi. Android/Core koşuları ve bağımsız imzalıAPK kabulü ayrı izlenir."
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/34016755111",
+          "commit": "e7c15ad6f62352f77379e369f3e8524028c42aab",
+          "state": "in_progress",
+          "result": null,
+          "label": "Android106, exact e7c15ad, ilk deneme. Ayrıntılı teslim makbuzu ve bağımsız APK106 doğrulaması ayrı bekleniyor."
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/34016755141",
+          "commit": "e7c15ad6f62352f77379e369f3e8524028c42aab",
+          "state": "in_progress",
+          "result": null,
+          "label": "Core33, exact e7c15ad, ilk deneme. Ayrıntılı teslim makbuzu ve bağımsız APK106 doğrulaması ayrı bekleniyor."
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/34016754957",
+          "commit": "e7c15ad6f62352f77379e369f3e8524028c42aab",
+          "state": "completed",
+          "result": "passed",
+          "label": "Security106, exact e7c15ad, ilk deneme. Ayrıntılı teslim makbuzu ve bağımsız APK106 doğrulaması ayrı bekleniyor."
         }
       ],
       "completionCommit": null,
-      "reason": "CI105 native17E2E/133faz,Core3311/0skip veSecurity207 geçti; Fluttercoverage job15dk timeout nedeniyleAPK105skipped. Dar15→25dk jobbudget onarımı207policyPASS+reviewCLEAR; yeniCI bekleniyor."
+      "reason": "CI106 exact e7c15ad gönderildi: Security geçti, Android/Core sürüyor. CI105 17 E2E/133 faz geçti fakat Flutter işi 15dk sınırında kaldı; 25dk bütçe onarımı 207 politika testiyle doğrulandı. Kendi tam CI ve imzalı APK106 kabulü açık."
     },
     {
       "id": "S08.7",
