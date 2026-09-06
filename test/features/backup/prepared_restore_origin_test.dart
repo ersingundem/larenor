@@ -38,6 +38,10 @@ void main() {
   for(final source in HomeSource.values) {
     test('pure device target under $source never reads Direct origin', () async {
       final storage=_Storage()..secrets[CredentialsStore.pendingMutationKey]='1';
+      if(source==HomeSource.verifiedCore) {
+        storage.preferences[SharedPreferencesHomeSourceStore.key]=source.name;
+        storage.secrets['larenor_server_session_v1']=f.coreSession().encodeStorage();
+      }
       await f.apply(await f.prepare(BackupRepository(storage:storage),f.TestRestoreAccess()..source=source));
       expect(storage.reads.where((key)=>{_url,_token,CredentialsStore.pendingMutationKey}.any((secret)=>key=='secret:$secret')),isEmpty);
       expect(storage.preferences['appearance'],'light');

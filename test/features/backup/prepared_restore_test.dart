@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:larenor/core/configuration_writes.dart';
 import 'package:larenor/core/home_source_store.dart';
+import 'package:larenor/features/server/domain/server_models.dart';
 import 'package:larenor/features/backup/data/backup_repository.dart';
 import 'package:larenor/features/backup/data/backup_restore_access.dart';
 import 'package:larenor/features/backup/data/backup_snapshot.dart';
@@ -12,7 +13,7 @@ class TestRestoreAccess implements BackupRestoreAccess {
   @override
   HomeSource source = HomeSource.directLocal;
   @override
-  Map<String, dynamic> get ownership => {'source': source.name};
+  Map<String, dynamic> get ownership => {'source': source.name, if(source==HomeSource.verifiedCore) 'scope':{'coreId':'a'*32,'homeId':'b'*32,'userId':'one'}};
   @override
   DateTime get validUntil => DateTime.utc(2030);
   @override
@@ -20,6 +21,8 @@ class TestRestoreAccess implements BackupRestoreAccess {
   @override
   Future<void> checkDurable() async { if (!durable) throw const BackupException('restore_expired', 'Restore expired.'); }
 }
+
+ServerSession coreSession()=>ServerSession(endpoint:ServerEndpoint('https://core.test'),accessToken:'a'*32,refreshToken:'r'*32,expiresAt:DateTime.utc(2030),user:const ServerUser(id:'one',username:'Synthetic',role:ServerRole.admin,mustChangePassword:false),context:ServerContext.fromJson({'schemaVersion':1,'coreId':'a'*32,'homeId':'b'*32}));
 
 BackupSnapshot restoreFixture([Map<String,dynamic>? settings]) => BackupSnapshot.fromJson({
   'version': 1, 'createdAt': '2026-09-06T00:00:00.000Z',
@@ -75,7 +78,7 @@ void main() {
     expect(storage.writes, isEmpty);
   });
   test('Core may explicitly restore device preferences without touching either layout or auth', () async {
-    final storage = MemoryBackupStorage(preferences: {'dashboard_layout':'private', 'dashboard_layout_core_v1_fixture':'core','home_source_v1':'verifiedCore'}, secrets:{'larenor_server_session_v1':'private-session','settings_pin':'private-pin'});
+    final storage = MemoryBackupStorage(preferences: {'dashboard_layout':'private', 'dashboard_layout_core_v1_fixture':'core','home_source_v1':'verifiedCore'}, secrets:{'larenor_server_session_v1':coreSession().encodeStorage(),'settings_pin':'private-pin'});
     final before = jsonEncode([storage.preferences,storage.secrets]);
     final access = TestRestoreAccess()..source=HomeSource.verifiedCore;
     final prepared = await prepare(BackupRepository(storage: storage), access);

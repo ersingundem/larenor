@@ -166,12 +166,19 @@ void main() {
         target.secrets,
         isNot(contains(BackupRepository.restoreJournalKey)),
       );
-      // Every durable intermediate state with a journal is also recoverable.
+      // Legacy boot has only before values: changed crash images stay unresolved.
       for (final crashImage in target.durableImages.where(
         (v) => v.secrets.containsKey(BackupRepository.restoreJournalKey),
       )) {
-        await BackupRepository(storage: crashImage).recoverPendingRestore();
-        expect(crashImage.preferences, before);
+        if(crashImage.preferences.length==before.length && before.entries.every((entry)=>crashImage.preferences[entry.key]==entry.value)) {
+          await BackupRepository(storage: crashImage).recoverPendingRestore();
+          expect(crashImage.preferences,before);
+        } else {
+          final held=jsonEncode([crashImage.preferences,crashImage.secrets]);
+          await expectLater(BackupRepository(storage:crashImage).recoverPendingRestore(),throwsA(isA<BackupRestoreException>()));
+          expect(jsonEncode([crashImage.preferences,crashImage.secrets]),held);
+          expect(crashImage.writes,isEmpty);
+        }
       }
     },
   );
