@@ -84,6 +84,8 @@ void main() {
   Future<void> tap(WidgetTester tester, String key) async {
     final finder = find.byKey(ValueKey(key));
     await tester.ensureVisible(finder);
+    await tester.pumpAndSettle();
+    expect(finder.hitTestable(), findsOneWidget);
     await tester.tap(finder);
     await tester.pumpAndSettle();
   }
