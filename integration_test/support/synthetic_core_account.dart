@@ -52,10 +52,11 @@ class SyntheticCoreAccount {
     try {
       final path = request.uri.path;
       if(grants!=null && (path=='/api/v1/admin/users'||path.startsWith('/api/v1/admin/home-resources/')||path.startsWith('/api/v1/home-resources/'))) {
-        final actor=userId, role=user['role'];
+        final actor=userId, role=user['role'], boundCore=coreId, boundHome=homeId;
         int? authStatus() {
           final headers=request.headers['authorization'];
           if(_grantToken==null||headers==null||headers.length!=1||headers.single!='Bearer $_grantToken'||userId!=actor)return 401;
+          if(coreId!=boundCore||homeId!=boundHome)return 404;
           if(user['role']!=role||user['mustChangePassword']!=false)return 403;
           return null;
         }

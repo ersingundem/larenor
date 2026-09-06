@@ -17,7 +17,7 @@ class SyntheticCoreResourceGrants {
   Completer<void>? bodyStarted;
   final List<String> mutations=[];
   Map<String,dynamic> get target => jsonDecode(jsonEncode(_contract['target'])) as Map<String,dynamic>;
-  Map<String,Map<String,bool>> get grants => Map.unmodifiable(_grants.map((id,value)=>MapEntry(id,Map.unmodifiable(value))));
+  Map<String,Map<String,bool>> get grants => Map<String,Map<String,bool>>.unmodifiable(_grants.map((id,value)=>MapEntry(id,Map<String,bool>.unmodifiable(value))));
   List<Map<String,Object>> get users=>[
     for(final id in ['2','3','9']) {
       'id':id*32,'username':id=='9'?'fixture-core-user':'person_$id','role':id=='9'?'admin':'member',
@@ -33,7 +33,7 @@ class SyntheticCoreResourceGrants {
   void close(){final gate=replyGate;if(gate!=null&&!gate.isCompleted)gate.complete();}
 
   Future<GrantsReply> handle(HttpRequest request,String coreId,String homeId,String userId,bool admin,{required int? Function() authStatus})async{
-    final denied=authStatus();if(denied!=null)return error(denied,denied==401?'unauthorized':'forbidden');
+    final denied=authStatus();if(denied!=null)return error(denied,denied==404?'not_found':denied==401?'unauthorized':'forbidden');
     final scope=_contract['context'] as Map;
     if(coreId!=scope['coreId']||homeId!=scope['homeId'])return error(404,'not_found');
     final path=request.uri.path,readBase='/api/v1/home-resources/$coreId/$homeId',
@@ -48,7 +48,7 @@ class SyntheticCoreResourceGrants {
     final bytes=<int>[];
     try{await for(final chunk in request.timeout(const Duration(seconds:2))){if(bytes.length+chunk.length>4096)return error(413,'invalid_request');bytes.addAll(chunk);}}
     on TimeoutException{return error(400,'invalid_request');}
-    final afterBody=authStatus();if(afterBody!=null)return error(afterBody,afterBody==401?'unauthorized':'forbidden');
+    final afterBody=authStatus();if(afterBody!=null)return error(afterBody,afterBody==404?'not_found':afterBody==401?'unauthorized':'forbidden');
     if(request.method=='GET'){
       if(bytes.isNotEmpty)return error(400,'invalid_request');
       if(isUsers){usersReads++;return(200,{'users':users});}
@@ -75,7 +75,7 @@ class SyntheticCoreResourceGrants {
     final reply=(200,{'grant':_grant(id,desired)});
     final gate=replyGate;
     if(gate!=null){try{await gate.future.timeout(const Duration(seconds:3));}on TimeoutException{return error(503,'service_unavailable');}finally{if(identical(replyGate,gate))replyGate=null;}}
-    final afterReply=authStatus();if(afterReply!=null)return error(afterReply,afterReply==401?'unauthorized':'forbidden');
+    final afterReply=authStatus();if(afterReply!=null)return error(afterReply,afterReply==404?'not_found':afterReply==401?'unauthorized':'forbidden');
     if(failNextPutReply){failNextPutReply=false;return error(503,'service_unavailable');}
     return reply;
   }
