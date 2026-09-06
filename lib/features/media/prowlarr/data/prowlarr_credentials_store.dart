@@ -1,33 +1,41 @@
-import 'package:larenor/core/configuration_writes.dart';
-
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
+import '../../../../core/direct_credential_record.dart';
+import '../../../../core/direct_home_access.dart';
 import 'prowlarr_config.dart';
 
 class ProwlarrCredentialsStore {
-  ProwlarrCredentialsStore({FlutterSecureStorage? storage})
-    : _storage = storage ?? const FlutterSecureStorage();
+  ProwlarrCredentialsStore({
+    FlutterSecureStorage? storage,
+    DirectHomeAccess? access,
+  }) : _access = access,
+       _record = DirectCredentialRecord(
+         service: DirectCredentialService.prowlarr,
+         storage: storage,
+         access: access,
+       );
 
-  static const _baseUrlKey = 'prowlarr_base_url';
-  static const _apiKeyKey = 'prowlarr_api_key';
-
-  final FlutterSecureStorage _storage;
+  final DirectCredentialRecord _record;
+  final DirectHomeAccess? _access;
 
   Future<ProwlarrConfig?> read() async {
-    final baseUrl = await _storage.read(key: _baseUrlKey);
-    final apiKey = await _storage.read(key: _apiKeyKey);
+    final fields = await _record.readFields();
+    _access?.check();
+    final baseUrl = fields['baseUrl'];
+    final apiKey = fields['apiKey'];
     if (baseUrl == null || apiKey == null) return null;
     return ProwlarrConfig(baseUrl: baseUrl, apiKey: apiKey);
   }
 
-  Future<void> save({required String baseUrl, required String apiKey}) =>
-      ConfigurationWrites.run(() async {
-        await _storage.write(key: _baseUrlKey, value: baseUrl);
-        await _storage.write(key: _apiKeyKey, value: apiKey);
-      });
+  Future<void> save({
+    required String baseUrl,
+    required String apiKey,
+    bool Function()? isCurrent,
+  }) => _record.replaceAll({
+    'baseUrl': baseUrl,
+    'apiKey': apiKey,
+  }, isCurrent: isCurrent);
 
-  Future<void> clear() => ConfigurationWrites.run(() async {
-    await _storage.delete(key: _baseUrlKey);
-    await _storage.delete(key: _apiKeyKey);
-  });
+  Future<void> clear({bool Function()? isCurrent}) =>
+      _record.clear(isCurrent: isCurrent);
 }

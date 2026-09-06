@@ -2,6 +2,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../l10n/generated/app_localizations.dart';
+import '../../../../core/direct_home_access.dart';
 import '../data/models/bazarr_wanted_item.dart';
 import '../providers/bazarr_providers.dart';
 import 'bazarr_connect_screen.dart';
@@ -17,11 +18,22 @@ class BazarrHomeScreen extends ConsumerWidget {
     final connectionAsync = ref.watch(bazarrConnectionProvider);
 
     return connectionAsync.when(
+      skipLoadingOnReload: false,
+      skipLoadingOnRefresh: false,
       loading: () => const CupertinoPageScaffold(
         child: Center(child: CupertinoActivityIndicator()),
       ),
-      error: (error, _) =>
-          CupertinoPageScaffold(child: Center(child: Text(error.toString()))),
+      error: (error, _) {
+        if (error is DirectHomeAccessException &&
+            error.code == 'pending_mutation') {
+          return const BazarrConnectScreen();
+        }
+        return CupertinoPageScaffold(
+          child: Center(
+            child: Text(AppLocalizations.of(context).mediaErrorUnreachable),
+          ),
+        );
+      },
       data: (config) {
         if (config == null) return const BazarrConnectScreen();
         return const _BazarrWantedScaffold();

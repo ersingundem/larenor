@@ -1,128 +1,54 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../core/direct_home_access.dart';
 import '../../../../l10n/generated/app_localizations.dart';
-import '../../../../shared/discovery/lan_discovery_section.dart';
 import '../../../../shared/discovery/service_signatures.dart';
-import '../../data/media_api_exception.dart';
+import '../../arr/presentation/widgets/arr_connect_form.dart';
 import '../providers/bazarr_providers.dart';
-import '../../../../shared/widgets/settings_section.dart';
 
-class BazarrConnectScreen extends ConsumerStatefulWidget {
+class BazarrConnectScreen extends ConsumerWidget {
   const BazarrConnectScreen({super.key});
 
   @override
-  ConsumerState<BazarrConnectScreen> createState() =>
-      _BazarrConnectScreenState();
-}
-
-class _BazarrConnectScreenState extends ConsumerState<BazarrConnectScreen> {
-  final _urlController = TextEditingController(
-    text: 'http://bazarr.local:6767',
-  );
-  final _keyController = TextEditingController();
-  bool _connecting = false;
-  String? _error;
-
-  @override
-  void dispose() {
-    _urlController.dispose();
-    _keyController.dispose();
-    super.dispose();
-  }
-
-  Future<void> _connect() async {
-    final url = _urlController.text.trim();
-    final key = _keyController.text.trim();
-    if (url.isEmpty || key.isEmpty) {
-      setState(
-        () => _error = AppLocalizations.of(context).mediaErrorEnterUrlApiKey,
+  Widget build(BuildContext context, WidgetRef ref) {
+    // Keep the exact connection notifier alive while this standalone route is open.
+    final state = ref.watch(bazarrConnectionProvider);
+    if (state.isLoading) {
+      return const CupertinoPageScaffold(
+        child: Center(child: CupertinoActivityIndicator()),
       );
-      return;
     }
-    setState(() {
-      _connecting = true;
-      _error = null;
-    });
-    try {
-      await ref
-          .read(bazarrConnectionProvider.notifier)
-          .signIn(
-            baseUrl: url.endsWith('/') ? url.substring(0, url.length - 1) : url,
-            apiKey: key,
-          );
-      if (mounted) Navigator.of(context).pop();
-    } on MediaApiException catch (e) {
-      setState(() => _error = e.message);
-    } catch (_) {
-      setState(
-        () => _error = AppLocalizations.of(context).mediaErrorUnreachable,
-      );
-    } finally {
-      if (mounted) setState(() => _connecting = false);
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return CupertinoPageScaffold(
-      navigationBar: const CupertinoNavigationBar(middle: Text('Bazarr')),
-      child: SafeArea(
+    final error = state.error;
+    final pending =
+        error is DirectHomeAccessException && error.code == 'pending_mutation';
+    if (state.hasError && !pending) {
+      return CupertinoPageScaffold(
         child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 420),
-            child: ListView(
-              padding: const EdgeInsets.all(24),
-              children: [
-                const SizedBox(height: 16),
-                LanDiscoverySection(
-                  signature: ServiceSignatures.bazarr,
-                  onSelected: (url) =>
-                      setState(() => _urlController.text = url),
-                ),
-                SettingsSection(
-                  footer: Text(AppLocalizations.of(context).bazarrApiKeyHint),
-                  children: [
-                    CupertinoTextFormFieldRow(
-                      controller: _urlController,
-                      prefix: Text(
-                        AppLocalizations.of(context).connectUrlLabel,
-                      ),
-                      keyboardType: TextInputType.url,
-                    ),
-                    CupertinoTextFormFieldRow(
-                      controller: _keyController,
-                      prefix: Text(
-                        AppLocalizations.of(context).mediaApiKeyLabel,
-                      ),
-                      obscureText: true,
-                    ),
-                  ],
-                ),
-                if (_error != null) ...[
-                  const SizedBox(height: 12),
-                  Text(
-                    _error!,
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      color: CupertinoColors.systemRed.resolveFrom(context),
-                    ),
-                  ),
-                ],
-                const SizedBox(height: 20),
-                CupertinoButton.filled(
-                  onPressed: _connecting ? null : _connect,
-                  child: _connecting
-                      ? const CupertinoActivityIndicator(
-                          color: CupertinoColors.white,
-                        )
-                      : Text(AppLocalizations.of(context).commonConnect),
-                ),
-              ],
-            ),
-          ),
+          child: Text(AppLocalizations.of(context).mediaErrorUnreachable),
         ),
-      ),
+      );
+    }
+    final connection = ref.read(bazarrConnectionProvider.notifier);
+    final store = ref.read(bazarrCredentialsStoreProvider);
+    return ArrConnectForm(
+      title: 'Bazarr',
+      apiKeyHint: AppLocalizations.of(context).bazarrApiKeyHint,
+      urlHint: pending ? '' : 'http://bazarr.local:6767',
+      discoverySignature: pending ? null : ServiceSignatures.bazarr,
+      onClear: pending
+          ? (isCurrent) => store.clear(isCurrent: isCurrent)
+          : null,
+      onConnect: (url, key, isCurrent) async {
+        await connection.signIn(
+          baseUrl: url,
+          apiKey: key,
+          isCurrent: isCurrent,
+        );
+        if (context.mounted && isCurrent()) {
+          Navigator.of(context).maybePop();
+        }
+      },
     );
   }
 }
