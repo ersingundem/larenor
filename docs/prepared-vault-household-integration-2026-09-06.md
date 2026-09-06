@@ -127,3 +127,19 @@ senaryolar henüz çalıştırılmadı. Kişi admin/ACL senaryosu ayrıca hazır
 UI birleşimi `11ff916` sırasında tam analiz0 ve955dosya biçim farkı0 alındı;
 sonraki native yardımcı dosyaları bu ara kontrolün dışında tutulur. Son tüm
 Client koşusu ve aynı kaynakta GitHub CI/APK yayımlama kapısı sıradadır.
+
+## Yeni ekranlarla ilk tam Client sonucu
+
+`9c8d4ca` üzerinde **5.014 PASS /4 FAIL /5:51**. Dört hata aynı logout
+recovery testinde EN/TR,600px,2× ve yerel silme/uzak logout hata durumlarıdır.
+`ensureVisible` ardından çizim frame'i beklenmeden yapılan dokunma, önceki
+ekran koordinatını kullanarak hedefi kaçırdı. Mevcut PIN ve kaynak koruma
+beklentileri değişmeden, testin gerçek görünür hedefe dokunması ayrı dalda
+sınanıyor. Diğer5.014 testin geçmesi tam koşunun geçtiği anlamına gelmez.
+
+İlk log `/private/tmp/larenor-people-archive-ui-full-client.log`; SHA256
+`274f11efdfe0de9bc733bf82950c9f917916a3057e45b7dc5cffcd9f829027f3`.
+Makbuz `larenor-people-archive-ui-full-client-evidence.json` source/tree
+kimliklerini, exit1 ve reaped durumunu tutar. Bu kaynak yeni kişi/arşiv UI ve
+üye/arşiv Android kaynaklarını içerir; native yolculuklar bu host komutunda
+çalışmaz. Admin Android fixture/journey bu koşuya henüz dahil değildir.
