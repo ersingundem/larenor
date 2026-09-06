@@ -1340,7 +1340,8 @@
         "docs/home-people-controller-implementation-2026-09-06.md",
         "docs/home-people-ui-implementation-2026-09-06.md",
         "docs/core-people-read-fixture-2026-09-06.md",
-        "docs/core-people-android-journey-2026-09-06.md"
+        "docs/core-people-android-journey-2026-09-06.md",
+        "docs/prepared-vault-household-integration-2026-09-06.md"
       ],
       "scope": "Tek mevcut ev bağlamı; F19 çoklu Core/ev federasyonu bu teslim değildir.",
       "acceptance": [
@@ -1487,6 +1488,14 @@
           "state": "completed",
           "result": "passed",
           "label": "YeniüyeAndroid yolculuğu source reviewCLEAR/analyze0; eski10body/99faz aynı,8yenifaz. Nativeçalıştırılmadı; admin/ACL yolculuğu ayrı hazırlanıyor."
+        },
+        {
+          "kind": "test",
+          "ref": "docs/prepared-vault-household-integration-2026-09-06.md",
+          "commit": "eb7a4737283fccd61d006267ec9c65daab7cedd8",
+          "state": "completed",
+          "result": "passed",
+          "label": "Yeni gerçek HTTP sözleşmesi dahil tamServer3300 PASS/0FAIL/11Linuxskip;JUnit3311/439.183sn. Server/contracts tree sonrakiUI birleşimlerinde aynı; kendiLinuxCI veAndroid kabulü ayrı."
         }
       ],
       "completionCommit": null,

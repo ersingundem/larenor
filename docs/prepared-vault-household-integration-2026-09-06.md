@@ -92,3 +92,18 @@ ve biçim **931dosya / 0fark / 2,88sn** elde edildi. Sonraki belge commit'lerind
 lib/test/integration_test/Android/pubspec ağaçlarının aynı kaldığı doğrulandı;
 loglar `/private/tmp/larenor-archive-people-combined-{full-client,analyze,format}.log`.
 Gerçek yeni ekranlar bu test kaynağına henüz dahil değildir.
+
+## Yeni HTTP sözleşmesi dahil tam Server koşusu
+
+`eb7a473` Server/contract ağacında **3.300 PASS /0 FAIL /11 Linux skip**,
+JUnit3311test/0error/439,183sn elde edildi. Daha önceki3.298 tam koşuya
+sonradan eklenen2 gerçek kişi HTTP sözleşme testi bu kez tam koşunun içindedir.
+İlk3.291 PASS/5 FAIL ve tarihsel fixture onarımı yukarıda korunur.
+Sonraki kişi UI/Android belge birleşimlerinde Server ve contracts Git tree
+kimliklerinin aynı kaldığı doğrulandı.
+
+Log/XML `/private/tmp/larenor-archive-people-expanded-full-server.{log,xml}`;
+makbuz `/private/tmp/larenor-archive-people-expanded-full-server-evidence.json`.
+Doğru `server/` dizininden import yolu önceden doğrulandı; Java17 ve sabit
+apksig ile gerçek APK doğrulama testleri de çalıştı. Linux'a özgü11skip yerelde
+korunur; bu paketin kendi Linux CI ve yeni Client/Android kabulü henüz yok.

@@ -141,7 +141,9 @@ Read-only Android fixture113 destek testiyle birleşti. Üye yolculuğu754d87e
 hazır: eski10gövde/99faz aynı,8yeni faz; henüz Android'de çalıştırılmadı.
 Admin/ACL yolculuğu ayrıca hazırlanıyor. Önceki634bc10 kaynağında
 **4.870 tam Client PASS / 5:14**, analiz0 ve931dosya biçim farkı0 vardı;
-bu sayı yeni ekranları/fixture testlerini içermez. Birleşimin yeni tam test
+bu sayı yeni ekranları/fixture testlerini içermez. Yeni HTTP sözleşmesi dahil
+son tam Server koşusu **3.300 PASS /11 Linux skip /439,183sn** verdi;
+Server/contract ağacı sonraki UI birleşimlerinde aynı kaldı. Birleşimin yeni tam Client testi
 ve kendi CI/APK kabulü açık; bu kişi paketi APK104'e dahil değildir.
 [Model kanıtı](home-people-contract-implementation-2026-09-06.md).
 
