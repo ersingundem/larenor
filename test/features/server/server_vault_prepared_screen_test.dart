@@ -288,6 +288,10 @@ void main() {
     ]);
     final a = container(accountA), b = container(accountB);
     final selected = ValueNotifier(a);
+    addTearDown(() async {
+      await tester.pumpWidget(const SizedBox.shrink());
+      selected.dispose(); a.dispose(); b.dispose(); accountA.dispose(); accountB.dispose();
+    });
     final screenKey = GlobalKey();
     tester.view.physicalSize = const Size(800, 1500);
     tester.view.devicePixelRatio = 1;
@@ -314,7 +318,7 @@ void main() {
     expect(find.byKey(const ValueKey('server-vault-apply')), findsNothing);
     expect(storage.writes, isEmpty); expect(apiB.reads, 0);
     expect(accountA.session, isNotNull);
-    await tester.pumpWidget(const SizedBox.shrink());
-    selected.dispose(); a.dispose(); b.dispose(); accountA.dispose(); accountB.dispose();
+    selected.value = a; await flush(tester);
+    expect(find.byKey(const ValueKey('server-vault-review')), findsNothing);
   });
 }

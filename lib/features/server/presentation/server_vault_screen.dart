@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
+import '../../../core/home_session_controller.dart';
 import '../../../l10n/generated/app_localizations.dart';
 import '../../../shared/theme/typography.dart';
 import '../../../shared/widgets/app_page_scaffold.dart';
@@ -31,6 +32,7 @@ class ServerVaultScreen extends ConsumerStatefulWidget {
 
 class _ServerVaultScreenState extends MediaSessionState<ServerVaultScreen> {
   late final ServerAccountController _account;
+  late final HomeSessionController? _home;
   late final ServerVaultController _vault;
   late final int _accountGeneration;
   ValueListenable<TickerModeData>? _ticker;
@@ -51,9 +53,16 @@ class _ServerVaultScreenState extends MediaSessionState<ServerVaultScreen> {
   Route<bool>? _dialog;
   String? _message;
   bool _error = false;
+  bool _scopeChanged = false;
+
+  bool get _sameScope =>
+      identical(ref.read(serverAccountControllerProvider), _account) &&
+      identical(ref.read(homeSessionControllerProvider), _home);
 
   bool get _active =>
       sessionCurrent(sessionGeneration) &&
+      !_scopeChanged &&
+      _sameScope &&
       _visible &&
       _pinResolved &&
       !_pinChanged &&
@@ -75,6 +84,7 @@ class _ServerVaultScreenState extends MediaSessionState<ServerVaultScreen> {
   void initState() {
     super.initState();
     _account = ref.read(serverAccountControllerProvider);
+    _home = ref.read(homeSessionControllerProvider);
     _accountGeneration = _account.generation;
     _vault = ServerVaultController(
       account: _account,
@@ -97,6 +107,10 @@ class _ServerVaultScreenState extends MediaSessionState<ServerVaultScreen> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
+    if (!_sameScope) {
+      _scopeChanged = true;
+      _invalidate();
+    }
     final ticker = TickerMode.getValuesNotifier(context);
     if (!identical(ticker, _ticker)) {
       _ticker?.removeListener(_visibilityChanged);
