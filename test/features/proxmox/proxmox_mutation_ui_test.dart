@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:larenor/core/direct_home_access.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
@@ -56,7 +57,12 @@ const _storage = ProxmoxStorage(
 
 class _Connection extends ProxmoxConnection {
   @override
-  Future<ProxmoxConfig?> build() async => _config;
+  Future<ProxmoxConfig?> build() async {
+    // Retain the source dependency of the actual connection provider.
+    ref.watch(directHomeAccessProvider);
+    return _config;
+  }
+
   void change() => state = const AsyncData(_other);
   void loading() => state = const AsyncLoading();
 }

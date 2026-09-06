@@ -4,6 +4,7 @@ import 'dart:async';
 
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:larenor/core/direct_home_access.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
@@ -68,7 +69,11 @@ class _Connection extends ControlledConnection {
   _Connection(this.initial);
   final ProxmoxConfig initial;
   @override
-  Future<ProxmoxConfig?> build() async => initial;
+  Future<ProxmoxConfig?> build() async {
+    // Retain the source dependency of the actual connection provider.
+    ref.watch(directHomeAccessProvider);
+    return initial;
+  }
 }
 
 class _Harness {

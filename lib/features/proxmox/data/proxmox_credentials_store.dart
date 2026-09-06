@@ -1,48 +1,45 @@
-import 'package:larenor/core/configuration_writes.dart';
-
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
+import '../../../core/direct_credential_record.dart';
+import '../../../core/direct_home_access.dart';
 import 'proxmox_config.dart';
 
-/// Proxmox's API is ticket/cookie-session based — and container console
-/// access specifically requires ticket auth rather than an API token (see
-/// `proxmox_client.dart`) — so the username/password are kept
-/// (Keystore/Keychain-backed) to re-authenticate every session, the same
-/// pattern already used for qBittorrent.
+/// Ticket authentication uses a complete, source-owned six-field record.
+/// An incomplete record requires an explicit reconnect or clear, never migration.
 class ProxmoxCredentialsStore {
-  ProxmoxCredentialsStore({FlutterSecureStorage? storage})
-    : _storage = storage ?? const FlutterSecureStorage();
-
-  static const _hostKey = 'proxmox_host';
-  static const _portKey = 'proxmox_port';
-  static const _usernameKey = 'proxmox_username';
-  static const _realmKey = 'proxmox_realm';
-  static const _passwordKey = 'proxmox_password';
-  static const _allowSelfSignedKey = 'proxmox_allow_self_signed';
-
-  final FlutterSecureStorage _storage;
+  ProxmoxCredentialsStore({
+    FlutterSecureStorage? storage,
+    DirectHomeAccess? access,
+  }) : _access = access,
+       _record = DirectCredentialRecord(
+         service: DirectCredentialService.proxmox,
+         storage: storage,
+         access: access,
+       );
+  final DirectHomeAccess? _access;
+  final DirectCredentialRecord _record;
 
   Future<ProxmoxConfig?> read() async {
-    final host = await _storage.read(key: _hostKey);
-    final port = await _storage.read(key: _portKey);
-    final username = await _storage.read(key: _usernameKey);
-    final realm = await _storage.read(key: _realmKey);
-    final password = await _storage.read(key: _passwordKey);
-    if (host == null ||
+    final fields = await _record.readFields();
+    _access?.check();
+    if (fields.values.every((value) => value == null)) return null;
+    final port = int.tryParse(fields['port'] ?? '');
+    final tls = fields['allowSelfSigned'];
+    if (fields.values.any((value) => value == null || value.isEmpty) ||
         port == null ||
-        username == null ||
-        realm == null ||
-        password == null) {
-      return null;
+        port < 1 ||
+        port > 65535 ||
+        '$port' != fields['port'] ||
+        !{'true', 'false'}.contains(tls)) {
+      throw const DirectHomeAccessException('pending_mutation');
     }
-    final allowSelfSigned = await _storage.read(key: _allowSelfSignedKey);
     return ProxmoxConfig(
-      host: host,
-      port: int.tryParse(port) ?? 8006,
-      username: username,
-      realm: realm,
-      password: password,
-      allowSelfSigned: allowSelfSigned != 'false',
+      host: fields['host']!,
+      port: port,
+      username: fields['username']!,
+      realm: fields['realm']!,
+      password: fields['password']!,
+      allowSelfSigned: tls == 'true',
     );
   }
 
@@ -53,21 +50,16 @@ class ProxmoxCredentialsStore {
     required String realm,
     required String password,
     required bool allowSelfSigned,
-  }) => ConfigurationWrites.run(() async {
-    await _storage.write(key: _hostKey, value: host);
-    await _storage.write(key: _portKey, value: '$port');
-    await _storage.write(key: _usernameKey, value: username);
-    await _storage.write(key: _realmKey, value: realm);
-    await _storage.write(key: _passwordKey, value: password);
-    await _storage.write(key: _allowSelfSignedKey, value: '$allowSelfSigned');
-  });
+    bool Function()? isCurrent,
+  }) => _record.replaceAll({
+    'host': host,
+    'port': '$port',
+    'username': username,
+    'realm': realm,
+    'password': password,
+    'allowSelfSigned': '$allowSelfSigned',
+  }, isCurrent: isCurrent);
 
-  Future<void> clear() => ConfigurationWrites.run(() async {
-    await _storage.delete(key: _hostKey);
-    await _storage.delete(key: _portKey);
-    await _storage.delete(key: _usernameKey);
-    await _storage.delete(key: _realmKey);
-    await _storage.delete(key: _passwordKey);
-    await _storage.delete(key: _allowSelfSignedKey);
-  });
+  Future<void> clear({bool Function()? isCurrent}) =>
+      _record.clear(isCurrent: isCurrent);
 }

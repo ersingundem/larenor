@@ -44,6 +44,7 @@ class _Connect extends ProxmoxConnection {
     required String realm,
     required String password,
     required bool allowSelfSigned,
+    bool Function()? isCurrent,
   }) async {
     calls++;
     acceptedSelfSigned = allowSelfSigned;

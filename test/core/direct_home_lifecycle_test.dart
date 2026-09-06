@@ -315,6 +315,7 @@ void main() {
       'proxmox_username': 'synthetic',
       'proxmox_realm': 'pam',
       'proxmox_password': 'synthetic',
+      'proxmox_allow_self_signed': 'false',
     });
     final (container, home) = await fixture.containerFor(
       HomeSource.directLocal,

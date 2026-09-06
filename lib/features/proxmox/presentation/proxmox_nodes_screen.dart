@@ -1,7 +1,11 @@
+import 'dart:ui' show ViewFocusEvent, ViewFocusState;
+
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../l10n/generated/app_localizations.dart';
+import '../../../core/direct_home_access.dart';
+import '../../media/hub/presentation/media_session_state.dart';
 import '../data/models/proxmox_node.dart';
 import '../providers/proxmox_providers.dart';
 import 'proxmox_connect_screen.dart';
@@ -19,57 +23,104 @@ class ProxmoxNodesScreen extends ConsumerStatefulWidget {
   ConsumerState<ProxmoxNodesScreen> createState() => _ProxmoxNodesScreenState();
 }
 
-class _ProxmoxNodesScreenState extends ConsumerState<ProxmoxNodesScreen> {
-  late final AppLifecycleListener _lifecycle;
-  bool _foreground = true;
+class _ProxmoxNodesScreenState extends MediaSessionState<ProxmoxNodesScreen>
+    with WidgetsBindingObserver {
+  late final DirectHomeAccess _access = ref.read(directHomeAccessProvider);
+  bool _visible = true;
+  int? _viewId;
+  bool _focused = true;
+
   @override
   void initState() {
     super.initState();
-    final state = WidgetsBinding.instance.lifecycleState;
-    _foreground = state == null || state == AppLifecycleState.resumed;
-    _lifecycle = AppLifecycleListener(
-      onStateChange: (state) {
-        if (mounted) {
-          setState(() => _foreground = state == AppLifecycleState.resumed);
-        }
-      },
-    );
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  bool _current(int generation) =>
+      sessionCurrent(generation) &&
+      _focused &&
+      _access.isCurrent &&
+      TickerMode.valuesOf(context).enabled &&
+      (ModalRoute.of(context)?.isCurrent ?? true);
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final viewId = View.of(context).viewId;
+    if (_viewId != null && _viewId != viewId) sessionGeneration++;
+    _viewId = viewId;
+    final visible =
+        TickerMode.valuesOf(context).enabled &&
+        (ModalRoute.of(context)?.isCurrent ?? true);
+    if (_visible && !visible) sessionGeneration++;
+    _visible = visible;
+  }
+
+  @override
+  void didChangeViewFocus(ViewFocusEvent event) {
+    if (!mounted || event.viewId != _viewId) return;
+    final focused = event.state == ViewFocusState.focused;
+    if (_focused == focused) return;
+    setState(() {
+      _focused = focused;
+      if (!focused) sessionGeneration++;
+    });
   }
 
   @override
   void dispose() {
-    _lifecycle.dispose();
+    WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    ref.watch(directHomeAccessProvider);
     final connectionAsync = ref.watch(proxmoxConnectionProvider);
-    if (!_foreground || !TickerMode.valuesOf(context).enabled) {
+    if (!_access.isCurrent ||
+        !foreground ||
+        !TickerMode.valuesOf(context).enabled) {
       return const SizedBox.shrink();
     }
-
+    final generation = sessionGeneration;
+    final error = connectionAsync.error;
+    final recovery =
+        error is DirectHomeAccessException &&
+        {'pending_mutation', 'write_unconfirmed'}.contains(error.code);
+    if (!connectionAsync.isLoading &&
+        OperationalServiceScope.maybeOf(context) == null &&
+        (recovery ||
+            !connectionAsync.hasError && connectionAsync.value == null)) {
+      return ProxmoxConnectScreen(
+        key: ValueKey(recovery),
+        recovery: recovery,
+        popOnSuccess: false,
+      );
+    }
     return connectionAsync.when(
       skipLoadingOnRefresh: false,
       skipLoadingOnReload: false,
       loading: () => const CupertinoPageScaffold(
         child: Center(child: CupertinoActivityIndicator()),
       ),
-      error: (error, _) => CupertinoPageScaffold(
+      error: (_, _) => CupertinoPageScaffold(
         child: Center(
           child: Text(AppLocalizations.of(context).healthReadError),
         ),
       ),
-      data: (config) {
-        if (config == null) return const ProxmoxConnectScreen();
-        return const _NodesList();
-      },
+      data: (config) => config == null
+          ? CupertinoPageScaffold(
+              child: Center(
+                child: Text(AppLocalizations.of(context).healthReadError),
+              ),
+            )
+          : _NodesList(current: () => _current(generation)),
     );
   }
 }
 
 class _NodesList extends ConsumerWidget {
-  const _NodesList();
+  const _NodesList({required this.current});
+  final bool Function() current;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -80,19 +131,25 @@ class _NodesList extends ConsumerWidget {
       title: 'Proxmox VE',
       leading: CupertinoButton(
         padding: EdgeInsets.zero,
-        onPressed: () => ref.invalidate(proxmoxNodesProvider),
+        onPressed: () {
+          if (context.mounted && current()) {
+            ref.invalidate(proxmoxNodesProvider);
+          }
+        },
         child: const Icon(CupertinoIcons.refresh),
       ),
       trailing: ServiceAccountAction(
         onSignOut: () async {
-          if (!context.mounted) return;
-          final current = ref.read(proxmoxConnectionProvider);
-          if (current.isLoading ||
-              current.hasError ||
-              !sameHealthConfiguration(account.value, current.value)) {
+          if (!context.mounted || !current()) return;
+          final accountNow = ref.read(proxmoxConnectionProvider);
+          if (accountNow.isLoading ||
+              accountNow.hasError ||
+              !sameHealthConfiguration(account.value, accountNow.value)) {
             return;
           }
-          await ref.read(proxmoxConnectionProvider.notifier).signOut();
+          await ref
+              .read(proxmoxConnectionProvider.notifier)
+              .signOut(isCurrent: current);
         },
       ),
       slivers: nodesAsync.when(
@@ -130,6 +187,7 @@ class _NodesList extends ConsumerWidget {
                     child: _NodeRow(
                       key: ValueKey(nodes[index].name),
                       node: nodes[index],
+                      current: current,
                     ),
                   ),
                 ),
@@ -143,7 +201,8 @@ class _NodesList extends ConsumerWidget {
 }
 
 class _NodeRow extends ConsumerWidget {
-  const _NodeRow({super.key, required this.node});
+  const _NodeRow({super.key, required this.node, required this.current});
+  final bool Function() current;
 
   final ProxmoxNode node;
 
@@ -186,12 +245,13 @@ class _NodeRow extends ConsumerWidget {
       ),
       trailing: const CupertinoListTileChevron(),
       onTap: () {
-        final current = ref.read(proxmoxConnectionProvider);
+        if (!context.mounted || !current()) return;
+        final accountNow = ref.read(proxmoxConnectionProvider);
         if (!context.mounted ||
-            current.isLoading ||
-            current.hasError ||
-            current.value == null ||
-            !sameHealthConfiguration(account.value, current.value)) {
+            accountNow.isLoading ||
+            accountNow.hasError ||
+            accountNow.value == null ||
+            !sameHealthConfiguration(account.value, accountNow.value)) {
           return;
         }
         final source = captureProxmoxRouteSource(ref);

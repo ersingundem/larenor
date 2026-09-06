@@ -2239,5 +2239,7 @@
   "wellbeingReloadSettings": "Read saved settings again",
   "wellbeingSettingsUnavailable": "Saved privacy settings could not be confirmed. Read them again before continuing.",
   "qbittorrentConnectionIncomplete": "This connection is incomplete. Enter the URL, username and password again, or remove the saved connection.",
-  "qbittorrentRemoveConnection": "Remove saved connection"
+  "qbittorrentRemoveConnection": "Remove saved connection",
+  "proxmoxConnectionIncomplete": "This connection is incomplete. Enter the host, port, realm, username and password again, and review the certificate setting, or remove the saved connection.",
+  "proxmoxRemoveConnection": "Remove saved connection"
 }
