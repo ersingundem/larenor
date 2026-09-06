@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:ui' show ViewFocusEvent, ViewFocusState, ViewFocusDirection;
 
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -21,6 +22,7 @@ import 'package:larenor/l10n/generated/app_localizations.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../backup/backup_test_storage.dart';
+import '../home_resources/home_resources_tablet_test.dart' show loadFonts;
 import 'server_vault_test_support.dart';
 
 class _Harness {
@@ -175,6 +177,57 @@ Future<void> tap(WidgetTester tester, String key) async {
 }
 
 void main() {
+  for (final language in ['en', 'tr']) {
+    for (final width in [320.0, 600.0, 1280.0]) {
+      testWidgets('Vault confirmation semantics $language $width at 2x', (tester) async {
+        await loadFonts(tester);
+        final semantics = tester.ensureSemantics();
+        addTearDown(semantics.dispose);
+        final h = _Harness();
+        await h.mount(tester, language: language, width: width, scale: 2);
+        final dialog = find.byType(CupertinoAlertDialog);
+        final l10n = AppLocalizations.of(tester.element(dialog));
+        for (final label in [l10n.commonCancel, l10n.backupApply]) {
+          final action = find.widgetWithText(CupertinoDialogAction, label);
+          await tester.ensureVisible(action);
+          await flush(tester);
+          final rect = tester.getRect(action);
+          expect(rect.height, greaterThanOrEqualTo(48));
+          expect(rect.width, greaterThanOrEqualTo(48));
+          expect(rect.left, greaterThanOrEqualTo(0));
+          expect(rect.right, lessThanOrEqualTo(width));
+          final node = tester.getSemantics(action);
+          expect(node.flagsCollection.isButton, isTrue);
+          expect(node.label, label);
+          expect(find.bySemanticsLabel(RegExp('^${RegExp.escape(label)}\$')), findsOneWidget);
+        }
+        expect(tester.takeException(), isNull);
+        await tester.tap(find.widgetWithText(CupertinoDialogAction, l10n.commonCancel));
+        await flush(tester);
+        expect(find.byType(CupertinoAlertDialog), findsNothing);
+        expect(h.storage.writes, isEmpty);
+        expect(h.api.writes, 0);
+        expect(h.api.reads, 1);
+        expect(h.disposals, 0);
+      });
+      testWidgets('Vault confirmation keyboard cancel $language $width at 2x', (tester) async {
+        await loadFonts(tester);
+        final h = _Harness();
+        await h.mount(tester, language: language, width: width, scale: 2);
+        await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+        await flush(tester);
+        await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+        await flush(tester);
+        expect(find.byType(CupertinoAlertDialog), findsNothing);
+        expect(h.storage.writes, isEmpty);
+        expect(h.api.writes, 0);
+        expect(h.api.reads, 1);
+        expect(h.disposals, 0);
+        expect(h.storage.preferences['appearance'], 'light');
+        expect(tester.takeException(), isNull);
+      });
+    }
+  }
   testWidgets(
     'Vault hands off a typed v2 restore and replaces runtime providers',
     (tester) async {
