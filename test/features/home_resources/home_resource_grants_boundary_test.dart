@@ -43,6 +43,47 @@ Future<void> select(WidgetTester tester, {bool revoke = false}) async {
 }
 
 void main() {
+  for (final loss in ['pin', 'root']) {
+    testWidgets('$loss preframe late401 cannot sign out the current account', (
+      tester,
+    ) async {
+      final h = GrantsHarness();
+      await openGrants(tester, h);
+      await select(tester);
+      final session = h.account.session, late = Completer<http.Response>();
+      h.pendingGrant = late;
+      await adminPress(tester, 'resource-grants-save');
+      expect(h.puts.length, 1);
+      if (loss == 'pin') {
+        final c = h.runtime(tester);
+        c.invalidate(pinLockProvider);
+        expect(c.read(pinLockProvider).isLoading, isTrue);
+      } else {
+        unawaited(
+          Navigator.of(
+            tester.element(adminKey('home-resource-grants-screen')),
+            rootNavigator: true,
+          ).push(
+            CupertinoPageRoute<void>(
+              builder: (_) =>
+                  const CupertinoPageScaffold(child: Text('Covered')),
+            ),
+          ),
+        );
+      }
+      late.complete(
+        h.json({
+          'error': {'code': 'unauthorized'},
+        }, 401),
+      );
+      h.pendingGrant = null;
+      await flush(tester);
+      expect(h.account.session, same(session));
+      expect(adminKey('resource-grants-saved'), findsNothing);
+      expect(h.puts.length, 1);
+    });
+  }
+
   testWidgets('held Save cannot bypass the separate revoke confirmation', (
     tester,
   ) async {
