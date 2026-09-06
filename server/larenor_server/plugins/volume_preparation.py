@@ -152,18 +152,20 @@ class JournaledVolumeCreates:
                         or result != VolumeAbsent(resource_id, expected)):
                     raise _Unavailable()
                 gate_used = False
+                gate_accepted = False
                 def gate():
-                    nonlocal gate_used
+                    nonlocal gate_used, gate_accepted
                     if gate_used:
                         return False
                     gate_used = True
                     self._live(receipt, source, event, intent, token)
                     allowed = _allowed(authorize_create)
                     self._live(receipt, source, event, intent, token)
+                    gate_accepted = allowed
                     return allowed
                 acknowledgement = self._engine.create(intent, before_dispatch=gate, cancelled=event)
                 self._live(receipt, source, event, intent, token)
-                if (not gate_used or not _exact(acknowledgement, VolumeCreateAcknowledgement)
+                if (not gate_accepted or not _exact(acknowledgement, VolumeCreateAcknowledgement)
                         or acknowledgement != VolumeCreateAcknowledgement(resource_id, expected)):
                     raise _Unavailable()
                 return self._reconcile(receipt, source, event)

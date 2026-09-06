@@ -115,7 +115,7 @@ class UnixVolumeCreator:
                     MAX_INSPECT_BYTES, limits.max_chunks), cancelled=cancelled,
                 before_dispatch=before_dispatch)
         except EngineHttpError as error:
-            code = {'engine_protocol': 'volume_protocol', 'engine_response_limit': 'volume_response_limit',
+            code = {'engine_protocol': 'volume_protocol', 'engine_stream_limit': 'volume_response_limit',
                 'engine_timeout': 'volume_timeout', 'engine_cancelled': 'volume_cancelled',
                 'engine_api_unsupported': 'volume_api_unsupported',
                 'engine_dispatch_denied': 'volume_create_not_authorized'}.get(error.code, 'volume_engine_unavailable')
