@@ -64,8 +64,9 @@ class CoreHomeStatusScreen extends ConsumerWidget {
                               ),
                               const SizedBox(height: 16),
                               Text(l10n.homeCoreUnavailable),
-                              if (controller.account.failure case
-                                  'storage_failed' || 'logout_not_confirmed')
+                              if (controller.account.failure
+                                  case 'storage_failed' ||
+                                      'logout_not_confirmed')
                                 Padding(
                                   padding: const EdgeInsets.only(top: 16),
                                   child: Semantics(
