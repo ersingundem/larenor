@@ -113,14 +113,18 @@ class _QbittorrentConnectScreenState
         password: password,
         isCurrent: current,
       );
-      if (current() && widget.popOnSuccess && Navigator.of(context).canPop()) {
+      if (mounted &&
+          current() &&
+          widget.popOnSuccess &&
+          Navigator.of(context).canPop()) {
         Navigator.of(context).pop();
       }
     } catch (_) {
-      if (current())
+      if (current()) {
         setState(
           () => _error = AppLocalizations.of(context).mediaErrorUnreachable,
         );
+      }
     } finally {
       if (identical(_operationOwner, current)) _operationOwner = null;
       if (current()) setState(() => _connecting = false);
@@ -137,20 +141,27 @@ class _QbittorrentConnectScreenState
     });
     try {
       await store.clear(isCurrent: current);
-      if (current())
+      if (current()) {
         setState(() {
           _clearFields();
           _cleared = true;
         });
+      }
     } catch (_) {
-      if (current())
+      if (current()) {
         setState(
           () => _error = AppLocalizations.of(context).mediaErrorUnreachable,
         );
+      }
     } finally {
       if (current()) setState(() => _connecting = false);
     }
   }
+
+  Widget _fieldLabel(String label) => ConstrainedBox(
+    constraints: const BoxConstraints(maxWidth: 96),
+    child: Text(label),
+  );
 
   @override
   Widget build(BuildContext context) {
@@ -207,8 +218,9 @@ class _QbittorrentConnectScreenState
                   LanDiscoverySection(
                     signature: ServiceSignatures.qbittorrent,
                     onSelected: (url) {
-                      if (_current(generation))
+                      if (_current(generation)) {
                         setState(() => _urlController.text = url);
+                      }
                     },
                   ),
                 CupertinoListSection.insetGrouped(
@@ -216,18 +228,18 @@ class _QbittorrentConnectScreenState
                     CupertinoTextFormFieldRow(
                       controller: _urlController,
                       enabled: active && !_connecting,
-                      prefix: Text(l10n.connectUrlLabel),
+                      prefix: _fieldLabel(l10n.connectUrlLabel),
                       keyboardType: TextInputType.url,
                     ),
                     CupertinoTextFormFieldRow(
                       controller: _userController,
                       enabled: active && !_connecting,
-                      prefix: Text(l10n.mediaUserLabel),
+                      prefix: _fieldLabel(l10n.mediaUserLabel),
                     ),
                     CupertinoTextFormFieldRow(
                       controller: _passwordController,
                       enabled: active && !_connecting,
-                      prefix: Text(l10n.mediaPasswordLabel),
+                      prefix: _fieldLabel(l10n.mediaPasswordLabel),
                       obscureText: true,
                     ),
                   ],

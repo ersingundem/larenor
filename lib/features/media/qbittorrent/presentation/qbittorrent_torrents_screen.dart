@@ -319,13 +319,15 @@ class _QbittorrentTorrentsScreenState
     final connection = ref.watch(qbittorrentConnectionProvider);
     if (!connection.isLoading &&
         !connection.hasError &&
-        connection.value != null)
+        connection.value != null) {
       _hasAccount = true;
-    if (_hasAccount)
+    }
+    if (_hasAccount) {
       watchMediaAccount(
         IntegrationId.qbittorrent,
         qbittorrentConnectionProvider,
       );
+    }
     final l10n = AppLocalizations.of(context);
     if (!foreground || sessionExpired || !_access.isCurrent) {
       return CupertinoPageScaffold(
