@@ -3,17 +3,23 @@ import 'dart:io';
 
 import 'synthetic_core_resources.dart';
 import 'synthetic_core_resource_admin.dart';
+import 'synthetic_core_resource_grants.dart';
 
 /// Minimal, opt-in Core account protocol for this process's loopback fixture.
 /// No production account/API override, external service, or media write path.
 class SyntheticCoreAccount {
-  SyntheticCoreAccount({this.resources, this.adminResources}) {
-    if (resources != null && adminResources != null) {
+  SyntheticCoreAccount({this.resources, this.adminResources, this.grants}) {
+    if ([resources, adminResources, grants].where((value)=>value!=null).length>1) {
       throw ArgumentError('Choose one synthetic registry fixture.');
     }
   }
   final SyntheticCoreResources? resources;
   final SyntheticCoreResourceAdmin? adminResources;
+  final SyntheticCoreResourceGrants? grants;
+  String? _grantToken;
+  String get currentAccessToken => grants == null ? accessToken : _grantToken ?? accessToken;
+  void revokeGrantSession() { if(grants!=null)_grantToken=null; }
+
   late final _emptyResources = SyntheticCoreResources.empty(userId: userId);
   static const username = 'fixture-core-user';
   static const password = 'Synthetic account password 2026';
@@ -21,7 +27,7 @@ class SyntheticCoreAccount {
   static const refreshToken = 'synthetic-core-refresh-session';
   String coreId = 'a' * 32;
   String homeId = 'b' * 32;
-  String get userId => resources == null ? 'fixture-core-user-id' : 'e' * 32;
+  String get userId => grants != null ? '9'*32 : resources == null ? 'fixture-core-user-id' : 'e' * 32;
   int logins = 0;
   int meReads = 0;
   int contextReads = 0;
@@ -45,7 +51,20 @@ class SyntheticCoreAccount {
 
     try {
       final path = request.uri.path;
-      if (adminResources != null &&
+      if(grants!=null && (path=='/api/v1/admin/users'||path.startsWith('/api/v1/admin/home-resources/')||path.startsWith('/api/v1/home-resources/'))) {
+        final actor=userId, role=user['role'];
+        int? authStatus() {
+          final headers=request.headers['authorization'];
+          if(_grantToken==null||headers==null||headers.length!=1||headers.single!='Bearer $_grantToken'||userId!=actor)return 401;
+          if(user['role']!=role||user['mustChangePassword']!=false)return 403;
+          return null;
+        }
+        final(status,body)=await grants!.handle(request,coreId,homeId,userId,role=='admin',authStatus:authStatus);
+        if(status>=400)rejectedRequests++;
+        response.statusCode=status;if(body!=null)response.write(jsonEncode(body));
+      } else if(grants!=null&&path=='/api/v1/auth/logout'&&request.method=='POST') {
+        if(_grantToken==null||request.headers.value('authorization')!='Bearer $_grantToken'){reject(401);}else{revokeGrantSession();response.statusCode=204;}
+      } else if (adminResources != null &&
           (path.startsWith('/api/v1/admin/home-resources/') ||
               path.startsWith('/api/v1/home-resources/'))) {
         final authorization = request.headers['authorization'];
@@ -112,9 +131,10 @@ class SyntheticCoreAccount {
           reject(401);
         } else {
           logins++;
+          if(grants!=null)_grantToken='synthetic-core-grants-session-$logins';
           response.write(
             jsonEncode({
-              'accessToken': accessToken,
+              'accessToken': currentAccessToken,
               'refreshToken': refreshToken,
               'expiresIn': 3600,
               'user': user,
@@ -129,7 +149,7 @@ class SyntheticCoreAccount {
           !{'/api/v1/auth/me', '/api/v1/context'}.contains(path)) {
         reject(403);
       } else if (request.headers.value('authorization') !=
-          'Bearer $accessToken') {
+          'Bearer $currentAccessToken' || grants!=null&&_grantToken==null) {
         reject(401);
       } else if (path == '/api/v1/auth/me') {
         meReads++;

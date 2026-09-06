@@ -29,6 +29,7 @@ import 'synthetic_ha_server.dart';
 import 'synthetic_core_account.dart';
 import 'synthetic_core_resources.dart';
 import 'synthetic_core_resource_admin.dart';
+import 'synthetic_core_resource_grants.dart';
 
 /// OS file dialogs use ciphertext in memory. Preferences and credential storage
 /// are also replaced in AppHarness; encryption, schema validation, repository
@@ -78,6 +79,7 @@ class AppHarness {
     bool coreSource = false,
     bool coreResources = false,
     bool coreResourceAdmin = false,
+    bool coreResourceGrants = false,
   }) async {
     if (!const bool.fromEnvironment('LARENOR_E2E')) {
       throw StateError(
@@ -89,11 +91,15 @@ class AppHarness {
         'Admin fixture requires its own explicit Core source.',
       );
     }
+    if (coreResourceGrants && (!coreSource || coreResources || coreResourceAdmin)) {
+      throw ArgumentError('Grants fixture requires its own explicit Core source.');
+    }
     final server = await SyntheticHaServer.start();
     if (coreSource) {
       server.coreAccount = SyntheticCoreAccount(
         resources: coreResources ? SyntheticCoreResources() : null,
         adminResources: coreResourceAdmin ? SyntheticCoreResourceAdmin() : null,
+        grants: coreResourceGrants ? SyntheticCoreResourceGrants() : null,
       );
     }
     final harness = AppHarness._(
@@ -186,6 +192,7 @@ class AppHarness {
     tester.testTextInput.unregister();
     HttpOverrides.global = previousNetwork;
     server.coreAccount?.adminResources?.close();
+    server.coreAccount?.grants?.close();
     await server.close();
     expect(network.blocked, 0, reason: 'No production/external destinations');
     expect(

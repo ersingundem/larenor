@@ -3,7 +3,7 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import '../../integration_test/support/home_resource_grants_contract_fixture.dart';
 import '../../integration_test/support/synthetic_core_account.dart';
-import '../../integration_test/support/synthetic_core_resource_admin.dart';
+import '../../integration_test/support/synthetic_core_resource_grants.dart';
 import '../../integration_test/support/synthetic_ha_server.dart';
 
 void main(){
@@ -11,12 +11,12 @@ void main(){
  final contract=jsonDecode(homeResourceGrantsContractFixture) as Map<String,dynamic>;
  Future<(int,Object?)> request(String method,String path,{Object? body,bool authorized=true})async{
   final req=await client.openUrl(method,Uri.parse('${host.baseUrl}/api/v1$path'));
-  if(authorized)req.headers.set('authorization','Bearer ${SyntheticCoreAccount.accessToken}');
+  if(authorized)req.headers.set('authorization','Bearer ${core.currentAccessToken}');
   if(body!=null){req.headers.contentType=ContentType.json;req.write(jsonEncode(body));}
   final res=await req.close();final text=await utf8.decodeStream(res);return(res.statusCode,text.isEmpty?null:jsonDecode(text));
  }
  setUp(()async{
-  host=await SyntheticHaServer.start();core=SyntheticCoreAccount(adminResources:SyntheticCoreResourceAdmin());host.coreAccount=core;
+  host=await SyntheticHaServer.start();core=SyntheticCoreAccount(grants:SyntheticCoreResourceGrants());host.coreAccount=core;
   client=FixtureNetwork(host.port).createHttpClient(null);
   expect((await request('POST','/auth/login',body:{'username':SyntheticCoreAccount.username,'password':SyntheticCoreAccount.password,'deviceName':'fixture'})).$1,200);
  });
