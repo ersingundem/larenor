@@ -803,4 +803,25 @@ void main() {
       );
     },
   );
+
+  testWidgets('valid saved standalone replacement verifies and saves the new complete tuple', (tester) async {
+    secure.values.addAll(keeneticRecord);
+    final (c, _) = await routinesHome('direct');
+    final interaction = AppInteractionController();
+    addTearDown(interaction.dispose);
+    var requests = 0;
+    await http.runWithClient(() async {
+      await mount(tester, c, interaction, child: const KeeneticConnectScreen());
+      await fill(tester);
+      await tap(tester, 'Connect');
+      expect(requests, 2);
+      expect(secure.values['keenetic_base_url'], 'https://new.invalid');
+      expect(secure.values['keenetic_username'], 'new-user');
+      expect(secure.values['keenetic_password'], 'synthetic-new-password');
+      expect(secure.values.containsKey(marker), isFalse);
+      expect(tester.takeException(), isNull);
+      await finish(tester, c);
+    }, () => MockClient((r) async { requests++; return keeneticReply(r); }));
+  });
+
 }
