@@ -1,4 +1,6 @@
 import 'dart:convert';
+import 'package:crypto/crypto.dart';
+import '../../../core/home_source_store.dart';
 
 import '../../../core/configuration_writes.dart';
 import '../../../core/direct_credential_record.dart';
@@ -29,7 +31,7 @@ class BackupRepository {
     BackupSelection selection, {
     required BackupConflictPolicy conflictPolicy,
     required BackupRestoreAccess access,
-  }) async => throw const BackupException('restore_unavailable', 'Restore is unavailable.');
+  }) => _prepareRestore(this, snapshot, selection, conflictPolicy, access);
 
   Future<BackupSnapshot> capture(BackupSelection selection) =>
       ConfigurationWrites.run(() async {
@@ -167,11 +169,11 @@ class BackupRepository {
 
   /// Apply only selected groups. A connection is a complete record: an old
   /// endpoint is never combined with the imported endpoint's token/password.
-  Future<void> restore(
+  Future<_PreparedChanges> _buildChanges(
     BackupSnapshot snapshot,
-    BackupSelection selection, {
-    BackupConflictPolicy conflictPolicy = BackupConflictPolicy.keepExisting,
-  }) => ConfigurationWrites.run(() async {
+    BackupSelection selection,
+    BackupConflictPolicy conflictPolicy,
+  ) async {
     final json = snapshot.toJson();
     // Validate every group, including ones the user chose not to restore.
     validateBackupJson(json);
@@ -297,10 +299,7 @@ class BackupRepository {
         }
       }
       await _requireStableConnections(affectedServices);
-      if (changes.isEmpty) return;
-      final journal = _encodeJournal(changes);
-      // Persist rollback data before the first preference/credential mutation.
-      await _storage.writeSecret(restoreJournalKey, journal);
+      return _PreparedChanges(changes, affectedServices.toList());
     } on BackupException {
       rethrow;
     } catch (_) {
@@ -308,6 +307,21 @@ class BackupRepository {
         'storage_failed',
         'Restore could not be prepared.',
       );
+    }
+  }
+
+  Future<void> restore(
+    BackupSnapshot snapshot,
+    BackupSelection selection, {
+    BackupConflictPolicy conflictPolicy = BackupConflictPolicy.keepExisting,
+  }) => ConfigurationWrites.run(() async {
+    final plan = await _buildChanges(snapshot, selection, conflictPolicy);
+    final changes = plan.changes, affectedServices = plan.services;
+    if (changes.isEmpty) return;
+    try {
+      await _storage.writeSecret(restoreJournalKey, _encodeJournal(changes));
+    } catch (_) {
+      throw const BackupException('storage_failed', 'Restore could not be prepared.');
     }
     try {
       await _requireStableConnections(affectedServices);
@@ -336,6 +350,9 @@ class BackupRepository {
     final String? raw;
     try {
       raw = await _storage.readSecret(restoreJournalKey);
+      final newer = await _storage.readSecret(_journalV2Key);
+      if (raw != null && newer != null) _recoveryRequired();
+      if (newer != null) return await _recoverV2(this);
     } catch (_) {
       throw const BackupRestoreException(rollbackComplete: false);
     }
@@ -349,7 +366,7 @@ class BackupRepository {
 
   Future<void> _requireRecovered() async {
     try {
-      if (await _storage.readSecret(restoreJournalKey) != null) {
+      if (await _storage.readSecret(restoreJournalKey) != null || await _storage.readSecret(_journalV2Key) != null) {
         throw const BackupException(
           'recovery_required',
           'An interrupted restore needs recovery before continuing.',
