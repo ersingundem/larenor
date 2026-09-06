@@ -2,6 +2,8 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../l10n/generated/app_localizations.dart';
+import '../features/backup/data/backup_repository.dart';
+import '../features/backup/data/backup_snapshot.dart';
 
 /// Owns the lifetime of every configuration-dependent provider and route.
 /// Restoring credentials disposes the old session before persistence begins;
@@ -29,6 +31,16 @@ class ConfigurationScope extends StatefulWidget {
       failureLabel: failureLabel,
       continueLabel: continueLabel,
     );
+  }
+
+  static Future<void> restorePrepared(
+    BuildContext context, {
+    required PreparedBackupRestore prepared,
+    required String progressLabel,
+    required String failureLabel,
+    required String continueLabel,
+  }) async {
+    throw const BackupException('restore_expired', 'Read the restore preview again.');
   }
 
   @override
