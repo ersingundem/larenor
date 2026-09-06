@@ -362,6 +362,7 @@ class _ServerServicesScreenState
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Semantics(
+              container: true,
               header: true,
               child: Text(service.name, style: AppText.headline),
             ),
@@ -828,6 +829,7 @@ class _ServiceFormState extends State<_ServiceForm> {
                     alignment: WrapAlignment.center,
                     children: [
                       CupertinoButton(
+                        focusColor: CupertinoTheme.of(context).primaryColor,
                         onPressed: () {
                           if (widget.current() && !_submitted) {
                             _clear();
@@ -838,6 +840,7 @@ class _ServiceFormState extends State<_ServiceForm> {
                       ),
                       CupertinoButton(
                         key: const ValueKey('service-submit'),
+                        focusColor: CupertinoTheme.of(context).primaryColor,
                         onPressed: _submit,
                         child: Text(l10n.commonSave),
                       ),
@@ -879,7 +882,6 @@ class _ServiceFormState extends State<_ServiceForm> {
             autocorrect: false,
             enableSuggestions: false,
             textInputAction: TextInputAction.next,
-            onSubmitted: (_) => FocusScope.of(context).nextFocus(),
             padding: const EdgeInsets.all(12),
             ),
           ),
