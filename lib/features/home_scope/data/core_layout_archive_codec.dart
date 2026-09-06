@@ -36,7 +36,10 @@ final class CoreLayoutArchiveCodec {
     }
   }
 
-  Future<Uint8List> encrypt(CoreLayoutArchiveV1 archive, String passphrase) async {
+  Future<Uint8List> encrypt(
+    CoreLayoutArchiveV1 archive,
+    String passphrase,
+  ) async {
     validatePassphrase(passphrase);
     try {
       return await Isolate.run(() => _encrypt(archive, passphrase));
@@ -47,7 +50,10 @@ final class CoreLayoutArchiveCodec {
     }
   }
 
-  Future<CoreLayoutArchiveV1> decrypt(Uint8List bytes, String passphrase) async {
+  Future<CoreLayoutArchiveV1> decrypt(
+    Uint8List bytes,
+    String passphrase,
+  ) async {
     validatePassphrase(passphrase);
     if (bytes.length > maxFileBytes) throw _tooLarge;
     // Parse/copy and validate all imported algorithm/cost/length fields before
@@ -80,7 +86,10 @@ Future<SecretKey> _derive(String passphrase, List<int> salt) =>
       bits: 256,
     ).deriveKeyFromPassword(password: passphrase, nonce: salt);
 
-Future<Uint8List> _encrypt(CoreLayoutArchiveV1 archive, String passphrase) async {
+Future<Uint8List> _encrypt(
+  CoreLayoutArchiveV1 archive,
+  String passphrase,
+) async {
   final random = Random.secure();
   final salt = List<int>.generate(16, (_) => random.nextInt(256));
   final cipher = AesGcm.with256bits();
@@ -89,7 +98,9 @@ Future<Uint8List> _encrypt(CoreLayoutArchiveV1 archive, String passphrase) async
   final plain = Uint8List.fromList(utf8.encode(archive.encode()));
   SecretKey? key;
   try {
-    if (plain.isEmpty || plain.length > maxCoreLayoutArchiveBytes) throw _tooLarge;
+    if (plain.isEmpty || plain.length > maxCoreLayoutArchiveBytes) {
+      throw _tooLarge;
+    }
     key = await _derive(passphrase, salt);
     final box = await cipher.encrypt(
       plain,
@@ -97,11 +108,15 @@ Future<Uint8List> _encrypt(CoreLayoutArchiveV1 archive, String passphrase) async
       nonce: nonce,
       aad: utf8.encode(jsonEncode(header)),
     );
-    final result = Uint8List.fromList(utf8.encode(jsonEncode({
-      ...header,
-      'ciphertext': base64Encode(box.cipherText),
-      'tag': base64Encode(box.mac.bytes),
-    })));
+    final result = Uint8List.fromList(
+      utf8.encode(
+        jsonEncode({
+          ...header,
+          'ciphertext': base64Encode(box.cipherText),
+          'tag': base64Encode(box.mac.bytes),
+        }),
+      ),
+    );
     if (result.length > CoreLayoutArchiveCodec.maxFileBytes) throw _tooLarge;
     return result;
   } finally {
@@ -120,10 +135,16 @@ final class _Envelope {
 _Envelope _readEnvelope(Uint8List bytes) {
   try {
     final json = _object(jsonDecode(utf8.decode(bytes)), const {
-      'format', 'version', 'kdf', 'cipher', 'ciphertext', 'tag',
+      'format',
+      'version',
+      'kdf',
+      'cipher',
+      'ciphertext',
+      'tag',
     });
     if (json['format'] != 'larenor-core-layout-archive' ||
-        json['version'] is! int || json['version'] != 1) {
+        json['version'] is! int ||
+        json['version'] != 1) {
       throw _invalid;
     }
     final kdf = _object(json['kdf'], const {'name', 'iterations', 'salt'});
@@ -148,7 +169,8 @@ _Envelope _readEnvelope(Uint8List bytes) {
 }
 
 Map<String, dynamic> _object(Object? value, Set<String> keys) {
-  if (value is! Map<String, dynamic> || value.length != keys.length ||
+  if (value is! Map<String, dynamic> ||
+      value.length != keys.length ||
       !keys.containsAll(value.keys)) {
     throw _invalid;
   }
@@ -167,7 +189,10 @@ Uint8List _base64(Object? value, {int? exactLength, int? maximumLength}) {
   return bytes;
 }
 
-Future<CoreLayoutArchiveV1> _decrypt(_Envelope envelope, String passphrase) async {
+Future<CoreLayoutArchiveV1> _decrypt(
+  _Envelope envelope,
+  String passphrase,
+) async {
   SecretKey? key;
   List<int>? plain;
   try {
@@ -181,7 +206,9 @@ Future<CoreLayoutArchiveV1> _decrypt(_Envelope envelope, String passphrase) asyn
       secretKey: key,
       aad: utf8.encode(jsonEncode(_header(envelope.salt, envelope.nonce))),
     );
-    if (plain.isEmpty || plain.length > maxCoreLayoutArchiveBytes) throw _tooLarge;
+    if (plain.isEmpty || plain.length > maxCoreLayoutArchiveBytes) {
+      throw _tooLarge;
+    }
     return CoreLayoutArchiveV1.decode(utf8.decode(plain));
   } on SecretBoxAuthenticationError {
     throw const CoreLayoutArchiveCodecException('decrypt_failed');
