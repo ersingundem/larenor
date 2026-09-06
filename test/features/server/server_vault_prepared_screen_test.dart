@@ -3,6 +3,7 @@ import 'dart:ui' show ViewFocusEvent, ViewFocusState, ViewFocusDirection;
 
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter/semantics.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -176,13 +177,22 @@ Future<void> tap(WidgetTester tester, String key) async {
   await flush(tester);
 }
 
+int _labelCount(SemanticsNode node, String label) {
+  var count = node.label == label ? 1 : 0;
+  node.visitChildren((child) {
+    count += _labelCount(child, label);
+    return true;
+  });
+  return count;
+}
+
 void main() {
   for (final language in ['en', 'tr']) {
     for (final width in [320.0, 600.0, 1280.0]) {
       testWidgets('Vault confirmation semantics $language $width at 2x', (tester) async {
         await loadFonts(tester);
         final semantics = tester.ensureSemantics();
-        addTearDown(semantics.dispose);
+        try {
         final h = _Harness();
         await h.mount(tester, language: language, width: width, scale: 2);
         final dialog = find.byType(CupertinoAlertDialog);
@@ -199,7 +209,7 @@ void main() {
           final node = tester.getSemantics(action);
           expect(node.flagsCollection.isButton, isTrue);
           expect(node.label, label);
-          expect(find.bySemanticsLabel(RegExp('^${RegExp.escape(label)}\$')), findsOneWidget);
+          expect(_labelCount(node.owner!.rootSemanticsNode!, label), 1);
         }
         expect(tester.takeException(), isNull);
         await tester.tap(find.widgetWithText(CupertinoDialogAction, l10n.commonCancel));
@@ -209,6 +219,9 @@ void main() {
         expect(h.api.writes, 0);
         expect(h.api.reads, 1);
         expect(h.disposals, 0);
+        } finally {
+          semantics.dispose();
+        }
       });
       testWidgets('Vault confirmation keyboard cancel $language $width at 2x', (tester) async {
         await loadFonts(tester);

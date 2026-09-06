@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
@@ -276,23 +277,21 @@ class _ServerVaultScreenState extends MediaSessionState<ServerVaultScreen> {
             '${uploading ? l10n.serverVaultReplaceHint : l10n.backupApplyMessage}',
           ),
           actions: [
-            CupertinoDialogAction(
+            _VaultDialogAction(
               onPressed: () {
                 if (routeIsCurrent(epoch)) Navigator.of(context).pop(false);
               },
-              child: Text(l10n.commonCancel),
+              label: l10n.commonCancel,
             ),
-            CupertinoDialogAction(
-              key: const ValueKey('server-vault-confirm'),
+            _VaultDialogAction(
+              actionKey: const ValueKey('server-vault-confirm'),
               isDestructiveAction:
                   uploading ||
                   review.conflictPolicy == BackupConflictPolicy.replaceSelected,
               onPressed: () {
                 if (routeIsCurrent(epoch)) Navigator.of(context).pop(true);
               },
-              child: Text(
-                uploading ? l10n.serverVaultUpload : l10n.backupApply,
-              ),
+              label: uploading ? l10n.serverVaultUpload : l10n.backupApply,
             ),
           ],
         );
@@ -633,4 +632,69 @@ class _ServerVaultScreenState extends MediaSessionState<ServerVaultScreen> {
       ],
     );
   }
+}
+
+/// Preserve native dialog styling while exposing both accessible action modes.
+class _VaultDialogAction extends StatefulWidget {
+  const _VaultDialogAction({
+    this.actionKey,
+    required this.onPressed,
+    required this.label,
+    this.isDestructiveAction = false,
+  });
+
+  final Key? actionKey;
+  final VoidCallback onPressed;
+  final String label;
+  final bool isDestructiveAction;
+
+  @override
+  State<_VaultDialogAction> createState() => _VaultDialogActionState();
+}
+
+class _VaultDialogActionState extends State<_VaultDialogAction> {
+  bool _focused = false;
+
+  @override
+  Widget build(BuildContext context) => CupertinoDialogAction(
+    key: widget.actionKey,
+    onPressed: widget.onPressed,
+    isDestructiveAction: widget.isDestructiveAction,
+    child: FocusableActionDetector(
+      onShowFocusHighlight: (value) => setState(() => _focused = value),
+      shortcuts: const {
+        SingleActivator(LogicalKeyboardKey.enter): ActivateIntent(),
+        SingleActivator(LogicalKeyboardKey.space): ActivateIntent(),
+      },
+      actions: {
+        ActivateIntent: CallbackAction<ActivateIntent>(
+          onInvoke: (_) {
+            widget.onPressed();
+            return null;
+          },
+        ),
+      },
+      child: Semantics(
+        button: true,
+        enabled: true,
+        label: widget.label,
+        onTap: widget.onPressed,
+        excludeSemantics: true,
+        child: Container(
+          constraints: const BoxConstraints(minHeight: 32),
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            border: Border.all(
+              width: 2,
+              color: _focused
+                  ? CupertinoTheme.of(context).primaryColor
+                  : CupertinoColors.transparent,
+            ),
+            borderRadius: BorderRadius.circular(4),
+          ),
+          child: Text(widget.label),
+        ),
+      ),
+    ),
+  );
 }
