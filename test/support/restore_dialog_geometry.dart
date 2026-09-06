@@ -25,7 +25,11 @@ List<String> restoreDialogGeometryFailures(
   visit(root);
   for (final label in labels) {
     final matches = nodes
-        .where((n) => n.getSemanticsData().label == label && n.getSemanticsData().flagsCollection.isButton)
+        .where(
+          (n) =>
+              n.getSemanticsData().label == label &&
+              n.getSemanticsData().flagsCollection.isButton,
+        )
         .toList();
     if (matches.length != 1) {
       failures.add('$label: ${matches.length} effective nodes');
