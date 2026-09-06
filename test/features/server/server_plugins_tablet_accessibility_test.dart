@@ -9,12 +9,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
-import 'package:larenor/shared/widgets/settings_section.dart';
+import 'package:larenor/core/app_interaction_scope.dart';
 import 'package:larenor/core/theme.dart';
-import 'package:larenor/features/server/plugins/presentation/server_plugins_screen.dart';
 import 'package:larenor/features/server/plugins/presentation/server_plugin_jobs_screen.dart';
+import 'package:larenor/features/server/plugins/presentation/server_plugins_screen.dart';
 import 'package:larenor/features/server/providers/server_providers.dart';
 import 'package:larenor/l10n/generated/app_localizations.dart';
+import 'package:larenor/shared/widgets/settings_section.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../home_resources/home_resources_tablet_test.dart' show loadFonts;
@@ -29,6 +30,7 @@ void main() {
     double width = 600,
     bool dark = false,
     bool safeInsets = false,
+    AppInteractionController? interaction,
   }) async {
     await loadFonts(tester);
     boundary = GlobalKey();
@@ -58,7 +60,12 @@ void main() {
           builder: (context, child) => MediaQuery(
             data: MediaQuery.of(context)
                 .copyWith(textScaler: const TextScaler.linear(2)),
-            child: RepaintBoundary(key: boundary, child: child!),
+            child: RepaintBoundary(
+              key: boundary,
+              child: interaction == null
+                  ? child!
+                  : AppInteractionScope(controller: interaction, child: child!),
+            ),
           ),
           home: const ServerPluginsScreen(),
         ),
@@ -307,6 +314,49 @@ void main() {
       }
     },
   );
+  for (final retirement in ['route', 'idle']) {
+    testWidgets(
+      '$retirement before focus frame prevents a stale scroll or action',
+      (tester) async {
+        final interaction = AppInteractionController();
+        addTearDown(interaction.dispose);
+        await mount(tester, interaction: interaction);
+        final preview = key('plugin-review-jellyfin');
+        await visible(tester, preview);
+        // Place the action at the viewport edge so its ring needs a reveal.
+        final position = Scrollable.of(tester.element(preview)).position;
+        final action = tester.widget<CupertinoButton>(preview).onPressed!;
+        expect(
+          tester.getRect(preview).top - 3.5,
+          lessThan(tester.getRect(find.byType(CupertinoNavigationBar)).bottom),
+          reason: 'the queued focus reveal has a clipped ring to correct',
+        );
+        final node = focus(tester, preview);
+        node.requestFocus();
+        FocusManager.instance.applyFocusChangesIfNeeded();
+        final before = position.pixels, requests = fixture.calls.length;
+        if (retirement == 'route') {
+          unawaited(
+            Navigator.of(tester.element(preview)).push(
+              CupertinoPageRoute<void>(
+                builder: (_) =>
+                    const CupertinoPageScaffold(child: Text('Covered')),
+              ),
+            ),
+          );
+        } else {
+          interaction.setActive(false);
+        }
+        await tester.pumpAndSettle();
+        expect(position.pixels, before);
+        action();
+        await tester.pumpAndSettle();
+        expect(fixture.calls.length, requests);
+        expect(fixture.mutations, isEmpty);
+        expect(tester.takeException(), isNull);
+      },
+    );
+  }
   testWidgets('already visible toolbar Tab preserves scroll offset', (
     tester,
   ) async {

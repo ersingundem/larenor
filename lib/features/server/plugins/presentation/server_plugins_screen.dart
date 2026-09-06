@@ -454,8 +454,9 @@ Widget _catalogButton(
                 !identical(FocusManager.instance.primaryFocus, node) ||
                 !current() ||
                 ModalRoute.of(buttonContext)?.isCurrent != true ||
-                !TickerMode.of(buttonContext))
+                !TickerMode.valuesOf(buttonContext).enabled) {
               return;
+            }
             final box = buttonContext.findRenderObject();
             final viewport = RenderAbstractViewport.maybeOf(box);
             if (box is! RenderBox || viewport is! RenderBox) return;
