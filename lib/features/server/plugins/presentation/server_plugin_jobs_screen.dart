@@ -2,7 +2,9 @@ import 'dart:async';
 
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/scheduler.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
@@ -173,19 +175,19 @@ class _ServerPluginJobsScreenState
           title: Text(l10n.serverJobsCancelTitle),
           content: Text(l10n.serverJobsCancelBody),
           actions: [
-            CupertinoDialogAction(
+            _JobDialogAction(
               onPressed: () {
                 if (valid()) Navigator.pop(dialogContext, false);
               },
-              child: Text(l10n.commonBack),
+              label: l10n.commonBack,
             ),
-            CupertinoDialogAction(
-              key: const ValueKey('jobs-cancel-confirm'),
+            _JobDialogAction(
+              actionKey: const ValueKey('jobs-cancel-confirm'),
               isDestructiveAction: true,
               onPressed: () {
                 if (valid()) Navigator.pop(dialogContext, true);
               },
-              child: Text(l10n.serverJobsCancel),
+              label: l10n.serverJobsCancel,
             ),
           ],
         );
@@ -239,7 +241,11 @@ class _ServerPluginJobsScreenState
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text(title, style: AppText.headline),
+            Semantics(
+              container: true,
+              header: true,
+              child: Text(title, style: AppText.headline),
+            ),
             const SizedBox(height: 12),
             ...children,
           ],
@@ -317,7 +323,9 @@ class _ServerPluginJobsScreenState
                       ),
                     if (_jobs.canRetryLaunch)
                       _section(l10n.serverJobsRecovery, [
-                        CupertinoButton(
+                        _jobButton(
+                          context,
+                          current: _capture(),
                           key: const ValueKey('jobs-recover'),
                           onPressed: _enabled
                               ? _callback(
@@ -345,7 +353,9 @@ class _ServerPluginJobsScreenState
                                 ? l10n.serverJobsConfigured
                                 : l10n.serverJobsUnconfigured,
                           ),
-                        CupertinoButton(
+                        _jobButton(
+                          context,
+                          current: _capture(),
                           key: const ValueKey('jobs-launch'),
                           onPressed:
                               _enabled &&
@@ -366,11 +376,17 @@ class _ServerPluginJobsScreenState
                         padding: const EdgeInsets.symmetric(horizontal: 20),
                         child: Wrap(
                           children: [
-                            Text(
-                              l10n.serverJobsHistory,
-                              style: AppText.headline,
+                            Semantics(
+                              container: true,
+                              header: true,
+                              child: Text(
+                                l10n.serverJobsHistory,
+                                style: AppText.headline,
+                              ),
                             ),
-                            CupertinoButton(
+                            _jobButton(
+                              context,
+                              current: _capture(),
                               key: const ValueKey('jobs-refresh'),
                               onPressed: _enabled ? _callback(_load) : null,
                               child: Text(l10n.commonRefresh),
@@ -389,7 +405,9 @@ class _ServerPluginJobsScreenState
                           Text(
                             '${job.platform} · ${_date(l10n, job.createdAt)}',
                           ),
-                          CupertinoButton(
+                          _jobButton(
+                            context,
+                            current: _capture(),
                             key: ValueKey('job-view-${job.id}'),
                             onPressed: _enabled
                                 ? _callback(
@@ -397,11 +415,17 @@ class _ServerPluginJobsScreenState
                                         _jobs.select(job, current: current),
                                   )
                                 : null,
-                            child: Text(l10n.serverJobsView),
+                            child: Text(
+                              l10n.serverJobsView,
+                              semanticsLabel:
+                                  '${_service(l10n, job.serviceId)} · ${_state(l10n, job.state)} · ${_date(l10n, job.createdAt)} · ${l10n.serverJobsView}',
+                            ),
                           ),
                         ]),
                       if (_jobs.nextBefore != null && _jobs.jobs.length < 250)
-                        CupertinoButton(
+                        _jobButton(
+                          context,
+                          current: _capture(),
                           key: const ValueKey('jobs-more'),
                           onPressed: _enabled
                               ? _callback(
@@ -433,7 +457,9 @@ class _ServerPluginJobsScreenState
       if (_jobs.pollingPaused) Text(l10n.serverJobsPollingPaused),
       Wrap(
         children: [
-          CupertinoButton(
+          _jobButton(
+            context,
+            current: _capture(),
             key: const ValueKey('job-refresh'),
             onPressed: _enabled
                 ? _callback(
@@ -443,14 +469,18 @@ class _ServerPluginJobsScreenState
             child: Text(l10n.commonRefresh),
           ),
           if (job.active && !job.cancelRequested)
-            CupertinoButton(
+            _jobButton(
+              context,
+              current: _capture(),
               key: const ValueKey('jobs-cancel'),
               onPressed: _enabled && _jobs.failure == null
                   ? _callback(_cancel)
                   : null,
               child: Text(l10n.serverJobsCancel),
             ),
-          CupertinoButton(
+          _jobButton(
+            context,
+            current: _capture(),
             key: const ValueKey('jobs-history'),
             onPressed: _enabled
                 ? _callback((_) => _jobs.clearSelected())
@@ -498,7 +528,9 @@ class _ServerPluginJobsScreenState
             ),
           ),
         if (_jobs.nextAfter != null && _jobs.events.length < 250)
-          CupertinoButton(
+          _jobButton(
+            context,
+            current: _capture(),
             key: const ValueKey('job-more-events'),
             onPressed: _enabled
                 ? _callback((current) => _jobs.loadMoreEvents(current: current))
@@ -507,6 +539,135 @@ class _ServerPluginJobsScreenState
           ),
       ]),
   ];
+}
+
+// Preserve the native action and its captured authority while keeping the
+// label separate from surrounding job metadata and the focus ring visible.
+Widget _jobButton(
+  BuildContext context, {
+  required bool Function() current,
+  Key? key,
+  required VoidCallback? onPressed,
+  required Widget child,
+}) => Semantics(
+  container: true,
+  enabled: onPressed != null,
+  blockUserActions: onPressed == null,
+  child: Padding(
+    padding: const EdgeInsets.all(4),
+    child: Builder(
+      builder: (buttonContext) => CupertinoButton(
+        key: key,
+        minimumSize: const Size(48, 48),
+        focusColor: CupertinoTheme.of(context).primaryColor,
+        onFocusChange: (focused) {
+          if (!focused || onPressed == null) return;
+          final node = FocusManager.instance.primaryFocus;
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            // Read geometry after native Tab scrolling has laid out its offset.
+            // An old focus notification cannot scroll a retired or covered page.
+            if (!buttonContext.mounted ||
+                node == null ||
+                !node.hasPrimaryFocus ||
+                !identical(FocusManager.instance.primaryFocus, node) ||
+                !current() ||
+                ModalRoute.of(buttonContext)?.isCurrent != true ||
+                !TickerMode.valuesOf(buttonContext).enabled) {
+              return;
+            }
+            final box = buttonContext.findRenderObject();
+            final viewport = RenderAbstractViewport.maybeOf(box);
+            if (box is! RenderBox || viewport is! RenderBox) return;
+            final ring =
+                (box.localToGlobal(Offset.zero, ancestor: viewport) & box.size)
+                    .inflate(4);
+            final visible = Offset.zero & (viewport as RenderBox).size;
+            // Native Tab reveals the button edge; its focus ring paints outside.
+            // Reveal only a clipped ring and leave already visible rows still.
+            if (ring.top < visible.top ||
+                ring.bottom > visible.bottom ||
+                ring.left < visible.left ||
+                ring.right > visible.right) {
+              Scrollable.ensureVisible(buttonContext, alignment: .5);
+            }
+          });
+        },
+        onPressed: onPressed,
+        child: child,
+      ),
+    ),
+  ),
+);
+
+/// Preserve native dialog styling while exposing both accessible action modes.
+class _JobDialogAction extends StatefulWidget {
+  const _JobDialogAction({
+    this.actionKey,
+    required this.onPressed,
+    required this.label,
+    this.isDestructiveAction = false,
+  });
+
+  final Key? actionKey;
+  final VoidCallback onPressed;
+  final String label;
+  final bool isDestructiveAction;
+
+  @override
+  State<_JobDialogAction> createState() => _JobDialogActionState();
+}
+
+class _JobDialogActionState extends State<_JobDialogAction> {
+  bool _focused = false;
+
+  @override
+  Widget build(BuildContext context) => ConstrainedBox(
+    constraints: const BoxConstraints(minHeight: 48),
+    child: CupertinoDialogAction(
+      key: widget.actionKey,
+      onPressed: widget.onPressed,
+      isDestructiveAction: widget.isDestructiveAction,
+      child: FocusableActionDetector(
+        onShowFocusHighlight: (value) => setState(() => _focused = value),
+        shortcuts: const {
+          SingleActivator(LogicalKeyboardKey.enter): ActivateIntent(),
+          SingleActivator(LogicalKeyboardKey.space): ActivateIntent(),
+        },
+        actions: {
+          ActivateIntent: CallbackAction<ActivateIntent>(
+            onInvoke: (_) {
+              widget.onPressed();
+              return null;
+            },
+          ),
+        },
+        child: Semantics(
+          button: true,
+          enabled: true,
+          label: widget.label,
+          onTap: widget.onPressed,
+          excludeSemantics: true,
+          child: Container(
+            constraints: const BoxConstraints(minHeight: 32),
+            decoration: BoxDecoration(
+              border: Border.all(
+                width: 2,
+                color: _focused
+                    ? CupertinoTheme.of(context).primaryColor
+                    : CupertinoColors.transparent,
+              ),
+              borderRadius: BorderRadius.circular(4),
+            ),
+            child: Center(
+              widthFactor: 1,
+              heightFactor: 1,
+              child: Text(widget.label),
+            ),
+          ),
+        ),
+      ),
+    ),
+  );
 }
 
 String _state(AppLocalizations l10n, String state) => switch (state) {
