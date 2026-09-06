@@ -64,6 +64,24 @@ class CoreHomeStatusScreen extends ConsumerWidget {
                               ),
                               const SizedBox(height: 16),
                               Text(l10n.homeCoreUnavailable),
+                              if (controller.account.failure case
+                                  'storage_failed' || 'logout_not_confirmed')
+                                Padding(
+                                  padding: const EdgeInsets.only(top: 16),
+                                  child: Semantics(
+                                    liveRegion: true,
+                                    child: Text(
+                                      controller.account.failure ==
+                                              'storage_failed'
+                                          ? l10n.serverFailureStorage
+                                          : l10n.serverLogoutUnconfirmed,
+                                      style: TextStyle(
+                                        color: CupertinoColors.systemRed
+                                            .resolveFrom(context),
+                                      ),
+                                    ),
+                                  ),
+                                ),
                               const SizedBox(height: 24),
                               SettingsSection(
                                 children: [

@@ -360,7 +360,7 @@ class ServerAccountController extends ChangeNotifier {
 
   Future<void> signOut() async {
     if (_disposed) return;
-    final old = _pendingSession ?? _session;
+    var old = _pendingSession ?? _session;
     final generation = ++_generation;
     _api?.close();
     _api = null;
@@ -374,7 +374,11 @@ class ServerAccountController extends ChangeNotifier {
     _failure = null;
     _emit();
     try {
-      await _persist(null, generation);
+      final result = await _persistLogout(old, generation);
+      old = result.previous;
+      if (result.storageFailed && isCurrent(generation)) {
+        _failure = 'storage_failed';
+      }
     } catch (_) {
       if (isCurrent(generation)) _failure = 'storage_failed';
     }
@@ -497,6 +501,53 @@ class ServerAccountController extends ChangeNotifier {
     final operation = _writes.then((_) async {
       _check(generation);
       await _store.write(value);
+    });
+    _writes = operation.then<void>(
+      (_) {},
+      onError: (Object _, StackTrace _) {},
+    );
+    return operation;
+  }
+
+  Future<({ServerSession? previous, bool storageFailed})> _persistLogout(
+    ServerSession? known,
+    int generation,
+  ) {
+    final operation = _writes.then((_) async {
+      _check(generation);
+      var previous = known;
+      var storageFailed = false;
+      // Initialize may still be reading the record, or an earlier logout may
+      // already have retired the in-memory pair. Read only inside the write
+      // queue, after any already-dispatched authentication save has finished.
+      if (previous == null) {
+        try {
+          previous = await _store.read();
+        } catch (_) {
+          storageFailed = true;
+        }
+        _check(generation);
+      }
+      if (previous != null) {
+        try {
+          // A failed delete must not leave a normally resumable token record.
+          // The existing intent envelope is rejected before any startup HTTP.
+          await _store.write(previous.withAuthMutationPending());
+        } catch (_) {
+          storageFailed = true;
+        }
+        _check(generation);
+      }
+      // Even if the intent could not be confirmed, try the explicit deletion.
+      // If every persistence operation and remote revoke fail, only this
+      // process can be retired; preserve an honest storage failure for the UI.
+      try {
+        await _store.write(null);
+      } catch (_) {
+        storageFailed = true;
+      }
+      _check(generation);
+      return (previous: previous, storageFailed: storageFailed);
     });
     _writes = operation.then<void>(
       (_) {},
