@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/cupertino.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:larenor/features/dashboard/domain/tile_config.dart';
 import 'package:larenor/features/dashboard/presentation/tiles/webview_tile.dart';
@@ -211,42 +212,44 @@ class _Harness {
       mounted.dispose();
     });
     await tester.pumpWidget(
-      CupertinoApp(
-        locale: const Locale('en'),
-        localizationsDelegates: AppLocalizations.localizationsDelegates,
-        supportedLocales: AppLocalizations.supportedLocales,
-        home: Builder(
-          builder: (context) {
-            l10n = AppLocalizations.of(context);
-            return CupertinoPageScaffold(
-              child: Center(
-                child: SizedBox(
-                  width: 300,
-                  height: 250,
-                  child: ListenableBuilder(
-                    listenable: Listenable.merge([url, visible, mounted]),
-                    builder: (_, _) => TickerMode(
-                      enabled: visible.value,
-                      child: mounted.value
-                          ? WebviewTile(
-                              key: const ValueKey('card'),
-                              tile: TileConfig(
-                                id: 'website',
-                                type: TileType.webview,
-                                x: 0,
-                                y: 0,
-                                width: 2,
-                                height: 2,
-                                url: url.value,
-                              ),
-                            )
-                          : const SizedBox(),
+      ProviderScope(
+        child: CupertinoApp(
+          locale: const Locale('en'),
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: Builder(
+            builder: (context) {
+              l10n = AppLocalizations.of(context);
+              return CupertinoPageScaffold(
+                child: Center(
+                  child: SizedBox(
+                    width: 300,
+                    height: 250,
+                    child: ListenableBuilder(
+                      listenable: Listenable.merge([url, visible, mounted]),
+                      builder: (_, _) => TickerMode(
+                        enabled: visible.value,
+                        child: mounted.value
+                            ? WebviewTile(
+                                key: const ValueKey('card'),
+                                tile: TileConfig(
+                                  id: 'website',
+                                  type: TileType.webview,
+                                  x: 0,
+                                  y: 0,
+                                  width: 2,
+                                  height: 2,
+                                  url: url.value,
+                                ),
+                              )
+                            : const SizedBox(),
+                      ),
                     ),
                   ),
                 ),
-              ),
-            );
-          },
+              );
+            },
+          ),
         ),
       ),
     );
