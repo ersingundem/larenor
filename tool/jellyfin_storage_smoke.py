@@ -53,7 +53,7 @@ def native_platform(environment, system, machine, uid):
 def child_environment(root):
     return {'PATH': '/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin',
         'HOME': str(root), 'DOCKER_CONFIG': str(root/'docker-config'),
-        'DOCKER_API_VERSION': '1.47', 'LANG': 'C.UTF-8'}
+        'DOCKER_API_VERSION': '1.47', 'DOCKER_BUILDKIT': '0', 'LANG': 'C.UTF-8'}
 
 
 def bounded_command(arguments, *, environment, timeout=60, limit=65536):
@@ -224,7 +224,147 @@ def helper_attestation(image_id, inspected, selected_platform, commit):
     return {'configDigest': image_id, 'platform': selected_platform, 'sourceCommit': commit,
         'publishedManifestDigest': None,
         'helperSourceSha256': digest('tool/volume_bootstrap_helper.py'),
+        'probeSourceSha256': digest('tool/jellyfin_storage_probe.py'),
         'dockerfileSha256': digest('server/Dockerfile.volume-bootstrap')}
+
+
+def verify_container(value, source, image_config):
+    require(type(value) is dict and value.get('Image') == source.image.image.configDigest)
+    config, host = value.get('Config',{}), value.get('HostConfig',{})
+    require(config.get('User') == '1000:1000' and host.get('NetworkMode') == 'none'
+        and not host.get('PortBindings') and host.get('Privileged') is False
+        and host.get('CapDrop') == ['ALL'])
+    for key in ('Entrypoint','Cmd','Volumes'):
+        require(config.get(key) == image_config.get(key))
+    mounts, requested = value.get('Mounts'), host.get('Mounts')
+    require(type(mounts) is list and len(mounts) == 2 and type(requested) is list and len(requested) == 2)
+    for target in source.targets:
+        actual = [m for m in mounts if m.get('Destination') == target.target]
+        desired = [m for m in requested if m.get('Target') == target.target]
+        require(len(actual) == len(desired) == 1)
+        require(actual[0].get('Type') == 'volume' and actual[0].get('Name') == target.name
+            and actual[0].get('Driver') == 'local' and actual[0].get('RW') is True)
+        require(desired[0].get('Type') == 'volume' and desired[0].get('Source') == target.name
+            and desired[0].get('ReadOnly',False) is False
+            and desired[0].get('VolumeOptions',{}).get('NoCopy') is True)
+    require(not host.get('Binds') and not host.get('VolumesFrom'))
+
+
+def _decoded(raw):
+    try:
+        return json.loads(raw)
+    except (ValueError, TypeError):
+        raise SmokeError('fixture_protocol_failed') from None
+
+
+def _helper(daemon, image_id, mode, *, target=None, bootstrap=False, network='none'):
+    args = ['run','--rm','--network='+network,'--read-only','--cap-drop=ALL',
+        '--security-opt=no-new-privileges','--pids-limit=32','--memory=64m',
+        '--user='+('0:0' if bootstrap else '1000:1000')]
+    if bootstrap:
+        if mode == 'initialize_empty_root':
+            args.append('--cap-add=CHOWN')
+    else:
+        args += ['--entrypoint=/usr/local/bin/python']
+    if target is not None:
+        args += ['--mount=type=volume,src='+target.name+',dst=/volume,volume-nocopy']
+    args += [image_id]
+    if not bootstrap:
+        args += ['-I','/opt/larenor/jellyfin_storage_probe.py']
+    args += [mode]
+    return _decoded(daemon.docker(args, timeout=20, limit=4096))
+
+
+def _health(daemon, helper_id, container_id):
+    deadline = time.monotonic()+180
+    while time.monotonic() < deadline:
+        try:
+            value = _helper(daemon, helper_id, 'health', network='container:'+container_id)
+            require(type(value) is dict and value.get('version') == '10.11.11'
+                and value.get('wizardCompleted') is False
+                and re.fullmatch(r'[0-9a-f]{32}', value.get('id','')))
+            return value
+        except SmokeError:
+            time.sleep(1)
+    raise SmokeError('jellyfin_startup_timeout')
+
+
+def characterize(daemon, *, source=None, images=None, volumes=None):
+    """The real consumer: two volumes, bootstrap, NoCopy/start/restart or fail.
+
+    Optional objects are private offline-test seams, not CLI/runtime inputs.
+    A new context never replays another daemon's state; cleanup is whole owned
+    namespace shutdown, never Docker prune or removal of externally named data.
+    """
+    from larenor_server.plugins.docker_probe import DockerEndpoint
+    from larenor_server.plugins.image_resources import UnixImageEngine, image_binding
+    from larenor_server.plugins.volume_effects import UnixVolumeCreator
+    source = fixture_source(daemon.platform) if source is None else source
+    endpoint = DockerEndpoint(str(daemon.root/'engine.sock'), owner_uid=0)
+    images = UnixImageEngine(endpoint) if images is None else images
+    volumes = UnixVolumeCreator(endpoint) if volumes is None else volumes
+    receipt = prepare_storage(daemon.root, source, images, volumes)
+    binding = image_binding(source.plan, source.stack, source.catalog, source.policy, source.image.resourceId)
+    observed = images.inspect(binding)
+    require(observed is not None and observed.image_id == binding.config_digest)
+    image_config = _decoded(observed.configuration)
+    require(type(image_config) is dict and set(image_config.get('Volumes') or {}) <= {'/config','/cache'},
+            'unexpected_image_volume')
+    iid_file = daemon.root/'helper.iid'
+    daemon.docker(['build','--pull','--quiet','--network=none','--file',
+        str(REPOSITORY/'server/Dockerfile.volume-bootstrap'),'--iidfile',str(iid_file),str(REPOSITORY)],
+        timeout=600, limit=256)
+    helper_id = iid_file.read_text().strip()
+    require(_HASH.fullmatch(helper_id) is not None)
+    inspected = _decoded(daemon.docker(['image','inspect','--format','{{json .}}',helper_id], limit=65536))
+    attestation = helper_attestation(helper_id, inspected, daemon.platform, os.environ['GITHUB_SHA'])
+    require(_helper(daemon, helper_id, 'image_seed') == {'imageSeed':True})
+    for target in source.targets:
+        # A real negative oracle, not an invented RED: if it is writable already,
+        # this candidate's rootful/empty ownership assumption must be reviewed.
+        require(_helper(daemon, helper_id, 'writable', target=target)
+            == {'writable':False,'uid':1000,'gid':1000}, 'unexpected_initial_write_access')
+        require(_helper(daemon, helper_id, 'check', target=target, bootstrap=True)
+            == {'schemaVersion':1,'state':'empty_uninitialized'})
+        require(_helper(daemon, helper_id, 'initialize_empty_root', target=target, bootstrap=True)
+            == {'schemaVersion':1,'state':'empty_initialized'})
+        require(_helper(daemon, helper_id, 'writable', target=target)
+            == {'writable':True,'uid':1000,'gid':1000})
+        require(_helper(daemon, helper_id, 'write_sentinel', target=target)
+            == {'sentinel':'verified','uid':1000,'gid':1000})
+    name = 'larenor-jellyfin-'+source.stack.preparationId
+    args = ['create','--name='+name,'--network=none','--read-only','--cap-drop=ALL',
+        '--security-opt=no-new-privileges','--user=1000:1000','--memory=4g','--cpus=2',
+        '--pids-limit=512','--restart=no','--tmpfs=/tmp:rw,nosuid,nodev,size=67108864','--env=TZ=UTC']
+    args += ['--mount=type=volume,src='+v.name+',dst='+v.target+',volume-nocopy' for v in source.targets]
+    container_id = daemon.docker(args+[binding.reference], limit=128).decode().strip()
+    require(re.fullmatch(r'[0-9a-f]{64}', container_id) is not None)
+    def inspect():
+        value = _decoded(daemon.docker(['container','inspect','--format','{{json .}}',container_id], limit=262144))
+        require(value.get('Id') == container_id)
+        verify_container(value, source, image_config)
+    inspect()
+    daemon.docker(['start',container_id], limit=128)
+    first = _health(daemon, helper_id, container_id)
+    config_target = next(v for v in source.targets if v.target == '/config')
+    require(_helper(daemon, helper_id, 'initial_data', target=config_target)
+            == {'database':True,'configuration':True})
+    daemon.docker(['restart','--time=10',container_id], timeout=30, limit=128)
+    second = _health(daemon, helper_id, container_id)
+    require(second == first, 'restart_identity_changed')
+    inspect()
+    for target in source.targets:
+        require(_helper(daemon, helper_id, 'verify_root', target=target, bootstrap=True)
+                == {'schemaVersion':1,'state':'root_verified'})
+        require(_helper(daemon, helper_id, 'verify_sentinel', target=target)
+                == {'sentinel':'verified','uid':1000,'gid':1000})
+    require(_helper(daemon, helper_id, 'initial_data', target=config_target)
+            == {'database':True,'configuration':True})
+    return {'schemaVersion':1,'result':'characterized','platform':daemon.platform,
+        'catalogDigest':source.catalog.digest,'jellyfinManifestDigest':source.image.image.digest,
+        'jellyfinConfigDigest':binding.config_digest,'helper':attestation,
+        'volumeCount':2,'restartCount':1,'serverId':first['id'],
+        'bootstrapAccountConfigured':False,'installAvailable':False, **receipt}
 
 
 def main(arguments=None):
@@ -233,9 +373,6 @@ def main(arguments=None):
         print('explicit_ephemeral_ci_flag_required', file=sys.stderr)
         return 2
     try:
-        # This first boundary checkpoint is fail-closed until its complete
-        # characterization consumer is supplied in the next runtime RED.
-        require('characterize' in globals(), 'fixture_protocol_not_implemented')
         with EphemeralDaemon() as daemon:
             result = characterize(daemon)
         print(json.dumps(result, sort_keys=True, separators=(',', ':')))

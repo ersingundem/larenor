@@ -1,0 +1,9 @@
+**
+!tool
+!tool/volume_bootstrap_helper.py
+!tool/jellyfin_storage_probe.py
+!LICENSE
+!NOTICE
+!server
+!server/Dockerfile.volume-bootstrap
+!server/Dockerfile.volume-bootstrap.dockerignore

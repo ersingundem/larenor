@@ -4,6 +4,7 @@ import importlib.util
 import json
 import os
 from pathlib import Path
+import re
 import stat
 from types import SimpleNamespace
 
@@ -175,5 +176,6 @@ def test_dockerfile_pins_existing_base_and_has_no_volume_or_remote_run():
     assert path.exists(), 'own helper image build is absent'
     source = path.read_text()
     assert 'python:3.12.14-slim-bookworm@sha256:782412e85d0f0984994c290652577d4018aff08145c85b262bb63dc0c7522254' in source
-    assert 'VOLUME ' not in source and 'ADD http' not in source and 'curl ' not in source
+    assert not re.search(r'^VOLUME\s', source, re.MULTILINE)
+    assert 'ADD http' not in source and 'curl ' not in source
     assert 'tool/volume_bootstrap_helper.py' in source

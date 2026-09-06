@@ -3,7 +3,11 @@
 FROM python:3.12.14-slim-bookworm@sha256:782412e85d0f0984994c290652577d4018aff08145c85b262bb63dc0c7522254
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
 COPY tool/volume_bootstrap_helper.py /opt/larenor/volume_bootstrap_helper.py
+COPY tool/jellyfin_storage_probe.py /opt/larenor/jellyfin_storage_probe.py
 COPY LICENSE NOTICE /usr/share/doc/larenor-volume-bootstrap/
+# This known image file must be obscured by every NoCopy volume. It is not a
+# VOLUME declaration and must never be copied into an application data volume.
+RUN python -I -c 'from pathlib import Path; p=Path("/volume"); p.mkdir(); (p/".larenor-image-seed-v1").write_bytes(b"fixture-image-seed\n")'
 USER 0:0
 ENTRYPOINT ["/usr/local/bin/python", "-I", "/opt/larenor/volume_bootstrap_helper.py"]
 CMD ["check"]
