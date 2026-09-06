@@ -503,6 +503,14 @@
           "state": "completed",
           "result": "passed",
           "label": "Unix volume reader+journal:371 ilgiliPASS/1Linuxskip,94statement/28branch%100; rootfinalCLEAR. SaltokunurGET, hiçbircreate/bootstrap/installer izni yok."
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/34006880414",
+          "commit": "38bc2bc24aa5f0174bbeb20257ea56d304f1fe5c",
+          "state": "in_progress",
+          "result": null,
+          "label": "Paket102 volume Unix okuyucusu: yeni Linux/Core CI çalışıyor; başarı veya kurulum kabulü değildir."
         }
       ],
       "completionCommit": null,
@@ -1185,6 +1193,14 @@
           "state": "completed",
           "result": "passed",
           "label": "Onuncu logout/remountjourney:87fixturePASS, analiz0, rootCLEAR; eski9body/89faz byteexact, yeni10/99. Androidhenüzkoşmadı; sentetikremount nativeKeystore değildir."
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/34006880503",
+          "commit": "38bc2bc24aa5f0174bbeb20257ea56d304f1fe5c",
+          "state": "in_progress",
+          "result": null,
+          "label": "Paket102 logout kalıcılığı ve onuncu Android yolculuğu: yeni CI çalışıyor, hedef14 E2E/99faz. Restore ve hane kişi modeli bu kaynakta yok."
         }
       ],
       "completionCommit": null,
@@ -1213,7 +1229,8 @@
         "docs/core-home-resource-grants-contract-2026-09-06.md",
         "docs/core-home-resource-grants-ui-implementation-2026-09-06.md",
         "docs/core-resource-grants-android-journey-2026-09-06.md",
-        "docs/home-identity-remaining-slices-2026-09-06.md"
+        "docs/home-identity-remaining-slices-2026-09-06.md",
+        "docs/home-people-contract-implementation-2026-09-06.md"
       ],
       "scope": "Tek mevcut ev bağlamı; F19 çoklu Core/ev federasyonu bu teslim değildir.",
       "acceptance": [
@@ -1416,10 +1433,26 @@
           "state": "completed",
           "result": "passed",
           "label": "Exact a27 / Android101: 4390 Flutter, 98 JVM, 13 E2E / 89 sıralı faz ve bağımsız imzalı APK101 doğrulaması geçti. ACL UI ve dokuzuncu yolculuk dahil; hane kişi modeli ve S08.6 bütünü açık."
+        },
+        {
+          "kind": "test",
+          "ref": "docs/home-people-contract-implementation-2026-09-06.md",
+          "commit": "1358df3fb063522e3a1c52464f26f9c1c75bf384",
+          "state": "completed",
+          "result": "passed",
+          "label": "Ayrı person veri sözleşmesi: 46 yeni / 92 ilgili PASS, 43 statement/2 branch yüzde100, exact316332b bağımsız CLEAR. Eski room/resource modeli değişmedi. HTTP/persistence/Android kişi akışı henüz yok; bu dilim CI102 kaynağına dahil değil."
+        },
+        {
+          "kind": "review",
+          "ref": "docs/home-people-contract-implementation-2026-09-06.md",
+          "commit": "1358df3fb063522e3a1c52464f26f9c1c75bf384",
+          "state": "completed",
+          "result": "passed",
+          "label": "Ayrı person veri sözleşmesi: 46 yeni / 92 ilgili PASS, 43 statement/2 branch yüzde100, exact316332b bağımsız CLEAR. Eski room/resource modeli değişmedi. HTTP/persistence/Android kişi akışı henüz yok; bu dilim CI102 kaynağına dahil değil."
         }
       ],
       "completionCommit": null,
-      "reason": "Registry/liste ve admin metadata 1c2/APK100 ile, ACL API/UI ve dokuzuncu Android yolculuğu a27/APK101 tam CI ve bağımsız APK ile doğrulandı. Hesapsız hane kişi modeli ve sonraki gerçek adaptör/komut kapsamları açık; S08.6 bütünü kabul edilmedi."
+      "reason": "Metadata/ACL ekranları exact a27/APK101 ile kabul edildi. Ayrı hane kişi modeli 46/92 test ve bağımsız kaynak incelemesiyle yerelde geçti; ayrı HTTP/auth/şifreli persistence ve Android akışı açık. Bütün S08.6 kabulü değil."
     },
     {
       "id": "S08.7",

@@ -1,6 +1,6 @@
 # Larenor — güncel ilerleme ve iş kuyruğu
 
-**Son güncelleme: 6 Eylül 2026, 05:35 (Türkiye saati).**
+**Son güncelleme: 6 Eylül 2026, 05:36 (Türkiye saati).**
 
 ```text
 Önceki kapsam       █████████████░░░░░░░  ≈ %65
@@ -75,6 +75,15 @@ Anonim iki mimarili Core yayını da doğrulandı; evde kurulum yapılmadı.
 Yeni paket, aşağıdaki logout ve Unix okuyucusu birleşimidir; kendi CI'si
 ayrıca çalışacak. Hazırlanan restore ve kişi sözleşmesi bu pakete eklenmez.
 
+**Yeni paket GitHub’da: `38bc2bc` / CI102.**
+[Android](https://github.com/ersingundem/larenor/actions/runs/34006880503) ·
+[Core](https://github.com/ersingundem/larenor/actions/runs/34006880414) ·
+[Güvenlik](https://github.com/ersingundem/larenor/actions/runs/34006880305).
+Üç hat ilk denemede çalışıyor. Logout düzeltmesi, volume Unix okuyucusu ve
+onuncu Android yolculuğu bu kaynakta; hedef14 E2E/99sıralı faz. Bu kayıt
+başarı veya imzalı APK102 kabulü değildir. Gönderim öncesi24commit gizli
+bilgi taraması, kuyruk doğrulaması ve diff-check geçti.
+
 **S08.5 başladı:** logout'ta başarısız kalıcı silme sonrası eski oturumun geri
 kullanılması ve gecikmiş hatanın Core ana ekranında görünmemesi gideriliyor.
 Paralelde geri yükleme önizlemesi/onayı, hedef okuma kümesi ve özel journal
@@ -87,7 +96,17 @@ PASS / 11 Linux skip / 5:13**, analiz0 ve896dosya biçim farkı0 elde edildi.
 [Sonraki birleşim](volume-reader-integration-2026-09-06.md).
 Onuncu Android çıkış yolculuğu `0bf1258` ile birleşti: **87 fixture testi**, tam analiz0 ve897dosya biçim kontrolü geçti. Eski9yolculuk/89faz aynen korundu; yeni hedef **14 E2E / 99 faz**. İki yeni host testi önceki tam koşuya dahil değil.
 Restore çalışması ve yeni paketin kendi CI kabulü açık. CI101 kaynağına
-bu değişiklikler eklenmedi.
+bu değişiklikler eklenmedi. Ayrı restore dallarında gerçek dosya ve Server
+kasası ekranları prepared journal yoluna geçiriliyor; başarısız kurtarma
+sonrasında eski ekranların açılması, değişen hedefe yazma ve başka journal'a
+müdahale etme sınırları RED→GREEN ile kapatılıyor. Bu dallar henüz birleşmedi.
+
+**S08.6 kişi sözleşmesi yerelde hazır:** ayrı `person` modeli46 yeni/92 ilgili
+Server testi ve bağımsız kaynak incelemesiyle geçti. Eski oda/kaynak modeli
+aynı kaldı. Kişi oluşturma yalnız ad/sıra kabul eder; hesap, rol, izin veya
+HA kişisi bağı yaratmaz. HTTP/şifreli persistence/Android kişi ekranı açık;
+model dilimi CI102'ye dahil değildir.
+[Model kanıtı](home-people-contract-implementation-2026-09-06.md).
 
 **S08.4 kabul edildi:** üç madde ve 22 kayıt sınıfı exact `1c2db57` kaynağında
 bağımsız son inceleme + CI/APK100 ile doğrulandı.

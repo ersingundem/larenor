@@ -80,3 +80,12 @@ native Keystore veya OS restart kabulü değildir.
 
 Restore prepared/journalv2/BackupScreen ve ServerVault geçişi bu pakete
 alınmadı; ayrı S08.5 devam işidir.
+
+## Gönderim ve yeni CI
+
+`38bc2bc24aa5f0174bbeb20257ea56d304f1fe5c`, main'e gönderildi.
+[Core](https://github.com/ersingundem/larenor/actions/runs/34006880414),
+[Android102](https://github.com/ersingundem/larenor/actions/runs/34006880503) ve
+[güvenlik](https://github.com/ersingundem/larenor/actions/runs/34006880305)
+ilk denemede çalışıyor. Son24commit gitleaks taraması temiz. Yukarıdaki
+yerel ölçümler korunur; henüz bu yeni source için CI/APK kabulü yok.
