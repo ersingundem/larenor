@@ -180,6 +180,7 @@ final class PreparedBackupRestore {
       await current();
       if(_plan.changes.isEmpty) return;
       final journal=_encodeV2(_repository,_plan.changes,_ownership,_snapshotDigest,_restoreDigest(_readSet),'applying');
+      final committed=_encodeV2(_repository,_plan.changes,_ownership,_snapshotDigest,_restoreDigest(_readSet),'committed');
       await _repository._storage.writeSecret(_journalV2Key,journal);
       if(await _repository._storage.readSecret(_journalV2Key)!=journal) _recoveryRequired();
       try {
@@ -208,17 +209,16 @@ final class PreparedBackupRestore {
         }
         await _requireJournal(_repository,journal);
         await current();
-        final committed=_encodeV2(_repository,_plan.changes,_ownership,_snapshotDigest,_restoreDigest(_readSet),'committed');
         try { await _repository._storage.writeSecret(_journalV2Key,committed); } catch(_) {
           if(await _repository._storage.readSecret(_journalV2Key)!=committed) rethrow;
         }
         if(await _repository._storage.readSecret(_journalV2Key)!=committed) _recoveryRequired();
       } catch(_) {
         // Durable phase, not a lost response, decides rollback versus commit.
-        await _recoverV2(_repository);
+        await _recoverV2(_repository,expected:{journal,committed});
         rethrow;
       }
-      await _recoverV2(_repository);
+      await _recoverV2(_repository,expected:{committed});
     } on BackupException { rethrow; } catch(_) { _recoveryRequired(); } finally { _state=3; _owner=null; }
   });
   @override String toString()=>'PreparedBackupRestore';
@@ -280,9 +280,10 @@ String _encodeV2(BackupRepository repo,List<_Change> changes,Map<String,dynamic>
 Future<void> _requireJournal(BackupRepository repo,String expected) async {
   if(await repo._storage.readSecret(_journalV2Key)!=expected) _recoveryRequired();
 }
-Future<bool> _recoverV2(BackupRepository repo) async {
+Future<bool> _recoverV2(BackupRepository repo,{Set<String>? expected}) async {
   try {
   final raw=await repo._storage.readSecret(_journalV2Key);
+  if(expected!=null && !expected.contains(raw)) _recoveryRequired();
   if(raw==null) return false;
   final (phase,changes)=_decodeV2(repo,raw);
   for(final c in changes) {

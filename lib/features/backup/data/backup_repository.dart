@@ -352,7 +352,7 @@ class BackupRepository {
       raw = await _storage.readSecret(restoreJournalKey);
       final newer = await _storage.readSecret(_journalV2Key);
       if (raw != null && newer != null) _recoveryRequired();
-      if (newer != null) return await _recoverV2(this);
+      if (newer != null) return await _recoverV2(this,expected:{newer});
     } catch (_) {
       throw const BackupRestoreException(rollbackComplete: false);
     }
