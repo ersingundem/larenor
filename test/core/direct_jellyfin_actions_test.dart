@@ -79,4 +79,35 @@ void main(){
   var clients=0;
   await http.runWithClient(()async{final(c,_)=await routinesHome('core');final sub=c.listen(jellyfinLibrariesProvider,(_,_){});addTearDown(sub.close);await c.read(jellyfinLibrariesProvider.future);await c.pump();expect(clients,0);expect(secure.calls,isEmpty);},(){clients++;return MockClient((_)async=>http.Response('{"Items":[]}',200));});
  });
+ for (final action in ['signIn','signOut']) {
+  for (final stage in ['jellyfin_base_url','jellyfin_access_token','jellyfin_connection_pending_v1']) {
+   test('$action uncertain $stage effect retires the confirmed reader', () async {
+    final transports = <int, int>{}; var nextId=0, posts=0, reads=0;
+    await http.runWithClient(() async {
+     final(c,_)=await routinesHome('direct'); await ready(c);
+     final reader=c.listen(jellyfinLibrariesProvider,(_,_){}); addTearDown(reader.close);
+     await c.read(jellyfinLibrariesProvider.future); final oldClient=c.read(jellyfinClientProvider); expect(oldClient,isNotNull); expect(reads,1);
+     final priorTransport=nextId; var failed=false;
+     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(channel,(call)async{
+      final result=await secure.handle(call); final key=(call.arguments as Map)['key'];
+      final method=stage=='jellyfin_connection_pending_v1'?'delete':action=='signIn'?'write':'delete';
+      if(!failed && call.method==method && key==stage){failed=true;throw PlatformException(code:'private-failure',message:'private-token-sentinel');}
+      return result;
+     });
+     final notifier=c.read(jellyfinConnectionProvider.notifier);
+     await expectLater(action=='signIn'?notifier.signIn(baseUrl:'https://new.invalid',username:'name',password:'password'):notifier.signOut(),throwsA(isA<DirectHomeAccessException>().having((e)=>e.code,'code','write_unconfirmed')));
+     await c.pump(); expect(failed,isTrue); expect(c.read(jellyfinConnectionProvider).hasError,isTrue); expect(c.read(jellyfinClientProvider),isNull); expect(transports[priorTransport],1);
+     expect(c.read(jellyfinConnectionProvider).error.toString(),isNot(contains('private-token-sentinel')));
+     c.invalidate(jellyfinLibrariesProvider); await c.read(jellyfinLibrariesProvider.future); expect(reads,1); expect(posts,action=='signIn'?1:0); expect(secure.values['jellyfin_device_id'],'fixed-device');
+    },(){final id=++nextId;return JellyfinClosingHttp((request)async{if(request.method=='POST'){posts++;return http.Response(jellyfinLoginBody,200);}reads++;return http.Response('{"Items":[]}',200);},()=>transports[id]=(transports[id]??0)+1);});
+   });
+  }
+ }
+ test('ordinary authentication rejection preserves the confirmed connection', () async {
+  await http.runWithClient(()async{
+   final(c,_)=await routinesHome('direct');await ready(c);final reader=c.listen(jellyfinClientProvider,(_,_){});addTearDown(reader.close);final old=reader.read();expect(old,isNotNull);
+   await expectLater(c.read(jellyfinConnectionProvider.notifier).signIn(baseUrl:'https://new.invalid',username:'wrong',password:'wrong'),throwsA(isA<Exception>()));await c.pump();expect(c.read(jellyfinConnectionProvider).hasError,isFalse);expect(reader.read(),same(old));
+  },()=>MockClient((_)async=>http.Response('{}',401)));
+ });
+
 }

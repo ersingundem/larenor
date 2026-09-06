@@ -193,4 +193,73 @@ void main() {
     expect(await store.deviceId(), 'synthetic-device');
     expect(await store.read(), isNull);
   });
+  for (final mode in ['pending', 'error']) {
+    test('$mode cannot even read the separate device identity', () async {
+      final (c, _) = await routinesHome(mode);
+      await expectLater(c.read(jellyfinCredentialsStoreProvider).deviceId(), throwsA(isA<DirectHomeAccessException>()));
+      expect(secure.calls, isEmpty);
+    });
+  }
+  test('held device identity access never revives after source roundtrip', () async {
+    final (c, home) = await routinesHome('direct');
+    final store = c.read(jellyfinCredentialsStoreProvider);
+    expect(await store.deviceId(), 'synthetic-device');
+    await home.choose(HomeSource.verifiedCore);await home.choose(HomeSource.directLocal);
+    secure.calls.clear();await expectLater(store.deviceId(), throwsA(isA<DirectHomeAccessException>()));expect(secure.calls, isEmpty);
+  });
+  test('pending tuple read never generates an absent device identity', () async {
+    secure.values.remove('jellyfin_device_id');secure.values[marker] = '1';
+    await expectLater(JellyfinCredentialsStore().read(), throwsA(isA<DirectHomeAccessException>()));
+    expect(secure.calls, [('read', marker)]);expect(secure.values.containsKey('jellyfin_device_id'), isFalse);
+  });
+  test('two explicit device identity requests serialize one creation and preserve it on clear', () async {
+    secure.values.remove('jellyfin_device_id');final store=JellyfinCredentialsStore();
+    final ids=await Future.wait([store.deviceId(), store.deviceId()]);expect(ids[0], startsWith('larenor-'));expect(ids[1],ids[0]);expect(secure.calls.where((call)=>call.$1=='write'), hasLength(1));
+    await store.clear();expect(await JellyfinCredentialsStore().deviceId(), ids[0]);
+  });
+  test('wrong device storage type is a static read failure without replacement', () async {
+    messenger.setMockMethodCallHandler(channel,(call) async {await secure.handle(call);return {'private':'secret'};});
+    await expectLater(JellyfinCredentialsStore().deviceId(), throwsA(isA<DirectHomeAccessException>().having((e)=>e.code,'code','storage_failed')));
+    expect(secure.calls, [('read','jellyfin_device_id')]);
+  });
+  for(final after in [false,true]) {
+    test('device identity lost write response afterEffect=$after is not automatically repaired', () async {
+      secure.values.remove('jellyfin_device_id');
+      messenger.setMockMethodCallHandler(channel,(call) async {
+        if(call.method=='write') {if(after) await secure.handle(call);throw PlatformException(code:'private',message:'sentinel-device');}
+        return secure.handle(call);
+      });
+      await expectLater(JellyfinCredentialsStore().deviceId(), throwsA(isA<DirectHomeAccessException>().having((e)=>e.code,'code','write_unconfirmed').having((e)=>e.toString(),'static',isNot(contains('sentinel-device')))));
+      expect(secure.values.containsKey('jellyfin_device_id'), after);
+      expect(secure.calls.where((call)=>call.$1=='write').length, after?1:0);
+      if(after) {final id=secure.values['jellyfin_device_id'];messenger.setMockMethodCallHandler(channel,secure.handle);expect(await JellyfinCredentialsStore().deviceId(),id);}
+    });
+  }
+  for(final clear in [false,true]) {
+    for(final after in [false,true]) {
+      for(var stage=0;stage<5;stage++) {
+        test('tuple ${clear?'clear':'save'} stage$stage afterEffect=$after quarantines partial effects', () async {
+          var effects=0;
+          messenger.setMockMethodCallHandler(channel,(call) async {
+            if(call.method=='read') return secure.handle(call);
+            final failing=effects++==stage;
+            if(failing&&!after) throw PlatformException(code:'private',message:'sentinel-token');
+            final result=await secure.handle(call);
+            if(failing) throw PlatformException(code:'private',message:'sentinel-token');
+            return result;
+          });
+          final store=JellyfinCredentialsStore();
+          await expectLater(clear?store.clear():store.save(baseUrl:'https://new.invalid',userId:'new-user',accessToken:'new-token'),throwsA(isA<DirectHomeAccessException>().having((e)=>e.code,'code','write_unconfirmed')));
+          expect(effects,stage+1);expect(secure.values['jellyfin_device_id'],'synthetic-device');
+          messenger.setMockMethodCallHandler(channel,secure.handle);secure.calls.clear();
+          final fresh=JellyfinCredentialsStore();
+          if(stage==0&&!after) {expect((await fresh.read())!.accessToken,'synthetic-old-accessToken');}
+          else if(stage==4&&after) {expect((await fresh.read())?.accessToken,clear?isNull:'new-token');}
+          else {await expectLater(fresh.read(),throwsA(isA<DirectHomeAccessException>().having((e)=>e.code,'code','pending_mutation')));expect(secure.calls,[('read',marker)]);await fresh.clear();expect(await fresh.read(),isNull);}
+          expect(secure.values['jellyfin_device_id'],'synthetic-device');
+        });
+      }
+    }
+  }
+
 }

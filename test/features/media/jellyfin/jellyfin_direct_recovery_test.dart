@@ -9,6 +9,8 @@ import 'package:flutter_secure_storage_platform_interface/flutter_secure_storage
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:larenor/core/app_interaction_scope.dart';
+import 'package:larenor/core/direct_home_access.dart';
+import 'package:larenor/features/media/jellyfin/presentation/jellyfin_home_screen.dart';
 import 'package:larenor/core/home_source_store.dart';
 import 'package:larenor/features/media/jellyfin/providers/jellyfin_providers.dart';
 import 'package:larenor/features/media/jellyfin/data/jellyfin_discovery.dart';
@@ -105,5 +107,23 @@ void main(){
    }finally{await tester.pumpWidget(const SizedBox.shrink());c.dispose();await tester.pump(const Duration(seconds:5));}
   },()=>MockClient((_)async{requests++;return http.Response(jellyfinLoginBody,200);}));
  });
+
+ for(final action in ['signIn','signOut']) {
+  testWidgets('connected $action uncertainty retires account and offers blank explicit recovery',(tester)async{
+   final(c,_)=await routinesHome('direct');final discovery=FakeJellyfinDiscovery();var factories=0,posts=0,failed=false;
+   await http.runWithClient(()async{
+    try{
+     await tester.pumpWidget(jellyfinHarness(c,action=='signIn'?const JellyfinConnectScreen():const JellyfinHomeScreen(),discovery:discovery,factory:()=>factories++));await pumpJellyfinFrames(tester);
+     expect(c.read(jellyfinConnectionProvider).requireValue,isNotNull);
+     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(channel,(call)async{final result=await secure.handle(call);if(!failed&&call.method==(action=='signIn'?'write':'delete')&&(call.arguments as Map)['key']=='jellyfin_access_token'){failed=true;throw PlatformException(code:'private-error',message:'private-storage-sentinel');}return result;});
+     if(action=='signIn'){
+      await tester.enterText(find.byType(CupertinoTextFormFieldRow).at(0),'https://new.invalid');await tester.enterText(find.byType(CupertinoTextFormFieldRow).at(1),'private-name');await tester.enterText(find.byType(CupertinoTextFormFieldRow).at(2),'private-password');await tapJellyfinText(tester,'Connect');
+     }else{final rejected=expectLater(c.read(jellyfinConnectionProvider.notifier).signOut(),throwsA(isA<DirectHomeAccessException>()));await pumpJellyfinFrames(tester);await rejected;}
+     await pumpJellyfinFrames(tester);expect(c.read(jellyfinConnectionProvider).hasError,isTrue);expect(c.read(jellyfinClientProvider),isNull);expect(find.byType(CupertinoTextFormFieldRow),findsNWidgets(3));expect(tester.widgetList<CupertinoTextFormFieldRow>(find.byType(CupertinoTextFormFieldRow)).map((f)=>f.controller!.text),everyElement(isEmpty));expect(find.text('Remove saved connection'),findsOneWidget);
+     final afterFailureFactories=factories;await tapJellyfinText(tester,'Remove saved connection');expect(secure.values.containsKey('jellyfin_connection_pending_v1'),isFalse);expect(secure.values['jellyfin_access_token'],isNull);expect(secure.values['jellyfin_device_id'],'fixed-device');expect(factories,afterFailureFactories);expect(posts,action=='signIn'?1:0);expect(find.textContaining('private-storage-sentinel'),findsNothing);expect(tester.takeException(),isNull);
+    }finally{await tester.pumpWidget(const SizedBox.shrink());c.dispose();await tester.pump(const Duration(seconds:5));}
+   },()=>MockClient((request)async{if(request.method=='POST'){posts++;return http.Response(jellyfinLoginBody,200);}return http.Response('{"Items":[]}',200);}));
+  });
+ }
 
 }
