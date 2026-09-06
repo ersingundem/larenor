@@ -1158,7 +1158,8 @@
         "docs/core-layout-archive-controller-implementation-2026-09-06.md",
         "docs/client-delivery-104-2026-09-06.md",
         "docs/core-layout-archive-ui-implementation-2026-09-06.md",
-        "docs/core-archive-android-journey-2026-09-06.md"
+        "docs/core-archive-android-journey-2026-09-06.md",
+        "docs/client-ci-budget-2026-09-06.md"
       ],
       "scope": "Tek mevcut ev bağlamı; F19 çoklu Core/ev federasyonu bu teslim değildir.",
       "acceptance": [
@@ -1367,9 +1368,9 @@
           "kind": "ci",
           "ref": "https://github.com/ersingundem/larenor/actions/runs/34015830766",
           "commit": "38e78a34bc554c39647a8616b905aa2f9c9627b9",
-          "state": "in_progress",
-          "result": null,
-          "label": "Android exact38e78a3 ilk deneme; yayın105 gözlemi. Android/Core koşuları ve bağımsız imzalıAPK kabulü ayrı izlenir."
+          "state": "completed",
+          "result": "cancelled",
+          "label": "Exact38e78a3 Android105 cancelled:Flutterjob15dk sınırında4282kısmi ilerleme; analiz0/966format0. Doğal17E2E/133faz ve98nativePASS, imzalıAPKskipped/transfer0. Failure ve ayrıE2E makbuzları korunur."
         },
         {
           "kind": "ci",
@@ -1389,7 +1390,7 @@
         }
       ],
       "completionCommit": null,
-      "reason": "Exact38e78a3 CI105:Security207PASS ve Core3311PASS/0skip başarılı; iki mimarili Core imajı anonim doğrulandı. Android98nativePASS; Flutter/E2E ve bağımsızAPK105 kabulü bekleniyor."
+      "reason": "CI105 native17E2E/133faz,Core3311/0skip veSecurity207 geçti; Fluttercoverage job15dk timeout nedeniyleAPK105skipped. Dar15→25dk jobbudget onarımı207policyPASS+reviewCLEAR; yeniCI bekleniyor."
     },
     {
       "id": "S08.6",
@@ -1424,7 +1425,8 @@
         "docs/core-people-read-fixture-2026-09-06.md",
         "docs/core-people-android-journey-2026-09-06.md",
         "docs/prepared-vault-household-integration-2026-09-06.md",
-        "docs/core-people-admin-android-journey-2026-09-06.md"
+        "docs/core-people-admin-android-journey-2026-09-06.md",
+        "docs/client-ci-budget-2026-09-06.md"
       ],
       "scope": "Tek mevcut ev bağlamı; F19 çoklu Core/ev federasyonu bu teslim değildir.",
       "acceptance": [
@@ -1608,9 +1610,9 @@
           "kind": "ci",
           "ref": "https://github.com/ersingundem/larenor/actions/runs/34015830766",
           "commit": "38e78a34bc554c39647a8616b905aa2f9c9627b9",
-          "state": "in_progress",
-          "result": null,
-          "label": "Android exact38e78a3 ilk deneme; yayın105 gözlemi. Android/Core koşuları ve bağımsız imzalıAPK kabulü ayrı izlenir."
+          "state": "completed",
+          "result": "cancelled",
+          "label": "Exact38e78a3 Android105 cancelled:Flutterjob15dk sınırında4282kısmi ilerleme; analiz0/966format0. Doğal17E2E/133faz ve98nativePASS, imzalıAPKskipped/transfer0. Failure ve ayrıE2E makbuzları korunur."
         },
         {
           "kind": "ci",
@@ -1630,7 +1632,7 @@
         }
       ],
       "completionCommit": null,
-      "reason": "Exact38e78a3 CI105:Security207PASS ve Core3311PASS/0skip başarılı; iki mimarili Core imajı anonim doğrulandı. Android98nativePASS; Flutter/E2E ve bağımsızAPK105 kabulü bekleniyor."
+      "reason": "CI105 native17E2E/133faz,Core3311/0skip veSecurity207 geçti; Fluttercoverage job15dk timeout nedeniyleAPK105skipped. Dar15→25dk jobbudget onarımı207policyPASS+reviewCLEAR; yeniCI bekleniyor."
     },
     {
       "id": "S08.7",
