@@ -1,6 +1,6 @@
 # Larenor — güncel ilerleme ve iş kuyruğu
 
-**Son güncelleme: 6 Eylül 2026 — yeni birleşimde5.150 Client ve3.435 Core testi geçti; yayın CI kapısı sırada.**
+**Son güncelleme: 6 Eylül 2026 — kaynak960691c GitHub’da; Android108/Core34/Security108 çalışıyor.**
 
 ```text
 Önceki kapsam       █████████████░░░░░░░  ≈ %65
@@ -70,6 +70,7 @@ anonim doğrulandı. [APK104, CI ve teslim kanıtı](client-delivery-104-2026-09
 | S08.5 — hazırlanmış restore ve Core oda arşivi | Model, şifreleme, controller ve tablet ekranı birleşti; tam Client geçti, Android ve yayın CI bekliyor |
 | S08.6 — kişi ve izin yönetimi | Server ve tablet ekranları birleşti; üye ve yönetici/ACL Android senaryoları hazır, kendi CI kabulü açık |
 | Birleşim yayını CI106 | `e7c15ad`: Flutter5.056/Core3.311/güvenlik207 geçti; E2E16PASS/1FAIL. Arşiv iptali ve People geri dönüşü gerçek route testleriyle düzeltildi; kendi yeni CI kabulü açık, APK106 atlandı |
+| Güncel yayın CI108 | `960691c` GitHub’da; yerel5.150 Client/3.435 Core geçti. Android108/Core34/Security108 ve kendi imzalı APK doğrulaması bekleniyor |
 | B5.1 — Core eklenti kataloğu | Yerelde birleşti: 5.088 tam Client PASS, analiz0 ve967dosya biçim farkı0; başlıklar, erişilebilir adlar ve görünür klavye odağı düzeltildi. Kendi yayın kapısı açık; CI106'ya dahil değil |
 
 **CI105 tamamlandı:17 E2E/133faz, Core3.311/0skip ve güvenlik207 geçti.**
@@ -92,7 +93,11 @@ normal yazı boyutu,48px dokunma alanı ve Tab/ShiftTab/Enter için152 ilgili te
 **[Yeni birleşik kaynak643cbdd](tablet-core-volume-integration-2026-09-06.md)** tek tam koşumda
 **5.150 Client PASS**, coverage açık, analiz0 ve971dosya biçim farkı0 verdi.
 207 güvenlik/CI politika testi ve yeni commitlerde gizli bilgi taraması temiz.
-Kendi Android/Linux/güvenlik CI ve imzalı APK doğrulaması sırada; Services ekranı sonraki ayrı dalda.
+**[CI108 teslim takibi](client-delivery-108-2026-09-06.md):** kaynak960691c gönderildi.
+[Android108](https://github.com/ersingundem/larenor/actions/runs/34019042417),
+[Core34](https://github.com/ersingundem/larenor/actions/runs/34019042355) ve
+[Security108](https://github.com/ersingundem/larenor/actions/runs/34019042181) çalışıyor;
+imzalı APK kabulü henüz yok. Services ekranı sonraki ayrı dalda.
 Core tarafında [kalıcı volume oluşturma protokolü](managed-volume-create-implementation-2026-09-06.md)
 main ile birleşti:887 ilgili test geçti,7 Linux testi yerelde atlandı; iki bağımsız kaynak incelemesi temiz.
 [Aynı Server kaynak ağacında tek tam Core koşumu](managed-volume-full-core-verification-2026-09-06.md)

@@ -376,7 +376,8 @@
         "docs/managed-volume-create-plan-2026-09-06.md",
         "docs/managed-volume-create-implementation-2026-09-06.md",
         "docs/managed-volume-full-core-verification-2026-09-06.md",
-        "docs/tablet-core-volume-integration-2026-09-06.md"
+        "docs/tablet-core-volume-integration-2026-09-06.md",
+        "docs/client-delivery-108-2026-09-06.md"
       ],
       "scope": "installAvailable=false; Client kaynak adı/Docker seçenekleri üretmez. Gerçek ev sunucusuna işlem yok.",
       "acceptance": [
@@ -555,10 +556,34 @@
           "state": "completed",
           "result": "passed",
           "label": "Yeni birleşim643cbdd:5150tamClientPASS/coverage,analiz0/971format0;3435tamCorePASS/12Linuxskip aynıServerağacı;207politikaPASS/gitleaks0. Root10kaynak ağacı ve13app+4platform/133faz korumasını doğruladı. KendiCI/APK/fiziksel kabulü açık."
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/34019042417",
+          "commit": "960691c113b10e08ebddf75d464b99e74bdd4cb1",
+          "state": "in_progress",
+          "result": null,
+          "label": "Android108 exact960691c başlatıldı; kendi sonucu ve bağımsız imzalıAPK kabulü bekleniyor. Yerel5150Client/3435Core12Linuxskip/207politika sonuçları remoteCI yerine geçmez."
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/34019042355",
+          "commit": "960691c113b10e08ebddf75d464b99e74bdd4cb1",
+          "state": "in_progress",
+          "result": null,
+          "label": "Core34 exact960691c başlatıldı; kendi sonucu ve bağımsız imzalıAPK kabulü bekleniyor. Yerel5150Client/3435Core12Linuxskip/207politika sonuçları remoteCI yerine geçmez."
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/34019042181",
+          "commit": "960691c113b10e08ebddf75d464b99e74bdd4cb1",
+          "state": "in_progress",
+          "result": null,
+          "label": "Security108 exact960691c başlatıldı; kendi sonucu ve bağımsız imzalıAPK kabulü bekleniyor. Yerel5150Client/3435Core12Linuxskip/207politika sonuçları remoteCI yerine geçmez."
         }
       ],
       "completionCommit": null,
-      "reason": "Native root resolver önceki Linux CI ile doğrulandı; trusted supervisor/remap-disabled producer/issuer/create-publish açık. Volume plan+gözlem 1c2 CI/APK100 kaynağında; volume journal a27 Linux CI101 içinde 3104 PASS/0skip ile geçti. Unix reader 0d86fa1 sonraki ayrı birleşimde 3192 tam Core PASS/11Linuxskip verdi; Exact38bc LinuxCI102:3203PASS/0skip, anonim iki mimarili Core doğrulandı. UID/bootstrap/Engine kurulum yetkisi açık ve installAvailable=false sürer. Ayrı managed-volume create-intent ve tek-POST/fresh-inspect protokolü72af399 main ile birleşti:887ilgiliPASS/7Linuxskip,iki bağımsızCLEAR; aynı source tree için tek tamCore3435PASS/12Linuxskip geçti; kendi yeni LinuxCI açık. Observation kaydı create yetkisi değildir. Gerçek UID/bootstrap ve production wiring açık."
+      "reason": "Native root resolver önceki Linux CI ile doğrulandı; trusted supervisor/remap-disabled producer/issuer/create-publish açık. Volume plan+gözlem 1c2 CI/APK100 kaynağında; volume journal a27 Linux CI101 içinde 3104 PASS/0skip ile geçti. Unix reader 0d86fa1 sonraki ayrı birleşimde 3192 tam Core PASS/11Linuxskip verdi; Exact38bc LinuxCI102:3203PASS/0skip, anonim iki mimarili Core doğrulandı. UID/bootstrap/Engine kurulum yetkisi açık ve installAvailable=false sürer. Ayrı managed-volume create-intent ve tek-POST/fresh-inspect protokolü72af399 main ile birleşti:887ilgiliPASS/7Linuxskip,iki bağımsızCLEAR; aynı source tree için tek tamCore3435PASS/12Linuxskip geçti; kendi yeni LinuxCI açık. Observation kaydı create yetkisi değildir. Gerçek UID/bootstrap ve production wiring açık. Yayın960691c:Android108/Core34/Security108 başlatıldı; yeniCI/APK sonucu bekleniyor."
     },
     {
       "id": "S06.3e",
@@ -1210,7 +1235,8 @@
         "docs/restore-people-evidence-through-ci106-2026-09-06.json",
         "docs/core-archive-cancel-transition-2026-09-06.md",
         "docs/restore-dialog-targets-2026-09-06.md",
-        "docs/tablet-core-volume-integration-2026-09-06.md"
+        "docs/tablet-core-volume-integration-2026-09-06.md",
+        "docs/client-delivery-108-2026-09-06.md"
       ],
       "scope": "Tek mevcut ev bağlamı; F19 çoklu Core/ev federasyonu bu teslim değildir.",
       "acceptance": [
@@ -1294,10 +1320,34 @@
           "state": "completed",
           "result": "passed",
           "label": "Yeni birleşim643cbdd:5150tamClientPASS/coverage,analiz0/971format0;3435tamCorePASS/12Linuxskip aynıServerağacı;207politikaPASS/gitleaks0. Root10kaynak ağacı ve13app+4platform/133faz korumasını doğruladı. KendiCI/APK/fiziksel kabulü açık."
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/34019042417",
+          "commit": "960691c113b10e08ebddf75d464b99e74bdd4cb1",
+          "state": "in_progress",
+          "result": null,
+          "label": "Android108 exact960691c başlatıldı; kendi sonucu ve bağımsız imzalıAPK kabulü bekleniyor. Yerel5150Client/3435Core12Linuxskip/207politika sonuçları remoteCI yerine geçmez."
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/34019042355",
+          "commit": "960691c113b10e08ebddf75d464b99e74bdd4cb1",
+          "state": "in_progress",
+          "result": null,
+          "label": "Core34 exact960691c başlatıldı; kendi sonucu ve bağımsız imzalıAPK kabulü bekleniyor. Yerel5150Client/3435Core12Linuxskip/207politika sonuçları remoteCI yerine geçmez."
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/34019042181",
+          "commit": "960691c113b10e08ebddf75d464b99e74bdd4cb1",
+          "state": "in_progress",
+          "result": null,
+          "label": "Security108 exact960691c başlatıldı; kendi sonucu ve bağımsız imzalıAPK kabulü bekleniyor. Yerel5150Client/3435Core12Linuxskip/207politika sonuçları remoteCI yerine geçmez."
         }
       ],
       "completionCommit": null,
-      "reason": "CI106 arşiv iptal assertion hatası ve eski kaynak kanıtları arşivde korunur. Geçişler/tablet modalları/Journals yeni643cbdd birleşiminde:5150ClientPASS,analiz0,971format0;3435CorePASS/12Linuxskip,207politikaPASS. Kendi yeniLinux/Android/güvenlikCI ve imzalıAPK doğrulaması açık."
+      "reason": "CI106 arşiv iptal assertion hatası ve eski kaynak kanıtları arşivde korunur. Geçişler/tablet modalları/Journals yeni643cbdd birleşiminde:5150ClientPASS,analiz0,971format0;3435CorePASS/12Linuxskip,207politikaPASS. Kendi yeniLinux/Android/güvenlikCI ve imzalıAPK doğrulaması açık. Yayın960691c:Android108/Core34/Security108 başlatıldı; yeniCI/APK sonucu bekleniyor."
     },
     {
       "id": "S08.6",
@@ -1337,7 +1387,8 @@
         "docs/client-delivery-106-2026-09-06.md",
         "docs/restore-people-evidence-through-ci106-2026-09-06.json",
         "docs/core-people-back-transition-2026-09-06.md",
-        "docs/tablet-core-volume-integration-2026-09-06.md"
+        "docs/tablet-core-volume-integration-2026-09-06.md",
+        "docs/client-delivery-108-2026-09-06.md"
       ],
       "scope": "Tek mevcut ev bağlamı; F19 çoklu Core/ev federasyonu bu teslim değildir.",
       "acceptance": [
@@ -1404,10 +1455,34 @@
           "state": "completed",
           "result": "passed",
           "label": "Yeni birleşim643cbdd:5150tamClientPASS/coverage,analiz0/971format0;3435tamCorePASS/12Linuxskip aynıServerağacı;207politikaPASS/gitleaks0. Root10kaynak ağacı ve13app+4platform/133faz korumasını doğruladı. KendiCI/APK/fiziksel kabulü açık."
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/34019042417",
+          "commit": "960691c113b10e08ebddf75d464b99e74bdd4cb1",
+          "state": "in_progress",
+          "result": null,
+          "label": "Android108 exact960691c başlatıldı; kendi sonucu ve bağımsız imzalıAPK kabulü bekleniyor. Yerel5150Client/3435Core12Linuxskip/207politika sonuçları remoteCI yerine geçmez."
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/34019042355",
+          "commit": "960691c113b10e08ebddf75d464b99e74bdd4cb1",
+          "state": "in_progress",
+          "result": null,
+          "label": "Core34 exact960691c başlatıldı; kendi sonucu ve bağımsız imzalıAPK kabulü bekleniyor. Yerel5150Client/3435Core12Linuxskip/207politika sonuçları remoteCI yerine geçmez."
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/34019042181",
+          "commit": "960691c113b10e08ebddf75d464b99e74bdd4cb1",
+          "state": "in_progress",
+          "result": null,
+          "label": "Security108 exact960691c başlatıldı; kendi sonucu ve bağımsız imzalıAPK kabulü bekleniyor. Yerel5150Client/3435Core12Linuxskip/207politika sonuçları remoteCI yerine geçmez."
         }
       ],
       "completionCommit": null,
-      "reason": "CI106 arşiv iptal assertion hatası ve eski kaynak kanıtları arşivde korunur. Geçişler/tablet modalları/Journals yeni643cbdd birleşiminde:5150ClientPASS,analiz0,971format0;3435CorePASS/12Linuxskip,207politikaPASS. Kendi yeniLinux/Android/güvenlikCI ve imzalıAPK doğrulaması açık."
+      "reason": "CI106 arşiv iptal assertion hatası ve eski kaynak kanıtları arşivde korunur. Geçişler/tablet modalları/Journals yeni643cbdd birleşiminde:5150ClientPASS,analiz0,971format0;3435CorePASS/12Linuxskip,207politikaPASS. Kendi yeniLinux/Android/güvenlikCI ve imzalıAPK doğrulaması açık. Yayın960691c:Android108/Core34/Security108 başlatıldı; yeniCI/APK sonucu bekleniyor."
     },
     {
       "id": "S08.7",
@@ -1689,7 +1764,8 @@
         "docs/core-plugins-integration-verification-2026-09-06.md",
         "docs/core-plugin-jobs-tablet-accessibility-2026-09-06.md",
         "docs/restore-dialog-targets-2026-09-06.md",
-        "docs/tablet-core-volume-integration-2026-09-06.md"
+        "docs/tablet-core-volume-integration-2026-09-06.md",
+        "docs/client-delivery-108-2026-09-06.md"
       ],
       "scope": "Son bütün ekran tasarım geçişi değildir; Core’suz kişisel uzak bağlantı için Core bağımlılığı koymaz.",
       "acceptance": [
@@ -1852,10 +1928,34 @@
           "state": "completed",
           "result": "passed",
           "label": "Yeni birleşim643cbdd:5150tamClientPASS/coverage,analiz0/971format0;3435tamCorePASS/12Linuxskip aynıServerağacı;207politikaPASS/gitleaks0. Root10kaynak ağacı ve13app+4platform/133faz korumasını doğruladı. KendiCI/APK/fiziksel kabulü açık."
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/34019042417",
+          "commit": "960691c113b10e08ebddf75d464b99e74bdd4cb1",
+          "state": "in_progress",
+          "result": null,
+          "label": "Android108 exact960691c başlatıldı; kendi sonucu ve bağımsız imzalıAPK kabulü bekleniyor. Yerel5150Client/3435Core12Linuxskip/207politika sonuçları remoteCI yerine geçmez."
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/34019042355",
+          "commit": "960691c113b10e08ebddf75d464b99e74bdd4cb1",
+          "state": "in_progress",
+          "result": null,
+          "label": "Core34 exact960691c başlatıldı; kendi sonucu ve bağımsız imzalıAPK kabulü bekleniyor. Yerel5150Client/3435Core12Linuxskip/207politika sonuçları remoteCI yerine geçmez."
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/34019042181",
+          "commit": "960691c113b10e08ebddf75d464b99e74bdd4cb1",
+          "state": "in_progress",
+          "result": null,
+          "label": "Security108 exact960691c başlatıldı; kendi sonucu ve bağımsız imzalıAPK kabulü bekleniyor. Yerel5150Client/3435Core12Linuxskip/207politika sonuçları remoteCI yerine geçmez."
         }
       ],
       "completionCommit": null,
-      "reason": "Katalog, Jobs ve Backup/Vault/Archive modal tablet düzeltmeleri main ile birleşti. Sabit643cbdd:5150tamClientPASS/coverage,analiz0/971format0; gerçekfonttablet/source incelemesi temiz. Services sonraki bağımsız dalda; kendiCI ve bütünB5.1/fizikselTalkBack kabulü açık."
+      "reason": "Katalog, Jobs ve Backup/Vault/Archive modal tablet düzeltmeleri main ile birleşti. Sabit643cbdd:5150tamClientPASS/coverage,analiz0/971format0; gerçekfonttablet/source incelemesi temiz. Services sonraki bağımsız dalda; kendiCI ve bütünB5.1/fizikselTalkBack kabulü açık. Yayın960691c:Android108/Core34/Security108 başlatıldı; yeniCI/APK sonucu bekleniyor."
     },
     {
       "id": "B5.2",
