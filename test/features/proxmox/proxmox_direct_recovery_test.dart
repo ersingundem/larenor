@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:ui' show ViewFocusEvent, ViewFocusState, ViewFocusDirection;
 
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
@@ -28,6 +29,14 @@ import '../../core/direct_proxmox_boundary_test.dart'
 import 'proxmox_providers_test.dart' show ControlledConnection;
 import 'proxmox_transport_security_test.dart' show authResponse, dataResponse;
 
+void focus(WidgetTester tester, bool focused, {bool otherView = false}) =>
+    tester.binding.handleViewFocusChanged(
+      ViewFocusEvent(
+        viewId: tester.view.viewId + (otherView ? 1 : 0),
+        state: focused ? ViewFocusState.focused : ViewFocusState.unfocused,
+        direction: ViewFocusDirection.undefined,
+      ),
+    );
 Future<void> frames(WidgetTester tester) async {
   for (var i = 0; i < 8; i++) {
     await tester.pump(const Duration(milliseconds: 100));
@@ -791,6 +800,153 @@ void main() {
       expect(requests, 2);
       expect(secure.values['proxmox_host'], 'new.invalid');
       expect(c.read(proxmoxConnectionProvider).hasError, isFalse);
+      expect(tester.takeException(), isNull);
+      await finish(tester, c);
+    },
+  );
+
+  testWidgets(
+    'native focus retires setup discovery TLS and connect callbacks only for this view',
+    (tester) async {
+      var requests = 0;
+      final (c, _) = await proxmoxHome(
+        'direct',
+        factory: (config, health) => ProxmoxClient(
+          config: config,
+          httpClient: MockClient((request) async {
+            requests++;
+            return request.url.path.endsWith('/access/ticket')
+                ? authResponse()
+                : dataResponse([]);
+          }),
+        ),
+      );
+      final interaction = AppInteractionController();
+      addTearDown(interaction.dispose);
+      await mount(tester, c, interaction);
+      await fill(tester);
+      final selected = tester
+          .widget<LanDiscoverySection>(find.byType(LanDiscoverySection))
+          .onSelected;
+      final tls = tester
+          .widget<CupertinoSwitch>(find.byType(CupertinoSwitch))
+          .onChanged!;
+      final connect = tester
+          .widget<CupertinoButton>(
+            find.widgetWithText(CupertinoButton, 'Connect'),
+          )
+          .onPressed!;
+      focus(tester, false, otherView: true);
+      await frames(tester);
+      tls(true);
+      await frames(tester);
+      expect(
+        tester.widget<CupertinoSwitch>(find.byType(CupertinoSwitch)).value,
+        isTrue,
+      );
+      focus(tester, false);
+      await frames(tester);
+      focus(tester, true);
+      await frames(tester);
+      await fill(tester);
+      secure.calls.clear();
+      tls(true);
+      selected('https://other.invalid:8443');
+      connect();
+      await frames(tester);
+      expect(requests, 0);
+      expect(secure.calls, isEmpty);
+      expect(
+        tester.widget<CupertinoSwitch>(find.byType(CupertinoSwitch)).value,
+        isFalse,
+      );
+      expect(
+        tester
+            .widget<CupertinoTextFormFieldRow>(
+              find.byType(CupertinoTextFormFieldRow).first,
+            )
+            .controller!
+            .text,
+        'new.invalid',
+      );
+      expect(tester.takeException(), isNull);
+      await finish(tester, c);
+    },
+  );
+  testWidgets(
+    'native focus loss cancels the owned ticket response before node read',
+    (tester) async {
+      final response = Completer<http.Response>();
+      var requests = 0;
+      final (c, _) = await proxmoxHome(
+        'direct',
+        factory: (config, health) => ProxmoxClient(
+          config: config,
+          httpClient: MockClient((request) async {
+            requests++;
+            return request.url.path.endsWith('/access/ticket')
+                ? response.future
+                : dataResponse([]);
+          }),
+        ),
+      );
+      final interaction = AppInteractionController();
+      addTearDown(interaction.dispose);
+      await mount(tester, c, interaction);
+      await fill(tester);
+      await click(tester, 'Connect');
+      expect(requests, 1);
+      focus(tester, false);
+      await frames(tester);
+      response.complete(authResponse());
+      await frames(tester);
+      expect(requests, 1);
+      expect(secure.calls.where((call) => call.$1 == 'write'), isEmpty);
+      expect(tester.takeException(), isNull);
+      await finish(tester, c);
+    },
+  );
+  testWidgets(
+    'native focus does not revive held root refresh or interrupt authorized Direct reads',
+    (tester) async {
+      secure.values.addAll(proxmoxFields);
+      var requests = 0;
+      final (c, _) = await proxmoxHome(
+        'direct',
+        factory: (config, health) => ProxmoxClient(
+          config: config,
+          healthSession: health,
+          httpClient: MockClient((request) async {
+            requests++;
+            return request.url.path.endsWith('/access/ticket')
+                ? authResponse()
+                : dataResponse([]);
+          }),
+        ),
+      );
+      final interaction = AppInteractionController();
+      addTearDown(interaction.dispose);
+      await mount(tester, c, interaction, child: const ProxmoxNodesScreen());
+      final held = tester
+          .widget<CupertinoButton>(
+            find.ancestor(
+              of: find.byIcon(CupertinoIcons.refresh),
+              matching: find.byType(CupertinoButton),
+            ),
+          )
+          .onPressed!;
+      final reader = (await c.read(proxmoxClientProvider.future))!;
+      focus(tester, false);
+      await frames(tester);
+      final beforeRead = requests;
+      await reader.getNodes();
+      expect(requests, beforeRead + 1);
+      focus(tester, true);
+      await frames(tester);
+      final beforeHeld = requests;
+      held();
+      await frames(tester);
+      expect(requests, beforeHeld);
       expect(tester.takeException(), isNull);
       await finish(tester, c);
     },

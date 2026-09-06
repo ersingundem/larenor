@@ -633,4 +633,82 @@ void main() {
     );
     expect(c.read(proxmoxConnectionProvider).hasError, isTrue);
   });
+
+  for (final fault in ['host', 'final_marker_ack']) {
+    test(
+      'existing reader replacement $fault failure stays error until explicit complete recovery',
+      () async {
+        var fail = true, requests = 0;
+        final (c, _) = await proxmoxHome(
+          'direct',
+          factory: (config, health) => ProxmoxClient(
+            config: config,
+            healthSession: health,
+            httpClient: MockClient((request) async {
+              requests++;
+              return request.url.path.endsWith('/access/ticket')
+                  ? authResponse()
+                  : dataResponse([]);
+            }),
+          ),
+        );
+        final sub = c.listen(proxmoxClientProvider, (_, _) {});
+        addTearDown(sub.close);
+        await c.read(proxmoxConnectionProvider.future);
+        await c.pump();
+        final old = await c.read(proxmoxClientProvider.future);
+        expect(old!.isAuthenticated, isTrue);
+        messenger.setMockMethodCallHandler(proxmoxStorageChannel, (call) async {
+          final result = await secure.handle(call);
+          final key = (call.arguments as Map)['key'];
+          if (fail &&
+              (fault == 'host' &&
+                      call.method == 'write' &&
+                      key == 'proxmox_host' ||
+                  fault == 'final_marker_ack' &&
+                      call.method == 'delete' &&
+                      key == proxmoxMarker)) {
+            throw PlatformException(
+              code: 'synthetic',
+              message: 'synthetic-private-lost-ack',
+            );
+          }
+          return result;
+        });
+        final controller = c.read(proxmoxConnectionProvider.notifier);
+        await expectLater(
+          signInProxmox(controller),
+          throwsA(isA<DirectHomeAccessException>()),
+        );
+        await c.pump();
+        expect(await c.read(proxmoxClientProvider.future), isNull);
+        expect(c.read(proxmoxConnectionProvider).hasError, isTrue);
+        expect(requests, 3);
+        expect(old.isAuthenticated, isFalse);
+        if (fault == 'host') {
+          expect(secure.values[proxmoxMarker], '1');
+          expect(
+            secure.values['proxmox_password'],
+            proxmoxFields['proxmox_password'],
+          );
+          await expectLater(
+            ProxmoxCredentialsStore().read(),
+            throwsA(isA<DirectHomeAccessException>()),
+          );
+        } else {
+          expect(secure.values[proxmoxMarker], isNull);
+          expect((await ProxmoxCredentialsStore().read())!.host, 'new.invalid');
+        }
+        fail = false;
+        await signInProxmox(controller);
+        await c.pump();
+        expect(
+          (await c.read(proxmoxClientProvider.future))!.isAuthenticated,
+          isTrue,
+        );
+        expect(c.read(proxmoxConnectionProvider).value!.host, 'new.invalid');
+        expect(secure.values[proxmoxMarker], isNull);
+      },
+    );
+  }
 }
