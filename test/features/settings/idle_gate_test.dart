@@ -1,5 +1,7 @@
 // Retained AsyncValue fixtures reproduce configuration refreshes.
 // ignore_for_file: invalid_use_of_internal_member
+import 'dart:ui' show ViewFocusDirection, ViewFocusEvent, ViewFocusState;
+
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/services.dart';
@@ -261,6 +263,80 @@ void _resume(WidgetTester tester) {
 
 void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
+  void focus(WidgetTester tester, ViewFocusState state, {int? viewId}) =>
+      tester.binding.handleViewFocusChanged(ViewFocusEvent(
+        viewId: viewId ?? tester.view.viewId,
+        state: state,
+        direction: ViewFocusDirection.undefined,
+      ));
+
+  testWidgets('native focus loss suspends UI and retires its old interaction epoch', (tester) async {
+    final h = _Harness();
+    final key = GlobalKey<_ProbeState>();
+    await h.mount(tester, _Probe(key: key));
+    final state = key.currentState!;
+    final interaction = AppInteractionScope.maybeRead(tester.element(find.byType(_Probe)))!;
+    final epoch = interaction.epoch;
+    focus(tester, ViewFocusState.unfocused);
+    expect(interaction.active, isFalse);
+    expect(interaction.epoch, greaterThan(epoch));
+    await frames(tester);
+    final ticks = state.ticks;
+    await tester.pump(const Duration(minutes: 2));
+    expect(state.ticks, ticks);
+    expect(clock, findsNothing);
+    expect(key.currentState, same(state));
+    // A background pointer event cannot reopen this window's interaction.
+    tester.binding.handlePointerEvent(const PointerScrollEvent(position: Offset(100, 100), scrollDelta: Offset(0, 1)));
+    await frames(tester);
+    expect(interaction.active, isFalse);
+    focus(tester, ViewFocusState.focused);
+    await frames(tester);
+    expect(interaction.active, isTrue);
+    expect(interaction.epoch, greaterThan(epoch));
+    expect(key.currentState, same(state));
+    await sleep(tester);
+    await h.close(tester);
+  });
+
+  testWidgets('another view focus does not suspend this tablet window', (tester) async {
+    final h = _Harness();
+    await h.mount(tester, const _Probe());
+    final interaction = AppInteractionScope.maybeRead(tester.element(find.byType(_Probe)))!;
+    final epoch = interaction.epoch;
+    focus(tester, ViewFocusState.unfocused, viewId: tester.view.viewId + 1);
+    expect(interaction.active, isTrue);
+    expect(interaction.epoch, epoch);
+    await sleep(tester);
+    await h.close(tester);
+  });
+
+  testWidgets('native focus roundtrip cannot reuse a root HA confirmation', (tester) async {
+    final h = _Harness();
+    final requests = <http.Request>[];
+    final client = HaRestClient(baseUrl: _config.baseUrl, token: 'fixture',
+      httpClient: MockClient((request) async { requests.add(request); return http.Response('[]', 200); }));
+    addTearDown(client.dispose);
+    await h.mount(tester,
+      const CupertinoPageScaffold(child: EntityControls(entity: _lock)),
+      restClient: client, overrides: [haActionsProvider.overrideWith((_) async => [
+        const HaAction(domain: 'lock', service: 'unlock', metadata: {'target': <String, dynamic>{}}),
+      ])]);
+    await tester.tap(find.byKey(const ValueKey('entity-control-unlock')));
+    await frames(tester);
+    await tester.pump(const Duration(milliseconds: 400));
+    final old = tester.widget<CupertinoDialogAction>(find.widgetWithText(CupertinoDialogAction, 'Unlock')).onPressed!;
+    focus(tester, ViewFocusState.unfocused);
+    await frames(tester);
+    expect(find.byType(CupertinoAlertDialog), findsNothing);
+    focus(tester, ViewFocusState.focused);
+    await frames(tester);
+    old();
+    await frames(tester);
+    expect(requests, isEmpty);
+    expect(tester.takeException(), isNull);
+    await h.close(tester);
+  });
   for (final privacy in <AsyncValue<Set<String>>>[
     const AsyncData({'weather.home'}),
     const AsyncLoading(),
