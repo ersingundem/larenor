@@ -1398,7 +1398,7 @@
           "commit": "e7c15ad6f62352f77379e369f3e8524028c42aab",
           "state": "in_progress",
           "result": null,
-          "label": "Android106, exact e7c15ad, ilk deneme. Ayrıntılı teslim makbuzu ve bağımsız APK106 doğrulaması ayrı bekleniyor."
+          "label": "Android106 exact e7c15ad:5056 tamFlutterPASS, analiz0/966format0 ve98JVM. E2E ve bağımsız imzalıAPK kabulü sürüyor; workflow henüz tamamlanmadı."
         },
         {
           "kind": "ci",
@@ -1418,7 +1418,7 @@
         }
       ],
       "completionCommit": null,
-      "reason": "CI106 exact e7c15ad: Core3311LinuxPASS/0skip ve Security207PASS; iki mimarili Core anonim doğrulandı. Android tam Flutter/E2E ve kendi imzalıAPK106 kabulü açık. CI105 timeout ve native17E2E/133faz tarihsel kanıtları korunur."
+      "reason": "CI106 exact e7c15ad: Flutter5056PASS/analiz0/966format0, Core3311LinuxPASS/0skip ve Security207PASS; iki mimarili Core anonim doğrulandı. E2E ve bağımsız imzalı APK106 kabulü açık; önceki105 timeout kanıtı korunur."
     },
     {
       "id": "S08.6",
@@ -1665,7 +1665,7 @@
           "commit": "e7c15ad6f62352f77379e369f3e8524028c42aab",
           "state": "in_progress",
           "result": null,
-          "label": "Android106, exact e7c15ad, ilk deneme. Ayrıntılı teslim makbuzu ve bağımsız APK106 doğrulaması ayrı bekleniyor."
+          "label": "Android106 exact e7c15ad:5056 tamFlutterPASS, analiz0/966format0 ve98JVM. E2E ve bağımsız imzalıAPK kabulü sürüyor; workflow henüz tamamlanmadı."
         },
         {
           "kind": "ci",
@@ -1685,7 +1685,7 @@
         }
       ],
       "completionCommit": null,
-      "reason": "CI106 exact e7c15ad: Core3311LinuxPASS/0skip ve Security207PASS; iki mimarili Core anonim doğrulandı. Android tam Flutter/E2E ve kendi imzalıAPK106 kabulü açık. CI105 timeout ve native17E2E/133faz tarihsel kanıtları korunur."
+      "reason": "CI106 exact e7c15ad: Flutter5056PASS/analiz0/966format0, Core3311LinuxPASS/0skip ve Security207PASS; iki mimarili Core anonim doğrulandı. E2E ve bağımsız imzalı APK106 kabulü açık; önceki105 timeout kanıtı korunur."
     },
     {
       "id": "S08.7",
