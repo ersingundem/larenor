@@ -148,6 +148,7 @@ def test_owned_daemon_command_disables_default_bridge_and_external_config(tmp_pa
 def test_helper_attestation_uses_actual_build_id_not_a_fabricated_manifest(tmp_path):
     m = api()
     inspected = {'Id':'sha256:'+'f'*64,'Os':'linux','Architecture':'amd64', 'RepoDigests':[]}
+    inspected['Config'] = {'Labels':m.source_labels('a'*40,m.source_hashes())}
     value = m.helper_attestation('sha256:'+'f'*64, inspected, 'linux/amd64', 'a'*40)
     assert value['configDigest'] == inspected['Id'] and value['publishedManifestDigest'] is None
     assert value['sourceCommit'] == 'a'*40 and len(value['helperSourceSha256']) == 64
@@ -225,7 +226,7 @@ def protocol(tmp_path, monkeypatch, request):
                 return b''
             if args[:2] == ['image','inspect']:
                 return json.dumps({'Id':'sha256:'+'f'*64,'Os':'linux','Architecture':'amd64',
-                                   'RepoDigests':[]}).encode()
+                    'RepoDigests':[],'Config':{'Labels':m.source_labels('a'*40,m.source_hashes())}}).encode()
             if args[0] == 'create':
                 return ('c'*64+'\n').encode()
             if args[0] in {'start','restart'}:
@@ -310,6 +311,7 @@ def test_application_uid_is_observed_not_only_requested_in_config(protocol):
 
 def test_unexpected_library_exception_is_not_printed_by_cli(monkeypatch, capsys):
     m = api()
+    monkeypatch.setattr(m,'verify_checkout',lambda _:None)
     class Owned:
         def __enter__(self):
             return self
@@ -393,7 +395,8 @@ def test_daemon_lifecycle_reaps_only_owned_process_and_directory(tmp_path, monke
             assert daemon.root == owned
     assert not owned.exists() and (outsider/'keep').read_text() == 'keep'
     if failure != 'popen':
-        assert events[-2:] == [('kill',12345,m.signal.SIGTERM),'wait']
+        assert ('kill',12345,m.signal.SIGTERM) in events
+        assert ('kill',12345,m.signal.SIGKILL) in events and events[-1] == 'wait'
 
 
 def test_exited_parent_with_inherited_stdout_cannot_leave_a_live_child(tmp_path):

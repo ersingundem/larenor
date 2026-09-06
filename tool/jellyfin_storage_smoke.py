@@ -30,7 +30,10 @@ _COMMIT = re.compile(r'[0-9a-f]{40}\Z')
 _CODES = {'storage_characterization_failed','native_ephemeral_ci_required','fixture_command_failed',
     'owned_daemon_lost','owned_daemon_unavailable','owned_cleanup_failed','fixture_image_unresolved',
     'fixture_volume_unresolved','fixture_protocol_failed','jellyfin_startup_timeout',
-    'unexpected_image_volume','unexpected_initial_write_access','restart_identity_changed'}
+    'unexpected_image_volume','unexpected_initial_write_access','restart_identity_changed','fixture_source_changed'}
+_SOURCE_FILES = ('tool/volume_bootstrap_helper.py','tool/jellyfin_storage_probe.py',
+    'tool/jellyfin_storage_smoke.py','server/Dockerfile.volume-bootstrap',
+    'server/Dockerfile.volume-bootstrap.dockerignore')
 
 
 class SmokeError(Exception):
@@ -60,6 +63,13 @@ def child_environment(root):
         'DOCKER_API_VERSION': '1.47', 'DOCKER_BUILDKIT': '0', 'LANG': 'C.UTF-8'}
 
 
+def _signal_group(process, sig):
+    try:
+        os.killpg(process.pid, sig)
+    except ProcessLookupError:
+        pass
+
+
 def bounded_command(arguments, *, environment, timeout=60, limit=65536):
     """No shell/input/ambient secrets; cap bytes and kill/reap the owned child."""
     process = None
@@ -85,10 +95,13 @@ def bounded_command(arguments, *, environment, timeout=60, limit=65536):
         raise SmokeError('fixture_command_failed') from None
     finally:
         if process is not None:
-            if process.poll() is None:
-                os.killpg(process.pid, signal.SIGKILL)
-            process.wait()
-            process.stdout.close()
+            try:
+                # An exited parent can leave descendants holding its pipe open.
+                # The group remains ours even when Popen.poll() has reaped it.
+                _signal_group(process, signal.SIGKILL)
+                process.wait(timeout=5)
+            finally:
+                process.stdout.close()
 
 
 def daemon_command(root):
@@ -150,15 +163,14 @@ class EphemeralDaemon:
 
     def __exit__(self, *_):
         if self.process is not None:
-            if self.process.poll() is None:
-                os.killpg(self.process.pid, signal.SIGTERM)
-                try:
-                    self.process.wait(timeout=15)
-                except subprocess.TimeoutExpired:
-                    os.killpg(self.process.pid, signal.SIGKILL)
-                    self.process.wait(timeout=15)
-            else:
-                self.process.wait()
+            _signal_group(self.process, signal.SIGTERM)
+            try:
+                self.process.wait(timeout=15)
+            except subprocess.TimeoutExpired:
+                pass
+            finally:
+                _signal_group(self.process, signal.SIGKILL)
+                self.process.wait(timeout=5)
             self.process = None
         if self.root is not None:
             value = self.root.lstat()
@@ -219,17 +231,44 @@ def prepare_storage(root, source, images, volumes):
     return {'imageState': result.state, 'volumeStates': states}
 
 
+def source_hashes():
+    result = {}
+    for name in _SOURCE_FILES:
+        raw = (REPOSITORY/name).read_bytes()
+        require(len(raw) <= 1048576, 'fixture_source_changed')
+        result[name] = hashlib.sha256(raw).hexdigest()
+    return result
+
+
+def source_labels(commit, hashes):
+    return {'org.opencontainers.image.revision': commit,
+        'org.larenor.fixture.source-bundle': hashlib.sha256(
+            json.dumps(hashes, sort_keys=True, separators=(',', ':')).encode()).hexdigest()}
+
+
+def verify_checkout(commit):
+    require(type(commit) is str and _COMMIT.fullmatch(commit), 'fixture_source_changed')
+    git = ['/usr/bin/git','-c','safe.directory='+str(REPOSITORY),'-C',str(REPOSITORY)]
+    env = {'PATH':'/usr/bin:/bin','LANG':'C.UTF-8'}
+    head = bounded_command(git+['rev-parse','HEAD'], environment=env, limit=64).decode().strip()
+    require(head == commit, 'fixture_source_changed')
+    bounded_command(git+['ls-files','--error-unmatch','--',*_SOURCE_FILES],environment=env,limit=4096)
+    bounded_command(git+['diff','--exit-code','HEAD','--',*_SOURCE_FILES],environment=env,limit=256)
+
+
 def helper_attestation(image_id, inspected, selected_platform, commit):
     require(type(image_id) is str and _HASH.fullmatch(image_id) and _COMMIT.fullmatch(commit))
     require(inspected.get('Id') == image_id and inspected.get('Os') == 'linux'
             and inspected.get('Architecture') == selected_platform.split('/')[1])
-    def digest(name):
-        return hashlib.sha256((REPOSITORY/name).read_bytes()).hexdigest()
+    hashes = source_hashes()
+    labels = inspected.get('Config',{}).get('Labels') or {}
+    require(all(labels.get(key) == value for key,value in source_labels(commit,hashes).items()),
+            'fixture_source_changed')
     return {'configDigest': image_id, 'platform': selected_platform, 'sourceCommit': commit,
         'publishedManifestDigest': None,
-        'helperSourceSha256': digest('tool/volume_bootstrap_helper.py'),
-        'probeSourceSha256': digest('tool/jellyfin_storage_probe.py'),
-        'dockerfileSha256': digest('server/Dockerfile.volume-bootstrap')}
+        'helperSourceSha256': hashes['tool/volume_bootstrap_helper.py'],
+        'probeSourceSha256': hashes['tool/jellyfin_storage_probe.py'],
+        'dockerfileSha256': hashes['server/Dockerfile.volume-bootstrap'], 'sourceHashes':hashes}
 
 
 def verify_container(value, source, image_config):
@@ -318,9 +357,13 @@ def characterize(daemon, *, source=None, images=None, volumes=None):
     require(type(image_config) is dict and set(image_config.get('Volumes') or {}) <= {'/config','/cache'},
             'unexpected_image_volume')
     iid_file = daemon.root/'helper.iid'
-    daemon.docker(['build','--pull','--quiet','--network=none','--file',
+    hashes = source_hashes()
+    labels = source_labels(os.environ['GITHUB_SHA'], hashes)
+    daemon.docker(['build','--pull','--quiet','--network=none',
+        *['--label='+key+'='+value for key,value in labels.items()], '--file',
         str(REPOSITORY/'server/Dockerfile.volume-bootstrap'),'--iidfile',str(iid_file),str(REPOSITORY)],
         timeout=600, limit=256)
+    require(source_hashes() == hashes, 'fixture_source_changed')
     helper_id = iid_file.read_text().strip()
     require(_HASH.fullmatch(helper_id) is not None)
     inspected = _decoded(daemon.docker(['image','inspect','--format','{{json .}}',helper_id], limit=65536))
@@ -384,6 +427,7 @@ def main(arguments=None):
         print('explicit_ephemeral_ci_flag_required', file=sys.stderr)
         return 2
     try:
+        verify_checkout(os.environ.get('GITHUB_SHA',''))
         with EphemeralDaemon() as daemon:
             result = characterize(daemon)
         print(json.dumps(result, sort_keys=True, separators=(',', ':')))
