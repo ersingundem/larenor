@@ -45,6 +45,28 @@ class _ProxmoxConnectScreenState
       _cleared = false;
   late bool _recovery = widget.recovery;
   String? _error;
+  bool _expectOwnLoading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    ref.listenManual(proxmoxConnectionProvider, (previous, next) {
+      if (!next.isLoading || previous?.isLoading == true) return;
+      // signIn retires a confirmed reader synchronously before its first await.
+      // Only that one transition belongs to this form; external reloads retire
+      // held callbacks even when Riverpod keeps the same notifier object.
+      if (_expectOwnLoading) {
+        _expectOwnLoading = false;
+        return;
+      }
+      if (mounted) {
+        setState(() {
+          sessionGeneration++;
+          clearPendingInteraction();
+        });
+      }
+    });
+  }
 
   bool _current(int generation) =>
       sessionCurrent(generation) &&
@@ -148,7 +170,11 @@ class _ProxmoxConnectScreenState
     _connection = connection;
     _operationOwner = current;
     try {
-      await connection.signIn(
+      final previous = ref.read(proxmoxConnectionProvider);
+      if (!current()) return;
+      _expectOwnLoading =
+          !previous.isLoading && !previous.hasError && previous.value != null;
+      final operation = connection.signIn(
         host: host,
         port: port,
         username: username,
@@ -157,6 +183,8 @@ class _ProxmoxConnectScreenState
         allowSelfSigned: allowSelfSigned,
         isCurrent: current,
       );
+      _expectOwnLoading = false;
+      await operation;
       if (mounted &&
           current() &&
           widget.popOnSuccess &&
@@ -169,6 +197,7 @@ class _ProxmoxConnectScreenState
           () => _error = AppLocalizations.of(context).mediaErrorUnreachable,
         );
     } finally {
+      _expectOwnLoading = false;
       if (identical(_operationOwner, current)) _operationOwner = null;
       if (current()) setState(() => _connecting = false);
     }
