@@ -36,7 +36,7 @@ Yeni worktree'deki başlangıç generated-source yükleme hatası runtime RED sa
 
 Yardımcı testleri gerçek PeoplePage/CupertinoButton ve PeopleButton ile 3 saniye gecikmeli etkinleşme, örtülen rotanın tekrar güncel olması ve yatay metin alanı varken lazy dikey hedefi sınar. Yeni yardımcı yalnız kendi yolculuğuna aittir: single mounted/current/Ticker/enabled düğme, dikey viewport ve scroll sonrası layout frame kontrolü; callback doğrudan çağrılmaz. Global `waitUntil` veya `tapVisible` gevşetilmez.
 
-HTTP negatifleri gövde sırasında login/retire/rol/Core/ev değişimini, effect sonrası gecikmiş ACK'te aynı sınırları, kapalı JSON/izin/query alanlarını, bağımsız CAS ve snapshot paging'i kapsar. Yanıt gelmeden client kapandığında metadata bir kez kalır, tekrar istek veya yeni catch kuralı gerekmez. Normal 503 tek effect ve bir ret olarak kalır. Gerçek AppHarness.close normal CRUD/ACL akışında geçer; beklenmedik 401 sonrası aynı global sıfır ret şartı hata verir. Fixture immutable kayıt kopyası dışarıdan değiştirilemez.
+HTTP negatifleri gövde sırasında login/retire/rol/Core/ev değişimini, effect sonrası gecikmiş ACK'te aynı sınırları, kapalı JSON/izin/query alanlarını, bağımsız CAS ve snapshot paging'i kapsar. Yanıt gelmeden client kapandığında metadata bir kez kalır, tekrar istek veya yeni catch kuralı gerekmez. Normal 503 tek effect ve bir ret olarak kalır. Gerçek AppHarness.close normal CRUD/ACL akışında geçer; beklenmedik 401 sonrası aynı global sıfır ret şartı hata verir. Dış kayıt listesi değiştirilemez; iç map değerleri ayrı derin kopyalardır. Kopyayı değiştirmek fixture kayıtlarını değiştirmez.
 
 Yerel loglar:
 
