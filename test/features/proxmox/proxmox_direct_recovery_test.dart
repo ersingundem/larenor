@@ -17,6 +17,7 @@ import 'package:larenor/features/proxmox/presentation/proxmox_nodes_screen.dart'
 import 'package:larenor/features/proxmox/presentation/proxmox_session_guard.dart';
 import 'package:larenor/features/proxmox/providers/proxmox_providers.dart';
 import 'package:larenor/features/settings/presentation/settings_gate_screen.dart';
+import 'package:larenor/features/settings/providers/settings_providers.dart';
 import 'package:larenor/l10n/generated/app_localizations.dart';
 import 'package:larenor/shared/discovery/lan_discovery_section.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -77,28 +78,35 @@ Future<void> mount(
   AppInteractionController interaction, {
   Widget child = const ProxmoxConnectScreen(),
   ValueNotifier<bool>? visible,
+  Size size = const Size(700, 1100),
+  Locale locale = const Locale('en'),
+  double scale = 1,
 }) async {
   tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
-  tester.view.physicalSize = const Size(700, 1100);
+  tester.view.physicalSize = size;
   tester.view.devicePixelRatio = 1;
   addTearDown(tester.view.reset);
   await tester.pumpWidget(
     UncontrolledProviderScope(
       container: c,
       child: CupertinoApp(
-        locale: const Locale('en'),
+        locale: locale,
         localizationsDelegates: AppLocalizations.localizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
-        builder: (context, body) => AppInteractionScope(
-          controller: interaction,
-          child: visible == null
-              ? body!
-              : ValueListenableBuilder<bool>(
-                  valueListenable: visible,
-                  child: body,
-                  builder: (_, value, child) =>
-                      TickerMode(enabled: value, child: child!),
-                ),
+        builder: (context, body) => MediaQuery(
+          data: MediaQuery.of(context)
+              .copyWith(textScaler: TextScaler.linear(scale)),
+          child: AppInteractionScope(
+            controller: interaction,
+            child: visible == null
+                ? body!
+                : ValueListenableBuilder<bool>(
+                    valueListenable: visible,
+                    child: body,
+                    builder: (_, value, child) =>
+                        TickerMode(enabled: value, child: child!),
+                  ),
+          ),
         ),
         home: child,
       ),
@@ -360,6 +368,430 @@ void main() {
           .read(proxmoxConnectionProvider.future)
           .catchError((Object_) => null);
       expect(held(), isFalse);
+      await finish(tester, c);
+    },
+  );
+
+  for (final field in proxmoxFields.keys) {
+    testWidgets(
+      'window expiry after $field write blocks remaining fields and config publication',
+      (tester) async {
+        final (c, _) = await proxmoxHome('direct');
+        final interaction = AppInteractionController();
+        addTearDown(interaction.dispose);
+        messenger.setMockMethodCallHandler(proxmoxStorageChannel, (call) async {
+          final result = await secure.handle(call);
+          if (call.method == 'write' && (call.arguments as Map)['key'] == field)
+            interaction.setActive(false);
+          return result;
+        });
+        await mount(tester, c, interaction);
+        await fill(tester);
+        await click(tester, 'Connect');
+        expect(secure.values[proxmoxMarker], '1');
+        final keys = proxmoxFields.keys.toList();
+        expect(
+          secure.calls
+              .where((call) => call.$1 == 'write')
+              .map((call) => call.$2),
+          [proxmoxMarker, ...keys.take(keys.indexOf(field) + 1)],
+        );
+        expect(c.read(proxmoxConnectionProvider).hasError, isTrue);
+        expect(tester.takeException(), isNull);
+        await finish(tester, c);
+      },
+    );
+  }
+  for (final reason in [
+    'window',
+    'background',
+    'ticker',
+    'route',
+    'source',
+    'dispose',
+  ]) {
+    for (final phase in reason == 'window' ? ['ticket', 'nodes'] : ['ticket']) {
+      testWidgets(
+        '$reason during $phase closes only the owned verifier and sends no later request',
+        (tester) async {
+          final response = Completer<http.Response>();
+          var requests = 0;
+          final (c, home) = await proxmoxHome(
+            'direct',
+            factory: (config, health) => ProxmoxClient(
+              config: config,
+              httpClient: MockClient((request) async {
+                requests++;
+                return request.url.path.endsWith(
+                      phase == 'ticket' ? '/access/ticket' : '/nodes',
+                    )
+                    ? response.future
+                    : authResponse();
+              }),
+            ),
+          );
+          final interaction = AppInteractionController(),
+              visible = ValueNotifier(true);
+          addTearDown(interaction.dispose);
+          addTearDown(visible.dispose);
+          await mount(tester, c, interaction, visible: visible);
+          await fill(tester);
+          await click(tester, 'Connect');
+          expect(requests, phase == 'ticket' ? 1 : 2);
+          if (reason == 'window') interaction.setActive(false);
+          if (reason == 'background')
+            tester.binding.handleAppLifecycleStateChanged(
+              AppLifecycleState.inactive,
+            );
+          if (reason == 'ticker') visible.value = false;
+          if (reason == 'route')
+            Navigator.of(tester.element(find.byType(ProxmoxConnectScreen)))
+                .push(
+                  CupertinoPageRoute(
+                    builder: (_) =>
+                        const CupertinoPageScaffold(child: Text('other')),
+                  ),
+                );
+          if (reason == 'source') await home.choose(HomeSource.verifiedCore);
+          if (reason == 'dispose') await tester.pumpWidget(const SizedBox());
+          await frames(tester);
+          response.complete(
+            phase == 'ticket' ? authResponse() : dataResponse([]),
+          );
+          await frames(tester);
+          expect(requests, phase == 'ticket' ? 1 : 2);
+          expect(secure.calls.where((call) => call.$1 == 'write'), isEmpty);
+          expect(tester.takeException(), isNull);
+          await finish(tester, c);
+        },
+      );
+    }
+  }
+  for (final reason in ['window', 'ticker', 'route']) {
+    testWidgets('held root refresh cannot restart a reader after $reason', (
+      tester,
+    ) async {
+      secure.values.addAll(proxmoxFields);
+      var requests = 0;
+      final (c, _) = await proxmoxHome(
+        'direct',
+        factory: (config, health) => ProxmoxClient(
+          config: config,
+          healthSession: health,
+          httpClient: MockClient((request) async {
+            requests++;
+            return request.url.path.endsWith('/access/ticket')
+                ? authResponse()
+                : dataResponse([]);
+          }),
+        ),
+      );
+      final interaction = AppInteractionController(),
+          visible = ValueNotifier(true);
+      addTearDown(interaction.dispose);
+      addTearDown(visible.dispose);
+      await mount(
+        tester,
+        c,
+        interaction,
+        visible: visible,
+        child: const ProxmoxNodesScreen(),
+      );
+      final button = find.ancestor(
+        of: find.byIcon(CupertinoIcons.refresh),
+        matching: find.byType(CupertinoButton),
+      );
+      final held = tester.widget<CupertinoButton>(button).onPressed!;
+      if (reason == 'window') {
+        interaction.setActive(false);
+        interaction.setActive(true);
+      }
+      if (reason == 'ticker') {
+        visible.value = false;
+        await frames(tester);
+        visible.value = true;
+      }
+      if (reason == 'route') {
+        final nav = Navigator.of(
+          tester.element(find.byType(ProxmoxNodesScreen)),
+        );
+        nav.push(
+          CupertinoPageRoute(
+            builder: (_) => const CupertinoPageScaffold(child: Text('other')),
+          ),
+        );
+        await frames(tester);
+        nav.pop();
+      }
+      await frames(tester);
+      final before = requests;
+      held();
+      await frames(tester);
+      expect(requests, before);
+      expect(tester.takeException(), isNull);
+      await finish(tester, c);
+    });
+  }
+  for (final bad in [
+    ('proxmox_allow_self_signed', null),
+    ('proxmox_port', 'bad'),
+  ]) {
+    testWidgets(
+      'legacy invalid ${bad.$1} opens blank recovery without granting TLS or login',
+      (tester) async {
+        secure.values.addAll(proxmoxFields);
+        if (bad.$2 == null) {
+          secure.values.remove(bad.$1);
+        } else {
+          secure.values[bad.$1] = bad.$2!;
+        }
+        var clients = 0;
+        final (c, _) = await proxmoxHome(
+          'direct',
+          factory: (config, health) {
+            clients++;
+            return ProxmoxClient(
+              config: config,
+              httpClient: MockClient((_) async => authResponse()),
+            );
+          },
+        );
+        final interaction = AppInteractionController();
+        addTearDown(interaction.dispose);
+        await mount(tester, c, interaction, child: const ProxmoxNodesScreen());
+        expect(find.byType(ProxmoxConnectScreen), findsOneWidget);
+        expect(find.byType(LanDiscoverySection), findsNothing);
+        expect(
+          tester
+              .widgetList<CupertinoTextFormFieldRow>(
+                find.byType(CupertinoTextFormFieldRow),
+              )
+              .map((w) => w.controller!.text),
+          everyElement(isEmpty),
+        );
+        expect(
+          tester.widget<CupertinoSwitch>(find.byType(CupertinoSwitch)).value,
+          isFalse,
+        );
+        expect(clients, 0);
+        expect(secure.calls.where((call) => call.$1 != 'read'), isEmpty);
+        await finish(tester, c);
+      },
+    );
+  }
+  for (final layout in [
+    (const Size(320, 640), const Locale('tr')),
+    (const Size(1366, 1024), const Locale('en')),
+  ]) {
+    testWidgets(
+      'recovery layout ${layout.$1} ${layout.$2} 2x preserves explicit clear',
+      (tester) async {
+        secure.values.addAll(proxmoxFields);
+        secure.values[proxmoxMarker] = '1';
+        final (c, _) = await proxmoxHome('direct');
+        final interaction = AppInteractionController();
+        addTearDown(interaction.dispose);
+        await mount(
+          tester,
+          c,
+          interaction,
+          child: const ProxmoxNodesScreen(),
+          size: layout.$1,
+          locale: layout.$2,
+          scale: 2,
+        );
+        expect(tester.takeException(), isNull);
+        await click(
+          tester,
+          layout.$2.languageCode == 'tr'
+              ? 'Kayıtlı bağlantıyı kaldır'
+              : 'Remove saved connection',
+        );
+        final scroll = find
+            .descendant(
+              of: find.byType(ProxmoxConnectScreen),
+              matching: find.byType(Scrollable),
+            )
+            .first;
+        tester.state<ScrollableState>(scroll).position.jumpTo(0);
+        await frames(tester);
+        expect(
+          find.text(layout.$2.languageCode == 'tr' ? 'Bitti' : 'Done'),
+          findsOneWidget,
+        );
+        expect(secure.values[proxmoxMarker], isNull);
+        expect(tester.takeException(), isNull);
+        await finish(tester, c);
+      },
+    );
+  }
+  testWidgets(
+    'actual PIN change retires in-flight recovery and both captured callbacks',
+    (tester) async {
+      secure.values.addAll(proxmoxFields);
+      secure.values[proxmoxMarker] = '1';
+      secure.values['settings_pin'] = '2468';
+      final response = Completer<http.Response>();
+      var requests = 0;
+      final (c, _) = await proxmoxHome(
+        'direct',
+        factory: (config, health) => ProxmoxClient(
+          config: config,
+          httpClient: MockClient((_) async {
+            requests++;
+            return response.future;
+          }),
+        ),
+      );
+      final interaction = AppInteractionController();
+      addTearDown(interaction.dispose);
+      await mount(tester, c, interaction, child: const SettingsGateScreen());
+      await tester.enterText(find.byType(CupertinoTextField).first, '2468');
+      await click(tester, 'Unlock');
+      await click(tester, 'Integrations');
+      await click(tester, 'Manage Integrations');
+      await click(tester, 'Proxmox');
+      await fill(tester);
+      final clear = find.widgetWithText(
+        CupertinoButton,
+        'Remove saved connection',
+      );
+      await Scrollable.ensureVisible(tester.element(clear), alignment: .4);
+      await frames(tester);
+      final heldClear = tester.widget<CupertinoButton>(clear).onPressed!;
+      final connect = find.widgetWithText(CupertinoButton, 'Connect');
+      final heldConnect = tester.widget<CupertinoButton>(connect).onPressed!;
+      heldConnect();
+      await frames(tester);
+      expect(requests, 1);
+      secure.values['settings_pin'] = '1357';
+      c.invalidate(pinLockProvider);
+      await frames(tester);
+      expect(find.byType(ProxmoxConnectScreen), findsNothing);
+      secure.calls.clear();
+      heldClear();
+      heldConnect();
+      response.complete(authResponse());
+      await frames(tester);
+      expect(requests, 1);
+      expect(secure.calls.where((call) => call.$1 != 'read'), isEmpty);
+      expect(secure.values[proxmoxMarker], '1');
+      expect(
+        secure.values['proxmox_password'],
+        proxmoxFields['proxmox_password'],
+      );
+      expect(tester.takeException(), isNull);
+      await finish(tester, c);
+    },
+  );
+
+  for (final phase in ['loading', 'settled']) {
+    testWidgets(
+      'held setup callback cannot cross provider-only $phase reload',
+      (tester) async {
+        var requests = 0;
+        final (c, _) = await proxmoxHome(
+          'direct',
+          factory: (config, health) => ProxmoxClient(
+            config: config,
+            httpClient: MockClient((request) async {
+              requests++;
+              return request.url.path.endsWith('/access/ticket')
+                  ? authResponse()
+                  : dataResponse([]);
+            }),
+          ),
+        );
+        final interaction = AppInteractionController();
+        addTearDown(interaction.dispose);
+        await mount(tester, c, interaction);
+        await fill(tester);
+        final button = find.widgetWithText(CupertinoButton, 'Connect');
+        await Scrollable.ensureVisible(tester.element(button), alignment: .4);
+        await frames(tester);
+        final held = tester.widget<CupertinoButton>(button).onPressed!;
+        final before = c.read(proxmoxConnectionProvider.notifier);
+        c.invalidate(proxmoxConnectionProvider);
+        c.read(proxmoxConnectionProvider);
+        if (phase == 'settled') {
+          await c.read(proxmoxConnectionProvider.future);
+          await frames(tester);
+          await fill(tester);
+        }
+        expect(
+          identical(c.read(proxmoxConnectionProvider.notifier), before),
+          isTrue,
+        );
+        secure.calls.clear();
+        held();
+        await frames(tester);
+        expect(requests, 0);
+        expect(secure.calls.where((call) => call.$1 != 'read'), isEmpty);
+        expect(tester.takeException(), isNull);
+        await finish(tester, c);
+      },
+    );
+  }
+  testWidgets(
+    'provider reload while its form login is pending closes the owned transport',
+    (tester) async {
+      final response = Completer<http.Response>();
+      var requests = 0;
+      final (c, _) = await proxmoxHome(
+        'direct',
+        factory: (config, health) => ProxmoxClient(
+          config: config,
+          httpClient: MockClient((request) async {
+            requests++;
+            return request.url.path.endsWith('/access/ticket')
+                ? response.future
+                : dataResponse([]);
+          }),
+        ),
+      );
+      final interaction = AppInteractionController();
+      addTearDown(interaction.dispose);
+      await mount(tester, c, interaction);
+      await fill(tester);
+      await click(tester, 'Connect');
+      expect(requests, 1);
+      c.invalidate(proxmoxConnectionProvider);
+      c.read(proxmoxConnectionProvider);
+      await frames(tester);
+      response.complete(authResponse());
+      await frames(tester);
+      expect(requests, 1);
+      expect(secure.calls.where((call) => call.$1 == 'write'), isEmpty);
+      expect(tester.takeException(), isNull);
+      await finish(tester, c);
+    },
+  );
+  testWidgets(
+    'own confirmed-account replacement loading does not cancel its current form',
+    (tester) async {
+      secure.values.addAll(proxmoxFields);
+      var requests = 0;
+      final (c, _) = await proxmoxHome(
+        'direct',
+        factory: (config, health) => ProxmoxClient(
+          config: config,
+          httpClient: MockClient((request) async {
+            requests++;
+            return request.url.path.endsWith('/access/ticket')
+                ? authResponse()
+                : dataResponse([]);
+          }),
+        ),
+      );
+      final interaction = AppInteractionController();
+      addTearDown(interaction.dispose);
+      await mount(tester, c, interaction);
+      await fill(tester);
+      await click(tester, 'Connect');
+      expect(requests, 2);
+      expect(secure.values['proxmox_host'], 'new.invalid');
+      expect(c.read(proxmoxConnectionProvider).hasError, isFalse);
+      expect(tester.takeException(), isNull);
       await finish(tester, c);
     },
   );

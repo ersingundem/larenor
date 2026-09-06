@@ -17,6 +17,7 @@ import 'package:larenor/features/server/data/server_account_controller.dart';
 
 import 'direct_home_boundary_test.dart'
     show SecurePlatform, SourceStore, SessionStore;
+import '../features/proxmox/proxmox_providers_test.dart' show ClosingTransport;
 import '../features/proxmox/proxmox_transport_security_test.dart'
     show authResponse, dataResponse;
 
@@ -95,13 +96,17 @@ Future<void> saveProxmox(ProxmoxCredentialsStore store) => store.save(
   password: 'synthetic-new-password',
   allowSelfSigned: true,
 );
-Future<void> signInProxmox(ProxmoxConnection connection) => connection.signIn(
+Future<void> signInProxmox(
+  ProxmoxConnection connection, {
+  bool Function()? isCurrent,
+}) => connection.signIn(
   host: 'new.invalid',
   port: 9443,
   username: 'new-user',
   realm: 'newrealm',
   password: 'synthetic-new-password',
   allowSelfSigned: true,
+  isCurrent: isCurrent,
 );
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -418,4 +423,214 @@ void main() {
       },
     );
   }
+
+  for (final throws in [false, true]) {
+    test(
+      'expired sign-in callback throws=$throws dispatches no client or credential operation',
+      () async {
+        var clients = 0;
+        final (c, _) = await proxmoxHome(
+          'direct',
+          factory: (config, health) {
+            clients++;
+            return ProxmoxClient(
+              config: config,
+              httpClient: MockClient((_) async => authResponse()),
+            );
+          },
+        );
+        final sub = c.listen(proxmoxConnectionProvider, (_, _) {});
+        addTearDown(sub.close);
+        await c.read(proxmoxConnectionProvider.future);
+        secure.calls.clear();
+        await expectLater(
+          signInProxmox(
+            c.read(proxmoxConnectionProvider.notifier),
+            isCurrent: () {
+              if (throws) throw StateError('synthetic-private');
+              return false;
+            },
+          ),
+          throwsA(isA<DirectHomeAccessException>()),
+        );
+        expect(clients, 0);
+        expect(secure.calls, isEmpty);
+      },
+    );
+  }
+  for (final phase in ['ticket', 'nodes']) {
+    test(
+      'callback expires after $phase response before next request or save',
+      () async {
+        var active = true, requests = 0;
+        final (c, _) = await proxmoxHome(
+          'direct',
+          factory: (config, health) => ProxmoxClient(
+            config: config,
+            httpClient: MockClient((request) async {
+              requests++;
+              if (request.url.path.endsWith(
+                phase == 'ticket' ? '/access/ticket' : '/nodes',
+              ))
+                active = false;
+              return request.url.path.endsWith('/access/ticket')
+                  ? authResponse()
+                  : dataResponse([]);
+            }),
+          ),
+        );
+        final sub = c.listen(proxmoxConnectionProvider, (_, _) {});
+        addTearDown(sub.close);
+        await c.read(proxmoxConnectionProvider.future);
+        secure.calls.clear();
+        await expectLater(
+          signInProxmox(
+            c.read(proxmoxConnectionProvider.notifier),
+            isCurrent: () => active,
+          ),
+          throwsA(isA<DirectHomeAccessException>()),
+        );
+        expect(requests, phase == 'ticket' ? 1 : 2);
+        expect(secure.calls, isEmpty);
+        expect(c.read(proxmoxConnectionProvider).hasError, isTrue);
+      },
+    );
+  }
+  test('owned cancelled replacement never republishes the prior reader or logs in again', () async {
+    final response = Completer<http.Response>(), started = Completer<void>();
+    final transports = <ClosingTransport>[];
+    var requests = 0, active = true;
+    final (c, _) = await proxmoxHome(
+      'direct',
+      factory: (config, health) {
+        final transport = ClosingTransport((request) async {
+          requests++;
+          if (config.host == 'new.invalid') {
+            if (!started.isCompleted) started.complete();
+            return response.future;
+          }
+          return request.url.path.endsWith('/access/ticket')
+              ? authResponse()
+              : dataResponse([]);
+        });
+        transports.add(transport);
+        return ProxmoxClient(
+          config: config,
+          httpClient: transport,
+          healthSession: health,
+        );
+      },
+    );
+    final sub = c.listen(proxmoxClientProvider, (_, _) {});
+    addTearDown(sub.close);
+    await c.read(proxmoxConnectionProvider.future);
+    await c.pump();
+    final old = await c.read(proxmoxClientProvider.future);
+    expect(old!.isAuthenticated, isTrue);
+    final controller = c.read(proxmoxConnectionProvider.notifier);
+    bool owner() => active;
+    final failure = expectLater(
+      signInProxmox(controller, isCurrent: owner),
+      throwsA(isA<DirectHomeAccessException>()),
+    );
+    await started.future;
+    active = false;
+    controller.cancelSignIn(owner);
+    expect(transports.last.closed, isTrue);
+    response.complete(authResponse());
+    await failure;
+    await c.pump();
+    expect(await c.read(proxmoxClientProvider.future), isNull);
+    expect(c.read(proxmoxConnectionProvider).hasError, isTrue);
+    expect(requests, 2);
+    expect(secure.values, proxmoxFields);
+  });
+  test('former or unrelated owner cannot cancel latest verifier or normal Direct reader', () async {
+    secure.values.clear();
+    final first = Completer<http.Response>(),
+        second = Completer<http.Response>();
+    final firstStarted = Completer<void>(), secondStarted = Completer<void>();
+    final transports = <ClosingTransport>[];
+    final (c, _) = await proxmoxHome(
+      'direct',
+      factory: (config, health) {
+        final number = transports.length;
+        final transport = ClosingTransport((request) async {
+          if (request.url.path.endsWith('/access/ticket') && number < 2) {
+            final start = number == 0 ? firstStarted : secondStarted;
+            if (!start.isCompleted) start.complete();
+            return number == 0 ? first.future : second.future;
+          }
+          return request.url.path.endsWith('/access/ticket')
+              ? authResponse()
+              : dataResponse([]);
+        });
+        transports.add(transport);
+        return ProxmoxClient(
+          config: config,
+          httpClient: transport,
+          healthSession: health,
+        );
+      },
+    );
+    final sub = c.listen(proxmoxConnectionProvider, (_, _) {});
+    addTearDown(sub.close);
+    await c.read(proxmoxConnectionProvider.future);
+    final controller = c.read(proxmoxConnectionProvider.notifier);
+    bool one() => true;
+    bool two() => true;
+    final failed = expectLater(
+      signInProxmox(controller, isCurrent: one),
+      throwsA(isA<Exception>()),
+    );
+    await firstStarted.future;
+    final latest = signInProxmox(controller, isCurrent: two);
+    await secondStarted.future;
+    controller.cancelSignIn(one);
+    controller.cancelSignIn(() => true);
+    expect(transports[1].closed, isFalse);
+    second.complete(authResponse());
+    await latest;
+    first.complete(authResponse());
+    await failed;
+    final readerSub = c.listen(proxmoxClientProvider, (_, _) {});
+    addTearDown(readerSub.close);
+    final reader = await c.read(proxmoxClientProvider.future);
+    expect(reader!.isAuthenticated, isTrue);
+    controller.cancelSignIn(two);
+    expect(transports.last.closed, isFalse);
+    expect(await reader.getNodes(), isEmpty);
+  });
+  test('sign-out window expiry after first field deletion preserves quarantine and never retries', () async {
+    var active = true;
+    final (c, _) = await proxmoxHome('direct');
+    final sub = c.listen(proxmoxConnectionProvider, (_, _) {});
+    addTearDown(sub.close);
+    await c.read(proxmoxConnectionProvider.future);
+    secure.calls.clear();
+    messenger.setMockMethodCallHandler(proxmoxStorageChannel, (call) async {
+      final result = await secure.handle(call);
+      if (call.method == 'delete' &&
+          (call.arguments as Map)['key'] == 'proxmox_host')
+        active = false;
+      return result;
+    });
+    await expectLater(
+      c
+          .read(proxmoxConnectionProvider.notifier)
+          .signOut(isCurrent: () => active),
+      throwsA(isA<DirectHomeAccessException>()),
+    );
+    expect(secure.values[proxmoxMarker], '1');
+    expect(secure.values['proxmox_host'], isNull);
+    expect(
+      secure.values['proxmox_password'],
+      proxmoxFields['proxmox_password'],
+    );
+    expect(
+      secure.calls.where((call) => call.$1 == 'delete').map((call) => call.$2),
+      ['proxmox_host'],
+    );
+    expect(c.read(proxmoxConnectionProvider).hasError, isTrue);
+  });
 }
