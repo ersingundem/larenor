@@ -1,6 +1,5 @@
 """Locked SQLite + synthetic Engine composition, no live install permission."""
 from contextlib import contextmanager
-from dataclasses import replace
 import importlib
 import importlib.util
 import json

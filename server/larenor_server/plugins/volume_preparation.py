@@ -10,19 +10,18 @@ The engine and synchronous literal-True authorizer are trusted private seams,
 not real actor/daemon/storage-budget grant issuers. No API/IPC/runtime uses them.
 Transport limits are per exchange: up to three exchanges (each at most 10s,
 including /version). This is not a hard whole-operation deadline: callbacks and
-SQLite/filesystem calls are not preempted here. No probe.during mutator exists.
+SQLite/filesystem calls are not preempted here. No observation hook performs mutation.
 """
 from dataclasses import replace
 import threading
 
-from .resource_journal import ResourceJournalError
+from .resource_journal import ResourceJournalError, _digest
 from .volume_create_journal import VolumeCreateJournal, _exact
 from .volume_effects import (
     VolumeAbsent, VolumeCreateAcknowledgement, VolumeEffectError, _inputs,
 )
 from .volume_plan import verify_volume_plan
 from .volume_resources import VolumeObservation, VolumeResourceError
-from .resource_journal import _digest
 
 
 class VolumePreparationError(Exception):

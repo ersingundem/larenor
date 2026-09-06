@@ -6,7 +6,7 @@ journal or installation authority. There is no raw API/IPC entry point, proxy,
 TCP fallback, retry, redirect, auth option, or general Docker client here.
 
 Only pinned-image inspect/pull, exact network list/inspect/create and generated
-volume inspect shapes are accepted. Catalog
+local-volume inspect/create shapes are accepted. Catalog
 rederivation and response meaning belong to the adapter. The synchronous trusted
 consumer must validate its response; its bounded iterator is invalidated before
 exchange returns. No configuration or progress content is retained here.
