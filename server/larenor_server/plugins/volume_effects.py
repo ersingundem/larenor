@@ -13,7 +13,6 @@ never a VolumeObservation. Fresh GET reconciliation and bootstrap remain require
 There are no retry, delete, host Mountpoint access, subprocess or container calls.
 """
 from dataclasses import dataclass
-import math
 
 from ..services.transport import ProbeResponse
 from .engine_http import EngineHttpError, EngineHttpLimits, EngineHttpRequest, VerifiedEngineHttp
@@ -48,7 +47,7 @@ class VolumeEffectLimits:
     max_chunks: int = 4096
 
     def __post_init__(self):
-        _require(all(type(v) in (int, float) and math.isfinite(v) for v in (
+        _require(all(type(v) in (int, float) for v in (
             self.total_seconds, self.idle_seconds))
             and 0 < self.idle_seconds <= 2 and self.idle_seconds <= self.total_seconds <= 10
             and type(self.max_chunks) is int and 1 <= self.max_chunks <= 4096,
