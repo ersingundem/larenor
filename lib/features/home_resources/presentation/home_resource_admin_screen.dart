@@ -569,10 +569,14 @@ class _HomeResourceAdminScreenState
                                             l10n.resourceGrantsManage,
                                             _controller.canMutate
                                                 ? () => Navigator.of(context).push(
-                                                    CupertinoPageRoute<void>(builder: (_) => HomeResourceGrantsScreen(
-                                                      target: row,
-                                                      gateCurrent: widget.gateCurrent,
-                                                    )),
+                                                    CupertinoPageRoute<void>(
+                                                      builder: (_) =>
+                                                          HomeResourceGrantsScreen(
+                                                            target: row,
+                                                            gateCurrent: widget
+                                                                .gateCurrent,
+                                                          ),
+                                                    ),
                                                   )
                                                 : null,
                                           ),
