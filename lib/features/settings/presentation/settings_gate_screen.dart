@@ -202,11 +202,20 @@ class _SettingsGateScreenState extends ConsumerState<SettingsGateScreen>
                             ? HomeSourceScreen(
                                 runFileDialog: _runFileDialog,
                                 archiveGateCurrent: () {
-                                  if (!mounted || !_interactive ||
-                                      !identical(archiveNavigator, _settingsNavigator) ||
-                                      ModalRoute.of(context)?.isCurrent != true) return false;
+                                  if (!mounted ||
+                                      !_interactive ||
+                                      !identical(
+                                        archiveNavigator,
+                                        _settingsNavigator,
+                                      ) ||
+                                      ModalRoute.of(context)?.isCurrent !=
+                                          true) {
+                                    return false;
+                                  }
                                   final value = ref.read(pinLockProvider);
-                                  return !value.isLoading && !value.hasError && value.hasValue &&
+                                  return !value.isLoading &&
+                                      !value.hasError &&
+                                      value.hasValue &&
                                       (value.value == null || _unlocked);
                                 },
                                 onExit: Navigator.of(context).canPop()
