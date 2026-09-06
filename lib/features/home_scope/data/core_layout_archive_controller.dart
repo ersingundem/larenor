@@ -95,9 +95,11 @@ class CoreLayoutArchiveController {
     // Every attempted confirmation consumes its own preview before queuing.
     // A foreign controller cannot consume another owner's valid preview.
     try {
-      _checkPreview(preview);
-      if (preview._used) throw const DashboardStorageException('expired');
+      if (!identical(preview._owner, _owner) || preview._used) {
+        throw const DashboardStorageException('expired');
+      }
       preview._used = true;
+      _checkPreview(preview);
     } catch (error, stack) {
       return Future.error(error, stack);
     }
