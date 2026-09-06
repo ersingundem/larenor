@@ -180,3 +180,23 @@ def test_additive_people_migration_preserves_old_context_users_tokens_resources_
     with TestClient(restarted) as next_client:
         assert next_client.get(old, headers=auth(admin)).json()['entries'] == [room]
         assert next_client.get(paths(restarted)[0], headers=auth(admin)).json()['entries'] == []
+
+
+@pytest.mark.parametrize('version', [1, 2])
+def test_historical_database_fixture_predates_all_context_bound_people_state(server, version):
+    from test_admin_migration import downgrade_to_known_v1
+    from test_core_context import legacy_v2
+    app, client, settings, _ = server
+    admin = ready(server)
+    (downgrade_to_known_v1 if version == 1 else legacy_v2)(app)
+    with app.state.core.db.connection() as connection:
+        assert connection.execute("SELECT value FROM metadata WHERE key='schema_version'").fetchone()[0] == str(version)
+        assert connection.execute("SELECT name FROM sqlite_master WHERE name GLOB 'home_people_*'").fetchall() == []
+        assert connection.execute("SELECT value FROM metadata WHERE key='home_people_schema'").fetchone() is None
+    restored = create_app(settings)
+    with TestClient(restored) as next_client:
+        public, _ = paths(restored)
+        result = next_client.get(public, headers=auth(admin))
+        assert result.status_code == 200 and result.json()['entries'] == []
+    with restored.state.core.db.connection() as connection:
+        assert connection.execute("SELECT value FROM metadata WHERE key='home_people_schema'").fetchone()[0] == '1'
