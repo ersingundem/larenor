@@ -192,6 +192,23 @@ void main() {
     await expectLater(c.capture(), failure('expired'));
     await expectLater(c.preview(archive()), failure('expired'));
   });
+  test('expired confirmation cannot revive when the wall clock returns', () async {
+    final c = controller();
+    final preview = await c.preview(archive());
+    final original = now;
+    now = now.add(CoreLayoutArchiveController.lifetime);
+    await expectLater(c.apply(preview), failure('expired'));
+    now = original;
+    await expectLater(c.apply(preview), failure('expired'));
+    expect((await disk()).containsKey(scope.storageKey), isFalse);
+  });
+  test('foreign controller cannot consume the owning controller confirmation', () async {
+    final owner = controller();
+    final preview = await owner.preview(archive());
+    await expectLater(controller().apply(preview), failure('expired'));
+    await owner.apply(preview);
+    expect(await repository.load(), savedLayout);
+  });
   test('queued restore rechecks authority and consumes preview without retry', () async {
     final c = controller();
     final p = await c.preview(archive());
