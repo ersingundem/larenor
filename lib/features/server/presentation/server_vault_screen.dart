@@ -10,6 +10,8 @@ import '../../../shared/theme/typography.dart';
 import '../../../shared/widgets/app_page_scaffold.dart';
 import '../../../shared/widgets/settings_section.dart';
 import '../../backup/data/backup_snapshot.dart';
+import '../../backup/data/backup_repository.dart';
+import '../../backup/data/backup_restore_access_provider.dart';
 import '../../backup/presentation/backup_screen.dart';
 import '../../media/hub/presentation/media_session_state.dart';
 import '../../settings/providers/settings_providers.dart';
@@ -158,10 +160,18 @@ class _ServerVaultScreenState extends MediaSessionState<ServerVaultScreen> {
       _review = null;
     });
     try {
+      final access = _direction == ServerVaultDirection.restore
+          ? await ref.read(backupRestoreAccessFactoryProvider)(
+              expectedPin: _initialPin,
+              isCurrent: () => sessionCurrent(epoch) && _active,
+            )
+          : null;
+      if (!sessionCurrent(epoch) || !_active) return;
       final review = await _vault.prepare(
         direction: _direction,
         selection: _selection,
         conflictPolicy: _conflict,
+        access: access,
       );
       if (!sessionCurrent(epoch) || !_active) return;
       setState(() {
@@ -183,13 +193,19 @@ class _ServerVaultScreenState extends MediaSessionState<ServerVaultScreen> {
 
   void _showFailure(Object error, {bool uploading = false}) {
     final l10n = AppLocalizations.of(context);
-    final code = error is LarenorServerException ? error.code : '';
+    final code = switch (error) {
+      LarenorServerException() => error.code,
+      BackupException() => error.code,
+      _ => '',
+    };
     setState(() {
       _review = null;
       _error = true;
       _message = switch (code) {
         'conflict' || 'revision_conflict' => l10n.serverVaultConflict,
-        'review_expired' || 'cancelled' => l10n.serverVaultExpired,
+        'review_expired' || 'cancelled' || 'restore_expired' || 'restore_changed' => l10n.serverVaultExpired,
+        'ha_connection_pending' => l10n.backupHaConnectionPending,
+        'connection_pending' => l10n.backupConnectionPending,
         'empty_selection' => l10n.backupSelectGroup,
         'empty_vault' => l10n.serverVaultEmpty,
         'unauthorized' => l10n.serverFailureAuthentication,
@@ -251,6 +267,7 @@ class _ServerVaultScreenState extends MediaSessionState<ServerVaultScreen> {
       },
     );
     _dialog = route;
+    PreparedBackupRestore? prepared;
     try {
       final confirmed = await Navigator.of(context).push(route);
       if (identical(_dialog, route)) _dialog = null;
@@ -269,18 +286,21 @@ class _ServerVaultScreenState extends MediaSessionState<ServerVaultScreen> {
           _error = false;
         });
       } else {
-        final operation = await _vault.takeRestore(review);
+        prepared = await _vault.takeRestore(review);
         if (!mounted || !sessionCurrent(epoch) || !_active) return;
-        final handler = ref.read(backupRestoreHandlerProvider);
-        _handedOff = true;
-        await handler(context, operation, l10n);
+        final handler = ref.read(preparedBackupRestoreHandlerProvider);
+        await handler(context, prepared, l10n);
+        _handedOff = prepared.wasHandedOff;
         // The boundary owns success/failure. The old provider tree is gone.
       }
     } catch (error) {
+      _handedOff = prepared?.wasHandedOff ?? _handedOff;
       if (!_handedOff && sessionCurrent(epoch) && _active) {
         _showFailure(error, uploading: uploading);
       }
     } finally {
+      _handedOff = prepared?.wasHandedOff ?? _handedOff;
+      prepared?.retire();
       if (!_handedOff && mounted) {
         setState(() {
           if (sessionCurrent(epoch)) _busy = false;
