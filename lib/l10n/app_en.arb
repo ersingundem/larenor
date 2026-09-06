@@ -2260,5 +2260,22 @@
   "homeResourceAdminUncertain": "The result could not be confirmed. The change may have been saved. Refresh to check before trying again.",
   "homeResourceAdminFailed": "The change was not accepted. Refresh to check the current records and access.",
   "homeResourceAdminInvalid": "Enter a name of 1–80 characters and an order from 0 to 10000.",
-  "homeResourceAdminRequired": "A currently verified Core administrator account is required."
+  "homeResourceAdminRequired": "A currently verified Core administrator account is required.",
+  "resourceGrantsManage": "Manage access",
+  "resourceGrantsTitle": "Resource access",
+  "resourceGrantsDescription": "Choose a Core account, then review and save its access to this record.",
+  "resourceGrantsInherited": "These grants do not change account roles. Administrators keep their administrative access; disabled accounts remain blocked.",
+  "resourceGrantsReadOnly": "Read only",
+  "resourceGrantsReadWrite": "Read and write",
+  "resourceGrantsNone": "No record grant",
+  "resourceGrantsNoUsers": "No Core accounts are available.",
+  "resourceGrantsConfirmRevoke": "Remove this account’s record grant?",
+  "resourceGrantsRevokeHint": "This removes the saved grant for this record only. It does not delete the account or change its role.",
+  "resourceGrantsRevoke": "Remove grant",
+  "resourceGrantsSaved": "Access saved.",
+  "resourceGrantsRevoked": "Record grant removed.",
+  "resourceGrantsConflict": "Access changed elsewhere. Refresh and review the current grants before saving again.",
+  "resourceGrantsUncertain": "The result could not be confirmed. Refresh to read the current grants; the request will not be repeated automatically.",
+  "resourceGrantsFailed": "Access could not be saved. Refresh before reviewing another change.",
+  "resourceGrantsReadFailed": "Accounts and access could not be read. Refresh to try reading them again."
 }

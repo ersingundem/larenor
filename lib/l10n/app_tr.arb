@@ -1939,5 +1939,22 @@
   "homeResourceAdminUncertain": "Sonuç doğrulanamadı. Değişiklik kaydedilmiş olabilir. Yeniden denemeden önce yenileyerek kontrol edin.",
   "homeResourceAdminFailed": "Değişiklik kabul edilmedi. Güncel kayıtları ve erişimi kontrol etmek için yenileyin.",
   "homeResourceAdminInvalid": "1–80 karakterlik bir ad ve 0–10000 arasında bir sıra girin.",
-  "homeResourceAdminRequired": "Güncel olarak doğrulanmış bir Core yönetici hesabı gerekir."
+  "homeResourceAdminRequired": "Güncel olarak doğrulanmış bir Core yönetici hesabı gerekir.",
+  "resourceGrantsManage": "Erişimi yönet",
+  "resourceGrantsTitle": "Kaynak erişimi",
+  "resourceGrantsDescription": "Bir Core hesabı seçin, ardından bu kayda erişimini inceleyip kaydedin.",
+  "resourceGrantsInherited": "Bu izinler hesap rollerini değiştirmez. Yöneticilerin yönetim erişimi sürer; devre dışı hesaplar engelli kalır.",
+  "resourceGrantsReadOnly": "Yalnızca okuma",
+  "resourceGrantsReadWrite": "Okuma ve yazma",
+  "resourceGrantsNone": "Kayıt izni yok",
+  "resourceGrantsNoUsers": "Kullanılabilir Core hesabı yok.",
+  "resourceGrantsConfirmRevoke": "Bu hesabın kayıt izni kaldırılsın mı?",
+  "resourceGrantsRevokeHint": "Yalnızca bu kayıt için saklanan izin kaldırılır. Hesap silinmez, rolü değişmez.",
+  "resourceGrantsRevoke": "İzni kaldır",
+  "resourceGrantsSaved": "Erişim kaydedildi.",
+  "resourceGrantsRevoked": "Kayıt izni kaldırıldı.",
+  "resourceGrantsConflict": "Erişim başka bir yerde değişti. Yeniden kaydetmeden önce yenileyip güncel izinleri inceleyin.",
+  "resourceGrantsUncertain": "Sonuç doğrulanamadı. Güncel izinleri okumak için yenileyin; istek otomatik olarak tekrarlanmaz.",
+  "resourceGrantsFailed": "Erişim kaydedilemedi. Başka bir değişikliği incelemeden önce yenileyin.",
+  "resourceGrantsReadFailed": "Hesaplar ve erişim okunamadı. Yeniden okumayı denemek için yenileyin."
 }
