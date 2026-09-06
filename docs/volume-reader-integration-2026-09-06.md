@@ -1,0 +1,44 @@
+# Volume okuyucusu — ayrı Core birleşimi
+
+Kaynak `3d9075fc412f4c9ef387a74c976070c83bdc4b7e`, taban
+`a27abeaa55a2ea94a0a0eaec1b9a74743c086a9c`; birleşen dal
+`0d86fa17ea4410a44bc6df878c106a013a8733c6`.
+Bu ayrı yerel paket, CI101'deki kaynağa eklenmedi.
+
+Yalnız doğrulanmış Unix Engine volume GET ve mevcut kalıcı journal'a bağlı
+gözlem eklenir. Ad/etiket/binding tekrar doğrulanır; tarihi kayıt yeni
+ölçüm veya volume oluşturma/kurulum izni değildir. Detaylar ve RED/GREEN
+checkpoint'leri [uygulama kanıtında](managed-volume-read-transport-implementation-2026-09-06.md).
+Root ilk kaynak ile son iptal/kimlik değişimi düzeltmelerini bağımsız inceledi;
+somut P1/P2 bulunmadı.
+
+## Birleşik yerel doğrulama
+
+6 Eylül 2026'da exact `3d9075f` üzerinde tam Server koşusu:
+**3.192 PASS / 11 Linux skip / 313,35 saniye (5:13)**. JUnit3.203 toplam
+vaka, 0failure/error ve11skip ile uyuşuyor. İki mevcut deprecation uyarısı
+var. Atlamalar Linux peer/procfs/mount/FD yollarıdır; yeni Linux CI bu
+kaynak üzerinde ayrıca çalışmalıdır. Önceki CI'nin Linux kanıtı yeni
+okuyucuya taşınmaz.
+
+```text
+PYTHONPATH=. LARENOR_TEST_APKSIG_JAR=<pinned apksig9.1.0 jar>
+PATH=<Java17>/bin:$PATH <reviewed Python>/bin/python -m pytest tests
+  --junitxml=/private/tmp/larenor-volume-reader-integration-server.xml
+```
+
+Özel tam log `/private/tmp/larenor-volume-reader-integration-server.log`.
+11 yeni commit için redakte gitleaks taraması temiz; queue validate ve
+diff-check geçti. Client/Android/integration test/CI/tool/pubspec farkı
+bu birleşimde yok; yeni bir tam Flutter koşusu yapılmış sayılmaz.
+
+Önceki dalın odaklı371 PASS/1Linuxskip ve yeni iki modülde94/94statement,
+28/28branch kapsamı kendi final kaynak kanıtıdır; bu tam koşuya toplanmaz.
+
+## Açık kalanlar
+
+Bu paket için uzak CI, iki mimarili container ve bağımsız APK kabulü henüz
+yok. Gerçek ev Engine'i kullanılmadı; fiziksel kuruluma geçilmedi.
+UID/bootstrap, üretim worker/HTTP yetkisi, volume yaratma/adopt ve kurulum
+etkileri ayrı kalır. `installAvailable=false` sürer. S06.3d bu alt dilim
+nedeniyle tamamlandı işaretlenmez.
