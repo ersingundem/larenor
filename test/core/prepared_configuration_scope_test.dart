@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:async';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -71,4 +72,21 @@ void main() {
     expect(h.created,2);expect(find.text('dark'),findsOneWidget);expect(h.storage.secrets,isEmpty);
     expect(h.storage.writes.where((v)=>v.startsWith('pref:')),isEmpty);
   });
+  testWidgets('failed handoff Continue cannot adopt a valid replacement transaction', (tester) async {
+    final other=MemoryBackupStorage(preferences:{'appearance':'dark'});
+    await f.apply(await f.prepare(BackupRepository(storage:other),f.TestRestoreAccess(),f.restoreFixture({'appearance':'system'})));
+    final replacement=other.durableImages.firstWhere((i)=>i.secrets['backup_restore_journal_v2']!=null).secrets['backup_restore_journal_v2']!;
+    expect((jsonDecode(replacement) as Map)['phase'],'applying');
+    final h=_Harness(_Storage());await h.mount(tester);h.storage.failInitialAck=true;
+    await tester.tap(find.text('Restore'));await tester.pumpAndSettle();
+    expect(find.text('Recovery required'),findsOneWidget);
+    h.storage.failReads=false;h.storage.failInitialAck=false;
+    h.storage.secrets['backup_restore_journal_v2']=replacement;
+    h.storage.preferences['appearance']='system';h.storage.writes.clear();
+    await tester.tap(find.text('Retry recovery'));await tester.pumpAndSettle();
+    expect(h.created,1);expect(find.text('Recovery required'),findsOneWidget);
+    expect(h.storage.secrets['backup_restore_journal_v2'],replacement);
+    expect(h.storage.preferences['appearance'],'system');expect(h.storage.writes,isEmpty);
+  });
+
 }

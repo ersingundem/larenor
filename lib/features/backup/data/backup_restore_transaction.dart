@@ -80,7 +80,7 @@ Future<PreparedBackupRestore> _prepareRestore(BackupRepository repository,Backup
       )) throw const BackupException('restore_target_mismatch','This backup targets Direct home data.');
       final homeBearing=narrowed.hasDashboard || narrowed.hasConnections ||
           ((selected['settings'] as Map?)?.keys.any((key)=>_directTarget(false,key as String)) ?? false);
-      final origin=sourceOriginNeeded(access.source,homeBearing)
+      final origin=_sourceOriginNeeded(access.source,homeBearing)
           ? await _captureHaOrigin(repository,current) : null;
       Future<void> bound() async {
         await current();
@@ -119,6 +119,8 @@ final class PreparedBackupRestore {
   final BackupPreview summary;
   final String _snapshotDigest;
   final DateTime expiresAt;
+  final String _intentId=List.generate(16,(_)=>Random.secure().nextInt(256).toRadixString(16).padLeft(2,'0')).join();
+  Set<String>? _recoveryIntents;
   Object? _owner;
   int _state=0;
   bool get wasHandedOff => _state>=1 && _state<=3;
@@ -134,11 +136,36 @@ final class PreparedBackupRestore {
     if(_haOrigin!=null) await _verifyHaOrigin(_repository,_haOrigin,current);
     await current();
   }
-  Future<void> recoverAfterHandoff() async {
+  Future<void> recoverAfterHandoff()=>ConfigurationWrites.run(() async {
     if(_state!=3) _expiredRestore();
-    await _repository.recoverPendingRestore();
-  }
-  bool get targetsDirect => _plan.changes.any((c)=>_directTarget(c.secret,c.key));
+    try {
+      if(await _repository._storage.readSecret(BackupRepository.restoreJournalKey)!=null) _recoveryRequired();
+      final raw=await _repository._storage.readSecret(_journalV2Key);
+      final expected=_recoveryIntents;
+      if(expected==null) {
+        if(raw!=null) _recoveryRequired();
+        return;
+      }
+      if(raw!=null) {
+        await _recoverV2(_repository,expected:expected);
+        return;
+      }
+      // An absent journal is never evidence for a partial rollback or commit.
+      // Only a fully unchanged or fully applied result permits a fresh runtime.
+      var before=true,after=true;
+      for(final change in _plan.changes) {
+        final value=await _readChange(_repository,change);
+        before=before && _same(value,change.before);
+        after=after && _same(value,change.after);
+      }
+      if(!before && !after) _recoveryRequired();
+      for(final change in _plan.changes) {
+        if(!_same(await _readChange(_repository,change),before ? change.before : change.after)) _recoveryRequired();
+      }
+      if(await _repository._storage.readSecret(_journalV2Key)!=null) _recoveryRequired();
+    } on BackupException {rethrow;} catch(_) {_recoveryRequired();}
+  });
+  bool get targetsDirect => _haOrigin!=null || _plan.changes.any((c)=>_directTarget(c.secret,c.key));
   void retire() { if(_state==0) _state=4; }
   void claimForHandoff(Object owner) {
     if(_state!=0) _expiredRestore();
@@ -171,6 +198,8 @@ final class PreparedBackupRestore {
         await _access.checkDurable();
         boundary();
       }
+      await _repository._requireStableConnections(_plan.services);
+      boundary();
     }
     try {
       await current();
@@ -179,8 +208,9 @@ final class PreparedBackupRestore {
       await _verifyReadSet(current);
       await current();
       if(_plan.changes.isEmpty) return;
-      final journal=_encodeV2(_repository,_plan.changes,_ownership,_snapshotDigest,_restoreDigest(_readSet),'applying');
-      final committed=_encodeV2(_repository,_plan.changes,_ownership,_snapshotDigest,_restoreDigest(_readSet),'committed');
+      final journal=_encodeV2(_repository,_plan.changes,_ownership,_snapshotDigest,_restoreDigest(_readSet),'applying',_intentId);
+      final committed=_encodeV2(_repository,_plan.changes,_ownership,_snapshotDigest,_restoreDigest(_readSet),'committed',_intentId);
+      _recoveryIntents=Set.unmodifiable({journal,committed});
       await _repository._storage.writeSecret(_journalV2Key,journal);
       if(await _repository._storage.readSecret(_journalV2Key)!=journal) _recoveryRequired();
       try {
@@ -224,7 +254,7 @@ final class PreparedBackupRestore {
   @override String toString()=>'PreparedBackupRestore';
 }
 
-bool sourceOriginNeeded(HomeSource source,bool homeBearing)=>source==HomeSource.directLocal && homeBearing;
+bool _sourceOriginNeeded(HomeSource source,bool homeBearing)=>source==HomeSource.directLocal && homeBearing;
 Future<Map<String,String?>> _captureHaOrigin(BackupRepository repository,Future<void> Function() current) async {
   await repository._requireStableHaConnection();await current();
   final values=<String,String?>{};
@@ -252,8 +282,8 @@ void _checkRestoreOwner(Object? owner) {
   }
 }
 Future<Object?> _readChange(BackupRepository repo,_Change c)=>c.secret ? repo._storage.readSecret(c.key) : repo._storage.readPreference(c.key);
-String _encodeV2(BackupRepository repo,List<_Change> changes,Map<String,dynamic> owner,String sourceDigest,String targetDigest,String phase) {
-  final value={'version':2,'owner':owner,'sourceDigest':sourceDigest,'targetDigest':targetDigest,'phase':phase,'changes':[for(final c in changes) {'secret':c.secret,'key':c.key,'before':c.before,'after':c.after}]};
+String _encodeV2(BackupRepository repo,List<_Change> changes,Map<String,dynamic> owner,String sourceDigest,String targetDigest,String phase,String intentId) {
+  final value={'version':2,'intentId':intentId,'owner':owner,'sourceDigest':sourceDigest,'targetDigest':targetDigest,'phase':phase,'changes':[for(final c in changes) {'secret':c.secret,'key':c.key,'before':c.before,'after':c.after}]};
   final raw=_canonical({...value,'digest':_restoreDigest(value)});
   _decodeV2(repo,raw);
   return raw;
@@ -262,10 +292,11 @@ String _encodeV2(BackupRepository repo,List<_Change> changes,Map<String,dynamic>
   try {
     if(utf8.encode(raw).length>BackupRepository._maxJournalBytes) _recoveryRequired();
     final data=jsonDecode(raw);
-    if(data is! Map<String,dynamic> || data.length!=7 || !data.keys.toSet().containsAll({'version','owner','sourceDigest','targetDigest','phase','changes','digest'}) || data['version'] is! int || data['version']!=2 || !{'applying','committed'}.contains(data['phase'])) _recoveryRequired();
+    if(data is! Map<String,dynamic> || data.length!=8 || !data.keys.toSet().containsAll({'version','intentId','owner','sourceDigest','targetDigest','phase','changes','digest'}) || data['version'] is! int || data['version']!=2 || !{'applying','committed'}.contains(data['phase'])) _recoveryRequired();
     final digest=data.remove('digest');
     if(digest!=_restoreDigest(data)) _recoveryRequired();
     for(final k in ['sourceDigest','targetDigest']) {if(data[k] is! String || !RegExp(r'^[a-f0-9]{64}$').hasMatch(data[k] as String)) _recoveryRequired();}
+    if(data['intentId'] is! String || !RegExp(r'^[a-f0-9]{32}$').hasMatch(data['intentId'] as String)) _recoveryRequired();
     _checkRestoreOwner(data['owner']);
     final list=data['changes'];
     if(list is! List || list.isEmpty || list.length>100) _recoveryRequired();
@@ -299,6 +330,9 @@ Future<bool> _recoverV2(BackupRepository repo,{Set<String>? expected}) async {
       await repo._write(c,previous:true);
       if(!_same(await _readChange(repo,c),c.before)) _recoveryRequired();
     }
+  }
+  for(final change in changes) {
+    if(!_same(await _readChange(repo,change),phase=='applying' ? change.before : change.after)) _recoveryRequired();
   }
   await _requireJournal(repo,raw);
   try { await repo._storage.writeSecret(_journalV2Key,null); } catch(_) {

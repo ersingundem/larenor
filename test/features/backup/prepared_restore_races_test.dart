@@ -1,6 +1,8 @@
 import 'dart:convert';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:larenor/features/backup/data/backup_repository.dart';
+import 'package:larenor/core/direct_credential_record.dart';
+import 'package:larenor/core/home_source_store.dart';
 import 'package:larenor/features/backup/data/backup_snapshot.dart';
 import 'backup_test_storage.dart';
 import 'prepared_restore_test.dart' as fixtures;
@@ -11,6 +13,24 @@ class _Storage extends MemoryBackupStorage {
   void Function(String)? afterRead,afterWrite;
   @override Future<Object?> readPreference(String key) async { final value=await super.readPreference(key);afterRead?.call(key);return value; }
   @override Future<void> writePreference(String key,Object? value) async { await super.writePreference(key,value);afterWrite?.call(key); }
+}
+class _MutableAccess extends fixtures.TestRestoreAccess {
+  bool Function()? mutate;
+  @override Future<void> checkDurable() async {
+    await Future<void>.value();
+    if(mutate?.call()==true) source=HomeSource.verifiedCore;
+  }
+}
+class _SecretRace extends MemoryBackupStorage {
+  _SecretRace():super(secrets:{'sonarr_base_url':'http://old.test','sonarr_api_key':'old-token'});
+  int afterReads=0;
+  @override Future<String?> readSecret(String key)async {
+    final value=await super.readSecret(key);
+    if(key=='sonarr_api_key' && value=='new-token' && secrets.containsKey(journalKey) && ++afterReads==2) {
+      secrets[DirectCredentialService.sonarr.pendingMutationKey]='1';
+    }
+    return value;
+  }
 }
 class _AliasedSnapshot implements BackupSnapshot {
   _AliasedSnapshot(this.json);
@@ -74,6 +94,46 @@ void main() {
     expect(storage.secrets[journalKey],newer);
     expect(storage.writes.where((key)=>key=='pref:appearance'),isEmpty);
     expect(storage.writes.where((key)=>key=='secret:$journalKey'),hasLength(1));
+  });
+
+  for(final phase in ['applying','committed']) {
+    test('recovery $phase final validation preserves late drift and intent', () async {
+      final initial=_Storage();
+      await fixtures.apply(await fixtures.prepare(BackupRepository(storage:initial),fixtures.TestRestoreAccess(),fixtures.restoreFixture({'appearance':'light','keep_screen_on':true})));
+      final image=initial.durableImages.firstWhere((i)=>i.preferences['keep_screen_on']==true && i.secrets[journalKey]!=null && (jsonDecode(i.secrets[journalKey]!) as Map)['phase']==phase);
+      final storage=_Storage();storage.preferences..clear()..addAll(image.preferences);storage.secrets.addAll(image.secrets);
+      if(phase=='committed') {
+        storage.afterRead=(key) {if(key=='keep_screen_on') {storage.afterRead=null;storage.preferences['appearance']='system';}};
+      } else {
+        storage.afterWrite=(key) {if(key=='appearance') storage.preferences['keep_screen_on']='foreign-platform-value';};
+      }
+      await expectLater(BackupRepository(storage:storage).recoverPendingRestore(),throwsA(isA<BackupException>()));
+      expect(storage.secrets[journalKey],image.secrets[journalKey]);
+      expect(storage.preferences[phase=='committed' ? 'appearance':'keep_screen_on'],phase=='committed' ? 'system':'foreign-platform-value');
+    });
+  }
+  test('identical payloads still produce distinct private transaction identities', () async {
+    Future<String> intent()async {
+      final storage=_Storage();await fixtures.apply(await fixtures.prepare(BackupRepository(storage:storage),fixtures.TestRestoreAccess()));
+      return storage.durableImages.firstWhere((i)=>i.secrets[journalKey]!=null).secrets[journalKey]!;
+    }
+    expect(await intent(),isNot(await intent()));
+  });
+
+  test('ownership changed during durable await cannot perform its next field write',() async {
+    final storage=_Storage(),access=_MutableAccess();
+    final prepared=await fixtures.prepare(BackupRepository(storage:storage),access);
+    access.mutate=()=>storage.secrets.containsKey(journalKey);
+    await expectLater(fixtures.apply(prepared),throwsA(isA<BackupException>()));
+    expect(storage.writes.where((v)=>v.startsWith('pref:')),isEmpty);
+  });
+  test('marker arriving during final target read prevents commit and is preserved',() async {
+    final storage=_SecretRace();
+    final snapshot=BackupSnapshot.fromJson({'version':1,'createdAt':'2026-09-06T00:00:00Z','groups':{'connections':{'sonarr':{'baseUrl':'http://new.test','apiKey':'new-token'}}}});
+    final prepared=await BackupRepository(storage:storage).prepareRestore(snapshot,const BackupSelection(settings:false,dashboard:false,connections:true),conflictPolicy:BackupConflictPolicy.replaceSelected,access:fixtures.TestRestoreAccess());
+    await expectLater(fixtures.apply(prepared),throwsA(isA<BackupException>()));
+    expect(storage.secrets[DirectCredentialService.sonarr.pendingMutationKey],'1');
+    expect(storage.durableImages.map((i)=>i.secrets[journalKey]).whereType<String>().map((raw)=>(jsonDecode(raw) as Map)['phase']),isNot(contains('committed')));
   });
 
 }
