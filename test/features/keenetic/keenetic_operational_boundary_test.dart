@@ -12,6 +12,8 @@ import 'package:flutter_secure_storage_platform_interface/flutter_secure_storage
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:larenor/core/app_interaction_scope.dart';
+import 'package:larenor/core/theme.dart';
+import 'package:larenor/l10n/generated/app_localizations.dart';
 import 'package:larenor/core/home_source_store.dart';
 import 'package:larenor/features/keenetic/presentation/keenetic_devices_screen.dart';
 import 'package:larenor/features/keenetic/presentation/keenetic_port_forwarding_screen.dart';
@@ -105,6 +107,9 @@ void main() {
     'ticker',
     'covered',
     'account',
+    'reload',
+    'logout',
+    'dispose',
     'source',
   ]) {
     testWidgets(
@@ -173,6 +178,12 @@ void main() {
               secure.values['keenetic_base_url'] =
                   'https://other.invalid/prefix';
               c.invalidate(keeneticConnectionProvider);
+            } else if (change == 'reload') {
+              c.invalidate(keeneticConnectionProvider);
+            } else if (change == 'logout') {
+              await c.read(keeneticConnectionProvider.notifier).signOut();
+            } else if (change == 'dispose') {
+              await tester.pumpWidget(const SizedBox());
             } else {
               await home.choose(HomeSource.verifiedCore);
             }
@@ -182,6 +193,13 @@ void main() {
             expect(requests.where((r) => r.method == 'POST'), isEmpty);
             expect(find.byType(CupertinoAlertDialog), findsNothing);
             expect(tester.takeException(), isNull);
+            if (['native_focus', 'idle', 'background', 'ticker', 'covered', 'reload'].contains(change)) {
+              await tester.tap(find.byType(CupertinoSwitch));
+              await settle(tester);
+              await tester.tap(find.text('Turn Off'));
+              await settle(tester);
+              expect(requests.where((r) => r.method == 'POST'), hasLength(1));
+            }
             await finish(tester, c);
           },
           () => MockClient((r) async {
@@ -319,4 +337,146 @@ void main() {
       }, () => MockClient((r) async => responseFor(r)));
     },
   );
+
+  for (final child in [const KeeneticWifiScreen(), const KeeneticDevicesScreen(), const KeeneticPortForwardingScreen()]) {
+    for (final mode in ['core', 'pending', 'error']) {
+      testWidgets('${child.runtimeType} $mode reads no credentials and sends no HTTP', (tester) async {
+        final (c, _) = await routinesHome(mode);
+        final interaction = AppInteractionController();
+        addTearDown(interaction.dispose);
+        var requests = 0;
+        await http.runWithClient(() async {
+          await mount(tester, c, interaction, child: child);
+          expect(secure.calls, isEmpty);
+          expect(requests, 0);
+          expect(find.byType(CupertinoSwitch), findsNothing);
+          expect(find.text('Synthetic device'), findsNothing);
+          await finish(tester, c);
+        }, () => MockClient((r) async { requests++; return responseFor(r); }));
+      });
+    }
+  }
+
+  for (final result in ['success', 'unauthorized', 'transport']) {
+    testWidgets('late command $result after native focus loss cannot retry, refresh or open an error', (tester) async {
+      final (c, _) = await routinesHome('direct');
+      final interaction = AppInteractionController();
+      addTearDown(interaction.dispose);
+      final response = Completer<http.Response>();
+      final requests = <http.Request>[];
+      await http.runWithClient(() async {
+        await mount(tester, c, interaction, child: const IdleGate(child: KeeneticWifiScreen()));
+        await tester.tap(find.byType(CupertinoSwitch));
+        await settle(tester);
+        final confirm = tester.widget<CupertinoDialogAction>(find.widgetWithText(CupertinoDialogAction, 'Turn Off')).onPressed!;
+        confirm();
+        await settle(tester);
+        expect(requests.where((r) => r.method == 'POST'), hasLength(1));
+        focus(tester, ViewFocusState.unfocused);
+        await settle(tester);
+        final before = requests.length;
+        if (result == 'transport') {
+          response.completeError(http.ClientException('synthetic unavailable'));
+        } else {
+          response.complete(http.Response('', result == 'success' ? 200 : 401));
+        }
+        await settle(tester);
+        focus(tester, ViewFocusState.focused);
+        await settle(tester);
+        confirm();
+        await settle(tester);
+        expect(requests.length, before);
+        expect(find.byType(CupertinoAlertDialog), findsNothing);
+        expect(tester.takeException(), isNull);
+        await finish(tester, c);
+      }, () => MockClient((r) { requests.add(r); return r.method == 'POST' ? response.future : Future.value(responseFor(r)); }));
+    });
+  }
+
+  testWidgets('unrelated native view focus preserves a current confirmation', (tester) async {
+    final (c, _) = await routinesHome('direct');
+    final interaction = AppInteractionController();
+    addTearDown(interaction.dispose);
+    final requests = <http.Request>[];
+    await http.runWithClient(() async {
+      await mount(tester, c, interaction, child: const IdleGate(child: KeeneticWifiScreen()));
+      await tester.tap(find.byType(CupertinoSwitch));
+      await settle(tester);
+      tester.binding.handleViewFocusChanged(ViewFocusEvent(viewId: tester.view.viewId + 999, state: ViewFocusState.unfocused, direction: ViewFocusDirection.undefined));
+      await settle(tester);
+      expect(find.byType(CupertinoAlertDialog), findsOneWidget);
+      await tester.tap(find.text('Turn Off'));
+      await settle(tester);
+      expect(requests.where((r) => r.method == 'POST'), hasLength(1));
+      await finish(tester, c);
+    }, () => MockClient((r) async { requests.add(r); return responseFor(r); }));
+  });
+
+  for (final locale in ['en', 'tr']) {
+    for (final width in [600.0, 1200.0]) {
+      for (final dark in [false, true]) {
+        testWidgets('$locale $width ${dark ? 'dark' : 'light'} 2x real-font Wi-Fi dialog stays readable and keyboard-cancellable', (tester) async {
+          await tester.runAsync(() async {
+            final data = await rootBundle.load('assets/fonts/Inter-Variable.ttf');
+            for (final family in ['Inter', 'CupertinoSystemText', 'CupertinoSystemDisplay']) {
+              await (FontLoader(family)..addFont(Future.value(data))).load();
+            }
+          });
+          final (c, _) = await routinesHome('direct');
+          final interaction = AppInteractionController();
+          addTearDown(interaction.dispose);
+          var commands = 0;
+          final semantics = tester.ensureSemantics();
+          await http.runWithClient(() async {
+            await mount(tester, c, interaction, size: Size(width, 800), scale: 2, locale: Locale(locale),
+              child: CupertinoTheme(data: larenorTheme(brightness: dark ? Brightness.dark : Brightness.light), child: const KeeneticWifiScreen()));
+            await tester.tap(find.byType(CupertinoSwitch));
+            await settle(tester);
+            final l10n = AppLocalizations.of(tester.element(find.byType(CupertinoAlertDialog)));
+            expect(find.text(l10n.keeneticDisableWifiTitle), findsOneWidget);
+            final cancel = find.widgetWithText(CupertinoDialogAction, l10n.commonCancel);
+            final turnOff = find.widgetWithText(CupertinoDialogAction, l10n.keeneticTurnOff);
+            expect(tester.getSize(cancel).height, greaterThanOrEqualTo(48));
+            expect(tester.getSize(turnOff).height, greaterThanOrEqualTo(48));
+            await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+            await settle(tester);
+            expect(find.byType(CupertinoAlertDialog), findsNothing);
+            expect(commands, 0);
+            expect(tester.takeException(), isNull);
+            semantics.dispose();
+            await finish(tester, c);
+          }, () => MockClient((r) async { if (r.method == 'POST') commands++; return responseFor(r); }));
+        });
+      }
+    }
+  }
+
+  testWidgets('a consumed Wi-Fi confirmation cannot pop the child route or dispatch twice', (tester) async {
+    final (c, _) = await routinesHome('direct');
+    final interaction = AppInteractionController();
+    addTearDown(interaction.dispose);
+    final pending = Completer<http.Response>();
+    final requests = <http.Request>[];
+    await http.runWithClient(() async {
+      await mount(tester, c, interaction, child: Builder(builder: (context) => CupertinoPageScaffold(child: CupertinoButton(
+        onPressed: () => Navigator.of(context).push(CupertinoPageRoute<void>(builder: (_) => const KeeneticWifiScreen())),
+        child: const Text('Open child'),
+      ))));
+      await tester.tap(find.text('Open child'));
+      await settle(tester);
+      await tester.tap(find.byType(CupertinoSwitch));
+      await settle(tester);
+      final confirm = tester.widget<CupertinoDialogAction>(find.widgetWithText(CupertinoDialogAction, 'Turn Off')).onPressed!;
+      confirm();
+      await tester.pump();
+      confirm();
+      await settle(tester);
+      expect(requests.where((r) => r.method == 'POST'), hasLength(1));
+      expect(find.byType(KeeneticWifiScreen), findsOneWidget);
+      pending.complete(http.Response('', 200));
+      await settle(tester);
+      expect(tester.takeException(), isNull);
+      await finish(tester, c);
+    }, () => MockClient((r) { requests.add(r); return r.method == 'POST' ? pending.future : Future.value(responseFor(r)); }));
+  });
 }
