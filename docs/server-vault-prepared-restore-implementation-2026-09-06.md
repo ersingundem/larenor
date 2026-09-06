@@ -41,3 +41,19 @@ Bütün Flutter/Dart komutları `python3 /private/tmp/larenor-flutter-check.py` 
 - Nihai analiz/format ve satır kapsamı: 6 owned Dart dosyasında analiz 0 sorun ve format 6 dosya/0 değişiklik. Loglar `/private/tmp/larenor-vault-final-analyze.log` ve `/private/tmp/larenor-vault-final-format-check.log`. Son ilgili koşunun satır kapsamı controller 117/118, screen 353/364; toplam 470/482 (%97,51). LCOV: `/private/tmp/larenor-vault-final-related-coverage.info`.
 
 İlgili komut, tüm `test/features/backup`, üç Vault test dosyası, `server_connection_screen_test.dart`, `settings_gate_screen_test.dart`, `configuration_scope_test.dart` ve `prepared_configuration_scope_test.dart` dosyalarını çalıştırır. Kapsam satır ölçümüdür; branch/cihaz kapsaması iddiası değildir. Özel receipt: `/private/tmp/larenor-server-vault-prepared-delivery-evidence.json`.
+
+## Ayrı modal erişilebilirlik deltası
+
+Önceki `79f313b` freeze ve 387 PASS kaydı yukarıdaki engine/oturum tesliminin kanıtıdır. Sonraki dar modal düzeltmesi o sonuca dahil değildir.
+
+Gerçek `ServerVaultScreen` onay penceresinde EN/TR × 320/600/1280 genişlik × 2x metin matrisi, altı eksik button rolü ve altı Tab/Enter iptal hatasını yeniden üretti: RED `2b8e81f`, 2 mevcut koruma testi PASS / 12 yeni FAIL; `/private/tmp/larenor-vault-modal-a11y-red.log`. Yalnız ekran içindeki `_VaultDialogAction`, mevcut `CupertinoDialogAction` görünümünü/destructive niteliğini ve eylem key'ini koruyarak açık button semantiği, Enter/Space aktivasyonu ve görünür klavye odağı ekler. Onay/iptalin `routeIsCurrent(epoch)` callback'leri, controller, deadline, shared engine ve handoff sırası değişmez.
+
+Minimal GREEN `01bb288`: aynı seçimde 14 PASS / 2 saniye; `/private/tmp/larenor-vault-modal-a11y-green-final.log`. İlk ara çalışmadaki test finder'ı aynı birleşik semantics node'una bakan iki widget'ı saymıştı; tek etiket artık yayımlanan semantics ağacındaki node üzerinden ölçülür. SemanticsHandle test sonunda explicit finally ile bırakılır.
+
+Son testler gerçek bundled Inter/CupertinoIcons ile 48px veya daha büyük eylem hedeflerini, tek etiket/button rolünü, 2x taşmasız yerleşimi, Tab/Shift-Tab ve Enter/Space iptalini doğrular. Light/dark odak görünürlüğü, semantics tap ile sıfır etkili iptal, klavye onayıyla mevcut typed handoff ve native view odağı kaybolduktan sonra yakalanmış keyboard action'ın yazamaması da kapsamdadır. Değişen ekran semantiği için yerel testler kullanılmıştır; Android erişilebilirlik servisi veya fiziksel klavye kabulü iddia edilmez.
+
+- Üç Vault dosyası: 73 PASS / 7 saniye; `/private/tmp/larenor-vault-modal-final-focused.log`.
+- Son test-only public `ActionDispatcher` ve format düzeltmesi ardından bütün prepared ekran dosyası: 35 PASS / 4 saniye; `/private/tmp/larenor-vault-modal-final-delta.log`.
+- İki owned Dart dosyası: analiz 0 sorun, format 2 dosya/0 değişiklik; `/private/tmp/larenor-vault-modal-analyze-final.log`, `/private/tmp/larenor-vault-modal-format-final.log`.
+- 73 testlik koşu satır kapsamı: controller 117/118, screen 376/387, toplam 493/505 (%97,62); `/private/tmp/larenor-vault-modal-final-coverage.info`.
+- Ayrı özel makbuz: `/private/tmp/larenor-vault-modal-a11y-delivery-evidence.json`.
