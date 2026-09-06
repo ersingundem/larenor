@@ -6,8 +6,9 @@ Never _invalid() => throw const LarenorServerException('invalid_response');
 Map<Object?, Object?> _object(Object? value, Set<String> keys) {
   if (value is! Map ||
       value.length != keys.length ||
-      !keys.every(value.containsKey))
+      !keys.every(value.containsKey)) {
     _invalid();
+  }
   return value;
 }
 
@@ -17,8 +18,11 @@ String _subject(Object? value) {
 }
 
 int _revision(Object? value) {
-  if (value is! int || value < 1 || value > HomeResourceGrants.maximumRevision)
+  if (value is! int ||
+      value < 1 ||
+      value > HomeResourceGrants.maximumRevision) {
     _invalid();
+  }
   return value;
 }
 
@@ -46,13 +50,15 @@ int _revision(Object? value) {
       ref['homeId'] != target.context.homeId ||
       ref['id'] != target.id ||
       ref['kind'] != target.kind.name ||
-      _revision(value['aclRevision']) != revision)
+      _revision(value['aclRevision']) != revision) {
     _invalid();
+  }
   final permissions = _object(value['permissions'], {'read', 'write'});
   if (permissions['read'] is! bool ||
       permissions['write'] is! bool ||
-      permissions['write'] == true && permissions['read'] != true)
+      permissions['write'] == true && permissions['read'] != true) {
     _invalid();
+  }
   return (
     subject: _subject(value['subjectId']),
     permission: permissions['write'] == true
@@ -86,15 +92,17 @@ final class HomeResourceGrants {
     final entries = value['grants'];
     if (revision < target.aclRevision ||
         entries is! List ||
-        entries.length > maximumGrants)
+        entries.length > maximumGrants) {
       _invalid();
+    }
     final grants = <String, HomeResourcePermission>{};
     var previous = '';
     for (final raw in entries) {
       final entry = _grant(raw, target, revision);
       if (entry.subject.compareTo(previous) <= 0 ||
-          entry.permission == HomeResourcePermission.none)
+          entry.permission == HomeResourcePermission.none) {
         _invalid();
+      }
       grants[entry.subject] = entry.permission;
       previous = entry.subject;
     }
@@ -121,8 +129,9 @@ final class HomeResourceGrants {
     final nextRevision = changed ? aclRevision + 1 : aclRevision;
     final value = _object(raw, {'grant'});
     final grant = _grant(value['grant'], target, nextRevision);
-    if (grant.subject != subjectId || grant.permission != permission)
+    if (grant.subject != subjectId || grant.permission != permission) {
       _invalid();
+    }
     final updated = Map<String, HomeResourcePermission>.of(grants);
     if (permission == HomeResourcePermission.none) {
       updated.remove(subjectId);

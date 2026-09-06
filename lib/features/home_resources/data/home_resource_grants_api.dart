@@ -18,8 +18,9 @@ final class HomeResourceGrantsApi {
   final ServerContext _context;
 
   String _path(HomeResourceRecord target) {
-    if (target.context != _context)
+    if (target.context != _context) {
       throw const LarenorServerException('invalid_request');
+    }
     return '/admin/home-resources/${_context.coreId}/${_context.homeId}/${target.id}/grants';
   }
 

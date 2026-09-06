@@ -322,6 +322,154 @@ void main() {
     },
   );
 
+  test('128 grants permit edit and removal but no 129th HTTP write', () async {
+    final raw = copy(f['empty']['response']);
+    raw['grants'] = [
+      for (var index = 1; index <= 128; index++)
+        {
+          ...copy(f['readOnly']['response']['grant']),
+          'subjectId': index.toRadixString(16).padLeft(32, '0'),
+          'aclRevision': 1,
+        },
+    ];
+    final full = HomeResourceGrants.fromJson(raw, target: target);
+    var calls = 0;
+    final transport = LarenorServerApi(
+      endpoint: ServerEndpoint('https://synthetic.invalid'),
+      client: MockClient((request) async {
+        calls++;
+        final body = jsonDecode(request.body) as Map<String, dynamic>;
+        return http.Response(
+          jsonEncode({
+            'grant': {
+              'subjectId': request.url.pathSegments.last,
+              'target': f['target']['ref'],
+              'aclRevision': (body['expectedAclRevision'] as int) + 1,
+              'permissions': body['permissions'],
+            },
+          }),
+          200,
+          headers: {'content-type': 'application/json'},
+        );
+      }),
+    );
+    addTearDown(transport.close);
+    final api = HomeResourceGrantsApi(transport, 'synthetic', context);
+    await expectLater(
+      api.set(
+        full,
+        subjectId: 'f' * 32,
+        permission: HomeResourcePermission.readOnly,
+      ),
+      throwsA(badRequest),
+    );
+    expect(calls, 0);
+    final first = full.grants.keys.first;
+    final changed = await api.set(
+      full,
+      subjectId: first,
+      permission: HomeResourcePermission.readWrite,
+    );
+    expect(changed.grants.length, 128);
+    expect(changed.permissionFor(first), HomeResourcePermission.readWrite);
+    final removed = await api.set(
+      changed,
+      subjectId: first,
+      permission: HomeResourcePermission.none,
+    );
+    expect(removed.grants.length, 127);
+    expect(removed.aclRevision, 3);
+    expect(full.grants[first], HomeResourcePermission.readOnly);
+    final extra = copy(f['readOnly']['response']);
+    extra['grant']['subjectId'] = 'f' * 32;
+    expect(
+      () => full.withUpdatedGrant(
+        extra,
+        subjectId: 'f' * 32,
+        permission: HomeResourcePermission.readOnly,
+      ),
+      throwsA(badResponse),
+    );
+    expect(calls, 2);
+  });
+
+  test('resource kind is preserved and cannot be decoded as a room', () {
+    final row = copy(f['target']);
+    row['ref']['kind'] = 'resource';
+    final resource = HomeResourceRecord.fromJson(row, expectedContext: context);
+    final value = copy(f['sorted']['response']);
+    for (final entry in value['grants'] as List) {
+      entry['target']['kind'] = 'resource';
+    }
+    expect(
+      HomeResourceGrants.fromJson(value, target: resource).grants.length,
+      2,
+    );
+    expect(
+      () => HomeResourceGrants.fromJson(value, target: target),
+      throwsA(badResponse),
+    );
+  });
+
+  test('pure update cannot wrap exhausted revision', () {
+    final raw = copy(f['empty']['response'])
+      ..['aclRevision'] = HomeResourceGrants.maximumRevision;
+    final full = HomeResourceGrants.fromJson(raw, target: target);
+    expect(
+      () => full.withUpdatedGrant(
+        f['readOnly']['response'],
+        subjectId: '3' * 32,
+        permission: HomeResourcePermission.readOnly,
+      ),
+      throwsA(badResponse),
+    );
+  });
+
+  for (final scenario in [
+    'content-type',
+    'malformed-json',
+    'transport',
+    'timeout',
+  ]) {
+    test('$scenario rejects uncertain write without retry', () async {
+      var calls = 0;
+      final transport = LarenorServerApi(
+        endpoint: ServerEndpoint('https://synthetic.invalid'),
+        timeout: const Duration(milliseconds: 10),
+        client: MockClient((_) async {
+          calls++;
+          if (scenario == 'transport') {
+            throw const SocketException('private transport detail');
+          }
+          if (scenario == 'timeout') {
+            throw TimeoutException('private timeout detail');
+          }
+          return http.Response(
+            scenario == 'malformed-json'
+                ? '{'
+                : jsonEncode(f['readOnly']['response']),
+            200,
+            headers: {
+              'content-type': scenario == 'content-type'
+                  ? 'text/html'
+                  : 'application/json',
+            },
+          );
+        }),
+      );
+      addTearDown(transport.close);
+      await expectLater(
+        HomeResourceGrantsApi(transport, 'synthetic', context).set(
+          snapshot(),
+          subjectId: '3' * 32,
+          permission: HomeResourcePermission.readOnly,
+        ),
+        throwsA(isA<LarenorServerException>()),
+      );
+      expect(calls, 1);
+    });
+  }
+
   test(
     'closed in-flight mutation rejects late result and never resends',
     () async {
