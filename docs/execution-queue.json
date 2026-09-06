@@ -374,7 +374,8 @@
         "docs/managed-volume-read-transport-implementation-2026-09-06.md",
         "docs/volume-reader-integration-2026-09-06.md",
         "docs/managed-volume-create-plan-2026-09-06.md",
-        "docs/managed-volume-create-implementation-2026-09-06.md"
+        "docs/managed-volume-create-implementation-2026-09-06.md",
+        "docs/managed-volume-full-core-verification-2026-09-06.md"
       ],
       "scope": "installAvailable=false; Client kaynak adı/Docker seçenekleri üretmez. Gerçek ev sunucusuna işlem yok.",
       "acceptance": [
@@ -529,10 +530,18 @@
           "state": "completed",
           "result": "passed",
           "label": "Kalıcı volume CREATE:887 ilgiliPASS/7Linuxskip;135yeniPASS/1skip, branch dahil%96; root+ikinci bağımsız CLEAR. Durablebegin/tekPOST/freshGET/restartnoReplay. API/runtime/kurulum bağlantısı yok; installAvailable=false. Yeni tamCore ve kendiCI açık."
+        },
+        {
+          "kind": "test",
+          "ref": "docs/managed-volume-full-core-verification-2026-09-06.md",
+          "commit": "72af39999d31ba146a0821929e0a976441db85e9",
+          "state": "completed",
+          "result": "passed",
+          "label": "Tek tamCore:3435PASS/12Linuxskip/0FAIL;JUnit3447,431.65sn. Java17+pinliapksig4/4PASS. Main ile5kaynak ağacı aynı; rootmakbuz/log/XMLhashları doğruladı. YeniLinuxCI3447 ve gerçekEngine/UID/bootstrap ayrı açık."
         }
       ],
       "completionCommit": null,
-      "reason": "Native root resolver önceki Linux CI ile doğrulandı; trusted supervisor/remap-disabled producer/issuer/create-publish açık. Volume plan+gözlem 1c2 CI/APK100 kaynağında; volume journal a27 Linux CI101 içinde 3104 PASS/0skip ile geçti. Unix reader 0d86fa1 sonraki ayrı birleşimde 3192 tam Core PASS/11Linuxskip verdi; Exact38bc LinuxCI102:3203PASS/0skip, anonim iki mimarili Core doğrulandı. UID/bootstrap/Engine kurulum yetkisi açık ve installAvailable=false sürer. Ayrı managed-volume create-intent ve tek-POST/fresh-inspect protokolü72af399 main ile birleşti:887ilgiliPASS/7Linuxskip,iki bağımsızCLEAR; aynı source tree için tek tamCore çalışıyor. Observation kaydı create yetkisi değildir. Gerçek UID/bootstrap ve production wiring açık."
+      "reason": "Native root resolver önceki Linux CI ile doğrulandı; trusted supervisor/remap-disabled producer/issuer/create-publish açık. Volume plan+gözlem 1c2 CI/APK100 kaynağında; volume journal a27 Linux CI101 içinde 3104 PASS/0skip ile geçti. Unix reader 0d86fa1 sonraki ayrı birleşimde 3192 tam Core PASS/11Linuxskip verdi; Exact38bc LinuxCI102:3203PASS/0skip, anonim iki mimarili Core doğrulandı. UID/bootstrap/Engine kurulum yetkisi açık ve installAvailable=false sürer. Ayrı managed-volume create-intent ve tek-POST/fresh-inspect protokolü72af399 main ile birleşti:887ilgiliPASS/7Linuxskip,iki bağımsızCLEAR; aynı source tree için tek tamCore3435PASS/12Linuxskip geçti; kendi yeni LinuxCI açık. Observation kaydı create yetkisi değildir. Gerçek UID/bootstrap ve production wiring açık."
     },
     {
       "id": "S06.3e",

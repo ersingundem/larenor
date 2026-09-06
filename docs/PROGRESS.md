@@ -90,7 +90,8 @@ Eski CI ve ara kaynak kanıtları [değişmeden arşivlendi](restore-people-evid
 Yedekleme/kasa/arşiv onay diyaloglarında normal yazı boyutu ve48px dokunma alanı düzeltmeleri doğrulanıyor; yeni birleşik Client testi ve kendi Android yayını sırada.
 Core tarafında [kalıcı volume oluşturma protokolü](managed-volume-create-implementation-2026-09-06.md)
 main ile birleşti:887 ilgili test geçti,7 Linux testi yerelde atlandı; iki bağımsız kaynak incelemesi temiz.
-Aynı Server kaynak ağacında tek tam Core testi çalışıyor. Gerçek UID/bootstrap ve kurulum kabulü açık.
+[Aynı Server kaynak ağacında tek tam Core koşumu](managed-volume-full-core-verification-2026-09-06.md)
+**3.435 PASS/12 Linux skip/0 hata** verdi. Yeni Linux CI ve gerçek UID/bootstrap/kurulum kabulü açık.
 
 Yeni kişi/arşiv ekranları APK104'e dahil değildir. S08.5/S08.6 ve yeni63
 özellik bu yayınla tamamlandı sayılmaz; fiziksel tablet kabulü de açıktır.
