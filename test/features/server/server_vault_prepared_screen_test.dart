@@ -274,7 +274,8 @@ void main() {
     expect(h.storage.preferences['appearance'], 'light');
   });
 
-  testWidgets('retained Vault state cannot publish the old account review in a new container', (tester) async {
+  for (final replacement in ['account', 'repository', 'container', 'modal repository']) {
+  testWidgets('retained Vault state rejects $replacement replacement', (tester) async {
     SharedPreferences.setMockInitialValues({});
     FlutterSecureStorage.setMockInitialValues({});
     final apiA = VaultApi(), apiB = VaultApi();
@@ -282,11 +283,17 @@ void main() {
     final accountB = ServerAccountController(store: VaultAccountStore(), apiFactory: (_) => apiB);
     await accountA.initialize(); await accountB.initialize();
     final storage = MemoryBackupStorage(preferences: {'appearance': 'light'});
-    ProviderContainer container(ServerAccountController account) => ProviderContainer(overrides: [
+    final otherStorage = MemoryBackupStorage(preferences: {'appearance': 'system'});
+    final repository = BackupRepository(storage: storage);
+    ProviderContainer container(ServerAccountController account, BackupRepository repository) => ProviderContainer(overrides: [
       serverAccountControllerProvider.overrideWithValue(account),
-      backupRepositoryProvider.overrideWithValue(BackupRepository(storage: storage)),
+      backupRepositoryProvider.overrideWithValue(repository),
     ]);
-    final a = container(accountA), b = container(accountB);
+    final a = container(accountA, repository);
+    final b = container(
+      replacement == 'account' ? accountB : accountA,
+      replacement.contains('repository') ? BackupRepository(storage: otherStorage) : repository,
+    );
     final selected = ValueNotifier(a);
     addTearDown(() async {
       await tester.pumpWidget(const SizedBox.shrink());
@@ -308,17 +315,28 @@ void main() {
     ));
     await flush(tester);
     final retained = tester.state(find.byType(ServerVaultScreen));
-    apiA.pendingRead = Completer();
+    final modal = replacement.startsWith('modal');
+    if (!modal) apiA.pendingRead = Completer();
     await tap(tester, 'server-vault-review');
     expect(apiA.reads, 1);
+    VoidCallback? confirm;
+    if (modal) {
+      await tap(tester, 'server-vault-apply');
+      confirm = tester.widget<CupertinoDialogAction>(find.byKey(const ValueKey('server-vault-confirm'))).onPressed;
+    }
     selected.value = b; await flush(tester);
     expect(identical(tester.state(find.byType(ServerVaultScreen)), retained), isTrue);
-    apiA.pendingRead!.complete(apiA.value); await flush(tester);
+    if (!modal) apiA.pendingRead!.complete(apiA.value);
+    await flush(tester); confirm?.call(); await flush(tester);
     expect(find.text('Revision 7'), findsNothing);
     expect(find.byKey(const ValueKey('server-vault-apply')), findsNothing);
     expect(storage.writes, isEmpty); expect(apiB.reads, 0);
+    expect(otherStorage.writes, isEmpty);
+    expect(find.byType(CupertinoAlertDialog), findsNothing);
+    expect(tester.takeException(), isNull);
     expect(accountA.session, isNotNull);
     selected.value = a; await flush(tester);
     expect(find.byKey(const ValueKey('server-vault-review')), findsNothing);
   });
+  }
 }

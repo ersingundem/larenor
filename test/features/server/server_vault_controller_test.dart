@@ -333,6 +333,33 @@ void main() {
     },
   );
 
+  for (final finalRead in [false, true]) {
+    test('retired ${finalRead ? 'final' : 'preview'} Vault GET cannot reject the current account with a late 401', () async {
+      final review = finalRead
+          ? await prepare(direction: ServerVaultDirection.restore)
+          : null;
+      api.pendingRead = Completer();
+      final pending = finalRead
+          ? controller.takeRestore(review!)
+          : prepare(direction: ServerVaultDirection.restore);
+      final rejected = expectLater(pending, throwsA(isA<LarenorServerException>()));
+      await Future<void>.delayed(Duration.zero);
+      controller.invalidate();
+      api.pendingRead!.completeError(const LarenorServerException('unauthorized'));
+      await rejected;
+      expect(account.session, isNotNull);
+      expect(account.failure, isNull);
+      expect(storage.writes, isEmpty);
+    });
+  }
+
+  test('active Vault GET unauthorized still rejects the account', () async {
+    api.readError = 'unauthorized';
+    await expectLater(prepare(), throwsA(isA<LarenorServerException>()));
+    expect(account.session, isNull);
+    expect(account.failure, 'unauthorized');
+  });
+
   for (final policy in BackupConflictPolicy.values) {
     test(
       'restore $policy delegates local journal work after old controller disposal',
