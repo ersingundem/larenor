@@ -59,4 +59,21 @@ void main() {
     expect(storage.secrets[journalKey],'replacement-private-journal');
     expect(storage.writes,isEmpty);
   });
+  test('automatic rollback never adopts a different valid replacement intent', () async {
+    final newerStorage=_Storage();
+    await fixtures.apply(await fixtures.prepare(BackupRepository(storage:newerStorage),fixtures.TestRestoreAccess(),fixtures.restoreFixture({'appearance':'system'})));
+    final newer=newerStorage.durableImages.firstWhere((i)=>i.secrets[journalKey]!=null).secrets[journalKey]!;
+    final storage=_Storage();
+    final prepared=await fixtures.prepare(BackupRepository(storage:storage),fixtures.TestRestoreAccess());
+    storage.afterRead=(key) {
+      if(key=='appearance' && storage.secrets[journalKey]!=null) {
+        storage.afterRead=null;storage.secrets[journalKey]=newer;
+      }
+    };
+    await expectLater(fixtures.apply(prepared),throwsA(isA<BackupException>()));
+    expect(storage.secrets[journalKey],newer);
+    expect(storage.writes.where((key)=>key=='pref:appearance'),isEmpty);
+    expect(storage.writes.where((key)=>key=='secret:$journalKey'),hasLength(1));
+  });
+
 }
