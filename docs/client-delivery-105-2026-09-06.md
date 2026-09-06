@@ -7,7 +7,7 @@ doğrulanmış yayın [APK104](client-delivery-104-2026-09-06.md) olarak kalır.
 | İlk deneme | Durum |
 | --- | --- |
 | [Android105](https://github.com/ersingundem/larenor/actions/runs/34015830766) | Çalışıyor |
-| [Core32](https://github.com/ersingundem/larenor/actions/runs/34015830774) | Çalışıyor |
+| [Core32](https://github.com/ersingundem/larenor/actions/runs/34015830774) | Başarılı |
 | [Security105](https://github.com/ersingundem/larenor/actions/runs/34015830712) | Başarılı |
 
 Yerel kaynak `bd9d425` ile yayın kaynağının lib/test/integration_test/Android/
@@ -26,3 +26,16 @@ kontrolüyle source/package/version/certificate/debuggable doğrulanır. Anonim
 Core image manifest/source/AGPL kanıtı ayrı tutulur; katman veya ev kurulumu yoktur.
 Canlı özel makbuz `/private/tmp/larenor-38e78a3-delivery-evidence.json`.
 S08.5/S08.6 kabulü, fiziksel cihaz ve gerçek ev kurulumundan ayrı izlenir.
+
+## Doğrulanan ara uzak sonuçlar
+
+Core Linux **3.311 PASS/0skip**, Android reusable Server işi ayrıca
+**3.311 PASS/0skip** verdi; bunlar ayrı koşular, test sayıları toplanmaz.
+Core JUnit3311/0failure/0error/0skip, JVM XML **98 PASS/0skip** olarak okundu.
+Güvenlik207PASS/24,502sn, gitleaks0 ve OSV başarılı. Debug derlemesi tamamlandı;
+gerçek API35 E2E ve Flutter kapıları henüz tamamlanmadı, APK transferi0.
+
+Core amd64/arm64 smoke, kaynak ve AGPL metadata'sı anonim doğrulandı.
+Stable ve exact-source manifest index'i aynıdır:
+`sha256:821d3fa17fbdfbdb1ccfeda1929d862f41af07be0a2767d5c241e1ad0e692840`.
+İmaj katmanı indirilmedi; bu doğrulama gerçek eve kurulum değildir.

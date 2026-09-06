@@ -1375,9 +1375,9 @@
           "kind": "ci",
           "ref": "https://github.com/ersingundem/larenor/actions/runs/34015830774",
           "commit": "38e78a34bc554c39647a8616b905aa2f9c9627b9",
-          "state": "in_progress",
-          "result": null,
-          "label": "Core exact38e78a3 ilk deneme; yayın105 gözlemi. Android/Core koşuları ve bağımsız imzalıAPK kabulü ayrı izlenir."
+          "state": "completed",
+          "result": "passed",
+          "label": "Exact38e78a3 Core32 ilk deneme geçti:Linux3311PASS/0skip; amd64+arm64 smoke ve anonim source/AGPL/manifest doğrulandı. Android ve APK105 kabulü ayrı bekleniyor."
         },
         {
           "kind": "ci",
@@ -1389,7 +1389,7 @@
         }
       ],
       "completionCommit": null,
-      "reason": "Exact38e78a3 CI105 GitHub’da:Security başarılı,Android/Core çalışıyor. Yerel5056Client/3300CorePASS ve ayrı11Linuxskip;17E2E/133faz hedefi ve bağımsızAPK105 teslimi bekleniyor."
+      "reason": "Exact38e78a3 CI105:Security207PASS ve Core3311PASS/0skip başarılı; iki mimarili Core imajı anonim doğrulandı. Android98nativePASS; Flutter/E2E ve bağımsızAPK105 kabulü bekleniyor."
     },
     {
       "id": "S08.6",
@@ -1616,9 +1616,9 @@
           "kind": "ci",
           "ref": "https://github.com/ersingundem/larenor/actions/runs/34015830774",
           "commit": "38e78a34bc554c39647a8616b905aa2f9c9627b9",
-          "state": "in_progress",
-          "result": null,
-          "label": "Core exact38e78a3 ilk deneme; yayın105 gözlemi. Android/Core koşuları ve bağımsız imzalıAPK kabulü ayrı izlenir."
+          "state": "completed",
+          "result": "passed",
+          "label": "Exact38e78a3 Core32 ilk deneme geçti:Linux3311PASS/0skip; amd64+arm64 smoke ve anonim source/AGPL/manifest doğrulandı. Android ve APK105 kabulü ayrı bekleniyor."
         },
         {
           "kind": "ci",
@@ -1630,7 +1630,7 @@
         }
       ],
       "completionCommit": null,
-      "reason": "Exact38e78a3 CI105 GitHub’da:Security başarılı,Android/Core çalışıyor. Yerel5056Client/3300CorePASS ve ayrı11Linuxskip;17E2E/133faz hedefi ve bağımsızAPK105 teslimi bekleniyor."
+      "reason": "Exact38e78a3 CI105:Security207PASS ve Core3311PASS/0skip başarılı; iki mimarili Core imajı anonim doğrulandı. Android98nativePASS; Flutter/E2E ve bağımsızAPK105 kabulü bekleniyor."
     },
     {
       "id": "S08.7",

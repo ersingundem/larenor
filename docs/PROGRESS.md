@@ -1,6 +1,6 @@
 # Larenor — güncel ilerleme ve iş kuyruğu
 
-**Son güncelleme: 6 Eylül 2026, 09:13 (Türkiye saati).**
+**Son güncelleme: 6 Eylül 2026, 09:26 (Türkiye saati).**
 
 ```text
 Önceki kapsam       █████████████░░░░░░░  ≈ %65
@@ -71,8 +71,8 @@ anonim doğrulandı. [APK104, CI ve teslim kanıtı](client-delivery-104-2026-09
 | S08.6 — kişi ve izin yönetimi | Server ve tablet ekranları birleşti; üye ve yönetici/ACL Android senaryoları hazır, kendi CI kabulü açık |
 | Sonraki birleşim yayını | `bd9d425` tam Client5.056 PASS/5:19; Core3.300 PASS/11Linuxskip; analiz0,966dosya biçim farkı0. Android hedef17 E2E/133faz ve kendi imzalı APK/CI kabulü sırada |
 
-**Yeni paket GitHub’da: `38e78a3` /CI105.** Güvenlik geçti; Android ve Core
-koşuları sürüyor. [Canlı yayın kaydı ve Actions bağlantıları](client-delivery-105-2026-09-06.md).
+**Yeni paket GitHub’da: `38e78a3` /CI105.** Güvenlik ve Core geçti; Linux3.311test atlamasız, iki mimarili Core imajı doğrulandı.
+Android doğrulaması sürüyor. [Canlı yayın kaydı ve Actions bağlantıları](client-delivery-105-2026-09-06.md).
 İmzalı APK105 ve17E2E/133faz hedefi henüz sonuçlanmadı.
 
 Yeni kişi/arşiv ekranları APK104'e dahil değildir. S08.5/S08.6 ve yeni63
