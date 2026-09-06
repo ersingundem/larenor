@@ -1362,10 +1362,34 @@
           "state": "completed",
           "result": "passed",
           "label": "Son birleşikClient5056PASS/0FAIL/5:19; analiz0,966format0,gitleaks temiz. İlk5014PASS/4FAIL ve dar9GREEN korunur; yeni admin38test bu tam koşudadır. Server/contracts tree3300PASS/11Linuxskip ile aynı. Native17E2E/133faz ve kendiCI/APK henüzbekliyor."
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/34015830766",
+          "commit": "38e78a34bc554c39647a8616b905aa2f9c9627b9",
+          "state": "in_progress",
+          "result": null,
+          "label": "Android exact38e78a3 ilk deneme; yayın105 gözlemi. Android/Core koşuları ve bağımsız imzalıAPK kabulü ayrı izlenir."
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/34015830774",
+          "commit": "38e78a34bc554c39647a8616b905aa2f9c9627b9",
+          "state": "in_progress",
+          "result": null,
+          "label": "Core exact38e78a3 ilk deneme; yayın105 gözlemi. Android/Core koşuları ve bağımsız imzalıAPK kabulü ayrı izlenir."
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/34015830712",
+          "commit": "38e78a34bc554c39647a8616b905aa2f9c9627b9",
+          "state": "completed",
+          "result": "passed",
+          "label": "Security exact38e78a3 ilk deneme; yayın105 gözlemi. Android/Core koşuları ve bağımsız imzalıAPK kabulü ayrı izlenir."
         }
       ],
       "completionCommit": null,
-      "reason": "Yerel birleşik uygulama/test kaynağı bd9d425:5056PASS, analiz0/966format0 ve bağımsızreviewCLEAR. Core3300PASS/11Linuxskip. Üç yeni Android senaryosu dahil hedef17E2E/133faz; kendi uzakCI ve bağımsız imzalıAPK kabulü bekliyor. Fiziksel cihaz/ev kurulumu bu kabulün dışında."
+      "reason": "Exact38e78a3 CI105 GitHub’da:Security başarılı,Android/Core çalışıyor. Yerel5056Client/3300CorePASS ve ayrı11Linuxskip;17E2E/133faz hedefi ve bağımsızAPK105 teslimi bekleniyor."
     },
     {
       "id": "S08.6",
@@ -1579,10 +1603,34 @@
           "state": "completed",
           "result": "passed",
           "label": "Son birleşikClient5056PASS/0FAIL/5:19; analiz0,966format0,gitleaks temiz. İlk5014PASS/4FAIL ve dar9GREEN korunur; yeni admin38test bu tam koşudadır. Server/contracts tree3300PASS/11Linuxskip ile aynı. Native17E2E/133faz ve kendiCI/APK henüzbekliyor."
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/34015830766",
+          "commit": "38e78a34bc554c39647a8616b905aa2f9c9627b9",
+          "state": "in_progress",
+          "result": null,
+          "label": "Android exact38e78a3 ilk deneme; yayın105 gözlemi. Android/Core koşuları ve bağımsız imzalıAPK kabulü ayrı izlenir."
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/34015830774",
+          "commit": "38e78a34bc554c39647a8616b905aa2f9c9627b9",
+          "state": "in_progress",
+          "result": null,
+          "label": "Core exact38e78a3 ilk deneme; yayın105 gözlemi. Android/Core koşuları ve bağımsız imzalıAPK kabulü ayrı izlenir."
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/34015830712",
+          "commit": "38e78a34bc554c39647a8616b905aa2f9c9627b9",
+          "state": "completed",
+          "result": "passed",
+          "label": "Security exact38e78a3 ilk deneme; yayın105 gözlemi. Android/Core koşuları ve bağımsız imzalıAPK kabulü ayrı izlenir."
         }
       ],
       "completionCommit": null,
-      "reason": "Yerel birleşik uygulama/test kaynağı bd9d425:5056PASS, analiz0/966format0 ve bağımsızreviewCLEAR. Core3300PASS/11Linuxskip. Üç yeni Android senaryosu dahil hedef17E2E/133faz; kendi uzakCI ve bağımsız imzalıAPK kabulü bekliyor. Fiziksel cihaz/ev kurulumu bu kabulün dışında."
+      "reason": "Exact38e78a3 CI105 GitHub’da:Security başarılı,Android/Core çalışıyor. Yerel5056Client/3300CorePASS ve ayrı11Linuxskip;17E2E/133faz hedefi ve bağımsızAPK105 teslimi bekleniyor."
     },
     {
       "id": "S08.7",
