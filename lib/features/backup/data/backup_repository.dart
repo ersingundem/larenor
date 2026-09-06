@@ -444,7 +444,7 @@ class BackupRepository {
   }
 
   Future<void> _write(_Change change, {required bool previous}) {
-    final value = previous ? change.before : change.after;
+    final value = _cloneValue(previous ? change.before : change.after);
     return change.secret
         ? _storage.writeSecret(change.key, value as String?)
         : _storage.writePreference(change.key, value);

@@ -78,7 +78,16 @@ Future<PreparedBackupRestore> _prepareRestore(BackupRepository repository,Backup
         narrowed.hasDashboard || narrowed.hasConnections ||
         ((selected['settings'] as Map?)?.keys.any((key)=>_directTarget(false,key as String)) ?? false)
       )) throw const BackupException('restore_target_mismatch','This backup targets Direct home data.');
-      final reads=_ReadRecorder(repository._storage,current);
+      final homeBearing=narrowed.hasDashboard || narrowed.hasConnections ||
+          ((selected['settings'] as Map?)?.keys.any((key)=>_directTarget(false,key as String)) ?? false);
+      final origin=sourceOriginNeeded(access.source,homeBearing)
+          ? await _captureHaOrigin(repository,current) : null;
+      Future<void> bound() async {
+        await current();
+        if(origin!=null) await _verifyHaOrigin(repository,origin,current);
+        await current();
+      }
+      final reads=_ReadRecorder(repository._storage,bound);
       final reader=BackupRepository(storage:reads,now:repository._now);
       for(final service in ((selected['connections'] as Map?)?.keys ?? const [])) {
         for(final key in backupConnectionFields[service]!.values) { await reads.readSecret(key); }
@@ -87,9 +96,9 @@ Future<PreparedBackupRestore> _prepareRestore(BackupRepository repository,Backup
       final summary=await reader.preview(narrowed);
       await repository._requireStableConnections(changes.services);
       await current();
-      final prepared=PreparedBackupRestore._(repository,access,owner,changes,reads.values,summary,_restoreDigest({'snapshot':json,'selection':[chosen.settings,chosen.dashboard,chosen.connections],'conflict':conflict.name}),repository._now().toUtc().add(const Duration(minutes:5)));
-      await prepared._verifyReadSet(current);
-      await current();
+      final prepared=PreparedBackupRestore._(repository,access,owner,changes,reads.values,origin,summary,_restoreDigest({'snapshot':json,'selection':[chosen.settings,chosen.dashboard,chosen.connections],'conflict':conflict.name}),repository._now().toUtc().add(const Duration(minutes:5)));
+      await prepared._verifyReadSet(bound);
+      await bound();
       return prepared;
     });
   } on BackupException { rethrow; } catch(_) { _recoveryRequired(); }
@@ -97,19 +106,38 @@ Future<PreparedBackupRestore> _prepareRestore(BackupRepository repository,Backup
 
 /// One-use process capability. Payload/owner/read-set are private and redacted.
 final class PreparedBackupRestore {
-  PreparedBackupRestore._(this._repository,this._access,this._ownership,this._plan,Map<String,Object?> reads,this.summary,this._snapshotDigest,DateTime expires)
-    : _readSet=Map.unmodifiable(reads.map((k,v)=>MapEntry(k,_cloneValue(v)))),
+  PreparedBackupRestore._(this._repository,this._access,this._ownership,this._plan,Map<String,Object?> reads,Map<String,String?>? origin,this.summary,this._snapshotDigest,DateTime expires)
+    : _haOrigin=origin==null ? null : Map.unmodifiable(origin),
+      _readSet=Map.unmodifiable({...reads.map((k,v)=>MapEntry(k,_cloneValue(v))),if(origin!=null) for(final e in origin.entries) 's:${e.key}':e.value}),
       expiresAt=expires.isBefore(_access.validUntil) ? expires : _access.validUntil;
   final BackupRepository _repository;
   final BackupRestoreAccess _access;
   final Map<String,dynamic> _ownership;
   final _PreparedChanges _plan;
   final Map<String,Object?> _readSet;
+  final Map<String,String?>? _haOrigin;
   final BackupPreview summary;
   final String _snapshotDigest;
   final DateTime expiresAt;
   Object? _owner;
   int _state=0;
+  bool get wasHandedOff => _state>=1 && _state<=3;
+  Future<void> checkBeforeHandoff() async {
+    if(_state!=0) _expiredRestore();
+    Future<void> current() async {
+      _access.checkLive();
+      await _access.checkDurable();
+      _access.checkLive();
+      if(!_repository._now().toUtc().isBefore(expiresAt)) _expiredRestore();
+    }
+    await _verifyReadSet(current);
+    if(_haOrigin!=null) await _verifyHaOrigin(_repository,_haOrigin,current);
+    await current();
+  }
+  Future<void> recoverAfterHandoff() async {
+    if(_state!=3) _expiredRestore();
+    await _repository.recoverPendingRestore();
+  }
   bool get targetsDirect => _plan.changes.any((c)=>_directTarget(c.secret,c.key));
   void retire() { if(_state==0) _state=4; }
   void claimForHandoff(Object owner) {
@@ -130,10 +158,19 @@ final class PreparedBackupRestore {
   Future<void> applyAfterHandoff(Object owner,{required bool Function() isCurrentBoundary}) => ConfigurationWrites.run(() async {
     if(_state!=1 || !identical(owner,_owner)) _expiredRestore();
     _state=2;
-    Future<void> current() async {
+    final expectedOrigin=_haOrigin==null ? null : Map<String,String?>.of(_haOrigin);
+    void boundary() {
       if(!isCurrentBoundary() || !_repository._now().toUtc().isBefore(expiresAt) || !_same(_ownership,_access.ownership)) _expiredRestore();
+    }
+    Future<void> current() async {
+      boundary();
       await _access.checkDurable();
-      if(!isCurrentBoundary() || !_repository._now().toUtc().isBefore(expiresAt)) _expiredRestore();
+      boundary();
+      if(expectedOrigin!=null) {
+        await _verifyHaOrigin(_repository,expectedOrigin,() async {boundary();});
+        await _access.checkDurable();
+        boundary();
+      }
     }
     try {
       await current();
@@ -155,6 +192,9 @@ final class PreparedBackupRestore {
           await _requireJournal(_repository,journal);
           await current();
           if(!_same(before,change.before)) _changedRestore();
+          if(change.secret && expectedOrigin?.containsKey(change.key)==true) {
+            expectedOrigin![change.key]=change.after as String?;
+          }
           await _repository._write(change,previous:false);
           await current();
           if(!_same(await _readChange(_repository,change),change.after)) _recoveryRequired();
@@ -182,6 +222,24 @@ final class PreparedBackupRestore {
     } on BackupException { rethrow; } catch(_) { _recoveryRequired(); } finally { _state=3; _owner=null; }
   });
   @override String toString()=>'PreparedBackupRestore';
+}
+
+bool sourceOriginNeeded(HomeSource source,bool homeBearing)=>source==HomeSource.directLocal && homeBearing;
+Future<Map<String,String?>> _captureHaOrigin(BackupRepository repository,Future<void> Function() current) async {
+  await repository._requireStableHaConnection();await current();
+  final values=<String,String?>{};
+  for(final key in backupConnectionFields['ha']!.values) {
+    values[key]=await repository._storage.readSecret(key);await current();
+  }
+  await _verifyHaOrigin(repository,values,current);
+  return values;
+}
+Future<void> _verifyHaOrigin(BackupRepository repository,Map<String,String?> expected,Future<void> Function() current) async {
+  await repository._requireStableHaConnection();await current();
+  for(final entry in expected.entries) {
+    final value=await repository._storage.readSecret(entry.key);await current();
+    if(value!=entry.value) _changedRestore();
+  }
 }
 
 void _checkRestoreOwner(Object? owner) {
