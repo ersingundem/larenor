@@ -2,6 +2,8 @@ import 'dart:async';
 import 'dart:ui' show ViewFocusEvent, ViewFocusState, ViewFocusDirection;
 
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter/semantics.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -21,6 +23,7 @@ import 'package:larenor/l10n/generated/app_localizations.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../backup/backup_test_storage.dart';
+import '../home_resources/home_resources_tablet_test.dart' show loadFonts;
 import 'server_vault_test_support.dart';
 
 class _Harness {
@@ -174,7 +177,212 @@ Future<void> tap(WidgetTester tester, String key) async {
   await flush(tester);
 }
 
+int _labelCount(SemanticsNode node, String label) {
+  var count = node.label == label ? 1 : 0;
+  node.visitChildren((child) {
+    count += _labelCount(child, label);
+    return true;
+  });
+  return count;
+}
+
 void main() {
+  for (final language in ['en', 'tr']) {
+    for (final width in [320.0, 600.0, 1280.0]) {
+      testWidgets('Vault confirmation semantics $language $width at 2x', (
+        tester,
+      ) async {
+        await loadFonts(tester);
+        final semantics = tester.ensureSemantics();
+        try {
+          final h = _Harness();
+          await h.mount(tester, language: language, width: width, scale: 2);
+          final dialog = find.byType(CupertinoAlertDialog);
+          final l10n = AppLocalizations.of(tester.element(dialog));
+          for (final label in [l10n.commonCancel, l10n.backupApply]) {
+            final action = find.widgetWithText(CupertinoDialogAction, label);
+            await tester.ensureVisible(action);
+            await flush(tester);
+            final rect = tester.getRect(action);
+            expect(rect.height, greaterThanOrEqualTo(48));
+            expect(rect.width, greaterThanOrEqualTo(48));
+            expect(rect.left, greaterThanOrEqualTo(0));
+            expect(rect.right, lessThanOrEqualTo(width));
+            final node = tester.getSemantics(action);
+            expect(node.flagsCollection.isButton, isTrue);
+            expect(node.label, label);
+            expect(_labelCount(node.owner!.rootSemanticsNode!, label), 1);
+          }
+          expect(tester.takeException(), isNull);
+          await tester.tap(
+            find.widgetWithText(CupertinoDialogAction, l10n.commonCancel),
+          );
+          await flush(tester);
+          expect(find.byType(CupertinoAlertDialog), findsNothing);
+          expect(h.storage.writes, isEmpty);
+          expect(h.api.writes, 0);
+          expect(h.api.reads, 1);
+          expect(h.disposals, 0);
+        } finally {
+          semantics.dispose();
+        }
+      });
+      testWidgets('Vault confirmation keyboard cancel $language $width at 2x', (
+        tester,
+      ) async {
+        await loadFonts(tester);
+        final h = _Harness();
+        await h.mount(tester, language: language, width: width, scale: 2);
+        await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+        await flush(tester);
+        await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+        await flush(tester);
+        expect(find.byType(CupertinoAlertDialog), findsNothing);
+        expect(h.storage.writes, isEmpty);
+        expect(h.api.writes, 0);
+        expect(h.api.reads, 1);
+        expect(h.disposals, 0);
+        expect(h.storage.preferences['appearance'], 'light');
+        expect(tester.takeException(), isNull);
+      });
+    }
+  }
+  for (final dark in [false, true]) {
+    testWidgets(
+      'Vault modal visible keyboard focus and reverse traversal dark=$dark',
+      (tester) async {
+        tester.platformDispatcher.platformBrightnessTestValue = dark
+            ? Brightness.dark
+            : Brightness.light;
+        addTearDown(tester.platformDispatcher.clearPlatformBrightnessTestValue);
+        await loadFonts(tester);
+        final h = _Harness();
+        await h.mount(tester, language: 'tr', width: 320, scale: 2);
+        final l10n = AppLocalizations.of(
+          tester.element(find.byType(CupertinoAlertDialog)),
+        );
+        final cancel = find.widgetWithText(
+          CupertinoDialogAction,
+          l10n.commonCancel,
+        );
+        final confirm = find.byKey(const ValueKey('server-vault-confirm'));
+        void expectFocused(Finder action) {
+          final focused = find.descendant(
+            of: action,
+            matching: find.byWidgetPredicate((widget) {
+              if (widget is! Container || widget.decoration is! BoxDecoration) {
+                return false;
+              }
+              final border = (widget.decoration! as BoxDecoration).border;
+              return border is Border &&
+                  border.top.color.a > 0 &&
+                  border.top.width >= 2;
+            }),
+          );
+          expect(focused, findsOneWidget);
+        }
+
+        await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+        await flush(tester);
+        expectFocused(cancel);
+        await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+        await flush(tester);
+        expectFocused(confirm);
+        await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
+        await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+        await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
+        await flush(tester);
+        expectFocused(cancel);
+        await tester.sendKeyEvent(LogicalKeyboardKey.space);
+        await flush(tester);
+        expect(find.byType(CupertinoAlertDialog), findsNothing);
+        expect(h.storage.writes, isEmpty);
+        expect(h.api.reads, 1);
+        expect(h.api.writes, 0);
+        expect(h.disposals, 0);
+        expect(tester.takeException(), isNull);
+      },
+    );
+  }
+
+  testWidgets('Vault modal semantic cancel has zero effects', (tester) async {
+    final semantics = tester.ensureSemantics();
+    try {
+      final h = _Harness();
+      await h.mount(tester, scale: 2);
+      final cancel = find.widgetWithText(CupertinoDialogAction, 'Cancel');
+      final node = tester.getSemantics(cancel);
+      tester.binding.renderViews.single.owner!.semanticsOwner!.performAction(
+        node.id,
+        SemanticsAction.tap,
+      );
+      await flush(tester);
+      expect(find.byType(CupertinoAlertDialog), findsNothing);
+      expect(h.storage.writes, isEmpty);
+      expect(h.api.writes, 0);
+      expect(h.api.reads, 1);
+      expect(h.disposals, 0);
+    } finally {
+      semantics.dispose();
+    }
+  });
+
+  testWidgets('Vault modal keyboard confirm uses the existing typed handoff', (
+    tester,
+  ) async {
+    final h = _Harness();
+    await h.mount(tester, scale: 2);
+    await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+    await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+    await flush(tester);
+    expect(h.storage.preferences['appearance'], 'dark');
+    expect(h.storage.writes, contains('secret:backup_restore_journal_v2'));
+    expect(h.api.reads, 2);
+    expect(h.api.writes, 0);
+    expect(h.disposals, 1);
+    expect(h.opens, 2);
+  });
+
+  testWidgets(
+    'Vault modal retained keyboard action cannot survive native focus retirement',
+    (tester) async {
+      final h = _Harness();
+      await h.mount(tester, scale: 2);
+      final confirm = find.byKey(const ValueKey('server-vault-confirm'));
+      final actions = tester.widget<Actions>(
+        find.descendant(of: confirm, matching: find.byType(Actions)).first,
+      );
+      final retained =
+          actions.actions[ActivateIntent]! as Action<ActivateIntent>;
+      tester.binding.handleViewFocusChanged(
+        ViewFocusEvent(
+          viewId: tester.view.viewId,
+          state: ViewFocusState.unfocused,
+          direction: ViewFocusDirection.undefined,
+        ),
+      );
+      const ActionDispatcher().invokeAction(retained, const ActivateIntent());
+      await flush(tester);
+      tester.binding.handleViewFocusChanged(
+        ViewFocusEvent(
+          viewId: tester.view.viewId,
+          state: ViewFocusState.focused,
+          direction: ViewFocusDirection.undefined,
+        ),
+      );
+      await flush(tester);
+      const ActionDispatcher().invokeAction(retained, const ActivateIntent());
+      await flush(tester);
+      expect(h.storage.writes, isEmpty);
+      expect(h.api.reads, 1);
+      expect(h.api.writes, 0);
+      expect(h.disposals, 0);
+      expect(find.byType(CupertinoAlertDialog), findsNothing);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
   testWidgets(
     'Vault hands off a typed v2 restore and replaces runtime providers',
     (tester) async {
