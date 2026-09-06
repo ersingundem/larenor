@@ -5,7 +5,8 @@ that same stream before one operation. This proves no daemon namespace, actor,
 journal or installation authority. There is no raw API/IPC entry point, proxy,
 TCP fallback, retry, redirect, auth option, or general Docker client here.
 
-Only pinned-image inspect/pull and exact network list/inspect/create shapes are accepted. Catalog
+Only pinned-image inspect/pull, exact network list/inspect/create and generated
+volume inspect shapes are accepted. Catalog
 rederivation and response meaning belong to the adapter. The synchronous trusted
 consumer must validate its response; its bounded iterator is invalidated before
 exchange returns. No configuration or progress content is retained here.
@@ -142,7 +143,8 @@ class EngineHttpRequest:
             reference = unquote(encoded)
             valid = ((self.target.startswith(prefix) and self.target.endswith(suffix)
                       and _reference(reference) and quote(reference, safe='') == encoded)
-                     or _network_read_target(self.target))
+                     or _network_read_target(self.target)
+                     or re.fullmatch(r'/v1\.47/volumes/larenor-appdata-v1-[0-9a-f]{32}', self.target) is not None)
         else:
             prefix = '/v1.47/images/create?'
             pairs = parse_qsl(self.target[len(prefix):], keep_blank_values=True)
