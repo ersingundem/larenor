@@ -1,6 +1,6 @@
 # Larenor — güncel ilerleme ve iş kuyruğu
 
-**Son güncelleme: 6 Eylül 2026, 04:38 (Türkiye saati).**
+**Son güncelleme: 6 Eylül 2026, 04:46 (Türkiye saati).**
 
 ```text
 Önceki kapsam       █████████████░░░░░░░  ≈ %65
@@ -59,10 +59,14 @@ sayacı **2/6** kalır; dizin, kurulum ve gerçek Engine kabulü açıktır.
 **Yeni birleşim GitHub'da: `1c2db57`.** [Android 100](https://github.com/ersingundem/larenor/actions/runs/34004246242),
 [Core](https://github.com/ersingundem/larenor/actions/runs/34004246308) ve
 [güvenlik](https://github.com/ersingundem/larenor/actions/runs/34004246204)
-çalışıyor. Yeni Android hedefi 12 E2E; henüz başarılı sonuç veya yeni imzalı
+için yeni kontroller sürüyor. Core **3.050 PASS / 0 skip**, iki mimarili
+container kontrolü/yayını ve güvenlik **207 PASS** tamamlandı; native JVM
+**98 PASS**. Android E2E ve imzalı teslim kapıları henüz açık. Yeni hedef 12 E2E; henüz başarılı sonuç veya yeni imzalı
 APK kabulü yok. Sonraki ayrı pakette ACL yönetim ekranı `ab678df` ile
 volume journal `f9a3faa` birleştirildi; tam Client **4.353 PASS / 5:29**
-verdi. Tam Core testi ve ACL Android senaryosu sürüyor.
+verdi. Tam Core **3.094 PASS / 10 Linux skip / 8:49,37**, analiz 0 bulgu
+ve 888 dosyada biçim farkı yok. ACL Android senaryosu ve bu sonraki paketin
+kendi CI kapısı açık.
 [Üçüncü birleşim kanıtı](core-grants-volume-integration-2026-09-06.md). Bu iki yeni dilim Android 100 kaynağına dahil değildir.
 
 **Son tam doğrulanmış yayın `4bc79dc` / APK 99.** Üç CI başarılı:

@@ -458,9 +458,9 @@
           "kind": "ci",
           "ref": "https://github.com/ersingundem/larenor/actions/runs/34004246308",
           "commit": "1c2db575e7377e28e41bbd83aa34d4408e2029c1",
-          "state": "in_progress",
-          "result": null,
-          "label": "Yeni birleşimin CI çalışması sürüyor; başarılı sonuç veya imzalı APK kabulü henüz yok. ACL ekranı ab678df ve volume journal f9a3faa bu kaynakta değil."
+          "state": "completed",
+          "result": "passed",
+          "label": "1c2db57 Core CI: gerçek JUnit 3.050 PASS, hata/skip yok; 389,50 saniye. İki mimarili container smoke/build/publish geçti. Sonraki volume journal/reader bu kaynakta değildir."
         },
         {
           "kind": "test",

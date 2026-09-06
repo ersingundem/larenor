@@ -19,8 +19,10 @@ kapsamına sahiptir; bunlar proje kapsam oranı değildir.
 - ARB ekleri çakışmadan birleşti; l10n gerçek araçla üretildi.
 - Birleşimde beş grants test dosyasının **52 testi / 6 saniye geçti**.
 - `eeb0b30` birleşik kaynakta tam Client **4.353 PASS / 5:29** verdi.
-  Tam Server regresyonu sürüyor; önceki 3.040 sonucu bu yeni pakete ait değildir.
-- Tam analiz **0 bulgu / 4,4 saniye** verdi; formatter sonucu ayrıca kaydedilecek.
+  Tam Server **3.094 PASS / 10 Linux skip / 8:49,37** verdi; iki mevcut
+  deprecation uyarısı var. Atlananlar Linux peer/procfs/mount/FD testleridir;
+  bu kaynağın yeni Linux CI koşusu ayrıca gerekir.
+- Tam analiz **0 bulgu / 4,4 saniye**; formatter **888 dosya / 0 değişiklik**.
 - Ayrı ACL Android kullanıcı yolculuğu geliştiriliyor; mevcut metadata
   yolculuğu erişim değiştirme kabulü olarak sayılmaz.
 - Root gerçek TR 600 ve 1280px / 2× form PNG'lerini, confirmation generation
