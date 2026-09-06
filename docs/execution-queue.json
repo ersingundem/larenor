@@ -452,6 +452,14 @@
           "state": "completed",
           "result": "passed",
           "label": "Saf volume gözlemi:95 odaklı/282 ilgili test;124satır/24dal100%, üretim74f436c bağımsız CLEAR. labels_matched yalnız gözlem; durable journal/Engine dispatch/bootstrap açık, installAvailable=false."
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/34004246308",
+          "commit": "1c2db575e7377e28e41bbd83aa34d4408e2029c1",
+          "state": "in_progress",
+          "result": null,
+          "label": "Yeni birleşim CI çalışıyor; sonuç/imzalı APK kabulü henüz yok. ACLUI ab678df ve volumejournal f9a3faa bu kaynakta değil."
         }
       ],
       "completionCommit": null,
@@ -1130,6 +1138,14 @@
           "state": "completed",
           "result": "passed",
           "label": "Üç kabul maddesi ve22envanter satırı kaynak/test eşlemesi temiz. Üretim8d9e4d2 için yeni birleşimin CI sonucu ayrıca gerekir; koşullu kapanış, yeni test koşusu değildir."
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/34004246242",
+          "commit": "1c2db575e7377e28e41bbd83aa34d4408e2029c1",
+          "state": "in_progress",
+          "result": null,
+          "label": "Yeni birleşim CI çalışıyor; sonuç/imzalı APK kabulü henüz yok. ACLUI ab678df ve volumejournal f9a3faa bu kaynakta değil."
         }
       ],
       "completionCommit": null,
@@ -1339,6 +1355,14 @@
           "state": "completed",
           "result": "passed",
           "label": "Sekizinci Android yönetim yolculuğu:43account/member/admin fixture PASS ve iki bağımsız CLEAR. Birleşimde48integration_support PASS; 8app/76marker+4native henüz Android CI kabulü değil."
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/34004246242",
+          "commit": "1c2db575e7377e28e41bbd83aa34d4408e2029c1",
+          "state": "in_progress",
+          "result": null,
+          "label": "Yeni birleşim CI çalışıyor; sonuç/imzalı APK kabulü henüz yok. ACLUI ab678df ve volumejournal f9a3faa bu kaynakta değil."
         }
       ],
       "completionCommit": null,
