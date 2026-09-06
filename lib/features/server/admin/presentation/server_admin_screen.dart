@@ -711,10 +711,7 @@ class _UserFormState extends State<_UserForm> {
             autocorrect: false,
             enableSuggestions: false,
             enabled: !_submitted,
-            textInputAction: TextInputAction.next,
-            onSubmitted: (_) {
-              if (widget.current()) FocusScope.of(context).nextFocus();
-            },
+              textInputAction: TextInputAction.next,
           ),
         ),
       ],

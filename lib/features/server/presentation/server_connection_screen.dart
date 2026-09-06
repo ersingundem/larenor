@@ -729,7 +729,6 @@ class _ServerConnectionScreenState
             autocorrect: false,
             enableSuggestions: false,
             textInputAction: TextInputAction.next,
-            onSubmitted: (_) => FocusScope.of(context).nextFocus(),
             padding: const EdgeInsets.all(12),
           ),
         ),
