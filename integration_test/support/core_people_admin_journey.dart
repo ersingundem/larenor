@@ -4,10 +4,49 @@ import 'package:larenor/features/home_scope/presentation/core_home_status_screen
 import 'package:larenor/features/server/presentation/server_connection_screen.dart';
 
 import 'app_harness.dart';
+import 'single_element_ready.dart';
 import 'synthetic_core_account.dart';
 import 'synthetic_core_people_admin_account.dart';
 
-Future<void> tapPeopleAdminControl(WidgetTester tester,String value) => tapVisible(tester,find.byKey(ValueKey(value)));
+/// Only this new journey's controls: bounded vertical discovery, then actual
+/// single, current, enabled native button readiness. No callback invocation.
+Future<void> tapPeopleAdminControl(WidgetTester tester, String value) async {
+  final target = find.byKey(ValueKey(value));
+  List<Finder> currentPages() => [
+    'home-person-grants-screen', 'home-people-admin', 'home-people-list',
+  ].map((name) => find.byKey(ValueKey(name))).where((page) =>
+    singleElementReady(page, (element) => ModalRoute.of(element)?.isCurrent == true)
+  ).toList();
+  FocusManager.instance.primaryFocus?.unfocus();
+  await tester.pump(const Duration(milliseconds: 100));
+  await waitUntil(tester, () => target.evaluate().isNotEmpty || currentPages().isNotEmpty);
+  if (target.evaluate().isEmpty) {
+    final pages = currentPages();
+    expect(pages, hasLength(1));
+    final viewport = find.descendant(of: pages.single, matching: find.byType(CustomScrollView));
+    expect(viewport, findsOneWidget);
+    final vertical = find.descendant(of: viewport, matching: find.byWidgetPredicate(
+      (widget) => widget is Scrollable &&
+        (widget.axisDirection == AxisDirection.down || widget.axisDirection == AxisDirection.up),
+    ));
+    expect(vertical, findsOneWidget);
+    tester.state<ScrollableState>(vertical).position.jumpTo(0);
+    await tester.pump();
+    await tester.scrollUntilVisible(target, 320, scrollable: vertical, maxScrolls: 40);
+  }
+  bool ready() => singleElementReady(target, (element) {
+    if (ModalRoute.of(element)?.isCurrent != true || !TickerMode.valuesOf(element).enabled) return false;
+    final native = element.widget is CupertinoButton ? target : find.descendant(of: target, matching: find.byType(CupertinoButton));
+    return singleElementReady(native, (button) => (button.widget as CupertinoButton).onPressed != null);
+  });
+  await waitUntil(tester, ready);
+  await tester.ensureVisible(target);
+  // A layout frame must follow scrolling before testing/tapping its new bounds.
+  await tester.pump(const Duration(milliseconds: 350));
+  await waitUntil(tester, ready);
+  await tester.tap(target);
+  await tester.pump(const Duration(milliseconds: 350));
+}
 
 /// Positive, real Android UI/loopback HTTP journey; not Server auth/SQLite proof.
 void registerCorePeopleAdminJourney() {
