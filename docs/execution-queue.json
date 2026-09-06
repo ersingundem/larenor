@@ -1646,7 +1646,8 @@
       "sources": [
         "docs/remaining-core-integration-slices.md",
         "docs/feature-expansion-plan-2026-09-05.md",
-        "docs/integrated-media-stack.md"
+        "docs/integrated-media-stack.md",
+        "docs/core-home-assistant-adapter-plan-2026-09-06.md"
       ],
       "scope": "Tek mevcut ev bağlamı; F19 çoklu Core/ev federasyonu bu teslim değildir.",
       "acceptance": [
@@ -1661,7 +1662,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": null
+      "reason": "Server/Client kaynak haritası tamamlandı; üç uygulama dilimi: kaynak binding+typed snapshot/cache, komut+kalıcı sonuç, açık Direct eşleme. S08.5/S08.6 CI kabulü bekleniyor; adaptör henüz uygulanmadı."
     },
     {
       "id": "S08.8",
