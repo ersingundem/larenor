@@ -805,4 +805,4 @@ const homePeopleContractFixture = r'''
     }
   }
 }
-''' ;
+''';

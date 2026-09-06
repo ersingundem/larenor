@@ -34,11 +34,18 @@ class SyntheticCorePeopleAccount extends SyntheticCoreAccount {
     void error(int status, String code) {
       rejectedRequests++;
       response.statusCode = status;
-      response.write(jsonEncode({'error': {'code': code}}));
+      response.write(
+        jsonEncode({
+          'error': {'code': code},
+        }),
+      );
     }
+
     try {
       final authorization = request.headers['authorization'];
-      if (logins == 0 || authorization == null || authorization.length != 1 ||
+      if (logins == 0 ||
+          authorization == null ||
+          authorization.length != 1 ||
           authorization.single != 'Bearer $currentAccessToken') {
         error(401, 'authentication_required');
         return;
@@ -56,7 +63,10 @@ class SyntheticCorePeopleAccount extends SyntheticCoreAccount {
         return;
       }
       final query = request.uri.queryParametersAll;
-      if (query.keys.any((key) => !const {'limit', 'after', 'expectedSnapshot'}.contains(key)) ||
+      if (query.keys.any(
+            (key) =>
+                !const {'limit', 'after', 'expectedSnapshot'}.contains(key),
+          ) ||
           query.values.any((values) => values.length != 1)) {
         error(400, 'invalid_request');
         return;
@@ -67,33 +77,48 @@ class SyntheticCorePeopleAccount extends SyntheticCoreAccount {
       final limit = int.tryParse(rawLimit);
       final after = query['after']?.single;
       final snapshot = query['expectedSnapshot']?.single;
-      if (limit == null || !matches(r'^[1-9][0-9]{0,2}$', rawLimit) || limit > 100 ||
-          after != null && (!matches(r'^[0-9a-f]{32}$', after) || snapshot == null) ||
+      if (limit == null ||
+          !matches(r'^[1-9][0-9]{0,2}$', rawLimit) ||
+          limit > 100 ||
+          after != null &&
+              (!matches(r'^[0-9a-f]{32}$', after) || snapshot == null) ||
           snapshot != null && !matches(r'^[0-9a-f]{64}$', snapshot)) {
         error(400, 'invalid_request');
         return;
       }
-      final name = view == SyntheticCorePeopleView.member ? 'memberList' : 'emptyMember';
-      final source = jsonDecode(jsonEncode(_contract[name]['response'])) as Map<String, dynamic>;
+      final name = view == SyntheticCorePeopleView.member
+          ? 'memberList'
+          : 'emptyMember';
+      final source = jsonDecode(
+        jsonEncode(_contract[name]['response']),
+      ) as Map<String, dynamic>;
       if (snapshot != null && snapshot != source['snapshot']) {
         error(409, 'revision_conflict');
         return;
       }
       final entries = (source['entries'] as List).cast<Map<String, dynamic>>();
-      if (after != null && !entries.any((entry) => entry['ref']['id'] == after)) {
+      if (after != null &&
+          !entries.any((entry) => entry['ref']['id'] == after)) {
         error(404, 'not_found');
         return;
       }
-      final remaining = entries.where((entry) => after == null ||
-          (entry['ref']['id'] as String).compareTo(after) > 0).toList();
+      final remaining = entries
+          .where(
+            (entry) =>
+                after == null ||
+                (entry['ref']['id'] as String).compareTo(after) > 0,
+          )
+          .toList();
       final page = remaining.take(limit).toList();
       peopleReads++;
       requestedPeopleScopes.add((coreId, homeId));
-      response.write(jsonEncode({
-        ...source,
-        'entries': page,
-        'nextAfter': remaining.length > limit ? page.last['ref']['id'] : null,
-      }));
+      response.write(
+        jsonEncode({
+          ...source,
+          'entries': page,
+          'nextAfter': remaining.length > limit ? page.last['ref']['id'] : null,
+        }),
+      );
     } finally {
       await response.close();
     }
