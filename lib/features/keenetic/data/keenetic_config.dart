@@ -1,3 +1,5 @@
+import '../../../shared/network/server_bound_client.dart' show parseServerUrl;
+
 class KeeneticConfig {
   const KeeneticConfig({
     required this.baseUrl,
@@ -12,17 +14,10 @@ class KeeneticConfig {
   /// Accept an origin or reverse-proxy prefix, but never credentials,
   /// query strings or fragments in the router address.
   static String normalizeBaseUrl(String value) {
-    final trimmed = value.trim();
-    final uri = Uri.tryParse(trimmed);
-    if (uri == null ||
-        !{'http', 'https'}.contains(uri.scheme) ||
-        uri.host.isEmpty ||
-        uri.userInfo.isNotEmpty ||
-        uri.hasQuery ||
-        uri.hasFragment ||
-        trimmed.contains(RegExp(r'\s'))) {
+    try {
+      return parseServerUrl(value).toString();
+    } on FormatException {
       throw const FormatException('Invalid router URL.');
     }
-    return uri.toString().replaceFirst(RegExp(r'/+$'), '');
   }
 }

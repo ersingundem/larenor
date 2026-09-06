@@ -17,11 +17,42 @@ import '../../../shared/widgets/service_root_scaffold.dart';
 import '../../../shared/widgets/operational_service_scope.dart';
 import '../../../shared/theme/spacing.dart';
 
-class KeeneticHomeScreen extends ConsumerWidget {
+class KeeneticHomeScreen extends ConsumerStatefulWidget {
   const KeeneticHomeScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<KeeneticHomeScreen> createState() => _KeeneticHomeScreenState();
+}
+
+class _KeeneticHomeScreenState extends MediaSessionState<KeeneticHomeScreen> {
+  late final DirectHomeAccess _access = ref.read(directHomeAccessProvider);
+  bool _visible = true;
+
+  bool _current(int generation) => sessionCurrent(generation) && _access.isCurrent &&
+      TickerMode.valuesOf(context).enabled && (ModalRoute.of(context)?.isCurrent ?? true);
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final visible = TickerMode.valuesOf(context).enabled && (ModalRoute.of(context)?.isCurrent ?? true);
+    if (_visible && !visible) sessionGeneration++;
+    _visible = visible;
+  }
+
+  // This route owns removal across its own loading state. The connected child
+  // may disappear without revoking the route's still-current user action.
+  Future<void> _signOut(int generation) async {
+    if (!_current(generation)) return;
+    final connection = ref.read(keeneticConnectionProvider.notifier);
+    try {
+      await connection.signOut(isCurrent: () => _current(generation));
+    } catch (_) {
+      // The provider exposes the static recovery state, never platform errors.
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final access = ref.watch(directHomeAccessProvider);
     if (!access.isCurrent) {
       return CupertinoPageScaffold(
@@ -51,14 +82,16 @@ class KeeneticHomeScreen extends ConsumerWidget {
       data: (config) {
         if (config == null)
           return const KeeneticConnectScreen(popOnSuccess: false);
-        return const _KeeneticMenu();
+        final generation = sessionGeneration;
+        return _KeeneticMenu(onSignOut: () => unawaited(_signOut(generation)));
       },
     );
   }
 }
 
 class _KeeneticMenu extends ConsumerStatefulWidget {
-  const _KeeneticMenu();
+  const _KeeneticMenu({required this.onSignOut});
+  final VoidCallback onSignOut;
   @override
   ConsumerState<_KeeneticMenu> createState() => _KeeneticMenuState();
 }
@@ -141,14 +174,7 @@ class _KeeneticMenuState extends MediaSessionState<_KeeneticMenu> {
           ServiceAccountAction(
             onSignOut: () {
               if (!_current(generation)) return;
-              final connection = ref.read(keeneticConnectionProvider.notifier);
-              unawaited(
-                connection
-                    .signOut(isCurrent: () => _current(generation))
-                    .catchError((Object _) {
-                      // The connection provider retains its static recovery failure.
-                    }),
-              );
+              widget.onSignOut();
             },
           ),
         ],
