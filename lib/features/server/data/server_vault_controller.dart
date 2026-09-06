@@ -114,11 +114,13 @@ class ServerVaultController {
         try {
           final value = await api.readVault(session.accessToken);
           _check(epoch);
+          if (review != null) _checkDeadline(review);
           return value;
         } catch (_) {
           // Retired route responses cannot reject a still-current account.
           // Active unauthorized responses retain the account's normal handling.
           _check(epoch);
+          if (review != null) _checkDeadline(review);
           rethrow;
         }
       });
