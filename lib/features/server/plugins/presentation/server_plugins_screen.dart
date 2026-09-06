@@ -430,12 +430,21 @@ Widget _catalogButton(
   blockUserActions: onPressed == null,
   child: Padding(
     padding: const EdgeInsets.all(4),
-    child: CupertinoButton(
-      key: key,
-      minimumSize: const Size(48, 48),
-      focusColor: CupertinoTheme.of(context).primaryColor,
-      onPressed: onPressed,
-      child: child,
+    child: Builder(
+      builder: (buttonContext) => CupertinoButton(
+        key: key,
+        minimumSize: const Size(48, 48),
+        focusColor: CupertinoTheme.of(context).primaryColor,
+        onFocusChange: (focused) {
+          if (focused) {
+            // Native Tab scrolling exposes the button edge, but its focus
+            // ring paints outside it. Keep the whole focused action in view.
+            Scrollable.ensureVisible(buttonContext, alignment: .5);
+          }
+        },
+        onPressed: onPressed,
+        child: child,
+      ),
     ),
   ),
 );
