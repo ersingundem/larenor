@@ -372,7 +372,8 @@
         "docs/managed-volume-observation-implementation-2026-09-06.md",
         "docs/managed-volume-journal-implementation-2026-09-06.md",
         "docs/managed-volume-read-transport-implementation-2026-09-06.md",
-        "docs/volume-reader-integration-2026-09-06.md"
+        "docs/volume-reader-integration-2026-09-06.md",
+        "docs/managed-volume-create-plan-2026-09-06.md"
       ],
       "scope": "installAvailable=false; Client kaynak adı/Docker seçenekleri üretmez. Gerçek ev sunucusuna işlem yok.",
       "acceptance": [
@@ -514,7 +515,7 @@
         }
       ],
       "completionCommit": null,
-      "reason": "Native root resolver önceki Linux CI ile doğrulandı; trusted supervisor/remap-disabled producer/issuer/create-publish açık. Volume plan+gözlem 1c2 CI/APK100 kaynağında; volume journal a27 Linux CI101 içinde 3104 PASS/0skip ile geçti. Unix reader 0d86fa1 sonraki ayrı birleşimde 3192 tam Core PASS/11Linuxskip verdi; Exact38bc LinuxCI102:3203PASS/0skip, anonim iki mimarili Core doğrulandı. UID/bootstrap/Engine kurulum yetkisi açık ve installAvailable=false sürer."
+      "reason": "Native root resolver önceki Linux CI ile doğrulandı; trusted supervisor/remap-disabled producer/issuer/create-publish açık. Volume plan+gözlem 1c2 CI/APK100 kaynağında; volume journal a27 Linux CI101 içinde 3104 PASS/0skip ile geçti. Unix reader 0d86fa1 sonraki ayrı birleşimde 3192 tam Core PASS/11Linuxskip verdi; Exact38bc LinuxCI102:3203PASS/0skip, anonim iki mimarili Core doğrulandı. UID/bootstrap/Engine kurulum yetkisi açık ve installAvailable=false sürer. Ayrı managed-volume create-intent ve tek-POST/fresh-inspect protokolü izole dalda sıraya alındı; observation kaydı create yetkisi değildir. Gerçek UID/bootstrap ve production wiring açık."
     },
     {
       "id": "S06.3e",
@@ -597,11 +598,13 @@
       "finishDependsOn": [],
       "sources": [
         "docs/media-resource-preparation-plan-2026-09-05.md",
-        "docs/remaining-core-integration-slices.md"
+        "docs/remaining-core-integration-slices.md",
+        "docs/managed-volume-create-plan-2026-09-06.md"
       ],
       "scope": "installAvailable=false; Client kaynak adı/Docker seçenekleri üretmez. Gerçek ev sunucusuna işlem yok.",
       "acceptance": [
-        "İzole Linux amd64/arm64 gerçek Engine fixture’ında yalnız pull/inspect ve network create/inspect; restart/recovery/iptal ve güncel yetki kanıtı. resources_ready kurulum/sağlık başarısı değildir."
+        "İzole Linux amd64/arm64 gerçek Engine fixture’ında yalnız pull/inspect ve network create/inspect; restart/recovery/iptal ve güncel yetki kanıtı. resources_ready kurulum/sağlık başarısı değildir.",
+        "Managed volume yolu etkinleştirilmeden izole amd64/arm64 Engine üzerinde gerçek hizmet UID/GID yazılabilirliği, NoCopy/başlangıç verisi, Core/container restart sonrasında kalıcılık ve taze sahiplik uzlaştırması kanıtlanır. Yabancı volume sahiplenilmez; synthetic Unix testi veya201 yanıtı bu kabulün yerine geçmez."
       ],
       "requiredEvidence": [
         "test",
@@ -2061,7 +2064,7 @@
         }
       ],
       "completionCommit": null,
-      "reason": "Ayarlar/dashboard4b98680/APK94, medya394de0f/APK95 ve native odak4bc79dc/APK99 kendi CI ve bağımsız APK ile doğrulandı. Yeni Core metadataUI036a35612tablet senaryosu/431ilgiliPASS+review sonraki birleşimde. Diğer ekran/editor/gesture ve fiziksel TalkBack kabulü açık."
+      "reason": "Ayarlar/dashboard, medya ve native odak önceki kendi CI/APK kaynaklarında doğrulandı. Kişi/arşiv ekranları CI106 paketinde; ayrı Core eklenti kataloğu32yeni/273ilgiliPASS+inceleme sonrasında tam Client birleşiminde. Jobs geçmiş/detay erişilebilirliği sıradaki dar inceleme; diğer ekran/editor/gesture ve fiziksel TalkBack kabulü açık."
     },
     {
       "id": "B5.2",
