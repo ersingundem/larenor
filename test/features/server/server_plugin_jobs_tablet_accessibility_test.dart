@@ -43,8 +43,9 @@ class _JobsFixture extends PluginJobsFixture {
     }
     final response = super.pluginResponse(request);
     if (request.method == 'POST' &&
-        path.endsWith('/jobs/${records.first['id']}/cancel'))
+        path.endsWith('/jobs/${records.first['id']}/cancel')) {
       records[0] = job;
+    }
     return response;
   }
 }
@@ -67,8 +68,9 @@ void main() {
     SharedPreferences.setMockInitialValues({});
     FlutterSecureStorage.setMockInitialValues({'settings_pin': '1234'});
     fixture = _JobsFixture()..configured = false;
-    if (completed)
+    if (completed) {
       fixture.records[0] = pluginJobJson(state: 'succeeded', revision: 3);
+    }
     await fixture.account.initialize();
     tester.view.devicePixelRatio = 1;
     tester.view.physicalSize = Size(width, 1000);
@@ -118,13 +120,14 @@ void main() {
   FocusNode focus(WidgetTester tester, Finder button) =>
       Focus.of(tester.element(caption(button)));
   Future<void> visible(WidgetTester tester, Finder target) async {
-    if (target.evaluate().isEmpty)
+    if (target.evaluate().isEmpty) {
       await tester.scrollUntilVisible(
         target,
         300,
         scrollable: find.byType(Scrollable).first,
         maxScrolls: 30,
       );
+    }
     await tester.ensureVisible(target);
     await tester.pumpAndSettle();
   }
@@ -421,7 +424,10 @@ void main() {
               expect(jsonDecode(fixture.mutations.single.body), {
                 'expectedRevision': 1,
               });
-              oldKeyboard.invoke(const ActivateIntent());
+              const ActionDispatcher().invokeAction(
+                oldKeyboard,
+                const ActivateIntent(),
+              );
               await tester.pumpAndSettle();
               expect(fixture.mutations, hasLength(1));
               expect(tester.takeException(), isNull);
@@ -564,7 +570,7 @@ void main() {
         }
         await tester.pumpAndSettle();
         final requests = fixture.calls.length;
-        retained.invoke(const ActivateIntent());
+        const ActionDispatcher().invokeAction(retained, const ActivateIntent());
         await tester.pumpAndSettle();
         expect(fixture.calls.length, requests);
         expect(fixture.mutations, isEmpty);
@@ -672,11 +678,12 @@ void main() {
             await tester.sendKeyEvent(LogicalKeyboardKey.tab);
             await tester.pumpAndSettle();
             await check(record['id'] as String);
-            if (record == fixture.records.first)
+            if (record == fixture.records.first) {
               await preview(
                 tester,
                 'jobs-history-${dark ? 'tr-dark' : 'en-light'}-${width.toInt()}-2x',
               );
+            }
           }
           for (final record in fixture.records.reversed.skip(1)) {
             await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
