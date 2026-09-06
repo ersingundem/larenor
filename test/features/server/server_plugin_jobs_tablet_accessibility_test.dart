@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert' show jsonDecode;
 import 'dart:ui' as ui;
 
 import 'package:flutter/cupertino.dart';
@@ -38,7 +39,11 @@ class _JobsFixture extends PluginJobsFixture {
         return json({'job': record});
       }
     }
-    return super.pluginResponse(request);
+    final response = super.pluginResponse(request);
+    if (request.method == 'POST' &&
+        path.endsWith('/jobs/${records.first['id']}/cancel'))
+      records[0] = job;
+    return response;
   }
 }
 
@@ -50,6 +55,7 @@ void main() {
     double width = 600,
     bool dark = false,
     bool completed = false,
+    double scale = 2,
   }) async {
     await loadFonts(tester);
     SharedPreferences.setMockInitialValues({});
@@ -75,7 +81,7 @@ void main() {
           supportedLocales: AppLocalizations.supportedLocales,
           builder: (context, child) => MediaQuery(
             data: MediaQuery.of(context)
-                .copyWith(textScaler: const TextScaler.linear(2)),
+                .copyWith(textScaler: TextScaler.linear(scale)),
             child: child!,
           ),
           home: const ServerPluginJobsScreen(),
@@ -271,6 +277,100 @@ void main() {
           }
         },
       );
+    }
+  }
+  for (final language in ['en', 'tr']) {
+    for (final width in [600.0, 1280.0]) {
+      for (final scale in [1.0, 2.0]) {
+        testWidgets(
+          'actual modal semantic hit area and keyboard confirm $language $width ${scale}x',
+          (tester) async {
+            final semantics = tester.ensureSemantics();
+            try {
+              await mount(
+                tester,
+                language: language,
+                width: width,
+                scale: scale,
+              );
+              await select(tester);
+              final cancel = key('jobs-cancel');
+              await visible(tester, cancel);
+              final l10n = AppLocalizations.of(tester.element(cancel));
+              focus(tester, cancel).requestFocus();
+              await tester.pump();
+              await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+              await tester.pumpAndSettle();
+              final confirm = key('jobs-cancel-confirm');
+              final back = find.widgetWithText(
+                CupertinoDialogAction,
+                l10n.commonBack,
+              );
+              final nodes = <SemanticsNode>[];
+              void visit(SemanticsNode node) {
+                nodes.add(node);
+                node.visitChildren((child) {
+                  visit(child);
+                  return true;
+                });
+              }
+
+              visit(action(tester, confirm).owner!.rootSemanticsNode!);
+              for (final label in [l10n.commonBack, l10n.serverJobsCancel]) {
+                final matching = nodes.where((n) => n.label == label).toList();
+                expect(matching, hasLength(1));
+                final node = matching.single;
+                expect(node.flagsCollection.isButton, isTrue);
+                expect(
+                  node.getSemanticsData().hasAction(ui.SemanticsAction.tap),
+                  isTrue,
+                );
+                expect(node.rect.width, greaterThanOrEqualTo(48));
+                expect(node.rect.height, greaterThanOrEqualTo(48));
+              }
+              expect(
+                nodes.where(
+                  (n) =>
+                      n.flagsCollection.isButton &&
+                      n.getSemanticsData().hasAction(ui.SemanticsAction.tap),
+                ),
+                hasLength(2),
+              );
+              final detector = tester.widget<FocusableActionDetector>(
+                find.descendant(
+                  of: confirm,
+                  matching: find.byType(FocusableActionDetector),
+                ),
+              );
+              final oldKeyboard = detector.actions![ActivateIntent]!;
+              focus(tester, back).requestFocus();
+              await tester.pump();
+              await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+              await tester.pumpAndSettle();
+              expect(focus(tester, confirm).hasPrimaryFocus, isTrue);
+              await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
+              await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+              await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
+              await tester.pumpAndSettle();
+              expect(focus(tester, back).hasPrimaryFocus, isTrue);
+              await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+              await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+              await tester.pumpAndSettle();
+              expect(confirm, findsNothing);
+              expect(fixture.mutations, hasLength(1));
+              expect(jsonDecode(fixture.mutations.single.body), {
+                'expectedRevision': 1,
+              });
+              oldKeyboard.invoke(const ActivateIntent());
+              await tester.pumpAndSettle();
+              expect(fixture.mutations, hasLength(1));
+              expect(tester.takeException(), isNull);
+            } finally {
+              semantics.dispose();
+            }
+          },
+        );
+      }
     }
   }
   for (final dark in [false, true]) {
