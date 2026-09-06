@@ -570,17 +570,17 @@
           "kind": "ci",
           "ref": "https://github.com/ersingundem/larenor/actions/runs/34019042355",
           "commit": "960691c113b10e08ebddf75d464b99e74bdd4cb1",
-          "state": "in_progress",
-          "result": null,
-          "label": "Core34 exact960691c başlatıldı; kendi sonucu ve bağımsız imzalıAPK kabulü bekleniyor. Yerel5150Client/3435Core12Linuxskip/207politika sonuçları remoteCI yerine geçmez."
+          "state": "completed",
+          "result": "passed",
+          "label": "Core34 kaynak 960691c: ilk denemede 3447 Linux testi geçti; atlanan test yok. amd64/arm64 smoke ve anonim kaynak/lisans/manifest doğrulandı. Android ve bağımsız APK kabulü ayrı bekleniyor."
         },
         {
           "kind": "ci",
           "ref": "https://github.com/ersingundem/larenor/actions/runs/34019042181",
           "commit": "960691c113b10e08ebddf75d464b99e74bdd4cb1",
-          "state": "in_progress",
-          "result": null,
-          "label": "Security108 exact960691c başlatıldı; kendi sonucu ve bağımsız imzalıAPK kabulü bekleniyor. Yerel5150Client/3435Core12Linuxskip/207politika sonuçları remoteCI yerine geçmez."
+          "state": "completed",
+          "result": "passed",
+          "label": "Security108 kaynak 960691c: ilk denemede 207 politika testi, gizli bilgi taraması ve bağımlılık denetimi geçti. Android ve bağımsız APK kabulü ayrı bekleniyor."
         }
       ],
       "completionCommit": null,
@@ -1334,17 +1334,17 @@
           "kind": "ci",
           "ref": "https://github.com/ersingundem/larenor/actions/runs/34019042355",
           "commit": "960691c113b10e08ebddf75d464b99e74bdd4cb1",
-          "state": "in_progress",
-          "result": null,
-          "label": "Core34 exact960691c başlatıldı; kendi sonucu ve bağımsız imzalıAPK kabulü bekleniyor. Yerel5150Client/3435Core12Linuxskip/207politika sonuçları remoteCI yerine geçmez."
+          "state": "completed",
+          "result": "passed",
+          "label": "Core34 kaynak 960691c: ilk denemede 3447 Linux testi geçti; atlanan test yok. amd64/arm64 smoke ve anonim kaynak/lisans/manifest doğrulandı. Android ve bağımsız APK kabulü ayrı bekleniyor."
         },
         {
           "kind": "ci",
           "ref": "https://github.com/ersingundem/larenor/actions/runs/34019042181",
           "commit": "960691c113b10e08ebddf75d464b99e74bdd4cb1",
-          "state": "in_progress",
-          "result": null,
-          "label": "Security108 exact960691c başlatıldı; kendi sonucu ve bağımsız imzalıAPK kabulü bekleniyor. Yerel5150Client/3435Core12Linuxskip/207politika sonuçları remoteCI yerine geçmez."
+          "state": "completed",
+          "result": "passed",
+          "label": "Security108 kaynak 960691c: ilk denemede 207 politika testi, gizli bilgi taraması ve bağımlılık denetimi geçti. Android ve bağımsız APK kabulü ayrı bekleniyor."
         }
       ],
       "completionCommit": null,
@@ -1469,17 +1469,17 @@
           "kind": "ci",
           "ref": "https://github.com/ersingundem/larenor/actions/runs/34019042355",
           "commit": "960691c113b10e08ebddf75d464b99e74bdd4cb1",
-          "state": "in_progress",
-          "result": null,
-          "label": "Core34 exact960691c başlatıldı; kendi sonucu ve bağımsız imzalıAPK kabulü bekleniyor. Yerel5150Client/3435Core12Linuxskip/207politika sonuçları remoteCI yerine geçmez."
+          "state": "completed",
+          "result": "passed",
+          "label": "Core34 kaynak 960691c: ilk denemede 3447 Linux testi geçti; atlanan test yok. amd64/arm64 smoke ve anonim kaynak/lisans/manifest doğrulandı. Android ve bağımsız APK kabulü ayrı bekleniyor."
         },
         {
           "kind": "ci",
           "ref": "https://github.com/ersingundem/larenor/actions/runs/34019042181",
           "commit": "960691c113b10e08ebddf75d464b99e74bdd4cb1",
-          "state": "in_progress",
-          "result": null,
-          "label": "Security108 exact960691c başlatıldı; kendi sonucu ve bağımsız imzalıAPK kabulü bekleniyor. Yerel5150Client/3435Core12Linuxskip/207politika sonuçları remoteCI yerine geçmez."
+          "state": "completed",
+          "result": "passed",
+          "label": "Security108 kaynak 960691c: ilk denemede 207 politika testi, gizli bilgi taraması ve bağımlılık denetimi geçti. Android ve bağımsız APK kabulü ayrı bekleniyor."
         }
       ],
       "completionCommit": null,
@@ -1943,17 +1943,17 @@
           "kind": "ci",
           "ref": "https://github.com/ersingundem/larenor/actions/runs/34019042355",
           "commit": "960691c113b10e08ebddf75d464b99e74bdd4cb1",
-          "state": "in_progress",
-          "result": null,
-          "label": "Core34 exact960691c başlatıldı; kendi sonucu ve bağımsız imzalıAPK kabulü bekleniyor. Yerel5150Client/3435Core12Linuxskip/207politika sonuçları remoteCI yerine geçmez."
+          "state": "completed",
+          "result": "passed",
+          "label": "Core34 kaynak 960691c: ilk denemede 3447 Linux testi geçti; atlanan test yok. amd64/arm64 smoke ve anonim kaynak/lisans/manifest doğrulandı. Android ve bağımsız APK kabulü ayrı bekleniyor."
         },
         {
           "kind": "ci",
           "ref": "https://github.com/ersingundem/larenor/actions/runs/34019042181",
           "commit": "960691c113b10e08ebddf75d464b99e74bdd4cb1",
-          "state": "in_progress",
-          "result": null,
-          "label": "Security108 exact960691c başlatıldı; kendi sonucu ve bağımsız imzalıAPK kabulü bekleniyor. Yerel5150Client/3435Core12Linuxskip/207politika sonuçları remoteCI yerine geçmez."
+          "state": "completed",
+          "result": "passed",
+          "label": "Security108 kaynak 960691c: ilk denemede 207 politika testi, gizli bilgi taraması ve bağımlılık denetimi geçti. Android ve bağımsız APK kabulü ayrı bekleniyor."
         },
         {
           "kind": "test",
