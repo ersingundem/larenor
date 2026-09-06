@@ -1122,10 +1122,18 @@
           "state": "completed",
           "result": "passed",
           "label": "Keenetic Wi-Fi/devices/port-forward screens:202 odaklı,1047 ilgili PASS;4prod336/376satır;bağımsız inceleme CLEAR. Mevcut RCI batch değişmedi, canlı router işlemi yapılmadı."
+        },
+        {
+          "kind": "review",
+          "ref": "docs/client-boundary-acceptance-review-2026-09-06.md",
+          "commit": "54d81a66acc6cafb75947b9ab064dc65e1b345a6",
+          "state": "completed",
+          "result": "passed",
+          "label": "Üç kabul maddesi ve22envanter satırı kaynak/test eşlemesi temiz. Üretim8d9e4d2 için yeni birleşimin CI sonucu ayrıca gerekir; koşullu kapanış, yeni test koşusu değildir."
         }
       ],
       "completionCommit": null,
-      "reason": "4bc79dc/APK99 kendi üç CI ve bağımsız imza kontrolüyle doğrulandı:3941Flutter/98JVM/11E2E/2951Core. WebviewTile0a742a9, Keenetic bağlantıdc87062 ve operasyon74e3f44 yerel test/inceleme ile sonraki birleşimde. Birleşik tam test ve yeni CI açık. Bütün S08.4 ve typed ağcache S08.7–9 ayrı kabul adımları."
+      "reason": "Yeni birleşik üretim8d9e4d2:4271Client ve3040Server+10Linux skip; incelemede üç kabul maddesi/22envanter satırı karşılandı. Yeni CI kapısı geçince S08.4 kapanabilir. Restore S08.5 ve typed adaptör/cache S08.7–9 ayrı kapsam; APK99 yeni dilimleri içermez."
     },
     {
       "id": "S08.5",
@@ -1315,10 +1323,26 @@
           "state": "completed",
           "result": "passed",
           "label": "Gerçek Server grant/revoke sözleşmesi ve Client taşıması:53 odaklı/709 ilgili Client,131 ilgili Server PASS;108/108 yeni satır;bağımsız inceleme CLEAR. ACL UI/controller ayrı geliştirilmekte, henüz bağlı değil."
+        },
+        {
+          "kind": "test",
+          "ref": "docs/core-resource-admin-android-journey-2026-09-06.md",
+          "commit": "0d297550adc6abfdc670ca429341205fabc163cb",
+          "state": "completed",
+          "result": "passed",
+          "label": "Sekizinci Android yönetim yolculuğu:43account/member/admin fixture PASS ve iki bağımsız CLEAR. Birleşimde48integration_support PASS; 8app/76marker+4native henüz Android CI kabulü değil."
+        },
+        {
+          "kind": "review",
+          "ref": "docs/core-resource-admin-android-journey-2026-09-06.md",
+          "commit": "0d297550adc6abfdc670ca429341205fabc163cb",
+          "state": "completed",
+          "result": "passed",
+          "label": "Sekizinci Android yönetim yolculuğu:43account/member/admin fixture PASS ve iki bağımsız CLEAR. Birleşimde48integration_support PASS; 8app/76marker+4native henüz Android CI kabulü değil."
         }
       ],
       "completionCommit": null,
-      "reason": "Metadata yönetim ekranı036a356 ve grant Client sözleşmesia65691d sonraki yerel birleşimde; bağımsız inceleme ve ilgili testler geçti. Metadata Android E2E ile grant controller/UI geliştiriliyor. S08.6 kişi/oda/kaynak yetki ve iptal kabulü açık; gerçek cihaz komutları typed S08.7–9 kapsamındadır. APK99 yeni dilimleri içermiyor."
+      "reason": "MetadataUI036a356/grantAPIa65691d ve E2E8fixture0d29755 birleşimde. Tam4271Client koşusundan sonra48fixture PASS/analiz0/881format0; yeni Android CI bekliyor. ACLcontroller/UI ayrı sonraki pakette. S08.6 kişi/oda/kaynak yetki ve iptal kabulü açık; cihaz komutları S08.7–9."
     },
     {
       "id": "S08.7",

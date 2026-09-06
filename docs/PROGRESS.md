@@ -1,6 +1,6 @@
 # Larenor — güncel ilerleme ve iş kuyruğu
 
-**Son güncelleme: 6 Eylül 2026, 04:22 (Türkiye saati).**
+**Son güncelleme: 6 Eylül 2026, 04:33 (Türkiye saati).**
 
 ```text
 Önceki kapsam       █████████████░░░░░░░  ≈ %65
@@ -114,14 +114,18 @@ Core yönetim ekranı ve volume gözlemi aynı sonraki pakete alındı.
 `8d9e4d2` birleşik üretim/test kaynağı **4.271 Client testi / 4:48** ile geçti;
 207 güvenlik/CI araç testi ve backup/CI politika kontrolü de temiz. Tam Server
 **3.040 PASS / 10 Linux'a özgü skip / 8:17,88** verdi. Tam analiz 0 bulgu,
-878 dosyada biçim farkı yok. Yeni Android metadata yolculuğu hazırlanıyor;
-Linux'a özel testler ve bütün yeni kaynak için CI ayrıca gerekli.
+878 dosyada biçim farkı yok. Sonraki `bb6ed4e` birleşimi sekizinci Android
+metadata yolculuğunu ekledi: tüm fixture klasörü **48 PASS**, tam analiz
+0 bulgu ve **881 dosyada sıfır biçim farkı**. Yeni CI hedefi 4 native +
+8 uygulama = **12 E2E**; Linux'a özel testler ve yeni Android yolculuğu
+gerçek CI sonucu gelmeden kabul edilmiş sayılmaz.
+[Sekizinci yolculuk](core-resource-admin-android-journey-2026-09-06.md).
 Core metadata mutasyon API'si `8e00548` yerel dalında **87 odaklı / 656 ilgili
 Client ve 40 Server testi**, temiz analiz ve bağımsız inceleme ile doğrulandı.
 Bu API'nin PIN korumalı oluşturma, ad/sıra değiştirme ve kayıt silme UI'si
 `68e77b8` yerel diliminde **431 ilgili test**, temiz analiz, 12 tablet/DeX
 boyut-tema-dil kontrolü ve bağımsız inceleme ile geçti. Yeni Android E2E
-yolculuğu ekleniyor; bu UI henüz APK 99'da değildir. ACL editörü ve gerçek cihaz komutları
+yolculuğu birleştirildi; bu UI henüz APK 99'da değildir. ACL editörü ve gerçek cihaz komutları
 ayrı açık işlerdir. Kuyrukta kabul sayısı bu alt dilimler için artırılmadı.
 
 **Kaynak erişimi API'si yerel olarak doğrulandı:** `a65691d`, gerçek Core
@@ -150,6 +154,12 @@ dalı `f9a3faa` checkpoint'inde **54 odaklı / 273 ilgili PASS** ve bağımsız
 inceleme ile donduruldu; yeni modül 139 satır ve 8 dalda %100 kapsamda.
 Bu dal yukarıdaki tam Server koşusuna veya mevcut yayına dahil değil.
 Yalnız gözlem geçmişini saklar; Engine/bootstrap ve kurulum yetkisi açık.
+
+**S08.4 kabul incelemesi tamamlandı:** üç kabul maddesi ve 22 kayıt sınıfı
+kaynak/test kanıtlarıyla eşleştirildi; yeni somut P1/P2 bulunmadı. Yeni paketin
+kendi CI kapısı geçince bu adım kapanabilir. Restore S08.5 ve typed
+adaptör/cache S08.7–9 ayrı kalır.
+[İnceleme](client-boundary-acceptance-review-2026-09-06.md).
 
 S08.4'ün önceki 31 ayrıntılı kanıt kaydı
 [özgün kayıt arşivinde](client-boundary-evidence-archive-2026-09-06.json)
