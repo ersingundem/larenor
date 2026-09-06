@@ -108,15 +108,7 @@ void registerCorePeopleJourney() {
         debugPrint('LARENOR_E2E_PHASE core_people.empty_refreshed');
 
         await press('home-people-back');
-        await waitUntil(
-          tester,
-          () => singleElementReady(
-            find.byType(CoreHomeStatusScreen),
-            (element) =>
-                ModalRoute.of(element)?.isCurrent == true &&
-                TickerMode.valuesOf(element).enabled,
-          ),
-        );
+        await corePeopleJourneyWaitForReturn(tester);
         expect(key('home-people-list'), findsNothing);
         await tester.pump(const Duration(milliseconds: 500));
         expect(
@@ -150,3 +142,14 @@ void registerCorePeopleJourney() {
     timeout: const Timeout(Duration(minutes: 3)),
   );
 }
+
+/// Wait for the journey's existing Core route readiness predicate.
+Future<void> corePeopleJourneyWaitForReturn(WidgetTester tester) => waitUntil(
+  tester,
+  () => singleElementReady(
+    find.byType(CoreHomeStatusScreen),
+    (element) =>
+        ModalRoute.of(element)?.isCurrent == true &&
+        TickerMode.valuesOf(element).enabled,
+  ),
+);
