@@ -33,6 +33,8 @@ class ServerVaultScreen extends ConsumerStatefulWidget {
 class _ServerVaultScreenState extends MediaSessionState<ServerVaultScreen> {
   late final ServerAccountController _account;
   late final HomeSessionController? _home;
+  late final BackupRepository _repository;
+  ProviderContainer? _container;
   late final ServerVaultController _vault;
   late final int _accountGeneration;
   ValueListenable<TickerModeData>? _ticker;
@@ -57,7 +59,9 @@ class _ServerVaultScreenState extends MediaSessionState<ServerVaultScreen> {
 
   bool get _sameScope =>
       identical(ref.read(serverAccountControllerProvider), _account) &&
-      identical(ref.read(homeSessionControllerProvider), _home);
+      identical(ref.read(homeSessionControllerProvider), _home) &&
+      identical(ref.read(backupRepositoryProvider), _repository) &&
+      identical(ProviderScope.containerOf(context, listen: false), _container);
 
   bool get _active =>
       sessionCurrent(sessionGeneration) &&
@@ -85,10 +89,11 @@ class _ServerVaultScreenState extends MediaSessionState<ServerVaultScreen> {
     super.initState();
     _account = ref.read(serverAccountControllerProvider);
     _home = ref.read(homeSessionControllerProvider);
+    _repository = ref.read(backupRepositoryProvider);
     _accountGeneration = _account.generation;
     _vault = ServerVaultController(
       account: _account,
-      repository: ref.read(backupRepositoryProvider),
+      repository: _repository,
       isCurrent: () => _active,
     );
     _account.addListener(_accountChanged);
@@ -107,9 +112,10 @@ class _ServerVaultScreenState extends MediaSessionState<ServerVaultScreen> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    if (!_sameScope) {
+    _container ??= ProviderScope.containerOf(context, listen: false);
+    if (!_sameScope && !_scopeChanged) {
       _scopeChanged = true;
-      _invalidate();
+      _invalidate(deferDialogRemoval: true);
     }
     final ticker = TickerMode.getValuesNotifier(context);
     if (!identical(ticker, _ticker)) {
@@ -133,7 +139,7 @@ class _ServerVaultScreenState extends MediaSessionState<ServerVaultScreen> {
   @override
   void clearPendingInteraction() => _invalidate();
 
-  void _invalidate() {
+  void _invalidate({bool deferDialogRemoval = false}) {
     final wasBusy = _busy;
     sessionGeneration++;
     _vault.invalidate();
@@ -143,7 +149,14 @@ class _ServerVaultScreenState extends MediaSessionState<ServerVaultScreen> {
     _connections = false;
     final route = _dialog;
     _dialog = null;
-    if (route?.isActive == true) route!.navigator?.removeRoute(route);
+    void removeDialog() {
+      if (route?.isActive == true) route!.navigator?.removeRoute(route);
+    }
+    if (deferDialogRemoval) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => removeDialog());
+    } else {
+      removeDialog();
+    }
     // Only an owned transfer can have initiated this token refresh. Stop a
     // refresh that is waiting to send, without issuing a remote logout.
     if (wasBusy && !_account.working) unawaited(_account.cancelPending());

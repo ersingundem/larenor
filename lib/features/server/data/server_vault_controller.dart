@@ -107,6 +107,22 @@ class ServerVaultController {
     _busy = true;
   }
 
+  Future<ServerVault> _readVault(int epoch, {ServerVaultReview? review}) =>
+      _account.withSession((api, session) async {
+        _check(epoch);
+        if (review != null) _checkDeadline(review);
+        try {
+          final value = await api.readVault(session.accessToken);
+          _check(epoch);
+          return value;
+        } catch (_) {
+          // Retired route responses cannot reject a still-current account.
+          // Active unauthorized responses retain the account's normal handling.
+          _check(epoch);
+          rethrow;
+        }
+      });
+
   BackupSnapshot _validated(BackupSnapshot snapshot) {
     // File backups retain v1 compatibility; Server migration must carry the
     // mandatory v2 privacy policy. Never weaken that boundary for a test fake.
@@ -130,10 +146,7 @@ class ServerVaultController {
       if (selection.isEmpty) {
         throw const LarenorServerException('empty_selection');
       }
-      final vault = await _account.withSession((api, session) {
-        _check(epoch); // An awaited token refresh is not permission to send.
-        return api.readVault(session.accessToken);
-      });
+      final vault = await _readVault(epoch);
       _check(epoch);
       final remote = vault.snapshot == null
           ? null
@@ -247,11 +260,7 @@ class ServerVaultController {
       final intent = _take(review, ServerVaultDirection.restore);
       prepared = intent.prepared;
       if (prepared == null) throw const LarenorServerException('cancelled');
-      final current = await _account.withSession((api, session) {
-        _check(intent.epoch);
-        _checkDeadline(review);
-        return api.readVault(session.accessToken);
-      });
+      final current = await _readVault(intent.epoch, review: review);
       _check(intent.epoch);
       _checkDeadline(review);
       if (current.revision != review.revision || current.snapshot == null) {
