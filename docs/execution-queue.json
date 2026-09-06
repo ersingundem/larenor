@@ -368,7 +368,8 @@
         "docs/native-identity-observation-implementation-2026-09-05.md",
         "docs/native-appdata-root-observation-implementation-2026-09-05.md",
         "docs/managed-volume-storage-assessment-2026-09-06.md",
-        "docs/managed-volume-proposal-implementation-2026-09-06.md"
+        "docs/managed-volume-proposal-implementation-2026-09-06.md",
+        "docs/managed-volume-observation-implementation-2026-09-06.md"
       ],
       "scope": "installAvailable=false; Client kaynak adı/Docker seçenekleri üretmez. Gerçek ev sunucusuna işlem yok.",
       "acceptance": [
@@ -454,7 +455,7 @@
         }
       ],
       "completionCommit": null,
-      "reason": "Tam kök resolver 32254ad → 0d9e250 ana dalda; 394de0f Linux CI 2.792 testi atlamasız geçti ve yeni gerçek root/proc/mount/descriptor testi doğrulandı. İki mimarili Core hazırlık smoke geçti. Supervisor, remap-disabled başlangıç kanıtı, issuer ve create/publish açık; bu gözlem yazma yetkisi değildir. b5d4164 saf volume alternatifi yerelde32/182 test ve inceleme geçti; Engine response/ownership/journal/bootstrap ve HTTP wiring henüz uygulanmadı."
+      "reason": "Kök resolver394de0f Linux CI2792 test ve gerçek root/proc/mount/descriptor kabulünden geçti. Saf volumeplanb5d4164 APK99/Core CI içinde. Yeni volumeobserver4baa55a95/282yerelPASS+bağımsız inceleme ile birleşimde. Kalıcı volumejournal ayrı dalda geliştiriliyor; remap/UID/bootstrap ve gerçek Engine işlem bağlantısı açık. Gözlem yazma yetkisi değildir; installAvailable=false."
     },
     {
       "id": "S06.3e",
@@ -1007,7 +1008,12 @@
         "docs/direct-jellyfin-boundary-implementation-2026-09-06.md",
         "docs/client-boundary-integration-2026-09-06.md",
         "docs/media-credential-confirmation-implementation-2026-09-06.md",
-        "docs/direct-proxmox-boundary-implementation-2026-09-06.md"
+        "docs/direct-proxmox-boundary-implementation-2026-09-06.md",
+        "docs/direct-web-panel-boundary-implementation-2026-09-06.md",
+        "docs/keenetic-direct-boundary-implementation-2026-09-06.md",
+        "docs/keenetic-operational-boundary-implementation-2026-09-06.md",
+        "docs/core-client-integration-2026-09-06.md",
+        "docs/client-delivery-99-2026-09-06.md"
       ],
       "scope": "Tek mevcut ev bağlamı; F19 çoklu Core/ev federasyonu bu teslim değildir.",
       "acceptance": [
@@ -1084,10 +1090,42 @@
           "state": "completed",
           "result": "passed",
           "label": "Dashboard web paneli:79 ilgili test ve bağımsız kaynak incelemesi geçti. GlobalKey/reparent ve gecikmiş native WebView girişleri Direct sahibiyle bağlandı; yeni birleşim CI henüz yok."
+        },
+        {
+          "kind": "test",
+          "ref": "docs/keenetic-direct-boundary-implementation-2026-09-06.md",
+          "commit": "dc87062fcc606487964780d813702eaab8ab5604",
+          "state": "completed",
+          "result": "passed",
+          "label": "Keenetic Direct kayıt/bağlantı/PIN kurtarma:181 odaklı,1008 ilgili PASS;7prod784/838satır;bağımsız inceleme CLEAR. Yeni birleşim CI ayrıca gerekir."
+        },
+        {
+          "kind": "review",
+          "ref": "docs/keenetic-direct-boundary-implementation-2026-09-06.md",
+          "commit": "dc87062fcc606487964780d813702eaab8ab5604",
+          "state": "completed",
+          "result": "passed",
+          "label": "Keenetic Direct kayıt/bağlantı/PIN kurtarma:181 odaklı,1008 ilgili PASS;7prod784/838satır;bağımsız inceleme CLEAR. Yeni birleşim CI ayrıca gerekir."
+        },
+        {
+          "kind": "test",
+          "ref": "docs/keenetic-operational-boundary-implementation-2026-09-06.md",
+          "commit": "74e3f445a094be54704bb1e336185be531c340ef",
+          "state": "completed",
+          "result": "passed",
+          "label": "Keenetic Wi-Fi/devices/port-forward screens:202 odaklı,1047 ilgili PASS;4prod336/376satır;bağımsız inceleme CLEAR. Mevcut RCI batch değişmedi, canlı router işlemi yapılmadı."
+        },
+        {
+          "kind": "review",
+          "ref": "docs/keenetic-operational-boundary-implementation-2026-09-06.md",
+          "commit": "74e3f445a094be54704bb1e336185be531c340ef",
+          "state": "completed",
+          "result": "passed",
+          "label": "Keenetic Wi-Fi/devices/port-forward screens:202 odaklı,1047 ilgili PASS;4prod336/376satır;bağımsız inceleme CLEAR. Mevcut RCI batch değişmedi, canlı router işlemi yapılmadı."
         }
       ],
       "completionCommit": null,
-      "reason": "4bc79dc/APK99 kendi üç CI ve bağımsız imza kontrolüyle doğrulandı:3941Flutter/98JVM/11E2E/2951Core. WebviewTile0a742a9 ve Keenetic bağlantı pilotudc87062 sonraki yerel birleşimde. Keenetic operational-actions son testte. Bütün S08.4 ve typed ağcache S08.7–9 açık."
+      "reason": "4bc79dc/APK99 kendi üç CI ve bağımsız imza kontrolüyle doğrulandı:3941Flutter/98JVM/11E2E/2951Core. WebviewTile0a742a9, Keenetic bağlantıdc87062 ve operasyon74e3f44 yerel test/inceleme ile sonraki birleşimde. Birleşik tam test ve yeni CI açık. Bütün S08.4 ve typed ağcache S08.7–9 ayrı kabul adımları."
     },
     {
       "id": "S08.5",
@@ -1135,7 +1173,10 @@
         "docs/home-resource-registry-implementation-2026-09-06.md",
         "docs/core-home-resource-list-implementation-2026-09-06.md",
         "docs/core-home-resources-android-journey-2026-09-06.md",
-        "docs/core-resource-fixture-compat-2026-09-06.md"
+        "docs/core-resource-fixture-compat-2026-09-06.md",
+        "docs/core-home-resource-admin-api-implementation-2026-09-06.md",
+        "docs/core-home-resource-admin-ui-implementation-2026-09-06.md",
+        "docs/core-home-resource-grants-contract-2026-09-06.md"
       ],
       "scope": "Tek mevcut ev bağlamı; F19 çoklu Core/ev federasyonu bu teslim değildir.",
       "acceptance": [
@@ -1242,10 +1283,42 @@
           "state": "completed",
           "result": "passed",
           "label": "Metadata admin API:87 odaklı/656 ilgili Client,40 gerçek Server fixture/registry testi;64/64 yeni satır ve bağımsız inceleme. Henüz UI’ye bağlı değil; ACL/editor/devicecommands açık."
+        },
+        {
+          "kind": "test",
+          "ref": "docs/core-home-resource-admin-ui-implementation-2026-09-06.md",
+          "commit": "036a3565f1ed97be23d09c4d3e96ff2547f1649f",
+          "state": "completed",
+          "result": "passed",
+          "label": "PIN korumalı oda/kaynak oluşturma/ad/sıra/sil UI:431 ilgili PASS,12tablet boyut/dil/tema kontrolü,349/354 yeniUI satırı,analyze0;bağımsız inceleme CLEAR. Yeni Android admin E2E hazırlanıyor."
+        },
+        {
+          "kind": "review",
+          "ref": "docs/core-home-resource-admin-ui-implementation-2026-09-06.md",
+          "commit": "036a3565f1ed97be23d09c4d3e96ff2547f1649f",
+          "state": "completed",
+          "result": "passed",
+          "label": "PIN korumalı oda/kaynak oluşturma/ad/sıra/sil UI:431 ilgili PASS,12tablet boyut/dil/tema kontrolü,349/354 yeniUI satırı,analyze0;bağımsız inceleme CLEAR. Yeni Android admin E2E hazırlanıyor."
+        },
+        {
+          "kind": "test",
+          "ref": "docs/core-home-resource-grants-contract-2026-09-06.md",
+          "commit": "a65691d64f7020416ed22f4d6285977e3c6a881c",
+          "state": "completed",
+          "result": "passed",
+          "label": "Gerçek Server grant/revoke sözleşmesi ve Client taşıması:53 odaklı/709 ilgili Client,131 ilgili Server PASS;108/108 yeni satır;bağımsız inceleme CLEAR. ACL UI/controller ayrı geliştirilmekte, henüz bağlı değil."
+        },
+        {
+          "kind": "review",
+          "ref": "docs/core-home-resource-grants-contract-2026-09-06.md",
+          "commit": "a65691d64f7020416ed22f4d6285977e3c6a881c",
+          "state": "completed",
+          "result": "passed",
+          "label": "Gerçek Server grant/revoke sözleşmesi ve Client taşıması:53 odaklı/709 ilgili Client,131 ilgili Server PASS;108/108 yeni satır;bağımsız inceleme CLEAR. ACL UI/controller ayrı geliştirilmekte, henüz bağlı değil."
         }
       ],
       "completionCommit": null,
-      "reason": "Kalıcı kaynak/ACL kaydı ve salt okunur Core Client listesi a2658ec/Android98 CI ile doğrulandı. Yeni metadata admin API8e00548 ayrı dalda87 odaklı/656 ilgili Client ve40 Server testi+bağımsız inceleme ile geçti; henüz UI’ye bağlı değil. PIN korumalı admin oluştur/ad/sıra/sil akışı geliştiriliyor. ACL editörü, cihaz komutu ve bütün S08.6 kabulü açık."
+      "reason": "Metadata yönetim ekranı036a356 ve grant Client sözleşmesia65691d sonraki yerel birleşimde; bağımsız inceleme ve ilgili testler geçti. Metadata Android E2E ile grant controller/UI geliştiriliyor. S08.6 kişi/oda/kaynak yetki ve iptal kabulü açık; gerçek cihaz komutları typed S08.7–9 kapsamındadır. APK99 yeni dilimleri içermiyor."
     },
     {
       "id": "S08.7",
@@ -1519,7 +1592,9 @@
         "docs/tablet-settings-accessibility-implementation-2026-09-05.md",
         "docs/tablet-dashboard-accessibility-implementation-2026-09-05.md",
         "docs/tablet-media-accessibility-implementation-2026-09-05.md",
-        "docs/application-window-focus-implementation-2026-09-06.md"
+        "docs/application-window-focus-implementation-2026-09-06.md",
+        "docs/core-home-resource-admin-ui-implementation-2026-09-06.md",
+        "docs/client-delivery-99-2026-09-06.md"
       ],
       "scope": "Son bütün ekran tasarım geçişi değildir; Core’suz kişisel uzak bağlantı için Core bağımlılığı koymaz.",
       "acceptance": [
@@ -1610,10 +1685,18 @@
           "state": "completed",
           "result": "passed",
           "label": "Native viewfocus:24PASS2FAIL→26PASS,252 ilgiliPASS;102/106satır, bağımsız CLEAR. EskiHAonayı0HTTP; diğerwindow ve nativeaudio korundu; yeniCI/fizikselDeX açık."
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/34002121963",
+          "commit": "4bc79dcc66eb9e3ce2a5044bd240db2fafd0d695",
+          "state": "completed",
+          "result": "passed",
+          "label": "Native pencere odağı düzeltmesi exact4bc79dc/APK99:3941Flutter/98JVM/11E2E ve bağımsız imza kontrolü geçti. Sonraki yeni Core yönetim UI dahil değil; tümB5.1kabulü değil."
         }
       ],
       "completionCommit": null,
-      "reason": "Ayarlar/dashboard 4b98680 tam CI ve APK94 ile doğrulandı. Yeni medya posterleri de 394de0f Android CI içinde 2.837 Flutter,98 JVM,9E2E ve signed build kapılarını geçti; bağımsız APK95 doğrulaması geçti. Diğer ekran/editor/gesture işleri ve fiziksel TalkBack kabulü açık. 6c5fbb2 yerel native odak düzeltmesi252 ilgili test/inceleme geçti, yeniCI açık."
+      "reason": "Ayarlar/dashboard4b98680/APK94, medya394de0f/APK95 ve native odak4bc79dc/APK99 kendi CI ve bağımsız APK ile doğrulandı. Yeni Core metadataUI036a35612tablet senaryosu/431ilgiliPASS+review sonraki birleşimde. Diğer ekran/editor/gesture ve fiziksel TalkBack kabulü açık."
     },
     {
       "id": "B5.2",

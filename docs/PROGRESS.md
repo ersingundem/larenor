@@ -106,8 +106,11 @@ başarısız credential yazısının eski doğrulanmış bağlantıyı bırakmas
 aynı durum yedi API-key bağlantısında 370 ilgili test ve bağımsız incelemeyle düzeltildi. Dashboard WebviewTile için kaynak sahipliği düzeltmesi `0a742a9` ayrı yerel diliminde **79 ilgili test** ve bağımsız inceleme ile geçti; yeni yayın paketine henüz dahil değil. Bu incelemeler tüm
 entegrasyon API'lerinin veya fiziksel cihazların kabulü değildir.
 
-**Sıradaki işler devam ediyor:** Keenetic kayıt, bağlantı doğrulama ve kurtarma
-ekranı; Core yönetici kayıt ekranı; medya depolamasının sahiplik gözlemi.
+**Yeni yerel birleşim hazırlanıyor:** Keenetic kayıt/PIN/kurtarma pilotu
+`dc87062` **1008 ilgili PASS**, Wi-Fi/cihaz/port ekranı koruması `74e3f44`
+**1047 ilgili PASS** ve bağımsız inceleme ile tamamlandı. Dashboard WebView,
+Core yönetim ekranı ve volume gözlemi aynı sonraki pakete alındı.
+[Birleşim kanıtı](core-client-integration-2026-09-06.md) tam test/CI aşamasını izler.
 Core metadata mutasyon API'si `8e00548` yerel dalında **87 odaklı / 656 ilgili
 Client ve 40 Server testi**, temiz analiz ve bağımsız inceleme ile doğrulandı.
 Bu API'nin PIN korumalı oluşturma, ad/sıra değiştirme ve kayıt silme UI'si
@@ -115,6 +118,12 @@ Bu API'nin PIN korumalı oluşturma, ad/sıra değiştirme ve kayıt silme UI'si
 boyut-tema-dil kontrolü ve bağımsız inceleme ile geçti. Yeni Android E2E
 yolculuğu ekleniyor; bu UI henüz APK 99'da değildir. ACL editörü ve gerçek cihaz komutları
 ayrı açık işlerdir. Kuyrukta kabul sayısı bu alt dilimler için artırılmadı.
+
+**Kaynak erişimi API'si yerel olarak doğrulandı:** `a65691d`, gerçek Core
+grant/no-op/revoke yanıtlarını Client'a bağlar; **53 odaklı / 709 ilgili Client,
+131 ilgili Server PASS**, yeni 108 satırın tamamı testte, bağımsız inceleme
+temiz. Kullanıcı seçimi ve ACL yönetim ekranı ayrı dalda geliştiriliyor.
+[Sözleşme kanıtı](core-home-resource-grants-contract-2026-09-06.md).
 
 **S06.3d depolama alternatifi:** Core'a ait yönetilen volume önerisi saf plan
 olarak eklendi: **32 yeni / 182 ilgili PASS**, modülde dal dahil %100 kapsam,
