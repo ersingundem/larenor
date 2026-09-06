@@ -100,8 +100,11 @@ class ProwlarrConnection extends _$ProwlarrConnection {
     // An old action must not publish a failure into a newer source or login.
     _check(operation);
     if (error is DirectHomeAccessException &&
-        const {'write_unconfirmed', 'pending_mutation', 'storage_failed'}
-            .contains(error.code)) {
+        const {
+          'write_unconfirmed',
+          'pending_mutation',
+          'storage_failed',
+        }.contains(error.code)) {
       state = AsyncError(error, stack);
     }
   }

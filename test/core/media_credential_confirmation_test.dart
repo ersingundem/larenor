@@ -17,7 +17,8 @@ import 'package:larenor/features/media/prowlarr/providers/prowlarr_providers.dar
 
 import 'direct_arr_actions_test.dart' show arrSignIn, arrSignOut;
 import 'direct_arr_credentials_test.dart';
-import 'direct_api_key_actions_test.dart' show apiKeySignIn, apiKeySignOut, ClosingHttp;
+import 'direct_api_key_actions_test.dart'
+    show apiKeySignIn, apiKeySignOut, ClosingHttp;
 import 'direct_api_key_credentials_test.dart';
 import 'direct_home_routines_test.dart' show routinesHome;
 
@@ -43,66 +44,112 @@ void main() {
     }
     previous = FlutterSecureStoragePlatform.instance;
     FlutterSecureStoragePlatform.instance = MethodChannelFlutterSecureStorage();
-    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(
-      const MethodChannel('plugins.it_nomads.com/flutter_secure_storage'), secure.handle);
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(
+          const MethodChannel('plugins.it_nomads.com/flutter_secure_storage'),
+          secure.handle,
+        );
   });
   tearDown(() {
     FlutterSecureStoragePlatform.instance = previous;
-    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(
-      const MethodChannel('plugins.it_nomads.com/flutter_secure_storage'), null);
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(
+          const MethodChannel('plugins.it_nomads.com/flutter_secure_storage'),
+          null,
+        );
   });
   for (final name in [...arrServices, ...apiKeyServices]) {
     final arr = arrServices.contains(name);
     for (final signOut in [false, true]) {
       for (final failedAt in [0, 1, 2, 3]) {
-        test('$name ${signOut ? "clear" : "save"} uncertain effect$failedAt retires confirmed reader', () async {
-          var closed = 0, requests = 0;
-          await http.runWithClient(() async {
-            final (c, _) = await routinesHome('direct');
-            final connection = arr ? holdArr(c, name) : holdApiKey(c, name);
-            addTearDown(connection.close);
-            await (arr ? arrConnection(c, name) : apiKeyConnection(c, name));
-            final sub = c.listen(reader(name), (_, _) {});
-            addTearDown(sub.close);
-            expect(sub.read(), isNotNull);
-            secure.calls.clear();
-            secure.failAt = failedAt;
-            secure.failAfter = failedAt == 3;
-            final operation = signOut
-              ? (arr ? arrSignOut(c, name)() : apiKeySignOut(c, name)())
-              : (arr ? arrSignIn(c, name)(baseUrl: 'https://new.invalid', apiKey: 'new')
-                : apiKeySignIn(c, name)(baseUrl: 'https://new.invalid', apiKey: 'new'));
-            await expectLater(operation, throwsA(isA<DirectHomeAccessException>()));
-            await c.pump();
-            expect((connection.read() as AsyncValue<Object?>).hasError, isTrue);
-            expect(sub.read(), isNull);
-            expect(closed, greaterThanOrEqualTo(1));
-            expect(requests, signOut ? 0 : 1);
-            // No cleanup or retry after an ambiguous platform result.
-            expect(secure.calls.length, failedAt + 1);
-            expect(secure.values.containsKey('${name}_connection_pending_v1'), failedAt != 0 && failedAt != 3);
-          }, () => ClosingHttp((_) async { requests++; return http.Response('{}', 200); }, () => closed++));
-        });
+        test(
+          '$name ${signOut ? "clear" : "save"} uncertain effect$failedAt retires confirmed reader',
+          () async {
+            var closed = 0, requests = 0;
+            await http.runWithClient(
+              () async {
+                final (c, _) = await routinesHome('direct');
+                final connection = arr ? holdArr(c, name) : holdApiKey(c, name);
+                addTearDown(connection.close);
+                await (arr
+                    ? arrConnection(c, name)
+                    : apiKeyConnection(c, name));
+                final sub = c.listen(reader(name), (_, _) {});
+                addTearDown(sub.close);
+                expect(sub.read(), isNotNull);
+                secure.calls.clear();
+                secure.failAt = failedAt;
+                secure.failAfter = failedAt == 3;
+                final operation = signOut
+                    ? (arr ? arrSignOut(c, name)() : apiKeySignOut(c, name)())
+                    : (arr
+                          ? arrSignIn(c, name)(
+                              baseUrl: 'https://new.invalid',
+                              apiKey: 'new',
+                            )
+                          : apiKeySignIn(c, name)(
+                              baseUrl: 'https://new.invalid',
+                              apiKey: 'new',
+                            ));
+                await expectLater(
+                  operation,
+                  throwsA(isA<DirectHomeAccessException>()),
+                );
+                await c.pump();
+                expect(
+                  (connection.read() as AsyncValue<Object?>).hasError,
+                  isTrue,
+                );
+                expect(sub.read(), isNull);
+                expect(closed, greaterThanOrEqualTo(1));
+                expect(requests, signOut ? 0 : 1);
+                // No cleanup or retry after an ambiguous platform result.
+                expect(secure.calls.length, failedAt + 1);
+                expect(
+                  secure.values.containsKey('${name}_connection_pending_v1'),
+                  failedAt != 0 && failedAt != 3,
+                );
+              },
+              () => ClosingHttp((_) async {
+                requests++;
+                return http.Response('{}', 200);
+              }, () => closed++),
+            );
+          },
+        );
       }
     }
-    test('$name rejected authentication retains its unchanged confirmed reader', () async {
-      await http.runWithClient(() async {
-        final (c, _) = await routinesHome('direct');
-        final connection = arr ? holdArr(c, name) : holdApiKey(c, name);
-        addTearDown(connection.close);
-        await (arr ? arrConnection(c, name) : apiKeyConnection(c, name));
-        final sub = c.listen(reader(name), (_, _) {});
-        addTearDown(sub.close);
-        final original = sub.read();
-        expect(original, isNotNull);
-        secure.calls.clear();
-        await expectLater(arr ? arrSignIn(c, name)(baseUrl: 'https://new.invalid', apiKey: 'new')
-          : apiKeySignIn(c, name)(baseUrl: 'https://new.invalid', apiKey: 'new'), throwsA(isA<Exception>()));
-        await c.pump();
-        expect((connection.read() as AsyncValue<Object?>).hasError, isFalse);
-        expect(sub.read(), same(original));
-        expect(secure.calls, isEmpty);
-      }, () => ClosingHttp((_) async => http.Response('{}', 401), () {}));
-    });
+    test(
+      '$name rejected authentication retains its unchanged confirmed reader',
+      () async {
+        await http.runWithClient(() async {
+          final (c, _) = await routinesHome('direct');
+          final connection = arr ? holdArr(c, name) : holdApiKey(c, name);
+          addTearDown(connection.close);
+          await (arr ? arrConnection(c, name) : apiKeyConnection(c, name));
+          final sub = c.listen(reader(name), (_, _) {});
+          addTearDown(sub.close);
+          final original = sub.read();
+          expect(original, isNotNull);
+          secure.calls.clear();
+          await expectLater(
+            arr
+                ? arrSignIn(c, name)(
+                    baseUrl: 'https://new.invalid',
+                    apiKey: 'new',
+                  )
+                : apiKeySignIn(c, name)(
+                    baseUrl: 'https://new.invalid',
+                    apiKey: 'new',
+                  ),
+            throwsA(isA<Exception>()),
+          );
+          await c.pump();
+          expect((connection.read() as AsyncValue<Object?>).hasError, isFalse);
+          expect(sub.read(), same(original));
+          expect(secure.calls, isEmpty);
+        }, () => ClosingHttp((_) async => http.Response('{}', 401), () {}));
+      },
+    );
   }
 }
