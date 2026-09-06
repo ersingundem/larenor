@@ -1159,7 +1159,8 @@
         "docs/core-home-resource-admin-ui-implementation-2026-09-06.md",
         "docs/core-home-resource-grants-contract-2026-09-06.md",
         "docs/core-home-resource-grants-ui-implementation-2026-09-06.md",
-        "docs/core-resource-grants-android-journey-2026-09-06.md"
+        "docs/core-resource-grants-android-journey-2026-09-06.md",
+        "docs/home-identity-remaining-slices-2026-09-06.md"
       ],
       "scope": "Tek mevcut ev bağlamı; F19 çoklu Core/ev federasyonu bu teslim değildir.",
       "acceptance": [
