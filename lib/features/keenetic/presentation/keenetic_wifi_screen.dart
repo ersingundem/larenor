@@ -1,27 +1,42 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/direct_home_access.dart';
 import '../../../l10n/generated/app_localizations.dart';
 import '../data/keenetic_api_exception.dart';
 import '../data/models/keenetic_access_point.dart';
 import '../providers/keenetic_providers.dart';
-import 'keenetic_connect_screen.dart';
+import 'keenetic_session_guard.dart';
 
 class KeeneticWifiScreen extends ConsumerWidget {
   const KeeneticWifiScreen({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = AppLocalizations.of(context);
+    if (!ref.watch(directHomeAccessProvider).isCurrent) {
+      return CupertinoPageScaffold(
+        child: Center(child: Text(l10n.commonNotConnected)),
+      );
+    }
     final connectionAsync = ref.watch(keeneticConnectionProvider);
 
     return connectionAsync.when(
+      skipLoadingOnRefresh: false,
+      skipLoadingOnReload: false,
+      skipError: false,
       loading: () => const CupertinoPageScaffold(
         child: Center(child: CupertinoActivityIndicator()),
       ),
-      error: (error, _) =>
-          CupertinoPageScaffold(child: Center(child: Text(error.toString()))),
+      error: (error, _) => CupertinoPageScaffold(
+        child: Center(child: Text(l10n.healthReadError)),
+      ),
       data: (config) {
-        if (config == null) return const KeeneticConnectScreen();
+        if (config == null) {
+          return CupertinoPageScaffold(
+            child: Center(child: Text(l10n.commonNotConnected)),
+          );
+        }
         return const _AccessPointsList();
       },
     );
@@ -35,46 +50,78 @@ class _AccessPointsList extends ConsumerStatefulWidget {
   ConsumerState<_AccessPointsList> createState() => _AccessPointsListState();
 }
 
-class _AccessPointsListState extends ConsumerState<_AccessPointsList> {
+class _AccessPointsListState extends KeeneticSessionState<_AccessPointsList> {
   final Set<String> _pending = {};
 
-  Future<void> _setUp(KeeneticAccessPoint ap, bool value) async {
-    if (_pending.contains(ap.id)) return;
-    final l10n = AppLocalizations.of(context);
-    if (!value) {
-      final confirmed = await showCupertinoDialog<bool>(
-        context: context,
-        builder: (context) => CupertinoAlertDialog(
-          title: Text(l10n.keeneticDisableWifiTitle),
-          content: Text(l10n.keeneticDisableWifiMessage(ap.ssid ?? ap.name)),
-          actions: [
-            CupertinoDialogAction(
-              onPressed: () => Navigator.of(context).pop(false),
-              child: Text(l10n.commonCancel),
-            ),
-            CupertinoDialogAction(
-              isDestructiveAction: true,
-              onPressed: () => Navigator.of(context).pop(true),
-              child: Text(l10n.keeneticTurnOff),
-            ),
-          ],
-        ),
-      );
-      if (confirmed != true || !mounted) return;
+  Future<void> _setUp(
+    KeeneticAccessPoint ap,
+    bool value,
+    int generation,
+  ) async {
+    if (!keeneticCurrent(generation) ||
+        _pending.contains(ap.id) ||
+        ownedModal != null) {
+      return;
     }
-    setState(() => _pending.add(ap.id));
+    final reading = ref.read(keeneticClientProvider);
+    final client = reading.isLoading || reading.hasError ? null : reading.value;
+    if (client == null) return;
+    bool current() {
+      if (!keeneticCurrent(generation)) return false;
+      final next = ref.read(keeneticClientProvider);
+      return !next.isLoading && !next.hasError && identical(client, next.value);
+    }
+
+    final l10n = AppLocalizations.of(context);
     try {
-      final client = await ref.read(keeneticClientProvider.future);
-      if (client == null) throw KeeneticApiException(l10n.commonNotConnected);
+      if (!value) {
+        late final CupertinoDialogRoute<bool> route;
+        route = CupertinoDialogRoute<bool>(
+          context: context,
+          builder: (dialogContext) => CupertinoAlertDialog(
+            title: Text(l10n.keeneticDisableWifiTitle),
+            content: Text(l10n.keeneticDisableWifiMessage(ap.ssid ?? ap.name)),
+            actions: [
+              CupertinoDialogAction(
+                onPressed: () {
+                  if (identical(ownedModal, route) &&
+                      route.isCurrent &&
+                      current()) {
+                    Navigator.of(dialogContext).pop(false);
+                  }
+                },
+                child: Text(l10n.commonCancel),
+              ),
+              CupertinoDialogAction(
+                isDestructiveAction: true,
+                onPressed: () {
+                  if (identical(ownedModal, route) &&
+                      route.isCurrent &&
+                      current()) {
+                    Navigator.of(dialogContext).pop(true);
+                  }
+                },
+                child: Text(l10n.keeneticTurnOff),
+              ),
+            ],
+          ),
+        );
+        ownedModal = route;
+        final confirmed = await Navigator.of(context).push<bool>(route);
+        if (identical(ownedModal, route)) ownedModal = null;
+        if (confirmed != true || !current()) return;
+      }
+      if (!current()) return;
+      setState(() => _pending.add(ap.id));
       await client.setInterfaceUp(ap.id, value);
-      if (!mounted) return;
-      ref.invalidate(keeneticAccessPointsProvider);
+      if (current()) ref.invalidate(keeneticAccessPointsProvider);
     } catch (error) {
-      if (!mounted) return;
+      if (!mounted || !current()) return;
       setState(() => _pending.remove(ap.id));
-      await showCupertinoDialog<void>(
+      late final CupertinoDialogRoute<void> route;
+      route = CupertinoDialogRoute<void>(
         context: context,
-        builder: (context) => CupertinoAlertDialog(
+        builder: (dialogContext) => CupertinoAlertDialog(
           title: Text(l10n.commonError),
           content: Text(
             error is KeeneticApiException
@@ -83,21 +130,37 @@ class _AccessPointsListState extends ConsumerState<_AccessPointsList> {
           ),
           actions: [
             CupertinoDialogAction(
-              onPressed: () => Navigator.of(context).pop(),
+              onPressed: () {
+                if (identical(ownedModal, route) &&
+                    route.isCurrent &&
+                    current()) {
+                  Navigator.of(dialogContext).pop();
+                }
+              },
               child: Text(l10n.commonOk),
             ),
           ],
         ),
       );
+      ownedModal = route;
+      await Navigator.of(context).push<void>(route);
+      if (identical(ownedModal, route)) ownedModal = null;
     } finally {
-      if (mounted && _pending.contains(ap.id)) {
-        setState(() => _pending.remove(ap.id));
-      }
+      if (mounted) setState(() => _pending.remove(ap.id));
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    watchKeeneticSession();
+    final generation = sessionGeneration;
+    if (!keeneticAvailable) {
+      return CupertinoPageScaffold(
+        child: Center(
+          child: Text(AppLocalizations.of(context).commonNotConnected),
+        ),
+      );
+    }
     final apsAsync = ref.watch(keeneticAccessPointsProvider);
     final clientAsync = ref.watch(keeneticClientProvider);
 
@@ -107,6 +170,7 @@ class _AccessPointsListState extends ConsumerState<_AccessPointsList> {
         trailing: CupertinoButton(
           padding: EdgeInsets.zero,
           onPressed: () {
+            if (!keeneticCurrent(generation)) return;
             if (ref.read(keeneticClientProvider).hasError) {
               ref.invalidate(keeneticClientProvider);
             }
@@ -118,11 +182,8 @@ class _AccessPointsListState extends ConsumerState<_AccessPointsList> {
       child: SafeArea(
         child: apsAsync.when(
           loading: () => const Center(child: CupertinoActivityIndicator()),
-          error: (error, _) => Center(
-            child: Text(
-              AppLocalizations.of(context).adminLoadError(error.toString()),
-            ),
-          ),
+          error: (error, _) =>
+              Center(child: Text(AppLocalizations.of(context).healthReadError)),
           data: (aps) {
             if (aps.isEmpty) {
               return Center(
@@ -164,11 +225,14 @@ class _AccessPointsListState extends ConsumerState<_AccessPointsList> {
                             : CupertinoSwitch(
                                 value: ap.up,
                                 onChanged:
-                                    clientAsync.value == null ||
+                                    !keeneticCurrent(generation) ||
+                                        clientAsync.isLoading ||
+                                        clientAsync.hasError ||
+                                        clientAsync.value == null ||
                                         parseKeeneticWifiInterfaceId(ap.id) ==
                                             null
                                     ? null
-                                    : (value) => _setUp(ap, value),
+                                    : (value) => _setUp(ap, value, generation),
                               ),
                       ),
                   ],
