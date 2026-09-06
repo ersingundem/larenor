@@ -2,7 +2,9 @@ import 'dart:async';
 
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/scheduler.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
@@ -205,21 +207,21 @@ class _ServerServicesScreenState
         title: Text(l10n.serverServicesForgetTitle),
         content: Text(l10n.serverServicesForgetHint),
         actions: [
-          CupertinoDialogAction(
+          _ServiceDialogAction(
             onPressed: () {
               if (valid() && !submitted) Navigator.pop(context, false);
             },
-            child: Text(l10n.commonCancel),
+            label: l10n.commonCancel,
           ),
-          CupertinoDialogAction(
-            key: const ValueKey('service-confirm-forget'),
+          _ServiceDialogAction(
+            actionKey: const ValueKey('service-confirm-forget'),
             isDestructiveAction: true,
             onPressed: () {
               if (!valid() || submitted) return;
               submitted = true;
               Navigator.pop(context, true);
             },
-            child: Text(l10n.serverServicesForget),
+            label: l10n.serverServicesForget,
           ),
         ],
       );
@@ -300,12 +302,16 @@ class _ServerServicesScreenState
                       padding: const EdgeInsets.symmetric(horizontal: 8),
                       child: Wrap(
                         children: [
-                          CupertinoButton(
+                          _serviceButton(
+                            context,
+                            current: _capture(),
                             key: const ValueKey('services-add'),
                             onPressed: _enabled ? _callback(_edit) : null,
                             child: Text(l10n.serverServicesAdd),
                           ),
-                          CupertinoButton(
+                          _serviceButton(
+                            context,
+                            current: _capture(),
                             key: const ValueKey('services-refresh'),
                             onPressed: _active && !_services.busy
                                 ? _callback(_load)
@@ -355,7 +361,11 @@ class _ServerServicesScreenState
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text(service.name, style: AppText.headline),
+            Semantics(
+              container: true,
+              header: true,
+              child: Text(service.name, style: AppText.headline),
+            ),
             Text(service.kind.label, style: AppText.subhead),
             const SizedBox(height: 8),
             Text(service.baseUrl),
@@ -393,26 +403,43 @@ class _ServerServicesScreenState
             ),
             Wrap(
               children: [
-                CupertinoButton(
+                _serviceButton(
+                  context,
+                  current: _capture(),
                   key: ValueKey('service-check-${service.id}'),
                   onPressed: _enabled
                       ? _callback(
                           () => _services.check(service, current: _capture()),
                         )
                       : null,
-                  child: Text(l10n.serverServicesCheck),
+                  child: Text(
+                    l10n.serverServicesCheck,
+                    semanticsLabel:
+                        '${service.name}, ${l10n.serverServicesCheck}',
+                  ),
                 ),
-                CupertinoButton(
+                _serviceButton(
+                  context,
+                  current: _capture(),
                   key: ValueKey('service-edit-${service.id}'),
                   onPressed: _enabled ? _callback(() => _edit(service)) : null,
-                  child: Text(l10n.commonEdit),
+                  child: Text(
+                    l10n.commonEdit,
+                    semanticsLabel: '${service.name}, ${l10n.commonEdit}',
+                  ),
                 ),
-                CupertinoButton(
+                _serviceButton(
+                  context,
+                  current: _capture(),
                   key: ValueKey('service-forget-${service.id}'),
                   onPressed: _enabled
                       ? _callback(() => _forget(service))
                       : null,
-                  child: Text(l10n.serverServicesForget),
+                  child: Text(
+                    l10n.serverServicesForget,
+                    semanticsLabel:
+                        '${service.name}, ${l10n.serverServicesForget}',
+                  ),
                 ),
               ],
             ),
@@ -804,6 +831,7 @@ class _ServiceFormState extends State<_ServiceForm> {
                     alignment: WrapAlignment.center,
                     children: [
                       CupertinoButton(
+                        focusColor: CupertinoTheme.of(context).primaryColor,
                         onPressed: () {
                           if (widget.current() && !_submitted) {
                             _clear();
@@ -814,6 +842,7 @@ class _ServiceFormState extends State<_ServiceForm> {
                       ),
                       CupertinoButton(
                         key: const ValueKey('service-submit'),
+                        focusColor: CupertinoTheme.of(context).primaryColor,
                         onPressed: _submit,
                         child: Text(l10n.commonSave),
                       ),
@@ -844,20 +873,151 @@ class _ServiceFormState extends State<_ServiceForm> {
         const SizedBox(height: 8),
         Semantics(
           label: label,
-          child: CupertinoTextField(
-            key: ValueKey(key),
-            controller: controller,
-            obscureText: secret,
-            maxLength: max,
-            keyboardType: keyboard,
-            autocorrect: false,
-            enableSuggestions: false,
-            textInputAction: TextInputAction.next,
-            onSubmitted: (_) => FocusScope.of(context).nextFocus(),
-            padding: const EdgeInsets.all(12),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(minHeight: 48),
+            child: CupertinoTextField(
+              key: ValueKey(key),
+              controller: controller,
+              obscureText: secret,
+              maxLength: max,
+              keyboardType: keyboard,
+              autocorrect: false,
+              enableSuggestions: false,
+              textInputAction: TextInputAction.next,
+              padding: const EdgeInsets.all(12),
+            ),
           ),
         ),
       ],
+    ),
+  );
+}
+
+// Preserve the native action and its captured authority while keeping the
+// label separate from surrounding connection metadata and the focus ring visible.
+Widget _serviceButton(
+  BuildContext context, {
+  required bool Function() current,
+  Key? key,
+  required VoidCallback? onPressed,
+  required Widget child,
+}) => Semantics(
+  container: true,
+  enabled: onPressed != null,
+  blockUserActions: onPressed == null,
+  child: Padding(
+    padding: const EdgeInsets.all(4),
+    child: Builder(
+      builder: (buttonContext) => CupertinoButton(
+        key: key,
+        minimumSize: const Size(48, 48),
+        focusColor: CupertinoTheme.of(context).primaryColor,
+        onFocusChange: (focused) {
+          if (!focused || onPressed == null) return;
+          final node = FocusManager.instance.primaryFocus;
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            // Read geometry after native Tab scrolling has laid out its offset.
+            // An old focus notification cannot scroll a retired or covered page.
+            if (!buttonContext.mounted ||
+                node == null ||
+                !node.hasPrimaryFocus ||
+                !identical(FocusManager.instance.primaryFocus, node) ||
+                !current() ||
+                ModalRoute.of(buttonContext)?.isCurrent != true ||
+                !TickerMode.valuesOf(buttonContext).enabled) {
+              return;
+            }
+            final box = buttonContext.findRenderObject();
+            final viewport = RenderAbstractViewport.maybeOf(box);
+            if (box is! RenderBox || viewport is! RenderBox) return;
+            final ring =
+                (box.localToGlobal(Offset.zero, ancestor: viewport) & box.size)
+                    .inflate(4);
+            final visible = Offset.zero & (viewport as RenderBox).size;
+            // Native Tab reveals the button edge; its focus ring paints outside.
+            // Reveal only a clipped ring and leave already visible rows still.
+            if (ring.top < visible.top ||
+                ring.bottom > visible.bottom ||
+                ring.left < visible.left ||
+                ring.right > visible.right) {
+              Scrollable.ensureVisible(buttonContext, alignment: .5);
+            }
+          });
+        },
+        onPressed: onPressed,
+        child: child,
+      ),
+    ),
+  ),
+);
+
+/// Preserve native dialog styling while exposing both accessible action modes.
+class _ServiceDialogAction extends StatefulWidget {
+  const _ServiceDialogAction({
+    this.actionKey,
+    required this.onPressed,
+    required this.label,
+    this.isDestructiveAction = false,
+  });
+
+  final Key? actionKey;
+  final VoidCallback onPressed;
+  final String label;
+  final bool isDestructiveAction;
+
+  @override
+  State<_ServiceDialogAction> createState() => _ServiceDialogActionState();
+}
+
+class _ServiceDialogActionState extends State<_ServiceDialogAction> {
+  bool _focused = false;
+
+  @override
+  Widget build(BuildContext context) => ConstrainedBox(
+    constraints: const BoxConstraints(minHeight: 48),
+    child: CupertinoDialogAction(
+      key: widget.actionKey,
+      onPressed: widget.onPressed,
+      isDestructiveAction: widget.isDestructiveAction,
+      child: FocusableActionDetector(
+        onShowFocusHighlight: (value) => setState(() => _focused = value),
+        shortcuts: const {
+          SingleActivator(LogicalKeyboardKey.enter): ActivateIntent(),
+          SingleActivator(LogicalKeyboardKey.space): ActivateIntent(),
+        },
+        actions: {
+          ActivateIntent: CallbackAction<ActivateIntent>(
+            onInvoke: (_) {
+              widget.onPressed();
+              return null;
+            },
+          ),
+        },
+        child: Semantics(
+          button: true,
+          enabled: true,
+          label: widget.label,
+          onTap: widget.onPressed,
+          excludeSemantics: true,
+          child: Container(
+            constraints: const BoxConstraints(minHeight: 32),
+            decoration: BoxDecoration(
+              border: Border.all(
+                width: 2,
+                color: _focused
+                    ? CupertinoTheme.of(context).primaryColor
+                    : CupertinoColors.transparent,
+              ),
+              borderRadius: BorderRadius.circular(4),
+            ),
+            child: Center(
+              widthFactor: 1,
+              heightFactor: 1,
+              child: Text(widget.label),
+            ),
+          ),
+        ),
+      ),
     ),
   );
 }
