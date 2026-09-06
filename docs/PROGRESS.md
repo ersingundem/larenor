@@ -1,6 +1,6 @@
 # Larenor — güncel ilerleme ve iş kuyruğu
 
-**Son güncelleme: 6 Eylül 2026 — CI106 geçiş düzeltmeleri ve Jobs tablet ekranı yerelde birleşti; yeni paket doğrulanıyor.**
+**Son güncelleme: 6 Eylül 2026 — Core tam testleri geçti; birleşik Client paketi doğrulanıyor.**
 
 ```text
 Önceki kapsam       █████████████░░░░░░░  ≈ %65
@@ -87,7 +87,10 @@ yerelde hazır; [işlem geçmişi/detay erişilebilirliği](core-plugin-jobs-tab
 [kişi ekranından geri dönüş](core-people-back-transition-2026-09-06.md) için
 normal/yavaş animasyonda ikişer gerçek hata yeniden üretildi ve dar bekleme düzeltmeleri geçti.
 Eski CI ve ara kaynak kanıtları [değişmeden arşivlendi](restore-people-evidence-through-ci106-2026-09-06.json).
-Yedekleme/kasa/arşiv onay diyaloglarında normal yazı boyutu ve48px dokunma alanı düzeltmeleri doğrulanıyor; yeni birleşik Client testi ve kendi Android yayını sırada.
+[Yedekleme/kasa/arşiv onay diyalogları](restore-dialog-targets-2026-09-06.md) da birleşti:
+normal yazı boyutu,48px dokunma alanı ve Tab/ShiftTab/Enter için152 ilgili test geçti.
+**Yeni birleşik Client kaynak643cbdd** üzerinde tek tam test/coverage, analiz ve biçim kontrolü çalışıyor;
+sonrasında kendi Android/Linux/güvenlik CI ve imzalı APK doğrulaması yapılacak.
 Core tarafında [kalıcı volume oluşturma protokolü](managed-volume-create-implementation-2026-09-06.md)
 main ile birleşti:887 ilgili test geçti,7 Linux testi yerelde atlandı; iki bağımsız kaynak incelemesi temiz.
 [Aynı Server kaynak ağacında tek tam Core koşumu](managed-volume-full-core-verification-2026-09-06.md)

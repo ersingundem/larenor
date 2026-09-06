@@ -1191,7 +1191,8 @@
         "docs/client-ci-budget-2026-09-06.md",
         "docs/client-delivery-106-2026-09-06.md",
         "docs/restore-people-evidence-through-ci106-2026-09-06.json",
-        "docs/core-archive-cancel-transition-2026-09-06.md"
+        "docs/core-archive-cancel-transition-2026-09-06.md",
+        "docs/restore-dialog-targets-2026-09-06.md"
       ],
       "scope": "Tek mevcut ev bağlamı; F19 çoklu Core/ev federasyonu bu teslim değildir.",
       "acceptance": [
@@ -1243,6 +1244,22 @@
           "state": "completed",
           "result": "passed",
           "label": "Gerçek arşiv iptali 1x/4x:2 runtime FAIL→2PASS;57 ilgiliPASS,analyze2/0,format2/0; bağımsız CLEAR. Tek cancel tap/preview/fingerprint/PIN ve133faz korunur. Üretim değişmedi; kendi native CI açık."
+        },
+        {
+          "kind": "test",
+          "ref": "docs/restore-dialog-targets-2026-09-06.md",
+          "commit": "7e12587c3bbff878aafbecaa4b13d7856dd535b0",
+          "state": "completed",
+          "result": "passed",
+          "label": "Backup/Vault/Archive:12PASS12FAIL→24GREEN;152 ilgiliPASS,7analiz0/format0. Etkin48pxhedef/1xmetinölçeği/2xwrap,Tab-ShiftTab-Enter ve0write oracles; rootkaynak+3gerçekfonttabletPNG CLEAR. Tümcallback/gatesaynı; yeni birleşikClient/CI açık."
+        },
+        {
+          "kind": "review",
+          "ref": "docs/restore-dialog-targets-2026-09-06.md",
+          "commit": "7e12587c3bbff878aafbecaa4b13d7856dd535b0",
+          "state": "completed",
+          "result": "passed",
+          "label": "Backup/Vault/Archive:12PASS12FAIL→24GREEN;152 ilgiliPASS,7analiz0/format0. Etkin48pxhedef/1xmetinölçeği/2xwrap,Tab-ShiftTab-Enter ve0write oracles; rootkaynak+3gerçekfonttabletPNG CLEAR. Tümcallback/gatesaynı; yeni birleşikClient/CI açık."
         }
       ],
       "completionCommit": null,
@@ -1619,7 +1636,8 @@
         "docs/client-delivery-99-2026-09-06.md",
         "docs/core-plugins-tablet-accessibility-2026-09-06.md",
         "docs/core-plugins-integration-verification-2026-09-06.md",
-        "docs/core-plugin-jobs-tablet-accessibility-2026-09-06.md"
+        "docs/core-plugin-jobs-tablet-accessibility-2026-09-06.md",
+        "docs/restore-dialog-targets-2026-09-06.md"
       ],
       "scope": "Son bütün ekran tasarım geçişi değildir; Core’suz kişisel uzak bağlantı için Core bağımlılığı koymaz.",
       "acceptance": [
@@ -1750,10 +1768,26 @@
           "state": "completed",
           "result": "passed",
           "label": "Jobs tablet ekranı:34 yeni/55 son kaynak testiPASS;381/395satır,analiz2/0format2/0. Effective48px,normal1x boyananmetin,EN/TR600/1280 2x,Tabodağı; root+bağımsız CLEAR. Önceki307 farklısource kontrolüne eklenmez; tam birleşim/CI açık."
+        },
+        {
+          "kind": "test",
+          "ref": "docs/restore-dialog-targets-2026-09-06.md",
+          "commit": "7e12587c3bbff878aafbecaa4b13d7856dd535b0",
+          "state": "completed",
+          "result": "passed",
+          "label": "Backup/Vault/Archive:12PASS12FAIL→24GREEN;152 ilgiliPASS,7analiz0/format0. Etkin48pxhedef/1xmetinölçeği/2xwrap,Tab-ShiftTab-Enter ve0write oracles; rootkaynak+3gerçekfonttabletPNG CLEAR. Tümcallback/gatesaynı; yeni birleşikClient/CI açık."
+        },
+        {
+          "kind": "review",
+          "ref": "docs/restore-dialog-targets-2026-09-06.md",
+          "commit": "7e12587c3bbff878aafbecaa4b13d7856dd535b0",
+          "state": "completed",
+          "result": "passed",
+          "label": "Backup/Vault/Archive:12PASS12FAIL→24GREEN;152 ilgiliPASS,7analiz0/format0. Etkin48pxhedef/1xmetinölçeği/2xwrap,Tab-ShiftTab-Enter ve0write oracles; rootkaynak+3gerçekfonttabletPNG CLEAR. Tümcallback/gatesaynı; yeni birleşikClient/CI açık."
         }
       ],
       "completionCommit": null,
-      "reason": "Core eklenti kataloğu ve işlem geçmişi/detay tablet iyileştirmeleri main ile birleşti. Katalog önceki5088 tamClientPASS; Jobs34yeni/55 son kaynakPASS ve iki bağımsız inceleme temiz. Aynı restore diyalogu iyileştirmesi Backup/Vault/Archive için ayrı dalda doğrulanıyor. Yeni birleşik tamClient/CI ve tümB5.1/fizikselTalkBack kabulü açık."
+      "reason": "Katalog, Jobs ve Backup/Vault/Archive modal tablet düzeltmeleri main ile birleşti. Yeni643cbdd kaynakta tek tamClient+coverage/analyze/format sürüyor. Önceki parça testleri/farklısource5088 sonucu yeni toplam diye kullanılmaz. KendiCI ve bütünB5.1/fizikselTalkBack kabulü açık."
     },
     {
       "id": "B5.2",
