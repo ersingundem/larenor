@@ -73,23 +73,32 @@ void main() {
     );
   });
 
-  test('digest binds the full tuple without exporting identity or credentials', () {
-    final archive = CoreLayoutArchiveV1.fromJson(archiveJson());
-    for (final other in [
-      scope(core: 'c' * 32),
-      scope(home: 'c' * 32),
-      scope(user: 'member-two'),
-    ]) {
-      expect(archive.matchesScope(other), isFalse);
-    }
-    expect(archive.scopeDigest, archiveJson()['scopeDigest']);
-    expect(archive.scopeDigest, isNot(scope().storageKey.split('_').last));
-    for (final private in ['member-one', 'a' * 32, 'b' * 32, 'coreId', 'userId']) {
-      expect(archive.encode(), isNot(contains(private)));
-    }
-    expect(archive.toString(), 'CoreLayoutArchiveV1');
-    expect(archive.rooms.first.toString(), 'CoreLayoutArchiveRoom');
-  });
+  test(
+    'digest binds the full tuple without exporting identity or credentials',
+    () {
+      final archive = CoreLayoutArchiveV1.fromJson(archiveJson());
+      for (final other in [
+        scope(core: 'c' * 32),
+        scope(home: 'c' * 32),
+        scope(user: 'member-two'),
+      ]) {
+        expect(archive.matchesScope(other), isFalse);
+      }
+      expect(archive.scopeDigest, archiveJson()['scopeDigest']);
+      expect(archive.scopeDigest, isNot(scope().storageKey.split('_').last));
+      for (final private in [
+        'member-one',
+        'a' * 32,
+        'b' * 32,
+        'coreId',
+        'userId',
+      ]) {
+        expect(archive.encode(), isNot(contains(private)));
+      }
+      expect(archive.toString(), 'CoreLayoutArchiveV1');
+      expect(archive.rooms.first.toString(), 'CoreLayoutArchiveRoom');
+    },
+  );
 
   test('original nested values and exported maps cannot mutate the model', () {
     final input = archiveJson();
@@ -121,19 +130,30 @@ void main() {
 
   test('empty and 500-room layouts retain all records', () {
     expect(capture(const DashboardLayout().toJson()).rooms, isEmpty);
-    final rooms = List.generate(500, (i) => {'id': 'room-$i', 'name': 'Room $i'});
+    final rooms = List.generate(
+      500,
+      (i) => {'id': 'room-$i', 'name': 'Room $i'},
+    );
     final archive = capture({'rooms': rooms});
     expect(archive.rooms.length, 500);
     expect(archive.rooms.last.id, 'room-499');
     expect(CoreLayoutArchiveV1.decode(archive.encode()).rooms.length, 500);
   });
 
-  test('passive schema v1 source is explicit conversion, not legacy backup', () {
-    final archive = capture({'schemaVersion': 1, 'rooms': [{'id': 'one', 'name': 'One'}]});
-    expect(archive.toJson()['kind'], 'core-room-layout');
-    expect(archive.toJson().containsKey('schemaVersion'), isFalse);
-    expect(maxCoreLayoutArchiveBytes, maxDashboardLayoutBytes);
-  });
+  test(
+    'passive schema v1 source is explicit conversion, not legacy backup',
+    () {
+      final archive = capture({
+        'schemaVersion': 1,
+        'rooms': [
+          {'id': 'one', 'name': 'One'},
+        ],
+      });
+      expect(archive.toJson()['kind'], 'core-room-layout');
+      expect(archive.toJson().containsKey('schemaVersion'), isFalse);
+      expect(maxCoreLayoutArchiveBytes, maxDashboardLayoutBytes);
+    },
+  );
 
   for (final revision in [0, 1, 9223372036854775806]) {
     test('source revision $revision is informational and preserved', () {
@@ -148,7 +168,12 @@ void main() {
 
   for (final text in ['a' * 256, '🏡' * 128, ' ']) {
     test('existing 256 UTF16-unit room bound is preserved: ${text.length}', () {
-      final input = {...archiveJson(), 'rooms': [{'id': text, 'name': text}]};
+      final input = {
+        ...archiveJson(),
+        'rooms': [
+          {'id': text, 'name': text},
+        ],
+      };
       final archive = CoreLayoutArchiveV1.fromJson(input);
       validateDashboardLayoutJson({'rooms': input['rooms']});
       expect(archive.rooms.single.id, text);
@@ -173,7 +198,10 @@ void main() {
     {...archiveJson(), 'scopeDigest': 'A' * 64},
     {...archiveJson(), 'scopeDigest': 'a' * 63},
     {...archiveJson(), 'scopeDigest': '${'a' * 63}\n'},
-    {...archiveJson(), 'scopeDigest': {'scope': 'private-input'}},
+    {
+      ...archiveJson(),
+      'scopeDigest': {'scope': 'private-input'},
+    },
     {...archiveJson(), 'capturedAt': '2026-09-06T12:30:01Z'},
     {...archiveJson(), 'capturedAt': '2026-09-06T12:30:01.234+00:00'},
     {...archiveJson(), 'capturedAt': '2026-02-30T12:30:01.234Z'},
@@ -181,42 +209,113 @@ void main() {
     {...archiveJson(), 'capturedAt': 1},
     {...archiveJson(), 'rooms': null},
     {...archiveJson(), 'rooms': {}},
-    {...archiveJson(), 'rooms': [null]},
-    {...archiveJson(), 'rooms': [{'id': 'one', 'name': {'value': 'One'}}]},
-    {...archiveJson(), 'rooms': [{'id': 'one'}]},
-    {...archiveJson(), 'rooms': [{'id': 1, 'name': 'One'}]},
-    {...archiveJson(), 'rooms': [
-      {'id': 'one', 'name': 'One'},
-      {'id': 'one', 'name': 'Another'},
-    ]},
-    {...archiveJson(), 'rooms': List.generate(501, (i) => {'id': '$i', 'name': '$i'})},
+    {
+      ...archiveJson(),
+      'rooms': [null],
+    },
+    {
+      ...archiveJson(),
+      'rooms': [
+        {
+          'id': 'one',
+          'name': {'value': 'One'},
+        },
+      ],
+    },
+    {
+      ...archiveJson(),
+      'rooms': [
+        {'id': 'one'},
+      ],
+    },
+    {
+      ...archiveJson(),
+      'rooms': [
+        {'id': 1, 'name': 'One'},
+      ],
+    },
+    {
+      ...archiveJson(),
+      'rooms': [
+        {'id': 'one', 'name': 'One'},
+        {'id': 'one', 'name': 'Another'},
+      ],
+    },
+    {
+      ...archiveJson(),
+      'rooms': List.generate(501, (i) => {'id': '$i', 'name': '$i'}),
+    },
     for (final key in archiveJson().keys) {...archiveJson()}..remove(key),
-    for (final key in ['homeId', 'userId', 'session', 'scope', 'layout', 'preferences', 'journal', 'order'])
+    for (final key in [
+      'homeId',
+      'userId',
+      'session',
+      'scope',
+      'layout',
+      'preferences',
+      'journal',
+      'order',
+    ])
       {...archiveJson(), key: 'private-input'},
-    for (final key in ['entityIds', 'areaBinding', 'url', 'webPanel', 'unknown'])
-      {...archiveJson(), 'rooms': [{'id': 'one', 'name': 'One', key: null}]},
+    for (final key in [
+      'entityIds',
+      'areaBinding',
+      'url',
+      'webPanel',
+      'unknown',
+    ])
+      {
+        ...archiveJson(),
+        'rooms': [
+          {'id': 'one', 'name': 'One', key: null},
+        ],
+      },
     for (final key in ['id', 'name'])
-      for (final value in ['', 'a' * 257, '🏡' * 129, 'bad\nvalue', 'bad\u007fvalue'])
-        {...archiveJson(), 'rooms': [{'id': 'one', 'name': 'One', key: value}]},
+      for (final value in [
+        '',
+        'a' * 257,
+        '🏡' * 129,
+        'bad\nvalue',
+        'bad\u007fvalue',
+      ])
+        {
+          ...archiveJson(),
+          'rooms': [
+            {'id': 'one', 'name': 'One', key: value},
+          ],
+        },
   ];
   for (final (index, value) in invalidRoots.indexed) {
     test('closed archive rejects malformed or forbidden input $index', () {
-      expect(() => CoreLayoutArchiveV1.fromJson(value), archiveError('invalid_archive'));
+      expect(
+        () => CoreLayoutArchiveV1.fromJson(value),
+        archiveError('invalid_archive'),
+      );
     });
   }
 
-  test('parser bounds actual UTF8 bytes including otherwise legal whitespace', () {
-    final raw = jsonEncode(archiveJson());
-    expect(utf8.encode(raw).length, greaterThan(raw.length));
-    final padded = raw + ' ' * (maxCoreLayoutArchiveBytes - utf8.encode(raw).length);
-    expect(utf8.encode(padded).length, maxCoreLayoutArchiveBytes);
-    expect(CoreLayoutArchiveV1.decode(padded).rooms.length, 2);
-    expect(() => CoreLayoutArchiveV1.decode('$padded '), archiveError('archive_too_large'));
-  });
+  test(
+    'parser bounds actual UTF8 bytes including otherwise legal whitespace',
+    () {
+      final raw = jsonEncode(archiveJson());
+      expect(utf8.encode(raw).length, greaterThan(raw.length));
+      final padded =
+          raw + ' ' * (maxCoreLayoutArchiveBytes - utf8.encode(raw).length);
+      expect(utf8.encode(padded).length, maxCoreLayoutArchiveBytes);
+      expect(CoreLayoutArchiveV1.decode(padded).rooms.length, 2);
+      expect(
+        () => CoreLayoutArchiveV1.decode('$padded '),
+        archiveError('archive_too_large'),
+      );
+    },
+  );
 
   for (final value in ['', '{', '{"secret":"private-input"}', '[1]']) {
     test('decode rejects incomplete or unrelated JSON ${value.length}', () {
-      expect(() => CoreLayoutArchiveV1.decode(value), archiveError('invalid_archive'));
+      expect(
+        () => CoreLayoutArchiveV1.decode(value),
+        archiveError('invalid_archive'),
+      );
     });
   }
 
@@ -225,20 +324,68 @@ void main() {
     [],
     {'unknown': 'private-input'},
     {'schemaVersion': 3},
-    {'rooms': [{'id': 'one', 'name': 'One', 'unknown': 'private-input'}]},
-    {'rooms': [{'id': 'one', 'name': 'One', 'entityIds': ['light.one']}]},
-    {'rooms': [{'id': 'one', 'name': 'One', 'areaBinding': {'serverUrl': 'https://example.invalid'}}]},
-    {'rooms': [{'id': 'one', 'name': 'One', 'url': 'https://example.invalid'}]},
-    {'favoriteEntityIds': ['light.one']},
-    {'hiddenEntityIds': ['light.one']},
-    {'entityCardSizes': {'light.one': 'large'}},
-    {'serviceCardSizes': {'sonarr': 'large'}},
-    {'tiles': [{'id': 'tile', 'type': 'webview', 'x': 0, 'y': 0, 'width': 1, 'height': 1, 'url': 'https://example.invalid'}]},
+    {
+      'rooms': [
+        {'id': 'one', 'name': 'One', 'unknown': 'private-input'},
+      ],
+    },
+    {
+      'rooms': [
+        {
+          'id': 'one',
+          'name': 'One',
+          'entityIds': ['light.one'],
+        },
+      ],
+    },
+    {
+      'rooms': [
+        {
+          'id': 'one',
+          'name': 'One',
+          'areaBinding': {'serverUrl': 'https://example.invalid'},
+        },
+      ],
+    },
+    {
+      'rooms': [
+        {'id': 'one', 'name': 'One', 'url': 'https://example.invalid'},
+      ],
+    },
+    {
+      'favoriteEntityIds': ['light.one'],
+    },
+    {
+      'hiddenEntityIds': ['light.one'],
+    },
+    {
+      'entityCardSizes': {'light.one': 'large'},
+    },
+    {
+      'serviceCardSizes': {'sonarr': 'large'},
+    },
+    {
+      'tiles': [
+        {
+          'id': 'tile',
+          'type': 'webview',
+          'x': 0,
+          'y': 0,
+          'width': 1,
+          'height': 1,
+          'url': 'https://example.invalid',
+        },
+      ],
+    },
     {'webPanelUrl': 'https://example.invalid'},
     {'rooms': null},
     {'tiles': null},
     {'entityCardSizes': null},
-    {'rooms': [{'id': 'one', 'name': 'One', 'entityIds': null}]},
+    {
+      'rooms': [
+        {'id': 'one', 'name': 'One', 'entityIds': null},
+      ],
+    },
   ];
   for (final (index, value) in unsupportedSources.indexed) {
     test('source rejects unsupported content without trimming $index', () {
@@ -267,33 +414,55 @@ void main() {
     expect(() => capture(source), archiveError('unsupported_layout'));
   });
 
-  test('otherwise valid web panel URL and origin preferences are not dropped', () {
-    final source = {
-      'tiles': [
-        {
-          'id': 'tile', 'type': 'webview', 'x': 0, 'y': 0, 'width': 1, 'height': 1,
-          'url': 'https://example.invalid',
-          'webPanel': {
-            'additionalOrigins': <String>[], 'zoomEnabled': true, 'textZoom': 100,
+  test(
+    'otherwise valid web panel URL and origin preferences are not dropped',
+    () {
+      final source = {
+        'tiles': [
+          {
+            'id': 'tile',
+            'type': 'webview',
+            'x': 0,
+            'y': 0,
+            'width': 1,
+            'height': 1,
+            'url': 'https://example.invalid',
+            'webPanel': {
+              'additionalOrigins': <String>[],
+              'zoomEnabled': true,
+              'textZoom': 100,
+            },
           },
-        },
-      ],
-    };
-    validateDashboardLayoutJson(source);
-    expect(() => capture(source), archiveError('unsupported_layout'));
-  });
+        ],
+      };
+      validateDashboardLayoutJson(source);
+      expect(() => capture(source), archiveError('unsupported_layout'));
+    },
+  );
 
-  test('source factory rejects noncanonical capture time and invalid revision', () {
-    for (final time in [DateTime(2026, 9, 6), DateTime.utc(2026, 9, 6, 0, 0, 0, 0, 1)]) {
+  test(
+    'source factory rejects noncanonical capture time and invalid revision',
+    () {
+      for (final time in [
+        DateTime(2026, 9, 6),
+        DateTime.utc(2026, 9, 6, 0, 0, 0, 0, 1),
+      ]) {
+        expect(
+          () => CoreLayoutArchiveV1.fromScopedLayout(
+            scope: scope(),
+            sourceRevision: 7,
+            capturedAt: time,
+            layout: {'rooms': []},
+          ),
+          archiveError('invalid_archive'),
+        );
+      }
       expect(
-        () => CoreLayoutArchiveV1.fromScopedLayout(
-          scope: scope(), sourceRevision: 7, capturedAt: time, layout: {'rooms': []},
-        ),
+        () => capture({'rooms': []}, revision: -1),
         archiveError('invalid_archive'),
       );
-    }
-    expect(() => capture({'rooms': []}, revision: -1), archiveError('invalid_archive'));
-  });
+    },
+  );
 
   test('exceptions disclose only static code', () {
     try {

@@ -44,14 +44,21 @@ final class CoreLayoutArchiveV1 {
 
   factory CoreLayoutArchiveV1.fromJson(Object? value) {
     final json = _closedObject(value, const {
-      'kind', 'version', 'capturedAt', 'scopeDigest', 'sourceRevision', 'rooms',
+      'kind',
+      'version',
+      'capturedAt',
+      'scopeDigest',
+      'sourceRevision',
+      'rooms',
     });
     if (json['kind'] != 'core-room-layout' ||
-        json['version'] is! int || json['version'] != 1) {
+        json['version'] is! int ||
+        json['version'] != 1) {
       throw _invalid;
     }
     final digest = json['scopeDigest'];
-    if (digest is! String || digest.length != 64 ||
+    if (digest is! String ||
+        digest.length != 64 ||
         !RegExp(r'^[a-f0-9]{64}$').hasMatch(digest)) {
       throw _invalid;
     }
@@ -72,7 +79,10 @@ final class CoreLayoutArchiveV1 {
       rooms.add(CoreLayoutArchiveRoom._(id, name));
     }
     return CoreLayoutArchiveV1._(
-      capturedAt: time, scopeDigest: digest, sourceRevision: revision, rooms: rooms,
+      capturedAt: time,
+      scopeDigest: digest,
+      sourceRevision: revision,
+      rooms: rooms,
     );
   }
 
@@ -169,7 +179,8 @@ final class CoreLayoutArchiveV1 {
 }
 
 Map<String, dynamic> _closedObject(Object? value, Set<String> keys) {
-  if (value is! Map<String, dynamic> || value.length != keys.length ||
+  if (value is! Map<String, dynamic> ||
+      value.length != keys.length ||
       !value.keys.toSet().containsAll(keys)) {
     throw _invalid;
   }
@@ -178,7 +189,9 @@ Map<String, dynamic> _closedObject(Object? value, Set<String> keys) {
 
 String _roomText(Object? value) {
   // Match the existing layout's limit in Dart UTF-16 code units, not runes.
-  if (value is! String || value.isEmpty || value.length > 256 ||
+  if (value is! String ||
+      value.isEmpty ||
+      value.length > 256 ||
       value.contains(RegExp(r'[\x00-\x1f\x7f]'))) {
     throw _invalid;
   }
@@ -186,8 +199,10 @@ String _roomText(Object? value) {
 }
 
 DateTime _canonicalTime(Object? value) {
-  if (value is! String || value.length != 24 ||
-      !RegExp(r'^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$').hasMatch(value)) {
+  if (value is! String ||
+      value.length != 24 ||
+      !RegExp(r'^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$')
+          .hasMatch(value)) {
     throw _invalid;
   }
   final time = DateTime.tryParse(value);
@@ -197,9 +212,18 @@ DateTime _canonicalTime(Object? value) {
   return time;
 }
 
-String _digest(HomeDataScope scope) => sha256.convert(utf8.encode(jsonEncode([
-  'larenor-core-layout-archive-scope-v1', scope.coreId, scope.homeId, scope.userId,
-]))).toString();
+String _digest(HomeDataScope scope) => sha256
+    .convert(
+      utf8.encode(
+        jsonEncode([
+          'larenor-core-layout-archive-scope-v1',
+          scope.coreId,
+          scope.homeId,
+          scope.userId,
+        ]),
+      ),
+    )
+    .toString();
 
 void _checkBytes(String value) {
   if (utf8.encode(value).length > maxCoreLayoutArchiveBytes) {
