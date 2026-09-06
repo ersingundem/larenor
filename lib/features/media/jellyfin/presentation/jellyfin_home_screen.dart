@@ -2,6 +2,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../l10n/generated/app_localizations.dart';
+import '../../../../core/direct_home_access.dart';
 import '../data/models/jellyfin_item.dart';
 import '../providers/jellyfin_providers.dart';
 import 'jellyfin_connect_screen.dart';
@@ -20,11 +21,23 @@ class JellyfinHomeScreen extends ConsumerWidget {
     final connectionAsync = ref.watch(jellyfinConnectionProvider);
 
     return connectionAsync.when(
+      skipLoadingOnReload: false,
+      skipLoadingOnRefresh: false,
       loading: () => const CupertinoPageScaffold(
         child: Center(child: CupertinoActivityIndicator()),
       ),
       error: (error, _) =>
-          CupertinoPageScaffold(child: Center(child: Text(error.toString()))),
+          error is DirectHomeAccessException &&
+              const {
+                'pending_mutation',
+                'write_unconfirmed',
+              }.contains(error.code)
+          ? const JellyfinConnectScreen()
+          : CupertinoPageScaffold(
+              child: Center(
+                child: Text(AppLocalizations.of(context).mediaErrorUnreachable),
+              ),
+            ),
       data: (config) {
         if (config == null) return const JellyfinConnectScreen();
         return _JellyfinBrowseScaffold(ref: ref);
@@ -69,24 +82,26 @@ class _JellyfinBrowseScaffold extends ConsumerWidget {
               error: (error, _) => Text(
                 AppLocalizations.of(context).adminLoadError(error.toString()),
               ),
-              data: (libraries) => CupertinoListSection.insetGrouped(
-                children: [
-                  for (final library in libraries)
-                    CupertinoListTile(
-                      leading: const Icon(CupertinoIcons.square_stack),
-                      title: Text(library.name),
-                      trailing: const CupertinoListTileChevron(),
-                      onTap: () => Navigator.of(context).push(
-                        CupertinoPageRoute(
-                          builder: (_) => JellyfinLibraryScreen(
-                            parentId: library.id,
-                            title: library.name,
+              data: (libraries) => libraries.isEmpty
+                  ? Text(AppLocalizations.of(context).jellyfinLibraryEmpty)
+                  : CupertinoListSection.insetGrouped(
+                      children: [
+                        for (final library in libraries)
+                          CupertinoListTile(
+                            leading: const Icon(CupertinoIcons.square_stack),
+                            title: Text(library.name),
+                            trailing: const CupertinoListTileChevron(),
+                            onTap: () => Navigator.of(context).push(
+                              CupertinoPageRoute(
+                                builder: (_) => JellyfinLibraryScreen(
+                                  parentId: library.id,
+                                  title: library.name,
+                                ),
+                              ),
+                            ),
                           ),
-                        ),
-                      ),
+                      ],
                     ),
-                ],
-              ),
             ),
           ]),
         ),

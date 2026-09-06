@@ -15,44 +15,80 @@ class DiscoveredJellyfinServer {
 /// `{"Address": "http://host:port", "Id": "...", "Name": "..."}` —
 /// see https://jellyfin.org/docs/general/networking/#udp-based-discovery.
 class JellyfinDiscoveryService {
+  JellyfinDiscoveryService({Future<RawDatagramSocket> Function()? bind})
+    : _bind =
+          bind ?? (() => RawDatagramSocket.bind(InternetAddress.anyIPv4, 0));
+  final Future<RawDatagramSocket> Function() _bind;
   static const _port = 7359;
   static const _probeMessage = 'Who is JellyfinServer?';
 
   RawDatagramSocket? _socket;
+  StreamSubscription<RawSocketEvent>? _subscription;
+  bool _started = false;
+  bool _stopped = false;
   final _servers = <String, DiscoveredJellyfinServer>{};
   final _controller =
       StreamController<List<DiscoveredJellyfinServer>>.broadcast();
 
   Stream<List<DiscoveredJellyfinServer>> get servers => _controller.stream;
 
-  Future<void> start() async {
-    final socket = await RawDatagramSocket.bind(InternetAddress.anyIPv4, 0);
+  Future<void> start({bool Function()? isCurrent}) async {
+    bool current() {
+      try {
+        return !_stopped && (isCurrent == null || isCurrent());
+      } catch (_) {
+        return false;
+      }
+    }
+
+    if (_started || !current()) return;
+    _started = true;
+    final socket = await _bind();
+    if (!current()) {
+      socket.close();
+      return;
+    }
     _socket = socket;
-    socket.broadcastEnabled = true;
-
-    socket.listen((event) {
-      if (event != RawSocketEvent.read) return;
-      final datagram = socket.receive();
-      if (datagram == null) return;
-      _onResponse(datagram.data);
-    });
-
-    socket.send(
-      utf8.encode(_probeMessage),
-      InternetAddress('255.255.255.255'),
-      _port,
-    );
+    try {
+      socket.broadcastEnabled = true;
+      _subscription = socket.listen((event) {
+        if (!current()) {
+          unawaited(stop());
+          return;
+        }
+        if (event != RawSocketEvent.read) return;
+        final datagram = socket.receive();
+        if (datagram != null) _onResponse(datagram.data);
+      });
+      if (!current()) {
+        await stop();
+        return;
+      }
+      socket.send(
+        utf8.encode(_probeMessage),
+        InternetAddress('255.255.255.255'),
+        _port,
+      );
+    } catch (_) {
+      await stop();
+      rethrow;
+    }
   }
 
   void _onResponse(List<int> data) {
     final parsed = parseJellyfinDiscoveryResponse(data);
     if (parsed == null) return;
     _servers[parsed.id] = parsed.server;
-    _controller.add(_servers.values.toList());
+    if (!_stopped) _controller.add(_servers.values.toList());
   }
 
   Future<void> stop() async {
+    if (_stopped) return;
+    _stopped = true;
     _socket?.close();
+    _socket = null;
+    await _subscription?.cancel();
+    _subscription = null;
     await _controller.close();
   }
 }
