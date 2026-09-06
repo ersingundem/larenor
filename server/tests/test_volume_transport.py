@@ -316,3 +316,21 @@ def test_linux_real_peer_credentials_and_read(prepared):
     with server(reply=framed(body(prepared))) as (client, calls):
         assert UnixVolumeReader(client._endpoint).inspect(prepared).state == 'labels_matched'
     assert len(calls) == 2
+
+
+def test_cancel_during_final_binding_validation_cannot_escape_engine_guard(prepared, monkeypatch):
+    from larenor_server.plugins import volume_transport
+    event = threading.Event()
+    original = volume_transport.volume_expected_labels
+    checks = []
+    def labels(binding):
+        result = original(binding)
+        checks.append(1)
+        if len(checks) == 2:  # Final re-derivation, after validating the HTTP body.
+            event.set()
+        return result
+    monkeypatch.setattr(volume_transport, 'volume_expected_labels', labels)
+    with server(reply=framed(body(prepared))) as (client, calls):
+        with pytest.raises(VolumeTransportError, match='^volume_cancelled$'):
+            reader(client).inspect(prepared, cancelled=event)
+    assert len(checks) == len(calls) == 2
