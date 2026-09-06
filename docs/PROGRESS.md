@@ -69,7 +69,7 @@ anonim doğrulandı. [APK104, CI ve teslim kanıtı](client-delivery-104-2026-09
 | Çıkış / yeniden açılış onarımı | APK104 ve14 E2E ile doğrulandı |
 | S08.5 — hazırlanmış restore ve Core oda arşivi | Model, şifreleme, controller ve tablet ekranı birleşti; tam Client geçti, Android ve yayın CI bekliyor |
 | S08.6 — kişi ve izin yönetimi | Server ve tablet ekranları birleşti; üye ve yönetici/ACL Android senaryoları hazır, kendi CI kabulü açık |
-| Birleşim yayını CI106 | `e7c15ad` gönderildi; aynı uygulama/test ağacında yerel Client 5.056 PASS. Güvenlik geçti; Android, Core ve kendi imzalı APK kabulü sürüyor |
+| Birleşim yayını CI106 | `e7c15ad` gönderildi; aynı uygulama/test ağacında yerel Client 5.056 PASS. Core 3.311 Linux PASS / 0 skip ve güvenlik207 geçti; Android ve kendi imzalı APK kabulü sürüyor |
 | B5.1 — Core eklenti kataloğu | Ayrı dalda 32 yeni tablet testi dahil 273 ilgili PASS; başlıklar, erişilebilir adlar ve görünür klavye odağı düzeltildi. Tam Client birleşim testi sürüyor; CI106'ya dahil değil |
 
 **CI105 tamamlandı:17 E2E/133faz, Core3.311/0skip ve güvenlik207 geçti.**

@@ -8,8 +8,8 @@ E2E beklentileri ve yayın önkoşulları korunur.
 | İlk deneme | Son gözlenen durum |
 | --- | --- |
 | [Android106](https://github.com/ersingundem/larenor/actions/runs/34016755111) | Çalışıyor; tam test, E2E ve imzalı APK kabulü açık |
-| [Core33](https://github.com/ersingundem/larenor/actions/runs/34016755141) | Çalışıyor; kendi Linux testi ve iki mimarili yayın kabulü açık |
-| [Security106](https://github.com/ersingundem/larenor/actions/runs/34016754957) | Başarılı; ayrıntılı sonuç makbuzu hazırlanıyor |
+| [Core33](https://github.com/ersingundem/larenor/actions/runs/34016755141) | Başarılı; 3.311 Linux PASS / 0 skip, iki mimarili smoke ve anonim yayın doğrulandı |
+| [Security106](https://github.com/ersingundem/larenor/actions/runs/34016754957) | Başarılı; 207 PASS / 24,764 saniye, gitleaks0 ve OSV başarılı |
 
 Bu tablo canlı servis değildir; son doğrulanan gözlemdir. Bağlantılar
 GitHub'daki anlık durumu gösterir. Tek gözlemci aynı kaynak ve ilk denemeye
@@ -35,3 +35,10 @@ ayrı birleşim/test sürecindedir. S08.5 ve S08.6 henüz kabul edilmedi.
 Son tam doğrulanmış imzalı paket [APK104](client-delivery-104-2026-09-06.md)
 olarak kalır. Gerçek eve kurulum, OS dosya seçicisi ve fiziksel Huawei/DeX
 kabulü ayrı açık işlerdir.
+
+Core ve Android reusable Server işleri ayrı ayrı 3.311 PASS / 0 skip verdi;
+süreler 465,43 / 467,58 saniye. Native JVM XML 98 PASS / 0 skip. Bu sayılar
+birbirine eklenmez. Anonim exact-source/AGPL ve amd64/arm64 manifest/config
+doğrulandı; stable ile immutable image index eşleşti:
+`sha256:5aad0b0f8c5837e522528cb99e3bb50b2053f906ab906a732c0d86aa26cca5de`.
+İmaj katmanı indirilmedi; Android tam Flutter/E2E ve APK106 kabulü açık.

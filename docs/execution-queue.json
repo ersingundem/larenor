@@ -1404,9 +1404,9 @@
           "kind": "ci",
           "ref": "https://github.com/ersingundem/larenor/actions/runs/34016755141",
           "commit": "e7c15ad6f62352f77379e369f3e8524028c42aab",
-          "state": "in_progress",
-          "result": null,
-          "label": "Core33, exact e7c15ad, ilk deneme. Ayrıntılı teslim makbuzu ve bağımsız APK106 doğrulaması ayrı bekleniyor."
+          "state": "completed",
+          "result": "passed",
+          "label": "Core33 exact e7c15ad ilk deneme:3311 LinuxPASS/0skip; amd64/arm64 smoke ve anonim source/AGPL/manifest doğrulandı. İmaj katmanı indirilmedi. Android/APK106 ayrı açık."
         },
         {
           "kind": "ci",
@@ -1414,11 +1414,11 @@
           "commit": "e7c15ad6f62352f77379e369f3e8524028c42aab",
           "state": "completed",
           "result": "passed",
-          "label": "Security106, exact e7c15ad, ilk deneme. Ayrıntılı teslim makbuzu ve bağımsız APK106 doğrulaması ayrı bekleniyor."
+          "label": "Security106 exact e7c15ad ilk deneme:207PASS/24.764sn, gitleaks0 ve OSV başarılı. Android/APK106 ayrı açık."
         }
       ],
       "completionCommit": null,
-      "reason": "CI106 exact e7c15ad gönderildi: Security geçti, Android/Core sürüyor. CI105 17 E2E/133 faz geçti fakat Flutter işi 15dk sınırında kaldı; 25dk bütçe onarımı 207 politika testiyle doğrulandı. Kendi tam CI ve imzalı APK106 kabulü açık."
+      "reason": "CI106 exact e7c15ad: Core3311LinuxPASS/0skip ve Security207PASS; iki mimarili Core anonim doğrulandı. Android tam Flutter/E2E ve kendi imzalıAPK106 kabulü açık. CI105 timeout ve native17E2E/133faz tarihsel kanıtları korunur."
     },
     {
       "id": "S08.6",
@@ -1671,9 +1671,9 @@
           "kind": "ci",
           "ref": "https://github.com/ersingundem/larenor/actions/runs/34016755141",
           "commit": "e7c15ad6f62352f77379e369f3e8524028c42aab",
-          "state": "in_progress",
-          "result": null,
-          "label": "Core33, exact e7c15ad, ilk deneme. Ayrıntılı teslim makbuzu ve bağımsız APK106 doğrulaması ayrı bekleniyor."
+          "state": "completed",
+          "result": "passed",
+          "label": "Core33 exact e7c15ad ilk deneme:3311 LinuxPASS/0skip; amd64/arm64 smoke ve anonim source/AGPL/manifest doğrulandı. İmaj katmanı indirilmedi. Android/APK106 ayrı açık."
         },
         {
           "kind": "ci",
@@ -1681,11 +1681,11 @@
           "commit": "e7c15ad6f62352f77379e369f3e8524028c42aab",
           "state": "completed",
           "result": "passed",
-          "label": "Security106, exact e7c15ad, ilk deneme. Ayrıntılı teslim makbuzu ve bağımsız APK106 doğrulaması ayrı bekleniyor."
+          "label": "Security106 exact e7c15ad ilk deneme:207PASS/24.764sn, gitleaks0 ve OSV başarılı. Android/APK106 ayrı açık."
         }
       ],
       "completionCommit": null,
-      "reason": "CI106 exact e7c15ad gönderildi: Security geçti, Android/Core sürüyor. CI105 17 E2E/133 faz geçti fakat Flutter işi 15dk sınırında kaldı; 25dk bütçe onarımı 207 politika testiyle doğrulandı. Kendi tam CI ve imzalı APK106 kabulü açık."
+      "reason": "CI106 exact e7c15ad: Core3311LinuxPASS/0skip ve Security207PASS; iki mimarili Core anonim doğrulandı. Android tam Flutter/E2E ve kendi imzalıAPK106 kabulü açık. CI105 timeout ve native17E2E/133faz tarihsel kanıtları korunur."
     },
     {
       "id": "S08.7",
