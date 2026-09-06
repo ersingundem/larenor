@@ -135,6 +135,29 @@ class LarenorServerApi {
     bool allowEmpty = false,
   }) async {
     if (_closed) throw const LarenorServerException('cancelled');
+    final homeResourceDeletion =
+        method == 'DELETE' && path.startsWith('/admin/home-resources');
+    bool canonicalRevision(String? raw) {
+      if (raw == null || raw.length > 19) return false;
+      final value = int.tryParse(raw);
+      return value != null &&
+          value >= 1 &&
+          value <= 9223372036854775807 &&
+          '$value' == raw;
+    }
+
+    final homeResourceDeleteQuery =
+        homeResourceDeletion &&
+        RegExp(
+              r'^/admin/home-resources/[0-9a-f]{32}/[0-9a-f]{32}/[0-9a-f]{32}$',
+            ).firstMatch(path)?.end ==
+            path.length &&
+        queryParameters?.length == 2 &&
+        canonicalRevision(queryParameters?['expectedRevision']) &&
+        canonicalRevision(queryParameters?['expectedAclRevision']);
+    if (homeResourceDeletion && !homeResourceDeleteQuery) {
+      throw const LarenorServerException('invalid_request');
+    }
     var uri = endpoint.api(path);
     if (queryParameters != null && queryParameters.isNotEmpty) {
       const keys = {'userId', 'cursor', 'limit', 'platform', 'channel'};
@@ -220,7 +243,8 @@ class LarenorServerApi {
           !forgetQuery &&
           !jobsQuery &&
           !mediaQuery &&
-          !homeResourcesQuery) {
+          !homeResourcesQuery &&
+          !homeResourceDeleteQuery) {
         throw const LarenorServerException('invalid_request');
       }
       uri = uri.replace(queryParameters: Map.of(queryParameters));

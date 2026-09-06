@@ -1,0 +1,209 @@
+{
+  "schemaVersion": 1,
+  "context": {
+    "schemaVersion": 1,
+    "coreId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "homeId": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+  },
+  "createRoom": {
+    "method": "POST",
+    "path": "/admin/home-resources/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "body": {
+      "kind": "room",
+      "label": "Salon",
+      "order": 1
+    },
+    "query": null,
+    "status": 201,
+    "response": {
+      "record": {
+        "label": "Salon",
+        "order": 1,
+        "ref": {
+          "schemaVersion": 1,
+          "coreId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "homeId": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "kind": "room",
+          "id": "11111111111111111111111111111111"
+        },
+        "revision": 1,
+        "aclRevision": 1,
+        "permissions": {
+          "read": true,
+          "write": true
+        }
+      }
+    }
+  },
+  "createResource": {
+    "method": "POST",
+    "path": "/admin/home-resources/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "body": {
+      "kind": "resource",
+      "label": "🌿🌿🌿🌿🌿🌿🌿🌿🌿🌿🌿🌿🌿🌿🌿🌿🌿🌿🌿🌿🌿🌿🌿🌿🌿🌿🌿🌿🌿🌿🌿🌿🌿🌿🌿🌿🌿🌿🌿🌿🌿🌿🌿🌿🌿🌿🌿🌿🌿🌿🌿🌿🌿🌿🌿🌿🌿🌿🌿🌿🌿🌿🌿🌿🌿🌿🌿🌿🌿🌿🌿🌿🌿🌿🌿🌿🌿🌿🌿🌿",
+      "order": 10000
+    },
+    "query": null,
+    "status": 201,
+    "response": {
+      "record": {
+        "label": "🌿🌿🌿🌿🌿🌿🌿🌿🌿🌿🌿🌿🌿🌿🌿🌿🌿🌿🌿🌿🌿🌿🌿🌿🌿🌿🌿🌿🌿🌿🌿🌿🌿🌿🌿🌿🌿🌿🌿🌿🌿🌿🌿🌿🌿🌿🌿🌿🌿🌿🌿🌿🌿🌿🌿🌿🌿🌿🌿🌿🌿🌿🌿🌿🌿🌿🌿🌿🌿🌿🌿🌿🌿🌿🌿🌿🌿🌿🌿🌿",
+        "order": 10000,
+        "ref": {
+          "schemaVersion": 1,
+          "coreId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "homeId": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "kind": "resource",
+          "id": "22222222222222222222222222222222"
+        },
+        "revision": 1,
+        "aclRevision": 1,
+        "permissions": {
+          "read": true,
+          "write": true
+        }
+      }
+    }
+  },
+  "beforeUpdate": {
+    "record": {
+      "label": "Salon",
+      "order": 1,
+      "ref": {
+        "schemaVersion": 1,
+        "coreId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "homeId": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "kind": "room",
+        "id": "11111111111111111111111111111111"
+      },
+      "revision": 1,
+      "aclRevision": 2,
+      "permissions": {
+        "read": true,
+        "write": true
+      }
+    }
+  },
+  "updateRoom": {
+    "method": "PATCH",
+    "path": "/admin/home-resources/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb/11111111111111111111111111111111",
+    "body": {
+      "expectedRevision": 1,
+      "expectedAclRevision": 2,
+      "label": "Yeni oda",
+      "order": 3
+    },
+    "query": null,
+    "status": 200,
+    "response": {
+      "record": {
+        "label": "Yeni oda",
+        "order": 3,
+        "ref": {
+          "schemaVersion": 1,
+          "coreId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "homeId": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "kind": "room",
+          "id": "11111111111111111111111111111111"
+        },
+        "revision": 2,
+        "aclRevision": 2,
+        "permissions": {
+          "read": true,
+          "write": true
+        }
+      }
+    }
+  },
+  "noopRoom": {
+    "method": "PATCH",
+    "path": "/admin/home-resources/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb/11111111111111111111111111111111",
+    "body": {
+      "expectedRevision": 2,
+      "expectedAclRevision": 2,
+      "label": "Yeni oda",
+      "order": 3
+    },
+    "query": null,
+    "status": 200,
+    "response": {
+      "record": {
+        "label": "Yeni oda",
+        "order": 3,
+        "ref": {
+          "schemaVersion": 1,
+          "coreId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "homeId": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "kind": "room",
+          "id": "11111111111111111111111111111111"
+        },
+        "revision": 2,
+        "aclRevision": 2,
+        "permissions": {
+          "read": true,
+          "write": true
+        }
+      }
+    }
+  },
+  "staleUpdate": {
+    "method": "PATCH",
+    "path": "/admin/home-resources/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb/11111111111111111111111111111111",
+    "body": {
+      "expectedRevision": 1,
+      "expectedAclRevision": 2,
+      "label": "Eski istek",
+      "order": 3
+    },
+    "query": null,
+    "status": 409,
+    "response": {
+      "error": {
+        "code": "revision_conflict",
+        "message": "The saved record has changed. Read it again."
+      }
+    }
+  },
+  "memberUpdate": {
+    "method": "PATCH",
+    "path": "/admin/home-resources/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb/11111111111111111111111111111111",
+    "body": {
+      "expectedRevision": 2,
+      "expectedAclRevision": 2,
+      "label": "İzinsiz",
+      "order": 3
+    },
+    "query": null,
+    "status": 403,
+    "response": {
+      "error": {
+        "code": "forbidden",
+        "message": "This account cannot perform that action."
+      }
+    }
+  },
+  "deleteRoom": {
+    "method": "DELETE",
+    "path": "/admin/home-resources/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb/11111111111111111111111111111111",
+    "body": null,
+    "query": {
+      "expectedRevision": "2",
+      "expectedAclRevision": "2"
+    },
+    "status": 204,
+    "response": null
+  },
+  "deletedRead": {
+    "method": "GET",
+    "path": "/home-resources/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb/11111111111111111111111111111111",
+    "body": null,
+    "query": null,
+    "status": 404,
+    "response": {
+      "error": {
+        "code": "not_found",
+        "message": "The requested resource was not found."
+      }
+    }
+  }
+}
