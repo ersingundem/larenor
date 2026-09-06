@@ -43,6 +43,7 @@ class _CoreHomeResourcesState extends ConsumerState<CoreHomeResources>
 
   bool _current() =>
       mounted &&
+      identical(ref.read(homeSessionControllerProvider), _controller.home) &&
       _foreground &&
       _focused &&
       _windowAvailable() &&
@@ -109,6 +110,7 @@ class _CoreHomeResourcesState extends ConsumerState<CoreHomeResources>
 
   @override
   Widget build(BuildContext context) {
+    ref.watch(homeSessionControllerProvider);
     ref.listen(windowPolicySnapshotProvider, (_, _) => _windowChanged());
     _syncLater();
     final l10n = AppLocalizations.of(context);

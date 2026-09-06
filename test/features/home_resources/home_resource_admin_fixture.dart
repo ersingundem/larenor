@@ -27,30 +27,30 @@ class ResourceAdminHarness extends ResourceHarness {
   Future<http.Response> handle(http.Request request) async {
     if (request.url.path.contains('/admin/home-resources/')) {
       mutations.add(request);
-      expect(request.method, isIn(['POST', 'PATCH', 'DELETE']));
+      expectSync(request.method, isIn(['POST', 'PATCH', 'DELETE']));
       final body = request.body.isEmpty ? null : jsonDecode(request.body) as Map;
       if (mutationStatus != 200) {
         return pendingMutation?.future ?? json({'error': {'code': mutationStatus == 409 ? 'revision_conflict' : 'unauthorized', 'message': 'private-upstream'}}, mutationStatus);
       }
       Map<String, dynamic>? result;
       if (request.method == 'POST') {
-        expect(body!.keys.toSet(), {'kind', 'label', 'order'});
+        expectSync(body!.keys.toSet(), {'kind', 'label', 'order'});
         result = {'ref': {...fixture['context'] as Map, 'id': (records.length + 3).toRadixString(16).padLeft(32,'0'), 'kind': body['kind']},
           'label':body['label'],'order':body['order'],'revision':1,'aclRevision':1,'permissions':{'read':true,'write':true}};
         records.add(result);
       } else {
         final id=request.url.pathSegments.last;
         final index=records.indexWhere((record)=>record['ref']['id']==id);
-        expect(index,greaterThanOrEqualTo(0));
+        expectSync(index,greaterThanOrEqualTo(0));
         final previous=records[index];
         if(request.method=='PATCH') {
-          expect(body!.keys.toSet(),{'label','order','expectedRevision','expectedAclRevision'});
-          expect(body['expectedRevision'],previous['revision']);expect(body['expectedAclRevision'],previous['aclRevision']);
+          expectSync(body!.keys.toSet(),{'label','order','expectedRevision','expectedAclRevision'});
+          expectSync(body['expectedRevision'],previous['revision']);expectSync(body['expectedAclRevision'],previous['aclRevision']);
           final changed=body['label']!=previous['label']||body['order']!=previous['order'];
           result={...previous,'label':body['label'],'order':body['order'],'revision':(previous['revision'] as int)+(changed?1:0)};
           records[index]=result;
         } else {
-          expect(request.url.queryParameters,{'expectedRevision':'${previous['revision']}','expectedAclRevision':'${previous['aclRevision']}'});
+          expectSync(request.url.queryParameters,{'expectedRevision':'${previous['revision']}','expectedAclRevision':'${previous['aclRevision']}'});
           records.removeAt(index);
         }
       }

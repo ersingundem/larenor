@@ -121,6 +121,11 @@ class _SettingsGateScreenState extends ConsumerState<SettingsGateScreen>
   @override
   Widget build(BuildContext context) {
     ref.listen(pinLockProvider, (previous, next) {
+      if (widget.initialDestination == SettingsGateDestination.homeResources &&
+          (next.isLoading || next.hasError)) {
+        _lockSettings();
+        return;
+      }
       if (previous?.hasValue == true &&
           next.hasValue &&
           next.value != null &&
@@ -143,6 +148,7 @@ class _SettingsGateScreenState extends ConsumerState<SettingsGateScreen>
       ),
       data: (pin) {
         final unlocked = pin == null || _unlocked;
+        final resourceGeneration = _generation;
         if (unlocked) _settingsOpened = true;
         return Stack(
           children: [
@@ -169,6 +175,13 @@ class _SettingsGateScreenState extends ConsumerState<SettingsGateScreen>
                             : widget.initialDestination ==
                                   SettingsGateDestination.homeResources
                             ? HomeResourceAdminScreen(
+                                gateCurrent: () {
+                                  if (!mounted || !_interactive || resourceGeneration != _generation ||
+                                      ModalRoute.of(context)?.isCurrent != true) return false;
+                                  final currentPin = ref.read(pinLockProvider);
+                                  return !currentPin.isLoading && !currentPin.hasError && currentPin.hasValue &&
+                                      currentPin.value == pin && (pin == null || _unlocked);
+                                },
                                 onExit: Navigator.of(context).canPop() ? _exit : null,
                               )
                             : widget.initialDestination ==

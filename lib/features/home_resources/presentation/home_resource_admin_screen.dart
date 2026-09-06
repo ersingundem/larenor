@@ -18,7 +18,8 @@ enum _Editor { create, update, delete }
 
 /// Mounted inside SettingsGate; every mutation also rechecks current Core auth.
 class HomeResourceAdminScreen extends ConsumerStatefulWidget {
-  const HomeResourceAdminScreen({super.key, this.onExit});
+  const HomeResourceAdminScreen({super.key, required this.gateCurrent, this.onExit});
+  final bool Function() gateCurrent;
   final VoidCallback? onExit;
   @override
   ConsumerState<HomeResourceAdminScreen> createState() => _HomeResourceAdminScreenState();
@@ -54,7 +55,7 @@ class _HomeResourceAdminScreenState extends ConsumerState<HomeResourceAdminScree
     final window = value.requireValue;
     return !window.supported || window.isResumed && window.hasWindowFocus && !window.isPictureInPicture;
   }
-  bool _current() => mounted && _foreground && _focused && _windowAvailable() &&
+  bool _current() => mounted && identical(ref.read(homeSessionControllerProvider), _controller.home) && widget.gateCurrent() && _foreground && _focused && _windowAvailable() &&
       (_interaction?.active ?? true) && TickerMode.valuesOf(context).enabled &&
       ModalRoute.of(context)?.isCurrent == true;
 
@@ -201,6 +202,7 @@ class _HomeResourceAdminScreenState extends ConsumerState<HomeResourceAdminScree
 
   @override
   Widget build(BuildContext context) {
+    ref.watch(homeSessionControllerProvider);
     ref.listen(windowPolicySnapshotProvider, (_, _) {_retireIfHidden(); if (mounted) setState(() {});});
     _syncLater();
     final l10n = AppLocalizations.of(context);

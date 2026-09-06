@@ -9,7 +9,7 @@ void main() {
  for(final locale in ['en','tr']) {
   for(final width in [320.0,600.0,1280.0]) {
    testWidgets('admin $locale $width 2x keyboard and named 48px controls',(tester) async {
-    await loadFonts(tester);final semantics=tester.ensureSemantics();addTearDown(semantics.dispose);
+    await loadFonts(tester);final semantics=tester.ensureSemantics();try {
     final h=ResourceAdminHarness();await h.mount(tester,locale:locale,width:width,scale:2);await h.signIn();await flush(tester);
     await tester.scrollUntilVisible(adminKey('home-resources-manage'),300,scrollable:find.byType(Scrollable).first,maxScrolls:20);await adminPress(tester,'home-resources-manage');
     final create=adminKey('home-resource-admin-create');await tester.ensureVisible(create);await flush(tester);
@@ -29,6 +29,7 @@ void main() {
     await adminPress(tester,'home-resource-delete-$cancelId');await tester.ensureVisible(adminKey('home-resource-confirm-delete'));await flush(tester);
     expect(tester.getSize(adminKey('home-resource-confirm-delete')).height,greaterThanOrEqualTo(48));
     await adminPress(tester,'home-resource-cancel-edit');expect(h.mutations.length,1);expect(h.haReads,0);expect(tester.takeException(),isNull);
+    } finally {semantics.dispose();}
    });
   }
  }
