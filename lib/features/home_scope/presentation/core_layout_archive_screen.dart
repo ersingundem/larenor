@@ -4,6 +4,7 @@ import 'dart:ui' show ViewFocusEvent, ViewFocusState;
 
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/scheduler.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/app_interaction_scope.dart';
@@ -37,6 +38,7 @@ class CoreLayoutArchiveScreen extends ConsumerStatefulWidget {
 }
 
 class _CoreLayoutArchiveScreenState extends ConsumerState<CoreLayoutArchiveScreen> with WidgetsBindingObserver {
+  final _scroll=ScrollController();
   final _password=TextEditingController(), _repeat=TextEditingController(), _openPassword=TextEditingController();
   late final HomeSessionController? _home;
   late final ServerSession? _session;
@@ -79,14 +81,18 @@ class _CoreLayoutArchiveScreenState extends ConsumerState<CoreLayoutArchiveScree
       identical(_home!.account.session,_session) && _home!.account.generation==_accountGeneration &&
       elapsed>=Duration.zero && elapsed<CoreLayoutArchiveController.lifetime;
   }
+  bool _windowCurrent(){
+    final window=ref.read(windowPolicySnapshotProvider);
+    if(window.isLoading || window.hasError || !window.hasValue)return false;
+    final w=window.requireValue;
+    return !w.supported || w.isResumed && w.hasWindowFocus && !w.isPictureInPicture;
+  }
   bool _baseCurrent(){
     if(!_sameOwner() || !_foreground || !_focused || !widget.gateCurrent() ||
       (_interaction?.active==false) || !TickerMode.valuesOf(context).enabled) return false;
-    final pin=ref.read(pinLockProvider), window=ref.read(windowPolicySnapshotProvider);
+    final pin=ref.read(pinLockProvider);
     if(!_pinResolved || pin.isLoading || pin.hasError || !pin.hasValue || pin.value!=_pin ||
-       window.isLoading || window.hasError || !window.hasValue) return false;
-    final w=window.requireValue;
-    if(w.supported && (!w.isResumed || !w.hasWindowFocus || w.isPictureInPicture)) return false;
+       !_windowCurrent()) return false;
     return ModalRoute.of(context)?.isCurrent==true || _dialog?.isCurrent==true;
   }
   bool _current() => _baseCurrent() && _access?.isCurrent==true &&
@@ -123,7 +129,10 @@ class _CoreLayoutArchiveScreenState extends ConsumerState<CoreLayoutArchiveScree
     if(epoch!=_interactionEpoch){_interactionEpoch=epoch;_retire(permanent:!_fileDialog);}else{_changed();}
   }
   @override void didChangeDependencies(){
-    super.didChangeDependencies();_viewId=View.of(context).viewId;
+    super.didChangeDependencies();
+    final viewId=View.of(context).viewId;
+    if(_viewId!=null && _viewId!=viewId)_retire();
+    _viewId=viewId;
     final container=ProviderScope.containerOf(context);
     if(_container==null){_container=container;}else if(!identical(container,_container)){_retire();}
     final next=AppInteractionScope.maybeOf(context);
@@ -173,7 +182,13 @@ class _CoreLayoutArchiveScreenState extends ConsumerState<CoreLayoutArchiveScree
     if(decrypting)return l10n.coreLayoutArchiveDecryptFailed;
     return l10n.coreLayoutArchiveFileFailed;
   }
-  void _report(String message,{bool error=false}){_message=message;_error=error;_changed();}
+  void _reviewTop(){
+    final generation=_generation;
+    WidgetsBinding.instance.addPostFrameCallback((_){
+      if(mounted && generation==_generation && _current() && _scroll.hasClients)_scroll.jumpTo(0);
+    });
+  }
+  void _report(String message,{bool error=false}){_message=message;_error=error;_changed();_reviewTop();}
   Future<void> _load() async {
     if(_busy || !_bind())return;
     final generation=++_generation;_busy=true;_message=null;_rooms=null;_changed();
@@ -225,7 +240,7 @@ class _CoreLayoutArchiveScreenState extends ConsumerState<CoreLayoutArchiveScree
     String? password=_password.text;
     try{CoreLayoutArchiveCodec.validatePassphrase(password,settingsPin:_pin);if(password!=_repeat.text)throw const CoreLayoutArchiveCodecException('invalid_passphrase');}
     catch(_){_report(l10n.coreLayoutArchiveInvalidPassword,error:true);return;}
-    final operation=++_generation;_busy=true;_message=null;_changed();
+    final operation=++_generation;var dispatchedFile=false;_busy=true;_message=null;_changed();
     try{
       if(!await _durablePin(operation))return;
       CoreLayoutArchiveV1? archive=await _controller!.capture();if(!_allowed(operation))return;
@@ -233,9 +248,10 @@ class _CoreLayoutArchiveScreenState extends ConsumerState<CoreLayoutArchiveScree
       archive=null;password=null;
       if(!_allowed(operation))return;
       final files=ref.read(coreLayoutArchiveFileAccessProvider);
+      dispatchedFile=true;
       final saved=await _fileOperation(()=>files.save(bytes));
       if(_current())_report(saved==null?l10n.coreLayoutArchiveCancelled:l10n.coreLayoutArchiveSaved);
-    }catch(error){if(_allowed(operation))_report(_failure(error,l10n),error:true);}
+    }catch(error){if(dispatchedFile ? _current() : _allowed(operation))_report(_failure(error,l10n),error:true);}
     finally{if(mounted){_password.clear();_repeat.clear();_busy=false;_changed();}}
   }
   Future<void> _decrypt(int generation) async {
@@ -247,7 +263,7 @@ class _CoreLayoutArchiveScreenState extends ConsumerState<CoreLayoutArchiveScree
       final archive=await ref.read(coreLayoutArchiveCodecProvider).decrypt(bytes,password);
       if(!_allowed(operation))return;
       final preview=await _controller!.preview(archive);if(!_allowed(operation))return;
-      _preview=preview;_file=null;
+      _preview=preview;_file=null;_reviewTop();
     }catch(error){if(_allowed(operation))_report(_failure(error,l10n,decrypting:true),error:true);}
     finally{if(mounted){_openPassword.clear();if(operation==_generation)_busy=false;_changed();}}
   }
@@ -260,8 +276,8 @@ class _CoreLayoutArchiveScreenState extends ConsumerState<CoreLayoutArchiveScree
     route=CupertinoDialogRoute<bool>(context:context,builder:(_)=>CupertinoAlertDialog(
       title:Text(l10n.coreLayoutArchiveReplace),content:Text(l10n.coreLayoutArchiveConfirm),
       actions:[
-        CupertinoDialogAction(key:const ValueKey('core-layout-archive-confirm-cancel'),onPressed:()=>answer(false),child:Text(l10n.commonCancel)),
-        CupertinoDialogAction(key:const ValueKey('core-layout-archive-confirm'),isDestructiveAction:true,onPressed:()=>answer(true),child:Text(l10n.coreLayoutArchiveReplace)),
+        _ArchiveDialogAction(actionKey:const ValueKey('core-layout-archive-confirm-cancel'),onPressed:()=>answer(false),label:l10n.commonCancel),
+        _ArchiveDialogAction(actionKey:const ValueKey('core-layout-archive-confirm'),isDestructiveAction:true,onPressed:()=>answer(true),label:l10n.coreLayoutArchiveReplace),
       ],
     ));
     _dialog=route;_changed();
@@ -282,13 +298,15 @@ class _CoreLayoutArchiveScreenState extends ConsumerState<CoreLayoutArchiveScree
   }
 
   Widget _button(String key,String text,VoidCallback? action,{bool primary=false}){
+    final theme=CupertinoTheme.of(context);
+    final focusColor=CupertinoTheme.brightnessOf(context)==Brightness.dark?Color.lerp(theme.primaryColor,CupertinoColors.white,.12):theme.primaryColor;
     final child=Text(text,textAlign:TextAlign.center);
-    return Padding(padding:const EdgeInsets.all(8),child:primary?CupertinoButton.filled(key:ValueKey(key),minimumSize:const Size(48,48),onPressed:action,child:child):CupertinoButton(key:ValueKey(key),minimumSize:const Size(48,48),onPressed:action,child:child));
+    return Semantics(container:true,child:Padding(padding:const EdgeInsets.all(8),child:primary?CupertinoButton.filled(key:ValueKey(key),minimumSize:const Size(48,48),focusColor:focusColor,onPressed:action,child:child):CupertinoButton(key:ValueKey(key),minimumSize:const Size(48,48),focusColor:focusColor,onPressed:action,child:child)));
   }
   Widget _field(String key,String label,TextEditingController controller)=>Padding(padding:const EdgeInsets.all(12),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
-    Text(label),const SizedBox(height:8),Semantics(label:label,textField:true,child:CupertinoTextField(key:ValueKey(key),controller:controller,enabled:!_busy,obscureText:true,enableSuggestions:false,autocorrect:false,padding:const EdgeInsets.all(14))),
+    ExcludeSemantics(child:Text(label)),const SizedBox(height:8),Semantics(label:label,child:CupertinoTextField(key:ValueKey(key),controller:controller,enabled:!_busy,obscureText:true,enableSuggestions:false,autocorrect:false,padding:const EdgeInsets.all(14))),
   ]));
-  Widget _roomSection(String label,List<String> names,AppLocalizations l10n)=>SettingsSection(header:Semantics(header:true,child:Text(label)),children:[
+  Widget _roomSection(String label,List<String> names,AppLocalizations l10n)=>SettingsSection(header:Semantics(container:true,header:true,child:Text(label)),children:[
     if(names.isEmpty)Padding(padding:const EdgeInsets.all(16),child:Text(l10n.coreLayoutArchiveEmpty)),
     for(final name in names)Padding(padding:const EdgeInsets.all(16),child:Align(alignment:AlignmentDirectional.centerStart,child:Text(name))),
   ]);
@@ -311,8 +329,12 @@ class _CoreLayoutArchiveScreenState extends ConsumerState<CoreLayoutArchiveScree
     final enabled=!_busy && _current(),generation=_generation;
     return AppPageScaffold(key:const ValueKey('core-layout-archive-screen'),navigationBar:CupertinoNavigationBar(
       automaticallyImplyLeading:false,middle:Text(l10n.coreLayoutArchiveTitle),
-      leading:CupertinoButton(key:const ValueKey('core-layout-archive-back'),minimumSize:const Size(48,48),padding:EdgeInsets.zero,onPressed:()=>Navigator.of(context).maybePop(),child:Semantics(label:l10n.commonBack,excludeSemantics:true,child:const Icon(CupertinoIcons.back))),
-    ),child:SafeArea(child:Center(child:ConstrainedBox(constraints:const BoxConstraints(maxWidth:780),child:ListView(padding:const EdgeInsets.symmetric(horizontal:12,vertical:20),children:[
+    ),child:SafeArea(child:Center(child:ConstrainedBox(constraints:const BoxConstraints(maxWidth:780),child:ListView(controller:_scroll,padding:const EdgeInsets.symmetric(horizontal:12,vertical:20),children:[
+      Align(alignment:AlignmentDirectional.centerStart,child:_button('core-layout-archive-back',l10n.commonBack,(){
+        if(mounted && generation==_generation && _foreground && _focused && _windowCurrent() && (_interaction?.active??true) &&
+          identical(ProviderScope.containerOf(context,listen:false),_container) &&
+          widget.gateCurrent() && TickerMode.valuesOf(context).enabled && ModalRoute.of(context)?.isCurrent==true)Navigator.of(context).maybePop();
+      })),
       Padding(padding:const EdgeInsets.all(12),child:Text(l10n.coreLayoutArchiveHint)),
       if(_closed)Padding(padding:const EdgeInsets.all(16),child:Text(l10n.coreLayoutArchiveExpired)) else ...[
         if(_message!=null)Padding(padding:const EdgeInsets.all(16),child:Semantics(liveRegion:true,child:Text(_message!,key:const ValueKey('core-layout-archive-message'),style:TextStyle(color:_error?CupertinoColors.systemRed.resolveFrom(context):CupertinoColors.label.resolveFrom(context))))),
@@ -324,11 +346,11 @@ class _CoreLayoutArchiveScreenState extends ConsumerState<CoreLayoutArchiveScree
           if(_rooms case final rooms?) _roomSection(l10n.coreLayoutArchiveCurrent,rooms,l10n),
           _button('core-layout-archive-refresh',l10n.coreLayoutArchiveRefresh,enabled?(){if(_allowed(generation))_load();}:null),
         ],
-        SettingsSection(header:Semantics(header:true,child:Text(l10n.coreLayoutArchiveImport)),children:[
+        SettingsSection(header:Semantics(container:true,header:true,child:Text(l10n.coreLayoutArchiveImport)),children:[
           _button('core-layout-archive-pick',l10n.coreLayoutArchiveImport,enabled?()=>_pick(generation):null),
           if(_file!=null)...[_field('core-layout-archive-open-password',l10n.coreLayoutArchivePassword,_openPassword),_button('core-layout-archive-decrypt',l10n.coreLayoutArchiveOpen,enabled?()=>_decrypt(generation):null,primary:true)],
         ]),
-        SettingsSection(header:Semantics(header:true,child:Text(l10n.coreLayoutArchiveExport)),footer:Text(l10n.coreLayoutArchivePasswordHint),children:[
+        SettingsSection(header:Semantics(container:true,header:true,child:Text(l10n.coreLayoutArchiveExport)),footer:Text(l10n.coreLayoutArchivePasswordHint),children:[
           _field('core-layout-archive-password',l10n.coreLayoutArchivePassword,_password),_field('core-layout-archive-repeat',l10n.coreLayoutArchiveRepeat,_repeat),
           _button('core-layout-archive-export',l10n.coreLayoutArchiveExport,enabled?()=>_export(generation):null,primary:true),
         ]),
@@ -337,6 +359,30 @@ class _CoreLayoutArchiveScreenState extends ConsumerState<CoreLayoutArchiveScree
   }
   @override void dispose(){
     _generation++;_timer?.cancel();_controller?.close();_home?.removeListener(_homeChanged);_interaction?.removeListener(_interactionChanged);WidgetsBinding.instance.removeObserver(this);
-    _file=null;_preview=null;_password.dispose();_repeat.dispose();_openPassword.dispose();super.dispose();
+    _file=null;_preview=null;_password.dispose();_repeat.dispose();_openPassword.dispose();_scroll.dispose();super.dispose();
   }
+}
+
+/// Keep Cupertino dialog semantics and Enter/Space activation at large text sizes.
+class _ArchiveDialogAction extends StatefulWidget {
+  const _ArchiveDialogAction({required this.actionKey,required this.onPressed,required this.label,this.isDestructiveAction=false});
+  final Key actionKey;final VoidCallback onPressed;final String label;final bool isDestructiveAction;
+  @override State<_ArchiveDialogAction> createState()=>_ArchiveDialogActionState();
+}
+class _ArchiveDialogActionState extends State<_ArchiveDialogAction>{
+  bool focused=false;
+  @override Widget build(BuildContext context)=>CupertinoDialogAction(
+    key:widget.actionKey,onPressed:widget.onPressed,isDestructiveAction:widget.isDestructiveAction,
+    child:FocusableActionDetector(
+      onShowFocusHighlight:(value)=>setState(()=>focused=value),
+      shortcuts:const {SingleActivator(LogicalKeyboardKey.enter):ActivateIntent(),SingleActivator(LogicalKeyboardKey.space):ActivateIntent()},
+      actions:{ActivateIntent:CallbackAction<ActivateIntent>(onInvoke:(_){widget.onPressed();return null;})},
+      child:Semantics(button:true,enabled:true,label:widget.label,onTap:widget.onPressed,excludeSemantics:true,
+        child:Container(constraints:const BoxConstraints(minHeight:48),alignment:Alignment.center,
+          decoration:BoxDecoration(border:Border.all(width:2,color:focused?CupertinoTheme.of(context).primaryColor:CupertinoColors.transparent),borderRadius:BorderRadius.circular(4)),
+          child:Text(widget.label),
+        ),
+      ),
+    ),
+  );
 }

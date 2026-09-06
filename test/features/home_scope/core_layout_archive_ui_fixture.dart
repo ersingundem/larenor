@@ -12,6 +12,8 @@ import 'package:larenor/core/window/window_policy_providers.dart';
 import 'package:larenor/features/dashboard/data/dashboard_repository.dart';
 import 'package:larenor/features/dashboard/providers/dashboard_providers.dart';
 import 'package:larenor/features/home_scope/data/home_layout_access.dart';
+import 'package:larenor/features/settings/data/pin_lock_store.dart';
+import 'package:larenor/features/settings/providers/settings_providers.dart';
 import 'package:larenor/features/home_scope/presentation/core_layout_archive_file_access.dart';
 import 'package:larenor/features/settings/presentation/settings_gate_screen.dart';
 import 'package:larenor/l10n/generated/app_localizations.dart';
@@ -34,7 +36,7 @@ class ArchiveHarness {
   late ProviderContainer container;
   final navigator=GlobalKey<NavigatorState>();
   final boundary=GlobalKey();
-  Future<void> mount(WidgetTester tester,{String language='en',double width=600,double scale=1,String? pin='1234'}) async {
+  Future<void> mount(WidgetTester tester,{String language='en',double width=600,double scale=1,String? pin='1234',PinLockStore? pinStore}) async {
     SharedPreferences.setMockInitialValues({'dashboard_layout':'legacy-private','unrelated':'unchanged'});
     FlutterSecureStorage.setMockInitialValues({'settings_pin':?pin});
     tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
@@ -48,6 +50,7 @@ class ArchiveHarness {
       homeSessionControllerProvider.overrideWithValue(home),
       homeLayoutClockProvider.overrideWithValue(()=>session.now),
       coreLayoutArchiveFileAccessProvider.overrideWithValue(files),
+      if(pinStore!=null)pinLockStoreProvider.overrideWithValue(pinStore),
       windowPolicySnapshotProvider.overrideWith((_)=>Stream.value(const WindowPolicySnapshot(supported:true,isResumed:true,hasWindowFocus:true))),
     ]);
     // The actual scoped repository/provider stays alive through route changes.
