@@ -20,6 +20,10 @@ def downgrade_to_known_v1(app):
         for table in ('home_resource_records', 'home_resource_state', 'home_resource_audit'):
             connection.execute(f'DROP TABLE {table}')
         connection.execute("DELETE FROM metadata WHERE key='home_resources_schema'")
+        # Household profiles also postdate these historical context-free schemas.
+        for table in ('home_people_records', 'home_people_state', 'home_people_audit'):
+            connection.execute(f'DROP TABLE {table}')
+        connection.execute("DELETE FROM metadata WHERE key='home_people_schema'")
         connection.execute("UPDATE metadata SET value='1' WHERE key='schema_version'")
 
 
