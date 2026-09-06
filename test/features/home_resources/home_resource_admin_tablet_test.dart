@@ -65,6 +65,14 @@ void main() {
           Focus.of(tester.element(find.text(l10n.homeResourceAdminCreate)))
               .requestFocus();
           await flush(tester);
+          await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
+          await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+          await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
+          await flush(tester);
+          expect(Focus.of(tester.element(find.text(l10n.commonRefresh))).hasPrimaryFocus,isTrue);
+          await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+          await flush(tester);
+          expect(Focus.of(tester.element(find.text(l10n.homeResourceAdminCreate))).hasPrimaryFocus,isTrue);
           final outlines = find.descendant(
             of: create,
             matching: find.byWidgetPredicate(
@@ -91,6 +99,8 @@ void main() {
           await tester.sendKeyEvent(LogicalKeyboardKey.enter);
           await flush(tester);
           expect(adminKey('home-resource-label'), findsOneWidget);
+          expect(find.descendant(of:adminKey('home-resource-kind-room'),matching:find.byIcon(CupertinoIcons.checkmark)),findsOneWidget);
+          expect(find.descendant(of:adminKey('home-resource-kind-resource'),matching:find.byIcon(CupertinoIcons.checkmark)),findsNothing);
           expect(
             find.byKey(
               ValueKey('home-resource-edit-${h.records.first['ref']['id']}'),
@@ -111,7 +121,7 @@ void main() {
           expect(labelNode.label, contains(l10n.homeResourceAdminLabel));
           await tester.enterText(
             adminKey('home-resource-label'),
-            'Unicode oda 🏠',
+            'Çalışma odası',
           );
           await tester.sendKeyEvent(LogicalKeyboardKey.tab);
           await flush(tester);
