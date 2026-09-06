@@ -2,6 +2,8 @@ import 'dart:convert';
 import 'dart:math';
 import 'package:crypto/crypto.dart';
 import '../../../core/home_source_store.dart';
+import '../../server/data/server_session_store.dart';
+import '../../server/domain/server_models.dart';
 
 import '../../../core/configuration_writes.dart';
 import '../../../core/direct_credential_record.dart';
@@ -17,9 +19,13 @@ import 'backup_restore_access.dart';
 part 'backup_restore_transaction.dart';
 
 class BackupRepository {
-  BackupRepository({BackupStorage? storage, DateTime Function()? now})
+  BackupRepository({BackupStorage? storage, DateTime Function()? now, HomeSourcePersistence? recoverySourceStore, ServerSessionPersistence? recoverySessionStore})
     : _storage = storage ?? PlatformBackupStorage(),
-      _now = now ?? DateTime.now;
+      _now = now ?? DateTime.now,
+      _recoverySourceStore=recoverySourceStore,
+      _recoverySessionStore=recoverySessionStore;
+  final HomeSourcePersistence? _recoverySourceStore;
+  final ServerSessionPersistence? _recoverySessionStore;
   final BackupStorage _storage;
   final DateTime Function() _now;
   static const restoreJournalKey = 'backup_restore_journal_v1';

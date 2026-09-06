@@ -96,7 +96,9 @@ Future<PreparedBackupRestore> _prepareRestore(BackupRepository repository,Backup
       final summary=await reader.preview(narrowed);
       await repository._requireStableConnections(changes.services);
       await current();
-      final prepared=PreparedBackupRestore._(repository,access,owner,changes,reads.values,origin,summary,_restoreDigest({'snapshot':json,'selection':[chosen.settings,chosen.dashboard,chosen.connections],'conflict':conflict.name}),repository._now().toUtc().add(const Duration(minutes:5)));
+      final recoveryIdentity=await _readRecoveryIdentity(repository,owner);
+      await bound();
+      final prepared=PreparedBackupRestore._(repository,access,owner,changes,reads.values,origin,recoveryIdentity,summary,_restoreDigest({'snapshot':json,'selection':[chosen.settings,chosen.dashboard,chosen.connections],'conflict':conflict.name}),repository._now().toUtc().add(const Duration(minutes:5)));
       await prepared._verifyReadSet(bound);
       await bound();
       return prepared;
@@ -106,7 +108,7 @@ Future<PreparedBackupRestore> _prepareRestore(BackupRepository repository,Backup
 
 /// One-use process capability. Payload/owner/read-set are private and redacted.
 final class PreparedBackupRestore {
-  PreparedBackupRestore._(this._repository,this._access,this._ownership,this._plan,Map<String,Object?> reads,Map<String,String?>? origin,this.summary,this._snapshotDigest,DateTime expires)
+  PreparedBackupRestore._(this._repository,this._access,this._ownership,this._plan,Map<String,Object?> reads,Map<String,String?>? origin,this._recoveryIdentity,this.summary,this._snapshotDigest,DateTime expires)
     : _haOrigin=origin==null ? null : Map.unmodifiable(origin),
       _readSet=Map.unmodifiable({...reads.map((k,v)=>MapEntry(k,_cloneValue(v))),if(origin!=null) for(final e in origin.entries) 's:${e.key}':e.value}),
       expiresAt=expires.isBefore(_access.validUntil) ? expires : _access.validUntil;
@@ -116,6 +118,7 @@ final class PreparedBackupRestore {
   final _PreparedChanges _plan;
   final Map<String,Object?> _readSet;
   final Map<String,String?>? _haOrigin;
+  final String? _recoveryIdentity;
   final BackupPreview summary;
   final String _snapshotDigest;
   final DateTime expiresAt;
@@ -208,8 +211,8 @@ final class PreparedBackupRestore {
       await _verifyReadSet(current);
       await current();
       if(_plan.changes.isEmpty) return;
-      final journal=_encodeV2(_repository,_plan.changes,_ownership,_snapshotDigest,_restoreDigest(_readSet),'applying',_intentId);
-      final committed=_encodeV2(_repository,_plan.changes,_ownership,_snapshotDigest,_restoreDigest(_readSet),'committed',_intentId);
+      final journal=_encodeV2(_repository,_plan.changes,_ownership,_snapshotDigest,_restoreDigest(_readSet),'applying',_intentId,_recoveryIdentity,_haOrigin);
+      final committed=_encodeV2(_repository,_plan.changes,_ownership,_snapshotDigest,_restoreDigest(_readSet),'committed',_intentId,_recoveryIdentity,_haOrigin);
       _recoveryIntents=Set.unmodifiable({journal,committed});
       await _repository._storage.writeSecret(_journalV2Key,journal);
       if(await _repository._storage.readSecret(_journalV2Key)!=journal) _recoveryRequired();
@@ -274,6 +277,7 @@ Future<void> _verifyHaOrigin(BackupRepository repository,Map<String,String?> exp
 
 void _checkRestoreOwner(Object? owner) {
   if(owner is! Map<String,dynamic> || owner.isEmpty || owner.keys.any((k)=>!{'source','scope'}.contains(k)) || !HomeSource.values.any((v)=>v.name==owner['source'])) _recoveryRequired();
+  if(owner['source']=='verifiedCore' && !owner.containsKey('scope')) _recoveryRequired();
   if(owner.containsKey('scope')) {
     final scope=owner['scope'];
     if(scope is! Map || scope.length!=3 || !scope.keys.toSet().containsAll({'coreId','homeId','userId'}) || scope.values.any((v)=>v is! String || v.isEmpty || v.length>128 || v.contains(RegExp(r'[\x00-\x1f\x7f]')))) _recoveryRequired();
@@ -282,17 +286,26 @@ void _checkRestoreOwner(Object? owner) {
   }
 }
 Future<Object?> _readChange(BackupRepository repo,_Change c)=>c.secret ? repo._storage.readSecret(c.key) : repo._storage.readPreference(c.key);
-String _encodeV2(BackupRepository repo,List<_Change> changes,Map<String,dynamic> owner,String sourceDigest,String targetDigest,String phase,String intentId) {
-  final value={'version':2,'intentId':intentId,'owner':owner,'sourceDigest':sourceDigest,'targetDigest':targetDigest,'phase':phase,'changes':[for(final c in changes) {'secret':c.secret,'key':c.key,'before':c.before,'after':c.after}]};
+String _encodeV2(BackupRepository repo,List<_Change> changes,Map<String,dynamic> owner,String sourceDigest,String targetDigest,String phase,String intentId,String? identity,Map<String,String?>? origin) {
+  final originDigests=<String>[];
+  if(origin!=null) {
+    final current=Map<String,String?>.of(origin);
+    originDigests.add(_originDigest(intentId,current));
+    for(final change in changes) {
+      if(change.secret && current.containsKey(change.key)) current[change.key]=change.after as String?;
+      originDigests.add(_originDigest(intentId,current));
+    }
+  }
+  final value={'version':2,'intentId':intentId,'owner':owner,'recovery':{'sessionDigest':identity,'originDigests':origin==null ? null : originDigests},'sourceDigest':sourceDigest,'targetDigest':targetDigest,'phase':phase,'changes':[for(final c in changes) {'secret':c.secret,'key':c.key,'before':c.before,'after':c.after}]};
   final raw=_canonical({...value,'digest':_restoreDigest(value)});
   _decodeV2(repo,raw);
   return raw;
 }
-(String,List<_Change>) _decodeV2(BackupRepository repo,String raw) {
+(String,List<_Change>,Map<String,dynamic>) _decodeV2(BackupRepository repo,String raw) {
   try {
     if(utf8.encode(raw).length>BackupRepository._maxJournalBytes) _recoveryRequired();
     final data=jsonDecode(raw);
-    if(data is! Map<String,dynamic> || data.length!=8 || !data.keys.toSet().containsAll({'version','intentId','owner','sourceDigest','targetDigest','phase','changes','digest'}) || data['version'] is! int || data['version']!=2 || !{'applying','committed'}.contains(data['phase'])) _recoveryRequired();
+    if(data is! Map<String,dynamic> || data.length!=9 || !data.keys.toSet().containsAll({'version','intentId','owner','recovery','sourceDigest','targetDigest','phase','changes','digest'}) || data['version'] is! int || data['version']!=2 || !{'applying','committed'}.contains(data['phase'])) _recoveryRequired();
     final digest=data.remove('digest');
     if(digest!=_restoreDigest(data)) _recoveryRequired();
     for(final k in ['sourceDigest','targetDigest']) {if(data[k] is! String || !RegExp(r'^[a-f0-9]{64}$').hasMatch(data[k] as String)) _recoveryRequired();}
@@ -305,40 +318,108 @@ String _encodeV2(BackupRepository repo,List<_Change> changes,Map<String,dynamic>
     final before=decode('before'),after=decode('after');
     final changes=[for(var i=0;i<before.length;i++) _Change(before[i].secret,before[i].key,before[i].before,after[i].before)];
     if((data['owner'] as Map)['source']=='verifiedCore' && changes.any((c)=>_directTarget(c.secret,c.key))) _recoveryRequired();
-    return(data['phase'] as String,changes);
+    final recovery=data['recovery'];
+    bool hash(Object? value)=>value is String && RegExp(r'^[a-f0-9]{64}$').hasMatch(value);
+    if(recovery is! Map<String,dynamic> || recovery.length!=2 || !recovery.keys.toSet().containsAll({'sessionDigest','originDigests'})) _recoveryRequired();
+    final core=(data['owner'] as Map)['source']=='verifiedCore';
+    if(core ? !hash(recovery['sessionDigest']) : recovery['sessionDigest']!=null) _recoveryRequired();
+    final origins=recovery['originDigests'];
+    final home=changes.any((c)=>_directTarget(c.secret,c.key));
+    if(home) {
+      if(core || origins is! List || origins.length!=changes.length+1 || !origins.every(hash)) _recoveryRequired();
+    } else if(origins!=null) _recoveryRequired();
+    return(data['phase'] as String,changes,data);
   } catch(_) { _recoveryRequired(); }
 }
 Future<void> _requireJournal(BackupRepository repo,String expected) async {
   if(await repo._storage.readSecret(_journalV2Key)!=expected) _recoveryRequired();
 }
+String _originDigest(String intent,Map<String,String?> origin)=>_restoreDigest({'domain':'larenor.restore.origin.v2','intentId':intent,'origin':origin});
+Future<String?> _readRecoveryIdentity(BackupRepository repo,Map<String,dynamic> owner) async {
+  final HomeSource source;
+  if(repo._recoverySourceStore!=null) {
+    source=await repo._recoverySourceStore!.read();
+  } else {
+    source=switch(await repo._storage.readPreference(SharedPreferencesHomeSourceStore.key)) {
+      null || 'directLocal'=>HomeSource.directLocal,
+      'verifiedCore'=>HomeSource.verifiedCore,
+      _=>_recoveryRequired(),
+    };
+  }
+  if(source.name!=owner['source']) _recoveryRequired();
+  if(source==HomeSource.directLocal) return null;
+  final ServerSession? session;
+  if(repo._recoverySessionStore!=null) {
+    final stored=await repo._recoverySessionStore!.read();
+    session=stored==null ? null : ServerSession.decodeStorage(stored.encodeStorage());
+  } else {
+    final raw=await repo._storage.readSecret(SecureServerSessionStore.key);
+    session=raw==null ? null : ServerSession.decodeStorage(raw);
+  }
+  if(session==null || session.context==null || session.authMutationPending || session.user.mustChangePassword || session.expiresSoon(repo._now())) _recoveryRequired();
+  if(!_same(owner['scope'],{'coreId':session.context!.coreId,'homeId':session.context!.homeId,'userId':session.user.id})) _recoveryRequired();
+  return _restoreDigest({'domain':'larenor.restore.session.v2','session':jsonDecode(session.encodeStorage())});
+}
+
+/// A persisted intent is not authority to retarget recovery. Source/session and
+/// each permitted HA tuple are read-only witnesses, never restorable keys.
+Future<List<Object?>> _recoveryView(BackupRepository repo,String raw,String phase,List<_Change> changes,Map<String,dynamic> envelope) async {
+  final owner=envelope['owner'] as Map<String,dynamic>;
+  final binding=envelope['recovery'] as Map<String,dynamic>;
+  Future<void> context() async {
+    if(await _readRecoveryIdentity(repo,owner)!=binding['sessionDigest']) _recoveryRequired();
+  }
+  Future<String?> origin() async {
+    if(binding['originDigests']==null) return null;
+    final values=<String,String?>{};
+    for(final key in backupConnectionFields['ha']!.values) values[key]=await repo._storage.readSecret(key);
+    return _originDigest(envelope['intentId'] as String,values);
+  }
+  await context();
+  final values=<Object?>[for(final c in changes) _cloneValue(await _readChange(repo,c))];
+  final observedOrigin=await origin();
+  await context();
+  // A crash or reverse rollback can leave only a complete forward-write prefix.
+  // Independent before/after choices would accept never-authorized HA tuples.
+  var matched=false;
+  for(var prefix=phase=='committed' ? changes.length : 0;prefix<=changes.length;prefix++) {
+    if(List.generate(changes.length,(i)=>i).every((i)=>_same(values[i],i<prefix ? changes[i].after : changes[i].before)) &&
+       (observedOrigin==null || (binding['originDigests'] as List)[prefix]==observedOrigin)) {matched=true;break;}
+  }
+  if(!matched) _recoveryRequired();
+  for(var i=0;i<changes.length;i++) {
+    if(!_same(await _readChange(repo,changes[i]),values[i])) _recoveryRequired();
+  }
+  if(await origin()!=observedOrigin) _recoveryRequired();
+  await context();
+  await _requireJournal(repo,raw);
+  await context();
+  return values;
+}
 Future<bool> _recoverV2(BackupRepository repo,{Set<String>? expected}) async {
   try {
-  final raw=await repo._storage.readSecret(_journalV2Key);
-  if(expected!=null && !expected.contains(raw)) _recoveryRequired();
-  if(raw==null) return false;
-  final (phase,changes)=_decodeV2(repo,raw);
-  for(final c in changes) {
-    final now=await _readChange(repo,c);
-    if(!_same(now,c.after) && (phase=='committed' || !_same(now,c.before))) _recoveryRequired();
-  }
-  if(phase=='applying') {
-    for(final c in changes.reversed) {
-      final now=await _readChange(repo,c);
-      if(_same(now,c.before)) continue;
-      if(!_same(now,c.after)) _recoveryRequired();
-      await _requireJournal(repo,raw);
-      await repo._write(c,previous:true);
-      if(!_same(await _readChange(repo,c),c.before)) _recoveryRequired();
+    final raw=await repo._storage.readSecret(_journalV2Key);
+    if(expected!=null && !expected.contains(raw)) _recoveryRequired();
+    if(raw==null) return false;
+    final (phase,changes,envelope)=_decodeV2(repo,raw);
+    await _recoveryView(repo,raw,phase,changes,envelope);
+    if(phase=='applying') {
+      for(var i=changes.length-1;i>=0;i--) {
+        final values=await _recoveryView(repo,raw,phase,changes,envelope);
+        final c=changes[i];
+        if(_same(values[i],c.before)) continue;
+        await repo._write(c,previous:true);
+        if(!_same(await _readChange(repo,c),c.before)) _recoveryRequired();
+      }
     }
-  }
-  for(final change in changes) {
-    if(!_same(await _readChange(repo,change),phase=='applying' ? change.before : change.after)) _recoveryRequired();
-  }
-  await _requireJournal(repo,raw);
-  try { await repo._storage.writeSecret(_journalV2Key,null); } catch(_) {
-    if(await repo._storage.readSecret(_journalV2Key)!=null) rethrow;
-  }
-  if(await repo._storage.readSecret(_journalV2Key)!=null) _recoveryRequired();
-  return true;
-  } on BackupException { rethrow; } catch(_) { _recoveryRequired(); }
+    final finalValues=await _recoveryView(repo,raw,phase,changes,envelope);
+    for(var i=0;i<changes.length;i++) {
+      if(!_same(finalValues[i],phase=='applying' ? changes[i].before : changes[i].after)) _recoveryRequired();
+    }
+    try {await repo._storage.writeSecret(_journalV2Key,null);} catch(_) {
+      if(await repo._storage.readSecret(_journalV2Key)!=null) rethrow;
+    }
+    if(await repo._storage.readSecret(_journalV2Key)!=null) _recoveryRequired();
+    return true;
+  } on BackupException {rethrow;} catch(_) {_recoveryRequired();}
 }
