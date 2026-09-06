@@ -2234,11 +2234,8 @@
   "homeResourcesRoom": "Room",
   "homeResourcesResource": "Resource",
   "homeResourcesLoadMore": "Load more",
-<<<<<<< HEAD
   "arrConnectionIncomplete": "The saved connection is incomplete. Enter the complete address and API key again, or remove the saved connection.",
-  "arrRemoveConnection": "Remove saved connection"
-=======
+  "arrRemoveConnection": "Remove saved connection",
   "wellbeingReloadSettings": "Read saved settings again",
   "wellbeingSettingsUnavailable": "Saved privacy settings could not be confirmed. Read them again before continuing."
->>>>>>> 4eac0f6d3aa5817e691ee8329bfc73765af3bc05
 }

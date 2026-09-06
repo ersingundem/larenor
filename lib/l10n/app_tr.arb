@@ -1913,11 +1913,8 @@
   "homeResourcesRoom": "Oda",
   "homeResourcesResource": "Kaynak",
   "homeResourcesLoadMore": "Daha fazla yükle",
-<<<<<<< HEAD
   "arrConnectionIncomplete": "Kayıtlı bağlantı tamamlanamadı. Adres ve API anahtarını yeniden girin veya kayıtlı bağlantıyı kaldırın.",
-  "arrRemoveConnection": "Kayıtlı bağlantıyı kaldır"
-=======
+  "arrRemoveConnection": "Kayıtlı bağlantıyı kaldır",
   "wellbeingReloadSettings": "Kayıtlı ayarları yeniden oku",
   "wellbeingSettingsUnavailable": "Kayıtlı gizlilik ayarları doğrulanamadı. Devam etmeden önce yeniden okuyun."
->>>>>>> 4eac0f6d3aa5817e691ee8329bfc73765af3bc05
 }
