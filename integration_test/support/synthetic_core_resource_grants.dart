@@ -53,20 +53,17 @@ class SyntheticCoreResourceGrants {
         'createdAt': '2026-09-06T00:00:00Z',
       },
   ];
-  static GrantsReply error(int status, String code) => GrantsReply(
-    status,
-    {
-      'error': {
-        'code': code,
-        'message': switch (code) {
-          'not_found' => 'The requested resource was not found.',
-          'forbidden' => 'This account cannot perform that action.',
-          'revision_conflict' => 'The saved record has changed. Read it again.',
-          _ => 'The request is invalid.',
-        },
+  static GrantsReply error(int status, String code) => GrantsReply(status, {
+    'error': {
+      'code': code,
+      'message': switch (code) {
+        'not_found' => 'The requested resource was not found.',
+        'forbidden' => 'This account cannot perform that action.',
+        'revision_conflict' => 'The saved record has changed. Read it again.',
+        _ => 'The request is invalid.',
       },
     },
-  );
+  });
   void close() {
     final gate = replyGate;
     if (gate != null && !gate.isCompleted) gate.complete();
@@ -146,13 +143,10 @@ class SyntheticCoreResourceGrants {
       if (path != aclBase) return error(404, 'not_found');
       grantReads++;
       final ids = _grants.keys.toList()..sort();
-      return GrantsReply(
-        200,
-        {
-          'aclRevision': aclRevision,
-          'grants': [for (final id in ids) _grant(id, _grants[id]!)],
-        },
-      );
+      return GrantsReply(200, {
+        'aclRevision': aclRevision,
+        'grants': [for (final id in ids) _grant(id, _grants[id]!)],
+      });
     }
     final id = path.startsWith('$aclBase/')
         ? path.substring(aclBase.length + 1)
@@ -302,15 +296,12 @@ class SyntheticCoreResourceGrants {
       return error(404, 'not_found');
     }
     recordReads++;
-    return GrantsReply(
-      200,
-      {
-        'scope': _contract['context'],
-        'entries': after == null ? entries : [],
-        'snapshot': snapshot,
-        'nextAfter': null,
-      },
-    );
+    return GrantsReply(200, {
+      'scope': _contract['context'],
+      'entries': after == null ? entries : [],
+      'snapshot': snapshot,
+      'nextAfter': null,
+    });
   }
 
   // The four allowed keys are distinct across both nesting levels. Scan every

@@ -65,13 +65,22 @@ class _NoNetworkDiscovery extends HaDiscoveryService {
 }
 
 class AppHarness {
-  AppHarness._(this.server, this.network, this.previousNetwork, {bool cleanupOnly = false})
-    : _cleanupOnly = cleanupOnly;
+  AppHarness._(
+    this.server,
+    this.network,
+    this.previousNetwork, [
+    this._cleanupOnly = false,
+  ]);
 
   /// Host-only teardown regression seam. It never starts or mounts the app,
   /// initializes storage, or relaxes the E2E-only gate in [start].
   factory AppHarness.forSyntheticCleanup(SyntheticHaServer server) =>
-      AppHarness._(server, FixtureNetwork(server.port), HttpOverrides.current, cleanupOnly: true);
+      AppHarness._(
+        server,
+        FixtureNetwork(server.port),
+        HttpOverrides.current,
+        true,
+      );
   final bool _cleanupOnly;
   final SyntheticHaServer server;
   final FixtureNetwork network;
@@ -149,7 +158,9 @@ class AppHarness {
   }
 
   Future<void> mount(WidgetTester tester) async {
-    if (_cleanupOnly) throw StateError('Synthetic cleanup harness cannot mount.');
+    if (_cleanupOnly) {
+      throw StateError('Synthetic cleanup harness cannot mount.');
+    }
     // Android IME can asynchronously replay the prior empty editing value after
     // an obscured field is cleared by the app. Inject input through Flutter's
     // official test keyboard; these journeys do not claim native IME coverage.
