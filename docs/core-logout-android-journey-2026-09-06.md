@@ -37,3 +37,25 @@ Davranış checkpoint'i `e8bedfe`; aynı kaynak için root bağımsız ilk incel
 | Eski kaynak/işaret karşılaştırması | **9 body/89 marker byte-exact**, toplam **10/99** | `/private/tmp/larenor-logout-e2e-preservation.json` |
 
 İki yeni test 87'nin içindedir; sayılar toplanmaz. Bütün SDK komutları `/private/tmp/larenor-flutter-check.py` ortak kilidiyle çalıştırıldı. `git diff --check` temizdir. Bu yalnız test ekleyen delta için tam Flutter/Server veya yerel Android koşusu tekrarlanmadı; onuncu Android yolculuğunun sonucu gelecekteki exact CI koşusunda doğrulanmalıdır.
+
+## CI102 bulgusu ve dar onarım
+
+[CI102 sonucu](client-delivery-102-2026-09-06.md): eski dokuz yolculuk geçti;
+onuncu yolculuk `target['id']` okumasında mount öncesi düştü. Önceki87
+host testi bu ifadeyi çalıştırmadığı için hata yakalanmadı. Yeni ortak
+`SyntheticCoreResourceGrants.targetId` getter'ı hem gerçek authenticated
+resource GET host regresyonunda hem onuncu yolculukta kullanılır. Yolculuktaki
+kimlik okuması artık cleanup sağlayan try/finally içindedir.
+
+RED `2be52c0`: 3 PASS/1 gerçek TypeError FAIL. GREEN `d99fc79`:4 PASS;
+sonra bütün integration_support **88 PASS/8sn**, tam analiz **0bulgu/6,2sn**.
+Başlangıçtaki eksik generated-files derleme hatası ayrı hazırlık kaydında
+korunur; RED kanıtına dahil edilmez. Üretim, fixture HTTP davranışı, workflow,
+timeout ve eski test beklentileri değişmedi. İlk dokuz yolculuğun kaynak
+prefix'i byte-exact; tüm99fazın adı/sırası aynı. Son getter biçim değişikliği
+yalnız boş satırdır. `d99fc79` bağımsız kaynak incelemesi CLEAR.
+
+Özel kanıtlar `/private/tmp/larenor-logout-fixture-{red,green,support,analyze}.log`,
+`larenor-logout-fixture-repair-preservation.json` ve
+`larenor-logout-fixture-repair-review.json`. Yeni exact Android CI sonucu
+ayrıca gereklidir;88 host testi emülatör veya fiziksel kabul yerine geçmez.

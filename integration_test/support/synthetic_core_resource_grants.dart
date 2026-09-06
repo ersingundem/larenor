@@ -35,6 +35,9 @@ class SyntheticCoreResourceGrants {
   final List<String> mutations = [];
   Map<String, dynamic> get target =>
       jsonDecode(jsonEncode(_contract['target'])) as Map<String, dynamic>;
+
+  /// Shared by the logout journey and the host HTTP contract regression.
+  String get targetId => target['ref']['id'] as String;
   Map<String, Map<String, bool>> get grants =>
       Map<String, Map<String, bool>>.unmodifiable(
         _grants.map(

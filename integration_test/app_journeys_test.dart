@@ -1189,7 +1189,6 @@ void main() {
         coreResourceGrants: true,
       );
       final core = app.server.coreAccount!;
-      final resourceId = core.grants!.target['id'] as String;
       Finder key(String name) => find.byKey(ValueKey(name));
       Future<void> press(String name) => tapVisible(tester, key(name));
       Future<void> unlock() async {
@@ -1211,6 +1210,7 @@ void main() {
       }
 
       try {
+        final resourceId = core.grants!.targetId;
         final preferences = await SharedPreferences.getInstance();
         await preferences.reload();
         final legacy = preferences.getString('dashboard_layout');
