@@ -10,17 +10,19 @@ import 'home_resource_admin_fixture.dart';
 class GrantsHarness extends ResourceAdminHarness {
   final grants=<String,Map<String,bool>>{};
   final puts=<http.Request>[];
-  Completer<http.Response>? pendingGrant;
+  Completer<http.Response>? pendingGrant, pendingUsers;
+  int readStatus=200;
+  bool corruptGrant=false;
   int userReads=0,grantReads=0,grantStatus=200;
   final users=[for(final id in ['2','3','9']) {'id':id*32,'username':'person_$id','role':id=='9'?'admin':'member','disabled':false,'mustChangePassword':false,'revision':1,'createdAt':'2026-09-06T00:00:00Z'}];
   GrantsHarness() {final f=jsonDecode(File('contracts/home-resource-grants.v1.json').readAsStringSync()) as Map;records[0]=Map<String,dynamic>.from(f['target'] as Map);}
   String get targetId=>records.first['ref']['id'] as String;
   @override Future<http.Response> handle(http.Request request) async {
-    if(request.url.path.endsWith('/admin/users')) {userReads++;return json({'users':users});}
+    if(request.url.path.endsWith('/admin/users')) {userReads++;return pendingUsers?.future??json({'users':users});}
     if(request.url.path.contains('/grants')) {
       final row=records.first;
       if(request.method=='GET') {
-        grantReads++;final ids=grants.keys.toList()..sort();
+        grantReads++;if(readStatus!=200)return json({'error':{'code':'synthetic-private-detail'}},readStatus);final ids=grants.keys.toList()..sort();
         return json({'aclRevision':row['aclRevision'],'grants':[for(final id in ids) {'subjectId':id,'target':row['ref'],'aclRevision':row['aclRevision'],'permissions':grants[id]}]});
       }
       expectSync(request.method,'PUT');puts.add(request);
@@ -30,7 +32,7 @@ class GrantsHarness extends ResourceAdminHarness {
       expectSync(users.any((user)=>user['id']==subject),isTrue);
       final desired=Map<String,bool>.from(body['permissions'] as Map),old=grants[subject]??{'read':false,'write':false};
       if(old['read']!=desired['read']||old['write']!=desired['write']) {row['aclRevision']=(row['aclRevision'] as int)+1;if(desired['read']==true){grants[subject]=desired;}else{grants.remove(subject);}}
-      return pendingGrant?.future??json({'grant':{'subjectId':subject,'target':row['ref'],'aclRevision':row['aclRevision'],'permissions':desired}});
+      return pendingGrant?.future??json({'grant':{'subjectId':subject,'target':row['ref'],'aclRevision':corruptGrant?999:row['aclRevision'],'permissions':desired}});
     }
     return super.handle(request);
   }
@@ -40,6 +42,14 @@ Future<void> openGrants(WidgetTester tester,GrantsHarness h) async {
  expect(adminKey('home-resource-grants-screen'),findsOneWidget);
 }
 void main() {
+ testWidgets('confirmed ACL revision survives failed reads and rejects rollback on explicit reread',(tester) async {
+  final h=GrantsHarness();await openGrants(tester,h);await adminPress(tester,'resource-grants-user-${'3'*32}');await adminPress(tester,'resource-grants-save');
+  expect(h.records.first['aclRevision'],2);
+  h.readStatus=503;await adminPress(tester,'resource-grants-refresh');expect(adminKey('resource-grants-user-${'3'*32}'),findsNothing);
+  h.readStatus=200;h.records.first['aclRevision']=1;await adminPress(tester,'resource-grants-refresh');
+  expect(adminKey('resource-grants-user-${'3'*32}'),findsNothing);expect(h.puts.length,1);
+ });
+
  testWidgets('actual PIN metadata entry grants named user read-only by default, updates and revokes', (tester) async {
   final h=GrantsHarness();await openGrants(tester,h);
   expect(h.userReads,1);expect(h.grantReads,1);expect(h.puts,isEmpty);
