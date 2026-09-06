@@ -318,14 +318,18 @@ Finder coreArchiveJourneyScrollable() => find
 Future<void> coreArchiveJourneyConfirmationDismissed(
   WidgetTester tester,
 ) async {
-  expect(
-    find.byKey(const ValueKey('core-layout-archive-confirm')),
-    findsNothing,
+  final confirm = find.byKey(const ValueKey('core-layout-archive-confirm'));
+  final cancel = find.byKey(
+    const ValueKey('core-layout-archive-confirm-cancel'),
   );
-  expect(
-    find.byKey(const ValueKey('core-layout-archive-confirm-cancel')),
-    findsNothing,
+  // A successful pop can leave both actions mounted during the reverse route
+  // animation. Wait for that route's removal, not a fixed frame or app idleness.
+  await waitUntil(
+    tester,
+    () => confirm.evaluate().isEmpty && cancel.evaluate().isEmpty,
   );
+  expect(confirm, findsNothing);
+  expect(cancel, findsNothing);
 }
 
 Future<void> coreArchiveJourneyTop(WidgetTester tester) async {
