@@ -258,21 +258,35 @@ class _HomeResourceAdminScreenState
     String label,
     VoidCallback? action, {
     bool destructive = false,
-    bool selected = false,
+    bool? selected,
   }) => Semantics(
     selected: selected,
     child: CupertinoButton(
       key: ValueKey(key),
       minimumSize: const Size(48, 48),
+      focusColor: CupertinoTheme.of(context).primaryColor,
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
       onPressed: action == null ? null : _callback(action),
-      child: Text(
-        label,
-        textAlign: TextAlign.center,
-        style: destructive
-            ? TextStyle(color: CupertinoColors.systemRed.resolveFrom(context))
-            : null,
-      ),
+      child: selected == true
+          ? Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const ExcludeSemantics(
+                  child: Icon(CupertinoIcons.checkmark, size: 24),
+                ),
+                const SizedBox(width: 8),
+                Text(label, textAlign: TextAlign.center),
+              ],
+            )
+          : Text(
+              label,
+              textAlign: TextAlign.center,
+              style: destructive
+                  ? TextStyle(
+                      color: CupertinoColors.systemRed.resolveFrom(context),
+                    )
+                  : null,
+            ),
     ),
   );
   Widget _field(

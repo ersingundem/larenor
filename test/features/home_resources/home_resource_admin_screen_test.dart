@@ -1,9 +1,86 @@
+import 'package:flutter/cupertino.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../../core/home_scope_fixture.dart' show flush;
 import 'home_resource_admin_fixture.dart';
 
 void main() {
+  testWidgets(
+    'invalid label and order stay local then no-op edit preserves revisions',
+    (tester) async {
+      final h = ResourceAdminHarness();
+      await openAdmin(tester, h);
+      await adminPress(tester, 'home-resource-admin-create');
+      for (final values in [
+        ('', '0'),
+        ('valid', '-1'),
+        ('valid', '10001'),
+        ('valid', 'not a number'),
+      ]) {
+        await tester.enterText(adminKey('home-resource-label'), values.$1);
+        await tester.enterText(adminKey('home-resource-order'), values.$2);
+        await adminPress(tester, 'home-resource-save');
+        expect(h.mutations, isEmpty);
+      }
+      await adminPress(tester, 'home-resource-cancel-edit');
+      final row = Map<String, dynamic>.from(h.records.first);
+      await adminPress(tester, 'home-resource-edit-${row['ref']['id']}');
+      await adminPress(tester, 'home-resource-save');
+      expect(h.mutations.length, 1);
+      expect(h.records.first, row);
+      expect(adminKey('home-resource-mutation-saved'), findsOneWidget);
+    },
+  );
+  testWidgets(
+    'admin history loads beyond first page and frozen later target is updated',
+    (tester) async {
+      final h = ResourceAdminHarness();
+      final template = h.records.first;
+      h.records
+        ..clear()
+        ..addAll(
+          List.generate(
+            51,
+            (index) => {
+              ...template,
+              'ref': {
+                ...template['ref'] as Map,
+                'id': (index + 1).toRadixString(16).padLeft(32, '0'),
+              },
+              'label': 'Record ${index + 1}',
+              'order': index,
+            },
+          ),
+        );
+      await openAdmin(tester, h);
+      for (var i = 0; i < 2; i++) {
+        await tester.scrollUntilVisible(
+          adminKey('home-resource-admin-load-more'),
+          600,
+          scrollable: find.byType(Scrollable).last,
+          maxScrolls: 30,
+        );
+        await adminPress(tester, 'home-resource-admin-load-more');
+      }
+      final target = h.records.last;
+      final id = target['ref']['id'];
+      await tester.scrollUntilVisible(
+        adminKey('home-resource-edit-$id'),
+        600,
+        scrollable: find.byType(Scrollable).last,
+        maxScrolls: 30,
+      );
+      await adminPress(tester, 'home-resource-edit-$id');
+      await tester.enterText(adminKey('home-resource-label'), 'Record renamed');
+      await adminPress(tester, 'home-resource-save');
+      expect(h.mutations.single.url.path, endsWith('/$id'));
+      expect(h.records.last['label'], 'Record renamed');
+      expect(h.records.first['label'], 'Record 1');
+      expect(adminKey('home-resource-admin-load-more'), findsNothing);
+      expect(adminKey('home-resource-mutation-saved'), findsOneWidget);
+    },
+  );
+
   testWidgets('member Core metadata never exposes management entry', (
     tester,
   ) async {

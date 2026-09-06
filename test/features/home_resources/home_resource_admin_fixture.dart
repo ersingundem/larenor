@@ -9,7 +9,7 @@ import '../../core/home_scope_fixture.dart' show flush;
 import 'home_resources_fixture.dart';
 
 class ResourceAdminHarness extends ResourceHarness {
-  ResourceAdminHarness() {
+  ResourceAdminHarness({super.pinStore}) {
     records.addAll(
       (fixture['adminList']['entries'] as List)
           .take(2)
@@ -119,11 +119,20 @@ class ResourceAdminHarness extends ResourceHarness {
           (a, b) =>
               (a['ref']['id'] as String).compareTo(b['ref']['id'] as String),
         );
+      final cursor = request.url.queryParameters['after'];
+      final rest = sorted
+          .where(
+            (record) =>
+                cursor == null ||
+                (record['ref']['id'] as String).compareTo(cursor) > 0,
+          )
+          .toList();
+      final page = rest.take(25).toList();
       return json({
         'scope': fixture['context'],
-        'entries': sorted,
+        'entries': page,
         'snapshot': 'a' * 64,
-        'nextAfter': null,
+        'nextAfter': rest.length > page.length ? page.last['ref']['id'] : null,
       });
     }
     return super.handle(request);

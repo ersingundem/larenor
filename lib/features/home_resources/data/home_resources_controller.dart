@@ -120,7 +120,7 @@ class HomeResourcesController extends ChangeNotifier {
   void _changed() {
     if (_disposed) return;
     // Auth refresh owns its context GET. Hide rows while it binds the candidate;
-    // never cancel that shared account operation from this read-only page.
+    // never cancel that shared account operation from this page.
     if (_preparing && (_preparationCurrent?.call() ?? false)) {
       _clear();
       _emit();

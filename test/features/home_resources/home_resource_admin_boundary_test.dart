@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
 import 'package:larenor/features/settings/providers/settings_providers.dart';
+import 'package:larenor/features/settings/data/pin_lock_store.dart';
 import 'package:larenor/core/home_source_store.dart';
 import 'package:larenor/core/window/window_policy_models.dart';
 
@@ -73,15 +74,87 @@ Future<void> lose(
   await flush(tester);
 }
 
+class FailingPinRead extends PinLockStore {
+  bool fail = false;
+  @override
+  Future<String?> read() async {
+    if (fail) throw StateError('private-pin-failure');
+    return super.read();
+  }
+}
+
 void main() {
-  testWidgets('removing PIN retires old form and opens a fresh no-PIN admin flow', (tester) async {
-    final h=ResourceAdminHarness();await openAdmin(tester,h,pin:'1234');await draft(tester);
-    final callback=held(tester,'home-resource-save');
-    await h.runtime(tester).read(pinLockProvider.notifier).clearPin();
-    callback();await flush(tester);expect(h.mutations,isEmpty);expect(find.text('Private draft'),findsNothing);
-    await draft(tester);callback();await flush(tester);expect(h.mutations,isEmpty);
-    await adminPress(tester,'home-resource-save');expect(h.mutations.length,1);
-  });
+  for (final pending in [false, true]) {
+    testWidgets(
+      'real PIN store read error rejects preframe ${pending ? 'response' : 'save'} and permits explicit recovered reload',
+      (tester) async {
+        final h = ResourceAdminHarness(pinStore: FailingPinRead());
+        // Use the exact store injected into the actual SettingsGate provider.
+        final injected = h.pinStore! as FailingPinRead;
+        await openAdmin(tester, h);
+        await draft(tester);
+        final callback = held(tester, 'home-resource-save');
+        final late = Completer<http.Response>();
+        if (pending) {
+          h.pendingMutation = late;
+          await adminPress(tester, 'home-resource-save');
+        }
+        final container = h.runtime(tester);
+        injected.fail = true;
+        container.invalidate(pinLockProvider);
+        try {
+          await container.read(pinLockProvider.future);
+        } catch (_) {}
+        expect(container.read(pinLockProvider).hasError, isTrue);
+        if (pending) {
+          late.complete(
+            h.json({
+              'error': {'code': 'unauthorized'},
+            }, 401),
+          );
+          h.pendingMutation = null;
+        } else {
+          callback();
+        }
+        await flush(tester);
+        expect(h.mutations.length, pending ? 1 : 0);
+        expect(h.account.session, isNotNull);
+        expect(find.text('Private draft'), findsNothing);
+        expect(find.text('private-pin-failure'), findsNothing);
+        injected.fail = false;
+        container.invalidate(pinLockProvider);
+        await container.read(pinLockProvider.future);
+        await flush(tester);
+        await draft(tester);
+        callback();
+        await flush(tester);
+        expect(h.mutations.length, pending ? 1 : 0);
+        await adminPress(tester, 'home-resource-save');
+        expect(h.mutations.length, pending ? 2 : 1);
+      },
+    );
+  }
+
+  testWidgets(
+    'removing PIN retires old form and opens a fresh no-PIN admin flow',
+    (tester) async {
+      final h = ResourceAdminHarness();
+      await openAdmin(tester, h, pin: '1234');
+      await draft(tester);
+      final callback = held(tester, 'home-resource-save');
+      await h.runtime(tester).read(pinLockProvider.notifier).clearPin();
+      callback();
+      await flush(tester);
+      expect(h.mutations, isEmpty);
+      expect(find.text('Private draft'), findsNothing);
+      await draft(tester);
+      callback();
+      await flush(tester);
+      expect(h.mutations, isEmpty);
+      await adminPress(tester, 'home-resource-save');
+      expect(h.mutations.length, 1);
+    },
+  );
 
   for (final boundary in ['pin-loading', 'pin-rotation', 'root-route']) {
     for (final pending in [false, true]) {
