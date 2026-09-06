@@ -9,6 +9,8 @@ import 'package:larenor/core/home_source_store.dart';
 import 'package:larenor/features/home_scope/presentation/core_home_status_screen.dart';
 import 'package:larenor/features/home_scope/presentation/home_source_screen.dart';
 import 'package:larenor/features/server/presentation/server_connection_screen.dart';
+import 'package:larenor/features/server/data/server_session_store.dart';
+import 'package:larenor/features/server/providers/server_providers.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:larenor/features/auth/presentation/connect_screen.dart';
 import 'package:larenor/features/backup/data/backup_codec.dart';
@@ -1170,6 +1172,170 @@ void main() {
         debugPrint('LARENOR_E2E_PHASE core_resource_grants.cleanup_begin');
         await app.close(tester);
         debugPrint('LARENOR_E2E_PHASE core_resource_grants.cleanup_complete');
+      }
+    },
+    timeout: const Timeout(Duration(minutes: 3)),
+  );
+
+  testWidgets(
+    'Core logout → PIN confirmation → cleared session → same-process remount → protected recovery',
+    (tester) async {
+      debugPrint('LARENOR_E2E_PHASE core_logout.begin');
+      // Reuse the existing opt-in fixture's authenticated logout. No new auth
+      // mode, endpoint, fault disposition or global counter exception is added.
+      final app = await AppHarness.start(
+        connected: true,
+        coreSource: true,
+        coreResourceGrants: true,
+      );
+      final core = app.server.coreAccount!;
+      final resourceId = core.grants!.target['id'] as String;
+      Finder key(String name) => find.byKey(ValueKey(name));
+      Future<void> press(String name) => tapVisible(tester, key(name));
+      Future<void> unlock() async {
+        await waitFor(tester, find.text('Unlock'));
+        await tester.enterText(find.byType(CupertinoTextField), AppHarness.pin);
+        await tapVisible(tester, find.text('Unlock'));
+      }
+
+      void noHomeEffects() {
+        expect(app.server.requests, 0);
+        expect(app.server.acceptedActions, isEmpty);
+        expect(app.server.rejectedLogins, 0);
+        expect(app.server.subscriptions, 0);
+        expect(app.wsClientsCreated, 0);
+        expect(core.rejectedRequests, 0);
+        expect(core.injectedAckLosses, 0);
+        expect(core.grants!.mutations, isEmpty);
+        expect(core.grants!.usersReads, 0);
+      }
+
+      try {
+        final preferences = await SharedPreferences.getInstance();
+        await preferences.reload();
+        final legacy = preferences.getString('dashboard_layout');
+        await app.mount(tester);
+        await waitFor(tester, find.byType(CoreHomeStatusScreen));
+        debugPrint('LARENOR_E2E_PHASE core_logout.mounted');
+        await tapVisible(tester, find.text('Manage Core account'));
+        await unlock();
+        await waitFor(tester, find.byType(ServerConnectionScreen));
+        await tester.enterText(key('server-url'), app.server.baseUrl);
+        await tester.enterText(
+          key('server-username'),
+          SyntheticCoreAccount.username,
+        );
+        await tester.enterText(
+          key('server-password'),
+          SyntheticCoreAccount.password,
+        );
+        await press('server-sign-in');
+        await waitFor(tester, key('home-resource-$resourceId'));
+        final stored = await SecureServerSessionStore().read();
+        expect(stored?.context?.coreId, core.coreId);
+        expect(stored?.context?.homeId, core.homeId);
+        expect(stored?.user.id, core.userId);
+        expect(core.logins, 1);
+        expect(core.contextReads, 1);
+        noHomeEffects();
+        debugPrint('LARENOR_E2E_PHASE core_logout.account_verified');
+
+        await tapVisible(tester, find.text('Manage Core account'));
+        await unlock();
+        await waitFor(tester, find.byType(ServerConnectionScreen));
+        await press('server-sign-out');
+        await waitFor(
+          tester,
+          find.widgetWithText(CupertinoDialogAction, 'Cancel'),
+        );
+        await tapVisible(
+          tester,
+          find.widgetWithText(CupertinoDialogAction, 'Cancel'),
+        );
+        expect(find.byType(ServerConnectionScreen), findsOneWidget);
+        expect(
+          (await SecureServerSessionStore().read())?.context,
+          stored!.context,
+        );
+        expect(core.currentAccessToken == stored.accessToken, isTrue);
+        debugPrint('LARENOR_E2E_PHASE core_logout.logout_cancelled');
+        await press('server-sign-out');
+        await tapVisible(
+          tester,
+          find.widgetWithText(CupertinoDialogAction, 'Sign out of Server'),
+        );
+        await waitFor(tester, find.byType(CoreHomeStatusScreen));
+        await waitFor(
+          tester,
+          find.text('Verify your Core account and home to continue.'),
+        );
+        await waitUntil(
+          tester,
+          () => core.currentAccessToken != stored.accessToken,
+        );
+        expect(await SecureServerSessionStore().read(), isNull);
+        expect(find.byType(ServerConnectionScreen), findsNothing);
+        expect(key('home-resource-$resourceId'), findsNothing);
+        await preferences.reload();
+        expect(
+          preferences.getString(SharedPreferencesHomeSourceStore.key),
+          HomeSource.verifiedCore.name,
+        );
+        expect(preferences.getString('dashboard_layout'), legacy);
+        noHomeEffects();
+        debugPrint('LARENOR_E2E_PHASE core_logout.session_removed');
+
+        final logins = core.logins,
+            meReads = core.meReads,
+            contextReads = core.contextReads;
+        debugPrint('LARENOR_E2E_PHASE core_logout.remount_begin');
+        await tester.pumpWidget(const SizedBox.shrink());
+        await tester.pump(const Duration(milliseconds: 200));
+        // Deliberately do not call start again: both fixture persistence
+        // backends and the loopback account remain the same. Not an OS restart.
+        await app.mount(tester);
+        await waitFor(tester, find.byType(CoreHomeStatusScreen));
+        await waitUntil(tester, () {
+          final container = ProviderScope.containerOf(
+            tester.element(find.byType(CoreHomeStatusScreen)),
+            listen: false,
+          );
+          final account = container.read(serverAccountControllerProvider);
+          return account.initialized && !account.working;
+        });
+        expect(await SecureServerSessionStore().read(), isNull);
+        expect(
+          find.text('Verify your Core account and home to continue.'),
+          findsWidgets,
+        );
+        expect(find.byType(ConnectScreen), findsNothing);
+        expect(find.byType(HomeDashboardScreen), findsNothing);
+        expect(key('home-resource-$resourceId'), findsNothing);
+        expect(
+          (core.logins, core.meReads, core.contextReads),
+          (logins, meReads, contextReads),
+        );
+        await preferences.reload();
+        expect(
+          preferences.getString(SharedPreferencesHomeSourceStore.key),
+          HomeSource.verifiedCore.name,
+        );
+        expect(preferences.getString('dashboard_layout'), legacy);
+        noHomeEffects();
+        debugPrint('LARENOR_E2E_PHASE core_logout.remounted_without_session');
+        await tapVisible(tester, find.text('Manage Core account'));
+        await waitFor(tester, find.text('Unlock'));
+        expect(find.byType(ServerConnectionScreen), findsNothing);
+        expect(
+          (core.logins, core.meReads, core.contextReads),
+          (logins, meReads, contextReads),
+        );
+        noHomeEffects();
+        debugPrint('LARENOR_E2E_PHASE core_logout.recovery_pin_required');
+      } finally {
+        debugPrint('LARENOR_E2E_PHASE core_logout.cleanup_begin');
+        await app.close(tester);
+        debugPrint('LARENOR_E2E_PHASE core_logout.cleanup_complete');
       }
     },
     timeout: const Timeout(Duration(minutes: 3)),
