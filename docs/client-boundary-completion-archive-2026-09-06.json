@@ -1,0 +1,120 @@
+{
+  "schemaVersion": 1,
+  "task": "S08.4",
+  "archivedFromSource": "d8112dd2ccab001e02b70b6e24fcbd5feb03ccd7",
+  "note": "S08.4 exact-source kabulünden önceki 14 kuyruk kanıtı aynen korunur; başarısız Android97 ve önceki in-progress snapshot geçmiş sonuçlardır. Yeni tamamlanma kanıtları yürütme kuyruğunda1c2db57 kaynağına bağlıdır. Önceki31 alt dilim arşivi değiştirilmedi.",
+  "evidence": [
+    {
+      "kind": "test",
+      "ref": "docs/client-boundary-evidence-archive-2026-09-06.json",
+      "commit": "4bc79dcc66eb9e3ce2a5044bd240db2fafd0d695",
+      "state": "completed",
+      "result": "passed",
+      "label": "15 önceki test alt dilim kaydı özgün commit/ref/sonuçlarıyla arşivlendi. Sayılar örtüşür; tüm S08.4 kabulü veya yeni tam test koşusu değildir."
+    },
+    {
+      "kind": "review",
+      "ref": "docs/client-boundary-evidence-archive-2026-09-06.json",
+      "commit": "4bc79dcc66eb9e3ce2a5044bd240db2fafd0d695",
+      "state": "completed",
+      "result": "passed",
+      "label": "13 önceki review alt dilim kaydı özgün commit/ref/sonuçlarıyla arşivlendi. Sayılar örtüşür; tüm S08.4 kabulü veya yeni tam test koşusu değildir."
+    },
+    {
+      "kind": "ci",
+      "ref": "https://github.com/ersingundem/larenor/actions/runs/33995289219",
+      "commit": "8c3b60dba0cf14e661a0a8d239c4ec292a761847",
+      "state": "completed",
+      "result": "passed",
+      "label": "Scoped layout/Direct HA ve HA yedek dilimleri: 2.989 Flutter, 98 JVM, 10 E2E ve bağımsız APK96; bütün S08.4 değil"
+    },
+    {
+      "kind": "ci",
+      "ref": "https://github.com/ersingundem/larenor/actions/runs/33997176965",
+      "commit": "20d92d7144998e40eb465887ef3fcac681dab39e",
+      "state": "completed",
+      "result": "failed",
+      "label": "Android97:3115Flutter/98JVM;10E2E geçti,scoped_layout eski fixture kaynak GET yanıtı eksik. Yeni core_resources yolculuğu geçti; APK üretilmedi, düzeltme yeniCI bekliyor"
+    },
+    {
+      "kind": "ci",
+      "ref": "https://github.com/ersingundem/larenor/actions/runs/34000029533",
+      "commit": "a2658ec902aea9b358e1ff0e10e093db773de238",
+      "state": "completed",
+      "result": "passed",
+      "label": "Android98:3422Flutter/98JVM/11E2E ve bağımsız Java17/apksig signedAPK kontrolü geçti; fixture düzeltmesi kabul edildi. Sonraki yerel pilotlar dahil değil."
+    },
+    {
+      "kind": "ci",
+      "ref": "https://github.com/ersingundem/larenor/actions/runs/34002121963",
+      "commit": "4bc79dcc66eb9e3ce2a5044bd240db2fafd0d695",
+      "state": "completed",
+      "result": "passed",
+      "label": "Android99:3941Flutter/98JVM/11E2E; Core2951 ve Security207 PASS. Tek tam indirmeyle Java17/apksig bağımsız APK99 doğrulandı. Kaynak4bc79dc; sonraki yerel pilotlar dahil değil."
+    },
+    {
+      "kind": "test",
+      "ref": "docs/direct-web-panel-boundary-implementation-2026-09-06.md",
+      "commit": "0a742a91004524c6471e480e61bf3a2e9ce7530e",
+      "state": "completed",
+      "result": "passed",
+      "label": "Dashboard web paneli:79 ilgili test ve bağımsız kaynak incelemesi geçti. GlobalKey/reparent ve gecikmiş native WebView girişleri Direct sahibiyle bağlandı; yeni birleşim CI henüz yok."
+    },
+    {
+      "kind": "review",
+      "ref": "docs/direct-web-panel-boundary-implementation-2026-09-06.md",
+      "commit": "0a742a91004524c6471e480e61bf3a2e9ce7530e",
+      "state": "completed",
+      "result": "passed",
+      "label": "Dashboard web paneli:79 ilgili test ve bağımsız kaynak incelemesi geçti. GlobalKey/reparent ve gecikmiş native WebView girişleri Direct sahibiyle bağlandı; yeni birleşim CI henüz yok."
+    },
+    {
+      "kind": "test",
+      "ref": "docs/keenetic-direct-boundary-implementation-2026-09-06.md",
+      "commit": "dc87062fcc606487964780d813702eaab8ab5604",
+      "state": "completed",
+      "result": "passed",
+      "label": "Keenetic Direct kayıt/bağlantı/PIN kurtarma:181 odaklı,1008 ilgili PASS;7prod784/838satır;bağımsız inceleme CLEAR. Yeni birleşim CI ayrıca gerekir."
+    },
+    {
+      "kind": "review",
+      "ref": "docs/keenetic-direct-boundary-implementation-2026-09-06.md",
+      "commit": "dc87062fcc606487964780d813702eaab8ab5604",
+      "state": "completed",
+      "result": "passed",
+      "label": "Keenetic Direct kayıt/bağlantı/PIN kurtarma:181 odaklı,1008 ilgili PASS;7prod784/838satır;bağımsız inceleme CLEAR. Yeni birleşim CI ayrıca gerekir."
+    },
+    {
+      "kind": "test",
+      "ref": "docs/keenetic-operational-boundary-implementation-2026-09-06.md",
+      "commit": "74e3f445a094be54704bb1e336185be531c340ef",
+      "state": "completed",
+      "result": "passed",
+      "label": "Keenetic Wi-Fi/devices/port-forward screens:202 odaklı,1047 ilgili PASS;4prod336/376satır;bağımsız inceleme CLEAR. Mevcut RCI batch değişmedi, canlı router işlemi yapılmadı."
+    },
+    {
+      "kind": "review",
+      "ref": "docs/keenetic-operational-boundary-implementation-2026-09-06.md",
+      "commit": "74e3f445a094be54704bb1e336185be531c340ef",
+      "state": "completed",
+      "result": "passed",
+      "label": "Keenetic Wi-Fi/devices/port-forward screens:202 odaklı,1047 ilgili PASS;4prod336/376satır;bağımsız inceleme CLEAR. Mevcut RCI batch değişmedi, canlı router işlemi yapılmadı."
+    },
+    {
+      "kind": "review",
+      "ref": "docs/client-boundary-acceptance-review-2026-09-06.md",
+      "commit": "54d81a66acc6cafb75947b9ab064dc65e1b345a6",
+      "state": "completed",
+      "result": "passed",
+      "label": "Üç kabul maddesi ve22envanter satırı kaynak/test eşlemesi temiz. Üretim8d9e4d2 için yeni birleşimin CI sonucu ayrıca gerekir; koşullu kapanış, yeni test koşusu değildir."
+    },
+    {
+      "kind": "ci",
+      "ref": "https://github.com/ersingundem/larenor/actions/runs/34004246242",
+      "commit": "1c2db575e7377e28e41bbd83aa34d4408e2029c1",
+      "state": "in_progress",
+      "result": null,
+      "label": "Yeni birleşimin CI çalışması sürüyor; başarılı sonuç veya imzalı APK kabulü henüz yok. ACL ekranı ab678df ve volume journal f9a3faa bu kaynakta değil."
+    }
+  ]
+}

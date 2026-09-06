@@ -1,13 +1,15 @@
 # Core erişim yönetimi ve kalıcı volume gözlemi — üçüncü birleşim
 
 Bu paket `1c2db575e7377e28e41bbd83aa34d4408e2029c1` / Android 100 üzerine
-hazırlanır. Android 100 bu iki dilimi içermez; kendi CI kabulü ayrıca sürer.
+hazırlanır. Android 100 bu iki dilimi içermez; kendi CI ve bağımsız APK kabulü tamamlandı. Bu sonraki paket ayrı CI gerektirir.
 Birleşik üretim/test kaynağı `5e82c0e01df751515a96e1789e2e1d12570f01a7`;
-`eeb0b30` yalnız mevcut CI takibi belgelerini birleştirir.
+`eeb0b30` yalnız mevcut CI takibi belgelerini birleştirir. Sonraki
+`d8112dd2ccab001e02b70b6e24fcbd5feb03ccd7`, dokuzuncu Android yolculuğunu ekler.
 
 | Dilim | Kaynak | Yerel kanıt | İnceleme |
 | --- | --- | --- | --- |
 | Core kaynak erişim ekranı/controller | `ab678df` (üretim `9492bdb`, son test `c63c16b`) | 52 odaklı / 371 ilgili Client, 2 actual Server fixture PASS | Root ve bağımsız karşı inceleme CLEAR |
+| Dokuzuncu Android erişim yolculuğu | `1d909b8` | 85 fixture testi, 2 actual Server sözleşme testi PASS | İki bağımsız CLEAR; cleanup P2 düzeltildi |
 | Volume gözlem journal'ı | `f9a3faa` (üretim `bd696ae`, son test `e274790`) | 54 odaklı / 273 ilgili Server PASS | Root bağımsız kaynak incelemesi CLEAR |
 
 İlgili kümeler örtüşür; sayılar toplanmaz. ACL controller 158/160, ekran
@@ -23,8 +25,19 @@ kapsamına sahiptir; bunlar proje kapsam oranı değildir.
   deprecation uyarısı var. Atlananlar Linux peer/procfs/mount/FD testleridir;
   bu kaynağın yeni Linux CI koşusu ayrıca gerekir.
 - Tam analiz **0 bulgu / 4,4 saniye**; formatter **888 dosya / 0 değişiklik**.
-- Ayrı ACL Android kullanıcı yolculuğu geliştiriliyor; mevcut metadata
-  yolculuğu erişim değiştirme kabulü olarak sayılmaz.
+- Dokuzuncu Android ACL yolculuğu `1d909b8` ile birleşti. Son değişim
+  Client/Server üretimini veya CI araçlarını değiştirmedi. Birleşimde bütün
+  integration_support **85 PASS / 5 saniye**, tam analiz **0 bulgu / 2,5
+  saniye**, formatter **894 dosya / 0 değişiklik**. 28 yeni commit için
+  redakte gizli bilgi taraması temiz.
+- Önceki 8 yolculuk/76 aşama korunur; yeni toplam 9 uygulama/89 aşama,
+  dört native ile **13 E2E hedefi**. Yeni Android CI henüz çalışmadı.
+- İlk fixture sürümünde açık kayıp ACK hatası ortak sıfır-rejection cleanup
+  kuralıyla çelişiyordu. Gerçek AppHarness.close runtime RED
+  `0d4a14f` 3 PASS/1 FAIL; typed fault disposition `0625278` ile 4 PASS.
+  Global hata sayacı sıfırlanmadı, genel 503 istisnası eklenmedi.
+- 4.353 tam Client sonucu bu son 37 fixture testini içermez; önceki tam
+  koşuyla yeni odaklı testler tek tam koşuymuş gibi toplanmaz.
 - Root gerçek TR 600 ve 1280px / 2× form PNG'lerini, confirmation generation
   ve monotonic ACL düzeltmelerini son kaynaktan ayrıca inceledi.
 
@@ -46,5 +59,6 @@ Bu paket için yeni tam CI, Android E2E, bağımsız imzalı APK ve fiziksel kab
 henüz yok. S08.6/S06.3d sayaçları bu alt dilimler nedeniyle kapatılmaz.
 
 - [Kaynak erişim ekranı kanıtı](core-home-resource-grants-ui-implementation-2026-09-06.md)
+- [Dokuzuncu Android yolculuğu](core-resource-grants-android-journey-2026-09-06.md)
 - [Volume journal kanıtı](managed-volume-journal-implementation-2026-09-06.md)
 - [Önceki birleşim](core-client-integration-2026-09-06.md)

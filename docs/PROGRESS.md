@@ -1,6 +1,6 @@
 # Larenor — güncel ilerleme ve iş kuyruğu
 
-**Son güncelleme: 6 Eylül 2026, 04:46 (Türkiye saati).**
+**Son güncelleme: 6 Eylül 2026, 05:05 (Türkiye saati).**
 
 ```text
 Önceki kapsam       █████████████░░░░░░░  ≈ %65
@@ -48,28 +48,56 @@ saatinde 03.15 sonrasında günde en fazla bir kez korunur. Bilgisayarın ve Cod
 uygulamasının açık, deponun erişilebilir olması gerekir; bu dosyanın kendisi
 bir servis değildir. Görev Codex'in zamanlanmış görevler ekranından durdurulabilir.
 
-**Kuyrukta kabul edilen işler: 7/125.** Saf kaynak planı, kalıcı journal,
+**Kuyrukta kabul edilen işler: 8/125.** Saf kaynak planı, kalıcı journal,
 imaj/journal ve ağ/journal köprüleriyle **S06.3 içinde 4/6 alt adım** kapandı. **S08.1** de
 Core/ev bağlamını tokenlarla güvenle bağlama kapsamında tam CI kabulü aldı.
 **S08.2** ilk parola/eski Server uyumluluğu da `19dbcbe` tam CI ve APK 91
 ile kabul edildi. **S08.3** ev runtime sınırı da `4b98680` tam CI ve APK 94
-ile kabul edildi. Bu işler yeni 63 özelliğin kabul sayısı değildir; o sayaç **0/63**. Ana S06
+ile kabul edildi. **S08.4** kalıcı ev kayıt sınırı da `1c2db57` tam CI ve APK100 ile kabul edildi. Bu işler yeni 63 özelliğin kabul sayısı değildir; o sayaç **0/63**. Ana S06
 sayacı **2/6** kalır; dizin, kurulum ve gerçek Engine kabulü açıktır.
 
-**Yeni birleşim GitHub'da: `1c2db57`.** [Android 100](https://github.com/ersingundem/larenor/actions/runs/34004246242),
-[Core](https://github.com/ersingundem/larenor/actions/runs/34004246308) ve
-[güvenlik](https://github.com/ersingundem/larenor/actions/runs/34004246204)
-için yeni kontroller sürüyor. Core **3.050 PASS / 0 skip**, iki mimarili
-container kontrolü/yayını ve güvenlik **207 PASS** tamamlandı; native JVM
-**98 PASS**. Android E2E ve imzalı teslim kapıları henüz açık. Yeni hedef 12 E2E; henüz başarılı sonuç veya yeni imzalı
-APK kabulü yok. Sonraki ayrı pakette ACL yönetim ekranı `ab678df` ile
-volume journal `f9a3faa` birleştirildi; tam Client **4.353 PASS / 5:29**
-verdi. Tam Core **3.094 PASS / 10 Linux skip / 8:49,37**, analiz 0 bulgu
-ve 888 dosyada biçim farkı yok. ACL Android senaryosu ve bu sonraki paketin
-kendi CI kapısı açık.
-[Üçüncü birleşim kanıtı](core-grants-volume-integration-2026-09-06.md). Bu iki yeni dilim Android 100 kaynağına dahil değildir.
+**Son tam doğrulanmış yayın `1c2db57` / APK 100.** Üç CI ilk denemede başarılı:
+Core **3.050 PASS / 0 skip**, güvenlik **207 PASS**, Flutter **4.301 PASS**,
+JVM **98 PASS**, **4 platform + 8 uygulama = 12 E2E PASS / 76 sıralı faz**.
+Tam analiz 0 bulgu; CI formatter 882 dosya, 0 fark. İmzalı APK tek tam
+indirmeyle ayrıca doğrulandı: sürüm `100000100`, kalıcı sertifika,
+minSdk26, `debuggable=false`, paket/kaynak/SHA eşleşiyor.
+[Android100](https://github.com/ersingundem/larenor/actions/runs/34004246242) ·
+[Core](https://github.com/ersingundem/larenor/actions/runs/34004246308) ·
+[Güvenlik](https://github.com/ersingundem/larenor/actions/runs/34004246204) ·
+[APK100 ve teslim kanıtı](client-delivery-100-2026-09-06.md).
+Anonim iki mimarili Core yayını doğrulandı; evde kurulum yapılmadı.
 
-**Son tam doğrulanmış yayın `4bc79dc` / APK 99.** Üç CI başarılı:
+**Sıradaki paket hazırlanıyor:** ACL yönetim ekranı `ab678df`, volume journal
+`f9a3faa` ve dokuzuncu Android yolculuğu `1d909b8` birleştirildi.
+İlk iki dilimin tam yerel koşusu **4.353 Client PASS / 5:29** ve
+**3.094 Core PASS / 10 Linux skip / 8:49,37** verdi. Son yolculuk birleşiminde
+**85 fixture testi**, tam analiz ve **894 dosyada** biçim kontrolü geçti.
+Son 37 fixture testi eski tam Client koşusuna dahil değildir; sayılar toplanmaz.
+Yeni kaynak kendi CI ve **13 E2E / 89 faz** kabulünü bekliyor.
+[Birleşim kanıtı](core-grants-volume-integration-2026-09-06.md).
+
+**S08.5 başladı:** logout'ta başarısız kalıcı silme sonrası eski oturumun geri
+kullanılması ve gecikmiş hatanın Core ana ekranında görünmemesi gideriliyor.
+Paralelde geri yükleme önizlemesi/onayı, hedef okuma kümesi ve özel journal
+aynı işleme bağlanıyor; provider kapanışında açık devir uygulanacak.
+[Somut uygulama sırası ve açık sınırlar](client-restore-logout-implementation-plan-2026-09-06.md).
+Bu işler henüz kabul edilmedi. Sonraki volume Unix okuyucusu `0d86fa1` ayrı
+pakette bekliyor; şu sıradaki yayına eklenmedi.
+
+**S08.4 kabul edildi:** üç madde ve 22 kayıt sınıfı exact `1c2db57` kaynağında
+bağımsız son inceleme + CI/APK100 ile doğrulandı.
+[İnceleme](client-boundary-acceptance-review-2026-09-06.md).
+Önceki 31 alt dilim ve kapanış öncesi 14 kanıt, başarısız Android97 dahil
+[özgün arşivde](client-boundary-evidence-archive-2026-09-06.json) ve
+[kapanış arşivinde](client-boundary-completion-archive-2026-09-06.json) korunur.
+
+## Önceki checkpoint notları
+
+Aşağıdaki sonuç ve “açık/bekliyor” ifadeleri ilgili eski kaynağın tarihsel
+snapshot'ıdır. Güncel kabul, sıradaki paket ve aktif işler yukarıda gösterilir.
+
+**Önceki tam doğrulanmış yayın `4bc79dc` / APK 99.** Üç CI başarılı:
 Core **2.951 PASS**, güvenlik **207 PASS**, Flutter **3.941 PASS**, JVM
 **98 PASS**, **4 native + 7 uygulama = 11 E2E PASS**. Analiz sıfır bulgu,
 860 dosyada sıfır biçim farkı. 65 E2E fazı sıralı tamamlandı.
