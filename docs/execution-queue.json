@@ -1150,7 +1150,9 @@
         "docs/client-restore-logout-implementation-plan-2026-09-06.md",
         "docs/core-logout-boundary-implementation-2026-09-06.md",
         "docs/core-logout-android-journey-2026-09-06.md",
-        "docs/client-delivery-102-2026-09-06.md"
+        "docs/client-delivery-102-2026-09-06.md",
+        "docs/prepared-backup-restore-implementation-2026-09-06.md",
+        "docs/server-vault-prepared-restore-implementation-2026-09-06.md"
       ],
       "scope": "Tek mevcut ev bağlamı; F19 çoklu Core/ev federasyonu bu teslim değildir.",
       "acceptance": [
@@ -1210,10 +1212,42 @@
           "state": "in_progress",
           "result": null,
           "label": "CI103 dar logout fixture onarımı; RED3PASS/1FAIL→GREEN4PASS,88ilgiliPASS veanaliz0. Eski9/89 korunur, hedef14E2E/99faz. Kendi imzalıAPK kabulü bekleniyor."
+        },
+        {
+          "kind": "test",
+          "ref": "docs/prepared-backup-restore-implementation-2026-09-06.md",
+          "commit": "4667456fe32ef1ee0eac15b1ceb55138df767fa8",
+          "state": "completed",
+          "result": "passed",
+          "label": "Prepared dosya restore:376ilgiliPASS,25dosyaanaliz0/format0, transaction%88.91; rootfinalCLEAR. Privatejournalv2 aynısource/session/HAprefix ve tekintent ile recovery yapar. Corelayoutarchive ve birleşiktamtest/CI açık."
+        },
+        {
+          "kind": "review",
+          "ref": "docs/prepared-backup-restore-implementation-2026-09-06.md",
+          "commit": "4667456fe32ef1ee0eac15b1ceb55138df767fa8",
+          "state": "completed",
+          "result": "passed",
+          "label": "Prepared dosya restore:376ilgiliPASS,25dosyaanaliz0/format0, transaction%88.91; rootfinalCLEAR. Privatejournalv2 aynısource/session/HAprefix ve tekintent ile recovery yapar. Corelayoutarchive ve birleşiktamtest/CI açık."
+        },
+        {
+          "kind": "test",
+          "ref": "docs/server-vault-prepared-restore-implementation-2026-09-06.md",
+          "commit": "79f313b18693b52ee1cdb42b7b03b7a670df0944",
+          "state": "completed",
+          "result": "passed",
+          "label": "Vault preparedhandoff:387ilgiliPASS,analiz0, linecoverage%97.51; rootreviewCLEAR. Ortak hedef/hesap/vaultrevision vegeç401/TTL sınırı. Son modal erişilebilirlik takibi ayrıdevam."
+        },
+        {
+          "kind": "review",
+          "ref": "docs/server-vault-prepared-restore-implementation-2026-09-06.md",
+          "commit": "79f313b18693b52ee1cdb42b7b03b7a670df0944",
+          "state": "completed",
+          "result": "passed",
+          "label": "Vault preparedhandoff:387ilgiliPASS,analiz0, linecoverage%97.51; rootreviewCLEAR. Ortak hedef/hesap/vaultrevision vegeç401/TTL sınırı. Son modal erişilebilirlik takibi ayrıdevam."
         }
       ],
       "completionCommit": null,
-      "reason": "Logout 2911ac9 yerel 25/1547 test ve root incelemesiyle geçti; onuncu Android yolculuğu 0bf1258 sonraki pakete birleşti, 87 fixture PASS. Restore prepared/scope handoff/journalv2 ve Direct HA origin bağları ayrı dalda uygulanıyor; dosya ve ServerVault üretim yolları birlikte kabul edilmeli. Bütün S08.5 ve kendi CI kabulü açık. CI102 E2E fixture kimlik okumasında mount öncesi başarısız; dar host regresyonuyla onarım sürüyor. Önceki yerel testler bu Android hatasını yakalamamıştı."
+      "reason": "Logout 2911ac9 yerel 25/1547 test ve root incelemesiyle geçti; onuncu Android yolculuğu 0bf1258 sonraki pakete birleşti, 87 fixture PASS. Restore prepared/scope handoff/journalv2 ve Direct HA origin bağları ayrı dalda uygulanıyor; dosya ve ServerVault üretim yolları birlikte kabul edilmeli. Bütün S08.5 ve kendi CI kabulü açık. CI102 E2E fixture kimlik okumasında mount öncesi başarısız; dar host regresyonuyla onarım sürüyor. Önceki yerel testler bu Android hatasını yakalamamıştı. Prepared4667456 veVault79f313b yerelde ortak motorla birleşti; rawrestore için uygulama içi tüketici kalmadı. Tarihsel before-onlyjournal mevcutveri farklıysa korunur. Son birleşik tamtest, Corelayout arşivi ve kendiCI kabulü açık."
     },
     {
       "id": "S08.6",
@@ -1239,7 +1273,8 @@
         "docs/core-home-resource-grants-ui-implementation-2026-09-06.md",
         "docs/core-resource-grants-android-journey-2026-09-06.md",
         "docs/home-identity-remaining-slices-2026-09-06.md",
-        "docs/home-people-contract-implementation-2026-09-06.md"
+        "docs/home-people-contract-implementation-2026-09-06.md",
+        "docs/home-people-registry-implementation-2026-09-06.md"
       ],
       "scope": "Tek mevcut ev bağlamı; F19 çoklu Core/ev federasyonu bu teslim değildir.",
       "acceptance": [
@@ -1458,10 +1493,26 @@
           "state": "completed",
           "result": "passed",
           "label": "Ayrı person veri sözleşmesi: 46 yeni / 92 ilgili PASS, 43 statement/2 branch yüzde100, exact316332b bağımsız CLEAR. Eski room/resource modeli değişmedi. HTTP/persistence/Android kişi akışı henüz yok; bu dilim CI102 kaynağına dahil değil."
+        },
+        {
+          "kind": "test",
+          "ref": "docs/home-people-registry-implementation-2026-09-06.md",
+          "commit": "7588ff06b76550d0c95933c93c5e916d743ed1c7",
+          "state": "completed",
+          "result": "passed",
+          "label": "Ayrı kişi API/şifreliSQLite:104ilgiliPASS, dal dahil%89; actualauth/ACL/revision/restart/migration/noop/quota testleri. BağlıSQLiteindex/trigger RED6FAIL→GREEN7, bağımsızdeltaCLEAR. TamServer/Androidkişiekranı/kendiCI açık."
+        },
+        {
+          "kind": "review",
+          "ref": "docs/home-people-registry-implementation-2026-09-06.md",
+          "commit": "7588ff06b76550d0c95933c93c5e916d743ed1c7",
+          "state": "completed",
+          "result": "passed",
+          "label": "Ayrı kişi API/şifreliSQLite:104ilgiliPASS, dal dahil%89; actualauth/ACL/revision/restart/migration/noop/quota testleri. BağlıSQLiteindex/trigger RED6FAIL→GREEN7, bağımsızdeltaCLEAR. TamServer/Androidkişiekranı/kendiCI açık."
         }
       ],
       "completionCommit": null,
-      "reason": "Metadata/ACL ekranları exact a27/APK101 ile kabul edildi. Ayrı hane kişi modeli 46/92 test ve bağımsız kaynak incelemesiyle yerelde geçti; ayrı HTTP/auth/şifreli persistence ve Android akışı açık. Bütün S08.6 kabulü değil."
+      "reason": "Metadata/ACL ekranları exact a27/APK101 ile kabul edildi. Ayrı hane kişi modeli 46/92 test ve bağımsız kaynak incelemesiyle yerelde geçti; ayrı HTTP/auth/şifreli persistence ve Android akışı açık. Bütün S08.6 kabulü değil. Person ayrıAPI/şifreliSQLite7588ff0 yerelde hazır;104ilgiliPASS ve şema incelemebulgusu kapalı. Androidkişi ekranı ve yeni Server kaynağının tamCI kabulü açık."
     },
     {
       "id": "S08.7",
