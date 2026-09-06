@@ -9,6 +9,9 @@ import '../../wellbeing/data/wellbeing_store.dart';
 import '../../wellbeing/data/wellbeing_disclosure_policy.dart';
 import 'backup_snapshot.dart';
 import 'backup_storage.dart';
+import 'backup_restore_access.dart';
+
+part 'backup_restore_transaction.dart';
 
 class BackupRepository {
   BackupRepository({BackupStorage? storage, DateTime Function()? now})
@@ -20,6 +23,13 @@ class BackupRepository {
   static const _dashboardKey = 'dashboard_layout';
   static const _migrationKey = 'enabled_services_migrated';
   static const _maxJournalBytes = 8 * 1024 * 1024;
+
+  Future<PreparedBackupRestore> prepareRestore(
+    BackupSnapshot snapshot,
+    BackupSelection selection, {
+    required BackupConflictPolicy conflictPolicy,
+    required BackupRestoreAccess access,
+  }) async => throw const BackupException('restore_unavailable', 'Restore is unavailable.');
 
   Future<BackupSnapshot> capture(BackupSelection selection) =>
       ConfigurationWrites.run(() async {
