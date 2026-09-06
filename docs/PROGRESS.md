@@ -1,6 +1,6 @@
 # Larenor — güncel ilerleme ve iş kuyruğu
 
-**Son güncelleme: 6 Eylül 2026, 09:00 (Türkiye saati).**
+**Son güncelleme: 6 Eylül 2026, 09:05 (Türkiye saati).**
 
 ```text
 Önceki kapsam       █████████████░░░░░░░  ≈ %65
@@ -68,8 +68,8 @@ anonim doğrulandı. [APK104, CI ve teslim kanıtı](client-delivery-104-2026-09
 | --- | --- |
 | Çıkış / yeniden açılış onarımı | APK104 ve14 E2E ile doğrulandı |
 | S08.5 — hazırlanmış restore ve Core oda arşivi | Model/şifreleme/controller ve tablet ekranı birleşti; arşiv Android testi hazır, birleşik test/CI açık |
-| S08.6 — kişi ve izin yönetimi | Server, controller ve PIN korumalı tablet ekranı birleşti; üye Android testi hazır, admin/ACL yolculuğu hazırlanıyor |
-| Sonraki birleşim yayını | Yeni ekranlarla tam Client: 5.014 PASS /4 FAIL; dört büyük yazı logout testinde dokunma öncesi çizim beklemesi inceleniyor. Onarım, tekrar ve kendi CI/APK kabulü açık |
+| S08.6 — kişi ve izin yönetimi | Server ve tablet ekranları birleşti; üye ve yönetici/ACL Android senaryoları hazır, kendi CI kabulü açık |
+| Sonraki birleşim yayını | İlk tam koşu5.014 PASS/4 FAIL; dar onarım9 PASS. `bd9d425` yeni tam Client koşusu sürüyor; analiz0,966 dosya biçim farkı0. Sonraki kapı kendi CI/APK yayını |
 
 Yeni kişi/arşiv ekranları APK104'e dahil değildir. S08.5/S08.6 ve yeni63
 özellik bu yayınla tamamlandı sayılmaz; fiziksel tablet kabulü de açıktır.

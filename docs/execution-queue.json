@@ -1338,10 +1338,26 @@
           "state": "completed",
           "result": "passed",
           "label": "Şifreli arşiv Androidyolculuğu hazır;10 yeni/101hostdestekPASS,analyze6/0,format6/0. Gerçekdikeysayfascroller RED→GREEN, bağımsızCLEAR;nativeAndroidhenüzçalışmadı. Eski10/99fazaynı;12yenifaz."
+        },
+        {
+          "kind": "test",
+          "ref": "docs/core-logout-recovery-scroll-2026-09-06.md",
+          "commit": "7a0a602c281a4c9f84b3830ddf66cc75b73de4e4",
+          "state": "completed",
+          "result": "passed",
+          "label": "Birleşik tam Client5014PASS/4FAIL korundu. Dar logout scroll frame onarımı: eski9test5PASS/4FAIL→9PASS; hitTestable ve PIN beklentileri korunur, analiz0, bağımsız CLEAR."
+        },
+        {
+          "kind": "review",
+          "ref": "docs/core-logout-recovery-scroll-2026-09-06.md",
+          "commit": "7a0a602c281a4c9f84b3830ddf66cc75b73de4e4",
+          "state": "completed",
+          "result": "passed",
+          "label": "Birleşik tam Client5014PASS/4FAIL korundu. Dar logout scroll frame onarımı: eski9test5PASS/4FAIL→9PASS; hitTestable ve PIN beklentileri korunur, analiz0, bağımsız CLEAR."
         }
       ],
       "completionCommit": null,
-      "reason": "Prepared dosya/Vault ve Core arşivi gerçek tablet ekranı yerelde birleşti; arşiv61yeni/410ilgiliPASS+review. Yeni arşivAndroidyolculuğu12faz hazır, nativeçalıştırılmadı. Logout APK104 geçti; yeni bütünrestore paketinin tamClient/CI/APK kabulü açık."
+      "reason": "Prepared dosya/Vault ve Core arşivi gerçek tablet ekranları birleşti. İlk tamClient5014PASS/4FAIL sonrası dar test onarımı9PASS; bd9d425 son tamClient sürüyor. Üç yeni Android senaryosu dahil hedef17 E2E/133faz henüz çalıştırılmadı; kendiCI/APK kabulü açık."
     },
     {
       "id": "S08.6",
@@ -1375,7 +1391,8 @@
         "docs/home-people-ui-implementation-2026-09-06.md",
         "docs/core-people-read-fixture-2026-09-06.md",
         "docs/core-people-android-journey-2026-09-06.md",
-        "docs/prepared-vault-household-integration-2026-09-06.md"
+        "docs/prepared-vault-household-integration-2026-09-06.md",
+        "docs/core-people-admin-android-journey-2026-09-06.md"
       ],
       "scope": "Tek mevcut ev bağlamı; F19 çoklu Core/ev federasyonu bu teslim değildir.",
       "acceptance": [
@@ -1530,10 +1547,26 @@
           "state": "completed",
           "result": "passed",
           "label": "Yeni gerçek HTTP sözleşmesi dahil tamServer3300 PASS/0FAIL/11Linuxskip;JUnit3311/439.183sn. Server/contracts tree sonrakiUI birleşimlerinde aynı; kendiLinuxCI veAndroid kabulü ayrı."
+        },
+        {
+          "kind": "test",
+          "ref": "docs/core-people-admin-android-journey-2026-09-06.md",
+          "commit": "2c2896b7334c185da19182e8aba440cf5ec23870",
+          "state": "completed",
+          "result": "passed",
+          "label": "Kişi admin/ACL Android fixture ve gerçekUI yolculuğu:38yeni/151ilgili hostPASS, analiz7/0,format7/0; bağımsız CLEAR. Eski default/member/AppHarness/11journey/107faz aynı; yeni14faz nativeçalıştırılmadı."
+        },
+        {
+          "kind": "review",
+          "ref": "docs/core-people-admin-android-journey-2026-09-06.md",
+          "commit": "2c2896b7334c185da19182e8aba440cf5ec23870",
+          "state": "completed",
+          "result": "passed",
+          "label": "Kişi admin/ACL Android fixture ve gerçekUI yolculuğu:38yeni/151ilgili hostPASS, analiz7/0,format7/0; bağımsız CLEAR. Eski default/member/AppHarness/11journey/107faz aynı; yeni14faz nativeçalıştırılmadı."
         }
       ],
       "completionCommit": null,
-      "reason": "Kişi Server/API/model/controller ve gerçek PIN korumalı tablet ekranları yerelde birleşti:55yeni/608ilgili UI PASS+review. Üye Android yolculuğu hazır, çalıştırılmadı; kişiadmin/ACL native akışı ayrı hazırlanıyor. Yeni birleşik test/CI/APK ve S08.6 kabulü açık."
+      "reason": "Kişi Server/API/controller ve tablet UI ile üye/admin Android senaryoları birleşti. Admin38yeni/151ilgili hostPASS ve bağımsızCLEAR; son birleşikClient bd9d425 sürüyor. Yeni17E2E/133faz hedefi henüzkoşmadı; kendiCI/APK kabulü açık."
     },
     {
       "id": "S08.7",
