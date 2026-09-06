@@ -1156,7 +1156,9 @@
         "docs/core-layout-archive-contract-2026-09-06.md",
         "docs/core-layout-archive-codec-implementation-2026-09-06.md",
         "docs/core-layout-archive-controller-implementation-2026-09-06.md",
-        "docs/client-delivery-104-2026-09-06.md"
+        "docs/client-delivery-104-2026-09-06.md",
+        "docs/core-layout-archive-ui-implementation-2026-09-06.md",
+        "docs/core-archive-android-journey-2026-09-06.md"
       ],
       "scope": "Tek mevcut ev bağlamı; F19 çoklu Core/ev federasyonu bu teslim değildir.",
       "acceptance": [
@@ -1304,10 +1306,42 @@
           "state": "completed",
           "result": "passed",
           "label": "Core archive capture/preview/restore:35 yeni/159 ilgili PASS,64/64 satır, analiz0, bağımsızCLEAR. Aynıscope/CAS/readback ve tekuse expiry düzeltildi. Gerçek ekran bağı devam."
+        },
+        {
+          "kind": "test",
+          "ref": "docs/core-layout-archive-ui-implementation-2026-09-06.md",
+          "commit": "523a07fc25c41ee30efe5d9043c26786fa0e9f34",
+          "state": "completed",
+          "result": "passed",
+          "label": "Core arşivi gerçek PIN/form/dosya/preview/onayUI:61 yeni/410 ilgiliPASS,%97.60satır,12analyze/format0. Saveerror/viewreparent/retainedBack runtimeRED→GREEN; bağımsızkaynak+EN/TR tabletPNG CLEAR."
+        },
+        {
+          "kind": "review",
+          "ref": "docs/core-layout-archive-ui-implementation-2026-09-06.md",
+          "commit": "523a07fc25c41ee30efe5d9043c26786fa0e9f34",
+          "state": "completed",
+          "result": "passed",
+          "label": "Core arşivi gerçek PIN/form/dosya/preview/onayUI:61 yeni/410 ilgiliPASS,%97.60satır,12analyze/format0. Saveerror/viewreparent/retainedBack runtimeRED→GREEN; bağımsızkaynak+EN/TR tabletPNG CLEAR."
+        },
+        {
+          "kind": "test",
+          "ref": "docs/core-archive-android-journey-2026-09-06.md",
+          "commit": "56607c683eec3a9a9f67c69bfda1776ea53ab46d",
+          "state": "completed",
+          "result": "passed",
+          "label": "Şifreli arşiv Androidyolculuğu hazır;10 yeni/101hostdestekPASS,analyze6/0,format6/0. Gerçekdikeysayfascroller RED→GREEN, bağımsızCLEAR;nativeAndroidhenüzçalışmadı. Eski10/99fazaynı;12yenifaz."
+        },
+        {
+          "kind": "review",
+          "ref": "docs/core-archive-android-journey-2026-09-06.md",
+          "commit": "56607c683eec3a9a9f67c69bfda1776ea53ab46d",
+          "state": "completed",
+          "result": "passed",
+          "label": "Şifreli arşiv Androidyolculuğu hazır;10 yeni/101hostdestekPASS,analyze6/0,format6/0. Gerçekdikeysayfascroller RED→GREEN, bağımsızCLEAR;nativeAndroidhenüzçalışmadı. Eski10/99fazaynı;12yenifaz."
         }
       ],
       "completionCommit": null,
-      "reason": "Prepared dosya ve Core kasası geri yükleme yerelde birleşti. Core oda arşivi model/şifreleme/tek kullanımlık restore geçti; gerçek tablet ekranı ve yeni birleşik CI açık. Logout alt dilimi exact64b/APK104 ile doğrulandı; S08.5 bütünü kabul edilmedi."
+      "reason": "Prepared dosya/Vault ve Core arşivi gerçek tablet ekranı yerelde birleşti; arşiv61yeni/410ilgiliPASS+review. Yeni arşivAndroidyolculuğu12faz hazır, nativeçalıştırılmadı. Logout APK104 geçti; yeni bütünrestore paketinin tamClient/CI/APK kabulü açık."
     },
     {
       "id": "S08.6",

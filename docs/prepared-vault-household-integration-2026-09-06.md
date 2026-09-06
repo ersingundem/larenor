@@ -107,3 +107,23 @@ makbuz `/private/tmp/larenor-archive-people-expanded-full-server-evidence.json`.
 Doğru `server/` dizininden import yolu önceden doğrulandı; Java17 ve sabit
 apksig ile gerçek APK doğrulama testleri de çalıştı. Linux'a özgü11skip yerelde
 korunur; bu paketin kendi Linux CI ve yeni Client/Android kabulü henüz yok.
+
+## Gerçek tablet ekranları ve Android senaryoları birleşti
+
+`b57d534`, kişi UI`eed3916` +üye journey`754d87e` ve arşiv UI`523a07f`
++arşiv journey`56607c6` içerir. Kişi55 yeni/608 ilgili, arşiv61 yeni/410
+ilgili test geçti; bu alt kümeler toplanmaz. İki UI'deki actual PIN, form,
+onay, source/account/window/route sınırları ve2×tablet görselleri bağımsız
+incelendi. ARB birleşiminde tüm eski anahtar/değerler korunur; people40 ve
+archive25 anahtar çakışmasız birleşti. SettingsGate'in iki ayrı dalı ile
+model/codec/controller/Backup/ConfigurationScope korunumu ayrıca CLEAR.
+
+Üye ve arşiv Android senaryoları eski on gövdeyi,99fazı ve timeout/assertion'ları
+byte-identical korur.8+12 yeni fazla hedef119faz/4platform+12app yolculuktur.
+Arşiv dosyası yalnız ciphertext memory adapter ile seçilir; gerçek OS picker,
+focus sonrası PIN reauth veya fiziksel disk kabulü değildir. Bu native
+senaryolar henüz çalıştırılmadı. Kişi admin/ACL senaryosu ayrıca hazırlanıyor.
+
+UI birleşimi `11ff916` sırasında tam analiz0 ve955dosya biçim farkı0 alındı;
+sonraki native yardımcı dosyaları bu ara kontrolün dışında tutulur. Son tüm
+Client koşusu ve aynı kaynakta GitHub CI/APK yayımlama kapısı sıradadır.

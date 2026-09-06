@@ -67,7 +67,7 @@ anonim doğrulandı. [APK104, CI ve teslim kanıtı](client-delivery-104-2026-09
 | Şimdiki sıra | Durum ve kalan kapı |
 | --- | --- |
 | Çıkış / yeniden açılış onarımı | APK104 ve14 E2E ile doğrulandı |
-| S08.5 — hazırlanmış restore ve Core oda arşivi | Model/şifreleme/controller birleşti; gerçek ekran, tablet ve native yolculuk doğrulaması sürüyor |
+| S08.5 — hazırlanmış restore ve Core oda arşivi | Model/şifreleme/controller ve tablet ekranı birleşti; arşiv Android testi hazır, birleşik test/CI açık |
 | S08.6 — kişi ve izin yönetimi | Server, controller ve PIN korumalı tablet ekranı birleşti; üye Android testi hazır, admin/ACL yolculuğu hazırlanıyor |
 | Sonraki birleşim yayını | Yerel4.870 PASS mevcut; yeni ekranlar eklendikten sonra tam test ve kendi CI/APK kabulü gerekli |
 
@@ -119,7 +119,13 @@ analiz0 ve912dosya biçim farkı0 elde edildi. Politika testleri kontrollü
 tam tekrarda207 PASS verdi. [Birleşim ve bütün sonuçlar](prepared-vault-household-integration-2026-09-06.md). Core oda arşivinin model/şifreleme/tek kullanımlık restore katmanları yerelde
 birleşti: codec55 yeni/168 ilgili, controller35 yeni/159 ilgili test geçti.
 Aynı Core/ev/kullanıcı ve güncel hedef sınırı bağımsız incelendi. Gerçek dosya
-seçimi, önizleme/onay ve tablet ekranı sıradaki aktif dilimdir.
+seçimi/önizleme/onay tablet ekranı523a07f ile birleşti: **61 yeni/410 ilgili
+PASS**, yeni satır kapsamı%97,60, analiz/format12dosyada0; kaynak ve EN/TR
+büyük yazı görselleri ayrıca incelendi. [Arşiv ekranı](core-layout-archive-ui-implementation-2026-09-06.md).
+Arşiv Android yolculuğu56607c6 da birleşti:101 host destek testi geçti;
+bunlar native kabul sayılmaz. Eski10gövde/99faz +üye8 +arşiv12 =119 faz,
+hedef4platform+12uygulama yolculuğudur. Kişi admin akışı eklenirken son
+birleşik test/CI hazırlanıyor; bütün S08.5 kabulü açık.
 
 **S08.6 kişi sözleşmesi yerelde hazır:** ayrı `person` modeli46 yeni/92 ilgili
 Server testi ve bağımsız kaynak incelemesiyle geçti. Eski oda/kaynak modeli
