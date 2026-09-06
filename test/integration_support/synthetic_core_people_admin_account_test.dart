@@ -42,11 +42,12 @@ void main() {
       method,
       Uri.parse('${host.baseUrl}/api/v1$path'),
     );
-    if (!noToken)
+    if (!noToken) {
       request.headers.set(
         'authorization',
         'Bearer ${token ?? core.currentAccessToken}',
       );
+    }
     if (body != null || raw != null) {
       request.headers.set('content-type', contentType);
       final bytes = utf8.encode(raw ?? jsonEncode(body));
@@ -224,7 +225,7 @@ void main() {
     await step('updatePerson');
     expect(
       (await send(
-        acl() + '/${fixture['subjectId']}',
+        '${acl()}/${fixture['subjectId']}',
         method: 'PUT',
         body: fixture['grantRead']['body'],
       )).$1,
@@ -352,14 +353,20 @@ void main() {
 
   Future<void> changeAuthority(String mode) async {
     switch (mode) {
-      case 'login': await login();
-      case 'retire': core.retireSession();
-      case 'role': core.role = 'member';
-      case 'core': core.coreId = 'c' * 32;
-      case 'home': core.homeId = 'c' * 32;
+      case 'login':
+        await login();
+      case 'retire':
+        core.retireSession();
+      case 'role':
+        core.role = 'member';
+      case 'core':
+        core.coreId = 'c' * 32;
+      case 'home':
+        core.homeId = 'c' * 32;
     }
   }
-  int deniedStatus(String mode) => switch(mode) {
+
+  int deniedStatus(String mode) => switch (mode) {
     'login' || 'retire' => 401,
     'role' => 403,
     _ => 404,
@@ -368,13 +375,15 @@ void main() {
     test('streaming body authority $mode changes before effect', () async {
       await login();
       core.bodyStarted = Completer<void>();
-      final call = await client.postUrl(Uri.parse('${host.baseUrl}/api/v1${admin()}'));
+      final call = await client.postUrl(
+        Uri.parse('${host.baseUrl}/api/v1${admin()}'),
+      );
       call.headers.set('authorization', 'Bearer ${core.currentAccessToken}');
       call.headers.contentType = ContentType.json;
       call.bufferOutput = false;
       call.write('{');
       await call.flush();
-      await core.bodyStarted!.future.timeout(const Duration(seconds:3));
+      await core.bodyStarted!.future.timeout(const Duration(seconds: 3));
       await changeAuthority(mode);
       call.write('"label":"late","order":0}');
       final response = await call.close();
@@ -386,75 +395,183 @@ void main() {
     });
   }
   for (final mode in ['login', 'retire', 'role', 'core']) {
-    test('delayed ACK authority $mode changes after exactly one effect', () async {
+    test(
+      'delayed ACK authority $mode changes after exactly one effect',
+      () async {
+        await login();
+        final gate = core.replyGate = Completer<void>();
+        final pending = send(
+          admin(),
+          method: 'POST',
+          body: fixture['createPerson']['body'],
+        );
+        for (var i = 0; core.mutations.isEmpty && i < 100; i++) {
+          await Future<void>.delayed(const Duration(milliseconds: 5));
+        }
+        expect(core.mutations, ['POST']);
+        await changeAuthority(mode);
+        gate.complete();
+        expect((await pending).$1, deniedStatus(mode));
+        expect(core.records, hasLength(1));
+        expect(core.mutations, ['POST']);
+        expect(core.rejectedRequests, 1);
+      },
+    );
+  }
+  test(
+    'closed grants, delete, content-type and duplicate authorization gates',
+    () async {
+      await login();
+      expect(
+        (await send(
+          admin(),
+          method: 'POST',
+          body: fixture['createPerson']['body'],
+          contentType: 'text/plain',
+        )).$1,
+        400,
+      );
+      expect((await send(base(), noToken: true)).$1, 401);
+      final call = await client.getUrl(
+        Uri.parse('${host.baseUrl}/api/v1${base()}'),
+      );
+      call.headers.add('authorization', 'Bearer ${core.currentAccessToken}');
+      call.headers.add('authorization', 'Bearer ${core.currentAccessToken}');
+      final duplicate = await call.close();
+      await duplicate.drain<void>();
+      expect(duplicate.statusCode, 401);
+      await create();
+      for (final body in [
+        {
+          'expectedAclRevision': true,
+          'permissions': {'read': true, 'write': false},
+        },
+        {
+          'expectedAclRevision': 1,
+          'permissions': {'read': false, 'write': true},
+        },
+        {
+          'expectedAclRevision': 1,
+          'permissions': {'read': true, 'write': false, 'admin': true},
+        },
+        {
+          'expectedAclRevision': 1,
+          'permissions': {'read': 'true', 'write': false},
+        },
+      ]) {
+        expect(
+          (await send(
+            '${acl()}/${core.subjectId}',
+            method: 'PUT',
+            body: body,
+          )).$1,
+          400,
+        );
+      }
+      expect(
+        (await send(
+          '${acl()}/${'a' * 32}',
+          method: 'PUT',
+          body: fixture['grantRead']['body'],
+        )).$1,
+        404,
+      );
+      expect((await send('${base()}/${core.firstId}%0A')).$1, 404);
+      expect(
+        (await send(
+          '${record()}?expectedRevision=1&expectedAclRevision=1&extra=1',
+          method: 'DELETE',
+        )).$1,
+        400,
+      );
+      expect(
+        (await send(
+          '${record()}?expectedRevision=1&expectedAclRevision=2',
+          method: 'DELETE',
+        )).$1,
+        409,
+      );
+      expect(core.records.single['revision'], 1);
+      expect(core.records.single['aclRevision'], 1);
+      expect(core.mutations, ['POST']);
+    },
+  );
+  test('snapshot pagination is consistent and returned records cannot mutate fixture', () async {
+    await login();
+    await create();
+    await step('createUnicode');
+    final page = await send('${base()}?limit=1');
+    expect(page.$1, 200);
+    expect(page.$2!['entries'], hasLength(1));
+    expect(page.$2!['nextAfter'], core.firstId);
+    final snapshot = page.$2!['snapshot'];
+    final next = await send(
+      '${base()}?limit=1&after=${core.firstId}&expectedSnapshot=$snapshot',
+    );
+    expect(next.$1, 200);
+    expect(next.$2!['entries'].single['ref']['id'], '2' * 32);
+    expect(next.$2!['nextAfter'], isNull);
+    final copy = core.records;
+    copy.first['ref']['id'] = '9' * 32;
+    copy.first['label'] = 'Tampered';
+    expect(core.records.first['ref']['id'], core.firstId);
+    expect(core.records.first['label'], 'Deniz Öztürk');
+    expect(() => copy.add({}), throwsUnsupportedError);
+    expect(() => core.mutations.add('PUT'), throwsUnsupportedError);
+    await step('grantRead');
+    expect(
+      (await send('${base()}?after=${core.firstId}&expectedSnapshot=$snapshot'))
+          .$1,
+      409,
+    );
+    expect(core.mutations, ['POST', 'POST', 'PUT']);
+  });
+  test(
+    'ordinary delayed-ACK timeout remains a rejected request with one effect',
+    () async {
       await login();
       final gate = core.replyGate = Completer<void>();
-      final pending = send(admin(), method:'POST', body: fixture['createPerson']['body']);
-      for(var i=0;core.mutations.isEmpty&&i<100;i++) {
-        await Future<void>.delayed(const Duration(milliseconds:5));
+      final response = await send(
+        admin(),
+        method: 'POST',
+        body: fixture['createPerson']['body'],
+      );
+      gate.complete();
+      expect(response.$1, 503);
+      expect(response.$2, {
+        'error': {'code': 'service_unavailable'},
+      });
+      expect(core.rejectedRequests, 1);
+      expect(core.injectedAckLosses, 0);
+      expect(core.mutations, ['POST']);
+    },
+  );
+  test(
+    'closed client before ACK never replays metadata or escapes server cleanup',
+    () async {
+      await login();
+      final gate = core.replyGate = Completer<void>();
+      final pending = send(
+        admin(),
+        method: 'POST',
+        body: fixture['createPerson']['body'],
+      );
+      final failed = expectLater(
+        pending,
+        throwsA(anyOf(isA<HttpException>(), isA<SocketException>())),
+      );
+      for (var i = 0; core.mutations.isEmpty && i < 100; i++) {
+        await Future<void>.delayed(const Duration(milliseconds: 5));
       }
       expect(core.mutations, ['POST']);
-      await changeAuthority(mode);
+      client.close(force: true);
+      await failed;
       gate.complete();
-      expect((await pending).$1,deniedStatus(mode));
-      expect(core.records,hasLength(1));
-      expect(core.mutations,['POST']);
-      expect(core.rejectedRequests,1);
-    });
-  }
-  test('closed grants, delete, content-type and duplicate authorization gates', () async {
-    await login();
-    expect((await send(admin(),method:'POST',body:fixture['createPerson']['body'],contentType:'text/plain')).$1,400);
-    expect((await send(base(),noToken:true)).$1,401);
-    final call=await client.getUrl(Uri.parse('${host.baseUrl}/api/v1${base()}'));
-    call.headers.add('authorization','Bearer ${core.currentAccessToken}');
-    call.headers.add('authorization','Bearer ${core.currentAccessToken}');
-    final duplicate=await call.close();await duplicate.drain<void>();expect(duplicate.statusCode,401);
-    await create();
-    for(final body in [
-      {'expectedAclRevision':true,'permissions':{'read':true,'write':false}},
-      {'expectedAclRevision':1,'permissions':{'read':false,'write':true}},
-      {'expectedAclRevision':1,'permissions':{'read':true,'write':false,'admin':true}},
-      {'expectedAclRevision':1,'permissions':{'read':'true','write':false}},
-    ]) {
-      expect((await send('${acl()}/${core.subjectId}',method:'PUT',body:body)).$1,400);
-    }
-    expect((await send('${acl()}/${'a'*32}',method:'PUT',body:fixture['grantRead']['body'])).$1,404);
-    expect((await send('${base()}/${core.firstId}%0A')).$1,404);
-    expect((await send('${record()}?expectedRevision=1&expectedAclRevision=1&extra=1',method:'DELETE')).$1,400);
-    expect((await send('${record()}?expectedRevision=1&expectedAclRevision=2',method:'DELETE')).$1,409);
-    expect(core.records.single['revision'],1);expect(core.records.single['aclRevision'],1);
-    expect(core.mutations,['POST']);
-  });
-  test('snapshot pagination is consistent and returned records cannot mutate fixture',()async{
-    await login();await create();await step('createUnicode');
-    final page=await send('${base()}?limit=1');
-    expect(page.$1,200);expect(page.$2!['entries'],hasLength(1));expect(page.$2!['nextAfter'],core.firstId);
-    final snapshot=page.$2!['snapshot'];
-    final next=await send('${base()}?limit=1&after=${core.firstId}&expectedSnapshot=$snapshot');
-    expect(next.$1,200);expect(next.$2!['entries'].single['ref']['id'],'2'*32);expect(next.$2!['nextAfter'],isNull);
-    final copy=core.records;copy.first['ref']['id']='9'*32;copy.first['label']='Tampered';
-    expect(core.records.first['ref']['id'],core.firstId);expect(core.records.first['label'],'Deniz Öztürk');
-    expect(()=>copy.add({}),throwsUnsupportedError);expect(()=>core.mutations.add('PUT'),throwsUnsupportedError);
-    await step('grantRead');
-    expect((await send('${base()}?after=${core.firstId}&expectedSnapshot=$snapshot')).$1,409);
-    expect(core.mutations,['POST','POST','PUT']);
-  });
-  test('ordinary delayed-ACK timeout remains a rejected request with one effect',()async{
-    await login();final gate=core.replyGate=Completer<void>();
-    final response=await send(admin(),method:'POST',body:fixture['createPerson']['body']);
-    gate.complete();
-    expect(response.$1,503);expect(response.$2,{'error':{'code':'service_unavailable'}});
-    expect(core.rejectedRequests,1);expect(core.injectedAckLosses,0);expect(core.mutations,['POST']);
-  });
-  test('closed client before ACK never replays metadata or escapes server cleanup',()async{
-    await login();final gate=core.replyGate=Completer<void>();
-    final pending=send(admin(),method:'POST',body:fixture['createPerson']['body']);
-    final failed=expectLater(pending,throwsA(anyOf(isA<HttpException>(),isA<SocketException>())));
-    for(var i=0;core.mutations.isEmpty&&i<100;i++) {await Future<void>.delayed(const Duration(milliseconds:5));}
-    expect(core.mutations,['POST']);client.close(force:true);await failed;gate.complete();
-    await Future<void>.delayed(const Duration(milliseconds:50));
-    expect(core.records,hasLength(1));expect(core.mutations,['POST']);
-    expect(core.rejectedRequests,0);expect(core.injectedAckLosses,0);
-  });
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+      expect(core.records, hasLength(1));
+      expect(core.mutations, ['POST']);
+      expect(core.rejectedRequests, 0);
+      expect(core.injectedAckLosses, 0);
+    },
+  );
 }

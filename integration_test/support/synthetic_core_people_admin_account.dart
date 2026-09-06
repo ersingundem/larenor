@@ -82,17 +82,20 @@ class SyntheticCorePeopleAdminAccount extends SyntheticCoreAccount {
           headers.length != 1 ||
           headers.single != 'Bearer $currentAccessToken' ||
           token != currentAccessToken ||
-          actor != userId)
+          actor != userId) {
         return _error(401, 'unauthorized');
+      }
       if (role != 'admin' ||
           role != boundRole ||
-          user['mustChangePassword'] != false)
+          user['mustChangePassword'] != false) {
         return _error(403, 'forbidden');
+      }
       if (coreId != core ||
           homeId != home ||
           coreId != _contract['context']['coreId'] ||
-          homeId != _contract['context']['homeId'])
+          homeId != _contract['context']['homeId']) {
         return _error(404, 'not_found');
+      }
       return null;
     }
 
@@ -198,8 +201,9 @@ class SyntheticCorePeopleAdminAccount extends SyntheticCoreAccount {
         if (_mutations.length != before) {
           final gate = replyGate;
           replyGate = null;
-          if (gate != null)
+          if (gate != null) {
             await gate.future.timeout(const Duration(seconds: 2));
+          }
         }
       }
       // The response cannot carry old actor/scope authority after a delayed ACK.
@@ -232,8 +236,9 @@ class SyntheticCorePeopleAdminAccount extends SyntheticCoreAccount {
     }
     if (query.keys.any(
       (k) => !const {'limit', 'after', 'expectedSnapshot'}.contains(k),
-    ))
+    )) {
       return _error(400, 'invalid_request');
+    }
     final rawLimit = query['limit']?.single ?? '25',
         limit = int.tryParse(rawLimit);
     final after = query['after']?.single,
@@ -242,18 +247,21 @@ class SyntheticCorePeopleAdminAccount extends SyntheticCoreAccount {
         !_matches(r'^[1-9][0-9]{0,2}$', rawLimit) ||
         limit > 100 ||
         after != null && (!_id(after) || expected == null) ||
-        expected != null && !_matches(r'^[0-9a-f]{64}$', expected))
+        expected != null && !_matches(r'^[0-9a-f]{64}$', expected)) {
       return _error(400, 'invalid_request');
+    }
     final all = records.toList()
       ..sort(
         (a, b) =>
             (a['ref']['id'] as String).compareTo(b['ref']['id'] as String),
       );
     final snapshot = _snapshot(all);
-    if (expected != null && expected != snapshot)
+    if (expected != null && expected != snapshot) {
       return _error(409, 'revision_conflict');
-    if (after != null && !all.any((v) => v['ref']['id'] == after))
+    }
+    if (after != null && !all.any((v) => v['ref']['id'] == after)) {
       return _error(404, 'not_found');
+    }
     final remaining = all
             .where(
               (v) =>
@@ -275,11 +283,13 @@ class SyntheticCorePeopleAdminAccount extends SyntheticCoreAccount {
   }
 
   String _snapshot(List<Map<String, dynamic>> rows) {
-    if (rows.isEmpty)
+    if (rows.isEmpty) {
       return _contract['emptyList']['response']['snapshot'] as String;
+    }
     if (_canonical(rows) ==
-        _canonical(_contract['adminList']['response']['entries']))
+        _canonical(_contract['adminList']['response']['entries'])) {
       return _contract['adminList']['response']['snapshot'] as String;
+    }
     return sha256
         .convert(
           utf8.encode(
@@ -308,12 +318,14 @@ class SyntheticCorePeopleAdminAccount extends SyntheticCoreAccount {
     Map<String, dynamic>? body,
   ) {
     if (parts.isEmpty && method == 'POST') {
-      if (body == null || !_keys(body, {'label', 'order'}))
+      if (body == null || !_keys(body, {'label', 'order'})) {
         return _error(400, 'invalid_request');
+      }
       final metadata = _metadata(body);
       if (metadata == null) return _error(400, 'invalid_request');
-      if (_records.length >= 128 || _sequence >= 128)
+      if (_records.length >= 128 || _sequence >= 128) {
         return _error(409, 'capacity_reached');
+      }
       final n = ++_sequence,
           id = n <= 2 ? '$n' * 32 : n.toRadixString(16).padLeft(32, '0');
       final record = <String, dynamic>{
@@ -359,25 +371,30 @@ class SyntheticCorePeopleAdminAccount extends SyntheticCoreAccount {
       if (parts.length != 3 ||
           method != 'PUT' ||
           !_id(parts[2]) ||
-          parts[2] != subjectId)
+          parts[2] != subjectId) {
         return _error(404, 'not_found');
+      }
       if (body == null ||
           !_keys(body, {'expectedAclRevision', 'permissions'}) ||
-          !_revision(body['expectedAclRevision']))
+          !_revision(body['expectedAclRevision'])) {
         return _error(400, 'invalid_request');
+      }
       final permission = body['permissions'];
       if (permission is! Map ||
           !_keys(permission, {'read', 'write'}) ||
           permission['read'] is! bool ||
           permission['write'] is! bool ||
-          permission['write'] == true && permission['read'] != true)
+          permission['write'] == true && permission['read'] != true) {
         return _error(400, 'invalid_request');
-      if (body['expectedAclRevision'] != record['aclRevision'])
+      }
+      if (body['expectedAclRevision'] != record['aclRevision']) {
         return _error(409, 'revision_conflict');
+      }
       final old = _grants[parts.first] ?? {'read': false, 'write': false};
       if (old['read'] != permission['read'] ||
-          old['write'] != permission['write'])
+          old['write'] != permission['write']) {
         record['aclRevision'] = (record['aclRevision'] as int) + 1;
+      }
       if (permission['read'] == false) {
         _grants.remove(parts.first);
       } else {
@@ -396,8 +413,9 @@ class SyntheticCorePeopleAdminAccount extends SyntheticCoreAccount {
         },
       );
     }
-    if (parts.length != 1 || !const {'PATCH', 'DELETE'}.contains(method))
+    if (parts.length != 1 || !const {'PATCH', 'DELETE'}.contains(method)) {
       return _error(404, 'not_found');
+    }
     Object? revision, aclRevision;
     HomePersonMetadata? metadata;
     if (method == 'PATCH') {
@@ -407,35 +425,43 @@ class SyntheticCorePeopleAdminAccount extends SyntheticCoreAccount {
             'order',
             'expectedRevision',
             'expectedAclRevision',
-          }))
+          })) {
         return _error(400, 'invalid_request');
+      }
       metadata = _metadata(body);
       revision = body['expectedRevision'];
       aclRevision = body['expectedAclRevision'];
       if (metadata == null) return _error(400, 'invalid_request');
     } else {
-      if (!_keys(query, {'expectedRevision', 'expectedAclRevision'}))
+      if (!_keys(query, {'expectedRevision', 'expectedAclRevision'})) {
         return _error(400, 'invalid_request');
+      }
       final r = query['expectedRevision']!.single,
           a = query['expectedAclRevision']!.single;
       if (!_matches(r'^[1-9][0-9]{0,18}$', r) ||
-          !_matches(r'^[1-9][0-9]{0,18}$', a))
+          !_matches(r'^[1-9][0-9]{0,18}$', a)) {
         return _error(400, 'invalid_request');
+      }
       revision = int.tryParse(r);
       aclRevision = int.tryParse(a);
     }
-    if (!_revision(revision) || !_revision(aclRevision))
+    if (!_revision(revision) || !_revision(aclRevision)) {
       return _error(400, 'invalid_request');
-    if (revision != record['revision'] || aclRevision != record['aclRevision'])
+    }
+    if (revision != record['revision'] ||
+        aclRevision != record['aclRevision']) {
       return _error(409, 'revision_conflict');
+    }
     _mutations.add(method);
     if (method == 'DELETE') {
       _records.removeAt(index);
       _grants.remove(parts.first);
       return (204, null);
     }
-    if (record['label'] != metadata!.label || record['order'] != metadata.order)
+    if (record['label'] != metadata!.label ||
+        record['order'] != metadata.order) {
       record['revision'] = (record['revision'] as int) + 1;
+    }
     record.addAll(metadata.toJson());
     return (200, {'person': _clone(record)});
   }
