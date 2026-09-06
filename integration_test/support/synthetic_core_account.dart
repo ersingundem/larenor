@@ -2,12 +2,18 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'synthetic_core_resources.dart';
+import 'synthetic_core_resource_admin.dart';
 
 /// Minimal, opt-in Core account protocol for this process's loopback fixture.
 /// No production account/API override, external service, or media write path.
 class SyntheticCoreAccount {
-  SyntheticCoreAccount({this.resources});
+  SyntheticCoreAccount({this.resources, this.adminResources}) {
+    if (resources != null && adminResources != null) {
+      throw ArgumentError('Choose one synthetic registry fixture.');
+    }
+  }
   final SyntheticCoreResources? resources;
+  final SyntheticCoreResourceAdmin? adminResources;
   late final _emptyResources = SyntheticCoreResources.empty(userId: userId);
   static const username = 'fixture-core-user';
   static const password = 'Synthetic account password 2026';
