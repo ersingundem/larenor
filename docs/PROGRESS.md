@@ -1,6 +1,6 @@
 # Larenor — güncel ilerleme ve iş kuyruğu
 
-**Son güncelleme: 6 Eylül 2026, 08:20 (Türkiye saati).**
+**Son güncelleme: 6 Eylül 2026, 08:34 (Türkiye saati).**
 
 ```text
 Önceki kapsam       █████████████░░░░░░░  ≈ %65
@@ -56,24 +56,23 @@ ile kabul edildi. **S08.3** ev runtime sınırı da `4b98680` tam CI ve APK 94
 ile kabul edildi. **S08.4** kalıcı ev kayıt sınırı da `1c2db57` tam CI ve APK100 ile kabul edildi. Bu işler yeni 63 özelliğin kabul sayısı değildir; o sayaç **0/63**. Ana S06
 sayacı **2/6** kalır; dizin, kurulum ve gerçek Engine kabulü açıktır.
 
-**Son tam doğrulanmış yayın `a27abea` / APK 101.** Üç CI ilk denemede başarılı:
-Core **3.104 PASS / 0 skip**, güvenlik **207 PASS**, Flutter **4.390 PASS**,
-JVM **98 PASS**, **4 platform + 9 uygulama = 13 E2E PASS / 89 sıralı faz**.
-Tam analiz0; CI formatter895 dosya,0 fark. İmzalı APK tek tam indirmeyle
-ayrıca doğrulandı: sürüm `100000101`, kalıcı sertifika, minSdk26,
-`debuggable=false`, paket/kaynak/SHA eşleşiyor.
-[Android101](https://github.com/ersingundem/larenor/actions/runs/34005590269) ·
-[Core](https://github.com/ersingundem/larenor/actions/runs/34005590288) ·
-[Güvenlik](https://github.com/ersingundem/larenor/actions/runs/34005590189) ·
-[APK101 ve teslim kanıtı](client-delivery-101-2026-09-06.md).
-Anonim iki mimarili Core yayını da doğrulandı; evde kurulum yapılmadı.
+**Son tam doğrulanmış yayın `64bdf58` / APK104.** Üç CI ilk denemede geçti:
+Core **3.203 PASS / 0 skip**, güvenlik **207 PASS**, Flutter **4.421 PASS**,
+JVM **98 PASS**, **4 platform +10 uygulama =14 E2E PASS /99 sıralı faz**.
+Tam analiz0; CI formatter900 dosya,0 fark. Tek tam indirmeyle APK'nın
+kaynağı, `100000104` sürümü, kalıcı sertifikası, minSdk26 ve
+`debuggable=false` değeri ayrıca doğrulandı. İki mimarili Core yayını da
+anonim doğrulandı. [APK104, CI ve teslim kanıtı](client-delivery-104-2026-09-06.md).
 
-**Bu paketin içeriği:** ACL yönetim ekranı `ab678df`, volume journal
-`f9a3faa` ve dokuzuncu Android yolculuğu `1d909b8`.
-[Birleşim kanıtı](core-grants-volume-integration-2026-09-06.md).
-[Önceki APK100](client-delivery-100-2026-09-06.md) ve S08.4 kabulü korunur.
-Yeni paket, aşağıdaki logout ve Unix okuyucusu birleşimidir; kendi CI'si
-ayrıca çalışacak. Hazırlanan restore ve kişi sözleşmesi bu pakete eklenmez.
+| Şimdiki sıra | Durum ve kalan kapı |
+| --- | --- |
+| Çıkış / yeniden açılış onarımı | APK104 ve14 E2E ile doğrulandı |
+| S08.5 — hazırlanmış restore ve Core oda arşivi | Model/şifreleme/controller birleşti; gerçek ekran, tablet ve native yolculuk doğrulaması sürüyor |
+| S08.6 — kişi ve izin yönetimi | Server ve Client controller birleşti; PIN korumalı tablet ekranı ve ayrı Android yolculuğu hazırlanıyor |
+| Sonraki birleşim yayını | Yerel4.870 PASS mevcut; yeni ekranlar eklendikten sonra tam test ve kendi CI/APK kabulü gerekli |
+
+Yeni kişi/arşiv ekranları APK104'e dahil değildir. S08.5/S08.6 ve yeni63
+özellik bu yayınla tamamlandı sayılmaz; fiziksel tablet kabulü de açıktır.
 
 **CI102 sonuçlandı: Core ve güvenlik geçti; Android teslimi durdu.**
 Exact `38bc2bc` kaynakta Linux3.203, Flutter4.417, güvenlik207, JVM98 test geçti.
@@ -93,9 +92,9 @@ tam analiz0 ve899dosya biçim kontrolü geçti; bağımsız inceleme temiz.
 [Android104](https://github.com/ersingundem/larenor/actions/runs/34013071464),
 [Core31](https://github.com/ersingundem/larenor/actions/runs/34013071566) ve
 [güvenlik104](https://github.com/ersingundem/larenor/actions/runs/34013071378)
-izleniyor: Core Linux3.203, güvenlik207 ve JVM98 geçti; anonim iki mimarili
-Core imajı doğrulandı. Android E2E ve imzalı teslim sürüyor. Son tam
-doğrulanmış Client APK101 olarak kalır.
+sonuçlandı: Core Linux3.203, güvenlik207, Flutter4.421 ve JVM98 geçti.
+Android14 E2E/99faz ve bağımsız imzalı APK104 teslimi de doğrulandı.
+[Sonuç](client-delivery-104-2026-09-06.md).
 
 **S08.5 başladı:** logout'ta başarısız kalıcı silme sonrası eski oturumun geri
 kullanılması ve gecikmiş hatanın Core ana ekranında görünmemesi gideriliyor.
@@ -152,6 +151,24 @@ bağımsız son inceleme + CI/APK100 ile doğrulandı.
 
 Aşağıdaki sonuç ve “açık/bekliyor” ifadeleri ilgili eski kaynağın tarihsel
 snapshot'ıdır. Güncel kabul, sıradaki paket ve aktif işler yukarıda gösterilir.
+
+**Önceki tam doğrulanmış yayın `a27abea` / APK 101.** Üç CI ilk denemede başarılı:
+Core **3.104 PASS / 0 skip**, güvenlik **207 PASS**, Flutter **4.390 PASS**,
+JVM **98 PASS**, **4 platform + 9 uygulama = 13 E2E PASS / 89 sıralı faz**.
+Tam analiz0; CI formatter895 dosya,0 fark. İmzalı APK tek tam indirmeyle
+ayrıca doğrulandı: sürüm `100000101`, kalıcı sertifika, minSdk26,
+`debuggable=false`, paket/kaynak/SHA eşleşiyor.
+[Android101](https://github.com/ersingundem/larenor/actions/runs/34005590269) ·
+[Core](https://github.com/ersingundem/larenor/actions/runs/34005590288) ·
+[Güvenlik](https://github.com/ersingundem/larenor/actions/runs/34005590189) ·
+[APK101 ve teslim kanıtı](client-delivery-101-2026-09-06.md).
+Anonim iki mimarili Core yayını da doğrulandı; evde kurulum yapılmadı.
+
+**Bu paketin içeriği:** ACL yönetim ekranı `ab678df`, volume journal
+`f9a3faa` ve dokuzuncu Android yolculuğu `1d909b8`.
+[Birleşim kanıtı](core-grants-volume-integration-2026-09-06.md).
+[Önceki APK100](client-delivery-100-2026-09-06.md) ve S08.4 kabulü korunur.
+Sonraki logout ve Unix okuyucusu birleşimi daha sonra APK104 ile doğrulandı. Hazırlanan restore ve kişi sözleşmesi bu pakete eklenmez.
 
 **Önceki tam doğrulanmış yayın `4bc79dc` / APK 99.** Üç CI başarılı:
 Core **2.951 PASS**, güvenlik **207 PASS**, Flutter **3.941 PASS**, JVM

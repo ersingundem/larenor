@@ -1155,7 +1155,8 @@
         "docs/server-vault-prepared-restore-implementation-2026-09-06.md",
         "docs/core-layout-archive-contract-2026-09-06.md",
         "docs/core-layout-archive-codec-implementation-2026-09-06.md",
-        "docs/core-layout-archive-controller-implementation-2026-09-06.md"
+        "docs/core-layout-archive-controller-implementation-2026-09-06.md",
+        "docs/client-delivery-104-2026-09-06.md"
       ],
       "scope": "Tek mevcut ev bağlamı; F19 çoklu Core/ev federasyonu bu teslim değildir.",
       "acceptance": [
@@ -1303,10 +1304,18 @@
           "state": "completed",
           "result": "passed",
           "label": "Core archive capture/preview/restore:35 yeni/159 ilgili PASS,64/64 satır, analiz0, bağımsızCLEAR. Aynıscope/CAS/readback ve tekuse expiry düzeltildi. Gerçek ekran bağı devam."
+        },
+        {
+          "kind": "ci",
+          "ref": "docs/client-delivery-104-2026-09-06.md",
+          "commit": "64bdf58951ea371dc5ad0ed65348c533c8c777dc",
+          "state": "completed",
+          "result": "passed",
+          "label": "Logout alt dilimi exactCI104/APK104: Linux3203, Flutter4421, security207, JVM98, Android14/99faz; imza tek indirmeyle ayrıca doğrulandı. Prepared restore/arşiv/kişi yeni pakette; bu CI onların kabulü değildir."
         }
       ],
       "completionCommit": null,
-      "reason": "Prepared dosya ve Core kasası geri yükleme yerelde birleşti; eski raw handler UI tüketicisi kalmadı. Core oda arşivi model/şifreleme/tek kullanımlık aynıhedef restore yerelde geçti; gerçek ekran bağı ve birleşik CI açık. Logout dar CI104 sürer; APK101 son tam kabul."
+      "reason": "Prepared dosya ve Core kasası geri yükleme yerelde birleşti. Core oda arşivi model/şifreleme/tek kullanımlık restore geçti; gerçek tablet ekranı ve yeni birleşik CI açık. Logout alt dilimi exact64b/APK104 ile doğrulandı; S08.5 bütünü kabul edilmedi."
     },
     {
       "id": "S08.6",
