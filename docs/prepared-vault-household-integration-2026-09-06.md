@@ -143,3 +143,26 @@ Makbuz `larenor-people-archive-ui-full-client-evidence.json` source/tree
 kimliklerini, exit1 ve reaped durumunu tutar. Bu kaynak yeni kişi/arşiv UI ve
 üye/arşiv Android kaynaklarını içerir; native yolculuklar bu host komutunda
 çalışmaz. Admin Android fixture/journey bu koşuya henüz dahil değildir.
+
+## Son birleşik kaynak yerelde geçti
+
+Uygulama/test kaynağı `bd9d4256f210e0608ee40bfffd3f90df6ff11c39`:
+**5.056 tam Client PASS /0 FAIL /5:19**, tam analiz **0 /3,1sn**,
+biçim **966dosya /0fark /2,83sn**. İlk5.014 PASS/4FAIL logu yukarıda
+korunur; dar kaydırma onarımı ve yeni admin fixture/yolculuğu bu tam koşuda
+birliktedir. Süreç exit0 ile kapatıldı. Aynı Server/contracts ağaçlarının
+3.300PASS/11Linuxskip tam Server makbuzuyla eşleştiği yeniden doğrulandı.
+
+Yeni admin dalı `2c2896b` **38 yeni/151 ilgili host PASS** ve bağımsız CLEAR
+ile birleşti. Üye, arşiv, admin kayıt sırası kaynak manifestinde doğrulandı:
+eski10gövde/99faz byte olarak aynı;8+12+14 yeni fazla **13 app +4platform =
+17 E2E /133faz hedefi**. Bu host komutu native Android senaryolarını çalıştırmaz.
+Birleşik kaynak incelemesi CLEAR; varsayılan AppHarness/üye hesabı ve üretim
+korumaları korunur. Sonraki adım bu paketin kendi GitHub CI ve imzalı APK'sıdır.
+
+Loglar `/private/tmp/larenor-tablet-integration-final-{full-client,analyze,format,gitleaks}.log`;
+source/tree/hash makbuzu `/private/tmp/larenor-tablet-integration-final-evidence.json`.
+Gizli bilgi taraması64bdf58..bd9d425 aralığında geçti. Önceki207 politika testi
+ve Android backup/CI trust statik kontrolü, değişmeyen politika kaynağına aittir;
+uzak CI bunları yeniden çalıştırır. Sonraki yalnız belge commit'leri bu
+yerel testin uygulama/test ağaçlarını değiştirmez. Fiziksel tablet kabulü açıktır.

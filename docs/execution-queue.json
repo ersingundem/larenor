@@ -1138,7 +1138,7 @@
       "kind": "task",
       "parent": "S08",
       "title": "Restore, logout ve journal hedef sınırı",
-      "status": "in_progress",
+      "status": "awaiting_ci",
       "dependsOn": [
         "S08.4"
       ],
@@ -1354,17 +1354,25 @@
           "state": "completed",
           "result": "passed",
           "label": "Birleşik tam Client5014PASS/4FAIL korundu. Dar logout scroll frame onarımı: eski9test5PASS/4FAIL→9PASS; hitTestable ve PIN beklentileri korunur, analiz0, bağımsız CLEAR."
+        },
+        {
+          "kind": "test",
+          "ref": "docs/prepared-vault-household-integration-2026-09-06.md",
+          "commit": "bd9d4256f210e0608ee40bfffd3f90df6ff11c39",
+          "state": "completed",
+          "result": "passed",
+          "label": "Son birleşikClient5056PASS/0FAIL/5:19; analiz0,966format0,gitleaks temiz. İlk5014PASS/4FAIL ve dar9GREEN korunur; yeni admin38test bu tam koşudadır. Server/contracts tree3300PASS/11Linuxskip ile aynı. Native17E2E/133faz ve kendiCI/APK henüzbekliyor."
         }
       ],
       "completionCommit": null,
-      "reason": "Prepared dosya/Vault ve Core arşivi gerçek tablet ekranları birleşti. İlk tamClient5014PASS/4FAIL sonrası dar test onarımı9PASS; bd9d425 son tamClient sürüyor. Üç yeni Android senaryosu dahil hedef17 E2E/133faz henüz çalıştırılmadı; kendiCI/APK kabulü açık."
+      "reason": "Yerel birleşik uygulama/test kaynağı bd9d425:5056PASS, analiz0/966format0 ve bağımsızreviewCLEAR. Core3300PASS/11Linuxskip. Üç yeni Android senaryosu dahil hedef17E2E/133faz; kendi uzakCI ve bağımsız imzalıAPK kabulü bekliyor. Fiziksel cihaz/ev kurulumu bu kabulün dışında."
     },
     {
       "id": "S08.6",
       "kind": "task",
       "parent": "S08",
       "title": "Kişi/oda/kaynak kimliği ve yetki sözleşmesi",
-      "status": "in_progress",
+      "status": "awaiting_ci",
       "dependsOn": [
         "S08.3"
       ],
@@ -1563,10 +1571,18 @@
           "state": "completed",
           "result": "passed",
           "label": "Kişi admin/ACL Android fixture ve gerçekUI yolculuğu:38yeni/151ilgili hostPASS, analiz7/0,format7/0; bağımsız CLEAR. Eski default/member/AppHarness/11journey/107faz aynı; yeni14faz nativeçalıştırılmadı."
+        },
+        {
+          "kind": "test",
+          "ref": "docs/prepared-vault-household-integration-2026-09-06.md",
+          "commit": "bd9d4256f210e0608ee40bfffd3f90df6ff11c39",
+          "state": "completed",
+          "result": "passed",
+          "label": "Son birleşikClient5056PASS/0FAIL/5:19; analiz0,966format0,gitleaks temiz. İlk5014PASS/4FAIL ve dar9GREEN korunur; yeni admin38test bu tam koşudadır. Server/contracts tree3300PASS/11Linuxskip ile aynı. Native17E2E/133faz ve kendiCI/APK henüzbekliyor."
         }
       ],
       "completionCommit": null,
-      "reason": "Kişi Server/API/controller ve tablet UI ile üye/admin Android senaryoları birleşti. Admin38yeni/151ilgili hostPASS ve bağımsızCLEAR; son birleşikClient bd9d425 sürüyor. Yeni17E2E/133faz hedefi henüzkoşmadı; kendiCI/APK kabulü açık."
+      "reason": "Yerel birleşik uygulama/test kaynağı bd9d425:5056PASS, analiz0/966format0 ve bağımsızreviewCLEAR. Core3300PASS/11Linuxskip. Üç yeni Android senaryosu dahil hedef17E2E/133faz; kendi uzakCI ve bağımsız imzalıAPK kabulü bekliyor. Fiziksel cihaz/ev kurulumu bu kabulün dışında."
     },
     {
       "id": "S08.7",
