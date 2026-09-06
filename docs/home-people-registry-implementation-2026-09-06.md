@@ -58,7 +58,11 @@ zaten doğru davranışı doğruladı; onlar için yeni RED iddiası yoktur.
 
 ## Kalan doğrulama ve ürün işi
 
-Yeni tüm Server koşusu ayrıca gereklidir; final sonucu bu belgeye eklenecek.
+Son tam Server koşusu7819866 kaynağında **3.298 PASS / 0 FAIL / 11 Linux skip /
+321,74sn** verdi. JUnit3309test/0error/0failure;11skip Linux kernel/procfs/peer
+credentials gerektirir. Log/XML `larenor-home-people-full-server-final.{log,xml}`.
+İlk tam koşudaki3.291 PASS/5 FAIL ve tarihsel v1/v2 fixture onarımı
+RED5db91ad→GREEN7819866 ile korunur; üretim migration korumaları gevşetilmedi.
 Testler geçici sentetik veritabanı/HTTP kullanır. Gerçek evde migration,
 kurulum veya cihaz işlemi yapılmadı. CI103 yalnız dar logout fixture onarımıdır;
 bu Server kişi API'sini içermez. Android listesi/admin yönetimi, kalıcı ortak

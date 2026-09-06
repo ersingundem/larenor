@@ -1,6 +1,6 @@
 # Larenor — güncel ilerleme ve iş kuyruğu
 
-**Son güncelleme: 6 Eylül 2026, 07:57 (Türkiye saati).**
+**Son güncelleme: 6 Eylül 2026, 08:05 (Türkiye saati).**
 
 ```text
 Önceki kapsam       █████████████░░░░░░░  ≈ %65
@@ -85,7 +85,15 @@ Dar fixture onarımı `2cced39` GitHub'a gönderildi: yeni regresyon RED→GREEN
 [Android103](https://github.com/ersingundem/larenor/actions/runs/34012091515),
 [Core](https://github.com/ersingundem/larenor/actions/runs/34012091577) ve
 [güvenlik](https://github.com/ersingundem/larenor/actions/runs/34012091354)
-yeni exact kaynak üzerinde izleniyor. Son kabul edilmiş Client APK101 olarak kalır.
+CI103 sonuçlandı: Core3.203 ve güvenlik207 geçti; Android13 PASS/1 FAIL,97/99 faz.
+Çıkış sonrası yeniden kurulan ekran geçici olarak yokken test erken okuma yaptı.
+[Başarısız koşu ve sınırları](client-delivery-103-2026-09-06.md) korunur.
+Dar bekleme onarımı `64bdf58`: RED1 PASS/2 FAIL→GREEN3 PASS;91 destek testi,
+tam analiz0 ve899dosya biçim kontrolü geçti; bağımsız inceleme temiz.
+[Android104](https://github.com/ersingundem/larenor/actions/runs/34013071464),
+[Core31](https://github.com/ersingundem/larenor/actions/runs/34013071566) ve
+[güvenlik104](https://github.com/ersingundem/larenor/actions/runs/34013071378)
+GitHub’da çalışıyor. Son tam doğrulanmış Client APK101 olarak kalır.
 
 **S08.5 başladı:** logout'ta başarısız kalıcı silme sonrası eski oturumun geri
 kullanılması ve gecikmiş hatanın Core ana ekranında görünmemesi gideriliyor.
@@ -115,9 +123,10 @@ aynı kaldı. Kişi oluşturma yalnız ad/sıra kabul eder; hesap, rol, izin vey
 HA kişisi bağı yaratmaz. Ayrı kişi HTTP API/şifreli SQLite kaydı104 ilgili test ve dal dahil%89 kapsamla
 yerelde tamamlandı; bağlı SQLite nesnesi inceleme bulgusu kapatıldı.
 İlk tam Server koşusunda eski şema test verilerinden gelen5hata bulundu.
-Yalnız test verisi hazırlığı düzeltildi;137 ilgili test geçti, yeni tam Server
-koşusu çalışıyor. Android kişi modeli/API adaptörü ve Core oda arşiv modeli
-ayrı dallarda ilerliyor; kişi ekranı ve arşiv geri yükleme arayüzü açık;
+Yalnız test verisi hazırlığı düzeltildi;137 ilgili test geçti. Son tam Server
+koşusu **3.298 PASS / 11 Linux skip / 321,74sn** verdi; üretim korumaları değişmedi.
+Android kişi modeli/API adaptörü ve Core oda arşiv modeli ayrı dallarda yerel
+test ve kaynak incelemesini geçti; kişi ekranı ve arşiv geri yükleme arayüzü açık;
 model dilimi CI102'ye dahil değildir.
 [Model kanıtı](home-people-contract-implementation-2026-09-06.md).
 

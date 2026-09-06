@@ -2,7 +2,7 @@
 
 Birleşik uygulama/test kaynağı `c0d814505227e894bb1eb9e884201517a185170c`.
 Sonraki belge düzenlemeleri aynı uygulama ve test ağaçlarını korur.
-Bu paket, devam eden CI103'ün `2cced39` kaynağından ayrıdır.
+Bu paket, CI103'ün `2cced39` ve CI104'ün `64bdf58` kaynaklarından ayrıdır.
 
 | Dilim | İncelenen kaynak | Yerel kanıt |
 | --- | --- | --- |
@@ -48,8 +48,10 @@ bulunmayan yeni kişi tablolarını bırakıyordu. Üretimin scope integrity den
 bu tutarsızlığı reddetti. Tarihsel fixture için iki yeni RED kontrolü5db91ad
 ile doğrulandı; yalnız fixture düzeltmesi7819866 ile **137 ilgili PASS/33,55sn**
 verdi. Eski key/vault/user/rollback beklentileri ve üretim korumaları değişmedi;
-bağımsız kaynak incelemesi CLEAR. Yeni tam koşu
-`/private/tmp/larenor-home-people-full-server-final.{log,xml}` içinde çalışıyor.
+bağımsız kaynak incelemesi CLEAR. Son tam koşu **3.298 PASS / 0 FAIL /
+11 Linux skip / 321,74sn** verdi. JUnit3309test/0error/0failure; skip nedenleri
+Linux SO_PEERCRED/procfs/Unix davranışlarıdır. Server/test kaynağı7819866.
+Log/XML: `/private/tmp/larenor-home-people-full-server-final.{log,xml}`.
 İlk başarısız tam log `larenor-home-people-full-server.{log,xml}` korunur.
 İlk yanlış çalışma dizininden açılan koşu modül yolu doğrulanınca durduruldu;
 sonuç sayılmaz ve `larenor-home-people-full-server-wrong-cwd-aborted.log` olarak
@@ -65,7 +67,9 @@ kontrolü geçti. Yeni commit geçmişi redakte gitleaks taramasında temiz.
 ## Açık kabul
 
 Bu birleşimin kendi uzak CI/Android emülatör ve imzalı APK kabulü henüz yok.
-CI103 yalnız önceki logout fixture onarımını doğrular. Core oda arşivi,
+CI103 logout yeniden kurulumundaki test beklemesinde başarısız oldu; CI104
+yalnız bu bekleme onarımını doğrular. 64bdf58 yeni destek testi ve E2E çağrısı
+olarak birleşime alındı; eski4.544 tam Client sonucu yeni3testi içermez. Core oda arşivi,
 Android kişi modelleri/API adaptörü ve kişi ekranları ayrı sonraki dilimlerdir.
 Bu nedenle S08.5/S08.6 ve seçilmiş63 özellik tamamlandı sayılmaz.
 Gerçek evde migration, servis kurma, cihaz yükleme veya kapı/medya/ağ işlemi

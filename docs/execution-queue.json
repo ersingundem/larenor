@@ -1209,41 +1209,49 @@
           "kind": "ci",
           "ref": "https://github.com/ersingundem/larenor/actions/runs/34012091515",
           "commit": "2cced392cbac18a8c5d9d9c038b5d06cbb628ef5",
+          "state": "completed",
+          "result": "failed",
+          "label": "CI103: Core3203/Flutter4418/security207/JVM98 PASS; E2E13PASS1FAIL97/99. Remount predicate geçici eksik Element okudu; signed skip/APK0. Hata kanıtı client-delivery-103 belgesinde korunur."
+        },
+        {
+          "kind": "test",
+          "ref": "docs/prepared-backup-restore-implementation-2026-09-06.md",
+          "commit": "4667456fe32ef1ee0eac15b1ceb55138df767fa8",
+          "state": "completed",
+          "result": "passed",
+          "label": "Prepared dosya restore:376ilgiliPASS,25dosyaanaliz0/format0, transaction%88.91; rootfinalCLEAR. Privatejournalv2 aynısource/session/HAprefix ve tekintent ile recovery yapar. Corelayoutarchive ve birleşiktamtest/CI açık."
+        },
+        {
+          "kind": "review",
+          "ref": "docs/prepared-backup-restore-implementation-2026-09-06.md",
+          "commit": "4667456fe32ef1ee0eac15b1ceb55138df767fa8",
+          "state": "completed",
+          "result": "passed",
+          "label": "Prepared dosya restore:376ilgiliPASS,25dosyaanaliz0/format0, transaction%88.91; rootfinalCLEAR. Privatejournalv2 aynısource/session/HAprefix ve tekintent ile recovery yapar. Corelayoutarchive ve birleşiktamtest/CI açık."
+        },
+        {
+          "kind": "test",
+          "ref": "docs/server-vault-prepared-restore-implementation-2026-09-06.md",
+          "commit": "79f313b18693b52ee1cdb42b7b03b7a670df0944",
+          "state": "completed",
+          "result": "passed",
+          "label": "Vault preparedhandoff:387ilgiliPASS,analiz0, linecoverage%97.51; rootreviewCLEAR. Ortak hedef/hesap/vaultrevision vegeç401/TTL sınırı. Son modal erişilebilirlik takibi ayrıdevam."
+        },
+        {
+          "kind": "review",
+          "ref": "docs/server-vault-prepared-restore-implementation-2026-09-06.md",
+          "commit": "79f313b18693b52ee1cdb42b7b03b7a670df0944",
+          "state": "completed",
+          "result": "passed",
+          "label": "Vault preparedhandoff:387ilgiliPASS,analiz0, linecoverage%97.51; rootreviewCLEAR. Ortak hedef/hesap/vaultrevision vegeç401/TTL sınırı. Son modal erişilebilirlik takibi ayrıdevam."
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/34013071464",
+          "commit": "64bdf58951ea371dc5ad0ed65348c533c8c777dc",
           "state": "in_progress",
           "result": null,
-          "label": "CI103 dar logout fixture onarımı; RED3PASS/1FAIL→GREEN4PASS,88ilgiliPASS veanaliz0. Eski9/89 korunur, hedef14E2E/99faz. Kendi imzalıAPK kabulü bekleniyor."
-        },
-        {
-          "kind": "test",
-          "ref": "docs/prepared-backup-restore-implementation-2026-09-06.md",
-          "commit": "4667456fe32ef1ee0eac15b1ceb55138df767fa8",
-          "state": "completed",
-          "result": "passed",
-          "label": "Prepared dosya restore:376ilgiliPASS,25dosyaanaliz0/format0, transaction%88.91; rootfinalCLEAR. Privatejournalv2 aynısource/session/HAprefix ve tekintent ile recovery yapar. Corelayoutarchive ve birleşiktamtest/CI açık."
-        },
-        {
-          "kind": "review",
-          "ref": "docs/prepared-backup-restore-implementation-2026-09-06.md",
-          "commit": "4667456fe32ef1ee0eac15b1ceb55138df767fa8",
-          "state": "completed",
-          "result": "passed",
-          "label": "Prepared dosya restore:376ilgiliPASS,25dosyaanaliz0/format0, transaction%88.91; rootfinalCLEAR. Privatejournalv2 aynısource/session/HAprefix ve tekintent ile recovery yapar. Corelayoutarchive ve birleşiktamtest/CI açık."
-        },
-        {
-          "kind": "test",
-          "ref": "docs/server-vault-prepared-restore-implementation-2026-09-06.md",
-          "commit": "79f313b18693b52ee1cdb42b7b03b7a670df0944",
-          "state": "completed",
-          "result": "passed",
-          "label": "Vault preparedhandoff:387ilgiliPASS,analiz0, linecoverage%97.51; rootreviewCLEAR. Ortak hedef/hesap/vaultrevision vegeç401/TTL sınırı. Son modal erişilebilirlik takibi ayrıdevam."
-        },
-        {
-          "kind": "review",
-          "ref": "docs/server-vault-prepared-restore-implementation-2026-09-06.md",
-          "commit": "79f313b18693b52ee1cdb42b7b03b7a670df0944",
-          "state": "completed",
-          "result": "passed",
-          "label": "Vault preparedhandoff:387ilgiliPASS,analiz0, linecoverage%97.51; rootreviewCLEAR. Ortak hedef/hesap/vaultrevision vegeç401/TTL sınırı. Son modal erişilebilirlik takibi ayrıdevam."
+          "label": "CI104 dar remount beklemesi: RED1PASS2FAIL→GREEN3,91 destek PASS, tam analiz0/899format0; bağımsız CLEAR, ilk9/99faz ve assertion/timeout korunur. Exact Android kabulü bekleniyor."
         }
       ],
       "completionCommit": null,
@@ -1509,6 +1517,14 @@
           "state": "completed",
           "result": "passed",
           "label": "Ayrı kişi API/şifreliSQLite:104ilgiliPASS, dal dahil%89; actualauth/ACL/revision/restart/migration/noop/quota testleri. BağlıSQLiteindex/trigger RED6FAIL→GREEN7, bağımsızdeltaCLEAR. TamServer/Androidkişiekranı/kendiCI açık."
+        },
+        {
+          "kind": "test",
+          "ref": "docs/prepared-vault-household-integration-2026-09-06.md",
+          "commit": "78198666cae6fdd0649e3bd024c6702d33c5009c",
+          "state": "completed",
+          "result": "passed",
+          "label": "Tam Server3298 PASS/0FAIL/11Linuxskip/321.74sn. İlk5 tarihsel fixture hatası RED2→GREEN137 ile düzeltildi; üretim integrity değişmedi. Exact uzakLinux/Android kişi UI kabulü açık."
         }
       ],
       "completionCommit": null,
