@@ -477,10 +477,18 @@
           "state": "completed",
           "result": "passed",
           "label": "Kalıcı volume journal: 54 odaklı/273 ilgili test geçti; 139 statement ve 8 branch yüzde 100 kapsamda; root bağımsız incelemesi temiz. Üçüncü birleşimde tam Server/CI açık. Engine işlemi veya UID/bootstrap yetkisi eklenmedi; APK 100 kaynağında yok."
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/34005590288",
+          "commit": "a27abeaa55a2ea94a0a0eaec1b9a74743c086a9c",
+          "state": "in_progress",
+          "result": null,
+          "label": "Volume journal içeren exacta27 Core CI sürüyor; sonraki volume Unix okuyucusu0d86fa1 bu kaynakta değil."
         }
       ],
       "completionCommit": null,
-      "reason": "Native kök resolver Linux CI ile doğrulandı; volume planı APK 99, saf gözlemci 1c2db57/CI 100 paketinde. Sonraki birleşim 5e82c0e, ayrı volume journal f9a3faa ekledi: 54 odaklı/273 ilgili test ve bağımsız inceleme geçti; tam Server/CI sürüyor. Remap, UID/bootstrap ve Engine işlem bağlantısı açık; installAvailable=false."
+      "reason": "Native root resolver önceki Linux CI ile doğrulandı; trusted supervisor/remap-disabled producer/issuer/create-publish açık. Volume plan+gözlem1c2 CI/APK100 kaynağında; kalıcı volume journal a27 CI101 bekliyor. Unix reader0d86fa1 sonraki ayrı3d9075f birleşiminde tamCore testinde. UID/bootstrap/Engine kurulum yetkisi ve installAvailable=false sürer."
     },
     {
       "id": "S06.3e",
@@ -1151,7 +1159,8 @@
         "docs/core-home-resource-admin-ui-implementation-2026-09-06.md",
         "docs/core-home-resource-grants-contract-2026-09-06.md",
         "docs/core-home-resource-grants-ui-implementation-2026-09-06.md",
-        "docs/core-resource-grants-android-journey-2026-09-06.md"
+        "docs/core-resource-grants-android-journey-2026-09-06.md",
+        "docs/home-identity-remaining-slices-2026-09-06.md"
       ],
       "scope": "Tek mevcut ev bağlamı; F19 çoklu Core/ev federasyonu bu teslim değildir.",
       "acceptance": [
@@ -1346,10 +1355,18 @@
           "state": "completed",
           "result": "passed",
           "label": "Dokuzuncu Android ACL yolculuğu: 85 host fixture testi ve 2 gerçek Server sözleşme testi geçti. İki bağımsız inceleme temiz; gerçek cleanup P2 ayrı RED/GREEN ile düzeltildi. 9 uygulama/89 aşama + 4 native hedefi yeni CI bekliyor."
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/34005590269",
+          "commit": "a27abeaa55a2ea94a0a0eaec1b9a74743c086a9c",
+          "state": "in_progress",
+          "result": null,
+          "label": "Android101: ACL UI + dokuzuncu yolculuk,13 E2E/89 faz hedefi; CI sürüyor, APK henüz kabul edilmedi."
         }
       ],
       "completionCommit": null,
-      "reason": "Metadata ve ilk sekiz yolculuk 1c2db57/CI 100 paketinde; 12 E2E geçti, imzalı teslim bekleniyor. Sonraki birleşim d8112dd, erişim ekranı ab678df ve dokuzuncu yolculuk 1d909b8 içerir. Tam 4.353 Client/3.094 Server+10 Linux skip ardından 85 fixture testi, analiz ve biçim kontrolü geçti. Yeni Android 13 E2E/CI kapısı açık; S08.6 kabulü henüz kapanmadı."
+      "reason": "Registry/read-only list + admin metadata API/UI exact1c2/APK100 ile doğrulandı. ACL API/UI ve dokuzuncu Android yolculuğu a27abea içinde CI101 bekliyor; yerelde52UI/85fixture ve incelemeler geçti. Hesapsız hane kişi modeli, upstream bağları ve gerçek komut sözleşmesinin kapsam eşlemesi açık; tümS08.6 kabulü değil."
     },
     {
       "id": "S08.7",

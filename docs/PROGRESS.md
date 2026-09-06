@@ -1,6 +1,6 @@
 # Larenor — güncel ilerleme ve iş kuyruğu
 
-**Son güncelleme: 6 Eylül 2026, 05:05 (Türkiye saati).**
+**Son güncelleme: 6 Eylül 2026, 05:07 (Türkiye saati).**
 
 ```text
 Önceki kapsam       █████████████░░░░░░░  ≈ %65
@@ -68,7 +68,9 @@ minSdk26, `debuggable=false`, paket/kaynak/SHA eşleşiyor.
 [APK100 ve teslim kanıtı](client-delivery-100-2026-09-06.md).
 Anonim iki mimarili Core yayını doğrulandı; evde kurulum yapılmadı.
 
-**Sıradaki paket hazırlanıyor:** ACL yönetim ekranı `ab678df`, volume journal
+**Yeni paket GitHub’da: `a27abea`.** [Android101](https://github.com/ersingundem/larenor/actions/runs/34005590269), [Core](https://github.com/ersingundem/larenor/actions/runs/34005590288) ve [güvenlik](https://github.com/ersingundem/larenor/actions/runs/34005590189) kontrolleri sürüyor.
+
+**Bu paketin içeriği:** ACL yönetim ekranı `ab678df`, volume journal
 `f9a3faa` ve dokuzuncu Android yolculuğu `1d909b8` birleştirildi.
 İlk iki dilimin tam yerel koşusu **4.353 Client PASS / 5:29** ve
 **3.094 Core PASS / 10 Linux skip / 8:49,37** verdi. Son yolculuk birleşiminde
@@ -82,8 +84,8 @@ kullanılması ve gecikmiş hatanın Core ana ekranında görünmemesi gideriliy
 Paralelde geri yükleme önizlemesi/onayı, hedef okuma kümesi ve özel journal
 aynı işleme bağlanıyor; provider kapanışında açık devir uygulanacak.
 [Somut uygulama sırası ve açık sınırlar](client-restore-logout-implementation-plan-2026-09-06.md).
-Bu işler henüz kabul edilmedi. Sonraki volume Unix okuyucusu `0d86fa1` ayrı
-pakette bekliyor; şu sıradaki yayına eklenmedi.
+Bu işler henüz kabul edilmedi. Sonraki volume Unix okuyucusu `0d86fa1`, ayrı
+`3d9075f` birleşiminde tam Core testinde; CI101 kaynağına eklenmedi.
 
 **S08.4 kabul edildi:** üç madde ve 22 kayıt sınıfı exact `1c2db57` kaynağında
 bağımsız son inceleme + CI/APK100 ile doğrulandı.
