@@ -79,3 +79,13 @@ Bu nedenle S08.5/S08.6 ve seçilmiş63 özellik tamamlandı sayılmaz.
 Gerçek evde migration, servis kurma, cihaz yükleme veya kapı/medya/ağ işlemi
 yapılmadı; sentetik depolama testleri native Keystore veya süreç ölümünden
 sonra fiziksel kurtarma kanıtı değildir.
+
+
+## Sonraki genişletilmiş yerel birleşim
+
+`634bc10f22241a49f776e954735746eee8a0f8b0` kişi controller/provider4184289
+dilimini de içerir. Yeni58 mounted test, tüm kişi135 ve ilgili418 test geçti;
+470/478 satır, analiz7/0 ve format7/0. İlk test/source incelemesi temizdir.
+Bu kaynak için tüm Client koşusu ve tam analiz/format yeniden çalışıyor;
+loglar `/private/tmp/larenor-archive-people-combined-{full-client,analyze,format}.log`.
+Gerçek yeni ekranlar bu test kaynağına henüz dahil değildir.

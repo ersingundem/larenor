@@ -1,6 +1,6 @@
 # Larenor — güncel ilerleme ve iş kuyruğu
 
-**Son güncelleme: 6 Eylül 2026, 08:14 (Türkiye saati).**
+**Son güncelleme: 6 Eylül 2026, 08:20 (Türkiye saati).**
 
 ```text
 Önceki kapsam       █████████████░░░░░░░  ≈ %65
@@ -93,7 +93,9 @@ tam analiz0 ve899dosya biçim kontrolü geçti; bağımsız inceleme temiz.
 [Android104](https://github.com/ersingundem/larenor/actions/runs/34013071464),
 [Core31](https://github.com/ersingundem/larenor/actions/runs/34013071566) ve
 [güvenlik104](https://github.com/ersingundem/larenor/actions/runs/34013071378)
-GitHub’da çalışıyor. Son tam doğrulanmış Client APK101 olarak kalır.
+izleniyor: Core Linux3.203, güvenlik207 ve JVM98 geçti; anonim iki mimarili
+Core imajı doğrulandı. Android E2E ve imzalı teslim sürüyor. Son tam
+doğrulanmış Client APK101 olarak kalır.
 
 **S08.5 başladı:** logout'ta başarısız kalıcı silme sonrası eski oturumun geri
 kullanılması ve gecikmiş hatanın Core ana ekranında görünmemesi gideriliyor.
@@ -130,8 +132,11 @@ Yalnız test verisi hazırlığı düzeltildi;137 ilgili test geçti. Son tam Se
 koşusu **3.298 PASS / 11 Linux skip / 321,74sn** verdi; üretim korumaları değişmedi.
 Android kişi modeli/API adaptörü yerelde birleşti:77 yeni/278 ilgili test,
 analiz0 ve bağımsız inceleme geçti. Gerçek HTTP sözleşmesi birleşimde2 testle
-yeniden doğrulandı. Kişi provider/controller işi ve arşiv tablet ekranı sürüyor;
-kişi ekranı ve arşiv arayüzü kabulü açık;
+yeniden doğrulandı. Kişi provider/controller4184289 yerelde birleşti:58 yeni/135 kişi/418 ilgili
+PASS; analiz0 ve bağımsız inceleme temiz. Üye listesi, PIN korumalı admin
+profilleri/izin ekranları ve arşiv tablet ekranı şimdi gerçek arayüze bağlanıyor;
+yeni birleşimin634bc10 kaynağında tüm Client testi çalışıyor. Kişi ekranı
+ve arşiv arayüzü kabulü açık;
 model dilimi CI102'ye dahil değildir.
 [Model kanıtı](home-people-contract-implementation-2026-09-06.md).
 

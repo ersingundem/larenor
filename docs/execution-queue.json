@@ -1254,7 +1254,7 @@
           "commit": "64bdf58951ea371dc5ad0ed65348c533c8c777dc",
           "state": "in_progress",
           "result": null,
-          "label": "CI104 dar remount beklemesi: RED1PASS2FAIL→GREEN3,91 destek PASS, tam analiz0/899format0; bağımsız CLEAR, ilk9/99faz ve assertion/timeout korunur. Exact Android kabulü bekleniyor."
+          "label": "CI104 dar remount beklemesi: Core Linux3203 PASS/0skip,security207,JVM98 PASS; anonim ikiarchOCI doğru. Android E2E/signed gate sürüyor. İlk9/99faz ve assertion/timeout korunur."
         },
         {
           "kind": "test",
@@ -1335,7 +1335,8 @@
         "docs/home-people-contract-implementation-2026-09-06.md",
         "docs/home-people-registry-implementation-2026-09-06.md",
         "docs/home-people-client-contract-implementation-2026-09-06.md",
-        "docs/home-identity-evidence-archive-2026-09-06.json"
+        "docs/home-identity-evidence-archive-2026-09-06.json",
+        "docs/home-people-controller-implementation-2026-09-06.md"
       ],
       "scope": "Tek mevcut ev bağlamı; F19 çoklu Core/ev federasyonu bu teslim değildir.",
       "acceptance": [
@@ -1426,6 +1427,22 @@
           "state": "completed",
           "result": "passed",
           "label": "Kişi gerçek HTTP sözleşmesi2 PASS; Client77 yeni/278 ilgili PASS;282/282 yeni satır, analiz0 ve bağımsız CLEAR. Provider/controller/UI sonraki ayrı adım. Birleşik Server ağacında sözleşme tekrar2 PASS."
+        },
+        {
+          "kind": "test",
+          "ref": "docs/home-people-controller-implementation-2026-09-06.md",
+          "commit": "41842891c4e6338166a6217088b779545d4f54ae",
+          "state": "completed",
+          "result": "passed",
+          "label": "Kişi listesi/metadata/ACL controller ve gerçek provider lifetime:58 yeni/135 kişi/418 ilgili PASS;470/478 satır, analiz7/0format7/0; root kaynakCLEAR. Kişi UI/PIN gate ve Android kabulü ayrı açık."
+        },
+        {
+          "kind": "review",
+          "ref": "docs/home-people-controller-implementation-2026-09-06.md",
+          "commit": "41842891c4e6338166a6217088b779545d4f54ae",
+          "state": "completed",
+          "result": "passed",
+          "label": "Kişi listesi/metadata/ACL controller ve gerçek provider lifetime:58 yeni/135 kişi/418 ilgili PASS;470/478 satır, analiz7/0format7/0; root kaynakCLEAR. Kişi UI/PIN gate ve Android kabulü ayrı açık."
         }
       ],
       "completionCommit": null,
