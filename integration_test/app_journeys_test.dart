@@ -1298,7 +1298,9 @@ void main() {
         await waitFor(tester, find.byType(CoreHomeStatusScreen));
         await waitUntil(
           tester,
-          () => singleElementReady(find.byType(CoreHomeStatusScreen), (element) {
+          () => singleElementReady(find.byType(CoreHomeStatusScreen), (
+            element,
+          ) {
             final container = ProviderScope.containerOf(element, listen: false);
             final account = container.read(serverAccountControllerProvider);
             return account.initialized && !account.working;
