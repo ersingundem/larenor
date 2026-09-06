@@ -368,6 +368,20 @@ void main() {
     expect(account.failure, 'unauthorized');
   });
 
+  test('final Vault GET 401 after review expiry cannot reject the current account', () async {
+    final review = await prepare(direction: ServerVaultDirection.restore);
+    api.pendingRead = Completer();
+    final pending = controller.takeRestore(review);
+    final expired = expectLater(pending, throwsA(isA<LarenorServerException>()));
+    await Future<void>.delayed(Duration.zero);
+    clock = clock.add(const Duration(minutes: 5));
+    api.pendingRead!.completeError(const LarenorServerException('unauthorized'));
+    await expired;
+    expect(account.session, isNotNull);
+    expect(account.failure, isNull);
+    expect(storage.writes, isEmpty);
+  });
+
   for (final policy in BackupConflictPolicy.values) {
     test(
       'restore $policy delegates local journal work after old controller disposal',
