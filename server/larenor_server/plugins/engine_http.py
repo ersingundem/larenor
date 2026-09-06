@@ -6,7 +6,7 @@ journal or installation authority. There is no raw API/IPC entry point, proxy,
 TCP fallback, retry, redirect, auth option, or general Docker client here.
 
 Only pinned-image inspect/pull, exact network list/inspect/create and generated
-volume inspect shapes are accepted. Catalog
+local-volume inspect/create shapes are accepted. Catalog
 rederivation and response meaning belong to the adapter. The synchronous trusted
 consumer must validate its response; its bounded iterator is invalidated before
 exchange returns. No configuration or progress content is retained here.
@@ -116,6 +116,38 @@ def _network_create_body(body):
         return False
 
 
+def _volume_create_body(body):
+    """One local-volume wire shape; provenance and a durable intent are separate."""
+    if type(body) is not bytes or len(body) > 4096:
+        return False
+    try:
+        value = _decode(body, limit=4096)
+        if (set(value) != {'Name', 'Driver', 'DriverOpts', 'Labels'}
+                or value['Driver'] != 'local' or type(value['DriverOpts']) is not dict
+                or value['DriverOpts']):
+            return False
+        labels = value['Labels']
+        ids = ('core', 'home', 'preparation', 'resource', 'operation', 'installation',
+               'volume-journal', 'ownership-nonce')
+        hashes = ('child-plan', 'volume-plan', 'stack-plan', 'catalog', 'worker-policy', 'specification')
+        names = (*ids, *hashes, 'service', 'volume-schema', 'worker-policy-version')
+        if (type(labels) is not dict or set(labels) != {'org.larenor.' + name for name in names}
+                or any(type(item) is not str for item in labels.values())
+                or labels['org.larenor.volume-schema'] != '1'):
+            return False
+        for names, width in ((ids, 32), (hashes, 64)):
+            if any(re.fullmatch('[0-9a-f]{' + str(width) + '}', labels['org.larenor.' + name]) is None
+                   for name in names):
+                return False
+        version = labels['org.larenor.worker-policy-version']
+        return (re.fullmatch(r'[1-9][0-9]{0,9}', version) is not None and int(version) <= 2**31 - 1
+                and re.fullmatch(r'[a-z][a-z0-9_-]{0,63}', labels['org.larenor.service']) is not None
+                and value['Name'] == 'larenor-appdata-v1-' + labels['org.larenor.resource']
+                and _canonical(value) == body)
+    except (DockerWorkerError, ValueError, TypeError):
+        return False
+
+
 @dataclass(frozen=True, repr=False)
 class EngineHttpRequest:
     """Closed wire shapes only; possession is not catalog/effect authorization."""
@@ -127,15 +159,20 @@ class EngineHttpRequest:
 
     def __post_init__(self):
         creating_network = self.method == 'POST' and self.target == _NETWORK_CREATE
+        creating_volume = self.method == 'POST' and self.target == '/v1.47/volumes/create'
+        creating = creating_network or creating_volume
         _require(type(self.method) is str and self.method in ('GET', 'POST')
                  and type(self.target) is str and len(self.target) <= 512
                  and type(self.headers) is tuple
-                 and self.headers == (_CREATE_HEADERS if creating_network else _HEADERS)
+                 and self.headers == (_CREATE_HEADERS if creating else _HEADERS)
                  and all(type(pair) is tuple and all(type(item) is str for item in pair)
                          for pair in self.headers)
-                 and (creating_network or self.body is None), 'invalid_engine_request')
+                 and (creating or self.body is None), 'invalid_engine_request')
         if creating_network:
             _require(_network_create_body(self.body), 'invalid_engine_request')
+            return
+        if creating_volume:
+            _require(_volume_create_body(self.body), 'invalid_engine_request')
             return
         if self.method == 'GET':
             prefix, suffix = '/v1.47/images/', '/json'
@@ -286,8 +323,8 @@ class VerifiedEngineHttp:
             limits = EngineHttpLimits(**vars(limits))
         except TypeError:
             raise EngineHttpError('invalid_engine_limits') from None
-        creating_network = request.method == 'POST' and request.target == _NETWORK_CREATE
-        _require(callable(before_dispatch) if creating_network else before_dispatch is None,
+        creating = request.method == 'POST' and request.target in (_NETWORK_CREATE, '/v1.47/volumes/create')
+        _require(callable(before_dispatch) if creating else before_dispatch is None,
                  'engine_dispatch_denied')
         image_pull = request.method == 'POST' and request.target.startswith('/v1.47/images/create?')
         if image_pull:
@@ -322,7 +359,7 @@ class VerifiedEngineHttp:
                      'engine_api_unsupported')
             _require(_identity(endpoint) == before, 'engine_unavailable')
             _require(not cancelled.is_set(), 'engine_cancelled')
-            if creating_network:
+            if creating:
                 try:
                     permitted = before_dispatch() is True
                 except Exception:
