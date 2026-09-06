@@ -73,10 +73,7 @@ class _Harness {
     );
     await account.initialize();
     if (core) {
-      home = HomeSessionController(
-        store: sourceStore,
-        account: account,
-      );
+      home = HomeSessionController(store: sourceStore, account: account);
       await home!.initialize();
       home!.runtimeMounted(home!.runtimeIdentity);
     }
