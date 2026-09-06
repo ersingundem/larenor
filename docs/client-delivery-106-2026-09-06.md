@@ -34,6 +34,8 @@ Kesin kaynakta `press(cancel)` sonrasında doğrudan `findsNothing` kontrolü va
 
 **Animasyon/route-disposal zamanlamasının bu hataya yol açtığı henüz kontrollü runtime RED ile kanıtlanmadı.** Bu, dar onarım adayıdır; üretim guard’ının hatalı olduğu veya iptal işleminin kesinlikle yürüdüğü varsayılmıyor. Root’un ayrı dalındaki yeniden üretim ve düzeltme bu belgeye kabul edilmiş sonuç olarak eklenmedi. Tek cancel tap, preview ve değişmeyen kayıt fingerprint beklentileri korunmalıdır.
 
+Sonraki ayrı kaynakta [kontrollü arşiv iptali regresyonu](core-archive-cancel-transition-2026-09-06.md) normal ve yavaş animasyonda hatayı yeniden üretti ve dar bekleme düzeltmesini doğruladı. Bu sonraki yerel kanıt yukarıdaki CI106 sonucunu değiştirmez; yeni Android/CI kabulü kendi kaynağında izlenir.
+
 ## Core yayını ve anonim erişim
 
 Anonim repository erişimi ve bu commit’in AGPL-3.0-only [LICENSE dosyası](https://github.com/ersingundem/larenor/blob/e7c15ad6f62352f77379e369f3e8524028c42aab/LICENSE) doğrulandı. Core image için `ghcr.io/ersingundem/larenor-server:sha-e7c15ad6f62352f77379e369f3e8524028c42aab` ile `stable`, gözlem anında aynı OCI index’ine işaret etti:

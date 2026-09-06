@@ -375,7 +375,8 @@
         "docs/volume-reader-integration-2026-09-06.md",
         "docs/managed-volume-create-plan-2026-09-06.md",
         "docs/managed-volume-create-implementation-2026-09-06.md",
-        "docs/managed-volume-full-core-verification-2026-09-06.md"
+        "docs/managed-volume-full-core-verification-2026-09-06.md",
+        "docs/tablet-core-volume-integration-2026-09-06.md"
       ],
       "scope": "installAvailable=false; Client kaynak adı/Docker seçenekleri üretmez. Gerçek ev sunucusuna işlem yok.",
       "acceptance": [
@@ -538,6 +539,22 @@
           "state": "completed",
           "result": "passed",
           "label": "Tek tamCore:3435PASS/12Linuxskip/0FAIL;JUnit3447,431.65sn. Java17+pinliapksig4/4PASS. Main ile5kaynak ağacı aynı; rootmakbuz/log/XMLhashları doğruladı. YeniLinuxCI3447 ve gerçekEngine/UID/bootstrap ayrı açık."
+        },
+        {
+          "kind": "test",
+          "ref": "docs/tablet-core-volume-integration-2026-09-06.md",
+          "commit": "643cbddf6c89085b3a10de7933a59dbe0b394739",
+          "state": "completed",
+          "result": "passed",
+          "label": "Yeni birleşim643cbdd:5150tamClientPASS/coverage,analiz0/971format0;3435tamCorePASS/12Linuxskip aynıServerağacı;207politikaPASS/gitleaks0. Root10kaynak ağacı ve13app+4platform/133faz korumasını doğruladı. KendiCI/APK/fiziksel kabulü açık."
+        },
+        {
+          "kind": "review",
+          "ref": "docs/tablet-core-volume-integration-2026-09-06.md",
+          "commit": "643cbddf6c89085b3a10de7933a59dbe0b394739",
+          "state": "completed",
+          "result": "passed",
+          "label": "Yeni birleşim643cbdd:5150tamClientPASS/coverage,analiz0/971format0;3435tamCorePASS/12Linuxskip aynıServerağacı;207politikaPASS/gitleaks0. Root10kaynak ağacı ve13app+4platform/133faz korumasını doğruladı. KendiCI/APK/fiziksel kabulü açık."
         }
       ],
       "completionCommit": null,
@@ -1192,7 +1209,8 @@
         "docs/client-delivery-106-2026-09-06.md",
         "docs/restore-people-evidence-through-ci106-2026-09-06.json",
         "docs/core-archive-cancel-transition-2026-09-06.md",
-        "docs/restore-dialog-targets-2026-09-06.md"
+        "docs/restore-dialog-targets-2026-09-06.md",
+        "docs/tablet-core-volume-integration-2026-09-06.md"
       ],
       "scope": "Tek mevcut ev bağlamı; F19 çoklu Core/ev federasyonu bu teslim değildir.",
       "acceptance": [
@@ -1260,10 +1278,26 @@
           "state": "completed",
           "result": "passed",
           "label": "Backup/Vault/Archive:12PASS12FAIL→24GREEN;152 ilgiliPASS,7analiz0/format0. Etkin48pxhedef/1xmetinölçeği/2xwrap,Tab-ShiftTab-Enter ve0write oracles; rootkaynak+3gerçekfonttabletPNG CLEAR. Tümcallback/gatesaynı; yeni birleşikClient/CI açık."
+        },
+        {
+          "kind": "test",
+          "ref": "docs/tablet-core-volume-integration-2026-09-06.md",
+          "commit": "643cbddf6c89085b3a10de7933a59dbe0b394739",
+          "state": "completed",
+          "result": "passed",
+          "label": "Yeni birleşim643cbdd:5150tamClientPASS/coverage,analiz0/971format0;3435tamCorePASS/12Linuxskip aynıServerağacı;207politikaPASS/gitleaks0. Root10kaynak ağacı ve13app+4platform/133faz korumasını doğruladı. KendiCI/APK/fiziksel kabulü açık."
+        },
+        {
+          "kind": "review",
+          "ref": "docs/tablet-core-volume-integration-2026-09-06.md",
+          "commit": "643cbddf6c89085b3a10de7933a59dbe0b394739",
+          "state": "completed",
+          "result": "passed",
+          "label": "Yeni birleşim643cbdd:5150tamClientPASS/coverage,analiz0/971format0;3435tamCorePASS/12Linuxskip aynıServerağacı;207politikaPASS/gitleaks0. Root10kaynak ağacı ve13app+4platform/133faz korumasını doğruladı. KendiCI/APK/fiziksel kabulü açık."
         }
       ],
       "completionCommit": null,
-      "reason": "CI106 exact e7c15ad: Flutter5056/Core3311/98JVM/Security207 geçti; E2E16PASS1FAIL,130/133faz; signedAPKskipped/transfer0. Önceki kaynakların tüm kanıtı ayrı JSON arşivinde korundu. Gerçek route geçişleri için RED→GREEN düzeltmeleri main ile birleşti; yeni birleşik Client ve kendi Android/CI/APK kabulü açık."
+      "reason": "CI106 arşiv iptal assertion hatası ve eski kaynak kanıtları arşivde korunur. Geçişler/tablet modalları/Journals yeni643cbdd birleşiminde:5150ClientPASS,analiz0,971format0;3435CorePASS/12Linuxskip,207politikaPASS. Kendi yeniLinux/Android/güvenlikCI ve imzalıAPK doğrulaması açık."
     },
     {
       "id": "S08.6",
@@ -1302,7 +1336,8 @@
         "docs/client-ci-budget-2026-09-06.md",
         "docs/client-delivery-106-2026-09-06.md",
         "docs/restore-people-evidence-through-ci106-2026-09-06.json",
-        "docs/core-people-back-transition-2026-09-06.md"
+        "docs/core-people-back-transition-2026-09-06.md",
+        "docs/tablet-core-volume-integration-2026-09-06.md"
       ],
       "scope": "Tek mevcut ev bağlamı; F19 çoklu Core/ev federasyonu bu teslim değildir.",
       "acceptance": [
@@ -1353,10 +1388,26 @@
           "state": "completed",
           "result": "passed",
           "label": "People geri dönüşü:2 actual-route FAIL→2PASS;42 ilgiliPASS,analyze2/0,format2/0 ve root CLEAR. Eski current/TickerMode + outgoing route yokluğu;tek tap/HTTP sınırı/133faz korunur. CI106 hatası olduğu iddia edilmez; kendi native CI açık."
+        },
+        {
+          "kind": "test",
+          "ref": "docs/tablet-core-volume-integration-2026-09-06.md",
+          "commit": "643cbddf6c89085b3a10de7933a59dbe0b394739",
+          "state": "completed",
+          "result": "passed",
+          "label": "Yeni birleşim643cbdd:5150tamClientPASS/coverage,analiz0/971format0;3435tamCorePASS/12Linuxskip aynıServerağacı;207politikaPASS/gitleaks0. Root10kaynak ağacı ve13app+4platform/133faz korumasını doğruladı. KendiCI/APK/fiziksel kabulü açık."
+        },
+        {
+          "kind": "review",
+          "ref": "docs/tablet-core-volume-integration-2026-09-06.md",
+          "commit": "643cbddf6c89085b3a10de7933a59dbe0b394739",
+          "state": "completed",
+          "result": "passed",
+          "label": "Yeni birleşim643cbdd:5150tamClientPASS/coverage,analiz0/971format0;3435tamCorePASS/12Linuxskip aynıServerağacı;207politikaPASS/gitleaks0. Root10kaynak ağacı ve13app+4platform/133faz korumasını doğruladı. KendiCI/APK/fiziksel kabulü açık."
         }
       ],
       "completionCommit": null,
-      "reason": "CI106 exact e7c15ad: Flutter5056/Core3311/98JVM/Security207 geçti; E2E16PASS1FAIL,130/133faz; signedAPKskipped/transfer0. Önceki kaynakların tüm kanıtı ayrı JSON arşivinde korundu. Gerçek route geçişleri için RED→GREEN düzeltmeleri main ile birleşti; yeni birleşik Client ve kendi Android/CI/APK kabulü açık."
+      "reason": "CI106 arşiv iptal assertion hatası ve eski kaynak kanıtları arşivde korunur. Geçişler/tablet modalları/Journals yeni643cbdd birleşiminde:5150ClientPASS,analiz0,971format0;3435CorePASS/12Linuxskip,207politikaPASS. Kendi yeniLinux/Android/güvenlikCI ve imzalıAPK doğrulaması açık."
     },
     {
       "id": "S08.7",
@@ -1637,7 +1688,8 @@
         "docs/core-plugins-tablet-accessibility-2026-09-06.md",
         "docs/core-plugins-integration-verification-2026-09-06.md",
         "docs/core-plugin-jobs-tablet-accessibility-2026-09-06.md",
-        "docs/restore-dialog-targets-2026-09-06.md"
+        "docs/restore-dialog-targets-2026-09-06.md",
+        "docs/tablet-core-volume-integration-2026-09-06.md"
       ],
       "scope": "Son bütün ekran tasarım geçişi değildir; Core’suz kişisel uzak bağlantı için Core bağımlılığı koymaz.",
       "acceptance": [
@@ -1784,10 +1836,26 @@
           "state": "completed",
           "result": "passed",
           "label": "Backup/Vault/Archive:12PASS12FAIL→24GREEN;152 ilgiliPASS,7analiz0/format0. Etkin48pxhedef/1xmetinölçeği/2xwrap,Tab-ShiftTab-Enter ve0write oracles; rootkaynak+3gerçekfonttabletPNG CLEAR. Tümcallback/gatesaynı; yeni birleşikClient/CI açık."
+        },
+        {
+          "kind": "test",
+          "ref": "docs/tablet-core-volume-integration-2026-09-06.md",
+          "commit": "643cbddf6c89085b3a10de7933a59dbe0b394739",
+          "state": "completed",
+          "result": "passed",
+          "label": "Yeni birleşim643cbdd:5150tamClientPASS/coverage,analiz0/971format0;3435tamCorePASS/12Linuxskip aynıServerağacı;207politikaPASS/gitleaks0. Root10kaynak ağacı ve13app+4platform/133faz korumasını doğruladı. KendiCI/APK/fiziksel kabulü açık."
+        },
+        {
+          "kind": "review",
+          "ref": "docs/tablet-core-volume-integration-2026-09-06.md",
+          "commit": "643cbddf6c89085b3a10de7933a59dbe0b394739",
+          "state": "completed",
+          "result": "passed",
+          "label": "Yeni birleşim643cbdd:5150tamClientPASS/coverage,analiz0/971format0;3435tamCorePASS/12Linuxskip aynıServerağacı;207politikaPASS/gitleaks0. Root10kaynak ağacı ve13app+4platform/133faz korumasını doğruladı. KendiCI/APK/fiziksel kabulü açık."
         }
       ],
       "completionCommit": null,
-      "reason": "Katalog, Jobs ve Backup/Vault/Archive modal tablet düzeltmeleri main ile birleşti. Yeni643cbdd kaynakta tek tamClient+coverage/analyze/format sürüyor. Önceki parça testleri/farklısource5088 sonucu yeni toplam diye kullanılmaz. KendiCI ve bütünB5.1/fizikselTalkBack kabulü açık."
+      "reason": "Katalog, Jobs ve Backup/Vault/Archive modal tablet düzeltmeleri main ile birleşti. Sabit643cbdd:5150tamClientPASS/coverage,analiz0/971format0; gerçekfonttablet/source incelemesi temiz. Services sonraki bağımsız dalda; kendiCI ve bütünB5.1/fizikselTalkBack kabulü açık."
     },
     {
       "id": "B5.2",
