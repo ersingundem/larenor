@@ -147,13 +147,15 @@ void registerCorePeopleJourney() {
 /// Keep both observations within the journey's existing bounded wait.
 Future<void> corePeopleJourneyWaitForReturn(WidgetTester tester) => waitUntil(
   tester,
-  () => find.byKey(
-    const ValueKey('home-people-list'),
-    skipOffstage: false,
-  ).evaluate().isEmpty && singleElementReady(
-    find.byType(CoreHomeStatusScreen),
-    (element) =>
-        ModalRoute.of(element)?.isCurrent == true &&
-        TickerMode.valuesOf(element).enabled,
-  ),
+  () =>
+      find
+          .byKey(const ValueKey('home-people-list'), skipOffstage: false)
+          .evaluate()
+          .isEmpty &&
+      singleElementReady(
+        find.byType(CoreHomeStatusScreen),
+        (element) =>
+            ModalRoute.of(element)?.isCurrent == true &&
+            TickerMode.valuesOf(element).enabled,
+      ),
 );

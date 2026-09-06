@@ -54,8 +54,10 @@ void main() {
           expect(h.writes, isEmpty);
           expect(h.userReads, 0);
           expect(h.grantReads, 0);
-          expect(h.personRequests.every((request) => request.method == 'GET'),
-              isTrue);
+          expect(
+            h.personRequests.every((request) => request.method == 'GET'),
+            isTrue,
+          );
           expect(find.text('Deniz Öztürk'), findsNothing);
 
           // A fresh explicit opening remains the only next list read.
