@@ -2277,5 +2277,40 @@
   "resourceGrantsConflict": "Access changed elsewhere. Refresh and review the current grants before saving again.",
   "resourceGrantsUncertain": "The result could not be confirmed. Refresh to read the current grants; the request will not be repeated automatically.",
   "resourceGrantsFailed": "Access could not be saved. Refresh before reviewing another change.",
-  "resourceGrantsReadFailed": "Accounts and access could not be read. Refresh to try reading them again."
+  "resourceGrantsReadFailed": "Accounts and access could not be read. Refresh to try reading them again.",
+  "backupRestoreReviewAgain": "The restore destination or access changed. Open the preview again before confirming.",
+  "backupRestoreDirectTarget": "This selection contains Direct home data. Switch to Direct home to review it. Core layouts are not part of this backup format.",
+  "backupRestoreTargetDevice": "Destination: this device.",
+  "backupRestoreTargetDirect": "Destination: this device’s Direct home configuration.",
+  "backupRestoreFromBackup": "From backup",
+  "backupRestorePreferenceCount": "{count} preferences",
+  "backupRestoreLayoutCount": "{rooms} rooms · {tiles} tiles · {favorites} favorites",
+  "backupRestoreConnectionCount": "{count} connected services",
+  "@backupRestorePreferenceCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "@backupRestoreLayoutCount": {
+    "placeholders": {
+      "rooms": {
+        "type": "int"
+      },
+      "tiles": {
+        "type": "int"
+      },
+      "favorites": {
+        "type": "int"
+      }
+    }
+  },
+  "@backupRestoreConnectionCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  }
 }

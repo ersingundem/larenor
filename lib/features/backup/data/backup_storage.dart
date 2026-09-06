@@ -16,8 +16,13 @@ class PlatformBackupStorage implements BackupStorage {
   final FlutterSecureStorage _secure;
 
   @override
-  Future<Object?> readPreference(String key) async =>
-      (await SharedPreferences.getInstance()).get(key);
+  Future<Object?> readPreference(String key) async {
+    final preferences = await SharedPreferences.getInstance();
+    // Legacy setters update their cache before the platform acknowledges them.
+    // A restore target is bound to persisted data, never that optimistic cache.
+    await preferences.reload();
+    return preferences.get(key);
+  }
 
   @override
   Future<void> writePreference(String key, Object? value) async {

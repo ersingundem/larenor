@@ -1,4 +1,11 @@
 import 'dart:convert';
+import 'dart:math';
+
+import 'package:crypto/crypto.dart';
+
+import '../../../core/home_source_store.dart';
+import '../../server/data/server_session_store.dart';
+import '../../server/domain/server_models.dart';
 
 import '../../../core/configuration_writes.dart';
 import '../../../core/direct_credential_record.dart';
@@ -9,17 +16,33 @@ import '../../wellbeing/data/wellbeing_store.dart';
 import '../../wellbeing/data/wellbeing_disclosure_policy.dart';
 import 'backup_snapshot.dart';
 import 'backup_storage.dart';
+import 'backup_restore_access.dart';
+
+part 'backup_restore_transaction.dart';
 
 class BackupRepository {
-  BackupRepository({BackupStorage? storage, DateTime Function()? now})
-    : _storage = storage ?? PlatformBackupStorage(),
-      _now = now ?? DateTime.now;
+  BackupRepository({
+    BackupStorage? storage,
+    DateTime Function()? now,
+    this._recoverySourceStore,
+    this._recoverySessionStore,
+  }) : _storage = storage ?? PlatformBackupStorage(),
+       _now = now ?? DateTime.now;
+  final HomeSourcePersistence? _recoverySourceStore;
+  final ServerSessionPersistence? _recoverySessionStore;
   final BackupStorage _storage;
   final DateTime Function() _now;
   static const restoreJournalKey = 'backup_restore_journal_v1';
   static const _dashboardKey = 'dashboard_layout';
   static const _migrationKey = 'enabled_services_migrated';
   static const _maxJournalBytes = 8 * 1024 * 1024;
+
+  Future<PreparedBackupRestore> prepareRestore(
+    BackupSnapshot snapshot,
+    BackupSelection selection, {
+    required BackupConflictPolicy conflictPolicy,
+    required BackupRestoreAccess access,
+  }) => _prepareRestore(this, snapshot, selection, conflictPolicy, access);
 
   Future<BackupSnapshot> capture(BackupSelection selection) =>
       ConfigurationWrites.run(() async {
@@ -157,11 +180,11 @@ class BackupRepository {
 
   /// Apply only selected groups. A connection is a complete record: an old
   /// endpoint is never combined with the imported endpoint's token/password.
-  Future<void> restore(
+  Future<_PreparedChanges> _buildChanges(
     BackupSnapshot snapshot,
-    BackupSelection selection, {
-    BackupConflictPolicy conflictPolicy = BackupConflictPolicy.keepExisting,
-  }) => ConfigurationWrites.run(() async {
+    BackupSelection selection,
+    BackupConflictPolicy conflictPolicy,
+  ) async {
     final json = snapshot.toJson();
     // Validate every group, including ones the user chose not to restore.
     validateBackupJson(json);
@@ -287,12 +310,27 @@ class BackupRepository {
         }
       }
       await _requireStableConnections(affectedServices);
-      if (changes.isEmpty) return;
-      final journal = _encodeJournal(changes);
-      // Persist rollback data before the first preference/credential mutation.
-      await _storage.writeSecret(restoreJournalKey, journal);
+      return _PreparedChanges(changes, affectedServices.toList());
     } on BackupException {
       rethrow;
+    } catch (_) {
+      throw const BackupException(
+        'storage_failed',
+        'Restore could not be prepared.',
+      );
+    }
+  }
+
+  Future<void> restore(
+    BackupSnapshot snapshot,
+    BackupSelection selection, {
+    BackupConflictPolicy conflictPolicy = BackupConflictPolicy.keepExisting,
+  }) => ConfigurationWrites.run(() async {
+    final plan = await _buildChanges(snapshot, selection, conflictPolicy);
+    final changes = plan.changes, affectedServices = plan.services;
+    if (changes.isEmpty) return;
+    try {
+      await _storage.writeSecret(restoreJournalKey, _encodeJournal(changes));
     } catch (_) {
       throw const BackupException(
         'storage_failed',
@@ -326,20 +364,45 @@ class BackupRepository {
     final String? raw;
     try {
       raw = await _storage.readSecret(restoreJournalKey);
+      final newer = await _storage.readSecret(_journalV2Key);
+      if (raw != null && newer != null) _recoveryRequired();
+      if (newer != null) return await _recoverV2(this, expected: {newer});
     } catch (_) {
       throw const BackupRestoreException(rollbackComplete: false);
     }
     if (raw == null) return false;
     final changes = _decodeJournal(raw);
-    if (!await _rollback(changes)) {
+    try {
+      // V1 persisted no after-values or transaction owner. A different current
+      // value cannot be attributed to this old operation and is never replaced.
+      for (var pass = 0; pass < 2; pass++) {
+        for (final change in changes) {
+          if (!_same(await _readChange(this, change), change.before)) {
+            _recoveryRequired();
+          }
+        }
+      }
+      if (await _storage.readSecret(restoreJournalKey) != raw) {
+        _recoveryRequired();
+      }
+      try {
+        await _storage.writeSecret(restoreJournalKey, null);
+      } catch (_) {
+        if (await _storage.readSecret(restoreJournalKey) != null) rethrow;
+      }
+      if (await _storage.readSecret(restoreJournalKey) != null) {
+        _recoveryRequired();
+      }
+      return true;
+    } catch (_) {
       throw const BackupRestoreException(rollbackComplete: false);
     }
-    return true;
   });
 
   Future<void> _requireRecovered() async {
     try {
-      if (await _storage.readSecret(restoreJournalKey) != null) {
+      if (await _storage.readSecret(restoreJournalKey) != null ||
+          await _storage.readSecret(_journalV2Key) != null) {
         throw const BackupException(
           'recovery_required',
           'An interrupted restore needs recovery before continuing.',
@@ -417,7 +480,7 @@ class BackupRepository {
   }
 
   Future<void> _write(_Change change, {required bool previous}) {
-    final value = previous ? change.before : change.after;
+    final value = _cloneValue(previous ? change.before : change.after);
     return change.secret
         ? _storage.writeSecret(change.key, value as String?)
         : _storage.writePreference(change.key, value);

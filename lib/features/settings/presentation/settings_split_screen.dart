@@ -36,10 +36,16 @@ enum SettingsCategory {
 /// narrow for two useful panes it falls back to the plain iOS behaviour of
 /// pushing each category full-screen.
 class SettingsSplitScreen extends StatefulWidget {
-  const SettingsSplitScreen({super.key, this.runFileDialog, this.onExit});
+  const SettingsSplitScreen({
+    super.key,
+    this.runFileDialog,
+    this.onExit,
+    this.backupGateCurrent,
+  });
 
   final SettingsFileDialogRunner? runFileDialog;
   final VoidCallback? onExit;
+  final bool Function()? backupGateCurrent;
 
   @override
   State<SettingsSplitScreen> createState() => _SettingsSplitScreenState();
@@ -92,8 +98,11 @@ class _SettingsSplitScreenState extends State<SettingsSplitScreen> {
                 key: _detailKey,
                 onGenerateRoute: (settings) => CupertinoPageRoute<void>(
                   settings: settings,
-                  builder: (_) =>
-                      paneFor(_selected, runFileDialog: widget.runFileDialog),
+                  builder: (_) => paneFor(
+                    _selected,
+                    runFileDialog: widget.runFileDialog,
+                    backupGateCurrent: widget.backupGateCurrent,
+                  ),
                 ),
               ),
             ),
@@ -109,8 +118,11 @@ class _SettingsSplitScreenState extends State<SettingsSplitScreen> {
       selected: null,
       onSelect: (category) => Navigator.of(context).push(
         CupertinoPageRoute(
-          builder: (_) =>
-              paneFor(category, runFileDialog: widget.runFileDialog),
+          builder: (_) => paneFor(
+            category,
+            runFileDialog: widget.runFileDialog,
+            backupGateCurrent: widget.backupGateCurrent,
+          ),
         ),
       ),
     );
@@ -120,6 +132,7 @@ class _SettingsSplitScreenState extends State<SettingsSplitScreen> {
 Widget paneFor(
   SettingsCategory category, {
   SettingsFileDialogRunner? runFileDialog,
+  bool Function()? backupGateCurrent,
 }) {
   switch (category) {
     case SettingsCategory.connection:
@@ -137,7 +150,10 @@ Widget paneFor(
     case SettingsCategory.integrations:
       return const IntegrationsPane();
     case SettingsCategory.backup:
-      return BackupScreen(runFileDialog: runFileDialog);
+      return BackupScreen(
+        runFileDialog: runFileDialog,
+        gateCurrent: backupGateCurrent,
+      );
     case SettingsCategory.about:
       return const AboutPane();
   }

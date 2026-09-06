@@ -1956,5 +1956,40 @@
   "resourceGrantsConflict": "Erişim başka bir yerde değişti. Yeniden kaydetmeden önce yenileyip güncel izinleri inceleyin.",
   "resourceGrantsUncertain": "Sonuç doğrulanamadı. Güncel izinleri okumak için yenileyin; istek otomatik olarak tekrarlanmaz.",
   "resourceGrantsFailed": "Erişim kaydedilemedi. Başka bir değişikliği incelemeden önce yenileyin.",
-  "resourceGrantsReadFailed": "Hesaplar ve erişim okunamadı. Yeniden okumayı denemek için yenileyin."
+  "resourceGrantsReadFailed": "Hesaplar ve erişim okunamadı. Yeniden okumayı denemek için yenileyin.",
+  "backupRestoreReviewAgain": "Geri yükleme hedefi veya erişim değişti. Onaylamadan önce önizlemeyi yeniden açın.",
+  "backupRestoreDirectTarget": "Bu seçim Doğrudan ev verisi içeriyor. İncelemek için Doğrudan ev kaynağına geçin. Core yerleşimleri bu yedek biçimine dahil değildir.",
+  "backupRestoreTargetDevice": "Hedef: bu cihaz.",
+  "backupRestoreTargetDirect": "Hedef: bu cihazın Doğrudan ev yapılandırması.",
+  "backupRestoreFromBackup": "Yedekten",
+  "backupRestorePreferenceCount": "{count} tercih",
+  "backupRestoreLayoutCount": "{rooms} oda · {tiles} kutucuk · {favorites} favori",
+  "backupRestoreConnectionCount": "{count} bağlı servis",
+  "@backupRestorePreferenceCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "@backupRestoreLayoutCount": {
+    "placeholders": {
+      "rooms": {
+        "type": "int"
+      },
+      "tiles": {
+        "type": "int"
+      },
+      "favorites": {
+        "type": "int"
+      }
+    }
+  },
+  "@backupRestoreConnectionCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  }
 }
