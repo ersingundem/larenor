@@ -46,6 +46,7 @@ class _Harness {
   );
   late final ServerAccountController account;
   late final VaultAccountStore accountStore;
+  final sourceStore = SharedPreferencesHomeSourceStore();
   HomeSessionController? home;
   int opens = 0, disposals = 0;
 
@@ -73,7 +74,7 @@ class _Harness {
     await account.initialize();
     if (core) {
       home = HomeSessionController(
-        store: SharedPreferencesHomeSourceStore(),
+        store: sourceStore,
         account: account,
       );
       await home!.initialize();
@@ -90,7 +91,11 @@ class _Harness {
           serverSessionStoreProvider.overrideWithValue(accountStore),
           homeSessionControllerProvider.overrideWithValue(home),
           backupRepositoryProvider.overrideWithValue(
-            BackupRepository(storage: storage),
+            BackupRepository(
+              storage: storage,
+              recoverySourceStore: sourceStore,
+              recoverySessionStore: accountStore,
+            ),
           ),
         ],
         child: ConfigurationScope(
