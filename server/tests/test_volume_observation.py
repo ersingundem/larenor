@@ -1,0 +1,172 @@
+"""Real SQLite + temporary AF_UNIX composition; no Docker/storage effects."""
+from dataclasses import asdict
+import json
+import os
+import sqlite3
+import threading
+
+import pytest
+
+from larenor_server.plugins.resource_journal import ResourceJournal, ResourceJournalError
+from larenor_server.plugins.volume_journal import VolumeJournal
+from larenor_server.plugins.volume_observation import JournaledVolumeObservations, VolumeObservationError
+from larenor_server.plugins.volume_resources import volume_binding, volume_expected_labels
+from larenor_server.plugins.volume_transport import UnixVolumeReader
+from test_engine_http import server, response
+from test_volume_journal import inputs
+from test_volume_plan import source
+from test_volume_resources import body
+
+
+def reader(client):
+    return UnixVolumeReader(client._endpoint, peer_uid=lambda _: os.getuid())
+
+
+def bound(journal, data, resource_id):
+    """Inspect the committed row from an independent SQLite connection."""
+    with sqlite3.connect(journal_path(journal) / 'journal.sqlite') as db:
+        row = db.execute('SELECT state,revision,nonce FROM resources WHERE resource_id=?', (resource_id,)).fetchone()
+    assert row is not None and row[0] in {'observing', 'uncertain'}
+    return volume_binding(**data, resource_id=resource_id, journal_id=journal.identity, ownership_nonce=row[2]), row
+
+
+def journal_path(journal):
+    return journal.test_path
+
+
+@pytest.fixture
+def scenario(tmp_path, source):
+    data = inputs(source)
+    rid = data['plan'].resources[0].resourceId
+    path = tmp_path / 'volumes'
+    with VolumeJournal(path, initialize=True) as journal:
+        journal.test_path = path
+        yield data, rid, journal, path
+
+
+def test_intent_committed_before_socket_reply_and_terminal_replay_is_history(scenario):
+    data, rid, journal, path = scenario
+    rows = []
+    def reply(connection):
+        binding, row = bound(journal, data, rid)
+        rows.append(row)
+        connection.sendall(response(body(binding)))
+    with server(reply=reply) as (client, calls):
+        operations = JournaledVolumeObservations(journal, reader(client))
+        result = operations.observe(**data, resource_id=rid)
+        assert (result.state, result.revision, result.code) == ('labels_observed', 3, 'volume_labels_observed')
+        assert rows[0][:2] == ('observing', 2)
+        assert operations.observe(**data, resource_id=rid) == result
+    assert len(calls) == 2
+    assert not {'ready', 'created', 'lease', 'Mountpoint'} & asdict(result).keys()
+    assert b'DO-NOT-EXPOSE' not in (path / 'journal.sqlite').read_bytes()
+    with journal.locked():
+        assert journal.get(rid) == result
+
+
+def test_restart_recovers_observing_with_same_nonce_and_journal_identity(tmp_path, source):
+    data = inputs(source)
+    rid = data['plan'].resources[0].resourceId
+    path = tmp_path / 'volumes'
+    with VolumeJournal(path, initialize=True) as journal, journal.locked():
+        journal.prepare(**data, resource_id=rid)
+        intent = journal.begin_observation(rid, 1, **data)
+        identity, nonce = journal.identity, intent.binding.ownership_nonce
+    with VolumeJournal(path) as reopened:
+        reopened.test_path = path
+        def reply(connection):
+            binding, _ = bound(reopened, data, rid)
+            assert binding.journal_id == identity and binding.ownership_nonce == nonce
+            connection.sendall(response(body(binding)))
+        with server(reply=reply) as (client, calls):
+            observed = JournaledVolumeObservations(reopened, reader(client)).observe(**data, resource_id=rid)
+        assert observed.state == 'labels_observed' and len(calls) == 2
+    with VolumeJournal(path) as last, server() as (client, calls):
+        assert JournaledVolumeObservations(last, reader(client)).observe(**data, resource_id=rid) == observed
+    assert calls == []
+
+
+def test_unavailable_reply_is_durable_uncertain_and_explicit_retry_is_read_only(scenario):
+    data, rid, journal, _ = scenario
+    replies = []
+    def reply(connection):
+        binding, row = bound(journal, data, rid)
+        replies.append(row[:2])
+        connection.sendall(response(b'private-error', status=404) if len(replies) == 1 else response(body(binding)))
+    with server(reply=reply) as (client, calls):
+        operations = JournaledVolumeObservations(journal, reader(client))
+        first = operations.observe(**data, resource_id=rid)
+        assert (first.state, first.revision) == ('uncertain', 3)
+        assert len(calls) == 2
+        second = operations.observe(**data, resource_id=rid)
+    assert replies == [('observing', 2), ('uncertain', 3)]
+    assert (second.state, second.revision) == ('labels_observed', 4)
+    assert len(calls) == 4 and all(call.startswith(b'GET ') for call in calls)
+
+
+def test_other_journal_labels_cannot_be_adopted(scenario, tmp_path):
+    data, rid, journal, _ = scenario
+    with VolumeJournal(tmp_path / 'other', initialize=True) as other, other.locked():
+        other.prepare(**data, resource_id=rid)
+        foreign = other.begin_observation(rid, 1, **data).binding
+    with server(reply=response(body(foreign))) as (client, calls):
+        operations = JournaledVolumeObservations(journal, reader(client))
+        result = operations.observe(**data, resource_id=rid)
+        assert (result.state, result.code) == ('needs_attention', 'volume_conflict')
+        assert operations.observe(**data, resource_id=rid) == result
+    assert len(calls) == 2
+
+
+def test_changed_source_is_rejected_before_any_http(scenario):
+    from larenor_server.plugins.volume_plan import build_volume_plan
+    data, rid, journal, _ = scenario
+    with journal.locked():
+        original = journal.prepare(**data, resource_id=rid)
+    changed = dict(data)
+    changed['policy'] = data['policy'].model_copy(update={'workerPolicyDigest': 'e' * 64})
+    changed['plan'] = build_volume_plan(changed['stack'], changed['catalog'], changed['policy'])
+    with server() as (client, calls):
+        with pytest.raises(ResourceJournalError, match='^idempotency_conflict$'):
+            JournaledVolumeObservations(journal, reader(client)).observe(**changed, resource_id=rid)
+    assert calls == []
+    with journal.locked():
+        assert journal.get(rid) == original
+
+
+@pytest.mark.parametrize('when', ['before', 'body'])
+def test_cancel_never_publishes_labels(scenario, when):
+    data, rid, journal, _ = scenario
+    event = threading.Event()
+    if when == 'before':
+        event.set()
+    def reply(connection):
+        binding, _ = bound(journal, data, rid)
+        event.set()
+        try:
+            connection.sendall(response(body(binding)))
+        except (BrokenPipeError, ConnectionResetError):
+            pass
+    with server(reply=reply) as (client, calls):
+        operations = JournaledVolumeObservations(journal, reader(client))
+        if when == 'before':
+            with pytest.raises(VolumeObservationError, match='^volume_cancelled$'):
+                operations.observe(**data, resource_id=rid, cancelled=event)
+        else:
+            result = operations.observe(**data, resource_id=rid, cancelled=event)
+            assert (result.state, result.code) == ('uncertain', 'volume_observation_unavailable')
+    assert len(calls) == (0 if when == 'before' else 2)
+    if when == 'before':
+        with journal.locked():
+            assert journal.list() == ()
+
+
+def test_native_journal_and_missing_reader_are_rejected_without_io(tmp_path, scenario):
+    _, _, volume, _ = scenario
+    class Observer:
+        def inspect(self, binding, *, cancelled=None):
+            pytest.fail('constructor dispatched observation')
+    with ResourceJournal(tmp_path / 'native', initialize=True) as native:
+        with pytest.raises(VolumeObservationError, match='^invalid_volume_observation$'):
+            JournaledVolumeObservations(native, Observer())
+    with pytest.raises(VolumeObservationError, match='^invalid_volume_observation$'):
+        JournaledVolumeObservations(volume, object())
