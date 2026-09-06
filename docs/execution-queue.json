@@ -455,7 +455,7 @@
         }
       ],
       "completionCommit": null,
-      "reason": "Kök resolver394de0f Linux CI2792 test ve gerçek root/proc/mount/descriptor kabulünden geçti. Saf volumeplanb5d4164 APK99/Core CI içinde. Yeni volumeobserver4baa55a95/282yerelPASS+bağımsız inceleme ile birleşimde. Kalıcı volumejournal ayrı dalda geliştiriliyor; remap/UID/bootstrap ve gerçek Engine işlem bağlantısı açık. Gözlem yazma yetkisi değildir; installAvailable=false."
+      "reason": "Kök resolver394de0f Linux CI2792 test ve gerçek root/proc/mount/descriptor kabulünden geçti. Safvolumeplanb5d4164 APK99/CoreCI içinde; volumeobserver4baa55a95/282PASS+review yeni yerelbirleşimde. Ayrıcodex/managed-volume-journal dalıf9a3faa54odaklı/273ilgiliPASS+rootreview ile hazır; mevcut tamServer/CIpaketine dahil değil. Remap/UID/bootstrap ve Engine işlem bağlantısı açık; installAvailable=false."
     },
     {
       "id": "S06.3e",

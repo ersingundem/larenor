@@ -24,7 +24,11 @@ gerçek RED/GREEN geçmişini, kapsam oranının paydasını ve açık koşullar
 karşılaştırmasıyla birleştirildi; iki dalın değiştirdiği tüm anahtarların
 değerleri korundu. Model ve l10n çıktıları gerçek araçlarla yeniden üretildi.
 `8d9e4d2` üretim/test kaynağında tam Client **4.271 PASS / 4:48** verdi.
-Tam Server koşusu sürüyor. **207 araç testi / 69,383 saniye** ve Android
+Tam Server **3.040 PASS / 10 Linux'a özgü skip / 8:17,88** verdi; iki mevcut
+bağımlılık uyarısı var. Atlananlar gerçek Linux SO_PEERCRED, peer-pidfd,
+procfs/mount/fd ve Unix stream davranış testleridir; yeni Linux CI'da
+ayrıca çalışmaları gerekir. Tam analiz **0 bulgu / 11 saniye**, formatter
+**878 dosya / 0 değişiklik**. **207 araç testi / 69,383 saniye** ve Android
 backup/CI trust policy denetimi geçti. Yeni kaynak
 yönetimi Android yolculuğu ayrı dalda hazırlanıyor; mevcut yedi yolculuk
 ve varsayılan salt okunur test hesabı değiştirilmiyor.

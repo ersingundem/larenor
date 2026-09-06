@@ -113,7 +113,9 @@ Core yönetim ekranı ve volume gözlemi aynı sonraki pakete alındı.
 [Birleşim kanıtı](core-client-integration-2026-09-06.md) tam test/CI aşamasını izler.
 `8d9e4d2` birleşik üretim/test kaynağı **4.271 Client testi / 4:48** ile geçti;
 207 güvenlik/CI araç testi ve backup/CI politika kontrolü de temiz. Tam Server
-koşusu ile yeni Android metadata yolculuğu sürüyor; yeni paket henüz yayımlanmadı.
+**3.040 PASS / 10 Linux'a özgü skip / 8:17,88** verdi. Tam analiz 0 bulgu,
+878 dosyada biçim farkı yok. Yeni Android metadata yolculuğu hazırlanıyor;
+Linux'a özel testler ve bütün yeni kaynak için CI ayrıca gerekli.
 Core metadata mutasyon API'si `8e00548` yerel dalında **87 odaklı / 656 ilgili
 Client ve 40 Server testi**, temiz analiz ve bağımsız inceleme ile doğrulandı.
 Bu API'nin PIN korumalı oluşturma, ad/sıra değiştirme ve kayıt silme UI'si
@@ -142,6 +144,12 @@ ekler. **95 odaklı / 282 ilgili test**, 124 satır ve 24 dalda %100 kapsam;
 bağımsız inceleme temiz. Host dizini açılmaz ve gözlem kurulum yetkisi sayılmaz.
 Kalıcı volume journal'ı, gerçek bootstrap ve Engine işlem bağlantısı açık.
 [Gözlem kanıtı](managed-volume-observation-implementation-2026-09-06.md).
+
+**Sonraki bağımsız volume journal paketi hazır:** `codex/managed-volume-journal`
+dalı `f9a3faa` checkpoint'inde **54 odaklı / 273 ilgili PASS** ve bağımsız
+inceleme ile donduruldu; yeni modül 139 satır ve 8 dalda %100 kapsamda.
+Bu dal yukarıdaki tam Server koşusuna veya mevcut yayına dahil değil.
+Yalnız gözlem geçmişini saklar; Engine/bootstrap ve kurulum yetkisi açık.
 
 S08.4'ün önceki 31 ayrıntılı kanıt kaydı
 [özgün kayıt arşivinde](client-boundary-evidence-archive-2026-09-06.json)
