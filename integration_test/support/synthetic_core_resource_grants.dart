@@ -13,6 +13,8 @@ class SyntheticCoreResourceGrants {
   int aclRevision=1,usersReads=0,grantReads=0,recordReads=0,putRequests=0;
   bool failNextPutReply=false;
   Completer<void>? replyGate;
+  /// Host-test observation only: headers accepted before the body is consumed.
+  Completer<void>? bodyStarted;
   final List<String> mutations=[];
   Map<String,dynamic> get target => jsonDecode(jsonEncode(_contract['target'])) as Map<String,dynamic>;
   Map<String,Map<String,bool>> get grants => Map.unmodifiable(_grants.map((id,value)=>MapEntry(id,Map.unmodifiable(value))));
@@ -42,6 +44,7 @@ class SyntheticCoreResourceGrants {
     if((isUsers||isAcl)&&!admin)return error(403,'forbidden');
     if((isUsers||isRecord)&&request.method!='GET'||isAcl&&!{'GET','PUT'}.contains(request.method))return error(403,'forbidden');
     if((isUsers||isAcl)&&request.uri.hasQuery)return error(400,'invalid_request');
+    final started=bodyStarted;if(started!=null&&!started.isCompleted)started.complete();
     final bytes=<int>[];
     try{await for(final chunk in request.timeout(const Duration(seconds:2))){if(bytes.length+chunk.length>4096)return error(413,'invalid_request');bytes.addAll(chunk);}}
     on TimeoutException{return error(400,'invalid_request');}
