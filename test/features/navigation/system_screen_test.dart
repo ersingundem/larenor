@@ -50,7 +50,8 @@ class _Proxmox extends ProxmoxConnection {
 
   void disconnect() => state = const AsyncData(null);
   @override
-  Future<void> signOut() async {
+  Future<void> signOut({bool Function()? isCurrent}) async {
+    if (isCurrent != null && !isCurrent()) return;
     signOutCalls++;
     disconnect();
   }
