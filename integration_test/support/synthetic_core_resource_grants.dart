@@ -72,6 +72,7 @@ class SyntheticCoreResourceGrants {
     final reply=(200,{'grant':_grant(id,desired)});
     final gate=replyGate;
     if(gate!=null){try{await gate.future.timeout(const Duration(seconds:3));}on TimeoutException{return error(503,'service_unavailable');}finally{if(identical(replyGate,gate))replyGate=null;}}
+    final afterReply=authStatus();if(afterReply!=null)return error(afterReply,afterReply==401?'unauthorized':'forbidden');
     if(failNextPutReply){failNextPutReply=false;return error(503,'service_unavailable');}
     return reply;
   }
