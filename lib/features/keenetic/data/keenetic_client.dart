@@ -28,10 +28,9 @@ class KeeneticClient {
     this.healthSession,
     this.requestTimeout = const Duration(seconds: 15),
     DateTime Function()? now,
-    bool Function()? isCurrent,
+    this._isCurrent,
   }) : _client = ServerBoundClient(baseUrl: config.baseUrl, inner: httpClient),
-       _now = now ?? DateTime.now,
-       _isCurrent = isCurrent;
+       _now = now ?? DateTime.now;
 
   final KeeneticConfig config;
   final ServerBoundClient _client;

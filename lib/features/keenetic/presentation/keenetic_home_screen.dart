@@ -86,8 +86,9 @@ class _KeeneticHomeScreenState extends MediaSessionState<KeeneticHomeScreen> {
               ),
             ),
       data: (config) {
-        if (config == null)
+        if (config == null) {
           return const KeeneticConnectScreen(popOnSuccess: false);
+        }
         final generation = sessionGeneration;
         return _KeeneticMenu(onSignOut: () => unawaited(_signOut(generation)));
       },
@@ -128,8 +129,9 @@ class _KeeneticMenuState extends MediaSessionState<_KeeneticMenu> {
   VoidCallback _open(WidgetBuilder builder) {
     final generation = sessionGeneration;
     return () {
-      if (_current(generation))
+      if (_current(generation)) {
         Navigator.of(context).push(CupertinoPageRoute<void>(builder: builder));
+      }
     };
   }
 

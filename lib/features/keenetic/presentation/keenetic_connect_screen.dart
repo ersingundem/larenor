@@ -84,8 +84,9 @@ class _KeeneticConnectScreenState
           InternetAddress.tryParse(gateway) == null ||
           _urlController.text != _defaultUrl ||
           _userController.text != 'admin' ||
-          _passwordController.text.isNotEmpty)
+          _passwordController.text.isNotEmpty) {
         return;
+      }
       setState(
         () =>
             _urlController.text = Uri(scheme: 'http', host: gateway).toString(),

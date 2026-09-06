@@ -223,8 +223,9 @@ class KeeneticConnection extends _$KeeneticConnection {
             actionCurrent(),
       );
       _check(generation);
-      if (!actionCurrent())
+      if (!actionCurrent()) {
         throw const DirectHomeAccessException('unavailable');
+      }
       state = const AsyncData(null);
     } catch (error) {
       _check(generation);

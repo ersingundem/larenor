@@ -12,6 +12,8 @@ import 'package:larenor/core/direct_credential_record.dart';
 import 'package:larenor/core/direct_home_access.dart';
 import 'package:larenor/core/home_source_store.dart';
 import 'package:larenor/features/keenetic/data/keenetic_credentials_store.dart';
+import 'package:larenor/features/keenetic/data/keenetic_config.dart';
+import 'package:larenor/features/keenetic/data/keenetic_api_exception.dart';
 import 'package:larenor/features/keenetic/providers/keenetic_providers.dart';
 import 'package:larenor/features/keenetic/providers/keenetic_telemetry_providers.dart';
 
@@ -297,6 +299,122 @@ void main() {
       await KeeneticCredentialsStore().clear();
       expect(secure.values, isEmpty);
       expect(await KeeneticCredentialsStore().read(), isNull);
+    },
+  );
+
+  test('form cancellation closes only its verification, not an independent pending reader', () async {
+    secure.values.clear();
+    final readerEntered = Completer<void>(), checkEntered = Completer<void>();
+    final readerResponse = Completer<http.Response>(),
+        checkResponse = Completer<http.Response>();
+    await http.runWithClient(
+      () async {
+        final (c, _) = await routinesHome('direct');
+        final lease = c.listen(keeneticConnectionProvider, (_, _) {});
+        addTearDown(lease.close);
+        await c.read(keeneticConnectionProvider.future);
+        final connection = c.read(keeneticConnectionProvider.notifier);
+        final reader = c.read(keeneticClientFactoryProvider)(
+          const KeeneticConfig(
+            baseUrl: 'https://reader.invalid',
+            username: 'reader',
+            password: '',
+          ),
+          null,
+        );
+        addTearDown(reader.dispose);
+        await reader.login();
+        final reading = reader.getConnectedDevices();
+        await readerEntered.future;
+        bool owner() => true;
+        final signing = connection.signIn(
+          baseUrl: 'https://verify.invalid',
+          username: 'new-user',
+          password: '',
+          isCurrent: owner,
+        );
+        final denied = expectLater(
+          signing,
+          throwsA(isA<KeeneticApiException>()),
+        );
+        await checkEntered.future;
+        connection.cancelSignIn(owner);
+        checkResponse.complete(http.Response('', 200));
+        await denied;
+        readerResponse.complete(http.Response('{"host":[]}', 200));
+        expect(await reading, isEmpty);
+        expect(reader.isAuthenticated, isTrue);
+        expect(secure.calls.where((c) => c.$1 != 'read'), isEmpty);
+      },
+      () => MockClient((r) async {
+        if (r.url.host == 'verify.invalid') {
+          checkEntered.complete();
+          return checkResponse.future;
+        }
+        if (r.url.path.endsWith('/hotspot')) {
+          readerEntered.complete();
+          return readerResponse.future;
+        }
+        return keeneticReply(r);
+      }),
+    );
+  });
+
+  test(
+    'stale form owner cannot cancel a newer verification or replace its tuple',
+    () async {
+      secure.values.clear();
+      final firstEntered = Completer<void>(), secondEntered = Completer<void>();
+      final firstResponse = Completer<http.Response>(),
+          secondResponse = Completer<http.Response>();
+      await http.runWithClient(
+        () async {
+          final (c, _) = await routinesHome('direct');
+          final lease = c.listen(keeneticConnectionProvider, (_, _) {});
+          addTearDown(lease.close);
+          await c.read(keeneticConnectionProvider.future);
+          final connection = c.read(keeneticConnectionProvider.notifier);
+          bool firstOwner() => true;
+          bool secondOwner() => true;
+          final first = connection.signIn(
+            baseUrl: 'https://first.invalid',
+            username: 'first',
+            password: '',
+            isCurrent: firstOwner,
+          );
+          final firstDenied = expectLater(
+            first,
+            throwsA(isA<KeeneticApiException>()),
+          );
+          await firstEntered.future;
+          final second = connection.signIn(
+            baseUrl: 'https://second.invalid',
+            username: 'second',
+            password: '',
+            isCurrent: secondOwner,
+          );
+          await secondEntered.future;
+          connection.cancelSignIn(firstOwner);
+          firstResponse.complete(http.Response('', 200));
+          await firstDenied;
+          secondResponse.complete(http.Response('', 200));
+          await second;
+          expect(secure.values['keenetic_base_url'], 'https://second.invalid');
+          expect(secure.values['keenetic_username'], 'second');
+          expect(secure.values.containsKey(marker), isFalse);
+        },
+        () => MockClient((r) async {
+          if (r.url.path == '/auth') {
+            if (r.url.host == 'first.invalid') {
+              firstEntered.complete();
+              return firstResponse.future;
+            }
+            secondEntered.complete();
+            return secondResponse.future;
+          }
+          return keeneticReply(r);
+        }),
+      );
     },
   );
 }

@@ -10,6 +10,7 @@ import 'package:flutter_secure_storage_platform_interface/flutter_secure_storage
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:larenor/core/app_interaction_scope.dart';
+import 'package:larenor/core/theme.dart';
 import 'package:larenor/core/direct_credential_record.dart';
 import 'package:larenor/core/home_source_store.dart';
 import 'package:larenor/features/keenetic/presentation/keenetic_connect_screen.dart';
@@ -409,12 +410,13 @@ void main() {
                     .first
                     .onTap!;
               }
-              if (action == 'signOut')
+              if (action == 'signOut') {
                 return tester
                     .widget<CupertinoButton>(
                       find.byKey(const ValueKey('service-account-action')),
                     )
                     .onPressed!;
+              }
               return tester
                   .widgetList<CupertinoButton>(find.byType(CupertinoButton))
                   .firstWhere(
@@ -440,13 +442,15 @@ void main() {
             callback()();
             await settle(tester);
             if (action == 'refresh') expect(requests, greaterThan(before));
-            if (action == 'navigate')
+            if (action == 'navigate') {
               expect(find.byType(KeeneticDevicesScreen), findsOneWidget);
-            if (action == 'signOut')
+            }
+            if (action == 'signOut') {
               expect(
                 secure.values.keys.where((k) => k.startsWith('keenetic_')),
                 isEmpty,
               );
+            }
             expect(tester.takeException(), isNull);
             await finish(tester, c);
           },
@@ -469,8 +473,9 @@ void main() {
       messenger.setMockMethodCallHandler(storageChannel, (call) async {
         final result = await secure.handle(call);
         if (call.method == 'delete' &&
-            (call.arguments as Map)['key'] == 'keenetic_base_url')
+            (call.arguments as Map)['key'] == 'keenetic_base_url') {
           interaction.setActive(false);
+        }
         return result;
       });
       await http.runWithClient(() async {
@@ -617,88 +622,94 @@ void main() {
 
   for (final locale in ['en', 'tr']) {
     for (final width in [600.0, 1200.0]) {
-      testWidgets(
-        '$locale ${width.toInt()} 2x real-font recovery is scrollable and keyboard-clearable',
-        (tester) async {
-          await tester.runAsync(() async {
-            final data = await rootBundle.load(
-              'assets/fonts/Inter-Variable.ttf',
-            );
-            for (final family in [
-              'Inter',
-              'CupertinoSystemText',
-              'CupertinoSystemDisplay',
-            ]) {
-              await (FontLoader(family)..addFont(Future.value(data))).load();
-            }
-          });
-          secure.values.addAll({...keeneticRecord, marker: '1'});
-          final (c, _) = await routinesHome('direct');
-          final interaction = AppInteractionController();
-          addTearDown(interaction.dispose);
-          final semantics = tester.ensureSemantics();
-
-          await mount(
-            tester,
-            c,
-            interaction,
-            size: Size(width, 650),
-            scale: 2,
-            locale: Locale(locale),
-            child: const KeeneticHomeScreen(),
-          );
-          final l10n = AppLocalizations.of(
-            tester.element(find.byType(KeeneticConnectScreen)),
-          );
-          final clear = find.widgetWithText(
-            CupertinoButton,
-            l10n.keeneticRemoveConnection,
-          );
-          await tester.scrollUntilVisible(
-            clear,
-            150,
-            scrollable: find.byType(Scrollable).first,
-            maxScrolls: 12,
-          );
-          await settle(tester);
-          expect(tester.getSize(clear).height, greaterThanOrEqualTo(48));
-          expect(find.text(l10n.keeneticRemoveConnection), findsOneWidget);
-          final buttonElement = tester.element(clear);
-          bool focused() {
-            var found = false;
-            FocusManager.instance.primaryFocus?.context?.visitAncestorElements((
-              element,
-            ) {
-              if (identical(element, buttonElement)) found = true;
-              return !found;
+      for (final dark in [false, true]) {
+        testWidgets(
+          '$locale ${width.toInt()} ${dark ? 'dark' : 'light'} 2x real-font recovery is scrollable and keyboard-clearable',
+          (tester) async {
+            await tester.runAsync(() async {
+              final data = await rootBundle.load(
+                'assets/fonts/Inter-Variable.ttf',
+              );
+              for (final family in [
+                'Inter',
+                'CupertinoSystemText',
+                'CupertinoSystemDisplay',
+              ]) {
+                await (FontLoader(family)..addFont(Future.value(data))).load();
+              }
             });
-            return found;
-          }
+            secure.values.addAll({...keeneticRecord, marker: '1'});
+            final (c, _) = await routinesHome('direct');
+            final interaction = AppInteractionController();
+            addTearDown(interaction.dispose);
+            final semantics = tester.ensureSemantics();
 
-          for (var i = 0; i < 12 && !focused(); i++) {
-            await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+            await mount(
+              tester,
+              c,
+              interaction,
+              size: Size(width, 650),
+              scale: 2,
+              locale: Locale(locale),
+              child: CupertinoTheme(
+                data: larenorTheme(
+                  brightness: dark ? Brightness.dark : Brightness.light,
+                ),
+                child: const KeeneticHomeScreen(),
+              ),
+            );
+            final l10n = AppLocalizations.of(
+              tester.element(find.byType(KeeneticConnectScreen)),
+            );
+            final clear = find.widgetWithText(
+              CupertinoButton,
+              l10n.keeneticRemoveConnection,
+            );
+            await tester.scrollUntilVisible(
+              clear,
+              150,
+              scrollable: find.byType(Scrollable).first,
+              maxScrolls: 12,
+            );
             await settle(tester);
-          }
-          expect(focused(), isTrue);
-          await tester.sendKeyEvent(LogicalKeyboardKey.space);
-          await settle(tester);
-          expect(
-            secure.values.keys.where((k) => k.startsWith('keenetic_')),
-            isEmpty,
-          );
-          await tester.scrollUntilVisible(
-            find.text(l10n.commonDone),
-            -150,
-            scrollable: find.byType(Scrollable).first,
-            maxScrolls: 12,
-          );
-          expect(find.text(l10n.commonDone), findsOneWidget);
-          expect(gatewayReads, 0);
-          expect(tester.takeException(), isNull);
-          semantics.dispose();
-          await finish(tester, c);
-        },
-      );
+            expect(tester.getSize(clear).height, greaterThanOrEqualTo(48));
+            expect(find.text(l10n.keeneticRemoveConnection), findsOneWidget);
+            final buttonElement = tester.element(clear);
+            bool focused() {
+              var found = false;
+              FocusManager.instance.primaryFocus?.context
+                  ?.visitAncestorElements((element) {
+                    if (identical(element, buttonElement)) found = true;
+                    return !found;
+                  });
+              return found;
+            }
+
+            for (var i = 0; i < 12 && !focused(); i++) {
+              await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+              await settle(tester);
+            }
+            expect(focused(), isTrue);
+            await tester.sendKeyEvent(LogicalKeyboardKey.space);
+            await settle(tester);
+            expect(
+              secure.values.keys.where((k) => k.startsWith('keenetic_')),
+              isEmpty,
+            );
+            await tester.scrollUntilVisible(
+              find.text(l10n.commonDone),
+              -150,
+              scrollable: find.byType(Scrollable).first,
+              maxScrolls: 12,
+            );
+            expect(find.text(l10n.commonDone), findsOneWidget);
+            expect(gatewayReads, 0);
+            expect(tester.takeException(), isNull);
+            semantics.dispose();
+            await finish(tester, c);
+          },
+        );
+      }
     }
   }
 
