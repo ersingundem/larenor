@@ -146,3 +146,9 @@ Tüm Flutter/Dart komutları ortak `/private/tmp/larenor-flutter-check.py`
 kilidiyle izole worktree'de çalıştırıldı. Bu dal main'e push yapmadı; ortak
 birleştirme, tam Client koşusu ve yayın kabulü ana çalışma tarafından
 ayrı doğrulanır.
+
+Bağımsız kaynak incelemesi: root `3b5c51b` üzerinden store/device,
+login/logout kaynak ve işlem kuşağı, belirsiz kayıt sonrası istemciyi
+emekliye ayırma, discovery bind/stop, form focus/reload ve home/error
+geçişlerini salt okunur değerlendirdi. Bu kapsamda açık P1/P2 kalmadı.
+Bu inceleme sonraki servis pilotlarını veya yeni kodu kapsamaz.
