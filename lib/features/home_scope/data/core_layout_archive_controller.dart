@@ -10,10 +10,9 @@ import '../domain/core_layout_archive.dart';
 class CoreLayoutArchiveController {
   CoreLayoutArchiveController({
     required DashboardRepository destination,
-    required bool Function() isCurrent,
+    required this._isCurrent,
     DateTime Function()? clock,
   }) : _destination = destination,
-       _isCurrent = isCurrent,
        _clock = clock ?? DateTime.now {
     if (destination.scope == null) {
       throw const DashboardStorageException('expired');
@@ -115,6 +114,7 @@ class CoreLayoutArchiveController {
         _checkPreview(preview);
         return true;
       }
+
       await _destination.saveIfUnchanged(
         restored,
         expected: preview._target,
