@@ -14,6 +14,7 @@ import 'package:larenor/features/media/qbittorrent/presentation/qbittorrent_conn
 import 'package:larenor/features/media/qbittorrent/presentation/qbittorrent_torrents_screen.dart';
 import 'package:larenor/features/media/qbittorrent/providers/qbittorrent_providers.dart';
 import 'package:larenor/features/settings/presentation/settings_gate_screen.dart';
+import 'package:larenor/features/settings/providers/settings_providers.dart';
 import 'package:larenor/l10n/generated/app_localizations.dart';
 import 'package:larenor/shared/discovery/lan_discovery_section.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -40,7 +41,22 @@ Future<void> settle(WidgetTester tester) async {
 }
 
 Future<void> tap(WidgetTester tester, String text) async {
-  final button = find.text(text).first;
+  final matches = find.text(text);
+  if (matches.evaluate().isEmpty &&
+      find.byType(QbittorrentConnectScreen).evaluate().isNotEmpty) {
+    await tester.scrollUntilVisible(
+      matches,
+      250,
+      scrollable: find
+          .descendant(
+            of: find.byType(QbittorrentConnectScreen),
+            matching: find.byType(Scrollable),
+          )
+          .first,
+      maxScrolls: 30,
+    );
+  }
+  final button = matches.first;
   await Scrollable.ensureVisible(tester.element(button), alignment: .4);
   await settle(tester);
   await tester.tap(button);
@@ -60,28 +76,35 @@ Future<void> mount(
   AppInteractionController interaction, {
   Widget child = const QbittorrentConnectScreen(),
   ValueNotifier<bool>? visible,
+  Size size = const Size(700, 1100),
+  double scale = 1,
+  Locale locale = const Locale('en'),
 }) async {
   tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
-  tester.view.physicalSize = const Size(700, 1100);
+  tester.view.physicalSize = size;
   tester.view.devicePixelRatio = 1;
   addTearDown(tester.view.reset);
   await tester.pumpWidget(
     UncontrolledProviderScope(
       container: c,
       child: CupertinoApp(
-        locale: const Locale('en'),
+        locale: locale,
         localizationsDelegates: AppLocalizations.localizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
-        builder: (_, body) => AppInteractionScope(
-          controller: interaction,
-          child: visible == null
-              ? body!
-              : ValueListenableBuilder<bool>(
-                  valueListenable: visible,
-                  child: body,
-                  builder: (_, value, child) =>
-                      TickerMode(enabled: value, child: child!),
-                ),
+        builder: (context, body) => MediaQuery(
+          data: MediaQuery.of(context)
+              .copyWith(textScaler: TextScaler.linear(scale)),
+          child: AppInteractionScope(
+            controller: interaction,
+            child: visible == null
+                ? body!
+                : ValueListenableBuilder<bool>(
+                    valueListenable: visible,
+                    child: body,
+                    builder: (_, value, child) =>
+                        TickerMode(enabled: value, child: child!),
+                  ),
+          ),
         ),
         home: child,
       ),
@@ -247,8 +270,9 @@ void main() {
             }
             if (change == 'dispose') await tester.pumpWidget(const SizedBox());
             await settle(tester);
-            if (find.byType(CupertinoTextFormFieldRow).evaluate().length == 3)
+            if (find.byType(CupertinoTextFormFieldRow).evaluate().length == 3) {
               await fill(tester);
+            }
             secure.calls.clear();
             old();
             await settle(tester);
@@ -356,8 +380,9 @@ void main() {
           final result = await secure.handle(call);
           if (call.method == 'write' &&
               (call.arguments as Map)['key'] ==
-                  'qbittorrent_${point == 'url' ? 'base_url' : point}')
+                  'qbittorrent_${point == 'url' ? 'base_url' : point}') {
             interaction.setActive(false);
+          }
           return result;
         });
         await http.runWithClient(
@@ -404,9 +429,400 @@ void main() {
           },
           () => MockClient((request) async {
             requests.add(request);
-            if (request.url.path.endsWith('/auth/login'))
+            if (request.url.path.endsWith('/auth/login')) {
               return response.future;
+            }
             return success(request);
+          }),
+        );
+      },
+    );
+  }
+  for (final mode in ['core', 'pending', 'error']) {
+    testWidgets(
+      '$mode standalone setup cannot read credentials or mount LAN discovery',
+      (tester) async {
+        final (c, _) = await routinesHome(mode);
+        final interaction = AppInteractionController();
+        addTearDown(interaction.dispose);
+        var requests = 0;
+        await http.runWithClient(
+          () async {
+            secure.calls.clear();
+            await mount(tester, c, interaction);
+            expect(find.byType(LanDiscoverySection), findsNothing);
+            expect(find.byType(CupertinoTextFormFieldRow), findsNothing);
+            expect(secure.calls, isEmpty);
+            expect(requests, 0);
+            await finish(tester, c);
+          },
+          () => MockClient((request) async {
+            requests++;
+            return success(request);
+          }),
+        );
+      },
+    );
+  }
+
+  for (final covered in [false, true]) {
+    testWidgets(
+      'standalone completion covered=$covered only pops its own still-current route',
+      (tester) async {
+        final (c, _) = await routinesHome('direct');
+        final interaction = AppInteractionController();
+        addTearDown(interaction.dispose);
+        final response = Completer<http.Response>();
+        var requests = 0;
+        await http.runWithClient(
+          () async {
+            await mount(
+              tester,
+              c,
+              interaction,
+              child: Builder(
+                builder: (context) => CupertinoPageScaffold(
+                  child: Center(
+                    child: CupertinoButton(
+                      onPressed: () => Navigator.of(context).push(
+                        CupertinoPageRoute<void>(
+                          builder: (_) => const QbittorrentConnectScreen(),
+                        ),
+                      ),
+                      child: const Text('Open setup'),
+                    ),
+                  ),
+                ),
+              ),
+            );
+            await tap(tester, 'Open setup');
+            await fill(tester);
+            await tap(tester, 'Connect');
+            expect(requests, 1);
+            if (covered) {
+              final navigator = Navigator.of(
+                tester.element(find.byType(QbittorrentConnectScreen)),
+              );
+              unawaited(
+                navigator.push(
+                  CupertinoPageRoute<void>(
+                    builder: (_) => const CupertinoPageScaffold(
+                      child: Center(child: Text('Unrelated page')),
+                    ),
+                  ),
+                ),
+              );
+              await settle(tester);
+            }
+            response.complete(
+              http.Response(
+                '',
+                204,
+                headers: {'set-cookie': 'SID=synthetic; Path=/'},
+              ),
+            );
+            await settle(tester);
+            if (covered) {
+              expect(find.text('Unrelated page'), findsOneWidget);
+              expect(requests, 1);
+              expect(secure.calls.where((c) => c.$1 == 'write'), isEmpty);
+            } else {
+              expect(find.text('Open setup'), findsOneWidget);
+              expect(find.byType(QbittorrentConnectScreen), findsNothing);
+              expect(requests, 3);
+              expect(
+                secure.values['qbittorrent_password'],
+                'synthetic-new-password',
+              );
+            }
+            expect(tester.takeException(), isNull);
+            await finish(tester, c);
+          },
+          () => MockClient((request) async {
+            requests++;
+            return request.url.path.endsWith('/auth/login')
+                ? response.future
+                : success(request);
+          }),
+        );
+      },
+    );
+  }
+
+  testWidgets(
+    'actual Settings PIN replacement retires held recovery clear and connect callbacks',
+    (tester) async {
+      secure.values.addAll(fields);
+      secure.values[marker] = '1';
+      final (c, _) = await routinesHome('direct');
+      final interaction = AppInteractionController();
+      addTearDown(interaction.dispose);
+      var requests = 0;
+      final response = Completer<http.Response>();
+      await http.runWithClient(
+        () async {
+          await mount(
+            tester,
+            c,
+            interaction,
+            child: const SettingsGateScreen(),
+          );
+          await tester.enterText(find.byType(CupertinoTextField), '2468');
+          await tap(tester, 'Unlock');
+          await tap(tester, 'Integrations');
+          await tap(tester, 'Manage Integrations');
+          await tap(tester, 'qBittorrent');
+          await fill(tester);
+          final oldClear = tester
+              .widget<CupertinoButton>(
+                find.widgetWithText(CupertinoButton, 'Remove saved connection'),
+              )
+              .onPressed!;
+          final oldConnect = tester
+              .widget<CupertinoButton>(
+                find.widgetWithText(CupertinoButton, 'Connect'),
+              )
+              .onPressed!;
+          oldConnect();
+          await settle(tester);
+          expect(requests, 1);
+          secure.values['settings_pin'] = '1357';
+          c.invalidate(pinLockProvider);
+          await settle(tester);
+          expect(find.byType(QbittorrentConnectScreen), findsNothing);
+          secure.calls.clear();
+          oldClear();
+          oldConnect();
+          response.complete(
+            http.Response(
+              '',
+              204,
+              headers: {'set-cookie': 'SID=synthetic; Path=/'},
+            ),
+          );
+          await settle(tester);
+          expect(secure.calls, isEmpty);
+          expect(requests, 1);
+          expect(secure.values[marker], '1');
+          expect(
+            secure.values['qbittorrent_password'],
+            fields['qbittorrent_password'],
+          );
+          expect(tester.takeException(), isNull);
+          await finish(tester, c);
+        },
+        () => MockClient((request) async {
+          requests++;
+          return request.url.path.endsWith('/auth/login')
+              ? response.future
+              : success(request);
+        }),
+      );
+    },
+  );
+
+  testWidgets(
+    'pending clear platform failure is static, retains marker and never discovers or signs in',
+    (tester) async {
+      secure.values.addAll(fields);
+      secure.values[marker] = '1';
+      messenger.setMockMethodCallHandler(storageChannel, (call) async {
+        final result = await secure.handle(call);
+        if (call.method == 'delete' &&
+            (call.arguments as Map)['key'] == 'qbittorrent_base_url') {
+          throw PlatformException(
+            code: 'synthetic',
+            message: 'synthetic-private-password',
+          );
+        }
+        return result;
+      });
+      final (c, _) = await routinesHome('direct');
+      final interaction = AppInteractionController();
+      addTearDown(interaction.dispose);
+      var requests = 0;
+      await http.runWithClient(
+        () async {
+          await mount(
+            tester,
+            c,
+            interaction,
+            child: const QbittorrentTorrentsScreen(),
+          );
+          await tap(tester, 'Remove saved connection');
+          expect(secure.values[marker], '1');
+          expect(find.text('Done'), findsNothing);
+          expect(
+            find.textContaining('synthetic-private-password'),
+            findsNothing,
+          );
+          expect(find.byType(LanDiscoverySection), findsNothing);
+          expect(requests, 0);
+          expect(
+            tester
+                .widget<CupertinoButton>(
+                  find.widgetWithText(
+                    CupertinoButton,
+                    'Remove saved connection',
+                  ),
+                )
+                .onPressed,
+            isNotNull,
+          );
+          await finish(tester, c);
+        },
+        () => MockClient((request) async {
+          requests++;
+          return success(request);
+        }),
+      );
+    },
+  );
+  for (final layout in [
+    (const Size(320, 640), const Locale('tr')),
+    (const Size(1366, 1024), const Locale('en')),
+  ]) {
+    testWidgets(
+      'pending recovery fits ${layout.$1} ${layout.$2.languageCode} with 2x text',
+      (tester) async {
+        secure.values.addAll(fields);
+        secure.values[marker] = '1';
+        final (c, _) = await routinesHome('direct');
+        final interaction = AppInteractionController();
+        addTearDown(interaction.dispose);
+        var requests = 0;
+        await http.runWithClient(
+          () async {
+            await mount(
+              tester,
+              c,
+              interaction,
+              child: const QbittorrentTorrentsScreen(),
+              size: layout.$1,
+              scale: 2,
+              locale: layout.$2,
+            );
+            final label = layout.$2.languageCode == 'tr'
+                ? 'Kayıtlı bağlantıyı kaldır'
+                : 'Remove saved connection';
+            await tap(tester, label);
+            final list = find
+                .descendant(
+                  of: find.byType(QbittorrentConnectScreen),
+                  matching: find.byType(Scrollable),
+                )
+                .first;
+            tester.state<ScrollableState>(list).position.jumpTo(0);
+            await settle(tester);
+            expect(
+              find.text(layout.$2.languageCode == 'tr' ? 'Bitti' : 'Done'),
+              findsOneWidget,
+            );
+            expect(secure.values[marker], isNull);
+            expect(requests, 0);
+            expect(tester.takeException(), isNull);
+            await finish(tester, c);
+          },
+          () => MockClient((request) async {
+            requests++;
+            return success(request);
+          }),
+        );
+      },
+    );
+  }
+
+  testWidgets(
+    'pending rejected login keeps the no-discovery form and requires explicit retry',
+    (tester) async {
+      secure.values.addAll(fields);
+      secure.values[marker] = '1';
+      final (c, _) = await routinesHome('direct');
+      final interaction = AppInteractionController();
+      addTearDown(interaction.dispose);
+      var logins = 0, requests = 0;
+      await http.runWithClient(
+        () async {
+          await mount(
+            tester,
+            c,
+            interaction,
+            child: const QbittorrentTorrentsScreen(),
+          );
+          await fill(tester);
+          await tap(tester, 'Connect');
+          expect(logins, 1);
+          expect(requests, 1);
+          expect(secure.values[marker], '1');
+          expect(find.byType(QbittorrentConnectScreen), findsOneWidget);
+          expect(find.byType(LanDiscoverySection), findsNothing);
+          expect(
+            find.textContaining('synthetic-private-upstream'),
+            findsNothing,
+          );
+          await settle(tester);
+          expect(logins, 1);
+          await tap(tester, 'Connect');
+          expect(secure.values[marker], isNull);
+          expect(
+            logins,
+            3,
+          ); // Explicit verifier, then the new normal reader session.
+          expect(find.byType(QbittorrentConnectScreen), findsNothing);
+          await finish(tester, c);
+        },
+        () => MockClient((request) async {
+          requests++;
+          if (request.url.path.endsWith('/auth/login') && ++logins == 1)
+            return http.Response('synthetic-private-upstream', 200);
+          return success(request);
+        }),
+      );
+    },
+  );
+  for (final change in ['background', 'ticker', 'source', 'dispose']) {
+    testWidgets(
+      '$change during owned login cancels remaining version reads and credential writes',
+      (tester) async {
+        final (c, home) = await routinesHome('direct');
+        final interaction = AppInteractionController();
+        final visible = ValueNotifier(true);
+        addTearDown(interaction.dispose);
+        addTearDown(visible.dispose);
+        final response = Completer<http.Response>();
+        var requests = 0;
+        await http.runWithClient(
+          () async {
+            await mount(tester, c, interaction, visible: visible);
+            await fill(tester);
+            await tap(tester, 'Connect');
+            expect(requests, 1);
+            if (change == 'background')
+              tester.binding.handleAppLifecycleStateChanged(
+                AppLifecycleState.inactive,
+              );
+            if (change == 'ticker') visible.value = false;
+            if (change == 'source') await home.choose(HomeSource.verifiedCore);
+            if (change == 'dispose') await tester.pumpWidget(const SizedBox());
+            await settle(tester);
+            response.complete(
+              http.Response(
+                '',
+                204,
+                headers: {'set-cookie': 'SID=synthetic; Path=/'},
+              ),
+            );
+            await settle(tester);
+            expect(requests, 1);
+            expect(secure.calls.where((call) => call.$1 == 'write'), isEmpty);
+            expect(tester.takeException(), isNull);
+            await finish(tester, c);
+          },
+          () => MockClient((request) async {
+            requests++;
+            return request.url.path.endsWith('/auth/login')
+                ? response.future
+                : success(request);
           }),
         );
       },

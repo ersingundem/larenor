@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 // The pinned secure-storage plugin's real platform boundary.
 // ignore: depend_on_referenced_packages
@@ -16,7 +17,7 @@ import 'package:larenor/features/media/qbittorrent/providers/qbittorrent_provide
 import 'direct_home_boundary_test.dart' show SecurePlatform;
 import 'direct_home_routines_test.dart' show routinesHome;
 import '../features/media/qbittorrent/qbittorrent_providers_test.dart'
-    show success;
+    show success, ClosingHttp;
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -261,6 +262,226 @@ void main() {
           if (!started.isCompleted) started.complete();
           return response.future;
         }
+        return success(request);
+      }),
+    );
+  });
+  for (final throws in [false, true]) {
+    test(
+      'expired callback (throws=$throws) refuses sign-in before transport or storage',
+      () async {
+        final (c, _) = await routinesHome('direct');
+        final sub = c.listen(qbittorrentConnectionProvider, (_, _) {});
+        addTearDown(sub.close);
+        await c.read(qbittorrentConnectionProvider.future);
+        secure.calls.clear();
+        var requests = 0;
+        await http.runWithClient(
+          () async {
+            await expectLater(
+              c
+                  .read(qbittorrentConnectionProvider.notifier)
+                  .signIn(
+                    baseUrl: 'https://new.invalid',
+                    username: 'new-user',
+                    password: 'new-password',
+                    isCurrent: () =>
+                        throws ? throw StateError('synthetic secret') : false,
+                  ),
+              throwsA(isA<DirectHomeAccessException>()),
+            );
+          },
+          () => MockClient((request) async {
+            requests++;
+            return success(request);
+          }),
+        );
+        expect(requests, 0);
+        expect(secure.calls, isEmpty);
+      },
+    );
+  }
+
+  test('wrong or former cancellation owner cannot close the newest verifier or normal reader', () async {
+    final oldResponse = Completer<http.Response>(),
+        newResponse = Completer<http.Response>();
+    final startedOld = Completer<void>(), startedNew = Completer<void>();
+    final transports = <ClosingHttp>[];
+    final requests = <http.Request>[];
+    await http.runWithClient(
+      () async {
+        final (c, _) = await routinesHome('direct');
+        final sub = c.listen(qbittorrentConnectionProvider, (_, _) {});
+        addTearDown(sub.close);
+        await c.read(qbittorrentConnectionProvider.future);
+        final connection = c.read(qbittorrentConnectionProvider.notifier);
+        bool oldOwner() => true;
+        bool newOwner() => true;
+        final old = connection.signIn(
+          baseUrl: 'https://first.invalid',
+          username: 'one',
+          password: 'one-fixture',
+          isCurrent: oldOwner,
+        );
+        final rejected = expectLater(old, throwsA(isA<Exception>()));
+        await startedOld.future;
+        final next = connection.signIn(
+          baseUrl: 'https://new.invalid',
+          username: 'two',
+          password: 'two-fixture',
+          isCurrent: newOwner,
+        );
+        await startedNew.future;
+        connection.cancelSignIn(oldOwner);
+        connection.cancelSignIn(() => true);
+        expect(transports.last.closed, isFalse);
+        oldResponse.complete(
+          http.Response('', 204, headers: {'set-cookie': 'SID=old; Path=/'}),
+        );
+        newResponse.complete(
+          http.Response('', 204, headers: {'set-cookie': 'SID=new; Path=/'}),
+        );
+        await rejected;
+        await next;
+        expect(secure.values['qbittorrent_password'], 'two-fixture');
+        expect(
+          requests.where((r) => r.url.host == 'first.invalid'),
+          hasLength(1),
+        );
+        final readerSub = c.listen(qbittorrentClientProvider, (_, _) {});
+        addTearDown(readerSub.close);
+        final reader = await c.read(qbittorrentClientProvider.future);
+        expect(reader!.isAuthenticated, isTrue);
+        final count = requests.length;
+        connection.cancelSignIn(newOwner);
+        expect(reader.isAuthenticated, isTrue);
+        expect(requests.length, count);
+      },
+      () {
+        late ClosingHttp transport;
+        transport = ClosingHttp((request) async {
+          requests.add(request);
+          if (request.url.path.endsWith('/auth/login')) {
+            if (request.url.host == 'first.invalid') {
+              startedOld.complete();
+              return oldResponse.future;
+            }
+            if (!startedNew.isCompleted) {
+              startedNew.complete();
+              return newResponse.future;
+            }
+          }
+          return success(request);
+        });
+        transports.add(transport);
+        return transport;
+      },
+    );
+  });
+
+  test('cancelled replacement never republishes old configuration to restart a cookie reader', () async {
+    final response = Completer<http.Response>(), entered = Completer<void>();
+    final requests = <http.Request>[];
+    await http.runWithClient(
+      () async {
+        final (c, _) = await routinesHome('direct');
+        final sub = c.listen(qbittorrentClientProvider, (_, _) {});
+        addTearDown(sub.close);
+        await c.read(qbittorrentConnectionProvider.future);
+        await c.pump();
+        final reader = await c.read(qbittorrentClientProvider.future);
+        expect(reader!.isAuthenticated, isTrue);
+        expect(requests, hasLength(3));
+        final connection = c.read(qbittorrentConnectionProvider.notifier);
+        var active = true;
+        bool owner() => active;
+        final pending = connection.signIn(
+          baseUrl: 'https://new.invalid',
+          username: 'new',
+          password: 'new-fixture',
+          isCurrent: owner,
+        );
+        final rejected = expectLater(
+          pending,
+          throwsA(isA<DirectHomeAccessException>()),
+        );
+        await entered.future;
+        active = false;
+        connection.cancelSignIn(owner);
+        response.complete(
+          http.Response('', 204, headers: {'set-cookie': 'SID=new; Path=/'}),
+        );
+        await rejected;
+        await c.pump();
+        expect(c.read(qbittorrentConnectionProvider).hasError, isTrue);
+        expect(await c.read(qbittorrentClientProvider.future), isNull);
+        expect(requests, hasLength(4));
+        expect(reader.isAuthenticated, isFalse);
+        expect(secure.values, original);
+      },
+      () => MockClient((request) async {
+        requests.add(request);
+        if (request.url.host == 'new.invalid') {
+          entered.complete();
+          return response.future;
+        }
+        return success(request);
+      }),
+    );
+  });
+
+  test('HTTP-verified partial tuple failure never becomes a usable connection or automatic reader', () async {
+    messenger.setMockMethodCallHandler(channel, (call) async {
+      final result = await secure.handle(call);
+      if (call.method == 'write' &&
+          (call.arguments as Map)['key'] == 'qbittorrent_base_url') {
+        throw PlatformException(
+          code: 'synthetic',
+          message: 'synthetic-private-password',
+        );
+      }
+      return result;
+    });
+    var requests = 0;
+    await http.runWithClient(
+      () async {
+        final (c, _) = await routinesHome('direct');
+        final sub = c.listen(qbittorrentConnectionProvider, (_, _) {});
+        addTearDown(sub.close);
+        await c.read(qbittorrentConnectionProvider.future);
+        await expectLater(
+          c
+              .read(qbittorrentConnectionProvider.notifier)
+              .signIn(
+                baseUrl: 'https://new.invalid',
+                username: 'new',
+                password: 'new-fixture',
+                isCurrent: () => true,
+              ),
+          throwsA(isA<DirectHomeAccessException>()),
+        );
+        expect(requests, 3);
+        expect(c.read(qbittorrentConnectionProvider).hasError, isTrue);
+        expect(await c.read(qbittorrentClientProvider.future), isNull);
+        expect(requests, 3);
+        expect(secure.values[marker], '1');
+        expect(
+          secure.values['qbittorrent_username'],
+          original['qbittorrent_username'],
+        );
+        expect(
+          secure.values['qbittorrent_password'],
+          original['qbittorrent_password'],
+        );
+        c.invalidate(qbittorrentConnectionProvider);
+        await expectLater(
+          c.read(qbittorrentConnectionProvider.future),
+          throwsA(isA<DirectHomeAccessException>()),
+        );
+        expect(requests, 3);
+      },
+      () => MockClient((request) async {
+        requests++;
         return success(request);
       }),
     );
