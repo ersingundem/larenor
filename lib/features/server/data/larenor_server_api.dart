@@ -136,7 +136,9 @@ class LarenorServerApi {
   }) async {
     if (_closed) throw const LarenorServerException('cancelled');
     final homeResourceDeletion =
-        method == 'DELETE' && path.startsWith('/admin/home-resources');
+        method == 'DELETE' &&
+        (path.startsWith('/admin/home-resources') ||
+            path.startsWith('/admin/home-people'));
     bool canonicalRevision(String? raw) {
       if (raw == null || raw.length > 19) return false;
       final value = int.tryParse(raw);
@@ -149,7 +151,7 @@ class LarenorServerApi {
     final homeResourceDeleteQuery =
         homeResourceDeletion &&
         RegExp(
-              r'^/admin/home-resources/[0-9a-f]{32}/[0-9a-f]{32}/[0-9a-f]{32}$',
+              r'^/admin/(?:home-resources|home-people)/[0-9a-f]{32}/[0-9a-f]{32}/[0-9a-f]{32}$',
             ).firstMatch(path)?.end ==
             path.length &&
         queryParameters?.length == 2 &&
@@ -167,6 +169,8 @@ class LarenorServerApi {
           !path.startsWith('/admin/media/preparations') &&
           !path.startsWith('/admin/media/inspections') &&
           !path.startsWith('/home-resources') &&
+          !path.startsWith('/home-people') &&
+          !path.startsWith('/admin/home-people') &&
           queryParameters.length <= keys.length &&
           !queryParameters.entries.any(
             (entry) =>
@@ -214,7 +218,7 @@ class LarenorServerApi {
       final revision = queryParameters['expectedRevision'];
       final homeResourcesQuery =
           method == 'GET' &&
-          RegExp(r'^/home-resources/[0-9a-f]{32}/[0-9a-f]{32}$')
+          RegExp(r'^/(?:home-resources|home-people)/[0-9a-f]{32}/[0-9a-f]{32}$')
               .hasMatch(path) &&
           (!queryParameters.containsKey('after') ||
               queryParameters.containsKey('expectedSnapshot')) &&
