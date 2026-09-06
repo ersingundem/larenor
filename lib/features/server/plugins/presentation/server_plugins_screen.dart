@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
@@ -303,28 +304,36 @@ class _ServerPluginsScreenState extends MediaSessionState<ServerPluginsScreen> {
                       padding: const EdgeInsets.symmetric(horizontal: 8),
                       child: Wrap(
                         children: [
-                          CupertinoButton(
+                          _catalogButton(
+                            context,
+                            current: _capture(),
                             key: const ValueKey('plugins-media'),
                             onPressed: _active && !_plugins.busy
                                 ? _callback(_openMedia)
                                 : null,
                             child: Text(l10n.serverMediaTitle),
                           ),
-                          CupertinoButton(
+                          _catalogButton(
+                            context,
+                            current: _capture(),
                             key: const ValueKey('plugins-jobs'),
                             onPressed: _active && !_plugins.busy
                                 ? _callback(_openJobs)
                                 : null,
                             child: Text(l10n.serverJobsHistory),
                           ),
-                          CupertinoButton(
+                          _catalogButton(
+                            context,
+                            current: _capture(),
                             key: const ValueKey('plugins-refresh'),
                             onPressed: _active && !_plugins.busy
                                 ? _callback(_load)
                                 : null,
                             child: Text(l10n.commonRefresh),
                           ),
-                          CupertinoButton(
+                          _catalogButton(
+                            context,
+                            current: _capture(),
                             key: const ValueKey('plugins-connect'),
                             onPressed: _enabled ? _callback(_connect) : null,
                             child: Text(l10n.serverPluginsConnectExisting),
@@ -373,7 +382,11 @@ class _ServerPluginsScreenState extends MediaSessionState<ServerPluginsScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Text(manifest.displayName, style: AppText.headline),
+              Semantics(
+                container: true,
+                header: true,
+                child: Text(manifest.displayName, style: AppText.headline),
+              ),
               if (manifest.integrationRole == 'internal_engine')
                 Text(l10n.serverPluginsIntegratedMusic, style: AppText.subhead),
               const SizedBox(height: 8),
@@ -388,12 +401,18 @@ class _ServerPluginsScreenState extends MediaSessionState<ServerPluginsScreen> {
               if (manifest.integrationRole != 'internal_engine')
                 Align(
                   alignment: AlignmentDirectional.centerStart,
-                  child: CupertinoButton(
+                  child: _catalogButton(
+                    context,
+                    current: _capture(),
                     key: ValueKey('plugin-review-${manifest.serviceId}'),
                     onPressed: _enabled
                         ? _callback(() => _review(entry))
                         : null,
-                    child: Text(l10n.serverPluginsPreview),
+                    child: Text(
+                      l10n.serverPluginsPreview,
+                      semanticsLabel:
+                          '${manifest.displayName} · ${l10n.serverPluginsPreview}',
+                    ),
                   ),
                 ),
             ],
@@ -403,6 +422,64 @@ class _ServerPluginsScreenState extends MediaSessionState<ServerPluginsScreen> {
     );
   }
 }
+
+// Preserve the native action and its captured authority while keeping the
+// label separate from surrounding catalogue metadata and the focus ring visible.
+Widget _catalogButton(
+  BuildContext context, {
+  required bool Function() current,
+  Key? key,
+  required VoidCallback? onPressed,
+  required Widget child,
+}) => Semantics(
+  container: true,
+  enabled: onPressed != null,
+  blockUserActions: onPressed == null,
+  child: Padding(
+    padding: const EdgeInsets.all(4),
+    child: Builder(
+      builder: (buttonContext) => CupertinoButton(
+        key: key,
+        minimumSize: const Size(48, 48),
+        focusColor: CupertinoTheme.of(context).primaryColor,
+        onFocusChange: (focused) {
+          if (!focused || onPressed == null) return;
+          final node = FocusManager.instance.primaryFocus;
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            // Read geometry after native Tab scrolling has laid out its offset.
+            // An old focus notification cannot scroll a retired or covered page.
+            if (!buttonContext.mounted ||
+                node == null ||
+                !node.hasPrimaryFocus ||
+                !identical(FocusManager.instance.primaryFocus, node) ||
+                !current() ||
+                ModalRoute.of(buttonContext)?.isCurrent != true ||
+                !TickerMode.valuesOf(buttonContext).enabled) {
+              return;
+            }
+            final box = buttonContext.findRenderObject();
+            final viewport = RenderAbstractViewport.maybeOf(box);
+            if (box is! RenderBox || viewport is! RenderBox) return;
+            final ring =
+                (box.localToGlobal(Offset.zero, ancestor: viewport) & box.size)
+                    .inflate(4);
+            final visible = Offset.zero & (viewport as RenderBox).size;
+            // Native Tab reveals the button edge; its focus ring paints outside.
+            // Reveal only a clipped ring and leave already visible rows still.
+            if (ring.top < visible.top ||
+                ring.bottom > visible.bottom ||
+                ring.left < visible.left ||
+                ring.right > visible.right) {
+              Scrollable.ensureVisible(buttonContext, alignment: .5);
+            }
+          });
+        },
+        onPressed: onPressed,
+        child: child,
+      ),
+    ),
+  ),
+);
 
 class _PluginDraft {
   const _PluginDraft(this.platform, this.settings);
