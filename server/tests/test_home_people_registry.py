@@ -134,3 +134,48 @@ def test_people_ciphertext_revision_tampering_preserves_storage_and_fails_closed
     assert client.get(public, headers=auth(admin)).status_code == 503
     with pytest.raises(StartupError, match='home_people_storage_invalid'):
         create_app(settings)
+
+
+def test_noop_metadata_and_grants_preserve_ciphertext_and_visible_snapshot(server):
+    app, client, _, _ = server; admin = ready(server); public, base = paths(app)
+    create_user(client, admin); member = activate(client, 'member'); person = create(client, admin, base)
+    permission = grant(client, admin, base, person, member['user']['id'])
+    before = client.get(public, headers=auth(admin)).json()
+    with app.state.core.db.connection() as c:
+        encrypted = tuple(c.execute('SELECT * FROM home_people_records').fetchone())
+    result = client.patch(base + '/' + person['ref']['id'], headers=auth(admin), json={
+        'label': person['label'], 'order': person['order'], 'expectedRevision': 1, 'expectedAclRevision': 2})
+    assert result.status_code == 200 and result.json()['person'] == before['entries'][0]
+    assert grant(client, admin, base, person, member['user']['id'], revision=2) == permission
+    result = client.get(base + '/' + person['ref']['id'] + '/grants', headers=auth(admin))
+    assert result.status_code == 200 and result.json() == {'aclRevision': 2, 'grants': [permission]}
+    assert client.get(public, headers=auth(admin)).json() == before
+    with app.state.core.db.connection() as c:
+        assert tuple(c.execute('SELECT * FROM home_people_records').fetchone()) == encrypted
+
+
+def test_bounded_record_capacity_rejects_partial_write_and_recovers_after_delete(server, monkeypatch):
+    from larenor_server.home_people import schema
+    monkeypatch.setattr(schema, 'MAX_RECORDS', 2)
+    app, client, _, _ = server; admin = ready(server); public, base = paths(app)
+    first = create(client, admin, base); create(client, admin, base, label='Second')
+    before = client.get(public, headers=auth(admin)).json()
+    result = client.post(base, headers=auth(admin), json={'label': 'Over limit', 'order': 0})
+    assert result.status_code == 409 and client.get(public, headers=auth(admin)).json() == before
+    assert client.delete(base + '/' + first['ref']['id'], headers=auth(admin),
+        params={'expectedRevision': 1, 'expectedAclRevision': 1}).status_code == 204
+    create(client, admin, base, label='Replacement')
+    assert len(client.get(public, headers=auth(admin)).json()['entries']) == 2
+
+
+def test_grant_capacity_and_unknown_subject_preserve_current_access(server, monkeypatch):
+    from larenor_server.home_people import schema
+    monkeypatch.setattr(schema, 'MAX_GRANTS', 1)
+    app, client, _, _ = server; admin = ready(server); public, base = paths(app)
+    create_user(client, admin); member = activate(client, 'member'); person = create(client, admin, base)
+    grant(client, admin, base, person, member['user']['id'])
+    before = client.get(public, headers=auth(member)).json()
+    body = {'expectedAclRevision': 2, 'permissions': {'read': True, 'write': False}}
+    for subject, code in [('f' * 32, 404), (admin['user']['id'], 409)]:
+        result = client.put(base + '/' + person['ref']['id'] + '/grants/' + subject, headers=auth(admin), json=body)
+        assert result.status_code == code and client.get(public, headers=auth(member)).json() == before
