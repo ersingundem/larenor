@@ -1,6 +1,6 @@
 # Larenor — güncel ilerleme ve iş kuyruğu
 
-**Son güncelleme: 6 Eylül 2026, 04:14 (Türkiye saati).**
+**Son güncelleme: 6 Eylül 2026, 04:22 (Türkiye saati).**
 
 ```text
 Önceki kapsam       █████████████░░░░░░░  ≈ %65
@@ -111,6 +111,9 @@ entegrasyon API'lerinin veya fiziksel cihazların kabulü değildir.
 **1047 ilgili PASS** ve bağımsız inceleme ile tamamlandı. Dashboard WebView,
 Core yönetim ekranı ve volume gözlemi aynı sonraki pakete alındı.
 [Birleşim kanıtı](core-client-integration-2026-09-06.md) tam test/CI aşamasını izler.
+`8d9e4d2` birleşik üretim/test kaynağı **4.271 Client testi / 4:48** ile geçti;
+207 güvenlik/CI araç testi ve backup/CI politika kontrolü de temiz. Tam Server
+koşusu ile yeni Android metadata yolculuğu sürüyor; yeni paket henüz yayımlanmadı.
 Core metadata mutasyon API'si `8e00548` yerel dalında **87 odaklı / 656 ilgili
 Client ve 40 Server testi**, temiz analiz ve bağımsız inceleme ile doğrulandı.
 Bu API'nin PIN korumalı oluşturma, ad/sıra değiştirme ve kayıt silme UI'si
