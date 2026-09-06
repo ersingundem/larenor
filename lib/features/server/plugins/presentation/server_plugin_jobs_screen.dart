@@ -621,43 +621,46 @@ class _JobDialogActionState extends State<_JobDialogAction> {
   bool _focused = false;
 
   @override
-  Widget build(BuildContext context) => CupertinoDialogAction(
-    key: widget.actionKey,
-    onPressed: widget.onPressed,
-    isDestructiveAction: widget.isDestructiveAction,
-    child: FocusableActionDetector(
-      onShowFocusHighlight: (value) => setState(() => _focused = value),
-      shortcuts: const {
-        SingleActivator(LogicalKeyboardKey.enter): ActivateIntent(),
-        SingleActivator(LogicalKeyboardKey.space): ActivateIntent(),
-      },
-      actions: {
-        ActivateIntent: CallbackAction<ActivateIntent>(
-          onInvoke: (_) {
-            widget.onPressed();
-            return null;
-          },
-        ),
-      },
-      child: Semantics(
-        button: true,
-        enabled: true,
-        label: widget.label,
-        onTap: widget.onPressed,
-        excludeSemantics: true,
-        child: Container(
-          constraints: const BoxConstraints(minHeight: 32),
-          alignment: Alignment.center,
-          decoration: BoxDecoration(
-            border: Border.all(
-              width: 2,
-              color: _focused
-                  ? CupertinoTheme.of(context).primaryColor
-                  : CupertinoColors.transparent,
-            ),
-            borderRadius: BorderRadius.circular(4),
+  Widget build(BuildContext context) => ConstrainedBox(
+    constraints: const BoxConstraints(minHeight: 48),
+    child: CupertinoDialogAction(
+      key: widget.actionKey,
+      onPressed: widget.onPressed,
+      isDestructiveAction: widget.isDestructiveAction,
+      child: FocusableActionDetector(
+        onShowFocusHighlight: (value) => setState(() => _focused = value),
+        shortcuts: const {
+          SingleActivator(LogicalKeyboardKey.enter): ActivateIntent(),
+          SingleActivator(LogicalKeyboardKey.space): ActivateIntent(),
+        },
+        actions: {
+          ActivateIntent: CallbackAction<ActivateIntent>(
+            onInvoke: (_) {
+              widget.onPressed();
+              return null;
+            },
           ),
-          child: Text(widget.label),
+        },
+        child: Semantics(
+          button: true,
+          enabled: true,
+          label: widget.label,
+          onTap: widget.onPressed,
+          excludeSemantics: true,
+          child: Container(
+            constraints: const BoxConstraints(minHeight: 32),
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              border: Border.all(
+                width: 2,
+                color: _focused
+                    ? CupertinoTheme.of(context).primaryColor
+                    : CupertinoColors.transparent,
+              ),
+              borderRadius: BorderRadius.circular(4),
+            ),
+            child: Text(widget.label),
+          ),
         ),
       ),
     ),

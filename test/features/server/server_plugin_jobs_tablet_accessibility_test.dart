@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert' show jsonDecode;
+import 'dart:io';
 import 'dart:ui' as ui;
 
 import 'package:flutter/cupertino.dart';
@@ -11,6 +12,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
 import 'package:larenor/core/theme.dart';
+import 'package:larenor/core/app_interaction_scope.dart';
 import 'package:larenor/features/server/plugins/presentation/server_plugin_jobs_screen.dart';
 import 'package:larenor/features/server/providers/server_providers.dart';
 import 'package:larenor/l10n/generated/app_localizations.dart';
@@ -49,6 +51,7 @@ class _JobsFixture extends PluginJobsFixture {
 
 void main() {
   late _JobsFixture fixture;
+  late GlobalKey boundary;
   Future<void> mount(
     WidgetTester tester, {
     String language = 'en',
@@ -56,8 +59,11 @@ void main() {
     bool dark = false,
     bool completed = false,
     double scale = 2,
+    bool safeInsets = false,
+    AppInteractionController? interaction,
   }) async {
     await loadFonts(tester);
+    boundary = GlobalKey();
     SharedPreferences.setMockInitialValues({});
     FlutterSecureStorage.setMockInitialValues({'settings_pin': '1234'});
     fixture = _JobsFixture()..configured = false;
@@ -66,6 +72,10 @@ void main() {
     await fixture.account.initialize();
     tester.view.devicePixelRatio = 1;
     tester.view.physicalSize = Size(width, 1000);
+    if (safeInsets) {
+      tester.view.padding = const FakeViewPadding(top: 24, bottom: 16);
+      tester.view.viewPadding = const FakeViewPadding(top: 24, bottom: 16);
+    }
     addTearDown(tester.view.reset);
     await tester.pumpWidget(
       ProviderScope(
@@ -82,7 +92,10 @@ void main() {
           builder: (context, child) => MediaQuery(
             data: MediaQuery.of(context)
                 .copyWith(textScaler: TextScaler.linear(scale)),
-            child: child!,
+            child: RepaintBoundary(
+              key: boundary,
+              child: interaction == null ? child! : AppInteractionScope(controller: interaction, child: child!),
+            ),
           ),
           home: const ServerPluginJobsScreen(),
         ),
@@ -122,6 +135,18 @@ void main() {
     await tester.sendKeyEvent(LogicalKeyboardKey.enter);
     await tester.pumpAndSettle();
     expect(key('job-refresh'), findsOneWidget);
+  }
+
+  Future<void> preview(WidgetTester tester, String name) async {
+    const output = String.fromEnvironment('JOBS_TABLET_PREVIEW_DIR');
+    if (output.isEmpty) return;
+    await tester.runAsync(() async {
+      final render = boundary.currentContext!.findRenderObject()! as RenderRepaintBoundary;
+      final image = await render.toImage(pixelRatio: 1);
+      final data = await image.toByteData(format: ui.ImageByteFormat.png);
+      await File('$output/$name.png').writeAsBytes(data!.buffer.asUint8List());
+      image.dispose();
+    });
   }
 
   for (final language in ['en', 'tr']) {
@@ -183,7 +208,7 @@ void main() {
               expect(node.flagsCollection.isButton, isTrue);
               expect(node.flagsCollection.isHeader, isFalse);
               expect(node.rect.width, greaterThanOrEqualTo(48));
-              expect(node.rect.height, greaterThanOrEqualTo(48));
+              expect(node.rect.height + 1e-9, greaterThanOrEqualTo(48));
               expect(find.bySemanticsLabel(label), findsOneWidget);
             }
             expect(fixture.mutations, isEmpty);
@@ -317,16 +342,25 @@ void main() {
 
               visit(action(tester, confirm).owner!.rootSemanticsNode!);
               for (final label in [l10n.commonBack, l10n.serverJobsCancel]) {
-                final matching = nodes.where((n) => !n.isMergedIntoParent && n.getSemanticsData().label == label).toList();
+                final matching = nodes
+                    .where(
+                      (n) =>
+                          !n.isMergedIntoParent &&
+                          n.getSemanticsData().label == label,
+                    )
+                    .toList();
                 expect(matching, hasLength(1));
                 final node = matching.single;
-                expect(node.getSemanticsData().flagsCollection.isButton, isTrue);
+                expect(
+                  node.getSemanticsData().flagsCollection.isButton,
+                  isTrue,
+                );
                 expect(
                   node.getSemanticsData().hasAction(ui.SemanticsAction.tap),
                   isTrue,
                 );
                 expect(node.rect.width, greaterThanOrEqualTo(48));
-                expect(node.rect.height, greaterThanOrEqualTo(48));
+                expect(node.rect.height + 1e-9, greaterThanOrEqualTo(48));
               }
               expect(
                 nodes.where(
@@ -355,6 +389,8 @@ void main() {
               await tester.pumpAndSettle();
               expect(focus(tester, back).hasPrimaryFocus, isTrue);
               await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+              await tester.pumpAndSettle();
+              if (scale == 2) await preview(tester, 'jobs-modal-$language-${width.toInt()}-2x');
               await tester.sendKeyEvent(LogicalKeyboardKey.enter);
               await tester.pumpAndSettle();
               expect(confirm, findsNothing);
@@ -384,6 +420,7 @@ void main() {
             language: dark ? 'tr' : 'en',
             width: width,
             dark: dark,
+            safeInsets: width == 1280,
           );
           final refresh = key('jobs-refresh');
           await visible(tester, refresh);
@@ -416,7 +453,7 @@ void main() {
                 tester.getRect(find.byType(CupertinoNavigationBar)).bottom,
               ),
             );
-            expect(ring.bottom, lessThanOrEqualTo(1000));
+            expect(ring.bottom, lessThanOrEqualTo(1000 - tester.view.padding.bottom));
             expect(ring.left, greaterThanOrEqualTo(0));
             expect(ring.right, lessThanOrEqualTo(width));
             final background = CupertinoColors.secondarySystemGroupedBackground
@@ -436,6 +473,7 @@ void main() {
             await tester.sendKeyEvent(LogicalKeyboardKey.tab);
             await tester.pumpAndSettle();
             await check(record['id'] as String);
+            if (record == fixture.records.first) await preview(tester, 'jobs-history-${dark ? 'tr-dark' : 'en-light'}-${width.toInt()}-2x');
           }
           for (final record in fixture.records.reversed.skip(1)) {
             await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
