@@ -2241,5 +2241,22 @@
   "qbittorrentConnectionIncomplete": "This connection is incomplete. Enter the URL, username and password again, or remove the saved connection.",
   "qbittorrentRemoveConnection": "Remove saved connection",
   "proxmoxConnectionIncomplete": "This connection is incomplete. Enter the host, port, realm, username and password again, and review the certificate setting, or remove the saved connection.",
-  "proxmoxRemoveConnection": "Remove saved connection"
+  "proxmoxRemoveConnection": "Remove saved connection",
+  "homeResourceAdminManage": "Manage records",
+  "homeResourceAdminTitle": "Manage rooms and resources",
+  "homeResourceAdminDescription": "Organize the names and display order of this home’s records.",
+  "homeResourceAdminCreate": "Add record",
+  "homeResourceAdminLabel": "Name",
+  "homeResourceAdminOrder": "Display order",
+  "homeResourceAdminEdit": "Edit",
+  "homeResourceAdminConfirmDelete": "Delete this record?",
+  "homeResourceAdminDeleteHint": "Only this Larenor record will be removed. Devices and services keep their data.",
+  "homeResourceAdminSaving": "Saving…",
+  "homeResourceAdminSaved": "Record saved. Refresh to check the complete list.",
+  "homeResourceAdminDeleted": "Record deleted. Refresh to check the complete list.",
+  "homeResourceAdminConflict": "The record or access changed. Refresh before making another change.",
+  "homeResourceAdminUncertain": "The result could not be confirmed. The change may have been saved. Refresh to check before trying again.",
+  "homeResourceAdminFailed": "The change was not accepted. Refresh to check the current records and access.",
+  "homeResourceAdminInvalid": "Enter a name of 1–80 characters and an order from 0 to 10000.",
+  "homeResourceAdminRequired": "A currently verified Core administrator account is required."
 }

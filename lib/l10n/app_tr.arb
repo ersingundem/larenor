@@ -1920,5 +1920,22 @@
   "qbittorrentConnectionIncomplete": "Bu bağlantı tamamlanmadı. Adres, kullanıcı adı ve parolayı yeniden girin veya kayıtlı bağlantıyı kaldırın.",
   "qbittorrentRemoveConnection": "Kayıtlı bağlantıyı kaldır",
   "proxmoxConnectionIncomplete": "Bu bağlantı tamamlanmadı. Sunucu, port, realm, kullanıcı adı ve parolayı yeniden girip sertifika tercihini gözden geçirin veya kayıtlı bağlantıyı kaldırın.",
-  "proxmoxRemoveConnection": "Kayıtlı bağlantıyı kaldır"
+  "proxmoxRemoveConnection": "Kayıtlı bağlantıyı kaldır",
+  "homeResourceAdminManage": "Kayıtları yönet",
+  "homeResourceAdminTitle": "Oda ve kaynakları yönet",
+  "homeResourceAdminDescription": "Bu evin kayıt adlarını ve görüntülenme sırasını düzenleyin.",
+  "homeResourceAdminCreate": "Kayıt ekle",
+  "homeResourceAdminLabel": "Ad",
+  "homeResourceAdminOrder": "Görüntülenme sırası",
+  "homeResourceAdminEdit": "Düzenle",
+  "homeResourceAdminConfirmDelete": "Bu kayıt silinsin mi?",
+  "homeResourceAdminDeleteHint": "Yalnız bu Larenor kaydı kaldırılır. Cihazların ve servislerin verileri korunur.",
+  "homeResourceAdminSaving": "Kaydediliyor…",
+  "homeResourceAdminSaved": "Kayıt kaydedildi. Listenin tamamını kontrol etmek için yenileyin.",
+  "homeResourceAdminDeleted": "Kayıt silindi. Listenin tamamını kontrol etmek için yenileyin.",
+  "homeResourceAdminConflict": "Kayıt veya erişim değişti. Başka bir değişiklik yapmadan önce yenileyin.",
+  "homeResourceAdminUncertain": "Sonuç doğrulanamadı. Değişiklik kaydedilmiş olabilir. Yeniden denemeden önce yenileyerek kontrol edin.",
+  "homeResourceAdminFailed": "Değişiklik kabul edilmedi. Güncel kayıtları ve erişimi kontrol etmek için yenileyin.",
+  "homeResourceAdminInvalid": "1–80 karakterlik bir ad ve 0–10000 arasında bir sıra girin.",
+  "homeResourceAdminRequired": "Güncel olarak doğrulanmış bir Core yönetici hesabı gerekir."
 }

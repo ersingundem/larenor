@@ -11,6 +11,7 @@ import '../../../l10n/generated/app_localizations.dart';
 import '../data/home_resources_api.dart';
 import '../data/home_resources_controller.dart';
 import '../domain/home_resource_models.dart';
+import '../../settings/presentation/settings_gate_screen.dart';
 
 /// This sliver shares the Core page scroll view and never opens HA adapters.
 class CoreHomeResources extends ConsumerStatefulWidget {
@@ -173,6 +174,12 @@ class _CoreHomeResourcesState extends ConsumerState<CoreHomeResources>
                     _controller.canRefresh,
                     _controller.refresh,
                   ),
+                  if (_controller.canManage)
+                    button('home-resources-manage', l10n.homeResourceAdminManage, true, () async {
+                      if (!current() || !_controller.canManage) return;
+                      await Navigator.of(context).push<void>(CupertinoPageRoute(builder: (_) =>
+                        const SettingsGateScreen(initialDestination: SettingsGateDestination.homeResources)));
+                    }),
                   if (_controller.busy)
                     Semantics(
                       liveRegion: true,

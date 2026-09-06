@@ -9,6 +9,9 @@ import '../../server/data/server_account_controller.dart';
 import '../../server/domain/server_models.dart';
 import '../domain/home_resource_models.dart';
 import 'home_resources_api.dart';
+import 'home_resource_admin_api.dart';
+
+enum HomeResourceMutationOutcome { saved, deleted, conflict, uncertain, failed }
 
 /// Visible, session-owned metadata; neither a persistent cache nor an ACL lease.
 class HomeResourcesController extends ChangeNotifier {
@@ -16,7 +19,9 @@ class HomeResourcesController extends ChangeNotifier {
     this.home,
     this.factory,
     this.clock,
-    this.windowCurrent,
+    this.windowCurrent, {
+    this.adminManagement = false,
+  }
   ) {
     home.addListener(_changed);
     home.account.addListener(_changed);
@@ -25,6 +30,8 @@ class HomeResourcesController extends ChangeNotifier {
   final ServerApiFactory factory;
   final DateTime Function() clock;
   final bool Function() windowCurrent;
+  final bool adminManagement;
+  HomeResourceMutationOutcome? mutationOutcome;
   bool _disposed = false,
       _visible = false,
       _attempted = false,
@@ -56,7 +63,8 @@ class HomeResourcesController extends ChangeNotifier {
         session == null ||
         session.context == null ||
         session.authMutationPending ||
-        session.user.mustChangePassword) {
+        session.user.mustChangePassword ||
+        (adminManagement && !session.user.canAdminister)) {
       return null;
     }
     return session;
@@ -65,6 +73,8 @@ class HomeResourcesController extends ChangeNotifier {
   bool get fresh => _ready != null && !_ready!.expiresSoon(clock());
   bool get canRefresh => _ready != null && !busy;
   bool get canLoadMore => fresh && !busy && nextAfter != null;
+  bool get canManage => fresh && _ready!.user.canAdminister;
+  bool get canMutate => adminManagement && canManage && loaded && !busy;
 
   void _emit() {
     if (!_disposed) notifyListeners();
@@ -88,6 +98,7 @@ class HomeResourcesController extends ChangeNotifier {
     _expiry = null;
     _boundSession = null;
     failure = null;
+    mutationOutcome = null;
     _clear();
   }
 
@@ -146,7 +157,10 @@ class HomeResourcesController extends ChangeNotifier {
         session.context == original.context &&
         session.user.id == original.user.id &&
         session.endpoint.baseUrl == original.endpoint.baseUrl;
-    if (!more) _clear();
+    if (!more) {
+      _clear();
+      mutationOutcome = null;
+    }
     busy = true;
     failure = null;
     _attempted = true;
@@ -206,6 +220,105 @@ class HomeResourcesController extends ChangeNotifier {
         failure = error is LarenorServerException
             ? error.code
             : 'connection_failed';
+      }
+    } finally {
+      if (!_disposed && epoch == operation) {
+        _transport?.close();
+        _transport = null;
+        _preparing = false;
+        _preparationCurrent = null;
+        busy = false;
+        _emit();
+      }
+    }
+  }
+
+  bool _knownTarget(HomeResourceRecord target) => entries.any((entry) =>
+      entry.context == target.context && entry.id == target.id &&
+      entry.kind == target.kind && entry.revision == target.revision &&
+      entry.aclRevision == target.aclRevision);
+
+  Future<void> create({required HomeResourceKind kind, required String label,
+      required int order, required bool Function() isCurrent}) =>
+      _mutate((api) => api.create(kind: kind, label: label, order: order), isCurrent);
+
+  Future<void> update(HomeResourceRecord target, {required String label,
+      required int order, required bool Function() isCurrent}) async {
+    if (!_knownTarget(target)) return;
+    await _mutate((api) => api.update(target, label: label, order: order), isCurrent);
+  }
+
+  Future<void> delete(HomeResourceRecord target, {required bool Function() isCurrent}) async {
+    if (!_knownTarget(target)) return;
+    await _mutate((api) async {await api.delete(target); return null;}, isCurrent, deleted: target);
+  }
+
+  Future<void> _mutate(Future<HomeResourceRecord?> Function(HomeResourceAdminApi) action,
+      bool Function() owner, {HomeResourceRecord? deleted}) async {
+    bool ownerCurrent() {try {return owner();} catch (_) {return false;}}
+    if (!canMutate || !ownerCurrent()) return;
+    final original = _ready!, generation = home.account.generation,
+        homeEpoch = home.interaction.epoch, operation = ++epoch;
+    bool current() => !_disposed && epoch == operation && _sourceCurrent &&
+        home.interaction.epoch == homeEpoch && home.account.isCurrent(generation) && ownerCurrent();
+    bool sameScope(ServerSession session) => session.context == original.context &&
+        session.user.id == original.user.id && session.endpoint.baseUrl == original.endpoint.baseUrl;
+    busy = true;
+    failure = null;
+    mutationOutcome = null;
+    _attempted = true;
+    _preparing = true;
+    _preparationCurrent = current;
+    _emit();
+    HomeResourceRecord? result;
+    try {
+      await home.account.withSession((_, session) async {
+        if (!current() || !sameScope(session) || !canManage) {
+          throw const LarenorServerException('cancelled');
+        }
+        _preparing = false;
+        _boundSession = session;
+        _expiry?.cancel();
+        final remaining = session.expiresAt.subtract(const Duration(seconds: 30)).difference(clock());
+        _expiry = Timer(remaining.isNegative ? Duration.zero : remaining, _changed);
+        _transport = factory(session.endpoint);
+        try {
+          result = await action(HomeResourceAdminApi(_transport!, session.accessToken, session.context!));
+        } catch (_) {
+          // A retired mutation must not pass its late 401 to shared auth.
+          if (!current() || !identical(_ready, session) || !canManage) {
+            throw const LarenorServerException('cancelled');
+          }
+          rethrow;
+        }
+        if (!current() || !identical(_ready, session) || !canManage) {
+          throw const LarenorServerException('cancelled');
+        }
+      });
+      if (!current() || !canManage) return;
+      final next = entries.where((entry) => entry.id != (deleted?.id ?? result?.id)).toList();
+      if (deleted == null) {
+        if (result == null || next.length >= HomeResourcePage.maximumRecords) {
+          throw const LarenorServerException('invalid_response');
+        }
+        next.add(result!);
+      }
+      entries = List.unmodifiable(next);
+      // A known write invalidates the prior paging snapshot. A fresh list is
+      // explicit; a possibly completed POST is never repeated to recover it.
+      nextAfter = null;
+      _snapshot = null;
+      loaded = true;
+      mutationOutcome = deleted == null ? HomeResourceMutationOutcome.saved : HomeResourceMutationOutcome.deleted;
+    } catch (error) {
+      if (current()) {
+        _clear();
+        failure = error is LarenorServerException ? error.code : 'connection_failed';
+        mutationOutcome = switch (failure) {
+          'revision_conflict' || 'conflict' => HomeResourceMutationOutcome.conflict,
+          'invalid_request' || 'forbidden' || 'not_found' => HomeResourceMutationOutcome.failed,
+          _ => HomeResourceMutationOutcome.uncertain,
+        };
       }
     } finally {
       if (!_disposed && epoch == operation) {

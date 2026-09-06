@@ -5,6 +5,7 @@ import '../../../core/app_interaction_scope.dart';
 import '../../../shared/widgets/app_page_scaffold.dart';
 import '../../client_updates/presentation/client_updates_screen.dart';
 import '../../home_scope/presentation/home_source_screen.dart';
+import '../../home_resources/presentation/home_resource_admin_screen.dart';
 import '../../server/presentation/server_connection_screen.dart';
 
 import '../../../l10n/generated/app_localizations.dart';
@@ -17,6 +18,7 @@ enum SettingsGateDestination {
   clientUpdates,
   serverAccount,
   homeSource,
+  homeResources,
 }
 
 /// Gates access to [SettingsSplitScreen] behind a PIN, if one has been set —
@@ -163,6 +165,11 @@ class _SettingsGateScreenState extends ConsumerState<SettingsGateScreen>
                                 onExit: Navigator.of(context).canPop()
                                     ? _exit
                                     : null,
+                              )
+                            : widget.initialDestination ==
+                                  SettingsGateDestination.homeResources
+                            ? HomeResourceAdminScreen(
+                                onExit: Navigator.of(context).canPop() ? _exit : null,
                               )
                             : widget.initialDestination ==
                                   SettingsGateDestination.homeSource
