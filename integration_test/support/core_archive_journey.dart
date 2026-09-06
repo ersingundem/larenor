@@ -303,7 +303,14 @@ void registerCoreArchiveJourney() {
   );
 }
 
-Finder coreArchiveJourneyScrollable() => find.byType(Scrollable).last;
+/// The page owns the vertical scroll; password fields own nested horizontal ones.
+Finder coreArchiveJourneyScrollable() => find.descendant(
+  of: find.descendant(
+    of: find.byKey(const ValueKey('core-layout-archive-screen')),
+    matching: find.byType(ListView),
+  ),
+  matching: find.byType(Scrollable),
+).first;
 
 Future<void> coreArchiveJourneyTop(WidgetTester tester) async {
         final scroll = coreArchiveJourneyScrollable();
@@ -315,6 +322,9 @@ Future<void> coreArchiveJourneyTop(WidgetTester tester) async {
           await tester.drag(scroll, const Offset(0, 700));
           await tester.pump(const Duration(milliseconds: 100));
         }
+        // Cupertino bounce may be below zero after the final upward swipe.
+        // Wait for this page's position only, never global app quiescence.
+        await waitUntil(tester, () => tester.state<ScrollableState>(scroll).position.pixels == 0);
         expect(tester.state<ScrollableState>(scroll).position.pixels, 0);
       }
 
