@@ -86,6 +86,8 @@ sonra fiziksel kurtarma kanıtı değildir.
 `634bc10f22241a49f776e954735746eee8a0f8b0` kişi controller/provider4184289
 dilimini de içerir. Yeni58 mounted test, tüm kişi135 ve ilgili418 test geçti;
 470/478 satır, analiz7/0 ve format7/0. İlk test/source incelemesi temizdir.
-Bu kaynak için tüm Client koşusu ve tam analiz/format yeniden çalışıyor;
+Bu kaynakta **4.870 tam Client PASS / 5:14**, tam analiz **0 / 3,8sn**
+ve biçim **931dosya / 0fark / 2,88sn** elde edildi. Sonraki belge commit'lerinde
+lib/test/integration_test/Android/pubspec ağaçlarının aynı kaldığı doğrulandı;
 loglar `/private/tmp/larenor-archive-people-combined-{full-client,analyze,format}.log`.
 Gerçek yeni ekranlar bu test kaynağına henüz dahil değildir.

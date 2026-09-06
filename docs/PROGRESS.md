@@ -135,7 +135,8 @@ analiz0 ve bağımsız inceleme geçti. Gerçek HTTP sözleşmesi birleşimde2 t
 yeniden doğrulandı. Kişi provider/controller4184289 yerelde birleşti:58 yeni/135 kişi/418 ilgili
 PASS; analiz0 ve bağımsız inceleme temiz. Üye listesi, PIN korumalı admin
 profilleri/izin ekranları ve arşiv tablet ekranı şimdi gerçek arayüze bağlanıyor;
-yeni birleşimin634bc10 kaynağında tüm Client testi çalışıyor. Kişi ekranı
+Yeni birleşimin634bc10 kaynağında **4.870 tam Client PASS / 5:14**, analiz0
+ve931dosya biçim farkı0 elde edildi. Kişi ekranı
 ve arşiv arayüzü kabulü açık;
 model dilimi CI102'ye dahil değildir.
 [Model kanıtı](home-people-contract-implementation-2026-09-06.md).
