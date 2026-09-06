@@ -23,6 +23,7 @@ Future<void> cryptoWait(WidgetTester tester,Finder expected) async {
 Future<void> importArchive(WidgetTester tester,ArchiveHarness h,Uint8List bytes,{String password=passphrase,bool preview=true}) async {
   h.files.input=bytes;
   await archivePress(tester,'core-layout-archive-pick');
+  await archiveVisible(tester,'core-layout-archive-open-password');
   await tester.enterText(find.byKey(const ValueKey('core-layout-archive-open-password')),password);
   await archivePress(tester,'core-layout-archive-decrypt');
   await cryptoWait(tester,find.byKey(ValueKey(preview?'core-layout-archive-preview':'core-layout-archive-message')));

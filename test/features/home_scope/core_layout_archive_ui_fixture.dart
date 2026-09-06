@@ -33,6 +33,7 @@ class ArchiveHarness {
   late HomeSessionController home;
   late ProviderContainer container;
   final navigator=GlobalKey<NavigatorState>();
+  final boundary=GlobalKey();
   Future<void> mount(WidgetTester tester,{String language='en',double width=600,double scale=1,String? pin='1234'}) async {
     SharedPreferences.setMockInitialValues({'dashboard_layout':'legacy-private','unrelated':'unchanged'});
     FlutterSecureStorage.setMockInitialValues({'settings_pin':?pin});
@@ -51,10 +52,10 @@ class ArchiveHarness {
     ]);
     // The actual scoped repository/provider stays alive through route changes.
     container.listen(dashboardRepositoryProvider,(_,_){});
-    await tester.pumpWidget(UncontrolledProviderScope(container:container,child:AppInteractionScope(controller:home.interaction,child:CupertinoApp(
+    await tester.pumpWidget(RepaintBoundary(key:boundary,child:UncontrolledProviderScope(container:container,child:AppInteractionScope(controller:home.interaction,child:CupertinoApp(
       navigatorKey:navigator,locale:Locale(language),localizationsDelegates:AppLocalizations.localizationsDelegates,supportedLocales:AppLocalizations.supportedLocales,
       home:const SettingsGateScreen(initialDestination:SettingsGateDestination.homeSource),
-    ))));
+    )))));
     await flush(tester);
     addTearDown(() async { await tester.pumpWidget(const SizedBox.shrink()); await tester.pump();container.dispose();home.dispose();session.account.dispose(); });
   }
@@ -65,8 +66,11 @@ class ArchiveHarness {
     await archivePress(tester,'core-layout-archive-entry');
   }
 }
-Future<void> archivePress(WidgetTester tester,String key) async {
+Future<void> archiveVisible(WidgetTester tester,String key) async {
   final finder=find.byKey(ValueKey(key));
-  if(finder.evaluate().isEmpty) await tester.scrollUntilVisible(finder,250,scrollable:find.byType(Scrollable).last);
-  await press(tester,key);
+  if(finder.evaluate().isEmpty) await tester.scrollUntilVisible(finder,250,scrollable:find.byType(Scrollable).first);
+  await tester.ensureVisible(finder);await flush(tester);
+}
+Future<void> archivePress(WidgetTester tester,String key) async {
+  await archiveVisible(tester,key);await press(tester,key);
 }
