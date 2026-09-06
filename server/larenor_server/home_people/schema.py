@@ -40,7 +40,22 @@ def migrate_home_people(connection, scope, key):
     try:
         marker = connection.execute("SELECT value FROM metadata WHERE key='home_people_schema'").fetchone()
         actual = {r['name']: r for r in connection.execute(
-            "SELECT name,type,sql FROM sqlite_master WHERE name LIKE 'home_people_%'")}
+            "SELECT name,type,tbl_name,sql FROM sqlite_master WHERE name GLOB 'home_people_*' "
+            "OR tbl_name IN ('home_people_records','home_people_state','home_people_audit')")}
+        if marker is not None:
+            # SQLite owns one implicit index for the TEXT primary key. Match
+            # that exact index; arbitrary names attached to our tables still fail.
+            name = 'sqlite_autoindex_home_people_records_1'
+            primary = actual.pop(name, None)
+            if (primary is None or primary['type'] != 'index' or
+                    primary['tbl_name'] != 'home_people_records' or primary['sql'] is not None):
+                raise ValueError()
+            indexes = connection.execute('PRAGMA index_list(home_people_records)').fetchall()
+            columns = connection.execute('PRAGMA index_info(sqlite_autoindex_home_people_records_1)').fetchall()
+            if ([(r['name'], r['unique'], r['origin'], r['partial']) for r in indexes] !=
+                    [(name, 1, 'pk', 0)] or
+                    [(r['seqno'], r['cid'], r['name']) for r in columns] != [(0, 0, 'id')]):
+                raise ValueError()
         if marker is None:
             if actual:
                 raise ValueError()
