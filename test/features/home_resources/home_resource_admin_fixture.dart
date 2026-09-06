@@ -18,9 +18,11 @@ class ResourceAdminHarness extends ResourceHarness {
   final mutations = <http.Request>[];
   Completer<http.Response>? pendingMutation;
   int mutationStatus = 200;
+  bool passwordRequired = false;
+  bool failList = false;
   bool corruptMutation = false;
   @override
-  Map<String, Object?> get user => {...super.user, 'role': role};
+  Map<String, Object?> get user => {...super.user, 'role': role, 'mustChangePassword': passwordRequired};
   @override
   Future<http.Response> handle(http.Request request) async {
     if (request.url.path.contains('/admin/home-resources/')) {
@@ -57,6 +59,7 @@ class ResourceAdminHarness extends ResourceHarness {
     }
     if(request.url.path.contains('/home-resources/') && request.method=='GET') {
       resourceReads++;
+      if (failList) return json({'error': {'code':'service_unavailable'}},503);
       final sorted=records.toList()..sort((a,b)=>(a['ref']['id'] as String).compareTo(b['ref']['id'] as String));
       return json({'scope':fixture['context'],'entries':sorted,'snapshot':'a'*64,'nextAfter':null});
     }
@@ -69,6 +72,7 @@ Future<void> adminPress(WidgetTester tester,String key) async {
   final target=adminKey(key);
   expect(target,findsOneWidget);
   await tester.ensureVisible(target);
+  await flush(tester);
   await tester.tap(target);
   await flush(tester);
 }
