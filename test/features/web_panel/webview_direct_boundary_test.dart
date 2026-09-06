@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:larenor/core/direct_home_access.dart';
 import 'package:larenor/core/home_source_store.dart';
 import 'package:larenor/features/dashboard/domain/tile_config.dart';
 import 'package:larenor/features/dashboard/presentation/tiles/webview_tile.dart';
@@ -61,6 +62,18 @@ void main(){
   final(c,_)=await routinesHome('core');
   try{await tester.pumpWidget(app(c,WebPanelView(policy:WebPanelPolicy.fromUrl('https://personal.invalid/'))));await frames(tester);expect(platform.controllers,sized(1));expect(platform.controllers.single.requests.single.uri.host,'personal.invalid');expect(tester.takeException(),isNull);}
   finally{await tester.pumpWidget(const SizedBox.shrink());c.dispose();await frames(tester);}
+ });
+ testWidgets('retained widget cannot borrow a still-live Direct owner in a different Core scope',(tester)async{
+  final(direct,_)=await routinesHome('direct');final(core,_)=await routinesHome('core');
+  direct.listen(directHomeAccessProvider,(_,_){});final original=direct.read(directHomeAccessProvider);
+  final tile=WebviewTile(key:GlobalKey(),tile:privateTile);
+  try{
+   await tester.pumpWidget(app(direct,tile));await frames(tester);final old=platform.controllers.single;final navigate=old.delegate.navigation;
+   await tester.pumpWidget(app(core,tile));await frames(tester);
+   expect(original.isCurrent,isTrue,reason:'the former runtime remains live independently of this widget');
+   expect(find.byType(WebPanelView),findsNothing);expect(await navigate(NavigationRequest(url:'https://synthetic.invalid/next',isMainFrame:true)),NavigationDecision.prevent);expect(platform.controllers,sized(1));
+   await tester.pumpWidget(app(direct,tile));await frames(tester);expect(find.byType(WebPanelView),findsNothing);expect(platform.controllers,sized(1));expect(tester.takeException(),isNull);
+  }finally{await tester.pumpWidget(const SizedBox.shrink());direct.dispose();core.dispose();await frames(tester);}
  });
 }
 Matcher sized(int size)=>hasLength(size);
