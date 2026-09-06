@@ -377,7 +377,8 @@
         "docs/managed-volume-create-implementation-2026-09-06.md",
         "docs/managed-volume-full-core-verification-2026-09-06.md",
         "docs/tablet-core-volume-integration-2026-09-06.md",
-        "docs/client-delivery-108-2026-09-06.md"
+        "docs/client-delivery-108-2026-09-06.md",
+        "docs/jellyfin-managed-volume-installation-plan-2026-09-06.md"
       ],
       "scope": "installAvailable=false; Client kaynak adı/Docker seçenekleri üretmez. Gerçek ev sunucusuna işlem yok.",
       "acceptance": [
@@ -583,7 +584,7 @@
         }
       ],
       "completionCommit": null,
-      "reason": "Native root resolver önceki Linux CI ile doğrulandı; trusted supervisor/remap-disabled producer/issuer/create-publish açık. Volume plan+gözlem 1c2 CI/APK100 kaynağında; volume journal a27 Linux CI101 içinde 3104 PASS/0skip ile geçti. Unix reader 0d86fa1 sonraki ayrı birleşimde 3192 tam Core PASS/11Linuxskip verdi; Exact38bc LinuxCI102:3203PASS/0skip, anonim iki mimarili Core doğrulandı. UID/bootstrap/Engine kurulum yetkisi açık ve installAvailable=false sürer. Ayrı managed-volume create-intent ve tek-POST/fresh-inspect protokolü72af399 main ile birleşti:887ilgiliPASS/7Linuxskip,iki bağımsızCLEAR; aynı source tree için tek tamCore3435PASS/12Linuxskip geçti; kendi yeni LinuxCI açık. Observation kaydı create yetkisi değildir. Gerçek UID/bootstrap ve production wiring açık. Yayın960691c:Android108/Core34/Security108 başlatıldı; yeniCI/APK sonucu bekleniyor."
+      "reason": "Native root resolver önceki Linux CI ile doğrulandı; trusted supervisor/remap-disabled producer/issuer/create-publish açık. Volume plan+gözlem 1c2 CI/APK100 kaynağında; volume journal a27 Linux CI101 içinde 3104 PASS/0skip ile geçti. Unix reader 0d86fa1 sonraki ayrı birleşimde 3192 tam Core PASS/11Linuxskip verdi; Exact38bc LinuxCI102:3203PASS/0skip, anonim iki mimarili Core doğrulandı. UID/bootstrap/Engine kurulum yetkisi açık ve installAvailable=false sürer. Ayrı managed-volume create-intent ve tek-POST/fresh-inspect protokolü72af399 main ile birleşti:887ilgiliPASS/7Linuxskip,iki bağımsızCLEAR; aynı source tree için tek tamCore3435PASS/12Linuxskip geçti; kendi yeni LinuxCI açık. Observation kaydı create yetkisi değildir. Gerçek UID/bootstrap ve production wiring açık. Yayın960691c:Android108/Core34/Security108 başlatıldı; yeniCI/APK sonucu bekleniyor. Sonraki finiteJellyfin dikeyakış planı main ile birleşti:izoleCI UID/NoCopy ve helper→tüketen mountedcontainer→gerçekissuer→özelhesap/health/Corebağlantısı. İlk helper+ephemeralfixture ayrıdalda hazırlanıyor; test/kurulum kabulü değildir."
     },
     {
       "id": "S06.3e",

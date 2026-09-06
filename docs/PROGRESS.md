@@ -56,6 +56,11 @@ ile kabul edildi. **S08.3** ev runtime sınırı da `4b98680` tam CI ve APK 94
 ile kabul edildi. **S08.4** kalıcı ev kayıt sınırı da `1c2db57` tam CI ve APK100 ile kabul edildi. Bu işler yeni 63 özelliğin kabul sayısı değildir; o sayaç **0/63**. Ana S06
 sayacı **2/6** kalır; dizin, kurulum ve gerçek Engine kabulü açıktır.
 
+**Sıradaki Core dikey akışı:** [Jellyfin kalıcı depolama ve yönetilen kurulum planı](jellyfin-managed-volume-installation-plan-2026-09-06.md).
+Dört sonlu adım: gerçek iki mimarili UID/NoCopy ve dar helper; onu tüketen container/mount akışı;
+güncel kullanıcı/worker yetkisi; özel ilk hesap, doğrulanmış sağlık ve Core bağlantısı.
+İlk helper/test fixture ayrı dalda hazırlanıyor. Plan veya sentetik test, evde çalışan kurulum diye sayılmaz.
+
 **Son tam doğrulanmış yayın `64bdf58` / APK104.** Üç CI ilk denemede geçti:
 Core **3.203 PASS / 0 skip**, güvenlik **207 PASS**, Flutter **4.421 PASS**,
 JVM **98 PASS**, **4 platform +10 uygulama =14 E2E PASS /99 sıralı faz**.
