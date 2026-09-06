@@ -28,6 +28,7 @@ void main() {
     String locale = 'en',
     double width = 600,
     bool dark = false,
+    bool safeInsets = false,
   }) async {
     await loadFonts(tester);
     boundary = GlobalKey();
@@ -37,6 +38,10 @@ void main() {
     await fixture.account.initialize();
     tester.view.devicePixelRatio = 1;
     tester.view.physicalSize = Size(width, 1000);
+    if (safeInsets) {
+      tester.view.padding = const FakeViewPadding(top: 24, bottom: 16);
+      tester.view.viewPadding = const FakeViewPadding(top: 24, bottom: 16);
+    }
     addTearDown(tester.view.reset);
     await tester.pumpWidget(
       ProviderScope(
@@ -302,6 +307,36 @@ void main() {
       }
     },
   );
+  testWidgets('already visible toolbar Tab preserves scroll offset', (
+    tester,
+  ) async {
+    await mount(tester, width: 1280);
+    final media = key('plugins-media'), jobs = key('plugins-jobs');
+    final position = Scrollable.of(tester.element(media)).position;
+    position.jumpTo(20);
+    await tester.pumpAndSettle();
+    final top = tester.getRect(find.byType(CupertinoNavigationBar)).bottom;
+    for (final button in [media, jobs]) {
+      final ring = tester.getRect(button).inflate(4);
+      expect(ring.top, greaterThanOrEqualTo(top));
+      expect(ring.bottom, lessThan(1000));
+    }
+    focus(tester, media).requestFocus();
+    await tester.pumpAndSettle();
+    expect(position.pixels, 20);
+    await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+    await tester.pumpAndSettle();
+    expect(focus(tester, jobs).hasPrimaryFocus, isTrue);
+    expect(position.pixels, 20);
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
+    await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
+    await tester.pumpAndSettle();
+    expect(focus(tester, media).hasPrimaryFocus, isTrue);
+    expect(position.pixels, 20);
+    expect(fixture.mutations, isEmpty);
+    expect(tester.takeException(), isNull);
+  });
   for (final dark in [false, true]) {
     for (final width in [600.0, 1280.0]) {
       testWidgets(
@@ -312,6 +347,7 @@ void main() {
             locale: dark ? 'tr' : 'en',
             width: width,
             dark: dark,
+            safeInsets: width == 1280,
           );
           final start = key('plugins-connect');
           await visible(tester, start);
@@ -349,7 +385,9 @@ void main() {
             );
             expect(
               ring.bottom,
-              lessThanOrEqualTo(tester.view.physicalSize.height),
+              lessThanOrEqualTo(
+                tester.view.physicalSize.height - tester.view.padding.bottom,
+              ),
               reason: '$id focus must fit visible viewport',
             );
           }
