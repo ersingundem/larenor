@@ -1,0 +1,63 @@
+# Prepared restore, Core kasası ve hane profilleri birleşimi
+
+Birleşik uygulama/test kaynağı `c0d814505227e894bb1eb9e884201517a185170c`.
+Sonraki belge düzenlemeleri aynı uygulama ve test ağaçlarını korur.
+Bu paket, devam eden CI103'ün `2cced39` kaynağından ayrıdır.
+
+| Dilim | İncelenen kaynak | Yerel kanıt |
+| --- | --- | --- |
+| Dosyadan prepared restore | `4667456` (üretim44c3eb6) | 376 ilgili test; transaction dalının satır kapsamı%88,91; analiz0 |
+| Core kasasından prepared restore | `79f313b` | 387 ilgili test; controller/screen satır kapsamı%97,51; analiz0 |
+| Erişilebilir kasa onayı | `1ab3483` (üretim01bb288) | 73 ilgili test; EN/TR,320/600/1280,2×,48px,klavye ve ekran okuyucu; analiz0 |
+| Hane kişi API/SQLite | `7588ff0` (son test789026a) | 104 ilgili test; dal dahil toplam%89; bağlı schema nesnesi düzeltmesi bağımsız incelendi |
+
+Bu sayılar örtüşen alt kümelerdir; toplam test sayısı olarak birleştirilmez.
+RED/GREEN checkpoint'leri ve başlangıçtaki hatalar ilgili belgelerde korunur:
+[dosya restore](prepared-backup-restore-implementation-2026-09-06.md),
+[kasa](server-vault-prepared-restore-implementation-2026-09-06.md),
+[hane](home-people-registry-implementation-2026-09-06.md).
+
+## Birleşim incelemesi
+
+İki gerçek restore ekranı ortak `PreparedBackupRestore` ve
+`ConfigurationScope.restorePrepared` yolunu kullanır. Kaynak/PIN/hesap/route,
+hedef okuma kümesi ve Core kasa revision'ı onayla bağlanır. Eski providerların
+kapanması sonrasında typed devir sınırı işlemi yönetir. Recovery, kendi tam
+journal kaydını, güncel kalıcı kaynağı/oturumu ve izinli HA tuple sırasını doğrular.
+
+`lib` taramasında eski raw handler'ın uygulama içi tüketicisi kalmadı;
+yalnız tarihsel tanımı durur. Eski uyumluluk birim testleri API'yi kullanır.
+Yeni private journal v2, dışa aktarılan backup v1/v2 biçimini genişletmez.
+Before-only eski journal'da farklı mevcut veri otomatik ezilmez; veri ve
+journal korunarak recovery hatası görünür kalır.
+
+Restore ve Vault üretimi root tarafından ayrı son kaynaklarda incelendi;
+somut açık P1/P2 yok. Son EN/TR büyük yazı önizlemelerinde başlık, seçilen
+veri sayıları, mevcut hedef ve iki eylem okunabilir. Bu dar ekran incelemesi
+uygulamanın son genel tasarım ya da fiziksel tablet kabulü değildir.
+
+## Birleşik testlerin durumu
+
+Tüm Client testi ve tam analiz/biçim kontrolü çalışıyor:
+`/private/tmp/larenor-prepared-vault-combined-{full-client,analyze,format}.log`.
+Tüm Server koşusu aynı Server uygulama/test ağacında, doğru `server` çalışma
+dizininden yürütülüyor: `/private/tmp/larenor-home-people-full-server.{log,xml}`.
+İlk yanlış çalışma dizininden açılan koşu modül yolu doğrulanınca durduruldu;
+sonuç sayılmaz ve `larenor-home-people-full-server-wrong-cwd-aborted.log` olarak
+ayrıca korunur.
+
+Yerel207 politika testi ilk koşuda206 PASS/1 FAIL verdi. Başarısız test sentetik
+ADB başlangıcında süreli önkoşuldan çıkmıştı; aynı test tek başına2,708sn'de
+geçti. Kaynak/politika değiştirilmedi. İlk log ve izole tekrar ayrı tutulur;
+tam setin tekrar sonucu bekleniyor. Android backup/CI trust policy statik
+kontrolü geçti. Yeni commit geçmişi redakte gitleaks taramasında temiz.
+
+## Açık kabul
+
+Bu birleşimin kendi uzak CI/Android emülatör ve imzalı APK kabulü henüz yok.
+CI103 yalnız önceki logout fixture onarımını doğrular. Core oda arşivi,
+Android kişi modelleri/API adaptörü ve kişi ekranları ayrı sonraki dilimlerdir.
+Bu nedenle S08.5/S08.6 ve seçilmiş63 özellik tamamlandı sayılmaz.
+Gerçek evde migration, servis kurma, cihaz yükleme veya kapı/medya/ağ işlemi
+yapılmadı; sentetik depolama testleri native Keystore veya süreç ölümünden
+sonra fiziksel kurtarma kanıtı değildir.

@@ -93,6 +93,36 @@ the Server can decrypt them for the authenticated owner. This is encryption at
 rest, not a zero-knowledge or end-to-end encryption claim. Revision conflicts
 return 409 and require a new read/preview before replacement.
 
+## Household profiles
+
+The new household profile registry stores display metadata separately from login
+accounts and Home Assistant people. Its list only includes profiles the current
+user may read. Profiles do not create accounts, assign roles, or bind health data.
+The existing room/resource API retains its separate contract.
+
+Use the `coreId` and `homeId` returned by `/api/v1/context`. With
+`{scope} = {coreId}/{homeId}`, the protected OpenAPI contract includes:
+
+| Route | Access and result |
+| --- | --- |
+| `GET /api/v1/home-people/{scope}` | Ready user; visible entries and a snapshot token |
+| `GET /api/v1/home-people/{scope}/{id}` | Ready user with record access; `{person}` |
+| `POST /api/v1/admin/home-people/{scope}` | Administrator; `{label, order}` creates a Server-generated identity |
+| `PATCH /api/v1/admin/home-people/{scope}/{id}` | Administrator; label/order plus both expected revisions |
+| `DELETE /api/v1/admin/home-people/{scope}/{id}` | Administrator; `expectedRevision` and `expectedAclRevision` query values |
+| `GET /api/v1/admin/home-people/{scope}/{id}/grants` | Administrator; current record grants and ACL revision |
+| `PUT /api/v1/admin/home-people/{scope}/{id}/grants/{userId}` | Administrator; `expectedAclRevision` and `{read, write}` permissions |
+
+List pages accept `limit` 1–100; continuing with `after` also requires the previous
+`expectedSnapshot`. A changed visible view returns 409, so start a fresh list.
+Metadata and permission revisions are independent. Hidden and missing profiles
+both return 404. A record's write flag does not authorize administrative endpoints.
+
+Encrypted SQLite storage is bounded to 128 profiles and 128 grants per profile.
+Migration preserves existing accounts, sessions, rooms and vault data. Android
+profile screens are still under development; these routes can be exercised with
+the protected API schema. See the [implementation and test evidence](../docs/home-people-registry-implementation-2026-09-06.md).
+
 ## Service connections and internal components
 
 Current administrators manage encrypted connection records and bounded service
