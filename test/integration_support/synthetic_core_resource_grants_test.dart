@@ -66,6 +66,19 @@ void main() {
       ),
     );
   });
+  test('logout journey target resolves through the actual authenticated resource route', () async {
+    final id = core.grants!.targetId;
+    final (status, body) = await request(
+      'GET',
+      '/home-resources/${core.coreId}/${core.homeId}/$id',
+    );
+    expect(status, 200);
+    expect((body as Map)['record'], contract['target']);
+    expect(core.grants!.recordReads, 1);
+    expect(core.grants!.mutations, isEmpty);
+    expect(host.requests, 0);
+    expect(host.acceptedActions, isEmpty);
+  });
   test('authenticated ACL mode returns named existing Core users', () async {
     final (status, raw) = await request('GET', '/admin/users');
     expect(status, 200);
