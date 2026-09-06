@@ -60,3 +60,23 @@ Tam analiz **0 bulgu / 6,3 saniye**; formatter **896 dosya / 0 fark /
 2,96 saniye**. Özel loglar `larenor-next102-analyze.log` ve
 `larenor-next102-format.log` (`/private/tmp`). Bu ölçümler dokuz Android
 yolculuğu içeren `091b2bb` kaynağındadır.
+
+## Onuncu Android yolculuğu birleşimi
+
+`0bf1258909197d53bdea693394f56749ad103f5d` test dilimi
+`cb18dde2682faf988aa4426ff05387a8b1ea5274` ile birleşti. Üretim, Server,
+Android native, CI araçları ve pubspec önceki `091b2bb` ile aynı. Root son
+kaynak/doc incelemesi CLEAR; eski9yolculuğun gövde SHA-256'sı ve89işaret
+prefix'i ayrıca yeniden doğrulandı. Yeni toplam10uygulama/99işaret;
+dört native ile14 E2E hedefi. [Yolculuk kanıtı](core-logout-android-journey-2026-09-06.md).
+
+Birleşimde integration_support **87 PASS / 4 saniye**, tam analiz **0bulgu /
+2,8 saniye**, formatter **897dosya / 0fark / 2,60 saniye**. Özel loglar
+`/private/tmp/larenor-next102-e2e10-{support,analyze,format}.log`. İki yeni host
+testi önceki4.415 tam Client koşusuna dahil değildir; sonuçlar tek tam koşu
+gibi toplanmaz. Bu yeni Android yolculuğu henüz emulator üzerinde çalışmadı.
+Yalnız aynı süreçte sentetik depolama ile remount sözleşmesi kullanılır;
+native Keystore veya OS restart kabulü değildir.
+
+Restore prepared/journalv2/BackupScreen ve ServerVault geçişi bu pakete
+alınmadı; ayrı S08.5 devam işidir.

@@ -11,9 +11,10 @@ veya ürün davranışı sayılmaz. Mevcut [kuyruk](execution-queue.json) kapsam
 | 2a | Hedefe bağlı geri yükleme hazırlığı | Snapshot/seçim/çakışma kararı ve gerçek hedef okuma kümesi dondurulur; kaynak/hesap/PIN/route/target değişimi eski onayı kapatır. |
 | 2b | ConfigurationScope'a devir | Yazı kuyruğu sahipliğinde son canlı UI kontrolü yapılır; ardından eski providerların kasıtlı kapanması onaylı işlemi yanlışlıkla iptal etmez. Hedef yeniden okunur, tek kez uygulanır. |
 | 2c | Private journal v2 | Kapalı hedef listesi, before/after, applying/committed ve durable readback. Başkasının yeni değeri üzerine kör rollback yok; belirsiz ACK otomatik tekrar yazmaz. |
-| 3 | Tarihsel journal kararı | Eski v1 yalnız before içerir. After/owner uydurulmaz; daha yeni değerle çakışmayı güvenli ele alma ayrı açık kabul maddesi. |
-| 4 | Core düzeninin açık yedeği | Mevcut scoped repository revision/fingerprint sınırına bağlı küçük ayrı format; cross-home veya Direct kopya sessiz eşleme yapmaz. |
-| 5 | Birleşim ve teslim | Gerçek platform/repository, actual ConfigurationScope/HomeSessionScope UI, EN/TR tablet/DeX, Android yolculuğu ve exact-source CI + APK. |
+| 3 | Server kasasından geri yükleme | ServerVaultScreen ve takeRestore mevcut raw restore closure kullanıyor. Aynı prepared hedef/handoff/journal yoluna geçirilmeli; hesap/vault revision ve yerel hedef birlikte korunmalı. Bu zorunlu ayrı dilim kapanmadan S08.5 kabul edilmez. |
+| 4 | Tarihsel journal kararı | Eski v1 yalnız before içerir. After/owner uydurulmaz; daha yeni değerle çakışmayı güvenli ele alma ayrı açık kabul maddesi. |
+| 5 | Core düzeninin açık yedeği | Mevcut scoped repository revision/fingerprint sınırına bağlı küçük ayrı format; cross-home veya Direct kopya sessiz eşleme yapmaz. |
+| 6 | Birleşim ve teslim | Gerçek platform/repository, actual ConfigurationScope/HomeSessionScope UI, EN/TR tablet/DeX, Android yolculuğu ve exact-source CI + APK. |
 
 1 ve 2 bağımsız dallarda paralel yürütülür. İlk dosya biçimi v1/v2 kalır;
 Core düzeni kapsamı ayrı açık teslimdir. Backup oturum, Core kimliği, kaynak
@@ -34,3 +35,12 @@ Restore için olumlu gerçek provider-dispose akışı kadar A→B, kuyrukta bek
 PIN reload/rotation, eski Confirm, durable preference reload, üçüncü hedef
 değeri ve her journal/commit/silme kesilme noktası da sınanır. Canlı ev işlemi
 veya fiziksel disk/Keystore process-death kabulü sentetik testlerden çıkarılmaz.
+
+## Uygulama notu
+
+Logout1a/1b, `2911ac9` üzerinde25 odaklı/1.547 ilgili test ve bağımsız son
+incelemeyle yerelde geçti; kendi CI kabulü açık. İlk restore dalı yalnız
+BackupScreen'i yeni prepared yola bağlar. ServerVaultScreen274 ve
+ServerVaultController.takeRestore243'teki eski closure ayrı zorunlu3.
+adımdır; tarihsel handler'ı geçici korumak bu yolu güvenli tamamlandı saymaz.
+Yeni handler/access ortak kullanılarak tekrar bir restore motoru yazılmaz.

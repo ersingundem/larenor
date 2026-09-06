@@ -1,6 +1,6 @@
 # Larenor — güncel ilerleme ve iş kuyruğu
 
-**Son güncelleme: 6 Eylül 2026, 05:21 (Türkiye saati).**
+**Son güncelleme: 6 Eylül 2026, 05:24 (Türkiye saati).**
 
 ```text
 Önceki kapsam       █████████████░░░░░░░  ≈ %65
@@ -68,7 +68,7 @@ minSdk26, `debuggable=false`, paket/kaynak/SHA eşleşiyor.
 [APK100 ve teslim kanıtı](client-delivery-100-2026-09-06.md).
 Anonim iki mimarili Core yayını doğrulandı; evde kurulum yapılmadı.
 
-**Yeni paket GitHub’da: `a27abea`.** [Android101](https://github.com/ersingundem/larenor/actions/runs/34005590269), [Core](https://github.com/ersingundem/larenor/actions/runs/34005590288) ve [güvenlik](https://github.com/ersingundem/larenor/actions/runs/34005590189) kontrolleri sürüyor.
+**Yeni paket GitHub’da: `a27abea`.** [Android101](https://github.com/ersingundem/larenor/actions/runs/34005590269), [Core](https://github.com/ersingundem/larenor/actions/runs/34005590288) ve [güvenlik](https://github.com/ersingundem/larenor/actions/runs/34005590189) kontrollerinde Core **3.104 PASS / 0 skip**, güvenlik **207 PASS**, Flutter **4.390 PASS** ve JVM **98 PASS** tamamlandı. Android E2E işi geçti; imzalı paket ve bağımsız teslim kabulü bekleniyor.
 
 **Bu paketin içeriği:** ACL yönetim ekranı `ab678df`, volume journal
 `f9a3faa` ve dokuzuncu Android yolculuğu `1d909b8` birleştirildi.
@@ -89,7 +89,7 @@ ile yerelde tamamlandı. Volume Unix okuyucusu `0d86fa1` ile ayrı sonraki
 `091b2bb` birleşiminde **4.415 tam Client PASS / 5:05**, **3.192 tam Core
 PASS / 11 Linux skip / 5:13**, analiz0 ve896dosya biçim farkı0 elde edildi.
 [Sonraki birleşim](volume-reader-integration-2026-09-06.md).
-Onuncu Android çıkış yolculuğu hazırlanıyor; bu tam koşuya henüz dahil değil.
+Onuncu Android çıkış yolculuğu `0bf1258` ile birleşti: **87 fixture testi**, tam analiz0 ve897dosya biçim kontrolü geçti. Eski9yolculuk/89faz aynen korundu; yeni hedef **14 E2E / 99 faz**. İki yeni host testi önceki tam koşuya dahil değil.
 Restore çalışması ve yeni paketin kendi CI kabulü açık. CI101 kaynağına
 bu değişiklikler eklenmedi.
 

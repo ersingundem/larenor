@@ -484,9 +484,9 @@
           "kind": "ci",
           "ref": "https://github.com/ersingundem/larenor/actions/runs/34005590288",
           "commit": "a27abeaa55a2ea94a0a0eaec1b9a74743c086a9c",
-          "state": "in_progress",
-          "result": null,
-          "label": "Volume journal içeren exacta27 Core CI sürüyor; sonraki volume Unix okuyucusu0d86fa1 bu kaynakta değil."
+          "state": "completed",
+          "result": "passed",
+          "label": "CoreCI101 exacta27:3104LinuxPASS/0skip, ikiarchsmoke+anonimsource/AGPLmanifest geçti. Volumejournal dahil; sonrakireader0d86fa1 dahil değil."
         },
         {
           "kind": "test",
@@ -1140,7 +1140,8 @@
         "docs/feature-expansion-plan-2026-09-05.md",
         "docs/integrated-media-stack.md",
         "docs/client-restore-logout-implementation-plan-2026-09-06.md",
-        "docs/core-logout-boundary-implementation-2026-09-06.md"
+        "docs/core-logout-boundary-implementation-2026-09-06.md",
+        "docs/core-logout-android-journey-2026-09-06.md"
       ],
       "scope": "Tek mevcut ev bağlamı; F19 çoklu Core/ev federasyonu bu teslim değildir.",
       "acceptance": [
@@ -1168,6 +1169,22 @@
           "state": "completed",
           "result": "passed",
           "label": "Logout kalıcıniyet+Core görünürhata:25odak/1547ilgiliPASS, rootfinalCLEAR. Bütün kalıcılık+remote failure sınırı açık; restore/journal hâlâ ayrıiş."
+        },
+        {
+          "kind": "test",
+          "ref": "docs/core-logout-android-journey-2026-09-06.md",
+          "commit": "0bf1258909197d53bdea693394f56749ad103f5d",
+          "state": "completed",
+          "result": "passed",
+          "label": "Onuncu logout/remountjourney:87fixturePASS, analiz0, rootCLEAR; eski9body/89faz byteexact, yeni10/99. Androidhenüzkoşmadı; sentetikremount nativeKeystore değildir."
+        },
+        {
+          "kind": "review",
+          "ref": "docs/core-logout-android-journey-2026-09-06.md",
+          "commit": "0bf1258909197d53bdea693394f56749ad103f5d",
+          "state": "completed",
+          "result": "passed",
+          "label": "Onuncu logout/remountjourney:87fixturePASS, analiz0, rootCLEAR; eski9body/89faz byteexact, yeni10/99. Androidhenüzkoşmadı; sentetikremount nativeKeystore değildir."
         }
       ],
       "completionCommit": null,
