@@ -31,7 +31,8 @@ void main(){
     for(final width in [320.0,600.0,1280.0]) {
       testWidgets('Core archive $language $width 2x has named 48px fields, keyboard and isolated confirmation',(tester) async {
         await loadFonts(tester);
-        final semantics=tester.ensureSemantics();addTearDown(semantics.dispose);
+        final semantics=tester.ensureSemantics();
+        try{
         tester.platformDispatcher.platformBrightnessTestValue=width==1280?Brightness.dark:Brightness.light;
         addTearDown(tester.platformDispatcher.clearPlatformBrightnessTestValue);
         final h=ArchiveHarness();await h.mount(tester,language:language,width:width,scale:2);await h.open(tester,language:language);
@@ -87,6 +88,7 @@ void main(){
         await tester.testTextInput.receiveAction(TextInputAction.done);await flush(tester);
         await capture(tester,h,'archive-form-$language-${width.toInt()}-2x');
         expect(tester.takeException(),isNull);expect(h.files.saves,0);
+        }finally{semantics.dispose();}
       });
     }
   }
