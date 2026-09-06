@@ -80,8 +80,12 @@ Exact `38bc2bc` kaynakta Linux3.203, Flutter4.417, güvenlik207, JVM98 test geç
 E2E13 PASS/1 FAIL: onuncu logout yolculuğu test verisindeki `ref.id` yerine
 `id` okuduğu için mount öncesinde düştü; imzalı APK102 üretilmedi.
 [Sonuç ve hata kaydı](client-delivery-102-2026-09-06.md).
-Dar fixture düzeltmesi ve aynı HTTP sözleşmesini sınayan host regresyonu
-ayrı dalda hazırlanıyor. Son kabul edilmiş Client APK101 olarak kalır.
+Dar fixture onarımı `2cced39` GitHub'a gönderildi: yeni regresyon RED→GREEN,
+88 ilgili test ve tam analiz geçti; bağımsız kaynak incelemesi temiz.
+[Android103](https://github.com/ersingundem/larenor/actions/runs/34012091515),
+[Core](https://github.com/ersingundem/larenor/actions/runs/34012091577) ve
+[güvenlik](https://github.com/ersingundem/larenor/actions/runs/34012091354)
+yeni exact kaynak üzerinde izleniyor. Son kabul edilmiş Client APK101 olarak kalır.
 
 **S08.5 başladı:** logout'ta başarısız kalıcı silme sonrası eski oturumun geri
 kullanılması ve gecikmiş hatanın Core ana ekranında görünmemesi gideriliyor.
@@ -98,7 +102,10 @@ Restore çalışması ve yeni paketin kendi CI kabulü açık. CI101 kaynağına
 bu değişiklikler eklenmedi. Ayrı restore dallarında gerçek dosya ve Server
 kasası ekranları prepared journal yoluna geçiriliyor; başarısız kurtarma
 sonrasında eski ekranların açılması, değişen hedefe yazma ve başka journal'a
-müdahale etme sınırları RED→GREEN ile kapatılıyor. Bu dallar henüz birleşmedi.
+müdahale etme sınırları RED→GREEN ile kapatılıyor. Hazırlanan restore ve Vault dalları `552e67f` yerel birleşiminde bir araya geldi.
+Dosya restore376, Vault387 ilgili test kanıtı kendi dallarına aittir ve toplanmaz;
+yeni birleşimin tam Client kontrolü sıradadır. Vault erişilebilirlik ek düzeltmesi
+ayrı testlerle sürüyor. Core düzeninin açık arşivi sonraki adımdır.
 
 **S08.6 kişi sözleşmesi yerelde hazır:** ayrı `person` modeli46 yeni/92 ilgili
 Server testi ve bağımsız kaynak incelemesiyle geçti. Eski oda/kaynak modeli
