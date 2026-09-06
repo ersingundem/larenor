@@ -220,7 +220,14 @@ class _KeeneticConnectScreenState
     // A standalone form also owns the provider subscription during verification.
     final reading = ref.watch(keeneticConnectionProvider);
     ref.listen(keeneticConnectionProvider, (previous, next) {
-      if (_loaded &&
+      final owner = _operationOwner;
+      final ownLoading =
+          next.isLoading &&
+          _connecting &&
+          owner != null &&
+          (_connection?.publishesLoadingFor(owner) ?? false);
+      if (!ownLoading &&
+          _loaded &&
           previous != null &&
           (next.isLoading || !_connecting && !identical(previous, next))) {
         setState(() {

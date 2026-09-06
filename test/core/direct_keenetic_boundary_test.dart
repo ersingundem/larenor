@@ -421,19 +421,39 @@ void main() {
 
   test('synchronous loading listener action revocation prevents factory HTTP and storage', () async {
     var allowed = true, clients = 0, requests = 0;
-    await http.runWithClient(() async {
-      final (c, _) = await routinesHome('direct');
-      final keep = c.listen(keeneticConnectionProvider, (_, _) {});
-      addTearDown(keep.close);
-      await c.read(keeneticConnectionProvider.future);
-      final revoke = c.listen(keeneticConnectionProvider, (_, next) { if (next.isLoading) allowed = false; });
-      addTearDown(revoke.close);
-      secure.calls.clear();
-      await expectLater(c.read(keeneticConnectionProvider.notifier).signIn(baseUrl: 'https://new.invalid', username: 'new-user', password: '', isCurrent: () => allowed), throwsA(isA<DirectHomeAccessException>()));
-      expect(clients, 0);
-      expect(requests, 0);
-      expect(secure.calls, isEmpty);
-    }, () { clients++; return MockClient((r) async { requests++; return keeneticReply(r); }); });
+    await http.runWithClient(
+      () async {
+        final (c, _) = await routinesHome('direct');
+        final keep = c.listen(keeneticConnectionProvider, (_, _) {});
+        addTearDown(keep.close);
+        await c.read(keeneticConnectionProvider.future);
+        final revoke = c.listen(keeneticConnectionProvider, (_, next) {
+          if (next.isLoading) allowed = false;
+        });
+        addTearDown(revoke.close);
+        secure.calls.clear();
+        await expectLater(
+          c
+              .read(keeneticConnectionProvider.notifier)
+              .signIn(
+                baseUrl: 'https://new.invalid',
+                username: 'new-user',
+                password: '',
+                isCurrent: () => allowed,
+              ),
+          throwsA(isA<DirectHomeAccessException>()),
+        );
+        expect(clients, 0);
+        expect(requests, 0);
+        expect(secure.calls, isEmpty);
+      },
+      () {
+        clients++;
+        return MockClient((r) async {
+          requests++;
+          return keeneticReply(r);
+        });
+      },
+    );
   });
-
 }

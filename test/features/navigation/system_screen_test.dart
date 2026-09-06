@@ -65,7 +65,7 @@ class _Keenetic extends KeeneticConnection {
     password: 'test',
   );
   @override
-  Future<void> signOut() async => signOutCalls++;
+  Future<void> signOut({bool Function()? isCurrent}) async => signOutCalls++;
 }
 
 class _Jellyfin extends JellyfinConnection {

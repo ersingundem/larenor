@@ -63,6 +63,14 @@ class KeeneticConnection extends _$KeeneticConnection {
   KeeneticClient? _verificationClient;
   bool Function()? _verificationOwner;
   int? _verificationGeneration;
+  bool _publishingLoading = false;
+
+  /// Only the synchronous loading publication for this exact form action.
+  /// An external reload cannot borrow this one-shot transition.
+  bool publishesLoadingFor(bool Function() owner) =>
+      _publishingLoading &&
+      identical(owner, _verificationOwner) &&
+      _verificationGeneration == _generation;
 
   void _check([int? generation]) {
     if (!ref.mounted) throw const DirectHomeAccessException('unavailable');
@@ -122,11 +130,6 @@ class KeeneticConnection extends _$KeeneticConnection {
     final store = ref.read(keeneticCredentialsStoreProvider);
     final factory = ref.read(keeneticClientFactoryProvider);
     _closeCheck();
-    // Keep an empty/pending setup form alive while its own action verifies.
-    // A previously usable reader must still retire before account replacement.
-    if (!previous.isLoading && !previous.hasError && previous.value != null) {
-      state = const AsyncLoading();
-    }
     KeeneticClient? client;
     bool current() =>
         ref.mounted && _access.isCurrent && _generation == generation;
@@ -140,6 +143,19 @@ class KeeneticConnection extends _$KeeneticConnection {
     }
 
     try {
+      _verificationOwner = isCurrent;
+      _verificationGeneration = generation;
+      // Retire a former reader without cancelling this form's own transition.
+      if (!previous.isLoading && !previous.hasError && previous.value != null) {
+        _publishingLoading = true;
+        try {
+          state = const AsyncLoading();
+        } finally {
+          _publishingLoading = false;
+        }
+      }
+      _check(generation);
+      checkAction();
       final config = KeeneticConfig(
         baseUrl: KeeneticConfig.normalizeBaseUrl(baseUrl),
         username: username,
