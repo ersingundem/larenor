@@ -6,6 +6,23 @@
 
 Bu, envanter ve kabul izlenebilirliği denetimidir; her eski satırın sıfırdan bağımsız yeniden uygulama incelemesi değildir. Keenetic connection/operational dilimlerini ben yazdım; onlar için bağımsız kabul dayanağı root'un `6d043ac` ve `fb77dea`/son delta CLEAR incelemesidir. Scoped layout ve HA backup üzerinde de önceki uygulama katkım vardır; belgelenmiş karşı inceleme sonuçları ile güncel kaynak/testleri ayrı değerlendirdim.
 
+## Exact-source kapanış — APK 100
+
+`1c2db575e7377e28e41bbd83aa34d4408e2029c1` için bağımsız son inceleme **CLEAR**.
+Yukarıdaki tarihsel conditional kararın CI koşulu artık tamamlandı:
+[teslim kanıtı](client-delivery-100-2026-09-06.md). İncelenen `8d9e4d2` ile
+bu kaynak arasında `lib`, Android, Server, sözleşmeler, araçlar, CI ve pubspec
+üretim farkı yok; yalnız belgeler ve incelenmiş E2E8/test altyapısı eklendi.
+Üç kabul maddesi ve tekil 1–22 kayıt envanteri yeniden eşleştirildi; yeni
+somut P1/P2 veya kalıcı home deposu bulunmadı. Bu son denetim yeni test koşusu
+üretmedi; aynı kaynağın gerçek CI ve bağımsız APK100 makbuzuna dayanır.
+S08.4 kabul edildi. S08.5 restore/logout, S08.6–9 ve fiziksel kabul açık.
+
+Önceki [31 alt dilim](client-boundary-evidence-archive-2026-09-06.json) ile
+[kapanış öncesi 14 kuyruk kanıtı](client-boundary-completion-archive-2026-09-06.json)
+özgün commit/ref/sonuçlarıyla korunur. Başarısız Android97 ve eskiden devam
+eden Android100 snapshot'ı tarihsel kanıttır; güncel sonuçları değiştirmez.
+
 ## Kabul maddeleri
 
 | Madde | Sınıf | Somut dayanak / sınır |

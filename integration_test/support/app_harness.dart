@@ -29,6 +29,7 @@ import 'synthetic_ha_server.dart';
 import 'synthetic_core_account.dart';
 import 'synthetic_core_resources.dart';
 import 'synthetic_core_resource_admin.dart';
+import 'synthetic_core_resource_grants.dart';
 
 /// OS file dialogs use ciphertext in memory. Preferences and credential storage
 /// are also replaced in AppHarness; encryption, schema validation, repository
@@ -64,7 +65,23 @@ class _NoNetworkDiscovery extends HaDiscoveryService {
 }
 
 class AppHarness {
-  AppHarness._(this.server, this.network, this.previousNetwork);
+  AppHarness._(
+    this.server,
+    this.network,
+    this.previousNetwork, [
+    this._cleanupOnly = false,
+  ]);
+
+  /// Host-only teardown regression seam. It never starts or mounts the app,
+  /// initializes storage, or relaxes the E2E-only gate in [start].
+  factory AppHarness.forSyntheticCleanup(SyntheticHaServer server) =>
+      AppHarness._(
+        server,
+        FixtureNetwork(server.port),
+        HttpOverrides.current,
+        true,
+      );
+  final bool _cleanupOnly;
   final SyntheticHaServer server;
   final FixtureNetwork network;
   final HttpOverrides? previousNetwork;
@@ -78,6 +95,7 @@ class AppHarness {
     bool coreSource = false,
     bool coreResources = false,
     bool coreResourceAdmin = false,
+    bool coreResourceGrants = false,
   }) async {
     if (!const bool.fromEnvironment('LARENOR_E2E')) {
       throw StateError(
@@ -89,11 +107,18 @@ class AppHarness {
         'Admin fixture requires its own explicit Core source.',
       );
     }
+    if (coreResourceGrants &&
+        (!coreSource || coreResources || coreResourceAdmin)) {
+      throw ArgumentError(
+        'Grants fixture requires its own explicit Core source.',
+      );
+    }
     final server = await SyntheticHaServer.start();
     if (coreSource) {
       server.coreAccount = SyntheticCoreAccount(
         resources: coreResources ? SyntheticCoreResources() : null,
         adminResources: coreResourceAdmin ? SyntheticCoreResourceAdmin() : null,
+        grants: coreResourceGrants ? SyntheticCoreResourceGrants() : null,
       );
     }
     final harness = AppHarness._(
@@ -133,6 +158,9 @@ class AppHarness {
   }
 
   Future<void> mount(WidgetTester tester) async {
+    if (_cleanupOnly) {
+      throw StateError('Synthetic cleanup harness cannot mount.');
+    }
     // Android IME can asynchronously replay the prior empty editing value after
     // an obscured field is cleared by the app. Inject input through Flutter's
     // official test keyboard; these journeys do not claim native IME coverage.
@@ -186,6 +214,7 @@ class AppHarness {
     tester.testTextInput.unregister();
     HttpOverrides.global = previousNetwork;
     server.coreAccount?.adminResources?.close();
+    server.coreAccount?.grants?.close();
     await server.close();
     expect(network.blocked, 0, reason: 'No production/external destinations');
     expect(
