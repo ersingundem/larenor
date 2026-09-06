@@ -9,6 +9,8 @@ import stat
 import sys
 import tempfile
 import shutil
+import subprocess
+import time
 from types import SimpleNamespace
 
 import pytest
@@ -319,3 +321,117 @@ def test_unexpected_library_exception_is_not_printed_by_cli(monkeypatch, capsys)
     assert m.main(['--run-ephemeral-ci']) == 1
     assert owner.closed
     assert capsys.readouterr().err == 'storage_characterization_failed\n'
+
+
+def test_build_attestation_rejects_wrong_embedded_source_label():
+    m = api()
+    value = {'Id':'sha256:'+'f'*64,'Os':'linux','Architecture':'amd64',
+        'Config':{'Labels':{'org.opencontainers.image.revision':'b'*40}}}
+    with pytest.raises(m.SmokeError):
+        m.helper_attestation(value['Id'],value,'linux/amd64','a'*40)
+
+
+def test_cli_verifies_checkout_before_starting_daemon(monkeypatch, capsys):
+    m = api()
+    calls = []
+    monkeypatch.setenv('GITHUB_SHA','a'*40)
+    monkeypatch.setattr(m,'verify_checkout',lambda commit:calls.append(('source',commit)),raising=False)
+    class Owned:
+        def __enter__(self):
+            calls.append('enter')
+            return self
+        def __exit__(self,*_):
+            calls.append('exit')
+    monkeypatch.setattr(m,'EphemeralDaemon',Owned)
+    monkeypatch.setattr(m,'characterize',lambda _: {'result':'characterized'})
+    assert m.main(['--run-ephemeral-ci']) == 0
+    assert calls == [('source','a'*40),'enter','exit']
+
+
+@pytest.mark.parametrize('failure', [None,'popen','wrong_root','body'])
+def test_daemon_lifecycle_reaps_only_owned_process_and_directory(tmp_path, monkeypatch, failure):
+    m = api()
+    owned = tmp_path/'owned'
+    outsider = tmp_path/'unrelated'
+    outsider.mkdir()
+    (outsider/'keep').write_text('keep')
+    events = []
+    def directory(**kwargs):
+        owned.mkdir(mode=0o700)
+        return str(owned)
+    monkeypatch.setattr(m,'native_platform',lambda *a:'linux/amd64')
+    monkeypatch.setattr(m.tempfile,'mkdtemp',directory)
+    class Process:
+        pid=12345
+        code=None
+        def poll(self):
+            return self.code
+        def wait(self,**_):
+            events.append('wait')
+            self.code=0
+            return 0
+    def spawn(args,**kwargs):
+        events.append('spawn')
+        assert kwargs['env']['HOME'] == str(owned)
+        if failure == 'popen':
+            raise OSError('synthetic-private')
+        (owned/'engine.sock').touch()
+        return Process()
+    monkeypatch.setattr(m.subprocess,'Popen',spawn)
+    monkeypatch.setattr(m.EphemeralDaemon,'_socket',lambda _: (1,2))
+    def docker(self, args, **kwargs):
+        return json.dumps(str(outsider if failure == 'wrong_root' else owned/'data')).encode()
+    monkeypatch.setattr(m.EphemeralDaemon,'docker',docker)
+    monkeypatch.setattr(m.os,'killpg',lambda pid,sig:events.append(('kill',pid,sig)))
+    if failure:
+        with pytest.raises((OSError, m.SmokeError)):
+            with m.EphemeralDaemon():
+                if failure == 'body':
+                    raise m.SmokeError()
+    else:
+        with m.EphemeralDaemon() as daemon:
+            assert daemon.root == owned
+    assert not owned.exists() and (outsider/'keep').read_text() == 'keep'
+    if failure != 'popen':
+        assert events[-2:] == [('kill',12345,m.signal.SIGTERM),'wait']
+
+
+def test_exited_parent_with_inherited_stdout_cannot_leave_a_live_child(tmp_path):
+    m = api()
+    pidfile = tmp_path/'child.pid'
+    script = ('import subprocess,sys,pathlib; '
+        'p=subprocess.Popen([sys.executable,"-c","import time; time.sleep(30)"]); '
+        f'pathlib.Path({str(pidfile)!r}).write_text(str(p.pid))')
+    child = None
+    try:
+        with pytest.raises(m.SmokeError, match='fixture_command_failed'):
+            m.bounded_command([sys.executable,'-c',script],environment={},timeout=0.25,limit=128)
+        child = int(pidfile.read_text())
+        deadline = time.monotonic()+1
+        alive = True
+        while time.monotonic() < deadline:
+            result = subprocess.run(['/bin/ps','-o','stat=','-p',str(child)],capture_output=True,timeout=2)
+            alive = result.returncode == 0 and not result.stdout.strip().startswith(b'Z')
+            if not alive:
+                break
+            time.sleep(0.02)
+        assert not alive, 'parent exit must not skip termination of its owned process group'
+    finally:
+        if child is None and pidfile.exists():
+            child = int(pidfile.read_text())
+        if child is not None:
+            try:
+                os.kill(child,m.signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+
+
+def test_exited_unshare_still_terminates_owned_group(monkeypatch):
+    m = api()
+    events = []
+    owner = m.EphemeralDaemon()
+    owner.process = SimpleNamespace(pid=12345,poll=lambda:0,wait=lambda **_:events.append('wait'))
+    monkeypatch.setattr(m.os,'killpg',lambda pid,sig:events.append(('kill',pid,sig)))
+    owner.__exit__()
+    assert events[0][0] == 'kill' and events[0][1] == 12345
+    assert events[-1] == 'wait'
