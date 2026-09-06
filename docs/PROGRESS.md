@@ -88,8 +88,9 @@ yerelde hazır; [işlem geçmişi/detay erişilebilirliği](core-plugin-jobs-tab
 normal/yavaş animasyonda ikişer gerçek hata yeniden üretildi ve dar bekleme düzeltmeleri geçti.
 Eski CI ve ara kaynak kanıtları [değişmeden arşivlendi](restore-people-evidence-through-ci106-2026-09-06.json).
 Yedekleme/kasa/arşiv onay diyaloglarında normal yazı boyutu ve48px dokunma alanı düzeltmeleri doğrulanıyor; yeni birleşik Client testi ve kendi Android yayını sırada.
-Core tarafında [kalıcı volume oluşturma protokolü](managed-volume-create-plan-2026-09-06.md)
-uygulanıyor; gerçek UID/bootstrap ve kurulum kabulü açık.
+Core tarafında [kalıcı volume oluşturma protokolü](managed-volume-create-implementation-2026-09-06.md)
+main ile birleşti:887 ilgili test geçti,7 Linux testi yerelde atlandı; iki bağımsız kaynak incelemesi temiz.
+Aynı Server kaynak ağacında tek tam Core testi çalışıyor. Gerçek UID/bootstrap ve kurulum kabulü açık.
 
 Yeni kişi/arşiv ekranları APK104'e dahil değildir. S08.5/S08.6 ve yeni63
 özellik bu yayınla tamamlandı sayılmaz; fiziksel tablet kabulü de açıktır.
