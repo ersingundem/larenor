@@ -773,8 +773,9 @@ void main() {
         },
         () => MockClient((request) async {
           requests++;
-          if (request.url.path.endsWith('/auth/login') && ++logins == 1)
+          if (request.url.path.endsWith('/auth/login') && ++logins == 1) {
             return http.Response('synthetic-private-upstream', 200);
+          }
           return success(request);
         }),
       );
@@ -797,10 +798,11 @@ void main() {
             await fill(tester);
             await tap(tester, 'Connect');
             expect(requests, 1);
-            if (change == 'background')
+            if (change == 'background') {
               tester.binding.handleAppLifecycleStateChanged(
                 AppLifecycleState.inactive,
               );
+            }
             if (change == 'ticker') visible.value = false;
             if (change == 'source') await home.choose(HomeSource.verifiedCore);
             if (change == 'dispose') await tester.pumpWidget(const SizedBox());
