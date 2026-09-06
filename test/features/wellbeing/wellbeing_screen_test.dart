@@ -33,9 +33,11 @@ class _PinStore extends PinLockStore {
 class _PrivateStore extends MemoryStore {
   int reads = 0;
   int writes = 0;
+  Completer<WellbeingSettings>? pendingRead;
   @override
   Future<WellbeingSettings> read() async {
     reads++;
+    if (pendingRead != null) return pendingRead!.future;
     return super.read();
   }
 
@@ -90,6 +92,7 @@ Future<void> _mount(
   bool pushGate = false,
   Size size = const Size(600, 1100),
   double scale = 1,
+  Locale locale = const Locale('en'),
 }) async {
   tester.view.physicalSize = size;
   tester.view.devicePixelRatio = 1;
@@ -113,6 +116,7 @@ Future<void> _mount(
     UncontrolledProviderScope(
       container: container,
       child: CupertinoApp(
+        locale: locale,
         localizationsDelegates: AppLocalizations.localizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
         builder: (context, child) {
@@ -185,6 +189,114 @@ _PrivateStore _enabled() => _PrivateStore()
   );
 
 void main() {
+  testWidgets(
+    'private config retry only rereads local stores and expires with its PIN session',
+    (tester) async {
+      final store = _enabled()
+        ..failure = StateError('synthetic private storage');
+      final native = FakeNative();
+      final privacy = _Privacy();
+      final interaction = AppInteractionController();
+      addTearDown(interaction.dispose);
+      await _mount(
+        tester,
+        store: store,
+        native: native,
+        privacy: privacy,
+        interaction: interaction,
+      );
+      expect(find.byKey(const ValueKey('wellbeing-reload')), findsNothing);
+      await _unlock(tester);
+      final retry = find.byKey(const ValueKey('wellbeing-reload'));
+      expect(retry, findsOneWidget);
+      final old = tester.widget<CupertinoButton>(retry).onPressed!;
+      final before = store.reads;
+      store.failure = null;
+      await tester.ensureVisible(retry);
+      await tester.tap(retry);
+      await tester.pumpAndSettle();
+      expect(store.reads, before + 1);
+      expect(find.byKey(const ValueKey('wellbeing-reload')), findsNothing);
+      expect(native.probes + native.permissions + native.reads, 0);
+      expect(privacy.calls, contains(true));
+      interaction.setActive(false);
+      await tester.pumpAndSettle();
+      final after = store.reads;
+      old();
+      await tester.pumpAndSettle();
+      expect(store.reads, after);
+      expect(find.byType(WellbeingScreen), findsNothing);
+      expect(native.probes + native.permissions + native.reads, 0);
+    },
+  );
+
+  testWidgets(
+    'repeated local retry failure stays explicit at Turkish 2x without health queries',
+    (tester) async {
+      final store = _enabled()
+        ..failure = StateError('synthetic private storage');
+      final native = FakeNative();
+      await _mount(
+        tester,
+        store: store,
+        native: native,
+        size: const Size(320, 640),
+        scale: 2,
+        locale: const Locale('tr'),
+      );
+      await tester.enterText(
+        find.byKey(const ValueKey('wellbeing-pin')),
+        '1234',
+      );
+      final unlock = find.widgetWithText(CupertinoButton, 'Kilidi Aç');
+      await tester.ensureVisible(unlock);
+      await tester.tap(unlock);
+      await tester.pumpAndSettle();
+      final retry = find.byKey(const ValueKey('wellbeing-reload'));
+      final before = store.reads;
+      await _tap(tester, 'Kayıtlı ayarları yeniden oku');
+      expect(store.reads, before + 1);
+      expect(tester.widget<CupertinoButton>(retry).onPressed, isNotNull);
+      expect(find.text('Kayıtlı ayarları yeniden oku'), findsOneWidget);
+      expect(native.probes + native.permissions + native.reads, 0);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'late local reload after private lock cannot publish a health controller or act again',
+    (tester) async {
+      final store = _enabled()
+        ..failure = StateError('synthetic private storage');
+      final native = FakeNative();
+      final interaction = AppInteractionController();
+      addTearDown(interaction.dispose);
+      await _mount(
+        tester,
+        store: store,
+        native: native,
+        interaction: interaction,
+      );
+      await _unlock(tester);
+      final retry = find.byKey(const ValueKey('wellbeing-reload'));
+      final old = tester.widget<CupertinoButton>(retry).onPressed!;
+      store.pendingRead = Completer<WellbeingSettings>();
+      old();
+      await tester.pump();
+      final reads = store.reads;
+      interaction.setActive(false);
+      await tester.pumpAndSettle();
+      store.pendingRead!.complete(store.settings);
+      await tester.pumpAndSettle();
+      old();
+      await tester.pumpAndSettle();
+      expect(store.reads, reads);
+      expect(find.byType(WellbeingScreen), findsNothing);
+      expect(native.probes + native.permissions + native.reads, 0);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
   testWidgets('an unrelated root dialog permanently expires private access', (
     tester,
   ) async {

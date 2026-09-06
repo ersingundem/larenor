@@ -19,30 +19,58 @@ final ambientPhotoProvider = FutureProvider.autoDispose
 final ambientSettingsProvider =
     AsyncNotifierProvider<AmbientSettingsNotifier, AmbientSettings>(
       AmbientSettingsNotifier.new,
+      retry: (_, _) => null,
     );
 
 class AmbientSettingsNotifier extends AsyncNotifier<AmbientSettings> {
   @override
-  Future<AmbientSettings> build() async {
-    final prefs = await SharedPreferences.getInstance();
-    final raw = prefs.get(AmbientSettings.preferenceKey);
-    if (raw == null) return const AmbientSettings();
-    if (raw is! String) throw const AmbientException();
-    return AmbientSettings.decode(raw);
+  Future<AmbientSettings> build() => ConfigurationWrites.run(() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      // Legacy SharedPreferences updates its cache before platform success.
+      // A failed opt-in must never become confirmed through that cache.
+      await prefs.reload();
+      final raw = prefs.get(AmbientSettings.preferenceKey);
+      if (raw == null) return const AmbientSettings();
+      if (raw is! String) throw const AmbientException();
+      return AmbientSettings.decode(raw);
+    } catch (_) {
+      throw const AmbientException();
+    }
+  });
+
+  bool _current(Ref captured, bool Function() isCurrent) {
+    try {
+      return captured.mounted && isCurrent();
+    } catch (_) {
+      throw const AmbientException();
+    }
   }
 
   Future<void> set(
     AmbientSettings settings, {
     required bool Function() isCurrent,
-  }) => ConfigurationWrites.run(() async {
-    if (!ref.mounted || !isCurrent()) return;
-    final raw = settings.encode();
-    AmbientSettings.decode(raw);
-    final prefs = await SharedPreferences.getInstance();
-    if (!ref.mounted || !isCurrent()) return;
-    if (!await prefs.setString(AmbientSettings.preferenceKey, raw)) {
-      throw const AmbientException();
-    }
-    if (ref.mounted) state = AsyncData(settings);
-  });
+  }) {
+    final captured = ref;
+    return ConfigurationWrites.run(() async {
+      if (!_current(captured, isCurrent)) return;
+      final raw = settings.encode();
+      AmbientSettings.decode(raw);
+      state = const AsyncLoading();
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        if (!_current(captured, isCurrent)) throw const AmbientException();
+        if (!await prefs.setString(AmbientSettings.preferenceKey, raw)) {
+          throw const AmbientException();
+        }
+        if (!_current(captured, isCurrent)) throw const AmbientException();
+        state = AsyncData(settings);
+      } catch (_) {
+        if (captured.mounted) {
+          state = AsyncError(const AmbientException(), StackTrace.empty);
+        }
+        throw const AmbientException();
+      }
+    });
+  }
 }

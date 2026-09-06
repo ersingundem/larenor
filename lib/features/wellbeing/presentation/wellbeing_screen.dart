@@ -103,6 +103,38 @@ class _WellbeingScreenState extends ConsumerState<WellbeingScreen> {
     }
   }
 
+  Future<void> _reloadSettings(WellbeingAccessSession captured) async {
+    bool current() =>
+        _active &&
+        ModalRoute.of(context)?.isCurrent == true &&
+        identical(captured, ref.read(wellbeingAccessProvider)) &&
+        captured.isCurrent();
+    if (!_canAct || !current()) return;
+    setState(() {
+      _saving = true;
+      _error = null;
+    });
+    try {
+      ref.invalidate(wellbeingSettingsProvider);
+      ref.invalidate(wellbeingDisclosureProvider);
+      // Local configuration only. Native and HA reads remain explicit actions.
+      await Future.wait([
+        ref.read(wellbeingSettingsProvider.future),
+        ref.read(wellbeingDisclosureProvider.future),
+      ]);
+    } catch (_) {
+      if (current()) {
+        setState(
+          () =>
+              _error = AppLocalizations.of(context)
+                  .wellbeingSettingsUnavailable,
+        );
+      }
+    } finally {
+      if (current()) setState(() => _saving = false);
+    }
+  }
+
   Future<void> _save(WellbeingSettings value) async {
     if (!_canAct) return;
     final access = ref.read(wellbeingAccessProvider);
@@ -406,13 +438,20 @@ class _WellbeingScreenState extends ConsumerState<WellbeingScreen> {
                           padding: EdgeInsets.all(16),
                           child: CupertinoActivityIndicator(),
                         ),
-                      if (stored.hasError ||
-                          reading.hasError ||
-                          snapshot?.failure != null)
+                      if (stored.hasError || disclosure.hasError) ...[
+                        _WellbeingText(l10n.wellbeingSettingsUnavailable),
+                        CupertinoButton(
+                          key: const Key('wellbeing-reload'),
+                          onPressed: _canAct && !busy
+                              ? () => _reloadSettings(access!)
+                              : null,
+                          child: Text(l10n.wellbeingReloadSettings),
+                        ),
+                      ],
+                      if (reading.hasError || snapshot?.failure != null)
                         _WellbeingText(l10n.wellbeingReadFailed),
                       if (_error != null) _WellbeingText(_error!),
-                      if (showSources &&
-                          (disclosure.hasError || disclosure.isLoading))
+                      if (showSources && disclosure.isLoading)
                         _WellbeingText(l10n.wellbeingReadFailed),
                       if (showSources &&
                           !disclosure.isLoading &&
