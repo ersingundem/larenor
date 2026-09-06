@@ -129,8 +129,12 @@ void main() {
               expect(h.source.value, HomeSource.verifiedCore);
               expect(h.connectionReads, 0);
               expect(tester.takeException(), isNull);
-              await tester.ensureVisible(find.text(l10n.homeCoreManageAccount));
-              await tester.tap(find.text(l10n.homeCoreManageAccount));
+              final recoveryAction = find.text(l10n.homeCoreManageAccount);
+              await tester.ensureVisible(recoveryAction);
+              // jumpTo schedules layout; hit testing needs that frame first.
+              await tester.pump();
+              expect(recoveryAction.hitTestable(), findsOneWidget);
+              await tester.tap(recoveryAction);
               await flush(tester);
               expect(find.text(l10n.settingsGateUnlockButton), findsOneWidget);
               expect(find.byType(ServerConnectionScreen), findsNothing);
