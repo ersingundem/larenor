@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'dart:ui' as ui;
 
@@ -179,6 +180,30 @@ void main() {
     return result!;
   }
 
+  Future<double> paintedFocusContrast(WidgetTester tester, Finder button) async {
+    final render = boundary.currentContext!.findRenderObject()!
+        as RenderRepaintBoundary;
+    final rect = tester.getRect(button).shift(-render.localToGlobal(Offset.zero));
+    return tester.runAsync(() async {
+      final image = await render.toImage(pixelRatio: 1);
+      try {
+        final bytes = (await image.toByteData(format: ui.ImageByteFormat.rawRgba))!;
+        Color pixel(double y) {
+          final i = (y.floor() * image.width + rect.center.dx.floor()) * 4;
+          return Color.fromARGB(bytes.getUint8(i + 3), bytes.getUint8(i),
+              bytes.getUint8(i + 1), bytes.getUint8(i + 2));
+        }
+        // Native outline paints 3.5px outside the top edge. Compare it with
+        // the adjacent actual translucent popup surface, not an assumed color.
+        final a = pixel(rect.top - 2).computeLuminance();
+        final b = pixel(rect.top - 6).computeLuminance();
+        return ((a > b ? a : b) + .05) / ((a < b ? a : b) + .05);
+      } finally {
+        image.dispose();
+      }
+    }).then((value) => value!);
+  }
+
   Future<void> preview(WidgetTester tester, String name) async {
     const directory = String.fromEnvironment('SERVICES_TABLET_PREVIEW_DIR');
     if (directory.isEmpty) return;
@@ -209,7 +234,13 @@ void main() {
           for (final record in fixture.records) {
             final title = find.text(record['name'] as String);
             await visible(tester, title);
-            final data = tester.getSemantics(title).getSemanticsData();
+            final effective = nodes(tester, title).where((node) {
+              final data = node.getSemanticsData();
+              return data.flagsCollection.isHeader && data.label == record['name'];
+            }).toList();
+            expect(effective, hasLength(1),
+                reason: 'only the exact connection name is a heading');
+            final data = effective.single.getSemanticsData();
             expect(data.flagsCollection.isHeader, isTrue);
             expect(data.flagsCollection.isButton, isFalse);
           }
@@ -296,6 +327,49 @@ void main() {
         expect(request.url.queryParameters, {'expectedRevision': '1'});
         expect(fixture.records.single['id'], _otherId);
         expect(tester.takeException(), isNull);
+      });
+
+      testWidgets('form keyboard footer has painted focus $language $width 2x', (tester) async {
+        await mount(tester, language: language, width: width, dark: language == 'tr');
+        await tap(tester, key('services-add'));
+        final token = key('service-credential-token');
+        await visible(tester, token);
+        await tester.enterText(token, 'synthetic-tablet-secret');
+        await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+        await tester.pumpAndSettle();
+        final l10n = AppLocalizations.of(tester.element(key('service-submit')));
+        final cancel = find.widgetWithText(CupertinoButton, l10n.commonCancel);
+        expect(focus(tester, cancel).hasPrimaryFocus, isTrue);
+        await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+        await tester.pumpAndSettle();
+        expect(focus(tester, key('service-submit')).hasPrimaryFocus, isTrue);
+        await reverseTab(tester);
+        expect(focus(tester, cancel).hasPrimaryFocus, isTrue);
+        expect(await paintedFocusContrast(tester, cancel), greaterThanOrEqualTo(3));
+        await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+        await tester.pumpAndSettle();
+        expect(key('service-submit'), findsNothing);
+        expect(fixture.mutations, isEmpty);
+        expect(tester.takeException(), isNull);
+      });
+
+      testWidgets('form input Next advances only once $language $width 2x', (tester) async {
+        await mount(tester, language: language, width: width);
+        await tap(tester, key('services-add'));
+        final token = key('service-credential-token');
+        await visible(tester, token);
+        await tester.enterText(token, 'synthetic-tablet-secret');
+        await tester.testTextInput.receiveAction(TextInputAction.next);
+        await tester.pumpAndSettle();
+        final l10n = AppLocalizations.of(tester.element(key('service-submit')));
+        final cancel = find.widgetWithText(CupertinoButton, l10n.commonCancel);
+        expect(focus(tester, cancel).hasPrimaryFocus, isTrue,
+            reason: 'Next must move once; Save focused: '
+                '${focus(tester, key('service-submit')).hasPrimaryFocus}');
+        await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+        await tester.pumpAndSettle();
+        expect(key('service-submit'), findsNothing);
+        expect(fixture.mutations, isEmpty);
       });
 
       for (final scale in [1.0, 2.0]) {
