@@ -16,7 +16,9 @@ Birleşik üretim/test kaynağı `5e82c0e01df751515a96e1789e2e1d12570f01a7`;
 277/280 satırda ölçüldü. Volume modülü 139/139 statement ve 8/8 branch
 kapsamına sahiptir; bunlar proje kapsam oranı değildir.
 
-## Birleşim kontrolleri
+## Yerel birleşim checkpoint kontrolleri
+
+Bu bölüm CI öncesi ölçümleri korur; güncel teslim kabulü son bölümde.
 
 - ARB ekleri çakışmadan birleşti; l10n gerçek araçla üretildi.
 - Birleşimde beş grants test dosyasının **52 testi / 6 saniye geçti**.
@@ -55,20 +57,20 @@ sürekli sahiplik, UID yazılabilirliği veya kurulum izni değildir. Native ino
 journal'ı ile karışmaz; Engine/bootstrap kurulum bağlantısı açık ve
 `installAvailable=false` kalır. Gerçek ev cihazında işlem yapılmadı.
 
-Bu paket için yeni tam CI, Android E2E, bağımsız imzalı APK ve fiziksel kabul
-henüz yok. S08.6/S06.3d sayaçları bu alt dilimler nedeniyle kapatılmaz.
+Bu yerel checkpoint sonrasında tam CI/E2E ve bağımsız APK101 kabulü alındı
+(aşağıda). Fiziksel kabul açık; S08.6/S06.3d bütünü bu alt dilimlerle kapanmaz.
 
 - [Kaynak erişim ekranı kanıtı](core-home-resource-grants-ui-implementation-2026-09-06.md)
 - [Dokuzuncu Android yolculuğu](core-resource-grants-android-journey-2026-09-06.md)
 - [Volume journal kanıtı](managed-volume-journal-implementation-2026-09-06.md)
 - [Önceki birleşim](core-client-integration-2026-09-06.md)
 
-## Exact-source CI takibi
+## Exact-source CI ve APK kabulü
 
-`a27abeaa55a2ea94a0a0eaec1b9a74743c086a9c` main'e gönderildi.
-[Android101](https://github.com/ersingundem/larenor/actions/runs/34005590269),
-[Core](https://github.com/ersingundem/larenor/actions/runs/34005590288) ve
-[güvenlik](https://github.com/ersingundem/larenor/actions/runs/34005590189)
-ilk denemede çalışıyor. Hedef13 E2E/89faz; bu kayıt başarı veya imzalı APK
-kabulü değildir. Gönderim öncesi29 commit'te redakte secret taraması temiz.
-Volume Unix reader ve S08.5 logout/restore bu kaynağa dahil değil.
+`a27abeaa55a2ea94a0a0eaec1b9a74743c086a9c` üç CI'yi ilk denemede geçti.
+Core3.104 PASS/0skip, Security207, Flutter4.390, JVM98 ve13 E2E/89sıralı faz
+başarılı. Tam analiz0; CI formatter895dosya/0fark. İmzalı APK101 tek tam
+indirme sonrası ayrıca paket, kaynak, hash ve sabit sertifika ile doğrulandı.
+[CI bağlantıları ve tam teslim kanıtı](client-delivery-101-2026-09-06.md).
+Gönderim öncesi29commit redakte secret taraması temizdi. Volume Unix reader,
+S08.5 logout/restore ve onuncu yolculuk bu kaynağa dahil değil.

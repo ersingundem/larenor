@@ -1413,13 +1413,13 @@
           "kind": "ci",
           "ref": "https://github.com/ersingundem/larenor/actions/runs/34005590269",
           "commit": "a27abeaa55a2ea94a0a0eaec1b9a74743c086a9c",
-          "state": "in_progress",
-          "result": null,
-          "label": "Android101: ACL UI + dokuzuncu yolculuk,13 E2E/89 faz hedefi; CI sürüyor, APK henüz kabul edilmedi."
+          "state": "completed",
+          "result": "passed",
+          "label": "Exact a27 / Android101: 4390 Flutter, 98 JVM, 13 E2E / 89 sıralı faz ve bağımsız imzalı APK101 doğrulaması geçti. ACL UI ve dokuzuncu yolculuk dahil; hane kişi modeli ve S08.6 bütünü açık."
         }
       ],
       "completionCommit": null,
-      "reason": "Registry/read-only list + admin metadata API/UI exact1c2/APK100 ile doğrulandı. ACL API/UI ve dokuzuncu Android yolculuğu a27abea içinde CI101 bekliyor; yerelde52UI/85fixture ve incelemeler geçti. Hesapsız hane kişi modeli, upstream bağları ve gerçek komut sözleşmesinin kapsam eşlemesi açık; tümS08.6 kabulü değil."
+      "reason": "Registry/liste ve admin metadata 1c2/APK100 ile, ACL API/UI ve dokuzuncu Android yolculuğu a27/APK101 tam CI ve bağımsız APK ile doğrulandı. Hesapsız hane kişi modeli ve sonraki gerçek adaptör/komut kapsamları açık; S08.6 bütünü kabul edilmedi."
     },
     {
       "id": "S08.7",

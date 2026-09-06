@@ -1,6 +1,6 @@
 # Larenor — güncel ilerleme ve iş kuyruğu
 
-**Son güncelleme: 6 Eylül 2026, 05:24 (Türkiye saati).**
+**Son güncelleme: 6 Eylül 2026, 05:35 (Türkiye saati).**
 
 ```text
 Önceki kapsam       █████████████░░░░░░░  ≈ %65
@@ -56,28 +56,24 @@ ile kabul edildi. **S08.3** ev runtime sınırı da `4b98680` tam CI ve APK 94
 ile kabul edildi. **S08.4** kalıcı ev kayıt sınırı da `1c2db57` tam CI ve APK100 ile kabul edildi. Bu işler yeni 63 özelliğin kabul sayısı değildir; o sayaç **0/63**. Ana S06
 sayacı **2/6** kalır; dizin, kurulum ve gerçek Engine kabulü açıktır.
 
-**Son tam doğrulanmış yayın `1c2db57` / APK 100.** Üç CI ilk denemede başarılı:
-Core **3.050 PASS / 0 skip**, güvenlik **207 PASS**, Flutter **4.301 PASS**,
-JVM **98 PASS**, **4 platform + 8 uygulama = 12 E2E PASS / 76 sıralı faz**.
-Tam analiz 0 bulgu; CI formatter 882 dosya, 0 fark. İmzalı APK tek tam
-indirmeyle ayrıca doğrulandı: sürüm `100000100`, kalıcı sertifika,
-minSdk26, `debuggable=false`, paket/kaynak/SHA eşleşiyor.
-[Android100](https://github.com/ersingundem/larenor/actions/runs/34004246242) ·
-[Core](https://github.com/ersingundem/larenor/actions/runs/34004246308) ·
-[Güvenlik](https://github.com/ersingundem/larenor/actions/runs/34004246204) ·
-[APK100 ve teslim kanıtı](client-delivery-100-2026-09-06.md).
-Anonim iki mimarili Core yayını doğrulandı; evde kurulum yapılmadı.
-
-**Yeni paket GitHub’da: `a27abea`.** [Android101](https://github.com/ersingundem/larenor/actions/runs/34005590269), [Core](https://github.com/ersingundem/larenor/actions/runs/34005590288) ve [güvenlik](https://github.com/ersingundem/larenor/actions/runs/34005590189) kontrollerinde Core **3.104 PASS / 0 skip**, güvenlik **207 PASS**, Flutter **4.390 PASS** ve JVM **98 PASS** tamamlandı. Android E2E işi geçti; imzalı paket ve bağımsız teslim kabulü bekleniyor.
+**Son tam doğrulanmış yayın `a27abea` / APK 101.** Üç CI ilk denemede başarılı:
+Core **3.104 PASS / 0 skip**, güvenlik **207 PASS**, Flutter **4.390 PASS**,
+JVM **98 PASS**, **4 platform + 9 uygulama = 13 E2E PASS / 89 sıralı faz**.
+Tam analiz0; CI formatter895 dosya,0 fark. İmzalı APK tek tam indirmeyle
+ayrıca doğrulandı: sürüm `100000101`, kalıcı sertifika, minSdk26,
+`debuggable=false`, paket/kaynak/SHA eşleşiyor.
+[Android101](https://github.com/ersingundem/larenor/actions/runs/34005590269) ·
+[Core](https://github.com/ersingundem/larenor/actions/runs/34005590288) ·
+[Güvenlik](https://github.com/ersingundem/larenor/actions/runs/34005590189) ·
+[APK101 ve teslim kanıtı](client-delivery-101-2026-09-06.md).
+Anonim iki mimarili Core yayını da doğrulandı; evde kurulum yapılmadı.
 
 **Bu paketin içeriği:** ACL yönetim ekranı `ab678df`, volume journal
-`f9a3faa` ve dokuzuncu Android yolculuğu `1d909b8` birleştirildi.
-İlk iki dilimin tam yerel koşusu **4.353 Client PASS / 5:29** ve
-**3.094 Core PASS / 10 Linux skip / 8:49,37** verdi. Son yolculuk birleşiminde
-**85 fixture testi**, tam analiz ve **894 dosyada** biçim kontrolü geçti.
-Son 37 fixture testi eski tam Client koşusuna dahil değildir; sayılar toplanmaz.
-Yeni kaynak kendi CI ve **13 E2E / 89 faz** kabulünü bekliyor.
+`f9a3faa` ve dokuzuncu Android yolculuğu `1d909b8`.
 [Birleşim kanıtı](core-grants-volume-integration-2026-09-06.md).
+[Önceki APK100](client-delivery-100-2026-09-06.md) ve S08.4 kabulü korunur.
+Yeni paket, aşağıdaki logout ve Unix okuyucusu birleşimidir; kendi CI'si
+ayrıca çalışacak. Hazırlanan restore ve kişi sözleşmesi bu pakete eklenmez.
 
 **S08.5 başladı:** logout'ta başarısız kalıcı silme sonrası eski oturumun geri
 kullanılması ve gecikmiş hatanın Core ana ekranında görünmemesi gideriliyor.

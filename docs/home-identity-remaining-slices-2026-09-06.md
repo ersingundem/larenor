@@ -8,8 +8,8 @@ koşusu, hane kişi uygulaması veya S08.6 tamamlanma kanıtı değildir.
 | --- | --- | --- |
 | Oda/kaynak kimliği | Server üretimli sabit ID, şema1/Core/ev, ayrı metadata ve ACL revision; şifreli kalıcılık/restart testleri | Yeni hane kişi türü bugün yok |
 | Hesap bazlı okuma/yazma | Güncel kullanıcı/rol/token/ev/ACL aynı DB transaction içinde denetlenir; başkasının gizli kaydı404 olur | Bu karar fiziksel cihaz komutu değil |
-| Metadata yönetimi | Oluşturma/ad/sıra/silme gerçek PIN ekranı ve APK100'de sekizinci yolculuk | Yeni ACL yolculuğu kendi CI101 sonucunu bekliyor |
-| Kaynak erişim yönetimi | Gerçek Core kullanıcı listesinden seçim, read/read-write/revoke, stale revision ve belirsiz yanıt sınırı; yerel test/inceleme geçti | Exact-source CI101 ve bağımsız APK henüz açık |
+| Metadata yönetimi | Oluşturma/ad/sıra/silme gerçek PIN ekranı ve APK100'de sekizinci yolculuk | ACL yolculuğu exact a27/APK101 ile geçti |
+| Kaynak erişim yönetimi | Gerçek Core kullanıcı listesinden seçim, read/read-write/revoke, stale revision ve belirsiz yanıt sınırı; yerel test/inceleme geçti | Exact a27 CI101 ve bağımsız APK101 geçti; hane kişisi ayrı açık |
 | Hane kişisi | Grant subject yalnız mevcut `users.id` | Hesapsız aile profili, kalıcı kişi referansı ve kendi erişim sözleşmesi ayrı uygulanmalı |
 
 ## Kişi kimliği için sıradaki küçük teslim
@@ -48,5 +48,5 @@ kapsar. Bu gerçek adaptörleri S08.6'nın önkoşulu yapmak döngü oluşturur.
 S08.6 kapsamında bugün saklanan write kararı komut çalıştırıldı anlamına
 gelmez; kaynak/subject kimliği ve güncel yetki sözleşmesi için kanıttır.
 
-Dolayısıyla CI101 geçerse ACL ekranı alt dilimi kabul edilebilir; yalnız bu
+ACL ekranı alt dilimi exact a27/CI101 ve bağımsız APK101 ile kabul edildi; bu
 sonuçla hane kişi modeli veya tüm merkezi adaptörler tamamlandı sayılmaz.
