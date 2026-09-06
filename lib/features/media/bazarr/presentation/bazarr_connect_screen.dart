@@ -21,7 +21,8 @@ class BazarrConnectScreen extends ConsumerWidget {
     }
     final error = state.error;
     final pending =
-        error is DirectHomeAccessException && const {'pending_mutation', 'write_unconfirmed'}.contains(error.code);
+        error is DirectHomeAccessException &&
+        const {'pending_mutation', 'write_unconfirmed'}.contains(error.code);
     if (state.hasError && !pending) {
       return CupertinoPageScaffold(
         child: Center(

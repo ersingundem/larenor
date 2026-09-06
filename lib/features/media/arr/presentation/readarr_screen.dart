@@ -26,7 +26,10 @@ class ReadarrScreen extends ConsumerWidget {
       ),
       error: (error, _) {
         if (error is DirectHomeAccessException &&
-            const {'pending_mutation', 'write_unconfirmed'}.contains(error.code)) {
+            const {
+              'pending_mutation',
+              'write_unconfirmed',
+            }.contains(error.code)) {
           final connection = ref.read(readarrConnectionProvider.notifier);
           final store = ref.read(readarrCredentialsStoreProvider);
           return ArrConnectForm(

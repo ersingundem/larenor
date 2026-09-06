@@ -25,7 +25,10 @@ class BazarrHomeScreen extends ConsumerWidget {
       ),
       error: (error, _) {
         if (error is DirectHomeAccessException &&
-            const {'pending_mutation', 'write_unconfirmed'}.contains(error.code)) {
+            const {
+              'pending_mutation',
+              'write_unconfirmed',
+            }.contains(error.code)) {
           return const BazarrConnectScreen();
         }
         return CupertinoPageScaffold(
