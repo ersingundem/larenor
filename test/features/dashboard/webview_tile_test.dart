@@ -212,44 +212,46 @@ class _Harness {
       mounted.dispose();
     });
     await tester.pumpWidget(
-      ProviderScope(child: CupertinoApp(
-        locale: const Locale('en'),
-        localizationsDelegates: AppLocalizations.localizationsDelegates,
-        supportedLocales: AppLocalizations.supportedLocales,
-        home: Builder(
-          builder: (context) {
-            l10n = AppLocalizations.of(context);
-            return CupertinoPageScaffold(
-              child: Center(
-                child: SizedBox(
-                  width: 300,
-                  height: 250,
-                  child: ListenableBuilder(
-                    listenable: Listenable.merge([url, visible, mounted]),
-                    builder: (_, _) => TickerMode(
-                      enabled: visible.value,
-                      child: mounted.value
-                          ? WebviewTile(
-                              key: const ValueKey('card'),
-                              tile: TileConfig(
-                                id: 'website',
-                                type: TileType.webview,
-                                x: 0,
-                                y: 0,
-                                width: 2,
-                                height: 2,
-                                url: url.value,
-                              ),
-                            )
-                          : const SizedBox(),
+      ProviderScope(
+        child: CupertinoApp(
+          locale: const Locale('en'),
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: Builder(
+            builder: (context) {
+              l10n = AppLocalizations.of(context);
+              return CupertinoPageScaffold(
+                child: Center(
+                  child: SizedBox(
+                    width: 300,
+                    height: 250,
+                    child: ListenableBuilder(
+                      listenable: Listenable.merge([url, visible, mounted]),
+                      builder: (_, _) => TickerMode(
+                        enabled: visible.value,
+                        child: mounted.value
+                            ? WebviewTile(
+                                key: const ValueKey('card'),
+                                tile: TileConfig(
+                                  id: 'website',
+                                  type: TileType.webview,
+                                  x: 0,
+                                  y: 0,
+                                  width: 2,
+                                  height: 2,
+                                  url: url.value,
+                                ),
+                              )
+                            : const SizedBox(),
+                      ),
                     ),
                   ),
                 ),
-              ),
-            );
-          },
+              );
+            },
+          ),
         ),
-      )),
+      ),
     );
     await tester.pump();
   }
