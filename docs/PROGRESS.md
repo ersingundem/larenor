@@ -1,6 +1,6 @@
 # Larenor — güncel ilerleme ve iş kuyruğu
 
-**Son güncelleme: 6 Eylül 2026, 05:36 (Türkiye saati).**
+**Son güncelleme: 6 Eylül 2026, 07:38 (Türkiye saati).**
 
 ```text
 Önceki kapsam       █████████████░░░░░░░  ≈ %65
@@ -75,14 +75,13 @@ Anonim iki mimarili Core yayını da doğrulandı; evde kurulum yapılmadı.
 Yeni paket, aşağıdaki logout ve Unix okuyucusu birleşimidir; kendi CI'si
 ayrıca çalışacak. Hazırlanan restore ve kişi sözleşmesi bu pakete eklenmez.
 
-**Yeni paket GitHub’da: `38bc2bc` / CI102.**
-[Android](https://github.com/ersingundem/larenor/actions/runs/34006880503) ·
-[Core](https://github.com/ersingundem/larenor/actions/runs/34006880414) ·
-[Güvenlik](https://github.com/ersingundem/larenor/actions/runs/34006880305).
-Üç hat ilk denemede çalışıyor. Logout düzeltmesi, volume Unix okuyucusu ve
-onuncu Android yolculuğu bu kaynakta; hedef14 E2E/99sıralı faz. Bu kayıt
-başarı veya imzalı APK102 kabulü değildir. Gönderim öncesi24commit gizli
-bilgi taraması, kuyruk doğrulaması ve diff-check geçti.
+**CI102 sonuçlandı: Core ve güvenlik geçti; Android teslimi durdu.**
+Exact `38bc2bc` kaynakta Linux3.203, Flutter4.417, güvenlik207, JVM98 test geçti.
+E2E13 PASS/1 FAIL: onuncu logout yolculuğu test verisindeki `ref.id` yerine
+`id` okuduğu için mount öncesinde düştü; imzalı APK102 üretilmedi.
+[Sonuç ve hata kaydı](client-delivery-102-2026-09-06.md).
+Dar fixture düzeltmesi ve aynı HTTP sözleşmesini sınayan host regresyonu
+ayrı dalda hazırlanıyor. Son kabul edilmiş Client APK101 olarak kalır.
 
 **S08.5 başladı:** logout'ta başarısız kalıcı silme sonrası eski oturumun geri
 kullanılması ve gecikmiş hatanın Core ana ekranında görünmemesi gideriliyor.
@@ -104,7 +103,7 @@ müdahale etme sınırları RED→GREEN ile kapatılıyor. Bu dallar henüz birl
 **S08.6 kişi sözleşmesi yerelde hazır:** ayrı `person` modeli46 yeni/92 ilgili
 Server testi ve bağımsız kaynak incelemesiyle geçti. Eski oda/kaynak modeli
 aynı kaldı. Kişi oluşturma yalnız ad/sıra kabul eder; hesap, rol, izin veya
-HA kişisi bağı yaratmaz. HTTP/şifreli persistence/Android kişi ekranı açık;
+HA kişisi bağı yaratmaz. HTTP/şifreli persistence ayrı dalda205 ilgili testle ilerledi; bağlı SQLite nesneleri inceleme bulgusu kapanıyor. Android kişi ekranı açık;
 model dilimi CI102'ye dahil değildir.
 [Model kanıtı](home-people-contract-implementation-2026-09-06.md).
 

@@ -18,7 +18,6 @@ bir dal, bağımsız ve hazır yazılım dallarını durdurmaz.
 ## Güncel kuyruk özeti
 
 <!-- queue-summary:start -->
-
 F01–F63 yazılım kapısı: **0/63** (fiziksel kabul ayrı). Kalan kuyruk: **8/125 iş kanıtla tamamlandı**.
 
 Gruplar ve önceki kabul checkpoint’leri iş sayısına dahil değildir.
@@ -45,7 +44,6 @@ Gruplar ve önceki kabul checkpoint’leri iş sayısına dahil değildir.
 | G11 — Proxmox'tan bağımsız uzak erişim | 4 | 0 | 0 | 0 | 0 |
 | FINAL — Bütün yazılım sonrası son frontend ve yayın | 5 | 0 | 0 | 0 | 0 |
 | MANUAL — Kullanıcıyla son kurulum ve fiziksel kabul | 9 | 0 | 0 | 0 | 9 |
-
 <!-- queue-summary:end -->
 
 125 iş aynı eforu temsil etmez; bu toplam ürün tamamlanma yüzdesi değildir.

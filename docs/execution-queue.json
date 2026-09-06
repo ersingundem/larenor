@@ -508,13 +508,13 @@
           "kind": "ci",
           "ref": "https://github.com/ersingundem/larenor/actions/runs/34006880414",
           "commit": "38bc2bc24aa5f0174bbeb20257ea56d304f1fe5c",
-          "state": "in_progress",
-          "result": null,
-          "label": "Paket102 volume Unix okuyucusu: yeni Linux/Core CI çalışıyor; başarı veya kurulum kabulü değildir."
+          "state": "completed",
+          "result": "passed",
+          "label": "Exact38bc CoreCI102:3203 LinuxPASS/0skip; iki mimarili anonim Core yayını doğrulandı. Volume reader dahil; gerçek kurulum/UID/bootstrap yetkisi açık."
         }
       ],
       "completionCommit": null,
-      "reason": "Native root resolver önceki Linux CI ile doğrulandı; trusted supervisor/remap-disabled producer/issuer/create-publish açık. Volume plan+gözlem 1c2 CI/APK100 kaynağında; volume journal a27 Linux CI101 içinde 3104 PASS/0skip ile geçti. Unix reader 0d86fa1 sonraki ayrı birleşimde 3192 tam Core PASS/11Linuxskip verdi; yeni Linux CI açık. UID/bootstrap/Engine kurulum yetkisi açık ve installAvailable=false sürer."
+      "reason": "Native root resolver önceki Linux CI ile doğrulandı; trusted supervisor/remap-disabled producer/issuer/create-publish açık. Volume plan+gözlem 1c2 CI/APK100 kaynağında; volume journal a27 Linux CI101 içinde 3104 PASS/0skip ile geçti. Unix reader 0d86fa1 sonraki ayrı birleşimde 3192 tam Core PASS/11Linuxskip verdi; Exact38bc LinuxCI102:3203PASS/0skip, anonim iki mimarili Core doğrulandı. UID/bootstrap/Engine kurulum yetkisi açık ve installAvailable=false sürer."
     },
     {
       "id": "S06.3e",
@@ -1149,7 +1149,8 @@
         "docs/integrated-media-stack.md",
         "docs/client-restore-logout-implementation-plan-2026-09-06.md",
         "docs/core-logout-boundary-implementation-2026-09-06.md",
-        "docs/core-logout-android-journey-2026-09-06.md"
+        "docs/core-logout-android-journey-2026-09-06.md",
+        "docs/client-delivery-102-2026-09-06.md"
       ],
       "scope": "Tek mevcut ev bağlamı; F19 çoklu Core/ev federasyonu bu teslim değildir.",
       "acceptance": [
@@ -1198,13 +1199,13 @@
           "kind": "ci",
           "ref": "https://github.com/ersingundem/larenor/actions/runs/34006880503",
           "commit": "38bc2bc24aa5f0174bbeb20257ea56d304f1fe5c",
-          "state": "in_progress",
-          "result": null,
-          "label": "Paket102 logout kalıcılığı ve onuncu Android yolculuğu: yeni CI çalışıyor, hedef14 E2E/99faz. Restore ve hane kişi modeli bu kaynakta yok."
+          "state": "completed",
+          "result": "failed",
+          "label": "Exact38bc Android102:Flutter4417/JVM98 PASS; E2E13PASS/1FAIL. Onuncu yolculuk target.id yerine ref.id okumalı; mount öncesi hata. İmzalı APK skipped; teslim kabulü yok."
         }
       ],
       "completionCommit": null,
-      "reason": "Logout 2911ac9 yerel 25/1547 test ve root incelemesiyle geçti; onuncu Android yolculuğu 0bf1258 sonraki pakete birleşti, 87 fixture PASS. Restore prepared/scope handoff/journalv2 ve Direct HA origin bağları ayrı dalda uygulanıyor; dosya ve ServerVault üretim yolları birlikte kabul edilmeli. Bütün S08.5 ve kendi CI kabulü açık."
+      "reason": "Logout 2911ac9 yerel 25/1547 test ve root incelemesiyle geçti; onuncu Android yolculuğu 0bf1258 sonraki pakete birleşti, 87 fixture PASS. Restore prepared/scope handoff/journalv2 ve Direct HA origin bağları ayrı dalda uygulanıyor; dosya ve ServerVault üretim yolları birlikte kabul edilmeli. Bütün S08.5 ve kendi CI kabulü açık. CI102 E2E fixture kimlik okumasında mount öncesi başarısız; dar host regresyonuyla onarım sürüyor. Önceki yerel testler bu Android hatasını yakalamamıştı."
     },
     {
       "id": "S08.6",
