@@ -68,7 +68,10 @@ class KeeneticConnection extends _$KeeneticConnection {
   /// Only the synchronous loading publication for this exact form action.
   /// An external reload cannot borrow this one-shot transition.
   bool publishesLoadingFor(bool Function() owner) =>
-      _publishingLoading &&
+      _publishingLoading && ownsVerification(owner);
+
+  /// Reload can occur while already loading without another loading emission.
+  bool ownsVerification(bool Function() owner) =>
       identical(owner, _verificationOwner) &&
       _verificationGeneration == _generation;
 

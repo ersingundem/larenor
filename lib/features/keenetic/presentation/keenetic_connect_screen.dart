@@ -226,10 +226,16 @@ class _KeeneticConnectScreenState
           _connecting &&
           owner != null &&
           (_connection?.publishesLoadingFor(owner) ?? false);
+      final retiredVerification =
+          _connecting &&
+          owner != null &&
+          !(_connection?.ownsVerification(owner) ?? false);
       if (!ownLoading &&
           _loaded &&
           previous != null &&
-          (next.isLoading || !_connecting && !identical(previous, next))) {
+          (retiredVerification ||
+              next.isLoading ||
+              !_connecting && !identical(previous, next))) {
         setState(() {
           sessionGeneration++;
           clearPendingInteraction();
