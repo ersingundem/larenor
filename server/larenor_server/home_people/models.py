@@ -9,7 +9,7 @@ from typing import Literal
 from pydantic import Field, field_validator
 
 from ..home_resources.models import (
-    FrozenModel, HomeScope, Identity, LabelFields, Permissions, Revision, Snapshot,
+    AccessDecision, ActorFacts, FrozenModel, HomeScope, Identity, LabelFields, Permissions, Revision, Snapshot,
 )
 
 
@@ -77,3 +77,10 @@ class PersonGrantResponse(FrozenModel):
 class PersonGrantsResponse(FrozenModel):
     aclRevision: Revision
     grants: list[PersonGrant] = Field(max_length=128)
+
+
+class PersonTargetFacts(FrozenModel):
+    ref: PersonRef
+    revision: Revision
+    aclRevision: Revision
+    active: bool
