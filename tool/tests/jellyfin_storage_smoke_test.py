@@ -159,3 +159,33 @@ def test_replaced_socket_fails_before_any_cli_dispatch(tmp_path):
     (tmp_path/'engine.sock').write_text('wrong object')
     with pytest.raises(m.SmokeError, match='^owned_daemon_lost$'):
         daemon.docker(['info'])
+
+
+def test_full_characterization_consumer_exists():
+    m = api()
+    assert callable(getattr(m, 'characterize', None)), 'storage flow consumer is absent'
+
+
+def test_container_inspection_rejects_anonymous_copyup_or_wrong_user():
+    m = api()
+    source = m.fixture_source('linux/amd64')
+    expected = {'Entrypoint':['/jellyfin/jellyfin'], 'Cmd':None, 'Volumes':{'/config':{},'/cache':{}}}
+    current = {'Id':'c'*64,'Image':source.image.image.configDigest,
+        'Config':dict(expected, User='1000:1000'),
+        'HostConfig':{'NetworkMode':'none','PortBindings':{},'Privileged':False,'CapDrop':['ALL'],
+            'Mounts':[{'Type':'volume','Source':v.name,'Target':v.target,'ReadOnly':False,
+                       'VolumeOptions':{'NoCopy':True}} for v in source.targets]},
+        'Mounts':[{'Type':'volume','Name':v.name,'Driver':'local','Destination':v.target,'RW':True}
+            for v in source.targets]}
+    assert m.verify_container(current, source, expected) is None
+    current['Mounts'].append({'Type':'volume','Name':'foreign','Destination':'/extra','RW':True})
+    with pytest.raises(m.SmokeError):
+        m.verify_container(current, source, expected)
+    current['Mounts'].pop()
+    current['HostConfig']['Mounts'][0]['VolumeOptions']['NoCopy'] = False
+    with pytest.raises(m.SmokeError):
+        m.verify_container(current, source, expected)
+    current['HostConfig']['Mounts'][0]['VolumeOptions']['NoCopy'] = True
+    current['Config']['User'] = '0:0'
+    with pytest.raises(m.SmokeError):
+        m.verify_container(current, source, expected)
