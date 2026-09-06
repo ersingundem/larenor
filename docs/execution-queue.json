@@ -1253,65 +1253,57 @@
           "kind": "ci",
           "ref": "https://github.com/ersingundem/larenor/actions/runs/34013071464",
           "commit": "64bdf58951ea371dc5ad0ed65348c533c8c777dc",
-          "state": "in_progress",
-          "result": null,
-          "label": "CI104 dar remount beklemesi: Core Linux3203 PASS/0skip,security207,JVM98 PASS; anonim ikiarchOCI doğru. Android E2E/signed gate sürüyor. İlk9/99faz ve assertion/timeout korunur."
-        },
-        {
-          "kind": "test",
-          "ref": "docs/core-layout-archive-contract-2026-09-06.md",
-          "commit": "80996cdfaaa28d8c145f4e55c57bdc483ad10086",
-          "state": "completed",
-          "result": "passed",
-          "label": "Kapalı aynıCore/ev/kullanıcı Core oda arşivi modeli:98 yeni/149 ilgili PASS,%98.95 satır, rootCLEAR."
-        },
-        {
-          "kind": "review",
-          "ref": "docs/core-layout-archive-contract-2026-09-06.md",
-          "commit": "80996cdfaaa28d8c145f4e55c57bdc483ad10086",
-          "state": "completed",
-          "result": "passed",
-          "label": "Kapalı aynıCore/ev/kullanıcı Core oda arşivi modeli:98 yeni/149 ilgili PASS,%98.95 satır, rootCLEAR."
-        },
-        {
-          "kind": "test",
-          "ref": "docs/core-layout-archive-codec-implementation-2026-09-06.md",
-          "commit": "dcbc29a66bbd261f966dc192e5c8619889c1cd8b",
-          "state": "completed",
-          "result": "passed",
-          "label": "Ayrı şifreli Core codec:55 yeni/168 ilgili PASS,%97.75 satır, analiz0, rootCLEAR.2MiB plaintext/3MiB encrypted; eski backupv1/v2 aynı."
-        },
-        {
-          "kind": "review",
-          "ref": "docs/core-layout-archive-codec-implementation-2026-09-06.md",
-          "commit": "dcbc29a66bbd261f966dc192e5c8619889c1cd8b",
-          "state": "completed",
-          "result": "passed",
-          "label": "Ayrı şifreli Core codec:55 yeni/168 ilgili PASS,%97.75 satır, analiz0, rootCLEAR.2MiB plaintext/3MiB encrypted; eski backupv1/v2 aynı."
-        },
-        {
-          "kind": "test",
-          "ref": "docs/core-layout-archive-controller-implementation-2026-09-06.md",
-          "commit": "da740a4b3e7ba7004becf2d3d9ea108002cf74d3",
-          "state": "completed",
-          "result": "passed",
-          "label": "Core archive capture/preview/restore:35 yeni/159 ilgili PASS,64/64 satır, analiz0, bağımsızCLEAR. Aynıscope/CAS/readback ve tekuse expiry düzeltildi. Gerçek ekran bağı devam."
-        },
-        {
-          "kind": "review",
-          "ref": "docs/core-layout-archive-controller-implementation-2026-09-06.md",
-          "commit": "da740a4b3e7ba7004becf2d3d9ea108002cf74d3",
-          "state": "completed",
-          "result": "passed",
-          "label": "Core archive capture/preview/restore:35 yeni/159 ilgili PASS,64/64 satır, analiz0, bağımsızCLEAR. Aynıscope/CAS/readback ve tekuse expiry düzeltildi. Gerçek ekran bağı devam."
-        },
-        {
-          "kind": "ci",
-          "ref": "docs/client-delivery-104-2026-09-06.md",
-          "commit": "64bdf58951ea371dc5ad0ed65348c533c8c777dc",
           "state": "completed",
           "result": "passed",
           "label": "Logout alt dilimi exactCI104/APK104: Linux3203, Flutter4421, security207, JVM98, Android14/99faz; imza tek indirmeyle ayrıca doğrulandı. Prepared restore/arşiv/kişi yeni pakette; bu CI onların kabulü değildir."
+        },
+        {
+          "kind": "test",
+          "ref": "docs/core-layout-archive-contract-2026-09-06.md",
+          "commit": "80996cdfaaa28d8c145f4e55c57bdc483ad10086",
+          "state": "completed",
+          "result": "passed",
+          "label": "Kapalı aynıCore/ev/kullanıcı Core oda arşivi modeli:98 yeni/149 ilgili PASS,%98.95 satır, rootCLEAR."
+        },
+        {
+          "kind": "review",
+          "ref": "docs/core-layout-archive-contract-2026-09-06.md",
+          "commit": "80996cdfaaa28d8c145f4e55c57bdc483ad10086",
+          "state": "completed",
+          "result": "passed",
+          "label": "Kapalı aynıCore/ev/kullanıcı Core oda arşivi modeli:98 yeni/149 ilgili PASS,%98.95 satır, rootCLEAR."
+        },
+        {
+          "kind": "test",
+          "ref": "docs/core-layout-archive-codec-implementation-2026-09-06.md",
+          "commit": "dcbc29a66bbd261f966dc192e5c8619889c1cd8b",
+          "state": "completed",
+          "result": "passed",
+          "label": "Ayrı şifreli Core codec:55 yeni/168 ilgili PASS,%97.75 satır, analiz0, rootCLEAR.2MiB plaintext/3MiB encrypted; eski backupv1/v2 aynı."
+        },
+        {
+          "kind": "review",
+          "ref": "docs/core-layout-archive-codec-implementation-2026-09-06.md",
+          "commit": "dcbc29a66bbd261f966dc192e5c8619889c1cd8b",
+          "state": "completed",
+          "result": "passed",
+          "label": "Ayrı şifreli Core codec:55 yeni/168 ilgili PASS,%97.75 satır, analiz0, rootCLEAR.2MiB plaintext/3MiB encrypted; eski backupv1/v2 aynı."
+        },
+        {
+          "kind": "test",
+          "ref": "docs/core-layout-archive-controller-implementation-2026-09-06.md",
+          "commit": "da740a4b3e7ba7004becf2d3d9ea108002cf74d3",
+          "state": "completed",
+          "result": "passed",
+          "label": "Core archive capture/preview/restore:35 yeni/159 ilgili PASS,64/64 satır, analiz0, bağımsızCLEAR. Aynıscope/CAS/readback ve tekuse expiry düzeltildi. Gerçek ekran bağı devam."
+        },
+        {
+          "kind": "review",
+          "ref": "docs/core-layout-archive-controller-implementation-2026-09-06.md",
+          "commit": "da740a4b3e7ba7004becf2d3d9ea108002cf74d3",
+          "state": "completed",
+          "result": "passed",
+          "label": "Core archive capture/preview/restore:35 yeni/159 ilgili PASS,64/64 satır, analiz0, bağımsızCLEAR. Aynıscope/CAS/readback ve tekuse expiry düzeltildi. Gerçek ekran bağı devam."
         }
       ],
       "completionCommit": null,

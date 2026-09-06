@@ -68,7 +68,8 @@ kontrolü geçti. Yeni commit geçmişi redakte gitleaks taramasında temiz.
 
 Bu birleşimin kendi uzak CI/Android emülatör ve imzalı APK kabulü henüz yok.
 CI103 logout yeniden kurulumundaki test beklemesinde başarısız oldu; CI104
-yalnız bu bekleme onarımını doğrular. 64bdf58 yeni destek testi ve E2E çağrısı
+yalnız bu bekleme onarımını14 E2E/99faz ve bağımsız APK104 ile doğruladı
+([teslim](client-delivery-104-2026-09-06.md)). 64bdf58 yeni destek testi ve E2E çağrısı
 olarak birleşime alındı; eski4.544 tam Client sonucu yeni3testi içermez. Core oda arşivi,
 Sonraki yerel birleşime80996cdf arşiv modeli, dcbc29a codec, da740a4 restore
 controller ve2b550c7 kişi sözleşme/model/API adaptörü eklendi. Bunların
