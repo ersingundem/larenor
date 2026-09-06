@@ -414,7 +414,8 @@ class _ServerServicesScreenState
                       : null,
                   child: Text(
                     l10n.serverServicesCheck,
-                    semanticsLabel: '${service.name}, ${l10n.serverServicesCheck}',
+                    semanticsLabel:
+                        '${service.name}, ${l10n.serverServicesCheck}',
                   ),
                 ),
                 _serviceButton(
@@ -436,7 +437,8 @@ class _ServerServicesScreenState
                       : null,
                   child: Text(
                     l10n.serverServicesForget,
-                    semanticsLabel: '${service.name}, ${l10n.serverServicesForget}',
+                    semanticsLabel:
+                        '${service.name}, ${l10n.serverServicesForget}',
                   ),
                 ),
               ],
@@ -874,15 +876,15 @@ class _ServiceFormState extends State<_ServiceForm> {
           child: ConstrainedBox(
             constraints: const BoxConstraints(minHeight: 48),
             child: CupertinoTextField(
-            key: ValueKey(key),
-            controller: controller,
-            obscureText: secret,
-            maxLength: max,
-            keyboardType: keyboard,
-            autocorrect: false,
-            enableSuggestions: false,
-            textInputAction: TextInputAction.next,
-            padding: const EdgeInsets.all(12),
+              key: ValueKey(key),
+              controller: controller,
+              obscureText: secret,
+              maxLength: max,
+              keyboardType: keyboard,
+              autocorrect: false,
+              enableSuggestions: false,
+              textInputAction: TextInputAction.next,
+              padding: const EdgeInsets.all(12),
             ),
           ),
         ),
