@@ -19,7 +19,7 @@ enum HomeResourceGrantOutcome { saved, revoked, conflict, uncertain, failed }
 /// do not confer authority on this client or change account roles.
 class HomeResourceGrantsController extends ChangeNotifier {
   HomeResourceGrantsController(this.home, this.target, this.factory, this.clock,
-      this.windowCurrent) {
+      this.windowCurrent) : _minimumAclRevision = target.aclRevision {
     home.addListener(_changed);
     home.account.addListener(_changed);
   }
@@ -31,6 +31,7 @@ class HomeResourceGrantsController extends ChangeNotifier {
   bool _disposed = false, _visible = false, _attempted = false, _preparing = false;
   bool busy = false;
   int epoch = 0;
+  int _minimumAclRevision;
   String? failure;
   HomeResourceGrantOutcome? outcome;
   List<AdminUser> users = const [];
@@ -87,8 +88,7 @@ class HomeResourceGrantsController extends ChangeNotifier {
 
   Future<void> refresh() async {
     if (!canRefresh) return;
-    final minimum = snapshot?.aclRevision;
-    await _run(null, null, () => true, minimum: minimum);
+    await _run(null, null, () => true);
   }
   Future<void> setPermission(AdminUser selected, HomeResourcePermission permission,
       {required bool Function() isCurrent}) async {
@@ -98,7 +98,7 @@ class HomeResourceGrantsController extends ChangeNotifier {
     await _run(selected, permission, isCurrent);
   }
   Future<void> _run(AdminUser? selected, HomeResourcePermission? permission,
-      bool Function() owner, {int? minimum}) async {
+      bool Function() owner) async {
     bool ownerCurrent() { try { return owner(); } catch (_) { return false; } }
     final original = _ready;
     if (original == null || busy || !ownerCurrent()) return;
@@ -142,7 +142,7 @@ class HomeResourceGrantsController extends ChangeNotifier {
             }
             result = await api.read(target);
             check();
-            if (minimum != null && result!.aclRevision < minimum) {
+            if (result!.aclRevision < _minimumAclRevision) {
               throw const LarenorServerException('invalid_response');
             }
           }
@@ -152,6 +152,7 @@ class HomeResourceGrantsController extends ChangeNotifier {
         }
       });
       if (!current() || !fresh || result == null) return;
+      _minimumAclRevision = result!.aclRevision;
       snapshot = result;
       if (!writing) users = List.unmodifiable(nextUsers!);
       if (writing) outcome = permission == HomeResourcePermission.none
