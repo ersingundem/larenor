@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:ui' show ViewFocusEvent, ViewFocusState;
 
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
@@ -26,11 +27,15 @@ class _IdleGateState extends ConsumerState<IdleGate>
   Timer? _timer;
   bool _idle = false;
   bool _foreground = true;
+  bool _focused = true;
+  int? _viewId;
   bool _wakingKeyboard = false;
   final _focusScope = FocusScopeNode(debugLabel: 'Application interaction');
   final _clockFocus = FocusNode(debugLabel: 'Ambient clock');
   late final AppInteractionController _interaction;
   late final IdlePreventionController _prevention;
+
+  bool get _windowActive => _foreground && _focused;
 
   @override
   void initState() {
@@ -59,6 +64,12 @@ class _IdleGateState extends ConsumerState<IdleGate>
     super.dispose();
   }
 
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _viewId = View.of(context).viewId;
+  }
+
   void _preventionChanged() {
     _timer?.cancel();
     // A video can acquire its lease while its page is building. Reconcile the
@@ -70,13 +81,27 @@ class _IdleGateState extends ConsumerState<IdleGate>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
+    final wasActive = _windowActive;
     _foreground = state == AppLifecycleState.resumed;
     _wakingKeyboard = false;
     _resetTimer();
+    if (mounted && wasActive != _windowActive) setState(() {});
+  }
+
+  @override
+  void didChangeViewFocus(ViewFocusEvent event) {
+    if (event.viewId != _viewId) return;
+    final wasActive = _windowActive;
+    _focused = event.state == ViewFocusState.focused;
+    _wakingKeyboard = false;
+    // A DeX window can lose focus while the app is still resumed. Retire its
+    // captured actions before another frame, without unmounting native audio.
+    _resetTimer();
+    if (mounted && wasActive != _windowActive) setState(() {});
   }
 
   KeyEventResult _keyEvent(KeyEvent event) {
-    if (!mounted || !_foreground) return KeyEventResult.ignored;
+    if (!mounted || !_windowActive) return KeyEventResult.ignored;
     // FocusManager is process-wide. Ignore another mounted app/window's focus.
     final primary = FocusManager.instance.primaryFocus;
     if (primary != _focusScope &&
@@ -102,14 +127,14 @@ class _IdleGateState extends ConsumerState<IdleGate>
     _timer?.cancel();
     final wasIdle = _idle;
     _idle = false;
-    _interaction.setActive(_foreground);
+    _interaction.setActive(_windowActive);
     if (wasIdle) setState(() {});
 
     final reading = ref.read(idleModeProvider);
     final settings = reading.isLoading || reading.hasError
         ? null
         : reading.value;
-    if (!_foreground ||
+    if (!_windowActive ||
         _prevention.prevented ||
         settings == null ||
         !settings.enabled) {
@@ -118,14 +143,14 @@ class _IdleGateState extends ConsumerState<IdleGate>
     if (settings.timeoutMinutes < 1 || settings.timeoutMinutes > 1440) return;
 
     _timer = Timer(Duration(minutes: settings.timeoutMinutes), () {
-      if (!mounted || !_foreground) return;
+      if (!mounted || !_windowActive) return;
       // Notify action owners synchronously, before rebuilding the Navigator's
       // TickerMode. They can expire/remove their pending confirmation safely.
       _interaction.setActive(false);
       FocusManager.instance.primaryFocus?.unfocus();
       setState(() => _idle = true);
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted && _idle && _foreground) _clockFocus.requestFocus();
+        if (mounted && _idle && _windowActive) _clockFocus.requestFocus();
       });
     });
   }
@@ -150,13 +175,13 @@ class _IdleGateState extends ConsumerState<IdleGate>
           child: Stack(
             children: [
               TickerMode(
-                enabled: _foreground && !_idle,
+                enabled: _windowActive && !_idle,
                 child: ExcludeFocus(
-                  excluding: !_foreground || _idle,
+                  excluding: !_windowActive || _idle,
                   child: ExcludeSemantics(
-                    excluding: !_foreground || _idle,
+                    excluding: !_windowActive || _idle,
                     child: IgnorePointer(
-                      ignoring: !_foreground || _idle,
+                      ignoring: !_windowActive || _idle,
                       child: widget.child,
                     ),
                   ),
