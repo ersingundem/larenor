@@ -12,11 +12,13 @@ Proxmox, HomePod veya medya sunucusunda değişiklik yapılmadı.
 | Jellyfin Direct ve discovery sınırı | `142dc36` | 98 yeni / 297 ilgili PASS | Bağımsız CLEAR |
 | Idle fixture hazırlığı | `1b2d7d3` | 23 PASS | Bağımsız CLEAR |
 | Native tablet pencere odağı | `6c5fbb2` | 26 odaklı / 252 ilgili PASS | Bağımsız CLEAR |
+| Yedi API-key belirsiz kayıt/kurtarma | `7553a3f` | 63 provider + 14 UI / 370 ilgili PASS | Provider ve UI ayrı bağımsız CLEAR |
+| Proxmox Direct/TLS/oturum sınırı | `48289eb` | 213 odaklı / 665 ilgili PASS | Bağımsız CLEAR |
 | Saf yönetilen volume önerisi | `b5d4164` | 32 yeni / 182 ilgili PASS | Üretim kaynağı bağımsız CLEAR |
 
 Tablodaki ilgili koşular örtüşür; toplanarak benzersiz toplam oluşturulmaz.
-API-key bağlantılarının belirsiz kayıt sonucu için ek denetimi ve Proxmox
-pilotu ayrı devam eder. Keenetic sınırı henüz kabul edilmedi.
+API-key ve Proxmox ek denetimleri tamamlandı. Keenetic ve dashboard WebviewTile
+sınırları sonraki ayrı pakettedir; henüz kabul edilmedi.
 
 ## Birleşik test sırası
 
@@ -32,9 +34,23 @@ Native pencere düzeltmesi sonrası ilgili geniş koşu **252 PASS**, IdleGate
 satır kapsamı **102/106**. Native ses sürer; eski root HA onayı yeni odakta
 işlem gönderemez. Bu iki aşamanın bağımsız incelemesi temizdir.
 
-Yeni tam Client koşusu, analiz, biçim kontrolü ve bu birleşimi içeren yeni
-Android/Linux CI henüz ayrı kapılardır. Önceki **a2658ec / Android 98** için
-3422 Flutter ve 11 E2E sonucu, bu tablodaki yeni kodun kanıtı sayılmaz.
+Son birleşik kaynak `1b260ce` üzerinde tam Client komutu **3.923 PASS /
+bir derleme hatası**, 4 dakika 15 saniye verdi. Tek hata
+`system_screen_test.dart` içindeki eski `_Proxmox.signOut` test taklidinin
+artık isteğe bağlı `isCurrent` parametresini kabul etmemesiydi. `ad5f866`
+yalnız bu test taklidini günceller ve geçersiz işlemde sayacı değiştirmez;
+üretim kodu ve test assertionları değişmez. Aynı hedef **18 PASS** ve
+bağımsız kaynak incelemesi **CLEAR** verdi.
+
+Bu sonuçlar tek koşuda tamamen yeşil yerel çalışma diye sunulmaz. Değişmeyen
+üretim dosyalarının tam koşusu ile düzeltilen test hedefi ayrı kanıtlardır.
+Son tam analiz **0 bulgu**, tüm ağaçta formatter **860 dosya / 0 değişiklik**.
+Secret taraması **61 commit / sıfır bulgu**; belge tesliminde son aralık da
+kontrol edilir. Kuyruk doğrulaması ve **24 araç testi** geçti.
+
+Yeni birleşimi içeren Android/Linux CI ve bağımsız imzalı APK doğrulaması
+henüz ayrı kapılardır. Önceki **a2658ec / Android 98** için 3422 Flutter,
+11 E2E ve bağımsız APK kontrolü, bu tablodaki yeni kodun kanıtı sayılmaz.
 
 ## Ayrıntılı kayıtlar
 
@@ -44,6 +60,8 @@ Android/Linux CI henüz ayrı kapılardır. Önceki **a2658ec / Android 98** iç
 - [Jellyfin](direct-jellyfin-boundary-implementation-2026-09-06.md)
 - [Native odak](application-window-focus-implementation-2026-09-06.md)
 - [Volume değerlendirmesi](managed-volume-storage-assessment-2026-09-06.md)
+- [Proxmox](direct-proxmox-boundary-implementation-2026-09-06.md)
+- [Medya kayıt sonucu](media-credential-confirmation-implementation-2026-09-06.md)
 - [Saf volume planı](managed-volume-proposal-implementation-2026-09-06.md)
 
 Volume modülü hiçbir Docker işlemi başlatmaz; HTTP kuruluma bağlı değildir.

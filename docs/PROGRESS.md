@@ -1,6 +1,6 @@
 # Larenor — güncel ilerleme ve iş kuyruğu
 
-**Son güncelleme: 6 Eylül 2026, 03:26 (Türkiye saati).**
+**Son güncelleme: 6 Eylül 2026, 03:43 (Türkiye saati).**
 
 ```text
 Önceki kapsam       █████████████░░░░░░░  ≈ %65
@@ -56,16 +56,25 @@ ile kabul edildi. **S08.3** ev runtime sınırı da `4b98680` tam CI ve APK 94
 ile kabul edildi. Bu işler yeni 63 özelliğin kabul sayısı değildir; o sayaç **0/63**. Ana S06
 sayacı **2/6** kalır; dizin, kurulum ve gerçek Engine kabulü açıktır.
 
-**Güncel CI `a2658ec` / Android 98:** Linux Server **2.919 PASS**, güvenlik
-**207 PASS**, Flutter **3.422 PASS**, temiz analiz/845 dosyada sıfır biçim
-farkı ve **dört native + yedi uygulama = 11 E2E PASS**. Eski scoped-layout
-fixture düzeltmesi bu kez gerçek Android akışını geçti. İmzalı APK derlemesi
-ve bağımsız indirme/imza kontrolü sürüyor; son tam doğrulanmış APK aşağıdaki
-96 kaydıdır. Bu paket kişisel veri, üç yeni API-key servisi ve qBittorrent'in
-sonraki değişikliklerini içermez.
+**Son tam doğrulanmış yayın `a2658ec` / APK 98.** Linux Server **2.919 PASS**,
+güvenlik **207 PASS**, Flutter **3.422 PASS**, JVM **98 PASS**, temiz analiz,
+845 dosyada sıfır biçim farkı ve **dört native + yedi uygulama = 11 E2E PASS**.
+Eski scoped-layout fixture düzeltmesi gerçek Android akışını geçti. Üç workflow
+ilk denemede başarılı; başarısız Android 97 kaydı aşağıda korunuyor.
 [Android 98](https://github.com/ersingundem/larenor/actions/runs/34000029533) ·
 [Server](https://github.com/ersingundem/larenor/actions/runs/34000029460) ·
 [Güvenlik](https://github.com/ersingundem/larenor/actions/runs/34000029415).
+
+[İmzalı APK 98 ve metadata](https://github.com/ersingundem/larenor/actions/runs/34000029533/artifacts/9979498174)
+tek tam indirmeyle Java 17 ve sabit apksig 9.1.0 üzerinden ayrıca doğrulandı:
+`com.ersingundem.larenor`, `1.0.0` / `100000098`, minSdk 26,
+`debuggable=false`, kalıcı sertifika ve kaynak commit eşleşiyor. APK SHA-256:
+`eac472cec2a0e9de02a2df6f1f78876ae5e4dc9c56ef7e9440fe1691690586ae`.
+
+İki mimarili Core **hazırlık** smoke'u ve anonim kaynak/AGPL etiketli yayın
+geçti: `sha256:ed365020ea6bf38200beaa8a73627111a27a87c54124f6cd30bbd234bc846410`.
+Ev Server'ına yayın atlandı, cihaz kurulumu yapılmadı. Aşağıdaki yeni yerel
+paketler bu APK'da bulunmaz; kendi birleşik testleri ve CI ayrıca gerekir.
 
 **Sonraki birleşim yerelde hazırlanıyor:** kişisel sağlık/fotoğraf ayarları,
 Jellyseerr/Bazarr/Prowlarr ve qBittorrent paketleri bağımsız incelemelerden
@@ -73,13 +82,12 @@ geçti. İlk birleşik koşu **3.665 PASS / 5 FAIL** verdi; beş hata idle testi
 eski yerel depolama hazırlığındaydı. `1b2d7d3`, gerçek gizlilik sağlayıcılarını
 bekleyen test düzeltmesiyle **23/23 PASS** verdi. Ardından gerçek native
 pencere odağı açığı `729d96d` ile düzeltildi: **26 odaklı / 252 ilgili PASS**,
-arka plan müziği korunuyor. Yeni birleşik tam koşu ve CI henüz yapılmadı.
+arka plan müziği korunuyor. Son birleşik koşu `1b260ce`: **3.923 PASS / bir eski test taklidinde derleme hatası**, 4:15. `ad5f866` yalnız bu taklidin yeni Proxmox imzasını düzeltti; aynı sistem ekranının **18 testi geçti**, bağımsız inceleme temiz. Tam analiz sıfır bulgu; 860 dosyada biçim farkı yok. Bu, tek koşuda tam yeşil yerel sonuç diye sayılmıyor; yeni CI tam paketi sınayacak.
 [Odak kanıtı](application-window-focus-implementation-2026-09-06.md).
 
-**Devam eden bağlantılar:** Jellyfin ve Proxmox gerçek platform/provider/UI
-hata-kurtarma testleriyle ayrı dallarda; Keenetic sonraki pilot. Jellyfin'de
+**Birleşime alınan bağlantılar:** Jellyfin 98 yeni/297 ilgili, Proxmox 213 odaklı/665 ilgili test ve bağımsız inceleme ile tamamlandı. Keenetic sonraki ayrı pilotta. Jellyfin'de
 başarısız credential yazısının eski doğrulanmış bağlantıyı bırakması düzeltildi;
-aynı durum yedi API-key bağlantısında ayrıca sınanıyor. Bu incelemeler tüm
+aynı durum yedi API-key bağlantısında 370 ilgili test ve bağımsız incelemeyle düzeltildi. Dashboard WebviewTile için kaynak sahipliği eksikliği bulundu; sıradaki ayrı dilimde sınanıyor. Bu incelemeler tüm
 entegrasyon API'lerinin veya fiziksel cihazların kabulü değildir.
 
 **S06.3d depolama alternatifi:** Core'a ait yönetilen volume önerisi saf plan
@@ -95,7 +103,7 @@ UID/bootstrap ve gerçek kurulum etkileri açıktır.
 ve test raporları silinmedi. Sonraki envanter silinen kaydın yokluğunu ve
 korunan üç kaydı doğruladı. GHCR paket izni olmadığından imaj temizliği yapılmadı.
 
-**Son tam doğrulanmış yayın `8c3b60d` / APK 96: üç CI ve bağımsız APK kontrolü başarılı.**
+**Önceki tam doğrulanmış yayın `8c3b60d` / APK 96: üç CI ve bağımsız APK kontrolü başarılı.**
 Linux Server **2.916 testi atlamasız**, Flutter **2.989**, JVM **98** ve
 **dört native + altı uygulama = 10 E2E** geçti. Güvenlik CI 207 testi ve
 secret taramasını geçti. Yeni Core login/PIN/oda kopyası/remount/başka Core
@@ -121,7 +129,7 @@ Ev Server'ına koşullu Client yayını atlandı; ev/tablet kurulumu yapılmadı
 845 dosyada biçim kontrolü sıfır değişiklik. Ardından eklenen tek fixture testi
 ve genişletilen senaryo `27def3d` üzerinde **18 son destek testi**, dört dosyada
 temiz analiz/biçim ile doğrulandı. Kaynak incelemesi temiz. Yeni Android/Core
-CI üstteki Android 98 kaydında geçti; bağımsız imzalı APK kontrolü sürüyor.
+CI üstteki Android 98 kaydında geçti; bağımsız imzalı APK 98 kontrolü de geçti.
 [Fixture düzeltmesi](core-resource-fixture-compat-2026-09-06.md).
 
 **Kaynak ekranı paketi `808938e`:** diafon/film gecesi kaynak sınırı, Core'un
@@ -139,7 +147,7 @@ son temizlikte dört reddedilen istek nedeniyle durdu. Yeni kaynak ekranının
 yedinci uygulama senaryosu geçti. Eski admin test sunucusunda görünür ekranın
 oda/kaynak GET desteği eksikti; `1f7c6b4` bu eski kullanıcı/rolü değiştirmeden
 aynı kapsama ait boş liste yanıtını ekler. İstek/yetki/temizlik kontrolleri korunur.
-Bu düzeltmenin Android 98 E2E kabulü geçti; imzalı APK kontrolü sürüyor.
+Bu düzeltmenin Android 98 E2E kabulü geçti; imzalı APK 98 kontrolü de geçti.
 [Core imajı](https://github.com/ersingundem/larenor/actions/runs/33997176958)
 ilk denemesinde 2.918 PASS ve bir Unix test düzeneği kapanış zaman aşımı var.
 İlk hata kaydı korunarak yalnız başarısız iş bir kez yeniden çalıştırıldı;

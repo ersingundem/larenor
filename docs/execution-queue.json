@@ -989,7 +989,9 @@
         "docs/direct-api-key-credentials-implementation-2026-09-06.md",
         "docs/direct-qbittorrent-boundary-implementation-2026-09-06.md",
         "docs/direct-jellyfin-boundary-implementation-2026-09-06.md",
-        "docs/client-boundary-integration-2026-09-06.md"
+        "docs/client-boundary-integration-2026-09-06.md",
+        "docs/media-credential-confirmation-implementation-2026-09-06.md",
+        "docs/direct-proxmox-boundary-implementation-2026-09-06.md"
       ],
       "scope": "Tek mevcut ev bağlamı; F19 çoklu Core/ev federasyonu bu teslim değildir.",
       "acceptance": [
@@ -1209,11 +1211,51 @@
           "commit": "a2658ec902aea9b358e1ff0e10e093db773de238",
           "state": "completed",
           "result": "passed",
-          "label": "Android98:3422Flutter/98JVM/11E2E ve signed build geçti; önceki scoped-layout fixture düzeltmesi doğrulandı. Bağımsız APK kontrolü sürüyor; sonraki yerel pilotlar dahil değil."
+          "label": "Android98:3422Flutter/98JVM/11E2E ve bağımsız Java17/apksig signedAPK kontrolü geçti; fixture düzeltmesi kabul edildi. Sonraki yerel pilotlar dahil değil."
+        },
+        {
+          "kind": "test",
+          "ref": "docs/media-credential-confirmation-implementation-2026-09-06.md",
+          "commit": "7553a3f0a12fa91d90b22d28a721d0236bbbda1a",
+          "state": "completed",
+          "result": "passed",
+          "label": "YediAPI-key belirsizkayıt:63provider+14gerçekPIN/370ilgili PASS;provider veUI ayrı bağımsız CLEAR. Eski okuyucu kapanır;lostACK kodu korunur, açık boş recovery; yeniCI beklenir."
+        },
+        {
+          "kind": "review",
+          "ref": "docs/media-credential-confirmation-implementation-2026-09-06.md",
+          "commit": "7553a3f0a12fa91d90b22d28a721d0236bbbda1a",
+          "state": "completed",
+          "result": "passed",
+          "label": "YediAPI-key belirsizkayıt:63provider+14gerçekPIN/370ilgili PASS;provider veUI ayrı bağımsız CLEAR. Eski okuyucu kapanır;lostACK kodu korunur, açık boş recovery; yeniCI beklenir."
+        },
+        {
+          "kind": "test",
+          "ref": "docs/direct-proxmox-boundary-implementation-2026-09-06.md",
+          "commit": "48289ebc8fa35d267d7c935f630f3c4eb6cdfeea",
+          "state": "completed",
+          "result": "passed",
+          "label": "Proxmox:213odaklı/665ilgili PASS;5dosya%86,8; bağımsız CLEAR. StrictTLS/6tuple, gerçekPIN, nativefocus/providerreload, belirsizkayıt recovery; yeniCI açık."
+        },
+        {
+          "kind": "review",
+          "ref": "docs/direct-proxmox-boundary-implementation-2026-09-06.md",
+          "commit": "48289ebc8fa35d267d7c935f630f3c4eb6cdfeea",
+          "state": "completed",
+          "result": "passed",
+          "label": "Proxmox:213odaklı/665ilgili PASS;5dosya%86,8; bağımsız CLEAR. StrictTLS/6tuple, gerçekPIN, nativefocus/providerreload, belirsizkayıt recovery; yeniCI açık."
+        },
+        {
+          "kind": "test",
+          "ref": "docs/client-boundary-integration-2026-09-06.md",
+          "commit": "ad5f86699aeda6024d064c1359b7fdec64811134",
+          "state": "completed",
+          "result": "passed",
+          "label": "Birleşim1b260ce:3923PASS/tekfixturecompileFAIL; ad5f866SystemScreen18PASS+bağımsızCLEAR, üretim değişmedi. Tamanaliz0,860format0. Tek koşuda tüm-yeşil yerel sonuç iddiası yok; yeniCI açık."
         }
       ],
       "completionCommit": null,
-      "reason": "HA/Arr/backup/diafon/film gecesi a2658ec Android98:3422Flutter/11E2E ve signed build geçti; bağımsızAPK kontrolü sürüyor. Kişisel veri, üçAPI-key, qBittorrent ve Jellyfin ayrı test/inceleme kabulüyle yerel birleşimde; tam birleşikCI açık. Proxmox son denetimde, Keenetic sırada; belirsiz kayıt sonrası yediAPI-key reader/UI ekdüzeltmesi ayrı sürüyor. Bütün S08.4 ve typed ağcache S08.7–9 açık."
+      "reason": "HA/Arr/backup/diafon/film gecesi a2658ec Android98:3422Flutter/11E2E ve signed build geçti; bağımsızAPK98 kontrolü de geçti. Kişisel veri, üçAPI-key, qBittorrent ve Jellyfin ayrı test/inceleme kabulüyle yerel birleşimde; tam birleşikCI açık. Proxmox48289eb:213/665 test+inceleme geçti; Keenetic pilotta; belirsiz kayıt sonrası yediAPI-key reader/UI ekdüzeltmesi 370 ilgili test ve incelemeyle geçti. WebviewTile kaynak sahibi ek dilimi açık. Bütün S08.4 ve typed ağcache S08.7–9 açık."
     },
     {
       "id": "S08.5",
@@ -1344,10 +1386,18 @@
           "state": "completed",
           "result": "passed",
           "label": "Mevcut admin fixture boş kaynak GET desteği: bağımsız kaynak incelemesi temiz; eski kullanıcı/rol ve red/temizlik kontrolleri korundu."
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/34000029533",
+          "commit": "a2658ec902aea9b358e1ff0e10e093db773de238",
+          "state": "completed",
+          "result": "passed",
+          "label": "Salt okunur Core oda/kaynak ekranı:Android98 3422Flutter/11E2E ve bağımsızAPK kontrolü geçti. Yeni yedinci journey ve eski fixturecleanup başarılı; adminmetadata UI/ACL/commands açık."
         }
       ],
       "completionCommit": null,
-      "reason": "Kalıcı registry20d92d7 Server CI attempt2:2919 test/imaj kapısı başarılı; ilk denemede1 Unix fixture timeout kaydı korunur. Client73dba35:82odaklı/940ilgili,%99,2kapsam ve bağımsızinceleme;3115tamClient geçti. Yeni kaynak Android yolculuğu geçti ancak eski scoped-layout fixture GET uyumsuzluğu tümAndroid97 kapısını durdurdu; düzeltme1f7c6b4 ayrıCI bekliyor. Adminmetadata/ACLUI,hane kişileri,upstreambağları ve gerçekkomut sözleşmesi açık."
+      "reason": "Kalıcı registry20d92d7 Server CI attempt2:2919 test/imaj kapısı başarılı; ilk denemede1 Unix fixture timeout kaydı korunur. Client73dba35:82odaklı/940ilgili,%99,2kapsam ve bağımsızinceleme;3115tamClient geçti. Yeni kaynak Android yolculuğu geçti ancak eski scoped-layout fixture GET uyumsuzluğu tümAndroid97 kapısını durdurdu; düzeltme1f7c6b4 ayrıCI bekliyor. Adminmetadata/ACLUI,hane kişileri,upstreambağları ve gerçekkomut sözleşmesi açık. a2658ec Android98 içinde salt okunur Client ve yedinci journey, bağımsız APK98 doğrulamasıyla kabul edildi; admin metadata Client API sonraki ayrı dalda, UI henüz uygulanmadı."
     },
     {
       "id": "S08.7",
