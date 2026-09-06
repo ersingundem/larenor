@@ -838,4 +838,57 @@ void main() {
     },
   );
 
+  testWidgets(
+    'external reload during owned replacement still retires the form and late verification',
+    (tester) async {
+      secure.values.addAll(keeneticRecord);
+      final (c, _) = await routinesHome('direct');
+      final interaction = AppInteractionController();
+      addTearDown(interaction.dispose);
+      final response = Completer<http.Response>();
+      var requests = 0;
+      await http.runWithClient(
+        () async {
+          await mount(
+            tester,
+            c,
+            interaction,
+            child: const KeeneticConnectScreen(),
+          );
+          await fill(tester);
+          await tap(tester, 'Connect');
+          expect(requests, 1);
+          c.invalidate(keeneticConnectionProvider);
+          await settle(tester);
+          response.complete(http.Response('', 200));
+          await settle(tester);
+          expect(requests, 1);
+          expect(
+            secure.values['keenetic_base_url'],
+            keeneticRecord['keenetic_base_url'],
+          );
+          expect(secure.calls.where((c) => c.$1 != 'read'), isEmpty);
+          expect(
+            tester
+                .widgetList<CupertinoTextFormFieldRow>(
+                  find.byType(CupertinoTextFormFieldRow),
+                )
+                .map((f) => f.controller!.text),
+            everyElement(isEmpty),
+          );
+          await fill(tester);
+          await tap(tester, 'Connect');
+          expect(secure.values['keenetic_base_url'], 'https://new.invalid');
+          expect(requests, 3);
+          expect(tester.takeException(), isNull);
+          await finish(tester, c);
+        },
+        () => MockClient((r) async {
+          requests++;
+          if (requests == 1) return response.future;
+          return keeneticReply(r);
+        }),
+      );
+    },
+  );
 }
