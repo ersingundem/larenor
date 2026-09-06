@@ -26,6 +26,7 @@ import 'package:larenor/features/settings/data/screen_program_store.dart';
 import 'package:larenor/features/settings/domain/screen_program.dart';
 
 import 'support/app_harness.dart';
+import 'support/core_archive_journey.dart';
 import 'support/core_people_journey.dart';
 import 'support/single_element_ready.dart';
 import 'support/synthetic_ha_server.dart';
@@ -1345,4 +1346,5 @@ void main() {
     timeout: const Timeout(Duration(minutes: 3)),
   );
   registerCorePeopleJourney();
+  registerCoreArchiveJourney();
 }
