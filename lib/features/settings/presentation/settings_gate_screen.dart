@@ -6,6 +6,7 @@ import '../../../shared/widgets/app_page_scaffold.dart';
 import '../../client_updates/presentation/client_updates_screen.dart';
 import '../../home_scope/presentation/home_source_screen.dart';
 import '../../home_resources/presentation/home_resource_admin_screen.dart';
+import '../../home_people/presentation/home_people_screen.dart';
 import '../../server/presentation/server_connection_screen.dart';
 
 import '../../../l10n/generated/app_localizations.dart';
@@ -19,6 +20,7 @@ enum SettingsGateDestination {
   serverAccount,
   homeSource,
   homeResources,
+  homePeople,
 }
 
 /// Gates access to [SettingsSplitScreen] behind a PIN, if one has been set —
@@ -121,7 +123,8 @@ class _SettingsGateScreenState extends ConsumerState<SettingsGateScreen>
   @override
   Widget build(BuildContext context) {
     ref.listen(pinLockProvider, (previous, next) {
-      if (widget.initialDestination == SettingsGateDestination.homeResources &&
+      if ((widget.initialDestination == SettingsGateDestination.homeResources ||
+              widget.initialDestination == SettingsGateDestination.homePeople) &&
           (next.isLoading || next.hasError)) {
         _lockSettings();
         return;
@@ -130,7 +133,8 @@ class _SettingsGateScreenState extends ConsumerState<SettingsGateScreen>
           next.hasValue &&
           (next.value != null ||
               widget.initialDestination ==
-                  SettingsGateDestination.homeResources) &&
+                  SettingsGateDestination.homeResources ||
+              widget.initialDestination == SettingsGateDestination.homePeople) &&
           previous?.value != next.value) {
         // First PIN creation also closes a phone pane pushed while no PIN was
         // configured. A locked gate underneath that pane is not sufficient.
@@ -183,6 +187,28 @@ class _SettingsGateScreenState extends ConsumerState<SettingsGateScreen>
                                       resourceGeneration != _generation ||
                                       ModalRoute.of(context)?.isCurrent !=
                                           true) {
+                                    return false;
+                                  }
+                                  final currentPin = ref.read(pinLockProvider);
+                                  return !currentPin.isLoading &&
+                                      !currentPin.hasError &&
+                                      currentPin.hasValue &&
+                                      currentPin.value == pin &&
+                                      (pin == null || _unlocked);
+                                },
+                                onExit: Navigator.of(context).canPop()
+                                    ? _exit
+                                    : null,
+                              )
+                            : widget.initialDestination ==
+                                  SettingsGateDestination.homePeople
+                            ? HomePeopleScreen(
+                                adminManagement: true,
+                                gateCurrent: () {
+                                  if (!mounted ||
+                                      !_interactive ||
+                                      resourceGeneration != _generation ||
+                                      ModalRoute.of(context)?.isCurrent != true) {
                                     return false;
                                   }
                                   final currentPin = ref.read(pinLockProvider);

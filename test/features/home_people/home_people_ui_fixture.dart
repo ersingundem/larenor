@@ -44,16 +44,34 @@ class PeopleUiHarness {
   PeopleUiHarness({this.pinStore});
   final PinLockStore? pinStore;
   final fixture = contract();
-  final peopleContract = jsonDecode(File('contracts/home-people.v1.json').readAsStringSync()) as Map<String,dynamic>;
-  late final List<Map<String,dynamic>> people = (peopleContract['adminList']['response']['entries'] as List).map((v)=>Map<String,dynamic>.from(jsonDecode(jsonEncode(v)) as Map)).toList();
-  String role='admin';
-  int peopleReads=0,userReads=0,grantReads=0;
-  final writes=<http.Request>[];
-  final grants=<String,Map<String,bool>>{};
-  Completer<http.Response>? pendingPeople,pendingWrite,pendingUsers,pendingGrants;
-  bool uncertainWrite=false,failPeople=false;
-  final personRequests=<http.Request>[];
-  Map<String,Object> member()=>{'id':peopleContract['subjectId'] as String,'username':'Member','role':'member','disabled':false,'mustChangePassword':false,'revision':1,'createdAt':'2026-09-06T00:00:00.000Z'};
+  final peopleContract = jsonDecode(
+    File('contracts/home-people.v1.json').readAsStringSync(),
+  ) as Map<String, dynamic>;
+  late final List<Map<String, dynamic>> people =
+      (peopleContract['adminList']['response']['entries'] as List)
+          .map(
+            (v) => Map<String, dynamic>.from(jsonDecode(jsonEncode(v)) as Map),
+          )
+          .toList();
+  String role = 'admin';
+  int peopleReads = 0, userReads = 0, grantReads = 0;
+  final writes = <http.Request>[];
+  final grants = <String, Map<String, bool>>{};
+  Completer<http.Response>? pendingPeople,
+      pendingWrite,
+      pendingUsers,
+      pendingGrants;
+  bool uncertainWrite = false, failPeople = false;
+  final personRequests = <http.Request>[];
+  Map<String, Object> member() => {
+    'id': peopleContract['subjectId'] as String,
+    'username': 'Member',
+    'role': 'member',
+    'disabled': false,
+    'mustChangePassword': false,
+    'revision': 1,
+    'createdAt': '2026-09-06T00:00:00.000Z',
+  };
 
   final boundary = GlobalKey();
   final source = SourceMemory(HomeSource.verifiedCore);
@@ -88,48 +106,157 @@ class PeopleUiHarness {
     headers: {'content-type': 'application/json'},
   );
   Future<http.Response> handle(http.Request request) async {
-    if(request.url.path.contains('/home-people/') || request.url.path.endsWith('/admin/users')) {
+    if (request.url.path.contains('/home-people/') ||
+        request.url.path.endsWith('/admin/users')) {
       personRequests.add(request);
-      expectSync(request.headers['authorization'],(refreshes.isEven?'Bearer ${'a'*43}':'Bearer ${'c'*43}'));
-      if(request.url.path.endsWith('/admin/users')) {userReads++;return pendingUsers?.future??json({'users':[member()]});}
-      expectSync(request.url.path.contains('/${fixture['context']['coreId']}/${fixture['context']['homeId']}'),isTrue);
-      final isGrant=request.url.path.contains('/grants');
-      if(request.method=='GET' && !isGrant) {
-        peopleReads++;
-        if(failPeople) return json({'error':{'code':'server_error'}},503);
-        final sorted=people.toList()..sort((a,b)=>(a['ref']['id'] as String).compareTo(b['ref']['id'] as String));
-        final after=request.url.queryParameters['after'],limit=int.parse(request.url.queryParameters['limit']??'25');
-        final rest=sorted.where((r)=>after==null||(r['ref']['id'] as String).compareTo(after)>0).toList();
-        final rows=rest.take(limit).map((r)=>{...r,'permissions':{'read':true,'write':role=='admin'}}).toList();
-        return pendingPeople?.future??json({'scope':fixture['context'],'entries':rows,'snapshot':'a'*64,'nextAfter':rest.length>rows.length?rows.last['ref']['id']:null});
+      expectSync(
+        request.headers['authorization'],
+        (refreshes.isEven ? 'Bearer ${'a' * 43}' : 'Bearer ${'c' * 43}'),
+      );
+      if (request.url.path.endsWith('/admin/users')) {
+        userReads++;
+        return pendingUsers?.future ??
+            json({
+              'users': [member()],
+            });
       }
-      expectSync(role,'admin');
-      final index=people.indexWhere((p)=>request.url.pathSegments.contains(p['ref']['id']));
-      if(request.method=='GET' && isGrant) {
-        grantReads++;final target=people[index];
-        return pendingGrants?.future??json({'aclRevision':target['aclRevision'],'grants':[for(final subject in grants.keys.toList()..sort()){'subjectId':subject,'target':target['ref'],'aclRevision':target['aclRevision'],'permissions':grants[subject]}]});
+      expectSync(
+        request.url.path.contains(
+          '/${fixture['context']['coreId']}/${fixture['context']['homeId']}',
+        ),
+        isTrue,
+      );
+      final isGrant = request.url.path.contains('/grants');
+      if (request.method == 'GET' && !isGrant) {
+        peopleReads++;
+        if (failPeople)
+          return json({
+            'error': {'code': 'server_error'},
+          }, 503);
+        final sorted = people.toList()
+          ..sort(
+            (a, b) =>
+                (a['ref']['id'] as String).compareTo(b['ref']['id'] as String),
+          );
+        final after = request.url.queryParameters['after'],
+            limit = int.parse(request.url.queryParameters['limit'] ?? '25');
+        final rest = sorted
+            .where(
+              (r) =>
+                  after == null ||
+                  (r['ref']['id'] as String).compareTo(after) > 0,
+            )
+            .toList();
+        final rows = rest
+            .take(limit)
+            .map(
+              (r) => {
+                ...r,
+                'permissions': {'read': true, 'write': role == 'admin'},
+              },
+            )
+            .toList();
+        return pendingPeople?.future ??
+            json({
+              'scope': fixture['context'],
+              'entries': rows,
+              'snapshot': 'a' * 64,
+              'nextAfter': rest.length > rows.length
+                  ? rows.last['ref']['id']
+                  : null,
+            });
+      }
+      expectSync(role, 'admin');
+      final index = people.indexWhere(
+        (p) => request.url.pathSegments.contains(p['ref']['id']),
+      );
+      if (request.method == 'GET' && isGrant) {
+        grantReads++;
+        final target = people[index];
+        return pendingGrants?.future ??
+            json({
+              'aclRevision': target['aclRevision'],
+              'grants': [
+                for (final subject in grants.keys.toList()..sort())
+                  {
+                    'subjectId': subject,
+                    'target': target['ref'],
+                    'aclRevision': target['aclRevision'],
+                    'permissions': grants[subject],
+                  },
+              ],
+            });
       }
       writes.add(request);
-      final body=request.body.isEmpty?null:jsonDecode(request.body) as Map;
-      Map<String,dynamic>? result;
-      if(isGrant) {
-        expectSync(request.method,'PUT');final target=people[index];expectSync(body!['expectedAclRevision'],target['aclRevision']);
-        final permission=Map<String,bool>.from(body['permissions'] as Map),subject=request.url.pathSegments.last,old=grants[subject]??{'read':false,'write':false};
-        if(old['read']!=permission['read']||old['write']!=permission['write'])target['aclRevision']=(target['aclRevision'] as int)+1;
-        if(permission['read']==false){grants.remove(subject);}else{grants[subject]=permission;}
-        result={'grant':{'subjectId':subject,'target':target['ref'],'aclRevision':target['aclRevision'],'permissions':permission}};
-      } else if(request.method=='POST') {
-        expectSync(body!.keys.toSet(),{'label','order'});
-        final person={'ref':{...fixture['context'] as Map,'kind':'person','id':(people.length+10).toRadixString(16).padLeft(32,'0')},'label':body['label'],'order':body['order'],'revision':1,'aclRevision':1,'permissions':{'read':true,'write':true}};
-        people.add(person);result={'person':person};
-      } else if(request.method=='PATCH') {
-        final target=people[index];expectSync(body!['expectedRevision'],target['revision']);expectSync(body['expectedAclRevision'],target['aclRevision']);
-        if(target['label']!=body['label']||target['order']!=body['order'])target['revision']=(target['revision'] as int)+1;
-        target['label']=body['label'];target['order']=body['order'];result={'person':target};
+      final body = request.body.isEmpty
+          ? null
+          : jsonDecode(request.body) as Map;
+      Map<String, dynamic>? result;
+      if (isGrant) {
+        expectSync(request.method, 'PUT');
+        final target = people[index];
+        expectSync(body!['expectedAclRevision'], target['aclRevision']);
+        final permission = Map<String, bool>.from(body['permissions'] as Map),
+            subject = request.url.pathSegments.last,
+            old = grants[subject] ?? {'read': false, 'write': false};
+        if (old['read'] != permission['read'] ||
+            old['write'] != permission['write'])
+          target['aclRevision'] = (target['aclRevision'] as int) + 1;
+        if (permission['read'] == false) {
+          grants.remove(subject);
+        } else {
+          grants[subject] = permission;
+        }
+        result = {
+          'grant': {
+            'subjectId': subject,
+            'target': target['ref'],
+            'aclRevision': target['aclRevision'],
+            'permissions': permission,
+          },
+        };
+      } else if (request.method == 'POST') {
+        expectSync(body!.keys.toSet(), {'label', 'order'});
+        final person = {
+          'ref': {
+            ...fixture['context'] as Map,
+            'kind': 'person',
+            'id': (people.length + 10).toRadixString(16).padLeft(32, '0'),
+          },
+          'label': body['label'],
+          'order': body['order'],
+          'revision': 1,
+          'aclRevision': 1,
+          'permissions': {'read': true, 'write': true},
+        };
+        people.add(person);
+        result = {'person': person};
+      } else if (request.method == 'PATCH') {
+        final target = people[index];
+        expectSync(body!['expectedRevision'], target['revision']);
+        expectSync(body['expectedAclRevision'], target['aclRevision']);
+        if (target['label'] != body['label'] ||
+            target['order'] != body['order'])
+          target['revision'] = (target['revision'] as int) + 1;
+        target['label'] = body['label'];
+        target['order'] = body['order'];
+        result = {'person': target};
       } else {
-        expectSync(request.method,'DELETE');expectSync(request.url.queryParameters,{'expectedRevision':'${people[index]['revision']}','expectedAclRevision':'${people[index]['aclRevision']}'});people.removeAt(index);
+        expectSync(request.method, 'DELETE');
+        expectSync(request.url.queryParameters, {
+          'expectedRevision': '${people[index]['revision']}',
+          'expectedAclRevision': '${people[index]['aclRevision']}',
+        });
+        people.removeAt(index);
       }
-      return pendingWrite?.future??(uncertainWrite?json({'error':{'code':'server_error'}},503):request.method=='DELETE'?http.Response('',204):json(result,request.method=='POST'?201:200));
+      return pendingWrite?.future ??
+          (uncertainWrite
+              ? json({
+                  'error': {'code': 'server_error'},
+                }, 503)
+              : request.method == 'DELETE'
+              ? http.Response('', 204)
+              : json(result, request.method == 'POST' ? 201 : 200));
     }
 
     if (request.url.path.endsWith('/auth/login') ||
@@ -227,8 +354,14 @@ class PeopleUiHarness {
                   ),
                 ),
                 homeResourcesClockProvider.overrideWithValue(() => now),
-                homePeopleClockProvider.overrideWithValue(()=>now),
-                homePeopleApiFactoryProvider.overrideWithValue((endpoint)=>LarenorServerApi(endpoint:endpoint,client:TrackedClient(handle,()=>closed++),clock:()=>now)),
+                homePeopleClockProvider.overrideWithValue(() => now),
+                homePeopleApiFactoryProvider.overrideWithValue(
+                  (endpoint) => LarenorServerApi(
+                    endpoint: endpoint,
+                    client: TrackedClient(handle, () => closed++),
+                    clock: () => now,
+                  ),
+                ),
                 connectionConfigProvider.overrideWith(() => BlockHa(this)),
                 haRestClientFactoryProvider.overrideWithValue((_, _) {
                   haReads++;

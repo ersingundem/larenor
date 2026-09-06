@@ -1991,5 +1991,63 @@
         "type": "int"
       }
     }
+  },
+  "homePeopleTitle": "Kişiler",
+  "homePeopleDescription": "Bu evde hesabınızla paylaşılan kişi profilleri.",
+  "homePeopleManage": "Kişileri yönet",
+  "homePeopleAdminDescription": "Profil adlarını, görüntüleme sırasını ve erişimi yönetin. Profiller ev kayıtlarıdır; giriş hesabı veya Home Assistant kişisi değildir.",
+  "homePeopleRequired": "Bu eve doğrulanmış bir bağlantı gerekiyor.",
+  "homePeopleAdminRequired": "Güncel bir yönetici oturumu gerekiyor.",
+  "homePeopleLoading": "Kişiler yükleniyor…",
+  "homePeopleEmpty": "Bu hesapla paylaşılmış kişi profili yok.",
+  "homePeopleError": "Kişiler okunamadı. Yenileyerek tekrar deneyin.",
+  "homePeopleLoadMore": "Daha fazla kişi yükle",
+  "homePeopleCreate": "Kişi profili ekle",
+  "homePeopleLabel": "Profil adı",
+  "homePeopleOrder": "Görüntüleme sırası",
+  "homePeopleInvalid": "1–80 karakterlik bir ad ve 0–10000 arasında bir sıra girin.",
+  "homePeopleSaved": "Profil kaydedildi.",
+  "homePeopleDeleted": "Profil silindi.",
+  "homePeopleConflict": "Bu profil değişti. Tekrar denemeden önce yenileyin.",
+  "homePeopleUncertain": "Değişiklik doğrulanamadı. Başka bir değişiklik yapmadan önce yenileyin.",
+  "homePeopleFailed": "Değişiklik kaydedilemedi. Tekrar denemeden önce yenileyin.",
+  "homePeopleSaving": "Kaydediliyor…",
+  "homePeopleConfirmDelete": "Bu kişi profili silinsin mi?",
+  "homePeopleDeleteHint": "Profil ve erişim izinleri kaldırılacak. Giriş hesabı silinmez.",
+  "homePeopleGrantsTitle": "Profil erişimi",
+  "homePeopleGrantsDescription": "Bir hesap ve bu profile erişimini seçin. Okuma ve yazma izni yönetici rolü vermez; profil yönetimi yöneticilere aittir.",
+  "homePeopleGrantsInherited": "Yöneticilerin hesap rolünden gelen erişimi korunur.",
+  "homePeopleGrantsEmpty": "Seçilebilecek hesap yok.",
+  "homePeopleGrantsError": "Profil erişimi okunamadı. Yenileyerek tekrar deneyin.",
+  "homePeopleReadOnly": "Yalnızca okuma",
+  "homePeopleReadWrite": "Okuma ve yazma",
+  "homePeopleNoAccess": "Erişim yok",
+  "homePeopleGrantSaved": "Erişim kaydedildi.",
+  "homePeopleGrantRevoked": "Erişim kaldırıldı.",
+  "homePeopleConfirmRevoke": "Bu hesabın erişimi kaldırılsın mı?",
+  "homePeopleRevoke": "Erişimi kaldır",
+  "homePeopleEditPerson": "{name} profilini düzenle",
+  "@homePeopleEditPerson": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "homePeopleGrantPerson": "{name} profilinin erişimini yönet",
+  "@homePeopleGrantPerson": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "homePeopleDeletePerson": "{name} profilini sil",
+  "@homePeopleDeletePerson": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
   }
 }
