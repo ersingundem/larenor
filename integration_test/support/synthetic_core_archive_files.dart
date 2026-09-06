@@ -16,7 +16,8 @@ class SyntheticCoreArchiveFiles extends CoreLayoutArchiveFileAccess {
       _saved == null ? null : Uint8List.fromList(_saved!);
 
   void _check(Uint8List bytes) {
-    if (bytes.isEmpty || bytes.length > CoreLayoutArchiveFileAccess.maxFileBytes) {
+    if (bytes.isEmpty ||
+        bytes.length > CoreLayoutArchiveFileAccess.maxFileBytes) {
       throw const CoreLayoutArchiveFileException();
     }
   }

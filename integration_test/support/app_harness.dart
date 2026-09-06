@@ -16,6 +16,7 @@ import 'package:larenor/features/backup/presentation/backup_screen.dart';
 import 'package:larenor/features/dashboard/data/dashboard_repository.dart';
 import 'package:larenor/features/dashboard/domain/dashboard_layout.dart';
 import 'package:larenor/features/dashboard/domain/dashboard_room.dart';
+import 'package:larenor/features/home_scope/presentation/core_layout_archive_file_access.dart';
 import 'package:larenor/features/settings/presentation/settings_split_screen.dart';
 import 'package:larenor/features/settings/domain/screen_program.dart';
 import 'package:larenor/features/ha_client/data/ws_client.dart';
@@ -157,7 +158,10 @@ class AppHarness {
     return harness;
   }
 
-  Future<void> mount(WidgetTester tester) async {
+  Future<void> mount(
+    WidgetTester tester, {
+    CoreLayoutArchiveFileAccess? coreArchiveFiles,
+  }) async {
     if (_cleanupOnly) {
       throw StateError('Synthetic cleanup harness cannot mount.');
     }
@@ -178,6 +182,10 @@ class AppHarness {
           ],
           child: HomeSessionScope(
             runtimeOverrides: [
+              if (coreArchiveFiles != null)
+                coreLayoutArchiveFileAccessProvider.overrideWithValue(
+                  coreArchiveFiles,
+                ),
               haDiscoveryFactoryProvider.overrideWithValue(
                 _NoNetworkDiscovery.new,
               ),
