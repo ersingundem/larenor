@@ -17,7 +17,10 @@ const passphrase='synthetic room archive password';
 final scope=HomeDataScope.fromJson({'coreId':'a'*32,'homeId':'b'*32,'userId':'one'});
 CoreLayoutArchiveV1 archive({HomeDataScope? owner})=>CoreLayoutArchiveV1.fromScopedLayout(scope:owner??scope,sourceRevision:10,capturedAt:DateTime.utc(2026,9,6),layout:const DashboardLayout(rooms:[DashboardRoom(id:'saved',name:'Saved room')]).toJson());
 Future<void> cryptoWait(WidgetTester tester,Finder expected) async {
-  for(var i=0;i<100 && expected.evaluate().isEmpty;i++) { await tester.runAsync(()=>Future<void>.delayed(const Duration(milliseconds:100))); await flush(tester); }
+  for(var i=0;i<100 && expected.evaluate().isEmpty;i++) {
+    await tester.runAsync(()=>Future<void>.delayed(const Duration(milliseconds:100)));await flush(tester);
+    if(expected.evaluate().isEmpty && find.byType(CupertinoActivityIndicator).evaluate().isEmpty){await tester.drag(find.byType(Scrollable).first,const Offset(0,300));await flush(tester);}
+  }
   expect(expected,findsOneWidget);
 }
 Future<void> importArchive(WidgetTester tester,ArchiveHarness h,Uint8List bytes,{String password=passphrase,bool preview=true}) async {

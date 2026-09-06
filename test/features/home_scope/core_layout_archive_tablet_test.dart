@@ -43,9 +43,13 @@ void main(){
         final node=tester.getSemantics(text);
         expect(node.label,l10n.coreLayoutArchiveImport);expect(node.flagsCollection.isButton,isTrue);expect(node.rect.height,greaterThanOrEqualTo(48));
         Focus.of(tester.element(text)).requestFocus();await flush(tester);
+        await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);await tester.sendKeyEvent(LogicalKeyboardKey.tab);await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);await flush(tester);
+        expect(Focus.of(tester.element(find.text(l10n.coreLayoutArchiveRefresh))).hasPrimaryFocus,isTrue);
+        await tester.sendKeyEvent(LogicalKeyboardKey.tab);await flush(tester);
+        expect(Focus.of(tester.element(text)).hasPrimaryFocus,isTrue);
         final decorations=find.descendant(of:pick,matching:find.byWidgetPredicate((w)=>w is DecoratedBox && w.decoration is ShapeDecoration && (w.decoration as ShapeDecoration).shape is OutlinedBorder));
         final outline=(tester.widget<DecoratedBox>(decorations.first).decoration as ShapeDecoration).shape as OutlinedBorder;
-        final background=CupertinoTheme.of(tester.element(pick)).scaffoldBackgroundColor;
+        final background=CupertinoDynamicColor.resolve(CupertinoTheme.of(tester.element(pick)).scaffoldBackgroundColor,tester.element(pick));
         final color=Color.alphaBlend(outline.side.color,background);
         final a=color.computeLuminance(),b=background.computeLuminance();
         expect(((a>b?a:b)+.05)/((a<b?a:b)+.05),greaterThanOrEqualTo(3));
@@ -56,9 +60,11 @@ void main(){
         final confirm=find.byKey(const ValueKey('core-layout-archive-confirm'));
         expect(tester.getSize(confirm).height,greaterThanOrEqualTo(48));
         final root=tester.binding.pipelineOwner.semanticsOwner!.rootSemanticsNode!;
-        final dump=root.toStringDeep();
-        expect(dump,contains(l10n.coreLayoutArchiveConfirm));
-        expect(dump,isNot(contains(l10n.coreLayoutArchivePasswordHint)));
+        final labels=<String>[];
+        void visit(SemanticsNode node){labels.add(node.label);node.visitChildren((child){visit(child);return true;});}
+        visit(root);
+        expect(labels.any((label)=>label.contains(l10n.coreLayoutArchiveConfirm)),isTrue);
+        expect(labels.any((label)=>label.contains(l10n.coreLayoutArchivePasswordHint)),isFalse);
         await capture(tester,h,'archive-confirm-$language-${width.toInt()}-2x');
         final cancel=find.descendant(of:find.byKey(const ValueKey('core-layout-archive-confirm-cancel')),matching:find.byType(Text));
         Focus.of(tester.element(cancel)).requestFocus();await flush(tester);await tester.sendKeyEvent(LogicalKeyboardKey.enter);await flush(tester);
