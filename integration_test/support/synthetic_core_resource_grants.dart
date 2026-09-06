@@ -6,7 +6,16 @@ import 'package:crypto/crypto.dart';
 
 import 'home_resource_grants_contract_fixture.dart';
 
-typedef GrantsReply = (int, Map<String, dynamic>?);
+/// Local response provenance; an arbitrary HTTP status cannot opt into a fault.
+final class GrantsReply {
+  const GrantsReply(this.status, this.body) : injectedAckLoss = false;
+  const GrantsReply.lostAcknowledgement(this.body)
+    : status = 503,
+      injectedAckLoss = true;
+  final int status;
+  final Map<String, dynamic>? body;
+  final bool injectedAckLoss;
+}
 
 /// Opt-in, fixed-record ACL fixture. It has no provider or metadata mutation API.
 class SyntheticCoreResourceGrants {
@@ -44,7 +53,7 @@ class SyntheticCoreResourceGrants {
         'createdAt': '2026-09-06T00:00:00Z',
       },
   ];
-  static GrantsReply error(int status, String code) => (
+  static GrantsReply error(int status, String code) => GrantsReply(
     status,
     {
       'error': {
@@ -131,13 +140,13 @@ class SyntheticCoreResourceGrants {
       if (bytes.isNotEmpty) return error(400, 'invalid_request');
       if (isUsers) {
         usersReads++;
-        return (200, {'users': users});
+        return GrantsReply(200, {'users': users});
       }
       if (isRecord) return _readRecord(request, readBase, userId, admin);
       if (path != aclBase) return error(404, 'not_found');
       grantReads++;
       final ids = _grants.keys.toList()..sort();
-      return (
+      return GrantsReply(
         200,
         {
           'aclRevision': aclRevision,
@@ -198,7 +207,7 @@ class SyntheticCoreResourceGrants {
       }
     }
     mutations.add('PUT');
-    final reply = (200, {'grant': _grant(id, desired)});
+    final reply = GrantsReply(200, {'grant': _grant(id, desired)});
     final gate = replyGate;
     if (gate != null) {
       try {
@@ -222,7 +231,9 @@ class SyntheticCoreResourceGrants {
     }
     if (failNextPutReply) {
       failNextPutReply = false;
-      return error(503, 'service_unavailable');
+      return GrantsReply.lostAcknowledgement(
+        error(503, 'service_unavailable').body,
+      );
     }
     return reply;
   }
@@ -255,7 +266,7 @@ class SyntheticCoreResourceGrants {
       if (query.isNotEmpty) return error(400, 'invalid_request');
       if (permissions['read'] != true) return error(404, 'not_found');
       recordReads++;
-      return (200, {'record': record});
+      return GrantsReply(200, {'record': record});
     }
     if (query.keys.any(
       (key) => !{'limit', 'after', 'expectedSnapshot'}.contains(key),
@@ -291,7 +302,7 @@ class SyntheticCoreResourceGrants {
       return error(404, 'not_found');
     }
     recordReads++;
-    return (
+    return GrantsReply(
       200,
       {
         'scope': _contract['context'],

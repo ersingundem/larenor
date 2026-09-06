@@ -59,6 +59,8 @@ void main() {
           core.revokeGrantSession();
           expect(await send('GET', path, null), 401);
         }
+        expect(core.injectedAckLosses, mode == 'unexpected503' ? 0 : 1);
+        expect(core.rejectedRequests, mode == 'injected' ? 0 : 1);
         client.close(force: true);
       });
       // This is the same teardown as the ninth Android journey, including

@@ -44,6 +44,7 @@ class SyntheticCoreAccount {
   int meReads = 0;
   int contextReads = 0;
   int rejectedRequests = 0;
+  int injectedAckLosses = 0;
 
   Map<String, Object?> get user => {
     'id': userId,
@@ -87,7 +88,7 @@ class SyntheticCoreAccount {
           return null;
         }
 
-        final (status, body) = await grants!.handle(
+        final reply = await grants!.handle(
           request,
           coreId,
           homeId,
@@ -95,9 +96,13 @@ class SyntheticCoreAccount {
           role == 'admin',
           authStatus: authStatus,
         );
-        if (status >= 400) rejectedRequests++;
-        response.statusCode = status;
-        if (body != null) response.write(jsonEncode(body));
+        if (reply.injectedAckLoss) {
+          injectedAckLosses++;
+        } else if (reply.status >= 400) {
+          rejectedRequests++;
+        }
+        response.statusCode = reply.status;
+        if (reply.body != null) response.write(jsonEncode(reply.body));
       } else if (grants != null &&
           path == '/api/v1/auth/logout' &&
           request.method == 'POST') {

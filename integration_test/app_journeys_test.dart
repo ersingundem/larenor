@@ -1118,6 +1118,8 @@ void main() {
         grants.failNextPutReply = true;
         await press('resource-grants-save');
         await waitFor(tester, key('resource-grants-uncertain'));
+        expect(core.rejectedRequests, 0);
+        expect(core.injectedAckLosses, 1);
         expect(key('resource-grants-user-$subject'), findsNothing);
         expect(grants.putRequests, 3);
         expect(grants.grantReads, 1);
@@ -1160,7 +1162,8 @@ void main() {
         expect(grants.aclRevision, 5);
         expect(grants.putRequests, 4);
         expect(core.logins, 1);
-        expect(core.rejectedRequests, 1);
+        expect(core.rejectedRequests, 0);
+        expect(core.injectedAckLosses, 1);
         noHomeEffects();
         debugPrint('LARENOR_E2E_PHASE core_resource_grants.fresh_empty_read');
       } finally {
