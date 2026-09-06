@@ -1,6 +1,6 @@
 # Larenor — güncel ilerleme ve iş kuyruğu
 
-**Son güncelleme: 6 Eylül 2026, 07:47 (Türkiye saati).**
+**Son güncelleme: 6 Eylül 2026, 07:57 (Türkiye saati).**
 
 ```text
 Önceki kapsam       █████████████░░░░░░░  ≈ %65
@@ -105,14 +105,19 @@ sonrasında eski ekranların açılması, değişen hedefe yazma ve başka journ
 müdahale etme sınırları RED→GREEN ile kapatılıyor. Hazırlanan restore ve Vault dalları `552e67f` yerel birleşiminde bir araya geldi.
 Dosya restore376, Vault387 ilgili test kanıtı kendi dallarına aittir ve toplanmaz;
 Vault erişilebilirlik ek düzeltmesi1ab3483 ile birleşti:73 ilgili test geçti.
-`c0d8145` birleşiminde tam Client ve tam analiz kontrolü çalışıyor. Core düzeninin açık arşivi sonraki adımdır.
+`c0d8145` uygulama/test kaynağında **4.544 tam Client PASS / 6:09**,
+analiz0 ve912dosya biçim farkı0 elde edildi. Politika testleri kontrollü
+tam tekrarda207 PASS verdi. [Birleşim ve bütün sonuçlar](prepared-vault-household-integration-2026-09-06.md). Core düzeninin açık arşivi sonraki adımdır.
 
 **S08.6 kişi sözleşmesi yerelde hazır:** ayrı `person` modeli46 yeni/92 ilgili
 Server testi ve bağımsız kaynak incelemesiyle geçti. Eski oda/kaynak modeli
 aynı kaldı. Kişi oluşturma yalnız ad/sıra kabul eder; hesap, rol, izin veya
 HA kişisi bağı yaratmaz. Ayrı kişi HTTP API/şifreli SQLite kaydı104 ilgili test ve dal dahil%89 kapsamla
 yerelde tamamlandı; bağlı SQLite nesnesi inceleme bulgusu kapatıldı.
-Tam Server kontrolü çalışıyor. Android kişi modeli/API adaptörü sıradaki ayrı dalda; kişi ekranı açık;
+İlk tam Server koşusunda eski şema test verilerinden gelen5hata bulundu.
+Yalnız test verisi hazırlığı düzeltildi;137 ilgili test geçti, yeni tam Server
+koşusu çalışıyor. Android kişi modeli/API adaptörü ve Core oda arşiv modeli
+ayrı dallarda ilerliyor; kişi ekranı ve arşiv geri yükleme arayüzü açık;
 model dilimi CI102'ye dahil değildir.
 [Model kanıtı](home-people-contract-implementation-2026-09-06.md).
 

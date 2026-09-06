@@ -38,10 +38,19 @@ uygulamanın son genel tasarım ya da fiziksel tablet kabulü değildir.
 
 ## Birleşik testlerin durumu
 
-Tüm Client testi ve tam analiz/biçim kontrolü çalışıyor:
+Tüm Client testi **4.544 PASS / 6:09**; tam analiz **0 bulgu / 12,4sn**;
+biçim kontrolü **912 dosya / 0 fark / 3,34sn**. Uygulama ve test kaynağı
+`c0d8145` olarak aynıdır. Loglar:
 `/private/tmp/larenor-prepared-vault-combined-{full-client,analyze,format}.log`.
-Tüm Server koşusu aynı Server uygulama/test ağacında, doğru `server` çalışma
-dizininden yürütülüyor: `/private/tmp/larenor-home-people-full-server.{log,xml}`.
+İlk tam Server koşusu aynı Server ağacında **3.291 PASS / 5 FAIL / 11 Linux skip /
+560,15sn** verdi: eski v1/v2 şemalarını kuran iki test yardımcısı, o sürümlerde
+bulunmayan yeni kişi tablolarını bırakıyordu. Üretimin scope integrity denetimi
+bu tutarsızlığı reddetti. Tarihsel fixture için iki yeni RED kontrolü5db91ad
+ile doğrulandı; yalnız fixture düzeltmesi7819866 ile **137 ilgili PASS/33,55sn**
+verdi. Eski key/vault/user/rollback beklentileri ve üretim korumaları değişmedi;
+bağımsız kaynak incelemesi CLEAR. Yeni tam koşu
+`/private/tmp/larenor-home-people-full-server-final.{log,xml}` içinde çalışıyor.
+İlk başarısız tam log `larenor-home-people-full-server.{log,xml}` korunur.
 İlk yanlış çalışma dizininden açılan koşu modül yolu doğrulanınca durduruldu;
 sonuç sayılmaz ve `larenor-home-people-full-server-wrong-cwd-aborted.log` olarak
 ayrıca korunur.
@@ -49,7 +58,8 @@ ayrıca korunur.
 Yerel207 politika testi ilk koşuda206 PASS/1 FAIL verdi. Başarısız test sentetik
 ADB başlangıcında süreli önkoşuldan çıkmıştı; aynı test tek başına2,708sn'de
 geçti. Kaynak/politika değiştirilmedi. İlk log ve izole tekrar ayrı tutulur;
-tam setin tekrar sonucu bekleniyor. Android backup/CI trust policy statik
+kaynak değişmeden kontrollü tam tekrar **207 PASS/48,195sn** verdi
+(`larenor-restore-integration-policy-recheck.log`). Android backup/CI trust policy statik
 kontrolü geçti. Yeni commit geçmişi redakte gitleaks taramasında temiz.
 
 ## Açık kabul
