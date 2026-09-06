@@ -72,12 +72,21 @@ class JellyfinConnection extends _$JellyfinConnection {
         accessToken: config.accessToken, isCurrent: current);
       current();
       state = AsyncData(config);
-    } catch (_) {
-      _check(operation);
+    } catch (error, stack) {
+      _storageFailure(operation, error, stack);
       rethrow;
     } finally {
       if (identical(_checkingClient, client)) _closeCheck();
       if (_operation == operation) _signingIn = false;
+    }
+  }
+
+  void _storageFailure(int operation, Object error, StackTrace stack) {
+    // Never publish an old action's failure into a newer source or operation.
+    _check(operation);
+    if (error is DirectHomeAccessException &&
+        const {'write_unconfirmed', 'pending_mutation', 'storage_failed'}.contains(error.code)) {
+      state = AsyncError(error, stack);
     }
   }
 
@@ -87,9 +96,14 @@ class JellyfinConnection extends _$JellyfinConnection {
     final store = ref.read(jellyfinCredentialsStoreProvider);
     _signingIn = false;
     _closeCheck();
-    await store.clear(isCurrent: () { _check(operation); return true; });
-    _check(operation);
-    state = const AsyncData(null);
+    try {
+      await store.clear(isCurrent: () { _check(operation); return true; });
+      _check(operation);
+      state = const AsyncData(null);
+    } catch (error, stack) {
+      _storageFailure(operation, error, stack);
+      rethrow;
+    }
   }
 }
 

@@ -26,7 +26,7 @@ class JellyfinHomeScreen extends ConsumerWidget {
       loading: () => const CupertinoPageScaffold(
         child: Center(child: CupertinoActivityIndicator()),
       ),
-      error: (error, _) => error is DirectHomeAccessException && error.code == 'pending_mutation'
+      error: (error, _) => error is DirectHomeAccessException && const {'pending_mutation', 'write_unconfirmed'}.contains(error.code)
           ? const JellyfinConnectScreen()
           : CupertinoPageScaffold(child: Center(child: Text(AppLocalizations.of(context).mediaErrorUnreachable))),
       data: (config) {

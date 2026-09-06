@@ -158,13 +158,19 @@ class _JellyfinConnectScreenState extends MediaSessionState<JellyfinConnectScree
       if (!_initialized) return;
       // A notifier can retain its Dart identity across rebuilds. Loading must
       // expire callbacks synchronously, even if it resolves before the next frame.
-      if (next.isLoading || !_connecting && previous != null && !identical(previous, next)) {
-        setState(() { sessionGeneration++; clearPendingInteraction(); });
+      final recovery = next.error is DirectHomeAccessException &&
+        const {'pending_mutation', 'write_unconfirmed'}.contains((next.error as DirectHomeAccessException).code);
+      if (recovery || next.isLoading || !_connecting && previous != null && !identical(previous, next)) {
+        setState(() {
+          if (recovery) _pendingRecovery = true;
+          sessionGeneration++;
+          clearPendingInteraction();
+        });
       }
     });
     final l10n = AppLocalizations.of(context);
     final pending = state.error is DirectHomeAccessException &&
-      (state.error as DirectHomeAccessException).code == 'pending_mutation';
+      const {'pending_mutation', 'write_unconfirmed'}.contains((state.error as DirectHomeAccessException).code);
     if (!_access.isCurrent || state.hasError && !pending) {
       _stopDiscovery();
       return CupertinoPageScaffold(child: Center(child: Text(l10n.mediaErrorUnreachable)));
