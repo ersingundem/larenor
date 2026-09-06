@@ -27,7 +27,28 @@ Future<void> unchanged(MemoryBackupStorage image)async {
   await expectLater(BackupRepository(storage:image).recoverPendingRestore(),throwsA(isA<BackupException>()));
   expect(jsonEncode([image.preferences,image.secrets]),before);expect(image.writes,isEmpty);
 }
+class LostInitial extends MemoryBackupStorage {
+  LostInitial():super(preferences:{'appearance':'dark'});
+  @override Future<void> writeSecret(String key,String? value)async {
+    await super.writeSecret(key,value);
+    if(key==journal && value!=null && (jsonDecode(value) as Map)['phase']=='applying') throw StateError('lost');
+  }
+}
 void main(){
+  test('Continue with removed own journal cannot reopen under another source',()async {
+    final storage=LostInitial();final prepared=await f.prepare(BackupRepository(storage:storage),f.TestRestoreAccess());
+    await expectLater(f.apply(prepared),throwsA(isA<BackupException>()));
+    storage.secrets.remove(journal);storage.preferences[SharedPreferencesHomeSourceStore.key]='verifiedCore';storage.writes.clear();
+    await expectLater(prepared.recoverAfterHandoff(),throwsA(isA<BackupException>()));
+    expect(storage.writes,isEmpty);expect(storage.preferences['appearance'],'dark');
+  });
+  test('keep-existing connections retain home witness even if only privacy policy changes',()async {
+    final storage=MemoryBackupStorage(secrets:{'ha_base_url':'https://a.test','ha_token':'old-origin'});
+    final snapshot=BackupSnapshot.fromJson({'version':1,'createdAt':'2026-09-06T00:00:00Z','groups':{'connections':{'ha':{'baseUrl':'https://new.test','token':'approved-token'}}}});
+    final prepared=await BackupRepository(storage:storage).prepareRestore(snapshot,const BackupSelection(settings:false,dashboard:false,connections:true),conflictPolicy:BackupConflictPolicy.keepExisting,access:f.TestRestoreAccess());
+    await f.apply(prepared);expect(storage.secrets['ha_token'],'old-origin');expect(storage.secrets, isNot(contains(journal)));
+  });
+
   for(final state in ['applying','committed']) {
     test('boot $state Direct home intent cannot cross HA origin A to B',()async {
       final image=phase(await images(),state);
