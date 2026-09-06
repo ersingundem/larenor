@@ -5,23 +5,37 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../l10n/generated/app_localizations.dart';
 import '../data/models/keenetic_device.dart';
 import '../providers/keenetic_providers.dart';
-import 'keenetic_connect_screen.dart';
+import '../../../core/direct_home_access.dart';
+import 'keenetic_session_guard.dart';
 
 class KeeneticDevicesScreen extends ConsumerWidget {
   const KeeneticDevicesScreen({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = AppLocalizations.of(context);
+    if (!ref.watch(directHomeAccessProvider).isCurrent) {
+      return CupertinoPageScaffold(
+        child: Center(child: Text(l10n.commonNotConnected)),
+      );
+    }
     final connectionAsync = ref.watch(keeneticConnectionProvider);
 
     return connectionAsync.when(
+      skipLoadingOnRefresh: false,
+      skipLoadingOnReload: false,
+      skipError: false,
       loading: () => const CupertinoPageScaffold(
         child: Center(child: CupertinoActivityIndicator()),
       ),
-      error: (error, _) =>
-          CupertinoPageScaffold(child: Center(child: Text(error.toString()))),
+      error: (error, _) => CupertinoPageScaffold(
+        child: Center(child: Text(l10n.healthReadError)),
+      ),
       data: (config) {
-        if (config == null) return const KeeneticConnectScreen();
+        if (config == null)
+          return CupertinoPageScaffold(
+            child: Center(child: Text(l10n.commonNotConnected)),
+          );
         return const _DevicesList();
       },
     );
@@ -35,11 +49,19 @@ class _DevicesList extends ConsumerStatefulWidget {
   ConsumerState<_DevicesList> createState() => _DevicesListState();
 }
 
-class _DevicesListState extends ConsumerState<_DevicesList> {
+class _DevicesListState extends KeeneticSessionState<_DevicesList> {
   String _query = '';
   bool _onlineOnly = false;
 
-  void _refresh() {
+  @override
+  void clearPendingInteraction() {
+    _query = '';
+    _onlineOnly = false;
+    super.clearPendingInteraction();
+  }
+
+  void _refresh(int generation) {
+    if (!keeneticCurrent(generation)) return;
     if (ref.read(keeneticClientProvider).hasError) {
       ref.invalidate(keeneticClientProvider);
     }
@@ -48,6 +70,14 @@ class _DevicesListState extends ConsumerState<_DevicesList> {
 
   @override
   Widget build(BuildContext context) {
+    watchKeeneticSession();
+    final generation = sessionGeneration;
+    if (!keeneticAvailable)
+      return CupertinoPageScaffold(
+        child: Center(
+          child: Text(AppLocalizations.of(context).commonNotConnected),
+        ),
+      );
     final devicesAsync = ref.watch(keeneticDevicesProvider);
     final l10n = AppLocalizations.of(context);
 
@@ -56,7 +86,7 @@ class _DevicesListState extends ConsumerState<_DevicesList> {
         middle: Text(AppLocalizations.of(context).keeneticConnectedDevices),
         trailing: CupertinoButton(
           padding: EdgeInsets.zero,
-          onPressed: _refresh,
+          onPressed: () => _refresh(generation),
           child: const Icon(CupertinoIcons.refresh),
         ),
       ),
@@ -69,12 +99,9 @@ class _DevicesListState extends ConsumerState<_DevicesList> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text(
-                    l10n.adminLoadError(error.toString()),
-                    textAlign: TextAlign.center,
-                  ),
+                  Text(l10n.healthReadError, textAlign: TextAlign.center),
                   CupertinoButton(
-                    onPressed: _refresh,
+                    onPressed: () => _refresh(generation),
                     child: Text(l10n.commonRetry),
                   ),
                 ],
@@ -103,7 +130,10 @@ class _DevicesListState extends ConsumerState<_DevicesList> {
                   padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
                   child: CupertinoSearchTextField(
                     placeholder: l10n.commonSearch,
-                    onChanged: (value) => setState(() => _query = value),
+                    onChanged: (value) {
+                      if (keeneticCurrent(generation))
+                        setState(() => _query = value);
+                    },
                   ),
                 ),
                 Padding(
@@ -115,7 +145,8 @@ class _DevicesListState extends ConsumerState<_DevicesList> {
                       true: Text(l10n.keeneticOnline),
                     },
                     onValueChanged: (value) {
-                      if (value != null) setState(() => _onlineOnly = value);
+                      if (value != null && keeneticCurrent(generation))
+                        setState(() => _onlineOnly = value);
                     },
                   ),
                 ),
@@ -149,11 +180,19 @@ class _DevicesListState extends ConsumerState<_DevicesList> {
                             '${device.ip ?? device.mac} · ${device.active ? l10n.keeneticOnline : l10n.keeneticOffline}',
                           ),
                           trailing: const CupertinoListTileChevron(),
-                          onTap: () => Navigator.of(context).push(
-                            CupertinoPageRoute(
-                              builder: (_) => _DeviceDetails(device: device),
-                            ),
-                          ),
+                          onTap: () {
+                            if (!keeneticCurrent(generation)) return;
+                            final source = captureKeeneticSource();
+                            if (source == null) return;
+                            Navigator.of(context).push(
+                              CupertinoPageRoute<void>(
+                                builder: (_) => _DeviceDetails(
+                                  device: device,
+                                  sourceCurrent: source,
+                                ),
+                              ),
+                            );
+                          },
                         ),
                     ],
                   ),
@@ -166,14 +205,30 @@ class _DevicesListState extends ConsumerState<_DevicesList> {
   }
 }
 
-class _DeviceDetails extends StatelessWidget {
-  const _DeviceDetails({required this.device});
+class _DeviceDetails extends ConsumerStatefulWidget {
+  const _DeviceDetails({required this.device, required this.sourceCurrent});
+  final bool Function() sourceCurrent;
 
   final KeeneticDevice device;
 
   @override
+  ConsumerState<_DeviceDetails> createState() => _DeviceDetailsState();
+}
+
+class _DeviceDetailsState extends KeeneticSessionState<_DeviceDetails> {
+  @override
   Widget build(BuildContext context) {
+    watchKeeneticSession();
     final l10n = AppLocalizations.of(context);
+    if (!keeneticAvailable || !widget.sourceCurrent()) {
+      return CupertinoPageScaffold(
+        navigationBar: CupertinoNavigationBar(
+          middle: Text(l10n.keeneticConnectedDevices),
+        ),
+        child: Center(child: Text(l10n.commonNotConnected)),
+      );
+    }
+    final device = widget.device;
     return CupertinoPageScaffold(
       backgroundColor: CupertinoColors.systemGroupedBackground.resolveFrom(
         context,

@@ -3,7 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../l10n/generated/app_localizations.dart';
 import '../providers/keenetic_providers.dart';
-import 'keenetic_connect_screen.dart';
+import '../../../core/direct_home_access.dart';
+import 'keenetic_session_guard.dart';
 import '../../../shared/widgets/settings_section.dart';
 
 class KeeneticPortForwardingScreen extends ConsumerWidget {
@@ -11,27 +12,52 @@ class KeeneticPortForwardingScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = AppLocalizations.of(context);
+    if (!ref.watch(directHomeAccessProvider).isCurrent) {
+      return CupertinoPageScaffold(
+        child: Center(child: Text(l10n.commonNotConnected)),
+      );
+    }
     final connectionAsync = ref.watch(keeneticConnectionProvider);
 
     return connectionAsync.when(
+      skipLoadingOnRefresh: false,
+      skipLoadingOnReload: false,
+      skipError: false,
       loading: () => const CupertinoPageScaffold(
         child: Center(child: CupertinoActivityIndicator()),
       ),
-      error: (error, _) =>
-          CupertinoPageScaffold(child: Center(child: Text(error.toString()))),
+      error: (error, _) => CupertinoPageScaffold(
+        child: Center(child: Text(l10n.healthReadError)),
+      ),
       data: (config) {
-        if (config == null) return const KeeneticConnectScreen();
+        if (config == null)
+          return CupertinoPageScaffold(
+            child: Center(child: Text(l10n.commonNotConnected)),
+          );
         return const _RulesList();
       },
     );
   }
 }
 
-class _RulesList extends ConsumerWidget {
+class _RulesList extends ConsumerStatefulWidget {
   const _RulesList();
-
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_RulesList> createState() => _RulesListState();
+}
+
+class _RulesListState extends KeeneticSessionState<_RulesList> {
+  @override
+  Widget build(BuildContext context) {
+    watchKeeneticSession();
+    final generation = sessionGeneration;
+    if (!keeneticAvailable)
+      return CupertinoPageScaffold(
+        child: Center(
+          child: Text(AppLocalizations.of(context).commonNotConnected),
+        ),
+      );
     final rulesAsync = ref.watch(keeneticPortForwardingProvider);
 
     return CupertinoPageScaffold(
@@ -40,6 +66,7 @@ class _RulesList extends ConsumerWidget {
         trailing: CupertinoButton(
           padding: EdgeInsets.zero,
           onPressed: () {
+            if (!keeneticCurrent(generation)) return;
             if (ref.read(keeneticClientProvider).hasError) {
               ref.invalidate(keeneticClientProvider);
             }
@@ -51,11 +78,8 @@ class _RulesList extends ConsumerWidget {
       child: SafeArea(
         child: rulesAsync.when(
           loading: () => const Center(child: CupertinoActivityIndicator()),
-          error: (error, _) => Center(
-            child: Text(
-              AppLocalizations.of(context).adminLoadError(error.toString()),
-            ),
-          ),
+          error: (error, _) =>
+              Center(child: Text(AppLocalizations.of(context).healthReadError)),
           data: (rules) {
             if (rules.isEmpty) {
               return Center(
