@@ -124,9 +124,12 @@ void main() {
     final h=_ScreenHarness();await h.mount(tester);
     h.storage.preferences.remove('appearance');await h.confirm(tester);
     final dialog=find.byType(CupertinoAlertDialog);
-    expect(find.descendant(of:dialog,matching:find.text('0 preferences · 0 connected services')),findsOneWidget);
+    expect(find.descendant(of:dialog,matching:find.text('0 preferences')),findsOneWidget);
     expect(find.descendant(of:dialog,matching:find.text('Replace selected')),findsOneWidget);
     expect(find.descendant(of:dialog,matching:find.text('Destination: this device.')),findsOneWidget);
+    expect(find.descendant(of:dialog,matching:find.text('From backup')),findsOneWidget);
+    expect(find.descendant(of:dialog,matching:find.text('Existing data on this device')),findsOneWidget);
+    expect(find.descendant(of:dialog,matching:find.textContaining('rooms')),findsNothing);
     expect(h.storage.writes,isEmpty);
   });
 
