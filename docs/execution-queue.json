@@ -1255,7 +1255,7 @@
         }
       ],
       "completionCommit": null,
-      "reason": "HA/Arr/backup/diafon/film gecesi a2658ec Android98:3422Flutter/11E2E ve signed build geçti; bağımsızAPK98 kontrolü de geçti. Kişisel veri, üçAPI-key, qBittorrent ve Jellyfin ayrı test/inceleme kabulüyle yerel birleşimde; tam birleşikCI açık. Proxmox48289eb:213/665 test+inceleme geçti; Keenetic pilotta; belirsiz kayıt sonrası yediAPI-key reader/UI ekdüzeltmesi 370 ilgili test ve incelemeyle geçti. WebviewTile kaynak sahibi ek dilimi açık. Bütün S08.4 ve typed ağcache S08.7–9 açık."
+      "reason": "4bc79dc birleşimi main/origin üzerinde: kişisel veri, yedi API-key belirsiz kayıt düzeltmesi, qBittorrent, Jellyfin ve Proxmox yerel test/incelemeyle gönderildi. Exact CI sürüyor; Android workflow Core işi 2951 PASS, güvenlik başarılı. Son tam bağımsız teslim APK98/a2658ec. WebviewTile0a742a9 ayrı dalda79 ilgili test+inceleme ile geçti; Keenetic pilot ve operational-actions açık. Bütün S08.4 ve typed ağcache S08.7–9 açık."
     },
     {
       "id": "S08.5",
@@ -1397,7 +1397,7 @@
         }
       ],
       "completionCommit": null,
-      "reason": "Kalıcı registry20d92d7 Server CI attempt2:2919 test/imaj kapısı başarılı; ilk denemede1 Unix fixture timeout kaydı korunur. Client73dba35:82odaklı/940ilgili,%99,2kapsam ve bağımsızinceleme;3115tamClient geçti. Yeni kaynak Android yolculuğu geçti ancak eski scoped-layout fixture GET uyumsuzluğu tümAndroid97 kapısını durdurdu; düzeltme1f7c6b4 ayrıCI bekliyor. Adminmetadata/ACLUI,hane kişileri,upstreambağları ve gerçekkomut sözleşmesi açık. a2658ec Android98 içinde salt okunur Client ve yedinci journey, bağımsız APK98 doğrulamasıyla kabul edildi; admin metadata Client API sonraki ayrı dalda, UI henüz uygulanmadı."
+      "reason": "Kalıcı kaynak/ACL kaydı ve salt okunur Core Client listesi a2658ec/Android98 CI ile doğrulandı. Yeni metadata admin API8e00548 ayrı dalda87 odaklı/656 ilgili Client ve40 Server testi+bağımsız inceleme ile geçti; henüz UI’ye bağlı değil. PIN korumalı admin oluştur/ad/sıra/sil akışı geliştiriliyor. ACL editörü, cihaz komutu ve bütün S08.6 kabulü açık."
     },
     {
       "id": "S08.7",

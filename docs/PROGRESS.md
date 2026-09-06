@@ -1,6 +1,6 @@
 # Larenor — güncel ilerleme ve iş kuyruğu
 
-**Son güncelleme: 6 Eylül 2026, 03:43 (Türkiye saati).**
+**Son güncelleme: 6 Eylül 2026, 03:55 (Türkiye saati).**
 
 ```text
 Önceki kapsam       █████████████░░░░░░░  ≈ %65
@@ -56,6 +56,16 @@ ile kabul edildi. **S08.3** ev runtime sınırı da `4b98680` tam CI ve APK 94
 ile kabul edildi. Bu işler yeni 63 özelliğin kabul sayısı değildir; o sayaç **0/63**. Ana S06
 sayacı **2/6** kalır; dizin, kurulum ve gerçek Engine kabulü açıktır.
 
+**Yeni paket `4bc79dc` GitHub'a gönderildi; kendi CI kabulü sürüyor.**
+Güvenlik workflow'u başarılı. Android workflow'undaki Core test işi
+**2.951 PASS** verdi; tam Android, bağımsız Core image yayını ve imzalı APK
+doğrulaması henüz tamamlanmadı.
+[Android](https://github.com/ersingundem/larenor/actions/runs/34002121963) ·
+[Core](https://github.com/ersingundem/larenor/actions/runs/34002121806) ·
+[Güvenlik](https://github.com/ersingundem/larenor/actions/runs/34002121729).
+Sonraki değişiklikler ayrı dallarda hazırlanır; önceki APK'nın kanıtı yeni
+paket için kullanılmaz.
+
 **Son tam doğrulanmış yayın `a2658ec` / APK 98.** Linux Server **2.919 PASS**,
 güvenlik **207 PASS**, Flutter **3.422 PASS**, JVM **98 PASS**, temiz analiz,
 845 dosyada sıfır biçim farkı ve **dört native + yedi uygulama = 11 E2E PASS**.
@@ -76,7 +86,7 @@ geçti: `sha256:ed365020ea6bf38200beaa8a73627111a27a87c54124f6cd30bbd234bc846410
 Ev Server'ına yayın atlandı, cihaz kurulumu yapılmadı. Aşağıdaki yeni yerel
 paketler bu APK'da bulunmaz; kendi birleşik testleri ve CI ayrıca gerekir.
 
-**Sonraki birleşim yerelde hazırlanıyor:** kişisel sağlık/fotoğraf ayarları,
+**`4bc79dc` ile gönderilen birleşim:** kişisel sağlık/fotoğraf ayarları,
 Jellyseerr/Bazarr/Prowlarr ve qBittorrent paketleri bağımsız incelemelerden
 geçti. İlk birleşik koşu **3.665 PASS / 5 FAIL** verdi; beş hata idle testinin
 eski yerel depolama hazırlığındaydı. `1b2d7d3`, gerçek gizlilik sağlayıcılarını
@@ -87,8 +97,16 @@ arka plan müziği korunuyor. Son birleşik koşu `1b260ce`: **3.923 PASS / bir 
 
 **Birleşime alınan bağlantılar:** Jellyfin 98 yeni/297 ilgili, Proxmox 213 odaklı/665 ilgili test ve bağımsız inceleme ile tamamlandı. Keenetic sonraki ayrı pilotta. Jellyfin'de
 başarısız credential yazısının eski doğrulanmış bağlantıyı bırakması düzeltildi;
-aynı durum yedi API-key bağlantısında 370 ilgili test ve bağımsız incelemeyle düzeltildi. Dashboard WebviewTile için kaynak sahipliği eksikliği bulundu; sıradaki ayrı dilimde sınanıyor. Bu incelemeler tüm
+aynı durum yedi API-key bağlantısında 370 ilgili test ve bağımsız incelemeyle düzeltildi. Dashboard WebviewTile için kaynak sahipliği düzeltmesi `0a742a9` ayrı yerel diliminde **79 ilgili test** ve bağımsız inceleme ile geçti; yeni yayın paketine henüz dahil değil. Bu incelemeler tüm
 entegrasyon API'lerinin veya fiziksel cihazların kabulü değildir.
+
+**Sıradaki işler devam ediyor:** Keenetic kayıt, bağlantı doğrulama ve kurtarma
+ekranı; Core yönetici kayıt ekranı; medya depolamasının sahiplik gözlemi.
+Core metadata mutasyon API'si `8e00548` yerel dalında **87 odaklı / 656 ilgili
+Client ve 40 Server testi**, temiz analiz ve bağımsız inceleme ile doğrulandı.
+Bu API henüz UI'ye bağlı değildir; PIN korumalı oluşturma, ad/sıra değiştirme
+ve kayıt silme akışı şimdi ekleniyor. ACL editörü ve gerçek cihaz komutları
+ayrı açık işlerdir. Kuyrukta kabul sayısı bu alt dilimler için artırılmadı.
 
 **S06.3d depolama alternatifi:** Core'a ait yönetilen volume önerisi saf plan
 olarak eklendi: **32 yeni / 182 ilgili PASS**, modülde dal dahil %100 kapsam,
