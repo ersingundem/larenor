@@ -28,6 +28,8 @@ import 'package:larenor/features/server/providers/server_providers.dart';
 import 'package:larenor/features/settings/data/screen_policy_controller.dart';
 import 'package:larenor/features/settings/presentation/screen_policy_runner.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:larenor/features/settings/data/pin_lock_store.dart';
+import 'package:larenor/features/settings/providers/settings_providers.dart';
 
 import '../../core/home_scope_fixture.dart'
     show SourceMemory, ScopePower, flush;
@@ -38,6 +40,8 @@ Map<String, dynamic> contract() =>
         as Map<String, dynamic>;
 
 class ResourceHarness {
+  ResourceHarness({this.pinStore});
+  final PinLockStore? pinStore;
   final fixture = contract();
   final boundary = GlobalKey();
   final source = SourceMemory(HomeSource.verifiedCore);
@@ -157,6 +161,8 @@ class ResourceHarness {
             ],
             child: HomeSessionScope(
               runtimeOverrides: [
+                if (pinStore != null)
+                  pinLockStoreProvider.overrideWith((_) => pinStore!),
                 homeResourcesApiFactoryProvider.overrideWithValue(
                   (endpoint) => LarenorServerApi(
                     endpoint: endpoint,

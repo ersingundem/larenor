@@ -5,6 +5,7 @@ import '../../../core/app_interaction_scope.dart';
 import '../../../shared/widgets/app_page_scaffold.dart';
 import '../../client_updates/presentation/client_updates_screen.dart';
 import '../../home_scope/presentation/home_source_screen.dart';
+import '../../home_resources/presentation/home_resource_admin_screen.dart';
 import '../../server/presentation/server_connection_screen.dart';
 
 import '../../../l10n/generated/app_localizations.dart';
@@ -17,6 +18,7 @@ enum SettingsGateDestination {
   clientUpdates,
   serverAccount,
   homeSource,
+  homeResources,
 }
 
 /// Gates access to [SettingsSplitScreen] behind a PIN, if one has been set —
@@ -119,9 +121,16 @@ class _SettingsGateScreenState extends ConsumerState<SettingsGateScreen>
   @override
   Widget build(BuildContext context) {
     ref.listen(pinLockProvider, (previous, next) {
+      if (widget.initialDestination == SettingsGateDestination.homeResources &&
+          (next.isLoading || next.hasError)) {
+        _lockSettings();
+        return;
+      }
       if (previous?.hasValue == true &&
           next.hasValue &&
-          next.value != null &&
+          (next.value != null ||
+              widget.initialDestination ==
+                  SettingsGateDestination.homeResources) &&
           previous?.value != next.value) {
         // First PIN creation also closes a phone pane pushed while no PIN was
         // configured. A locked gate underneath that pane is not sufficient.
@@ -141,6 +150,7 @@ class _SettingsGateScreenState extends ConsumerState<SettingsGateScreen>
       ),
       data: (pin) {
         final unlocked = pin == null || _unlocked;
+        final resourceGeneration = _generation;
         if (unlocked) _settingsOpened = true;
         return Stack(
           children: [
@@ -160,6 +170,28 @@ class _SettingsGateScreenState extends ConsumerState<SettingsGateScreen>
                             widget.initialDestination ==
                                 SettingsGateDestination.serverAccount
                             ? ServerConnectionScreen(
+                                onExit: Navigator.of(context).canPop()
+                                    ? _exit
+                                    : null,
+                              )
+                            : widget.initialDestination ==
+                                  SettingsGateDestination.homeResources
+                            ? HomeResourceAdminScreen(
+                                gateCurrent: () {
+                                  if (!mounted ||
+                                      !_interactive ||
+                                      resourceGeneration != _generation ||
+                                      ModalRoute.of(context)?.isCurrent !=
+                                          true) {
+                                    return false;
+                                  }
+                                  final currentPin = ref.read(pinLockProvider);
+                                  return !currentPin.isLoading &&
+                                      !currentPin.hasError &&
+                                      currentPin.hasValue &&
+                                      currentPin.value == pin &&
+                                      (pin == null || _unlocked);
+                                },
                                 onExit: Navigator.of(context).canPop()
                                     ? _exit
                                     : null,

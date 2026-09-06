@@ -3,7 +3,7 @@ import '../../server/domain/server_models.dart';
 import '../domain/home_resource_models.dart';
 import '../domain/home_resource_mutations.dart';
 
-/// Unwired metadata transport. Server authorization is required for every call.
+/// Metadata transport. Server authorization is required for every call.
 final class HomeResourceAdminApi {
   const HomeResourceAdminApi(
     LarenorServerApi api,
