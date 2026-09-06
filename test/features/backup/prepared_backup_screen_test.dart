@@ -1,3 +1,4 @@
+import 'dart:ui' show ViewFocusEvent, ViewFocusState, ViewFocusDirection;
 import 'dart:typed_data';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -80,4 +81,30 @@ void main() {
     expect(h.storage.preferences['appearance'],'dark');expect(h.storage.writes,isEmpty);
     expect(h.disposals,0);
   });
+  for(final event in ['inactive','nativeFocus','pinLoading','pinStore','opaqueRoute']) {
+    testWidgets('retained confirmation cannot survive $event retirement and return', (tester) async {
+      final h=_ScreenHarness();await h.mount(tester);await h.confirm(tester);
+      final screenContext=tester.element(find.byType(BackupScreen));
+      final old=tester.widget<CupertinoDialogAction>(find.widgetWithText(CupertinoDialogAction,'Restore selected content')).onPressed!;
+      if(event=='inactive') {
+        tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+        tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+      } else if(event=='nativeFocus') {
+        tester.binding.handleViewFocusChanged(ViewFocusEvent(viewId:tester.view.viewId,state:ViewFocusState.unfocused,direction:ViewFocusDirection.undefined));
+        tester.binding.handleViewFocusChanged(ViewFocusEvent(viewId:tester.view.viewId,state:ViewFocusState.focused,direction:ViewFocusDirection.undefined));
+      } else if(event=='pinLoading') {
+        ProviderScope.containerOf(screenContext,listen:false).invalidate(pinLockProvider);
+      } else if(event=='pinStore') {
+        h.pin.value='1234';
+      } else {
+        final navigator=Navigator.of(screenContext);
+        navigator.push(CupertinoPageRoute<void>(builder:(_)=>const CupertinoPageScaffold(child:Text('Covered route'))));
+        await flush(tester);navigator.pop();await flush(tester);
+      }
+      old();await flush(tester);
+      expect(h.storage.writes,isEmpty);expect(h.disposals,0);
+      expect(tester.takeException(),isNull);
+    });
+  }
+
 }
