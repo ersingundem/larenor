@@ -59,7 +59,8 @@ void main() {
                 maxScrolls: 20,
               );
               await adminPress(tester, 'home-resources-manage');
-              final create = adminKey('home-resource-admin-create');
+              expect(tester.getSize(adminKey('home-resource-admin-back')).height,greaterThanOrEqualTo(48));
+          final create = adminKey('home-resource-admin-create');
               await tester.ensureVisible(create);
               await flush(tester);
               final l10n = AppLocalizations.of(tester.element(create));
