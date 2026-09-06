@@ -10,10 +10,19 @@ import '../../../shared/widgets/settings_section.dart';
 import '../../media/hub/presentation/media_session_state.dart';
 import '../data/home_layout_access.dart';
 import 'legacy_layout_screen.dart';
+import 'core_layout_archive_screen.dart';
+import '../../settings/presentation/settings_file_dialog.dart';
 
 /// Reached only through SettingsGate, including recovery from a bad preference.
 class HomeSourceScreen extends ConsumerStatefulWidget {
-  const HomeSourceScreen({super.key, this.onExit});
+  const HomeSourceScreen({
+    super.key,
+    this.onExit,
+    this.runFileDialog,
+    this.archiveGateCurrent,
+  });
+  final SettingsFileDialogRunner? runFileDialog;
+  final bool Function()? archiveGateCurrent;
   final VoidCallback? onExit;
   @override
   ConsumerState<HomeSourceScreen> createState() => _HomeSourceScreenState();
@@ -100,6 +109,33 @@ class _HomeSourceScreenState extends MediaSessionState<HomeSourceScreen> {
                     if (controller.source == HomeSource.verifiedCore)
                       SettingsSection(
                         children: [
+                          if (widget.runFileDialog != null &&
+                              widget.archiveGateCurrent != null)
+                            SettingsActionTile(
+                              key: const ValueKey('core-layout-archive-entry'),
+                              title: Text(l10n.coreLayoutArchiveTitle),
+                              leading: const Icon(CupertinoIcons.archivebox),
+                              onTap: access == null || !current()
+                                  ? null
+                                  : () {
+                                      if (!current() ||
+                                          !access.isCurrent ||
+                                          !widget.archiveGateCurrent!()) {
+                                        return;
+                                      }
+                                      Navigator.of(context).push(
+                                        CupertinoPageRoute<void>(
+                                          builder: (_) =>
+                                              CoreLayoutArchiveScreen(
+                                                gateCurrent:
+                                                    widget.archiveGateCurrent!,
+                                                runFileDialog:
+                                                    widget.runFileDialog!,
+                                              ),
+                                        ),
+                                      );
+                                    },
+                            ),
                           SettingsActionTile(
                             key: const ValueKey('home-layout-preview-entry'),
                             title: Text(l10n.homeLayoutPreviewTitle),

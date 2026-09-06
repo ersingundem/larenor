@@ -2049,5 +2049,30 @@
         "type": "String"
       }
     }
-  }
+  },
+  "coreLayoutArchiveTitle": "Core oda arşivi",
+  "coreLayoutArchiveHint": "Bu Core evindeki hesabınıza ait oda adlarını ve sırasını kaydedin veya değiştirin. Diğer evler, cihaz ayarları ve bağlantılar değişmez.",
+  "coreLayoutArchiveExport": "Şifreli arşivi kaydet",
+  "coreLayoutArchiveImport": "Oda arşivi seç",
+  "coreLayoutArchivePassword": "Arşiv parolası",
+  "coreLayoutArchiveRepeat": "Arşiv parolasını tekrarlayın",
+  "coreLayoutArchivePasswordHint": "Ayarlar PIN’inizden farklı, en az 12 karakter kullanın. Arşivi açmak için bu parolayı saklayın.",
+  "coreLayoutArchiveOpen": "Aç ve incele",
+  "coreLayoutArchiveCurrent": "Bu Core evindeki mevcut odalar",
+  "coreLayoutArchiveSavedRooms": "Arşivdeki odalar",
+  "coreLayoutArchiveEmpty": "Oda yok.",
+  "coreLayoutArchiveReplace": "Oda düzenini değiştir",
+  "coreLayoutArchiveConfirm": "Mevcut odalar bu arşivde gösterilen odalarla değiştirilsin mi? Yalnız bu Core evindeki hesabınıza ait oda düzeni değişir.",
+  "coreLayoutArchiveSaved": "Şifreli oda arşivi kaydedildi.",
+  "coreLayoutArchiveApplied": "Oda düzeni değiştirildi ve doğrulandı.",
+  "coreLayoutArchiveCancelled": "Dosya seçimi iptal edildi.",
+  "coreLayoutArchiveInvalidPassword": "Ayarlar PIN’inden farklı, en az 12 karakterli ve birbiriyle eşleşen parolalar girin.",
+  "coreLayoutArchiveDecryptFailed": "Oda arşivi açılamadı. Parolayı ve dosyayı kontrol edin.",
+  "coreLayoutArchiveWrongHome": "Bu arşiv farklı bir Core evine veya hesaba ait. Hiçbir oda değiştirilmedi.",
+  "coreLayoutArchiveExpired": "Bu inceleme sona erdi. Geri dönüp oda arşivini yeniden açın.",
+  "coreLayoutArchiveChanged": "Mevcut düzen değişti. Odaları değiştirmeden önce arşivi yeniden açıp inceleyin.",
+  "coreLayoutArchiveUncertain": "Kayıt doğrulanamadı. Yeni inceleme başlatmadan önce mevcut odaları okuyun. Otomatik tekrar yapılmadı.",
+  "coreLayoutArchiveUnsupported": "Yalnız oda adları ve sırası desteklenir. Bu düzen başka veriler içerdiğinden burada arşivlenemez veya değiştirilemez.",
+  "coreLayoutArchiveFileFailed": "En fazla 3 MiB boyutunda geçerli bir .larenor-core-layout dosyası seçin. Dosya işlemi tamamlanamadı.",
+  "coreLayoutArchiveRefresh": "Mevcut odaları oku"
 }
