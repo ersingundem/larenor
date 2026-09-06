@@ -2,10 +2,10 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart' show SelectableText;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/direct_home_access.dart';
 import '../../../l10n/generated/app_localizations.dart';
 import '../data/models/keenetic_device.dart';
 import '../providers/keenetic_providers.dart';
-import '../../../core/direct_home_access.dart';
 import 'keenetic_session_guard.dart';
 
 class KeeneticDevicesScreen extends ConsumerWidget {

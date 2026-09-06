@@ -1,11 +1,11 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/direct_home_access.dart';
 import '../../../l10n/generated/app_localizations.dart';
 import '../data/keenetic_api_exception.dart';
 import '../data/models/keenetic_access_point.dart';
 import '../providers/keenetic_providers.dart';
-import '../../../core/direct_home_access.dart';
 import 'keenetic_session_guard.dart';
 
 class KeeneticWifiScreen extends ConsumerWidget {
@@ -73,7 +73,8 @@ class _AccessPointsListState extends KeeneticSessionState<_AccessPointsList> {
     final l10n = AppLocalizations.of(context);
     try {
       if (!value) {
-        final route = CupertinoDialogRoute<bool>(
+        late final CupertinoDialogRoute<bool> route;
+        route = CupertinoDialogRoute<bool>(
           context: context,
           builder: (dialogContext) => CupertinoAlertDialog(
             title: Text(l10n.keeneticDisableWifiTitle),
@@ -81,14 +82,22 @@ class _AccessPointsListState extends KeeneticSessionState<_AccessPointsList> {
             actions: [
               CupertinoDialogAction(
                 onPressed: () {
-                  if (current()) Navigator.of(dialogContext).pop(false);
+                  if (identical(ownedModal, route) &&
+                      route.isCurrent &&
+                      current()) {
+                    Navigator.of(dialogContext).pop(false);
+                  }
                 },
                 child: Text(l10n.commonCancel),
               ),
               CupertinoDialogAction(
                 isDestructiveAction: true,
                 onPressed: () {
-                  if (current()) Navigator.of(dialogContext).pop(true);
+                  if (identical(ownedModal, route) &&
+                      route.isCurrent &&
+                      current()) {
+                    Navigator.of(dialogContext).pop(true);
+                  }
                 },
                 child: Text(l10n.keeneticTurnOff),
               ),
@@ -107,7 +116,8 @@ class _AccessPointsListState extends KeeneticSessionState<_AccessPointsList> {
     } catch (error) {
       if (!current()) return;
       setState(() => _pending.remove(ap.id));
-      final route = CupertinoDialogRoute<void>(
+      late final CupertinoDialogRoute<void> route;
+      route = CupertinoDialogRoute<void>(
         context: context,
         builder: (dialogContext) => CupertinoAlertDialog(
           title: Text(l10n.commonError),
@@ -119,7 +129,11 @@ class _AccessPointsListState extends KeeneticSessionState<_AccessPointsList> {
           actions: [
             CupertinoDialogAction(
               onPressed: () {
-                if (current()) Navigator.of(dialogContext).pop();
+                if (identical(ownedModal, route) &&
+                    route.isCurrent &&
+                    current()) {
+                  Navigator.of(dialogContext).pop();
+                }
               },
               child: Text(l10n.commonOk),
             ),
