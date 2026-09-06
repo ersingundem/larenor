@@ -1,5 +1,4 @@
 """Boundary regressions for the private managed-volume CREATE composition."""
-from dataclasses import replace
 import json
 import os
 import sys
@@ -8,11 +7,11 @@ import time
 
 import pytest
 
-from larenor_server.plugins.engine_http import EngineHttpError, EngineHttpRequest, VerifiedEngineHttp, EngineHttpLimits
+from larenor_server.plugins.engine_http import EngineHttpError, EngineHttpRequest
 from larenor_server.plugins.resource_journal import ResourceJournalError
 from larenor_server.plugins.volume_create_journal import VolumeCreateJournal
 from larenor_server.plugins.volume_effects import (
-    UnixVolumeCreator, VolumeAbsent, VolumeCreateAcknowledgement, VolumeEffectError,
+    UnixVolumeCreator, VolumeCreateAcknowledgement, VolumeEffectError,
     VolumeEffectLimits, build_volume_create_body,
 )
 from larenor_server.plugins.volume_journal import VolumeJournal
@@ -64,6 +63,12 @@ def test_a_denied_gate_cannot_be_published_as_observed_by_a_bad_adapter(tmp_path
 def test_effect_limits_only_narrow_and_never_coerce(field, value):
     with pytest.raises(VolumeEffectError, match='^invalid_volume_effect_limits$'):
         VolumeEffectLimits(**{field: value})
+
+
+@pytest.mark.parametrize('field', ['total_seconds', 'idle_seconds'])
+def test_unbounded_integer_limit_is_statically_rejected(field):
+    with pytest.raises(VolumeEffectError, match='^invalid_volume_effect_limits$'):
+        VolumeEffectLimits(**{field: 10**400})
 
 
 @pytest.mark.parametrize('mutation', ['extra', 'driver', 'options', 'name', 'label', 'bool_version', 'whitespace'])
@@ -196,3 +201,116 @@ def test_real_linux_peer_for_volume_create_uses_only_synthetic_socket(begun):
     with engine_server(response(body(intent.binding), status=201)) as (endpoint, calls):
         ack = UnixVolumeCreator(endpoint).create(intent, before_dispatch=lambda: True)
     assert type(ack) is VolumeCreateAcknowledgement and len(calls) == 2
+
+
+@pytest.mark.parametrize('change', ['extra', 'type'])
+def test_forged_limits_are_revalidated_without_opening_socket(begun, change):
+    _, _, intent = begun
+    with engine_server(response()) as (endpoint, calls):
+        limits = VolumeEffectLimits()
+        if change == 'extra':
+            object.__setattr__(limits, 'private', True)
+        else:
+            limits = object()
+        with pytest.raises(VolumeEffectError, match='^invalid_volume_effect_limits$'):
+            creator(endpoint, limits=limits).probe(intent)
+    assert calls == []
+
+
+@pytest.mark.parametrize('case', ['cancel_type', 'already_cancelled', 'changed_plan'])
+def test_invalid_apply_sources_do_not_create_a_receipt_or_touch_engine(tmp_path, source, case):
+    data = inputs(source)
+    rid = data['plan'].resources[0].resourceId
+    cancelled = threading.Event()
+    if case == 'cancel_type': cancelled = True
+    elif case == 'already_cancelled': cancelled.set()
+    else: data['plan'] = data['plan'].model_copy(update={'installAvailable': True})
+    engine = Engine()
+    with VolumeCreateJournal(tmp_path / 'create', initialize=True) as j:
+        with pytest.raises(VolumePreparationError):
+            JournaledVolumeCreates(j, engine).apply(**data, resource_id=rid,
+                authorize_create=lambda: True, cancelled=cancelled)
+        with j.locked():
+            assert j.list() == ()
+    assert engine.calls == []
+
+
+def test_authorizer_cannot_replace_prepared_intent_and_keep_old_flow_alive(tmp_path, source):
+    data = inputs(source)
+    rid = data['plan'].resources[0].resourceId
+    engine = Engine()
+    with VolumeCreateJournal(tmp_path / 'create', initialize=True) as j:
+        def reenter():
+            j.begin_create(rid, 1, **data)
+            return True
+        with pytest.raises(VolumePreparationError, match='^volume_cancelled$'):
+            JournaledVolumeCreates(j, engine).apply(**data, resource_id=rid, authorize_create=reenter)
+        with j.locked():
+            assert j.get(rid).state == 'mutating' and j.get(rid).revision == 2
+    assert engine.calls == []
+
+
+def test_reconcile_callback_cannot_overwrite_newer_revision(tmp_path, source):
+    data = inputs(source)
+    rid = data['plan'].resources[0].resourceId
+    engine = Engine(exists=True)
+    with VolumeCreateJournal(tmp_path / 'create', initialize=True) as j:
+        with j.locked():
+            j.prepare(**data, resource_id=rid)
+            j.begin_create(rid, 1, **data)
+        engine.on_probe = lambda _: j.mark_uncertain(rid, 2)
+        result = JournaledVolumeCreates(j, engine).apply(**data, resource_id=rid)
+        assert result.state == 'uncertain' and result.revision == 3
+    assert engine.calls == ['get']
+
+
+@pytest.mark.parametrize('reply', ['bad_probe', 'bad_ack', 'raw_post_error', 'protocol_probe_error'])
+def test_adapter_failure_is_uncertain_and_does_not_repeat_or_publish(tmp_path, source, reply):
+    data = inputs(source)
+    rid = data['plan'].resources[0].resourceId
+    class BrokenEngine(Engine):
+        def probe(self, intent, **kwargs):
+            result = super().probe(intent, **kwargs)
+            if reply == 'bad_probe': return None
+            if reply == 'protocol_probe_error':
+                from larenor_server.plugins.volume_resources import VolumeResourceError
+                raise VolumeResourceError('volume_protocol')
+            return result
+        def create(self, intent, **kwargs):
+            super().create(intent, **kwargs)
+            if reply == 'raw_post_error': raise RuntimeError('synthetic-private')
+            return None
+    engine = BrokenEngine()
+    with VolumeCreateJournal(tmp_path / 'create', initialize=True) as j:
+        result = JournaledVolumeCreates(j, engine).apply(**data, resource_id=rid, authorize_create=lambda: True)
+        assert result.state == 'uncertain' and 'synthetic-private' not in repr(result)
+    assert engine.calls == (['get'] if reply.endswith('probe') or reply.endswith('probe_error') else ['get', 'post'])
+
+
+def test_existing_exact_labels_are_only_reobserved_and_cannot_create(tmp_path, source):
+    data = inputs(source)
+    rid = data['plan'].resources[0].resourceId
+    engine = Engine(exists=True)
+    with VolumeCreateJournal(tmp_path / 'create', initialize=True) as j:
+        result = JournaledVolumeCreates(j, engine).apply(**data, resource_id=rid, authorize_create=lambda: True)
+        assert result.state == 'observed_requires_bootstrap'
+    assert engine.calls == ['get', 'get']
+
+
+def test_dispatch_gate_is_single_use_even_for_trusted_adapter(tmp_path, source):
+    data = inputs(source)
+    rid = data['plan'].resources[0].resourceId
+    class Twice(Engine):
+        def create(self, intent, *, before_dispatch=None, cancelled=None):
+            assert before_dispatch() is True
+            assert before_dispatch() is False
+            self.calls.append('post')
+            self.exists = True
+            return VolumeCreateAcknowledgement(rid, labels_digest(intent))
+    grants = []
+    engine = Twice()
+    with VolumeCreateJournal(tmp_path / 'create', initialize=True) as j:
+        result = JournaledVolumeCreates(j, engine).apply(**data, resource_id=rid,
+            authorize_create=lambda: grants.append(True) or True)
+        assert result.state == 'observed_requires_bootstrap'
+    assert grants == [True, True] and engine.calls == ['get', 'post', 'get']
