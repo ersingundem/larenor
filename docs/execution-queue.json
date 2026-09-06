@@ -366,7 +366,9 @@
         "docs/remaining-core-integration-slices.md",
         "docs/appdata-native-lease-plan-2026-09-05.md",
         "docs/native-identity-observation-implementation-2026-09-05.md",
-        "docs/native-appdata-root-observation-implementation-2026-09-05.md"
+        "docs/native-appdata-root-observation-implementation-2026-09-05.md",
+        "docs/managed-volume-storage-assessment-2026-09-06.md",
+        "docs/managed-volume-proposal-implementation-2026-09-06.md"
       ],
       "scope": "installAvailable=false; Client kaynak adı/Docker seçenekleri üretmez. Gerçek ev sunucusuna işlem yok.",
       "acceptance": [
@@ -417,10 +419,26 @@
           "state": "completed",
           "result": "passed",
           "label": "Tam kök gözlemi:2792 gerçek Linux test0skip; iki mimarili hazırlık/restart/iptal ve anonim imaj doğrulandı. S06.3d yazma kabulü açık."
+        },
+        {
+          "kind": "test",
+          "ref": "docs/managed-volume-proposal-implementation-2026-09-06.md",
+          "commit": "b5d416404e900aecbbf41068fdf7547942315d22",
+          "state": "completed",
+          "result": "passed",
+          "label": "Saf managed-volume önerisi:32 yeni/182 ilgili test;85satır/16dal100%, üretim82c9433 bağımsız CLEAR. Engine/HTTP bağlantısı ve gerçekkurulum yok; installAvailable=false."
+        },
+        {
+          "kind": "review",
+          "ref": "docs/managed-volume-proposal-implementation-2026-09-06.md",
+          "commit": "b5d416404e900aecbbf41068fdf7547942315d22",
+          "state": "completed",
+          "result": "passed",
+          "label": "Saf managed-volume önerisi:32 yeni/182 ilgili test;85satır/16dal100%, üretim82c9433 bağımsız CLEAR. Engine/HTTP bağlantısı ve gerçekkurulum yok; installAvailable=false."
         }
       ],
       "completionCommit": null,
-      "reason": "Tam kök resolver 32254ad → 0d9e250 ana dalda; 394de0f Linux CI 2.792 testi atlamasız geçti ve yeni gerçek root/proc/mount/descriptor testi doğrulandı. İki mimarili Core hazırlık smoke geçti. Supervisor, remap-disabled başlangıç kanıtı, issuer ve create/publish açık; bu gözlem yazma yetkisi değildir."
+      "reason": "Tam kök resolver 32254ad → 0d9e250 ana dalda; 394de0f Linux CI 2.792 testi atlamasız geçti ve yeni gerçek root/proc/mount/descriptor testi doğrulandı. İki mimarili Core hazırlık smoke geçti. Supervisor, remap-disabled başlangıç kanıtı, issuer ve create/publish açık; bu gözlem yazma yetkisi değildir. b5d4164 saf volume alternatifi yerelde32/182 test ve inceleme geçti; Engine response/ownership/journal/bootstrap ve HTTP wiring henüz uygulanmadı."
     },
     {
       "id": "S06.3e",
@@ -966,7 +984,12 @@
         "docs/direct-home-routines-implementation-2026-09-06.md",
         "docs/direct-arr-credentials-implementation-2026-09-06.md",
         "docs/direct-credential-backup-implementation-2026-09-06.md",
-        "docs/core-resource-fixture-compat-2026-09-06.md"
+        "docs/core-resource-fixture-compat-2026-09-06.md",
+        "docs/personal-data-boundary-implementation-2026-09-06.md",
+        "docs/direct-api-key-credentials-implementation-2026-09-06.md",
+        "docs/direct-qbittorrent-boundary-implementation-2026-09-06.md",
+        "docs/direct-jellyfin-boundary-implementation-2026-09-06.md",
+        "docs/client-boundary-integration-2026-09-06.md"
       ],
       "scope": "Tek mevcut ev bağlamı; F19 çoklu Core/ev federasyonu bu teslim değildir.",
       "acceptance": [
@@ -1115,10 +1138,82 @@
           "state": "completed",
           "result": "passed",
           "label": "Mevcut admin fixture boş kaynak GET desteği: bağımsız kaynak incelemesi temiz; eski kullanıcı/rol ve red/temizlik kontrolleri korundu."
+        },
+        {
+          "kind": "test",
+          "ref": "docs/personal-data-boundary-implementation-2026-09-06.md",
+          "commit": "4eac0f6d3aa5817e691ee8329bfc73765af3bc05",
+          "state": "completed",
+          "result": "passed",
+          "label": "Kişisel veri:253 ilgili test; kaynak bağımsız ayarlar ve fail-closed gizlilik; yeniCI açık."
+        },
+        {
+          "kind": "review",
+          "ref": "docs/personal-data-boundary-implementation-2026-09-06.md",
+          "commit": "4eac0f6d3aa5817e691ee8329bfc73765af3bc05",
+          "state": "completed",
+          "result": "passed",
+          "label": "Kişisel veri:253 ilgili test; kaynak bağımsız ayarlar ve fail-closed gizlilik; yeniCI açık."
+        },
+        {
+          "kind": "test",
+          "ref": "docs/direct-api-key-credentials-implementation-2026-09-06.md",
+          "commit": "37bd4c8fe41fc4ff62aefef86b4b490966d1efc7",
+          "state": "completed",
+          "result": "passed",
+          "label": "Üç API-key:151 yeni/241 ilgili test ve bağımsız inceleme; yedi servis belirsiz kayıt ekdenetimi ayrı."
+        },
+        {
+          "kind": "review",
+          "ref": "docs/direct-api-key-credentials-implementation-2026-09-06.md",
+          "commit": "37bd4c8fe41fc4ff62aefef86b4b490966d1efc7",
+          "state": "completed",
+          "result": "passed",
+          "label": "Üç API-key:151 yeni/241 ilgili test ve bağımsız inceleme; yedi servis belirsiz kayıt ekdenetimi ayrı."
+        },
+        {
+          "kind": "test",
+          "ref": "docs/direct-qbittorrent-boundary-implementation-2026-09-06.md",
+          "commit": "13d022adbb23cc6248dade01be48f57ea10a0752",
+          "state": "completed",
+          "result": "passed",
+          "label": "qBittorrent:121 odaklı/531 ilgili test ve bağımsız inceleme; pending recovery/cancel/2x UI; yeniCI açık."
+        },
+        {
+          "kind": "review",
+          "ref": "docs/direct-qbittorrent-boundary-implementation-2026-09-06.md",
+          "commit": "13d022adbb23cc6248dade01be48f57ea10a0752",
+          "state": "completed",
+          "result": "passed",
+          "label": "qBittorrent:121 odaklı/531 ilgili test ve bağımsız inceleme; pending recovery/cancel/2x UI; yeniCI açık."
+        },
+        {
+          "kind": "test",
+          "ref": "docs/direct-jellyfin-boundary-implementation-2026-09-06.md",
+          "commit": "142dc36e72df5a91aa3f29864cbd1303b24aefdb",
+          "state": "completed",
+          "result": "passed",
+          "label": "Jellyfin:98 yeni/297 ilgili test; bağımsız inceleme, nativefocus/reload ve belirsiz kayıtta reader retirement; yeniCI açık."
+        },
+        {
+          "kind": "review",
+          "ref": "docs/direct-jellyfin-boundary-implementation-2026-09-06.md",
+          "commit": "142dc36e72df5a91aa3f29864cbd1303b24aefdb",
+          "state": "completed",
+          "result": "passed",
+          "label": "Jellyfin:98 yeni/297 ilgili test; bağımsız inceleme, nativefocus/reload ve belirsiz kayıtta reader retirement; yeniCI açık."
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/34000029533",
+          "commit": "a2658ec902aea9b358e1ff0e10e093db773de238",
+          "state": "completed",
+          "result": "passed",
+          "label": "Android98:3422Flutter/98JVM/11E2E ve signed build geçti; önceki scoped-layout fixture düzeltmesi doğrulandı. Bağımsız APK kontrolü sürüyor; sonraki yerel pilotlar dahil değil."
         }
       ],
       "completionCommit": null,
-      "reason": "Scoped layout/Direct HA/HA yedek 8c3b60d CI ve APK96 kabulünü geçti; diafon/film gecesi cc3db2 ve Core Client listesi 20d92d7 içinde. Yeni Android97 eski scoped-layout fixture kaynak GET desteği eksikliğiyle kapıda kaldı, APK yok; düzeltme1f7c6b4 yeniCI bekliyor. Dört Arr0298c5a ve credential-backup6426d55 birleşik e4f0f15:3418 tamClient/analiz/biçim temiz, bağımsız incelemeler geçti; ana dala alındı. Kalan7servis, kişisel sağlık/fotoğraf kabulü ve bu paketinCI açık. Typed ağcache S08.7–9 kabulündedir."
+      "reason": "HA/Arr/backup/diafon/film gecesi a2658ec Android98:3422Flutter/11E2E ve signed build geçti; bağımsızAPK kontrolü sürüyor. Kişisel veri, üçAPI-key, qBittorrent ve Jellyfin ayrı test/inceleme kabulüyle yerel birleşimde; tam birleşikCI açık. Proxmox son denetimde, Keenetic sırada; belirsiz kayıt sonrası yediAPI-key reader/UI ekdüzeltmesi ayrı sürüyor. Bütün S08.4 ve typed ağcache S08.7–9 açık."
     },
     {
       "id": "S08.5",
@@ -1525,7 +1620,8 @@
         "docs/tablet-navigation-implementation-2026-09-05.md",
         "docs/tablet-settings-accessibility-implementation-2026-09-05.md",
         "docs/tablet-dashboard-accessibility-implementation-2026-09-05.md",
-        "docs/tablet-media-accessibility-implementation-2026-09-05.md"
+        "docs/tablet-media-accessibility-implementation-2026-09-05.md",
+        "docs/application-window-focus-implementation-2026-09-06.md"
       ],
       "scope": "Son bütün ekran tasarım geçişi değildir; Core’suz kişisel uzak bağlantı için Core bağımlılığı koymaz.",
       "acceptance": [
@@ -1600,10 +1696,26 @@
           "state": "completed",
           "result": "passed",
           "label": "Medya kaynak kapısı:2837 Flutter,98 JVM,9E2E ve signed APK95 build geçti. Bağımsız Java17/apksig doğrulaması da başarılı."
+        },
+        {
+          "kind": "test",
+          "ref": "docs/application-window-focus-implementation-2026-09-06.md",
+          "commit": "6c5fbb24c31527413661a5de501c2b31c5d5d21f",
+          "state": "completed",
+          "result": "passed",
+          "label": "Native viewfocus:24PASS2FAIL→26PASS,252 ilgiliPASS;102/106satır, bağımsız CLEAR. EskiHAonayı0HTTP; diğerwindow ve nativeaudio korundu; yeniCI/fizikselDeX açık."
+        },
+        {
+          "kind": "review",
+          "ref": "docs/application-window-focus-implementation-2026-09-06.md",
+          "commit": "6c5fbb24c31527413661a5de501c2b31c5d5d21f",
+          "state": "completed",
+          "result": "passed",
+          "label": "Native viewfocus:24PASS2FAIL→26PASS,252 ilgiliPASS;102/106satır, bağımsız CLEAR. EskiHAonayı0HTTP; diğerwindow ve nativeaudio korundu; yeniCI/fizikselDeX açık."
         }
       ],
       "completionCommit": null,
-      "reason": "Ayarlar/dashboard 4b98680 tam CI ve APK94 ile doğrulandı. Yeni medya posterleri de 394de0f Android CI içinde 2.837 Flutter,98 JVM,9E2E ve signed build kapılarını geçti; bağımsız APK95 doğrulaması geçti. Diğer ekran/editor/gesture işleri ve fiziksel TalkBack kabulü açık."
+      "reason": "Ayarlar/dashboard 4b98680 tam CI ve APK94 ile doğrulandı. Yeni medya posterleri de 394de0f Android CI içinde 2.837 Flutter,98 JVM,9E2E ve signed build kapılarını geçti; bağımsız APK95 doğrulaması geçti. Diğer ekran/editor/gesture işleri ve fiziksel TalkBack kabulü açık. 6c5fbb2 yerel native odak düzeltmesi252 ilgili test/inceleme geçti, yeniCI açık."
     },
     {
       "id": "B5.2",
