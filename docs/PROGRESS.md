@@ -70,7 +70,7 @@ anonim doğrulandı. [APK104, CI ve teslim kanıtı](client-delivery-104-2026-09
 | S08.5 — hazırlanmış restore ve Core oda arşivi | Model, şifreleme, controller ve tablet ekranı birleşti; tam Client geçti, Android ve yayın CI bekliyor |
 | S08.6 — kişi ve izin yönetimi | Server ve tablet ekranları birleşti; üye ve yönetici/ACL Android senaryoları hazır, kendi CI kabulü açık |
 | Birleşim yayını CI106 | `e7c15ad` gönderildi; aynı uygulama/test ağacında yerel Client 5.056 PASS. Core 3.311 Linux PASS / 0 skip ve güvenlik207 geçti; Android ve kendi imzalı APK kabulü sürüyor |
-| B5.1 — Core eklenti kataloğu | Ayrı dalda 32 yeni tablet testi dahil 273 ilgili PASS; başlıklar, erişilebilir adlar ve görünür klavye odağı düzeltildi. Tam Client birleşim testi sürüyor; CI106'ya dahil değil |
+| B5.1 — Core eklenti kataloğu | Yerelde birleşti: 5.088 tam Client PASS, analiz0 ve967dosya biçim farkı0; başlıklar, erişilebilir adlar ve görünür klavye odağı düzeltildi. Kendi yayın kapısı açık; CI106'ya dahil değil |
 
 **CI105 tamamlandı:17 E2E/133faz, Core3.311/0skip ve güvenlik207 geçti.**
 Flutter coverage işi15dk sınırında4.282kısmi ilerlemeyle durdu; imzalıAPK105
@@ -80,6 +80,10 @@ Dar25dk iş bütçesi onarımı207politika testi ve incelemeyi geçti.
 [Core](https://github.com/ersingundem/larenor/actions/runs/34016755141),
 [güvenlik](https://github.com/ersingundem/larenor/actions/runs/34016754957).
 [Güncel paket ve sınırlar](client-delivery-106-2026-09-06.md).
+Yeni [eklenti ekranı birleşimi](core-plugins-integration-verification-2026-09-06.md)
+yerelde hazır; işlem geçmişi/detay erişilebilirliği ayrı dalda sürüyor.
+Core tarafında [kalıcı volume oluşturma protokolü](managed-volume-create-plan-2026-09-06.md)
+uygulanıyor; gerçek UID/bootstrap ve kurulum kabulü açık.
 
 Yeni kişi/arşiv ekranları APK104'e dahil değildir. S08.5/S08.6 ve yeni63
 özellik bu yayınla tamamlandı sayılmaz; fiziksel tablet kabulü de açıktır.

@@ -1962,7 +1962,9 @@
         "docs/tablet-media-accessibility-implementation-2026-09-05.md",
         "docs/application-window-focus-implementation-2026-09-06.md",
         "docs/core-home-resource-admin-ui-implementation-2026-09-06.md",
-        "docs/client-delivery-99-2026-09-06.md"
+        "docs/client-delivery-99-2026-09-06.md",
+        "docs/core-plugins-tablet-accessibility-2026-09-06.md",
+        "docs/core-plugins-integration-verification-2026-09-06.md"
       ],
       "scope": "Son bütün ekran tasarım geçişi değildir; Core’suz kişisel uzak bağlantı için Core bağımlılığı koymaz.",
       "acceptance": [
@@ -2061,10 +2063,26 @@
           "state": "completed",
           "result": "passed",
           "label": "Native pencere odağı düzeltmesi exact4bc79dc/APK99:3941Flutter/98JVM/11E2E ve bağımsız imza kontrolü geçti. Sonraki yeni Core yönetim UI dahil değil; tümB5.1kabulü değil."
+        },
+        {
+          "kind": "test",
+          "ref": "docs/core-plugins-integration-verification-2026-09-06.md",
+          "commit": "9ca1ffed2a06f7c06533ea7c1196ac5077919055",
+          "state": "completed",
+          "result": "passed",
+          "label": "Core eklenti kataloğu birleşimi:5088 tam ClientPASS, analiz0,967format0. Bağımsız B5kaynak ve rootbirleşim/gerçekfont2xgörsel inceleme CLEAR. Server/contracts/android/CI ağaçları e7aynı; kendiCI ve fizikselkabul açık."
+        },
+        {
+          "kind": "review",
+          "ref": "docs/core-plugins-integration-verification-2026-09-06.md",
+          "commit": "9ca1ffed2a06f7c06533ea7c1196ac5077919055",
+          "state": "completed",
+          "result": "passed",
+          "label": "Core eklenti kataloğu birleşimi:5088 tam ClientPASS, analiz0,967format0. Bağımsız B5kaynak ve rootbirleşim/gerçekfont2xgörsel inceleme CLEAR. Server/contracts/android/CI ağaçları e7aynı; kendiCI ve fizikselkabul açık."
         }
       ],
       "completionCommit": null,
-      "reason": "Ayarlar/dashboard, medya ve native odak önceki kendi CI/APK kaynaklarında doğrulandı. Kişi/arşiv ekranları CI106 paketinde; ayrı Core eklenti kataloğu32yeni/273ilgiliPASS+inceleme sonrasında tam Client birleşiminde. Jobs geçmiş/detay erişilebilirliği sıradaki dar inceleme; diğer ekran/editor/gesture ve fiziksel TalkBack kabulü açık."
+      "reason": "Core eklenti kataloğu main ile birleşti:9ca1ffe aynı runtime/test ağacında tek tamClient5088PASS, analiz0,967dosya format0;32yeni tablet testi ve kaynak/görsel inceleme geçti. Bu değişiklik CI106 dışında, kendi yayın kapısı açık. Jobs geçmiş/detay sonraki aktif dal; tümB5.1/fizikselTalkBack açık."
     },
     {
       "id": "B5.2",
