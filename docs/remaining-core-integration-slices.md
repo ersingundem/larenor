@@ -79,20 +79,23 @@ Client'a eklemek eski ev verisinin yeni Core'da görünmesini engellemez.
   1.093 ilgili test ve dashboard ile birleşik 2.815 Flutter testi/analiz geçti.
   Gerçek uygulama başlangıcıyla beşinci emülatör
   akışı eklendi; toplam dokuz E2E ve bağımsız imzalı APK 94 kabulü geçti.
-- [ ] **Mevcut kalıcı kayıt kapsam temeli (S08.4):** Core'dan erişilebilir ev
+- [x] **Mevcut kalıcı kayıt kapsam temeli (S08.4, 1c2db57 tam CI/APK100):** Core'dan erişilebilir ev
   düzenini tuple/revision kaydıyla sakla. Diğer mevcut kayıtları gerçek erişim
   testleriyle Core kapsamlı, Direct-only veya kişisel/cihaz olarak sahiplen.
   Eski `dashboard_layout`, `ha_base_url` ve `ha_token` yeni Core'a sessizce
   bağlanmaz. İlk PIN korumalı pasif oda kopyası bütün bu kabulü kapatmaz.
+  [Üç kabul maddesi ve 22 kayıt sınıfı](client-boundary-acceptance-review-2026-09-06.md)
+  ile [exact-source teslim](client-delivery-100-2026-09-06.md) doğrulandı.
 - [ ] **Typed adaptör cache ve tam eşleme (S08.7–9):** İlk HA snapshot'ı
   resource/tuple/sürüm/TTL/kota sınırına bağla; alan/entity/scene/service ve
   bağlantı/sır eşlemesi açık preview/onay ister. Medya ve altyapı karşılıkları
   S08.8/9'da kapanır. Web URL/origin izinleri sessiz eşleme dışındadır.
   Bu adaptör işleri S08.4/5'in başlamasını bekleten bir önkoşul değildir.
-- [ ] **Restore ve logout:** Restore önizlemesi ve journal hedefi doğrulanmış
+- [ ] **Restore ve logout (S08.5, uygulama sürüyor):** Restore önizlemesi ve journal hedefi doğrulanmış
   bağlama bağlı olsun; inceleme A evinde, onay B evinde yapılamasın. Yedek
   oturum/bağlam kimliği geri yüklemesin. Logout kapsamı kapatsın ve tokenı
   silsin; diğer kayıtları topluca silmek yerine görünmez bıraksın.
+  [Prepared restore, journal ve logout uygulama sırası](client-restore-logout-implementation-plan-2026-09-06.md).
 - [ ] **Merkezi adaptörler:** HA ardından medya/ağ kaynakları, komut yetkileri
   ve olay akışını Server'a taşı; mevcut direct-HA yolu otomatik fallback olup
   eski ev verisini geri getirmesin.
