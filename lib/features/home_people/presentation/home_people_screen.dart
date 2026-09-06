@@ -184,8 +184,9 @@ class _PeopleContentState extends ConsumerState<_PeopleContent> {
     if (_editor != null &&
         (!_controller.fresh ||
             !_current() ||
-            !_saving && _editorEpoch != _controller.epoch))
+            !_saving && _editorEpoch != _controller.epoch)) {
       _wipe();
+    }
     setState(() {});
   }
 
@@ -201,8 +202,11 @@ class _PeopleContentState extends ConsumerState<_PeopleContent> {
   VoidCallback _callback(VoidCallback action) {
     final generation = _generation, epoch = _controller.epoch;
     return () {
-      if (_current() && generation == _generation && epoch == _controller.epoch)
+      if (_current() &&
+          generation == _generation &&
+          epoch == _controller.epoch) {
         action();
+      }
     };
   }
 
@@ -232,8 +236,9 @@ class _PeopleContentState extends ConsumerState<_PeopleContent> {
   }
 
   Future<void> _submit() async {
-    if (_editor == null || _saving || !_current() || !_controller.canMutate)
+    if (_editor == null || _saving || !_current() || !_controller.canMutate) {
       return;
+    }
     final editor = _editor!, target = _target, generation = _generation;
     HomePersonMetadata? desired;
     if (editor != _Editor.delete) {

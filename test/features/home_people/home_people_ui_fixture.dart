@@ -21,16 +21,16 @@ import 'package:larenor/features/auth/providers/auth_providers.dart';
 import 'package:larenor/features/client_updates/data/client_update_api.dart';
 import 'package:larenor/features/client_updates/providers/client_update_providers.dart';
 import 'package:larenor/features/ha_client/providers/ha_client_providers.dart';
-import 'package:larenor/features/home_resources/data/home_resources_api.dart';
 import 'package:larenor/features/home_people/data/home_people_providers.dart';
+import 'package:larenor/features/home_resources/data/home_resources_api.dart';
 import 'package:larenor/features/server/data/larenor_server_api.dart';
 import 'package:larenor/features/server/data/server_account_controller.dart';
 import 'package:larenor/features/server/providers/server_providers.dart';
+import 'package:larenor/features/settings/data/pin_lock_store.dart';
 import 'package:larenor/features/settings/data/screen_policy_controller.dart';
 import 'package:larenor/features/settings/presentation/screen_policy_runner.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-import 'package:larenor/features/settings/data/pin_lock_store.dart';
 import 'package:larenor/features/settings/providers/settings_providers.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../core/home_scope_fixture.dart'
     show SourceMemory, ScopePower, flush;
@@ -129,10 +129,11 @@ class PeopleUiHarness {
       final isGrant = request.url.path.contains('/grants');
       if (request.method == 'GET' && !isGrant) {
         peopleReads++;
-        if (failPeople)
+        if (failPeople) {
           return json({
             'error': {'code': 'server_error'},
           }, 503);
+        }
         final sorted = people.toList()
           ..sort(
             (a, b) =>
@@ -200,8 +201,9 @@ class PeopleUiHarness {
             subject = request.url.pathSegments.last,
             old = grants[subject] ?? {'read': false, 'write': false};
         if (old['read'] != permission['read'] ||
-            old['write'] != permission['write'])
+            old['write'] != permission['write']) {
           target['aclRevision'] = (target['aclRevision'] as int) + 1;
+        }
         if (permission['read'] == false) {
           grants.remove(subject);
         } else {
@@ -236,8 +238,9 @@ class PeopleUiHarness {
         expectSync(body!['expectedRevision'], target['revision']);
         expectSync(body['expectedAclRevision'], target['aclRevision']);
         if (target['label'] != body['label'] ||
-            target['order'] != body['order'])
+            target['order'] != body['order']) {
           target['revision'] = (target['revision'] as int) + 1;
+        }
         target['label'] = body['label'];
         target['order'] = body['order'];
         result = {'person': target};
@@ -332,7 +335,10 @@ class PeopleUiHarness {
     addTearDown(tester.view.reset);
     addTearDown(tester.platformDispatcher.clearLocalesTestValue);
     addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
-    window.stream.listen((value) => currentWindow = value);
+    window.stream.listen(
+      (value) => currentWindow = value,
+      onError: (Object _) {},
+    );
     await tester.pumpWidget(
       RepaintBoundary(
         key: boundary,

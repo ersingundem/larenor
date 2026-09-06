@@ -65,8 +65,9 @@ class _GrantsContentState extends ConsumerState<_GrantsContent> {
     if (_selected != null &&
         (!_current() ||
             !_controller.fresh ||
-            !_saving && _selectionEpoch != _controller.epoch))
+            !_saving && _selectionEpoch != _controller.epoch)) {
       _wipe();
+    }
     setState(() {});
   }
 
@@ -80,8 +81,11 @@ class _GrantsContentState extends ConsumerState<_GrantsContent> {
   VoidCallback _callback(VoidCallback action) {
     final generation = _generation, epoch = _controller.epoch;
     return () {
-      if (_current() && generation == _generation && epoch == _controller.epoch)
+      if (_current() &&
+          generation == _generation &&
+          epoch == _controller.epoch) {
         action();
+      }
     };
   }
 
@@ -112,8 +116,9 @@ class _GrantsContentState extends ConsumerState<_GrantsContent> {
   }
 
   Future<void> _save() async {
-    if (_selected == null || _saving || !_current() || !_controller.canChange)
+    if (_selected == null || _saving || !_current() || !_controller.canChange) {
       return;
+    }
     if (_permission == HomePersonPermission.none && !_confirming) {
       setState(() {
         _generation++;

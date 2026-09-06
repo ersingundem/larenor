@@ -68,11 +68,36 @@ Future<void> preview(
 }
 
 void main() {
-  testWidgets('actual page back focus outline stays inside the visible window', (tester)async{
-    await loadFonts(tester);final h=PeopleUiHarness();await openPeople(tester,h,width:320,scale:2);await tester.sendKeyEvent(LogicalKeyboardKey.tab);await focus(tester,'home-people-back');
-    final decoration=find.descendant(of:key('home-people-back'),matching:find.byWidgetPredicate((w)=>w is DecoratedBox&&w.decoration is ShapeDecoration&&(w.decoration as ShapeDecoration).shape is OutlinedBorder)).first;
-    final outline=(tester.widget<DecoratedBox>(decoration).decoration as ShapeDecoration).shape as OutlinedBorder;final rect=tester.getRect(decoration);expect(outline.side.width,greaterThan(0));expect(rect.left-outline.side.strokeOutset,greaterThanOrEqualTo(0));expect(rect.top-outline.side.strokeOutset,greaterThanOrEqualTo(0));
-  });
+  testWidgets(
+    'actual page back focus outline stays inside the visible window',
+    (tester) async {
+      await loadFonts(tester);
+      final h = PeopleUiHarness();
+      await openPeople(tester, h, width: 320, scale: 2);
+      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+      await focus(tester, 'home-people-back');
+      final decoration = find
+          .descendant(
+            of: key('home-people-back'),
+            matching: find.byWidgetPredicate(
+              (w) =>
+                  w is DecoratedBox &&
+                  w.decoration is ShapeDecoration &&
+                  (w.decoration as ShapeDecoration).shape is OutlinedBorder,
+            ),
+          )
+          .first;
+      final outline =
+          (tester.widget<DecoratedBox>(decoration).decoration
+                      as ShapeDecoration)
+                  .shape
+              as OutlinedBorder;
+      final rect = tester.getRect(decoration);
+      expect(outline.side.width, greaterThan(0));
+      expect(rect.left - outline.side.strokeOutset, greaterThanOrEqualTo(0));
+      expect(rect.top - outline.side.strokeOutset, greaterThanOrEqualTo(0));
+    },
+  );
   for (final locale in ['en', 'tr']) {
     for (final width in [320.0, 600.0, 1280.0]) {
       for (final dark in [false, true]) {
@@ -129,7 +154,11 @@ void main() {
                 width,
               );
               await focus(tester, 'home-people-edit-$id');
-              await preview(tester,h,'people-list-$locale-${width.toInt()}-2x-${dark?'dark':'light'}');
+              await preview(
+                tester,
+                h,
+                'people-list-$locale-${width.toInt()}-2x-${dark ? 'dark' : 'light'}',
+              );
               await tester.sendKeyEvent(LogicalKeyboardKey.tab);
               await flush(tester);
               expect(
@@ -272,7 +301,7 @@ void main() {
                               as ShapeDecoration)
                           .shape
                       as OutlinedBorder);
-              expect(outline.side.width,greaterThan(0));
+              expect(outline.side.width, greaterThan(0));
               final background = CupertinoTheme.of(
                 tester.element(key('home-people-permission-readWrite')),
               ).scaffoldBackgroundColor;

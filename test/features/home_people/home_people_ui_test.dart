@@ -9,15 +9,26 @@ import 'home_people_ui_fixture.dart';
 Finder key(String value) => find.byKey(ValueKey(value));
 Future<void> reveal(WidgetTester tester, Finder target) async {
   if (target.evaluate().isEmpty) {
-    final scrollable = find.descendant(of: find.byType(CustomScrollView).last, matching: find.byType(Scrollable)).first;
+    final scrollable = find
+        .descendant(
+          of: find.byType(CustomScrollView).last,
+          matching: find.byType(Scrollable),
+        )
+        .first;
     tester.state<ScrollableState>(scrollable).position.jumpTo(0);
     await flush(tester);
-    await tester.scrollUntilVisible(target, 400, scrollable: scrollable, maxScrolls: 80);
+    await tester.scrollUntilVisible(
+      target,
+      400,
+      scrollable: scrollable,
+      maxScrolls: 80,
+    );
   }
   expect(target, findsOneWidget);
   await tester.ensureVisible(target);
   await flush(tester);
 }
+
 Future<void> press(WidgetTester tester, String value) async {
   await reveal(tester, key(value));
   await tester.tap(key(value));

@@ -82,10 +82,13 @@ class PeoplePage extends StatelessWidget {
         children: [
           Row(
             children: [
-              PeopleButton(
-                key: ValueKey(backKey),
-                label: AppLocalizations.of(context).commonBack,
-                onPressed: onBack,
+              Padding(
+                padding: const EdgeInsets.all(4),
+                child: PeopleButton(
+                  key: ValueKey(backKey),
+                  label: AppLocalizations.of(context).commonBack,
+                  onPressed: onBack,
+                ),
               ),
               Expanded(
                 child: Padding(

@@ -145,8 +145,9 @@ class _HomePeopleRouteState extends ConsumerState<HomePeopleRoute>
       _homeEpoch = _home?.interaction.epoch;
       _home?.addListener(_changed);
     }
-    if (_interaction != null && !identical(_interaction, interaction))
+    if (_interaction != null && !identical(_interaction, interaction)) {
       _closed = true;
+    }
     if (!identical(_interaction, interaction)) {
       _interaction?.removeListener(_changed);
       _interaction = interaction;
@@ -190,8 +191,9 @@ class _HomePeopleRouteState extends ConsumerState<HomePeopleRoute>
     ref.listen(windowPolicySnapshotProvider, (_, _) => _changed());
     _schedule();
     final owner = _owner;
-    if (owner != null && owner.isCurrent)
+    if (owner != null && owner.isCurrent) {
       return KeyedSubtree(key: ObjectKey(owner), child: widget.builder(owner));
+    }
     final navigationEpoch = _navigationEpoch;
     return PeoplePage(
       title: widget.title,

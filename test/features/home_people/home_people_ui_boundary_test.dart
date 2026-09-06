@@ -73,6 +73,30 @@ void main() {
       },
     );
   }
+  testWidgets(
+    'entry error is closed and old callback stays retired after fresh policy',
+    (tester) async {
+      final h = PeopleUiHarness();
+      await h.mount(tester);
+      await h.signIn();
+      await flush(tester);
+      final old = held(tester, 'home-people-entry');
+      h.window.addError(StateError('private-policy'));
+      await flush(tester);
+      old();
+      await flush(tester);
+      expect(find.byType(HomePeopleScreen), findsNothing);
+      expect(h.peopleReads, 0);
+      expect(find.text('private-policy'), findsNothing);
+      h.runtime(tester).invalidate(windowPolicySnapshotProvider);
+      await flush(tester);
+      old();
+      await flush(tester);
+      expect(find.byType(HomePeopleScreen), findsNothing);
+      await press(tester, 'home-people-entry');
+      expect(h.peopleReads, 1);
+    },
+  );
   testWidgets('covered fallback back cannot pop the covering route', (
     tester,
   ) async {
