@@ -28,6 +28,7 @@ import 'package:larenor/features/settings/domain/screen_program.dart';
 import 'support/app_harness.dart';
 import 'support/core_archive_journey.dart';
 import 'support/core_people_journey.dart';
+import 'support/core_people_admin_journey.dart';
 import 'support/single_element_ready.dart';
 import 'support/synthetic_ha_server.dart';
 import 'support/synthetic_core_account.dart';
@@ -1347,4 +1348,5 @@ void main() {
   );
   registerCorePeopleJourney();
   registerCoreArchiveJourney();
+  registerCorePeopleAdminJourney();
 }
