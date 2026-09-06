@@ -40,8 +40,10 @@ PYTHONPATH=<coverage helper>:. python -m coverage run --branch
 ```
 
 Özel kanıtlar `/private/tmp/larenor-home-people-models-{red,green,regression}.log`
-ve karşılık gelen GREEN/regression JUnit XML'leridir. Yeni CI veya bağımsız
-karşı inceleme henüz yapılmadı. Paket102'nin dondurulmuş üretimine dahil değil.
+ve karşılık gelen GREEN/regression JUnit XML'leridir. Yeni CI henüz yapılmadı. Bağımsız inceleme exact `316332b` üzerinde CLEAR;
+somut P1/P2 bulunmadı, eski Core/API/DB/init ağacı değişmediği doğrulandı.
+İnceleyen kişi testleri tekrar çalıştırmadan kaynak ve 46/92 PASS loglarını
+okudu. Paket102'nin dondurulmuş üretimine dahil değil.
 
 ## Sonraki bağımlı teslim
 
