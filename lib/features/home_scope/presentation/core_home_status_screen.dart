@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/app_interaction_scope.dart';
 import '../../home_resources/presentation/core_home_resources.dart';
+import '../../home_people/presentation/home_people_screen.dart';
 import '../../../core/home_session_controller.dart';
 import '../../../l10n/generated/app_localizations.dart';
 import '../../../shared/widgets/app_page_scaffold.dart';
@@ -86,6 +87,7 @@ class CoreHomeStatusScreen extends ConsumerWidget {
                               const SizedBox(height: 24),
                               SettingsSection(
                                 children: [
+                                  const HomePeopleEntry(),
                                   if (controller.failure == null &&
                                       !controller.busy)
                                     SettingsActionTile(

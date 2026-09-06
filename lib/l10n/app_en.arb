@@ -2312,5 +2312,63 @@
         "type": "int"
       }
     }
+  },
+  "homePeopleTitle": "People",
+  "homePeopleDescription": "Person profiles shared with your account in this home.",
+  "homePeopleManage": "Manage people",
+  "homePeopleAdminDescription": "Manage profile names, display order and access. Profiles are household records, not login accounts or Home Assistant persons.",
+  "homePeopleRequired": "A verified connection to this home is required.",
+  "homePeopleAdminRequired": "A current administrator session is required.",
+  "homePeopleLoading": "Loading people…",
+  "homePeopleEmpty": "No person profiles are shared with this account.",
+  "homePeopleError": "People could not be read. Refresh to try again.",
+  "homePeopleLoadMore": "Load more people",
+  "homePeopleCreate": "Add person profile",
+  "homePeopleLabel": "Profile name",
+  "homePeopleOrder": "Display order",
+  "homePeopleInvalid": "Enter a name of 1–80 characters and an order from 0 to 10000.",
+  "homePeopleSaved": "Profile saved.",
+  "homePeopleDeleted": "Profile deleted.",
+  "homePeopleConflict": "This profile changed. Refresh before trying again.",
+  "homePeopleUncertain": "The change could not be confirmed. Refresh before making another change.",
+  "homePeopleFailed": "The change could not be saved. Refresh before trying again.",
+  "homePeopleSaving": "Saving…",
+  "homePeopleConfirmDelete": "Delete this person profile?",
+  "homePeopleDeleteHint": "The profile and its access grants will be removed. A login account is not deleted.",
+  "homePeopleGrantsTitle": "Profile access",
+  "homePeopleGrantsDescription": "Choose an account and its access to this profile. Read and write access does not grant an administrator role; profile management remains administrator-only.",
+  "homePeopleGrantsInherited": "Administrators retain access through their account role.",
+  "homePeopleGrantsEmpty": "There are no accounts to select.",
+  "homePeopleGrantsError": "Profile access could not be read. Refresh to try again.",
+  "homePeopleReadOnly": "Read only",
+  "homePeopleReadWrite": "Read and write",
+  "homePeopleNoAccess": "No access",
+  "homePeopleGrantSaved": "Access saved.",
+  "homePeopleGrantRevoked": "Access removed.",
+  "homePeopleConfirmRevoke": "Remove this account's access?",
+  "homePeopleRevoke": "Remove access",
+  "homePeopleEditPerson": "Edit {name}",
+  "@homePeopleEditPerson": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "homePeopleGrantPerson": "Manage access for {name}",
+  "@homePeopleGrantPerson": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "homePeopleDeletePerson": "Delete {name}",
+  "@homePeopleDeletePerson": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
   }
 }
