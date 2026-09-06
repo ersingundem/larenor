@@ -30,6 +30,8 @@ class _KeeneticConnectScreenState
     extends MediaSessionState<KeeneticConnectScreen> {
   static const _defaultUrl = 'http://192.168.1.1';
   bool _gatewayRequested = false;
+  bool _loaded = false;
+  KeeneticConnection? _observedConnection;
   late final _urlController = TextEditingController(
     text: widget.recovery ? '' : _defaultUrl,
   );
@@ -49,6 +51,12 @@ class _KeeneticConnectScreenState
   bool _current(int generation) =>
       sessionCurrent(generation) &&
       _access.isCurrent &&
+      identical(_access, ref.read(directHomeAccessProvider)) &&
+      (_connecting || !ref.read(keeneticConnectionProvider).isLoading) &&
+      identical(
+        _observedConnection,
+        ref.read(keeneticConnectionProvider.notifier),
+      ) &&
       TickerMode.valuesOf(context).enabled &&
       (ModalRoute.of(context)?.isCurrent ?? true);
 
@@ -201,13 +209,32 @@ class _KeeneticConnectScreenState
   Widget build(BuildContext context) {
     ref.watch(directHomeAccessProvider);
     final l10n = AppLocalizations.of(context);
-    if (!_access.isCurrent) {
+    if (!_access.isCurrent ||
+        !identical(_access, ref.read(directHomeAccessProvider))) {
+      clearPendingInteraction();
       return CupertinoPageScaffold(
         child: Center(child: Text(l10n.keeneticErrorUnreachable)),
       );
     }
     // A standalone form also owns the provider subscription during verification.
     final reading = ref.watch(keeneticConnectionProvider);
+    ref.listen(keeneticConnectionProvider, (previous, next) {
+      if (_loaded &&
+          previous != null &&
+          (next.isLoading || !_connecting && !identical(previous, next))) {
+        setState(() {
+          sessionGeneration++;
+          clearPendingInteraction();
+        });
+      }
+    });
+    final observed = ref.read(keeneticConnectionProvider.notifier);
+    if (_observedConnection != null &&
+        !identical(observed, _observedConnection)) {
+      sessionGeneration++;
+      clearPendingInteraction();
+    }
+    _observedConnection = observed;
     final error = reading.error;
     if (!_recovery && error is DirectHomeAccessException) {
       _recovery = true;
@@ -223,6 +250,7 @@ class _KeeneticConnectScreenState
         child: Center(child: Text(l10n.keeneticErrorUnreachable)),
       );
     }
+    _loaded = true;
     final generation = sessionGeneration;
     final active = _current(generation);
     if (active && !_recovery && !_gatewayRequested) {
@@ -260,17 +288,25 @@ class _KeeneticConnectScreenState
                       enabled: active && !_connecting,
                       prefix: _fieldLabel(l10n.connectUrlLabel),
                       keyboardType: TextInputType.url,
+                      autocorrect: false,
+                      enableSuggestions: false,
                     ),
                     CupertinoTextFormFieldRow(
                       controller: _userController,
                       enabled: active && !_connecting,
                       prefix: _fieldLabel(l10n.mediaUserLabel),
+                      autocorrect: false,
+                      enableSuggestions: false,
                     ),
                     CupertinoTextFormFieldRow(
                       controller: _passwordController,
                       enabled: active && !_connecting,
                       prefix: _fieldLabel(l10n.mediaPasswordLabel),
                       obscureText: true,
+                      autocorrect: false,
+                      enableSuggestions: false,
+                      textInputAction: TextInputAction.done,
+                      onFieldSubmitted: (_) => _connect(generation, connection),
                     ),
                   ],
                 ),

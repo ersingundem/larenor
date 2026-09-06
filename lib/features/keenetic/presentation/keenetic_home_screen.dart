@@ -28,13 +28,19 @@ class _KeeneticHomeScreenState extends MediaSessionState<KeeneticHomeScreen> {
   late final DirectHomeAccess _access = ref.read(directHomeAccessProvider);
   bool _visible = true;
 
-  bool _current(int generation) => sessionCurrent(generation) && _access.isCurrent &&
-      TickerMode.valuesOf(context).enabled && (ModalRoute.of(context)?.isCurrent ?? true);
+  bool _current(int generation) =>
+      sessionCurrent(generation) &&
+      _access.isCurrent &&
+      identical(_access, ref.read(directHomeAccessProvider)) &&
+      TickerMode.valuesOf(context).enabled &&
+      (ModalRoute.of(context)?.isCurrent ?? true);
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    final visible = TickerMode.valuesOf(context).enabled && (ModalRoute.of(context)?.isCurrent ?? true);
+    final visible =
+        TickerMode.valuesOf(context).enabled &&
+        (ModalRoute.of(context)?.isCurrent ?? true);
     if (_visible && !visible) sessionGeneration++;
     _visible = visible;
   }
@@ -54,7 +60,7 @@ class _KeeneticHomeScreenState extends MediaSessionState<KeeneticHomeScreen> {
   @override
   Widget build(BuildContext context) {
     final access = ref.watch(directHomeAccessProvider);
-    if (!access.isCurrent) {
+    if (!access.isCurrent || !identical(access, _access)) {
       return CupertinoPageScaffold(
         child: Center(
           child: Text(AppLocalizations.of(context).keeneticErrorUnreachable),
@@ -103,6 +109,7 @@ class _KeeneticMenuState extends MediaSessionState<_KeeneticMenu> {
   bool _current(int generation) =>
       sessionCurrent(generation) &&
       _access.isCurrent &&
+      identical(_access, ref.read(directHomeAccessProvider)) &&
       TickerMode.valuesOf(context).enabled &&
       (ModalRoute.of(context)?.isCurrent ?? true);
   @override
