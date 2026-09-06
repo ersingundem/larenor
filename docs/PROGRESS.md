@@ -1,6 +1,6 @@
 # Larenor — güncel ilerleme ve iş kuyruğu
 
-**Son güncelleme: 6 Eylül 2026 — CI106 sonuçlandı; Android E2E düzeltmesi sürüyor.**
+**Son güncelleme: 6 Eylül 2026 — CI106 geçiş düzeltmeleri ve Jobs tablet ekranı yerelde birleşti; yeni paket doğrulanıyor.**
 
 ```text
 Önceki kapsam       █████████████░░░░░░░  ≈ %65
@@ -69,7 +69,7 @@ anonim doğrulandı. [APK104, CI ve teslim kanıtı](client-delivery-104-2026-09
 | Çıkış / yeniden açılış onarımı | APK104 ve14 E2E ile doğrulandı |
 | S08.5 — hazırlanmış restore ve Core oda arşivi | Model, şifreleme, controller ve tablet ekranı birleşti; tam Client geçti, Android ve yayın CI bekliyor |
 | S08.6 — kişi ve izin yönetimi | Server ve tablet ekranları birleşti; üye ve yönetici/ACL Android senaryoları hazır, kendi CI kabulü açık |
-| Birleşim yayını CI106 | `e7c15ad`: Flutter5.056/Core3.311/güvenlik207 geçti; E2E16PASS/1FAIL. Arşivde iptal penceresi kontrolü için dar regresyon/düzeltme sürüyor; APK106 atlandı |
+| Birleşim yayını CI106 | `e7c15ad`: Flutter5.056/Core3.311/güvenlik207 geçti; E2E16PASS/1FAIL. Arşiv iptali ve People geri dönüşü gerçek route testleriyle düzeltildi; kendi yeni CI kabulü açık, APK106 atlandı |
 | B5.1 — Core eklenti kataloğu | Yerelde birleşti: 5.088 tam Client PASS, analiz0 ve967dosya biçim farkı0; başlıklar, erişilebilir adlar ve görünür klavye odağı düzeltildi. Kendi yayın kapısı açık; CI106'ya dahil değil |
 
 **CI105 tamamlandı:17 E2E/133faz, Core3.311/0skip ve güvenlik207 geçti.**
@@ -82,7 +82,12 @@ Koşular: [Android](https://github.com/ersingundem/larenor/actions/runs/34016755
 [güvenlik](https://github.com/ersingundem/larenor/actions/runs/34016754957).
 [Güncel paket ve sınırlar](client-delivery-106-2026-09-06.md).
 Yeni [eklenti ekranı birleşimi](core-plugins-integration-verification-2026-09-06.md)
-yerelde hazır; işlem geçmişi/detay erişilebilirliği ayrı dalda sürüyor.
+yerelde hazır; [işlem geçmişi/detay erişilebilirliği](core-plugin-jobs-tablet-accessibility-2026-09-06.md) de birleşti:34 yeni/55 son kaynak testi geçti. Katalog için önceki5.088 tam Client sonucu bu sonraki değişikliğe atfedilmez.
+[Arşiv iptali](core-archive-cancel-transition-2026-09-06.md) ve
+[kişi ekranından geri dönüş](core-people-back-transition-2026-09-06.md) için
+normal/yavaş animasyonda ikişer gerçek hata yeniden üretildi ve dar bekleme düzeltmeleri geçti.
+Eski CI ve ara kaynak kanıtları [değişmeden arşivlendi](restore-people-evidence-through-ci106-2026-09-06.json).
+Yedekleme/kasa/arşiv onay diyaloglarında normal yazı boyutu ve48px dokunma alanı düzeltmeleri doğrulanıyor; yeni birleşik Client testi ve kendi Android yayını sırada.
 Core tarafında [kalıcı volume oluşturma protokolü](managed-volume-create-plan-2026-09-06.md)
 uygulanıyor; gerçek UID/bootstrap ve kurulum kabulü açık.
 

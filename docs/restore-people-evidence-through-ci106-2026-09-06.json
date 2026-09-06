@@ -1,0 +1,559 @@
+{
+  "schemaVersion": 1,
+  "archivedAt": "2026-09-06T07:08:29.644265+00:00",
+  "queueCommit": "9738f768185a1d415317ee9d193a713dadddd50e",
+  "reason": "Preserve complete mixed-source history before the next independently verified CI package; no prior evidence is promoted to a newer source.",
+  "nodes": [
+    {
+      "id": "S08.5",
+      "kind": "task",
+      "parent": "S08",
+      "title": "Restore, logout ve journal hedef sınırı",
+      "status": "awaiting_ci",
+      "dependsOn": [
+        "S08.4"
+      ],
+      "finishDependsOn": [],
+      "sources": [
+        "docs/remaining-core-integration-slices.md",
+        "docs/feature-expansion-plan-2026-09-05.md",
+        "docs/integrated-media-stack.md",
+        "docs/client-restore-logout-implementation-plan-2026-09-06.md",
+        "docs/core-logout-boundary-implementation-2026-09-06.md",
+        "docs/core-logout-android-journey-2026-09-06.md",
+        "docs/client-delivery-102-2026-09-06.md",
+        "docs/prepared-backup-restore-implementation-2026-09-06.md",
+        "docs/server-vault-prepared-restore-implementation-2026-09-06.md",
+        "docs/core-layout-archive-contract-2026-09-06.md",
+        "docs/core-layout-archive-codec-implementation-2026-09-06.md",
+        "docs/core-layout-archive-controller-implementation-2026-09-06.md",
+        "docs/client-delivery-104-2026-09-06.md",
+        "docs/core-layout-archive-ui-implementation-2026-09-06.md",
+        "docs/core-archive-android-journey-2026-09-06.md",
+        "docs/client-ci-budget-2026-09-06.md",
+        "docs/client-delivery-106-2026-09-06.md"
+      ],
+      "scope": "Tek mevcut ev bağlamı; F19 çoklu Core/ev federasyonu bu teslim değildir.",
+      "acceptance": [
+        "A evindeki restore önizlemesi B’de onaylanamaz. Yedek oturum/Core kimliği geri yüklemez; logout tokenı siler ve scope’u kapatır, diğer kayıtları topluca silmez.",
+        "Restore preview/onay/journal/rollback aynı güncel tuple, kaynak özeti ve hedef revision’a bağlıdır; başka evin veya cihaz/kişisel kayıtlarının hedefleri sessiz değişmez. Typed HA cache bu temel adımın önkoşulu değildir."
+      ],
+      "requiredEvidence": [
+        "test",
+        "review",
+        "ci"
+      ],
+      "evidence": [
+        {
+          "kind": "test",
+          "ref": "docs/core-logout-boundary-implementation-2026-09-06.md",
+          "commit": "2911ac9cc810c50e639fe1d65046f2dc114283d7",
+          "state": "completed",
+          "result": "passed",
+          "label": "Logout kalıcıniyet+Core görünürhata:25odak/1547ilgiliPASS, rootfinalCLEAR. Bütün kalıcılık+remote failure sınırı açık; restore/journal hâlâ ayrıiş."
+        },
+        {
+          "kind": "review",
+          "ref": "docs/core-logout-boundary-implementation-2026-09-06.md",
+          "commit": "2911ac9cc810c50e639fe1d65046f2dc114283d7",
+          "state": "completed",
+          "result": "passed",
+          "label": "Logout kalıcıniyet+Core görünürhata:25odak/1547ilgiliPASS, rootfinalCLEAR. Bütün kalıcılık+remote failure sınırı açık; restore/journal hâlâ ayrıiş."
+        },
+        {
+          "kind": "test",
+          "ref": "docs/core-logout-android-journey-2026-09-06.md",
+          "commit": "0bf1258909197d53bdea693394f56749ad103f5d",
+          "state": "completed",
+          "result": "passed",
+          "label": "Onuncu logout/remountjourney:87fixturePASS, analiz0, rootCLEAR; eski9body/89faz byteexact, yeni10/99. Androidhenüzkoşmadı; sentetikremount nativeKeystore değildir."
+        },
+        {
+          "kind": "review",
+          "ref": "docs/core-logout-android-journey-2026-09-06.md",
+          "commit": "0bf1258909197d53bdea693394f56749ad103f5d",
+          "state": "completed",
+          "result": "passed",
+          "label": "Onuncu logout/remountjourney:87fixturePASS, analiz0, rootCLEAR; eski9body/89faz byteexact, yeni10/99. Androidhenüzkoşmadı; sentetikremount nativeKeystore değildir."
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/34006880503",
+          "commit": "38bc2bc24aa5f0174bbeb20257ea56d304f1fe5c",
+          "state": "completed",
+          "result": "failed",
+          "label": "Exact38bc Android102:Flutter4417/JVM98 PASS; E2E13PASS/1FAIL. Onuncu yolculuk target.id yerine ref.id okumalı; mount öncesi hata. İmzalı APK skipped; teslim kabulü yok."
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/34012091515",
+          "commit": "2cced392cbac18a8c5d9d9c038b5d06cbb628ef5",
+          "state": "completed",
+          "result": "failed",
+          "label": "CI103: Core3203/Flutter4418/security207/JVM98 PASS; E2E13PASS1FAIL97/99. Remount predicate geçici eksik Element okudu; signed skip/APK0. Hata kanıtı client-delivery-103 belgesinde korunur."
+        },
+        {
+          "kind": "test",
+          "ref": "docs/prepared-backup-restore-implementation-2026-09-06.md",
+          "commit": "4667456fe32ef1ee0eac15b1ceb55138df767fa8",
+          "state": "completed",
+          "result": "passed",
+          "label": "Prepared dosya restore:376ilgiliPASS,25dosyaanaliz0/format0, transaction%88.91; rootfinalCLEAR. Privatejournalv2 aynısource/session/HAprefix ve tekintent ile recovery yapar. Corelayoutarchive ve birleşiktamtest/CI açık."
+        },
+        {
+          "kind": "review",
+          "ref": "docs/prepared-backup-restore-implementation-2026-09-06.md",
+          "commit": "4667456fe32ef1ee0eac15b1ceb55138df767fa8",
+          "state": "completed",
+          "result": "passed",
+          "label": "Prepared dosya restore:376ilgiliPASS,25dosyaanaliz0/format0, transaction%88.91; rootfinalCLEAR. Privatejournalv2 aynısource/session/HAprefix ve tekintent ile recovery yapar. Corelayoutarchive ve birleşiktamtest/CI açık."
+        },
+        {
+          "kind": "test",
+          "ref": "docs/server-vault-prepared-restore-implementation-2026-09-06.md",
+          "commit": "79f313b18693b52ee1cdb42b7b03b7a670df0944",
+          "state": "completed",
+          "result": "passed",
+          "label": "Vault preparedhandoff:387ilgiliPASS,analiz0, linecoverage%97.51; rootreviewCLEAR. Ortak hedef/hesap/vaultrevision vegeç401/TTL sınırı. Son modal erişilebilirlik takibi ayrıdevam."
+        },
+        {
+          "kind": "review",
+          "ref": "docs/server-vault-prepared-restore-implementation-2026-09-06.md",
+          "commit": "79f313b18693b52ee1cdb42b7b03b7a670df0944",
+          "state": "completed",
+          "result": "passed",
+          "label": "Vault preparedhandoff:387ilgiliPASS,analiz0, linecoverage%97.51; rootreviewCLEAR. Ortak hedef/hesap/vaultrevision vegeç401/TTL sınırı. Son modal erişilebilirlik takibi ayrıdevam."
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/34013071464",
+          "commit": "64bdf58951ea371dc5ad0ed65348c533c8c777dc",
+          "state": "completed",
+          "result": "passed",
+          "label": "Logout alt dilimi exactCI104/APK104: Linux3203, Flutter4421, security207, JVM98, Android14/99faz; imza tek indirmeyle ayrıca doğrulandı. Prepared restore/arşiv/kişi yeni pakette; bu CI onların kabulü değildir."
+        },
+        {
+          "kind": "test",
+          "ref": "docs/core-layout-archive-contract-2026-09-06.md",
+          "commit": "80996cdfaaa28d8c145f4e55c57bdc483ad10086",
+          "state": "completed",
+          "result": "passed",
+          "label": "Kapalı aynıCore/ev/kullanıcı Core oda arşivi modeli:98 yeni/149 ilgili PASS,%98.95 satır, rootCLEAR."
+        },
+        {
+          "kind": "review",
+          "ref": "docs/core-layout-archive-contract-2026-09-06.md",
+          "commit": "80996cdfaaa28d8c145f4e55c57bdc483ad10086",
+          "state": "completed",
+          "result": "passed",
+          "label": "Kapalı aynıCore/ev/kullanıcı Core oda arşivi modeli:98 yeni/149 ilgili PASS,%98.95 satır, rootCLEAR."
+        },
+        {
+          "kind": "test",
+          "ref": "docs/core-layout-archive-codec-implementation-2026-09-06.md",
+          "commit": "dcbc29a66bbd261f966dc192e5c8619889c1cd8b",
+          "state": "completed",
+          "result": "passed",
+          "label": "Ayrı şifreli Core codec:55 yeni/168 ilgili PASS,%97.75 satır, analiz0, rootCLEAR.2MiB plaintext/3MiB encrypted; eski backupv1/v2 aynı."
+        },
+        {
+          "kind": "review",
+          "ref": "docs/core-layout-archive-codec-implementation-2026-09-06.md",
+          "commit": "dcbc29a66bbd261f966dc192e5c8619889c1cd8b",
+          "state": "completed",
+          "result": "passed",
+          "label": "Ayrı şifreli Core codec:55 yeni/168 ilgili PASS,%97.75 satır, analiz0, rootCLEAR.2MiB plaintext/3MiB encrypted; eski backupv1/v2 aynı."
+        },
+        {
+          "kind": "test",
+          "ref": "docs/core-layout-archive-controller-implementation-2026-09-06.md",
+          "commit": "da740a4b3e7ba7004becf2d3d9ea108002cf74d3",
+          "state": "completed",
+          "result": "passed",
+          "label": "Core archive capture/preview/restore:35 yeni/159 ilgili PASS,64/64 satır, analiz0, bağımsızCLEAR. Aynıscope/CAS/readback ve tekuse expiry düzeltildi. Gerçek ekran bağı devam."
+        },
+        {
+          "kind": "review",
+          "ref": "docs/core-layout-archive-controller-implementation-2026-09-06.md",
+          "commit": "da740a4b3e7ba7004becf2d3d9ea108002cf74d3",
+          "state": "completed",
+          "result": "passed",
+          "label": "Core archive capture/preview/restore:35 yeni/159 ilgili PASS,64/64 satır, analiz0, bağımsızCLEAR. Aynıscope/CAS/readback ve tekuse expiry düzeltildi. Gerçek ekran bağı devam."
+        },
+        {
+          "kind": "test",
+          "ref": "docs/core-layout-archive-ui-implementation-2026-09-06.md",
+          "commit": "523a07fc25c41ee30efe5d9043c26786fa0e9f34",
+          "state": "completed",
+          "result": "passed",
+          "label": "Core arşivi gerçek PIN/form/dosya/preview/onayUI:61 yeni/410 ilgiliPASS,%97.60satır,12analyze/format0. Saveerror/viewreparent/retainedBack runtimeRED→GREEN; bağımsızkaynak+EN/TR tabletPNG CLEAR."
+        },
+        {
+          "kind": "review",
+          "ref": "docs/core-layout-archive-ui-implementation-2026-09-06.md",
+          "commit": "523a07fc25c41ee30efe5d9043c26786fa0e9f34",
+          "state": "completed",
+          "result": "passed",
+          "label": "Core arşivi gerçek PIN/form/dosya/preview/onayUI:61 yeni/410 ilgiliPASS,%97.60satır,12analyze/format0. Saveerror/viewreparent/retainedBack runtimeRED→GREEN; bağımsızkaynak+EN/TR tabletPNG CLEAR."
+        },
+        {
+          "kind": "test",
+          "ref": "docs/core-archive-android-journey-2026-09-06.md",
+          "commit": "56607c683eec3a9a9f67c69bfda1776ea53ab46d",
+          "state": "completed",
+          "result": "passed",
+          "label": "Şifreli arşiv Androidyolculuğu hazır;10 yeni/101hostdestekPASS,analyze6/0,format6/0. Gerçekdikeysayfascroller RED→GREEN, bağımsızCLEAR;nativeAndroidhenüzçalışmadı. Eski10/99fazaynı;12yenifaz."
+        },
+        {
+          "kind": "review",
+          "ref": "docs/core-archive-android-journey-2026-09-06.md",
+          "commit": "56607c683eec3a9a9f67c69bfda1776ea53ab46d",
+          "state": "completed",
+          "result": "passed",
+          "label": "Şifreli arşiv Androidyolculuğu hazır;10 yeni/101hostdestekPASS,analyze6/0,format6/0. Gerçekdikeysayfascroller RED→GREEN, bağımsızCLEAR;nativeAndroidhenüzçalışmadı. Eski10/99fazaynı;12yenifaz."
+        },
+        {
+          "kind": "test",
+          "ref": "docs/core-logout-recovery-scroll-2026-09-06.md",
+          "commit": "7a0a602c281a4c9f84b3830ddf66cc75b73de4e4",
+          "state": "completed",
+          "result": "passed",
+          "label": "Birleşik tam Client5014PASS/4FAIL korundu. Dar logout scroll frame onarımı: eski9test5PASS/4FAIL→9PASS; hitTestable ve PIN beklentileri korunur, analiz0, bağımsız CLEAR."
+        },
+        {
+          "kind": "review",
+          "ref": "docs/core-logout-recovery-scroll-2026-09-06.md",
+          "commit": "7a0a602c281a4c9f84b3830ddf66cc75b73de4e4",
+          "state": "completed",
+          "result": "passed",
+          "label": "Birleşik tam Client5014PASS/4FAIL korundu. Dar logout scroll frame onarımı: eski9test5PASS/4FAIL→9PASS; hitTestable ve PIN beklentileri korunur, analiz0, bağımsız CLEAR."
+        },
+        {
+          "kind": "test",
+          "ref": "docs/prepared-vault-household-integration-2026-09-06.md",
+          "commit": "bd9d4256f210e0608ee40bfffd3f90df6ff11c39",
+          "state": "completed",
+          "result": "passed",
+          "label": "Son birleşikClient5056PASS/0FAIL/5:19; analiz0,966format0,gitleaks temiz. İlk5014PASS/4FAIL ve dar9GREEN korunur; yeni admin38test bu tam koşudadır. Server/contracts tree3300PASS/11Linuxskip ile aynı. Native17E2E/133faz ve kendiCI/APK henüzbekliyor."
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/34015830766",
+          "commit": "38e78a34bc554c39647a8616b905aa2f9c9627b9",
+          "state": "completed",
+          "result": "cancelled",
+          "label": "Exact38e78a3 Android105 cancelled:Flutterjob15dk sınırında4282kısmi ilerleme; analiz0/966format0. Doğal17E2E/133faz ve98nativePASS, imzalıAPKskipped/transfer0. Failure ve ayrıE2E makbuzları korunur."
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/34015830774",
+          "commit": "38e78a34bc554c39647a8616b905aa2f9c9627b9",
+          "state": "completed",
+          "result": "passed",
+          "label": "Exact38e78a3 Core32 ilk deneme geçti:Linux3311PASS/0skip; amd64+arm64 smoke ve anonim source/AGPL/manifest doğrulandı. Android ve APK105 kabulü ayrı bekleniyor."
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/34015830712",
+          "commit": "38e78a34bc554c39647a8616b905aa2f9c9627b9",
+          "state": "completed",
+          "result": "passed",
+          "label": "Security exact38e78a3 ilk deneme; yayın105 gözlemi. Android/Core koşuları ve bağımsız imzalıAPK kabulü ayrı izlenir."
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/34016755111",
+          "commit": "e7c15ad6f62352f77379e369f3e8524028c42aab",
+          "state": "completed",
+          "result": "failed",
+          "label": "Android106 exact e7c15ad:5056FlutterPASS/analiz0/966format0/98JVM; E2E16PASS1FAIL/130faz, archive.cancel sonrasıfindsNothing assertionı. Timeout değil; signedSKIPPED/APK0. Sonimmutablemakbuz korunur."
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/34016755141",
+          "commit": "e7c15ad6f62352f77379e369f3e8524028c42aab",
+          "state": "completed",
+          "result": "passed",
+          "label": "Core33 exact e7c15ad ilk deneme:3311 LinuxPASS/0skip; amd64/arm64 smoke ve anonim source/AGPL/manifest doğrulandı. İmaj katmanı indirilmedi. Android/APK106 ayrı açık."
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/34016754957",
+          "commit": "e7c15ad6f62352f77379e369f3e8524028c42aab",
+          "state": "completed",
+          "result": "passed",
+          "label": "Security106 exact e7c15ad ilk deneme:207PASS/24.764sn, gitleaks0 ve OSV başarılı. Android/APK106 ayrı açık."
+        }
+      ],
+      "completionCommit": null,
+      "reason": "CI106 exact e7c15ad: Flutter5056/Core3311/98JVM/Security207 geçti; E2E16PASS1FAIL,130/133faz. Arşiv cancel sonrası dialog kaldırma assertionı başarısız; signedAPKskipped/transfer0. Dar actualUI geçiş regresyonu ayrı dalda hazırlanıyor; yeniCI kabulü açık."
+    },
+    {
+      "id": "S08.6",
+      "kind": "task",
+      "parent": "S08",
+      "title": "Kişi/oda/kaynak kimliği ve yetki sözleşmesi",
+      "status": "awaiting_ci",
+      "dependsOn": [
+        "S08.3"
+      ],
+      "finishDependsOn": [],
+      "sources": [
+        "docs/remaining-core-integration-slices.md",
+        "docs/feature-expansion-plan-2026-09-05.md",
+        "docs/integrated-media-stack.md",
+        "docs/home-resource-registry-implementation-2026-09-06.md",
+        "docs/core-home-resource-list-implementation-2026-09-06.md",
+        "docs/core-home-resources-android-journey-2026-09-06.md",
+        "docs/core-resource-fixture-compat-2026-09-06.md",
+        "docs/core-home-resource-admin-api-implementation-2026-09-06.md",
+        "docs/core-home-resource-admin-ui-implementation-2026-09-06.md",
+        "docs/core-home-resource-grants-contract-2026-09-06.md",
+        "docs/core-home-resource-grants-ui-implementation-2026-09-06.md",
+        "docs/core-resource-grants-android-journey-2026-09-06.md",
+        "docs/home-identity-remaining-slices-2026-09-06.md",
+        "docs/home-people-contract-implementation-2026-09-06.md",
+        "docs/home-people-registry-implementation-2026-09-06.md",
+        "docs/home-people-client-contract-implementation-2026-09-06.md",
+        "docs/home-identity-evidence-archive-2026-09-06.json",
+        "docs/home-people-controller-implementation-2026-09-06.md",
+        "docs/home-people-ui-implementation-2026-09-06.md",
+        "docs/core-people-read-fixture-2026-09-06.md",
+        "docs/core-people-android-journey-2026-09-06.md",
+        "docs/prepared-vault-household-integration-2026-09-06.md",
+        "docs/core-people-admin-android-journey-2026-09-06.md",
+        "docs/client-ci-budget-2026-09-06.md",
+        "docs/client-delivery-106-2026-09-06.md"
+      ],
+      "scope": "Tek mevcut ev bağlamı; F19 çoklu Core/ev federasyonu bu teslim değildir.",
+      "acceptance": [
+        "Sürümlü sabit resource ID’leri, kişi/oda/kaynak okuma-yazma yetkileri ve iptal senaryoları; başka kullanıcı/ev kaynağına erişim reddi."
+      ],
+      "requiredEvidence": [
+        "test",
+        "review",
+        "ci"
+      ],
+      "evidence": [
+        {
+          "kind": "test",
+          "ref": "docs/home-identity-evidence-archive-2026-09-06.json",
+          "commit": "133786e58e2015a80a3b1b1d73c0e1c7c67442ac",
+          "state": "completed",
+          "result": "passed",
+          "label": "Önceki oda/kaynak uygulamasının23 tarihsel kanıtı değişmeden arşivlendi; bu indeks yeni test veya kabul değildir. Son exact a27/APK101 CI kaydı ayrıca korunur."
+        },
+        {
+          "kind": "review",
+          "ref": "docs/home-identity-evidence-archive-2026-09-06.json",
+          "commit": "133786e58e2015a80a3b1b1d73c0e1c7c67442ac",
+          "state": "completed",
+          "result": "passed",
+          "label": "Önceki oda/kaynak uygulamasının23 tarihsel kanıtı değişmeden arşivlendi; bu indeks yeni test veya kabul değildir. Son exact a27/APK101 CI kaydı ayrıca korunur."
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/34005590269",
+          "commit": "a27abeaa55a2ea94a0a0eaec1b9a74743c086a9c",
+          "state": "completed",
+          "result": "passed",
+          "label": "Exact a27 / Android101: 4390 Flutter, 98 JVM, 13 E2E / 89 sıralı faz ve bağımsız imzalı APK101 doğrulaması geçti. ACL UI ve dokuzuncu yolculuk dahil; hane kişi modeli ve S08.6 bütünü açık."
+        },
+        {
+          "kind": "test",
+          "ref": "docs/home-people-contract-implementation-2026-09-06.md",
+          "commit": "1358df3fb063522e3a1c52464f26f9c1c75bf384",
+          "state": "completed",
+          "result": "passed",
+          "label": "Ayrı person veri sözleşmesi: 46 yeni / 92 ilgili PASS, 43 statement/2 branch yüzde100, exact316332b bağımsız CLEAR. Eski room/resource modeli değişmedi. HTTP/persistence/Android kişi akışı henüz yok; bu dilim CI102 kaynağına dahil değil."
+        },
+        {
+          "kind": "review",
+          "ref": "docs/home-people-contract-implementation-2026-09-06.md",
+          "commit": "1358df3fb063522e3a1c52464f26f9c1c75bf384",
+          "state": "completed",
+          "result": "passed",
+          "label": "Ayrı person veri sözleşmesi: 46 yeni / 92 ilgili PASS, 43 statement/2 branch yüzde100, exact316332b bağımsız CLEAR. Eski room/resource modeli değişmedi. HTTP/persistence/Android kişi akışı henüz yok; bu dilim CI102 kaynağına dahil değil."
+        },
+        {
+          "kind": "test",
+          "ref": "docs/home-people-registry-implementation-2026-09-06.md",
+          "commit": "7588ff06b76550d0c95933c93c5e916d743ed1c7",
+          "state": "completed",
+          "result": "passed",
+          "label": "Ayrı kişi API/şifreliSQLite:104ilgiliPASS, dal dahil%89; actualauth/ACL/revision/restart/migration/noop/quota testleri. BağlıSQLiteindex/trigger RED6FAIL→GREEN7, bağımsızdeltaCLEAR. TamServer/Androidkişiekranı/kendiCI açık."
+        },
+        {
+          "kind": "review",
+          "ref": "docs/home-people-registry-implementation-2026-09-06.md",
+          "commit": "7588ff06b76550d0c95933c93c5e916d743ed1c7",
+          "state": "completed",
+          "result": "passed",
+          "label": "Ayrı kişi API/şifreliSQLite:104ilgiliPASS, dal dahil%89; actualauth/ACL/revision/restart/migration/noop/quota testleri. BağlıSQLiteindex/trigger RED6FAIL→GREEN7, bağımsızdeltaCLEAR. TamServer/Androidkişiekranı/kendiCI açık."
+        },
+        {
+          "kind": "test",
+          "ref": "docs/prepared-vault-household-integration-2026-09-06.md",
+          "commit": "78198666cae6fdd0649e3bd024c6702d33c5009c",
+          "state": "completed",
+          "result": "passed",
+          "label": "Tam Server3298 PASS/0FAIL/11Linuxskip/321.74sn. İlk5 tarihsel fixture hatası RED2→GREEN137 ile düzeltildi; üretim integrity değişmedi. Exact uzakLinux/Android kişi UI kabulü açık."
+        },
+        {
+          "kind": "test",
+          "ref": "docs/home-people-client-contract-implementation-2026-09-06.md",
+          "commit": "2b550c7a8608e67210b85ee245714912a35b843f",
+          "state": "completed",
+          "result": "passed",
+          "label": "Kişi gerçek HTTP sözleşmesi2 PASS; Client77 yeni/278 ilgili PASS;282/282 yeni satır, analiz0 ve bağımsız CLEAR. Provider/controller/UI sonraki ayrı adım. Birleşik Server ağacında sözleşme tekrar2 PASS."
+        },
+        {
+          "kind": "review",
+          "ref": "docs/home-people-client-contract-implementation-2026-09-06.md",
+          "commit": "2b550c7a8608e67210b85ee245714912a35b843f",
+          "state": "completed",
+          "result": "passed",
+          "label": "Kişi gerçek HTTP sözleşmesi2 PASS; Client77 yeni/278 ilgili PASS;282/282 yeni satır, analiz0 ve bağımsız CLEAR. Provider/controller/UI sonraki ayrı adım. Birleşik Server ağacında sözleşme tekrar2 PASS."
+        },
+        {
+          "kind": "test",
+          "ref": "docs/home-people-controller-implementation-2026-09-06.md",
+          "commit": "41842891c4e6338166a6217088b779545d4f54ae",
+          "state": "completed",
+          "result": "passed",
+          "label": "Kişi listesi/metadata/ACL controller ve gerçek provider lifetime:58 yeni/135 kişi/418 ilgili PASS;470/478 satır, analiz7/0format7/0; root kaynakCLEAR. Kişi UI/PIN gate ve Android kabulü ayrı açık."
+        },
+        {
+          "kind": "review",
+          "ref": "docs/home-people-controller-implementation-2026-09-06.md",
+          "commit": "41842891c4e6338166a6217088b779545d4f54ae",
+          "state": "completed",
+          "result": "passed",
+          "label": "Kişi listesi/metadata/ACL controller ve gerçek provider lifetime:58 yeni/135 kişi/418 ilgili PASS;470/478 satır, analiz7/0format7/0; root kaynakCLEAR. Kişi UI/PIN gate ve Android kabulü ayrı açık."
+        },
+        {
+          "kind": "test",
+          "ref": "docs/home-people-ui-implementation-2026-09-06.md",
+          "commit": "eed39166d8e04bf95f5ed39db612f54364ad7448",
+          "state": "completed",
+          "result": "passed",
+          "label": "Gerçek PIN/kişi/ACL tabletUI:55 yeni/608 ilgili PASS,%96.29 satır,analyze0,12format0 ve bağımsızCLEAR. EN/TR320/600/1280 2x; yeniAndroidCI veadminnative kabulü açık."
+        },
+        {
+          "kind": "review",
+          "ref": "docs/home-people-ui-implementation-2026-09-06.md",
+          "commit": "eed39166d8e04bf95f5ed39db612f54364ad7448",
+          "state": "completed",
+          "result": "passed",
+          "label": "Gerçek PIN/kişi/ACL tabletUI:55 yeni/608 ilgili PASS,%96.29 satır,analyze0,12format0 ve bağımsızCLEAR. EN/TR320/600/1280 2x; yeniAndroidCI veadminnative kabulü açık."
+        },
+        {
+          "kind": "test",
+          "ref": "docs/core-people-read-fixture-2026-09-06.md",
+          "commit": "c322b8f985b5570999959da839c0cfb90d1f4645",
+          "state": "completed",
+          "result": "passed",
+          "label": "İsteğe bağlı read-only kişi loopbackfixture:22 yeni/113 destek PASS,actualServerJSON birebir,strictauth/scope/query; bağımsızCLEAR. GerçekServerauth/native kabulü yerine geçmez."
+        },
+        {
+          "kind": "review",
+          "ref": "docs/core-people-read-fixture-2026-09-06.md",
+          "commit": "c322b8f985b5570999959da839c0cfb90d1f4645",
+          "state": "completed",
+          "result": "passed",
+          "label": "İsteğe bağlı read-only kişi loopbackfixture:22 yeni/113 destek PASS,actualServerJSON birebir,strictauth/scope/query; bağımsızCLEAR. GerçekServerauth/native kabulü yerine geçmez."
+        },
+        {
+          "kind": "review",
+          "ref": "docs/core-people-android-journey-2026-09-06.md",
+          "commit": "754d87eceeb0f0f9e9bbb8059339e353898dada3",
+          "state": "completed",
+          "result": "passed",
+          "label": "YeniüyeAndroid yolculuğu source reviewCLEAR/analyze0; eski10body/99faz aynı,8yenifaz. Nativeçalıştırılmadı; admin/ACL yolculuğu ayrı hazırlanıyor."
+        },
+        {
+          "kind": "test",
+          "ref": "docs/prepared-vault-household-integration-2026-09-06.md",
+          "commit": "eb7a4737283fccd61d006267ec9c65daab7cedd8",
+          "state": "completed",
+          "result": "passed",
+          "label": "Yeni gerçek HTTP sözleşmesi dahil tamServer3300 PASS/0FAIL/11Linuxskip;JUnit3311/439.183sn. Server/contracts tree sonrakiUI birleşimlerinde aynı; kendiLinuxCI veAndroid kabulü ayrı."
+        },
+        {
+          "kind": "test",
+          "ref": "docs/core-people-admin-android-journey-2026-09-06.md",
+          "commit": "2c2896b7334c185da19182e8aba440cf5ec23870",
+          "state": "completed",
+          "result": "passed",
+          "label": "Kişi admin/ACL Android fixture ve gerçekUI yolculuğu:38yeni/151ilgili hostPASS, analiz7/0,format7/0; bağımsız CLEAR. Eski default/member/AppHarness/11journey/107faz aynı; yeni14faz nativeçalıştırılmadı."
+        },
+        {
+          "kind": "review",
+          "ref": "docs/core-people-admin-android-journey-2026-09-06.md",
+          "commit": "2c2896b7334c185da19182e8aba440cf5ec23870",
+          "state": "completed",
+          "result": "passed",
+          "label": "Kişi admin/ACL Android fixture ve gerçekUI yolculuğu:38yeni/151ilgili hostPASS, analiz7/0,format7/0; bağımsız CLEAR. Eski default/member/AppHarness/11journey/107faz aynı; yeni14faz nativeçalıştırılmadı."
+        },
+        {
+          "kind": "test",
+          "ref": "docs/prepared-vault-household-integration-2026-09-06.md",
+          "commit": "bd9d4256f210e0608ee40bfffd3f90df6ff11c39",
+          "state": "completed",
+          "result": "passed",
+          "label": "Son birleşikClient5056PASS/0FAIL/5:19; analiz0,966format0,gitleaks temiz. İlk5014PASS/4FAIL ve dar9GREEN korunur; yeni admin38test bu tam koşudadır. Server/contracts tree3300PASS/11Linuxskip ile aynı. Native17E2E/133faz ve kendiCI/APK henüzbekliyor."
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/34015830766",
+          "commit": "38e78a34bc554c39647a8616b905aa2f9c9627b9",
+          "state": "completed",
+          "result": "cancelled",
+          "label": "Exact38e78a3 Android105 cancelled:Flutterjob15dk sınırında4282kısmi ilerleme; analiz0/966format0. Doğal17E2E/133faz ve98nativePASS, imzalıAPKskipped/transfer0. Failure ve ayrıE2E makbuzları korunur."
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/34015830774",
+          "commit": "38e78a34bc554c39647a8616b905aa2f9c9627b9",
+          "state": "completed",
+          "result": "passed",
+          "label": "Exact38e78a3 Core32 ilk deneme geçti:Linux3311PASS/0skip; amd64+arm64 smoke ve anonim source/AGPL/manifest doğrulandı. Android ve APK105 kabulü ayrı bekleniyor."
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/34015830712",
+          "commit": "38e78a34bc554c39647a8616b905aa2f9c9627b9",
+          "state": "completed",
+          "result": "passed",
+          "label": "Security exact38e78a3 ilk deneme; yayın105 gözlemi. Android/Core koşuları ve bağımsız imzalıAPK kabulü ayrı izlenir."
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/34016755111",
+          "commit": "e7c15ad6f62352f77379e369f3e8524028c42aab",
+          "state": "completed",
+          "result": "failed",
+          "label": "Android106 exact e7c15ad:5056FlutterPASS/analiz0/966format0/98JVM; E2E16PASS1FAIL/130faz, archive.cancel sonrasıfindsNothing assertionı. Timeout değil; signedSKIPPED/APK0. Sonimmutablemakbuz korunur."
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/34016755141",
+          "commit": "e7c15ad6f62352f77379e369f3e8524028c42aab",
+          "state": "completed",
+          "result": "passed",
+          "label": "Core33 exact e7c15ad ilk deneme:3311 LinuxPASS/0skip; amd64/arm64 smoke ve anonim source/AGPL/manifest doğrulandı. İmaj katmanı indirilmedi. Android/APK106 ayrı açık."
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/34016754957",
+          "commit": "e7c15ad6f62352f77379e369f3e8524028c42aab",
+          "state": "completed",
+          "result": "passed",
+          "label": "Security106 exact e7c15ad ilk deneme:207PASS/24.764sn, gitleaks0 ve OSV başarılı. Android/APK106 ayrı açık."
+        }
+      ],
+      "completionCommit": null,
+      "reason": "CI106 exact e7c15ad: Flutter5056/Core3311/98JVM/Security207 geçti; E2E16PASS1FAIL,130/133faz. Arşiv cancel sonrası dialog kaldırma assertionı başarısız; signedAPKskipped/transfer0. Dar actualUI geçiş regresyonu ayrı dalda hazırlanıyor; yeniCI kabulü açık."
+    }
+  ]
+}
