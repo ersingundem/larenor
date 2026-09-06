@@ -2,10 +2,31 @@ import 'dart:async';
 
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
+import 'package:larenor/core/home_source_store.dart';
+import 'package:larenor/features/backup/data/backup_restore_access.dart';
 import 'package:larenor/features/backup/data/backup_snapshot.dart';
 import 'package:larenor/features/server/data/larenor_server_api.dart';
 import 'package:larenor/features/server/data/server_session_store.dart';
 import 'package:larenor/features/server/domain/server_models.dart';
+
+class VaultRestoreAccess implements BackupRestoreAccess {
+  VaultRestoreAccess({this.isCurrent});
+  final bool Function()? isCurrent;
+  @override
+  HomeSource get source => HomeSource.directLocal;
+  @override
+  Map<String, dynamic> get ownership => {'source': source.name};
+  @override
+  DateTime get validUntil => DateTime.now().add(const Duration(hours: 1));
+  @override
+  void checkLive() {
+    if (isCurrent?.call() == false) {
+      throw const BackupException('restore_expired', 'Read the preview again.');
+    }
+  }
+  @override
+  Future<void> checkDurable() async {}
+}
 
 ServerSession vaultSession({DateTime? expires, bool mustChange = false}) =>
     ServerSession(

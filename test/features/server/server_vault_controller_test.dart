@@ -28,7 +28,21 @@ void main() {
     direction: direction,
     selection: selection,
     conflictPolicy: policy,
+    access: direction == ServerVaultDirection.restore
+        ? VaultRestoreAccess(isCurrent: () => current)
+        : null,
   );
+
+  Future<void> applyPrepared(
+    PreparedBackupRestore prepared, {
+    void Function()? afterClaim,
+  }) async {
+    final owner = Object();
+    await prepared.checkBeforeHandoff();
+    prepared.claimForHandoff(owner);
+    afterClaim?.call();
+    await prepared.applyAfterHandoff(owner, isCurrentBoundary: () => true);
+  }
 
   setUp(() async {
     clock = DateTime.now();
@@ -332,8 +346,7 @@ void main() {
         expect(review.remote!.requiresPrivacyReview, isTrue);
         final restore = await controller.takeRestore(review);
         expect(storage.writes, isEmpty);
-        controller.dispose();
-        await restore();
+        await applyPrepared(restore, afterClaim: controller.dispose);
         expect(
           storage.preferences['appearance'],
           policy == BackupConflictPolicy.keepExisting ? 'light' : 'dark',
@@ -365,7 +378,7 @@ void main() {
           isNot(contains(BackupRepository.restoreJournalKey)),
         );
         final count = storage.writeCount;
-        await expectLater(restore(), throwsA(isA<LarenorServerException>()));
+        await expectLater(applyPrepared(restore), throwsA(isA<BackupException>()));
         expect(storage.writeCount, count);
         expect(api.writes, 0);
       },
@@ -381,7 +394,7 @@ void main() {
       );
       final restore = await controller.takeRestore(review);
       storage.failWrites.add(3);
-      await expectLater(restore(), throwsA(isA<BackupRestoreException>()));
+      await expectLater(applyPrepared(restore), throwsA(isA<BackupException>()));
       expect(storage.preferences['appearance'], 'light');
       expect(storage.secrets['settings_pin'], 'fixture-pin');
     },
