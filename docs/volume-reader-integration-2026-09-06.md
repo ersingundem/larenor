@@ -42,3 +42,21 @@ yok. Gerçek ev Engine'i kullanılmadı; fiziksel kuruluma geçilmedi.
 UID/bootstrap, üretim worker/HTTP yetkisi, volume yaratma/adopt ve kurulum
 etkileri ayrı kalır. `installAvailable=false` sürer. S06.3d bu alt dilim
 nedeniyle tamamlandı işaretlenmez.
+
+## Logout ile sonraki birleşim
+
+`2911ac9` logout düzeltmesi ve yalnız doküman takibiyle birleşen kaynak
+`091b2bb22014116d29c4d212c9484cd2c4207c0e` tam **4.415 Client testi /
+5:05 PASS** verdi. Kilitli pubget, build_runner ve l10n üretimi tamamlandı.
+Özel log `/private/tmp/larenor-next102-full-client.log`. Server kaynak/test
+farkı `3d9075f` ile boş; yukarıdaki tam Server sonucu aynı Server ağacına
+aittir. Yeni onuncu Android logout yolculuğu bu koşuya henüz dahil değildir.
+
+Logout kaynak ve testleri root tarafından son `2911ac9` delta'sında da
+incelendi; yeni P1/P2 bulunmadı. [Logout kanıtı](core-logout-boundary-implementation-2026-09-06.md).
+Bu birleşim henüz push edilmedi; CI101 yalnız `a27abea` kaynağını kapsar.
+
+Tam analiz **0 bulgu / 6,3 saniye**; formatter **896 dosya / 0 fark /
+2,96 saniye**. Özel loglar `larenor-next102-analyze.log` ve
+`larenor-next102-format.log` (`/private/tmp`). Bu ölçümler dokuz Android
+yolculuğu içeren `091b2bb` kaynağındadır.

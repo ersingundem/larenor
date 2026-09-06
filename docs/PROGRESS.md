@@ -1,6 +1,6 @@
 # Larenor — güncel ilerleme ve iş kuyruğu
 
-**Son güncelleme: 6 Eylül 2026, 05:07 (Türkiye saati).**
+**Son güncelleme: 6 Eylül 2026, 05:21 (Türkiye saati).**
 
 ```text
 Önceki kapsam       █████████████░░░░░░░  ≈ %65
@@ -84,8 +84,14 @@ kullanılması ve gecikmiş hatanın Core ana ekranında görünmemesi gideriliy
 Paralelde geri yükleme önizlemesi/onayı, hedef okuma kümesi ve özel journal
 aynı işleme bağlanıyor; provider kapanışında açık devir uygulanacak.
 [Somut uygulama sırası ve açık sınırlar](client-restore-logout-implementation-plan-2026-09-06.md).
-Bu işler henüz kabul edilmedi. Sonraki volume Unix okuyucusu `0d86fa1`, ayrı
-`3d9075f` birleşiminde tam Core testinde; CI101 kaynağına eklenmedi.
+Logout `2911ac9`, **25 odaklı / 1.547 ilgili PASS** ve bağımsız son inceleme
+ile yerelde tamamlandı. Volume Unix okuyucusu `0d86fa1` ile ayrı sonraki
+`091b2bb` birleşiminde **4.415 tam Client PASS / 5:05**, **3.192 tam Core
+PASS / 11 Linux skip / 5:13**, analiz0 ve896dosya biçim farkı0 elde edildi.
+[Sonraki birleşim](volume-reader-integration-2026-09-06.md).
+Onuncu Android çıkış yolculuğu hazırlanıyor; bu tam koşuya henüz dahil değil.
+Restore çalışması ve yeni paketin kendi CI kabulü açık. CI101 kaynağına
+bu değişiklikler eklenmedi.
 
 **S08.4 kabul edildi:** üç madde ve 22 kayıt sınıfı exact `1c2db57` kaynağında
 bağımsız son inceleme + CI/APK100 ile doğrulandı.

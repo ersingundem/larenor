@@ -370,7 +370,9 @@
         "docs/managed-volume-storage-assessment-2026-09-06.md",
         "docs/managed-volume-proposal-implementation-2026-09-06.md",
         "docs/managed-volume-observation-implementation-2026-09-06.md",
-        "docs/managed-volume-journal-implementation-2026-09-06.md"
+        "docs/managed-volume-journal-implementation-2026-09-06.md",
+        "docs/managed-volume-read-transport-implementation-2026-09-06.md",
+        "docs/volume-reader-integration-2026-09-06.md"
       ],
       "scope": "installAvailable=false; Client kaynak adı/Docker seçenekleri üretmez. Gerçek ev sunucusuna işlem yok.",
       "acceptance": [
@@ -485,6 +487,22 @@
           "state": "in_progress",
           "result": null,
           "label": "Volume journal içeren exacta27 Core CI sürüyor; sonraki volume Unix okuyucusu0d86fa1 bu kaynakta değil."
+        },
+        {
+          "kind": "test",
+          "ref": "docs/managed-volume-read-transport-implementation-2026-09-06.md",
+          "commit": "0d86fa17ea4410a44bc6df878c106a013a8733c6",
+          "state": "completed",
+          "result": "passed",
+          "label": "Unix volume reader+journal:371 ilgiliPASS/1Linuxskip,94statement/28branch%100; rootfinalCLEAR. SaltokunurGET, hiçbircreate/bootstrap/installer izni yok."
+        },
+        {
+          "kind": "review",
+          "ref": "docs/managed-volume-read-transport-implementation-2026-09-06.md",
+          "commit": "0d86fa17ea4410a44bc6df878c106a013a8733c6",
+          "state": "completed",
+          "result": "passed",
+          "label": "Unix volume reader+journal:371 ilgiliPASS/1Linuxskip,94statement/28branch%100; rootfinalCLEAR. SaltokunurGET, hiçbircreate/bootstrap/installer izni yok."
         }
       ],
       "completionCommit": null,
@@ -1121,7 +1139,8 @@
         "docs/remaining-core-integration-slices.md",
         "docs/feature-expansion-plan-2026-09-05.md",
         "docs/integrated-media-stack.md",
-        "docs/client-restore-logout-implementation-plan-2026-09-06.md"
+        "docs/client-restore-logout-implementation-plan-2026-09-06.md",
+        "docs/core-logout-boundary-implementation-2026-09-06.md"
       ],
       "scope": "Tek mevcut ev bağlamı; F19 çoklu Core/ev federasyonu bu teslim değildir.",
       "acceptance": [
@@ -1133,9 +1152,26 @@
         "review",
         "ci"
       ],
-      "evidence": [],
+      "evidence": [
+        {
+          "kind": "test",
+          "ref": "docs/core-logout-boundary-implementation-2026-09-06.md",
+          "commit": "2911ac9cc810c50e639fe1d65046f2dc114283d7",
+          "state": "completed",
+          "result": "passed",
+          "label": "Logout kalıcıniyet+Core görünürhata:25odak/1547ilgiliPASS, rootfinalCLEAR. Bütün kalıcılık+remote failure sınırı açık; restore/journal hâlâ ayrıiş."
+        },
+        {
+          "kind": "review",
+          "ref": "docs/core-logout-boundary-implementation-2026-09-06.md",
+          "commit": "2911ac9cc810c50e639fe1d65046f2dc114283d7",
+          "state": "completed",
+          "result": "passed",
+          "label": "Logout kalıcıniyet+Core görünürhata:25odak/1547ilgiliPASS, rootfinalCLEAR. Bütün kalıcılık+remote failure sınırı açık; restore/journal hâlâ ayrıiş."
+        }
+      ],
       "completionCommit": null,
-      "reason": "S08.4 exact1c2/APK100 ile kapandı. Logout kalıcılık/görünürlük ve restore hazırlığı/ConfigurationScope devir/journal v2 iki izole dalda uygulanıyor; yeni RED/GREEN ve CI henüz tamamlanmadı."
+      "reason": "Logout2911ac9 yerel25/1547test ve rootincelemeyle geçti; onuncuAndroidjourney ayrıdalda. Restore prepared/scopehandoff/journalv2 ve DirectHAorigin bağları uygulanıyor; bütünS08.5 ve kendiCI kabulü açık."
     },
     {
       "id": "S08.6",
