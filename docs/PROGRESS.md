@@ -1,6 +1,6 @@
 # Larenor — güncel ilerleme ve iş kuyruğu
 
-**Son güncelleme: 6 Eylül 2026, 07:38 (Türkiye saati).**
+**Son güncelleme: 6 Eylül 2026, 07:47 (Türkiye saati).**
 
 ```text
 Önceki kapsam       █████████████░░░░░░░  ≈ %65
@@ -104,13 +104,15 @@ kasası ekranları prepared journal yoluna geçiriliyor; başarısız kurtarma
 sonrasında eski ekranların açılması, değişen hedefe yazma ve başka journal'a
 müdahale etme sınırları RED→GREEN ile kapatılıyor. Hazırlanan restore ve Vault dalları `552e67f` yerel birleşiminde bir araya geldi.
 Dosya restore376, Vault387 ilgili test kanıtı kendi dallarına aittir ve toplanmaz;
-yeni birleşimin tam Client kontrolü sıradadır. Vault erişilebilirlik ek düzeltmesi
-ayrı testlerle sürüyor. Core düzeninin açık arşivi sonraki adımdır.
+Vault erişilebilirlik ek düzeltmesi1ab3483 ile birleşti:73 ilgili test geçti.
+`c0d8145` birleşiminde tam Client ve tam analiz kontrolü çalışıyor. Core düzeninin açık arşivi sonraki adımdır.
 
 **S08.6 kişi sözleşmesi yerelde hazır:** ayrı `person` modeli46 yeni/92 ilgili
 Server testi ve bağımsız kaynak incelemesiyle geçti. Eski oda/kaynak modeli
 aynı kaldı. Kişi oluşturma yalnız ad/sıra kabul eder; hesap, rol, izin veya
-HA kişisi bağı yaratmaz. HTTP/şifreli persistence ayrı dalda205 ilgili testle ilerledi; bağlı SQLite nesneleri inceleme bulgusu kapanıyor. Android kişi ekranı açık;
+HA kişisi bağı yaratmaz. Ayrı kişi HTTP API/şifreli SQLite kaydı104 ilgili test ve dal dahil%89 kapsamla
+yerelde tamamlandı; bağlı SQLite nesnesi inceleme bulgusu kapatıldı.
+Tam Server kontrolü çalışıyor. Android kişi modeli/API adaptörü sıradaki ayrı dalda; kişi ekranı açık;
 model dilimi CI102'ye dahil değildir.
 [Model kanıtı](home-people-contract-implementation-2026-09-06.md).
 
