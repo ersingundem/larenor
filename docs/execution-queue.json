@@ -1008,7 +1008,7 @@
       "kind": "task",
       "parent": "S08",
       "title": "Kalıcı ev kayıt sınırı ve açık eski düzen taşıması",
-      "status": "in_progress",
+      "status": "awaiting_ci",
       "dependsOn": [
         "S08.3"
       ],
@@ -1166,7 +1166,7 @@
         }
       ],
       "completionCommit": null,
-      "reason": "Yeni birleşik üretim8d9e4d2:4271Client ve3040Server+10Linux skip; incelemede üç kabul maddesi/22envanter satırı karşılandı. Yeni CI kapısı geçince S08.4 kapanabilir. Restore S08.5 ve typed adaptör/cache S08.7–9 ayrı kapsam; APK99 yeni dilimleri içermez."
+      "reason": "Üç kabul maddesi ve 22 kayıt sınıfı için uygulama/test/inceleme tamamlandı; 1c2db57 kaynağının Android CI ve bağımsız imzalı teslim kapısı bekleniyor. Bu kaynağın Core ve güvenlik CI kontrolleri geçti. Restore S08.5 ve typed adaptör/cache S08.7–9 ayrı kapsamdır."
     },
     {
       "id": "S08.5",
