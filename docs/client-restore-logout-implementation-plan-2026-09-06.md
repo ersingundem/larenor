@@ -64,3 +64,14 @@ Core oda düzenini, aynı Core/ev/kullanıcı bağını ve değişen hedefin red
 ele alacak. Mevcut Direct dosya biçimi veya private journal sessiz genişlemez.
 Model, şifreli codec, kalıcı kayıt/geri yükleme ve gerçek tablet UI kabulü
 ayrı doğrulanmadan bütün S08.5 kapatılmayacak.
+
+
+## Adım5 yerel alt katmanları
+
+`80996cdf` kapalı arşiv modeli, `dcbc29a` ayrı şifreli codec ve `da740a4`
+aynı ev/hedef onay controller'ı bağımsız incelemelerle birleştirildi.
+Codec55 yeni/168 ilgili test; controller35 yeni/159 ilgili test geçti.
+Kaynak revision hedefe kurulmaz; aynı ev/kullanıcı, güncel hedef fingerprint
+ve5dakikalık tek kullanımlık onay gerekir. Belirsiz ACK yeni okuma gerektirir.
+Gerçek SettingsGate, dosya seçimi ve EN/TR tablet/DeX ekranı ayrı aktif
+uygulamadır; bu alt katmanlar bütün adım5 veya S08.5 kabulü değildir.

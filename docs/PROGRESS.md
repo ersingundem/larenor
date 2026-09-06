@@ -1,6 +1,6 @@
 # Larenor — güncel ilerleme ve iş kuyruğu
 
-**Son güncelleme: 6 Eylül 2026, 08:05 (Türkiye saati).**
+**Son güncelleme: 6 Eylül 2026, 08:14 (Türkiye saati).**
 
 ```text
 Önceki kapsam       █████████████░░░░░░░  ≈ %65
@@ -115,7 +115,10 @@ Dosya restore376, Vault387 ilgili test kanıtı kendi dallarına aittir ve topla
 Vault erişilebilirlik ek düzeltmesi1ab3483 ile birleşti:73 ilgili test geçti.
 `c0d8145` uygulama/test kaynağında **4.544 tam Client PASS / 6:09**,
 analiz0 ve912dosya biçim farkı0 elde edildi. Politika testleri kontrollü
-tam tekrarda207 PASS verdi. [Birleşim ve bütün sonuçlar](prepared-vault-household-integration-2026-09-06.md). Core düzeninin açık arşivi sonraki adımdır.
+tam tekrarda207 PASS verdi. [Birleşim ve bütün sonuçlar](prepared-vault-household-integration-2026-09-06.md). Core oda arşivinin model/şifreleme/tek kullanımlık restore katmanları yerelde
+birleşti: codec55 yeni/168 ilgili, controller35 yeni/159 ilgili test geçti.
+Aynı Core/ev/kullanıcı ve güncel hedef sınırı bağımsız incelendi. Gerçek dosya
+seçimi, önizleme/onay ve tablet ekranı sıradaki aktif dilimdir.
 
 **S08.6 kişi sözleşmesi yerelde hazır:** ayrı `person` modeli46 yeni/92 ilgili
 Server testi ve bağımsız kaynak incelemesiyle geçti. Eski oda/kaynak modeli
@@ -125,8 +128,10 @@ yerelde tamamlandı; bağlı SQLite nesnesi inceleme bulgusu kapatıldı.
 İlk tam Server koşusunda eski şema test verilerinden gelen5hata bulundu.
 Yalnız test verisi hazırlığı düzeltildi;137 ilgili test geçti. Son tam Server
 koşusu **3.298 PASS / 11 Linux skip / 321,74sn** verdi; üretim korumaları değişmedi.
-Android kişi modeli/API adaptörü ve Core oda arşiv modeli ayrı dallarda yerel
-test ve kaynak incelemesini geçti; kişi ekranı ve arşiv geri yükleme arayüzü açık;
+Android kişi modeli/API adaptörü yerelde birleşti:77 yeni/278 ilgili test,
+analiz0 ve bağımsız inceleme geçti. Gerçek HTTP sözleşmesi birleşimde2 testle
+yeniden doğrulandı. Kişi provider/controller işi ve arşiv tablet ekranı sürüyor;
+kişi ekranı ve arşiv arayüzü kabulü açık;
 model dilimi CI102'ye dahil değildir.
 [Model kanıtı](home-people-contract-implementation-2026-09-06.md).
 

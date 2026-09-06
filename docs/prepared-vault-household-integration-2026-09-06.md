@@ -70,7 +70,11 @@ Bu birleşimin kendi uzak CI/Android emülatör ve imzalı APK kabulü henüz yo
 CI103 logout yeniden kurulumundaki test beklemesinde başarısız oldu; CI104
 yalnız bu bekleme onarımını doğrular. 64bdf58 yeni destek testi ve E2E çağrısı
 olarak birleşime alındı; eski4.544 tam Client sonucu yeni3testi içermez. Core oda arşivi,
-Android kişi modelleri/API adaptörü ve kişi ekranları ayrı sonraki dilimlerdir.
+Sonraki yerel birleşime80996cdf arşiv modeli, dcbc29a codec, da740a4 restore
+controller ve2b550c7 kişi sözleşme/model/API adaptörü eklendi. Bunların
+odaklı testleri geçti; eski4.544 tam Client sonucu bu ekleri içermez. Gerçek
+kişi ve arşiv ekranları ayrı sonraki dilimlerdir. Server üretim/test ağacına
+yalnız2 yeni HTTP sözleşme testi eklendi; birleşimde ikisi tekrar geçti.
 Bu nedenle S08.5/S08.6 ve seçilmiş63 özellik tamamlandı sayılmaz.
 Gerçek evde migration, servis kurma, cihaz yükleme veya kapı/medya/ağ işlemi
 yapılmadı; sentetik depolama testleri native Keystore veya süreç ölümünden

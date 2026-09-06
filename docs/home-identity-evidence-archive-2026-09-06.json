@@ -1,0 +1,192 @@
+{
+  "schemaVersion": 1,
+  "task": "S08.6",
+  "archivedAt": "2026-09-06",
+  "reason": "Previous room/resource implementation evidence retained verbatim; person slices continue separately. This archive changes neither task acceptance nor counts.",
+  "evidence": [
+    {
+      "kind": "test",
+      "ref": "docs/home-resource-registry-implementation-2026-09-06.md",
+      "commit": "133786e58e2015a80a3b1b1d73c0e1c7c67442ac",
+      "state": "completed",
+      "result": "passed",
+      "label": "Oda/kaynak/hesap ACL HTTP kaydı: 124 odaklı, tam Server 2.906 PASS/10 Mac skip; bütün S08.6 kabulü değil"
+    },
+    {
+      "kind": "review",
+      "ref": "docs/home-resource-registry-implementation-2026-09-06.md",
+      "commit": "133786e58e2015a80a3b1b1d73c0e1c7c67442ac",
+      "state": "completed",
+      "result": "passed",
+      "label": "Oda/kaynak/hesap ACL HTTP kaydı: 124 odaklı, tam Server 2.906 PASS/10 Mac skip; bütün S08.6 kabulü değil"
+    },
+    {
+      "kind": "ci",
+      "ref": "https://github.com/ersingundem/larenor/actions/runs/33995289140",
+      "commit": "8c3b60dba0cf14e661a0a8d239c4ec292a761847",
+      "state": "completed",
+      "result": "passed",
+      "label": "Kalıcı kaynak/ACL API dilimi: 2.916 Linux testi atlamasız ve iki mimarili image smoke; Client yönetim ve bütün S08.6 açık"
+    },
+    {
+      "kind": "test",
+      "ref": "docs/core-home-resource-list-implementation-2026-09-06.md",
+      "commit": "73dba351a54a306f789e977ddb005a9b126022df",
+      "state": "completed",
+      "result": "passed",
+      "label": "Salt okunur Client listesi:82 odaklı/940 ilgili test, %99,2 satır kapsamı ve bağımsız inceleme; admin/komut kapsamı değil"
+    },
+    {
+      "kind": "review",
+      "ref": "docs/core-home-resource-list-implementation-2026-09-06.md",
+      "commit": "73dba351a54a306f789e977ddb005a9b126022df",
+      "state": "completed",
+      "result": "passed",
+      "label": "Salt okunur Client listesi:82 odaklı/940 ilgili test, %99,2 satır kapsamı ve bağımsız inceleme; admin/komut kapsamı değil"
+    },
+    {
+      "kind": "test",
+      "ref": "docs/PROGRESS.md",
+      "commit": "808938e27976f420339145d5c046c56151beb5ca",
+      "state": "completed",
+      "result": "passed",
+      "label": "Birleşik yerel Client 3.115 test, tam analiz ve 838 dosyada biçim kontrolü temiz; yeni Android/CI henüz kabul edilmedi"
+    },
+    {
+      "kind": "ci",
+      "ref": "https://github.com/ersingundem/larenor/actions/runs/33997176965",
+      "commit": "20d92d7144998e40eb465887ef3fcac681dab39e",
+      "state": "completed",
+      "result": "failed",
+      "label": "Android97:3115Flutter/98JVM;10E2E geçti,scoped_layout eski fixture kaynak GET yanıtı eksik. Yeni core_resources yolculuğu geçti; APK üretilmedi, düzeltme yeniCI bekliyor"
+    },
+    {
+      "kind": "test",
+      "ref": "docs/core-resource-fixture-compat-2026-09-06.md",
+      "commit": "27def3daee4b058a84f16a4cbf77455dc0ec3f51",
+      "state": "completed",
+      "result": "passed",
+      "label": "Arr/backup/fixture birleşimi:7f9a74f tam3421 PASS/analiz/biçim;27def3d son18 fixture test/analiz/biçim PASS. Yeni CI açık."
+    },
+    {
+      "kind": "review",
+      "ref": "docs/core-resource-fixture-compat-2026-09-06.md",
+      "commit": "c793c13263bfe773ce6984fa9241f47fadca5745",
+      "state": "completed",
+      "result": "passed",
+      "label": "Mevcut admin fixture boş kaynak GET desteği: bağımsız kaynak incelemesi temiz; eski kullanıcı/rol ve red/temizlik kontrolleri korundu."
+    },
+    {
+      "kind": "ci",
+      "ref": "https://github.com/ersingundem/larenor/actions/runs/34000029533",
+      "commit": "a2658ec902aea9b358e1ff0e10e093db773de238",
+      "state": "completed",
+      "result": "passed",
+      "label": "Salt okunur Core oda/kaynak ekranı:Android98 3422Flutter/11E2E ve bağımsızAPK kontrolü geçti. Yeni yedinci journey ve eski fixturecleanup başarılı; adminmetadata UI/ACL/commands açık."
+    },
+    {
+      "kind": "test",
+      "ref": "docs/core-home-resource-admin-api-implementation-2026-09-06.md",
+      "commit": "8e00548da8d55a1d071d6b92c7dfcbe0c3a54af5",
+      "state": "completed",
+      "result": "passed",
+      "label": "Metadata admin API:87 odaklı/656 ilgili Client,40 gerçek Server fixture/registry testi;64/64 yeni satır ve bağımsız inceleme. Henüz UI’ye bağlı değil; ACL/editor/devicecommands açık."
+    },
+    {
+      "kind": "review",
+      "ref": "docs/core-home-resource-admin-api-implementation-2026-09-06.md",
+      "commit": "8e00548da8d55a1d071d6b92c7dfcbe0c3a54af5",
+      "state": "completed",
+      "result": "passed",
+      "label": "Metadata admin API:87 odaklı/656 ilgili Client,40 gerçek Server fixture/registry testi;64/64 yeni satır ve bağımsız inceleme. Henüz UI’ye bağlı değil; ACL/editor/devicecommands açık."
+    },
+    {
+      "kind": "test",
+      "ref": "docs/core-home-resource-admin-ui-implementation-2026-09-06.md",
+      "commit": "036a3565f1ed97be23d09c4d3e96ff2547f1649f",
+      "state": "completed",
+      "result": "passed",
+      "label": "PIN korumalı oda/kaynak oluşturma/ad/sıra/sil UI:431 ilgili PASS,12tablet boyut/dil/tema kontrolü,349/354 yeniUI satırı,analyze0;bağımsız inceleme CLEAR. Yeni Android admin E2E hazırlanıyor."
+    },
+    {
+      "kind": "review",
+      "ref": "docs/core-home-resource-admin-ui-implementation-2026-09-06.md",
+      "commit": "036a3565f1ed97be23d09c4d3e96ff2547f1649f",
+      "state": "completed",
+      "result": "passed",
+      "label": "PIN korumalı oda/kaynak oluşturma/ad/sıra/sil UI:431 ilgili PASS,12tablet boyut/dil/tema kontrolü,349/354 yeniUI satırı,analyze0;bağımsız inceleme CLEAR. Yeni Android admin E2E hazırlanıyor."
+    },
+    {
+      "kind": "test",
+      "ref": "docs/core-home-resource-grants-contract-2026-09-06.md",
+      "commit": "a65691d64f7020416ed22f4d6285977e3c6a881c",
+      "state": "completed",
+      "result": "passed",
+      "label": "Gerçek Server grant/revoke sözleşmesi ve Client taşıması:53 odaklı/709 ilgili Client,131 ilgili Server PASS;108/108 yeni satır;bağımsız inceleme CLEAR. ACL UI/controller ayrı geliştirilmekte, henüz bağlı değil."
+    },
+    {
+      "kind": "review",
+      "ref": "docs/core-home-resource-grants-contract-2026-09-06.md",
+      "commit": "a65691d64f7020416ed22f4d6285977e3c6a881c",
+      "state": "completed",
+      "result": "passed",
+      "label": "Gerçek Server grant/revoke sözleşmesi ve Client taşıması:53 odaklı/709 ilgili Client,131 ilgili Server PASS;108/108 yeni satır;bağımsız inceleme CLEAR. ACL UI/controller ayrı geliştirilmekte, henüz bağlı değil."
+    },
+    {
+      "kind": "test",
+      "ref": "docs/core-resource-admin-android-journey-2026-09-06.md",
+      "commit": "0d297550adc6abfdc670ca429341205fabc163cb",
+      "state": "completed",
+      "result": "passed",
+      "label": "Sekizinci Android yönetim yolculuğu: 43 hesap/üye/yönetici fixture testi ve iki bağımsız inceleme geçti. Birleşimde 48 integration_support testi başarılı. 8 uygulama/76 aşama + 4 native hedefi henüz Android CI kabulü değildir."
+    },
+    {
+      "kind": "review",
+      "ref": "docs/core-resource-admin-android-journey-2026-09-06.md",
+      "commit": "0d297550adc6abfdc670ca429341205fabc163cb",
+      "state": "completed",
+      "result": "passed",
+      "label": "Sekizinci Android yönetim yolculuğu: 43 hesap/üye/yönetici fixture testi ve iki bağımsız inceleme geçti. Birleşimde 48 integration_support testi başarılı. 8 uygulama/76 aşama + 4 native hedefi henüz Android CI kabulü değildir."
+    },
+    {
+      "kind": "ci",
+      "ref": "https://github.com/ersingundem/larenor/actions/runs/34004246242",
+      "commit": "1c2db575e7377e28e41bbd83aa34d4408e2029c1",
+      "state": "completed",
+      "result": "passed",
+      "label": "Exact 1c2 / Android100: 4301 Flutter, 98 JVM, 12 E2E / 76 sıralı faz; tek indirme sonrası imzalı APK ayrıca doğrulandı. Metadata ekranı dahil; sonraki ACL ekranı ve volume journal bu kaynakta değil."
+    },
+    {
+      "kind": "test",
+      "ref": "docs/core-home-resource-grants-ui-implementation-2026-09-06.md",
+      "commit": "ab678df714a619d8a47fef7644f984ac2dedd962",
+      "state": "completed",
+      "result": "passed",
+      "label": "Kaynak erişim ekranı: 52 odaklı/371 ilgili Client ve 2 gerçek Server sözleşme testi geçti; root ve bağımsız inceleme temiz. Birleşimde 52 test başarılı. Yeni Android ACL yolculuğu ve tam CI açık; APK 100 kaynağında yok."
+    },
+    {
+      "kind": "review",
+      "ref": "docs/core-home-resource-grants-ui-implementation-2026-09-06.md",
+      "commit": "ab678df714a619d8a47fef7644f984ac2dedd962",
+      "state": "completed",
+      "result": "passed",
+      "label": "Kaynak erişim ekranı: 52 odaklı/371 ilgili Client ve 2 gerçek Server sözleşme testi geçti; root ve bağımsız inceleme temiz. Birleşimde 52 test başarılı. Yeni Android ACL yolculuğu ve tam CI açık; APK 100 kaynağında yok."
+    },
+    {
+      "kind": "test",
+      "ref": "docs/core-resource-grants-android-journey-2026-09-06.md",
+      "commit": "1d909b86c68bff14eaf6ef63d5e3113143093d09",
+      "state": "completed",
+      "result": "passed",
+      "label": "Dokuzuncu Android ACL yolculuğu: 85 host fixture testi ve 2 gerçek Server sözleşme testi geçti. İki bağımsız inceleme temiz; gerçek cleanup P2 ayrı RED/GREEN ile düzeltildi. 9 uygulama/89 aşama + 4 native hedefi yeni CI bekliyor."
+    },
+    {
+      "kind": "review",
+      "ref": "docs/core-resource-grants-android-journey-2026-09-06.md",
+      "commit": "1d909b86c68bff14eaf6ef63d5e3113143093d09",
+      "state": "completed",
+      "result": "passed",
+      "label": "Dokuzuncu Android ACL yolculuğu: 85 host fixture testi ve 2 gerçek Server sözleşme testi geçti. İki bağımsız inceleme temiz; gerçek cleanup P2 ayrı RED/GREEN ile düzeltildi. 9 uygulama/89 aşama + 4 native hedefi yeni CI bekliyor."
+    }
+  ]
+}
