@@ -317,10 +317,10 @@ void main() {
 
               visit(action(tester, confirm).owner!.rootSemanticsNode!);
               for (final label in [l10n.commonBack, l10n.serverJobsCancel]) {
-                final matching = nodes.where((n) => n.label == label).toList();
+                final matching = nodes.where((n) => !n.isMergedIntoParent && n.getSemanticsData().label == label).toList();
                 expect(matching, hasLength(1));
                 final node = matching.single;
-                expect(node.flagsCollection.isButton, isTrue);
+                expect(node.getSemanticsData().flagsCollection.isButton, isTrue);
                 expect(
                   node.getSemanticsData().hasAction(ui.SemanticsAction.tap),
                   isTrue,
@@ -331,7 +331,8 @@ void main() {
               expect(
                 nodes.where(
                   (n) =>
-                      n.flagsCollection.isButton &&
+                      !n.isMergedIntoParent &&
+                      n.getSemanticsData().flagsCollection.isButton &&
                       n.getSemanticsData().hasAction(ui.SemanticsAction.tap),
                 ),
                 hasLength(2),
