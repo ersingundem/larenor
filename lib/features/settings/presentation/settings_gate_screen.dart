@@ -124,7 +124,8 @@ class _SettingsGateScreenState extends ConsumerState<SettingsGateScreen>
   Widget build(BuildContext context) {
     ref.listen(pinLockProvider, (previous, next) {
       if ((widget.initialDestination == SettingsGateDestination.homeResources ||
-              widget.initialDestination == SettingsGateDestination.homePeople) &&
+              widget.initialDestination ==
+                  SettingsGateDestination.homePeople) &&
           (next.isLoading || next.hasError)) {
         _lockSettings();
         return;
@@ -134,7 +135,8 @@ class _SettingsGateScreenState extends ConsumerState<SettingsGateScreen>
           (next.value != null ||
               widget.initialDestination ==
                   SettingsGateDestination.homeResources ||
-              widget.initialDestination == SettingsGateDestination.homePeople) &&
+              widget.initialDestination ==
+                  SettingsGateDestination.homePeople) &&
           previous?.value != next.value) {
         // First PIN creation also closes a phone pane pushed while no PIN was
         // configured. A locked gate underneath that pane is not sufficient.
@@ -208,7 +210,8 @@ class _SettingsGateScreenState extends ConsumerState<SettingsGateScreen>
                                   if (!mounted ||
                                       !_interactive ||
                                       resourceGeneration != _generation ||
-                                      ModalRoute.of(context)?.isCurrent != true) {
+                                      ModalRoute.of(context)?.isCurrent !=
+                                          true) {
                                     return false;
                                   }
                                   final currentPin = ref.read(pinLockProvider);
