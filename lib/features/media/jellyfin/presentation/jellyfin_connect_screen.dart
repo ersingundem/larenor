@@ -12,16 +12,21 @@ import '../data/jellyfin_discovery.dart';
 import '../providers/jellyfin_providers.dart';
 
 // Internal dependency seam; production uses Jellyfin's existing UDP discovery.
-final jellyfinDiscoveryFactoryProvider = Provider<JellyfinDiscoveryService Function()>(
-  (ref) => JellyfinDiscoveryService.new,
-);
+final jellyfinDiscoveryFactoryProvider =
+    Provider<JellyfinDiscoveryService Function()>(
+      (ref) => JellyfinDiscoveryService.new,
+    );
 
 class JellyfinConnectScreen extends ConsumerStatefulWidget {
   const JellyfinConnectScreen({super.key});
-  @override ConsumerState<JellyfinConnectScreen> createState() => _JellyfinConnectScreenState();
+  @override
+  ConsumerState<JellyfinConnectScreen> createState() =>
+      _JellyfinConnectScreenState();
 }
 
-class _JellyfinConnectScreenState extends MediaSessionState<JellyfinConnectScreen> with WidgetsBindingObserver {
+class _JellyfinConnectScreenState
+    extends MediaSessionState<JellyfinConnectScreen>
+    with WidgetsBindingObserver {
   final _urlController = TextEditingController();
   final _userController = TextEditingController();
   final _passwordController = TextEditingController();
@@ -30,62 +35,94 @@ class _JellyfinConnectScreenState extends MediaSessionState<JellyfinConnectScree
   bool _focused = true;
   int? _viewId;
   bool _initialized = false, _pendingRecovery = false, _visible = true;
-  bool _connecting = false, _cleared = false, _scanning = false, _discoveryAttempted = false;
+  bool _connecting = false,
+      _cleared = false,
+      _scanning = false,
+      _discoveryAttempted = false;
   String? _error;
   JellyfinDiscoveryService? _discovery;
   StreamSubscription<List<DiscoveredJellyfinServer>>? _discoverySubscription;
   Timer? _discoveryTimer;
   List<DiscoveredJellyfinServer> _discovered = [];
 
-  bool _current(int generation) => sessionCurrent(generation) && _focused && _access.isCurrent &&
-    !ref.read(jellyfinConnectionProvider).isLoading &&
-    TickerMode.valuesOf(context).enabled && (ModalRoute.of(context)?.isCurrent ?? true) &&
-    _connection != null && identical(_connection, ref.read(jellyfinConnectionProvider.notifier));
+  bool _current(int generation) =>
+      sessionCurrent(generation) &&
+      _focused &&
+      _access.isCurrent &&
+      !ref.read(jellyfinConnectionProvider).isLoading &&
+      TickerMode.valuesOf(context).enabled &&
+      (ModalRoute.of(context)?.isCurrent ?? true) &&
+      _connection != null &&
+      identical(_connection, ref.read(jellyfinConnectionProvider.notifier));
 
-  @override void initState() {
+  @override
+  void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
   }
 
-  @override void didChangeViewFocus(ViewFocusEvent event) {
+  @override
+  void didChangeViewFocus(ViewFocusEvent event) {
     if (event.viewId != _viewId) return;
     final focused = event.state == ViewFocusState.focused;
     if (focused == _focused) return;
     setState(() {
       _focused = focused;
-      if (!focused) { sessionGeneration++; clearPendingInteraction(); }
+      if (!focused) {
+        sessionGeneration++;
+        clearPendingInteraction();
+      }
     });
   }
 
-  @override void didChangeDependencies() {
+  @override
+  void didChangeDependencies() {
     super.didChangeDependencies();
     final viewId = View.of(context).viewId;
     if (_viewId != null && _viewId != viewId) {
-      _focused = false; sessionGeneration++; clearPendingInteraction();
+      _focused = false;
+      sessionGeneration++;
+      clearPendingInteraction();
     }
     _viewId = viewId;
-    final visible = TickerMode.valuesOf(context).enabled && (ModalRoute.of(context)?.isCurrent ?? true);
-    if (_visible && !visible) { sessionGeneration++; clearPendingInteraction(); }
+    final visible =
+        TickerMode.valuesOf(context).enabled &&
+        (ModalRoute.of(context)?.isCurrent ?? true);
+    if (_visible && !visible) {
+      sessionGeneration++;
+      clearPendingInteraction();
+    }
     _visible = visible;
   }
 
   void _stopDiscovery() {
-    _discoveryTimer?.cancel(); _discoveryTimer = null;
-    final subscription = _discoverySubscription; _discoverySubscription = null;
-    final discovery = _discovery; _discovery = null;
+    _discoveryTimer?.cancel();
+    _discoveryTimer = null;
+    final subscription = _discoverySubscription;
+    _discoverySubscription = null;
+    final discovery = _discovery;
+    _discovery = null;
     if (subscription != null) unawaited(subscription.cancel());
     if (discovery != null) unawaited(discovery.stop().catchError((_) {}));
-    _scanning = false; _discovered = [];
+    _scanning = false;
+    _discovered = [];
   }
 
-  @override void clearPendingInteraction() {
-    _urlController.clear(); _userController.clear(); _passwordController.clear();
-    _connecting = false; _error = null; _cleared = false;
+  @override
+  void clearPendingInteraction() {
+    _urlController.clear();
+    _userController.clear();
+    _passwordController.clear();
+    _connecting = false;
+    _error = null;
+    _cleared = false;
     _stopDiscovery();
   }
 
   Future<void> _startDiscovery(int generation) async {
-    if (!_current(generation) || _pendingRecovery || _discoveryAttempted) return;
+    if (!_current(generation) || _pendingRecovery || _discoveryAttempted) {
+      return;
+    }
     _discoveryAttempted = true;
     final discovery = ref.read(jellyfinDiscoveryFactoryProvider)();
     _discovery = discovery;
@@ -96,7 +133,10 @@ class _JellyfinConnectScreenState extends MediaSessionState<JellyfinConnectScree
         if (current()) setState(() => _discovered = servers);
       });
       await discovery.start(isCurrent: current);
-      if (!current()) { _stopDiscovery(); return; }
+      if (!current()) {
+        _stopDiscovery();
+        return;
+      }
       _discoveryTimer = Timer(const Duration(seconds: 4), () {
         if (current()) setState(() => _scanning = false);
       });
@@ -106,29 +146,48 @@ class _JellyfinConnectScreenState extends MediaSessionState<JellyfinConnectScree
     }
   }
 
-  @override void dispose() {
+  @override
+  void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _stopDiscovery();
-    _urlController.dispose(); _userController.dispose(); _passwordController.dispose();
+    _urlController.dispose();
+    _userController.dispose();
+    _passwordController.dispose();
     super.dispose();
   }
 
   Future<void> _connect(int generation) async {
     if (!_current(generation) || _connecting) return;
     final connection = _connection!;
-    final url = _urlController.text.trim(), username = _userController.text.trim();
+    final url = _urlController.text.trim(),
+        username = _userController.text.trim();
     final password = _passwordController.text;
     if (url.isEmpty || username.isEmpty) {
-      setState(() => _error = AppLocalizations.of(context).mediaErrorEnterUrlUsername);
+      setState(
+        () => _error = AppLocalizations.of(context).mediaErrorEnterUrlUsername,
+      );
       return;
     }
-    setState(() { _connecting = true; _error = null; });
-    bool current() => _current(generation) && identical(connection, _connection);
+    setState(() {
+      _connecting = true;
+      _error = null;
+    });
+    bool current() =>
+        _current(generation) && identical(connection, _connection);
     try {
-      await connection.signIn(baseUrl: url, username: username, password: password, isCurrent: current);
-      if (current()) Navigator.of(context).maybePop();
+      await connection.signIn(
+        baseUrl: url,
+        username: username,
+        password: password,
+        isCurrent: current,
+      );
+      if (mounted && current()) Navigator.of(context).maybePop();
     } catch (_) {
-      if (current()) setState(() => _error = AppLocalizations.of(context).mediaErrorUnreachable);
+      if (current()) {
+        setState(
+          () => _error = AppLocalizations.of(context).mediaErrorUnreachable,
+        );
+      }
     } finally {
       if (current()) setState(() => _connecting = false);
     }
@@ -138,29 +197,49 @@ class _JellyfinConnectScreenState extends MediaSessionState<JellyfinConnectScree
     if (!_current(generation) || _connecting || !_pendingRecovery) return;
     final store = ref.read(jellyfinCredentialsStoreProvider);
     bool current() => _current(generation);
-    setState(() { _connecting = true; _error = null; _cleared = false; });
+    setState(() {
+      _connecting = true;
+      _error = null;
+      _cleared = false;
+    });
     try {
       await store.clear(isCurrent: current);
-      if (current()) setState(() {
-        _urlController.clear(); _userController.clear(); _passwordController.clear(); _cleared = true;
-      });
+      if (current()) {
+        setState(() {
+          _urlController.clear();
+          _userController.clear();
+          _passwordController.clear();
+          _cleared = true;
+        });
+      }
     } catch (_) {
-      if (current()) setState(() => _error = AppLocalizations.of(context).mediaErrorUnreachable);
+      if (current()) {
+        setState(
+          () => _error = AppLocalizations.of(context).mediaErrorUnreachable,
+        );
+      }
     } finally {
       if (current()) setState(() => _connecting = false);
     }
   }
 
-  @override Widget build(BuildContext context) {
+  @override
+  Widget build(BuildContext context) {
     ref.watch(directHomeAccessProvider);
     final state = ref.watch(jellyfinConnectionProvider);
     ref.listen(jellyfinConnectionProvider, (previous, next) {
       if (!_initialized) return;
       // A notifier can retain its Dart identity across rebuilds. Loading must
       // expire callbacks synchronously, even if it resolves before the next frame.
-      final recovery = next.error is DirectHomeAccessException &&
-        const {'pending_mutation', 'write_unconfirmed'}.contains((next.error as DirectHomeAccessException).code);
-      if (recovery || next.isLoading || !_connecting && previous != null && !identical(previous, next)) {
+      final recovery =
+          next.error is DirectHomeAccessException &&
+          const {
+            'pending_mutation',
+            'write_unconfirmed',
+          }.contains((next.error as DirectHomeAccessException).code);
+      if (recovery ||
+          next.isLoading ||
+          !_connecting && previous != null && !identical(previous, next)) {
         setState(() {
           if (recovery) _pendingRecovery = true;
           sessionGeneration++;
@@ -169,55 +248,137 @@ class _JellyfinConnectScreenState extends MediaSessionState<JellyfinConnectScree
       }
     });
     final l10n = AppLocalizations.of(context);
-    final pending = state.error is DirectHomeAccessException &&
-      const {'pending_mutation', 'write_unconfirmed'}.contains((state.error as DirectHomeAccessException).code);
+    final pending =
+        state.error is DirectHomeAccessException &&
+        const {
+          'pending_mutation',
+          'write_unconfirmed',
+        }.contains((state.error as DirectHomeAccessException).code);
     if (!_access.isCurrent || state.hasError && !pending) {
       _stopDiscovery();
-      return CupertinoPageScaffold(child: Center(child: Text(l10n.mediaErrorUnreachable)));
+      return CupertinoPageScaffold(
+        child: Center(child: Text(l10n.mediaErrorUnreachable)),
+      );
     }
-    if (state.isLoading) return const CupertinoPageScaffold(child: Center(child: CupertinoActivityIndicator()));
+    if (state.isLoading) {
+      return const CupertinoPageScaffold(
+        child: Center(child: CupertinoActivityIndicator()),
+      );
+    }
     if (!_initialized) {
-      _initialized = true; _pendingRecovery = pending;
+      _initialized = true;
+      _pendingRecovery = pending;
       _connection = ref.read(jellyfinConnectionProvider.notifier);
       if (!pending) _urlController.text = 'http://jellyfin.local:8096';
     }
     final generation = sessionGeneration;
     final active = _current(generation);
     if (active && !_pendingRecovery && !_discoveryAttempted) {
-      WidgetsBinding.instance.addPostFrameCallback((_) { _startDiscovery(generation); });
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _startDiscovery(generation);
+      });
     }
     return CupertinoPageScaffold(
       navigationBar: const CupertinoNavigationBar(middle: Text('Jellyfin')),
-      child: SafeArea(child: Center(child: ConstrainedBox(constraints: const BoxConstraints(maxWidth: 420),
-        child: ListView(padding: const EdgeInsets.all(24), children: [
-          const SizedBox(height: 16),
-          if (_discovered.isNotEmpty || _scanning) ...[
-            SettingsSection(header: Text(l10n.commonFoundOnNetwork), children: [
-              for (final server in _discovered) CupertinoListTile(title: Text(server.name), subtitle: Text(server.baseUrl),
-                trailing: const CupertinoListTileChevron(), onTap: active ? () {
-                  if (_current(generation)) setState(() => _urlController.text = server.baseUrl);
-                } : null),
-              if (_scanning && _discovered.isEmpty) CupertinoListTile(leading: const CupertinoActivityIndicator(), title: Text(l10n.commonScanning)),
-            ]), const SizedBox(height: 8),
-          ],
-          SettingsSection(children: [
-            CupertinoTextFormFieldRow(controller: _urlController, prefix: Text(l10n.connectUrlLabel),
-              placeholder: _pendingRecovery ? '' : 'http://jellyfin.local:8096', keyboardType: TextInputType.url, enabled: active && !_connecting),
-            CupertinoTextFormFieldRow(controller: _userController, prefix: Text(l10n.mediaUserLabel),
-              placeholder: l10n.mediaUsernamePlaceholder, enabled: active && !_connecting),
-            CupertinoTextFormFieldRow(controller: _passwordController, prefix: Text(l10n.mediaPasswordLabel),
-              obscureText: true, enabled: active && !_connecting),
-          ]),
-          if (_error != null) ...[const SizedBox(height: 12), Text(_error!, textAlign: TextAlign.center,
-            style: TextStyle(color: CupertinoColors.systemRed.resolveFrom(context)))],
-          if (_cleared) ...[const SizedBox(height: 12), Text(l10n.commonDone, textAlign: TextAlign.center)],
-          const SizedBox(height: 20),
-          CupertinoButton.filled(onPressed: active && !_connecting ? () => _connect(generation) : null,
-            child: _connecting ? const CupertinoActivityIndicator(color: CupertinoColors.white) : Text(l10n.commonConnect)),
-          if (_pendingRecovery) CupertinoButton(onPressed: active && !_connecting ? () => _clear(generation) : null,
-            child: Text(l10n.arrRemoveConnection)),
-        ]),
-      ))),
+      child: SafeArea(
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 420),
+            child: ListView(
+              padding: const EdgeInsets.all(24),
+              children: [
+                const SizedBox(height: 16),
+                if (_discovered.isNotEmpty || _scanning) ...[
+                  SettingsSection(
+                    header: Text(l10n.commonFoundOnNetwork),
+                    children: [
+                      for (final server in _discovered)
+                        CupertinoListTile(
+                          title: Text(server.name),
+                          subtitle: Text(server.baseUrl),
+                          trailing: const CupertinoListTileChevron(),
+                          onTap: active
+                              ? () {
+                                  if (_current(generation)) {
+                                    setState(
+                                      () =>
+                                          _urlController.text = server.baseUrl,
+                                    );
+                                  }
+                                }
+                              : null,
+                        ),
+                      if (_scanning && _discovered.isEmpty)
+                        CupertinoListTile(
+                          leading: const CupertinoActivityIndicator(),
+                          title: Text(l10n.commonScanning),
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                ],
+                SettingsSection(
+                  children: [
+                    CupertinoTextFormFieldRow(
+                      controller: _urlController,
+                      prefix: Text(l10n.connectUrlLabel),
+                      placeholder: _pendingRecovery
+                          ? ''
+                          : 'http://jellyfin.local:8096',
+                      keyboardType: TextInputType.url,
+                      enabled: active && !_connecting,
+                    ),
+                    CupertinoTextFormFieldRow(
+                      controller: _userController,
+                      prefix: Text(l10n.mediaUserLabel),
+                      placeholder: l10n.mediaUsernamePlaceholder,
+                      enabled: active && !_connecting,
+                    ),
+                    CupertinoTextFormFieldRow(
+                      controller: _passwordController,
+                      prefix: Text(l10n.mediaPasswordLabel),
+                      obscureText: true,
+                      enabled: active && !_connecting,
+                    ),
+                  ],
+                ),
+                if (_error != null) ...[
+                  const SizedBox(height: 12),
+                  Text(
+                    _error!,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: CupertinoColors.systemRed.resolveFrom(context),
+                    ),
+                  ),
+                ],
+                if (_cleared) ...[
+                  const SizedBox(height: 12),
+                  Text(l10n.commonDone, textAlign: TextAlign.center),
+                ],
+                const SizedBox(height: 20),
+                CupertinoButton.filled(
+                  onPressed: active && !_connecting
+                      ? () => _connect(generation)
+                      : null,
+                  child: _connecting
+                      ? const CupertinoActivityIndicator(
+                          color: CupertinoColors.white,
+                        )
+                      : Text(l10n.commonConnect),
+                ),
+                if (_pendingRecovery)
+                  CupertinoButton(
+                    onPressed: active && !_connecting
+                        ? () => _clear(generation)
+                        : null,
+                    child: Text(l10n.arrRemoveConnection),
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

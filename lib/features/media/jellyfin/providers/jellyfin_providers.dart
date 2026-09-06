@@ -40,36 +40,64 @@ class JellyfinConnection extends _$JellyfinConnection {
   Future<JellyfinConfig?> build() async {
     ref.watch(directHomeAccessProvider);
     final operation = ++_operation;
-    ref.onDispose(() { _operation++; _signingIn = false; _closeCheck(); });
+    ref.onDispose(() {
+      _operation++;
+      _signingIn = false;
+      _closeCheck();
+    });
     _check(operation);
     final result = await ref.watch(jellyfinCredentialsStoreProvider).read();
     _check(operation);
     return result;
   }
 
-  Future<void> signIn({required String baseUrl, required String username,
-    required String password, bool Function()? isCurrent}) async {
+  Future<void> signIn({
+    required String baseUrl,
+    required String username,
+    required String password,
+    bool Function()? isCurrent,
+  }) async {
     void checkAction() {
-      try { if (isCurrent == null || isCurrent()) return; } catch (_) { /* Static denial. */ }
+      try {
+        if (isCurrent == null || isCurrent()) return;
+      } catch (_) {
+        /* Static denial. */
+      }
       throw const DirectHomeAccessException('unavailable');
     }
-    _check(); checkAction();
+
+    _check();
+    checkAction();
     if (_signingIn) throw const DirectHomeAccessException('busy');
     _signingIn = true;
     final operation = ++_operation;
     final store = ref.read(jellyfinCredentialsStoreProvider);
-    bool current() { _check(operation); checkAction(); return true; }
+    bool current() {
+      _check(operation);
+      checkAction();
+      return true;
+    }
+
     http.Client? client;
     try {
       final device = await store.deviceId(isCurrent: current);
       current();
       client = http.Client();
       _checkingClient = client;
-      final config = await JellyfinClient.login(baseUrl: baseUrl, username: username,
-        password: password, deviceId: device, httpClient: client);
+      final config = await JellyfinClient.login(
+        baseUrl: baseUrl,
+        username: username,
+        password: password,
+        deviceId: device,
+        httpClient: client,
+      );
       current();
-      await store.save(baseUrl: config.baseUrl, userId: config.userId,
-        accessToken: config.accessToken, isCurrent: current);
+      await store.save(
+        baseUrl: config.baseUrl,
+        userId: config.userId,
+        accessToken: config.accessToken,
+        isCurrent: current,
+      );
       current();
       state = AsyncData(config);
     } catch (error, stack) {
@@ -85,7 +113,11 @@ class JellyfinConnection extends _$JellyfinConnection {
     // Never publish an old action's failure into a newer source or operation.
     _check(operation);
     if (error is DirectHomeAccessException &&
-        const {'write_unconfirmed', 'pending_mutation', 'storage_failed'}.contains(error.code)) {
+        const {
+          'write_unconfirmed',
+          'pending_mutation',
+          'storage_failed',
+        }.contains(error.code)) {
       state = AsyncError(error, stack);
     }
   }
@@ -97,7 +129,12 @@ class JellyfinConnection extends _$JellyfinConnection {
     _signingIn = false;
     _closeCheck();
     try {
-      await store.clear(isCurrent: () { _check(operation); return true; });
+      await store.clear(
+        isCurrent: () {
+          _check(operation);
+          return true;
+        },
+      );
       _check(operation);
       state = const AsyncData(null);
     } catch (error, stack) {

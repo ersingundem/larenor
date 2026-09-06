@@ -16,7 +16,8 @@ class DiscoveredJellyfinServer {
 /// see https://jellyfin.org/docs/general/networking/#udp-based-discovery.
 class JellyfinDiscoveryService {
   JellyfinDiscoveryService({Future<RawDatagramSocket> Function()? bind})
-    : _bind = bind ?? (() => RawDatagramSocket.bind(InternetAddress.anyIPv4, 0));
+    : _bind =
+          bind ?? (() => RawDatagramSocket.bind(InternetAddress.anyIPv4, 0));
   final Future<RawDatagramSocket> Function() _bind;
   static const _port = 7359;
   static const _probeMessage = 'Who is JellyfinServer?';
@@ -33,24 +34,41 @@ class JellyfinDiscoveryService {
 
   Future<void> start({bool Function()? isCurrent}) async {
     bool current() {
-      try { return !_stopped && (isCurrent == null || isCurrent()); }
-      catch (_) { return false; }
+      try {
+        return !_stopped && (isCurrent == null || isCurrent());
+      } catch (_) {
+        return false;
+      }
     }
+
     if (_started || !current()) return;
     _started = true;
     final socket = await _bind();
-    if (!current()) { socket.close(); return; }
+    if (!current()) {
+      socket.close();
+      return;
+    }
     _socket = socket;
     try {
       socket.broadcastEnabled = true;
       _subscription = socket.listen((event) {
-        if (!current()) { unawaited(stop()); return; }
+        if (!current()) {
+          unawaited(stop());
+          return;
+        }
         if (event != RawSocketEvent.read) return;
         final datagram = socket.receive();
         if (datagram != null) _onResponse(datagram.data);
       });
-      if (!current()) { await stop(); return; }
-      socket.send(utf8.encode(_probeMessage), InternetAddress('255.255.255.255'), _port);
+      if (!current()) {
+        await stop();
+        return;
+      }
+      socket.send(
+        utf8.encode(_probeMessage),
+        InternetAddress('255.255.255.255'),
+        _port,
+      );
     } catch (_) {
       await stop();
       rethrow;
