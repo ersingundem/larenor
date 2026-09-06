@@ -142,11 +142,16 @@ final class PreparedBackupRestore {
   Future<void> recoverAfterHandoff()=>ConfigurationWrites.run(() async {
     if(_state!=3) _expiredRestore();
     try {
+      Future<void> identity() async {
+        if(await _readRecoveryIdentity(_repository,_ownership)!=_recoveryIdentity) _recoveryRequired();
+      }
+      await identity();
       if(await _repository._storage.readSecret(BackupRepository.restoreJournalKey)!=null) _recoveryRequired();
       final raw=await _repository._storage.readSecret(_journalV2Key);
       final expected=_recoveryIntents;
       if(expected==null) {
         if(raw!=null) _recoveryRequired();
+        await identity();
         return;
       }
       if(raw!=null) {
@@ -165,7 +170,20 @@ final class PreparedBackupRestore {
       for(final change in _plan.changes) {
         if(!_same(await _readChange(_repository,change),before ? change.before : change.after)) _recoveryRequired();
       }
+      if(_haOrigin!=null) {
+        final origin=Map<String,String?>.of(_haOrigin);
+        if(!before) {
+          for(final c in _plan.changes) {
+            if(c.secret && origin.containsKey(c.key)) origin[c.key]=c.after as String?;
+          }
+        }
+        for(final entry in origin.entries) {
+          if(await _repository._storage.readSecret(entry.key)!=entry.value) _recoveryRequired();
+        }
+      }
+      await identity();
       if(await _repository._storage.readSecret(_journalV2Key)!=null) _recoveryRequired();
+      await identity();
     } on BackupException {rethrow;} catch(_) {_recoveryRequired();}
   });
   bool get targetsDirect => _haOrigin!=null || _plan.changes.any((c)=>_directTarget(c.secret,c.key));
@@ -325,9 +343,8 @@ String _encodeV2(BackupRepository repo,List<_Change> changes,Map<String,dynamic>
     if(core ? !hash(recovery['sessionDigest']) : recovery['sessionDigest']!=null) _recoveryRequired();
     final origins=recovery['originDigests'];
     final home=changes.any((c)=>_directTarget(c.secret,c.key));
-    if(home) {
-      if(core || origins is! List || origins.length!=changes.length+1 || !origins.every(hash)) _recoveryRequired();
-    } else if(origins!=null) _recoveryRequired();
+    if(home && origins==null) _recoveryRequired();
+    if(origins!=null && (core || origins is! List || origins.length!=changes.length+1 || !origins.every(hash))) _recoveryRequired();
     return(data['phase'] as String,changes,data);
   } catch(_) { _recoveryRequired(); }
 }
