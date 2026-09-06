@@ -79,7 +79,8 @@ void main() {
             await prepared.checkBeforeHandoff();
             prepared.claimForHandoff(owner);
             restoreOperation = () => prepared.applyAfterHandoff(
-              owner, isCurrentBoundary: () => true,
+              owner,
+              isCurrentBoundary: () => true,
             );
           }),
         ],

@@ -334,23 +334,31 @@ void main() {
   );
 
   for (final finalRead in [false, true]) {
-    test('retired ${finalRead ? 'final' : 'preview'} Vault GET cannot reject the current account with a late 401', () async {
-      final review = finalRead
-          ? await prepare(direction: ServerVaultDirection.restore)
-          : null;
-      api.pendingRead = Completer();
-      final pending = finalRead
-          ? controller.takeRestore(review!)
-          : prepare(direction: ServerVaultDirection.restore);
-      final rejected = expectLater(pending, throwsA(isA<LarenorServerException>()));
-      await Future<void>.delayed(Duration.zero);
-      controller.invalidate();
-      api.pendingRead!.completeError(const LarenorServerException('unauthorized'));
-      await rejected;
-      expect(account.session, isNotNull);
-      expect(account.failure, isNull);
-      expect(storage.writes, isEmpty);
-    });
+    test(
+      'retired ${finalRead ? 'final' : 'preview'} Vault GET cannot reject the current account with a late 401',
+      () async {
+        final review = finalRead
+            ? await prepare(direction: ServerVaultDirection.restore)
+            : null;
+        api.pendingRead = Completer();
+        final pending = finalRead
+            ? controller.takeRestore(review!)
+            : prepare(direction: ServerVaultDirection.restore);
+        final rejected = expectLater(
+          pending,
+          throwsA(isA<LarenorServerException>()),
+        );
+        await Future<void>.delayed(Duration.zero);
+        controller.invalidate();
+        api.pendingRead!.completeError(
+          const LarenorServerException('unauthorized'),
+        );
+        await rejected;
+        expect(account.session, isNotNull);
+        expect(account.failure, isNull);
+        expect(storage.writes, isEmpty);
+      },
+    );
   }
 
   test('active Vault GET unauthorized still rejects the account', () async {
@@ -405,7 +413,10 @@ void main() {
           isNot(contains(BackupRepository.restoreJournalKey)),
         );
         final count = storage.writeCount;
-        await expectLater(applyPrepared(restore), throwsA(isA<BackupException>()));
+        await expectLater(
+          applyPrepared(restore),
+          throwsA(isA<BackupException>()),
+        );
         expect(storage.writeCount, count);
         expect(api.writes, 0);
       },
@@ -421,7 +432,10 @@ void main() {
       );
       final restore = await controller.takeRestore(review);
       storage.failWrites.add(3);
-      await expectLater(applyPrepared(restore), throwsA(isA<BackupException>()));
+      await expectLater(
+        applyPrepared(restore),
+        throwsA(isA<BackupException>()),
+      );
       expect(storage.preferences['appearance'], 'light');
       expect(storage.secrets['settings_pin'], 'fixture-pin');
     },

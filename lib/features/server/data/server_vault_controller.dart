@@ -166,10 +166,16 @@ class ServerVaultController {
       }
       if (direction == ServerVaultDirection.restore) {
         if (access == null) {
-          throw const BackupException('restore_expired', 'Read the restore preview again.');
+          throw const BackupException(
+            'restore_expired',
+            'Read the restore preview again.',
+          );
         }
         prepared = await _repository.prepareRestore(
-          remote!, selected, conflictPolicy: conflictPolicy, access: access,
+          remote!,
+          selected,
+          conflictPolicy: conflictPolicy,
+          access: access,
         );
         _check(epoch);
       }

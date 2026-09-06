@@ -24,6 +24,7 @@ class VaultRestoreAccess implements BackupRestoreAccess {
       throw const BackupException('restore_expired', 'Read the preview again.');
     }
   }
+
   @override
   Future<void> checkDurable() async {}
 }

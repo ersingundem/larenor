@@ -152,6 +152,7 @@ class _ServerVaultScreenState extends MediaSessionState<ServerVaultScreen> {
     void removeDialog() {
       if (route?.isActive == true) route!.navigator?.removeRoute(route);
     }
+
     if (deferDialogRemoval) {
       WidgetsBinding.instance.addPostFrameCallback((_) => removeDialog());
     } else {
@@ -230,9 +231,13 @@ class _ServerVaultScreenState extends MediaSessionState<ServerVaultScreen> {
       _error = true;
       _message = switch (code) {
         'conflict' || 'revision_conflict' => l10n.serverVaultConflict,
-        'review_expired' || 'cancelled' || 'restore_expired' || 'restore_changed' => l10n.serverVaultExpired,
+        'review_expired' ||
+        'cancelled' ||
+        'restore_expired' ||
+        'restore_changed' => l10n.serverVaultExpired,
         'ha_connection_pending' => l10n.backupHaConnectionPending,
         'connection_pending' => l10n.backupConnectionPending,
+        'restore_target_mismatch' => l10n.backupRestoreDirectTarget,
         'empty_selection' => l10n.backupSelectGroup,
         'empty_vault' => l10n.serverVaultEmpty,
         'unauthorized' => l10n.serverFailureAuthentication,
