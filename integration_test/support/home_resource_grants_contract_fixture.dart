@@ -1,0 +1,408 @@
+// Exact actual Server HTTP fixture; the host parity test detects any drift.
+const homeResourceGrantsContractFixture = r'''
+{
+  "schemaVersion": 1,
+  "context": {
+    "schemaVersion": 1,
+    "coreId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "homeId": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+  },
+  "target": {
+    "label": "Salon",
+    "order": 1,
+    "ref": {
+      "schemaVersion": 1,
+      "coreId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "homeId": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "kind": "room",
+      "id": "11111111111111111111111111111111"
+    },
+    "revision": 1,
+    "aclRevision": 1,
+    "permissions": {
+      "read": true,
+      "write": true
+    }
+  },
+  "empty": {
+    "method": "GET",
+    "path": "/admin/home-resources/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb/11111111111111111111111111111111/grants",
+    "body": null,
+    "status": 200,
+    "response": {
+      "grants": [],
+      "aclRevision": 1
+    }
+  },
+  "readOnly": {
+    "method": "PUT",
+    "path": "/admin/home-resources/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb/11111111111111111111111111111111/grants/33333333333333333333333333333333",
+    "body": {
+      "expectedAclRevision": 1,
+      "permissions": {
+        "read": true,
+        "write": false
+      }
+    },
+    "status": 200,
+    "response": {
+      "grant": {
+        "subjectId": "33333333333333333333333333333333",
+        "target": {
+          "schemaVersion": 1,
+          "coreId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "homeId": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "kind": "room",
+          "id": "11111111111111111111111111111111"
+        },
+        "aclRevision": 2,
+        "permissions": {
+          "read": true,
+          "write": false
+        }
+      }
+    }
+  },
+  "afterReadOnly": {
+    "method": "GET",
+    "path": "/admin/home-resources/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb/11111111111111111111111111111111/grants",
+    "body": null,
+    "status": 200,
+    "response": {
+      "grants": [
+        {
+          "subjectId": "33333333333333333333333333333333",
+          "target": {
+            "schemaVersion": 1,
+            "coreId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "homeId": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "kind": "room",
+            "id": "11111111111111111111111111111111"
+          },
+          "aclRevision": 2,
+          "permissions": {
+            "read": true,
+            "write": false
+          }
+        }
+      ],
+      "aclRevision": 2
+    }
+  },
+  "memberCanRead": {
+    "method": "GET",
+    "path": "/home-resources/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb/11111111111111111111111111111111",
+    "body": null,
+    "status": 200,
+    "response": {
+      "record": {
+        "label": "Salon",
+        "order": 1,
+        "ref": {
+          "schemaVersion": 1,
+          "coreId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "homeId": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "kind": "room",
+          "id": "11111111111111111111111111111111"
+        },
+        "revision": 1,
+        "aclRevision": 2,
+        "permissions": {
+          "read": true,
+          "write": false
+        }
+      }
+    }
+  },
+  "readOnlyNoop": {
+    "method": "PUT",
+    "path": "/admin/home-resources/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb/11111111111111111111111111111111/grants/33333333333333333333333333333333",
+    "body": {
+      "expectedAclRevision": 2,
+      "permissions": {
+        "read": true,
+        "write": false
+      }
+    },
+    "status": 200,
+    "response": {
+      "grant": {
+        "subjectId": "33333333333333333333333333333333",
+        "target": {
+          "schemaVersion": 1,
+          "coreId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "homeId": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "kind": "room",
+          "id": "11111111111111111111111111111111"
+        },
+        "aclRevision": 2,
+        "permissions": {
+          "read": true,
+          "write": false
+        }
+      }
+    }
+  },
+  "secondReadWrite": {
+    "method": "PUT",
+    "path": "/admin/home-resources/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb/11111111111111111111111111111111/grants/22222222222222222222222222222222",
+    "body": {
+      "expectedAclRevision": 2,
+      "permissions": {
+        "read": true,
+        "write": true
+      }
+    },
+    "status": 200,
+    "response": {
+      "grant": {
+        "subjectId": "22222222222222222222222222222222",
+        "target": {
+          "schemaVersion": 1,
+          "coreId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "homeId": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "kind": "room",
+          "id": "11111111111111111111111111111111"
+        },
+        "aclRevision": 3,
+        "permissions": {
+          "read": true,
+          "write": true
+        }
+      }
+    }
+  },
+  "sorted": {
+    "method": "GET",
+    "path": "/admin/home-resources/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb/11111111111111111111111111111111/grants",
+    "body": null,
+    "status": 200,
+    "response": {
+      "grants": [
+        {
+          "subjectId": "22222222222222222222222222222222",
+          "target": {
+            "schemaVersion": 1,
+            "coreId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "homeId": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "kind": "room",
+            "id": "11111111111111111111111111111111"
+          },
+          "aclRevision": 3,
+          "permissions": {
+            "read": true,
+            "write": true
+          }
+        },
+        {
+          "subjectId": "33333333333333333333333333333333",
+          "target": {
+            "schemaVersion": 1,
+            "coreId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "homeId": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "kind": "room",
+            "id": "11111111111111111111111111111111"
+          },
+          "aclRevision": 3,
+          "permissions": {
+            "read": true,
+            "write": false
+          }
+        }
+      ],
+      "aclRevision": 3
+    }
+  },
+  "upgrade": {
+    "method": "PUT",
+    "path": "/admin/home-resources/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb/11111111111111111111111111111111/grants/33333333333333333333333333333333",
+    "body": {
+      "expectedAclRevision": 3,
+      "permissions": {
+        "read": true,
+        "write": true
+      }
+    },
+    "status": 200,
+    "response": {
+      "grant": {
+        "subjectId": "33333333333333333333333333333333",
+        "target": {
+          "schemaVersion": 1,
+          "coreId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "homeId": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "kind": "room",
+          "id": "11111111111111111111111111111111"
+        },
+        "aclRevision": 4,
+        "permissions": {
+          "read": true,
+          "write": true
+        }
+      }
+    }
+  },
+  "revoke": {
+    "method": "PUT",
+    "path": "/admin/home-resources/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb/11111111111111111111111111111111/grants/33333333333333333333333333333333",
+    "body": {
+      "expectedAclRevision": 4,
+      "permissions": {
+        "read": false,
+        "write": false
+      }
+    },
+    "status": 200,
+    "response": {
+      "grant": {
+        "subjectId": "33333333333333333333333333333333",
+        "target": {
+          "schemaVersion": 1,
+          "coreId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "homeId": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "kind": "room",
+          "id": "11111111111111111111111111111111"
+        },
+        "aclRevision": 5,
+        "permissions": {
+          "read": false,
+          "write": false
+        }
+      }
+    }
+  },
+  "revokeNoop": {
+    "method": "PUT",
+    "path": "/admin/home-resources/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb/11111111111111111111111111111111/grants/33333333333333333333333333333333",
+    "body": {
+      "expectedAclRevision": 5,
+      "permissions": {
+        "read": false,
+        "write": false
+      }
+    },
+    "status": 200,
+    "response": {
+      "grant": {
+        "subjectId": "33333333333333333333333333333333",
+        "target": {
+          "schemaVersion": 1,
+          "coreId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "homeId": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "kind": "room",
+          "id": "11111111111111111111111111111111"
+        },
+        "aclRevision": 5,
+        "permissions": {
+          "read": false,
+          "write": false
+        }
+      }
+    }
+  },
+  "afterRevoke": {
+    "method": "GET",
+    "path": "/admin/home-resources/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb/11111111111111111111111111111111/grants",
+    "body": null,
+    "status": 200,
+    "response": {
+      "grants": [
+        {
+          "subjectId": "22222222222222222222222222222222",
+          "target": {
+            "schemaVersion": 1,
+            "coreId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "homeId": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "kind": "room",
+            "id": "11111111111111111111111111111111"
+          },
+          "aclRevision": 5,
+          "permissions": {
+            "read": true,
+            "write": true
+          }
+        }
+      ],
+      "aclRevision": 5
+    }
+  },
+  "memberReadRevoked": {
+    "method": "GET",
+    "path": "/home-resources/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb/11111111111111111111111111111111",
+    "body": null,
+    "status": 404,
+    "response": {
+      "error": {
+        "code": "not_found",
+        "message": "The requested resource was not found."
+      }
+    }
+  },
+  "memberCannotList": {
+    "method": "GET",
+    "path": "/admin/home-resources/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb/11111111111111111111111111111111/grants",
+    "body": null,
+    "status": 403,
+    "response": {
+      "error": {
+        "code": "forbidden",
+        "message": "This account cannot perform that action."
+      }
+    }
+  },
+  "memberCannotGrant": {
+    "method": "PUT",
+    "path": "/admin/home-resources/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb/11111111111111111111111111111111/grants/33333333333333333333333333333333",
+    "body": {
+      "expectedAclRevision": 5,
+      "permissions": {
+        "read": true,
+        "write": true
+      }
+    },
+    "status": 403,
+    "response": {
+      "error": {
+        "code": "forbidden",
+        "message": "This account cannot perform that action."
+      }
+    }
+  },
+  "stale": {
+    "method": "PUT",
+    "path": "/admin/home-resources/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb/11111111111111111111111111111111/grants/33333333333333333333333333333333",
+    "body": {
+      "expectedAclRevision": 4,
+      "permissions": {
+        "read": true,
+        "write": false
+      }
+    },
+    "status": 409,
+    "response": {
+      "error": {
+        "code": "revision_conflict",
+        "message": "The saved record has changed. Read it again."
+      }
+    }
+  },
+  "writeRequiresRead": {
+    "method": "PUT",
+    "path": "/admin/home-resources/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb/11111111111111111111111111111111/grants/33333333333333333333333333333333",
+    "body": {
+      "expectedAclRevision": 5,
+      "permissions": {
+        "read": false,
+        "write": true
+      }
+    },
+    "status": 400,
+    "response": {
+      "error": {
+        "code": "invalid_request",
+        "message": "The request is invalid."
+      }
+    }
+  }
+}
+''';
