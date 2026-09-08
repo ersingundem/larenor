@@ -8,12 +8,13 @@ import '../../../core/app_interaction_scope.dart';
 import '../../../core/home_session_controller.dart';
 import '../../../core/window/window_policy_providers.dart';
 import '../../../l10n/generated/app_localizations.dart';
+import '../../core_ha/presentation/core_ha_screen.dart';
 import '../data/home_resources_api.dart';
 import '../data/home_resources_controller.dart';
 import '../domain/home_resource_models.dart';
 import '../../settings/presentation/settings_gate_screen.dart';
 
-/// This sliver shares the Core page scroll view and never opens HA adapters.
+/// Shared Core metadata; a selected resource explicitly opens its state route.
 class CoreHomeResources extends ConsumerStatefulWidget {
   const CoreHomeResources({super.key});
   @override
@@ -251,6 +252,20 @@ class _CoreHomeResourcesState extends ConsumerState<CoreHomeResources>
                         ),
                         const SizedBox(height: 4),
                         Text(kind),
+                        if (entry.kind == HomeResourceKind.resource)
+                          button(
+                            'core-ha-open-${entry.id}',
+                            '${l10n.coreHaOpen}: ${entry.label}',
+                            true,
+                            () async {
+                              if (!current()) return;
+                              await Navigator.of(context).push<void>(
+                                CupertinoPageRoute(
+                                  builder: (_) => CoreHaScreen(target: entry),
+                                ),
+                              );
+                            },
+                          ),
                       ],
                     ),
                   ),

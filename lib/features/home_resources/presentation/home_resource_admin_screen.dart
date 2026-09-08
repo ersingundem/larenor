@@ -10,6 +10,7 @@ import '../../../core/window/window_policy_providers.dart';
 import '../../../l10n/generated/app_localizations.dart';
 import '../../../shared/widgets/app_page_scaffold.dart';
 import '../../../shared/theme/app_colors.dart';
+import '../../core_ha/presentation/core_ha_screen.dart';
 import '../data/home_resources_api.dart';
 import '../data/home_resources_controller.dart';
 import '../domain/home_resource_models.dart';
@@ -591,6 +592,24 @@ class _HomeResourceAdminScreenState
                                                 : null,
                                             destructive: true,
                                           ),
+                                          if (row.kind ==
+                                              HomeResourceKind.resource)
+                                            _button(
+                                              'core-ha-bind-${row.id}',
+                                              l10n.coreHaBind,
+                                              _controller.canMutate
+                                                  ? () => Navigator.of(context).push(
+                                                      CupertinoPageRoute<void>(
+                                                        builder: (_) =>
+                                                            CoreHaBindingScreen(
+                                                              target: row,
+                                                              gateCurrent: widget
+                                                                  .gateCurrent,
+                                                            ),
+                                                      ),
+                                                    )
+                                                  : null,
+                                            ),
                                         ],
                                       ),
                                     ],
