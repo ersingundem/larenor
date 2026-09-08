@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -8,6 +10,7 @@ import 'package:larenor/features/server/admin/presentation/server_admin_screen.d
 import 'package:larenor/features/server/presentation/server_connection_screen.dart';
 import 'package:larenor/features/server/providers/server_providers.dart';
 import 'package:larenor/features/settings/presentation/settings_gate_screen.dart';
+import 'package:larenor/features/settings/providers/settings_providers.dart';
 import 'package:larenor/l10n/generated/app_localizations.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -17,18 +20,20 @@ import 'server_admin_test_support.dart';
 /// This also distinguishes one from two moves in reset's one-field closed loop.
 class _TraversalTrace extends ReadingOrderTraversalPolicy {
   final nextFrom = <FocusNode>[];
-  int _depth = 0;
+  final _activeCalls = <FocusNode>[];
 
   @override
   bool next(FocusNode currentNode) {
     // One traversal can recursively delegate across nested Navigator scopes.
     // Count input requests, not those internal parent-scope hops.
-    if (_depth == 0) nextFrom.add(currentNode);
-    _depth++;
+    if (_activeCalls.isEmpty) {
+      nextFrom.add(currentNode);
+    }
+    _activeCalls.add(currentNode);
     try {
       return super.next(currentNode);
     } finally {
-      _depth--;
+      _activeCalls.removeLast();
     }
   }
 }
@@ -53,7 +58,9 @@ class _Harness {
     double width = 600,
     double scale = 1,
   }) async {
-    if (!signedIn) fixture.store.value = null;
+    if (!signedIn) {
+      fixture.store.value = null;
+    }
     await tester.runAsync(fixture.account.initialize);
     SharedPreferences.setMockInitialValues({});
     FlutterSecureStorage.setMockInitialValues({'settings_pin': '1234'});
@@ -144,6 +151,30 @@ Future<FocusNode?> _nextUsingTab(WidgetTester tester, String key) async {
   return FocusManager.instance.primaryFocus;
 }
 
+int _inputClient(WidgetTester tester) =>
+    (tester.testTextInput.log
+                .lastWhere((call) => call.method == 'TextInput.setClient')
+                .arguments
+            as List<dynamic>)[0]
+        as int;
+
+/// Deliver to the captured native client, never the new PIN/cover's client.
+/// A framework channel error remains a test failure.
+Future<void> _lateNext(WidgetTester tester, int client) async {
+  final reply = await tester.binding.defaultBinaryMessenger
+      .handlePlatformMessage(
+        SystemChannels.textInput.name,
+        SystemChannels.textInput.codec.encodeMethodCall(
+          MethodCall('TextInputClient.performAction', [
+            client,
+            TextInputAction.next.toString(),
+          ]),
+        ),
+        null,
+      );
+  SystemChannels.textInput.codec.decodeEnvelope(reply!);
+}
+
 void main() {
   for (final item in _cases) {
     final description = '${item.language} ${item.width} ${item.scale}x';
@@ -176,7 +207,7 @@ void main() {
           reason: '$key must advance to ${fields[index + 1].$1}',
         );
         expect(h.trace.nextFrom, hasLength(1));
-        expect(fixtureRequests(h), 0);
+        expect(_fixtureRequests(h), 0);
         expect(h.fixture.store.value, isNull);
       }
       expect(_editable(tester, 'server-password').obscureText, isTrue);
@@ -195,7 +226,7 @@ void main() {
         scale: item.scale,
       );
       await _tap(tester, 'admin-create');
-      final requestsBefore = fixtureRequests(h);
+      final requestsBefore = _fixtureRequests(h);
       await tester.enterText(_field('admin-username'), 'second_member');
       final nativeTarget = await _nextUsingTab(tester, 'admin-username');
       final roleText = find.descendant(
@@ -209,7 +240,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(FocusManager.instance.primaryFocus, same(nativeTarget));
       expect(h.trace.nextFrom, hasLength(1));
-      expect(fixtureRequests(h), requestsBefore);
+      expect(_fixtureRequests(h), requestsBefore);
       expect(h.fixture.mutations, isEmpty);
       expect(
         _editable(tester, 'admin-username').controller.text,
@@ -231,7 +262,7 @@ void main() {
           scale: item.scale,
         );
         await _tap(tester, 'admin-reset-$memberId');
-        final requestsBefore = fixtureRequests(h);
+        final requestsBefore = _fixtureRequests(h);
         const key = 'admin-temporary-password';
         expect(find.byType(CupertinoTextField), findsOneWidget);
         await tester.enterText(_field(key), adminPassword);
@@ -245,13 +276,118 @@ void main() {
         expect(FocusManager.instance.primaryFocus, same(nativeTarget));
         expect(_editable(tester, key).controller.text, adminPassword);
         expect(_editable(tester, key).obscureText, isTrue);
-        expect(fixtureRequests(h), requestsBefore);
+        expect(_fixtureRequests(h), requestsBefore);
         expect(h.fixture.mutations, isEmpty);
         expect(find.byType(CupertinoAlertDialog), findsOneWidget);
         expect(tester.takeException(), isNull);
       },
     );
   }
+  for (final form in ['login', 'create', 'reset']) {
+    for (final retirement in ['covered', 'idle', 'pin', 'account']) {
+      testWidgets(
+        '$form late IME and held submit after $retirement have no effect',
+        (tester) async {
+          final h = (await tester.runAsync(() async => _Harness()))!;
+          await h.mount(
+            tester,
+            signedIn: form != 'login',
+            language: form == 'reset' ? 'en' : 'tr',
+            width: form == 'reset' ? 1280 : 600,
+            scale: form == 'reset' ? 1 : 2,
+          );
+          final VoidCallback oldSubmit;
+          if (form == 'login') {
+            await tester.enterText(
+              _field('server-url'),
+              'https://fixture.invalid/prefix',
+            );
+            await tester.enterText(_field('server-username'), 'fixture');
+            await tester.enterText(_field('server-device-name'), 'Tablet');
+            await tester.enterText(_field('server-password'), adminPassword);
+            oldSubmit = tester
+                .widget<CupertinoButton>(_field('server-sign-in'))
+                .onPressed!;
+          } else {
+            await _tap(
+              tester,
+              form == 'create' ? 'admin-create' : 'admin-reset-$memberId',
+            );
+            if (form == 'create') {
+              await tester.enterText(_field('admin-username'), 'second_member');
+            }
+            await tester.enterText(
+              _field('admin-temporary-password'),
+              adminPassword,
+            );
+            oldSubmit = tester
+                .widget<CupertinoDialogAction>(_field('admin-submit-user'))
+                .onPressed!;
+          }
+          final oldClient = _inputClient(tester);
+          expect(oldClient, greaterThan(0));
+          final container = ProviderScope.containerOf(
+            tester.element(find.byType(SettingsGateScreen)),
+          );
+          switch (retirement) {
+            case 'covered':
+              unawaited(
+                h.navigation.currentState!.push<void>(
+                  CupertinoPageRoute<void>(
+                    builder: (_) => const CupertinoPageScaffold(
+                      child: Center(child: Text('Independent cover')),
+                    ),
+                  ),
+                ),
+              );
+            case 'idle':
+              h.interaction.setActive(false);
+              await tester.pump();
+              h.interaction.setActive(true);
+            case 'pin':
+              await container.read(pinLockProvider.notifier).setPin('2468');
+            case 'account':
+              // The queued IME message retains the former client ID. Stop the
+              // fake-time cursor before real-zone account persistence; this
+              // case measures retired account/submit authority, not whether
+              // signOut itself disconnects a focused editor.
+              FocusManager.instance.primaryFocus?.unfocus();
+              await tester.pumpAndSettle();
+              await tester.runAsync(h.fixture.account.signOut);
+          }
+          await tester.pumpAndSettle();
+          final requestsBefore = _fixtureRequests(h);
+          final storedBefore = h.fixture.store.value;
+          await _lateNext(tester, oldClient);
+          oldSubmit();
+          await tester.pumpAndSettle();
+          expect(_fixtureRequests(h), requestsBefore);
+          expect(h.fixture.mutations, isEmpty);
+          expect(h.fixture.store.value, same(storedBefore));
+          if (retirement == 'covered') {
+            expect(find.text('Independent cover'), findsOneWidget);
+          }
+          if (retirement == 'pin' || retirement == 'idle') {
+            expect(find.byType(ServerConnectionScreen), findsNothing);
+            expect(find.byType(CupertinoTextField), findsOneWidget);
+          }
+          if (form != 'login') {
+            expect(
+              find.byType(CupertinoAlertDialog, skipOffstage: false),
+              findsNothing,
+            );
+          }
+          final visibleText = tester
+              .widgetList<Text>(find.byType(Text))
+              .map((item) => item.data ?? '')
+              .join('\n');
+          expect(visibleText, isNot(contains(adminPassword)));
+          expect(visibleText, isNot(contains('synthetic_admin_access')));
+          expect(tester.takeException(), isNull);
+        },
+      );
+    }
+  }
 }
 
-int fixtureRequests(_Harness h) => h.fixture.calls.length;
+int _fixtureRequests(_Harness h) => h.fixture.calls.length;

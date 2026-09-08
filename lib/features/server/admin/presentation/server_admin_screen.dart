@@ -711,7 +711,7 @@ class _UserFormState extends State<_UserForm> {
             autocorrect: false,
             enableSuggestions: false,
             enabled: !_submitted,
-              textInputAction: TextInputAction.next,
+            textInputAction: TextInputAction.next,
           ),
         ),
       ],
