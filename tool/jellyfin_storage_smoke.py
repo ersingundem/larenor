@@ -91,11 +91,24 @@ _PATH_RELATION_CODES = {
     frozenset(('helper_base_engine_path_failed', 'helper_base_host_path_failed')):
         'helper_base_engine_host_path_failed',
 }
+_PATH_COOCCURRENCE_CODES = {
+    frozenset(('helper_base_engine_path_failed', 'helper_base_image_path_failed')):
+        'helper_base_engine_image_paths_observed',
+    frozenset(('helper_base_engine_path_failed', 'helper_base_proc_path_failed')):
+        'helper_base_engine_proc_paths_observed',
+    frozenset(('helper_base_engine_path_failed', 'helper_base_sys_path_failed')):
+        'helper_base_engine_sys_paths_observed',
+    frozenset(('helper_base_engine_path_failed', 'helper_base_runtime_path_failed')):
+        'helper_base_engine_runtime_paths_observed',
+    frozenset(('helper_base_engine_path_failed', 'helper_base_host_path_failed')):
+        'helper_base_engine_host_paths_observed',
+}
 _PATH_TOKEN = re.compile(rb"/[^\s\"'(),:;]+")
 _DIAGNOSTIC_CODES = _CODES | set(_BUILD_ERROR_PATTERNS) | set(_START_ERROR_PATTERNS) | {
     'helper_base_runtime_failed', 'helper_base_error_ambiguous',
     'helper_base_state_error_ambiguous', *_STATE_ERROR_PATTERNS,
-    'helper_base_path_location_ambiguous', *_PATH_LOCATION_PATTERNS, *_PATH_RELATION_CODES.values(),
+    'helper_base_path_location_ambiguous', *_PATH_LOCATION_PATTERNS,
+    *_PATH_RELATION_CODES.values(), *_PATH_COOCCURRENCE_CODES.values(),
     'helper_base_process_oom', 'helper_base_process_nonzero', 'helper_base_process_running',
     'helper_base_process_dead', 'helper_base_process_exited_zero',
     'helper_base_process_not_started', 'helper_base_process_not_started_nonzero',
@@ -245,7 +258,8 @@ def _state_error(error):
                     for path in _PATH_TOKEN.findall(folded)
                 ):
                     return relation
-                return 'helper_base_path_location_ambiguous'
+                return _PATH_COOCCURRENCE_CODES.get(
+                    frozenset(locations), 'helper_base_path_location_ambiguous')
         return classified
     return 'helper_base_state_error_ambiguous' if matched else classified
 
