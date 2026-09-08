@@ -34,6 +34,13 @@ class Projection(FrozenModel):
     state: Literal['on', 'off', 'unavailable']
     commandAvailable: Literal[False] = False
 
+    @field_validator('commandAvailable', mode='before')
+    @classmethod
+    def literal_false(cls, value):
+        if type(value) is not bool or value is not False:
+            raise ValueError('invalid_capability')
+        return value
+
 
 class Binding(FrozenModel):
     schemaVersion: Literal[1] = 1

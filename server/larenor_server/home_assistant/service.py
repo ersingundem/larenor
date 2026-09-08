@@ -20,6 +20,7 @@ from cryptography.exceptions import InvalidTag
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
 from ..admin.service import utc
+from ..auth import token_hash
 from ..errors import ApiError, StartupError
 from . import schema
 from .models import Binding, PreviewRequest, Projection, Snapshot
@@ -170,6 +171,23 @@ class HomeAssistantAdapter:
         finally:
             self._slots.release()
 
+    def retire_invalid_session(self, access):
+        """Discard this known token family's cache after authentication rejects it.
+
+        Only a token hash is looked up. Unknown tokens cannot purge other users;
+        no authentication grant or raw token is retained in the cache.
+        """
+        try:
+            digest = token_hash(access)
+        except (UnicodeError, AttributeError):
+            return
+        with self._lock, self.db.connection() as c:
+            row = c.execute('SELECT family_id FROM session_tokens WHERE access_hash=?', (digest,)).fetchone()
+            if row is not None:
+                for key in list(self._cache):
+                    if key[6] == row['family_id']:
+                        del self._cache[key]
+
     def binding(self, actor, core, home, resource):
         with self._tx(actor, core, home, admin=True) as (c, facts):
             binding = self._target(c, facts, resource)[3]
@@ -208,6 +226,23 @@ class HomeAssistantAdapter:
             self._pending(actor, resource, preview_id)
             del self._previews[preview_id]
 
+    def _prune_deleted(self, c):
+        """Remove only orphan binding metadata within an admin confirm transaction.
+
+        Both inventories must validate completely before the first deletion.
+        The caller's transaction also owns the replacement write and HA HMAC
+        updates, so any failed confirmation rolls all cleanup back.
+        """
+        live = self.resources._validated_ids(c)
+        rows = schema.validate(c, self._key, self.resources.scope)
+        for row in rows:
+            self._decode(row)
+        deleted = [row['resource_id'] for row in rows if row['resource_id'] not in live]
+        if deleted:
+            c.executemany('DELETE FROM home_assistant_bindings WHERE resource_id=?',
+                          ((identity,) for identity in deleted))
+            schema.update(c, self._key, self.resources.scope)
+
     def confirm(self, actor, core, home, resource, preview_id):
         with self._tx(actor, core, home, admin=True) as (c, facts):
             self._target(c, facts, resource)
@@ -217,6 +252,7 @@ class HomeAssistantAdapter:
             if self._facts(c, facts, resource, pending.body)[0] != pending.fingerprint:
                 raise ApiError('ha_binding_changed', 409)
             binding = pending.binding
+            self._prune_deleted(c)
             if pending.body.expectedBindingId is None and len(schema.rows(c)) >= schema.MAX_BINDINGS:
                 raise ApiError('ha_limit_reached', 429)
             plain = binding.model_dump_json().encode('utf-8'); nonce = secrets.token_bytes(12)
@@ -228,13 +264,17 @@ class HomeAssistantAdapter:
                 'binding_id=excluded.binding_id,revision=excluded.revision,nonce=excluded.nonce,ciphertext=excluded.ciphertext',
                 (resource, binding.id, binding.revision, nonce, cipher))
             schema.update(c, self._key, self.resources.scope)
+            schema.validate(c, self._key, self.resources.scope)
+            saved = c.execute('SELECT * FROM home_assistant_bindings WHERE resource_id=?', (resource,)).fetchone()
+            if saved is None or self._decode(saved) != binding:
+                raise ValueError()
             self._cache.clear()
             return {'binding': binding.model_dump()}
 
     def snapshot(self, actor, core, home, resource, *, cancelled=lambda: False):
         with self._tx(actor, core, home) as (c, facts):
             fingerprint, row, ref, binding, service = self._facts(c, facts, resource)
-            key = (core, home, actor.id, actor.token_id, resource, binding.id)
+            key = (core, home, actor.id, actor.token_id, resource, binding.id, actor.family_id)
             now = self._now(); cached = self._cache.get(key)
             if cached is not None and cached[1] == fingerprint and not cancelled():
                 remaining = max(0, int((CACHE_TTL - (now - cached[0])) * 1000))
