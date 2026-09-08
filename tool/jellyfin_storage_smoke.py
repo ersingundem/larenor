@@ -66,6 +66,8 @@ _DIAGNOSTIC_CODES = _CODES | set(_BUILD_ERROR_PATTERNS) | set(_START_ERROR_PATTE
     'helper_base_process_oom', 'helper_base_process_nonzero', 'helper_base_process_running',
     'helper_base_process_dead', 'helper_base_process_exited_zero',
     'helper_base_process_not_started',
+    'helper_base_state_read_failed', 'helper_base_state_invalid',
+    'helper_base_state_unclassified',
     'fixture_command_stderr_limit', 'helper_build_error_ambiguous',
     'invalid_image_preparation', 'invalid_image_binding',
     'fixture_command_exit_failed', 'fixture_command_output_limit', 'fixture_command_timeout',
@@ -190,37 +192,46 @@ def _diagnose_base_start_state(daemon, container_id, original):
     if type(original) is not SmokeError:
         raise TypeError('exact SmokeError required')
     fallback = _error_code(original)
+    def unreadable(code):
+        return code if fallback == 'fixture_command_exit_failed' else fallback
     try:
-        state = _decoded(daemon.docker(
+        raw = daemon.docker(
             ['container','inspect','--format','{{json .State}}',container_id],
-            timeout=10, limit=65536))
+            timeout=10, limit=65536)
+    except Exception:
+        return unreadable('helper_base_state_read_failed')
+    try:
+        state = json.loads(raw)
         if type(state) is not dict:
-            return fallback
+            return unreadable('helper_base_state_invalid')
         status, exit_code, error = state.get('Status'), state.get('ExitCode'), state.get('Error')
         if (type(status) is not str or type(exit_code) is not int or type(exit_code) is bool
-                or type(error) is not str or len(error.encode('utf-8')) > 65536
+                or type(error) is not str
                 or any(type(state.get(key)) is not bool
                     for key in ('Running','Paused','Restarting','Dead','OOMKilled'))):
-            return fallback
-        if error:
-            classified = _start_error(error.encode('utf-8'))
-            if classified != 'fixture_command_exit_failed':
-                return classified
-        if state['OOMKilled']:
-            return 'helper_base_process_oom'
-        if state['Dead']:
-            return 'helper_base_process_dead'
-        if state['Running'] or state['Paused'] or state['Restarting'] or status == 'running':
-            return 'helper_base_process_running'
-        if status == 'exited' and exit_code != 0:
-            return 'helper_base_process_nonzero'
-        if not error and status == 'exited' and exit_code == 0:
-            return 'helper_base_process_exited_zero'
-        if not error and status == 'created' and exit_code == 0:
-            return 'helper_base_process_not_started'
-        return fallback
-    except Exception:
-        return fallback
+            return unreadable('helper_base_state_invalid')
+        error_bytes = error.encode('utf-8')
+        if len(error_bytes) > 65536:
+            return unreadable('helper_base_state_invalid')
+    except (ValueError, TypeError, RecursionError, UnicodeError):
+        return unreadable('helper_base_state_invalid')
+    if error:
+        classified = _start_error(error_bytes)
+        if classified != 'fixture_command_exit_failed':
+            return classified
+    if state['OOMKilled']:
+        return 'helper_base_process_oom'
+    if state['Dead']:
+        return 'helper_base_process_dead'
+    if state['Running'] or state['Paused'] or state['Restarting'] or status == 'running':
+        return 'helper_base_process_running'
+    if status == 'exited' and exit_code != 0:
+        return 'helper_base_process_nonzero'
+    if not error and status == 'exited' and exit_code == 0:
+        return 'helper_base_process_exited_zero'
+    if not error and status == 'created' and exit_code == 0:
+        return 'helper_base_process_not_started'
+    return unreadable('helper_base_state_unclassified')
 
 
 def bounded_command(arguments, *, environment, timeout=60, limit=65536,

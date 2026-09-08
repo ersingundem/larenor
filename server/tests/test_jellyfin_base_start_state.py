@@ -18,6 +18,16 @@ class Daemon:
         return json.dumps(self.result).encode()
 
 
+class RawDaemon:
+    def __init__(self, raw):
+        self.raw = raw
+        self.calls = []
+
+    def docker(self, args, **kwargs):
+        self.calls.append((list(args), dict(kwargs)))
+        return self.raw
+
+
 @pytest.mark.parametrize('state,expected', [
     ({'Status':'exited','Running':False,'Paused':False,'Restarting':False,'Dead':False,
       'OOMKilled':True,'ExitCode':137,'Error':''},
@@ -46,7 +56,7 @@ class Daemon:
      'helper_base_permission_failed'),
     ({'Status':'created','Running':False,'Paused':False,'Restarting':False,'Dead':False,
       'OOMKilled':False,'ExitCode':0,
-      'Error':'private unknown path/token'}, 'fixture_command_exit_failed'),
+      'Error':'private unknown path/token'}, 'helper_base_state_unclassified'),
 ], ids=['oom','high-nonzero','nonzero','exited-zero','not-started','running','dead',
         'known-error','unknown-error'])
 def test_failed_start_is_classified_from_one_bounded_owned_state_read(state, expected):
@@ -65,21 +75,60 @@ def test_failed_start_is_classified_from_one_bounded_owned_state_read(state, exp
     {'Status':'exited','Running':False,'Paused':False,'Restarting':False,'Dead':False,
      'OOMKilled':False,'ExitCode':True,'Error':''},
 ])
-def test_invalid_or_unbound_state_preserves_original_closed_code(payload):
+def test_invalid_or_unbound_state_has_one_private_invalid_observation(payload):
     smoke = importlib.import_module('tool.jellyfin_storage_smoke')
     daemon = Daemon(payload)
-    original = smoke.SmokeError('helper_base_wait_failed')
+    original = smoke.SmokeError('fixture_command_exit_failed')
 
-    assert smoke._diagnose_base_start_state(daemon, 'd'*64, original) == 'helper_base_wait_failed'
+    assert smoke._diagnose_base_start_state(daemon, 'd'*64, original) == 'helper_base_state_invalid'
     assert len(daemon.calls) == 1
 
 
-def test_failed_state_read_preserves_original_without_retry_or_exception_text():
+def test_specific_start_observation_survives_an_unreadable_state():
     smoke = importlib.import_module('tool.jellyfin_storage_smoke')
     daemon = Daemon(error=smoke.SmokeError('owned_daemon_lost'))
 
     assert smoke._diagnose_base_start_state(
-        daemon, 'd'*64, smoke.SmokeError('fixture_command_exit_failed')) == 'fixture_command_exit_failed'
+        daemon, 'd'*64, smoke.SmokeError('helper_base_wait_failed')) == 'helper_base_wait_failed'
+    assert len(daemon.calls) == 1
+
+
+def test_failed_state_read_is_closed_without_retry_or_exception_text():
+    smoke = importlib.import_module('tool.jellyfin_storage_smoke')
+    daemon = Daemon(error=smoke.SmokeError('owned_daemon_lost'))
+
+    assert smoke._diagnose_base_start_state(
+        daemon, 'd'*64, smoke.SmokeError('fixture_command_exit_failed')) == 'helper_base_state_read_failed'
+    assert len(daemon.calls) == 1
+
+
+@pytest.mark.parametrize('raw', [
+    (b'{"Status":"created","Running":false,"Paused":false,'
+     b'"Restarting":false,"Dead":false,"OOMKilled":false,'
+     b'"ExitCode":0,"Error":"\\ud800"}'),
+    b'[' * 1000 + b'0' + b']' * 1000,
+], ids=['unpaired-surrogate', 'deep-json'])
+@pytest.mark.parametrize('original,expected', [
+    ('fixture_command_exit_failed', 'helper_base_state_invalid'),
+    ('helper_base_wait_failed', 'helper_base_wait_failed'),
+])
+def test_malformed_bounded_state_stays_closed(raw, original, expected):
+    smoke = importlib.import_module('tool.jellyfin_storage_smoke')
+    daemon = RawDaemon(raw)
+
+    assert smoke._diagnose_base_start_state(
+        daemon, 'd'*64, smoke.SmokeError(original)) == expected
+    assert len(daemon.calls) == 1
+
+
+def test_recursive_decoder_failure_is_a_closed_invalid_observation(monkeypatch):
+    smoke = importlib.import_module('tool.jellyfin_storage_smoke')
+    daemon = RawDaemon(b'{}')
+    monkeypatch.setattr(smoke.json, 'loads', lambda _raw: (_ for _ in ()).throw(RecursionError()))
+
+    assert smoke._diagnose_base_start_state(
+        daemon, 'd'*64,
+        smoke.SmokeError('fixture_command_exit_failed')) == 'helper_base_state_invalid'
     assert len(daemon.calls) == 1
 
 

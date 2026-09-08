@@ -58,7 +58,8 @@ def test_attached_start_distinguishes_child_failures_without_replay_or_disclosur
     assert all(child.stderr is None or child.stderr.closed for child in children)
     output = capsys.readouterr()
     assert output.out == ''
-    assert output.err == f'storage_characterization_failed phase=helper_base_start code={code}\n'
+    observed = 'helper_base_state_invalid' if fault == 'exit' else code
+    assert output.err == f'storage_characterization_failed phase=helper_base_start code={observed}\n'
 
 
 @pytest.mark.parametrize('value', [1, 0, 'true', None])
