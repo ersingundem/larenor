@@ -47,7 +47,9 @@ klavye odağı ve tek adımlı IME geçişi düzeltildi.
 dahil değildir. Yeni birleşik Client koşusu `cd961ac` üzerinde tamamlandı; Mac'in uzun
 bakım uykularıyla çakışan iki 90 saniyelik test zaman aşımı kaydedildi. Bu koşu
 başarılı sayılmıyor. Kaynak ve test süreleri değiştirilmeden iki testin odaklı
-yeniden doğrulaması ve tam analiz/biçim kontrolü sürüyor.
+tekrarı **2 PASS**, tam analiz **0 sorun** ve biçim kontrolü **973 dosya / 0 fark**
+verdi. [Birleşim ve korunan başarısız koşu](core-services-ime-integration-2026-09-08.md).
+Yeni kaynağın temiz CI/APK kapısı açık.
 
 [Jellyfin yönetilen kurulum planı](jellyfin-managed-volume-installation-plan-2026-09-06.md)
 dört adımdır: gerçek image/UID karakterizasyonu, onu tüketen mount/kurulum akışı,

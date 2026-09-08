@@ -81,7 +81,8 @@
     "docs/kiosk-capabilities-research-2026-09-05.md",
     "docs/restore-people-evidence-before-ci108-acceptance-2026-09-08.json",
     "docs/restore-people-acceptance-108-2026-09-08.md",
-    "docs/core-account-ime-navigation-2026-09-08.md"
+    "docs/core-account-ime-navigation-2026-09-08.md",
+    "docs/core-services-ime-integration-2026-09-08.md"
   ],
   "nodes": [
     {
@@ -1679,7 +1680,8 @@
         "docs/tablet-core-volume-integration-2026-09-06.md",
         "docs/client-delivery-108-2026-09-06.md",
         "docs/core-services-tablet-accessibility-2026-09-06.md",
-        "docs/core-account-ime-navigation-2026-09-08.md"
+        "docs/core-account-ime-navigation-2026-09-08.md",
+        "docs/core-services-ime-integration-2026-09-08.md"
       ],
       "scope": "Son bütün ekran tasarım geçişi değildir; Core’suz kişisel uzak bağlantı için Core bağımlılığı koymaz.",
       "acceptance": [
@@ -1898,10 +1900,34 @@
           "state": "completed",
           "result": "passed",
           "label": "Core hesap IME: 12 gerçek hata → 12 geçti; genişletilmiş 24 ve 163 ilgili test geçti. Üretimde dört satır yinelenen callback kaldırıldı; root incelemesi temiz. Services ile yeni tam Client koşusu ayrı sürüyor."
+        },
+        {
+          "kind": "test",
+          "ref": "docs/core-services-ime-integration-2026-09-08.md",
+          "commit": "cd961acb1586680f24ec00eead8f4d972520df4c",
+          "state": "completed",
+          "result": "failed",
+          "label": "Birleşik cd961ac: 5218 PASS / 2 timeout; uzun host uykuları kaydedildi. Bu tam koşu başarılı sayılmıyor; hata logu korunur."
+        },
+        {
+          "kind": "test",
+          "ref": "docs/core-services-ime-integration-2026-09-08.md",
+          "commit": "cd961acb1586680f24ec00eead8f4d972520df4c",
+          "state": "completed",
+          "result": "passed",
+          "label": "Aynı kaynak/süre sınırıyla yalnız iki başarısız test 2 PASS; tam analiz 0 sorun, 973 dosyada 0 biçim değişikliği. Tek temiz tam suite iddiası değildir; yeni CI açık."
+        },
+        {
+          "kind": "review",
+          "ref": "docs/core-services-ime-integration-2026-09-08.md",
+          "commit": "cd961acb1586680f24ec00eead8f4d972520df4c",
+          "state": "completed",
+          "result": "passed",
+          "label": "Services ve IME kaynak incelemeleri, 10 değişmeyen Git nesnesi ve 6 log özeti root tarafından doğrulandı. SDK süreçleri reap edildi; ev işlemi yok."
         }
       ],
       "completionCommit": null,
-      "reason": "APK108 önceki katalog/Jobs/restore/route paketini doğruladı. Sonraki Services ve hesap IME düzenlemeleri main ile birleşti; odaklı testler ve kaynak incelemesi geçti. Birleşik Client koşusu ve bu yeni paketin CI/fiziksel kabulü ayrı açık."
+      "reason": "Services ve hesap IME main ile birleşti. Tam Client 5218 PASS / 2 host uykusuyla çakışan timeout; aynı kaynakta odaklı tekrar 2 PASS, analiz/biçim temiz. İlk başarısız koşu korunur; yeni temiz CI/APK ve fiziksel kabul açık."
     },
     {
       "id": "B5.2",
