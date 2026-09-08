@@ -65,8 +65,8 @@ odaklı **87 PASS**, Client odaklı **92 PASS**, Client ilgili **599 PASS**;
 yeni Server modülleri %95,93 ve yeni Client modülleri %95,88 satır kapsamı
 verdi. Birleşmiş main üzerinde Direct Client **92 PASS**, analiz0 ve 19 dosyada
 format farkı0 tekrarlandı. Server ile Client bağımsız kaynak incelemeleri ve
-TR/EN 2× 600/1280 gerçek-font tablet görselleri temiz. Exact-source uzak CI,
-geniş HA varlık/servis kapsamı ve fiziksel kabul bekliyor.
+TR/EN 2× 600/1280 gerçek-font tablet görselleri temiz. Exact-source uzak CI ve
+APK122 geçti; geniş HA varlık/servis kapsamı ve fiziksel kabul bekliyor.
 [Server kanıtı](core-ha-switch-server-implementation-2026-09-08.md) ·
 [Client kanıtı](core-ha-switch-client-implementation-2026-09-08.md) ·
 [Komut ve makbuz kanıtı](core-ha-switch-command-implementation-2026-09-08.md) ·
@@ -86,6 +86,16 @@ bu nedenle imzalı APK işi çalışmadı. Tek tam Android logunun SHA-256 değe
 son 612 ilgili PASS/3 mevcut macOS skip ve paralel 8×4 PASS ile main'e alındı;
 ilk GET, başlık/gövde sınırları, callback hataları ve çağrı sayısı korunuyor.
 [Fixture yaşam döngüsü](volume-create-fixture-lifecycle-repair-2026-09-08.md).
+İkinci exact-source paket `bd1a604` üzerinde bu yarış kapandı. Security, ayrı
+Server Container **3.867 PASS**, amd64/arm64 imaj ve manifest yayını; Android
+workflow'unda **5.436 Flutter PASS**, **3.867 Server PASS**, debug/native
+sözleşmeleri ve API 35'te **17/17 E2E** geçti. İmzalı **APK122** üretildi ve
+yerel resmi `apksig 9.1.0` doğrulamasında `com.ersingundem.larenor`,
+`versionCode=100000122`, `minSdk=26`, `debuggable=false`, beklenen sertifika ve
+geçerli imza olarak doğrulandı. APK 122.207.785 bayt; SHA-256
+`21cc73b9c471ad08c21e010c8cf382410ce57d539ca1b9c395c42fd3064ca94b`.
+Bu CI/artefact kabulü Direct→Core ve ortak tablet paketini doğrular; fiziksel
+Huawei/DeX/TalkBack ve geniş Home Assistant varlık/servis kapsamı açık kalır.
 
 [Services tablet paketi](core-services-tablet-accessibility-2026-09-06.md):
 46 yeni ve 186 ilgili test geçti; tam bağlantı adları, 48px hedefler, görünür

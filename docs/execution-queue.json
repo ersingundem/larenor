@@ -1586,10 +1586,26 @@
           "state": "completed",
           "result": "failed",
           "label": "Exact32d Android:5436Flutter ve17E2E/debugAPK geçti; bağımsız Server3866PASS+1 sentetik volume fixture timeout yarışı, signedAPKskip. Üretim dışı onarım sonraki kaynakta."
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/34260526324",
+          "commit": "bd1a604ab46873a2fc967eb3806ca60562609690",
+          "state": "completed",
+          "result": "passed",
+          "label": "Exactbd1 Server Container:3867LinuxPASS, amd64/arm64 build/smoke ve immutable manifest yayını geçti; Security aynı kaynakta başarılı."
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/34260527888",
+          "commit": "bd1a604ab46873a2fc967eb3806ca60562609690",
+          "state": "completed",
+          "result": "passed",
+          "label": "Exactbd1 Android:5436Flutter/3867Server/17E2E ve signedAPK122 geçti; apksig packageLarenor/code100000122/min26/nondebug, SHA21cc73b9."
         }
       ],
       "completionCommit": null,
-      "reason": "Typed switch durumu, kalıcı idempotent komut/makbuz ve açık PIN-gated Direct→Core aktarımı main32d43fd içinde. Server87 ve Client92odaklı/599ilgiliPASS; sözleşmehash sabit, bağımsız incelemeler CLEAR. Exact32d Security/Server/Flutter/E2E geçti ancak Android iç Server fixture yarışı signed APK'yı durdurdu; local fixture onarımı yeni CI bekliyor. Geniş HA varlık/servis kapsamı ve fiziksel Android/gerçek HA kabulü açık; gerçek ev yalnız salt okunur tutuldu."
+      "reason": "Typed switch durumu, kalıcı idempotent komut/makbuz ve açık PIN-gated Direct→Core aktarımı main32d43fd içinde. Server87 ve Client92odaklı/599ilgiliPASS; sözleşmehash sabit, bağımsız incelemeler CLEAR. Fixture onarımı sonrası exactbd1 Security/Server3867/Flutter5436/E2E17 ve signedAPK122/apksig doğrulaması geçti. Geniş HA varlık/servis kapsamı ile fiziksel Huawei/DeX/TalkBack/gerçek HA kabulü açık; gerçek ev yalnız salt okunur tutuldu."
     },
     {
       "id": "S08.8",
@@ -1859,11 +1875,11 @@
       "evidence": [
         {
           "kind": "ci",
-          "ref": "https://github.com/ersingundem/larenor/actions/runs/34257630295",
-          "commit": "32d43fd54f7213b3d2cf548dcda7c86b05310606",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/34260527888",
+          "commit": "bd1a604ab46873a2fc967eb3806ca60562609690",
           "state": "completed",
-          "result": "failed",
-          "label": "Direct tablet source exact32d:5436Flutter/17E2E ve debugAPK geçti; bağımsız Server3866+1 sentetik fixture yarışı nedeniyle signedAPKskip. Local fixture onarımı yeniCI bekliyor."
+          "result": "passed",
+          "label": "Direct tablet source exactbd1:5436Flutter/3867Server/17E2E ve signedAPK122 geçti; apksig package/code/minSdk/nondebug/imza ve SHA21cc73b9 doğrulandı."
         },
         {
           "kind": "ci",
@@ -2115,7 +2131,7 @@
         }
       ],
       "completionCommit": null,
-      "reason": "Services ve hesap IME exact5cbff21/APK116 ile temiz CI kapısından geçti. Direct aktarım yüzeyi yerelde tablet/a11y review CLEAR ve599ilgiliPASS; exact32d 5436Flutter/17E2E geçti ancak bağımsız Server fixture yarışı signedAPK'yı durdurdu. Genel B5.1, fixture onarımının yeni Android CI'ı, kalan ortak tablet yüzeyleri ve fiziksel Huawei/DeX/TalkBack kabulü nedeniyle açık."
+      "reason": "Services ve hesap IME exact5cbff21/APK116 ile temiz CI kapısından geçti. Direct aktarım yüzeyi yerelde tablet/a11y review CLEAR ve599ilgiliPASS; fixture onarımı sonrası exactbd1 5436Flutter/3867Server/17E2E ve signedAPK122/apksig doğrulaması geçti. Genel B5.1 kalan ortak tablet yüzeyleri ve fiziksel Huawei/DeX/TalkBack kabulü nedeniyle açık."
     },
     {
       "id": "B5.2",
