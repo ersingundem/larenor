@@ -14,6 +14,7 @@ class StartupError(Exception):
 
 MESSAGES = {
     "ha_binding_changed": "The selected Home Assistant binding changed. Review it again.",
+    "ha_command_conflict": "This request conflicts with a saved Home Assistant command.",
     "ha_preview_invalid": "The binding preview is no longer available. Review it again.",
     "ha_upstream_unauthorized": "Home Assistant did not authorize this observation.",
     "ha_upstream_unavailable": "The selected Home Assistant observation is unavailable.",

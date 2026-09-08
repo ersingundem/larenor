@@ -144,6 +144,7 @@ class HaHarness {
       homeSessionControllerProvider.overrideWithValue(home),
       coreHaClockProvider.overrideWithValue(() => now),
       coreHaMonotonicProvider.overrideWithValue(() => elapsed),
+      coreHaRequestIdProvider.overrideWithValue(() => '7' * 32),
       coreHaApiFactoryProvider.overrideWithValue((endpoint) {
         transports++;
         return LarenorServerApi(
@@ -164,6 +165,10 @@ class HaHarness {
             }
             final step = path.endsWith('/snapshot')
                 ? snapshotStep
+                : path.endsWith('/commands')
+                ? 'commandAccepted'
+                : path.contains('/commands/')
+                ? 'commandResult'
                 : path.endsWith('/binding')
                 ? (bound ? 'binding' : 'unbound')
                 : path.endsWith('/binding-preview')

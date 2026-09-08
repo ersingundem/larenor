@@ -32,12 +32,12 @@ class ConfirmRequest(FrozenModel):
 class Projection(FrozenModel):
     kind: Literal['switch'] = 'switch'
     state: Literal['on', 'off', 'unavailable']
-    commandAvailable: Literal[False] = False
+    commandAvailable: bool = False
 
     @field_validator('commandAvailable', mode='before')
     @classmethod
-    def literal_false(cls, value):
-        if type(value) is not bool or value is not False:
+    def literal_boolean(cls, value):
+        if type(value) is not bool:
             raise ValueError('invalid_capability')
         return value
 
@@ -84,3 +84,52 @@ class Snapshot(FrozenModel):
 
 class SnapshotResponse(FrozenModel):
     snapshot: Snapshot
+
+
+class CommandRequest(FrozenModel):
+    schemaVersion: Literal[1] = 1
+    requestId: Identity
+    action: Literal['turn_on', 'turn_off']
+    expectedBindingRevision: Revision
+    expectedResourceRevision: Revision
+    expectedAclRevision: Revision
+
+    @field_validator('schemaVersion', mode='before')
+    @classmethod
+    def integer_version(cls, value):
+        if type(value) is not int:
+            raise ValueError('invalid_schema')
+        return value
+
+
+class CommandReceipt(FrozenModel):
+    schemaVersion: Literal[1] = 1
+    requestId: Identity
+    ref: ResourceRef
+    bindingId: Identity
+    bindingRevision: Revision
+    actorId: Identity
+    action: Literal['turn_on', 'turn_off']
+    dispatchState: Literal['pending', 'accepted', 'rejected', 'unknown']
+    providerAccepted: bool | None
+    observedProjection: Projection | None
+    observationMatchesTarget: bool | None
+    causalityVerified: Literal[False] = False
+    createdAt: str = Field(max_length=40)
+    completedAt: str | None = Field(default=None, max_length=40)
+
+    @field_validator('causalityVerified', mode='before')
+    @classmethod
+    def literal_false(cls, value):
+        if type(value) is not bool or value is not False:
+            raise ValueError('invalid_capability')
+        return value
+
+
+class StoredCommand(FrozenModel):
+    request: CommandRequest
+    receipt: CommandReceipt
+
+
+class CommandResponse(FrozenModel):
+    receipt: CommandReceipt

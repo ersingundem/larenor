@@ -50,14 +50,12 @@ void _ref(Object? value, HomeResourceRecord target) {
 enum CoreHaSwitchState { on, off, unavailable }
 
 final class CoreHaProjection {
-  const CoreHaProjection._(this.state);
+  const CoreHaProjection._(this.state, this.commandAvailable);
   final CoreHaSwitchState state;
-  bool get commandAvailable => false;
+  final bool commandAvailable;
   factory CoreHaProjection.fromJson(Object? raw) {
     final value = _object(raw, {'kind', 'state', 'commandAvailable'});
-    if (value['kind'] != 'switch' ||
-        value['commandAvailable'] is! bool ||
-        value['commandAvailable'] != false) {
+    if (value['kind'] != 'switch' || value['commandAvailable'] is! bool) {
       _invalid();
     }
     return CoreHaProjection._(switch (value['state']) {
@@ -65,10 +63,135 @@ final class CoreHaProjection {
       'off' => CoreHaSwitchState.off,
       'unavailable' => CoreHaSwitchState.unavailable,
       _ => _invalid(),
-    });
+    }, value['commandAvailable'] as bool);
   }
   @override
   String toString() => 'CoreHaProjection';
+}
+
+enum CoreHaCommandAction { turnOn, turnOff }
+
+enum CoreHaDispatchState { pending, accepted, rejected, unknown }
+
+final class CoreHaCommandReceipt {
+  const CoreHaCommandReceipt._({
+    required this.requestId,
+    required this.bindingId,
+    required this.bindingRevision,
+    required this.actorId,
+    required this.action,
+    required this.dispatchState,
+    required this.providerAccepted,
+    required this.observedProjection,
+    required this.observationMatchesTarget,
+    required this.createdAt,
+    required this.completedAt,
+  });
+  final String requestId, bindingId, actorId;
+  final int bindingRevision;
+  final CoreHaCommandAction action;
+  final CoreHaDispatchState dispatchState;
+  final bool? providerAccepted, observationMatchesTarget;
+  final CoreHaProjection? observedProjection;
+  final DateTime createdAt;
+  final DateTime? completedAt;
+
+  factory CoreHaCommandReceipt.fromJson(
+    Object? raw, {
+    required HomeResourceRecord target,
+  }) {
+    final value = _object(raw, {
+      'schemaVersion',
+      'requestId',
+      'ref',
+      'bindingId',
+      'bindingRevision',
+      'actorId',
+      'action',
+      'dispatchState',
+      'providerAccepted',
+      'observedProjection',
+      'observationMatchesTarget',
+      'causalityVerified',
+      'createdAt',
+      'completedAt',
+    });
+    _schema(value['schemaVersion']);
+    _ref(value['ref'], target);
+    if (value['causalityVerified'] != false ||
+        value['providerAccepted'] != null &&
+            value['providerAccepted'] is! bool ||
+        value['observationMatchesTarget'] != null &&
+            value['observationMatchesTarget'] is! bool) {
+      _invalid();
+    }
+    final action = switch (value['action']) {
+      'turn_on' => CoreHaCommandAction.turnOn,
+      'turn_off' => CoreHaCommandAction.turnOff,
+      _ => _invalid(),
+    };
+    final dispatch = switch (value['dispatchState']) {
+      'pending' => CoreHaDispatchState.pending,
+      'accepted' => CoreHaDispatchState.accepted,
+      'rejected' => CoreHaDispatchState.rejected,
+      'unknown' => CoreHaDispatchState.unknown,
+      _ => _invalid(),
+    };
+    final created = _coreHaTimestamp(value['createdAt']),
+        completed = value['completedAt'] == null
+            ? null
+            : _coreHaTimestamp(value['completedAt']),
+        provider = value['providerAccepted'] as bool?,
+        observed = value['observedProjection'] == null
+            ? null
+            : CoreHaProjection.fromJson(value['observedProjection']),
+        matches = value['observationMatchesTarget'] as bool?;
+    final targetState = action == CoreHaCommandAction.turnOn
+        ? CoreHaSwitchState.on
+        : CoreHaSwitchState.off;
+    if (completed != null && completed.isBefore(created) ||
+        dispatch == CoreHaDispatchState.pending &&
+            (provider != null ||
+                observed != null ||
+                matches != null ||
+                completed != null) ||
+        dispatch == CoreHaDispatchState.accepted && provider != true ||
+        dispatch == CoreHaDispatchState.rejected && provider != false ||
+        dispatch == CoreHaDispatchState.unknown && provider != null ||
+        observed == null && matches != null ||
+        observed != null && matches == null ||
+        observed != null && matches != (observed.state == targetState) ||
+        dispatch != CoreHaDispatchState.pending && completed == null) {
+      _invalid();
+    }
+    return CoreHaCommandReceipt._(
+      requestId: _id(value['requestId']),
+      bindingId: _id(value['bindingId']),
+      bindingRevision: _integer(value['bindingRevision']),
+      actorId: _id(value['actorId']),
+      action: action,
+      dispatchState: dispatch,
+      providerAccepted: provider,
+      observedProjection: observed,
+      observationMatchesTarget: matches,
+      createdAt: created,
+      completedAt: completed,
+    );
+  }
+
+  @override
+  String toString() => 'CoreHaCommandReceipt';
+}
+
+DateTime _coreHaTimestamp(Object? value) {
+  if (value is! String ||
+      value.length > 40 ||
+      !RegExp(r'T.*(?:Z|\+00:00)$').hasMatch(value)) {
+    _invalid();
+  }
+  final parsed = DateTime.tryParse(value);
+  if (parsed == null || !parsed.isUtc) _invalid();
+  return parsed;
 }
 
 final class CoreHaSnapshot {
@@ -105,14 +228,7 @@ final class CoreHaSnapshot {
     });
     _schema(value['schemaVersion']);
     _ref(value['ref'], target);
-    final text = value['observedAt'];
-    if (text is! String ||
-        text.length > 40 ||
-        !RegExp(r'T.*(?:Z|\+00:00)$').hasMatch(text)) {
-      _invalid();
-    }
-    final date = DateTime.tryParse(text);
-    if (date == null || !date.isUtc) _invalid();
+    final date = _coreHaTimestamp(value['observedAt']);
     return CoreHaSnapshot._(
       _id(value['bindingId']),
       _integer(value['bindingRevision']),

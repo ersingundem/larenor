@@ -1,6 +1,8 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'dart:math';
+
 import '../../../core/app_interaction_scope.dart';
 import '../../../core/home_session_controller.dart';
 import '../../server/data/larenor_server_api.dart';
@@ -69,6 +71,13 @@ final coreHaApiFactoryProvider = Provider<ServerApiFactory>(
       (endpoint) => LarenorServerApi(endpoint: endpoint),
 );
 final coreHaClockProvider = Provider<DateTime Function()>((_) => DateTime.now);
+final coreHaRequestIdProvider = Provider<String Function()>((_) {
+  final random = Random.secure();
+  return () => List<int>.generate(
+    16,
+    (_) => random.nextInt(256),
+  ).map((value) => value.toRadixString(16).padLeft(2, '0')).join();
+});
 
 bool Function() _bind(Ref ref, CoreHaOwner owner, HomeSessionController? home) {
   owner._bind(ref);
@@ -109,6 +118,7 @@ final coreHaControllerProvider = Provider.autoDispose
         _bind(ref, selection.owner, home),
         selection.owner,
         admin: selection.admin,
+        requestId: ref.watch(coreHaRequestIdProvider),
       );
       ref.onDispose(() {
         controller.dispose();

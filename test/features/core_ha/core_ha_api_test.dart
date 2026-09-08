@@ -135,6 +135,70 @@ void main() {
       await expectLater(api.snapshot(), throwsA(failure(code)));
     },
   );
+  test(
+    'command dispatch and result recovery use exact idempotent requests',
+    () async {
+      final requests = <http.Request>[];
+      final receipt = commandReceiptJson();
+      final api = create((request) async {
+        requests.add(request);
+        return response({
+          'receipt': receipt,
+        }, request.method == 'POST' ? 202 : 200);
+      });
+      final snapshot = CoreHaSnapshot.fromJson(
+        snapshotJson(),
+        target: target(),
+      );
+      final sent = await api.command(
+        requestId: '7' * 32,
+        action: CoreHaCommandAction.turnOn,
+        snapshot: snapshot,
+      );
+      expect(sent.dispatchState, CoreHaDispatchState.accepted);
+      expect((await api.commandResult('7' * 32)).requestId, '7' * 32);
+      expect(requests.map((r) => r.method), ['POST', 'GET']);
+      expect(requests.map((r) => r.url.path), [
+        '/prefix/api/v1$prefix/commands',
+        '/prefix/api/v1$prefix/commands/${'7' * 32}',
+      ]);
+      expect(jsonDecode(requests.first.body), {
+        'schemaVersion': 1,
+        'requestId': '7' * 32,
+        'action': 'turn_on',
+        'expectedBindingRevision': 1,
+        'expectedResourceRevision': 1,
+        'expectedAclRevision': 1,
+      });
+    },
+  );
+  test(
+    'known read-only capability and invalid request id dispatch nothing',
+    () async {
+      var calls = 0;
+      final api = create((_) async {
+        calls++;
+        return response(null);
+      });
+      final unavailable = CoreHaSnapshot.fromJson({
+        ...snapshotJson(),
+        'projection': projectionJson(commandAvailable: false),
+      }, target: target());
+      await expectLater(
+        api.command(
+          requestId: '7' * 32,
+          action: CoreHaCommandAction.turnOff,
+          snapshot: unavailable,
+        ),
+        throwsA(failure('invalid_request')),
+      );
+      await expectLater(
+        api.commandResult('UPPER'),
+        throwsA(failure('invalid_request')),
+      );
+      expect(calls, 0);
+    },
+  );
   for (final status in [200, 401]) {
     test('retired late$status becomes cancelled and never revives', () async {
       final pending = Completer<http.Response>();
@@ -270,86 +334,138 @@ void main() {
     value = {'snapshot': 'x' * (3 * 1024 * 1024)};
     await expectLater(api.snapshot(), throwsA(failure('invalid_response')));
   });
-  test('actual ServerHTTP fixture agrees with every read/preview/confirm/cancel envelope', () async {
-    final f = jsonDecode(
-      File('contracts/home-assistant.v1.json').readAsStringSync(),
-    ) as Map<String, dynamic>;
-    final record = HomeResourceRecord.fromJson(
-      f['resource'],
-      expectedContext: ServerContext.fromJson(f['context']),
-    );
-    String step = 'unbound';
-    var calls = 0;
-    final api = create((request) async {
-      calls++;
-      final expected = f[step];
-      expect(request.method, expected['method']);
-      expect(request.url.path, '/prefix/api/v1${expected['path']}');
-      expect(
-        request.body.isEmpty ? null : jsonDecode(request.body),
-        expected['body'],
+  test(
+    'actual ServerHTTP fixture agrees with read, binding and command envelopes',
+    () async {
+      final f = jsonDecode(
+        File('contracts/home-assistant.v1.json').readAsStringSync(),
+      ) as Map<String, dynamic>;
+      final record = HomeResourceRecord.fromJson(
+        f['resource'],
+        expectedContext: ServerContext.fromJson(f['context']),
       );
-      return response(expected['response'], expected['status'] as int);
-    }, record: record);
-    final service = ServerService.fromJson({
-      ...serviceJson(),
-      'id': f['preview']['body']['serviceId'],
-    });
-    expect(await api.binding(), isNull);
-    step = 'preview';
-    final first = await api.preview(
-      service: service,
-      entityId: 'switch.synthetic',
-      existing: null,
-    );
-    step = 'cancel';
-    await api.cancel(first);
-    step = 'cancelledConfirmation';
-    await expectLater(
-      api.confirm(first),
-      throwsA(failure('ha_preview_invalid')),
-    );
-    step = 'secondPreview';
-    final preview = await api.preview(
-      service: service,
-      entityId: 'switch.synthetic',
-      existing: null,
-    );
-    step = 'confirm';
-    final binding = await api.confirm(preview);
-    step = 'binding';
-    expect((await api.binding())!.sameBinding(binding), isTrue);
-    step = 'oneUse';
-    await expectLater(
-      api.confirm(preview),
-      throwsA(failure('ha_preview_invalid')),
-    );
-    step = 'memberAdminDenied';
-    await expectLater(api.binding(), throwsA(failure('forbidden')));
-    for (final name in [
-      'snapshotOff',
-      'cachedOff',
-      'memberOn',
-      'unknownUnavailable',
-    ]) {
-      step = name;
-      expect(
-        (await api.snapshot()).projection.state.name,
-        f[step]['response']['snapshot']['projection']['state'],
+      String step = 'unbound';
+      var calls = 0;
+      final api = create((request) async {
+        calls++;
+        final expected = f[step];
+        expect(request.method, expected['method']);
+        expect(request.url.path, '/prefix/api/v1${expected['path']}');
+        expect(
+          request.body.isEmpty ? null : jsonDecode(request.body),
+          expected['body'],
+        );
+        return response(expected['response'], expected['status'] as int);
+      }, record: record);
+      final service = ServerService.fromJson({
+        ...serviceJson(),
+        'id': f['preview']['body']['serviceId'],
+      });
+      expect(await api.binding(), isNull);
+      step = 'preview';
+      final first = await api.preview(
+        service: service,
+        entityId: 'switch.synthetic',
+        existing: null,
       );
-    }
-    for (final pair in [
-      ('upstreamUnauthorized', 'ha_upstream_unauthorized'),
-      ('unsupported', 'ha_projection_unsupported'),
-      ('hidden', 'not_found'),
-      ('revoked', 'not_found'),
-      ('coreUnauthorized', 'unauthorized'),
-    ]) {
-      step = pair.$1;
-      await expectLater(api.snapshot(), throwsA(failure(pair.$2)));
-    }
-    expect(calls, 18);
-  });
+      step = 'cancel';
+      await api.cancel(first);
+      step = 'cancelledConfirmation';
+      await expectLater(
+        api.confirm(first),
+        throwsA(failure('ha_preview_invalid')),
+      );
+      step = 'secondPreview';
+      final preview = await api.preview(
+        service: service,
+        entityId: 'switch.synthetic',
+        existing: null,
+      );
+      step = 'confirm';
+      final binding = await api.confirm(preview);
+      step = 'binding';
+      expect((await api.binding())!.sameBinding(binding), isTrue);
+      step = 'oneUse';
+      await expectLater(
+        api.confirm(preview),
+        throwsA(failure('ha_preview_invalid')),
+      );
+      step = 'memberAdminDenied';
+      await expectLater(api.binding(), throwsA(failure('forbidden')));
+      for (final name in [
+        'snapshotOff',
+        'cachedOff',
+        'memberOn',
+        'unknownUnavailable',
+      ]) {
+        step = name;
+        expect(
+          (await api.snapshot()).projection.state.name,
+          f[step]['response']['snapshot']['projection']['state'],
+        );
+      }
+      final writableRecord = HomeResourceRecord.fromJson({
+        ...f['resource'],
+        'aclRevision': 3,
+      }, expectedContext: record.context);
+      final commandApi = create((request) async {
+        calls++;
+        final expected = f[step];
+        expect(request.method, expected['method']);
+        expect(request.url.path, '/prefix/api/v1${expected['path']}');
+        expect(
+          request.body.isEmpty ? null : jsonDecode(request.body),
+          expected['body'],
+        );
+        return response(expected['response'], expected['status'] as int);
+      }, record: writableRecord);
+      final commandSnapshot = CoreHaSnapshot.fromJson(
+        f['unknownUnavailable']['response']['snapshot'],
+        target: writableRecord,
+      );
+      step = 'commandAccepted';
+      final receipt = await commandApi.command(
+        requestId: '7' * 32,
+        action: CoreHaCommandAction.turnOff,
+        snapshot: commandSnapshot,
+      );
+      expect(receipt.dispatchState, CoreHaDispatchState.accepted);
+      step = 'commandDuplicate';
+      expect(
+        (await commandApi.command(
+          requestId: '7' * 32,
+          action: CoreHaCommandAction.turnOff,
+          snapshot: commandSnapshot,
+        )).requestId,
+        receipt.requestId,
+      );
+      step = 'commandResult';
+      expect(
+        (await commandApi.commandResult('7' * 32)).requestId,
+        receipt.requestId,
+      );
+      step = 'commandConflict';
+      await expectLater(
+        commandApi.command(
+          requestId: '7' * 32,
+          action: CoreHaCommandAction.turnOn,
+          snapshot: commandSnapshot,
+        ),
+        throwsA(failure('ha_command_conflict')),
+      );
+      for (final pair in [
+        ('upstreamUnauthorized', 'ha_upstream_unauthorized'),
+        ('unsupported', 'ha_projection_unsupported'),
+        ('hidden', 'not_found'),
+        ('revoked', 'not_found'),
+        ('coreUnauthorized', 'unauthorized'),
+      ]) {
+        step = pair.$1;
+        await expectLater(api.snapshot(), throwsA(failure(pair.$2)));
+      }
+      expect(calls, 22);
+    },
+  );
   test(
     'HA static codes require their exact statuses and context404 is unchanged',
     () async {

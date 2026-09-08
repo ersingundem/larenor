@@ -46,7 +46,7 @@ def test_storage_bound_precedes_materializing_corrupt_payload(server, ha):
 
 
 @pytest.mark.parametrize('value',[0,1,'false',None])
-def test_command_capability_requires_literal_false(value):
+def test_command_capability_requires_literal_boolean(value):
     with pytest.raises(ValueError):
         Projection(state='on', commandAvailable=value)
 
@@ -56,7 +56,7 @@ def test_closed_projection_and_no_upstream_attributes(server, ha, state, expecte
     _, client, admin, _, _, base, public, body = setup(server, ha)
     bind(client, admin, base, body); ha.state=state
     r=client.get(public+'/snapshot',headers=auth(admin))
-    assert r.status_code==200 and r.json()['snapshot']['projection']=={'kind':'switch','state':expected,'commandAvailable':False}
+    assert r.status_code==200 and r.json()['snapshot']['projection']=={'kind':'switch','state':expected,'commandAvailable':True}
     assert all(x not in r.text for x in ('entity_id','attributes','last_updated','synthetic-ha-only','NEVER-PUBLISH'))
 
 
@@ -157,7 +157,7 @@ def test_preview_ttl_restart_and_binding_persistence(server,ha):
     "UPDATE home_assistant_state SET authentication_tag='bad'",
     'CREATE UNIQUE INDEX unrelated_name ON home_assistant_bindings(revision)',
     'CREATE TRIGGER unrelated_trigger BEFORE INSERT ON home_assistant_bindings BEGIN SELECT RAISE(IGNORE); END',
-    "UPDATE metadata SET value='2' WHERE key='home_assistant_schema'",
+    "UPDATE metadata SET value='3' WHERE key='home_assistant_schema'",
     'DROP TABLE home_assistant_state',
 ])
 def test_startup_rejects_tampered_storage_and_preserves_dump(server,ha,sql):

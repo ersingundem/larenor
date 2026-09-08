@@ -197,7 +197,7 @@ void main() {
   }
   for (final pair in [('en', 1280.0), ('tr', 600.0)]) {
     testWidgets(
-      '${pair.$1} real-font read-only snapshot refresh and Space activation',
+      '${pair.$1} real-font writable snapshot controls at 2x keyboard scale',
       (tester) async {
         await loadFonts(tester);
         tester.platformDispatcher.platformBrightnessTestValue = pair.$1 == 'tr'
@@ -226,8 +226,26 @@ void main() {
         await flush(tester);
         expect(h.snapshotReads, 2);
         expect(key('core-ha-state-off'), findsOneWidget);
+        for (final id in ['core-ha-command-on', 'core-ha-command-off']) {
+          await reveal(tester, native(id));
+          final rect = tester.getRect(native(id));
+          expect(rect.width, greaterThanOrEqualTo(48));
+          expect(rect.height, greaterThanOrEqualTo(48));
+        }
+        Focus.of(
+          tester.element(
+            find.descendant(
+              of: key('core-ha-command-on'),
+              matching: find.byType(Text),
+            ),
+          ),
+        ).requestFocus();
+        await tester.pump();
+        await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+        await flush(tester);
+        expect(key('core-ha-command-accepted'), findsOneWidget);
         await png(tester, h, '${pair.$1}-${pair.$2.toInt()}-snapshot-2x');
-        expect(h.adapterRequests.every((r) => r.method == 'GET'), isTrue);
+        expect(h.adapterRequests.where((r) => r.method == 'POST').length, 1);
         expect(h.haReads, 0);
       },
     );

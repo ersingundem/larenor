@@ -13,8 +13,10 @@ from test_admin import activate, create as create_user
 def ha():
     class Fixture:
         calls = 0
+        command_calls = 0
         state = 'off'
         status = 200
+        command_status = 200
         body = None
         during = None
     fixture = Fixture()
@@ -31,6 +33,23 @@ def ha():
                 'attributes': {'token': 'NEVER-PUBLISH-ATTRIBUTES'}, 'last_updated': '2026-09-06T12:00:00Z'}
             body = fixture.body if fixture.body is not None else json.dumps(value).encode()
             self.send_response(fixture.status)
+            self.send_header('Content-Type', 'application/json')
+            self.send_header('Content-Length', str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+        def do_POST(self):
+            fixture.command_calls += 1
+            assert self.path in ('/api/services/switch/turn_on', '/api/services/switch/turn_off')
+            assert self.headers.get('Authorization') == 'Bearer synthetic-ha-only'
+            assert self.headers.get('Content-Type') == 'application/json'
+            length = int(self.headers.get('Content-Length', '0'))
+            assert json.loads(self.rfile.read(length)) == {'entity_id': 'switch.synthetic'}
+            if fixture.during:
+                fixture.during()
+            if fixture.command_status == 200:
+                fixture.state = 'on' if self.path.endswith('/turn_on') else 'off'
+            body = b'[]'
+            self.send_response(fixture.command_status)
             self.send_header('Content-Type', 'application/json')
             self.send_header('Content-Length', str(len(body)))
             self.end_headers()
@@ -79,7 +98,9 @@ def test_actual_preview_confirm_snapshot_and_cache(server, ha):
     assert response.status_code == 200, response.text
     snapshot = response.json()['snapshot']
     assert snapshot['bindingId'] == binding['id'] and snapshot['ref'] == record['ref']
-    assert snapshot['projection'] == preview['projection']
+    assert snapshot['projection'] == {
+        **preview['projection'], 'commandAvailable': True}
+    assert preview['projection']['commandAvailable'] is False
     assert 0 < snapshot['remainingTtlMs'] <= 5000
     assert ha.calls == 2
     assert client.get(public + '/snapshot', headers=auth(admin)).status_code == 200

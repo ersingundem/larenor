@@ -23,8 +23,9 @@ from ..admin.service import utc
 from ..auth import token_hash
 from ..errors import ApiError, StartupError
 from . import schema
-from .models import Binding, PreviewRequest, Projection, Snapshot
-from .transport import read_switch
+from .models import (Binding, CommandReceipt, CommandRequest, PreviewRequest,
+                     Projection, Snapshot, StoredCommand)
+from .transport import command_switch, read_switch
 
 
 PREVIEW_TTL = 60.0
@@ -59,6 +60,9 @@ class HomeAssistantAdapter:
         self._closed = False
         self._slots = threading.BoundedSemaphore(4)
         self._reader = read_switch  # Private packaged/test seam, never an HTTP option.
+        self._commander = command_switch
+        self._active_commands = set()
+        self._command_generation = 0
 
     def _now(self):
         now = self._clock()
@@ -78,6 +82,7 @@ class HomeAssistantAdapter:
     def close(self):
         with self._lock:
             self._previews.clear(); self._cache.clear()
+            self._active_commands.clear()
             self._closed = True
 
     @staticmethod
@@ -92,12 +97,29 @@ class HomeAssistantAdapter:
             raise ValueError()
         return binding
 
+    @staticmethod
+    def _command_aad(row):
+        return f'larenor-ha-command-v1:{row["request_id"]}:{row["resource_id"]}'.encode('ascii')
+
+    def _decode_command(self, row):
+        value = StoredCommand.model_validate_json(
+            self._cipher.decrypt(row['nonce'], row['ciphertext'], self._command_aad(row)))
+        if (value.request.requestId != row['request_id'] or
+                value.receipt.requestId != row['request_id'] or
+                value.receipt.ref.id != row['resource_id'] or
+                value.receipt.action != value.request.action or
+                value.receipt.bindingRevision != value.request.expectedBindingRevision):
+            raise ValueError()
+        return value
+
     def validate_storage(self):
         try:
             with self.db.connection() as c:
                 c.execute('BEGIN')
                 for row in schema.validate(c, self._key, self.resources.scope):
                     self._decode(row)
+                for row in schema.command_rows(c):
+                    self._decode_command(row)
         except (ValueError, TypeError, InvalidTag):
             raise StartupError('home_assistant_storage_invalid') from None
 
@@ -148,22 +170,34 @@ class HomeAssistantAdapter:
                     dict(service.credentials)], sort_keys=True).encode(), hashlib.sha256).digest())
         return fingerprint, row, ref, binding, service
 
-    def _fresh(self, actor, core, home, resource, fingerprint, body, cancelled, *, admin=False):
+    def _fresh(self, actor, core, home, resource, fingerprint, body, cancelled, *,
+               admin=False, command_generation=None):
         if cancelled():
             raise ApiError('request_timeout', 408)
         with self._tx(actor, core, home, admin=admin) as (c, facts):
             current = self._facts(c, facts, resource, body)[0]
-            if current != fingerprint:
+            if (current != fingerprint or command_generation is not None and
+                    command_generation != self._command_generation):
                 raise ApiError('ha_binding_changed', 409)
         if cancelled():
             raise ApiError('request_timeout', 408)
 
-    def _observe(self, actor, core, home, resource, fingerprint, service, entity, body, cancelled, *, admin=False):
+    def _current_read(self, actor, core, home, resource, cancelled):
+        if cancelled():
+            raise ApiError('request_timeout', 408)
+        with self._tx(actor, core, home) as (c, facts):
+            self._target(c, facts, resource)
+        if cancelled():
+            raise ApiError('request_timeout', 408)
+
+    def _observe(self, actor, core, home, resource, fingerprint, service, entity,
+                 body, cancelled, *, admin=False, command_generation=None):
         if not self._slots.acquire(blocking=False):
             raise ApiError('ha_limit_reached', 429)
         try:
             def guard():
-                self._fresh(actor, core, home, resource, fingerprint, body, cancelled, admin=admin)
+                self._fresh(actor, core, home, resource, fingerprint, body,
+                    cancelled, admin=admin, command_generation=command_generation)
             projection = self._reader(service, entity, guard=guard)
             guard()
             # Even trusted replacement readers cannot smuggle arbitrary attributes.
@@ -271,19 +305,161 @@ class HomeAssistantAdapter:
             self._cache.clear()
             return {'binding': binding.model_dump()}
 
+    def _save_command(self, c, value):
+        plain = value.model_dump_json().encode('utf-8')
+        nonce = secrets.token_bytes(12)
+        row = {'request_id': value.request.requestId, 'resource_id': value.receipt.ref.id}
+        cipher = self._cipher.encrypt(nonce, plain, self._command_aad(row))
+        if len(cipher) > schema.MAX_COMMAND_CIPHER:
+            raise ApiError('server_unavailable', 503)
+        c.execute('INSERT INTO home_assistant_commands VALUES(?,?,?,?) '
+                  'ON CONFLICT(request_id) DO UPDATE SET resource_id=excluded.resource_id,'
+                  'nonce=excluded.nonce,ciphertext=excluded.ciphertext',
+                  (row['request_id'], row['resource_id'], nonce, cipher))
+        schema.update(c, self._key, self.resources.scope)
+        schema.validate(c, self._key, self.resources.scope)
+        saved = c.execute('SELECT * FROM home_assistant_commands WHERE request_id=?',
+                          (row['request_id'],)).fetchone()
+        if saved is None or self._decode_command(saved) != value:
+            raise ValueError()
+
+    def _existing_command(self, c, actor, resource, body):
+        row = c.execute('SELECT * FROM home_assistant_commands WHERE request_id=?',
+                        (body.requestId,)).fetchone()
+        if row is None:
+            return None
+        value = self._decode_command(row)
+        if value.receipt.actorId != actor.id or value.receipt.ref.id != resource:
+            raise ApiError('not_found', 404)
+        if value.request != body:
+            raise ApiError('ha_command_conflict', 409)
+        if value.receipt.dispatchState == 'pending' and body.requestId not in self._active_commands:
+            value = StoredCommand(request=value.request, receipt=value.receipt.model_copy(update={
+                'dispatchState': 'unknown', 'providerAccepted': None,
+                'observedProjection': None, 'observationMatchesTarget': None,
+                'completedAt': utc(self.settings.clock())}))
+            self._save_command(c, value)
+        return value
+
+    def command_result(self, actor, core, home, resource, request_id):
+        with self._tx(actor, core, home) as (c, facts):
+            row, ref, data, _ = self._target(c, facts, resource)
+            saved = c.execute('SELECT * FROM home_assistant_commands WHERE request_id=?',
+                              (request_id,)).fetchone()
+            if saved is None:
+                raise ApiError('not_found', 404)
+            value = self._decode_command(saved)
+            if value.receipt.ref != ref or (actor.role != 'admin' and value.receipt.actorId != actor.id):
+                raise ApiError('not_found', 404)
+            if value.receipt.dispatchState == 'pending' and request_id not in self._active_commands:
+                value = StoredCommand(request=value.request, receipt=value.receipt.model_copy(update={
+                    'dispatchState': 'unknown', 'providerAccepted': None,
+                    'observedProjection': None, 'observationMatchesTarget': None,
+                    'completedAt': utc(self.settings.clock())}))
+                self._save_command(c, value)
+            return {'receipt': value.receipt.model_dump()}
+
+    def _prepare_command(self, actor, core, home, resource, body):
+        reserved = False
+        try:
+            with self._tx(actor, core, home) as (c, facts):
+                row, ref, data, binding = self._target(c, facts, resource)
+                existing = self._existing_command(c, actor, resource, body)
+                if existing is not None:
+                    return existing, None
+                self.resources._require(facts, row, ref, data, 'write',
+                    expected_revision=body.expectedResourceRevision,
+                    expected_acl_revision=body.expectedAclRevision)
+                if binding is None or binding.revision != body.expectedBindingRevision:
+                    raise ApiError('ha_binding_changed', 409)
+                fingerprint, _, _, current, service = self._facts(c, facts, resource)
+                if current != binding:
+                    raise ApiError('ha_binding_changed', 409)
+                if len(schema.command_rows(c)) >= schema.MAX_COMMANDS:
+                    raise ApiError('ha_limit_reached', 429)
+                created = utc(self.settings.clock())
+                receipt = CommandReceipt(requestId=body.requestId, ref=ref,
+                    bindingId=binding.id, bindingRevision=binding.revision, actorId=actor.id,
+                    action=body.action, dispatchState='pending', providerAccepted=None,
+                    observedProjection=None, observationMatchesTarget=None,
+                    causalityVerified=False, createdAt=created, completedAt=None)
+                self._save_command(c, StoredCommand(request=body, receipt=receipt))
+                self._command_generation += 1
+                self._cache.clear()
+                self._active_commands.add(body.requestId)
+                reserved = True
+            return None, (receipt, binding, service, fingerprint)
+        except BaseException:
+            if reserved:
+                with self._lock:
+                    self._active_commands.discard(body.requestId)
+            raise
+
+    def command(self, actor, core, home, resource, body, *, cancelled=lambda: False):
+        body = CommandRequest.model_validate(body)
+        existing, prepared = self._prepare_command(actor, core, home, resource, body)
+        if existing is not None:
+            return {'receipt': existing.receipt.model_dump()}
+        receipt, binding, service, fingerprint = prepared
+        slot = self._slots.acquire(blocking=False)
+        try:
+            if not slot or cancelled():
+                outcome = False
+            else:
+                def guard():
+                    self._fresh(actor, core, home, resource, fingerprint, None, cancelled)
+                outcome = self._commander(service, binding.entityId, body.action, guard=guard)
+            observed = None
+            if outcome is True:
+                try:
+                    observed = Projection.model_validate(
+                        self._reader(service, binding.entityId, guard=guard))
+                except ApiError:
+                    observed = None
+            target = 'on' if body.action == 'turn_on' else 'off'
+            state = 'accepted' if outcome is True else 'rejected' if outcome is False else 'unknown'
+            completed = receipt.model_copy(update={'dispatchState': state,
+                'providerAccepted': outcome, 'observedProjection': observed,
+                'observationMatchesTarget': None if observed is None else observed.state == target,
+                'completedAt': utc(self.settings.clock())})
+            value = StoredCommand(request=body, receipt=completed)
+            with self._lock, self.db.transaction() as c:
+                schema.validate(c, self._key, self.resources.scope)
+                current = c.execute('SELECT * FROM home_assistant_commands WHERE request_id=?',
+                                    (body.requestId,)).fetchone()
+                if current is None or self._decode_command(current).receipt.dispatchState != 'pending':
+                    raise ApiError('server_unavailable', 503)
+                self._save_command(c, value)
+                self._command_generation += 1
+                self._cache.clear()
+            self._current_read(actor, core, home, resource, cancelled)
+            return {'receipt': completed.model_dump()}
+        finally:
+            with self._lock:
+                self._active_commands.discard(body.requestId)
+            if slot:
+                self._slots.release()
+
     def snapshot(self, actor, core, home, resource, *, cancelled=lambda: False):
         with self._tx(actor, core, home) as (c, facts):
             fingerprint, row, ref, binding, service = self._facts(c, facts, resource)
+            command_generation = self._command_generation
             key = (core, home, actor.id, actor.token_id, resource, binding.id, actor.family_id)
             now = self._now(); cached = self._cache.get(key)
             if cached is not None and cached[1] == fingerprint and not cancelled():
                 remaining = max(0, int((CACHE_TTL - (now - cached[0])) * 1000))
                 return {'snapshot': {**cached[2], 'remainingTtlMs': remaining}}
-        projection = self._observe(actor, core, home, resource, fingerprint, service, binding.entityId, None, cancelled)
+        projection = self._observe(actor, core, home, resource, fingerprint,
+            service, binding.entityId, None, cancelled,
+            command_generation=command_generation)
         with self._tx(actor, core, home) as (c, facts):
             current, row, ref, binding, _ = self._facts(c, facts, resource)
-            if current != fingerprint or cancelled():
+            if (current != fingerprint or
+                    command_generation != self._command_generation or cancelled()):
                 raise ApiError('ha_binding_changed', 409)
+            projection = projection.model_copy(update={'commandAvailable':
+                self.resources._decision(facts, row, ref,
+                    self.resources._target(c, resource)[2], 'write').allowed})
             result = Snapshot(ref=ref, bindingId=binding.id, bindingRevision=binding.revision,
                 resourceRevision=row['revision'], aclRevision=row['acl_revision'], serviceRevision=binding.serviceRevision,
                 observedAt=utc(self.settings.clock()), remainingTtlMs=5000, projection=projection).model_dump()

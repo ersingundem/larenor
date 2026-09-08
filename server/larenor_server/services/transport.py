@@ -394,7 +394,9 @@ class ServiceTransport:
         self._closed = False
         self._active = set()
 
-    def request(self, method, path, headers=None, body=None):
+    def request(self, method, path, headers=None, body=None, *, before_send=None):
+        if before_send is not None and not callable(before_send):
+            raise ProbeTransportError("invalid_request")
         deadline = time.monotonic() + self._timeout
         route = self._prefix + _path(path)
         if len(route) > 4096:
@@ -412,6 +414,7 @@ class ServiceTransport:
             self._active.add(scope)
         error = None
         result = None
+        before_send_error = None
         try:
             if self._connector is None:
                 connection = socket.socket(family, socket.SOCK_STREAM)
@@ -428,6 +431,12 @@ class ServiceTransport:
                 scope.attach(connection)
                 connection.settimeout(_remaining(deadline))
                 connection.do_handshake()
+            if before_send is not None:
+                try:
+                    before_send()
+                except BaseException as caught:
+                    before_send_error = caught
+                    raise ProbeTransportError("request_failed") from None
             connection.settimeout(_remaining(deadline))
             connection.sendall(message)
             result = _response(_Reader(connection, deadline), self._max_bytes)
@@ -449,6 +458,8 @@ class ServiceTransport:
         # Raise outside handlers, preventing raw socket/SSL exception chains.
         if closed:
             raise ProbeTransportError("transport_closed")
+        if before_send_error is not None:
+            raise before_send_error
         if expired or time.monotonic() >= deadline:
             raise ProbeTransportError("request_timeout")
         if error is not None:

@@ -111,6 +111,43 @@ void main() {
     },
   );
   testWidgets(
+    'writable member sends one Core command and sees durable result',
+    (tester) async {
+      final h = HaUiHarness()..role = 'member';
+      await openSnapshot(tester, h);
+      expect(key('core-ha-command-on'), findsOneWidget);
+      expect(key('core-ha-command-off'), findsOneWidget);
+      await press(tester, 'core-ha-command-on');
+      expect(key('core-ha-command-accepted'), findsOneWidget);
+      expect(key('core-ha-state-off'), findsNothing);
+      expect(
+        h.adapterRequests.where((r) => r.url.path.endsWith('/commands')).length,
+        1,
+      );
+      expect(h.haReads, 0);
+    },
+  );
+  testWidgets('read-only member sees state without enabled command controls', (
+    tester,
+  ) async {
+    final h = HaUiHarness()
+      ..role = 'member'
+      ..snapshotStep = 'memberOn';
+    h.detailRecord = {
+      ...h.f['resource'],
+      'aclRevision': 2,
+      'permissions': {'read': true, 'write': false},
+    };
+    await openSnapshot(tester, h);
+    expect(key('core-ha-state-on'), findsOneWidget);
+    expect(key('core-ha-command-on'), findsNothing);
+    expect(key('core-ha-command-off'), findsNothing);
+    expect(
+      find.text('You have read-only access to this switch.'),
+      findsOneWidget,
+    );
+  });
+  testWidgets(
     'stale expiry and offline refresh never keep the old switch value',
     (tester) async {
       final h = HaUiHarness();

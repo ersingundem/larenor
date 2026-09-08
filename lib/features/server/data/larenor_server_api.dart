@@ -369,7 +369,11 @@ class LarenorServerApi {
       final code = (jsonDecode(utf8.decode(bytes)) as Map)['error']['code'];
       if (status == 404 && code == 'not_found' ||
           status == 409 &&
-              {'ha_binding_changed', 'ha_preview_invalid'}.contains(code) ||
+              {
+                'ha_binding_changed',
+                'ha_preview_invalid',
+                'ha_command_conflict',
+              }.contains(code) ||
           status == 429 && code == 'ha_limit_reached' ||
           status == 502 &&
               {

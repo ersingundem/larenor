@@ -78,6 +78,7 @@ class HaUiHarness {
   int haReads = 0, authPosts = 0, refreshes = 0, resourceReads = 0, closed = 0;
   int status = 200;
   Object? Function(http.Request)? resourceResponse;
+  Object? detailRecord;
   String userId = '9' * 32;
   late Object? response = fixture['memberList'];
   late Object? contextResponse = fixture['context'];
@@ -123,6 +124,23 @@ class HaUiHarness {
         return pendingSnapshot?.future ??
             json(f[snapshotStep]['response'], f[snapshotStep]['status'] as int);
       }
+      if (request.url.path.endsWith('/commands')) {
+        final requestBody = jsonDecode(request.body) as Map<String, dynamic>;
+        final response = jsonDecode(
+          jsonEncode(f['commandAccepted']['response']),
+        ) as Map<String, dynamic>;
+        final receipt = response['receipt'] as Map<String, dynamic>;
+        receipt['requestId'] = requestBody['requestId'];
+        receipt['action'] = requestBody['action'];
+        if (requestBody['action'] == 'turn_on') {
+          (receipt['observedProjection'] as Map<String, dynamic>)['state'] =
+              'on';
+        }
+        return json(response, 202);
+      }
+      if (request.url.path.contains('/commands/')) {
+        return json(f['commandResult']['response']);
+      }
       expectSync(role, 'admin');
       final path = request.url.path;
       final step = path.endsWith('/binding')
@@ -166,12 +184,10 @@ class HaUiHarness {
       requests.add(request);
       return pending?.future ??
           json(
-            resourceResponse != null
+            request.url.path.endsWith(f['resource']['ref']['id'] as String)
+                ? {'record': detailRecord ?? f['resource']}
+                : resourceResponse != null
                 ? resourceResponse!(request)
-                : request.url.path.endsWith(
-                    f['resource']['ref']['id'] as String,
-                  )
-                ? {'record': f['resource']}
                 : response,
             status,
           );
@@ -252,6 +268,7 @@ class HaUiHarness {
                 homeResourcesClockProvider.overrideWithValue(() => now),
                 coreHaClockProvider.overrideWithValue(() => now),
                 coreHaMonotonicProvider.overrideWithValue(() => elapsed),
+                coreHaRequestIdProvider.overrideWithValue(() => '7' * 32),
                 coreHaApiFactoryProvider.overrideWithValue(
                   (endpoint) => LarenorServerApi(
                     endpoint: endpoint,
