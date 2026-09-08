@@ -1,0 +1,545 @@
+{
+  "schemaVersion": 1,
+  "context": {
+    "schemaVersion": 1,
+    "coreId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "homeId": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+  },
+  "resource": {
+    "label": "Salon anahtarı",
+    "order": 0,
+    "ref": {
+      "schemaVersion": 1,
+      "coreId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "homeId": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "kind": "resource",
+      "id": "11111111111111111111111111111111"
+    },
+    "revision": 1,
+    "aclRevision": 1,
+    "permissions": {
+      "read": true,
+      "write": true
+    }
+  },
+  "limits": {
+    "previewTtlMs": 60000,
+    "previews": 32,
+    "previewsPerActor": 4,
+    "receipts": 256,
+    "receiptCiphertextBytes": 8192,
+    "services": 128,
+    "bindings": 256
+  },
+  "requestCapture": {
+    "omittedPrivateFields": [
+      "token"
+    ],
+    "upstreamRouting": "test-only-loopback-connector"
+  },
+  "notCommitted": {
+    "method": "GET",
+    "path": "/admin/home-assistant/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb/resources/11111111111111111111111111111111/direct-migration/results/cccccccccccccccccccccccccccccccc",
+    "body": null,
+    "status": 404,
+    "response": {
+      "error": {
+        "code": "not_found",
+        "message": "The requested resource was not found."
+      }
+    }
+  },
+  "memberDenied": {
+    "method": "POST",
+    "path": "/admin/home-assistant/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb/resources/11111111111111111111111111111111/direct-migration/preview",
+    "body": {
+      "requestId": "cccccccccccccccccccccccccccccccc",
+      "name": "Transferred HA",
+      "baseUrl": "http://fixture.invalid:8123",
+      "entityId": "switch.synthetic",
+      "expectedRevision": 1,
+      "expectedAclRevision": 1
+    },
+    "status": 403,
+    "response": {
+      "error": {
+        "code": "forbidden",
+        "message": "This account cannot perform that action."
+      }
+    }
+  },
+  "preview": {
+    "method": "POST",
+    "path": "/admin/home-assistant/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb/resources/11111111111111111111111111111111/direct-migration/preview",
+    "body": {
+      "requestId": "cccccccccccccccccccccccccccccccc",
+      "name": "Transferred HA",
+      "baseUrl": "http://fixture.invalid:8123",
+      "entityId": "switch.synthetic",
+      "expectedRevision": 1,
+      "expectedAclRevision": 1
+    },
+    "status": 201,
+    "response": {
+      "preview": {
+        "id": "44444444444444444444444444444444",
+        "requestId": "cccccccccccccccccccccccccccccccc",
+        "expiresInMs": 60000,
+        "ref": {
+          "schemaVersion": 1,
+          "coreId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "homeId": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "kind": "resource",
+          "id": "11111111111111111111111111111111"
+        },
+        "resourceRevision": 1,
+        "aclRevision": 1,
+        "service": {
+          "name": "Transferred HA",
+          "baseUrl": "http://fixture.invalid:8123",
+          "id": "22222222222222222222222222222222",
+          "kind": "home_assistant",
+          "revision": 1,
+          "credentialKeys": [
+            "token"
+          ],
+          "verification": {
+            "state": "never",
+            "checkedAt": null,
+            "version": null
+          }
+        },
+        "binding": {
+          "schemaVersion": 1,
+          "id": "33333333333333333333333333333333",
+          "revision": 1,
+          "ref": {
+            "schemaVersion": 1,
+            "coreId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "homeId": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "kind": "resource",
+            "id": "11111111111111111111111111111111"
+          },
+          "serviceId": "22222222222222222222222222222222",
+          "serviceRevision": 1,
+          "entityId": "switch.synthetic"
+        },
+        "projection": {
+          "kind": "switch",
+          "state": "off",
+          "commandAvailable": false
+        }
+      }
+    }
+  },
+  "cancel": {
+    "method": "DELETE",
+    "path": "/admin/home-assistant/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb/resources/11111111111111111111111111111111/direct-migration/preview/44444444444444444444444444444444",
+    "body": null,
+    "status": 204,
+    "response": null
+  },
+  "cancelledConfirm": {
+    "method": "POST",
+    "path": "/admin/home-assistant/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb/resources/11111111111111111111111111111111/direct-migration/confirm",
+    "body": {
+      "requestId": "cccccccccccccccccccccccccccccccc",
+      "name": "Transferred HA",
+      "baseUrl": "http://fixture.invalid:8123",
+      "entityId": "switch.synthetic",
+      "expectedRevision": 1,
+      "expectedAclRevision": 1,
+      "previewId": "44444444444444444444444444444444"
+    },
+    "status": 409,
+    "response": {
+      "error": {
+        "code": "ha_migration_preview_invalid",
+        "message": "The migration preview is no longer available. Review it again."
+      }
+    }
+  },
+  "secondPreview": {
+    "method": "POST",
+    "path": "/admin/home-assistant/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb/resources/11111111111111111111111111111111/direct-migration/preview",
+    "body": {
+      "requestId": "cccccccccccccccccccccccccccccccc",
+      "name": "Transferred HA",
+      "baseUrl": "http://fixture.invalid:8123",
+      "entityId": "switch.synthetic",
+      "expectedRevision": 1,
+      "expectedAclRevision": 1
+    },
+    "status": 201,
+    "response": {
+      "preview": {
+        "id": "77777777777777777777777777777777",
+        "requestId": "cccccccccccccccccccccccccccccccc",
+        "expiresInMs": 60000,
+        "ref": {
+          "schemaVersion": 1,
+          "coreId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "homeId": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "kind": "resource",
+          "id": "11111111111111111111111111111111"
+        },
+        "resourceRevision": 1,
+        "aclRevision": 1,
+        "service": {
+          "name": "Transferred HA",
+          "baseUrl": "http://fixture.invalid:8123",
+          "id": "55555555555555555555555555555555",
+          "kind": "home_assistant",
+          "revision": 1,
+          "credentialKeys": [
+            "token"
+          ],
+          "verification": {
+            "state": "never",
+            "checkedAt": null,
+            "version": null
+          }
+        },
+        "binding": {
+          "schemaVersion": 1,
+          "id": "66666666666666666666666666666666",
+          "revision": 1,
+          "ref": {
+            "schemaVersion": 1,
+            "coreId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "homeId": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "kind": "resource",
+            "id": "11111111111111111111111111111111"
+          },
+          "serviceId": "55555555555555555555555555555555",
+          "serviceRevision": 1,
+          "entityId": "switch.synthetic"
+        },
+        "projection": {
+          "kind": "switch",
+          "state": "off",
+          "commandAvailable": false
+        }
+      }
+    }
+  },
+  "confirm": {
+    "method": "POST",
+    "path": "/admin/home-assistant/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb/resources/11111111111111111111111111111111/direct-migration/confirm",
+    "body": {
+      "requestId": "cccccccccccccccccccccccccccccccc",
+      "name": "Transferred HA",
+      "baseUrl": "http://fixture.invalid:8123",
+      "entityId": "switch.synthetic",
+      "expectedRevision": 1,
+      "expectedAclRevision": 1,
+      "previewId": "77777777777777777777777777777777"
+    },
+    "status": 201,
+    "response": {
+      "receipt": {
+        "schemaVersion": 1,
+        "requestId": "cccccccccccccccccccccccccccccccc",
+        "status": "committed",
+        "ref": {
+          "schemaVersion": 1,
+          "coreId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "homeId": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "kind": "resource",
+          "id": "11111111111111111111111111111111"
+        },
+        "resourceRevision": 1,
+        "aclRevision": 1,
+        "service": {
+          "name": "Transferred HA",
+          "baseUrl": "http://fixture.invalid:8123",
+          "id": "55555555555555555555555555555555",
+          "kind": "home_assistant",
+          "revision": 1,
+          "credentialKeys": [
+            "token"
+          ],
+          "verification": {
+            "state": "never",
+            "checkedAt": null,
+            "version": null
+          }
+        },
+        "binding": {
+          "schemaVersion": 1,
+          "id": "66666666666666666666666666666666",
+          "revision": 1,
+          "ref": {
+            "schemaVersion": 1,
+            "coreId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "homeId": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "kind": "resource",
+            "id": "11111111111111111111111111111111"
+          },
+          "serviceId": "55555555555555555555555555555555",
+          "serviceRevision": 1,
+          "entityId": "switch.synthetic"
+        }
+      }
+    }
+  },
+  "result": {
+    "method": "GET",
+    "path": "/admin/home-assistant/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb/resources/11111111111111111111111111111111/direct-migration/results/cccccccccccccccccccccccccccccccc",
+    "body": null,
+    "status": 200,
+    "response": {
+      "receipt": {
+        "schemaVersion": 1,
+        "requestId": "cccccccccccccccccccccccccccccccc",
+        "status": "committed",
+        "ref": {
+          "schemaVersion": 1,
+          "coreId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "homeId": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "kind": "resource",
+          "id": "11111111111111111111111111111111"
+        },
+        "resourceRevision": 1,
+        "aclRevision": 1,
+        "service": {
+          "name": "Transferred HA",
+          "baseUrl": "http://fixture.invalid:8123",
+          "id": "55555555555555555555555555555555",
+          "kind": "home_assistant",
+          "revision": 1,
+          "credentialKeys": [
+            "token"
+          ],
+          "verification": {
+            "state": "never",
+            "checkedAt": null,
+            "version": null
+          }
+        },
+        "binding": {
+          "schemaVersion": 1,
+          "id": "66666666666666666666666666666666",
+          "revision": 1,
+          "ref": {
+            "schemaVersion": 1,
+            "coreId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "homeId": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "kind": "resource",
+            "id": "11111111111111111111111111111111"
+          },
+          "serviceId": "55555555555555555555555555555555",
+          "serviceRevision": 1,
+          "entityId": "switch.synthetic"
+        }
+      }
+    }
+  },
+  "duplicateConfirm": {
+    "method": "POST",
+    "path": "/admin/home-assistant/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb/resources/11111111111111111111111111111111/direct-migration/confirm",
+    "body": {
+      "requestId": "cccccccccccccccccccccccccccccccc",
+      "name": "Transferred HA",
+      "baseUrl": "http://fixture.invalid:8123",
+      "entityId": "switch.synthetic",
+      "expectedRevision": 1,
+      "expectedAclRevision": 1,
+      "previewId": "77777777777777777777777777777777"
+    },
+    "status": 201,
+    "response": {
+      "receipt": {
+        "schemaVersion": 1,
+        "requestId": "cccccccccccccccccccccccccccccccc",
+        "status": "committed",
+        "ref": {
+          "schemaVersion": 1,
+          "coreId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "homeId": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "kind": "resource",
+          "id": "11111111111111111111111111111111"
+        },
+        "resourceRevision": 1,
+        "aclRevision": 1,
+        "service": {
+          "name": "Transferred HA",
+          "baseUrl": "http://fixture.invalid:8123",
+          "id": "55555555555555555555555555555555",
+          "kind": "home_assistant",
+          "revision": 1,
+          "credentialKeys": [
+            "token"
+          ],
+          "verification": {
+            "state": "never",
+            "checkedAt": null,
+            "version": null
+          }
+        },
+        "binding": {
+          "schemaVersion": 1,
+          "id": "66666666666666666666666666666666",
+          "revision": 1,
+          "ref": {
+            "schemaVersion": 1,
+            "coreId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "homeId": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "kind": "resource",
+            "id": "11111111111111111111111111111111"
+          },
+          "serviceId": "55555555555555555555555555555555",
+          "serviceRevision": 1,
+          "entityId": "switch.synthetic"
+        }
+      }
+    }
+  },
+  "differentConfirm": {
+    "method": "POST",
+    "path": "/admin/home-assistant/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb/resources/11111111111111111111111111111111/direct-migration/confirm",
+    "body": {
+      "requestId": "cccccccccccccccccccccccccccccccc",
+      "name": "Changed",
+      "baseUrl": "http://fixture.invalid:8123",
+      "entityId": "switch.synthetic",
+      "expectedRevision": 1,
+      "expectedAclRevision": 1,
+      "previewId": "77777777777777777777777777777777"
+    },
+    "status": 409,
+    "response": {
+      "error": {
+        "code": "ha_migration_changed",
+        "message": "The selected migration source or target changed. Review it again."
+      }
+    }
+  },
+  "alreadyBound": {
+    "method": "POST",
+    "path": "/admin/home-assistant/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb/resources/11111111111111111111111111111111/direct-migration/preview",
+    "body": {
+      "requestId": "dddddddddddddddddddddddddddddddd",
+      "name": "Transferred HA",
+      "baseUrl": "http://fixture.invalid:8123",
+      "entityId": "switch.synthetic",
+      "expectedRevision": 1,
+      "expectedAclRevision": 1
+    },
+    "status": 409,
+    "response": {
+      "error": {
+        "code": "ha_migration_changed",
+        "message": "The selected migration source or target changed. Review it again."
+      }
+    }
+  },
+  "snapshot": {
+    "method": "GET",
+    "path": "/home-assistant/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb/resources/11111111111111111111111111111111/snapshot",
+    "body": null,
+    "status": 200,
+    "response": {
+      "snapshot": {
+        "schemaVersion": 1,
+        "ref": {
+          "schemaVersion": 1,
+          "coreId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "homeId": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "kind": "resource",
+          "id": "11111111111111111111111111111111"
+        },
+        "bindingId": "66666666666666666666666666666666",
+        "bindingRevision": 1,
+        "resourceRevision": 1,
+        "aclRevision": 1,
+        "serviceRevision": 1,
+        "observedAt": "2026-09-05T12:00:00.000Z",
+        "remainingTtlMs": 5000,
+        "projection": {
+          "kind": "switch",
+          "state": "off",
+          "commandAvailable": true
+        }
+      }
+    }
+  },
+  "memberResultDenied": {
+    "method": "GET",
+    "path": "/admin/home-assistant/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb/resources/11111111111111111111111111111111/direct-migration/results/cccccccccccccccccccccccccccccccc",
+    "body": null,
+    "status": 403,
+    "response": {
+      "error": {
+        "code": "forbidden",
+        "message": "This account cannot perform that action."
+      }
+    }
+  },
+  "restartResult": {
+    "method": "GET",
+    "path": "/admin/home-assistant/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb/resources/11111111111111111111111111111111/direct-migration/results/cccccccccccccccccccccccccccccccc",
+    "body": null,
+    "status": 200,
+    "response": {
+      "receipt": {
+        "schemaVersion": 1,
+        "requestId": "cccccccccccccccccccccccccccccccc",
+        "status": "committed",
+        "ref": {
+          "schemaVersion": 1,
+          "coreId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "homeId": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "kind": "resource",
+          "id": "11111111111111111111111111111111"
+        },
+        "resourceRevision": 1,
+        "aclRevision": 1,
+        "service": {
+          "name": "Transferred HA",
+          "baseUrl": "http://fixture.invalid:8123",
+          "id": "55555555555555555555555555555555",
+          "kind": "home_assistant",
+          "revision": 1,
+          "credentialKeys": [
+            "token"
+          ],
+          "verification": {
+            "state": "never",
+            "checkedAt": null,
+            "version": null
+          }
+        },
+        "binding": {
+          "schemaVersion": 1,
+          "id": "66666666666666666666666666666666",
+          "revision": 1,
+          "ref": {
+            "schemaVersion": 1,
+            "coreId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "homeId": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "kind": "resource",
+            "id": "11111111111111111111111111111111"
+          },
+          "serviceId": "55555555555555555555555555555555",
+          "serviceRevision": 1,
+          "entityId": "switch.synthetic"
+        }
+      }
+    }
+  },
+  "coreUnauthorized": {
+    "method": "GET",
+    "path": "/admin/home-assistant/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb/resources/11111111111111111111111111111111/direct-migration/results/cccccccccccccccccccccccccccccccc",
+    "body": null,
+    "status": 401,
+    "response": {
+      "error": {
+        "code": "invalid_session",
+        "message": "Sign in again."
+      }
+    }
+  },
+  "upstreamRequests": 3,
+  "upstreamCommandRequests": 0
+}
