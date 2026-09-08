@@ -1717,7 +1717,8 @@
         "docs/client-delivery-108-2026-09-06.md",
         "docs/core-services-tablet-accessibility-2026-09-06.md",
         "docs/core-account-ime-navigation-2026-09-08.md",
-        "docs/core-services-ime-integration-2026-09-08.md"
+        "docs/core-services-ime-integration-2026-09-08.md",
+        "docs/client-delivery-116-2026-09-08.md"
       ],
       "scope": "Son bütün ekran tasarım geçişi değildir; Core’suz kişisel uzak bağlantı için Core bağımlılığı koymaz.",
       "acceptance": [
@@ -1960,10 +1961,18 @@
           "state": "completed",
           "result": "passed",
           "label": "Services ve IME kaynak incelemeleri, 10 değişmeyen Git nesnesi ve 6 log özeti root tarafından doğrulandı. SDK süreçleri reap edildi; ev işlemi yok."
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/34212319493",
+          "commit": "5cbff217cdcf719d9162b9b2b33bf22dd47a1996",
+          "state": "completed",
+          "result": "passed",
+          "label": "Android116: exact5cbff21, ilk deneme; 5220Flutter/98JVM/17E2E/133faz ve bağımsız imzalı APK116 doğrulaması geçti. Services+hesapIME dahildir; fiziksel tablet kabulü ayrı açıktır."
         }
       ],
       "completionCommit": null,
-      "reason": "Services ve hesap IME main ile birleşti. Tam Client 5218 PASS / 2 host uykusuyla çakışan timeout; aynı kaynakta odaklı tekrar 2 PASS, analiz/biçim temiz. İlk başarısız koşu korunur; yeni temiz CI/APK ve fiziksel kabul açık."
+      "reason": "Services ve hesap IME exact5cbff21/APK116 ile temiz CI kapısından geçti:5220Flutter/98JVM/17E2E/133faz ve bağımsız imza doğrulandı. Önceki host-uykusu yerel koşusu korunur. Genel B5.1, S08.7 kaynak ekranı ve fiziksel Huawei/DeX/TalkBack kabulü nedeniyle açık."
     },
     {
       "id": "B5.2",

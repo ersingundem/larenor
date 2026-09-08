@@ -1,6 +1,6 @@
 # Larenor — güncel ilerleme ve iş kuyruğu
 
-**Son güncelleme: 8 Eylül 2026 — APK108 doğrulandı; S08.5 ve S08.6 kabul edildi.**
+**Son güncelleme: 8 Eylül 2026 — APK116 doğrulandı; S08.7 ve native depolama işleri sürüyor.**
 
 ```text
 Kuyruk kabulü       ██░░░░░░░░░░░░░░░░░░  10/125 iş (%8; eşit ağırlıklı sayaç)
@@ -16,12 +16,12 @@ olarak kullanılmaz. İlk 60 adayın tamamı ve VNC/RDP/SSH seçildi.
 [Bağımlılıklara göre özellik sırası](feature-expansion-plan-2026-09-05.md)
 ve [uzak erişim kapsamı](remote-access-plan-2026-09-05.md) korunuyor.
 
-**Son tam doğrulanmış yayın: `960691c` / APK108.** Aynı kaynakta ilk denemede
-5.150 Flutter, 3.447 Linux Core, 98 JVM ve 207 politika testi geçti.
+**Son tam doğrulanmış standart Client yayını: `5cbff21` / APK116.** Aynı kaynakta ilk denemede
+5.220 Flutter, 3.569 Linux Core, 98 JVM ve 215 politika testi geçti.
 Android emülatöründe 17 E2E ve 133 sıralı faz başarılı. APK'nın paket,
 sürüm, kalıcı imza, minSdk ve debug bayrağı ayrıca kontrol edildi.
-İki mimarili Core yayını ve anonim kaynak/lisans erişimi de doğrulandı.
-[CI108 teslim kanıtı](client-delivery-108-2026-09-06.md).
+Services ve hesap IME düzeltmeleri bu pakete dahildir.
+[CI116 teslim kanıtı](client-delivery-116-2026-09-08.md).
 Gerçek ev kurulumu ve fiziksel tablet kabulü henüz yapılmadı.
 
 ## Şimdi yapılan işler
@@ -31,8 +31,8 @@ Gerçek ev kurulumu ve fiziksel tablet kabulü henüz yapılmadı.
 | S08.5 — restore, logout ve journal hedef sınırı | **Kabul edildi**, exact `960691c` / APK108 | [Kabul ve korunan geçmiş](restore-people-acceptance-108-2026-09-08.md) |
 | S08.6 — kişi, oda, kaynak ve izin yönetimi | **Kabul edildi**, aynı yayın | Merkezi HA akışının yetki temeli hazır |
 | S08.7 — merkezi Home Assistant adaptörü | **Devam ediyor** | Server'da açık kaynak bağlama, yetkili switch durumu ve sınırlı cache; tablette kaynak durum ekranı |
-| B5.1 — ortak tablet tasarımı | Services ve hesap IME düzeltmeleri yerelde birleşti | Birleşik Client doğrulaması ve bu yeni kaynağın ayrı CI/APK kapısı |
-| S06.3d — kalıcı depolama | Volume create protokolü Linux CI'dan geçti; gerçek bootstrap açık | Jellyfin helper/NoCopy/UID/ilk veritabanı ve yeniden başlama için native iki mimarili CI |
+| B5.1 — ortak tablet tasarımı | Services ve hesap IME düzeltmeleri exact `5cbff21` / APK116 ile kabul edildi | S08.7 kaynak ekranı ve kalan ortak tablet yüzeyleri |
+| S06.3d — kalıcı depolama | İlk native iki mimarili koşu kapalı genel hatayla durdu | Phase/kod tanılamasını yayımla; kesin arızayı ayırıp fixture'ı yeniden çalıştır |
 
 S08.7 üç sonlu teslimden oluşur: **kaynak bağlama ve typed durum → komut ve
 kalıcı sonuç → açık Direct aktarımı**. İlk Server ve Client işleri ayrı dallarda
@@ -46,13 +46,15 @@ içinde değildir. İlk dilim cihaz komutu açmaz. [Uygulama planı](core-home-a
 klavye odağı ve tek adımlı IME geçişi düzeltildi.
 [Core hesap formları](core-account-ime-navigation-2026-09-08.md):
 12 gerçek hata yeniden üretildi; son 24 IME ve 163 ilgili test geçti.
-Üretimde yalnız yinelenen iki odak geçişi kaldırıldı. Bu iki paket APK108'e
-dahil değildir. Yeni birleşik Client koşusu `cd961ac` üzerinde tamamlandı; Mac'in uzun
+Üretimde yalnız yinelenen iki odak geçişi kaldırıldı. Bu iki paket exact
+`5cbff21` / APK116 ile temiz CI ve bağımsız imza kapısından geçti. Önceki birleşik
+Client koşusu `cd961ac` üzerinde tamamlandı; Mac'in uzun
 bakım uykularıyla çakışan iki 90 saniyelik test zaman aşımı kaydedildi. Bu koşu
 başarılı sayılmıyor. Kaynak ve test süreleri değiştirilmeden iki testin odaklı
 tekrarı **2 PASS**, tam analiz **0 sorun** ve biçim kontrolü **973 dosya / 0 fark**
 verdi. [Birleşim ve korunan başarısız koşu](core-services-ime-integration-2026-09-08.md).
-Yeni kaynağın temiz CI/APK kapısı açık.
+Bu önceki başarısız yerel koşu tarihsel kanıt olarak korunur; CI116 aynı
+kaynağın devamında 5.220 Flutter testinin tek koşuda geçtiğini doğrular.
 
 [Jellyfin yönetilen kurulum planı](jellyfin-managed-volume-installation-plan-2026-09-06.md)
 dört adımdır: gerçek image/UID karakterizasyonu, onu tüketen mount/kurulum akışı,
@@ -63,6 +65,9 @@ bulunan build context ve kaynak değişimi sorunları gerçek RED/GREEN ile
 kapatıldı; son kaynak incelemesi temiz. Manuel native amd64/arm64 CI hazırlığı ve kaynak incelemesi tamamlandı:
 122 fixture/launcher ve 215 politika testi geçti.
 [Birleşik yayın hazırlığı](services-ime-native-ci-preparation-2026-09-08.md).
+İlk manuel native amd64/arm64 koşusu iki mimaride de genel karakterizasyon
+hatasıyla kapandı ve makbuz üretmedi. Kapalı phase/hata kodu tanılaması
+hazırlanıyor; kesin neden ikinci yetkili koşudan önce tahmin edilmiyor.
 Gerçek Engine ve kurulum kabulü hâlâ açık; `installAvailable=false`.
 
 ## Canlı takip ve sıradaki işler
