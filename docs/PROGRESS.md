@@ -54,10 +54,11 @@ Yeni kaynağın temiz CI/APK kapısı açık.
 [Jellyfin yönetilen kurulum planı](jellyfin-managed-volume-installation-plan-2026-09-06.md)
 dört adımdır: gerçek image/UID karakterizasyonu, onu tüketen mount/kurulum akışı,
 güncel yönetici/worker yetkisi ve özel ilk hesap ile doğrulanmış Core bağlantısı.
-Helper fixture'ın 73 yeni ve 261 ilgili testi geçti. Bağımsız incelemede
-legacy Docker build context'i ve verify/build arasındaki kaynak değişimi için
-iki somut düzeltme istendi; ayrı dalda gideriliyor. Gerçek Engine/iki mimari
-koşusu ve kurulum hâlâ açık; `installAvailable=false`.
+[Helper fixture](jellyfin-storage-fixture-implementation-2026-09-08.md)
+main ile birleşti: **87 odaklı ve 261 ilgili test geçti**. Bağımsız incelemede
+bulunan build context ve kaynak değişimi sorunları gerçek RED/GREEN ile
+kapatıldı; son kaynak incelemesi temiz. Native amd64/arm64 CI hazırlığı sürüyor.
+Gerçek Engine ve kurulum kabulü hâlâ açık; `installAvailable=false`.
 
 ## Canlı takip ve sıradaki işler
 

@@ -82,7 +82,8 @@
     "docs/restore-people-evidence-before-ci108-acceptance-2026-09-08.json",
     "docs/restore-people-acceptance-108-2026-09-08.md",
     "docs/core-account-ime-navigation-2026-09-08.md",
-    "docs/core-services-ime-integration-2026-09-08.md"
+    "docs/core-services-ime-integration-2026-09-08.md",
+    "docs/jellyfin-storage-fixture-implementation-2026-09-08.md"
   ],
   "nodes": [
     {
@@ -382,7 +383,8 @@
         "docs/managed-volume-full-core-verification-2026-09-06.md",
         "docs/tablet-core-volume-integration-2026-09-06.md",
         "docs/client-delivery-108-2026-09-06.md",
-        "docs/jellyfin-managed-volume-installation-plan-2026-09-06.md"
+        "docs/jellyfin-managed-volume-installation-plan-2026-09-06.md",
+        "docs/jellyfin-storage-fixture-implementation-2026-09-08.md"
       ],
       "scope": "installAvailable=false; Client kaynak adı/Docker seçenekleri üretmez. Gerçek ev sunucusuna işlem yok.",
       "acceptance": [
@@ -585,10 +587,26 @@
           "state": "completed",
           "result": "passed",
           "label": "Security108 kaynak 960691c: ilk denemede 207 politika testi, gizli bilgi taraması ve bağımlılık denetimi geçti. Android ve bağımsız APK kabulü ayrı bekleniyor."
+        },
+        {
+          "kind": "test",
+          "ref": "docs/jellyfin-storage-fixture-implementation-2026-09-08.md",
+          "commit": "58970d60926189472938d46d07c5f88ada047cea",
+          "state": "completed",
+          "result": "passed",
+          "label": "Jellyfin fixture: 87 odaklı ve 261 ilgili test geçti. İki P2 gerçek RED ile kapatıldı; yalnız beş dosyalı private build context ve başlangıç kaynak bağı. Root/bağımsız inceleme temiz; gerçek Engine/native iki mimari ve kurulum kabulü açık."
+        },
+        {
+          "kind": "review",
+          "ref": "docs/jellyfin-storage-fixture-implementation-2026-09-08.md",
+          "commit": "58970d60926189472938d46d07c5f88ada047cea",
+          "state": "completed",
+          "result": "passed",
+          "label": "Jellyfin fixture: 87 odaklı ve 261 ilgili test geçti. İki P2 gerçek RED ile kapatıldı; yalnız beş dosyalı private build context ve başlangıç kaynak bağı. Root/bağımsız inceleme temiz; gerçek Engine/native iki mimari ve kurulum kabulü açık."
         }
       ],
       "completionCommit": null,
-      "reason": "Native root resolver önceki Linux CI ile doğrulandı; trusted supervisor/remap-disabled producer/issuer/create-publish açık. Volume plan+gözlem 1c2 CI/APK100 kaynağında; volume journal a27 Linux CI101 içinde 3104 PASS/0skip ile geçti. Unix reader 0d86fa1 sonraki ayrı birleşimde 3192 tam Core PASS/11Linuxskip verdi; Exact38bc LinuxCI102:3203PASS/0skip, anonim iki mimarili Core doğrulandı. UID/bootstrap/Engine kurulum yetkisi açık ve installAvailable=false sürer. Ayrı managed-volume create-intent ve tek-POST/fresh-inspect protokolü72af399 main ile birleşti:887ilgiliPASS/7Linuxskip,iki bağımsızCLEAR; aynı source tree için tek tamCore3435PASS/12Linuxskip geçti; kendi yeni LinuxCI açık. Observation kaydı create yetkisi değildir. Gerçek UID/bootstrap ve production wiring açık. Yayın960691c:Android108/Core34/Security108 başlatıldı; yeniCI/APK sonucu bekleniyor. Sonraki finiteJellyfin dikeyakış planı main ile birleşti:izoleCI UID/NoCopy ve helper→tüketen mountedcontainer→gerçekissuer→özelhesap/health/Corebağlantısı. İlk helper+ephemeralfixture ayrıdalda hazırlanıyor; test/kurulum kabulü değildir."
+      "reason": "Volume create protokolü exact CI108 Linux kabulünü aldı. Onu tüketen Jellyfin UID/NoCopy/ilk DB/restart fixture main ile birleşti; 87+261 ayrı yerel test ve iki bağımsız kaynak incelemesi geçti. Sıradaki manuel ephemeral native CI; gerçek mount/UID/helper/kurulum henüz kabul edilmedi, installAvailable=false."
     },
     {
       "id": "S06.3e",
