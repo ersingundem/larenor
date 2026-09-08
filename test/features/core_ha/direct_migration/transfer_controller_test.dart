@@ -56,8 +56,73 @@ void main() {
     final h=TransferHarness(); await h.mount(tester); final c=h.controller!;
     final reply=Completer<http.Response>(); h.reply=(_)=>reply.future;
     final load=c.load(); await tester.pump();
+    expect(h.requests.length,1);
     h.auth.route=false; h.owner.synchronize();
     reply.complete(response({'error':{'code':'unauthorized'}},401)); await load;
     expect(h.auth.account.session,isNotNull); expect(c.items,isEmpty);
+  });
+  testWidgets('active current401 still rejects the real Core account', (tester) async {
+    final h=TransferHarness(); await h.mount(tester);
+    h.reply=(_) async=>response({'error':{'code':'unauthorized'}},401);
+    await h.controller!.load(); expect(h.requests.length,1);
+    expect(h.auth.account.session,isNull);
+  });
+  testWidgets('preview TTL subtracts network duration and never exposes expired data', (tester) async {
+    final h=TransferHarness(); await h.mount(tester); final c=h.controller!;
+    await c.load();
+    h.reply=(r) async {
+      h.reply=null; final result=await h.handle(r);
+      if(r.url.path.endsWith('/preview')) h.elapsed+=const Duration(seconds:61);
+      return result;
+    };
+    // Delay at the exact preview reply, after the metadata and binding GETs.
+    final base=h.handle;
+    h.reply=(r) async {
+      final handler=h.reply; h.reply=null; final value=await base(r); h.reply=handler;
+      if(r.url.path.endsWith('/preview')) h.elapsed+=const Duration(seconds:61);
+      return value;
+    };
+    await c.prepare(c.items.single,c.entities.single,isCurrent:()=>true);
+    expect(c.preview,isNull); expect(c.failure,'ha_migration_preview_invalid');
+    expect(h.platform.calls.length,3);
+  });
+  testWidgets('expiry during confirmed POST may commit and must not replay', (tester) async {
+    final h=TransferHarness(); await h.mount(tester); final c=h.controller!;
+    await c.load(); await c.prepare(c.items.single,c.entities.single,isCurrent:()=>true);
+    final p=c.preview!;
+    h.reply=(_) async { h.elapsed+=const Duration(seconds:61); return response({'receipt':transferReceiptJson()},201); };
+    await c.confirm(p,isCurrent:()=>true);
+    expect(c.receipt,isNotNull); expect(c.uncertain,isFalse);
+    await c.confirm(p,isCurrent:()=>true);
+    expect(h.requests.where((r)=>r.url.path.endsWith('/confirm')).length,1);
+  });
+  testWidgets('changed local token before confirm yields zero POST and no pair writes', (tester) async {
+    final h=TransferHarness(); await h.mount(tester); final c=h.controller!;
+    await c.load(); await c.prepare(c.items.single,c.entities.single,isCurrent:()=>true);
+    h.platform.values['ha_token']='replacement';
+    await c.confirm(c.preview!,isCurrent:()=>true);
+    expect(c.failure,'ha_migration_changed'); expect(c.uncertain,isFalse);
+    expect(h.requests.where((r)=>r.url.path.endsWith('/confirm')),isEmpty);
+    expect(h.platform.calls.every((c)=>c.$1=='read'),isTrue);
+  });
+  testWidgets('confirm expiry between URL and token stops token and outbound', (tester) async {
+    final h=TransferHarness(); await h.mount(tester); final c=h.controller!;
+    await c.load(); await c.prepare(c.items.single,c.entities.single,isCurrent:()=>true);
+    final old=h.platform.calls.length;
+    h.platform.afterRead=(key) async { if(key=='ha_base_url') h.elapsed+=const Duration(seconds:61); };
+    await c.confirm(c.preview!,isCurrent:()=>true);
+    expect(h.platform.calls.skip(old).map((e)=>e.$2),['ha_connection_pending_v1','ha_base_url']);
+    expect(h.requests.where((r)=>r.url.path.endsWith('/confirm')),isEmpty);
+    expect(c.uncertain,isFalse);
+  });
+  testWidgets('missing recovery result remains uncertain without a new POST', (tester) async {
+    final h=TransferHarness(); await h.mount(tester); final c=h.controller!;
+    await c.load(); await c.prepare(c.items.single,c.entities.single,isCurrent:()=>true);
+    h.reply=(_) async=>response({'error':{'code':'server_error'}},503);
+    await c.confirm(c.preview!,isCurrent:()=>true);
+    h.reply=(_) async=>response({'error':{'code':'not_found'}},404);
+    await c.recover(isCurrent:()=>true);
+    expect(c.uncertain,isTrue); expect(c.canRecover,isTrue); expect(c.failure,'not_found');
+    await c.load(); expect(h.requests.where((r)=>r.url.path.endsWith('/confirm')).length,1);
   });
 }
