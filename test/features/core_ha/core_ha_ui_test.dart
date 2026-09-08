@@ -89,7 +89,8 @@ void main() {
   for (final locale in ['en', 'tr']) {
     for (final width in [600.0, 1280.0]) {
       testWidgets('$locale $width 2x binding native keyboard cancel and 48px semantics', (tester) async {
-        final handle = tester.ensureSemantics(); addTearDown(handle.dispose);
+        final handle = tester.ensureSemantics();
+        try {
         final h = HaUiHarness(); await openBinding(tester, h, locale: locale, width: width, scale: 2);
         await press(tester, 'core-ha-service-${h.f['preview']['body']['serviceId']}');
         await tester.enterText(key('core-ha-entity'), 'switch.synthetic');
@@ -113,6 +114,7 @@ void main() {
         expect(key('core-ha-preview-details'), findsNothing);
         expect(h.adapterRequests.where((r) => r.url.path.endsWith('/binding-confirm')), isEmpty);
         expect(h.haReads, 0); expect(tester.takeException(), isNull);
+        } finally { handle.dispose(); }
       });
     }
   }

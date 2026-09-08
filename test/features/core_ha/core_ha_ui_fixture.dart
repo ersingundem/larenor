@@ -78,7 +78,7 @@ class HaUiHarness {
     'role': role,
     'mustChangePassword': false,
   };
-  http.Response json(Object? value, [int code = 200]) => http.Response(
+  http.Response json(Object? value, [int code = 200]) => code == 204 ? http.Response('', 204) : http.Response(
     jsonEncode(value),
     code,
     headers: {'content-type': 'application/json'},
