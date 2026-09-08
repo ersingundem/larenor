@@ -50,6 +50,10 @@ def legacy_v2(app):
         for table in ('home_assistant_commands', 'home_assistant_bindings', 'home_assistant_state'):
             connection.execute(f'DROP TABLE {table}')
         connection.execute("DELETE FROM metadata WHERE key='home_assistant_schema'")
+        # Direct transfer receipts also bind the later Core/home identity.
+        for table in ('direct_ha_migrations', 'direct_ha_state'):
+            connection.execute(f'DROP TABLE {table}')
+        connection.execute("DELETE FROM metadata WHERE key='direct_ha_schema'")
         connection.execute("UPDATE metadata SET value='2' WHERE key='schema_version'")
 
 
