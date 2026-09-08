@@ -28,6 +28,12 @@ class Daemon:
     ({'Status':'exited','Running':False,'Paused':False,'Restarting':False,'Dead':False,
       'OOMKilled':False,'ExitCode':17,'Error':''},
      'helper_base_process_nonzero'),
+    ({'Status':'exited','Running':False,'Paused':False,'Restarting':False,'Dead':False,
+      'OOMKilled':False,'ExitCode':0,'Error':''},
+     'helper_base_process_exited_zero'),
+    ({'Status':'created','Running':False,'Paused':False,'Restarting':False,'Dead':False,
+      'OOMKilled':False,'ExitCode':0,'Error':''},
+     'helper_base_process_not_started'),
     ({'Status':'running','Running':True,'Paused':False,'Restarting':False,'Dead':False,
       'OOMKilled':False,'ExitCode':0,'Error':''},
      'helper_base_process_running'),
@@ -41,7 +47,8 @@ class Daemon:
     ({'Status':'created','Running':False,'Paused':False,'Restarting':False,'Dead':False,
       'OOMKilled':False,'ExitCode':0,
       'Error':'private unknown path/token'}, 'fixture_command_exit_failed'),
-], ids=['oom','high-nonzero','nonzero','running','dead','known-error','unknown-error'])
+], ids=['oom','high-nonzero','nonzero','exited-zero','not-started','running','dead',
+        'known-error','unknown-error'])
 def test_failed_start_is_classified_from_one_bounded_owned_state_read(state, expected):
     smoke = importlib.import_module('tool.jellyfin_storage_smoke')
     daemon = Daemon(state)

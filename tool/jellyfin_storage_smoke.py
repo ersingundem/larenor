@@ -64,7 +64,8 @@ _START_RUNTIME_PATTERNS = (b'failed to create shim task', b'oci runtime create f
 _DIAGNOSTIC_CODES = _CODES | set(_BUILD_ERROR_PATTERNS) | set(_START_ERROR_PATTERNS) | {
     'helper_base_runtime_failed', 'helper_base_error_ambiguous',
     'helper_base_process_oom', 'helper_base_process_nonzero', 'helper_base_process_running',
-    'helper_base_process_dead',
+    'helper_base_process_dead', 'helper_base_process_exited_zero',
+    'helper_base_process_not_started',
     'fixture_command_stderr_limit', 'helper_build_error_ambiguous',
     'invalid_image_preparation', 'invalid_image_binding',
     'fixture_command_exit_failed', 'fixture_command_output_limit', 'fixture_command_timeout',
@@ -213,6 +214,10 @@ def _diagnose_base_start_state(daemon, container_id, original):
             return 'helper_base_process_running'
         if status == 'exited' and exit_code != 0:
             return 'helper_base_process_nonzero'
+        if not error and status == 'exited' and exit_code == 0:
+            return 'helper_base_process_exited_zero'
+        if not error and status == 'created' and exit_code == 0:
+            return 'helper_base_process_not_started'
         return fallback
     except Exception:
         return fallback

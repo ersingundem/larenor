@@ -89,7 +89,8 @@ def test_failed_base_stage_never_builds_replays_or_skips_cleanup(base_flow, caps
     assert 'helper_build' not in events and cleanup == ['enter','cleanup']
     output = capsys.readouterr()
     assert output.out == ''
-    assert output.err == f'storage_characterization_failed phase={phase} code=fixture_command_exit_failed\n'
+    code = 'helper_base_process_exited_zero' if phase == 'helper_base_start' else 'fixture_command_exit_failed'
+    assert output.err == f'storage_characterization_failed phase={phase} code={code}\n'
 
 
 def test_failed_start_uses_one_closed_state_reduction_before_cleanup(base_flow, capsys):
