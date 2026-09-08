@@ -396,7 +396,8 @@
         "docs/jellyfin-base-start-state-diagnostics-2026-09-08.md",
         "docs/jellyfin-base-zero-state-diagnostics-2026-09-08.md",
         "docs/jellyfin-base-state-read-diagnostics-2026-09-08.md",
-        "docs/volume-create-fixture-lifecycle-repair-2026-09-08.md"
+        "docs/volume-create-fixture-lifecycle-repair-2026-09-08.md",
+        "docs/jellyfin-base-path-relation-diagnostics-2026-09-09.md"
       ],
       "scope": "installAvailable=false; Client kaynak adı/Docker seçenekleri üretmez. Gerçek ev sunucusuna işlem yok.",
       "acceptance": [
@@ -522,22 +523,6 @@
         },
         {
           "kind": "test",
-          "ref": "docs/jellyfin-storage-fixture-implementation-2026-09-08.md",
-          "commit": "58970d60926189472938d46d07c5f88ada047cea",
-          "state": "completed",
-          "result": "passed",
-          "label": "Jellyfin fixture: 87 odaklı ve 261 ilgili test geçti. İki P2 gerçek RED ile kapatıldı; yalnız beş dosyalı private build context ve başlangıç kaynak bağı. Root/bağımsız inceleme temiz; gerçek Engine/native iki mimari ve kurulum kabulü açık."
-        },
-        {
-          "kind": "review",
-          "ref": "docs/jellyfin-storage-fixture-implementation-2026-09-08.md",
-          "commit": "58970d60926189472938d46d07c5f88ada047cea",
-          "state": "completed",
-          "result": "passed",
-          "label": "Jellyfin fixture: 87 odaklı ve 261 ilgili test geçti. İki P2 gerçek RED ile kapatıldı; yalnız beş dosyalı private build context ve başlangıç kaynak bağı. Root/bağımsız inceleme temiz; gerçek Engine/native iki mimari ve kurulum kabulü açık."
-        },
-        {
-          "kind": "test",
           "ref": "docs/jellyfin-storage-manual-ci-2026-09-08.md",
           "commit": "da5fd4772f3a5a1f6814b9c69def8e3336c71eee",
           "state": "completed",
@@ -655,10 +640,34 @@
           "state": "completed",
           "result": "passed",
           "label": "Bağımsız CLEAR: missing/ENOTDIR ve bare runtime P2 kapalı; literal konum, ambiguous, tek inspect/no-retry/cancellation/redaksiyon korundu."
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/34279647850",
+          "commit": "8f07560eeea8a51fd59c9df56ac32c52a888b4c3",
+          "state": "completed",
+          "result": "failed",
+          "label": "Native13: iki mimaride helper_base_start/path_location_ambiguous; makbuz/artefakt yok. Tek log70214byte/SHAa8e7ac3e; kapalı Engine-hedef ilişkisi açık."
+        },
+        {
+          "kind": "test",
+          "ref": "docs/jellyfin-base-path-relation-diagnostics-2026-09-09.md",
+          "commit": "40dc4b7cd26bd72d2fc7bcb425e23f6e579e2513",
+          "state": "completed",
+          "result": "passed",
+          "label": "Path-relation:5ilkRED+review RED kapalı;50state/82state+stderr/286Jellyfin/218politikaPASS. Beş Engine-hedef ilişkisi yalnız aynı path tokenında; ayrı/üçlü eşleşme ambiguous."
+        },
+        {
+          "kind": "review",
+          "ref": "docs/jellyfin-base-path-relation-diagnostics-2026-09-09.md",
+          "commit": "40dc4b7cd26bd72d2fc7bcb425e23f6e579e2513",
+          "state": "completed",
+          "result": "passed",
+          "label": "Bağımsız CLEAR: ayrı-path yanlış kesinlik P2 gerçek RED ile kapalı; allowlist, private output, tek inspect/no-retry/cancellation sınırları korundu."
         }
       ],
       "completionCommit": null,
-      "reason": "Native12 run34276890501 exact282bcc1: iki mimaride path_failed; tek log70199byte/SHA555a81b3, başarı makbuzu yok. Path-location7f2a41e:7RED+iki reviewRED kapalı+bağımsız CLEAR,43state/75state+stderr/279Jellyfin/218politikaPASS; image/proc/sys/runtime/Engine/host+ambiguous+generic ayrımı. Tek start/owned10s64KiBinspect/redaksiyon/cleanup aynı. Native13 gözlemi ayıracak; installAvailable=false."
+      "reason": "Native13 run34279647850 exact8f07560: iki mimaride path_location_ambiguous; tek log70214byte/SHAa8e7ac3e, başarı makbuzu/artefakt yok. Path-relation40dc4b7:5ilkRED+reviewRED kapalı+bağımsız CLEAR,50state/82state+stderr/286Jellyfin/218politikaPASS; Engine kökü ile image/proc/sys/runtime/host yalnız aynı path tokenında ilişkilendirilir, ayrı/üçlü eşleşme ambiguous kalır. Tek start/owned10s64KiBinspect/redaksiyon/cleanup aynı. Native14 gözlemi ayıracak; installAvailable=false."
     },
     {
       "id": "S06.3e",
