@@ -103,12 +103,23 @@ _PATH_COOCCURRENCE_CODES = {
     frozenset(('helper_base_engine_path_failed', 'helper_base_host_path_failed')):
         'helper_base_engine_host_paths_observed',
 }
+_PROC_SUBPATH_PATTERNS = {
+    'helper_base_proc_sys_net_path_observed': (b'/proc/sys/net/',),
+    'helper_base_proc_self_fd_path_observed': (b'/proc/self/fd/',),
+    'helper_base_proc_self_mountinfo_observed': (b'/proc/self/mountinfo',),
+    'helper_base_proc_self_namespace_observed': (b'/proc/self/ns/',),
+}
+_PROC_PROCESS_PATTERNS = {
+    'helper_base_proc_process_namespace_observed': re.compile(rb'/proc/[1-9][0-9]{0,9}/ns/'),
+    'helper_base_proc_process_fd_path_observed': re.compile(rb'/proc/[1-9][0-9]{0,9}/fd/'),
+}
 _PATH_TOKEN = re.compile(rb"/[^\s\"'(),:;]+")
 _DIAGNOSTIC_CODES = _CODES | set(_BUILD_ERROR_PATTERNS) | set(_START_ERROR_PATTERNS) | {
     'helper_base_runtime_failed', 'helper_base_error_ambiguous',
     'helper_base_state_error_ambiguous', *_STATE_ERROR_PATTERNS,
     'helper_base_path_location_ambiguous', *_PATH_LOCATION_PATTERNS,
     *_PATH_RELATION_CODES.values(), *_PATH_COOCCURRENCE_CODES.values(),
+    *_PROC_SUBPATH_PATTERNS, *_PROC_PROCESS_PATTERNS, 'helper_base_proc_subpaths_ambiguous',
     'helper_base_process_oom', 'helper_base_process_nonzero', 'helper_base_process_running',
     'helper_base_process_dead', 'helper_base_process_exited_zero',
     'helper_base_process_not_started', 'helper_base_process_not_started_nonzero',
@@ -235,6 +246,46 @@ def _start_error(stderr):
     return 'fixture_command_exit_failed'
 
 
+def _path_location_codes(path):
+    """Classify one parsed absolute path without conflating nested root names."""
+    engine = any(pattern in path for pattern in _PATH_LOCATION_PATTERNS[
+        'helper_base_engine_path_failed'])
+    locations = set()
+    if any(pattern in path for pattern in _PATH_LOCATION_PATTERNS[
+            'helper_base_image_path_failed']):
+        locations.add('helper_base_image_path_failed')
+    if path.startswith(b'/proc/') or (engine and b'/proc/' in path):
+        locations.add('helper_base_proc_path_failed')
+    if path.startswith(b'/sys/') or (engine and b'/sys/' in path):
+        locations.add('helper_base_sys_path_failed')
+    if path.startswith(b'/run/') or (engine and b'/run/' in path):
+        locations.add('helper_base_runtime_path_failed')
+    if engine:
+        locations.add('helper_base_engine_path_failed')
+    if any(pattern in path for pattern in _PATH_LOCATION_PATTERNS[
+            'helper_base_host_path_failed']):
+        locations.add('helper_base_host_path_failed')
+    return locations
+
+
+def _proc_subpath_codes(paths):
+    """Return closed subfamilies from genuine procfs-rooted path tokens only."""
+    matched = set()
+    for path in paths:
+        if not path.startswith(b'/proc/'):
+            continue
+        for code, patterns in _PROC_SUBPATH_PATTERNS.items():
+            if code == 'helper_base_proc_self_mountinfo_observed':
+                observed = path in patterns
+            else:
+                observed = any(path.startswith(pattern) for pattern in patterns)
+            if observed:
+                matched.add(code)
+        matched.update(code for code, pattern in _PROC_PROCESS_PATTERNS.items()
+                       if pattern.match(path) is not None)
+    return matched
+
+
 def _state_error(error):
     """Reduce a private Engine state error to a fixed non-secret family."""
     classified = _start_error(error)
@@ -246,20 +297,24 @@ def _state_error(error):
     if len(matched) == 1:
         classified = matched.pop()
         if classified == 'helper_base_path_failed':
-            locations = {code for code, patterns in _PATH_LOCATION_PATTERNS.items()
-                         if any(pattern in folded for pattern in patterns)}
+            path_locations = [_path_location_codes(path)
+                              for path in _PATH_TOKEN.findall(folded)]
+            locations = set().union(*path_locations) if path_locations else set()
             if len(locations) == 1:
                 return locations.pop()
             if locations:
                 relation = _PATH_RELATION_CODES.get(frozenset(locations))
-                if relation is not None and any(
-                    {code for code, patterns in _PATH_LOCATION_PATTERNS.items()
-                     if any(pattern in path for pattern in patterns)} == locations
-                    for path in _PATH_TOKEN.findall(folded)
-                ):
+                if relation is not None and any(path_codes == locations
+                                                for path_codes in path_locations):
                     return relation
-                return _PATH_COOCCURRENCE_CODES.get(
-                    frozenset(locations), 'helper_base_path_location_ambiguous')
+                cooccurrence = _PATH_COOCCURRENCE_CODES.get(frozenset(locations))
+                if cooccurrence == 'helper_base_engine_proc_paths_observed':
+                    proc_paths = _proc_subpath_codes(_PATH_TOKEN.findall(folded))
+                    if len(proc_paths) == 1:
+                        return proc_paths.pop()
+                    if proc_paths:
+                        return 'helper_base_proc_subpaths_ambiguous'
+                return cooccurrence or 'helper_base_path_location_ambiguous'
         return classified
     return 'helper_base_state_error_ambiguous' if matched else classified
 
