@@ -63,6 +63,8 @@ _START_RUNTIME_PATTERNS = (b'failed to create shim task', b'oci runtime create f
     b'runc create failed', b'failed to create task for container')
 _DIAGNOSTIC_CODES = _CODES | set(_BUILD_ERROR_PATTERNS) | set(_START_ERROR_PATTERNS) | {
     'helper_base_runtime_failed', 'helper_base_error_ambiguous',
+    'helper_base_process_oom', 'helper_base_process_nonzero', 'helper_base_process_running',
+    'helper_base_process_dead',
     'fixture_command_stderr_limit', 'helper_build_error_ambiguous',
     'invalid_image_preparation', 'invalid_image_binding',
     'fixture_command_exit_failed', 'fixture_command_output_limit', 'fixture_command_timeout',
@@ -180,6 +182,40 @@ def _start_error(stderr):
     if any(pattern in folded for pattern in _START_RUNTIME_PATTERNS):
         return 'helper_base_runtime_failed'
     return 'fixture_command_exit_failed'
+
+
+def _diagnose_base_start_state(daemon, container_id, original):
+    """Privately reduce one owned post-failure state read to a closed code."""
+    if type(original) is not SmokeError:
+        raise TypeError('exact SmokeError required')
+    fallback = _error_code(original)
+    try:
+        state = _decoded(daemon.docker(
+            ['container','inspect','--format','{{json .State}}',container_id],
+            timeout=10, limit=65536))
+        if type(state) is not dict:
+            return fallback
+        status, exit_code, error = state.get('Status'), state.get('ExitCode'), state.get('Error')
+        if (type(status) is not str or type(exit_code) is not int or type(exit_code) is bool
+                or type(error) is not str or len(error.encode('utf-8')) > 65536
+                or any(type(state.get(key)) is not bool
+                    for key in ('Running','Paused','Restarting','Dead','OOMKilled'))):
+            return fallback
+        if error:
+            classified = _start_error(error.encode('utf-8'))
+            if classified != 'fixture_command_exit_failed':
+                return classified
+        if state['OOMKilled']:
+            return 'helper_base_process_oom'
+        if state['Dead']:
+            return 'helper_base_process_dead'
+        if state['Running'] or state['Paused'] or state['Restarting'] or status == 'running':
+            return 'helper_base_process_running'
+        if status == 'exited' and exit_code != 0:
+            return 'helper_base_process_nonzero'
+        return fallback
+    except Exception:
+        return fallback
 
 
 def bounded_command(arguments, *, environment, timeout=60, limit=65536,
@@ -556,9 +592,12 @@ def _helper_base(daemon, context, binding):
     with diagnostic_phase('helper_base_created'):
         inspect(False)
     with diagnostic_phase('helper_base_start'):
-        require(daemon.docker(['start','--attach',container_id], timeout=20, limit=128,
-            diagnose_process=True, diagnose_start=True)
-            == b'larenor-helper-base-ok-v1\n', 'fixture_protocol_failed')
+        try:
+            result = daemon.docker(['start','--attach',container_id], timeout=20, limit=128,
+                diagnose_process=True, diagnose_start=True)
+        except SmokeError as error:
+            raise SmokeError(_diagnose_base_start_state(daemon, container_id, error)) from None
+        require(result == b'larenor-helper-base-ok-v1\n', 'fixture_protocol_failed')
     with diagnostic_phase('helper_base_result'):
         inspect(True)
         check_source(binding)

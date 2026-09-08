@@ -34,14 +34,22 @@ def base_flow(launched, monkeypatch):
             assert not any(a.startswith(('--mount','--volume','--publish')) for a in args)
             state['args'] = args
         elif args[:2] == ['container','inspect'] and args[-1] == 'd'*64:
-            phase = 'helper_base_result' if state['started'] else 'helper_base_created'
-            result = json.dumps({'Id':'d'*64, 'Image':'sha256:'+'e'*64,
+            phase = ('helper_base_start_state'
+                if state['fault'] == 'helper_base_start' and events[-1:] == ['helper_base_start']
+                else 'helper_base_result' if state['started'] else 'helper_base_created')
+            value = {'Id':'d'*64, 'Image':'sha256:'+'e'*64,
                 'Config':{'User':'0:0','Entrypoint':['/usr/local/bin/python'],
                           'Cmd':['-I','-c','print("larenor-helper-base-ok-v1")']},
                 'HostConfig':{'NetworkMode':'none','ReadonlyRootfs':True,'Privileged':False,
                     'CapDrop':['ALL'],'CapAdd':None,'Binds':None,'Mounts':None,'VolumesFrom':None},
                 'Mounts':[], 'State':{'Status':'exited' if state['started'] else 'created',
-                    'Running':False,'Paused':False,'Dead':False,'OOMKilled':False,'ExitCode':0}}).encode()
+                    'Running':False,'Paused':False,'Restarting':False,'Dead':False,
+                    'OOMKilled':False,'ExitCode':0,'Error':''}}
+            if args[3] == '{{json .State}}':
+                value['State'].update(state.get('diagnostic_state', {}))
+                result = json.dumps(value['State']).encode()
+            else:
+                result = json.dumps(value).encode()
         elif args == ['start', '--attach', 'd'*64]:
             phase, result = 'helper_base_start', b'larenor-helper-base-ok-v1\n'
             state['started'] = True
@@ -75,11 +83,26 @@ def test_failed_base_stage_never_builds_replays_or_skips_cleanup(base_flow, caps
     ci, _, cleanup, events, state = base_flow
     state['fault'] = phase
     assert ci.main(['--run-ephemeral-ci']) == 1
-    assert events[-1] == phase and events.count(phase) == 1
+    assert events[-1] == ('helper_base_start_state' if phase == 'helper_base_start' else phase)
+    assert events.count(phase) == 1
+    assert events.count('helper_base_start_state') == (1 if phase == 'helper_base_start' else 0)
     assert 'helper_build' not in events and cleanup == ['enter','cleanup']
     output = capsys.readouterr()
     assert output.out == ''
     assert output.err == f'storage_characterization_failed phase={phase} code=fixture_command_exit_failed\n'
+
+
+def test_failed_start_uses_one_closed_state_reduction_before_cleanup(base_flow, capsys):
+    ci, _, cleanup, events, state = base_flow
+    state['fault'] = 'helper_base_start'
+    state['diagnostic_state'] = {'Status':'exited','ExitCode':17}
+
+    assert ci.main(['--run-ephemeral-ci']) == 1
+    assert events == ['helper_base_pull','helper_base_inspect','helper_base_create',
+        'helper_base_created','helper_base_start','helper_base_start_state']
+    assert cleanup == ['enter','cleanup'] and 'helper_build' not in events
+    assert capsys.readouterr().err == ('storage_characterization_failed '
+        'phase=helper_base_start code=helper_base_process_nonzero\n')
 
 
 @pytest.mark.parametrize('phase,path,replacement', [
