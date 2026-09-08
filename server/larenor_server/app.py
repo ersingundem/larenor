@@ -24,6 +24,7 @@ from .services.api import router as services_router
 from .home_resources.api import router as home_resources_router
 from .home_people.api import router as home_people_router
 from .home_assistant.api import router as home_assistant_router
+from .home_assistant.migration_api import router as direct_ha_migration_router
 from .services.probe_api import router as service_probe_router
 from .plugins.api import router as plugins_router
 from .plugins.job_api import router as plugin_jobs_router
@@ -68,6 +69,7 @@ def create_app(settings: Settings, *, routers: Iterable[APIRouter] = (),
         finally:
             stop.set()
             application.state.core.home_assistant.close()
+            application.state.core.direct_ha_migration.close()
             if task is not None:
                 # Worker IPC has one bounded deadline. Do not cancel its DB
                 # receipt write or release a dispatch lock before it unwinds.
@@ -169,6 +171,7 @@ def create_app(settings: Settings, *, routers: Iterable[APIRouter] = (),
     app.include_router(home_resources_router, prefix="/api/v1")
     app.include_router(home_people_router, prefix="/api/v1")
     app.include_router(home_assistant_router, prefix="/api/v1")
+    app.include_router(direct_ha_migration_router, prefix="/api/v1")
     app.include_router(service_probe_router, prefix="/api/v1")
     app.include_router(plugins_router, prefix="/api/v1")
     app.include_router(plugin_jobs_router, prefix="/api/v1")

@@ -13,6 +13,9 @@ class StartupError(Exception):
 
 
 MESSAGES = {
+    "ha_migration_changed": "The selected migration source or target changed. Review it again.",
+    "ha_migration_preview_invalid": "The migration preview is no longer available. Review it again.",
+    "ha_migration_limit_reached": "The Home Assistant migration limit has been reached.",
     "ha_binding_changed": "The selected Home Assistant binding changed. Review it again.",
     "ha_command_conflict": "This request conflicts with a saved Home Assistant command.",
     "ha_preview_invalid": "The binding preview is no longer available. Review it again.",
