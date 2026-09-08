@@ -1,4 +1,5 @@
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/rendering.dart';
 import '../../../l10n/generated/app_localizations.dart';
 import '../../../shared/widgets/app_page_scaffold.dart';
 
@@ -11,26 +12,30 @@ class CoreHaButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Padding(
     padding: const EdgeInsets.all(4),
-    child: Builder(builder: (padded) => Focus(
-      canRequestFocus: false, skipTraversal: true,
-      onFocusChange: (focused) {
-        if (!focused) return;
-        final node = FocusManager.instance.primaryFocus;
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (!padded.mounted || node?.hasFocus != true || !isCurrent() || !TickerMode.valuesOf(padded).enabled || ModalRoute.of(padded)?.isCurrent != true) return;
-          Scrollable.ensureVisible(padded, alignmentPolicy: ScrollPositionAlignmentPolicy.keepVisibleAtEnd);
-        });
-      },
-      child: Semantics(selected: selected, child: CupertinoButton(
+    child: Builder(builder: (padded) => Semantics(selected: selected, child: CupertinoButton(
         minimumSize: const Size(48, 48), padding: const EdgeInsets.all(14),
         focusColor: CupertinoTheme.of(context).primaryColor,
         onPressed: onPressed,
+        onFocusChange: (focused) {
+          if (!focused || onPressed == null) return;
+          final node = FocusManager.instance.primaryFocus;
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (!padded.mounted || node?.hasPrimaryFocus != true || !identical(FocusManager.instance.primaryFocus, node) || !isCurrent() || !TickerMode.valuesOf(padded).enabled || ModalRoute.of(padded)?.isCurrent != true) return;
+            final box = padded.findRenderObject(), viewport = RenderAbstractViewport.maybeOf(padded.findRenderObject());
+            if (box is! RenderBox || viewport is! RenderBox) return;
+            final ring = (box.localToGlobal(Offset.zero, ancestor: viewport) & box.size).inflate(4), visible = Offset.zero & (viewport as RenderBox).size;
+            // Native focus may reveal only one edge. Include the painted ring;
+            // a button already inside the viewport does not move the scroll.
+            if (ring.top < visible.top || ring.bottom > visible.bottom || ring.left < visible.left || ring.right > visible.right) {
+              Scrollable.ensureVisible(padded, alignment: .5);
+            }
+          });
+        },
         child: Row(mainAxisSize: MainAxisSize.min, children: [
           if (selected == true) ...[const ExcludeSemantics(child: Icon(CupertinoIcons.checkmark, size: 22)), const SizedBox(width: 8)],
           Flexible(child: Text(label, textAlign: TextAlign.center)),
         ]),
-      )),
-    )),
+      ))),
   );
 }
 
