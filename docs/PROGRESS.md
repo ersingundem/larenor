@@ -1,6 +1,6 @@
 # Larenor — güncel ilerleme ve iş kuyruğu
 
-**Son güncelleme: 9 Eylül 2026 — Native15 procfs ailesine daraldı; alt yol tanısı doğrulanıyor.**
+**Son güncelleme: 9 Eylül 2026 — Native16 process namespace yoluna daraldı; namespace yaprağı tanısı hazır.**
 
 ```text
 Kuyruk kabulü       ██░░░░░░░░░░░░░░░░░░  10/125 iş (%8; eşit ağırlıklı sayaç)
@@ -38,7 +38,7 @@ Gerçek ev kurulumu ve fiziksel tablet kabulü henüz yapılmadı.
 | S08.6 — kişi, oda, kaynak ve izin yönetimi | **Kabul edildi**, aynı yayın | Merkezi HA akışının yetki temeli hazır |
 | S08.7 — merkezi Home Assistant adaptörü | **Devam ediyor**; typed durum, kalıcı switch komutu/makbuzu ve açık Direct→Core aktarımı main içinde | Exact-source birleşik CI; sonra geniş HA varlık/servis kapsamı |
 | B5.1 — ortak tablet tasarımı | Services/hesap IME paketi APK116 ile kabul edildi; S08.7 komut ve aktarım yüzeyleri yerel tablet matrisinden geçti | Exact-source Android CI ve kalan ortak tablet yüzeyleri |
-| S06.3d — kalıcı depolama | Native15 iki mimaride Engine+procfs birlikteliği verdi; alt yol aileleri yerelde hazır | Exact-source CI ve Native16 ile procfs alt ailesini ayır |
+| S06.3d — kalıcı depolama | Native16 iki mimaride numeric-process namespace yolu verdi; namespace yaprakları yerelde hazır | Exact-source Native17 ile namespace türünü ayır |
 
 S08.7 üç sonlu teslimden oluşur: **kaynak bağlama ve typed durum → komut ve
 kalıcı sonuç → açık Direct aktarımı**. Üç yerel dilim de squash yapılmadan
@@ -292,7 +292,18 @@ kapandı. Son exact kod Python 3.12.14 altında 64 state, 96 state+stderr, topla
 300 Jellyfin ve 218 politika testini geçti; kilitli tam Server CI sürüyor.
 Bağımsız final inceleme CLEAR.
 [Procfs alt yol tanısı](jellyfin-base-proc-subpath-diagnostics-2026-09-09.md).
-Native16 alt aileyi ayıracak; sonuç yine tek başına kurulum kabulü değildir.
+On altıncı koşu `34287061380`, exact `b4e8620` üzerinde iki mimaride de
+`helper_base_start / helper_base_proc_process_namespace_observed` verdi;
+başarı makbuzu veya artefakt yok. Tek indirilen 70.230 bayt logun SHA-256
+değeri `c9ba3dd9cbd9891036426bc927aa79538a5c49eb8dac48f1e3ffb10c876cb83a`.
+Sayısal süreç namespace yolu net/mnt/ipc/uts/pid/pid-child/user/cgroup/time/
+time-child yapraklarına ayrıldı; PID kapalı kodlara girmez. Path metni genel
+hata imzalarından ayrılarak `cgroup` yaprağının izolasyon hatası sanılması
+önlendi. On bir gerçek RED kapandı; son exact kod 75 state, 107 state+stderr,
+toplam 311 Jellyfin ve 218 politika testini geçti. Bağımsız final inceleme
+CLEAR.
+[Process namespace tanısı](jellyfin-base-process-namespace-diagnostics-2026-09-09.md).
+Native17 namespace türünü ayıracak; sonuç yine tek başına kurulum kabulü değildir.
 Gerçek Engine ve kurulum kabulü hâlâ açık; `installAvailable=false`.
 
 ## Canlı takip ve sıradaki işler

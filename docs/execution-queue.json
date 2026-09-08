@@ -399,7 +399,8 @@
         "docs/volume-create-fixture-lifecycle-repair-2026-09-08.md",
         "docs/jellyfin-base-path-relation-diagnostics-2026-09-09.md",
         "docs/jellyfin-base-path-cooccurrence-diagnostics-2026-09-09.md",
-        "docs/jellyfin-base-proc-subpath-diagnostics-2026-09-09.md"
+        "docs/jellyfin-base-proc-subpath-diagnostics-2026-09-09.md",
+        "docs/jellyfin-base-process-namespace-diagnostics-2026-09-09.md"
       ],
       "scope": "installAvailable=false; Client kaynak adı/Docker seçenekleri üretmez. Gerçek ev sunucusuna işlem yok.",
       "acceptance": [
@@ -411,30 +412,6 @@
         "ci"
       ],
       "evidence": [
-        {
-          "kind": "test",
-          "ref": "docs/managed-volume-create-implementation-2026-09-06.md",
-          "commit": "72af39999d31ba146a0821929e0a976441db85e9",
-          "state": "completed",
-          "result": "passed",
-          "label": "Kalıcı volume CREATE:887 ilgiliPASS/7Linuxskip;135yeniPASS/1skip, branch dahil%96; root+ikinci bağımsız CLEAR. Durablebegin/tekPOST/freshGET/restartnoReplay. API/runtime/kurulum bağlantısı yok; installAvailable=false. Yeni tamCore ve kendiCI açık."
-        },
-        {
-          "kind": "review",
-          "ref": "docs/managed-volume-create-implementation-2026-09-06.md",
-          "commit": "72af39999d31ba146a0821929e0a976441db85e9",
-          "state": "completed",
-          "result": "passed",
-          "label": "Kalıcı volume CREATE:887 ilgiliPASS/7Linuxskip;135yeniPASS/1skip, branch dahil%96; root+ikinci bağımsız CLEAR. Durablebegin/tekPOST/freshGET/restartnoReplay. API/runtime/kurulum bağlantısı yok; installAvailable=false. Yeni tamCore ve kendiCI açık."
-        },
-        {
-          "kind": "test",
-          "ref": "docs/managed-volume-full-core-verification-2026-09-06.md",
-          "commit": "72af39999d31ba146a0821929e0a976441db85e9",
-          "state": "completed",
-          "result": "passed",
-          "label": "Tek tamCore:3435PASS/12Linuxskip/0FAIL;JUnit3447,431.65sn. Java17+pinliapksig4/4PASS. Main ile5kaynak ağacı aynı; rootmakbuz/log/XMLhashları doğruladı. YeniLinuxCI3447 ve gerçekEngine/UID/bootstrap ayrı açık."
-        },
         {
           "kind": "test",
           "ref": "docs/tablet-core-volume-integration-2026-09-06.md",
@@ -666,10 +643,34 @@
           "state": "completed",
           "result": "passed",
           "label": "Bağımsız CLEAR: lookalike/mountinfo P2 gerçek RED ile kapalı; allowlist/private output/tek inspect/no-retry/cancellation korundu."
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/34287061380",
+          "commit": "b4e8620f993e35fe231c71ddba6961eaba70577a",
+          "state": "completed",
+          "result": "failed",
+          "label": "Native16: iki mimaride helper_base_start/proc_process_namespace_observed; makbuz/artefakt yok. Tek log70230byte/SHA c9ba3dd9; namespace yaprağı tanısı açık."
+        },
+        {
+          "kind": "test",
+          "ref": "docs/jellyfin-base-process-namespace-diagnostics-2026-09-09.md",
+          "commit": "4fa3c2a2aa033615c9a0edf9711fcda7ba58e6bd",
+          "state": "completed",
+          "result": "passed",
+          "label": "Process-namespace:11RED kapalı;75state/107state+stderr/311Jellyfin/218politikaPASS. On sabit yaprak full-token eşleşir; PID dönmez, çoklu yaprak ambiguous."
+        },
+        {
+          "kind": "review",
+          "ref": "docs/jellyfin-base-process-namespace-diagnostics-2026-09-09.md",
+          "commit": "4fa3c2a2aa033615c9a0edf9711fcda7ba58e6bd",
+          "state": "completed",
+          "result": "passed",
+          "label": "Bağımsız CLEAR: leaf fullmatch, unknown/multiple, path-message ayrımı, allowlist/private output/tek inspect/no-retry/cancellation korundu."
         }
       ],
       "completionCommit": null,
-      "reason": "Native15 run34284431981 exactd5d5889: iki mimaride engine_proc_paths_observed; tek log70226byte/SHA6a22d9e6, başarı makbuzu/artefakt yok. Proc-subpath12f6f09:8ilkRED+2reviewRED kapalı,64state/96state+stderr/300Jellyfin/218politikaPASS+bağımsız CLEAR; altı sabit aile yalnız /proc köklü parsed token, mountinfo exact, lookalike genel Engine+proc olarak kalır, çoklu alt aile ambiguous. Tek start/owned10s64KiBinspect/redaksiyon/cleanup aynı. Exact ServerCI ve Native16 açık; installAvailable=false."
+      "reason": "Native16 run34287061380 exactb4e8620: iki mimaride proc_process_namespace_observed; tek log70230byte/SHA c9ba3dd9, başarı makbuzu/artefakt yok. Process-namespace4fa3c2a:11RED kapalı,75state/107state+stderr/311Jellyfin/218politikaPASS+bağımsız CLEAR; on sabit leaf full-token, unknown genel kalır, çoklu ambiguous, PID dönmez. Pathler genel state-signature metninden ayrıldı. Tek start/owned10s64KiBinspect/redaksiyon/cleanup aynı. Native17 açık; installAvailable=false."
     },
     {
       "id": "S06.3e",
