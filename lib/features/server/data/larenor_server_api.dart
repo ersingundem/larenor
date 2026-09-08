@@ -368,9 +368,15 @@ class LarenorServerApi {
     try {
       final code = (jsonDecode(utf8.decode(bytes)) as Map)['error']['code'];
       if (status == 404 && code == 'not_found' ||
-          status == 409 && {'ha_binding_changed', 'ha_preview_invalid'}.contains(code) ||
+          status == 409 &&
+              {'ha_binding_changed', 'ha_preview_invalid'}.contains(code) ||
           status == 429 && code == 'ha_limit_reached' ||
-          status == 502 && {'ha_upstream_unauthorized', 'ha_upstream_unavailable', 'ha_projection_unsupported'}.contains(code)) {
+          status == 502 &&
+              {
+                'ha_upstream_unauthorized',
+                'ha_upstream_unavailable',
+                'ha_projection_unsupported',
+              }.contains(code)) {
         return code as String;
       }
       if (code == 'password_change_required' && status == 403) {

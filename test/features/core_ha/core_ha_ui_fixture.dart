@@ -22,7 +22,9 @@ import 'package:larenor/features/client_updates/data/client_update_api.dart';
 import 'package:larenor/features/client_updates/providers/client_update_providers.dart';
 import 'package:larenor/features/ha_client/providers/ha_client_providers.dart';
 import 'package:larenor/features/core_ha/data/core_ha_providers.dart';
+
 import 'core_ha_api_test.dart' show serviceJson;
+
 import 'package:larenor/features/home_resources/data/home_resources_api.dart';
 import 'package:larenor/features/server/data/larenor_server_api.dart';
 import 'package:larenor/features/server/data/server_account_controller.dart';
@@ -37,13 +39,23 @@ import '../../core/home_scope_fixture.dart'
     show SourceMemory, ScopePower, flush;
 import '../server/server_connection_screen_test.dart' show Store;
 
-Map<String, dynamic> contract() => jsonDecode(File('contracts/home-assistant.v1.json').readAsStringSync()) as Map<String, dynamic>;
+Map<String, dynamic> contract() =>
+    jsonDecode(File('contracts/home-assistant.v1.json').readAsStringSync())
+        as Map<String, dynamic>;
 
 class HaUiHarness {
   HaUiHarness({this.pinStore});
   final PinLockStore? pinStore;
   final f = contract();
-  late final fixture = {'context': f['context'], 'memberList': {'scope': f['context'], 'entries': [f['resource']], 'snapshot': 'a' * 64, 'nextAfter': null}};
+  late final fixture = {
+    'context': f['context'],
+    'memberList': {
+      'scope': f['context'],
+      'entries': [f['resource']],
+      'snapshot': 'a' * 64,
+      'nextAfter': null,
+    },
+  };
   String role = 'admin';
   int snapshotReads = 0, previewCount = 0;
   bool bound = false, uncertainConfirm = false;
@@ -78,30 +90,56 @@ class HaUiHarness {
     'role': role,
     'mustChangePassword': false,
   };
-  http.Response json(Object? value, [int code = 200]) => code == 204 ? http.Response('', 204) : http.Response(
-    jsonEncode(value),
-    code,
-    headers: {'content-type': 'application/json'},
-  );
+  http.Response json(Object? value, [int code = 200]) => code == 204
+      ? http.Response('', 204)
+      : http.Response(
+          jsonEncode(value),
+          code,
+          headers: {'content-type': 'application/json'},
+        );
   Future<http.Response> handle(http.Request request) async {
-    if (request.url.path.contains('/home-assistant/') || request.url.path.endsWith('/admin/services')) {
+    if (request.url.path.contains('/home-assistant/') ||
+        request.url.path.endsWith('/admin/services')) {
       adapterRequests.add(request);
-      expectSync(request.headers['authorization'], refreshes.isEven ? 'Bearer ${'a' * 43}' : 'Bearer ${'c' * 43}');
-      if (request.url.path.endsWith('/admin/services')) return json({'services': [{...serviceJson(), 'id': f['preview']['body']['serviceId']}]});
-      expectSync(request.url.path.contains('/${f['context']['coreId']}/${f['context']['homeId']}/resources/${f['resource']['ref']['id']}'), isTrue);
+      expectSync(
+        request.headers['authorization'],
+        refreshes.isEven ? 'Bearer ${'a' * 43}' : 'Bearer ${'c' * 43}',
+      );
+      if (request.url.path.endsWith('/admin/services')) {
+        return json({
+          'services': [
+            {...serviceJson(), 'id': f['preview']['body']['serviceId']},
+          ],
+        });
+      }
+      expectSync(
+        request.url.path.contains(
+          '/${f['context']['coreId']}/${f['context']['homeId']}/resources/${f['resource']['ref']['id']}',
+        ),
+        isTrue,
+      );
       if (request.url.path.endsWith('/snapshot')) {
         snapshotReads++;
-        return pendingSnapshot?.future ?? json(f[snapshotStep]['response'], f[snapshotStep]['status'] as int);
+        return pendingSnapshot?.future ??
+            json(f[snapshotStep]['response'], f[snapshotStep]['status'] as int);
       }
       expectSync(role, 'admin');
       final path = request.url.path;
-      final step = path.endsWith('/binding') ? (bound ? 'binding' : 'unbound')
-        : path.endsWith('/binding-preview') ? (++previewCount == 1 ? 'preview' : 'secondPreview')
-        : path.endsWith('/binding-confirm') ? 'confirm' : 'cancel';
+      final step = path.endsWith('/binding')
+          ? (bound ? 'binding' : 'unbound')
+          : path.endsWith('/binding-preview')
+          ? (++previewCount == 1 ? 'preview' : 'secondPreview')
+          : path.endsWith('/binding-confirm')
+          ? 'confirm'
+          : 'cancel';
       if (step == 'confirm') {
         bound = true;
         if (pendingConfirm != null) return pendingConfirm!.future;
-        if (uncertainConfirm) return json({'error': {'code': 'server_error'}}, 503);
+        if (uncertainConfirm) {
+          return json({
+            'error': {'code': 'server_error'},
+          }, 503);
+        }
         final key = previewCount == 1 ? 'preview' : 'secondPreview';
         return json({'binding': f[key]['response']['preview']['binding']}, 201);
       }
@@ -128,7 +166,13 @@ class HaUiHarness {
       requests.add(request);
       return pending?.future ??
           json(
-            resourceResponse != null ? resourceResponse!(request) : request.url.path.endsWith(f['resource']['ref']['id'] as String) ? {'record': f['resource']} : response,
+            resourceResponse != null
+                ? resourceResponse!(request)
+                : request.url.path.endsWith(
+                    f['resource']['ref']['id'] as String,
+                  )
+                ? {'record': f['resource']}
+                : response,
             status,
           );
     }

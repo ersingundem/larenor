@@ -253,10 +253,19 @@ class _CoreHomeResourcesState extends ConsumerState<CoreHomeResources>
                         const SizedBox(height: 4),
                         Text(kind),
                         if (entry.kind == HomeResourceKind.resource)
-                          button('core-ha-open-${entry.id}', '${l10n.coreHaOpen}: ${entry.label}', true, () async {
-                            if (!current()) return;
-                            await Navigator.of(context).push<void>(CupertinoPageRoute(builder: (_) => CoreHaScreen(target: entry)));
-                          }),
+                          button(
+                            'core-ha-open-${entry.id}',
+                            '${l10n.coreHaOpen}: ${entry.label}',
+                            true,
+                            () async {
+                              if (!current()) return;
+                              await Navigator.of(context).push<void>(
+                                CupertinoPageRoute(
+                                  builder: (_) => CoreHaScreen(target: entry),
+                                ),
+                              );
+                            },
+                          ),
                       ],
                     ),
                   ),

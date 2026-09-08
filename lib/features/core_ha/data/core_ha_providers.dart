@@ -68,15 +68,9 @@ final coreHaApiFactoryProvider = Provider<ServerApiFactory>(
   (_) =>
       (endpoint) => LarenorServerApi(endpoint: endpoint),
 );
-final coreHaClockProvider = Provider<DateTime Function()>(
-  (_) => DateTime.now,
-);
+final coreHaClockProvider = Provider<DateTime Function()>((_) => DateTime.now);
 
-bool Function() _bind(
-  Ref ref,
-  CoreHaOwner owner,
-  HomeSessionController? home,
-) {
+bool Function() _bind(Ref ref, CoreHaOwner owner, HomeSessionController? home) {
   owner._bind(ref);
   final identity = home?.runtimeIdentity,
       epoch = home?.interaction.epoch,
@@ -98,13 +92,27 @@ final coreHaMonotonicProvider = Provider<Duration Function()>((_) {
   final watch = Stopwatch()..start();
   return () => watch.elapsed;
 });
-typedef CoreHaSelection = ({CoreHaOwner owner, HomeResourceRecord target, bool admin});
-final coreHaControllerProvider = Provider.autoDispose.family<CoreHaController, CoreHaSelection>((ref, selection) {
-  final home = ref.watch(homeSessionControllerProvider);
-  final controller = CoreHaController(home, selection.target,
-    ref.watch(coreHaApiFactoryProvider), ref.watch(coreHaClockProvider),
-    ref.watch(coreHaMonotonicProvider), _bind(ref, selection.owner, home), selection.owner,
-    admin: selection.admin);
-  ref.onDispose(() { controller.dispose(); selection.owner.retire(); });
-  return controller;
+typedef CoreHaSelection = ({
+  CoreHaOwner owner,
+  HomeResourceRecord target,
+  bool admin,
 });
+final coreHaControllerProvider = Provider.autoDispose
+    .family<CoreHaController, CoreHaSelection>((ref, selection) {
+      final home = ref.watch(homeSessionControllerProvider);
+      final controller = CoreHaController(
+        home,
+        selection.target,
+        ref.watch(coreHaApiFactoryProvider),
+        ref.watch(coreHaClockProvider),
+        ref.watch(coreHaMonotonicProvider),
+        _bind(ref, selection.owner, home),
+        selection.owner,
+        admin: selection.admin,
+      );
+      ref.onDispose(() {
+        controller.dispose();
+        selection.owner.retire();
+      });
+      return controller;
+    });

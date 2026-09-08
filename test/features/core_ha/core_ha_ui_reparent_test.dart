@@ -18,8 +18,10 @@ import 'package:larenor/l10n/generated/app_localizations.dart';
 import '../../core/home_scope_fixture.dart' show flush;
 import 'core_ha_ui_boundary_test.dart' show held, preview;
 import 'core_ha_ui_fixture.dart';
+
 import 'package:larenor/features/home_resources/domain/home_resource_models.dart';
 import 'package:larenor/features/server/domain/server_models.dart';
+
 import 'core_ha_ui_test.dart' show key, press;
 
 void main() {
@@ -69,7 +71,10 @@ void main() {
               supportedLocales: AppLocalizations.supportedLocales,
               home: CoreHaBindingScreen(
                 key: screenKey,
-                target: HomeResourceRecord.fromJson(h.f['resource'], expectedContext: ServerContext.fromJson(h.f['context'])),
+                target: HomeResourceRecord.fromJson(
+                  h.f['resource'],
+                  expectedContext: ServerContext.fromJson(h.f['context']),
+                ),
                 gateCurrent: () => true,
               ),
             ),
@@ -104,7 +109,12 @@ void main() {
           h.pendingConfirm = null;
         }
         await flush(tester);
-        expect(h.adapterRequests.where((r) => r.url.path.endsWith('/binding-confirm')).length, pending ? 1 : 0);
+        expect(
+          h.adapterRequests
+              .where((r) => r.url.path.endsWith('/binding-confirm'))
+              .length,
+          pending ? 1 : 0,
+        );
         expect(requestsB, 0);
         expect(find.text('switch.synthetic'), findsNothing);
         expect(find.text('Salon anahtarı'), findsNothing);
@@ -114,8 +124,18 @@ void main() {
         await flush(tester);
         old();
         expect(requestsB, 0);
-        expect(h.adapterRequests.where((r) => r.url.path.endsWith('/binding-preview')).length, 1);
-        expect(h.adapterRequests.where((r) => r.url.path.endsWith('/binding-confirm')).length, pending ? 1 : 0);
+        expect(
+          h.adapterRequests
+              .where((r) => r.url.path.endsWith('/binding-preview'))
+              .length,
+          1,
+        );
+        expect(
+          h.adapterRequests
+              .where((r) => r.url.path.endsWith('/binding-confirm'))
+              .length,
+          pending ? 1 : 0,
+        );
         expect(key('core-ha-confirm'), findsNothing);
         expect(tester.takeException(), isNull);
         await tester.pumpWidget(const SizedBox.shrink());

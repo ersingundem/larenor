@@ -18,6 +18,7 @@ import 'package:larenor/features/server/data/server_session_store.dart';
 import 'package:larenor/features/server/domain/server_models.dart';
 
 import 'dart:io';
+
 import 'core_ha_api_test.dart' show serviceJson;
 
 Future<void> settle(WidgetTester tester) async {
@@ -97,7 +98,9 @@ class HaAuth extends LarenorServerApi {
 }
 
 class HaHarness {
-  final f = jsonDecode(File('contracts/home-assistant.v1.json').readAsStringSync()) as Map<String, dynamic>;
+  final f = jsonDecode(
+    File('contracts/home-assistant.v1.json').readAsStringSync(),
+  ) as Map<String, dynamic>;
   DateTime now = DateTime.utc(2026, 9, 6);
   late ServerContext context = ServerContext.fromJson(f['context']);
   String userId = 'f' * 32;
@@ -149,12 +152,25 @@ class HaHarness {
             requests.add(request);
             if (reply != null) return reply!(request);
             final path = request.url.path;
-            if (path.contains('/home-resources/')) return jsonResponse({'record': f['resource']});
-            if (path.endsWith('/services')) return jsonResponse({'services': [{...serviceJson(), 'id': f['preview']['body']['serviceId']}]});
-            final step = path.endsWith('/snapshot') ? snapshotStep
-                : path.endsWith('/binding') ? (bound ? 'binding' : 'unbound')
-                : path.endsWith('/binding-preview') ? (++previews == 1 ? 'preview' : 'secondPreview')
-                : path.endsWith('/binding-confirm') ? 'confirm' : 'cancel';
+            if (path.contains('/home-resources/')) {
+              return jsonResponse({'record': f['resource']});
+            }
+            if (path.endsWith('/services')) {
+              return jsonResponse({
+                'services': [
+                  {...serviceJson(), 'id': f['preview']['body']['serviceId']},
+                ],
+              });
+            }
+            final step = path.endsWith('/snapshot')
+                ? snapshotStep
+                : path.endsWith('/binding')
+                ? (bound ? 'binding' : 'unbound')
+                : path.endsWith('/binding-preview')
+                ? (++previews == 1 ? 'preview' : 'secondPreview')
+                : path.endsWith('/binding-confirm')
+                ? 'confirm'
+                : 'cancel';
             if (step == 'confirm') bound = true;
             return jsonResponse(f[step]['response'], f[step]['status'] as int);
           }, () => closes++),
@@ -168,11 +184,7 @@ class HaHarness {
     password: 'synthetic',
     deviceName: 'fixture',
   );
-  Future<void> mount(
-    WidgetTester tester, {
-    bool admin = true,
-    Key? key,
-  }) async {
+  Future<void> mount(WidgetTester tester, {bool admin = true, Key? key}) async {
     await account.initialize();
     await home.initialize();
     await login();
@@ -181,11 +193,7 @@ class HaHarness {
       UncontrolledProviderScope(
         container: container,
         child: CupertinoApp(
-          home: HaProbe(
-            key: key,
-            h: this,
-            admin: admin,
-          ),
+          home: HaProbe(key: key, h: this, admin: admin),
         ),
       ),
     );
@@ -213,11 +221,7 @@ class TrackedClient extends MockClient {
 }
 
 class HaProbe extends ConsumerStatefulWidget {
-  const HaProbe({
-    super.key,
-    required this.h,
-    this.admin = true,
-  });
+  const HaProbe({super.key, required this.h, this.admin = true});
   final HaHarness h;
   final bool admin;
   @override
@@ -234,9 +238,17 @@ class HaProbeState extends ConsumerState<HaProbe> {
   @override
   Widget build(BuildContext context) {
     final h = widget.h;
-    final c = ref.watch(coreHaControllerProvider((owner: h.owner, target: h.target, admin: widget.admin)));
+    final c = ref.watch(
+      coreHaControllerProvider((
+        owner: h.owner,
+        target: h.target,
+        admin: widget.admin,
+      )),
+    );
     h.list = c;
-    WidgetsBinding.instance.addPostFrameCallback((_) { if (mounted) c.setVisible(true); });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) c.setVisible(true);
+    });
     return const SizedBox();
   }
 }

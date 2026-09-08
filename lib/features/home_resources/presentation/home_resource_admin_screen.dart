@@ -592,9 +592,24 @@ class _HomeResourceAdminScreenState
                                                 : null,
                                             destructive: true,
                                           ),
-                                          if (row.kind == HomeResourceKind.resource)
-                                            _button('core-ha-bind-${row.id}', l10n.coreHaBind,
-                                              _controller.canMutate ? () => Navigator.of(context).push(CupertinoPageRoute<void>(builder: (_) => CoreHaBindingScreen(target: row, gateCurrent: widget.gateCurrent))) : null),
+                                          if (row.kind ==
+                                              HomeResourceKind.resource)
+                                            _button(
+                                              'core-ha-bind-${row.id}',
+                                              l10n.coreHaBind,
+                                              _controller.canMutate
+                                                  ? () => Navigator.of(context).push(
+                                                      CupertinoPageRoute<void>(
+                                                        builder: (_) =>
+                                                            CoreHaBindingScreen(
+                                                              target: row,
+                                                              gateCurrent: widget
+                                                                  .gateCurrent,
+                                                            ),
+                                                      ),
+                                                    )
+                                                  : null,
+                                            ),
                                         ],
                                       ),
                                     ],
