@@ -34,6 +34,8 @@ from .home_people.schema import migrate_home_people
 from .home_people.service import HomePeopleRegistry
 from .home_assistant.schema import migrate_home_assistant
 from .home_assistant.service import HomeAssistantAdapter
+from .home_assistant.migration_schema import migrate as migrate_direct_ha
+from .home_assistant.migration import DirectHaMigration
 
 
 class CoreServices:
@@ -135,6 +137,7 @@ class CoreServices:
                 migrate_home_people(connection, self.context, key)
                 migrate_services(connection)
                 migrate_home_assistant(connection, self.context, key)
+                migrate_direct_ha(connection, key, self.context)
                 migrate_plugins(connection)
                 migrate_plugin_jobs(connection)
                 migrate_media_preparations(connection)
@@ -166,6 +169,8 @@ class CoreServices:
             self.services.validate_storage()
             self.home_assistant = HomeAssistantAdapter(self.db, self.auth, settings, key, self.home_resources, self.services)
             self.home_assistant.validate_storage()
+            self.direct_ha_migration = DirectHaMigration(self.home_assistant)
+            self.direct_ha_migration.validate_storage()
             self.service_probe = ServiceProbeRunner(self.services)
             self.plugins = PluginManagement(self.db, self.auth, settings, key)
             self.plugins.validate_storage()
