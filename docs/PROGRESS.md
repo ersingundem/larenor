@@ -1,6 +1,6 @@
 # Larenor — güncel ilerleme ve iş kuyruğu
 
-**Son güncelleme: 8 Eylül 2026 — S08.7'nin kalıcı komut/makbuz dilimi ana dalda; exact-source birleşik CI bekleniyor.**
+**Son güncelleme: 8 Eylül 2026 — Android arşiv E2E yarış düzeltmesi ve Native11 state-shape tanısı hazırlanıyor.**
 
 ```text
 Kuyruk kabulü       ██░░░░░░░░░░░░░░░░░░  10/125 iş (%8; eşit ağırlıklı sayaç)
@@ -33,7 +33,7 @@ Gerçek ev kurulumu ve fiziksel tablet kabulü henüz yapılmadı.
 | S08.6 — kişi, oda, kaynak ve izin yönetimi | **Kabul edildi**, aynı yayın | Merkezi HA akışının yetki temeli hazır |
 | S08.7 — merkezi Home Assistant adaptörü | **Devam ediyor**; typed durum, kalıcı switch komutu/makbuzu ve açık Direct→Core aktarımı main içinde | Exact-source birleşik CI; sonra geniş HA varlık/servis kapsamı |
 | B5.1 — ortak tablet tasarımı | Services/hesap IME paketi APK116 ile kabul edildi; S08.7 komut ve aktarım yüzeyleri yerel tablet matrisinden geçti | Exact-source Android CI ve kalan ortak tablet yüzeyleri |
-| S06.3d — kalıcı depolama | Dokuzuncu native koşu iki mimaride genel exit verdi; state read/invalid/unclassified ayrımı yerelde hazır | Onuncu native koşuda bounded state gözlemini ayır |
+| S06.3d — kalıcı depolama | Native10 iki mimaride typed fakat sınıflandırılmamış state verdi; dört olgusal state-shape kodu yerelde hazır | Exact-source Native11'de kalan state şeklini ayır |
 
 S08.7 üç sonlu teslimden oluşur: **kaynak bağlama ve typed durum → komut ve
 kalıcı sonuç → açık Direct aktarımı**. Üç yerel dilim de squash yapılmadan
@@ -205,8 +205,19 @@ bulunan Unicode/Recursion P2'sinin iki gerçek RED'i kapandı; 21 state, toplam
 257 Jellyfin ve 218 politika testi geçti. Tek bounded inspect, redaksiyon,
 cleanup ve no-retry sınırları değişmedi; bağımsız final inceleme CLEAR.
 [State-read tanısı](jellyfin-base-state-read-diagnostics-2026-09-08.md).
-Onuncu native koşu bounded gözlem ailesini ayıracak; sonuç yine tek başına
-kurulum kabulü değildir.
+Onuncu koşu `34270629266`, exact `e97189f` üzerinde iki mimaride de
+`helper_base_start / helper_base_state_unclassified` verdi; başarı makbuzu yok.
+Tek indirilen 70.215 bayt logun SHA-256 değeri
+`27e931c6eaa35470d68a329cfc010e34a0b99f143fc38e57a152da8fbd683f58`.
+Bu, tek bounded state okumasının typed ve geçerli olduğunu doğruladı. Kalan
+şekil, ham hata metni taşınmadan unknown error, created/nonzero, unknown status
+ve diğer bilinen status olarak ayrıldı. Dört gerçek RED kapandı; 28 state,
+toplam 264 Jellyfin ve 218 politika testi geçti. İncelemede geçerli Docker
+`removing` durumuna “tutarsız” denemeyeceği nötr kategoriyle güvence eklendi;
+final bağımsız inceleme CLEAR.
+[State-shape tanısı](jellyfin-base-state-shape-diagnostics-2026-09-08.md).
+Native11 bu dört gözlemden birini ayıracak; sonuç yine tek başına kurulum kabulü
+değildir.
 Gerçek Engine ve kurulum kabulü hâlâ açık; `installAvailable=false`.
 
 ## Canlı takip ve sıradaki işler

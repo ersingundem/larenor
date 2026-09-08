@@ -417,14 +417,6 @@
           "label": "Salt okunur kimlik gözlemi: 2704 Linux test, sıfır skip; S06.3d tamamlanması değildir."
         },
         {
-          "kind": "ci",
-          "ref": "https://github.com/ersingundem/larenor/actions/runs/33988283387",
-          "commit": "3dde2f8b73763741f6d87f903eba6ef7da9f7f91",
-          "state": "completed",
-          "result": "passed",
-          "label": "Kimlik temeli ve iki mimarili Core hazırlık smoke geçti; gerçek appdata kurulumu açık."
-        },
-        {
           "kind": "test",
           "ref": "docs/native-appdata-root-observation-implementation-2026-09-05.md",
           "commit": "0d9e2506ac86e00f2f6e1a0be513ee0cabb7b073",
@@ -441,14 +433,6 @@
           "label": "Yeni tam kök modülü ve yarış/lifecycle/mount testleri bağımsız incelendi; açık P1/P2 yok."
         },
         {
-          "kind": "ci",
-          "ref": "https://github.com/ersingundem/larenor/actions/runs/33991460310",
-          "commit": "394de0fc5e0f7e672dda8847c83b6e8d3b50e61b",
-          "state": "completed",
-          "result": "passed",
-          "label": "Tam kök gözlemi:2792 gerçek Linux test0skip; iki mimarili hazırlık/restart/iptal ve anonim imaj doğrulandı. S06.3d yazma kabulü açık."
-        },
-        {
           "kind": "test",
           "ref": "docs/managed-volume-proposal-implementation-2026-09-06.md",
           "commit": "b5d416404e900aecbbf41068fdf7547942315d22",
@@ -479,14 +463,6 @@
           "state": "completed",
           "result": "passed",
           "label": "Saf volume gözlemi:95 odaklı/282 ilgili test;124satır/24dal100%, üretim74f436c bağımsız CLEAR. labels_matched yalnız gözlem; durable journal/Engine dispatch/bootstrap açık, installAvailable=false."
-        },
-        {
-          "kind": "ci",
-          "ref": "https://github.com/ersingundem/larenor/actions/runs/34004246308",
-          "commit": "1c2db575e7377e28e41bbd83aa34d4408e2029c1",
-          "state": "completed",
-          "result": "passed",
-          "label": "1c2db57 Core CI: gerçek JUnit 3.050 PASS, hata/skip yok; 389,50 saniye. İki mimarili container smoke/build/publish geçti. Sonraki volume journal/reader bu kaynakta değildir."
         },
         {
           "kind": "test",
@@ -663,10 +639,34 @@
           "state": "completed",
           "result": "passed",
           "label": "Bağımsız CLEAR: Unicode/Recursion P2 kapalı; specific start kodu korunuyor. Tek inspect, no-retry, BaseException ve private output sınırları aynı."
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/34270629266",
+          "commit": "e97189fa878863855bd6cd991d4ac6023655063e",
+          "state": "completed",
+          "result": "failed",
+          "label": "Native10: iki mimaride helper_base_start/helper_base_state_unclassified; makbuz yok. Tek log70215byte/SHA27e931c6; typed state-shape ayrımı açık."
+        },
+        {
+          "kind": "test",
+          "ref": "docs/jellyfin-base-state-shape-diagnostics-2026-09-08.md",
+          "commit": "69215edc371505a5fb595a3aa78e473ee4f07457",
+          "state": "completed",
+          "result": "passed",
+          "label": "State-shape tanısı:4RED kapalı;28state/264Jellyfin/218politikaPASS. Unknown error, created-nonzero, unknown status ve diğer bilinen status ayrıldı."
+        },
+        {
+          "kind": "review",
+          "ref": "docs/jellyfin-base-state-shape-diagnostics-2026-09-08.md",
+          "commit": "69215edc371505a5fb595a3aa78e473ee4f07457",
+          "state": "completed",
+          "result": "passed",
+          "label": "Bağımsız CLEAR: geçerli removing durumu nötr known-status koduna alındı; specific sonuç, tek inspect, redaksiyon, no-retry ve cleanup sınırları korundu."
         }
       ],
       "completionCommit": null,
-      "reason": "Native9 run34267014037 exact63b25f8: iki mimaride generic exit; tek log70203byte/SHA85f0cd8e, başarı makbuzu yok. State-read560c756:6RED+reviewP2 kapalı,21state/257Jellyfin/218politikaPASS; generic sonuçta read/invalid/unclassified, specific kod korunuyor. Tek start/owned10s64KiBinspect/redaksiyon/cleanup aynı. Native10 gözlemi ayıracak; installAvailable=false."
+      "reason": "Native10 run34270629266 exacte97189f: iki mimaride typed state_unclassified; tek log70215byte/SHA27e931c6, başarı makbuzu yok. State-shape69215ed:4RED+review removing P2 kapalı,28state/264Jellyfin/218politikaPASS; unknown-error/created-nonzero/unknown-status/known-status ayrımı, specific kod korunuyor. Tek start/owned10s64KiBinspect/redaksiyon/cleanup aynı. Native11 gözlemi ayıracak; installAvailable=false."
     },
     {
       "id": "S06.3e",
