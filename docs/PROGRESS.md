@@ -33,7 +33,7 @@ Gerçek ev kurulumu ve fiziksel tablet kabulü henüz yapılmadı.
 | S08.6 — kişi, oda, kaynak ve izin yönetimi | **Kabul edildi**, aynı yayın | Merkezi HA akışının yetki temeli hazır |
 | S08.7 — merkezi Home Assistant adaptörü | **Devam ediyor**; typed durum, kalıcı switch komutu/makbuzu ve açık Direct→Core aktarımı main içinde | Exact-source birleşik CI; sonra geniş HA varlık/servis kapsamı |
 | B5.1 — ortak tablet tasarımı | Services/hesap IME paketi APK116 ile kabul edildi; S08.7 komut ve aktarım yüzeyleri yerel tablet matrisinden geçti | Exact-source Android CI ve kalan ortak tablet yüzeyleri |
-| S06.3d — kalıcı depolama | Beşinci native koşu iki mimaride exact base `start --attach` sınırında kaldı; process-only tanı main içinde | Altıncı native koşuda nonzero/timeout/output-limit/spawn/I-O sınıfını ayır |
+| S06.3d — kalıcı depolama | Altıncı native koşu iki mimaride exact base `start --attach` nonzero sınıfına daraldı; private bounded stderr tanısı main içinde | Yedinci native koşuda kapalı start hata ailesini ayır |
 
 S08.7 üç sonlu teslimden oluşur: **kaynak bağlama ve typed durum → komut ve
 kalıcı sonuç → açık Direct aktarımı**. Üç yerel dilim de squash yapılmadan
@@ -73,6 +73,19 @@ geniş HA varlık/servis kapsamı ve fiziksel kabul bekliyor.
 [Direct Server aktarımı](direct-ha-migration-server-implementation-2026-09-08.md) ·
 [Direct Client aktarımı](direct-ha-migration-client-implementation-2026-09-08.md) ·
 [Uygulama planı](core-home-assistant-adapter-plan-2026-09-06.md).
+
+İlk exact-source uzak paket `32d43fd` üzerinde Security ve ayrı Server
+Container koşuları geçti; Server **3.867 PASS** ve amd64/arm64 container
+manifestini tamamladı. Android işinde tam Flutter **5.436 PASS**, debug APK ve
+emülatör **17/17** yolculuk geçti. Aynı workflow'un bağımsız Server kopyası
+**3.866 PASS** sonrasında yalnız sentetik volume test sunucusunun isteğe bağlı
+ikinci isteği beklerken `socket.timeout` kaydetmesiyle bir fixture hatası verdi;
+bu nedenle imzalı APK işi çalışmadı. Tek tam Android logunun SHA-256 değeri
+`494e06e10e58a79dcbf2e7ab24846cac64afb54763c45d8640ef71371993eb10`.
+Üretim etkisi olmayan yedi satırlık fixture düzeltmesi gerçek 3 RED→4 GREEN,
+son 612 ilgili PASS/3 mevcut macOS skip ve paralel 8×4 PASS ile main'e alındı;
+ilk GET, başlık/gövde sınırları, callback hataları ve çağrı sayısı korunuyor.
+[Fixture yaşam döngüsü](volume-create-fixture-lifecycle-repair-2026-09-08.md).
 
 [Services tablet paketi](core-services-tablet-accessibility-2026-09-06.md):
 46 yeni ve 186 ilgili test geçti; tam bağlantı adları, 48px hedefler, görünür
@@ -134,8 +147,23 @@ Bu start çağrısında stderr toplamadan mevcut nonzero/timeout/output-limit/
 spawn/I-O sınıflarını açan dar tanı main'e alındı: 15 yeni, toplam 225 ilgili
 test ve 215 politika testi geçti; dal dahil kapsam %97,18, bağımsız inceleme
 temiz. [Attached start tanısı](jellyfin-base-start-process-diagnostics-2026-09-08.md).
-Altıncı native koşu yalnız süreç sınıfını gözlemleyecek; CLI nonzero tek başına
-container runtime veya attach kök nedenini kanıtlamaz.
+Altıncı native koşu `34257672707`, exact `32d43fd` üzerinde iki mimaride de
+`helper_base_start / fixture_command_exit_failed` verdi. Tek indirilen log
+70.211 bayt, SHA-256
+`f5357a2f73df32572efcf306599d621609fe215e8d5347237c082b34e44acbb1`.
+Bu, CLI sürecinin nonzero çıktığını kanıtlar; attach, start, wait veya container
+çıkışı arasında kök neden seçmez. Yalnız exact attached base start çağrısında
+64 KiB + 1 bayt özel stderr drain eden kapalı tanı main'e alındı: 10 gerçek
+RED→10 GREEN, 32 yeni, toplam 257 ilgili ve 215 politika testi geçti; runner ve
+launcher dal dahil kapsamı %97,28, bağımsız inceleme temiz. Ham stderr hiçbir
+çıktıya yazılmaz; tek leaf wrapper'a üstün, birden çok leaf ambiguous, boş veya
+eşleşmeyen mesaj eski genel hata olarak kalır. 20 saniye/128 bayt stdout, tek
+deneme ve process-group cleanup değişmedi.
+[Private start tanısı](jellyfin-base-start-private-stderr-2026-09-08.md).
+Birleşmiş main üzerinde Jellyfin, Engine HTTP ve volume ailesinin **847 PASS /
+3 mevcut macOS skip** koşusu da geçti. Yedinci native koşu yalnız yeni kapalı
+hata ailesini gözlemleyecek; tanı sonucu tek başına Engine/install kabulü
+sayılmayacak.
 Gerçek Engine ve kurulum kabulü hâlâ açık; `installAvailable=false`.
 
 ## Canlı takip ve sıradaki işler

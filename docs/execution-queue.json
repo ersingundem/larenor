@@ -391,7 +391,9 @@
         "docs/jellyfin-helper-build-diagnostics-2026-09-08.md",
         "docs/jellyfin-private-build-errors-2026-09-08.md",
         "docs/jellyfin-helper-base-runtime-probe-2026-09-08.md",
-        "docs/jellyfin-base-start-process-diagnostics-2026-09-08.md"
+        "docs/jellyfin-base-start-process-diagnostics-2026-09-08.md",
+        "docs/jellyfin-base-start-private-stderr-2026-09-08.md",
+        "docs/volume-create-fixture-lifecycle-repair-2026-09-08.md"
       ],
       "scope": "installAvailable=false; Client kaynak adı/Docker seçenekleri üretmez. Gerçek ev sunucusuna işlem yok.",
       "acceptance": [
@@ -637,31 +639,31 @@
         },
         {
           "kind": "ci",
-          "ref": "https://github.com/ersingundem/larenor/actions/runs/34250089907",
-          "commit": "25d438aed00b44cf10322a500a4dbb001c920dfd",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/34257672707",
+          "commit": "32d43fd54f7213b3d2cf548dcda7c86b05310606",
           "state": "completed",
           "result": "failed",
-          "label": "Native5: iki mimaride pull/inspect/create/created geçti; exact base start--attach fixture_command_failed. Tek logSHA c7444904; kök neden ve makbuz yok."
+          "label": "Native6: iki mimaride exact base start--attach/fixture_command_exit_failed; tek log70211byte/SHAf5357a2f. CLI nonzero kanıtlandı, attach/start/wait/container kök nedeni açık."
         },
         {
           "kind": "test",
-          "ref": "docs/jellyfin-base-start-process-diagnostics-2026-09-08.md",
-          "commit": "cbbf7d2dd52f7dbfce9181fe8cd8e40c7439518c",
+          "ref": "docs/jellyfin-base-start-private-stderr-2026-09-08.md",
+          "commit": "976a8ce4faf3ac0206aabf228144201a678f2d94",
           "state": "completed",
           "result": "passed",
-          "label": "Base start process tanısı:15 yeni/225 ilgili PASS0skip,215 politikaPASS,%97,18 dal dahil kapsam; stderrDEVNULL ve installAvailable=false."
+          "label": "Private base-start tanısı:10RED→10GREEN,32yeni/257ilgiliPASS0skip,215politikaPASS,%97,28 dal dahil;64KiB+1 stderr,20s/128stdout,tekdeneme."
         },
         {
           "kind": "review",
-          "ref": "docs/jellyfin-base-start-process-diagnostics-2026-09-08.md",
-          "commit": "cbbf7d2dd52f7dbfce9181fe8cd8e40c7439518c",
+          "ref": "docs/jellyfin-base-start-private-stderr-2026-09-08.md",
+          "commit": "976a8ce4faf3ac0206aabf228144201a678f2d94",
           "state": "completed",
           "result": "passed",
-          "label": "Process-only tanı bağımsız CLEAR; start20s/128byte, sahip olunan socket/cleanup, token/readback ve sonraki uygulama oracles korundu."
+          "label": "Bağımsız CLEAR: start-only private drain/redaction, leaf/ambiguity kuralı, cleanup/reap ve build/generic yolları korundu; gerçek neden/install kabulü açık."
         }
       ],
       "completionCommit": null,
-      "reason": "Native5 run34250089907 exact25d438a üzerinde iki mimaride exact base start--attach/fixture_command_failed verdi; pull/inspect/create/created geçti. Stderr toplamayan process-only tanı 225 ilgili test,215 politika,%97,18 kapsam ve bağımsız CLEAR ile local mainc141ac9 içinde. Altıncı CI nonzero/timeout/output-limit/spawn/I-O sınıfını ayıracak; CLI nonzero tek başına runtime kök nedeni değildir. installAvailable=false."
+      "reason": "Native6 run34257672707 exact32d43fd üzerinde iki mimaride helper_base_start/fixture_command_exit_failed verdi. Start-only64KiB+1 private stderr tanısı 257ilgili/215politikaPASS,%97,28kapsam ve bağımsızCLEAR ile local main57bf582 içinde. İlgili Engine/volume birleşik847PASS/3Macskip; ayrı volume fixture yarışı local main9125853 içinde onarıldı. Yedinci CI yalnız kapalı start hata ailesini ayıracak; tanı kök neden/install kabulü değildir. installAvailable=false."
     },
     {
       "id": "S06.3e",
@@ -1567,10 +1569,26 @@
           "state": "completed",
           "result": "passed",
           "label": "Server ve Client bağımsız CLEAR: atomik kayıt, PIN/root/current sınırı, sır redaksiyonu, no-replay GET kurtarma ve tablet a11y/Apple incelemesinde açık P1/P2 yok."
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/34257630152",
+          "commit": "32d43fd54f7213b3d2cf548dcda7c86b05310606",
+          "state": "completed",
+          "result": "passed",
+          "label": "Exact32d Server Container:3867LinuxPASS, amd64/arm64 build ve manifest yayını geçti; aynı kaynağın Security koşusu da başarılı."
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/34257630295",
+          "commit": "32d43fd54f7213b3d2cf548dcda7c86b05310606",
+          "state": "completed",
+          "result": "failed",
+          "label": "Exact32d Android:5436Flutter ve17E2E/debugAPK geçti; bağımsız Server3866PASS+1 sentetik volume fixture timeout yarışı, signedAPKskip. Üretim dışı onarım sonraki kaynakta."
         }
       ],
       "completionCommit": null,
-      "reason": "Typed switch durumu, kalıcı idempotent komut/makbuz ve açık PIN-gated Direct→Core aktarımı local maince01445 içinde. Server87 ve Client92odaklı/599ilgiliPASS; sözleşmehash sabit, bağımsız incelemeler CLEAR. Exact-source birleşik CI, geniş HA varlık/servis kapsamı ve fiziksel Android/gerçek HA kabulü açık; gerçek ev yalnız salt okunur tutuldu."
+      "reason": "Typed switch durumu, kalıcı idempotent komut/makbuz ve açık PIN-gated Direct→Core aktarımı main32d43fd içinde. Server87 ve Client92odaklı/599ilgiliPASS; sözleşmehash sabit, bağımsız incelemeler CLEAR. Exact32d Security/Server/Flutter/E2E geçti ancak Android iç Server fixture yarışı signed APK'yı durdurdu; local fixture onarımı yeni CI bekliyor. Geniş HA varlık/servis kapsamı ve fiziksel Android/gerçek HA kabulü açık; gerçek ev yalnız salt okunur tutuldu."
     },
     {
       "id": "S08.8",
@@ -1840,11 +1858,11 @@
       "evidence": [
         {
           "kind": "ci",
-          "ref": "https://github.com/ersingundem/larenor/actions/runs/33986835301",
-          "commit": "9138e617a35d40fc4ab811f980021fb9e3e7a403",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/34257630295",
+          "commit": "32d43fd54f7213b3d2cf548dcda7c86b05310606",
           "state": "completed",
           "result": "failed",
-          "label": "2739 Flutter/98 JVM/dörtjourney geçti; launcher ANR nativefocus başarısız, imzalı APK92skip."
+          "label": "Direct tablet source exact32d:5436Flutter/17E2E ve debugAPK geçti; bağımsız Server3866+1 sentetik fixture yarışı nedeniyle signedAPKskip. Local fixture onarımı yeniCI bekliyor."
         },
         {
           "kind": "ci",
@@ -2096,7 +2114,7 @@
         }
       ],
       "completionCommit": null,
-      "reason": "Services ve hesap IME exact5cbff21/APK116 ile temiz CI kapısından geçti:5220Flutter/98JVM/17E2E/133faz ve bağımsız imza doğrulandı. Direct aktarım yüzeyi yerelde tablet/a11y review CLEAR ve599ilgiliPASS. Genel B5.1, exact-source yeni Android CI, kalan ortak tablet yüzeyleri ve fiziksel Huawei/DeX/TalkBack kabulü nedeniyle açık."
+      "reason": "Services ve hesap IME exact5cbff21/APK116 ile temiz CI kapısından geçti. Direct aktarım yüzeyi yerelde tablet/a11y review CLEAR ve599ilgiliPASS; exact32d 5436Flutter/17E2E geçti ancak bağımsız Server fixture yarışı signedAPK'yı durdurdu. Genel B5.1, fixture onarımının yeni Android CI'ı, kalan ortak tablet yüzeyleri ve fiziksel Huawei/DeX/TalkBack kabulü nedeniyle açık."
     },
     {
       "id": "B5.2",
