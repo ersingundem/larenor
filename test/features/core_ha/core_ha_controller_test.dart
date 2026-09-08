@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
@@ -65,6 +66,54 @@ void main() {
         h.requests.where((r) => r.url.path.contains('/commands/')).length,
         1,
       );
+    },
+  );
+  testWidgets('pending recovery remains recoverable until a terminal receipt', (
+    tester,
+  ) async {
+    final h = HaHarness();
+    await h.mount(tester, admin: false);
+    final c = h.list!;
+    h.reply = (_) async => jsonResponse({
+      'error': {'code': 'server_error'},
+    }, 503);
+    await c.command(CoreHaCommandAction.turnOff, isCurrent: () => true);
+    final pending = jsonDecode(
+      jsonEncode(h.f['commandResult']['response']),
+    ) as Map<String, dynamic>;
+    (pending['receipt'] as Map<String, dynamic>)
+      ..['dispatchState'] = 'pending'
+      ..['providerAccepted'] = null
+      ..['observedProjection'] = null
+      ..['observationMatchesTarget'] = null
+      ..['completedAt'] = null;
+    h.reply = (_) async => jsonResponse(pending);
+    await c.recoverCommand(isCurrent: () => true);
+    expect(c.commandReceipt?.dispatchState, CoreHaDispatchState.pending);
+    expect(c.pendingCommandId, '7' * 32);
+    expect(c.uncertain, isTrue);
+    expect(c.canRecoverCommand, isTrue);
+    h.reply = (_) async => jsonResponse(h.f['commandResult']['response']);
+    await c.recoverCommand(isCurrent: () => true);
+    expect(c.commandReceipt?.dispatchState, CoreHaDispatchState.accepted);
+    expect(c.pendingCommandId, isNull);
+  });
+  testWidgets(
+    'definite pre-dispatch conflict clears request id and can refresh',
+    (tester) async {
+      final h = HaHarness();
+      await h.mount(tester, admin: false);
+      final c = h.list!;
+      h.reply = (_) async => jsonResponse({
+        'error': {'code': 'ha_binding_changed'},
+      }, 409);
+      await c.command(CoreHaCommandAction.turnOff, isCurrent: () => true);
+      expect(c.failure, 'ha_binding_changed');
+      expect(c.uncertain, isFalse);
+      expect(c.pendingCommandId, isNull);
+      h.reply = null;
+      await c.refresh();
+      expect(c.canCommand, isTrue);
     },
   );
   testWidgets(

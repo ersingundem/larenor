@@ -62,6 +62,7 @@ class HomeAssistantAdapter:
         self._reader = read_switch  # Private packaged/test seam, never an HTTP option.
         self._commander = command_switch
         self._active_commands = set()
+        self._command_generation = 0
 
     def _now(self):
         now = self._clock()
@@ -169,22 +170,34 @@ class HomeAssistantAdapter:
                     dict(service.credentials)], sort_keys=True).encode(), hashlib.sha256).digest())
         return fingerprint, row, ref, binding, service
 
-    def _fresh(self, actor, core, home, resource, fingerprint, body, cancelled, *, admin=False):
+    def _fresh(self, actor, core, home, resource, fingerprint, body, cancelled, *,
+               admin=False, command_generation=None):
         if cancelled():
             raise ApiError('request_timeout', 408)
         with self._tx(actor, core, home, admin=admin) as (c, facts):
             current = self._facts(c, facts, resource, body)[0]
-            if current != fingerprint:
+            if (current != fingerprint or command_generation is not None and
+                    command_generation != self._command_generation):
                 raise ApiError('ha_binding_changed', 409)
         if cancelled():
             raise ApiError('request_timeout', 408)
 
-    def _observe(self, actor, core, home, resource, fingerprint, service, entity, body, cancelled, *, admin=False):
+    def _current_read(self, actor, core, home, resource, cancelled):
+        if cancelled():
+            raise ApiError('request_timeout', 408)
+        with self._tx(actor, core, home) as (c, facts):
+            self._target(c, facts, resource)
+        if cancelled():
+            raise ApiError('request_timeout', 408)
+
+    def _observe(self, actor, core, home, resource, fingerprint, service, entity,
+                 body, cancelled, *, admin=False, command_generation=None):
         if not self._slots.acquire(blocking=False):
             raise ApiError('ha_limit_reached', 429)
         try:
             def guard():
-                self._fresh(actor, core, home, resource, fingerprint, body, cancelled, admin=admin)
+                self._fresh(actor, core, home, resource, fingerprint, body,
+                    cancelled, admin=admin, command_generation=command_generation)
             projection = self._reader(service, entity, guard=guard)
             guard()
             # Even trusted replacement readers cannot smuggle arbitrary attributes.
@@ -371,6 +384,8 @@ class HomeAssistantAdapter:
                     observedProjection=None, observationMatchesTarget=None,
                     causalityVerified=False, createdAt=created, completedAt=None)
                 self._save_command(c, StoredCommand(request=body, receipt=receipt))
+                self._command_generation += 1
+                self._cache.clear()
                 self._active_commands.add(body.requestId)
                 reserved = True
             return None, (receipt, binding, service, fingerprint)
@@ -415,6 +430,9 @@ class HomeAssistantAdapter:
                 if current is None or self._decode_command(current).receipt.dispatchState != 'pending':
                     raise ApiError('server_unavailable', 503)
                 self._save_command(c, value)
+                self._command_generation += 1
+                self._cache.clear()
+            self._current_read(actor, core, home, resource, cancelled)
             return {'receipt': completed.model_dump()}
         finally:
             with self._lock:
@@ -425,15 +443,19 @@ class HomeAssistantAdapter:
     def snapshot(self, actor, core, home, resource, *, cancelled=lambda: False):
         with self._tx(actor, core, home) as (c, facts):
             fingerprint, row, ref, binding, service = self._facts(c, facts, resource)
+            command_generation = self._command_generation
             key = (core, home, actor.id, actor.token_id, resource, binding.id, actor.family_id)
             now = self._now(); cached = self._cache.get(key)
             if cached is not None and cached[1] == fingerprint and not cancelled():
                 remaining = max(0, int((CACHE_TTL - (now - cached[0])) * 1000))
                 return {'snapshot': {**cached[2], 'remainingTtlMs': remaining}}
-        projection = self._observe(actor, core, home, resource, fingerprint, service, binding.entityId, None, cancelled)
+        projection = self._observe(actor, core, home, resource, fingerprint,
+            service, binding.entityId, None, cancelled,
+            command_generation=command_generation)
         with self._tx(actor, core, home) as (c, facts):
             current, row, ref, binding, _ = self._facts(c, facts, resource)
-            if current != fingerprint or cancelled():
+            if (current != fingerprint or
+                    command_generation != self._command_generation or cancelled()):
                 raise ApiError('ha_binding_changed', 409)
             projection = projection.model_copy(update={'commandAvailable':
                 self.resources._decision(facts, row, ref,

@@ -301,17 +301,20 @@ class CoreHaController extends ChangeNotifier {
         failure = error is LarenorServerException
             ? error.code
             : 'connection_failed';
-        uncertain =
-            write &&
-            !{
-              'forbidden',
-              'not_found',
-              'invalid_request',
-              'revision_conflict',
-              'ha_binding_changed',
-              'ha_preview_invalid',
-              'ha_command_conflict',
-            }.contains(failure);
+        final definite = {
+          'forbidden',
+          'not_found',
+          'invalid_request',
+          'revision_conflict',
+          'ha_binding_changed',
+          'ha_preview_invalid',
+          'ha_command_conflict',
+        }.contains(failure);
+        uncertain = write && !definite;
+        if (write && definite && pendingCommandId != null) {
+          pendingCommandId = null;
+          pendingCommandAction = null;
+        }
       }
     } finally {
       if (!_disposed && epoch == operation) {
@@ -386,11 +389,7 @@ class CoreHaController extends ChangeNotifier {
       (api) async {
         final receipt = await api(currentRecord)
             .command(requestId: id, action: action, snapshot: currentSnapshot);
-        commandReceipt = receipt;
-        pendingCommandId = null;
-        pendingCommandAction = null;
-        uncertain = false;
-        _expire();
+        _acceptCommandReceipt(receipt);
       },
       write: true,
       guard: isCurrent,
@@ -402,12 +401,20 @@ class CoreHaController extends ChangeNotifier {
     if (!canRecoverCommand || id == null || !_action(isCurrent)) return;
     await _run((api) async {
       final receipt = await api(target).commandResult(id);
-      commandReceipt = receipt;
-      pendingCommandId = null;
-      pendingCommandAction = null;
-      uncertain = false;
-      _expire();
+      _acceptCommandReceipt(receipt);
     }, guard: isCurrent);
+  }
+
+  void _acceptCommandReceipt(CoreHaCommandReceipt receipt) {
+    commandReceipt = receipt;
+    if (receipt.dispatchState == CoreHaDispatchState.pending) {
+      uncertain = true;
+      return;
+    }
+    pendingCommandId = null;
+    pendingCommandAction = null;
+    uncertain = false;
+    _expire();
   }
 
   Future<void> prepare(

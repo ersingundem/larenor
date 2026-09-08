@@ -343,6 +343,42 @@ def test_failed_connection_is_not_retried_and_has_no_raw_exception_chain():
     assert error.value.__context__ is None
 
 
+def test_before_send_guard_runs_after_connect_and_can_abort_without_writing():
+    events = []
+
+    class Connected:
+        def settimeout(self, value):
+            events.append('timeout')
+        def sendall(self, value):
+            events.append('sent')
+        def shutdown(self, how):
+            events.append('shutdown')
+        def close(self):
+            events.append('closed')
+
+    class AuthorityLost(Exception):
+        pass
+
+    def guard():
+        events.append('guard')
+        raise AuthorityLost('closed authority')
+
+    with ServiceTransport('http://service.test', resolver=loopback,
+                          connector=lambda *args: events.append('connected') or Connected()) as transport:
+        with pytest.raises(AuthorityLost, match='closed authority'):
+            transport.request('POST', '/', body=b'{}', before_send=guard)
+    assert events.index('connected') < events.index('guard')
+    assert 'sent' not in events
+
+
+def test_invalid_before_send_guard_fails_before_resolution():
+    calls = []
+    with ServiceTransport('http://service.test', resolver=lambda *args: calls.append(args)) as transport:
+        with pytest.raises(ProbeTransportError, match='invalid_request'):
+            transport.request('POST', '/', before_send='not-callable')
+    assert not calls
+
+
 @pytest.mark.parametrize("method,body", [("DELETE", None), ([], None), ("GET", b"secret"),
                                         ("POST", "secret"), ("POST", b"x" * (1024 * 1024 + 1))])
 def test_invalid_method_and_body_fail_before_resolution(method, body):

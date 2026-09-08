@@ -32,7 +32,8 @@ def read_switch(service, entity_id, *, guard):
     try:
         with ServiceTransport(service.base_url, timeout=TIMEOUT, max_bytes=MAX_BYTES) as transport:
             response = transport.request('GET', '/api/states/' + entity_id,
-                headers={'Authorization': 'Bearer ' + service.credentials['token'], 'Accept': 'application/json'})
+                headers={'Authorization': 'Bearer ' + service.credentials['token'], 'Accept': 'application/json'},
+                before_send=guard)
     except (ProbeTransportError, KeyError):
         guard()
         raise ApiError('ha_upstream_unavailable', 502) from None
@@ -73,9 +74,11 @@ def command_switch(service, entity_id, action, *, guard):
             response = transport.request('POST', '/api/services/switch/' + action,
                 headers={'Authorization': 'Bearer ' + service.credentials['token'],
                          'Accept': 'application/json', 'Content-Type': 'application/json'},
-                body=body)
+                body=body, before_send=guard)
     except (ProbeTransportError, KeyError):
         return None
     if response.status == 200:
         return True
-    return False
+    if response.status in (400, 401, 403, 404, 405, 422):
+        return False
+    return None

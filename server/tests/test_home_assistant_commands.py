@@ -1,5 +1,6 @@
 """Durable, idempotent switch commands through owned loopback HA only."""
 import pytest
+import threading
 from fastapi.testclient import TestClient
 
 from conftest import auth
@@ -8,6 +9,7 @@ from test_home_assistant_adapter import bind, ha, setup
 from larenor_server.app import create_app
 from larenor_server.errors import ApiError, StartupError
 from larenor_server.home_assistant import schema
+from larenor_server.home_assistant.models import Projection
 
 
 def command_body(record, binding, actor, *, request_id='9' * 32, action='turn_on'):
@@ -113,6 +115,102 @@ def test_provider_rejection_is_a_durable_result_and_is_never_replayed(server, ha
     assert receipt['observedProjection'] is None
     assert receipt['observationMatchesTarget'] is None
     assert ha.command_calls == 1
+
+
+def test_provider_server_failure_is_unknown_not_a_proven_rejection(server, ha):
+    _, client, admin, record, _, base, public, body = setup(server, ha)
+    _, binding = bind(client, admin, base, body)
+    ha.command_status = 500
+    response = client.post(public + '/commands', headers=auth(admin),
+                           json=command_body(record, binding, admin))
+    assert response.status_code == 202
+    receipt = response.json()['receipt']
+    assert receipt['dispatchState'] == 'unknown'
+    assert receipt['providerAccepted'] is None
+    assert ha.command_calls == 1
+
+
+def test_command_invalidates_cached_pre_command_state(server, ha):
+    _, client, admin, record, _, base, public, body = setup(server, ha)
+    _, binding = bind(client, admin, base, body)
+    assert client.get(public + '/snapshot', headers=auth(admin)).json()[
+        'snapshot']['projection']['state'] == 'off'
+    before = ha.calls
+    assert client.post(public + '/commands', headers=auth(admin),
+                       json=command_body(record, binding, admin)).status_code == 202
+    assert ha.calls == before + 1
+    current = client.get(public + '/snapshot', headers=auth(admin))
+    assert current.json()['snapshot']['projection']['state'] == 'on'
+    assert ha.calls == before + 2
+
+
+def test_pre_command_delayed_snapshot_cannot_refill_cache_after_completion(server, ha):
+    app, client, admin, record, _, base, public, body = setup(server, ha)
+    _, binding = bind(client, admin, base, body)
+    adapter = app.state.core.home_assistant
+    entered = threading.Event()
+    release = threading.Event()
+    owner = threading.current_thread()
+
+    def reader(*args, guard, **kwargs):
+        guard()
+        if threading.current_thread() is not owner:
+            entered.set()
+            assert release.wait(2)
+            return Projection(state='off')
+        return Projection(state='on')
+
+    adapter._reader = reader
+    adapter._commander = lambda *args, guard, **kwargs: guard() or True
+    principal = app.state.core.auth.authenticate(admin['accessToken'])
+    stale = []
+
+    def observe():
+        try:
+            stale.append(adapter.snapshot(principal, record['ref']['coreId'],
+                record['ref']['homeId'], record['ref']['id']))
+        except ApiError as error:
+            stale.append(error.code)
+
+    thread = threading.Thread(target=observe, daemon=True)
+    thread.start()
+    assert entered.wait(1)
+    result = adapter.command(principal, record['ref']['coreId'],
+        record['ref']['homeId'], record['ref']['id'],
+        command_body(record, binding, admin))
+    assert result['receipt']['dispatchState'] == 'accepted'
+    release.set(); thread.join(2)
+    assert stale == ['ha_binding_changed']
+    assert not adapter._cache
+    assert adapter.snapshot(principal, record['ref']['coreId'],
+        record['ref']['homeId'], record['ref']['id'])['snapshot'][
+            'projection']['state'] == 'on'
+
+
+def test_lost_read_authority_after_dispatch_hides_response_but_keeps_admin_receipt(server, ha):
+    app, client, admin, record, _, base, public, body = setup(server, ha)
+    _, binding = bind(client, admin, base, body)
+    create_user(client, admin)
+    member = activate(client, 'member')
+    ref = record['ref']
+    grant = f'/api/v1/admin/home-resources/{ref["coreId"]}/{ref["homeId"]}/{ref["id"]}/grants/{member["user"]["id"]}'
+    assert client.put(grant, headers=auth(admin), json={'expectedAclRevision': 1,
+        'permissions': {'read': True, 'write': True}}).status_code == 200
+    payload = command_body({**record, 'aclRevision': 2}, binding, member)
+
+    def revoke_after_send():
+        ha.during = None
+        assert client.put(grant, headers=auth(admin), json={'expectedAclRevision': 2,
+            'permissions': {'read': False, 'write': False}}).status_code == 200
+
+    ha.during = revoke_after_send
+    response = client.post(public + '/commands', headers=auth(member), json=payload)
+    assert response.status_code == 404
+    assert ha.command_calls == 1
+    admin_result = client.get(public + '/commands/' + payload['requestId'],
+                              headers=auth(admin))
+    assert admin_result.status_code == 200
+    assert admin_result.json()['receipt']['dispatchState'] == 'accepted'
     assert client.post(public + '/commands', headers=auth(admin), json=payload).json() == response.json()
     assert ha.command_calls == 1
 
