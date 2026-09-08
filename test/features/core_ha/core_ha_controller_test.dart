@@ -105,6 +105,21 @@ void main() {
     h.snapshotStep = 'coreUnauthorized'; await h.list!.refresh(); await settle(tester);
     expect(h.account.session, isNull); expect(h.store.value, isNull);
   });
+  for (final status in [200, 401]) {
+    testWidgets('confirm late$status beyond previewTTL retains account and exposes uncertain GET recovery', (tester) async {
+      final h = HaHarness(); await h.mount(tester); final c = h.list!;
+      await c.prepare(c.services.single, 'switch.synthetic', isCurrent: () => true);
+      final value = c.preview!, pending = Completer<http.Response>();
+      h.reply = (_) => pending.future;
+      final future = c.confirm(value, isCurrent: () => true);
+      await settle(tester); h.elapsed += const Duration(seconds: 61);
+      pending.complete(jsonResponse(status == 200 ? {'binding': h.f['preview']['response']['preview']['binding']} : {'error': {'code': 'unauthorized'}}, status));
+      await future;
+      expect(c.uncertain, isTrue); expect(c.preview, isNull); expect(c.canPreview, isFalse);
+      expect(h.account.session, isNotNull); expect(h.store.value, isNotNull);
+      expect(h.requests.where((r) => r.url.path.endsWith('/binding-confirm')).length, 1);
+    });
+  }
   for (final denied in ['direct', 'memberAdmin', 'password']) {
     testWidgets('$denied performs zero feature HTTP', (tester) async {
       final h = HaHarness();
