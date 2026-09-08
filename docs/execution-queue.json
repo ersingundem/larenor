@@ -398,7 +398,8 @@
         "docs/jellyfin-base-state-read-diagnostics-2026-09-08.md",
         "docs/volume-create-fixture-lifecycle-repair-2026-09-08.md",
         "docs/jellyfin-base-path-relation-diagnostics-2026-09-09.md",
-        "docs/jellyfin-base-path-cooccurrence-diagnostics-2026-09-09.md"
+        "docs/jellyfin-base-path-cooccurrence-diagnostics-2026-09-09.md",
+        "docs/jellyfin-base-proc-subpath-diagnostics-2026-09-09.md"
       ],
       "scope": "installAvailable=false; Client kaynak adı/Docker seçenekleri üretmez. Gerçek ev sunucusuna işlem yok.",
       "acceptance": [
@@ -410,30 +411,6 @@
         "ci"
       ],
       "evidence": [
-        {
-          "kind": "test",
-          "ref": "docs/managed-volume-read-transport-implementation-2026-09-06.md",
-          "commit": "0d86fa17ea4410a44bc6df878c106a013a8733c6",
-          "state": "completed",
-          "result": "passed",
-          "label": "Unix volume reader+journal:371 ilgiliPASS/1Linuxskip,94statement/28branch%100; rootfinalCLEAR. SaltokunurGET, hiçbircreate/bootstrap/installer izni yok."
-        },
-        {
-          "kind": "review",
-          "ref": "docs/managed-volume-read-transport-implementation-2026-09-06.md",
-          "commit": "0d86fa17ea4410a44bc6df878c106a013a8733c6",
-          "state": "completed",
-          "result": "passed",
-          "label": "Unix volume reader+journal:371 ilgiliPASS/1Linuxskip,94statement/28branch%100; rootfinalCLEAR. SaltokunurGET, hiçbircreate/bootstrap/installer izni yok."
-        },
-        {
-          "kind": "ci",
-          "ref": "https://github.com/ersingundem/larenor/actions/runs/34006880414",
-          "commit": "38bc2bc24aa5f0174bbeb20257ea56d304f1fe5c",
-          "state": "completed",
-          "result": "passed",
-          "label": "Exact38bc CoreCI102:3203 LinuxPASS/0skip; iki mimarili anonim Core yayını doğrulandı. Volume reader dahil; gerçek kurulum/UID/bootstrap yetkisi açık."
-        },
         {
           "kind": "test",
           "ref": "docs/managed-volume-create-implementation-2026-09-06.md",
@@ -665,10 +642,34 @@
           "state": "completed",
           "result": "passed",
           "label": "Bağımsız CLEAR: kodlar yalnız birlikte gözlemi bildiriyor; yanlış kesinlik yok, allowlist/private output/tek inspect/no-retry/cancellation korundu."
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/34284431981",
+          "commit": "d5d58895d42ea4193c6129774c7b64300b4552df",
+          "state": "completed",
+          "result": "failed",
+          "label": "Native15: iki mimaride helper_base_start/engine_proc_paths_observed; makbuz/artefakt yok. Tek log70226byte/SHA6a22d9e6; procfs alt aile tanısı açık."
+        },
+        {
+          "kind": "test",
+          "ref": "docs/jellyfin-base-proc-subpath-diagnostics-2026-09-09.md",
+          "commit": "12f6f0931fce17f91204e8cdeb767daef395fd9e",
+          "state": "completed",
+          "result": "passed",
+          "label": "Proc-subpath:8 ilk RED+2 review RED kapalı;64state/96state+stderr/300Jellyfin/218politikaPASS. Altı sabit procfs ailesi yalnız /proc köklü tokenlardan; mountinfo exact, çoklu alt aile ambiguous."
+        },
+        {
+          "kind": "review",
+          "ref": "docs/jellyfin-base-proc-subpath-diagnostics-2026-09-09.md",
+          "commit": "12f6f0931fce17f91204e8cdeb767daef395fd9e",
+          "state": "completed",
+          "result": "passed",
+          "label": "Bağımsız CLEAR: lookalike/mountinfo P2 gerçek RED ile kapalı; allowlist/private output/tek inspect/no-retry/cancellation korundu."
         }
       ],
       "completionCommit": null,
-      "reason": "Native14 run34281674390 exact1e73ea3: iki mimaride path_location_ambiguous; tek log70207byte/SHA81409d86, başarı makbuzu/artefakt yok. Path-cooccurrence67b2a92:5RED kapalı+bağımsız CLEAR,54state/86state+stderr/290Jellyfin/218politikaPASS; Engine kökü ile image/proc/sys/runtime/host exact ikilisi nötr observed, aynı-token ilişki öncelikli, üçlü/diğer ambiguous. Tek start/owned10s64KiBinspect/redaksiyon/cleanup aynı. Native15 gözlemi ayıracak; installAvailable=false."
+      "reason": "Native15 run34284431981 exactd5d5889: iki mimaride engine_proc_paths_observed; tek log70226byte/SHA6a22d9e6, başarı makbuzu/artefakt yok. Proc-subpath12f6f09:8ilkRED+2reviewRED kapalı,64state/96state+stderr/300Jellyfin/218politikaPASS+bağımsız CLEAR; altı sabit aile yalnız /proc köklü parsed token, mountinfo exact, lookalike genel Engine+proc olarak kalır, çoklu alt aile ambiguous. Tek start/owned10s64KiBinspect/redaksiyon/cleanup aynı. Exact ServerCI ve Native16 açık; installAvailable=false."
     },
     {
       "id": "S06.3e",

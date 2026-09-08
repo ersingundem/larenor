@@ -1,6 +1,6 @@
 # Larenor — güncel ilerleme ve iş kuyruğu
 
-**Son güncelleme: 9 Eylül 2026 — Native14 sonucuna göre nötr path birliktelikleri hazır.**
+**Son güncelleme: 9 Eylül 2026 — Native15 procfs ailesine daraldı; alt yol tanısı doğrulanıyor.**
 
 ```text
 Kuyruk kabulü       ██░░░░░░░░░░░░░░░░░░  10/125 iş (%8; eşit ağırlıklı sayaç)
@@ -17,17 +17,17 @@ olarak kullanılmaz. İlk 60 adayın tamamı ve VNC/RDP/SSH seçildi.
 [Bağımlılıklara göre özellik sırası](feature-expansion-plan-2026-09-05.md)
 ve [uzak erişim kapsamı](remote-access-plan-2026-09-05.md) korunuyor.
 
-**Son tam doğrulanmış CI Client paketi: `1e73ea3` / APK129.** Aynı kaynakta
-5.438 Flutter ve 3.934 Server testi geçti; Android emülatöründe 17/17 E2E
+**Son tam doğrulanmış CI Client paketi: `d5d5889` / APK132.** Aynı kaynakta
+5.438 Flutter ve 3.967 Server testi geçti; Android emülatöründe 17/17 E2E
 başarılı oldu. Arşiv yolculuğu yeniden açılan ekranda kalıcı okumayı doğrulayan
 `core_archive.reopened_readback` fazına ulaştı. CI APK'nın imzasını,
 sertifikasını, paketini, sürümünü ve release bayrağını doğruladı;
-`app-signed-release-apk-129` artefakt arşivi 57.127.887 bayt ve süresi dolmamış
+`app-signed-release-apk-132` artefakt arşivi 57.127.878 bayt ve süresi dolmamış
 durumda. Aynı commitin bağımsız Security ve Server Container iş akışları da
-geçti; Server 3.934 testi ile amd64/arm64 imaj ve manifest yayını tamamlandı.
-[Android CI129](https://github.com/ersingundem/larenor/actions/runs/34281654423) ·
-[Server Container CI](https://github.com/ersingundem/larenor/actions/runs/34281654358) ·
-[Security CI](https://github.com/ersingundem/larenor/actions/runs/34281654055).
+geçti; Server 3.967 testi ile amd64/arm64 imaj ve manifest yayını tamamlandı.
+[Android CI132](https://github.com/ersingundem/larenor/actions/runs/34284416849) ·
+[Server Container CI](https://github.com/ersingundem/larenor/actions/runs/34284416850) ·
+[Security CI](https://github.com/ersingundem/larenor/actions/runs/34284416642).
 Gerçek ev kurulumu ve fiziksel tablet kabulü henüz yapılmadı.
 
 ## Şimdi yapılan işler
@@ -38,7 +38,7 @@ Gerçek ev kurulumu ve fiziksel tablet kabulü henüz yapılmadı.
 | S08.6 — kişi, oda, kaynak ve izin yönetimi | **Kabul edildi**, aynı yayın | Merkezi HA akışının yetki temeli hazır |
 | S08.7 — merkezi Home Assistant adaptörü | **Devam ediyor**; typed durum, kalıcı switch komutu/makbuzu ve açık Direct→Core aktarımı main içinde | Exact-source birleşik CI; sonra geniş HA varlık/servis kapsamı |
 | B5.1 — ortak tablet tasarımı | Services/hesap IME paketi APK116 ile kabul edildi; S08.7 komut ve aktarım yüzeyleri yerel tablet matrisinden geçti | Exact-source Android CI ve kalan ortak tablet yüzeyleri |
-| S06.3d — kalıcı depolama | Native14 iki mimaride path-location ambiguous verdi; beş nötr Engine+hedef birlikteliği yerelde hazır | Exact-source Native15'te birlikte görülen aileleri ayır |
+| S06.3d — kalıcı depolama | Native15 iki mimaride Engine+procfs birlikteliği verdi; alt yol aileleri yerelde hazır | Exact-source CI ve Native16 ile procfs alt ailesini ayır |
 
 S08.7 üç sonlu teslimden oluşur: **kaynak bağlama ve typed durum → komut ve
 kalıcı sonuç → açık Direct aktarımı**. Üç yerel dilim de squash yapılmadan
@@ -281,7 +281,18 @@ state, 86 state+stderr, toplam 290 Jellyfin ve 218 politika testi geçti.
 Bağımsız final inceleme CLEAR; tek inspect/no-retry/redaksiyon/cleanup sınırları
 değişmedi.
 [Path birlikteliği tanısı](jellyfin-base-path-cooccurrence-diagnostics-2026-09-09.md).
-Native15 exact ikiliyi ayıracak; sonuç yine tek başına kurulum kabulü değildir.
+On beşinci koşu `34284431981`, exact `d5d5889` üzerinde iki mimaride de
+`helper_base_start / helper_base_engine_proc_paths_observed` verdi; başarı
+makbuzu veya artefakt yok. Tek indirilen 70.226 bayt logun SHA-256 değeri
+`6a22d9e663d17e2856a7ac445d0f5a754e82725bd7b53147bc769c4f1e9a9d20`.
+Procfs gözlemi sys/net, self fd, exact mountinfo, self namespace ve sayısal
+process namespace/fd alt ailelerine ayrıldı. `/proc/sys` artık sysfs sayılmıyor;
+başka köklerdeki benzer metin ve `mountinfo-private` iki gerçek review RED ile
+kapandı. Son exact kod Python 3.12.14 altında 64 state, 96 state+stderr, toplam
+300 Jellyfin ve 218 politika testini geçti; kilitli tam Server CI sürüyor.
+Bağımsız final inceleme CLEAR.
+[Procfs alt yol tanısı](jellyfin-base-proc-subpath-diagnostics-2026-09-09.md).
+Native16 alt aileyi ayıracak; sonuç yine tek başına kurulum kabulü değildir.
 Gerçek Engine ve kurulum kabulü hâlâ açık; `installAvailable=false`.
 
 ## Canlı takip ve sıradaki işler
