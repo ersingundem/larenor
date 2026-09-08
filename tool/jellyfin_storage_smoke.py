@@ -34,6 +34,8 @@ _CODES = {'storage_characterization_failed','native_ephemeral_ci_required','fixt
     'fixture_volume_unresolved','fixture_protocol_failed','jellyfin_startup_timeout',
     'unexpected_image_volume','unexpected_initial_write_access','restart_identity_changed','fixture_source_changed'}
 _DIAGNOSTIC_CODES = _CODES | {'invalid_image_preparation', 'invalid_image_binding',
+    'fixture_command_exit_failed', 'fixture_command_output_limit', 'fixture_command_timeout',
+    'fixture_command_spawn_failed', 'fixture_command_io_failed',
     'image_cancelled', 'image_pull_not_authorized', 'image_observation_unavailable',
     'invalid_image_limits', 'image_protocol', 'image_stream_limit', 'image_pull_failed',
     'image_engine_unavailable', 'image_timeout', 'image_unverified', 'image_api_unsupported',
@@ -123,8 +125,11 @@ def _signal_group(process, sig):
         pass
 
 
-def bounded_command(arguments, *, environment, timeout=60, limit=65536):
+def bounded_command(arguments, *, environment, timeout=60, limit=65536, diagnose_failure=False):
     """No shell/input/ambient secrets; cap bytes and kill/reap the owned child."""
+    require(type(diagnose_failure) is bool, 'fixture_command_failed')
+    def check(value, code):
+        require(value, code if diagnose_failure else 'fixture_command_failed')
     process = None
     deadline = time.monotonic() + timeout
     try:
@@ -135,17 +140,21 @@ def bounded_command(arguments, *, environment, timeout=60, limit=65536):
             selector.register(process.stdout, selectors.EVENT_READ)
             while True:
                 remaining = deadline - time.monotonic()
-                require(remaining > 0 and selector.select(remaining), 'fixture_command_failed')
+                check(remaining > 0 and selector.select(remaining), 'fixture_command_timeout')
                 chunk = os.read(process.stdout.fileno(), limit - len(result) + 1)
                 if not chunk:
                     break
                 result.extend(chunk)
-                require(len(result) <= limit, 'fixture_command_failed')
+                check(len(result) <= limit, 'fixture_command_output_limit')
         remaining = deadline - time.monotonic()
-        require(remaining > 0 and process.wait(timeout=remaining) == 0, 'fixture_command_failed')
+        check(remaining > 0, 'fixture_command_timeout')
+        check(process.wait(timeout=remaining) == 0, 'fixture_command_exit_failed')
         return bytes(result)
-    except (OSError, subprocess.TimeoutExpired):
-        raise SmokeError('fixture_command_failed') from None
+    except subprocess.TimeoutExpired:
+        raise SmokeError('fixture_command_timeout' if diagnose_failure else 'fixture_command_failed') from None
+    except OSError:
+        code = 'fixture_command_spawn_failed' if process is None else 'fixture_command_io_failed'
+        raise SmokeError(code if diagnose_failure else 'fixture_command_failed') from None
     finally:
         if process is not None:
             try:
@@ -184,11 +193,11 @@ class EphemeralDaemon:
         except OSError:
             raise SmokeError('owned_daemon_lost') from None
 
-    def docker(self, args, *, timeout=60, limit=65536):
+    def docker(self, args, *, timeout=60, limit=65536, diagnose_failure=False):
         self._socket()
         return bounded_command(['/usr/bin/docker', '--host=unix://'+str(self.root/'engine.sock'),
             '--config='+str(self.root/'docker-config'), *args], environment=child_environment(self.root),
-            timeout=timeout, limit=limit)
+            timeout=timeout, limit=limit, diagnose_failure=diagnose_failure)
 
     @diagnostic_phase('daemon_start')
     def __enter__(self):
@@ -477,7 +486,7 @@ def characterize(daemon, *, source=None, images=None, volumes=None, checkout_bin
         daemon.docker(['build','--pull','--quiet','--network=none',
             *['--label='+key+'='+value for key,value in labels.items()], '--file',
             str(context/'server/Dockerfile.volume-bootstrap'),'--iidfile',str(iid_file),str(context)],
-            timeout=600, limit=256)
+            timeout=600, limit=256, diagnose_failure=True)
     with diagnostic_phase('helper_inspect'):
         check_source(checkout_binding)
         check_staged(context, checkout_binding)
