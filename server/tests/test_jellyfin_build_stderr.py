@@ -52,3 +52,21 @@ def test_build_stderr_overflow_fails_closed_without_waiting_for_child(monkeypatc
             environment={}, timeout=3, limit=256, diagnose_failure=True)
     assert child.poll() is not None and child.stdout.closed and child.stderr.closed
     assert capsys.readouterr().out == ''
+
+
+def test_quiet_build_progress_can_precede_final_runtime_error(launched, monkeypatch, capsys):
+    ci, daemon, events = launched
+    original = daemon.docker
+    def docker(args, **kwargs):
+        if args[0] != 'build':
+            return original(args, **kwargs)
+        program = ('import os,sys; os.write(2,'+repr(b'synthetic-progress\n')+'*1800); '
+                   'os.write(2,b"Error: OCI runtime create failed: synthetic-private-path"); sys.exit(1)')
+        return ci.smoke.bounded_command([sys.executable, '-c', program], environment={}, **kwargs)
+    monkeypatch.setattr(daemon, 'docker', docker)
+    assert ci.main(['--run-ephemeral-ci']) == 1
+    assert events == ['enter', 'cleanup']
+    output = capsys.readouterr()
+    assert output.out == ''
+    assert output.err == ('storage_characterization_failed phase=helper_build '
+                          'code=helper_build_runtime_failed\n')
