@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "title": "Larenor kalıcı yürütme kuyruğu",
-  "updatedAt": "2026-09-06",
+  "updatedAt": "2026-09-08",
   "selectedFeatures": [
     "F01",
     "F02",
@@ -78,7 +78,10 @@
     "docs/remote-access-plan-2026-09-05.md",
     "docs/integrated-media-stack.md",
     "docs/readme-publication-plan.md",
-    "docs/kiosk-capabilities-research-2026-09-05.md"
+    "docs/kiosk-capabilities-research-2026-09-05.md",
+    "docs/restore-people-evidence-before-ci108-acceptance-2026-09-08.json",
+    "docs/restore-people-acceptance-108-2026-09-08.md",
+    "docs/core-account-ime-navigation-2026-09-08.md"
   ],
   "nodes": [
     {
@@ -562,9 +565,9 @@
           "kind": "ci",
           "ref": "https://github.com/ersingundem/larenor/actions/runs/34019042417",
           "commit": "960691c113b10e08ebddf75d464b99e74bdd4cb1",
-          "state": "in_progress",
-          "result": null,
-          "label": "Android108 exact960691c başlatıldı; kendi sonucu ve bağımsız imzalıAPK kabulü bekleniyor. Yerel5150Client/3435Core12Linuxskip/207politika sonuçları remoteCI yerine geçmez."
+          "state": "completed",
+          "result": "passed",
+          "label": "Android108: exact 960691c, ilk deneme; 5150 Flutter, 98 JVM, 17 E2E / 133 faz ve bağımsız APK108 doğrulaması geçti. Sonraki Services/IME paketi dahil değil."
         },
         {
           "kind": "ci",
@@ -1210,7 +1213,7 @@
       "kind": "task",
       "parent": "S08",
       "title": "Restore, logout ve journal hedef sınırı",
-      "status": "awaiting_ci",
+      "status": "done",
       "dependsOn": [
         "S08.4"
       ],
@@ -1237,7 +1240,9 @@
         "docs/core-archive-cancel-transition-2026-09-06.md",
         "docs/restore-dialog-targets-2026-09-06.md",
         "docs/tablet-core-volume-integration-2026-09-06.md",
-        "docs/client-delivery-108-2026-09-06.md"
+        "docs/client-delivery-108-2026-09-06.md",
+        "docs/restore-people-evidence-before-ci108-acceptance-2026-09-08.json",
+        "docs/restore-people-acceptance-108-2026-09-08.md"
       ],
       "scope": "Tek mevcut ev bağlamı; F19 çoklu Core/ev federasyonu bu teslim değildir.",
       "acceptance": [
@@ -1251,84 +1256,28 @@
       ],
       "evidence": [
         {
-          "kind": "ci",
-          "ref": "https://github.com/ersingundem/larenor/actions/runs/34016755111",
-          "commit": "e7c15ad6f62352f77379e369f3e8524028c42aab",
-          "state": "completed",
-          "result": "failed",
-          "label": "Android106 exact e7c15ad:5056FlutterPASS/analiz0/966format0/98JVM; E2E16PASS1FAIL/130faz, archive.cancel sonrasıfindsNothing assertionı. Timeout değil; signedSKIPPED/APK0. Sonimmutablemakbuz korunur."
-        },
-        {
-          "kind": "ci",
-          "ref": "https://github.com/ersingundem/larenor/actions/runs/34016755141",
-          "commit": "e7c15ad6f62352f77379e369f3e8524028c42aab",
-          "state": "completed",
-          "result": "passed",
-          "label": "Core33 exact e7c15ad ilk deneme:3311 LinuxPASS/0skip; amd64/arm64 smoke ve anonim source/AGPL/manifest doğrulandı. İmaj katmanı indirilmedi. Android/APK106 ayrı açık."
-        },
-        {
-          "kind": "ci",
-          "ref": "https://github.com/ersingundem/larenor/actions/runs/34016754957",
-          "commit": "e7c15ad6f62352f77379e369f3e8524028c42aab",
-          "state": "completed",
-          "result": "passed",
-          "label": "Security106 exact e7c15ad ilk deneme:207PASS/24.764sn, gitleaks0 ve OSV başarılı. Android/APK106 ayrı açık."
-        },
-        {
           "kind": "test",
-          "ref": "docs/core-archive-cancel-transition-2026-09-06.md",
-          "commit": "36e5451c2d16a96bb990410746301d4d0a46118d",
+          "ref": "docs/client-delivery-108-2026-09-06.md",
+          "commit": "960691c113b10e08ebddf75d464b99e74bdd4cb1",
           "state": "completed",
           "result": "passed",
-          "label": "Gerçek arşiv iptali 1x/4x:2 runtime FAIL→2PASS;57 ilgiliPASS,analyze2/0,format2/0; bağımsız CLEAR. Tek cancel tap/preview/fingerprint/PIN ve133faz korunur. Üretim değişmedi; kendi native CI açık."
+          "label": "Aynı kaynakta 5150 Flutter, 3447 Linux Core, 98 JVM, 207 politika testi; 17 Android E2E ve 133 sıralı faz geçti."
         },
         {
           "kind": "review",
-          "ref": "docs/core-archive-cancel-transition-2026-09-06.md",
-          "commit": "36e5451c2d16a96bb990410746301d4d0a46118d",
+          "ref": "docs/restore-people-acceptance-108-2026-09-08.md",
+          "commit": "960691c113b10e08ebddf75d464b99e74bdd4cb1",
           "state": "completed",
           "result": "passed",
-          "label": "Gerçek arşiv iptali 1x/4x:2 runtime FAIL→2PASS;57 ilgiliPASS,analyze2/0,format2/0; bağımsız CLEAR. Tek cancel tap/preview/fingerprint/PIN ve133faz korunur. Üretim değişmedi; kendi native CI açık."
-        },
-        {
-          "kind": "test",
-          "ref": "docs/restore-dialog-targets-2026-09-06.md",
-          "commit": "7e12587c3bbff878aafbecaa4b13d7856dd535b0",
-          "state": "completed",
-          "result": "passed",
-          "label": "Backup/Vault/Archive:12PASS12FAIL→24GREEN;152 ilgiliPASS,7analiz0/format0. Etkin48pxhedef/1xmetinölçeği/2xwrap,Tab-ShiftTab-Enter ve0write oracles; rootkaynak+3gerçekfonttabletPNG CLEAR. Tümcallback/gatesaynı; yeni birleşikClient/CI açık."
-        },
-        {
-          "kind": "review",
-          "ref": "docs/restore-dialog-targets-2026-09-06.md",
-          "commit": "7e12587c3bbff878aafbecaa4b13d7856dd535b0",
-          "state": "completed",
-          "result": "passed",
-          "label": "Backup/Vault/Archive:12PASS12FAIL→24GREEN;152 ilgiliPASS,7analiz0/format0. Etkin48pxhedef/1xmetinölçeği/2xwrap,Tab-ShiftTab-Enter ve0write oracles; rootkaynak+3gerçekfonttabletPNG CLEAR. Tümcallback/gatesaynı; yeni birleşikClient/CI açık."
-        },
-        {
-          "kind": "test",
-          "ref": "docs/tablet-core-volume-integration-2026-09-06.md",
-          "commit": "643cbddf6c89085b3a10de7933a59dbe0b394739",
-          "state": "completed",
-          "result": "passed",
-          "label": "Yeni birleşim643cbdd:5150tamClientPASS/coverage,analiz0/971format0;3435tamCorePASS/12Linuxskip aynıServerağacı;207politikaPASS/gitleaks0. Root10kaynak ağacı ve13app+4platform/133faz korumasını doğruladı. KendiCI/APK/fiziksel kabulü açık."
-        },
-        {
-          "kind": "review",
-          "ref": "docs/tablet-core-volume-integration-2026-09-06.md",
-          "commit": "643cbddf6c89085b3a10de7933a59dbe0b394739",
-          "state": "completed",
-          "result": "passed",
-          "label": "Yeni birleşim643cbdd:5150tamClientPASS/coverage,analiz0/971format0;3435tamCorePASS/12Linuxskip aynıServerağacı;207politikaPASS/gitleaks0. Root10kaynak ağacı ve13app+4platform/133faz korumasını doğruladı. KendiCI/APK/fiziksel kabulü açık."
+          "label": "Önceki bağımsız kaynak incelemesi ve dar geçiş/modal farkları yeniden eşlendi; exact kaynak ve APK108 bağımsız teslimi doğrulandı."
         },
         {
           "kind": "ci",
           "ref": "https://github.com/ersingundem/larenor/actions/runs/34019042417",
           "commit": "960691c113b10e08ebddf75d464b99e74bdd4cb1",
-          "state": "in_progress",
-          "result": null,
-          "label": "Android108 exact960691c başlatıldı; kendi sonucu ve bağımsız imzalıAPK kabulü bekleniyor. Yerel5150Client/3435Core12Linuxskip/207politika sonuçları remoteCI yerine geçmez."
+          "state": "completed",
+          "result": "passed",
+          "label": "Android108: exact 960691c, ilk deneme; 5150 Flutter, 98 JVM, 17 E2E / 133 faz ve bağımsız APK108 doğrulaması geçti. Sonraki Services/IME paketi dahil değil."
         },
         {
           "kind": "ci",
@@ -1336,7 +1285,7 @@
           "commit": "960691c113b10e08ebddf75d464b99e74bdd4cb1",
           "state": "completed",
           "result": "passed",
-          "label": "Core34 kaynak 960691c: ilk denemede 3447 Linux testi geçti; atlanan test yok. amd64/arm64 smoke ve anonim kaynak/lisans/manifest doğrulandı. Android ve bağımsız APK kabulü ayrı bekleniyor."
+          "label": "Core34: 3447 Linux testi, 0 skip; iki mimarili smoke ve anonim kaynak/lisans/OCI doğrulandı."
         },
         {
           "kind": "ci",
@@ -1344,18 +1293,18 @@
           "commit": "960691c113b10e08ebddf75d464b99e74bdd4cb1",
           "state": "completed",
           "result": "passed",
-          "label": "Security108 kaynak 960691c: ilk denemede 207 politika testi, gizli bilgi taraması ve bağımlılık denetimi geçti. Android ve bağımsız APK kabulü ayrı bekleniyor."
+          "label": "Security108: 207 politika testi, gizli bilgi ve bağımlılık taraması geçti."
         }
       ],
-      "completionCommit": null,
-      "reason": "CI106 arşiv iptal assertion hatası ve eski kaynak kanıtları arşivde korunur. Geçişler/tablet modalları/Journals yeni643cbdd birleşiminde:5150ClientPASS,analiz0,971format0;3435CorePASS/12Linuxskip,207politikaPASS. Kendi yeniLinux/Android/güvenlikCI ve imzalıAPK doğrulaması açık. Yayın960691c:Android108/Core34/Security108 başlatıldı; yeniCI/APK sonucu bekleniyor."
+      "completionCommit": "960691c113b10e08ebddf75d464b99e74bdd4cb1",
+      "reason": "CI108 exact 960691c ve bağımsız APK108 kabulü tamamlandı. Önceki karışık kaynak/hata kanıtları arşivde korundu. Tek Core/ev yazılım kapsamı; fiziksel cihaz ve yeni 63 özellik kabulü değildir."
     },
     {
       "id": "S08.6",
       "kind": "task",
       "parent": "S08",
       "title": "Kişi/oda/kaynak kimliği ve yetki sözleşmesi",
-      "status": "awaiting_ci",
+      "status": "done",
       "dependsOn": [
         "S08.3"
       ],
@@ -1389,7 +1338,9 @@
         "docs/restore-people-evidence-through-ci106-2026-09-06.json",
         "docs/core-people-back-transition-2026-09-06.md",
         "docs/tablet-core-volume-integration-2026-09-06.md",
-        "docs/client-delivery-108-2026-09-06.md"
+        "docs/client-delivery-108-2026-09-06.md",
+        "docs/restore-people-evidence-before-ci108-acceptance-2026-09-08.json",
+        "docs/restore-people-acceptance-108-2026-09-08.md"
       ],
       "scope": "Tek mevcut ev bağlamı; F19 çoklu Core/ev federasyonu bu teslim değildir.",
       "acceptance": [
@@ -1402,68 +1353,28 @@
       ],
       "evidence": [
         {
-          "kind": "ci",
-          "ref": "https://github.com/ersingundem/larenor/actions/runs/34016755111",
-          "commit": "e7c15ad6f62352f77379e369f3e8524028c42aab",
-          "state": "completed",
-          "result": "failed",
-          "label": "Android106 exact e7c15ad:5056FlutterPASS/analiz0/966format0/98JVM; E2E16PASS1FAIL/130faz, archive.cancel sonrasıfindsNothing assertionı. Timeout değil; signedSKIPPED/APK0. Sonimmutablemakbuz korunur."
-        },
-        {
-          "kind": "ci",
-          "ref": "https://github.com/ersingundem/larenor/actions/runs/34016755141",
-          "commit": "e7c15ad6f62352f77379e369f3e8524028c42aab",
-          "state": "completed",
-          "result": "passed",
-          "label": "Core33 exact e7c15ad ilk deneme:3311 LinuxPASS/0skip; amd64/arm64 smoke ve anonim source/AGPL/manifest doğrulandı. İmaj katmanı indirilmedi. Android/APK106 ayrı açık."
-        },
-        {
-          "kind": "ci",
-          "ref": "https://github.com/ersingundem/larenor/actions/runs/34016754957",
-          "commit": "e7c15ad6f62352f77379e369f3e8524028c42aab",
-          "state": "completed",
-          "result": "passed",
-          "label": "Security106 exact e7c15ad ilk deneme:207PASS/24.764sn, gitleaks0 ve OSV başarılı. Android/APK106 ayrı açık."
-        },
-        {
           "kind": "test",
-          "ref": "docs/core-people-back-transition-2026-09-06.md",
-          "commit": "1488b0b3939d442f3bde9f3cc97a59955328d3ed",
+          "ref": "docs/client-delivery-108-2026-09-06.md",
+          "commit": "960691c113b10e08ebddf75d464b99e74bdd4cb1",
           "state": "completed",
           "result": "passed",
-          "label": "People geri dönüşü:2 actual-route FAIL→2PASS;42 ilgiliPASS,analyze2/0,format2/0 ve root CLEAR. Eski current/TickerMode + outgoing route yokluğu;tek tap/HTTP sınırı/133faz korunur. CI106 hatası olduğu iddia edilmez; kendi native CI açık."
+          "label": "Aynı kaynakta 5150 Flutter, 3447 Linux Core, 98 JVM, 207 politika testi; 17 Android E2E ve 133 sıralı faz geçti."
         },
         {
           "kind": "review",
-          "ref": "docs/core-people-back-transition-2026-09-06.md",
-          "commit": "1488b0b3939d442f3bde9f3cc97a59955328d3ed",
+          "ref": "docs/restore-people-acceptance-108-2026-09-08.md",
+          "commit": "960691c113b10e08ebddf75d464b99e74bdd4cb1",
           "state": "completed",
           "result": "passed",
-          "label": "People geri dönüşü:2 actual-route FAIL→2PASS;42 ilgiliPASS,analyze2/0,format2/0 ve root CLEAR. Eski current/TickerMode + outgoing route yokluğu;tek tap/HTTP sınırı/133faz korunur. CI106 hatası olduğu iddia edilmez; kendi native CI açık."
-        },
-        {
-          "kind": "test",
-          "ref": "docs/tablet-core-volume-integration-2026-09-06.md",
-          "commit": "643cbddf6c89085b3a10de7933a59dbe0b394739",
-          "state": "completed",
-          "result": "passed",
-          "label": "Yeni birleşim643cbdd:5150tamClientPASS/coverage,analiz0/971format0;3435tamCorePASS/12Linuxskip aynıServerağacı;207politikaPASS/gitleaks0. Root10kaynak ağacı ve13app+4platform/133faz korumasını doğruladı. KendiCI/APK/fiziksel kabulü açık."
-        },
-        {
-          "kind": "review",
-          "ref": "docs/tablet-core-volume-integration-2026-09-06.md",
-          "commit": "643cbddf6c89085b3a10de7933a59dbe0b394739",
-          "state": "completed",
-          "result": "passed",
-          "label": "Yeni birleşim643cbdd:5150tamClientPASS/coverage,analiz0/971format0;3435tamCorePASS/12Linuxskip aynıServerağacı;207politikaPASS/gitleaks0. Root10kaynak ağacı ve13app+4platform/133faz korumasını doğruladı. KendiCI/APK/fiziksel kabulü açık."
+          "label": "Önceki bağımsız kaynak incelemesi ve dar geçiş/modal farkları yeniden eşlendi; exact kaynak ve APK108 bağımsız teslimi doğrulandı."
         },
         {
           "kind": "ci",
           "ref": "https://github.com/ersingundem/larenor/actions/runs/34019042417",
           "commit": "960691c113b10e08ebddf75d464b99e74bdd4cb1",
-          "state": "in_progress",
-          "result": null,
-          "label": "Android108 exact960691c başlatıldı; kendi sonucu ve bağımsız imzalıAPK kabulü bekleniyor. Yerel5150Client/3435Core12Linuxskip/207politika sonuçları remoteCI yerine geçmez."
+          "state": "completed",
+          "result": "passed",
+          "label": "Android108: exact 960691c, ilk deneme; 5150 Flutter, 98 JVM, 17 E2E / 133 faz ve bağımsız APK108 doğrulaması geçti. Sonraki Services/IME paketi dahil değil."
         },
         {
           "kind": "ci",
@@ -1471,7 +1382,7 @@
           "commit": "960691c113b10e08ebddf75d464b99e74bdd4cb1",
           "state": "completed",
           "result": "passed",
-          "label": "Core34 kaynak 960691c: ilk denemede 3447 Linux testi geçti; atlanan test yok. amd64/arm64 smoke ve anonim kaynak/lisans/manifest doğrulandı. Android ve bağımsız APK kabulü ayrı bekleniyor."
+          "label": "Core34: 3447 Linux testi, 0 skip; iki mimarili smoke ve anonim kaynak/lisans/OCI doğrulandı."
         },
         {
           "kind": "ci",
@@ -1479,18 +1390,18 @@
           "commit": "960691c113b10e08ebddf75d464b99e74bdd4cb1",
           "state": "completed",
           "result": "passed",
-          "label": "Security108 kaynak 960691c: ilk denemede 207 politika testi, gizli bilgi taraması ve bağımlılık denetimi geçti. Android ve bağımsız APK kabulü ayrı bekleniyor."
+          "label": "Security108: 207 politika testi, gizli bilgi ve bağımlılık taraması geçti."
         }
       ],
-      "completionCommit": null,
-      "reason": "CI106 arşiv iptal assertion hatası ve eski kaynak kanıtları arşivde korunur. Geçişler/tablet modalları/Journals yeni643cbdd birleşiminde:5150ClientPASS,analiz0,971format0;3435CorePASS/12Linuxskip,207politikaPASS. Kendi yeniLinux/Android/güvenlikCI ve imzalıAPK doğrulaması açık. Yayın960691c:Android108/Core34/Security108 başlatıldı; yeniCI/APK sonucu bekleniyor."
+      "completionCommit": "960691c113b10e08ebddf75d464b99e74bdd4cb1",
+      "reason": "CI108 exact 960691c ve bağımsız APK108 kabulü tamamlandı. Önceki karışık kaynak/hata kanıtları arşivde korundu. Tek Core/ev yazılım kapsamı; fiziksel cihaz ve yeni 63 özellik kabulü değildir."
     },
     {
       "id": "S08.7",
       "kind": "task",
       "parent": "S08",
       "title": "İlk merkezi Home Assistant adaptörü",
-      "status": "pending",
+      "status": "in_progress",
       "dependsOn": [
         "S08.5",
         "S08.6"
@@ -1515,7 +1426,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Server/Client kaynak haritası tamamlandı; üç uygulama dilimi: kaynak binding+typed snapshot/cache, komut+kalıcı sonuç, açık Direct eşleme. S08.5/S08.6 CI kabulü bekleniyor; adaptör henüz uygulanmadı."
+      "reason": "S08.5/S08.6 exact CI108 ve APK108 ile kabul edildi. İlk gerçek Server dilimi başladı: açık HA kaynak bağlama, yetkili typed switch snapshot ve sınırlı cache; ardından Client, komut/makbuz ve açık Direct aktarımı. Gerçek ev yalnız salt okunur."
     },
     {
       "id": "S08.8",
@@ -1767,7 +1678,8 @@
         "docs/restore-dialog-targets-2026-09-06.md",
         "docs/tablet-core-volume-integration-2026-09-06.md",
         "docs/client-delivery-108-2026-09-06.md",
-        "docs/core-services-tablet-accessibility-2026-09-06.md"
+        "docs/core-services-tablet-accessibility-2026-09-06.md",
+        "docs/core-account-ime-navigation-2026-09-08.md"
       ],
       "scope": "Son bütün ekran tasarım geçişi değildir; Core’suz kişisel uzak bağlantı için Core bağımlılığı koymaz.",
       "acceptance": [
@@ -1935,9 +1847,9 @@
           "kind": "ci",
           "ref": "https://github.com/ersingundem/larenor/actions/runs/34019042417",
           "commit": "960691c113b10e08ebddf75d464b99e74bdd4cb1",
-          "state": "in_progress",
-          "result": null,
-          "label": "Android108 exact960691c başlatıldı; kendi sonucu ve bağımsız imzalıAPK kabulü bekleniyor. Yerel5150Client/3435Core12Linuxskip/207politika sonuçları remoteCI yerine geçmez."
+          "state": "completed",
+          "result": "passed",
+          "label": "Android108: exact 960691c, ilk deneme; 5150 Flutter, 98 JVM, 17 E2E / 133 faz ve bağımsız APK108 doğrulaması geçti. Sonraki Services/IME paketi dahil değil."
         },
         {
           "kind": "ci",
@@ -1970,10 +1882,26 @@
           "state": "completed",
           "result": "passed",
           "label": "Services tablet:46odaklı/186ilgiliPASS,son16deltaPASS ayrı;538/551satır,analiz2/0format2/0. Effectiveheader/actionadları,modal48px/IMEtekNext/lightfocus; rootfinalsource+2PNG CLEAR. Mainbirleşti, CI108dahil değil. TamClientve yeniCI ayrı açık."
+        },
+        {
+          "kind": "test",
+          "ref": "docs/core-account-ime-navigation-2026-09-08.md",
+          "commit": "bd441c00b1638b64b0f0a88a96511b853412f5f9",
+          "state": "completed",
+          "result": "passed",
+          "label": "Core hesap IME: 12 gerçek hata → 12 geçti; genişletilmiş 24 ve 163 ilgili test geçti. Üretimde dört satır yinelenen callback kaldırıldı; root incelemesi temiz. Services ile yeni tam Client koşusu ayrı sürüyor."
+        },
+        {
+          "kind": "review",
+          "ref": "docs/core-account-ime-navigation-2026-09-08.md",
+          "commit": "bd441c00b1638b64b0f0a88a96511b853412f5f9",
+          "state": "completed",
+          "result": "passed",
+          "label": "Core hesap IME: 12 gerçek hata → 12 geçti; genişletilmiş 24 ve 163 ilgili test geçti. Üretimde dört satır yinelenen callback kaldırıldı; root incelemesi temiz. Services ile yeni tam Client koşusu ayrı sürüyor."
         }
       ],
       "completionCommit": null,
-      "reason": "CI108 exact960691c önceki katalog/Jobs/restore/route paketini doğruluyor. Sonraki Services09c04b7 main ile birleşti:46yeni/186ilgiliPASS,rootCLEAR. Login veadmin formundaki aynı IME çiftNext adayı ayrıdalda actualRED ile kontrol ediliyor. Bu ikiUIpaketi sonrası tek yeni tamClient;B5.1/fiziksel kabul açık."
+      "reason": "APK108 önceki katalog/Jobs/restore/route paketini doğruladı. Sonraki Services ve hesap IME düzenlemeleri main ile birleşti; odaklı testler ve kaynak incelemesi geçti. Birleşik Client koşusu ve bu yeni paketin CI/fiziksel kabulü ayrı açık."
     },
     {
       "id": "B5.2",

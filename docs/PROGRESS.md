@@ -1,122 +1,91 @@
 # Larenor — güncel ilerleme ve iş kuyruğu
 
-**Son güncelleme: 6 Eylül 2026 — kaynak 960691c: Core34 ve Security108 geçti; Android108 sürüyor.**
+**Son güncelleme: 8 Eylül 2026 — APK108 doğrulandı; S08.5 ve S08.6 kabul edildi.**
 
 ```text
-Önceki kapsam       █████████████░░░░░░░  ≈ %65
-S06 koordinatörü    ███████░░░░░░░░░░░░░  2/6 yazılım dilimi; test/yayın geçti
-S06.3 kaynak temeli  █████████████░░░░░░░  4/6 alt adım; Linux CI ile kabul
+Kuyruk kabulü       ██░░░░░░░░░░░░░░░░░░  10/125 iş (%8; eşit ağırlıklı sayaç)
+S06 koordinatörü    ███████░░░░░░░░░░░░░  2/6 yazılım dilimi
+S06.3 kaynak temeli  █████████████░░░░░░░  4/6 alt adım
 Yeni 63 özellik     ░░░░░░░░░░░░░░░░░░░░  0/63 kabul edildi
-Genişletilmiş toplam                     Henüz hesaplanmadı
 ```
 
-**İlk 60 özelliğin tamamı ve ardından VNC/RDP/SSH seçildi: toplam 63.**
-[Bağımlılıklara göre uygulama sırası](feature-expansion-plan-2026-09-05.md)
-11 teslim grubunu, mevcut S06–S09 temellerini ve her özelliğin kabul koşulunu
-gösterir. 0/63, yeni özelliklerin henüz tamamlanma kabulü almadığını belirtir;
-kullanıcı seçimi 63/63'tür. [Uzak erişim](remote-access-plan-2026-09-05.md)
-Proxmox'tan bağımsız IP/alan adı eklemeyi kapsar; oturumlar Client'ta,
-isteğe bağlı ortak profil/şifreli kayıt Core'da tutulur.
-Mevcut kodla örtüşen işler yeniden yazılmayacak.
+Bu sayaçlar test kapsamı, cihaz uyumluluğu veya harcanacak toplam sürenin
+oranı değildir. Önceki kapsam için belirtilen yaklaşık %65 tahmini,
+sonradan seçilen 63 özelliği içermez; genişletilmiş ürünün tamamlanma oranı
+olarak kullanılmaz. İlk 60 adayın tamamı ve VNC/RDP/SSH seçildi.
+[Bağımlılıklara göre özellik sırası](feature-expansion-plan-2026-09-05.md)
+ve [uzak erişim kapsamı](remote-access-plan-2026-09-05.md) korunuyor.
 
-**Yaklaşık %65 yalnız önceki kapsamın tahminidir.** Önceki kapsamda S06 gerçek
-kurulum, S07–S09, ileri kiosk/kamera, son tablet tasarımı ve fiziksel kabul
-kalmıştı. Bu oran test kapsamı veya cihaz uyumluluk oranı değildir. Yeni 63
-paketin eforu ayrıntılandıkça genişletilmiş toplam ayrıca hesaplanacak;
-eski %35 kalan tahmini yeni toplam için kullanılmayacak.
+**Son tam doğrulanmış yayın: `960691c` / APK108.** Aynı kaynakta ilk denemede
+5.150 Flutter, 3.447 Linux Core, 98 JVM ve 207 politika testi geçti.
+Android emülatöründe 17 E2E ve 133 sıralı faz başarılı. APK'nın paket,
+sürüm, kalıcı imza, minSdk ve debug bayrağı ayrıca kontrol edildi.
+İki mimarili Core yayını ve anonim kaynak/lisans erişimi de doğrulandı.
+[CI108 teslim kanıtı](client-delivery-108-2026-09-06.md).
+Gerçek ev kurulumu ve fiziksel tablet kabulü henüz yapılmadı.
 
-Bu dosya yapılanları, devam eden işleri ve sıradaki paketleri tek yerde izlemek
-içindir. Bütün kalan işler [yürütme kuyruğunda](EXECUTION_QUEUE.md), makinece
-doğrulanabilen durum ve bağımlılıklar [JSON kaydında](execution-queue.json)
-tutulur. Her doğrulanan dilimden sonra sıradaki uygun yazılım işine geçilir;
-yeniden “devam et” talimatı beklenmez. Ayrıntılı kapsam için
-[ürün planı](product-implementation-plan-2026-09-05.md),
-[Server/Client planı](server-client-architecture-2026-09-05.md) ve
-[test matrisi](testing-matrix-2026-09-05.md) kullanılır. Yeni onaylı özellikler
-[63 özellik uygulama planında](feature-expansion-plan-2026-09-05.md) izlenir.
+## Şimdi yapılan işler
 
-GitHub'a gönderilmiş işlerin **anlık CI durumu**
-[Actions ekranından](https://github.com/ersingundem/larenor/actions) izlenir.
-Bu yerel dosya geliştirme aşamalarında güncellenir; Actions ise çalışan
-derlemelerin ve test işlerinin kendi canlı durumunu gösterir.
+| Adım | Durum | Sonraki somut çıktı |
+| --- | --- | --- |
+| S08.5 — restore, logout ve journal hedef sınırı | **Kabul edildi**, exact `960691c` / APK108 | [Kabul ve korunan geçmiş](restore-people-acceptance-108-2026-09-08.md) |
+| S08.6 — kişi, oda, kaynak ve izin yönetimi | **Kabul edildi**, aynı yayın | Merkezi HA akışının yetki temeli hazır |
+| S08.7 — merkezi Home Assistant adaptörü | **Devam ediyor** | Server'da açık kaynak bağlama, yetkili switch durumu ve sınırlı cache; tablette kaynak durum ekranı |
+| B5.1 — ortak tablet tasarımı | Services ve hesap IME düzeltmeleri yerelde birleşti | Birleşik Client doğrulaması ve bu yeni kaynağın ayrı CI/APK kapısı |
+| S06.3d — kalıcı depolama | Volume create protokolü Linux CI'dan geçti; gerçek bootstrap açık | Jellyfin helper/NoCopy/UID/ilk veritabanı ve yeniden başlama için native iki mimarili CI |
 
-**Devam mekanizması etkin:** aynı Codex görevindeki “Larenor geliştirme ve
-bakım” takibi 15 dakikada bir bu planı, kuyruğu, git durumunu ve yarım kalan
-CI işlerini kontrol eder. Aynı iş için ikinci yürütücü başlatmaz; bir sonraki
-bağımsız adıma geçer. Günlük depolama temizliği aynı görev içinde, Türkiye
-saatinde 03.15 sonrasında günde en fazla bir kez korunur. Bilgisayarın ve Codex
-uygulamasının açık, deponun erişilebilir olması gerekir; bu dosyanın kendisi
-bir servis değildir. Görev Codex'in zamanlanmış görevler ekranından durdurulabilir.
+S08.7 üç sonlu teslimden oluşur: **kaynak bağlama ve typed durum → komut ve
+kalıcı sonuç → açık Direct aktarımı**. İlk Server ve Client işleri ayrı dallarda
+başladı. Slice 1 cihaz komutu açmaz. [Uygulama planı](core-home-assistant-adapter-plan-2026-09-06.md).
 
-**Kuyrukta kabul edilen işler: 8/125.** Saf kaynak planı, kalıcı journal,
-imaj/journal ve ağ/journal köprüleriyle **S06.3 içinde 4/6 alt adım** kapandı. **S08.1** de
-Core/ev bağlamını tokenlarla güvenle bağlama kapsamında tam CI kabulü aldı.
-**S08.2** ilk parola/eski Server uyumluluğu da `19dbcbe` tam CI ve APK 91
-ile kabul edildi. **S08.3** ev runtime sınırı da `4b98680` tam CI ve APK 94
-ile kabul edildi. **S08.4** kalıcı ev kayıt sınırı da `1c2db57` tam CI ve APK100 ile kabul edildi. Bu işler yeni 63 özelliğin kabul sayısı değildir; o sayaç **0/63**. Ana S06
-sayacı **2/6** kalır; dizin, kurulum ve gerçek Engine kabulü açıktır.
+[Services tablet paketi](core-services-tablet-accessibility-2026-09-06.md):
+46 yeni ve 186 ilgili test geçti; tam bağlantı adları, 48px hedefler, görünür
+klavye odağı ve tek adımlı IME geçişi düzeltildi.
+[Core hesap formları](core-account-ime-navigation-2026-09-08.md):
+12 gerçek hata yeniden üretildi; son 24 IME ve 163 ilgili test geçti.
+Üretimde yalnız yinelenen iki odak geçişi kaldırıldı. Bu iki paket APK108'e
+dahil değildir. Yeni birleşik Client koşusu `cd961ac` üzerinde tamamlandı; Mac'in uzun
+bakım uykularıyla çakışan iki 90 saniyelik test zaman aşımı kaydedildi. Bu koşu
+başarılı sayılmıyor. Kaynak ve test süreleri değiştirilmeden iki testin odaklı
+yeniden doğrulaması ve tam analiz/biçim kontrolü sürüyor.
 
-**Sıradaki Core dikey akışı:** [Jellyfin kalıcı depolama ve yönetilen kurulum planı](jellyfin-managed-volume-installation-plan-2026-09-06.md).
-Dört sonlu adım: gerçek iki mimarili UID/NoCopy ve dar helper; onu tüketen container/mount akışı;
-güncel kullanıcı/worker yetkisi; özel ilk hesap, doğrulanmış sağlık ve Core bağlantısı.
-İlk helper/test fixture ayrı dalda hazırlanıyor. Plan veya sentetik test, evde çalışan kurulum diye sayılmaz.
+[Jellyfin yönetilen kurulum planı](jellyfin-managed-volume-installation-plan-2026-09-06.md)
+dört adımdır: gerçek image/UID karakterizasyonu, onu tüketen mount/kurulum akışı,
+güncel yönetici/worker yetkisi ve özel ilk hesap ile doğrulanmış Core bağlantısı.
+Helper fixture'ın 73 yeni ve 261 ilgili testi geçti. Bağımsız incelemede
+legacy Docker build context'i ve verify/build arasındaki kaynak değişimi için
+iki somut düzeltme istendi; ayrı dalda gideriliyor. Gerçek Engine/iki mimari
+koşusu ve kurulum hâlâ açık; `installAvailable=false`.
 
-**Son tam doğrulanmış yayın `64bdf58` / APK104.** Üç CI ilk denemede geçti:
-Core **3.203 PASS / 0 skip**, güvenlik **207 PASS**, Flutter **4.421 PASS**,
-JVM **98 PASS**, **4 platform +10 uygulama =14 E2E PASS /99 sıralı faz**.
-Tam analiz0; CI formatter900 dosya,0 fark. Tek tam indirmeyle APK'nın
-kaynağı, `100000104` sürümü, kalıcı sertifikası, minSdk26 ve
-`debuggable=false` değeri ayrıca doğrulandı. İki mimarili Core yayını da
-anonim doğrulandı. [APK104, CI ve teslim kanıtı](client-delivery-104-2026-09-06.md).
+## Canlı takip ve sıradaki işler
 
-| Şimdiki sıra | Durum ve kalan kapı |
-| --- | --- |
-| Çıkış / yeniden açılış onarımı | APK104 ve14 E2E ile doğrulandı |
-| S08.5 — hazırlanmış restore ve Core oda arşivi | Model, şifreleme, controller ve tablet ekranı birleşti; tam Client geçti, Android ve yayın CI bekliyor |
-| S08.6 — kişi ve izin yönetimi | Server ve tablet ekranları birleşti; üye ve yönetici/ACL Android senaryoları hazır, kendi CI kabulü açık |
-| Birleşim yayını CI106 | `e7c15ad`: Flutter5.056/Core3.311/güvenlik207 geçti; E2E16PASS/1FAIL. Arşiv iptali ve People geri dönüşü gerçek route testleriyle düzeltildi; kendi yeni CI kabulü açık, APK106 atlandı |
-| Güncel yayın CI108 | `960691c` GitHub’da; yerel5.150 Client/3.435 Core geçti. Core34 ve Security108 geçti; Android108 ve bağımsız imzalı APK doğrulaması bekleniyor |
-| B5.1 — Core eklenti kataloğu | Yerelde birleşti: 5.088 tam Client PASS, analiz0 ve967dosya biçim farkı0; başlıklar, erişilebilir adlar ve görünür klavye odağı düzeltildi. Kendi yayın kapısı açık; CI106'ya dahil değil |
+- [Yürütme kuyruğu](EXECUTION_QUEUE.md): durumlar, bağımlılıklar ve kabul kapıları.
+- [Makinece doğrulanan kuyruk](execution-queue.json): tamamlanan ve kalan 125 iş.
+- [GitHub Actions](https://github.com/ersingundem/larenor/actions): gönderilmiş kaynağın canlı CI durumu.
+- [Ürün planı](product-implementation-plan-2026-09-05.md), [Core/Client mimarisi](server-client-architecture-2026-09-05.md) ve [test matrisi](testing-matrix-2026-09-05.md).
 
-**CI105 tamamlandı:17 E2E/133faz, Core3.311/0skip ve güvenlik207 geçti.**
-Flutter coverage işi15dk sınırında4.282kısmi ilerlemeyle durdu; imzalıAPK105
-atlanmış durumda. [Tam sonuç ve korunan hata kanıtı](client-delivery-105-2026-09-06.md).
-Dar25dk iş bütçesi onarımı207politika testi ve incelemeyi geçti.
-**CI106 sonuçlandı: Android E2E16 PASS/1 FAIL; imzalıAPK atlandı.** Flutter5.056, Core3.311 ve güvenlik207 geçti.
-Koşular: [Android](https://github.com/ersingundem/larenor/actions/runs/34016755111),
-[Core](https://github.com/ersingundem/larenor/actions/runs/34016755141),
-[güvenlik](https://github.com/ersingundem/larenor/actions/runs/34016754957).
-[Güncel paket ve sınırlar](client-delivery-106-2026-09-06.md).
-Yeni [eklenti ekranı birleşimi](core-plugins-integration-verification-2026-09-06.md)
-yerelde hazır; [işlem geçmişi/detay erişilebilirliği](core-plugin-jobs-tablet-accessibility-2026-09-06.md) de birleşti:34 yeni/55 son kaynak testi geçti. Katalog için önceki5.088 tam Client sonucu bu sonraki değişikliğe atfedilmez.
-[Arşiv iptali](core-archive-cancel-transition-2026-09-06.md) ve
-[kişi ekranından geri dönüş](core-people-back-transition-2026-09-06.md) için
-normal/yavaş animasyonda ikişer gerçek hata yeniden üretildi ve dar bekleme düzeltmeleri geçti.
-Eski CI ve ara kaynak kanıtları [değişmeden arşivlendi](restore-people-evidence-through-ci106-2026-09-06.json).
-[Yedekleme/kasa/arşiv onay diyalogları](restore-dialog-targets-2026-09-06.md) da birleşti:
-normal yazı boyutu,48px dokunma alanı ve Tab/ShiftTab/Enter için152 ilgili test geçti.
-**[Yeni birleşik kaynak643cbdd](tablet-core-volume-integration-2026-09-06.md)** tek tam koşumda
-**5.150 Client PASS**, coverage açık, analiz0 ve971dosya biçim farkı0 verdi.
-207 güvenlik/CI politika testi ve yeni commitlerde gizli bilgi taraması temiz.
-**[CI108 teslim takibi](client-delivery-108-2026-09-06.md):** kaynak960691c gönderildi.
-[Android108](https://github.com/ersingundem/larenor/actions/runs/34019042417),
-[Core34](https://github.com/ersingundem/larenor/actions/runs/34019042355) ve
-[Security108](https://github.com/ersingundem/larenor/actions/runs/34019042181) sonuçları izleniyor.
-Core34: **3.447 Linux PASS / 0 skip**; Security108: **207 PASS**, güvenlik kontrolleri temiz.
-Native JVM: **98 PASS / 0 skip**. İki mimarili Core yayını doğrulandı;
-Android108 ve bağımsız imzalı APK kabulü hâlâ bekleniyor.
-**[Sonraki Services tablet paketi](core-services-tablet-accessibility-2026-09-06.md) yerelde birleşti:**
-46 yeni/186 ilgili test geçti; tam bağlantı adları,48px alanlar, görünür klavye odağı ve
-IME “Sonraki” ile alan atlama düzeltildi. CI108 bu sonraki paketi içermez.
-Login ve yönetici formlarındaki aynı IME davranışı ayrı dar regresyonla inceleniyor;
-sonrasında bu değişiklikler tek yeni Client birleşim koşumunda doğrulanacak.
-Core tarafında [kalıcı volume oluşturma protokolü](managed-volume-create-implementation-2026-09-06.md)
-main ile birleşti:887 ilgili test geçti,7 Linux testi yerelde atlandı; iki bağımsız kaynak incelemesi temiz.
-[Aynı Server kaynak ağacında tek tam Core koşumu](managed-volume-full-core-verification-2026-09-06.md)
-**3.435 PASS/12 Linux skip/0 hata** verdi. Yeni Linux CI 3.447 PASS / 0 skip verdi; gerçek UID/bootstrap/kurulum kabulü ayrı açıktır.
+Her doğrulanan dilimden sonra bağımlılıkları hazır sıradaki yazılım işine
+geçilir. Aynı Codex görevindeki “Larenor geliştirme ve bakım” takibi 15 dakikada
+bir planı ve yarım kalan işleri kontrol eder; ikinci çakışan yürütücü açmaz.
+Mac/Codex açık ve erişilebilir olmalı, kullanım hakkı bulunmalıdır. Yerel
+uyku veya kullanım sınırı sırasında çalışma kesilebilir; bu dosya tek başına
+arka plan servisi değildir. Takip Codex'in zamanlanmış görevlerinden durdurulabilir.
 
-Yeni kişi/arşiv ekranları APK104'e dahil değildir. S08.5/S08.6 ve yeni63
-özellik bu yayınla tamamlandı sayılmaz; fiziksel tablet kabulü de açıktır.
+Günlük GitHub depolama bakımı Türkiye saatinde 03.15 sonrasında en fazla bir
+kez çalışır. **8 Eylül: 7 eski debug APK, 909.621.176 bayt temizlendi**;
+en yeni üç debug APK ve bütün imzalı APK/test raporları korundu. Silinen ID'lerin
+artık bulunmadığı ve korunanların durduğu taze envanterle doğrulandı.
+GHCR paketleri silinmedi. [Saklama politikası](github-storage-retention.md).
+
+Önceki başarısız [CI105](client-delivery-105-2026-09-06.md) ve
+[CI106](client-delivery-106-2026-09-06.md) kanıtları değişmedi;
+[CI108 öncesi kuyruk kayıtları](restore-people-evidence-before-ci108-acceptance-2026-09-08.json)
+ayrı korundu. Yeni 63 özellik sayacı **0/63**; yazılan planlar kabul edilmiş
+özellik olarak gösterilmiyor.
+
+## Önceki teslim kayıtları
+
+Aşağıdaki kayıtlar kendi tarih ve kaynaklarına aittir; güncel durum yukarıdadır.
 
 **CI102 sonuçlandı: Core ve güvenlik geçti; Android teslimi durdu.**
 Exact `38bc2bc` kaynakta Linux3.203, Flutter4.417, güvenlik207, JVM98 test geçti.
