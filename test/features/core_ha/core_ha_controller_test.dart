@@ -3,21 +3,68 @@ import 'dart:async';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:larenor/core/home_source_store.dart';
+import 'package:larenor/features/core_ha/domain/core_ha_models.dart';
 import 'package:larenor/features/server/domain/server_models.dart';
 
 import 'core_ha_controller_fixture.dart';
 
 void main() {
   testWidgets(
-    'mounted provider selected resource GET then switch GET, no command',
+    'mounted provider selected resource GET exposes current command capability',
     (tester) async {
       final h = HaHarness();
       await h.mount(tester, admin: false);
       expect(h.list!.snapshot?.projection.state.name, 'off');
-      expect(h.list!.snapshot!.projection.commandAvailable, isFalse);
+      expect(h.list!.snapshot!.projection.commandAvailable, isTrue);
       expect(h.requests.map((r) => r.method), ['GET', 'GET']);
       expect(h.list!.record!.id, h.target.id);
       expect(h.closes, 1);
+    },
+  );
+  testWidgets('command consumes fresh capability and dispatches exactly once', (
+    tester,
+  ) async {
+    final h = HaHarness();
+    await h.mount(tester, admin: false);
+    final c = h.list!;
+    expect(c.canCommand, isTrue);
+    await c.command(CoreHaCommandAction.turnOff, isCurrent: () => true);
+    expect(c.commandReceipt?.dispatchState, CoreHaDispatchState.accepted);
+    expect(c.pendingCommandId, isNull);
+    expect(c.snapshot, isNull);
+    expect(c.stale, isTrue);
+    expect(c.canCommand, isFalse);
+    expect(h.requests.where((r) => r.url.path.endsWith('/commands')).length, 1);
+  });
+  testWidgets(
+    'uncertain command retains request id and recovers with GET without POST retry',
+    (tester) async {
+      final h = HaHarness();
+      await h.mount(tester, admin: false);
+      final c = h.list!;
+      h.reply = (_) async => jsonResponse({
+        'error': {'code': 'server_error'},
+      }, 503);
+      await c.command(CoreHaCommandAction.turnOff, isCurrent: () => true);
+      expect(c.uncertain, isTrue);
+      expect(c.pendingCommandId, '7' * 32);
+      expect(c.canRecoverCommand, isTrue);
+      h.reply = (request) async {
+        expect(request.method, 'GET');
+        return jsonResponse(h.f['commandResult']['response']);
+      };
+      await c.recoverCommand(isCurrent: () => true);
+      expect(c.uncertain, isFalse);
+      expect(c.pendingCommandId, isNull);
+      expect(c.commandReceipt?.requestId, '7' * 32);
+      expect(
+        h.requests.where((r) => r.url.path.endsWith('/commands')).length,
+        1,
+      );
+      expect(
+        h.requests.where((r) => r.url.path.contains('/commands/')).length,
+        1,
+      );
     },
   );
   testWidgets(

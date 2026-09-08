@@ -101,9 +101,17 @@ class _ViewState extends ConsumerState<_View> {
     'ha_projection_unsupported' => l.coreHaUnsupported,
     'ha_binding_changed' || 'revision_conflict' => l.coreHaChanged,
     'ha_preview_invalid' => l.coreHaPreviewExpired,
+    'ha_command_conflict' => l.coreHaCommandConflict,
     'invalid_request' => l.coreHaInvalidEntity,
     _ => l.coreHaError,
   };
+  String _commandState(CoreHaCommandReceipt value, AppLocalizations l) =>
+      switch (value.dispatchState) {
+        CoreHaDispatchState.pending => l.coreHaCommandPending,
+        CoreHaDispatchState.accepted => l.coreHaCommandAccepted,
+        CoreHaDispatchState.rejected => l.coreHaCommandRejected,
+        CoreHaDispatchState.unknown => l.coreHaCommandUnknown,
+      };
   Widget _message(String key, String label) => Padding(
     padding: const EdgeInsets.symmetric(vertical: 12),
     child: Semantics(liveRegion: true, child: Text(label, key: ValueKey(key))),
@@ -165,7 +173,12 @@ class _ViewState extends ConsumerState<_View> {
               if (!c.fresh && !c.busy)
                 _message('core-ha-required', l.coreHaRequired),
               if (c.uncertain)
-                _message('core-ha-uncertain', l.coreHaUncertain)
+                _message(
+                  'core-ha-uncertain',
+                  c.pendingCommandId == null
+                      ? l.coreHaUncertain
+                      : l.coreHaCommandUncertain,
+                )
               else if (c.failure != null)
                 _message('core-ha-error', _error(c.failure, l)),
               if (c.stale)
@@ -180,7 +193,52 @@ class _ViewState extends ConsumerState<_View> {
                     'core-ha-state-${c.snapshot!.projection.state.name}',
                     _state(c.snapshot!.projection, l),
                   ),
-                Text(l.coreHaReadOnly),
+                if (c.commandReceipt != null)
+                  _message(
+                    'core-ha-command-${c.commandReceipt!.dispatchState.name}',
+                    _commandState(c.commandReceipt!, l),
+                  ),
+                if (c.canRecoverCommand)
+                  button(
+                    'core-ha-command-recover',
+                    l.coreHaCommandRecover,
+                    () => unawaited(c.recoverCommand(isCurrent: ownerCurrent)),
+                  ),
+                if (c.snapshot?.projection.commandAvailable == true) ...[
+                  Text(l.coreHaCommandReady),
+                  button(
+                    'core-ha-command-on',
+                    l.coreHaTurnOn,
+                    c.canCommand &&
+                            c.snapshot!.projection.state != CoreHaSwitchState.on
+                        ? () => unawaited(
+                            c.command(
+                              CoreHaCommandAction.turnOn,
+                              isCurrent: ownerCurrent,
+                            ),
+                          )
+                        : null,
+                    selected:
+                        c.snapshot!.projection.state == CoreHaSwitchState.on,
+                  ),
+                  button(
+                    'core-ha-command-off',
+                    l.coreHaTurnOff,
+                    c.canCommand &&
+                            c.snapshot!.projection.state !=
+                                CoreHaSwitchState.off
+                        ? () => unawaited(
+                            c.command(
+                              CoreHaCommandAction.turnOff,
+                              isCurrent: ownerCurrent,
+                            ),
+                          )
+                        : null,
+                    selected:
+                        c.snapshot!.projection.state == CoreHaSwitchState.off,
+                  ),
+                ] else if (c.snapshot != null)
+                  Text(l.coreHaReadOnly),
               ] else if (c.fresh && c.loaded) ...[
                 if (preview != null)
                   SettingsSection(

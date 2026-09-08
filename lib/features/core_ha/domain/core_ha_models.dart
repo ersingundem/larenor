@@ -146,6 +146,9 @@ final class CoreHaCommandReceipt {
             ? null
             : CoreHaProjection.fromJson(value['observedProjection']),
         matches = value['observationMatchesTarget'] as bool?;
+    final targetState = action == CoreHaCommandAction.turnOn
+        ? CoreHaSwitchState.on
+        : CoreHaSwitchState.off;
     if (completed != null && completed.isBefore(created) ||
         dispatch == CoreHaDispatchState.pending &&
             (provider != null ||
@@ -157,6 +160,7 @@ final class CoreHaCommandReceipt {
         dispatch == CoreHaDispatchState.unknown && provider != null ||
         observed == null && matches != null ||
         observed != null && matches == null ||
+        observed != null && matches != (observed.state == targetState) ||
         dispatch != CoreHaDispatchState.pending && completed == null) {
       _invalid();
     }

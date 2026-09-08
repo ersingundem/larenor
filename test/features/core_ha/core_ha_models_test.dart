@@ -64,8 +64,8 @@ Map<String, dynamic> commandReceiptJson() => {
   'action': 'turn_on',
   'dispatchState': 'accepted',
   'providerAccepted': true,
-  'observedProjection': projectionJson(),
-  'observationMatchesTarget': false,
+  'observedProjection': {...projectionJson(), 'state': 'on'},
+  'observationMatchesTarget': true,
   'causalityVerified': false,
   'createdAt': '2026-09-08T00:00:00Z',
   'completedAt': '2026-09-08T00:00:01Z',
@@ -159,7 +159,7 @@ void main() {
       expect(value.action, CoreHaCommandAction.turnOn);
       expect(value.dispatchState, CoreHaDispatchState.accepted);
       expect(value.providerAccepted, isTrue);
-      expect(value.observationMatchesTarget, isFalse);
+      expect(value.observationMatchesTarget, isTrue);
       expect(value.toString(), 'CoreHaCommandReceipt');
     },
   );

@@ -24,7 +24,8 @@ class CoreHaController extends ChangeNotifier {
     this.current,
     this.owner, {
     this.admin = false,
-  }) {
+    String Function()? requestId,
+  }) : _requestId = requestId ?? _unavailableRequestId {
     home?.addListener(_changed);
     home?.interaction.addListener(_changed);
     home?.account.addListener(_changed);
@@ -38,6 +39,7 @@ class CoreHaController extends ChangeNotifier {
   final bool Function() current;
   final Listenable owner;
   final bool admin;
+  final String Function() _requestId;
   int epoch = 0;
   bool busy = false,
       loaded = false,
@@ -46,6 +48,9 @@ class CoreHaController extends ChangeNotifier {
       saved = false;
   bool get stale => _stale || _deadline != null && monotonic() >= _deadline!;
   String? failure;
+  String? pendingCommandId;
+  CoreHaCommandAction? pendingCommandAction;
+  CoreHaCommandReceipt? commandReceipt;
   HomeResourceRecord? record;
   CoreHaSnapshot? _snapshot;
   CoreHaSnapshot? get snapshot => fresh && !stale ? _snapshot : null;
@@ -101,6 +106,17 @@ class CoreHaController extends ChangeNotifier {
 
   bool get fresh => _ready != null && !_ready!.expiresSoon(clock());
   bool get canRefresh => _ready != null && !busy;
+  bool get canCommand =>
+      !admin &&
+      fresh &&
+      loaded &&
+      !busy &&
+      !uncertain &&
+      pendingCommandId == null &&
+      record?.canWrite == true &&
+      snapshot?.projection.commandAvailable == true;
+  bool get canRecoverCommand =>
+      !admin && fresh && !busy && pendingCommandId != null;
   bool get canPreview =>
       admin && fresh && loaded && !busy && !uncertain && preview == null;
   bool get canConfirm =>
@@ -140,6 +156,9 @@ class CoreHaController extends ChangeNotifier {
     _bound = null;
     failure = null;
     uncertain = false;
+    pendingCommandId = null;
+    pendingCommandAction = null;
+    commandReceipt = null;
     _clear();
   }
 
@@ -291,6 +310,7 @@ class CoreHaController extends ChangeNotifier {
               'revision_conflict',
               'ha_binding_changed',
               'ha_preview_invalid',
+              'ha_command_conflict',
             }.contains(failure);
       }
     } finally {
@@ -344,6 +364,50 @@ class CoreHaController extends ChangeNotifier {
       }
       loaded = true;
     });
+  }
+
+  Future<void> command(
+    CoreHaCommandAction action, {
+    required bool Function() isCurrent,
+  }) async {
+    if (!canCommand || !_action(isCurrent)) return;
+    final id = _requestId(),
+        currentSnapshot = snapshot!,
+        currentRecord = record!;
+    if (!RegExp(r'^[0-9a-f]{32}$').hasMatch(id)) {
+      failure = 'invalid_request';
+      _emit();
+      return;
+    }
+    pendingCommandId = id;
+    pendingCommandAction = action;
+    commandReceipt = null;
+    await _run(
+      (api) async {
+        final receipt = await api(currentRecord)
+            .command(requestId: id, action: action, snapshot: currentSnapshot);
+        commandReceipt = receipt;
+        pendingCommandId = null;
+        pendingCommandAction = null;
+        uncertain = false;
+        _expire();
+      },
+      write: true,
+      guard: isCurrent,
+    );
+  }
+
+  Future<void> recoverCommand({required bool Function() isCurrent}) async {
+    final id = pendingCommandId;
+    if (!canRecoverCommand || id == null || !_action(isCurrent)) return;
+    await _run((api) async {
+      final receipt = await api(target).commandResult(id);
+      commandReceipt = receipt;
+      pendingCommandId = null;
+      pendingCommandAction = null;
+      uncertain = false;
+      _expire();
+    }, guard: isCurrent);
   }
 
   Future<void> prepare(
@@ -421,3 +485,5 @@ class CoreHaController extends ChangeNotifier {
     super.dispose();
   }
 }
+
+String _unavailableRequestId() => throw StateError('request_id_unavailable');
