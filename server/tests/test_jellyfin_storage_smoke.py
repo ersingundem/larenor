@@ -517,3 +517,85 @@ def test_checkout_verification_includes_license_used_by_helper(tmp_path, monkeyp
     (checkout/'LICENSE').write_text('changed licensing bytes\n')
     with pytest.raises(m.SmokeError):
         m.verify_checkout(commit)
+
+
+@pytest.mark.parametrize('where', ['checkout', 'staged', 'extra_staged', 'late_checkout'])
+def test_build_or_final_drift_cannot_publish_attestation(copied_checkout, where):
+    m, source, docker, images = copied_checkout
+    original = docker.docker
+    def dispatch(args, **kwargs):
+        result = original(args, **kwargs)
+        if args[0] == 'build' and where != 'late_checkout':
+            context = Path(args[-1])
+            target = (m.REPOSITORY/'NOTICE' if where == 'checkout' else
+                      context/'LICENSE' if where == 'staged' else context/'unexpected-file')
+            target.write_text('changed after staging\n')
+        if args[-1] == 'verify_sentinel' and where == 'late_checkout':
+            (m.REPOSITORY/'NOTICE').write_text('changed during final oracle\n')
+        return result
+    docker.docker = dispatch
+    with pytest.raises(m.SmokeError, match='^fixture_source_changed$'):
+        m.characterize(docker, source=source, images=images, volumes=object())
+    if where != 'late_checkout':
+        assert len(docker.calls) == 1 and docker.calls[0][0] == 'build'
+
+
+def test_cli_binding_is_captured_before_daemon_start(copied_checkout, monkeypatch, capsys):
+    m, source, docker, images = copied_checkout
+    events = []
+    class Owned:
+        def __enter__(self):
+            (m.REPOSITORY/'tool/volume_bootstrap_helper.py').write_text('changed during daemon startup\n')
+            events.append('enter')
+            return docker
+        def __exit__(self, *_):
+            events.append('exit')
+    consumer = m.characterize
+    monkeypatch.setattr(m, 'EphemeralDaemon', Owned)
+    monkeypatch.setattr(m, 'characterize', lambda owner, **kwargs:
+        consumer(owner, source=source, images=images, volumes=object(), **kwargs))
+    assert m.main(['--run-ephemeral-ci']) == 1
+    assert docker.calls == [] and events == ['enter', 'exit']
+    captured = capsys.readouterr()
+    assert captured.out == '' and captured.err == 'fixture_source_changed\n'
+
+
+def test_copy_detects_source_drift_and_never_reuses_existing_stage(copied_checkout, monkeypatch):
+    m, _, docker, _ = copied_checkout
+    binding = m.capture_source('a'*40)
+    with pytest.raises(TypeError):
+        binding[1]['LICENSE'] = '0'*64
+    read = m._source_bytes
+    calls = 0
+    def change_after_read(path):
+        nonlocal calls
+        raw = read(path)
+        if path == m.REPOSITORY/'LICENSE':
+            calls += 1
+            if calls == 2:
+                path.write_text('changed during staged copy\n')
+        return raw
+    monkeypatch.setattr(m, '_source_bytes', change_after_read)
+    with pytest.raises(m.SmokeError, match='^fixture_source_changed$'):
+        m.stage_context(docker.root, binding)
+    assert not docker.calls
+    monkeypatch.setattr(m, '_source_bytes', read)
+    fresh = m.capture_source('a'*40)
+    with pytest.raises(FileExistsError):
+        m.stage_context(docker.root, fresh)
+
+
+@pytest.mark.parametrize('kind', ['oversize', 'symlink', 'directory', 'absent'])
+def test_staged_inputs_reject_nonregular_or_unbounded_bytes(tmp_path, kind):
+    m = api()
+    path = tmp_path/'source'
+    if kind == 'oversize':
+        path.write_bytes(b'x'*1048577)
+    elif kind == 'symlink':
+        target = tmp_path/'other'
+        target.write_text('synthetic')
+        path.symlink_to(target)
+    elif kind == 'directory':
+        path.mkdir()
+    with pytest.raises(m.SmokeError, match='^fixture_source_changed$'):
+        m._source_bytes(path)

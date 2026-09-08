@@ -1,8 +1,9 @@
 # Jellyfin storage karakterizasyon fixture'ı
 
 8 Eylül 2026. Taban `960691c113b10e08ebddf75d464b99e74bdd4cb1`, dal
-`codex/jellyfin-storage-fixture`; kaynak/test freeze
-`25d5e0c523609d86a87508b638c521ac5d3254f8`. Bu, `25e211c` planındaki ilk
+`codex/jellyfin-storage-fixture`; ilk kaynak/test freeze
+`25d5e0c523609d86a87508b638c521ac5d3254f8`; bağımsız inceleme sonrası
+kaynak düzeltmesi `9a9d477`. İlk `7990fe9` teslimi ara kanıt olarak korunur. Bu, `25e211c` planındaki ilk
 checkpoint'in çalıştırılabilir fixture'ıdır. **Gerçek Docker/daemon/image build,
 amd64/arm64 CI veya ev kurulumu bu teslimde çalıştırılmadı.**
 
@@ -40,13 +41,20 @@ Komut/HTTP süreleri ayrı sınırlardır; bütün filesystem/syscall zincirine 
 kesin süre garantisi verilmez.
 
 [Helper Dockerfile](../server/Dockerfile.volume-bootstrap) mevcut pinli Python
-base'ini kullanır; [özel context allowlist'i](../server/Dockerfile.volume-bootstrap.dockerignore)
-yalnız helper/probe ve lisans dosyalarını alır. Gerçek koşuda local build IID,
+base'ini kullanır. Legacy builder, Dockerfile'a özel `.dockerignore`
+dosyasını uygulamadığından runner artık checkout'u build context olarak vermez.
+Kendi özel kökü altında yeni `helper-context` dizinine yalnız helper, probe,
+Dockerfile, LICENSE ve NOTICE kopyalanır. `.git`, artifact'lar ve diğer repo
+dosyaları context'e girmez; ignore dosyasına güvenilmez.
+[Docker belgeleri](https://docs.docker.com/reference/cli/docker/image/build/#build-context-with-the-legacy-builder)
+legacy context'in tamamının aktarıldığını açıklar;
+[CLI kaynağı](https://github.com/docker/cli/blob/master/cli/command/image/build.go)
+context kökündeki `ReadDockerignore` yolunu kullanır. Gerçek koşuda local build IID,
 inspect platform/config ID, checkout commit'i ve image'a gömülen kaynak bundle
 hash'i eşleştirilir. Bu local build kaydı yayımlanmış/signed OCI provenance
 değildir; `publishedManifestDigest=null` kalır. Helper digest'i uydurulmadı.
 
-## TDD ve son yerel kanıt
+## İlk teslimin TDD ve yerel kanıtı
 
 | Checkpoint | Gerçek sonuç |
 | --- | --- |
@@ -81,6 +89,38 @@ Sonuçlar farklı kümelerdir; tam Core veya gerçek Engine koşusu değildir:
 Özel kanıtlar `/private/tmp/larenor-jellyfin-fixture-*` prefix'indedir:
 `focused-final.log`/`focused.xml`, `compat-corrected.log`/`compat.xml`,
 `tool-compat.log`, `coverage-final.json`, `gitleaks.log` ve delivery receipt.
+
+## Bağımsız inceleme sonrası kaynak/context düzeltmesi
+
+İki P2, `a65ff3c` checkpoint'inde **4 gerçek FAIL** ile doğrulandı:
+legacy build'in tüm checkout'u alması; ilk commit kontrolünden sonra hazırlık
+sırasında helper veya LICENSE değişiminin yeni hash ile eski commit'e
+bağlanabilmesi; LICENSE'ın Git temizliğine dahil olmaması. `9a9d477` ile
+**77 PASS**, ilave sınır regresyonlarıyla **87 PASS / 2.53 s** alındı.
+
+CLI, daemon başlamadan önce clean commit kontrolü arasında yedi dosyanın
+immutable hash bağını yakalar: helper, probe, runner, Dockerfile, ignore,
+LICENSE ve NOTICE. Consumer bu bağı hazırlık sonrasında, staging öncesi/sonrası,
+build sonrasında ve sonuçtan önce yeniden doğrular. Staged beş dosyanın da
+beklenen byte hash'leri kontrol edilir. Kaynak okumaları 1 MiB sınırında,
+regular-file ve final-component no-follow şartındadır. Mevcut stage tekrar
+kullanılmaz; failure başarı kaydı üretmez. Bu, ayrı imzalı provenance veya
+kötü niyetli eşzamanlı yerel writer/ABA'ya karşı atomik filesystem snapshot
+iddiası değildir.
+
+Ek testler gerçek yerel geçici dosyalar ve fake Docker consumer ile daemon
+başlangıcındaki drift'i, build sırasında staged/checkout değişimini, beklenmeyen
+context dosyasını, son oracle sırasında değişimi ve read/copy sınırlarını kapsar.
+Docker çalıştırılmadı. Coverage (dal dahil): helper **%82.83**, probe **%81.48**,
+runner **%95.05**, toplam **%90.13**. İlgili altı mevcut Server test dosyasında **261 PASS / 11.53 s**
+alındı; tam Core tekrarlanmadı. Kaynak+test dondurulunca readonly inceleme
+ayrıca kapatılır. İlk coverage komutundan önce yanlış cwd ile test append
+başarısız olduğu için o 77-test koşusu genişletilmiş 87-test kanıtı sayılmaz.
+
+Güncel özel loglar `/private/tmp/larenor-jellyfin-context-*` prefix'indedir;
+önceki receipt/loglar değiştirilmemiştir. İlgili regresyon komutunda yanlış
+`test_startup_safety.py` adıyla collection 0 olan hazırlık denemesi kabul
+sayılmaz; doğru dosya `test_plugin_worker_startup_safety.py` ile sonuç ayrı kaydedilir.
 
 ## Açık kalan gerçek kabul
 
