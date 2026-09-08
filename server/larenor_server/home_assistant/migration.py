@@ -230,6 +230,22 @@ class DirectHaMigration:
                       ('admin.service.create', 'create', 'success', self.adapter.settings.clock(), actor.id, p.service.id))
             c.execute('DELETE FROM service_audit WHERE id IN (SELECT id FROM service_audit ORDER BY id DESC LIMIT -1 OFFSET ?)',
                       (MAX_AUDIT_EVENTS,))
+            # The last write can have effects too. A receipt acknowledges the
+            # complete persisted tuple only after all writes, in this same TX.
+            bounds = c.execute("SELECT revision,typeof(nonce),length(nonce),typeof(ciphertext),length(ciphertext) "
+                "FROM service_connections WHERE id=?", (p.service.id,)).fetchone()
+            if (bounds is None or tuple(bounds[:4]) != (1, 'blob', 12, 'blob') or
+                    not 16 <= bounds[4] <= 32768):
+                raise ValueError()
+            if self.services._record(c, p.service.id, 1)[1] != service:
+                raise ValueError()
+            ha_schema.validate(c, self._key, self.resources.scope)
+            saved = c.execute('SELECT * FROM home_assistant_bindings WHERE resource_id=?', (resource,)).fetchone()
+            if saved is None or self.adapter._decode(saved) != p.binding:
+                raise ValueError()
+            schema.validate(c, self._key, self.resources.scope)
+            if self._stored(c, actor, resource, body.requestId) != stored:
+                raise ValueError()
             self.adapter._cache.clear()
             return {'receipt': receipt.model_dump()}
 

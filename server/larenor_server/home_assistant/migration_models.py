@@ -3,7 +3,7 @@ from typing import Literal
 
 from pydantic import Field, field_validator, model_validator
 
-from ..home_resources.models import FrozenModel, Identity, Revision
+from ..home_resources.models import FrozenModel, Identity, Revision, ResourceRef
 from ..services.models import PublicService, canonical_base_url, safe_text
 from .models import Binding, EntityId, PreviewRequest, Projection
 
@@ -44,7 +44,7 @@ class MigrationReceipt(FrozenModel):
     schemaVersion: Literal[1] = 1
     requestId: Identity
     status: Literal['committed'] = 'committed'
-    ref: Binding.model_fields['ref'].annotation
+    ref: ResourceRef
     resourceRevision: Revision
     aclRevision: Revision
     service: PublicService
@@ -65,7 +65,7 @@ class MigrationPreview(FrozenModel):
     id: Identity
     requestId: Identity
     expiresInMs: int = Field(ge=1, le=60000)
-    ref: Binding.model_fields['ref'].annotation
+    ref: ResourceRef
     resourceRevision: Revision
     aclRevision: Revision
     service: PublicService
