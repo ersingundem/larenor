@@ -387,7 +387,8 @@
         "docs/jellyfin-managed-volume-installation-plan-2026-09-06.md",
         "docs/jellyfin-storage-fixture-implementation-2026-09-08.md",
         "docs/jellyfin-storage-manual-ci-2026-09-08.md",
-        "docs/jellyfin-native-storage-diagnostics-2026-09-08.md"
+        "docs/jellyfin-native-storage-diagnostics-2026-09-08.md",
+        "docs/jellyfin-helper-build-diagnostics-2026-09-08.md"
       ],
       "scope": "installAvailable=false; Client kaynak adı/Docker seçenekleri üretmez. Gerçek ev sunucusuna işlem yok.",
       "acceptance": [
@@ -624,14 +625,6 @@
           "label": "Manuel native workflow/launcher: 122 pytest (35 yeni + 87 fixture) ve 215 politika testi geçti; gerçek shell cancellation RED → exec handoff GREEN. Root incelemesi temiz. Docker/iki mimari koşusu henüz yapılmadı."
         },
         {
-          "kind": "ci",
-          "ref": "https://github.com/ersingundem/larenor/actions/runs/34213095299",
-          "commit": "5cbff217cdcf719d9162b9b2b33bf22dd47a1996",
-          "state": "completed",
-          "result": "failed",
-          "label": "İlk native karakterizasyon iki mimaride genel kapalı hatayla durdu; makbuz0. Hata fazı bu kaynakta görünmediği için S06.3d açık kaldı."
-        },
-        {
           "kind": "test",
           "ref": "docs/jellyfin-native-storage-diagnostics-2026-09-08.md",
           "commit": "a430dce9795130d045b466d73fc1453c4c5825c7",
@@ -646,10 +639,26 @@
           "state": "completed",
           "result": "passed",
           "label": "Root incelemesi phase/code allowlist, ham istisna redaksiyonu, cleanup önceliği ve sıfır replay sınırını doğruladı; gerçek native kök neden hâlâ açık."
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/34235695668",
+          "commit": "28792d1074b11f7bba89ba413b16c86b7ed6321e",
+          "state": "completed",
+          "result": "failed",
+          "label": "Native2: amd64 ve arm64 aynı kapalı helper_build/fixture_command_failed sonucu; kaynak/daemon/imaj/iki volume/staging ön kapıları geçti, makbuz0."
+        },
+        {
+          "kind": "test",
+          "ref": "docs/jellyfin-helper-build-diagnostics-2026-09-08.md",
+          "commit": "09d2778b7e59fdf4241367e5f82ecdd2e37b8878",
+          "state": "completed",
+          "result": "passed",
+          "label": "Helper build alt tanılama:5RED→5GREEN;152 ilgiliPASS0skip,215politikaPASS,%96,49dal dahil kapsam. Root incelemesi generic diğer komutları, stderrDEVNULL, bounded stdout/deadline, kill/reap ve sıfır fallback sınırını doğruladı."
         }
       ],
       "completionCommit": null,
-      "reason": "Volume protokolü CI108 Linux kabulünü aldı. İlk gerçek native amd64/arm64 koşusu genel hatayla başarısız ve makbuzsuz kaldı. Kapalı phase/code tanılaması 139 test, 215 politika ve root incelemesiyle main'e alındı; tanılamalı yeni CI ve ardından dar kök neden düzeltmesi açık. installAvailable=false."
+      "reason": "İkinci native amd64/arm64 koşusu aynı helper_build/generic komut hatasıyla makbuzsuz kaldı. Kaynak, özel daemon, imaj, iki volume ve staging ön kapıları geçti. Helper build süreç alt kodları 152 test, 215 politika ve root incelemesiyle main'e alındı; üçüncü tanılamalı CI ve ardından dar kök neden düzeltmesi açık. installAvailable=false."
     },
     {
       "id": "S06.3e",

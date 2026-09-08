@@ -32,7 +32,7 @@ Gerçek ev kurulumu ve fiziksel tablet kabulü henüz yapılmadı.
 | S08.6 — kişi, oda, kaynak ve izin yönetimi | **Kabul edildi**, aynı yayın | Merkezi HA akışının yetki temeli hazır |
 | S08.7 — merkezi Home Assistant adaptörü | **Devam ediyor** | Server'da açık kaynak bağlama, yetkili switch durumu ve sınırlı cache; tablette kaynak durum ekranı |
 | B5.1 — ortak tablet tasarımı | Services ve hesap IME düzeltmeleri exact `5cbff21` / APK116 ile kabul edildi | S08.7 kaynak ekranı ve kalan ortak tablet yüzeyleri |
-| S06.3d — kalıcı depolama | İlk native iki mimarili koşu kapalı genel hatayla durdu; tanılama main ile birleşti | Tanılamalı kesin kaynağı yayımla; faz/kodu okuyup dar düzeltmeyi belirle |
+| S06.3d — kalıcı depolama | İkinci native koşu iki mimaride `helper_build / fixture_command_failed` verdi | Helper build süreç alt kodlarını yayımla; üçüncü koşuda kesin process sınırını ayır |
 
 S08.7 üç sonlu teslimden oluşur: **kaynak bağlama ve typed durum → komut ve
 kalıcı sonuç → açık Direct aktarımı**. İlk Server ve Client işleri ayrı dallarda
@@ -69,7 +69,13 @@ kapatıldı; son kaynak incelemesi temiz. Manuel native amd64/arm64 CI hazırlı
 hatasıyla kapandı ve makbuz üretmedi. Kapalı phase/hata kodu tanılaması
 8 RED→8 GREEN, toplam 139 odaklı test, 215 politika testi ve %96,09 dal dahil
 kapsamla main'e alındı. [Tanılama kanıtı](jellyfin-native-storage-diagnostics-2026-09-08.md).
-Kesin neden ikinci yetkili koşudan önce tahmin edilmiyor.
+Bu aşamada kesin neden tahmin edilmiyor.
+İkinci koşu her iki mimaride de `helper_build / fixture_command_failed` verdi;
+bu, kaynak/daemon/imaj/volume/staging kapılarının geçtiğini daralttı. Helper build
+altında exit, çıktı sınırı, zaman aşımı, spawn ve I/O hatalarını ham stderr
+taşımadan ayıran ek tanılama 5 RED→5 GREEN, toplam 152 test, 215 politika testi
+ve %96,49 dal dahil kapsamla main'e alındı.
+[Helper build tanılama kanıtı](jellyfin-helper-build-diagnostics-2026-09-08.md).
 Gerçek Engine ve kurulum kabulü hâlâ açık; `installAvailable=false`.
 
 ## Canlı takip ve sıradaki işler
