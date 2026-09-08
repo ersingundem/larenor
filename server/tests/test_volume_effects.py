@@ -96,7 +96,13 @@ def engine_server(reply, *, platform='amd64', version_hook=None):
                             if version_hook is not None:
                                 version_hook()
                             connection.sendall(response({**VERSION, 'Arch': platform}))
-                            request = read(connection)
+                            try:
+                                request = read(connection)
+                            except socket.timeout:
+                                # The guarded client may send no second request
+                                # after its deadline/cancellation. An incomplete
+                                # request is never recorded or dispatched.
+                                continue
                             if request is None:
                                 continue
                             value = reply(request, calls) if callable(reply) else reply
