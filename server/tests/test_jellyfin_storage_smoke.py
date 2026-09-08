@@ -441,3 +441,78 @@ def test_exited_unshare_still_terminates_owned_group(monkeypatch):
     owner.__exit__()
     assert events[0][0] == 'kill' and events[0][1] == 12345
     assert events[-1] == 'wait'
+
+
+@pytest.fixture
+def copied_checkout(protocol, monkeypatch):
+    m, source, docker, images = protocol
+    checkout = docker.root/'checkout'
+    checkout.mkdir()
+    names = (*m._SOURCE_FILES, 'LICENSE', 'NOTICE')
+    for name in names:
+        target = checkout/name
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes((m.REPOSITORY/name).read_bytes())
+    (checkout/'.git').mkdir()
+    (checkout/'.git'/'synthetic-private').write_text('not build input')
+    (checkout/'unrelated-artifact').write_text('not build input')
+    monkeypatch.setattr(m, 'REPOSITORY', checkout)
+    # Git cleanliness is characterized independently below; Docker stays fake.
+    monkeypatch.setattr(m, 'verify_checkout', lambda commit: None)
+    return protocol
+
+
+def test_build_uses_only_explicit_staged_files_not_repository_context(copied_checkout):
+    m, source, docker, images = copied_checkout
+    original = docker.docker
+    def dispatch(args, **kwargs):
+        if args[0] == 'build':
+            context = Path(args[-1])
+            assert context != m.REPOSITORY, 'legacy build must never receive the checkout'
+            assert context.is_relative_to(docker.root)
+            expected = {'tool/volume_bootstrap_helper.py', 'tool/jellyfin_storage_probe.py',
+                        'server/Dockerfile.volume-bootstrap', 'LICENSE', 'NOTICE'}
+            assert {str(p.relative_to(context)) for p in context.rglob('*') if p.is_file()} == expected
+            assert Path(args[args.index('--file')+1]) == context/'server/Dockerfile.volume-bootstrap'
+            assert all((context/name).read_bytes() == (m.REPOSITORY/name).read_bytes() for name in expected)
+        return original(args, **kwargs)
+    docker.docker = dispatch
+    result = m.characterize(docker, source=source, images=images, volumes=object())
+    assert result['result'] == 'characterized'
+
+
+@pytest.mark.parametrize('changed', ['tool/volume_bootstrap_helper.py', 'LICENSE'])
+def test_preparation_cannot_rebase_build_to_changed_source(copied_checkout, monkeypatch, changed):
+    m, source, docker, images = copied_checkout
+    prepare = m.prepare_storage
+    def change_after_preparation(*args):
+        result = prepare(*args)
+        with (m.REPOSITORY/changed).open('ab') as output:
+            output.write(b'\nchanged after initial source binding\n')
+        return result
+    monkeypatch.setattr(m, 'prepare_storage', change_after_preparation)
+    with pytest.raises(m.SmokeError, match='^fixture_source_changed$'):
+        m.characterize(docker, source=source, images=images, volumes=object())
+    assert not docker.calls, 'source drift must fail before helper build'
+
+
+def test_checkout_verification_includes_license_used_by_helper(tmp_path, monkeypatch):
+    m = api()
+    checkout = tmp_path/'committed'
+    checkout.mkdir()
+    for name in {*m._SOURCE_FILES, 'LICENSE', 'NOTICE'}:
+        target = checkout/name
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text('synthetic committed source\n')
+    def git(*args):
+        return subprocess.run(['/usr/bin/git', '-C', str(checkout), *args], check=True,
+                              capture_output=True, timeout=5).stdout.decode().strip()
+    git('init', '-q')
+    git('add', '.')
+    git('-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.invalid', 'commit', '-qm', 'fixture')
+    commit = git('rev-parse', 'HEAD')
+    monkeypatch.setattr(m, 'REPOSITORY', checkout)
+    m.verify_checkout(commit)
+    (checkout/'LICENSE').write_text('changed licensing bytes\n')
+    with pytest.raises(m.SmokeError):
+        m.verify_checkout(commit)
