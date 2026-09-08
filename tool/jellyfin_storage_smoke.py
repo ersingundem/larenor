@@ -71,9 +71,18 @@ _STATE_ERROR_PATTERNS = {
         b'unable to find user', b'unable to find group'),
     'helper_base_configuration_failed': (b'invalid argument', b'invalid configuration'),
 }
+_PATH_LOCATION_PATTERNS = {
+    'helper_base_image_path_failed': (b'/usr/local/bin/python', b'/opt/larenor/'),
+    'helper_base_proc_path_failed': (b'/proc/',),
+    'helper_base_sys_path_failed': (b'/sys/',),
+    'helper_base_runtime_path_failed': (b'/run/',),
+    'helper_base_engine_path_failed': (b'/tmp/larenor-jellyfin-', b'/var/lib/docker/'),
+    'helper_base_host_path_failed': (b'/etc/resolv.conf', b'/etc/hostname', b'/etc/hosts'),
+}
 _DIAGNOSTIC_CODES = _CODES | set(_BUILD_ERROR_PATTERNS) | set(_START_ERROR_PATTERNS) | {
     'helper_base_runtime_failed', 'helper_base_error_ambiguous',
     'helper_base_state_error_ambiguous', *_STATE_ERROR_PATTERNS,
+    'helper_base_path_location_ambiguous', *_PATH_LOCATION_PATTERNS,
     'helper_base_process_oom', 'helper_base_process_nonzero', 'helper_base_process_running',
     'helper_base_process_dead', 'helper_base_process_exited_zero',
     'helper_base_process_not_started', 'helper_base_process_not_started_nonzero',
@@ -209,7 +218,15 @@ def _state_error(error):
     matched = {code for code, patterns in _STATE_ERROR_PATTERNS.items()
                if any(pattern in folded for pattern in patterns)}
     if len(matched) == 1:
-        return matched.pop()
+        classified = matched.pop()
+        if classified == 'helper_base_path_failed':
+            locations = {code for code, patterns in _PATH_LOCATION_PATTERNS.items()
+                         if any(pattern in folded for pattern in patterns)}
+            if len(locations) == 1:
+                return locations.pop()
+            if locations:
+                return 'helper_base_path_location_ambiguous'
+        return classified
     return 'helper_base_state_error_ambiguous' if matched else classified
 
 
