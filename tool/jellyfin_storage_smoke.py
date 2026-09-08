@@ -33,7 +33,9 @@ _CODES = {'storage_characterization_failed','native_ephemeral_ci_required','fixt
     'owned_daemon_lost','owned_daemon_unavailable','owned_cleanup_failed','fixture_image_unresolved',
     'fixture_volume_unresolved','fixture_protocol_failed','jellyfin_startup_timeout',
     'unexpected_image_volume','unexpected_initial_write_access','restart_identity_changed','fixture_source_changed'}
-_BUILD_STDERR_LIMIT = 16384
+# Quiet legacy build can emit buffered progress followed by its final error.
+# Keep the complete diagnostic input bounded; never export or persist it.
+_BUILD_STDERR_LIMIT = 65536
 _BUILD_ERROR_PATTERNS = {
     'helper_build_manifest_missing': (b'manifest unknown',),
     'helper_build_platform_missing': (b'no matching manifest for ', b'no match for platform in manifest'),
