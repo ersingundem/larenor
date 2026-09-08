@@ -154,11 +154,13 @@ def _build_error(stderr):
     return 'helper_build_error_ambiguous' if matched else 'fixture_command_exit_failed'
 
 
-def bounded_command(arguments, *, environment, timeout=60, limit=65536, diagnose_failure=False):
-    """Private bounded pipes; only helper diagnostics drain stderr in memory."""
-    require(type(diagnose_failure) is bool, 'fixture_command_failed')
+def bounded_command(arguments, *, environment, timeout=60, limit=65536,
+                    diagnose_failure=False, diagnose_process=False):
+    """Separate closed process codes from the opt-in private build stderr path."""
+    require(type(diagnose_failure) is bool and type(diagnose_process) is bool, 'fixture_command_failed')
+    detailed_codes = diagnose_failure or diagnose_process
     def check(value, code):
-        require(value, code if diagnose_failure else 'fixture_command_failed')
+        require(value, code if detailed_codes else 'fixture_command_failed')
     process = None
     stderr = bytearray()
     deadline = time.monotonic() + timeout
@@ -191,10 +193,10 @@ def bounded_command(arguments, *, environment, timeout=60, limit=65536, diagnose
               _build_error(stderr) if diagnose_failure else 'fixture_command_exit_failed')
         return bytes(result)
     except subprocess.TimeoutExpired:
-        raise SmokeError('fixture_command_timeout' if diagnose_failure else 'fixture_command_failed') from None
+        raise SmokeError('fixture_command_timeout' if detailed_codes else 'fixture_command_failed') from None
     except OSError:
         code = 'fixture_command_spawn_failed' if process is None else 'fixture_command_io_failed'
-        raise SmokeError(code if diagnose_failure else 'fixture_command_failed') from None
+        raise SmokeError(code if detailed_codes else 'fixture_command_failed') from None
     finally:
         stderr.clear()
         if process is not None:
@@ -236,11 +238,11 @@ class EphemeralDaemon:
         except OSError:
             raise SmokeError('owned_daemon_lost') from None
 
-    def docker(self, args, *, timeout=60, limit=65536, diagnose_failure=False):
+    def docker(self, args, *, timeout=60, limit=65536, diagnose_failure=False, diagnose_process=False):
         self._socket()
         return bounded_command(['/usr/bin/docker', '--host=unix://'+str(self.root/'engine.sock'),
             '--config='+str(self.root/'docker-config'), *args], environment=child_environment(self.root),
-            timeout=timeout, limit=limit, diagnose_failure=diagnose_failure)
+            timeout=timeout, limit=limit, diagnose_failure=diagnose_failure, diagnose_process=diagnose_process)
 
     @diagnostic_phase('daemon_start')
     def __enter__(self):
@@ -520,7 +522,7 @@ def _helper_base(daemon, context, binding):
     with diagnostic_phase('helper_base_created'):
         inspect(False)
     with diagnostic_phase('helper_base_start'):
-        require(daemon.docker(['start','--attach',container_id], timeout=20, limit=128)
+        require(daemon.docker(['start','--attach',container_id], timeout=20, limit=128, diagnose_process=True)
             == b'larenor-helper-base-ok-v1\n', 'fixture_protocol_failed')
     with diagnostic_phase('helper_base_result'):
         inspect(True)
