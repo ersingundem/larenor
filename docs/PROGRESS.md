@@ -1,6 +1,6 @@
 # Larenor — güncel ilerleme ve iş kuyruğu
 
-**Son güncelleme: 8 Eylül 2026 — Android arşiv E2E yarışı kapandı; Native11 state-shape tanısı hazır.**
+**Son güncelleme: 8 Eylül 2026 — Native11 state-error sonucuna göre kapalı neden aileleri hazırlanıyor.**
 
 ```text
 Kuyruk kabulü       ██░░░░░░░░░░░░░░░░░░  10/125 iş (%8; eşit ağırlıklı sayaç)
@@ -38,7 +38,7 @@ Gerçek ev kurulumu ve fiziksel tablet kabulü henüz yapılmadı.
 | S08.6 — kişi, oda, kaynak ve izin yönetimi | **Kabul edildi**, aynı yayın | Merkezi HA akışının yetki temeli hazır |
 | S08.7 — merkezi Home Assistant adaptörü | **Devam ediyor**; typed durum, kalıcı switch komutu/makbuzu ve açık Direct→Core aktarımı main içinde | Exact-source birleşik CI; sonra geniş HA varlık/servis kapsamı |
 | B5.1 — ortak tablet tasarımı | Services/hesap IME paketi APK116 ile kabul edildi; S08.7 komut ve aktarım yüzeyleri yerel tablet matrisinden geçti | Exact-source Android CI ve kalan ortak tablet yüzeyleri |
-| S06.3d — kalıcı depolama | Native10 iki mimaride typed fakat sınıflandırılmamış state verdi; dört olgusal state-shape kodu yerelde hazır | Exact-source Native11'de kalan state şeklini ayır |
+| S06.3d — kalıcı depolama | Native11 iki mimaride sınıflandırılmamış, boş olmayan state error verdi; beş kapalı neden ailesi yerelde hazır | Exact-source Native12'de hata ailesini ayır |
 
 S08.7 üç sonlu teslimden oluşur: **kaynak bağlama ve typed durum → komut ve
 kalıcı sonuç → açık Direct aktarımı**. Üç yerel dilim de squash yapılmadan
@@ -230,8 +230,20 @@ toplam 264 Jellyfin ve 218 politika testi geçti. İncelemede geçerli Docker
 `removing` durumuna “tutarsız” denemeyeceği nötr kategoriyle güvence eklendi;
 final bağımsız inceleme CLEAR.
 [State-shape tanısı](jellyfin-base-state-shape-diagnostics-2026-09-08.md).
-Native11 bu dört gözlemden birini ayıracak; sonuç yine tek başına kurulum kabulü
-değildir.
+On birinci koşu `34273975969`, exact `bd03125` üzerinde iki mimaride de
+`helper_base_start / helper_base_state_error_unclassified` verdi; başarı
+makbuzu yok. Tek indirilen 70.209 bayt logun SHA-256 değeri
+`37654a4e183b644beaeffc175234e1d0350e195ef6039d5bb58326e5bdd0baad`.
+Bu sonuç typed state içindeki boş olmayan hatayı doğruladı ancak metni veya
+nedeni açığa çıkarmadı. Kalan hata cgroup/security-profile/namespace/mount,
+host kaynağı, yol, kimlik ve yapılandırma ailelerine yerelde ayrıldı; çoklu
+eşleşme ayrı kapalı ambiguous sonucuna gider. Beş gerçek RED kapandı; 34 state,
+66 state+stderr, toplam 270 Jellyfin ve 218 politika testi geçti. Tek bounded
+inspect, redaksiyon, cleanup ve no-retry sınırları değişmedi; exact commit için
+bağımsız inceleme CLEAR.
+[State-error aileleri](jellyfin-base-state-error-families-2026-09-08.md).
+Native12 bu ailelerden birini ya da kalan kapalı sonucu ayıracak; sonuç yine tek
+başına kurulum kabulü değildir.
 Gerçek Engine ve kurulum kabulü hâlâ açık; `installAvailable=false`.
 
 ## Canlı takip ve sıradaki işler

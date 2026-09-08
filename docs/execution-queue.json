@@ -410,30 +410,6 @@
       "evidence": [
         {
           "kind": "test",
-          "ref": "docs/native-identity-observation-implementation-2026-09-05.md",
-          "commit": "3dde2f8b73763741f6d87f903eba6ef7da9f7f91",
-          "state": "completed",
-          "result": "passed",
-          "label": "Salt okunur kimlik gözlemi: 2704 Linux test, sıfır skip; S06.3d tamamlanması değildir."
-        },
-        {
-          "kind": "test",
-          "ref": "docs/native-appdata-root-observation-implementation-2026-09-05.md",
-          "commit": "0d9e2506ac86e00f2f6e1a0be513ee0cabb7b073",
-          "state": "completed",
-          "result": "passed",
-          "label": "Tam Server 2782 PASS/10 Linux skip; yeni gözlem87 PASS/1 skip ve dal dahil %99 kapsam."
-        },
-        {
-          "kind": "review",
-          "ref": "docs/native-appdata-root-observation-implementation-2026-09-05.md",
-          "commit": "0d9e2506ac86e00f2f6e1a0be513ee0cabb7b073",
-          "state": "completed",
-          "result": "passed",
-          "label": "Yeni tam kök modülü ve yarış/lifecycle/mount testleri bağımsız incelendi; açık P1/P2 yok."
-        },
-        {
-          "kind": "test",
           "ref": "docs/managed-volume-proposal-implementation-2026-09-06.md",
           "commit": "b5d416404e900aecbbf41068fdf7547942315d22",
           "state": "completed",
@@ -663,10 +639,34 @@
           "state": "completed",
           "result": "passed",
           "label": "Bağımsız CLEAR: geçerli removing durumu nötr known-status koduna alındı; specific sonuç, tek inspect, redaksiyon, no-retry ve cleanup sınırları korundu."
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/34273975969",
+          "commit": "bd031251a97289c3d6dd4d4f4f04dc1df3c379a3",
+          "state": "completed",
+          "result": "failed",
+          "label": "Native11: iki mimaride helper_base_start/state_error_unclassified; makbuz yok. Tek log70209byte/SHA37654a4e; kapalı neden aileleri açık."
+        },
+        {
+          "kind": "test",
+          "ref": "docs/jellyfin-base-state-error-families-2026-09-08.md",
+          "commit": "35d05b6ed427c358a70c395fc8690d238e590c72",
+          "state": "completed",
+          "result": "passed",
+          "label": "State-error aileleri:5RED kapalı;34state/66state+stderr/270Jellyfin/218politikaPASS. Beş sabit aile ve çoklu eşleşme ayrıldı."
+        },
+        {
+          "kind": "review",
+          "ref": "docs/jellyfin-base-state-error-families-2026-09-08.md",
+          "commit": "35d05b6ed427c358a70c395fc8690d238e590c72",
+          "state": "completed",
+          "result": "passed",
+          "label": "Bağımsız CLEAR: kapalı allowlist, ambiguous, Python3.12-3.14, tek inspect/no-retry/cancellation/redaksiyon sınırları korundu."
         }
       ],
       "completionCommit": null,
-      "reason": "Native10 run34270629266 exacte97189f: iki mimaride typed state_unclassified; tek log70215byte/SHA27e931c6, başarı makbuzu yok. State-shape69215ed:4RED+review removing P2 kapalı,28state/264Jellyfin/218politikaPASS; unknown-error/created-nonzero/unknown-status/known-status ayrımı, specific kod korunuyor. Tek start/owned10s64KiBinspect/redaksiyon/cleanup aynı. Native11 gözlemi ayıracak; installAvailable=false."
+      "reason": "Native11 run34273975969 exactbd03125: iki mimaride typed state_error_unclassified; tek log70209byte/SHA37654a4e, başarı makbuzu yok. Error-family35d05b6:5RED+bağımsız CLEAR,34state/66state+stderr/270Jellyfin/218politikaPASS; isolation/resource/path/identity/config ve ambiguous ayrımı. Tek start/owned10s64KiBinspect/redaksiyon/cleanup aynı. Native12 gözlemi ayıracak; installAvailable=false."
     },
     {
       "id": "S06.3e",
