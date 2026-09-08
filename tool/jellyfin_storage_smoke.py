@@ -113,6 +113,20 @@ _PROC_PROCESS_PATTERNS = {
     'helper_base_proc_process_namespace_observed': re.compile(rb'/proc/[1-9][0-9]{0,9}/ns/'),
     'helper_base_proc_process_fd_path_observed': re.compile(rb'/proc/[1-9][0-9]{0,9}/fd/'),
 }
+_PROC_PROCESS_NAMESPACE_PATTERN = re.compile(
+    rb'/proc/[1-9][0-9]{0,9}/ns/([^/]+)\Z')
+_PROC_PROCESS_NAMESPACE_CODES = {
+    b'net': 'helper_base_proc_process_net_namespace_observed',
+    b'mnt': 'helper_base_proc_process_mnt_namespace_observed',
+    b'ipc': 'helper_base_proc_process_ipc_namespace_observed',
+    b'uts': 'helper_base_proc_process_uts_namespace_observed',
+    b'pid': 'helper_base_proc_process_pid_namespace_observed',
+    b'pid_for_children': 'helper_base_proc_process_pid_children_namespace_observed',
+    b'user': 'helper_base_proc_process_user_namespace_observed',
+    b'cgroup': 'helper_base_proc_process_cgroup_namespace_observed',
+    b'time': 'helper_base_proc_process_time_namespace_observed',
+    b'time_for_children': 'helper_base_proc_process_time_children_namespace_observed',
+}
 _PATH_TOKEN = re.compile(rb"/[^\s\"'(),:;]+")
 _DIAGNOSTIC_CODES = _CODES | set(_BUILD_ERROR_PATTERNS) | set(_START_ERROR_PATTERNS) | {
     'helper_base_runtime_failed', 'helper_base_error_ambiguous',
@@ -120,6 +134,7 @@ _DIAGNOSTIC_CODES = _CODES | set(_BUILD_ERROR_PATTERNS) | set(_START_ERROR_PATTE
     'helper_base_path_location_ambiguous', *_PATH_LOCATION_PATTERNS,
     *_PATH_RELATION_CODES.values(), *_PATH_COOCCURRENCE_CODES.values(),
     *_PROC_SUBPATH_PATTERNS, *_PROC_PROCESS_PATTERNS, 'helper_base_proc_subpaths_ambiguous',
+    *_PROC_PROCESS_NAMESPACE_CODES.values(), 'helper_base_proc_process_namespaces_ambiguous',
     'helper_base_process_oom', 'helper_base_process_nonzero', 'helper_base_process_running',
     'helper_base_process_dead', 'helper_base_process_exited_zero',
     'helper_base_process_not_started', 'helper_base_process_not_started_nonzero',
@@ -286,14 +301,27 @@ def _proc_subpath_codes(paths):
     return matched
 
 
+def _proc_process_namespace_codes(paths):
+    """Map namespace leaves without retaining or returning their process IDs."""
+    matched = set()
+    for path in paths:
+        match = _PROC_PROCESS_NAMESPACE_PATTERN.fullmatch(path)
+        if match is not None:
+            code = _PROC_PROCESS_NAMESPACE_CODES.get(match.group(1))
+            if code is not None:
+                matched.add(code)
+    return matched
+
+
 def _state_error(error):
     """Reduce a private Engine state error to a fixed non-secret family."""
     classified = _start_error(error)
     if classified != 'fixture_command_exit_failed':
         return classified
     folded = error.lower()
+    message = _PATH_TOKEN.sub(b'', folded)
     matched = {code for code, patterns in _STATE_ERROR_PATTERNS.items()
-               if any(pattern in folded for pattern in patterns)}
+               if any(pattern in message for pattern in patterns)}
     if len(matched) == 1:
         classified = matched.pop()
         if classified == 'helper_base_path_failed':
@@ -309,8 +337,15 @@ def _state_error(error):
                     return relation
                 cooccurrence = _PATH_COOCCURRENCE_CODES.get(frozenset(locations))
                 if cooccurrence == 'helper_base_engine_proc_paths_observed':
-                    proc_paths = _proc_subpath_codes(_PATH_TOKEN.findall(folded))
+                    paths = _PATH_TOKEN.findall(folded)
+                    proc_paths = _proc_subpath_codes(paths)
                     if len(proc_paths) == 1:
+                        if proc_paths == {'helper_base_proc_process_namespace_observed'}:
+                            namespaces = _proc_process_namespace_codes(paths)
+                            if len(namespaces) == 1:
+                                return namespaces.pop()
+                            if namespaces:
+                                return 'helper_base_proc_process_namespaces_ambiguous'
                         return proc_paths.pop()
                     if proc_paths:
                         return 'helper_base_proc_subpaths_ambiguous'
