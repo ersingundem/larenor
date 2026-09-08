@@ -30,8 +30,8 @@ def rows(c):
     # Evaluate lengths/types inside SQLite before materializing any attacker-sized
     # TEXT/BLOB. The keyed state is checked only after these allocation bounds.
     bounds = c.execute("SELECT COUNT(*), COALESCE(SUM(CASE WHEN "
-        "typeof(resource_id)='text' AND length(resource_id)=32 AND resource_id NOT GLOB '*[^0-9a-f]*' "
-        "AND typeof(binding_id)='text' AND length(binding_id)=32 AND binding_id NOT GLOB '*[^0-9a-f]*' "
+        "typeof(resource_id)='text' AND length(CAST(resource_id AS BLOB))=32 AND resource_id NOT GLOB '*[^0-9a-f]*' "
+        "AND typeof(binding_id)='text' AND length(CAST(binding_id AS BLOB))=32 AND binding_id NOT GLOB '*[^0-9a-f]*' "
         "AND typeof(revision)='integer' AND revision>0 "
         "AND typeof(nonce)='blob' AND length(nonce)=12 "
         "AND typeof(ciphertext)='blob' AND length(ciphertext) BETWEEN 16 AND ? "
@@ -48,7 +48,7 @@ def rows(c):
 def validate(c, key, scope):
     values = rows(c)
     bounds = c.execute("SELECT COUNT(*), COALESCE(SUM(CASE WHEN singleton=1 "
-        "AND typeof(authentication_tag)='text' AND length(authentication_tag)=64 "
+        "AND typeof(authentication_tag)='text' AND length(CAST(authentication_tag AS BLOB))=64 "
         "AND authentication_tag NOT GLOB '*[^0-9a-f]*' THEN 0 ELSE 1 END),0) "
         "FROM home_assistant_state").fetchone()
     if bounds[0] != 1 or bounds[1]:
@@ -67,7 +67,7 @@ def update(c, key, scope):
 def migrate_home_assistant(c, scope, key):
     try:
         marker = c.execute("SELECT value FROM metadata WHERE key='home_assistant_schema'").fetchone()
-        bounds = c.execute("SELECT COUNT(*),COALESCE(MAX(length(name)),0),COALESCE(MAX(length(sql)),0) "
+        bounds = c.execute("SELECT COUNT(*),COALESCE(MAX(length(CAST(name AS BLOB))),0),COALESCE(MAX(length(CAST(sql AS BLOB))),0) "
             "FROM sqlite_master WHERE name GLOB 'home_assistant_*' "
             "OR tbl_name IN ('home_assistant_bindings','home_assistant_state')").fetchone()
         if bounds[0] > 4 or bounds[1] > 128 or bounds[2] > 2048:
