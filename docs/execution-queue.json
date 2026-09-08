@@ -394,6 +394,7 @@
         "docs/jellyfin-base-start-process-diagnostics-2026-09-08.md",
         "docs/jellyfin-base-start-private-stderr-2026-09-08.md",
         "docs/jellyfin-base-start-state-diagnostics-2026-09-08.md",
+        "docs/jellyfin-base-zero-state-diagnostics-2026-09-08.md",
         "docs/volume-create-fixture-lifecycle-repair-2026-09-08.md"
       ],
       "scope": "installAvailable=false; Client kaynak adı/Docker seçenekleri üretmez. Gerçek ev sunucusuna işlem yok.",
@@ -640,31 +641,31 @@
         },
         {
           "kind": "ci",
-          "ref": "https://github.com/ersingundem/larenor/actions/runs/34260536889",
-          "commit": "bd1a604ab46873a2fc967eb3806ca60562609690",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/34263828110",
+          "commit": "18b46234498c1a9b380b8258c33a926386f47111",
           "state": "completed",
           "result": "failed",
-          "label": "Native7: iki mimaride helper_base_start/fixture_command_exit_failed; tek log70222byte/SHA8ac144f5. Private stderr bilinen aileyle eşleşmedi; container durumu açık."
+          "label": "Native8: arm64 helper_base_wait_failed, amd64 fixture_command_exit_failed; makbuz yok. Tek log70190byte/SHA27dbd3a1; exact zero-state açık."
         },
         {
           "kind": "test",
-          "ref": "docs/jellyfin-base-start-state-diagnostics-2026-09-08.md",
-          "commit": "dd49b4dabdbd0eb9ac8166c364db1d1cb8ff7774",
+          "ref": "docs/jellyfin-base-zero-state-diagnostics-2026-09-08.md",
+          "commit": "415aa7ba294f3c3bf075a27d0c68c74afa008f40",
           "state": "completed",
           "result": "passed",
-          "label": "Owned .State tanısı:15RED→15GREEN,249Jellyfin/215politikaPASS,%98 dal dahil; tek inspect,10s/64KiB,tek start ve ham veri yok."
+          "label": "Zero-state tanısı:2RED→2GREEN;15state/251Jellyfin/215politikaPASS. exited0 ve created0 olgusal kapalı kod; bilinmeyen hata fallback."
         },
         {
           "kind": "review",
-          "ref": "docs/jellyfin-base-start-state-diagnostics-2026-09-08.md",
-          "commit": "dd49b4dabdbd0eb9ac8166c364db1d1cb8ff7774",
+          "ref": "docs/jellyfin-base-zero-state-diagnostics-2026-09-08.md",
+          "commit": "415aa7ba294f3c3bf075a27d0c68c74afa008f40",
           "state": "completed",
           "result": "passed",
-          "label": "Bağımsız CLEAR: signal iddiası ve test argv P2'leri kapalı; same-owned ID/socket, no-retry, state redaksiyonu, fallback/cancellation ve installAvailable=false korundu."
+          "label": "Bağımsız CLEAR: strict int0/empty error/exact state; unknown veya bozuk state fallback. Başarı, build, retry, izin veya installAvailable kapısı açılmıyor."
         }
       ],
       "completionCommit": null,
-      "reason": "Native7 run34260536889 exactbd1a604 üzerinde iki mimaride helper_base_start/fixture_command_exit_failed verdi; tek log70222byte/SHA8ac144f5 ve private stderr eşleşmesi yok. Owned .State tanısı dd49b4d:15RED→15GREEN,249Jellyfin/215politikaPASS,%98kapsam, ikiP2kapalı/finalCLEAR. Tek start sonrası aynı owned ID/socket için bir10s/64KiB inspect; ham veri/retry/grant yok. Native8 kapalı durumu ayıracak; installAvailable=false."
+      "reason": "Native8 run34263828110 exact18b4623: arm64 wait_failed, amd64 generic exit; tek log70190byte/SHA27dbd3a1, başarı makbuzu yok. Zero-state415aa7b:2RED→GREEN,15state/251Jellyfin/215politikaPASS; exited0/not-started olgusal kod, unknown fallback. Tek start ve owned10s/64KiB inspect/redaksiyon/cleanup aynı. Native9 exact durumu ayıracak; installAvailable=false."
     },
     {
       "id": "S06.3e",

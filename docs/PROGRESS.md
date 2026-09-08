@@ -33,7 +33,7 @@ Gerçek ev kurulumu ve fiziksel tablet kabulü henüz yapılmadı.
 | S08.6 — kişi, oda, kaynak ve izin yönetimi | **Kabul edildi**, aynı yayın | Merkezi HA akışının yetki temeli hazır |
 | S08.7 — merkezi Home Assistant adaptörü | **Devam ediyor**; typed durum, kalıcı switch komutu/makbuzu ve açık Direct→Core aktarımı main içinde | Exact-source birleşik CI; sonra geniş HA varlık/servis kapsamı |
 | B5.1 — ortak tablet tasarımı | Services/hesap IME paketi APK116 ile kabul edildi; S08.7 komut ve aktarım yüzeyleri yerel tablet matrisinden geçti | Exact-source Android CI ve kalan ortak tablet yüzeyleri |
-| S06.3d — kalıcı depolama | Yedinci native koşu iki mimaride eşleşmeyen `start --attach` nonzero verdi; tek sahipli `.State` tanısı yerelde hazır | Sekizinci native koşuda container durum ailesini ayır |
+| S06.3d — kalıcı depolama | Sekizinci native koşu arm64 wait, amd64 genel exit verdi; exited-zero/not-started ayrımı yerelde hazır | Dokuzuncu native koşuda exact container durumunu ayır |
 
 S08.7 üç sonlu teslimden oluşur: **kaynak bağlama ve typed durum → komut ve
 kalıcı sonuç → açık Direct aktarımı**. Üç yerel dilim de squash yapılmadan
@@ -183,8 +183,19 @@ alanını 10 saniye/64 KiB sınırında okuyan tanı yerelde hazır: 15 RED→15
 iddiası taşımayan kodlara dönüşür; bozuk/okunamayan durum eski kapalı kodu
 korur. İki inceleme P2'si kapatıldı ve final bağımsız inceleme CLEAR.
 [State tanısı](jellyfin-base-start-state-diagnostics-2026-09-08.md).
-Sekizinci native koşu yalnız bu kapalı durumu gözlemleyecek; tanı sonucu tek
-başına Engine/install kabulü sayılmayacak.
+Bu state tanısı tek başına Engine/install kabulü sayılmadı.
+Sekizinci koşu `34263828110`, exact `18b4623` üzerinde arm64'te
+`helper_base_wait_failed`, amd64'te `fixture_command_exit_failed` verdi; başarı
+makbuzu yok. Tek indirilen 70.190 bayt logun SHA-256 değeri
+`27dbd3a1724475af715faa1e2c4cd5e4d3c5350a2b0cca92aeb91a28611b4a82`.
+Bu mimariye göre farklı sonuç tek ortak neden iddiasını desteklemiyor. Mevcut
+bounded state gözleminde kalan iki olgusal sonuç yerelde ayrıldı: boş hata ile
+`exited/0` ve `created/0`. İki gerçek RED kapandı; 15 state, toplam 251
+Jellyfin ve 215 politika testi geçti. Tek start/inspect, redaksiyon ve cleanup
+değişmedi; bağımsız final inceleme CLEAR.
+[Zero-state tanısı](jellyfin-base-zero-state-diagnostics-2026-09-08.md).
+Dokuzuncu native koşu bu iki durumu ayıracak; sonuç yine tek başına kurulum
+kabulü değildir.
 Gerçek Engine ve kurulum kabulü hâlâ açık; `installAvailable=false`.
 
 ## Canlı takip ve sıradaki işler
