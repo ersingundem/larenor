@@ -33,7 +33,24 @@ _CODES = {'storage_characterization_failed','native_ephemeral_ci_required','fixt
     'owned_daemon_lost','owned_daemon_unavailable','owned_cleanup_failed','fixture_image_unresolved',
     'fixture_volume_unresolved','fixture_protocol_failed','jellyfin_startup_timeout',
     'unexpected_image_volume','unexpected_initial_write_access','restart_identity_changed','fixture_source_changed'}
-_DIAGNOSTIC_CODES = _CODES | {'invalid_image_preparation', 'invalid_image_binding',
+# Quiet legacy build can emit buffered progress followed by its final error.
+# Keep the complete diagnostic input bounded; never export or persist it.
+_BUILD_STDERR_LIMIT = 65536
+_BUILD_ERROR_PATTERNS = {
+    'helper_build_manifest_missing': (b'manifest unknown',),
+    'helper_build_platform_missing': (b'no matching manifest for ', b'no match for platform in manifest'),
+    'helper_build_registry_limit': (b'toomanyrequests:', b'429 too many requests'),
+    'helper_build_registry_auth': (b'pull access denied', b'unauthorized: authentication required'),
+    'helper_build_runtime_failed': (b'failed to create shim task', b'oci runtime create failed', b'runc create failed'),
+    'helper_build_context_failed': (b'copy failed:', b'failed to read dockerfile'),
+    'helper_build_tls_failed': (b'x509:', b'tls handshake timeout'),
+    'helper_build_dns_failed': (b'no such host', b'temporary failure in name resolution'),
+    'helper_build_storage_failed': (b'no space left on device', b'read-only file system'),
+    'helper_build_step_failed': (b'returned a non-zero code:',),
+}
+_DIAGNOSTIC_CODES = _CODES | set(_BUILD_ERROR_PATTERNS) | {
+    'fixture_command_stderr_limit', 'helper_build_error_ambiguous',
+    'invalid_image_preparation', 'invalid_image_binding',
     'fixture_command_exit_failed', 'fixture_command_output_limit', 'fixture_command_timeout',
     'fixture_command_spawn_failed', 'fixture_command_io_failed',
     'image_cancelled', 'image_pull_not_authorized', 'image_observation_unavailable',
@@ -46,6 +63,8 @@ _DIAGNOSTIC_CODES = _CODES | {'invalid_image_preparation', 'invalid_image_bindin
     'storage_characterization_evidence_invalid'}
 _PHASES = {'launcher', 'launch_validation', 'source_capture', 'daemon_start', 'daemon_cleanup',
     'characterization', 'image_prepare', 'volume_prepare', 'image_inspect', 'helper_stage',
+    'helper_base_binding', 'helper_base_pull', 'helper_base_inspect', 'helper_base_create',
+    'helper_base_created', 'helper_base_start', 'helper_base_result',
     'helper_build', 'helper_inspect', 'helper_seed', 'initial_permissions', 'bootstrap_check',
     'bootstrap_initialize', 'initialized_permissions', 'sentinel_write', 'container_create',
     'container_inspect', 'container_start', 'initial_health', 'initial_identity', 'initial_data',
@@ -125,30 +144,51 @@ def _signal_group(process, sig):
         pass
 
 
+def _build_error(stderr):
+    """Diagnostic signature only, never authority or raw Docker output."""
+    folded = stderr.lower()
+    matched = {code for code, patterns in _BUILD_ERROR_PATTERNS.items()
+               if any(pattern in folded for pattern in patterns)}
+    if len(matched) == 1:
+        return matched.pop()
+    return 'helper_build_error_ambiguous' if matched else 'fixture_command_exit_failed'
+
+
 def bounded_command(arguments, *, environment, timeout=60, limit=65536, diagnose_failure=False):
-    """No shell/input/ambient secrets; cap bytes and kill/reap the owned child."""
+    """Private bounded pipes; only helper diagnostics drain stderr in memory."""
     require(type(diagnose_failure) is bool, 'fixture_command_failed')
     def check(value, code):
         require(value, code if diagnose_failure else 'fixture_command_failed')
     process = None
+    stderr = bytearray()
     deadline = time.monotonic() + timeout
     try:
         process = subprocess.Popen(arguments, env=environment, stdin=subprocess.DEVNULL,
-            stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, bufsize=0, start_new_session=True)
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE if diagnose_failure else subprocess.DEVNULL,
+            bufsize=0, start_new_session=True)
         result = bytearray()
         with selectors.DefaultSelector() as selector:
-            selector.register(process.stdout, selectors.EVENT_READ)
-            while True:
+            selector.register(process.stdout, selectors.EVENT_READ, 'stdout')
+            if diagnose_failure:
+                selector.register(process.stderr, selectors.EVENT_READ, 'stderr')
+            while selector.get_map():
                 remaining = deadline - time.monotonic()
-                check(remaining > 0 and selector.select(remaining), 'fixture_command_timeout')
-                chunk = os.read(process.stdout.fileno(), limit - len(result) + 1)
-                if not chunk:
-                    break
-                result.extend(chunk)
-                check(len(result) <= limit, 'fixture_command_output_limit')
+                check(remaining > 0, 'fixture_command_timeout')
+                ready = selector.select(remaining)
+                check(ready, 'fixture_command_timeout')
+                for key, _ in ready:
+                    buffer, bound, code = ((result, limit, 'fixture_command_output_limit')
+                        if key.data == 'stdout' else (stderr, _BUILD_STDERR_LIMIT, 'fixture_command_stderr_limit'))
+                    chunk = os.read(key.fd, bound - len(buffer) + 1)
+                    if not chunk:
+                        selector.unregister(key.fileobj)
+                        continue
+                    buffer.extend(chunk)
+                    check(len(buffer) <= bound, code)
         remaining = deadline - time.monotonic()
         check(remaining > 0, 'fixture_command_timeout')
-        check(process.wait(timeout=remaining) == 0, 'fixture_command_exit_failed')
+        check(process.wait(timeout=remaining) == 0,
+              _build_error(stderr) if diagnose_failure else 'fixture_command_exit_failed')
         return bytes(result)
     except subprocess.TimeoutExpired:
         raise SmokeError('fixture_command_timeout' if diagnose_failure else 'fixture_command_failed') from None
@@ -156,6 +196,7 @@ def bounded_command(arguments, *, environment, timeout=60, limit=65536, diagnose
         code = 'fixture_command_spawn_failed' if process is None else 'fixture_command_io_failed'
         raise SmokeError(code if diagnose_failure else 'fixture_command_failed') from None
     finally:
+        stderr.clear()
         if process is not None:
             try:
                 # An exited parent can leave descendants holding its pipe open.
@@ -164,6 +205,8 @@ def bounded_command(arguments, *, environment, timeout=60, limit=65536, diagnose
                 process.wait(timeout=5)
             finally:
                 process.stdout.close()
+                if process.stderr is not None:
+                    process.stderr.close()
 
 
 def daemon_command(root):
@@ -417,6 +460,73 @@ def _decoded(raw):
         raise SmokeError('fixture_protocol_failed') from None
 
 
+
+def _base_container(value, image_id, container_id, *, finished):
+    require(type(value) is dict and value.get('Id') == container_id
+        and value.get('Image') == image_id, 'fixture_protocol_failed')
+    config, host, state = value.get('Config'), value.get('HostConfig'), value.get('State')
+    require(all(type(v) is dict for v in (config, host, state)), 'fixture_protocol_failed')
+    require(config.get('User') == '0:0'
+        and config.get('Entrypoint') == ['/usr/local/bin/python']
+        and config.get('Cmd') == ['-I','-c','print("larenor-helper-base-ok-v1")']
+        and not config.get('Volumes') and value.get('Mounts') == []
+        and host.get('NetworkMode') == 'none' and host.get('ReadonlyRootfs') is True
+        and host.get('Privileged') is False and host.get('CapDrop') == ['ALL']
+        and not any(host.get(k) for k in ('CapAdd','Binds','Mounts','VolumesFrom','PortBindings')),
+        'fixture_protocol_failed')
+    require(state.get('Status') == ('exited' if finished else 'created')
+        and all(state.get(k) is False for k in ('Running','Paused','Dead','OOMKilled'))
+        and type(state.get('ExitCode')) is int and state['ExitCode'] == 0,
+        'fixture_protocol_failed')
+
+
+def _helper_base(daemon, context, binding):
+    """Isolate a minimal native process from legacy build; never a bootstrap grant.
+
+    One probe belongs to the fresh daemon and is removed by its whole-namespace
+    cleanup. A failed/uncertain create or start is never retried or adopted.
+    """
+    with diagnostic_phase('helper_base_binding'):
+        check_source(binding)
+        check_staged(context, binding)
+        lines = _source_bytes(context/'server/Dockerfile.volume-bootstrap').decode('ascii').splitlines()
+        bases = [line for line in lines if re.match(r'\s*FROM\s', line, re.IGNORECASE)]
+        require(len(bases) == 1, 'fixture_source_changed')
+        match = re.fullmatch(r'FROM (python:[0-9]+\.[0-9]+\.[0-9]+-slim-bookworm@sha256:[0-9a-f]{64})', bases[0])
+        require(match is not None, 'fixture_source_changed')
+        reference = match.group(1)
+    with diagnostic_phase('helper_base_pull'):
+        daemon.docker(['pull','--quiet','--platform='+daemon.platform,reference], timeout=180, limit=4096)
+    with diagnostic_phase('helper_base_inspect'):
+        value = _decoded(daemon.docker(['image','inspect','--format','{{json .}}',reference], limit=65536))
+        require(type(value) is dict and type(value.get('Id')) is str
+            and _HASH.fullmatch(value['Id']) and value.get('Os') == 'linux'
+            and value.get('Architecture') == daemon.platform.split('/')[1], 'fixture_protocol_failed')
+        config, digests = value.get('Config'), value.get('RepoDigests')
+        require(type(config) is dict and not config.get('Volumes')
+            and type(digests) is list and any(type(d) is str and d.endswith('@'+reference.split('@')[1])
+                for d in digests), 'fixture_protocol_failed')
+        image_id = value['Id']
+    with diagnostic_phase('helper_base_create'):
+        raw = daemon.docker(['create','--name=larenor-helper-base-probe','--pull=never','--network=none',
+            '--read-only','--cap-drop=ALL','--security-opt=no-new-privileges','--user=0:0',
+            '--pids-limit=32','--memory=64m','--restart=no','--entrypoint=/usr/local/bin/python',
+            image_id,'-I','-c','print("larenor-helper-base-ok-v1")'], limit=128)
+        container_id = raw.decode('ascii').strip()
+        require(re.fullmatch(r'[0-9a-f]{64}', container_id), 'fixture_protocol_failed')
+    def inspect(finished):
+        value = _decoded(daemon.docker(['container','inspect','--format','{{json .}}',container_id], limit=65536))
+        _base_container(value, image_id, container_id, finished=finished)
+    with diagnostic_phase('helper_base_created'):
+        inspect(False)
+    with diagnostic_phase('helper_base_start'):
+        require(daemon.docker(['start','--attach',container_id], timeout=20, limit=128)
+            == b'larenor-helper-base-ok-v1\n', 'fixture_protocol_failed')
+    with diagnostic_phase('helper_base_result'):
+        inspect(True)
+        check_source(binding)
+        check_staged(context, binding)
+
 def _helper(daemon, image_id, mode, *, target=None, bootstrap=False, network='none'):
     args = ['run','--rm','--network='+network,'--read-only','--cap-drop=ALL',
         '--security-opt=no-new-privileges','--pids-limit=32','--memory=64m',
@@ -482,6 +592,7 @@ def characterize(daemon, *, source=None, images=None, volumes=None, checkout_bin
         context = stage_context(daemon.root, checkout_binding)
     commit, hashes = checkout_binding
     labels = source_labels(commit, dict(hashes))
+    _helper_base(daemon, context, checkout_binding)
     with diagnostic_phase('helper_build'):
         daemon.docker(['build','--pull','--quiet','--network=none',
             *['--label='+key+'='+value for key,value in labels.items()], '--file',

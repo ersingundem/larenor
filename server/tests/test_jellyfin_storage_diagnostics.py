@@ -42,7 +42,8 @@ def test_actual_failure_phase_survives_cleanup_without_success_or_replay(launche
     output = capsys.readouterr()
     assert output.out == ''
     assert output.err == f'storage_characterization_failed phase={phase} code={code}\n'
-    assert sum(call[0] == 'create' for call in daemon.calls) <= 1
+    assert sum(call[0] == 'create' and '--name=larenor-helper-base-probe' in call for call in daemon.calls) <= 1
+    assert sum(call[0] == 'create' and '--name=larenor-helper-base-probe' not in call for call in daemon.calls) <= 1
     assert sum(call[0] == 'restart' for call in daemon.calls) <= 1
 
 

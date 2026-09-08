@@ -221,10 +221,36 @@ def protocol(tmp_path, monkeypatch, request):
         platform = 'linux/amd64'
         fault = None
         restarted = False
+        base_started = False
         calls = []
         seen = {}
         def docker(self, args, **kwargs):
             self.calls.append(list(args))
+            reference = next(line.split()[1] for line in
+                (m.REPOSITORY/'server/Dockerfile.volume-bootstrap').read_text().splitlines()
+                if line.startswith('FROM '))
+            if args[0] == 'pull':
+                assert args == ['pull','--quiet','--platform='+self.platform,reference]
+                return b'docker.io/library/python:canonical-pull-output\n'
+            if args[:2] == ['image','inspect'] and args[-1] == reference:
+                return json.dumps({'Id':'sha256:'+'e'*64,'Os':'linux',
+                    'Architecture':self.platform.split('/')[1],
+                    'RepoDigests':['python@'+reference.split('@')[1]],'Config':{'Volumes':None}}).encode()
+            if args[0] == 'create' and '--name=larenor-helper-base-probe' in args:
+                assert '--pull=never' in args and '--network=none' in args
+                assert not any(a.startswith(('--mount','--volume','--publish')) for a in args)
+                return ('d'*64+'\n').encode()
+            if args == ['start','--attach','d'*64]:
+                self.base_started = True
+                return b'larenor-helper-base-ok-v1\n'
+            if args[:2] == ['container','inspect'] and args[-1] == 'd'*64:
+                return json.dumps({'Id':'d'*64,'Image':'sha256:'+'e'*64,
+                    'Config':{'User':'0:0','Entrypoint':['/usr/local/bin/python'],
+                        'Cmd':['-I','-c','print("larenor-helper-base-ok-v1")']},
+                    'HostConfig':{'NetworkMode':'none','ReadonlyRootfs':True,'Privileged':False,
+                        'CapDrop':['ALL'],'CapAdd':None,'Binds':None,'Mounts':None,'VolumesFrom':None},
+                    'Mounts':[], 'State':{'Status':'exited' if self.base_started else 'created',
+                        'Running':False,'Paused':False,'Dead':False,'OOMKilled':False,'ExitCode':0}}).encode()
             if args[0] == 'build':
                 (tmp_path/'helper.iid').write_text('sha256:'+'f'*64)
                 return b''
@@ -282,10 +308,12 @@ def test_complete_protocol_uses_two_nocopy_mounts_and_one_restart(protocol):
     result = m.characterize(docker, source=source, images=images, volumes=object())
     assert result['result'] == 'characterized' and result['volumeCount'] == 2
     assert result['installAvailable'] is False and result['bootstrapAccountConfigured'] is False
-    assert sum(c[0]=='create' for c in docker.calls) == 1
-    assert sum(c[0]=='start' for c in docker.calls) == 1
+    assert sum(c[0]=='create' and '--name=larenor-helper-base-probe' in c for c in docker.calls) == 1
+    assert sum(c == ['start','--attach','d'*64] for c in docker.calls) == 1
+    assert sum(c[0]=='create' and '--name=larenor-helper-base-probe' not in c for c in docker.calls) == 1
+    assert sum(c == ['start','c'*64] for c in docker.calls) == 1
     assert sum(c[0]=='restart' for c in docker.calls) == 1
-    creates = next(c for c in docker.calls if c[0]=='create')
+    creates = next(c for c in docker.calls if c[0]=='create' and '--name=larenor-helper-base-probe' not in c)
     assert len([a for a in creates if a.startswith('--mount=')]) == 2
     assert '--network=none' in creates and '--user=1000:1000' in creates
     assert not any(a.startswith(('--publish','--privileged','--volume=')) for c in docker.calls for a in c)
@@ -299,8 +327,10 @@ def test_lost_or_conflicting_reply_never_repeats_a_mutation(protocol, fault):
     docker.fault = fault
     with pytest.raises(m.SmokeError):
         m.characterize(docker, source=source, images=images, volumes=object())
-    assert sum(c[0]=='create' for c in docker.calls) <= 1
-    assert sum(c[0]=='start' for c in docker.calls) <= 1
+    assert sum(c[0]=='create' and '--name=larenor-helper-base-probe' in c for c in docker.calls) == 1
+    assert sum(c == ['start','--attach','d'*64] for c in docker.calls) == 1
+    assert sum(c[0]=='create' and '--name=larenor-helper-base-probe' not in c for c in docker.calls) <= 1
+    assert sum(c == ['start','c'*64] for c in docker.calls) <= 1
     assert sum(c[0]=='restart' for c in docker.calls) <= 1
     assert not any(c[0] in {'rm','volume','system'} for c in docker.calls)
 
@@ -537,7 +567,9 @@ def test_build_or_final_drift_cannot_publish_attestation(copied_checkout, where)
     with pytest.raises(m.SmokeError, match='^fixture_source_changed$'):
         m.characterize(docker, source=source, images=images, volumes=object())
     if where != 'late_checkout':
-        assert len(docker.calls) == 1 and docker.calls[0][0] == 'build'
+        assert [call[0] for call in docker.calls] == ['pull','image','create','container','start','container','build']
+        assert '--name=larenor-helper-base-probe' in docker.calls[2]
+        assert docker.calls[4] == ['start','--attach','d'*64]
 
 
 def test_cli_binding_is_captured_before_daemon_start(copied_checkout, monkeypatch, capsys):

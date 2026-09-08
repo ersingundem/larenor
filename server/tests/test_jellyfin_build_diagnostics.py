@@ -22,7 +22,8 @@ def test_helper_build_distinguishes_real_child_failures_without_output_or_retry(
     processes = []
     builds = []
     def spawn(*args, **kwargs):
-        assert kwargs['stderr'] is smoke.subprocess.DEVNULL
+        expected = smoke.subprocess.PIPE if builds else smoke.subprocess.DEVNULL
+        assert kwargs['stderr'] is expected
         child = actual_spawn(*args, **kwargs)
         processes.append(child)
         return child
@@ -55,7 +56,11 @@ def test_helper_build_distinguishes_real_child_failures_without_output_or_retry(
     assert len(builds) == 1
     assert events == ['enter', 'cleanup']
     assert all(child.poll() is not None and child.stdout.closed for child in processes)
-    assert not any(call[0] in {'create', 'start', 'restart'} for call in daemon.calls)
+    assert all(child.stderr is None or child.stderr.closed for child in processes)
+    assert sum(call[0] == 'create' and '--name=larenor-helper-base-probe' in call for call in daemon.calls) == 1
+    assert sum(call == ['start','--attach','d'*64] for call in daemon.calls) == 1
+    assert not any(call[0] == 'restart' or call == ['start','c'*64]
+        or (call[0] == 'create' and '--name=larenor-helper-base-probe' not in call) for call in daemon.calls)
     output = capsys.readouterr()
     assert output.out == ''
     assert output.err == f'storage_characterization_failed phase=helper_build code={code}\n'
@@ -65,7 +70,7 @@ def test_exact_output_limit_and_large_discarded_stderr_preserve_success():
     smoke = importlib.import_module('tool.jellyfin_storage_smoke')
     program = 'import os; os.write(2,b"synthetic-private-stderr"*65536); os.write(1,b"x"*256)'
     output = smoke.bounded_command([sys.executable, '-c', program],
-        environment={}, timeout=3, limit=256, diagnose_failure=True)
+        environment={}, timeout=3, limit=256, diagnose_failure=False)
     assert output == b'x'*256
 
 
