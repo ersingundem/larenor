@@ -81,6 +81,68 @@ final class CoreHaApi {
     _check();
     return CoreHaSnapshot.fromJson(_envelope(raw, 'snapshot'), target: target);
   });
+  Future<CoreHaCommandReceipt> command({
+    required String requestId,
+    required CoreHaCommandAction action,
+    required CoreHaSnapshot snapshot,
+  }) => _operation(() async {
+    if (!RegExp(r'^[0-9a-f]{32}$').hasMatch(requestId) ||
+        !target.canWrite ||
+        !snapshot.projection.commandAvailable ||
+        snapshot.resourceRevision != target.revision ||
+        snapshot.aclRevision != target.aclRevision) {
+      throw const LarenorServerException('invalid_request');
+    }
+    final actionValue = switch (action) {
+      CoreHaCommandAction.turnOn => 'turn_on',
+      CoreHaCommandAction.turnOff => 'turn_off',
+    };
+    final raw = await _transport.request(
+      'POST',
+      '$_path/commands',
+      token: _token,
+      body: {
+        'schemaVersion': 1,
+        'requestId': requestId,
+        'action': actionValue,
+        'expectedBindingRevision': snapshot.bindingRevision,
+        'expectedResourceRevision': snapshot.resourceRevision,
+        'expectedAclRevision': snapshot.aclRevision,
+      },
+    );
+    _check();
+    final receipt = CoreHaCommandReceipt.fromJson(
+      _envelope(raw, 'receipt'),
+      target: target,
+    );
+    if (receipt.requestId != requestId ||
+        receipt.action != action ||
+        receipt.bindingId != snapshot.bindingId ||
+        receipt.bindingRevision != snapshot.bindingRevision) {
+      throw const LarenorServerException('invalid_response');
+    }
+    return receipt;
+  });
+  Future<CoreHaCommandReceipt> commandResult(String requestId) =>
+      _operation(() async {
+        if (!RegExp(r'^[0-9a-f]{32}$').hasMatch(requestId)) {
+          throw const LarenorServerException('invalid_request');
+        }
+        final raw = await _transport.request(
+          'GET',
+          '$_path/commands/$requestId',
+          token: _token,
+        );
+        _check();
+        final receipt = CoreHaCommandReceipt.fromJson(
+          _envelope(raw, 'receipt'),
+          target: target,
+        );
+        if (receipt.requestId != requestId) {
+          throw const LarenorServerException('invalid_response');
+        }
+        return receipt;
+      });
   Future<CoreHaBinding?> binding() => _operation(() async {
     try {
       final raw = await _transport.request(

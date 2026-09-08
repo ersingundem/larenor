@@ -28,10 +28,10 @@ HomeResourceRecord target() => HomeResourceRecord.fromJson(
   resourceJson(),
   expectedContext: ServerContext.fromJson(scopeJson()),
 );
-Map<String, dynamic> projectionJson() => {
+Map<String, dynamic> projectionJson({bool commandAvailable = true}) => {
   'kind': 'switch',
   'state': 'off',
-  'commandAvailable': false,
+  'commandAvailable': commandAvailable,
 };
 Map<String, dynamic> bindingJson() => {
   'schemaVersion': 1,
@@ -54,11 +54,27 @@ Map<String, dynamic> snapshotJson() => {
   'remainingTtlMs': 5000,
   'projection': projectionJson(),
 };
+Map<String, dynamic> commandReceiptJson() => {
+  'schemaVersion': 1,
+  'requestId': '7' * 32,
+  'ref': refJson(),
+  'bindingId': '4' * 32,
+  'bindingRevision': 1,
+  'actorId': '8' * 32,
+  'action': 'turn_on',
+  'dispatchState': 'accepted',
+  'providerAccepted': true,
+  'observedProjection': projectionJson(),
+  'observationMatchesTarget': false,
+  'causalityVerified': false,
+  'createdAt': '2026-09-08T00:00:00Z',
+  'completedAt': '2026-09-08T00:00:01Z',
+};
 Map<String, dynamic> previewJson() => {
   'id': '6' * 32,
   'expiresInMs': 60000,
   'binding': bindingJson(),
-  'projection': projectionJson(),
+  'projection': projectionJson(commandAvailable: false),
 };
 Map<String, dynamic> copy(Map<String, dynamic> raw) =>
     jsonDecode(jsonEncode(raw)) as Map<String, dynamic>;
@@ -66,25 +82,28 @@ Matcher failure(String code) =>
     isA<LarenorServerException>().having((e) => e.code, 'static code', code);
 
 void main() {
-  test('closed switch read projection never provides a command', () {
-    for (final state in CoreHaSwitchState.values) {
-      final p = CoreHaProjection.fromJson({
-        ...projectionJson(),
-        'state': state.name,
-      });
-      expect(p.state, state);
-      expect(p.commandAvailable, isFalse);
-    }
-    for (final invalid in [0, null]) {
-      expect(
-        () => CoreHaProjection.fromJson({
+  test(
+    'closed switch projection accepts only a literal command capability',
+    () {
+      for (final state in CoreHaSwitchState.values) {
+        final p = CoreHaProjection.fromJson({
           ...projectionJson(),
-          'commandAvailable': invalid,
-        }),
-        throwsA(failure('invalid_response')),
-      );
-    }
-  });
+          'state': state.name,
+        });
+        expect(p.state, state);
+        expect(p.commandAvailable, isTrue);
+      }
+      for (final invalid in [0, null]) {
+        expect(
+          () => CoreHaProjection.fromJson({
+            ...projectionJson(),
+            'commandAvailable': invalid,
+          }),
+          throwsA(failure('invalid_response')),
+        );
+      }
+    },
+  );
   test('snapshot binds exact resource and bounded server freshness', () {
     final value = CoreHaSnapshot.fromJson(snapshotJson(), target: target());
     expect(value.bindingId, '4' * 32);
@@ -115,7 +134,6 @@ void main() {
     expect(value.toString(), 'CoreHaPreview');
   });
   for (final entry in <String, Object?>{
-    'commandAvailable': true,
     'kind': 'light',
     'state': 'unknown',
     'extra': 'private',
@@ -126,6 +144,40 @@ void main() {
           ...projectionJson(),
           entry.key: entry.value,
         }),
+        throwsA(failure('invalid_response')),
+      );
+    });
+  }
+  test(
+    'command receipt binds durable result to request, target and outcome',
+    () {
+      final value = CoreHaCommandReceipt.fromJson(
+        commandReceiptJson(),
+        target: target(),
+      );
+      expect(value.requestId, '7' * 32);
+      expect(value.action, CoreHaCommandAction.turnOn);
+      expect(value.dispatchState, CoreHaDispatchState.accepted);
+      expect(value.providerAccepted, isTrue);
+      expect(value.observationMatchesTarget, isFalse);
+      expect(value.toString(), 'CoreHaCommandReceipt');
+    },
+  );
+  for (final entry in <String, Object?>{
+    'requestId': 'UPPER',
+    'action': 'toggle',
+    'dispatchState': 'accepted-later',
+    'causalityVerified': true,
+    'providerAccepted': false,
+    'completedAt': null,
+    'extra': 'private',
+  }.entries) {
+    test('command receipt rejects inconsistent ${entry.key}', () {
+      expect(
+        () => CoreHaCommandReceipt.fromJson({
+          ...commandReceiptJson(),
+          entry.key: entry.value,
+        }, target: target()),
         throwsA(failure('invalid_response')),
       );
     });
