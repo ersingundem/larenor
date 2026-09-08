@@ -92,6 +92,12 @@ void main() {
     expect(c.canConfirm, isFalse);
     expect(h.requests.where((r) => r.url.path.endsWith('/binding-confirm')), isEmpty);
   });
+  testWidgets('expired preview is not exposed before its timer callback', (tester) async {
+    final h = HaHarness(); await h.mount(tester); final c = h.list!;
+    await c.prepare(c.services.single, 'switch.synthetic', isCurrent: () => true);
+    expect(c.preview, isNotNull); h.elapsed += const Duration(seconds: 61);
+    expect(c.preview, isNull); expect(c.stale, isTrue);
+  });
   testWidgets('uncertain confirm is consumed, explicit GET recovers without write retry', (tester) async {
     final h = HaHarness(); await h.mount(tester); final c = h.list!;
     await c.prepare(c.services.single, 'switch.synthetic', isCurrent: () => true);
