@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "title": "Larenor kalıcı yürütme kuyruğu",
-  "updatedAt": "2026-09-08",
+  "updatedAt": "2026-09-09",
   "selectedFeatures": [
     "F01",
     "F02",
@@ -410,38 +410,6 @@
       "evidence": [
         {
           "kind": "test",
-          "ref": "docs/managed-volume-proposal-implementation-2026-09-06.md",
-          "commit": "b5d416404e900aecbbf41068fdf7547942315d22",
-          "state": "completed",
-          "result": "passed",
-          "label": "Saf managed-volume önerisi:32 yeni/182 ilgili test;85satır/16dal100%, üretim82c9433 bağımsız CLEAR. Engine/HTTP bağlantısı ve gerçekkurulum yok; installAvailable=false."
-        },
-        {
-          "kind": "review",
-          "ref": "docs/managed-volume-proposal-implementation-2026-09-06.md",
-          "commit": "b5d416404e900aecbbf41068fdf7547942315d22",
-          "state": "completed",
-          "result": "passed",
-          "label": "Saf managed-volume önerisi:32 yeni/182 ilgili test;85satır/16dal100%, üretim82c9433 bağımsız CLEAR. Engine/HTTP bağlantısı ve gerçekkurulum yok; installAvailable=false."
-        },
-        {
-          "kind": "test",
-          "ref": "docs/managed-volume-observation-implementation-2026-09-06.md",
-          "commit": "4baa55a4ab3022378f705f72aafe496a949b689c",
-          "state": "completed",
-          "result": "passed",
-          "label": "Saf volume gözlemi:95 odaklı/282 ilgili test;124satır/24dal100%, üretim74f436c bağımsız CLEAR. labels_matched yalnız gözlem; durable journal/Engine dispatch/bootstrap açık, installAvailable=false."
-        },
-        {
-          "kind": "review",
-          "ref": "docs/managed-volume-observation-implementation-2026-09-06.md",
-          "commit": "4baa55a4ab3022378f705f72aafe496a949b689c",
-          "state": "completed",
-          "result": "passed",
-          "label": "Saf volume gözlemi:95 odaklı/282 ilgili test;124satır/24dal100%, üretim74f436c bağımsız CLEAR. labels_matched yalnız gözlem; durable journal/Engine dispatch/bootstrap açık, installAvailable=false."
-        },
-        {
-          "kind": "test",
           "ref": "docs/managed-volume-journal-implementation-2026-09-06.md",
           "commit": "f9a3faa485dd619d00107eb3cff8dc303cb9b124",
           "state": "completed",
@@ -663,10 +631,34 @@
           "state": "completed",
           "result": "passed",
           "label": "Bağımsız CLEAR: kapalı allowlist, ambiguous, Python3.12-3.14, tek inspect/no-retry/cancellation/redaksiyon sınırları korundu."
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/34276890501",
+          "commit": "282bcc1cbc97bd4a7020ccf019f32bac1c82dcf9",
+          "state": "completed",
+          "result": "failed",
+          "label": "Native12: iki mimaride helper_base_start/path_failed; makbuz yok. Tek log70199byte/SHA555a81b3; kapalı yol-konumu ayrımı açık."
+        },
+        {
+          "kind": "test",
+          "ref": "docs/jellyfin-base-path-location-diagnostics-2026-09-08.md",
+          "commit": "7f2a41e17e9baa3ea6557dd686351dd4fa10eeb1",
+          "state": "completed",
+          "result": "passed",
+          "label": "Path-location:7RED+iki review RED kapalı;43state/75state+stderr/279Jellyfin/218politikaPASS. Altı konum+ambiguous+generic ayrımı."
+        },
+        {
+          "kind": "review",
+          "ref": "docs/jellyfin-base-path-location-diagnostics-2026-09-08.md",
+          "commit": "7f2a41e17e9baa3ea6557dd686351dd4fa10eeb1",
+          "state": "completed",
+          "result": "passed",
+          "label": "Bağımsız CLEAR: missing/ENOTDIR ve bare runtime P2 kapalı; literal konum, ambiguous, tek inspect/no-retry/cancellation/redaksiyon korundu."
         }
       ],
       "completionCommit": null,
-      "reason": "Native11 run34273975969 exactbd03125: iki mimaride typed state_error_unclassified; tek log70209byte/SHA37654a4e, başarı makbuzu yok. Error-family35d05b6:5RED+bağımsız CLEAR,34state/66state+stderr/270Jellyfin/218politikaPASS; isolation/resource/path/identity/config ve ambiguous ayrımı. Tek start/owned10s64KiBinspect/redaksiyon/cleanup aynı. Native12 gözlemi ayıracak; installAvailable=false."
+      "reason": "Native12 run34276890501 exact282bcc1: iki mimaride path_failed; tek log70199byte/SHA555a81b3, başarı makbuzu yok. Path-location7f2a41e:7RED+iki reviewRED kapalı+bağımsız CLEAR,43state/75state+stderr/279Jellyfin/218politikaPASS; image/proc/sys/runtime/Engine/host+ambiguous+generic ayrımı. Tek start/owned10s64KiBinspect/redaksiyon/cleanup aynı. Native13 gözlemi ayıracak; installAvailable=false."
     },
     {
       "id": "S06.3e",

@@ -1,6 +1,6 @@
 # Larenor — güncel ilerleme ve iş kuyruğu
 
-**Son güncelleme: 8 Eylül 2026 — Native11 state-error sonucuna göre kapalı neden aileleri hazırlanıyor.**
+**Son güncelleme: 9 Eylül 2026 — Native12 path sonucuna göre kapalı yol konumları hazır.**
 
 ```text
 Kuyruk kabulü       ██░░░░░░░░░░░░░░░░░░  10/125 iş (%8; eşit ağırlıklı sayaç)
@@ -38,7 +38,7 @@ Gerçek ev kurulumu ve fiziksel tablet kabulü henüz yapılmadı.
 | S08.6 — kişi, oda, kaynak ve izin yönetimi | **Kabul edildi**, aynı yayın | Merkezi HA akışının yetki temeli hazır |
 | S08.7 — merkezi Home Assistant adaptörü | **Devam ediyor**; typed durum, kalıcı switch komutu/makbuzu ve açık Direct→Core aktarımı main içinde | Exact-source birleşik CI; sonra geniş HA varlık/servis kapsamı |
 | B5.1 — ortak tablet tasarımı | Services/hesap IME paketi APK116 ile kabul edildi; S08.7 komut ve aktarım yüzeyleri yerel tablet matrisinden geçti | Exact-source Android CI ve kalan ortak tablet yüzeyleri |
-| S06.3d — kalıcı depolama | Native11 iki mimaride sınıflandırılmamış, boş olmayan state error verdi; beş kapalı neden ailesi yerelde hazır | Exact-source Native12'de hata ailesini ayır |
+| S06.3d — kalıcı depolama | Native12 iki mimaride path failure verdi; altı kapalı yol-konumu ailesi yerelde hazır | Exact-source Native13'te yol ailesini ayır |
 
 S08.7 üç sonlu teslimden oluşur: **kaynak bağlama ve typed durum → komut ve
 kalıcı sonuç → açık Direct aktarımı**. Üç yerel dilim de squash yapılmadan
@@ -242,8 +242,19 @@ eşleşme ayrı kapalı ambiguous sonucuna gider. Beş gerçek RED kapandı; 34 
 inspect, redaksiyon, cleanup ve no-retry sınırları değişmedi; exact commit için
 bağımsız inceleme CLEAR.
 [State-error aileleri](jellyfin-base-state-error-families-2026-09-08.md).
-Native12 bu ailelerden birini ya da kalan kapalı sonucu ayıracak; sonuç yine tek
-başına kurulum kabulü değildir.
+On ikinci koşu `34276890501`, exact `282bcc1` üzerinde iki mimaride de
+`helper_base_start / helper_base_path_failed` verdi; başarı makbuzu yok. Tek
+indirilen 70.199 bayt logun SHA-256 değeri
+`555a81b36a5713364ffdef8a658be8d76a763f832e1ec678329c08ff199e0cba`.
+Bu sonuç image/proc/sys/runtime/Engine/host yol konumu ailelerine yerelde
+ayrıldı; çoklu eşleşme ambiguous, bilinmeyen konum generic kalıyor. İlk yedi
+RED ile incelemede bulunan “missing” ENOTDIR yanlış iddiası ve çıplak runtime
+adı P2'leri gerçek regresyonlarla kapandı. 43 state, 75 state+stderr, toplam 279
+Jellyfin ve 218 politika testi geçti. Tek bounded inspect, redaksiyon, cleanup
+ve no-retry sınırları değişmedi.
+Exact commit için bağımsız final inceleme CLEAR.
+[Yol-konumu tanısı](jellyfin-base-path-location-diagnostics-2026-09-08.md).
+Native13 yol ailesini ayıracak; sonuç yine tek başına kurulum kabulü değildir.
 Gerçek Engine ve kurulum kabulü hâlâ açık; `installAvailable=false`.
 
 ## Canlı takip ve sıradaki işler
