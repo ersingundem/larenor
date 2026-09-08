@@ -47,6 +47,25 @@ void main() {
     expect(h.list!.stale, isTrue);
     expect(h.requests.length, 2);
   });
+  testWidgets('same-context pending refresh hides data and adopts verified new pair without cancelling context GET', (tester) async {
+    final h = HaHarness(); await h.mount(tester, admin: false); final c = h.list!;
+    h.now = h.now.add(const Duration(minutes: 59, seconds: 40));
+    final context = Completer<ServerContext>(); h.auth.pendingContext = context;
+    final refresh = c.refresh(); await settle(tester);
+    expect(h.account.hasPendingContext, isTrue); expect(c.snapshot, isNull); expect(c.record, isNull);
+    expect(h.auth.refreshes, 1); context.complete(h.context); await refresh; await settle(tester);
+    expect(h.account.failure, isNull); expect(c.snapshot, isNotNull);
+    expect(h.requests.last.headers['authorization'], 'Bearer access-1');
+  });
+  testWidgets('higher ACL read remains a floor even when following snapshot fails', (tester) async {
+    final h = HaHarness(); await h.mount(tester, admin: false); final c = h.list!;
+    (h.f['resource'] as Map)['aclRevision'] = 2;
+    await c.refresh(); expect(c.failure, 'invalid_response'); expect(c.snapshot, isNull);
+    final snapshots = h.requests.where((r) => r.url.path.endsWith('/snapshot')).length;
+    (h.f['resource'] as Map)['aclRevision'] = 1;
+    await c.refresh(); expect(c.failure, 'invalid_response'); expect(c.record, isNull);
+    expect(h.requests.where((r) => r.url.path.endsWith('/snapshot')).length, snapshots);
+  });
   testWidgets('admin preview cancel has no confirmation, confirm consumes once', (tester) async {
     final h = HaHarness(); await h.mount(tester);
     final c = h.list!;

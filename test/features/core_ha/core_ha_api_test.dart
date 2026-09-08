@@ -112,7 +112,7 @@ void main() {
     var value = <String, dynamic>{'snapshot': snapshotJson(), 'rawAttributes': 'private'};
     final api = create((_) async => response(value));
     await expectLater(api.snapshot(), throwsA(failure('invalid_response')));
-    value = {'snapshot': 'x' * 300000};
+    value = {'snapshot': 'x' * (3 * 1024 * 1024)};
     await expectLater(api.snapshot(), throwsA(failure('invalid_response')));
   });
   test('actual ServerHTTP fixture agrees with every read/preview/confirm/cancel envelope', () async {
@@ -137,6 +137,7 @@ void main() {
     step = 'confirm'; final binding = await api.confirm(preview);
     step = 'binding'; expect((await api.binding())!.sameBinding(binding), isTrue);
     step = 'oneUse'; await expectLater(api.confirm(preview), throwsA(failure('ha_preview_invalid')));
+    step = 'memberAdminDenied'; await expectLater(api.binding(), throwsA(failure('forbidden')));
     for (final name in ['snapshotOff', 'cachedOff', 'memberOn', 'unknownUnavailable']) {
       step = name;
       expect((await api.snapshot()).projection.state.name, f[step]['response']['snapshot']['projection']['state']);
@@ -144,7 +145,7 @@ void main() {
     for (final pair in [('upstreamUnauthorized', 'ha_upstream_unauthorized'), ('unsupported', 'ha_projection_unsupported'), ('hidden', 'not_found'), ('revoked', 'not_found'), ('coreUnauthorized', 'unauthorized')]) {
       step = pair.$1; await expectLater(api.snapshot(), throwsA(failure(pair.$2)));
     }
-    expect(calls, 17);
+    expect(calls, 18);
   });
   test('HA static codes require their exact statuses and context404 is unchanged', () async {
     var status = 404; var code = 'not_found';
