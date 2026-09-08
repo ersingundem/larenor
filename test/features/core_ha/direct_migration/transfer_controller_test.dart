@@ -4,34 +4,69 @@ import 'dart:convert';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:larenor/core/home_source_store.dart';
-import '../core_ha_models_test.dart' show resourceJson,scopeJson;
+
+import '../core_ha_models_test.dart' show resourceJson, scopeJson;
 
 import '../core_ha_api_test.dart' show response;
 import 'transfer_api_test.dart' show transferReceiptJson;
 import 'transfer_controller_fixture.dart';
 
 void main() {
-  testWidgets('resource permission loss clears the cached transfer choices before credential read', (tester) async {
-    final h=TransferHarness();await h.mount(tester);final c=h.controller!;await c.load();
-    h.reply=(_) async=>response({'error':{'code':'forbidden'}},403);
-    await c.prepare(c.items.single,c.entities.single,isCurrent:()=>true);
-    expect(c.failure,'forbidden');expect(c.items,isEmpty);expect(c.entities,isEmpty);
-    expect(h.platform.calls,isEmpty);
-  });
-  testWidgets('room-only pagination counts toward the 512 global record bound', (tester) async {
-    final h=TransferHarness();await h.mount(tester);final c=h.controller!;var offset=0;
-    h.reply=(r) async {
-      final count=offset==500?13:25;
-      final entries=List.generate(count,(i) {
-        final v=jsonDecode(jsonEncode(resourceJson())) as Map<String,dynamic>;
-        (v['ref'] as Map)..['kind']='room'..['id']=(offset+i+1).toRadixString(16).padLeft(32,'0');return v;
-      });offset+=count;
-      return response({'scope':scopeJson(),'entries':entries,'snapshot':'a'*64,'nextAfter':offset==513?null:(entries.last['ref'] as Map)['id']});
-    };
-    await c.load();for(var i=0;i<20;i++){await c.load(more:true);}
-    expect(offset,513);expect(c.failure,'invalid_response');expect(c.loaded,isFalse);expect(c.nextAfter,isNull);
-    expect(h.platform.calls,isEmpty);
-  });
+  testWidgets(
+    'resource permission loss clears the cached transfer choices before credential read',
+    (tester) async {
+      final h = TransferHarness();
+      await h.mount(tester);
+      final c = h.controller!;
+      await c.load();
+      h.reply = (_) async => response({
+        'error': {'code': 'forbidden'},
+      }, 403);
+      await c.prepare(c.items.single, c.entities.single, isCurrent: () => true);
+      expect(c.failure, 'forbidden');
+      expect(c.items, isEmpty);
+      expect(c.entities, isEmpty);
+      expect(h.platform.calls, isEmpty);
+    },
+  );
+  testWidgets(
+    'room-only pagination counts toward the 512 global record bound',
+    (tester) async {
+      final h = TransferHarness();
+      await h.mount(tester);
+      final c = h.controller!;
+      var offset = 0;
+      h.reply = (r) async {
+        final count = offset == 500 ? 13 : 25;
+        final entries = List.generate(count, (i) {
+          final v =
+              jsonDecode(jsonEncode(resourceJson())) as Map<String, dynamic>;
+          (v['ref'] as Map)
+            ..['kind'] = 'room'
+            ..['id'] = (offset + i + 1).toRadixString(16).padLeft(32, '0');
+          return v;
+        });
+        offset += count;
+        return response({
+          'scope': scopeJson(),
+          'entries': entries,
+          'snapshot': 'a' * 64,
+          'nextAfter': offset == 513
+              ? null
+              : (entries.last['ref'] as Map)['id'],
+        });
+      };
+      await c.load();
+      for (var i = 0; i < 20; i++) {
+        await c.load(more: true);
+      }
+      expect(offset, 513);
+      expect(c.failure, 'invalid_response');
+      expect(c.loaded, isFalse);
+      expect(c.nextAfter, isNull);
+      expect(h.platform.calls, isEmpty);
+    },
+  );
   testWidgets(
     'mounted Direct provider loads local switches and Core choices without reading credentials',
     (tester) async {
@@ -83,7 +118,7 @@ void main() {
     final reads = h.platform.calls.length;
     h.reply = (r) async {
       expect(r.method, 'GET');
-      return response({'receipt': transferReceiptJson()});
+      return response({'receipt': transferReceiptJson(name: 'Home Assistant')});
     };
     await c.recover(isCurrent: () => true);
     expect(c.uncertain, isFalse);
@@ -202,7 +237,9 @@ void main() {
     final p = c.preview!;
     h.reply = (_) async {
       h.elapsed += const Duration(seconds: 61);
-      return response({'receipt': transferReceiptJson()}, 201);
+      return response({
+        'receipt': transferReceiptJson(name: 'Home Assistant'),
+      }, 201);
     };
     await c.confirm(p, isCurrent: () => true);
     expect(c.receipt, isNotNull);

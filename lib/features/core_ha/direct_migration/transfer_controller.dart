@@ -401,7 +401,7 @@ class CoreHaTransferController extends ChangeNotifier {
               isCurrent: valid,
             ).preview(
               requestId: id,
-              name: 'Home service',
+              name: 'Home Assistant',
               baseUrl: config.baseUrl,
               credential: config.token,
               entityId: entity,
@@ -479,7 +479,7 @@ class CoreHaTransferController extends ChangeNotifier {
               isCurrent: valid,
             ).confirm(
               value,
-              name: 'Home service',
+              name: 'Home Assistant',
               baseUrl: config.baseUrl,
               credential: config.token,
               entityId: entity,

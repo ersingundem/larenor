@@ -7,37 +7,91 @@ import '../../../core/home_scope_fixture.dart' show flush;
 import 'transfer_ui_fixture.dart';
 
 void main() {
-  testWidgets('empty Core choices are explicit and read no HA pair', (tester) async {
-    final h=TransferUiHarness();
-    h.response={'scope':h.f['context'],'entries':[],'snapshot':'a'*64,'nextAfter':null};
+  testWidgets('empty Core choices are explicit and read no HA pair', (
+    tester,
+  ) async {
+    final h = TransferUiHarness();
+    h.response = {
+      'scope': h.f['context'],
+      'entries': [],
+      'snapshot': 'a' * 64,
+      'nextAfter': null,
+    };
     await h.open(tester);
-    expect(find.byKey(const ValueKey('core-ha-transfer-empty')),findsOneWidget);
-    expect(h.platform.calls.where((c)=>c.$2=='ha_token'),isEmpty);
-    expect(h.transferRequests,isEmpty);
+    expect(
+      find.byKey(const ValueKey('core-ha-transfer-empty')),
+      findsOneWidget,
+    );
+    expect(h.platform.calls.where((c) => c.$2 == 'ha_token'), isEmpty);
+    expect(h.transferRequests, isEmpty);
   });
-  testWidgets('actual transfer uncertain outcome offers GET recovery without token reread', (tester) async {
-    final h=TransferUiHarness();await h.open(tester);await h.prepare(tester);
-    h.transferReply=(_) async=>h.json({'error':{'code':'server_error'}},503);
-    await transferPress(tester,'core-ha-transfer-confirm');
-    expect(find.byKey(const ValueKey('core-ha-transfer-uncertain')),findsOneWidget);
-    final reads=h.platform.calls.where((c)=>c.$2=='ha_token').length;
-    final p=h.publicPreview!;
-    h.transferReply=(r) async {expect(r.method,'GET');return h.json({'receipt':{'schemaVersion':1,'status':'committed',for(final key in ['requestId','ref','resourceRevision','aclRevision','service','binding']) key:p[key]}});};
-    await transferPress(tester,'core-ha-transfer-recover');
-    expect(find.byKey(const ValueKey('core-ha-transfer-success')),findsOneWidget);
-    expect(h.platform.calls.where((c)=>c.$2=='ha_token').length,reads);
-    expect(h.transferRequests.where((r)=>r.url.path.endsWith('/confirm')).length,1);
-  });
-  testWidgets('pending pair produces visible reconnect recovery without preview HTTP', (tester) async {
-    final h=TransferUiHarness();await h.open(tester);
-    h.platform.values['ha_connection_pending_v1']='1';
-    await transferPress(tester,'core-ha-transfer-entity-switch.synthetic');
-    await transferPress(tester,'core-ha-transfer-target-${h.f['resource']['ref']['id']}');
-    await transferPress(tester,'core-ha-transfer-preview');
-    expect(find.byKey(const ValueKey('core-ha-transfer-error')),findsOneWidget);
-    expect(h.transferRequests,isEmpty);expect(h.platform.calls.where((c)=>c.$2=='ha_token'),isEmpty);
-    expect(h.platform.values['ha_connection_pending_v1'],'1');
-  });
+  testWidgets(
+    'actual transfer uncertain outcome offers GET recovery without token reread',
+    (tester) async {
+      final h = TransferUiHarness();
+      await h.open(tester);
+      await h.prepare(tester);
+      h.transferReply = (_) async => h.json({
+        'error': {'code': 'server_error'},
+      }, 503);
+      await transferPress(tester, 'core-ha-transfer-confirm');
+      expect(
+        find.byKey(const ValueKey('core-ha-transfer-uncertain')),
+        findsOneWidget,
+      );
+      final reads = h.platform.calls.where((c) => c.$2 == 'ha_token').length;
+      final p = h.publicPreview!;
+      h.transferReply = (r) async {
+        expect(r.method, 'GET');
+        return h.json({
+          'receipt': {
+            'schemaVersion': 1,
+            'status': 'committed',
+            for (final key in [
+              'requestId',
+              'ref',
+              'resourceRevision',
+              'aclRevision',
+              'service',
+              'binding',
+            ])
+              key: p[key],
+          },
+        });
+      };
+      await transferPress(tester, 'core-ha-transfer-recover');
+      expect(
+        find.byKey(const ValueKey('core-ha-transfer-success')),
+        findsOneWidget,
+      );
+      expect(h.platform.calls.where((c) => c.$2 == 'ha_token').length, reads);
+      expect(
+        h.transferRequests.where((r) => r.url.path.endsWith('/confirm')).length,
+        1,
+      );
+    },
+  );
+  testWidgets(
+    'pending pair produces visible reconnect recovery without preview HTTP',
+    (tester) async {
+      final h = TransferUiHarness();
+      await h.open(tester);
+      h.platform.values['ha_connection_pending_v1'] = '1';
+      await transferPress(tester, 'core-ha-transfer-entity-switch.synthetic');
+      await transferPress(
+        tester,
+        'core-ha-transfer-target-${h.f['resource']['ref']['id']}',
+      );
+      await transferPress(tester, 'core-ha-transfer-preview');
+      expect(
+        find.byKey(const ValueKey('core-ha-transfer-error')),
+        findsOneWidget,
+      );
+      expect(h.transferRequests, isEmpty);
+      expect(h.platform.calls.where((c) => c.$2 == 'ha_token'), isEmpty);
+      expect(h.platform.values['ha_connection_pending_v1'], '1');
+    },
+  );
   testWidgets(
     'actual Direct HomeSource PIN route offers an explicit transfer entry',
     (tester) async {

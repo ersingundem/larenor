@@ -190,26 +190,26 @@ class _TransferPageState extends ConsumerState<_TransferPage> {
                         ),
                     ],
                   ),
-                  if(c.items.isNotEmpty) ...[
-                  heading(l.coreHaTransferTarget),
-                  SettingsSection(
-                    children: [
-                      for (final target in c.items)
-                        action(
-                          'core-ha-transfer-target-${target.id}',
-                          target.label,
-                          c.canPrepare
-                              ? () {
-                                  setState(() {
-                                    _selection++;
-                                    _target = target;
-                                  });
-                                }
-                              : null,
-                          selected: identical(target, _target),
-                        ),
-                    ],
-                  ),
+                  if (c.items.isNotEmpty) ...[
+                    heading(l.coreHaTransferTarget),
+                    SettingsSection(
+                      children: [
+                        for (final target in c.items)
+                          action(
+                            'core-ha-transfer-target-${target.id}',
+                            target.label,
+                            c.canPrepare
+                                ? () {
+                                    setState(() {
+                                      _selection++;
+                                      _target = target;
+                                    });
+                                  }
+                                : null,
+                            selected: identical(target, _target),
+                          ),
+                      ],
+                    ),
                   ],
                   if (c.nextAfter != null)
                     action(

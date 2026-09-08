@@ -67,14 +67,18 @@ class TransferHarness {
     }
     if (r.method == 'DELETE') return response(null, 204);
     if (r.url.path.endsWith('/preview')) {
-      return response({'preview': transferPreviewJson()}, 201);
+      return response({
+        'preview': transferPreviewJson(name: 'Home Assistant'),
+      }, 201);
     }
     if (r.url.path.endsWith('/confirm')) {
       bound = true;
-      return response({'receipt': transferReceiptJson()}, 201);
+      return response({
+        'receipt': transferReceiptJson(name: 'Home Assistant'),
+      }, 201);
     }
     if (r.url.path.contains('/results/')) {
-      return response({'receipt': transferReceiptJson()});
+      return response({'receipt': transferReceiptJson(name: 'Home Assistant')});
     }
     throw StateError('Unexpected fixture route');
   }

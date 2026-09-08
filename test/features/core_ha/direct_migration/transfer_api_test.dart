@@ -12,25 +12,25 @@ import '../core_ha_api_test.dart' show serviceJson, response;
 import '../core_ha_models_test.dart'
     show target, refJson, bindingJson, projectionJson, failure;
 
-Map<String, dynamic> transferPreviewJson() => {
+Map<String, dynamic> transferPreviewJson({String name = 'Home service'}) => {
   'id': '6' * 32,
   'requestId': '7' * 32,
   'expiresInMs': 60000,
   'ref': refJson(),
   'resourceRevision': 1,
   'aclRevision': 1,
-  'service': serviceJson(),
+  'service': {...serviceJson(), 'name': name},
   'binding': bindingJson(),
   'projection': projectionJson(commandAvailable: false),
 };
-Map<String, dynamic> transferReceiptJson() => {
+Map<String, dynamic> transferReceiptJson({String name = 'Home service'}) => {
   'schemaVersion': 1,
   'requestId': '7' * 32,
   'status': 'committed',
   'ref': refJson(),
   'resourceRevision': 1,
   'aclRevision': 1,
-  'service': serviceJson(),
+  'service': {...serviceJson(), 'name': name},
   'binding': bindingJson(),
 };
 

@@ -268,7 +268,8 @@ class _SettingsGateScreenState extends ConsumerState<SettingsGateScreen>
                                   if (!mounted ||
                                       !_interactive ||
                                       resourceGeneration != _generation ||
-                                      ModalRoute.of(context)?.isCurrent != true) {
+                                      ModalRoute.of(context)?.isCurrent !=
+                                          true) {
                                     return false;
                                   }
                                   final value = ref.read(pinLockProvider);
