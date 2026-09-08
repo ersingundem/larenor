@@ -74,7 +74,8 @@ def validate_receipt(value, commit, selected):
 
 
 def run():
-    selected = validate_launch(os.environ, smoke.platform.system(), smoke.platform.machine(), os.geteuid())
+    with smoke.diagnostic_phase('launch_validation'):
+        selected = validate_launch(os.environ, smoke.platform.system(), smoke.platform.machine(), os.geteuid())
     commit = os.environ['GITHUB_SHA']
     owner = smoke.EphemeralDaemon()
     signals = (signal.SIGINT, signal.SIGTERM, signal.SIGALRM)
@@ -90,11 +91,15 @@ def run():
         for sig in signals:
             signal.signal(sig, cancel)
         signal.alarm(1200)
-        binding = smoke.capture_source(commit)
+        with smoke.diagnostic_phase('source_capture'):
+            binding = smoke.capture_source(commit)
         with owner as daemon:
-            value = smoke.characterize(daemon, checkout_binding=binding)
-        smoke.check_source(binding)
-        validate_receipt(value, commit, selected)
+            with smoke.diagnostic_phase('characterization'):
+                value = smoke.characterize(daemon, checkout_binding=binding)
+        with smoke.diagnostic_phase('source_recheck'):
+            smoke.check_source(binding)
+        with smoke.diagnostic_phase('receipt_validate'):
+            validate_receipt(value, commit, selected)
         print(json.dumps(value, sort_keys=True, separators=(',', ':')))
     finally:
         signal.alarm(0)
@@ -131,14 +136,15 @@ def main(arguments=None):
         if args == ['--run-ephemeral-ci']:
             run()
         elif len(args) == 2 and args[0] == '--verify-receipt':
-            verify(args[1])
+            with smoke.diagnostic_phase('receipt_verify'):
+                verify(args[1])
         else:
             raise CIError('storage_characterization_evidence_invalid')
         return 0
     except _Cancelled:
         print('storage_characterization_cancelled', file=sys.stderr)
-    except Exception:
-        print('storage_characterization_failed', file=sys.stderr)
+    except Exception as error:
+        print(smoke.failure_diagnostic(error), file=sys.stderr)
     return 1
 
 
