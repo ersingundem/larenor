@@ -121,6 +121,7 @@ class HaHarness {
   int transports = 0, closes = 0;
   String snapshotStep = 'snapshotOff';
   bool bound = false;
+  int previews = 0;
   Duration elapsed = Duration.zero;
   Future<http.Response> Function(http.Request)? reply;
   late final owner = CoreHaOwner(
@@ -152,7 +153,7 @@ class HaHarness {
             if (path.endsWith('/services')) return jsonResponse({'services': [{...serviceJson(), 'id': f['preview']['body']['serviceId']}]});
             final step = path.endsWith('/snapshot') ? snapshotStep
                 : path.endsWith('/binding') ? (bound ? 'binding' : 'unbound')
-                : path.endsWith('/binding-preview') ? 'preview'
+                : path.endsWith('/binding-preview') ? (++previews == 1 ? 'preview' : 'secondPreview')
                 : path.endsWith('/binding-confirm') ? 'confirm' : 'cancel';
             if (step == 'confirm') bound = true;
             return jsonResponse(f[step]['response'], f[step]['status'] as int);
