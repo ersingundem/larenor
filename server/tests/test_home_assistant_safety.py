@@ -257,3 +257,69 @@ def test_deadline_closes_real_loopback_request_without_retry(server,ha,monkeypat
     before=ha.calls;start=time.monotonic();r=client.get(public+'/snapshot',headers=auth(admin))
     assert r.status_code==502 and r.json()['error']['code']=='ha_upstream_unavailable'
     assert time.monotonic()-start<2 and ha.calls==before+1
+
+
+def test_actual_user_and_global_cache_eviction_limits(server,ha,monkeypatch):
+    """Exercise 32/user and256/global with actual authorized resource requests.
+
+    Independent account request-rate policy is disabled only in this quota
+    fixture; ACL/authentication and the production cache limits remain real.
+    """
+    from test_admin import activate, create as create_user
+    app,client,admin,first,_,base,public,body=setup(server,ha)
+    adapter=app.state.core.home_assistant;adapter._clock=lambda:100.0
+    monkeypatch.setattr(app.state.core.auth,'rate_limit',lambda *args,**kwargs:None)
+    ref=first['ref'];resource_base=f'/api/v1/admin/home-resources/{ref["coreId"]}/{ref["homeId"]}'
+    resources=[first]
+    for i in range(32):
+        r=client.post(resource_base,headers=auth(admin),json={'kind':'resource','label':f'Switch {i}','order':i})
+        assert r.status_code==201;resources.append(r.json()['record'])
+    for resource in resources:
+        _,binding=bind(client,admin,base.replace(ref['id'],resource['ref']['id']),body)
+    members=[]
+    for i in range(9):
+        create_user(client,admin,f'cache{i}');members.append(activate(client,f'cache{i}'))
+        for resource in resources[:32]:
+            r=client.put(resource_base+'/'+resource['ref']['id']+'/grants/'+members[-1]['user']['id'],
+                headers=auth(admin),json={'expectedAclRevision':i+1,'permissions':{'read':True,'write':False}})
+            assert r.status_code==200
+    for resource in resources:
+        assert client.get(public.replace(ref['id'],resource['ref']['id'])+'/snapshot',headers=auth(admin)).status_code==200
+    assert len(adapter._cache)==32
+    assert not any(k[4]==first['ref']['id'] for k in adapter._cache)
+    for member in members:
+        for resource in resources[:32]:
+            r=client.get(public.replace(ref['id'],resource['ref']['id'])+'/snapshot',headers=auth(member))
+            assert r.status_code==200
+    assert len(adapter._cache)==256
+    assert max(sum(k[2]==user for k in adapter._cache) for user in {k[2] for k in adapter._cache})==32
+    assert not any(k[2]==admin['user']['id'] for k in adapter._cache)
+    assert not any(k[2]==members[0]['user']['id'] for k in adapter._cache)
+
+
+def test_global_preview_quota_never_dispatches_the_thirty_third_read(server,ha,monkeypatch):
+    from test_admin import activate, create as create_user
+    app,client,admin,_,_,base,_,body=setup(server,ha)
+    app.state.core.home_assistant._clock=lambda:100.0
+    monkeypatch.setattr(app.state.core.auth,'rate_limit',lambda *args,**kwargs:None)
+    actors=[admin]
+    for i in range(8):
+        create_user(client,admin,f'preview{i}',role='admin');actors.append(activate(client,f'preview{i}'))
+    for actor in actors[:8]:
+        for _ in range(4):
+            assert client.post(base+'/binding-preview',headers=auth(actor),json=body).status_code==201
+    assert len(app.state.core.home_assistant._previews)==32
+    before=ha.calls
+    assert client.post(base+'/binding-preview',headers=auth(actors[8]),json=body).status_code==429
+    assert ha.calls==before
+
+
+@pytest.mark.parametrize('helper',['v1','v2'])
+def test_pre_adapter_legacy_fixtures_have_no_future_binding_domain(server,helper):
+    from test_admin_migration import downgrade_to_known_v1
+    from test_core_context import legacy_v2
+    app=server[0]
+    (downgrade_to_known_v1 if helper=='v1' else legacy_v2)(app)
+    with app.state.core.db.connection() as c:
+        assert c.execute("SELECT name FROM sqlite_master WHERE name GLOB 'home_assistant_*' OR tbl_name GLOB 'home_assistant_*'").fetchall()==[]
+        assert c.execute("SELECT value FROM metadata WHERE key='home_assistant_schema'").fetchone() is None
