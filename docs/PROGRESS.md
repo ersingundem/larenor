@@ -33,7 +33,7 @@ Gerçek ev kurulumu ve fiziksel tablet kabulü henüz yapılmadı.
 | S08.6 — kişi, oda, kaynak ve izin yönetimi | **Kabul edildi**, aynı yayın | Merkezi HA akışının yetki temeli hazır |
 | S08.7 — merkezi Home Assistant adaptörü | **Devam ediyor**; typed durum ve kalıcı switch komutu/makbuzu main içinde | Exact-source birleşik CI; sonra açık Direct aktarımı ve geniş HA kapsamı |
 | B5.1 — ortak tablet tasarımı | Services/hesap IME paketi APK116 ile kabul edildi; S08.7 Aç/Kapat/kurtarma yüzeyi yerel tablet matrisinden geçti | Exact-source Android CI ve kalan ortak tablet yüzeyleri |
-| S06.3d — kalıcı depolama | Dördüncü native koşu yine genel helper build kodunda kaldı; exact base runtime probe main içinde | Beşinci native koşuda pull/inspect/create/start/result sınırını ayır |
+| S06.3d — kalıcı depolama | Beşinci native koşu iki mimaride exact base `start --attach` sınırında kaldı; process-only tanı main içinde | Altıncı native koşuda nonzero/timeout/output-limit/spawn/I-O sınıfını ayır |
 
 S08.7 üç sonlu teslimden oluşur: **kaynak bağlama ve typed durum → komut ve
 kalıcı sonuç → açık Direct aktarımı**. İlk iki yerel dilim squash yapılmadan
@@ -105,8 +105,17 @@ hata ailesine uymadı. Kök neden çıkarılmadı. Sonraki koşunun helper build
 sınırlarında ayrı sınaması main'e alındı: 38 yeni, toplam 210 ilgili test ve
 215 politika testi geçti; dal dahil kapsam %97,02 ve bağımsız inceleme temiz.
 [Exact base runtime probe](jellyfin-helper-base-runtime-probe-2026-09-08.md).
-Beşinci native koşu yalnız bu yeni sınırları gözlemleyecek; probe başarısı
-legacy helper build veya Jellyfin kurulum kabulü sayılmayacak.
+Beşinci native koşu `34250089907`, exact `25d438a` üzerinde pull, image inspect,
+create ve created-state kapılarını iki mimaride geçti; exact base
+`start --attach` aşaması `fixture_command_failed` verdi. Tek indirilen logun
+SHA-256 değeri
+`c7444904c1bbeecb7f49d14725aeeb4d068800022938cc409b6fb24771cc9cd0`.
+Bu start çağrısında stderr toplamadan mevcut nonzero/timeout/output-limit/
+spawn/I-O sınıflarını açan dar tanı main'e alındı: 15 yeni, toplam 225 ilgili
+test ve 215 politika testi geçti; dal dahil kapsam %97,18, bağımsız inceleme
+temiz. [Attached start tanısı](jellyfin-base-start-process-diagnostics-2026-09-08.md).
+Altıncı native koşu yalnız süreç sınıfını gözlemleyecek; CLI nonzero tek başına
+container runtime veya attach kök nedenini kanıtlamaz.
 Gerçek Engine ve kurulum kabulü hâlâ açık; `installAvailable=false`.
 
 ## Canlı takip ve sıradaki işler

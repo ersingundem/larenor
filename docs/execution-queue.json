@@ -390,7 +390,8 @@
         "docs/jellyfin-native-storage-diagnostics-2026-09-08.md",
         "docs/jellyfin-helper-build-diagnostics-2026-09-08.md",
         "docs/jellyfin-private-build-errors-2026-09-08.md",
-        "docs/jellyfin-helper-base-runtime-probe-2026-09-08.md"
+        "docs/jellyfin-helper-base-runtime-probe-2026-09-08.md",
+        "docs/jellyfin-base-start-process-diagnostics-2026-09-08.md"
       ],
       "scope": "installAvailable=false; Client kaynak adı/Docker seçenekleri üretmez. Gerçek ev sunucusuna işlem yok.",
       "acceptance": [
@@ -636,31 +637,31 @@
         },
         {
           "kind": "ci",
-          "ref": "https://github.com/ersingundem/larenor/actions/runs/34240514836",
-          "commit": "42bbcf6c784c53a8a38410a48a947293cbb09e93",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/34250089907",
+          "commit": "25d438aed00b44cf10322a500a4dbb001c920dfd",
           "state": "completed",
           "result": "failed",
-          "label": "Native4: amd64 ve arm64 helper_build/fixture_command_exit_failed; bounded stderr bilinen aileye uymadı, kök neden çıkarılmadı ve makbuz üretilmedi."
+          "label": "Native5: iki mimaride pull/inspect/create/created geçti; exact base start--attach fixture_command_failed. Tek logSHA c7444904; kök neden ve makbuz yok."
         },
         {
           "kind": "test",
-          "ref": "docs/jellyfin-helper-base-runtime-probe-2026-09-08.md",
-          "commit": "07dc9fae1f957b5b488a7721c650fcf462cd1644",
+          "ref": "docs/jellyfin-base-start-process-diagnostics-2026-09-08.md",
+          "commit": "cbbf7d2dd52f7dbfce9181fe8cd8e40c7439518c",
           "state": "completed",
           "result": "passed",
-          "label": "Exact base probe:38 yeni/210 ilgili PASS0skip,215 politikaPASS,%97,02 dal dahil kapsam; pull/inspect/create/start/result sınırları ayrı ve installAvailable=false."
+          "label": "Base start process tanısı:15 yeni/225 ilgili PASS0skip,215 politikaPASS,%97,18 dal dahil kapsam; stderrDEVNULL ve installAvailable=false."
         },
         {
           "kind": "review",
-          "ref": "docs/jellyfin-helper-base-runtime-probe-2026-09-08.md",
-          "commit": "07dc9fae1f957b5b488a7721c650fcf462cd1644",
+          "ref": "docs/jellyfin-base-start-process-diagnostics-2026-09-08.md",
+          "commit": "cbbf7d2dd52f7dbfce9181fe8cd8e40c7439518c",
           "state": "completed",
           "result": "passed",
-          "label": "Exact base probe bağımsız CLEAR; uygulama create/start/restart oracles ve sıfır replay korundu. Gerçek Docker/native kök neden ve kurulum kabulü açık."
+          "label": "Process-only tanı bağımsız CLEAR; start20s/128byte, sahip olunan socket/cleanup, token/readback ve sonraki uygulama oracles korundu."
         }
       ],
       "completionCommit": null,
-      "reason": "Dördüncü native run34240514836 exact42bbcf6 üzerinde iki mimaride helper_build/fixture_command_exit_failed verdi; bounded stderr bilinen aileye uymadı ve kök neden çıkarılmadı. Exact base runtime probe 210 ilgili test, 215 politika, %97,02 kapsam ve bağımsız CLEAR ile main914e1e7 içinde. Beşinci CI pull/inspect/create/start/result sınırını ayıracak; yalnız kanıtlanan dar kök neden düzeltmesi açık. installAvailable=false."
+      "reason": "Native5 run34250089907 exact25d438a üzerinde iki mimaride exact base start--attach/fixture_command_failed verdi; pull/inspect/create/created geçti. Stderr toplamayan process-only tanı 225 ilgili test,215 politika,%97,18 kapsam ve bağımsız CLEAR ile local mainc141ac9 içinde. Altıncı CI nonzero/timeout/output-limit/spawn/I-O sınıfını ayıracak; CLI nonzero tek başına runtime kök nedeni değildir. installAvailable=false."
     },
     {
       "id": "S06.3e",
