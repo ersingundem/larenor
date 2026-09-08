@@ -98,7 +98,9 @@ def test_actual_preview_confirm_snapshot_and_cache(server, ha):
     assert response.status_code == 200, response.text
     snapshot = response.json()['snapshot']
     assert snapshot['bindingId'] == binding['id'] and snapshot['ref'] == record['ref']
-    assert snapshot['projection'] == preview['projection']
+    assert snapshot['projection'] == {
+        **preview['projection'], 'commandAvailable': True}
+    assert preview['projection']['commandAvailable'] is False
     assert 0 < snapshot['remainingTtlMs'] <= 5000
     assert ha.calls == 2
     assert client.get(public + '/snapshot', headers=auth(admin)).status_code == 200
