@@ -61,6 +61,11 @@ class CredentialsStore {
     return HaConnectionConfig(baseUrl: baseUrl, token: token);
   });
 
+  /// Explicit transfer entry; normal background reads keep their existing API.
+  Future<HaConnectionConfig?> readForTransfer({
+    required bool Function() isCurrent,
+  }) => read();
+
   Future<void> save(HaConnectionConfig config) =>
       ConfigurationWrites.run(() async {
         _check();
