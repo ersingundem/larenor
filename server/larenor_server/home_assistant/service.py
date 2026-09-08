@@ -264,6 +264,10 @@ class HomeAssistantAdapter:
                 'binding_id=excluded.binding_id,revision=excluded.revision,nonce=excluded.nonce,ciphertext=excluded.ciphertext',
                 (resource, binding.id, binding.revision, nonce, cipher))
             schema.update(c, self._key, self.resources.scope)
+            schema.validate(c, self._key, self.resources.scope)
+            saved = c.execute('SELECT * FROM home_assistant_bindings WHERE resource_id=?', (resource,)).fetchone()
+            if saved is None or self._decode(saved) != binding:
+                raise ValueError()
             self._cache.clear()
             return {'binding': binding.model_dump()}
 
