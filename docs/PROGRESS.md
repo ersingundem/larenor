@@ -1,11 +1,12 @@
 # Larenor — güncel ilerleme ve iş kuyruğu
 
-**Son güncelleme: 8 Eylül 2026 — APK116 doğrulandı; S08.7'nin ilk salt okunur Server/Client dilimi ana dalda, birleşik CI bekleniyor.**
+**Son güncelleme: 8 Eylül 2026 — S08.7'nin kalıcı komut/makbuz dilimi ana dalda; exact-source birleşik CI bekleniyor.**
 
 ```text
 Kuyruk kabulü       ██░░░░░░░░░░░░░░░░░░  10/125 iş (%8; eşit ağırlıklı sayaç)
 S06 koordinatörü    ███████░░░░░░░░░░░░░  2/6 yazılım dilimi
 S06.3 kaynak temeli  █████████████░░░░░░░  4/6 alt adım
+S08.7 yerel dilimler █████████████░░░░░░░  2/3 yerel dilim; CI/fiziksel kabul ayrı
 Yeni 63 özellik     ░░░░░░░░░░░░░░░░░░░░  0/63 kabul edildi
 ```
 
@@ -30,22 +31,27 @@ Gerçek ev kurulumu ve fiziksel tablet kabulü henüz yapılmadı.
 | --- | --- | --- |
 | S08.5 — restore, logout ve journal hedef sınırı | **Kabul edildi**, exact `960691c` / APK108 | [Kabul ve korunan geçmiş](restore-people-acceptance-108-2026-09-08.md) |
 | S08.6 — kişi, oda, kaynak ve izin yönetimi | **Kabul edildi**, aynı yayın | Merkezi HA akışının yetki temeli hazır |
-| S08.7 — merkezi Home Assistant adaptörü | **Devam ediyor**; ilk Server/Client dilimi main içinde | Birleşik CI; sonra komut/makbuz ve açık Direct aktarımı |
-| B5.1 — ortak tablet tasarımı | Services ve hesap IME düzeltmeleri exact `5cbff21` / APK116 ile kabul edildi; yeni S08.7 ekranı yerel tablet matrisinden geçti | Birleşik Android CI ve kalan ortak tablet yüzeyleri |
-| S06.3d — kalıcı depolama | Üçüncü native koşu iki mimaride `helper_build / fixture_command_exit_failed` verdi | Özel stderr sınıflandırıcısıyla dördüncü koşuda kapalı Docker hata imzasını ayır |
+| S08.7 — merkezi Home Assistant adaptörü | **Devam ediyor**; typed durum ve kalıcı switch komutu/makbuzu main içinde | Exact-source birleşik CI; sonra açık Direct aktarımı ve geniş HA kapsamı |
+| B5.1 — ortak tablet tasarımı | Services/hesap IME paketi APK116 ile kabul edildi; S08.7 Aç/Kapat/kurtarma yüzeyi yerel tablet matrisinden geçti | Exact-source Android CI ve kalan ortak tablet yüzeyleri |
+| S06.3d — kalıcı depolama | Dördüncü native koşu yine genel helper build kodunda kaldı; exact base runtime probe main içinde | Beşinci native koşuda pull/inspect/create/start/result sınırını ayır |
 
 S08.7 üç sonlu teslimden oluşur: **kaynak bağlama ve typed durum → komut ve
-kalıcı sonuç → açık Direct aktarımı**. İlk Server ve Client dilimi squash
-yapılmadan main'e alındı. Server gerçek HTTP/SQLite/loopback ile kaynak bağlama,
-yetkili switch durumu ve sınırlı cache sağlıyor. Client Core kaynak satırından
-salt okunur durumu açıyor; PIN korumalı yönetim ekranı seçili service ve exact
-`switch.*` hedefi için süreli önizleme/onay sunuyor. Cihaz komutu veya Direct
-fallback yok. Server'ın doğru Java 17/apksig ortamındaki birleşik yerel suite'i
-**3.680 testte 0 failure, 0 error ve 12 platform skip** verdi. Client'ta 624
-ilgili testin tamamı geçti; bunun 109'u odaklı son test, özellik kapsamı %96,29.
-Birleşik uzak CI, komut/makbuz ve açık Direct aktarımı bekliyor.
+kalıcı sonuç → açık Direct aktarımı**. İlk iki yerel dilim squash yapılmadan
+main'e alındı. Server gerçek HTTP/SQLite/loopback ile kaynak bağlama, yetkili
+switch durumu, sınırlı cache ve AES-GCM ile saklanan idempotent komut makbuzu
+sağlıyor. Client Core kaynak satırında Aç/Kapat, açık sonuç durumu ve kaybolan
+POST yanıtı için yalnız GET kullanan kurtarma akışı sunuyor. DNS/bağlantı/TLS
+sonrasında ve ilk HTTP baytından hemen önce yetki/revision yeniden denetleniyor;
+eski snapshot yarışları cache nesliyle engelleniyor. Provider yalnız `200`
+sonucunda accepted; `400/401/403/404/405/422` rejected ve diğer sonuçlar
+unknown. Otomatik retry ve Direct fallback yok. Doğru Java 17/apksig ortamında
+tam Server **3.748 PASS**, 12 macOS platform skip ve sıfır hata verdi. Son ilgili
+koşular 222 Server ve 124 Client PASS; Core HA Client kapsamı %95,52. Bağımsız
+son inceleme temiz. Exact-source uzak CI, açık Direct aktarımı, geniş HA
+varlık/servis kapsamı ve fiziksel kabul bekliyor.
 [Server kanıtı](core-ha-switch-server-implementation-2026-09-08.md) ·
 [Client kanıtı](core-ha-switch-client-implementation-2026-09-08.md) ·
+[Komut ve makbuz kanıtı](core-ha-switch-command-implementation-2026-09-08.md) ·
 [Uygulama planı](core-home-assistant-adapter-plan-2026-09-06.md).
 
 [Services tablet paketi](core-services-tablet-accessibility-2026-09-06.md):
@@ -91,6 +97,16 @@ drain edip bilinen Docker hata ailelerini sabit kodlara dönüştüren son tanı
 kapsam ve bağımsız CLEAR ile main'e alındı. Ham stderr, path, URL, env veya sır
 log/artifact'a çıkmaz; belirsiz/taşan veri genel kapalı kod olarak kalır.
 [Özel build tanılama kanıtı](jellyfin-private-build-errors-2026-09-08.md).
+Bu sınıflandırıcıyı içeren dördüncü native koşu `34240514836`, exact
+`42bbcf6` üzerinde iki mimaride de yine
+`helper_build / fixture_command_exit_failed` verdi; bounded stderr bilinen bir
+hata ailesine uymadı. Kök neden çıkarılmadı. Sonraki koşunun helper build'den
+önce exact, digest-pinned Python base imajını pull/inspect/create/start/result
+sınırlarında ayrı sınaması main'e alındı: 38 yeni, toplam 210 ilgili test ve
+215 politika testi geçti; dal dahil kapsam %97,02 ve bağımsız inceleme temiz.
+[Exact base runtime probe](jellyfin-helper-base-runtime-probe-2026-09-08.md).
+Beşinci native koşu yalnız bu yeni sınırları gözlemleyecek; probe başarısı
+legacy helper build veya Jellyfin kurulum kabulü sayılmayacak.
 Gerçek Engine ve kurulum kabulü hâlâ açık; `installAvailable=false`.
 
 ## Canlı takip ve sıradaki işler
@@ -572,7 +588,7 @@ kabulü değildir. Geçici çalışma kopyaları kalıcı arşiv yerine geçmez.
 | S08.4 Arr bağlantıları ve yedek sınırı | `codex/direct-arr-credentials` ve `codex/direct-credential-backup` | 0298c5a ve 6426d55 birleştirildi; 192 odaklı/547 ilgili Arr ve 245 ilgili backup testi, bağımsız incelemeler temiz. e4f0f15 birleşik 3.418 test/analiz geçti; yeni Android düzeltmesiyle CI açık. |
 | S08.6 Core kaynak listesi | `codex/core-home-resource-list` ve `codex/core-home-resources-e2e` | `73dba35` ve `c0b765c` → main `808938e`; 82 odaklı/940 ilgili test, tablet QA ve bağımsız inceleme geçti. Birleşik Client 3.115 test/analiz temiz; yedinci Android yolculuğu ve yeni CI açık. |
 | S08.6 Core kaynak/yetki kaydı | `codex/home-resource-registry` | `133786e` / `1b6b866` ana dalda; tam Server 2.906 PASS/10 Mac skip, 124 odaklı test, %95 dal kapsamı ve inceleme temiz. `8c3b60d` Linux 2.916/iki mimari geçti. Yeni Client liste/bütün yönetim kabulü açık. |
-| S08.7 seçili HA switch gözlemi | `codex/core-ha-switch-adapter` ve `codex/core-ha-switch-client` | Server `422bca3`, Client `7d37aeb` → main `e11eb57`; 3.680 tam Server testinde 0 hata/12 Mac skip, 624 ilgili Client testi, %96,29 özellik kapsamı, sözleşme ve tablet QA geçti. Birleşik CI ile komut/makbuz/Direct dilimleri açık. |
+| S08.7 seçili HA switch durumu ve komutu | `codex/core-ha-switch-adapter`, `codex/core-ha-switch-client`, `codex/core-ha-command` | İlk durum dilimi main `e11eb57`; kalıcı idempotent komut/makbuz davranışı `409ffc8`, kanıt `0949e3b` → main `914e1e7`. Tam Server 3.748 PASS/12 Mac skip; ilgili 222 Server ve 124 Client PASS, Core HA Client kapsamı %95,52; bağımsız son inceleme temiz. Exact-source CI, Direct aktarımı, geniş HA kapsamı ve fiziksel kabul açık. |
 | S08.3 Client ev runtime'ı | `codex/client-home-session-scope` · `/private/tmp/larenor-client-home-session-scope` | `10d3eb1` birleşti; `4b98680` dokuz E2E ve imzalı APK 94 ile S08.3 kabul edildi. |
 | S06.3d appdata tam kök gözlemi | `codex/native-appdata-root-observation` · `/private/tmp/larenor-native-appdata-root-observation` | `32254ad` → `0d9e250` main içinde; `394de0f` gerçek Linux 2.792 test/0 skip ve iki mimarili hazırlık smoke geçti. Salt okunur gözlem yazma yetkisi değildir. |
 

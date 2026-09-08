@@ -5,7 +5,7 @@ kanıtını saklar. [PROGRESS](PROGRESS.md) güncel ürün özeti ve CI anlatım
 bu kuyruk ayrıntılı yürütme sırasıdır. Uygulanmış kabulün kapsamı veya kaynak
 plan değişirse iki belge birlikte güncellenir. 5 Eylül 2026 başlangıcında
 S06.3a/3b, 483ec13 Linux Server ve güvenlik CI ile kabul edildi. S06.3c
-imaj/journal bağlantısı fc632b6 Server/güvenlik CI ile kabul edildi; S08.1 aynı commit’in tam Android/yayın CI kapısıyla kabul edildi. S06.3e ağ yazılımı 9138e61 Server/güvenlik CI ile kabul edildi; S06.3d sürüyor. S08.3 ev runtime sınırı 4b98680 tam CI ve APK 94 ile kabul edildi; S08.4 kalıcı kayıt sınırı1c2db57 tam CI/APK100 ile kabul edildi; S08.5 restore ve S08.6 kişi/izin yönetimi exact 960691c tam CI/APK108 ile kabul edildi; S08.7 merkezi HA adaptörü başladı. F01–F63 yazılım teslimleri bekliyor. Önceki S06.1–2 ve
+imaj/journal bağlantısı fc632b6 Server/güvenlik CI ile kabul edildi; S08.1 aynı commit’in tam Android/yayın CI kapısıyla kabul edildi. S06.3e ağ yazılımı 9138e61 Server/güvenlik CI ile kabul edildi; S06.3d sürüyor. S08.3 ev runtime sınırı 4b98680 tam CI ve APK 94 ile kabul edildi; S08.4 kalıcı kayıt sınırı1c2db57 tam CI/APK100 ile kabul edildi; S08.5 restore ve S08.6 kişi/izin yönetimi exact 960691c tam CI/APK108 ile kabul edildi; S08.7 typed durum ve kalıcı switch komutu/makbuzu yerelde ana dala alındı, exact-source CI ve Direct aktarımı açık. F01–F63 yazılım teslimleri bekliyor. Önceki S06.1–2 ve
 kalıcı Core/ev kimliği tekrar yapılacak iş sayılmaz.
 
 Bu kayıt bir zamanlayıcı, agent başlatıcı veya işlem yetkisi değildir. Araç

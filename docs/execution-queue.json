@@ -389,7 +389,8 @@
         "docs/jellyfin-storage-manual-ci-2026-09-08.md",
         "docs/jellyfin-native-storage-diagnostics-2026-09-08.md",
         "docs/jellyfin-helper-build-diagnostics-2026-09-08.md",
-        "docs/jellyfin-private-build-errors-2026-09-08.md"
+        "docs/jellyfin-private-build-errors-2026-09-08.md",
+        "docs/jellyfin-helper-base-runtime-probe-2026-09-08.md"
       ],
       "scope": "installAvailable=false; Client kaynak adı/Docker seçenekleri üretmez. Gerçek ev sunucusuna işlem yok.",
       "acceptance": [
@@ -618,14 +619,6 @@
           "label": "Manuel native workflow/launcher: 122 pytest (35 yeni + 87 fixture) ve 215 politika testi geçti; gerçek shell cancellation RED → exec handoff GREEN. Root incelemesi temiz. Docker/iki mimari koşusu henüz yapılmadı."
         },
         {
-          "kind": "review",
-          "ref": "docs/jellyfin-storage-manual-ci-2026-09-08.md",
-          "commit": "da5fd4772f3a5a1f6814b9c69def8e3336c71eee",
-          "state": "completed",
-          "result": "passed",
-          "label": "Manuel native workflow/launcher: 122 pytest (35 yeni + 87 fixture) ve 215 politika testi geçti; gerçek shell cancellation RED → exec handoff GREEN. Root incelemesi temiz. Docker/iki mimari koşusu henüz yapılmadı."
-        },
-        {
           "kind": "test",
           "ref": "docs/jellyfin-native-storage-diagnostics-2026-09-08.md",
           "commit": "a430dce9795130d045b466d73fc1453c4c5825c7",
@@ -643,23 +636,31 @@
         },
         {
           "kind": "ci",
-          "ref": "https://github.com/ersingundem/larenor/actions/runs/34238813425",
-          "commit": "5f0fa46241238b62677b9293308c90460b605893",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/34240514836",
+          "commit": "42bbcf6c784c53a8a38410a48a947293cbb09e93",
           "state": "completed",
           "result": "failed",
-          "label": "Native3: amd64 ve arm64 aynı helper_build/fixture_command_exit_failed sonucu; child nonzero. Timeout/stdout/spawn/I-O elendi; makbuz0. Native2 genel sonucu ilerleme belgesinde korunuyor."
+          "label": "Native4: amd64 ve arm64 helper_build/fixture_command_exit_failed; bounded stderr bilinen aileye uymadı, kök neden çıkarılmadı ve makbuz üretilmedi."
         },
         {
           "kind": "test",
-          "ref": "docs/jellyfin-private-build-errors-2026-09-08.md",
-          "commit": "db2de602805bbbb89b8f7ea8135ae0098d517d9f",
+          "ref": "docs/jellyfin-helper-base-runtime-probe-2026-09-08.md",
+          "commit": "07dc9fae1f957b5b488a7721c650fcf462cd1644",
           "state": "completed",
           "result": "passed",
-          "label": "Private build tanısı:12RED→12GREEN;172 ilgiliPASS0skip,215politikaPASS,%96,48dal dahil kapsam ve bağımsız CLEAR. Yalnız helper stderr64KiB RAM; ham veri yok, stdout256/deadline600/sıfır replay korunuyor."
+          "label": "Exact base probe:38 yeni/210 ilgili PASS0skip,215 politikaPASS,%97,02 dal dahil kapsam; pull/inspect/create/start/result sınırları ayrı ve installAvailable=false."
+        },
+        {
+          "kind": "review",
+          "ref": "docs/jellyfin-helper-base-runtime-probe-2026-09-08.md",
+          "commit": "07dc9fae1f957b5b488a7721c650fcf462cd1644",
+          "state": "completed",
+          "result": "passed",
+          "label": "Exact base probe bağımsız CLEAR; uygulama create/start/restart oracles ve sıfır replay korundu. Gerçek Docker/native kök neden ve kurulum kabulü açık."
         }
       ],
       "completionCommit": null,
-      "reason": "Üçüncü native amd64/arm64 koşusu aynı helper_build/fixture_command_exit_failed sonucu ile makbuzsuz kaldı; child nonzero, diğer süreç sınıfları elendi. Yalnız helper stderr'ini 64KiB özel RAM'de sabit Docker hata ailelerine ayıran tanı 172 test, 215 politika ve bağımsız incelemeyle main'e alındı. Dördüncü CI gerçek imzayı, ardından yalnız kanıtlanan dar kök neden düzeltmesi açık. installAvailable=false."
+      "reason": "Dördüncü native run34240514836 exact42bbcf6 üzerinde iki mimaride helper_build/fixture_command_exit_failed verdi; bounded stderr bilinen aileye uymadı ve kök neden çıkarılmadı. Exact base runtime probe 210 ilgili test, 215 politika, %97,02 kapsam ve bağımsız CLEAR ile main914e1e7 içinde. Beşinci CI pull/inspect/create/start/result sınırını ayıracak; yalnız kanıtlanan dar kök neden düzeltmesi açık. installAvailable=false."
     },
     {
       "id": "S06.3e",
@@ -1485,7 +1486,8 @@
         "docs/integrated-media-stack.md",
         "docs/core-home-assistant-adapter-plan-2026-09-06.md",
         "docs/core-ha-switch-server-implementation-2026-09-08.md",
-        "docs/core-ha-switch-client-implementation-2026-09-08.md"
+        "docs/core-ha-switch-client-implementation-2026-09-08.md",
+        "docs/core-ha-switch-command-implementation-2026-09-08.md"
       ],
       "scope": "Tek mevcut ev bağlamı; F19 çoklu Core/ev federasyonu bu teslim değildir.",
       "acceptance": [
@@ -1522,10 +1524,26 @@
           "state": "completed",
           "result": "passed",
           "label": "Server bağımsız incelemesi temiz; Client sözleşme, yaşam döngüsü, klavye ve EN/TR 320/600/1280 tablet QA sınırları ayrıca incelendi."
+        },
+        {
+          "kind": "test",
+          "ref": "docs/core-ha-switch-command-implementation-2026-09-08.md",
+          "commit": "0949e3b53745ea6558cfdc26cb1c2d268f48a06d",
+          "state": "completed",
+          "result": "passed",
+          "label": "Kalıcı switch komutu/makbuzu: tam Server3748PASS/12Macskip; ilgili222Server+124ClientPASS, CoreHA Client %95,52; gerçek HA yazması yok."
+        },
+        {
+          "kind": "review",
+          "ref": "docs/core-ha-switch-command-implementation-2026-09-08.md",
+          "commit": "0949e3b53745ea6558cfdc26cb1c2d268f48a06d",
+          "state": "completed",
+          "result": "passed",
+          "label": "Komut dilimi bağımsız CLEAR: before-send yetki, cache nesli, 5xx unknown, pending kurtarma ve son READ iptali sınırları doğrulandı."
         }
       ],
       "completionCommit": null,
-      "reason": "İlk salt okunur Server/Client dilimi main e11eb57 içinde: açık HA kaynak bağlama, yetkili typed switch snapshot, sınırlı cache ve tablet kaynak ekranı yerel test/incelemeden geçti. Birleşik CI henüz yok; cihaz komutu, kalıcı sonuç makbuzu ve açık Direct aktarımı tamamlanmadığı için S08.7 açık. Gerçek ev yalnız salt okunur."
+      "reason": "Typed switch durumu main e11eb57; kalıcı idempotent komut/makbuz ve tablet Aç/Kapat/kurtarma main914e1e7 içinde yerel test ve bağımsız incelemeden geçti. Exact-source birleşik CI henüz yok. Açık Direct aktarımı, geniş HA varlık/servis kapsamı ve fiziksel Android/gerçek HA kabulü tamamlanmadığı için S08.7 açık; gerçek ev yalnız salt okunur tutuldu."
     },
     {
       "id": "S08.8",
