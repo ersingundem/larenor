@@ -190,6 +190,7 @@ class _TransferPageState extends ConsumerState<_TransferPage> {
                         ),
                     ],
                   ),
+                  if(c.items.isNotEmpty) ...[
                   heading(l.coreHaTransferTarget),
                   SettingsSection(
                     children: [
@@ -209,6 +210,7 @@ class _TransferPageState extends ConsumerState<_TransferPage> {
                         ),
                     ],
                   ),
+                  ],
                   if (c.nextAfter != null)
                     action(
                       'core-ha-transfer-more',

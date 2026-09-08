@@ -70,6 +70,7 @@ class CoreHaTransferController extends ChangeNotifier {
   String? nextAfter, _snapshot;
   bool loaded = false;
   int excludedCount = 0, epoch = 0;
+  int _loadedRecords = 0;
   final ServerSession? _session;
   final int? _generation, _homeEpoch;
   final Object? _identity;
@@ -152,6 +153,7 @@ class CoreHaTransferController extends ChangeNotifier {
     _snapshot = null;
     uncertain = false;
     excludedCount = 0;
+    _loadedRecords = 0;
   }
 
   void _retire() {
@@ -266,6 +268,7 @@ class CoreHaTransferController extends ChangeNotifier {
         uncertain = dispatched?.call() == true && !definite.contains(failure);
         _dropPreview();
         if (!uncertain) _recoverable = null;
+        if (failure == 'forbidden' || failure == 'not_found') _clear();
       }
     } finally {
       if (!_disposed && stamp == epoch) {
@@ -294,6 +297,10 @@ class CoreHaTransferController extends ChangeNotifier {
         _session!.context!,
       ).list(after: after, snapshot: snapshot);
       check();
+      final count = (more ? _loadedRecords : 0) + page.entries.length;
+      if (count > HomeResourcePage.maximumRecords) {
+        throw const LarenorServerException('invalid_response');
+      }
       final all = [
         ...(more ? items : <HomeResourceRecord>[]),
         ...page.entries.where((r) => r.kind == HomeResourceKind.resource),
@@ -304,6 +311,9 @@ class CoreHaTransferController extends ChangeNotifier {
       }
       for (final item in page.entries) {
         final old = _minimum[item.id];
+        if (old == null && _minimum.length >= HomeResourcePage.maximumRecords) {
+          throw const LarenorServerException('invalid_response');
+        }
         if (old != null &&
             (item.revision < old.$1 || item.aclRevision < old.$2)) {
           throw const LarenorServerException('invalid_response');
@@ -311,6 +321,7 @@ class CoreHaTransferController extends ChangeNotifier {
         _minimum[item.id] = (item.revision, item.aclRevision);
       }
       _layout = local;
+      _loadedRecords = count;
       entities = switches;
       items = List.unmodifiable(all);
       excludedCount =
