@@ -1,0 +1,83 @@
+{
+  "name": "Jellyfin Native Storage Characterization",
+  "on": {
+    "workflow_dispatch": {}
+  },
+  "permissions": {
+    "contents": "read"
+  },
+  "concurrency": {
+    "group": "jellyfin-storage-${{ github.ref }}",
+    "cancel-in-progress": true
+  },
+  "jobs": {
+    "characterize": {
+      "runs-on": "${{ matrix.runner }}",
+      "timeout-minutes": 25,
+      "strategy": {
+        "fail-fast": false,
+        "matrix": {
+          "include": [
+            {
+              "runner": "ubuntu-24.04",
+              "platform": "linux/amd64"
+            },
+            {
+              "runner": "ubuntu-24.04-arm",
+              "platform": "linux/arm64"
+            }
+          ]
+        }
+      },
+      "env": {
+        "EXPECTED_PLATFORM": "${{ matrix.platform }}"
+      },
+      "steps": [
+        {
+          "name": "Require manual reviewed main source",
+          "run": "test \"$GITHUB_EVENT_NAME\" = workflow_dispatch\ntest \"$GITHUB_REF\" = refs/heads/main\ntest \"$GITHUB_REPOSITORY\" = ersingundem/larenor\ntest \"$GITHUB_WORKFLOW_SHA\" = \"$GITHUB_SHA\"\ntest \"$RUNNER_ENVIRONMENT\" = github-hosted"
+        },
+        {
+          "uses": "actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
+          "with": {
+            "ref": "${{ github.sha }}",
+            "persist-credentials": false
+          }
+        },
+        {
+          "name": "Prepare pinned isolated Python tooling",
+          "run": "python3 -m venv \"$RUNNER_TEMP/jellyfin-ci-tools\"\n\"$RUNNER_TEMP/jellyfin-ci-tools/bin/python\" -m pip install --disable-pip-version-check --only-binary=:all: uv==0.12.10\n{\n  echo \"UV_PROJECT_ENVIRONMENT=$RUNNER_TEMP/jellyfin-fixture-venv\"\n  echo \"UV_PYTHON_INSTALL_DIR=$RUNNER_TEMP/jellyfin-fixture-python\"\n} >> \"$GITHUB_ENV\"\necho \"$RUNNER_TEMP/jellyfin-ci-tools/bin\" >> \"$GITHUB_PATH\""
+        },
+        {
+          "name": "Install reviewed dependency lock",
+          "working-directory": "server",
+          "run": "uv sync --locked --python 3.12.14"
+        },
+        {
+          "name": "Check installed dependency consistency",
+          "run": "uv pip check --python \"$UV_PROJECT_ENVIRONMENT/bin/python\""
+        },
+        {
+          "name": "Characterize only the owned native ephemeral daemon",
+          "id": "native",
+          "timeout-minutes": 22,
+          "run": "exec sudo --non-interactive env -i \\\n  PATH=/usr/bin:/bin \\\n  PYTHONPATH=\"$GITHUB_WORKSPACE/server:$GITHUB_WORKSPACE\" \\\n  CI=\"$CI\" GITHUB_ACTIONS=\"$GITHUB_ACTIONS\" \\\n  RUNNER_ENVIRONMENT=\"$RUNNER_ENVIRONMENT\" RUNNER_ARCH=\"$RUNNER_ARCH\" \\\n  GITHUB_SHA=\"$GITHUB_SHA\" GITHUB_WORKFLOW_SHA=\"$GITHUB_WORKFLOW_SHA\" \\\n  GITHUB_EVENT_NAME=\"$GITHUB_EVENT_NAME\" GITHUB_REF=\"$GITHUB_REF\" \\\n  GITHUB_REPOSITORY=\"$GITHUB_REPOSITORY\" EXPECTED_PLATFORM=\"$EXPECTED_PLATFORM\" \\\n  \"$UV_PROJECT_ENVIRONMENT/bin/python\" -B -m tool.jellyfin_storage_ci --run-ephemeral-ci \\\n  > \"$RUNNER_TEMP/jellyfin-storage-receipt.json\""
+        },
+        {
+          "name": "Verify exact source and native platform receipt",
+          "run": "\"$UV_PROJECT_ENVIRONMENT/bin/python\" -B -m tool.jellyfin_storage_ci --verify-receipt \"$RUNNER_TEMP/jellyfin-storage-receipt.json\""
+        },
+        {
+          "name": "Preserve required public characterization receipt",
+          "uses": "actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02",
+          "with": {
+            "name": "jellyfin-storage-${{ github.sha }}-${{ runner.arch }}",
+            "path": "${{ runner.temp }}/jellyfin-storage-receipt.json",
+            "if-no-files-found": "error",
+            "retention-days": 14
+          }
+        }
+      ]
+    }
+  }
+}
