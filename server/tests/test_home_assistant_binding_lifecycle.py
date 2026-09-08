@@ -1,5 +1,6 @@
 """Binding quota follows live Core metadata, never upstream deletion or cleanup."""
 from fastapi.testclient import TestClient
+import pytest
 
 from conftest import auth
 from test_home_assistant_adapter import ha, setup, bind
@@ -63,14 +64,24 @@ def test_all_256_live_bindings_reject_then_admin_delete_releases_capacity_after_
         assert restarted.get(live+'/binding',headers=auth(admin)).status_code==200
 
 
-def test_orphan_cleanup_and_hmac_roll_back_when_real_insert_aborts(server,ha,monkeypatch):
+@pytest.mark.parametrize('fault', ['abort', 'ignore', 'remove_after_insert', 'deferred_commit', 'ignore_tag_update'])
+def test_orphan_cleanup_and_hmac_roll_back_when_real_insert_fails(server,ha,monkeypatch,fault):
     # The same capacity branch with one slot isolates the real SQLite fault.
     monkeypatch.setattr(schema,'MAX_BINDINGS',1)
     app,client,admin,first,_,base,_,body=setup(server,ha);bind(client,admin,base,body)
     remove_resource(client,admin,first);second=new_resource(client,admin,first)
     target=base.replace(first['ref']['id'],second['ref']['id']);p=preview(client,admin,target,body)
     with app.state.core.db.transaction() as c:
-        c.execute("CREATE TRIGGER synthetic_insert_failure BEFORE INSERT ON home_assistant_bindings BEGIN SELECT RAISE(ABORT,'synthetic_failure'); END")
+        if fault=='deferred_commit':
+            c.execute('CREATE TABLE synthetic_fk (id TEXT REFERENCES home_resource_records(id) DEFERRABLE INITIALLY DEFERRED)')
+        statement={
+            'abort': "BEFORE INSERT ON home_assistant_bindings BEGIN SELECT RAISE(ABORT,'synthetic_failure'); END",
+            'ignore': 'BEFORE INSERT ON home_assistant_bindings BEGIN SELECT RAISE(IGNORE); END',
+            'remove_after_insert': 'AFTER INSERT ON home_assistant_bindings BEGIN DELETE FROM home_assistant_bindings WHERE resource_id=NEW.resource_id; END',
+            'deferred_commit': "AFTER INSERT ON home_assistant_bindings BEGIN INSERT INTO synthetic_fk VALUES('missing'); END",
+            'ignore_tag_update': 'BEFORE UPDATE ON home_assistant_state BEGIN SELECT RAISE(IGNORE); END',
+        }[fault]
+        c.execute('CREATE TRIGGER synthetic_insert_failure '+statement)
     before=saved(app);calls=ha.calls
     response=client.post(target+'/binding-confirm',headers=auth(admin),json={'previewId':p})
     assert response.status_code==503,response.text
@@ -81,6 +92,31 @@ def test_orphan_cleanup_and_hmac_roll_back_when_real_insert_aborts(server,ha,mon
     p=preview(client,admin,target,body)
     assert client.post(target+'/binding-confirm',headers=auth(admin),json={'previewId':p}).status_code==201
     assert saved(app)[0][0][0]==second['ref']['id']
+
+
+@pytest.mark.parametrize('corruption',['ciphertext','foreign_scope'])
+def test_authenticated_but_invalid_or_foreign_orphan_is_never_cleaned(server,ha,monkeypatch,corruption):
+    import json
+    monkeypatch.setattr(schema,'MAX_BINDINGS',1)
+    app,client,admin,first,_,base,_,body=setup(server,ha);bind(client,admin,base,body)
+    remove_resource(client,admin,first);second=new_resource(client,admin,first)
+    target=base.replace(first['ref']['id'],second['ref']['id']);p=preview(client,admin,target,body)
+    adapter=app.state.core.home_assistant
+    with app.state.core.db.transaction() as c:
+        row=c.execute('SELECT * FROM home_assistant_bindings').fetchone()
+        ciphertext=bytearray(row['ciphertext'])
+        if corruption=='ciphertext':ciphertext[-1]^=1
+        else:
+            binding=adapter._decode(row).model_dump();binding['ref']['homeId']='f'*32
+            ciphertext=adapter._cipher.encrypt(row['nonce'],json.dumps(binding).encode(),adapter._aad(row))
+        c.execute('UPDATE home_assistant_bindings SET ciphertext=?',(bytes(ciphertext),))
+        # Deliberately simulate invalid persisted data even with a valid outer
+        # inventory tag; every encrypted record still needs its own validation.
+        schema.update(c,adapter._key,adapter.resources.scope)
+    before=saved(app);calls=ha.calls
+    response=client.post(target+'/binding-confirm',headers=auth(admin),json={'previewId':p})
+    assert response.status_code==503,response.text
+    assert saved(app)==before and ha.calls==calls
 
 
 def test_corrupt_registry_or_foreign_scope_never_authorizes_orphan_cleanup(server,ha,monkeypatch):
