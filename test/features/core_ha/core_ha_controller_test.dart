@@ -39,6 +39,14 @@ void main() {
     await h.mount(tester, admin: false);
     expect(h.list!.stale, isTrue); expect(h.list!.snapshot, isNull);
   });
+  testWidgets('readout checks monotonic deadline before the timer callback runs', (tester) async {
+    final h = HaHarness(); await h.mount(tester, admin: false);
+    expect(h.list!.snapshot, isNotNull);
+    h.elapsed += const Duration(seconds: 6);
+    expect(h.list!.snapshot, isNull);
+    expect(h.list!.stale, isTrue);
+    expect(h.requests.length, 2);
+  });
   testWidgets('admin preview cancel has no confirmation, confirm consumes once', (tester) async {
     final h = HaHarness(); await h.mount(tester);
     final c = h.list!;
