@@ -31,12 +31,12 @@ Gerçek ev kurulumu ve fiziksel tablet kabulü henüz yapılmadı.
 | --- | --- | --- |
 | S08.5 — restore, logout ve journal hedef sınırı | **Kabul edildi**, exact `960691c` / APK108 | [Kabul ve korunan geçmiş](restore-people-acceptance-108-2026-09-08.md) |
 | S08.6 — kişi, oda, kaynak ve izin yönetimi | **Kabul edildi**, aynı yayın | Merkezi HA akışının yetki temeli hazır |
-| S08.7 — merkezi Home Assistant adaptörü | **Devam ediyor**; typed durum ve kalıcı switch komutu/makbuzu main içinde | Exact-source birleşik CI; sonra açık Direct aktarımı ve geniş HA kapsamı |
-| B5.1 — ortak tablet tasarımı | Services/hesap IME paketi APK116 ile kabul edildi; S08.7 Aç/Kapat/kurtarma yüzeyi yerel tablet matrisinden geçti | Exact-source Android CI ve kalan ortak tablet yüzeyleri |
+| S08.7 — merkezi Home Assistant adaptörü | **Devam ediyor**; typed durum, kalıcı switch komutu/makbuzu ve açık Direct→Core aktarımı main içinde | Exact-source birleşik CI; sonra geniş HA varlık/servis kapsamı |
+| B5.1 — ortak tablet tasarımı | Services/hesap IME paketi APK116 ile kabul edildi; S08.7 komut ve aktarım yüzeyleri yerel tablet matrisinden geçti | Exact-source Android CI ve kalan ortak tablet yüzeyleri |
 | S06.3d — kalıcı depolama | Beşinci native koşu iki mimaride exact base `start --attach` sınırında kaldı; process-only tanı main içinde | Altıncı native koşuda nonzero/timeout/output-limit/spawn/I-O sınıfını ayır |
 
 S08.7 üç sonlu teslimden oluşur: **kaynak bağlama ve typed durum → komut ve
-kalıcı sonuç → açık Direct aktarımı**. İlk iki yerel dilim squash yapılmadan
+kalıcı sonuç → açık Direct aktarımı**. Üç yerel dilim de squash yapılmadan
 main'e alındı. Server gerçek HTTP/SQLite/loopback ile kaynak bağlama, yetkili
 switch durumu, sınırlı cache ve AES-GCM ile saklanan idempotent komut makbuzu
 sağlıyor. Client Core kaynak satırında Aç/Kapat, açık sonuç durumu ve kaybolan
@@ -44,14 +44,34 @@ POST yanıtı için yalnız GET kullanan kurtarma akışı sunuyor. DNS/bağlant
 sonrasında ve ilk HTTP baytından hemen önce yetki/revision yeniden denetleniyor;
 eski snapshot yarışları cache nesliyle engelleniyor. Provider yalnız `200`
 sonucunda accepted; `400/401/403/404/405/422` rejected ve diğer sonuçlar
-unknown. Otomatik retry ve Direct fallback yok. Doğru Java 17/apksig ortamında
-tam Server **3.748 PASS**, 12 macOS platform skip ve sıfır hata verdi. Son ilgili
-koşular 222 Server ve 124 Client PASS; Core HA Client kapsamı %95,52. Bağımsız
-son inceleme temiz. Exact-source uzak CI, açık Direct aktarımı, geniş HA
-varlık/servis kapsamı ve fiziksel kabul bekliyor.
+unknown. Otomatik retry ve Direct fallback yok.
+
+Açık Direct aktarımı yalnız PIN ile açılan Ayarlar akışında kayıtlı tek HA
+URL/token çiftini ve seçilmiş mevcut, boş bir Core switch kaynağını önizler.
+Server 60 saniyelik, tek kullanımlık önizlemeden sonra şifreli service, binding
+ve sonuç makbuzunu tek SQLite transaction'ında yazar; Client Direct kayıtları
+değiştirmez. Oda, sahne, betik, diafon, web-origin izni veya diğer servisler bu
+dar aktarımda taşınmaz. Kayıp onay yanıtı yalnız sonuç GET'iyle kurtarılır;
+confirm tekrarlanmaz. Güncel admin, kaynak WRITE/revision, PIN, hesap, ev,
+pencere ve rota bağlamı ağ öncesinde ve sonrasında yeniden denetlenir.
+Gerçek Server HTTP sözleşmesinin 15 kaydı Client'ta 14 HTTP isteği ve değişmiş
+confirm'in ağ öncesi reddiyle eşleşti; sözleşme SHA-256 değeri sabit kaldı.
+
+Yerel birleşik Server koşusu ortam değişkeni eksikken **3.851 PASS, 12 macOS
+platform skip ve 4 setup error** verdi; sabit `apksig 9.1.0` JAR hash'i ve
+Homebrew Java 17 yolu doğrulandıktan sonra bu dört kripto testi ayrıca **4/4
+PASS** oldu. Bu iki koşu tek temiz tam suite diye toplanmaz. Direct Server
+odaklı **87 PASS**, Client odaklı **92 PASS**, Client ilgili **599 PASS**;
+yeni Server modülleri %95,93 ve yeni Client modülleri %95,88 satır kapsamı
+verdi. Birleşmiş main üzerinde Direct Client **92 PASS**, analiz0 ve 19 dosyada
+format farkı0 tekrarlandı. Server ile Client bağımsız kaynak incelemeleri ve
+TR/EN 2× 600/1280 gerçek-font tablet görselleri temiz. Exact-source uzak CI,
+geniş HA varlık/servis kapsamı ve fiziksel kabul bekliyor.
 [Server kanıtı](core-ha-switch-server-implementation-2026-09-08.md) ·
 [Client kanıtı](core-ha-switch-client-implementation-2026-09-08.md) ·
 [Komut ve makbuz kanıtı](core-ha-switch-command-implementation-2026-09-08.md) ·
+[Direct Server aktarımı](direct-ha-migration-server-implementation-2026-09-08.md) ·
+[Direct Client aktarımı](direct-ha-migration-client-implementation-2026-09-08.md) ·
 [Uygulama planı](core-home-assistant-adapter-plan-2026-09-06.md).
 
 [Services tablet paketi](core-services-tablet-accessibility-2026-09-06.md):

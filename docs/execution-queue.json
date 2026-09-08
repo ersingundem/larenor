@@ -1488,7 +1488,9 @@
         "docs/core-home-assistant-adapter-plan-2026-09-06.md",
         "docs/core-ha-switch-server-implementation-2026-09-08.md",
         "docs/core-ha-switch-client-implementation-2026-09-08.md",
-        "docs/core-ha-switch-command-implementation-2026-09-08.md"
+        "docs/core-ha-switch-command-implementation-2026-09-08.md",
+        "docs/direct-ha-migration-server-implementation-2026-09-08.md",
+        "docs/direct-ha-migration-client-implementation-2026-09-08.md"
       ],
       "scope": "Tek mevcut ev bağlamı; F19 çoklu Core/ev federasyonu bu teslim değildir.",
       "acceptance": [
@@ -1541,10 +1543,34 @@
           "state": "completed",
           "result": "passed",
           "label": "Komut dilimi bağımsız CLEAR: before-send yetki, cache nesli, 5xx unknown, pending kurtarma ve son READ iptali sınırları doğrulandı."
+        },
+        {
+          "kind": "test",
+          "ref": "docs/direct-ha-migration-server-implementation-2026-09-08.md",
+          "commit": "387867e1c1b747254100442dc88fea1936578db9",
+          "state": "completed",
+          "result": "passed",
+          "label": "Direct aktarım Server:87 ayrı odaklı PASS; dört yeni modül %95,93 satır/%85,42 branch, gerçek sözleşme15yanıt/3HA GET/0komut."
+        },
+        {
+          "kind": "test",
+          "ref": "docs/direct-ha-migration-client-implementation-2026-09-08.md",
+          "commit": "c77bf9ef4e3e1091916eea9e42a7c5f7df2f6b83",
+          "state": "completed",
+          "result": "passed",
+          "label": "Direct aktarım Client:92odaklı/599ilgiliPASS, yeni6modül %95,88satır; analyzer0/format0 ve EN/TR 2x tablet matrisi."
+        },
+        {
+          "kind": "review",
+          "ref": "docs/direct-ha-migration-client-implementation-2026-09-08.md",
+          "commit": "c77bf9ef4e3e1091916eea9e42a7c5f7df2f6b83",
+          "state": "completed",
+          "result": "passed",
+          "label": "Server ve Client bağımsız CLEAR: atomik kayıt, PIN/root/current sınırı, sır redaksiyonu, no-replay GET kurtarma ve tablet a11y/Apple incelemesinde açık P1/P2 yok."
         }
       ],
       "completionCommit": null,
-      "reason": "Typed switch durumu main e11eb57; kalıcı idempotent komut/makbuz ve tablet Aç/Kapat/kurtarma main914e1e7 içinde yerel test ve bağımsız incelemeden geçti. Exact-source birleşik CI henüz yok. Açık Direct aktarımı, geniş HA varlık/servis kapsamı ve fiziksel Android/gerçek HA kabulü tamamlanmadığı için S08.7 açık; gerçek ev yalnız salt okunur tutuldu."
+      "reason": "Typed switch durumu, kalıcı idempotent komut/makbuz ve açık PIN-gated Direct→Core aktarımı local maince01445 içinde. Server87 ve Client92odaklı/599ilgiliPASS; sözleşmehash sabit, bağımsız incelemeler CLEAR. Exact-source birleşik CI, geniş HA varlık/servis kapsamı ve fiziksel Android/gerçek HA kabulü açık; gerçek ev yalnız salt okunur tutuldu."
     },
     {
       "id": "S08.8",
@@ -1799,7 +1825,8 @@
         "docs/core-services-tablet-accessibility-2026-09-06.md",
         "docs/core-account-ime-navigation-2026-09-08.md",
         "docs/core-services-ime-integration-2026-09-08.md",
-        "docs/client-delivery-116-2026-09-08.md"
+        "docs/client-delivery-116-2026-09-08.md",
+        "docs/direct-ha-migration-client-implementation-2026-09-08.md"
       ],
       "scope": "Son bütün ekran tasarım geçişi değildir; Core’suz kişisel uzak bağlantı için Core bağımlılığı koymaz.",
       "acceptance": [
@@ -2050,10 +2077,26 @@
           "state": "completed",
           "result": "passed",
           "label": "Android116: exact5cbff21, ilk deneme; 5220Flutter/98JVM/17E2E/133faz ve bağımsız imzalı APK116 doğrulaması geçti. Services+hesapIME dahildir; fiziksel tablet kabulü ayrı açıktır."
+        },
+        {
+          "kind": "test",
+          "ref": "docs/direct-ha-migration-client-implementation-2026-09-08.md",
+          "commit": "c77bf9ef4e3e1091916eea9e42a7c5f7df2f6b83",
+          "state": "completed",
+          "result": "passed",
+          "label": "Direct aktarım tablet yüzeyi:EN/TR 320/600/1280 2x, effective48x48 semantics ve native Tab/ShiftTab/Enter/Space;92odaklı/599ilgiliPASS."
+        },
+        {
+          "kind": "review",
+          "ref": "docs/direct-ha-migration-client-implementation-2026-09-08.md",
+          "commit": "c77bf9ef4e3e1091916eea9e42a7c5f7df2f6b83",
+          "state": "completed",
+          "result": "passed",
+          "label": "TR600dark ve EN1280light 2x gerçek-font PNG ile Apple/tablet/a11y incelemesi CLEAR; sarma, eylem ve focus ring taşmasız."
         }
       ],
       "completionCommit": null,
-      "reason": "Services ve hesap IME exact5cbff21/APK116 ile temiz CI kapısından geçti:5220Flutter/98JVM/17E2E/133faz ve bağımsız imza doğrulandı. Önceki host-uykusu yerel koşusu korunur. Genel B5.1, S08.7 kaynak ekranı ve fiziksel Huawei/DeX/TalkBack kabulü nedeniyle açık."
+      "reason": "Services ve hesap IME exact5cbff21/APK116 ile temiz CI kapısından geçti:5220Flutter/98JVM/17E2E/133faz ve bağımsız imza doğrulandı. Direct aktarım yüzeyi yerelde tablet/a11y review CLEAR ve599ilgiliPASS. Genel B5.1, exact-source yeni Android CI, kalan ortak tablet yüzeyleri ve fiziksel Huawei/DeX/TalkBack kabulü nedeniyle açık."
     },
     {
       "id": "B5.2",
