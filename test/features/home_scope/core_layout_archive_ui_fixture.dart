@@ -54,6 +54,7 @@ class ArchiveHarness {
     WidgetTester tester, {
     String language = 'en',
     double width = 600,
+    double height = 1000,
     double scale = 1,
     String? pin = '1234',
     PinLockStore? pinStore,
@@ -65,7 +66,7 @@ class ArchiveHarness {
     FlutterSecureStorage.setMockInitialValues({'settings_pin': ?pin});
     tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
     tester.view.devicePixelRatio = 1;
-    tester.view.physicalSize = Size(width, 1000);
+    tester.view.physicalSize = Size(width, height);
     tester.platformDispatcher.textScaleFactorTestValue = scale;
     addTearDown(tester.view.reset);
     addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);

@@ -41,22 +41,8 @@ void registerCoreArchiveJourney() {
       );
       Finder key(String name) => find.byKey(ValueKey(name));
 
-      Future<void> visible(String name) async {
-        final finder = key(name);
-        if (finder.evaluate().isEmpty) {
-          await tester.scrollUntilVisible(
-            finder,
-            250,
-            scrollable: key('core-layout-archive-screen').evaluate().isEmpty
-                ? find.byType(Scrollable).last
-                : coreArchiveJourneyScrollable(),
-            maxScrolls: 20,
-          );
-        }
-        await waitFor(tester, finder);
-        await tester.ensureVisible(finder);
-        await tester.pump(const Duration(milliseconds: 350));
-      }
+      Future<void> visible(String name) =>
+          coreArchiveJourneyVisible(tester, name);
 
       Future<void> press(String name) async {
         await visible(name);
@@ -314,6 +300,77 @@ Finder coreArchiveJourneyScrollable() => find
       matching: find.byType(Scrollable),
     )
     .first;
+
+/// Wait for the owned archive route before asking Flutter to scroll it.
+///
+/// Route transitions can briefly leave both a lazy child and its page viewport
+/// out of the default finder tree on a real Android emulator. Passing an empty
+/// global `Scrollable.last` into `scrollUntilVisible` turns that transition into
+/// an opaque `Bad state: No element`. This helper waits for the current owned
+/// page and never scrolls an unrelated route.
+Future<void> coreArchiveJourneyVisible(WidgetTester tester, String name) async {
+  final target = find.byKey(ValueKey(name));
+  Finder? currentOwner() {
+    final current =
+        [
+              find.byType(CoreLayoutArchiveScreen),
+              find.byType(HomeSourceScreen),
+              find.byType(ServerConnectionScreen),
+            ]
+            .where(
+              (page) => singleElementReady(
+                page.hitTestable(),
+                (element) =>
+                    ModalRoute.of(element)?.isCurrent == true &&
+                    TickerMode.valuesOf(element).enabled,
+              ),
+            )
+            .toList();
+    return current.length == 1 ? current.single : null;
+  }
+
+  // Let a synchronously pushed dialog/page publish its first route frame.
+  await tester.pump(const Duration(milliseconds: 100));
+  await waitUntil(
+    tester,
+    () => target.evaluate().isNotEmpty || currentOwner() != null,
+    describe: () =>
+        'Owned archive journey route or control $name did not '
+        'become current.',
+  );
+  if (target.evaluate().isEmpty) {
+    final owner = currentOwner();
+    expect(owner, isNotNull);
+    final vertical = find.descendant(
+      of: owner!,
+      matching: find.byWidgetPredicate(
+        (widget) =>
+            widget is Scrollable &&
+            (widget.axisDirection == AxisDirection.down ||
+                widget.axisDirection == AxisDirection.up),
+      ),
+    );
+    expect(vertical, findsOneWidget);
+    await tester.scrollUntilVisible(
+      target,
+      250,
+      scrollable: vertical,
+      maxScrolls: 20,
+    );
+  }
+  await waitUntil(
+    tester,
+    () => singleElementReady(
+      target,
+      (element) =>
+          ModalRoute.of(element)?.isCurrent == true &&
+          TickerMode.valuesOf(element).enabled,
+    ),
+    describe: () => 'Archive control $name did not become current.',
+  );
+  await tester.ensureVisible(target);
+  await tester.pump(const Duration(milliseconds: 350));
+}
 
 Future<void> coreArchiveJourneyConfirmationDismissed(
   WidgetTester tester,
