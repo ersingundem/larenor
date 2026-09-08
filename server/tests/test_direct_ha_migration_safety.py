@@ -148,3 +148,61 @@ def test_four_preview_quota_cancel_releases_capacity_and_never_holds_secret(serv
         assert body['token'] not in repr(vars(item))
     assert client.delete(base+'/direct-migration/preview/'+values[0]['id'],headers=auth(admin)).status_code==204
     preview(client,admin,base,{**body,'requestId':'f'*32})
+
+
+def test_service_capacity_blocks_preview_before_outbound_without_deleting_live_configuration(server,ha):
+    app,client,admin,_,_,base,body=setup_transfer(server,ha)
+    from larenor_server.services.service import MAX_SERVICES, NEVER
+    with app.state.core.db.transaction() as c:
+        for i in range(MAX_SERVICES):
+            app.state.core.services._save(c,f'{i:032x}',1,{'name':f'Synthetic {i}','kind':'home_assistant',
+                'baseUrl':ha.url,'credentials':{'token':'synthetic-ha-only'},'verification':dict(NEVER)})
+    before=stored(app)
+    r=client.post(base+'/direct-migration/preview',headers=auth(admin),json=body)
+    assert r.status_code==409 and r.json()['error']['code']=='service_limit_reached'
+    assert stored(app)==before and ha.calls==0
+
+
+def test_service_identity_collision_after_preview_never_overwrites_existing_record(server,ha,monkeypatch):
+    from types import SimpleNamespace
+    from uuid import UUID
+    app,client,admin,_,_,base,body=setup_transfer(server,ha)
+    p=preview(client,admin,base,body)
+    monkeypatch.setattr('larenor_server.services.service.uuid',SimpleNamespace(uuid4=lambda:UUID(hex=p['service']['id'])))
+    r=client.post('/api/v1/admin/services',headers=auth(admin),json={'name':'Existing','kind':'home_assistant',
+        'baseUrl':ha.url,'credentials':{'token':'existing-synthetic-token'}})
+    assert r.status_code==201
+    before=stored(app);calls=ha.calls
+    assert confirm(client,admin,base,body,p).status_code==409
+    assert stored(app)==before and ha.calls==calls and ha.command_calls==0
+
+
+def test_request_id_is_not_a_lookup_capability_for_other_resource_or_actor(server,ha):
+    from test_admin import create, activate
+    app,client,admin,_,path,base,body=setup_transfer(server,ha)
+    p=preview(client,admin,base,body)
+    assert confirm(client,admin,base,body,p).status_code==201
+    record=client.post(path,headers=auth(admin),json={'kind':'resource','label':'Other','order':1}).json()['record']
+    other_base=base.rsplit('/',1)[0]+'/'+record['ref']['id']
+    assert client.get(other_base+'/direct-migration/results/'+body['requestId'],headers=auth(admin)).status_code==404
+    create(client,admin,name='otheradmin',role='admin');other=activate(client,'otheradmin')
+    calls=ha.calls
+    assert client.get(base+'/direct-migration/results/'+body['requestId'],headers=auth(other)).status_code==404
+    assert confirm(client,other,base,body,p).status_code==404
+    assert ha.calls==calls and len(stored(app)['service_connections'])==1
+
+
+def test_duplicate_request_is_blocked_both_before_and_after_actual_get(server,ha):
+    app,client,admin,_,_,base,body=setup_transfer(server,ha)
+    nested=[]
+    def finish_second_preview():
+        ha.during=None
+        nested.append(preview(client,admin,base,body))
+    ha.during=finish_second_preview
+    r=client.post(base+'/direct-migration/preview',headers=auth(admin),json=body)
+    assert r.status_code==409 and len(nested)==1 and ha.calls==2
+    calls=ha.calls
+    assert client.post(base+'/direct-migration/preview',headers=auth(admin),json=body).status_code==409
+    assert ha.calls==calls
+    assert len(app.state.core.direct_ha_migration._previews)==1 and not stored(app)['service_connections']
+    assert client.delete(base+'/direct-migration/preview/'+'0'*32,headers=auth(admin)).status_code==409
