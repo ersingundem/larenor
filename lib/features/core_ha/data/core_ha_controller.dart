@@ -26,10 +26,12 @@ class CoreHaController extends ChangeNotifier {
   final Listenable owner;
   final bool admin;
   int epoch = 0;
-  bool busy = false, loaded = false, stale = false, uncertain = false, saved = false;
+  bool busy = false, loaded = false, _stale = false, uncertain = false, saved = false;
+  bool get stale => _stale || _deadline != null && monotonic() >= _deadline!;
   String? failure;
   HomeResourceRecord? record;
-  CoreHaSnapshot? snapshot;
+  CoreHaSnapshot? _snapshot;
+  CoreHaSnapshot? get snapshot => fresh && !stale ? _snapshot : null;
   CoreHaBinding? binding;
   CoreHaPreview? preview;
   List<ServerService> services = const [];
@@ -62,8 +64,8 @@ class CoreHaController extends ChangeNotifier {
   void _emit() { if (!_disposed) notifyListeners(); }
   void _clear() {
     _ttlTimer?.cancel(); _ttlTimer = null; _deadline = null;
-    record = null; snapshot = null; binding = null; preview = null; services = const [];
-    loaded = false; stale = false; saved = false;
+    record = null; _snapshot = null; binding = null; preview = null; services = const [];
+    loaded = false; _stale = false; saved = false;
   }
   void _retire() {
     epoch++; busy = false; _preparing = false; _preparationCurrent = null;
@@ -87,7 +89,7 @@ class CoreHaController extends ChangeNotifier {
     _emit(); _start();
   }
   void _expire() {
-    snapshot = null; preview = null; _deadline = null; stale = true;
+    _snapshot = null; preview = null; _deadline = null; _stale = true;
     _ttlTimer?.cancel(); _ttlTimer = null;
   }
   void _arm(Duration deadline) {
@@ -156,7 +158,7 @@ class CoreHaController extends ChangeNotifier {
         if (value.bindingRevision < _bindingRevision) throw const LarenorServerException('ha_binding_changed');
         _bindingRevision = value.bindingRevision;
         _resourceRevision = value.resourceRevision; _aclRevision = value.aclRevision;
-        snapshot = value; _arm(started + Duration(milliseconds: value.remainingTtlMs));
+        _snapshot = value; _arm(started + Duration(milliseconds: value.remainingTtlMs));
       }
       loaded = true;
     });
@@ -167,7 +169,7 @@ class CoreHaController extends ChangeNotifier {
     await _run((api) async {
       final started = monotonic();
       final value = await api(target).preview(service: service, entityId: entityId, existing: existing);
-      preview = value; stale = false; _arm(started + Duration(milliseconds: value.expiresInMs));
+      preview = value; _stale = false; _arm(started + Duration(milliseconds: value.expiresInMs));
     }, guard: isCurrent);
   }
   Future<void> confirm(CoreHaPreview value, {required bool Function() isCurrent}) async {
