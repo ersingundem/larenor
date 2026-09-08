@@ -61,6 +61,47 @@ class CredentialsStore {
     return HaConnectionConfig(baseUrl: baseUrl, token: token);
   });
 
+  /// Explicit transfer entry; normal background reads keep their existing API.
+  Future<HaConnectionConfig?> readForTransfer({
+    required bool Function() isCurrent,
+  }) => ConfigurationWrites.run(() async {
+    void check() {
+      _check();
+      var active = false;
+      try {
+        active = isCurrent();
+      } catch (_) {
+        // A failed action/PIN check cannot authorize the next platform read.
+      }
+      if (!active) throw const DirectHomeAccessException('unavailable');
+    }
+
+    Future<String?> readKey(String key) async {
+      check();
+      final value = await _call(() => _storage.read(key: key));
+      check();
+      return value;
+    }
+
+    if (await readKey(pendingMutationKey) != null) {
+      throw const DirectHomeAccessException('pending_mutation');
+    }
+    final baseUrl = await readKey(_baseUrlKey);
+    final token = await readKey(_tokenKey);
+    check();
+    if (baseUrl == null && token == null) return null;
+    if (baseUrl == null ||
+        baseUrl.isEmpty ||
+        baseUrl.length > 2048 ||
+        token == null ||
+        token.isEmpty ||
+        token.length > 2048 ||
+        token.codeUnits.any((unit) => unit < 0x21 || unit > 0x7e)) {
+      throw const DirectHomeAccessException('invalid_record');
+    }
+    return HaConnectionConfig(baseUrl: baseUrl, token: token);
+  });
+
   Future<void> save(HaConnectionConfig config) =>
       ConfigurationWrites.run(() async {
         _check();

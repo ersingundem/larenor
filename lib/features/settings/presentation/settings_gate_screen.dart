@@ -8,6 +8,7 @@ import '../../home_scope/presentation/home_source_screen.dart';
 import '../../home_resources/presentation/home_resource_admin_screen.dart';
 import '../../home_people/presentation/home_people_screen.dart';
 import '../../server/presentation/server_connection_screen.dart';
+import '../../core_ha/direct_migration/transfer_screen.dart';
 
 import '../../../l10n/generated/app_localizations.dart';
 import '../providers/settings_providers.dart';
@@ -21,6 +22,7 @@ enum SettingsGateDestination {
   homeSource,
   homeResources,
   homePeople,
+  coreHaTransfer,
 }
 
 /// Gates access to [SettingsSplitScreen] behind a PIN, if one has been set —
@@ -30,9 +32,13 @@ class SettingsGateScreen extends ConsumerStatefulWidget {
   const SettingsGateScreen({
     super.key,
     this.initialDestination = SettingsGateDestination.settings,
+    this.transferParentCurrent,
   });
 
   final SettingsGateDestination initialDestination;
+
+  /// Only the explicit transfer's parent/root route supplies this authority.
+  final bool Function()? transferParentCurrent;
 
   @override
   ConsumerState<SettingsGateScreen> createState() => _SettingsGateScreenState();
@@ -125,6 +131,8 @@ class _SettingsGateScreenState extends ConsumerState<SettingsGateScreen>
     ref.listen(pinLockProvider, (previous, next) {
       if ((widget.initialDestination == SettingsGateDestination.homeResources ||
               widget.initialDestination ==
+                  SettingsGateDestination.coreHaTransfer ||
+              widget.initialDestination ==
                   SettingsGateDestination.homePeople) &&
           (next.isLoading || next.hasError)) {
         _lockSettings();
@@ -133,6 +141,8 @@ class _SettingsGateScreenState extends ConsumerState<SettingsGateScreen>
       if (previous?.hasValue == true &&
           next.hasValue &&
           (next.value != null ||
+              widget.initialDestination ==
+                  SettingsGateDestination.coreHaTransfer ||
               widget.initialDestination ==
                   SettingsGateDestination.homeResources ||
               widget.initialDestination ==
@@ -177,6 +187,30 @@ class _SettingsGateScreenState extends ConsumerState<SettingsGateScreen>
                             widget.initialDestination ==
                                 SettingsGateDestination.serverAccount
                             ? ServerConnectionScreen(
+                                onExit: Navigator.of(context).canPop()
+                                    ? _exit
+                                    : null,
+                              )
+                            : widget.initialDestination ==
+                                  SettingsGateDestination.coreHaTransfer
+                            ? CoreHaTransferScreen(
+                                gateCurrent: () {
+                                  if (!mounted ||
+                                      !_interactive ||
+                                      resourceGeneration != _generation ||
+                                      ModalRoute.of(context)?.isCurrent !=
+                                          true ||
+                                      widget.transferParentCurrent?.call() !=
+                                          true) {
+                                    return false;
+                                  }
+                                  final currentPin = ref.read(pinLockProvider);
+                                  return !currentPin.isLoading &&
+                                      !currentPin.hasError &&
+                                      currentPin.hasValue &&
+                                      currentPin.value == pin &&
+                                      (pin == null || _unlocked);
+                                },
                                 onExit: Navigator.of(context).canPop()
                                     ? _exit
                                     : null,
@@ -230,6 +264,21 @@ class _SettingsGateScreenState extends ConsumerState<SettingsGateScreen>
                                   SettingsGateDestination.homeSource
                             ? HomeSourceScreen(
                                 runFileDialog: _runFileDialog,
+                                transferGateCurrent: () {
+                                  if (!mounted ||
+                                      !_interactive ||
+                                      resourceGeneration != _generation ||
+                                      ModalRoute.of(context)?.isCurrent !=
+                                          true) {
+                                    return false;
+                                  }
+                                  final value = ref.read(pinLockProvider);
+                                  return !value.isLoading &&
+                                      !value.hasError &&
+                                      value.hasValue &&
+                                      value.value == pin &&
+                                      (pin == null || _unlocked);
+                                },
                                 archiveGateCurrent: () {
                                   if (!mounted ||
                                       !_interactive ||
