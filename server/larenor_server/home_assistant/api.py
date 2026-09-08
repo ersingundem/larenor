@@ -12,7 +12,8 @@ from ..dependencies import get_core, require_user, bearer
 from ..errors import ApiError
 from ..home_resources.models import Identity
 from ..models import ErrorResponse
-from .models import BindingResponse, ConfirmRequest, PreviewRequest, PreviewResponse, SnapshotResponse
+from .models import (BindingResponse, CommandRequest, CommandResponse, ConfirmRequest,
+                     PreviewRequest, PreviewResponse, SnapshotResponse)
 
 Core = Annotated[CoreServices, Depends(get_core)]
 def adapter_ready(core: Core, credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(bearer)]):
@@ -100,3 +101,16 @@ async def snapshot(core_id: Identity, home_id: Identity, resource_id: Identity,
                    request: Request, actor: Ready, core: Core):
     return await observe(request, lambda cancelled: core.home_assistant.snapshot(
         actor, core_id, home_id, resource_id, cancelled=cancelled))
+
+
+@router.post(PUBLIC + '/commands', response_model=CommandResponse, status_code=202)
+async def command(core_id: Identity, home_id: Identity, resource_id: Identity,
+                  body: CommandRequest, request: Request, actor: Ready, core: Core):
+    return await observe(request, lambda cancelled: core.home_assistant.command(
+        actor, core_id, home_id, resource_id, body, cancelled=cancelled))
+
+
+@router.get(PUBLIC + '/commands/{request_id}', response_model=CommandResponse)
+def command_result(core_id: Identity, home_id: Identity, resource_id: Identity,
+                   request_id: Identity, actor: Ready, core: Core):
+    return core.home_assistant.command_result(actor, core_id, home_id, resource_id, request_id)

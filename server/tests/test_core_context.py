@@ -47,7 +47,7 @@ def legacy_v2(app):
             connection.execute(f'DROP TABLE {table}')
         connection.execute("DELETE FROM metadata WHERE key='home_people_schema'")
         # The selected-HA binding domain also requires the later Core identity.
-        for table in ('home_assistant_bindings', 'home_assistant_state'):
+        for table in ('home_assistant_commands', 'home_assistant_bindings', 'home_assistant_state'):
             connection.execute(f'DROP TABLE {table}')
         connection.execute("DELETE FROM metadata WHERE key='home_assistant_schema'")
         connection.execute("UPDATE metadata SET value='2' WHERE key='schema_version'")

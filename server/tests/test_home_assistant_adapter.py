@@ -46,6 +46,8 @@ def ha():
             assert json.loads(self.rfile.read(length)) == {'entity_id': 'switch.synthetic'}
             if fixture.during:
                 fixture.during()
+            if fixture.command_status == 200:
+                fixture.state = 'on' if self.path.endswith('/turn_on') else 'off'
             body = b'[]'
             self.send_response(fixture.command_status)
             self.send_header('Content-Type', 'application/json')

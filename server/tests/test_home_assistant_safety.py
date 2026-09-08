@@ -157,7 +157,7 @@ def test_preview_ttl_restart_and_binding_persistence(server,ha):
     "UPDATE home_assistant_state SET authentication_tag='bad'",
     'CREATE UNIQUE INDEX unrelated_name ON home_assistant_bindings(revision)',
     'CREATE TRIGGER unrelated_trigger BEFORE INSERT ON home_assistant_bindings BEGIN SELECT RAISE(IGNORE); END',
-    "UPDATE metadata SET value='2' WHERE key='home_assistant_schema'",
+    "UPDATE metadata SET value='3' WHERE key='home_assistant_schema'",
     'DROP TABLE home_assistant_state',
 ])
 def test_startup_rejects_tampered_storage_and_preserves_dump(server,ha,sql):

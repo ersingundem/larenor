@@ -55,3 +55,27 @@ def read_switch(service, entity_id, *, guard):
     except (ValueError, TypeError, UnicodeError, RecursionError):
         raise ApiError('ha_projection_unsupported', 502) from None
     return projection
+
+
+def command_switch(service, entity_id, action, *, guard):
+    """Dispatch once and return a closed provider outcome.
+
+    A transport failure is indeterminate because the request may have reached
+    Home Assistant. Callers must persist that as unknown and never replay it.
+    """
+    if (not re.fullmatch(r'switch\.[a-z0-9_]{1,121}', entity_id)
+            or action not in ('turn_on', 'turn_off')):
+        raise ApiError('invalid_request')
+    guard()
+    body = json.dumps({'entity_id': entity_id}, separators=(',', ':')).encode('ascii')
+    try:
+        with ServiceTransport(service.base_url, timeout=TIMEOUT, max_bytes=MAX_BYTES) as transport:
+            response = transport.request('POST', '/api/services/switch/' + action,
+                headers={'Authorization': 'Bearer ' + service.credentials['token'],
+                         'Accept': 'application/json', 'Content-Type': 'application/json'},
+                body=body)
+    except (ProbeTransportError, KeyError):
+        return None
+    if response.status == 200:
+        return True
+    return False
