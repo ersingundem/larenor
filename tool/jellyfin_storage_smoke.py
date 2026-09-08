@@ -33,7 +33,24 @@ _CODES = {'storage_characterization_failed','native_ephemeral_ci_required','fixt
     'owned_daemon_lost','owned_daemon_unavailable','owned_cleanup_failed','fixture_image_unresolved',
     'fixture_volume_unresolved','fixture_protocol_failed','jellyfin_startup_timeout',
     'unexpected_image_volume','unexpected_initial_write_access','restart_identity_changed','fixture_source_changed'}
-_DIAGNOSTIC_CODES = _CODES | {'invalid_image_preparation', 'invalid_image_binding',
+# Quiet legacy build can emit buffered progress followed by its final error.
+# Keep the complete diagnostic input bounded; never export or persist it.
+_BUILD_STDERR_LIMIT = 65536
+_BUILD_ERROR_PATTERNS = {
+    'helper_build_manifest_missing': (b'manifest unknown',),
+    'helper_build_platform_missing': (b'no matching manifest for ', b'no match for platform in manifest'),
+    'helper_build_registry_limit': (b'toomanyrequests:', b'429 too many requests'),
+    'helper_build_registry_auth': (b'pull access denied', b'unauthorized: authentication required'),
+    'helper_build_runtime_failed': (b'failed to create shim task', b'oci runtime create failed', b'runc create failed'),
+    'helper_build_context_failed': (b'copy failed:', b'failed to read dockerfile'),
+    'helper_build_tls_failed': (b'x509:', b'tls handshake timeout'),
+    'helper_build_dns_failed': (b'no such host', b'temporary failure in name resolution'),
+    'helper_build_storage_failed': (b'no space left on device', b'read-only file system'),
+    'helper_build_step_failed': (b'returned a non-zero code:',),
+}
+_DIAGNOSTIC_CODES = _CODES | set(_BUILD_ERROR_PATTERNS) | {
+    'fixture_command_stderr_limit', 'helper_build_error_ambiguous',
+    'invalid_image_preparation', 'invalid_image_binding',
     'fixture_command_exit_failed', 'fixture_command_output_limit', 'fixture_command_timeout',
     'fixture_command_spawn_failed', 'fixture_command_io_failed',
     'image_cancelled', 'image_pull_not_authorized', 'image_observation_unavailable',
@@ -125,30 +142,51 @@ def _signal_group(process, sig):
         pass
 
 
+def _build_error(stderr):
+    """Diagnostic signature only, never authority or raw Docker output."""
+    folded = stderr.lower()
+    matched = {code for code, patterns in _BUILD_ERROR_PATTERNS.items()
+               if any(pattern in folded for pattern in patterns)}
+    if len(matched) == 1:
+        return matched.pop()
+    return 'helper_build_error_ambiguous' if matched else 'fixture_command_exit_failed'
+
+
 def bounded_command(arguments, *, environment, timeout=60, limit=65536, diagnose_failure=False):
-    """No shell/input/ambient secrets; cap bytes and kill/reap the owned child."""
+    """Private bounded pipes; only helper diagnostics drain stderr in memory."""
     require(type(diagnose_failure) is bool, 'fixture_command_failed')
     def check(value, code):
         require(value, code if diagnose_failure else 'fixture_command_failed')
     process = None
+    stderr = bytearray()
     deadline = time.monotonic() + timeout
     try:
         process = subprocess.Popen(arguments, env=environment, stdin=subprocess.DEVNULL,
-            stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, bufsize=0, start_new_session=True)
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE if diagnose_failure else subprocess.DEVNULL,
+            bufsize=0, start_new_session=True)
         result = bytearray()
         with selectors.DefaultSelector() as selector:
-            selector.register(process.stdout, selectors.EVENT_READ)
-            while True:
+            selector.register(process.stdout, selectors.EVENT_READ, 'stdout')
+            if diagnose_failure:
+                selector.register(process.stderr, selectors.EVENT_READ, 'stderr')
+            while selector.get_map():
                 remaining = deadline - time.monotonic()
-                check(remaining > 0 and selector.select(remaining), 'fixture_command_timeout')
-                chunk = os.read(process.stdout.fileno(), limit - len(result) + 1)
-                if not chunk:
-                    break
-                result.extend(chunk)
-                check(len(result) <= limit, 'fixture_command_output_limit')
+                check(remaining > 0, 'fixture_command_timeout')
+                ready = selector.select(remaining)
+                check(ready, 'fixture_command_timeout')
+                for key, _ in ready:
+                    buffer, bound, code = ((result, limit, 'fixture_command_output_limit')
+                        if key.data == 'stdout' else (stderr, _BUILD_STDERR_LIMIT, 'fixture_command_stderr_limit'))
+                    chunk = os.read(key.fd, bound - len(buffer) + 1)
+                    if not chunk:
+                        selector.unregister(key.fileobj)
+                        continue
+                    buffer.extend(chunk)
+                    check(len(buffer) <= bound, code)
         remaining = deadline - time.monotonic()
         check(remaining > 0, 'fixture_command_timeout')
-        check(process.wait(timeout=remaining) == 0, 'fixture_command_exit_failed')
+        check(process.wait(timeout=remaining) == 0,
+              _build_error(stderr) if diagnose_failure else 'fixture_command_exit_failed')
         return bytes(result)
     except subprocess.TimeoutExpired:
         raise SmokeError('fixture_command_timeout' if diagnose_failure else 'fixture_command_failed') from None
@@ -156,6 +194,7 @@ def bounded_command(arguments, *, environment, timeout=60, limit=65536, diagnose
         code = 'fixture_command_spawn_failed' if process is None else 'fixture_command_io_failed'
         raise SmokeError(code if diagnose_failure else 'fixture_command_failed') from None
     finally:
+        stderr.clear()
         if process is not None:
             try:
                 # An exited parent can leave descendants holding its pipe open.
@@ -164,6 +203,8 @@ def bounded_command(arguments, *, environment, timeout=60, limit=65536, diagnose
                 process.wait(timeout=5)
             finally:
                 process.stdout.close()
+                if process.stderr is not None:
+                    process.stderr.close()
 
 
 def daemon_command(root):
