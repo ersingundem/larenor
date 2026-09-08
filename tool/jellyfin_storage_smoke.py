@@ -21,6 +21,7 @@ import subprocess
 import sys
 import tempfile
 import time
+from types import MappingProxyType
 import uuid
 
 
@@ -33,7 +34,9 @@ _CODES = {'storage_characterization_failed','native_ephemeral_ci_required','fixt
     'unexpected_image_volume','unexpected_initial_write_access','restart_identity_changed','fixture_source_changed'}
 _SOURCE_FILES = ('tool/volume_bootstrap_helper.py','tool/jellyfin_storage_probe.py',
     'tool/jellyfin_storage_smoke.py','server/Dockerfile.volume-bootstrap',
-    'server/Dockerfile.volume-bootstrap.dockerignore')
+    'server/Dockerfile.volume-bootstrap.dockerignore', 'LICENSE', 'NOTICE')
+_BUILD_FILES = ('tool/volume_bootstrap_helper.py', 'tool/jellyfin_storage_probe.py',
+    'server/Dockerfile.volume-bootstrap', 'LICENSE', 'NOTICE')
 
 
 class SmokeError(Exception):
@@ -231,13 +234,64 @@ def prepare_storage(root, source, images, volumes):
     return {'imageState': result.state, 'volumeStates': states}
 
 
-def source_hashes():
-    result = {}
-    for name in _SOURCE_FILES:
-        raw = (REPOSITORY/name).read_bytes()
+def _source_bytes(path):
+    try:
+        fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK | os.O_CLOEXEC)
+        with os.fdopen(fd, 'rb') as source:
+            require(stat.S_ISREG(os.fstat(source.fileno()).st_mode), 'fixture_source_changed')
+            raw = source.read(1048577)
         require(len(raw) <= 1048576, 'fixture_source_changed')
-        result[name] = hashlib.sha256(raw).hexdigest()
-    return result
+        return raw
+    except OSError:
+        raise SmokeError('fixture_source_changed') from None
+
+
+def source_hashes():
+    return {name: hashlib.sha256(_source_bytes(REPOSITORY/name)).hexdigest()
+            for name in _SOURCE_FILES}
+
+
+def capture_source(commit):
+    verify_checkout(commit)
+    binding = commit, MappingProxyType(source_hashes())
+    check_source(binding)
+    return binding
+
+
+def check_source(binding):
+    commit, expected = binding
+    verify_checkout(commit)
+    require(source_hashes() == expected, 'fixture_source_changed')
+
+
+def check_staged(context, binding):
+    expected = binding[1]
+    require({str(p.relative_to(context)) for p in context.rglob('*') if not p.is_dir()}
+            == set(_BUILD_FILES), 'fixture_source_changed')
+    for name in _BUILD_FILES:
+        require(hashlib.sha256(_source_bytes(context/name)).hexdigest() == expected[name],
+                'fixture_source_changed')
+
+
+def stage_context(root, binding):
+    """Legacy Docker reads only this new allowlisted context, never the checkout.
+
+    Rechecks detect observed checkout/stage drift, not a malicious local writer
+    changing and restoring bytes between checks. No user paths are accepted.
+    """
+    check_source(binding)
+    context = root/'helper-context'
+    context.mkdir(mode=0o700)
+    for name in _BUILD_FILES:
+        raw = _source_bytes(REPOSITORY/name)
+        require(hashlib.sha256(raw).hexdigest() == binding[1][name], 'fixture_source_changed')
+        target = context/name
+        target.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+        with target.open('xb') as output:
+            output.write(raw)
+    check_source(binding)
+    check_staged(context, binding)
+    return context
 
 
 def source_labels(commit, hashes):
@@ -256,11 +310,11 @@ def verify_checkout(commit):
     bounded_command(git+['diff','--exit-code','HEAD','--',*_SOURCE_FILES],environment=env,limit=256)
 
 
-def helper_attestation(image_id, inspected, selected_platform, commit):
+def helper_attestation(image_id, inspected, selected_platform, commit, *, expected_hashes=None):
     require(type(image_id) is str and _HASH.fullmatch(image_id) and _COMMIT.fullmatch(commit))
     require(inspected.get('Id') == image_id and inspected.get('Os') == 'linux'
             and inspected.get('Architecture') == selected_platform.split('/')[1])
-    hashes = source_hashes()
+    hashes = source_hashes() if expected_hashes is None else dict(expected_hashes)
     labels = inspected.get('Config',{}).get('Labels') or {}
     require(all(labels.get(key) == value for key,value in source_labels(commit,hashes).items()),
             'fixture_source_changed')
@@ -335,7 +389,7 @@ def _health(daemon, helper_id, container_id):
     raise SmokeError('jellyfin_startup_timeout')
 
 
-def characterize(daemon, *, source=None, images=None, volumes=None):
+def characterize(daemon, *, source=None, images=None, volumes=None, checkout_binding=None):
     """The real consumer: two volumes, bootstrap, NoCopy/start/restart or fail.
 
     Optional objects are private offline-test seams, not CLI/runtime inputs.
@@ -345,6 +399,8 @@ def characterize(daemon, *, source=None, images=None, volumes=None):
     from larenor_server.plugins.docker_probe import DockerEndpoint
     from larenor_server.plugins.image_resources import UnixImageEngine, image_binding
     from larenor_server.plugins.volume_effects import UnixVolumeCreator
+    checkout_binding = capture_source(os.environ['GITHUB_SHA']) if checkout_binding is None else checkout_binding
+    check_source(checkout_binding)
     source = fixture_source(daemon.platform) if source is None else source
     endpoint = DockerEndpoint(str(daemon.root/'engine.sock'), owner_uid=0)
     images = UnixImageEngine(endpoint) if images is None else images
@@ -357,17 +413,19 @@ def characterize(daemon, *, source=None, images=None, volumes=None):
     require(type(image_config) is dict and set(image_config.get('Volumes') or {}) <= {'/config','/cache'},
             'unexpected_image_volume')
     iid_file = daemon.root/'helper.iid'
-    hashes = source_hashes()
-    labels = source_labels(os.environ['GITHUB_SHA'], hashes)
+    context = stage_context(daemon.root, checkout_binding)
+    commit, hashes = checkout_binding
+    labels = source_labels(commit, dict(hashes))
     daemon.docker(['build','--pull','--quiet','--network=none',
         *['--label='+key+'='+value for key,value in labels.items()], '--file',
-        str(REPOSITORY/'server/Dockerfile.volume-bootstrap'),'--iidfile',str(iid_file),str(REPOSITORY)],
+        str(context/'server/Dockerfile.volume-bootstrap'),'--iidfile',str(iid_file),str(context)],
         timeout=600, limit=256)
-    require(source_hashes() == hashes, 'fixture_source_changed')
+    check_source(checkout_binding)
+    check_staged(context, checkout_binding)
     helper_id = iid_file.read_text().strip()
     require(_HASH.fullmatch(helper_id) is not None)
     inspected = _decoded(daemon.docker(['image','inspect','--format','{{json .}}',helper_id], limit=65536))
-    attestation = helper_attestation(helper_id, inspected, daemon.platform, os.environ['GITHUB_SHA'])
+    attestation = helper_attestation(helper_id, inspected, daemon.platform, commit, expected_hashes=hashes)
     require(_helper(daemon, helper_id, 'image_seed') == {'imageSeed':True})
     for target in source.targets:
         # A real negative oracle, not an invented RED: if it is writable already,
@@ -414,6 +472,8 @@ def characterize(daemon, *, source=None, images=None, volumes=None):
                 == {'sentinel':'verified','uid':1000,'gid':1000})
     require(_helper(daemon, helper_id, 'initial_data', target=config_target)
             == {'database':True,'configuration':True})
+    check_source(checkout_binding)
+    check_staged(context, checkout_binding)
     return {'schemaVersion':1,'result':'characterized','platform':daemon.platform,
         'catalogDigest':source.catalog.digest,'jellyfinManifestDigest':source.image.image.digest,
         'jellyfinConfigDigest':binding.config_digest,'helper':attestation,
@@ -427,9 +487,9 @@ def main(arguments=None):
         print('explicit_ephemeral_ci_flag_required', file=sys.stderr)
         return 2
     try:
-        verify_checkout(os.environ.get('GITHUB_SHA',''))
+        checkout_binding = capture_source(os.environ.get('GITHUB_SHA',''))
         with EphemeralDaemon() as daemon:
-            result = characterize(daemon)
+            result = characterize(daemon, checkout_binding=checkout_binding)
         print(json.dumps(result, sort_keys=True, separators=(',', ':')))
         return 0
     except SmokeError as error:

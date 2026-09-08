@@ -210,6 +210,7 @@ def protocol(tmp_path, monkeypatch, request):
     image_config = {'Entrypoint':['/jellyfin/jellyfin'],'Cmd':None,
                     'Volumes':{'/config':{},'/cache':{}}}
     monkeypatch.setenv('GITHUB_SHA','a'*40)
+    monkeypatch.setattr(m, 'verify_checkout', lambda commit: None)
     monkeypatch.setattr(m, 'prepare_storage', lambda *a: {
         'imageState':'ready','volumeStates':['observed_requires_bootstrap']*2})
     class Images:
@@ -322,7 +323,7 @@ def test_unexpected_library_exception_is_not_printed_by_cli(monkeypatch, capsys)
             self.closed=True
     owner = Owned()
     monkeypatch.setattr(m,'EphemeralDaemon',lambda:owner)
-    monkeypatch.setattr(m,'characterize',lambda _: (_ for _ in ()).throw(RuntimeError('synthetic-private')))
+    monkeypatch.setattr(m,'characterize',lambda _, **kw: (_ for _ in ()).throw(RuntimeError('synthetic-private')))
     assert m.main(['--run-ephemeral-ci']) == 1
     assert owner.closed
     assert capsys.readouterr().err == 'storage_characterization_failed\n'
@@ -348,9 +349,9 @@ def test_cli_verifies_checkout_before_starting_daemon(monkeypatch, capsys):
         def __exit__(self,*_):
             calls.append('exit')
     monkeypatch.setattr(m,'EphemeralDaemon',Owned)
-    monkeypatch.setattr(m,'characterize',lambda _: {'result':'characterized'})
+    monkeypatch.setattr(m,'characterize',lambda _, **kw: {'result':'characterized'})
     assert m.main(['--run-ephemeral-ci']) == 0
-    assert calls == [('source','a'*40),'enter','exit']
+    assert calls == [('source','a'*40),('source','a'*40),'enter','exit']
 
 
 @pytest.mark.parametrize('failure', [None,'popen','wrong_root','body'])
