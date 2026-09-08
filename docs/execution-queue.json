@@ -1482,7 +1482,9 @@
         "docs/remaining-core-integration-slices.md",
         "docs/feature-expansion-plan-2026-09-05.md",
         "docs/integrated-media-stack.md",
-        "docs/core-home-assistant-adapter-plan-2026-09-06.md"
+        "docs/core-home-assistant-adapter-plan-2026-09-06.md",
+        "docs/core-ha-switch-server-implementation-2026-09-08.md",
+        "docs/core-ha-switch-client-implementation-2026-09-08.md"
       ],
       "scope": "Tek mevcut ev bağlamı; F19 çoklu Core/ev federasyonu bu teslim değildir.",
       "acceptance": [
@@ -1495,9 +1497,34 @@
         "review",
         "ci"
       ],
-      "evidence": [],
+      "evidence": [
+        {
+          "kind": "test",
+          "ref": "docs/core-ha-switch-server-implementation-2026-09-08.md",
+          "commit": "422bca33c2c1648ba1b53fca3aa2d89b70ba381c",
+          "state": "completed",
+          "result": "passed",
+          "label": "İlk Server dilimi: 448 ilgili test ve bağımsız birleşik 3680 testte 0 failure/0 error; 12 Mac platform skip. Gerçek HA kullanılmadı."
+        },
+        {
+          "kind": "test",
+          "ref": "docs/core-ha-switch-client-implementation-2026-09-08.md",
+          "commit": "027597fa55d8ad48174f160f46585d286459a1af",
+          "state": "completed",
+          "result": "passed",
+          "label": "İlk Client dilimi: 624 ilgili test (109 odaklı dahil), %96,29 özellik kapsamı, temiz analiz/format ve gerçek fontlu tablet matrisi geçti."
+        },
+        {
+          "kind": "review",
+          "ref": "docs/core-ha-switch-server-implementation-2026-09-08.md",
+          "commit": "422bca33c2c1648ba1b53fca3aa2d89b70ba381c",
+          "state": "completed",
+          "result": "passed",
+          "label": "Server bağımsız incelemesi temiz; Client sözleşme, yaşam döngüsü, klavye ve EN/TR 320/600/1280 tablet QA sınırları ayrıca incelendi."
+        }
+      ],
       "completionCommit": null,
-      "reason": "S08.5/S08.6 exact CI108 ve APK108 ile kabul edildi. İlk gerçek Server dilimi başladı: açık HA kaynak bağlama, yetkili typed switch snapshot ve sınırlı cache; ardından Client, komut/makbuz ve açık Direct aktarımı. Gerçek ev yalnız salt okunur."
+      "reason": "İlk salt okunur Server/Client dilimi main e11eb57 içinde: açık HA kaynak bağlama, yetkili typed switch snapshot, sınırlı cache ve tablet kaynak ekranı yerel test/incelemeden geçti. Birleşik CI henüz yok; cihaz komutu, kalıcı sonuç makbuzu ve açık Direct aktarımı tamamlanmadığı için S08.7 açık. Gerçek ev yalnız salt okunur."
     },
     {
       "id": "S08.8",

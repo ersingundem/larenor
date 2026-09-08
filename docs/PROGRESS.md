@@ -1,6 +1,6 @@
 # Larenor — güncel ilerleme ve iş kuyruğu
 
-**Son güncelleme: 8 Eylül 2026 — APK116 doğrulandı; S08.7 ve native depolama işleri sürüyor.**
+**Son güncelleme: 8 Eylül 2026 — APK116 doğrulandı; S08.7'nin ilk salt okunur Server/Client dilimi ana dalda, birleşik CI bekleniyor.**
 
 ```text
 Kuyruk kabulü       ██░░░░░░░░░░░░░░░░░░  10/125 iş (%8; eşit ağırlıklı sayaç)
@@ -30,16 +30,23 @@ Gerçek ev kurulumu ve fiziksel tablet kabulü henüz yapılmadı.
 | --- | --- | --- |
 | S08.5 — restore, logout ve journal hedef sınırı | **Kabul edildi**, exact `960691c` / APK108 | [Kabul ve korunan geçmiş](restore-people-acceptance-108-2026-09-08.md) |
 | S08.6 — kişi, oda, kaynak ve izin yönetimi | **Kabul edildi**, aynı yayın | Merkezi HA akışının yetki temeli hazır |
-| S08.7 — merkezi Home Assistant adaptörü | **Devam ediyor** | Server'da açık kaynak bağlama, yetkili switch durumu ve sınırlı cache; tablette kaynak durum ekranı |
-| B5.1 — ortak tablet tasarımı | Services ve hesap IME düzeltmeleri exact `5cbff21` / APK116 ile kabul edildi | S08.7 kaynak ekranı ve kalan ortak tablet yüzeyleri |
+| S08.7 — merkezi Home Assistant adaptörü | **Devam ediyor**; ilk Server/Client dilimi main içinde | Birleşik CI; sonra komut/makbuz ve açık Direct aktarımı |
+| B5.1 — ortak tablet tasarımı | Services ve hesap IME düzeltmeleri exact `5cbff21` / APK116 ile kabul edildi; yeni S08.7 ekranı yerel tablet matrisinden geçti | Birleşik Android CI ve kalan ortak tablet yüzeyleri |
 | S06.3d — kalıcı depolama | İkinci native koşu iki mimaride `helper_build / fixture_command_failed` verdi | Helper build süreç alt kodlarını yayımla; üçüncü koşuda kesin process sınırını ayır |
 
 S08.7 üç sonlu teslimden oluşur: **kaynak bağlama ve typed durum → komut ve
-kalıcı sonuç → açık Direct aktarımı**. İlk Server ve Client işleri ayrı dallarda
-başladı. Server'da gerçek HTTP/SQLite/loopback ile kaynak bağlama ve yetkili
-durum okuma akışı geçti; Client aynı üretilmiş sözleşmeye bağlanıyor.
-Geniş izin/TTL/hata testleri sürüyor; bu dal henüz main veya APK108
-içinde değildir. İlk dilim cihaz komutu açmaz. [Uygulama planı](core-home-assistant-adapter-plan-2026-09-06.md).
+kalıcı sonuç → açık Direct aktarımı**. İlk Server ve Client dilimi squash
+yapılmadan main'e alındı. Server gerçek HTTP/SQLite/loopback ile kaynak bağlama,
+yetkili switch durumu ve sınırlı cache sağlıyor. Client Core kaynak satırından
+salt okunur durumu açıyor; PIN korumalı yönetim ekranı seçili service ve exact
+`switch.*` hedefi için süreli önizleme/onay sunuyor. Cihaz komutu veya Direct
+fallback yok. Server'ın doğru Java 17/apksig ortamındaki birleşik yerel suite'i
+**3.680 testte 0 failure, 0 error ve 12 platform skip** verdi. Client'ta 624
+ilgili testin tamamı geçti; bunun 109'u odaklı son test, özellik kapsamı %96,29.
+Birleşik uzak CI, komut/makbuz ve açık Direct aktarımı bekliyor.
+[Server kanıtı](core-ha-switch-server-implementation-2026-09-08.md) ·
+[Client kanıtı](core-ha-switch-client-implementation-2026-09-08.md) ·
+[Uygulama planı](core-home-assistant-adapter-plan-2026-09-06.md).
 
 [Services tablet paketi](core-services-tablet-accessibility-2026-09-06.md):
 46 yeni ve 186 ilgili test geçti; tam bağlantı adları, 48px hedefler, görünür
@@ -557,6 +564,7 @@ kabulü değildir. Geçici çalışma kopyaları kalıcı arşiv yerine geçmez.
 | S08.4 Arr bağlantıları ve yedek sınırı | `codex/direct-arr-credentials` ve `codex/direct-credential-backup` | 0298c5a ve 6426d55 birleştirildi; 192 odaklı/547 ilgili Arr ve 245 ilgili backup testi, bağımsız incelemeler temiz. e4f0f15 birleşik 3.418 test/analiz geçti; yeni Android düzeltmesiyle CI açık. |
 | S08.6 Core kaynak listesi | `codex/core-home-resource-list` ve `codex/core-home-resources-e2e` | `73dba35` ve `c0b765c` → main `808938e`; 82 odaklı/940 ilgili test, tablet QA ve bağımsız inceleme geçti. Birleşik Client 3.115 test/analiz temiz; yedinci Android yolculuğu ve yeni CI açık. |
 | S08.6 Core kaynak/yetki kaydı | `codex/home-resource-registry` | `133786e` / `1b6b866` ana dalda; tam Server 2.906 PASS/10 Mac skip, 124 odaklı test, %95 dal kapsamı ve inceleme temiz. `8c3b60d` Linux 2.916/iki mimari geçti. Yeni Client liste/bütün yönetim kabulü açık. |
+| S08.7 seçili HA switch gözlemi | `codex/core-ha-switch-adapter` ve `codex/core-ha-switch-client` | Server `422bca3`, Client `7d37aeb` → main `e11eb57`; 3.680 tam Server testinde 0 hata/12 Mac skip, 624 ilgili Client testi, %96,29 özellik kapsamı, sözleşme ve tablet QA geçti. Birleşik CI ile komut/makbuz/Direct dilimleri açık. |
 | S08.3 Client ev runtime'ı | `codex/client-home-session-scope` · `/private/tmp/larenor-client-home-session-scope` | `10d3eb1` birleşti; `4b98680` dokuz E2E ve imzalı APK 94 ile S08.3 kabul edildi. |
 | S06.3d appdata tam kök gözlemi | `codex/native-appdata-root-observation` · `/private/tmp/larenor-native-appdata-root-observation` | `32254ad` → `0d9e250` main içinde; `394de0f` gerçek Linux 2.792 test/0 skip ve iki mimarili hazırlık smoke geçti. Salt okunur gözlem yazma yetkisi değildir. |
 
