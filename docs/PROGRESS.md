@@ -265,6 +265,11 @@ state+stderr, toplam 286 Jellyfin ve 218 politika testi geçti. Exact commit iç
 bağımsız final inceleme CLEAR. Tek bounded inspect, redaksiyon, cleanup ve
 no-retry sınırları değişmedi.
 [Yol-ilişkisi tanısı](jellyfin-base-path-relation-diagnostics-2026-09-09.md).
+Exact `8f07560` Server Container ve Security CI geçti. Android debug, analiz,
+5.438 Flutter testi ve 17/17 E2E geçti; yeniden kullanılan Server işi eski 15
+dakikalık sınırda iptal edildiği için imzalı paket atlandı. `3dbdde2` test
+kapsamını değiştirmeden bu bounded sınırı 20 dakikaya çıkardı; yeni exact-source
+Android kapısı bekleniyor.
 Native14 ilişki ailesini ayıracak; sonuç yine tek başına kurulum kabulü değildir.
 Gerçek Engine ve kurulum kabulü hâlâ açık; `installAvailable=false`.
 

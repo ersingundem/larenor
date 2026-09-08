@@ -49,6 +49,17 @@ The one bounded owned-state inspect, single start attempt, no-retry rule,
 cancellation behavior, cleanup ownership and private-output limits are
 unchanged.
 
+## Exact-source CI observation
+
+The automatic `8f07560` Server Container run (`34279629118`) passed all 3,934
+Server tests, both architecture image smokes and manifest publication. Security
+run `34279628744` passed. Android run `34279629033` passed debug APK, analysis,
+5,438 Flutter tests and all 17 emulator journeys, but its reusable Server test
+job was cancelled at the previous 15-minute job limit; the signed release job
+was therefore skipped. Commit `3dbdde2` raises only that reusable job's bounded
+limit to 20 minutes. It does not skip, split or weaken any test gate. A new
+exact-source Android run must pass before the next signed package is accepted.
+
 ## Remaining gate
 
 Native run 14 must execute this exact code on both architectures. A relation
