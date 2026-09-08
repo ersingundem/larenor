@@ -27,8 +27,16 @@ def tag(key, scope, rows):
 
 
 def rows(c):
-    bounds = c.execute('SELECT COUNT(*), MAX(length(nonce)), MAX(length(ciphertext)) FROM home_assistant_bindings').fetchone()
-    if bounds[0] > MAX_BINDINGS or (bounds[0] and (bounds[1] != 12 or bounds[2] > MAX_CIPHER)):
+    # Evaluate lengths/types inside SQLite before materializing any attacker-sized
+    # TEXT/BLOB. The keyed state is checked only after these allocation bounds.
+    bounds = c.execute("SELECT COUNT(*), COALESCE(SUM(CASE WHEN "
+        "typeof(resource_id)='text' AND length(resource_id)=32 AND resource_id NOT GLOB '*[^0-9a-f]*' "
+        "AND typeof(binding_id)='text' AND length(binding_id)=32 AND binding_id NOT GLOB '*[^0-9a-f]*' "
+        "AND typeof(revision)='integer' AND revision>0 "
+        "AND typeof(nonce)='blob' AND length(nonce)=12 "
+        "AND typeof(ciphertext)='blob' AND length(ciphertext) BETWEEN 16 AND ? "
+        "THEN 0 ELSE 1 END),0) FROM home_assistant_bindings", (MAX_CIPHER,)).fetchone()
+    if bounds[0] > MAX_BINDINGS or bounds[1]:
         raise ValueError()
     values = c.execute('SELECT * FROM home_assistant_bindings ORDER BY resource_id LIMIT ?', (MAX_BINDINGS + 1,)).fetchall()
     if len(values) > MAX_BINDINGS or any(type(r['nonce']) is not bytes or len(r['nonce']) != 12
@@ -39,6 +47,12 @@ def rows(c):
 
 def validate(c, key, scope):
     values = rows(c)
+    bounds = c.execute("SELECT COUNT(*), COALESCE(SUM(CASE WHEN singleton=1 "
+        "AND typeof(authentication_tag)='text' AND length(authentication_tag)=64 "
+        "AND authentication_tag NOT GLOB '*[^0-9a-f]*' THEN 0 ELSE 1 END),0) "
+        "FROM home_assistant_state").fetchone()
+    if bounds[0] != 1 or bounds[1]:
+        raise ValueError()
     state = c.execute('SELECT * FROM home_assistant_state LIMIT 2').fetchall()
     if len(state) != 1 or state[0]['singleton'] != 1 or not hmac.compare_digest(
             state[0]['authentication_tag'], tag(key, scope, values)):
@@ -53,6 +67,11 @@ def update(c, key, scope):
 def migrate_home_assistant(c, scope, key):
     try:
         marker = c.execute("SELECT value FROM metadata WHERE key='home_assistant_schema'").fetchone()
+        bounds = c.execute("SELECT COUNT(*),COALESCE(MAX(length(name)),0),COALESCE(MAX(length(sql)),0) "
+            "FROM sqlite_master WHERE name GLOB 'home_assistant_*' "
+            "OR tbl_name IN ('home_assistant_bindings','home_assistant_state')").fetchone()
+        if bounds[0] > 4 or bounds[1] > 128 or bounds[2] > 2048:
+            raise ValueError()
         actual = {r['name']: r for r in c.execute("SELECT name,type,tbl_name,sql FROM sqlite_master "
             "WHERE name GLOB 'home_assistant_*' OR tbl_name IN ('home_assistant_bindings','home_assistant_state')")}
         if marker is None:

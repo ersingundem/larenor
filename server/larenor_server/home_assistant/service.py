@@ -177,8 +177,12 @@ class HomeAssistantAdapter:
         Only a token hash is looked up. Unknown tokens cannot purge other users;
         no authentication grant or raw token is retained in the cache.
         """
+        try:
+            digest = token_hash(access)
+        except (UnicodeError, AttributeError):
+            return
         with self._lock, self.db.connection() as c:
-            row = c.execute('SELECT family_id FROM session_tokens WHERE access_hash=?', (token_hash(access),)).fetchone()
+            row = c.execute('SELECT family_id FROM session_tokens WHERE access_hash=?', (digest,)).fetchone()
             if row is not None:
                 for key in list(self._cache):
                     if key[6] == row['family_id']:
