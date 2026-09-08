@@ -650,7 +650,7 @@
           "commit": "b4e8620f993e35fe231c71ddba6961eaba70577a",
           "state": "completed",
           "result": "failed",
-          "label": "Native16: iki mimaride helper_base_start/proc_process_namespace_observed; makbuz/artefakt yok. Tek log70230byte/SHA c9ba3dd9; namespace yaprağı tanısı açık."
+          "label": "Native16: iki mimaride helper_base_start/proc_process_namespace_observed; makbuz/artefakt yok. Tek log70230byte/SHAc9ba3dd9; namespace yaprağı tanısı açık."
         },
         {
           "kind": "test",
@@ -658,7 +658,7 @@
           "commit": "4fa3c2a2aa033615c9a0edf9711fcda7ba58e6bd",
           "state": "completed",
           "result": "passed",
-          "label": "Process-namespace:11RED kapalı;75state/107state+stderr/311Jellyfin/218politikaPASS. On sabit yaprak full-token eşleşir; PID dönmez, çoklu yaprak ambiguous."
+          "label": "Process-namespace:11RED kapalı;75state/107state+stderr/311Jellyfin/218politikaPASS; exactce5479a izole CI 3988PASS. On sabit yaprak full-token eşleşir; PID dönmez, çoklu yaprak ambiguous."
         },
         {
           "kind": "review",
@@ -670,7 +670,7 @@
         }
       ],
       "completionCommit": null,
-      "reason": "Native16 run34287061380 exactb4e8620: iki mimaride proc_process_namespace_observed; tek log70230byte/SHA c9ba3dd9, başarı makbuzu/artefakt yok. Process-namespace4fa3c2a:11RED kapalı,75state/107state+stderr/311Jellyfin/218politikaPASS+bağımsız CLEAR; on sabit leaf full-token, unknown genel kalır, çoklu ambiguous, PID dönmez. Pathler genel state-signature metninden ayrıldı. Tek start/owned10s64KiBinspect/redaksiyon/cleanup aynı. Native17 açık; installAvailable=false."
+      "reason": "Native16 run34287061380 exactb4e8620: iki mimaride proc_process_namespace_observed; tek log70230byte/SHAc9ba3dd9, başarı makbuzu/artefakt yok. Process-namespace4fa3c2a:11RED kapalı,75state/107state+stderr/311Jellyfin/218politikaPASS+bağımsız CLEAR; exactce5479a izole CI 3988PASS. On sabit leaf full-token, unknown genel kalır, çoklu ambiguous, PID dönmez. Pathler genel state-signature metninden ayrıldı. Tek start/owned10s64KiBinspect/redaksiyon/cleanup aynı. Native17 açık; installAvailable=false."
     },
     {
       "id": "S06.3e",

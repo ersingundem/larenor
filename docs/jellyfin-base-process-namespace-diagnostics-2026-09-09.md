@@ -48,7 +48,10 @@ All ten recognized leaves and the multi-leaf case failed against the broader
 result before implementation. The final exact commit passes 75 state, 107
 combined state/stderr, all 311 Jellyfin and all 218 dependency-free policy
 tests under Python 3.12.14. Python compilation and diff validation pass.
-Independent final review is CLEAR.
+Independent final review is CLEAR. The isolated locked Server workflow on
+exact source `ce5479ac26f76a024bacef058c1002444dd85cef` passed all 3,988 tests
+with two warnings:
+[Server CI](https://github.com/ersingundem/larenor/actions/runs/34287937523).
 
 The single start attempt, one bounded 10-second/64-KiB owned-state inspect,
 no-retry rule, cancellation behavior and whole-namespace cleanup are

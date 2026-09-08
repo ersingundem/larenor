@@ -44,16 +44,17 @@ The eight initial cases and the two review regressions failed before their
 respective implementation changes. The final exact commit passes 64 state,
 96 combined state/stderr, all 300 Jellyfin and all 218 dependency-free policy
 tests under Python 3.12.14. Python compilation and diff validation pass.
-Independent final review is CLEAR. Full locked Server CI remains required
-before the package is promoted.
+Independent final review is CLEAR. The isolated locked Server workflow on
+exact source `5407011d1fef7fa0976b065a679e9d329f8e9fd3` passed all 3,977 tests:
+[Server CI](https://github.com/ersingundem/larenor/actions/runs/34286539842).
 
 The single start attempt, one bounded 10-second/64-KiB owned-state inspect,
 no-retry rule, cancellation behavior and whole-namespace cleanup are
 unchanged.
 
-## Remaining gate
+## Native result
 
-Native run 16 must execute this exact reducer on both architectures. Its
-closed result will select the next bounded observation or repair boundary.
-Real Engine installation acceptance remains open and
-`installAvailable=false`.
+Native run 16 executed this reducer on both architectures and selected the
+numeric-process namespace family. The next bounded boundary is recorded in
+[process namespace diagnostics](jellyfin-base-process-namespace-diagnostics-2026-09-09.md).
+Real Engine installation acceptance remains open and `installAvailable=false`.

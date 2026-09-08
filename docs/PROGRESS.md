@@ -289,8 +289,9 @@ Procfs gözlemi sys/net, self fd, exact mountinfo, self namespace ve sayısal
 process namespace/fd alt ailelerine ayrıldı. `/proc/sys` artık sysfs sayılmıyor;
 başka köklerdeki benzer metin ve `mountinfo-private` iki gerçek review RED ile
 kapandı. Son exact kod Python 3.12.14 altında 64 state, 96 state+stderr, toplam
-300 Jellyfin ve 218 politika testini geçti; kilitli tam Server CI sürüyor.
-Bağımsız final inceleme CLEAR.
+300 Jellyfin ve 218 politika testini geçti. Bağımsız final inceleme CLEAR.
+Aynı kodu taşıyan exact `5407011` izole Server
+CI koşusunda 3.977 test geçti.
 [Procfs alt yol tanısı](jellyfin-base-proc-subpath-diagnostics-2026-09-09.md).
 On altıncı koşu `34287061380`, exact `b4e8620` üzerinde iki mimaride de
 `helper_base_start / helper_base_proc_process_namespace_observed` verdi;
@@ -301,9 +302,10 @@ time-child yapraklarına ayrıldı; PID kapalı kodlara girmez. Path metni genel
 hata imzalarından ayrılarak `cgroup` yaprağının izolasyon hatası sanılması
 önlendi. On bir gerçek RED kapandı; son exact kod 75 state, 107 state+stderr,
 toplam 311 Jellyfin ve 218 politika testini geçti. Bağımsız final inceleme
-CLEAR.
+CLEAR. Exact `ce5479a` izole Server CI koşusunda 3.988 test geçti.
 [Process namespace tanısı](jellyfin-base-process-namespace-diagnostics-2026-09-09.md).
-Native17 namespace türünü ayıracak; sonuç yine tek başına kurulum kabulü değildir.
+Native17 namespace türünü ayıracak; sonuç yine tek başına kurulum kabulü
+değildir.
 Gerçek Engine ve kurulum kabulü hâlâ açık; `installAvailable=false`.
 
 ## Canlı takip ve sıradaki işler
