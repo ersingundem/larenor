@@ -164,3 +164,31 @@ def test_ignored_first_service_insert_is_storage_failure_not_missing_user_target
     assert stored(app)==before and ha.calls==calls
     with app.state.core.db.connection() as c:
         assert c.execute('SELECT COUNT(*) FROM direct_ha_migrations').fetchone()[0]==0
+
+
+def test_dropped_core_response_after_commit_recovers_only_by_restart_get(server,ha):
+    """Actual ASGI response delivery fails after DB commit, not before handler."""
+    import asyncio
+    import httpx
+    app,client,admin,_,_,base,body=setup_transfer(server,ha)
+    p=preview(client,admin,base,body);calls=ha.calls;starts=[]
+    async def lost_ack(scope,receive,send):
+        assert scope['path']==base+'/direct-migration/confirm'
+        async def discard(message):
+            if message['type']=='http.response.start':
+                starts.append(message['status'])
+                assert message['status']==201
+                raise ConnectionResetError('synthetic lost Core response')
+            await send(message)
+        await app(scope,receive,discard)
+    async def dispatch_once():
+        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=lost_ack),base_url='http://testserver') as lost:
+            with pytest.raises(ConnectionResetError):
+                await lost.post(base+'/direct-migration/confirm',headers=auth(admin),json={**body,'previewId':p['id']})
+    asyncio.run(dispatch_once())
+    assert starts==[201] and ha.calls==calls
+    with TestClient(create_app(server[2])) as restarted:
+        recovered=restarted.get(base+'/direct-migration/results/'+body['requestId'],headers=auth(admin))
+        assert recovered.status_code==200 and recovered.json()['receipt']['binding']==p['binding']
+        assert len(stored(app)['service_connections'])==len(stored(app)['home_assistant_bindings'])==1
+    assert starts==[201] and ha.calls==calls and ha.command_calls==0
