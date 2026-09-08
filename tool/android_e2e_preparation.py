@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
-"""Bounded stay-awake preparation for an explicitly identified disposable AVD.
+"""Bounded preparation for an explicitly identified disposable AVD.
 
 This does not diagnose why a setting failed to persist. No device output or
-stderr is logged, and no setting other than svc's existing stayon action is set.
+stderr is logged. CI also disables the verified AOSP Quickstep home package so
+its system ANR dialog cannot take focus from long application journeys.
 """
 
 import os
@@ -19,6 +20,9 @@ COMMAND_SECONDS = 2
 MAX_ATTEMPTS = 5
 RETRY_SECONDS = 1
 MAX_OUTPUT_BYTES = 256
+_AOSP_HOME = re.compile(
+    rb"com\.android\.launcher3/[A-Za-z0-9_.$]+(?:\r?\n)?"
+)
 
 
 class Outcome(NamedTuple):
@@ -103,13 +107,66 @@ def ensure_awake(serial, *, command=_adb, clock=time.monotonic, sleep=time.sleep
     return Outcome("not_enabled", attempts, observation)
 
 
+def disable_ci_quickstep(
+    serial, *, command=_adb, clock=time.monotonic, environment=os.environ,
+):
+    """Disable only the resolved AOSP launcher on a GitHub Actions QEMU AVD."""
+    if environment.get("GITHUB_ACTIONS") != "true":
+        return Outcome("skipped")
+    if not re.fullmatch(r"emulator-[0-9]+", serial):
+        return Outcome("invalid_emulator")
+    deadline = clock() + TOTAL_SECONDS
+
+    def run(args):
+        return command(serial, args, min(deadline, clock() + COMMAND_SECONDS))
+
+    qemu = run(["shell", "getprop", "ro.kernel.qemu"])
+    if qemu is None:
+        return Outcome("adb_failed")
+    if qemu.rstrip(b"\r\n") != b"1":
+        return Outcome("invalid_emulator")
+    home = run([
+        "shell", "cmd", "package", "resolve-activity", "--brief", "--components",
+        "-a", "android.intent.action.MAIN",
+        "-c", "android.intent.category.HOME",
+    ])
+    if home is None:
+        return Outcome("adb_failed")
+    if _AOSP_HOME.fullmatch(home) is None:
+        return Outcome("unexpected_home")
+    disabled = run([
+        "shell", "pm", "disable-user", "--user", "0",
+        "com.android.launcher3",
+    ])
+    if disabled is None:
+        return Outcome("adb_failed")
+    verified = run([
+        "shell", "pm", "list", "packages", "--user", "0", "-d",
+        "com.android.launcher3",
+    ])
+    if verified is None:
+        return Outcome("adb_failed")
+    if verified.rstrip(b"\r\n") != b"package:com.android.launcher3":
+        return Outcome("not_disabled")
+    return Outcome("verified", 1, "aosp_quickstep_disabled")
+
+
 def main():
-    result = ensure_awake(sys.argv[1] if len(sys.argv) == 2 else "")
+    serial = sys.argv[1] if len(sys.argv) == 2 else ""
+    result = ensure_awake(serial)
     # All fields are locally generated enums or a bounded attempt count.
     print(f"E2E stay-awake precondition: result={result.result} "
           f"attempts={result.attempts} last_observation={result.last_observation}",
           file=sys.stdout if result.result == "verified" else sys.stderr)
-    return 0 if result.result == "verified" else 2
+    if result.result != "verified":
+        return 2
+    launcher = disable_ci_quickstep(serial)
+    print(
+        f"E2E launcher precondition: result={launcher.result} "
+        f"attempts={launcher.attempts} last_observation={launcher.last_observation}",
+        file=(sys.stdout if launcher.result in ("verified", "skipped") else sys.stderr),
+    )
+    return 0 if launcher.result in ("verified", "skipped") else 2
 
 
 if __name__ == "__main__":
