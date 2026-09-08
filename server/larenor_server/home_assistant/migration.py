@@ -201,6 +201,9 @@ class DirectHaMigration:
             service = {'name': body.name, 'kind': 'home_assistant', 'baseUrl': body.baseUrl,
                        'credentials': {'token': body.token}, 'verification': dict(NEVER)}
             self.services._save(c, p.service.id, 1, service)
+            created = c.execute('SELECT revision FROM service_connections WHERE id=?', (p.service.id,)).fetchone()
+            if created is None or created['revision'] != 1:
+                raise ValueError()
             if self.services._record(c, p.service.id, 1)[1] != service:
                 raise ValueError()
             row = {'resource_id': resource, 'binding_id': p.binding.id, 'revision': 1}
