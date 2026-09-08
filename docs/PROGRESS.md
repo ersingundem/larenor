@@ -36,7 +36,10 @@ Gerçek ev kurulumu ve fiziksel tablet kabulü henüz yapılmadı.
 
 S08.7 üç sonlu teslimden oluşur: **kaynak bağlama ve typed durum → komut ve
 kalıcı sonuç → açık Direct aktarımı**. İlk Server ve Client işleri ayrı dallarda
-başladı. Slice 1 cihaz komutu açmaz. [Uygulama planı](core-home-assistant-adapter-plan-2026-09-06.md).
+başladı. Server'da gerçek HTTP/SQLite/loopback ile kaynak bağlama ve yetkili
+durum okuma akışı geçti; Client aynı üretilmiş sözleşmeye bağlanıyor.
+Geniş izin/TTL/hata testleri sürüyor; bu dal henüz main veya APK108
+içinde değildir. İlk dilim cihaz komutu açmaz. [Uygulama planı](core-home-assistant-adapter-plan-2026-09-06.md).
 
 [Services tablet paketi](core-services-tablet-accessibility-2026-09-06.md):
 46 yeni ve 186 ilgili test geçti; tam bağlantı adları, 48px hedefler, görünür
@@ -57,7 +60,9 @@ güncel yönetici/worker yetkisi ve özel ilk hesap ile doğrulanmış Core bağ
 [Helper fixture](jellyfin-storage-fixture-implementation-2026-09-08.md)
 main ile birleşti: **87 odaklı ve 261 ilgili test geçti**. Bağımsız incelemede
 bulunan build context ve kaynak değişimi sorunları gerçek RED/GREEN ile
-kapatıldı; son kaynak incelemesi temiz. Native amd64/arm64 CI hazırlığı sürüyor.
+kapatıldı; son kaynak incelemesi temiz. Manuel native amd64/arm64 CI hazırlığı ve kaynak incelemesi tamamlandı:
+122 fixture/launcher ve 215 politika testi geçti.
+[Birleşik yayın hazırlığı](services-ime-native-ci-preparation-2026-09-08.md).
 Gerçek Engine ve kurulum kabulü hâlâ açık; `installAvailable=false`.
 
 ## Canlı takip ve sıradaki işler

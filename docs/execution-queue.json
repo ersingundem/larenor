@@ -83,7 +83,8 @@
     "docs/restore-people-acceptance-108-2026-09-08.md",
     "docs/core-account-ime-navigation-2026-09-08.md",
     "docs/core-services-ime-integration-2026-09-08.md",
-    "docs/jellyfin-storage-fixture-implementation-2026-09-08.md"
+    "docs/jellyfin-storage-fixture-implementation-2026-09-08.md",
+    "docs/jellyfin-storage-manual-ci-2026-09-08.md"
   ],
   "nodes": [
     {
@@ -384,7 +385,8 @@
         "docs/tablet-core-volume-integration-2026-09-06.md",
         "docs/client-delivery-108-2026-09-06.md",
         "docs/jellyfin-managed-volume-installation-plan-2026-09-06.md",
-        "docs/jellyfin-storage-fixture-implementation-2026-09-08.md"
+        "docs/jellyfin-storage-fixture-implementation-2026-09-08.md",
+        "docs/jellyfin-storage-manual-ci-2026-09-08.md"
       ],
       "scope": "installAvailable=false; Client kaynak adı/Docker seçenekleri üretmez. Gerçek ev sunucusuna işlem yok.",
       "acceptance": [
@@ -603,10 +605,26 @@
           "state": "completed",
           "result": "passed",
           "label": "Jellyfin fixture: 87 odaklı ve 261 ilgili test geçti. İki P2 gerçek RED ile kapatıldı; yalnız beş dosyalı private build context ve başlangıç kaynak bağı. Root/bağımsız inceleme temiz; gerçek Engine/native iki mimari ve kurulum kabulü açık."
+        },
+        {
+          "kind": "test",
+          "ref": "docs/jellyfin-storage-manual-ci-2026-09-08.md",
+          "commit": "da5fd4772f3a5a1f6814b9c69def8e3336c71eee",
+          "state": "completed",
+          "result": "passed",
+          "label": "Manuel native workflow/launcher: 122 pytest (35 yeni + 87 fixture) ve 215 politika testi geçti; gerçek shell cancellation RED → exec handoff GREEN. Root incelemesi temiz. Docker/iki mimari koşusu henüz yapılmadı."
+        },
+        {
+          "kind": "review",
+          "ref": "docs/jellyfin-storage-manual-ci-2026-09-08.md",
+          "commit": "da5fd4772f3a5a1f6814b9c69def8e3336c71eee",
+          "state": "completed",
+          "result": "passed",
+          "label": "Manuel native workflow/launcher: 122 pytest (35 yeni + 87 fixture) ve 215 politika testi geçti; gerçek shell cancellation RED → exec handoff GREEN. Root incelemesi temiz. Docker/iki mimari koşusu henüz yapılmadı."
         }
       ],
       "completionCommit": null,
-      "reason": "Volume create protokolü exact CI108 Linux kabulünü aldı. Onu tüketen Jellyfin UID/NoCopy/ilk DB/restart fixture main ile birleşti; 87+261 ayrı yerel test ve iki bağımsız kaynak incelemesi geçti. Sıradaki manuel ephemeral native CI; gerçek mount/UID/helper/kurulum henüz kabul edilmedi, installAvailable=false."
+      "reason": "Volume protokolü CI108 Linux kabulünü aldı. Jellyfin fixture ve manuel iki mimarili CI workflow main ile birleşti; 122 odaklı pytest, 215 politika testi ve bağımsız kaynak incelemesi geçti. Gerçek native karakterizasyon sırada; installAvailable=false."
     },
     {
       "id": "S06.3e",
