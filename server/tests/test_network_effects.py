@@ -45,6 +45,7 @@ def create_server(*, version=None, reply=None):
         listener.settimeout(0.1)
         stopped = threading.Event()
         calls, failures = [], []
+        active, connection_lock = [], threading.Lock()
 
         def read(connection):
             head = bytearray()
@@ -76,15 +77,25 @@ def create_server(*, version=None, reply=None):
                     except socket.timeout:
                         continue
                     with connection:
-                        connection.settimeout(2)
-                        if not read(connection):
-                            continue
-                        value = response(VERSION) if version is None else version
-                        value(connection) if callable(value) else connection.sendall(value)
-                        if not read(connection):
-                            continue
-                        value = ack_response() if reply is None else reply
-                        value(connection) if callable(value) else connection.sendall(value)
+                        with connection_lock:
+                            if stopped.is_set():
+                                continue
+                            active.append(connection)
+                        try:
+                            # Client deadlines belong to the transport under test.
+                            # Owner shutdown, not a competing fixture timer, wakes reads.
+                            connection.settimeout(None)
+                            if not read(connection):
+                                continue
+                            value = response(VERSION) if version is None else version
+                            value(connection) if callable(value) else connection.sendall(value)
+                            if not read(connection):
+                                continue
+                            value = ack_response() if reply is None else reply
+                            value(connection) if callable(value) else connection.sendall(value)
+                        finally:
+                            with connection_lock:
+                                active.remove(connection)
             except (BrokenPipeError, ConnectionResetError):
                 pass
             except Exception as error:
@@ -96,7 +107,13 @@ def create_server(*, version=None, reply=None):
         try:
             yield DockerEndpoint(str(path), os.getuid()), calls
         finally:
-            stopped.set()
+            with connection_lock:
+                stopped.set()
+                for connection in active:
+                    try:
+                        connection.shutdown(socket.SHUT_RDWR)
+                    except OSError:
+                        pass  # The peer may already have closed; worker owns close().
             listener.close()
             thread.join(3)
             assert not thread.is_alive() and not failures
