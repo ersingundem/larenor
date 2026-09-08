@@ -181,6 +181,10 @@ def test_dropped_core_response_after_commit_recovers_only_by_restart_get(server,
                 raise ConnectionResetError('synthetic lost Core response')
             await send(message)
         await app(scope,receive,discard)
+        # Starlette may treat OSError from ASGI send as a client disconnect
+        # and return normally. The caller still received no response bytes.
+        assert starts==[201]
+        raise ConnectionResetError('synthetic caller lost Core response')
     async def dispatch_once():
         async with httpx.AsyncClient(transport=httpx.ASGITransport(app=lost_ack),base_url='http://testserver') as lost:
             with pytest.raises(ConnectionResetError):
