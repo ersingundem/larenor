@@ -90,8 +90,12 @@ class CredentialsStore {
     final token = await readKey(_tokenKey);
     check();
     if (baseUrl == null && token == null) return null;
-    if (baseUrl == null || baseUrl.isEmpty || baseUrl.length > 2048 ||
-        token == null || token.isEmpty || token.length > 2048 ||
+    if (baseUrl == null ||
+        baseUrl.isEmpty ||
+        baseUrl.length > 2048 ||
+        token == null ||
+        token.isEmpty ||
+        token.length > 2048 ||
         token.codeUnits.any((unit) => unit < 0x21 || unit > 0x7e)) {
       throw const DirectHomeAccessException('invalid_record');
     }

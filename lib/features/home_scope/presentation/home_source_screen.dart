@@ -56,26 +56,47 @@ class _HomeSourceScreenState extends MediaSessionState<HomeSourceScreen> {
       ),
       child: SafeArea(
         child: ListenableBuilder(
-          listenable: Listenable.merge([controller,controller.account]),
+          listenable: Listenable.merge([controller, controller.account]),
           builder: (_, _) {
             final access = homeLayoutAccess(
               controller,
               clock: ref.watch(homeLayoutClockProvider),
             );
-            final account = controller.account, session = account.session,
-                accountGeneration = account.generation, identity = controller.runtimeIdentity;
+            final account = controller.account,
+                session = account.session,
+                accountGeneration = account.generation,
+                identity = controller.runtimeIdentity;
             bool transferWindow() {
-              final state=ref.read(windowPolicySnapshotProvider);
-              if(state.isLoading || state.hasError || !state.hasValue) return false;
-              final value=state.requireValue;
-              return !value.supported || value.isResumed && value.hasWindowFocus && !value.isPictureInPicture;
+              final state = ref.read(windowPolicySnapshotProvider);
+              if (state.isLoading || state.hasError || !state.hasValue) {
+                return false;
+              }
+              final value = state.requireValue;
+              return !value.supported ||
+                  value.isResumed &&
+                      value.hasWindowFocus &&
+                      !value.isPictureInPicture;
             }
-            bool transferCurrent() => current() && transferWindow() && widget.transferGateCurrent?.call()==true && controller.source == HomeSource.directLocal &&
-                !controller.busy && controller.failure == null && controller.runtimeIdentity == identity &&
-                account.initialized && !account.working && !account.hasPendingContext &&
-                account.isCurrent(accountGeneration) && identical(account.session,session) &&
-                session != null && session.context != null && session.user.canAdminister &&
-                !session.user.mustChangePassword && !session.authMutationPending && !session.expiresSoon(DateTime.now());
+
+            bool transferCurrent() =>
+                current() &&
+                transferWindow() &&
+                widget.transferGateCurrent?.call() == true &&
+                controller.source == HomeSource.directLocal &&
+                !controller.busy &&
+                controller.failure == null &&
+                controller.runtimeIdentity == identity &&
+                account.initialized &&
+                !account.working &&
+                !account.hasPendingContext &&
+                account.isCurrent(accountGeneration) &&
+                identical(account.session, session) &&
+                session != null &&
+                session.context != null &&
+                session.user.canAdminister &&
+                !session.user.mustChangePassword &&
+                !session.authMutationPending &&
+                !session.expiresSoon(DateTime.now());
             return Align(
               alignment: Alignment.topCenter,
               child: ConstrainedBox(
@@ -126,15 +147,36 @@ class _HomeSourceScreenState extends MediaSessionState<HomeSourceScreen> {
                       ],
                     ),
                     if (controller.source == HomeSource.directLocal)
-                      SettingsSection(children:[SettingsActionTile(
-                        key:const ValueKey('core-ha-transfer-entry'),title:Text(l10n.coreHaTransferTitle),
-                        additionalInfo:Text(transferCurrent()?l10n.coreHaTransferHint:l10n.coreHaTransferRequired),
-                        onTap:!transferCurrent()?null:(){
-                          if (!transferCurrent()) return;
-                          final parentGate=widget.transferGateCurrent!;
-                          Navigator.of(context).push(CupertinoPageRoute<void>(builder:(_)=>SettingsGateScreen(initialDestination:SettingsGateDestination.coreHaTransfer,transferParentCurrent:parentGate)));
-                        },
-                      )]),
+                      SettingsSection(
+                        children: [
+                          SettingsActionTile(
+                            key: const ValueKey('core-ha-transfer-entry'),
+                            title: Text(l10n.coreHaTransferTitle),
+                            additionalInfo: Text(
+                              transferCurrent()
+                                  ? l10n.coreHaTransferHint
+                                  : l10n.coreHaTransferRequired,
+                            ),
+                            onTap: !transferCurrent()
+                                ? null
+                                : () {
+                                    if (!transferCurrent()) return;
+                                    final parentGate =
+                                        widget.transferGateCurrent!;
+                                    Navigator.of(context).push(
+                                      CupertinoPageRoute<void>(
+                                        builder: (_) => SettingsGateScreen(
+                                          initialDestination:
+                                              SettingsGateDestination
+                                                  .coreHaTransfer,
+                                          transferParentCurrent: parentGate,
+                                        ),
+                                      ),
+                                    );
+                                  },
+                          ),
+                        ],
+                      ),
                     if (controller.source == HomeSource.verifiedCore)
                       SettingsSection(
                         children: [

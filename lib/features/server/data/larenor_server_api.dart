@@ -376,7 +376,11 @@ class LarenorServerApi {
                 'ha_migration_changed',
                 'ha_migration_preview_invalid',
               }.contains(code) ||
-          status == 429 && {'ha_limit_reached', 'ha_migration_limit_reached'}.contains(code) ||
+          status == 429 &&
+              {
+                'ha_limit_reached',
+                'ha_migration_limit_reached',
+              }.contains(code) ||
           status == 502 &&
               {
                 'ha_upstream_unauthorized',

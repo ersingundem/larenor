@@ -36,6 +36,7 @@ class SettingsGateScreen extends ConsumerStatefulWidget {
   });
 
   final SettingsGateDestination initialDestination;
+
   /// Only the explicit transfer's parent/root route supplies this authority.
   final bool Function()? transferParentCurrent;
 
@@ -129,7 +130,8 @@ class _SettingsGateScreenState extends ConsumerState<SettingsGateScreen>
   Widget build(BuildContext context) {
     ref.listen(pinLockProvider, (previous, next) {
       if ((widget.initialDestination == SettingsGateDestination.homeResources ||
-              widget.initialDestination == SettingsGateDestination.coreHaTransfer ||
+              widget.initialDestination ==
+                  SettingsGateDestination.coreHaTransfer ||
               widget.initialDestination ==
                   SettingsGateDestination.homePeople) &&
           (next.isLoading || next.hasError)) {
@@ -139,7 +141,8 @@ class _SettingsGateScreenState extends ConsumerState<SettingsGateScreen>
       if (previous?.hasValue == true &&
           next.hasValue &&
           (next.value != null ||
-              widget.initialDestination == SettingsGateDestination.coreHaTransfer ||
+              widget.initialDestination ==
+                  SettingsGateDestination.coreHaTransfer ||
               widget.initialDestination ==
                   SettingsGateDestination.homeResources ||
               widget.initialDestination ==
@@ -188,14 +191,29 @@ class _SettingsGateScreenState extends ConsumerState<SettingsGateScreen>
                                     ? _exit
                                     : null,
                               )
-                            : widget.initialDestination == SettingsGateDestination.coreHaTransfer
+                            : widget.initialDestination ==
+                                  SettingsGateDestination.coreHaTransfer
                             ? CoreHaTransferScreen(
                                 gateCurrent: () {
-                                  if (!mounted || !_interactive || resourceGeneration != _generation || ModalRoute.of(context)?.isCurrent != true || widget.transferParentCurrent?.call()!=true) return false;
-                                  final currentPin=ref.read(pinLockProvider);
-                                  return !currentPin.isLoading && !currentPin.hasError && currentPin.hasValue && currentPin.value==pin && (pin==null || _unlocked);
+                                  if (!mounted ||
+                                      !_interactive ||
+                                      resourceGeneration != _generation ||
+                                      ModalRoute.of(context)?.isCurrent !=
+                                          true ||
+                                      widget.transferParentCurrent?.call() !=
+                                          true) {
+                                    return false;
+                                  }
+                                  final currentPin = ref.read(pinLockProvider);
+                                  return !currentPin.isLoading &&
+                                      !currentPin.hasError &&
+                                      currentPin.hasValue &&
+                                      currentPin.value == pin &&
+                                      (pin == null || _unlocked);
                                 },
-                                onExit:Navigator.of(context).canPop()?_exit:null,
+                                onExit: Navigator.of(context).canPop()
+                                    ? _exit
+                                    : null,
                               )
                             : widget.initialDestination ==
                                   SettingsGateDestination.homeResources
@@ -247,9 +265,18 @@ class _SettingsGateScreenState extends ConsumerState<SettingsGateScreen>
                             ? HomeSourceScreen(
                                 runFileDialog: _runFileDialog,
                                 transferGateCurrent: () {
-                                  if (!mounted || !_interactive || resourceGeneration != _generation || ModalRoute.of(context)?.isCurrent != true) return false;
-                                  final value=ref.read(pinLockProvider);
-                                  return !value.isLoading && !value.hasError && value.hasValue && value.value==pin && (pin==null || _unlocked);
+                                  if (!mounted ||
+                                      !_interactive ||
+                                      resourceGeneration != _generation ||
+                                      ModalRoute.of(context)?.isCurrent != true) {
+                                    return false;
+                                  }
+                                  final value = ref.read(pinLockProvider);
+                                  return !value.isLoading &&
+                                      !value.hasError &&
+                                      value.hasValue &&
+                                      value.value == pin &&
+                                      (pin == null || _unlocked);
                                 },
                                 archiveGateCurrent: () {
                                   if (!mounted ||

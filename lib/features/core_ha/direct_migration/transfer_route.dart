@@ -27,7 +27,8 @@ class CoreHaTransferRoute extends ConsumerStatefulWidget {
   final Widget Function(CoreHaTransferOwner) builder;
   final VoidCallback? onExit;
   @override
-  ConsumerState<CoreHaTransferRoute> createState() => _CoreHaTransferRouteState();
+  ConsumerState<CoreHaTransferRoute> createState() =>
+      _CoreHaTransferRouteState();
 }
 
 class _CoreHaTransferRouteState extends ConsumerState<CoreHaTransferRoute>
@@ -211,7 +212,9 @@ class _CoreHaTransferRouteState extends ConsumerState<CoreHaTransferRoute>
               }
             },
       slivers: [
-        coreHaBlock([Text(AppLocalizations.of(context).coreHaTransferRequired)]),
+        coreHaBlock([
+          Text(AppLocalizations.of(context).coreHaTransferRequired),
+        ]),
       ],
     );
   }
