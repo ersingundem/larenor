@@ -58,7 +58,9 @@ run `34279628744` passed. Android run `34279629033` passed debug APK, analysis,
 job was cancelled at the previous 15-minute job limit; the signed release job
 was therefore skipped. Commit `3dbdde2` raises only that reusable job's bounded
 limit to 20 minutes. It does not skip, split or weaken any test gate. A new
-exact-source Android run must pass before the next signed package is accepted.
+exact-source Android run (`34281654423`) then passed the reusable Server gate,
+all 17 emulator journeys and signed APK129 delivery. The matching Server
+Container (`34281654358`) and Security (`34281654055`) runs also passed.
 
 ## Remaining gate
 

@@ -397,7 +397,8 @@
         "docs/jellyfin-base-zero-state-diagnostics-2026-09-08.md",
         "docs/jellyfin-base-state-read-diagnostics-2026-09-08.md",
         "docs/volume-create-fixture-lifecycle-repair-2026-09-08.md",
-        "docs/jellyfin-base-path-relation-diagnostics-2026-09-09.md"
+        "docs/jellyfin-base-path-relation-diagnostics-2026-09-09.md",
+        "docs/jellyfin-base-path-cooccurrence-diagnostics-2026-09-09.md"
       ],
       "scope": "installAvailable=false; Client kaynak adı/Docker seçenekleri üretmez. Gerçek ev sunucusuna işlem yok.",
       "acceptance": [
@@ -409,30 +410,6 @@
         "ci"
       ],
       "evidence": [
-        {
-          "kind": "test",
-          "ref": "docs/managed-volume-journal-implementation-2026-09-06.md",
-          "commit": "f9a3faa485dd619d00107eb3cff8dc303cb9b124",
-          "state": "completed",
-          "result": "passed",
-          "label": "Kalıcı volume journal: 54 odaklı/273 ilgili test geçti; 139 statement ve 8 branch yüzde 100 kapsamda; root bağımsız incelemesi temiz. Üçüncü birleşimde tam Server/CI açık. Engine işlemi veya UID/bootstrap yetkisi eklenmedi; APK 100 kaynağında yok."
-        },
-        {
-          "kind": "review",
-          "ref": "docs/managed-volume-journal-implementation-2026-09-06.md",
-          "commit": "f9a3faa485dd619d00107eb3cff8dc303cb9b124",
-          "state": "completed",
-          "result": "passed",
-          "label": "Kalıcı volume journal: 54 odaklı/273 ilgili test geçti; 139 statement ve 8 branch yüzde 100 kapsamda; root bağımsız incelemesi temiz. Üçüncü birleşimde tam Server/CI açık. Engine işlemi veya UID/bootstrap yetkisi eklenmedi; APK 100 kaynağında yok."
-        },
-        {
-          "kind": "ci",
-          "ref": "https://github.com/ersingundem/larenor/actions/runs/34005590288",
-          "commit": "a27abeaa55a2ea94a0a0eaec1b9a74743c086a9c",
-          "state": "completed",
-          "result": "passed",
-          "label": "CoreCI101 exacta27:3104LinuxPASS/0skip, ikiarchsmoke+anonimsource/AGPLmanifest geçti. Volumejournal dahil; sonrakireader0d86fa1 dahil değil."
-        },
         {
           "kind": "test",
           "ref": "docs/managed-volume-read-transport-implementation-2026-09-06.md",
@@ -664,10 +641,34 @@
           "state": "completed",
           "result": "passed",
           "label": "Bağımsız CLEAR: ayrı-path yanlış kesinlik P2 gerçek RED ile kapalı; allowlist, private output, tek inspect/no-retry/cancellation sınırları korundu."
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/34281674390",
+          "commit": "1e73ea3b122eeaa64ae9254269bdad18ddec8a6c",
+          "state": "completed",
+          "result": "failed",
+          "label": "Native14: iki mimaride helper_base_start/path_location_ambiguous; makbuz/artefakt yok. Tek log70207byte/SHA81409d86; nötr exact-ikili aile gözlemi açık."
+        },
+        {
+          "kind": "test",
+          "ref": "docs/jellyfin-base-path-cooccurrence-diagnostics-2026-09-09.md",
+          "commit": "67b2a924844e7b762460dbd9b72a304476cb7ab7",
+          "state": "completed",
+          "result": "passed",
+          "label": "Path-cooccurrence:5RED kapalı;54state/86state+stderr/290Jellyfin/218politikaPASS. Beş nötr Engine+hedef exact ikilisi; aynı-token ilişki öncelikli, üçlü/diğer ambiguous."
+        },
+        {
+          "kind": "review",
+          "ref": "docs/jellyfin-base-path-cooccurrence-diagnostics-2026-09-09.md",
+          "commit": "67b2a924844e7b762460dbd9b72a304476cb7ab7",
+          "state": "completed",
+          "result": "passed",
+          "label": "Bağımsız CLEAR: kodlar yalnız birlikte gözlemi bildiriyor; yanlış kesinlik yok, allowlist/private output/tek inspect/no-retry/cancellation korundu."
         }
       ],
       "completionCommit": null,
-      "reason": "Native13 run34279647850 exact8f07560: iki mimaride path_location_ambiguous; tek log70214byte/SHAa8e7ac3e, başarı makbuzu/artefakt yok. Path-relation40dc4b7:5ilkRED+reviewRED kapalı+bağımsız CLEAR,50state/82state+stderr/286Jellyfin/218politikaPASS; Engine kökü ile image/proc/sys/runtime/host yalnız aynı path tokenında ilişkilendirilir, ayrı/üçlü eşleşme ambiguous kalır. Tek start/owned10s64KiBinspect/redaksiyon/cleanup aynı. Native14 gözlemi ayıracak; installAvailable=false."
+      "reason": "Native14 run34281674390 exact1e73ea3: iki mimaride path_location_ambiguous; tek log70207byte/SHA81409d86, başarı makbuzu/artefakt yok. Path-cooccurrence67b2a92:5RED kapalı+bağımsız CLEAR,54state/86state+stderr/290Jellyfin/218politikaPASS; Engine kökü ile image/proc/sys/runtime/host exact ikilisi nötr observed, aynı-token ilişki öncelikli, üçlü/diğer ambiguous. Tek start/owned10s64KiBinspect/redaksiyon/cleanup aynı. Native15 gözlemi ayıracak; installAvailable=false."
     },
     {
       "id": "S06.3e",

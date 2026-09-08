@@ -1,6 +1,6 @@
 # Larenor — güncel ilerleme ve iş kuyruğu
 
-**Son güncelleme: 9 Eylül 2026 — Native13 path ilişkisi sonucuna göre kapalı ilişkiler hazır.**
+**Son güncelleme: 9 Eylül 2026 — Native14 sonucuna göre nötr path birliktelikleri hazır.**
 
 ```text
 Kuyruk kabulü       ██░░░░░░░░░░░░░░░░░░  10/125 iş (%8; eşit ağırlıklı sayaç)
@@ -17,17 +17,17 @@ olarak kullanılmaz. İlk 60 adayın tamamı ve VNC/RDP/SSH seçildi.
 [Bağımlılıklara göre özellik sırası](feature-expansion-plan-2026-09-05.md)
 ve [uzak erişim kapsamı](remote-access-plan-2026-09-05.md) korunuyor.
 
-**Son tam doğrulanmış CI Client paketi: `282bcc1` / APK127.** Aynı kaynakta
+**Son tam doğrulanmış CI Client paketi: `1e73ea3` / APK129.** Aynı kaynakta
 5.438 Flutter ve 3.934 Server testi geçti; Android emülatöründe 17/17 E2E
 başarılı oldu. Arşiv yolculuğu yeniden açılan ekranda kalıcı okumayı doğrulayan
 `core_archive.reopened_readback` fazına ulaştı. CI APK'nın imzasını,
 sertifikasını, paketini, sürümünü ve release bayrağını doğruladı;
-`app-signed-release-apk-127` artefakt arşivi 57.127.877 bayt ve süresi dolmamış
+`app-signed-release-apk-129` artefakt arşivi 57.127.887 bayt ve süresi dolmamış
 durumda. Aynı commitin bağımsız Security ve Server Container iş akışları da
 geçti; Server 3.934 testi ile amd64/arm64 imaj ve manifest yayını tamamlandı.
-[Android CI127](https://github.com/ersingundem/larenor/actions/runs/34276876282) ·
-[Server Container CI](https://github.com/ersingundem/larenor/actions/runs/34276876114) ·
-[Security CI](https://github.com/ersingundem/larenor/actions/runs/34276875824).
+[Android CI129](https://github.com/ersingundem/larenor/actions/runs/34281654423) ·
+[Server Container CI](https://github.com/ersingundem/larenor/actions/runs/34281654358) ·
+[Security CI](https://github.com/ersingundem/larenor/actions/runs/34281654055).
 Gerçek ev kurulumu ve fiziksel tablet kabulü henüz yapılmadı.
 
 ## Şimdi yapılan işler
@@ -38,7 +38,7 @@ Gerçek ev kurulumu ve fiziksel tablet kabulü henüz yapılmadı.
 | S08.6 — kişi, oda, kaynak ve izin yönetimi | **Kabul edildi**, aynı yayın | Merkezi HA akışının yetki temeli hazır |
 | S08.7 — merkezi Home Assistant adaptörü | **Devam ediyor**; typed durum, kalıcı switch komutu/makbuzu ve açık Direct→Core aktarımı main içinde | Exact-source birleşik CI; sonra geniş HA varlık/servis kapsamı |
 | B5.1 — ortak tablet tasarımı | Services/hesap IME paketi APK116 ile kabul edildi; S08.7 komut ve aktarım yüzeyleri yerel tablet matrisinden geçti | Exact-source Android CI ve kalan ortak tablet yüzeyleri |
-| S06.3d — kalıcı depolama | Native13 iki mimaride path-location ambiguous verdi; beş kapalı Engine-hedef ilişkisi yerelde hazır | Exact-source Native14'te ilişkiyi ayır |
+| S06.3d — kalıcı depolama | Native14 iki mimaride path-location ambiguous verdi; beş nötr Engine+hedef birlikteliği yerelde hazır | Exact-source Native15'te birlikte görülen aileleri ayır |
 
 S08.7 üç sonlu teslimden oluşur: **kaynak bağlama ve typed durum → komut ve
 kalıcı sonuç → açık Direct aktarımı**. Üç yerel dilim de squash yapılmadan
@@ -268,9 +268,20 @@ no-retry sınırları değişmedi.
 Exact `8f07560` Server Container ve Security CI geçti. Android debug, analiz,
 5.438 Flutter testi ve 17/17 E2E geçti; yeniden kullanılan Server işi eski 15
 dakikalık sınırda iptal edildiği için imzalı paket atlandı. `3dbdde2` test
-kapsamını değiştirmeden bu bounded sınırı 20 dakikaya çıkardı; yeni exact-source
-Android kapısı bekleniyor.
-Native14 ilişki ailesini ayıracak; sonuç yine tek başına kurulum kabulü değildir.
+kapsamını değiştirmeden bu bounded sınırı 20 dakikaya çıkardı. Exact `1e73ea3`
+yeniden koşusunda tam Server kapısı, 17/17 E2E ve imzalı APK129 başarıyla geçti.
+On dördüncü koşu `34281674390`, exact `1e73ea3` üzerinde iki mimaride de
+`helper_base_start / helper_base_path_location_ambiguous` verdi; başarı
+makbuzu veya artefakt yok. Tek indirilen 70.207 bayt logun SHA-256 değeri
+`81409d865a87f785bda58094a978344e4ed37d6817f1562184744a8da5309bed`.
+Engine kökü ile image/proc/sys/runtime/host ailelerinin exact ikili birlikte
+görülmesi beş nötr `*_paths_observed` koduna ayrıldı; aynı token ilişkisi daha
+özel kalıyor, üçlü ve diğer kümeler ambiguous. Beş gerçek RED kapandı; 54
+state, 86 state+stderr, toplam 290 Jellyfin ve 218 politika testi geçti.
+Bağımsız final inceleme CLEAR; tek inspect/no-retry/redaksiyon/cleanup sınırları
+değişmedi.
+[Path birlikteliği tanısı](jellyfin-base-path-cooccurrence-diagnostics-2026-09-09.md).
+Native15 exact ikiliyi ayıracak; sonuç yine tek başına kurulum kabulü değildir.
 Gerçek Engine ve kurulum kabulü hâlâ açık; `installAvailable=false`.
 
 ## Canlı takip ve sıradaki işler
