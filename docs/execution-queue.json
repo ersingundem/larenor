@@ -393,6 +393,7 @@
         "docs/jellyfin-helper-base-runtime-probe-2026-09-08.md",
         "docs/jellyfin-base-start-process-diagnostics-2026-09-08.md",
         "docs/jellyfin-base-start-private-stderr-2026-09-08.md",
+        "docs/jellyfin-base-start-state-diagnostics-2026-09-08.md",
         "docs/volume-create-fixture-lifecycle-repair-2026-09-08.md"
       ],
       "scope": "installAvailable=false; Client kaynak adı/Docker seçenekleri üretmez. Gerçek ev sunucusuna işlem yok.",
@@ -639,31 +640,31 @@
         },
         {
           "kind": "ci",
-          "ref": "https://github.com/ersingundem/larenor/actions/runs/34257672707",
-          "commit": "32d43fd54f7213b3d2cf548dcda7c86b05310606",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/34260536889",
+          "commit": "bd1a604ab46873a2fc967eb3806ca60562609690",
           "state": "completed",
           "result": "failed",
-          "label": "Native6: iki mimaride exact base start--attach/fixture_command_exit_failed; tek log70211byte/SHAf5357a2f. CLI nonzero kanıtlandı, attach/start/wait/container kök nedeni açık."
+          "label": "Native7: iki mimaride helper_base_start/fixture_command_exit_failed; tek log70222byte/SHA8ac144f5. Private stderr bilinen aileyle eşleşmedi; container durumu açık."
         },
         {
           "kind": "test",
-          "ref": "docs/jellyfin-base-start-private-stderr-2026-09-08.md",
-          "commit": "976a8ce4faf3ac0206aabf228144201a678f2d94",
+          "ref": "docs/jellyfin-base-start-state-diagnostics-2026-09-08.md",
+          "commit": "dd49b4dabdbd0eb9ac8166c364db1d1cb8ff7774",
           "state": "completed",
           "result": "passed",
-          "label": "Private base-start tanısı:10RED→10GREEN,32yeni/257ilgiliPASS0skip,215politikaPASS,%97,28 dal dahil;64KiB+1 stderr,20s/128stdout,tekdeneme."
+          "label": "Owned .State tanısı:15RED→15GREEN,249Jellyfin/215politikaPASS,%98 dal dahil; tek inspect,10s/64KiB,tek start ve ham veri yok."
         },
         {
           "kind": "review",
-          "ref": "docs/jellyfin-base-start-private-stderr-2026-09-08.md",
-          "commit": "976a8ce4faf3ac0206aabf228144201a678f2d94",
+          "ref": "docs/jellyfin-base-start-state-diagnostics-2026-09-08.md",
+          "commit": "dd49b4dabdbd0eb9ac8166c364db1d1cb8ff7774",
           "state": "completed",
           "result": "passed",
-          "label": "Bağımsız CLEAR: start-only private drain/redaction, leaf/ambiguity kuralı, cleanup/reap ve build/generic yolları korundu; gerçek neden/install kabulü açık."
+          "label": "Bağımsız CLEAR: signal iddiası ve test argv P2'leri kapalı; same-owned ID/socket, no-retry, state redaksiyonu, fallback/cancellation ve installAvailable=false korundu."
         }
       ],
       "completionCommit": null,
-      "reason": "Native6 run34257672707 exact32d43fd üzerinde iki mimaride helper_base_start/fixture_command_exit_failed verdi. Start-only64KiB+1 private stderr tanısı 257ilgili/215politikaPASS,%97,28kapsam ve bağımsızCLEAR ile local main57bf582 içinde. İlgili Engine/volume birleşik847PASS/3Macskip; ayrı volume fixture yarışı local main9125853 içinde onarıldı. Yedinci CI yalnız kapalı start hata ailesini ayıracak; tanı kök neden/install kabulü değildir. installAvailable=false."
+      "reason": "Native7 run34260536889 exactbd1a604 üzerinde iki mimaride helper_base_start/fixture_command_exit_failed verdi; tek log70222byte/SHA8ac144f5 ve private stderr eşleşmesi yok. Owned .State tanısı dd49b4d:15RED→15GREEN,249Jellyfin/215politikaPASS,%98kapsam, ikiP2kapalı/finalCLEAR. Tek start sonrası aynı owned ID/socket için bir10s/64KiB inspect; ham veri/retry/grant yok. Native8 kapalı durumu ayıracak; installAvailable=false."
     },
     {
       "id": "S06.3e",
