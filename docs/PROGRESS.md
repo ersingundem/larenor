@@ -33,7 +33,7 @@ Gerçek ev kurulumu ve fiziksel tablet kabulü henüz yapılmadı.
 | S08.6 — kişi, oda, kaynak ve izin yönetimi | **Kabul edildi**, aynı yayın | Merkezi HA akışının yetki temeli hazır |
 | S08.7 — merkezi Home Assistant adaptörü | **Devam ediyor**; typed durum, kalıcı switch komutu/makbuzu ve açık Direct→Core aktarımı main içinde | Exact-source birleşik CI; sonra geniş HA varlık/servis kapsamı |
 | B5.1 — ortak tablet tasarımı | Services/hesap IME paketi APK116 ile kabul edildi; S08.7 komut ve aktarım yüzeyleri yerel tablet matrisinden geçti | Exact-source Android CI ve kalan ortak tablet yüzeyleri |
-| S06.3d — kalıcı depolama | Sekizinci native koşu arm64 wait, amd64 genel exit verdi; exited-zero/not-started ayrımı yerelde hazır | Dokuzuncu native koşuda exact container durumunu ayır |
+| S06.3d — kalıcı depolama | Dokuzuncu native koşu iki mimaride genel exit verdi; state read/invalid/unclassified ayrımı yerelde hazır | Onuncu native koşuda bounded state gözlemini ayır |
 
 S08.7 üç sonlu teslimden oluşur: **kaynak bağlama ve typed durum → komut ve
 kalıcı sonuç → açık Direct aktarımı**. Üç yerel dilim de squash yapılmadan
@@ -194,8 +194,19 @@ bounded state gözleminde kalan iki olgusal sonuç yerelde ayrıldı: boş hata 
 Jellyfin ve 215 politika testi geçti. Tek start/inspect, redaksiyon ve cleanup
 değişmedi; bağımsız final inceleme CLEAR.
 [Zero-state tanısı](jellyfin-base-zero-state-diagnostics-2026-09-08.md).
-Dokuzuncu native koşu bu iki durumu ayıracak; sonuç yine tek başına kurulum
-kabulü değildir.
+Dokuzuncu koşu `34267014037`, exact `63b25f8` üzerinde iki mimaride de
+`helper_base_start / fixture_command_exit_failed` verdi; başarı makbuzu yok.
+Tek indirilen 70.203 bayt logun SHA-256 değeri
+`85f0cd8e7c8308e42062b00eeaf9870f4d99c328d822a1169b7fd64fe8384076`.
+Zero-state kodlarından hiçbiri gözlenmedi. Genel start sonucu için state
+okunamadı/geçersiz/sınıflandırılmadı ayrımı yerelde eklendi; daha güçlü wait,
+timeout, permission ve runtime gözlemleri korunuyor. İlk altı RED ile incelemede
+bulunan Unicode/Recursion P2'sinin iki gerçek RED'i kapandı; 21 state, toplam
+257 Jellyfin ve 218 politika testi geçti. Tek bounded inspect, redaksiyon,
+cleanup ve no-retry sınırları değişmedi; bağımsız final inceleme CLEAR.
+[State-read tanısı](jellyfin-base-state-read-diagnostics-2026-09-08.md).
+Onuncu native koşu bounded gözlem ailesini ayıracak; sonuç yine tek başına
+kurulum kabulü değildir.
 Gerçek Engine ve kurulum kabulü hâlâ açık; `installAvailable=false`.
 
 ## Canlı takip ve sıradaki işler
