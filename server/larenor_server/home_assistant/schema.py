@@ -27,6 +27,9 @@ def tag(key, scope, rows):
 
 
 def rows(c):
+    bounds = c.execute('SELECT COUNT(*), MAX(length(nonce)), MAX(length(ciphertext)) FROM home_assistant_bindings').fetchone()
+    if bounds[0] > MAX_BINDINGS or (bounds[0] and (bounds[1] != 12 or bounds[2] > MAX_CIPHER)):
+        raise ValueError()
     values = c.execute('SELECT * FROM home_assistant_bindings ORDER BY resource_id LIMIT ?', (MAX_BINDINGS + 1,)).fetchall()
     if len(values) > MAX_BINDINGS or any(type(r['nonce']) is not bytes or len(r['nonce']) != 12
             or type(r['ciphertext']) is not bytes or not 16 <= len(r['ciphertext']) <= MAX_CIPHER for r in values):

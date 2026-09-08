@@ -4,22 +4,43 @@ from threading import Event
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Request, Response
+from fastapi.security import HTTPAuthorizationCredentials
 
 from ..auth import Principal
 from ..core import CoreServices
-from ..dependencies import get_core, require_admin, require_ready_user
+from ..dependencies import get_core, require_user, bearer
 from ..errors import ApiError
 from ..home_resources.models import Identity
 from ..models import ErrorResponse
 from .models import BindingResponse, ConfirmRequest, PreviewRequest, PreviewResponse, SnapshotResponse
 
 Core = Annotated[CoreServices, Depends(get_core)]
-Admin = Annotated[Principal, Depends(require_admin)]
-Ready = Annotated[Principal, Depends(require_ready_user)]
+def adapter_ready(core: Core, credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(bearer)]):
+    try:
+        actor = require_user(core, credentials)
+    except ApiError as error:
+        if error.code == 'invalid_session' and credentials is not None and len(credentials.credentials) == 43:
+            core.home_assistant.retire_invalid_session(credentials.credentials)
+        raise
+    if actor.must_change_password:
+        raise ApiError('password_change_required', 403)
+    return actor
+
+
+Ready = Annotated[Principal, Depends(adapter_ready)]
+
+
+def adapter_admin(actor: Ready):
+    if actor.role != 'admin':
+        raise ApiError('forbidden', 403)
+    return actor
+
+
+Admin = Annotated[Principal, Depends(adapter_admin)]
 
 
 def exact_request(request: Request):
-    if request.scope.get('query_string') or len(request.headers.getlist('authorization')) != 1:
+    if request.scope.get('query_string') or len(request.headers.getlist('authorization')) > 1:
         raise ApiError('invalid_request')
 
 

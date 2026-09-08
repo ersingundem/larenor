@@ -20,6 +20,7 @@ from cryptography.exceptions import InvalidTag
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
 from ..admin.service import utc
+from ..auth import token_hash
 from ..errors import ApiError, StartupError
 from . import schema
 from .models import Binding, PreviewRequest, Projection, Snapshot
@@ -170,6 +171,19 @@ class HomeAssistantAdapter:
         finally:
             self._slots.release()
 
+    def retire_invalid_session(self, access):
+        """Discard this known token family's cache after authentication rejects it.
+
+        Only a token hash is looked up. Unknown tokens cannot purge other users;
+        no authentication grant or raw token is retained in the cache.
+        """
+        with self._lock, self.db.connection() as c:
+            row = c.execute('SELECT family_id FROM session_tokens WHERE access_hash=?', (token_hash(access),)).fetchone()
+            if row is not None:
+                for key in list(self._cache):
+                    if key[6] == row['family_id']:
+                        del self._cache[key]
+
     def binding(self, actor, core, home, resource):
         with self._tx(actor, core, home, admin=True) as (c, facts):
             binding = self._target(c, facts, resource)[3]
@@ -234,7 +248,7 @@ class HomeAssistantAdapter:
     def snapshot(self, actor, core, home, resource, *, cancelled=lambda: False):
         with self._tx(actor, core, home) as (c, facts):
             fingerprint, row, ref, binding, service = self._facts(c, facts, resource)
-            key = (core, home, actor.id, actor.token_id, resource, binding.id)
+            key = (core, home, actor.id, actor.token_id, resource, binding.id, actor.family_id)
             now = self._now(); cached = self._cache.get(key)
             if cached is not None and cached[1] == fingerprint and not cancelled():
                 remaining = max(0, int((CACHE_TTL - (now - cached[0])) * 1000))
