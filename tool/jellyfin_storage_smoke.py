@@ -48,7 +48,21 @@ _BUILD_ERROR_PATTERNS = {
     'helper_build_storage_failed': (b'no space left on device', b'read-only file system'),
     'helper_build_step_failed': (b'returned a non-zero code:',),
 }
-_DIAGNOSTIC_CODES = _CODES | set(_BUILD_ERROR_PATTERNS) | {
+# start --attach also performs inspect/attach/wait/stream operations. These
+# private signatures do not prove which of those operations or host paths failed.
+_START_STDERR_LIMIT = 65536
+_START_ERROR_PATTERNS = {
+    'helper_base_exec_failed': (b'exec format error', b'executable file not found'),
+    'helper_base_permission_failed': (b'permission denied', b'operation not permitted'),
+    'helper_base_storage_failed': (b'no space left on device', b'read-only file system'),
+    'helper_base_daemon_unavailable': (b'cannot connect to the docker daemon', b'error during connect:'),
+    'helper_base_container_missing': (b'no such container:',),
+    'helper_base_wait_failed': (b'error waiting for container:',),
+}
+_START_RUNTIME_PATTERNS = (b'failed to create shim task', b'oci runtime create failed',
+    b'runc create failed', b'failed to create task for container')
+_DIAGNOSTIC_CODES = _CODES | set(_BUILD_ERROR_PATTERNS) | set(_START_ERROR_PATTERNS) | {
+    'helper_base_runtime_failed', 'helper_base_error_ambiguous',
     'fixture_command_stderr_limit', 'helper_build_error_ambiguous',
     'invalid_image_preparation', 'invalid_image_binding',
     'fixture_command_exit_failed', 'fixture_command_output_limit', 'fixture_command_timeout',
@@ -154,11 +168,27 @@ def _build_error(stderr):
     return 'helper_build_error_ambiguous' if matched else 'fixture_command_exit_failed'
 
 
+def _start_error(stderr):
+    """Only complete nonzero stderr; a wrapper is fallback, not another cause."""
+    folded = stderr.lower()
+    matched = {code for code, patterns in _START_ERROR_PATTERNS.items()
+               if any(pattern in folded for pattern in patterns)}
+    if len(matched) == 1:
+        return matched.pop()
+    if matched:
+        return 'helper_base_error_ambiguous'
+    if any(pattern in folded for pattern in _START_RUNTIME_PATTERNS):
+        return 'helper_base_runtime_failed'
+    return 'fixture_command_exit_failed'
+
+
 def bounded_command(arguments, *, environment, timeout=60, limit=65536,
-                    diagnose_failure=False, diagnose_process=False):
-    """Separate closed process codes from the opt-in private build stderr path."""
-    require(type(diagnose_failure) is bool and type(diagnose_process) is bool, 'fixture_command_failed')
-    detailed_codes = diagnose_failure or diagnose_process
+                    diagnose_failure=False, diagnose_process=False, diagnose_start=False):
+    """Separate process-only, private build and private attached-start diagnostics."""
+    require(type(diagnose_failure) is bool and type(diagnose_process) is bool
+        and type(diagnose_start) is bool and not (diagnose_failure and diagnose_start), 'fixture_command_failed')
+    private_stderr = diagnose_failure or diagnose_start
+    detailed_codes = private_stderr or diagnose_process
     def check(value, code):
         require(value, code if detailed_codes else 'fixture_command_failed')
     process = None
@@ -166,12 +196,12 @@ def bounded_command(arguments, *, environment, timeout=60, limit=65536,
     deadline = time.monotonic() + timeout
     try:
         process = subprocess.Popen(arguments, env=environment, stdin=subprocess.DEVNULL,
-            stdout=subprocess.PIPE, stderr=subprocess.PIPE if diagnose_failure else subprocess.DEVNULL,
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE if private_stderr else subprocess.DEVNULL,
             bufsize=0, start_new_session=True)
         result = bytearray()
         with selectors.DefaultSelector() as selector:
             selector.register(process.stdout, selectors.EVENT_READ, 'stdout')
-            if diagnose_failure:
+            if private_stderr:
                 selector.register(process.stderr, selectors.EVENT_READ, 'stderr')
             while selector.get_map():
                 remaining = deadline - time.monotonic()
@@ -180,7 +210,8 @@ def bounded_command(arguments, *, environment, timeout=60, limit=65536,
                 check(ready, 'fixture_command_timeout')
                 for key, _ in ready:
                     buffer, bound, code = ((result, limit, 'fixture_command_output_limit')
-                        if key.data == 'stdout' else (stderr, _BUILD_STDERR_LIMIT, 'fixture_command_stderr_limit'))
+                        if key.data == 'stdout' else (stderr, _START_STDERR_LIMIT if diagnose_start else _BUILD_STDERR_LIMIT,
+                              'fixture_command_stderr_limit'))
                     chunk = os.read(key.fd, bound - len(buffer) + 1)
                     if not chunk:
                         selector.unregister(key.fileobj)
@@ -189,8 +220,9 @@ def bounded_command(arguments, *, environment, timeout=60, limit=65536,
                     check(len(buffer) <= bound, code)
         remaining = deadline - time.monotonic()
         check(remaining > 0, 'fixture_command_timeout')
-        check(process.wait(timeout=remaining) == 0,
-              _build_error(stderr) if diagnose_failure else 'fixture_command_exit_failed')
+        if process.wait(timeout=remaining) != 0:
+            check(False, _start_error(stderr) if diagnose_start else
+                  _build_error(stderr) if diagnose_failure else 'fixture_command_exit_failed')
         return bytes(result)
     except subprocess.TimeoutExpired:
         raise SmokeError('fixture_command_timeout' if detailed_codes else 'fixture_command_failed') from None
@@ -238,11 +270,13 @@ class EphemeralDaemon:
         except OSError:
             raise SmokeError('owned_daemon_lost') from None
 
-    def docker(self, args, *, timeout=60, limit=65536, diagnose_failure=False, diagnose_process=False):
+    def docker(self, args, *, timeout=60, limit=65536, diagnose_failure=False, diagnose_process=False,
+               diagnose_start=False):
         self._socket()
         return bounded_command(['/usr/bin/docker', '--host=unix://'+str(self.root/'engine.sock'),
             '--config='+str(self.root/'docker-config'), *args], environment=child_environment(self.root),
-            timeout=timeout, limit=limit, diagnose_failure=diagnose_failure, diagnose_process=diagnose_process)
+            timeout=timeout, limit=limit, diagnose_failure=diagnose_failure,
+            diagnose_process=diagnose_process, diagnose_start=diagnose_start)
 
     @diagnostic_phase('daemon_start')
     def __enter__(self):
@@ -522,7 +556,8 @@ def _helper_base(daemon, context, binding):
     with diagnostic_phase('helper_base_created'):
         inspect(False)
     with diagnostic_phase('helper_base_start'):
-        require(daemon.docker(['start','--attach',container_id], timeout=20, limit=128, diagnose_process=True)
+        require(daemon.docker(['start','--attach',container_id], timeout=20, limit=128,
+            diagnose_process=True, diagnose_start=True)
             == b'larenor-helper-base-ok-v1\n', 'fixture_protocol_failed')
     with diagnostic_phase('helper_base_result'):
         inspect(True)

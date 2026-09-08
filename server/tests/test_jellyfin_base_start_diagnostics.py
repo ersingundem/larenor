@@ -21,7 +21,7 @@ def test_attached_start_distinguishes_child_failures_without_replay_or_disclosur
     original_docker, original_spawn = daemon.docker, smoke.subprocess.Popen
     children, starts = [], []
     def spawn(*args, **kwargs):
-        assert kwargs['stderr'] is smoke.subprocess.DEVNULL
+        assert kwargs['stderr'] is smoke.subprocess.PIPE
         child = original_spawn(*args, **kwargs)
         children.append(child)
         return child
@@ -128,6 +128,7 @@ def test_current_consumer_opts_only_attached_base_start_into_process_codes(proto
         if kwargs.get('diagnose_process') is True:
             process_calls.append(list(args))
             assert kwargs.get('diagnose_failure',False) is False
+            assert kwargs.get('diagnose_start') is True
             assert kwargs['timeout'] == 20 and kwargs['limit'] == 128
         if kwargs.get('diagnose_failure') is True:
             build_calls.append(list(args))
@@ -151,7 +152,7 @@ def test_owned_socket_environment_and_process_option_are_forwarded_exactly(tmp_p
         assert args == ['/usr/bin/docker','--host=unix://'+str(tmp_path/'engine.sock'),
             '--config='+str(tmp_path/'docker-config'),'start','--attach','d'*64]
         assert kwargs == {'environment':smoke.child_environment(tmp_path),
-            'timeout':20,'limit':128,'diagnose_failure':False,'diagnose_process':True}
+            'timeout':20,'limit':128,'diagnose_failure':False,'diagnose_process':True,'diagnose_start':False}
         return b'larenor-helper-base-ok-v1\n'
     monkeypatch.setattr(smoke,'bounded_command',command)
     assert owner.docker(['start','--attach','d'*64], timeout=20, limit=128, diagnose_process=True) == b'larenor-helper-base-ok-v1\n'

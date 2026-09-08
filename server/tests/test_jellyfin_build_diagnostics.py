@@ -114,7 +114,7 @@ def test_owned_daemon_forwards_opt_in_without_changing_socket_or_environment(tmp
         assert args == ['/usr/bin/docker', '--host=unix://'+str(tmp_path/'engine.sock'),
                         '--config='+str(tmp_path/'docker-config'), 'build']
         assert kwargs == {'environment':smoke.child_environment(tmp_path),
-                          'timeout':600, 'limit':256, 'diagnose_failure':True, 'diagnose_process':False}
+                          'timeout':600, 'limit':256, 'diagnose_failure':True, 'diagnose_process':False, 'diagnose_start':False}
         return b'synthetic-id'
     monkeypatch.setattr(smoke, 'bounded_command', command)
     assert owner.docker(['build'], timeout=600, limit=256, diagnose_failure=True) == b'synthetic-id'
