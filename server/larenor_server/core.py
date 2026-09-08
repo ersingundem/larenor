@@ -32,6 +32,8 @@ from .home_resources.schema import migrate_home_resources
 from .home_resources.service import HomeResourceRegistry
 from .home_people.schema import migrate_home_people
 from .home_people.service import HomePeopleRegistry
+from .home_assistant.schema import migrate_home_assistant
+from .home_assistant.service import HomeAssistantAdapter
 
 
 class CoreServices:
@@ -132,6 +134,7 @@ class CoreServices:
                 migrate_home_resources(connection, self.context, key)
                 migrate_home_people(connection, self.context, key)
                 migrate_services(connection)
+                migrate_home_assistant(connection, self.context, key)
                 migrate_plugins(connection)
                 migrate_plugin_jobs(connection)
                 migrate_media_preparations(connection)
@@ -161,6 +164,8 @@ class CoreServices:
             self.admin = AdminService(self.db, self.auth, settings)
             self.services = ServiceManagement(self.db, self.auth, settings, key)
             self.services.validate_storage()
+            self.home_assistant = HomeAssistantAdapter(self.db, self.auth, settings, key, self.home_resources, self.services)
+            self.home_assistant.validate_storage()
             self.service_probe = ServiceProbeRunner(self.services)
             self.plugins = PluginManagement(self.db, self.auth, settings, key)
             self.plugins.validate_storage()
