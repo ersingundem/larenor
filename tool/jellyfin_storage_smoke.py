@@ -6,6 +6,7 @@ socket and empty Docker client configuration. No supplied socket/platform or
 DOCKER_HOST fallback exists. CI environment checks are an accidental-use guard,
 not a production authority issuer. This is not wired to Server API/runtime.
 """
+from contextlib import contextmanager
 from dataclasses import dataclass
 import hashlib
 import json
@@ -32,6 +33,22 @@ _CODES = {'storage_characterization_failed','native_ephemeral_ci_required','fixt
     'owned_daemon_lost','owned_daemon_unavailable','owned_cleanup_failed','fixture_image_unresolved',
     'fixture_volume_unresolved','fixture_protocol_failed','jellyfin_startup_timeout',
     'unexpected_image_volume','unexpected_initial_write_access','restart_identity_changed','fixture_source_changed'}
+_DIAGNOSTIC_CODES = _CODES | {'invalid_image_preparation', 'invalid_image_binding',
+    'image_cancelled', 'image_pull_not_authorized', 'image_observation_unavailable',
+    'invalid_image_limits', 'image_protocol', 'image_stream_limit', 'image_pull_failed',
+    'image_engine_unavailable', 'image_timeout', 'image_unverified', 'image_api_unsupported',
+    'invalid_volume_preparation', 'invalid_volume_binding', 'invalid_volume_effect_limits',
+    'volume_create_not_authorized', 'volume_protocol', 'volume_response_limit',
+    'volume_engine_unavailable', 'volume_timeout', 'volume_cancelled', 'volume_api_unsupported',
+    'journal_unavailable', 'unsafe_worker_path', 'worker_busy', 'invalid_binding',
+    'storage_characterization_evidence_invalid'}
+_PHASES = {'launcher', 'launch_validation', 'source_capture', 'daemon_start', 'daemon_cleanup',
+    'characterization', 'image_prepare', 'volume_prepare', 'image_inspect', 'helper_stage',
+    'helper_build', 'helper_inspect', 'helper_seed', 'initial_permissions', 'bootstrap_check',
+    'bootstrap_initialize', 'initialized_permissions', 'sentinel_write', 'container_create',
+    'container_inspect', 'container_start', 'initial_health', 'initial_identity', 'initial_data',
+    'container_restart', 'restart_health', 'restart_identity', 'root_verify', 'sentinel_verify',
+    'restart_data', 'source_recheck', 'receipt_validate', 'receipt_verify'}
 _SOURCE_FILES = ('tool/volume_bootstrap_helper.py','tool/jellyfin_storage_probe.py',
     'tool/jellyfin_storage_smoke.py','server/Dockerfile.volume-bootstrap',
     'server/Dockerfile.volume-bootstrap.dockerignore', 'LICENSE', 'NOTICE')
@@ -40,8 +57,41 @@ _BUILD_FILES = ('tool/volume_bootstrap_helper.py', 'tool/jellyfin_storage_probe.
 
 
 class SmokeError(Exception):
-    def __init__(self, code='storage_characterization_failed'):
-        super().__init__(code if code in _CODES else 'storage_characterization_failed')
+    def __init__(self, code='storage_characterization_failed', *, phase=None):
+        self.phase = _closed(phase, _PHASES, 'launcher')
+        super().__init__(_closed(code, _DIAGNOSTIC_CODES, 'storage_characterization_failed'))
+
+
+def _closed(value, allowed, fallback):
+    return value if type(value) is str and len(value) <= 64 and value in allowed else fallback
+
+
+def _error_code(error):
+    # Read only BaseException's stored arguments, never __str__/repr or a custom
+    # property. Arbitrary diagnostics, paths, output and credentials stay private.
+    args = BaseException.args.__get__(error)
+    return _closed(args[0] if len(args) == 1 else None,
+                   _DIAGNOSTIC_CODES, 'storage_characterization_failed')
+
+
+@contextmanager
+def diagnostic_phase(name):
+    """Preserve the innermost failing boundary; cleanup success cannot replace it."""
+    selected = _closed(name, _PHASES, 'launcher')
+    try:
+        yield
+    except Exception as error:
+        if type(error) is SmokeError:
+            selected = _closed(error.phase, _PHASES, selected)
+            # An unannotated SmokeError belongs to this boundary.
+            if selected == 'launcher':
+                selected = _closed(name, _PHASES, 'launcher')
+        raise SmokeError(_error_code(error), phase=selected) from None
+
+
+def failure_diagnostic(error):
+    phase = _closed(error.phase, _PHASES, 'launcher') if type(error) is SmokeError else 'launcher'
+    return 'storage_characterization_failed phase='+phase+' code='+_error_code(error)
 
 
 def require(value, code='storage_characterization_failed'):
@@ -140,6 +190,7 @@ class EphemeralDaemon:
             '--config='+str(self.root/'docker-config'), *args], environment=child_environment(self.root),
             timeout=timeout, limit=limit)
 
+    @diagnostic_phase('daemon_start')
     def __enter__(self):
         self.platform = native_platform(os.environ, platform.system(), platform.machine(), os.geteuid())
         self.root = Path(tempfile.mkdtemp(prefix='larenor-jellyfin-', dir='/tmp'))
@@ -164,6 +215,7 @@ class EphemeralDaemon:
             self.__exit__(*sys.exc_info())
             raise
 
+    @diagnostic_phase('daemon_cleanup')
     def __exit__(self, *_):
         if self.process is not None:
             _signal_group(self.process, signal.SIGTERM)
@@ -220,17 +272,19 @@ def prepare_storage(root, source, images, volumes):
     from larenor_server.plugins.volume_create_journal import VolumeCreateJournal
     from larenor_server.plugins.volume_preparation import JournaledVolumeCreates
     image_dir, volume_dir = root/'image-journal', root/'volume-journal'
-    with ResourceJournal(image_dir, initialize=not image_dir.exists()) as journal:
-        result = JournaledImageOperations(journal, images).apply(source.plan, source.stack,
-            source.catalog, source.policy, source.image.resourceId, authorize_pull=lambda:True)
-        require(result.state == 'ready', 'fixture_image_unresolved')
+    with diagnostic_phase('image_prepare'):
+        with ResourceJournal(image_dir, initialize=not image_dir.exists()) as journal:
+            result = JournaledImageOperations(journal, images).apply(source.plan, source.stack,
+                source.catalog, source.policy, source.image.resourceId, authorize_pull=lambda:True)
+            require(result.state == 'ready', 'fixture_image_unresolved')
     states = []
-    with VolumeCreateJournal(volume_dir, initialize=not volume_dir.exists()) as journal:
-        for target in source.targets:
-            receipt = JournaledVolumeCreates(journal, volumes).apply(source.volumes, source.stack,
-                source.catalog, source.policy, target.resourceId, authorize_create=lambda:True)
-            require(receipt.state == 'observed_requires_bootstrap', 'fixture_volume_unresolved')
-            states.append(receipt.state)
+    with diagnostic_phase('volume_prepare'):
+        with VolumeCreateJournal(volume_dir, initialize=not volume_dir.exists()) as journal:
+            for target in source.targets:
+                receipt = JournaledVolumeCreates(journal, volumes).apply(source.volumes, source.stack,
+                    source.catalog, source.policy, target.resourceId, authorize_create=lambda:True)
+                require(receipt.state == 'observed_requires_bootstrap', 'fixture_volume_unresolved')
+                states.append(receipt.state)
     return {'imageState': result.state, 'volumeStates': states}
 
 
@@ -389,6 +443,7 @@ def _health(daemon, helper_id, container_id):
     raise SmokeError('jellyfin_startup_timeout')
 
 
+@diagnostic_phase('characterization')
 def characterize(daemon, *, source=None, images=None, volumes=None, checkout_binding=None):
     """The real consumer: two volumes, bootstrap, NoCopy/start/restart or fail.
 
@@ -406,74 +461,97 @@ def characterize(daemon, *, source=None, images=None, volumes=None, checkout_bin
     images = UnixImageEngine(endpoint) if images is None else images
     volumes = UnixVolumeCreator(endpoint) if volumes is None else volumes
     receipt = prepare_storage(daemon.root, source, images, volumes)
-    binding = image_binding(source.plan, source.stack, source.catalog, source.policy, source.image.resourceId)
-    observed = images.inspect(binding)
-    require(observed is not None and observed.image_id == binding.config_digest)
-    image_config = _decoded(observed.configuration)
-    require(type(image_config) is dict and set(image_config.get('Volumes') or {}) <= {'/config','/cache'},
-            'unexpected_image_volume')
+    with diagnostic_phase('image_inspect'):
+        binding = image_binding(source.plan, source.stack, source.catalog, source.policy, source.image.resourceId)
+        observed = images.inspect(binding)
+        require(observed is not None and observed.image_id == binding.config_digest)
+        image_config = _decoded(observed.configuration)
+        require(type(image_config) is dict and set(image_config.get('Volumes') or {}) <= {'/config','/cache'},
+                'unexpected_image_volume')
     iid_file = daemon.root/'helper.iid'
-    context = stage_context(daemon.root, checkout_binding)
+    with diagnostic_phase('helper_stage'):
+        context = stage_context(daemon.root, checkout_binding)
     commit, hashes = checkout_binding
     labels = source_labels(commit, dict(hashes))
-    daemon.docker(['build','--pull','--quiet','--network=none',
-        *['--label='+key+'='+value for key,value in labels.items()], '--file',
-        str(context/'server/Dockerfile.volume-bootstrap'),'--iidfile',str(iid_file),str(context)],
-        timeout=600, limit=256)
-    check_source(checkout_binding)
-    check_staged(context, checkout_binding)
-    helper_id = iid_file.read_text().strip()
-    require(_HASH.fullmatch(helper_id) is not None)
-    inspected = _decoded(daemon.docker(['image','inspect','--format','{{json .}}',helper_id], limit=65536))
-    attestation = helper_attestation(helper_id, inspected, daemon.platform, commit, expected_hashes=hashes)
-    require(_helper(daemon, helper_id, 'image_seed') == {'imageSeed':True})
+    with diagnostic_phase('helper_build'):
+        daemon.docker(['build','--pull','--quiet','--network=none',
+            *['--label='+key+'='+value for key,value in labels.items()], '--file',
+            str(context/'server/Dockerfile.volume-bootstrap'),'--iidfile',str(iid_file),str(context)],
+            timeout=600, limit=256)
+    with diagnostic_phase('helper_inspect'):
+        check_source(checkout_binding)
+        check_staged(context, checkout_binding)
+        helper_id = iid_file.read_text().strip()
+        require(_HASH.fullmatch(helper_id) is not None)
+        inspected = _decoded(daemon.docker(['image','inspect','--format','{{json .}}',helper_id], limit=65536))
+        attestation = helper_attestation(helper_id, inspected, daemon.platform, commit, expected_hashes=hashes)
+    with diagnostic_phase('helper_seed'):
+        require(_helper(daemon, helper_id, 'image_seed') == {'imageSeed':True})
     for target in source.targets:
         # A real negative oracle, not an invented RED: if it is writable already,
         # this candidate's rootful/empty ownership assumption must be reviewed.
-        require(_helper(daemon, helper_id, 'writable', target=target)
-            == {'writable':False,'uid':1000,'gid':1000}, 'unexpected_initial_write_access')
-        require(_helper(daemon, helper_id, 'check', target=target, bootstrap=True)
-            == {'schemaVersion':1,'state':'empty_uninitialized'})
-        require(_helper(daemon, helper_id, 'initialize_empty_root', target=target, bootstrap=True)
-            == {'schemaVersion':1,'state':'empty_initialized'})
-        require(_helper(daemon, helper_id, 'writable', target=target)
-            == {'writable':True,'uid':1000,'gid':1000})
-        require(_helper(daemon, helper_id, 'write_sentinel', target=target)
-            == {'sentinel':'verified','uid':1000,'gid':1000})
+        with diagnostic_phase('initial_permissions'):
+            require(_helper(daemon, helper_id, 'writable', target=target)
+                == {'writable':False,'uid':1000,'gid':1000}, 'unexpected_initial_write_access')
+        with diagnostic_phase('bootstrap_check'):
+            require(_helper(daemon, helper_id, 'check', target=target, bootstrap=True)
+                == {'schemaVersion':1,'state':'empty_uninitialized'})
+        with diagnostic_phase('bootstrap_initialize'):
+            require(_helper(daemon, helper_id, 'initialize_empty_root', target=target, bootstrap=True)
+                == {'schemaVersion':1,'state':'empty_initialized'})
+        with diagnostic_phase('initialized_permissions'):
+            require(_helper(daemon, helper_id, 'writable', target=target)
+                == {'writable':True,'uid':1000,'gid':1000})
+        with diagnostic_phase('sentinel_write'):
+            require(_helper(daemon, helper_id, 'write_sentinel', target=target)
+                == {'sentinel':'verified','uid':1000,'gid':1000})
     name = 'larenor-jellyfin-'+source.stack.preparationId
     args = ['create','--name='+name,'--network=none','--read-only','--cap-drop=ALL',
         '--security-opt=no-new-privileges','--user=1000:1000','--memory=4g','--cpus=2',
         '--pids-limit=512','--restart=no','--tmpfs=/tmp:rw,nosuid,nodev,size=67108864','--env=TZ=UTC']
     args += ['--mount=type=volume,src='+v.name+',dst='+v.target+',volume-nocopy' for v in source.targets]
-    container_id = daemon.docker(args+[binding.reference], limit=128).decode().strip()
-    require(re.fullmatch(r'[0-9a-f]{64}', container_id) is not None)
+    with diagnostic_phase('container_create'):
+        container_id = daemon.docker(args+[binding.reference], limit=128).decode().strip()
+        require(re.fullmatch(r'[0-9a-f]{64}', container_id) is not None)
+    @diagnostic_phase('container_inspect')
     def inspect():
         value = _decoded(daemon.docker(['container','inspect','--format','{{json .}}',container_id], limit=262144))
         require(value.get('Id') == container_id)
         verify_container(value, source, image_config)
     inspect()
-    daemon.docker(['start',container_id], limit=128)
-    first = _health(daemon, helper_id, container_id)
-    require(_helper(daemon, helper_id, 'app_identity', network='container:'+container_id)
-            == {'uid':1000,'gid':1000})
+    with diagnostic_phase('container_start'):
+        daemon.docker(['start',container_id], limit=128)
+    with diagnostic_phase('initial_health'):
+        first = _health(daemon, helper_id, container_id)
+    with diagnostic_phase('initial_identity'):
+        require(_helper(daemon, helper_id, 'app_identity', network='container:'+container_id)
+                == {'uid':1000,'gid':1000})
     config_target = next(v for v in source.targets if v.target == '/config')
-    require(_helper(daemon, helper_id, 'initial_data', target=config_target)
-            == {'database':True,'configuration':True})
-    daemon.docker(['restart','--time=10',container_id], timeout=30, limit=128)
-    second = _health(daemon, helper_id, container_id)
-    require(second == first, 'restart_identity_changed')
-    require(_helper(daemon, helper_id, 'app_identity', network='container:'+container_id)
-            == {'uid':1000,'gid':1000})
+    with diagnostic_phase('initial_data'):
+        require(_helper(daemon, helper_id, 'initial_data', target=config_target)
+                == {'database':True,'configuration':True})
+    with diagnostic_phase('container_restart'):
+        daemon.docker(['restart','--time=10',container_id], timeout=30, limit=128)
+    with diagnostic_phase('restart_health'):
+        second = _health(daemon, helper_id, container_id)
+        require(second == first, 'restart_identity_changed')
+    with diagnostic_phase('restart_identity'):
+        require(_helper(daemon, helper_id, 'app_identity', network='container:'+container_id)
+                == {'uid':1000,'gid':1000})
     inspect()
     for target in source.targets:
-        require(_helper(daemon, helper_id, 'verify_root', target=target, bootstrap=True)
-                == {'schemaVersion':1,'state':'root_verified'})
-        require(_helper(daemon, helper_id, 'verify_sentinel', target=target)
-                == {'sentinel':'verified','uid':1000,'gid':1000})
-    require(_helper(daemon, helper_id, 'initial_data', target=config_target)
-            == {'database':True,'configuration':True})
-    check_source(checkout_binding)
-    check_staged(context, checkout_binding)
+        with diagnostic_phase('root_verify'):
+            require(_helper(daemon, helper_id, 'verify_root', target=target, bootstrap=True)
+                    == {'schemaVersion':1,'state':'root_verified'})
+        with diagnostic_phase('sentinel_verify'):
+            require(_helper(daemon, helper_id, 'verify_sentinel', target=target)
+                    == {'sentinel':'verified','uid':1000,'gid':1000})
+    with diagnostic_phase('restart_data'):
+        require(_helper(daemon, helper_id, 'initial_data', target=config_target)
+                == {'database':True,'configuration':True})
+    with diagnostic_phase('source_recheck'):
+        check_source(checkout_binding)
+        check_staged(context, checkout_binding)
     return {'schemaVersion':1,'result':'characterized','platform':daemon.platform,
         'catalogDigest':source.catalog.digest,'jellyfinManifestDigest':source.image.image.digest,
         'jellyfinConfigDigest':binding.config_digest,'helper':attestation,
