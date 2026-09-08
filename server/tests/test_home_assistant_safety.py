@@ -323,3 +323,33 @@ def test_pre_adapter_legacy_fixtures_have_no_future_binding_domain(server,helper
     with app.state.core.db.connection() as c:
         assert c.execute("SELECT name FROM sqlite_master WHERE name GLOB 'home_assistant_*' OR tbl_name GLOB 'home_assistant_*'").fetchall()==[]
         assert c.execute("SELECT value FROM metadata WHERE key='home_assistant_schema'").fetchone() is None
+
+
+@pytest.mark.parametrize('column',['resource_id','binding_id','authentication_tag'])
+def test_storage_metadata_is_bounded_before_materialization(server,ha,column):
+    app,client,admin,_,_,base,_,body=setup(server,ha);bind(client,admin,base,body)
+    table='home_assistant_state' if column=='authentication_tag' else 'home_assistant_bindings'
+    with app.state.core.db.transaction() as c:
+        c.execute(f"UPDATE {table} SET {column}=replace(hex(zeroblob(2097152)),'0','f')")
+    with app.state.core.db.connection() as c:
+        tracemalloc.start()
+        try:
+            with pytest.raises(ValueError):
+                schema.validate(c,app.state.core.home_assistant._key,app.state.core.home_resources.scope)
+            _,peak=tracemalloc.get_traced_memory()
+        finally:tracemalloc.stop()
+    assert peak<1024*1024
+
+
+def test_non_ascii_invalid_core_token_keeps_401_and_other_cached_data(server,ha):
+    app,client,admin,_,_,base,public,body=setup(server,ha);bind(client,admin,base,body)
+    assert client.get(public+'/snapshot',headers=auth(admin)).status_code==200
+    before=dict(app.state.core.home_assistant._cache);calls=ha.calls
+    import asyncio
+    import httpx
+    async def raw_request():
+        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app),base_url='http://testserver') as raw:
+            return await raw.get(public+'/snapshot',headers=[(b'authorization',b'Bearer '+b'\xe9'*43)])
+    response=asyncio.run(raw_request())
+    assert response.status_code==401 and response.json()['error']['code']=='invalid_session'
+    assert app.state.core.home_assistant._cache==before and ha.calls==calls
