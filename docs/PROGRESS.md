@@ -33,7 +33,7 @@ Gerçek ev kurulumu ve fiziksel tablet kabulü henüz yapılmadı.
 | S08.6 — kişi, oda, kaynak ve izin yönetimi | **Kabul edildi**, aynı yayın | Merkezi HA akışının yetki temeli hazır |
 | S08.7 — merkezi Home Assistant adaptörü | **Devam ediyor**; typed durum, kalıcı switch komutu/makbuzu ve açık Direct→Core aktarımı main içinde | Exact-source birleşik CI; sonra geniş HA varlık/servis kapsamı |
 | B5.1 — ortak tablet tasarımı | Services/hesap IME paketi APK116 ile kabul edildi; S08.7 komut ve aktarım yüzeyleri yerel tablet matrisinden geçti | Exact-source Android CI ve kalan ortak tablet yüzeyleri |
-| S06.3d — kalıcı depolama | Altıncı native koşu iki mimaride exact base `start --attach` nonzero sınıfına daraldı; private bounded stderr tanısı main içinde | Yedinci native koşuda kapalı start hata ailesini ayır |
+| S06.3d — kalıcı depolama | Yedinci native koşu iki mimaride eşleşmeyen `start --attach` nonzero verdi; tek sahipli `.State` tanısı yerelde hazır | Sekizinci native koşuda container durum ailesini ayır |
 
 S08.7 üç sonlu teslimden oluşur: **kaynak bağlama ve typed durum → komut ve
 kalıcı sonuç → açık Direct aktarımı**. Üç yerel dilim de squash yapılmadan
@@ -161,9 +161,20 @@ eşleşmeyen mesaj eski genel hata olarak kalır. 20 saniye/128 bayt stdout, tek
 deneme ve process-group cleanup değişmedi.
 [Private start tanısı](jellyfin-base-start-private-stderr-2026-09-08.md).
 Birleşmiş main üzerinde Jellyfin, Engine HTTP ve volume ailesinin **847 PASS /
-3 mevcut macOS skip** koşusu da geçti. Yedinci native koşu yalnız yeni kapalı
-hata ailesini gözlemleyecek; tanı sonucu tek başına Engine/install kabulü
-sayılmayacak.
+3 mevcut macOS skip** koşusu da geçti. Yedinci native koşu `34260536889`, exact
+`bd1a604` üzerinde iki mimaride yine
+`helper_base_start / fixture_command_exit_failed` verdi; bounded stderr bilinen
+bir aileyle eşleşmedi. Tek indirilen log 70.222 bayt, SHA-256
+`8ac144f5069622b8bcb5fd63d55bbdcfd9d481fd92637f599005df91ec8a70c4`.
+Başarısız tek start denemesinden sonra yalnız aynı sahipli containerın `.State`
+alanını 10 saniye/64 KiB sınırında okuyan tanı yerelde hazır: 15 RED→15 GREEN,
+249 son Jellyfin ve 215 politika testi geçti; runner+launcher dal dahil kapsamı
+%98'e yuvarlandı. OOM/dead/running/exited-nonzero sonuçları kapalı ve neden
+iddiası taşımayan kodlara dönüşür; bozuk/okunamayan durum eski kapalı kodu
+korur. İki inceleme P2'si kapatıldı ve final bağımsız inceleme CLEAR.
+[State tanısı](jellyfin-base-start-state-diagnostics-2026-09-08.md).
+Sekizinci native koşu yalnız bu kapalı durumu gözlemleyecek; tanı sonucu tek
+başına Engine/install kabulü sayılmayacak.
 Gerçek Engine ve kurulum kabulü hâlâ açık; `installAvailable=false`.
 
 ## Canlı takip ve sıradaki işler
