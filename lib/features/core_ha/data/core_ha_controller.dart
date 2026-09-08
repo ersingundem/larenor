@@ -101,7 +101,7 @@ class CoreHaController extends ChangeNotifier {
   }
   bool _action(bool Function() check) { try { return check(); } catch (_) { return false; } }
 
-  Future<void> _run(Future<void> Function(CoreHaApi Function(HomeResourceRecord)) action, {bool write = false, bool Function()? guard}) async {
+  Future<void> _run(Future<void> Function(CoreHaApi Function(HomeResourceRecord)) action, {bool write = false, bool Function()? guard, bool Function()? responseCurrent}) async {
     final original = _ready;
     if (original == null || busy || guard != null && !_action(guard)) return;
     final generation = home!.account.generation, homeEpoch = home!.interaction.epoch, operation = ++epoch;
@@ -110,13 +110,13 @@ class CoreHaController extends ChangeNotifier {
     busy = true; failure = null; saved = false; _attempted = true; _preparing = true; _preparationCurrent = live; _emit();
     try {
       await home!.account.withSession((_, session) async {
-        if (!live() || !sameScope(session) || !fresh) throw const LarenorServerException('cancelled');
+        if (!live() || !sameScope(session) || !fresh || responseCurrent != null && !_action(responseCurrent)) throw const LarenorServerException('cancelled');
         _preparing = false; _bound = session;
         _authTimer?.cancel();
         final remaining = session.expiresAt.subtract(const Duration(seconds: 30)).difference(clock());
         _authTimer = Timer(remaining.isNegative ? Duration.zero : remaining, _changed);
         _transport = factory(session.endpoint);
-        bool authoritative() => live() && identical(_ready, session) && fresh;
+        bool authoritative() => live() && identical(_ready, session) && fresh && (responseCurrent == null || _action(responseCurrent));
         try {
           await action((record) => CoreHaApi(_transport!, session.accessToken, record, isCurrent: authoritative));
         } catch (_) {
@@ -180,7 +180,7 @@ class CoreHaController extends ChangeNotifier {
     await _run((api) async {
       final result = await api(target).confirm(value);
       binding = result; _bindingRevision = result.revision; saved = true;
-    }, write: true, guard: () => _action(isCurrent) && monotonic() < deadline);
+    }, write: true, guard: isCurrent, responseCurrent: () => monotonic() < deadline);
   }
   Future<void> cancel(CoreHaPreview value, {required bool Function() isCurrent}) async {
     if (!canConfirm || !identical(value, preview) || !_action(isCurrent)) return;
