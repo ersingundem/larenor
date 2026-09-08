@@ -61,7 +61,7 @@
           "name": "Characterize only the owned native ephemeral daemon",
           "id": "native",
           "timeout-minutes": 22,
-          "run": "sudo --non-interactive env -i \\\n  PATH=/usr/bin:/bin \\\n  PYTHONPATH=\"$GITHUB_WORKSPACE/server:$GITHUB_WORKSPACE\" \\\n  CI=\"$CI\" GITHUB_ACTIONS=\"$GITHUB_ACTIONS\" \\\n  RUNNER_ENVIRONMENT=\"$RUNNER_ENVIRONMENT\" RUNNER_ARCH=\"$RUNNER_ARCH\" \\\n  GITHUB_SHA=\"$GITHUB_SHA\" GITHUB_WORKFLOW_SHA=\"$GITHUB_WORKFLOW_SHA\" \\\n  GITHUB_EVENT_NAME=\"$GITHUB_EVENT_NAME\" GITHUB_REF=\"$GITHUB_REF\" \\\n  GITHUB_REPOSITORY=\"$GITHUB_REPOSITORY\" EXPECTED_PLATFORM=\"$EXPECTED_PLATFORM\" \\\n  \"$UV_PROJECT_ENVIRONMENT/bin/python\" -B -m tool.jellyfin_storage_ci --run-ephemeral-ci \\\n  > \"$RUNNER_TEMP/jellyfin-storage-receipt.json\""
+          "run": "exec sudo --non-interactive env -i \\\n  PATH=/usr/bin:/bin \\\n  PYTHONPATH=\"$GITHUB_WORKSPACE/server:$GITHUB_WORKSPACE\" \\\n  CI=\"$CI\" GITHUB_ACTIONS=\"$GITHUB_ACTIONS\" \\\n  RUNNER_ENVIRONMENT=\"$RUNNER_ENVIRONMENT\" RUNNER_ARCH=\"$RUNNER_ARCH\" \\\n  GITHUB_SHA=\"$GITHUB_SHA\" GITHUB_WORKFLOW_SHA=\"$GITHUB_WORKFLOW_SHA\" \\\n  GITHUB_EVENT_NAME=\"$GITHUB_EVENT_NAME\" GITHUB_REF=\"$GITHUB_REF\" \\\n  GITHUB_REPOSITORY=\"$GITHUB_REPOSITORY\" EXPECTED_PLATFORM=\"$EXPECTED_PLATFORM\" \\\n  \"$UV_PROJECT_ENVIRONMENT/bin/python\" -B -m tool.jellyfin_storage_ci --run-ephemeral-ci \\\n  > \"$RUNNER_TEMP/jellyfin-storage-receipt.json\""
         },
         {
           "name": "Verify exact source and native platform receipt",
