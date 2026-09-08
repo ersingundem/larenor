@@ -353,3 +353,21 @@ def test_non_ascii_invalid_core_token_keeps_401_and_other_cached_data(server,ha)
     response=asyncio.run(raw_request())
     assert response.status_code==401 and response.json()['error']['code']=='invalid_session'
     assert app.state.core.home_assistant._cache==before and ha.calls==calls
+
+
+@pytest.mark.parametrize('column',['resource_id','binding_id','authentication_tag'])
+def test_nul_suffixed_metadata_cannot_bypass_sqlite_text_length_bound(server,ha,column):
+    app,client,admin,_,_,base,_,body=setup(server,ha);bind(client,admin,base,body)
+    table='home_assistant_state' if column=='authentication_tag' else 'home_assistant_bindings'
+    length=64 if column=='authentication_tag' else 32
+    with app.state.core.db.transaction() as c:
+        c.execute(f"UPDATE {table} SET {column}=? || char(0) || replace(hex(zeroblob(2097152)),'0','f')",('f'*length,))
+        # SQLite TEXT length ignores everything after NUL; the byte bound must not.
+        assert c.execute(f'SELECT length({column}) FROM {table}').fetchone()[0]==length
+    with app.state.core.db.connection() as c:
+        tracemalloc.start()
+        try:
+            with pytest.raises(ValueError):schema.validate(c,app.state.core.home_assistant._key,app.state.core.home_resources.scope)
+            _,peak=tracemalloc.get_traced_memory()
+        finally:tracemalloc.stop()
+    assert peak<1024*1024
