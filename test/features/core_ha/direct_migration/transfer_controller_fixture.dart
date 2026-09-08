@@ -61,10 +61,7 @@ class TransferHarness {
       coreHaRequestIdProvider.overrideWithValue(() => '7'*32),
       coreHaApiFactoryProvider.overrideWithValue((endpoint) => LarenorServerApi(endpoint:endpoint, client:MockClient(handle))),
     ], retry:(_,_) => null);
-    await tester.pumpWidget(UncontrolledProviderScope(container:container, child: CupertinoApp(home: Consumer(builder:(context,ref,_) {
-      controller = ref.watch(coreHaTransferControllerProvider(owner));
-      return const SizedBox();
-    }))));
+    await tester.pumpWidget(UncontrolledProviderScope(container:container, child: CupertinoApp(home: TransferProbe(h:this))));
     await settle(tester);
     addTearDown(() async {
       await tester.pumpWidget(const SizedBox()); container.dispose(); owner.dispose();
@@ -73,5 +70,18 @@ class TransferHarness {
       TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(const MethodChannel('plugins.it_nomads.com/flutter_secure_storage'),null);
       await settle(tester);
     });
+  }
+}
+
+class TransferProbe extends ConsumerStatefulWidget {
+  const TransferProbe({super.key, required this.h});
+  final TransferHarness h;
+  @override ConsumerState<TransferProbe> createState() => _TransferProbeState();
+}
+class _TransferProbeState extends ConsumerState<TransferProbe> {
+  @override void dispose() { widget.h.owner.retire(); super.dispose(); }
+  @override Widget build(BuildContext context) {
+    widget.h.controller = ref.watch(coreHaTransferControllerProvider(widget.h.owner));
+    return const SizedBox();
   }
 }
