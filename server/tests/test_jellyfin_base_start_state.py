@@ -56,9 +56,22 @@ class RawDaemon:
      'helper_base_permission_failed'),
     ({'Status':'created','Running':False,'Paused':False,'Restarting':False,'Dead':False,
       'OOMKilled':False,'ExitCode':0,
-      'Error':'private unknown path/token'}, 'helper_base_state_unclassified'),
+      'Error':'private unknown path/token'}, 'helper_base_state_error_unclassified'),
+    ({'Status':'created','Running':False,'Paused':False,'Restarting':False,'Dead':False,
+      'OOMKilled':False,'ExitCode':125,'Error':''},
+     'helper_base_process_not_started_nonzero'),
+    ({'Status':'private-unknown','Running':False,'Paused':False,'Restarting':False,
+      'Dead':False,'OOMKilled':False,'ExitCode':0,'Error':''},
+     'helper_base_state_status_unclassified'),
+    ({'Status':'paused','Running':False,'Paused':False,'Restarting':False,'Dead':False,
+      'OOMKilled':False,'ExitCode':0,'Error':''},
+     'helper_base_state_known_status_unclassified'),
+    ({'Status':'removing','Running':False,'Paused':False,'Restarting':False,
+      'Dead':False,'OOMKilled':False,'ExitCode':0,'Error':''},
+     'helper_base_state_known_status_unclassified'),
 ], ids=['oom','high-nonzero','nonzero','exited-zero','not-started','running','dead',
-        'known-error','unknown-error'])
+        'known-error','unknown-error','created-nonzero','unknown-status',
+        'known-status-other','removing'])
 def test_failed_start_is_classified_from_one_bounded_owned_state_read(state, expected):
     smoke = importlib.import_module('tool.jellyfin_storage_smoke')
     daemon = Daemon(state)
@@ -90,6 +103,25 @@ def test_specific_start_observation_survives_an_unreadable_state():
 
     assert smoke._diagnose_base_start_state(
         daemon, 'd'*64, smoke.SmokeError('helper_base_wait_failed')) == 'helper_base_wait_failed'
+    assert len(daemon.calls) == 1
+
+
+@pytest.mark.parametrize('state', [
+    {'Status':'created','Running':False,'Paused':False,'Restarting':False,
+     'Dead':False,'OOMKilled':False,'ExitCode':0,
+     'Error':'private unknown path/token'},
+    {'Status':'private-unknown','Running':False,'Paused':False,
+     'Restarting':False,'Dead':False,'OOMKilled':False,'ExitCode':0,'Error':''},
+    {'Status':'removing','Running':False,'Paused':False,'Restarting':False,
+     'Dead':False,'OOMKilled':False,'ExitCode':0,'Error':''},
+], ids=['unknown-error','unknown-status','known-status-other'])
+def test_specific_start_observation_survives_unclassified_state_shape(state):
+    smoke = importlib.import_module('tool.jellyfin_storage_smoke')
+    daemon = Daemon(state)
+
+    assert smoke._diagnose_base_start_state(
+        daemon, 'd'*64,
+        smoke.SmokeError('helper_base_wait_failed')) == 'helper_base_wait_failed'
     assert len(daemon.calls) == 1
 
 
