@@ -149,3 +149,18 @@ def test_final_receipt_cannot_acknowledge_later_storage_damage(server, ha, fault
     assert stored(app) == before and ha.calls == calls and ha.command_calls == 0
     with app.state.core.db.connection() as c:
         assert c.execute('SELECT COUNT(*) FROM direct_ha_migrations').fetchone()[0] == 0
+
+
+def test_ignored_first_service_insert_is_storage_failure_not_missing_user_target(server,ha):
+    app,client,admin,_,_,base,body=setup_transfer(server,ha)
+    p=preview(client,admin,base,body)
+    with app.state.core.db.transaction() as c:
+        c.execute('CREATE TRIGGER synthetic_service_ignore BEFORE INSERT ON service_connections '
+            'BEGIN SELECT RAISE(IGNORE); END')
+    before=stored(app);calls=ha.calls
+    response=confirm(client,admin,base,body,p)
+    assert response.status_code==503, response.text
+    assert response.json()['error']['code']=='server_unavailable'
+    assert stored(app)==before and ha.calls==calls
+    with app.state.core.db.connection() as c:
+        assert c.execute('SELECT COUNT(*) FROM direct_ha_migrations').fetchone()[0]==0
