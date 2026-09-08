@@ -49,3 +49,211 @@ def test_storage_bound_precedes_materializing_corrupt_payload(server, ha):
 def test_command_capability_requires_literal_false(value):
     with pytest.raises(ValueError):
         Projection(state='on', commandAvailable=value)
+
+
+@pytest.mark.parametrize('state,expected',[('on','on'),('off','off'),('unknown','unavailable'),('unavailable','unavailable')])
+def test_closed_projection_and_no_upstream_attributes(server, ha, state, expected):
+    _, client, admin, _, _, base, public, body = setup(server, ha)
+    bind(client, admin, base, body); ha.state=state
+    r=client.get(public+'/snapshot',headers=auth(admin))
+    assert r.status_code==200 and r.json()['snapshot']['projection']=={'kind':'switch','state':expected,'commandAvailable':False}
+    assert all(x not in r.text for x in ('entity_id','attributes','last_updated','synthetic-ha-only','NEVER-PUBLISH'))
+
+
+@pytest.mark.parametrize('status,code',[(401,'ha_upstream_unauthorized'),(404,'ha_upstream_unavailable'),
+    (500,'ha_upstream_unavailable'),(302,'ha_upstream_unavailable'),(204,'ha_upstream_unavailable')])
+def test_upstream_status_never_becomes_core_auth_failure_or_retry(server, ha, status, code):
+    _, client, admin, _, _, base, public, body = setup(server, ha)
+    bind(client,admin,base,body);ha.status=status
+    ha.body=b'{"error":"synthetic-ha-only NEVER-PUBLISH"}'
+    before=ha.calls;r=client.get(public+'/snapshot',headers=auth(admin))
+    assert r.status_code==502 and r.json()['error']['code']==code
+    assert 'NEVER-PUBLISH' not in r.text and 'synthetic-ha-only' not in r.text
+    assert ha.calls==before+1
+    assert client.get('/api/v1/auth/me',headers=auth(admin)).status_code==200
+
+
+@pytest.mark.parametrize('payload',[
+    b'{"entity_id":"switch.other","state":"on"}', b'{"state":"on"}',
+    b'{"entity_id":"switch.synthetic","state":"on","state":"off"}',
+    b'{"entity_id":"switch.synthetic","state":NaN}',
+    b'{"entity_id":"switch.synthetic","state":"armed"}', b'[]', b'null', b'\xff',
+    b'{"entity_id":"switch.synthetic","state":true}', b'{' + b'"secret":"' + b'a'*65536 + b'"}',
+])
+def test_malformed_oversize_and_foreign_entity_responses_are_static(server, ha, payload):
+    _, client, admin, _, _, base, public, body=setup(server,ha)
+    bind(client,admin,base,body);ha.body=payload
+    r=client.get(public+'/snapshot',headers=auth(admin))
+    assert r.status_code==502 and len(r.content)<200
+    assert 'secret' not in r.text and 'switch.other' not in r.text
+
+
+@pytest.mark.parametrize('entity',['switch.x\n','switch.X','light.x','switch.x/y','switch.%2f','switch.x?x','switch.'+'x'*122])
+def test_entity_selection_is_closed_before_io(server,ha,entity):
+    _,client,admin,_,_,base,_,body=setup(server,ha)
+    r=client.post(base+'/binding-preview',headers=auth(admin),json={**body,'entityId':entity})
+    assert r.status_code==400 and ha.calls==0
+
+
+@pytest.mark.parametrize('stage',['snapshot','preview'])
+@pytest.mark.parametrize('change',['logout','resource','service','deleted'])
+def test_authority_and_revisions_are_rechecked_after_actual_network(server,ha,stage,change):
+    app,client,admin,record,service,base,public,body=setup(server,ha)
+    if stage=='snapshot': bind(client,admin,base,body)
+    ref=record['ref'];resource=f'/api/v1/admin/home-resources/{ref["coreId"]}/{ref["homeId"]}/{ref["id"]}'
+    def change_during_read():
+        ha.during=None
+        if change=='logout':
+            r=client.post('/api/v1/auth/logout',headers=auth(admin),json={'refreshToken':admin['refreshToken']});assert r.status_code==204
+        elif change=='resource':
+            r=client.patch(resource,headers=auth(admin),json={'expectedRevision':1,'expectedAclRevision':1,'label':'Changed','order':1});assert r.status_code==200
+        elif change=='deleted':
+            r=client.delete(resource,headers=auth(admin),params={'expectedRevision':1,'expectedAclRevision':1});assert r.status_code==204
+        else:
+            r=client.patch('/api/v1/admin/services/'+service['id'],headers=auth(admin),json={'expectedRevision':1,'name':'Changed','baseUrl':ha.url});assert r.status_code==200
+    ha.during=change_during_read
+    r=(client.get(public+'/snapshot',headers=auth(admin)) if stage=='snapshot' else
+       client.post(base+'/binding-preview',headers=auth(admin),json=body))
+    assert r.status_code=={'logout':401,'deleted':404,'resource':409,'service':409}[change]
+    assert not app.state.core.home_assistant._cache and not app.state.core.home_assistant._previews
+
+
+def test_monotonic_ttl_wall_clock_regression_and_explicit_rebind(server,ha):
+    app,client,admin,_,service,base,public,body=setup(server,ha)
+    adapter=app.state.core.home_assistant;now=[100.0];adapter._clock=lambda:now[0]
+    preview,binding=bind(client,admin,base,body)
+    first=client.get(public+'/snapshot',headers=auth(admin)).json()['snapshot'];before=ha.calls
+    now[0]+=4.0;server[3].now-=100
+    r=client.get(public+'/snapshot',headers=auth(admin));assert r.status_code==200
+    assert r.json()['snapshot']['remainingTtlMs']==1000 and ha.calls==before
+    now[0]+=1.0;assert client.get(public+'/snapshot',headers=auth(admin)).status_code==200;assert ha.calls==before+1
+    now[0]-=2.0;assert client.get(public+'/snapshot',headers=auth(admin)).status_code==200;assert ha.calls==before+2
+    assert client.post(base+'/binding-preview',headers=auth(admin),json=body).status_code==409
+    request={**body,'expectedBindingId':binding['id']}
+    next_preview,next_binding=bind(client,admin,base,request)
+    assert next_binding['id']!=binding['id'] and next_binding['revision']==2
+    assert client.get(public+'/snapshot',headers=auth(admin)).json()['snapshot']['bindingId']==next_binding['id']
+
+
+def test_preview_ttl_restart_and_binding_persistence(server,ha):
+    from fastapi.testclient import TestClient
+    from larenor_server.app import create_app
+    app,client,admin,_,_,base,public,body=setup(server,ha)
+    adapter=app.state.core.home_assistant;now=[100.0];adapter._clock=lambda:now[0]
+    r=client.post(base+'/binding-preview',headers=auth(admin),json=body);p=r.json()['preview']
+    now[0]=160.0
+    assert client.post(base+'/binding-confirm',headers=auth(admin),json={'previewId':p['id']}).status_code==409
+    _,binding=bind(client,admin,base,body)
+    outstanding=client.post(base+'/binding-preview',headers=auth(admin),json={**body,'expectedBindingId':binding['id']}).json()['preview']
+    with TestClient(create_app(server[2])) as restarted:
+        assert restarted.post(base+'/binding-confirm',headers=auth(admin),json={'previewId':outstanding['id']}).status_code==409
+        assert restarted.get(base+'/binding',headers=auth(admin)).json()['binding']==binding
+        assert restarted.get(public+'/snapshot',headers=auth(admin)).status_code==200
+
+
+@pytest.mark.parametrize('sql',[
+    "UPDATE home_assistant_bindings SET binding_id='ffffffffffffffffffffffffffffffff'",
+    'DELETE FROM home_assistant_bindings',
+    "UPDATE home_assistant_state SET authentication_tag='bad'",
+    'CREATE UNIQUE INDEX unrelated_name ON home_assistant_bindings(revision)',
+    'CREATE TRIGGER unrelated_trigger BEFORE INSERT ON home_assistant_bindings BEGIN SELECT RAISE(IGNORE); END',
+    "UPDATE metadata SET value='2' WHERE key='home_assistant_schema'",
+    'DROP TABLE home_assistant_state',
+])
+def test_startup_rejects_tampered_storage_and_preserves_dump(server,ha,sql):
+    from larenor_server.app import create_app
+    from larenor_server.errors import StartupError
+    app,client,admin,_,_,base,_,body=setup(server,ha);bind(client,admin,base,body)
+    with app.state.core.db.transaction() as c:c.execute(sql)
+    with app.state.core.db.connection() as c:before='\n'.join(c.iterdump())
+    with pytest.raises(StartupError):create_app(server[2])
+    with app.state.core.db.connection() as c:assert '\n'.join(c.iterdump())==before
+
+
+def test_invalid_queries_bodies_and_foreign_scopes_have_zero_outbound(server,ha):
+    _,client,admin,record,_,base,public,body=setup(server,ha)
+    for suffix in ('?foo=1','?a=1&a=2','?refresh=true'):
+        assert client.get(public+'/snapshot'+suffix,headers=auth(admin)).status_code==400
+    assert client.post(base+'/binding-preview',headers=auth(admin),json={**body,'token':'not-accepted'}).status_code==400
+    assert client.get(public.replace(record['ref']['homeId'],'f'*32)+'/snapshot',headers=auth(admin)).status_code==404
+    assert ha.calls==0
+
+
+def test_acl_revocation_during_read_discards_member_result(server,ha):
+    from test_admin import activate, create as create_user
+    app,client,admin,record,_,base,public,body=setup(server,ha)
+    bind(client,admin,base,body);create_user(client,admin);member=activate(client,'member')
+    ref=record['ref'];grant=f'/api/v1/admin/home-resources/{ref["coreId"]}/{ref["homeId"]}/{ref["id"]}/grants/{member["user"]["id"]}'
+    assert client.put(grant,headers=auth(admin),json={'expectedAclRevision':1,'permissions':{'read':True,'write':False}}).status_code==200
+    def revoke():
+        ha.during=None
+        assert client.put(grant,headers=auth(admin),json={'expectedAclRevision':2,'permissions':{'read':False,'write':False}}).status_code==200
+    ha.during=revoke
+    assert client.get(public+'/snapshot',headers=auth(member)).status_code==404
+    assert not app.state.core.home_assistant._cache
+
+
+def test_cancel_during_actual_read_discards_projection_and_cache(server,ha):
+    from threading import Event
+    from larenor_server.errors import ApiError
+    app,client,admin,record,_,base,_,body=setup(server,ha);bind(client,admin,base,body)
+    actor=app.state.core.auth.authenticate(admin['accessToken']);ref=record['ref'];cancel=Event();ha.during=cancel.set
+    with pytest.raises(ApiError) as error:
+        app.state.core.home_assistant.snapshot(actor,ref['coreId'],ref['homeId'],ref['id'],cancelled=cancel.is_set)
+    assert error.value.code=='request_timeout' and not app.state.core.home_assistant._cache
+
+
+def test_literal_limits_and_actor_preview_quota_before_outbound(server,ha):
+    from larenor_server.home_assistant.service import MAX_PREVIEWS, MAX_ACTOR_PREVIEWS, MAX_CACHE, MAX_USER_CACHE, MAX_CACHE_ENTRY
+    assert (MAX_PREVIEWS,MAX_ACTOR_PREVIEWS,MAX_CACHE,MAX_USER_CACHE,MAX_CACHE_ENTRY)==(32,4,256,32,2048)
+    _,client,admin,_,_,base,_,body=setup(server,ha)
+    previews=[]
+    for _ in range(4):
+        r=client.post(base+'/binding-preview',headers=auth(admin),json=body);assert r.status_code==201
+        previews.append(r.json()['preview'])
+    before=ha.calls
+    assert client.post(base+'/binding-preview',headers=auth(admin),json=body).status_code==429
+    assert ha.calls==before
+    assert client.delete(base+'/binding-preview/'+previews[0]['id'],headers=auth(admin)).status_code==204
+    assert client.post(base+'/binding-preview',headers=auth(admin),json=body).status_code==201
+
+
+def test_simultaneous_confirm_consumes_preview_once_without_network(server,ha):
+    from concurrent.futures import ThreadPoolExecutor
+    _,client,admin,_,_,base,_,body=setup(server,ha)
+    preview=client.post(base+'/binding-preview',headers=auth(admin),json=body).json()['preview']
+    before=ha.calls
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        responses=list(pool.map(lambda _:client.post(base+'/binding-confirm',headers=auth(admin),json={'previewId':preview['id']}),range(2)))
+    assert sorted(r.status_code for r in responses)==[201,409] and ha.calls==before
+
+
+def test_service_edit_invalidates_preview_and_requires_fresh_explicit_review(server,ha):
+    _,client,admin,_,service,base,_,body=setup(server,ha)
+    preview=client.post(base+'/binding-preview',headers=auth(admin),json=body).json()['preview']
+    assert client.patch('/api/v1/admin/services/'+service['id'],headers=auth(admin),json={'expectedRevision':1,'baseUrl':ha.url,'name':'New'}).status_code==200
+    r=client.post(base+'/binding-confirm',headers=auth(admin),json={'previewId':preview['id']})
+    assert r.status_code==409
+    assert client.post(base+'/binding-confirm',headers=auth(admin),json={'previewId':preview['id']}).json()['error']['code']=='ha_preview_invalid'
+    assert client.get(base+'/binding',headers=auth(admin)).status_code==404
+
+
+def test_room_target_and_wrong_service_kind_have_no_outbound(server,ha):
+    _,client,admin,record,service,base,_,body=setup(server,ha)
+    ref=record['ref'];path=f'/api/v1/admin/home-resources/{ref["coreId"]}/{ref["homeId"]}'
+    room=client.post(path,headers=auth(admin),json={'kind':'room','label':'Room','order':0}).json()['record']
+    assert client.post(base.replace(ref['id'],room['ref']['id'])+'/binding-preview',headers=auth(admin),json=body).status_code==404
+    other=client.post('/api/v1/admin/services',headers=auth(admin),json={'kind':'jellyfin','name':'Other','baseUrl':ha.url,'credentials':{'token':'synthetic-ha-only'}}).json()['service']
+    assert client.post(base+'/binding-preview',headers=auth(admin),json={**body,'serviceId':other['id']}).status_code==409
+    assert ha.calls==0
+
+
+def test_deadline_closes_real_loopback_request_without_retry(server,ha,monkeypatch):
+    import time
+    import larenor_server.home_assistant.transport as transport
+    _,client,admin,_,_,base,public,body=setup(server,ha);bind(client,admin,base,body)
+    monkeypatch.setattr(transport,'TIMEOUT',0.10)
+    ha.during=lambda:time.sleep(0.3)
+    before=ha.calls;start=time.monotonic();r=client.get(public+'/snapshot',headers=auth(admin))
+    assert r.status_code==502 and r.json()['error']['code']=='ha_upstream_unavailable'
+    assert time.monotonic()-start<2 and ha.calls==before+1
