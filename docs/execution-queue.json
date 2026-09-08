@@ -388,7 +388,8 @@
         "docs/jellyfin-storage-fixture-implementation-2026-09-08.md",
         "docs/jellyfin-storage-manual-ci-2026-09-08.md",
         "docs/jellyfin-native-storage-diagnostics-2026-09-08.md",
-        "docs/jellyfin-helper-build-diagnostics-2026-09-08.md"
+        "docs/jellyfin-helper-build-diagnostics-2026-09-08.md",
+        "docs/jellyfin-private-build-errors-2026-09-08.md"
       ],
       "scope": "installAvailable=false; Client kaynak adı/Docker seçenekleri üretmez. Gerçek ev sunucusuna işlem yok.",
       "acceptance": [
@@ -642,23 +643,23 @@
         },
         {
           "kind": "ci",
-          "ref": "https://github.com/ersingundem/larenor/actions/runs/34235695668",
-          "commit": "28792d1074b11f7bba89ba413b16c86b7ed6321e",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/34238813425",
+          "commit": "5f0fa46241238b62677b9293308c90460b605893",
           "state": "completed",
           "result": "failed",
-          "label": "Native2: amd64 ve arm64 aynı kapalı helper_build/fixture_command_failed sonucu; kaynak/daemon/imaj/iki volume/staging ön kapıları geçti, makbuz0."
+          "label": "Native3: amd64 ve arm64 aynı helper_build/fixture_command_exit_failed sonucu; child nonzero. Timeout/stdout/spawn/I-O elendi; makbuz0. Native2 genel sonucu ilerleme belgesinde korunuyor."
         },
         {
           "kind": "test",
-          "ref": "docs/jellyfin-helper-build-diagnostics-2026-09-08.md",
-          "commit": "09d2778b7e59fdf4241367e5f82ecdd2e37b8878",
+          "ref": "docs/jellyfin-private-build-errors-2026-09-08.md",
+          "commit": "db2de602805bbbb89b8f7ea8135ae0098d517d9f",
           "state": "completed",
           "result": "passed",
-          "label": "Helper build alt tanılama:5RED→5GREEN;152 ilgiliPASS0skip,215politikaPASS,%96,49dal dahil kapsam. Root incelemesi generic diğer komutları, stderrDEVNULL, bounded stdout/deadline, kill/reap ve sıfır fallback sınırını doğruladı."
+          "label": "Private build tanısı:12RED→12GREEN;172 ilgiliPASS0skip,215politikaPASS,%96,48dal dahil kapsam ve bağımsız CLEAR. Yalnız helper stderr64KiB RAM; ham veri yok, stdout256/deadline600/sıfır replay korunuyor."
         }
       ],
       "completionCommit": null,
-      "reason": "İkinci native amd64/arm64 koşusu aynı helper_build/generic komut hatasıyla makbuzsuz kaldı. Kaynak, özel daemon, imaj, iki volume ve staging ön kapıları geçti. Helper build süreç alt kodları 152 test, 215 politika ve root incelemesiyle main'e alındı; üçüncü tanılamalı CI ve ardından dar kök neden düzeltmesi açık. installAvailable=false."
+      "reason": "Üçüncü native amd64/arm64 koşusu aynı helper_build/fixture_command_exit_failed sonucu ile makbuzsuz kaldı; child nonzero, diğer süreç sınıfları elendi. Yalnız helper stderr'ini 64KiB özel RAM'de sabit Docker hata ailelerine ayıran tanı 172 test, 215 politika ve bağımsız incelemeyle main'e alındı. Dördüncü CI gerçek imzayı, ardından yalnız kanıtlanan dar kök neden düzeltmesi açık. installAvailable=false."
     },
     {
       "id": "S06.3e",

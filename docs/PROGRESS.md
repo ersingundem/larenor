@@ -32,7 +32,7 @@ Gerçek ev kurulumu ve fiziksel tablet kabulü henüz yapılmadı.
 | S08.6 — kişi, oda, kaynak ve izin yönetimi | **Kabul edildi**, aynı yayın | Merkezi HA akışının yetki temeli hazır |
 | S08.7 — merkezi Home Assistant adaptörü | **Devam ediyor**; ilk Server/Client dilimi main içinde | Birleşik CI; sonra komut/makbuz ve açık Direct aktarımı |
 | B5.1 — ortak tablet tasarımı | Services ve hesap IME düzeltmeleri exact `5cbff21` / APK116 ile kabul edildi; yeni S08.7 ekranı yerel tablet matrisinden geçti | Birleşik Android CI ve kalan ortak tablet yüzeyleri |
-| S06.3d — kalıcı depolama | İkinci native koşu iki mimaride `helper_build / fixture_command_failed` verdi | Helper build süreç alt kodlarını yayımla; üçüncü koşuda kesin process sınırını ayır |
+| S06.3d — kalıcı depolama | Üçüncü native koşu iki mimaride `helper_build / fixture_command_exit_failed` verdi | Özel stderr sınıflandırıcısıyla dördüncü koşuda kapalı Docker hata imzasını ayır |
 
 S08.7 üç sonlu teslimden oluşur: **kaynak bağlama ve typed durum → komut ve
 kalıcı sonuç → açık Direct aktarımı**. İlk Server ve Client dilimi squash
@@ -83,6 +83,14 @@ altında exit, çıktı sınırı, zaman aşımı, spawn ve I/O hatalarını ham
 taşımadan ayıran ek tanılama 5 RED→5 GREEN, toplam 152 test, 215 politika testi
 ve %96,49 dal dahil kapsamla main'e alındı.
 [Helper build tanılama kanıtı](jellyfin-helper-build-diagnostics-2026-09-08.md).
+Üçüncü koşu iki mimaride de `helper_build / fixture_command_exit_failed`
+verdi: child gerçekten nonzero çıktı; timeout, stdout sınırı, spawn ve I/O
+sınıfları elendi. Yalnız helper build stderr'ini 64 KiB özel RAM sınırında
+drain edip bilinen Docker hata ailelerini sabit kodlara dönüştüren son tanılama
+12 RED→12 GREEN, toplam 172 ilgili test, 215 politika testi, %96,48 dal dahil
+kapsam ve bağımsız CLEAR ile main'e alındı. Ham stderr, path, URL, env veya sır
+log/artifact'a çıkmaz; belirsiz/taşan veri genel kapalı kod olarak kalır.
+[Özel build tanılama kanıtı](jellyfin-private-build-errors-2026-09-08.md).
 Gerçek Engine ve kurulum kabulü hâlâ açık; `installAvailable=false`.
 
 ## Canlı takip ve sıradaki işler
