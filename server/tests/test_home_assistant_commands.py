@@ -6,7 +6,7 @@ from conftest import auth
 from test_admin import activate, create as create_user
 from test_home_assistant_adapter import bind, ha, setup
 from larenor_server.app import create_app
-from larenor_server.errors import StartupError
+from larenor_server.errors import ApiError, StartupError
 from larenor_server.home_assistant import schema
 
 
@@ -198,3 +198,46 @@ def test_invalid_command_body_never_dispatches(server, ha, change):
     payload = {**command_body(record, binding, admin), **change}
     assert client.post(public + '/commands', headers=auth(admin), json=payload).status_code == 400
     assert ha.command_calls == 0
+
+
+def test_write_revocation_before_transport_guard_prevents_dispatch_and_leaves_unknown_receipt(server, ha):
+    app, client, admin, record, _, base, public, body = setup(server, ha)
+    _, binding = bind(client, admin, base, body)
+    create_user(client, admin)
+    member = activate(client, 'member')
+    ref = record['ref']
+    grant = f'/api/v1/admin/home-resources/{ref["coreId"]}/{ref["homeId"]}/{ref["id"]}/grants/{member["user"]["id"]}'
+    assert client.put(grant, headers=auth(admin), json={'expectedAclRevision': 1,
+        'permissions': {'read': True, 'write': True}}).status_code == 200
+    payload = command_body({**record, 'aclRevision': 2}, binding, member)
+    adapter = app.state.core.home_assistant
+    def revoke_then_guard(service, entity, action, *, guard):
+        assert client.put(grant, headers=auth(admin), json={'expectedAclRevision': 2,
+            'permissions': {'read': True, 'write': False}}).status_code == 200
+        guard()
+        pytest.fail('stale WRITE authority reached dispatch')
+    adapter._commander = revoke_then_guard
+    principal = app.state.core.auth.authenticate(member['accessToken'])
+    with pytest.raises(ApiError, match='ha_binding_changed'):
+        adapter.command(principal, ref['coreId'], ref['homeId'], ref['id'], payload)
+    assert ha.command_calls == 0
+    result = client.get(public + '/commands/' + payload['requestId'], headers=auth(member))
+    assert result.status_code == 200
+    assert result.json()['receipt']['dispatchState'] == 'unknown'
+
+
+def test_request_id_collision_from_another_actor_is_hidden_and_never_dispatches(server, ha):
+    _, client, admin, record, _, base, public, body = setup(server, ha)
+    _, binding = bind(client, admin, base, body)
+    assert client.post(public + '/commands', headers=auth(admin),
+                       json=command_body(record, binding, admin)).status_code == 202
+    create_user(client, admin)
+    member = activate(client, 'member')
+    ref = record['ref']
+    grant = f'/api/v1/admin/home-resources/{ref["coreId"]}/{ref["homeId"]}/{ref["id"]}/grants/{member["user"]["id"]}'
+    assert client.put(grant, headers=auth(admin), json={'expectedAclRevision': 1,
+        'permissions': {'read': True, 'write': True}}).status_code == 200
+    collision = client.post(public + '/commands', headers=auth(member),
+        json=command_body({**record, 'aclRevision': 2}, binding, member))
+    assert collision.status_code == 404
+    assert ha.command_calls == 1

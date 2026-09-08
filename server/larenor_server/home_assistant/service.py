@@ -105,7 +105,9 @@ class HomeAssistantAdapter:
             self._cipher.decrypt(row['nonce'], row['ciphertext'], self._command_aad(row)))
         if (value.request.requestId != row['request_id'] or
                 value.receipt.requestId != row['request_id'] or
-                value.receipt.ref.id != row['resource_id']):
+                value.receipt.ref.id != row['resource_id'] or
+                value.receipt.action != value.request.action or
+                value.receipt.bindingRevision != value.request.expectedBindingRevision):
             raise ValueError()
         return value
 
@@ -344,32 +346,46 @@ class HomeAssistantAdapter:
                 self._save_command(c, value)
             return {'receipt': value.receipt.model_dump()}
 
+    def _prepare_command(self, actor, core, home, resource, body):
+        reserved = False
+        try:
+            with self._tx(actor, core, home) as (c, facts):
+                row, ref, data, binding = self._target(c, facts, resource)
+                existing = self._existing_command(c, actor, resource, body)
+                if existing is not None:
+                    return existing, None
+                self.resources._require(facts, row, ref, data, 'write',
+                    expected_revision=body.expectedResourceRevision,
+                    expected_acl_revision=body.expectedAclRevision)
+                if binding is None or binding.revision != body.expectedBindingRevision:
+                    raise ApiError('ha_binding_changed', 409)
+                fingerprint, _, _, current, service = self._facts(c, facts, resource)
+                if current != binding:
+                    raise ApiError('ha_binding_changed', 409)
+                if len(schema.command_rows(c)) >= schema.MAX_COMMANDS:
+                    raise ApiError('ha_limit_reached', 429)
+                created = utc(self.settings.clock())
+                receipt = CommandReceipt(requestId=body.requestId, ref=ref,
+                    bindingId=binding.id, bindingRevision=binding.revision, actorId=actor.id,
+                    action=body.action, dispatchState='pending', providerAccepted=None,
+                    observedProjection=None, observationMatchesTarget=None,
+                    causalityVerified=False, createdAt=created, completedAt=None)
+                self._save_command(c, StoredCommand(request=body, receipt=receipt))
+                self._active_commands.add(body.requestId)
+                reserved = True
+            return None, (receipt, binding, service, fingerprint)
+        except BaseException:
+            if reserved:
+                with self._lock:
+                    self._active_commands.discard(body.requestId)
+            raise
+
     def command(self, actor, core, home, resource, body, *, cancelled=lambda: False):
         body = CommandRequest.model_validate(body)
-        self.auth.rate_limit([('home_assistant_command', actor.id, 30)])
-        with self._tx(actor, core, home) as (c, facts):
-            row, ref, data, binding = self._target(c, facts, resource)
-            existing = self._existing_command(c, actor, resource, body)
-            if existing is not None:
-                return {'receipt': existing.receipt.model_dump()}
-            self.resources._require(facts, row, ref, data, 'write',
-                expected_revision=body.expectedResourceRevision,
-                expected_acl_revision=body.expectedAclRevision)
-            if binding is None or binding.revision != body.expectedBindingRevision:
-                raise ApiError('ha_binding_changed', 409)
-            fingerprint, _, _, current, service = self._facts(c, facts, resource)
-            if current != binding:
-                raise ApiError('ha_binding_changed', 409)
-            if len(schema.command_rows(c)) >= schema.MAX_COMMANDS:
-                raise ApiError('ha_limit_reached', 429)
-            created = utc(self.settings.clock())
-            receipt = CommandReceipt(requestId=body.requestId, ref=ref,
-                bindingId=binding.id, bindingRevision=binding.revision, actorId=actor.id,
-                action=body.action, dispatchState='pending', providerAccepted=None,
-                observedProjection=None, observationMatchesTarget=None,
-                causalityVerified=False, createdAt=created, completedAt=None)
-            self._save_command(c, StoredCommand(request=body, receipt=receipt))
-            self._active_commands.add(body.requestId)
+        existing, prepared = self._prepare_command(actor, core, home, resource, body)
+        if existing is not None:
+            return {'receipt': existing.receipt.model_dump()}
+        receipt, binding, service, fingerprint = prepared
         slot = self._slots.acquire(blocking=False)
         try:
             if not slot or cancelled():
