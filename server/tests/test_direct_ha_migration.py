@@ -127,3 +127,25 @@ def test_existing_binding_and_member_cannot_start_transfer(server, ha):
     create(client, admin); member = activate(client, 'member')
     assert client.post(base+'/direct-migration/preview', headers=auth(member), json=body).status_code == 403
     assert stored(app) == before and ha.calls == calls and ha.command_calls == 0
+
+
+@pytest.mark.parametrize('fault', ['late_service_delete', 'late_binding_delete', 'late_service_revision',
+    'receipt_ignore', 'receipt_tag_ignore'])
+def test_final_receipt_cannot_acknowledge_later_storage_damage(server, ha, fault):
+    app, client, admin, _, _, base, body = setup_transfer(server, ha)
+    p = preview(client, admin, base, body)
+    triggers = {
+        'late_service_delete': 'AFTER INSERT ON direct_ha_migrations BEGIN DELETE FROM service_connections; END',
+        'late_binding_delete': 'AFTER INSERT ON direct_ha_migrations BEGIN DELETE FROM home_assistant_bindings; END',
+        'late_service_revision': 'AFTER INSERT ON direct_ha_migrations BEGIN UPDATE service_connections SET revision=2; END',
+        'receipt_ignore': 'BEFORE INSERT ON direct_ha_migrations BEGIN SELECT RAISE(IGNORE); END',
+        'receipt_tag_ignore': 'BEFORE UPDATE ON direct_ha_state BEGIN SELECT RAISE(IGNORE); END',
+    }
+    with app.state.core.db.transaction() as c:
+        c.execute('CREATE TRIGGER synthetic_final_failure '+triggers[fault])
+    before = stored(app); calls = ha.calls
+    response = confirm(client, admin, base, body, p)
+    assert response.status_code == 503, response.text
+    assert stored(app) == before and ha.calls == calls and ha.command_calls == 0
+    with app.state.core.db.connection() as c:
+        assert c.execute('SELECT COUNT(*) FROM direct_ha_migrations').fetchone()[0] == 0
