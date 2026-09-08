@@ -61,8 +61,19 @@ _START_ERROR_PATTERNS = {
 }
 _START_RUNTIME_PATTERNS = (b'failed to create shim task', b'oci runtime create failed',
     b'runc create failed', b'failed to create task for container')
+_STATE_ERROR_PATTERNS = {
+    'helper_base_isolation_failed': (b'cgroup', b'apparmor', b'seccomp', b'selinux',
+        b'namespace', b'rootfs', b'failed to mount', b'mount callback'),
+    'helper_base_host_resource_failed': (b'resource temporarily unavailable',
+        b'cannot allocate memory', b'too many open files'),
+    'helper_base_path_failed': (b'no such file or directory', b'not a directory'),
+    'helper_base_identity_failed': (b'no matching entries in passwd file',
+        b'unable to find user', b'unable to find group'),
+    'helper_base_configuration_failed': (b'invalid argument', b'invalid configuration'),
+}
 _DIAGNOSTIC_CODES = _CODES | set(_BUILD_ERROR_PATTERNS) | set(_START_ERROR_PATTERNS) | {
     'helper_base_runtime_failed', 'helper_base_error_ambiguous',
+    'helper_base_state_error_ambiguous', *_STATE_ERROR_PATTERNS,
     'helper_base_process_oom', 'helper_base_process_nonzero', 'helper_base_process_running',
     'helper_base_process_dead', 'helper_base_process_exited_zero',
     'helper_base_process_not_started', 'helper_base_process_not_started_nonzero',
@@ -189,6 +200,19 @@ def _start_error(stderr):
     return 'fixture_command_exit_failed'
 
 
+def _state_error(error):
+    """Reduce a private Engine state error to a fixed non-secret family."""
+    classified = _start_error(error)
+    if classified != 'fixture_command_exit_failed':
+        return classified
+    folded = error.lower()
+    matched = {code for code, patterns in _STATE_ERROR_PATTERNS.items()
+               if any(pattern in folded for pattern in patterns)}
+    if len(matched) == 1:
+        return matched.pop()
+    return 'helper_base_state_error_ambiguous' if matched else classified
+
+
 def _diagnose_base_start_state(daemon, container_id, original):
     """Privately reduce one owned post-failure state read to a closed code."""
     if type(original) is not SmokeError:
@@ -218,7 +242,7 @@ def _diagnose_base_start_state(daemon, container_id, original):
     except (ValueError, TypeError, RecursionError, UnicodeError):
         return unreadable('helper_base_state_invalid')
     if error:
-        classified = _start_error(error_bytes)
+        classified = _state_error(error_bytes)
         if classified != 'fixture_command_exit_failed':
             return classified
     if state['OOMKilled']:
