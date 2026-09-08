@@ -31,6 +31,7 @@
     "previews": 32,
     "previewsPerActor": 4,
     "bindings": 256,
+    "commands": 1024,
     "upstreamBodyBytes": 65536,
     "upstreamTimeoutMs": 3000
   },
@@ -322,6 +323,160 @@
       }
     }
   },
+  "commandWriteDenied": {
+    "method": "POST",
+    "path": "/home-assistant/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb/resources/11111111111111111111111111111111/commands",
+    "body": {
+      "schemaVersion": 1,
+      "requestId": "77777777777777777777777777777777",
+      "action": "turn_off",
+      "expectedBindingRevision": 1,
+      "expectedResourceRevision": 1,
+      "expectedAclRevision": 2
+    },
+    "status": 403,
+    "response": {
+      "error": {
+        "code": "forbidden",
+        "message": "This account cannot perform that action."
+      }
+    }
+  },
+  "commandAccepted": {
+    "method": "POST",
+    "path": "/home-assistant/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb/resources/11111111111111111111111111111111/commands",
+    "body": {
+      "schemaVersion": 1,
+      "requestId": "77777777777777777777777777777777",
+      "action": "turn_off",
+      "expectedBindingRevision": 1,
+      "expectedResourceRevision": 1,
+      "expectedAclRevision": 3
+    },
+    "status": 202,
+    "response": {
+      "receipt": {
+        "schemaVersion": 1,
+        "requestId": "77777777777777777777777777777777",
+        "ref": {
+          "schemaVersion": 1,
+          "coreId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "homeId": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "kind": "resource",
+          "id": "11111111111111111111111111111111"
+        },
+        "bindingId": "55555555555555555555555555555555",
+        "bindingRevision": 1,
+        "actorId": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        "action": "turn_off",
+        "dispatchState": "accepted",
+        "providerAccepted": true,
+        "observedProjection": {
+          "kind": "switch",
+          "state": "off",
+          "commandAvailable": false
+        },
+        "observationMatchesTarget": true,
+        "causalityVerified": false,
+        "createdAt": "2026-09-05T12:00:00.000Z",
+        "completedAt": "2026-09-05T12:00:00.000Z"
+      }
+    }
+  },
+  "commandDuplicate": {
+    "method": "POST",
+    "path": "/home-assistant/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb/resources/11111111111111111111111111111111/commands",
+    "body": {
+      "schemaVersion": 1,
+      "requestId": "77777777777777777777777777777777",
+      "action": "turn_off",
+      "expectedBindingRevision": 1,
+      "expectedResourceRevision": 1,
+      "expectedAclRevision": 3
+    },
+    "status": 202,
+    "response": {
+      "receipt": {
+        "schemaVersion": 1,
+        "requestId": "77777777777777777777777777777777",
+        "ref": {
+          "schemaVersion": 1,
+          "coreId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "homeId": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "kind": "resource",
+          "id": "11111111111111111111111111111111"
+        },
+        "bindingId": "55555555555555555555555555555555",
+        "bindingRevision": 1,
+        "actorId": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        "action": "turn_off",
+        "dispatchState": "accepted",
+        "providerAccepted": true,
+        "observedProjection": {
+          "kind": "switch",
+          "state": "off",
+          "commandAvailable": false
+        },
+        "observationMatchesTarget": true,
+        "causalityVerified": false,
+        "createdAt": "2026-09-05T12:00:00.000Z",
+        "completedAt": "2026-09-05T12:00:00.000Z"
+      }
+    }
+  },
+  "commandResult": {
+    "method": "GET",
+    "path": "/home-assistant/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb/resources/11111111111111111111111111111111/commands/77777777777777777777777777777777",
+    "body": null,
+    "status": 200,
+    "response": {
+      "receipt": {
+        "schemaVersion": 1,
+        "requestId": "77777777777777777777777777777777",
+        "ref": {
+          "schemaVersion": 1,
+          "coreId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "homeId": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "kind": "resource",
+          "id": "11111111111111111111111111111111"
+        },
+        "bindingId": "55555555555555555555555555555555",
+        "bindingRevision": 1,
+        "actorId": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        "action": "turn_off",
+        "dispatchState": "accepted",
+        "providerAccepted": true,
+        "observedProjection": {
+          "kind": "switch",
+          "state": "off",
+          "commandAvailable": false
+        },
+        "observationMatchesTarget": true,
+        "causalityVerified": false,
+        "createdAt": "2026-09-05T12:00:00.000Z",
+        "completedAt": "2026-09-05T12:00:00.000Z"
+      }
+    }
+  },
+  "commandConflict": {
+    "method": "POST",
+    "path": "/home-assistant/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb/resources/11111111111111111111111111111111/commands",
+    "body": {
+      "schemaVersion": 1,
+      "requestId": "77777777777777777777777777777777",
+      "action": "turn_on",
+      "expectedBindingRevision": 1,
+      "expectedResourceRevision": 1,
+      "expectedAclRevision": 3
+    },
+    "status": 409,
+    "response": {
+      "error": {
+        "code": "ha_command_conflict",
+        "message": "This request conflicts with a saved Home Assistant command."
+      }
+    }
+  },
   "unknownUnavailable": {
     "method": "GET",
     "path": "/home-assistant/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb/resources/11111111111111111111111111111111/snapshot",
@@ -340,7 +495,7 @@
         "bindingId": "55555555555555555555555555555555",
         "bindingRevision": 1,
         "resourceRevision": 1,
-        "aclRevision": 2,
+        "aclRevision": 3,
         "serviceRevision": 1,
         "observedAt": "2026-09-05T12:00:00.000Z",
         "remainingTtlMs": 5000,
@@ -400,5 +555,6 @@
       }
     }
   },
-  "upstreamRequests": 7
+  "upstreamRequests": 8,
+  "upstreamCommandRequests": 1
 }

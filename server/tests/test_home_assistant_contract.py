@@ -44,7 +44,7 @@ def actual_contract(root):
             result = {'schemaVersion':1, 'context':app.state.core.context.model_dump(), 'resource':resource,
                 'limits': {'snapshotTtlMs':5000,'previewTtlMs':60000,'cacheEntries':256,'cacheEntriesPerUser':32,
                     'cacheEntryBytes':2048,'previews':32,'previewsPerActor':4,'bindings':256,
-                    'upstreamBodyBytes':65536,'upstreamTimeoutMs':3000}, 'memberId':'e'*32}
+                    'commands':1024,'upstreamBodyBytes':65536,'upstreamTimeoutMs':3000}, 'memberId':'e'*32}
             def capture(name, method, path, body=None, actor=admin, status=200):
                 r=client.request(method,path,headers=auth(actor),json=body)
                 assert r.status_code == status, (name,r.status_code,r.text)
@@ -70,6 +70,16 @@ def actual_contract(root):
             grant=ref_base+'/'+'1'*32+'/grants/'+'e'*32
             assert client.put(grant,headers=auth(admin),json={'expectedAclRevision':1,'permissions':{'read':True,'write':False}}).status_code==200
             fixture.state='on';capture('memberOn','GET',public+'/snapshot',actor=member)
+            command={'schemaVersion':1,'requestId':'7'*32,'action':'turn_off','expectedBindingRevision':1,
+                     'expectedResourceRevision':1,'expectedAclRevision':2}
+            capture('commandWriteDenied','POST',public+'/commands',{**command},actor=member,status=403)
+            assert client.put(grant,headers=auth(admin),json={'expectedAclRevision':2,'permissions':{'read':True,'write':True}}).status_code==200
+            command['expectedAclRevision']=3
+            accepted=capture('commandAccepted','POST',public+'/commands',command,actor=member,status=202)
+            capture('commandDuplicate','POST',public+'/commands',command,actor=member,status=202)
+            capture('commandResult','GET',public+'/commands/'+'7'*32,actor=member)
+            capture('commandConflict','POST',public+'/commands',{**command,'action':'turn_on'},actor=member,status=409)
+            assert accepted['receipt']['dispatchState']=='accepted' and fixture.command_calls==1
             app.state.core.home_assistant._clock=lambda:106.0
             fixture.state='unknown';capture('unknownUnavailable','GET',public+'/snapshot',actor=member)
             app.state.core.home_assistant._clock=lambda:112.0
@@ -78,11 +88,12 @@ def actual_contract(root):
             fixture.status=200;fixture.state='not-a-switch-state'
             capture('unsupported','GET',public+'/snapshot',actor=member,status=502)
             fixture.state='off'
-            assert client.put(grant,headers=auth(admin),json={'expectedAclRevision':2,'permissions':{'read':False,'write':False}}).status_code==200
+            assert client.put(grant,headers=auth(admin),json={'expectedAclRevision':3,'permissions':{'read':False,'write':False}}).status_code==200
             capture('revoked','GET',public+'/snapshot',actor=member,status=404)
             assert client.post('/api/v1/auth/logout',headers=auth(member),json={'refreshToken':member['refreshToken']}).status_code==204
             capture('coreUnauthorized','GET',public+'/snapshot',actor=member,status=401)
             result['upstreamRequests']=fixture.calls
+            result['upstreamCommandRequests']=fixture.command_calls
             raw=json.dumps(result)
             assert all(v not in raw for v in ('synthetic-ha-only','NEVER-PUBLISH','accessToken','refreshToken',fixture.url))
             return result
