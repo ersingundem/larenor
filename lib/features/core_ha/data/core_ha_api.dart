@@ -1,20 +1,83 @@
 import '../../home_resources/domain/home_resource_models.dart';
 import '../../server/data/larenor_server_api.dart';
+import '../../server/domain/server_models.dart';
+import '../../server/services/data/server_services_api.dart';
 import '../../server/services/domain/server_service_models.dart';
 import '../domain/core_ha_models.dart';
 
 final class CoreHaApi {
-  CoreHaApi(this.transport, this.token, this.target, {required this.isCurrent});
-  final LarenorServerApi transport;
-  final String token;
+  CoreHaApi(this._transport, this._token, this.target, {required bool Function() isCurrent}) : _current = isCurrent;
+  final LarenorServerApi _transport;
+  final String _token;
   final HomeResourceRecord target;
-  final bool Function() isCurrent;
-  void retire() {}
-  Future<HomeResourceRecord> resource() async => throw UnimplementedError();
-  Future<CoreHaSnapshot> snapshot() async => throw UnimplementedError();
-  Future<CoreHaBinding?> binding() async => throw UnimplementedError();
-  Future<List<ServerService>> services() async => throw UnimplementedError();
-  Future<CoreHaPreview> preview({required ServerService service, required String entityId, required CoreHaBinding? existing}) async => throw UnimplementedError();
-  Future<CoreHaBinding> confirm(CoreHaPreview preview) async => throw UnimplementedError();
-  Future<void> cancel(CoreHaPreview preview) async => throw UnimplementedError();
+  final bool Function() _current;
+  bool _retired = false;
+  void retire() => _retired = true;
+  void _check() {
+    try { if (!_retired && _current()) return; } catch (_) { /* No authority. */ }
+    retire(); throw const LarenorServerException('cancelled');
+  }
+  Future<T> _operation<T>(Future<T> Function() action) async {
+    _check();
+    if (target.kind != HomeResourceKind.resource) throw const LarenorServerException('invalid_request');
+    try { final result = await action(); _check(); return result; }
+    catch (_) { _check(); rethrow; }
+  }
+  Object? _envelope(Map<String, dynamic>? json, String key) {
+    if (json == null || json.length != 1 || !json.containsKey(key)) throw const LarenorServerException('invalid_response');
+    return json[key];
+  }
+  String get _scope => '${target.context.coreId}/${target.context.homeId}';
+  String get _path => '/home-assistant/$_scope/resources/${target.id}';
+  String get _admin => '/admin$_path';
+  Future<HomeResourceRecord> resource() => _operation(() async {
+    final raw = await _transport.request('GET', '/home-resources/$_scope/${target.id}', token: _token);
+    _check();
+    final result = HomeResourceRecord.fromJson(_envelope(raw, 'record'), expectedContext: target.context);
+    if (result.id != target.id || result.kind != target.kind || result.revision < target.revision || result.aclRevision < target.aclRevision) throw const LarenorServerException('invalid_response');
+    return result;
+  });
+  Future<CoreHaSnapshot> snapshot() => _operation(() async {
+    final raw = await _transport.request('GET', '$_path/snapshot', token: _token);
+    _check(); return CoreHaSnapshot.fromJson(_envelope(raw, 'snapshot'), target: target);
+  });
+  Future<CoreHaBinding?> binding() => _operation(() async {
+    try {
+      final raw = await _transport.request('GET', '$_admin/binding', token: _token);
+      _check(); return CoreHaBinding.fromJson(_envelope(raw, 'binding'), target: target);
+    } on LarenorServerException catch (error) {
+      _check(); if (error.code == 'not_found') return null; rethrow;
+    }
+  });
+  Future<List<ServerService>> services() => _operation(() async {
+    final services = await ServerServicesApi(_transport, _token).list(); _check();
+    return List.unmodifiable(services.where((s) => s.kind == ServerServiceKind.homeAssistant));
+  });
+  void _bindingTarget(CoreHaBinding binding) {
+    if (binding.target.id != target.id || binding.target.context != target.context) throw const LarenorServerException('invalid_request');
+  }
+  Future<CoreHaPreview> preview({required ServerService service, required String entityId, required CoreHaBinding? existing}) => _operation(() async {
+    if (service.kind != ServerServiceKind.homeAssistant || !coreHaEntityId(entityId) || existing?.revision == 9223372036854775807) throw const LarenorServerException('invalid_request');
+    if (existing != null) _bindingTarget(existing);
+    final raw = await _transport.request('POST', '$_admin/binding-preview', token: _token, body: {'serviceId': service.id, 'expectedServiceRevision': service.revision, 'expectedRevision': target.revision, 'expectedAclRevision': target.aclRevision, 'entityId': entityId, 'expectedBindingId': existing?.id});
+    _check();
+    final value = CoreHaPreview.fromJson(_envelope(raw, 'preview'), target: target), b = value.binding;
+    if (b.serviceId != service.id || b.serviceRevision != service.revision || b.entityId != entityId || b.revision != (existing?.revision ?? 0) + 1 || b.id == existing?.id) throw const LarenorServerException('invalid_response');
+    return value;
+  });
+  Future<CoreHaBinding> confirm(CoreHaPreview preview) => _operation(() async {
+    _bindingTarget(preview.binding);
+    final raw = await _transport.request('POST', '$_admin/binding-confirm', token: _token, body: {'previewId': preview.id});
+    _check();
+    final binding = CoreHaBinding.fromJson(_envelope(raw, 'binding'), target: target);
+    if (!binding.sameBinding(preview.binding)) throw const LarenorServerException('invalid_response');
+    return binding;
+  });
+  Future<void> cancel(CoreHaPreview preview) => _operation(() async {
+    _bindingTarget(preview.binding);
+    final raw = await _transport.request('DELETE', '$_admin/binding-preview/${preview.id}', token: _token, allowEmpty: true);
+    _check(); if (raw != null) throw const LarenorServerException('invalid_response');
+  });
+  @override
+  String toString() => 'CoreHaApi';
 }

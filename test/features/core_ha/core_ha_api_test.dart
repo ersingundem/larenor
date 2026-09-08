@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
@@ -113,5 +114,47 @@ void main() {
     await expectLater(api.snapshot(), throwsA(failure('invalid_response')));
     value = {'snapshot': 'x' * 300000};
     await expectLater(api.snapshot(), throwsA(failure('invalid_response')));
+  });
+  test('actual ServerHTTP fixture agrees with every read/preview/confirm/cancel envelope', () async {
+    final f = jsonDecode(File('contracts/home-assistant.v1.json').readAsStringSync()) as Map<String, dynamic>;
+    final record = HomeResourceRecord.fromJson(f['resource'], expectedContext: ServerContext.fromJson(f['context']));
+    String step = 'unbound'; var calls = 0;
+    final api = create((request) async {
+      calls++;
+      final expected = f[step];
+      expect(request.method, expected['method']);
+      expect(request.url.path, '/prefix/api/v1${expected['path']}');
+      expect(request.body.isEmpty ? null : jsonDecode(request.body), expected['body']);
+      return response(expected['response'], expected['status'] as int);
+    }, record: record);
+    final service = ServerService.fromJson({...serviceJson(), 'id': f['preview']['body']['serviceId']});
+    expect(await api.binding(), isNull);
+    step = 'preview';
+    final first = await api.preview(service: service, entityId: 'switch.synthetic', existing: null);
+    step = 'cancel'; await api.cancel(first);
+    step = 'cancelledConfirmation'; await expectLater(api.confirm(first), throwsA(failure('ha_preview_invalid')));
+    step = 'secondPreview'; final preview = await api.preview(service: service, entityId: 'switch.synthetic', existing: null);
+    step = 'confirm'; final binding = await api.confirm(preview);
+    step = 'binding'; expect((await api.binding())!.sameBinding(binding), isTrue);
+    step = 'oneUse'; await expectLater(api.confirm(preview), throwsA(failure('ha_preview_invalid')));
+    for (final name in ['snapshotOff', 'cachedOff', 'memberOn', 'unknownUnavailable']) {
+      step = name;
+      expect((await api.snapshot()).projection.state.name, f[step]['response']['snapshot']['projection']['state']);
+    }
+    for (final pair in [('upstreamUnauthorized', 'ha_upstream_unauthorized'), ('unsupported', 'ha_projection_unsupported'), ('hidden', 'not_found'), ('revoked', 'not_found'), ('coreUnauthorized', 'unauthorized')]) {
+      step = pair.$1; await expectLater(api.snapshot(), throwsA(failure(pair.$2)));
+    }
+    expect(calls, 17);
+  });
+  test('HA static codes require their exact statuses and context404 is unchanged', () async {
+    var status = 404; var code = 'not_found';
+    final transport = LarenorServerApi(endpoint: ServerEndpoint('https://synthetic.invalid'), client: MockClient((_) async => response({'error': {'code': code}}, status)));
+    addTearDown(transport.close);
+    await expectLater(transport.context('fixture'), throwsA(failure('context_endpoint_unavailable')));
+    for (final pair in [(404, 'private_proxy_text'), (502, 'ha_binding_changed'), (409, 'ha_upstream_unauthorized'), (401, 'ha_upstream_unauthorized')]) {
+      status = pair.$1; code = pair.$2;
+      final expected = status == 409 ? 'conflict' : status == 401 ? 'unauthorized' : 'server_error';
+      await expectLater(transport.request('GET', '/other', token: 'fixture'), throwsA(failure(expected)));
+    }
   });
 }
