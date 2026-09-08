@@ -1,6 +1,6 @@
 # Larenor — güncel ilerleme ve iş kuyruğu
 
-**Son güncelleme: 8 Eylül 2026 — Android arşiv E2E yarış düzeltmesi ve Native11 state-shape tanısı hazırlanıyor.**
+**Son güncelleme: 8 Eylül 2026 — Android arşiv E2E yarışı kapandı; Native11 state-shape tanısı hazır.**
 
 ```text
 Kuyruk kabulü       ██░░░░░░░░░░░░░░░░░░  10/125 iş (%8; eşit ağırlıklı sayaç)
@@ -17,12 +17,17 @@ olarak kullanılmaz. İlk 60 adayın tamamı ve VNC/RDP/SSH seçildi.
 [Bağımlılıklara göre özellik sırası](feature-expansion-plan-2026-09-05.md)
 ve [uzak erişim kapsamı](remote-access-plan-2026-09-05.md) korunuyor.
 
-**Son tam doğrulanmış standart Client yayını: `5cbff21` / APK116.** Aynı kaynakta ilk denemede
-5.220 Flutter, 3.569 Linux Core, 98 JVM ve 215 politika testi geçti.
-Android emülatöründe 17 E2E ve 133 sıralı faz başarılı. APK'nın paket,
-sürüm, kalıcı imza, minSdk ve debug bayrağı ayrıca kontrol edildi.
-Services ve hesap IME düzeltmeleri bu pakete dahildir.
-[CI116 teslim kanıtı](client-delivery-116-2026-09-08.md).
+**Son tam doğrulanmış CI Client paketi: `e97189f` / APK125.** Aynı kaynakta
+5.438 Flutter ve 3.934 Server testi geçti; Android emülatöründe 17/17 E2E
+başarılı oldu. Arşiv yolculuğu yeniden açılan ekranda kalıcı okumayı doğrulayan
+`core_archive.reopened_readback` fazına ulaştı. CI APK'nın imzasını,
+sertifikasını, paketini, sürümünü ve release bayrağını doğruladı;
+`app-signed-release-apk-125` artefakt arşivi 57.127.888 bayt ve süresi dolmamış
+durumda. Aynı commitin bağımsız Security ve Server Container iş akışları da
+geçti; Server 3.934 testi ile amd64/arm64 imaj ve manifest yayını tamamlandı.
+[Android CI125](https://github.com/ersingundem/larenor/actions/runs/34270574196) ·
+[Server Container CI](https://github.com/ersingundem/larenor/actions/runs/34270574312) ·
+[Security CI](https://github.com/ersingundem/larenor/actions/runs/34270573945).
 Gerçek ev kurulumu ve fiziksel tablet kabulü henüz yapılmadı.
 
 ## Şimdi yapılan işler
@@ -96,6 +101,15 @@ geçerli imza olarak doğrulandı. APK 122.207.785 bayt; SHA-256
 `21cc73b9c471ad08c21e010c8cf382410ce57d539ca1b9c395c42fd3064ca94b`.
 Bu CI/artefact kabulü Direct→Core ve ortak tablet paketini doğrular; fiziksel
 Huawei/DeX/TalkBack ve geniş Home Assistant varlık/servis kapsamı açık kalır.
+
+Arşiv E2E yardımcısındaki rota-sahipliği yarışı exact `e97189f` üzerinde
+kapandı. Güncel ve dokunulabilir izinli rota içinden tek dikey kaydırma sahibi
+seçiliyor; küçük 420×400/2× HomeSource görünümü ve gerçek Archive geçişi
+regresyon testleriyle korunuyor. İlgili 200 yerel test ve analiz temizdi;
+uzak Android CI **5.438 Flutter PASS**, **3.934 Server PASS** ve API 35'te
+**17/17 E2E** verdi. İmzalı **APK125**, bağımsız Security ve Server Container
+işleri de aynı exact source üzerinde geçti. Bu kanıt test yarışını kapatır;
+fiziksel cihaz kabulünün yerine geçmez.
 
 [Services tablet paketi](core-services-tablet-accessibility-2026-09-06.md):
 46 yeni ve 186 ilgili test geçti; tam bağlantı adları, 48px hedefler, görünür
