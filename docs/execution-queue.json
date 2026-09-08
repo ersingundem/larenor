@@ -386,7 +386,8 @@
         "docs/client-delivery-108-2026-09-06.md",
         "docs/jellyfin-managed-volume-installation-plan-2026-09-06.md",
         "docs/jellyfin-storage-fixture-implementation-2026-09-08.md",
-        "docs/jellyfin-storage-manual-ci-2026-09-08.md"
+        "docs/jellyfin-storage-manual-ci-2026-09-08.md",
+        "docs/jellyfin-native-storage-diagnostics-2026-09-08.md"
       ],
       "scope": "installAvailable=false; Client kaynak adı/Docker seçenekleri üretmez. Gerçek ev sunucusuna işlem yok.",
       "acceptance": [
@@ -621,10 +622,34 @@
           "state": "completed",
           "result": "passed",
           "label": "Manuel native workflow/launcher: 122 pytest (35 yeni + 87 fixture) ve 215 politika testi geçti; gerçek shell cancellation RED → exec handoff GREEN. Root incelemesi temiz. Docker/iki mimari koşusu henüz yapılmadı."
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/34213095299",
+          "commit": "5cbff217cdcf719d9162b9b2b33bf22dd47a1996",
+          "state": "completed",
+          "result": "failed",
+          "label": "İlk native karakterizasyon iki mimaride genel kapalı hatayla durdu; makbuz0. Hata fazı bu kaynakta görünmediği için S06.3d açık kaldı."
+        },
+        {
+          "kind": "test",
+          "ref": "docs/jellyfin-native-storage-diagnostics-2026-09-08.md",
+          "commit": "a430dce9795130d045b466d73fc1453c4c5825c7",
+          "state": "completed",
+          "result": "passed",
+          "label": "Kapalı native tanılama:8RED→8GREEN;139 fixture/launcher PASS0skip, 215 politikaPASS, %96,09 dal dahil kapsam. Başarı makbuzu ve operasyon AST'si değişmedi."
+        },
+        {
+          "kind": "review",
+          "ref": "docs/jellyfin-native-storage-diagnostics-2026-09-08.md",
+          "commit": "a430dce9795130d045b466d73fc1453c4c5825c7",
+          "state": "completed",
+          "result": "passed",
+          "label": "Root incelemesi phase/code allowlist, ham istisna redaksiyonu, cleanup önceliği ve sıfır replay sınırını doğruladı; gerçek native kök neden hâlâ açık."
         }
       ],
       "completionCommit": null,
-      "reason": "Volume protokolü CI108 Linux kabulünü aldı. Jellyfin fixture ve manuel iki mimarili CI workflow main ile birleşti; 122 odaklı pytest, 215 politika testi ve bağımsız kaynak incelemesi geçti. Gerçek native karakterizasyon sırada; installAvailable=false."
+      "reason": "Volume protokolü CI108 Linux kabulünü aldı. İlk gerçek native amd64/arm64 koşusu genel hatayla başarısız ve makbuzsuz kaldı. Kapalı phase/code tanılaması 139 test, 215 politika ve root incelemesiyle main'e alındı; tanılamalı yeni CI ve ardından dar kök neden düzeltmesi açık. installAvailable=false."
     },
     {
       "id": "S06.3e",

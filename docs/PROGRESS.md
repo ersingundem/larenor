@@ -32,7 +32,7 @@ Gerçek ev kurulumu ve fiziksel tablet kabulü henüz yapılmadı.
 | S08.6 — kişi, oda, kaynak ve izin yönetimi | **Kabul edildi**, aynı yayın | Merkezi HA akışının yetki temeli hazır |
 | S08.7 — merkezi Home Assistant adaptörü | **Devam ediyor** | Server'da açık kaynak bağlama, yetkili switch durumu ve sınırlı cache; tablette kaynak durum ekranı |
 | B5.1 — ortak tablet tasarımı | Services ve hesap IME düzeltmeleri exact `5cbff21` / APK116 ile kabul edildi | S08.7 kaynak ekranı ve kalan ortak tablet yüzeyleri |
-| S06.3d — kalıcı depolama | İlk native iki mimarili koşu kapalı genel hatayla durdu | Phase/kod tanılamasını yayımla; kesin arızayı ayırıp fixture'ı yeniden çalıştır |
+| S06.3d — kalıcı depolama | İlk native iki mimarili koşu kapalı genel hatayla durdu; tanılama main ile birleşti | Tanılamalı kesin kaynağı yayımla; faz/kodu okuyup dar düzeltmeyi belirle |
 
 S08.7 üç sonlu teslimden oluşur: **kaynak bağlama ve typed durum → komut ve
 kalıcı sonuç → açık Direct aktarımı**. İlk Server ve Client işleri ayrı dallarda
@@ -67,7 +67,9 @@ kapatıldı; son kaynak incelemesi temiz. Manuel native amd64/arm64 CI hazırlı
 [Birleşik yayın hazırlığı](services-ime-native-ci-preparation-2026-09-08.md).
 İlk manuel native amd64/arm64 koşusu iki mimaride de genel karakterizasyon
 hatasıyla kapandı ve makbuz üretmedi. Kapalı phase/hata kodu tanılaması
-hazırlanıyor; kesin neden ikinci yetkili koşudan önce tahmin edilmiyor.
+8 RED→8 GREEN, toplam 139 odaklı test, 215 politika testi ve %96,09 dal dahil
+kapsamla main'e alındı. [Tanılama kanıtı](jellyfin-native-storage-diagnostics-2026-09-08.md).
+Kesin neden ikinci yetkili koşudan önce tahmin edilmiyor.
 Gerçek Engine ve kurulum kabulü hâlâ açık; `installAvailable=false`.
 
 ## Canlı takip ve sıradaki işler
