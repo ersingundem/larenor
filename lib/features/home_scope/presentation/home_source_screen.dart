@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/home_session_controller.dart';
 import '../../../core/home_source_store.dart';
+import '../../../core/window/window_policy_providers.dart';
 import '../../../l10n/generated/app_localizations.dart';
 import '../../../shared/widgets/app_page_scaffold.dart';
 import '../../../shared/widgets/settings_action_tile.dart';
@@ -21,9 +22,11 @@ class HomeSourceScreen extends ConsumerStatefulWidget {
     this.onExit,
     this.runFileDialog,
     this.archiveGateCurrent,
+    this.transferGateCurrent,
   });
   final SettingsFileDialogRunner? runFileDialog;
   final bool Function()? archiveGateCurrent;
+  final bool Function()? transferGateCurrent;
   final VoidCallback? onExit;
   @override
   ConsumerState<HomeSourceScreen> createState() => _HomeSourceScreenState();
@@ -35,6 +38,7 @@ class _HomeSourceScreenState extends MediaSessionState<HomeSourceScreen> {
     final controller = ref.watch(homeSessionControllerProvider)!;
     final l10n = AppLocalizations.of(context);
     final generation = sessionGeneration;
+    ref.watch(windowPolicySnapshotProvider);
     bool current() =>
         sessionCurrent(generation) &&
         TickerMode.valuesOf(context).enabled &&
@@ -60,7 +64,13 @@ class _HomeSourceScreenState extends MediaSessionState<HomeSourceScreen> {
             );
             final account = controller.account, session = account.session,
                 accountGeneration = account.generation, identity = controller.runtimeIdentity;
-            bool transferCurrent() => current() && controller.source == HomeSource.directLocal &&
+            bool transferWindow() {
+              final state=ref.read(windowPolicySnapshotProvider);
+              if(state.isLoading || state.hasError || !state.hasValue) return false;
+              final value=state.requireValue;
+              return !value.supported || value.isResumed && value.hasWindowFocus && !value.isPictureInPicture;
+            }
+            bool transferCurrent() => current() && transferWindow() && widget.transferGateCurrent?.call()==true && controller.source == HomeSource.directLocal &&
                 !controller.busy && controller.failure == null && controller.runtimeIdentity == identity &&
                 account.initialized && !account.working && !account.hasPendingContext &&
                 account.isCurrent(accountGeneration) && identical(account.session,session) &&
@@ -121,7 +131,8 @@ class _HomeSourceScreenState extends MediaSessionState<HomeSourceScreen> {
                         additionalInfo:Text(transferCurrent()?l10n.coreHaTransferHint:l10n.coreHaTransferRequired),
                         onTap:!transferCurrent()?null:(){
                           if (!transferCurrent()) return;
-                          Navigator.of(context).push(CupertinoPageRoute<void>(builder:(_)=>const SettingsGateScreen(initialDestination:SettingsGateDestination.coreHaTransfer)));
+                          final parentGate=widget.transferGateCurrent!;
+                          Navigator.of(context).push(CupertinoPageRoute<void>(builder:(_)=>SettingsGateScreen(initialDestination:SettingsGateDestination.coreHaTransfer,transferParentCurrent:parentGate)));
                         },
                       )]),
                     if (controller.source == HomeSource.verifiedCore)

@@ -32,9 +32,12 @@ class SettingsGateScreen extends ConsumerStatefulWidget {
   const SettingsGateScreen({
     super.key,
     this.initialDestination = SettingsGateDestination.settings,
+    this.transferParentCurrent,
   });
 
   final SettingsGateDestination initialDestination;
+  /// Only the explicit transfer's parent/root route supplies this authority.
+  final bool Function()? transferParentCurrent;
 
   @override
   ConsumerState<SettingsGateScreen> createState() => _SettingsGateScreenState();
@@ -188,7 +191,7 @@ class _SettingsGateScreenState extends ConsumerState<SettingsGateScreen>
                             : widget.initialDestination == SettingsGateDestination.coreHaTransfer
                             ? CoreHaTransferScreen(
                                 gateCurrent: () {
-                                  if (!mounted || !_interactive || resourceGeneration != _generation || ModalRoute.of(context)?.isCurrent != true) return false;
+                                  if (!mounted || !_interactive || resourceGeneration != _generation || ModalRoute.of(context)?.isCurrent != true || widget.transferParentCurrent?.call()!=true) return false;
                                   final currentPin=ref.read(pinLockProvider);
                                   return !currentPin.isLoading && !currentPin.hasError && currentPin.hasValue && currentPin.value==pin && (pin==null || _unlocked);
                                 },
@@ -243,6 +246,11 @@ class _SettingsGateScreenState extends ConsumerState<SettingsGateScreen>
                                   SettingsGateDestination.homeSource
                             ? HomeSourceScreen(
                                 runFileDialog: _runFileDialog,
+                                transferGateCurrent: () {
+                                  if (!mounted || !_interactive || resourceGeneration != _generation || ModalRoute.of(context)?.isCurrent != true) return false;
+                                  final value=ref.read(pinLockProvider);
+                                  return !value.isLoading && !value.hasError && value.hasValue && value.value==pin && (pin==null || _unlocked);
+                                },
                                 archiveGateCurrent: () {
                                   if (!mounted ||
                                       !_interactive ||
