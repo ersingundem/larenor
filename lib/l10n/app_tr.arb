@@ -2104,5 +2104,6 @@
   "coreHaSaved": "Eşleştirme kaydedildi.",
   "coreHaUncertain": "Eşleştirme kaydedilmiş olabilir. Tekrar denemeden önce yenileyerek kontrol edin.",
   "coreHaPreviewExpired": "Bu önizlemenin süresi doldu veya içeriği değişti. Yenileyip tekrar önizleyin.",
-  "coreHaInvalidEntity": "switch.reading_lamp gibi bir anahtar varlığı girin."
+  "coreHaInvalidEntity": "switch.reading_lamp gibi bir anahtar varlığı girin.",
+  "coreHaNoState": "Bu kaynak için anahtar durumu kullanılamıyor. Eşleştirmesini veya erişimini kontrol edin."
 }

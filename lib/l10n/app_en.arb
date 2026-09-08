@@ -2425,5 +2425,6 @@
   "coreHaSaved": "Link saved.",
   "coreHaUncertain": "The link may have been saved. Refresh to check before trying again.",
   "coreHaPreviewExpired": "This preview expired or changed. Refresh and preview again.",
-  "coreHaInvalidEntity": "Enter a switch entity such as switch.reading_lamp."
+  "coreHaInvalidEntity": "Enter a switch entity such as switch.reading_lamp.",
+  "coreHaNoState": "No switch state is available for this resource. Check its link or access."
 }

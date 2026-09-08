@@ -59,7 +59,8 @@ class _ViewState extends ConsumerState<_View> {
     CoreHaSwitchState.on => l.coreHaStateOn, CoreHaSwitchState.off => l.coreHaStateOff, CoreHaSwitchState.unavailable => l.coreHaUnavailable,
   };
   String _error(String? code, AppLocalizations l) => switch(code) {
-    'not_found' || 'forbidden' => l.coreHaPermission,
+    'not_found' => l.coreHaNoState,
+    'forbidden' => l.coreHaPermission,
     'ha_upstream_unauthorized' => l.coreHaUpstreamAuth,
     'ha_upstream_unavailable' || 'connection_failed' || 'timeout' => l.coreHaOffline,
     'ha_projection_unsupported' => l.coreHaUnsupported,

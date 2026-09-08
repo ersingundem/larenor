@@ -33,7 +33,8 @@ class CoreHaController extends ChangeNotifier {
   CoreHaSnapshot? _snapshot;
   CoreHaSnapshot? get snapshot => fresh && !stale ? _snapshot : null;
   CoreHaBinding? binding;
-  CoreHaPreview? preview;
+  CoreHaPreview? _preview;
+  CoreHaPreview? get preview => fresh && !stale ? _preview : null;
   List<ServerService> services = const [];
   bool _disposed = false, _visible = false, _attempted = false, _preparing = false;
   bool Function()? _preparationCurrent;
@@ -64,7 +65,7 @@ class CoreHaController extends ChangeNotifier {
   void _emit() { if (!_disposed) notifyListeners(); }
   void _clear() {
     _ttlTimer?.cancel(); _ttlTimer = null; _deadline = null;
-    record = null; _snapshot = null; binding = null; preview = null; services = const [];
+    record = null; _snapshot = null; binding = null; _preview = null; services = const [];
     loaded = false; _stale = false; saved = false;
   }
   void _retire() {
@@ -89,7 +90,7 @@ class CoreHaController extends ChangeNotifier {
     _emit(); _start();
   }
   void _expire() {
-    _snapshot = null; preview = null; _deadline = null; _stale = true;
+    _snapshot = null; _preview = null; _deadline = null; _stale = true;
     _ttlTimer?.cancel(); _ttlTimer = null;
   }
   void _arm(Duration deadline) {
@@ -169,7 +170,7 @@ class CoreHaController extends ChangeNotifier {
     await _run((api) async {
       final started = monotonic();
       final value = await api(target).preview(service: service, entityId: entityId, existing: existing);
-      preview = value; _stale = false; _arm(started + Duration(milliseconds: value.expiresInMs));
+      _preview = value; _stale = false; _arm(started + Duration(milliseconds: value.expiresInMs));
     }, guard: isCurrent);
   }
   Future<void> confirm(CoreHaPreview value, {required bool Function() isCurrent}) async {
@@ -178,7 +179,7 @@ class CoreHaController extends ChangeNotifier {
       return;
     }
     final deadline = _deadline!, target = record!;
-    preview = null; _ttlTimer?.cancel(); _deadline = null;
+    _preview = null; _ttlTimer?.cancel(); _deadline = null;
     await _run((api) async {
       final result = await api(target).confirm(value);
       binding = result; _bindingRevision = result.revision; saved = true;
@@ -187,7 +188,7 @@ class CoreHaController extends ChangeNotifier {
   Future<void> cancel(CoreHaPreview value, {required bool Function() isCurrent}) async {
     if (!canConfirm || !identical(value, preview) || !_action(isCurrent)) return;
     final target = record!;
-    preview = null; _ttlTimer?.cancel(); _deadline = null; _emit();
+    _preview = null; _ttlTimer?.cancel(); _deadline = null; _emit();
     await _run((api) => api(target).cancel(value), guard: isCurrent);
   }
   @override
