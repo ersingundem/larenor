@@ -142,6 +142,17 @@ class ServiceManagement:
             row, record = self._record(connection, service_id, expected_revision)
             return self._private(row, record)
 
+    def _home_assistant_connection(self, connection, service_id: str, revision: int) -> ServiceConnection:
+        """Private adapter seam: caller must authorize its resource in this same transaction.
+
+        This never opens the admin connection API to members and cannot select
+        other service kinds or credentials. No detached authorization grant.
+        """
+        row, record = self._record(connection, service_id, revision)
+        if record['kind'] != 'home_assistant' or set(record['credentials']) != {'token'}:
+            raise ApiError('ha_binding_changed', 409)
+        return self._private(row, record)
+
     def list(self, actor: Principal) -> dict:
         with self._read(actor) as connection:
             rows = connection.execute("SELECT * FROM service_connections ORDER BY id LIMIT ?", (MAX_SERVICES + 1,)).fetchall()

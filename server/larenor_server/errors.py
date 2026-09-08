@@ -13,6 +13,12 @@ class StartupError(Exception):
 
 
 MESSAGES = {
+    "ha_binding_changed": "The selected Home Assistant binding changed. Review it again.",
+    "ha_preview_invalid": "The binding preview is no longer available. Review it again.",
+    "ha_upstream_unauthorized": "Home Assistant did not authorize this observation.",
+    "ha_upstream_unavailable": "The selected Home Assistant observation is unavailable.",
+    "ha_projection_unsupported": "The selected Home Assistant state is unsupported.",
+    "ha_limit_reached": "The Home Assistant observation limit has been reached.",
     "invalid_request": "The request is invalid.",
     "payload_too_large": "The request is too large.",
     "request_timeout": "The request timed out.",
