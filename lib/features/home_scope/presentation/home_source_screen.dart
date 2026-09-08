@@ -12,6 +12,7 @@ import '../data/home_layout_access.dart';
 import 'legacy_layout_screen.dart';
 import 'core_layout_archive_screen.dart';
 import '../../settings/presentation/settings_file_dialog.dart';
+import '../../settings/presentation/settings_gate_screen.dart';
 
 /// Reached only through SettingsGate, including recovery from a bad preference.
 class HomeSourceScreen extends ConsumerStatefulWidget {
@@ -51,12 +52,20 @@ class _HomeSourceScreenState extends MediaSessionState<HomeSourceScreen> {
       ),
       child: SafeArea(
         child: ListenableBuilder(
-          listenable: controller,
+          listenable: Listenable.merge([controller,controller.account]),
           builder: (_, _) {
             final access = homeLayoutAccess(
               controller,
               clock: ref.watch(homeLayoutClockProvider),
             );
+            final account = controller.account, session = account.session,
+                accountGeneration = account.generation, identity = controller.runtimeIdentity;
+            bool transferCurrent() => current() && controller.source == HomeSource.directLocal &&
+                !controller.busy && controller.failure == null && controller.runtimeIdentity == identity &&
+                account.initialized && !account.working && !account.hasPendingContext &&
+                account.isCurrent(accountGeneration) && identical(account.session,session) &&
+                session != null && session.context != null && session.user.canAdminister &&
+                !session.user.mustChangePassword && !session.authMutationPending && !session.expiresSoon(DateTime.now());
             return Align(
               alignment: Alignment.topCenter,
               child: ConstrainedBox(
@@ -106,6 +115,15 @@ class _HomeSourceScreenState extends MediaSessionState<HomeSourceScreen> {
                           ),
                       ],
                     ),
+                    if (controller.source == HomeSource.directLocal)
+                      SettingsSection(children:[SettingsActionTile(
+                        key:const ValueKey('core-ha-transfer-entry'),title:Text(l10n.coreHaTransferTitle),
+                        additionalInfo:Text(transferCurrent()?l10n.coreHaTransferHint:l10n.coreHaTransferRequired),
+                        onTap:!transferCurrent()?null:(){
+                          if (!transferCurrent()) return;
+                          Navigator.of(context).push(CupertinoPageRoute<void>(builder:(_)=>const SettingsGateScreen(initialDestination:SettingsGateDestination.coreHaTransfer)));
+                        },
+                      )]),
                     if (controller.source == HomeSource.verifiedCore)
                       SettingsSection(
                         children: [

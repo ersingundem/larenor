@@ -8,6 +8,7 @@ import '../../home_scope/presentation/home_source_screen.dart';
 import '../../home_resources/presentation/home_resource_admin_screen.dart';
 import '../../home_people/presentation/home_people_screen.dart';
 import '../../server/presentation/server_connection_screen.dart';
+import '../../core_ha/direct_migration/transfer_screen.dart';
 
 import '../../../l10n/generated/app_localizations.dart';
 import '../providers/settings_providers.dart';
@@ -21,6 +22,7 @@ enum SettingsGateDestination {
   homeSource,
   homeResources,
   homePeople,
+  coreHaTransfer,
 }
 
 /// Gates access to [SettingsSplitScreen] behind a PIN, if one has been set —
@@ -124,6 +126,7 @@ class _SettingsGateScreenState extends ConsumerState<SettingsGateScreen>
   Widget build(BuildContext context) {
     ref.listen(pinLockProvider, (previous, next) {
       if ((widget.initialDestination == SettingsGateDestination.homeResources ||
+              widget.initialDestination == SettingsGateDestination.coreHaTransfer ||
               widget.initialDestination ==
                   SettingsGateDestination.homePeople) &&
           (next.isLoading || next.hasError)) {
@@ -133,6 +136,7 @@ class _SettingsGateScreenState extends ConsumerState<SettingsGateScreen>
       if (previous?.hasValue == true &&
           next.hasValue &&
           (next.value != null ||
+              widget.initialDestination == SettingsGateDestination.coreHaTransfer ||
               widget.initialDestination ==
                   SettingsGateDestination.homeResources ||
               widget.initialDestination ==
@@ -180,6 +184,15 @@ class _SettingsGateScreenState extends ConsumerState<SettingsGateScreen>
                                 onExit: Navigator.of(context).canPop()
                                     ? _exit
                                     : null,
+                              )
+                            : widget.initialDestination == SettingsGateDestination.coreHaTransfer
+                            ? CoreHaTransferScreen(
+                                gateCurrent: () {
+                                  if (!mounted || !_interactive || resourceGeneration != _generation || ModalRoute.of(context)?.isCurrent != true) return false;
+                                  final currentPin=ref.read(pinLockProvider);
+                                  return !currentPin.isLoading && !currentPin.hasError && currentPin.hasValue && currentPin.value==pin && (pin==null || _unlocked);
+                                },
+                                onExit:Navigator.of(context).canPop()?_exit:null,
                               )
                             : widget.initialDestination ==
                                   SettingsGateDestination.homeResources

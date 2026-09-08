@@ -2115,5 +2115,19 @@
   "coreHaUncertain": "Eşleştirme kaydedilmiş olabilir. Tekrar denemeden önce yenileyerek kontrol edin.",
   "coreHaPreviewExpired": "Bu önizlemenin süresi doldu veya içeriği değişti. Yenileyip tekrar önizleyin.",
   "coreHaInvalidEntity": "switch.reading_lamp gibi bir anahtar varlığı girin.",
-  "coreHaNoState": "Bu kaynak için anahtar durumu kullanılamıyor. Eşleştirmesini veya erişimini kontrol edin."
+  "coreHaNoState": "Bu kaynak için anahtar durumu kullanılamıyor. Eşleştirmesini veya erişimini kontrol edin.",
+  "coreHaTransferTitle": "Core’a anahtar aktar",
+  "coreHaTransferHint": "Kayıtlı Doğrudan Home Assistant bağlantısını ve seçtiğiniz bir anahtarı mevcut bir Core kaynağına aktarın. Doğrudan kayıtlar korunur.",
+  "coreHaTransferExcluded": "Odalar, sahneler, betikler, interkom, web panelleri ve diğer servisler aktarılmaz.",
+  "coreHaTransferRequired": "Ev kaynağı Doğrudan iken doğrulanmış bir Core yönetici hesabı kullanın.",
+  "coreHaTransferSource": "Doğrudan anahtar",
+  "coreHaTransferTarget": "Core kaynağı",
+  "coreHaTransferEmpty": "Doğrudan panoya bir anahtar ve Core’a bağlanmamış bir kaynak ekleyip yenileyin.",
+  "coreHaTransferPreview": "Aktarımı önizle",
+  "coreHaTransferReview": "Aktarımı incele",
+  "coreHaTransferConfirm": "Core bağlantısını ve eşleştirmeyi oluştur",
+  "coreHaTransferSuccess": "Core bağlantısı ve anahtar eşleştirmesi oluşturuldu. Doğrudan kayıtlar korundu.",
+  "coreHaTransferUncertain": "Onayın sonucu belirsiz. Başka bir aktarım başlatmadan önce kayıtlı sonucu kontrol edin.",
+  "coreHaTransferRecover": "Aktarım sonucunu kontrol et",
+  "coreHaTransferCredentials": "Doğrudan ayarlarda Home Assistant bağlantısını yeniden kurup bu aktarımı tekrar önizleyin."
 }
