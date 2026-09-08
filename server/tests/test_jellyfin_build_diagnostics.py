@@ -57,7 +57,10 @@ def test_helper_build_distinguishes_real_child_failures_without_output_or_retry(
     assert events == ['enter', 'cleanup']
     assert all(child.poll() is not None and child.stdout.closed for child in processes)
     assert all(child.stderr is None or child.stderr.closed for child in processes)
-    assert not any(call[0] in {'create', 'start', 'restart'} for call in daemon.calls)
+    assert sum(call[0] == 'create' and '--name=larenor-helper-base-probe' in call for call in daemon.calls) == 1
+    assert sum(call == ['start','--attach','d'*64] for call in daemon.calls) == 1
+    assert not any(call[0] == 'restart' or call == ['start','c'*64]
+        or (call[0] == 'create' and '--name=larenor-helper-base-probe' not in call) for call in daemon.calls)
     output = capsys.readouterr()
     assert output.out == ''
     assert output.err == f'storage_characterization_failed phase=helper_build code={code}\n'
