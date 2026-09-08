@@ -78,6 +78,10 @@ def test_command_requires_current_write_acl_and_never_dispatches_when_denied(ser
     assert client.put(grant, headers=auth(admin), json={'expectedAclRevision': 1,
         'permissions': {'read': True, 'write': False}}).status_code == 200
 
+    read_only = client.get(public + '/snapshot', headers=auth(member))
+    assert read_only.status_code == 200
+    assert read_only.json()['snapshot']['projection']['commandAvailable'] is False
+
     payload = command_body({**record, 'aclRevision': 2}, binding, member)
     denied = client.post(public + '/commands', headers=auth(member), json=payload)
     assert denied.status_code == 403
@@ -86,6 +90,9 @@ def test_command_requires_current_write_acl_and_never_dispatches_when_denied(ser
 
     assert client.put(grant, headers=auth(admin), json={'expectedAclRevision': 2,
         'permissions': {'read': True, 'write': True}}).status_code == 200
+    writable = client.get(public + '/snapshot', headers=auth(member))
+    assert writable.status_code == 200
+    assert writable.json()['snapshot']['projection']['commandAvailable'] is True
     allowed = client.post(public + '/commands', headers=auth(member),
         json={**payload, 'expectedAclRevision': 3})
     assert allowed.status_code == 202

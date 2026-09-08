@@ -32,12 +32,12 @@ class ConfirmRequest(FrozenModel):
 class Projection(FrozenModel):
     kind: Literal['switch'] = 'switch'
     state: Literal['on', 'off', 'unavailable']
-    commandAvailable: Literal[False] = False
+    commandAvailable: bool = False
 
     @field_validator('commandAvailable', mode='before')
     @classmethod
-    def literal_false(cls, value):
-        if type(value) is not bool or value is not False:
+    def literal_boolean(cls, value):
+        if type(value) is not bool:
             raise ValueError('invalid_capability')
         return value
 

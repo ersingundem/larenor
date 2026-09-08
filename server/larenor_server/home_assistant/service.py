@@ -435,6 +435,9 @@ class HomeAssistantAdapter:
             current, row, ref, binding, _ = self._facts(c, facts, resource)
             if current != fingerprint or cancelled():
                 raise ApiError('ha_binding_changed', 409)
+            projection = projection.model_copy(update={'commandAvailable':
+                self.resources._decision(facts, row, ref,
+                    self.resources._target(c, resource)[2], 'write').allowed})
             result = Snapshot(ref=ref, bindingId=binding.id, bindingRevision=binding.revision,
                 resourceRevision=row['revision'], aclRevision=row['acl_revision'], serviceRevision=binding.serviceRevision,
                 observedAt=utc(self.settings.clock()), remainingTtlMs=5000, projection=projection).model_dump()

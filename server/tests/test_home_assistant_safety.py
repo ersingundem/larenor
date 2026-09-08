@@ -46,7 +46,7 @@ def test_storage_bound_precedes_materializing_corrupt_payload(server, ha):
 
 
 @pytest.mark.parametrize('value',[0,1,'false',None])
-def test_command_capability_requires_literal_false(value):
+def test_command_capability_requires_literal_boolean(value):
     with pytest.raises(ValueError):
         Projection(state='on', commandAvailable=value)
 
@@ -56,7 +56,7 @@ def test_closed_projection_and_no_upstream_attributes(server, ha, state, expecte
     _, client, admin, _, _, base, public, body = setup(server, ha)
     bind(client, admin, base, body); ha.state=state
     r=client.get(public+'/snapshot',headers=auth(admin))
-    assert r.status_code==200 and r.json()['snapshot']['projection']=={'kind':'switch','state':expected,'commandAvailable':False}
+    assert r.status_code==200 and r.json()['snapshot']['projection']=={'kind':'switch','state':expected,'commandAvailable':True}
     assert all(x not in r.text for x in ('entity_id','attributes','last_updated','synthetic-ha-only','NEVER-PUBLISH'))
 
 

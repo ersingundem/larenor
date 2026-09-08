@@ -234,7 +234,7 @@
         "projection": {
           "kind": "switch",
           "state": "off",
-          "commandAvailable": false
+          "commandAvailable": true
         }
       }
     }
@@ -264,7 +264,7 @@
         "projection": {
           "kind": "switch",
           "state": "off",
-          "commandAvailable": false
+          "commandAvailable": true
         }
       }
     }
@@ -502,7 +502,7 @@
         "projection": {
           "kind": "switch",
           "state": "unavailable",
-          "commandAvailable": false
+          "commandAvailable": true
         }
       }
     }
