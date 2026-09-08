@@ -60,7 +60,7 @@ class JellyfinWorkflowPolicyTest(unittest.TestCase):
         self.assertEqual(spec['if-no-files-found'], 'error')
         self.assertEqual(spec['path'], '${{ runner.temp }}/jellyfin-storage-receipt.json')
         self.assertIn('${{ github.sha }}', spec['name'])
-        self.assertIn('${{ matrix.platform }}', spec['name'])
+        self.assertIn('${{ runner.arch }}', spec['name'])
         self.assertNotIn('if', steps[upload])
 
     def test_dependency_versions_are_locked_and_full_core_not_repeated(self):

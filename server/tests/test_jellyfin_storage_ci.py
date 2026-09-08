@@ -90,6 +90,7 @@ def test_valid_receipt_is_exact_and_does_not_promote_installation():
 @pytest.mark.parametrize('signal_name', ['SIGINT','SIGTERM','SIGALRM'])
 def test_signal_kills_only_owned_group_and_unwinds_cleanup_without_success(monkeypatch, capsys, signal_name):
     m = api()
+    monkeypatch.setenv('GITHUB_SHA', 'a'*40)
     events = []
     handlers = {}
     owner = SimpleNamespace(process=SimpleNamespace(pid=12345))
