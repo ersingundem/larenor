@@ -14,7 +14,10 @@ concurrency:
 jobs:
   server-test:
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    # Full auth/storage/media coverage normally takes about 13 minutes on the
+    # hosted runner. Keep bounded headroom for runner variance so a passing
+    # suite is not cancelled before it can publish its JUnit evidence.
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
