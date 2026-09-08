@@ -171,21 +171,32 @@ class HomeResourceRegistry:
         return RegistryRecord(ref=ref, revision=row['revision'], aclRevision=row['acl_revision'],
                               label=data.label, order=data.order, permissions=permissions).model_dump()
 
+    def _validated_ids(self, c):
+        """Return authenticated inventory IDs inside the caller's transaction.
+
+        Shared with startup validation so metadata cleanup cannot infer deletion
+        from counts or an unverified subset of encrypted records.
+        """
+        self._check_context(c, self.scope.coreId, self.scope.homeId)
+        state = self._state(c); records = grants = 0
+        identities = set()
+        for row in c.execute('SELECT * FROM home_resource_records LIMIT ?', (schema.MAX_RECORDS + 1,)):
+            records += 1
+            if records > schema.MAX_RECORDS:
+                raise ValueError()
+            ref, data = self._decode(row); grants += len(data.grants)
+            identities.add(ref.id)
+        if (records, grants) != (state['record_count'], state['grant_count']):
+            raise ValueError()
+        if c.execute('SELECT COUNT(*) FROM home_resource_audit').fetchone()[0] > schema.MAX_AUDIT:
+            raise ValueError()
+        return frozenset(identities)
+
     def validate_storage(self):
         try:
             with self.db.connection() as c:
                 c.execute('BEGIN')
-                self._check_context(c, self.scope.coreId, self.scope.homeId)
-                state = self._state(c); records = grants = 0
-                for row in c.execute('SELECT * FROM home_resource_records LIMIT ?', (schema.MAX_RECORDS + 1,)):
-                    records += 1
-                    if records > schema.MAX_RECORDS:
-                        raise ValueError()
-                    _, data = self._decode(row); grants += len(data.grants)
-                if (records, grants) != (state['record_count'], state['grant_count']):
-                    raise ValueError()
-                if c.execute('SELECT COUNT(*) FROM home_resource_audit').fetchone()[0] > schema.MAX_AUDIT:
-                    raise ValueError()
+                self._validated_ids(c)
         except (ApiError, InvalidTag, ValueError, TypeError, sqlite3.Error, OverflowError):
             raise StartupError('home_resource_storage_invalid') from None
 

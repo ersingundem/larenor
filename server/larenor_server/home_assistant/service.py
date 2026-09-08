@@ -226,6 +226,23 @@ class HomeAssistantAdapter:
             self._pending(actor, resource, preview_id)
             del self._previews[preview_id]
 
+    def _prune_deleted(self, c):
+        """Remove only orphan binding metadata within an admin confirm transaction.
+
+        Both inventories must validate completely before the first deletion.
+        The caller's transaction also owns the replacement write and HA HMAC
+        updates, so any failed confirmation rolls all cleanup back.
+        """
+        live = self.resources._validated_ids(c)
+        rows = schema.validate(c, self._key, self.resources.scope)
+        for row in rows:
+            self._decode(row)
+        deleted = [row['resource_id'] for row in rows if row['resource_id'] not in live]
+        if deleted:
+            c.executemany('DELETE FROM home_assistant_bindings WHERE resource_id=?',
+                          ((identity,) for identity in deleted))
+            schema.update(c, self._key, self.resources.scope)
+
     def confirm(self, actor, core, home, resource, preview_id):
         with self._tx(actor, core, home, admin=True) as (c, facts):
             self._target(c, facts, resource)
@@ -235,6 +252,7 @@ class HomeAssistantAdapter:
             if self._facts(c, facts, resource, pending.body)[0] != pending.fingerprint:
                 raise ApiError('ha_binding_changed', 409)
             binding = pending.binding
+            self._prune_deleted(c)
             if pending.body.expectedBindingId is None and len(schema.rows(c)) >= schema.MAX_BINDINGS:
                 raise ApiError('ha_limit_reached', 429)
             plain = binding.model_dump_json().encode('utf-8'); nonce = secrets.token_bytes(12)
