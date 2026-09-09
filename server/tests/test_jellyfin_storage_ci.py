@@ -100,12 +100,11 @@ def test_signal_kills_only_owned_group_and_unwinds_cleanup_without_success(monke
             return owner
         def __exit__(self, *_):
             events.append('cleanup')
-        @property
-        def process(self): return owner.process
+        def emergency_cleanup(self):
+            events.append(('kill',owner.process.pid,signal.SIGKILL))
     monkeypatch.setattr(m, 'validate_launch', lambda *args: 'linux/amd64')
     monkeypatch.setattr(m.smoke, 'capture_source', lambda commit: ('a'*40, {}))
     monkeypatch.setattr(m.smoke, 'EphemeralDaemon', Owned)
-    monkeypatch.setattr(m.smoke, '_signal_group', lambda proc, sig: events.append(('kill',proc.pid,sig)))
     monkeypatch.setattr(m.signal, 'getsignal', lambda sig: signal.SIG_DFL)
     monkeypatch.setattr(m.signal, 'signal', lambda sig, handler: handlers.__setitem__(sig, handler))
     monkeypatch.setattr(m.signal, 'alarm', lambda seconds: events.append(('alarm',seconds)))
@@ -163,7 +162,7 @@ def test_real_sigterm_unwinds_and_reaps_a_synthetic_owned_process(tmp_path):
     m = api()
     ready, closed = tmp_path/'ready', tmp_path/'closed'
     program = f'''
-import os,subprocess,sys,time
+import os,signal,subprocess,sys,time
 from pathlib import Path
 from tool import jellyfin_storage_ci as ci
 ci.validate_launch=lambda *args:'linux/amd64'
@@ -174,6 +173,8 @@ class Owned:
         self.process=subprocess.Popen([sys.executable,'-c','import time; time.sleep(30)'],start_new_session=True)
         Path({str(ready)!r}).write_text(str(self.process.pid))
         return self
+    def emergency_cleanup(self):
+        os.killpg(self.process.pid,signal.SIGKILL)
     def __exit__(self,*args):
         code=self.process.wait(timeout=3)
         Path({str(closed)!r}).write_text(str(code))

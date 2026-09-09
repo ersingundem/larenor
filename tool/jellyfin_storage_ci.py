@@ -84,8 +84,7 @@ def run():
         # Repeated cancellation must not interrupt the first cleanup's finally.
         for sig in signals:
             signal.signal(sig, signal.SIG_IGN)
-        if owner.process is not None:
-            smoke._signal_group(owner.process, signal.SIGKILL)
+        owner.emergency_cleanup()
         raise _Cancelled()
     try:
         for sig in signals:

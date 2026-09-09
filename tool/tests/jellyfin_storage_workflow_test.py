@@ -77,6 +77,16 @@ class JellyfinWorkflowPolicyTest(unittest.TestCase):
         self.assertNotIn('setup-qemu', text)
         self.assertNotIn('setup-buildx', text)
 
+    def test_native_host_requires_supported_systemd_and_unified_cgroup(self):
+        steps = self.workflow()['jobs']['characterize']['steps']
+        step = next(s for s in steps if s.get('name') == 'Require owned cgroup runtime')
+        script = step['run']
+        self.assertIn('/usr/bin/systemd-run --version', script)
+        self.assertIn('-ge 254', script)
+        self.assertIn('cgroup2fs', script)
+        self.assertIn('/sys/fs/cgroup/cgroup.controllers', script)
+        self.assertLess(steps.index(step), next(i for i,s in enumerate(steps) if s.get('id') == 'native'))
+
 
     def test_actual_root_shell_drops_secrets_and_preserves_failure_status(self):
         step = next(s for s in self.workflow()['jobs']['characterize']['steps'] if s.get('id') == 'native')

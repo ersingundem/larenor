@@ -38,6 +38,10 @@
           "run": "test \"$GITHUB_EVENT_NAME\" = workflow_dispatch\ntest \"$GITHUB_REF\" = refs/heads/main\ntest \"$GITHUB_REPOSITORY\" = ersingundem/larenor\ntest \"$GITHUB_WORKFLOW_SHA\" = \"$GITHUB_SHA\"\ntest \"$RUNNER_ENVIRONMENT\" = github-hosted"
         },
         {
+          "name": "Require owned cgroup runtime",
+          "run": "test -x /usr/bin/systemd-run\ntest -x /usr/bin/systemctl\ntest -x /usr/bin/unshare\ntest -x /usr/bin/dockerd\nsystemd_major=\"$(/usr/bin/systemd-run --version | /usr/bin/awk 'NR == 1 { print $2 }')\"\ncase \"$systemd_major\" in ''|*[!0-9]*) exit 1;; esac\ntest \"$systemd_major\" -ge 254\ntest \"$(/usr/bin/stat --file-system --format=%T /sys/fs/cgroup)\" = cgroup2fs\ntest -r /sys/fs/cgroup/cgroup.controllers"
+        },
+        {
           "uses": "actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
           "with": {
             "ref": "${{ github.sha }}",

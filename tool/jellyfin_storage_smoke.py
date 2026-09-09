@@ -1,13 +1,15 @@
 #!/usr/bin/env python3
 """Opt-in native CI characterization; never connects to an existing daemon.
 
-The only CLI action creates its own mount/PID namespace, daemon, data root,
-socket and empty Docker client configuration. No supplied socket/platform or
-DOCKER_HOST fallback exists. CI environment checks are an accidental-use guard,
-not a production authority issuer. This is not wired to Server API/runtime.
+The only CLI action creates a transient owned cgroup, mount namespace, daemon,
+data root, socket and empty Docker client configuration. No supplied socket,
+platform or DOCKER_HOST fallback exists. CI environment checks are an
+accidental-use guard, not a production authority issuer. This is not wired to
+Server API/runtime.
 """
 from contextlib import contextmanager
 from dataclasses import dataclass
+import errno
 import hashlib
 import json
 import os
@@ -32,7 +34,8 @@ _COMMIT = re.compile(r'[0-9a-f]{40}\Z')
 _CODES = {'storage_characterization_failed','native_ephemeral_ci_required','fixture_command_failed',
     'owned_daemon_lost','owned_daemon_unavailable','owned_cleanup_failed','fixture_image_unresolved',
     'fixture_volume_unresolved','fixture_protocol_failed','jellyfin_startup_timeout',
-    'unexpected_image_volume','unexpected_initial_write_access','restart_identity_changed','fixture_source_changed'}
+    'unexpected_image_volume','unexpected_initial_write_access','restart_identity_changed','fixture_source_changed',
+    'owned_daemon_scope_invalid'}
 # Quiet legacy build can emit buffered progress followed by its final error.
 # Keep the complete diagnostic input bounded; never export or persist it.
 _BUILD_STDERR_LIMIT = 65536
@@ -468,24 +471,180 @@ def bounded_command(arguments, *, environment, timeout=60, limit=65536,
                     process.stderr.close()
 
 
+def daemon_unit(root):
+    name = root.name
+    require(re.fullmatch(r'larenor-jellyfin-[a-z0-9_-]{6,72}', name) is not None,
+            'owned_daemon_scope_invalid')
+    return name+'.service'
+
+
+def container_cgroup_parent(root):
+    return '/system.slice/'+daemon_unit(root)+'/containers'
+
+
 def daemon_command(root):
-    return ['/usr/bin/unshare', '--mount', '--propagation=private', '--pid', '--fork',
-        '--kill-child=SIGKILL', '--mount-proc', '/usr/bin/dockerd',
+    unit = daemon_unit(root)
+    environment = child_environment(root)
+    return ['/usr/bin/systemd-run', '--quiet', '--no-ask-password', '--collect',
+        '--expand-environment=no', '--unit='+unit,
+        '--property=Type=exec', '--property=ExitType=main', '--property=Restart=no',
+        '--property=Delegate=yes', '--property=DelegateSubgroup=daemon',
+        '--property=KillMode=control-group', '--property=SendSIGKILL=yes',
+        '--property=TimeoutStartSec=45s', '--property=TimeoutStopSec=15s',
+        '--property=RuntimeMaxSec=1200s', '--property=StandardInput=null',
+        '--property=StandardOutput=null', '--property=StandardError=null',
+        '/usr/bin/env', '-i', *(key+'='+environment[key] for key in sorted(environment)),
+        '/usr/bin/unshare', '--mount', '--propagation=private', '/usr/bin/dockerd',
         '--host=unix://'+str(root/'engine.sock'), '--data-root='+str(root/'data'),
         '--exec-root='+str(root/'exec'), '--pidfile='+str(root/'daemon.pid'),
         '--config-file='+str(root/'daemon.json'), '--bridge=none', '--iptables=false',
         '--ip6tables=false', '--ip-forward=false', '--ip-masq=false',
-        '--userland-proxy=false', '--storage-driver=vfs', '--group=root']
+        '--userland-proxy=false', '--storage-driver=vfs', '--group=root',
+        '--exec-opt=native.cgroupdriver=cgroupfs',
+        '--cgroup-parent='+container_cgroup_parent(root)]
+
+
+_UNIT_PROPERTIES = ('Id','LoadState','ActiveState','SubState','Transient','InvocationID',
+    'ControlGroup','MainPID','KillMode','Delegate','DelegateSubgroup')
+
+
+def unit_show_command(root, *properties):
+    require(properties and all(property in _UNIT_PROPERTIES for property in properties),
+            'owned_daemon_scope_invalid')
+    return ['/usr/bin/systemctl','--no-ask-password','--no-pager','show',daemon_unit(root),
+        *(('--property='+property) for property in properties)]
+
+
+def _unit_properties(raw, root):
+    require(type(raw) is bytes and 0 < len(raw) <= 4096, 'owned_daemon_lost')
+    values = {}
+    try:
+        for line in raw.splitlines():
+            key, separator, value = line.partition(b'=')
+            key = key.decode('ascii')
+            require(separator == b'=' and key in _UNIT_PROPERTIES and key not in values,
+                    'owned_daemon_lost')
+            values[key] = value.decode('ascii')
+    except UnicodeError:
+        raise SmokeError('owned_daemon_lost') from None
+    require(set(values) == set(_UNIT_PROPERTIES)
+        and values['Id'] == daemon_unit(root)
+        and values['LoadState'] == 'loaded'
+        and values['ActiveState'] == 'active'
+        and values['SubState'] == 'running'
+        and values['Transient'] == 'yes'
+        and re.fullmatch(r'[0-9a-f]{32}', values['InvocationID']) is not None
+        and values['ControlGroup'] == '/system.slice/'+daemon_unit(root)
+        and re.fullmatch(r'[1-9][0-9]{0,9}', values['MainPID']) is not None
+        and values['KillMode'] == 'control-group'
+        and values['Delegate'] == 'yes'
+        and values['DelegateSubgroup'] == 'daemon', 'owned_daemon_lost')
+    return values
+
+
+def _bounded_file(path, limit=4096):
+    with path.open('rb') as source:
+        value = source.read(limit+1)
+    require(len(value) <= limit, 'owned_daemon_lost')
+    return value
+
+
+def _cgroup_populated(raw, code='owned_cleanup_failed'):
+    require(type(raw) is bytes and 0 < len(raw) <= 4096, code)
+    fields = {}
+    for line in raw.splitlines():
+        parts = line.split()
+        require(len(parts) == 2 and parts[0] not in fields, code)
+        fields[parts[0]] = parts[1]
+    require(fields.get(b'populated') in (b'0', b'1'), code)
+    return fields[b'populated'] == b'1'
 
 
 class EphemeralDaemon:
     """Own only resources created in this context; cleanup cannot select a host."""
     def __init__(self):
-        self.root = self.process = self.socket_identity = self.root_identity = None
+        self.root = self.socket_identity = self.root_identity = None
+        self.unit_attempted = False
+        self.unit_identity = self.cgroup_fd = self.cgroup_identity = None
+        self.cgroup_kill_fd = self.cgroup_events_fd = None
+        self.cgroup_live_observed = False
+        self.container_cgroup_parent = None
+        self.emergency_requested = self.emergency_applied = False
+
+    def _unit_output(self, *properties):
+        return bounded_command(unit_show_command(self.root, *properties),
+            environment=child_environment(self.root), timeout=5, limit=4096)
+
+    def _capture_unit(self):
+        values = _unit_properties(self._unit_output(*_UNIT_PROPERTIES), self.root)
+        process_cgroup = _bounded_file(Path('/proc')/values['MainPID']/'cgroup')
+        require(b'0::'+values['ControlGroup'].encode('ascii')+b'/daemon\n' in process_cgroup.splitlines(True),
+                'owned_daemon_lost')
+        path = Path('/sys/fs/cgroup'+values['ControlGroup'])
+        fd = kill_fd = events_fd = None
+        try:
+            fd = os.open(path, os.O_RDONLY|os.O_DIRECTORY|os.O_CLOEXEC|os.O_NOFOLLOW)
+            info = os.fstat(fd)
+            require(stat.S_ISDIR(info.st_mode), 'owned_daemon_lost')
+            kill_fd = os.open('cgroup.kill', os.O_WRONLY|os.O_CLOEXEC, dir_fd=fd)
+            events_fd = os.open('cgroup.events', os.O_RDONLY|os.O_CLOEXEC, dir_fd=fd)
+            initial = os.pread(events_fd, 4097, 0)
+            require(_cgroup_populated(initial, 'owned_daemon_lost'), 'owned_daemon_lost')
+            confirmed = _unit_properties(self._unit_output(*_UNIT_PROPERTIES), self.root)
+            require(confirmed == values, 'owned_daemon_lost')
+            confirm_fd = os.open(path, os.O_RDONLY|os.O_DIRECTORY|os.O_CLOEXEC|os.O_NOFOLLOW)
+            try:
+                confirm_info = os.fstat(confirm_fd)
+                confirmed_cgroup = _bounded_file(Path('/proc')/values['MainPID']/'cgroup')
+                require((confirm_info.st_dev, confirm_info.st_ino) == (info.st_dev, info.st_ino)
+                    and b'0::'+values['ControlGroup'].encode('ascii')+b'/daemon\n'
+                        in confirmed_cgroup.splitlines(True), 'owned_daemon_lost')
+            finally:
+                os.close(confirm_fd)
+        except BaseException:
+            for descriptor in (events_fd, kill_fd, fd):
+                if descriptor is not None:
+                    os.close(descriptor)
+            raise
+        self.unit_identity = values['InvocationID'], values['ControlGroup'], values['MainPID']
+        self.cgroup_fd, self.cgroup_kill_fd, self.cgroup_events_fd = fd, kill_fd, events_fd
+        self.cgroup_identity = info.st_dev, info.st_ino
+        self.cgroup_live_observed = True
+
+    def _check_unit(self):
+        values = _unit_properties(self._unit_output(*_UNIT_PROPERTIES), self.root)
+        info = os.fstat(self.cgroup_fd)
+        require(self.unit_identity == (values['InvocationID'],values['ControlGroup'],values['MainPID'])
+            and self.cgroup_identity == (info.st_dev,info.st_ino),
+            'owned_daemon_lost')
+
+    def emergency_cleanup(self):
+        self.emergency_requested = True
+        if self.cgroup_kill_fd is None or self.emergency_applied:
+            return
+        require(os.write(self.cgroup_kill_fd, b'1') == 1, 'owned_cleanup_failed')
+        self.emergency_applied = True
+
+    def _wait_cgroup_empty(self, *, retirement_allowed):
+        deadline = time.monotonic()+20
+        while True:
+            require(self.cgroup_events_fd is not None, 'owned_cleanup_failed')
+            try:
+                value = os.pread(self.cgroup_events_fd, 4097, 0)
+            except OSError as error:
+                require(error.errno == errno.ENODEV and retirement_allowed
+                    and self.cgroup_live_observed, 'owned_cleanup_failed')
+                return
+            require(len(value) <= 4096, 'owned_cleanup_failed')
+            if not _cgroup_populated(value):
+                return
+            require(time.monotonic() < deadline, 'owned_cleanup_failed')
+            time.sleep(0.05)
 
     def _socket(self):
         try:
-            require(self.process is not None and self.process.poll() is None, 'owned_daemon_lost')
+            require(self.unit_identity is not None, 'owned_daemon_lost')
+            self._check_unit()
             value = (self.root/'engine.sock').lstat()
             require(stat.S_ISSOCK(value.st_mode) and value.st_uid == 0
                     and not value.st_mode & 0o002, 'owned_daemon_lost')
@@ -498,27 +657,52 @@ class EphemeralDaemon:
     def docker(self, args, *, timeout=60, limit=65536, diagnose_failure=False, diagnose_process=False,
                diagnose_start=False):
         self._socket()
+        if args and args[0] in ('create','run'):
+            requested = [arg for arg in args if arg.startswith('--cgroup-parent=')]
+            require(requested == ['--cgroup-parent='+self.container_cgroup_parent],
+                    'owned_daemon_scope_invalid')
         return bounded_command(['/usr/bin/docker', '--host=unix://'+str(self.root/'engine.sock'),
             '--config='+str(self.root/'docker-config'), *args], environment=child_environment(self.root),
             timeout=timeout, limit=limit, diagnose_failure=diagnose_failure,
             diagnose_process=diagnose_process, diagnose_start=diagnose_start)
 
+    def verify_container_cgroup(self, pid):
+        require(type(pid) is int and pid > 0 and type(self.container_cgroup_parent) is str,
+                'owned_daemon_lost')
+        try:
+            value = _bounded_file(Path('/proc')/str(pid)/'cgroup')
+        except OSError:
+            raise SmokeError('owned_daemon_lost') from None
+        prefix = b'0::'+self.container_cgroup_parent.encode('ascii')+b'/'
+        require(any(line.startswith(prefix) for line in value.splitlines(True)),
+                'owned_daemon_lost')
+
     @diagnostic_phase('daemon_start')
     def __enter__(self):
         self.platform = native_platform(os.environ, platform.system(), platform.machine(), os.geteuid())
-        self.root = Path(tempfile.mkdtemp(prefix='larenor-jellyfin-', dir='/tmp'))
+        self.root = Path(tempfile.mkdtemp(prefix='larenor-jellyfin-'+uuid.uuid4().hex+'-', dir='/tmp'))
         info = self.root.lstat()
         self.root_identity = info.st_dev, info.st_ino
         try:
+            self.container_cgroup_parent = container_cgroup_parent(self.root)
             (self.root/'docker-config').mkdir(mode=0o700)
             (self.root/'daemon.json').write_text('{}')
             (self.root/'daemon.json').chmod(0o600)
-            self.process = subprocess.Popen(daemon_command(self.root), env=child_environment(self.root),
-                stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-                start_new_session=True)
+            self.unit_attempted = True
+            try:
+                launched = bounded_command(daemon_command(self.root),
+                    environment=child_environment(self.root), timeout=15, limit=256,
+                    diagnose_process=True)
+            except SmokeError as error:
+                if _error_code(error) == 'fixture_command_spawn_failed':
+                    self.unit_attempted = False
+                raise
+            require(launched == b'', 'owned_daemon_unavailable')
+            self._capture_unit()
             deadline = time.monotonic() + 40
             while not (self.root/'engine.sock').exists():
-                require(self.process.poll() is None and time.monotonic() < deadline, 'owned_daemon_unavailable')
+                require(time.monotonic() < deadline, 'owned_daemon_unavailable')
+                self._check_unit()
                 time.sleep(0.1)
             self.socket_identity = self._socket()
             actual = json.loads(self.docker(['info', '--format', '{{json .DockerRootDir}}']))
@@ -530,22 +714,28 @@ class EphemeralDaemon:
 
     @diagnostic_phase('daemon_cleanup')
     def __exit__(self, *_):
-        if self.process is not None:
-            _signal_group(self.process, signal.SIGTERM)
+        if self.unit_attempted and self.cgroup_fd is None:
+            raise SmokeError('owned_cleanup_failed')
+        if self.cgroup_fd is not None:
             try:
-                self.process.wait(timeout=15)
-            except subprocess.TimeoutExpired:
-                pass
+                self.emergency_cleanup()
+                self._wait_cgroup_empty(retirement_allowed=self.emergency_applied)
             finally:
-                _signal_group(self.process, signal.SIGKILL)
-                self.process.wait(timeout=5)
-            self.process = None
+                for descriptor in (self.cgroup_events_fd, self.cgroup_kill_fd, self.cgroup_fd):
+                    if descriptor is not None:
+                        os.close(descriptor)
+            self.cgroup_kill_fd = self.cgroup_events_fd = None
+            self.cgroup_fd = self.cgroup_identity = self.unit_identity = None
+            self.cgroup_live_observed = False
+            self.emergency_requested = self.emergency_applied = False
+        self.unit_attempted = False
         if self.root is not None:
             value = self.root.lstat()
             require(stat.S_ISDIR(value.st_mode) and (value.st_dev, value.st_ino) == self.root_identity,
                     'owned_cleanup_failed')
             shutil.rmtree(self.root)
             self.root = None
+            self.container_cgroup_parent = None
 
 
 @dataclass(frozen=True, repr=False)
@@ -692,12 +882,13 @@ def helper_attestation(image_id, inspected, selected_platform, commit, *, expect
         'dockerfileSha256': hashes['server/Dockerfile.volume-bootstrap'], 'sourceHashes':hashes}
 
 
-def verify_container(value, source, image_config):
+def verify_container(value, source, image_config, expected_cgroup_parent):
     require(type(value) is dict and value.get('Image') == source.image.image.configDigest)
     config, host = value.get('Config',{}), value.get('HostConfig',{})
     require(config.get('User') == '1000:1000' and host.get('NetworkMode') == 'none'
         and not host.get('PortBindings') and host.get('Privileged') is False
-        and host.get('CapDrop') == ['ALL'])
+        and host.get('CapDrop') == ['ALL']
+        and host.get('CgroupParent') == expected_cgroup_parent)
     for key in ('Entrypoint','Cmd','Volumes'):
         require(config.get(key) == image_config.get(key))
     mounts, requested = value.get('Mounts'), host.get('Mounts')
@@ -722,7 +913,7 @@ def _decoded(raw):
 
 
 
-def _base_container(value, image_id, container_id, *, finished):
+def _base_container(value, image_id, container_id, expected_cgroup_parent, *, finished):
     require(type(value) is dict and value.get('Id') == container_id
         and value.get('Image') == image_id, 'fixture_protocol_failed')
     config, host, state = value.get('Config'), value.get('HostConfig'), value.get('State')
@@ -733,6 +924,7 @@ def _base_container(value, image_id, container_id, *, finished):
         and not config.get('Volumes') and value.get('Mounts') == []
         and host.get('NetworkMode') == 'none' and host.get('ReadonlyRootfs') is True
         and host.get('Privileged') is False and host.get('CapDrop') == ['ALL']
+        and host.get('CgroupParent') == expected_cgroup_parent
         and not any(host.get(k) for k in ('CapAdd','Binds','Mounts','VolumesFrom','PortBindings')),
         'fixture_protocol_failed')
     require(state.get('Status') == ('exited' if finished else 'created')
@@ -772,12 +964,14 @@ def _helper_base(daemon, context, binding):
         raw = daemon.docker(['create','--name=larenor-helper-base-probe','--pull=never','--network=none',
             '--read-only','--cap-drop=ALL','--security-opt=no-new-privileges','--user=0:0',
             '--pids-limit=32','--memory=64m','--restart=no','--entrypoint=/usr/local/bin/python',
+            '--cgroup-parent='+daemon.container_cgroup_parent,
             image_id,'-I','-c','print("larenor-helper-base-ok-v1")'], limit=128)
         container_id = raw.decode('ascii').strip()
         require(re.fullmatch(r'[0-9a-f]{64}', container_id), 'fixture_protocol_failed')
     def inspect(finished):
         value = _decoded(daemon.docker(['container','inspect','--format','{{json .}}',container_id], limit=65536))
-        _base_container(value, image_id, container_id, finished=finished)
+        _base_container(value, image_id, container_id, daemon.container_cgroup_parent,
+            finished=finished)
     with diagnostic_phase('helper_base_created'):
         inspect(False)
     with diagnostic_phase('helper_base_start'):
@@ -795,6 +989,7 @@ def _helper_base(daemon, context, binding):
 def _helper(daemon, image_id, mode, *, target=None, bootstrap=False, network='none'):
     args = ['run','--rm','--network='+network,'--read-only','--cap-drop=ALL',
         '--security-opt=no-new-privileges','--pids-limit=32','--memory=64m',
+        '--cgroup-parent='+daemon.container_cgroup_parent,
         '--user='+('0:0' if bootstrap and mode != 'verify_root' else '1000:1000')]
     if mode == 'app_identity':
         require(re.fullmatch(r'container:[0-9a-f]{64}', network) is not None)
@@ -893,6 +1088,7 @@ def characterize(daemon, *, source=None, images=None, volumes=None, checkout_bin
     name = 'larenor-jellyfin-'+source.stack.preparationId
     args = ['create','--name='+name,'--network=none','--read-only','--cap-drop=ALL',
         '--security-opt=no-new-privileges','--user=1000:1000','--memory=4g','--cpus=2',
+        '--cgroup-parent='+daemon.container_cgroup_parent,
         '--pids-limit=512','--restart=no','--tmpfs=/tmp:rw,nosuid,nodev,size=67108864','--env=TZ=UTC']
     args += ['--mount=type=volume,src='+v.name+',dst='+v.target+',volume-nocopy' for v in source.targets]
     with diagnostic_phase('container_create'):
@@ -902,10 +1098,13 @@ def characterize(daemon, *, source=None, images=None, volumes=None, checkout_bin
     def inspect():
         value = _decoded(daemon.docker(['container','inspect','--format','{{json .}}',container_id], limit=262144))
         require(value.get('Id') == container_id)
-        verify_container(value, source, image_config)
+        verify_container(value, source, image_config, daemon.container_cgroup_parent)
+        return value
     inspect()
     with diagnostic_phase('container_start'):
         daemon.docker(['start',container_id], limit=128)
+        running = inspect()
+        daemon.verify_container_cgroup(running.get('State',{}).get('Pid'))
     with diagnostic_phase('initial_health'):
         first = _health(daemon, helper_id, container_id)
     with diagnostic_phase('initial_identity'):
@@ -923,7 +1122,8 @@ def characterize(daemon, *, source=None, images=None, volumes=None, checkout_bin
     with diagnostic_phase('restart_identity'):
         require(_helper(daemon, helper_id, 'app_identity', network='container:'+container_id)
                 == {'uid':1000,'gid':1000})
-    inspect()
+    running = inspect()
+    daemon.verify_container_cgroup(running.get('State',{}).get('Pid'))
     for target in source.targets:
         with diagnostic_phase('root_verify'):
             require(_helper(daemon, helper_id, 'verify_root', target=target, bootstrap=True)

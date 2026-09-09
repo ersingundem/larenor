@@ -83,7 +83,7 @@ def test_actual_daemon_start_failure_cleans_its_directory(launched, monkeypatch,
     import sys
     monkeypatch.setitem(sys.modules, spec.name, module)
     spec.loader.exec_module(module)
-    owned = tmp_path/'owned'
+    owned = tmp_path/'larenor-jellyfin-testnonce'
     monkeypatch.setattr(module, 'native_platform', lambda *args: 'linux/amd64')
     def directory(**kwargs):
         owned.mkdir(mode=0o700)
@@ -96,7 +96,7 @@ def test_actual_daemon_start_failure_cleans_its_directory(launched, monkeypatch,
         module.EphemeralDaemon().__enter__()
     assert not owned.exists()
     assert module.failure_diagnostic(caught.value) == ('storage_characterization_failed '
-        'phase=daemon_start code=storage_characterization_failed')
+        'phase=daemon_start code=fixture_command_spawn_failed')
     assert capsys.readouterr().out == ''
 
 

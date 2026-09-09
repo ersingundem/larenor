@@ -135,17 +135,170 @@ def test_command_limit_timeout_and_error_are_static_and_reaped(program, limit, t
 
 def test_owned_daemon_command_disables_default_bridge_and_external_config(tmp_path):
     m = api()
-    root = tmp_path/'owned'
+    root = tmp_path/'larenor-jellyfin-testnonce'
     root.mkdir(mode=0o700)
     args = m.daemon_command(root)
-    assert args[:2] == ['/usr/bin/unshare','--mount']
-    assert '--pid' in args and '--fork' in args and '--kill-child=SIGKILL' in args
+    unit = 'larenor-jellyfin-testnonce.service'
+    cgroup = '/system.slice/'+unit
+    assert args[:4] == ['/usr/bin/systemd-run','--quiet','--no-ask-password','--collect']
+    assert '--unit='+unit in args and '--property=Type=exec' in args
+    assert '--property=Delegate=yes' in args and '--property=DelegateSubgroup=daemon' in args
+    assert '--property=KillMode=control-group' in args and '--property=SendSIGKILL=yes' in args
+    assert '--property=RuntimeMaxSec=1200s' in args and '--property=TimeoutStopSec=15s' in args
+    assert '/usr/bin/env' in args and '-i' in args
+    unshare = args.index('/usr/bin/unshare')
+    assert args[unshare:unshare+3] == ['/usr/bin/unshare','--mount','--propagation=private']
+    assert not any(arg in args for arg in ('--pid','--fork','--kill-child=SIGKILL','--mount-proc'))
+    assert '--exec-opt=native.cgroupdriver=cgroupfs' in args
+    assert '--cgroup-parent='+cgroup+'/containers' in args
     assert '--host=unix://'+str(root/'engine.sock') in args
     assert '--data-root='+str(root/'data') in args
     assert '--exec-root='+str(root/'exec') in args
     assert '--config-file='+str(root/'daemon.json') in args
     assert '--bridge=none' in args and '--iptables=false' in args and '--ip-forward=false' in args
     assert not any('/var/run/' in arg or '/var/lib/docker' in arg for arg in args)
+
+
+def test_owned_daemon_unit_rejects_non_fixture_or_ambiguous_names(tmp_path):
+    m = api()
+    assert m.daemon_unit(tmp_path/'larenor-jellyfin-a1b2c3') == 'larenor-jellyfin-a1b2c3.service'
+    assert m.daemon_unit(tmp_path/'larenor-jellyfin-a1_b2-c3') == 'larenor-jellyfin-a1_b2-c3.service'
+    for name in ('owned','larenor-jellyfin-a/b','larenor-jellyfin-a.service','larenor-jellyfin-A'):
+        with pytest.raises(m.SmokeError, match='^owned_daemon_scope_invalid$'):
+            m.daemon_unit(tmp_path/name)
+
+
+def _unit_state(m, root, **changes):
+    values = {'Id':m.daemon_unit(root),'LoadState':'loaded','ActiveState':'active',
+        'SubState':'running','Transient':'yes','InvocationID':'a'*32,
+        'ControlGroup':'/system.slice/'+m.daemon_unit(root),'MainPID':'12345',
+        'KillMode':'control-group','Delegate':'yes','DelegateSubgroup':'daemon'}
+    values.update(changes)
+    return b''.join(key.encode()+b'='+values[key].encode()+b'\n' for key in m._UNIT_PROPERTIES)
+
+
+def test_owned_unit_state_requires_exact_transient_cgroup_identity(tmp_path):
+    m = api()
+    root = tmp_path/'larenor-jellyfin-testnonce'
+    values = m._unit_properties(_unit_state(m,root),root)
+    assert values['InvocationID'] == 'a'*32 and values['MainPID'] == '12345'
+
+
+@pytest.mark.parametrize('changes', [
+    {'Id':'foreign.service'}, {'LoadState':'not-found'}, {'ActiveState':'inactive'},
+    {'SubState':'exited'}, {'Transient':'no'}, {'InvocationID':'not-an-id'},
+    {'ControlGroup':'/system.slice/foreign.service'}, {'MainPID':'0'},
+    {'KillMode':'process'}, {'Delegate':'no'}, {'DelegateSubgroup':'containers'},
+])
+def test_owned_unit_state_rejects_changed_or_weakened_properties(tmp_path, changes):
+    m = api()
+    root = tmp_path/'larenor-jellyfin-testnonce'
+    with pytest.raises(m.SmokeError, match='^owned_daemon_lost$'):
+        m._unit_properties(_unit_state(m,root,**changes),root)
+
+
+def test_owned_unit_state_rejects_duplicate_or_extra_properties(tmp_path):
+    m = api()
+    root = tmp_path/'larenor-jellyfin-testnonce'
+    valid = _unit_state(m,root)
+    for raw in (valid+b'Id='+m.daemon_unit(root).encode()+b'\n', valid+b'Unknown=value\n',
+                b'Id=\xff\n'):
+        with pytest.raises(m.SmokeError, match='^owned_daemon_lost$'):
+            m._unit_properties(raw,root)
+
+
+@pytest.mark.parametrize('initial,accepted', [(b'populated 1\nfrozen 0\n',True),
+                                               (b'populated 0\nfrozen 0\n',False)])
+def test_unit_capture_pins_live_cgroup_control_files_before_ownership(monkeypatch, tmp_path,
+                                                                     initial, accepted):
+    m = api()
+    root = tmp_path/'larenor-jellyfin-testnonce'
+    owner = m.EphemeralDaemon()
+    owner.root = root
+    owner._unit_output = lambda *properties:_unit_state(m,root)
+    monkeypatch.setattr(m,'_bounded_file',lambda path:
+        b'0::/system.slice/larenor-jellyfin-testnonce.service/daemon\n')
+    opened = iter((99,100,101,102))
+    monkeypatch.setattr(m.os,'open',lambda *args,**kwargs:next(opened))
+    monkeypatch.setattr(m.os,'fstat',lambda fd:SimpleNamespace(st_mode=stat.S_IFDIR,
+        st_dev=7,st_ino=11))
+    monkeypatch.setattr(m.os,'pread',lambda fd,size,offset:initial)
+    closed = []
+    monkeypatch.setattr(m.os,'close',closed.append)
+    if accepted:
+        owner._capture_unit()
+        assert owner.cgroup_fd == 99 and owner.cgroup_kill_fd == 100
+        assert owner.cgroup_events_fd == 101 and owner.cgroup_live_observed is True
+        assert closed == [102]
+    else:
+        with pytest.raises(m.SmokeError, match='^owned_daemon_lost$'):
+            owner._capture_unit()
+        assert closed == [101,100,99]
+        assert owner.cgroup_fd is None and owner.unit_identity is None
+
+
+def test_unit_replacement_during_capture_closes_every_temporary_fd_without_kill(monkeypatch,
+                                                                                tmp_path):
+    m = api()
+    root = tmp_path/'larenor-jellyfin-testnonce'
+    owner = m.EphemeralDaemon()
+    owner.root = root
+    states = iter((_unit_state(m,root), _unit_state(m,root,InvocationID='b'*32)))
+    owner._unit_output = lambda *properties:next(states)
+    monkeypatch.setattr(m,'_bounded_file',lambda path:
+        b'0::/system.slice/larenor-jellyfin-testnonce.service/daemon\n')
+    opened = iter((99,100,101))
+    monkeypatch.setattr(m.os,'open',lambda *args,**kwargs:next(opened))
+    monkeypatch.setattr(m.os,'fstat',lambda fd:SimpleNamespace(st_mode=stat.S_IFDIR,
+        st_dev=7,st_ino=11))
+    monkeypatch.setattr(m.os,'pread',lambda fd,size,offset:b'populated 1\nfrozen 0\n')
+    closed = []
+    monkeypatch.setattr(m.os,'close',closed.append)
+    monkeypatch.setattr(m.os,'write',lambda *args:pytest.fail('foreign cgroup was killed'))
+    with pytest.raises(m.SmokeError, match='^owned_daemon_lost$'):
+        owner._capture_unit()
+    assert closed == [101,100,99]
+    assert owner.cgroup_fd is None and owner.cgroup_kill_fd is None
+
+
+@pytest.mark.parametrize('raw,expected', [
+    (b'populated 1\nfrozen 0\n', True),
+    (b'frozen 0\npopulated 0\n', False),
+])
+def test_cgroup_events_requires_one_bounded_populated_field(raw, expected):
+    m = api()
+    assert m._cgroup_populated(raw) is expected
+
+
+@pytest.mark.parametrize('raw', [b'', b'populated 2\n', b'populated\n',
+    b'populated 0\npopulated 1\n', b'populated 0\nbad\n', b'x '*4097])
+def test_cgroup_events_rejects_missing_duplicate_malformed_or_oversize_state(raw):
+    m = api()
+    with pytest.raises(m.SmokeError, match='^owned_cleanup_failed$'):
+        m._cgroup_populated(raw)
+
+
+def test_authenticated_removed_cgroup_is_empty_only_after_owned_termination(monkeypatch):
+    import errno
+    m = api()
+    owner = m.EphemeralDaemon()
+    owner.cgroup_events_fd = 101
+    owner.cgroup_live_observed = True
+    monkeypatch.setattr(m.os,'pread',lambda *args:(_ for _ in ()).throw(OSError(errno.ENODEV,'retired')))
+    assert owner._wait_cgroup_empty(retirement_allowed=True) is None
+    with pytest.raises(m.SmokeError, match='^owned_cleanup_failed$'):
+        owner._wait_cgroup_empty(retirement_allowed=False)
+
+
+@pytest.mark.parametrize('error', [2,5,9,13])
+def test_cgroup_event_io_errors_are_never_empty(monkeypatch, error):
+    m = api()
+    owner = m.EphemeralDaemon()
+    owner.cgroup_events_fd = 101
+    owner.cgroup_live_observed = True
+    monkeypatch.setattr(m.os,'pread',lambda *args:(_ for _ in ()).throw(OSError(error,'private')))
+    with pytest.raises(m.SmokeError, match='^owned_cleanup_failed$'):
+        owner._wait_cgroup_empty(retirement_allowed=True)
 
 
 def test_helper_attestation_uses_actual_build_id_not_a_fabricated_manifest(tmp_path):
@@ -163,11 +316,53 @@ def test_replaced_socket_fails_before_any_cli_dispatch(tmp_path):
     m = api()
     daemon = m.EphemeralDaemon()
     daemon.root = tmp_path
-    daemon.process = SimpleNamespace(poll=lambda:None)
+    daemon.unit_identity = ('a'*32,'/system.slice/larenor-jellyfin-test.service','12345')
+    daemon._check_unit = lambda: None
     daemon.socket_identity = (1,2)
     (tmp_path/'engine.sock').write_text('wrong object')
     with pytest.raises(m.SmokeError, match='^owned_daemon_lost$'):
         daemon.docker(['info'])
+
+
+@pytest.mark.parametrize('state', [
+    b'0::/system.slice/larenor-jellyfin-test.service/containers/docker/abc\n',
+    b'0::/system.slice/larenor-jellyfin-test.service/containers/abc\n',
+])
+def test_running_container_pid_must_be_inside_owned_container_cgroup(monkeypatch, state):
+    m = api()
+    daemon = m.EphemeralDaemon()
+    daemon.container_cgroup_parent = '/system.slice/larenor-jellyfin-test.service/containers'
+    monkeypatch.setattr(m, '_bounded_file', lambda path: state)
+    assert daemon.verify_container_cgroup(4242) is None
+
+
+@pytest.mark.parametrize('pid,state', [(0,b'0::/x\n'), (4242,b'0::/system.slice/foreign.service\n'),
+    (4242,b'0::/system.slice/larenor-jellyfin-test.service/containers2/abc\n')])
+def test_running_container_pid_rejects_invalid_or_escaped_cgroup(monkeypatch, pid, state):
+    m = api()
+    daemon = m.EphemeralDaemon()
+    daemon.container_cgroup_parent = '/system.slice/larenor-jellyfin-test.service/containers'
+    monkeypatch.setattr(m, '_bounded_file', lambda path: state)
+    with pytest.raises(m.SmokeError, match='^owned_daemon_lost$'):
+        daemon.verify_container_cgroup(pid)
+
+
+def test_docker_mutations_require_one_exact_owned_cgroup_parent(monkeypatch, tmp_path):
+    m = api()
+    daemon = m.EphemeralDaemon()
+    daemon.root = tmp_path
+    daemon.container_cgroup_parent = '/system.slice/larenor-jellyfin-test.service/containers'
+    daemon._socket = lambda: None
+    calls = []
+    monkeypatch.setattr(m, 'bounded_command', lambda args, **kwargs:calls.append(args) or b'')
+    exact = '--cgroup-parent='+daemon.container_cgroup_parent
+    daemon.docker(['create',exact,'image'])
+    assert len(calls) == 1
+    for args in (['create','image'], ['run',exact,exact,'image'],
+                 ['run','--cgroup-parent=/system.slice/foreign.service','image']):
+        with pytest.raises(m.SmokeError, match='^owned_daemon_scope_invalid$'):
+            daemon.docker(args)
+    assert len(calls) == 1
 
 
 def test_full_characterization_consumer_exists():
@@ -182,22 +377,28 @@ def test_container_inspection_rejects_anonymous_copyup_or_wrong_user():
     current = {'Id':'c'*64,'Image':source.image.image.configDigest,
         'Config':dict(expected, User='1000:1000'),
         'HostConfig':{'NetworkMode':'none','PortBindings':{},'Privileged':False,'CapDrop':['ALL'],
+            'CgroupParent':'/system.slice/test.service/containers',
             'Mounts':[{'Type':'volume','Source':v.name,'Target':v.target,'ReadOnly':False,
                        'VolumeOptions':{'NoCopy':True}} for v in source.targets]},
         'Mounts':[{'Type':'volume','Name':v.name,'Driver':'local','Destination':v.target,'RW':True}
             for v in source.targets]}
-    assert m.verify_container(current, source, expected) is None
+    assert m.verify_container(current, source, expected,
+        '/system.slice/test.service/containers') is None
     current['Mounts'].append({'Type':'volume','Name':'foreign','Destination':'/extra','RW':True})
     with pytest.raises(m.SmokeError):
-        m.verify_container(current, source, expected)
+        m.verify_container(current, source, expected, '/system.slice/test.service/containers')
     current['Mounts'].pop()
     current['HostConfig']['Mounts'][0]['VolumeOptions']['NoCopy'] = False
     with pytest.raises(m.SmokeError):
-        m.verify_container(current, source, expected)
+        m.verify_container(current, source, expected, '/system.slice/test.service/containers')
     current['HostConfig']['Mounts'][0]['VolumeOptions']['NoCopy'] = True
     current['Config']['User'] = '0:0'
     with pytest.raises(m.SmokeError):
-        m.verify_container(current, source, expected)
+        m.verify_container(current, source, expected, '/system.slice/test.service/containers')
+    current['Config']['User'] = '1000:1000'
+    current['HostConfig']['CgroupParent'] = '/system.slice/foreign.service'
+    with pytest.raises(m.SmokeError):
+        m.verify_container(current, source, expected, '/system.slice/test.service/containers')
 
 
 @pytest.fixture
@@ -219,9 +420,12 @@ def protocol(tmp_path, monkeypatch, request):
     class Docker:
         root = tmp_path
         platform = 'linux/amd64'
+        container_cgroup_parent = '/system.slice/larenor-jellyfin-test.service/containers'
         fault = None
         restarted = False
         base_started = False
+        app_started = False
+        verified_pids = []
         calls = []
         seen = {}
         def docker(self, args, **kwargs):
@@ -238,6 +442,7 @@ def protocol(tmp_path, monkeypatch, request):
                     'RepoDigests':['python@'+reference.split('@')[1]],'Config':{'Volumes':None}}).encode()
             if args[0] == 'create' and '--name=larenor-helper-base-probe' in args:
                 assert '--pull=never' in args and '--network=none' in args
+                assert '--cgroup-parent='+self.container_cgroup_parent in args
                 assert not any(a.startswith(('--mount','--volume','--publish')) for a in args)
                 return ('d'*64+'\n').encode()
             if args == ['start','--attach','d'*64]:
@@ -248,7 +453,8 @@ def protocol(tmp_path, monkeypatch, request):
                     'Config':{'User':'0:0','Entrypoint':['/usr/local/bin/python'],
                         'Cmd':['-I','-c','print("larenor-helper-base-ok-v1")']},
                     'HostConfig':{'NetworkMode':'none','ReadonlyRootfs':True,'Privileged':False,
-                        'CapDrop':['ALL'],'CapAdd':None,'Binds':None,'Mounts':None,'VolumesFrom':None},
+                        'CapDrop':['ALL'],'CapAdd':None,'Binds':None,'Mounts':None,'VolumesFrom':None,
+                        'CgroupParent':self.container_cgroup_parent},
                     'Mounts':[], 'State':{'Status':'exited' if self.base_started else 'created',
                         'Running':False,'Paused':False,'Dead':False,'OOMKilled':False,'ExitCode':0}}).encode()
             if args[0] == 'build':
@@ -263,19 +469,23 @@ def protocol(tmp_path, monkeypatch, request):
                 if args[0] == self.fault:
                     raise m.SmokeError('fixture_command_failed')
                 self.restarted |= args[0] == 'restart'
+                self.app_started = True
                 return ('c'*64+'\n').encode()
             if args[:2] == ['container','inspect']:
                 value = {'Id':'c'*64,'Image':source.image.image.configDigest,
                     'Config':dict(image_config,User='1000:1000'),
                     'HostConfig':{'NetworkMode':'none','Privileged':False,'CapDrop':['ALL'],
+                        'CgroupParent':self.container_cgroup_parent,
                         'Mounts':[{'Type':'volume','Source':v.name,'Target':v.target,
                             'VolumeOptions':{'NoCopy':True}} for v in source.targets]},
                     'Mounts':[{'Type':'volume','Name':v.name,'Driver':'local','Destination':v.target,'RW':True}
-                        for v in source.targets]}
+                        for v in source.targets],
+                    'State':{'Pid':4242 if self.app_started else 0}}
                 if self.fault == 'mount':
                     value['Mounts'].append({'Type':'volume','Name':'foreign','Destination':'/extra'})
                 return json.dumps(value).encode()
             assert args[0] == 'run'
+            assert '--cgroup-parent='+self.container_cgroup_parent in args
             mode = args[-1]
             if mode == self.fault:
                 raise m.SmokeError('fixture_command_failed')
@@ -300,6 +510,9 @@ def protocol(tmp_path, monkeypatch, request):
                 assert mode in {'write_sentinel','verify_sentinel'}
                 value = {'sentinel':'verified','uid':1000,'gid':1000}
             return json.dumps(value).encode()
+        def verify_container_cgroup(self, pid):
+            assert pid == 4242
+            self.verified_pids.append(pid)
     return m, source, Docker(), Images()
 
 
@@ -316,9 +529,11 @@ def test_complete_protocol_uses_two_nocopy_mounts_and_one_restart(protocol):
     creates = next(c for c in docker.calls if c[0]=='create' and '--name=larenor-helper-base-probe' not in c)
     assert len([a for a in creates if a.startswith('--mount=')]) == 2
     assert '--network=none' in creates and '--user=1000:1000' in creates
+    assert '--cgroup-parent='+docker.container_cgroup_parent in creates
     assert not any(a.startswith(('--publish','--privileged','--volume=')) for c in docker.calls for a in c)
     assert sum(c[-1]=='initialize_empty_root' for c in docker.calls) == 2
     assert sum(c[-1]=='verify_sentinel' for c in docker.calls) == 2
+    assert docker.verified_pids == [4242,4242]
 
 
 @pytest.mark.parametrize('fault', ['initialize_empty_root','start','restart','identity','mount','initial_data'])
@@ -384,10 +599,10 @@ def test_cli_verifies_checkout_before_starting_daemon(monkeypatch, capsys):
     assert calls == [('source','a'*40),('source','a'*40),'enter','exit']
 
 
-@pytest.mark.parametrize('failure', [None,'popen','wrong_root','body'])
+@pytest.mark.parametrize('failure', [None,'spawn_failure','launch_uncertain','wrong_root','body'])
 def test_daemon_lifecycle_reaps_only_owned_process_and_directory(tmp_path, monkeypatch, failure):
     m = api()
-    owned = tmp_path/'owned'
+    owned = tmp_path/'larenor-jellyfin-testnonce'
     outsider = tmp_path/'unrelated'
     outsider.mkdir()
     (outsider/'keep').write_text('keep')
@@ -397,28 +612,39 @@ def test_daemon_lifecycle_reaps_only_owned_process_and_directory(tmp_path, monke
         return str(owned)
     monkeypatch.setattr(m,'native_platform',lambda *a:'linux/amd64')
     monkeypatch.setattr(m.tempfile,'mkdtemp',directory)
-    class Process:
-        pid=12345
-        code=None
-        def poll(self):
-            return self.code
-        def wait(self,**_):
-            events.append('wait')
-            self.code=0
-            return 0
-    def spawn(args,**kwargs):
-        events.append('spawn')
-        assert kwargs['env']['HOME'] == str(owned)
-        if failure == 'popen':
-            raise OSError('synthetic-private')
-        (owned/'engine.sock').touch()
-        return Process()
-    monkeypatch.setattr(m.subprocess,'Popen',spawn)
-    monkeypatch.setattr(m.EphemeralDaemon,'_socket',lambda _: (1,2))
+    def command(args, **kwargs):
+        if args[0] == '/usr/bin/systemd-run':
+            events.append('launch')
+            assert kwargs['environment']['HOME'] == str(owned)
+            if failure == 'spawn_failure':
+                raise m.SmokeError('fixture_command_spawn_failed')
+            if failure == 'launch_uncertain':
+                raise m.SmokeError('fixture_command_exit_failed')
+            (owned/'engine.sock').touch()
+            return b''
+        raise AssertionError(args)
+    monkeypatch.setattr(m,'bounded_command',command)
+    def capture(self):
+        events.append('capture')
+        self.unit_identity = ('a'*32,'/system.slice/'+m.daemon_unit(owned),'12345')
+        self.cgroup_fd, self.cgroup_identity = 99, (1,2)
+        self.cgroup_kill_fd, self.cgroup_events_fd = 100, 101
+        self.cgroup_live_observed = True
+    monkeypatch.setattr(m.EphemeralDaemon,'_capture_unit',capture)
+    monkeypatch.setattr(m.EphemeralDaemon,'_check_unit',lambda _:events.append('check'))
+    def kill(self):
+        events.append('cgroup.kill')
+        self.emergency_requested = self.emergency_applied = True
+    monkeypatch.setattr(m.EphemeralDaemon,'emergency_cleanup',kill)
+    monkeypatch.setattr(m.EphemeralDaemon,'_wait_cgroup_empty',
+        lambda _,**kwargs:events.append(('empty',kwargs['retirement_allowed'])))
+    monkeypatch.setattr(m.os,'close',lambda fd:events.append(('close',fd)))
+    def socket(self):
+        return (1,2)
+    monkeypatch.setattr(m.EphemeralDaemon,'_socket',socket)
     def docker(self, args, **kwargs):
         return json.dumps(str(outsider if failure == 'wrong_root' else owned/'data')).encode()
     monkeypatch.setattr(m.EphemeralDaemon,'docker',docker)
-    monkeypatch.setattr(m.os,'killpg',lambda pid,sig:events.append(('kill',pid,sig)))
     if failure:
         with pytest.raises((OSError, m.SmokeError)):
             with m.EphemeralDaemon():
@@ -427,10 +653,13 @@ def test_daemon_lifecycle_reaps_only_owned_process_and_directory(tmp_path, monke
     else:
         with m.EphemeralDaemon() as daemon:
             assert daemon.root == owned
-    assert not owned.exists() and (outsider/'keep').read_text() == 'keep'
-    if failure != 'popen':
-        assert ('kill',12345,m.signal.SIGTERM) in events
-        assert ('kill',12345,m.signal.SIGKILL) in events and events[-1] == 'wait'
+    assert owned.exists() is (failure == 'launch_uncertain')
+    assert (outsider/'keep').read_text() == 'keep'
+    if failure not in {'spawn_failure','launch_uncertain'}:
+        assert events.index('cgroup.kill') < events.index(('empty',True))
+        assert [('close',101),('close',100),('close',99)] == [e for e in events if
+            isinstance(e,tuple) and e[0] == 'close' and e[1] in {99,100,101}]
+    assert not any(isinstance(e,tuple) and e[0] == 'stop' for e in events)
 
 
 def test_exited_parent_with_inherited_stdout_cannot_leave_a_live_child(tmp_path):
@@ -463,15 +692,56 @@ def test_exited_parent_with_inherited_stdout_cannot_leave_a_live_child(tmp_path)
                 pass
 
 
-def test_exited_unshare_still_terminates_owned_group(monkeypatch):
+def test_emergency_cleanup_targets_only_the_captured_cgroup_fd(monkeypatch):
     m = api()
     events = []
     owner = m.EphemeralDaemon()
-    owner.process = SimpleNamespace(pid=12345,poll=lambda:0,wait=lambda **_:events.append('wait'))
-    monkeypatch.setattr(m.os,'killpg',lambda pid,sig:events.append(('kill',pid,sig)))
+    owner.cgroup_fd, owner.cgroup_kill_fd = 99, 100
+    monkeypatch.setattr(m.os,'write',lambda fd,value:events.append(('write',fd,value)) or len(value))
+    owner.emergency_cleanup()
+    owner.emergency_cleanup()
+    assert events == [('write',100,b'1')]
+
+
+def test_captured_cleanup_uses_only_pinned_cgroup_and_never_stops_name(tmp_path, monkeypatch):
+    m = api()
+    owned = tmp_path/'larenor-jellyfin-testnonce'
+    owned.mkdir()
+    owner = m.EphemeralDaemon()
+    owner.root, owner.root_identity = owned, (owned.stat().st_dev, owned.stat().st_ino)
+    owner.unit_attempted = True
+    owner.unit_identity = ('a'*32,'/system.slice/'+m.daemon_unit(owned),'12345')
+    owner.cgroup_fd, owner.cgroup_identity = 99, (1,2)
+    owner.cgroup_kill_fd, owner.cgroup_events_fd = 100, 101
+    events = []
+    monkeypatch.setattr(owner,'_check_unit',lambda:(_ for _ in ()).throw(m.SmokeError('owned_daemon_lost')))
+    def kill():
+        owner.emergency_requested = owner.emergency_applied = True
+        events.append('cgroup.kill')
+    monkeypatch.setattr(owner,'emergency_cleanup',kill)
+    monkeypatch.setattr(owner,'_wait_cgroup_empty',lambda **kwargs:events.append('empty'))
+    monkeypatch.setattr(m,'bounded_command',lambda *a,**k:events.append('systemctl stop'))
+    monkeypatch.setattr(m.os,'close',lambda fd:events.append(('close',fd)))
     owner.__exit__()
-    assert events[0][0] == 'kill' and events[0][1] == 12345
-    assert events[-1] == 'wait'
+    assert [event for event in events if not (isinstance(event,tuple)
+        and event[0] == 'close' and event[1] not in {99,100,101})] == [
+        'cgroup.kill','empty',('close',101),('close',100),('close',99)]
+    assert not owned.exists()
+
+
+def test_uncertain_pre_capture_launch_is_not_adopted_or_stopped_by_name(tmp_path, monkeypatch):
+    m = api()
+    owned = tmp_path/'larenor-jellyfin-testnonce'
+    owned.mkdir()
+    owner = m.EphemeralDaemon()
+    owner.root, owner.root_identity = owned, (owned.stat().st_dev, owned.stat().st_ino)
+    owner.unit_attempted = True
+    owner.emergency_cleanup()
+    events = []
+    monkeypatch.setattr(m,'bounded_command',lambda *a,**k:events.append('systemctl stop'))
+    with pytest.raises(m.SmokeError, match='^owned_cleanup_failed$'):
+        owner.__exit__()
+    assert events == [] and owned.exists()
 
 
 @pytest.fixture

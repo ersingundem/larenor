@@ -31,6 +31,7 @@ def base_flow(launched, monkeypatch):
             assert '--pull=never' in args
             assert '--network=none' in args and '--read-only' in args and '--cap-drop=ALL' in args
             assert '--user=0:0' in args and '--entrypoint=/usr/local/bin/python' in args
+            assert '--cgroup-parent='+daemon.container_cgroup_parent in args
             assert not any(a.startswith(('--mount','--volume','--publish')) for a in args)
             state['args'] = args
         elif args[:2] == ['container','inspect'] and args[-1] == 'd'*64:
@@ -41,7 +42,8 @@ def base_flow(launched, monkeypatch):
                 'Config':{'User':'0:0','Entrypoint':['/usr/local/bin/python'],
                           'Cmd':['-I','-c','print("larenor-helper-base-ok-v1")']},
                 'HostConfig':{'NetworkMode':'none','ReadonlyRootfs':True,'Privileged':False,
-                    'CapDrop':['ALL'],'CapAdd':None,'Binds':None,'Mounts':None,'VolumesFrom':None},
+                    'CapDrop':['ALL'],'CapAdd':None,'Binds':None,'Mounts':None,'VolumesFrom':None,
+                    'CgroupParent':daemon.container_cgroup_parent},
                 'Mounts':[], 'State':{'Status':'exited' if state['started'] else 'created',
                     'Running':False,'Paused':False,'Restarting':False,'Dead':False,
                     'OOMKilled':False,'ExitCode':0,'Error':''}}
