@@ -2,9 +2,13 @@
 
 from fastapi.testclient import TestClient
 import pytest
+import time
 
 from conftest import auth, ready
 from larenor_server.app import create_app
+from larenor_server.plugins.jellyfin_bootstrap_executor import (
+    JellyfinBootstrapExecutionError, JellyfinBootstrapExecutionResult,
+)
 from test_admin import activate, create as create_user
 from test_media_installations_api import ExecutionBackend, prepared
 
@@ -45,7 +49,7 @@ def test_server_generates_and_encrypts_private_bootstrap_without_network(server,
         'id': record['id'], 'requestId': 'd' * 32,
         'installationId': installation['id'], 'serviceId': 'jellyfin',
         'revision': 1, 'state': 'queued', 'credentialsConfigured': False,
-        'wiringState': 'pending', 'installAvailable': False,
+        'wiringState': 'pending', 'errorCode': None, 'installAvailable': False,
         'createdAt': '2026-09-05T12:00:00.000Z',
         'updatedAt': '2026-09-05T12:00:00.000Z',
     }
@@ -145,3 +149,80 @@ def test_storage_damage_fails_closed_on_restart(server, damage):
                 else 'invalid_media_service_bootstraps_storage')
     with pytest.raises(Exception, match=expected):
         create_app(settings)
+
+
+class BootstrapBackend:
+    def __init__(self, failure=None):
+        self.failure = failure
+        self.calls = []
+
+    def execute(self, job, plan, private, *, deadline, gate):
+        self.calls.append((job, plan, private, deadline, gate))
+        assert deadline > time.monotonic()
+        assert gate() is True
+        if self.failure is not None:
+            raise self.failure
+        return JellyfinBootstrapExecutionResult(
+            'credentials_configured',
+            ('observed_unconfigured', 'configuration_updated', 'user_updated',
+             'remote_access_updated', 'wizard_completed'),
+        )
+
+
+def test_tick_persists_running_then_credentials_configured_without_exposing_secret(server):
+    app, client, _, _ = server
+    pair, installation = installed(server)
+    record = client.post(BASE, headers=auth(pair), json=request(installation)).json()['bootstrap']
+    backend = BootstrapBackend()
+    app.state.core.media_service_bootstraps.backend = backend
+
+    terminal = app.state.core.media_service_bootstraps.tick()['bootstrap']
+    assert terminal == record | {
+        'revision': 3, 'state': 'credentials_configured',
+        'credentialsConfigured': True,
+    }
+    assert len(backend.calls) == 1
+    job, plan, private, _deadline, _gate = backend.calls[0]
+    assert job == record['id'] and plan.templateId == 'media'
+    assert private.credential and private.username == 'larenor-system'
+    assert private.credential not in repr(private) + repr(terminal)
+    assert app.state.core.media_service_bootstraps.tick() is None
+
+
+def test_interrupted_running_bootstrap_is_never_retried(server):
+    app, client, _, _ = server
+    pair, installation = installed(server)
+    record = client.post(BASE, headers=auth(pair), json=request(installation)).json()['bootstrap']
+    manager = app.state.core.media_service_bootstraps
+    with manager.db.transaction() as connection:
+        row = manager._find(connection, record['id'])
+        manager._transition(connection, row, manager._decode(row), state='running')
+    backend = BootstrapBackend()
+    manager.backend = backend
+
+    terminal = manager.tick()['bootstrap']
+    assert terminal['state'] == 'needs_attention'
+    assert terminal['errorCode'] == 'bootstrap_interrupted'
+    assert terminal['credentialsConfigured'] is False
+    assert backend.calls == []
+
+
+@pytest.mark.parametrize('failure,state', [
+    (JellyfinBootstrapExecutionError('bootstrap_endpoint_unavailable'), 'failed'),
+    (JellyfinBootstrapExecutionError(
+        'bootstrap_startup_failed', completed_steps=('observed_unconfigured',),
+        uncertain_effect=True,
+    ), 'needs_attention'),
+])
+def test_tick_persists_secret_free_executor_failure(server, failure, state):
+    app, client, _, _ = server
+    pair, installation = installed(server)
+    record = client.post(BASE, headers=auth(pair), json=request(installation)).json()['bootstrap']
+    backend = BootstrapBackend(failure)
+    app.state.core.media_service_bootstraps.backend = backend
+
+    terminal = app.state.core.media_service_bootstraps.tick()['bootstrap']
+    assert terminal['state'] == state
+    assert terminal['errorCode'] == failure.code
+    assert terminal['credentialsConfigured'] is False
+    assert backend.calls[0][2].credential not in repr(terminal) + repr(failure)
