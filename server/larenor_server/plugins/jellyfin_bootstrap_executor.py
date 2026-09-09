@@ -1,6 +1,6 @@
 """Worker-private journal, endpoint and Jellyfin startup orchestration."""
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import math
 import re
 import time
@@ -14,6 +14,10 @@ from .jellyfin_startup import (
     JellyfinStartupConfigurator, JellyfinStartupError, JellyfinStartupLimits,
     JellyfinStartupResult,
 )
+from .jellyfin_authenticated_readback import (
+    JellyfinAuthenticatedReadback, JellyfinAuthenticatedReadbackError,
+    JellyfinAuthenticatedReadbackLimits, JellyfinAuthenticatedReadbackResult,
+)
 from .managed_container import ManagedContainerBinding, JournaledManagedContainerOperations
 from .media_service_bootstrap_models import PrivateMediaServiceBootstrap
 from .stack_plan import MediaStackPlan, verify_media_stack_plan
@@ -26,7 +30,7 @@ _CODES = frozenset({
     'invalid_bootstrap_execution', 'bootstrap_authority_changed',
     'bootstrap_resources_unavailable', 'bootstrap_endpoint_unavailable',
     'bootstrap_endpoint_changed',
-    'bootstrap_startup_failed', 'bootstrap_timeout',
+    'bootstrap_startup_failed', 'bootstrap_readback_failed', 'bootstrap_timeout',
 })
 
 
@@ -47,6 +51,7 @@ class JellyfinBootstrapExecutionError(Exception):
 class JellyfinBootstrapExecutionResult:
     state: str
     completed_steps: tuple[str, ...]
+    readback: JellyfinAuthenticatedReadbackResult = field(repr=False)
 
     def __repr__(self):
         return 'JellyfinBootstrapExecutionResult(<private>)'
@@ -62,14 +67,16 @@ def _remaining(deadline):
 class JellyfinBootstrapExecutor:
     """Run one no-retry bootstrap against the exact started journal receipt."""
 
-    def __init__(self, operations, binding_builder, configurator):
+    def __init__(self, operations, binding_builder, configurator, readback):
         if (type(operations) is not JournaledManagedContainerOperations
                 or not callable(binding_builder)
-                or type(configurator) is not JellyfinStartupConfigurator):
+                or type(configurator) is not JellyfinStartupConfigurator
+                or type(readback) is not JellyfinAuthenticatedReadback):
             raise JellyfinBootstrapExecutionError('invalid_bootstrap_execution')
         self.operations = operations
         self.binding_builder = binding_builder
         self.configurator = configurator
+        self.readback = readback
 
     @staticmethod
     def _gate(gate):
@@ -108,7 +115,9 @@ class JellyfinBootstrapExecutor:
     def execute(self, job, stack, private, *, deadline, gate):
         trusted, secret = self._inputs(job, stack, private, deadline, gate)
         opened = None
+        readback_opened = None
         startup_called = False
+        readback_called = False
         completed = ()
         self._gate(gate)
         try:
@@ -158,7 +167,50 @@ class JellyfinBootstrapExecutor:
                 )
             self._gate(gate)
             _remaining(deadline)
-            return JellyfinBootstrapExecutionResult('credentials_configured', completed)
+            readback_opened = open_jellyfin_endpoint(
+                observed, binding, trusted, receipt.container_id,
+                timeout=min(10.0, _remaining(deadline)),
+            )
+            observed = self.operations.engine.inspect_container(binding.name)
+            after_readback_connect = prove_jellyfin_endpoint(
+                observed, binding, trusted, receipt.container_id)
+            if after_readback_connect != before or readback_opened.proof != before:
+                raise JellyfinBootstrapExecutionError(
+                    'bootstrap_endpoint_changed', completed_steps=completed,
+                    uncertain_effect=True,
+                )
+            self._gate(gate)
+            readback_called = True
+            verified = self.readback.read(
+                readback_opened.connection,
+                secret,
+                device_id=job,
+                limits=JellyfinAuthenticatedReadbackLimits(
+                    total_seconds=min(30.0, _remaining(deadline)),
+                    max_response_bytes=262144,
+                ),
+            )
+            if (type(verified) is not JellyfinAuthenticatedReadbackResult
+                    or verified.state != 'verified'
+                    or verified.completed_steps[-2:] != (
+                        'system_verified', 'libraries_verified')):
+                raise JellyfinBootstrapExecutionError(
+                    'bootstrap_readback_failed', completed_steps=completed,
+                    uncertain_effect=True,
+                )
+            observed = self.operations.engine.inspect_container(binding.name)
+            after_readback = prove_jellyfin_endpoint(
+                observed, binding, trusted, receipt.container_id)
+            if after_readback != before:
+                raise JellyfinBootstrapExecutionError(
+                    'bootstrap_endpoint_changed', completed_steps=completed,
+                    uncertain_effect=True,
+                )
+            self._gate(gate)
+            _remaining(deadline)
+            return JellyfinBootstrapExecutionResult(
+                'wiring_partial', completed, verified,
+            )
         except JellyfinBootstrapExecutionError as error:
             if startup_called and not error.completed_steps:
                 raise JellyfinBootstrapExecutionError(
@@ -170,6 +222,11 @@ class JellyfinBootstrapExecutor:
             raise JellyfinBootstrapExecutionError(
                 'bootstrap_startup_failed', completed_steps=error.completed_steps,
                 uncertain_effect=error.uncertain_effect,
+            ) from None
+        except JellyfinAuthenticatedReadbackError as error:
+            raise JellyfinBootstrapExecutionError(
+                'bootstrap_readback_failed', completed_steps=completed,
+                uncertain_effect=True,
             ) from None
         except JellyfinEndpointError as error:
             if time.monotonic() >= deadline:
@@ -189,5 +246,10 @@ class JellyfinBootstrapExecutor:
             if opened is not None and not startup_called:
                 try:
                     opened.connection.close()
+                except OSError:
+                    pass
+            if readback_opened is not None and not readback_called:
+                try:
+                    readback_opened.connection.close()
                 except OSError:
                     pass

@@ -16,6 +16,7 @@ from .installation_execution import JellyfinWorkerBackend
 from .jellyfin_bootstrap_executor import (
     JellyfinBootstrapExecutionError, JellyfinBootstrapExecutionResult,
 )
+from .jellyfin_authenticated_readback import JellyfinAuthenticatedReadbackResult
 from .media_service_bootstrap_models import PrivateMediaServiceBootstrap
 from .preflight_ipc import PreflightIPCError, PreflightWorkerServer, read_packet, write_packet
 from .catalog import load_catalog
@@ -60,21 +61,39 @@ def _wire_bootstrap(value=None, error=None):
         return {
             'state': 'failed', 'completedSteps': list(error.completed_steps),
             'errorCode': error.code, 'uncertainEffect': error.uncertain_effect,
+            'readback': None,
         }
     if (type(value) is not JellyfinBootstrapExecutionResult
-            or value.state != 'credentials_configured'
-            or value.completed_steps != _BOOTSTRAP_STEPS):
+            or value.state != 'wiring_partial'
+            or value.completed_steps != _BOOTSTRAP_STEPS
+            or type(value.readback) is not JellyfinAuthenticatedReadbackResult):
         raise InstallationIPCError('invalid_worker_result')
     return {
-        'state': value.state, 'completedSteps': list(value.completed_steps),
+        'state': value.state,
+        'completedSteps': list(value.completed_steps),
         'errorCode': None, 'uncertainEffect': False,
+        'readback': {
+            'state': value.readback.state,
+            'serverId': value.readback.server_id,
+            'serverName': value.readback.server_name,
+            'version': value.readback.version,
+            'apiKey': value.readback.api_key,
+            'libraries': [
+                {
+                    'name': name, 'collectionType': collection,
+                    'itemId': item_id, 'locations': list(locations),
+                }
+                for name, collection, item_id, locations in value.readback.libraries
+            ],
+            'completedSteps': list(value.readback.completed_steps),
+        },
     }
 
 
 def _bootstrap_result(value):
     try:
         if (type(value) is not dict or set(value) != {
-                'state', 'completedSteps', 'errorCode', 'uncertainEffect'}
+                'state', 'completedSteps', 'errorCode', 'uncertainEffect', 'readback'}
                 or type(value['completedSteps']) is not list
                 or any(type(item) is not str or item not in _BOOTSTRAP_STEPS
                        for item in value['completedSteps'])
@@ -82,18 +101,60 @@ def _bootstrap_result(value):
                 or type(value['uncertainEffect']) is not bool):
             raise ValueError()
         completed = tuple(value['completedSteps'])
-        if value == {
-                'state': 'credentials_configured',
-                'completedSteps': list(_BOOTSTRAP_STEPS),
-                'errorCode': None,
-                'uncertainEffect': False}:
-            return JellyfinBootstrapExecutionResult('credentials_configured', completed)
+        if (value['state'] == 'wiring_partial'
+                and value['completedSteps'] == list(_BOOTSTRAP_STEPS)
+                and value['errorCode'] is None
+                and value['uncertainEffect'] is False):
+            readback = value['readback']
+            if (type(readback) is not dict or set(readback) != {
+                    'state', 'serverId', 'serverName', 'version', 'apiKey',
+                    'libraries', 'completedSteps'}
+                    or readback['state'] != 'verified'
+                    or type(readback['libraries']) is not list
+                    or len(readback['libraries']) > 256
+                    or type(readback['completedSteps']) is not list):
+                raise ValueError()
+            libraries = []
+            for item in readback['libraries']:
+                if type(item) is not dict or set(item) != {
+                        'name', 'collectionType', 'itemId', 'locations'}:
+                    raise ValueError()
+                libraries.append((
+                    item['name'], item['collectionType'], item['itemId'],
+                    tuple(item['locations']),
+                ))
+            verified = JellyfinAuthenticatedReadbackResult(
+                readback['state'], readback['serverId'], readback['serverName'],
+                readback['version'], readback['apiKey'], tuple(libraries),
+                tuple(readback['completedSteps']),
+            )
+            # Re-validate every private value through the same strict encrypted
+            # storage model before the Core can persist it.
+            from .media_service_bootstrap_models import (
+                PrivateJellyfinReadback, PrivateMediaLibrary,
+            )
+            PrivateJellyfinReadback(
+                apiKey=verified.api_key,
+                serverId=verified.server_id,
+                serverName=verified.server_name,
+                version=verified.version,
+                libraries=tuple(
+                    PrivateMediaLibrary(
+                        name=name, collectionType=collection, itemId=item_id,
+                        locations=locations,
+                    )
+                    for name, collection, item_id, locations in verified.libraries
+                ),
+            )
+            return JellyfinBootstrapExecutionResult(
+                'wiring_partial', completed, verified)
         if (value['state'] != 'failed' or type(value['errorCode']) is not str
+                or value['readback'] is not None
                 or value['errorCode'] not in {
                     'invalid_bootstrap_execution', 'bootstrap_authority_changed',
                     'bootstrap_resources_unavailable', 'bootstrap_endpoint_unavailable',
                     'bootstrap_endpoint_changed', 'bootstrap_startup_failed',
-                    'bootstrap_timeout'}):
+                    'bootstrap_readback_failed', 'bootstrap_timeout'}):
             raise ValueError()
         raise JellyfinBootstrapExecutionError(
             value['errorCode'], completed_steps=completed,

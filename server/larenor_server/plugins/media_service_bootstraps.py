@@ -19,7 +19,7 @@ from ..admin.service import utc
 from ..errors import ApiError, StartupError
 from .media_service_bootstrap_models import (
     CreateMediaServiceBootstrapRequest, MediaServiceBootstrap,
-    PrivateMediaServiceBootstrap,
+    PrivateJellyfinReadback, PrivateMediaLibrary, PrivateMediaServiceBootstrap,
 )
 from .jellyfin_bootstrap_executor import (
     JellyfinBootstrapExecutionError, JellyfinBootstrapExecutionResult,
@@ -43,6 +43,11 @@ class _PrivateView:
     locale: str
     remote_access: bool
     automatic_port_mapping: bool
+    api_key: str | None
+    server_id: str | None
+    server_name: str | None
+    version: str | None
+    libraries: tuple[tuple[str, str | None, str, tuple[str, ...]], ...]
 
     def __repr__(self):
         return '_PrivateView(<private>)'
@@ -250,6 +255,13 @@ class MediaServiceBootstrapManagement:
                 username=private.username, credential=private.credential,
                 locale=private.locale, remote_access=private.remote_access,
                 automatic_port_mapping=private.automatic_port_mapping,
+                api_key=None if private.readback is None else private.readback.apiKey,
+                server_id=None if private.readback is None else private.readback.serverId,
+                server_name=None if private.readback is None else private.readback.serverName,
+                version=None if private.readback is None else private.readback.version,
+                libraries=(() if private.readback is None else tuple(
+                    (item.name, item.collectionType, item.itemId, item.locations)
+                    for item in private.readback.libraries)),
             )
 
     def _save(self, connection, row, private):
@@ -269,7 +281,13 @@ class MediaServiceBootstrapManagement:
         changed.update(
             revision=row['revision'] + 1,
             state=state,
-            credentials_configured=int(state == 'credentials_configured'),
+            credentials_configured=int(state in {
+                'credentials_configured', 'wiring_partial', 'succeeded'}),
+            wiring_state=(
+                'verified' if state == 'succeeded'
+                else 'partial' if state == 'wiring_partial'
+                else row['wiring_state']
+            ),
             error_code=error,
             updated_at=max(row['updated_at'], int(self.settings.clock())),
         )
@@ -384,7 +402,7 @@ class MediaServiceBootstrapManagement:
                     gate=lambda: self._gate(identifier),
                 )
                 if (type(result) is not JellyfinBootstrapExecutionResult
-                        or result.state != 'credentials_configured'):
+                        or result.state != 'wiring_partial'):
                     raise JellyfinBootstrapExecutionError('invalid_bootstrap_execution')
             except JellyfinBootstrapExecutionError as failure:
                 error = (failure.code if failure.code != 'invalid_bootstrap_execution'
@@ -405,6 +423,32 @@ class MediaServiceBootstrapManagement:
                         error='bootstrap_worker_unavailable')
             with self.db.transaction() as connection:
                 row = self._find(connection, identifier)
+                try:
+                    verified = result.readback
+                    stored = PrivateJellyfinReadback(
+                        apiKey=verified.api_key,
+                        serverId=verified.server_id,
+                        serverName=verified.server_name,
+                        version=verified.version,
+                        libraries=tuple(
+                            PrivateMediaLibrary(
+                                name=name,
+                                collectionType=collection,
+                                itemId=item_id,
+                                locations=locations,
+                            )
+                            for name, collection, item_id, locations
+                            in verified.libraries
+                        ),
+                    )
+                    private = PrivateMediaServiceBootstrap.model_validate(
+                        self._decode(row).model_dump(mode='python')
+                        | {'readback': stored.model_dump(mode='python')},
+                    )
+                except (ValidationError, ValueError, TypeError, AttributeError):
+                    return self._transition(
+                        connection, row, self._decode(row), state='failed',
+                        error='invalid_bootstrap_result')
                 return self._transition(
-                    connection, row, self._decode(row),
-                    state='credentials_configured')
+                    connection, row, private,
+                    state='wiring_partial')
