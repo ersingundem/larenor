@@ -1,6 +1,6 @@
 # Larenor — güncel ilerleme ve iş kuyruğu
 
-**Son güncelleme: 9 Eylül 2026 — S08.7 salt okunur Home Assistant domain kapsamı exact CI ile ana dala alındı; S06.5 disposable Jellyfin kabulü gerçek bootstrap, API anahtarı, sistem/kütüphane geri okuması ve oturum kapatmayı kapsayacak biçimde genişletildi.**
+**Son güncelleme: 9 Eylül 2026 — S08.7 salt okunur Home Assistant domain kapsamı ana dala alındı; S06.5 disposable Jellyfin 10.11.11 bootstrap, API anahtarı, sistem/kütüphane geri okuması, oturum kapatma ve restart kontrolleri exact arm64+amd64 CI'da geçti.**
 
 ```text
 Kuyruk kabulü       ██░░░░░░░░░░░░░░░░░░  14/125 iş (%11; eşit ağırlıklı sayaç)
@@ -41,7 +41,7 @@ Gerçek ev kurulumu ve fiziksel tablet kabulü henüz yapılmadı.
 | S06.3d — kalıcı depolama | **Kabul edildi**; Native18 exact `6a054ea`, amd64+arm64 makbuzları doğrulandı | S06.3f ile birleşik kaynak kapısı kapandı |
 | S06.3f — kaynak kabulü | **Kabul edildi**; exact `4021391`, iki mimarili native makbuz, 4.065 Server ve tam Android/Server CI yeşil | S06.4 dar kurulum yürütme kapısı |
 | S06.4 — dar kurulum yürütme kapısı | **Kabul edildi**; PR16 `bf6f860`, PR18 `75af015`, PR19 `9ce3c5a` ve PR20 `2b9166b` tam CI kapıları yeşil | S06.5 özel bootstrap ve otomatik servis eşleştirme |
-| S06.5 — özel bootstrap ve otomatik eşleştirme | **Devam ediyor**; private IPC/runtime, tek Larenor API anahtarı, sistem/kütüphane geri okuması ve AES-GCM kalıcı durum hazır; disposable native akış gerçek bootstrap/readback çalıştıracak biçimde bağlandı | Exact-source amd64/arm64 CI ve otomatik servis eşleştirmesi |
+| S06.5 — özel bootstrap ve otomatik eşleştirme | **Devam ediyor**; private IPC/runtime, tek Larenor API anahtarı, sistem/kütüphane geri okuması ve AES-GCM kalıcı durum hazır; disposable gerçek Jellyfin 10.11.11 bootstrap/readback/restart akışı exact arm64+amd64 CI'da geçti | Radarr/Sonarr/qBittorrent/Seerr/Music Assistant otomatik servis eşleştirmesi |
 
 S06.5'in ilk iki TDD parçası, yalnız tamamlanmış Jellyfin kurulumundan
 yöneticiye bağlı bootstrap niyeti üretir ve public API'de sır, hedef adres veya
@@ -95,9 +95,17 @@ yoksa bir kez oluşturup geri okumadan kabul etmez. `System/Info` kimliği ve
 `Library/VirtualFolders` sonucu kapalı modele alınır, geçici auth oturumu
 `Sessions/Logout` ile kapatılır. API key, session token, parola ve medya yolları
 UID-korumalı IPC dışında görünmez; Core sonucu AES-GCM ciphertext olarak saklar
-ve public durumu yalnız `wiring_partial` yapar. İlgili altı paket **110 PASS**,
+ve public durumu yalnız `wiring_partial` yapar. İlk dilimde ilgili altı paket **110 PASS**,
 değişen ve doğrudan bağlı beş modül branch coverage toplamı **%80** verdi.
 [TDD kanıtı ve açık sınırlar](jellyfin-authenticated-readback-implementation-2026-09-09.md).
+
+Native genişletmenin son `2c3f591` kaynağı, Jellyfin 10.11.11'in gerçek ilk
+kullanıcı adı, iki zorunlu remote-access alanı, internal Docker ağındaki boş
+gateway gözlemi, null alanları atılan `ApiKey` wire biçimi ve wizard sonrası
+sağlık durumuyla eşleştirildi. **655 ilgili test** geçti. Exact
+[CI 34389549143](https://github.com/ersingundem/larenor/actions/runs/34389549143)
+arm64 ve amd64 üzerinde bootstrap/readback/logout, ilk sağlık, restart sağlık,
+kimlik ve kalıcı veri kontrollerini tamamladı; public makbuzda sır bulunmuyor.
 
 S06.4 native kabul koşusu [34326112926](https://github.com/ersingundem/larenor/actions/runs/34326112926)
 iki gerçek GitHub runner'ında geçti. İndirilen ARM64 ve X64 makbuzları merge

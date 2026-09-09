@@ -833,10 +833,26 @@
           "state": "completed",
           "result": "passed",
           "label": "Disposable managed Jellyfin 10.11.11 akışı gerçek wizard bootstrap, Larenor API key doğrulama, sistem/boş kütüphane readback ve session logout ile bağlandı; makbuz secret-free. 235 ilgili test, security policy, compileall ve queue PASS. Exact amd64/arm64 CI bekleniyor."
+        },
+        {
+          "kind": "test",
+          "ref": "docs/jellyfin-authenticated-readback-implementation-2026-09-09.md",
+          "commit": "2c3f591bfe2e5ad9c0465be4ff2ed6ba3628b4fc",
+          "state": "completed",
+          "result": "passed",
+          "label": "Jellyfin 10.11.11 gerçek startup, API anahtarı projeksiyonu, secret-free adım tanısı ve wizard öncesi/sonrası sağlık sözleşmesi: 655 ilgili yerel test, security policy ve queue doğrulaması PASS."
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/34389549143",
+          "commit": "2c3f591bfe2e5ad9c0465be4ff2ed6ba3628b4fc",
+          "state": "completed",
+          "result": "passed",
+          "label": "Exact head arm64 ve amd64 disposable Jellyfin 10.11.11 makbuzları: hesap bootstrap, API anahtarı, boş kütüphane, session logout, restart ve kalıcı veri PASS; installAvailable=false."
         }
       ],
       "completionCommit": null,
-      "reason": "Server üretimli sır, sabit startup, exact journal/container/private-network yürütücüsü, kalıcı no-retry koordinatör ve aynı retained daemon'a bağlı private IPC/runtime hazır. Disposable native akış gerçek bootstrap, API anahtarı, sistem/kütüphane readback ve session logout çalıştırıyor; sırlar makbuza çıkmıyor. Exact iki mimarili CI ve otomatik servis eşleştirmesi açık."
+      "reason": "Server üretimli sır, sabit startup, exact journal/container/private-network yürütücüsü, kalıcı no-retry koordinatör ve aynı retained daemon'a bağlı private IPC/runtime hazır. Disposable Jellyfin 10.11.11 bootstrap, API anahtarı, sistem/boş kütüphane readback, logout, restart ve veri kalıcılığı exact arm64+amd64 CI'da geçti. Radarr/Sonarr/qBittorrent/Seerr/Music Assistant otomatik eşleştirmesi açık; installAvailable=false."
     },
     {
       "id": "S06.6",

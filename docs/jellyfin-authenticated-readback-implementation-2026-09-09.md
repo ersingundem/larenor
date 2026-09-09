@@ -1,6 +1,7 @@
 # Jellyfin kimlik doğrulamalı geri okuma TDD kanıtı
 
-9 Eylül 2026. Uygulama kaynağı `d198a728aeccf7a37ed95150097f84e7a7299d50`.
+9 Eylül 2026. Doğrulanmış uygulama kaynağı
+`2c3f591bfe2e5ad9c0465be4ff2ed6ba3628b4fc`.
 
 ## Kullanıcı yolculuğu
 
@@ -25,6 +26,11 @@ geri okur, geçici oturumu kapatır ve sonucu şifreli bootstrap kaydına yazar.
   [LibraryStructureController](https://github.com/jellyfin/jellyfin/blob/cf09de60e4e5844ad181d7ef9019151c54969d44/Jellyfin.Api/Controllers/LibraryStructureController.cs#L59-L69).
 - Geçici bootstrap oturumu `POST /Sessions/Logout` ile iptal edilir:
   [SessionController](https://github.com/jellyfin/jellyfin/blob/cf09de60e4e5844ad181d7ef9019151c54969d44/Jellyfin.Api/Controllers/SessionController.cs#L422-L433).
+- Jellyfin 10.11.11 `AuthenticationManager`, API anahtarı listesini oturum
+  alanlarıyla değil `ApiKey` kaydından seçilmiş sabit alanlarla üretir:
+  [kaynak](https://github.com/jellyfin/jellyfin/blob/v10.11.11/Jellyfin.Server.Implementations/Security/AuthenticationManager.cs#L38-L56).
+  Aynı sürümün JSON ayarı null alanları wire yanıttan çıkarır:
+  [JsonDefaults](https://github.com/jellyfin/jellyfin/blob/v10.11.11/src/Jellyfin.Extensions/Json/JsonDefaults.cs#L25-L31).
 
 ## RED ve GREEN zinciri
 
@@ -35,6 +41,9 @@ geri okur, geçici oturumu kapatır ve sonucu şifreli bootstrap kaydına yazar.
 | İkinci doğrulanmış endpoint ve executor bağı | `1f36ed5`: yeni constructor/readback beklentisi RED | `a681d74`: startup ve readback tek retained authority altında PASS |
 | UID IPC ve AES-GCM kalıcı devir | `22bae10`: wire/persistence beklentileri RED | `a681d74`: API anahtarı ile kapalı sistem/kütüphane sonucu şifreli kayda yazıldı |
 | Geçici Jellyfin oturumunun iptali | `e95e436`: logout isteği ve hata sonucu RED | `d198a72`: doğrulanmış logout zorunlu, belirsiz temizlik sonucu kapalı hata |
+| Gerçek readback hata sınırı | `a55ae51`: executor adım bilgisini korumadığı için RED | `d1d4f68`: sır içermeyen sabit readback adımları PASS |
+| Jellyfin 10.11 API anahtarı wire biçimi | `e8a7f62`: gerçek `ApiKey` projeksiyonu RED | `175db3c`: null alanları atılmış, oturumdan bağımsız API anahtarı biçimi PASS |
+| Wizard öncesi/sonrası sağlık kanıtı | `4390241`: tamamlanmış wizard durumu RED | `2c3f591`: gerçek bool durumu korundu; restart dahil native kabul PASS |
 
 ## Test garantileri
 
@@ -51,7 +60,7 @@ geri okur, geçici oturumu kapatır ve sonucu şifreli bootstrap kaydına yazar.
 
 ## Doğrulama
 
-- İlgili altı paket: **110 PASS**.
+- Jellyfin, managed container, bootstrap ve worker ailesinde **655 PASS**.
 - Branch coverage: değişen ve doğrudan bağlı beş modülde toplam **%80**.
 - `compileall`, `git diff --check` ve kuyruk doğrulaması temiz.
 - Kullanıcının ev ağına, gerçek Jellyfin kurulumuna veya kimlik bilgilerine
@@ -67,7 +76,7 @@ kalan kapılarıdır. `installAvailable=false` korunur.
 
 ## Disposable native kabul genişletmesi
 
-Exact uygulama kaynağı `0da1682`, managed native karakterizasyonu yalnız
+İlk native bağ `0da1682`, managed native karakterizasyonu yalnız
 container create/start kanıtından çıkarıp gerçek Jellyfin 10.11.11 bootstrap ve
 authenticated readback zincirine bağladı. Her amd64/arm64 koşusunda rastgele
 geçici bir sistem parolası üretilir; wizard tamamlanır, `Larenor Core` API
@@ -77,8 +86,13 @@ ve auth oturumu kapatılır. Makbuz yalnız `bootstrapAccountConfigured=true`,
 taşır; parola, session token ve API key içermez. Kaynak attestation listesine
 endpoint, startup, readback, executor ve private model modülleri de eklendi.
 
-Bu genişletmenin **235 ilgili testi**, security policy, `compileall`, diff ve
-queue doğrulaması yerelde geçti. Tam Server paketi kod hatası göstermedi;
+Son kaynakta **655 ilgili test**, security policy, `compileall`, diff ve queue
+doğrulaması yerelde geçti. Tam Server paketi kod hatası göstermedi;
 yalnız yerel ortamda sağlanmayan zorunlu sabit `apksig 9.1.0` girdisine bağlı
-dört kripto fixture kurulamadı. Exact iki mimarili GitHub CI kanıtı bekleniyor;
-bu nedenle S06.5 durumu henüz kabul edilmiş sayılmıyor.
+dört kripto fixture kurulamadı. GitHub Actions koşusu
+[`34389549143`](https://github.com/ersingundem/larenor/actions/runs/34389549143),
+exact head `2c3f591bfe2e5ad9c0465be4ff2ed6ba3628b4fc` için arm64 ve amd64
+makbuzlarını doğruladı. Her iki makbuz `bootstrapAccountConfigured=true`,
+`apiKeyVerified=true`, `libraryCount=0`, `sessionClosed=true`,
+`restartCount=1` ve `installAvailable=false` taşıyor. S06.5, diğer medya
+servislerinin otomatik eşleştirmesi açık olduğu için devam ediyor.
