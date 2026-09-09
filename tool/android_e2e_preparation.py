@@ -138,7 +138,7 @@ def disable_ci_quickstep(
             return Outcome("deadline", attempts)
         attempts += 1
         home_package = run([
-            "shell", "pm", "list", "packages", "--system", "--user", "0",
+            "shell", "pm", "list", "packages", "-s", "--user", "0",
             "com.android.launcher3",
         ])
         if home_package is not None:
