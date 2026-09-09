@@ -127,6 +127,8 @@ def test_runtime_builds_one_endpoint_and_closes_all_journals(configuration):
         assert built.backend.binding_builder._readers._bootstrap._endpoint is policy.endpoint
         assert built.backend.operations.engine.path == Path(policy.endpoint.path)
         assert built.backend.operations.journal.identity == built.backend.binding_builder._container_journal.identity
+        assert built.backend.bootstrap_executor.operations is built.backend.operations
+        assert built.backend.bootstrap_executor.binding_builder is built.backend.binding_builder
     finally:
         built.close()
     assert built.closed is True
@@ -145,6 +147,30 @@ def test_runtime_routes_every_engine_connection_through_one_peer_verifier(config
         assert built.backend.operations.engine.peer_uid is verifier
     finally:
         built.close()
+
+
+def test_core_uses_the_same_private_worker_channel_for_bootstrap(server, monkeypatch):
+    from dataclasses import replace
+    from fastapi.testclient import TestClient
+    from conftest import auth, ready
+    from larenor_server.app import create_app
+
+    _app, _client, settings, _clock = server
+    pair = ready(server)
+    path = settings.data_dir / 'synthetic-installation.sock'
+
+    class Client:
+        def __init__(self, selected, **kwargs):
+            assert selected == path and kwargs['owner_uid'] == 0
+
+        def execute(self, *_args, **_kwargs):
+            raise AssertionError('startup must not dispatch queued work')
+
+    monkeypatch.setattr('larenor_server.core.InstallationWorkerClient', Client)
+    with TestClient(create_app(replace(settings, installation_worker_socket=path))) as reopened:
+        manager = reopened.app.state.core.media_service_bootstraps
+        assert type(manager.backend) is Client
+        assert reopened.get('/api/v1/admin/media/bootstraps', headers=auth(pair)).status_code == 200
 
 
 def install_lifecycle(monkeypatch, *, start_error=None, close_error=None):
