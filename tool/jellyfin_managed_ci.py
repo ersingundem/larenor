@@ -79,7 +79,7 @@ def validate_receipt(value, commit, selected):
         'volumeCount': 2, 'restartCount': 1, 'serverId': server_id,
         'containerMode': 'journaled_managed_v2', 'containerJournalVersion': 2,
         'bootstrapAccountConfigured': True, 'apiKeyVerified': True,
-        'libraryCount': 0, 'sessionClosed': True, 'installAvailable': False,
+        'libraryCount': 2, 'sessionClosed': True, 'installAvailable': False,
         'imageState': 'ready',
         'volumeStates': ['observed_requires_bootstrap'] * 2,
     }

@@ -22,7 +22,7 @@ from larenor_server.plugins.managed_container import (
 from larenor_server.plugins.media_service_bootstrap_models import PrivateMediaServiceBootstrap
 from test_jellyfin_startup import Connection, SECRET, happy_responses, response
 from test_jellyfin_authenticated_readback import (
-    API_KEY, authentication, folders, json_response, key, keys, system,
+    API_KEY, authentication, json_response, key, keys, system,
 )
 from test_managed_container_binding import Engine, build, command
 

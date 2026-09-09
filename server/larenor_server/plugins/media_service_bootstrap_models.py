@@ -28,6 +28,7 @@ class MediaServiceBootstrap(StrictModel):
         'bootstrap_authority_changed', 'bootstrap_resources_unavailable',
         'bootstrap_endpoint_unavailable', 'bootstrap_endpoint_changed',
         'bootstrap_startup_failed', 'bootstrap_readback_failed',
+        'bootstrap_wiring_failed',
         'bootstrap_timeout', 'bootstrap_interrupted',
         'bootstrap_worker_unavailable', 'invalid_bootstrap_result',
     ] | None

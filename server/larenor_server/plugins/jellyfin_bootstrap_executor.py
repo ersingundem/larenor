@@ -18,6 +18,10 @@ from .jellyfin_authenticated_readback import (
     JellyfinAuthenticatedReadback, JellyfinAuthenticatedReadbackError,
     JellyfinAuthenticatedReadbackLimits, JellyfinAuthenticatedReadbackResult,
 )
+from .jellyfin_managed_libraries import (
+    JellyfinManagedLibraries, JellyfinManagedLibrariesError,
+    JellyfinManagedLibrariesLimits, JellyfinManagedLibrariesResult,
+)
 from .managed_container import ManagedContainerBinding, JournaledManagedContainerOperations
 from .media_service_bootstrap_models import PrivateMediaServiceBootstrap
 from .stack_plan import MediaStackPlan, verify_media_stack_plan
@@ -30,11 +34,13 @@ _CODES = frozenset({
     'invalid_bootstrap_execution', 'bootstrap_authority_changed',
     'bootstrap_resources_unavailable', 'bootstrap_endpoint_unavailable',
     'bootstrap_endpoint_changed',
-    'bootstrap_startup_failed', 'bootstrap_readback_failed', 'bootstrap_timeout',
+    'bootstrap_startup_failed', 'bootstrap_readback_failed',
+    'bootstrap_wiring_failed', 'bootstrap_timeout',
 })
 _BOUNDARIES = frozenset({
     'before_connect', 'after_connect', 'after_startup',
     'after_readback_connect', 'after_readback',
+    'after_library_connect', 'after_library',
 })
 _CAUSE_CODES = frozenset({
     'invalid_jellyfin_startup_request', 'invalid_jellyfin_startup_limits',
@@ -46,6 +52,9 @@ _CAUSE_CODES = frozenset({
     'jellyfin_authenticated_readback_unavailable',
     'jellyfin_authenticated_readback_timeout',
     'jellyfin_session_cleanup_failed',
+    'invalid_jellyfin_libraries', 'jellyfin_library_conflict',
+    'jellyfin_library_protocol', 'jellyfin_library_unavailable',
+    'jellyfin_library_timeout',
 })
 _READBACK_STEPS = frozenset({
     (),
@@ -62,12 +71,17 @@ _READBACK_STEPS = frozenset({
     ('authenticated', 'keys_observed', 'key_verified', 'system_verified',
      'libraries_verified'),
 })
+_LIBRARY_STEPS = frozenset({
+    (), ('observed',), ('observed', 'movies_created'),
+    ('observed', 'shows_created'),
+    ('observed', 'movies_created', 'shows_created'),
+})
 
 
 class JellyfinBootstrapExecutionError(Exception):
     def __init__(self, code='bootstrap_resources_unavailable', *, completed_steps=(),
                  uncertain_effect=False, boundary=None, cause_code=None,
-                 readback_steps=()):
+                 readback_steps=(), library_steps=()):
         self.code = code if code in _CODES else 'bootstrap_resources_unavailable'
         self.completed_steps = tuple(completed_steps)
         self.uncertain_effect = uncertain_effect is True
@@ -78,13 +92,19 @@ class JellyfinBootstrapExecutionError(Exception):
         except (TypeError, RecursionError):
             readback_steps = ()
         self.readback_steps = readback_steps if readback_steps in _READBACK_STEPS else ()
+        try:
+            library_steps = tuple(library_steps)
+        except (TypeError, RecursionError):
+            library_steps = ()
+        self.library_steps = library_steps if library_steps in _LIBRARY_STEPS else ()
         super().__init__(self.code)
 
     def __repr__(self):
         return (f'JellyfinBootstrapExecutionError({self.code!r}, completed_steps='
                 f'{len(self.completed_steps)}, uncertain_effect={self.uncertain_effect!r}, '
                 f'boundary={self.boundary!r}, cause_code={self.cause_code!r}, '
-                f'readback_steps={len(self.readback_steps)})')
+                f'readback_steps={len(self.readback_steps)}, '
+                f'library_steps={len(self.library_steps)})')
 
 
 @dataclass(frozen=True, repr=False)
@@ -107,16 +127,19 @@ def _remaining(deadline):
 class JellyfinBootstrapExecutor:
     """Run one no-retry bootstrap against the exact started journal receipt."""
 
-    def __init__(self, operations, binding_builder, configurator, readback):
+    def __init__(self, operations, binding_builder, configurator, readback,
+                 libraries):
         if (type(operations) is not JournaledManagedContainerOperations
                 or not callable(binding_builder)
                 or type(configurator) is not JellyfinStartupConfigurator
-                or type(readback) is not JellyfinAuthenticatedReadback):
+                or type(readback) is not JellyfinAuthenticatedReadback
+                or type(libraries) is not JellyfinManagedLibraries):
             raise JellyfinBootstrapExecutionError('invalid_bootstrap_execution')
         self.operations = operations
         self.binding_builder = binding_builder
         self.configurator = configurator
         self.readback = readback
+        self.libraries = libraries
 
     @staticmethod
     def _gate(gate):
@@ -156,8 +179,10 @@ class JellyfinBootstrapExecutor:
         trusted, secret = self._inputs(job, stack, private, deadline, gate)
         opened = None
         readback_opened = None
+        library_opened = None
         startup_called = False
         readback_called = False
+        library_called = False
         completed = ()
         boundary = 'before_connect'
         self._gate(gate)
@@ -254,6 +279,53 @@ class JellyfinBootstrapExecutor:
                 )
             self._gate(gate)
             _remaining(deadline)
+            library_opened = open_jellyfin_endpoint(
+                observed, binding, trusted, receipt.container_id,
+                timeout=min(10.0, _remaining(deadline)),
+            )
+            boundary = 'after_library_connect'
+            observed = self.operations.engine.inspect_container(binding.name)
+            after_library_connect = prove_jellyfin_endpoint(
+                observed, binding, trusted, receipt.container_id)
+            if after_library_connect != before or library_opened.proof != before:
+                raise JellyfinBootstrapExecutionError(
+                    'bootstrap_endpoint_changed', completed_steps=completed,
+                    uncertain_effect=True, boundary=boundary,
+                )
+            self._gate(gate)
+            library_called = True
+            wired = self.libraries.ensure(
+                library_opened.connection,
+                verified,
+                device_id=job,
+                limits=JellyfinManagedLibrariesLimits(
+                    total_seconds=min(30.0, _remaining(deadline)),
+                    max_response_bytes=262144,
+                ),
+            )
+            boundary = 'after_library'
+            if (type(wired) is not JellyfinManagedLibrariesResult
+                    or wired.state != 'verified'
+                    or wired.completed_steps[-1:] != ('verified',)):
+                raise JellyfinBootstrapExecutionError(
+                    'bootstrap_wiring_failed', completed_steps=completed,
+                    uncertain_effect=True, boundary=boundary,
+                )
+            verified = JellyfinAuthenticatedReadbackResult(
+                verified.state, verified.server_id, verified.server_name,
+                verified.version, verified.api_key, wired.libraries,
+                verified.completed_steps,
+            )
+            observed = self.operations.engine.inspect_container(binding.name)
+            after_library = prove_jellyfin_endpoint(
+                observed, binding, trusted, receipt.container_id)
+            if after_library != before:
+                raise JellyfinBootstrapExecutionError(
+                    'bootstrap_endpoint_changed', completed_steps=completed,
+                    uncertain_effect=True, boundary=boundary,
+                )
+            self._gate(gate)
+            _remaining(deadline)
             return JellyfinBootstrapExecutionResult(
                 'wiring_partial', completed, verified,
             )
@@ -265,6 +337,7 @@ class JellyfinBootstrapExecutor:
                     boundary=error.boundary,
                     cause_code=error.cause_code,
                     readback_steps=error.readback_steps,
+                    library_steps=error.library_steps,
                 ) from None
             raise
         except JellyfinStartupError as error:
@@ -278,6 +351,13 @@ class JellyfinBootstrapExecutor:
                 'bootstrap_readback_failed', completed_steps=completed,
                 uncertain_effect=True,
                 cause_code=error.code, readback_steps=error.completed_steps,
+            ) from None
+        except JellyfinManagedLibrariesError as error:
+            raise JellyfinBootstrapExecutionError(
+                'bootstrap_wiring_failed', completed_steps=completed,
+                uncertain_effect=True,
+                boundary=boundary,
+                cause_code=error.code, library_steps=error.completed_steps,
             ) from None
         except JellyfinEndpointError as error:
             if time.monotonic() >= deadline:
@@ -304,5 +384,10 @@ class JellyfinBootstrapExecutor:
             if readback_opened is not None and not readback_called:
                 try:
                     readback_opened.connection.close()
+                except OSError:
+                    pass
+            if library_opened is not None and not library_called:
+                try:
+                    library_opened.connection.close()
                 except OSError:
                     pass

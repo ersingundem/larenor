@@ -601,7 +601,7 @@ def test_managed_characterization_routes_through_resources_and_v2_worker(
             (events.append(('managed', owner, actual_source, endpoint.path, helper_id)),
              setattr(owner, 'managed_configured', True),
              ('c' * 64, marker, ManagedEngine(), {
-                 'apiKeyVerified': True, 'libraryCount': 0, 'sessionClosed': True,
+                 'apiKeyVerified': True, 'libraryCount': 2, 'sessionClosed': True,
              }))[-1])
     monkeypatch.setattr(managed_container, 'managed_container_matches',
                         lambda value, binding: binding is marker)
@@ -614,7 +614,7 @@ def test_managed_characterization_routes_through_resources_and_v2_worker(
     assert result['containerJournalVersion'] == 2
     assert result['bootstrapAccountConfigured'] is True
     assert result['apiKeyVerified'] is True
-    assert result['libraryCount'] == 0
+    assert result['libraryCount'] == 2
     assert result['sessionClosed'] is True
     assert [event[0] for event in events[:4]] == [
         'resources', 'managed', 'inspect', 'inspect',
@@ -687,6 +687,29 @@ def test_native_bootstrap_readback_failure_keeps_only_closed_step(steps, expecte
     error = JellyfinBootstrapExecutionError(
         'bootstrap_readback_failed', readback_steps=steps,
         cause_code='jellyfin_authenticated_readback_protocol',
+        uncertain_effect=bool(steps),
+    )
+    assert m._managed_bootstrap_error(error) == expected
+
+
+@pytest.mark.parametrize('steps,cause,expected', [
+    ((), 'jellyfin_library_protocol', 'bootstrap_wiring_observe_failed'),
+    (('observed',), 'jellyfin_library_conflict', 'bootstrap_wiring_conflict'),
+    (('observed',), 'jellyfin_library_protocol', 'bootstrap_wiring_create_failed'),
+    (('observed', 'movies_created'), 'jellyfin_library_protocol',
+     'bootstrap_wiring_shows_failed'),
+    (('observed', 'shows_created'), 'jellyfin_library_protocol',
+     'bootstrap_wiring_verify_failed'),
+    (('observed', 'movies_created', 'shows_created'),
+     'jellyfin_library_protocol', 'bootstrap_wiring_verify_failed'),
+])
+def test_native_library_failure_keeps_only_closed_step(steps, cause, expected):
+    m = api()
+    from larenor_server.plugins.jellyfin_bootstrap_executor import (
+        JellyfinBootstrapExecutionError,
+    )
+    error = JellyfinBootstrapExecutionError(
+        'bootstrap_wiring_failed', library_steps=steps, cause_code=cause,
         uncertain_effect=bool(steps),
     )
     assert m._managed_bootstrap_error(error) == expected

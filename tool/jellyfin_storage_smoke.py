@@ -202,6 +202,14 @@ _BOOTSTRAP_READBACK_DIAGNOSTICS = {
     ('authenticated', 'keys_observed', 'key_verified', 'system_verified',
      'libraries_verified'): 'bootstrap_readback_logout_failed',
 }
+_BOOTSTRAP_WIRING_DIAGNOSTICS = {
+    (): 'bootstrap_wiring_observe_failed',
+    ('observed',): 'bootstrap_wiring_create_failed',
+    ('observed', 'movies_created'): 'bootstrap_wiring_shows_failed',
+    ('observed', 'shows_created'): 'bootstrap_wiring_verify_failed',
+    ('observed', 'movies_created', 'shows_created'):
+        'bootstrap_wiring_verify_failed',
+}
 _DIAGNOSTIC_CODES = _CODES | set(_BUILD_ERROR_PATTERNS) | set(_START_ERROR_PATTERNS) | {
     'helper_base_runtime_failed', 'helper_base_error_ambiguous',
     'helper_base_state_error_ambiguous', *_STATE_ERROR_PATTERNS,
@@ -236,10 +244,12 @@ _DIAGNOSTIC_CODES = _CODES | set(_BUILD_ERROR_PATTERNS) | set(_START_ERROR_PATTE
     'bootstrap_cleanup_status_failed', 'bootstrap_cleanup_transport_failed',
     'bootstrap_authority_changed', 'bootstrap_resources_unavailable',
     'bootstrap_endpoint_unavailable', 'bootstrap_endpoint_changed',
-    'bootstrap_startup_failed', 'bootstrap_readback_failed', 'bootstrap_timeout',
+    'bootstrap_startup_failed', 'bootstrap_readback_failed',
+    'bootstrap_wiring_failed', 'bootstrap_timeout',
     *_BOOTSTRAP_ENDPOINT_DIAGNOSTICS,
     *_BOOTSTRAP_STARTUP_DIAGNOSTICS.values(),
     *_BOOTSTRAP_READBACK_DIAGNOSTICS.values(),
+    *_BOOTSTRAP_WIRING_DIAGNOSTICS.values(), 'bootstrap_wiring_conflict',
     'storage_characterization_evidence_invalid'}
 _PHASES = {'launcher', 'launch_validation', 'source_capture', 'daemon_start', 'daemon_cleanup',
     'characterization', 'image_prepare', 'volume_prepare', 'image_inspect', 'helper_stage',
@@ -285,6 +295,7 @@ _SOURCE_FILES = (
     'server/larenor_server/plugins/jellyfin_endpoint.py',
     'server/larenor_server/plugins/jellyfin_startup.py',
     'server/larenor_server/plugins/jellyfin_authenticated_readback.py',
+    'server/larenor_server/plugins/jellyfin_managed_libraries.py',
     'server/larenor_server/plugins/jellyfin_bootstrap_executor.py',
     'server/larenor_server/plugins/media_service_bootstrap_models.py',
     'server/larenor_server/plugins/worker.py',
@@ -1505,6 +1516,8 @@ def _managed_bootstrap_error(error):
         code, boundary = error.code, error.boundary
         completed = tuple(error.completed_steps)
         readback = tuple(error.readback_steps)
+        libraries = tuple(error.library_steps)
+        cause = error.cause_code
     except (AttributeError, TypeError, RecursionError):
         return 'bootstrap_result_failed'
     if code == 'bootstrap_startup_failed':
@@ -1513,6 +1526,11 @@ def _managed_bootstrap_error(error):
     if code == 'bootstrap_readback_failed':
         return _BOOTSTRAP_READBACK_DIAGNOSTICS.get(
             readback, 'bootstrap_result_failed')
+    if code == 'bootstrap_wiring_failed':
+        if cause == 'jellyfin_library_conflict':
+            return 'bootstrap_wiring_conflict'
+        return _BOOTSTRAP_WIRING_DIAGNOSTICS.get(
+            libraries, 'bootstrap_result_failed')
     combined = f'{code}_{boundary}'
     if combined in _BOOTSTRAP_ENDPOINT_DIAGNOSTICS:
         return combined
@@ -1531,6 +1549,9 @@ def _managed_create_and_start(daemon, source, endpoint, helper_id):
     )
     from larenor_server.plugins.jellyfin_bootstrap_executor import (
         JellyfinBootstrapExecutor,
+    )
+    from larenor_server.plugins.jellyfin_managed_libraries import (
+        JellyfinManagedLibraries,
     )
     from larenor_server.plugins.jellyfin_startup import JellyfinStartupConfigurator
     from larenor_server.plugins.media_service_bootstrap_models import (
@@ -1605,6 +1626,7 @@ def _managed_create_and_start(daemon, source, endpoint, helper_id):
                 bootstrap = JellyfinBootstrapExecutor(
                     operations, lambda _stack: binding,
                     JellyfinStartupConfigurator(), JellyfinAuthenticatedReadback(),
+                    JellyfinManagedLibraries(),
                 ).execute(
                     job_id, source.stack,
                     PrivateMediaServiceBootstrap(
@@ -1618,11 +1640,14 @@ def _managed_create_and_start(daemon, source, endpoint, helper_id):
             require(bootstrap.state == 'wiring_partial'
                     and bootstrap.readback.state == 'verified'
                     and bootstrap.readback.server_id == before['id']
-                    and bootstrap.readback.libraries == ()
+                    and [library[:2] for library in bootstrap.readback.libraries] == [
+                        ('Larenor Movies', 'movies'),
+                        ('Larenor Shows', 'tvshows'),
+                    ]
                     and bootstrap.readback.completed_steps[-1:] == ('session_closed',))
         return start.container_id, binding, engine, {
             'apiKeyVerified': True,
-            'libraryCount': 0,
+            'libraryCount': 2,
             'sessionClosed': True,
         }
 

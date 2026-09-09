@@ -154,7 +154,8 @@ def _bootstrap_result(value):
                     'invalid_bootstrap_execution', 'bootstrap_authority_changed',
                     'bootstrap_resources_unavailable', 'bootstrap_endpoint_unavailable',
                     'bootstrap_endpoint_changed', 'bootstrap_startup_failed',
-                    'bootstrap_readback_failed', 'bootstrap_timeout'}):
+                    'bootstrap_readback_failed', 'bootstrap_wiring_failed',
+                    'bootstrap_timeout'}):
             raise ValueError()
         raise JellyfinBootstrapExecutionError(
             value['errorCode'], completed_steps=completed,
