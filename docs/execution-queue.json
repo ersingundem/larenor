@@ -817,6 +817,14 @@
           "state": "completed",
           "result": "passed",
           "label": "Aynı UID-korumalı Unix kanal ve retained daemon supervisor üzerinde private bootstrap runtime: 11 yeni/149 ilgili test, macOS'ta bir Linux-only skip; Core-IPC-worker sentetik yolculuğu PASS. Exact CI, readback ve gerçek servis kabulü açık."
+        },
+        {
+          "kind": "test",
+          "ref": "docs/jellyfin-authenticated-readback-implementation-2026-09-09.md",
+          "commit": "d198a728aeccf7a37ed95150097f84e7a7299d50",
+          "state": "completed",
+          "result": "passed",
+          "label": "Authenticated Jellyfin API anahtarı, sistem ve managed kütüphane geri okuması ikinci doğrulanmış private endpoint üzerinde tamamlandı; UID IPC sonucu AES-GCM kayda geçti, geçici session kapatıldı. İlgili altı paket 110 PASS ve bağlı modüller toplam branch coverage yüzde 80. Exact CI, otomatik servis eşleştirmesi ve disposable gerçek servis kabulü açık."
         }
       ],
       "completionCommit": null,

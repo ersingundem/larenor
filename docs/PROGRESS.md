@@ -1,6 +1,6 @@
 # Larenor — güncel ilerleme ve iş kuyruğu
 
-**Son güncelleme: 9 Eylül 2026 — S06.4 exact PR20 kaynağında kabul edildi; S06.5 kalıcı koordinatör, private IPC ve retained supervisor runtime'a ilerledi.**
+**Son güncelleme: 9 Eylül 2026 — S06.4 kabul edildi; S06.5 authenticated Jellyfin API anahtarı, sistem ve kütüphane geri okumasını şifreli Core durumuna taşıdı.**
 
 ```text
 Kuyruk kabulü       ██░░░░░░░░░░░░░░░░░░  13/125 iş (%10; eşit ağırlıklı sayaç)
@@ -41,7 +41,7 @@ Gerçek ev kurulumu ve fiziksel tablet kabulü henüz yapılmadı.
 | S06.3d — kalıcı depolama | **Kabul edildi**; Native18 exact `6a054ea`, amd64+arm64 makbuzları doğrulandı | S06.3f ile birleşik kaynak kapısı kapandı |
 | S06.3f — kaynak kabulü | **Kabul edildi**; exact `4021391`, iki mimarili native makbuz, 4.065 Server ve tam Android/Server CI yeşil | S06.4 dar kurulum yürütme kapısı |
 | S06.4 — dar kurulum yürütme kapısı | **Kabul edildi**; PR16 `bf6f860`, PR18 `75af015`, PR19 `9ce3c5a` ve PR20 `2b9166b` tam CI kapıları yeşil | S06.5 özel bootstrap ve otomatik servis eşleştirme |
-| S06.5 — özel bootstrap ve otomatik eşleştirme | **Devam ediyor**; şifreli niyet, exact yürütücü, kalıcı no-retry koordinatör ve aynı retained daemon'a bağlı private IPC/runtime yerelde hazır | Exact-source CI, API anahtarı/kütüphane geri okuması ve gerçek servis kabulü |
+| S06.5 — özel bootstrap ve otomatik eşleştirme | **Devam ediyor**; private IPC/runtime, tek Larenor API anahtarı, sistem/kütüphane geri okuması ve AES-GCM kalıcı durum yerelde hazır | Exact-source CI, otomatik servis eşleştirmesi ve gerçek disposable servis kabulü |
 
 S06.5'in ilk iki TDD parçası, yalnız tamamlanmış Jellyfin kurulumundan
 yöneticiye bağlı bootstrap niyeti üretir ve public API'de sır, hedef adres veya
@@ -86,6 +86,18 @@ aynı journal/binding'i kullanır; supervisor iç gate'leri ve Docker bağlantı
 aynı retained daemon lease'i/native thread içinde doğrular. Sentetik gerçek
 Unix-soket Core→IPC→worker yolculuğu dahil **11 yeni / 149 ilgili test** geçti;
 bir Linux-only test macOS'ta skip edildi. Gerçek Docker/Jellyfin etkisi yapılmadı.
+
+`7668017` → `0745d70`, `c790748` → `61be275`, `1f36ed5` / `22bae10` →
+`a681d74` ve `e95e436` → `d198a72` TDD zinciri, tamamlanan startup'tan sonra
+ikinci kez doğrulanmış private endpoint üzerinde Jellyfin sistem kullanıcısını
+authenticate eder. Tek aktif `Larenor Core` API anahtarını yeniden kullanır;
+yoksa bir kez oluşturup geri okumadan kabul etmez. `System/Info` kimliği ve
+`Library/VirtualFolders` sonucu kapalı modele alınır, geçici auth oturumu
+`Sessions/Logout` ile kapatılır. API key, session token, parola ve medya yolları
+UID-korumalı IPC dışında görünmez; Core sonucu AES-GCM ciphertext olarak saklar
+ve public durumu yalnız `wiring_partial` yapar. İlgili altı paket **110 PASS**,
+değişen ve doğrudan bağlı beş modül branch coverage toplamı **%80** verdi.
+[TDD kanıtı ve açık sınırlar](jellyfin-authenticated-readback-implementation-2026-09-09.md).
 
 S06.4 native kabul koşusu [34326112926](https://github.com/ersingundem/larenor/actions/runs/34326112926)
 iki gerçek GitHub runner'ında geçti. İndirilen ARM64 ve X64 makbuzları merge
