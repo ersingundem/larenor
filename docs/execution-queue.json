@@ -858,10 +858,18 @@
           "state": "completed",
           "result": "passed",
           "label": "Sabit Larenor Movies/Shows Jellyfin kütüphaneleri üçüncü doğrulanmış endpoint üzerinde idempotent oluşturulup geri okunuyor; çakışma, kısmi yazma ve secret-free tanılar dahil 306 ilgili test PASS. Onaylı /media mount ve exact native kabul açık."
+        },
+        {
+          "kind": "test",
+          "ref": "docs/jellyfin-managed-libraries-implementation-2026-09-09.md",
+          "commit": "7ac61db5f8a7c4264bb995300b4dfae9d2d7390a",
+          "state": "completed",
+          "result": "passed",
+          "label": "Native eksik-yol RED sonucundan sonra sekizinci journal-bound arşiv hacmi, UID/GID 1000 sabit movies/shows hazırlığı ve Jellyfin salt okunur /media binding eklendi; hacim/Jellyfin paketinde 513 PASS. Exact iki mimarili native CI açık."
         }
       ],
       "completionCommit": null,
-      "reason": "Server üretimli sır, sabit startup, exact journal/container/private-network yürütücüsü, kalıcı no-retry koordinatör ve aynı retained daemon'a bağlı private IPC/runtime hazır. Disposable Jellyfin 10.11.11 bootstrap, API anahtarı, sistem/boş kütüphane readback, logout, restart ve veri kalıcılığı exact arm64+amd64 CI'da geçti. Larenor Movies/Shows idempotent kütüphane adımı yerelde yeşil; onaylı /media mount ve exact native kabul açık. Radarr/Sonarr/qBittorrent/Seerr/Music Assistant otomatik eşleştirmesi açık; installAvailable=false."
+      "reason": "Server üretimli sır, sabit startup, exact journal/container/private-network yürütücüsü, kalıcı no-retry koordinatör ve aynı retained daemon'a bağlı private IPC/runtime hazır. Disposable Jellyfin 10.11.11 bootstrap, API anahtarı, sistem/boş kütüphane readback, logout, restart ve veri kalıcılığı exact arm64+amd64 CI'da geçti. Larenor Movies/Shows idempotent kütüphane adımı, journal-bound arşiv hacmi, sabit dizin hazırlığı ve salt okunur /media binding yerelde yeşil; exact iki mimarili native kabul açık. Radarr/Sonarr/qBittorrent/Seerr/Music Assistant otomatik eşleştirmesi açık; installAvailable=false."
     },
     {
       "id": "S06.6",

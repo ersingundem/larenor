@@ -41,7 +41,7 @@ Gerçek ev kurulumu ve fiziksel tablet kabulü henüz yapılmadı.
 | S06.3d — kalıcı depolama | **Kabul edildi**; Native18 exact `6a054ea`, amd64+arm64 makbuzları doğrulandı | S06.3f ile birleşik kaynak kapısı kapandı |
 | S06.3f — kaynak kabulü | **Kabul edildi**; exact `4021391`, iki mimarili native makbuz, 4.065 Server ve tam Android/Server CI yeşil | S06.4 dar kurulum yürütme kapısı |
 | S06.4 — dar kurulum yürütme kapısı | **Kabul edildi**; PR16 `bf6f860`, PR18 `75af015`, PR19 `9ce3c5a` ve PR20 `2b9166b` tam CI kapıları yeşil | S06.5 özel bootstrap ve otomatik servis eşleştirme |
-| S06.5 — özel bootstrap ve otomatik eşleştirme | **Devam ediyor**; private IPC/runtime, tek Larenor API anahtarı, sistem/kütüphane geri okuması ve AES-GCM kalıcı durum hazır; disposable gerçek Jellyfin 10.11.11 bootstrap/readback/restart akışı exact arm64+amd64 CI'da geçti. `Larenor Movies` ve `Larenor Shows` yönetilen kütüphane adımı yerelde yeşil | Onaylı `/media` mount kanıtı; ardından Radarr/Sonarr/qBittorrent/Seerr/Music Assistant otomatik servis eşleştirmesi |
+| S06.5 — özel bootstrap ve otomatik eşleştirme | **Devam ediyor**; private IPC/runtime, tek Larenor API anahtarı, sistem/kütüphane geri okuması ve AES-GCM kalıcı durum hazır; disposable gerçek Jellyfin 10.11.11 bootstrap/readback/restart akışı exact arm64+amd64 CI'da geçti. Journal-bound arşiv, güvenli `movies`/`shows` hazırlığı, salt okunur `/media` bağı ve yönetilen kütüphaneler yerelde yeşil | Exact amd64+arm64 native kabul; ardından Radarr/Sonarr/qBittorrent/Seerr/Music Assistant otomatik servis eşleştirmesi |
 
 S06.5'in ilk iki TDD parçası, yalnız tamamlanmış Jellyfin kurulumundan
 yöneticiye bağlı bootstrap niyeti üretir ve public API'de sır, hedef adres veya
@@ -112,9 +112,15 @@ Sonraki `1f998d3` → `a62b904`, `33e6bf5` → `a0d1420` TDD dilimi sabit
 endpoint üzerinde idempotent oluşturup yeniden okur. İlgisiz kayıtlar korunur;
 ad/yol/tür çakışması ve kısmi yazma silme veya otomatik retry üretmez. Runtime,
 IPC, public hata modeli ve secret-free native aşama tanıları bağlandı;
-**306 ilgili test** geçti. Gerçek `/media` mount'u S06.4 binding'inde henüz
-olmadığı için iki mimarili native kabul bekleniyor ve S06.5 sayacı değişmedi.
-[TDD kanıtı ve mount bağımlılığı](jellyfin-managed-libraries-implementation-2026-09-09.md).
+İlk sözleşmede **306 ilgili test** geçti. Native CI `34394429050`, eksik
+`/media/movies` yolunu beklendiği gibi `bootstrap_wiring_create_failed` ile
+kapattı. `7ac61db` bunun üzerine sekizinci journal-bound medya hacmini, sabit
+dizin hazırlığını ve Jellyfin'in salt okunur `/media` bağını ekledi; genişleyen
+hacim/Jellyfin paketi **513 PASS** verdi. Tam Server koleksiyonunda test
+assertion hatası olmadı; yerel ortamda sabit `LARENOR_TEST_APKSIG_JAR` olmadığı
+için dört release-verifier crypto fixture'ı kurulamadı. İki mimarili native kabul
+bekleniyor ve S06.5 sayacı değişmedi.
+[TDD kanıtı ve açık kabul sınırı](jellyfin-managed-libraries-implementation-2026-09-09.md).
 
 S06.4 native kabul koşusu [34326112926](https://github.com/ersingundem/larenor/actions/runs/34326112926)
 iki gerçek GitHub runner'ında geçti. İndirilen ARM64 ve X64 makbuzları merge
