@@ -28,7 +28,8 @@ class VolumeBootstrapError(Exception):
             'bootstrap_configuration_invalid', 'bootstrap_unavailable',
             'bootstrap_create_failed', 'bootstrap_start_failed',
             'bootstrap_wait_failed', 'bootstrap_result_failed',
-            'bootstrap_cleanup_failed',
+            'bootstrap_cleanup_failed', 'bootstrap_cleanup_status_failed',
+            'bootstrap_cleanup_transport_failed',
         } else 'bootstrap_unavailable'
         super().__init__(self.code)
 
@@ -167,10 +168,15 @@ class UnixVolumeBootstrapEngine:
         finally:
             if identity is not None:
                 try:
-                    self._response(self._transport._exchange(
-                        'DELETE', f'/containers/{identity}?force=0&v=0'), 204)
+                    cleanup = self._transport._exchange(
+                        'DELETE', f'/containers/{identity}')
                 except Exception:
-                    failure = 'bootstrap_cleanup_failed'
+                    failure = 'bootstrap_cleanup_transport_failed'
+                else:
+                    try:
+                        self._response(cleanup, 204)
+                    except Exception:
+                        failure = 'bootstrap_cleanup_status_failed'
         if failure is not None:
             raise VolumeBootstrapError(failure) from None
         return True
