@@ -148,7 +148,10 @@ class ExchangeTransport:
 
     def _exchange(self, method, target, body=None):
         self.calls.append((method, target, body))
-        return self.replies.pop(0)
+        reply = self.replies.pop(0)
+        if isinstance(reply, Exception):
+            raise reply
+        return reply
 
 
 def response(status, value=None):
@@ -209,7 +212,7 @@ def test_unix_engine_uses_fixed_ephemeral_helper_and_removes_it(tmp_path):
         'POST', f'/containers/{container_id}/wait?condition=not-running',
     )
     assert transport.calls[3][:2] == (
-        'DELETE', f'/containers/{container_id}?force=0&v=0',
+        'DELETE', f'/containers/{container_id}',
     )
 
 
@@ -234,8 +237,58 @@ def test_helper_failure_is_static_and_still_removes_known_container(tmp_path, wa
     with pytest.raises(VolumeBootstrapError, match='^bootstrap_result_failed$'):
         engine.verify_root(intent, HELPER, 'linux/amd64', cancelled=threading.Event())
     assert transport.calls[-1][:2] == (
-        'DELETE', f'/containers/{container_id}?force=0&v=0',
+        'DELETE', f'/containers/{container_id}',
     )
+
+
+def test_cleanup_http_rejection_reports_only_static_status_stage(tmp_path):
+    intent = volume_intent(tmp_path)
+    container_id = '7' * 64
+    transport = ExchangeTransport([
+        response(201, {'Id': container_id, 'Warnings': None}),
+        response(204),
+        response(200, {'StatusCode': 0, 'Error': None}),
+        response(409, {'message': 'private-engine-detail'}),
+    ])
+    engine = UnixVolumeBootstrapEngine(
+        DockerEndpoint('/private/docker.sock', owner_uid=0),
+        transport_factory=lambda value: transport,
+        name_factory=lambda: '8' * 32,
+    )
+
+    with pytest.raises(
+        VolumeBootstrapError,
+        match='^bootstrap_cleanup_status_failed$',
+    ) as raised:
+        engine.verify_root(intent, HELPER, 'linux/amd64', cancelled=threading.Event())
+
+    assert 'private-engine-detail' not in str(raised.value)
+    assert transport.calls[-1][:2] == ('DELETE', f'/containers/{container_id}')
+
+
+def test_cleanup_transport_rejection_reports_only_static_transport_stage(tmp_path):
+    intent = volume_intent(tmp_path)
+    container_id = '7' * 64
+    transport = ExchangeTransport([
+        response(201, {'Id': container_id, 'Warnings': None}),
+        response(204),
+        response(200, {'StatusCode': 0, 'Error': None}),
+        RuntimeError('private-transport-detail'),
+    ])
+    engine = UnixVolumeBootstrapEngine(
+        DockerEndpoint('/private/docker.sock', owner_uid=0),
+        transport_factory=lambda value: transport,
+        name_factory=lambda: '8' * 32,
+    )
+
+    with pytest.raises(
+        VolumeBootstrapError,
+        match='^bootstrap_cleanup_transport_failed$',
+    ) as raised:
+        engine.verify_root(intent, HELPER, 'linux/amd64', cancelled=threading.Event())
+
+    assert 'private-transport-detail' not in str(raised.value)
+    assert transport.calls[-1][:2] == ('DELETE', f'/containers/{container_id}')
 
 
 def test_create_rejection_reports_only_static_stage_and_has_no_cleanup_target(tmp_path):

@@ -194,6 +194,7 @@ _DIAGNOSTIC_CODES = _CODES | set(_BUILD_ERROR_PATTERNS) | set(_START_ERROR_PATTE
     'managed_resource_limits_unverified',
     'bootstrap_create_failed', 'bootstrap_start_failed', 'bootstrap_wait_failed',
     'bootstrap_result_failed', 'bootstrap_cleanup_failed',
+    'bootstrap_cleanup_status_failed', 'bootstrap_cleanup_transport_failed',
     'storage_characterization_evidence_invalid'}
 _PHASES = {'launcher', 'launch_validation', 'source_capture', 'daemon_start', 'daemon_cleanup',
     'characterization', 'image_prepare', 'volume_prepare', 'image_inspect', 'helper_stage',
