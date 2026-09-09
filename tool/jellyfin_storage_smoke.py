@@ -154,6 +154,10 @@ _MANAGED_CREATE_DIAGNOSTICS = {
     'managed_inspect_tmpfs_option_extra', 'managed_inspect_tmpfs_value_mismatch',
     'managed_inspect_requested_mount_mismatch', 'managed_inspect_network_mode_mismatch',
     'managed_inspect_init_mismatch', 'managed_inspect_restart_mismatch',
+    'managed_inspect_identity_mismatch', 'managed_inspect_config_mismatch',
+    'managed_inspect_forbidden_host_mismatch',
+    'managed_inspect_observed_mount_mismatch',
+    'managed_inspect_network_attachment_mismatch',
     'managed_inspect_nonresource_mismatch',
 }
 _DIAGNOSTIC_CODES = _CODES | set(_BUILD_ERROR_PATTERNS) | set(_START_ERROR_PATTERNS) | {
@@ -1294,7 +1298,9 @@ def _tmpfs_diagnostic(actual, expected):
 
 def _managed_inspect_diagnostic(value, binding):
     try:
-        expected = binding.payload()['specification']['HostConfig']
+        payload = binding.payload()
+        body = payload['specification']
+        expected = body['HostConfig']
         actual = value.get('HostConfig')
         if type(expected) is not dict or type(actual) is not dict:
             return 'managed_inspect_nonresource_mismatch'
@@ -1326,6 +1332,47 @@ def _managed_inspect_diagnostic(value, binding):
             restart = {'Name': 'no', 'MaximumRetryCount': 0}
         if actual.get('RestartPolicy') != restart:
             return 'managed_inspect_restart_mismatch'
+        if (value.get('Id') is None or value.get('Name') != '/'+payload['name']
+                or value.get('Image') != payload['image_id']):
+            return 'managed_inspect_identity_mismatch'
+        config = value.get('Config')
+        inherited = payload['image_configuration']
+        if type(config) is not dict or type(inherited) is not dict:
+            return 'managed_inspect_config_mismatch'
+        desired_env = {item.partition('=')[0]: item for item in inherited.get('Env') or []}
+        desired_env.update({item.partition('=')[0]: item for item in body.get('Env') or []})
+        desired_labels = {**(inherited.get('Labels') or {}), **body['Labels']}
+        if (type(config.get('Env')) is not list
+                or sorted(config['Env']) != sorted(desired_env.values())
+                or config.get('Labels') != desired_labels
+                or config.get('Image') != body.get('Image')
+                or config.get('User') != body.get('User')):
+            return 'managed_inspect_config_mismatch'
+        for key in ('Cmd', 'Entrypoint', 'WorkingDir', 'Volumes', 'Healthcheck',
+                    'StopSignal', 'Shell'):
+            if (config.get(key) or None) != (inherited.get(key) or None):
+                return 'managed_inspect_config_mismatch'
+        if any(config.get(key) not in (None, False) for key in ('Tty','OpenStdin','StdinOnce')):
+            return 'managed_inspect_config_mismatch'
+        from larenor_server.plugins.worker import _FORBIDDEN_OBSERVED
+        if not all(actual.get(key) in allowed for key, allowed in _FORBIDDEN_OBSERVED.items()
+                   if key != 'Mounts'):
+            return 'managed_inspect_forbidden_host_mismatch'
+        mounts = value.get('Mounts')
+        desired_mounts = {item['target']: item['name'] for item in payload['mounts']}
+        if type(mounts) is not list or len(mounts) != len(desired_mounts):
+            return 'managed_inspect_observed_mount_mismatch'
+        for mount in mounts:
+            if (type(mount) is not dict or mount.get('Type') != 'volume'
+                    or mount.get('Name') != desired_mounts.get(mount.get('Destination'))
+                    or mount.get('Driver') != 'local' or mount.get('RW') is not True):
+                return 'managed_inspect_observed_mount_mismatch'
+        networks = (value.get('NetworkSettings') or {}).get('Networks')
+        network_name = expected.get('NetworkMode')
+        if (type(networks) is not dict or set(networks) != {network_name}
+                or type(networks[network_name]) is not dict
+                or networks[network_name].get('NetworkID') != payload['network_id']):
+            return 'managed_inspect_network_attachment_mismatch'
     except (AttributeError, KeyError, TypeError, ValueError, RecursionError):
         return 'managed_inspect_nonresource_mismatch'
     return 'managed_inspect_nonresource_mismatch'

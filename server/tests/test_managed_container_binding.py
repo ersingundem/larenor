@@ -4,10 +4,14 @@ from dataclasses import replace
 import copy
 import hashlib
 import json
+from pathlib import Path
+import sys
 import time
 from types import SimpleNamespace
 
 import pytest
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from larenor_server.context import ContextResponse
 from larenor_server.plugins.catalog import load_catalog
@@ -217,6 +221,32 @@ def test_inspect_drift_cannot_reconcile_as_the_managed_container(damage):
     else:
         value['Config']['Env'].append('TOKEN=private')
     assert managed_container_matches(value, binding) is False
+
+
+@pytest.mark.parametrize('damage,expected', [
+    ('identity', 'managed_inspect_identity_mismatch'),
+    ('config', 'managed_inspect_config_mismatch'),
+    ('mount', 'managed_inspect_observed_mount_mismatch'),
+    ('network', 'managed_inspect_network_attachment_mismatch'),
+    ('forbidden_host', 'managed_inspect_forbidden_host_mismatch'),
+])
+def test_native_diagnostic_classifies_nonresource_snapshot_drift(damage, expected):
+    from tool.jellyfin_storage_smoke import _managed_inspect_diagnostic
+    _builder, _stack, binding = build()
+    value = snapshot(binding)
+    value['HostConfig']['Tmpfs'] = None
+    value['HostConfig']['Mounts'] = None
+    if damage == 'identity':
+        value['Name'] = '/foreign'
+    elif damage == 'config':
+        value['Config']['User'] = '0:0'
+    elif damage == 'mount':
+        value['Mounts'][0]['Name'] = 'foreign'
+    elif damage == 'network':
+        next(iter(value['NetworkSettings']['Networks'].values()))['NetworkID'] = '9'*64
+    else:
+        value['HostConfig']['Binds'] = ['/foreign:/host']
+    assert _managed_inspect_diagnostic(value, binding) == expected
 
 
 class Engine:
