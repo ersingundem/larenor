@@ -174,6 +174,7 @@ _DIAGNOSTIC_CODES = _CODES | set(_BUILD_ERROR_PATTERNS) | set(_START_ERROR_PATTE
     *_MANAGED_CREATE_DIAGNOSTICS, 'managed_create_preflight_failed',
     'managed_create_uncertain', 'managed_create_resource_conflict',
     'managed_create_expired', 'managed_create_receipt_invalid',
+    'managed_resource_limits_unverified',
     'storage_characterization_evidence_invalid'}
 _PHASES = {'launcher', 'launch_validation', 'source_capture', 'daemon_start', 'daemon_cleanup',
     'characterization', 'image_prepare', 'volume_prepare', 'image_inspect', 'helper_stage',
@@ -716,7 +717,7 @@ class EphemeralDaemon:
             timeout=timeout, limit=limit, diagnose_failure=diagnose_failure,
             diagnose_process=diagnose_process, diagnose_start=diagnose_start)
 
-    def verify_container_cgroup(self, pid):
+    def _container_cgroup_path(self, pid):
         require(type(pid) is int and pid > 0 and type(self.container_cgroup_parent) is str,
                 'owned_daemon_lost')
         try:
@@ -724,8 +725,49 @@ class EphemeralDaemon:
         except OSError:
             raise SmokeError('owned_daemon_lost') from None
         prefix = b'0::'+self.container_cgroup_parent.encode('ascii')+b'/'
-        require(any(line.startswith(prefix) for line in value.splitlines(True)),
+        selected = [line.removesuffix(b'\n') for line in value.splitlines(True)
+                    if line.startswith(prefix)]
+        require(len(selected) == 1 and re.fullmatch(rb'0::/[A-Za-z0-9_.:/-]{1,1024}', selected[0]),
                 'owned_daemon_lost')
+        try:
+            relative = selected[0].removeprefix(b'0::').decode('ascii')
+        except UnicodeError:
+            raise SmokeError('owned_daemon_lost') from None
+        return Path('/sys/fs/cgroup'+relative)
+
+    def verify_container_cgroup(self, pid):
+        self._container_cgroup_path(pid)
+
+    def verify_container_resources(self, pid, memory, nano_cpus, pids_limit):
+        require(type(memory) is int and memory > 0 and type(nano_cpus) is int
+                and nano_cpus > 0 and type(pids_limit) is int and pids_limit > 0,
+                'managed_resource_limits_unverified')
+        path = self._container_cgroup_path(pid)
+        directory = None
+        try:
+            directory = os.open(path, os.O_RDONLY|os.O_DIRECTORY|os.O_CLOEXEC|os.O_NOFOLLOW)
+            values = {}
+            for name in ('memory.max', 'cpu.max', 'pids.max'):
+                descriptor = os.open(name, os.O_RDONLY|os.O_CLOEXEC|os.O_NOFOLLOW,
+                                     dir_fd=directory)
+                try:
+                    raw = os.pread(descriptor, 129, 0)
+                finally:
+                    os.close(descriptor)
+                require(0 < len(raw) <= 128 and raw.endswith(b'\n'),
+                        'managed_resource_limits_unverified')
+                values[name] = raw.removesuffix(b'\n')
+            quota = nano_cpus * 100000 // 1000000000
+            require(values == {
+                'memory.max': str(memory).encode('ascii'),
+                'cpu.max': (str(quota)+' 100000').encode('ascii'),
+                'pids.max': str(pids_limit).encode('ascii'),
+            }, 'managed_resource_limits_unverified')
+        except (OSError, ValueError, TypeError, UnicodeError):
+            raise SmokeError('managed_resource_limits_unverified') from None
+        finally:
+            if directory is not None:
+                os.close(directory)
 
     def _verify_daemon_root(self):
         actual = json.loads(self.docker(['info', '--format', '{{json .DockerRootDir}}']))
@@ -1293,7 +1335,9 @@ def _managed_create_and_start(daemon, source, endpoint, helper_id):
         running = engine.inspect_container(start.container_id)
         require(managed_container_matches(running, binding)
                 and running.get('State', {}).get('Running') is True)
-        daemon.verify_container_cgroup(running.get('State', {}).get('Pid'))
+        host = binding.payload()['specification']['HostConfig']
+        daemon.verify_container_resources(running.get('State', {}).get('Pid'),
+            host['Memory'], host['NanoCpus'], host['PidsLimit'])
         return start.container_id, binding, engine
 
 
@@ -1402,7 +1446,12 @@ def characterize(daemon, *, source=None, images=None, volumes=None, checkout_bin
         if not managed:
             daemon.docker(['start',container_id], limit=128)
         running = inspect()
-        daemon.verify_container_cgroup(running.get('State',{}).get('Pid'))
+        if managed:
+            host = managed_binding.payload()['specification']['HostConfig']
+            daemon.verify_container_resources(running.get('State',{}).get('Pid'),
+                host['Memory'], host['NanoCpus'], host['PidsLimit'])
+        else:
+            daemon.verify_container_cgroup(running.get('State',{}).get('Pid'))
     with diagnostic_phase('initial_health'):
         first = _health(daemon, helper_id, container_id)
     with diagnostic_phase('initial_identity'):
@@ -1421,7 +1470,12 @@ def characterize(daemon, *, source=None, images=None, volumes=None, checkout_bin
         require(_helper(daemon, helper_id, 'app_identity', network='container:'+container_id)
                 == {'uid':1000,'gid':1000})
     running = inspect()
-    daemon.verify_container_cgroup(running.get('State',{}).get('Pid'))
+    if managed:
+        host = managed_binding.payload()['specification']['HostConfig']
+        daemon.verify_container_resources(running.get('State',{}).get('Pid'),
+            host['Memory'], host['NanoCpus'], host['PidsLimit'])
+    else:
+        daemon.verify_container_cgroup(running.get('State',{}).get('Pid'))
     for target in source.targets:
         with diagnostic_phase('root_verify'):
             require(_helper(daemon, helper_id, 'verify_root', target=target, bootstrap=True)

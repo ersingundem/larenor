@@ -363,7 +363,7 @@ def _binding_parts(value):
     labels = body['Labels']
     environment = body['Env']
     expected_host = {'Privileged', 'CapDrop', 'CapAdd', 'SecurityOpt', 'NetworkMode',
-                     'Memory', 'NanoCpus', 'PidsLimit', 'ReadonlyRootfs', 'Init',
+                     'Memory', 'MemorySwap', 'NanoCpus', 'PidsLimit', 'ReadonlyRootfs', 'Init',
                      'Tmpfs', 'Mounts', 'RestartPolicy'}
     if (type(host) is not dict or set(host) != expected_host
             or host['Privileged'] is not False or host['CapDrop'] != ['ALL']
@@ -382,6 +382,7 @@ def _binding_parts(value):
                        for item in environment)
             or len({item.partition('=')[0] for item in environment}) != len(environment)
             or host['RestartPolicy'] != {'Name': 'no'}
+            or host['MemorySwap'] != -1
             or host['ReadonlyRootfs'] is not True or type(host['Init']) is not bool):
         raise ValueError()
     for key, minimum, maximum in (
@@ -667,6 +668,10 @@ class JellyfinBindingBuilder:
                     'SecurityOpt': ['no-new-privileges:true'],
                     'NetworkMode': network.name,
                     'Memory': child.resources.memoryMiB * 1048576,
+                    # The hard memory limit remains enforced. Explicitly avoid
+                    # asking Docker for a swap controller that is commonly not
+                    # delegated to nested, otherwise isolated cgroup-v2 daemons.
+                    'MemorySwap': -1,
                     'NanoCpus': child.resources.cpuMillis * 1000000,
                     'PidsLimit': child.resources.pidsLimit,
                     'ReadonlyRootfs': True,
