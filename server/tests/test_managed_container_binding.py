@@ -161,6 +161,14 @@ def test_fresh_inspect_matches_full_image_mount_network_and_security_state():
     assert managed_container_matches(snapshot(binding), binding)
 
 
+def test_docker_null_normalization_matches_only_an_expected_empty_tmpfs():
+    _builder, _stack, binding = build()
+    value = snapshot(binding)
+    assert json.loads(binding.specification)['HostConfig']['Tmpfs'] == {}
+    value['HostConfig']['Tmpfs'] = None
+    assert managed_container_matches(value, binding)
+
+
 @pytest.mark.parametrize('damage', ['mount', 'extra_mount', 'network', 'image', 'capability', 'env',
                                     'memory_swap'])
 def test_inspect_drift_cannot_reconcile_as_the_managed_container(damage):
