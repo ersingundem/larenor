@@ -2,11 +2,12 @@
 
 **Durum:** Kalıcı API, ayrı IPC ve doğrulanmış Jellyfin binding dilimleri yerelde
 uygulandı. Binding'i tüketen ayrı sürüm-2 managed-container journal,
-journal-bound proof broker çekirdeği ve tek-endpoint production
-image/volume/network reader bileşimi tamamlandı. Managed-v2 workflow'un
-amd64/arm64 native kabulü de exact PR kaynağında geçti. S06.4 tamamlanmadı;
-paketli production bootstrap/mutasyon işçisi, CLI ve supervisor yaşam döngüsü
-açık. Ürün kurulum yeteneği `installAvailable=false` kalır.
+journal-bound proof broker çekirdeği, tek-endpoint production reader bileşimi,
+paketli volume bootstrap verifier ve `larenor-installation-worker` CLI yaşam
+döngüsü tamamlandı. Managed-v2 workflow'un amd64/arm64 native kabulü de exact
+PR kaynağında geçti. S06.4 tamamlanmadı; supervisor'ın daemon incarnation ve
+namespace bağını işlem boyunca tutması, stacked native CI ve inceleme açık.
+Ürün kurulum yeteneği `installAvailable=false` kalır.
 
 ## Uygulanan sınır
 
@@ -62,10 +63,20 @@ tutar, exact source/revision/nonce bağını alır, image/volume/bootstrap/netwo
 okumalarından sonra bağları tekrar kurar ve eski bootstrap revision'ını reddeder.
 `JellyfinEngineReaders` image, volume ve network Unix taşıyıcılarını tek
 operator-owned `DockerEndpoint` üzerinden kurar ve bootstrap verifier'ın da aynı
-endpoint nesnesine bağlı olmasını ister. Paketli production bootstrap adaptörü,
-son kurulum worker CLI'si ve runtime supervisor'ı henüz yoktur. Kullanıcının
-Docker Engine'ine veya ev sistemlerine hiçbir
-mutasyon yapılmadı.
+endpoint nesnesine bağlı olmasını ister. Paketli verifier exact sha256 image
+kimliğiyle yalnız `verify_root` çalıştırır; ağsız, read-only rootfs'li, bütün
+capability'leri düşürülmüş geçici helper'a hedef volume'u read-only NoCopy olarak
+bağlar ve kesin çıkış sonucundan sonra bilinen container ID'sini siler. Komut,
+image, mount, ağ ve silme seçenekleri IPC'den gelemez.
+
+`larenor-installation-worker`, private 0600 politikasından tek Docker endpoint'i,
+opaque worker policy bağını, helper image ID'sini ve birbirinden ayrılmış üç
+journal yolunu yükler. `--check-config` bu kaynakları açmadan salt şemayı kontrol
+eder. Runtime her stack isteğinde proof broker'ı tekrar kurar, socket'i Engine
+endpoint'i veya journal ağaçları içine koymayı reddeder ve kapanışta socket'ten
+sonra bütün journal'ları kapatır. Native supervisor'ın daemon incarnation bağını
+işlemler arasında koruyan son üretici henüz yoktur. Kullanıcının Docker Engine'ine
+veya ev sistemlerine hiçbir mutasyon yapılmadı.
 
 ## TDD ve doğrulama
 
@@ -95,6 +106,10 @@ mutasyon yapılmadı.
   cgroup memory/cpu/pids doğrulaması.
 - RED/GREEN `19485ab`: image digest ile çıplak 64-hex container ID biçimini
   ayıran create receipt doğrulaması.
+- RED/GREEN `af113e0`: exact helper ile read-only volume kökü doğrulaması,
+  private policy, üç journal'lı dinamik binding builder ve paketli installation
+  worker CLI yaşam döngüsü; **43 odaklı PASS**. Pinli apksig ve gerçek Homebrew
+  JDK 17 ile bütün Server paketi **4.256 PASS, 12 platform skip**.
 - Güncel storage/managed/resource/binding paketi **216 PASS**; managed workflow
   politika paketi ayrıca **7 PASS**. Python derleme ve `git diff --check` temiz.
 - Exact `191baf3` kaynak commit'i [Server CI 34313975186](https://github.com/ersingundem/larenor/actions/runs/34313975186)
@@ -114,6 +129,6 @@ Android/Server CI'ı ve inceleme gerekir. Bunlar olmadan S06.4 `done` yapılamaz
 
 ## Sonraki dilim
 
-1. Paketli bootstrap verifier ve mutasyon worker CLI/supervisor yaşam döngüsü
-   eklenecek.
-2. Exact kaynak Android/Server CI ve bağımsız inceleme kapatılacak.
+1. Native supervisor daemon incarnation/namespace bağını bütün worker yaşamı
+   boyunca tutacak ve restart/stale socket davranışı kapatılacak.
+2. Stacked kaynak native Android/Server CI ve bağımsız inceleme kapatılacak.

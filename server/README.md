@@ -277,10 +277,14 @@ complete packaged stack plan; the worker revalidates both, then derives the
 Jellyfin child before its policy-owned
 binding builder can reach the journaled Engine operations. The initial builder
 requires fresh typed image, bootstrapped-volume and private-network proofs and
-produces a ports-off Jellyfin binding. The receipt-journal broker and fixed
-single-endpoint image/volume/network reader composition are implemented; the
-final packaged bootstrap verifier, installation worker CLI and unified
-supervisor remain open.
+produces a ports-off Jellyfin binding. The package now includes
+`larenor-installation-worker`: it loads one private exact policy, opens the
+resource, volume-create and managed-container journals, and owns the Docker
+endpoint. Its bootstrap verifier runs only the pinned helper image's
+`verify_root` command in a networkless, read-only ephemeral container with the
+target named volume mounted read-only and `NoCopy=true`. `--check-config`
+validates policy without opening a journal, socket or Docker connection.
+The unified native supervisor and release wiring remain open.
 Its separate version-2 managed-container journal durably records the complete
 binding before create/start, refuses legacy journal rows, and reconciles only
 against a freshly rebuilt identical binding and full Engine observation. It has

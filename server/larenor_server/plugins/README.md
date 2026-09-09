@@ -315,10 +315,13 @@ exactly `/config` and `/cache` with `NoCopy=true`, and verifies the resulting
 full-ID inspect. A separate version-2 managed-container journal and a
 journal-bound proof broker core are implemented. Fixed image, volume and network
 readers are constructed from one exact Docker endpoint and require the bootstrap
-verifier to retain that same endpoint identity. The packaged production
-bootstrap adapter, final installation worker runtime and unified supervisor are
-still open. A separate amd64/arm64 managed-v2 characterization workflow is
-source-bound and locally tested, but its native receipts are pending. The API
+verifier to retain that same endpoint identity. The packaged
+`larenor-installation-worker` opens the three private journals, recreates a proof
+broker for each plan, and uses a fixed sha256 helper image to verify each target
+volume through one networkless, read-only ephemeral container. Its policy-only
+check opens no journals or Engine connection. The unified native supervisor and
+release wiring remain open. A separate amd64/arm64 managed-v2 characterization
+workflow is source-bound and has passed both architectures. The API
 container does not start this mutation
 worker, and this source slice has not run create/start against a user's Engine.
 See the [versioned examples](../../../contracts/media-installations.v1.json)
