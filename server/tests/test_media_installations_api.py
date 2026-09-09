@@ -19,16 +19,16 @@ class ExecutionBackend:
         self.calls = []
         self.change = change
 
-    def apply(self, step, component):
-        self.calls.append(('apply', step.kind, component.serviceId))
+    def apply(self, step, plan):
+        self.calls.append(('apply', step.kind, 'jellyfin'))
         if self.change:
             action, self.change = self.change, None
             action()
         code = 'container_created' if step.kind == 'create_container' else 'container_started'
         return StepReceipt(step.job_id, step.kind, 'succeeded', code, '1' * 64)
 
-    def reconcile(self, step, component):
-        self.calls.append(('reconcile', step.kind, component.serviceId))
+    def reconcile(self, step, plan):
+        self.calls.append(('reconcile', step.kind, 'jellyfin'))
         return StepReceipt(step.job_id, step.kind, 'succeeded', 'container_created', '1' * 64)
 
 

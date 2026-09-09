@@ -11,7 +11,7 @@ import uuid
 
 from .installation_execution import JellyfinWorkerBackend
 from .preflight_ipc import PreflightIPCError, PreflightWorkerServer, read_packet, write_packet
-from .stack_plan import MediaStackComponent
+from .stack_plan import MediaStackPlan
 from .worker import DockerWorkerError, StepReceipt, WorkerStep, _safe_path
 
 
@@ -49,7 +49,7 @@ class InstallationWorkerClient:
         self.path = Path(path).absolute()
         self.owner_uid, self.peer_uid, self.timeout = owner_uid, peer_uid or _peer_uid, timeout
 
-    def _exchange(self, operation, step=None, component=None):
+    def _exchange(self, operation, step=None, plan=None):
         try:
             _safe_path(self.path, uid=self.owner_uid, kind=stat.S_ISSOCK)
             deadline = time.monotonic() + self.timeout
@@ -60,7 +60,7 @@ class InstallationWorkerClient:
                     'kind': step.kind, 'dispatch_id': step.dispatch_id,
                     'start_deadline': step.start_deadline,
                 }
-                request['component'] = component.model_dump(mode='json')
+                request['plan'] = plan.model_dump(mode='json')
             with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as connection:
                 connection.settimeout(self.timeout)
                 connection.connect(str(self.path))
@@ -88,15 +88,15 @@ class InstallationWorkerClient:
             raise InstallationIPCError('invalid_worker_result')
         return result
 
-    def apply(self, step, component):
-        if type(step) is not WorkerStep or type(component) is not MediaStackComponent:
+    def apply(self, step, plan):
+        if type(step) is not WorkerStep or type(plan) is not MediaStackPlan:
             raise InstallationIPCError('invalid_request')
-        return _receipt(self._exchange('apply', step, component), step)
+        return _receipt(self._exchange('apply', step, plan), step)
 
-    def reconcile(self, step, component):
-        if type(step) is not WorkerStep or type(component) is not MediaStackComponent:
+    def reconcile(self, step, plan):
+        if type(step) is not WorkerStep or type(plan) is not MediaStackPlan:
             raise InstallationIPCError('invalid_request')
-        return _receipt(self._exchange('reconcile', step, component), step)
+        return _receipt(self._exchange('reconcile', step, plan), step)
 
 
 class InstallationWorkerServer(PreflightWorkerServer):
@@ -114,17 +114,17 @@ class InstallationWorkerServer(PreflightWorkerServer):
             return {'capability': 'container_execution', 'installAvailable': False,
                     'services': ['jellyfin']}
         if (operation not in {'apply', 'reconcile'}
-                or set(request) != {'protocol', 'requestId', 'operation', 'step', 'component'}
+                or set(request) != {'protocol', 'requestId', 'operation', 'step', 'plan'}
                 or time.monotonic() >= deadline):
             raise PreflightIPCError('invalid_request')
         try:
-            raw = json.dumps(request['component'], sort_keys=True, separators=(',', ':'), allow_nan=False)
-            component = MediaStackComponent.model_validate_json(raw)
+            raw = json.dumps(request['plan'], sort_keys=True, separators=(',', ':'), allow_nan=False)
+            plan = MediaStackPlan.model_validate_json(raw)
             step = WorkerStep(**request['step'])
-            JellyfinWorkerBackend._verify(step, component)
+            JellyfinWorkerBackend._verify(step, plan)
             if time.monotonic() >= deadline:
                 raise ValueError()
-            result = getattr(self.backend, operation)(step, component)
+            result = getattr(self.backend, operation)(step, plan)
             result = _receipt(result, step)
             if time.monotonic() >= deadline:
                 raise ValueError()
