@@ -617,7 +617,7 @@
       "kind": "task",
       "parent": "S06",
       "title": "Dar kurulum adımlarını API ve işçiye bağlama",
-      "status": "pending",
+      "status": "in_progress",
       "dependsOn": [
         "S06.3"
       ],
@@ -637,7 +637,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": null
+      "reason": "İlk TDD dilimi başladı: Client Docker JSON'u kabul etmeyen kapalı kurulum isteği, güncel preparation/inspection/catalog/Core/ev/actor/family/iptal kapıları ve yalnız Jellyfin create/start child-operation yürütme sözleşmesi hazırlanıyor. Gerçek ev kurulumu kapalı; installAvailable=false kalıyor."
     },
     {
       "id": "S06.5",

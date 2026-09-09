@@ -24,7 +24,7 @@ Gruplar ve önceki kabul checkpoint’leri iş sayısına dahil değildir.
 
 | Grup | İş | Biten | Çalışılan | CI | Kullanıcı |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| B1 — Yönetilen bileşen yaşam döngüsü | 9 | 6 | 0 | 0 | 0 |
+| B1 — Yönetilen bileşen yaşam döngüsü | 9 | 6 | 1 | 0 | 0 |
 | B2 — Bütünleşik medya ve müzik | 4 | 0 | 0 | 0 | 0 |
 | B3 — Merkezi kaynak, yetki ve olay sözleşmeleri | 11 | 6 | 1 | 0 | 0 |
 | B4 — Yazılım yedekleme ve kurtarma temeli | 3 | 0 | 0 | 0 | 0 |
