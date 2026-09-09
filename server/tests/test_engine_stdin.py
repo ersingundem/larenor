@@ -177,7 +177,10 @@ def test_authority_loss_after_attach_still_sends_no_private_input():
     with engine() as (client, calls, received):
         with pytest.raises(EngineStdinError, match='^engine_stdin_dispatch_denied$'):
             exchange(client, before_dispatch=lambda: next(decisions))
-    assert len(calls) == 2 and received == [b'']
+    assert len(calls) == 2
+    # Linux may report the peer close while the fixture is entering recv, so
+    # the synthetic server can observe either no completed read or one EOF.
+    assert len(received) <= 1 and b''.join(received) == b''
 
 
 @pytest.mark.parametrize('upgrade', [
@@ -189,7 +192,8 @@ def test_invalid_upgrade_never_sends_private_input(upgrade):
     with engine(upgrade=upgrade) as (client, calls, received):
         with pytest.raises(EngineStdinError, match='^engine_stdin_protocol$'):
             exchange(client)
-    assert len(calls) == 2 and received == [b'']
+    assert len(calls) == 2
+    assert len(received) <= 1 and b''.join(received) == b''
 
 
 @pytest.mark.parametrize('output', [
