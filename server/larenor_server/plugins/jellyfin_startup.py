@@ -192,10 +192,12 @@ def _payloads(value):
             'PreferredMetadataLanguage': value.preferredMetadataLanguage,
         },
         'user': {'Name': value.username, 'Password': value.credential},
-        # Jellyfin 10.11's StartupRemoteAccessDto contains this single field.
-        # The managed container separately has no published host ports and is
-        # attached only to Larenor's internal control network.
-        'remote': {'EnableRemoteAccess': value.remote_access},
+        # Both required booleans stay false. The managed container separately
+        # has no published host ports and only joins Larenor's internal network.
+        'remote': {
+            'EnableRemoteAccess': value.remote_access,
+            'EnableAutomaticPortMapping': value.automatic_port_mapping,
+        },
     }
 
 
@@ -250,13 +252,22 @@ class JellyfinStartupConfigurator:
                 sent_write = method == 'POST'
                 status, raw, closes = _response(reader, limits.max_response_bytes)
                 if method == 'GET':
+                    if status in {401, 403}:
+                        raise JellyfinStartupError('jellyfin_already_configured')
                     if status != 200 or closes:
                         raise JellyfinStartupError('jellyfin_startup_protocol')
                     user = _json(raw)
                     if type(user) is not dict or not set(user) <= {'Name', 'Password'}:
                         raise JellyfinStartupError('jellyfin_startup_protocol')
-                    if any(user.get(name) not in (None, '') for name in ('Name', 'Password')):
+                    if user.get('Password') not in (None, ''):
                         raise JellyfinStartupError('jellyfin_already_configured')
+                    name = user.get('Name')
+                    if (name not in (None, '')
+                            and (type(name) is not str or not 1 <= len(name) <= 128
+                                 or name != name.strip()
+                                 or any(ord(char) < 32 or ord(char) == 127
+                                        for char in name))):
+                        raise JellyfinStartupError('jellyfin_startup_protocol')
                 elif status != 204 or raw or closes and index != len(_STEPS) - 1:
                     raise JellyfinStartupError('jellyfin_startup_protocol')
                 completed.append(step)
