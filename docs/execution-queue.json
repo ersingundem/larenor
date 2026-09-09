@@ -866,10 +866,26 @@
           "state": "completed",
           "result": "passed",
           "label": "Native eksik-yol RED sonucundan sonra sekizinci journal-bound arşiv hacmi, UID/GID 1000 sabit movies/shows hazırlığı ve Jellyfin salt okunur /media binding eklendi; hacim/Jellyfin paketinde 513 PASS. Exact iki mimarili native CI açık."
+        },
+        {
+          "kind": "test",
+          "ref": "docs/jellyfin-managed-libraries-implementation-2026-09-09.md",
+          "commit": "33bb2d2b5e43c203b21800622f77efd8acba667e",
+          "state": "completed",
+          "result": "passed",
+          "label": "Jellyfin kütüphane geri okuması sunucu sırasından bağımsız tam kümeyle doğrulanıyor; yanlış/ekstra kayıt reddi ve ayrı kapalı native sonuç tanılarıyla ilgili paket 514 PASS."
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/34398527312",
+          "commit": "73fbd0a0ea2b822b53fcee818665da748cf05e7b",
+          "state": "completed",
+          "result": "passed",
+          "label": "Exact PR head 33bb2d2 için AMD64+ARM64 gerçek Jellyfin 10.11.11: üç journal-bound volume, salt okunur /media, movies/shows oluşturma ve geri okuma, logout, restart PASS; indirilen iki makbuz merge kaynağı 73fbd0a için repo verifier ile yeniden PASS."
         }
       ],
       "completionCommit": null,
-      "reason": "Server üretimli sır, sabit startup, exact journal/container/private-network yürütücüsü, kalıcı no-retry koordinatör ve aynı retained daemon'a bağlı private IPC/runtime hazır. Disposable Jellyfin 10.11.11 bootstrap, API anahtarı, sistem/boş kütüphane readback, logout, restart ve veri kalıcılığı exact arm64+amd64 CI'da geçti. Larenor Movies/Shows idempotent kütüphane adımı, journal-bound arşiv hacmi, sabit dizin hazırlığı ve salt okunur /media binding yerelde yeşil; exact iki mimarili native kabul açık. Radarr/Sonarr/qBittorrent/Seerr/Music Assistant otomatik eşleştirmesi açık; installAvailable=false."
+      "reason": "Server üretimli sır, sabit startup, exact journal/container/private-network yürütücüsü, kalıcı no-retry koordinatör ve aynı retained daemon'a bağlı private IPC/runtime hazır. Disposable Jellyfin 10.11.11 bootstrap, API anahtarı, sistem/boş kütüphane readback, logout, restart ve veri kalıcılığı exact arm64+amd64 CI'da geçti. Larenor Movies/Shows idempotent kütüphane adımı, journal-bound arşiv hacmi, sabit dizin hazırlığı ve salt okunur /media binding yerelde yeşil; exact AMD64+ARM64 native kabul ve indirilen makbuz doğrulaması tamamlandı. Radarr/Sonarr/qBittorrent/Seerr/Music Assistant otomatik eşleştirmesi açık; installAvailable=false."
     },
     {
       "id": "S06.6",
