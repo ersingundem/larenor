@@ -40,7 +40,7 @@ Gerçek ev kurulumu ve fiziksel tablet kabulü henüz yapılmadı.
 | B5.1 — ortak tablet tasarımı | Services/hesap IME paketi APK116 ile kabul edildi; S08.7 komut ve aktarım yüzeyleri yerel tablet matrisinden geçti | Exact-source Android CI ve kalan ortak tablet yüzeyleri |
 | S06.3d — kalıcı depolama | **Kabul edildi**; Native18 exact `6a054ea`, amd64+arm64 makbuzları doğrulandı | S06.3f ile birleşik kaynak kapısı kapandı |
 | S06.3f — kaynak kabulü | **Kabul edildi**; exact `4021391`, iki mimarili native makbuz, 4.065 Server ve tam Android/Server CI yeşil | S06.4 dar kurulum yürütme kapısı |
-| S06.4 — dar kurulum yürütme kapısı | **Devam ediyor**; kapalı API isteği ve Jellyfin create/start child-operation sözleşmesi TDD aşamasında | Güncel yetki/bağlam/preparation/inspection/catalog/iptal denetimleri ve worker köprüsü |
+| S06.4 — dar kurulum yürütme kapısı | **Devam ediyor**; şifreli kalıcı API, sabit Jellyfin create/start koordinatörü ve ayrı UID denetimli Unix IPC yerelde tamamlandı | Paketli worker CLI, kabul edilmiş kaynak makbuzlarından binding ve exact iki mimarili native/CI kanıtı |
 
 S08.7 üç sonlu teslimden oluşur: **kaynak bağlama ve typed durum → komut ve
 kalıcı sonuç → açık Direct aktarımı**. Üç yerel dilim de squash yapılmadan
@@ -1113,6 +1113,7 @@ kabul işleri aşağıda ayrıca tutulur.
 | Birleşik medya hazırlığı | Altı sabitlenmiş bileşen için tek kalıcı plan ve toplam istenen kaynak bütçesi; yönetici oluşturma/geçmiş/iptal, restart ve idempotence. Katalog değişse de geçmiş okunur; `installAvailable=false`. Jellyfin ortak kütüphaneyi yalnız salt okunur kullanır |
 | Birleşik medya kontrolü | Toplam disk bütçesi, ayrı daemon mount/network/root gözlemleri, şifreli kalıcı kontrol işi ve tablet yönetimi; kaynak ayırma/servis kurma yok |
 | Dahili salt okunur işçi | Aynı Server paketindeki `larenor-preflight-worker`, Linux UID doğrulamalı Unix IPC; toplam kapasite/platform, Docker GET `/version` ve açık v3 politikasıyla socket/process bağlamı. Varsayılan kapalı; kurulum yok ve `installAvailable=false` |
+| Dar kurulum yürütme kapısı | Yöneticiye açık şifreli kalıcı istek/geçmiş/iptal API'si; güncel actor/session/Core/ev/preparation/inspection/catalog kapıları; yalnız Jellyfin create/start ve kayıp cevap uzlaştırması için ayrı UID denetimli Unix IPC. Paketli mutasyon worker'ı ve gerçek kurulum henüz yok; `installAvailable=false` |
 | Kalıcı Core/ev bağlamı | `/api/v1/context`, atomik şema 1→2→3 geçişi, HMAC doğrulaması; aynı 27 JSON örneğiyle Server ve Client okuyucu. Client oturum/cache bağlama henüz yok |
 | Düzenli GitHub temizliği | Geliştirme/bakım takibi içinde günlük 03.15 sonrası kontrol ve testli araç; en yeni üç debug APK, bütün imzalı APK ve raporlar korunur. İlk koşumda beş eski debug APK (641.275.745 bayt) silindi; kalan 171 çıktı doğrulandı. GHCR izin ve manifest grafiği eksikliği nedeniyle silinmez |
 | CI rapor kotası düzeltmesi | Test kanıtı yükleme hataları görünür uyarı üretir; Gitleaks/OSV taramaları artifact kotasına bağlı değildir. Gerçek tarama hatalarının engelleyici kaldığı test edildi |

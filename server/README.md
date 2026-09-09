@@ -253,11 +253,41 @@ default `0`). Invalid values fail startup with the static code
 `invalid_worker_configuration`, without echoing environment values. The API
 container's default entry point starts only the API, not this worker.
 
+## Bounded media installation execution
+
+`/api/v1/admin/media/installations` is the first durable S06.4 execution
+surface. An administrator submits only the accepted preparation ID, succeeded
+inspection ID, their revisions, plan hash and an idempotency request ID. The
+API does not accept a service choice, image, host path, Docker body or command.
+It rechecks the user/session family, Core/home context, preparation, inspection,
+catalog and cancellation state before each worker operation.
+
+The API derives a fixed Jellyfin `create_container` then `start_container`
+sequence. It stores the complete request and plan with AES-GCM, keeps history
+across restart and reconciles an uncertain create receipt before attempting a
+start. A second request for the same preparation returns the explicit
+`media_installation_conflict` response. `GET /capabilities` reports whether the
+separate execution channel is configured, while `installAvailable` remains
+`false` even after the container phase succeeds.
+
+Mutating IPC uses `LARENOR_INSTALLATION_WORKER_SOCKET` and
+`LARENOR_INSTALLATION_WORKER_UID`. It cannot share the read-only preflight
+socket. The bounded Unix protocol carries only the authenticated worker step and
+packaged component plan; the worker revalidates both before its policy-owned
+binding builder can reach the journaled Engine operations. This source slice
+does not yet ship the final installation worker CLI, mounted-resource binding
+policy or unified supervisor. It has not installed anything on a real home
+server. The strict public examples are in
+[`contracts/media-installations.v1.json`](../contracts/media-installations.v1.json)
+and the [implementation evidence](../docs/media-installation-execution-implementation-2026-09-09.md)
+records the remaining acceptance gates.
+
 The product target remains [one integrated media/music installation](../docs/integrated-media-stack.md),
 with users managing settings in Larenor Client and internal credentials and
 connections managed by Larenor. Complete-stack provisioning, service bootstrap,
 private control networking and actual media runtime deployment are still future
-work. The current job API rejects installation operations.
+work. The read-only job API still rejects installation operations; the bounded
+installation collection above is the only separate mutation contract.
 
 ## Client releases
 

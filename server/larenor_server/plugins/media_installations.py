@@ -175,6 +175,11 @@ class MediaInstallationManagement:
                 if payload.request != body:
                     raise ApiError('media_installation_conflict', 409)
                 return {'installation': self._public(previous, payload)}
+            if connection.execute(
+                    'SELECT 1 FROM media_installations WHERE preparation_id=?',
+                    (body.preparationId,),
+            ).fetchone():
+                raise ApiError('media_installation_conflict', 409)
             if self.backend is None:
                 raise ApiError('plugin_worker_unavailable', 503)
             plan = self._current_sources(connection, body)

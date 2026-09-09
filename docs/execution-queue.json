@@ -637,7 +637,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "İlk TDD dilimi başladı: Client Docker JSON'u kabul etmeyen kapalı kurulum isteği, güncel preparation/inspection/catalog/Core/ev/actor/family/iptal kapıları ve yalnız Jellyfin create/start child-operation yürütme sözleşmesi hazırlanıyor. Gerçek ev kurulumu kapalı; installAvailable=false kalıyor."
+      "reason": "İlk yerel dilim tamamlandı: Client Docker JSON'u kabul etmeyen şifreli kalıcı API, güncel preparation/inspection/catalog/Core/ev/actor/family/iptal kapıları, yalnız Jellyfin create/start ve kayıp cevap uzlaştırması, salt okunur preflight'tan ayrı UID denetimli Unix IPC. Paketli mutasyon worker CLI, kabul edilmiş image/volume/network makbuzlarından trusted binding, exact iki mimarili native create/start ve güncel CI/review kanıtı açık. Gerçek ev kurulumu kapalı; installAvailable=false kalıyor."
     },
     {
       "id": "S06.5",

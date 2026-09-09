@@ -84,6 +84,19 @@ def test_admin_can_queue_closed_jellyfin_execution_and_read_it_after_restart(ser
         assert reopened.get(BASE + '/' + record['id'], headers=auth(pair)).json() == {'installation': record}
 
 
+def test_second_request_for_the_same_preparation_is_an_explicit_conflict(server):
+    app, client, _, _ = server
+    pair, _, _, body = prepared(server)
+    app.state.core.media_installations.backend = ExecutionBackend()
+    first = client.post(BASE, headers=auth(pair), json=body)
+    assert first.status_code == 201
+
+    response = client.post(BASE, headers=auth(pair),
+                           json=body | {'requestId': 'd' * 32})
+    assert response.status_code == 409
+    assert response.json()['error']['code'] == 'media_installation_conflict'
+
+
 def test_tick_rechecks_authority_between_create_and_start(server):
     app, client, _, _ = server
     pair, _, _, body = prepared(server)
