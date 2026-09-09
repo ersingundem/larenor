@@ -32,19 +32,25 @@ _CODES = frozenset({
     'bootstrap_endpoint_changed',
     'bootstrap_startup_failed', 'bootstrap_readback_failed', 'bootstrap_timeout',
 })
+_BOUNDARIES = frozenset({
+    'before_connect', 'after_connect', 'after_startup',
+    'after_readback_connect', 'after_readback',
+})
 
 
 class JellyfinBootstrapExecutionError(Exception):
     def __init__(self, code='bootstrap_resources_unavailable', *, completed_steps=(),
-                 uncertain_effect=False):
+                 uncertain_effect=False, boundary=None):
         self.code = code if code in _CODES else 'bootstrap_resources_unavailable'
         self.completed_steps = tuple(completed_steps)
         self.uncertain_effect = uncertain_effect is True
+        self.boundary = boundary if boundary in _BOUNDARIES else None
         super().__init__(self.code)
 
     def __repr__(self):
         return (f'JellyfinBootstrapExecutionError({self.code!r}, completed_steps='
-                f'{len(self.completed_steps)}, uncertain_effect={self.uncertain_effect!r})')
+                f'{len(self.completed_steps)}, uncertain_effect={self.uncertain_effect!r}, '
+                f'boundary={self.boundary!r})')
 
 
 @dataclass(frozen=True, repr=False)
@@ -119,6 +125,7 @@ class JellyfinBootstrapExecutor:
         startup_called = False
         readback_called = False
         completed = ()
+        boundary = 'before_connect'
         self._gate(gate)
         try:
             binding = self.binding_builder(trusted)
@@ -135,11 +142,13 @@ class JellyfinBootstrapExecutor:
                 observed, binding, trusted, receipt.container_id,
                 timeout=min(10.0, _remaining(deadline)),
             )
+            boundary = 'after_connect'
             observed = self.operations.engine.inspect_container(binding.name)
             after_connect = prove_jellyfin_endpoint(
                 observed, binding, trusted, receipt.container_id)
             if after_connect != before or opened.proof != before:
-                raise JellyfinBootstrapExecutionError('bootstrap_endpoint_changed')
+                raise JellyfinBootstrapExecutionError(
+                    'bootstrap_endpoint_changed', boundary=boundary)
             self._gate(gate)
             startup_called = True
             result = self.configurator.configure(
@@ -157,13 +166,14 @@ class JellyfinBootstrapExecutor:
                 raise JellyfinBootstrapExecutionError(
                     'bootstrap_startup_failed', uncertain_effect=True)
             completed = result.completed_steps
+            boundary = 'after_startup'
             observed = self.operations.engine.inspect_container(binding.name)
             after_startup = prove_jellyfin_endpoint(
                 observed, binding, trusted, receipt.container_id)
             if after_startup != before:
                 raise JellyfinBootstrapExecutionError(
                     'bootstrap_endpoint_changed', completed_steps=completed,
-                    uncertain_effect=True,
+                    uncertain_effect=True, boundary=boundary,
                 )
             self._gate(gate)
             _remaining(deadline)
@@ -171,13 +181,14 @@ class JellyfinBootstrapExecutor:
                 observed, binding, trusted, receipt.container_id,
                 timeout=min(10.0, _remaining(deadline)),
             )
+            boundary = 'after_readback_connect'
             observed = self.operations.engine.inspect_container(binding.name)
             after_readback_connect = prove_jellyfin_endpoint(
                 observed, binding, trusted, receipt.container_id)
             if after_readback_connect != before or readback_opened.proof != before:
                 raise JellyfinBootstrapExecutionError(
                     'bootstrap_endpoint_changed', completed_steps=completed,
-                    uncertain_effect=True,
+                    uncertain_effect=True, boundary=boundary,
                 )
             self._gate(gate)
             readback_called = True
@@ -190,6 +201,7 @@ class JellyfinBootstrapExecutor:
                     max_response_bytes=262144,
                 ),
             )
+            boundary = 'after_readback'
             if (type(verified) is not JellyfinAuthenticatedReadbackResult
                     or verified.state != 'verified'
                     or verified.completed_steps[-3:] != (
@@ -204,7 +216,7 @@ class JellyfinBootstrapExecutor:
             if after_readback != before:
                 raise JellyfinBootstrapExecutionError(
                     'bootstrap_endpoint_changed', completed_steps=completed,
-                    uncertain_effect=True,
+                    uncertain_effect=True, boundary=boundary,
                 )
             self._gate(gate)
             _remaining(deadline)
@@ -216,6 +228,7 @@ class JellyfinBootstrapExecutor:
                 raise JellyfinBootstrapExecutionError(
                     error.code, completed_steps=completed,
                     uncertain_effect=error.uncertain_effect or bool(completed),
+                    boundary=error.boundary,
                 ) from None
             raise
         except JellyfinStartupError as error:
@@ -235,8 +248,10 @@ class JellyfinBootstrapExecutor:
                 code = 'bootstrap_endpoint_unavailable'
             else:
                 code = 'bootstrap_endpoint_changed'
-            raise JellyfinBootstrapExecutionError(code, completed_steps=completed,
-                                                   uncertain_effect=bool(completed)) from None
+            raise JellyfinBootstrapExecutionError(
+                code, completed_steps=completed,
+                uncertain_effect=bool(completed), boundary=boundary,
+            ) from None
         except (DockerWorkerError, ValueError, TypeError, AttributeError, RuntimeError):
             code = ('bootstrap_timeout' if time.monotonic() >= deadline
                     else 'bootstrap_resources_unavailable')

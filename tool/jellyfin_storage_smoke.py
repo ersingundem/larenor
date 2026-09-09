@@ -164,6 +164,15 @@ _MANAGED_CREATE_DIAGNOSTICS = {
     'managed_inspect_network_id_missing', 'managed_inspect_network_id_mismatch',
     'managed_inspect_nonresource_mismatch',
 }
+_BOOTSTRAP_BOUNDARIES = {
+    'before_connect', 'after_connect', 'after_startup',
+    'after_readback_connect', 'after_readback',
+}
+_BOOTSTRAP_ENDPOINT_DIAGNOSTICS = {
+    f'{code}_{boundary}'
+    for code in ('bootstrap_endpoint_changed', 'bootstrap_endpoint_unavailable')
+    for boundary in _BOOTSTRAP_BOUNDARIES
+}
 _DIAGNOSTIC_CODES = _CODES | set(_BUILD_ERROR_PATTERNS) | set(_START_ERROR_PATTERNS) | {
     'helper_base_runtime_failed', 'helper_base_error_ambiguous',
     'helper_base_state_error_ambiguous', *_STATE_ERROR_PATTERNS,
@@ -199,6 +208,7 @@ _DIAGNOSTIC_CODES = _CODES | set(_BUILD_ERROR_PATTERNS) | set(_START_ERROR_PATTE
     'bootstrap_authority_changed', 'bootstrap_resources_unavailable',
     'bootstrap_endpoint_unavailable', 'bootstrap_endpoint_changed',
     'bootstrap_startup_failed', 'bootstrap_readback_failed', 'bootstrap_timeout',
+    *_BOOTSTRAP_ENDPOINT_DIAGNOSTICS,
     'storage_characterization_evidence_invalid'}
 _PHASES = {'launcher', 'launch_validation', 'source_capture', 'daemon_start', 'daemon_cleanup',
     'characterization', 'image_prepare', 'volume_prepare', 'image_inspect', 'helper_stage',
@@ -1459,6 +1469,17 @@ def _managed_create_succeeded(receipt):
         return False
 
 
+def _managed_bootstrap_error(error):
+    try:
+        code, boundary = error.code, error.boundary
+    except (AttributeError, TypeError, RecursionError):
+        return 'bootstrap_result_failed'
+    combined = f'{code}_{boundary}'
+    if combined in _BOOTSTRAP_ENDPOINT_DIAGNOSTICS:
+        return combined
+    return code if code in _DIAGNOSTIC_CODES else 'bootstrap_result_failed'
+
+
 def _managed_create_and_start(daemon, source, endpoint, helper_id):
     """Create/start through the production proof, binding and v2 journal path."""
     from larenor_server.plugins.managed_container import (
@@ -1541,17 +1562,20 @@ def _managed_create_and_start(daemon, source, endpoint, helper_id):
             before = _health(
                 daemon, helper_id, start.container_id, wizard_completed=False,
             )
-            bootstrap = JellyfinBootstrapExecutor(
-                operations, lambda _stack: binding,
-                JellyfinStartupConfigurator(), JellyfinAuthenticatedReadback(),
-            ).execute(
-                job_id, source.stack,
-                PrivateMediaServiceBootstrap(
-                    credential=secrets.token_urlsafe(48),
-                ),
-                deadline=time.monotonic() + 90,
-                gate=lambda: True,
-            )
+            try:
+                bootstrap = JellyfinBootstrapExecutor(
+                    operations, lambda _stack: binding,
+                    JellyfinStartupConfigurator(), JellyfinAuthenticatedReadback(),
+                ).execute(
+                    job_id, source.stack,
+                    PrivateMediaServiceBootstrap(
+                        credential=secrets.token_urlsafe(48),
+                    ),
+                    deadline=time.monotonic() + 90,
+                    gate=lambda: True,
+                )
+            except Exception as error:
+                raise SmokeError(_managed_bootstrap_error(error)) from None
             require(bootstrap.state == 'wiring_partial'
                     and bootstrap.readback.state == 'verified'
                     and bootstrap.readback.server_id == before['id']

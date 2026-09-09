@@ -627,11 +627,11 @@ def test_managed_characterization_routes_through_resources_and_v2_worker(
 
 
 @pytest.mark.parametrize('boundary,expected', [
-    ('before_connect', 'bootstrap_endpoint_before_connect'),
-    ('after_connect', 'bootstrap_endpoint_after_connect'),
-    ('after_startup', 'bootstrap_endpoint_after_startup'),
-    ('after_readback_connect', 'bootstrap_endpoint_after_readback_connect'),
-    ('after_readback', 'bootstrap_endpoint_after_readback'),
+    ('before_connect', 'bootstrap_endpoint_changed_before_connect'),
+    ('after_connect', 'bootstrap_endpoint_changed_after_connect'),
+    ('after_startup', 'bootstrap_endpoint_changed_after_startup'),
+    ('after_readback_connect', 'bootstrap_endpoint_changed_after_readback_connect'),
+    ('after_readback', 'bootstrap_endpoint_changed_after_readback'),
 ])
 def test_native_bootstrap_endpoint_failure_keeps_only_closed_boundary(boundary, expected):
     m = api()
