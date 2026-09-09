@@ -98,7 +98,7 @@ def test_exact_official_startup_sequence_uses_one_preconnected_stream(monkeypatc
             'Name': 'larenor-system', 'Password': SECRET,
         }),
         ('POST /Startup/RemoteAccess HTTP/1.1', {
-            'EnableRemoteAccess': False, 'EnableAutomaticPortMapping': False,
+            'EnableRemoteAccess': False,
         }),
         ('POST /Startup/Complete HTTP/1.1', None),
     ]
