@@ -797,7 +797,7 @@ def test_empty_tmpfs_normalization_is_not_itself_a_managed_mismatch():
             return {'specification': {'HostConfig': expected}}
     assert m._managed_inspect_diagnostic(
         {'HostConfig': {**expected, 'Tmpfs': None}}, Binding()
-    ) == 'managed_inspect_nonresource_mismatch'
+    ) == 'managed_inspect_identity_mismatch'
 
 
 def test_moved_host_mounts_do_not_hide_later_managed_mismatch():

@@ -201,6 +201,20 @@ def test_docker_normalized_requested_volume_options_keep_exact_source_and_target
         assert managed_container_matches(changed, binding) is False
 
 
+def test_created_container_defers_network_id_until_start_but_running_requires_it():
+    _builder, _stack, binding = build()
+    value = snapshot(binding)
+    attached = next(iter(value['NetworkSettings']['Networks'].values()))
+    attached['NetworkID'] = ''
+    assert value['State'] == {'Status': 'created', 'Running': False}
+    assert managed_container_matches(value, binding)
+    value['State'] = {'Status': 'running', 'Running': True}
+    assert managed_container_matches(value, binding) is False
+    value['State'] = {'Status': 'created', 'Running': False}
+    attached['NetworkID'] = '9'*64
+    assert managed_container_matches(value, binding) is False
+
+
 @pytest.mark.parametrize('damage', ['mount', 'extra_mount', 'network', 'image', 'capability', 'env',
                                     'memory_swap'])
 def test_inspect_drift_cannot_reconcile_as_the_managed_container(damage):
@@ -227,7 +241,7 @@ def test_inspect_drift_cannot_reconcile_as_the_managed_container(damage):
     ('identity', 'managed_inspect_identity_mismatch'),
     ('config', 'managed_inspect_config_mismatch'),
     ('mount', 'managed_inspect_observed_mount_mismatch'),
-    ('network', 'managed_inspect_network_attachment_mismatch'),
+    ('network', 'managed_inspect_network_id_mismatch'),
     ('forbidden_host', 'managed_inspect_forbidden_host_mismatch'),
 ])
 def test_native_diagnostic_classifies_nonresource_snapshot_drift(damage, expected):
