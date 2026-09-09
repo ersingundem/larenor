@@ -18,6 +18,12 @@ from larenor_server.plugins.installation_execution import build_execution
 from larenor_server.plugins.installation_ipc import (
     InstallationIPCError, InstallationWorkerClient, InstallationWorkerServer,
 )
+from larenor_server.plugins.jellyfin_bootstrap_executor import (
+    JellyfinBootstrapExecutionError, JellyfinBootstrapExecutionResult,
+)
+from larenor_server.plugins.media_service_bootstrap_models import (
+    PrivateMediaServiceBootstrap,
+)
 from larenor_server.plugins.worker import StepReceipt
 from test_media_host_preflight import stack
 
@@ -34,6 +40,14 @@ class Backend:
     def reconcile(self, step, component):
         self.calls.append(('reconcile', step, component))
         return StepReceipt(step.job_id, step.kind, 'succeeded', 'container_created', '1' * 64)
+
+    def bootstrap(self, job, component, private, *, deadline):
+        self.calls.append(('bootstrap', job, component, private, deadline))
+        return JellyfinBootstrapExecutionResult(
+            'credentials_configured',
+            ('observed_unconfigured', 'configuration_updated', 'user_updated',
+             'remote_access_updated', 'wizard_completed'),
+        )
 
 
 @contextmanager
@@ -58,6 +72,88 @@ def test_roundtrip_transports_only_closed_step_and_verified_stack_plan():
         assert receipt == StepReceipt('a' * 32, 'create_container', 'succeeded',
                                       'container_created', '1' * 64)
         assert backend.calls == [('apply', execution.steps[0], execution.plan)]
+
+
+def test_bootstrap_roundtrip_transports_only_exact_private_contract():
+    selected = stack()
+    private = PrivateMediaServiceBootstrap(
+        credential='Synthetic-bootstrap-secret-0123456789',
+    )
+    with running() as (backend, client):
+        result = client.execute(
+            'a' * 32, selected, private,
+            deadline=time.monotonic() + 1,
+            gate=lambda: True,
+        )
+    assert result.state == 'credentials_configured'
+    assert result.completed_steps[-1] == 'wizard_completed'
+    call = backend.calls[0]
+    assert call[:3] == ('bootstrap', 'a' * 32, selected)
+    assert call[3] == private and call[4] > time.monotonic() - 1
+    assert private.credential not in repr(result)
+
+
+def test_bootstrap_failure_roundtrip_preserves_only_static_partial_outcome():
+    class FailedBackend(Backend):
+        def bootstrap(self, job, component, private, *, deadline):
+            self.calls.append(('bootstrap', job, component, private, deadline))
+            raise JellyfinBootstrapExecutionError(
+                'bootstrap_startup_failed',
+                completed_steps=('observed_unconfigured',),
+                uncertain_effect=True,
+            )
+
+    private = PrivateMediaServiceBootstrap(
+        credential='Synthetic-bootstrap-secret-0123456789',
+    )
+    with tempfile.TemporaryDirectory(
+        prefix='liw-', dir='/private/tmp' if Path('/private/tmp').is_dir() else '/tmp',
+    ) as root:
+        path = Path(root) / 'worker.sock'
+        backend = FailedBackend()
+        server = InstallationWorkerServer(
+            path, backend, allowed_uid=os.getuid(),
+            peer_uid=lambda _: os.getuid(), timeout=.5,
+        )
+        server.start()
+        try:
+            client = InstallationWorkerClient(
+                path, owner_uid=os.getuid(), peer_uid=lambda _: os.getuid(),
+                timeout=.5,
+            )
+            with pytest.raises(
+                JellyfinBootstrapExecutionError,
+                match='^bootstrap_startup_failed$',
+            ) as raised:
+                client.execute(
+                    'a' * 32, stack(), private,
+                    deadline=time.monotonic() + 1,
+                    gate=lambda: True,
+                )
+        finally:
+            server.close()
+    assert raised.value.completed_steps == ('observed_unconfigured',)
+    assert raised.value.uncertain_effect
+    assert private.credential not in repr(raised.value)
+
+
+@pytest.mark.parametrize('change', ['job', 'private', 'deadline', 'gate'])
+def test_invalid_bootstrap_ipc_input_never_reaches_worker(change):
+    values = {
+        'job': 'a' * 32,
+        'private': PrivateMediaServiceBootstrap(
+            credential='Synthetic-bootstrap-secret-0123456789',
+        ),
+        'deadline': time.monotonic() + 1,
+        'gate': lambda: True,
+    }
+    values[change] = {
+        'job': 'bad', 'private': 'private', 'deadline': True, 'gate': 'gate',
+    }[change]
+    with running() as (backend, client):
+        with pytest.raises(JellyfinBootstrapExecutionError):
+            client.execute(values.pop('job'), stack(), **values)
+    assert backend.calls == []
 
 
 def test_backend_lifecycle_and_effects_share_the_server_native_thread():
