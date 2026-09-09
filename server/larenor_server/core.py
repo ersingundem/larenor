@@ -198,7 +198,8 @@ class CoreServices:
                 installation_backend)
             self.media_installations.validate_storage()
             self.media_service_bootstraps = MediaServiceBootstrapManagement(
-                self.db, self.auth, settings, key, self.media_installations)
+                self.db, self.auth, settings, key, self.media_installations,
+                installation_backend)
             self.media_service_bootstraps.validate_storage()
             self.clear_inactive_bootstrap()
 

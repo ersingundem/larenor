@@ -25,6 +25,8 @@ from .host_preflight import _host_platform
 from .installation_execution import JellyfinWorkerBackend
 from .installation_ipc import InstallationWorkerServer
 from .installation_supervisor import RetainedDaemonPeerVerifier, SupervisedInstallationBackend
+from .jellyfin_bootstrap_executor import JellyfinBootstrapExecutor
+from .jellyfin_startup import JellyfinStartupConfigurator
 from .managed_container import (
     JellyfinBindingBuilder,
     JellyfinEngineReaders,
@@ -210,6 +212,27 @@ class _InstallationRuntime:
             raise RuntimeError('worker_unavailable')
 
 
+class _RuntimeBackend:
+    """One journal/binding authority for installation and private bootstrap."""
+
+    def __init__(self, operations, binding_builder):
+        self.operations = operations
+        self.binding_builder = binding_builder
+        self.installation = JellyfinWorkerBackend(operations, binding_builder)
+        self.bootstrap_executor = JellyfinBootstrapExecutor(
+            operations, binding_builder, JellyfinStartupConfigurator())
+
+    def apply(self, step, plan):
+        return self.installation.apply(step, plan)
+
+    def reconcile(self, step, plan):
+        return self.installation.reconcile(step, plan)
+
+    def bootstrap(self, job, plan, private, *, deadline, gate):
+        return self.bootstrap_executor.execute(
+            job, plan, private, deadline=deadline, gate=gate)
+
+
 def _build_runtime(policy, *, peer_uid=None):
     journals = []
     try:
@@ -242,7 +265,7 @@ def _build_runtime(policy, *, peer_uid=None):
         )
         operations = JournaledManagedContainerOperations(containers, engine)
         return _InstallationRuntime(
-            JellyfinWorkerBackend(operations, builder),
+            _RuntimeBackend(operations, builder),
             resources,
             volumes,
             containers,
