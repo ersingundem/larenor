@@ -97,6 +97,11 @@ class Backend:
         self.calls.append(('reconcile', step, plan, threading.get_native_id()))
         return 'reconciled'
 
+    def bootstrap(self, job, plan, private, *, deadline, gate):
+        self.calls.append(('bootstrap', job, plan, private, threading.get_native_id()))
+        assert time.monotonic() < deadline and gate() is True and gate() is True
+        return 'bootstrapped'
+
 
 class Security:
     def __init__(self):
@@ -150,6 +155,21 @@ def test_retains_one_connection_and_checks_evidence_before_and_after_each_call(m
     guarded.close()
     assert connection.closed and lease.closed and lease.pair.closed and lease.security.closed
     guarded.close()
+
+
+def test_bootstrap_gates_share_retained_daemon_evidence_and_native_thread(monkeypatch):
+    guarded, backend, connection, lease = build(monkeypatch)
+    deadline = time.monotonic() + 2
+    guarded.open(deadline)
+
+    assert guarded.bootstrap_with_deadline(
+        'job', 'plan', 'private', deadline) == 'bootstrapped'
+    assert backend.calls[0][:4] == ('bootstrap', 'job', 'plan', 'private')
+    assert backend.calls[0][4] == threading.get_native_id()
+    assert lease.pair.checks == 5  # open, before, two inner gates, after
+
+    guarded.close()
+    assert connection.closed and lease.closed
 
 
 @pytest.mark.parametrize('change', [
