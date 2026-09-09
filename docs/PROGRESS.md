@@ -172,7 +172,7 @@ sonucunu ve kaynağı etkiden sonra tekrar doğruluyor. **37 yeni / 274 ilgili
 test** geçti. Supervisor/IPC state bağı ve iki mimarili native kabul açık.
 [Uygulama ve açık sınırlar](qbittorrent-config-effect-implementation-2026-09-10.md).
 
-Takip eden runtime dilimi stack ve volume planını worker içinde yeniden türetip yalnız güncel qBittorrent `/config` intent'ini seçiyor. Pinned helper ve platform ile kurulan effect, installation supervisor'ın aynı native thread/retained-daemon kapısında etki öncesi, iç gate'lerde ve etki sonrası doğrulanıyor. Bilinmeyen adapter hataları ayrıntı sızdırmadan belirsiz etki oluyor. **12 yeni; runtime ve supervisor paketinde 70 PASS / 1 mevcut macOS skip**. Kalıcı şifreli job, IPC operasyonu, create/start önkoşulu ve native kabul açık.
+Takip eden runtime dilimi stack ve volume planını worker içinde yeniden türetip yalnız güncel qBittorrent `/config` intent'ini seçiyor. Pinned helper ve platform ile kurulan effect, installation supervisor'ın aynı native thread/retained-daemon kapısında etki öncesi, iç gate'lerde ve etki sonrası doğrulanıyor. Bilinmeyen adapter hataları ayrıntı sızdırmadan belirsiz etki oluyor. **12 yeni; runtime ve supervisor paketinde 70 PASS / 1 mevcut macOS skip; geniş pakette 343 PASS / 2 mevcut macOS skip**. Kalıcı şifreli job, IPC operasyonu, create/start önkoşulu ve native kabul açık.
 [Uygulama ve açık sınırlar](qbittorrent-runtime-binding-implementation-2026-09-10.md).
 
 S06.4 native kabul koşusu [34326112926](https://github.com/ersingundem/larenor/actions/runs/34326112926)

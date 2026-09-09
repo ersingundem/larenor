@@ -30,6 +30,8 @@ supervisor kapanıyor ve başarı dönmüyor.
   ve secret-free bilinmeyen etki testleri: 12.
 - Installation runtime ve retained-daemon supervisor ile birlikte 71 test
   toplandı; 70 geçti, mevcut Linux-only peer-pidfd testi macOS'ta atlandı.
+- Engine/config/volume zinciri de katıldığında 345 ilgili test toplandı; 343
+  geçti ve iki mevcut Linux-only test macOS'ta atlandı.
 - Değişen Python kaynakları `compileall` ve diff kontrolünden geçti.
 
 ## Açık kabul kapıları
