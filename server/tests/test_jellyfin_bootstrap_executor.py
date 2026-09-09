@@ -8,7 +8,9 @@ import pytest
 from larenor_server.plugins.jellyfin_bootstrap_executor import (
     JellyfinBootstrapExecutionError, JellyfinBootstrapExecutor,
 )
-from larenor_server.plugins.jellyfin_endpoint import OpenJellyfinEndpoint, prove_jellyfin_endpoint
+from larenor_server.plugins.jellyfin_endpoint import (
+    JellyfinEndpointError, OpenJellyfinEndpoint, prove_jellyfin_endpoint,
+)
 from larenor_server.plugins.jellyfin_startup import JellyfinStartupConfigurator
 from larenor_server.plugins.managed_container import (
     JournaledManagedContainerOperations, ManagedWorkerJournal,
@@ -132,6 +134,32 @@ def test_startup_partial_result_is_preserved_without_retry(prepared, monkeypatch
             JOB, stack, private(), deadline=time.monotonic() + 10, gate=lambda: True)
     assert raised.value.completed_steps == ('observed_unconfigured',)
     assert raised.value.uncertain_effect and len(connection.requests) == 2 and len(opens) == 1
+    assert SECRET not in str(raised.value) + repr(raised.value)
+
+
+def test_numeric_connect_failure_has_distinct_secret_free_error(prepared, monkeypatch):
+    stack, binding, _engine, operations = prepared
+    calls = []
+
+    def unavailable(*args, **kwargs):
+        calls.append((args, kwargs))
+        raise JellyfinEndpointError('jellyfin_endpoint_unavailable')
+
+    monkeypatch.setattr(
+        'larenor_server.plugins.jellyfin_bootstrap_executor.open_jellyfin_endpoint',
+        unavailable,
+    )
+    with pytest.raises(
+        JellyfinBootstrapExecutionError,
+        match='^bootstrap_endpoint_unavailable$',
+    ) as raised:
+        executor(binding, operations).execute(
+            JOB, stack, private(), deadline=time.monotonic() + 10,
+            gate=lambda: True,
+        )
+    assert len(calls) == 1
+    assert raised.value.completed_steps == ()
+    assert not raised.value.uncertain_effect
     assert SECRET not in str(raised.value) + repr(raised.value)
 
 

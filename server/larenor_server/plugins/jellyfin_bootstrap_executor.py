@@ -24,7 +24,8 @@ from .worker import DockerWorkerError, StepReceipt
 _JOB = re.compile(r'[0-9a-f]{32}\Z')
 _CODES = frozenset({
     'invalid_bootstrap_execution', 'bootstrap_authority_changed',
-    'bootstrap_resources_unavailable', 'bootstrap_endpoint_changed',
+    'bootstrap_resources_unavailable', 'bootstrap_endpoint_unavailable',
+    'bootstrap_endpoint_changed',
     'bootstrap_startup_failed', 'bootstrap_timeout',
 })
 
@@ -171,8 +172,12 @@ class JellyfinBootstrapExecutor:
                 uncertain_effect=error.uncertain_effect,
             ) from None
         except JellyfinEndpointError as error:
-            code = ('bootstrap_timeout' if time.monotonic() >= deadline
-                    else 'bootstrap_endpoint_changed')
+            if time.monotonic() >= deadline:
+                code = 'bootstrap_timeout'
+            elif error.code == 'jellyfin_endpoint_unavailable':
+                code = 'bootstrap_endpoint_unavailable'
+            else:
+                code = 'bootstrap_endpoint_changed'
             raise JellyfinBootstrapExecutionError(code, completed_steps=completed,
                                                    uncertain_effect=bool(completed)) from None
         except (DockerWorkerError, ValueError, TypeError, AttributeError, RuntimeError):
