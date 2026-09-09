@@ -11,9 +11,11 @@ import json
 import re
 import threading
 
-from .image_resources import ImageObservation, image_binding
+from .docker_probe import DockerEndpoint
+from .image_resources import ImageObservation, UnixImageEngine, image_binding
 from .models import Catalog
 from .network_resources import NetworkListObservation, network_binding
+from .network_transport import UnixNetworkEngine
 from .resource_journal import NetworkIdentity, ResourceJournal, _digest as _resource_digest
 from .resource_models import WorkerPolicyBinding
 from .resource_plan import build_resource_plan, _wire
@@ -21,6 +23,7 @@ from .stack_plan import MediaStackPlan, verify_media_stack_plan
 from .volume_create_journal import VolumeCreateJournal
 from .volume_plan import build_volume_plan
 from .volume_resources import VolumeObservation, volume_expected_labels
+from .volume_transport import UnixVolumeReader
 from .worker import (
     _FORBIDDEN_OBSERVED, _LABELS, _REFERENCE, DockerWorkerError,
     JournaledContainerOperations, WorkerJournal, _canonical, _decode,
@@ -104,6 +107,52 @@ class VolumeBootstrapObservation:
     name: str
     target: str
     state: str
+
+
+class JellyfinEngineReaders:
+    """Fixed read-only Engine adapters plus an endpoint-bound bootstrap reader.
+
+    The image, volume and network transports are constructed here from the one
+    operator-owned endpoint. Bootstrap remains a separate privileged helper,
+    but it must retain that exact endpoint object and expose only ``verify``.
+    Neither arbitrary Engine readers nor caller-selected transport methods can
+    be substituted at the proof-broker boundary.
+    """
+
+    def __init__(self, endpoint, bootstrap_verifier, *, peer_uid=None):
+        try:
+            if (type(endpoint) is not DockerEndpoint
+                    or getattr(bootstrap_verifier, '_endpoint', None) is not endpoint
+                    or not callable(getattr(bootstrap_verifier, 'verify', None))
+                    or peer_uid is not None and not callable(peer_uid)):
+                raise ValueError()
+            self._endpoint = endpoint
+            self._bootstrap = bootstrap_verifier
+            self._images = UnixImageEngine(endpoint, peer_uid=peer_uid)
+            self._volumes = UnixVolumeReader(endpoint, peer_uid=peer_uid)
+            self._networks = UnixNetworkEngine(endpoint, peer_uid=peer_uid)
+        except (ValueError, TypeError, AttributeError, RecursionError):
+            raise ManagedContainerError('resources_untrusted') from None
+
+    def inspect_image(self, binding, *, cancelled):
+        return self._images.inspect(binding, cancelled=cancelled)
+
+    def inspect_volume(self, intent, *, cancelled):
+        return self._volumes.inspect(intent.binding, cancelled=cancelled)
+
+    def verify_bootstrap(self, intent, *, cancelled):
+        if (getattr(self._bootstrap, '_endpoint', None) is not self._endpoint
+                or not callable(getattr(self._bootstrap, 'verify', None))):
+            raise ManagedContainerError('resources_unavailable')
+        return self._bootstrap.verify(intent, cancelled=cancelled)
+
+    def list_network(self, binding, intent, *, cancelled):
+        return self._networks.list(binding, intent, cancelled=cancelled)
+
+    def inspect_network(self, binding, intent, network_id, *, cancelled):
+        return self._networks.inspect(
+            binding, intent, network_id, cancelled=cancelled,
+        )
 
 
 class JellyfinResourceProofBroker:
