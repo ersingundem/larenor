@@ -102,6 +102,15 @@ class Backend:
         assert time.monotonic() < deadline and gate() is True and gate() is True
         return 'bootstrapped'
 
+    def configure_qbittorrent(self, stack, credential, *, api_key, salt,
+                              cancelled, deadline, gate):
+        self.calls.append((
+            'configure_qbittorrent', stack, credential, api_key, salt,
+            cancelled, threading.get_native_id(),
+        ))
+        assert time.monotonic() < deadline and gate() is True and gate() is True
+        return 'configured'
+
 
 class Security:
     def __init__(self):
@@ -167,6 +176,27 @@ def test_bootstrap_gates_share_retained_daemon_evidence_and_native_thread(monkey
     assert backend.calls[0][:4] == ('bootstrap', 'job', 'plan', 'private')
     assert backend.calls[0][4] == threading.get_native_id()
     assert lease.pair.checks == 5  # open, before, two inner gates, after
+
+    guarded.close()
+    assert connection.closed and lease.closed
+
+
+def test_qbittorrent_config_gates_share_retained_daemon_and_native_thread(monkeypatch):
+    guarded, backend, connection, lease = build(monkeypatch)
+    deadline = time.monotonic() + 2
+    cancelled = threading.Event()
+    guarded.open(deadline)
+
+    assert guarded.configure_qbittorrent_with_deadline(
+        'stack', 'credential', api_key='api-key', salt=b'x' * 16,
+        cancelled=cancelled, deadline=deadline,
+    ) == 'configured'
+    assert backend.calls[0][0:6] == (
+        'configure_qbittorrent', 'stack', 'credential', 'api-key', b'x' * 16,
+        cancelled,
+    )
+    assert backend.calls[0][6] == threading.get_native_id()
+    assert lease.pair.checks == 5
 
     guarded.close()
     assert connection.closed and lease.closed

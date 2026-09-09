@@ -129,6 +129,8 @@ def test_runtime_builds_one_endpoint_and_closes_all_journals(configuration):
         assert built.backend.operations.journal.identity == built.backend.binding_builder._container_journal.identity
         assert built.backend.bootstrap_executor.operations is built.backend.operations
         assert built.backend.bootstrap_executor.binding_builder is built.backend.binding_builder
+        assert built.backend.qbittorrent_config._endpoint is policy.endpoint
+        assert built.backend.qbittorrent_config._journal is built.backend.binding_builder._volume_journal
     finally:
         built.close()
     assert built.closed is True
@@ -145,6 +147,9 @@ def test_runtime_routes_every_engine_connection_through_one_peer_verifier(config
         assert readers._networks._http._peer_uid is verifier
         assert readers._bootstrap._engine._transport.peer_uid is verifier
         assert built.backend.operations.engine.peer_uid is verifier
+        qbit = built.backend.qbittorrent_config._installer._engine
+        assert qbit._transport.peer_uid is verifier
+        assert qbit._stdin._peer_uid is verifier
     finally:
         built.close()
 
