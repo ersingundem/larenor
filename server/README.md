@@ -337,14 +337,16 @@ without DNS, proxy, alternate-address fallback or retry. A worker-private
 executor now reconciles the exact successful start receipt, checks retained
 authority at four effect boundaries, re-inspects the endpoint before and after
 startup, shares one total deadline and never retries. It reports unavailable
-and changed endpoints separately without exposing credentials. IPC/supervisor
-dispatch, API-key/library readback and real-service acceptance are still
-pending. The API-side durable coordinator now
+and changed endpoints separately without exposing credentials. The API-side
+durable coordinator now
 persists the no-retry queued/running/credentials-configured lifecycle and
 secret-free terminal errors. An interrupted running record becomes
-`bootstrap_interrupted` after restart instead of being dispatched again. Core
-does not configure a production bootstrap backend until the separate IPC and
-supervisor boundary is implemented.
+`bootstrap_interrupted` after restart instead of being dispatched again. When
+the private installation-worker socket is configured, Core now sends the exact
+bootstrap contract over that same UID-authenticated Unix channel. Installation
+and bootstrap share one journal/binding authority, while the supervisor keeps
+every inner gate and Docker observation on the retained daemon lease and native
+thread. API-key/library readback and real Linux service acceptance remain open.
 
 ## Client releases
 

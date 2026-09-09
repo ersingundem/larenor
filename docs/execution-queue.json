@@ -809,10 +809,18 @@
           "state": "completed",
           "result": "passed",
           "label": "Kalıcı no-retry bootstrap koordinatörü: 18 odaklı/90 ilgili test; şifreli durum geçişi, restart kesintisi, yetki kaybı ve secret-free hata ayrımı doğrulandı. IPC/supervisor, CI ve gerçek servis kabulü açık."
+        },
+        {
+          "kind": "test",
+          "ref": "docs/media-service-bootstrap-implementation-2026-09-09.md",
+          "commit": "d8d82768fe471498cdd0adea830cc161f1b84099",
+          "state": "completed",
+          "result": "passed",
+          "label": "Aynı UID-korumalı Unix kanal ve retained daemon supervisor üzerinde private bootstrap runtime: 11 yeni/149 ilgili test, macOS'ta bir Linux-only skip; Core-IPC-worker sentetik yolculuğu PASS. Exact CI, readback ve gerçek servis kabulü açık."
         }
       ],
       "completionCommit": null,
-      "reason": "Server üretimli sır, sabit startup sırası, exact journal/container/private-network/authority yürütücüsü ve kalıcı no-retry koordinatör yerelde hazır. DNS/proxy/redirect/retry yok; kesinti, yetki, kısmi ve endpoint sonuçları şifreli/secret-free saklanır. IPC/supervisor dispatch, API anahtarı/kütüphane geri okuması, CI ve gerçek servis kabulü açık."
+      "reason": "Server üretimli sır, sabit startup, exact journal/container/private-network yürütücüsü, kalıcı no-retry koordinatör ve aynı retained daemon'a bağlı private IPC/runtime yerelde hazır. DNS/proxy/redirect/retry yok; kesinti, yetki, kısmi ve endpoint sonuçları secret-free. Exact CI, API anahtarı/kütüphane geri okuması ve gerçek servis kabulü açık."
     },
     {
       "id": "S06.6",

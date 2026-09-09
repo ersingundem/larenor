@@ -72,15 +72,24 @@ girmez.
   ve `bootstrap_interrupted` olur. Public API yalnız sabit hata kodunu gösterir.
   **18 odaklı / 90 ilgili test**, security policy, compileall ve diff kontrolü
   geçti.
+- RED/GREEN `e9a71a3` / `ae96651`, runtime RED/GREEN `26aca71` / `d8d8276`:
+  aynı UID-korumalı installation Unix socket artık exact job, yeniden
+  doğrulanmış stack planı ve şifreli kayıttan alınan private bootstrap
+  sözleşmesini worker'a taşır. Client authority kapısı soket açılmadan çalışır;
+  worker kısmi sonucu yalnız sabit adım/kod/belirsizlik alanlarıyla döndürür.
+  Runtime kurulum ve bootstrap için aynı journal/binding kaynağını kullanır;
+  supervisor bootstrap içindeki her gate ve Docker gözlemini aynı retained
+  daemon lease'i ve native thread üzerinde doğrular. Core yalnız yapılandırılmış
+  private worker socket'i varsa bu backend'i bağlar. **11 yeni / 149 ilgili
+  test** geçti; bir Linux peer-pidfd testi macOS'ta beklendiği gibi skip edildi.
 
 ## Açık kabul sınırları
 
-Kalıcı koordinatör yürütücüyü çağıracak durum, yetki, yeniden başlatma ve hata
-sözleşmesini hazırlar. Production Core henüz bir bootstrap backend'i
-yapılandırmaz; sınıf Unix IPC komutuna ve supervisor dispatch'ine bağlı değildir.
-Sıradaki adım bu kapalı runtime bağını kurmak; ardından Jellyfin kimlik
+Kalıcı koordinatör artık yapılandırılmış installation worker üzerinden private
+IPC ve retained supervisor sınırına bağlıdır. Sıradaki adım Jellyfin kimlik
 doğrulama/API anahtarı, sistem adresi ve kütüphane eşlemelerini servisten geri
-okuyup şifreli duruma yazmaktır. Music
+okuyup şifreli duruma yazmaktır. Production güvenlik kanıtı için exact kaynakta
+Linux CI ve gerçek disposable Jellyfin container kabulü de gereklidir. Music
 Assistant host ağı, diğer medya bileşenlerinin otomatik eşleştirmesi, gerçek
 Linux container kabulü ve `installAvailable` ayrı açık kapılardır. Ev Docker
 Engine'i ve gerçek Jellyfin kurulumu bu dilimlerde değiştirilmedi.
