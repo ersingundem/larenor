@@ -192,6 +192,8 @@ _DIAGNOSTIC_CODES = _CODES | set(_BUILD_ERROR_PATTERNS) | set(_START_ERROR_PATTE
     'managed_create_uncertain', 'managed_create_resource_conflict',
     'managed_create_expired', 'managed_create_receipt_invalid',
     'managed_resource_limits_unverified',
+    'bootstrap_create_failed', 'bootstrap_start_failed', 'bootstrap_wait_failed',
+    'bootstrap_result_failed', 'bootstrap_cleanup_failed',
     'storage_characterization_evidence_invalid'}
 _PHASES = {'launcher', 'launch_validation', 'source_capture', 'daemon_start', 'daemon_cleanup',
     'characterization', 'image_prepare', 'volume_prepare', 'image_inspect', 'helper_stage',
@@ -1453,7 +1455,9 @@ def _managed_create_and_start(daemon, source, endpoint, helper_id):
         managed_container_matches,
     )
     from larenor_server.plugins.resource_journal import ResourceJournal
-    from larenor_server.plugins.volume_bootstrap import VolumeBootstrapVerifier
+    from larenor_server.plugins.volume_bootstrap import (
+        VolumeBootstrapError, VolumeBootstrapVerifier,
+    )
     from larenor_server.plugins.volume_create_journal import VolumeCreateJournal
     from larenor_server.plugins.worker import WorkerStep
 
@@ -1461,15 +1465,30 @@ def _managed_create_and_start(daemon, source, endpoint, helper_id):
     with ResourceJournal(daemon.root / 'resource-journal') as resource_journal, \
             VolumeCreateJournal(daemon.root / 'volume-journal') as volume_journal, \
             ManagedWorkerJournal(journal_dir, initialize=True) as container_journal:
-        verifier = VolumeBootstrapVerifier(endpoint, helper_id, daemon.platform)
+        class DiagnosticVerifier(VolumeBootstrapVerifier):
+            last_error = None
+
+            def verify(self, intent, *, cancelled):
+                try:
+                    return super().verify(intent, cancelled=cancelled)
+                except VolumeBootstrapError as error:
+                    self.last_error = error.code
+                    raise
+
+        verifier = DiagnosticVerifier(endpoint, helper_id, daemon.platform)
         readers = JellyfinEngineReaders(endpoint, verifier)
         broker = JellyfinResourceProofBroker(
             source.stack, source.catalog, source.policy, resource_journal,
             volume_journal, readers, engine_identity=endpoint,
         )
-        binding = JellyfinBindingBuilder(
-            source.catalog, source.policy, container_journal.identity, broker,
-        )(source.stack)
+        try:
+            binding = JellyfinBindingBuilder(
+                source.catalog, source.policy, container_journal.identity, broker,
+            )(source.stack)
+        except Exception:
+            if verifier.last_error is not None:
+                raise SmokeError(verifier.last_error) from None
+            raise
         engine = _managed_engine(endpoint)
         operations = JournaledManagedContainerOperations(container_journal, engine)
         job_id = uuid.uuid4().hex

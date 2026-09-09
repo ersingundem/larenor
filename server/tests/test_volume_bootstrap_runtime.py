@@ -231,8 +231,23 @@ def test_helper_failure_is_static_and_still_removes_known_container(tmp_path, wa
         transport_factory=lambda value: transport,
         name_factory=lambda: '8' * 32,
     )
-    with pytest.raises(VolumeBootstrapError, match='^bootstrap_unavailable$'):
+    with pytest.raises(VolumeBootstrapError, match='^bootstrap_result_failed$'):
         engine.verify_root(intent, HELPER, 'linux/amd64', cancelled=threading.Event())
     assert transport.calls[-1][:2] == (
         'DELETE', f'/containers/{container_id}?force=0&v=0',
     )
+
+
+def test_create_rejection_reports_only_static_stage_and_has_no_cleanup_target(tmp_path):
+    intent = volume_intent(tmp_path)
+    transport = ExchangeTransport([response(500, {'message': 'private-engine-detail'})])
+    endpoint = DockerEndpoint('/private/docker.sock', owner_uid=0)
+    engine = UnixVolumeBootstrapEngine(
+        endpoint,
+        transport_factory=lambda value: transport,
+        name_factory=lambda: '8' * 32,
+    )
+    with pytest.raises(VolumeBootstrapError, match='^bootstrap_create_failed$') as raised:
+        engine.verify_root(intent, HELPER, 'linux/amd64', cancelled=threading.Event())
+    assert 'private-engine-detail' not in str(raised.value)
+    assert len(transport.calls) == 1
