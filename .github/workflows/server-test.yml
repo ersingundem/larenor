@@ -14,10 +14,10 @@ concurrency:
 jobs:
   server-test:
     runs-on: ubuntu-24.04
-    # Full auth/storage/media coverage normally takes about 13 minutes on the
-    # hosted runner. Keep bounded headroom for runner variance so a passing
-    # suite is not cancelled before it can publish its JUnit evidence.
-    timeout-minutes: 20
+    # The growing auth/storage/media suite reached 95% at the former 20-minute
+    # cap on a hosted runner. Keep a bounded 30-minute budget so pytest can
+    # report its exact result and publish JUnit evidence under runner variance.
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
