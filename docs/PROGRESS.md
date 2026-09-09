@@ -148,6 +148,12 @@ Bu yalnız private bellek içi sözleşmedir; atomik volume yazma ve native
 container kanıtı hâlâ açıktır.
 [Uygulama ve açık sınırlar](qbittorrent-config-volume-binding-implementation-2026-09-10.md).
 
+Aynı dalın ikinci parçası tek yönetilen library volume'ünü qBittorrent,
+Sonarr ve Radarr için `/data` yazılabilir; Jellyfin için `/media` salt okunur
+olarak tüketilecek sabit bir plana bağladı. Seerr ve Music Assistant bu medya
+hacmini almıyor. **19 yeni / 315 ilgili test** geçti; bu öneri de henüz mount
+veya kurulum yetkisi vermiyor.
+
 S06.4 native kabul koşusu [34326112926](https://github.com/ersingundem/larenor/actions/runs/34326112926)
 iki gerçek GitHub runner'ında geçti. İndirilen ARM64 ve X64 makbuzları merge
 commit'i `b6e7034` için repo verifier ile tekrar doğrulandı; bu commit'in ikinci

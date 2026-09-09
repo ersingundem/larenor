@@ -26,10 +26,18 @@ Sonuç yalnız worker belleğinde config bytes taşır; `repr` parola, Bearer an
 PBKDF2 kaydı veya config içeriği göstermez. Bu adım journal'da state değişikliği
 yapmaz, socket açmaz ve subprocess başlatmaz.
 
+`SharedLibraryConsumerPlan` aynı mevcut yönetilen library volume kaynağını
+dört sabit tüketiciyle ilişkilendirir: qBittorrent, Sonarr ve Radarr `/data`
+üzerinde yazılabilir; Jellyfin `/media` üzerinde salt okunurdur. Her tüketicinin
+installation ID, child plan hash, container user, root ID ve catalog mount'u
+yeniden türetilir. Seerr ve Music Assistant bu volume'e eklenmez. Plan
+`installAvailable=false` ve `bindingStatus=proposed` sınırlarını korur.
+
 ## Doğrulama
 
 - 15 yeni config–volume bağlama ve sahte kaynak reddi testi geçti.
-- qBittorrent, volume plan/resource/journal paketleriyle 294 ilgili test geçti.
+- 19 yeni ortak library tüketici planı testi geçti.
+- qBittorrent, volume plan/resource/journal paketleriyle 315 ilgili test geçti.
 - Değişen Python modülleri `compileall`, diff kontrolü ve gitleaks taramasından
   geçti.
 
@@ -37,8 +45,8 @@ yapmaz, socket açmaz ve subprocess başlatmaz.
 
 - Config henüz geçici helper üzerinden appdata hacmine atomik yazılmıyor.
 - Yazma öncesi ve sonrası aynı journal/daemon/volume lease'i tutulmuyor.
-- Ortak medya hacminin qBittorrent `/data` yazılabilir tüketicisi henüz typed
-  resource proof içinde modellenmedi.
+- Ortak medya hacmi tüketicileri planlandı; bu plan henüz taze typed volume
+  proof ve container binding içinde zorunlu tutulmuyor.
 - qBittorrent managed container create/start, endpoint proof ve amd64/arm64
   gerçek API geri okuması bağlı değil.
 - `installAvailable=false` ve S06.5 kuyruk sayacı korunuyor.
