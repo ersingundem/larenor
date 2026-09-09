@@ -1315,8 +1315,10 @@ def _managed_inspect_diagnostic(value, binding):
                 ('Mounts', 'managed_inspect_requested_mount_mismatch'),
                 ('NetworkMode', 'managed_inspect_network_mode_mismatch'),
                 ('Init', 'managed_inspect_init_mismatch')):
-            if field == 'Mounts' and actual.get(field) in (None, []):
-                continue
+            if field == 'Mounts':
+                from larenor_server.plugins.managed_container import _observed_requested_mounts_match
+                if _observed_requested_mounts_match(actual.get(field), expected.get(field)):
+                    continue
             if actual.get(field) != expected.get(field):
                 return code
         restart = expected.get('RestartPolicy')

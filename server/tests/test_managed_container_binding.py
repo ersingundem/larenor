@@ -180,6 +180,23 @@ def test_docker_moves_requested_mounts_to_verified_top_level_mounts(normalized):
     assert managed_container_matches(value, binding) is False
 
 
+@pytest.mark.parametrize('volume_options', [None, {}, {'NoCopy': True}])
+def test_docker_normalized_requested_volume_options_keep_exact_source_and_target(
+        volume_options):
+    _builder, _stack, binding = build()
+    value = snapshot(binding)
+    normalized = []
+    for mount in value['HostConfig']['Mounts']:
+        normalized.append({**mount, 'VolumeOptions': volume_options})
+    value['HostConfig']['Mounts'] = normalized
+    assert managed_container_matches(value, binding)
+    for damage in ({'Type': 'bind'}, {'Source': 'foreign'}, {'Target': '/foreign'},
+                   {'VolumeOptions': {'NoCopy': False}}):
+        changed = copy.deepcopy(value)
+        changed['HostConfig']['Mounts'][0].update(damage)
+        assert managed_container_matches(changed, binding) is False
+
+
 @pytest.mark.parametrize('damage', ['mount', 'extra_mount', 'network', 'image', 'capability', 'env',
                                     'memory_swap'])
 def test_inspect_drift_cannot_reconcile_as_the_managed_container(damage):
