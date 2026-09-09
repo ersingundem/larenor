@@ -781,10 +781,10 @@
         {
           "kind": "test",
           "ref": "docs/media-service-bootstrap-implementation-2026-09-09.md",
-          "commit": "fa3fb628c3fa3733127aa9df1047e514a31ece2b",
+          "commit": "9882c7c9cc09e65729760006fea257d6f12bba8c",
           "state": "completed",
           "result": "passed",
-          "label": "Şifreli bootstrap niyeti ve URL/IP kabul etmeyen tek-stream Jellyfin startup protokolü: 30 odaklı ve 81 ilgili test; security policy ve compileall temiz. CI, worker adres kanıtı ve gerçek servis kabulü açık."
+          "label": "Şifreli bootstrap niyeti ve URL/IP kabul etmeyen tek-stream Jellyfin 10.11 startup protokolü: 30 odaklı; exact kaynakta tam yerel Server 4.381 PASS/13 macOS skip, security policy ve compileall temiz. CI, worker adres kanıtı ve gerçek servis kabulü açık."
         }
       ],
       "completionCommit": null,

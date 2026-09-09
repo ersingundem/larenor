@@ -48,9 +48,11 @@ yöneticiye bağlı bootstrap niyeti üretir ve public API'de sır, hedef adres 
 Docker yetkisi kabul etmez. Ayrı adaptör resmi startup sırasını tek, önceden
 doğrulanmış bağlantıda; bounded başlık/gövde ve ortak total deadline ile
 yürütür. Redirect/retry yoktur; kısmi veya belirsiz yazma sonucu sabit ve
-secret-free hata durumuyla üst koordinatöre bırakılır. Odaklı 30 test, ilgili
-81 test, security policy ve derleme kontrolü geçti. Bu kaynak için tam Server
-ve GitHub CI henüz kabul edilmedi; gerçek container/LAN işlemi yapılmadı.
+secret-free hata durumuyla üst koordinatöre bırakılır. Odaklı 30 test ve ilgili
+81 test geçti. Exact `9882c7c` kaynak, sabit apksig 9.1.0 ve gerçek JDK 17 ile
+tam yerel Server paketinde **4.381 PASS / 13 macOS skip** verdi; security policy
+ve derleme kontrolü de temiz. GitHub CI henüz kabul edilmedi; gerçek
+container/LAN işlemi yapılmadı.
 [Uygulama ve açık sınırlar](media-service-bootstrap-implementation-2026-09-09.md).
 
 S06.4 native kabul koşusu [34326112926](https://github.com/ersingundem/larenor/actions/runs/34326112926)
