@@ -177,15 +177,28 @@ ve gerçek API 35 **17 PASS** verdi. Security 34341554393 ve amd64/arm64 managed
 native 34341554476 da yeşil; iki makbuz exact merge `adbb8476` üzerinde yeniden
 doğrulandı.
 
+Final S06.4 kaynağı `2b9166b` için
+[Android Build 34352862055](https://github.com/ersingundem/larenor/actions/runs/34352862055)
+Flutter **5.438 PASS**, Linux Server **4.364 PASS / sıfır skip**, Android native
+**98 PASS** ve gerçek API 35 **17 PASS** verdi. Linux artifact'ında 36
+daemon-security, 24 daemon-startup ve 24 installation-supervisor testi
+atlanmadan geçti. [Security 34352861625](https://github.com/ersingundem/larenor/actions/runs/34352861625)
+dependency, platform-policy ve secret-scan kapılarında yeşil. Descriptor yaşamı,
+native-thread sahipliği, her operation bağlantısının peer pidfd'si,
+startup/config TOCTOU ve bounded Engine protokolü tekrar incelendi; açık P1/P2
+bulunmadı. Bu kanıtla S06.4 yazılım dilimi kapandı; gerçek ev kurulumu ve
+`installAvailable` hâlâ kapalıdır.
+
 Sürüm kontrollü örnekler
 [`contracts/media-installations.v1.json`](../contracts/media-installations.v1.json)
-dosyasındadır. Son kabul için paketli worker runtime testi, güncel kaynağın tam
-Android/Server CI'ı ve inceleme gerekir. Bunlar olmadan S06.4 `done` yapılamaz.
+dosyasındadır. Paketli worker runtime, güncel kaynağın tam Android/Server CI'ı
+ve güvenlik incelemesi tamamlandı.
 
 ## Sonraki dilim
 
-1. `9ce3c5a` supervisor kaynağının gerçek Linux peer-pidfd/proc/user-namespace
-   testi 34349256229 koşusunda atlanmadan geçti.
-2. Yerel rootful/remap-disabled başlangıç dalı exact Linux CI ve tam Server
-   paketinden geçecek.
-3. Stacked kaynak bağımsız inceleme ile kapatılacak.
+1. S06.5 Jellyfin ilk-kullanıcı akışının yalnız Larenor private control ağına
+   giden bounded taşıyıcısı eklenecek.
+2. Üretilen dahili sırlar ayrı şifreli kayıtta tutulacak; API, log, plan ve
+   hata yanıtlarında gösterilmeyecek.
+3. Adres, API anahtarı ve kütüphane eşleştirmeleri servislerden geri okunacak;
+   kısmi sonuçlar açık durum olarak saklanacak.

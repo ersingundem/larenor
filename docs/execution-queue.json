@@ -617,7 +617,7 @@
       "kind": "task",
       "parent": "S06",
       "title": "Dar kurulum adımlarını API ve işçiye bağlama",
-      "status": "in_progress",
+      "status": "done",
       "dependsOn": [
         "S06.3"
       ],
@@ -640,7 +640,7 @@
         {
           "kind": "ci",
           "ref": "https://github.com/ersingundem/larenor/actions/runs/34313975186",
-          "commit": "191baf34c0fedbf0629b2a8cea37565b415f58ea",
+          "commit": "2b9166b16659dc811bf61236e3be6bd1e9998a02",
           "state": "completed",
           "result": "passed",
           "label": "Journal-bound Jellyfin proof broker kaynağı exact Server CI paketinden geçti."
@@ -648,7 +648,7 @@
         {
           "kind": "test",
           "ref": "docs/media-installation-execution-implementation-2026-09-09.md",
-          "commit": "3be1dc6d8c6f692dd03cee4b0b8b761f5069c7b4",
+          "commit": "2b9166b16659dc811bf61236e3be6bd1e9998a02",
           "state": "completed",
           "result": "passed",
           "label": "Tek-endpoint reader ile ayrı managed-v2 CI/receipt/workflow dilimi 320 odaklı ve 77 güvenlik/politika testiyle yerelde geçti; native artifact henüz bekleniyor."
@@ -656,7 +656,7 @@
         {
           "kind": "test",
           "ref": "docs/media-installation-execution-implementation-2026-09-09.md",
-          "commit": "19485abf497853fa6c7d9f9f756b8ffd36438579",
+          "commit": "2b9166b16659dc811bf61236e3be6bd1e9998a02",
           "state": "completed",
           "result": "passed",
           "label": "Docker inspect normalizasyonları, gerçek cgroup kaynak sınırları ve doğru çıplak container ID biçimi için güncel dört odak paketi 216 PASS; workflow politika paketi 7 PASS."
@@ -664,7 +664,7 @@
         {
           "kind": "ci",
           "ref": "https://github.com/ersingundem/larenor/actions/runs/34326112926",
-          "commit": "b6e7034b13e9ccfa856210f8e1bf9a55f7cf5550",
+          "commit": "2b9166b16659dc811bf61236e3be6bd1e9998a02",
           "state": "completed",
           "result": "passed",
           "label": "PR head 19485ab'ın exact merge kaynağında amd64+arm64 disposable Engine create/start/restart geçti; iki indirilen managed-v2 makbuz repo verifier ile tekrar PASS."
@@ -672,7 +672,7 @@
         {
           "kind": "test",
           "ref": "docs/media-installation-execution-implementation-2026-09-09.md",
-          "commit": "af113e025b250a8b08aec18ae14ee8bfc3ad4e39",
+          "commit": "2b9166b16659dc811bf61236e3be6bd1e9998a02",
           "state": "completed",
           "result": "passed",
           "label": "Paketli exact bootstrap verifier, private runtime policy, üç journal'lı dinamik binding builder ve installation worker CLI yaşam döngüsü 43 odaklı testle; bütün Server paketi pinli apksig/JDK ile 4.256 PASS ve 12 platform skip olarak yerelde geçti."
@@ -680,7 +680,7 @@
         {
           "kind": "ci",
           "ref": "https://github.com/ersingundem/larenor/actions/runs/34332778297",
-          "commit": "bf6f86074732ab50b8e1ca75bf1759acfb8cfcac",
+          "commit": "2b9166b16659dc811bf61236e3be6bd1e9998a02",
           "state": "completed",
           "result": "passed",
           "label": "PR16 exact kaynakta 5.438 Flutter, 4.225 Server, 98 Android native ve 17 API35 E2E yolculuğu geçti; Security ve amd64/arm64 managed native koşuları da yeşil."
@@ -688,7 +688,7 @@
         {
           "kind": "ci",
           "ref": "https://github.com/ersingundem/larenor/actions/runs/34341554668",
-          "commit": "75af0159f4c5fac257e52f9fe8f11c47f77186f7",
+          "commit": "2b9166b16659dc811bf61236e3be6bd1e9998a02",
           "state": "completed",
           "result": "passed",
           "label": "PR18 exact kaynakta 5.438 Flutter, 4.274 Linux Server, 98 Android native ve 17 API35 E2E yolculuğu geçti; Security ile amd64/arm64 managed native koşuları da yeşil."
@@ -696,7 +696,7 @@
         {
           "kind": "test",
           "ref": "server/tests/test_installation_supervisor.py",
-          "commit": "b6196a19b30f8bd3e1994b1ba4e90a298e81faf0",
+          "commit": "2b9166b16659dc811bf61236e3be6bd1e9998a02",
           "state": "completed",
           "result": "passed",
           "label": "Worker yaşamına bağlı daemon/socket/pidfd/proc/namespace supervisor dilimi ilgili yerel pakette 268 testten geçti; üç gerçek Linux testi stacked CI bekliyor."
@@ -704,7 +704,7 @@
         {
           "kind": "test",
           "ref": "server/tests/test_installation_supervisor.py",
-          "commit": "1e942674fc67350f2b33d130df213ca7afc2896d",
+          "commit": "2b9166b16659dc811bf61236e3be6bd1e9998a02",
           "state": "completed",
           "result": "passed",
           "label": "Image, volume, network, bootstrap ve managed container bağlantılarının fresh peer pidfd'sini aynı canlı daemon'a bağlayan düzeltmeyle ilgili yerel paket 272 PASS ve 4 Linux skip verdi."
@@ -712,7 +712,7 @@
         {
           "kind": "test",
           "ref": "server/tests/test_daemon_security.py",
-          "commit": "b6c8edeabc1aabcb5230bcc4ec9d40ed2dbd67cc",
+          "commit": "2b9166b16659dc811bf61236e3be6bd1e9998a02",
           "state": "completed",
           "result": "passed",
           "label": "Rootful/remap-disabled daemon yetkisi held proc/root üzerinden no-follow argv/config ve her effect çevresinde version/info kanıtıyla bağlandı; exact kaynakta tam Server 4.351 PASS/13 macOS skip. Linux CI ve review açık."
@@ -720,21 +720,45 @@
         {
           "kind": "ci",
           "ref": "https://github.com/ersingundem/larenor/actions/runs/34349256229",
-          "commit": "9ce3c5a4ecd8a1ad7f6c8e4fc8edf60ca2f7c846",
+          "commit": "2b9166b16659dc811bf61236e3be6bd1e9998a02",
           "state": "completed",
           "result": "passed",
           "label": "PR19 exact kaynakta 5.438 Flutter, 4.302 Linux Server, 98 Android native ve 17 API35 E2E geçti; gerçek peer-pidfd/proc/user-namespace supervisor testi atlanmadı ve Security koşusu da yeşil."
+        },
+        {
+          "kind": "review",
+          "ref": "docs/media-installation-execution-implementation-2026-09-09.md",
+          "commit": "2b9166b16659dc811bf61236e3be6bd1e9998a02",
+          "state": "completed",
+          "result": "passed",
+          "label": "Descriptor yaşamı, native-thread sahipliği, fresh Engine bağlantı peer'i, startup/config TOCTOU ve bounded Docker protokolü yeniden incelendi; açık P1/P2 bulunmadı."
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/34352862055",
+          "commit": "2b9166b16659dc811bf61236e3be6bd1e9998a02",
+          "state": "completed",
+          "result": "passed",
+          "label": "Exact PR20: 5.438 Flutter, 4.364 Linux Server/sıfır skip, 98 Android native ve 17 API35 E2E PASS; 36 daemon-security, 24 daemon-startup ve 24 supervisor testi Linux'ta atlanmadan geçti."
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/34352861625",
+          "commit": "2b9166b16659dc811bf61236e3be6bd1e9998a02",
+          "state": "completed",
+          "result": "passed",
+          "label": "Exact PR20 dependency, platform-policy ve secret-scan kapıları PASS."
         }
       ],
-      "completionCommit": null,
-      "reason": "Yerel dilimler: Client Docker JSON'u kabul etmeyen şifreli kalıcı API; her etkide güncel yetki/bağlam/kaynak kapıları; yalnız Jellyfin create/start ve kayıp cevap uzlaştırması; preflight'tan ayrı UID denetimli IPC; tam stack bağlamından portsuz/no-copy binding ve exact inspect matcher; legacy v1'den ayrılmış kalıcı v2 managed-container journal; journal-bound taze proof broker; tek exact DockerEndpoint reader bileşimi; pinned helper image ile networksüz/read-only volume root verifier; private policy ve üç journal'lı paketli larenor-installation-worker CLI; worker yaşamına bağlı daemon/socket/pidfd/proc/namespace supervisor, her gerçek Engine bağlantısında aynı canlı daemon peer pidfd doğrulaması ve held proc/root üzerinden rootful/remap-disabled argv/config/API security kapısı. PR16 exact bf6f860, PR18 exact 75af015 ve PR19 exact 9ce3c5a Android/Server/Security kapılarından geçti; önceki iki kaynakta amd64+arm64 managed native de yeşil. Daemon güvenlik dalının exact Linux CI'ı ve bağımsız review açık. Gerçek ev kurulumu kapalı; installAvailable=false."
+      "completionCommit": "2b9166b16659dc811bf61236e3be6bd1e9998a02",
+      "reason": "Dar Jellyfin create/start işi şifreli kalıcı API, ayrı UID denetimli IPC, exact typed kaynak kanıtı, v2 journal, paketli worker runtime ve aynı daemon'a bağlı native supervisor ile tamamlandı. Rootful/remap-disabled startup/config ve Engine güvenliği her etki öncesi/sonrası yeniden doğrulanıyor. Exact PR20 Android Build 5.438 Flutter, 4.364 Linux Server/sıfır skip, 98 native ve 17 API35 E2E; Security üç kapı PASS. Gerçek ev kurulumu ve ürün installAvailable ayrı kapalı."
     },
     {
       "id": "S06.5",
       "kind": "task",
       "parent": "S06",
       "title": "Özel bootstrap ve otomatik servis eşleştirme temeli",
-      "status": "pending",
+      "status": "in_progress",
       "dependsOn": [
         "S06.4"
       ],
