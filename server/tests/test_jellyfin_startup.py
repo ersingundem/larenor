@@ -26,7 +26,7 @@ def response(status=204, body=b'', *, content_type=None, extra=b''):
 
 def happy_responses(first_user=None):
     raw = json.dumps(first_user if first_user is not None else {
-        'Name': None, 'Password': None,
+        'Name': 'jellyfin', 'Password': None,
     }, separators=(',', ':')).encode()
     return [response(200, raw, content_type=b'application/json'),
             response(), response(), response(), response()]
@@ -99,6 +99,7 @@ def test_exact_official_startup_sequence_uses_one_preconnected_stream(monkeypatc
         }),
         ('POST /Startup/RemoteAccess HTTP/1.1', {
             'EnableRemoteAccess': False,
+            'EnableAutomaticPortMapping': False,
         }),
         ('POST /Startup/Complete HTTP/1.1', None),
     ]
@@ -115,7 +116,8 @@ def test_exact_official_startup_sequence_uses_one_preconnected_stream(monkeypatc
 
 
 @pytest.mark.parametrize('first_user', [
-    {'Name': 'admin', 'Password': None}, {'Name': None, 'Password': 'configured'},
+    {'Name': None, 'Password': 'configured'},
+    {'Name': ' bad\nname ', 'Password': None},
     {'Name': '', 'Password': '', 'Unexpected': True}, [], 'invalid-json',
 ])
 def test_only_a_strict_unconfigured_first_user_can_trigger_writes(first_user):
@@ -125,7 +127,7 @@ def test_only_a_strict_unconfigured_first_user_can_trigger_writes(first_user):
     with pytest.raises(JellyfinStartupError) as raised:
         JellyfinStartupConfigurator().configure(connection, private())
     expected = ('jellyfin_already_configured' if isinstance(first_user, dict)
-                and set(first_user) <= {'Name', 'Password'} else 'jellyfin_startup_protocol')
+                and first_user.get('Password') else 'jellyfin_startup_protocol')
     assert raised.value.code == expected
     assert raised.value.completed_steps == () and not raised.value.uncertain_effect
     assert len(connection.requests) == 1
@@ -137,6 +139,14 @@ def test_duplicate_first_user_json_is_rejected_before_any_write():
     with pytest.raises(JellyfinStartupError, match='^jellyfin_startup_protocol$') as raised:
         JellyfinStartupConfigurator().configure(connection, private())
     assert raised.value.completed_steps == () and len(connection.requests) == 1
+
+
+def test_first_time_policy_rejection_is_reported_as_already_configured():
+    connection = Connection([response(401, b'{}', content_type=b'application/json')])
+    with pytest.raises(JellyfinStartupError, match='^jellyfin_already_configured$') as raised:
+        JellyfinStartupConfigurator().configure(connection, private())
+    assert raised.value.completed_steps == () and not raised.value.uncertain_effect
+    assert len(connection.requests) == 1
 
 
 def test_bounded_chunked_first_user_response_is_supported():
