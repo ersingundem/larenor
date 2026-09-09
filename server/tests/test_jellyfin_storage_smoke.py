@@ -772,6 +772,34 @@ def test_tmpfs_diagnostic_never_exposes_raw_option_values(actual, expected):
     assert m._tmpfs_diagnostic(actual, desired) == expected
 
 
+def test_empty_tmpfs_normalization_does_not_hide_later_host_drift():
+    m = api()
+    expected = {'MemorySwap': -1, 'Memory': 4294967296,
+                'NanoCpus': 2000000000, 'PidsLimit': 512,
+                'Tmpfs': {}, 'SecurityOpt': ['no-new-privileges:true']}
+    class Binding:
+        @staticmethod
+        def payload():
+            return {'specification': {'HostConfig': expected}}
+    observed = {'HostConfig': {**expected, 'Tmpfs': None,
+                               'SecurityOpt': ['no-new-privileges']}}
+    assert m._managed_inspect_diagnostic(
+        observed, Binding()) == 'managed_inspect_security_mismatch'
+
+
+def test_empty_tmpfs_normalization_is_not_itself_a_managed_mismatch():
+    m = api()
+    expected = {'MemorySwap': -1, 'Memory': 4294967296,
+                'NanoCpus': 2000000000, 'PidsLimit': 512, 'Tmpfs': {}}
+    class Binding:
+        @staticmethod
+        def payload():
+            return {'specification': {'HostConfig': expected}}
+    assert m._managed_inspect_diagnostic(
+        {'HostConfig': {**expected, 'Tmpfs': None}}, Binding()
+    ) == 'managed_inspect_nonresource_mismatch'
+
+
 @pytest.mark.parametrize('worker_code,expected', [
     ('invalid_binding', 'managed_create_binding_rejected'),
     ('engine_protocol', 'managed_create_protocol_failed'),
