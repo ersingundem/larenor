@@ -140,7 +140,9 @@ _MANAGED_CREATE_DIAGNOSTICS = {
     'managed_create_binding_rejected', 'managed_create_protocol_failed',
     'managed_create_endpoint_rejected', 'managed_create_resource_conflict',
     'managed_create_response_invalid', 'managed_create_identity_invalid',
-    'managed_create_warnings_present',
+    'managed_create_platform_warning', 'managed_create_network_warning',
+    'managed_create_resource_warning', 'managed_create_security_warning',
+    'managed_create_warning_unclassified',
 }
 _DIAGNOSTIC_CODES = _CODES | set(_BUILD_ERROR_PATTERNS) | set(_START_ERROR_PATTERNS) | {
     'helper_base_runtime_failed', 'helper_base_error_ambiguous',
@@ -1159,8 +1161,27 @@ def _managed_create_success_diagnostic(body):
     if (type(value.get('Id')) is not str
             or re.fullmatch(r'[0-9a-f]{64}', value['Id']) is None):
         return 'managed_create_identity_invalid'
-    if value.get('Warnings') not in (None, []):
-        return 'managed_create_warnings_present'
+    warnings = value.get('Warnings')
+    if warnings not in (None, []):
+        if (type(warnings) is not list or not 1 <= len(warnings) <= 8
+                or not all(type(item) is str and 0 < len(item) <= 1024
+                           for item in warnings)):
+            return 'managed_create_warning_unclassified'
+        lowered = '\n'.join(warnings).casefold()
+        categories = (
+            ('managed_create_platform_warning',
+             ('requested image', 'host platform', 'platform does not match')),
+            ('managed_create_network_warning',
+             ('forwarding is disabled', 'networking will not work', 'bridge-nf-call')),
+            ('managed_create_resource_warning',
+             ('swap limit', 'memory limit', 'cpu', 'pids limit', 'resource')),
+            ('managed_create_security_warning',
+             ('apparmor', 'seccomp', 'selinux', 'security opt', 'capabilit')),
+        )
+        for code, patterns in categories:
+            if any(pattern in lowered for pattern in patterns):
+                return code
+        return 'managed_create_warning_unclassified'
     return None
 
 
