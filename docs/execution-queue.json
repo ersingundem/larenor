@@ -817,10 +817,42 @@
           "state": "completed",
           "result": "passed",
           "label": "Aynı UID-korumalı Unix kanal ve retained daemon supervisor üzerinde private bootstrap runtime: 11 yeni/149 ilgili test, macOS'ta bir Linux-only skip; Core-IPC-worker sentetik yolculuğu PASS. Exact CI, readback ve gerçek servis kabulü açık."
+        },
+        {
+          "kind": "test",
+          "ref": "docs/jellyfin-authenticated-readback-implementation-2026-09-09.md",
+          "commit": "d198a728aeccf7a37ed95150097f84e7a7299d50",
+          "state": "completed",
+          "result": "passed",
+          "label": "Authenticated Jellyfin API anahtarı, sistem ve managed kütüphane geri okuması ikinci doğrulanmış private endpoint üzerinde tamamlandı; UID IPC sonucu AES-GCM kayda geçti, geçici session kapatıldı. İlgili altı paket 110 PASS ve bağlı modüller toplam branch coverage yüzde 80. Exact CI, otomatik servis eşleştirmesi ve disposable gerçek servis kabulü açık."
+        },
+        {
+          "kind": "test",
+          "ref": "docs/jellyfin-authenticated-readback-implementation-2026-09-09.md",
+          "commit": "0da1682c8472b490a414468681954a1ea2d59810",
+          "state": "completed",
+          "result": "passed",
+          "label": "Disposable managed Jellyfin 10.11.11 akışı gerçek wizard bootstrap, Larenor API key doğrulama, sistem/boş kütüphane readback ve session logout ile bağlandı; makbuz secret-free. 235 ilgili test, security policy, compileall ve queue PASS. Exact amd64/arm64 CI bekleniyor."
+        },
+        {
+          "kind": "test",
+          "ref": "docs/jellyfin-authenticated-readback-implementation-2026-09-09.md",
+          "commit": "2c3f591bfe2e5ad9c0465be4ff2ed6ba3628b4fc",
+          "state": "completed",
+          "result": "passed",
+          "label": "Jellyfin 10.11.11 gerçek startup, API anahtarı projeksiyonu, secret-free adım tanısı ve wizard öncesi/sonrası sağlık sözleşmesi: 655 ilgili yerel test, security policy ve queue doğrulaması PASS."
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/34389549143",
+          "commit": "2c3f591bfe2e5ad9c0465be4ff2ed6ba3628b4fc",
+          "state": "completed",
+          "result": "passed",
+          "label": "Exact head arm64 ve amd64 disposable Jellyfin 10.11.11 makbuzları: hesap bootstrap, API anahtarı, boş kütüphane, session logout, restart ve kalıcı veri PASS; installAvailable=false."
         }
       ],
       "completionCommit": null,
-      "reason": "Server üretimli sır, sabit startup, exact journal/container/private-network yürütücüsü, kalıcı no-retry koordinatör ve aynı retained daemon'a bağlı private IPC/runtime yerelde hazır. DNS/proxy/redirect/retry yok; kesinti, yetki, kısmi ve endpoint sonuçları secret-free. Exact CI, API anahtarı/kütüphane geri okuması ve gerçek servis kabulü açık."
+      "reason": "Server üretimli sır, sabit startup, exact journal/container/private-network yürütücüsü, kalıcı no-retry koordinatör ve aynı retained daemon'a bağlı private IPC/runtime hazır. Disposable Jellyfin 10.11.11 bootstrap, API anahtarı, sistem/boş kütüphane readback, logout, restart ve veri kalıcılığı exact arm64+amd64 CI'da geçti. Radarr/Sonarr/qBittorrent/Seerr/Music Assistant otomatik eşleştirmesi açık; installAvailable=false."
     },
     {
       "id": "S06.6",
@@ -1482,7 +1514,7 @@
       "kind": "task",
       "parent": "S08",
       "title": "İlk merkezi Home Assistant adaptörü",
-      "status": "in_progress",
+      "status": "done",
       "dependsOn": [
         "S08.5",
         "S08.6"
@@ -1514,111 +1546,31 @@
       "evidence": [
         {
           "kind": "test",
-          "ref": "docs/core-ha-switch-server-implementation-2026-09-08.md",
-          "commit": "422bca33c2c1648ba1b53fca3aa2d89b70ba381c",
-          "state": "completed",
-          "result": "passed",
-          "label": "İlk Server dilimi: 448 ilgili test ve bağımsız birleşik 3680 testte 0 failure/0 error; 12 Mac platform skip. Gerçek HA kullanılmadı."
-        },
-        {
-          "kind": "test",
-          "ref": "docs/core-ha-switch-client-implementation-2026-09-08.md",
-          "commit": "027597fa55d8ad48174f160f46585d286459a1af",
-          "state": "completed",
-          "result": "passed",
-          "label": "İlk Client dilimi: 624 ilgili test (109 odaklı dahil), %96,29 özellik kapsamı, temiz analiz/format ve gerçek fontlu tablet matrisi geçti."
-        },
-        {
-          "kind": "review",
-          "ref": "docs/core-ha-switch-server-implementation-2026-09-08.md",
-          "commit": "422bca33c2c1648ba1b53fca3aa2d89b70ba381c",
-          "state": "completed",
-          "result": "passed",
-          "label": "Server bağımsız incelemesi temiz; Client sözleşme, yaşam döngüsü, klavye ve EN/TR 320/600/1280 tablet QA sınırları ayrıca incelendi."
-        },
-        {
-          "kind": "test",
-          "ref": "docs/core-ha-switch-command-implementation-2026-09-08.md",
-          "commit": "0949e3b53745ea6558cfdc26cb1c2d268f48a06d",
-          "state": "completed",
-          "result": "passed",
-          "label": "Kalıcı switch komutu/makbuzu: tam Server3748PASS/12Macskip; ilgili222Server+124ClientPASS, CoreHA Client %95,52; gerçek HA yazması yok."
-        },
-        {
-          "kind": "review",
-          "ref": "docs/core-ha-switch-command-implementation-2026-09-08.md",
-          "commit": "0949e3b53745ea6558cfdc26cb1c2d268f48a06d",
-          "state": "completed",
-          "result": "passed",
-          "label": "Komut dilimi bağımsız CLEAR: before-send yetki, cache nesli, 5xx unknown, pending kurtarma ve son READ iptali sınırları doğrulandı."
-        },
-        {
-          "kind": "test",
-          "ref": "docs/direct-ha-migration-server-implementation-2026-09-08.md",
-          "commit": "387867e1c1b747254100442dc88fea1936578db9",
-          "state": "completed",
-          "result": "passed",
-          "label": "Direct aktarım Server:87 ayrı odaklı PASS; dört yeni modül %95,93 satır/%85,42 branch, gerçek sözleşme15yanıt/3HA GET/0komut."
-        },
-        {
-          "kind": "test",
-          "ref": "docs/direct-ha-migration-client-implementation-2026-09-08.md",
-          "commit": "c77bf9ef4e3e1091916eea9e42a7c5f7df2f6b83",
-          "state": "completed",
-          "result": "passed",
-          "label": "Direct aktarım Client:92odaklı/599ilgiliPASS, yeni6modül %95,88satır; analyzer0/format0 ve EN/TR 2x tablet matrisi."
-        },
-        {
-          "kind": "review",
-          "ref": "docs/direct-ha-migration-client-implementation-2026-09-08.md",
-          "commit": "c77bf9ef4e3e1091916eea9e42a7c5f7df2f6b83",
-          "state": "completed",
-          "result": "passed",
-          "label": "Server ve Client bağımsız CLEAR: atomik kayıt, PIN/root/current sınırı, sır redaksiyonu, no-replay GET kurtarma ve tablet a11y/Apple incelemesinde açık P1/P2 yok."
-        },
-        {
-          "kind": "test",
           "ref": "docs/core-ha-readonly-domains-implementation-2026-09-09.md",
-          "commit": "9cabd4b834591be076b24a2412902a2875715de1",
+          "commit": "69eb65a1e78727e8dd47ed0179393c150ba2e876",
           "state": "completed",
           "result": "passed",
-          "label": "Genel HA domain okuması: 200 Server ve 219 Android PASS; custom domain, unknown/unavailable, sır redaksiyonu, komutsuz journal, EN/TR tablet matrisi ve analiz temiz."
+          "label": "Exact PR17 kaynağı: 219 Android Core HA testi ve hedefli 200 Server HA testi PASS; flutter analyze temiz. Standard/custom domain, unknown/unavailable, redaksiyon ve salt-okunur sınırları doğrulandı."
+        },
+        {
+          "kind": "review",
+          "ref": "docs/core-ha-readonly-domains-implementation-2026-09-09.md",
+          "commit": "69eb65a1e78727e8dd47ed0179393c150ba2e876",
+          "state": "completed",
+          "result": "passed",
+          "label": "Birleşik PR17 farkı endpoint/yetki/cache/domain redaksiyonu ve Android tablet sunumu açısından yeniden incelendi; açık P1/P2 bulgu yok."
         },
         {
           "kind": "ci",
-          "ref": "https://github.com/ersingundem/larenor/actions/runs/34257630152",
-          "commit": "32d43fd54f7213b3d2cf548dcda7c86b05310606",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/34373524372",
+          "commit": "69eb65a1e78727e8dd47ed0179393c150ba2e876",
           "state": "completed",
           "result": "passed",
-          "label": "Exact32d Server Container:3867LinuxPASS, amd64/arm64 build ve manifest yayını geçti; aynı kaynağın Security koşusu da başarılı."
-        },
-        {
-          "kind": "ci",
-          "ref": "https://github.com/ersingundem/larenor/actions/runs/34257630295",
-          "commit": "32d43fd54f7213b3d2cf548dcda7c86b05310606",
-          "state": "completed",
-          "result": "failed",
-          "label": "Exact32d Android:5436Flutter ve17E2E/debugAPK geçti; bağımsız Server3866PASS+1 sentetik volume fixture timeout yarışı, signedAPKskip. Üretim dışı onarım sonraki kaynakta."
-        },
-        {
-          "kind": "ci",
-          "ref": "https://github.com/ersingundem/larenor/actions/runs/34260526324",
-          "commit": "bd1a604ab46873a2fc967eb3806ca60562609690",
-          "state": "completed",
-          "result": "passed",
-          "label": "Exactbd1 Server Container:3867LinuxPASS, amd64/arm64 build/smoke ve immutable manifest yayını geçti; Security aynı kaynakta başarılı."
-        },
-        {
-          "kind": "ci",
-          "ref": "https://github.com/ersingundem/larenor/actions/runs/34260527888",
-          "commit": "bd1a604ab46873a2fc967eb3806ca60562609690",
-          "state": "completed",
-          "result": "passed",
-          "label": "Exactbd1 Android:5436Flutter/3867Server/17E2E ve signedAPK122 geçti; apksig packageLarenor/code100000122/min26/nondebug, SHA21cc73b9."
+          "label": "Exact PR17 Android Build: Flutter analiz/test, 4.445 Server testi, debug APK ve 17 API35 E2E PASS; Security ve amd64/arm64 managed karakterizasyon da aynı kaynakta PASS."
         }
       ],
-      "completionCommit": null,
-      "reason": "Typed switch durumu, kalıcı idempotent komut/makbuz ve açık PIN-gated Direct→Core aktarımı main32d43fd içinde. Server87 ve Client92odaklı/599ilgiliPASS; sözleşmehash sabit, bağımsız incelemeler CLEAR. Fixture onarımı sonrası exactbd1 Security/Server3867/Flutter5436/E2E17 ve signedAPK122/apksig doğrulaması geçti. Geniş HA varlık/servis kapsamı ile fiziksel Huawei/DeX/TalkBack/gerçek HA kabulü açık; gerçek ev yalnız salt okunur tutuldu."
+      "completionCommit": "69eb65a1e78727e8dd47ed0179393c150ba2e876",
+      "reason": "Typed switch, kalıcı idempotent komut/makbuz, açık Direct→Core aktarımı ve standart/custom Home Assistant domainlerinin kapalı salt okunur projeksiyonu PR17 ile ana dala alındı. Exact kaynakta Flutter, 4.445 Server, 17 E2E, debug APK, Security ve iki mimarili native kapılar geçti. Gerçek evde yazma yapılmadı; fiziksel Huawei/DeX/TalkBack kabulü MANUAL işlerinde ayrı izleniyor."
     },
     {
       "id": "S08.8",

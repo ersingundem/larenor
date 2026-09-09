@@ -1,12 +1,12 @@
 # Larenor — güncel ilerleme ve iş kuyruğu
 
-**Son güncelleme: 9 Eylül 2026 — S06.4 kabul edildi, S06.5 private IPC/runtime temeline ilerledi; S08.7 salt okunur Home Assistant domain kapsamı birleşik CI için hazır.**
+**Son güncelleme: 9 Eylül 2026 — S08.7 salt okunur Home Assistant domain kapsamı ana dala alındı; S06.5 disposable Jellyfin 10.11.11 bootstrap, API anahtarı, sistem/kütüphane geri okuması, oturum kapatma ve restart kontrolleri exact arm64+amd64 CI'da geçti.**
 
 ```text
-Kuyruk kabulü       ██░░░░░░░░░░░░░░░░░░  13/125 iş (%10; eşit ağırlıklı sayaç)
+Kuyruk kabulü       ██░░░░░░░░░░░░░░░░░░  14/125 iş (%11; eşit ağırlıklı sayaç)
 S06 koordinatörü    █████████████░░░░░░░  4/6 yazılım dilimi
 S06.3 kaynak temeli  ████████████████████  6/6 alt adım
-S08.7 HA kapsamı     ████████████████░░░░  4/5 yazılım kapısı; CI/fiziksel kabul ayrı
+S08.7 HA kapsamı     ████████████████████  5/5 yazılım kapısı; fiziksel kabul ayrı
 Yeni 63 özellik     ░░░░░░░░░░░░░░░░░░░░  0/63 kabul edildi
 ```
 
@@ -36,12 +36,12 @@ Gerçek ev kurulumu ve fiziksel tablet kabulü henüz yapılmadı.
 | --- | --- | --- |
 | S08.5 — restore, logout ve journal hedef sınırı | **Kabul edildi**, exact `960691c` / APK108 | [Kabul ve korunan geçmiş](restore-people-acceptance-108-2026-09-08.md) |
 | S08.6 — kişi, oda, kaynak ve izin yönetimi | **Kabul edildi**, aynı yayın | Merkezi HA akışının yetki temeli hazır |
-| S08.7 — merkezi Home Assistant adaptörü | **Devam ediyor**; typed switch, kalıcı komut/makbuz ve açık Direct→Core main içinde; standart/özel domain'lerin kapalı salt okunur projeksiyonu `9cabd4b` dalında 200 Server + 219 Android testinden geçti | Exact-source birleşik CI; sonra registry/servis keşfi ve domain'e özel typed komutlar |
+| S08.7 — merkezi Home Assistant adaptörü | **Kabul edildi**; typed switch, kalıcı komut/makbuz, Direct→Core ve kapalı salt okunur standart/özel domain projeksiyonu PR17 tam CI ile ana dala alındı | Registry/servis keşfi ve domain'e özel typed komutlar sonraki HA dilimi |
 | B5.1 — ortak tablet tasarımı | Services/hesap IME paketi APK116 ile kabul edildi; S08.7 komut ve aktarım yüzeyleri yerel tablet matrisinden geçti | Exact-source Android CI ve kalan ortak tablet yüzeyleri |
 | S06.3d — kalıcı depolama | **Kabul edildi**; Native18 exact `6a054ea`, amd64+arm64 makbuzları doğrulandı | S06.3f ile birleşik kaynak kapısı kapandı |
 | S06.3f — kaynak kabulü | **Kabul edildi**; exact `4021391`, iki mimarili native makbuz, 4.065 Server ve tam Android/Server CI yeşil | S06.4 dar kurulum yürütme kapısı |
 | S06.4 — dar kurulum yürütme kapısı | **Kabul edildi**; PR16 `bf6f860`, PR18 `75af015`, PR19 `9ce3c5a` ve PR20 `2b9166b` tam CI kapıları yeşil | S06.5 özel bootstrap ve otomatik servis eşleştirme |
-| S06.5 — özel bootstrap ve otomatik eşleştirme | **Devam ediyor**; şifreli niyet, exact yürütücü, kalıcı no-retry koordinatör ve aynı retained daemon'a bağlı private IPC/runtime yerelde hazır | Exact-source CI, API anahtarı/kütüphane geri okuması ve gerçek servis kabulü |
+| S06.5 — özel bootstrap ve otomatik eşleştirme | **Devam ediyor**; private IPC/runtime, tek Larenor API anahtarı, sistem/kütüphane geri okuması ve AES-GCM kalıcı durum hazır; disposable gerçek Jellyfin 10.11.11 bootstrap/readback/restart akışı exact arm64+amd64 CI'da geçti | Radarr/Sonarr/qBittorrent/Seerr/Music Assistant otomatik servis eşleştirmesi |
 
 S06.5'in ilk iki TDD parçası, yalnız tamamlanmış Jellyfin kurulumundan
 yöneticiye bağlı bootstrap niyeti üretir ve public API'de sır, hedef adres veya
@@ -86,6 +86,26 @@ aynı journal/binding'i kullanır; supervisor iç gate'leri ve Docker bağlantı
 aynı retained daemon lease'i/native thread içinde doğrular. Sentetik gerçek
 Unix-soket Core→IPC→worker yolculuğu dahil **11 yeni / 149 ilgili test** geçti;
 bir Linux-only test macOS'ta skip edildi. Gerçek Docker/Jellyfin etkisi yapılmadı.
+
+`7668017` → `0745d70`, `c790748` → `61be275`, `1f36ed5` / `22bae10` →
+`a681d74` ve `e95e436` → `d198a72` TDD zinciri, tamamlanan startup'tan sonra
+ikinci kez doğrulanmış private endpoint üzerinde Jellyfin sistem kullanıcısını
+authenticate eder. Tek doğrulanmış `Larenor Core` API anahtarını yeniden kullanır;
+yoksa bir kez oluşturup geri okumadan kabul etmez. `System/Info` kimliği ve
+`Library/VirtualFolders` sonucu kapalı modele alınır, geçici auth oturumu
+`Sessions/Logout` ile kapatılır. API key, session token, parola ve medya yolları
+UID-korumalı IPC dışında görünmez; Core sonucu AES-GCM ciphertext olarak saklar
+ve public durumu yalnız `wiring_partial` yapar. İlk dilimde ilgili altı paket **110 PASS**,
+değişen ve doğrudan bağlı beş modül branch coverage toplamı **%80** verdi.
+[TDD kanıtı ve açık sınırlar](jellyfin-authenticated-readback-implementation-2026-09-09.md).
+
+Native genişletmenin son `2c3f591` kaynağı, Jellyfin 10.11.11'in gerçek ilk
+kullanıcı adı, iki zorunlu remote-access alanı, internal Docker ağındaki boş
+gateway gözlemi, null alanları atılan `ApiKey` wire biçimi ve wizard sonrası
+sağlık durumuyla eşleştirildi. **655 ilgili test** geçti. Exact
+[CI 34389549143](https://github.com/ersingundem/larenor/actions/runs/34389549143)
+arm64 ve amd64 üzerinde bootstrap/readback/logout, ilk sağlık, restart sağlık,
+kimlik ve kalıcı veri kontrollerini tamamladı; public makbuzda sır bulunmuyor.
 
 S06.4 native kabul koşusu [34326112926](https://github.com/ersingundem/larenor/actions/runs/34326112926)
 iki gerçek GitHub runner'ında geçti. İndirilen ARM64 ve X64 makbuzları merge

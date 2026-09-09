@@ -34,10 +34,21 @@ def test_running_exact_container_yields_private_fixed_jellyfin_endpoint():
     assert '172.28.0.2' not in repr(proof)
 
 
+def test_internal_network_without_default_route_keeps_private_endpoint_valid():
+    stack, binding, observed = running()
+    attached = next(iter(observed['NetworkSettings']['Networks'].values()))
+    attached['Gateway'] = ''
+
+    proof = prove_jellyfin_endpoint(observed, binding, stack, '5' * 64)
+
+    assert proof.address == '172.28.0.2'
+    assert proof.network_id == binding.network_id
+
+
 @pytest.mark.parametrize('damage', [
     'container', 'binding', 'stopped', 'paused', 'restarting', 'dead',
     'network', 'missing_ip', 'public_ip', 'loopback', 'link_local',
-    'prefix_bool', 'prefix_wide', 'gateway_public', 'gateway_outside',
+    'prefix_bool', 'prefix_wide', 'gateway_missing', 'gateway_public', 'gateway_outside',
     'plan', 'extra_network',
 ])
 def test_drift_or_nonprivate_endpoint_never_becomes_connection_authority(damage, monkeypatch):
@@ -64,6 +75,7 @@ def test_drift_or_nonprivate_endpoint_never_becomes_connection_authority(damage,
             'missing_ip': {'IPAddress': ''}, 'public_ip': {'IPAddress': '8.8.8.8'},
             'loopback': {'IPAddress': '127.0.0.1'}, 'link_local': {'IPAddress': '169.254.1.2'},
             'prefix_bool': {'IPPrefixLen': True}, 'prefix_wide': {'IPPrefixLen': 7},
+            'gateway_missing': {'Gateway': None},
             'gateway_public': {'Gateway': '8.8.8.8'},
             'gateway_outside': {'Gateway': '172.29.0.1'},
         }

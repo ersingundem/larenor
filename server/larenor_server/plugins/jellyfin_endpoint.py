@@ -113,10 +113,16 @@ def prove_jellyfin_endpoint(observed, binding, stack, expected_container_id):
                 or type(prefix) is not int or not 8 <= prefix <= 30):
             raise ValueError()
         address = _private_address(attached.get('IPAddress'))
-        gateway = _private_address(attached.get('Gateway'))
         network = ipaddress.ip_network(f'{address}/{prefix}', strict=False)
-        if gateway not in network or gateway in {address, network.network_address, network.broadcast_address}:
+        gateway_value = attached.get('Gateway')
+        if type(gateway_value) is not str or len(gateway_value) > 15:
             raise ValueError()
+        if gateway_value:
+            gateway = _private_address(gateway_value)
+            if (gateway not in network
+                    or gateway in {address, network.network_address,
+                                   network.broadcast_address}):
+                raise ValueError()
         proof = JellyfinEndpointProof(
             expected_container_id, binding.network_id, str(address), 8096, selected.planHash,
         )

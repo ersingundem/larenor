@@ -87,8 +87,9 @@ def run(mode):
             _require(type(value) is dict and type(value.get('Id')) is str
                 and re.fullmatch(r'[0-9a-f]{32}', value['Id'])
                 and value.get('Version') == '10.11.11'
-                and value.get('StartupWizardCompleted') is False)
-            return {'id':value['Id'],'version':value['Version'],'wizardCompleted':False}
+                and type(value.get('StartupWizardCompleted')) is bool)
+            return {'id':value['Id'],'version':value['Version'],
+                    'wizardCompleted':value['StartupWizardCompleted']}
         fd = os.open(_ROOT, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC)
         identity = {'uid':os.geteuid(), 'gid':os.getegid()}
         if mode == 'image_seed':

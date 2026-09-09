@@ -8,6 +8,9 @@ import pytest
 from larenor_server.plugins.jellyfin_bootstrap_executor import (
     JellyfinBootstrapExecutionError, JellyfinBootstrapExecutor,
 )
+from larenor_server.plugins.jellyfin_authenticated_readback import (
+    JellyfinAuthenticatedReadback,
+)
 from larenor_server.plugins.jellyfin_endpoint import (
     JellyfinEndpointError, OpenJellyfinEndpoint, prove_jellyfin_endpoint,
 )
@@ -16,7 +19,10 @@ from larenor_server.plugins.managed_container import (
     JournaledManagedContainerOperations, ManagedWorkerJournal,
 )
 from larenor_server.plugins.media_service_bootstrap_models import PrivateMediaServiceBootstrap
-from test_jellyfin_startup import Connection, SECRET, happy_responses
+from test_jellyfin_startup import Connection, SECRET, happy_responses, response
+from test_jellyfin_authenticated_readback import (
+    API_KEY, authentication, folders, json_response, key, keys, system,
+)
 from test_managed_container_binding import Engine, build, command
 
 
@@ -40,6 +46,7 @@ def prepared(tmp_path):
 def executor(binding, operations):
     return JellyfinBootstrapExecutor(
         operations, lambda _stack: binding, JellyfinStartupConfigurator(),
+        JellyfinAuthenticatedReadback(),
     )
 
 
@@ -61,20 +68,68 @@ def connected(monkeypatch, stack, binding, engine, connection=None):
     return connection, calls
 
 
+def connected_for_readback(monkeypatch, stack, binding, engine, readback=None):
+    startup = Connection(happy_responses())
+    readback = readback or Connection([
+        json_response(authentication()),
+        json_response(keys(key())),
+        json_response(system()),
+        json_response(folders()),
+        response(),
+    ])
+    proof = prove_jellyfin_endpoint(engine.container, binding, stack, engine.container['Id'])
+    pending = [startup, readback]
+    calls = []
+
+    def opened(*args, **kwargs):
+        calls.append((args, kwargs))
+        return OpenJellyfinEndpoint(pending.pop(0), proof)
+
+    monkeypatch.setattr(
+        'larenor_server.plugins.jellyfin_bootstrap_executor.open_jellyfin_endpoint', opened)
+    return startup, readback, calls
+
+
+def test_readback_failure_preserves_only_static_cause_and_steps(prepared, monkeypatch):
+    stack, binding, engine, operations = prepared
+    failed = Connection([json_response({}, status=500)])
+    startup, readback, _opens = connected_for_readback(
+        monkeypatch, stack, binding, engine, failed,
+    )
+
+    with pytest.raises(JellyfinBootstrapExecutionError,
+                       match='^bootstrap_readback_failed$') as raised:
+        executor(binding, operations).execute(
+            JOB, stack, private(), deadline=time.monotonic() + 10,
+            gate=lambda: True,
+        )
+
+    assert startup.closed and readback.closed
+    assert raised.value.cause_code == 'jellyfin_authenticated_readback_protocol'
+    assert raised.value.readback_steps == ()
+    assert SECRET not in repr(raised.value)
+
+
 def test_reconciles_journal_and_rechecks_endpoint_before_and_after_startup(prepared, monkeypatch):
     stack, binding, engine, operations = prepared
-    connection, opens = connected(monkeypatch, stack, binding, engine)
+    connection, readback, opens = connected_for_readback(
+        monkeypatch, stack, binding, engine,
+    )
     gates = []
     result = executor(binding, operations).execute(
         JOB, stack, private(), deadline=time.monotonic() + 10,
         gate=lambda: gates.append('gate') or True,
     )
-    assert result.state == 'credentials_configured'
+    assert result.state == 'wiring_partial'
     assert result.completed_steps[-1] == 'wizard_completed'
+    assert result.readback.api_key == API_KEY
+    assert result.readback.server_id == '3' * 32
+    assert result.readback.completed_steps[-1] == 'session_closed'
     assert len(connection.requests) == 5 and connection.closed
-    assert len(opens) == 1 and len(gates) == 4
-    assert len([call for call in engine.calls if call[0] == 'inspect']) >= 5
-    assert SECRET not in repr(result)
+    assert len(readback.requests) == 5 and readback.closed
+    assert len(opens) == 2 and len(gates) == 6
+    assert len([call for call in engine.calls if call[0] == 'inspect']) >= 7
+    assert SECRET not in repr(result) and API_KEY not in repr(result)
 
 
 @pytest.mark.parametrize('when', [
@@ -121,6 +176,7 @@ def test_container_or_endpoint_change_is_detected_around_effect(prepared, monkey
             JOB, stack, private(), deadline=time.monotonic() + 10, gate=lambda: True)
     assert connection.closed
     assert raised.value.uncertain_effect is (when == 'after_startup')
+    assert raised.value.boundary == when
     assert len(connection.requests) == (5 if when == 'after_startup' else 0)
 
 
@@ -160,6 +216,7 @@ def test_numeric_connect_failure_has_distinct_secret_free_error(prepared, monkey
     assert len(calls) == 1
     assert raised.value.completed_steps == ()
     assert not raised.value.uncertain_effect
+    assert raised.value.boundary == 'before_connect'
     assert SECRET not in str(raised.value) + repr(raised.value)
 
 

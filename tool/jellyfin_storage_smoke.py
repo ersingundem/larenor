@@ -17,6 +17,7 @@ from pathlib import Path
 import platform
 import re
 import selectors
+import secrets
 import shutil
 import signal
 import stat
@@ -163,6 +164,44 @@ _MANAGED_CREATE_DIAGNOSTICS = {
     'managed_inspect_network_id_missing', 'managed_inspect_network_id_mismatch',
     'managed_inspect_nonresource_mismatch',
 }
+_BOOTSTRAP_BOUNDARIES = {
+    'before_connect', 'after_connect', 'after_startup',
+    'after_readback_connect', 'after_readback',
+}
+_BOOTSTRAP_ENDPOINT_DIAGNOSTICS = {
+    f'{code}_{boundary}'
+    for code in ('bootstrap_endpoint_changed', 'bootstrap_endpoint_unavailable')
+    for boundary in _BOOTSTRAP_BOUNDARIES
+}
+_BOOTSTRAP_STARTUP_DIAGNOSTICS = {
+    (): 'bootstrap_startup_observe_failed',
+    ('observed_unconfigured',): 'bootstrap_startup_configuration_failed',
+    ('observed_unconfigured', 'configuration_updated'):
+        'bootstrap_startup_user_failed',
+    ('observed_unconfigured', 'configuration_updated', 'user_updated'):
+        'bootstrap_startup_remote_access_failed',
+    ('observed_unconfigured', 'configuration_updated', 'user_updated',
+     'remote_access_updated'): 'bootstrap_startup_complete_failed',
+}
+_BOOTSTRAP_READBACK_DIAGNOSTICS = {
+    (): 'bootstrap_readback_authentication_failed',
+    ('authenticated',): 'bootstrap_readback_keys_failed',
+    ('authenticated', 'keys_observed'): 'bootstrap_readback_key_create_failed',
+    ('authenticated', 'keys_observed', 'key_created'):
+        'bootstrap_readback_key_reread_failed',
+    ('authenticated', 'keys_observed', 'key_created', 'key_verified'):
+        'bootstrap_readback_system_failed',
+    ('authenticated', 'keys_observed', 'key_verified'):
+        'bootstrap_readback_system_failed',
+    ('authenticated', 'keys_observed', 'key_created', 'key_verified',
+     'system_verified'): 'bootstrap_readback_libraries_failed',
+    ('authenticated', 'keys_observed', 'key_verified', 'system_verified'):
+        'bootstrap_readback_libraries_failed',
+    ('authenticated', 'keys_observed', 'key_created', 'key_verified',
+     'system_verified', 'libraries_verified'): 'bootstrap_readback_logout_failed',
+    ('authenticated', 'keys_observed', 'key_verified', 'system_verified',
+     'libraries_verified'): 'bootstrap_readback_logout_failed',
+}
 _DIAGNOSTIC_CODES = _CODES | set(_BUILD_ERROR_PATTERNS) | set(_START_ERROR_PATTERNS) | {
     'helper_base_runtime_failed', 'helper_base_error_ambiguous',
     'helper_base_state_error_ambiguous', *_STATE_ERROR_PATTERNS,
@@ -195,6 +234,12 @@ _DIAGNOSTIC_CODES = _CODES | set(_BUILD_ERROR_PATTERNS) | set(_START_ERROR_PATTE
     'bootstrap_create_failed', 'bootstrap_start_failed', 'bootstrap_wait_failed',
     'bootstrap_result_failed', 'bootstrap_cleanup_failed',
     'bootstrap_cleanup_status_failed', 'bootstrap_cleanup_transport_failed',
+    'bootstrap_authority_changed', 'bootstrap_resources_unavailable',
+    'bootstrap_endpoint_unavailable', 'bootstrap_endpoint_changed',
+    'bootstrap_startup_failed', 'bootstrap_readback_failed', 'bootstrap_timeout',
+    *_BOOTSTRAP_ENDPOINT_DIAGNOSTICS,
+    *_BOOTSTRAP_STARTUP_DIAGNOSTICS.values(),
+    *_BOOTSTRAP_READBACK_DIAGNOSTICS.values(),
     'storage_characterization_evidence_invalid'}
 _PHASES = {'launcher', 'launch_validation', 'source_capture', 'daemon_start', 'daemon_cleanup',
     'characterization', 'image_prepare', 'volume_prepare', 'image_inspect', 'helper_stage',
@@ -202,7 +247,8 @@ _PHASES = {'launcher', 'launch_validation', 'source_capture', 'daemon_start', 'd
     'helper_base_created', 'helper_base_start', 'helper_base_result',
     'helper_build', 'helper_inspect', 'helper_seed', 'initial_permissions', 'bootstrap_check',
     'bootstrap_initialize', 'initialized_permissions', 'sentinel_write', 'container_create',
-    'container_inspect', 'container_start', 'initial_health', 'initial_identity', 'initial_data',
+    'container_inspect', 'container_start', 'authenticated_bootstrap',
+    'initial_health', 'initial_identity', 'initial_data',
     'container_restart', 'restart_health', 'restart_identity', 'root_verify', 'sentinel_verify',
     'restart_data', 'source_recheck', 'receipt_validate', 'receipt_verify'}
 _SOURCE_FILES = (
@@ -236,6 +282,11 @@ _SOURCE_FILES = (
     'server/larenor_server/plugins/volume_preparation.py',
     'server/larenor_server/plugins/volume_bootstrap.py',
     'server/larenor_server/plugins/managed_container.py',
+    'server/larenor_server/plugins/jellyfin_endpoint.py',
+    'server/larenor_server/plugins/jellyfin_startup.py',
+    'server/larenor_server/plugins/jellyfin_authenticated_readback.py',
+    'server/larenor_server/plugins/jellyfin_bootstrap_executor.py',
+    'server/larenor_server/plugins/media_service_bootstrap_models.py',
     'server/larenor_server/plugins/worker.py',
     'server/larenor_server/plugins/docker_probe.py',
     'server/larenor_server/plugins/engine_http.py',
@@ -1124,13 +1175,14 @@ def _helper(daemon, image_id, mode, *, target=None, bootstrap=False, network='no
     return _decoded(daemon.docker(args, timeout=20, limit=4096))
 
 
-def _health(daemon, helper_id, container_id):
+def _health(daemon, helper_id, container_id, *, wizard_completed=False):
+    require(type(wizard_completed) is bool)
     deadline = time.monotonic()+180
     while time.monotonic() < deadline:
         try:
             value = _helper(daemon, helper_id, 'health', network='container:'+container_id)
             require(type(value) is dict and value.get('version') == '10.11.11'
-                and value.get('wizardCompleted') is False
+                and value.get('wizardCompleted') is wizard_completed
                 and re.fullmatch(r'[0-9a-f]{32}', value.get('id','')))
             return value
         except SmokeError:
@@ -1448,12 +1500,41 @@ def _managed_create_succeeded(receipt):
         return False
 
 
+def _managed_bootstrap_error(error):
+    try:
+        code, boundary = error.code, error.boundary
+        completed = tuple(error.completed_steps)
+        readback = tuple(error.readback_steps)
+    except (AttributeError, TypeError, RecursionError):
+        return 'bootstrap_result_failed'
+    if code == 'bootstrap_startup_failed':
+        return _BOOTSTRAP_STARTUP_DIAGNOSTICS.get(
+            completed, 'bootstrap_result_failed')
+    if code == 'bootstrap_readback_failed':
+        return _BOOTSTRAP_READBACK_DIAGNOSTICS.get(
+            readback, 'bootstrap_result_failed')
+    combined = f'{code}_{boundary}'
+    if combined in _BOOTSTRAP_ENDPOINT_DIAGNOSTICS:
+        return combined
+    return code if code in _DIAGNOSTIC_CODES else 'bootstrap_result_failed'
+
+
 def _managed_create_and_start(daemon, source, endpoint, helper_id):
     """Create/start through the production proof, binding and v2 journal path."""
     from larenor_server.plugins.managed_container import (
         JellyfinBindingBuilder, JellyfinEngineReaders, JellyfinResourceProofBroker,
         JournaledManagedContainerOperations, ManagedWorkerJournal,
         managed_container_matches,
+    )
+    from larenor_server.plugins.jellyfin_authenticated_readback import (
+        JellyfinAuthenticatedReadback,
+    )
+    from larenor_server.plugins.jellyfin_bootstrap_executor import (
+        JellyfinBootstrapExecutor,
+    )
+    from larenor_server.plugins.jellyfin_startup import JellyfinStartupConfigurator
+    from larenor_server.plugins.media_service_bootstrap_models import (
+        PrivateMediaServiceBootstrap,
     )
     from larenor_server.plugins.resource_journal import ResourceJournal
     from larenor_server.plugins.volume_bootstrap import (
@@ -1516,7 +1597,34 @@ def _managed_create_and_start(daemon, source, endpoint, helper_id):
         host = binding.payload()['specification']['HostConfig']
         daemon.verify_container_resources(running.get('State', {}).get('Pid'),
             host['Memory'], host['NanoCpus'], host['PidsLimit'])
-        return start.container_id, binding, engine
+        with diagnostic_phase('authenticated_bootstrap'):
+            before = _health(
+                daemon, helper_id, start.container_id, wizard_completed=False,
+            )
+            try:
+                bootstrap = JellyfinBootstrapExecutor(
+                    operations, lambda _stack: binding,
+                    JellyfinStartupConfigurator(), JellyfinAuthenticatedReadback(),
+                ).execute(
+                    job_id, source.stack,
+                    PrivateMediaServiceBootstrap(
+                        credential=secrets.token_urlsafe(48),
+                    ),
+                    deadline=time.monotonic() + 90,
+                    gate=lambda: True,
+                )
+            except Exception as error:
+                raise SmokeError(_managed_bootstrap_error(error)) from None
+            require(bootstrap.state == 'wiring_partial'
+                    and bootstrap.readback.state == 'verified'
+                    and bootstrap.readback.server_id == before['id']
+                    and bootstrap.readback.libraries == ()
+                    and bootstrap.readback.completed_steps[-1:] == ('session_closed',))
+        return start.container_id, binding, engine, {
+            'apiKeyVerified': True,
+            'libraryCount': 0,
+            'sessionClosed': True,
+        }
 
 
 @diagnostic_phase('characterization')
@@ -1592,10 +1700,11 @@ def characterize(daemon, *, source=None, images=None, volumes=None, checkout_bin
         with diagnostic_phase('sentinel_write'):
             require(_helper(daemon, helper_id, 'write_sentinel', target=target)
                 == {'sentinel':'verified','uid':1000,'gid':1000})
-    managed_binding = managed_engine = None
+    managed_binding = managed_engine = managed_readback = None
     with diagnostic_phase('container_create'):
         if managed:
-            container_id, managed_binding, managed_engine = _managed_create_and_start(
+            (container_id, managed_binding, managed_engine,
+             managed_readback) = _managed_create_and_start(
                 daemon, source, endpoint, helper_id,
             )
         else:
@@ -1631,7 +1740,8 @@ def characterize(daemon, *, source=None, images=None, volumes=None, checkout_bin
         else:
             daemon.verify_container_cgroup(running.get('State',{}).get('Pid'))
     with diagnostic_phase('initial_health'):
-        first = _health(daemon, helper_id, container_id)
+        first = _health(daemon, helper_id, container_id,
+                        wizard_completed=managed)
     with diagnostic_phase('initial_identity'):
         require(_helper(daemon, helper_id, 'app_identity', network='container:'+container_id)
                 == {'uid':1000,'gid':1000})
@@ -1642,7 +1752,8 @@ def characterize(daemon, *, source=None, images=None, volumes=None, checkout_bin
     with diagnostic_phase('container_restart'):
         daemon.docker(['restart','--time=10',container_id], timeout=30, limit=128)
     with diagnostic_phase('restart_health'):
-        second = _health(daemon, helper_id, container_id)
+        second = _health(daemon, helper_id, container_id,
+                         wizard_completed=managed)
         require(second == first, 'restart_identity_changed')
     with diagnostic_phase('restart_identity'):
         require(_helper(daemon, helper_id, 'app_identity', network='container:'+container_id)
@@ -1673,7 +1784,8 @@ def characterize(daemon, *, source=None, images=None, volumes=None, checkout_bin
         'volumeCount':2,'restartCount':1,'serverId':first['id'],
         **({'containerMode':'journaled_managed_v2','containerJournalVersion':2}
            if managed else {}),
-        'bootstrapAccountConfigured':False,'installAvailable':False, **receipt}
+        'bootstrapAccountConfigured':managed,
+        **(managed_readback or {}), 'installAvailable':False, **receipt}
 
 
 def main(arguments=None):
