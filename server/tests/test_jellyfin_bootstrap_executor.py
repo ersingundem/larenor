@@ -156,6 +156,7 @@ def test_container_or_endpoint_change_is_detected_around_effect(prepared, monkey
             JOB, stack, private(), deadline=time.monotonic() + 10, gate=lambda: True)
     assert connection.closed
     assert raised.value.uncertain_effect is (when == 'after_startup')
+    assert raised.value.boundary == when
     assert len(connection.requests) == (5 if when == 'after_startup' else 0)
 
 
@@ -195,6 +196,7 @@ def test_numeric_connect_failure_has_distinct_secret_free_error(prepared, monkey
     assert len(calls) == 1
     assert raised.value.completed_steps == ()
     assert not raised.value.uncertain_effect
+    assert raised.value.boundary == 'before_connect'
     assert SECRET not in str(raised.value) + repr(raised.value)
 
 

@@ -626,6 +626,24 @@ def test_managed_characterization_routes_through_resources_and_v2_worker(
     assert docker.verified_pids == [4242, 4242]
 
 
+@pytest.mark.parametrize('boundary,expected', [
+    ('before_connect', 'bootstrap_endpoint_before_connect'),
+    ('after_connect', 'bootstrap_endpoint_after_connect'),
+    ('after_startup', 'bootstrap_endpoint_after_startup'),
+    ('after_readback_connect', 'bootstrap_endpoint_after_readback_connect'),
+    ('after_readback', 'bootstrap_endpoint_after_readback'),
+])
+def test_native_bootstrap_endpoint_failure_keeps_only_closed_boundary(boundary, expected):
+    m = api()
+    from larenor_server.plugins.jellyfin_bootstrap_executor import (
+        JellyfinBootstrapExecutionError,
+    )
+    error = JellyfinBootstrapExecutionError(
+        'bootstrap_endpoint_changed', boundary=boundary,
+    )
+    assert m._managed_bootstrap_error(error) == expected
+
+
 @pytest.mark.parametrize('status,message,expected', [
     (400, 'invalid mount config for type "volume"', 'managed_create_mount_rejected'),
     (400, 'network larenor-control-private not found', 'managed_create_network_rejected'),
