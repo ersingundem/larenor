@@ -9,6 +9,9 @@ from larenor_server.app import create_app
 from larenor_server.plugins.jellyfin_bootstrap_executor import (
     JellyfinBootstrapExecutionError, JellyfinBootstrapExecutionResult,
 )
+from larenor_server.plugins.jellyfin_authenticated_readback import (
+    JellyfinAuthenticatedReadbackResult,
+)
 from test_admin import activate, create as create_user
 from test_media_installations_api import ExecutionBackend, prepared
 
@@ -169,13 +172,19 @@ class BootstrapBackend:
         if self.failure is not None:
             raise self.failure
         return JellyfinBootstrapExecutionResult(
-            'credentials_configured',
+            'wiring_partial',
             ('observed_unconfigured', 'configuration_updated', 'user_updated',
              'remote_access_updated', 'wizard_completed'),
+            JellyfinAuthenticatedReadbackResult(
+                'verified', '3' * 32, 'Larenor Jellyfin', '10.11.0', 'c' * 32,
+                (('Filmler', 'movies', '4' * 32, ('/media/movies',)),),
+                ('authenticated', 'keys_observed', 'key_verified',
+                 'system_verified', 'libraries_verified'),
+            ),
         )
 
 
-def test_tick_persists_running_then_credentials_configured_without_exposing_secret(server):
+def test_tick_persists_encrypted_readback_without_exposing_secret(server):
     app, client, _, _ = server
     pair, installation = installed(server)
     record = client.post(BASE, headers=auth(pair), json=request(installation)).json()['bootstrap']
@@ -184,14 +193,27 @@ def test_tick_persists_running_then_credentials_configured_without_exposing_secr
 
     terminal = app.state.core.media_service_bootstraps.tick()['bootstrap']
     assert terminal == record | {
-        'revision': 3, 'state': 'credentials_configured',
-        'credentialsConfigured': True,
+        'revision': 3, 'state': 'wiring_partial',
+        'credentialsConfigured': True, 'wiringState': 'partial',
     }
     assert len(backend.calls) == 1
     job, plan, private, _deadline, _gate = backend.calls[0]
     assert job == record['id'] and plan.templateId == 'media'
     assert private.credential and private.username == 'larenor-system'
-    assert private.credential not in repr(private) + repr(terminal)
+    stored = app.state.core.media_service_bootstraps.private_payload(record['id'])
+    assert stored.api_key == 'c' * 32
+    assert stored.server_id == '3' * 32
+    assert stored.libraries == (
+        ('Filmler', 'movies', '4' * 32, ('/media/movies',)),
+    )
+    assert private.credential not in repr(private) + repr(terminal) + repr(stored)
+    assert stored.api_key not in repr(private) + repr(terminal) + repr(stored)
+    with app.state.core.db.connection() as connection:
+        encrypted = connection.execute(
+            'SELECT ciphertext FROM media_service_bootstraps WHERE id=?',
+            (record['id'],),
+        ).fetchone()['ciphertext']
+    assert stored.api_key.encode() not in encrypted
     assert app.state.core.media_service_bootstraps.tick() is None
 
 

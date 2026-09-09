@@ -21,11 +21,26 @@ from larenor_server.plugins.installation_ipc import (
 from larenor_server.plugins.jellyfin_bootstrap_executor import (
     JellyfinBootstrapExecutionError, JellyfinBootstrapExecutionResult,
 )
+from larenor_server.plugins.jellyfin_authenticated_readback import (
+    JellyfinAuthenticatedReadbackResult,
+)
 from larenor_server.plugins.media_service_bootstrap_models import (
     PrivateMediaServiceBootstrap,
 )
 from larenor_server.plugins.worker import StepReceipt
 from test_media_host_preflight import stack
+
+
+API_KEY = 'c' * 32
+
+
+def verified_readback():
+    return JellyfinAuthenticatedReadbackResult(
+        'verified', '3' * 32, 'Larenor Jellyfin', '10.11.0', API_KEY,
+        (('Filmler', 'movies', '4' * 32, ('/media/movies',)),),
+        ('authenticated', 'keys_observed', 'key_verified',
+         'system_verified', 'libraries_verified'),
+    )
 
 
 class Backend:
@@ -44,9 +59,10 @@ class Backend:
     def bootstrap(self, job, component, private, *, deadline):
         self.calls.append(('bootstrap', job, component, private, deadline))
         return JellyfinBootstrapExecutionResult(
-            'credentials_configured',
+            'wiring_partial',
             ('observed_unconfigured', 'configuration_updated', 'user_updated',
              'remote_access_updated', 'wizard_completed'),
+            verified_readback(),
         )
 
 
@@ -85,12 +101,13 @@ def test_bootstrap_roundtrip_transports_only_exact_private_contract():
             deadline=time.monotonic() + 1,
             gate=lambda: True,
         )
-    assert result.state == 'credentials_configured'
+    assert result.state == 'wiring_partial'
     assert result.completed_steps[-1] == 'wizard_completed'
+    assert result.readback.api_key == API_KEY
     call = backend.calls[0]
     assert call[:3] == ('bootstrap', 'a' * 32, selected)
     assert call[3] == private and call[4] > time.monotonic() - 1
-    assert private.credential not in repr(result)
+    assert private.credential not in repr(result) and API_KEY not in repr(result)
 
 
 def test_bootstrap_failure_roundtrip_preserves_only_static_partial_outcome():
@@ -293,8 +310,8 @@ def test_durable_coordinator_reaches_supervised_worker_over_real_unix_ipc(
             terminal = reopened.app.state.core.media_service_bootstraps.tick()['bootstrap']
 
     assert terminal == queued | {
-        'revision': 3, 'state': 'credentials_configured',
-        'credentialsConfigured': True,
+        'revision': 3, 'state': 'wiring_partial',
+        'credentialsConfigured': True, 'wiringState': 'partial',
     }
     assert backend.calls[0][0] == 'bootstrap'
     assert backend.calls[0][1] == queued['id']
