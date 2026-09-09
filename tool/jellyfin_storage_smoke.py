@@ -23,6 +23,7 @@ import stat
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 from types import MappingProxyType
 import uuid
@@ -166,9 +167,41 @@ _PHASES = {'launcher', 'launch_validation', 'source_capture', 'daemon_start', 'd
     'container_inspect', 'container_start', 'initial_health', 'initial_identity', 'initial_data',
     'container_restart', 'restart_health', 'restart_identity', 'root_verify', 'sentinel_verify',
     'restart_data', 'source_recheck', 'receipt_validate', 'receipt_verify'}
-_SOURCE_FILES = ('tool/volume_bootstrap_helper.py','tool/jellyfin_storage_probe.py',
-    'tool/jellyfin_storage_smoke.py','server/Dockerfile.volume-bootstrap',
-    'server/Dockerfile.volume-bootstrap.dockerignore', 'LICENSE', 'NOTICE')
+_SOURCE_FILES = (
+    '.github/workflows/jellyfin-storage-characterization.yml',
+    '.github/workflows/jellyfin-managed-characterization.yml',
+    'tool/volume_bootstrap_helper.py', 'tool/jellyfin_storage_probe.py',
+    'tool/jellyfin_storage_smoke.py', 'tool/jellyfin_storage_ci.py',
+    'tool/jellyfin_managed_ci.py',
+    'tool/media_resource_smoke.py',
+    'server/Dockerfile.volume-bootstrap',
+    'server/Dockerfile.volume-bootstrap.dockerignore',
+    'server/larenor_server/context.py',
+    'server/larenor_server/services/transport.py',
+    'server/larenor_server/plugins/packagedcatalog.json',
+    'server/larenor_server/plugins/catalog.py',
+    'server/larenor_server/plugins/stack_plan.py',
+    'server/larenor_server/plugins/resource_models.py',
+    'server/larenor_server/plugins/resource_plan.py',
+    'server/larenor_server/plugins/resource_journal.py',
+    'server/larenor_server/plugins/image_resources.py',
+    'server/larenor_server/plugins/image_preparation.py',
+    'server/larenor_server/plugins/network_resources.py',
+    'server/larenor_server/plugins/network_transport.py',
+    'server/larenor_server/plugins/network_effects.py',
+    'server/larenor_server/plugins/network_preparation.py',
+    'server/larenor_server/plugins/volume_plan.py',
+    'server/larenor_server/plugins/volume_resources.py',
+    'server/larenor_server/plugins/volume_transport.py',
+    'server/larenor_server/plugins/volume_effects.py',
+    'server/larenor_server/plugins/volume_create_journal.py',
+    'server/larenor_server/plugins/volume_preparation.py',
+    'server/larenor_server/plugins/managed_container.py',
+    'server/larenor_server/plugins/worker.py',
+    'server/larenor_server/plugins/docker_probe.py',
+    'server/larenor_server/plugins/engine_http.py',
+    'LICENSE', 'NOTICE',
+)
 _BUILD_FILES = ('tool/volume_bootstrap_helper.py', 'tool/jellyfin_storage_probe.py',
     'server/Dockerfile.volume-bootstrap', 'LICENSE', 'NOTICE')
 
@@ -1025,8 +1058,84 @@ def _health(daemon, helper_id, container_id):
     raise SmokeError('jellyfin_startup_timeout')
 
 
+class _BootstrapVerifier:
+    """Native acceptance adapter for the fixed, attested bootstrap helper."""
+
+    def __init__(self, endpoint, daemon, helper_id):
+        self._endpoint = endpoint
+        self._daemon = daemon
+        self._helper_id = helper_id
+
+    def verify(self, intent, *, cancelled):
+        from larenor_server.plugins.managed_container import VolumeBootstrapObservation
+        require(type(cancelled) is threading.Event and not cancelled.is_set())
+        binding, receipt = intent.binding, intent.receipt
+        value = _helper(
+            self._daemon, self._helper_id, 'verify_root',
+            target=binding.resource, bootstrap=True,
+        )
+        require(value == {'schemaVersion': 1, 'state': 'root_verified'})
+        return VolumeBootstrapObservation(
+            binding.resource_id, binding.resource.operationId, binding.journal_id,
+            binding.ownership_nonce, receipt.revision, binding.resource.name,
+            binding.resource.target, 'root_verified',
+        )
+
+
+def _managed_create_and_start(daemon, source, endpoint, helper_id):
+    """Create/start through the production proof, binding and v2 journal path."""
+    from larenor_server.plugins.managed_container import (
+        JellyfinBindingBuilder, JellyfinEngineReaders, JellyfinResourceProofBroker,
+        JournaledManagedContainerOperations, ManagedWorkerJournal,
+        managed_container_matches,
+    )
+    from larenor_server.plugins.resource_journal import ResourceJournal
+    from larenor_server.plugins.volume_create_journal import VolumeCreateJournal
+    from larenor_server.plugins.worker import UnixDockerEngine, WorkerStep
+
+    journal_dir = daemon.root / 'managed-container-journal'
+    with ResourceJournal(daemon.root / 'resource-journal') as resource_journal, \
+            VolumeCreateJournal(daemon.root / 'volume-journal') as volume_journal, \
+            ManagedWorkerJournal(journal_dir, initialize=True) as container_journal:
+        verifier = _BootstrapVerifier(endpoint, daemon, helper_id)
+        readers = JellyfinEngineReaders(endpoint, verifier)
+        broker = JellyfinResourceProofBroker(
+            source.stack, source.catalog, source.policy, resource_journal,
+            volume_journal, readers, engine_identity=endpoint,
+        )
+        binding = JellyfinBindingBuilder(
+            source.catalog, source.policy, container_journal.identity, broker,
+        )(source.stack)
+        engine = UnixDockerEngine(
+            endpoint.path, socket_uid=endpoint.owner_uid,
+        )
+        operations = JournaledManagedContainerOperations(container_journal, engine)
+        job_id = uuid.uuid4().hex
+        installation_id = binding.name.removeprefix('larenor-')
+        create = operations.apply(WorkerStep(
+            job_id, installation_id, 'create_container',
+            uuid.uuid4().hex, time.time() + 30,
+        ), binding)
+        require(create.state == 'succeeded' and create.code == 'container_created'
+                and _HASH.fullmatch(create.container_id or '') is not None)
+        created = engine.inspect_container(create.container_id)
+        require(managed_container_matches(created, binding))
+        start = operations.apply(WorkerStep(
+            job_id, installation_id, 'start_container',
+            uuid.uuid4().hex, time.time() + 30,
+        ), binding)
+        require(start.state == 'succeeded' and start.code == 'container_started'
+                and start.container_id == create.container_id)
+        running = engine.inspect_container(start.container_id)
+        require(managed_container_matches(running, binding)
+                and running.get('State', {}).get('Running') is True)
+        daemon.verify_container_cgroup(running.get('State', {}).get('Pid'))
+        return start.container_id, binding, engine
+
+
 @diagnostic_phase('characterization')
-def characterize(daemon, *, source=None, images=None, volumes=None, checkout_binding=None):
+def characterize(daemon, *, source=None, images=None, volumes=None, checkout_binding=None,
+                 managed=False):
     """The real consumer: two volumes, bootstrap, NoCopy/start/restart or fail.
 
     Optional objects are private offline-test seams, not CLI/runtime inputs.
@@ -1042,6 +1151,15 @@ def characterize(daemon, *, source=None, images=None, volumes=None, checkout_bin
     endpoint = DockerEndpoint(str(daemon.root/'engine.sock'), owner_uid=0)
     images = UnixImageEngine(endpoint) if images is None else images
     volumes = UnixVolumeCreator(endpoint) if volumes is None else volumes
+    require(type(managed) is bool)
+    if managed:
+        from larenor_server.plugins.network_effects import UnixNetworkCreator
+        from larenor_server.plugins.network_transport import UnixNetworkEngine
+        from tool.media_resource_smoke import characterize_resources
+        characterize_resources(
+            daemon.root, source, images, UnixNetworkEngine(endpoint),
+            UnixNetworkCreator(endpoint),
+        )
     receipt = prepare_storage(daemon.root, source, images, volumes)
     with diagnostic_phase('image_inspect'):
         binding = image_binding(source.plan, source.stack, source.catalog, source.policy, source.image.resourceId)
@@ -1088,24 +1206,37 @@ def characterize(daemon, *, source=None, images=None, volumes=None, checkout_bin
         with diagnostic_phase('sentinel_write'):
             require(_helper(daemon, helper_id, 'write_sentinel', target=target)
                 == {'sentinel':'verified','uid':1000,'gid':1000})
-    name = 'larenor-jellyfin-'+source.stack.preparationId
-    args = ['create','--name='+name,'--network=none','--read-only','--cap-drop=ALL',
-        '--security-opt=no-new-privileges','--user=1000:1000','--memory=4g','--cpus=2',
-        '--cgroup-parent='+daemon.container_cgroup_parent,
-        '--pids-limit=512','--restart=no','--tmpfs=/tmp:rw,nosuid,nodev,size=67108864','--env=TZ=UTC']
-    args += ['--mount=type=volume,src='+v.name+',dst='+v.target+',volume-nocopy' for v in source.targets]
+    managed_binding = managed_engine = None
     with diagnostic_phase('container_create'):
-        container_id = daemon.docker(args+[binding.reference], limit=128).decode().strip()
-        require(re.fullmatch(r'[0-9a-f]{64}', container_id) is not None)
+        if managed:
+            container_id, managed_binding, managed_engine = _managed_create_and_start(
+                daemon, source, endpoint, helper_id,
+            )
+        else:
+            name = 'larenor-jellyfin-'+source.stack.preparationId
+            args = ['create','--name='+name,'--network=none','--read-only','--cap-drop=ALL',
+                '--security-opt=no-new-privileges','--user=1000:1000','--memory=4g','--cpus=2',
+                '--cgroup-parent='+daemon.container_cgroup_parent,
+                '--pids-limit=512','--restart=no','--tmpfs=/tmp:rw,nosuid,nodev,size=67108864','--env=TZ=UTC']
+            args += ['--mount=type=volume,src='+v.name+',dst='+v.target+',volume-nocopy' for v in source.targets]
+            container_id = daemon.docker(args+[binding.reference], limit=128).decode().strip()
+            require(re.fullmatch(r'[0-9a-f]{64}', container_id) is not None)
     @diagnostic_phase('container_inspect')
     def inspect():
-        value = _decoded(daemon.docker(['container','inspect','--format','{{json .}}',container_id], limit=262144))
-        require(value.get('Id') == container_id)
-        verify_container(value, source, image_config, daemon.container_cgroup_parent)
+        if managed:
+            from larenor_server.plugins.managed_container import managed_container_matches
+            value = managed_engine.inspect_container(container_id)
+            require(value.get('Id') == container_id
+                    and managed_container_matches(value, managed_binding))
+        else:
+            value = _decoded(daemon.docker(['container','inspect','--format','{{json .}}',container_id], limit=262144))
+            require(value.get('Id') == container_id)
+            verify_container(value, source, image_config, daemon.container_cgroup_parent)
         return value
     inspect()
     with diagnostic_phase('container_start'):
-        daemon.docker(['start',container_id], limit=128)
+        if not managed:
+            daemon.docker(['start',container_id], limit=128)
         running = inspect()
         daemon.verify_container_cgroup(running.get('State',{}).get('Pid'))
     with diagnostic_phase('initial_health'):
@@ -1144,6 +1275,8 @@ def characterize(daemon, *, source=None, images=None, volumes=None, checkout_bin
         'catalogDigest':source.catalog.digest,'jellyfinManifestDigest':source.image.image.digest,
         'jellyfinConfigDigest':binding.config_digest,'helper':attestation,
         'volumeCount':2,'restartCount':1,'serverId':first['id'],
+        **({'containerMode':'journaled_managed_v2','containerJournalVersion':2}
+           if managed else {}),
         'bootstrapAccountConfigured':False,'installAvailable':False, **receipt}
 
 
