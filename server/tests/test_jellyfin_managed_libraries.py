@@ -41,6 +41,13 @@ def folder(name, collection, identifier, path):
     }
 
 
+def observed(listed):
+    return tuple((
+        item['Name'], item['CollectionType'], item['ItemId'],
+        tuple(item['Locations']),
+    ) for item in listed)
+
+
 def json_response(value, status=200):
     return response(
         status, json.dumps(value, separators=(',', ':')).encode(),
@@ -89,7 +96,7 @@ def test_exact_existing_libraries_are_verified_without_mutation():
     connection = Connection([json_response(listed), json_response(listed)])
 
     result = JellyfinManagedLibraries().ensure(
-        connection, readback(), device_id=DEVICE,
+        connection, readback(observed(listed)), device_id=DEVICE,
     )
 
     assert result.created == ()
@@ -101,6 +108,8 @@ def test_exact_existing_libraries_are_verified_without_mutation():
     [folder('Larenor Movies', 'tvshows', '4' * 32, '/media/movies')],
     [folder('Other', 'movies', '4' * 32, '/media/movies')],
     [folder('Larenor Movies', 'movies', '4' * 32, '/media/other')],
+    [folder('Larenor Movies', 'movies', '4' * 32, '/media/movies'),
+     folder('Larenor Movies', 'movies', '6' * 32, '/media/movies')],
 ])
 def test_name_path_or_type_conflicts_fail_before_mutation(listed):
     connection = Connection([json_response(listed)])
@@ -108,11 +117,30 @@ def test_name_path_or_type_conflicts_fail_before_mutation(listed):
         JellyfinManagedLibrariesError, match='^jellyfin_library_conflict$',
     ) as raised:
         JellyfinManagedLibraries().ensure(
-            connection, readback(), device_id=DEVICE,
+            connection, readback(observed(listed)), device_id=DEVICE,
         )
     assert raised.value.completed_steps == ('observed',)
     assert not raised.value.uncertain_effect
     assert len(connection.requests) == 1 and connection.closed
+
+
+def test_duplicate_managed_library_in_final_readback_is_not_accepted():
+    connection = Connection([
+        json_response([]), response(), response(),
+        json_response([
+            folder('Larenor Movies', 'movies', '4' * 32, '/media/movies'),
+            folder('Larenor Movies', 'movies', '6' * 32, '/media/movies'),
+            folder('Larenor Shows', 'tvshows', '5' * 32, '/media/shows'),
+        ]),
+    ])
+    with pytest.raises(
+        JellyfinManagedLibrariesError, match='^jellyfin_library_protocol$',
+    ) as raised:
+        JellyfinManagedLibraries().ensure(
+            connection, readback(), device_id=DEVICE,
+        )
+    assert raised.value.completed_steps[-1] == 'shows_created'
+    assert raised.value.uncertain_effect and connection.closed
 
 
 def test_partial_creation_failure_is_uncertain_and_never_retried():
