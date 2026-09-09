@@ -666,6 +666,32 @@ def test_native_bootstrap_startup_failure_keeps_only_closed_step(completed, expe
     assert m._managed_bootstrap_error(error) == expected
 
 
+@pytest.mark.parametrize('steps,expected', [
+    ((), 'bootstrap_readback_authentication_failed'),
+    (('authenticated',), 'bootstrap_readback_keys_failed'),
+    (('authenticated', 'keys_observed'), 'bootstrap_readback_key_create_failed'),
+    (('authenticated', 'keys_observed', 'key_created'),
+     'bootstrap_readback_key_reread_failed'),
+    (('authenticated', 'keys_observed', 'key_verified'),
+     'bootstrap_readback_system_failed'),
+    (('authenticated', 'keys_observed', 'key_verified', 'system_verified'),
+     'bootstrap_readback_libraries_failed'),
+    (('authenticated', 'keys_observed', 'key_verified', 'system_verified',
+      'libraries_verified'), 'bootstrap_readback_logout_failed'),
+])
+def test_native_bootstrap_readback_failure_keeps_only_closed_step(steps, expected):
+    m = api()
+    from larenor_server.plugins.jellyfin_bootstrap_executor import (
+        JellyfinBootstrapExecutionError,
+    )
+    error = JellyfinBootstrapExecutionError(
+        'bootstrap_readback_failed', readback_steps=steps,
+        cause_code='jellyfin_authenticated_readback_protocol',
+        uncertain_effect=bool(steps),
+    )
+    assert m._managed_bootstrap_error(error) == expected
+
+
 @pytest.mark.parametrize('status,message,expected', [
     (400, 'invalid mount config for type "volume"', 'managed_create_mount_rejected'),
     (400, 'network larenor-control-private not found', 'managed_create_network_rejected'),

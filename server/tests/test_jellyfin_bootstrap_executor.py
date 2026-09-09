@@ -68,9 +68,9 @@ def connected(monkeypatch, stack, binding, engine, connection=None):
     return connection, calls
 
 
-def connected_for_readback(monkeypatch, stack, binding, engine):
+def connected_for_readback(monkeypatch, stack, binding, engine, readback=None):
     startup = Connection(happy_responses())
-    readback = Connection([
+    readback = readback or Connection([
         json_response(authentication()),
         json_response(keys(key())),
         json_response(system()),
@@ -88,6 +88,26 @@ def connected_for_readback(monkeypatch, stack, binding, engine):
     monkeypatch.setattr(
         'larenor_server.plugins.jellyfin_bootstrap_executor.open_jellyfin_endpoint', opened)
     return startup, readback, calls
+
+
+def test_readback_failure_preserves_only_static_cause_and_steps(prepared, monkeypatch):
+    stack, binding, engine, operations = prepared
+    failed = Connection([json_response({}, status=500)])
+    startup, readback, _opens = connected_for_readback(
+        monkeypatch, stack, binding, engine, failed,
+    )
+
+    with pytest.raises(JellyfinBootstrapExecutionError,
+                       match='^bootstrap_readback_failed$') as raised:
+        executor(binding, operations).execute(
+            JOB, stack, private(), deadline=time.monotonic() + 10,
+            gate=lambda: True,
+        )
+
+    assert startup.closed and readback.closed
+    assert raised.value.cause_code == 'jellyfin_authenticated_readback_protocol'
+    assert raised.value.readback_steps == ()
+    assert SECRET not in repr(raised.value)
 
 
 def test_reconciles_journal_and_rechecks_endpoint_before_and_after_startup(prepared, monkeypatch):
