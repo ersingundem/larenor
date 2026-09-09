@@ -644,6 +644,28 @@ def test_native_bootstrap_endpoint_failure_keeps_only_closed_boundary(boundary, 
     assert m._managed_bootstrap_error(error) == expected
 
 
+@pytest.mark.parametrize('completed,expected', [
+    ((), 'bootstrap_startup_observe_failed'),
+    (('observed_unconfigured',), 'bootstrap_startup_configuration_failed'),
+    (('observed_unconfigured', 'configuration_updated'),
+     'bootstrap_startup_user_failed'),
+    (('observed_unconfigured', 'configuration_updated', 'user_updated'),
+     'bootstrap_startup_remote_access_failed'),
+    (('observed_unconfigured', 'configuration_updated', 'user_updated',
+      'remote_access_updated'), 'bootstrap_startup_complete_failed'),
+])
+def test_native_bootstrap_startup_failure_keeps_only_closed_step(completed, expected):
+    m = api()
+    from larenor_server.plugins.jellyfin_bootstrap_executor import (
+        JellyfinBootstrapExecutionError,
+    )
+    error = JellyfinBootstrapExecutionError(
+        'bootstrap_startup_failed', completed_steps=completed,
+        uncertain_effect=bool(completed),
+    )
+    assert m._managed_bootstrap_error(error) == expected
+
+
 @pytest.mark.parametrize('status,message,expected', [
     (400, 'invalid mount config for type "volume"', 'managed_create_mount_rejected'),
     (400, 'network larenor-control-private not found', 'managed_create_network_rejected'),
