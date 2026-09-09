@@ -1,8 +1,9 @@
 # S06.4 dar medya kurulum yürütmesi
 
 **Durum:** Kalıcı API, ayrı IPC ve doğrulanmış Jellyfin binding dilimleri yerelde
-uygulandı. Binding'i tüketen ayrı sürüm-2 managed-container journal da yerelde
-tamamlandı. S06.4 tamamlanmadı; gerçek journal broker'ı, paketli mutasyon işçisi,
+uygulandı. Binding'i tüketen ayrı sürüm-2 managed-container journal ve
+journal-bound proof broker çekirdeği de yerelde tamamlandı. S06.4 tamamlanmadı;
+tek-Engine production reader/bootstrap adaptörü, paketli mutasyon işçisi,
 runtime ve iki mimarili native kabul açık. Ürün kurulum yeteneği
 `installAvailable=false` kalır.
 
@@ -55,9 +56,13 @@ read-only rootfs, tmpfs, iki NoCopy mount ve private network gövdesi sabit Dock
 create yolundan önce tekrar doğrulanır.
 
 Bu dilim gerçek kaynak journal'larını okuyup aynı Engine'e karşı yeniden
-doğrulayan production broker'ı, son kurulum worker CLI'sini veya runtime
-supervisor'ını sağlamaz. Kullanıcının Docker Engine'ine veya ev sistemlerine
-hiçbir mutasyon yapılmadı.
+bağlayan broker çekirdeğini de içerir. Broker iki journal kilidini sabit sırada
+tutar, exact source/revision/nonce bağını alır, image/volume/bootstrap/network
+okumalarından sonra bağları tekrar kurar ve eski bootstrap revision'ını reddeder.
+Okuyucu tek opaque Engine kimliği taşır. Bunun somut production Engine reader ve
+volume-bootstrap adaptörü, son kurulum worker CLI'si ve runtime supervisor'ı
+henüz yoktur. Kullanıcının Docker Engine'ine veya ev sistemlerine hiçbir
+mutasyon yapılmadı.
 
 ## TDD ve doğrulama
 
@@ -74,10 +79,15 @@ hiçbir mutasyon yapılmadı.
 - RED/GREEN `9d2f171` / `d2c5a5f`: tam image/mount/network inspect matcher.
 - RED/GREEN `d97f63b` / `c7955ab`: legacy'den ayrılmış v2 journal, kalıcı
   create/start niyeti, kayıp cevap uzlaştırması ve sabit managed Docker yolu.
+- RED/GREEN `dc2d15d` / `6b81c49`: ready resource receipt'ini yalnız exact
+  güncel source ve revision'a yeniden bağlayan worker-private journal kapısı.
+- RED/GREEN `2344f11` / `797709f`: iki journal'a ve tek Engine kimliğine bağlı
+  taze Jellyfin image/volume/bootstrap/network proof broker çekirdeği.
 - Güncel bağlayıcı/yürütme/IPC/eski worker regresyon paketi 89 test geçti;
   Python derleme ve `git diff --check` temiz.
-- Exact `dc0aeb7` kaynak commit'i [Server CI 34310993881](https://github.com/ersingundem/larenor/actions/runs/34310993881)
-  ile geçti. Bu v2 journal commit'inin exact-source CI'ı henüz açık.
+- Broker'ın resource/volume/managed odak paketi 169 test geçti.
+- Exact `086fa2a` kaynak commit'i [Server CI 34312388251](https://github.com/ersingundem/larenor/actions/runs/34312388251)
+  ile geçti. Güncel broker kaynak commit'inin exact-source CI'ı henüz açık.
 
 Sürüm kontrollü örnekler
 [`contracts/media-installations.v1.json`](../contracts/media-installations.v1.json)
@@ -87,8 +97,8 @@ create/start makbuzları gerekir. Bunlar olmadan S06.4 `done` yapılamaz.
 
 ## Sonraki dilim
 
-1. Production broker accepted image, managed appdata volume/bootstrap ve private
-   control-network journal'larını aynı Engine üzerinde taze doğrulayacak.
+1. Production composite reader accepted image, managed appdata volume/bootstrap
+   ve private control-network değerlerini tek Engine üzerinde taze doğrulayacak.
 2. Aynı Server paketindeki mutasyon worker CLI ve supervisor yaşam döngüsü
    eklenecek.
 3. İki mimarili disposable Linux acceptance gerçek Engine create/start,

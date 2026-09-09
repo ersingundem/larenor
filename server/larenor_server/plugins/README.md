@@ -312,10 +312,12 @@ or payload.
 The initial worker-only binding builder now requires fresh typed image,
 bootstrapped-volume and private-network proofs, disables published ports, maps
 exactly `/config` and `/cache` with `NoCopy=true`, and verifies the resulting
-full-ID inspect. Its proof broker, separate managed-container journal, final
-installation worker runtime and unified supervisor are still open. The API
-container does not start this mutation worker, and this source slice has not run
-create/start against a user's Engine. See the [versioned examples](../../../contracts/media-installations.v1.json)
+full-ID inspect. A separate version-2 managed-container journal and a
+journal-bound proof broker core are implemented. The concrete single-Engine
+reader/bootstrap adapter, final installation worker runtime and unified
+supervisor are still open. The API container does not start this mutation
+worker, and this source slice has not run create/start against a user's Engine.
+See the [versioned examples](../../../contracts/media-installations.v1.json)
 and [implementation evidence](../../../docs/media-installation-execution-implementation-2026-09-09.md).
 
 ## Persistence, dispatch and recovery

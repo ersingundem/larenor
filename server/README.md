@@ -282,7 +282,11 @@ real receipt-journal broker, final installation worker CLI or unified supervisor
 Its separate version-2 managed-container journal durably records the complete
 binding before create/start, refuses legacy journal rows, and reconciles only
 against a freshly rebuilt identical binding and full Engine observation. It has
-not installed anything on a real home
+an initial journal-bound proof broker that locks the resource and volume-create
+journals, rebinds exact source/revision/nonce state, requires fresh image,
+volume, bootstrap and network observations from one opaque Engine identity, and
+rebinds after those reads. The concrete production reader/bootstrap adapter is
+still open. It has not installed anything on a real home
 server. The strict public examples are in
 [`contracts/media-installations.v1.json`](../contracts/media-installations.v1.json)
 and the [implementation evidence](../docs/media-installation-execution-implementation-2026-09-09.md)
