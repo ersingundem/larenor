@@ -57,6 +57,10 @@ class Lease:
     def revalidate(self, _deadline):
         return not self.closed
 
+    def matches_connection(self, connection, expected_uid, _deadline):
+        return (not self.closed and getattr(connection, 'peer_pid', 1) == 1
+                and expected_uid == 0)
+
     def close(self):
         self.closed = True
 
@@ -65,6 +69,7 @@ class Connection:
     def __init__(self):
         self.connected = None
         self.closed = False
+        self.peer_pid = 1
 
     def settimeout(self, _timeout):
         pass
@@ -192,6 +197,32 @@ def test_post_effect_revalidation_failure_never_returns_success(monkeypatch):
         guarded.apply_with_deadline('step', 'plan', time.monotonic() + 2)
 
     assert len(backend.calls) == 1 and connection.closed and lease.closed and pair.closed
+
+
+def test_every_backend_engine_connection_must_match_the_retained_peer(monkeypatch):
+    guarded, backend, _connection, _lease = build(monkeypatch)
+    engine_connection = Connection()
+
+    def apply(step, plan):
+        guarded._peer_verifier(engine_connection)
+        return Backend.apply(backend, step, plan)
+
+    backend.apply = apply
+    guarded.open(time.monotonic() + 2)
+    assert guarded.apply_with_deadline('step', 'plan', time.monotonic() + 2) == 'applied'
+
+    engine_connection.peer_pid = 2
+    with pytest.raises(supervisor.InstallationSupervisorError,
+                       match='^supervisor_unavailable$'):
+        guarded.apply_with_deadline('step', 'plan', time.monotonic() + 2)
+    assert len(backend.calls) == 1
+
+
+def test_peer_verifier_is_inactive_outside_one_supervised_backend_call(monkeypatch):
+    guarded, _backend, _connection, _lease = build(monkeypatch)
+    guarded.open(time.monotonic() + 2)
+    with pytest.raises(supervisor.InstallationSupervisorError):
+        guarded._peer_verifier(Connection())
 
 
 @pytest.mark.parametrize('deadline', [True, None, float('nan'), float('inf'), -1, 0])

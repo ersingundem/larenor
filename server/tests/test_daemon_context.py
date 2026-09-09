@@ -194,6 +194,42 @@ def test_original_process_exit_after_capture_invalidates_context(proc_tree):
         lease.close()
 
 
+def test_each_new_engine_connection_must_match_the_retained_live_peer(proc_tree):
+    lease = capture(proc_tree)
+    assert lease is not None
+    try:
+        assert lease.matches_connection(
+            proc_tree['connection'], os.getuid(), time.monotonic() + 2,
+        ) is True
+
+        class DifferentPeer:
+            def getsockopt(self, level, option, length):
+                if option == getattr(socket, 'SO_PEERCRED', 17):
+                    return struct.pack('3i', proc_tree['peer'] + 1, os.getuid(), os.getgid())
+                return proc_tree['connection'].getsockopt(level, option, length)
+
+        assert lease.matches_connection(
+            DifferentPeer(), os.getuid(), time.monotonic() + 2,
+        ) is False
+        assert lease.matches_connection(
+            proc_tree['connection'], os.getuid() + 1, time.monotonic() + 2,
+        ) is False
+    finally:
+        lease.close()
+
+
+def test_new_connection_cannot_match_after_retained_peer_exit(proc_tree):
+    lease = capture(proc_tree)
+    assert lease is not None
+    try:
+        os.write(proc_tree['write_fd'], b'exited')
+        assert lease.matches_connection(
+            proc_tree['connection'], os.getuid(), time.monotonic() + 2,
+        ) is False
+    finally:
+        lease.close()
+
+
 def test_missing_kernel_peer_pidfd_support_never_uses_pidfd_open(proc_tree, monkeypatch):
     def old_kernel(*args):
         raise OSError('SO_PEERPIDFD unavailable')
