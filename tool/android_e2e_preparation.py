@@ -20,9 +20,7 @@ COMMAND_SECONDS = 2
 MAX_ATTEMPTS = 5
 RETRY_SECONDS = 1
 MAX_OUTPUT_BYTES = 256
-_AOSP_HOME = re.compile(
-    rb"com\.android\.launcher3/[A-Za-z0-9_.$]+(?:\r?\n)?"
-)
+_AOSP_HOME_PACKAGE = b"package:com.android.launcher3"
 
 
 class Outcome(NamedTuple):
@@ -125,14 +123,13 @@ def disable_ci_quickstep(
         return Outcome("adb_failed")
     if qemu.rstrip(b"\r\n") != b"1":
         return Outcome("invalid_emulator")
-    home = run([
-        "shell", "cmd", "package", "resolve-activity", "--brief", "--components",
-        "-a", "android.intent.action.MAIN",
-        "-c", "android.intent.category.HOME",
+    home_package = run([
+        "shell", "pm", "list", "packages", "--system", "--user", "0",
+        "com.android.launcher3",
     ])
-    if home is None:
+    if home_package is None:
         return Outcome("adb_failed")
-    if _AOSP_HOME.fullmatch(home) is None:
+    if home_package.rstrip(b"\r\n") != _AOSP_HOME_PACKAGE:
         return Outcome("unexpected_home")
     disabled = run([
         "shell", "pm", "disable-user", "--user", "0",
