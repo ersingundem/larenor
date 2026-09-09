@@ -32,7 +32,9 @@ supervisor kapanıyor ve başarı dönmüyor.
   toplandı; 70 geçti, mevcut Linux-only peer-pidfd testi macOS'ta atlandı.
 - Engine/config/volume zinciri de katıldığında 345 ilgili test toplandı; 343
   geçti ve iki mevcut Linux-only test macOS'ta atlandı.
-- Değişen Python kaynakları `compileall` ve diff kontrolünden geçti.
+- Sabit JDK 17 ve pinned apksig ile tam Server koleksiyonu 4.736 test topladı
+  ve exit 0 ile tamamlandı; değişen Python kaynakları `compileall` ve diff
+  kontrolünden geçti.
 
 ## Açık kabul kapıları
 
