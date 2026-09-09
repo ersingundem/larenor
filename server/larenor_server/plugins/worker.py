@@ -565,12 +565,16 @@ class JournaledContainerOperations:
         code = "container_created" if row["step"] == "create_container" else "container_started"
         return _receipt(self.journal._write_state(row, "succeeded", code, observed["Id"]))
 
-    def reconcile(self, job_id, step):
+    def reconcile(self, job_id, step, binding=None):
         with self.journal.locked():
             row = self.journal._read(job_id, step)
             _require(row is not None, "record_missing")
+            stored = _stored_binding(row)
+            if binding is not None:
+                _require(type(binding) is ContainerBinding and binding == stored,
+                         "idempotency_conflict")
             if row["state"] in {"mutating", "uncertain"}:
-                return self._reconcile(row, _stored_binding(row))
+                return self._reconcile(row, stored)
             return _receipt(row)
 
     def observe(self, job_id, step):
