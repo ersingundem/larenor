@@ -169,6 +169,17 @@ def test_docker_null_normalization_matches_only_an_expected_empty_tmpfs():
     assert managed_container_matches(value, binding)
 
 
+@pytest.mark.parametrize('normalized', [None, []])
+def test_docker_moves_requested_mounts_to_verified_top_level_mounts(normalized):
+    _builder, _stack, binding = build()
+    value = snapshot(binding)
+    assert len(value['HostConfig']['Mounts']) == len(value['Mounts']) == 2
+    value['HostConfig']['Mounts'] = normalized
+    assert managed_container_matches(value, binding)
+    value['Mounts'][0]['Name'] = 'foreign'
+    assert managed_container_matches(value, binding) is False
+
+
 @pytest.mark.parametrize('damage', ['mount', 'extra_mount', 'network', 'image', 'capability', 'env',
                                     'memory_swap'])
 def test_inspect_drift_cannot_reconcile_as_the_managed_container(damage):

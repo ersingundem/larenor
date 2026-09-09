@@ -442,6 +442,8 @@ def managed_container_matches(value, binding):
             expected_item = {'Name': 'no', 'MaximumRetryCount': 0} if key == 'RestartPolicy' else item
             if key == 'Tmpfs' and item == {} and host.get(key) in (None, {}):
                 continue
+            if key == 'Mounts' and host.get(key) in (None, []):
+                continue
             if host.get(key) != expected_item:
                 return False
         if not all(host.get(key) in allowed for key, allowed in _FORBIDDEN_OBSERVED.items()
