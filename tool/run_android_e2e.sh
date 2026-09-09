@@ -9,7 +9,7 @@ if [[ ! "$e2e_serial" =~ ^emulator-[0-9]+$ ]]; then
   exit 2
 fi
 # The helper proves QEMU before touching power, then reapplies/reads at most
-# five times within one 10-second deadline. Only exact 7 or 15 may begin the build.
+# five times within one 20-second deadline. Only exact 7 or 15 may begin the build.
 # This tolerates transient preparation failures without diagnosing their cause.
 # svc stayon also wakes the display; no app focus flag or keyguard is changed.
 # https://android.googlesource.com/platform/frameworks/base/+/refs/heads/main/cmds/svc/src/com/android/commands/svc/PowerCommand.java
