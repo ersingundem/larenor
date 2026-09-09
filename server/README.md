@@ -277,16 +277,19 @@ complete packaged stack plan; the worker revalidates both, then derives the
 Jellyfin child before its policy-owned
 binding builder can reach the journaled Engine operations. The initial builder
 requires fresh typed image, bootstrapped-volume and private-network proofs and
-produces a ports-off Jellyfin binding. This source slice does not yet ship the
-real receipt-journal broker, final installation worker CLI or unified supervisor.
+produces a ports-off Jellyfin binding. The receipt-journal broker and fixed
+single-endpoint image/volume/network reader composition are implemented; the
+final packaged bootstrap verifier, installation worker CLI and unified
+supervisor remain open.
 Its separate version-2 managed-container journal durably records the complete
 binding before create/start, refuses legacy journal rows, and reconciles only
 against a freshly rebuilt identical binding and full Engine observation. It has
 an initial journal-bound proof broker that locks the resource and volume-create
 journals, rebinds exact source/revision/nonce state, requires fresh image,
 volume, bootstrap and network observations from one opaque Engine identity, and
-rebinds after those reads. The concrete production reader/bootstrap adapter is
-still open. It has not installed anything on a real home
+rebinds after those reads. A separate source-bound managed-v2 native workflow
+is ready to exercise the complete create/start path on amd64 and arm64; its
+artifacts are still pending. It has not installed anything on a real home
 server. The strict public examples are in
 [`contracts/media-installations.v1.json`](../contracts/media-installations.v1.json)
 and the [implementation evidence](../docs/media-installation-execution-implementation-2026-09-09.md)

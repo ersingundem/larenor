@@ -2,9 +2,10 @@
 
 **Durum:** Kalıcı API, ayrı IPC ve doğrulanmış Jellyfin binding dilimleri yerelde
 uygulandı. Binding'i tüketen ayrı sürüm-2 managed-container journal ve
-journal-bound proof broker çekirdeği de yerelde tamamlandı. S06.4 tamamlanmadı;
-tek-Engine production reader/bootstrap adaptörü, paketli mutasyon işçisi,
-runtime ve iki mimarili native kabul açık. Ürün kurulum yeteneği
+journal-bound proof broker çekirdeği ve tek-endpoint production
+image/volume/network reader bileşimi de yerelde tamamlandı. S06.4 tamamlanmadı;
+paketli production bootstrap/mutasyon işçisi, runtime ve hazırlanan managed-v2
+workflow'un iki mimarili native kabulü açık. Ürün kurulum yeteneği
 `installAvailable=false` kalır.
 
 ## Uygulanan sınır
@@ -59,9 +60,11 @@ Bu dilim gerçek kaynak journal'larını okuyup aynı Engine'e karşı yeniden
 bağlayan broker çekirdeğini de içerir. Broker iki journal kilidini sabit sırada
 tutar, exact source/revision/nonce bağını alır, image/volume/bootstrap/network
 okumalarından sonra bağları tekrar kurar ve eski bootstrap revision'ını reddeder.
-Okuyucu tek opaque Engine kimliği taşır. Bunun somut production Engine reader ve
-volume-bootstrap adaptörü, son kurulum worker CLI'si ve runtime supervisor'ı
-henüz yoktur. Kullanıcının Docker Engine'ine veya ev sistemlerine hiçbir
+`JellyfinEngineReaders` image, volume ve network Unix taşıyıcılarını tek
+operator-owned `DockerEndpoint` üzerinden kurar ve bootstrap verifier'ın da aynı
+endpoint nesnesine bağlı olmasını ister. Paketli production bootstrap adaptörü,
+son kurulum worker CLI'si ve runtime supervisor'ı henüz yoktur. Kullanıcının
+Docker Engine'ine veya ev sistemlerine hiçbir
 mutasyon yapılmadı.
 
 ## TDD ve doğrulama
@@ -83,11 +86,16 @@ mutasyon yapılmadı.
   güncel source ve revision'a yeniden bağlayan worker-private journal kapısı.
 - RED/GREEN `2344f11` / `797709f`: iki journal'a ve tek Engine kimliğine bağlı
   taze Jellyfin image/volume/bootstrap/network proof broker çekirdeği.
+- GREEN `ba54f9a`: sabit Unix image/volume/network okuyucularını tek exact
+  Docker endpoint'i ve endpoint-bound bootstrap verifier altında birleştirir.
+- RED/GREEN `3be1dc6`: mevcut storage kanıtını koruyan ayrı managed-v2 native
+  CI adapter'ı, exact receipt verifier ve amd64/arm64 workflow'u.
 - Güncel bağlayıcı/yürütme/IPC/eski worker regresyon paketi 89 test geçti;
   Python derleme ve `git diff --check` temiz.
 - Broker'ın resource/volume/managed odak paketi 169 test geçti.
-- Exact `086fa2a` kaynak commit'i [Server CI 34312388251](https://github.com/ersingundem/larenor/actions/runs/34312388251)
-  ile geçti. Güncel broker kaynak commit'inin exact-source CI'ı henüz açık.
+- Exact `191baf3` kaynak commit'i [Server CI 34313975186](https://github.com/ersingundem/larenor/actions/runs/34313975186)
+  ile geçti. Yeni reader/native workflow kaynak commit'inin exact-source Server
+  CI'ı ve iki mimarili managed artifact'i henüz açık.
 
 Sürüm kontrollü örnekler
 [`contracts/media-installations.v1.json`](../contracts/media-installations.v1.json)
@@ -97,9 +105,7 @@ create/start makbuzları gerekir. Bunlar olmadan S06.4 `done` yapılamaz.
 
 ## Sonraki dilim
 
-1. Production composite reader accepted image, managed appdata volume/bootstrap
-   ve private control-network değerlerini tek Engine üzerinde taze doğrulayacak.
-2. Aynı Server paketindeki mutasyon worker CLI ve supervisor yaşam döngüsü
+1. Paketli bootstrap verifier ve mutasyon worker CLI/supervisor yaşam döngüsü
    eklenecek.
-3. İki mimarili disposable Linux acceptance gerçek Engine create/start,
+2. Hazırlanan iki mimarili disposable Linux acceptance gerçek Engine create/start,
    restart reconciliation ve owned-resource temizliğini kanıtlayacak.
