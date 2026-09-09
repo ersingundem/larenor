@@ -815,6 +815,20 @@ def test_moved_host_mounts_do_not_hide_later_managed_mismatch():
         observed, Binding()) == 'managed_inspect_init_mismatch'
 
 
+@pytest.mark.parametrize('networks,expected', [
+    (None, 'managed_inspect_networks_missing'),
+    ({'foreign': {'NetworkID': 'b'*64}}, 'managed_inspect_network_key_mismatch'),
+    ({'larenor-control-'+'a'*32: {'NetworkID': ''}},
+     'managed_inspect_network_id_missing'),
+    ({'larenor-control-'+'a'*32: {'NetworkID': 'c'*64}},
+     'managed_inspect_network_id_mismatch'),
+])
+def test_network_diagnostic_reports_only_closed_structure_category(networks, expected):
+    m = api()
+    assert m._network_diagnostic(
+        networks, 'larenor-control-'+'a'*32, 'b'*64) == expected
+
+
 @pytest.mark.parametrize('worker_code,expected', [
     ('invalid_binding', 'managed_create_binding_rejected'),
     ('engine_protocol', 'managed_create_protocol_failed'),

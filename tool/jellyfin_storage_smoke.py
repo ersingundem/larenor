@@ -158,6 +158,8 @@ _MANAGED_CREATE_DIAGNOSTICS = {
     'managed_inspect_forbidden_host_mismatch',
     'managed_inspect_observed_mount_mismatch',
     'managed_inspect_network_attachment_mismatch',
+    'managed_inspect_networks_missing', 'managed_inspect_network_key_mismatch',
+    'managed_inspect_network_id_missing', 'managed_inspect_network_id_mismatch',
     'managed_inspect_nonresource_mismatch',
 }
 _DIAGNOSTIC_CODES = _CODES | set(_BUILD_ERROR_PATTERNS) | set(_START_ERROR_PATTERNS) | {
@@ -1296,6 +1298,19 @@ def _tmpfs_diagnostic(actual, expected):
     return 'managed_inspect_tmpfs_value_mismatch'
 
 
+def _network_diagnostic(networks, name, identity):
+    if type(networks) is not dict or not networks:
+        return 'managed_inspect_networks_missing'
+    if set(networks) != {name}:
+        return 'managed_inspect_network_key_mismatch'
+    attached = networks[name]
+    if type(attached) is not dict or not attached.get('NetworkID'):
+        return 'managed_inspect_network_id_missing'
+    if attached.get('NetworkID') != identity:
+        return 'managed_inspect_network_id_mismatch'
+    return 'managed_inspect_network_attachment_mismatch'
+
+
 def _managed_inspect_diagnostic(value, binding):
     try:
         payload = binding.payload()
@@ -1372,7 +1387,7 @@ def _managed_inspect_diagnostic(value, binding):
         if (type(networks) is not dict or set(networks) != {network_name}
                 or type(networks[network_name]) is not dict
                 or networks[network_name].get('NetworkID') != payload['network_id']):
-            return 'managed_inspect_network_attachment_mismatch'
+            return _network_diagnostic(networks, network_name, payload['network_id'])
     except (AttributeError, KeyError, TypeError, ValueError, RecursionError):
         return 'managed_inspect_nonresource_mismatch'
     return 'managed_inspect_nonresource_mismatch'
