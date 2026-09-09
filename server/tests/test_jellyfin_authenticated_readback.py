@@ -45,19 +45,19 @@ def keys(*items):
     return {'Items': list(items), 'TotalRecordCount': len(items), 'StartIndex': 0}
 
 
-def key(token=API_KEY, *, app='Larenor Core', active=True, revoked=None):
+def key(token=API_KEY, *, app='Larenor Core', active=False, revoked=None):
     return {
-        'Id': 7,
+        'Id': 0,
         'AccessToken': token,
-        'DeviceId': None,
+        'DeviceId': '',
         'AppName': app,
-        'AppVersion': None,
-        'DeviceName': None,
+        'AppVersion': '',
+        'DeviceName': '',
         'UserId': '0' * 32,
         'IsActive': active,
         'DateCreated': '2026-09-09T00:00:00.0000000Z',
         'DateRevoked': revoked,
-        'DateLastActivity': '2026-09-09T00:00:00.0000000Z',
+        'DateLastActivity': '0001-01-01T00:00:00.0000000Z',
         'UserName': None,
     }
 
@@ -243,7 +243,7 @@ def test_session_cleanup_is_required_after_successful_readback():
 
 @pytest.mark.parametrize('listed', [
     keys(key(), key('d' * 32)),
-    keys(key(active=False)),
+    keys(key(active=True)),
     keys(key(revoked='2026-09-09T00:00:00.0000000Z')),
     {'Items': [key()], 'TotalRecordCount': 2, 'StartIndex': 0},
 ])
