@@ -26,6 +26,9 @@ class VolumeBootstrapError(Exception):
     def __init__(self, code='bootstrap_unavailable'):
         self.code = code if code in {
             'bootstrap_configuration_invalid', 'bootstrap_unavailable',
+            'bootstrap_create_failed', 'bootstrap_start_failed',
+            'bootstrap_wait_failed', 'bootstrap_result_failed',
+            'bootstrap_cleanup_failed',
         } else 'bootstrap_unavailable'
         super().__init__(self.code)
 
@@ -128,7 +131,8 @@ class UnixVolumeBootstrapEngine:
         suffix = self._name_factory()
         _require(type(suffix) is str and _HELPER_NAME.fullmatch(suffix) is not None)
         identity = None
-        failed = False
+        failure = None
+        stage = 'create'
         try:
             target = '/containers/create?' + urlencode({
                 'name': 'larenor-bootstrap-' + suffix,
@@ -143,29 +147,32 @@ class UnixVolumeBootstrapEngine:
             _require(type(identity) is str and _CONTAINER_ID.fullmatch(identity) is not None)
             _require(result.get('Warnings') in (None, []))
             _require(not cancelled.is_set())
+            stage = 'start'
             self._response(self._transport._exchange(
                 'POST', f'/containers/{identity}/start'), 204)
             _require(not cancelled.is_set())
+            stage = 'wait'
             waited = self._response(self._transport._exchange(
                 'POST', f'/containers/{identity}/wait?condition=not-running'),
                 200,
                 body=True,
             )
+            stage = 'result'
             _require(set(waited) == {'StatusCode', 'Error'})
             _require(type(waited['StatusCode']) is int and waited['StatusCode'] == 0)
             _require(waited['Error'] is None)
             _require(not cancelled.is_set())
         except Exception:
-            failed = True
+            failure = 'bootstrap_' + stage + '_failed'
         finally:
             if identity is not None:
                 try:
                     self._response(self._transport._exchange(
                         'DELETE', f'/containers/{identity}?force=0&v=0'), 204)
                 except Exception:
-                    failed = True
-        if failed:
-            raise VolumeBootstrapError() from None
+                    failure = 'bootstrap_cleanup_failed'
+        if failure is not None:
+            raise VolumeBootstrapError(failure) from None
         return True
 
 
@@ -216,5 +223,7 @@ class VolumeBootstrapVerifier:
                 binding.resource.target,
                 'root_verified',
             )
+        except VolumeBootstrapError:
+            raise
         except Exception:
             raise VolumeBootstrapError() from None
