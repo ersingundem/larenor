@@ -72,19 +72,25 @@ def _exact(value, cls):
 
 def _binding(value):
     _require(_exact(value, QbittorrentConfigBinding))
+    try:
+        selected = QbittorrentConfigBinding(**vars(value))
+    except (TypeError, ValueError):
+        raise QbittorrentConfigEffectError() from None
     _require(all(_IDENTIFIER.fullmatch(item) is not None for item in (
-        value.resource_id, value.operation_id, value.journal_id,
-        value.ownership_nonce))
-        and type(value.revision) is int and 3 <= value.revision <= 2**63 - 2
-        and value.volume_name == 'larenor-appdata-v1-' + value.resource_id
-        and value.relative_path == 'qBittorrent/qBittorrent.conf'
-        and type(value.configuration) is bytes
-        and 1 <= len(value.configuration) <= 4096
-        and _DIGEST.fullmatch(value.configuration_digest) is not None
+        selected.resource_id, selected.operation_id, selected.journal_id,
+        selected.ownership_nonce))
+        and type(selected.revision) is int
+        and 3 <= selected.revision <= 2**63 - 2
+        and selected.volume_name
+        == 'larenor-appdata-v1-' + selected.resource_id
+        and selected.relative_path == 'qBittorrent/qBittorrent.conf'
+        and type(selected.configuration) is bytes
+        and 1 <= len(selected.configuration) <= 4096
+        and _DIGEST.fullmatch(selected.configuration_digest) is not None
         and hmac.compare_digest(
-            hashlib.sha256(value.configuration).hexdigest(),
-            value.configuration_digest))
-    return value
+            hashlib.sha256(selected.configuration).hexdigest(),
+            selected.configuration_digest))
+    return selected
 
 
 @dataclass(frozen=True, repr=False)
@@ -369,11 +375,11 @@ class QbittorrentConfigInstaller:
     def install(self, binding, journal, intent, credential, *, api_key,
                 cancelled, before_dispatch):
         try:
-            _binding(binding)
+            selected = _binding(binding)
             _require(type(cancelled) is threading.Event
                      and callable(before_dispatch)
                      and verify_qbittorrent_config_binding(
-                         binding, journal, intent, credential,
+                         selected, journal, intent, credential,
                          api_key=api_key))
             _require(not cancelled.is_set(),
                      'qbittorrent_config_effect_cancelled')
@@ -383,7 +389,7 @@ class QbittorrentConfigInstaller:
             raise QbittorrentConfigEffectError() from None
         try:
             result = self._engine.install(
-                binding, self._helper_image_id, self._platform,
+                selected, self._helper_image_id, self._platform,
                 cancelled=cancelled, before_dispatch=before_dispatch)
         except QbittorrentConfigEffectError:
             raise
@@ -394,9 +400,10 @@ class QbittorrentConfigInstaller:
                      'qbittorrent_config_effect_authority_changed',
                      uncertain=True)
             result = QbittorrentConfigHelperResult(**vars(result))
-            _require(result.configuration_digest == binding.configuration_digest
+            _require(result.configuration_digest
+                     == selected.configuration_digest
                      and verify_qbittorrent_config_binding(
-                         binding, journal, intent, credential,
+                         selected, journal, intent, credential,
                          api_key=api_key),
                      'qbittorrent_config_effect_authority_changed',
                      uncertain=True)
@@ -404,9 +411,9 @@ class QbittorrentConfigInstaller:
                      'qbittorrent_config_effect_authority_changed',
                      uncertain=True)
             return QbittorrentConfigInstallReceipt(
-                binding.resource_id, binding.operation_id, binding.journal_id,
-                binding.revision, binding.volume_name,
-                binding.configuration_digest, result.state)
+                selected.resource_id, selected.operation_id, selected.journal_id,
+                selected.revision, selected.volume_name,
+                selected.configuration_digest, result.state)
         except QbittorrentConfigEffectError:
             raise
         except Exception:

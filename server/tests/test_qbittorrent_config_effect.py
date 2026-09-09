@@ -141,6 +141,15 @@ class InstalledEngine:
             'qbittorrent_config_installed', binding.configuration_digest)
 
 
+class MutatingEngine(InstalledEngine):
+    def install(self, binding, helper, platform, *, cancelled, before_dispatch):
+        result = super().install(
+            binding, helper, platform, cancelled=cancelled,
+            before_dispatch=before_dispatch)
+        object.__setattr__(binding, 'configuration_digest', '9' * 64)
+        return result
+
+
 def test_installer_rebinds_source_before_and_after_effect(tmp_path):
     journal, intent, binding = prepared(tmp_path)
     endpoint = DockerEndpoint('/private/docker.sock', owner_uid=0)
@@ -200,6 +209,26 @@ def test_source_change_after_effect_is_uncertain_and_secret_free(tmp_path, monke
     assert raised.value.uncertain_effect is True
     assert PRIVATE_PASSWORD not in repr(raised.value)
     assert PRIVATE_BEARER not in repr(raised.value)
+
+
+def test_in_process_binding_mutation_after_effect_is_rejected(tmp_path):
+    journal, intent, binding = prepared(tmp_path)
+    endpoint = DockerEndpoint('/private/docker.sock', owner_uid=0)
+    engine = MutatingEngine(endpoint)
+    installer = QbittorrentConfigInstaller(
+        endpoint, HELPER, 'linux/amd64', engine_factory=lambda _: engine)
+
+    with pytest.raises(
+        QbittorrentConfigEffectError,
+        match='^qbittorrent_config_effect_authority_changed$',
+    ) as raised:
+        installer.install(
+            binding, journal, intent, PRIVATE_PASSWORD,
+            api_key=PRIVATE_BEARER, cancelled=threading.Event(),
+            before_dispatch=lambda: True)
+
+    assert raised.value.uncertain_effect is True
+    assert binding.configuration_digest != '9' * 64
 
 
 @pytest.mark.parametrize('image,platform', [
