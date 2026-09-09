@@ -1,6 +1,6 @@
 # Larenor — güncel ilerleme ve iş kuyruğu
 
-**Son güncelleme: 9 Eylül 2026 — S08.7 salt okunur Home Assistant domain kapsamı ana dala alındı; S06.5 disposable Jellyfin 10.11.11 bootstrap, API anahtarı, sistem/kütüphane geri okuması, oturum kapatma ve restart kontrolleri exact arm64+amd64 CI'da geçti.**
+**Son güncelleme: 10 Eylül 2026 — CI thread zamanlama düzeltmesi tüm kapılardan geçerek ana dala alındı. S06.5'te qBittorrent 5.2.3 için sahipli config, Bearer kimliği, tam sürüm doğrulaması, güvenli ayar geri okuması ve idempotent film/dizi kategori eşleştirmesi PR28'de inceleniyor.**
 
 ```text
 Kuyruk kabulü       ██░░░░░░░░░░░░░░░░░░  14/125 iş (%11; eşit ağırlıklı sayaç)
@@ -41,7 +41,7 @@ Gerçek ev kurulumu ve fiziksel tablet kabulü henüz yapılmadı.
 | S06.3d — kalıcı depolama | **Kabul edildi**; Native18 exact `6a054ea`, amd64+arm64 makbuzları doğrulandı | S06.3f ile birleşik kaynak kapısı kapandı |
 | S06.3f — kaynak kabulü | **Kabul edildi**; exact `4021391`, iki mimarili native makbuz, 4.065 Server ve tam Android/Server CI yeşil | S06.4 dar kurulum yürütme kapısı |
 | S06.4 — dar kurulum yürütme kapısı | **Kabul edildi**; PR16 `bf6f860`, PR18 `75af015`, PR19 `9ce3c5a` ve PR20 `2b9166b` tam CI kapıları yeşil | S06.5 özel bootstrap ve otomatik servis eşleştirme |
-| S06.5 — özel bootstrap ve otomatik eşleştirme | **Devam ediyor**; private IPC/runtime, tek Larenor API anahtarı, sistem/kütüphane geri okuması ve AES-GCM kalıcı durum hazır. Journal-bound arşiv, güvenli `movies`/`shows` hazırlığı, salt okunur `/media` bağı ve yönetilen Jellyfin kütüphaneleri exact amd64+arm64 native CI'da geçti | Radarr/Sonarr/qBittorrent/Seerr/Music Assistant otomatik servis eşleştirmesi |
+| S06.5 — özel bootstrap ve otomatik eşleştirme | **Devam ediyor**; Jellyfin native kabulü tamamlandı. qBittorrent sahipli config, özel Bearer kimliği, exact `v5.2.3` geri okuması ve güvenli `movies`/`tv` kategori eşleştirmesi [PR28](https://github.com/ersingundem/larenor/pull/28)'de | qBittorrent appdata/ortak kütüphane bağı ve iki mimarili native kanıt; ardından Radarr/Sonarr/Seerr/Music Assistant otomatik eşleştirmesi |
 
 S06.5'in ilk iki TDD parçası, yalnız tamamlanmış Jellyfin kurulumundan
 yöneticiye bağlı bootstrap niyeti üretir ve public API'de sır, hedef adres veya
@@ -126,6 +126,18 @@ assertion hatası olmadı; yerel ortamda sabit `LARENOR_TEST_APKSIG_JAR` olmadı
 için dört release-verifier crypto fixture'ı kurulamadı. İki mimarili native kabul
 tamamlandı; diğer medya servisleri açık olduğu için S06.5 sayacı değişmedi.
 [TDD kanıtı ve açık kabul sınırı](jellyfin-managed-libraries-implementation-2026-09-09.md).
+
+qBittorrent dilimi, LinuxServer qBittorrent 5.2.3 için yalnız Larenor'un
+yönettiği yolları ve güvenlik ayarlarını üreten deterministik config sözleşmesi
+ekledi. Core'un özel Bearer akışı önce exact `v5.2.3` kimliğini, ardından API
+anahtarını, portları, indirme yollarını, WebUI güvenlik bayraklarını ve sabit
+`movies`/`tv` kategorilerini doğruluyor. Eksik yönetilen kategoriler eklenebiliyor;
+yabancı veya çakışan durum değiştirilmiyor ve yazma sonrası bağlantı kaybı
+belirsiz etki olarak raporlanıyor. **104 qBittorrent testi**, ortak HTTP
+çerçeveleme/Jellyfin paketleriyle **149 test** ve yerel gitleaks taraması geçti.
+Container hacim bağları ile amd64/arm64 gerçek qBittorrent kanıtı açık olduğu
+için kurulum yeteneği kapalı ve kuyruk kabul sayacı değişmedi.
+[Uygulama ve açık sınırlar](qbittorrent-owned-bootstrap-implementation-2026-09-10.md).
 
 S06.4 native kabul koşusu [34326112926](https://github.com/ersingundem/larenor/actions/runs/34326112926)
 iki gerçek GitHub runner'ında geçti. İndirilen ARM64 ve X64 makbuzları merge
