@@ -34,9 +34,9 @@ Effect, tek sabit helper imajını aşağıdaki sınırlarla çalıştırır:
 
 - Engine stdin sürüm/upgrade/frame/sınır/iptal/yetki testleri: 21.
 - Journal bağı, sabit container gövdesi, lifecycle, cleanup ve sahte kaynak
-  testleri: 15.
+  testleri: 16.
 - Mevcut Engine HTTP, volume helper/runtime ve config binding paketleriyle
-  birlikte 273 ilgili test geçti.
+  birlikte 274 ilgili test geçti.
 - Değişen Python kaynakları compileall ve diff kontrolünden geçti; sır taraması
   teslim kapısında yeniden çalıştırılacak.
 

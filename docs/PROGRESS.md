@@ -168,7 +168,7 @@ metadata'sına koymadan bounded stdin ile iletiyor. Yetki private byte öncesind
 yeniden sınanıyor; non-TTY stdout/stderr frame'leri ayrı ve sınırlı okunuyor.
 Journal-bound effect sabit networksüz/RW-volume helper gövdesini
 create/start/stream/wait/remove sırasıyla çalıştırıyor, exact digest/state
-sonucunu ve kaynağı etkiden sonra tekrar doğruluyor. **36 yeni / 273 ilgili
+sonucunu ve kaynağı etkiden sonra tekrar doğruluyor. **37 yeni / 274 ilgili
 test** geçti. Supervisor/IPC state bağı ve iki mimarili native kabul açık.
 [Uygulama ve açık sınırlar](qbittorrent-config-effect-implementation-2026-09-10.md).
 
