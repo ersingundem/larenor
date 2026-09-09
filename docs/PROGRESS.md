@@ -40,7 +40,7 @@ Gerçek ev kurulumu ve fiziksel tablet kabulü henüz yapılmadı.
 | B5.1 — ortak tablet tasarımı | Services/hesap IME paketi APK116 ile kabul edildi; S08.7 komut ve aktarım yüzeyleri yerel tablet matrisinden geçti | Exact-source Android CI ve kalan ortak tablet yüzeyleri |
 | S06.3d — kalıcı depolama | **Kabul edildi**; Native18 exact `6a054ea`, amd64+arm64 makbuzları doğrulandı | S06.3f ile birleşik kaynak kapısı kapandı |
 | S06.3f — kaynak kabulü | **Kabul edildi**; exact `4021391`, iki mimarili native makbuz, 4.065 Server ve tam Android/Server CI yeşil | S06.4 dar kurulum yürütme kapısı |
-| S06.4 — dar kurulum yürütme kapısı | **Devam ediyor**; şifreli kalıcı API, ayrı UID denetimli Unix IPC, portsuz Jellyfin binding, ayrı v2 managed-container journal, taze proof broker ve tek-endpoint reader tamamlandı. PR kaynağı `19485ab`, merge kaynağı `b6e7034` üzerinde amd64+arm64 gerçek Engine create/start/restart makbuzları geçti | Paketli production bootstrap/mutasyon worker CLI ve supervisor yaşam döngüsü; exact Android/Server CI ve inceleme |
+| S06.4 — dar kurulum yürütme kapısı | **Devam ediyor**; PR16 exact `bf6f860` Android/Server/Security ve iki mimarili native kapıları yeşil. Stacked `af113e0` paketli bootstrap verifier, özel politika ve `larenor-installation-worker` yaşam döngüsünü ekledi | Supervisor/daemon-incarnation bağı, stacked native CI ve bağımsız inceleme |
 
 S06.4 native kabul koşusu [34326112926](https://github.com/ersingundem/larenor/actions/runs/34326112926)
 iki gerçek GitHub runner'ında geçti. İndirilen ARM64 ve X64 makbuzları merge
@@ -50,6 +50,23 @@ sürümü 2, iki volume, bir restart, hazır imaj, kapalı bootstrap hesabı ve
 `installAvailable=false` sınırını kanıtlıyor. Kaynak sınırları istek gövdesinin
 yanında çalışan cgroup'da da okundu. Bu kanıt disposable CI daemon'ına aittir;
 gerçek ev Docker Engine'ine yazılmadı ve ürün kurulumu açılmadı.
+
+PR16'nın güncel `bf6f860` kaynağı için [Android Build 34332778297](https://github.com/ersingundem/larenor/actions/runs/34332778297)
+5.438 Flutter, 4.225 Server, 98 Android native testi ve 17 gerçek API 35
+emülatör yolculuğuyla geçti. [Security 34332777924](https://github.com/ersingundem/larenor/actions/runs/34332777924)
+yeşil; [managed native 34332777927](https://github.com/ersingundem/larenor/actions/runs/34332777927)
+amd64 ve arm64 üzerinde geçti. İndirilen makbuzlar merge commit'i `670614a`
+ve ebeveynleri `ffdb48c` / `bf6f860` için tekrar doğrulandı.
+
+Stacked `af113e0`, üç mevcut journal'ı tek kapalı runtime'da açan paketli
+`larenor-installation-worker` komutunu ve yalnız exact image ID, `verify_root`,
+read-only NoCopy volume, networksüz geçici container kabul eden bootstrap
+verifier'ı ekledi. `--check-config` journal, socket veya Engine açmaz; IPC socket'i
+Docker endpoint'iyle çakışamaz ve journal içine yerleşemez. Bu yeni dilim 43
+odaklı testle; bütün Server paketi pinli apksig/JDK ortamında 4.256 PASS ve 12
+platform skip ile yerelde geçti. Supervisor'ın daemon incarnation/namespace bağını
+işlemler boyunca tutması ve stacked native CI açık olduğu için
+`installAvailable=false` korunur.
 
 S08.7 üç sonlu teslimden oluşur: **kaynak bağlama ve typed durum → komut ve
 kalıcı sonuç → açık Direct aktarımı**. Üç yerel dilim de squash yapılmadan
