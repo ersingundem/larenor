@@ -102,8 +102,9 @@ aynı user namespace zorunlu; başlangıç argümanında veya config'te
 platform, duplicate/bozuk JSON, config değiştirme/yerine koyma ya da deadline
 kaybı bütün worker kanıtını etkiden önce kapatıyor. Runtime güvenlik seçenekleri
 her effect öncesi/sonrası yeniden okunuyor. Yeni iki modülün **60 testi**
-ve kurulum/kimlik/Engine yollarını içeren geniş ilgili paket yerelde geçti;
-Security policy, compileall, diff ve kuyruk doğrulaması temiz. Bu yerel kanıt
+ve kurulum/kimlik/Engine yollarını içeren geniş ilgili paket yerelde geçti.
+Exact `b6c8ede` kaynağında tam Server paketi **4.351 PASS / 13 macOS platform
+skip** verdi; Security policy, compileall, diff ve kuyruk doğrulaması temiz. Bu yerel kanıt
 henüz exact Linux CI veya bağımsız review değildir.
 
 S08.7 üç sonlu teslimden oluşur: **kaynak bağlama ve typed durum → komut ve
