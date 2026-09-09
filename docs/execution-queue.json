@@ -700,10 +700,18 @@
           "state": "completed",
           "result": "passed",
           "label": "Worker yaşamına bağlı daemon/socket/pidfd/proc/namespace supervisor dilimi ilgili yerel pakette 268 testten geçti; üç gerçek Linux testi stacked CI bekliyor."
+        },
+        {
+          "kind": "test",
+          "ref": "server/tests/test_installation_supervisor.py",
+          "commit": "1e942674fc67350f2b33d130df213ca7afc2896d",
+          "state": "completed",
+          "result": "passed",
+          "label": "Image, volume, network, bootstrap ve managed container bağlantılarının fresh peer pidfd'sini aynı canlı daemon'a bağlayan düzeltmeyle ilgili yerel paket 272 PASS ve 4 Linux skip verdi."
         }
       ],
       "completionCommit": null,
-      "reason": "Yerel dilimler: Client Docker JSON'u kabul etmeyen şifreli kalıcı API; her etkide güncel yetki/bağlam/kaynak kapıları; yalnız Jellyfin create/start ve kayıp cevap uzlaştırması; preflight'tan ayrı UID denetimli IPC; tam stack bağlamından portsuz/no-copy binding ve exact inspect matcher; legacy v1'den ayrılmış kalıcı v2 managed-container journal; journal-bound taze proof broker; tek exact DockerEndpoint reader bileşimi; pinned helper image ile networksüz/read-only volume root verifier; private policy ve üç journal'lı paketli larenor-installation-worker CLI; worker yaşamına bağlı daemon/socket/pidfd/proc/namespace supervisor. PR16 exact bf6f860 ve PR18 exact 75af015 için Android/Server/Security ile amd64+arm64 managed native CI geçti. Supervisor'ın gerçek Linux CI'ı, rootful/remap-disabled üretim yetkisi ve bağımsız review açık. Gerçek ev kurulumu kapalı; installAvailable=false."
+      "reason": "Yerel dilimler: Client Docker JSON'u kabul etmeyen şifreli kalıcı API; her etkide güncel yetki/bağlam/kaynak kapıları; yalnız Jellyfin create/start ve kayıp cevap uzlaştırması; preflight'tan ayrı UID denetimli IPC; tam stack bağlamından portsuz/no-copy binding ve exact inspect matcher; legacy v1'den ayrılmış kalıcı v2 managed-container journal; journal-bound taze proof broker; tek exact DockerEndpoint reader bileşimi; pinned helper image ile networksüz/read-only volume root verifier; private policy ve üç journal'lı paketli larenor-installation-worker CLI; worker yaşamına bağlı daemon/socket/pidfd/proc/namespace supervisor ve her gerçek Engine bağlantısında aynı canlı daemon peer pidfd doğrulaması. PR16 exact bf6f860 ve PR18 exact 75af015 için Android/Server/Security ile amd64+arm64 managed native CI geçti. Güncel supervisor head'inin gerçek Linux CI'ı, rootful/remap-disabled üretim yetkisi ve bağımsız review açık. Gerçek ev kurulumu kapalı; installAvailable=false."
     },
     {
       "id": "S06.5",

@@ -322,6 +322,9 @@ volume through one networkless, read-only ephemeral container. Its policy-only
 check opens no journals or Engine connection. Its native supervisor retains one
 socket-peer pidfd/proc/namespace context on the IPC service thread and brackets
 every apply/reconcile operation with fresh daemon, endpoint and thread checks.
+The same verifier authenticates the fresh pidfd of every image, volume,
+network, bootstrap-helper and managed-container Engine connection against the
+retained live daemon PID, covering socket activation and listener FD transfer.
 This is continuity evidence only; initial-host and remap-disabled startup
 authority remain separate and installation stays disabled. A separate
 amd64/arm64 managed-v2 characterization

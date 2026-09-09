@@ -90,6 +90,16 @@ gözlemi initial host namespace veya remap-disabled daemon başlangıcı değild
 bu yüzden bu dilim kendi başına kurulum yetkisi üretmez. Kullanıcının Docker
 Engine'ine veya ev sistemlerine hiçbir mutasyon yapılmadı.
 
+Aynı socket inode'u ile eski daemon pidfd'sinin canlı kalması, systemd socket
+activation veya listener FD devrinde yeni bağlantıyı hangi sürecin kabul ettiğini
+tek başına kanıtlamaz. Bu nedenle tek `RetainedDaemonPeerVerifier`, runtime'ın
+image, volume, network, bootstrap-helper ve managed create/start Engine
+istemcilerinin tamamına verilir. Her gerçek bağlantıdan alınan yeni
+`SO_PEERCRED` ve `SO_PEERPIDFD`, yalnız ilk socket-derived pidfd hâlâ canlıyken
+aynı PID ve UID ile eşleşir; yeni pidfd her kontrolde kapatılır. Doğrulayıcı
+yalnız bir supervisor çağrısının deadline'ı içinde aktiftir ve farklı peer bütün
+worker bağını fail-closed kapatır.
+
 ## TDD ve doğrulama
 
 - RED `d25ca83`: kapalı create/start yürütme ve her adımda gate sözleşmesi.
@@ -124,7 +134,10 @@ Engine'ine veya ev sistemlerine hiçbir mutasyon yapılmadı.
   JDK 17 ile bütün Server paketi **4.256 PASS, 12 platform skip**.
 - RED/GREEN `cac0625` / `b6196a1`: IPC thread'ine bağlı daemon supervisor,
   startup hazır olma kapısı, her etki öncesi/sonrası socket/pidfd/proc/namespace
-  yenilemesi ve kapanış; ilgili yerel paket **268 PASS / 3 Linux skip**.
+  yenilemesi ve kapanış.
+- RED/GREEN `5d43299` / `1e94267`: socket activation/FD devri sınırı için her
+  image/volume/network/bootstrap/container Engine bağlantısında fresh peer
+  pidfd eşleşmesi; ilgili yerel paket **272 PASS / 4 Linux skip**.
 - Güncel storage/managed/resource/binding paketi **216 PASS**; managed workflow
   politika paketi ayrıca **7 PASS**. Python derleme ve `git diff --check` temiz.
 - Exact `191baf3` kaynak commit'i [Server CI 34313975186](https://github.com/ersingundem/larenor/actions/runs/34313975186)

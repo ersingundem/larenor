@@ -291,7 +291,12 @@ evidence before and after every apply or reconcile operation. It cannot report a
 successful start until this guard is ready. A daemon restart, endpoint change,
 deadline or native-thread change closes the guard and fails closed. Equal user
 namespace maps are continuity evidence, not initial-host or remap-disabled
-startup authority, so installation availability remains disabled.
+startup authority, so installation availability remains disabled. One shared
+peer verifier is also injected into the image, volume, network, bootstrap and
+managed-container Engine clients. Every connection must present a fresh
+socket-derived pidfd for the same still-live daemon PID; matching only the
+socket inode and UID cannot pass through socket activation or listener FD
+transfer.
 Its separate version-2 managed-container journal durably records the complete
 binding before create/start, refuses legacy journal rows, and reconciles only
 against a freshly rebuilt identical binding and full Engine observation. It has
