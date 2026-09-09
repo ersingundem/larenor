@@ -328,6 +328,13 @@ fixed official startup sequence with bounded HTTP responses and no redirect or
 retry. Container address proof, worker dispatch, API-key/library readback and
 real service acceptance remain disabled, so `installAvailable=false` is
 unchanged. See the [S06.5 implementation evidence](../docs/media-service-bootstrap-implementation-2026-09-09.md).
+The next private adapter can derive a numeric endpoint only from the exact
+journal container ID, a freshly verified stack/binding, a running full
+container observation and its sole internal control-network attachment. It
+accepts only a canonical RFC1918 IPv4 address whose prefix and gateway agree,
+and the packaged Jellyfin TCP/8096 listener. It performs one numeric connect
+without DNS, proxy, alternate-address fallback or retry. Managed-journal and
+retained-daemon orchestration around that connection is still pending.
 
 ## Client releases
 

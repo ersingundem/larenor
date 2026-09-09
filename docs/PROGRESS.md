@@ -41,7 +41,7 @@ Gerçek ev kurulumu ve fiziksel tablet kabulü henüz yapılmadı.
 | S06.3d — kalıcı depolama | **Kabul edildi**; Native18 exact `6a054ea`, amd64+arm64 makbuzları doğrulandı | S06.3f ile birleşik kaynak kapısı kapandı |
 | S06.3f — kaynak kabulü | **Kabul edildi**; exact `4021391`, iki mimarili native makbuz, 4.065 Server ve tam Android/Server CI yeşil | S06.4 dar kurulum yürütme kapısı |
 | S06.4 — dar kurulum yürütme kapısı | **Kabul edildi**; PR16 `bf6f860`, PR18 `75af015`, PR19 `9ce3c5a` ve PR20 `2b9166b` tam CI kapıları yeşil | S06.5 özel bootstrap ve otomatik servis eşleştirme |
-| S06.5 — özel bootstrap ve otomatik eşleştirme | **Devam ediyor**; Server üretimli sırların şifreli niyeti ve yalnız preconnected stream kullanan sabit Jellyfin startup protokolü yerelde hazır | Exact container/private-network adres kanıtı, worker bağlantısı ve API anahtarı/kütüphane geri okuması |
+| S06.5 — özel bootstrap ve otomatik eşleştirme | **Devam ediyor**; şifreli niyet, sabit startup protokolü ve exact container/private-network numeric endpoint kanıtı yerelde hazır | Managed journal/supervisor runtime bağı ve API anahtarı/kütüphane geri okuması |
 
 S06.5'in ilk iki TDD parçası, yalnız tamamlanmış Jellyfin kurulumundan
 yöneticiye bağlı bootstrap niyeti üretir ve public API'de sır, hedef adres veya
@@ -54,6 +54,13 @@ tam yerel Server paketinde **4.381 PASS / 13 macOS skip** verdi; security policy
 ve derleme kontrolü de temiz. GitHub CI henüz kabul edilmedi; gerçek
 container/LAN işlemi yapılmadı.
 [Uygulama ve açık sınırlar](media-service-bootstrap-implementation-2026-09-09.md).
+
+Sonraki `e04a06a` → `832b44a` TDD dilimi, exact journal container ID ve
+yeniden doğrulanmış stack/binding ile çalışan container'ın tek internal control
+network IPv4/prefix/gateway gözlemini birleştiriyor. Yalnız RFC1918 subnet ve
+sabit Jellyfin TCP/8096 listener'ı numeric bağlantı üretebilir; DNS, proxy,
+alternatif adres ve retry yoktur. **27 yeni / 86 ilgili test** geçti. Bu bağlantı
+henüz managed journal/supervisor/runtime'a takılmadı ve gerçek ağa açılmadı.
 
 S06.4 native kabul koşusu [34326112926](https://github.com/ersingundem/larenor/actions/runs/34326112926)
 iki gerçek GitHub runner'ında geçti. İndirilen ARM64 ve X64 makbuzları merge

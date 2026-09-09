@@ -50,17 +50,24 @@ girmez.
   skip** verdi; toplam **4.394** test toplandı. İlk iki deneme sırasıyla eksik
   apksig ortam değişkenini ve macOS Java başlatıcısını yakaladı; bunlar başarılı
   koşu olarak sayılmadı.
+- RED/GREEN `e04a06a` / `832b44a`: endpoint kanıtı exact journal container
+  ID'sini, yeniden türetilmiş stack/binding'i, çalışan durumu, tek control
+  network ID'sini, aynı RFC1918 subnet'indeki canonical IPv4/prefix/gateway'i
+  ve sabit Jellyfin TCP/8096 listener'ını birlikte doğrular. Soket yalnız bu
+  kanıttan açılır; DNS, proxy, alternatif adres ve retry yoktur. **27 yeni / 86
+  ilgili test**, security policy, compileall ve diff kontrolü geçti.
 
 ## Açık kabul sınırları
 
-Bu dilim container adresi bulmaz ve ağ bağlantısı açmaz. Sıradaki adım exact
-managed-container ID, private control network ve container IP gözlemini aynı
-daemon/peer kanıtına bağlayıp bu preconnected stream'i worker içinde üretmektir.
+İkinci yerel dilim exact managed-container ID ve private control network
+gözleminden tek numeric bağlantı üretebilir. Sıradaki adım bu kanıtı managed
+journal receipt'i, aynı retained daemon peer supervisor'ı ve başlangıç
+adaptörünün öncesi/sonrası taze container gözlemiyle worker runtime'a bağlamaktır.
 Ardından Jellyfin kimlik doğrulama/API anahtarı, sistem adresi ve kütüphane
 eşlemeleri servisten geri okunup şifreli duruma yazılacaktır. Music Assistant
 host ağı, diğer medya bileşenlerinin otomatik eşleştirmesi, gerçek Linux
 container kabulü ve `installAvailable` ayrı açık kapılardır. Ev Docker Engine'i
-ve gerçek Jellyfin kurulumu bu dilimde değiştirilmedi.
+ve gerçek Jellyfin kurulumu bu dilimlerde değiştirilmedi.
 
 Resmi kaynaklar:
 
