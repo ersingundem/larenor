@@ -9,12 +9,18 @@ accepted Docker create specification and never accepts caller Docker options.
 from dataclasses import dataclass, field, fields
 import json
 import re
+import threading
 
+from .image_resources import ImageObservation, image_binding
 from .models import Catalog
+from .network_resources import NetworkListObservation, network_binding
+from .resource_journal import NetworkIdentity, ResourceJournal, _digest as _resource_digest
 from .resource_models import WorkerPolicyBinding
 from .resource_plan import build_resource_plan, _wire
 from .stack_plan import MediaStackPlan, verify_media_stack_plan
+from .volume_create_journal import VolumeCreateJournal
 from .volume_plan import build_volume_plan
+from .volume_resources import VolumeObservation, volume_expected_labels
 from .worker import (
     _FORBIDDEN_OBSERVED, _LABELS, _REFERENCE, DockerWorkerError,
     JournaledContainerOperations, WorkerJournal, _canonical, _decode,
@@ -84,6 +90,172 @@ class VerifiedJellyfinResources:
     image: ManagedImageProof
     volumes: tuple[ManagedVolumeProof, ManagedVolumeProof]
     network: ManagedNetworkProof
+
+
+@dataclass(frozen=True, repr=False)
+class VolumeBootstrapObservation:
+    """Worker-private result from the fixed helper, never an IPC value."""
+
+    resource_id: str
+    operation_id: str
+    journal_id: str
+    ownership_nonce: str
+    revision: int
+    name: str
+    target: str
+    state: str
+
+
+class JellyfinResourceProofBroker:
+    """Rebind retained intents and require fresh reads from one Engine seam.
+
+    The composite reader is operator-owned and must expose one opaque endpoint
+    identity plus fixed image, volume, bootstrap and network read methods. The
+    broker never turns a terminal journal receipt into a current proof by
+    itself; every resource is observed again while both journals stay locked.
+    """
+
+    def __init__(self, stack, catalog, policy, resource_journal, volume_journal,
+                 readers, *, engine_identity):
+        try:
+            methods = ('inspect_image', 'inspect_volume', 'verify_bootstrap',
+                       'list_network', 'inspect_network')
+            if (type(stack) is not MediaStackPlan or type(catalog) is not Catalog
+                    or type(policy) is not WorkerPolicyBinding
+                    or type(resource_journal) is not ResourceJournal
+                    or type(volume_journal) is not VolumeCreateJournal
+                    or getattr(readers, '_endpoint', None) is not engine_identity
+                    or not all(callable(getattr(readers, name, None)) for name in methods)):
+                raise ValueError()
+            self.stack = MediaStackPlan.model_validate_json(_wire(stack))
+            self.catalog = Catalog.model_validate_json(_wire(catalog))
+            self.policy = WorkerPolicyBinding.model_validate_json(_wire(policy))
+            self.resource_journal = resource_journal
+            self.volume_journal = volume_journal
+            self.readers = readers
+        except (ValueError, TypeError, AttributeError, RecursionError):
+            raise ManagedContainerError('resources_untrusted') from None
+
+    def __call__(self, resource_plan, volume_plan, component):
+        try:
+            expected_resources = build_resource_plan(self.stack, self.catalog, self.policy)
+            expected_volumes = build_volume_plan(self.stack, self.catalog, self.policy)
+            selected = next(item for item in self.stack.components if item.serviceId == 'jellyfin')
+            if (resource_plan != expected_resources or volume_plan != expected_volumes
+                    or component != selected):
+                raise ValueError()
+            source = dict(stack=self.stack, catalog=self.catalog, policy=self.policy)
+            image_resource = next(item for item in resource_plan.resources
+                                  if item.kind == 'ensure_image' and item.serviceId == 'jellyfin')
+            network_resource = next(item for item in resource_plan.resources
+                                    if item.kind == 'prepare_control_network')
+            volume_resources = tuple(item for item in volume_plan.resources
+                                     if item.serviceId == 'jellyfin')
+            if len(volume_resources) != 2:
+                raise ValueError()
+            cancelled = threading.Event()
+            with self.resource_journal.locked(), self.volume_journal.locked():
+                image_receipt = self.resource_journal.get(image_resource.resourceId)
+                network_receipt = self.resource_journal.get(network_resource.resourceId)
+                image_intent = self.resource_journal.bind(
+                    image_resource.resourceId, image_receipt.revision,
+                    plan=resource_plan, **source)
+                network_intent = self.resource_journal.bind(
+                    network_resource.resourceId, network_receipt.revision,
+                    plan=resource_plan, **source)
+                volume_intents = []
+                for resource in volume_resources:
+                    receipt = self.volume_journal.get(resource.resourceId)
+                    intent = self.volume_journal.bind(
+                        resource.resourceId, receipt.revision, plan=volume_plan, **source)
+                    if intent.receipt.state != 'observed_requires_bootstrap':
+                        raise ValueError()
+                    volume_intents.append(intent)
+
+                selected_image = image_binding(
+                    resource_plan, self.stack, self.catalog, self.policy,
+                    image_resource.resourceId)
+                image = self.readers.inspect_image(selected_image, cancelled=cancelled)
+                if (not _exact(image, ImageObservation)
+                        or image.image_id != selected_image.config_digest
+                        or type(image.configuration) is not bytes):
+                    raise ValueError()
+
+                volume_proofs = []
+                for intent in volume_intents:
+                    observed = self.readers.inspect_volume(intent, cancelled=cancelled)
+                    binding = intent.binding
+                    expected_observation = VolumeObservation(
+                        binding.resource_id, binding.resource.name,
+                        binding.source[0].planHash,
+                        _resource_digest(volume_expected_labels(binding)),
+                    )
+                    if not _exact(observed, VolumeObservation) or observed != expected_observation:
+                        raise ValueError()
+                    bootstrap = self.readers.verify_bootstrap(intent, cancelled=cancelled)
+                    receipt = intent.receipt
+                    expected_bootstrap = VolumeBootstrapObservation(
+                        binding.resource_id, binding.resource.operationId,
+                        binding.journal_id, binding.ownership_nonce, receipt.revision,
+                        binding.resource.name, binding.resource.target, 'root_verified',
+                    )
+                    if (not _exact(bootstrap, VolumeBootstrapObservation)
+                            or bootstrap != expected_bootstrap):
+                        raise ValueError()
+                    volume_proofs.append(ManagedVolumeProof(
+                        binding.resource_id, binding.resource.operationId,
+                        receipt.revision, binding.journal_id, binding.ownership_nonce,
+                        binding.resource.name, binding.resource.target, True,
+                    ))
+
+                selected_network = network_binding(
+                    resource_plan, self.stack, self.catalog, self.policy,
+                    network_resource.resourceId)
+                listed = self.readers.list_network(
+                    selected_network, network_intent, cancelled=cancelled)
+                if (not _exact(listed, NetworkListObservation)
+                        or listed.state != 'candidate' or not _identity(listed.network_id, _HASH)):
+                    raise ValueError()
+                network = self.readers.inspect_network(
+                    selected_network, network_intent, listed.network_id,
+                    cancelled=cancelled)
+                if (not _exact(network, NetworkIdentity)
+                        or network.network_id != listed.network_id):
+                    raise ValueError()
+
+                # Rebind after every external read. A raw/reentrant journal
+                # change cannot publish a proof from the earlier revision.
+                if self.resource_journal.bind(
+                        image_resource.resourceId, image_receipt.revision,
+                        plan=resource_plan, **source) != image_intent:
+                    raise ValueError()
+                if self.resource_journal.bind(
+                        network_resource.resourceId, network_receipt.revision,
+                        plan=resource_plan, **source) != network_intent:
+                    raise ValueError()
+                for intent in volume_intents:
+                    if self.volume_journal.bind(
+                            intent.binding.resource_id, intent.receipt.revision,
+                            plan=volume_plan, **source) != intent:
+                        raise ValueError()
+
+            return VerifiedJellyfinResources(
+                stack_plan_hash=resource_plan.stackPlanHash,
+                resource_plan_hash=resource_plan.planHash,
+                volume_plan_hash=volume_plan.planHash,
+                worker_policy_digest=self.policy.workerPolicyDigest,
+                image=ManagedImageProof(
+                    image_resource.resourceId, image_receipt.revision,
+                    image.image_id, image.configuration),
+                volumes=tuple(volume_proofs),
+                network=ManagedNetworkProof(
+                    network_resource.resourceId, network_resource.operationId,
+                    network_receipt.revision, network_intent.journal_id,
+                    network_intent.ownership_nonce, network_resource.name,
+                    network.network_id),
+            )
+        except Exception:
+            raise ManagedContainerError('resources_unavailable') from None
 
 
 @dataclass(frozen=True, repr=False)
