@@ -614,3 +614,24 @@ def test_optional_identity_parent_close_after_precheck_has_only_static_failure(p
             lease.capture_identities(time.monotonic() + 2)
     finally:
         lease.close()
+
+
+def test_startup_capture_receives_only_the_retained_peer_proc_and_root_handles(
+        proc_tree, monkeypatch):
+    from larenor_server.plugins import daemon_startup
+
+    lease = capture(proc_tree)
+    marker = object()
+    try:
+        def startup(proc_fd, root_fd, *, pid, daemon_executable, deadline):
+            assert proc_fd == lease._fds[1]
+            assert root_fd == lease._snapshots[0].handles[3]
+            assert pid == lease._peer_pid
+            assert daemon_executable == lease._executable
+            assert time.monotonic() < deadline
+            return marker
+
+        monkeypatch.setattr(daemon_startup, 'capture_daemon_startup', startup)
+        assert lease.capture_startup(time.monotonic() + 2) is marker
+    finally:
+        lease.close()

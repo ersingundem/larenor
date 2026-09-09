@@ -275,7 +275,8 @@ def _serve(args, policy):
         worker = InstallationWorkerServer(
             args.socket,
             SupervisedInstallationBackend(
-                policy.endpoint, built.backend, peer_verifier=peer_verifier,
+                policy.endpoint, built.backend, platform=policy.platform,
+                peer_verifier=peer_verifier,
             ),
             allowed_uid=args.api_uid,
             socket_gid=args.socket_gid,

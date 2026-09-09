@@ -184,7 +184,8 @@ def install_lifecycle(monkeypatch, *, start_error=None, close_error=None):
     monkeypatch.setattr(runtime.signal, 'signal', signal_handler)
     monkeypatch.setattr(runtime, '_build_runtime', lambda policy, **_kwargs: Built())
     monkeypatch.setattr(runtime, 'SupervisedInstallationBackend',
-                        lambda _endpoint, backend, **_kwargs: backend)
+                        lambda _endpoint, backend, **kwargs:
+                        backend if kwargs['platform'] == 'linux/amd64' else None)
 
     def server(path, backend, **kwargs):
         assert kwargs['allowed_uid'] == os.getuid()

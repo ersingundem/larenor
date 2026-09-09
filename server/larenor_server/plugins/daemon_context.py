@@ -262,6 +262,25 @@ class _ContextLease:
         from .linux_identity_observation import _capture_context_identities
         return _capture_context_identities(self, deadline, cancelled=cancelled)
 
+    def capture_startup(self, deadline):
+        """Bind daemon argv/config to this socket-derived proc/root lease."""
+        from .daemon_startup import capture_daemon_startup
+        try:
+            if (self._identity_owner != (os.getpid(), threading.get_native_id())
+                    or len(self._fds) != 3 or len(self._snapshots) != 2
+                    or len(self._snapshots[0].handles) != 4
+                    or not self.revalidate(deadline)):
+                raise ValueError('context_unavailable')
+            return capture_daemon_startup(
+                self._fds[1],
+                self._snapshots[0].handles[3],
+                pid=self._peer_pid,
+                daemon_executable=self._executable,
+                deadline=deadline,
+            )
+        except _ERRORS:
+            raise ValueError('context_unavailable') from None
+
     def matches_connection(self, connection, expected_uid, deadline):
         """Bind a new operation socket to this retained live peer incarnation.
 
