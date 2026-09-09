@@ -5,6 +5,7 @@ import pytest
 
 from conftest import auth, ready
 from larenor_server.app import create_app
+from test_admin import activate, create as create_user
 from test_media_installations_api import ExecutionBackend, prepared
 
 
@@ -33,6 +34,9 @@ def test_server_generates_and_encrypts_private_bootstrap_without_network(server,
     pair, installation = installed(server)
     monkeypatch.setattr('larenor_server.plugins.media_service_bootstraps.secrets.token_urlsafe',
                         lambda size: SECRET)
+    monkeypatch.setattr('socket.socket',
+                        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+                            AssertionError('bootstrap intent must not open a network socket')))
 
     response = client.post(BASE, headers=auth(pair), json=request(installation))
     assert response.status_code == 201
@@ -53,7 +57,7 @@ def test_server_generates_and_encrypts_private_bootstrap_without_network(server,
     private = app.state.core.media_service_bootstraps.private_payload(record['id'])
     assert private.credential == SECRET and private.username == 'larenor-system'
     assert private.locale == 'tr-TR' and private.remote_access is False
-    assert not hasattr(app.state.core.media_service_bootstraps, 'transport')
+    assert SECRET not in repr(private) and 'credential' not in repr(private)
 
 
 def test_bootstrap_is_idempotent_and_survives_restart_without_secret_exposure(server):
@@ -107,27 +111,23 @@ def test_bootstrap_requires_current_ready_admin_and_bounds_reads(server):
     app, client, _, _ = server
     pair, installation = installed(server)
     record = client.post(BASE, headers=auth(pair), json=request(installation)).json()['bootstrap']
-    member = app.state.core.admin.create_user(
-        app.state.core.auth.principal(pair['accessToken']), 'member', 'member',
-        'Synthetic member password 2026')
-    member_pair = client.post('/api/v1/auth/login', json={
-        'username': 'member', 'password': 'Synthetic member password 2026',
-        'deviceName': 'Member tablet'}).json()
+    member = create_user(client, pair)
+    member_pair = activate(client, 'member')
     assert client.get(BASE, headers=auth(member_pair)).status_code == 403
     assert client.get(BASE + '/' + 'f' * 32, headers=auth(pair)).status_code == 404
     assert client.get(BASE + '/' + record['id'], headers=auth(pair)).status_code == 200
     assert client.get(BASE + '?limit=0', headers=auth(pair)).status_code == 400
     client.post('/api/v1/auth/logout', headers=auth(pair))
     assert client.get(BASE + '/' + record['id'], headers=auth(pair)).status_code == 401
-    assert member['user']['role'] == 'member'
+    assert member['role'] == 'member'
 
 
-@pytest.mark.parametrize('damage', ['ciphertext', 'nonce', 'state', 'table'])
+@pytest.mark.parametrize('damage', ['ciphertext', 'nonce', 'state', 'table', 'orphan'])
 def test_storage_damage_fails_closed_on_restart(server, damage):
     app, _client, settings, _ = server
     pair, installation = installed(server)
     app.state.core.media_service_bootstraps.create(
-        app.state.core.auth.principal(pair['accessToken']), request(installation))
+        app.state.core.auth.authenticate(pair['accessToken']), request(installation))
     with app.state.core.db.connection() as connection:
         if damage == 'ciphertext':
             connection.execute("UPDATE media_service_bootstraps SET ciphertext=x'00'")
@@ -136,7 +136,12 @@ def test_storage_damage_fails_closed_on_restart(server, damage):
         elif damage == 'state':
             connection.execute("PRAGMA ignore_check_constraints=ON")
             connection.execute("UPDATE media_service_bootstraps SET state='private-secret'")
-        else:
+        elif damage == 'table':
             connection.execute('ALTER TABLE media_service_bootstraps RENAME TO media_service_bootstraps_old')
-    with pytest.raises(Exception, match='invalid_media_service_bootstraps_storage'):
+        else:
+            connection.execute('PRAGMA foreign_keys=OFF')
+            connection.execute('DELETE FROM media_installations')
+    expected = ('media_service_bootstraps_schema_unsupported' if damage == 'table'
+                else 'invalid_media_service_bootstraps_storage')
+    with pytest.raises(Exception, match=expected):
         create_app(settings)
