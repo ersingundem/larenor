@@ -712,10 +712,10 @@
         {
           "kind": "test",
           "ref": "server/tests/test_daemon_security.py",
-          "commit": "47adc75604c52873e61bfa57bc3f1c88cde1f8f3",
+          "commit": "b6c8edeabc1aabcb5230bcc4ec9d40ed2dbd67cc",
           "state": "completed",
           "result": "passed",
-          "label": "Rootful/remap-disabled daemon yetkisi, held proc/root üzerinden no-follow argv/config ve her effect çevresinde aynı Engine bağlantısında version/info kanıtıyla bağlandı; iki yeni modül 60 PASS ve geniş ilgili paket yeşil. Exact Linux CI ve review açık."
+          "label": "Rootful/remap-disabled daemon yetkisi held proc/root üzerinden no-follow argv/config ve her effect çevresinde version/info kanıtıyla bağlandı; exact kaynakta tam Server 4.351 PASS/13 macOS skip. Linux CI ve review açık."
         },
         {
           "kind": "ci",

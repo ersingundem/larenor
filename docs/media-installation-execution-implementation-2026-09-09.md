@@ -156,7 +156,8 @@ kalır.
 - RED/GREEN `ffba1a7` / `5c81207`: daemon proc/root tanıtıcılarına bağlı
   no-follow argv/config yaşam kanıtı ve supervisor/runtime bağlantısı; startup
   ile security modüllerinin toplam **60 testi** ve geniş ilgili paket geçti;
-  runtime security seçenekleri her effect öncesi/sonrası yeniden okunur.
+  runtime security seçenekleri her effect öncesi/sonrası yeniden okunur. Exact
+  `b6c8ede` üzerinde tam Server paketi **4.351 PASS / 13 macOS skip** verdi.
 - Güncel storage/managed/resource/binding paketi **216 PASS**; managed workflow
   politika paketi ayrıca **7 PASS**. Python derleme ve `git diff --check` temiz.
 - Exact `191baf3` kaynak commit'i [Server CI 34313975186](https://github.com/ersingundem/larenor/actions/runs/34313975186)
