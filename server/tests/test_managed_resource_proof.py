@@ -1,6 +1,7 @@
 """Fresh managed-container proofs must stay bound to journals and one Engine."""
 
 import json
+from types import SimpleNamespace
 
 import pytest
 
@@ -8,9 +9,10 @@ from larenor_server.context import ContextResponse
 from larenor_server.plugins.catalog import load_catalog
 from larenor_server.plugins.image_resources import ImageObservation
 from larenor_server.plugins.managed_container import (
-    JellyfinResourceProofBroker, ManagedContainerError,
+    JellyfinEngineReaders, JellyfinResourceProofBroker, ManagedContainerError,
     VolumeBootstrapObservation,
 )
+from larenor_server.plugins.docker_probe import DockerEndpoint
 from larenor_server.plugins.network_resources import NetworkListObservation
 from larenor_server.plugins.resource_journal import (
     ImageIdentity, NetworkIdentity, ResourceJournal, ResourceObservation, _digest,
@@ -115,6 +117,53 @@ class Readers:
     def inspect_network(self, binding, intent, network_id, *, cancelled):
         self.calls.append(('network-inspect', binding.resource.resourceId))
         return NetworkIdentity(network_id)
+
+
+class BootstrapVerifier:
+    def __init__(self, endpoint):
+        self._endpoint = endpoint
+        self.calls = []
+
+    def verify(self, intent, *, cancelled):
+        self.calls.append((intent, cancelled))
+        return 'bootstrap-observation'
+
+
+def test_engine_readers_construct_fixed_adapters_on_one_exact_endpoint():
+    endpoint = DockerEndpoint('/tmp/larenor-engine-readers.sock')
+    bootstrap = BootstrapVerifier(endpoint)
+    readers = JellyfinEngineReaders(endpoint, bootstrap, peer_uid=lambda _connection: 0)
+    calls = []
+    readers._images.inspect = lambda binding, *, cancelled: calls.append(
+        ('image', binding, cancelled)) or 'image-observation'
+    readers._volumes.inspect = lambda binding, *, cancelled: calls.append(
+        ('volume', binding, cancelled)) or 'volume-observation'
+    readers._networks.list = lambda binding, intent, *, cancelled: calls.append(
+        ('network-list', binding, intent, cancelled)) or 'network-list-observation'
+    readers._networks.inspect = lambda binding, intent, network_id, *, cancelled: calls.append(
+        ('network-inspect', binding, intent, network_id, cancelled)) or 'network-observation'
+    cancelled = object()
+    volume_intent = SimpleNamespace(binding='volume-binding')
+
+    assert readers.inspect_image('image-binding', cancelled=cancelled) == 'image-observation'
+    assert readers.inspect_volume(volume_intent, cancelled=cancelled) == 'volume-observation'
+    assert readers.verify_bootstrap(volume_intent, cancelled=cancelled) == 'bootstrap-observation'
+    assert readers.list_network('network-binding', 'network-intent', cancelled=cancelled) == \
+        'network-list-observation'
+    assert readers.inspect_network(
+        'network-binding', 'network-intent', 'network-id', cancelled=cancelled,
+    ) == 'network-observation'
+    assert readers._endpoint is endpoint and bootstrap.calls == [(volume_intent, cancelled)]
+    assert [item[0] for item in calls] == [
+        'image', 'volume', 'network-list', 'network-inspect',
+    ]
+
+
+def test_engine_readers_reject_bootstrap_on_a_different_endpoint():
+    endpoint = DockerEndpoint('/tmp/larenor-engine-readers.sock')
+    foreign = DockerEndpoint('/tmp/larenor-foreign-engine.sock')
+    with pytest.raises(ManagedContainerError, match='^resources_untrusted$'):
+        JellyfinEngineReaders(endpoint, BootstrapVerifier(foreign))
 
 
 def test_broker_rebinds_and_freshly_observes_every_jellyfin_resource(tmp_path):
