@@ -987,6 +987,21 @@ def test_managed_create_receipt_uses_docker_container_id_shape(container_id, exp
     assert m._managed_create_succeeded(receipt) is expected
 
 
+def test_managed_library_readback_accepts_both_server_orders_only():
+    m = api()
+    libraries = (
+        ('Larenor Movies', 'movies', 'a' * 32, ('/media/movies',)),
+        ('Larenor Shows', 'tvshows', 'b' * 32, ('/media/shows',)),
+    )
+    assert m._managed_library_readback_matches(libraries)
+    assert m._managed_library_readback_matches(tuple(reversed(libraries)))
+    assert not m._managed_library_readback_matches(libraries + (libraries[0],))
+    assert not m._managed_library_readback_matches((
+        ('Larenor Movies', 'movies', 'a' * 32, ('/media/foreign',)),
+        libraries[1],
+    ))
+
+
 @pytest.mark.parametrize('fault', ['initialize_empty_root','start','restart','identity','mount','initial_data'])
 def test_lost_or_conflicting_reply_never_repeats_a_mutation(protocol, fault):
     m, source, docker, images = protocol

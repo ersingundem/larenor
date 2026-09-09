@@ -1545,6 +1545,27 @@ def _managed_bootstrap_error(error):
     return code if code in _DIAGNOSTIC_CODES else 'bootstrap_result_failed'
 
 
+def _managed_library_readback_matches(libraries):
+    expected = {
+        ('Larenor Movies', 'movies', ('/media/movies',)),
+        ('Larenor Shows', 'tvshows', ('/media/shows',)),
+    }
+    try:
+        if type(libraries) is not tuple or len(libraries) != 2:
+            return False
+        projected = set()
+        for item in libraries:
+            if (type(item) is not tuple or len(item) != 4
+                    or type(item[2]) is not str
+                    or re.fullmatch(r'[0-9a-f]{32}', item[2]) is None
+                    or type(item[3]) is not tuple):
+                return False
+            projected.add((item[0], item[1], item[3]))
+        return projected == expected
+    except (AttributeError, TypeError, ValueError, RecursionError):
+        return False
+
+
 def _managed_create_and_start(daemon, source, endpoint, helper_id):
     """Create/start through the production proof, binding and v2 journal path."""
     from larenor_server.plugins.managed_container import (
@@ -1645,14 +1666,15 @@ def _managed_create_and_start(daemon, source, endpoint, helper_id):
                 )
             except Exception as error:
                 raise SmokeError(_managed_bootstrap_error(error)) from None
-            require(bootstrap.state == 'wiring_partial'
-                    and bootstrap.readback.state == 'verified'
-                    and bootstrap.readback.server_id == before['id']
-                    and [library[:2] for library in bootstrap.readback.libraries] == [
-                        ('Larenor Movies', 'movies'),
-                        ('Larenor Shows', 'tvshows'),
-                    ]
-                    and bootstrap.readback.completed_steps[-1:] == ('session_closed',))
+            require(bootstrap.state == 'wiring_partial', 'bootstrap_result_failed')
+            require(bootstrap.readback.state == 'verified',
+                    'bootstrap_readback_libraries_failed')
+            require(bootstrap.readback.server_id == before['id'],
+                    'bootstrap_readback_system_failed')
+            require(_managed_library_readback_matches(bootstrap.readback.libraries),
+                    'bootstrap_wiring_verify_failed')
+            require(bootstrap.readback.completed_steps[-1:] == ('session_closed',),
+                    'bootstrap_readback_logout_failed')
         return start.container_id, binding, engine, {
             'apiKeyVerified': True,
             'libraryCount': 2,
