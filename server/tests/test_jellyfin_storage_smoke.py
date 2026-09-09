@@ -608,7 +608,16 @@ def test_malformed_managed_create_response_stays_closed(body):
     (json.dumps({'Id': 'short', 'Warnings': []}).encode(),
      'managed_create_identity_invalid'),
     (json.dumps({'Id': 'a' * 64, 'Warnings': ['private']}).encode(),
-     'managed_create_warnings_present'),
+     'managed_create_warning_unclassified'),
+    (json.dumps({'Id': 'a' * 64, 'Warnings': [
+        "requested image's platform does not match detected host platform",
+    ]}).encode(), 'managed_create_platform_warning'),
+    (json.dumps({'Id': 'a' * 64, 'Warnings': [
+        'IPv4 forwarding is disabled. Networking will not work.',
+    ]}).encode(), 'managed_create_network_warning'),
+    (json.dumps({'Id': 'a' * 64, 'Warnings': [
+        'Your kernel does not support swap limit capabilities',
+    ]}).encode(), 'managed_create_resource_warning'),
     (json.dumps({'Id': 'a' * 64, 'Warnings': None, 'extra': 'allowed'}).encode(), None),
 ])
 def test_managed_create_success_shape_is_classified_without_content(body, expected):
