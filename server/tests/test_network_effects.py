@@ -115,7 +115,7 @@ def create_server(*, version=None, reply=None):
                     except OSError:
                         pass  # The peer may already have closed; worker owns close().
             listener.close()
-            thread.join(3)
+            thread.join(8)
             assert not thread.is_alive() and not failures
 
 

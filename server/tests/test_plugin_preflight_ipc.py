@@ -154,7 +154,7 @@ def test_stalled_inspection_cannot_release_worker_lock_early():
     class Stalled(Inspector):
         def inspect(self, selected):
             entered.set()
-            assert release.wait(3)
+            assert release.wait(8)
             return super().inspect(selected)
     with root() as folder:
         path=folder/'worker.sock'

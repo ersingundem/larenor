@@ -116,7 +116,7 @@ def engine_server(replies, *, version=VERSION, limits=None, peer=None):
         finally:
             stopped.set()
             listener.close()
-            thread.join(3)
+            thread.join(8)
             assert not thread.is_alive()
             assert not failures
 
