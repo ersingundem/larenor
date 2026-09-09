@@ -137,6 +137,8 @@ _MANAGED_CREATE_DIAGNOSTICS = {
     'managed_create_cgroup_rejected', 'managed_create_security_rejected',
     'managed_create_image_rejected', 'managed_create_resource_rejected',
     'managed_create_engine_rejected', 'managed_create_transport_failed',
+    'managed_create_binding_rejected', 'managed_create_protocol_failed',
+    'managed_create_endpoint_rejected', 'managed_create_resource_conflict',
 }
 _DIAGNOSTIC_CODES = _CODES | set(_BUILD_ERROR_PATTERNS) | set(_START_ERROR_PATTERNS) | {
     'helper_base_runtime_failed', 'helper_base_error_ambiguous',
@@ -1152,6 +1154,20 @@ def _managed_engine(endpoint):
                     response.status, response.body,
                 )
             return response
+
+        def create_managed_container(self, binding):
+            try:
+                return super().create_managed_container(binding)
+            except DockerWorkerError as error:
+                if self.managed_create_diagnostic is None:
+                    self.managed_create_diagnostic = {
+                        'invalid_binding': 'managed_create_binding_rejected',
+                        'engine_protocol': 'managed_create_protocol_failed',
+                        'engine_peer_rejected': 'managed_create_endpoint_rejected',
+                        'unsafe_worker_path': 'managed_create_endpoint_rejected',
+                        'engine_conflict': 'managed_create_resource_conflict',
+                    }.get(error.code, 'managed_create_transport_failed')
+                raise
 
     return DiagnosticEngine(endpoint.path, socket_uid=endpoint.owner_uid)
 

@@ -639,6 +639,31 @@ def test_managed_engine_preserves_transport_error_and_records_closed_diagnostic(
     assert engine.managed_create_diagnostic == 'managed_create_transport_failed'
 
 
+@pytest.mark.parametrize('worker_code,expected', [
+    ('invalid_binding', 'managed_create_binding_rejected'),
+    ('engine_protocol', 'managed_create_protocol_failed'),
+    ('engine_peer_rejected', 'managed_create_endpoint_rejected'),
+    ('unsafe_worker_path', 'managed_create_endpoint_rejected'),
+    ('engine_conflict', 'managed_create_resource_conflict'),
+])
+def test_managed_engine_records_pre_http_worker_rejection(
+        worker_code, expected, monkeypatch):
+    m = api()
+    from larenor_server.plugins.docker_probe import DockerEndpoint
+    from larenor_server.plugins.worker import DockerWorkerError, UnixDockerEngine
+    error = DockerWorkerError(worker_code)
+
+    def fail(*_args, **_kwargs):
+        raise error
+
+    monkeypatch.setattr(UnixDockerEngine, 'create_managed_container', fail)
+    engine = m._managed_engine(DockerEndpoint('/tmp/larenor-engine.sock', owner_uid=0))
+    with pytest.raises(DockerWorkerError) as caught:
+        engine.create_managed_container(object())
+    assert caught.value is error
+    assert engine.managed_create_diagnostic == expected
+
+
 @pytest.mark.parametrize('state,code,diagnostic,expected', [
     ('prepared', 'accepted', None, 'managed_create_preflight_failed'),
     ('uncertain', 'engine_operation_uncertain', None, 'managed_create_uncertain'),
