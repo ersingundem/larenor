@@ -732,6 +732,32 @@ def test_managed_inspect_resource_drift_is_reduced_to_closed_category(
     assert m._managed_inspect_diagnostic(observed, Binding()) == expected
 
 
+@pytest.mark.parametrize('field,actual,expected', [
+    ('SecurityOpt', ['no-new-privileges'], 'managed_inspect_security_mismatch'),
+    ('Tmpfs', {}, 'managed_inspect_tmpfs_mismatch'),
+    ('Mounts', [], 'managed_inspect_requested_mount_mismatch'),
+    ('NetworkMode', 'none', 'managed_inspect_network_mode_mismatch'),
+    ('Init', False, 'managed_inspect_init_mismatch'),
+])
+def test_managed_inspect_nonresource_host_drift_has_closed_category(
+        field, actual, expected):
+    m = api()
+    host = {'MemorySwap': -1, 'Memory': 4294967296,
+            'NanoCpus': 2000000000, 'PidsLimit': 512,
+            'SecurityOpt': ['no-new-privileges:true'],
+            'Tmpfs': {'/tmp': 'private'}, 'Mounts': [{'Type': 'volume'}],
+            'NetworkMode': 'larenor-control-'+'a'*32, 'Init': True,
+            'RestartPolicy': {'Name': 'no'}}
+    class Binding:
+        @staticmethod
+        def payload():
+            return {'specification': {'HostConfig': dict(host)}}
+    observed_host = {**host, 'RestartPolicy': {'Name': 'no', 'MaximumRetryCount': 0},
+                     field: actual}
+    observed = {'Id': 'b'*64, 'HostConfig': observed_host}
+    assert m._managed_inspect_diagnostic(observed, Binding()) == expected
+
+
 @pytest.mark.parametrize('worker_code,expected', [
     ('invalid_binding', 'managed_create_binding_rejected'),
     ('engine_protocol', 'managed_create_protocol_failed'),

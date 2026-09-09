@@ -147,6 +147,9 @@ _MANAGED_CREATE_DIAGNOSTICS = {
     'managed_create_cpu_warning', 'managed_create_pids_warning',
     'managed_inspect_memory_swap_mismatch', 'managed_inspect_memory_mismatch',
     'managed_inspect_cpu_mismatch', 'managed_inspect_pids_mismatch',
+    'managed_inspect_security_mismatch', 'managed_inspect_tmpfs_mismatch',
+    'managed_inspect_requested_mount_mismatch', 'managed_inspect_network_mode_mismatch',
+    'managed_inspect_init_mismatch', 'managed_inspect_restart_mismatch',
     'managed_inspect_nonresource_mismatch',
 }
 _DIAGNOSTIC_CODES = _CODES | set(_BUILD_ERROR_PATTERNS) | set(_START_ERROR_PATTERNS) | {
@@ -1249,6 +1252,21 @@ def _managed_inspect_diagnostic(value, binding):
                 ('PidsLimit', 'managed_inspect_pids_mismatch')):
             if actual.get(field) != expected.get(field):
                 return code
+        if any(actual.get(field) != expected.get(field) for field in (
+                'Privileged', 'CapDrop', 'CapAdd', 'SecurityOpt', 'ReadonlyRootfs')):
+            return 'managed_inspect_security_mismatch'
+        for field, code in (
+                ('Tmpfs', 'managed_inspect_tmpfs_mismatch'),
+                ('Mounts', 'managed_inspect_requested_mount_mismatch'),
+                ('NetworkMode', 'managed_inspect_network_mode_mismatch'),
+                ('Init', 'managed_inspect_init_mismatch')):
+            if actual.get(field) != expected.get(field):
+                return code
+        restart = expected.get('RestartPolicy')
+        if restart == {'Name': 'no'}:
+            restart = {'Name': 'no', 'MaximumRetryCount': 0}
+        if actual.get('RestartPolicy') != restart:
+            return 'managed_inspect_restart_mismatch'
     except (AttributeError, KeyError, TypeError, ValueError, RecursionError):
         return 'managed_inspect_nonresource_mismatch'
     return 'managed_inspect_nonresource_mismatch'
