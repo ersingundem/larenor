@@ -185,9 +185,10 @@ class JellyfinWorkerBackend:
             raise InstallationExecutionError('invalid_worker_result') from None
 
     def reconcile(self, step, plan):
-        self._verify(step, plan)
+        trusted = self._verify(step, plan)
         try:
-            return self.operations.reconcile(step.job_id, step.kind)
+            binding = self.binding_builder(trusted)
+            return self.operations.reconcile(step.job_id, step.kind, binding)
         except Exception:
             raise InstallationExecutionError('invalid_worker_result') from None
 
