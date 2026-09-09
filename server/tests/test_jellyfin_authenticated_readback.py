@@ -62,6 +62,11 @@ def key(token=API_KEY, *, app='Larenor Core', active=True, revoked=None):
     }
 
 
+def serialized_key(token=API_KEY):
+    """Match Jellyfin's WhenWritingNull response serialization."""
+    return {name: value for name, value in key(token).items() if value is not None}
+
+
 def system():
     return {
         'ServerName': 'Larenor Jellyfin',
@@ -160,6 +165,38 @@ def test_existing_single_active_larenor_key_is_reused_without_mutation():
         'system_verified', 'libraries_verified', 'session_closed',
     )
     assert all(not raw.startswith(b'POST /Auth/Keys') for raw in connection.requests)
+
+
+def test_created_key_accepts_the_exact_null_omitting_jellyfin_wire_shape():
+    connection = Connection([
+        json_response(authentication()),
+        json_response(keys()),
+        response(),
+        json_response(keys(serialized_key())),
+        json_response(system()),
+        json_response([]),
+        response(),
+    ])
+
+    result = JellyfinAuthenticatedReadback().read(
+        connection, private(), device_id=DEVICE,
+    )
+
+    assert result.api_key == API_KEY
+    assert result.completed_steps[-1] == 'session_closed'
+
+
+@pytest.mark.parametrize('listed', [
+    keys({name: value for name, value in serialized_key().items() if name != 'UserId'}),
+    keys(serialized_key() | {'Unexpected': 'private'}),
+])
+def test_created_key_still_requires_all_nonnullable_fields_and_no_extras(listed):
+    connection = Connection([json_response(authentication()), json_response(listed)])
+    with pytest.raises(
+        JellyfinAuthenticatedReadbackError,
+        match='^jellyfin_authenticated_readback_protocol$',
+    ):
+        JellyfinAuthenticatedReadback().read(connection, private(), device_id=DEVICE)
 
 
 def test_unicode_display_names_are_preserved_without_relaxing_private_paths():
