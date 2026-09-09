@@ -5,6 +5,8 @@ from dataclasses import replace
 import os
 from pathlib import Path
 import tempfile
+import threading
+import time
 
 import pytest
 from fastapi.testclient import TestClient
@@ -56,6 +58,53 @@ def test_roundtrip_transports_only_closed_step_and_verified_stack_plan():
         assert receipt == StepReceipt('a' * 32, 'create_container', 'succeeded',
                                       'container_created', '1' * 64)
         assert backend.calls == [('apply', execution.steps[0], execution.plan)]
+
+
+def test_backend_lifecycle_and_effects_share_the_server_native_thread():
+    execution = build_execution(stack(), job_id='a' * 32, deadline=1788609900)
+    events = []
+
+    class LifecycleBackend(Backend):
+        def open(self, deadline):
+            assert time.monotonic() < deadline
+            events.append(('open', threading.get_native_id()))
+
+        def close(self):
+            events.append(('close', threading.get_native_id()))
+
+        def apply_with_deadline(self, step, plan, deadline):
+            assert time.monotonic() < deadline
+            events.append(('apply', threading.get_native_id()))
+            return super().apply(step, plan)
+
+    with tempfile.TemporaryDirectory(prefix='liw-', dir='/private/tmp' if Path('/private/tmp').is_dir() else '/tmp') as root:
+        path = Path(root) / 'worker.sock'
+        backend = LifecycleBackend()
+        server = InstallationWorkerServer(path, backend, allowed_uid=os.getuid(),
+                                          peer_uid=lambda _: os.getuid(), timeout=.5)
+        server.start()
+        try:
+            client = InstallationWorkerClient(path, owner_uid=os.getuid(),
+                                              peer_uid=lambda _: os.getuid(), timeout=.5)
+            client.apply(execution.steps[0], execution.plan)
+        finally:
+            server.close()
+
+    assert [event[0] for event in events] == ['open', 'apply', 'close']
+    assert len({event[1] for event in events}) == 1
+
+
+def test_backend_open_failure_prevents_server_start_and_removes_socket(tmp_path):
+    class FailedBackend(Backend):
+        def open(self, _deadline):
+            raise RuntimeError('private-start-detail')
+
+    path = tmp_path / 'worker.sock'
+    server = InstallationWorkerServer(path, FailedBackend(), allowed_uid=os.getuid(),
+                                      peer_uid=lambda _: os.getuid(), timeout=.2)
+    with pytest.raises(Exception, match='^worker_unavailable$'):
+        server.start()
+    assert not path.exists()
 
 
 def test_client_rejects_wrong_peer_and_forged_plan_before_effect():
