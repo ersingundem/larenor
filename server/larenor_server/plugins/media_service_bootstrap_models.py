@@ -24,6 +24,12 @@ class MediaServiceBootstrap(StrictModel):
                    'succeeded', 'needs_attention', 'failed', 'cancelled']
     credentialsConfigured: bool
     wiringState: Literal['pending', 'partial', 'verified']
+    errorCode: Literal[
+        'bootstrap_authority_changed', 'bootstrap_resources_unavailable',
+        'bootstrap_endpoint_unavailable', 'bootstrap_endpoint_changed',
+        'bootstrap_startup_failed', 'bootstrap_timeout', 'bootstrap_interrupted',
+        'bootstrap_worker_unavailable', 'invalid_bootstrap_result',
+    ] | None
     installAvailable: Literal[False] = False
     createdAt: str
     updatedAt: str
@@ -47,6 +53,11 @@ class MediaServiceBootstrap(StrictModel):
                 not self.credentialsConfigured or self.wiringState != 'verified'):
             raise ValueError('invalid_media_bootstrap_state')
         if self.state != 'succeeded' and self.wiringState == 'verified':
+            raise ValueError('invalid_media_bootstrap_state')
+        if self.state in ('queued', 'running', 'credentials_configured',
+                          'wiring_partial', 'succeeded', 'cancelled') and self.errorCode is not None:
+            raise ValueError('invalid_media_bootstrap_state')
+        if self.state in ('needs_attention', 'failed') and self.errorCode is None:
             raise ValueError('invalid_media_bootstrap_state')
         return self
 
