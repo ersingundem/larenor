@@ -28,6 +28,7 @@ from .installation_supervisor import RetainedDaemonPeerVerifier, SupervisedInsta
 from .jellyfin_bootstrap_executor import JellyfinBootstrapExecutor
 from .jellyfin_startup import JellyfinStartupConfigurator
 from .jellyfin_authenticated_readback import JellyfinAuthenticatedReadback
+from .jellyfin_managed_libraries import JellyfinManagedLibraries
 from .managed_container import (
     JellyfinBindingBuilder,
     JellyfinEngineReaders,
@@ -222,7 +223,7 @@ class _RuntimeBackend:
         self.installation = JellyfinWorkerBackend(operations, binding_builder)
         self.bootstrap_executor = JellyfinBootstrapExecutor(
             operations, binding_builder, JellyfinStartupConfigurator(),
-            JellyfinAuthenticatedReadback())
+            JellyfinAuthenticatedReadback(), JellyfinManagedLibraries())
 
     def apply(self, step, plan):
         return self.installation.apply(step, plan)

@@ -150,6 +150,23 @@ def test_shared_http_admits_only_new_exact_closed_volume_create(begun):
                 json.dumps(changed, sort_keys=True, separators=(',', ':')).encode())
 
 
+def test_shared_http_admits_the_rederived_managed_library_volume(tmp_path, source):
+    data = inputs(source)
+    library = next(item for item in data['plan'].resources
+                   if item.kind == 'managed_library')
+    with VolumeCreateJournal(tmp_path / 'library-create', initialize=True) as journal:
+        with journal.locked():
+            journal.prepare(**data, resource_id=library.resourceId)
+            intent = journal.begin_create(library.resourceId, 1, **data)
+            raw = api().build_volume_create_body(intent)
+    selected = EngineHttpRequest(
+        'POST', '/v1.47/volumes/create',
+        (('Accept', 'application/json'), ('Content-Type', 'application/json')), raw,
+    )
+    assert json.loads(selected.body)['Name'] == 'larenor-library-v1-' + library.resourceId
+    assert EngineHttpRequest('GET', '/v1.47/volumes/' + library.name).body is None
+
+
 def test_create_is_one_post_after_same_stream_version_and_literal_gate(begun):
     module = api()
     _, _, intent = begun

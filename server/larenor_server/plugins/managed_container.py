@@ -34,7 +34,7 @@ _ID = re.compile(r'[0-9a-f]{32}\Z')
 _HASH = re.compile(r'[0-9a-f]{64}\Z')
 _IMAGE = re.compile(r'sha256:[0-9a-f]{64}\Z')
 _NETWORK = re.compile(r'larenor-control-[0-9a-f]{32}\Z')
-_VOLUME = re.compile(r'larenor-appdata-v1-[0-9a-f]{32}\Z')
+_VOLUME = re.compile(r'larenor-(?:appdata|library)-v1-[0-9a-f]{32}\Z')
 
 
 class ManagedContainerError(Exception):
@@ -91,7 +91,7 @@ class VerifiedJellyfinResources:
     volume_plan_hash: str
     worker_policy_digest: str
     image: ManagedImageProof
-    volumes: tuple[ManagedVolumeProof, ManagedVolumeProof]
+    volumes: tuple[ManagedVolumeProof, ...]
     network: ManagedNetworkProof
 
 
@@ -200,7 +200,7 @@ class JellyfinResourceProofBroker:
                                     if item.kind == 'prepare_control_network')
             volume_resources = tuple(item for item in volume_plan.resources
                                      if item.serviceId == 'jellyfin')
-            if len(volume_resources) != 2:
+            if len(volume_resources) != 3:
                 raise ValueError()
             cancelled = threading.Event()
             with self.resource_journal.locked(), self.volume_journal.locked():
@@ -311,6 +311,7 @@ class JellyfinResourceProofBroker:
 class ManagedContainerMount:
     name: str
     target: str
+    read_only: bool
 
     def __repr__(self):
         return 'ManagedContainerMount(<private>)'
@@ -322,7 +323,7 @@ class ManagedContainerBinding:
     platform: str
     image_id: str
     network_id: str
-    mounts: tuple[ManagedContainerMount, ManagedContainerMount] = field(repr=False)
+    mounts: tuple[ManagedContainerMount, ...] = field(repr=False)
     specification: bytes = field(repr=False)
     image_configuration: bytes = field(repr=False)
 
@@ -339,7 +340,8 @@ class ManagedContainerBinding:
             'platform': self.platform,
             'image_id': self.image_id,
             'network_id': self.network_id,
-            'mounts': [{'name': item.name, 'target': item.target} for item in self.mounts],
+            'mounts': [{'name': item.name, 'target': item.target,
+                        'read_only': item.read_only} for item in self.mounts],
             'specification': _decode(self.specification, 65536),
             'image_configuration': _decode(self.image_configuration, 65536),
         }
@@ -352,7 +354,7 @@ def _binding_parts(value):
             or value.platform not in {'linux/amd64', 'linux/arm64'}
             or not _identity(value.image_id, _IMAGE)
             or not _identity(value.network_id, _HASH)
-            or type(value.mounts) is not tuple or len(value.mounts) != 2):
+            or type(value.mounts) is not tuple or len(value.mounts) != 3):
         raise ValueError()
     body = _decode(value.specification, 65536)
     inherited = _configuration(value.image_configuration,
@@ -401,11 +403,15 @@ def _binding_parts(value):
     expected_mounts = []
     for item in value.mounts:
         if (not _exact(item, ManagedContainerMount) or not _identity(item.name, _VOLUME)
-                or item.target not in {'/config', '/cache'}):
+                or item.target not in {'/config', '/cache', '/media'}
+                or type(item.read_only) is not bool
+                or item.read_only is not (item.target == '/media')
+                or (item.target == '/media') is not item.name.startswith('larenor-library-v1-')
+                or (item.target != '/media') is not item.name.startswith('larenor-appdata-v1-')):
             raise ValueError()
         expected_mounts.append({'Type': 'volume', 'Source': item.name, 'Target': item.target,
-                                'ReadOnly': False, 'VolumeOptions': {'NoCopy': True}})
-    if host['Mounts'] != expected_mounts or len({item.target for item in value.mounts}) != 2:
+                                'ReadOnly': item.read_only, 'VolumeOptions': {'NoCopy': True}})
+    if host['Mounts'] != expected_mounts or len({item.target for item in value.mounts}) != 3:
         raise ValueError()
     return body, inherited
 
@@ -428,7 +434,7 @@ def _observed_requested_mounts_match(actual, expected):
         source = desired.get(target)
         if (source is None or item.get('Type') != 'volume'
                 or item.get('Source') != source.get('Source')
-                or item.get('ReadOnly', False) is not False
+                or item.get('ReadOnly', False) is not source.get('ReadOnly', False)
                 or item.get('VolumeOptions') not in (None, {}, {'NoCopy': True})
                 or item.get('Consistency') not in (None, '')
                 or item.get('BindOptions') is not None
@@ -489,7 +495,8 @@ def managed_container_matches(value, binding):
             expected_mount = by_target.get(mount.get('Destination'))
             if (expected_mount is None or mount.get('Type') != 'volume'
                     or mount.get('Name') != expected_mount.name or mount.get('Driver') != 'local'
-                    or mount.get('RW') is not True or type(mount.get('Source')) is not str
+                    or mount.get('RW') is not (not expected_mount.read_only)
+                    or type(mount.get('Source')) is not str
                     or not 1 <= len(mount['Source']) <= 4096
                     or mount.get('Mode') not in ('', 'z') or mount.get('Propagation') not in ('', 'rprivate')):
                 return False
@@ -527,7 +534,7 @@ class ManagedWorkerJournal(WorkerJournal):
                     'specification', 'image_configuration'}:
                 raise ValueError()
             mounts = value['mounts']
-            if type(mounts) is not list or len(mounts) != 2:
+            if type(mounts) is not list or len(mounts) != 3:
                 raise ValueError()
             binding = ManagedContainerBinding(
                 value['name'], value['platform'], value['image_id'], value['network_id'],
@@ -581,8 +588,9 @@ def _configuration(raw, targets):
     if type(value) is not dict or _canonical(value) != raw:
         raise ValueError()
     volumes = value.get('Volumes')
-    if type(volumes) is not dict or set(volumes) != set(targets) or any(
-            item not in (None, {}) for item in volumes.values()):
+    if (type(volumes) is not dict or set(volumes) != {'/config', '/cache'}
+            or not set(volumes) <= set(targets) or any(
+            item not in (None, {}) for item in volumes.values())):
         raise ValueError()
     labels = value.get('Labels') or {}
     if type(labels) is not dict or any(type(key) is not str or type(item) is not str
@@ -662,9 +670,11 @@ class JellyfinBindingBuilder:
                             expected.resourceId, expected.operationId, expected.name, expected.target)
                         or not _identity(actual.name, _VOLUME)):
                     raise ValueError()
-                mounts.append(ManagedContainerMount(actual.name, actual.target))
+                mounts.append(ManagedContainerMount(
+                    actual.name, actual.target, expected.readOnly,
+                ))
             if len({item.name for item in mounts}) != len(mounts) or {
-                    item.target for item in mounts} != {'/config', '/cache'}:
+                    item.target for item in mounts} != {'/config', '/cache', '/media'}:
                 raise ValueError()
 
             expected_network = resource_plan.resources[-1]
@@ -717,7 +727,7 @@ class JellyfinBindingBuilder:
                     'Tmpfs': tmpfs,
                     'Mounts': [
                         {'Type': 'volume', 'Source': item.name, 'Target': item.target,
-                         'ReadOnly': False, 'VolumeOptions': {'NoCopy': True}}
+                         'ReadOnly': item.read_only, 'VolumeOptions': {'NoCopy': True}}
                         for item in mounts
                     ],
                     'RestartPolicy': {'Name': 'no'},

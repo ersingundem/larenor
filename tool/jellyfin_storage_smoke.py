@@ -202,6 +202,14 @@ _BOOTSTRAP_READBACK_DIAGNOSTICS = {
     ('authenticated', 'keys_observed', 'key_verified', 'system_verified',
      'libraries_verified'): 'bootstrap_readback_logout_failed',
 }
+_BOOTSTRAP_WIRING_DIAGNOSTICS = {
+    (): 'bootstrap_wiring_observe_failed',
+    ('observed',): 'bootstrap_wiring_create_failed',
+    ('observed', 'movies_created'): 'bootstrap_wiring_shows_failed',
+    ('observed', 'shows_created'): 'bootstrap_wiring_verify_failed',
+    ('observed', 'movies_created', 'shows_created'):
+        'bootstrap_wiring_verify_failed',
+}
 _DIAGNOSTIC_CODES = _CODES | set(_BUILD_ERROR_PATTERNS) | set(_START_ERROR_PATTERNS) | {
     'helper_base_runtime_failed', 'helper_base_error_ambiguous',
     'helper_base_state_error_ambiguous', *_STATE_ERROR_PATTERNS,
@@ -236,17 +244,20 @@ _DIAGNOSTIC_CODES = _CODES | set(_BUILD_ERROR_PATTERNS) | set(_START_ERROR_PATTE
     'bootstrap_cleanup_status_failed', 'bootstrap_cleanup_transport_failed',
     'bootstrap_authority_changed', 'bootstrap_resources_unavailable',
     'bootstrap_endpoint_unavailable', 'bootstrap_endpoint_changed',
-    'bootstrap_startup_failed', 'bootstrap_readback_failed', 'bootstrap_timeout',
+    'bootstrap_startup_failed', 'bootstrap_readback_failed',
+    'bootstrap_wiring_failed', 'bootstrap_timeout',
     *_BOOTSTRAP_ENDPOINT_DIAGNOSTICS,
     *_BOOTSTRAP_STARTUP_DIAGNOSTICS.values(),
     *_BOOTSTRAP_READBACK_DIAGNOSTICS.values(),
+    *_BOOTSTRAP_WIRING_DIAGNOSTICS.values(), 'bootstrap_wiring_conflict',
     'storage_characterization_evidence_invalid'}
 _PHASES = {'launcher', 'launch_validation', 'source_capture', 'daemon_start', 'daemon_cleanup',
     'characterization', 'image_prepare', 'volume_prepare', 'image_inspect', 'helper_stage',
     'helper_base_binding', 'helper_base_pull', 'helper_base_inspect', 'helper_base_create',
     'helper_base_created', 'helper_base_start', 'helper_base_result',
     'helper_build', 'helper_inspect', 'helper_seed', 'initial_permissions', 'bootstrap_check',
-    'bootstrap_initialize', 'initialized_permissions', 'sentinel_write', 'container_create',
+    'bootstrap_initialize', 'initialized_permissions', 'sentinel_write', 'library_prepare',
+    'container_create',
     'container_inspect', 'container_start', 'authenticated_bootstrap',
     'initial_health', 'initial_identity', 'initial_data',
     'container_restart', 'restart_health', 'restart_identity', 'root_verify', 'sentinel_verify',
@@ -285,6 +296,7 @@ _SOURCE_FILES = (
     'server/larenor_server/plugins/jellyfin_endpoint.py',
     'server/larenor_server/plugins/jellyfin_startup.py',
     'server/larenor_server/plugins/jellyfin_authenticated_readback.py',
+    'server/larenor_server/plugins/jellyfin_managed_libraries.py',
     'server/larenor_server/plugins/jellyfin_bootstrap_executor.py',
     'server/larenor_server/plugins/media_service_bootstrap_models.py',
     'server/larenor_server/plugins/worker.py',
@@ -914,6 +926,7 @@ class FixtureSource:
     volumes: object
     image: object
     targets: tuple
+    managed_targets: tuple
 
 
 def fixture_source(selected_platform):
@@ -931,12 +944,15 @@ def fixture_source(selected_platform):
         workerPolicyDigest=hashlib.sha256(b'larenor-owned-ci-storage-fixture-v1').hexdigest())
     plan, volumes = build_resource_plan(stack, catalog, policy), build_volume_plan(stack, catalog, policy)
     image = next(r for r in plan.resources if r.kind == 'ensure_image' and r.serviceId == 'jellyfin')
-    targets = tuple(r for r in volumes.resources if r.serviceId == 'jellyfin')
+    managed_targets = tuple(r for r in volumes.resources if r.serviceId == 'jellyfin')
+    targets = tuple(r for r in managed_targets if r.kind == 'managed_appdata')
     require(len(targets) == 2 and {v.target for v in targets} == {'/config','/cache'})
-    return FixtureSource(catalog, stack, policy, plan, volumes, image, targets)
+    require(len(managed_targets) == 3
+            and {v.target for v in managed_targets} == {'/config','/cache','/media'})
+    return FixtureSource(catalog, stack, policy, plan, volumes, image, targets, managed_targets)
 
 
-def prepare_storage(root, source, images, volumes):
+def prepare_storage(root, source, images, volumes, targets=None):
     from larenor_server.plugins.image_preparation import JournaledImageOperations
     from larenor_server.plugins.resource_journal import ResourceJournal
     from larenor_server.plugins.volume_create_journal import VolumeCreateJournal
@@ -950,7 +966,7 @@ def prepare_storage(root, source, images, volumes):
     states = []
     with diagnostic_phase('volume_prepare'):
         with VolumeCreateJournal(volume_dir, initialize=not volume_dir.exists()) as journal:
-            for target in source.targets:
+            for target in source.targets if targets is None else targets:
                 receipt = JournaledVolumeCreates(journal, volumes).apply(source.volumes, source.stack,
                     source.catalog, source.policy, target.resourceId, authorize_create=lambda:True)
                 require(receipt.state == 'observed_requires_bootstrap', 'fixture_volume_unresolved')
@@ -1157,7 +1173,8 @@ def _helper(daemon, image_id, mode, *, target=None, bootstrap=False, network='no
     args = ['run','--rm','--network='+network,'--read-only','--cap-drop=ALL',
         '--security-opt=no-new-privileges','--pids-limit=32','--memory=64m',
         '--cgroup-parent='+daemon.container_cgroup_parent,
-        '--user='+('0:0' if bootstrap and mode != 'verify_root' else '1000:1000')]
+        '--user='+('0:0' if bootstrap and mode in {'check', 'initialize_empty_root'}
+                   else '1000:1000')]
     if mode == 'app_identity':
         require(re.fullmatch(r'container:[0-9a-f]{64}', network) is not None)
         args.append('--pid='+network)
@@ -1407,13 +1424,15 @@ def _managed_inspect_diagnostic(value, binding):
                    if key != 'Mounts'):
             return 'managed_inspect_forbidden_host_mismatch'
         mounts = value.get('Mounts')
-        desired_mounts = {item['target']: item['name'] for item in payload['mounts']}
+        desired_mounts = {item['target']: item for item in payload['mounts']}
         if type(mounts) is not list or len(mounts) != len(desired_mounts):
             return 'managed_inspect_observed_mount_mismatch'
         for mount in mounts:
             if (type(mount) is not dict or mount.get('Type') != 'volume'
-                    or mount.get('Name') != desired_mounts.get(mount.get('Destination'))
-                    or mount.get('Driver') != 'local' or mount.get('RW') is not True):
+                    or (desired := desired_mounts.get(mount.get('Destination'))) is None
+                    or mount.get('Name') != desired['name']
+                    or mount.get('Driver') != 'local'
+                    or mount.get('RW') is not (not desired['read_only'])):
                 return 'managed_inspect_observed_mount_mismatch'
         networks = (value.get('NetworkSettings') or {}).get('Networks')
         network_name = expected.get('NetworkMode')
@@ -1505,6 +1524,8 @@ def _managed_bootstrap_error(error):
         code, boundary = error.code, error.boundary
         completed = tuple(error.completed_steps)
         readback = tuple(error.readback_steps)
+        libraries = tuple(error.library_steps)
+        cause = error.cause_code
     except (AttributeError, TypeError, RecursionError):
         return 'bootstrap_result_failed'
     if code == 'bootstrap_startup_failed':
@@ -1513,10 +1534,36 @@ def _managed_bootstrap_error(error):
     if code == 'bootstrap_readback_failed':
         return _BOOTSTRAP_READBACK_DIAGNOSTICS.get(
             readback, 'bootstrap_result_failed')
+    if code == 'bootstrap_wiring_failed':
+        if cause == 'jellyfin_library_conflict':
+            return 'bootstrap_wiring_conflict'
+        return _BOOTSTRAP_WIRING_DIAGNOSTICS.get(
+            libraries, 'bootstrap_result_failed')
     combined = f'{code}_{boundary}'
     if combined in _BOOTSTRAP_ENDPOINT_DIAGNOSTICS:
         return combined
     return code if code in _DIAGNOSTIC_CODES else 'bootstrap_result_failed'
+
+
+def _managed_library_readback_matches(libraries):
+    expected = {
+        ('Larenor Movies', 'movies', ('/media/movies',)),
+        ('Larenor Shows', 'tvshows', ('/media/shows',)),
+    }
+    try:
+        if type(libraries) is not tuple or len(libraries) != 2:
+            return False
+        projected = set()
+        for item in libraries:
+            if (type(item) is not tuple or len(item) != 4
+                    or type(item[2]) is not str
+                    or re.fullmatch(r'[0-9a-f]{32}', item[2]) is None
+                    or type(item[3]) is not tuple):
+                return False
+            projected.add((item[0], item[1], item[3]))
+        return projected == expected
+    except (AttributeError, TypeError, ValueError, RecursionError):
+        return False
 
 
 def _managed_create_and_start(daemon, source, endpoint, helper_id):
@@ -1531,6 +1578,9 @@ def _managed_create_and_start(daemon, source, endpoint, helper_id):
     )
     from larenor_server.plugins.jellyfin_bootstrap_executor import (
         JellyfinBootstrapExecutor,
+    )
+    from larenor_server.plugins.jellyfin_managed_libraries import (
+        JellyfinManagedLibraries,
     )
     from larenor_server.plugins.jellyfin_startup import JellyfinStartupConfigurator
     from larenor_server.plugins.media_service_bootstrap_models import (
@@ -1605,6 +1655,7 @@ def _managed_create_and_start(daemon, source, endpoint, helper_id):
                 bootstrap = JellyfinBootstrapExecutor(
                     operations, lambda _stack: binding,
                     JellyfinStartupConfigurator(), JellyfinAuthenticatedReadback(),
+                    JellyfinManagedLibraries(),
                 ).execute(
                     job_id, source.stack,
                     PrivateMediaServiceBootstrap(
@@ -1615,14 +1666,18 @@ def _managed_create_and_start(daemon, source, endpoint, helper_id):
                 )
             except Exception as error:
                 raise SmokeError(_managed_bootstrap_error(error)) from None
-            require(bootstrap.state == 'wiring_partial'
-                    and bootstrap.readback.state == 'verified'
-                    and bootstrap.readback.server_id == before['id']
-                    and bootstrap.readback.libraries == ()
-                    and bootstrap.readback.completed_steps[-1:] == ('session_closed',))
+            require(bootstrap.state == 'wiring_partial', 'bootstrap_result_failed')
+            require(bootstrap.readback.state == 'verified',
+                    'bootstrap_readback_libraries_failed')
+            require(bootstrap.readback.server_id == before['id'],
+                    'bootstrap_readback_system_failed')
+            require(_managed_library_readback_matches(bootstrap.readback.libraries),
+                    'bootstrap_wiring_verify_failed')
+            require(bootstrap.readback.completed_steps[-1:] == ('session_closed',),
+                    'bootstrap_readback_logout_failed')
         return start.container_id, binding, engine, {
             'apiKeyVerified': True,
-            'libraryCount': 0,
+            'libraryCount': 2,
             'sessionClosed': True,
         }
 
@@ -1630,7 +1685,7 @@ def _managed_create_and_start(daemon, source, endpoint, helper_id):
 @diagnostic_phase('characterization')
 def characterize(daemon, *, source=None, images=None, volumes=None, checkout_binding=None,
                  managed=False):
-    """The real consumer: two volumes, bootstrap, NoCopy/start/restart or fail.
+    """The real consumer: appdata plus managed library, bootstrap and restart.
 
     Optional objects are private offline-test seams, not CLI/runtime inputs.
     A new context never replays another daemon's state; cleanup is whole owned
@@ -1654,7 +1709,8 @@ def characterize(daemon, *, source=None, images=None, volumes=None, checkout_bin
             daemon.root, source, images, UnixNetworkEngine(endpoint),
             UnixNetworkCreator(endpoint),
         )
-    receipt = prepare_storage(daemon.root, source, images, volumes)
+    active_targets = source.managed_targets if managed else source.targets
+    receipt = prepare_storage(daemon.root, source, images, volumes, active_targets)
     with diagnostic_phase('image_inspect'):
         binding = image_binding(source.plan, source.stack, source.catalog, source.policy, source.image.resourceId)
         observed = images.inspect(binding)
@@ -1682,7 +1738,7 @@ def characterize(daemon, *, source=None, images=None, volumes=None, checkout_bin
         attestation = helper_attestation(helper_id, inspected, daemon.platform, commit, expected_hashes=hashes)
     with diagnostic_phase('helper_seed'):
         require(_helper(daemon, helper_id, 'image_seed') == {'imageSeed':True})
-    for target in source.targets:
+    for target in active_targets:
         # A real negative oracle, not an invented RED: if it is writable already,
         # this candidate's rootful/empty ownership assumption must be reviewed.
         with diagnostic_phase('initial_permissions'):
@@ -1700,6 +1756,13 @@ def characterize(daemon, *, source=None, images=None, volumes=None, checkout_bin
         with diagnostic_phase('sentinel_write'):
             require(_helper(daemon, helper_id, 'write_sentinel', target=target)
                 == {'sentinel':'verified','uid':1000,'gid':1000})
+    if managed:
+        media_target = next(target for target in active_targets if target.target == '/media')
+        with diagnostic_phase('library_prepare'):
+            require(_helper(
+                daemon, helper_id, 'prepare_media_directories',
+                target=media_target, bootstrap=True,
+            ) == {'schemaVersion':1,'state':'media_directories_prepared'})
     managed_binding = managed_engine = managed_readback = None
     with diagnostic_phase('container_create'):
         if managed:
@@ -1745,7 +1808,7 @@ def characterize(daemon, *, source=None, images=None, volumes=None, checkout_bin
     with diagnostic_phase('initial_identity'):
         require(_helper(daemon, helper_id, 'app_identity', network='container:'+container_id)
                 == {'uid':1000,'gid':1000})
-    config_target = next(v for v in source.targets if v.target == '/config')
+    config_target = next(v for v in active_targets if v.target == '/config')
     with diagnostic_phase('initial_data'):
         require(_helper(daemon, helper_id, 'initial_data', target=config_target)
                 == {'database':True,'configuration':True})
@@ -1765,7 +1828,7 @@ def characterize(daemon, *, source=None, images=None, volumes=None, checkout_bin
             host['Memory'], host['NanoCpus'], host['PidsLimit'])
     else:
         daemon.verify_container_cgroup(running.get('State',{}).get('Pid'))
-    for target in source.targets:
+    for target in active_targets:
         with diagnostic_phase('root_verify'):
             require(_helper(daemon, helper_id, 'verify_root', target=target, bootstrap=True)
                     == {'schemaVersion':1,'state':'root_verified'})
@@ -1781,7 +1844,7 @@ def characterize(daemon, *, source=None, images=None, volumes=None, checkout_bin
     return {'schemaVersion':1,'result':'characterized','platform':daemon.platform,
         'catalogDigest':source.catalog.digest,'jellyfinManifestDigest':source.image.image.digest,
         'jellyfinConfigDigest':binding.config_digest,'helper':attestation,
-        'volumeCount':2,'restartCount':1,'serverId':first['id'],
+        'volumeCount':len(active_targets),'restartCount':1,'serverId':first['id'],
         **({'containerMode':'journaled_managed_v2','containerJournalVersion':2}
            if managed else {}),
         'bootstrapAccountConfigured':managed,

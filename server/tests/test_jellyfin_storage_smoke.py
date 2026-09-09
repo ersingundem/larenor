@@ -62,13 +62,16 @@ def test_source_uses_real_pinned_plans_and_exact_jellyfin_resources(platform):
     m = api()
     source = m.fixture_source(platform)
     assert source.stack.installAvailable is False and source.volumes.installAvailable is False
-    assert len(source.plan.resources) == 13 and len(source.volumes.resources) == 7
+    assert len(source.plan.resources) == 13 and len(source.volumes.resources) == 8
     assert source.image.serviceId == 'jellyfin'
     assert source.image.image.platform == platform
     assert source.image.image.reference.endswith('@'+source.image.image.digest)
     assert {v.target for v in source.targets} == {'/config','/cache'}
     assert all(v.containerUser == '1000:1000' and v.noCopy is True for v in source.targets)
     assert len({v.name for v in source.targets}) == 2
+    assert {v.target for v in source.managed_targets} == {'/config','/cache','/media'}
+    media = next(v for v in source.managed_targets if v.target == '/media')
+    assert media.kind == 'managed_library' and media.readOnly is True
 
 
 def test_preparation_consumes_actual_sqlite_image_volume_journals(tmp_path):
@@ -528,6 +531,8 @@ def protocol(tmp_path, monkeypatch, request):
             elif mode in {'check','initialize_empty_root','verify_root'}:
                 value = {'schemaVersion':1,'state':{'check':'empty_uninitialized',
                     'initialize_empty_root':'empty_initialized','verify_root':'root_verified'}[mode]}
+            elif mode == 'prepare_media_directories':
+                value = {'schemaVersion':1,'state':'media_directories_prepared'}
             elif mode == 'health':
                 value = {'id': ('b' if self.restarted and self.fault == 'identity' else 'a')*32,
                     'version':'10.11.11',
@@ -601,7 +606,7 @@ def test_managed_characterization_routes_through_resources_and_v2_worker(
             (events.append(('managed', owner, actual_source, endpoint.path, helper_id)),
              setattr(owner, 'managed_configured', True),
              ('c' * 64, marker, ManagedEngine(), {
-                 'apiKeyVerified': True, 'libraryCount': 0, 'sessionClosed': True,
+                 'apiKeyVerified': True, 'libraryCount': 2, 'sessionClosed': True,
              }))[-1])
     monkeypatch.setattr(managed_container, 'managed_container_matches',
                         lambda value, binding: binding is marker)
@@ -614,7 +619,7 @@ def test_managed_characterization_routes_through_resources_and_v2_worker(
     assert result['containerJournalVersion'] == 2
     assert result['bootstrapAccountConfigured'] is True
     assert result['apiKeyVerified'] is True
-    assert result['libraryCount'] == 0
+    assert result['libraryCount'] == 2
     assert result['sessionClosed'] is True
     assert [event[0] for event in events[:4]] == [
         'resources', 'managed', 'inspect', 'inspect',
@@ -687,6 +692,29 @@ def test_native_bootstrap_readback_failure_keeps_only_closed_step(steps, expecte
     error = JellyfinBootstrapExecutionError(
         'bootstrap_readback_failed', readback_steps=steps,
         cause_code='jellyfin_authenticated_readback_protocol',
+        uncertain_effect=bool(steps),
+    )
+    assert m._managed_bootstrap_error(error) == expected
+
+
+@pytest.mark.parametrize('steps,cause,expected', [
+    ((), 'jellyfin_library_protocol', 'bootstrap_wiring_observe_failed'),
+    (('observed',), 'jellyfin_library_conflict', 'bootstrap_wiring_conflict'),
+    (('observed',), 'jellyfin_library_protocol', 'bootstrap_wiring_create_failed'),
+    (('observed', 'movies_created'), 'jellyfin_library_protocol',
+     'bootstrap_wiring_shows_failed'),
+    (('observed', 'shows_created'), 'jellyfin_library_protocol',
+     'bootstrap_wiring_verify_failed'),
+    (('observed', 'movies_created', 'shows_created'),
+     'jellyfin_library_protocol', 'bootstrap_wiring_verify_failed'),
+])
+def test_native_library_failure_keeps_only_closed_step(steps, cause, expected):
+    m = api()
+    from larenor_server.plugins.jellyfin_bootstrap_executor import (
+        JellyfinBootstrapExecutionError,
+    )
+    error = JellyfinBootstrapExecutionError(
+        'bootstrap_wiring_failed', library_steps=steps, cause_code=cause,
         uncertain_effect=bool(steps),
     )
     assert m._managed_bootstrap_error(error) == expected
@@ -957,6 +985,21 @@ def test_managed_create_receipt_uses_docker_container_id_shape(container_id, exp
         state='succeeded', code='container_created', container_id=container_id,
     )
     assert m._managed_create_succeeded(receipt) is expected
+
+
+def test_managed_library_readback_accepts_both_server_orders_only():
+    m = api()
+    libraries = (
+        ('Larenor Movies', 'movies', 'a' * 32, ('/media/movies',)),
+        ('Larenor Shows', 'tvshows', 'b' * 32, ('/media/shows',)),
+    )
+    assert m._managed_library_readback_matches(libraries)
+    assert m._managed_library_readback_matches(tuple(reversed(libraries)))
+    assert not m._managed_library_readback_matches(libraries + (libraries[0],))
+    assert not m._managed_library_readback_matches((
+        ('Larenor Movies', 'movies', 'a' * 32, ('/media/foreign',)),
+        libraries[1],
+    ))
 
 
 @pytest.mark.parametrize('fault', ['initialize_empty_root','start','restart','identity','mount','initial_data'])

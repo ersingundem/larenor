@@ -53,7 +53,11 @@ def test_real_http_job_survives_restart_and_completes_through_unix_worker(server
         assert submitted.status_code==202,submitted.text
         identifier=submitted.json()['job']['id'];temporary.close()
         with TestClient(create_app(configured)) as client:
-            end=time.monotonic()+3
+            # A full CI shard can keep the lifespan dispatcher off-CPU for a
+            # few seconds while the worker itself remains healthy. Match the
+            # bounded allowance used by the real Docker journey so this tests
+            # restart recovery rather than runner scheduling latency.
+            end=time.monotonic()+8
             while True:
                 job=client.get(BASE+'/'+identifier,headers=auth(pair)).json()['job']
                 if job['state'] not in ('queued','running'):break

@@ -84,10 +84,11 @@ def test_builder_derives_ports_off_private_network_and_exact_nocopy_mounts():
     assert 'PortBindings' not in body['HostConfig'] and 'ExposedPorts' not in body
     assert body['HostConfig']['Mounts'] == [
         {'Type': 'volume', 'Source': mount.name, 'Target': mount.target,
-         'ReadOnly': False, 'VolumeOptions': {'NoCopy': True}}
+         'ReadOnly': mount.read_only, 'VolumeOptions': {'NoCopy': True}}
         for mount in binding.mounts
     ]
-    assert {mount.target for mount in binding.mounts} == {'/config', '/cache'}
+    assert {mount.target for mount in binding.mounts} == {'/config', '/cache', '/media'}
+    assert next(mount for mount in binding.mounts if mount.target == '/media').read_only is True
     assert set(json.loads(binding.image_configuration)['Volumes']) == {'/config', '/cache'}
     assert 'ownership_nonce' not in repr(binding) and 'PATH=/usr/bin' not in repr(binding)
 
@@ -104,11 +105,11 @@ def test_stale_or_incomplete_resource_proof_never_builds_a_container(damage):
         if damage == 'image_id':
             return replace(value, image=replace(value.image, image_id='sha256:' + '9' * 64))
         if damage == 'volume_name':
-            return replace(value, volumes=(replace(value.volumes[0], name='foreign'), value.volumes[1]))
+            return replace(value, volumes=(replace(value.volumes[0], name='foreign'), *value.volumes[1:]))
         if damage == 'volume_revision':
-            return replace(value, volumes=(replace(value.volumes[0], revision=True), value.volumes[1]))
+            return replace(value, volumes=(replace(value.volumes[0], revision=True), *value.volumes[1:]))
         if damage == 'bootstrap':
-            return replace(value, volumes=(replace(value.volumes[0], bootstrap_verified=False), value.volumes[1]))
+            return replace(value, volumes=(replace(value.volumes[0], bootstrap_verified=False), *value.volumes[1:]))
         if damage == 'network_id':
             return replace(value, network=replace(value.network, network_id='bad'))
         configuration = {'Env': [], 'Volumes': {'/config': {}, '/cache': {}, '/data': {}}}
@@ -144,7 +145,7 @@ def snapshot(binding):
     config['Labels'] = {**inherited.get('Labels', {}), **body['Labels']}
     mounts = [
         {'Type': 'volume', 'Name': item.name, 'Source': '/discarded/' + item.name,
-         'Destination': item.target, 'Driver': 'local', 'Mode': 'z', 'RW': True,
+         'Destination': item.target, 'Driver': 'local', 'Mode': 'z', 'RW': not item.read_only,
          'Propagation': ''}
         for item in binding.mounts
     ]
@@ -177,7 +178,7 @@ def test_docker_null_normalization_matches_only_an_expected_empty_tmpfs():
 def test_docker_moves_requested_mounts_to_verified_top_level_mounts(normalized):
     _builder, _stack, binding = build()
     value = snapshot(binding)
-    assert len(value['HostConfig']['Mounts']) == len(value['Mounts']) == 2
+    assert len(value['HostConfig']['Mounts']) == len(value['Mounts']) == 3
     value['HostConfig']['Mounts'] = normalized
     assert managed_container_matches(value, binding)
     value['Mounts'][0]['Name'] = 'foreign'
