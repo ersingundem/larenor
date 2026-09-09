@@ -149,6 +149,7 @@ _MANAGED_CREATE_DIAGNOSTICS = {
     'managed_inspect_cpu_mismatch', 'managed_inspect_pids_mismatch',
     'managed_inspect_security_mismatch', 'managed_inspect_tmpfs_mismatch',
     'managed_inspect_tmpfs_targets_mismatch', 'managed_inspect_tmpfs_order_mismatch',
+    'managed_inspect_tmpfs_empty_normalized',
     'managed_inspect_tmpfs_size_normalized', 'managed_inspect_tmpfs_option_missing',
     'managed_inspect_tmpfs_option_extra', 'managed_inspect_tmpfs_value_mismatch',
     'managed_inspect_requested_mount_mismatch', 'managed_inspect_network_mode_mismatch',
@@ -1255,6 +1256,8 @@ def _tmpfs_size_token(value):
 
 
 def _tmpfs_diagnostic(actual, expected):
+    if expected == {} and actual in (None, {}):
+        return 'managed_inspect_tmpfs_empty_normalized'
     if type(actual) is not dict or type(expected) is not dict or set(actual) != set(expected):
         return 'managed_inspect_tmpfs_targets_mismatch'
     for target in sorted(expected):

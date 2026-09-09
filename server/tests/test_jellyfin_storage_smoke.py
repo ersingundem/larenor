@@ -759,6 +759,7 @@ def test_managed_inspect_nonresource_host_drift_has_closed_category(
 
 
 @pytest.mark.parametrize('actual,expected', [
+    (None, 'managed_inspect_tmpfs_empty_normalized'),
     ({}, 'managed_inspect_tmpfs_targets_mismatch'),
     ({'/tmp': 'nodev,rw,nosuid,size=64m'}, 'managed_inspect_tmpfs_order_mismatch'),
     ({'/tmp': 'rw,nosuid,nodev,size=67108864'}, 'managed_inspect_tmpfs_size_normalized'),
@@ -767,7 +768,7 @@ def test_managed_inspect_nonresource_host_drift_has_closed_category(
 ])
 def test_tmpfs_diagnostic_never_exposes_raw_option_values(actual, expected):
     m = api()
-    desired = {'/tmp': 'rw,nosuid,nodev,size=64m'}
+    desired = {} if actual is None else {'/tmp': 'rw,nosuid,nodev,size=64m'}
     assert m._tmpfs_diagnostic(actual, desired) == expected
 
 
