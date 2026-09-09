@@ -39,7 +39,7 @@ def verified_readback():
         'verified', '3' * 32, 'Larenor Jellyfin', '10.11.0', API_KEY,
         (('Filmler', 'movies', '4' * 32, ('/media/movies',)),),
         ('authenticated', 'keys_observed', 'key_verified',
-         'system_verified', 'libraries_verified'),
+         'system_verified', 'libraries_verified', 'session_closed'),
     )
 
 

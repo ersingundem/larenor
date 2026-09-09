@@ -100,6 +100,7 @@ def test_creates_one_dedicated_key_then_reads_closed_identity_and_libraries():
         json_response(keys(key())),
         json_response(system()),
         json_response(folders()),
+        response(),
     ])
 
     result = JellyfinAuthenticatedReadback().read(
@@ -114,9 +115,9 @@ def test_creates_one_dedicated_key_then_reads_closed_identity_and_libraries():
     assert result.libraries == (('Filmler', 'movies', '4' * 32, ('/media/movies',)),)
     assert result.completed_steps == (
         'authenticated', 'keys_observed', 'key_created', 'key_verified',
-        'system_verified', 'libraries_verified',
+        'system_verified', 'libraries_verified', 'session_closed',
     )
-    assert len(connection.requests) == 6 and connection.closed
+    assert len(connection.requests) == 7 and connection.closed
     lines = [request_parts(raw)[0][0] for raw in connection.requests]
     assert lines == [
         b'POST /Users/AuthenticateByName HTTP/1.1',
@@ -125,14 +126,16 @@ def test_creates_one_dedicated_key_then_reads_closed_identity_and_libraries():
         b'GET /Auth/Keys HTTP/1.1',
         b'GET /System/Info HTTP/1.1',
         b'GET /Library/VirtualFolders HTTP/1.1',
+        b'POST /Sessions/Logout HTTP/1.1',
     ]
     first_head, first_body = request_parts(connection.requests[0])
     assert json.loads(first_body) == {'Username': 'larenor-system', 'Pw': SECRET}
     assert b'Authorization: MediaBrowser Client="Larenor%20Core", Device="Larenor%20Core", DeviceId="' + DEVICE.encode() + b'", Version="0.1.0"' in first_head
-    assert all(
-        (b'Token=' + (SESSION if index < 4 else API_KEY).encode()) in b'\n'.join(request_parts(raw)[0])
-        for index, raw in enumerate(connection.requests[1:], start=1)
-    )
+    token_headers = [b'\n'.join(request_parts(raw)[0]) for raw in connection.requests]
+    assert all(b'Token=' + SESSION.encode() in token_headers[index]
+               for index in (1, 2, 3, 6))
+    assert all(b'Token=' + API_KEY.encode() in token_headers[index]
+               for index in (4, 5))
     private_text = repr(result)
     assert API_KEY not in private_text and SESSION not in private_text
     assert '/media/movies' not in private_text and SECRET not in private_text
@@ -144,6 +147,7 @@ def test_existing_single_active_larenor_key_is_reused_without_mutation():
         json_response(keys(key())),
         json_response(system()),
         json_response([]),
+        response(),
     ])
 
     result = JellyfinAuthenticatedReadback().read(
@@ -153,7 +157,7 @@ def test_existing_single_active_larenor_key_is_reused_without_mutation():
     assert result.api_key == API_KEY
     assert result.completed_steps == (
         'authenticated', 'keys_observed', 'key_verified',
-        'system_verified', 'libraries_verified',
+        'system_verified', 'libraries_verified', 'session_closed',
     )
     assert all(not raw.startswith(b'POST /Auth/Keys') for raw in connection.requests)
 
@@ -167,6 +171,7 @@ def test_unicode_display_names_are_preserved_without_relaxing_private_paths():
         json_response(keys(key())),
         json_response(named_system),
         json_response(named_folders),
+        response(),
     ])
 
     result = JellyfinAuthenticatedReadback().read(
@@ -175,6 +180,28 @@ def test_unicode_display_names_are_preserved_without_relaxing_private_paths():
 
     assert result.server_name == 'Ersin’in Evi'
     assert result.libraries[0][0] == 'Çocuk Filmleri'
+
+
+def test_session_cleanup_is_required_after_successful_readback():
+    connection = Connection([
+        json_response(authentication()),
+        json_response(keys(key())),
+        json_response(system()),
+        json_response(folders()),
+        json_response({'error': 'private'}, status=500),
+    ])
+
+    with pytest.raises(
+        JellyfinAuthenticatedReadbackError,
+        match='^jellyfin_session_cleanup_failed$',
+    ) as raised:
+        JellyfinAuthenticatedReadback().read(
+            connection, private(), device_id=DEVICE,
+        )
+
+    assert raised.value.completed_steps[-1] == 'libraries_verified'
+    assert raised.value.uncertain_effect
+    assert len(connection.requests) == 5 and connection.closed
 
 
 @pytest.mark.parametrize('listed', [

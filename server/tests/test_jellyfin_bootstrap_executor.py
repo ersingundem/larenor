@@ -19,7 +19,7 @@ from larenor_server.plugins.managed_container import (
     JournaledManagedContainerOperations, ManagedWorkerJournal,
 )
 from larenor_server.plugins.media_service_bootstrap_models import PrivateMediaServiceBootstrap
-from test_jellyfin_startup import Connection, SECRET, happy_responses
+from test_jellyfin_startup import Connection, SECRET, happy_responses, response
 from test_jellyfin_authenticated_readback import (
     API_KEY, authentication, folders, json_response, key, keys, system,
 )
@@ -75,6 +75,7 @@ def connected_for_readback(monkeypatch, stack, binding, engine):
         json_response(keys(key())),
         json_response(system()),
         json_response(folders()),
+        response(),
     ])
     proof = prove_jellyfin_endpoint(engine.container, binding, stack, engine.container['Id'])
     pending = [startup, readback]
@@ -103,8 +104,9 @@ def test_reconciles_journal_and_rechecks_endpoint_before_and_after_startup(prepa
     assert result.completed_steps[-1] == 'wizard_completed'
     assert result.readback.api_key == API_KEY
     assert result.readback.server_id == '3' * 32
+    assert result.readback.completed_steps[-1] == 'session_closed'
     assert len(connection.requests) == 5 and connection.closed
-    assert len(readback.requests) == 4 and readback.closed
+    assert len(readback.requests) == 5 and readback.closed
     assert len(opens) == 2 and len(gates) == 6
     assert len([call for call in engine.calls if call[0] == 'inspect']) >= 7
     assert SECRET not in repr(result) and API_KEY not in repr(result)
