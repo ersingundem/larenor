@@ -1,7 +1,12 @@
 {
   "name": "Jellyfin Managed Container Characterization",
   "on": {
-    "workflow_dispatch": {}
+    "workflow_dispatch": {},
+    "pull_request": {
+      "branches": [
+        "main"
+      ]
+    }
   },
   "permissions": {
     "contents": "read"
@@ -30,12 +35,13 @@
         }
       },
       "env": {
-        "EXPECTED_PLATFORM": "${{ matrix.platform }}"
+        "EXPECTED_PLATFORM": "${{ matrix.platform }}",
+        "PR_HEAD_REPOSITORY": "${{ github.event.pull_request.head.repo.full_name }}"
       },
       "steps": [
         {
-          "name": "Require manual reviewed main source",
-          "run": "test \"$GITHUB_EVENT_NAME\" = workflow_dispatch\ntest \"$GITHUB_REF\" = refs/heads/main\ntest \"$GITHUB_REPOSITORY\" = ersingundem/larenor\ntest \"$GITHUB_WORKFLOW_SHA\" = \"$GITHUB_SHA\"\ntest \"$RUNNER_ENVIRONMENT\" = github-hosted"
+          "name": "Require reviewed exact workflow source",
+          "run": "case \"$GITHUB_EVENT_NAME\" in\n  workflow_dispatch)\n    test \"$GITHUB_REF\" = refs/heads/main\n    test -z \"$GITHUB_BASE_REF\"\n    test -z \"$PR_HEAD_REPOSITORY\"\n    ;;\n  pull_request)\n    test \"$GITHUB_BASE_REF\" = main\n    test \"$PR_HEAD_REPOSITORY\" = \"$GITHUB_REPOSITORY\"\n    case \"$GITHUB_REF\" in refs/pull/*/merge) ;; *) exit 1;; esac\n    ;;\n  *) exit 1;;\nesac\ntest \"$GITHUB_REPOSITORY\" = ersingundem/larenor\ntest \"$GITHUB_WORKFLOW_SHA\" = \"$GITHUB_SHA\"\ntest \"$RUNNER_ENVIRONMENT\" = github-hosted"
         },
         {
           "name": "Require owned cgroup runtime",
@@ -65,7 +71,7 @@
           "name": "Characterize journaled managed create and start",
           "id": "native",
           "timeout-minutes": 22,
-          "run": "exec sudo --non-interactive env -i \\\n  PATH=/usr/bin:/bin \\\n  PYTHONPATH=\"$GITHUB_WORKSPACE/server:$GITHUB_WORKSPACE\" \\\n  CI=\"$CI\" GITHUB_ACTIONS=\"$GITHUB_ACTIONS\" \\\n  RUNNER_ENVIRONMENT=\"$RUNNER_ENVIRONMENT\" RUNNER_ARCH=\"$RUNNER_ARCH\" \\\n  GITHUB_SHA=\"$GITHUB_SHA\" GITHUB_WORKFLOW_SHA=\"$GITHUB_WORKFLOW_SHA\" \\\n  GITHUB_EVENT_NAME=\"$GITHUB_EVENT_NAME\" GITHUB_REF=\"$GITHUB_REF\" \\\n  GITHUB_REPOSITORY=\"$GITHUB_REPOSITORY\" EXPECTED_PLATFORM=\"$EXPECTED_PLATFORM\" \\\n  \"$UV_PROJECT_ENVIRONMENT/bin/python\" -B -m tool.jellyfin_managed_ci --run-ephemeral-ci \\\n  > \"$RUNNER_TEMP/jellyfin-managed-receipt.json\""
+          "run": "exec sudo --non-interactive env -i \\\n  PATH=/usr/bin:/bin \\\n  PYTHONPATH=\"$GITHUB_WORKSPACE/server:$GITHUB_WORKSPACE\" \\\n  CI=\"$CI\" GITHUB_ACTIONS=\"$GITHUB_ACTIONS\" \\\n  RUNNER_ENVIRONMENT=\"$RUNNER_ENVIRONMENT\" RUNNER_ARCH=\"$RUNNER_ARCH\" \\\n  GITHUB_SHA=\"$GITHUB_SHA\" GITHUB_WORKFLOW_SHA=\"$GITHUB_WORKFLOW_SHA\" \\\n  GITHUB_EVENT_NAME=\"$GITHUB_EVENT_NAME\" GITHUB_REF=\"$GITHUB_REF\" \\\n  GITHUB_BASE_REF=\"$GITHUB_BASE_REF\" PR_HEAD_REPOSITORY=\"$PR_HEAD_REPOSITORY\" \\\n  GITHUB_REPOSITORY=\"$GITHUB_REPOSITORY\" EXPECTED_PLATFORM=\"$EXPECTED_PLATFORM\" \\\n  \"$UV_PROJECT_ENVIRONMENT/bin/python\" -B -m tool.jellyfin_managed_ci --run-ephemeral-ci \\\n  > \"$RUNNER_TEMP/jellyfin-managed-receipt.json\""
         },
         {
           "name": "Verify exact source and native managed receipt",

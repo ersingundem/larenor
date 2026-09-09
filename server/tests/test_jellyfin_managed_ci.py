@@ -45,6 +45,36 @@ def test_managed_receipt_requires_exact_v2_execution_evidence():
             module.validate_receipt(damaged, 'a' * 40, 'linux/amd64')
 
 
+def test_launch_accepts_exact_main_or_same_repository_pr_merge_only():
+    module = api()
+    base = {
+        'CI': 'true',
+        'GITHUB_ACTIONS': 'true',
+        'RUNNER_ENVIRONMENT': 'github-hosted',
+        'RUNNER_ARCH': 'X64',
+        'GITHUB_REPOSITORY': 'ersingundem/larenor',
+        'GITHUB_WORKFLOW_SHA': 'a' * 40,
+        'GITHUB_SHA': 'a' * 40,
+        'EXPECTED_PLATFORM': 'linux/amd64',
+    }
+    manual = {**base, 'GITHUB_EVENT_NAME': 'workflow_dispatch',
+              'GITHUB_REF': 'refs/heads/main', 'GITHUB_BASE_REF': '',
+              'PR_HEAD_REPOSITORY': ''}
+    pull_request = {**base, 'GITHUB_EVENT_NAME': 'pull_request',
+                    'GITHUB_REF': 'refs/pull/16/merge', 'GITHUB_BASE_REF': 'main',
+                    'PR_HEAD_REPOSITORY': 'ersingundem/larenor'}
+    assert module.validate_launch(manual, 'Linux', 'x86_64', 0) == 'linux/amd64'
+    assert module.validate_launch(pull_request, 'Linux', 'x86_64', 0) == 'linux/amd64'
+    for damaged in (
+        {**pull_request, 'PR_HEAD_REPOSITORY': 'fork/larenor'},
+        {**pull_request, 'GITHUB_REF': 'refs/heads/feature'},
+        {**pull_request, 'GITHUB_BASE_REF': 'release'},
+        {**pull_request, 'GITHUB_WORKFLOW_SHA': 'b' * 40},
+    ):
+        with pytest.raises(module.ManagedCIError):
+            module.validate_launch(damaged, 'Linux', 'x86_64', 0)
+
+
 def test_managed_run_uses_opt_in_mode_and_publishes_after_cleanup(monkeypatch, capsys):
     module = api()
     value, events = receipt(module), []

@@ -26,9 +26,18 @@ def require(value):
 
 def validate_launch(environment, system, machine, uid):
     selected = smoke.native_platform(environment, system, machine, uid)
-    require(environment.get('GITHUB_EVENT_NAME') == 'workflow_dispatch'
-        and environment.get('GITHUB_REF') == 'refs/heads/main'
-        and environment.get('GITHUB_REPOSITORY') == 'ersingundem/larenor'
+    event = environment.get('GITHUB_EVENT_NAME')
+    repository = environment.get('GITHUB_REPOSITORY')
+    manual = (event == 'workflow_dispatch'
+              and environment.get('GITHUB_REF') == 'refs/heads/main'
+              and environment.get('GITHUB_BASE_REF') == ''
+              and environment.get('PR_HEAD_REPOSITORY') == '')
+    pull_request = (event == 'pull_request'
+        and re.fullmatch(r'refs/pull/[1-9][0-9]*/merge', environment.get('GITHUB_REF', ''))
+        and environment.get('GITHUB_BASE_REF') == 'main'
+        and environment.get('PR_HEAD_REPOSITORY') == repository)
+    require((manual or pull_request)
+        and repository == 'ersingundem/larenor'
         and environment.get('GITHUB_WORKFLOW_SHA') == environment.get('GITHUB_SHA')
         and environment.get('EXPECTED_PLATFORM') == selected)
     return selected
