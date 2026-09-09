@@ -3,6 +3,7 @@
 import inspect
 import json
 import socket
+import time
 
 import pytest
 
@@ -29,6 +30,12 @@ def happy_responses(first_user=None):
     }, separators=(',', ':')).encode()
     return [response(200, raw, content_type=b'application/json'),
             response(), response(), response(), response()]
+
+
+def chunked(body):
+    return (b'HTTP/1.1 200 OK\r\nContent-Type: application/json\r\n'
+            b'Transfer-Encoding: chunked\r\n\r\n'
+            + f'{len(body):x}\r\n'.encode() + body + b'\r\n0\r\n\r\n')
 
 
 class Connection:
@@ -132,6 +139,15 @@ def test_duplicate_first_user_json_is_rejected_before_any_write():
     assert raised.value.completed_steps == () and len(connection.requests) == 1
 
 
+def test_bounded_chunked_first_user_response_is_supported():
+    connection = Connection([
+        chunked(b'{"Name":null,"Password":null}'),
+        response(), response(), response(), response(),
+    ])
+    assert JellyfinStartupConfigurator().configure(connection, private()).state == 'succeeded'
+    assert len(connection.requests) == 5
+
+
 @pytest.mark.parametrize('reply', [
     response(302, extra=b'Location: http://private.invalid/\r\n'),
     response(500, b'private daemon error', content_type=b'application/json'),
@@ -169,6 +185,21 @@ def test_connection_loss_after_write_is_an_uncertain_static_failure():
     assert raised.value.completed_steps == ('observed_unconfigured',)
     assert raised.value.uncertain_effect and len(connection.requests) == 2
     assert SECRET not in str(raised.value) + repr(raised.value)
+
+
+def test_total_deadline_closes_a_stalled_preconnected_stream():
+    class Stalled(Connection):
+        def recv(self, _count):
+            time.sleep(0.015)
+            raise socket.timeout()
+
+    connection = Stalled([])
+    with pytest.raises(JellyfinStartupError, match='^jellyfin_startup_timeout$') as raised:
+        JellyfinStartupConfigurator().configure(
+            connection, private(),
+            limits=JellyfinStartupLimits(total_seconds=0.01, max_response_bytes=4096))
+    assert raised.value.completed_steps == () and not raised.value.uncertain_effect
+    assert connection.closed and len(connection.requests) == 1
 
 
 @pytest.mark.parametrize('payload,limits', [
