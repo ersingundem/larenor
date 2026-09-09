@@ -1,6 +1,6 @@
 # Larenor — güncel ilerleme ve iş kuyruğu
 
-**Son güncelleme: 9 Eylül 2026 — S06.4 exact PR20 kaynağında tam Android/Server/Security CI ile kabul edildi; S06.5 şifreli niyet ve kapalı Jellyfin başlangıç protokolü yerelde hazırlandı.**
+**Son güncelleme: 9 Eylül 2026 — S06.4 exact PR20 kaynağında tam Android/Server/Security CI ile kabul edildi; S06.5 şifreli niyet, kapalı Jellyfin protokolü ve journal/authority ile çevrili private yürütücüye ilerledi.**
 
 ```text
 Kuyruk kabulü       ██░░░░░░░░░░░░░░░░░░  13/125 iş (%10; eşit ağırlıklı sayaç)
@@ -41,7 +41,7 @@ Gerçek ev kurulumu ve fiziksel tablet kabulü henüz yapılmadı.
 | S06.3d — kalıcı depolama | **Kabul edildi**; Native18 exact `6a054ea`, amd64+arm64 makbuzları doğrulandı | S06.3f ile birleşik kaynak kapısı kapandı |
 | S06.3f — kaynak kabulü | **Kabul edildi**; exact `4021391`, iki mimarili native makbuz, 4.065 Server ve tam Android/Server CI yeşil | S06.4 dar kurulum yürütme kapısı |
 | S06.4 — dar kurulum yürütme kapısı | **Kabul edildi**; PR16 `bf6f860`, PR18 `75af015`, PR19 `9ce3c5a` ve PR20 `2b9166b` tam CI kapıları yeşil | S06.5 özel bootstrap ve otomatik servis eşleştirme |
-| S06.5 — özel bootstrap ve otomatik eşleştirme | **Devam ediyor**; şifreli niyet, sabit startup protokolü ve exact container/private-network numeric endpoint kanıtı yerelde hazır | Managed journal/supervisor runtime bağı ve API anahtarı/kütüphane geri okuması |
+| S06.5 — özel bootstrap ve otomatik eşleştirme | **Devam ediyor**; şifreli niyet, sabit startup protokolü ve exact journal/container/private-network/authority yürütücüsü yerelde hazır | IPC/supervisor dispatch, kalıcı durum geçişi ve API anahtarı/kütüphane geri okuması |
 
 S06.5'in ilk iki TDD parçası, yalnız tamamlanmış Jellyfin kurulumundan
 yöneticiye bağlı bootstrap niyeti üretir ve public API'de sır, hedef adres veya
@@ -60,7 +60,14 @@ yeniden doğrulanmış stack/binding ile çalışan container'ın tek internal c
 network IPv4/prefix/gateway gözlemini birleştiriyor. Yalnız RFC1918 subnet ve
 sabit Jellyfin TCP/8096 listener'ı numeric bağlantı üretebilir; DNS, proxy,
 alternatif adres ve retry yoktur. **27 yeni / 86 ilgili test** geçti. Bu bağlantı
-henüz managed journal/supervisor/runtime'a takılmadı ve gerçek ağa açılmadı.
+henüz gerçek ağa açılmadı. `42128c2` → `5a1b1b0`, ardından `89687d1` ile
+tamamlanan üçüncü dilim bu kanıtı başarılı `start_container` journal receipt'i,
+dört retained-authority kapısı, startup öncesi/sonrası taze container gözlemi
+ve tek ortak deadline içinde birleştiriyor. Bağlantı erişilemezliği endpoint
+değişiminden ayrı raporlanıyor; beş resmi adım doğrulanmadan başarı üretilmiyor.
+**14 yeni / 100 ilgili test** ile security policy, compileall ve diff kontrolü
+geçti. IPC/supervisor dispatch ve kalıcı bootstrap durum geçişi henüz bağlı
+değil; bu kaynak gerçek Docker/Jellyfin ağına dokunmadı.
 
 S06.4 native kabul koşusu [34326112926](https://github.com/ersingundem/larenor/actions/runs/34326112926)
 iki gerçek GitHub runner'ında geçti. İndirilen ARM64 ve X64 makbuzları merge

@@ -333,8 +333,13 @@ journal container ID, a freshly verified stack/binding, a running full
 container observation and its sole internal control-network attachment. It
 accepts only a canonical RFC1918 IPv4 address whose prefix and gateway agree,
 and the packaged Jellyfin TCP/8096 listener. It performs one numeric connect
-without DNS, proxy, alternate-address fallback or retry. Managed-journal and
-retained-daemon orchestration around that connection is still pending.
+without DNS, proxy, alternate-address fallback or retry. A worker-private
+executor now reconciles the exact successful start receipt, checks retained
+authority at four effect boundaries, re-inspects the endpoint before and after
+startup, shares one total deadline and never retries. It reports unavailable
+and changed endpoints separately without exposing credentials. IPC/supervisor
+dispatch, persistent bootstrap state transitions, API-key/library readback and
+real-service acceptance are still pending.
 
 ## Client releases
 

@@ -56,18 +56,26 @@ girmez.
   ve sabit Jellyfin TCP/8096 listener'ını birlikte doğrular. Soket yalnız bu
   kanıttan açılır; DNS, proxy, alternatif adres ve retry yoktur. **27 yeni / 86
   ilgili test**, security policy, compileall ve diff kontrolü geçti.
+- RED/GREEN `42128c2` / `5a1b1b0`, son düzeltme `89687d1`: worker-private
+  yürütücü, başarılı `start_container` journal receipt'ini yeniden uzlaştırır;
+  yetki kapısını kaynak hazırlama, bağlantı, startup ve sonuç dönüşünden önce
+  dört kez denetler. Endpoint startup öncesi ve sonrasında taze container
+  gözlemiyle aynı kalmalıdır. Beş startup adımı doğrulanmadan başarı üretmez;
+  retry yapmaz ve bağlantı erişilemezliği ile endpoint değişimini ayrı,
+  secret-free hata kodlarıyla bildirir. **14 yeni / 100 ilgili test**, security
+  policy, compileall ve diff kontrolü geçti.
 
 ## Açık kabul sınırları
 
-İkinci yerel dilim exact managed-container ID ve private control network
-gözleminden tek numeric bağlantı üretebilir. Sıradaki adım bu kanıtı managed
-journal receipt'i, aynı retained daemon peer supervisor'ı ve başlangıç
-adaptörünün öncesi/sonrası taze container gözlemiyle worker runtime'a bağlamaktır.
-Ardından Jellyfin kimlik doğrulama/API anahtarı, sistem adresi ve kütüphane
-eşlemeleri servisten geri okunup şifreli duruma yazılacaktır. Music Assistant
-host ağı, diğer medya bileşenlerinin otomatik eşleştirmesi, gerçek Linux
-container kabulü ve `installAvailable` ayrı açık kapılardır. Ev Docker Engine'i
-ve gerçek Jellyfin kurulumu bu dilimlerde değiştirilmedi.
+Üçüncü yerel dilim exact managed-container ID, private control network,
+başarılı journal receipt'i ve retained authority kapısını tek no-retry yürütme
+sınırında birleştirir. Bu sınıf henüz Unix IPC komutuna, supervisor dispatch'ine
+ve kalıcı bootstrap durum geçişlerine bağlanmadı. Sıradaki adım bu runtime
+bağını kurmak; ardından Jellyfin kimlik doğrulama/API anahtarı, sistem adresi ve
+kütüphane eşlemelerini servisten geri okuyup şifreli duruma yazmaktır. Music
+Assistant host ağı, diğer medya bileşenlerinin otomatik eşleştirmesi, gerçek
+Linux container kabulü ve `installAvailable` ayrı açık kapılardır. Ev Docker
+Engine'i ve gerçek Jellyfin kurulumu bu dilimlerde değiştirilmedi.
 
 Resmi kaynaklar:
 
