@@ -34,6 +34,9 @@ _ID = re.compile(r'[0-9a-f]{32}\Z')
 _TOKEN = re.compile(r'[A-Za-z0-9_-]{32,128}\Z')
 _VERSION = re.compile(r'[0-9]{1,4}(?:\.[0-9]{1,4}){2,3}(?:[-+][0-9A-Za-z.-]{1,64})?\Z')
 _COLLECTION = re.compile(r'[a-z][a-z0-9_-]{0,31}\Z')
+_DATE = re.compile(
+    r'[0-9]{4}-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12][0-9]|3[01])T'
+    r'(?:[01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9](?:\.[0-9]{1,7})?Z\Z')
 _AUTH_FIELDS = frozenset({'User', 'SessionInfo', 'AccessToken', 'ServerId'})
 _KEY_REQUIRED_FIELDS = frozenset({
     'Id', 'AccessToken', 'AppName', 'UserId', 'IsActive', 'DateCreated',
@@ -144,11 +147,23 @@ def _keys(value):
         if (type(item) is not dict
                 or not _KEY_REQUIRED_FIELDS <= set(item) <= _KEY_FIELDS):
             raise ValueError()
+        if (type(item['Id']) is not int or item['Id'] != 0
+                or type(item['AccessToken']) is not str
+                or _TOKEN.fullmatch(item['AccessToken']) is None
+                or not _name(item['AppName'])
+                or item.get('DeviceId', '') != ''
+                or item.get('AppVersion', '') != ''
+                or item.get('DeviceName', '') != ''
+                or item['UserId'] != '0' * 32
+                or item['IsActive'] is not False
+                or type(item['DateCreated']) is not str
+                or _DATE.fullmatch(item['DateCreated']) is None
+                or item.get('DateRevoked') is not None
+                or type(item['DateLastActivity']) is not str
+                or _DATE.fullmatch(item['DateLastActivity']) is None
+                or item.get('UserName') is not None):
+            raise ValueError()
         if item['AppName'] == 'Larenor Core':
-            if (item['IsActive'] is not True or item.get('DateRevoked') is not None
-                    or type(item['AccessToken']) is not str
-                    or _TOKEN.fullmatch(item['AccessToken']) is None):
-                raise ValueError()
             matching.append(item['AccessToken'])
     if len(matching) > 1:
         raise ValueError()
