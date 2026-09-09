@@ -35,11 +35,14 @@ _TOKEN = re.compile(r'[A-Za-z0-9_-]{32,128}\Z')
 _VERSION = re.compile(r'[0-9]{1,4}(?:\.[0-9]{1,4}){2,3}(?:[-+][0-9A-Za-z.-]{1,64})?\Z')
 _COLLECTION = re.compile(r'[a-z][a-z0-9_-]{0,31}\Z')
 _AUTH_FIELDS = frozenset({'User', 'SessionInfo', 'AccessToken', 'ServerId'})
-_KEY_FIELDS = frozenset({
-    'Id', 'AccessToken', 'DeviceId', 'AppName', 'AppVersion', 'DeviceName',
-    'UserId', 'IsActive', 'DateCreated', 'DateRevoked', 'DateLastActivity',
-    'UserName',
+_KEY_REQUIRED_FIELDS = frozenset({
+    'Id', 'AccessToken', 'AppName', 'UserId', 'IsActive', 'DateCreated',
+    'DateLastActivity',
 })
+_KEY_OPTIONAL_FIELDS = frozenset({
+    'DeviceId', 'AppVersion', 'DeviceName', 'DateRevoked', 'UserName',
+})
+_KEY_FIELDS = _KEY_REQUIRED_FIELDS | _KEY_OPTIONAL_FIELDS
 _BASE_AUTH = ('MediaBrowser Client="Larenor%20Core", Device="Larenor%20Core", '
               'DeviceId="{device}", Version="0.1.0"')
 
@@ -138,10 +141,11 @@ def _keys(value):
         raise ValueError()
     matching = []
     for item in value['Items']:
-        if type(item) is not dict or set(item) != _KEY_FIELDS:
+        if (type(item) is not dict
+                or not _KEY_REQUIRED_FIELDS <= set(item) <= _KEY_FIELDS):
             raise ValueError()
         if item['AppName'] == 'Larenor Core':
-            if (item['IsActive'] is not True or item['DateRevoked'] is not None
+            if (item['IsActive'] is not True or item.get('DateRevoked') is not None
                     or type(item['AccessToken']) is not str
                     or _TOKEN.fullmatch(item['AccessToken']) is None):
                 raise ValueError()
