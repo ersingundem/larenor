@@ -173,6 +173,16 @@ _BOOTSTRAP_ENDPOINT_DIAGNOSTICS = {
     for code in ('bootstrap_endpoint_changed', 'bootstrap_endpoint_unavailable')
     for boundary in _BOOTSTRAP_BOUNDARIES
 }
+_BOOTSTRAP_STARTUP_DIAGNOSTICS = {
+    (): 'bootstrap_startup_observe_failed',
+    ('observed_unconfigured',): 'bootstrap_startup_configuration_failed',
+    ('observed_unconfigured', 'configuration_updated'):
+        'bootstrap_startup_user_failed',
+    ('observed_unconfigured', 'configuration_updated', 'user_updated'):
+        'bootstrap_startup_remote_access_failed',
+    ('observed_unconfigured', 'configuration_updated', 'user_updated',
+     'remote_access_updated'): 'bootstrap_startup_complete_failed',
+}
 _DIAGNOSTIC_CODES = _CODES | set(_BUILD_ERROR_PATTERNS) | set(_START_ERROR_PATTERNS) | {
     'helper_base_runtime_failed', 'helper_base_error_ambiguous',
     'helper_base_state_error_ambiguous', *_STATE_ERROR_PATTERNS,
@@ -209,6 +219,7 @@ _DIAGNOSTIC_CODES = _CODES | set(_BUILD_ERROR_PATTERNS) | set(_START_ERROR_PATTE
     'bootstrap_endpoint_unavailable', 'bootstrap_endpoint_changed',
     'bootstrap_startup_failed', 'bootstrap_readback_failed', 'bootstrap_timeout',
     *_BOOTSTRAP_ENDPOINT_DIAGNOSTICS,
+    *_BOOTSTRAP_STARTUP_DIAGNOSTICS.values(),
     'storage_characterization_evidence_invalid'}
 _PHASES = {'launcher', 'launch_validation', 'source_capture', 'daemon_start', 'daemon_cleanup',
     'characterization', 'image_prepare', 'volume_prepare', 'image_inspect', 'helper_stage',
@@ -1472,8 +1483,12 @@ def _managed_create_succeeded(receipt):
 def _managed_bootstrap_error(error):
     try:
         code, boundary = error.code, error.boundary
+        completed = tuple(error.completed_steps)
     except (AttributeError, TypeError, RecursionError):
         return 'bootstrap_result_failed'
+    if code == 'bootstrap_startup_failed':
+        return _BOOTSTRAP_STARTUP_DIAGNOSTICS.get(
+            completed, 'bootstrap_result_failed')
     combined = f'{code}_{boundary}'
     if combined in _BOOTSTRAP_ENDPOINT_DIAGNOSTICS:
         return combined
