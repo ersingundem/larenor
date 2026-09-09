@@ -283,10 +283,28 @@ def test_actual_linux_peer_context_is_retained_on_the_effect_thread(monkeypatch)
         # This integration isolates the real pidfd/proc/ns and thread lifetime.
         monkeypatch.setattr(daemon_context, '_trusted_executable',
                             lambda path, deadline: os.stat(path))
+        class PreconnectedSocket:
+            """Expose real socket credentials while modelling a completed connect."""
+
+            def __init__(self, value):
+                self.value = value
+
+            def settimeout(self, timeout):
+                self.value.settimeout(timeout)
+
+            def connect(self, path):
+                assert path == '/run/docker.sock'
+
+            def getsockopt(self, *args):
+                return self.value.getsockopt(*args)
+
+            def close(self):
+                self.value.close()
+
         guarded = supervisor.SupervisedInstallationBackend(
             endpoint,
             Backend(),
-            socket_factory=lambda *_args: left,
+            socket_factory=lambda *_args: PreconnectedSocket(left),
         )
 
         def apply(step, plan):
