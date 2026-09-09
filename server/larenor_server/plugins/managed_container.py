@@ -15,7 +15,7 @@ from .resource_models import WorkerPolicyBinding
 from .resource_plan import build_resource_plan, _wire
 from .stack_plan import MediaStackPlan, verify_media_stack_plan
 from .volume_plan import build_volume_plan
-from .worker import _canonical
+from .worker import _FORBIDDEN_OBSERVED, _canonical, _decode
 
 
 _ID = re.compile(r'[0-9a-f]{32}\Z')
@@ -104,6 +104,107 @@ class ManagedContainerBinding:
 
     def __repr__(self):
         return 'ManagedContainerBinding(<private>)'
+
+
+def _binding(value):
+    if (not _exact(value, ManagedContainerBinding)
+            or not _identity(value.name.removeprefix('larenor-'))
+            or value.name != 'larenor-' + value.name.removeprefix('larenor-')
+            or value.platform not in {'linux/amd64', 'linux/arm64'}
+            or not _identity(value.image_id, _IMAGE)
+            or not _identity(value.network_id, _HASH)
+            or type(value.mounts) is not tuple or len(value.mounts) != 2):
+        raise ValueError()
+    body = _decode(value.specification, 65536)
+    inherited = _configuration(value.image_configuration,
+                               tuple(item.target for item in value.mounts))
+    if set(body) != {'Image', 'User', 'Labels', 'Env', 'HostConfig'}:
+        raise ValueError()
+    host = body['HostConfig']
+    expected_host = {'Privileged', 'CapDrop', 'CapAdd', 'SecurityOpt', 'NetworkMode',
+                     'Memory', 'NanoCpus', 'PidsLimit', 'ReadonlyRootfs', 'Init',
+                     'Tmpfs', 'Mounts', 'RestartPolicy'}
+    if (type(host) is not dict or set(host) != expected_host
+            or host['Privileged'] is not False or host['CapDrop'] != ['ALL']
+            or host['CapAdd'] != [] or host['SecurityOpt'] != ['no-new-privileges:true']
+            or not _identity(host['NetworkMode'], _NETWORK)
+            or body['User'] != '1000:1000' or body['Image'].find('@sha256:') < 1
+            or type(body['Labels']) is not dict or type(body['Env']) is not list
+            or host['RestartPolicy'] != {'Name': 'no'}):
+        raise ValueError()
+    expected_mounts = []
+    for item in value.mounts:
+        if (not _exact(item, ManagedContainerMount) or not _identity(item.name, _VOLUME)
+                or item.target not in {'/config', '/cache'}):
+            raise ValueError()
+        expected_mounts.append({'Type': 'volume', 'Source': item.name, 'Target': item.target,
+                                'ReadOnly': False, 'VolumeOptions': {'NoCopy': True}})
+    if host['Mounts'] != expected_mounts or len({item.target for item in value.mounts}) != 2:
+        raise ValueError()
+    return body, inherited
+
+
+def managed_container_matches(value, binding):
+    """Match a fresh full-ID inspect without exposing paths or Engine values."""
+    try:
+        body, inherited = _binding(binding)
+        if (type(value) is not dict or not _identity(value.get('Id'), _HASH)
+                or value.get('Name') != '/' + binding.name
+                or value.get('Image') != binding.image_id):
+            return False
+        config, host = value.get('Config'), value.get('HostConfig')
+        if type(config) is not dict or type(host) is not dict:
+            return False
+        expected = {key: item for key, item in body.items() if key != 'HostConfig'}
+        inherited_env = {item.partition('=')[0]: item for item in inherited.get('Env') or []}
+        inherited_env.update({item.partition('=')[0]: item for item in body.get('Env') or []})
+        if (type(config.get('Env')) is not list
+                or not all(type(item) is str for item in config['Env'])
+                or sorted(config['Env']) != sorted(inherited_env.values())):
+            return False
+        expected['Labels'] = {**(inherited.get('Labels') or {}), **body['Labels']}
+        for key, item in expected.items():
+            if key != 'Env' and config.get(key) != item:
+                return False
+        for key in ('Cmd', 'Entrypoint', 'WorkingDir', 'Volumes', 'Healthcheck',
+                    'StopSignal', 'Shell'):
+            if (config.get(key) or None) != (inherited.get(key) or None):
+                return False
+        if any(config.get(key) not in (None, False) for key in ('Tty', 'OpenStdin', 'StdinOnce')):
+            return False
+        for key, item in body['HostConfig'].items():
+            expected_item = {'Name': 'no', 'MaximumRetryCount': 0} if key == 'RestartPolicy' else item
+            if host.get(key) != expected_item:
+                return False
+        if not all(host.get(key) in allowed for key, allowed in _FORBIDDEN_OBSERVED.items()
+                   if key != 'Mounts'):
+            return False
+        observed_mounts = value.get('Mounts')
+        if type(observed_mounts) is not list or len(observed_mounts) != len(binding.mounts):
+            return False
+        by_target = {item.target: item for item in binding.mounts}
+        seen = set()
+        for mount in observed_mounts:
+            if type(mount) is not dict or set(mount) != {
+                    'Type', 'Name', 'Source', 'Destination', 'Driver', 'Mode', 'RW', 'Propagation'}:
+                return False
+            expected_mount = by_target.get(mount.get('Destination'))
+            if (expected_mount is None or mount.get('Type') != 'volume'
+                    or mount.get('Name') != expected_mount.name or mount.get('Driver') != 'local'
+                    or mount.get('RW') is not True or type(mount.get('Source')) is not str
+                    or not 1 <= len(mount['Source']) <= 4096
+                    or mount.get('Mode') not in ('', 'z') or mount.get('Propagation') not in ('', 'rprivate')):
+                return False
+            seen.add(mount['Destination'])
+        if seen != set(by_target):
+            return False
+        networks = (value.get('NetworkSettings') or {}).get('Networks')
+        if type(networks) is not dict or set(networks) != {body['HostConfig']['NetworkMode']}:
+            return False
+        attached = networks[body['HostConfig']['NetworkMode']]
+        return type(attached) is dict and attached.get('NetworkID') == binding.network_id
+    except (ValueError, TypeError, AttributeError, KeyError, RecursionError):
+        return False
 
 
 def _pairs(values):
