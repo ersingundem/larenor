@@ -319,8 +319,12 @@ verifier to retain that same endpoint identity. The packaged
 `larenor-installation-worker` opens the three private journals, recreates a proof
 broker for each plan, and uses a fixed sha256 helper image to verify each target
 volume through one networkless, read-only ephemeral container. Its policy-only
-check opens no journals or Engine connection. The unified native supervisor and
-release wiring remain open. A separate amd64/arm64 managed-v2 characterization
+check opens no journals or Engine connection. Its native supervisor retains one
+socket-peer pidfd/proc/namespace context on the IPC service thread and brackets
+every apply/reconcile operation with fresh daemon, endpoint and thread checks.
+This is continuity evidence only; initial-host and remap-disabled startup
+authority remain separate and installation stays disabled. A separate
+amd64/arm64 managed-v2 characterization
 workflow is source-bound and has passed both architectures. The API
 container does not start this mutation
 worker, and this source slice has not run create/start against a user's Engine.

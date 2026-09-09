@@ -3,10 +3,11 @@
 **Durum:** Kalıcı API, ayrı IPC ve doğrulanmış Jellyfin binding dilimleri yerelde
 uygulandı. Binding'i tüketen ayrı sürüm-2 managed-container journal,
 journal-bound proof broker çekirdeği, tek-endpoint production reader bileşimi,
-paketli volume bootstrap verifier ve `larenor-installation-worker` CLI yaşam
-döngüsü tamamlandı. Managed-v2 workflow'un amd64/arm64 native kabulü de exact
-PR kaynağında geçti. S06.4 tamamlanmadı; supervisor'ın daemon incarnation ve
-namespace bağını işlem boyunca tutması, stacked native CI ve inceleme açık.
+paketli volume bootstrap verifier, `larenor-installation-worker` CLI yaşam
+döngüsü ve worker yaşamına bağlı ilk native supervisor tamamlandı. Managed-v2
+workflow'un amd64/arm64 native kabulü de exact PR kaynağında geçti. S06.4
+tamamlanmadı; supervisor diliminin Linux CI'ı, rootful/remap-disabled üretim
+yetkisi ve bağımsız inceleme açık.
 Ürün kurulum yeteneği `installAvailable=false` kalır.
 
 ## Uygulanan sınır
@@ -74,9 +75,20 @@ opaque worker policy bağını, helper image ID'sini ve birbirinden ayrılmış 
 journal yolunu yükler. `--check-config` bu kaynakları açmadan salt şemayı kontrol
 eder. Runtime her stack isteğinde proof broker'ı tekrar kurar, socket'i Engine
 endpoint'i veya journal ağaçları içine koymayı reddeder ve kapanışta socket'ten
-sonra bütün journal'ları kapatır. Native supervisor'ın daemon incarnation bağını
-işlemler arasında koruyan son üretici henüz yoktur. Kullanıcının Docker Engine'ine
-veya ev sistemlerine hiçbir mutasyon yapılmadı.
+sonra bütün journal'ları kapatır.
+
+Yeni `SupervisedInstallationBackend`, IPC servis thread'i içinde tek doğrulanmış
+Docker Unix bağlantısı açar ve o peer'e ait socket-bound pidfd, executable,
+proc, user/mount/network namespace ve process-root tanıtıcılarını worker
+yaşamı boyunca tutar. Socket inode zinciri, daemon incarnation ve kimlikler her
+`apply`/`reconcile` öncesi ve sonrasında aynı native thread'de yenilenir. Startup
+kanıtı hazır olmadan IPC `start` başarılı sayılmaz; daemon restart, endpoint
+replacement, thread değişimi, deadline veya post-effect kanıt kaybı statik
+`worker_unavailable` sınırında kapanır. Backend etkiden sonra belirsiz kalırsa
+journal üzerinden mevcut reconcile kuralı korunur. Eşit user namespace/map
+gözlemi initial host namespace veya remap-disabled daemon başlangıcı değildir;
+bu yüzden bu dilim kendi başına kurulum yetkisi üretmez. Kullanıcının Docker
+Engine'ine veya ev sistemlerine hiçbir mutasyon yapılmadı.
 
 ## TDD ve doğrulama
 
@@ -110,6 +122,9 @@ veya ev sistemlerine hiçbir mutasyon yapılmadı.
   private policy, üç journal'lı dinamik binding builder ve paketli installation
   worker CLI yaşam döngüsü; **43 odaklı PASS**. Pinli apksig ve gerçek Homebrew
   JDK 17 ile bütün Server paketi **4.256 PASS, 12 platform skip**.
+- RED/GREEN `cac0625` / `b6196a1`: IPC thread'ine bağlı daemon supervisor,
+  startup hazır olma kapısı, her etki öncesi/sonrası socket/pidfd/proc/namespace
+  yenilemesi ve kapanış; ilgili yerel paket **268 PASS / 3 Linux skip**.
 - Güncel storage/managed/resource/binding paketi **216 PASS**; managed workflow
   politika paketi ayrıca **7 PASS**. Python derleme ve `git diff --check` temiz.
 - Exact `191baf3` kaynak commit'i [Server CI 34313975186](https://github.com/ersingundem/larenor/actions/runs/34313975186)
@@ -122,6 +137,13 @@ veya ev sistemlerine hiçbir mutasyon yapılmadı.
   `installAvailable=false` değerlerini doğruladı. Security CI aynı PR head'inde
   geçti; tam Android/Server CI halen ayrı yayın kapısıdır.
 
+PR18 exact `75af015` için yerel tam Server **4.262 PASS / 12 skip**; Linux
+[Android Build 34341554668](https://github.com/ersingundem/larenor/actions/runs/34341554668)
+paketinde Server **4.274 PASS**, Flutter **5.438 PASS**, Android native **98 PASS**
+ve gerçek API 35 **17 PASS** verdi. Security 34341554393 ve amd64/arm64 managed
+native 34341554476 da yeşil; iki makbuz exact merge `adbb8476` üzerinde yeniden
+doğrulandı.
+
 Sürüm kontrollü örnekler
 [`contracts/media-installations.v1.json`](../contracts/media-installations.v1.json)
 dosyasındadır. Son kabul için paketli worker runtime testi, güncel kaynağın tam
@@ -129,6 +151,8 @@ Android/Server CI'ı ve inceleme gerekir. Bunlar olmadan S06.4 `done` yapılamaz
 
 ## Sonraki dilim
 
-1. Native supervisor daemon incarnation/namespace bağını bütün worker yaşamı
-   boyunca tutacak ve restart/stale socket davranışı kapatılacak.
-2. Stacked kaynak native Android/Server CI ve bağımsız inceleme kapatılacak.
+1. Supervisor'ın gerçek Linux peer-pidfd/proc/user-namespace testi stacked
+   Server CI'da atlamadan geçecek.
+2. Native başlangıç/config kanıtı rootless ve userns-remap'i fail-closed
+   ayıracak; eşit map veya UID 0 tek başına yetki olmayacak.
+3. Stacked kaynak bağımsız inceleme ile kapatılacak.

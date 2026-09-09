@@ -40,7 +40,7 @@ Gerçek ev kurulumu ve fiziksel tablet kabulü henüz yapılmadı.
 | B5.1 — ortak tablet tasarımı | Services/hesap IME paketi APK116 ile kabul edildi; S08.7 komut ve aktarım yüzeyleri yerel tablet matrisinden geçti | Exact-source Android CI ve kalan ortak tablet yüzeyleri |
 | S06.3d — kalıcı depolama | **Kabul edildi**; Native18 exact `6a054ea`, amd64+arm64 makbuzları doğrulandı | S06.3f ile birleşik kaynak kapısı kapandı |
 | S06.3f — kaynak kabulü | **Kabul edildi**; exact `4021391`, iki mimarili native makbuz, 4.065 Server ve tam Android/Server CI yeşil | S06.4 dar kurulum yürütme kapısı |
-| S06.4 — dar kurulum yürütme kapısı | **Devam ediyor**; PR16 exact `bf6f860` Android/Server/Security ve iki mimarili native kapıları yeşil. Stacked `af113e0` paketli bootstrap verifier, özel politika ve `larenor-installation-worker` yaşam döngüsünü ekledi | Supervisor/daemon-incarnation bağı, stacked native CI ve bağımsız inceleme |
+| S06.4 — dar kurulum yürütme kapısı | **Devam ediyor**; PR16 exact `bf6f860` ve PR18 exact `75af015` tam CI kapıları yeşil. `b6196a1` yerel supervisor daemon/socket/process/namespace kanıtını worker yaşamı ve her etki çevresinde tutuyor | Supervisor diliminin Linux CI'ı ve bağımsız incelemesi; rootful/remap-disabled üretim yetkisi ayrı kapı |
 
 S06.4 native kabul koşusu [34326112926](https://github.com/ersingundem/larenor/actions/runs/34326112926)
 iki gerçek GitHub runner'ında geçti. İndirilen ARM64 ve X64 makbuzları merge
@@ -58,15 +58,28 @@ yeşil; [managed native 34332777927](https://github.com/ersingundem/larenor/acti
 amd64 ve arm64 üzerinde geçti. İndirilen makbuzlar merge commit'i `670614a`
 ve ebeveynleri `ffdb48c` / `bf6f860` için tekrar doğrulandı.
 
-Stacked `af113e0`, üç mevcut journal'ı tek kapalı runtime'da açan paketli
+Stacked PR18 exact `75af015`, üç mevcut journal'ı tek kapalı runtime'da açan paketli
 `larenor-installation-worker` komutunu ve yalnız exact image ID, `verify_root`,
 read-only NoCopy volume, networksüz geçici container kabul eden bootstrap
 verifier'ı ekledi. `--check-config` journal, socket veya Engine açmaz; IPC socket'i
 Docker endpoint'iyle çakışamaz ve journal içine yerleşemez. Bu yeni dilim 43
-odaklı testle; bütün Server paketi pinli apksig/JDK ortamında 4.256 PASS ve 12
-platform skip ile yerelde geçti. Supervisor'ın daemon incarnation/namespace bağını
-işlemler boyunca tutması ve stacked native CI açık olduğu için
-`installAvailable=false` korunur.
+odaklı testle başladı; güncel exact kaynak yerelde **4.262 PASS / 12 platform
+skip**, Linux Server CI'da **4.274 PASS** verdi. [Android Build 34341554668](https://github.com/ersingundem/larenor/actions/runs/34341554668),
+[Security 34341554393](https://github.com/ersingundem/larenor/actions/runs/34341554393)
+ve [managed native 34341554476](https://github.com/ersingundem/larenor/actions/runs/34341554476)
+yeşil; amd64/arm64 makbuzları exact merge `adbb8476` üzerinde tekrar doğrulandı.
+
+`cac0625` → `b6196a1` TDD dilimi, `InstallationWorkerServer` servis thread'i
+hazır olmadan IPC açılışını başarılı saymıyor. Supervisor aynı thread'de tek
+Docker bağlantısını, socket inode zincirini, socket-bound pidfd'yi ve daemon ile
+worker proc/user/mount/network/root kimliklerini tutuyor. Her `apply` ve
+`reconcile` çağrısı bu kanıtlarla çevreleniyor; daemon restart/socket değişimi,
+yanlış native thread veya işlem sonrası kanıt kaybı başarı döndürmeden bütün
+tutulan kaynakları kapatıyor. İlgili yerel paket **268 PASS / 3 Linux skip**;
+gerçek Linux testi `SO_PEERPIDFD`, `/proc` ve user namespace yolunu CI'da
+atlamadan doğrulamalı. Eşit user map'leri initial host namespace veya
+remap-disabled başlangıç kanıtı sayılmadığı ve bağımsız inceleme açık olduğu
+için `installAvailable=false` korunur.
 
 S08.7 üç sonlu teslimden oluşur: **kaynak bağlama ve typed durum → komut ve
 kalıcı sonuç → açık Direct aktarımı**. Üç yerel dilim de squash yapılmadan

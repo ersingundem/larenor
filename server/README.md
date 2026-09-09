@@ -284,7 +284,14 @@ endpoint. Its bootstrap verifier runs only the pinned helper image's
 `verify_root` command in a networkless, read-only ephemeral container with the
 target named volume mounted read-only and `NoCopy=true`. `--check-config`
 validates policy without opening a journal, socket or Docker connection.
-The unified native supervisor and release wiring remain open.
+The worker now opens one retained Docker connection on its IPC service thread,
+binds it to the socket inode, peer pidfd, executable and daemon/worker
+process-root plus mount/network/user namespace evidence, and rechecks that
+evidence before and after every apply or reconcile operation. It cannot report a
+successful start until this guard is ready. A daemon restart, endpoint change,
+deadline or native-thread change closes the guard and fails closed. Equal user
+namespace maps are continuity evidence, not initial-host or remap-disabled
+startup authority, so installation availability remains disabled.
 Its separate version-2 managed-container journal durably records the complete
 binding before create/start, refuses legacy journal rows, and reconciles only
 against a freshly rebuilt identical binding and full Engine observation. It has
@@ -293,8 +300,8 @@ journals, rebinds exact source/revision/nonce state, requires fresh image,
 volume, bootstrap and network observations from one opaque Engine identity, and
 rebinds after those reads. A separate source-bound managed-v2 native workflow
 is ready to exercise the complete create/start path on amd64 and arm64; its
-artifacts are still pending. It has not installed anything on a real home
-server. The strict public examples are in
+artifacts have passed on amd64 and arm64. It has not installed anything on a
+real home server. The strict public examples are in
 [`contracts/media-installations.v1.json`](../contracts/media-installations.v1.json)
 and the [implementation evidence](../docs/media-installation-execution-implementation-2026-09-09.md)
 records the remaining acceptance gates.

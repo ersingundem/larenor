@@ -684,10 +684,26 @@
           "state": "completed",
           "result": "passed",
           "label": "PR16 exact kaynakta 5.438 Flutter, 4.225 Server, 98 Android native ve 17 API35 E2E yolculuğu geçti; Security ve amd64/arm64 managed native koşuları da yeşil."
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/34341554668",
+          "commit": "75af0159f4c5fac257e52f9fe8f11c47f77186f7",
+          "state": "completed",
+          "result": "passed",
+          "label": "PR18 exact kaynakta 5.438 Flutter, 4.274 Linux Server, 98 Android native ve 17 API35 E2E yolculuğu geçti; Security ile amd64/arm64 managed native koşuları da yeşil."
+        },
+        {
+          "kind": "test",
+          "ref": "server/tests/test_installation_supervisor.py",
+          "commit": "b6196a19b30f8bd3e1994b1ba4e90a298e81faf0",
+          "state": "completed",
+          "result": "passed",
+          "label": "Worker yaşamına bağlı daemon/socket/pidfd/proc/namespace supervisor dilimi ilgili yerel pakette 268 testten geçti; üç gerçek Linux testi stacked CI bekliyor."
         }
       ],
       "completionCommit": null,
-      "reason": "Yerel dilimler: Client Docker JSON'u kabul etmeyen şifreli kalıcı API; her etkide güncel yetki/bağlam/kaynak kapıları; yalnız Jellyfin create/start ve kayıp cevap uzlaştırması; preflight'tan ayrı UID denetimli IPC; tam stack bağlamından portsuz/no-copy binding ve exact inspect matcher; legacy v1'den ayrılmış kalıcı v2 managed-container journal; journal-bound taze proof broker; tek exact DockerEndpoint reader bileşimi; pinned helper image ile networksüz/read-only volume root verifier; private policy ve üç journal'lı paketli larenor-installation-worker CLI. PR16 exact bf6f860 için Android/Server/Security ve amd64+arm64 managed native CI geçti; indirilen makbuzlar merge 670614a için tekrar doğrulandı. Native supervisor'ın daemon incarnation/namespace bağını worker yaşamı boyunca tutması, stacked native CI ve bağımsız review açık. Gerçek ev kurulumu kapalı; installAvailable=false."
+      "reason": "Yerel dilimler: Client Docker JSON'u kabul etmeyen şifreli kalıcı API; her etkide güncel yetki/bağlam/kaynak kapıları; yalnız Jellyfin create/start ve kayıp cevap uzlaştırması; preflight'tan ayrı UID denetimli IPC; tam stack bağlamından portsuz/no-copy binding ve exact inspect matcher; legacy v1'den ayrılmış kalıcı v2 managed-container journal; journal-bound taze proof broker; tek exact DockerEndpoint reader bileşimi; pinned helper image ile networksüz/read-only volume root verifier; private policy ve üç journal'lı paketli larenor-installation-worker CLI; worker yaşamına bağlı daemon/socket/pidfd/proc/namespace supervisor. PR16 exact bf6f860 ve PR18 exact 75af015 için Android/Server/Security ile amd64+arm64 managed native CI geçti. Supervisor'ın gerçek Linux CI'ı, rootful/remap-disabled üretim yetkisi ve bağımsız review açık. Gerçek ev kurulumu kapalı; installAvailable=false."
     },
     {
       "id": "S06.5",
