@@ -345,11 +345,16 @@ def _response(reader, max_bytes):
     return ProbeResponse(status, tuple(headers), body)
 
 
-def _request_bytes(method, path, authority, headers, body):
-    if (not isinstance(method, str) or method not in {"GET", "POST"}
+def _request_bytes(method, path, authority, headers, body, *, allow_delete=False):
+    allowed = (isinstance(method, str)
+               and (method in {"GET", "POST"}
+                    or allow_delete is True and method == "DELETE"))
+    if (not allowed
             or body is not None and not isinstance(body, bytes)):
         raise ProbeTransportError("invalid_request")
-    if body is not None and (len(body) > 1024 * 1024 or method == "GET" and body):
+    if body is not None and (len(body) > 1024 * 1024
+                             or method == "GET" and body
+                             or method == "DELETE"):
         raise ProbeTransportError("invalid_request")
     pairs = []
     invalid = False

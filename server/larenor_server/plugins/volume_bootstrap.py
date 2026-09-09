@@ -72,9 +72,7 @@ class UnixVolumeBootstrapEngine:
                 self._transport = UnixDockerEngine(
                     endpoint.path, timeout=1.0, socket_uid=endpoint.owner_uid,
                 )
-                self._cleanup_transport = UnixDockerEngine(
-                    endpoint.path, timeout=10.0, socket_uid=endpoint.owner_uid,
-                )
+                self._cleanup_transport = self._transport
             else:
                 self._transport = transport_factory(endpoint)
                 self._cleanup_transport = self._transport
