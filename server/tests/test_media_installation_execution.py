@@ -119,8 +119,8 @@ def test_worker_bridge_reverifies_component_and_builds_binding_internally(server
         def apply(self, step, binding):
             calls.append((step, binding))
             return StepReceipt(step.job_id, step.kind, 'succeeded', 'container_created', '1' * 64)
-        def reconcile(self, job, kind):
-            calls.append((job, kind))
+        def reconcile(self, job, kind, binding):
+            calls.append((job, kind, binding))
             return StepReceipt(job, kind, 'succeeded', 'container_created', '1' * 64)
     sentinel = object()
     supplied = []
@@ -128,7 +128,11 @@ def test_worker_bridge_reverifies_component_and_builds_binding_internally(server
     receipt = bridge.apply(execution.steps[0], execution.plan)
     assert receipt.state == 'succeeded' and calls == [(execution.steps[0], sentinel)]
     assert supplied == [execution.plan] and len(supplied[0].components) == 6
+    recovered = bridge.reconcile(execution.steps[0], execution.plan)
+    assert recovered.state == 'succeeded'
+    assert supplied == [execution.plan, execution.plan]
+    assert calls[-1] == ('a' * 32, 'create_container', sentinel)
     forged = execution.plan.model_copy(update={'coreId': 'f' * 32})
     with pytest.raises(InstallationExecutionError, match='^invalid_execution_request$'):
         bridge.apply(execution.steps[0], forged)
-    assert len(calls) == 1
+    assert len(calls) == 2
