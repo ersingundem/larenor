@@ -183,6 +183,25 @@ _BOOTSTRAP_STARTUP_DIAGNOSTICS = {
     ('observed_unconfigured', 'configuration_updated', 'user_updated',
      'remote_access_updated'): 'bootstrap_startup_complete_failed',
 }
+_BOOTSTRAP_READBACK_DIAGNOSTICS = {
+    (): 'bootstrap_readback_authentication_failed',
+    ('authenticated',): 'bootstrap_readback_keys_failed',
+    ('authenticated', 'keys_observed'): 'bootstrap_readback_key_create_failed',
+    ('authenticated', 'keys_observed', 'key_created'):
+        'bootstrap_readback_key_reread_failed',
+    ('authenticated', 'keys_observed', 'key_created', 'key_verified'):
+        'bootstrap_readback_system_failed',
+    ('authenticated', 'keys_observed', 'key_verified'):
+        'bootstrap_readback_system_failed',
+    ('authenticated', 'keys_observed', 'key_created', 'key_verified',
+     'system_verified'): 'bootstrap_readback_libraries_failed',
+    ('authenticated', 'keys_observed', 'key_verified', 'system_verified'):
+        'bootstrap_readback_libraries_failed',
+    ('authenticated', 'keys_observed', 'key_created', 'key_verified',
+     'system_verified', 'libraries_verified'): 'bootstrap_readback_logout_failed',
+    ('authenticated', 'keys_observed', 'key_verified', 'system_verified',
+     'libraries_verified'): 'bootstrap_readback_logout_failed',
+}
 _DIAGNOSTIC_CODES = _CODES | set(_BUILD_ERROR_PATTERNS) | set(_START_ERROR_PATTERNS) | {
     'helper_base_runtime_failed', 'helper_base_error_ambiguous',
     'helper_base_state_error_ambiguous', *_STATE_ERROR_PATTERNS,
@@ -220,6 +239,7 @@ _DIAGNOSTIC_CODES = _CODES | set(_BUILD_ERROR_PATTERNS) | set(_START_ERROR_PATTE
     'bootstrap_startup_failed', 'bootstrap_readback_failed', 'bootstrap_timeout',
     *_BOOTSTRAP_ENDPOINT_DIAGNOSTICS,
     *_BOOTSTRAP_STARTUP_DIAGNOSTICS.values(),
+    *_BOOTSTRAP_READBACK_DIAGNOSTICS.values(),
     'storage_characterization_evidence_invalid'}
 _PHASES = {'launcher', 'launch_validation', 'source_capture', 'daemon_start', 'daemon_cleanup',
     'characterization', 'image_prepare', 'volume_prepare', 'image_inspect', 'helper_stage',
@@ -1484,11 +1504,15 @@ def _managed_bootstrap_error(error):
     try:
         code, boundary = error.code, error.boundary
         completed = tuple(error.completed_steps)
+        readback = tuple(error.readback_steps)
     except (AttributeError, TypeError, RecursionError):
         return 'bootstrap_result_failed'
     if code == 'bootstrap_startup_failed':
         return _BOOTSTRAP_STARTUP_DIAGNOSTICS.get(
             completed, 'bootstrap_result_failed')
+    if code == 'bootstrap_readback_failed':
+        return _BOOTSTRAP_READBACK_DIAGNOSTICS.get(
+            readback, 'bootstrap_result_failed')
     combined = f'{code}_{boundary}'
     if combined in _BOOTSTRAP_ENDPOINT_DIAGNOSTICS:
         return combined

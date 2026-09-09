@@ -36,21 +36,55 @@ _BOUNDARIES = frozenset({
     'before_connect', 'after_connect', 'after_startup',
     'after_readback_connect', 'after_readback',
 })
+_CAUSE_CODES = frozenset({
+    'invalid_jellyfin_startup_request', 'invalid_jellyfin_startup_limits',
+    'jellyfin_startup_protocol', 'jellyfin_startup_unavailable',
+    'jellyfin_startup_timeout', 'jellyfin_already_configured',
+    'invalid_jellyfin_authenticated_readback',
+    'jellyfin_authentication_failed',
+    'jellyfin_authenticated_readback_protocol',
+    'jellyfin_authenticated_readback_unavailable',
+    'jellyfin_authenticated_readback_timeout',
+    'jellyfin_session_cleanup_failed',
+})
+_READBACK_STEPS = frozenset({
+    (),
+    ('authenticated',),
+    ('authenticated', 'keys_observed'),
+    ('authenticated', 'keys_observed', 'key_created'),
+    ('authenticated', 'keys_observed', 'key_created', 'key_verified'),
+    ('authenticated', 'keys_observed', 'key_verified'),
+    ('authenticated', 'keys_observed', 'key_created', 'key_verified',
+     'system_verified'),
+    ('authenticated', 'keys_observed', 'key_verified', 'system_verified'),
+    ('authenticated', 'keys_observed', 'key_created', 'key_verified',
+     'system_verified', 'libraries_verified'),
+    ('authenticated', 'keys_observed', 'key_verified', 'system_verified',
+     'libraries_verified'),
+})
 
 
 class JellyfinBootstrapExecutionError(Exception):
     def __init__(self, code='bootstrap_resources_unavailable', *, completed_steps=(),
-                 uncertain_effect=False, boundary=None):
+                 uncertain_effect=False, boundary=None, cause_code=None,
+                 readback_steps=()):
         self.code = code if code in _CODES else 'bootstrap_resources_unavailable'
         self.completed_steps = tuple(completed_steps)
         self.uncertain_effect = uncertain_effect is True
         self.boundary = boundary if boundary in _BOUNDARIES else None
+        self.cause_code = cause_code if cause_code in _CAUSE_CODES else None
+        try:
+            readback_steps = tuple(readback_steps)
+        except (TypeError, RecursionError):
+            readback_steps = ()
+        self.readback_steps = readback_steps if readback_steps in _READBACK_STEPS else ()
         super().__init__(self.code)
 
     def __repr__(self):
         return (f'JellyfinBootstrapExecutionError({self.code!r}, completed_steps='
                 f'{len(self.completed_steps)}, uncertain_effect={self.uncertain_effect!r}, '
-                f'boundary={self.boundary!r})')
+                f'boundary={self.boundary!r}, cause_code={self.cause_code!r}, '
+                f'readback_steps={len(self.readback_steps)})')
 
 
 @dataclass(frozen=True, repr=False)
@@ -229,17 +263,21 @@ class JellyfinBootstrapExecutor:
                     error.code, completed_steps=completed,
                     uncertain_effect=error.uncertain_effect or bool(completed),
                     boundary=error.boundary,
+                    cause_code=error.cause_code,
+                    readback_steps=error.readback_steps,
                 ) from None
             raise
         except JellyfinStartupError as error:
             raise JellyfinBootstrapExecutionError(
                 'bootstrap_startup_failed', completed_steps=error.completed_steps,
                 uncertain_effect=error.uncertain_effect,
+                cause_code=error.code,
             ) from None
         except JellyfinAuthenticatedReadbackError as error:
             raise JellyfinBootstrapExecutionError(
                 'bootstrap_readback_failed', completed_steps=completed,
                 uncertain_effect=True,
+                cause_code=error.code, readback_steps=error.completed_steps,
             ) from None
         except JellyfinEndpointError as error:
             if time.monotonic() >= deadline:
