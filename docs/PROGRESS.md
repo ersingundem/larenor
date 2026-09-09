@@ -1,6 +1,6 @@
 # Larenor — güncel ilerleme ve iş kuyruğu
 
-**Son güncelleme: 9 Eylül 2026 — S06.3f exact iki mimarili native kabul ve tam CI ile kapandı; S06.4 kalıcı API, ayrı IPC ve doğrulanmış Jellyfin binding dilimleriyle sürüyor.**
+**Son güncelleme: 9 Eylül 2026 — S06.4 yönetilen Jellyfin create/start yolu exact PR kaynağında amd64 ve arm64 native makbuzlarıyla doğrulandı; paketli production worker runtime'ı ve tam CI kapısı açık.**
 
 ```text
 Kuyruk kabulü       ██░░░░░░░░░░░░░░░░░░  12/125 iş (%10; eşit ağırlıklı sayaç)
@@ -40,7 +40,16 @@ Gerçek ev kurulumu ve fiziksel tablet kabulü henüz yapılmadı.
 | B5.1 — ortak tablet tasarımı | Services/hesap IME paketi APK116 ile kabul edildi; S08.7 komut ve aktarım yüzeyleri yerel tablet matrisinden geçti | Exact-source Android CI ve kalan ortak tablet yüzeyleri |
 | S06.3d — kalıcı depolama | **Kabul edildi**; Native18 exact `6a054ea`, amd64+arm64 makbuzları doğrulandı | S06.3f ile birleşik kaynak kapısı kapandı |
 | S06.3f — kaynak kabulü | **Kabul edildi**; exact `4021391`, iki mimarili native makbuz, 4.065 Server ve tam Android/Server CI yeşil | S06.4 dar kurulum yürütme kapısı |
-| S06.4 — dar kurulum yürütme kapısı | **Devam ediyor**; şifreli kalıcı API, ayrı UID denetimli Unix IPC, portsuz Jellyfin binding, ayrı v2 managed-container journal, journal-bound taze proof broker ve tek-endpoint production image/volume/network reader bileşimi yerelde tamamlandı; exact `191baf3` Server CI yeşil | Paketli production bootstrap/mutasyon worker runtime'ı ve hazırlanan managed-v2 workflow'un exact amd64+arm64 kanıtı |
+| S06.4 — dar kurulum yürütme kapısı | **Devam ediyor**; şifreli kalıcı API, ayrı UID denetimli Unix IPC, portsuz Jellyfin binding, ayrı v2 managed-container journal, taze proof broker ve tek-endpoint reader tamamlandı. PR kaynağı `19485ab`, merge kaynağı `b6e7034` üzerinde amd64+arm64 gerçek Engine create/start/restart makbuzları geçti | Paketli production bootstrap/mutasyon worker CLI ve supervisor yaşam döngüsü; exact Android/Server CI ve inceleme |
+
+S06.4 native kabul koşusu [34326112926](https://github.com/ersingundem/larenor/actions/runs/34326112926)
+iki gerçek GitHub runner'ında geçti. İndirilen ARM64 ve X64 makbuzları merge
+commit'i `b6e7034` için repo verifier ile tekrar doğrulandı; bu commit'in ikinci
+ebeveyni PR head'i `19485ab`. Her iki makbuz da `journaled_managed_v2`, journal
+sürümü 2, iki volume, bir restart, hazır imaj, kapalı bootstrap hesabı ve
+`installAvailable=false` sınırını kanıtlıyor. Kaynak sınırları istek gövdesinin
+yanında çalışan cgroup'da da okundu. Bu kanıt disposable CI daemon'ına aittir;
+gerçek ev Docker Engine'ine yazılmadı ve ürün kurulumu açılmadı.
 
 S08.7 üç sonlu teslimden oluşur: **kaynak bağlama ve typed durum → komut ve
 kalıcı sonuç → açık Direct aktarımı**. Üç yerel dilim de squash yapılmadan

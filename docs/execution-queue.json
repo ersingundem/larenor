@@ -652,10 +652,26 @@
           "state": "completed",
           "result": "passed",
           "label": "Tek-endpoint reader ile ayrı managed-v2 CI/receipt/workflow dilimi 320 odaklı ve 77 güvenlik/politika testiyle yerelde geçti; native artifact henüz bekleniyor."
+        },
+        {
+          "kind": "test",
+          "ref": "docs/media-installation-execution-implementation-2026-09-09.md",
+          "commit": "19485abf497853fa6c7d9f9f756b8ffd36438579",
+          "state": "completed",
+          "result": "passed",
+          "label": "Docker inspect normalizasyonları, gerçek cgroup kaynak sınırları ve doğru çıplak container ID biçimi için güncel dört odak paketi 216 PASS; workflow politika paketi 7 PASS."
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/34326112926",
+          "commit": "b6e7034b13e9ccfa856210f8e1bf9a55f7cf5550",
+          "state": "completed",
+          "result": "passed",
+          "label": "PR head 19485ab'ın exact merge kaynağında amd64+arm64 disposable Engine create/start/restart geçti; iki indirilen managed-v2 makbuz repo verifier ile tekrar PASS."
         }
       ],
       "completionCommit": null,
-      "reason": "Yerel dilimler: Client Docker JSON'u kabul etmeyen şifreli kalıcı API; her etkide güncel yetki/bağlam/kaynak kapıları; yalnız Jellyfin create/start ve kayıp cevap uzlaştırması; preflight'tan ayrı UID denetimli IPC; tam stack bağlamından portsuz/no-copy binding ve exact inspect matcher; legacy v1'den ayrılmış kalıcı v2 managed-container journal, tam binding tekrar doğrulaması ve sabit Docker create yolu; resource ile volume-create journal'larını exact source/revision/nonce'a bağlayıp aynı Engine kimliğinde image/volume/bootstrap/network'i taze ölçen proof broker; tek exact DockerEndpoint'ten kurulan production image/volume/network reader bileşimi. Exact 191baf3 Server CI geçti. Managed-v2 create/start için ayrı kaynak-bağlı amd64/arm64 workflow ve kapalı receipt verifier 3be1dc6 üzerinde yerelde hazır. Paketli production bootstrap/mutasyon worker CLI/runtime, iki native artifact ve güncel exact-source CI/review açık. Gerçek ev kurulumu kapalı; installAvailable=false."
+      "reason": "Yerel dilimler: Client Docker JSON'u kabul etmeyen şifreli kalıcı API; her etkide güncel yetki/bağlam/kaynak kapıları; yalnız Jellyfin create/start ve kayıp cevap uzlaştırması; preflight'tan ayrı UID denetimli IPC; tam stack bağlamından portsuz/no-copy binding ve exact inspect matcher; legacy v1'den ayrılmış kalıcı v2 managed-container journal, tam binding tekrar doğrulaması ve sabit Docker create yolu; resource ile volume-create journal'larını exact source/revision/nonce'a bağlayıp aynı Engine kimliğinde image/volume/bootstrap/network'i taze ölçen proof broker; tek exact DockerEndpoint'ten kurulan production image/volume/network reader bileşimi. Exact 191baf3 Server CI geçti. PR head 19485ab'ın merge kaynağı b6e7034 üzerinde amd64+arm64 gerçek Engine create/start/restart geçti ve indirilen iki artifact repo verifier ile tekrar PASS. Paketli production bootstrap/mutasyon worker CLI/supervisor runtime, tam exact-source Android/Server CI ve review açık. Gerçek ev kurulumu kapalı; installAvailable=false."
     },
     {
       "id": "S06.5",

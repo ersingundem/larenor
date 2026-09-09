@@ -28,7 +28,7 @@
           "run": "test -x /usr/bin/systemd-run && test -x /usr/bin/systemctl && test -x /usr/bin/unshare && test -x /usr/bin/dockerd && systemd_major=\"$(/usr/bin/systemd-run --version | /usr/bin/awk 'NR == 1 { print $2 }')\" && case \"$systemd_major\" in ''|*[!0-9]*) exit 1;; esac && test \"$systemd_major\" -ge 254 && test \"$(/usr/bin/stat --file-system --format=%T /sys/fs/cgroup)\" = cgroup2fs && test -r /sys/fs/cgroup/cgroup.controllers"
         },
         {
-          "uses": "actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
+          "uses": "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
           "with": {"ref": "${{ github.sha }}", "persist-credentials": false}
         },
         {
@@ -56,7 +56,7 @@
         },
         {
           "name": "Preserve required public characterization receipt",
-          "uses": "actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02",
+          "uses": "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a",
           "with": {
             "name": "media-resources-${{ github.sha }}-${{ runner.arch }}",
             "path": "${{ runner.temp }}/media-resource-receipt.json",

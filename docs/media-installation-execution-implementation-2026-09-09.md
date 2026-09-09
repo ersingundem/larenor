@@ -1,12 +1,12 @@
 # S06.4 dar medya kurulum yürütmesi
 
 **Durum:** Kalıcı API, ayrı IPC ve doğrulanmış Jellyfin binding dilimleri yerelde
-uygulandı. Binding'i tüketen ayrı sürüm-2 managed-container journal ve
+uygulandı. Binding'i tüketen ayrı sürüm-2 managed-container journal,
 journal-bound proof broker çekirdeği ve tek-endpoint production
-image/volume/network reader bileşimi de yerelde tamamlandı. S06.4 tamamlanmadı;
-paketli production bootstrap/mutasyon işçisi, runtime ve hazırlanan managed-v2
-workflow'un iki mimarili native kabulü açık. Ürün kurulum yeteneği
-`installAvailable=false` kalır.
+image/volume/network reader bileşimi tamamlandı. Managed-v2 workflow'un
+amd64/arm64 native kabulü de exact PR kaynağında geçti. S06.4 tamamlanmadı;
+paketli production bootstrap/mutasyon işçisi, CLI ve supervisor yaşam döngüsü
+açık. Ürün kurulum yeteneği `installAvailable=false` kalır.
 
 ## Uygulanan sınır
 
@@ -90,22 +90,30 @@ mutasyon yapılmadı.
   Docker endpoint'i ve endpoint-bound bootstrap verifier altında birleştirir.
 - RED/GREEN `3be1dc6`: mevcut storage kanıtını koruyan ayrı managed-v2 native
   CI adapter'ı, exact receipt verifier ve amd64/arm64 workflow'u.
-- Güncel bağlayıcı/yürütme/IPC/eski worker regresyon paketi 89 test geçti;
-  Python derleme ve `git diff --check` temiz.
-- Broker'ın resource/volume/managed odak paketi 169 test geçti.
+- GREEN `9b01bcf`–`06f7c3e`: Docker'ın swap, empty-tmpfs, moved-mount ve
+  created-state network normalizasyonlarını dar kabul eden matcher; gerçek
+  cgroup memory/cpu/pids doğrulaması.
+- RED/GREEN `19485ab`: image digest ile çıplak 64-hex container ID biçimini
+  ayıran create receipt doğrulaması.
+- Güncel storage/managed/resource/binding paketi **216 PASS**; managed workflow
+  politika paketi ayrıca **7 PASS**. Python derleme ve `git diff --check` temiz.
 - Exact `191baf3` kaynak commit'i [Server CI 34313975186](https://github.com/ersingundem/larenor/actions/runs/34313975186)
-  ile geçti. Yeni reader/native workflow kaynak commit'inin exact-source Server
-  CI'ı ve iki mimarili managed artifact'i henüz açık.
+  ile geçti.
+- PR head'i `19485ab` ve onun merge kaynağı `b6e7034` için
+  [managed native CI 34326112926](https://github.com/ersingundem/larenor/actions/runs/34326112926)
+  amd64 ile arm64 üzerinde geçti. İki indirilen makbuz exact merge checkout'unda
+  repo verifier ile yeniden PASS verdi. Makbuzlar iki volume, bir restart,
+  `journaled_managed_v2`, journal 2, hazır image, kapalı bootstrap hesabı ve
+  `installAvailable=false` değerlerini doğruladı. Security CI aynı PR head'inde
+  geçti; tam Android/Server CI halen ayrı yayın kapısıdır.
 
 Sürüm kontrollü örnekler
 [`contracts/media-installations.v1.json`](../contracts/media-installations.v1.json)
-dosyasındadır. Son kabul için güncel kaynak commit'inin Server ve güvenlik CI'ı,
-paketli worker runtime testi ve disposable Linux üzerinde amd64/arm64 gerçek
-create/start makbuzları gerekir. Bunlar olmadan S06.4 `done` yapılamaz.
+dosyasındadır. Son kabul için paketli worker runtime testi, güncel kaynağın tam
+Android/Server CI'ı ve inceleme gerekir. Bunlar olmadan S06.4 `done` yapılamaz.
 
 ## Sonraki dilim
 
 1. Paketli bootstrap verifier ve mutasyon worker CLI/supervisor yaşam döngüsü
    eklenecek.
-2. Hazırlanan iki mimarili disposable Linux acceptance gerçek Engine create/start,
-   restart reconciliation ve owned-resource temizliğini kanıtlayacak.
+2. Exact kaynak Android/Server CI ve bağımsız inceleme kapatılacak.
