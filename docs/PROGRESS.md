@@ -1,6 +1,6 @@
 # Larenor — güncel ilerleme ve iş kuyruğu
 
-**Son güncelleme: 10 Eylül 2026 — CI thread zamanlama düzeltmesi tüm kapılardan geçerek ana dala alındı. S06.5'te qBittorrent 5.2.3 sahipli config/API sözleşmesi PR28'de; config'i güncel volume journal kanıtına bağlayan sonraki kapalı Core dilimi yerelde hazır.**
+**Son güncelleme: 10 Eylül 2026 — CI thread zamanlama düzeltmesi ve qBittorrent 5.2.3 sahipli config/API sözleşmesi ana dala alındı. Config–volume bağı ile ortak medya tüketici planı PR30 CI'ında; sabit ve güvenli appdata yazma yardımcısı sonraki dalda yerelde hazır.**
 
 ```text
 Kuyruk kabulü       ██░░░░░░░░░░░░░░░░░░  14/125 iş (%11; eşit ağırlıklı sayaç)
@@ -41,7 +41,7 @@ Gerçek ev kurulumu ve fiziksel tablet kabulü henüz yapılmadı.
 | S06.3d — kalıcı depolama | **Kabul edildi**; Native18 exact `6a054ea`, amd64+arm64 makbuzları doğrulandı | S06.3f ile birleşik kaynak kapısı kapandı |
 | S06.3f — kaynak kabulü | **Kabul edildi**; exact `4021391`, iki mimarili native makbuz, 4.065 Server ve tam Android/Server CI yeşil | S06.4 dar kurulum yürütme kapısı |
 | S06.4 — dar kurulum yürütme kapısı | **Kabul edildi**; PR16 `bf6f860`, PR18 `75af015`, PR19 `9ce3c5a` ve PR20 `2b9166b` tam CI kapıları yeşil | S06.5 özel bootstrap ve otomatik servis eşleştirme |
-| S06.5 — özel bootstrap ve otomatik eşleştirme | **Devam ediyor**; Jellyfin native kabulü tamamlandı. qBittorrent sahipli config, özel Bearer kimliği, exact `v5.2.3` geri okuması ve güvenli `movies`/`tv` kategori eşleştirmesi [PR28](https://github.com/ersingundem/larenor/pull/28)'de | qBittorrent appdata/ortak kütüphane bağı ve iki mimarili native kanıt; ardından Radarr/Sonarr/Seerr/Music Assistant otomatik eşleştirmesi |
+| S06.5 — özel bootstrap ve otomatik eşleştirme | **Devam ediyor**; Jellyfin native kabulü tamamlandı. qBittorrent sahipli config/API sözleşmesi [PR28](https://github.com/ersingundem/larenor/pull/28) ile ana dalda; appdata/ortak kütüphane bağı [PR30](https://github.com/ersingundem/larenor/pull/30) CI'ında, güvenli config helper sonraki dalda yerel | qBittorrent worker etkisi ve iki mimarili native kanıt; ardından Radarr/Sonarr/Seerr/Music Assistant otomatik eşleştirmesi |
 
 S06.5'in ilk iki TDD parçası, yalnız tamamlanmış Jellyfin kurulumundan
 yöneticiye bağlı bootstrap niyeti üretir ve public API'de sır, hedef adres veya
@@ -153,6 +153,14 @@ Sonarr ve Radarr için `/data` yazılabilir; Jellyfin için `/media` salt okunur
 olarak tüketilecek sabit bir plana bağladı. Seerr ve Music Assistant bu medya
 hacmini almıyor. **19 yeni / 315 ilgili test** geçti; bu öneri de henüz mount
 veya kurulum yetkisi vermiyor.
+
+Sonraki helper dilimi, config'i yalnız stdin'den kabul edip tek sabit
+`/volume/qBittorrent/qBittorrent.conf` hedefine kuruyor. Exact allowlist,
+`O_NOFOLLOW`, özel sahiplik/izinler, üzerine yazmayan atomik hard-link yayını,
+dosya/dizin kimliği geri okuması ve yarım etkiyi koruyan kapalı hata politikası
+uygulandı. **16 yeni / 136 ilgili test** geçti. Worker/Docker stdin etkisi ve
+iki mimarili gerçek qBittorrent kabulü açık olduğundan sayaç değişmedi.
+[Uygulama ve açık sınırlar](qbittorrent-config-helper-implementation-2026-09-10.md).
 
 S06.4 native kabul koşusu [34326112926](https://github.com/ersingundem/larenor/actions/runs/34326112926)
 iki gerçek GitHub runner'ında geçti. İndirilen ARM64 ve X64 makbuzları merge
