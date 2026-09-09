@@ -40,7 +40,7 @@ Gerçek ev kurulumu ve fiziksel tablet kabulü henüz yapılmadı.
 | B5.1 — ortak tablet tasarımı | Services/hesap IME paketi APK116 ile kabul edildi; S08.7 komut ve aktarım yüzeyleri yerel tablet matrisinden geçti | Exact-source Android CI ve kalan ortak tablet yüzeyleri |
 | S06.3d — kalıcı depolama | **Kabul edildi**; Native18 exact `6a054ea`, amd64+arm64 makbuzları doğrulandı | S06.3f ile birleşik kaynak kapısı kapandı |
 | S06.3f — kaynak kabulü | **Kabul edildi**; exact `4021391`, iki mimarili native makbuz, 4.065 Server ve tam Android/Server CI yeşil | S06.4 dar kurulum yürütme kapısı |
-| S06.4 — dar kurulum yürütme kapısı | **Devam ediyor**; şifreli kalıcı API, ayrı UID denetimli Unix IPC ve taze image/volume/bootstrap/network kanıtından portsuz Jellyfin binding yerelde tamamlandı | Binding'i kullanan ayrı journal/runtime, paketli worker CLI ve exact iki mimarili native/CI kanıtı |
+| S06.4 — dar kurulum yürütme kapısı | **Devam ediyor**; şifreli kalıcı API, ayrı UID denetimli Unix IPC, taze image/volume/bootstrap/network kanıtından portsuz Jellyfin binding ve ayrı v2 managed-container journal yerelde tamamlandı | Gerçek journal broker'ı, paketli worker CLI/runtime ve exact iki mimarili native/CI kanıtı |
 
 S08.7 üç sonlu teslimden oluşur: **kaynak bağlama ve typed durum → komut ve
 kalıcı sonuç → açık Direct aktarımı**. Üç yerel dilim de squash yapılmadan

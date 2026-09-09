@@ -637,7 +637,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Yerel dilimler: Client Docker JSON'u kabul etmeyen şifreli kalıcı API; her etkide güncel yetki/bağlam/kaynak kapıları; yalnız Jellyfin create/start ve kayıp cevap uzlaştırması; preflight'tan ayrı UID denetimli IPC; tam stack bağlamından taze image, bootstrapped iki volume ve private network kanıtını yeniden türeten portsuz/no-copy binding ve exact inspect matcher. Ayrı managed-container journal/runtime, paketli mutasyon worker CLI, exact iki mimarili native create/start ve güncel CI/review açık. Gerçek ev kurulumu kapalı; installAvailable=false."
+      "reason": "Yerel dilimler: Client Docker JSON'u kabul etmeyen şifreli kalıcı API; her etkide güncel yetki/bağlam/kaynak kapıları; yalnız Jellyfin create/start ve kayıp cevap uzlaştırması; preflight'tan ayrı UID denetimli IPC; tam stack bağlamından taze image, bootstrapped iki volume ve private network kanıtını yeniden türeten portsuz/no-copy binding ve exact inspect matcher; legacy v1'den ayrılmış kalıcı v2 managed-container journal, tam binding tekrar doğrulaması ve sabit Docker create yolu. Gerçek journal broker'ı, paketli mutasyon worker CLI/runtime, exact iki mimarili native create/start ve güncel kaynak CI/review açık. Gerçek ev kurulumu kapalı; installAvailable=false."
     },
     {
       "id": "S06.5",

@@ -278,8 +278,11 @@ Jellyfin child before its policy-owned
 binding builder can reach the journaled Engine operations. The initial builder
 requires fresh typed image, bootstrapped-volume and private-network proofs and
 produces a ports-off Jellyfin binding. This source slice does not yet ship the
-managed-container journal, final installation worker CLI or unified supervisor.
-It has not installed anything on a real home
+real receipt-journal broker, final installation worker CLI or unified supervisor.
+Its separate version-2 managed-container journal durably records the complete
+binding before create/start, refuses legacy journal rows, and reconciles only
+against a freshly rebuilt identical binding and full Engine observation. It has
+not installed anything on a real home
 server. The strict public examples are in
 [`contracts/media-installations.v1.json`](../contracts/media-installations.v1.json)
 and the [implementation evidence](../docs/media-installation-execution-implementation-2026-09-09.md)
