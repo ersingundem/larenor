@@ -148,6 +148,9 @@ _MANAGED_CREATE_DIAGNOSTICS = {
     'managed_inspect_memory_swap_mismatch', 'managed_inspect_memory_mismatch',
     'managed_inspect_cpu_mismatch', 'managed_inspect_pids_mismatch',
     'managed_inspect_security_mismatch', 'managed_inspect_tmpfs_mismatch',
+    'managed_inspect_tmpfs_targets_mismatch', 'managed_inspect_tmpfs_order_mismatch',
+    'managed_inspect_tmpfs_size_normalized', 'managed_inspect_tmpfs_option_missing',
+    'managed_inspect_tmpfs_option_extra', 'managed_inspect_tmpfs_value_mismatch',
     'managed_inspect_requested_mount_mismatch', 'managed_inspect_network_mode_mismatch',
     'managed_inspect_init_mismatch', 'managed_inspect_restart_mismatch',
     'managed_inspect_nonresource_mismatch',
@@ -1239,6 +1242,53 @@ def _managed_create_success_diagnostic(body):
     return None
 
 
+def _tmpfs_size_token(value):
+    if type(value) is not str:
+        return None
+    match = re.fullmatch(r'size=([0-9]{1,20})([kKmMgG]?[bB]?)', value)
+    if match is None:
+        return None
+    amount = int(match.group(1))
+    unit = match.group(2).casefold().removesuffix('b')
+    multiplier = {'': 1, 'k': 1024, 'm': 1048576, 'g': 1073741824}.get(unit)
+    return amount * multiplier if multiplier is not None else None
+
+
+def _tmpfs_diagnostic(actual, expected):
+    if type(actual) is not dict or type(expected) is not dict or set(actual) != set(expected):
+        return 'managed_inspect_tmpfs_targets_mismatch'
+    for target in sorted(expected):
+        desired, observed = expected[target], actual[target]
+        if desired == observed:
+            continue
+        if type(desired) is not str or type(observed) is not str:
+            return 'managed_inspect_tmpfs_value_mismatch'
+        desired_parts, observed_parts = desired.split(','), observed.split(',')
+        if (not all(desired_parts) or not all(observed_parts)
+                or len(set(desired_parts)) != len(desired_parts)
+                or len(set(observed_parts)) != len(observed_parts)):
+            return 'managed_inspect_tmpfs_value_mismatch'
+        if set(desired_parts) == set(observed_parts):
+            return 'managed_inspect_tmpfs_order_mismatch'
+        desired_size = next((_tmpfs_size_token(item) for item in desired_parts
+                             if item.startswith('size=')), None)
+        observed_size = next((_tmpfs_size_token(item) for item in observed_parts
+                              if item.startswith('size=')), None)
+        desired_without = {item for item in desired_parts if not item.startswith('size=')}
+        observed_without = {item for item in observed_parts if not item.startswith('size=')}
+        if (desired_size is not None and desired_size == observed_size
+                and desired_without == observed_without):
+            return 'managed_inspect_tmpfs_size_normalized'
+        desired_keys = {item.partition('=')[0] for item in desired_parts}
+        observed_keys = {item.partition('=')[0] for item in observed_parts}
+        if desired_keys - observed_keys:
+            return 'managed_inspect_tmpfs_option_missing'
+        if observed_keys - desired_keys:
+            return 'managed_inspect_tmpfs_option_extra'
+        return 'managed_inspect_tmpfs_value_mismatch'
+    return 'managed_inspect_tmpfs_value_mismatch'
+
+
 def _managed_inspect_diagnostic(value, binding):
     try:
         expected = binding.payload()['specification']['HostConfig']
@@ -1255,8 +1305,9 @@ def _managed_inspect_diagnostic(value, binding):
         if any(actual.get(field) != expected.get(field) for field in (
                 'Privileged', 'CapDrop', 'CapAdd', 'SecurityOpt', 'ReadonlyRootfs')):
             return 'managed_inspect_security_mismatch'
+        if actual.get('Tmpfs') != expected.get('Tmpfs'):
+            return _tmpfs_diagnostic(actual.get('Tmpfs'), expected.get('Tmpfs'))
         for field, code in (
-                ('Tmpfs', 'managed_inspect_tmpfs_mismatch'),
                 ('Mounts', 'managed_inspect_requested_mount_mismatch'),
                 ('NetworkMode', 'managed_inspect_network_mode_mismatch'),
                 ('Init', 'managed_inspect_init_mismatch')):

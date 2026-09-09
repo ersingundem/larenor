@@ -734,7 +734,7 @@ def test_managed_inspect_resource_drift_is_reduced_to_closed_category(
 
 @pytest.mark.parametrize('field,actual,expected', [
     ('SecurityOpt', ['no-new-privileges'], 'managed_inspect_security_mismatch'),
-    ('Tmpfs', {}, 'managed_inspect_tmpfs_mismatch'),
+    ('Tmpfs', {}, 'managed_inspect_tmpfs_targets_mismatch'),
     ('Mounts', [], 'managed_inspect_requested_mount_mismatch'),
     ('NetworkMode', 'none', 'managed_inspect_network_mode_mismatch'),
     ('Init', False, 'managed_inspect_init_mismatch'),
@@ -756,6 +756,19 @@ def test_managed_inspect_nonresource_host_drift_has_closed_category(
                      field: actual}
     observed = {'Id': 'b'*64, 'HostConfig': observed_host}
     assert m._managed_inspect_diagnostic(observed, Binding()) == expected
+
+
+@pytest.mark.parametrize('actual,expected', [
+    ({}, 'managed_inspect_tmpfs_targets_mismatch'),
+    ({'/tmp': 'nodev,rw,nosuid,size=64m'}, 'managed_inspect_tmpfs_order_mismatch'),
+    ({'/tmp': 'rw,nosuid,nodev,size=67108864'}, 'managed_inspect_tmpfs_size_normalized'),
+    ({'/tmp': 'rw,nosuid,size=64m'}, 'managed_inspect_tmpfs_option_missing'),
+    ({'/tmp': 'rw,nosuid,nodev,size=64m,private'}, 'managed_inspect_tmpfs_option_extra'),
+])
+def test_tmpfs_diagnostic_never_exposes_raw_option_values(actual, expected):
+    m = api()
+    desired = {'/tmp': 'rw,nosuid,nodev,size=64m'}
+    assert m._tmpfs_diagnostic(actual, desired) == expected
 
 
 @pytest.mark.parametrize('worker_code,expected', [
