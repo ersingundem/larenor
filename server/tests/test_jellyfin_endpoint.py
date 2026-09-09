@@ -26,7 +26,7 @@ def running():
 
 def test_running_exact_container_yields_private_fixed_jellyfin_endpoint():
     stack, binding, observed = running()
-    proof = prove_jellyfin_endpoint(observed, binding, stack)
+    proof = prove_jellyfin_endpoint(observed, binding, stack, '5' * 64)
     assert (proof.container_id, proof.network_id, proof.address, proof.port,
             proof.plan_hash) == (
         '5' * 64, binding.network_id, '172.28.0.2', 8096, stack.planHash,
@@ -71,7 +71,7 @@ def test_drift_or_nonprivate_endpoint_never_becomes_connection_authority(damage,
     monkeypatch.setattr(socket, 'socket', lambda *_a, **_k: (_ for _ in ()).throw(
         AssertionError('invalid proof must not open a socket')))
     with pytest.raises(JellyfinEndpointError, match='^jellyfin_endpoint_untrusted$'):
-        open_jellyfin_endpoint(observed, binding, stack)
+        open_jellyfin_endpoint(observed, binding, stack, '5' * 64)
 
 
 class Connection:
@@ -101,7 +101,7 @@ def test_connector_uses_one_numeric_ipv4_target_without_dns_or_retry(monkeypatch
     monkeypatch.setattr(socket, 'socket', lambda family, kind, protocol: calls.append(
         (family, kind, protocol)) or connection)
 
-    opened = open_jellyfin_endpoint(observed, binding, stack, timeout=3.0)
+    opened = open_jellyfin_endpoint(observed, binding, stack, '5' * 64, timeout=3.0)
 
     assert opened.connection is connection and opened.proof.address == '172.28.0.2'
     assert calls == [(socket.AF_INET, socket.SOCK_STREAM, socket.IPPROTO_TCP)]
@@ -115,7 +115,7 @@ def test_connect_failure_closes_once_and_returns_only_a_static_code(monkeypatch)
     connection = Connection(fail=True)
     monkeypatch.setattr(socket, 'socket', lambda *_a: connection)
     with pytest.raises(JellyfinEndpointError, match='^jellyfin_endpoint_unavailable$') as raised:
-        open_jellyfin_endpoint(observed, binding, stack)
+        open_jellyfin_endpoint(observed, binding, stack, '5' * 64)
     assert connection.closed and len([item for item in connection.calls if item[0] == 'connect']) == 1
     assert '172.28.0.2' not in str(raised.value) + repr(raised.value)
 
@@ -126,10 +126,10 @@ def test_timeout_is_packaged_and_invalid_values_open_no_socket(timeout, monkeypa
     monkeypatch.setattr(socket, 'socket', lambda *_a: (_ for _ in ()).throw(
         AssertionError('invalid limit must not open a socket')))
     with pytest.raises(JellyfinEndpointError, match='^invalid_jellyfin_endpoint_limits$'):
-        open_jellyfin_endpoint(observed, binding, stack, timeout=timeout)
+        open_jellyfin_endpoint(observed, binding, stack, '5' * 64, timeout=timeout)
 
 
 def test_closed_surface_has_no_client_selected_target_or_transport_hooks():
     parameters = inspect.signature(open_jellyfin_endpoint).parameters
-    assert set(parameters) == {'observed', 'binding', 'stack', 'timeout'}
+    assert set(parameters) == {'observed', 'binding', 'stack', 'expected_container_id', 'timeout'}
     assert not {'url', 'host', 'port', 'address', 'resolver', 'connector', 'proxy'} & set(parameters)
