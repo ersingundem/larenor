@@ -1,6 +1,6 @@
 # qBittorrent config helper — uygulama ve açık kabul sınırı
 
-**Tarih:** 10 Eylül 2026  
+**Tarih:** 10 Eylül 2026
 **Kuyruk:** S06.5 — özel bootstrap ve otomatik servis eşleştirme
 
 ## Tamamlanan yardımcı etkisi
