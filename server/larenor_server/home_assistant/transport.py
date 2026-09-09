@@ -5,6 +5,7 @@ headers, exceptions and bodies never become API errors, previews or cache data.
 """
 import json
 import re
+import unicodedata
 
 from ..errors import ApiError
 from ..services.transport import ServiceTransport, ProbeTransportError
@@ -25,8 +26,12 @@ def _unique(pairs):
     return value
 
 
-def read_switch(service, entity_id, *, guard):
-    if not re.fullmatch(r'switch\.[a-z0-9_]{1,121}', entity_id):
+_ENTITY = re.compile(r'([a-z0-9_]{1,64})\.[a-z0-9_]{1,121}\Z')
+
+
+def read_entity(service, entity_id, *, guard):
+    selected = _ENTITY.fullmatch(entity_id) if type(entity_id) is str and len(entity_id) <= 128 else None
+    if selected is None:
         raise ApiError('invalid_request')
     guard()
     try:
@@ -52,10 +57,20 @@ def read_switch(service, entity_id, *, guard):
         if not isinstance(data, dict) or data.get('entity_id') != entity_id:
             raise ValueError()
         state = data.get('state')
-        projection = Projection(state='unavailable' if state == 'unknown' else state)
+        if (type(state) is not str or not 1 <= len(state) <= 255
+                or any(unicodedata.category(char).startswith('C') for char in state)):
+            raise ValueError()
+        domain = selected.group(1)
+        if domain == 'switch' and state == 'unknown':
+            state = 'unavailable'
+        projection = Projection(kind=domain, state=state)
     except (ValueError, TypeError, UnicodeError, RecursionError):
         raise ApiError('ha_projection_unsupported', 502) from None
     return projection
+
+
+# Kept as a private compatibility import for older focused tests and workers.
+read_switch = read_entity
 
 
 def command_switch(service, entity_id, action, *, guard):

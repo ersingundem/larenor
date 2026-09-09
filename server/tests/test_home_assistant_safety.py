@@ -51,6 +51,13 @@ def test_command_capability_requires_literal_boolean(value):
         Projection(state='on', commandAvailable=value)
 
 
+def test_only_switch_projection_can_advertise_commands():
+    with pytest.raises(ValueError):
+        Projection(kind='sensor', state='on', commandAvailable=True)
+    with pytest.raises(ValueError):
+        Projection(kind='Sensor', state='on')
+
+
 @pytest.mark.parametrize('state,expected',[('on','on'),('off','off'),('unknown','unavailable'),('unavailable','unavailable')])
 def test_closed_projection_and_no_upstream_attributes(server, ha, state, expected):
     _, client, admin, _, _, base, public, body = setup(server, ha)
@@ -88,11 +95,58 @@ def test_malformed_oversize_and_foreign_entity_responses_are_static(server, ha, 
     assert 'secret' not in r.text and 'switch.other' not in r.text
 
 
-@pytest.mark.parametrize('entity',['switch.x\n','switch.X','light.x','switch.x/y','switch.%2f','switch.x?x','switch.'+'x'*122])
+@pytest.mark.parametrize('entity',['switch.x\n','switch.X','light.X','switch.x/y','switch.%2f','switch.x?x',
+                                    'switch.'+'x'*122,'.missing','missing.','a'*65+'.x'])
 def test_entity_selection_is_closed_before_io(server,ha,entity):
     _,client,admin,_,_,base,_,body=setup(server,ha)
     r=client.post(base+'/binding-preview',headers=auth(admin),json={**body,'entityId':entity})
     assert r.status_code==400 and ha.calls==0
+
+
+@pytest.mark.parametrize(('entity', 'state'), [
+    ('sensor.room_temperature', '21.5'),
+    ('binary_sensor.front_door', 'unknown'),
+    ('custom_house_mode.current', 'travel'),
+    ('sun.sun', 'below_horizon'),
+])
+def test_non_switch_domains_are_bounded_read_only_projections(server, ha, entity, state):
+    app, client, admin, _, _, base, public, body = setup(server, ha, entity)
+    ha.state = state
+    preview = client.post(base + '/binding-preview', headers=auth(admin), json=body)
+    assert preview.status_code == 201, preview.text
+    value = preview.json()['preview']
+    assert value['projection'] == {
+        'kind': entity.partition('.')[0], 'state': state, 'commandAvailable': False,
+    }
+    assert client.post(base + '/binding-confirm', headers=auth(admin),
+                       json={'previewId': value['id']}).status_code == 201
+    snapshot = client.get(public + '/snapshot', headers=auth(admin))
+    assert snapshot.status_code == 200, snapshot.text
+    assert snapshot.json()['snapshot']['projection'] == value['projection']
+    before = ha.command_calls
+    command = {'schemaVersion': 1, 'requestId': '9' * 32, 'action': 'turn_on',
+               'expectedBindingRevision': 1, 'expectedResourceRevision': 1,
+               'expectedAclRevision': 1}
+    rejected = client.post(public + '/commands', headers=auth(admin), json=command)
+    assert rejected.status_code == 400
+    assert ha.command_calls == before
+    with app.state.core.db.connection() as connection:
+        assert connection.execute('SELECT COUNT(*) FROM home_assistant_commands').fetchone()[0] == 0
+    assert all(secret not in snapshot.text for secret in (
+        'entity_id', 'attributes', 'NEVER-PUBLISH', 'synthetic-ha-only',
+    ))
+
+
+@pytest.mark.parametrize('state', [
+    '', 'x' * 256, 'open\nprivate', 'open\u0000private',
+    'open\u0085private', 'open\u202eprivate',
+])
+def test_non_switch_state_is_bounded_and_rejects_control_characters(server, ha, state):
+    _, client, admin, _, _, base, _, body = setup(server, ha, 'custom_house_mode.current')
+    ha.state = state
+    response = client.post(base + '/binding-preview', headers=auth(admin), json=body)
+    assert response.status_code == 502
+    assert response.json()['error']['code'] == 'ha_projection_unsupported'
 
 
 @pytest.mark.parametrize('stage',['snapshot','preview'])

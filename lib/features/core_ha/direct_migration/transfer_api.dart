@@ -62,7 +62,7 @@ final class CoreHaTransferApi {
   }) {
     if (!transferId(requestId) ||
         !validServiceName(name) ||
-        !coreHaEntityId(entityId) ||
+        !coreHaSwitchEntityId(entityId) ||
         credential.isEmpty ||
         credential.length > 2048 ||
         credential.codeUnits.any((u) => u < 33 || u > 126)) {

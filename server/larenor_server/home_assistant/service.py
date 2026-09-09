@@ -25,7 +25,7 @@ from ..errors import ApiError, StartupError
 from . import schema
 from .models import (Binding, CommandReceipt, CommandRequest, PreviewRequest,
                      Projection, Snapshot, StoredCommand)
-from .transport import command_switch, read_switch
+from .transport import command_switch, read_entity
 
 
 PREVIEW_TTL = 60.0
@@ -59,7 +59,7 @@ class HomeAssistantAdapter:
         self._last_clock = None
         self._closed = False
         self._slots = threading.BoundedSemaphore(4)
-        self._reader = read_switch  # Private packaged/test seam, never an HTTP option.
+        self._reader = read_entity  # Private packaged/test seam, never an HTTP option.
         self._commander = command_switch
         self._active_commands = set()
         self._command_generation = 0
@@ -372,6 +372,8 @@ class HomeAssistantAdapter:
                     expected_acl_revision=body.expectedAclRevision)
                 if binding is None or binding.revision != body.expectedBindingRevision:
                     raise ApiError('ha_binding_changed', 409)
+                if not binding.entityId.startswith('switch.'):
+                    raise ApiError('invalid_request')
                 fingerprint, _, _, current, service = self._facts(c, facts, resource)
                 if current != binding:
                     raise ApiError('ha_binding_changed', 409)
@@ -458,8 +460,9 @@ class HomeAssistantAdapter:
                     command_generation != self._command_generation or cancelled()):
                 raise ApiError('ha_binding_changed', 409)
             projection = projection.model_copy(update={'commandAvailable':
-                self.resources._decision(facts, row, ref,
-                    self.resources._target(c, resource)[2], 'write').allowed})
+                projection.kind == 'switch' and self.resources._decision(
+                    facts, row, ref, self.resources._target(c, resource)[2], 'write',
+                ).allowed})
             result = Snapshot(ref=ref, bindingId=binding.id, bindingRevision=binding.revision,
                 resourceRevision=row['revision'], aclRevision=row['acl_revision'], serviceRevision=binding.serviceRevision,
                 observedAt=utc(self.settings.clock()), remainingTtlMs=5000, projection=projection).model_dump()

@@ -14,6 +14,7 @@ def ha():
     class Fixture:
         calls = 0
         command_calls = 0
+        entity_id = 'switch.synthetic'
         state = 'off'
         status = 200
         command_status = 200
@@ -25,11 +26,11 @@ def ha():
             pass
         def do_GET(self):
             fixture.calls += 1
-            assert self.path == '/api/states/switch.synthetic'
+            assert self.path == '/api/states/' + fixture.entity_id
             assert self.headers.get('Authorization') == 'Bearer synthetic-ha-only'
             if fixture.during:
                 fixture.during()
-            value = {'entity_id': 'switch.synthetic', 'state': fixture.state,
+            value = {'entity_id': fixture.entity_id, 'state': fixture.state,
                 'attributes': {'token': 'NEVER-PUBLISH-ATTRIBUTES'}, 'last_updated': '2026-09-06T12:00:00Z'}
             body = fixture.body if fixture.body is not None else json.dumps(value).encode()
             self.send_response(fixture.status)
@@ -63,7 +64,7 @@ def ha():
         http.shutdown(); http.server_close(); thread.join(timeout=2)
 
 
-def setup(server, ha):
+def setup(server, ha, entity_id='switch.synthetic'):
     app, client, _, _ = server; admin = ready(server)
     scope = app.state.core.context
     resource = client.post(f'/api/v1/admin/home-resources/{scope.coreId}/{scope.homeId}',
@@ -73,8 +74,9 @@ def setup(server, ha):
         'credentials': {'token': 'synthetic-ha-only'}}).json()['service']
     suffix = f'/home-assistant/{scope.coreId}/{scope.homeId}/resources/{resource["ref"]["id"]}'
     base, public = '/api/v1/admin' + suffix, '/api/v1' + suffix
+    ha.entity_id = entity_id
     body = {'serviceId': service['id'], 'expectedServiceRevision': 1, 'expectedRevision': 1,
-        'expectedAclRevision': 1, 'entityId': 'switch.synthetic', 'expectedBindingId': None}
+        'expectedAclRevision': 1, 'entityId': entity_id, 'expectedBindingId': None}
     return app, client, admin, resource, service, base, public, body
 
 

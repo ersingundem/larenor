@@ -104,6 +104,41 @@ void main() {
       }
     },
   );
+  test('bounded custom domains remain read only and preserve unknown state', () {
+    for (final entry in <(String, String)>[
+      ('sensor', '21.5'),
+      ('binary_sensor', 'unknown'),
+      ('custom_house_mode', 'travel'),
+      ('sun', 'below_horizon'),
+    ]) {
+      final projection = CoreHaProjection.fromJson({
+        'kind': entry.$1,
+        'state': entry.$2,
+        'commandAvailable': false,
+      });
+      expect(projection.kind, entry.$1);
+      expect(projection.rawState, entry.$2);
+      expect(projection.switchState, isNull);
+      expect(projection.commandAvailable, isFalse);
+    }
+    for (final state in [
+      '',
+      'x' * 256,
+      'open\nprivate',
+      'open\u0000private',
+      'open\u0085private',
+      'open\u202eprivate',
+    ]) {
+      expect(
+        () => CoreHaProjection.fromJson({
+          'kind': 'custom_house_mode',
+          'state': state,
+          'commandAvailable': false,
+        }),
+        throwsA(failure('invalid_response')),
+      );
+    }
+  });
   test('snapshot binds exact resource and bounded server freshness', () {
     final value = CoreHaSnapshot.fromJson(snapshotJson(), target: target());
     expect(value.bindingId, '4' * 32);
@@ -134,7 +169,7 @@ void main() {
     expect(value.toString(), 'CoreHaPreview');
   });
   for (final entry in <String, Object?>{
-    'kind': 'light',
+    'kind': 'Light',
     'state': 'unknown',
     'extra': 'private',
   }.entries) {
@@ -238,10 +273,13 @@ void main() {
   });
   test('entity selector matches closed ASCII switch identifier', () {
     expect(coreHaEntityId('switch.${'x' * 121}'), isTrue);
+    expect(coreHaEntityId('sensor.room_temperature'), isTrue);
+    expect(coreHaEntityId('custom_house_mode.current'), isTrue);
+    expect(coreHaEntityId('sun.sun'), isTrue);
     for (final text in [
-      'light.lamp',
       'switch.',
       'switch.Lamp',
+      '${'a' * 65}.entity',
       ' switch.lamp',
       'switch.lamp\n',
       'switch.%2f',

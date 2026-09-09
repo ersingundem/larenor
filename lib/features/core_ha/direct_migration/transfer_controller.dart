@@ -202,7 +202,7 @@ class CoreHaTransferController extends ChangeNotifier {
           }
           .where(
             (entity) =>
-                coreHaEntityId(entity) &&
+                coreHaSwitchEntityId(entity) &&
                 !layout.hiddenEntityIds.contains(entity),
           )
           .toList()

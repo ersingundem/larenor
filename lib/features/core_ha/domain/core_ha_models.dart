@@ -50,20 +50,37 @@ void _ref(Object? value, HomeResourceRecord target) {
 enum CoreHaSwitchState { on, off, unavailable }
 
 final class CoreHaProjection {
-  const CoreHaProjection._(this.state, this.commandAvailable);
-  final CoreHaSwitchState state;
+  const CoreHaProjection._(
+    this.kind,
+    this.rawState,
+    this.switchState,
+    this.commandAvailable,
+  );
+  final String kind, rawState;
+  final CoreHaSwitchState? switchState;
   final bool commandAvailable;
+  CoreHaSwitchState get state => switchState ?? _invalid();
   factory CoreHaProjection.fromJson(Object? raw) {
     final value = _object(raw, {'kind', 'state', 'commandAvailable'});
-    if (value['kind'] != 'switch' || value['commandAvailable'] is! bool) {
+    final kind = value['kind'], state = value['state'];
+    if (kind is! String ||
+        !_coreHaDomain(kind) ||
+        state is! String ||
+        !_coreHaState(state) ||
+        value['commandAvailable'] is! bool) {
       _invalid();
     }
-    return CoreHaProjection._(switch (value['state']) {
-      'on' => CoreHaSwitchState.on,
-      'off' => CoreHaSwitchState.off,
-      'unavailable' => CoreHaSwitchState.unavailable,
-      _ => _invalid(),
-    }, value['commandAvailable'] as bool);
+    final switchState = kind == 'switch'
+        ? switch (state) {
+            'on' => CoreHaSwitchState.on,
+            'off' => CoreHaSwitchState.off,
+            'unavailable' => CoreHaSwitchState.unavailable,
+            _ => _invalid(),
+          }
+        : null;
+    final commandAvailable = value['commandAvailable'] as bool;
+    if (kind != 'switch' && commandAvailable) _invalid();
+    return CoreHaProjection._(kind, state, switchState, commandAvailable);
   }
   @override
   String toString() => 'CoreHaProjection';
@@ -160,7 +177,7 @@ final class CoreHaCommandReceipt {
         dispatch == CoreHaDispatchState.unknown && provider != null ||
         observed == null && matches != null ||
         observed != null && matches == null ||
-        observed != null && matches != (observed.state == targetState) ||
+        observed != null && matches != (observed.switchState == targetState) ||
         dispatch != CoreHaDispatchState.pending && completed == null) {
       _invalid();
     }
@@ -323,5 +340,23 @@ final class CoreHaPreview {
 
 bool coreHaEntityId(String value) =>
     value.length <= 128 &&
-    RegExp(r'^switch\.[a-z0-9_]+$').hasMatch(value) &&
+    RegExp(r'^[a-z0-9_]{1,64}\.[a-z0-9_]+$').hasMatch(value) &&
     !value.endsWith('\n');
+
+bool coreHaSwitchEntityId(String value) =>
+    value.startsWith('switch.') && coreHaEntityId(value);
+
+bool _coreHaDomain(String value) =>
+    value.length <= 64 && RegExp(r'^[a-z0-9_]+$').hasMatch(value);
+
+bool _coreHaState(String value) =>
+    value.isNotEmpty &&
+    value.length <= 255 &&
+    !value.runes.any((rune) =>
+        rune < 32 ||
+        rune >= 127 && rune <= 159 ||
+        rune >= 0xd800 && rune <= 0xdfff ||
+        rune >= 0x200b && rune <= 0x200f ||
+        rune >= 0x202a && rune <= 0x202e ||
+        rune >= 0x2060 && rune <= 0x206f ||
+        rune == 0xfeff);
