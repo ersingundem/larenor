@@ -1,6 +1,6 @@
 # Larenor — güncel ilerleme ve iş kuyruğu
 
-**Son güncelleme: 10 Eylül 2026 — CI thread zamanlama düzeltmesi tüm kapılardan geçerek ana dala alındı. S06.5'te qBittorrent 5.2.3 için sahipli config, Bearer kimliği, tam sürüm doğrulaması, güvenli ayar geri okuması ve idempotent film/dizi kategori eşleştirmesi PR28'de inceleniyor.**
+**Son güncelleme: 10 Eylül 2026 — CI thread zamanlama düzeltmesi tüm kapılardan geçerek ana dala alındı. S06.5'te qBittorrent 5.2.3 sahipli config/API sözleşmesi PR28'de; config'i güncel volume journal kanıtına bağlayan sonraki kapalı Core dilimi yerelde hazır.**
 
 ```text
 Kuyruk kabulü       ██░░░░░░░░░░░░░░░░░░  14/125 iş (%11; eşit ağırlıklı sayaç)
@@ -138,6 +138,15 @@ belirsiz etki olarak raporlanıyor. **104 qBittorrent testi**, ortak HTTP
 Container hacim bağları ile amd64/arm64 gerçek qBittorrent kanıtı açık olduğu
 için kurulum yeteneği kapalı ve kuyruk kabul sayacı değişmedi.
 [Uygulama ve açık sınırlar](qbittorrent-owned-bootstrap-implementation-2026-09-10.md).
+
+Takip eden TDD dilimi config bytes üretimini yalnız güncel `VolumeCreateJournal`
+kaydından yeniden bağlanan qBittorrent `/config` appdata kaynağına bağladı.
+Revision, resource/operation, journal/nonce, volume adı, child plan, portlar,
+servis ve hedef eşleşmeden config üretilemiyor; işlem journal'ı değiştirmiyor.
+**15 yeni / 294 ilgili test**, compileall, diff ve gitleaks kontrolü geçti.
+Bu yalnız private bellek içi sözleşmedir; atomik volume yazma ve native
+container kanıtı hâlâ açıktır.
+[Uygulama ve açık sınırlar](qbittorrent-config-volume-binding-implementation-2026-09-10.md).
 
 S06.4 native kabul koşusu [34326112926](https://github.com/ersingundem/larenor/actions/runs/34326112926)
 iki gerçek GitHub runner'ında geçti. İndirilen ARM64 ve X64 makbuzları merge
