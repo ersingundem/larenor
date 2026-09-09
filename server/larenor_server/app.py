@@ -67,8 +67,12 @@ def create_app(settings: Settings, *, routers: Iterable[APIRouter] = (),
         installations = application.state.core.media_installations
         installation_task = asyncio.create_task(dispatch(
             installations, "media_installation_dispatch_unavailable")) if installations.backend is not None else None
+        bootstraps = application.state.core.media_service_bootstraps
+        bootstrap_task = asyncio.create_task(dispatch(
+            bootstraps, "media_service_bootstrap_dispatch_unavailable")) if bootstraps.backend is not None else None
         application.state.media_inspection_dispatcher = media_task
         application.state.media_installation_dispatcher = installation_task
+        application.state.media_service_bootstrap_dispatcher = bootstrap_task
         application.state.plugin_job_dispatcher = task
         try:
             yield
@@ -84,6 +88,8 @@ def create_app(settings: Settings, *, routers: Iterable[APIRouter] = (),
                 await media_task
             if installation_task is not None:
                 await installation_task
+            if bootstrap_task is not None:
+                await bootstrap_task
 
     app = FastAPI(title="Larenor Server", version=server_version(), docs_url=None,
                   redoc_url=None, openapi_url=None,
@@ -94,6 +100,7 @@ def create_app(settings: Settings, *, routers: Iterable[APIRouter] = (),
     app.state.plugin_job_dispatcher = None
     app.state.media_inspection_dispatcher = None
     app.state.media_installation_dispatcher = None
+    app.state.media_service_bootstrap_dispatcher = None
     app.add_middleware(SafeBoundaryMiddleware)
 
     @app.exception_handler(ApiError)

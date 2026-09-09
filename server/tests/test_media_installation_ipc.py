@@ -307,7 +307,16 @@ def test_durable_coordinator_reaches_supervised_worker_over_real_unix_ipc(
             installation_worker_uid=os.getuid(),
         )
         with TestClient(create_app(configured)) as reopened:
-            terminal = reopened.app.state.core.media_service_bootstraps.tick()['bootstrap']
+            assert reopened.app.state.media_service_bootstrap_dispatcher is not None
+            end = time.monotonic() + 5
+            while True:
+                terminal = reopened.get(
+                    BASE + '/' + queued['id'], headers=auth(pair),
+                ).json()['bootstrap']
+                if terminal['state'] not in {'queued', 'running'}:
+                    break
+                assert time.monotonic() < end
+                time.sleep(.025)
 
     assert terminal == queued | {
         'revision': 3, 'state': 'wiring_partial',
