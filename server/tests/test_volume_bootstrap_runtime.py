@@ -179,7 +179,7 @@ def test_unix_engine_uses_fixed_ephemeral_helper_and_removes_it(tmp_path):
     transport = ExchangeTransport([
         response(201, {'Id': container_id, 'Warnings': None}),
         response(204),
-        response(200, {'StatusCode': 0, 'Error': None}),
+        response(200, {'StatusCode': 0}),
         response(204),
     ])
     endpoint = DockerEndpoint('/private/docker.sock', owner_uid=0)
@@ -226,6 +226,33 @@ def test_unix_engine_uses_fixed_ephemeral_helper_and_removes_it(tmp_path):
     assert transport.calls[3][:2] == (
         'DELETE', f'/containers/{container_id}',
     )
+
+
+def test_wait_response_ignores_future_fields_from_open_engine_schema(tmp_path):
+    intent = volume_intent(tmp_path)
+    container_id = '7' * 64
+    transport = ExchangeTransport([
+        response(201, {'Id': container_id, 'Warnings': None}),
+        response(204),
+        response(200, {
+            'StatusCode': 0,
+            'Error': None,
+            'FutureEngineField': {'private': 'ignored'},
+        }),
+        response(204),
+    ])
+    engine = UnixVolumeBootstrapEngine(
+        DockerEndpoint('/private/docker.sock', owner_uid=0),
+        transport_factory=lambda value: transport,
+        name_factory=lambda: '8' * 32,
+    )
+
+    assert engine.verify_root(
+        intent,
+        HELPER,
+        'linux/amd64',
+        cancelled=threading.Event(),
+    ) is True
 
 
 @pytest.mark.parametrize('wait', [

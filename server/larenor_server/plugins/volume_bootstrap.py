@@ -165,9 +165,10 @@ class UnixVolumeBootstrapEngine:
                 body=True,
             )
             stage = 'result'
-            _require(set(waited) == {'StatusCode', 'Error'})
-            _require(type(waited['StatusCode']) is int and waited['StatusCode'] == 0)
-            _require(waited['Error'] is None)
+            _require(type(waited) is dict)
+            _require(type(waited.get('StatusCode')) is int
+                     and waited['StatusCode'] == 0)
+            _require(waited.get('Error') is None)
             _require(not cancelled.is_set())
         except Exception:
             failure = 'bootstrap_' + stage + '_failed'
