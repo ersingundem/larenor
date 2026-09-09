@@ -109,6 +109,33 @@ def test_verify_allows_existing_app_data_without_walking_or_mutating(local):
     assert effects == [] and (root / 'app-data').read_text() == 'existing'
 
 
+def test_media_directories_are_fixed_idempotent_and_preserve_unrelated_entries(local, monkeypatch):
+    m, root, state, effects = local
+    state.update(uid=1000, gid=1000, mode=0o750)
+    monkeypatch.setattr(m.os, 'geteuid', lambda: 1000)
+    monkeypatch.setattr(m.os, 'getegid', lambda: 1000)
+    (root / 'unrelated').write_text('keep')
+    assert m.run('prepare_media_directories') == {
+        'schemaVersion': 1, 'state': 'media_directories_prepared',
+    }
+    assert {item.name for item in root.iterdir()} == {'movies', 'shows', 'unrelated'}
+    assert stat.S_IMODE((root / 'movies').stat().st_mode) == 0o750
+    assert stat.S_IMODE((root / 'shows').stat().st_mode) == 0o750
+    assert m.run('prepare_media_directories')['state'] == 'media_directories_prepared'
+    assert (root / 'unrelated').read_text() == 'keep' and effects == [('fsync',), ('fsync',)]
+
+
+@pytest.mark.parametrize('name', ['movies', 'shows'])
+def test_media_directory_symlink_or_wrong_metadata_is_rejected(local, name, monkeypatch):
+    m, root, state, _effects = local
+    state.update(uid=1000, gid=1000, mode=0o750)
+    monkeypatch.setattr(m.os, 'geteuid', lambda: 1000)
+    monkeypatch.setattr(m.os, 'getegid', lambda: 1000)
+    (root / name).symlink_to('/outside')
+    with pytest.raises(m.BootstrapError, match='^bootstrap_conflict$'):
+        m.run('prepare_media_directories')
+
+
 def test_directory_identity_drift_rejects_success(local, monkeypatch):
     m, _, _, _ = local
     original = m.os.fstat

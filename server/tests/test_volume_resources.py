@@ -44,7 +44,7 @@ def inspect(binding, value):
                                    request_target=volume_inspect_target(binding))
 
 
-@pytest.mark.parametrize('index', range(7))
+@pytest.mark.parametrize('index', range(8))
 def test_all_managed_targets_match_only_their_own_bound_labels(source, index):
     plan = build_volume_plan(*source)
     resource = plan.resources[index]

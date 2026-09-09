@@ -76,12 +76,12 @@ def validate_receipt(value, commit, selected):
             'dockerfileSha256': hashes['server/Dockerfile.volume-bootstrap'],
             'sourceHashes': hashes,
         },
-        'volumeCount': 2, 'restartCount': 1, 'serverId': server_id,
+        'volumeCount': 3, 'restartCount': 1, 'serverId': server_id,
         'containerMode': 'journaled_managed_v2', 'containerJournalVersion': 2,
         'bootstrapAccountConfigured': True, 'apiKeyVerified': True,
         'libraryCount': 2, 'sessionClosed': True, 'installAvailable': False,
         'imageState': 'ready',
-        'volumeStates': ['observed_requires_bootstrap'] * 2,
+        'volumeStates': ['observed_requires_bootstrap'] * 3,
     }
     require(_same(value, expected))
 

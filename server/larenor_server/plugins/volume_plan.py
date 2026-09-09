@@ -1,4 +1,4 @@
-"""Pure appdata volume proposals; no transport, host access or ownership grant.
+"""Pure appdata and shared-library proposals; no host access or ownership grant.
 
 This is a separate domain from ResourcePreparationPlan v1 and its inode-based
 journal. Names never prove creation, exclusive ownership, safe container mount
@@ -9,7 +9,8 @@ perform other mount types; this proposal deliberately has no options field.
 
 References: https://raw.githubusercontent.com/moby/moby/v27.5.1/api/swagger.yaml
 and https://docs.docker.com/engine/storage/volumes/ . NoCopy is the proposed
-container-mount behavior, not an option of the volume-create API.
+container-mount behavior, not an option of the volume-create API. The managed
+library is one Larenor-owned named volume; it is not a caller-selected host path.
 """
 
 import hashlib
@@ -25,6 +26,7 @@ from .stack_plan import MediaStackPlan, _canonical
 
 
 class ManagedVolumeProposal(FrozenModel):
+    kind: Literal['managed_appdata', 'managed_library']
     resourceId: Identity
     operationId: Identity
     serviceId: ServiceId
@@ -32,9 +34,10 @@ class ManagedVolumeProposal(FrozenModel):
     childPlanHash: Digest
     requestedRootId: RootId
     requestedRelativePath: Annotated[str, Field(max_length=48,
-        pattern=r'^[a-z][a-z0-9-]{0,39}/(?:config|cache|data)$')]
+        pattern=r'^(?:[a-z][a-z0-9-]{0,39}/(?:config|cache|data)|shared/library)$')]
     target: TargetPath
-    name: Annotated[str, Field(max_length=51, pattern=r'^larenor-appdata-v1-[0-9a-f]{32}$')]
+    name: Annotated[str, Field(max_length=51,
+        pattern=r'^larenor-(?:appdata|library)-v1-[0-9a-f]{32}$')]
     driver: Literal['local']
     scope: Literal['local']
     containerUser: Literal['1000:1000', '0:0']
@@ -44,7 +47,13 @@ class ManagedVolumeProposal(FrozenModel):
 
     @model_validator(mode='after')
     def fixed_mapping(self):
-        if self.name != 'larenor-appdata-v1-' + self.resourceId or self.readOnly or not self.noCopy:
+        prefix = 'larenor-' + ('appdata' if self.kind == 'managed_appdata' else 'library') + '-v1-'
+        appdata = self.kind == 'managed_appdata' and not self.readOnly
+        library = (self.kind == 'managed_library' and self.readOnly
+                   and self.serviceId == 'jellyfin' and self.target == '/media'
+                   and self.requestedRelativePath == 'shared/library'
+                   and self.containerUser == '1000:1000')
+        if self.name != prefix + self.resourceId or not (appdata or library) or not self.noCopy:
             raise ValueError('invalid_volume_proposal')
         return self
 
@@ -62,7 +71,7 @@ class VolumeStoragePlan(FrozenModel):
     planHash: Digest
     installAvailable: StrictBool
     bindingStatus: Literal['proposed']
-    resources: tuple[ManagedVolumeProposal, ...] = Field(min_length=7, max_length=7)
+    resources: tuple[ManagedVolumeProposal, ...] = Field(min_length=8, max_length=8)
 
     @model_validator(mode='after')
     def no_execution_grant(self):
@@ -103,6 +112,7 @@ def build_volume_plan(stack, catalog, policy):
                     continue
                 identity = _id('resource', selected, component, mount.target)
                 resources.append(ManagedVolumeProposal(
+                    kind='managed_appdata',
                     resourceId=identity,
                     operationId=_id('operation', selected, component, mount.target),
                     serviceId=component.serviceId, installationId=component.installationId,
@@ -111,6 +121,21 @@ def build_volume_plan(stack, catalog, policy):
                     name='larenor-appdata-v1-' + identity, driver='local', scope='local',
                     containerUser=child.security.user, readOnly=False, noCopy=True,
                     readiness='requires_bootstrap_validation'))
+        jellyfin = next(component for component in selected.components
+                        if component.serviceId == 'jellyfin')
+        media_mount = next(mount for mount in jellyfin.plan.mounts
+                           if mount.kind == 'approved_library' and mount.target == '/media'
+                           and mount.readOnly is True)
+        identity = _id('library_resource', selected, jellyfin, media_mount.target)
+        resources.append(ManagedVolumeProposal(
+            kind='managed_library', resourceId=identity,
+            operationId=_id('library_operation', selected, jellyfin, media_mount.target),
+            serviceId=jellyfin.serviceId, installationId=jellyfin.installationId,
+            childPlanHash=jellyfin.plan.planHash, requestedRootId=media_mount.rootId,
+            requestedRelativePath='shared/library', target=media_mount.target,
+            name='larenor-library-v1-' + identity, driver='local', scope='local',
+            containerUser=jellyfin.plan.security.user, readOnly=True, noCopy=True,
+            readiness='requires_bootstrap_validation'))
         result = VolumeStoragePlan(schemaVersion=1, coreId=selected.coreId,
             homeId=selected.homeId, preparationId=selected.preparationId, platform=selected.platform,
             catalogDigest=native.catalogDigest, stackPlanHash=native.stackPlanHash,

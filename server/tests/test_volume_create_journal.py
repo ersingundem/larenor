@@ -24,7 +24,7 @@ def journal():
     return importlib.import_module(name).VolumeCreateJournal
 
 
-@pytest.mark.parametrize('index', range(7))
+@pytest.mark.parametrize('index', range(8))
 def test_each_create_intent_is_durable_and_never_means_installed(tmp_path, source, index):
     cls = journal()
     data = inputs(source)

@@ -1,11 +1,14 @@
 """Single-purpose container helper, not an installer or an ownership grant.
 
 Only /volume, a distinct retained mount, can be inspected. Initial preparation
-changes the empty root directory itself, never descendants. A failed metadata
-write is not rolled back or retried. Caller must separately prove new-volume,
-daemon/user mapping and dispatch authority; this executable supplies none.
+changes the empty root directory itself. The separate media mode creates only
+the fixed ``movies`` and ``shows`` directories beneath an already verified
+root. A failed metadata write is not rolled back or retried. Caller must
+separately prove new-volume, daemon/user mapping and dispatch authority; this
+executable supplies none.
 """
 import json
+import errno
 import os
 import re
 import stat
@@ -13,7 +16,8 @@ import sys
 
 
 _ROOT = '/volume'
-_MODES = {'check', 'initialize_empty_root', 'verify_root'}
+_MODES = {'check', 'initialize_empty_root', 'verify_root', 'prepare_media_directories'}
+_MEDIA_DIRECTORIES = ('movies', 'shows')
 
 
 class BootstrapError(Exception):
@@ -68,6 +72,32 @@ def _metadata(value):
     return value.st_uid, value.st_gid, stat.S_IMODE(value.st_mode)
 
 
+def _prepare_media_directories(fd):
+    _require(_metadata(os.fstat(fd)) == (1000, 1000, 0o750))
+    _require(os.geteuid() == 1000 and os.getegid() == 1000)
+    flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC
+    for name in _MEDIA_DIRECTORIES:
+        try:
+            os.mkdir(name, 0o750, dir_fd=fd)
+        except FileExistsError:
+            pass
+        child = None
+        try:
+            observed = os.stat(name, dir_fd=fd, follow_symlinks=False)
+            child = os.open(name, flags, dir_fd=fd)
+            held = os.fstat(child)
+            _require((observed.st_dev, observed.st_ino) == (held.st_dev, held.st_ino)
+                     and _metadata(held) == (1000, 1000, 0o750))
+        except OSError as error:
+            if error.errno in {errno.ELOOP, errno.ENOTDIR}:
+                raise BootstrapError('bootstrap_conflict') from None
+            raise
+        finally:
+            if child is not None:
+                os.close(child)
+    os.fsync(fd)
+
+
 def run(mode):
     if type(mode) is not str or mode not in _MODES:
         raise BootstrapError('bootstrap_invalid_command')
@@ -75,7 +105,10 @@ def run(mode):
     try:
         fd = _open_root()
         before = os.fstat(fd)
-        if mode == 'verify_root':
+        if mode == 'prepare_media_directories':
+            _prepare_media_directories(fd)
+            result = 'media_directories_prepared'
+        elif mode == 'verify_root':
             _require(_metadata(before) == (1000, 1000, 0o750))
             result = 'root_verified'
         else:

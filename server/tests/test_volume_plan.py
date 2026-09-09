@@ -27,7 +27,7 @@ def source():
 
 
 @pytest.mark.parametrize('platform', ['linux/amd64', 'linux/arm64'])
-def test_seven_targets_have_separate_managed_names_without_claiming_write_access(source, platform):
+def test_appdata_and_shared_library_have_separate_managed_names_without_claiming_write_access(source, platform):
     original, catalog, policy = source
     stack = build_media_stack_plan(catalog, {}, platform,
         ContextResponse(schemaVersion=1, coreId=original.coreId, homeId=original.homeId),
@@ -37,23 +37,32 @@ def test_seven_targets_have_separate_managed_names_without_claiming_write_access
     assert plan.installAvailable is False
     assert plan.bindingStatus == 'proposed'
     assert plan.planHash != build_resource_plan(stack, catalog, policy).planHash
-    assert len(plan.resources) == len({r.name for r in plan.resources}) == 7
-    assert len({r.resourceId for r in plan.resources}) == 7
+    assert len(plan.resources) == len({r.name for r in plan.resources}) == 8
+    assert len({r.resourceId for r in plan.resources}) == 8
     actual = {(r.serviceId, r.target, r.containerUser) for r in plan.resources}
     expected = {(c.serviceId, m.target, c.plan.security.user)
                 for c in stack.components for m in c.plan.mounts if m.kind == 'managed_appdata'}
-    assert actual == expected
-    for resource in plan.resources:
+    assert actual == expected | {('jellyfin', '/media', '1000:1000')}
+    appdata = tuple(resource for resource in plan.resources if resource.kind == 'managed_appdata')
+    library = tuple(resource for resource in plan.resources if resource.kind == 'managed_library')
+    assert len(appdata) == 7 and len(library) == 1
+    for resource in appdata:
         assert resource.name.startswith('larenor-appdata-v1-')
         assert '/' not in resource.name
         assert resource.driver == resource.scope == 'local'
         assert resource.readOnly is False and resource.noCopy is True
         assert resource.readiness == 'requires_bootstrap_validation'
         assert not {'DriverOpts', 'hostPath', 'Mountpoint', 'permissions', 'lease'} & set(resource.model_dump())
+    shared = library[0]
+    assert shared.serviceId == 'jellyfin' and shared.target == '/media'
+    assert shared.requestedRootId == stack.settings.libraryRootId
+    assert shared.requestedRelativePath == 'shared/library'
+    assert shared.name == 'larenor-library-v1-' + shared.resourceId
+    assert shared.readOnly is True and shared.noCopy is True
     assert verify_volume_plan(plan, stack, catalog, policy) == plan
 
 
-def test_no_host_effect_no_native_plan_change_and_no_library_conversion(source, monkeypatch):
+def test_no_host_effect_and_no_native_plan_change(source, monkeypatch):
     stack, catalog, policy = source
     before = stack.model_dump_json()
     native = build_resource_plan(*source).model_dump_json()
@@ -66,8 +75,9 @@ def test_no_host_effect_no_native_plan_change_and_no_library_conversion(source, 
     assert stack.model_dump_json() == before
     assert build_resource_plan(*source).model_dump_json() == native
     assert stack.components[-1].plan.network.mode == 'host'
-    assert all(r.requestedRootId == 'appdata' for r in plan.resources)
-    assert not any(r.target in {'/media', '/music', '/downloads'} for r in plan.resources)
+    assert {r.requestedRootId for r in plan.resources} == {'appdata', stack.settings.libraryRootId}
+    assert [r.target for r in plan.resources].count('/media') == 1
+    assert not any(r.target in {'/music', '/downloads'} for r in plan.resources)
 
 
 @pytest.mark.parametrize('field', ['core', 'home', 'preparation'])
@@ -152,9 +162,13 @@ def test_changed_requested_storage_does_not_silently_adopt_old_plan(source):
     assert original.stackPlanHash != alternate.stackPlanHash
     assert original.planHash != alternate.planHash
     for before, after in zip(original.resources, alternate.resources):
-        assert after.requestedRootId == 'private_appdata'
-        assert before.requestedRelativePath != after.requestedRelativePath
-        assert before.childPlanHash != after.childPlanHash
+        if after.kind == 'managed_appdata':
+            assert after.requestedRootId == 'private_appdata'
+            assert before.requestedRelativePath != after.requestedRelativePath
+            assert before.childPlanHash != after.childPlanHash
+        else:
+            assert after.requestedRootId == before.requestedRootId == 'library'
+            assert after.requestedRelativePath == before.requestedRelativePath == 'shared/library'
     with pytest.raises(VolumePlanError, match='^volume_plan_untrusted$'):
         verify_volume_plan(original, changed, catalog, policy)
 

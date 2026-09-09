@@ -142,7 +142,10 @@ def _volume_create_body(body):
         version = labels['org.larenor.worker-policy-version']
         return (re.fullmatch(r'[1-9][0-9]{0,9}', version) is not None and int(version) <= 2**31 - 1
                 and re.fullmatch(r'[a-z][a-z0-9_-]{0,63}', labels['org.larenor.service']) is not None
-                and value['Name'] == 'larenor-appdata-v1-' + labels['org.larenor.resource']
+                and value['Name'] in {
+                    'larenor-appdata-v1-' + labels['org.larenor.resource'],
+                    'larenor-library-v1-' + labels['org.larenor.resource'],
+                }
                 and _canonical(value) == body)
     except (DockerWorkerError, ValueError, TypeError):
         return False
@@ -181,7 +184,9 @@ class EngineHttpRequest:
             valid = ((self.target.startswith(prefix) and self.target.endswith(suffix)
                       and _reference(reference) and quote(reference, safe='') == encoded)
                      or _network_read_target(self.target)
-                     or re.fullmatch(r'/v1\.47/volumes/larenor-appdata-v1-[0-9a-f]{32}', self.target) is not None)
+                     or re.fullmatch(
+                         r'/v1\.47/volumes/larenor-(?:appdata|library)-v1-[0-9a-f]{32}',
+                         self.target) is not None)
         else:
             prefix = '/v1.47/images/create?'
             pairs = parse_qsl(self.target[len(prefix):], keep_blank_values=True)

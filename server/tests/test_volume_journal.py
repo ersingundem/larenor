@@ -28,7 +28,7 @@ def error(code, operation):
     assert str(caught.value) == caught.value.code == code
 
 
-@pytest.mark.parametrize('index', range(7))
+@pytest.mark.parametrize('index', range(8))
 def test_each_target_is_durable_without_an_execution_grant(tmp_path, source, index):
     data = inputs(source)
     resource = data['plan'].resources[index]

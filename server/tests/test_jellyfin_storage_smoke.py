@@ -62,13 +62,16 @@ def test_source_uses_real_pinned_plans_and_exact_jellyfin_resources(platform):
     m = api()
     source = m.fixture_source(platform)
     assert source.stack.installAvailable is False and source.volumes.installAvailable is False
-    assert len(source.plan.resources) == 13 and len(source.volumes.resources) == 7
+    assert len(source.plan.resources) == 13 and len(source.volumes.resources) == 8
     assert source.image.serviceId == 'jellyfin'
     assert source.image.image.platform == platform
     assert source.image.image.reference.endswith('@'+source.image.image.digest)
     assert {v.target for v in source.targets} == {'/config','/cache'}
     assert all(v.containerUser == '1000:1000' and v.noCopy is True for v in source.targets)
     assert len({v.name for v in source.targets}) == 2
+    assert {v.target for v in source.managed_targets} == {'/config','/cache','/media'}
+    media = next(v for v in source.managed_targets if v.target == '/media')
+    assert media.kind == 'managed_library' and media.readOnly is True
 
 
 def test_preparation_consumes_actual_sqlite_image_volume_journals(tmp_path):
@@ -528,6 +531,8 @@ def protocol(tmp_path, monkeypatch, request):
             elif mode in {'check','initialize_empty_root','verify_root'}:
                 value = {'schemaVersion':1,'state':{'check':'empty_uninitialized',
                     'initialize_empty_root':'empty_initialized','verify_root':'root_verified'}[mode]}
+            elif mode == 'prepare_media_directories':
+                value = {'schemaVersion':1,'state':'media_directories_prepared'}
             elif mode == 'health':
                 value = {'id': ('b' if self.restarted and self.fault == 'identity' else 'a')*32,
                     'version':'10.11.11',
