@@ -28,6 +28,7 @@ _CODES = frozenset({
     'jellyfin_authenticated_readback_protocol',
     'jellyfin_authenticated_readback_unavailable',
     'jellyfin_authenticated_readback_timeout',
+    'jellyfin_session_cleanup_failed',
 })
 _ID = re.compile(r'[0-9a-f]{32}\Z')
 _TOKEN = re.compile(r'[A-Za-z0-9_-]{32,128}\Z')
@@ -214,6 +215,7 @@ class JellyfinAuthenticatedReadback:
         deadline = time.monotonic() + limits.total_seconds
         completed = []
         created = False
+        cleanup_sent = False
         scope = None
         try:
             scope = _Deadline(deadline)
@@ -275,12 +277,23 @@ class JellyfinAuthenticatedReadback:
 
             status, raw = self._request(
                 connection, reader, deadline, limits,
-                'GET', '/Library/VirtualFolders', None, key_auth, final=True,
+                'GET', '/Library/VirtualFolders', None, key_auth,
             )
             if status != 200:
                 raise ValueError()
             libraries = _libraries(_json(raw))
             completed.append('libraries_verified')
+            cleanup_sent = True
+            status, raw = self._request(
+                connection, reader, deadline, limits,
+                'POST', '/Sessions/Logout', None, session_auth, final=True,
+            )
+            if status != 204 or raw:
+                raise JellyfinAuthenticatedReadbackError(
+                    'jellyfin_session_cleanup_failed',
+                    completed_steps=completed, uncertain_effect=True,
+                )
+            completed.append('session_closed')
             return JellyfinAuthenticatedReadbackResult(
                 'verified', server_id, server_name, version, api_key, libraries,
                 tuple(completed),
@@ -290,17 +303,19 @@ class JellyfinAuthenticatedReadback:
                 raise
             raise JellyfinAuthenticatedReadbackError(
                 error.code, completed_steps=completed,
-                uncertain_effect=created,
+                uncertain_effect=created or cleanup_sent,
             ) from None
         except (socket.timeout, TimeoutError):
             raise JellyfinAuthenticatedReadbackError(
                 'jellyfin_authenticated_readback_timeout',
-                completed_steps=completed, uncertain_effect=created,
+                completed_steps=completed,
+                uncertain_effect=created or cleanup_sent,
             ) from None
         except _ConnectionLost:
             raise JellyfinAuthenticatedReadbackError(
                 'jellyfin_authenticated_readback_unavailable',
-                completed_steps=completed, uncertain_effect=created,
+                completed_steps=completed,
+                uncertain_effect=created or cleanup_sent,
             ) from None
         except (ProbeTransportError, ValueError, TypeError, AttributeError,
                 UnicodeError, json.JSONDecodeError):
@@ -308,14 +323,16 @@ class JellyfinAuthenticatedReadback:
                     if time.monotonic() >= deadline
                     else 'jellyfin_authenticated_readback_protocol')
             raise JellyfinAuthenticatedReadbackError(
-                code, completed_steps=completed, uncertain_effect=created,
+                code, completed_steps=completed,
+                uncertain_effect=created or cleanup_sent,
             ) from None
         except (OSError, RuntimeError):
             code = ('jellyfin_authenticated_readback_timeout'
                     if time.monotonic() >= deadline
                     else 'jellyfin_authenticated_readback_unavailable')
             raise JellyfinAuthenticatedReadbackError(
-                code, completed_steps=completed, uncertain_effect=created,
+                code, completed_steps=completed,
+                uncertain_effect=created or cleanup_sent,
             ) from None
         finally:
             if scope is not None:

@@ -192,8 +192,8 @@ class JellyfinBootstrapExecutor:
             )
             if (type(verified) is not JellyfinAuthenticatedReadbackResult
                     or verified.state != 'verified'
-                    or verified.completed_steps[-2:] != (
-                        'system_verified', 'libraries_verified')):
+                    or verified.completed_steps[-3:] != (
+                        'system_verified', 'libraries_verified', 'session_closed')):
                 raise JellyfinBootstrapExecutionError(
                     'bootstrap_readback_failed', completed_steps=completed,
                     uncertain_effect=True,
