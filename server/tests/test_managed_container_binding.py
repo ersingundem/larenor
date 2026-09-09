@@ -14,6 +14,7 @@ from larenor_server.plugins.managed_container import (
     ManagedNetworkProof,
     ManagedVolumeProof,
     VerifiedJellyfinResources,
+    managed_container_matches,
 )
 from larenor_server.plugins.resource_models import WorkerPolicyBinding
 from larenor_server.plugins.stack_plan import build_media_stack_plan
@@ -116,3 +117,54 @@ def test_provider_exception_and_forged_stack_are_static_and_leak_nothing():
     assert 'private' not in repr(caught.value)
     with pytest.raises(ManagedContainerError, match='^invalid_installation_plan$'):
         builder(stack.model_copy(update={'homeId': '9' * 32}))
+
+
+def snapshot(binding):
+    body = json.loads(binding.specification)
+    inherited = json.loads(binding.image_configuration)
+    config = {**inherited, **{key: value for key, value in body.items() if key != 'HostConfig'}}
+    config['Env'] = list({
+        **{value.partition('=')[0]: value for value in inherited.get('Env', [])},
+        **{value.partition('=')[0]: value for value in body.get('Env', [])},
+    }.values())
+    config['Labels'] = {**inherited.get('Labels', {}), **body['Labels']}
+    mounts = [
+        {'Type': 'volume', 'Name': item.name, 'Source': '/discarded/' + item.name,
+         'Destination': item.target, 'Driver': 'local', 'Mode': 'z', 'RW': True,
+         'Propagation': ''}
+        for item in binding.mounts
+    ]
+    host = dict(body['HostConfig'])
+    host['RestartPolicy'] = {'Name': 'no', 'MaximumRetryCount': 0}
+    return {
+        'Id': '5' * 64, 'Name': '/' + binding.name, 'Image': binding.image_id,
+        'Config': config, 'HostConfig': host, 'Mounts': mounts,
+        'NetworkSettings': {'Networks': {
+            body['HostConfig']['NetworkMode']: {'NetworkID': binding.network_id},
+        }},
+        'State': {'Status': 'created', 'Running': False},
+    }
+
+
+def test_fresh_inspect_matches_full_image_mount_network_and_security_state():
+    _builder, _stack, binding = build()
+    assert managed_container_matches(snapshot(binding), binding)
+
+
+@pytest.mark.parametrize('damage', ['mount', 'extra_mount', 'network', 'image', 'capability', 'env'])
+def test_inspect_drift_cannot_reconcile_as_the_managed_container(damage):
+    _builder, _stack, binding = build()
+    value = snapshot(binding)
+    if damage == 'mount':
+        value['Mounts'][0]['Name'] = 'foreign'
+    elif damage == 'extra_mount':
+        value['Mounts'].append(dict(value['Mounts'][0]))
+    elif damage == 'network':
+        next(iter(value['NetworkSettings']['Networks'].values()))['NetworkID'] = '9' * 64
+    elif damage == 'image':
+        value['Image'] = 'sha256:' + '9' * 64
+    elif damage == 'capability':
+        value['HostConfig']['CapAdd'] = ['SYS_ADMIN']
+    else:
+        value['Config']['Env'].append('TOKEN=private')
+    assert managed_container_matches(value, binding) is False
