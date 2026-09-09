@@ -1,14 +1,19 @@
 """Single-purpose container helper, not an installer or an ownership grant.
 
 Only /volume, a distinct retained mount, can be inspected. Initial preparation
-changes the empty root directory itself. The separate media mode creates only
-the fixed ``movies`` and ``shows`` directories beneath an already verified
-root. A failed metadata write is not rolled back or retried. Caller must
-separately prove new-volume, daemon/user mapping and dispatch authority; this
-executable supplies none.
+changes the empty root directory itself. Separate modes create the fixed media
+directories or install a validated qBittorrent configuration at one fixed
+private path. Configuration bytes are accepted only through stdin and are never
+returned. A failed write is not rolled back or retried. Caller must separately
+prove new-volume, daemon/user mapping and dispatch authority; this executable
+supplies none.
 """
-import json
+import base64
+import binascii
 import errno
+import hashlib
+import hmac
+import json
 import os
 import re
 import stat
@@ -16,8 +21,35 @@ import sys
 
 
 _ROOT = '/volume'
-_MODES = {'check', 'initialize_empty_root', 'verify_root', 'prepare_media_directories'}
+_MODES = {
+    'check', 'initialize_empty_root', 'verify_root',
+    'prepare_media_directories', 'install_qbittorrent_config',
+}
 _MEDIA_DIRECTORIES = ('movies', 'shows')
+_QBITTORRENT_DIRECTORY = 'qBittorrent'
+_QBITTORRENT_CONFIG = 'qBittorrent.conf'
+_QBITTORRENT_TEMP = '.larenor-qbittorrent-config.tmp'
+_QBITTORRENT_PATTERN = re.compile(
+    rb'\[BitTorrent\]\n'
+    rb'Session\\DefaultSavePath=/data/downloads\n'
+    rb'Session\\Port=([0-9]{4,5})\n'
+    rb'Session\\TempPath=/data/incomplete\n'
+    rb'Session\\TempPathEnabled=true\n\n'
+    rb'\[Preferences\]\n'
+    rb'WebUI\\APIKey=([A-Za-z0-9_-]{32,128})\n'
+    rb'WebUI\\Address=\*\n'
+    rb'WebUI\\AuthSubnetWhitelistEnabled=false\n'
+    rb'WebUI\\ClickjackingProtection=true\n'
+    rb'WebUI\\CSRFProtection=true\n'
+    rb'WebUI\\HostHeaderValidation=true\n'
+    rb'WebUI\\LocalHostAuth=true\n'
+    rb'WebUI\\Password_PBKDF2="@ByteArray\('
+    rb'([A-Za-z0-9+/]{22}==):([A-Za-z0-9+/]{86}==)\)"\n'
+    rb'WebUI\\Port=([0-9]{4,5})\n'
+    rb'WebUI\\SecureCookie=true\n'
+    rb'WebUI\\ServerDomains=qbittorrent\n'
+    rb'WebUI\\UseUPnP=false\n'
+    rb'WebUI\\Username=larenor-system\n\Z')
 
 
 class BootstrapError(Exception):
@@ -98,14 +130,161 @@ def _prepare_media_directories(fd):
     os.fsync(fd)
 
 
-def run(mode):
+def _validated_qbittorrent_config(input_stream):
+    _require(input_stream is not None and hasattr(input_stream, 'read'))
+    configuration = input_stream.read(4097)
+    _require(type(configuration) is bytes and 1 <= len(configuration) <= 4096)
+    matching = _QBITTORRENT_PATTERN.fullmatch(configuration)
+    _require(matching is not None)
+    torrent_port = int(matching.group(1))
+    web_port = int(matching.group(5))
+    _require(1024 <= torrent_port <= 65535 and 1024 <= web_port <= 65535
+             and torrent_port != web_port)
+    try:
+        salt = base64.b64decode(matching.group(3), validate=True)
+        key = base64.b64decode(matching.group(4), validate=True)
+    except (ValueError, binascii.Error):
+        raise BootstrapError('bootstrap_conflict') from None
+    _require(len(salt) == 16 and len(key) == 64)
+    return configuration
+
+
+def _open_child_directory(parent_fd, name):
+    flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC
+    try:
+        return os.open(name, flags, dir_fd=parent_fd)
+    except OSError as error:
+        if error.errno in {errno.ELOOP, errno.ENOTDIR}:
+            raise BootstrapError('bootstrap_conflict') from None
+        raise
+
+
+def _read_bounded(fd):
+    pieces = []
+    remaining = 4097
+    while remaining:
+        piece = os.read(fd, remaining)
+        if not piece:
+            break
+        pieces.append(piece)
+        remaining -= len(piece)
+    result = b''.join(pieces)
+    _require(len(result) <= 4096)
+    return result
+
+
+def _open_existing_config(directory_fd):
+    flags = os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC
+    try:
+        fd = os.open(_QBITTORRENT_CONFIG, flags, dir_fd=directory_fd)
+    except FileNotFoundError:
+        return None
+    except OSError as error:
+        if error.errno in {errno.ELOOP, errno.ENOTDIR}:
+            raise BootstrapError('bootstrap_conflict') from None
+        raise
+    try:
+        before = os.fstat(fd)
+        _require(stat.S_ISREG(before.st_mode)
+                 and before.st_nlink == 1
+                 and (before.st_uid, before.st_gid,
+                      stat.S_IMODE(before.st_mode)) == (1000, 1000, 0o600))
+        content = _read_bounded(fd)
+        after = os.fstat(fd)
+        _require((before.st_dev, before.st_ino, before.st_size)
+                 == (after.st_dev, after.st_ino, after.st_size)
+                 and after.st_nlink == 1 and after.st_size == len(content))
+        return content
+    finally:
+        os.close(fd)
+
+
+def _write_all(fd, content):
+    position = 0
+    while position < len(content):
+        written = os.write(fd, content[position:])
+        _require(type(written) is int and written > 0)
+        position += written
+
+
+def _install_qbittorrent_config(root_fd, configuration):
+    _require(_metadata(os.fstat(root_fd)) == (1000, 1000, 0o750))
+    _require(os.geteuid() == 1000 and os.getegid() == 1000)
+    try:
+        os.mkdir(_QBITTORRENT_DIRECTORY, 0o750, dir_fd=root_fd)
+    except FileExistsError:
+        pass
+    directory_fd = None
+    temporary_fd = None
+    try:
+        observed_directory = os.stat(
+            _QBITTORRENT_DIRECTORY, dir_fd=root_fd, follow_symlinks=False)
+        directory_fd = _open_child_directory(root_fd, _QBITTORRENT_DIRECTORY)
+        held_directory = os.fstat(directory_fd)
+        _require((observed_directory.st_dev, observed_directory.st_ino)
+                 == (held_directory.st_dev, held_directory.st_ino)
+                 and _metadata(held_directory) == (1000, 1000, 0o750))
+        existing = _open_existing_config(directory_fd)
+        if existing is not None:
+            _require(hmac.compare_digest(existing, configuration))
+            return 'qbittorrent_config_already_installed'
+        flags = (os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW
+                 | os.O_CLOEXEC)
+        try:
+            temporary_fd = os.open(
+                _QBITTORRENT_TEMP, flags, 0o600, dir_fd=directory_fd)
+        except FileExistsError:
+            raise BootstrapError('bootstrap_conflict') from None
+        metadata = os.fstat(temporary_fd)
+        _require(stat.S_ISREG(metadata.st_mode)
+                 and metadata.st_nlink == 1
+                 and (metadata.st_uid, metadata.st_gid,
+                      stat.S_IMODE(metadata.st_mode)) == (1000, 1000, 0o600))
+        _write_all(temporary_fd, configuration)
+        os.fsync(temporary_fd)
+        os.close(temporary_fd)
+        temporary_fd = None
+        try:
+            os.link(_QBITTORRENT_TEMP, _QBITTORRENT_CONFIG,
+                    src_dir_fd=directory_fd, dst_dir_fd=directory_fd,
+                    follow_symlinks=False)
+        except FileExistsError:
+            raise BootstrapError('bootstrap_conflict') from None
+        os.unlink(_QBITTORRENT_TEMP, dir_fd=directory_fd)
+        os.fsync(directory_fd)
+        os.fsync(root_fd)
+        _require(hmac.compare_digest(
+            _open_existing_config(directory_fd), configuration))
+        final_directory = os.stat(
+            _QBITTORRENT_DIRECTORY, dir_fd=root_fd, follow_symlinks=False)
+        _require((final_directory.st_dev, final_directory.st_ino)
+                 == (held_directory.st_dev, held_directory.st_ino))
+        return 'qbittorrent_config_installed'
+    finally:
+        if temporary_fd is not None:
+            os.close(temporary_fd)
+        if directory_fd is not None:
+            os.close(directory_fd)
+
+
+def run(mode, input_stream=None):
     if type(mode) is not str or mode not in _MODES:
         raise BootstrapError('bootstrap_invalid_command')
+    configuration = None
+    try:
+        if mode == 'install_qbittorrent_config':
+            configuration = _validated_qbittorrent_config(input_stream)
+    except BootstrapError:
+        raise
+    except (OSError, ValueError, TypeError, OverflowError):
+        raise BootstrapError() from None
     fd = None
     try:
         fd = _open_root()
         before = os.fstat(fd)
-        if mode == 'prepare_media_directories':
+        if mode == 'install_qbittorrent_config':
+            result = _install_qbittorrent_config(fd, configuration)
+        elif mode == 'prepare_media_directories':
             _prepare_media_directories(fd)
             result = 'media_directories_prepared'
         elif mode == 'verify_root':
@@ -124,7 +303,10 @@ def run(mode):
                 result = 'empty_initialized'
         after = os.fstat(fd)
         _require((before.st_dev, before.st_ino) == (after.st_dev, after.st_ino))
-        return {'schemaVersion': 1, 'state': result}
+        response = {'schemaVersion': 1, 'state': result}
+        if configuration is not None:
+            response['sha256'] = hashlib.sha256(configuration).hexdigest()
+        return response
     except BootstrapError:
         raise
     except (OSError, ValueError, TypeError, OverflowError):
@@ -140,7 +322,8 @@ def main(arguments=None):
         print('bootstrap_invalid_command', file=sys.stderr)
         return 2
     try:
-        result = run(args[0])
+        input_stream = sys.stdin.buffer if args[0] == 'install_qbittorrent_config' else None
+        result = run(args[0], input_stream)
     except BootstrapError as error:
         print(error.code, file=sys.stderr)
         return 1

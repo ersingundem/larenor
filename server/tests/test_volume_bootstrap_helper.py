@@ -1,6 +1,8 @@
 """Local FD fixtures only; no real volume, ownership change or Docker."""
 import importlib
 import importlib.util
+import hashlib
+import io
 import json
 import os
 from pathlib import Path
@@ -11,8 +13,13 @@ from types import SimpleNamespace
 
 import pytest
 
+from larenor_server.plugins.qbittorrent_owned_config import (
+    render_qbittorrent_owned_config,
+)
+
 # Collected by the pinned Server pytest job, not dependency-free tool unittest.
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+_REAL_FSTAT = os.fstat
 
 
 def api():
@@ -134,6 +141,149 @@ def test_media_directory_symlink_or_wrong_metadata_is_rejected(local, name, monk
     (root / name).symlink_to('/outside')
     with pytest.raises(m.BootstrapError, match='^bootstrap_conflict$'):
         m.run('prepare_media_directories')
+
+
+def owned_config():
+    return render_qbittorrent_owned_config(
+        'p' * 40, api_key='k' * 40, salt=bytes(range(16))).configuration
+
+
+def config_local(local, monkeypatch):
+    m, root, state, effects = local
+    state.update(uid=1000, gid=1000, mode=0o750)
+    monkeypatch.setattr(m.os, 'geteuid', lambda: 1000)
+    monkeypatch.setattr(m.os, 'getegid', lambda: 1000)
+    root_identity = (root.stat().st_dev, root.stat().st_ino)
+    def metadata(fd):
+        value = _REAL_FSTAT(fd)
+        mode = stat.S_IMODE(value.st_mode)
+        if (value.st_dev, value.st_ino) == root_identity:
+            mode = 0o750
+        if stat.S_ISREG(value.st_mode):
+            return SimpleNamespace(
+                st_dev=value.st_dev, st_ino=value.st_ino,
+                st_uid=1000, st_gid=1000, st_mode=stat.S_IFREG | mode,
+                st_nlink=value.st_nlink, st_size=value.st_size)
+        return SimpleNamespace(
+            st_dev=value.st_dev, st_ino=value.st_ino,
+            st_uid=1000, st_gid=1000, st_mode=stat.S_IFDIR | mode,
+            st_nlink=value.st_nlink, st_size=value.st_size)
+    monkeypatch.setattr(m.os, 'fstat', metadata)
+    return m, root, effects
+
+
+def test_qbittorrent_config_is_written_atomically_to_one_fixed_private_file(local, monkeypatch):
+    m, root, effects = config_local(local, monkeypatch)
+    configuration = owned_config()
+
+    result = m.run('install_qbittorrent_config', io.BytesIO(configuration))
+
+    target = root / 'qBittorrent' / 'qBittorrent.conf'
+    assert result == {
+        'schemaVersion': 1,
+        'state': 'qbittorrent_config_installed',
+        'sha256': hashlib.sha256(configuration).hexdigest(),
+    }
+    assert target.read_bytes() == configuration
+    assert stat.S_IMODE(target.stat().st_mode) == 0o600
+    assert stat.S_IMODE(target.parent.stat().st_mode) == 0o750
+    assert not (target.parent / '.larenor-qbittorrent-config.tmp').exists()
+    assert effects == [('fsync',), ('fsync',), ('fsync',)]
+
+
+def test_exact_qbittorrent_config_is_idempotent_and_wrong_existing_file_is_preserved(local, monkeypatch):
+    m, root, _effects = config_local(local, monkeypatch)
+    configuration = owned_config()
+    m.run('install_qbittorrent_config', io.BytesIO(configuration))
+    target = root / 'qBittorrent' / 'qBittorrent.conf'
+    before = target.stat()
+    assert m.run('install_qbittorrent_config', io.BytesIO(configuration))['state'] == \
+        'qbittorrent_config_already_installed'
+    assert target.stat().st_ino == before.st_ino
+    target.write_bytes(b'foreign')
+    with pytest.raises(m.BootstrapError, match='^bootstrap_conflict$'):
+        m.run('install_qbittorrent_config', io.BytesIO(configuration))
+    assert target.read_bytes() == b'foreign'
+
+
+@pytest.mark.parametrize('configuration', [
+    b'', b'x' * 4097, b'not-qbittorrent\n',
+    owned_config().replace(b'WebUI\\CSRFProtection=true', b'WebUI\\CSRFProtection=false'),
+    owned_config().replace(b'WebUI\\APIKey=' + b'k' * 40, b'WebUI\\APIKey=short'),
+    owned_config() + b'Hidden\\Option=true\n',
+])
+def test_invalid_qbittorrent_config_never_creates_storage(local, monkeypatch, configuration):
+    m, root, _effects = config_local(local, monkeypatch)
+    with pytest.raises(m.BootstrapError, match='^bootstrap_conflict$'):
+        m.run('install_qbittorrent_config', io.BytesIO(configuration))
+    assert list(root.iterdir()) == []
+
+
+@pytest.mark.parametrize('kind', ['directory', 'symlink'])
+def test_qbittorrent_config_target_type_conflict_is_never_replaced(local, monkeypatch, kind):
+    m, root, _effects = config_local(local, monkeypatch)
+    directory = root / 'qBittorrent'
+    directory.mkdir(mode=0o750)
+    target = directory / 'qBittorrent.conf'
+    if kind == 'directory':
+        target.mkdir()
+    else:
+        target.symlink_to('/outside')
+    with pytest.raises(m.BootstrapError, match='^bootstrap_conflict$'):
+        m.run('install_qbittorrent_config', io.BytesIO(owned_config()))
+    assert target.is_symlink() or target.is_dir()
+
+
+@pytest.mark.parametrize('kind', ['file', 'symlink', 'wrong_mode'])
+def test_qbittorrent_config_parent_conflict_is_never_changed(local, monkeypatch, kind):
+    m, root, _effects = config_local(local, monkeypatch)
+    directory = root / 'qBittorrent'
+    if kind == 'file':
+        directory.write_bytes(b'foreign')
+    elif kind == 'symlink':
+        directory.symlink_to('/outside')
+    else:
+        directory.mkdir(mode=0o755)
+    with pytest.raises(m.BootstrapError, match='^bootstrap_conflict$'):
+        m.run('install_qbittorrent_config', io.BytesIO(owned_config()))
+    assert directory.is_symlink() or directory.exists()
+
+
+def test_qbittorrent_config_stale_temporary_file_requires_review(local, monkeypatch):
+    m, root, _effects = config_local(local, monkeypatch)
+    directory = root / 'qBittorrent'
+    directory.mkdir(mode=0o750)
+    temporary = directory / '.larenor-qbittorrent-config.tmp'
+    temporary.write_bytes(b'preserve')
+    with pytest.raises(m.BootstrapError, match='^bootstrap_conflict$'):
+        m.run('install_qbittorrent_config', io.BytesIO(owned_config()))
+    assert temporary.read_bytes() == b'preserve'
+    assert not (directory / 'qBittorrent.conf').exists()
+
+
+def test_qbittorrent_config_input_failure_is_closed_before_storage(local, monkeypatch):
+    m, root, _effects = config_local(local, monkeypatch)
+    class BrokenInput:
+        def read(self, _limit):
+            raise OSError('synthetic private input detail')
+    with pytest.raises(m.BootstrapError, match='^bootstrap_unavailable$'):
+        m.run('install_qbittorrent_config', BrokenInput())
+    assert list(root.iterdir()) == []
+
+
+def test_qbittorrent_config_cli_reads_only_stdin_and_emits_no_secret(local, monkeypatch, capsys):
+    m, _root, _effects = config_local(local, monkeypatch)
+    configuration = owned_config()
+    monkeypatch.setattr(m.sys, 'stdin', SimpleNamespace(buffer=io.BytesIO(configuration)))
+    assert m.main(['install_qbittorrent_config']) == 0
+    output = capsys.readouterr()
+    assert json.loads(output.out) == {
+        'schemaVersion': 1,
+        'state': 'qbittorrent_config_installed',
+        'sha256': hashlib.sha256(configuration).hexdigest(),
+    }
+    assert b'WebUI' not in output.out.encode()
+    assert output.err == ''
 
 
 def test_directory_identity_drift_rejects_success(local, monkeypatch):
