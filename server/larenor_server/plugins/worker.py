@@ -238,7 +238,8 @@ class UnixDockerEngine:
             connection.connect(str(self.path))
             _require(self.peer_uid(connection) == self.socket_uid, "engine_peer_rejected")
             message = _request_bytes(method, "/v1.47" + target, "localhost",
-                                     {"Content-Type": "application/json"}, body)
+                                     {"Content-Type": "application/json"}, body,
+                                     allow_delete=method == "DELETE")
             connection.sendall(message)
             return _response(_Reader(connection, deadline), 1048576)
         except DockerWorkerError:
