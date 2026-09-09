@@ -132,6 +132,12 @@ _PROC_PROCESS_NAMESPACE_CODES = {
     b'time_for_children': 'helper_base_proc_process_time_children_namespace_observed',
 }
 _PATH_TOKEN = re.compile(rb"/[^\s\"'(),:;]+")
+_MANAGED_CREATE_DIAGNOSTICS = {
+    'managed_create_mount_rejected', 'managed_create_network_rejected',
+    'managed_create_cgroup_rejected', 'managed_create_security_rejected',
+    'managed_create_image_rejected', 'managed_create_resource_rejected',
+    'managed_create_engine_rejected', 'managed_create_transport_failed',
+}
 _DIAGNOSTIC_CODES = _CODES | set(_BUILD_ERROR_PATTERNS) | set(_START_ERROR_PATTERNS) | {
     'helper_base_runtime_failed', 'helper_base_error_ambiguous',
     'helper_base_state_error_ambiguous', *_STATE_ERROR_PATTERNS,
@@ -157,10 +163,10 @@ _DIAGNOSTIC_CODES = _CODES | set(_BUILD_ERROR_PATTERNS) | set(_START_ERROR_PATTE
     'volume_create_not_authorized', 'volume_protocol', 'volume_response_limit',
     'volume_engine_unavailable', 'volume_timeout', 'volume_cancelled', 'volume_api_unsupported',
     'journal_unavailable', 'unsafe_worker_path', 'worker_busy', 'invalid_binding',
-    'managed_create_mount_rejected', 'managed_create_network_rejected',
-    'managed_create_cgroup_rejected', 'managed_create_security_rejected',
-    'managed_create_image_rejected', 'managed_create_resource_rejected',
-    'managed_create_engine_rejected', 'storage_characterization_evidence_invalid'}
+    *_MANAGED_CREATE_DIAGNOSTICS, 'managed_create_preflight_failed',
+    'managed_create_uncertain', 'managed_create_resource_conflict',
+    'managed_create_expired', 'managed_create_receipt_invalid',
+    'storage_characterization_evidence_invalid'}
 _PHASES = {'launcher', 'launch_validation', 'source_capture', 'daemon_start', 'daemon_cleanup',
     'characterization', 'image_prepare', 'volume_prepare', 'image_inspect', 'helper_stage',
     'helper_base_binding', 'helper_base_pull', 'helper_base_inspect', 'helper_base_create',
@@ -1128,17 +1134,41 @@ def _managed_create_rejection(status, body):
 
 
 def _managed_engine(endpoint):
-    from larenor_server.plugins.worker import UnixDockerEngine
+    from larenor_server.plugins.worker import DockerWorkerError, UnixDockerEngine
 
     class DiagnosticEngine(UnixDockerEngine):
+        managed_create_diagnostic = None
+
         def _exchange(self, method, target, body=None):
-            response = super()._exchange(method, target, body)
-            if (method == 'POST' and target.startswith('/containers/create?')
-                    and response.status != 201):
-                raise SmokeError(_managed_create_rejection(response.status, response.body))
+            create = method == 'POST' and target.startswith('/containers/create?')
+            try:
+                response = super()._exchange(method, target, body)
+            except DockerWorkerError:
+                if create:
+                    self.managed_create_diagnostic = 'managed_create_transport_failed'
+                raise
+            if create and response.status != 201:
+                self.managed_create_diagnostic = _managed_create_rejection(
+                    response.status, response.body,
+                )
             return response
 
     return DiagnosticEngine(endpoint.path, socket_uid=endpoint.owner_uid)
+
+
+def _managed_create_receipt_failure(receipt, diagnostic):
+    if diagnostic in _MANAGED_CREATE_DIAGNOSTICS:
+        return diagnostic
+    try:
+        pair = receipt.state, receipt.code
+    except (AttributeError, TypeError, RecursionError):
+        return 'managed_create_receipt_invalid'
+    return {
+        ('prepared', 'accepted'): 'managed_create_preflight_failed',
+        ('uncertain', 'engine_operation_uncertain'): 'managed_create_uncertain',
+        ('needs_attention', 'resource_conflict'): 'managed_create_resource_conflict',
+        ('needs_attention', 'dispatch_expired'): 'managed_create_expired',
+    }.get(pair, 'managed_create_receipt_invalid')
 
 
 def _managed_create_and_start(daemon, source, endpoint, helper_id):
@@ -1173,8 +1203,11 @@ def _managed_create_and_start(daemon, source, endpoint, helper_id):
             job_id, installation_id, 'create_container',
             uuid.uuid4().hex, time.time() + 30,
         ), binding)
-        require(create.state == 'succeeded' and create.code == 'container_created'
-                and _HASH.fullmatch(create.container_id or '') is not None)
+        if (create.state != 'succeeded' or create.code != 'container_created'
+                or _HASH.fullmatch(create.container_id or '') is None):
+            raise SmokeError(_managed_create_receipt_failure(
+                create, engine.managed_create_diagnostic,
+            ))
         created = engine.inspect_container(create.container_id)
         require(managed_container_matches(created, binding))
         start = operations.apply(WorkerStep(
