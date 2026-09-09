@@ -330,7 +330,8 @@ The next local gate binds the peer's held proc/root descriptors to its exact
 initial UID/GID maps, one user namespace, a compatible `/version`, and bounded
 `/v1.47/info` security options on that same verified connection. Any
 `userns-remap`, `name=userns`, `name=rootless`, config replacement, malformed
-or missing proof closes the supervisor before an effect. Exact Linux CI and
+or missing proof closes the supervisor before an effect; runtime security
+options are re-read around every effect. Exact Linux CI and
 review are still pending, so installation stays disabled. A separate
 amd64/arm64 managed-v2 characterization
 workflow is source-bound and has passed both architectures. The API
