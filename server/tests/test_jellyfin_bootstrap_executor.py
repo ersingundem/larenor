@@ -8,6 +8,9 @@ import pytest
 from larenor_server.plugins.jellyfin_bootstrap_executor import (
     JellyfinBootstrapExecutionError, JellyfinBootstrapExecutor,
 )
+from larenor_server.plugins.jellyfin_authenticated_readback import (
+    JellyfinAuthenticatedReadback,
+)
 from larenor_server.plugins.jellyfin_endpoint import (
     JellyfinEndpointError, OpenJellyfinEndpoint, prove_jellyfin_endpoint,
 )
@@ -17,6 +20,9 @@ from larenor_server.plugins.managed_container import (
 )
 from larenor_server.plugins.media_service_bootstrap_models import PrivateMediaServiceBootstrap
 from test_jellyfin_startup import Connection, SECRET, happy_responses
+from test_jellyfin_authenticated_readback import (
+    API_KEY, authentication, folders, json_response, key, keys, system,
+)
 from test_managed_container_binding import Engine, build, command
 
 
@@ -40,6 +46,7 @@ def prepared(tmp_path):
 def executor(binding, operations):
     return JellyfinBootstrapExecutor(
         operations, lambda _stack: binding, JellyfinStartupConfigurator(),
+        JellyfinAuthenticatedReadback(),
     )
 
 
@@ -61,20 +68,46 @@ def connected(monkeypatch, stack, binding, engine, connection=None):
     return connection, calls
 
 
+def connected_for_readback(monkeypatch, stack, binding, engine):
+    startup = Connection(happy_responses())
+    readback = Connection([
+        json_response(authentication()),
+        json_response(keys(key())),
+        json_response(system()),
+        json_response(folders()),
+    ])
+    proof = prove_jellyfin_endpoint(engine.container, binding, stack, engine.container['Id'])
+    pending = [startup, readback]
+    calls = []
+
+    def opened(*args, **kwargs):
+        calls.append((args, kwargs))
+        return OpenJellyfinEndpoint(pending.pop(0), proof)
+
+    monkeypatch.setattr(
+        'larenor_server.plugins.jellyfin_bootstrap_executor.open_jellyfin_endpoint', opened)
+    return startup, readback, calls
+
+
 def test_reconciles_journal_and_rechecks_endpoint_before_and_after_startup(prepared, monkeypatch):
     stack, binding, engine, operations = prepared
-    connection, opens = connected(monkeypatch, stack, binding, engine)
+    connection, readback, opens = connected_for_readback(
+        monkeypatch, stack, binding, engine,
+    )
     gates = []
     result = executor(binding, operations).execute(
         JOB, stack, private(), deadline=time.monotonic() + 10,
         gate=lambda: gates.append('gate') or True,
     )
-    assert result.state == 'credentials_configured'
+    assert result.state == 'wiring_partial'
     assert result.completed_steps[-1] == 'wizard_completed'
+    assert result.readback.api_key == API_KEY
+    assert result.readback.server_id == '3' * 32
     assert len(connection.requests) == 5 and connection.closed
-    assert len(opens) == 1 and len(gates) == 4
-    assert len([call for call in engine.calls if call[0] == 'inspect']) >= 5
-    assert SECRET not in repr(result)
+    assert len(readback.requests) == 4 and readback.closed
+    assert len(opens) == 2 and len(gates) == 6
+    assert len([call for call in engine.calls if call[0] == 'inspect']) >= 7
+    assert SECRET not in repr(result) and API_KEY not in repr(result)
 
 
 @pytest.mark.parametrize('when', [
