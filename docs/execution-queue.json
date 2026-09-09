@@ -943,6 +943,14 @@
           "state": "completed",
           "result": "passed",
           "label": "Journal-bound qBittorrent config effect, bounded Docker stdin, exact helper lifecycle ve süreç içi binding mutasyonu reddi 37 yeni/274 ilgili testte geçti; secret scan temiz."
+        },
+        {
+          "kind": "test",
+          "ref": "docs/qbittorrent-runtime-binding-implementation-2026-09-10.md",
+          "commit": "92167765700948afb21749d9822d7da1f300caa3",
+          "state": "completed",
+          "result": "passed",
+          "label": "qBittorrent config current volume journal ve retained-daemon supervisor native thread kapısına bağlandı; rebase sonrası exact kaynakta 12 yeni, 345 ilgili testte 343 PASS/2 mevcut macOS skip."
         }
       ],
       "completionCommit": null,
