@@ -47,23 +47,23 @@ def running():
             server.close()
 
 
-def test_roundtrip_transports_only_closed_step_and_verified_component():
+def test_roundtrip_transports_only_closed_step_and_verified_stack_plan():
     execution = build_execution(stack(), job_id='a' * 32, deadline=1788609900)
     with running() as (backend, client):
         assert client.status() == {'capability': 'container_execution', 'installAvailable': False,
                                    'services': ['jellyfin']}
-        receipt = client.apply(execution.steps[0], execution.component)
+        receipt = client.apply(execution.steps[0], execution.plan)
         assert receipt == StepReceipt('a' * 32, 'create_container', 'succeeded',
                                       'container_created', '1' * 64)
-        assert backend.calls == [('apply', execution.steps[0], execution.component)]
+        assert backend.calls == [('apply', execution.steps[0], execution.plan)]
 
 
-def test_client_rejects_wrong_peer_and_forged_component_before_effect():
+def test_client_rejects_wrong_peer_and_forged_plan_before_effect():
     execution = build_execution(stack(), job_id='a' * 32, deadline=1788609900)
     with running() as (backend, client):
         client.peer_uid = lambda _: os.getuid() + 1
         with pytest.raises(InstallationIPCError, match='^worker_unavailable$'):
-            client.apply(execution.steps[0], execution.component)
+            client.apply(execution.steps[0], execution.plan)
         assert backend.calls == []
 
 

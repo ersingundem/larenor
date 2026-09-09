@@ -123,10 +123,12 @@ def test_worker_bridge_reverifies_component_and_builds_binding_internally(server
             calls.append((job, kind))
             return StepReceipt(job, kind, 'succeeded', 'container_created', '1' * 64)
     sentinel = object()
-    bridge = JellyfinWorkerBackend(Operations(), lambda component: sentinel)
-    receipt = bridge.apply(execution.steps[0], execution.component)
+    supplied = []
+    bridge = JellyfinWorkerBackend(Operations(), lambda plan: supplied.append(plan) or sentinel)
+    receipt = bridge.apply(execution.steps[0], execution.plan)
     assert receipt.state == 'succeeded' and calls == [(execution.steps[0], sentinel)]
-    forged = execution.component.model_copy(update={'serviceId': 'sonarr'})
+    assert supplied == [execution.plan] and len(supplied[0].components) == 6
+    forged = execution.plan.model_copy(update={'coreId': 'f' * 32})
     with pytest.raises(InstallationExecutionError, match='^invalid_execution_request$'):
         bridge.apply(execution.steps[0], forged)
     assert len(calls) == 1
