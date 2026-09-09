@@ -602,6 +602,20 @@ def test_malformed_managed_create_response_stays_closed(body):
     assert m._managed_create_rejection(400, body) == 'managed_create_engine_rejected'
 
 
+@pytest.mark.parametrize('body,expected', [
+    (json.dumps({'Id': 'a' * 64, 'Warnings': []}).encode(), None),
+    (b'not-json', 'managed_create_response_invalid'),
+    (json.dumps({'Id': 'short', 'Warnings': []}).encode(),
+     'managed_create_identity_invalid'),
+    (json.dumps({'Id': 'a' * 64, 'Warnings': ['private']}).encode(),
+     'managed_create_warnings_present'),
+    (json.dumps({'Id': 'a' * 64, 'Warnings': None, 'extra': 'allowed'}).encode(), None),
+])
+def test_managed_create_success_shape_is_classified_without_content(body, expected):
+    m = api()
+    assert m._managed_create_success_diagnostic(body) == expected
+
+
 def test_managed_engine_exposes_only_closed_create_diagnostic(monkeypatch):
     m = api()
     from larenor_server.plugins.docker_probe import DockerEndpoint
