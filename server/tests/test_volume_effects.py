@@ -57,17 +57,21 @@ def engine_server(reply, *, platform='amd64', version_hook=None):
         stop = threading.Event()
         def read(connection):
             raw = bytearray()
-            while not raw.endswith(b'\r\n\r\n'):
-                part = connection.recv(1)
+            marker = b'\r\n\r\n'
+            while marker not in raw:
+                part = connection.recv(16385 - len(raw))
                 if not part:
                     return None
                 raw.extend(part)
                 assert len(raw) <= 16384
-            headers = bytes(raw)
+            header, separator, remainder = raw.partition(marker)
+            assert separator == marker
+            headers = bytes(header) + marker
             length = next((int(line.split(b':', 1)[1]) for line in headers.split(b'\r\n')
                            if line.lower().startswith(b'content-length:')), 0)
             assert length <= 4096
-            content = bytearray()
+            content = bytearray(remainder)
+            assert len(content) <= length
             while len(content) < length:
                 part = connection.recv(length - len(content))
                 if not part:

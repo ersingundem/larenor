@@ -52,3 +52,18 @@ container restart kalıcılığı ve taze sahiplik uzlaştırmasını amd64/arm6
 zaten kanıtladı. S06.3f ancak bu commit’in bağımsız Server CI’ı, iki mimarili
 native workflow’u ve indirilen iki receipt’in yeniden doğrulaması başarılı
 olduktan sonra tamamlanabilir.
+
+## İlk main tekrarında bulunan fixture kararlılığı
+
+Exact `2a550dc` bağımsız Server koşusunda 4.064 test geçti ve aynı commit’in
+native resource workflow’u iki mimaride de başarılı oldu. Main Server Container
+ve Android reusable Server işleri ise aynı anda, aynı mevcut
+`test_volume_preparation` `False-arm64` varyantında 4.063 PASS sonrası tek
+`uncertain` sonucu verdi. Başarısız işler kabul kanıtı sayılmaz.
+
+Hedef test 20 seri ve 64 paralel süreç tekrarında geçince ürün operasyonuna
+retry eklenmedi. Sentetik AF_UNIX fixture’ının header’ı byte byte okuması
+16 KiB sınırını koruyan bloklu okumaya çevrildi; ilk recv içinde gelen body
+baytları ayrılıp aynı request’e taşındı, fazla body yine reddedildi. İlgili 307
+test ve düzeltme sonrası 64 paralel hedef tekrar geçti. Bu değişiklik production
+Engine taşımasını veya iki saniyelik idle sınırını değiştirmez.

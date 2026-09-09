@@ -358,6 +358,15 @@ setup hatası oluştu; sabit apksig 9.1.0 SHA-256 doğrulandıktan ve Homebrew J
 Güncel exact-source Server CI ve iki mimarili native artifact henüz bekleniyor.
 [Yerel kaynak kabul kaydı](media-resource-native-acceptance-2026-09-09.md).
 
+İlk main bütünlük tekrarında bağımsız Server CI 4.064 PASS ve native iki mimari
+PASS olmasına karşın Android ile Server Container’ın eşzamanlı reusable Server
+işleri aynı sentetik volume `False-arm64` varyantında `uncertain` verdi. Hedef
+test 20 seri ve 64 paralel tekrar geçti. Fixture’ın HTTP header okuyucusunda
+byte başına socket syscall üreten yol bloklu, 16 KiB ile sınırlı ve header ile
+aynı pakette gelen body’yi koruyan okuyucuya çevrildi; ürün Engine timeout veya
+retry davranışı değiştirilmedi. İlgili 307 test ve yük altında ikinci 64 tekrar
+geçti. Güncel exact-source main CI bu fixture commit’i için yeniden koşmalıdır.
+
 ## Canlı takip ve sıradaki işler
 
 - [Yürütme kuyruğu](EXECUTION_QUEUE.md): durumlar, bağımlılıklar ve kabul kapıları.
