@@ -70,25 +70,30 @@ def test_reconciles_journal_and_rechecks_endpoint_before_and_after_startup(prepa
     assert result.state == 'credentials_configured'
     assert result.completed_steps[-1] == 'wizard_completed'
     assert len(connection.requests) == 5 and connection.closed
-    assert len(opens) == 1 and len(gates) == 3
+    assert len(opens) == 1 and len(gates) == 4
     assert len([call for call in engine.calls if call[0] == 'inspect']) >= 5
     assert SECRET not in repr(result)
 
 
-@pytest.mark.parametrize('when', ['initial_gate', 'before_startup', 'after_startup'])
+@pytest.mark.parametrize('when', [
+    'initial_gate', 'before_connect', 'before_startup', 'after_startup',
+])
 def test_authority_loss_closes_stream_and_never_publishes_success(prepared, monkeypatch, when):
     stack, binding, engine, operations = prepared
     connection, opens = connected(monkeypatch, stack, binding, engine)
     count = {'value': 0}
-    denied_at = {'initial_gate': 1, 'before_startup': 2, 'after_startup': 3}[when]
+    denied_at = {
+        'initial_gate': 1, 'before_connect': 2,
+        'before_startup': 3, 'after_startup': 4,
+    }[when]
     def gate():
         count['value'] += 1
         return count['value'] != denied_at
     with pytest.raises(JellyfinBootstrapExecutionError, match='^bootstrap_authority_changed$') as raised:
         executor(binding, operations).execute(
             JOB, stack, private(), deadline=time.monotonic() + 10, gate=gate)
-    assert connection.closed is (when != 'initial_gate')
-    assert len(opens) == (0 if when == 'initial_gate' else 1)
+    assert connection.closed is (when not in {'initial_gate', 'before_connect'})
+    assert len(opens) == (0 if when in {'initial_gate', 'before_connect'} else 1)
     assert raised.value.uncertain_effect is (when == 'after_startup')
     assert len(connection.requests) == (5 if when == 'after_startup' else 0)
 
@@ -99,9 +104,9 @@ def test_container_or_endpoint_change_is_detected_around_effect(prepared, monkey
     connection, _ = connected(monkeypatch, stack, binding, engine)
     original = engine.inspect_container
     calls = {'value': 0}
-    # Journal reconcile is inspect 1; executor pre-open is 2; after-connect is
-    # 3 and after-startup is 4.
-    changed_at = 3 if when == 'after_connect' else 4
+    # A terminal journal reconcile returns its receipt without I/O. Executor
+    # pre-open is inspect 1, after-connect is 2 and after-startup is 3.
+    changed_at = 2 if when == 'after_connect' else 3
     def inspect(name):
         value = original(name)
         calls['value'] += 1
