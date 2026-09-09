@@ -1,7 +1,9 @@
 """Closed Jellyfin binding consumes only fresh typed resource proofs."""
 
 from dataclasses import replace
+import copy
 import json
+import time
 
 import pytest
 
@@ -9,8 +11,10 @@ from larenor_server.context import ContextResponse
 from larenor_server.plugins.catalog import load_catalog
 from larenor_server.plugins.managed_container import (
     JellyfinBindingBuilder,
+    JournaledManagedContainerOperations,
     ManagedContainerError,
     ManagedImageProof,
+    ManagedWorkerJournal,
     ManagedNetworkProof,
     ManagedVolumeProof,
     VerifiedJellyfinResources,
@@ -18,6 +22,7 @@ from larenor_server.plugins.managed_container import (
 )
 from larenor_server.plugins.resource_models import WorkerPolicyBinding
 from larenor_server.plugins.stack_plan import build_media_stack_plan
+from larenor_server.plugins.worker import DockerWorkerError, WorkerJournal, WorkerStep
 
 
 def source():
@@ -168,3 +173,61 @@ def test_inspect_drift_cannot_reconcile_as_the_managed_container(damage):
     else:
         value['Config']['Env'].append('TOKEN=private')
     assert managed_container_matches(value, binding) is False
+
+
+class Engine:
+    def __init__(self, binding):
+        self.binding = binding
+        self.container = None
+        self.calls = []
+        self.lose_create = False
+
+    def inspect_container(self, name):
+        self.calls.append(('inspect', name))
+        return copy.deepcopy(self.container)
+
+    def inspect_image(self, reference):
+        self.calls.append(('image', reference))
+        return {'Id': self.binding.image_id, 'Os': 'linux', 'Architecture': 'amd64',
+                'Config': json.loads(self.binding.image_configuration)}
+
+    def create_managed_container(self, binding):
+        self.calls.append(('create', binding.name))
+        self.container = snapshot(binding)
+        if self.lose_create:
+            raise DockerWorkerError('engine_unavailable')
+        return self.container['Id']
+
+    def start_container(self, identity):
+        self.calls.append(('start', identity))
+        self.container['State'] = {'Status': 'running', 'Running': True}
+
+
+def command(binding, kind='create_container', dispatch='6' * 32):
+    return WorkerStep('7' * 32, binding.name.removeprefix('larenor-'), kind,
+                      dispatch, time.time() + 30)
+
+
+def test_separate_managed_journal_executes_exact_binding_and_recovers_lost_reply(tmp_path):
+    _builder, _stack, binding = build()
+    engine = Engine(binding)
+    with ManagedWorkerJournal(tmp_path / 'managed', initialize=True) as journal:
+        worker = JournaledManagedContainerOperations(journal, engine)
+        engine.lose_create = True
+        created = worker.apply(command(binding), binding)
+        assert created.state == 'uncertain'
+        assert worker.reconcile('7' * 32, 'create_container', binding).code == 'container_created'
+        assert len([call for call in engine.calls if call[0] == 'create']) == 1
+        engine.lose_create = False
+        started = worker.apply(command(binding, 'start_container', '8' * 32), binding)
+        assert started.code == 'container_started'
+
+
+def test_legacy_and_managed_journals_cannot_read_each_others_domain(tmp_path):
+    legacy_path, managed_path = tmp_path / 'legacy', tmp_path / 'managed'
+    with WorkerJournal(legacy_path, initialize=True), ManagedWorkerJournal(managed_path, initialize=True):
+        pass
+    with pytest.raises(DockerWorkerError, match='^journal_unavailable$'):
+        ManagedWorkerJournal(legacy_path)
+    with pytest.raises(DockerWorkerError, match='^journal_unavailable$'):
+        WorkerJournal(managed_path)
