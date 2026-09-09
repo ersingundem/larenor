@@ -536,6 +536,46 @@ def test_complete_protocol_uses_two_nocopy_mounts_and_one_restart(protocol):
     assert docker.verified_pids == [4242,4242]
 
 
+def test_managed_characterization_routes_through_resources_and_v2_worker(
+        protocol, monkeypatch):
+    m, source, docker, images = protocol
+    from tool import media_resource_smoke
+    from larenor_server.plugins import managed_container
+    events = []
+
+    monkeypatch.setattr(media_resource_smoke, 'characterize_resources',
+        lambda root, actual_source, actual_images, network_reader, network_creator:
+            events.append(('resources', root, actual_source, actual_images,
+                           type(network_reader).__name__, type(network_creator).__name__)))
+
+    class ManagedEngine:
+        def inspect_container(self, identity):
+            events.append(('inspect', identity))
+            return {'Id': identity, 'State': {'Pid': 4242, 'Running': True}}
+
+    marker = object()
+    monkeypatch.setattr(m, '_managed_create_and_start',
+        lambda owner, actual_source, endpoint, helper_id:
+            (events.append(('managed', owner, actual_source, endpoint.path, helper_id))
+             or ('c' * 64, marker, ManagedEngine())))
+    monkeypatch.setattr(managed_container, 'managed_container_matches',
+                        lambda value, binding: binding is marker)
+
+    result = m.characterize(
+        docker, source=source, images=images, volumes=object(), managed=True,
+    )
+
+    assert result['containerMode'] == 'journaled_managed_v2'
+    assert result['containerJournalVersion'] == 2
+    assert [event[0] for event in events[:4]] == [
+        'resources', 'managed', 'inspect', 'inspect',
+    ]
+    app_creates = [call for call in docker.calls
+                   if call[0] == 'create' and '--name=larenor-helper-base-probe' not in call]
+    assert app_creates == []
+    assert ['start', 'c' * 64] not in docker.calls
+
+
 @pytest.mark.parametrize('fault', ['initialize_empty_root','start','restart','identity','mount','initial_data'])
 def test_lost_or_conflicting_reply_never_repeats_a_mutation(protocol, fault):
     m, source, docker, images = protocol
