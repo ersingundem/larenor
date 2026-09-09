@@ -2,8 +2,10 @@
 
 from dataclasses import replace
 import copy
+import hashlib
 import json
 import time
+from types import SimpleNamespace
 
 import pytest
 
@@ -22,7 +24,9 @@ from larenor_server.plugins.managed_container import (
 )
 from larenor_server.plugins.resource_models import WorkerPolicyBinding
 from larenor_server.plugins.stack_plan import build_media_stack_plan
-from larenor_server.plugins.worker import DockerWorkerError, WorkerJournal, WorkerStep
+from larenor_server.plugins.worker import (
+    DockerWorkerError, UnixDockerEngine, WorkerJournal, WorkerStep,
+)
 
 
 def source():
@@ -58,9 +62,9 @@ def proof(resource_plan, volume_plan, component):
     )
 
 
-def build(provider=proof):
+def build(provider=proof, container_journal_id='4' * 32):
     catalog, stack, policy = source()
-    builder = JellyfinBindingBuilder(catalog, policy, '4' * 32, provider)
+    builder = JellyfinBindingBuilder(catalog, policy, container_journal_id, provider)
     return builder, stack, builder(stack)
 
 
@@ -209,9 +213,9 @@ def command(binding, kind='create_container', dispatch='6' * 32):
 
 
 def test_separate_managed_journal_executes_exact_binding_and_recovers_lost_reply(tmp_path):
-    _builder, _stack, binding = build()
-    engine = Engine(binding)
     with ManagedWorkerJournal(tmp_path / 'managed', initialize=True) as journal:
+        _builder, _stack, binding = build(container_journal_id=journal.identity)
+        engine = Engine(binding)
         worker = JournaledManagedContainerOperations(journal, engine)
         engine.lose_create = True
         created = worker.apply(command(binding), binding)
@@ -231,3 +235,82 @@ def test_legacy_and_managed_journals_cannot_read_each_others_domain(tmp_path):
         ManagedWorkerJournal(legacy_path)
     with pytest.raises(DockerWorkerError, match='^journal_unavailable$'):
         WorkerJournal(managed_path)
+
+
+def test_managed_start_requires_the_matching_completed_create(tmp_path):
+    with ManagedWorkerJournal(tmp_path / 'managed', initialize=True) as journal:
+        _builder, _stack, binding = build(container_journal_id=journal.identity)
+        engine = Engine(binding)
+        worker = JournaledManagedContainerOperations(journal, engine)
+        with pytest.raises(DockerWorkerError, match='^step_order$'):
+            worker.apply(command(binding, 'start_container'), binding)
+        assert engine.calls == []
+
+
+def test_managed_reconcile_rejects_a_rebuilt_resource_binding_change_before_engine(tmp_path):
+    with ManagedWorkerJournal(tmp_path / 'managed', initialize=True) as journal:
+        _builder, _stack, binding = build(container_journal_id=journal.identity)
+        engine = Engine(binding)
+        worker = JournaledManagedContainerOperations(journal, engine)
+        engine.lose_create = True
+        assert worker.apply(command(binding), binding).state == 'uncertain'
+        calls = list(engine.calls)
+        changed = replace(binding, network_id='9' * 64)
+        with pytest.raises(DockerWorkerError, match='^idempotency_conflict$'):
+            worker.reconcile('7' * 32, 'create_container', changed)
+        assert engine.calls == calls
+
+
+def test_managed_journal_tamper_is_static_and_never_recreates(tmp_path):
+    with ManagedWorkerJournal(tmp_path / 'managed', initialize=True) as journal:
+        _builder, _stack, binding = build(container_journal_id=journal.identity)
+        engine = Engine(binding)
+        worker = JournaledManagedContainerOperations(journal, engine)
+        assert worker.apply(command(binding), binding).code == 'container_created'
+        row = journal._database.execute('SELECT payload FROM operations').fetchone()
+        payload = json.loads(row[0])
+        payload['binding']['specification']['Labels']['org.larenor.worker-journal'] = '9' * 32
+        raw = json.dumps(payload, sort_keys=True, separators=(',', ':')).encode()
+        journal._database.execute('UPDATE operations SET payload=?,digest=?',
+                                  (raw, hashlib.sha256(raw).hexdigest()))
+        with pytest.raises(DockerWorkerError, match='^journal_unavailable$') as error:
+            worker.observe('7' * 32, 'create_container')
+        assert 'payload' not in repr(error.value)
+        assert len([call for call in engine.calls if call[0] == 'create']) == 1
+
+
+def test_unix_engine_sends_the_exact_managed_binding_to_the_fixed_create_route(tmp_path):
+    _builder, _stack, binding = build()
+    engine = UnixDockerEngine(tmp_path / 'unused')
+    captured = []
+    engine._exchange = lambda method, target, body=None: (
+        captured.append((method, target, body)) or
+        SimpleNamespace(status=201, body=json.dumps({'Id': '5' * 64, 'Warnings': []}).encode())
+    )
+    assert engine.create_managed_container(binding) == '5' * 64
+    assert captured == [('POST', '/containers/create?name=' + binding.name
+                         + '&platform=linux%2Famd64', binding.specification)]
+
+
+@pytest.mark.parametrize('damage', ['image', 'label', 'memory', 'tmpfs', 'readonly'])
+def test_managed_operations_reject_forged_binding_before_engine(tmp_path, damage):
+    with ManagedWorkerJournal(tmp_path / 'managed', initialize=True) as journal:
+        _builder, _stack, binding = build(container_journal_id=journal.identity)
+        body = json.loads(binding.specification)
+        if damage == 'image':
+            body['Image'] = 'https://foreign.invalid/image@' + binding.image_id
+        elif damage == 'label':
+            body['Labels']['untrusted'] = 'true'
+        elif damage == 'memory':
+            body['HostConfig']['Memory'] = 'unbounded'
+        elif damage == 'tmpfs':
+            body['HostConfig']['Tmpfs']['/tmp'] = 'rw,exec,size=999999m'
+        else:
+            body['HostConfig']['ReadonlyRootfs'] = False
+        forged = replace(binding, specification=json.dumps(
+            body, sort_keys=True, separators=(',', ':')).encode())
+        engine = Engine(binding)
+        worker = JournaledManagedContainerOperations(journal, engine)
+        with pytest.raises(DockerWorkerError, match='^invalid_command$'):
+            worker.apply(command(binding), forged)
+        assert engine.calls == []

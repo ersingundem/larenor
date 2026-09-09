@@ -15,7 +15,10 @@ from .resource_models import WorkerPolicyBinding
 from .resource_plan import build_resource_plan, _wire
 from .stack_plan import MediaStackPlan, verify_media_stack_plan
 from .volume_plan import build_volume_plan
-from .worker import _FORBIDDEN_OBSERVED, _canonical, _decode
+from .worker import (
+    _FORBIDDEN_OBSERVED, _LABELS, _REFERENCE, DockerWorkerError,
+    JournaledContainerOperations, WorkerJournal, _canonical, _decode,
+)
 
 
 _ID = re.compile(r'[0-9a-f]{32}\Z')
@@ -105,8 +108,23 @@ class ManagedContainerBinding:
     def __repr__(self):
         return 'ManagedContainerBinding(<private>)'
 
+    @property
+    def labels(self):
+        return _decode(self.specification, 65536)['Labels']
 
-def _binding(value):
+    def payload(self):
+        return {
+            'name': self.name,
+            'platform': self.platform,
+            'image_id': self.image_id,
+            'network_id': self.network_id,
+            'mounts': [{'name': item.name, 'target': item.target} for item in self.mounts],
+            'specification': _decode(self.specification, 65536),
+            'image_configuration': _decode(self.image_configuration, 65536),
+        }
+
+
+def _binding_parts(value):
     if (not _exact(value, ManagedContainerBinding)
             or not _identity(value.name.removeprefix('larenor-'))
             or value.name != 'larenor-' + value.name.removeprefix('larenor-')
@@ -121,6 +139,8 @@ def _binding(value):
     if set(body) != {'Image', 'User', 'Labels', 'Env', 'HostConfig'}:
         raise ValueError()
     host = body['HostConfig']
+    labels = body['Labels']
+    environment = body['Env']
     expected_host = {'Privileged', 'CapDrop', 'CapAdd', 'SecurityOpt', 'NetworkMode',
                      'Memory', 'NanoCpus', 'PidsLimit', 'ReadonlyRootfs', 'Init',
                      'Tmpfs', 'Mounts', 'RestartPolicy'}
@@ -128,10 +148,34 @@ def _binding(value):
             or host['Privileged'] is not False or host['CapDrop'] != ['ALL']
             or host['CapAdd'] != [] or host['SecurityOpt'] != ['no-new-privileges:true']
             or not _identity(host['NetworkMode'], _NETWORK)
-            or body['User'] != '1000:1000' or body['Image'].find('@sha256:') < 1
-            or type(body['Labels']) is not dict or type(body['Env']) is not list
-            or host['RestartPolicy'] != {'Name': 'no'}):
+            or body['User'] != '1000:1000' or type(body['Image']) is not str
+            or _REFERENCE.fullmatch(body['Image']) is None
+            or type(labels) is not dict or set(labels) != set(_LABELS)
+            or any(type(labels[key]) is not str
+                   or re.fullmatch(r'[0-9a-f]{' + str(length) + r'}', labels[key]) is None
+                   for key, length in _LABELS.items())
+            or labels['org.larenor.installation'] != value.name.removeprefix('larenor-')
+            or type(environment) is not list or len(environment) > 4
+            or not all(type(item) is str and re.fullmatch(
+                r'(?:TZ|PORT|WEBUI_PORT|TORRENTING_PORT)=[A-Za-z0-9/_-]{1,80}', item)
+                       for item in environment)
+            or len({item.partition('=')[0] for item in environment}) != len(environment)
+            or host['RestartPolicy'] != {'Name': 'no'}
+            or host['ReadonlyRootfs'] is not True or type(host['Init']) is not bool):
         raise ValueError()
+    for key, minimum, maximum in (
+            ('Memory', 128 * 1048576, 16384 * 1048576),
+            ('NanoCpus', 100000000, 16000000000), ('PidsLimit', 32, 4096)):
+        if type(host[key]) is not int or not minimum <= host[key] <= maximum:
+            raise ValueError()
+    if type(host['Tmpfs']) is not dict:
+        raise ValueError()
+    for target, options in host['Tmpfs'].items():
+        if (target not in {'/run', '/tmp'} or type(options) is not str
+                or re.fullmatch(
+                    r'rw,nosuid,nodev,(?:noexec|exec),size=[0-9]{2,3}m,'
+                    r'uid=(?:0|1000),gid=(?:0|1000),mode=1777', options) is None):
+            raise ValueError()
     expected_mounts = []
     for item in value.mounts:
         if (not _exact(item, ManagedContainerMount) or not _identity(item.name, _VOLUME)
@@ -147,7 +191,7 @@ def _binding(value):
 def managed_container_matches(value, binding):
     """Match a fresh full-ID inspect without exposing paths or Engine values."""
     try:
-        body, inherited = _binding(binding)
+        body, inherited = _binding_parts(binding)
         if (type(value) is not dict or not _identity(value.get('Id'), _HASH)
                 or value.get('Name') != '/' + binding.name
                 or value.get('Image') != binding.image_id):
@@ -205,6 +249,59 @@ def managed_container_matches(value, binding):
         return type(attached) is dict and attached.get('NetworkID') == binding.network_id
     except (ValueError, TypeError, AttributeError, KeyError, RecursionError):
         return False
+
+
+class ManagedWorkerJournal(WorkerJournal):
+    """Version-2 container journal; legacy mount-free rows never cross domains."""
+
+    def __init__(self, directory, *, initialize=False):
+        super().__init__(directory, initialize=initialize, _version=2)
+
+    @staticmethod
+    def _stored_binding(row):
+        try:
+            payload = _decode(row['payload'], 65536)
+            value = payload['binding']
+            if type(value) is not dict or set(value) != {
+                    'name', 'platform', 'image_id', 'network_id', 'mounts',
+                    'specification', 'image_configuration'}:
+                raise ValueError()
+            mounts = value['mounts']
+            if type(mounts) is not list or len(mounts) != 2:
+                raise ValueError()
+            binding = ManagedContainerBinding(
+                value['name'], value['platform'], value['image_id'], value['network_id'],
+                tuple(ManagedContainerMount(**item) for item in mounts),
+                _canonical(value['specification']), _canonical(value['image_configuration']),
+            )
+            _binding_parts(binding)
+            return binding
+        except (ValueError, TypeError, AttributeError, KeyError, DockerWorkerError, RecursionError):
+            raise DockerWorkerError('journal_unavailable') from None
+
+
+class JournaledManagedContainerOperations(JournaledContainerOperations):
+    """Create/start only exact, freshly rebuilt managed Jellyfin bindings."""
+
+    def __init__(self, journal, engine):
+        if type(journal) is not ManagedWorkerJournal:
+            raise DockerWorkerError('invalid_command')
+        super().__init__(journal, engine)
+
+    @staticmethod
+    def _binding(value):
+        try:
+            _binding_parts(value)
+            return value
+        except (ValueError, TypeError, AttributeError, DockerWorkerError, RecursionError):
+            raise DockerWorkerError('invalid_command') from None
+
+    @staticmethod
+    def _matches(value, binding):
+        return managed_container_matches(value, binding)
+
+    def _create(self, binding):
+        return self.engine.create_managed_container(binding)
 
 
 def _pairs(values):
