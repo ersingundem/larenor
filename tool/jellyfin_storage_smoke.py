@@ -231,6 +231,7 @@ _SOURCE_FILES = (
     'server/larenor_server/plugins/volume_effects.py',
     'server/larenor_server/plugins/volume_create_journal.py',
     'server/larenor_server/plugins/volume_preparation.py',
+    'server/larenor_server/plugins/volume_bootstrap.py',
     'server/larenor_server/plugins/managed_container.py',
     'server/larenor_server/plugins/worker.py',
     'server/larenor_server/plugins/docker_probe.py',
@@ -1134,30 +1135,6 @@ def _health(daemon, helper_id, container_id):
     raise SmokeError('jellyfin_startup_timeout')
 
 
-class _BootstrapVerifier:
-    """Native acceptance adapter for the fixed, attested bootstrap helper."""
-
-    def __init__(self, endpoint, daemon, helper_id):
-        self._endpoint = endpoint
-        self._daemon = daemon
-        self._helper_id = helper_id
-
-    def verify(self, intent, *, cancelled):
-        from larenor_server.plugins.managed_container import VolumeBootstrapObservation
-        require(type(cancelled) is threading.Event and not cancelled.is_set())
-        binding, receipt = intent.binding, intent.receipt
-        value = _helper(
-            self._daemon, self._helper_id, 'verify_root',
-            target=binding.resource, bootstrap=True,
-        )
-        require(value == {'schemaVersion': 1, 'state': 'root_verified'})
-        return VolumeBootstrapObservation(
-            binding.resource_id, binding.resource.operationId, binding.journal_id,
-            binding.ownership_nonce, receipt.revision, binding.resource.name,
-            binding.resource.target, 'root_verified',
-        )
-
-
 def _managed_create_rejection(status, body):
     """Reduce a private Docker rejection to one closed diagnostic category."""
     fallback = 'managed_create_engine_rejected'
@@ -1476,6 +1453,7 @@ def _managed_create_and_start(daemon, source, endpoint, helper_id):
         managed_container_matches,
     )
     from larenor_server.plugins.resource_journal import ResourceJournal
+    from larenor_server.plugins.volume_bootstrap import VolumeBootstrapVerifier
     from larenor_server.plugins.volume_create_journal import VolumeCreateJournal
     from larenor_server.plugins.worker import WorkerStep
 
@@ -1483,7 +1461,7 @@ def _managed_create_and_start(daemon, source, endpoint, helper_id):
     with ResourceJournal(daemon.root / 'resource-journal') as resource_journal, \
             VolumeCreateJournal(daemon.root / 'volume-journal') as volume_journal, \
             ManagedWorkerJournal(journal_dir, initialize=True) as container_journal:
-        verifier = _BootstrapVerifier(endpoint, daemon, helper_id)
+        verifier = VolumeBootstrapVerifier(endpoint, helper_id, daemon.platform)
         readers = JellyfinEngineReaders(endpoint, verifier)
         broker = JellyfinResourceProofBroker(
             source.stack, source.catalog, source.policy, resource_journal,
