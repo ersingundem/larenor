@@ -266,6 +266,29 @@ class SupervisedInstallationBackend:
     def reconcile_with_deadline(self, step, plan, deadline):
         return self._call('reconcile', step, plan, deadline)
 
+    def bootstrap_with_deadline(self, job, plan, private, deadline):
+        self._check(deadline)
+        self._peer_verifier.activate(deadline)
+
+        def gate():
+            self._check(deadline)
+            return True
+
+        try:
+            try:
+                result = self.backend.bootstrap(
+                    job, plan, private, deadline=deadline, gate=gate)
+                self._check(deadline)
+                return result
+            except BaseException:
+                try:
+                    self._check(deadline)
+                except InstallationSupervisorError:
+                    raise
+                raise
+        finally:
+            self._peer_verifier.deactivate()
+
     def close(self):
         if self._closed:
             return

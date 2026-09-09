@@ -267,3 +267,34 @@ def test_core_enables_execution_only_from_the_separate_installation_channel(serv
                 'installAvailable': False,
                 'services': ['jellyfin'],
             }
+
+
+def test_durable_coordinator_reaches_supervised_worker_over_real_unix_ipc(
+        server, monkeypatch):
+    from test_media_service_bootstraps import BASE, installed, request
+
+    _app, client, settings, _clock = server
+    pair, installation = installed(server)
+    queued = client.post(
+        BASE, headers=auth(pair), json=request(installation),
+    ).json()['bootstrap']
+    monkeypatch.setattr(
+        'larenor_server.plugins.preflight_ipc._peer_uid',
+        lambda _connection: os.getuid(),
+    )
+
+    with running() as (backend, worker):
+        configured = replace(
+            settings,
+            installation_worker_socket=worker.path,
+            installation_worker_uid=os.getuid(),
+        )
+        with TestClient(create_app(configured)) as reopened:
+            terminal = reopened.app.state.core.media_service_bootstraps.tick()['bootstrap']
+
+    assert terminal == queued | {
+        'revision': 3, 'state': 'credentials_configured',
+        'credentialsConfigured': True,
+    }
+    assert backend.calls[0][0] == 'bootstrap'
+    assert backend.calls[0][1] == queued['id']
