@@ -235,10 +235,11 @@ class _TransferPageState extends ConsumerState<_TransferPage> {
                 Text(preview.commit.binding.target.label),
                 Text(preview.commit.binding.entityId),
                 Text(preview.commit.service.name),
-                Text(switch (preview.projection.state) {
+                Text(switch (preview.projection.switchState) {
                   CoreHaSwitchState.on => l.coreHaStateOn,
                   CoreHaSwitchState.off => l.coreHaStateOff,
                   CoreHaSwitchState.unavailable => l.coreHaUnavailable,
+                  null => l.coreHaUnsupported,
                 }),
                 Text(l.coreHaPreviewDescription),
                 action(

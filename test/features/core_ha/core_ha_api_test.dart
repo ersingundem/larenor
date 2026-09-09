@@ -271,8 +271,32 @@ void main() {
     await expectLater(
       create(handler).preview(
         service: ServerService.fromJson(serviceJson()),
-        entityId: 'light.lamp',
+        entityId: 'light.Lamp',
         existing: null,
+      ),
+      throwsA(failure('invalid_request')),
+    );
+    expect(calls, 0);
+  });
+  test('read-only domain snapshot cannot dispatch a switch command', () async {
+    var calls = 0;
+    final api = create((_) async {
+      calls++;
+      return response(null);
+    });
+    final snapshot = CoreHaSnapshot.fromJson({
+      ...snapshotJson(),
+      'projection': {
+        'kind': 'sensor',
+        'state': '21.5',
+        'commandAvailable': false,
+      },
+    }, target: target());
+    await expectLater(
+      api.command(
+        requestId: '9' * 32,
+        action: CoreHaCommandAction.turnOn,
+        snapshot: snapshot,
       ),
       throwsA(failure('invalid_request')),
     );

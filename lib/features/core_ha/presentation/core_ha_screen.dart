@@ -86,11 +86,17 @@ class _ViewState extends ConsumerState<_View> {
     super.dispose();
   }
 
-  String _state(CoreHaProjection p, AppLocalizations l) => switch (p.state) {
-    CoreHaSwitchState.on => l.coreHaStateOn,
-    CoreHaSwitchState.off => l.coreHaStateOff,
-    CoreHaSwitchState.unavailable => l.coreHaUnavailable,
-  };
+  String _state(CoreHaProjection p, AppLocalizations l) =>
+      switch (p.switchState) {
+        CoreHaSwitchState.on => l.coreHaStateOn,
+        CoreHaSwitchState.off => l.coreHaStateOff,
+        CoreHaSwitchState.unavailable => l.coreHaUnavailable,
+        null => switch (p.rawState) {
+          'unknown' => l.commonUnknown,
+          'unavailable' => l.coreHaUnavailable,
+          _ => p.rawState,
+        },
+      };
   String _error(String? code, AppLocalizations l) => switch (code) {
     'not_found' => l.coreHaNoState,
     'forbidden' => l.coreHaPermission,
@@ -190,7 +196,7 @@ class _ViewState extends ConsumerState<_View> {
               if (!widget.admin) ...[
                 if (c.snapshot != null && c.fresh)
                   _message(
-                    'core-ha-state-${c.snapshot!.projection.state.name}',
+                    'core-ha-state-${c.snapshot!.projection.switchState?.name ?? c.snapshot!.projection.kind}',
                     _state(c.snapshot!.projection, l),
                   ),
                 if (c.commandReceipt != null)
@@ -210,7 +216,8 @@ class _ViewState extends ConsumerState<_View> {
                     'core-ha-command-on',
                     l.coreHaTurnOn,
                     c.canCommand &&
-                            c.snapshot!.projection.state != CoreHaSwitchState.on
+                            c.snapshot!.projection.switchState !=
+                                CoreHaSwitchState.on
                         ? () => unawaited(
                             c.command(
                               CoreHaCommandAction.turnOn,
@@ -219,13 +226,14 @@ class _ViewState extends ConsumerState<_View> {
                           )
                         : null,
                     selected:
-                        c.snapshot!.projection.state == CoreHaSwitchState.on,
+                        c.snapshot!.projection.switchState ==
+                        CoreHaSwitchState.on,
                   ),
                   button(
                     'core-ha-command-off',
                     l.coreHaTurnOff,
                     c.canCommand &&
-                            c.snapshot!.projection.state !=
+                            c.snapshot!.projection.switchState !=
                                 CoreHaSwitchState.off
                         ? () => unawaited(
                             c.command(
@@ -235,7 +243,8 @@ class _ViewState extends ConsumerState<_View> {
                           )
                         : null,
                     selected:
-                        c.snapshot!.projection.state == CoreHaSwitchState.off,
+                        c.snapshot!.projection.switchState ==
+                        CoreHaSwitchState.off,
                   ),
                 ] else if (c.snapshot != null)
                   Text(l.coreHaReadOnly),
