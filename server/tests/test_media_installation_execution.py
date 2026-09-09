@@ -17,6 +17,7 @@ from test_media_preparations_api import create_preparation
 class Backend:
     def __init__(self):
         self.calls = []
+        self.applies = 0
         self.results = [
             StepReceipt('0' * 32, 'create_container', 'succeeded', 'container_created', '1' * 64),
             StepReceipt('0' * 32, 'start_container', 'succeeded', 'container_started', '1' * 64),
@@ -24,7 +25,8 @@ class Backend:
 
     def apply(self, step, component):
         self.calls.append((step, component))
-        result = self.results[len(self.calls) - 1]
+        result = self.results[self.applies]
+        self.applies += 1
         return replace(result, job_id=step.job_id)
 
     def reconcile(self, step, component):
@@ -38,11 +40,12 @@ def stack(server):
 
 
 def test_builder_selects_only_trusted_jellyfin_child_and_has_no_docker_payload(server):
-    execution = build_execution(stack(server), job_id='a' * 32, deadline=1788609900)
+    plan = stack(server)
+    execution = build_execution(plan, job_id='a' * 32, deadline=1788609900)
     assert execution.service_id == 'jellyfin'
     assert [step.kind for step in execution.steps] == ['create_container', 'start_container']
     assert execution.operation_id == next(
-        item['operationId'] for item in stack(server)['components'] if item['serviceId'] == 'jellyfin')
+        item['operationId'] for item in plan['components'] if item['serviceId'] == 'jellyfin')
     wire = execution.public()
     assert set(wire) == {'serviceId', 'operationId', 'steps'}
     assert all(set(step) == {'stepId', 'kind'} for step in wire['steps'])
@@ -52,9 +55,10 @@ def test_builder_selects_only_trusted_jellyfin_child_and_has_no_docker_payload(s
 @pytest.mark.parametrize('field', ['service_id', 'job_id', 'deadline'])
 def test_builder_rejects_caller_selected_effects(server, field):
     values = {'service_id': 'sonarr', 'job_id': 'x' * 32, 'deadline': float('nan')}
+    arguments = {'job_id': 'a' * 32, 'deadline': 1788609900}
+    arguments[field] = values[field]
     with pytest.raises(InstallationExecutionError, match='^invalid_execution_request$'):
-        build_execution(stack(server), job_id='a' * 32, deadline=1788609900,
-                        **{field: values[field]})
+        build_execution(stack(server), **arguments)
 
 
 def test_authority_and_cancellation_are_rechecked_before_every_effect(server):
