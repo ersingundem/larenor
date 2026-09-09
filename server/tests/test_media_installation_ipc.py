@@ -156,6 +156,26 @@ def test_invalid_bootstrap_ipc_input_never_reaches_worker(change):
     assert backend.calls == []
 
 
+@pytest.mark.parametrize('gate', [lambda: False, lambda: (_ for _ in ()).throw(
+    RuntimeError('private-authority-detail'))])
+def test_bootstrap_authority_gate_fails_before_ipc(gate):
+    private = PrivateMediaServiceBootstrap(
+        credential='Synthetic-bootstrap-secret-0123456789',
+    )
+    with running() as (backend, client):
+        with pytest.raises(
+            JellyfinBootstrapExecutionError,
+            match='^bootstrap_authority_changed$',
+        ) as raised:
+            client.execute(
+                'a' * 32, stack(), private,
+                deadline=time.monotonic() + 1,
+                gate=gate,
+            )
+    assert backend.calls == []
+    assert private.credential not in repr(raised.value)
+
+
 def test_backend_lifecycle_and_effects_share_the_server_native_thread():
     execution = build_execution(stack(), job_id='a' * 32, deadline=1788609900)
     events = []
