@@ -410,6 +410,34 @@ def _binding_parts(value):
     return body, inherited
 
 
+def _observed_requested_mounts_match(actual, expected):
+    if actual in (None, []):
+        return True
+    if type(actual) is not list or type(expected) is not list or len(actual) != len(expected):
+        return False
+    desired = {item.get('Target'): item for item in expected if type(item) is dict}
+    if len(desired) != len(expected):
+        return False
+    allowed = {'Type', 'Source', 'Target', 'ReadOnly', 'VolumeOptions',
+               'Consistency', 'BindOptions', 'TmpfsOptions'}
+    seen = set()
+    for item in actual:
+        if type(item) is not dict or not set(item) <= allowed:
+            return False
+        target = item.get('Target')
+        source = desired.get(target)
+        if (source is None or item.get('Type') != 'volume'
+                or item.get('Source') != source.get('Source')
+                or item.get('ReadOnly', False) is not False
+                or item.get('VolumeOptions') not in (None, {}, {'NoCopy': True})
+                or item.get('Consistency') not in (None, '')
+                or item.get('BindOptions') is not None
+                or item.get('TmpfsOptions') is not None):
+            return False
+        seen.add(target)
+    return seen == set(desired)
+
+
 def managed_container_matches(value, binding):
     """Match a fresh full-ID inspect without exposing paths or Engine values."""
     try:
@@ -442,7 +470,7 @@ def managed_container_matches(value, binding):
             expected_item = {'Name': 'no', 'MaximumRetryCount': 0} if key == 'RestartPolicy' else item
             if key == 'Tmpfs' and item == {} and host.get(key) in (None, {}):
                 continue
-            if key == 'Mounts' and host.get(key) in (None, []):
+            if key == 'Mounts' and _observed_requested_mounts_match(host.get(key), item):
                 continue
             if host.get(key) != expected_item:
                 return False
