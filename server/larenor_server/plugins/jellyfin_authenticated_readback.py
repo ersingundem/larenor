@@ -12,6 +12,7 @@ import math
 import re
 import socket
 import time
+import unicodedata
 
 from pydantic import ValidationError
 
@@ -106,7 +107,8 @@ def _wire(method, path, body, authorization, *, final=False):
 
 def _name(value, maximum=128):
     return (type(value) is str and 1 <= len(value) <= maximum
-            and all(32 <= ord(char) < 127 for char in value))
+            and value == value.strip()
+            and all(unicodedata.category(char)[0] != 'C' for char in value))
 
 
 def _authentication(value, username):
