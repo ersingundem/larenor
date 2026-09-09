@@ -137,3 +137,34 @@ def test_unsuccessful_or_changed_inspection_never_queues_an_effect(server):
     response = client.post(BASE, headers=auth(pair), json=body | {'requestId': 'd' * 32})
     assert response.status_code == 409
     assert response.json()['error']['code'] == 'media_preparation_changed'
+
+
+def test_catalog_change_preserves_history_but_blocks_new_effect(server, monkeypatch):
+    app, client, _, _ = server
+    pair, _, _, body = prepared(server)
+    backend = ExecutionBackend()
+    app.state.core.media_installations.backend = backend
+    record = client.post(BASE, headers=auth(pair), json=body).json()['installation']
+    monkeypatch.setattr('larenor_server.plugins.media_installations.load_catalog',
+                        lambda: (_ for _ in ()).throw(ValueError('private catalog path')))
+    monkeypatch.setattr('larenor_server.plugins.installation_execution.load_catalog',
+                        lambda: (_ for _ in ()).throw(ValueError('private catalog path')))
+    assert client.get(BASE + '/' + record['id'], headers=auth(pair)).json() == {'installation': record}
+    terminal = app.state.core.media_installations.tick()['installation']
+    assert terminal['state'] == 'needs_attention' and terminal['errorCode'] == 'catalog_changed'
+    assert backend.calls == [] and 'private catalog path' not in repr(terminal)
+
+
+def test_cancelled_queue_and_encrypted_payload_never_reach_worker(server):
+    app, client, _, _ = server
+    pair, _, _, body = prepared(server)
+    backend = ExecutionBackend()
+    app.state.core.media_installations.backend = backend
+    record = client.post(BASE, headers=auth(pair), json=body).json()['installation']
+    with app.state.core.db.connection() as connection:
+        row = connection.execute('SELECT nonce,ciphertext FROM media_installations').fetchone()
+        assert len(row['nonce']) == 12 and body['planHash'].encode() not in row['ciphertext']
+    cancelled = client.post(BASE + '/' + record['id'] + '/cancel', headers=auth(pair),
+                            json={'expectedRevision': 1}).json()['installation']
+    assert cancelled['state'] == 'cancelled' and cancelled['cancelRequested']
+    assert app.state.core.media_installations.tick() is None and backend.calls == []
