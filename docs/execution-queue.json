@@ -793,10 +793,18 @@
           "state": "completed",
           "result": "passed",
           "label": "Exact managed container/private-network numeric Jellyfin endpoint kanıtı: 27 yeni/86 ilgili test; DNS/proxy/retry yok. Journal/supervisor runtime bağı, CI ve gerçek servis kabulü açık."
+        },
+        {
+          "kind": "test",
+          "ref": "docs/media-service-bootstrap-implementation-2026-09-09.md",
+          "commit": "89687d18ad2cba6f2619f7598c45a8f85175f469",
+          "state": "completed",
+          "result": "passed",
+          "label": "Exact journal receipt ve retained-authority kapılarıyla çevrili no-retry Jellyfin bootstrap yürütücüsü: 14 yeni/100 ilgili test; bağlantı erişilemezliği ve endpoint değişimi ayrık. IPC/supervisor dispatch, kalıcı durum, CI ve gerçek servis kabulü açık."
         }
       ],
       "completionCommit": null,
-      "reason": "Server üretimli sır, şifreli intent, sabit Jellyfin startup sırası ve exact managed container/private-network numeric endpoint kanıtı yerelde hazır. DNS/proxy/redirect/retry yok; kısmi/belirsiz sonuç secret-free. Managed journal/supervisor runtime bağı, API anahtarı/kütüphane geri okuması, CI ve gerçek servis kabulü açık."
+      "reason": "Server üretimli sır, şifreli intent, sabit startup sırası ve exact journal/container/private-network/authority yürütücüsü yerelde hazır. DNS/proxy/redirect/retry yok; kısmi, erişilemez ve değişmiş endpoint sonuçları secret-free. IPC/supervisor dispatch, kalıcı durum, API anahtarı/kütüphane geri okuması, CI ve gerçek servis kabulü açık."
     },
     {
       "id": "S06.6",
