@@ -68,11 +68,19 @@ class UnixVolumeBootstrapEngine:
             _require(name_factory is None or callable(name_factory),
                      'bootstrap_configuration_invalid')
             self._endpoint = endpoint
-            factory = UnixDockerEngine if transport_factory is None else transport_factory
-            self._transport = factory(endpoint) if transport_factory is not None else factory(
-                endpoint.path, timeout=1.0, socket_uid=endpoint.owner_uid,
-            )
-            _require(callable(getattr(self._transport, '_exchange', None)),
+            if transport_factory is None:
+                self._transport = UnixDockerEngine(
+                    endpoint.path, timeout=1.0, socket_uid=endpoint.owner_uid,
+                )
+                self._cleanup_transport = UnixDockerEngine(
+                    endpoint.path, timeout=10.0, socket_uid=endpoint.owner_uid,
+                )
+            else:
+                self._transport = transport_factory(endpoint)
+                self._cleanup_transport = self._transport
+            _require(all(callable(getattr(transport, '_exchange', None)) for transport in (
+                self._transport, self._cleanup_transport,
+            )),
                      'bootstrap_configuration_invalid')
             self._name_factory = (lambda: uuid.uuid4().hex) if name_factory is None else name_factory
         except (ValueError, TypeError, AttributeError, DockerWorkerError,
@@ -168,7 +176,7 @@ class UnixVolumeBootstrapEngine:
         finally:
             if identity is not None:
                 try:
-                    cleanup = self._transport._exchange(
+                    cleanup = self._cleanup_transport._exchange(
                         'DELETE', f'/containers/{identity}')
                 except Exception:
                     failure = 'bootstrap_cleanup_transport_failed'

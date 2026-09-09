@@ -1,6 +1,7 @@
 """Production-shaped root verification through one fixed helper container."""
 
 import json
+from pathlib import Path
 from types import SimpleNamespace
 import threading
 
@@ -139,6 +140,17 @@ def test_verifier_rejects_engine_bound_to_another_endpoint():
             'linux/amd64',
             engine_factory=lambda value: VerifiedRootEngine(foreign),
         )
+
+
+def test_default_engine_keeps_short_operations_and_cleanup_separately_bounded():
+    endpoint = DockerEndpoint('/private/docker.sock', owner_uid=0)
+
+    engine = UnixVolumeBootstrapEngine(endpoint)
+
+    assert engine._transport.path == engine._cleanup_transport.path == Path(endpoint.path)
+    assert engine._transport.socket_uid == engine._cleanup_transport.socket_uid == 0
+    assert engine._transport.timeout == 1.0
+    assert engine._cleanup_transport.timeout == 10.0
 
 
 class ExchangeTransport:
