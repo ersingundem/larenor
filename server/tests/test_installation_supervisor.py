@@ -50,6 +50,7 @@ class Lease:
         self.context = context or DaemonContext(True, True, True)
         self.pair = pair or Pair()
         self.closed = False
+        self.startup = object()
 
     def capture_identities(self, _deadline):
         return self.pair
@@ -60,6 +61,9 @@ class Lease:
     def matches_connection(self, connection, expected_uid, _deadline):
         return (not self.closed and getattr(connection, 'peer_pid', 1) == 1
                 and expected_uid == 0)
+
+    def capture_startup(self, _deadline):
+        return self.startup
 
     def close(self):
         self.closed = True
@@ -94,6 +98,21 @@ class Backend:
         return 'reconciled'
 
 
+class Security:
+    def __init__(self):
+        self.checks = 0
+        self.closed = False
+        self.fail = False
+
+    def check(self, _deadline):
+        self.checks += 1
+        if self.fail:
+            raise RuntimeError('private-security-change')
+
+    def close(self):
+        self.closed = True
+
+
 def build(monkeypatch, *, lease=None, identities=None):
     endpoint = DockerEndpoint('/run/docker.sock', owner_uid=0,
                               daemon_executable='/usr/bin/dockerd')
@@ -104,11 +123,15 @@ def build(monkeypatch, *, lease=None, identities=None):
     monkeypatch.setattr(supervisor, '_linux_peer_uid', lambda _connection: 0)
     monkeypatch.setattr(supervisor, 'capture_daemon_context',
                         lambda current, uid, executable, deadline: lease)
+    security = Security()
     guarded = supervisor.SupervisedInstallationBackend(
         endpoint,
         Backend(),
+        platform='linux/amd64',
         socket_factory=lambda *_args: connection,
+        security_attestor=lambda current, startup, peer, worker, **kwargs: security,
     )
+    lease.security = security
     return guarded, guarded.backend, connection, lease
 
 
@@ -125,7 +148,7 @@ def test_retains_one_connection_and_checks_evidence_before_and_after_each_call(m
     assert all(call[3] == threading.get_native_id() for call in backend.calls)
 
     guarded.close()
-    assert connection.closed and lease.closed and lease.pair.closed
+    assert connection.closed and lease.closed and lease.pair.closed and lease.security.closed
     guarded.close()
 
 
@@ -197,6 +220,17 @@ def test_post_effect_revalidation_failure_never_returns_success(monkeypatch):
         guarded.apply_with_deadline('step', 'plan', time.monotonic() + 2)
 
     assert len(backend.calls) == 1 and connection.closed and lease.closed and pair.closed
+
+
+def test_daemon_security_change_blocks_effect_and_closes_all_evidence(monkeypatch):
+    guarded, backend, connection, lease = build(monkeypatch)
+    guarded.open(time.monotonic() + 2)
+    lease.security.fail = True
+    with pytest.raises(supervisor.InstallationSupervisorError,
+                       match='^supervisor_unavailable$'):
+        guarded.apply_with_deadline('step', 'plan', time.monotonic() + 2)
+    assert backend.calls == []
+    assert connection.closed and lease.closed and lease.pair.closed and lease.security.closed
 
 
 def test_every_backend_engine_connection_must_match_the_retained_peer(monkeypatch):
@@ -283,6 +317,8 @@ def test_actual_linux_peer_context_is_retained_on_the_effect_thread(monkeypatch)
         # This integration isolates the real pidfd/proc/ns and thread lifetime.
         monkeypatch.setattr(daemon_context, '_trusted_executable',
                             lambda path, deadline: os.stat(path))
+        monkeypatch.setattr(daemon_context._ContextLease, 'capture_startup',
+                            lambda self, deadline: object())
         class PreconnectedSocket:
             """Expose real socket credentials while modelling a completed connect."""
 
@@ -304,7 +340,9 @@ def test_actual_linux_peer_context_is_retained_on_the_effect_thread(monkeypatch)
         guarded = supervisor.SupervisedInstallationBackend(
             endpoint,
             Backend(),
+            platform='linux/amd64',
             socket_factory=lambda *_args: PreconnectedSocket(left),
+            security_attestor=lambda *_args, **_kwargs: Security(),
         )
 
         def apply(step, plan):

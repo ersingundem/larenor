@@ -19,6 +19,7 @@ import threading
 import time
 
 from .daemon_context import DaemonContext, capture_daemon_context
+from .daemon_security import attest_daemon_security
 from .docker_probe import DockerEndpoint, _identity, _linux_peer_uid
 
 
@@ -131,23 +132,30 @@ class RetainedDaemonPeerVerifier:
 class SupervisedInstallationBackend:
     """Keep daemon evidence on the one native thread executing effects."""
 
-    def __init__(self, endpoint, backend, *, socket_factory=None, peer_verifier=None):
+    def __init__(self, endpoint, backend, *, platform, socket_factory=None, peer_verifier=None,
+                 security_attestor=None):
         if (type(endpoint) is not DockerEndpoint
+                or platform not in {'linux/amd64', 'linux/arm64'}
                 or not callable(getattr(backend, 'apply', None))
                 or not callable(getattr(backend, 'reconcile', None))
                 or socket_factory is not None and not callable(socket_factory)
                 or peer_verifier is not None
-                and type(peer_verifier) is not RetainedDaemonPeerVerifier):
+                and type(peer_verifier) is not RetainedDaemonPeerVerifier
+                or security_attestor is not None and not callable(security_attestor)):
             raise InstallationSupervisorError()
         self._endpoint = endpoint
+        self._platform = platform
         self.backend = backend
         self._socket_factory = socket.socket if socket_factory is None else socket_factory
         self._peer_verifier = (RetainedDaemonPeerVerifier(endpoint)
                                if peer_verifier is None else peer_verifier)
+        self._security_attestor = (attest_daemon_security if security_attestor is None
+                                   else security_attestor)
         self._owner = None
         self._connection = None
         self._lease = None
         self._identities = None
+        self._security = None
         self._endpoint_identity = None
         self._closed = False
 
@@ -156,10 +164,11 @@ class SupervisedInstallationBackend:
 
     def _invalidate(self):
         self._closed = True
+        security, self._security = self._security, None
         identities, self._identities = self._identities, None
         lease, self._lease = self._lease, None
         connection, self._connection = self._connection, None
-        for value in (self._peer_verifier, identities, lease, connection):
+        for value in (self._peer_verifier, security, identities, lease, connection):
             if value is not None:
                 try:
                     value.close()
@@ -171,11 +180,12 @@ class SupervisedInstallationBackend:
             if (not _valid_deadline(deadline) or self._closed
                     or self._owner != (os.getpid(), threading.get_native_id())
                     or self._connection is None or self._lease is None
-                    or self._identities is None
+                    or self._identities is None or self._security is None
                     or _identity(self._endpoint) != self._endpoint_identity
                     or not self._lease.revalidate(deadline)):
                 raise ValueError()
             self._peer_verifier.check(deadline)
+            self._security.check(deadline)
             self._identities.check(deadline)
             if (_identity(self._endpoint) != self._endpoint_identity
                     or not self._lease.revalidate(deadline)
@@ -211,6 +221,16 @@ class SupervisedInstallationBackend:
             self._identities = identities
             if not _same_observed_user_context(identities.peer, identities.worker):
                 raise ValueError()
+            startup = lease.capture_startup(deadline)
+            self._security = self._security_attestor(
+                connection,
+                startup,
+                identities.peer,
+                identities.worker,
+                daemon_executable=self._endpoint.daemon_executable,
+                platform=self._platform,
+                deadline=deadline,
+            )
             self._endpoint_identity = before
             self._peer_verifier.bind(lease, deadline)
             self._check(deadline)
