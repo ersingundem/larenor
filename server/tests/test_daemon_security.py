@@ -59,9 +59,10 @@ class Snapshot:
 
 
 class Startup:
-    def __init__(self, *, argv=None, config=b'{}'):
+    def __init__(self, *, argv=None, config=b'{}', config_path='/etc/docker/daemon.json'):
         self.argv = argv or ('/usr/bin/dockerd', '--config-file=/etc/docker/daemon.json')
         self.config = config
+        self.config_path = config_path
         self.checks = 0
         self.closed = False
         self.fail = False
@@ -114,6 +115,15 @@ def test_valid_rootful_remap_disabled_daemon_retains_startup_evidence():
 ])
 def test_startup_arguments_and_config_reject_remap_or_ambiguity(argv, config):
     startup = Startup(argv=argv, config=config)
+    with pytest.raises(implementation().DaemonSecurityError,
+                       match='^daemon_security_unavailable$'):
+        attest(startup=startup)
+    assert startup.closed
+
+
+def test_captured_config_must_match_the_exact_startup_argument():
+    startup = Startup(argv=('/usr/bin/dockerd', '--config-file=/etc/one'),
+                      config_path='/etc/two')
     with pytest.raises(implementation().DaemonSecurityError,
                        match='^daemon_security_unavailable$'):
         attest(startup=startup)
