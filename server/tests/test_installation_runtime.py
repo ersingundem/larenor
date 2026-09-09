@@ -132,6 +132,21 @@ def test_runtime_builds_one_endpoint_and_closes_all_journals(configuration):
     assert built.closed is True
 
 
+def test_runtime_routes_every_engine_connection_through_one_peer_verifier(configuration):
+    policy = runtime.load_policy(configuration)
+    verifier = lambda _connection: policy.endpoint.owner_uid
+    built = runtime._build_runtime(policy, peer_uid=verifier)
+    try:
+        readers = built.backend.binding_builder._readers
+        assert readers._images._peer_uid is verifier
+        assert readers._volumes._http._peer_uid is verifier
+        assert readers._networks._http._peer_uid is verifier
+        assert readers._bootstrap._engine._transport.peer_uid is verifier
+        assert built.backend.operations.engine.peer_uid is verifier
+    finally:
+        built.close()
+
+
 def install_lifecycle(monkeypatch, *, start_error=None, close_error=None):
     events, handlers = [], {}
 
