@@ -1,8 +1,9 @@
 # S06.4 dar medya kurulum yürütmesi
 
-**Durum:** İlk API ve ayrı IPC dilimi yerelde uygulandı. S06.4 tamamlanmadı;
-paketli mutasyon işçisi, kaynak makbuzu bağlama ve iki mimarili native kabul
-açık. Ürün kurulum yeteneği `installAvailable=false` kalır.
+**Durum:** Kalıcı API, ayrı IPC ve doğrulanmış Jellyfin binding dilimleri yerelde
+uygulandı. S06.4 tamamlanmadı; binding'i tüketen ayrı journal/runtime, paketli
+mutasyon işçisi ve iki mimarili native kabul açık. Ürün kurulum yeteneği
+`installAvailable=false` kalır.
 
 ## Uygulanan sınır
 
@@ -35,10 +36,17 @@ kataloğu yeniden doğrular, Jellyfin child'ını içeride seçer. Böylece kayn
 makbuzlarını Core/ev/preparation kimliğiyle yeniden türetmek için gereken bağlam
 korunur. Docker binding yalnız worker içindeki güvenilir builder'dan gelebilir.
 
-Bu dilim son kurulum worker CLI'sini veya runtime supervisor'ını sağlamaz.
-Kabul edilmiş image, volume ve network resource receipt'lerini mounted binding'e
-çevirmez. Kullanıcının Docker Engine'ine veya ev sistemlerine hiçbir mutasyon
-yapılmadı.
+Worker-only `JellyfinBindingBuilder`, tam stack ve güncel katalog/politikadan
+resource ile volume planlarını yeniden türetir. Güvenilir broker'dan aynı planlara
+bağlı image kimliği/konfigürasyonu, bootstrap doğrulanmış tam iki volume ve özel
+ağ makbuzu ister. Çıktı LAN portu yayınlamaz, ağı sabit private network'e bağlar,
+yalnız `/config` ve `/cache` için `NoCopy=true` named volume üretir. Image'ın
+bildirdiği bütün `Config.Volumes` hedefleri bu iki mount ile tam örtüşmezse veya
+taze inspect image/security/mount/network kimliğinden saparsa eşleşme reddedilir.
+
+Bu dilim son kurulum worker CLI'sini, ayrı managed-container journal'ını veya
+runtime supervisor'ını sağlamaz. Kullanıcının Docker Engine'ine veya ev
+sistemlerine hiçbir mutasyon yapılmadı.
 
 ## TDD ve doğrulama
 
@@ -49,8 +57,12 @@ yapılmadı.
 - GREEN `25e6a9b`: kalıcı API, migration, Core/router ve dispatcher bağlantısı.
 - RED `b170075`: preflight'tan ayrı mutasyon IPC sözleşmesi.
 - RED `241e6fb`: resource binding için tam stack bağlamının IPC'de korunması.
-- Güncel yerel paket: sözleşme, IPC, startup güvenliği, job runtime, yürütme ve
-  API için 56 test geçti; Python derleme ve `git diff --check` temiz.
+- GREEN `3300dd0`: worker tam stack'i yeniden doğrulayıp Jellyfin child'ını seçer.
+- RED/GREEN `44e4bfd` / `874aca1`: typed resource proof'tan kapalı Jellyfin binding.
+- RED/GREEN `28e7e4e` / `52bae6c`: reconcile sırasında taze proof ve binding zorunluluğu.
+- RED/GREEN `9d2f171` / `d2c5a5f`: tam image/mount/network inspect matcher.
+- Güncel bağlayıcı/yürütme/IPC/eski worker regresyon paketi 78 test geçti;
+  Python derleme ve `git diff --check` temiz.
 
 Sürüm kontrollü örnekler
 [`contracts/media-installations.v1.json`](../contracts/media-installations.v1.json)

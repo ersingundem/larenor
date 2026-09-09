@@ -275,9 +275,11 @@ Mutating IPC uses `LARENOR_INSTALLATION_WORKER_SOCKET` and
 socket. The bounded Unix protocol carries only the authenticated worker step and
 complete packaged stack plan; the worker revalidates both, then derives the
 Jellyfin child before its policy-owned
-binding builder can reach the journaled Engine operations. This source slice
-does not yet ship the final installation worker CLI, mounted-resource binding
-policy or unified supervisor. It has not installed anything on a real home
+binding builder can reach the journaled Engine operations. The initial builder
+requires fresh typed image, bootstrapped-volume and private-network proofs and
+produces a ports-off Jellyfin binding. This source slice does not yet ship the
+managed-container journal, final installation worker CLI or unified supervisor.
+It has not installed anything on a real home
 server. The strict public examples are in
 [`contracts/media-installations.v1.json`](../contracts/media-installations.v1.json)
 and the [implementation evidence](../docs/media-installation-execution-implementation-2026-09-09.md)

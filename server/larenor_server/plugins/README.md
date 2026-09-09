@@ -309,10 +309,13 @@ its internal policy-owned binding builder. This Core/home/preparation context is
 required to bind resource receipts. No public request supplies a Docker endpoint
 or payload.
 
-The final installation worker runtime, resource-receipt binding builder and
-unified supervisor are still open. The API container does not start this
-mutation worker, and this source slice has not run create/start against a user's
-Engine. See the [versioned examples](../../../contracts/media-installations.v1.json)
+The initial worker-only binding builder now requires fresh typed image,
+bootstrapped-volume and private-network proofs, disables published ports, maps
+exactly `/config` and `/cache` with `NoCopy=true`, and verifies the resulting
+full-ID inspect. Its proof broker, separate managed-container journal, final
+installation worker runtime and unified supervisor are still open. The API
+container does not start this mutation worker, and this source slice has not run
+create/start against a user's Engine. See the [versioned examples](../../../contracts/media-installations.v1.json)
 and [implementation evidence](../../../docs/media-installation-execution-implementation-2026-09-09.md).
 
 ## Persistence, dispatch and recovery
