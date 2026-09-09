@@ -168,6 +168,8 @@ def install_lifecycle(monkeypatch, *, start_error=None, close_error=None):
 
     monkeypatch.setattr(runtime.signal, 'signal', signal_handler)
     monkeypatch.setattr(runtime, '_build_runtime', lambda policy: Built())
+    monkeypatch.setattr(runtime, 'SupervisedInstallationBackend',
+                        lambda _endpoint, backend: backend)
 
     def server(path, backend, **kwargs):
         assert kwargs['allowed_uid'] == os.getuid()
