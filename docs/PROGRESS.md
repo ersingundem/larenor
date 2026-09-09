@@ -1,6 +1,6 @@
 # Larenor — güncel ilerleme ve iş kuyruğu
 
-**Son güncelleme: 9 Eylül 2026 — S06.4 exact PR20 kaynağında tam Android/Server/Security CI ile kabul edildi; S06.5 özel bootstrap ve otomatik servis eşleştirme başladı.**
+**Son güncelleme: 9 Eylül 2026 — S06.4 exact PR20 kaynağında tam Android/Server/Security CI ile kabul edildi; S06.5 şifreli niyet ve kapalı Jellyfin başlangıç protokolü yerelde hazırlandı.**
 
 ```text
 Kuyruk kabulü       ██░░░░░░░░░░░░░░░░░░  13/125 iş (%10; eşit ağırlıklı sayaç)
@@ -41,7 +41,17 @@ Gerçek ev kurulumu ve fiziksel tablet kabulü henüz yapılmadı.
 | S06.3d — kalıcı depolama | **Kabul edildi**; Native18 exact `6a054ea`, amd64+arm64 makbuzları doğrulandı | S06.3f ile birleşik kaynak kapısı kapandı |
 | S06.3f — kaynak kabulü | **Kabul edildi**; exact `4021391`, iki mimarili native makbuz, 4.065 Server ve tam Android/Server CI yeşil | S06.4 dar kurulum yürütme kapısı |
 | S06.4 — dar kurulum yürütme kapısı | **Kabul edildi**; PR16 `bf6f860`, PR18 `75af015`, PR19 `9ce3c5a` ve PR20 `2b9166b` tam CI kapıları yeşil | S06.5 özel bootstrap ve otomatik servis eşleştirme |
-| S06.5 — özel bootstrap ve otomatik eşleştirme | **Devam ediyor**; ilk Jellyfin kullanıcı/API ve şifreli dahili bağlantı durum makinesi tasarlanıyor | LAN'a port açmayan bounded bootstrap taşıyıcısı ve kalıcı geri okuma |
+| S06.5 — özel bootstrap ve otomatik eşleştirme | **Devam ediyor**; Server üretimli sırların şifreli niyeti ve yalnız preconnected stream kullanan sabit Jellyfin startup protokolü yerelde hazır | Exact container/private-network adres kanıtı, worker bağlantısı ve API anahtarı/kütüphane geri okuması |
+
+S06.5'in ilk iki TDD parçası, yalnız tamamlanmış Jellyfin kurulumundan
+yöneticiye bağlı bootstrap niyeti üretir ve public API'de sır, hedef adres veya
+Docker yetkisi kabul etmez. Ayrı adaptör resmi startup sırasını tek, önceden
+doğrulanmış bağlantıda; bounded başlık/gövde ve ortak total deadline ile
+yürütür. Redirect/retry yoktur; kısmi veya belirsiz yazma sonucu sabit ve
+secret-free hata durumuyla üst koordinatöre bırakılır. Odaklı 30 test, ilgili
+81 test, security policy ve derleme kontrolü geçti. Bu kaynak için tam Server
+ve GitHub CI henüz kabul edilmedi; gerçek container/LAN işlemi yapılmadı.
+[Uygulama ve açık sınırlar](media-service-bootstrap-implementation-2026-09-09.md).
 
 S06.4 native kabul koşusu [34326112926](https://github.com/ersingundem/larenor/actions/runs/34326112926)
 iki gerçek GitHub runner'ında geçti. İndirilen ARM64 ve X64 makbuzları merge

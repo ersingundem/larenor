@@ -765,7 +765,8 @@
       "finishDependsOn": [],
       "sources": [
         "docs/remaining-core-integration-slices.md",
-        "docs/integrated-media-stack.md"
+        "docs/integrated-media-stack.md",
+        "docs/media-service-bootstrap-implementation-2026-09-09.md"
       ],
       "scope": "Kullanıcı ayrı uygulama kurmaz veya API anahtarı kopyalamaz; sırlar Client/plan/log içine girmez.",
       "acceptance": [
@@ -776,9 +777,18 @@
         "review",
         "ci"
       ],
-      "evidence": [],
+      "evidence": [
+        {
+          "kind": "test",
+          "ref": "docs/media-service-bootstrap-implementation-2026-09-09.md",
+          "commit": "fa3fb628c3fa3733127aa9df1047e514a31ece2b",
+          "state": "completed",
+          "result": "passed",
+          "label": "Şifreli bootstrap niyeti ve URL/IP kabul etmeyen tek-stream Jellyfin startup protokolü: 30 odaklı ve 81 ilgili test; security policy ve compileall temiz. CI, worker adres kanıtı ve gerçek servis kabulü açık."
+        }
+      ],
       "completionCommit": null,
-      "reason": null
+      "reason": "Server üretimli sır ve şifreli intent ile sabit resmi Jellyfin startup sırası yerelde hazır. Adaptör URL/IP/resolver kabul etmiyor, redirect/retry yapmıyor ve kısmi/belirsiz sonucu secret-free taşıyor. Exact managed container/private-network adres kanıtı, worker bağlantısı, API anahtarı/kütüphane geri okuması, CI ve gerçek servis kabulü açık."
     },
     {
       "id": "S06.6",

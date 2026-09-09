@@ -1,6 +1,6 @@
 # Core/Client bütünleştirmesinde sıradaki somut dilimler
 
-**9 Eylül 2026 · Durum: S06 ilk iki dilim ve kaynak temelinin 6/6 alt adımı kabul edildi; S06.4 yürütme kapısı sürüyor.** Bu belge yeni özellik seçimi
+**9 Eylül 2026 · Durum: S06 ilk iki dilim, kaynak temelinin 6/6 alt adımı ve S06.4 yürütme kapısı kabul edildi; S06.5 özel bootstrap çalışıyor.** Bu belge yeni özellik seçimi
 değildir; [S06–S09](PROGRESS.md#sıradaki-geliştirme-paketleri) ve
 [B1/B3 temellerinin](feature-expansion-plan-2026-09-05.md) açık bağlantılarını
 ayrıntılandırır. Aşağıdaki kutular teslim kanıtı oluşmadan tamamlanmış sayılmaz.
@@ -20,8 +20,8 @@ adımını ayıramaz; kurulum koordinatörü bunu alt işlemlere ayırmalıdır.
 | 1 | **Uygulandı:** tek Larenor kurulumu için birleşik plan ve kalıcı hazırlık kaydı | Altı bileşen, benzersiz işlem/adım kimlikleri, şifreli geçmiş, idempotent oluşturma, restart ve iptal; Client admin ekranı ve ortak HTTP sözleşmesi. [Kanıt ve sınırlar](media-preparations-implementation-2026-09-05.md); gerçek kurulum hâlâ kapalı |
 | 2 | **Uygulandı, test/yayın kapıları geçti:** birleşik gereksinim işleri, worker/daemon bağlamı ve depolama gözlemi | [Ayrı bağlam sonuçları, 49.152 MiB toplam disk bütçesi, kalıcı kontrol/geçmiş/iptal ve Client](media-inspections-implementation-2026-09-05.md). Port/alıcı ağı kanıtı yoksa `unknown`; kurulum kapalı |
 | 3 | [Altı alt adıma ayrılan sahiplikli kaynak hazırlığı](media-resource-preparation-plan-2026-09-05.md), **6/6 kabul** | Saf plan/journal, imaj, appdata, volume ve özel ağ kaynakları exact `4021391` iki mimarili native makbuzla kabul edildi; makbuz kurulum veya sağlık değildir |
-| 4 | **Devam ediyor:** dar, süreli kurulum adımlarının API/işçiye bağlanması | Şifreli API, ayrı IPC ve taze typed kaynak kanıtından portsuz Jellyfin binding yerelde hazır. Binding journal/runtime, paketli CLI ve exact native create/start açık |
-| 5 | Özel bootstrap ve otomatik servis eşleştirmesi | Kimlik bilgilerinin Server'da üretilip şifreli saklanması; ilk kullanıcı API'sinin denetimsiz LAN'a açılmaması; medya adres/anahtar/kütüphanelerinin otomatik eşleşmesi |
+| 4 | **Kabul edildi:** dar, süreli kurulum adımlarının API/işçiye bağlanması | Exact PR20 `2b9166b`: şifreli API, ayrı IPC, taze typed kaynak kanıtı, portsuz Jellyfin binding, journal/runtime ve native create/start; tam Android/Server/Security CI yeşil |
+| 5 | **Devam ediyor:** özel bootstrap ve otomatik servis eşleştirmesi | Server üretimli şifreli niyet ve URL/IP kabul etmeyen tek-stream Jellyfin startup protokolü yerelde hazır; exact container/private-network bağlantısı ile adres/anahtar/kütüphane geri okuması açık |
 | 6 | Tamamlama, iptal ve kurtarma | Create/start makbuzu yerine doğrulanmış servis sonucu; iptal/hata veriyi otomatik silmez. İki mimarili geçici Linux CI'da gerçek bileşen kabulü |
 
 Sadece `/version` okumak çalışma yetkisini, mount geçerliliğini, portu veya

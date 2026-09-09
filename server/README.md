@@ -318,6 +318,17 @@ private control networking and actual media runtime deployment are still future
 work. The read-only job API still rejects installation operations; the bounded
 installation collection above is the only separate mutation contract.
 
+The first S06.5 bootstrap surface is available at
+`/api/v1/admin/media/bootstraps`. It accepts only an idempotency ID and the exact
+completed Jellyfin installation ID/revision. Larenor Server generates the
+private account credential and stores it with AES-GCM; public responses expose
+only the bootstrap state. The package-private Jellyfin startup adapter accepts
+an already verified connection rather than a URL or IP and executes only the
+fixed official startup sequence with bounded HTTP responses and no redirect or
+retry. Container address proof, worker dispatch, API-key/library readback and
+real service acceptance remain disabled, so `installAvailable=false` is
+unchanged. See the [S06.5 implementation evidence](../docs/media-service-bootstrap-implementation-2026-09-09.md).
+
 ## Client releases
 
 The normal `larenor-server` entry point also registers `/client/releases`.
