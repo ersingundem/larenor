@@ -1,6 +1,6 @@
 # Larenor — güncel ilerleme ve iş kuyruğu
 
-**Son güncelleme: 9 Eylül 2026 — S06.3f exact iki mimarili native kabul ve tam CI ile kapandı; S06.4 yürütme kapısı sırada.**
+**Son güncelleme: 9 Eylül 2026 — S06.3f exact iki mimarili native kabul ve tam CI ile kapandı; S06.4 yürütme kapısının ilk TDD dilimi başladı.**
 
 ```text
 Kuyruk kabulü       ██░░░░░░░░░░░░░░░░░░  12/125 iş (%10; eşit ağırlıklı sayaç)
@@ -40,6 +40,7 @@ Gerçek ev kurulumu ve fiziksel tablet kabulü henüz yapılmadı.
 | B5.1 — ortak tablet tasarımı | Services/hesap IME paketi APK116 ile kabul edildi; S08.7 komut ve aktarım yüzeyleri yerel tablet matrisinden geçti | Exact-source Android CI ve kalan ortak tablet yüzeyleri |
 | S06.3d — kalıcı depolama | **Kabul edildi**; Native18 exact `6a054ea`, amd64+arm64 makbuzları doğrulandı | S06.3f ile birleşik kaynak kapısı kapandı |
 | S06.3f — kaynak kabulü | **Kabul edildi**; exact `4021391`, iki mimarili native makbuz, 4.065 Server ve tam Android/Server CI yeşil | S06.4 dar kurulum yürütme kapısı |
+| S06.4 — dar kurulum yürütme kapısı | **Devam ediyor**; kapalı API isteği ve Jellyfin create/start child-operation sözleşmesi TDD aşamasında | Güncel yetki/bağlam/preparation/inspection/catalog/iptal denetimleri ve worker köprüsü |
 
 S08.7 üç sonlu teslimden oluşur: **kaynak bağlama ve typed durum → komut ve
 kalıcı sonuç → açık Direct aktarımı**. Üç yerel dilim de squash yapılmadan
