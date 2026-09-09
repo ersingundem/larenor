@@ -1,6 +1,6 @@
 # Larenor — güncel ilerleme ve iş kuyruğu
 
-**Son güncelleme: 10 Eylül 2026 — qBittorrent 5.2.3 sahipli config/API sözleşmesi ana dalda. Config–volume bağı PR30, güvenli appdata helper PR31 CI'ında; journal-bound private Docker stdin/effect zinciri sonraki dalda yerelde hazır.**
+**Son güncelleme: 10 Eylül 2026 — qBittorrent 5.2.3 config/API, config–volume bağı ve güvenli appdata helper PR28/PR30/PR31 ile ana dalda. Journal-bound private Docker stdin/effect zinciri bir sonraki kabul dalında hazır.**
 
 ```text
 Kuyruk kabulü       ██░░░░░░░░░░░░░░░░░░  14/125 iş (%11; eşit ağırlıklı sayaç)
@@ -41,7 +41,7 @@ Gerçek ev kurulumu ve fiziksel tablet kabulü henüz yapılmadı.
 | S06.3d — kalıcı depolama | **Kabul edildi**; Native18 exact `6a054ea`, amd64+arm64 makbuzları doğrulandı | S06.3f ile birleşik kaynak kapısı kapandı |
 | S06.3f — kaynak kabulü | **Kabul edildi**; exact `4021391`, iki mimarili native makbuz, 4.065 Server ve tam Android/Server CI yeşil | S06.4 dar kurulum yürütme kapısı |
 | S06.4 — dar kurulum yürütme kapısı | **Kabul edildi**; PR16 `bf6f860`, PR18 `75af015`, PR19 `9ce3c5a` ve PR20 `2b9166b` tam CI kapıları yeşil | S06.5 özel bootstrap ve otomatik servis eşleştirme |
-| S06.5 — özel bootstrap ve otomatik eşleştirme | **Devam ediyor**; Jellyfin native kabulü tamamlandı. qBittorrent sahipli config/API sözleşmesi [PR28](https://github.com/ersingundem/larenor/pull/28) ile ana dalda; appdata/ortak kütüphane bağı [PR30](https://github.com/ersingundem/larenor/pull/30) CI'ında, güvenli config helper sonraki dalda yerel | qBittorrent worker etkisi ve iki mimarili native kanıt; ardından Radarr/Sonarr/Seerr/Music Assistant otomatik eşleştirmesi |
+| S06.5 — özel bootstrap ve otomatik eşleştirme | **Devam ediyor**; Jellyfin native kabulü tamamlandı. qBittorrent sahipli config/API sözleşmesi [PR28](https://github.com/ersingundem/larenor/pull/28), appdata/ortak kütüphane bağı [PR30](https://github.com/ersingundem/larenor/pull/30) ve güvenli config helper [PR31](https://github.com/ersingundem/larenor/pull/31) ile ana dalda; private worker etkisi kabul dalında | qBittorrent worker etkisi ve iki mimarili native kanıt; ardından Radarr/Sonarr/Seerr/Music Assistant otomatik eşleştirmesi |
 
 S06.5'in ilk iki TDD parçası, yalnız tamamlanmış Jellyfin kurulumundan
 yöneticiye bağlı bootstrap niyeti üretir ve public API'de sır, hedef adres veya
