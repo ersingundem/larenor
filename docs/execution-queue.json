@@ -529,7 +529,7 @@
       "kind": "task",
       "parent": "S06.3",
       "title": "Kaynak makbuzu ve iki mimarili kabul",
-      "status": "in_progress",
+      "status": "done",
       "dependsOn": [
         "S06.3c",
         "S06.3d",
@@ -551,9 +551,66 @@
         "review",
         "ci"
       ],
-      "evidence": [],
-      "completionCommit": null,
-      "reason": "Yalnız katalogda sabit Jellyfin image pull/inspect ve tek private control-network create/list/full-ID inspect yapan, container/volume/attach/delete/prune yüzeyi olmayan iki mimarili native fixture yerelde geliştiriliyor. Makbuz resources_ready ile sınırlı, dinamik ağ kimliğini yalnız SHA-256 olarak taşır ve installAvailable=false kalır. Exact-source uzak Server CI, bağımsız inceleme ve amd64/arm64 artifact kabulü bekleniyor."
+      "evidence": [
+        {
+          "kind": "test",
+          "ref": "server/tests/test_media_resource_smoke.py",
+          "commit": "40213919254918040e506f3ba7fe8e850e84c1f8",
+          "state": "completed",
+          "result": "passed",
+          "label": "44 kaynak smoke/CI/workflow testi ve 674 ilgili regresyon PASS; fixture kararlılığı için 450 volume, 298 ağ/journal testi ile 32/64 paralel hedef tekrarları PASS."
+        },
+        {
+          "kind": "review",
+          "ref": "docs/media-resource-native-acceptance-2026-09-09.md",
+          "commit": "40213919254918040e506f3ba7fe8e850e84c1f8",
+          "state": "completed",
+          "result": "passed",
+          "label": "Etki allowlist'i, owned daemon/cgroup, exact source, makbuz şeması ve restart replay sınırı incelendi; Docker CLI ve container/volume/attach/delete/prune yüzeyi kapalı."
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/34304634133",
+          "commit": "40213919254918040e506f3ba7fe8e850e84c1f8",
+          "state": "completed",
+          "result": "passed",
+          "label": "Native resource: amd64+arm64 exact kaynak makbuzları PASS; iki 3109-byte artifact repo verifier ile yeniden doğrulandı, installAvailable=false."
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/34304632484",
+          "commit": "40213919254918040e506f3ba7fe8e850e84c1f8",
+          "state": "completed",
+          "result": "passed",
+          "label": "Bağımsız Server API ve depolama paketi 4.065 PASS/2 uyarı."
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/34304624214",
+          "commit": "40213919254918040e506f3ba7fe8e850e84c1f8",
+          "state": "completed",
+          "result": "passed",
+          "label": "Server Container 4.065 PASS; amd64+arm64 imaj smoke ve immutable manifest yayını başarılı."
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/34304624138",
+          "commit": "40213919254918040e506f3ba7fe8e850e84c1f8",
+          "state": "completed",
+          "result": "passed",
+          "label": "Android 5.438 Flutter, 4.065 Server ve API35 17/17 E2E PASS; imzalı APK140 doğrulandı."
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/34304624024",
+          "commit": "40213919254918040e506f3ba7fe8e850e84c1f8",
+          "state": "completed",
+          "result": "passed",
+          "label": "Security politika, gizli bilgi ve bağımlılık kapıları PASS."
+        }
+      ],
+      "completionCommit": "40213919254918040e506f3ba7fe8e850e84c1f8",
+      "reason": "Exact 4021391: dar Jellyfin image pull/inspect ve tek private control-network create/list/full-ID inspect fixture'ı owned cgroup/daemon içinde amd64+arm64 geçti; indirilen makbuzlar repo verifier ile yeniden PASS. 4065 Server testi üç bağımsız CI kopyasında geçti; Security, iki mimarili Server manifesti, 5438 Flutter, 17/17 E2E ve imzalı APK140 yeşil. Makbuz resources_ready ile sınırlı, ağ kimliği yalnız SHA-256, containerOperations=0 ve installAvailable=false. Gerçek ev kurulumu ve S06.4 execution grant ayrı açık."
     },
     {
       "id": "S06.4",

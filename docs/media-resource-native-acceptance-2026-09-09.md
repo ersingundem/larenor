@@ -67,3 +67,49 @@ retry eklenmedi. Sentetik AF_UNIX fixture’ının header’ı byte byte okumas�
 baytları ayrılıp aynı request’e taşındı, fazla body yine reddedildi. İlgili 307
 test ve düzeltme sonrası 64 paralel hedef tekrar geçti. Bu değişiklik production
 Engine taşımasını veya iki saniyelik idle sınırını değiştirmez.
+
+İlk düzeltme sonrası aynı volume varyantı yüklü başka bir CI kopyasında tekrar
+`uncertain` kaldı. Kök neden response idle süresi değil, sentetik peer'ın
+`/version` sonrasında ikinci isteği iki saniyede kapatmasıydı: gerçek Client bu
+arada aynı stream üzerinde durable source/revision/yetki kapısını çalıştırır ve
+on saniyelik toplam exchange bütçesini kullanabilir. Fixture'ın genel yarım
+istek yaşam döngüsü iki saniye olarak korundu; yalnız bu birleşik test peer'ı
+toplam bütçeye uygun 11 saniye bekler. 2,1 saniyelik kapı testi eski davranışta
+RED, yeni davranışta GREEN oldu. Volume paketi 450 PASS/2 mevcut skip ve hedef
+32 paralel tekrar verdi; production taşıma ve limit değişmedi.
+
+Sonraki exact koşulardan biri farklı bir fixture sınırını buldu: ağ hazırlığı
+kilidi bırakıldıktan sonra taze kaynak uzlaştırması ve durable fsync, yüklü CI
+dosya sisteminde üç saniyelik test join sınırını aştı. İşlem kilidi veya ürün
+bütçesi değiştirilmedi; yalnız test teardown'u on saniyelik operasyon bütçesini
+bekler. Aynı hedef 64 paralel tekrar, ağ/journal seçkisi 298 PASS/1 mevcut skip
+verdi.
+
+## Exact kabul
+
+Kabul kaynağı `40213919254918040e506f3ba7fe8e850e84c1f8`:
+
+- [Native resource koşusu](https://github.com/ersingundem/larenor/actions/runs/34304634133)
+  amd64 ve arm64 üzerinde geçti. İki makbuz da 3.109 bayt ve 22 exact-source
+  hash'i taşıyor. X64 artefact `10086202575`, receipt SHA-256
+  `d1f1b302621127f502db4f38b4623327b063b5315d9dc3d439b4c82b6b7ff7a7`;
+  ARM64 artefact `10086196001`, receipt SHA-256
+  `2b2ad155d84af7c0baff58f33cfdf9d5dd06a23a5ac3329a5884ac990fbbbb43`.
+  İndirilen iki makbuz repo verifier'ıyla yeniden doğrulandı.
+- [Bağımsız Server](https://github.com/ersingundem/larenor/actions/runs/34304632484)
+  4.065 PASS/2 uyarı verdi.
+  [Server Container](https://github.com/ersingundem/larenor/actions/runs/34304624214)
+  aynı testleri ve amd64/arm64 image smoke + immutable manifest yayınını geçti.
+  [Security](https://github.com/ersingundem/larenor/actions/runs/34304624024)
+  yeşil.
+- [Android CI140](https://github.com/ersingundem/larenor/actions/runs/34304624138)
+  5.438 Flutter testi, 4.065 Server testi ve API 35'te 17/17 E2E verdi.
+  İmzalı APK140'ın paket, sertifika, `versionCode=100000140` ve
+  `debuggable=false` kapıları geçti. APK 122.207.785 bayt ve SHA-256 değeri
+  `d7ea842b2b92cd9a12491720f5b398e1bd809b607a0608ac362c33019dd57fa0`;
+  `app-signed-release-apk-140` artefact kimliği `10086812461` ve süresi dolmamış.
+
+S06.3f bu kaynakta kabul edildi. Makbuz hâlâ yalnız `resources_ready`, iki
+kaynak, bir journal restart, sıfır container işlemi ve
+`installAvailable=false` bildirir. Gerçek ev kurulumu, container create/start
+yetkisi ve hizmet sağlığı S06.4 ve sonraki teslimlerin ayrı kapılarıdır.

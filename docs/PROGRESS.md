@@ -1,11 +1,11 @@
 # Larenor — güncel ilerleme ve iş kuyruğu
 
-**Son güncelleme: 9 Eylül 2026 — S06.3f kaynak makbuzu ve iki mimarili native kabul paketi yerel doğrulamada.**
+**Son güncelleme: 9 Eylül 2026 — S06.3f exact iki mimarili native kabul ve tam CI ile kapandı; S06.4 yürütme kapısı sırada.**
 
 ```text
-Kuyruk kabulü       ██░░░░░░░░░░░░░░░░░░  11/125 iş (%9; eşit ağırlıklı sayaç)
-S06 koordinatörü    ███████░░░░░░░░░░░░░  2/6 yazılım dilimi
-S06.3 kaynak temeli  █████████████████░░░  5/6 alt adım
+Kuyruk kabulü       ██░░░░░░░░░░░░░░░░░░  12/125 iş (%10; eşit ağırlıklı sayaç)
+S06 koordinatörü    ██████████░░░░░░░░░░  3/6 yazılım dilimi
+S06.3 kaynak temeli  ████████████████████  6/6 alt adım
 S08.7 yerel dilimler █████████████░░░░░░░  2/3 yerel dilim; CI/fiziksel kabul ayrı
 Yeni 63 özellik     ░░░░░░░░░░░░░░░░░░░░  0/63 kabul edildi
 ```
@@ -17,17 +17,17 @@ olarak kullanılmaz. İlk 60 adayın tamamı ve VNC/RDP/SSH seçildi.
 [Bağımlılıklara göre özellik sırası](feature-expansion-plan-2026-09-05.md)
 ve [uzak erişim kapsamı](remote-access-plan-2026-09-05.md) korunuyor.
 
-**Son tam doğrulanmış CI Client paketi: `6a054ea` / APK135.** Aynı kaynakta
-5.438 Flutter ve 4.027 Server testi geçti; Android emülatöründe 17/17 E2E
+**Son tam doğrulanmış CI Client paketi: `4021391` / APK140.** Aynı kaynakta
+5.438 Flutter ve 4.065 Server testi geçti; Android emülatöründe 17/17 E2E
 başarılı oldu. Arşiv yolculuğu yeniden açılan ekranda kalıcı okumayı doğrulayan
 `core_archive.reopened_readback` fazına ulaştı. CI APK'nın imzasını,
 sertifikasını, paketini, sürümünü ve release bayrağını doğruladı;
-`app-signed-release-apk-135` artefakt arşivi 57.127.884 bayt ve süresi dolmamış
+`app-signed-release-apk-140` artefakt arşivi 57.127.889 bayt ve süresi dolmamış
 durumda. Aynı commitin bağımsız Security ve Server Container iş akışları da
-geçti; Server 4.027 testi ile amd64/arm64 imaj ve manifest yayını tamamlandı.
-[Android CI135](https://github.com/ersingundem/larenor/actions/runs/34294585430) ·
-[Server Container CI](https://github.com/ersingundem/larenor/actions/runs/34294585502) ·
-[Security CI](https://github.com/ersingundem/larenor/actions/runs/34294584966).
+geçti; Server 4.065 testi ile amd64/arm64 imaj ve manifest yayını tamamlandı.
+[Android CI140](https://github.com/ersingundem/larenor/actions/runs/34304624138) ·
+[Server Container CI](https://github.com/ersingundem/larenor/actions/runs/34304624214) ·
+[Security CI](https://github.com/ersingundem/larenor/actions/runs/34304624024).
 Gerçek ev kurulumu ve fiziksel tablet kabulü henüz yapılmadı.
 
 ## Şimdi yapılan işler
@@ -38,8 +38,8 @@ Gerçek ev kurulumu ve fiziksel tablet kabulü henüz yapılmadı.
 | S08.6 — kişi, oda, kaynak ve izin yönetimi | **Kabul edildi**, aynı yayın | Merkezi HA akışının yetki temeli hazır |
 | S08.7 — merkezi Home Assistant adaptörü | **Devam ediyor**; typed durum, kalıcı switch komutu/makbuzu ve açık Direct→Core aktarımı main içinde | Exact-source birleşik CI; sonra geniş HA varlık/servis kapsamı |
 | B5.1 — ortak tablet tasarımı | Services/hesap IME paketi APK116 ile kabul edildi; S08.7 komut ve aktarım yüzeyleri yerel tablet matrisinden geçti | Exact-source Android CI ve kalan ortak tablet yüzeyleri |
-| S06.3d — kalıcı depolama | **Kabul edildi**; Native18 exact `6a054ea`, amd64+arm64 makbuzları doğrulandı | S06.3f tam kaynak makbuzu ve iki mimarili kabul |
-| S06.3f — kaynak kabulü | **Devam ediyor**; dar image/network fixture ve kapalı makbuz şeması yerelde yeşil | Exact-source Server CI, bağımsız inceleme, amd64+arm64 native makbuz |
+| S06.3d — kalıcı depolama | **Kabul edildi**; Native18 exact `6a054ea`, amd64+arm64 makbuzları doğrulandı | S06.3f ile birleşik kaynak kapısı kapandı |
+| S06.3f — kaynak kabulü | **Kabul edildi**; exact `4021391`, iki mimarili native makbuz, 4.065 Server ve tam Android/Server CI yeşil | S06.4 dar kurulum yürütme kapısı |
 
 S08.7 üç sonlu teslimden oluşur: **kaynak bağlama ve typed durum → komut ve
 kalıcı sonuç → açık Direct aktarımı**. Üç yerel dilim de squash yapılmadan
