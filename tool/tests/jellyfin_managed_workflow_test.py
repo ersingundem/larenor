@@ -15,9 +15,12 @@ class JellyfinManagedWorkflowPolicyTest(unittest.TestCase):
         self.assertTrue(path.is_file(), 'managed characterization workflow absent')
         return json.loads(path.read_text())
 
-    def test_only_manual_native_two_architecture_execution(self):
+    def test_reviewed_pr_or_manual_native_two_architecture_execution(self):
         value = self.workflow()
-        self.assertEqual(value['on'], {'workflow_dispatch': {}})
+        self.assertEqual(value['on'], {
+            'workflow_dispatch': {},
+            'pull_request': {'branches': ['main']},
+        })
         job = value['jobs']['characterize']
         self.assertEqual(job['strategy']['matrix']['include'], [
             {'runner': 'ubuntu-24.04', 'platform': 'linux/amd64'},
@@ -66,9 +69,14 @@ class JellyfinManagedWorkflowPolicyTest(unittest.TestCase):
         self.assertIn('${{ github.sha }}', spec['name'])
         self.assertIn('${{ runner.arch }}', spec['name'])
 
-    def test_manual_guard_requires_main_exact_workflow_source(self):
+    def test_event_guard_requires_reviewed_exact_workflow_source(self):
         script = self.workflow()['jobs']['characterize']['steps'][0]['run']
+        self.assertIn('workflow_dispatch)', script)
+        self.assertIn('pull_request)', script)
         self.assertIn('refs/heads/main', script)
+        self.assertIn('refs/pull/*/merge', script)
+        self.assertIn('$GITHUB_BASE_REF" = main', script)
+        self.assertIn('$PR_HEAD_REPOSITORY" = "$GITHUB_REPOSITORY', script)
         self.assertIn('$GITHUB_WORKFLOW_SHA" = "$GITHUB_SHA', script)
         self.assertIn('ersingundem/larenor', script)
         self.assertIn('github-hosted', script)
