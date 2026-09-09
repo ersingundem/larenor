@@ -28,7 +28,8 @@ def receipt(module):
         'jellyfinConfigDigest': source.image.image.configDigest,
         'helper': helper, 'volumeCount': 2, 'restartCount': 1,
         'serverId': 'b' * 32, 'containerMode': 'journaled_managed_v2',
-        'containerJournalVersion': 2, 'bootstrapAccountConfigured': False,
+        'containerJournalVersion': 2, 'bootstrapAccountConfigured': True,
+        'apiKeyVerified': True, 'libraryCount': 0, 'sessionClosed': True,
         'installAvailable': False, 'imageState': 'ready',
         'volumeStates': ['observed_requires_bootstrap'] * 2,
     }
@@ -43,6 +44,20 @@ def test_managed_receipt_requires_exact_v2_execution_evidence():
         damaged.pop(field)
         with pytest.raises(module.ManagedCIError):
             module.validate_receipt(damaged, 'a' * 40, 'linux/amd64')
+
+
+def test_managed_receipt_requires_authenticated_readback_without_secrets():
+    module = api()
+    value = receipt(module)
+    assert module.validate_receipt(value, 'a' * 40, 'linux/amd64') is None
+    for field in ('bootstrapAccountConfigured', 'apiKeyVerified',
+                  'libraryCount', 'sessionClosed'):
+        damaged = copy.deepcopy(value)
+        damaged.pop(field)
+        with pytest.raises(module.ManagedCIError):
+            module.validate_receipt(damaged, 'a' * 40, 'linux/amd64')
+    serialized = json.dumps(value)
+    assert 'AccessToken' not in serialized and 'apiKey' not in serialized
 
 
 def test_launch_accepts_exact_main_or_same_repository_pr_merge_only():
