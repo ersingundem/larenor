@@ -330,6 +330,11 @@ iki mimarili native kabulü kapandı. Main Server Container
 [34294585502](https://github.com/ersingundem/larenor/actions/runs/34294585502)
 4.027 testten sonra iki mimari image build/smoke ve manifest yayınını da geçti;
 Security `34294584966` başarılı. S06.3f tam kaynak makbuzu sıradaki kapıdır.
+Android
+[34294585430](https://github.com/ersingundem/larenor/actions/runs/34294585430)
+aynı exact kaynakta 5.438 Flutter, 17 API 35 E2E ve 4.027 Server testini,
+native platform kontrollerini ve imzalı APK135'in paket/imza/sürüm
+doğrulamasıyla Larenor Server yayımını geçti.
 [Sahiplikli cgroup yaşam döngüsü](jellyfin-owned-cgroup-lifecycle-2026-09-09.md).
 Gerçek ev kurulumu ve kullanıcı kurulum yetkisi hâlâ açık;
 `installAvailable=false`.
