@@ -14,16 +14,18 @@ from test_plugin_preflight_ipc import Inspector, root, uid
 
 
 @pytest.mark.parametrize("value", ["synthetic-invalid-uid", "", "-1", str(2**31)])
-def test_invalid_worker_uid_environment_is_a_static_startup_error(monkeypatch, value):
-    monkeypatch.setenv("LARENOR_PLUGIN_WORKER_UID", value)
+@pytest.mark.parametrize("variable", ["LARENOR_PLUGIN_WORKER_UID", "LARENOR_INSTALLATION_WORKER_UID"])
+def test_invalid_worker_uid_environment_is_a_static_startup_error(monkeypatch, value, variable):
+    monkeypatch.setenv(variable, value)
     with pytest.raises(StartupError, match="^invalid_worker_configuration$") as caught:
         Settings.from_environment()
     assert value not in str(caught.value) if value else True
 
 
 @pytest.mark.parametrize("value", ["relative/socket", "/tmp/../synthetic/socket", "/tmp/synthetic\nworker.sock"])
-def test_invalid_worker_socket_environment_is_a_static_startup_error(monkeypatch, value):
-    monkeypatch.setenv("LARENOR_PLUGIN_WORKER_SOCKET", value)
+@pytest.mark.parametrize("variable", ["LARENOR_PLUGIN_WORKER_SOCKET", "LARENOR_INSTALLATION_WORKER_SOCKET"])
+def test_invalid_worker_socket_environment_is_a_static_startup_error(monkeypatch, value, variable):
+    monkeypatch.setenv(variable, value)
     with pytest.raises(StartupError, match="^invalid_worker_configuration$"):
         Settings.from_environment()
 
@@ -40,7 +42,9 @@ def test_cli_reports_worker_configuration_failure_without_env_or_traceback(monke
 def test_direct_settings_keeps_value_error_contract_for_bad_uid_and_path(tmp_path):
     settings = Settings(tmp_path / "data", tmp_path / "key")
     for changes in ({"plugin_worker_uid": True}, {"plugin_worker_uid": -1},
-                    {"plugin_worker_socket": tmp_path / "synthetic\nworker.sock"}):
+                    {"plugin_worker_socket": tmp_path / "synthetic\nworker.sock"},
+                    {"installation_worker_uid": True}, {"installation_worker_uid": -1},
+                    {"installation_worker_socket": tmp_path / "synthetic\nworker.sock"}):
         with pytest.raises(ValueError, match="^invalid_worker_configuration$"):
             replace(settings, **changes)
 

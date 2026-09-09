@@ -26,6 +26,7 @@ from .plugins.media_inspections import MediaInspectionManagement
 from .plugins.media_installation_schema import migrate_media_installations
 from .plugins.media_installations import MediaInstallationManagement
 from .plugins.preflight_ipc import PreflightWorkerClient
+from .plugins.installation_ipc import InstallationWorkerClient
 from .services.schema import migrate_services
 from .services.service import ServiceManagement
 from .services.probe_runner import ServiceProbeRunner
@@ -187,8 +188,11 @@ class CoreServices:
             self.media_inspections.validate_storage()
             # Mutating execution uses a separate, future worker channel. The
             # read-only preflight socket can never be promoted implicitly.
+            installation_backend = None if settings.installation_worker_socket is None else InstallationWorkerClient(
+                settings.installation_worker_socket, owner_uid=settings.installation_worker_uid)
             self.media_installations = MediaInstallationManagement(
-                self.db, self.auth, settings, key, self.media_preparations, self.media_inspections)
+                self.db, self.auth, settings, key, self.media_preparations, self.media_inspections,
+                installation_backend)
             self.media_installations.validate_storage()
             self.clear_inactive_bootstrap()
 

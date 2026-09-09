@@ -7,7 +7,10 @@ from pathlib import Path
 import tempfile
 
 import pytest
+from fastapi.testclient import TestClient
 
+from conftest import auth, ready
+from larenor_server.app import create_app
 from larenor_server.config import Settings
 from larenor_server.plugins.installation_execution import build_execution
 from larenor_server.plugins.installation_ipc import (
@@ -76,3 +79,26 @@ def test_settings_keep_readonly_and_mutating_worker_channels_separate(tmp_path, 
     assert settings.installation_worker_uid == os.getuid()
     with pytest.raises(ValueError, match='^invalid_worker_configuration$'):
         replace(settings, installation_worker_socket=preflight)
+
+
+def test_core_enables_execution_only_from_the_separate_installation_channel(server):
+    _app, client, settings, _clock = server
+    pair = ready(server)
+    assert client.get('/api/v1/admin/media/installations/capabilities',
+                      headers=auth(pair)).json()['executionConfigured'] is False
+
+    with running() as (_backend, worker):
+        configured = replace(
+            settings,
+            installation_worker_socket=worker.path,
+            installation_worker_uid=os.getuid(),
+        )
+        with TestClient(create_app(configured)) as reopened:
+            assert reopened.get(
+                '/api/v1/admin/media/installations/capabilities',
+                headers=auth(pair),
+            ).json() == {
+                'executionConfigured': True,
+                'installAvailable': False,
+                'services': ['jellyfin'],
+            }

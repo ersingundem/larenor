@@ -1,0 +1,80 @@
+{
+  "capabilities": {
+    "executionConfigured": true,
+    "installAvailable": false,
+    "services": ["jellyfin"]
+  },
+  "createRequest": {
+    "requestId": "cccccccccccccccccccccccccccccccc",
+    "preparationId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "inspectionId": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "expectedPreparationRevision": 1,
+    "expectedInspectionRevision": 3,
+    "planHash": "1111111111111111111111111111111111111111111111111111111111111111"
+  },
+  "queued": {
+    "id": "dddddddddddddddddddddddddddddddd",
+    "requestId": "cccccccccccccccccccccccccccccccc",
+    "preparationId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "inspectionId": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "serviceId": "jellyfin",
+    "operationId": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+    "revision": 1,
+    "state": "queued",
+    "phase": "queued",
+    "cancelRequested": false,
+    "installAvailable": false,
+    "steps": [
+      {"stepId": "ffffffffffffffffffffffffffffffff", "kind": "create_container"},
+      {"stepId": "99999999999999999999999999999999", "kind": "start_container"}
+    ],
+    "errorCode": null,
+    "createdAt": "2026-09-09T04:00:00.000Z",
+    "updatedAt": "2026-09-09T04:00:00.000Z"
+  },
+  "containerStarted": {
+    "id": "dddddddddddddddddddddddddddddddd",
+    "requestId": "cccccccccccccccccccccccccccccccc",
+    "preparationId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "inspectionId": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "serviceId": "jellyfin",
+    "operationId": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+    "revision": 3,
+    "state": "container_started",
+    "phase": "complete",
+    "cancelRequested": false,
+    "installAvailable": false,
+    "steps": [
+      {"stepId": "ffffffffffffffffffffffffffffffff", "kind": "create_container"},
+      {"stepId": "99999999999999999999999999999999", "kind": "start_container"}
+    ],
+    "errorCode": null,
+    "createdAt": "2026-09-09T04:00:00.000Z",
+    "updatedAt": "2026-09-09T04:00:01.000Z"
+  },
+  "cancelRequest": {"expectedRevision": 1},
+  "cancelled": {
+    "id": "dddddddddddddddddddddddddddddddd",
+    "requestId": "cccccccccccccccccccccccccccccccc",
+    "preparationId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "inspectionId": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "serviceId": "jellyfin",
+    "operationId": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+    "revision": 2,
+    "state": "cancelled",
+    "phase": "complete",
+    "cancelRequested": true,
+    "installAvailable": false,
+    "steps": [
+      {"stepId": "ffffffffffffffffffffffffffffffff", "kind": "create_container"},
+      {"stepId": "99999999999999999999999999999999", "kind": "start_container"}
+    ],
+    "errorCode": null,
+    "createdAt": "2026-09-09T04:00:00.000Z",
+    "updatedAt": "2026-09-09T04:00:01.000Z"
+  },
+  "history": {
+    "installations": [],
+    "nextBefore": null
+  }
+}
