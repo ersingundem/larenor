@@ -15,6 +15,7 @@ from larenor_server.plugins.jellyfin_endpoint import (
     JellyfinEndpointError, OpenJellyfinEndpoint, prove_jellyfin_endpoint,
 )
 from larenor_server.plugins.jellyfin_startup import JellyfinStartupConfigurator
+from larenor_server.plugins.jellyfin_managed_libraries import JellyfinManagedLibraries
 from larenor_server.plugins.managed_container import (
     JournaledManagedContainerOperations, ManagedWorkerJournal,
 )
@@ -46,7 +47,7 @@ def prepared(tmp_path):
 def executor(binding, operations):
     return JellyfinBootstrapExecutor(
         operations, lambda _stack: binding, JellyfinStartupConfigurator(),
-        JellyfinAuthenticatedReadback(),
+        JellyfinAuthenticatedReadback(), JellyfinManagedLibraries(),
     )
 
 
@@ -68,17 +69,27 @@ def connected(monkeypatch, stack, binding, engine, connection=None):
     return connection, calls
 
 
-def connected_for_readback(monkeypatch, stack, binding, engine, readback=None):
+def connected_for_readback(monkeypatch, stack, binding, engine, readback=None,
+                           libraries=None):
     startup = Connection(happy_responses())
     readback = readback or Connection([
         json_response(authentication()),
         json_response(keys(key())),
         json_response(system()),
-        json_response(folders()),
+        json_response([]),
         response(),
     ])
+    libraries = libraries or Connection([
+        json_response([]), response(), response(),
+        json_response([
+            {'Name': 'Larenor Movies', 'Locations': ['/media/movies'],
+             'CollectionType': 'movies', 'ItemId': '4' * 32},
+            {'Name': 'Larenor Shows', 'Locations': ['/media/shows'],
+             'CollectionType': 'tvshows', 'ItemId': '5' * 32},
+        ]),
+    ])
     proof = prove_jellyfin_endpoint(engine.container, binding, stack, engine.container['Id'])
-    pending = [startup, readback]
+    pending = [startup, readback, libraries]
     calls = []
 
     def opened(*args, **kwargs):
@@ -87,13 +98,13 @@ def connected_for_readback(monkeypatch, stack, binding, engine, readback=None):
 
     monkeypatch.setattr(
         'larenor_server.plugins.jellyfin_bootstrap_executor.open_jellyfin_endpoint', opened)
-    return startup, readback, calls
+    return startup, readback, libraries, calls
 
 
 def test_readback_failure_preserves_only_static_cause_and_steps(prepared, monkeypatch):
     stack, binding, engine, operations = prepared
     failed = Connection([json_response({}, status=500)])
-    startup, readback, _opens = connected_for_readback(
+    startup, readback, _libraries, _opens = connected_for_readback(
         monkeypatch, stack, binding, engine, failed,
     )
 
@@ -112,7 +123,7 @@ def test_readback_failure_preserves_only_static_cause_and_steps(prepared, monkey
 
 def test_reconciles_journal_and_rechecks_endpoint_before_and_after_startup(prepared, monkeypatch):
     stack, binding, engine, operations = prepared
-    connection, readback, opens = connected_for_readback(
+    connection, readback, libraries, opens = connected_for_readback(
         monkeypatch, stack, binding, engine,
     )
     gates = []
@@ -125,11 +136,34 @@ def test_reconciles_journal_and_rechecks_endpoint_before_and_after_startup(prepa
     assert result.readback.api_key == API_KEY
     assert result.readback.server_id == '3' * 32
     assert result.readback.completed_steps[-1] == 'session_closed'
+    assert [item[1] for item in result.readback.libraries] == ['movies', 'tvshows']
     assert len(connection.requests) == 5 and connection.closed
     assert len(readback.requests) == 5 and readback.closed
-    assert len(opens) == 2 and len(gates) == 6
+    assert len(libraries.requests) == 4 and libraries.closed
+    assert len(opens) == 3 and len(gates) == 8
     assert len([call for call in engine.calls if call[0] == 'inspect']) >= 7
     assert SECRET not in repr(result) and API_KEY not in repr(result)
+
+
+def test_library_failure_preserves_only_static_cause_and_steps(prepared, monkeypatch):
+    stack, binding, engine, operations = prepared
+    failed = Connection([json_response({}, status=500)])
+    startup, readback, libraries, _opens = connected_for_readback(
+        monkeypatch, stack, binding, engine, libraries=failed,
+    )
+
+    with pytest.raises(JellyfinBootstrapExecutionError,
+                       match='^bootstrap_wiring_failed$') as raised:
+        executor(binding, operations).execute(
+            JOB, stack, private(), deadline=time.monotonic() + 10,
+            gate=lambda: True,
+        )
+
+    assert startup.closed and readback.closed and libraries.closed
+    assert raised.value.cause_code == 'jellyfin_library_protocol'
+    assert raised.value.library_steps == ()
+    assert raised.value.uncertain_effect
+    assert SECRET not in repr(raised.value) and API_KEY not in repr(raised.value)
 
 
 @pytest.mark.parametrize('when', [
