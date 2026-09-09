@@ -82,15 +82,20 @@ def test_closed_probe_cli(mode, capsys):
     assert capsys.readouterr().err == 'fixture_probe_invalid\n'
 
 
-def test_health_bound_to_loopback_no_proxy_or_redirect(monkeypatch):
+@pytest.mark.parametrize('wizard_completed', [False, True])
+def test_health_bound_to_loopback_no_proxy_or_redirect(monkeypatch, wizard_completed):
     m = api()
     requests = []
     def read(path):
         requests.append(path)
         return b'Healthy' if path == '/health' else json.dumps({
-            'Id':'a'*32,'Version':'10.11.11','StartupWizardCompleted':False}).encode()
+            'Id':'a'*32,'Version':'10.11.11',
+            'StartupWizardCompleted':wizard_completed}).encode()
     monkeypatch.setattr(m, '_read', read)
-    assert m.run('health') == {'id':'a'*32,'version':'10.11.11','wizardCompleted':False}
+    assert m.run('health') == {
+        'id':'a'*32, 'version':'10.11.11',
+        'wizardCompleted':wizard_completed,
+    }
     assert requests == ['/health','/System/Info/Public']
     with pytest.raises(m.ProbeError):
         m.NoRedirect().redirect_request(None,None,302,'',{},'http://outside')
