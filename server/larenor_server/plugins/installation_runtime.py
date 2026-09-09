@@ -24,6 +24,7 @@ from .docker_probe import DockerEndpoint
 from .host_preflight import _host_platform
 from .installation_execution import JellyfinWorkerBackend
 from .installation_ipc import InstallationWorkerServer
+from .installation_supervisor import SupervisedInstallationBackend
 from .managed_container import (
     JellyfinBindingBuilder,
     JellyfinEngineReaders,
@@ -270,7 +271,7 @@ def _serve(args, policy):
         built = _build_runtime(policy)
         worker = InstallationWorkerServer(
             args.socket,
-            built.backend,
+            SupervisedInstallationBackend(policy.endpoint, built.backend),
             allowed_uid=args.api_uid,
             socket_gid=args.socket_gid,
         )
