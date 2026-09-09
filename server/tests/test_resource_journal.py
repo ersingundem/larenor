@@ -265,6 +265,25 @@ def test_restart_after_lost_response_can_only_reconcile_not_repeat_effect(tmp_pa
         assert second.reconcile(receipt.resource_id, 2, match, **source).state == 'ready'
 
 
+def test_ready_resource_can_be_rebound_only_to_its_exact_current_source(journal, source):
+    resource_id = source['plan'].resources[0].resourceId
+    with journal.locked():
+        receipt = prepared(journal, source)
+        intent = journal.begin(resource_id, receipt.revision, **source)
+        ready = journal.reconcile(resource_id, intent.receipt.revision, observation, **source)
+        rebound = journal.bind(resource_id, ready.revision, **source)
+        assert rebound.receipt == ready
+        assert rebound.resource == source['plan'].resources[0]
+        changed = dict(source)
+        changed['policy'] = replace(source['policy'], workerPolicyVersion=2)
+        changed['plan'] = build_resource_plan(
+            changed['stack'], changed['catalog'], changed['policy'])
+        rejected('idempotency_conflict', lambda: journal.bind(
+            resource_id, ready.revision, **changed))
+        rejected('revision_conflict', lambda: journal.bind(
+            resource_id, ready.revision - 1, **source))
+
+
 @pytest.mark.parametrize('status,state,code', [
     ('missing', 'needs_attention', 'resource_missing'),
     ('conflict', 'needs_attention', 'resource_conflict'),
