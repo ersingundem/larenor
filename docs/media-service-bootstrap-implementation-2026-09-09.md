@@ -39,10 +39,17 @@ girmez.
 - GREEN `6c3d968`: API, migration, Core bağlantısı ve restart doğrulaması.
 - RED `11d3d43`: preconnected Jellyfin başlangıç protokolü.
 - GREEN `fa3fb62`: sabit beş adım, tek stream, bounded HTTP/JSON, süre sonu,
-  redirect/retry yasağı ve secret redaksiyonu.
+  redirect/retry yasağı ve secret redaksiyonu. `9882c7c`, sabitlenmiş Jellyfin
+  10.11 modeline göre `StartupRemoteAccessDto` gövdesini tek resmi alana
+  daralttı.
 - Bootstrap API/sözleşme/startup odaklı **30 test geçti**. İlgili kurulum/API
   paketi daha önce **81 testten** geçti; security policy ve Python derleme
   kontrolü temizdir.
+- Exact Server kaynağı `9882c7c`, SHA-256 sabitlenmiş resmi apksig 9.1.0 ve
+  gerçek Homebrew JDK 17 ile tam yerel pakette **4.381 PASS / 13 macOS platform
+  skip** verdi; toplam **4.394** test toplandı. İlk iki deneme sırasıyla eksik
+  apksig ortam değişkenini ve macOS Java başlatıcısını yakaladı; bunlar başarılı
+  koşu olarak sayılmadı.
 
 ## Açık kabul sınırları
 
