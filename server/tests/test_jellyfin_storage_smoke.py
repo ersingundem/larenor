@@ -576,6 +576,54 @@ def test_managed_characterization_routes_through_resources_and_v2_worker(
     assert ['start', 'c' * 64] not in docker.calls
 
 
+@pytest.mark.parametrize('status,message,expected', [
+    (400, 'invalid mount config for type "volume"', 'managed_create_mount_rejected'),
+    (400, 'network larenor-control-private not found', 'managed_create_network_rejected'),
+    (400, 'invalid cgroup parent', 'managed_create_cgroup_rejected'),
+    (400, 'invalid security option', 'managed_create_security_rejected'),
+    (404, 'No such image: private', 'managed_create_image_rejected'),
+    (400, 'minimum memory limit allowed is 6MB', 'managed_create_resource_rejected'),
+    (500, 'private absolute path and token', 'managed_create_engine_rejected'),
+])
+def test_managed_create_response_is_reduced_to_closed_category(
+        status, message, expected):
+    m = api()
+    body = json.dumps({'message': message}).encode()
+    assert m._managed_create_rejection(status, body) == expected
+    assert message not in m._managed_create_rejection(status, body)
+
+
+@pytest.mark.parametrize('body', [
+    b'', b'not-json', b'{"message":1}', b'{"message":"x","extra":"private"}',
+    json.dumps({'message': 'x' * 4097}).encode(),
+])
+def test_malformed_managed_create_response_stays_closed(body):
+    m = api()
+    assert m._managed_create_rejection(400, body) == 'managed_create_engine_rejected'
+
+
+def test_managed_engine_exposes_only_closed_create_diagnostic(monkeypatch):
+    m = api()
+    from larenor_server.plugins.docker_probe import DockerEndpoint
+    from larenor_server.plugins.worker import UnixDockerEngine
+    response = SimpleNamespace(
+        status=400,
+        body=json.dumps({'message': 'network /private/token not found'}).encode(),
+    )
+    monkeypatch.setattr(
+        UnixDockerEngine,
+        '_exchange',
+        lambda _self, _method, _target, _body=None: response,
+    )
+    engine = m._managed_engine(DockerEndpoint('/tmp/larenor-engine.sock', owner_uid=0))
+    with pytest.raises(
+        m.SmokeError,
+        match='^managed_create_network_rejected$',
+    ) as caught:
+        engine._exchange('POST', '/containers/create?name=private', b'{}')
+    assert '/private/token' not in str(caught.value)
+
+
 @pytest.mark.parametrize('fault', ['initialize_empty_root','start','restart','identity','mount','initial_data'])
 def test_lost_or_conflicting_reply_never_repeats_a_mutation(protocol, fault):
     m, source, docker, images = protocol

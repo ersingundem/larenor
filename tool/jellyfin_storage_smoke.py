@@ -157,7 +157,10 @@ _DIAGNOSTIC_CODES = _CODES | set(_BUILD_ERROR_PATTERNS) | set(_START_ERROR_PATTE
     'volume_create_not_authorized', 'volume_protocol', 'volume_response_limit',
     'volume_engine_unavailable', 'volume_timeout', 'volume_cancelled', 'volume_api_unsupported',
     'journal_unavailable', 'unsafe_worker_path', 'worker_busy', 'invalid_binding',
-    'storage_characterization_evidence_invalid'}
+    'managed_create_mount_rejected', 'managed_create_network_rejected',
+    'managed_create_cgroup_rejected', 'managed_create_security_rejected',
+    'managed_create_image_rejected', 'managed_create_resource_rejected',
+    'managed_create_engine_rejected', 'storage_characterization_evidence_invalid'}
 _PHASES = {'launcher', 'launch_validation', 'source_capture', 'daemon_start', 'daemon_cleanup',
     'characterization', 'image_prepare', 'volume_prepare', 'image_inspect', 'helper_stage',
     'helper_base_binding', 'helper_base_pull', 'helper_base_inspect', 'helper_base_create',
@@ -1082,6 +1085,62 @@ class _BootstrapVerifier:
         )
 
 
+def _managed_create_rejection(status, body):
+    """Reduce a private Docker rejection to one closed diagnostic category."""
+    fallback = 'managed_create_engine_rejected'
+    if type(status) is not int or type(body) is not bytes or not 0 < len(body) <= 4096:
+        return fallback
+
+    def unique(pairs):
+        value = {}
+        for key, item in pairs:
+            if key in value:
+                raise ValueError()
+            value[key] = item
+        return value
+
+    try:
+        value = json.loads(body, object_pairs_hook=unique,
+                           parse_constant=lambda _: (_ for _ in ()).throw(ValueError()))
+        if type(value) is not dict or set(value) != {'message'}:
+            return fallback
+        message = value['message']
+        if type(message) is not str or not 0 < len(message) <= 4096:
+            return fallback
+        lowered = message.casefold()
+    except (ValueError, TypeError, UnicodeError, RecursionError):
+        return fallback
+
+    categories = (
+        ('managed_create_mount_rejected', ('mount', 'volume')),
+        ('managed_create_network_rejected', ('network',)),
+        ('managed_create_cgroup_rejected', ('cgroup',)),
+        ('managed_create_security_rejected',
+         ('security opt', 'apparmor', 'seccomp', 'selinux', 'capabilit', 'privileg')),
+        ('managed_create_image_rejected', ('no such image', 'image not found')),
+        ('managed_create_resource_rejected',
+         ('memory limit', 'minimum memory', 'nano cpu', 'pids limit', 'resource')),
+    )
+    for code, patterns in categories:
+        if any(pattern in lowered for pattern in patterns):
+            return code
+    return fallback
+
+
+def _managed_engine(endpoint):
+    from larenor_server.plugins.worker import UnixDockerEngine
+
+    class DiagnosticEngine(UnixDockerEngine):
+        def _exchange(self, method, target, body=None):
+            response = super()._exchange(method, target, body)
+            if (method == 'POST' and target.startswith('/containers/create?')
+                    and response.status != 201):
+                raise SmokeError(_managed_create_rejection(response.status, response.body))
+            return response
+
+    return DiagnosticEngine(endpoint.path, socket_uid=endpoint.owner_uid)
+
+
 def _managed_create_and_start(daemon, source, endpoint, helper_id):
     """Create/start through the production proof, binding and v2 journal path."""
     from larenor_server.plugins.managed_container import (
@@ -1091,7 +1150,7 @@ def _managed_create_and_start(daemon, source, endpoint, helper_id):
     )
     from larenor_server.plugins.resource_journal import ResourceJournal
     from larenor_server.plugins.volume_create_journal import VolumeCreateJournal
-    from larenor_server.plugins.worker import UnixDockerEngine, WorkerStep
+    from larenor_server.plugins.worker import WorkerStep
 
     journal_dir = daemon.root / 'managed-container-journal'
     with ResourceJournal(daemon.root / 'resource-journal') as resource_journal, \
@@ -1106,9 +1165,7 @@ def _managed_create_and_start(daemon, source, endpoint, helper_id):
         binding = JellyfinBindingBuilder(
             source.catalog, source.policy, container_journal.identity, broker,
         )(source.stack)
-        engine = UnixDockerEngine(
-            endpoint.path, socket_uid=endpoint.owner_uid,
-        )
+        engine = _managed_engine(endpoint)
         operations = JournaledManagedContainerOperations(container_journal, engine)
         job_id = uuid.uuid4().hex
         installation_id = binding.name.removeprefix('larenor-')
