@@ -151,9 +151,9 @@ kalır.
 - RED/GREEN `5d43299` / `1e94267`: socket activation/FD devri sınırı için her
   image/volume/network/bootstrap/container Engine bağlantısında fresh peer
   pidfd eşleşmesi; ilgili yerel paket **272 PASS / 4 Linux skip**.
-- RED/GREEN `1c4f3f8` / `e0f7ab0`: rootful kimlik, startup/config ve Engine
+- RED/GREEN `422eb80` / `5580f66`: rootful kimlik, startup/config ve Engine
   security-option kararını fail-closed tutan **35 test**.
-- RED/GREEN `1056a84` / `98b4f99`: daemon proc/root tanıtıcılarına bağlı
+- RED/GREEN `ffba1a7` / `5c81207`: daemon proc/root tanıtıcılarına bağlı
   no-follow argv/config yaşam kanıtı ve supervisor/runtime bağlantısı; startup
   ile security modüllerinin toplam **60 testi** ve geniş ilgili paket geçti;
   runtime security seçenekleri her effect öncesi/sonrası yeniden okunur.
@@ -183,8 +183,8 @@ Android/Server CI'ı ve inceleme gerekir. Bunlar olmadan S06.4 `done` yapılamaz
 
 ## Sonraki dilim
 
-1. `9ce3c5a` test-fixture düzeltmesiyle supervisor'ın gerçek Linux
-   peer-pidfd/proc/user-namespace testi stacked Server CI'da atlamadan geçecek.
+1. `9ce3c5a` supervisor kaynağının gerçek Linux peer-pidfd/proc/user-namespace
+   testi 34349256229 koşusunda atlanmadan geçti.
 2. Yerel rootful/remap-disabled başlangıç dalı exact Linux CI ve tam Server
    paketinden geçecek.
 3. Stacked kaynak bağımsız inceleme ile kapatılacak.
