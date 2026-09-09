@@ -96,7 +96,8 @@ okunuyor. Peer ve worker için root credentials, tam initial kimlik haritası ve
 aynı user namespace zorunlu; başlangıç argümanında veya config'te
 `userns-remap`, Engine güvenlik seçeneklerinde `rootless`/`userns`, yanlış
 platform, duplicate/bozuk JSON, config değiştirme/yerine koyma ya da deadline
-kaybı bütün worker kanıtını etkiden önce kapatıyor. Yeni iki modülün **59 testi**
+kaybı bütün worker kanıtını etkiden önce kapatıyor. Runtime güvenlik seçenekleri
+her effect öncesi/sonrası yeniden okunuyor. Yeni iki modülün **60 testi**
 ve kurulum/kimlik/Engine yollarını içeren geniş ilgili paket yerelde geçti;
 Security policy, compileall, diff ve kuyruk doğrulaması temiz. Bu yerel kanıt
 henüz exact Linux CI veya bağımsız review değildir.

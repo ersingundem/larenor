@@ -712,10 +712,10 @@
         {
           "kind": "test",
           "ref": "server/tests/test_daemon_security.py",
-          "commit": "98b4f9971958324c3e7fbc7d4f09f64db894a60d",
+          "commit": "7fd126c9c36325116a92cebabc425f0b0db4df1f",
           "state": "completed",
           "result": "passed",
-          "label": "Rootful/remap-disabled daemon yetkisi, held proc/root üzerinden no-follow argv/config ve aynı Engine bağlantısında version/info kanıtıyla bağlandı; iki yeni modül 59 PASS ve geniş ilgili paket yeşil. Exact Linux CI ve review açık."
+          "label": "Rootful/remap-disabled daemon yetkisi, held proc/root üzerinden no-follow argv/config ve her effect çevresinde aynı Engine bağlantısında version/info kanıtıyla bağlandı; iki yeni modül 60 PASS ve geniş ilgili paket yeşil. Exact Linux CI ve review açık."
         }
       ],
       "completionCommit": null,

@@ -155,7 +155,8 @@ kalır.
   security-option kararını fail-closed tutan **35 test**.
 - RED/GREEN `1056a84` / `98b4f99`: daemon proc/root tanıtıcılarına bağlı
   no-follow argv/config yaşam kanıtı ve supervisor/runtime bağlantısı; startup
-  ile security modüllerinin toplam **59 testi** ve geniş ilgili paket geçti.
+  ile security modüllerinin toplam **60 testi** ve geniş ilgili paket geçti;
+  runtime security seçenekleri her effect öncesi/sonrası yeniden okunur.
 - Güncel storage/managed/resource/binding paketi **216 PASS**; managed workflow
   politika paketi ayrıca **7 PASS**. Python derleme ve `git diff --check` temiz.
 - Exact `191baf3` kaynak commit'i [Server CI 34313975186](https://github.com/ersingundem/larenor/actions/runs/34313975186)
