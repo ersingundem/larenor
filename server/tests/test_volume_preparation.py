@@ -210,7 +210,10 @@ def test_actual_sqlite_and_unix_roundtrip_sends_six_fixed_requests(tmp_path, sou
                 + f'{len(body):x}\r\n'.encode() + body + b'\r\n0\r\n\r\n')
         return response(stored)
     with VolumeCreateJournal(path, initialize=True) as j:
-        with engine_server(reply, platform=platform) as (endpoint, calls):
+        # Source/revision authorization runs after /version and shares the
+        # transport's ten-second total budget. Keep the synthetic peer alive
+        # for that full gate instead of applying its shorter lifecycle default.
+        with engine_server(reply, platform=platform, request_timeout=11) as (endpoint, calls):
             engine = UnixVolumeCreator(endpoint, peer_uid=lambda _: os.getuid())
             result = module.JournaledVolumeCreates(j, engine).apply(**data, resource_id=rid, authorize_create=lambda: True)
     assert result.state == 'observed_requires_bootstrap'

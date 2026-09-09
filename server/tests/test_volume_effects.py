@@ -9,6 +9,7 @@ import socket
 import sys
 import tempfile
 import threading
+import time
 
 import pytest
 
@@ -44,7 +45,7 @@ def begun(tmp_path, source):
 
 
 @contextmanager
-def engine_server(reply, *, platform='amd64', version_hook=None):
+def engine_server(reply, *, platform='amd64', version_hook=None, request_timeout=2):
     """Read every request body and bound/reap the owned local server thread."""
     with tempfile.TemporaryDirectory(prefix='lvc-', dir='/private/tmp' if sys.platform == 'darwin' else '/tmp') as directory:
         path = Path(directory) / 'engine.sock'
@@ -91,7 +92,7 @@ def engine_server(reply, *, platform='amd64', version_hook=None):
                             return
                         raise
                     with connection:
-                        connection.settimeout(2)
+                        connection.settimeout(request_timeout)
                         try:
                             first = read(connection)
                             if first is None:
@@ -164,6 +165,26 @@ def test_create_is_one_post_after_same_stream_version_and_literal_gate(begun):
     assert type(result) is not VolumeObservation
     assert result.labels_digest == labels_digest(intent)
     assert 'DO-NOT-EXPOSE' not in repr(result)
+
+
+def test_slow_post_version_authorization_keeps_the_verified_stream(begun):
+    """A loaded runner may spend over two seconds in the final source gate."""
+    module = api()
+    _, _, intent = begun
+    gates = []
+
+    def authorize():
+        gates.append('started')
+        time.sleep(2.1)
+        gates.append('completed')
+        return True
+
+    with engine_server(response(body(intent.binding), status=201), request_timeout=11) as (endpoint, calls):
+        result = creator(endpoint).create(intent, before_dispatch=authorize)
+
+    assert gates == ['started', 'completed']
+    assert [line.split(' ', 1)[0] for line, _ in calls] == ['GET', 'POST']
+    assert type(result) is module.VolumeCreateAcknowledgement
 
 
 @pytest.mark.parametrize('choice', [None, False, 1, 'true', 'raise'])
