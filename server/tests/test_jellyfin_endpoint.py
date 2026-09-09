@@ -34,6 +34,17 @@ def test_running_exact_container_yields_private_fixed_jellyfin_endpoint():
     assert '172.28.0.2' not in repr(proof)
 
 
+def test_internal_network_without_default_route_keeps_private_endpoint_valid():
+    stack, binding, observed = running()
+    attached = next(iter(observed['NetworkSettings']['Networks'].values()))
+    attached['Gateway'] = ''
+
+    proof = prove_jellyfin_endpoint(observed, binding, stack, '5' * 64)
+
+    assert proof.address == '172.28.0.2'
+    assert proof.network_id == binding.network_id
+
+
 @pytest.mark.parametrize('damage', [
     'container', 'binding', 'stopped', 'paused', 'restarting', 'dead',
     'network', 'missing_ip', 'public_ip', 'loopback', 'link_local',
