@@ -31,7 +31,7 @@ class AndroidE2EPreparationTest(unittest.TestCase):
                        '  selected=$index; (( selected >= ${#values[@]} )) && selected=$((${#values[@]} - 1))\n'
                        '  echo "${values[$selected]}"; echo $((index + 1)) > "${COMMAND_TRACE}.reads"\n'
                        'fi\n'
-                       'if [[ "$*" == *"pm list packages --system --user 0 com.android.launcher3" ]]; then\n'
+                       'if [[ "$*" == *"pm list packages -s --user 0 com.android.launcher3" ]]; then\n'
                        '  if [[ "$FAIL_LAUNCHER_LIST_ONCE" == 1 && ! -e "${COMMAND_TRACE}.launcher-list-failed" ]]; then\n'
                        '    touch "${COMMAND_TRACE}.launcher-list-failed"; exit 11\n'
                        '  fi\n'
@@ -175,7 +175,7 @@ class AndroidE2EPreparationTest(unittest.TestCase):
         result, commands, _ = self.run_script(ci=True)
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertLess(
-            commands.index("pm list packages --system --user 0 com.android.launcher3"),
+            commands.index("pm list packages -s --user 0 com.android.launcher3"),
             commands.index("pm disable-user --user 0 com.android.launcher3"),
         )
         self.assertLess(
@@ -191,7 +191,7 @@ class AndroidE2EPreparationTest(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(
             commands.count(
-                "pm list packages --system --user 0 com.android.launcher3"
+                "pm list packages -s --user 0 com.android.launcher3"
             ),
             2,
         )
@@ -204,7 +204,7 @@ class AndroidE2EPreparationTest(unittest.TestCase):
             launcher_system_package=False,
         )
         self.assertEqual(result.returncode, 2)
-        self.assertIn("pm list packages --system --user 0 com.android.launcher3", commands)
+        self.assertIn("pm list packages -s --user 0 com.android.launcher3", commands)
         self.assertNotIn("pm disable-user", commands)
         self.assertNotIn("dart ", commands)
 
@@ -323,7 +323,7 @@ class StayAwakeBudgetTest(unittest.TestCase):
             calls.append((args, deadline))
             if "getprop" in args:
                 return b"1\n"
-            if args[1:4] == ["pm", "list", "packages"] and "--system" in args:
+            if args[1:4] == ["pm", "list", "packages"] and "-s" in args:
                 return None if len(calls) == 2 else b"package:com.android.launcher3\n"
             if "disable-user" in args:
                 return b"Package com.android.launcher3 new state: disabled-user\n"
