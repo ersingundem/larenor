@@ -192,10 +192,10 @@ def _payloads(value):
             'PreferredMetadataLanguage': value.preferredMetadataLanguage,
         },
         'user': {'Name': value.username, 'Password': value.credential},
-        'remote': {
-            'EnableRemoteAccess': value.remote_access,
-            'EnableAutomaticPortMapping': value.automatic_port_mapping,
-        },
+        # Jellyfin 10.11's StartupRemoteAccessDto contains this single field.
+        # The managed container separately has no published host ports and is
+        # attached only to Larenor's internal control network.
+        'remote': {'EnableRemoteAccess': value.remote_access},
     }
 
 
