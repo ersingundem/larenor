@@ -1,9 +1,11 @@
 """Bounded Unix IPC for the closed Jellyfin create/start worker surface."""
 
 import json
+import math
 import os
 from pathlib import Path
 import platform as host_platform
+import re
 import socket
 import stat
 import threading
@@ -11,8 +13,13 @@ import time
 import uuid
 
 from .installation_execution import JellyfinWorkerBackend
+from .jellyfin_bootstrap_executor import (
+    JellyfinBootstrapExecutionError, JellyfinBootstrapExecutionResult,
+)
+from .media_service_bootstrap_models import PrivateMediaServiceBootstrap
 from .preflight_ipc import PreflightIPCError, PreflightWorkerServer, read_packet, write_packet
-from .stack_plan import MediaStackPlan
+from .catalog import load_catalog
+from .stack_plan import MediaStackPlan, verify_media_stack_plan
 from .worker import DockerWorkerError, StepReceipt, WorkerStep, _safe_path
 
 
@@ -42,6 +49,61 @@ def _wire_receipt(value):
             'code': value.code, 'containerId': value.container_id}
 
 
+_BOOTSTRAP_STEPS = (
+    'observed_unconfigured', 'configuration_updated', 'user_updated',
+    'remote_access_updated', 'wizard_completed',
+)
+
+
+def _wire_bootstrap(value=None, error=None):
+    if error is not None:
+        return {
+            'state': 'failed', 'completedSteps': list(error.completed_steps),
+            'errorCode': error.code, 'uncertainEffect': error.uncertain_effect,
+        }
+    if (type(value) is not JellyfinBootstrapExecutionResult
+            or value.state != 'credentials_configured'
+            or value.completed_steps != _BOOTSTRAP_STEPS):
+        raise InstallationIPCError('invalid_worker_result')
+    return {
+        'state': value.state, 'completedSteps': list(value.completed_steps),
+        'errorCode': None, 'uncertainEffect': False,
+    }
+
+
+def _bootstrap_result(value):
+    try:
+        if (type(value) is not dict or set(value) != {
+                'state', 'completedSteps', 'errorCode', 'uncertainEffect'}
+                or type(value['completedSteps']) is not list
+                or any(type(item) is not str or item not in _BOOTSTRAP_STEPS
+                       for item in value['completedSteps'])
+                or tuple(value['completedSteps']) != _BOOTSTRAP_STEPS[:len(value['completedSteps'])]
+                or type(value['uncertainEffect']) is not bool):
+            raise ValueError()
+        completed = tuple(value['completedSteps'])
+        if value == {
+                'state': 'credentials_configured',
+                'completedSteps': list(_BOOTSTRAP_STEPS),
+                'errorCode': None,
+                'uncertainEffect': False}:
+            return JellyfinBootstrapExecutionResult('credentials_configured', completed)
+        if (value['state'] != 'failed' or type(value['errorCode']) is not str
+                or value['errorCode'] not in {
+                    'invalid_bootstrap_execution', 'bootstrap_authority_changed',
+                    'bootstrap_resources_unavailable', 'bootstrap_endpoint_unavailable',
+                    'bootstrap_endpoint_changed', 'bootstrap_startup_failed',
+                    'bootstrap_timeout'}):
+            raise ValueError()
+        raise JellyfinBootstrapExecutionError(
+            value['errorCode'], completed_steps=completed,
+            uncertain_effect=value['uncertainEffect'])
+    except JellyfinBootstrapExecutionError:
+        raise
+    except (ValueError, TypeError, AttributeError):
+        raise InstallationIPCError('invalid_worker_result') from None
+
+
 class InstallationWorkerClient:
     def __init__(self, path, *, owner_uid=0, peer_uid=None, timeout=5):
         from .preflight_ipc import _peer_uid
@@ -50,7 +112,7 @@ class InstallationWorkerClient:
         self.path = Path(path).absolute()
         self.owner_uid, self.peer_uid, self.timeout = owner_uid, peer_uid or _peer_uid, timeout
 
-    def _exchange(self, operation, step=None, plan=None):
+    def _exchange(self, operation, step=None, plan=None, bootstrap=None):
         try:
             _safe_path(self.path, uid=self.owner_uid, kind=stat.S_ISSOCK)
             deadline = time.monotonic() + self.timeout
@@ -62,6 +124,11 @@ class InstallationWorkerClient:
                     'start_deadline': step.start_deadline,
                 }
                 request['plan'] = plan.model_dump(mode='json')
+            elif bootstrap is not None:
+                job, private = bootstrap
+                request['jobId'] = job
+                request['plan'] = plan.model_dump(mode='json')
+                request['private'] = private.model_dump(mode='json')
             with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as connection:
                 connection.settimeout(self.timeout)
                 connection.connect(str(self.path))
@@ -98,6 +165,33 @@ class InstallationWorkerClient:
         if type(step) is not WorkerStep or type(plan) is not MediaStackPlan:
             raise InstallationIPCError('invalid_request')
         return _receipt(self._exchange('reconcile', step, plan), step)
+
+    def execute(self, job, plan, private, *, deadline, gate):
+        now = time.monotonic()
+        if (type(job) is not str or re.fullmatch(r'[0-9a-f]{32}', job) is None
+                or type(plan) is not MediaStackPlan
+                or type(private) is not PrivateMediaServiceBootstrap
+                or type(deadline) not in (int, float) or not math.isfinite(deadline)
+                or not now < deadline <= now + 120 or not callable(gate)):
+            raise JellyfinBootstrapExecutionError('invalid_bootstrap_execution')
+        try:
+            plan = verify_media_stack_plan(plan, load_catalog())
+        except (ValueError, TypeError, AttributeError, OSError):
+            raise JellyfinBootstrapExecutionError('invalid_bootstrap_execution') from None
+        try:
+            permitted = gate()
+        except Exception:
+            raise JellyfinBootstrapExecutionError('bootstrap_authority_changed') from None
+        if permitted is not True:
+            raise JellyfinBootstrapExecutionError('bootstrap_authority_changed')
+        try:
+            return _bootstrap_result(self._exchange(
+                'bootstrap', plan=plan, bootstrap=(job, private)))
+        except JellyfinBootstrapExecutionError:
+            raise
+        except InstallationIPCError:
+            raise JellyfinBootstrapExecutionError(
+                'bootstrap_resources_unavailable') from None
 
 
 class InstallationWorkerServer(PreflightWorkerServer):
@@ -156,6 +250,38 @@ class InstallationWorkerServer(PreflightWorkerServer):
         if operation == 'status' and set(request) == {'protocol', 'requestId', 'operation'}:
             return {'capability': 'container_execution', 'installAvailable': False,
                     'services': ['jellyfin']}
+        if operation == 'bootstrap':
+            if (set(request) != {
+                    'protocol', 'requestId', 'operation', 'jobId', 'plan', 'private'}
+                    or type(request['jobId']) is not str
+                    or re.fullmatch(r'[0-9a-f]{32}', request['jobId']) is None
+                    or time.monotonic() >= deadline):
+                raise PreflightIPCError('invalid_request')
+            try:
+                raw_plan = json.dumps(
+                    request['plan'], sort_keys=True, separators=(',', ':'),
+                    allow_nan=False)
+                raw_private = json.dumps(
+                    request['private'], sort_keys=True, separators=(',', ':'),
+                    allow_nan=False)
+                plan = verify_media_stack_plan(
+                    MediaStackPlan.model_validate_json(raw_plan), self.catalog)
+                private = PrivateMediaServiceBootstrap.model_validate_json(raw_private)
+                timed = getattr(self.backend, 'bootstrap_with_deadline', None)
+                try:
+                    result = (timed(request['jobId'], plan, private, deadline)
+                              if callable(timed) else self.backend.bootstrap(
+                                  request['jobId'], plan, private, deadline=deadline))
+                except JellyfinBootstrapExecutionError as error:
+                    return _wire_bootstrap(error=error)
+                if time.monotonic() >= deadline:
+                    raise JellyfinBootstrapExecutionError('bootstrap_timeout')
+                return _wire_bootstrap(value=result)
+            except JellyfinBootstrapExecutionError as error:
+                return _wire_bootstrap(error=error)
+            except (ValueError, TypeError, AttributeError, DockerWorkerError,
+                    InstallationIPCError):
+                raise PreflightIPCError('invalid_request') from None
         if (operation not in {'apply', 'reconcile'}
                 or set(request) != {'protocol', 'requestId', 'operation', 'step', 'plan'}
                 or time.monotonic() >= deadline):
