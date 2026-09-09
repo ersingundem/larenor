@@ -146,7 +146,7 @@ def test_creates_one_dedicated_key_then_reads_closed_identity_and_libraries():
     assert '/media/movies' not in private_text and SECRET not in private_text
 
 
-def test_existing_single_active_larenor_key_is_reused_without_mutation():
+def test_existing_single_projected_larenor_key_is_reused_without_mutation():
     connection = Connection([
         json_response(authentication()),
         json_response(keys(key())),

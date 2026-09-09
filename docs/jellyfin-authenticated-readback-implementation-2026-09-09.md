@@ -49,7 +49,7 @@ geri okur, geçici oturumu kapatır ve sonucu şifreli bootstrap kaydına yazar.
 
 | Garanti | Test | Tür | Sonuç |
 | --- | --- | --- | --- |
-| Mevcut tek aktif Larenor anahtarı yeniden kullanılır; birden fazla veya iptal edilmiş eşleşme reddedilir | `test_jellyfin_authenticated_readback.py` | Unit/protokol | PASS |
+| Mevcut tek, doğrulanmış Larenor API anahtarı yeniden kullanılır; birden fazla veya bozuk eşleşme reddedilir | `test_jellyfin_authenticated_readback.py` | Unit/protokol | PASS |
 | Anahtar yoksa yalnız bir sabit `Larenor Core` anahtarı oluşturulur ve yeniden okunmadan kabul edilmez | aynı dosya | Unit/protokol | PASS |
 | Sistem ID'si auth sonucuyla eşleşir; wizard tamamlanmadan başarı üretilmez | aynı dosya | Unit/protokol | PASS |
 | Kütüphane adları Unicode olabilir; özel konumlar yalnız `/media/...` managed alanında kabul edilir | aynı dosya | Unit/güvenlik | PASS |

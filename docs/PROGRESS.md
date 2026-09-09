@@ -90,7 +90,7 @@ bir Linux-only test macOS'ta skip edildi. Gerçek Docker/Jellyfin etkisi yapılm
 `7668017` → `0745d70`, `c790748` → `61be275`, `1f36ed5` / `22bae10` →
 `a681d74` ve `e95e436` → `d198a72` TDD zinciri, tamamlanan startup'tan sonra
 ikinci kez doğrulanmış private endpoint üzerinde Jellyfin sistem kullanıcısını
-authenticate eder. Tek aktif `Larenor Core` API anahtarını yeniden kullanır;
+authenticate eder. Tek doğrulanmış `Larenor Core` API anahtarını yeniden kullanır;
 yoksa bir kez oluşturup geri okumadan kabul etmez. `System/Info` kimliği ve
 `Library/VirtualFolders` sonucu kapalı modele alınır, geçici auth oturumu
 `Sessions/Logout` ile kapatılır. API key, session token, parola ve medya yolları
