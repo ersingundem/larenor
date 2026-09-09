@@ -530,7 +530,8 @@ def protocol(tmp_path, monkeypatch, request):
                     'initialize_empty_root':'empty_initialized','verify_root':'root_verified'}[mode]}
             elif mode == 'health':
                 value = {'id': ('b' if self.restarted and self.fault == 'identity' else 'a')*32,
-                    'version':'10.11.11','wizardCompleted':False}
+                    'version':'10.11.11',
+                    'wizardCompleted':getattr(self, 'managed_configured', False)}
             elif mode == 'initial_data':
                 value = {'database':True,'configuration':True}
             elif mode == 'app_identity':
@@ -597,8 +598,11 @@ def test_managed_characterization_routes_through_resources_and_v2_worker(
     marker = Marker()
     monkeypatch.setattr(m, '_managed_create_and_start',
         lambda owner, actual_source, endpoint, helper_id:
-            (events.append(('managed', owner, actual_source, endpoint.path, helper_id))
-             or ('c' * 64, marker, ManagedEngine())))
+            (events.append(('managed', owner, actual_source, endpoint.path, helper_id)),
+             setattr(owner, 'managed_configured', True),
+             ('c' * 64, marker, ManagedEngine(), {
+                 'apiKeyVerified': True, 'libraryCount': 0, 'sessionClosed': True,
+             }))[-1])
     monkeypatch.setattr(managed_container, 'managed_container_matches',
                         lambda value, binding: binding is marker)
 
@@ -608,6 +612,10 @@ def test_managed_characterization_routes_through_resources_and_v2_worker(
 
     assert result['containerMode'] == 'journaled_managed_v2'
     assert result['containerJournalVersion'] == 2
+    assert result['bootstrapAccountConfigured'] is True
+    assert result['apiKeyVerified'] is True
+    assert result['libraryCount'] == 0
+    assert result['sessionClosed'] is True
     assert [event[0] for event in events[:4]] == [
         'resources', 'managed', 'inspect', 'inspect',
     ]

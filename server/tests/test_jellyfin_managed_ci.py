@@ -57,7 +57,7 @@ def test_managed_receipt_requires_authenticated_readback_without_secrets():
         with pytest.raises(module.ManagedCIError):
             module.validate_receipt(damaged, 'a' * 40, 'linux/amd64')
     serialized = json.dumps(value)
-    assert 'AccessToken' not in serialized and 'apiKey' not in serialized
+    assert '"AccessToken":' not in serialized and '"apiKey":' not in serialized
 
 
 def test_launch_accepts_exact_main_or_same_repository_pr_merge_only():
