@@ -338,8 +338,13 @@ executor now reconciles the exact successful start receipt, checks retained
 authority at four effect boundaries, re-inspects the endpoint before and after
 startup, shares one total deadline and never retries. It reports unavailable
 and changed endpoints separately without exposing credentials. IPC/supervisor
-dispatch, persistent bootstrap state transitions, API-key/library readback and
-real-service acceptance are still pending.
+dispatch, API-key/library readback and real-service acceptance are still
+pending. The API-side durable coordinator now
+persists the no-retry queued/running/credentials-configured lifecycle and
+secret-free terminal errors. An interrupted running record becomes
+`bootstrap_interrupted` after restart instead of being dispatched again. Core
+does not configure a production bootstrap backend until the separate IPC and
+supervisor boundary is implemented.
 
 ## Client releases
 

@@ -1,6 +1,6 @@
 # Larenor — güncel ilerleme ve iş kuyruğu
 
-**Son güncelleme: 9 Eylül 2026 — S06.4 exact PR20 kaynağında tam Android/Server/Security CI ile kabul edildi; S06.5 şifreli niyet, kapalı Jellyfin protokolü ve journal/authority ile çevrili private yürütücüye ilerledi.**
+**Son güncelleme: 9 Eylül 2026 — S06.4 exact PR20 kaynağında tam Android/Server/Security CI ile kabul edildi; S06.5 private yürütücü ve kalıcı no-retry koordinatöre ilerledi.**
 
 ```text
 Kuyruk kabulü       ██░░░░░░░░░░░░░░░░░░  13/125 iş (%10; eşit ağırlıklı sayaç)
@@ -41,7 +41,7 @@ Gerçek ev kurulumu ve fiziksel tablet kabulü henüz yapılmadı.
 | S06.3d — kalıcı depolama | **Kabul edildi**; Native18 exact `6a054ea`, amd64+arm64 makbuzları doğrulandı | S06.3f ile birleşik kaynak kapısı kapandı |
 | S06.3f — kaynak kabulü | **Kabul edildi**; exact `4021391`, iki mimarili native makbuz, 4.065 Server ve tam Android/Server CI yeşil | S06.4 dar kurulum yürütme kapısı |
 | S06.4 — dar kurulum yürütme kapısı | **Kabul edildi**; PR16 `bf6f860`, PR18 `75af015`, PR19 `9ce3c5a` ve PR20 `2b9166b` tam CI kapıları yeşil | S06.5 özel bootstrap ve otomatik servis eşleştirme |
-| S06.5 — özel bootstrap ve otomatik eşleştirme | **Devam ediyor**; şifreli niyet, sabit startup protokolü ve exact journal/container/private-network/authority yürütücüsü yerelde hazır | IPC/supervisor dispatch, kalıcı durum geçişi ve API anahtarı/kütüphane geri okuması |
+| S06.5 — özel bootstrap ve otomatik eşleştirme | **Devam ediyor**; şifreli niyet, exact journal/container/private-network/authority yürütücüsü ve kalıcı no-retry durum koordinatörü yerelde hazır | IPC/supervisor dispatch ve API anahtarı/kütüphane geri okuması |
 
 S06.5'in ilk iki TDD parçası, yalnız tamamlanmış Jellyfin kurulumundan
 yöneticiye bağlı bootstrap niyeti üretir ve public API'de sır, hedef adres veya
@@ -68,6 +68,14 @@ değişiminden ayrı raporlanıyor; beş resmi adım doğrulanmadan başarı ür
 **14 yeni / 100 ilgili test** ile security policy, compileall ve diff kontrolü
 geçti. IPC/supervisor dispatch ve kalıcı bootstrap durum geçişi henüz bağlı
 değil; bu kaynak gerçek Docker/Jellyfin ağına dokunmadı.
+
+`b931fdd` → `2e75cd3` TDD dilimi public duruma secret-free `errorCode` ekledi
+ve koordinatörün `queued → running → credentials_configured` geçişini kalıcı
+hale getirdi. Kesilmiş `running` kayıt restart sonrasında yeniden denenmiyor;
+`bootstrap_interrupted` ile insan incelemesine ayrılıyor. Yetki kaybı backend
+çağrısından önce duruyor; kısmi/belirsiz etki `needs_attention`, kesin bağlantı
+erişilemezliği `failed` oluyor. **18 odaklı / 90 ilgili test** geçti. Production
+Core backend'i hâlâ kapalıdır; IPC/supervisor ve gerçek servis işlemi yoktur.
 
 S06.4 native kabul koşusu [34326112926](https://github.com/ersingundem/larenor/actions/runs/34326112926)
 iki gerçek GitHub runner'ında geçti. İndirilen ARM64 ve X64 makbuzları merge

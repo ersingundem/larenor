@@ -801,10 +801,18 @@
           "state": "completed",
           "result": "passed",
           "label": "Exact journal receipt ve retained-authority kapılarıyla çevrili no-retry Jellyfin bootstrap yürütücüsü: 14 yeni/100 ilgili test; bağlantı erişilemezliği ve endpoint değişimi ayrık. IPC/supervisor dispatch, kalıcı durum, CI ve gerçek servis kabulü açık."
+        },
+        {
+          "kind": "test",
+          "ref": "docs/media-service-bootstrap-implementation-2026-09-09.md",
+          "commit": "2e75cd3467e1f951dfaac288384eef1601ed5c2e",
+          "state": "completed",
+          "result": "passed",
+          "label": "Kalıcı no-retry bootstrap koordinatörü: 18 odaklı/90 ilgili test; şifreli durum geçişi, restart kesintisi, yetki kaybı ve secret-free hata ayrımı doğrulandı. IPC/supervisor, CI ve gerçek servis kabulü açık."
         }
       ],
       "completionCommit": null,
-      "reason": "Server üretimli sır, şifreli intent, sabit startup sırası ve exact journal/container/private-network/authority yürütücüsü yerelde hazır. DNS/proxy/redirect/retry yok; kısmi, erişilemez ve değişmiş endpoint sonuçları secret-free. IPC/supervisor dispatch, kalıcı durum, API anahtarı/kütüphane geri okuması, CI ve gerçek servis kabulü açık."
+      "reason": "Server üretimli sır, sabit startup sırası, exact journal/container/private-network/authority yürütücüsü ve kalıcı no-retry koordinatör yerelde hazır. DNS/proxy/redirect/retry yok; kesinti, yetki, kısmi ve endpoint sonuçları şifreli/secret-free saklanır. IPC/supervisor dispatch, API anahtarı/kütüphane geri okuması, CI ve gerçek servis kabulü açık."
     },
     {
       "id": "S06.6",

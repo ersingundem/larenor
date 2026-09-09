@@ -64,15 +64,23 @@ girmez.
   retry yapmaz ve bağlantı erişilemezliği ile endpoint değişimini ayrı,
   secret-free hata kodlarıyla bildirir. **14 yeni / 100 ilgili test**, security
   policy, compileall ve diff kontrolü geçti.
+- RED/GREEN `b931fdd` / `2e75cd3`: kalıcı koordinatör `queued → running →
+  credentials_configured` geçişini şifreli AAD kaydıyla tamamlar. Yetki kaybı
+  etki öncesinde `needs_attention` olur; erişilemeyen endpoint kesin başarısız,
+  kısmi veya belirsiz startup ise insan incelemesi gereken sonuç olarak
+  saklanır. Restart'ta bulunan `running` kayıt hiçbir zaman tekrar çalıştırılmaz
+  ve `bootstrap_interrupted` olur. Public API yalnız sabit hata kodunu gösterir.
+  **18 odaklı / 90 ilgili test**, security policy, compileall ve diff kontrolü
+  geçti.
 
 ## Açık kabul sınırları
 
-Üçüncü yerel dilim exact managed-container ID, private control network,
-başarılı journal receipt'i ve retained authority kapısını tek no-retry yürütme
-sınırında birleştirir. Bu sınıf henüz Unix IPC komutuna, supervisor dispatch'ine
-ve kalıcı bootstrap durum geçişlerine bağlanmadı. Sıradaki adım bu runtime
-bağını kurmak; ardından Jellyfin kimlik doğrulama/API anahtarı, sistem adresi ve
-kütüphane eşlemelerini servisten geri okuyup şifreli duruma yazmaktır. Music
+Kalıcı koordinatör yürütücüyü çağıracak durum, yetki, yeniden başlatma ve hata
+sözleşmesini hazırlar. Production Core henüz bir bootstrap backend'i
+yapılandırmaz; sınıf Unix IPC komutuna ve supervisor dispatch'ine bağlı değildir.
+Sıradaki adım bu kapalı runtime bağını kurmak; ardından Jellyfin kimlik
+doğrulama/API anahtarı, sistem adresi ve kütüphane eşlemelerini servisten geri
+okuyup şifreli duruma yazmaktır. Music
 Assistant host ağı, diğer medya bileşenlerinin otomatik eşleştirmesi, gerçek
 Linux container kabulü ve `installAvailable` ayrı açık kapılardır. Ev Docker
 Engine'i ve gerçek Jellyfin kurulumu bu dilimlerde değiştirilmedi.
