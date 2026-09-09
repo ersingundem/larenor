@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "title": "Larenor kalıcı yürütme kuyruğu",
-  "updatedAt": "2026-09-09",
+  "updatedAt": "2026-09-10",
   "selectedFeatures": [
     "F01",
     "F02",
@@ -767,7 +767,12 @@
         "docs/remaining-core-integration-slices.md",
         "docs/integrated-media-stack.md",
         "docs/media-service-bootstrap-implementation-2026-09-09.md",
-        "docs/jellyfin-managed-libraries-implementation-2026-09-09.md"
+        "docs/jellyfin-managed-libraries-implementation-2026-09-09.md",
+        "docs/qbittorrent-owned-bootstrap-implementation-2026-09-10.md",
+        "docs/qbittorrent-config-volume-binding-implementation-2026-09-10.md",
+        "docs/qbittorrent-config-helper-implementation-2026-09-10.md",
+        "docs/qbittorrent-config-effect-implementation-2026-09-10.md",
+        "docs/qbittorrent-runtime-binding-implementation-2026-09-10.md"
       ],
       "scope": "Kullanıcı ayrı uygulama kurmaz veya API anahtarı kopyalamaz; sırlar Client/plan/log içine girmez.",
       "acceptance": [
@@ -882,10 +887,66 @@
           "state": "completed",
           "result": "passed",
           "label": "Exact PR head 33bb2d2 için AMD64+ARM64 gerçek Jellyfin 10.11.11: üç journal-bound volume, salt okunur /media, movies/shows oluşturma ve geri okuma, logout, restart PASS; indirilen iki makbuz merge kaynağı 73fbd0a için repo verifier ile yeniden PASS."
+        },
+        {
+          "kind": "test",
+          "ref": "docs/qbittorrent-owned-bootstrap-implementation-2026-09-10.md",
+          "commit": "8d1a04164487aab5272d9dab555b1c4ee22a9af4",
+          "state": "completed",
+          "result": "passed",
+          "label": "qBittorrent 5.2.3 sahipli config, Bearer readback ve movies/tv kategori sözleşmeleri 104 odaklı/149 ilgili test ve secret scan ile geçti; kurulum yeteneği kapalı kaldı."
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/34407352961",
+          "commit": "8d1a04164487aab5272d9dab555b1c4ee22a9af4",
+          "state": "completed",
+          "result": "passed",
+          "label": "Exact PR28 head Android analyze, Server, emülatör E2E ve debug APK; bağımsız Security ile amd64/arm64 managed-container karakterizasyonu PASS."
+        },
+        {
+          "kind": "test",
+          "ref": "docs/qbittorrent-config-volume-binding-implementation-2026-09-10.md",
+          "commit": "4e9961540d05df027be0d5fc66fd9d6b639ba6b4",
+          "state": "completed",
+          "result": "passed",
+          "label": "Journal-proved qBittorrent config-volume bağı ve qBittorrent/Sonarr/Radarr/Jellyfin ortak library tüketici planı 34 yeni/315 ilgili testte geçti."
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/34411793956",
+          "commit": "4e9961540d05df027be0d5fc66fd9d6b639ba6b4",
+          "state": "completed",
+          "result": "passed",
+          "label": "Exact PR30 head Android analyze, 4.670 Server, emülatör E2E ve debug APK; bağımsız Security ile amd64/arm64 karakterizasyonu PASS."
+        },
+        {
+          "kind": "test",
+          "ref": "docs/qbittorrent-config-helper-implementation-2026-09-10.md",
+          "commit": "43936ab202061b03ee0f9dd747c08e172140746c",
+          "state": "completed",
+          "result": "passed",
+          "label": "qBittorrent config yalnız stdin ve exact allowlist ile sabit volume hedefine O_NOFOLLOW/O_EXCL, atomik no-overwrite yayın ve geri okuma altında kuruldu; 16 yeni/136 ilgili test PASS."
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/34411809406",
+          "commit": "43936ab202061b03ee0f9dd747c08e172140746c",
+          "state": "completed",
+          "result": "passed",
+          "label": "Exact PR31 head Android analyze, Server, emülatör E2E ve debug APK PASS; yeniden açılan main hedefinde Security ve amd64/arm64 native karakterizasyon da PASS."
+        },
+        {
+          "kind": "test",
+          "ref": "docs/qbittorrent-config-effect-implementation-2026-09-10.md",
+          "commit": "2b820dcf7f28d87c93f60f753f94931ae5c78411",
+          "state": "completed",
+          "result": "passed",
+          "label": "Journal-bound qBittorrent config effect, bounded Docker stdin, exact helper lifecycle ve süreç içi binding mutasyonu reddi 37 yeni/274 ilgili testte geçti; secret scan temiz."
         }
       ],
       "completionCommit": null,
-      "reason": "Server üretimli sır, sabit startup, exact journal/container/private-network yürütücüsü, kalıcı no-retry koordinatör ve aynı retained daemon'a bağlı private IPC/runtime hazır. Disposable Jellyfin 10.11.11 bootstrap, API anahtarı, sistem/boş kütüphane readback, logout, restart ve veri kalıcılığı exact arm64+amd64 CI'da geçti. Larenor Movies/Shows idempotent kütüphane adımı, journal-bound arşiv hacmi, sabit dizin hazırlığı ve salt okunur /media binding yerelde yeşil; exact AMD64+ARM64 native kabul ve indirilen makbuz doğrulaması tamamlandı. Radarr/Sonarr/qBittorrent/Seerr/Music Assistant otomatik eşleştirmesi açık; installAvailable=false."
+      "reason": "Server üretimli sır, sabit startup, exact journal/container/private-network yürütücüsü, kalıcı no-retry koordinatör ve aynı retained daemon'a bağlı private IPC/runtime hazır. Disposable Jellyfin 10.11.11 bootstrap, API anahtarı, kütüphane eşleştirmesi, logout, restart ve veri kalıcılığı exact arm64+amd64 CI'da geçti. qBittorrent 5.2.3 sahipli config/API, journal-bound volume/library planı, güvenli helper ve private stdin effect ana dalda; current-journal/retained-daemon runtime bağı yerelde yeşil. Kalıcı qBittorrent job/IPC, create-start önkoşulu, Radarr/Sonarr/Seerr/Music Assistant eşleştirmesi ve qBittorrent native kabul açık; installAvailable=false."
     },
     {
       "id": "S06.6",
