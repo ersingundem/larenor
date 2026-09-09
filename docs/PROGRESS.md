@@ -1,6 +1,6 @@
 # Larenor — güncel ilerleme ve iş kuyruğu
 
-**Son güncelleme: 9 Eylül 2026 — S06.4 yönetilen Jellyfin create/start yolu exact PR kaynağında amd64 ve arm64 native makbuzlarıyla doğrulandı; paketli production worker runtime'ı ve tam CI kapısı açık.**
+**Son güncelleme: 9 Eylül 2026 — S06.4 worker supervisor'ı her Engine bağlantısını aynı daemon sürecine bağlıyor; rootful/remap-disabled başlangıç ve config kapısı yerelde uygulandı, güncel Linux CI ve inceleme açık.**
 
 ```text
 Kuyruk kabulü       ██░░░░░░░░░░░░░░░░░░  12/125 iş (%10; eşit ağırlıklı sayaç)
@@ -40,7 +40,7 @@ Gerçek ev kurulumu ve fiziksel tablet kabulü henüz yapılmadı.
 | B5.1 — ortak tablet tasarımı | Services/hesap IME paketi APK116 ile kabul edildi; S08.7 komut ve aktarım yüzeyleri yerel tablet matrisinden geçti | Exact-source Android CI ve kalan ortak tablet yüzeyleri |
 | S06.3d — kalıcı depolama | **Kabul edildi**; Native18 exact `6a054ea`, amd64+arm64 makbuzları doğrulandı | S06.3f ile birleşik kaynak kapısı kapandı |
 | S06.3f — kaynak kabulü | **Kabul edildi**; exact `4021391`, iki mimarili native makbuz, 4.065 Server ve tam Android/Server CI yeşil | S06.4 dar kurulum yürütme kapısı |
-| S06.4 — dar kurulum yürütme kapısı | **Devam ediyor**; PR16 exact `bf6f860` ve PR18 exact `75af015` tam CI kapıları yeşil. `b6196a1` + `1e94267` yerel supervisor yaşam bağını ve her gerçek Engine peer doğrulamasını ekledi | Güncel supervisor head'inin Linux CI'ı ve bağımsız incelemesi; rootful/remap-disabled üretim yetkisi ayrı kapı |
+| S06.4 — dar kurulum yürütme kapısı | **Devam ediyor**; PR16 exact `bf6f860` ve PR18 exact `75af015` tam CI kapıları yeşil. PR19 `9ce3c5a` Linux test fixture düzeltmesiyle CI'da; yerel `98b4f99` rootful/remap-disabled başlangıç kapısını ekledi | PR19 Linux CI; ardından daemon güvenlik dalının exact CI'ı ve bağımsız inceleme |
 
 S06.4 native kabul koşusu [34326112926](https://github.com/ersingundem/larenor/actions/runs/34326112926)
 iki gerçek GitHub runner'ında geçti. İndirilen ARM64 ve X64 makbuzları merge
@@ -81,10 +81,25 @@ her Engine bağlantısının peer PID'sini aynı tutulan canlı pidfd'ye bağlı
 Socket activation veya listener FD devrinde aynı inode ve UID arkasındaki farklı
 daemon process'i artık kabul edilmiyor. İlgili yerel paket **272 PASS / 4 Linux
 skip**;
-gerçek Linux testi `SO_PEERPIDFD`, `/proc` ve user namespace yolunu CI'da
-atlamadan doğrulamalı. Eşit user map'leri initial host namespace veya
-remap-disabled başlangıç kanıtı sayılmadığı ve bağımsız inceleme açık olduğu
-için `installAvailable=false` korunur.
+İlk Linux Server koşusu 4.301 testin 4.300'ünü geçirip test düzeneğinin zaten
+bağlı `socketpair` üzerinde ikinci kez `connect()` çağırması nedeniyle durdu;
+üretim kodu etkiden önce fail-closed kapandı. `9ce3c5a` gerçek peer pidfd'sini
+koruyan preconnected test sarmalayıcısını ekledi ve yeni exact CI koşusu
+başlatıldı. Eşit user map'leri tek başına initial host namespace veya
+remap-disabled başlangıç kanıtı sayılmaz; `installAvailable=false` korunur.
+
+`1c4f3f8` → `e0f7ab0` ve `1056a84` → `98b4f99` TDD dilimleri, supervisor'ın
+socket-bound proc/root tanıtıcılarından daemon `cmdline` ve daemon köküne göre
+çözülen exact `daemon.json` kanıtını no-follow dosya tanıtıcılarıyla tutuyor.
+`/version` ile `/v1.47/info` aynı doğrulanmış bağlantıda ve ortak deadline içinde
+okunuyor. Peer ve worker için root credentials, tam initial kimlik haritası ve
+aynı user namespace zorunlu; başlangıç argümanında veya config'te
+`userns-remap`, Engine güvenlik seçeneklerinde `rootless`/`userns`, yanlış
+platform, duplicate/bozuk JSON, config değiştirme/yerine koyma ya da deadline
+kaybı bütün worker kanıtını etkiden önce kapatıyor. Yeni iki modülün **59 testi**
+ve kurulum/kimlik/Engine yollarını içeren geniş ilgili paket yerelde geçti;
+Security policy, compileall, diff ve kuyruk doğrulaması temiz. Bu yerel kanıt
+henüz exact Linux CI veya bağımsız review değildir.
 
 S08.7 üç sonlu teslimden oluşur: **kaynak bağlama ve typed durum → komut ve
 kalıcı sonuç → açık Direct aktarımı**. Üç yerel dilim de squash yapılmadan
