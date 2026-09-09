@@ -500,7 +500,13 @@ def managed_container_matches(value, binding):
         if type(networks) is not dict or set(networks) != {body['HostConfig']['NetworkMode']}:
             return False
         attached = networks[body['HostConfig']['NetworkMode']]
-        return type(attached) is dict and attached.get('NetworkID') == binding.network_id
+        if type(attached) is not dict:
+            return False
+        if attached.get('NetworkID') == binding.network_id:
+            return True
+        state = value.get('State')
+        return (attached.get('NetworkID') == '' and type(state) is dict
+                and state.get('Status') == 'created' and state.get('Running') is False)
     except (ValueError, TypeError, AttributeError, KeyError, RecursionError):
         return False
 
