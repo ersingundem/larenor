@@ -1308,7 +1308,8 @@ def _managed_inspect_diagnostic(value, binding):
         if any(actual.get(field) != expected.get(field) for field in (
                 'Privileged', 'CapDrop', 'CapAdd', 'SecurityOpt', 'ReadonlyRootfs')):
             return 'managed_inspect_security_mismatch'
-        if actual.get('Tmpfs') != expected.get('Tmpfs'):
+        if (actual.get('Tmpfs') != expected.get('Tmpfs')
+                and not (expected.get('Tmpfs') == {} and actual.get('Tmpfs') in (None, {}))):
             return _tmpfs_diagnostic(actual.get('Tmpfs'), expected.get('Tmpfs'))
         for field, code in (
                 ('Mounts', 'managed_inspect_requested_mount_mismatch'),
