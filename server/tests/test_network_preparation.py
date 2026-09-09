@@ -483,7 +483,11 @@ def test_whole_effect_lease_rejects_concurrent_application(journal, source, sepa
         assert reader.calls == creator.calls == []
     finally:
         release.set()
-        thread.join(3)
+        # Releasing the synthetic effect gate still leaves the worker's fresh
+        # source checks, reconciliation and durable fsync to complete. Those
+        # steps share the operation budget and can exceed three seconds on a
+        # loaded CI filesystem without representing a deadlock.
+        thread.join(10)
         if separate_instance:
             second.close()
     assert not thread.is_alive() and errors == [] and len(results) == 1 and results[0].state == 'ready'
