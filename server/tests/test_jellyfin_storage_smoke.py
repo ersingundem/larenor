@@ -336,6 +336,35 @@ def test_running_container_pid_must_be_inside_owned_container_cgroup(monkeypatch
     assert daemon.verify_container_cgroup(4242) is None
 
 
+def test_managed_container_limits_are_read_from_its_owned_cgroup(monkeypatch, tmp_path):
+    m = api()
+    daemon = m.EphemeralDaemon()
+    monkeypatch.setattr(daemon, '_container_cgroup_path', lambda pid: tmp_path)
+    (tmp_path/'memory.max').write_bytes(b'4294967296\n')
+    (tmp_path/'cpu.max').write_bytes(b'200000 100000\n')
+    (tmp_path/'pids.max').write_bytes(b'512\n')
+    assert daemon.verify_container_resources(4242, 4294967296, 2000000000, 512) is None
+
+
+@pytest.mark.parametrize('name,value', [
+    ('memory.max', b'max\n'), ('memory.max', b'4294967295\n'),
+    ('cpu.max', b'max 100000\n'), ('cpu.max', b'199999 100000\n'),
+    ('pids.max', b'max\n'), ('pids.max', b'511\n'),
+])
+def test_managed_container_rejects_missing_or_weakened_cgroup_limits(
+        monkeypatch, tmp_path, name, value):
+    m = api()
+    daemon = m.EphemeralDaemon()
+    monkeypatch.setattr(daemon, '_container_cgroup_path', lambda pid: tmp_path)
+    values = {'memory.max': b'4294967296\n', 'cpu.max': b'200000 100000\n',
+              'pids.max': b'512\n'}
+    values[name] = value
+    for filename, contents in values.items():
+        (tmp_path/filename).write_bytes(contents)
+    with pytest.raises(m.SmokeError, match='^managed_resource_limits_unverified$'):
+        daemon.verify_container_resources(4242, 4294967296, 2000000000, 512)
+
+
 @pytest.mark.parametrize('pid,state', [(0,b'0::/x\n'), (4242,b'0::/system.slice/foreign.service\n'),
     (4242,b'0::/system.slice/larenor-jellyfin-test.service/containers2/abc\n')])
 def test_running_container_pid_rejects_invalid_or_escaped_cgroup(monkeypatch, pid, state):
@@ -513,6 +542,10 @@ def protocol(tmp_path, monkeypatch, request):
         def verify_container_cgroup(self, pid):
             assert pid == 4242
             self.verified_pids.append(pid)
+        def verify_container_resources(self, pid, memory, nano_cpus, pids_limit):
+            assert (pid, memory, nano_cpus, pids_limit) == (
+                4242, 4 * 1024 * 1024 * 1024, 2_000_000_000, 512)
+            self.verified_pids.append(pid)
     return m, source, Docker(), Images()
 
 
@@ -553,7 +586,15 @@ def test_managed_characterization_routes_through_resources_and_v2_worker(
             events.append(('inspect', identity))
             return {'Id': identity, 'State': {'Pid': 4242, 'Running': True}}
 
-    marker = object()
+    class Marker:
+        @staticmethod
+        def payload():
+            return {'specification': {'HostConfig': {
+                'Memory': 4 * 1024 * 1024 * 1024,
+                'NanoCpus': 2_000_000_000,
+                'PidsLimit': 512,
+            }}}
+    marker = Marker()
     monkeypatch.setattr(m, '_managed_create_and_start',
         lambda owner, actual_source, endpoint, helper_id:
             (events.append(('managed', owner, actual_source, endpoint.path, helper_id))
@@ -574,6 +615,7 @@ def test_managed_characterization_routes_through_resources_and_v2_worker(
                    if call[0] == 'create' and '--name=larenor-helper-base-probe' not in call]
     assert app_creates == []
     assert ['start', 'c' * 64] not in docker.calls
+    assert docker.verified_pids == [4242, 4242]
 
 
 @pytest.mark.parametrize('status,message,expected', [

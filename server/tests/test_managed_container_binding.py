@@ -76,6 +76,7 @@ def test_builder_derives_ports_off_private_network_and_exact_nocopy_mounts():
     assert body['Image'].endswith('@' + jellyfin.plan.image.digest)
     assert body['User'] == '1000:1000'
     assert body['HostConfig']['NetworkMode'].startswith('larenor-control-')
+    assert body['HostConfig']['MemorySwap'] == -1
     assert 'PortBindings' not in body['HostConfig'] and 'ExposedPorts' not in body
     assert body['HostConfig']['Mounts'] == [
         {'Type': 'volume', 'Source': mount.name, 'Target': mount.target,
@@ -160,7 +161,8 @@ def test_fresh_inspect_matches_full_image_mount_network_and_security_state():
     assert managed_container_matches(snapshot(binding), binding)
 
 
-@pytest.mark.parametrize('damage', ['mount', 'extra_mount', 'network', 'image', 'capability', 'env'])
+@pytest.mark.parametrize('damage', ['mount', 'extra_mount', 'network', 'image', 'capability', 'env',
+                                    'memory_swap'])
 def test_inspect_drift_cannot_reconcile_as_the_managed_container(damage):
     _builder, _stack, binding = build()
     value = snapshot(binding)
@@ -174,6 +176,8 @@ def test_inspect_drift_cannot_reconcile_as_the_managed_container(damage):
         value['Image'] = 'sha256:' + '9' * 64
     elif damage == 'capability':
         value['HostConfig']['CapAdd'] = ['SYS_ADMIN']
+    elif damage == 'memory_swap':
+        value['HostConfig']['MemorySwap'] = 0
     else:
         value['Config']['Env'].append('TOKEN=private')
     assert managed_container_matches(value, binding) is False
