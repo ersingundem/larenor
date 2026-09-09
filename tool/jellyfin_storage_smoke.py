@@ -139,6 +139,8 @@ _MANAGED_CREATE_DIAGNOSTICS = {
     'managed_create_engine_rejected', 'managed_create_transport_failed',
     'managed_create_binding_rejected', 'managed_create_protocol_failed',
     'managed_create_endpoint_rejected', 'managed_create_resource_conflict',
+    'managed_create_response_invalid', 'managed_create_identity_invalid',
+    'managed_create_warnings_present',
 }
 _DIAGNOSTIC_CODES = _CODES | set(_BUILD_ERROR_PATTERNS) | set(_START_ERROR_PATTERNS) | {
     'helper_base_runtime_failed', 'helper_base_error_ambiguous',
@@ -1135,6 +1137,33 @@ def _managed_create_rejection(status, body):
     return fallback
 
 
+def _managed_create_success_diagnostic(body):
+    if type(body) is not bytes or not 0 < len(body) <= 1048576:
+        return 'managed_create_response_invalid'
+
+    def unique(pairs):
+        value = {}
+        for key, item in pairs:
+            if key in value:
+                raise ValueError()
+            value[key] = item
+        return value
+
+    try:
+        value = json.loads(body, object_pairs_hook=unique,
+                           parse_constant=lambda _: (_ for _ in ()).throw(ValueError()))
+    except (ValueError, TypeError, UnicodeError, RecursionError):
+        return 'managed_create_response_invalid'
+    if type(value) is not dict:
+        return 'managed_create_response_invalid'
+    if (type(value.get('Id')) is not str
+            or re.fullmatch(r'[0-9a-f]{64}', value['Id']) is None):
+        return 'managed_create_identity_invalid'
+    if value.get('Warnings') not in (None, []):
+        return 'managed_create_warnings_present'
+    return None
+
+
 def _managed_engine(endpoint):
     from larenor_server.plugins.worker import DockerWorkerError, UnixDockerEngine
 
@@ -1149,9 +1178,11 @@ def _managed_engine(endpoint):
                 if create:
                     self.managed_create_diagnostic = 'managed_create_transport_failed'
                 raise
-            if create and response.status != 201:
-                self.managed_create_diagnostic = _managed_create_rejection(
-                    response.status, response.body,
+            if create:
+                self.managed_create_diagnostic = (
+                    _managed_create_success_diagnostic(response.body)
+                    if response.status == 201
+                    else _managed_create_rejection(response.status, response.body)
                 )
             return response
 
