@@ -143,6 +143,8 @@ _MANAGED_CREATE_DIAGNOSTICS = {
     'managed_create_platform_warning', 'managed_create_network_warning',
     'managed_create_resource_warning', 'managed_create_security_warning',
     'managed_create_warning_unclassified',
+    'managed_create_swap_warning', 'managed_create_memory_warning',
+    'managed_create_cpu_warning', 'managed_create_pids_warning',
 }
 _DIAGNOSTIC_CODES = _CODES | set(_BUILD_ERROR_PATTERNS) | set(_START_ERROR_PATTERNS) | {
     'helper_base_runtime_failed', 'helper_base_error_ambiguous',
@@ -1173,8 +1175,12 @@ def _managed_create_success_diagnostic(body):
              ('requested image', 'host platform', 'platform does not match')),
             ('managed_create_network_warning',
              ('forwarding is disabled', 'networking will not work', 'bridge-nf-call')),
+            ('managed_create_swap_warning', ('swap',)),
+            ('managed_create_memory_warning', ('memory limit',)),
+            ('managed_create_cpu_warning', ('cpu',)),
+            ('managed_create_pids_warning', ('pids limit',)),
             ('managed_create_resource_warning',
-             ('swap limit', 'memory limit', 'cpu', 'pids limit', 'resource')),
+             ('resource',)),
             ('managed_create_security_warning',
              ('apparmor', 'seccomp', 'selinux', 'security opt', 'capabilit')),
         )

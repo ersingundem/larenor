@@ -617,7 +617,16 @@ def test_malformed_managed_create_response_stays_closed(body):
     ]}).encode(), 'managed_create_network_warning'),
     (json.dumps({'Id': 'a' * 64, 'Warnings': [
         'Your kernel does not support swap limit capabilities',
-    ]}).encode(), 'managed_create_resource_warning'),
+    ]}).encode(), 'managed_create_swap_warning'),
+    (json.dumps({'Id': 'a' * 64, 'Warnings': [
+        'Your kernel does not support memory limit capabilities',
+    ]}).encode(), 'managed_create_memory_warning'),
+    (json.dumps({'Id': 'a' * 64, 'Warnings': [
+        'CPU cgroup limit is unavailable',
+    ]}).encode(), 'managed_create_cpu_warning'),
+    (json.dumps({'Id': 'a' * 64, 'Warnings': [
+        'Pids limit is unavailable',
+    ]}).encode(), 'managed_create_pids_warning'),
     (json.dumps({'Id': 'a' * 64, 'Warnings': None, 'extra': 'allowed'}).encode(), None),
 ])
 def test_managed_create_success_shape_is_classified_without_content(body, expected):
