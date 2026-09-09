@@ -126,7 +126,9 @@ def test_bootstrap_requires_current_ready_admin_and_bounds_reads(server):
     assert member['role'] == 'member'
 
 
-@pytest.mark.parametrize('damage', ['ciphertext', 'nonce', 'state', 'table', 'orphan'])
+@pytest.mark.parametrize('damage', [
+    'ciphertext', 'nonce', 'state', 'error_code', 'table', 'orphan',
+])
 def test_storage_damage_fails_closed_on_restart(server, damage):
     app, _client, settings, _ = server
     pair, installation = installed(server)
@@ -140,6 +142,10 @@ def test_storage_damage_fails_closed_on_restart(server, damage):
         elif damage == 'state':
             connection.execute("PRAGMA ignore_check_constraints=ON")
             connection.execute("UPDATE media_service_bootstraps SET state='private-secret'")
+        elif damage == 'error_code':
+            connection.execute(
+                "UPDATE media_service_bootstraps SET error_code='private-secret'",
+            )
         elif damage == 'table':
             connection.execute('ALTER TABLE media_service_bootstraps RENAME TO media_service_bootstraps_old')
         else:
@@ -204,6 +210,24 @@ def test_interrupted_running_bootstrap_is_never_retried(server):
     assert terminal['state'] == 'needs_attention'
     assert terminal['errorCode'] == 'bootstrap_interrupted'
     assert terminal['credentialsConfigured'] is False
+    assert backend.calls == []
+
+
+def test_authority_loss_before_dispatch_is_persisted_without_backend_call(server):
+    app, client, settings, _ = server
+    pair, installation = installed(server)
+    record = client.post(BASE, headers=auth(pair), json=request(installation)).json()['bootstrap']
+    backend = BootstrapBackend()
+    app.state.core.media_service_bootstraps.backend = backend
+    with app.state.core.db.connection() as connection:
+        connection.execute(
+            'UPDATE session_families SET revoked_at=?',
+            (int(settings.clock()),),
+        )
+
+    terminal = app.state.core.media_service_bootstraps.tick()['bootstrap']
+    assert terminal['state'] == 'needs_attention'
+    assert terminal['errorCode'] == 'bootstrap_authority_changed'
     assert backend.calls == []
 
 

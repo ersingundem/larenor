@@ -10,7 +10,8 @@ _COLUMNS = (
     ('request_id', 'TEXT', 1, None, 0), ('installation_id', 'TEXT', 1, None, 0),
     ('installation_revision', 'INTEGER', 1, None, 0), ('state', 'TEXT', 1, None, 0),
     ('credentials_configured', 'INTEGER', 1, None, 0),
-    ('wiring_state', 'TEXT', 1, None, 0), ('created_at', 'INTEGER', 1, None, 0),
+    ('wiring_state', 'TEXT', 1, None, 0), ('error_code', 'TEXT', 0, None, 0),
+    ('created_at', 'INTEGER', 1, None, 0),
     ('updated_at', 'INTEGER', 1, None, 0), ('nonce', 'BLOB', 1, None, 0),
     ('ciphertext', 'BLOB', 1, None, 0),
 )
@@ -60,6 +61,7 @@ def migrate_media_service_bootstraps(connection):
             state TEXT NOT NULL CHECK(state IN ('queued','running','credentials_configured','wiring_partial','succeeded','needs_attention','failed','cancelled')),
             credentials_configured INTEGER NOT NULL CHECK(credentials_configured IN (0,1)),
             wiring_state TEXT NOT NULL CHECK(wiring_state IN ('pending','partial','verified')),
+            error_code TEXT,
             created_at INTEGER NOT NULL,
             updated_at INTEGER NOT NULL,
             nonce BLOB NOT NULL,
