@@ -38,7 +38,7 @@ Gerçek ev kurulumu ve fiziksel tablet kabulü henüz yapılmadı.
 | S08.6 — kişi, oda, kaynak ve izin yönetimi | **Kabul edildi**, aynı yayın | Merkezi HA akışının yetki temeli hazır |
 | S08.7 — merkezi Home Assistant adaptörü | **Devam ediyor**; typed durum, kalıcı switch komutu/makbuzu ve açık Direct→Core aktarımı main içinde | Exact-source birleşik CI; sonra geniş HA varlık/servis kapsamı |
 | B5.1 — ortak tablet tasarımı | Services/hesap IME paketi APK116 ile kabul edildi; S08.7 komut ve aktarım yüzeyleri yerel tablet matrisinden geçti | Exact-source Android CI ve kalan ortak tablet yüzeyleri |
-| S06.3d — kalıcı depolama | Native16 iki mimaride numeric-process namespace yolu verdi; namespace yaprakları yerelde hazır | Exact-source Native17 ile namespace türünü ayır |
+| S06.3d — kalıcı depolama | Native17 iki mimaride `net` namespace gözlemi verdi; sahiplikli cgroup onarımı yerelde ve bağımsız incelemede hazır | Exact-source Server CI sonrası main ve Native18 |
 
 S08.7 üç sonlu teslimden oluşur: **kaynak bağlama ve typed durum → komut ve
 kalıcı sonuç → açık Direct aktarımı**. Üç yerel dilim de squash yapılmadan
@@ -304,8 +304,24 @@ hata imzalarından ayrılarak `cgroup` yaprağının izolasyon hatası sanılmas
 toplam 311 Jellyfin ve 218 politika testini geçti. Bağımsız final inceleme
 CLEAR. Exact `ce5479a` izole Server CI koşusunda 3.988 test geçti.
 [Process namespace tanısı](jellyfin-base-process-namespace-diagnostics-2026-09-09.md).
-Native17 namespace türünü ayıracak; sonuç yine tek başına kurulum kabulü
-değildir.
+On yedinci koşu `34289499126`, exact `d7b2027` üzerinde iki mimaride de
+`helper_base_start / helper_base_proc_process_net_namespace_observed` verdi;
+başarı makbuzu veya artefakt yok. Tek indirilen 70.235 bayt logun SHA-256
+değeri `0db35348fe1aff1f7177b174b5e961fe206e41d4d95c93693ca6dae290b65c09`.
+PID namespace içinde host procfs görünümünü bırakma adayı yerel testlerde
+311 Jellyfin ve 218 politika testini geçti; ancak bağımsız inceleme iç thread
+kimlikleri ile procfs sayı uzayını ayırdığını gösterdi. Aday Native'e
+gönderilmeden geri alındı. `30a2b3b` onarımı mount-only daemonı transient
+systemd servisine, helper ve Jellyfin süreçlerini aynı servisin ayrı
+`containers` cgroup alt ağacına alır. Systemd kimliği, invocation, ana PID ve
+cgroup inode'u iki aşamada doğrulanır; temizlik yalnız önceden açılmış
+`cgroup.kill` ve aynı `cgroup.events` descriptorlarıyla yapılır. Launch yanıtı
+belirsizse aynı adlı servis sonradan sahiplenilmez. 351 Jellyfin ve 219 politika
+testi geçti; bağımsız final inceleme CLEAR. Exact-source izole Server CI
+[34293524785](https://github.com/ersingundem/larenor/actions/runs/34293524785)
+4.027 testi iki uyarıyla geçti. Paket main'e alınacak ve Native18 yalnız o
+exact kaynaktan bir kez çalışacak.
+[Sahiplikli cgroup yaşam döngüsü](jellyfin-owned-cgroup-lifecycle-2026-09-09.md).
 Gerçek Engine ve kurulum kabulü hâlâ açık; `installAvailable=false`.
 
 ## Canlı takip ve sıradaki işler

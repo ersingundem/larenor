@@ -400,7 +400,8 @@
         "docs/jellyfin-base-path-relation-diagnostics-2026-09-09.md",
         "docs/jellyfin-base-path-cooccurrence-diagnostics-2026-09-09.md",
         "docs/jellyfin-base-proc-subpath-diagnostics-2026-09-09.md",
-        "docs/jellyfin-base-process-namespace-diagnostics-2026-09-09.md"
+        "docs/jellyfin-base-process-namespace-diagnostics-2026-09-09.md",
+        "docs/jellyfin-owned-cgroup-lifecycle-2026-09-09.md"
       ],
       "scope": "installAvailable=false; Client kaynak adı/Docker seçenekleri üretmez. Gerçek ev sunucusuna işlem yok.",
       "acceptance": [
@@ -598,11 +599,11 @@
         },
         {
           "kind": "ci",
-          "ref": "https://github.com/ersingundem/larenor/actions/runs/34281674390",
-          "commit": "1e73ea3b122eeaa64ae9254269bdad18ddec8a6c",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/34293524785",
+          "commit": "30a2b3b5219ea1cfd02447b3537fb5cbe2ffcb3b",
           "state": "completed",
-          "result": "failed",
-          "label": "Native14: iki mimaride helper_base_start/path_location_ambiguous; makbuz/artefakt yok. Tek log70207byte/SHA81409d86; nötr exact-ikili aile gözlemi açık."
+          "result": "passed",
+          "label": "Sahiplikli cgroup exact-source izole Server CI: 4.027 test geçti, iki uyarı; kaynak30a2b3b doğrulandı. Native Engine kabulü ve installAvailable ayrı açık."
         },
         {
           "kind": "test",
@@ -622,27 +623,27 @@
         },
         {
           "kind": "ci",
-          "ref": "https://github.com/ersingundem/larenor/actions/runs/34284431981",
-          "commit": "d5d58895d42ea4193c6129774c7b64300b4552df",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/34289499126",
+          "commit": "d7b20277f510dfd656ef9f153f877f0e033c6ed0",
           "state": "completed",
           "result": "failed",
-          "label": "Native15: iki mimaride helper_base_start/engine_proc_paths_observed; makbuz/artefakt yok. Tek log70226byte/SHA6a22d9e6; procfs alt aile tanısı açık."
+          "label": "Native17: iki mimaride helper_base_start/helper_base_proc_process_net_namespace_observed; makbuz/artefakt yok. Tek log70235byte/SHA0db35348; sahiplikli cgroup onarımı gerekli."
         },
         {
           "kind": "test",
-          "ref": "docs/jellyfin-base-proc-subpath-diagnostics-2026-09-09.md",
-          "commit": "12f6f0931fce17f91204e8cdeb767daef395fd9e",
+          "ref": "docs/jellyfin-owned-cgroup-lifecycle-2026-09-09.md",
+          "commit": "30a2b3b5219ea1cfd02447b3537fb5cbe2ffcb3b",
           "state": "completed",
           "result": "passed",
-          "label": "Proc-subpath:8 ilk RED+2 review RED kapalı;64state/96state+stderr/300Jellyfin/218politikaPASS. Altı sabit procfs ailesi yalnız /proc köklü tokenlardan; mountinfo exact, çoklu alt aile ambiguous."
+          "label": "Sahiplikli cgroup yaşam döngüsü: capture/cleanup yarış RED'leri kapalı; 351 Jellyfin ve 219 politika testi PASS. Mount-only daemon, exact container cgroup parent ve pinned kill/events descriptorları doğrulandı."
         },
         {
           "kind": "review",
-          "ref": "docs/jellyfin-base-proc-subpath-diagnostics-2026-09-09.md",
-          "commit": "12f6f0931fce17f91204e8cdeb767daef395fd9e",
+          "ref": "docs/jellyfin-owned-cgroup-lifecycle-2026-09-09.md",
+          "commit": "30a2b3b5219ea1cfd02447b3537fb5cbe2ffcb3b",
           "state": "completed",
           "result": "passed",
-          "label": "Bağımsız CLEAR: lookalike/mountinfo P2 gerçek RED ile kapalı; allowlist/private output/tek inspect/no-retry/cancellation korundu."
+          "label": "Bağımsız CLEAR: ikinci unit/inode/PID doğrulaması, same-FD ENODEV emeklilik sınırı, belirsiz launchta sahiplenmeme ve host-scan/stop/prune yasağı korundu."
         },
         {
           "kind": "ci",
@@ -670,7 +671,7 @@
         }
       ],
       "completionCommit": null,
-      "reason": "Native16 run34287061380 exactb4e8620: iki mimaride proc_process_namespace_observed; tek log70230byte/SHAc9ba3dd9, başarı makbuzu/artefakt yok. Process-namespace4fa3c2a:11RED kapalı,75state/107state+stderr/311Jellyfin/218politikaPASS+bağımsız CLEAR; exactce5479a izole CI 3988PASS. On sabit leaf full-token, unknown genel kalır, çoklu ambiguous, PID dönmez. Pathler genel state-signature metninden ayrıldı. Tek start/owned10s64KiBinspect/redaksiyon/cleanup aynı. Native17 açık; installAvailable=false."
+      "reason": "Native17 run34289499126 exactd7b2027: iki mimaride proc_process_net_namespace_observed; tek log70235byte/SHA0db35348, başarı makbuzu/artefakt yok. PID-namespace/host-procfs adayı bağımsız incelemede sayı uzayı ayrışması nedeniyle native öncesi geri alındı. Cgroup onarımı30a2b3b: mount-only transient systemd servisi, daemon/containers ayrımı, exact parent+runtime PID üyeliği, iki aşamalı unit/inode/PID capture ve pinned cgroup.kill/events cleanup; 351Jellyfin/219politikaPASS+bağımsız CLEAR. Exact-source izole Server CI run34293524785 4027PASS/2uyarı. Main+Native18 açık; installAvailable=false."
     },
     {
       "id": "S06.3e",

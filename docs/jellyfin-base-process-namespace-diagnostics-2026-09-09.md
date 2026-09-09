@@ -57,9 +57,13 @@ The single start attempt, one bounded 10-second/64-KiB owned-state inspect,
 no-retry rule, cancellation behavior and whole-namespace cleanup are
 unchanged.
 
-## Remaining gate
+## Native result
 
-Native run 17 must execute this exact reducer on both architectures. Its
-closed namespace-leaf result will support a bounded root-cause assessment or
-the next necessary observation. Real Engine installation acceptance remains
-open and `installAvailable=false`.
+Native run 17 executed this reducer on both architectures and selected the
+numeric-process `net` namespace leaf. A runner-procfs candidate was rejected
+before native execution because it would separate PID-namespace thread IDs
+from the procfs numeric view. A cgroup-owned mount-only daemon lifecycle is the
+implemented repair boundary; its ownership, cleanup and verification evidence
+is documented in the
+[owned cgroup lifecycle](jellyfin-owned-cgroup-lifecycle-2026-09-09.md).
+Real Engine installation acceptance remains open and `installAvailable=false`.
