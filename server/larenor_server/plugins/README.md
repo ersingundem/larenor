@@ -302,10 +302,12 @@ This mutation channel is physically separate from preflight. The API uses
 `LARENOR_INSTALLATION_WORKER_UID`; using the preflight path for both fails
 startup. Unix socket ownership, peer UID, packet size and deadlines use the same
 bounded transport rules, but accepted operations are only `status`, `apply` and
-`reconcile`. Each request contains a strict `WorkerStep` plus the packaged
-`MediaStackComponent`. The worker reruns catalog, plan, installation and step-ID
-verification, then invokes its internal policy-owned binding builder. No public
-request supplies a Docker endpoint or payload.
+`reconcile`. Each request contains a strict `WorkerStep` plus the complete
+packaged `MediaStackPlan`. The worker reruns catalog and stack verification,
+derives the Jellyfin child, checks its installation and step ID, then invokes
+its internal policy-owned binding builder. This Core/home/preparation context is
+required to bind resource receipts. No public request supplies a Docker endpoint
+or payload.
 
 The final installation worker runtime, resource-receipt binding builder and
 unified supervisor are still open. The API container does not start this

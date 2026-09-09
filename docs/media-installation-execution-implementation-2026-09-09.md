@@ -30,9 +30,10 @@ SQLite işlemi worker çağrısı boyunca açık tutulmaz.
 `LARENOR_INSTALLATION_WORKER_SOCKET` ise yalnız `status`, `apply` ve
 `reconcile` kabul eden ayrı Unix IPC'dir. İki yol aynı olamaz. Bağlantının
 socket türü/sahipliği ve peer UID'si doğrulanır; paket ve toplam süre sınırlıdır.
-Worker gelen `WorkerStep` ile paketli `MediaStackComponent` ilişkisini ve güncel
-kataloğu yeniden doğrular. Docker binding yalnız worker içindeki güvenilir
-builder'dan gelebilir.
+Worker gelen `WorkerStep` ile tam paketli `MediaStackPlan` ilişkisini ve güncel
+kataloğu yeniden doğrular, Jellyfin child'ını içeride seçer. Böylece kaynak
+makbuzlarını Core/ev/preparation kimliğiyle yeniden türetmek için gereken bağlam
+korunur. Docker binding yalnız worker içindeki güvenilir builder'dan gelebilir.
 
 Bu dilim son kurulum worker CLI'sini veya runtime supervisor'ını sağlamaz.
 Kabul edilmiş image, volume ve network resource receipt'lerini mounted binding'e
@@ -47,6 +48,7 @@ yapılmadı.
   değişimi, iptal ve şifreli saklama regresyonları.
 - GREEN `25e6a9b`: kalıcı API, migration, Core/router ve dispatcher bağlantısı.
 - RED `b170075`: preflight'tan ayrı mutasyon IPC sözleşmesi.
+- RED `241e6fb`: resource binding için tam stack bağlamının IPC'de korunması.
 - Güncel yerel paket: sözleşme, IPC, startup güvenliği, job runtime, yürütme ve
   API için 56 test geçti; Python derleme ve `git diff --check` temiz.
 

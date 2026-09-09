@@ -273,7 +273,8 @@ separate execution channel is configured, while `installAvailable` remains
 Mutating IPC uses `LARENOR_INSTALLATION_WORKER_SOCKET` and
 `LARENOR_INSTALLATION_WORKER_UID`. It cannot share the read-only preflight
 socket. The bounded Unix protocol carries only the authenticated worker step and
-packaged component plan; the worker revalidates both before its policy-owned
+complete packaged stack plan; the worker revalidates both, then derives the
+Jellyfin child before its policy-owned
 binding builder can reach the journaled Engine operations. This source slice
 does not yet ship the final installation worker CLI, mounted-resource binding
 policy or unified supervisor. It has not installed anything on a real home

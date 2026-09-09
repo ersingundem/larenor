@@ -14,7 +14,7 @@ import re
 from typing import Literal
 
 from .catalog import load_catalog, verify_plan
-from .stack_plan import MediaStackComponent, MediaStackPlan, verify_media_stack_plan
+from .stack_plan import MediaStackPlan, verify_media_stack_plan
 from .worker import StepReceipt, WorkerStep
 
 
@@ -63,17 +63,24 @@ class InstallationExecution:
     service_id: Literal['jellyfin']
     operation_id: str
     steps: tuple[WorkerStep, WorkerStep]
-    component: MediaStackComponent = field(repr=False)
+    plan: MediaStackPlan = field(repr=False)
 
     def __post_init__(self):
         if (self.service_id != 'jellyfin' or not _ID.fullmatch(self.operation_id)
                 or type(self.steps) is not tuple or len(self.steps) != 2
-                or type(self.component) is not MediaStackComponent
+                or type(self.plan) is not MediaStackPlan
+                or tuple(step.kind for step in self.steps) != _KINDS
                 or self.component.serviceId != self.service_id
                 or self.component.operationId != self.operation_id
-                or tuple(step.kind for step in self.steps) != _KINDS
                 or any(step.installation_id != self.component.installationId for step in self.steps)):
             raise InstallationExecutionError()
+
+    @property
+    def component(self):
+        try:
+            return next(item for item in self.plan.components if item.serviceId == self.service_id)
+        except StopIteration:
+            raise InstallationExecutionError() from None
 
     def public(self):
         return {'serviceId': self.service_id, 'operationId': self.operation_id,
@@ -109,7 +116,7 @@ class InstallationExecution:
                 state = 'cancelled' if current.code == 'cancelled' else 'needs_attention'
                 return ExecutionResult(state, current.code)
             try:
-                receipt = backend.apply(step, self.component)
+                receipt = backend.apply(step, self.plan)
             except Exception:
                 return ExecutionResult('pending', 'worker_unavailable')
             if (type(receipt) is not StepReceipt or receipt.job_id != step.job_id
@@ -122,7 +129,7 @@ class InstallationExecution:
                     state = 'cancelled' if current.code == 'cancelled' else 'needs_attention'
                     return ExecutionResult(state, current.code)
                 try:
-                    receipt = backend.reconcile(step, self.component)
+                    receipt = backend.reconcile(step, self.plan)
                 except Exception:
                     return ExecutionResult('pending', 'worker_unavailable')
                 if (type(receipt) is not StepReceipt or receipt.job_id != step.job_id
@@ -149,10 +156,13 @@ class JellyfinWorkerBackend:
         self.operations, self.binding_builder = operations, binding_builder
 
     @staticmethod
-    def _verify(step, component):
+    def _verify(step, plan):
         try:
-            if (type(step) is not WorkerStep or type(component) is not MediaStackComponent
-                    or component.serviceId != 'jellyfin' or component.plan.serviceId != 'jellyfin'
+            if type(step) is not WorkerStep or type(plan) is not MediaStackPlan:
+                raise ValueError()
+            current = verify_media_stack_plan(plan, load_catalog())
+            component = next(item for item in current.components if item.serviceId == 'jellyfin')
+            if (component.plan.serviceId != 'jellyfin'
                     or step.installation_id != component.installationId
                     or step.kind not in _KINDS):
                 raise ValueError()
@@ -160,12 +170,12 @@ class JellyfinWorkerBackend:
             if expected.stepId != step.dispatch_id:
                 raise ValueError()
             verify_plan(component.plan, load_catalog())
-            return component
+            return current
         except (ValueError, TypeError, AttributeError, StopIteration):
             raise InstallationExecutionError() from None
 
-    def apply(self, step, component):
-        trusted = self._verify(step, component)
+    def apply(self, step, plan):
+        trusted = self._verify(step, plan)
         try:
             binding = self.binding_builder(trusted)
             return self.operations.apply(step, binding)
@@ -174,8 +184,8 @@ class JellyfinWorkerBackend:
         except Exception:
             raise InstallationExecutionError('invalid_worker_result') from None
 
-    def reconcile(self, step, component):
-        self._verify(step, component)
+    def reconcile(self, step, plan):
+        self._verify(step, plan)
         try:
             return self.operations.reconcile(step.job_id, step.kind)
         except Exception:
@@ -198,6 +208,6 @@ def build_execution(plan, *, job_id, deadline, service_id='jellyfin'):
         by_kind = {step.kind: step for step in component.steps}
         steps = tuple(WorkerStep(job_id, component.installationId, kind,
                                  by_kind[kind].stepId, deadline) for kind in _KINDS)
-        return InstallationExecution('jellyfin', component.operationId, steps, component)
+        return InstallationExecution('jellyfin', component.operationId, steps, verified)
     except (ValueError, TypeError, AttributeError, StopIteration):
         raise InstallationExecutionError() from None
