@@ -15,11 +15,14 @@ import time
 from typing import NamedTuple
 
 
-TOTAL_SECONDS = 10
-COMMAND_SECONDS = 2
+TOTAL_SECONDS = 20
+COMMAND_SECONDS = 5
 MAX_ATTEMPTS = 5
 RETRY_SECONDS = 1
 MAX_OUTPUT_BYTES = 256
+LAUNCHER_TOTAL_SECONDS = 20
+LAUNCHER_COMMAND_SECONDS = 5
+LAUNCHER_MAX_ATTEMPTS = 3
 _AOSP_HOME_PACKAGE = b"package:com.android.launcher3"
 
 
@@ -106,29 +109,45 @@ def ensure_awake(serial, *, command=_adb, clock=time.monotonic, sleep=time.sleep
 
 
 def disable_ci_quickstep(
-    serial, *, command=_adb, clock=time.monotonic, environment=os.environ,
+    serial, *, command=_adb, clock=time.monotonic, sleep=time.sleep,
+    environment=os.environ,
 ):
     """Disable only the resolved AOSP launcher on a GitHub Actions QEMU AVD."""
     if environment.get("GITHUB_ACTIONS") != "true":
         return Outcome("skipped")
     if not re.fullmatch(r"emulator-[0-9]+", serial):
         return Outcome("invalid_emulator")
-    deadline = clock() + TOTAL_SECONDS
+    deadline = clock() + LAUNCHER_TOTAL_SECONDS
 
     def run(args):
-        return command(serial, args, min(deadline, clock() + COMMAND_SECONDS))
+        return command(
+            serial,
+            args,
+            min(deadline, clock() + LAUNCHER_COMMAND_SECONDS),
+        )
 
     qemu = run(["shell", "getprop", "ro.kernel.qemu"])
     if qemu is None:
         return Outcome("adb_failed")
     if qemu.rstrip(b"\r\n") != b"1":
         return Outcome("invalid_emulator")
-    home_package = run([
-        "shell", "pm", "list", "packages", "--system", "--user", "0",
-        "com.android.launcher3",
-    ])
+    attempts = 0
+    home_package = None
+    while attempts < LAUNCHER_MAX_ATTEMPTS:
+        if clock() >= deadline:
+            return Outcome("deadline", attempts)
+        attempts += 1
+        home_package = run([
+            "shell", "pm", "list", "packages", "--system", "--user", "0",
+            "com.android.launcher3",
+        ])
+        if home_package is not None:
+            break
+        if attempts < LAUNCHER_MAX_ATTEMPTS:
+            sleep_seconds = min(RETRY_SECONDS, max(0, deadline - clock()))
+            sleep(sleep_seconds)
     if home_package is None:
-        return Outcome("adb_failed")
+        return Outcome("adb_failed", attempts)
     if home_package.rstrip(b"\r\n") != _AOSP_HOME_PACKAGE:
         return Outcome("unexpected_home")
     disabled = run([
@@ -145,7 +164,7 @@ def disable_ci_quickstep(
         return Outcome("adb_failed")
     if verified.rstrip(b"\r\n") != b"package:com.android.launcher3":
         return Outcome("not_disabled")
-    return Outcome("verified", 1, "aosp_quickstep_disabled")
+    return Outcome("verified", attempts, "aosp_quickstep_disabled")
 
 
 def main():
