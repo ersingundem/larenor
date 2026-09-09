@@ -1,12 +1,12 @@
 # Larenor — güncel ilerleme ve iş kuyruğu
 
-**Son güncelleme: 9 Eylül 2026 — S08.7 salt okunur Home Assistant domain kapsamı exact CI ile ana dala alındı; S06.5 authenticated Jellyfin API anahtarı, sistem ve kütüphane geri okumasını şifreli Core durumuna taşıdı.**
+**Son güncelleme: 9 Eylül 2026 — S08.7 salt okunur Home Assistant domain kapsamı exact CI ile ana dala alındı; S06.5 disposable Jellyfin kabulü gerçek bootstrap, API anahtarı, sistem/kütüphane geri okuması ve oturum kapatmayı kapsayacak biçimde genişletildi.**
 
 ```text
-Kuyruk kabulü       ██░░░░░░░░░░░░░░░░░░  13/125 iş (%10; eşit ağırlıklı sayaç)
+Kuyruk kabulü       ██░░░░░░░░░░░░░░░░░░  14/125 iş (%11; eşit ağırlıklı sayaç)
 S06 koordinatörü    █████████████░░░░░░░  4/6 yazılım dilimi
 S06.3 kaynak temeli  ████████████████████  6/6 alt adım
-S08.7 HA kapsamı     ████████████████░░░░  4/5 yazılım kapısı; CI/fiziksel kabul ayrı
+S08.7 HA kapsamı     ████████████████████  5/5 yazılım kapısı; fiziksel kabul ayrı
 Yeni 63 özellik     ░░░░░░░░░░░░░░░░░░░░  0/63 kabul edildi
 ```
 
@@ -36,12 +36,12 @@ Gerçek ev kurulumu ve fiziksel tablet kabulü henüz yapılmadı.
 | --- | --- | --- |
 | S08.5 — restore, logout ve journal hedef sınırı | **Kabul edildi**, exact `960691c` / APK108 | [Kabul ve korunan geçmiş](restore-people-acceptance-108-2026-09-08.md) |
 | S08.6 — kişi, oda, kaynak ve izin yönetimi | **Kabul edildi**, aynı yayın | Merkezi HA akışının yetki temeli hazır |
-| S08.7 — merkezi Home Assistant adaptörü | **Devam ediyor**; typed switch, kalıcı komut/makbuz ve açık Direct→Core main içinde; standart/özel domain'lerin kapalı salt okunur projeksiyonu `9cabd4b` dalında 200 Server + 219 Android testinden geçti | Exact-source birleşik CI; sonra registry/servis keşfi ve domain'e özel typed komutlar |
+| S08.7 — merkezi Home Assistant adaptörü | **Kabul edildi**; typed switch, kalıcı komut/makbuz, Direct→Core ve kapalı salt okunur standart/özel domain projeksiyonu PR17 tam CI ile ana dala alındı | Registry/servis keşfi ve domain'e özel typed komutlar sonraki HA dilimi |
 | B5.1 — ortak tablet tasarımı | Services/hesap IME paketi APK116 ile kabul edildi; S08.7 komut ve aktarım yüzeyleri yerel tablet matrisinden geçti | Exact-source Android CI ve kalan ortak tablet yüzeyleri |
 | S06.3d — kalıcı depolama | **Kabul edildi**; Native18 exact `6a054ea`, amd64+arm64 makbuzları doğrulandı | S06.3f ile birleşik kaynak kapısı kapandı |
 | S06.3f — kaynak kabulü | **Kabul edildi**; exact `4021391`, iki mimarili native makbuz, 4.065 Server ve tam Android/Server CI yeşil | S06.4 dar kurulum yürütme kapısı |
 | S06.4 — dar kurulum yürütme kapısı | **Kabul edildi**; PR16 `bf6f860`, PR18 `75af015`, PR19 `9ce3c5a` ve PR20 `2b9166b` tam CI kapıları yeşil | S06.5 özel bootstrap ve otomatik servis eşleştirme |
-| S06.5 — özel bootstrap ve otomatik eşleştirme | **Devam ediyor**; private IPC/runtime, tek Larenor API anahtarı, sistem/kütüphane geri okuması ve AES-GCM kalıcı durum yerelde hazır | Exact-source CI, otomatik servis eşleştirmesi ve gerçek disposable servis kabulü |
+| S06.5 — özel bootstrap ve otomatik eşleştirme | **Devam ediyor**; private IPC/runtime, tek Larenor API anahtarı, sistem/kütüphane geri okuması ve AES-GCM kalıcı durum hazır; disposable native akış gerçek bootstrap/readback çalıştıracak biçimde bağlandı | Exact-source amd64/arm64 CI ve otomatik servis eşleştirmesi |
 
 S06.5'in ilk iki TDD parçası, yalnız tamamlanmış Jellyfin kurulumundan
 yöneticiye bağlı bootstrap niyeti üretir ve public API'de sır, hedef adres veya

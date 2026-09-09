@@ -64,3 +64,21 @@ duruma taşır; otomatik Radarr/Sonarr/qBittorrent/Seerr/Music Assistant
 eşleştirmesini henüz tamamlamaz. Yeni kütüphane oluşturma, paylaşılmış medya
 mount kabulü ve disposable gerçek Jellyfin 10.11 container kanıtı S06.5'in
 kalan kapılarıdır. `installAvailable=false` korunur.
+
+## Disposable native kabul genişletmesi
+
+Exact uygulama kaynağı `0da1682`, managed native karakterizasyonu yalnız
+container create/start kanıtından çıkarıp gerçek Jellyfin 10.11.11 bootstrap ve
+authenticated readback zincirine bağladı. Her amd64/arm64 koşusunda rastgele
+geçici bir sistem parolası üretilir; wizard tamamlanır, `Larenor Core` API
+anahtarı doğrulanır, sunucu kimliği ile boş başlangıç kütüphane listesi okunur
+ve auth oturumu kapatılır. Makbuz yalnız `bootstrapAccountConfigured=true`,
+`apiKeyVerified=true`, `libraryCount=0` ve `sessionClosed=true` alanlarını
+taşır; parola, session token ve API key içermez. Kaynak attestation listesine
+endpoint, startup, readback, executor ve private model modülleri de eklendi.
+
+Bu genişletmenin **235 ilgili testi**, security policy, `compileall`, diff ve
+queue doğrulaması yerelde geçti. Tam Server paketi kod hatası göstermedi;
+yalnız yerel ortamda sağlanmayan zorunlu sabit `apksig 9.1.0` girdisine bağlı
+dört kripto fixture kurulamadı. Exact iki mimarili GitHub CI kanıtı bekleniyor;
+bu nedenle S06.5 durumu henüz kabul edilmiş sayılmıyor.
