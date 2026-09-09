@@ -13,7 +13,7 @@ import math
 import re
 from typing import Literal
 
-from .catalog import load_catalog
+from .catalog import load_catalog, verify_plan
 from .stack_plan import MediaStackComponent, MediaStackPlan, verify_media_stack_plan
 from .worker import StepReceipt, WorkerStep
 
@@ -112,6 +112,9 @@ class InstallationExecution:
                 receipt = backend.apply(step, self.component)
             except Exception:
                 return ExecutionResult('pending', 'worker_unavailable')
+            if (type(receipt) is not StepReceipt or receipt.job_id != step.job_id
+                    or receipt.step != step.kind):
+                return ExecutionResult('failed', 'invalid_worker_result')
             result = self._result(receipt)
             if receipt.state == 'uncertain':
                 current = self._gate(gate)
@@ -122,10 +125,61 @@ class InstallationExecution:
                     receipt = backend.reconcile(step, self.component)
                 except Exception:
                     return ExecutionResult('pending', 'worker_unavailable')
+                if (type(receipt) is not StepReceipt or receipt.job_id != step.job_id
+                        or receipt.step != step.kind):
+                    return ExecutionResult('failed', 'invalid_worker_result')
                 result = self._result(receipt)
             if result.state != 'succeeded':
                 return result
         return result
+
+
+class JellyfinWorkerBackend:
+    """Bridge a verified child plan to worker-owned binding construction.
+
+    ``binding_builder`` is packaged worker policy, not a request callback. It
+    resolves previously prepared resources and returns the internal binding
+    accepted by ``JournaledContainerOperations``.
+    """
+
+    def __init__(self, operations, binding_builder):
+        if not callable(binding_builder) or not callable(getattr(operations, 'apply', None)) or not callable(
+                getattr(operations, 'reconcile', None)):
+            raise InstallationExecutionError()
+        self.operations, self.binding_builder = operations, binding_builder
+
+    @staticmethod
+    def _verify(step, component):
+        try:
+            if (type(step) is not WorkerStep or type(component) is not MediaStackComponent
+                    or component.serviceId != 'jellyfin' or component.plan.serviceId != 'jellyfin'
+                    or step.installation_id != component.installationId
+                    or step.kind not in _KINDS):
+                raise ValueError()
+            expected = next(item for item in component.steps if item.kind == step.kind)
+            if expected.stepId != step.dispatch_id:
+                raise ValueError()
+            verify_plan(component.plan, load_catalog())
+            return component
+        except (ValueError, TypeError, AttributeError, StopIteration):
+            raise InstallationExecutionError() from None
+
+    def apply(self, step, component):
+        trusted = self._verify(step, component)
+        try:
+            binding = self.binding_builder(trusted)
+            return self.operations.apply(step, binding)
+        except InstallationExecutionError:
+            raise
+        except Exception:
+            raise InstallationExecutionError('invalid_worker_result') from None
+
+    def reconcile(self, step, component):
+        self._verify(step, component)
+        try:
+            return self.operations.reconcile(step.job_id, step.kind)
+        except Exception:
+            raise InstallationExecutionError('invalid_worker_result') from None
 
 
 def build_execution(plan, *, job_id, deadline, service_id='jellyfin'):

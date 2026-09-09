@@ -30,6 +30,7 @@ from .plugins.api import router as plugins_router
 from .plugins.job_api import router as plugin_jobs_router
 from .plugins.media_api import router as media_preparations_router
 from .plugins.media_inspection_api import router as media_inspections_router
+from .plugins.media_installation_api import router as media_installations_router
 
 
 Core = Annotated[CoreServices, Depends(get_core)]
@@ -62,7 +63,11 @@ def create_app(settings: Settings, *, routers: Iterable[APIRouter] = (),
         task = asyncio.create_task(dispatch(manager, "preflight_dispatch_unavailable")) if manager.backend is not None else None
         media = application.state.core.media_inspections
         media_task = asyncio.create_task(dispatch(media, "media_inspection_dispatch_unavailable")) if media.backend is not None else None
+        installations = application.state.core.media_installations
+        installation_task = asyncio.create_task(dispatch(
+            installations, "media_installation_dispatch_unavailable")) if installations.backend is not None else None
         application.state.media_inspection_dispatcher = media_task
+        application.state.media_installation_dispatcher = installation_task
         application.state.plugin_job_dispatcher = task
         try:
             yield
@@ -76,6 +81,8 @@ def create_app(settings: Settings, *, routers: Iterable[APIRouter] = (),
                 await task
             if media_task is not None:
                 await media_task
+            if installation_task is not None:
+                await installation_task
 
     app = FastAPI(title="Larenor Server", version=server_version(), docs_url=None,
                   redoc_url=None, openapi_url=None,
@@ -85,6 +92,7 @@ def create_app(settings: Settings, *, routers: Iterable[APIRouter] = (),
     app.state.core = CoreServices(settings)
     app.state.plugin_job_dispatcher = None
     app.state.media_inspection_dispatcher = None
+    app.state.media_installation_dispatcher = None
     app.add_middleware(SafeBoundaryMiddleware)
 
     @app.exception_handler(ApiError)
@@ -177,6 +185,7 @@ def create_app(settings: Settings, *, routers: Iterable[APIRouter] = (),
     app.include_router(plugin_jobs_router, prefix="/api/v1")
     app.include_router(media_preparations_router, prefix="/api/v1")
     app.include_router(media_inspections_router, prefix="/api/v1")
+    app.include_router(media_installations_router, prefix="/api/v1")
     for extension in routers:
         # Only routers supplied by trusted, packaged server code are supported.
         app.include_router(extension, prefix="/api/v1")
