@@ -5,8 +5,12 @@ kanıtını saklar. [PROGRESS](PROGRESS.md) güncel ürün özeti ve CI anlatım
 bu kuyruk ayrıntılı yürütme sırasıdır. Uygulanmış kabulün kapsamı veya kaynak
 plan değişirse iki belge birlikte güncellenir. 5 Eylül 2026 başlangıcında
 S06.3a/3b, 483ec13 Linux Server ve güvenlik CI ile kabul edildi. S06.3c
-imaj/journal bağlantısı fc632b6 Server/güvenlik CI ile kabul edildi; S08.1 aynı commit’in tam Android/yayın CI kapısıyla kabul edildi. S06.3e ağ yazılımı 9138e61 Server/güvenlik CI ile, S06.3d kalıcı depolama Native18 ve exact 6a054ea CI ile kabul edildi; S06.3f kaynak makbuzu exact 4021391 iki mimarili native, Server, Android ve güvenlik CI ile kabul edildi. S08.3 ev runtime sınırı 4b98680 tam CI ve APK 94 ile kabul edildi; S08.4 kalıcı kayıt sınırı 1c2db57 tam CI/APK100 ile kabul edildi; S08.5 restore ve S08.6 kişi/izin yönetimi exact 960691c tam CI/APK108 ile kabul edildi; S08.7 typed durum ve kalıcı switch komutu/makbuzu yerelde ana dala alındı, exact-source CI ve Direct aktarımı açık. F01–F63 yazılım teslimleri bekliyor. Önceki S06.1–2 ve
-kalıcı Core/ev kimliği tekrar yapılacak iş sayılmaz.
+imaj/journal bağlantısı fc632b6 Server/güvenlik CI ile kabul edildi; S08.1 aynı commit’in tam Android/yayın CI kapısıyla kabul edildi. S06.3e ağ yazılımı 9138e61 Server/güvenlik CI ile, S06.3d kalıcı depolama Native18 ve exact 6a054ea CI ile kabul edildi; S06.3f kaynak makbuzu exact 4021391 iki mimarili native, Server, Android ve güvenlik CI ile kabul edildi. S08.3 ev runtime sınırı 4b98680 tam CI ve APK 94 ile kabul edildi; S08.4 kalıcı kayıt sınırı 1c2db57 tam CI/APK100 ile kabul edildi; S08.5 restore ve S08.6 kişi/izin yönetimi exact 960691c tam CI/APK108 ile kabul edildi; S08.7 typed durum, kalıcı switch komutu/makbuzu ve Direct aktarımı ana dala alındı. Önceki S06.1–2 ve
+kalıcı Core/ev kimliği tekrar yapılacak iş sayılmaz. S08.7'nin standart ve
+özel Home Assistant domain'lerini kapalı, salt okunur projeksiyonla taşıyan
+yerel dilimi `9cabd4b` üzerinde tamamlandı; exact-source CI, registry/servis
+keşfi, domain'e özel typed komutlar ve fiziksel kabul açık. F01–F63 yazılım
+teslimleri bekliyor.
 
 Bu kayıt bir zamanlayıcı, agent başlatıcı veya işlem yetkisi değildir. Araç
 hiçbir kod, shell, Docker, ağ ya da ev cihazı işlemi yürütmez; dosyaları veya
