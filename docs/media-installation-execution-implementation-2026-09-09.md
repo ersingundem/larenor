@@ -100,6 +100,19 @@ aynı PID ve UID ile eşleşir; yeni pidfd her kontrolde kapatılır. Doğrulay�
 yalnız bir supervisor çağrısının deadline'ı içinde aktiftir ve farklı peer bütün
 worker bağını fail-closed kapatır.
 
+Yerel sonraki dilim, bu süreklilik kanıtını rootful/remap-disabled başlangıç
+yetkisine bağlar. Socket-derived peer proc ve process-root tanıtıcılarından
+daemon `cmdline` kaydı ile exact `--config-file` hedefi okunur; varsayılan
+`/etc/docker/daemon.json` yokluğu da aynı kökte yeniden doğrulanır. Bütün yol
+bileşenleri root-owned, non-writable ve no-follow açılır; argv, dosya inode'u,
+metadata ve içerik effect boyunca tutulur. Aynı doğrulanmış Engine bağlantısında
+bounded `GET /version` ve `GET /v1.47/info` çalışır. Root credentials, tam
+initial UID/GID map, aynı user namespace ve uyumlu platform zorunludur;
+`userns-remap`, `name=userns` veya `name=rootless` görüldüğünde ya da negatif
+kanıt belirsiz olduğunda kurulum worker'ı açılmaz. Bu kapı kullanıcı Engine'inde
+mutasyon yapmaz ve exact Linux CI tamamlanana kadar `installAvailable=false`
+kalır.
+
 ## TDD ve doğrulama
 
 - RED `d25ca83`: kapalı create/start yürütme ve her adımda gate sözleşmesi.
@@ -138,6 +151,11 @@ worker bağını fail-closed kapatır.
 - RED/GREEN `5d43299` / `1e94267`: socket activation/FD devri sınırı için her
   image/volume/network/bootstrap/container Engine bağlantısında fresh peer
   pidfd eşleşmesi; ilgili yerel paket **272 PASS / 4 Linux skip**.
+- RED/GREEN `1c4f3f8` / `e0f7ab0`: rootful kimlik, startup/config ve Engine
+  security-option kararını fail-closed tutan **35 test**.
+- RED/GREEN `1056a84` / `98b4f99`: daemon proc/root tanıtıcılarına bağlı
+  no-follow argv/config yaşam kanıtı ve supervisor/runtime bağlantısı; startup
+  ile security modüllerinin toplam **59 testi** ve geniş ilgili paket geçti.
 - Güncel storage/managed/resource/binding paketi **216 PASS**; managed workflow
   politika paketi ayrıca **7 PASS**. Python derleme ve `git diff --check` temiz.
 - Exact `191baf3` kaynak commit'i [Server CI 34313975186](https://github.com/ersingundem/larenor/actions/runs/34313975186)
@@ -164,8 +182,8 @@ Android/Server CI'ı ve inceleme gerekir. Bunlar olmadan S06.4 `done` yapılamaz
 
 ## Sonraki dilim
 
-1. Supervisor'ın gerçek Linux peer-pidfd/proc/user-namespace testi stacked
-   Server CI'da atlamadan geçecek.
-2. Native başlangıç/config kanıtı rootless ve userns-remap'i fail-closed
-   ayıracak; eşit map veya UID 0 tek başına yetki olmayacak.
+1. `9ce3c5a` test-fixture düzeltmesiyle supervisor'ın gerçek Linux
+   peer-pidfd/proc/user-namespace testi stacked Server CI'da atlamadan geçecek.
+2. Yerel rootful/remap-disabled başlangıç dalı exact Linux CI ve tam Server
+   paketinden geçecek.
 3. Stacked kaynak bağımsız inceleme ile kapatılacak.

@@ -325,8 +325,13 @@ every apply/reconcile operation with fresh daemon, endpoint and thread checks.
 The same verifier authenticates the fresh pidfd of every image, volume,
 network, bootstrap-helper and managed-container Engine connection against the
 retained live daemon PID, covering socket activation and listener FD transfer.
-This is continuity evidence only; initial-host and remap-disabled startup
-authority remain separate and installation stays disabled. A separate
+The next local gate binds the peer's held proc/root descriptors to its exact
+`cmdline` and root-relative Docker config. It requires root credentials, full
+initial UID/GID maps, one user namespace, a compatible `/version`, and bounded
+`/v1.47/info` security options on that same verified connection. Any
+`userns-remap`, `name=userns`, `name=rootless`, config replacement, malformed
+or missing proof closes the supervisor before an effect. Exact Linux CI and
+review are still pending, so installation stays disabled. A separate
 amd64/arm64 managed-v2 characterization
 workflow is source-bound and has passed both architectures. The API
 container does not start this mutation
