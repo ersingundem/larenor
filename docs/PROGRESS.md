@@ -1,10 +1,10 @@
 # Larenor — güncel ilerleme ve iş kuyruğu
 
-**Son güncelleme: 9 Eylül 2026 — S06.4 worker supervisor'ı her Engine bağlantısını aynı daemon sürecine bağlıyor; rootful/remap-disabled başlangıç ve config kapısı yerelde uygulandı, güncel Linux CI ve inceleme açık.**
+**Son güncelleme: 9 Eylül 2026 — S06.4 exact PR20 kaynağında tam Android/Server/Security CI ile kabul edildi; S06.5 özel bootstrap ve otomatik servis eşleştirme başladı.**
 
 ```text
-Kuyruk kabulü       ██░░░░░░░░░░░░░░░░░░  12/125 iş (%10; eşit ağırlıklı sayaç)
-S06 koordinatörü    ██████████░░░░░░░░░░  3/6 yazılım dilimi
+Kuyruk kabulü       ██░░░░░░░░░░░░░░░░░░  13/125 iş (%10; eşit ağırlıklı sayaç)
+S06 koordinatörü    █████████████░░░░░░░  4/6 yazılım dilimi
 S06.3 kaynak temeli  ████████████████████  6/6 alt adım
 S08.7 yerel dilimler █████████████░░░░░░░  2/3 yerel dilim; CI/fiziksel kabul ayrı
 Yeni 63 özellik     ░░░░░░░░░░░░░░░░░░░░  0/63 kabul edildi
@@ -40,7 +40,8 @@ Gerçek ev kurulumu ve fiziksel tablet kabulü henüz yapılmadı.
 | B5.1 — ortak tablet tasarımı | Services/hesap IME paketi APK116 ile kabul edildi; S08.7 komut ve aktarım yüzeyleri yerel tablet matrisinden geçti | Exact-source Android CI ve kalan ortak tablet yüzeyleri |
 | S06.3d — kalıcı depolama | **Kabul edildi**; Native18 exact `6a054ea`, amd64+arm64 makbuzları doğrulandı | S06.3f ile birleşik kaynak kapısı kapandı |
 | S06.3f — kaynak kabulü | **Kabul edildi**; exact `4021391`, iki mimarili native makbuz, 4.065 Server ve tam Android/Server CI yeşil | S06.4 dar kurulum yürütme kapısı |
-| S06.4 — dar kurulum yürütme kapısı | **Devam ediyor**; PR16 `bf6f860`, PR18 `75af015` ve PR19 `9ce3c5a` tam CI kapıları yeşil. Yerel `47adc75` rootful/remap-disabled başlangıç kapısını ekledi | Daemon güvenlik dalının exact Linux CI'ı ve bağımsız inceleme |
+| S06.4 — dar kurulum yürütme kapısı | **Kabul edildi**; PR16 `bf6f860`, PR18 `75af015`, PR19 `9ce3c5a` ve PR20 `2b9166b` tam CI kapıları yeşil | S06.5 özel bootstrap ve otomatik servis eşleştirme |
+| S06.5 — özel bootstrap ve otomatik eşleştirme | **Devam ediyor**; ilk Jellyfin kullanıcı/API ve şifreli dahili bağlantı durum makinesi tasarlanıyor | LAN'a port açmayan bounded bootstrap taşıyıcısı ve kalıcı geri okuma |
 
 S06.4 native kabul koşusu [34326112926](https://github.com/ersingundem/larenor/actions/runs/34326112926)
 iki gerçek GitHub runner'ında geçti. İndirilen ARM64 ve X64 makbuzları merge
