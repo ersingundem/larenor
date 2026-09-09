@@ -766,7 +766,8 @@
       "sources": [
         "docs/remaining-core-integration-slices.md",
         "docs/integrated-media-stack.md",
-        "docs/media-service-bootstrap-implementation-2026-09-09.md"
+        "docs/media-service-bootstrap-implementation-2026-09-09.md",
+        "docs/jellyfin-managed-libraries-implementation-2026-09-09.md"
       ],
       "scope": "Kullanıcı ayrı uygulama kurmaz veya API anahtarı kopyalamaz; sırlar Client/plan/log içine girmez.",
       "acceptance": [
@@ -849,10 +850,18 @@
           "state": "completed",
           "result": "passed",
           "label": "Exact head arm64 ve amd64 disposable Jellyfin 10.11.11 makbuzları: hesap bootstrap, API anahtarı, boş kütüphane, session logout, restart ve kalıcı veri PASS; installAvailable=false."
+        },
+        {
+          "kind": "test",
+          "ref": "docs/jellyfin-managed-libraries-implementation-2026-09-09.md",
+          "commit": "a0d14209286b9be1c023e10dd18309d8cf298179",
+          "state": "completed",
+          "result": "passed",
+          "label": "Sabit Larenor Movies/Shows Jellyfin kütüphaneleri üçüncü doğrulanmış endpoint üzerinde idempotent oluşturulup geri okunuyor; çakışma, kısmi yazma ve secret-free tanılar dahil 306 ilgili test PASS. Onaylı /media mount ve exact native kabul açık."
         }
       ],
       "completionCommit": null,
-      "reason": "Server üretimli sır, sabit startup, exact journal/container/private-network yürütücüsü, kalıcı no-retry koordinatör ve aynı retained daemon'a bağlı private IPC/runtime hazır. Disposable Jellyfin 10.11.11 bootstrap, API anahtarı, sistem/boş kütüphane readback, logout, restart ve veri kalıcılığı exact arm64+amd64 CI'da geçti. Radarr/Sonarr/qBittorrent/Seerr/Music Assistant otomatik eşleştirmesi açık; installAvailable=false."
+      "reason": "Server üretimli sır, sabit startup, exact journal/container/private-network yürütücüsü, kalıcı no-retry koordinatör ve aynı retained daemon'a bağlı private IPC/runtime hazır. Disposable Jellyfin 10.11.11 bootstrap, API anahtarı, sistem/boş kütüphane readback, logout, restart ve veri kalıcılığı exact arm64+amd64 CI'da geçti. Larenor Movies/Shows idempotent kütüphane adımı yerelde yeşil; onaylı /media mount ve exact native kabul açık. Radarr/Sonarr/qBittorrent/Seerr/Music Assistant otomatik eşleştirmesi açık; installAvailable=false."
     },
     {
       "id": "S06.6",
