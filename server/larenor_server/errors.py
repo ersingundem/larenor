@@ -72,6 +72,10 @@ MESSAGES = {
     "media_installation_conflict": "This request conflicts with a saved media installation execution.",
     "media_installation_limit_reached": "The media installation execution limit has been reached.",
     "media_installation_storage_unavailable": "The saved media installation executions are unavailable.",
+    "media_installation_changed": "The media installation changed. Read it again.",
+    "media_bootstrap_conflict": "This request conflicts with a saved media service bootstrap.",
+    "media_bootstrap_limit_reached": "The media service bootstrap limit has been reached.",
+    "media_bootstrap_storage_unavailable": "The saved media service bootstraps are unavailable.",
 }
 
 

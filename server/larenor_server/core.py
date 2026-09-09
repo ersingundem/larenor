@@ -25,6 +25,8 @@ from .plugins.media_inspection_schema import migrate_media_inspections
 from .plugins.media_inspections import MediaInspectionManagement
 from .plugins.media_installation_schema import migrate_media_installations
 from .plugins.media_installations import MediaInstallationManagement
+from .plugins.media_service_bootstrap_schema import migrate_media_service_bootstraps
+from .plugins.media_service_bootstraps import MediaServiceBootstrapManagement
 from .plugins.preflight_ipc import PreflightWorkerClient
 from .plugins.installation_ipc import InstallationWorkerClient
 from .services.schema import migrate_services
@@ -146,6 +148,7 @@ class CoreServices:
                 migrate_media_preparations(connection)
                 migrate_media_inspections(connection)
                 migrate_media_installations(connection)
+                migrate_media_service_bootstraps(connection)
             if not existed:
                 # Only publish the DB after its complete first transaction commits.
                 # Never expose an empty DB that a restart might treat as a reset.
@@ -194,6 +197,9 @@ class CoreServices:
                 self.db, self.auth, settings, key, self.media_preparations, self.media_inspections,
                 installation_backend)
             self.media_installations.validate_storage()
+            self.media_service_bootstraps = MediaServiceBootstrapManagement(
+                self.db, self.auth, settings, key, self.media_installations)
+            self.media_service_bootstraps.validate_storage()
             self.clear_inactive_bootstrap()
 
     def clear_inactive_bootstrap(self) -> None:
