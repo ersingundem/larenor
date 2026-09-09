@@ -347,11 +347,15 @@ makbuzların hiçbir Engine I/O’su veya yeni yetki istemeden okunabildiği kap
 bağımlılıklarla sınanır. Public makbuz ham network ID veya preparation ID
 taşımaz; yalnız ağ kimliğinin SHA-256 değerini, kaynak dosyalarının özetlerini,
 `containerOperations=0` ve `installAvailable=false` değerlerini içerir.
-Odaklı 38 test, ilgili 668 test ve güvenlik politikası yerelde geçti. Tam 4.284
+İlk incelemede ortak daemon açılışındaki tek `docker info` CLI çağrısı kabul
+sınırını aştığı için ilk uzak CI iptal edildi. Kaynak fixture daemon’ı artık
+canlı systemd MainPID ve `/proc/<pid>/cmdline` değerini baştan sona sabit argv
+ile doğruluyor; bütün Docker CLI çağrılarını kapalı hata ile reddediyor. Odaklı
+44 test, ilgili 674 test ve güvenlik politikası yerelde geçti. Tam 4.284
 testlik yerel koleksiyonda yalnız zorunlu apksig ortamı verilmediği için dört
 setup hatası oluştu; sabit apksig 9.1.0 SHA-256 doğrulandıktan ve Homebrew Java
 17 yolu verildikten sonra bu dört kriptografik test 4/4 geçti. Exact-source
-Server CI ve iki mimarili native artifact henüz bekleniyor.
+Güncel exact-source Server CI ve iki mimarili native artifact henüz bekleniyor.
 [Yerel kaynak kabul kaydı](media-resource-native-acceptance-2026-09-09.md).
 
 ## Canlı takip ve sıradaki işler

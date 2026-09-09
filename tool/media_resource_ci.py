@@ -85,7 +85,7 @@ def run():
     selected = validate_launch(os.environ, owned.platform.system(),
                                owned.platform.machine(), os.geteuid())
     commit = os.environ["GITHUB_SHA"]
-    owner = owned.EphemeralDaemon()
+    owner = smoke.ResourceEphemeralDaemon()
     signals = (signal.SIGINT, signal.SIGTERM, signal.SIGALRM)
     previous = {item: signal.getsignal(item) for item in signals}
 

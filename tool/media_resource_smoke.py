@@ -57,6 +57,42 @@ def _require(value, code="resource_characterization_failed"):
         raise ResourceAcceptanceError(code)
 
 
+def _daemon_command_identity(raw, expected):
+    """Match the complete live daemon argv without invoking a Docker client."""
+    try:
+        _require(type(raw) is bytes and 0 < len(raw) <= 4096
+                 and type(expected) is list and expected
+                 and all(type(item) is str and item for item in expected),
+                 "resource_daemon_unverified")
+        wire = b"\0".join(item.encode("utf-8") for item in expected) + b"\0"
+        _require(raw == wire, "resource_daemon_unverified")
+    except ResourceAcceptanceError:
+        raise
+    except (UnicodeError, ValueError, TypeError):
+        raise ResourceAcceptanceError("resource_daemon_unverified") from None
+
+
+class ResourceEphemeralDaemon(owned.EphemeralDaemon):
+    """Owned daemon variant whose verification and resource path use no CLI."""
+
+    def docker(self, *_args, **_kwargs):
+        raise ResourceAcceptanceError("resource_cli_forbidden")
+
+    def _verify_daemon_root(self):
+        try:
+            self._check_unit()
+            command = owned.daemon_command(self.root)
+            at = command.index("/usr/bin/dockerd")
+            pid = self.unit_identity[2]
+            raw = owned._bounded_file(Path("/proc") / pid / "cmdline")
+            _daemon_command_identity(raw, command[at:])
+            self._check_unit()
+        except ResourceAcceptanceError:
+            raise
+        except Exception:
+            raise ResourceAcceptanceError("resource_daemon_unverified") from None
+
+
 @dataclass(frozen=True)
 class SelectedResources:
     image: object

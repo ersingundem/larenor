@@ -677,6 +677,10 @@ class EphemeralDaemon:
         require(any(line.startswith(prefix) for line in value.splitlines(True)),
                 'owned_daemon_lost')
 
+    def _verify_daemon_root(self):
+        actual = json.loads(self.docker(['info', '--format', '{{json .DockerRootDir}}']))
+        require(actual == str(self.root/'data'), 'owned_daemon_lost')
+
     @diagnostic_phase('daemon_start')
     def __enter__(self):
         self.platform = native_platform(os.environ, platform.system(), platform.machine(), os.geteuid())
@@ -705,8 +709,7 @@ class EphemeralDaemon:
                 self._check_unit()
                 time.sleep(0.1)
             self.socket_identity = self._socket()
-            actual = json.loads(self.docker(['info', '--format', '{{json .DockerRootDir}}']))
-            require(actual == str(self.root/'data'), 'owned_daemon_lost')
+            self._verify_daemon_root()
             return self
         except BaseException:
             self.__exit__(*sys.exc_info())

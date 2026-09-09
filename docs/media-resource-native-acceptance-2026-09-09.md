@@ -13,7 +13,10 @@ list ve full-ID inspect çağrılarını yapabilir. Container create/start/exec,
 volume API, network attach/delete, image delete ve prune yüzeyi yoktur. Var olan
 bir Docker socket’i veya `DOCKER_HOST` kabul edilmez; manual GitHub workflow’u
 yalnız kendisinin oluşturduğu geçici rootful Engine ve sahiplikli transient
-systemd cgroup’u içinde çalışır.
+systemd cgroup’u içinde çalışır. Ortak daemon açılışındaki `docker info` yolu
+bu fixture için override edilmiştir: aktif systemd MainPID’nin cmdline değeri,
+başlatılan `/usr/bin/dockerd` argv’sinin tamamı ve owned `--data-root` dahil
+bayt düzeyinde eşleşir. Fixture’ın `docker()` yüzeyi her çağrıyı reddeder.
 
 İlk mutation öncesinde literal `True` yetki kapısı ve güncel journal revision
 kontrol edilir. Pull veya create yanıtı kaybolursa mevcut journal sözleşmesi
@@ -33,8 +36,8 @@ değişmiş kaynak hash’lerinde kapalı hata verir.
 ## Yerel doğrulama
 
 - Eksik modül/workflow başlangıcı: 17 beklenen RED.
-- Yeni smoke, CI ve workflow güvenlik sözleşmesi: 38/38 PASS.
-- Image, network, journal ve iki native workflow regresyon seçkisi: 668 test,
+- Yeni smoke, CI ve workflow güvenlik sözleşmesi: 44/44 PASS.
+- Image, network, journal ve iki native workflow regresyon seçkisi: 674 test,
   yalnız mevcut platform skip’leriyle PASS.
 - `tool/check_security_policy.py`, JSON parse, Python compileall,
   `tool/execution_queue.py validate` ve `git diff --check`: PASS.

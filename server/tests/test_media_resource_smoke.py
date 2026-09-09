@@ -100,3 +100,30 @@ def test_public_receipt_contains_no_dynamic_resource_identifiers(tmp_path):
     assert source.stack.preparationId not in text
     assert receipt["installAvailable"] is False
     assert receipt["resourceKinds"] == ["ensure_image", "prepare_control_network"]
+
+
+@pytest.mark.parametrize("raw", [
+    b"/usr/bin/dockerd\0--data-root=/tmp/wrong\0",
+    b"/usr/bin/dockerd\0--data-root=/tmp/expected",
+    b"dockerd\0--data-root=/tmp/expected\0",
+    b"/usr/bin/dockerd\0--data-root=/tmp/expected\0--extra\0",
+], ids=("wrong-root", "missing-terminator", "changed-executable", "extra-argument"))
+def test_owned_daemon_command_identity_rejects_any_argument_change(raw):
+    from tool.media_resource_smoke import ResourceAcceptanceError, _daemon_command_identity
+    with pytest.raises(ResourceAcceptanceError, match="^resource_daemon_unverified$"):
+        _daemon_command_identity(raw,
+                                 ["/usr/bin/dockerd", "--data-root=/tmp/expected"])
+
+
+def test_owned_daemon_command_identity_accepts_only_exact_argv():
+    from tool.media_resource_smoke import _daemon_command_identity
+    assert _daemon_command_identity(
+        b"/usr/bin/dockerd\0--data-root=/tmp/expected\0",
+        ["/usr/bin/dockerd", "--data-root=/tmp/expected"]) is None
+
+
+def test_resource_daemon_exposes_no_docker_cli_surface():
+    from tool.media_resource_smoke import ResourceAcceptanceError, ResourceEphemeralDaemon
+    daemon = ResourceEphemeralDaemon()
+    with pytest.raises(ResourceAcceptanceError, match="^resource_cli_forbidden$"):
+        daemon.docker(["info"])

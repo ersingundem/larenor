@@ -149,7 +149,7 @@ def test_signal_uses_only_owned_emergency_cleanup_before_context_exit(monkeypatc
     monkeypatch.setenv("GITHUB_SHA", "a" * 40)
     monkeypatch.setattr(module, "validate_launch", lambda *_args: "linux/amd64")
     monkeypatch.setattr(module.smoke, "capture_source", lambda _commit: ("a" * 40, {}))
-    monkeypatch.setattr(module.owned, "EphemeralDaemon", Owned)
+    monkeypatch.setattr(module.smoke, "ResourceEphemeralDaemon", Owned)
     monkeypatch.setattr(module.signal, "getsignal", lambda _sig: signal.SIG_DFL)
     monkeypatch.setattr(module.signal, "signal",
                         lambda sig, handler: handlers.__setitem__(sig, handler))
