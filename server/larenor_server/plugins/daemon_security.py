@@ -188,8 +188,10 @@ def _runtime_allows(connection, platform, deadline):
 class HeldDaemonSecurity:
     """Retain startup/config evidence on the supervisor's native thread."""
 
-    def __init__(self, startup):
+    def __init__(self, startup, connection, platform):
         self._startup = startup
+        self._connection = connection
+        self._platform = platform
         self._owner = os.getpid(), threading.get_native_id()
 
     def __repr__(self):
@@ -210,6 +212,7 @@ class HeldDaemonSecurity:
                     or self._owner != (os.getpid(), threading.get_native_id())):
                 raise DaemonSecurityError()
             self._startup.check(deadline)
+            _runtime_allows(self._connection, self._platform, deadline)
             _guard(deadline)
         except BaseException as error:
             self._dispose()
@@ -236,10 +239,9 @@ def attest_daemon_security(connection, startup, peer, worker, *, daemon_executab
             raise DaemonSecurityError()
         startup.check(deadline)
         _startup_allows(startup, daemon_executable)
-        _runtime_allows(connection, platform, deadline)
         startup.check(deadline)
-        held = HeldDaemonSecurity(startup)
-        held.check(deadline)
+        _runtime_allows(connection, platform, deadline)
+        held = HeldDaemonSecurity(startup, connection, platform)
         return held
     except BaseException as error:
         if held is not None:

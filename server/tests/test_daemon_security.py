@@ -27,13 +27,14 @@ VERSION = {
 
 
 class Connection:
-    def __init__(self, *, version=None, info=None):
+    def __init__(self, *, version=None, info=None, followup_info=None):
         self.sent = []
-        self.data = bytearray(
-            response(VERSION if version is None else version)
-            + response({'SecurityOptions': ['name=seccomp,profile=builtin', 'name=cgroupns']}
-                       if info is None else info)
-        )
+        version = VERSION if version is None else version
+        info = ({'SecurityOptions': ['name=seccomp,profile=builtin', 'name=cgroupns']}
+                if info is None else info)
+        followup_info = info if followup_info is None else followup_info
+        self.data = bytearray(response(version) + response(info)
+                              + response(version) + response(followup_info))
         self.timeout = None
 
     def settimeout(self, value):
@@ -97,6 +98,7 @@ def test_valid_rootful_remap_disabled_daemon_retains_startup_evidence():
     assert connection.sent[1].startswith(b'GET /v1.47/info HTTP/1.1\r\n')
     assert all(b'Connection: keep-alive\r\n' in item for item in connection.sent)
     assert held.check(time.monotonic() + 2) is None
+    assert len(connection.sent) == 4
     held.close()
     assert startup.closed and startup.checks >= 2
 
@@ -177,6 +179,15 @@ def test_changed_startup_evidence_invalidates_and_closes_the_lease():
                        match='^daemon_security_unavailable$'):
         held.check(time.monotonic() + 2)
     assert startup.closed
+
+
+def test_runtime_security_options_are_rechecked_for_every_held_use():
+    connection = Connection(followup_info={'SecurityOptions': ['name=userns']})
+    held = attest(connection=connection)
+    with pytest.raises(implementation().DaemonSecurityError,
+                       match='^daemon_security_unavailable$'):
+        held.check(time.monotonic() + 2)
+    assert len(connection.sent) == 4
 
 
 def test_errors_and_repr_never_disclose_daemon_configuration():
