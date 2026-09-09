@@ -713,6 +713,25 @@ def test_managed_engine_preserves_transport_error_and_records_closed_diagnostic(
     assert engine.managed_create_diagnostic == 'managed_create_transport_failed'
 
 
+@pytest.mark.parametrize('field,actual,expected', [
+    ('MemorySwap', 0, 'managed_inspect_memory_swap_mismatch'),
+    ('Memory', 1, 'managed_inspect_memory_mismatch'),
+    ('NanoCpus', 1, 'managed_inspect_cpu_mismatch'),
+    ('PidsLimit', 1, 'managed_inspect_pids_mismatch'),
+])
+def test_managed_inspect_resource_drift_is_reduced_to_closed_category(
+        field, actual, expected):
+    m = api()
+    host = {'MemorySwap': -1, 'Memory': 4294967296,
+            'NanoCpus': 2000000000, 'PidsLimit': 512}
+    class Binding:
+        @staticmethod
+        def payload():
+            return {'specification': {'HostConfig': dict(host)}}
+    observed = {'HostConfig': {**host, field: actual}}
+    assert m._managed_inspect_diagnostic(observed, Binding()) == expected
+
+
 @pytest.mark.parametrize('worker_code,expected', [
     ('invalid_binding', 'managed_create_binding_rejected'),
     ('engine_protocol', 'managed_create_protocol_failed'),
