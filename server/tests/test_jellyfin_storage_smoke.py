@@ -735,7 +735,7 @@ def test_managed_inspect_resource_drift_is_reduced_to_closed_category(
 @pytest.mark.parametrize('field,actual,expected', [
     ('SecurityOpt', ['no-new-privileges'], 'managed_inspect_security_mismatch'),
     ('Tmpfs', {}, 'managed_inspect_tmpfs_targets_mismatch'),
-    ('Mounts', [], 'managed_inspect_requested_mount_mismatch'),
+    ('Mounts', [{'Type': 'bind'}], 'managed_inspect_requested_mount_mismatch'),
     ('NetworkMode', 'none', 'managed_inspect_network_mode_mismatch'),
     ('Init', False, 'managed_inspect_init_mismatch'),
 ])
@@ -798,6 +798,21 @@ def test_empty_tmpfs_normalization_is_not_itself_a_managed_mismatch():
     assert m._managed_inspect_diagnostic(
         {'HostConfig': {**expected, 'Tmpfs': None}}, Binding()
     ) == 'managed_inspect_nonresource_mismatch'
+
+
+def test_moved_host_mounts_do_not_hide_later_managed_mismatch():
+    m = api()
+    expected = {'MemorySwap': -1, 'Memory': 4294967296,
+                'NanoCpus': 2000000000, 'PidsLimit': 512,
+                'Tmpfs': {}, 'Mounts': [{'Type': 'volume'}], 'Init': True}
+    class Binding:
+        @staticmethod
+        def payload():
+            return {'specification': {'HostConfig': expected}}
+    observed = {'HostConfig': {**expected, 'Tmpfs': None, 'Mounts': None,
+                               'Init': False}}
+    assert m._managed_inspect_diagnostic(
+        observed, Binding()) == 'managed_inspect_init_mismatch'
 
 
 @pytest.mark.parametrize('worker_code,expected', [
