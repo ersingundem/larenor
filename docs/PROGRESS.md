@@ -1,6 +1,6 @@
 # Larenor — güncel ilerleme ve iş kuyruğu
 
-**Son güncelleme: 10 Eylül 2026 — CI thread zamanlama düzeltmesi ve qBittorrent 5.2.3 sahipli config/API sözleşmesi ana dala alındı. Config–volume bağı ile ortak medya tüketici planı PR30 CI'ında; sabit ve güvenli appdata yazma yardımcısı sonraki dalda yerelde hazır.**
+**Son güncelleme: 10 Eylül 2026 — qBittorrent 5.2.3 sahipli config/API sözleşmesi ana dalda. Config–volume bağı PR30, güvenli appdata helper PR31 CI'ında; journal-bound private Docker stdin/effect zinciri sonraki dalda yerelde hazır.**
 
 ```text
 Kuyruk kabulü       ██░░░░░░░░░░░░░░░░░░  14/125 iş (%11; eşit ağırlıklı sayaç)
@@ -161,6 +161,16 @@ dosya/dizin kimliği geri okuması ve yarım etkiyi koruyan kapalı hata politik
 uygulandı. **16 yeni / 136 ilgili test** geçti. Worker/Docker stdin etkisi ve
 iki mimarili gerçek qBittorrent kabulü açık olduğundan sayaç değişmedi.
 [Uygulama ve açık sınırlar](qbittorrent-config-helper-implementation-2026-09-10.md).
+
+Bir sonraki private worker dilimi Docker API 1.47 sürümünü, Unix socket
+kimliğini ve peer UID'yi aynı attach bağlantısında doğrulayıp config'i container
+metadata'sına koymadan bounded stdin ile iletiyor. Yetki private byte öncesinde
+yeniden sınanıyor; non-TTY stdout/stderr frame'leri ayrı ve sınırlı okunuyor.
+Journal-bound effect sabit networksüz/RW-volume helper gövdesini
+create/start/stream/wait/remove sırasıyla çalıştırıyor, exact digest/state
+sonucunu ve kaynağı etkiden sonra tekrar doğruluyor. **36 yeni / 273 ilgili
+test** geçti. Supervisor/IPC state bağı ve iki mimarili native kabul açık.
+[Uygulama ve açık sınırlar](qbittorrent-config-effect-implementation-2026-09-10.md).
 
 S06.4 native kabul koşusu [34326112926](https://github.com/ersingundem/larenor/actions/runs/34326112926)
 iki gerçek GitHub runner'ında geçti. İndirilen ARM64 ve X64 makbuzları merge
