@@ -352,11 +352,13 @@ bool _coreHaDomain(String value) =>
 bool _coreHaState(String value) =>
     value.isNotEmpty &&
     value.length <= 255 &&
-    !value.runes.any((rune) =>
-        rune < 32 ||
-        rune >= 127 && rune <= 159 ||
-        rune >= 0xd800 && rune <= 0xdfff ||
-        rune >= 0x200b && rune <= 0x200f ||
-        rune >= 0x202a && rune <= 0x202e ||
-        rune >= 0x2060 && rune <= 0x206f ||
-        rune == 0xfeff);
+    !value.runes.any(
+      (rune) =>
+          rune < 32 ||
+          rune >= 127 && rune <= 159 ||
+          rune >= 0xd800 && rune <= 0xdfff ||
+          rune >= 0x200b && rune <= 0x200f ||
+          rune >= 0x202a && rune <= 0x202e ||
+          rune >= 0x2060 && rune <= 0x206f ||
+          rune == 0xfeff,
+    );

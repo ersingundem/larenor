@@ -216,7 +216,8 @@ class _ViewState extends ConsumerState<_View> {
                     'core-ha-command-on',
                     l.coreHaTurnOn,
                     c.canCommand &&
-                            c.snapshot!.projection.switchState != CoreHaSwitchState.on
+                            c.snapshot!.projection.switchState !=
+                                CoreHaSwitchState.on
                         ? () => unawaited(
                             c.command(
                               CoreHaCommandAction.turnOn,
@@ -225,7 +226,8 @@ class _ViewState extends ConsumerState<_View> {
                           )
                         : null,
                     selected:
-                        c.snapshot!.projection.switchState == CoreHaSwitchState.on,
+                        c.snapshot!.projection.switchState ==
+                        CoreHaSwitchState.on,
                   ),
                   button(
                     'core-ha-command-off',
@@ -241,7 +243,8 @@ class _ViewState extends ConsumerState<_View> {
                           )
                         : null,
                     selected:
-                        c.snapshot!.projection.switchState == CoreHaSwitchState.off,
+                        c.snapshot!.projection.switchState ==
+                        CoreHaSwitchState.off,
                   ),
                 ] else if (c.snapshot != null)
                   Text(l.coreHaReadOnly),
