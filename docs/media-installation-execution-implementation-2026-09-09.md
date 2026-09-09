@@ -1,8 +1,9 @@
 # S06.4 dar medya kurulum yürütmesi
 
 **Durum:** Kalıcı API, ayrı IPC ve doğrulanmış Jellyfin binding dilimleri yerelde
-uygulandı. S06.4 tamamlanmadı; binding'i tüketen ayrı journal/runtime, paketli
-mutasyon işçisi ve iki mimarili native kabul açık. Ürün kurulum yeteneği
+uygulandı. Binding'i tüketen ayrı sürüm-2 managed-container journal da yerelde
+tamamlandı. S06.4 tamamlanmadı; gerçek journal broker'ı, paketli mutasyon işçisi,
+runtime ve iki mimarili native kabul açık. Ürün kurulum yeteneği
 `installAvailable=false` kalır.
 
 ## Uygulanan sınır
@@ -44,9 +45,19 @@ yalnız `/config` ve `/cache` için `NoCopy=true` named volume üretir. Image'ı
 bildirdiği bütün `Config.Volumes` hedefleri bu iki mount ile tam örtüşmezse veya
 taze inspect image/security/mount/network kimliğinden saparsa eşleşme reddedilir.
 
-Bu dilim son kurulum worker CLI'sini, ayrı managed-container journal'ını veya
-runtime supervisor'ını sağlamaz. Kullanıcının Docker Engine'ine veya ev
-sistemlerine hiçbir mutasyon yapılmadı.
+Ayrı sürüm-2 managed-container journal tam binding'i yan etkiden önce kalıcı
+yazar. Sürüm-1 legacy satırlarını okuyamaz; create/start sırasını, journal ve
+installation etiketlerini ve idempotency digest'ini yeniden doğrular. Belirsiz
+create sonucunda ikinci create yapmadan tam Engine gözlemiyle uzlaştırır. Güncel
+kaynaklardan yeniden üretilen binding saklanan binding ile aynı değilse Engine'e
+ulaşmadan reddeder. Image referansı, etiket şeması, ortam, kaynak sınırları,
+read-only rootfs, tmpfs, iki NoCopy mount ve private network gövdesi sabit Docker
+create yolundan önce tekrar doğrulanır.
+
+Bu dilim gerçek kaynak journal'larını okuyup aynı Engine'e karşı yeniden
+doğrulayan production broker'ı, son kurulum worker CLI'sini veya runtime
+supervisor'ını sağlamaz. Kullanıcının Docker Engine'ine veya ev sistemlerine
+hiçbir mutasyon yapılmadı.
 
 ## TDD ve doğrulama
 
@@ -61,8 +72,12 @@ sistemlerine hiçbir mutasyon yapılmadı.
 - RED/GREEN `44e4bfd` / `874aca1`: typed resource proof'tan kapalı Jellyfin binding.
 - RED/GREEN `28e7e4e` / `52bae6c`: reconcile sırasında taze proof ve binding zorunluluğu.
 - RED/GREEN `9d2f171` / `d2c5a5f`: tam image/mount/network inspect matcher.
-- Güncel bağlayıcı/yürütme/IPC/eski worker regresyon paketi 78 test geçti;
+- RED/GREEN `d97f63b` / `c7955ab`: legacy'den ayrılmış v2 journal, kalıcı
+  create/start niyeti, kayıp cevap uzlaştırması ve sabit managed Docker yolu.
+- Güncel bağlayıcı/yürütme/IPC/eski worker regresyon paketi 89 test geçti;
   Python derleme ve `git diff --check` temiz.
+- Exact `dc0aeb7` kaynak commit'i [Server CI 34310993881](https://github.com/ersingundem/larenor/actions/runs/34310993881)
+  ile geçti. Bu v2 journal commit'inin exact-source CI'ı henüz açık.
 
 Sürüm kontrollü örnekler
 [`contracts/media-installations.v1.json`](../contracts/media-installations.v1.json)
@@ -72,11 +87,9 @@ create/start makbuzları gerekir. Bunlar olmadan S06.4 `done` yapılamaz.
 
 ## Sonraki dilim
 
-1. Worker-only policy modeli accepted image, managed appdata volume ve private
-   control-network receipt kimliklerini tam eşleşmeyle açacak.
-2. Builder doğrulanmış receipt'lerden mount/port/security binding üretecek;
-   API veya Client ham yolları seçemeyecek.
-3. Aynı Server paketindeki mutasyon worker CLI ve supervisor yaşam döngüsü
+1. Production broker accepted image, managed appdata volume/bootstrap ve private
+   control-network journal'larını aynı Engine üzerinde taze doğrulayacak.
+2. Aynı Server paketindeki mutasyon worker CLI ve supervisor yaşam döngüsü
    eklenecek.
-4. İki mimarili disposable Linux acceptance gerçek Engine create/start,
+3. İki mimarili disposable Linux acceptance gerçek Engine create/start,
    restart reconciliation ve owned-resource temizliğini kanıtlayacak.
