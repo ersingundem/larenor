@@ -785,10 +785,18 @@
           "state": "completed",
           "result": "passed",
           "label": "Şifreli bootstrap niyeti ve URL/IP kabul etmeyen tek-stream Jellyfin 10.11 startup protokolü: 30 odaklı; exact kaynakta tam yerel Server 4.381 PASS/13 macOS skip, security policy ve compileall temiz. CI, worker adres kanıtı ve gerçek servis kabulü açık."
+        },
+        {
+          "kind": "test",
+          "ref": "docs/media-service-bootstrap-implementation-2026-09-09.md",
+          "commit": "832b44adc01d98529e7298d574db328d799226d8",
+          "state": "completed",
+          "result": "passed",
+          "label": "Exact managed container/private-network numeric Jellyfin endpoint kanıtı: 27 yeni/86 ilgili test; DNS/proxy/retry yok. Journal/supervisor runtime bağı, CI ve gerçek servis kabulü açık."
         }
       ],
       "completionCommit": null,
-      "reason": "Server üretimli sır ve şifreli intent ile sabit resmi Jellyfin startup sırası yerelde hazır. Adaptör URL/IP/resolver kabul etmiyor, redirect/retry yapmıyor ve kısmi/belirsiz sonucu secret-free taşıyor. Exact managed container/private-network adres kanıtı, worker bağlantısı, API anahtarı/kütüphane geri okuması, CI ve gerçek servis kabulü açık."
+      "reason": "Server üretimli sır, şifreli intent, sabit Jellyfin startup sırası ve exact managed container/private-network numeric endpoint kanıtı yerelde hazır. DNS/proxy/redirect/retry yok; kısmi/belirsiz sonuç secret-free. Managed journal/supervisor runtime bağı, API anahtarı/kütüphane geri okuması, CI ve gerçek servis kabulü açık."
     },
     {
       "id": "S06.6",
