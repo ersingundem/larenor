@@ -616,12 +616,43 @@ def test_managed_engine_exposes_only_closed_create_diagnostic(monkeypatch):
         lambda _self, _method, _target, _body=None: response,
     )
     engine = m._managed_engine(DockerEndpoint('/tmp/larenor-engine.sock', owner_uid=0))
-    with pytest.raises(
-        m.SmokeError,
-        match='^managed_create_network_rejected$',
-    ) as caught:
+    assert engine._exchange('POST', '/containers/create?name=private', b'{}') is response
+    assert engine.managed_create_diagnostic == 'managed_create_network_rejected'
+    assert '/private/token' not in engine.managed_create_diagnostic
+
+
+def test_managed_engine_preserves_transport_error_and_records_closed_diagnostic(
+        monkeypatch):
+    m = api()
+    from larenor_server.plugins.docker_probe import DockerEndpoint
+    from larenor_server.plugins.worker import DockerWorkerError, UnixDockerEngine
+    error = DockerWorkerError('engine_unavailable')
+
+    def fail(*_args, **_kwargs):
+        raise error
+
+    monkeypatch.setattr(UnixDockerEngine, '_exchange', fail)
+    engine = m._managed_engine(DockerEndpoint('/tmp/larenor-engine.sock', owner_uid=0))
+    with pytest.raises(DockerWorkerError) as caught:
         engine._exchange('POST', '/containers/create?name=private', b'{}')
-    assert '/private/token' not in str(caught.value)
+    assert caught.value is error
+    assert engine.managed_create_diagnostic == 'managed_create_transport_failed'
+
+
+@pytest.mark.parametrize('state,code,diagnostic,expected', [
+    ('prepared', 'accepted', None, 'managed_create_preflight_failed'),
+    ('uncertain', 'engine_operation_uncertain', None, 'managed_create_uncertain'),
+    ('needs_attention', 'resource_conflict', None, 'managed_create_resource_conflict'),
+    ('needs_attention', 'dispatch_expired', None, 'managed_create_expired'),
+    ('uncertain', 'engine_operation_uncertain', 'managed_create_network_rejected',
+     'managed_create_network_rejected'),
+    ('private', 'private', None, 'managed_create_receipt_invalid'),
+])
+def test_failed_managed_create_receipt_has_only_closed_diagnostic(
+        state, code, diagnostic, expected):
+    m = api()
+    receipt = SimpleNamespace(state=state, code=code, container_id='private')
+    assert m._managed_create_receipt_failure(receipt, diagnostic) == expected
 
 
 @pytest.mark.parametrize('fault', ['initialize_empty_root','start','restart','identity','mount','initial_data'])
