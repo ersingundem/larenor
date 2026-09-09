@@ -275,7 +275,7 @@ def test_ready_resource_can_be_rebound_only_to_its_exact_current_source(journal,
         assert rebound.receipt == ready
         assert rebound.resource == source['plan'].resources[0]
         changed = dict(source)
-        changed['policy'] = replace(source['policy'], workerPolicyVersion=2)
+        changed['policy'] = source['policy'].model_copy(update={'workerPolicyVersion': 2})
         changed['plan'] = build_resource_plan(
             changed['stack'], changed['catalog'], changed['policy'])
         rejected('idempotency_conflict', lambda: journal.bind(
