@@ -158,6 +158,25 @@ def test_existing_single_active_larenor_key_is_reused_without_mutation():
     assert all(not raw.startswith(b'POST /Auth/Keys') for raw in connection.requests)
 
 
+def test_unicode_display_names_are_preserved_without_relaxing_private_paths():
+    named_system = system() | {'ServerName': 'Ersin’in Evi'}
+    named_folders = folders()
+    named_folders[0] = named_folders[0] | {'Name': 'Çocuk Filmleri'}
+    connection = Connection([
+        json_response(authentication()),
+        json_response(keys(key())),
+        json_response(named_system),
+        json_response(named_folders),
+    ])
+
+    result = JellyfinAuthenticatedReadback().read(
+        connection, private(), device_id=DEVICE,
+    )
+
+    assert result.server_name == 'Ersin’in Evi'
+    assert result.libraries[0][0] == 'Çocuk Filmleri'
+
+
 @pytest.mark.parametrize('listed', [
     keys(key(), key('d' * 32)),
     keys(key(active=False)),
