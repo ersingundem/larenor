@@ -1,7 +1,5 @@
 """Fresh managed-container proofs must stay bound to journals and one Engine."""
 
-from dataclasses import replace
-import hashlib
 import json
 
 import pytest
@@ -131,7 +129,9 @@ def test_broker_rebinds_and_freshly_observes_every_jellyfin_resource(tmp_path):
             readers, engine_identity=endpoint,
         )
         proof = broker(data[3], data[4], data[5])
-    assert proof.image.image_id == data[3].resources[0].image.configDigest
+    jellyfin_image = next(item for item in data[3].resources
+                           if item.kind == 'ensure_image' and item.serviceId == 'jellyfin')
+    assert proof.image.image_id == jellyfin_image.image.configDigest
     assert len(proof.volumes) == 2 and all(item.bootstrap_verified for item in proof.volumes)
     assert proof.network.network_id == '3' * 64
     assert [call[0] for call in readers.calls] == [
