@@ -60,17 +60,21 @@ def _intent(value):
 class UnixVolumeBootstrapEngine:
     """Exact create/start/wait/remove transport for the packaged helper."""
 
-    def __init__(self, endpoint, *, transport_factory=None, name_factory=None):
+    def __init__(self, endpoint, *, transport_factory=None, name_factory=None,
+                 peer_uid=None):
         try:
             _require(type(endpoint) is DockerEndpoint, 'bootstrap_configuration_invalid')
             _require(transport_factory is None or callable(transport_factory),
                      'bootstrap_configuration_invalid')
             _require(name_factory is None or callable(name_factory),
                      'bootstrap_configuration_invalid')
+            _require(peer_uid is None or callable(peer_uid),
+                     'bootstrap_configuration_invalid')
             self._endpoint = endpoint
             if transport_factory is None:
                 self._transport = UnixDockerEngine(
                     endpoint.path, timeout=1.0, socket_uid=endpoint.owner_uid,
+                    peer_uid=peer_uid,
                 )
                 self._cleanup_transport = self._transport
             else:
@@ -192,7 +196,8 @@ class UnixVolumeBootstrapEngine:
 class VolumeBootstrapVerifier:
     """Return only a revision-bound proof from the exact helper result."""
 
-    def __init__(self, endpoint, helper_image_id, platform, *, engine_factory=None):
+    def __init__(self, endpoint, helper_image_id, platform, *, engine_factory=None,
+                 peer_uid=None):
         try:
             _require(type(endpoint) is DockerEndpoint, 'bootstrap_configuration_invalid')
             _require(type(helper_image_id) is str and _IMAGE_ID.fullmatch(helper_image_id) is not None,
@@ -201,11 +206,16 @@ class VolumeBootstrapVerifier:
                      'bootstrap_configuration_invalid')
             _require(engine_factory is None or callable(engine_factory),
                      'bootstrap_configuration_invalid')
+            _require(peer_uid is None or callable(peer_uid),
+                     'bootstrap_configuration_invalid')
             self._endpoint = endpoint
             self._helper_image_id = helper_image_id
             self._platform = platform
-            factory = UnixVolumeBootstrapEngine if engine_factory is None else engine_factory
-            self._engine = factory(endpoint)
+            if engine_factory is None:
+                self._engine = UnixVolumeBootstrapEngine(endpoint, peer_uid=peer_uid)
+            else:
+                _require(peer_uid is None, 'bootstrap_configuration_invalid')
+                self._engine = engine_factory(endpoint)
             _require(getattr(self._engine, '_endpoint', None) is endpoint
                      and callable(getattr(self._engine, 'verify_root', None)),
                      'bootstrap_configuration_invalid')

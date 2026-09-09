@@ -266,6 +266,7 @@ def test_actual_linux_peer_context_is_retained_on_the_effect_thread(monkeypatch)
     from larenor_server.plugins import daemon_context
 
     left, right = socket.socketpair()
+    operation_left, operation_right = socket.socketpair()
     try:
         try:
             raw = left.getsockopt(socket.SOL_SOCKET, getattr(socket, 'SO_PEERPIDFD', 77), 4)
@@ -288,6 +289,12 @@ def test_actual_linux_peer_context_is_retained_on_the_effect_thread(monkeypatch)
             socket_factory=lambda *_args: left,
         )
 
+        def apply(step, plan):
+            assert guarded._peer_verifier(operation_left) == os.getuid()
+            return Backend.apply(guarded.backend, step, plan)
+
+        guarded.backend.apply = apply
+
         def execute():
             owner = threading.get_native_id()
             guarded.open(time.monotonic() + 2)
@@ -301,3 +308,5 @@ def test_actual_linux_peer_context_is_retained_on_the_effect_thread(monkeypatch)
     finally:
         left.close()
         right.close()
+        operation_left.close()
+        operation_right.close()

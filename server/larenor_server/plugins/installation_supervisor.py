@@ -70,18 +70,80 @@ def _same_observed_user_context(peer, worker):
         return False
 
 
+class RetainedDaemonPeerVerifier:
+    """Authenticate every operation connection against one retained pidfd."""
+
+    def __init__(self, endpoint):
+        if type(endpoint) is not DockerEndpoint:
+            raise InstallationSupervisorError()
+        self._endpoint = endpoint
+        self._owner = None
+        self._lease = None
+        self._active_deadline = None
+        self._failed = False
+
+    def __repr__(self):
+        return 'RetainedDaemonPeerVerifier(<private>)'
+
+    def bind(self, lease, deadline):
+        if (self._owner is not None or self._failed or not _valid_deadline(deadline)
+                or not callable(getattr(lease, 'matches_connection', None))
+                or not lease.revalidate(deadline)):
+            raise InstallationSupervisorError()
+        self._owner = os.getpid(), threading.get_native_id()
+        self._lease = lease
+
+    def check(self, deadline):
+        if (self._failed or self._lease is None or not _valid_deadline(deadline)
+                or self._owner != (os.getpid(), threading.get_native_id())
+                or not self._lease.revalidate(deadline)):
+            raise InstallationSupervisorError()
+
+    def activate(self, deadline):
+        self.check(deadline)
+        if self._active_deadline is not None:
+            self._failed = True
+            raise InstallationSupervisorError()
+        self._active_deadline = deadline
+
+    def deactivate(self):
+        self._active_deadline = None
+
+    def __call__(self, connection):
+        try:
+            deadline = self._active_deadline
+            self.check(deadline)
+            if not self._lease.matches_connection(
+                    connection, self._endpoint.owner_uid, deadline):
+                raise InstallationSupervisorError()
+            self.check(deadline)
+            return self._endpoint.owner_uid
+        except Exception:
+            self._failed = True
+            raise InstallationSupervisorError() from None
+
+    def close(self):
+        self._failed = True
+        self._active_deadline = None
+        self._lease = None
+
+
 class SupervisedInstallationBackend:
     """Keep daemon evidence on the one native thread executing effects."""
 
-    def __init__(self, endpoint, backend, *, socket_factory=None):
+    def __init__(self, endpoint, backend, *, socket_factory=None, peer_verifier=None):
         if (type(endpoint) is not DockerEndpoint
                 or not callable(getattr(backend, 'apply', None))
                 or not callable(getattr(backend, 'reconcile', None))
-                or socket_factory is not None and not callable(socket_factory)):
+                or socket_factory is not None and not callable(socket_factory)
+                or peer_verifier is not None
+                and type(peer_verifier) is not RetainedDaemonPeerVerifier):
             raise InstallationSupervisorError()
         self._endpoint = endpoint
         self.backend = backend
         self._socket_factory = socket.socket if socket_factory is None else socket_factory
+        self._peer_verifier = (RetainedDaemonPeerVerifier(endpoint)
+                               if peer_verifier is None else peer_verifier)
         self._owner = None
         self._connection = None
         self._lease = None
@@ -97,7 +159,7 @@ class SupervisedInstallationBackend:
         identities, self._identities = self._identities, None
         lease, self._lease = self._lease, None
         connection, self._connection = self._connection, None
-        for value in (identities, lease, connection):
+        for value in (self._peer_verifier, identities, lease, connection):
             if value is not None:
                 try:
                     value.close()
@@ -113,6 +175,7 @@ class SupervisedInstallationBackend:
                     or _identity(self._endpoint) != self._endpoint_identity
                     or not self._lease.revalidate(deadline)):
                 raise ValueError()
+            self._peer_verifier.check(deadline)
             self._identities.check(deadline)
             if (_identity(self._endpoint) != self._endpoint_identity
                     or not self._lease.revalidate(deadline)
@@ -149,6 +212,7 @@ class SupervisedInstallationBackend:
             if not _same_observed_user_context(identities.peer, identities.worker):
                 raise ValueError()
             self._endpoint_identity = before
+            self._peer_verifier.bind(lease, deadline)
             self._check(deadline)
         except BaseException as error:
             self._invalidate()
@@ -158,18 +222,23 @@ class SupervisedInstallationBackend:
 
     def _call(self, operation, step, plan, deadline):
         self._check(deadline)
+        self._peer_verifier.activate(deadline)
         try:
-            result = getattr(self.backend, operation)(step, plan)
-        except BaseException:
-            # Even a backend failure must release a changed daemon context. The
-            # original static backend error remains useful when evidence holds.
             try:
+                result = getattr(self.backend, operation)(step, plan)
                 self._check(deadline)
-            except InstallationSupervisorError:
+                return result
+            except BaseException:
+                # Even a backend failure must release a changed daemon context.
+                # The original static backend error remains useful when the
+                # retained evidence still holds.
+                try:
+                    self._check(deadline)
+                except InstallationSupervisorError:
+                    raise
                 raise
-            raise
-        self._check(deadline)
-        return result
+        finally:
+            self._peer_verifier.deactivate()
 
     def apply_with_deadline(self, step, plan, deadline):
         return self._call('apply', step, plan, deadline)

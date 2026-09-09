@@ -24,7 +24,7 @@ from .docker_probe import DockerEndpoint
 from .host_preflight import _host_platform
 from .installation_execution import JellyfinWorkerBackend
 from .installation_ipc import InstallationWorkerServer
-from .installation_supervisor import SupervisedInstallationBackend
+from .installation_supervisor import RetainedDaemonPeerVerifier, SupervisedInstallationBackend
 from .managed_container import (
     JellyfinBindingBuilder,
     JellyfinEngineReaders,
@@ -210,7 +210,7 @@ class _InstallationRuntime:
             raise RuntimeError('worker_unavailable')
 
 
-def _build_runtime(policy):
+def _build_runtime(policy, *, peer_uid=None):
     journals = []
     try:
         resources = ResourceJournal(policy.resource_journal)
@@ -223,8 +223,9 @@ def _build_runtime(policy):
             policy.endpoint,
             policy.helper_image_id,
             policy.platform,
+            peer_uid=peer_uid,
         )
-        readers = JellyfinEngineReaders(policy.endpoint, bootstrap)
+        readers = JellyfinEngineReaders(policy.endpoint, bootstrap, peer_uid=peer_uid)
         catalog = load_catalog()
         builder = _RuntimeBindingBuilder(
             policy.worker_policy,
@@ -237,6 +238,7 @@ def _build_runtime(policy):
         engine = UnixDockerEngine(
             policy.endpoint.path,
             socket_uid=policy.endpoint.owner_uid,
+            peer_uid=peer_uid,
         )
         operations = JournaledManagedContainerOperations(containers, engine)
         return _InstallationRuntime(
@@ -268,10 +270,13 @@ def _serve(args, policy):
         for number in (signal.SIGINT, signal.SIGTERM):
             previous[number] = signal.getsignal(number)
             signal.signal(number, stop)
-        built = _build_runtime(policy)
+        peer_verifier = RetainedDaemonPeerVerifier(policy.endpoint)
+        built = _build_runtime(policy, peer_uid=peer_verifier)
         worker = InstallationWorkerServer(
             args.socket,
-            SupervisedInstallationBackend(policy.endpoint, built.backend),
+            SupervisedInstallationBackend(
+                policy.endpoint, built.backend, peer_verifier=peer_verifier,
+            ),
             allowed_uid=args.api_uid,
             socket_gid=args.socket_gid,
         )
