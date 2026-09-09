@@ -529,7 +529,7 @@
       "kind": "task",
       "parent": "S06.3",
       "title": "Kaynak makbuzu ve iki mimarili kabul",
-      "status": "pending",
+      "status": "in_progress",
       "dependsOn": [
         "S06.3c",
         "S06.3d",
@@ -553,7 +553,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": null
+      "reason": "Yalnız katalogda sabit Jellyfin image pull/inspect ve tek private control-network create/list/full-ID inspect yapan, container/volume/attach/delete/prune yüzeyi olmayan iki mimarili native fixture yerelde geliştiriliyor. Makbuz resources_ready ile sınırlı, dinamik ağ kimliğini yalnız SHA-256 olarak taşır ve installAvailable=false kalır. Exact-source uzak Server CI, bağımsız inceleme ve amd64/arm64 artifact kabulü bekleniyor."
     },
     {
       "id": "S06.4",

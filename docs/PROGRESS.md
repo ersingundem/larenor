@@ -1,11 +1,11 @@
 # Larenor — güncel ilerleme ve iş kuyruğu
 
-**Son güncelleme: 9 Eylül 2026 — Native16 process namespace yoluna daraldı; namespace yaprağı tanısı hazır.**
+**Son güncelleme: 9 Eylül 2026 — S06.3f kaynak makbuzu ve iki mimarili native kabul paketi yerel doğrulamada.**
 
 ```text
-Kuyruk kabulü       ██░░░░░░░░░░░░░░░░░░  10/125 iş (%8; eşit ağırlıklı sayaç)
+Kuyruk kabulü       ██░░░░░░░░░░░░░░░░░░  11/125 iş (%9; eşit ağırlıklı sayaç)
 S06 koordinatörü    ███████░░░░░░░░░░░░░  2/6 yazılım dilimi
-S06.3 kaynak temeli  █████████████░░░░░░░  4/6 alt adım
+S06.3 kaynak temeli  █████████████████░░░  5/6 alt adım
 S08.7 yerel dilimler █████████████░░░░░░░  2/3 yerel dilim; CI/fiziksel kabul ayrı
 Yeni 63 özellik     ░░░░░░░░░░░░░░░░░░░░  0/63 kabul edildi
 ```
@@ -17,17 +17,17 @@ olarak kullanılmaz. İlk 60 adayın tamamı ve VNC/RDP/SSH seçildi.
 [Bağımlılıklara göre özellik sırası](feature-expansion-plan-2026-09-05.md)
 ve [uzak erişim kapsamı](remote-access-plan-2026-09-05.md) korunuyor.
 
-**Son tam doğrulanmış CI Client paketi: `d5d5889` / APK132.** Aynı kaynakta
-5.438 Flutter ve 3.967 Server testi geçti; Android emülatöründe 17/17 E2E
+**Son tam doğrulanmış CI Client paketi: `6a054ea` / APK135.** Aynı kaynakta
+5.438 Flutter ve 4.027 Server testi geçti; Android emülatöründe 17/17 E2E
 başarılı oldu. Arşiv yolculuğu yeniden açılan ekranda kalıcı okumayı doğrulayan
 `core_archive.reopened_readback` fazına ulaştı. CI APK'nın imzasını,
 sertifikasını, paketini, sürümünü ve release bayrağını doğruladı;
-`app-signed-release-apk-132` artefakt arşivi 57.127.878 bayt ve süresi dolmamış
+`app-signed-release-apk-135` artefakt arşivi 57.127.884 bayt ve süresi dolmamış
 durumda. Aynı commitin bağımsız Security ve Server Container iş akışları da
-geçti; Server 3.967 testi ile amd64/arm64 imaj ve manifest yayını tamamlandı.
-[Android CI132](https://github.com/ersingundem/larenor/actions/runs/34284416849) ·
-[Server Container CI](https://github.com/ersingundem/larenor/actions/runs/34284416850) ·
-[Security CI](https://github.com/ersingundem/larenor/actions/runs/34284416642).
+geçti; Server 4.027 testi ile amd64/arm64 imaj ve manifest yayını tamamlandı.
+[Android CI135](https://github.com/ersingundem/larenor/actions/runs/34294585430) ·
+[Server Container CI](https://github.com/ersingundem/larenor/actions/runs/34294585502) ·
+[Security CI](https://github.com/ersingundem/larenor/actions/runs/34294584966).
 Gerçek ev kurulumu ve fiziksel tablet kabulü henüz yapılmadı.
 
 ## Şimdi yapılan işler
@@ -39,6 +39,7 @@ Gerçek ev kurulumu ve fiziksel tablet kabulü henüz yapılmadı.
 | S08.7 — merkezi Home Assistant adaptörü | **Devam ediyor**; typed durum, kalıcı switch komutu/makbuzu ve açık Direct→Core aktarımı main içinde | Exact-source birleşik CI; sonra geniş HA varlık/servis kapsamı |
 | B5.1 — ortak tablet tasarımı | Services/hesap IME paketi APK116 ile kabul edildi; S08.7 komut ve aktarım yüzeyleri yerel tablet matrisinden geçti | Exact-source Android CI ve kalan ortak tablet yüzeyleri |
 | S06.3d — kalıcı depolama | **Kabul edildi**; Native18 exact `6a054ea`, amd64+arm64 makbuzları doğrulandı | S06.3f tam kaynak makbuzu ve iki mimarili kabul |
+| S06.3f — kaynak kabulü | **Devam ediyor**; dar image/network fixture ve kapalı makbuz şeması yerelde yeşil | Exact-source Server CI, bağımsız inceleme, amd64+arm64 native makbuz |
 
 S08.7 üç sonlu teslimden oluşur: **kaynak bağlama ve typed durum → komut ve
 kalıcı sonuç → açık Direct aktarımı**. Üç yerel dilim de squash yapılmadan
@@ -338,6 +339,20 @@ doğrulamasıyla Larenor Server yayımını geçti.
 [Sahiplikli cgroup yaşam döngüsü](jellyfin-owned-cgroup-lifecycle-2026-09-09.md).
 Gerçek ev kurulumu ve kullanıcı kurulum yetkisi hâlâ açık;
 `installAvailable=false`.
+
+S06.3f için ayrı native kaynak fixture’ı yalnız katalogda sabit Jellyfin
+image’ını pull/inspect eder ve tek iç control network’ü create/list/full-ID
+inspect ile doğrular. Aynı journal kapatılıp yeniden açıldığında hazır
+makbuzların hiçbir Engine I/O’su veya yeni yetki istemeden okunabildiği kapalı
+bağımlılıklarla sınanır. Public makbuz ham network ID veya preparation ID
+taşımaz; yalnız ağ kimliğinin SHA-256 değerini, kaynak dosyalarının özetlerini,
+`containerOperations=0` ve `installAvailable=false` değerlerini içerir.
+Odaklı 38 test, ilgili 668 test ve güvenlik politikası yerelde geçti. Tam 4.284
+testlik yerel koleksiyonda yalnız zorunlu apksig ortamı verilmediği için dört
+setup hatası oluştu; sabit apksig 9.1.0 SHA-256 doğrulandıktan ve Homebrew Java
+17 yolu verildikten sonra bu dört kriptografik test 4/4 geçti. Exact-source
+Server CI ve iki mimarili native artifact henüz bekleniyor.
+[Yerel kaynak kabul kaydı](media-resource-native-acceptance-2026-09-09.md).
 
 ## Canlı takip ve sıradaki işler
 

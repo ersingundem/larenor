@@ -1,0 +1,70 @@
+{
+  "name": "Media Native Resource Characterization",
+  "on": {"workflow_dispatch": {}},
+  "permissions": {"contents": "read"},
+  "concurrency": {
+    "group": "media-resources-${{ github.ref }}",
+    "cancel-in-progress": true
+  },
+  "jobs": {
+    "characterize": {
+      "runs-on": "${{ matrix.runner }}",
+      "timeout-minutes": 25,
+      "strategy": {
+        "fail-fast": false,
+        "matrix": {"include": [
+          {"runner": "ubuntu-24.04", "platform": "linux/amd64"},
+          {"runner": "ubuntu-24.04-arm", "platform": "linux/arm64"}
+        ]}
+      },
+      "env": {"EXPECTED_PLATFORM": "${{ matrix.platform }}"},
+      "steps": [
+        {
+          "name": "Require manual reviewed main source",
+          "run": "test \"$GITHUB_EVENT_NAME\" = workflow_dispatch && test \"$GITHUB_REF\" = refs/heads/main && test \"$GITHUB_REPOSITORY\" = ersingundem/larenor && test \"$GITHUB_WORKFLOW_SHA\" = \"$GITHUB_SHA\" && test \"$RUNNER_ENVIRONMENT\" = github-hosted"
+        },
+        {
+          "name": "Require owned cgroup runtime",
+          "run": "test -x /usr/bin/systemd-run && test -x /usr/bin/systemctl && test -x /usr/bin/unshare && test -x /usr/bin/dockerd && systemd_major=\"$(/usr/bin/systemd-run --version | /usr/bin/awk 'NR == 1 { print $2 }')\" && case \"$systemd_major\" in ''|*[!0-9]*) exit 1;; esac && test \"$systemd_major\" -ge 254 && test \"$(/usr/bin/stat --file-system --format=%T /sys/fs/cgroup)\" = cgroup2fs && test -r /sys/fs/cgroup/cgroup.controllers"
+        },
+        {
+          "uses": "actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
+          "with": {"ref": "${{ github.sha }}", "persist-credentials": false}
+        },
+        {
+          "name": "Prepare pinned isolated Python tooling",
+          "run": "python3 -m venv \"$RUNNER_TEMP/media-resource-ci-tools\" && \"$RUNNER_TEMP/media-resource-ci-tools/bin/python\" -m pip install --disable-pip-version-check --only-binary=:all: uv==0.12.10 && { echo \"UV_PROJECT_ENVIRONMENT=$RUNNER_TEMP/media-resource-fixture-venv\"; echo \"UV_PYTHON_INSTALL_DIR=$RUNNER_TEMP/media-resource-fixture-python\"; } >> \"$GITHUB_ENV\" && echo \"$RUNNER_TEMP/media-resource-ci-tools/bin\" >> \"$GITHUB_PATH\""
+        },
+        {
+          "name": "Install reviewed dependency lock",
+          "working-directory": "server",
+          "run": "uv sync --locked --python 3.12.14"
+        },
+        {
+          "name": "Check installed dependency consistency",
+          "run": "uv pip check --python \"$UV_PROJECT_ENVIRONMENT/bin/python\""
+        },
+        {
+          "name": "Characterize only image and private network resources",
+          "id": "native",
+          "timeout-minutes": 22,
+          "run": "exec sudo --non-interactive env -i PATH=/usr/bin:/bin PYTHONPATH=\"$GITHUB_WORKSPACE/server:$GITHUB_WORKSPACE\" CI=\"$CI\" GITHUB_ACTIONS=\"$GITHUB_ACTIONS\" RUNNER_ENVIRONMENT=\"$RUNNER_ENVIRONMENT\" RUNNER_ARCH=\"$RUNNER_ARCH\" GITHUB_SHA=\"$GITHUB_SHA\" GITHUB_WORKFLOW_SHA=\"$GITHUB_WORKFLOW_SHA\" GITHUB_EVENT_NAME=\"$GITHUB_EVENT_NAME\" GITHUB_REF=\"$GITHUB_REF\" GITHUB_REPOSITORY=\"$GITHUB_REPOSITORY\" EXPECTED_PLATFORM=\"$EXPECTED_PLATFORM\" \"$UV_PROJECT_ENVIRONMENT/bin/python\" -B -m tool.media_resource_ci --run-ephemeral-ci > \"$RUNNER_TEMP/media-resource-receipt.json\""
+        },
+        {
+          "name": "Verify exact source and native platform receipt",
+          "run": "\"$UV_PROJECT_ENVIRONMENT/bin/python\" -B -m tool.media_resource_ci --verify-receipt \"$RUNNER_TEMP/media-resource-receipt.json\""
+        },
+        {
+          "name": "Preserve required public characterization receipt",
+          "uses": "actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02",
+          "with": {
+            "name": "media-resources-${{ github.sha }}-${{ runner.arch }}",
+            "path": "${{ runner.temp }}/media-resource-receipt.json",
+            "if-no-files-found": "error",
+            "retention-days": 14
+          }
+        }
+      ]
+    }
+  }
+}
