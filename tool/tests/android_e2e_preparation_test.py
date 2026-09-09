@@ -15,7 +15,7 @@ SCRIPT = Path(__file__).resolve().parents[1] / "run_android_e2e.sh"
 
 
 class AndroidE2EPreparationTest(unittest.TestCase):
-    def run_script(self, *, generation_fails=False, journey_fails=False, focus_fails=False, diagnostics_fail=False, relay_fails=False, tee_fails=False, ci=False, serial="emulator-5554", qemu=True, stay_on="15", power_fails=False, setting_fails=False, home_component="com.android.launcher3/com.android.launcher3.uioverrides.QuickstepLauncher", launcher_disabled=True):
+    def run_script(self, *, generation_fails=False, journey_fails=False, focus_fails=False, diagnostics_fail=False, relay_fails=False, tee_fails=False, ci=False, serial="emulator-5554", qemu=True, stay_on="15", power_fails=False, setting_fails=False, launcher_system_package=True, launcher_disabled=True):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)
             binaries = root / "bin"
@@ -31,7 +31,7 @@ class AndroidE2EPreparationTest(unittest.TestCase):
                        '  selected=$index; (( selected >= ${#values[@]} )) && selected=$((${#values[@]} - 1))\n'
                        '  echo "${values[$selected]}"; echo $((index + 1)) > "${COMMAND_TRACE}.reads"\n'
                        'fi\n'
-                       'if [[ "$*" == *"cmd package resolve-activity --brief --components -a android.intent.action.MAIN -c android.intent.category.HOME" ]]; then echo "$TEST_HOME_COMPONENT"; fi\n'
+                       'if [[ "$*" == *"pm list packages --system --user 0 com.android.launcher3" && "$TEST_LAUNCHER_SYSTEM_PACKAGE" == 1 ]]; then echo "package:com.android.launcher3"; fi\n'
                        'if [[ "$*" == *"pm disable-user --user 0 com.android.launcher3" ]]; then echo "Package com.android.launcher3 new state: disabled-user"; fi\n'
                        'if [[ "$*" == *"pm list packages --user 0 -d com.android.launcher3" && "$TEST_LAUNCHER_DISABLED" == 1 ]]; then echo "package:com.android.launcher3"; fi\n',
                 "dart": '#!/bin/bash\necho "dart $*" >> "$COMMAND_TRACE"\n'
@@ -63,7 +63,7 @@ class AndroidE2EPreparationTest(unittest.TestCase):
                                          "RUNNER_TEMP": str(root / "runner-temp"),
                                          "TEST_QEMU": "1" if qemu else "0",
                                          "TEST_STAY_ON": "|".join(stay_on) if isinstance(stay_on, list) else stay_on,
-                                         "TEST_HOME_COMPONENT": home_component,
+                                         "TEST_LAUNCHER_SYSTEM_PACKAGE": "1" if launcher_system_package else "0",
                                          "TEST_LAUNCHER_DISABLED": "1" if launcher_disabled else "0",
                                          "FAIL_POWER": "1" if power_fails else "0",
                                          "FAIL_SETTING": "1" if setting_fails else "0",
@@ -169,7 +169,7 @@ class AndroidE2EPreparationTest(unittest.TestCase):
         result, commands, _ = self.run_script(ci=True)
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertLess(
-            commands.index("cmd package resolve-activity --brief --components -a android.intent.action.MAIN -c android.intent.category.HOME"),
+            commands.index("pm list packages --system --user 0 com.android.launcher3"),
             commands.index("pm disable-user --user 0 com.android.launcher3"),
         )
         self.assertLess(
@@ -177,16 +177,15 @@ class AndroidE2EPreparationTest(unittest.TestCase):
             commands.index("dart run build_runner build"),
         )
 
-    def test_ci_rejects_unknown_home_without_disabling_or_building(self):
+    def test_ci_rejects_non_system_launcher_package_without_disabling_or_building(self):
         result, commands, _ = self.run_script(
             ci=True,
-            home_component="com.example.private/.Home",
+            launcher_system_package=False,
         )
         self.assertEqual(result.returncode, 2)
-        self.assertIn("resolve-activity", commands)
+        self.assertIn("pm list packages --system --user 0 com.android.launcher3", commands)
         self.assertNotIn("pm disable-user", commands)
         self.assertNotIn("dart ", commands)
-        self.assertNotIn("com.example.private", result.stdout + result.stderr)
 
     def test_ci_requires_verified_disabled_launcher_before_build(self):
         result, commands, _ = self.run_script(ci=True, launcher_disabled=False)
