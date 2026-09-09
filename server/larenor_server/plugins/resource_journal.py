@@ -536,6 +536,19 @@ class ResourceJournal:
         return self._decode(self._find(resource_id)).receipt
 
     @_static
+    def bind(self, resource_id, expected_revision, *, plan, stack, catalog, policy):
+        """Rebind a ready historical receipt to the exact current source.
+
+        This returns worker-private intent metadata for a fresh observer. It is
+        not a readiness grant and does not expose the retained observation.
+        """
+        row = self._current(resource_id, expected_revision,
+            dict(plan=plan, stack=stack, catalog=catalog, policy=policy))
+        intent = self._decode(row)
+        _require(intent.receipt.state == 'ready', 'invalid_transition')
+        return intent
+
+    @_static
     def list(self):
         self._locked()
         return tuple(self._decode(row).receipt for row in self._rows())

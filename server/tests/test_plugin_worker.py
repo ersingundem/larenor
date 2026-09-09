@@ -284,6 +284,27 @@ def test_unix_engine_uses_fixed_http_route_without_ambient_proxies(tmp_path, mon
     assert b"Authorization" not in captured[0]
 
 
+def test_unix_engine_supports_bodyless_container_delete(tmp_path):
+    path, captured, thread = unix_fixture(
+        tmp_path,
+        b'HTTP/1.1 204 No Content\r\nContent-Length: 0\r\n\r\n',
+    )
+    engine = UnixDockerEngine(
+        path,
+        socket_uid=os.getuid(),
+        peer_uid=lambda _: os.getuid(),
+    )
+
+    response = engine._exchange('DELETE', '/containers/' + '7' * 64)
+
+    thread.join(1)
+    assert response.status == 204 and response.body == b''
+    assert captured[0].startswith(
+        b'DELETE /v1.47/containers/' + b'7' * 64 + b' HTTP/1.1\r\n'
+    )
+    assert b'Content-Length:' not in captured[0]
+
+
 def test_unix_engine_deadline_and_malformed_reply_are_static(tmp_path):
     path, _, thread = unix_fixture(tmp_path, b'', delay=1)
     engine = UnixDockerEngine(path, timeout=0.04, socket_uid=os.getuid(), peer_uid=lambda _: os.getuid())

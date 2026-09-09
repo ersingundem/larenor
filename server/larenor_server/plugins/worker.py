@@ -238,7 +238,8 @@ class UnixDockerEngine:
             connection.connect(str(self.path))
             _require(self.peer_uid(connection) == self.socket_uid, "engine_peer_rejected")
             message = _request_bytes(method, "/v1.47" + target, "localhost",
-                                     {"Content-Type": "application/json"}, body)
+                                     {"Content-Type": "application/json"}, body,
+                                     allow_delete=method == "DELETE")
             connection.sendall(message)
             return _response(_Reader(connection, deadline), 1048576)
         except DockerWorkerError:
@@ -274,6 +275,25 @@ class UnixDockerEngine:
         _require(data.get("Warnings") in (None, []), "engine_protocol")
         return data["Id"]
 
+    def create_managed_container(self, binding):
+        # Imported at the method boundary to preserve the worker primitive's
+        # one-way dependency while enforcing a distinct mounted-binding type.
+        from .managed_container import ManagedContainerBinding, _binding_parts
+        _require(type(binding) is ManagedContainerBinding)
+        try:
+            _binding_parts(binding)
+        except (ValueError, TypeError, AttributeError, RecursionError):
+            raise DockerWorkerError("invalid_binding") from None
+        response = self._exchange("POST", "/containers/create?" + urlencode(
+            {"name": binding.name, "platform": binding.platform}), binding.specification)
+        _require(response.status != 409, "engine_conflict")
+        _require(response.status == 201, "engine_unavailable")
+        data = _decode(response.body)
+        _require(isinstance(data.get("Id"), str) and _CONTAINER_ID.fullmatch(data["Id"]) is not None,
+                 "engine_protocol")
+        _require(data.get("Warnings") in (None, []), "engine_protocol")
+        return data["Id"]
+
     def start_container(self, identity):
         _require(type(identity) is str and _CONTAINER_ID.fullmatch(identity) is not None)
         response = self._exchange("POST", "/containers/" + identity + "/start")
@@ -304,10 +324,12 @@ class StepReceipt:
 
 
 class WorkerJournal:
-    def __init__(self, directory, *, initialize=False):
+    def __init__(self, directory, *, initialize=False, _version=1):
         self.directory = Path(directory).absolute()
         self._thread_lock = threading.Lock()
         self._closed = False
+        _require(type(_version) is int and _version in {1, 2}, "journal_unavailable")
+        self.version = _version
         database = self.directory / "journal.sqlite"
         created = False
         try:
@@ -337,7 +359,7 @@ class WorkerJournal:
                 if created:
                     self._database.execute("BEGIN IMMEDIATE")
                     self._database.execute("CREATE TABLE metadata (identity TEXT NOT NULL, version INTEGER NOT NULL)")
-                    self._database.execute("INSERT INTO metadata VALUES (?,1)", (uuid.uuid4().hex,))
+                    self._database.execute("INSERT INTO metadata VALUES (?,?)", (uuid.uuid4().hex, self.version))
                     self._database.execute("""CREATE TABLE operations (
                         job TEXT NOT NULL, step TEXT NOT NULL, installation TEXT NOT NULL,
                         dispatch TEXT UNIQUE NOT NULL, payload BLOB NOT NULL, digest TEXT NOT NULL,
@@ -351,7 +373,8 @@ class WorkerJournal:
                         os.close(descriptor)
                 _require(self._database.execute("PRAGMA integrity_check").fetchone()[0] == "ok", "journal_unavailable")
                 row = self._database.execute("SELECT identity,version FROM metadata").fetchall()
-                _require(len(row) == 1 and row[0]["version"] == 1 and _ID.fullmatch(row[0]["identity"]) is not None, "journal_unavailable")
+                _require(len(row) == 1 and row[0]["version"] == self.version
+                         and _ID.fullmatch(row[0]["identity"]) is not None, "journal_unavailable")
                 self.identity = row[0]["identity"]
                 columns = self._database.execute("PRAGMA table_info(operations)").fetchall()
                 _require([item["name"] for item in columns] == ["job", "step", "installation", "dispatch", "payload",
@@ -388,6 +411,12 @@ class WorkerJournal:
         if hasattr(self, "_lock_file"):
             os.close(self._lock_file)
 
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        self.close()
+
     def _read(self, job, step):
         try:
             row = self._database.execute("SELECT * FROM operations WHERE job=? AND step=?", (job, step)).fetchone()
@@ -400,7 +429,7 @@ class WorkerJournal:
                 command = WorkerStep(**payload["command"])
                 _require((command.job_id, command.kind, command.installation_id, command.dispatch_id)
                          == (row["job"], row["step"], row["installation"], row["dispatch"]))
-                binding = _stored_binding(row)
+                binding = self._stored_binding(row)
                 _require(binding.labels["org.larenor.worker-journal"] == self.identity
                          and binding.labels["org.larenor.installation"] == command.installation_id)
                 if row["state"] == "succeeded":
@@ -409,6 +438,10 @@ class WorkerJournal:
             return row
         except (sqlite3.Error, TypeError, ValueError, KeyError, DockerWorkerError):
             raise DockerWorkerError("journal_unavailable") from None
+
+    @staticmethod
+    def _stored_binding(row):
+        return _stored_binding(row)
 
     def _write_state(self, row, state, code, identity=None):
         try:
@@ -484,8 +517,21 @@ class JournaledContainerOperations:
     def __init__(self, journal, engine):
         self.journal, self.engine = journal, engine
 
+    @staticmethod
+    def _binding(value):
+        _require(type(value) is ContainerBinding, "invalid_command")
+        return value
+
+    @staticmethod
+    def _matches(value, binding):
+        return _matches(value, binding)
+
+    def _create(self, binding):
+        return self.engine.create_container(binding)
+
     def apply(self, command, binding):
-        _require(type(command) is WorkerStep and type(binding) is ContainerBinding, "invalid_command")
+        _require(type(command) is WorkerStep, "invalid_command")
+        binding = self._binding(binding)
         _require(binding.labels["org.larenor.worker-journal"] == self.journal.identity
                  and binding.labels["org.larenor.installation"] == command.installation_id)
         payload = _canonical({"command": command.__dict__, "binding": binding.payload()})
@@ -502,7 +548,8 @@ class JournaledContainerOperations:
                 _require(command.start_deadline > time.time(), "dispatch_expired")
                 if command.kind == "start_container":
                     created = self.journal._read(command.job_id, "create_container")
-                    _require(created is not None and created["state"] == "succeeded" and _stored_binding(created) == binding, "step_order")
+                    _require(created is not None and created["state"] == "succeeded"
+                             and self.journal._stored_binding(created) == binding, "step_order")
                 _require(self.journal._database.execute("SELECT count(*) FROM operations").fetchone()[0] < 10000, "journal_unavailable")
                 try:
                     self.journal._database.execute("INSERT INTO operations VALUES (?,?,?,?,?,?,?,?,?)",
@@ -530,7 +577,7 @@ class JournaledContainerOperations:
                     return _receipt(self.journal._write_state(row, "needs_attention", "resource_conflict"))
             else:
                 created = self.journal._read(command.job_id, "create_container")
-                if (created is None or created["state"] != "succeeded" or not _matches(observed, binding)
+                if (created is None or created["state"] != "succeeded" or not self._matches(observed, binding)
                         or observed["Id"] != created["container"]
                         or type(observed.get("State")) is not dict or observed["State"].get("Status") != "created"):
                     return _receipt(self.journal._write_state(row, "needs_attention", "resource_conflict"))
@@ -540,7 +587,7 @@ class JournaledContainerOperations:
             row = self.journal._write_state(row, "mutating", "engine_operation_pending", identity)
             try:
                 if command.kind == "create_container":
-                    identity = self.engine.create_container(binding)
+                    identity = self._create(binding)
                 else:
                     self.engine.start_container(identity)
             except DockerWorkerError as error:
@@ -557,7 +604,7 @@ class JournaledContainerOperations:
             observed = self.engine.inspect_container(binding.name)
         except DockerWorkerError:
             return _receipt(self.journal._write_state(row, "uncertain", "engine_operation_uncertain", row["container"]))
-        if not _matches(observed, binding) or row["container"] is not None and observed["Id"] != row["container"]:
+        if not self._matches(observed, binding) or row["container"] is not None and observed["Id"] != row["container"]:
             return _receipt(self.journal._write_state(row, "needs_attention", "resource_conflict", row["container"]))
         if row["step"] == "start_container" and (type(observed.get("State")) is not dict
                                                 or observed["State"].get("Running") is not True):
@@ -565,12 +612,15 @@ class JournaledContainerOperations:
         code = "container_created" if row["step"] == "create_container" else "container_started"
         return _receipt(self.journal._write_state(row, "succeeded", code, observed["Id"]))
 
-    def reconcile(self, job_id, step):
+    def reconcile(self, job_id, step, binding=None):
         with self.journal.locked():
             row = self.journal._read(job_id, step)
             _require(row is not None, "record_missing")
+            stored = self.journal._stored_binding(row)
+            if binding is not None:
+                _require(self._binding(binding) == stored, "idempotency_conflict")
             if row["state"] in {"mutating", "uncertain"}:
-                return self._reconcile(row, _stored_binding(row))
+                return self._reconcile(row, stored)
             return _receipt(row)
 
     def observe(self, job_id, step):

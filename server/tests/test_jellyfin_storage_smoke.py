@@ -336,6 +336,35 @@ def test_running_container_pid_must_be_inside_owned_container_cgroup(monkeypatch
     assert daemon.verify_container_cgroup(4242) is None
 
 
+def test_managed_container_limits_are_read_from_its_owned_cgroup(monkeypatch, tmp_path):
+    m = api()
+    daemon = m.EphemeralDaemon()
+    monkeypatch.setattr(daemon, '_container_cgroup_path', lambda pid: tmp_path)
+    (tmp_path/'memory.max').write_bytes(b'4294967296\n')
+    (tmp_path/'cpu.max').write_bytes(b'200000 100000\n')
+    (tmp_path/'pids.max').write_bytes(b'512\n')
+    assert daemon.verify_container_resources(4242, 4294967296, 2000000000, 512) is None
+
+
+@pytest.mark.parametrize('name,value', [
+    ('memory.max', b'max\n'), ('memory.max', b'4294967295\n'),
+    ('cpu.max', b'max 100000\n'), ('cpu.max', b'199999 100000\n'),
+    ('pids.max', b'max\n'), ('pids.max', b'511\n'),
+])
+def test_managed_container_rejects_missing_or_weakened_cgroup_limits(
+        monkeypatch, tmp_path, name, value):
+    m = api()
+    daemon = m.EphemeralDaemon()
+    monkeypatch.setattr(daemon, '_container_cgroup_path', lambda pid: tmp_path)
+    values = {'memory.max': b'4294967296\n', 'cpu.max': b'200000 100000\n',
+              'pids.max': b'512\n'}
+    values[name] = value
+    for filename, contents in values.items():
+        (tmp_path/filename).write_bytes(contents)
+    with pytest.raises(m.SmokeError, match='^managed_resource_limits_unverified$'):
+        daemon.verify_container_resources(4242, 4294967296, 2000000000, 512)
+
+
 @pytest.mark.parametrize('pid,state', [(0,b'0::/x\n'), (4242,b'0::/system.slice/foreign.service\n'),
     (4242,b'0::/system.slice/larenor-jellyfin-test.service/containers2/abc\n')])
 def test_running_container_pid_rejects_invalid_or_escaped_cgroup(monkeypatch, pid, state):
@@ -513,6 +542,10 @@ def protocol(tmp_path, monkeypatch, request):
         def verify_container_cgroup(self, pid):
             assert pid == 4242
             self.verified_pids.append(pid)
+        def verify_container_resources(self, pid, memory, nano_cpus, pids_limit):
+            assert (pid, memory, nano_cpus, pids_limit) == (
+                4242, 4 * 1024 * 1024 * 1024, 2_000_000_000, 512)
+            self.verified_pids.append(pid)
     return m, source, Docker(), Images()
 
 
@@ -534,6 +567,322 @@ def test_complete_protocol_uses_two_nocopy_mounts_and_one_restart(protocol):
     assert sum(c[-1]=='initialize_empty_root' for c in docker.calls) == 2
     assert sum(c[-1]=='verify_sentinel' for c in docker.calls) == 2
     assert docker.verified_pids == [4242,4242]
+
+
+def test_managed_characterization_routes_through_resources_and_v2_worker(
+        protocol, monkeypatch):
+    m, source, docker, images = protocol
+    from tool import media_resource_smoke
+    from larenor_server.plugins import managed_container
+    events = []
+
+    monkeypatch.setattr(media_resource_smoke, 'characterize_resources',
+        lambda root, actual_source, actual_images, network_reader, network_creator:
+            events.append(('resources', root, actual_source, actual_images,
+                           type(network_reader).__name__, type(network_creator).__name__)))
+
+    class ManagedEngine:
+        def inspect_container(self, identity):
+            events.append(('inspect', identity))
+            return {'Id': identity, 'State': {'Pid': 4242, 'Running': True}}
+
+    class Marker:
+        @staticmethod
+        def payload():
+            return {'specification': {'HostConfig': {
+                'Memory': 4 * 1024 * 1024 * 1024,
+                'NanoCpus': 2_000_000_000,
+                'PidsLimit': 512,
+            }}}
+    marker = Marker()
+    monkeypatch.setattr(m, '_managed_create_and_start',
+        lambda owner, actual_source, endpoint, helper_id:
+            (events.append(('managed', owner, actual_source, endpoint.path, helper_id))
+             or ('c' * 64, marker, ManagedEngine())))
+    monkeypatch.setattr(managed_container, 'managed_container_matches',
+                        lambda value, binding: binding is marker)
+
+    result = m.characterize(
+        docker, source=source, images=images, volumes=object(), managed=True,
+    )
+
+    assert result['containerMode'] == 'journaled_managed_v2'
+    assert result['containerJournalVersion'] == 2
+    assert [event[0] for event in events[:4]] == [
+        'resources', 'managed', 'inspect', 'inspect',
+    ]
+    app_creates = [call for call in docker.calls
+                   if call[0] == 'create' and '--name=larenor-helper-base-probe' not in call]
+    assert app_creates == []
+    assert ['start', 'c' * 64] not in docker.calls
+    assert docker.verified_pids == [4242, 4242]
+
+
+@pytest.mark.parametrize('status,message,expected', [
+    (400, 'invalid mount config for type "volume"', 'managed_create_mount_rejected'),
+    (400, 'network larenor-control-private not found', 'managed_create_network_rejected'),
+    (400, 'invalid cgroup parent', 'managed_create_cgroup_rejected'),
+    (400, 'invalid security option', 'managed_create_security_rejected'),
+    (404, 'No such image: private', 'managed_create_image_rejected'),
+    (400, 'minimum memory limit allowed is 6MB', 'managed_create_resource_rejected'),
+    (500, 'private absolute path and token', 'managed_create_engine_rejected'),
+])
+def test_managed_create_response_is_reduced_to_closed_category(
+        status, message, expected):
+    m = api()
+    body = json.dumps({'message': message}).encode()
+    assert m._managed_create_rejection(status, body) == expected
+    assert message not in m._managed_create_rejection(status, body)
+
+
+@pytest.mark.parametrize('body', [
+    b'', b'not-json', b'{"message":1}', b'{"message":"x","extra":"private"}',
+    json.dumps({'message': 'x' * 4097}).encode(),
+])
+def test_malformed_managed_create_response_stays_closed(body):
+    m = api()
+    assert m._managed_create_rejection(400, body) == 'managed_create_engine_rejected'
+
+
+@pytest.mark.parametrize('body,expected', [
+    (json.dumps({'Id': 'a' * 64, 'Warnings': []}).encode(), None),
+    (b'not-json', 'managed_create_response_invalid'),
+    (json.dumps({'Id': 'short', 'Warnings': []}).encode(),
+     'managed_create_identity_invalid'),
+    (json.dumps({'Id': 'a' * 64, 'Warnings': ['private']}).encode(),
+     'managed_create_warning_unclassified'),
+    (json.dumps({'Id': 'a' * 64, 'Warnings': [
+        "requested image's platform does not match detected host platform",
+    ]}).encode(), 'managed_create_platform_warning'),
+    (json.dumps({'Id': 'a' * 64, 'Warnings': [
+        'IPv4 forwarding is disabled. Networking will not work.',
+    ]}).encode(), 'managed_create_network_warning'),
+    (json.dumps({'Id': 'a' * 64, 'Warnings': [
+        'Your kernel does not support swap limit capabilities',
+    ]}).encode(), 'managed_create_swap_warning'),
+    (json.dumps({'Id': 'a' * 64, 'Warnings': [
+        'Your kernel does not support memory limit capabilities',
+    ]}).encode(), 'managed_create_memory_warning'),
+    (json.dumps({'Id': 'a' * 64, 'Warnings': [
+        'CPU cgroup limit is unavailable',
+    ]}).encode(), 'managed_create_cpu_warning'),
+    (json.dumps({'Id': 'a' * 64, 'Warnings': [
+        'Pids limit is unavailable',
+    ]}).encode(), 'managed_create_pids_warning'),
+    (json.dumps({'Id': 'a' * 64, 'Warnings': None, 'extra': 'allowed'}).encode(), None),
+])
+def test_managed_create_success_shape_is_classified_without_content(body, expected):
+    m = api()
+    assert m._managed_create_success_diagnostic(body) == expected
+
+
+def test_managed_engine_exposes_only_closed_create_diagnostic(monkeypatch):
+    m = api()
+    from larenor_server.plugins.docker_probe import DockerEndpoint
+    from larenor_server.plugins.worker import UnixDockerEngine
+    response = SimpleNamespace(
+        status=400,
+        body=json.dumps({'message': 'network /private/token not found'}).encode(),
+    )
+    monkeypatch.setattr(
+        UnixDockerEngine,
+        '_exchange',
+        lambda _self, _method, _target, _body=None: response,
+    )
+    engine = m._managed_engine(DockerEndpoint('/tmp/larenor-engine.sock', owner_uid=0))
+    assert engine._exchange('POST', '/containers/create?name=private', b'{}') is response
+    assert engine.managed_create_diagnostic == 'managed_create_network_rejected'
+    assert '/private/token' not in engine.managed_create_diagnostic
+
+
+def test_managed_engine_preserves_transport_error_and_records_closed_diagnostic(
+        monkeypatch):
+    m = api()
+    from larenor_server.plugins.docker_probe import DockerEndpoint
+    from larenor_server.plugins.worker import DockerWorkerError, UnixDockerEngine
+    error = DockerWorkerError('engine_unavailable')
+
+    def fail(*_args, **_kwargs):
+        raise error
+
+    monkeypatch.setattr(UnixDockerEngine, '_exchange', fail)
+    engine = m._managed_engine(DockerEndpoint('/tmp/larenor-engine.sock', owner_uid=0))
+    with pytest.raises(DockerWorkerError) as caught:
+        engine._exchange('POST', '/containers/create?name=private', b'{}')
+    assert caught.value is error
+    assert engine.managed_create_diagnostic == 'managed_create_transport_failed'
+
+
+@pytest.mark.parametrize('field,actual,expected', [
+    ('MemorySwap', 0, 'managed_inspect_memory_swap_mismatch'),
+    ('Memory', 1, 'managed_inspect_memory_mismatch'),
+    ('NanoCpus', 1, 'managed_inspect_cpu_mismatch'),
+    ('PidsLimit', 1, 'managed_inspect_pids_mismatch'),
+])
+def test_managed_inspect_resource_drift_is_reduced_to_closed_category(
+        field, actual, expected):
+    m = api()
+    host = {'MemorySwap': -1, 'Memory': 4294967296,
+            'NanoCpus': 2000000000, 'PidsLimit': 512}
+    class Binding:
+        @staticmethod
+        def payload():
+            return {'specification': {'HostConfig': dict(host)}}
+    observed = {'HostConfig': {**host, field: actual}}
+    assert m._managed_inspect_diagnostic(observed, Binding()) == expected
+
+
+@pytest.mark.parametrize('field,actual,expected', [
+    ('SecurityOpt', ['no-new-privileges'], 'managed_inspect_security_mismatch'),
+    ('Tmpfs', {}, 'managed_inspect_tmpfs_targets_mismatch'),
+    ('Mounts', [{'Type': 'bind'}], 'managed_inspect_requested_mount_mismatch'),
+    ('NetworkMode', 'none', 'managed_inspect_network_mode_mismatch'),
+    ('Init', False, 'managed_inspect_init_mismatch'),
+])
+def test_managed_inspect_nonresource_host_drift_has_closed_category(
+        field, actual, expected):
+    m = api()
+    host = {'MemorySwap': -1, 'Memory': 4294967296,
+            'NanoCpus': 2000000000, 'PidsLimit': 512,
+            'SecurityOpt': ['no-new-privileges:true'],
+            'Tmpfs': {'/tmp': 'private'}, 'Mounts': [{'Type': 'volume'}],
+            'NetworkMode': 'larenor-control-'+'a'*32, 'Init': True,
+            'RestartPolicy': {'Name': 'no'}}
+    class Binding:
+        @staticmethod
+        def payload():
+            return {'specification': {'HostConfig': dict(host)}}
+    observed_host = {**host, 'RestartPolicy': {'Name': 'no', 'MaximumRetryCount': 0},
+                     field: actual}
+    observed = {'Id': 'b'*64, 'HostConfig': observed_host}
+    assert m._managed_inspect_diagnostic(observed, Binding()) == expected
+
+
+@pytest.mark.parametrize('actual,expected', [
+    (None, 'managed_inspect_tmpfs_empty_normalized'),
+    ({}, 'managed_inspect_tmpfs_targets_mismatch'),
+    ({'/tmp': 'nodev,rw,nosuid,size=64m'}, 'managed_inspect_tmpfs_order_mismatch'),
+    ({'/tmp': 'rw,nosuid,nodev,size=67108864'}, 'managed_inspect_tmpfs_size_normalized'),
+    ({'/tmp': 'rw,nosuid,size=64m'}, 'managed_inspect_tmpfs_option_missing'),
+    ({'/tmp': 'rw,nosuid,nodev,size=64m,private'}, 'managed_inspect_tmpfs_option_extra'),
+])
+def test_tmpfs_diagnostic_never_exposes_raw_option_values(actual, expected):
+    m = api()
+    desired = {} if actual is None else {'/tmp': 'rw,nosuid,nodev,size=64m'}
+    assert m._tmpfs_diagnostic(actual, desired) == expected
+
+
+def test_empty_tmpfs_normalization_does_not_hide_later_host_drift():
+    m = api()
+    expected = {'MemorySwap': -1, 'Memory': 4294967296,
+                'NanoCpus': 2000000000, 'PidsLimit': 512,
+                'Tmpfs': {}, 'SecurityOpt': ['no-new-privileges:true']}
+    class Binding:
+        @staticmethod
+        def payload():
+            return {'specification': {'HostConfig': expected}}
+    observed = {'HostConfig': {**expected, 'Tmpfs': None,
+                               'SecurityOpt': ['no-new-privileges']}}
+    assert m._managed_inspect_diagnostic(
+        observed, Binding()) == 'managed_inspect_security_mismatch'
+
+
+def test_empty_tmpfs_normalization_is_not_itself_a_managed_mismatch():
+    m = api()
+    expected = {'MemorySwap': -1, 'Memory': 4294967296,
+                'NanoCpus': 2000000000, 'PidsLimit': 512, 'Tmpfs': {}}
+    class Binding:
+        @staticmethod
+        def payload():
+            return {'specification': {'HostConfig': expected}}
+    assert m._managed_inspect_diagnostic(
+        {'HostConfig': {**expected, 'Tmpfs': None}}, Binding()
+    ) == 'managed_inspect_identity_mismatch'
+
+
+def test_moved_host_mounts_do_not_hide_later_managed_mismatch():
+    m = api()
+    expected = {'MemorySwap': -1, 'Memory': 4294967296,
+                'NanoCpus': 2000000000, 'PidsLimit': 512,
+                'Tmpfs': {}, 'Mounts': [{'Type': 'volume'}], 'Init': True}
+    class Binding:
+        @staticmethod
+        def payload():
+            return {'specification': {'HostConfig': expected}}
+    observed = {'HostConfig': {**expected, 'Tmpfs': None, 'Mounts': None,
+                               'Init': False}}
+    assert m._managed_inspect_diagnostic(
+        observed, Binding()) == 'managed_inspect_init_mismatch'
+
+
+@pytest.mark.parametrize('networks,expected', [
+    (None, 'managed_inspect_networks_missing'),
+    ({'foreign': {'NetworkID': 'b'*64}}, 'managed_inspect_network_key_mismatch'),
+    ({'larenor-control-'+'a'*32: {'NetworkID': ''}},
+     'managed_inspect_network_id_missing'),
+    ({'larenor-control-'+'a'*32: {'NetworkID': 'c'*64}},
+     'managed_inspect_network_id_mismatch'),
+])
+def test_network_diagnostic_reports_only_closed_structure_category(networks, expected):
+    m = api()
+    assert m._network_diagnostic(
+        networks, 'larenor-control-'+'a'*32, 'b'*64) == expected
+
+
+@pytest.mark.parametrize('worker_code,expected', [
+    ('invalid_binding', 'managed_create_binding_rejected'),
+    ('engine_protocol', 'managed_create_protocol_failed'),
+    ('engine_peer_rejected', 'managed_create_endpoint_rejected'),
+    ('unsafe_worker_path', 'managed_create_endpoint_rejected'),
+    ('engine_conflict', 'managed_create_resource_conflict'),
+])
+def test_managed_engine_records_pre_http_worker_rejection(
+        worker_code, expected, monkeypatch):
+    m = api()
+    from larenor_server.plugins.docker_probe import DockerEndpoint
+    from larenor_server.plugins.worker import DockerWorkerError, UnixDockerEngine
+    error = DockerWorkerError(worker_code)
+
+    def fail(*_args, **_kwargs):
+        raise error
+
+    monkeypatch.setattr(UnixDockerEngine, 'create_managed_container', fail)
+    engine = m._managed_engine(DockerEndpoint('/tmp/larenor-engine.sock', owner_uid=0))
+    with pytest.raises(DockerWorkerError) as caught:
+        engine.create_managed_container(object())
+    assert caught.value is error
+    assert engine.managed_create_diagnostic == expected
+
+
+@pytest.mark.parametrize('state,code,diagnostic,expected', [
+    ('prepared', 'accepted', None, 'managed_create_preflight_failed'),
+    ('uncertain', 'engine_operation_uncertain', None, 'managed_create_uncertain'),
+    ('needs_attention', 'resource_conflict', None, 'managed_create_resource_conflict'),
+    ('needs_attention', 'dispatch_expired', None, 'managed_create_expired'),
+    ('uncertain', 'engine_operation_uncertain', 'managed_create_network_rejected',
+     'managed_create_network_rejected'),
+    ('private', 'private', None, 'managed_create_receipt_invalid'),
+])
+def test_failed_managed_create_receipt_has_only_closed_diagnostic(
+        state, code, diagnostic, expected):
+    m = api()
+    receipt = SimpleNamespace(state=state, code=code, container_id='private')
+    assert m._managed_create_receipt_failure(receipt, diagnostic) == expected
+
+
+@pytest.mark.parametrize('container_id,expected', [
+    ('a' * 64, True),
+    ('sha256:' + 'a' * 64, False),
+    ('a' * 63, False),
+    ('A' * 64, False),
+    (None, False),
+])
+def test_managed_create_receipt_uses_docker_container_id_shape(container_id, expected):
+    m = api()
+    receipt = SimpleNamespace(
+        state='succeeded', code='container_created', container_id=container_id,
+    )
+    assert m._managed_create_succeeded(receipt) is expected
 
 
 @pytest.mark.parametrize('fault', ['initialize_empty_root','start','restart','identity','mount','initial_data'])

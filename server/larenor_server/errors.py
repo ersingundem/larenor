@@ -68,6 +68,14 @@ MESSAGES = {
     "media_inspection_limit_reached": "The media inspection limit has been reached.",
     "media_preparation_changed": "The media preparation changed. Review it again.",
     "media_inspection_storage_unavailable": "The saved media inspections are unavailable.",
+    "media_inspection_changed": "The media inspection changed. Run it again.",
+    "media_installation_conflict": "This request conflicts with a saved media installation execution.",
+    "media_installation_limit_reached": "The media installation execution limit has been reached.",
+    "media_installation_storage_unavailable": "The saved media installation executions are unavailable.",
+    "media_installation_changed": "The media installation changed. Read it again.",
+    "media_bootstrap_conflict": "This request conflicts with a saved media service bootstrap.",
+    "media_bootstrap_limit_reached": "The media service bootstrap limit has been reached.",
+    "media_bootstrap_storage_unavailable": "The saved media service bootstraps are unavailable.",
 }
 
 

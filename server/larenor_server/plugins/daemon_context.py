@@ -262,6 +262,59 @@ class _ContextLease:
         from .linux_identity_observation import _capture_context_identities
         return _capture_context_identities(self, deadline, cancelled=cancelled)
 
+    def capture_startup(self, deadline):
+        """Bind daemon argv/config to this socket-derived proc/root lease."""
+        from .daemon_startup import capture_daemon_startup
+        try:
+            if (self._identity_owner != (os.getpid(), threading.get_native_id())
+                    or len(self._fds) != 3 or len(self._snapshots) != 2
+                    or len(self._snapshots[0].handles) != 4
+                    or not self.revalidate(deadline)):
+                raise ValueError('context_unavailable')
+            return capture_daemon_startup(
+                self._fds[1],
+                self._snapshots[0].handles[3],
+                pid=self._peer_pid,
+                daemon_executable=self._executable,
+                deadline=deadline,
+            )
+        except _ERRORS:
+            raise ValueError('context_unavailable') from None
+
+    def matches_connection(self, connection, expected_uid, deadline):
+        """Bind a new operation socket to this retained live peer incarnation.
+
+        Numeric PID equality is used only while the original socket-derived
+        pidfd remains alive, so the PID cannot have been recycled. The fresh
+        socket-derived pidfd is also checked and always closed here.
+        """
+        peer_pidfd = -1
+        try:
+            _remaining(deadline)
+            if (type(expected_uid) is not int or expected_uid < 0
+                    or self._identity_owner != (os.getpid(), threading.get_native_id())
+                    or not self.revalidate(deadline)):
+                return False
+            credentials = connection.getsockopt(
+                socket.SOL_SOCKET, getattr(socket, 'SO_PEERCRED', 17), 12,
+            )
+            pid, uid, gid = struct.unpack('3i', credentials)
+            raw = connection.getsockopt(
+                socket.SOL_SOCKET, getattr(socket, 'SO_PEERPIDFD', 77), 4,
+            )
+            peer_pidfd = struct.unpack('i', raw)[0]
+            if peer_pidfd < 0:
+                return False
+            os.set_inheritable(peer_pidfd, False)
+            return (pid == self._peer_pid and uid == expected_uid and gid >= 0
+                    and _pidfd_alive(peer_pidfd) and _pidfd_alive(self._fds[0])
+                    and self.revalidate(deadline))
+        except _ERRORS:
+            return False
+        finally:
+            if peer_pidfd >= 0:
+                _close(peer_pidfd)
+
 
 def capture_daemon_context(connection, expected_uid, daemon_executable, deadline):
     """Capture from this verified connection, or return None without detail.

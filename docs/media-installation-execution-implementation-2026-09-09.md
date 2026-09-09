@@ -1,0 +1,204 @@
+# S06.4 dar medya kurulum yürütmesi
+
+**Durum:** Kalıcı API, ayrı IPC ve doğrulanmış Jellyfin binding dilimleri yerelde
+uygulandı. Binding'i tüketen ayrı sürüm-2 managed-container journal,
+journal-bound proof broker çekirdeği, tek-endpoint production reader bileşimi,
+paketli volume bootstrap verifier, `larenor-installation-worker` CLI yaşam
+döngüsü ve worker yaşamına bağlı ilk native supervisor tamamlandı. Managed-v2
+workflow'un amd64/arm64 native kabulü de exact PR kaynağında geçti. S06.4
+tamamlanmadı; supervisor diliminin Linux CI'ı, rootful/remap-disabled üretim
+yetkisi ve bağımsız inceleme açık.
+Ürün kurulum yeteneği `installAvailable=false` kalır.
+
+## Uygulanan sınır
+
+`POST /api/v1/admin/media/installations` yalnız bir idempotency kimliği ile
+önceden kabul edilmiş preparation ve başarılı inspection kimliklerini,
+revision'larını ve plan hash'ini alır. Hizmet, imaj, komut, host yolu, Docker
+endpoint'i veya Docker JSON'u almaz. Core paketli plandan sadece Jellyfin için
+`create_container` ve `start_container` child adımlarını yeniden üretir.
+
+Kabul ve her yan etki öncesinde yönetici/user revision, session family,
+Core/ev, preparation, inspection, katalog ve iptal durumu yeniden kontrol
+edilir. Belirsiz create sonucu aynı job/step kimliğiyle uzlaştırılmadan start'a
+geçilmez. Worker makbuzundaki job veya step değişirse sonuç reddedilir. Aynı
+request tekrarında önceki kayıt döner; aynı preparation için farklı request
+`409 media_installation_conflict` üretir.
+
+Tam plan AES-GCM ile şifrelenir ve kimlik, sıra, revision, aktör, family, kaynak
+kimlikleri, state ve timestamp AAD'ye bağlanır. Geçmiş katalog değişse bile
+okunur; eski planla yeni etki çalıştırılmaz. En fazla 256 kayıt saklanır ve
+SQLite işlemi worker çağrısı boyunca açık tutulmaz.
+
+## Ayrı mutasyon kanalı
+
+`LARENOR_PLUGIN_WORKER_SOCKET` salt okunur host kontrolü içindir.
+`LARENOR_INSTALLATION_WORKER_SOCKET` ise yalnız `status`, `apply` ve
+`reconcile` kabul eden ayrı Unix IPC'dir. İki yol aynı olamaz. Bağlantının
+socket türü/sahipliği ve peer UID'si doğrulanır; paket ve toplam süre sınırlıdır.
+Worker gelen `WorkerStep` ile tam paketli `MediaStackPlan` ilişkisini ve güncel
+kataloğu yeniden doğrular, Jellyfin child'ını içeride seçer. Böylece kaynak
+makbuzlarını Core/ev/preparation kimliğiyle yeniden türetmek için gereken bağlam
+korunur. Docker binding yalnız worker içindeki güvenilir builder'dan gelebilir.
+
+Worker-only `JellyfinBindingBuilder`, tam stack ve güncel katalog/politikadan
+resource ile volume planlarını yeniden türetir. Güvenilir broker'dan aynı planlara
+bağlı image kimliği/konfigürasyonu, bootstrap doğrulanmış tam iki volume ve özel
+ağ makbuzu ister. Çıktı LAN portu yayınlamaz, ağı sabit private network'e bağlar,
+yalnız `/config` ve `/cache` için `NoCopy=true` named volume üretir. Image'ın
+bildirdiği bütün `Config.Volumes` hedefleri bu iki mount ile tam örtüşmezse veya
+taze inspect image/security/mount/network kimliğinden saparsa eşleşme reddedilir.
+
+Ayrı sürüm-2 managed-container journal tam binding'i yan etkiden önce kalıcı
+yazar. Sürüm-1 legacy satırlarını okuyamaz; create/start sırasını, journal ve
+installation etiketlerini ve idempotency digest'ini yeniden doğrular. Belirsiz
+create sonucunda ikinci create yapmadan tam Engine gözlemiyle uzlaştırır. Güncel
+kaynaklardan yeniden üretilen binding saklanan binding ile aynı değilse Engine'e
+ulaşmadan reddeder. Image referansı, etiket şeması, ortam, kaynak sınırları,
+read-only rootfs, tmpfs, iki NoCopy mount ve private network gövdesi sabit Docker
+create yolundan önce tekrar doğrulanır.
+
+Bu dilim gerçek kaynak journal'larını okuyup aynı Engine'e karşı yeniden
+bağlayan broker çekirdeğini de içerir. Broker iki journal kilidini sabit sırada
+tutar, exact source/revision/nonce bağını alır, image/volume/bootstrap/network
+okumalarından sonra bağları tekrar kurar ve eski bootstrap revision'ını reddeder.
+`JellyfinEngineReaders` image, volume ve network Unix taşıyıcılarını tek
+operator-owned `DockerEndpoint` üzerinden kurar ve bootstrap verifier'ın da aynı
+endpoint nesnesine bağlı olmasını ister. Paketli verifier exact sha256 image
+kimliğiyle yalnız `verify_root` çalıştırır; ağsız, read-only rootfs'li, bütün
+capability'leri düşürülmüş geçici helper'a hedef volume'u read-only NoCopy olarak
+bağlar ve kesin çıkış sonucundan sonra bilinen container ID'sini siler. Komut,
+image, mount, ağ ve silme seçenekleri IPC'den gelemez.
+
+`larenor-installation-worker`, private 0600 politikasından tek Docker endpoint'i,
+opaque worker policy bağını, helper image ID'sini ve birbirinden ayrılmış üç
+journal yolunu yükler. `--check-config` bu kaynakları açmadan salt şemayı kontrol
+eder. Runtime her stack isteğinde proof broker'ı tekrar kurar, socket'i Engine
+endpoint'i veya journal ağaçları içine koymayı reddeder ve kapanışta socket'ten
+sonra bütün journal'ları kapatır.
+
+Yeni `SupervisedInstallationBackend`, IPC servis thread'i içinde tek doğrulanmış
+Docker Unix bağlantısı açar ve o peer'e ait socket-bound pidfd, executable,
+proc, user/mount/network namespace ve process-root tanıtıcılarını worker
+yaşamı boyunca tutar. Socket inode zinciri, daemon incarnation ve kimlikler her
+`apply`/`reconcile` öncesi ve sonrasında aynı native thread'de yenilenir. Startup
+kanıtı hazır olmadan IPC `start` başarılı sayılmaz; daemon restart, endpoint
+replacement, thread değişimi, deadline veya post-effect kanıt kaybı statik
+`worker_unavailable` sınırında kapanır. Backend etkiden sonra belirsiz kalırsa
+journal üzerinden mevcut reconcile kuralı korunur. Eşit user namespace/map
+gözlemi initial host namespace veya remap-disabled daemon başlangıcı değildir;
+bu yüzden bu dilim kendi başına kurulum yetkisi üretmez. Kullanıcının Docker
+Engine'ine veya ev sistemlerine hiçbir mutasyon yapılmadı.
+
+Aynı socket inode'u ile eski daemon pidfd'sinin canlı kalması, systemd socket
+activation veya listener FD devrinde yeni bağlantıyı hangi sürecin kabul ettiğini
+tek başına kanıtlamaz. Bu nedenle tek `RetainedDaemonPeerVerifier`, runtime'ın
+image, volume, network, bootstrap-helper ve managed create/start Engine
+istemcilerinin tamamına verilir. Her gerçek bağlantıdan alınan yeni
+`SO_PEERCRED` ve `SO_PEERPIDFD`, yalnız ilk socket-derived pidfd hâlâ canlıyken
+aynı PID ve UID ile eşleşir; yeni pidfd her kontrolde kapatılır. Doğrulayıcı
+yalnız bir supervisor çağrısının deadline'ı içinde aktiftir ve farklı peer bütün
+worker bağını fail-closed kapatır.
+
+Yerel sonraki dilim, bu süreklilik kanıtını rootful/remap-disabled başlangıç
+yetkisine bağlar. Socket-derived peer proc ve process-root tanıtıcılarından
+daemon `cmdline` kaydı ile exact `--config-file` hedefi okunur; varsayılan
+`/etc/docker/daemon.json` yokluğu da aynı kökte yeniden doğrulanır. Bütün yol
+bileşenleri root-owned, non-writable ve no-follow açılır; argv, dosya inode'u,
+metadata ve içerik effect boyunca tutulur. Aynı doğrulanmış Engine bağlantısında
+bounded `GET /version` ve `GET /v1.47/info` çalışır. Root credentials, tam
+initial UID/GID map, aynı user namespace ve uyumlu platform zorunludur;
+`userns-remap`, `name=userns` veya `name=rootless` görüldüğünde ya da negatif
+kanıt belirsiz olduğunda kurulum worker'ı açılmaz. Bu kapı kullanıcı Engine'inde
+mutasyon yapmaz ve exact Linux CI tamamlanana kadar `installAvailable=false`
+kalır.
+
+## TDD ve doğrulama
+
+- RED `d25ca83`: kapalı create/start yürütme ve her adımda gate sözleşmesi.
+- GREEN `b95158b`: Jellyfin yürütme koordinatörü ve worker köprüsü.
+- RED `6b9be95`, `c772f71`, `c76983e`: kalıcı API, sahte makbuz, katalog
+  değişimi, iptal ve şifreli saklama regresyonları.
+- GREEN `25e6a9b`: kalıcı API, migration, Core/router ve dispatcher bağlantısı.
+- RED `b170075`: preflight'tan ayrı mutasyon IPC sözleşmesi.
+- RED `241e6fb`: resource binding için tam stack bağlamının IPC'de korunması.
+- GREEN `3300dd0`: worker tam stack'i yeniden doğrulayıp Jellyfin child'ını seçer.
+- RED/GREEN `44e4bfd` / `874aca1`: typed resource proof'tan kapalı Jellyfin binding.
+- RED/GREEN `28e7e4e` / `52bae6c`: reconcile sırasında taze proof ve binding zorunluluğu.
+- RED/GREEN `9d2f171` / `d2c5a5f`: tam image/mount/network inspect matcher.
+- RED/GREEN `d97f63b` / `c7955ab`: legacy'den ayrılmış v2 journal, kalıcı
+  create/start niyeti, kayıp cevap uzlaştırması ve sabit managed Docker yolu.
+- RED/GREEN `dc2d15d` / `6b81c49`: ready resource receipt'ini yalnız exact
+  güncel source ve revision'a yeniden bağlayan worker-private journal kapısı.
+- RED/GREEN `2344f11` / `797709f`: iki journal'a ve tek Engine kimliğine bağlı
+  taze Jellyfin image/volume/bootstrap/network proof broker çekirdeği.
+- GREEN `ba54f9a`: sabit Unix image/volume/network okuyucularını tek exact
+  Docker endpoint'i ve endpoint-bound bootstrap verifier altında birleştirir.
+- RED/GREEN `3be1dc6`: mevcut storage kanıtını koruyan ayrı managed-v2 native
+  CI adapter'ı, exact receipt verifier ve amd64/arm64 workflow'u.
+- GREEN `9b01bcf`–`06f7c3e`: Docker'ın swap, empty-tmpfs, moved-mount ve
+  created-state network normalizasyonlarını dar kabul eden matcher; gerçek
+  cgroup memory/cpu/pids doğrulaması.
+- RED/GREEN `19485ab`: image digest ile çıplak 64-hex container ID biçimini
+  ayıran create receipt doğrulaması.
+- RED/GREEN `af113e0`: exact helper ile read-only volume kökü doğrulaması,
+  private policy, üç journal'lı dinamik binding builder ve paketli installation
+  worker CLI yaşam döngüsü; **43 odaklı PASS**. Pinli apksig ve gerçek Homebrew
+  JDK 17 ile bütün Server paketi **4.256 PASS, 12 platform skip**.
+- RED/GREEN `cac0625` / `b6196a1`: IPC thread'ine bağlı daemon supervisor,
+  startup hazır olma kapısı, her etki öncesi/sonrası socket/pidfd/proc/namespace
+  yenilemesi ve kapanış.
+- RED/GREEN `5d43299` / `1e94267`: socket activation/FD devri sınırı için her
+  image/volume/network/bootstrap/container Engine bağlantısında fresh peer
+  pidfd eşleşmesi; ilgili yerel paket **272 PASS / 4 Linux skip**.
+- RED/GREEN `422eb80` / `5580f66`: rootful kimlik, startup/config ve Engine
+  security-option kararını fail-closed tutan **35 test**.
+- RED/GREEN `ffba1a7` / `5c81207`: daemon proc/root tanıtıcılarına bağlı
+  no-follow argv/config yaşam kanıtı ve supervisor/runtime bağlantısı; startup
+  ile security modüllerinin toplam **60 testi** ve geniş ilgili paket geçti;
+  runtime security seçenekleri her effect öncesi/sonrası yeniden okunur. Exact
+  `b6c8ede` üzerinde tam Server paketi **4.351 PASS / 13 macOS skip** verdi.
+- Güncel storage/managed/resource/binding paketi **216 PASS**; managed workflow
+  politika paketi ayrıca **7 PASS**. Python derleme ve `git diff --check` temiz.
+- Exact `191baf3` kaynak commit'i [Server CI 34313975186](https://github.com/ersingundem/larenor/actions/runs/34313975186)
+  ile geçti.
+- PR head'i `19485ab` ve onun merge kaynağı `b6e7034` için
+  [managed native CI 34326112926](https://github.com/ersingundem/larenor/actions/runs/34326112926)
+  amd64 ile arm64 üzerinde geçti. İki indirilen makbuz exact merge checkout'unda
+  repo verifier ile yeniden PASS verdi. Makbuzlar iki volume, bir restart,
+  `journaled_managed_v2`, journal 2, hazır image, kapalı bootstrap hesabı ve
+  `installAvailable=false` değerlerini doğruladı. Security CI aynı PR head'inde
+  geçti; tam Android/Server CI halen ayrı yayın kapısıdır.
+
+PR18 exact `75af015` için yerel tam Server **4.262 PASS / 12 skip**; Linux
+[Android Build 34341554668](https://github.com/ersingundem/larenor/actions/runs/34341554668)
+paketinde Server **4.274 PASS**, Flutter **5.438 PASS**, Android native **98 PASS**
+ve gerçek API 35 **17 PASS** verdi. Security 34341554393 ve amd64/arm64 managed
+native 34341554476 da yeşil; iki makbuz exact merge `adbb8476` üzerinde yeniden
+doğrulandı.
+
+Final S06.4 kaynağı `2b9166b` için
+[Android Build 34352862055](https://github.com/ersingundem/larenor/actions/runs/34352862055)
+Flutter **5.438 PASS**, Linux Server **4.364 PASS / sıfır skip**, Android native
+**98 PASS** ve gerçek API 35 **17 PASS** verdi. Linux artifact'ında 36
+daemon-security, 24 daemon-startup ve 24 installation-supervisor testi
+atlanmadan geçti. [Security 34352861625](https://github.com/ersingundem/larenor/actions/runs/34352861625)
+dependency, platform-policy ve secret-scan kapılarında yeşil. Descriptor yaşamı,
+native-thread sahipliği, her operation bağlantısının peer pidfd'si,
+startup/config TOCTOU ve bounded Engine protokolü tekrar incelendi; açık P1/P2
+bulunmadı. Bu kanıtla S06.4 yazılım dilimi kapandı; gerçek ev kurulumu ve
+`installAvailable` hâlâ kapalıdır.
+
+Sürüm kontrollü örnekler
+[`contracts/media-installations.v1.json`](../contracts/media-installations.v1.json)
+dosyasındadır. Paketli worker runtime, güncel kaynağın tam Android/Server CI'ı
+ve güvenlik incelemesi tamamlandı.
+
+## Sonraki dilim
+
+1. S06.5 Jellyfin ilk-kullanıcı akışının yalnız Larenor private control ağına
+   giden bounded taşıyıcısı eklenecek.
+2. Üretilen dahili sırlar ayrı şifreli kayıtta tutulacak; API, log, plan ve
+   hata yanıtlarında gösterilmeyecek.
+3. Adres, API anahtarı ve kütüphane eşleştirmeleri servislerden geri okunacak;
+   kısmi sonuçlar açık durum olarak saklanacak.

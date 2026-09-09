@@ -617,14 +617,15 @@
       "kind": "task",
       "parent": "S06",
       "title": "Dar kurulum adımlarını API ve işçiye bağlama",
-      "status": "pending",
+      "status": "done",
       "dependsOn": [
         "S06.3"
       ],
       "finishDependsOn": [],
       "sources": [
         "docs/remaining-core-integration-slices.md",
-        "docs/integrated-media-stack.md"
+        "docs/integrated-media-stack.md",
+        "docs/media-installation-execution-implementation-2026-09-09.md"
       ],
       "scope": "Kurulum yeteneği ancak ayrı, kanıtlanmış yürütme kapısıyla açılır; mevcut readonly inspection mutasyona dönüşmez.",
       "acceptance": [
@@ -635,23 +636,137 @@
         "review",
         "ci"
       ],
-      "evidence": [],
-      "completionCommit": null,
-      "reason": null
+      "evidence": [
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/34313975186",
+          "commit": "2b9166b16659dc811bf61236e3be6bd1e9998a02",
+          "state": "completed",
+          "result": "passed",
+          "label": "Journal-bound Jellyfin proof broker kaynağı exact Server CI paketinden geçti."
+        },
+        {
+          "kind": "test",
+          "ref": "docs/media-installation-execution-implementation-2026-09-09.md",
+          "commit": "2b9166b16659dc811bf61236e3be6bd1e9998a02",
+          "state": "completed",
+          "result": "passed",
+          "label": "Tek-endpoint reader ile ayrı managed-v2 CI/receipt/workflow dilimi 320 odaklı ve 77 güvenlik/politika testiyle yerelde geçti; native artifact henüz bekleniyor."
+        },
+        {
+          "kind": "test",
+          "ref": "docs/media-installation-execution-implementation-2026-09-09.md",
+          "commit": "2b9166b16659dc811bf61236e3be6bd1e9998a02",
+          "state": "completed",
+          "result": "passed",
+          "label": "Docker inspect normalizasyonları, gerçek cgroup kaynak sınırları ve doğru çıplak container ID biçimi için güncel dört odak paketi 216 PASS; workflow politika paketi 7 PASS."
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/34326112926",
+          "commit": "2b9166b16659dc811bf61236e3be6bd1e9998a02",
+          "state": "completed",
+          "result": "passed",
+          "label": "PR head 19485ab'ın exact merge kaynağında amd64+arm64 disposable Engine create/start/restart geçti; iki indirilen managed-v2 makbuz repo verifier ile tekrar PASS."
+        },
+        {
+          "kind": "test",
+          "ref": "docs/media-installation-execution-implementation-2026-09-09.md",
+          "commit": "2b9166b16659dc811bf61236e3be6bd1e9998a02",
+          "state": "completed",
+          "result": "passed",
+          "label": "Paketli exact bootstrap verifier, private runtime policy, üç journal'lı dinamik binding builder ve installation worker CLI yaşam döngüsü 43 odaklı testle; bütün Server paketi pinli apksig/JDK ile 4.256 PASS ve 12 platform skip olarak yerelde geçti."
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/34332778297",
+          "commit": "2b9166b16659dc811bf61236e3be6bd1e9998a02",
+          "state": "completed",
+          "result": "passed",
+          "label": "PR16 exact kaynakta 5.438 Flutter, 4.225 Server, 98 Android native ve 17 API35 E2E yolculuğu geçti; Security ve amd64/arm64 managed native koşuları da yeşil."
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/34341554668",
+          "commit": "2b9166b16659dc811bf61236e3be6bd1e9998a02",
+          "state": "completed",
+          "result": "passed",
+          "label": "PR18 exact kaynakta 5.438 Flutter, 4.274 Linux Server, 98 Android native ve 17 API35 E2E yolculuğu geçti; Security ile amd64/arm64 managed native koşuları da yeşil."
+        },
+        {
+          "kind": "test",
+          "ref": "server/tests/test_installation_supervisor.py",
+          "commit": "2b9166b16659dc811bf61236e3be6bd1e9998a02",
+          "state": "completed",
+          "result": "passed",
+          "label": "Worker yaşamına bağlı daemon/socket/pidfd/proc/namespace supervisor dilimi ilgili yerel pakette 268 testten geçti; üç gerçek Linux testi stacked CI bekliyor."
+        },
+        {
+          "kind": "test",
+          "ref": "server/tests/test_installation_supervisor.py",
+          "commit": "2b9166b16659dc811bf61236e3be6bd1e9998a02",
+          "state": "completed",
+          "result": "passed",
+          "label": "Image, volume, network, bootstrap ve managed container bağlantılarının fresh peer pidfd'sini aynı canlı daemon'a bağlayan düzeltmeyle ilgili yerel paket 272 PASS ve 4 Linux skip verdi."
+        },
+        {
+          "kind": "test",
+          "ref": "server/tests/test_daemon_security.py",
+          "commit": "2b9166b16659dc811bf61236e3be6bd1e9998a02",
+          "state": "completed",
+          "result": "passed",
+          "label": "Rootful/remap-disabled daemon yetkisi held proc/root üzerinden no-follow argv/config ve her effect çevresinde version/info kanıtıyla bağlandı; exact kaynakta tam Server 4.351 PASS/13 macOS skip. Linux CI ve review açık."
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/34349256229",
+          "commit": "2b9166b16659dc811bf61236e3be6bd1e9998a02",
+          "state": "completed",
+          "result": "passed",
+          "label": "PR19 exact kaynakta 5.438 Flutter, 4.302 Linux Server, 98 Android native ve 17 API35 E2E geçti; gerçek peer-pidfd/proc/user-namespace supervisor testi atlanmadı ve Security koşusu da yeşil."
+        },
+        {
+          "kind": "review",
+          "ref": "docs/media-installation-execution-implementation-2026-09-09.md",
+          "commit": "2b9166b16659dc811bf61236e3be6bd1e9998a02",
+          "state": "completed",
+          "result": "passed",
+          "label": "Descriptor yaşamı, native-thread sahipliği, fresh Engine bağlantı peer'i, startup/config TOCTOU ve bounded Docker protokolü yeniden incelendi; açık P1/P2 bulunmadı."
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/34352862055",
+          "commit": "2b9166b16659dc811bf61236e3be6bd1e9998a02",
+          "state": "completed",
+          "result": "passed",
+          "label": "Exact PR20: 5.438 Flutter, 4.364 Linux Server/sıfır skip, 98 Android native ve 17 API35 E2E PASS; 36 daemon-security, 24 daemon-startup ve 24 supervisor testi Linux'ta atlanmadan geçti."
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/34352861625",
+          "commit": "2b9166b16659dc811bf61236e3be6bd1e9998a02",
+          "state": "completed",
+          "result": "passed",
+          "label": "Exact PR20 dependency, platform-policy ve secret-scan kapıları PASS."
+        }
+      ],
+      "completionCommit": "2b9166b16659dc811bf61236e3be6bd1e9998a02",
+      "reason": "Dar Jellyfin create/start işi şifreli kalıcı API, ayrı UID denetimli IPC, exact typed kaynak kanıtı, v2 journal, paketli worker runtime ve aynı daemon'a bağlı native supervisor ile tamamlandı. Rootful/remap-disabled startup/config ve Engine güvenliği her etki öncesi/sonrası yeniden doğrulanıyor. Exact PR20 Android Build 5.438 Flutter, 4.364 Linux Server/sıfır skip, 98 native ve 17 API35 E2E; Security üç kapı PASS. Gerçek ev kurulumu ve ürün installAvailable ayrı kapalı."
     },
     {
       "id": "S06.5",
       "kind": "task",
       "parent": "S06",
       "title": "Özel bootstrap ve otomatik servis eşleştirme temeli",
-      "status": "pending",
+      "status": "in_progress",
       "dependsOn": [
         "S06.4"
       ],
       "finishDependsOn": [],
       "sources": [
         "docs/remaining-core-integration-slices.md",
-        "docs/integrated-media-stack.md"
+        "docs/integrated-media-stack.md",
+        "docs/media-service-bootstrap-implementation-2026-09-09.md"
       ],
       "scope": "Kullanıcı ayrı uygulama kurmaz veya API anahtarı kopyalamaz; sırlar Client/plan/log içine girmez.",
       "acceptance": [
@@ -662,9 +777,50 @@
         "review",
         "ci"
       ],
-      "evidence": [],
+      "evidence": [
+        {
+          "kind": "test",
+          "ref": "docs/media-service-bootstrap-implementation-2026-09-09.md",
+          "commit": "9882c7c9cc09e65729760006fea257d6f12bba8c",
+          "state": "completed",
+          "result": "passed",
+          "label": "Şifreli bootstrap niyeti ve URL/IP kabul etmeyen tek-stream Jellyfin 10.11 startup protokolü: 30 odaklı; exact kaynakta tam yerel Server 4.381 PASS/13 macOS skip, security policy ve compileall temiz. CI, worker adres kanıtı ve gerçek servis kabulü açık."
+        },
+        {
+          "kind": "test",
+          "ref": "docs/media-service-bootstrap-implementation-2026-09-09.md",
+          "commit": "832b44adc01d98529e7298d574db328d799226d8",
+          "state": "completed",
+          "result": "passed",
+          "label": "Exact managed container/private-network numeric Jellyfin endpoint kanıtı: 27 yeni/86 ilgili test; DNS/proxy/retry yok. Journal/supervisor runtime bağı, CI ve gerçek servis kabulü açık."
+        },
+        {
+          "kind": "test",
+          "ref": "docs/media-service-bootstrap-implementation-2026-09-09.md",
+          "commit": "89687d18ad2cba6f2619f7598c45a8f85175f469",
+          "state": "completed",
+          "result": "passed",
+          "label": "Exact journal receipt ve retained-authority kapılarıyla çevrili no-retry Jellyfin bootstrap yürütücüsü: 14 yeni/100 ilgili test; bağlantı erişilemezliği ve endpoint değişimi ayrık. IPC/supervisor dispatch, kalıcı durum, CI ve gerçek servis kabulü açık."
+        },
+        {
+          "kind": "test",
+          "ref": "docs/media-service-bootstrap-implementation-2026-09-09.md",
+          "commit": "2e75cd3467e1f951dfaac288384eef1601ed5c2e",
+          "state": "completed",
+          "result": "passed",
+          "label": "Kalıcı no-retry bootstrap koordinatörü: 18 odaklı/90 ilgili test; şifreli durum geçişi, restart kesintisi, yetki kaybı ve secret-free hata ayrımı doğrulandı. IPC/supervisor, CI ve gerçek servis kabulü açık."
+        },
+        {
+          "kind": "test",
+          "ref": "docs/media-service-bootstrap-implementation-2026-09-09.md",
+          "commit": "d8d82768fe471498cdd0adea830cc161f1b84099",
+          "state": "completed",
+          "result": "passed",
+          "label": "Aynı UID-korumalı Unix kanal ve retained daemon supervisor üzerinde private bootstrap runtime: 11 yeni/149 ilgili test, macOS'ta bir Linux-only skip; Core-IPC-worker sentetik yolculuğu PASS. Exact CI, readback ve gerçek servis kabulü açık."
+        }
+      ],
       "completionCommit": null,
-      "reason": null
+      "reason": "Server üretimli sır, sabit startup, exact journal/container/private-network yürütücüsü, kalıcı no-retry koordinatör ve aynı retained daemon'a bağlı private IPC/runtime yerelde hazır. DNS/proxy/redirect/retry yok; kesinti, yetki, kısmi ve endpoint sonuçları secret-free. Exact CI, API anahtarı/kütüphane geri okuması ve gerçek servis kabulü açık."
     },
     {
       "id": "S06.6",

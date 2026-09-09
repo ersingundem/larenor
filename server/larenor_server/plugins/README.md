@@ -267,6 +267,79 @@ port availability and receiver reachability are separate claims.
 See the [API, Client, test and policy contract](../../../docs/media-inspections-implementation-2026-09-05.md)
 for precise fallback semantics. No installation capability is added.
 
+## Bounded Jellyfin container execution
+
+The first S06.4 mutation surface is a separate administrator-only collection:
+
+| Route | Implemented request / result |
+| --- | --- |
+| `GET /admin/media/installations/capabilities` | `{executionConfigured, installAvailable: false, services: ["jellyfin"]}` |
+| `POST /admin/media/installations` | Current preparation/inspection identities, revisions, plan hash and request ID → `201 {installation}` |
+| `GET /admin/media/installations?before=…&limit=…` | At most ten encrypted durable records per page |
+| `GET /admin/media/installations/{id}` | Current administrator view of one record |
+| `POST /admin/media/installations/{id}/cancel` | `{expectedRevision}` → `{installation}` |
+
+The public request cannot select Docker effects. The API derives the fixed
+Jellyfin child plan and exposes only stable operation/step IDs and the
+`create_container`, `start_container` labels. It rechecks original actor
+revision and session family, current Core/home IDs, preparation, successful
+inspection, catalog and cancellation before every worker call. Identical
+actor/request submissions return the same record; a second request for the same
+preparation is an explicit conflict. Historical records remain readable after a
+catalog change, but no new effect is dispatched from the stale plan.
+
+Installation records are AES-GCM encrypted with identity, revisions, state and
+timestamps bound as AAD. Storage is capped at 256 records. The dispatcher has a
+process lock, leaves no SQLite transaction open across worker IPC and can resume
+queued/running work after restart. An uncertain create result must reconcile to
+the same job and step before start may run. `container_started` proves only this
+two-step container phase; service health, bootstrap, automatic interconnection
+and product installation remain unproved, so every response keeps
+`installAvailable: false`.
+
+This mutation channel is physically separate from preflight. The API uses
+`LARENOR_INSTALLATION_WORKER_SOCKET` and
+`LARENOR_INSTALLATION_WORKER_UID`; using the preflight path for both fails
+startup. Unix socket ownership, peer UID, packet size and deadlines use the same
+bounded transport rules, but accepted operations are only `status`, `apply` and
+`reconcile`. Each request contains a strict `WorkerStep` plus the complete
+packaged `MediaStackPlan`. The worker reruns catalog and stack verification,
+derives the Jellyfin child, checks its installation and step ID, then invokes
+its internal policy-owned binding builder. This Core/home/preparation context is
+required to bind resource receipts. No public request supplies a Docker endpoint
+or payload.
+
+The initial worker-only binding builder now requires fresh typed image,
+bootstrapped-volume and private-network proofs, disables published ports, maps
+exactly `/config` and `/cache` with `NoCopy=true`, and verifies the resulting
+full-ID inspect. A separate version-2 managed-container journal and a
+journal-bound proof broker core are implemented. Fixed image, volume and network
+readers are constructed from one exact Docker endpoint and require the bootstrap
+verifier to retain that same endpoint identity. The packaged
+`larenor-installation-worker` opens the three private journals, recreates a proof
+broker for each plan, and uses a fixed sha256 helper image to verify each target
+volume through one networkless, read-only ephemeral container. Its policy-only
+check opens no journals or Engine connection. Its native supervisor retains one
+socket-peer pidfd/proc/namespace context on the IPC service thread and brackets
+every apply/reconcile operation with fresh daemon, endpoint and thread checks.
+The same verifier authenticates the fresh pidfd of every image, volume,
+network, bootstrap-helper and managed-container Engine connection against the
+retained live daemon PID, covering socket activation and listener FD transfer.
+The next local gate binds the peer's held proc/root descriptors to its exact
+`cmdline` and root-relative Docker config. It requires root credentials, full
+initial UID/GID maps, one user namespace, a compatible `/version`, and bounded
+`/v1.47/info` security options on that same verified connection. Any
+`userns-remap`, `name=userns`, `name=rootless`, config replacement, malformed
+or missing proof closes the supervisor before an effect; runtime security
+options are re-read around every effect. Exact Linux CI and
+review are still pending, so installation stays disabled. A separate
+amd64/arm64 managed-v2 characterization
+workflow is source-bound and has passed both architectures. The API
+container does not start this mutation
+worker, and this source slice has not run create/start against a user's Engine.
+See the [versioned examples](../../../contracts/media-installations.v1.json)
+and [implementation evidence](../../../docs/media-installation-execution-implementation-2026-09-09.md).
+
 ## Persistence, dispatch and recovery
 
 [`jobs.py`](jobs.py) uses the existing FastAPI/SQLite account store with separate
@@ -471,10 +544,11 @@ files are [`tests/test_plugin_jobs.py`](../../tests/test_plugin_jobs.py),
 These results do not prove production CasaOS deployment, Docker installation,
 HomePod operation or physical tablet acceptance.
 
-[`worker.py`](worker.py) also contains an isolated, journaled foundation for
-prepared-image container create/start operations. It is not exposed by the
-preflight command, protocol or job API, and cannot promote disabled catalog plans
-into installation support. Its synthetic Engine tests are separate evidence.
+[`worker.py`](worker.py) contains the isolated, journaled foundation for
+prepared-image container create/start operations. The separate installation IPC
+can reach it only through a worker-owned verified binding builder; the shipped
+preflight command and protocol still cannot. Synthetic Engine and IPC tests are
+separate from a packaged runtime or native installation acceptance.
 
 A single-stack preparation and aggregate inspection now exist. The next provisioning slice still needs resource policy binding,
 private control networking, image/storage/network preparation, exact resource

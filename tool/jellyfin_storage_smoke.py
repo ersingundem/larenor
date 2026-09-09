@@ -23,6 +23,7 @@ import stat
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 from types import MappingProxyType
 import uuid
@@ -30,6 +31,7 @@ import uuid
 
 REPOSITORY = Path(__file__).resolve().parents[1]
 _HASH = re.compile(r'sha256:[0-9a-f]{64}\Z')
+_CONTAINER_ID = re.compile(r'[0-9a-f]{64}\Z')
 _COMMIT = re.compile(r'[0-9a-f]{40}\Z')
 _CODES = {'storage_characterization_failed','native_ephemeral_ci_required','fixture_command_failed',
     'owned_daemon_lost','owned_daemon_unavailable','owned_cleanup_failed','fixture_image_unresolved',
@@ -131,6 +133,36 @@ _PROC_PROCESS_NAMESPACE_CODES = {
     b'time_for_children': 'helper_base_proc_process_time_children_namespace_observed',
 }
 _PATH_TOKEN = re.compile(rb"/[^\s\"'(),:;]+")
+_MANAGED_CREATE_DIAGNOSTICS = {
+    'managed_create_mount_rejected', 'managed_create_network_rejected',
+    'managed_create_cgroup_rejected', 'managed_create_security_rejected',
+    'managed_create_image_rejected', 'managed_create_resource_rejected',
+    'managed_create_engine_rejected', 'managed_create_transport_failed',
+    'managed_create_binding_rejected', 'managed_create_protocol_failed',
+    'managed_create_endpoint_rejected', 'managed_create_resource_conflict',
+    'managed_create_response_invalid', 'managed_create_identity_invalid',
+    'managed_create_platform_warning', 'managed_create_network_warning',
+    'managed_create_resource_warning', 'managed_create_security_warning',
+    'managed_create_warning_unclassified',
+    'managed_create_swap_warning', 'managed_create_memory_warning',
+    'managed_create_cpu_warning', 'managed_create_pids_warning',
+    'managed_inspect_memory_swap_mismatch', 'managed_inspect_memory_mismatch',
+    'managed_inspect_cpu_mismatch', 'managed_inspect_pids_mismatch',
+    'managed_inspect_security_mismatch', 'managed_inspect_tmpfs_mismatch',
+    'managed_inspect_tmpfs_targets_mismatch', 'managed_inspect_tmpfs_order_mismatch',
+    'managed_inspect_tmpfs_empty_normalized',
+    'managed_inspect_tmpfs_size_normalized', 'managed_inspect_tmpfs_option_missing',
+    'managed_inspect_tmpfs_option_extra', 'managed_inspect_tmpfs_value_mismatch',
+    'managed_inspect_requested_mount_mismatch', 'managed_inspect_network_mode_mismatch',
+    'managed_inspect_init_mismatch', 'managed_inspect_restart_mismatch',
+    'managed_inspect_identity_mismatch', 'managed_inspect_config_mismatch',
+    'managed_inspect_forbidden_host_mismatch',
+    'managed_inspect_observed_mount_mismatch',
+    'managed_inspect_network_attachment_mismatch',
+    'managed_inspect_networks_missing', 'managed_inspect_network_key_mismatch',
+    'managed_inspect_network_id_missing', 'managed_inspect_network_id_mismatch',
+    'managed_inspect_nonresource_mismatch',
+}
 _DIAGNOSTIC_CODES = _CODES | set(_BUILD_ERROR_PATTERNS) | set(_START_ERROR_PATTERNS) | {
     'helper_base_runtime_failed', 'helper_base_error_ambiguous',
     'helper_base_state_error_ambiguous', *_STATE_ERROR_PATTERNS,
@@ -156,6 +188,13 @@ _DIAGNOSTIC_CODES = _CODES | set(_BUILD_ERROR_PATTERNS) | set(_START_ERROR_PATTE
     'volume_create_not_authorized', 'volume_protocol', 'volume_response_limit',
     'volume_engine_unavailable', 'volume_timeout', 'volume_cancelled', 'volume_api_unsupported',
     'journal_unavailable', 'unsafe_worker_path', 'worker_busy', 'invalid_binding',
+    *_MANAGED_CREATE_DIAGNOSTICS, 'managed_create_preflight_failed',
+    'managed_create_uncertain', 'managed_create_resource_conflict',
+    'managed_create_expired', 'managed_create_receipt_invalid',
+    'managed_resource_limits_unverified',
+    'bootstrap_create_failed', 'bootstrap_start_failed', 'bootstrap_wait_failed',
+    'bootstrap_result_failed', 'bootstrap_cleanup_failed',
+    'bootstrap_cleanup_status_failed', 'bootstrap_cleanup_transport_failed',
     'storage_characterization_evidence_invalid'}
 _PHASES = {'launcher', 'launch_validation', 'source_capture', 'daemon_start', 'daemon_cleanup',
     'characterization', 'image_prepare', 'volume_prepare', 'image_inspect', 'helper_stage',
@@ -166,9 +205,42 @@ _PHASES = {'launcher', 'launch_validation', 'source_capture', 'daemon_start', 'd
     'container_inspect', 'container_start', 'initial_health', 'initial_identity', 'initial_data',
     'container_restart', 'restart_health', 'restart_identity', 'root_verify', 'sentinel_verify',
     'restart_data', 'source_recheck', 'receipt_validate', 'receipt_verify'}
-_SOURCE_FILES = ('tool/volume_bootstrap_helper.py','tool/jellyfin_storage_probe.py',
-    'tool/jellyfin_storage_smoke.py','server/Dockerfile.volume-bootstrap',
-    'server/Dockerfile.volume-bootstrap.dockerignore', 'LICENSE', 'NOTICE')
+_SOURCE_FILES = (
+    '.github/workflows/jellyfin-storage-characterization.yml',
+    '.github/workflows/jellyfin-managed-characterization.yml',
+    'tool/volume_bootstrap_helper.py', 'tool/jellyfin_storage_probe.py',
+    'tool/jellyfin_storage_smoke.py', 'tool/jellyfin_storage_ci.py',
+    'tool/jellyfin_managed_ci.py',
+    'tool/media_resource_smoke.py',
+    'server/Dockerfile.volume-bootstrap',
+    'server/Dockerfile.volume-bootstrap.dockerignore',
+    'server/larenor_server/context.py',
+    'server/larenor_server/services/transport.py',
+    'server/larenor_server/plugins/packagedcatalog.json',
+    'server/larenor_server/plugins/catalog.py',
+    'server/larenor_server/plugins/stack_plan.py',
+    'server/larenor_server/plugins/resource_models.py',
+    'server/larenor_server/plugins/resource_plan.py',
+    'server/larenor_server/plugins/resource_journal.py',
+    'server/larenor_server/plugins/image_resources.py',
+    'server/larenor_server/plugins/image_preparation.py',
+    'server/larenor_server/plugins/network_resources.py',
+    'server/larenor_server/plugins/network_transport.py',
+    'server/larenor_server/plugins/network_effects.py',
+    'server/larenor_server/plugins/network_preparation.py',
+    'server/larenor_server/plugins/volume_plan.py',
+    'server/larenor_server/plugins/volume_resources.py',
+    'server/larenor_server/plugins/volume_transport.py',
+    'server/larenor_server/plugins/volume_effects.py',
+    'server/larenor_server/plugins/volume_create_journal.py',
+    'server/larenor_server/plugins/volume_preparation.py',
+    'server/larenor_server/plugins/volume_bootstrap.py',
+    'server/larenor_server/plugins/managed_container.py',
+    'server/larenor_server/plugins/worker.py',
+    'server/larenor_server/plugins/docker_probe.py',
+    'server/larenor_server/plugins/engine_http.py',
+    'LICENSE', 'NOTICE',
+)
 _BUILD_FILES = ('tool/volume_bootstrap_helper.py', 'tool/jellyfin_storage_probe.py',
     'server/Dockerfile.volume-bootstrap', 'LICENSE', 'NOTICE')
 
@@ -666,7 +738,7 @@ class EphemeralDaemon:
             timeout=timeout, limit=limit, diagnose_failure=diagnose_failure,
             diagnose_process=diagnose_process, diagnose_start=diagnose_start)
 
-    def verify_container_cgroup(self, pid):
+    def _container_cgroup_path(self, pid):
         require(type(pid) is int and pid > 0 and type(self.container_cgroup_parent) is str,
                 'owned_daemon_lost')
         try:
@@ -674,8 +746,49 @@ class EphemeralDaemon:
         except OSError:
             raise SmokeError('owned_daemon_lost') from None
         prefix = b'0::'+self.container_cgroup_parent.encode('ascii')+b'/'
-        require(any(line.startswith(prefix) for line in value.splitlines(True)),
+        selected = [line.removesuffix(b'\n') for line in value.splitlines(True)
+                    if line.startswith(prefix)]
+        require(len(selected) == 1 and re.fullmatch(rb'0::/[A-Za-z0-9_.:/-]{1,1024}', selected[0]),
                 'owned_daemon_lost')
+        try:
+            relative = selected[0].removeprefix(b'0::').decode('ascii')
+        except UnicodeError:
+            raise SmokeError('owned_daemon_lost') from None
+        return Path('/sys/fs/cgroup'+relative)
+
+    def verify_container_cgroup(self, pid):
+        self._container_cgroup_path(pid)
+
+    def verify_container_resources(self, pid, memory, nano_cpus, pids_limit):
+        require(type(memory) is int and memory > 0 and type(nano_cpus) is int
+                and nano_cpus > 0 and type(pids_limit) is int and pids_limit > 0,
+                'managed_resource_limits_unverified')
+        path = self._container_cgroup_path(pid)
+        directory = None
+        try:
+            directory = os.open(path, os.O_RDONLY|os.O_DIRECTORY|os.O_CLOEXEC|os.O_NOFOLLOW)
+            values = {}
+            for name in ('memory.max', 'cpu.max', 'pids.max'):
+                descriptor = os.open(name, os.O_RDONLY|os.O_CLOEXEC|os.O_NOFOLLOW,
+                                     dir_fd=directory)
+                try:
+                    raw = os.pread(descriptor, 129, 0)
+                finally:
+                    os.close(descriptor)
+                require(0 < len(raw) <= 128 and raw.endswith(b'\n'),
+                        'managed_resource_limits_unverified')
+                values[name] = raw.removesuffix(b'\n')
+            quota = nano_cpus * 100000 // 1000000000
+            require(values == {
+                'memory.max': str(memory).encode('ascii'),
+                'cpu.max': (str(quota)+' 100000').encode('ascii'),
+                'pids.max': str(pids_limit).encode('ascii'),
+            }, 'managed_resource_limits_unverified')
+        except (OSError, ValueError, TypeError, UnicodeError):
+            raise SmokeError('managed_resource_limits_unverified') from None
+        finally:
+            if directory is not None:
+                os.close(directory)
 
     def _verify_daemon_root(self):
         actual = json.loads(self.docker(['info', '--format', '{{json .DockerRootDir}}']))
@@ -1025,8 +1138,390 @@ def _health(daemon, helper_id, container_id):
     raise SmokeError('jellyfin_startup_timeout')
 
 
+def _managed_create_rejection(status, body):
+    """Reduce a private Docker rejection to one closed diagnostic category."""
+    fallback = 'managed_create_engine_rejected'
+    if type(status) is not int or type(body) is not bytes or not 0 < len(body) <= 4096:
+        return fallback
+
+    def unique(pairs):
+        value = {}
+        for key, item in pairs:
+            if key in value:
+                raise ValueError()
+            value[key] = item
+        return value
+
+    try:
+        value = json.loads(body, object_pairs_hook=unique,
+                           parse_constant=lambda _: (_ for _ in ()).throw(ValueError()))
+        if type(value) is not dict or set(value) != {'message'}:
+            return fallback
+        message = value['message']
+        if type(message) is not str or not 0 < len(message) <= 4096:
+            return fallback
+        lowered = message.casefold()
+    except (ValueError, TypeError, UnicodeError, RecursionError):
+        return fallback
+
+    categories = (
+        ('managed_create_mount_rejected', ('mount', 'volume')),
+        ('managed_create_network_rejected', ('network',)),
+        ('managed_create_cgroup_rejected', ('cgroup',)),
+        ('managed_create_security_rejected',
+         ('security opt', 'apparmor', 'seccomp', 'selinux', 'capabilit', 'privileg')),
+        ('managed_create_image_rejected', ('no such image', 'image not found')),
+        ('managed_create_resource_rejected',
+         ('memory limit', 'minimum memory', 'nano cpu', 'pids limit', 'resource')),
+    )
+    for code, patterns in categories:
+        if any(pattern in lowered for pattern in patterns):
+            return code
+    return fallback
+
+
+def _managed_create_success_diagnostic(body):
+    if type(body) is not bytes or not 0 < len(body) <= 1048576:
+        return 'managed_create_response_invalid'
+
+    def unique(pairs):
+        value = {}
+        for key, item in pairs:
+            if key in value:
+                raise ValueError()
+            value[key] = item
+        return value
+
+    try:
+        value = json.loads(body, object_pairs_hook=unique,
+                           parse_constant=lambda _: (_ for _ in ()).throw(ValueError()))
+    except (ValueError, TypeError, UnicodeError, RecursionError):
+        return 'managed_create_response_invalid'
+    if type(value) is not dict:
+        return 'managed_create_response_invalid'
+    if (type(value.get('Id')) is not str
+            or re.fullmatch(r'[0-9a-f]{64}', value['Id']) is None):
+        return 'managed_create_identity_invalid'
+    warnings = value.get('Warnings')
+    if warnings not in (None, []):
+        if (type(warnings) is not list or not 1 <= len(warnings) <= 8
+                or not all(type(item) is str and 0 < len(item) <= 1024
+                           for item in warnings)):
+            return 'managed_create_warning_unclassified'
+        lowered = '\n'.join(warnings).casefold()
+        categories = (
+            ('managed_create_platform_warning',
+             ('requested image', 'host platform', 'platform does not match')),
+            ('managed_create_network_warning',
+             ('forwarding is disabled', 'networking will not work', 'bridge-nf-call')),
+            ('managed_create_swap_warning', ('swap',)),
+            ('managed_create_memory_warning', ('memory limit',)),
+            ('managed_create_cpu_warning', ('cpu',)),
+            ('managed_create_pids_warning', ('pids limit',)),
+            ('managed_create_resource_warning',
+             ('resource',)),
+            ('managed_create_security_warning',
+             ('apparmor', 'seccomp', 'selinux', 'security opt', 'capabilit')),
+        )
+        for code, patterns in categories:
+            if any(pattern in lowered for pattern in patterns):
+                return code
+        return 'managed_create_warning_unclassified'
+    return None
+
+
+def _tmpfs_size_token(value):
+    if type(value) is not str:
+        return None
+    match = re.fullmatch(r'size=([0-9]{1,20})([kKmMgG]?[bB]?)', value)
+    if match is None:
+        return None
+    amount = int(match.group(1))
+    unit = match.group(2).casefold().removesuffix('b')
+    multiplier = {'': 1, 'k': 1024, 'm': 1048576, 'g': 1073741824}.get(unit)
+    return amount * multiplier if multiplier is not None else None
+
+
+def _tmpfs_diagnostic(actual, expected):
+    if expected == {} and actual in (None, {}):
+        return 'managed_inspect_tmpfs_empty_normalized'
+    if type(actual) is not dict or type(expected) is not dict or set(actual) != set(expected):
+        return 'managed_inspect_tmpfs_targets_mismatch'
+    for target in sorted(expected):
+        desired, observed = expected[target], actual[target]
+        if desired == observed:
+            continue
+        if type(desired) is not str or type(observed) is not str:
+            return 'managed_inspect_tmpfs_value_mismatch'
+        desired_parts, observed_parts = desired.split(','), observed.split(',')
+        if (not all(desired_parts) or not all(observed_parts)
+                or len(set(desired_parts)) != len(desired_parts)
+                or len(set(observed_parts)) != len(observed_parts)):
+            return 'managed_inspect_tmpfs_value_mismatch'
+        if set(desired_parts) == set(observed_parts):
+            return 'managed_inspect_tmpfs_order_mismatch'
+        desired_size = next((_tmpfs_size_token(item) for item in desired_parts
+                             if item.startswith('size=')), None)
+        observed_size = next((_tmpfs_size_token(item) for item in observed_parts
+                              if item.startswith('size=')), None)
+        desired_without = {item for item in desired_parts if not item.startswith('size=')}
+        observed_without = {item for item in observed_parts if not item.startswith('size=')}
+        if (desired_size is not None and desired_size == observed_size
+                and desired_without == observed_without):
+            return 'managed_inspect_tmpfs_size_normalized'
+        desired_keys = {item.partition('=')[0] for item in desired_parts}
+        observed_keys = {item.partition('=')[0] for item in observed_parts}
+        if desired_keys - observed_keys:
+            return 'managed_inspect_tmpfs_option_missing'
+        if observed_keys - desired_keys:
+            return 'managed_inspect_tmpfs_option_extra'
+        return 'managed_inspect_tmpfs_value_mismatch'
+    return 'managed_inspect_tmpfs_value_mismatch'
+
+
+def _network_diagnostic(networks, name, identity):
+    if type(networks) is not dict or not networks:
+        return 'managed_inspect_networks_missing'
+    if set(networks) != {name}:
+        return 'managed_inspect_network_key_mismatch'
+    attached = networks[name]
+    if type(attached) is not dict or not attached.get('NetworkID'):
+        return 'managed_inspect_network_id_missing'
+    if attached.get('NetworkID') != identity:
+        return 'managed_inspect_network_id_mismatch'
+    return 'managed_inspect_network_attachment_mismatch'
+
+
+def _managed_inspect_diagnostic(value, binding):
+    try:
+        payload = binding.payload()
+        body = payload['specification']
+        expected = body['HostConfig']
+        actual = value.get('HostConfig')
+        if type(expected) is not dict or type(actual) is not dict:
+            return 'managed_inspect_nonresource_mismatch'
+        for field, code in (
+                ('MemorySwap', 'managed_inspect_memory_swap_mismatch'),
+                ('Memory', 'managed_inspect_memory_mismatch'),
+                ('NanoCpus', 'managed_inspect_cpu_mismatch'),
+                ('PidsLimit', 'managed_inspect_pids_mismatch')):
+            if actual.get(field) != expected.get(field):
+                return code
+        if any(actual.get(field) != expected.get(field) for field in (
+                'Privileged', 'CapDrop', 'CapAdd', 'SecurityOpt', 'ReadonlyRootfs')):
+            return 'managed_inspect_security_mismatch'
+        if (actual.get('Tmpfs') != expected.get('Tmpfs')
+                and not (expected.get('Tmpfs') == {} and actual.get('Tmpfs') in (None, {}))):
+            return _tmpfs_diagnostic(actual.get('Tmpfs'), expected.get('Tmpfs'))
+        for field, code in (
+                ('Mounts', 'managed_inspect_requested_mount_mismatch'),
+                ('NetworkMode', 'managed_inspect_network_mode_mismatch'),
+                ('Init', 'managed_inspect_init_mismatch')):
+            if field == 'Mounts':
+                from larenor_server.plugins.managed_container import _observed_requested_mounts_match
+                if _observed_requested_mounts_match(actual.get(field), expected.get(field)):
+                    continue
+            if actual.get(field) != expected.get(field):
+                return code
+        restart = expected.get('RestartPolicy')
+        if restart == {'Name': 'no'}:
+            restart = {'Name': 'no', 'MaximumRetryCount': 0}
+        if actual.get('RestartPolicy') != restart:
+            return 'managed_inspect_restart_mismatch'
+        if (value.get('Id') is None or value.get('Name') != '/'+payload['name']
+                or value.get('Image') != payload['image_id']):
+            return 'managed_inspect_identity_mismatch'
+        config = value.get('Config')
+        inherited = payload['image_configuration']
+        if type(config) is not dict or type(inherited) is not dict:
+            return 'managed_inspect_config_mismatch'
+        desired_env = {item.partition('=')[0]: item for item in inherited.get('Env') or []}
+        desired_env.update({item.partition('=')[0]: item for item in body.get('Env') or []})
+        desired_labels = {**(inherited.get('Labels') or {}), **body['Labels']}
+        if (type(config.get('Env')) is not list
+                or sorted(config['Env']) != sorted(desired_env.values())
+                or config.get('Labels') != desired_labels
+                or config.get('Image') != body.get('Image')
+                or config.get('User') != body.get('User')):
+            return 'managed_inspect_config_mismatch'
+        for key in ('Cmd', 'Entrypoint', 'WorkingDir', 'Volumes', 'Healthcheck',
+                    'StopSignal', 'Shell'):
+            if (config.get(key) or None) != (inherited.get(key) or None):
+                return 'managed_inspect_config_mismatch'
+        if any(config.get(key) not in (None, False) for key in ('Tty','OpenStdin','StdinOnce')):
+            return 'managed_inspect_config_mismatch'
+        from larenor_server.plugins.worker import _FORBIDDEN_OBSERVED
+        if not all(actual.get(key) in allowed for key, allowed in _FORBIDDEN_OBSERVED.items()
+                   if key != 'Mounts'):
+            return 'managed_inspect_forbidden_host_mismatch'
+        mounts = value.get('Mounts')
+        desired_mounts = {item['target']: item['name'] for item in payload['mounts']}
+        if type(mounts) is not list or len(mounts) != len(desired_mounts):
+            return 'managed_inspect_observed_mount_mismatch'
+        for mount in mounts:
+            if (type(mount) is not dict or mount.get('Type') != 'volume'
+                    or mount.get('Name') != desired_mounts.get(mount.get('Destination'))
+                    or mount.get('Driver') != 'local' or mount.get('RW') is not True):
+                return 'managed_inspect_observed_mount_mismatch'
+        networks = (value.get('NetworkSettings') or {}).get('Networks')
+        network_name = expected.get('NetworkMode')
+        if (type(networks) is not dict or set(networks) != {network_name}
+                or type(networks[network_name]) is not dict
+                or networks[network_name].get('NetworkID') != payload['network_id']):
+            return _network_diagnostic(networks, network_name, payload['network_id'])
+    except (AttributeError, KeyError, TypeError, ValueError, RecursionError):
+        return 'managed_inspect_nonresource_mismatch'
+    return 'managed_inspect_nonresource_mismatch'
+
+
+def _managed_engine(endpoint):
+    from larenor_server.plugins.worker import DockerWorkerError, UnixDockerEngine
+
+    class DiagnosticEngine(UnixDockerEngine):
+        managed_create_diagnostic = None
+        managed_binding = None
+
+        def _exchange(self, method, target, body=None):
+            create = method == 'POST' and target.startswith('/containers/create?')
+            try:
+                response = super()._exchange(method, target, body)
+            except DockerWorkerError:
+                if create:
+                    self.managed_create_diagnostic = 'managed_create_transport_failed'
+                raise
+            if create:
+                self.managed_create_diagnostic = (
+                    _managed_create_success_diagnostic(response.body)
+                    if response.status == 201
+                    else _managed_create_rejection(response.status, response.body)
+                )
+            return response
+
+        def create_managed_container(self, binding):
+            self.managed_binding = binding
+            try:
+                return super().create_managed_container(binding)
+            except DockerWorkerError as error:
+                if self.managed_create_diagnostic is None:
+                    self.managed_create_diagnostic = {
+                        'invalid_binding': 'managed_create_binding_rejected',
+                        'engine_protocol': 'managed_create_protocol_failed',
+                        'engine_peer_rejected': 'managed_create_endpoint_rejected',
+                        'unsafe_worker_path': 'managed_create_endpoint_rejected',
+                        'engine_conflict': 'managed_create_resource_conflict',
+                    }.get(error.code, 'managed_create_transport_failed')
+                raise
+
+        def inspect_container(self, name):
+            value = super().inspect_container(name)
+            if self.managed_binding is not None and value is not None:
+                from larenor_server.plugins.managed_container import managed_container_matches
+                if not managed_container_matches(value, self.managed_binding):
+                    self.managed_create_diagnostic = _managed_inspect_diagnostic(
+                        value, self.managed_binding)
+            return value
+
+    return DiagnosticEngine(endpoint.path, socket_uid=endpoint.owner_uid)
+
+
+def _managed_create_receipt_failure(receipt, diagnostic):
+    if diagnostic in _MANAGED_CREATE_DIAGNOSTICS:
+        return diagnostic
+    try:
+        pair = receipt.state, receipt.code
+    except (AttributeError, TypeError, RecursionError):
+        return 'managed_create_receipt_invalid'
+    return {
+        ('prepared', 'accepted'): 'managed_create_preflight_failed',
+        ('uncertain', 'engine_operation_uncertain'): 'managed_create_uncertain',
+        ('needs_attention', 'resource_conflict'): 'managed_create_resource_conflict',
+        ('needs_attention', 'dispatch_expired'): 'managed_create_expired',
+    }.get(pair, 'managed_create_receipt_invalid')
+
+
+def _managed_create_succeeded(receipt):
+    try:
+        return (receipt.state == 'succeeded'
+                and receipt.code == 'container_created'
+                and _CONTAINER_ID.fullmatch(receipt.container_id or '') is not None)
+    except (AttributeError, TypeError, RecursionError):
+        return False
+
+
+def _managed_create_and_start(daemon, source, endpoint, helper_id):
+    """Create/start through the production proof, binding and v2 journal path."""
+    from larenor_server.plugins.managed_container import (
+        JellyfinBindingBuilder, JellyfinEngineReaders, JellyfinResourceProofBroker,
+        JournaledManagedContainerOperations, ManagedWorkerJournal,
+        managed_container_matches,
+    )
+    from larenor_server.plugins.resource_journal import ResourceJournal
+    from larenor_server.plugins.volume_bootstrap import (
+        VolumeBootstrapError, VolumeBootstrapVerifier,
+    )
+    from larenor_server.plugins.volume_create_journal import VolumeCreateJournal
+    from larenor_server.plugins.worker import WorkerStep
+
+    journal_dir = daemon.root / 'managed-container-journal'
+    with ResourceJournal(daemon.root / 'resource-journal') as resource_journal, \
+            VolumeCreateJournal(daemon.root / 'volume-journal') as volume_journal, \
+            ManagedWorkerJournal(journal_dir, initialize=True) as container_journal:
+        class DiagnosticVerifier(VolumeBootstrapVerifier):
+            last_error = None
+
+            def verify(self, intent, *, cancelled):
+                try:
+                    return super().verify(intent, cancelled=cancelled)
+                except VolumeBootstrapError as error:
+                    self.last_error = error.code
+                    raise
+
+        verifier = DiagnosticVerifier(endpoint, helper_id, daemon.platform)
+        readers = JellyfinEngineReaders(endpoint, verifier)
+        broker = JellyfinResourceProofBroker(
+            source.stack, source.catalog, source.policy, resource_journal,
+            volume_journal, readers, engine_identity=endpoint,
+        )
+        try:
+            binding = JellyfinBindingBuilder(
+                source.catalog, source.policy, container_journal.identity, broker,
+            )(source.stack)
+        except Exception:
+            if verifier.last_error is not None:
+                raise SmokeError(verifier.last_error) from None
+            raise
+        engine = _managed_engine(endpoint)
+        operations = JournaledManagedContainerOperations(container_journal, engine)
+        job_id = uuid.uuid4().hex
+        installation_id = binding.name.removeprefix('larenor-')
+        create = operations.apply(WorkerStep(
+            job_id, installation_id, 'create_container',
+            uuid.uuid4().hex, time.time() + 30,
+        ), binding)
+        if not _managed_create_succeeded(create):
+            raise SmokeError(_managed_create_receipt_failure(
+                create, engine.managed_create_diagnostic,
+            ))
+        created = engine.inspect_container(create.container_id)
+        require(managed_container_matches(created, binding))
+        start = operations.apply(WorkerStep(
+            job_id, installation_id, 'start_container',
+            uuid.uuid4().hex, time.time() + 30,
+        ), binding)
+        require(start.state == 'succeeded' and start.code == 'container_started'
+                and start.container_id == create.container_id)
+        running = engine.inspect_container(start.container_id)
+        require(managed_container_matches(running, binding)
+                and running.get('State', {}).get('Running') is True)
+        host = binding.payload()['specification']['HostConfig']
+        daemon.verify_container_resources(running.get('State', {}).get('Pid'),
+            host['Memory'], host['NanoCpus'], host['PidsLimit'])
+        return start.container_id, binding, engine
+
+
 @diagnostic_phase('characterization')
-def characterize(daemon, *, source=None, images=None, volumes=None, checkout_binding=None):
+def characterize(daemon, *, source=None, images=None, volumes=None, checkout_binding=None,
+                 managed=False):
     """The real consumer: two volumes, bootstrap, NoCopy/start/restart or fail.
 
     Optional objects are private offline-test seams, not CLI/runtime inputs.
@@ -1042,6 +1537,15 @@ def characterize(daemon, *, source=None, images=None, volumes=None, checkout_bin
     endpoint = DockerEndpoint(str(daemon.root/'engine.sock'), owner_uid=0)
     images = UnixImageEngine(endpoint) if images is None else images
     volumes = UnixVolumeCreator(endpoint) if volumes is None else volumes
+    require(type(managed) is bool)
+    if managed:
+        from larenor_server.plugins.network_effects import UnixNetworkCreator
+        from larenor_server.plugins.network_transport import UnixNetworkEngine
+        from tool.media_resource_smoke import characterize_resources
+        characterize_resources(
+            daemon.root, source, images, UnixNetworkEngine(endpoint),
+            UnixNetworkCreator(endpoint),
+        )
     receipt = prepare_storage(daemon.root, source, images, volumes)
     with diagnostic_phase('image_inspect'):
         binding = image_binding(source.plan, source.stack, source.catalog, source.policy, source.image.resourceId)
@@ -1088,26 +1592,44 @@ def characterize(daemon, *, source=None, images=None, volumes=None, checkout_bin
         with diagnostic_phase('sentinel_write'):
             require(_helper(daemon, helper_id, 'write_sentinel', target=target)
                 == {'sentinel':'verified','uid':1000,'gid':1000})
-    name = 'larenor-jellyfin-'+source.stack.preparationId
-    args = ['create','--name='+name,'--network=none','--read-only','--cap-drop=ALL',
-        '--security-opt=no-new-privileges','--user=1000:1000','--memory=4g','--cpus=2',
-        '--cgroup-parent='+daemon.container_cgroup_parent,
-        '--pids-limit=512','--restart=no','--tmpfs=/tmp:rw,nosuid,nodev,size=67108864','--env=TZ=UTC']
-    args += ['--mount=type=volume,src='+v.name+',dst='+v.target+',volume-nocopy' for v in source.targets]
+    managed_binding = managed_engine = None
     with diagnostic_phase('container_create'):
-        container_id = daemon.docker(args+[binding.reference], limit=128).decode().strip()
-        require(re.fullmatch(r'[0-9a-f]{64}', container_id) is not None)
+        if managed:
+            container_id, managed_binding, managed_engine = _managed_create_and_start(
+                daemon, source, endpoint, helper_id,
+            )
+        else:
+            name = 'larenor-jellyfin-'+source.stack.preparationId
+            args = ['create','--name='+name,'--network=none','--read-only','--cap-drop=ALL',
+                '--security-opt=no-new-privileges','--user=1000:1000','--memory=4g','--cpus=2',
+                '--cgroup-parent='+daemon.container_cgroup_parent,
+                '--pids-limit=512','--restart=no','--tmpfs=/tmp:rw,nosuid,nodev,size=67108864','--env=TZ=UTC']
+            args += ['--mount=type=volume,src='+v.name+',dst='+v.target+',volume-nocopy' for v in source.targets]
+            container_id = daemon.docker(args+[binding.reference], limit=128).decode().strip()
+            require(re.fullmatch(r'[0-9a-f]{64}', container_id) is not None)
     @diagnostic_phase('container_inspect')
     def inspect():
-        value = _decoded(daemon.docker(['container','inspect','--format','{{json .}}',container_id], limit=262144))
-        require(value.get('Id') == container_id)
-        verify_container(value, source, image_config, daemon.container_cgroup_parent)
+        if managed:
+            from larenor_server.plugins.managed_container import managed_container_matches
+            value = managed_engine.inspect_container(container_id)
+            require(value.get('Id') == container_id
+                    and managed_container_matches(value, managed_binding))
+        else:
+            value = _decoded(daemon.docker(['container','inspect','--format','{{json .}}',container_id], limit=262144))
+            require(value.get('Id') == container_id)
+            verify_container(value, source, image_config, daemon.container_cgroup_parent)
         return value
     inspect()
     with diagnostic_phase('container_start'):
-        daemon.docker(['start',container_id], limit=128)
+        if not managed:
+            daemon.docker(['start',container_id], limit=128)
         running = inspect()
-        daemon.verify_container_cgroup(running.get('State',{}).get('Pid'))
+        if managed:
+            host = managed_binding.payload()['specification']['HostConfig']
+            daemon.verify_container_resources(running.get('State',{}).get('Pid'),
+                host['Memory'], host['NanoCpus'], host['PidsLimit'])
+        else:
+            daemon.verify_container_cgroup(running.get('State',{}).get('Pid'))
     with diagnostic_phase('initial_health'):
         first = _health(daemon, helper_id, container_id)
     with diagnostic_phase('initial_identity'):
@@ -1126,7 +1648,12 @@ def characterize(daemon, *, source=None, images=None, volumes=None, checkout_bin
         require(_helper(daemon, helper_id, 'app_identity', network='container:'+container_id)
                 == {'uid':1000,'gid':1000})
     running = inspect()
-    daemon.verify_container_cgroup(running.get('State',{}).get('Pid'))
+    if managed:
+        host = managed_binding.payload()['specification']['HostConfig']
+        daemon.verify_container_resources(running.get('State',{}).get('Pid'),
+            host['Memory'], host['NanoCpus'], host['PidsLimit'])
+    else:
+        daemon.verify_container_cgroup(running.get('State',{}).get('Pid'))
     for target in source.targets:
         with diagnostic_phase('root_verify'):
             require(_helper(daemon, helper_id, 'verify_root', target=target, bootstrap=True)
@@ -1144,6 +1671,8 @@ def characterize(daemon, *, source=None, images=None, volumes=None, checkout_bin
         'catalogDigest':source.catalog.digest,'jellyfinManifestDigest':source.image.image.digest,
         'jellyfinConfigDigest':binding.config_digest,'helper':attestation,
         'volumeCount':2,'restartCount':1,'serverId':first['id'],
+        **({'containerMode':'journaled_managed_v2','containerJournalVersion':2}
+           if managed else {}),
         'bootstrapAccountConfigured':False,'installAvailable':False, **receipt}
 
 

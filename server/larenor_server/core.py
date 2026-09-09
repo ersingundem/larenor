@@ -23,7 +23,12 @@ from .plugins.media_schema import migrate_media_preparations
 from .plugins.media_preparations import MediaPreparationManagement
 from .plugins.media_inspection_schema import migrate_media_inspections
 from .plugins.media_inspections import MediaInspectionManagement
+from .plugins.media_installation_schema import migrate_media_installations
+from .plugins.media_installations import MediaInstallationManagement
+from .plugins.media_service_bootstrap_schema import migrate_media_service_bootstraps
+from .plugins.media_service_bootstraps import MediaServiceBootstrapManagement
 from .plugins.preflight_ipc import PreflightWorkerClient
+from .plugins.installation_ipc import InstallationWorkerClient
 from .services.schema import migrate_services
 from .services.service import ServiceManagement
 from .services.probe_runner import ServiceProbeRunner
@@ -142,6 +147,8 @@ class CoreServices:
                 migrate_plugin_jobs(connection)
                 migrate_media_preparations(connection)
                 migrate_media_inspections(connection)
+                migrate_media_installations(connection)
+                migrate_media_service_bootstraps(connection)
             if not existed:
                 # Only publish the DB after its complete first transaction commits.
                 # Never expose an empty DB that a restart might treat as a reset.
@@ -182,6 +189,18 @@ class CoreServices:
             self.media_preparations.validate_storage()
             self.media_inspections = MediaInspectionManagement(self.db, self.auth, settings, key, self.media_preparations, backend)
             self.media_inspections.validate_storage()
+            # Mutating execution uses a separate, future worker channel. The
+            # read-only preflight socket can never be promoted implicitly.
+            installation_backend = None if settings.installation_worker_socket is None else InstallationWorkerClient(
+                settings.installation_worker_socket, owner_uid=settings.installation_worker_uid)
+            self.media_installations = MediaInstallationManagement(
+                self.db, self.auth, settings, key, self.media_preparations, self.media_inspections,
+                installation_backend)
+            self.media_installations.validate_storage()
+            self.media_service_bootstraps = MediaServiceBootstrapManagement(
+                self.db, self.auth, settings, key, self.media_installations,
+                installation_backend)
+            self.media_service_bootstraps.validate_storage()
             self.clear_inactive_bootstrap()
 
     def clear_inactive_bootstrap(self) -> None:

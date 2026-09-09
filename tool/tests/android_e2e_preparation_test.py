@@ -15,7 +15,7 @@ SCRIPT = Path(__file__).resolve().parents[1] / "run_android_e2e.sh"
 
 
 class AndroidE2EPreparationTest(unittest.TestCase):
-    def run_script(self, *, generation_fails=False, journey_fails=False, focus_fails=False, diagnostics_fail=False, relay_fails=False, tee_fails=False, ci=False, serial="emulator-5554", qemu=True, stay_on="15", power_fails=False, setting_fails=False, home_component="com.android.launcher3/com.android.launcher3.uioverrides.QuickstepLauncher", launcher_disabled=True):
+    def run_script(self, *, generation_fails=False, journey_fails=False, focus_fails=False, diagnostics_fail=False, relay_fails=False, tee_fails=False, ci=False, serial="emulator-5554", qemu=True, stay_on="15", power_fails=False, setting_fails=False, launcher_system_package=True, launcher_list_fails_once=False, launcher_disabled=True):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)
             binaries = root / "bin"
@@ -31,7 +31,12 @@ class AndroidE2EPreparationTest(unittest.TestCase):
                        '  selected=$index; (( selected >= ${#values[@]} )) && selected=$((${#values[@]} - 1))\n'
                        '  echo "${values[$selected]}"; echo $((index + 1)) > "${COMMAND_TRACE}.reads"\n'
                        'fi\n'
-                       'if [[ "$*" == *"cmd package resolve-activity --brief --components -a android.intent.action.MAIN -c android.intent.category.HOME" ]]; then echo "$TEST_HOME_COMPONENT"; fi\n'
+                       'if [[ "$*" == *"pm list packages -s --user 0 com.android.launcher3" ]]; then\n'
+                       '  if [[ "$FAIL_LAUNCHER_LIST_ONCE" == 1 && ! -e "${COMMAND_TRACE}.launcher-list-failed" ]]; then\n'
+                       '    touch "${COMMAND_TRACE}.launcher-list-failed"; exit 11\n'
+                       '  fi\n'
+                       '  [[ "$TEST_LAUNCHER_SYSTEM_PACKAGE" == 1 ]] && echo "package:com.android.launcher3"\n'
+                       'fi\n'
                        'if [[ "$*" == *"pm disable-user --user 0 com.android.launcher3" ]]; then echo "Package com.android.launcher3 new state: disabled-user"; fi\n'
                        'if [[ "$*" == *"pm list packages --user 0 -d com.android.launcher3" && "$TEST_LAUNCHER_DISABLED" == 1 ]]; then echo "package:com.android.launcher3"; fi\n',
                 "dart": '#!/bin/bash\necho "dart $*" >> "$COMMAND_TRACE"\n'
@@ -63,7 +68,8 @@ class AndroidE2EPreparationTest(unittest.TestCase):
                                          "RUNNER_TEMP": str(root / "runner-temp"),
                                          "TEST_QEMU": "1" if qemu else "0",
                                          "TEST_STAY_ON": "|".join(stay_on) if isinstance(stay_on, list) else stay_on,
-                                         "TEST_HOME_COMPONENT": home_component,
+                                         "TEST_LAUNCHER_SYSTEM_PACKAGE": "1" if launcher_system_package else "0",
+                                         "FAIL_LAUNCHER_LIST_ONCE": "1" if launcher_list_fails_once else "0",
                                          "TEST_LAUNCHER_DISABLED": "1" if launcher_disabled else "0",
                                          "FAIL_POWER": "1" if power_fails else "0",
                                          "FAIL_SETTING": "1" if setting_fails else "0",
@@ -169,7 +175,7 @@ class AndroidE2EPreparationTest(unittest.TestCase):
         result, commands, _ = self.run_script(ci=True)
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertLess(
-            commands.index("cmd package resolve-activity --brief --components -a android.intent.action.MAIN -c android.intent.category.HOME"),
+            commands.index("pm list packages -s --user 0 com.android.launcher3"),
             commands.index("pm disable-user --user 0 com.android.launcher3"),
         )
         self.assertLess(
@@ -177,16 +183,30 @@ class AndroidE2EPreparationTest(unittest.TestCase):
             commands.index("dart run build_runner build"),
         )
 
-    def test_ci_rejects_unknown_home_without_disabling_or_building(self):
+    def test_ci_retries_one_transient_launcher_package_manager_failure(self):
         result, commands, _ = self.run_script(
             ci=True,
-            home_component="com.example.private/.Home",
+            launcher_list_fails_once=True,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(
+            commands.count(
+                "pm list packages -s --user 0 com.android.launcher3"
+            ),
+            2,
+        )
+        self.assertIn("attempts=2", result.stdout)
+        self.assertIn("pm disable-user --user 0 com.android.launcher3", commands)
+
+    def test_ci_rejects_non_system_launcher_package_without_disabling_or_building(self):
+        result, commands, _ = self.run_script(
+            ci=True,
+            launcher_system_package=False,
         )
         self.assertEqual(result.returncode, 2)
-        self.assertIn("resolve-activity", commands)
+        self.assertIn("pm list packages -s --user 0 com.android.launcher3", commands)
         self.assertNotIn("pm disable-user", commands)
         self.assertNotIn("dart ", commands)
-        self.assertNotIn("com.example.private", result.stdout + result.stderr)
 
     def test_ci_requires_verified_disabled_launcher_before_build(self):
         result, commands, _ = self.run_script(ci=True, launcher_disabled=False)
@@ -249,12 +269,12 @@ class StayAwakeBudgetTest(unittest.TestCase):
         deadlines = []
         def command(_serial, args, deadline):
             deadlines.append(deadline)
-            elapsed[0] += 1 if "getprop" in args else 5
+            elapsed[0] += 1 if "getprop" in args else 10
             return b"1\n" if "getprop" in args else b"7\n"
         result = self.helper.ensure_awake("emulator-5554", command=command, clock=lambda: elapsed[0], sleep=lambda seconds: None)
         self.assertEqual(result.result, "deadline")
         self.assertEqual(result.attempts, 1)
-        self.assertEqual(deadlines, [2.0, 3.0, 8.0])
+        self.assertEqual(deadlines, [5.0, 6.0, 16.0])
 
     def test_retry_delay_cannot_extend_the_global_deadline(self):
         elapsed = [0.0]
@@ -263,7 +283,7 @@ class StayAwakeBudgetTest(unittest.TestCase):
             calls.append(args)
             return b"1" if "getprop" in args else b"0"
         def sleep(_seconds):
-            elapsed[0] += 10
+            elapsed[0] += 20
         result = self.helper.ensure_awake("emulator-5554", command=command, clock=lambda: elapsed[0], sleep=sleep)
         self.assertEqual(result.result, "deadline")
         self.assertEqual(result.attempts, 1)
@@ -294,6 +314,34 @@ class StayAwakeBudgetTest(unittest.TestCase):
         command.assert_not_called()
         self.assertEqual(self.helper.ensure_awake("emulator-5554", command=command).result, "invalid_emulator")
         self.assertEqual(command.call_count, 1)
+
+    def test_launcher_check_retries_transient_adb_failure_with_one_deadline(self):
+        calls = []
+        sleeps = []
+
+        def command(_serial, args, deadline):
+            calls.append((args, deadline))
+            if "getprop" in args:
+                return b"1\n"
+            if args[1:4] == ["pm", "list", "packages"] and "-s" in args:
+                return None if len(calls) == 2 else b"package:com.android.launcher3\n"
+            if "disable-user" in args:
+                return b"Package com.android.launcher3 new state: disabled-user\n"
+            return b"package:com.android.launcher3\n"
+
+        result = self.helper.disable_ci_quickstep(
+            "emulator-5554",
+            command=command,
+            clock=lambda: 0.0,
+            sleep=sleeps.append,
+            environment={"GITHUB_ACTIONS": "true"},
+        )
+
+        self.assertEqual(result, self.helper.Outcome(
+            "verified", 2, "aosp_quickstep_disabled"
+        ))
+        self.assertEqual(sleeps, [1])
+        self.assertTrue(all(deadline <= 5.0 for _, deadline in calls))
 
 
 if __name__ == "__main__":

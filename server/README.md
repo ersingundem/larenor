@@ -253,11 +253,100 @@ default `0`). Invalid values fail startup with the static code
 `invalid_worker_configuration`, without echoing environment values. The API
 container's default entry point starts only the API, not this worker.
 
+## Bounded media installation execution
+
+`/api/v1/admin/media/installations` is the first durable S06.4 execution
+surface. An administrator submits only the accepted preparation ID, succeeded
+inspection ID, their revisions, plan hash and an idempotency request ID. The
+API does not accept a service choice, image, host path, Docker body or command.
+It rechecks the user/session family, Core/home context, preparation, inspection,
+catalog and cancellation state before each worker operation.
+
+The API derives a fixed Jellyfin `create_container` then `start_container`
+sequence. It stores the complete request and plan with AES-GCM, keeps history
+across restart and reconciles an uncertain create receipt before attempting a
+start. A second request for the same preparation returns the explicit
+`media_installation_conflict` response. `GET /capabilities` reports whether the
+separate execution channel is configured, while `installAvailable` remains
+`false` even after the container phase succeeds.
+
+Mutating IPC uses `LARENOR_INSTALLATION_WORKER_SOCKET` and
+`LARENOR_INSTALLATION_WORKER_UID`. It cannot share the read-only preflight
+socket. The bounded Unix protocol carries only the authenticated worker step and
+complete packaged stack plan; the worker revalidates both, then derives the
+Jellyfin child before its policy-owned
+binding builder can reach the journaled Engine operations. The initial builder
+requires fresh typed image, bootstrapped-volume and private-network proofs and
+produces a ports-off Jellyfin binding. The package now includes
+`larenor-installation-worker`: it loads one private exact policy, opens the
+resource, volume-create and managed-container journals, and owns the Docker
+endpoint. Its bootstrap verifier runs only the pinned helper image's
+`verify_root` command in a networkless, read-only ephemeral container with the
+target named volume mounted read-only and `NoCopy=true`. `--check-config`
+validates policy without opening a journal, socket or Docker connection.
+The worker now opens one retained Docker connection on its IPC service thread,
+binds it to the socket inode, peer pidfd, executable and daemon/worker
+process-root plus mount/network/user namespace evidence, and rechecks that
+evidence before and after every apply or reconcile operation. It cannot report a
+successful start until this guard is ready. A daemon restart, endpoint change,
+deadline or native-thread change closes the guard and fails closed. Equal user
+namespace maps are continuity evidence, not initial-host or remap-disabled
+startup authority, so installation availability remains disabled. One shared
+peer verifier is also injected into the image, volume, network, bootstrap and
+managed-container Engine clients. Every connection must present a fresh
+socket-derived pidfd for the same still-live daemon PID; matching only the
+socket inode and UID cannot pass through socket activation or listener FD
+transfer.
+Its separate version-2 managed-container journal durably records the complete
+binding before create/start, refuses legacy journal rows, and reconciles only
+against a freshly rebuilt identical binding and full Engine observation. It has
+an initial journal-bound proof broker that locks the resource and volume-create
+journals, rebinds exact source/revision/nonce state, requires fresh image,
+volume, bootstrap and network observations from one opaque Engine identity, and
+rebinds after those reads. A separate source-bound managed-v2 native workflow
+is ready to exercise the complete create/start path on amd64 and arm64; its
+artifacts have passed on amd64 and arm64. It has not installed anything on a
+real home server. The strict public examples are in
+[`contracts/media-installations.v1.json`](../contracts/media-installations.v1.json)
+and the [implementation evidence](../docs/media-installation-execution-implementation-2026-09-09.md)
+records the remaining acceptance gates.
+
 The product target remains [one integrated media/music installation](../docs/integrated-media-stack.md),
 with users managing settings in Larenor Client and internal credentials and
 connections managed by Larenor. Complete-stack provisioning, service bootstrap,
 private control networking and actual media runtime deployment are still future
-work. The current job API rejects installation operations.
+work. The read-only job API still rejects installation operations; the bounded
+installation collection above is the only separate mutation contract.
+
+The first S06.5 bootstrap surface is available at
+`/api/v1/admin/media/bootstraps`. It accepts only an idempotency ID and the exact
+completed Jellyfin installation ID/revision. Larenor Server generates the
+private account credential and stores it with AES-GCM; public responses expose
+only the bootstrap state. The package-private Jellyfin startup adapter accepts
+an already verified connection rather than a URL or IP and executes only the
+fixed official startup sequence with bounded HTTP responses and no redirect or
+retry. Container address proof, worker dispatch, API-key/library readback and
+real service acceptance remain disabled, so `installAvailable=false` is
+unchanged. See the [S06.5 implementation evidence](../docs/media-service-bootstrap-implementation-2026-09-09.md).
+The next private adapter can derive a numeric endpoint only from the exact
+journal container ID, a freshly verified stack/binding, a running full
+container observation and its sole internal control-network attachment. It
+accepts only a canonical RFC1918 IPv4 address whose prefix and gateway agree,
+and the packaged Jellyfin TCP/8096 listener. It performs one numeric connect
+without DNS, proxy, alternate-address fallback or retry. A worker-private
+executor now reconciles the exact successful start receipt, checks retained
+authority at four effect boundaries, re-inspects the endpoint before and after
+startup, shares one total deadline and never retries. It reports unavailable
+and changed endpoints separately without exposing credentials. The API-side
+durable coordinator now
+persists the no-retry queued/running/credentials-configured lifecycle and
+secret-free terminal errors. An interrupted running record becomes
+`bootstrap_interrupted` after restart instead of being dispatched again. When
+the private installation-worker socket is configured, Core now sends the exact
+bootstrap contract over that same UID-authenticated Unix channel. Installation
+and bootstrap share one journal/binding authority, while the supervisor keeps
+every inner gate and Docker observation on the retained daemon lease and native
+thread. API-key/library readback and real Linux service acceptance remain open.
 
 ## Client releases
 

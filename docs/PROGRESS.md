@@ -1,10 +1,10 @@
 # Larenor — güncel ilerleme ve iş kuyruğu
 
-**Son güncelleme: 9 Eylül 2026 — S08.7 güvenli salt okunur Home Assistant domain kapsamı yerelde tamamlandı; exact-source CI bekliyor.**
+**Son güncelleme: 9 Eylül 2026 — S06.4 kabul edildi, S06.5 private IPC/runtime temeline ilerledi; S08.7 salt okunur Home Assistant domain kapsamı birleşik CI için hazır.**
 
 ```text
-Kuyruk kabulü       ██░░░░░░░░░░░░░░░░░░  12/125 iş (%10; eşit ağırlıklı sayaç)
-S06 koordinatörü    ██████████░░░░░░░░░░  3/6 yazılım dilimi
+Kuyruk kabulü       ██░░░░░░░░░░░░░░░░░░  13/125 iş (%10; eşit ağırlıklı sayaç)
+S06 koordinatörü    █████████████░░░░░░░  4/6 yazılım dilimi
 S06.3 kaynak temeli  ████████████████████  6/6 alt adım
 S08.7 HA kapsamı     ████████████████░░░░  4/5 yazılım kapısı; CI/fiziksel kabul ayrı
 Yeni 63 özellik     ░░░░░░░░░░░░░░░░░░░░  0/63 kabul edildi
@@ -40,6 +40,117 @@ Gerçek ev kurulumu ve fiziksel tablet kabulü henüz yapılmadı.
 | B5.1 — ortak tablet tasarımı | Services/hesap IME paketi APK116 ile kabul edildi; S08.7 komut ve aktarım yüzeyleri yerel tablet matrisinden geçti | Exact-source Android CI ve kalan ortak tablet yüzeyleri |
 | S06.3d — kalıcı depolama | **Kabul edildi**; Native18 exact `6a054ea`, amd64+arm64 makbuzları doğrulandı | S06.3f ile birleşik kaynak kapısı kapandı |
 | S06.3f — kaynak kabulü | **Kabul edildi**; exact `4021391`, iki mimarili native makbuz, 4.065 Server ve tam Android/Server CI yeşil | S06.4 dar kurulum yürütme kapısı |
+| S06.4 — dar kurulum yürütme kapısı | **Kabul edildi**; PR16 `bf6f860`, PR18 `75af015`, PR19 `9ce3c5a` ve PR20 `2b9166b` tam CI kapıları yeşil | S06.5 özel bootstrap ve otomatik servis eşleştirme |
+| S06.5 — özel bootstrap ve otomatik eşleştirme | **Devam ediyor**; şifreli niyet, exact yürütücü, kalıcı no-retry koordinatör ve aynı retained daemon'a bağlı private IPC/runtime yerelde hazır | Exact-source CI, API anahtarı/kütüphane geri okuması ve gerçek servis kabulü |
+
+S06.5'in ilk iki TDD parçası, yalnız tamamlanmış Jellyfin kurulumundan
+yöneticiye bağlı bootstrap niyeti üretir ve public API'de sır, hedef adres veya
+Docker yetkisi kabul etmez. Ayrı adaptör resmi startup sırasını tek, önceden
+doğrulanmış bağlantıda; bounded başlık/gövde ve ortak total deadline ile
+yürütür. Redirect/retry yoktur; kısmi veya belirsiz yazma sonucu sabit ve
+secret-free hata durumuyla üst koordinatöre bırakılır. Odaklı 30 test ve ilgili
+81 test geçti. Exact `9882c7c` kaynak, sabit apksig 9.1.0 ve gerçek JDK 17 ile
+tam yerel Server paketinde **4.381 PASS / 13 macOS skip** verdi; security policy
+ve derleme kontrolü de temiz. GitHub CI henüz kabul edilmedi; gerçek
+container/LAN işlemi yapılmadı.
+[Uygulama ve açık sınırlar](media-service-bootstrap-implementation-2026-09-09.md).
+
+Sonraki `e04a06a` → `832b44a` TDD dilimi, exact journal container ID ve
+yeniden doğrulanmış stack/binding ile çalışan container'ın tek internal control
+network IPv4/prefix/gateway gözlemini birleştiriyor. Yalnız RFC1918 subnet ve
+sabit Jellyfin TCP/8096 listener'ı numeric bağlantı üretebilir; DNS, proxy,
+alternatif adres ve retry yoktur. **27 yeni / 86 ilgili test** geçti. Bu bağlantı
+henüz gerçek ağa açılmadı. `42128c2` → `5a1b1b0`, ardından `89687d1` ile
+tamamlanan üçüncü dilim bu kanıtı başarılı `start_container` journal receipt'i,
+dört retained-authority kapısı, startup öncesi/sonrası taze container gözlemi
+ve tek ortak deadline içinde birleştiriyor. Bağlantı erişilemezliği endpoint
+değişiminden ayrı raporlanıyor; beş resmi adım doğrulanmadan başarı üretilmiyor.
+**14 yeni / 100 ilgili test** ile security policy, compileall ve diff kontrolü
+geçti. IPC/supervisor dispatch ve kalıcı bootstrap durum geçişi henüz bağlı
+değil; bu kaynak gerçek Docker/Jellyfin ağına dokunmadı.
+
+`b931fdd` → `2e75cd3` TDD dilimi public duruma secret-free `errorCode` ekledi
+ve koordinatörün `queued → running → credentials_configured` geçişini kalıcı
+hale getirdi. Kesilmiş `running` kayıt restart sonrasında yeniden denenmiyor;
+`bootstrap_interrupted` ile insan incelemesine ayrılıyor. Yetki kaybı backend
+çağrısından önce duruyor; kısmi/belirsiz etki `needs_attention`, kesin bağlantı
+erişilemezliği `failed` oluyor. **18 odaklı / 90 ilgili test** geçti. Production
+Core backend'i bu ara committe kapalıydı; gerçek servis işlemi yapılmadı.
+
+`e9a71a3` → `ae96651` ve `26aca71` → `d8d8276` TDD dilimleri aynı
+UID-korumalı installation Unix socket'e private bootstrap operasyonunu ekledi.
+Core yalnız bu socket yapılandırılmışsa koordinatörü backend'e bağlar. Exact
+job/plan/private sözleşme dışındaki giriş worker'a ulaşmaz; kısmi sonuç yalnız
+sabit adım, hata kodu ve belirsizlik taşır. Runtime kurulum ve bootstrap için
+aynı journal/binding'i kullanır; supervisor iç gate'leri ve Docker bağlantılarını
+aynı retained daemon lease'i/native thread içinde doğrular. Sentetik gerçek
+Unix-soket Core→IPC→worker yolculuğu dahil **11 yeni / 149 ilgili test** geçti;
+bir Linux-only test macOS'ta skip edildi. Gerçek Docker/Jellyfin etkisi yapılmadı.
+
+S06.4 native kabul koşusu [34326112926](https://github.com/ersingundem/larenor/actions/runs/34326112926)
+iki gerçek GitHub runner'ında geçti. İndirilen ARM64 ve X64 makbuzları merge
+commit'i `b6e7034` için repo verifier ile tekrar doğrulandı; bu commit'in ikinci
+ebeveyni PR head'i `19485ab`. Her iki makbuz da `journaled_managed_v2`, journal
+sürümü 2, iki volume, bir restart, hazır imaj, kapalı bootstrap hesabı ve
+`installAvailable=false` sınırını kanıtlıyor. Kaynak sınırları istek gövdesinin
+yanında çalışan cgroup'da da okundu. Bu kanıt disposable CI daemon'ına aittir;
+gerçek ev Docker Engine'ine yazılmadı ve ürün kurulumu açılmadı.
+
+PR16'nın güncel `bf6f860` kaynağı için [Android Build 34332778297](https://github.com/ersingundem/larenor/actions/runs/34332778297)
+5.438 Flutter, 4.225 Server, 98 Android native testi ve 17 gerçek API 35
+emülatör yolculuğuyla geçti. [Security 34332777924](https://github.com/ersingundem/larenor/actions/runs/34332777924)
+yeşil; [managed native 34332777927](https://github.com/ersingundem/larenor/actions/runs/34332777927)
+amd64 ve arm64 üzerinde geçti. İndirilen makbuzlar merge commit'i `670614a`
+ve ebeveynleri `ffdb48c` / `bf6f860` için tekrar doğrulandı.
+
+Stacked PR18 exact `75af015`, üç mevcut journal'ı tek kapalı runtime'da açan paketli
+`larenor-installation-worker` komutunu ve yalnız exact image ID, `verify_root`,
+read-only NoCopy volume, networksüz geçici container kabul eden bootstrap
+verifier'ı ekledi. `--check-config` journal, socket veya Engine açmaz; IPC socket'i
+Docker endpoint'iyle çakışamaz ve journal içine yerleşemez. Bu yeni dilim 43
+odaklı testle başladı; güncel exact kaynak yerelde **4.262 PASS / 12 platform
+skip**, Linux Server CI'da **4.274 PASS** verdi. [Android Build 34341554668](https://github.com/ersingundem/larenor/actions/runs/34341554668),
+[Security 34341554393](https://github.com/ersingundem/larenor/actions/runs/34341554393)
+ve [managed native 34341554476](https://github.com/ersingundem/larenor/actions/runs/34341554476)
+yeşil; amd64/arm64 makbuzları exact merge `adbb8476` üzerinde tekrar doğrulandı.
+
+`cac0625` → `b6196a1` TDD dilimi, `InstallationWorkerServer` servis thread'i
+hazır olmadan IPC açılışını başarılı saymıyor. Supervisor aynı thread'de tek
+Docker bağlantısını, socket inode zincirini, socket-bound pidfd'yi ve daemon ile
+worker proc/user/mount/network/root kimliklerini tutuyor. Her `apply` ve
+`reconcile` çağrısı bu kanıtlarla çevreleniyor; daemon restart/socket değişimi,
+yanlış native thread veya işlem sonrası kanıt kaybı başarı döndürmeden bütün
+tutulan kaynakları kapatıyor. `5d43299` → `1e94267` düzeltmesi ayrıca image,
+volume, network, bootstrap helper ve managed create/start taşıyıcılarının açtığı
+her Engine bağlantısının peer PID'sini aynı tutulan canlı pidfd'ye bağlıyor.
+Socket activation veya listener FD devrinde aynı inode ve UID arkasındaki farklı
+daemon process'i artık kabul edilmiyor. İlgili yerel paket **272 PASS / 4 Linux
+skip**;
+İlk Linux Server koşusu 4.301 testin 4.300'ünü geçirip test düzeneğinin zaten
+bağlı `socketpair` üzerinde ikinci kez `connect()` çağırması nedeniyle durdu;
+üretim kodu etkiden önce fail-closed kapandı. `9ce3c5a` gerçek peer pidfd'sini
+koruyan preconnected test sarmalayıcısını ekledi. Exact
+[Android Build 34349256229](https://github.com/ersingundem/larenor/actions/runs/34349256229)
+5.438 Flutter, 4.302 Linux Server, 98 Android native ve 17 gerçek API 35 E2E
+testini geçti; gerçek Linux supervisor testi atlanmadı.
+[Security 34349256017](https://github.com/ersingundem/larenor/actions/runs/34349256017)
+üç işiyle yeşil. Eşit user map'leri tek başına initial host namespace veya
+remap-disabled başlangıç kanıtı sayılmaz; `installAvailable=false` korunur.
+
+`422eb80` → `5580f66` ve `ffba1a7` → `5c81207` TDD dilimleri, supervisor'ın
+socket-bound proc/root tanıtıcılarından daemon `cmdline` ve daemon köküne göre
+çözülen exact `daemon.json` kanıtını no-follow dosya tanıtıcılarıyla tutuyor.
+`/version` ile `/v1.47/info` aynı doğrulanmış bağlantıda ve ortak deadline içinde
+okunuyor. Peer ve worker için root credentials, tam initial kimlik haritası ve
+aynı user namespace zorunlu; başlangıç argümanında veya config'te
+`userns-remap`, Engine güvenlik seçeneklerinde `rootless`/`userns`, yanlış
+platform, duplicate/bozuk JSON, config değiştirme/yerine koyma ya da deadline
+kaybı bütün worker kanıtını etkiden önce kapatıyor. Runtime güvenlik seçenekleri
+her effect öncesi/sonrası yeniden okunuyor. Yeni iki modülün **60 testi**
+ve kurulum/kimlik/Engine yollarını içeren geniş ilgili paket yerelde geçti.
+Exact `b6c8ede` kaynağında tam Server paketi **4.351 PASS / 13 macOS platform
+skip** verdi; Security policy, compileall, diff ve kuyruk doğrulaması temiz. Bu yerel kanıt
+henüz exact Linux CI veya bağımsız review değildir.
 
 S08.7 üç sonlu teslimden oluşur: **kaynak bağlama ve typed durum → komut ve
 kalıcı sonuç → açık Direct aktarımı**. Üç yerel dilim de squash yapılmadan
@@ -366,7 +477,10 @@ ile doğruluyor; bütün Docker CLI çağrılarını kapalı hata ile reddediyor
 testlik yerel koleksiyonda yalnız zorunlu apksig ortamı verilmediği için dört
 setup hatası oluştu; sabit apksig 9.1.0 SHA-256 doğrulandıktan ve Homebrew Java
 17 yolu verildikten sonra bu dört kriptografik test 4/4 geçti. Exact-source
-Güncel exact-source Server CI ve iki mimarili native artifact henüz bekleniyor.
+Exact `191baf3` Server CI 4.0k+ test paketiyle geçti. Managed v2 create/start için
+ayrı kaynak-bağlı amd64/arm64 workflow ve kapalı receipt verifier `3be1dc6`
+üzerinde yerelde hazırlandı; bu yeni workflow'un iki native artifact'i henüz
+bekleniyor.
 [Yerel kaynak kabul kaydı](media-resource-native-acceptance-2026-09-09.md).
 
 İlk main bütünlük tekrarında bağımsız Server CI 4.064 PASS ve native iki mimari
@@ -1123,6 +1237,7 @@ kabul işleri aşağıda ayrıca tutulur.
 | Birleşik medya hazırlığı | Altı sabitlenmiş bileşen için tek kalıcı plan ve toplam istenen kaynak bütçesi; yönetici oluşturma/geçmiş/iptal, restart ve idempotence. Katalog değişse de geçmiş okunur; `installAvailable=false`. Jellyfin ortak kütüphaneyi yalnız salt okunur kullanır |
 | Birleşik medya kontrolü | Toplam disk bütçesi, ayrı daemon mount/network/root gözlemleri, şifreli kalıcı kontrol işi ve tablet yönetimi; kaynak ayırma/servis kurma yok |
 | Dahili salt okunur işçi | Aynı Server paketindeki `larenor-preflight-worker`, Linux UID doğrulamalı Unix IPC; toplam kapasite/platform, Docker GET `/version` ve açık v3 politikasıyla socket/process bağlamı. Varsayılan kapalı; kurulum yok ve `installAvailable=false` |
+| Dar kurulum yürütme kapısı | Yöneticiye açık şifreli kalıcı istek/geçmiş/iptal API'si; güncel actor/session/Core/ev/preparation/inspection/catalog kapıları; yalnız Jellyfin create/start ve kayıp cevap uzlaştırması için ayrı UID denetimli Unix IPC. Tek-endpoint production image/volume/network reader ve ayrı managed-v2 native kabul workflow'u hazır; paketli bootstrap/mutasyon worker runtime'ı ve gerçek kurulum henüz yok; `installAvailable=false` |
 | Kalıcı Core/ev bağlamı | `/api/v1/context`, atomik şema 1→2→3 geçişi, HMAC doğrulaması; aynı 27 JSON örneğiyle Server ve Client okuyucu. Client oturum/cache bağlama henüz yok |
 | Düzenli GitHub temizliği | Geliştirme/bakım takibi içinde günlük 03.15 sonrası kontrol ve testli araç; en yeni üç debug APK, bütün imzalı APK ve raporlar korunur. İlk koşumda beş eski debug APK (641.275.745 bayt) silindi; kalan 171 çıktı doğrulandı. GHCR izin ve manifest grafiği eksikliği nedeniyle silinmez |
 | CI rapor kotası düzeltmesi | Test kanıtı yükleme hataları görünür uyarı üretir; Gitleaks/OSV taramaları artifact kotasına bağlı değildir. Gerçek tarama hatalarının engelleyici kaldığı test edildi |
