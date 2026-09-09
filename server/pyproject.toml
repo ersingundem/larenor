@@ -20,6 +20,7 @@ dev = [
 [project.scripts]
 larenor-server = "larenor_server.cli:main"
 larenor-preflight-worker = "larenor_server.plugins.preflight_runtime:main"
+larenor-installation-worker = "larenor_server.plugins.installation_runtime:main"
 
 [build-system]
 requires = ["hatchling==1.29.0"]
