@@ -870,6 +870,21 @@ def test_failed_managed_create_receipt_has_only_closed_diagnostic(
     assert m._managed_create_receipt_failure(receipt, diagnostic) == expected
 
 
+@pytest.mark.parametrize('container_id,expected', [
+    ('a' * 64, True),
+    ('sha256:' + 'a' * 64, False),
+    ('a' * 63, False),
+    ('A' * 64, False),
+    (None, False),
+])
+def test_managed_create_receipt_uses_docker_container_id_shape(container_id, expected):
+    m = api()
+    receipt = SimpleNamespace(
+        state='succeeded', code='container_created', container_id=container_id,
+    )
+    assert m._managed_create_succeeded(receipt) is expected
+
+
 @pytest.mark.parametrize('fault', ['initialize_empty_root','start','restart','identity','mount','initial_data'])
 def test_lost_or_conflicting_reply_never_repeats_a_mutation(protocol, fault):
     m, source, docker, images = protocol

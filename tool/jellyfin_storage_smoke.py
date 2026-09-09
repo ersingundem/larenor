@@ -31,6 +31,7 @@ import uuid
 
 REPOSITORY = Path(__file__).resolve().parents[1]
 _HASH = re.compile(r'sha256:[0-9a-f]{64}\Z')
+_CONTAINER_ID = re.compile(r'[0-9a-f]{64}\Z')
 _COMMIT = re.compile(r'[0-9a-f]{40}\Z')
 _CODES = {'storage_characterization_failed','native_ephemeral_ci_required','fixture_command_failed',
     'owned_daemon_lost','owned_daemon_unavailable','owned_cleanup_failed','fixture_image_unresolved',
@@ -1458,6 +1459,15 @@ def _managed_create_receipt_failure(receipt, diagnostic):
     }.get(pair, 'managed_create_receipt_invalid')
 
 
+def _managed_create_succeeded(receipt):
+    try:
+        return (receipt.state == 'succeeded'
+                and receipt.code == 'container_created'
+                and _CONTAINER_ID.fullmatch(receipt.container_id or '') is not None)
+    except (AttributeError, TypeError, RecursionError):
+        return False
+
+
 def _managed_create_and_start(daemon, source, endpoint, helper_id):
     """Create/start through the production proof, binding and v2 journal path."""
     from larenor_server.plugins.managed_container import (
@@ -1490,8 +1500,7 @@ def _managed_create_and_start(daemon, source, endpoint, helper_id):
             job_id, installation_id, 'create_container',
             uuid.uuid4().hex, time.time() + 30,
         ), binding)
-        if (create.state != 'succeeded' or create.code != 'container_created'
-                or _HASH.fullmatch(create.container_id or '') is None):
+        if not _managed_create_succeeded(create):
             raise SmokeError(_managed_create_receipt_failure(
                 create, engine.managed_create_diagnostic,
             ))
