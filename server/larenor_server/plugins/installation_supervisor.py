@@ -138,6 +138,7 @@ class SupervisedInstallationBackend:
                 or platform not in {'linux/amd64', 'linux/arm64'}
                 or not callable(getattr(backend, 'apply', None))
                 or not callable(getattr(backend, 'reconcile', None))
+                or not callable(getattr(backend, 'configure_qbittorrent', None))
                 or socket_factory is not None and not callable(socket_factory)
                 or peer_verifier is not None
                 and type(peer_verifier) is not RetainedDaemonPeerVerifier
@@ -278,6 +279,32 @@ class SupervisedInstallationBackend:
             try:
                 result = self.backend.bootstrap(
                     job, plan, private, deadline=deadline, gate=gate)
+                self._check(deadline)
+                return result
+            except BaseException:
+                try:
+                    self._check(deadline)
+                except InstallationSupervisorError:
+                    raise
+                raise
+        finally:
+            self._peer_verifier.deactivate()
+
+    def configure_qbittorrent_with_deadline(
+            self, stack, credential, *, api_key, salt, cancelled, deadline):
+        self._check(deadline)
+        self._peer_verifier.activate(deadline)
+
+        def gate():
+            self._check(deadline)
+            return True
+
+        try:
+            try:
+                result = self.backend.configure_qbittorrent(
+                    stack, credential, api_key=api_key, salt=salt,
+                    cancelled=cancelled, deadline=deadline, gate=gate,
+                )
                 self._check(deadline)
                 return result
             except BaseException:

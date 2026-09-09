@@ -29,6 +29,7 @@ from .jellyfin_bootstrap_executor import JellyfinBootstrapExecutor
 from .jellyfin_startup import JellyfinStartupConfigurator
 from .jellyfin_authenticated_readback import JellyfinAuthenticatedReadback
 from .jellyfin_managed_libraries import JellyfinManagedLibraries
+from .qbittorrent_config_runtime import QbittorrentConfigRuntime
 from .managed_container import (
     JellyfinBindingBuilder,
     JellyfinEngineReaders,
@@ -217,9 +218,10 @@ class _InstallationRuntime:
 class _RuntimeBackend:
     """One journal/binding authority for installation and private bootstrap."""
 
-    def __init__(self, operations, binding_builder):
+    def __init__(self, operations, binding_builder, qbittorrent_config):
         self.operations = operations
         self.binding_builder = binding_builder
+        self.qbittorrent_config = qbittorrent_config
         self.installation = JellyfinWorkerBackend(operations, binding_builder)
         self.bootstrap_executor = JellyfinBootstrapExecutor(
             operations, binding_builder, JellyfinStartupConfigurator(),
@@ -234,6 +236,13 @@ class _RuntimeBackend:
     def bootstrap(self, job, plan, private, *, deadline, gate):
         return self.bootstrap_executor.execute(
             job, plan, private, deadline=deadline, gate=gate)
+
+    def configure_qbittorrent(self, stack, credential, *, api_key, salt,
+                              cancelled, deadline, gate):
+        return self.qbittorrent_config.install(
+            stack, credential, api_key=api_key, salt=salt,
+            cancelled=cancelled, before_dispatch=gate,
+        )
 
 
 def _build_runtime(policy, *, peer_uid=None):
@@ -267,8 +276,12 @@ def _build_runtime(policy, *, peer_uid=None):
             peer_uid=peer_uid,
         )
         operations = JournaledManagedContainerOperations(containers, engine)
+        qbittorrent_config = QbittorrentConfigRuntime(
+            policy.endpoint, volumes, catalog, policy.worker_policy,
+            policy.helper_image_id, policy.platform, peer_uid=peer_uid,
+        )
         return _InstallationRuntime(
-            _RuntimeBackend(operations, builder),
+            _RuntimeBackend(operations, builder, qbittorrent_config),
             resources,
             volumes,
             containers,
