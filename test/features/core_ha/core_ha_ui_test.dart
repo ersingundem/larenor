@@ -143,7 +143,28 @@ void main() {
     expect(key('core-ha-command-on'), findsNothing);
     expect(key('core-ha-command-off'), findsNothing);
     expect(
-      find.text('You have read-only access to this switch.'),
+      find.text('You have read-only access to this entity.'),
+      findsOneWidget,
+    );
+  });
+  testWidgets('custom domain state is visible without command controls', (
+    tester,
+  ) async {
+    final h = HaUiHarness()..role = 'member';
+    final envelope = h.f['snapshotOff']['response'] as Map<String, dynamic>;
+    final snapshot = envelope['snapshot'] as Map<String, dynamic>;
+    snapshot['projection'] = {
+      'kind': 'sensor',
+      'state': '21.5',
+      'commandAvailable': false,
+    };
+    await openSnapshot(tester, h);
+    expect(key('core-ha-state-sensor'), findsOneWidget);
+    expect(find.text('21.5'), findsOneWidget);
+    expect(key('core-ha-command-on'), findsNothing);
+    expect(key('core-ha-command-off'), findsNothing);
+    expect(
+      find.text('You have read-only access to this entity.'),
       findsOneWidget,
     );
   });
@@ -173,7 +194,7 @@ void main() {
       expect(key('core-ha-state-off'), findsNothing);
       expect(
         find.text(
-          'No switch state is available for this resource. Check its link or access.',
+          'No entity state is available for this resource. Check its link or access.',
         ),
         findsOneWidget,
       );

@@ -1,12 +1,14 @@
 from typing import Annotated, Literal
 import re
+import unicodedata
 
-from pydantic import Field, field_validator
+from pydantic import Field, field_validator, model_validator
 
 from ..home_resources.models import FrozenModel, Identity, Revision, ResourceRef
 
 
-EntityId = Annotated[str, Field(min_length=8, max_length=128)]
+EntityId = Annotated[str, Field(min_length=3, max_length=128)]
+_ENTITY = re.compile(r'[a-z0-9_]{1,64}\.[a-z0-9_]{1,121}\Z')
 
 
 class PreviewRequest(FrozenModel):
@@ -19,8 +21,14 @@ class PreviewRequest(FrozenModel):
 
     @field_validator('entityId')
     @classmethod
+    def safe_entity(cls, value):
+        if _ENTITY.fullmatch(value) is None:
+            raise ValueError('invalid_entity')
+        return value
+
+    @classmethod
     def switch_entity(cls, value):
-        if not re.fullmatch(r'switch\.[a-z0-9_]+', value):
+        if not re.fullmatch(r'switch\.[a-z0-9_]{1,121}', value):
             raise ValueError('invalid_entity')
         return value
 
@@ -30,8 +38,8 @@ class ConfirmRequest(FrozenModel):
 
 
 class Projection(FrozenModel):
-    kind: Literal['switch'] = 'switch'
-    state: Literal['on', 'off', 'unavailable']
+    kind: Annotated[str, Field(min_length=1, max_length=64, pattern=r'^[a-z0-9_]+$')] = 'switch'
+    state: Annotated[str, Field(min_length=1, max_length=255)]
     commandAvailable: bool = False
 
     @field_validator('commandAvailable', mode='before')
@@ -40,6 +48,17 @@ class Projection(FrozenModel):
         if type(value) is not bool:
             raise ValueError('invalid_capability')
         return value
+
+    @model_validator(mode='after')
+    def closed_capability(self):
+        if any(unicodedata.category(char).startswith('C') for char in self.state):
+            raise ValueError('invalid_state')
+        if self.kind == 'switch':
+            if self.state not in {'on', 'off', 'unavailable'}:
+                raise ValueError('invalid_state')
+        elif self.commandAvailable:
+            raise ValueError('invalid_capability')
+        return self
 
 
 class Binding(FrozenModel):
@@ -51,7 +70,7 @@ class Binding(FrozenModel):
     serviceRevision: Revision
     entityId: EntityId
 
-    _entity = field_validator('entityId')(PreviewRequest.switch_entity.__func__)
+    _entity = field_validator('entityId')(PreviewRequest.safe_entity.__func__)
 
 
 class BindingResponse(FrozenModel):

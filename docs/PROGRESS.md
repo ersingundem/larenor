@@ -1,12 +1,12 @@
 # Larenor — güncel ilerleme ve iş kuyruğu
 
-**Son güncelleme: 9 Eylül 2026 — S06.4 kabul edildi; S06.5 authenticated Jellyfin API anahtarı, sistem ve kütüphane geri okumasını şifreli Core durumuna taşıdı.**
+**Son güncelleme: 9 Eylül 2026 — S08.7 salt okunur Home Assistant domain kapsamı exact CI ile ana dala alındı; S06.5 authenticated Jellyfin API anahtarı, sistem ve kütüphane geri okumasını şifreli Core durumuna taşıdı.**
 
 ```text
 Kuyruk kabulü       ██░░░░░░░░░░░░░░░░░░  13/125 iş (%10; eşit ağırlıklı sayaç)
 S06 koordinatörü    █████████████░░░░░░░  4/6 yazılım dilimi
 S06.3 kaynak temeli  ████████████████████  6/6 alt adım
-S08.7 yerel dilimler █████████████░░░░░░░  2/3 yerel dilim; CI/fiziksel kabul ayrı
+S08.7 HA kapsamı     ████████████████░░░░  4/5 yazılım kapısı; CI/fiziksel kabul ayrı
 Yeni 63 özellik     ░░░░░░░░░░░░░░░░░░░░  0/63 kabul edildi
 ```
 
@@ -36,7 +36,7 @@ Gerçek ev kurulumu ve fiziksel tablet kabulü henüz yapılmadı.
 | --- | --- | --- |
 | S08.5 — restore, logout ve journal hedef sınırı | **Kabul edildi**, exact `960691c` / APK108 | [Kabul ve korunan geçmiş](restore-people-acceptance-108-2026-09-08.md) |
 | S08.6 — kişi, oda, kaynak ve izin yönetimi | **Kabul edildi**, aynı yayın | Merkezi HA akışının yetki temeli hazır |
-| S08.7 — merkezi Home Assistant adaptörü | **Devam ediyor**; typed durum, kalıcı switch komutu/makbuzu ve açık Direct→Core aktarımı main içinde | Exact-source birleşik CI; sonra geniş HA varlık/servis kapsamı |
+| S08.7 — merkezi Home Assistant adaptörü | **Devam ediyor**; typed switch, kalıcı komut/makbuz ve açık Direct→Core main içinde; standart/özel domain'lerin kapalı salt okunur projeksiyonu `9cabd4b` dalında 200 Server + 219 Android testinden geçti | Exact-source birleşik CI; sonra registry/servis keşfi ve domain'e özel typed komutlar |
 | B5.1 — ortak tablet tasarımı | Services/hesap IME paketi APK116 ile kabul edildi; S08.7 komut ve aktarım yüzeyleri yerel tablet matrisinden geçti | Exact-source Android CI ve kalan ortak tablet yüzeyleri |
 | S06.3d — kalıcı depolama | **Kabul edildi**; Native18 exact `6a054ea`, amd64+arm64 makbuzları doğrulandı | S06.3f ile birleşik kaynak kapısı kapandı |
 | S06.3f — kaynak kabulü | **Kabul edildi**; exact `4021391`, iki mimarili native makbuz, 4.065 Server ve tam Android/Server CI yeşil | S06.4 dar kurulum yürütme kapısı |
@@ -185,6 +185,17 @@ confirm tekrarlanmaz. Güncel admin, kaynak WRITE/revision, PIN, hesap, ev,
 pencere ve rota bağlamı ağ öncesinde ve sonrasında yeniden denetlenir.
 Gerçek Server HTTP sözleşmesinin 15 kaydı Client'ta 14 HTTP isteği ve değişmiş
 confirm'in ağ öncesi reddiyle eşleşti; sözleşme SHA-256 değeri sabit kaldı.
+
+Yeni [salt okunur domain dilimi](core-ha-readonly-domains-implementation-2026-09-09.md)
+`domain.object_id` biçimindeki standart ve özel HA varlıklarını kapalı
+`kind/state/commandAvailable` projeksiyonuna aldı. Attributes ve upstream
+kimlik/sır alanları aktarılmıyor; 255 karakteri aşan veya kontrol karakteri
+içeren state reddediliyor. Switch dışındaki domain'ler admin WRITE izninde
+bile komut yayınlamıyor, HA'ya POST göndermiyor ve komut journal'ına kayıt
+yazmıyor. Android salt okunur ham durumu gösteriyor; `unknown` ile
+`unavailable` ayrımını koruyor. Direct aktarımı switch-only kaldı. Yerel ilgili
+**200 Server + 219 Android PASS**, tablet matrisi ve analiz temiz; exact-source
+CI ve fiziksel cihaz kabulü açık.
 
 Yerel birleşik Server koşusu ortam değişkeni eksikken **3.851 PASS, 12 macOS
 platform skip ve 4 setup error** verdi; sabit `apksig 9.1.0` JAR hash'i ve

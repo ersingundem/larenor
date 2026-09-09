@@ -88,6 +88,7 @@ final class CoreHaApi {
   }) => _operation(() async {
     if (!RegExp(r'^[0-9a-f]{32}$').hasMatch(requestId) ||
         !target.canWrite ||
+        snapshot.projection.kind != 'switch' ||
         !snapshot.projection.commandAvailable ||
         snapshot.resourceRevision != target.revision ||
         snapshot.aclRevision != target.aclRevision) {

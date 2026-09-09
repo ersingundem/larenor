@@ -1505,7 +1505,8 @@
         "docs/core-ha-switch-client-implementation-2026-09-08.md",
         "docs/core-ha-switch-command-implementation-2026-09-08.md",
         "docs/direct-ha-migration-server-implementation-2026-09-08.md",
-        "docs/direct-ha-migration-client-implementation-2026-09-08.md"
+        "docs/direct-ha-migration-client-implementation-2026-09-08.md",
+        "docs/core-ha-readonly-domains-implementation-2026-09-09.md"
       ],
       "scope": "Tek mevcut ev bağlamı; F19 çoklu Core/ev federasyonu bu teslim değildir.",
       "acceptance": [
@@ -1582,6 +1583,14 @@
           "state": "completed",
           "result": "passed",
           "label": "Server ve Client bağımsız CLEAR: atomik kayıt, PIN/root/current sınırı, sır redaksiyonu, no-replay GET kurtarma ve tablet a11y/Apple incelemesinde açık P1/P2 yok."
+        },
+        {
+          "kind": "test",
+          "ref": "docs/core-ha-readonly-domains-implementation-2026-09-09.md",
+          "commit": "9cabd4b834591be076b24a2412902a2875715de1",
+          "state": "completed",
+          "result": "passed",
+          "label": "Genel HA domain okuması: 200 Server ve 219 Android PASS; custom domain, unknown/unavailable, sır redaksiyonu, komutsuz journal, EN/TR tablet matrisi ve analiz temiz."
         },
         {
           "kind": "ci",

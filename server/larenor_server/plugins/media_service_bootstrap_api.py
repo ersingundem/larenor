@@ -37,4 +37,3 @@ def list_bootstraps(actor: Admin, core: Core,
 @router.get('/{identifier}', response_model=MediaServiceBootstrapResponse)
 def get(identifier: ObjectId, actor: Admin, core: Core):
     return core.media_service_bootstraps.get(actor, identifier)
-
