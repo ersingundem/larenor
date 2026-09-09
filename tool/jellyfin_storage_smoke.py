@@ -145,6 +145,9 @@ _MANAGED_CREATE_DIAGNOSTICS = {
     'managed_create_warning_unclassified',
     'managed_create_swap_warning', 'managed_create_memory_warning',
     'managed_create_cpu_warning', 'managed_create_pids_warning',
+    'managed_inspect_memory_swap_mismatch', 'managed_inspect_memory_mismatch',
+    'managed_inspect_cpu_mismatch', 'managed_inspect_pids_mismatch',
+    'managed_inspect_nonresource_mismatch',
 }
 _DIAGNOSTIC_CODES = _CODES | set(_BUILD_ERROR_PATTERNS) | set(_START_ERROR_PATTERNS) | {
     'helper_base_runtime_failed', 'helper_base_error_ambiguous',
@@ -1233,11 +1236,30 @@ def _managed_create_success_diagnostic(body):
     return None
 
 
+def _managed_inspect_diagnostic(value, binding):
+    try:
+        expected = binding.payload()['specification']['HostConfig']
+        actual = value.get('HostConfig')
+        if type(expected) is not dict or type(actual) is not dict:
+            return 'managed_inspect_nonresource_mismatch'
+        for field, code in (
+                ('MemorySwap', 'managed_inspect_memory_swap_mismatch'),
+                ('Memory', 'managed_inspect_memory_mismatch'),
+                ('NanoCpus', 'managed_inspect_cpu_mismatch'),
+                ('PidsLimit', 'managed_inspect_pids_mismatch')):
+            if actual.get(field) != expected.get(field):
+                return code
+    except (AttributeError, KeyError, TypeError, ValueError, RecursionError):
+        return 'managed_inspect_nonresource_mismatch'
+    return 'managed_inspect_nonresource_mismatch'
+
+
 def _managed_engine(endpoint):
     from larenor_server.plugins.worker import DockerWorkerError, UnixDockerEngine
 
     class DiagnosticEngine(UnixDockerEngine):
         managed_create_diagnostic = None
+        managed_binding = None
 
         def _exchange(self, method, target, body=None):
             create = method == 'POST' and target.startswith('/containers/create?')
@@ -1256,6 +1278,7 @@ def _managed_engine(endpoint):
             return response
 
         def create_managed_container(self, binding):
+            self.managed_binding = binding
             try:
                 return super().create_managed_container(binding)
             except DockerWorkerError as error:
@@ -1268,6 +1291,15 @@ def _managed_engine(endpoint):
                         'engine_conflict': 'managed_create_resource_conflict',
                     }.get(error.code, 'managed_create_transport_failed')
                 raise
+
+        def inspect_container(self, name):
+            value = super().inspect_container(name)
+            if self.managed_binding is not None and value is not None:
+                from larenor_server.plugins.managed_container import managed_container_matches
+                if not managed_container_matches(value, self.managed_binding):
+                    self.managed_create_diagnostic = _managed_inspect_diagnostic(
+                        value, self.managed_binding)
+            return value
 
     return DiagnosticEngine(endpoint.path, socket_uid=endpoint.owner_uid)
 
