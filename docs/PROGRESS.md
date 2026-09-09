@@ -38,7 +38,7 @@ Gerçek ev kurulumu ve fiziksel tablet kabulü henüz yapılmadı.
 | S08.6 — kişi, oda, kaynak ve izin yönetimi | **Kabul edildi**, aynı yayın | Merkezi HA akışının yetki temeli hazır |
 | S08.7 — merkezi Home Assistant adaptörü | **Devam ediyor**; typed durum, kalıcı switch komutu/makbuzu ve açık Direct→Core aktarımı main içinde | Exact-source birleşik CI; sonra geniş HA varlık/servis kapsamı |
 | B5.1 — ortak tablet tasarımı | Services/hesap IME paketi APK116 ile kabul edildi; S08.7 komut ve aktarım yüzeyleri yerel tablet matrisinden geçti | Exact-source Android CI ve kalan ortak tablet yüzeyleri |
-| S06.3d — kalıcı depolama | Native17 iki mimaride `net` namespace gözlemi verdi; sahiplikli cgroup onarımı yerelde ve bağımsız incelemede hazır | Exact-source Server CI sonrası main ve Native18 |
+| S06.3d — kalıcı depolama | **Kabul edildi**; Native18 exact `6a054ea`, amd64+arm64 makbuzları doğrulandı | S06.3f tam kaynak makbuzu ve iki mimarili kabul |
 
 S08.7 üç sonlu teslimden oluşur: **kaynak bağlama ve typed durum → komut ve
 kalıcı sonuç → açık Direct aktarımı**. Üç yerel dilim de squash yapılmadan
@@ -319,10 +319,20 @@ cgroup inode'u iki aşamada doğrulanır; temizlik yalnız önceden açılmış
 belirsizse aynı adlı servis sonradan sahiplenilmez. 351 Jellyfin ve 219 politika
 testi geçti; bağımsız final inceleme CLEAR. Exact-source izole Server CI
 [34293524785](https://github.com/ersingundem/larenor/actions/runs/34293524785)
-4.027 testi iki uyarıyla geçti. Paket main'e alınacak ve Native18 yalnız o
-exact kaynaktan bir kez çalışacak.
+4.027 testi iki uyarıyla geçti. Paket `6a054ea` olarak main'e alındı. Native18
+[34294788670](https://github.com/ersingundem/larenor/actions/runs/34294788670)
+aynı exact kaynak üzerinde amd64 ve arm64 karakterizasyonunu, platform/source
+makbuz doğrulamasını ve iki public artifact yüklemesini geçti. İndirilen iki
+1.753 bayt makbuz yerelde aynı verifier ile yeniden doğrulandı; iki volume,
+bir restart, hazır imaj ve iki `observed_requires_bootstrap` sonucu taşırken
+`bootstrapAccountConfigured=false` ve `installAvailable=false` kaldı. S06.3d
+iki mimarili native kabulü kapandı. Main Server Container
+[34294585502](https://github.com/ersingundem/larenor/actions/runs/34294585502)
+4.027 testten sonra iki mimari image build/smoke ve manifest yayınını da geçti;
+Security `34294584966` başarılı. S06.3f tam kaynak makbuzu sıradaki kapıdır.
 [Sahiplikli cgroup yaşam döngüsü](jellyfin-owned-cgroup-lifecycle-2026-09-09.md).
-Gerçek Engine ve kurulum kabulü hâlâ açık; `installAvailable=false`.
+Gerçek ev kurulumu ve kullanıcı kurulum yetkisi hâlâ açık;
+`installAvailable=false`.
 
 ## Canlı takip ve sıradaki işler
 

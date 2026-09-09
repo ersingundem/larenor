@@ -87,6 +87,30 @@ rule.
 
 The isolated locked
 [Server CI](https://github.com/ersingundem/larenor/actions/runs/34293524785)
-passed all 4,027 tests with two warnings on exact source `30a2b3b`. Native run
-18 may start only from the promoted exact source. Real Engine installation
-acceptance remains open and `installAvailable=false`.
+passed all 4,027 tests with two warnings on exact source `30a2b3b`.
+The promoted exact source then passed the
+[main Server Container workflow](https://github.com/ersingundem/larenor/actions/runs/34294585502):
+4,027 tests, both native architecture image builds and smoke tests, immutable
+architecture publication and final manifest promotion.
+
+## Native result
+
+[Native run 18](https://github.com/ersingundem/larenor/actions/runs/34294788670)
+passed on exact promoted source `6a054ea7ca5243d80e1340a70fc75401daa8e3e7`:
+
+| Platform | Job duration | Artifact | Receipt SHA-256 |
+| --- | ---: | --- | --- |
+| `linux/amd64` | 2m16s | `jellyfin-storage-6a054ea7ca5243d80e1340a70fc75401daa8e3e7-X64` | `bcad2aa38eca3b6ea8fa7426352d89fb29356daf1c308fb9d47724e226f1bb0f` |
+| `linux/arm64` | 1m31s | `jellyfin-storage-6a054ea7ca5243d80e1340a70fc75401daa8e3e7-ARM64` | `e37fc9742acf475dee6b517e613e3113b65db79e0ec670c8e1b43e51f92b3193` |
+
+Each public receipt is 1,753 bytes. The repository verifier independently
+accepted both downloaded receipts against the local exact checkout and their
+declared platform. Both report two owned volumes, one container restart, a
+ready pinned image and `observed_requires_bootstrap` for both appdata targets.
+They preserve `bootstrapAccountConfigured=false` and
+`installAvailable=false`.
+
+This closes the two-architecture native acceptance for S06.3d. Account
+bootstrap, operator installation authority, the complete media-resource
+receipt in S06.3f, a real home deployment and physical-device acceptance
+remain separate gates.
