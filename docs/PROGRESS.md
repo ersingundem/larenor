@@ -40,7 +40,7 @@ Gerçek ev kurulumu ve fiziksel tablet kabulü henüz yapılmadı.
 | B5.1 — ortak tablet tasarımı | Services/hesap IME paketi APK116 ile kabul edildi; S08.7 komut ve aktarım yüzeyleri yerel tablet matrisinden geçti | Exact-source Android CI ve kalan ortak tablet yüzeyleri |
 | S06.3d — kalıcı depolama | **Kabul edildi**; Native18 exact `6a054ea`, amd64+arm64 makbuzları doğrulandı | S06.3f ile birleşik kaynak kapısı kapandı |
 | S06.3f — kaynak kabulü | **Kabul edildi**; exact `4021391`, iki mimarili native makbuz, 4.065 Server ve tam Android/Server CI yeşil | S06.4 dar kurulum yürütme kapısı |
-| S06.4 — dar kurulum yürütme kapısı | **Devam ediyor**; PR16 exact `bf6f860` ve PR18 exact `75af015` tam CI kapıları yeşil. `b6196a1` yerel supervisor daemon/socket/process/namespace kanıtını worker yaşamı ve her etki çevresinde tutuyor | Supervisor diliminin Linux CI'ı ve bağımsız incelemesi; rootful/remap-disabled üretim yetkisi ayrı kapı |
+| S06.4 — dar kurulum yürütme kapısı | **Devam ediyor**; PR16 exact `bf6f860` ve PR18 exact `75af015` tam CI kapıları yeşil. `b6196a1` + `1e94267` yerel supervisor yaşam bağını ve her gerçek Engine peer doğrulamasını ekledi | Güncel supervisor head'inin Linux CI'ı ve bağımsız incelemesi; rootful/remap-disabled üretim yetkisi ayrı kapı |
 
 S06.4 native kabul koşusu [34326112926](https://github.com/ersingundem/larenor/actions/runs/34326112926)
 iki gerçek GitHub runner'ında geçti. İndirilen ARM64 ve X64 makbuzları merge
@@ -75,7 +75,12 @@ Docker bağlantısını, socket inode zincirini, socket-bound pidfd'yi ve daemon
 worker proc/user/mount/network/root kimliklerini tutuyor. Her `apply` ve
 `reconcile` çağrısı bu kanıtlarla çevreleniyor; daemon restart/socket değişimi,
 yanlış native thread veya işlem sonrası kanıt kaybı başarı döndürmeden bütün
-tutulan kaynakları kapatıyor. İlgili yerel paket **268 PASS / 3 Linux skip**;
+tutulan kaynakları kapatıyor. `5d43299` → `1e94267` düzeltmesi ayrıca image,
+volume, network, bootstrap helper ve managed create/start taşıyıcılarının açtığı
+her Engine bağlantısının peer PID'sini aynı tutulan canlı pidfd'ye bağlıyor.
+Socket activation veya listener FD devrinde aynı inode ve UID arkasındaki farklı
+daemon process'i artık kabul edilmiyor. İlgili yerel paket **272 PASS / 4 Linux
+skip**;
 gerçek Linux testi `SO_PEERPIDFD`, `/proc` ve user namespace yolunu CI'da
 atlamadan doğrulamalı. Eşit user map'leri initial host namespace veya
 remap-disabled başlangıç kanıtı sayılmadığı ve bağımsız inceleme açık olduğu
