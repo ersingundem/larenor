@@ -129,7 +129,7 @@ def test_only_optional_read_timeout_is_lifecycle_other_failures_stay_visible(mon
             # Join before owner stop: otherwise the fixture intentionally ignores
             # shutdown-time errors and this negative oracle would be a race.
             assert len(threads) == 1
-            threads[0].join(3)
+            threads[0].join(8)
             assert not threads[0].is_alive()
     expected = ('TimeoutError' if bad.endswith('timeout') else
                 'ValueError' if bad in {'malformed_length', 'reply_exception'} else

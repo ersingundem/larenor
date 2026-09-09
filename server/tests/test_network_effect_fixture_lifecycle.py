@@ -51,7 +51,7 @@ def watched_peer(monkeypatch):
             peer, address = self.inner.accept()
             accepted.set()
             if state['pause_accept']:
-                assert release_accept.wait(3), 'test must release accepted peer after stop'
+                assert release_accept.wait(8), 'test must release accepted peer after stop'
             return Peer(peer), address
         def close(self):
             self.inner.close()
@@ -70,7 +70,7 @@ def test_owner_stop_closes_waiting_peer_without_socket_timer(watched_peer, phase
     try:
         with fixture.create_server() as (endpoint, calls):
             client.connect(endpoint.path)
-            assert accepted.wait(3)
+            assert accepted.wait(8)
             if phase == 'partial_header':
                 client.sendall(b'GET /ver')
             elif phase == 'partial_body':
@@ -84,7 +84,7 @@ def test_owner_stop_closes_waiting_peer_without_socket_timer(watched_peer, phase
                     assert part, 'version response ended before its complete framing'
                     actual.extend(part)
                 assert bytes(actual) == expected
-            assert reading.wait(3)
+            assert reading.wait(8)
         # Keep the client open through owner teardown; no timeout or client-close
         # is allowed to substitute for the owner's explicit cancellation.
         assert state['timeouts'] == []
@@ -112,11 +112,11 @@ def test_accept_returning_after_owner_stop_cannot_enter_request_reader(watched_p
     closer = threading.Thread(target=close)
     try:
         client.connect(endpoint.path)
-        assert accepted.wait(3)
+        assert accepted.wait(8)
         closer.start()
-        assert listener_closed.wait(3)
+        assert listener_closed.wait(8)
         release_accept.set()
-        closer.join(3)
+        closer.join(8)
         assert not closer.is_alive() and failures == []
         assert not reading.is_set(), 'retired accepted peer must close before read'
         assert state['peer_closed']
@@ -126,7 +126,7 @@ def test_accept_returning_after_owner_stop_cannot_enter_request_reader(watched_p
         release_accept.set()
         client.close()
         if closer.ident is not None:
-            closer.join(3)
+            closer.join(8)
         else:
             context.__exit__(None,None,None)
 

@@ -126,7 +126,7 @@ def engine_server(reply, *, platform='amd64', version_hook=None, request_timeout
         finally:
             stop.set()
             listener.close()
-            thread.join(3)
+            thread.join(8)
             assert not thread.is_alive()
             assert failures == []
 

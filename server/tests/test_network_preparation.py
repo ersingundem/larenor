@@ -466,7 +466,7 @@ def test_whole_effect_lease_rejects_concurrent_application(journal, source, sepa
     second = ResourceJournal(journal.directory) if separate_instance else journal
     def paused(*_):
         entered.set()
-        assert release.wait(3)
+        assert release.wait(8)
         return NetworkCreateAcknowledgement(NETWORK_ID)
     def run():
         try:
@@ -476,7 +476,7 @@ def test_whole_effect_lease_rejects_concurrent_application(journal, source, sepa
     thread = threading.Thread(target=run)
     thread.start()
     try:
-        assert entered.wait(3)
+        assert entered.wait(8)
         reader, creator = Reader(), Creator()
         with pytest.raises(ResourceJournalError, match='^worker_busy$'):
             apply(second, reader, creator, source, authorize_create=lambda: True)

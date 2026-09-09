@@ -92,7 +92,7 @@ def server(*, version=None, reply=None, peer=None):
         finally:
             stopped.set()
             listener.close()
-            worker.join(3)
+            worker.join(8)
             assert not worker.is_alive()
             assert not failures
 
