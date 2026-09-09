@@ -40,7 +40,7 @@ Gerçek ev kurulumu ve fiziksel tablet kabulü henüz yapılmadı.
 | B5.1 — ortak tablet tasarımı | Services/hesap IME paketi APK116 ile kabul edildi; S08.7 komut ve aktarım yüzeyleri yerel tablet matrisinden geçti | Exact-source Android CI ve kalan ortak tablet yüzeyleri |
 | S06.3d — kalıcı depolama | **Kabul edildi**; Native18 exact `6a054ea`, amd64+arm64 makbuzları doğrulandı | S06.3f ile birleşik kaynak kapısı kapandı |
 | S06.3f — kaynak kabulü | **Kabul edildi**; exact `4021391`, iki mimarili native makbuz, 4.065 Server ve tam Android/Server CI yeşil | S06.4 dar kurulum yürütme kapısı |
-| S06.4 — dar kurulum yürütme kapısı | **Devam ediyor**; PR16 exact `bf6f860` ve PR18 exact `75af015` tam CI kapıları yeşil. PR19 `9ce3c5a` Linux test fixture düzeltmesiyle CI'da; yerel `98b4f99` rootful/remap-disabled başlangıç kapısını ekledi | PR19 Linux CI; ardından daemon güvenlik dalının exact CI'ı ve bağımsız inceleme |
+| S06.4 — dar kurulum yürütme kapısı | **Devam ediyor**; PR16 `bf6f860`, PR18 `75af015` ve PR19 `9ce3c5a` tam CI kapıları yeşil. Yerel `47adc75` rootful/remap-disabled başlangıç kapısını ekledi | Daemon güvenlik dalının exact Linux CI'ı ve bağımsız inceleme |
 
 S06.4 native kabul koşusu [34326112926](https://github.com/ersingundem/larenor/actions/runs/34326112926)
 iki gerçek GitHub runner'ında geçti. İndirilen ARM64 ve X64 makbuzları merge
@@ -84,11 +84,15 @@ skip**;
 İlk Linux Server koşusu 4.301 testin 4.300'ünü geçirip test düzeneğinin zaten
 bağlı `socketpair` üzerinde ikinci kez `connect()` çağırması nedeniyle durdu;
 üretim kodu etkiden önce fail-closed kapandı. `9ce3c5a` gerçek peer pidfd'sini
-koruyan preconnected test sarmalayıcısını ekledi ve yeni exact CI koşusu
-başlatıldı. Eşit user map'leri tek başına initial host namespace veya
+koruyan preconnected test sarmalayıcısını ekledi. Exact
+[Android Build 34349256229](https://github.com/ersingundem/larenor/actions/runs/34349256229)
+5.438 Flutter, 4.302 Linux Server, 98 Android native ve 17 gerçek API 35 E2E
+testini geçti; gerçek Linux supervisor testi atlanmadı.
+[Security 34349256017](https://github.com/ersingundem/larenor/actions/runs/34349256017)
+üç işiyle yeşil. Eşit user map'leri tek başına initial host namespace veya
 remap-disabled başlangıç kanıtı sayılmaz; `installAvailable=false` korunur.
 
-`1c4f3f8` → `e0f7ab0` ve `1056a84` → `98b4f99` TDD dilimleri, supervisor'ın
+`422eb80` → `5580f66` ve `ffba1a7` → `5c81207` TDD dilimleri, supervisor'ın
 socket-bound proc/root tanıtıcılarından daemon `cmdline` ve daemon köküne göre
 çözülen exact `daemon.json` kanıtını no-follow dosya tanıtıcılarıyla tutuyor.
 `/version` ile `/v1.47/info` aynı doğrulanmış bağlantıda ve ortak deadline içinde

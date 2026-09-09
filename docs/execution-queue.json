@@ -712,14 +712,22 @@
         {
           "kind": "test",
           "ref": "server/tests/test_daemon_security.py",
-          "commit": "7fd126c9c36325116a92cebabc425f0b0db4df1f",
+          "commit": "47adc75604c52873e61bfa57bc3f1c88cde1f8f3",
           "state": "completed",
           "result": "passed",
           "label": "Rootful/remap-disabled daemon yetkisi, held proc/root üzerinden no-follow argv/config ve her effect çevresinde aynı Engine bağlantısında version/info kanıtıyla bağlandı; iki yeni modül 60 PASS ve geniş ilgili paket yeşil. Exact Linux CI ve review açık."
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/34349256229",
+          "commit": "9ce3c5a4ecd8a1ad7f6c8e4fc8edf60ca2f7c846",
+          "state": "completed",
+          "result": "passed",
+          "label": "PR19 exact kaynakta 5.438 Flutter, 4.302 Linux Server, 98 Android native ve 17 API35 E2E geçti; gerçek peer-pidfd/proc/user-namespace supervisor testi atlanmadı ve Security koşusu da yeşil."
         }
       ],
       "completionCommit": null,
-      "reason": "Yerel dilimler: Client Docker JSON'u kabul etmeyen şifreli kalıcı API; her etkide güncel yetki/bağlam/kaynak kapıları; yalnız Jellyfin create/start ve kayıp cevap uzlaştırması; preflight'tan ayrı UID denetimli IPC; tam stack bağlamından portsuz/no-copy binding ve exact inspect matcher; legacy v1'den ayrılmış kalıcı v2 managed-container journal; journal-bound taze proof broker; tek exact DockerEndpoint reader bileşimi; pinned helper image ile networksüz/read-only volume root verifier; private policy ve üç journal'lı paketli larenor-installation-worker CLI; worker yaşamına bağlı daemon/socket/pidfd/proc/namespace supervisor, her gerçek Engine bağlantısında aynı canlı daemon peer pidfd doğrulaması ve held proc/root üzerinden rootful/remap-disabled argv/config/API security kapısı. PR16 exact bf6f860 ve PR18 exact 75af015 için Android/Server/Security ile amd64+arm64 managed native CI geçti. PR19 9ce3c5a Linux fixture düzeltmesiyle CI'da; daemon güvenlik dalının exact Linux CI'ı ve bağımsız review açık. Gerçek ev kurulumu kapalı; installAvailable=false."
+      "reason": "Yerel dilimler: Client Docker JSON'u kabul etmeyen şifreli kalıcı API; her etkide güncel yetki/bağlam/kaynak kapıları; yalnız Jellyfin create/start ve kayıp cevap uzlaştırması; preflight'tan ayrı UID denetimli IPC; tam stack bağlamından portsuz/no-copy binding ve exact inspect matcher; legacy v1'den ayrılmış kalıcı v2 managed-container journal; journal-bound taze proof broker; tek exact DockerEndpoint reader bileşimi; pinned helper image ile networksüz/read-only volume root verifier; private policy ve üç journal'lı paketli larenor-installation-worker CLI; worker yaşamına bağlı daemon/socket/pidfd/proc/namespace supervisor, her gerçek Engine bağlantısında aynı canlı daemon peer pidfd doğrulaması ve held proc/root üzerinden rootful/remap-disabled argv/config/API security kapısı. PR16 exact bf6f860, PR18 exact 75af015 ve PR19 exact 9ce3c5a Android/Server/Security kapılarından geçti; önceki iki kaynakta amd64+arm64 managed native de yeşil. Daemon güvenlik dalının exact Linux CI'ı ve bağımsız review açık. Gerçek ev kurulumu kapalı; installAvailable=false."
     },
     {
       "id": "S06.5",
