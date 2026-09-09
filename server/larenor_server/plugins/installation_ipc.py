@@ -6,6 +6,7 @@ from pathlib import Path
 import platform as host_platform
 import socket
 import stat
+import threading
 import time
 import uuid
 
@@ -106,6 +107,48 @@ class InstallationWorkerServer(PreflightWorkerServer):
         super().__init__(path, backend, platform=platform, allowed_uid=allowed_uid,
                          socket_gid=socket_gid, peer_uid=peer_uid, timeout=timeout)
         self.backend = backend
+        self._backend_ready = threading.Event()
+        self._backend_started = False
+        self._backend_failed = False
+
+    def start(self):
+        if self._listener is not None or self._lock is not None:
+            raise PreflightIPCError()
+        self._backend_ready.clear()
+        self._backend_started = self._backend_failed = False
+        super().start()
+        if not self._backend_ready.wait(self.timeout) or self._backend_failed:
+            try:
+                super().close()
+            finally:
+                raise PreflightIPCError() from None
+
+    def _serve(self):
+        try:
+            opening = getattr(self.backend, 'open', None)
+            if callable(opening):
+                opening(time.monotonic() + self.timeout)
+            self._backend_started = True
+            self._backend_ready.set()
+            super()._serve()
+        except Exception:
+            self._backend_failed = True
+            self._stopped.set()
+            self._backend_ready.set()
+        finally:
+            if self._backend_started:
+                closing = getattr(self.backend, 'close', None)
+                if callable(closing):
+                    try:
+                        closing()
+                    except Exception:
+                        self._backend_failed = True
+            self._backend_ready.set()
+
+    def close(self):
+        super().close()
+        if self._backend_failed:
+            raise PreflightIPCError()
 
     def _answer(self, request, *, deadline=None):
         deadline = time.monotonic() + self.timeout if deadline is None else deadline
@@ -124,7 +167,9 @@ class InstallationWorkerServer(PreflightWorkerServer):
             JellyfinWorkerBackend._verify(step, plan)
             if time.monotonic() >= deadline:
                 raise ValueError()
-            result = getattr(self.backend, operation)(step, plan)
+            timed = getattr(self.backend, operation + '_with_deadline', None)
+            result = (timed(step, plan, deadline) if callable(timed)
+                      else getattr(self.backend, operation)(step, plan))
             result = _receipt(result, step)
             if time.monotonic() >= deadline:
                 raise ValueError()
