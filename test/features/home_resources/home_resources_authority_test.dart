@@ -222,6 +222,7 @@ void main() {
         }
         return {
           'scope': h.fixture['context'],
+          'userRevision': 7,
           'entries': records,
           'snapshot': 'a' * 64,
           'nextAfter': end == 512

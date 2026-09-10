@@ -13,6 +13,8 @@ import '../../keenetic/core/presentation/core_keenetic_screen.dart';
 import '../../server/providers/server_providers.dart';
 import '../data/home_resources_api.dart';
 import '../data/home_resources_controller.dart';
+import '../data/core_bounded_download_controller.dart';
+import '../data/core_bounded_download_file_access.dart';
 import '../domain/home_resource_models.dart';
 import '../../settings/presentation/settings_gate_screen.dart';
 
@@ -26,6 +28,7 @@ class CoreHomeResources extends ConsumerStatefulWidget {
 class _CoreHomeResourcesState extends ConsumerState<CoreHomeResources>
     with WidgetsBindingObserver {
   late final HomeResourcesController _controller;
+  late final CoreBoundedDownloadController _download;
   bool _foreground = true, _focused = true, _scheduled = false;
   int? _viewId;
   int _generation = 0;
@@ -42,7 +45,18 @@ class _CoreHomeResourcesState extends ConsumerState<CoreHomeResources>
       ref.read(homeResourcesClockProvider),
       _current,
     );
+    _download = CoreBoundedDownloadController(
+      ref.read(homeSessionControllerProvider)!,
+      ref.read(coreBoundedDownloadApiFactoryProvider),
+      ref.read(coreBoundedDownloadFileAccessProvider),
+      ref.read(homeResourcesClockProvider),
+      _current,
+    );
+    _controller.addListener(_resourceAuthorityChanged);
   }
+
+  void _resourceAuthorityChanged() =>
+      _download.retainAuthority(_controller.entries, _controller.userRevision);
 
   bool _current() =>
       mounted &&
@@ -68,6 +82,7 @@ class _CoreHomeResourcesState extends ConsumerState<CoreHomeResources>
   void _windowChanged() {
     if (!_windowAvailable()) _generation++;
     _controller.setVisible(_current());
+    _download.setVisible(_current());
   }
 
   @override
@@ -76,6 +91,7 @@ class _CoreHomeResourcesState extends ConsumerState<CoreHomeResources>
     _focused = event.state == ViewFocusState.focused;
     if (!_focused) _generation++;
     _controller.setVisible(_current());
+    _download.setVisible(_current());
   }
 
   @override
@@ -93,7 +109,10 @@ class _CoreHomeResourcesState extends ConsumerState<CoreHomeResources>
     _scheduled = true;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _scheduled = false;
-      if (mounted) _controller.setVisible(_current());
+      if (mounted) {
+        _controller.setVisible(_current());
+        _download.setVisible(_current());
+      }
     });
   }
 
@@ -102,12 +121,15 @@ class _CoreHomeResourcesState extends ConsumerState<CoreHomeResources>
     _foreground = state == AppLifecycleState.resumed;
     if (!_foreground) _generation++;
     _controller.setVisible(_current());
+    _download.setVisible(_current());
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _controller.removeListener(_resourceAuthorityChanged);
     _controller.dispose();
+    _download.dispose();
     super.dispose();
   }
 
@@ -118,7 +140,7 @@ class _CoreHomeResourcesState extends ConsumerState<CoreHomeResources>
     _syncLater();
     final l10n = AppLocalizations.of(context);
     return ListenableBuilder(
-      listenable: _controller,
+      listenable: Listenable.merge([_controller, _download]),
       builder: (_, _) {
         if (!_current()) {
           return const SliverToBoxAdapter(child: SizedBox.shrink());
@@ -287,6 +309,50 @@ class _CoreHomeResourcesState extends ConsumerState<CoreHomeResources>
                               );
                             },
                           ),
+                          button(
+                            'core-resource-download-${entry.id}',
+                            '${l10n.coreResourceDownload}: ${entry.label}',
+                            _download.canDownload(
+                              entry,
+                              _controller.userRevision,
+                            ),
+                            () => _download.download(
+                              entry,
+                              userRevision: _controller.userRevision!,
+                              isCurrent: current,
+                            ),
+                          ),
+                          if (_download.targetId == entry.id &&
+                              _download.phase != CoreBoundedDownloadPhase.idle)
+                            Semantics(
+                              liveRegion: true,
+                              child: Text(
+                                switch (_download.phase) {
+                                  CoreBoundedDownloadPhase.downloading =>
+                                    l10n.coreResourceDownloading,
+                                  CoreBoundedDownloadPhase
+                                      .choosingDestination =>
+                                    l10n.coreResourceChooseDestination,
+                                  CoreBoundedDownloadPhase.saved =>
+                                    l10n.coreResourceDownloadSaved,
+                                  CoreBoundedDownloadPhase.cancelled =>
+                                    l10n.coreResourceDownloadCancelled,
+                                  CoreBoundedDownloadPhase.unauthorized =>
+                                    l10n.coreResourceDownloadSessionLost,
+                                  CoreBoundedDownloadPhase.forbidden =>
+                                    l10n.coreResourceDownloadForbidden,
+                                  CoreBoundedDownloadPhase.changed =>
+                                    l10n.coreResourceDownloadChanged,
+                                  CoreBoundedDownloadPhase.lateFrame ||
+                                  CoreBoundedDownloadPhase.failed =>
+                                    l10n.coreResourceDownloadFailed,
+                                  CoreBoundedDownloadPhase.idle => '',
+                                },
+                                key: ValueKey(
+                                  'core-resource-download-status-${entry.id}',
+                                ),
+                              ),
+                            ),
                         ],
                       ],
                     ),

@@ -39,10 +39,38 @@ actor, eight active transfers per Core, 1 MiB reserved per actor per 60-second
 window, and at most a 15-second caller-selected deadline. A successful open
 reserves the blob's full byte count; disconnecting does not refund the quota.
 
+## Android Client pilot
+
+The tablet resource list now carries the current account revision that Core
+already binds into its visible-view snapshot. A read-authorized member can
+explicitly start the same download as an administrator; room rows and stale or
+unverified sessions cannot issue it. The Client sends the exact account,
+resource, ACL, and pilot service revisions once and performs no retry, range, or
+resume request.
+
+The Client buffers at most the server's 256 KiB bound in memory. It validates
+the HTTP length and metadata, every trace ID and sequence, the zero-length final
+success frame, source byte length, SHA-256, media type, and service revision.
+Only then does it pass an independent byte copy to `FilePicker.saveFile`, whose
+Android implementation opens the Storage Access Framework create-document
+picker. Network partials, malformed streams, late frames, and error bodies never
+reach the SAF seam or receive an app-chosen filesystem path.
+
+The controller closes its independent transport when the tablet panel loses
+foreground/window focus, the account or session changes, or the resource list
+loses the exact account/resource/ACL revision. Late callbacks cannot publish.
+The UI distinguishes lost login, forbidden access, changed authority, late
+frames, cancellation, and other verification failures with fixed localized
+English and Turkish messages. Buttons retain a 48 logical-pixel target and
+keyboard/TalkBack semantics at 2x text scale on compact tablets and DeX widths.
+
+The v1 Client pilot requests packaged service revision `1`. Provider discovery
+and later service revisions belong to the product-provider slice below.
+
 ## Deliberately open work
 
-S08.10 still requires product resource providers, Android Client download UX and
-receipt persistence, upload/media transfer protocols, and device acceptance.
+S08.10 still requires product resource providers and their settings, durable
+receipt history, upload/media transfer protocols, and physical SAF acceptance.
 Range and resume remain unsupported until they receive a separate authority,
 integrity, quota, and recovery design. This pilot makes no live-network or
 production-resource acceptance claim.

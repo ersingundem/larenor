@@ -29,6 +29,7 @@ class RecordResponse(FrozenModel):
 
 class ListResponse(FrozenModel):
     scope: HomeScope
+    userRevision: Revision
     entries: list[RegistryRecord] = Field(max_length=100)
     snapshot: Snapshot
     nextAfter: Identity | None

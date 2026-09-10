@@ -245,7 +245,8 @@ class HomeResourceRegistry:
                 raise ApiError('revision_conflict', 409)
             if not cursor_visible:
                 raise ApiError('not_found', 404)
-            return {'scope': self.scope.model_dump(), 'entries': entries[:limit],
+            return {'scope': self.scope.model_dump(), 'userRevision': facts.revision,
+                    'entries': entries[:limit],
                     'snapshot': snapshot, 'nextAfter': entries[limit - 1]['ref']['id'] if len(entries) > limit else None}
 
     def get(self, actor, core_id, home_id, record_id):

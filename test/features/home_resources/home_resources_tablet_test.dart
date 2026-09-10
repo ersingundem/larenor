@@ -158,6 +158,26 @@ void main() {
               );
               await flush(tester);
               expect(find.text(unicode['label'] as String), findsOneWidget);
+              final download = find.byKey(
+                ValueKey(
+                  'core-resource-download-${unicode['ref']['id'] as String}',
+                ),
+              );
+              await tester.ensureVisible(download);
+              await flush(tester);
+              expect(tester.getRect(download).height, greaterThanOrEqualTo(48));
+              final downloadLabel =
+                  '${l10n.coreResourceDownload}: ${unicode['label'] as String}';
+              final downloadText = find.text(downloadLabel);
+              expect(downloadText, findsOneWidget);
+              final downloadNode = tester.getSemantics(downloadText);
+              expect(downloadNode.flagsCollection.isButton, isTrue);
+              Focus.of(tester.element(downloadText)).requestFocus();
+              await flush(tester);
+              expect(
+                Focus.of(tester.element(downloadText)).hasPrimaryFocus,
+                isTrue,
+              );
               for (final element
                   in find
                       .descendant(of: last, matching: find.byType(RichText))

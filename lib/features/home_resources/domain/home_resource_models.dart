@@ -111,6 +111,7 @@ final class HomeResourceRecord {
 final class HomeResourcePage {
   const HomeResourcePage._(
     this.context,
+    this.userRevision,
     this.entries,
     this.snapshot,
     this.nextAfter,
@@ -125,7 +126,13 @@ final class HomeResourcePage {
     int limit = pageSize,
   }) {
     if (limit < 1 || limit > 100) _invalid();
-    final value = _object(raw, {'scope', 'entries', 'snapshot', 'nextAfter'});
+    final value = _object(raw, {
+      'scope',
+      'userRevision',
+      'entries',
+      'snapshot',
+      'nextAfter',
+    });
     final context = ServerContext.fromJson(value['scope']);
     if (context != expectedContext) _invalid();
     final snapshot = _hex(value['snapshot'], 64);
@@ -154,12 +161,14 @@ final class HomeResourcePage {
     }
     return HomeResourcePage._(
       context,
+      _integer(value['userRevision'], 1, 9223372036854775807),
       List.unmodifiable(entries),
       snapshot,
       next,
     );
   }
   final ServerContext context;
+  final int userRevision;
   final List<HomeResourceRecord> entries;
   final String snapshot;
   final String? nextAfter;

@@ -38,6 +38,7 @@ class HomeResourcesController extends ChangeNotifier {
   int epoch = 0;
   bool busy = false, loaded = false;
   String? failure, nextAfter, _snapshot;
+  int? userRevision;
   List<HomeResourceRecord> entries = const [];
   LarenorServerApi? _transport;
   ServerSession? _boundSession;
@@ -83,6 +84,7 @@ class HomeResourcesController extends ChangeNotifier {
     entries = const [];
     nextAfter = null;
     _snapshot = null;
+    userRevision = null;
     loaded = false;
   }
 
@@ -204,6 +206,9 @@ class HomeResourcesController extends ChangeNotifier {
       });
       if (!current() || !fresh || page == null) return;
       final combined = [...previous.where((_) => more), ...page!.entries];
+      if (more && userRevision != null && page!.userRevision != userRevision) {
+        throw const LarenorServerException('invalid_response');
+      }
       if (combined.length > HomeResourcePage.maximumRecords ||
           combined.length == HomeResourcePage.maximumRecords &&
               page!.nextAfter != null) {
@@ -212,6 +217,7 @@ class HomeResourcesController extends ChangeNotifier {
       entries = List.unmodifiable(combined);
       nextAfter = page!.nextAfter;
       _snapshot = page!.snapshot;
+      userRevision = page!.userRevision;
       loaded = true;
     } catch (error) {
       if (current()) {
