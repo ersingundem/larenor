@@ -16,9 +16,10 @@ konteyner fazı
   eşleşmeyen veya desteklenmeyen servis adımı etkiye ulaşmaz.
 - Seerr binding'i worker'ın sabit politikasından üretilir ve mevcut
   `JournaledManagedContainerOperations` create/start makbuzlarını kullanır.
-- Şema v1 kayıtları korunarak v2'ye taşınır. Eski kayıtlar varsayılan
-  `jellyfin` seçimiyle okunur; aynı preparation için servis başına tek iş
-  oluşturulabilir.
+- Şema v1 kayıtları ve bunlara bağlı Jellyfin bootstrap satırları korunarak
+  v2'ye taşınır. Foreign key yeniden `media_installations` tablosuna bağlanır.
+  Eski kayıtlar varsayılan `jellyfin` seçimiyle okunur; aynı preparation için
+  servis başına tek iş oluşturulabilir.
 - Public sonuç yalnız iş, servis, faz ve sabit hata durumlarını taşır.
   `installAvailable=false` korunur.
 
@@ -29,7 +30,9 @@ konteyner fazı
 - GREEN `47e3d04`: model, Core koordinatörü, plan yürütücüsü, worker binding ve
   IPC doğrulaması Seerr'a genişletildi.
 - `7b82201`: v1 satırlarının unique-constraint kaldırılan v2 şemasına kayıpsız
-  taşındığını ve migration'ın idempotent olduğunu doğruladı.
+  taşındığını ve migration'ın idempotent olduğunu doğruladı. Sonraki migration
+  koruması mevcut Jellyfin bootstrap satırlarıyla foreign key hedefini de yeniden
+  doğruluyor.
 - `8ee12c5`: sürümlü public sözleşme örneği iki servisi ilan ediyor.
 - API, execution, IPC ve runtime paketinde 106 test; migration ve public
   contract paketinde 3 test geçti. Exact rebased kaynakta tam Server paketi

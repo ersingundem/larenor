@@ -16,6 +16,50 @@ _COLUMNS = (
 )
 
 
+_INSTALLATIONS_SQL = '''CREATE TABLE media_installations (
+    id TEXT PRIMARY KEY,
+    sequence INTEGER NOT NULL UNIQUE CHECK(sequence > 0),
+    revision INTEGER NOT NULL CHECK(revision > 0),
+    actor_id TEXT NOT NULL,
+    actor_revision INTEGER NOT NULL CHECK(actor_revision > 0),
+    family_id TEXT NOT NULL,
+    request_id TEXT NOT NULL,
+    preparation_id TEXT NOT NULL,
+    inspection_id TEXT NOT NULL,
+    state TEXT NOT NULL CHECK(state IN ('queued','running','container_started','needs_attention','failed','cancelled')),
+    phase TEXT NOT NULL CHECK(phase IN ('queued','executing','complete')),
+    cancel_requested INTEGER NOT NULL CHECK(cancel_requested IN (0,1)),
+    error_code TEXT,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL,
+    nonce BLOB NOT NULL,
+    ciphertext BLOB NOT NULL,
+    UNIQUE(actor_id,request_id)
+)'''
+
+
+_BOOTSTRAPS_SQL = '''CREATE TABLE media_service_bootstraps (
+    id TEXT PRIMARY KEY,
+    sequence INTEGER NOT NULL UNIQUE CHECK(sequence > 0),
+    revision INTEGER NOT NULL CHECK(revision > 0),
+    actor_id TEXT NOT NULL,
+    actor_revision INTEGER NOT NULL CHECK(actor_revision > 0),
+    family_id TEXT NOT NULL,
+    request_id TEXT NOT NULL,
+    installation_id TEXT NOT NULL UNIQUE REFERENCES media_installations(id),
+    installation_revision INTEGER NOT NULL CHECK(installation_revision > 0),
+    state TEXT NOT NULL CHECK(state IN ('queued','running','credentials_configured','wiring_partial','succeeded','needs_attention','failed','cancelled')),
+    credentials_configured INTEGER NOT NULL CHECK(credentials_configured IN (0,1)),
+    wiring_state TEXT NOT NULL CHECK(wiring_state IN ('pending','partial','verified')),
+    error_code TEXT,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL,
+    nonce BLOB NOT NULL,
+    ciphertext BLOB NOT NULL,
+    UNIQUE(actor_id,request_id)
+)'''
+
+
 def _verify(connection):
     columns = tuple(tuple(row) for row in connection.execute(
         'SELECT name,type,"notnull",dflt_value,pk FROM pragma_table_info(\'media_installations\')'))
@@ -40,55 +84,43 @@ def migrate_media_installations(connection):
     if marker is None:
         if tables:
             raise StartupError('media_installations_schema_unsupported')
-        connection.execute('''CREATE TABLE media_installations (
-            id TEXT PRIMARY KEY,
-            sequence INTEGER NOT NULL UNIQUE CHECK(sequence > 0),
-            revision INTEGER NOT NULL CHECK(revision > 0),
-            actor_id TEXT NOT NULL,
-            actor_revision INTEGER NOT NULL CHECK(actor_revision > 0),
-            family_id TEXT NOT NULL,
-            request_id TEXT NOT NULL,
-            preparation_id TEXT NOT NULL,
-            inspection_id TEXT NOT NULL,
-            state TEXT NOT NULL CHECK(state IN ('queued','running','container_started','needs_attention','failed','cancelled')),
-            phase TEXT NOT NULL CHECK(phase IN ('queued','executing','complete')),
-            cancel_requested INTEGER NOT NULL CHECK(cancel_requested IN (0,1)),
-            error_code TEXT,
-            created_at INTEGER NOT NULL,
-            updated_at INTEGER NOT NULL,
-            nonce BLOB NOT NULL,
-            ciphertext BLOB NOT NULL,
-            UNIQUE(actor_id,request_id)
-        )''')
+        connection.execute(_INSTALLATIONS_SQL)
         connection.execute('CREATE INDEX media_installations_state ON media_installations(state,sequence)')
         connection.execute("INSERT INTO metadata(key,value) VALUES('media_installations_schema','2')")
     elif marker['value'] == '1' and tables == {'media_installations'}:
+        bootstrap = connection.execute(
+            "SELECT 1 FROM sqlite_master WHERE type='table' "
+            "AND name='media_service_bootstraps'").fetchone() is not None
+        if bootstrap:
+            from .media_service_bootstrap_schema import _verify as verify_bootstraps
+
+            bootstrap_marker = connection.execute(
+                "SELECT value FROM metadata "
+                "WHERE key='media_service_bootstraps_schema'").fetchone()
+            if bootstrap_marker is None or bootstrap_marker['value'] != '1':
+                raise StartupError('media_installations_schema_unsupported')
+            verify_bootstraps(connection)
+            connection.execute(
+                'ALTER TABLE media_service_bootstraps '
+                'RENAME TO media_service_bootstraps_installation_v1')
         connection.execute('ALTER TABLE media_installations RENAME TO media_installations_v1')
-        connection.execute('''CREATE TABLE media_installations (
-            id TEXT PRIMARY KEY,
-            sequence INTEGER NOT NULL UNIQUE CHECK(sequence > 0),
-            revision INTEGER NOT NULL CHECK(revision > 0),
-            actor_id TEXT NOT NULL,
-            actor_revision INTEGER NOT NULL CHECK(actor_revision > 0),
-            family_id TEXT NOT NULL,
-            request_id TEXT NOT NULL,
-            preparation_id TEXT NOT NULL,
-            inspection_id TEXT NOT NULL,
-            state TEXT NOT NULL CHECK(state IN ('queued','running','container_started','needs_attention','failed','cancelled')),
-            phase TEXT NOT NULL CHECK(phase IN ('queued','executing','complete')),
-            cancel_requested INTEGER NOT NULL CHECK(cancel_requested IN (0,1)),
-            error_code TEXT,
-            created_at INTEGER NOT NULL,
-            updated_at INTEGER NOT NULL,
-            nonce BLOB NOT NULL,
-            ciphertext BLOB NOT NULL,
-            UNIQUE(actor_id,request_id)
-        )''')
+        connection.execute(_INSTALLATIONS_SQL)
         connection.execute(
             'INSERT INTO media_installations SELECT * FROM media_installations_v1')
+        if bootstrap:
+            connection.execute(_BOOTSTRAPS_SQL)
+            connection.execute(
+                'INSERT INTO media_service_bootstraps SELECT * '
+                'FROM media_service_bootstraps_installation_v1')
+            connection.execute(
+                'DROP TABLE media_service_bootstraps_installation_v1')
         connection.execute('DROP TABLE media_installations_v1')
         connection.execute(
             'CREATE INDEX media_installations_state ON media_installations(state,sequence)')
+        if bootstrap:
+            connection.execute(
+                'CREATE INDEX media_service_bootstraps_state '
+                'ON media_service_bootstraps(state,sequence)')
         connection.execute(
             "UPDATE metadata SET value='2' WHERE key='media_installations_schema'")
     elif marker['value'] != '2' or tables != {'media_installations'}:
