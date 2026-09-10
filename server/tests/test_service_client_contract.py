@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 from types import SimpleNamespace
 import uuid
+from urllib.parse import urlsplit
 
 from conftest import auth, ready
 from larenor_server.services.probe_runner import ServiceProbeRunner
@@ -23,6 +24,16 @@ def test_fastapi_service_lifecycle_matches_the_shared_client_contract(server, mo
         ("PATCH", "/" + record_id, "updateRequest", "updatedResponse"),
         ("POST", "/" + record_id + "/check", "checkRequest", "checkedResponse"),
     ]:
+        if request == 'checkRequest':
+            # F13 requires an explicit grant before the unchanged probe wire contract.
+            current = fixture['updatedResponse']['service']
+            destination = urlsplit(current['baseUrl'])
+            granted = client.put(path + '/' + record_id + '/outbound-policy', headers=auth(pair), json={
+                'expectedRevision': 0, 'expectedServiceRevision': current['revision'],
+                'grants': [{'scheme': destination.scheme, 'host': destination.hostname,
+                            'port': destination.port or (443 if destination.scheme == 'https' else 80),
+                            'addresses': [{'address': '10.20.30.40', 'network': 'lan'}]}]})
+            assert granted.status_code == 200, granted.text
         result = client.request(method, path + suffix, headers=auth(pair), json=fixture[request])
         assert result.status_code == (201 if request == "createRequest" else 200)
         assert result.json() == fixture[response]

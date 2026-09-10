@@ -197,7 +197,7 @@ class ServiceManagement:
             connection.execute("DELETE FROM service_connections WHERE id=?", (service_id,))
 
     def record_verification(self, actor: Principal, service_id: str, expected_revision: int, *,
-                            state: str, version: str | None = None) -> dict:
+                            state: str, version: str | None = None, before_save=None) -> dict:
         self._identity(service_id, expected_revision)
         try:
             verification = ServiceVerification(state=state, checkedAt=utc(self.settings.clock()), version=version).model_dump()
@@ -207,6 +207,8 @@ class ServiceManagement:
             row, record = self._record(connection, service_id, expected_revision)
             if version is not None and any(secret in version for secret in record["credentials"].values()):
                 verification["version"] = None
+            if before_save is not None:
+                before_save(connection)
             record = {**record, "verification": verification}
             self._save(connection, service_id, row["revision"], record)
         return {"service": self._public(service_id, row["revision"], record)}
