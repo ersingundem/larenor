@@ -2,11 +2,11 @@
 
 Only /volume, a distinct retained mount, can be inspected. Initial preparation
 changes the empty root directory itself. Separate modes create the fixed media
-directories or install a validated qBittorrent configuration at one fixed
-private path. Configuration bytes are accepted only through stdin and are never
-returned. A failed write is not rolled back or retried. Caller must separately
-prove new-volume, daemon/user mapping and dispatch authority; this executable
-supplies none.
+directories or install a validated qBittorrent/Sonarr/Radarr configuration at
+one fixed private path. Configuration bytes are accepted only through stdin and
+are never returned. A failed write is not rolled back or retried. Caller must
+separately prove new-volume, daemon/user mapping and dispatch authority; this
+executable supplies none.
 """
 import base64
 import binascii
@@ -24,6 +24,11 @@ _ROOT = '/volume'
 _MODES = {
     'check', 'initialize_empty_root', 'verify_root',
     'prepare_media_directories', 'install_qbittorrent_config',
+    'install_sonarr_config', 'install_radarr_config',
+}
+_CONFIG_MODES = {
+    'install_qbittorrent_config', 'install_sonarr_config',
+    'install_radarr_config',
 }
 _MEDIA_DIRECTORIES = ('movies', 'shows')
 _QBITTORRENT_DIRECTORY = 'qBittorrent'
@@ -52,6 +57,36 @@ _QBITTORRENT_PATTERN = re.compile(
     rb'WebUI\\ServerDomains=qbittorrent\n'
     rb'WebUI\\UseUPnP=false\n'
     rb'WebUI\\Username=larenor-system\n\Z')
+_ARR_CONFIG = 'config.xml'
+_ARR_TEMP = '.larenor-arr-config.tmp'
+
+
+def _arr_pattern(port, instance_name):
+    marker = b'{api-key}'
+    template = (
+        '<?xml version="1.0" encoding="utf-8" standalone="yes"?>\n'
+        '<Config>\n'
+        '  <BindAddress>*</BindAddress>\n'
+        f'  <Port>{port}</Port>\n'
+        '  <EnableSsl>False</EnableSsl>\n'
+        '  <LaunchBrowser>False</LaunchBrowser>\n'
+        '  <ApiKey>{api-key}</ApiKey>\n'
+        '  <AuthenticationMethod>None</AuthenticationMethod>\n'
+        '  <AuthenticationRequired>Enabled</AuthenticationRequired>\n'
+        '  <AnalyticsEnabled>False</AnalyticsEnabled>\n'
+        '  <UpdateAutomatically>False</UpdateAutomatically>\n'
+        '  <LogLevel>info</LogLevel>\n'
+        f'  <InstanceName>{instance_name}</InstanceName>\n'
+        '</Config>\n'
+    ).encode('ascii')
+    prefix, suffix = template.split(marker)
+    return re.compile(re.escape(prefix) + rb'[0-9a-f]{32}' + re.escape(suffix))
+
+
+_ARR_PATTERNS = {
+    'install_sonarr_config': ('sonarr', _arr_pattern(8989, 'Larenor Sonarr')),
+    'install_radarr_config': ('radarr', _arr_pattern(7878, 'Larenor Radarr')),
+}
 
 
 class BootstrapError(Exception):
@@ -151,6 +186,15 @@ def _validated_qbittorrent_config(input_stream):
     return configuration
 
 
+def _validated_arr_config(mode, input_stream):
+    _require(mode in _ARR_PATTERNS
+             and input_stream is not None and hasattr(input_stream, 'read'))
+    configuration = input_stream.read(4097)
+    _require(type(configuration) is bytes and 1 <= len(configuration) <= 4096)
+    _require(_ARR_PATTERNS[mode][1].fullmatch(configuration) is not None)
+    return configuration
+
+
 def _open_child_directory(parent_fd, name):
     flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC
     try:
@@ -175,10 +219,10 @@ def _read_bounded(fd):
     return result
 
 
-def _open_existing_config(directory_fd):
+def _open_existing_config(directory_fd, filename=_QBITTORRENT_CONFIG):
     flags = os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC
     try:
-        fd = os.open(_QBITTORRENT_CONFIG, flags, dir_fd=directory_fd)
+        fd = os.open(filename, flags, dir_fd=directory_fd)
     except FileNotFoundError:
         return None
     except OSError as error:
@@ -269,6 +313,48 @@ def _install_qbittorrent_config(root_fd, configuration):
             os.close(directory_fd)
 
 
+def _install_arr_config(root_fd, configuration, service_id):
+    _require(service_id in {'sonarr', 'radarr'})
+    _require(_metadata(os.fstat(root_fd)) == (1000, 1000, 0o750))
+    _require(os.geteuid() == 1000 and os.getegid() == 1000)
+    existing = _open_existing_config(root_fd, _ARR_CONFIG)
+    if existing is not None:
+        _require(hmac.compare_digest(existing, configuration))
+        return f'{service_id}_config_already_installed'
+    temporary_fd = None
+    try:
+        flags = (os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW
+                 | os.O_CLOEXEC)
+        try:
+            temporary_fd = os.open(
+                _ARR_TEMP, flags, 0o600, dir_fd=root_fd)
+        except FileExistsError:
+            raise BootstrapError('bootstrap_conflict') from None
+        metadata = os.fstat(temporary_fd)
+        _require(stat.S_ISREG(metadata.st_mode)
+                 and metadata.st_nlink == 1
+                 and (metadata.st_uid, metadata.st_gid,
+                      stat.S_IMODE(metadata.st_mode)) == (1000, 1000, 0o600))
+        _write_all(temporary_fd, configuration)
+        os.fsync(temporary_fd)
+        os.close(temporary_fd)
+        temporary_fd = None
+        try:
+            os.link(_ARR_TEMP, _ARR_CONFIG,
+                    src_dir_fd=root_fd, dst_dir_fd=root_fd,
+                    follow_symlinks=False)
+        except FileExistsError:
+            raise BootstrapError('bootstrap_conflict') from None
+        os.unlink(_ARR_TEMP, dir_fd=root_fd)
+        os.fsync(root_fd)
+        _require(hmac.compare_digest(
+            _open_existing_config(root_fd, _ARR_CONFIG), configuration))
+        return f'{service_id}_config_installed'
+    finally:
+        if temporary_fd is not None:
+            os.close(temporary_fd)
+
+
 def run(mode, input_stream=None):
     if type(mode) is not str or mode not in _MODES:
         raise BootstrapError('bootstrap_invalid_command')
@@ -276,6 +362,8 @@ def run(mode, input_stream=None):
     try:
         if mode == 'install_qbittorrent_config':
             configuration = _validated_qbittorrent_config(input_stream)
+        elif mode in _ARR_PATTERNS:
+            configuration = _validated_arr_config(mode, input_stream)
     except BootstrapError:
         raise
     except (OSError, ValueError, TypeError, OverflowError):
@@ -286,6 +374,9 @@ def run(mode, input_stream=None):
         before = os.fstat(fd)
         if mode == 'install_qbittorrent_config':
             result = _install_qbittorrent_config(fd, configuration)
+        elif mode in _ARR_PATTERNS:
+            result = _install_arr_config(
+                fd, configuration, _ARR_PATTERNS[mode][0])
         elif mode == 'prepare_media_directories':
             _prepare_media_directories(fd)
             result = 'media_directories_prepared'
@@ -324,7 +415,8 @@ def main(arguments=None):
         print('bootstrap_invalid_command', file=sys.stderr)
         return 2
     try:
-        input_stream = sys.stdin.buffer if args[0] == 'install_qbittorrent_config' else None
+        input_stream = (
+            sys.stdin.buffer if args[0] in _CONFIG_MODES else None)
         result = run(args[0], input_stream)
     except BootstrapError as error:
         print(error.code, file=sys.stderr)
