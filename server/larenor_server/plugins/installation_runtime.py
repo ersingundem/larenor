@@ -386,6 +386,12 @@ class _RuntimeBackend:
                     'qbittorrent_categories_authentication_failed',
                 'qbittorrent_categories_protocol':
                     'qbittorrent_categories_protocol',
+                'qbittorrent_categories_observation_protocol':
+                    'qbittorrent_categories_observation_protocol',
+                'qbittorrent_category_create_protocol':
+                    'qbittorrent_category_create_protocol',
+                'qbittorrent_categories_verification_protocol':
+                    'qbittorrent_categories_verification_protocol',
                 'qbittorrent_category_conflict':
                     'qbittorrent_category_conflict',
                 'qbittorrent_categories_unavailable':

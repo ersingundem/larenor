@@ -281,7 +281,8 @@ def test_category_failure_preserves_static_cause_without_readback(
             JOB, stack, private(), deadline=time.monotonic() + 10,
             gate=lambda: True)
 
-    assert raised.value.cause_code == 'qbittorrent_categories_protocol'
+    assert raised.value.cause_code == (
+        'qbittorrent_categories_observation_protocol')
     assert not raised.value.uncertain_effect
     assert len(opens) == 1 and category.closed and readback.requests == []
     assert PRIVATE_BEARER not in str(raised.value) + repr(raised.value)

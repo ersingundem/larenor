@@ -23,6 +23,9 @@ _CODES = frozenset({
     'invalid_qbittorrent_categories',
     'qbittorrent_categories_authentication_failed',
     'qbittorrent_categories_protocol',
+    'qbittorrent_categories_observation_protocol',
+    'qbittorrent_category_create_protocol',
+    'qbittorrent_categories_verification_protocol',
     'qbittorrent_category_conflict',
     'qbittorrent_categories_unavailable',
     'qbittorrent_categories_timeout',
@@ -78,7 +81,7 @@ def _unique(pairs):
     return value
 
 
-def _json(raw):
+def _json(raw, protocol_code='qbittorrent_categories_protocol'):
     try:
         value = json.loads(
             raw.decode('utf-8'), object_pairs_hook=_unique,
@@ -88,7 +91,7 @@ def _json(raw):
         return value
     except (UnicodeError, json.JSONDecodeError, ValueError, TypeError):
         raise QbittorrentManagedCategoriesError(
-            'qbittorrent_categories_protocol') from None
+            protocol_code) from None
 
 
 def _existing(value):
@@ -165,6 +168,7 @@ class QbittorrentManagedCategories:
         deadline = time.monotonic() + limits.total_seconds
         completed = []
         mutation_sent = False
+        protocol_code = 'qbittorrent_categories_observation_protocol'
         scope = None
         try:
             scope = _Deadline(deadline)
@@ -172,12 +176,12 @@ class QbittorrentManagedCategories:
             reader = _StartupReader(connection, deadline)
             status, raw, closes = self._get(
                 connection, reader, deadline, limits, api_key, final=False)
-            self._status(status)
+            self._status(status, protocol_code)
             if closes:
                 raise QbittorrentManagedCategoriesError(
-                    'qbittorrent_categories_protocol')
+                    protocol_code)
             completed.append('categories_observed')
-            present = _existing(_json(raw))
+            present = _existing(_json(raw, protocol_code))
             if present == frozenset(dict(_CATEGORIES)):
                 completed.append('categories_verified')
                 return QbittorrentManagedCategoriesResult(
@@ -186,17 +190,19 @@ class QbittorrentManagedCategories:
             for name, path in _CATEGORIES:
                 if name in present:
                     continue
+                protocol_code = 'qbittorrent_category_create_protocol'
                 mutation_sent = True
                 status = self._post(
                     connection, reader, deadline, api_key,
                     {'category': name, 'savePath': path})
-                self._status(status)
+                self._status(status, protocol_code)
                 completed.append(name + '_created')
 
+            protocol_code = 'qbittorrent_categories_verification_protocol'
             status, raw, _closes = self._get(
                 connection, reader, deadline, limits, api_key, final=True)
-            self._status(status)
-            if _existing(_json(raw)) != frozenset(dict(_CATEGORIES)):
+            self._status(status, protocol_code)
+            if _existing(_json(raw, protocol_code)) != frozenset(dict(_CATEGORIES)):
                 raise QbittorrentManagedCategoriesError(
                     'qbittorrent_category_conflict')
             completed.append('categories_verified')
@@ -220,7 +226,7 @@ class QbittorrentManagedCategories:
                 UnicodeError, json.JSONDecodeError):
             code = ('qbittorrent_categories_timeout'
                     if time.monotonic() >= deadline
-                    else 'qbittorrent_categories_protocol')
+                    else protocol_code)
             raise QbittorrentManagedCategoriesError(
                 code, completed_steps=completed,
                 uncertain_effect=mutation_sent) from None
@@ -236,13 +242,13 @@ class QbittorrentManagedCategories:
                 scope.finish()
 
     @staticmethod
-    def _status(status):
+    def _status(status, protocol_code='qbittorrent_categories_protocol'):
         if status in {401, 403}:
             raise QbittorrentManagedCategoriesError(
                 'qbittorrent_categories_authentication_failed')
         if status != 200:
             raise QbittorrentManagedCategoriesError(
-                'qbittorrent_categories_protocol')
+                protocol_code)
 
     @staticmethod
     def _get(connection, reader, deadline, limits, api_key, *, final):
