@@ -9,12 +9,14 @@ from larenor_server.plugins.arr_bootstrap_executor import (
 )
 from larenor_server.plugins.arr_config_models import PrivateArrConfiguration
 from larenor_server.plugins.arr_endpoint import OpenArrEndpoint, prove_arr_endpoint
+from larenor_server.plugins.arr_managed_root_folders import ArrManagedRootFolders
 from larenor_server.plugins.managed_container import (
     JournaledManagedContainerOperations,
     ManagedWorkerJournal,
 )
 from test_arr_authenticated_readback import result
 from test_arr_endpoint import build
+from test_arr_managed_root_folders import json_response as root_response
 from test_jellyfin_startup import Connection
 from test_managed_container_binding import Engine, command
 
@@ -40,20 +42,23 @@ def executor(binding, operations):
     return ArrBootstrapExecutor(
         operations,
         lambda _s, service: binding if service == 'sonarr' else None,
+        ArrManagedRootFolders(),
         ArrAuthenticatedReadback(),
     )
 
 
 def test_reconciles_started_container_and_reads_back(prepared, monkeypatch):
     stack, binding, engine, operations = prepared
-    c = Connection([result('sonarr')])
+    readback = Connection([result('sonarr')])
+    root = Connection([root_response([{'id': 1, 'path': '/data/shows'}])])
     proof = prove_arr_endpoint(
         engine.container, binding, stack, engine.container['Id'], 'sonarr'
     )
     monkeypatch.setattr(
         'larenor_server.plugins.arr_bootstrap_executor.open_arr_endpoint',
-        lambda *_a, **_k: OpenArrEndpoint(c, proof),
+        lambda *_a, **_k: OpenArrEndpoint(next(connections), proof),
     )
+    connections = iter([readback, root])
     gates = []
     value = executor(binding, operations).execute(
         JOB,
@@ -65,9 +70,10 @@ def test_reconciles_started_container_and_reads_back(prepared, monkeypatch):
     assert (
         value.state == 'verified'
         and value.service_id == 'sonarr'
-        and len(c.requests) == 1
-        and c.closed
-        and len(gates) >= 4
+        and len(readback.requests) == 1 and readback.closed
+        and len(root.requests) == 1 and root.closed
+        and value.root_folders.path == '/data/shows'
+        and len(gates) >= 7
         and KEY not in repr(value)
     )
 
@@ -94,6 +100,36 @@ def test_authority_loss_before_private_readback_closes_stream(prepared, monkeypa
             gate=lambda: next(gates),
         )
     assert c.closed and c.requests == []
+
+
+def test_root_folder_conflict_is_projected_without_secret(prepared, monkeypatch):
+    stack, binding, engine, operations = prepared
+    readback = Connection([result('sonarr')])
+    root = Connection([
+        root_response([{'id': 1, 'path': '/data/private-other'}])])
+    proof = prove_arr_endpoint(
+        engine.container, binding, stack, engine.container['Id'], 'sonarr'
+    )
+    connections = iter([readback, root])
+    monkeypatch.setattr(
+        'larenor_server.plugins.arr_bootstrap_executor.open_arr_endpoint',
+        lambda *_a, **_k: OpenArrEndpoint(next(connections), proof),
+    )
+
+    with pytest.raises(
+        ArrBootstrapExecutionError, match='^arr_bootstrap_wiring_failed$'
+    ) as raised:
+        executor(binding, operations).execute(
+            JOB, stack,
+            PrivateArrConfiguration(serviceId='sonarr', apiKey=KEY),
+            deadline=time.monotonic() + 10, gate=lambda: True,
+        )
+
+    assert raised.value.cause_code == 'arr_root_folder_conflict'
+    assert not raised.value.uncertain_effect
+    assert raised.value.boundary == 'after_wiring_connect'
+    assert readback.closed and root.closed
+    assert KEY not in str(raised.value) + repr(raised.value)
 
 
 def test_deadline_loss_before_readback_closes_open_stream(prepared, monkeypatch):
@@ -137,7 +173,8 @@ def test_cross_service_binding_never_reaches_endpoint(prepared, monkeypatch):
         ArrBootstrapExecutionError, match='^arr_bootstrap_resources_unavailable$'
     ):
         ArrBootstrapExecutor(
-            operations, lambda *_: object(), ArrAuthenticatedReadback()
+            operations, lambda *_: object(), ArrManagedRootFolders(),
+            ArrAuthenticatedReadback()
         ).execute(
             JOB,
             stack,

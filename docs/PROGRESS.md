@@ -366,6 +366,15 @@ compileall, security, queue ve Gitleaks PASS. İki mimarili native
 kabul açık olduğundan sayaç değişmedi.
 [Uygulama ve açık sınırlar](arr-configured-container-implementation-2026-09-10.md).
 
+`c16c107`–`e9ac68c` zinciri, Sonarr için `/data/shows` ve Radarr için
+`/data/movies` kökünü private API üzerinden idempotent biçimde oluşturup ikinci
+okumada doğruluyor. Exact mevcut kayıt değişmeden geçiyor; yabancı, ek veya
+bozuk kayıt silinmeden `arr_root_folder_conflict` durumuna kapanıyor. Sonuç
+bootstrap makbuzuna bağlandı; **23 odaklı / 151 ilgili PASS**, compileall,
+security policy, queue ve Gitleaks yeşil. Native dizin hazırlığı, qBittorrent
+download-client kaydı ve iki mimarili kabul açık olduğundan sayaç değişmedi.
+[Uygulama ve açık sınırlar](arr-root-folder-wiring-implementation-2026-09-10.md).
+
 S06.4 native kabul koşusu [34326112926](https://github.com/ersingundem/larenor/actions/runs/34326112926)
 iki gerçek GitHub runner'ında geçti. İndirilen ARM64 ve X64 makbuzları merge
 commit'i `b6e7034` için repo verifier ile tekrar doğrulandı; bu commit'in ikinci

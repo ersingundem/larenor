@@ -38,6 +38,7 @@ from .arr_bootstrap_executor import (
     ArrBootstrapExecutionError, ArrBootstrapExecutor,
 )
 from .arr_authenticated_readback import ArrAuthenticatedReadback
+from .arr_managed_root_folders import ArrManagedRootFolders
 from .arr_config_effect import ArrConfigInstallReceipt
 from .arr_config_models import (
     ArrConfiguredInstallReceipt, ArrConfigurationExecutionError,
@@ -262,7 +263,8 @@ class _RuntimeBackend:
             operations, binding_builder, QbittorrentManagedCategories(),
             QbittorrentAuthenticatedReadback())
         self.arr_bootstrap = ArrBootstrapExecutor(
-            operations, binding_builder, ArrAuthenticatedReadback())
+            operations, binding_builder, ArrManagedRootFolders(),
+            ArrAuthenticatedReadback())
         self.bootstrap_executor = JellyfinBootstrapExecutor(
             operations, binding_builder, JellyfinStartupConfigurator(),
             JellyfinAuthenticatedReadback(), JellyfinManagedLibraries())
