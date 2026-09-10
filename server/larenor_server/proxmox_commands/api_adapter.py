@@ -47,6 +47,13 @@ _SOURCE = {
     "reboot": frozenset({"running"}),
     "reset": frozenset({"running"}),
 }
+_TARGET = {
+    "start": "running",
+    "shutdown": "stopped",
+    "stop": "stopped",
+    "reboot": "running",
+    "reset": "running",
+}
 
 
 class ProxmoxApiAdapterError(Exception):
@@ -287,16 +294,20 @@ def load_service_binding(path, key_path):
 
 
 class ProxmoxApiEffectAdapter:
-    def __init__(self, binding, *, resolver=None, connector=None):
+    def __init__(
+        self, binding, *, resolver=None, connector=None, confirm_readback=False,
+    ):
         if (
             not isinstance(binding, ProxmoxServiceBinding)
             or resolver is not None and not callable(resolver)
             or connector is not None and not callable(connector)
+            or type(confirm_readback) is not bool
         ):
             raise ProxmoxApiAdapterError("binding_unavailable")
         self._binding = binding
         self._resolver = resolver
         self._connector = connector
+        self._confirm_readback = confirm_readback
         self._lock = threading.Lock()
         self._seen = set()
         self._order = deque()
@@ -332,6 +343,19 @@ class ProxmoxApiEffectAdapter:
     def _unknown(self, command, upid=None):
         return PackagedProxmoxApiResult(
             "unknown", command.current_state, command.status_revision, upid
+        )
+
+    @staticmethod
+    def _json(response):
+        types = [
+            value.split(";", 1)[0].strip().lower()
+            for key, value in response.headers if key == "content-type"
+        ]
+        if types != ["application/json"]:
+            raise ValueError()
+        return json.loads(
+            response.body.decode("utf-8"), object_pairs_hook=_pairs,
+            parse_constant=lambda _value: (_ for _ in ()).throw(ValueError()),
         )
 
     def execute(self, command, *, deadline, cancelled):
@@ -375,7 +399,7 @@ class ProxmoxApiEffectAdapter:
             base = f"{selected.scheme}://{authority}"
             if selected.port != default:
                 base += f":{selected.port}"
-            path = (
+            mutation_path = (
                 f"/api2/json/nodes/{selected.node}/{selected.guest_kind}/"
                 f"{selected.guest_id}/status/{command.action}"
             )
@@ -385,7 +409,7 @@ class ProxmoxApiEffectAdapter:
                 address_guard=pinned,
             ) as transport:
                 response = transport.request(
-                    "POST", path,
+                    "POST", mutation_path,
                     headers={
                         "Authorization": (
                             "PVEAPIToken=" + selected.token_id + "="
@@ -410,24 +434,67 @@ class ProxmoxApiEffectAdapter:
         if response.status != 200:
             return self._unknown(command)
         try:
-            types = [
-                value.split(";", 1)[0].strip().lower()
-                for key, value in response.headers if key == "content-type"
-            ]
-            value = json.loads(
-                response.body.decode("utf-8"), object_pairs_hook=_pairs,
-                parse_constant=lambda _value: (_ for _ in ()).throw(ValueError()),
-            )
+            value = self._json(response)
             upid = value["data"]
             if (
-                types != ["application/json"]
-                or type(value) is not dict or set(value) != {"data"}
+                type(value) is not dict or set(value) != {"data"}
                 or type(upid) is not str
                 or not 1 <= len(upid.encode("utf-8")) <= 512
                 or not upid.startswith("UPID:")
                 or any(ord(char) < 33 or ord(char) == 127 for char in upid)
             ):
                 raise ValueError()
-            return self._unknown(command, upid)
         except (ValueError, TypeError, KeyError, UnicodeError, RecursionError):
             return self._unknown(command)
+        if not self._confirm_readback:
+            return self._unknown(command, upid)
+
+        try:
+            gate()
+            timeout = min(5.0, deadline - time.monotonic())
+            if timeout <= 0:
+                return self._unknown(command, upid)
+            readback_path = (
+                f"/api2/json/nodes/{selected.node}/{selected.guest_kind}/"
+                f"{selected.guest_id}/status/current"
+            )
+            with ServiceTransport(
+                base, timeout=timeout, max_bytes=MAX_RESULT_BYTES,
+                resolver=self._resolver, connector=self._connector,
+                address_guard=pinned,
+            ) as transport:
+                readback = transport.request(
+                    "GET", readback_path,
+                    headers={
+                        "Authorization": (
+                            "PVEAPIToken=" + selected.token_id + "="
+                            + selected.token_secret
+                        ),
+                        "Accept": "application/json",
+                    },
+                    before_send=gate,
+                )
+            gate()
+            if readback.status != 200:
+                return self._unknown(command, upid)
+            value = self._json(readback)
+            if (
+                type(value) is not dict or set(value) != {"data"}
+                or type(value["data"]) is not dict
+                or set(value["data"]) != {"status"}
+                or value["data"]["status"] not in {"running", "stopped"}
+            ):
+                raise ValueError()
+            state = value["data"]["status"]
+            if state != _TARGET[command.action]:
+                return self._unknown(command, upid)
+            return PackagedProxmoxApiResult(
+                "succeeded", state, command.status_revision + 1, upid,
+            )
+        except (ProbeTransportError, ProxmoxApiAdapterError, ValueError,
+                TypeError, KeyError, UnicodeError, RecursionError):
+            return self._unknown(command, upid)
+        except BaseException as error:
+            if isinstance(error, (KeyboardInterrupt, SystemExit)):
+                raise
+            return self._unknown(command, upid)
