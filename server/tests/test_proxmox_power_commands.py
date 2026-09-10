@@ -44,6 +44,7 @@ class Executor:
             "shutdown": "stopped",
             "stop": "stopped",
             "reboot": "running",
+            "reset": "running",
             "suspend": "suspended",
             "resume": "running",
         }[action]
@@ -165,6 +166,7 @@ def confirm(client, admin, record, preview_id, request_id="d" * 32, high=False):
         ("lxc", "running", "shutdown", "moderate", "stopped"),
         ("qemu", "running", "stop", "high", "stopped"),
         ("lxc", "running", "reboot", "high", "running"),
+        ("qemu", "running", "reset", "high", "running"),
         ("qemu", "running", "suspend", "moderate", "suspended"),
         ("lxc", "suspended", "resume", "low", "running"),
     ],
@@ -190,7 +192,7 @@ def test_packaged_allowlist_preview_binds_guest_and_risk(
         assert not any(key in str(proposal).lower() for key in ("url", "host", "node", "token", "password"))
 
 
-@pytest.mark.parametrize("action", ["start", "shutdown", "stop", "reboot", "suspend", "resume"])
+@pytest.mark.parametrize("action", ["start", "shutdown", "stop", "reboot", "reset", "suspend", "resume"])
 def test_invalid_current_state_never_creates_preview(tmp_path, action):
     app, settings, clock, provider, executor = fixture(tmp_path)
     with TestClient(app) as client:

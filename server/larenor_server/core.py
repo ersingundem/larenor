@@ -62,6 +62,7 @@ from .proxmox.schema import migrate as migrate_proxmox_resources
 from .proxmox.service import ProxmoxResourceAdapter
 from .proxmox_commands.schema import migrate as migrate_proxmox_power
 from .proxmox_commands.service import ProxmoxPowerAuthority
+from .proxmox_commands.worker_ipc import ProxmoxPowerWorkerClient
 
 
 class CoreServices:
@@ -208,9 +209,15 @@ class CoreServices:
             self.home_resources.validate_storage()
             self.bounded_transfers = BoundedTransferService(
                 self.home_resources, settings, self._blob_provider, self._transfer_limits)
+            power_executor = self._proxmox_power_executor
+            if power_executor is None and settings.proxmox_power_worker_socket is not None:
+                power_executor = ProxmoxPowerWorkerClient(
+                    settings.proxmox_power_worker_socket,
+                    owner_uid=settings.proxmox_power_worker_uid,
+                )
             self.proxmox_power = ProxmoxPowerAuthority(
                 self.home_resources, self.auth, settings, key,
-                self._proxmox_guest_provider, self._proxmox_power_executor)
+                self._proxmox_guest_provider, power_executor)
             self.proxmox_power.store.validate_storage()
             self.proxmox_power.store.recover_incomplete()
             self.home_people = HomePeopleRegistry(self.db, self.auth, settings, key, self.context)

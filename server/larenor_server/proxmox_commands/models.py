@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+import re
 from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
@@ -7,7 +8,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 Identity = Annotated[str, Field(min_length=32, max_length=32, pattern=r"^[0-9a-f]{32}$")]
 OpaqueIdentity = Annotated[str, Field(min_length=1, max_length=128, pattern=r"^[A-Za-z0-9_-]+$")]
 Revision = Annotated[int, Field(ge=1, le=2**63 - 1)]
-Action = Literal["start", "shutdown", "stop", "reboot", "suspend", "resume"]
+Action = Literal["start", "shutdown", "stop", "reboot", "reset", "suspend", "resume"]
 State = Literal["accepted", "executing", "succeeded", "failed", "cancelled", "unknown"]
 
 
@@ -86,8 +87,7 @@ class PowerReceipt(StrictModel):
     @field_validator("operationRef")
     @classmethod
     def safe_operation_ref(cls, value):
-        if value is not None and (not 5 <= len(value) <= 256 or not value.startswith("UPID:")
-                                  or any(ord(char) < 32 or ord(char) == 127 for char in value)):
+        if value is not None and not re.fullmatch(r"UPID-SHA256:[0-9a-f]{64}", value):
             raise ValueError("invalid_operation_ref")
         return value
 

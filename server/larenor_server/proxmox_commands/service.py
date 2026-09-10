@@ -13,6 +13,7 @@ POLICY = {
     "shutdown": ("moderate", frozenset({"running"}), "stopped"),
     "stop": ("high", frozenset({"running"}), "stopped"),
     "reboot": ("high", frozenset({"running"}), "running"),
+    "reset": ("high", frozenset({"running"}), "running"),
     "suspend": ("moderate", frozenset({"running"}), "suspended"),
     "resume": ("low", frozenset({"suspended"}), "running"),
 }
@@ -163,7 +164,7 @@ class ProxmoxPowerAuthority:
         executing = self._receipt(pending, "executing", "executing", current, started)
         self.store.put(executing, resource_id, actor.id)
 
-        def guard():
+        def guard(*, descriptor=True):
             if self.settings.clock() * 1000 > started * 1000 + body.deadlineMs:
                 raise TimeoutError()
             if disconnected is not None and disconnected():
@@ -171,12 +172,21 @@ class ProxmoxPowerAuthority:
             with self.registry.db.connection() as connection:
                 self.auth.assert_current(connection, actor)
             self._authorize(actor, core_id, home_id, resource_id, pending.body)
-            observed = self._descriptor(self.provider.resolve(resource_id), resource_id)
-            if observed != current:
-                raise RuntimeError("descriptor_changed")
+            if descriptor:
+                observed = self._descriptor(self.provider.resolve(resource_id), resource_id)
+                if observed != current:
+                    raise RuntimeError("descriptor_changed")
 
         try:
-            effect = self.executor.execute(current, pending.body.action, guard)
+            bounded = getattr(self.executor, "execute_bounded", None)
+            if callable(bounded):
+                effect = bounded(
+                    current, pending.body.action, guard,
+                    preview=pending.body, deadline_ms=body.deadlineMs,
+                    continuation_guard=lambda: guard(descriptor=False),
+                )
+            else:
+                effect = self.executor.execute(current, pending.body.action, guard)
             with self.registry.db.connection() as connection:
                 self.auth.assert_current(connection, actor)
             self._authorize(actor, core_id, home_id, resource_id, pending.body)
