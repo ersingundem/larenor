@@ -31,6 +31,21 @@ from larenor_server.proxmox_commands.worker_ipc import (
 RAW_UPID = "UPID:pve:0000002A:0000002B:0000002C:qmstart:101:root@pam:"
 
 
+def write_ready_health(health_path, socket_path):
+    info = socket_path.lstat()
+    health_path.write_text(json.dumps({
+        "schemaVersion": 1,
+        "capability": "proxmox-power-effect",
+        "state": "ready",
+        "workerId": "c" * 32,
+        "workerUid": os.getuid(),
+        "socketDevice": info.st_dev,
+        "socketInode": info.st_ino,
+        "emittedAt": time.time(),
+    }))
+    health_path.chmod(0o600)
+
+
 def descriptor():
     return ProxmoxGuestDescriptor(
         resource_id="a" * 32,
@@ -287,11 +302,14 @@ def test_core_uses_explicit_worker_and_journal_contains_only_upid_hash(tmp_path)
     )
     worker.start()
     try:
+        health_path = Path(socket_temp.name) / "power-health.json"
+        write_ready_health(health_path, socket_path)
         clock = Clock()
         settings = Settings(
             root / "data", root / "secrets/vault.key", clock=clock,
             login_ip_limit=100, login_account_limit=100, login_global_limit=100,
             proxmox_power_worker_socket=socket_path,
+            proxmox_power_worker_health=health_path,
             proxmox_power_worker_uid=os.getuid(),
         )
         app = create_app(settings, proxmox_guest_provider=provider)
@@ -371,10 +389,13 @@ def test_worker_configuration_is_explicit_absolute_and_uid_private(monkeypatch, 
     path = (tmp_path / "power.sock").resolve()
     monkeypatch.setenv("LARENOR_DATA_DIR", str((tmp_path / "data").resolve()))
     monkeypatch.setenv("LARENOR_KEY_FILE", str((tmp_path / "key").resolve()))
+    health_path = (tmp_path / "power-health.json").resolve()
     monkeypatch.setenv("LARENOR_PROXMOX_POWER_WORKER_SOCKET", str(path))
+    monkeypatch.setenv("LARENOR_PROXMOX_POWER_WORKER_HEALTH", str(health_path))
     monkeypatch.setenv("LARENOR_PROXMOX_POWER_WORKER_UID", str(os.getuid()))
     settings = Settings.from_environment()
     assert settings.proxmox_power_worker_socket == path
+    assert settings.proxmox_power_worker_health == health_path
     assert settings.proxmox_power_worker_uid == os.getuid()
     with pytest.raises(ValueError, match="^invalid_worker_configuration$"):
         Settings(
@@ -400,18 +421,7 @@ def test_core_worker_health_binds_the_original_socket_inode(tmp_path):
     )
     original.start()
     try:
-        info = socket_path.lstat()
-        health_path.write_text(json.dumps({
-            "schemaVersion": 1,
-            "capability": "proxmox-power-effect",
-            "state": "ready",
-            "workerId": "c" * 32,
-            "workerUid": os.getuid(),
-            "socketDevice": info.st_dev,
-            "socketInode": info.st_ino,
-            "emittedAt": time.time(),
-        }))
-        health_path.chmod(0o600)
+        write_ready_health(health_path, socket_path)
         client = verified_power_worker_client(
             socket_path, health_path, os.getuid(),
             peer_uid=lambda _connection: os.getuid(),

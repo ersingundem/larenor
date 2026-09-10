@@ -237,6 +237,7 @@ def test_core_supervisor_worker_api_journal_end_to_end(
         active_settings = replace(
             base_settings,
             proxmox_power_worker_socket=runtime.socket_path,
+            proxmox_power_worker_health=runtime.health_path,
             proxmox_power_worker_uid=os.getuid(),
         )
         app = create_app(active_settings, proxmox_guest_provider=provider)

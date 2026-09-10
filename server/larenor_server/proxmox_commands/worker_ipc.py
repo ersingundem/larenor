@@ -335,17 +335,27 @@ def _result(value):
 
 
 class ProxmoxPowerWorkerClient:
-    def __init__(self, path, *, owner_uid=0, peer_uid=None, timeout=5):
+    def __init__(
+        self, path, *, owner_uid=0, peer_uid=None, timeout=5,
+        expected_identity=None,
+    ):
         if (
             type(owner_uid) is not int or owner_uid < 0
             or type(timeout) not in (int, float) or isinstance(timeout, bool)
             or not 0 < timeout <= 30
+            or expected_identity is not None and (
+                type(expected_identity) is not tuple
+                or len(expected_identity) != 2
+                or any(type(value) is not int or value < 0
+                       for value in expected_identity)
+            )
         ):
             raise ProxmoxPowerWorkerError()
         self.path = Path(path).absolute()
         self.owner_uid = owner_uid
         self.peer_uid = peer_uid or _peer_uid
         self.timeout = timeout
+        self.expected_identity = expected_identity
 
     def execute_bounded(
         self, descriptor, action, guard, *, preview, deadline_ms,
@@ -359,7 +369,15 @@ class ProxmoxPowerWorkerClient:
         command = _wire_command(descriptor, action, preview, deadline_ms)
         try:
             guard()
-            _safe_path(self.path, uid=self.owner_uid, kind=stat.S_ISSOCK, private=True)
+            selected = _safe_path(
+                self.path, uid=self.owner_uid, kind=stat.S_ISSOCK, private=True
+            )
+            info = selected.lstat()
+            if (
+                self.expected_identity is not None
+                and (info.st_dev, info.st_ino) != self.expected_identity
+            ):
+                raise ProxmoxPowerWorkerError()
             deadline = time.monotonic() + min(self.timeout, deadline_ms / 1000)
             envelope_id = uuid.uuid4().hex
             request = {
@@ -391,6 +409,35 @@ class ProxmoxPowerWorkerClient:
             if isinstance(error, (OSError, ValueError, TypeError, RuntimeError, DockerWorkerError)):
                 raise ProxmoxPowerWorkerError() from None
             raise
+
+
+def verified_power_worker_client(
+    socket_path, health_path, owner_uid, *, peer_uid=None, timeout=5,
+):
+    """Return an inode-bound client only for an exact live health receipt."""
+    try:
+        from .worker_runtime import read_health_receipt
+
+        selected = _safe_path(
+            Path(socket_path), uid=owner_uid, kind=stat.S_ISSOCK, private=True
+        )
+        info = selected.lstat()
+        receipt = read_health_receipt(Path(health_path))
+        identity = (info.st_dev, info.st_ino)
+        if (
+            receipt.state != "ready"
+            or receipt.worker_uid != owner_uid
+            or (receipt.socket_device, receipt.socket_inode) != identity
+        ):
+            return None
+        return ProxmoxPowerWorkerClient(
+            selected, owner_uid=owner_uid, peer_uid=peer_uid, timeout=timeout,
+            expected_identity=identity,
+        )
+    except BaseException as error:
+        if isinstance(error, (KeyboardInterrupt, SystemExit)):
+            raise
+        return None
 
 
 class ProxmoxPowerWorkerServer:
