@@ -47,6 +47,15 @@ void main() {
       CoreProxmoxWarningKind.nodeOffline,
       CoreProxmoxWarningKind.recentTaskFailed,
     ]);
+    expect(
+      value.summary.protection.state,
+      CoreProxmoxProtectionState.available,
+    );
+    expect(
+      value.summary.protection.latestBackup?.status,
+      CoreProxmoxTaskStatus.succeeded,
+    );
+    expect(value.summary.protection.snapshots.first.snapshotCount, 2);
     expect(value.toString(), 'CoreProxmoxSnapshot');
   });
 
@@ -100,6 +109,19 @@ void main() {
                       as List)[1]
                   as Map)['severity'] =
               'critical',
+      (v) => ((v['summary'] as Map)['protection'] as Map)['state'] = 'unknown',
+      (v) => ((v['summary'] as Map)['protection'] as Map)['guestCount'] = 3,
+      (v) =>
+          ((v['summary'] as Map)['protection'] as Map)['host'] = 'pve.internal',
+      (v) =>
+          (((v['summary'] as Map)['protection'] as Map)['latestBackup']
+                  as Map)['taskId'] =
+              '7' * 64,
+      (v) =>
+          ((((v['summary'] as Map)['protection'] as Map)['snapshots'] as List)
+                      .first
+                  as Map)['vmId'] =
+              999,
     ];
     for (final mutate in mutations) {
       final value = snapshot();

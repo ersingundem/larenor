@@ -32,6 +32,16 @@ def pve():
             'node': 'pve-a', 'type': 'vzdump', 'starttime': 1789113600,
             'endtime': 1789113780, 'status': 'OK', 'user': 'root@pam',
         }]
+        snapshots = {
+            '/api2/json/nodes/pve-a/qemu/101/snapshot': [
+                {'name': 'current'},
+                {'name': 'nightly', 'snaptime': 1789111800,
+                 'description': 'private note'},
+                {'name': 'before-update', 'snaptime': 1789110000},
+            ],
+            '/api2/json/nodes/pve-a/lxc/102/snapshot': [{'name': 'current'}],
+        }
+        snapshot_status = 200
         allow_password = False
     fixture = Fixture()
 
@@ -41,9 +51,14 @@ def pve():
 
         def do_GET(self):
             fixture.calls.append((self.command, self.path, self.headers.get('Authorization')))
-            values = fixture.tasks if self.path == '/api2/json/cluster/tasks?limit=20' else fixture.resources
+            if self.path == '/api2/json/cluster/tasks?limit=20':
+                values, status = fixture.tasks, fixture.status
+            elif self.path in fixture.snapshots:
+                values, status = fixture.snapshots[self.path], fixture.snapshot_status
+            else:
+                values, status = fixture.resources, fixture.status
             body = json.dumps({'data': values}).encode()
-            self.send_response(fixture.status)
+            self.send_response(status)
             self.send_header('Content-Type', 'application/json')
             self.send_header('Content-Length', str(len(body)))
             self.end_headers(); self.wfile.write(body)
@@ -96,14 +111,35 @@ def test_packaged_transport_uses_one_fixed_read_and_returns_only_typed_summary(p
             'state': 'healthy', 'warningCount': 0, 'truncated': False,
             'warnings': [],
         },
+        'protection': {
+            'state': 'available', 'guestCount': 2, 'scannedGuestCount': 2,
+            'truncated': False,
+            'latestBackup': {
+                'taskId': 'b926f4455b95b320c913eed90f49f6127788f638b43070cada843afe490c9628',
+                'node': 'pve-a', 'kind': 'vzdump', 'status': 'succeeded',
+                'startedAt': '2026-09-11T08:00:00Z',
+                'finishedAt': '2026-09-11T08:03:00Z',
+            },
+            'snapshots': [
+                {'node': 'pve-a', 'kind': 'qemu', 'vmId': 101,
+                 'snapshotCount': 2, 'latestAt': '2026-09-11T07:30:00Z'},
+                {'node': 'pve-a', 'kind': 'lxc', 'vmId': 102,
+                 'snapshotCount': 0, 'latestAt': None},
+            ],
+        },
     }
     assert pve.calls == [
         ('GET', '/api2/json/cluster/resources',
          'PVEAPIToken=root@pam!larenor=01234567-89ab-cdef-0123-456789abcdef'),
         ('GET', '/api2/json/cluster/tasks?limit=20',
          'PVEAPIToken=root@pam!larenor=01234567-89ab-cdef-0123-456789abcdef'),
+        ('GET', '/api2/json/nodes/pve-a/qemu/101/snapshot',
+         'PVEAPIToken=root@pam!larenor=01234567-89ab-cdef-0123-456789abcdef'),
+        ('GET', '/api2/json/nodes/pve-a/lxc/102/snapshot',
+         'PVEAPIToken=root@pam!larenor=01234567-89ab-cdef-0123-456789abcdef'),
     ]
-    assert 'root@pam' not in json.dumps(result.model_dump())
+    public = json.dumps(result.model_dump())
+    assert 'root@pam' not in public and 'private note' not in public
 
 
 def test_password_account_uses_ticket_only_then_same_fixed_read(pve):
@@ -114,7 +150,9 @@ def test_password_account_uses_ticket_only_then_same_fixed_read(pve):
     assert read_summary(service, guard=lambda: None).nodes[0].node == 'pve-a'
     assert [(call[0], call[1]) for call in pve.calls] == [
         ('POST', '/api2/json/access/ticket'), ('GET', '/api2/json/cluster/resources'),
-        ('GET', '/api2/json/cluster/tasks?limit=20')]
+        ('GET', '/api2/json/cluster/tasks?limit=20'),
+        ('GET', '/api2/json/nodes/pve-a/qemu/101/snapshot'),
+        ('GET', '/api2/json/nodes/pve-a/lxc/102/snapshot')]
 
 
 @pytest.mark.parametrize('change', [
@@ -196,3 +234,54 @@ def test_warning_projection_is_capped_without_hiding_total_pressure(pve):
     summary = read_summary(connection(pve), guard=lambda: None).maintenance
     assert len(summary.warnings) == 32
     assert summary.warningCount == 64 and summary.truncated is True
+
+
+def test_empty_backup_and_snapshot_projection_is_explicit(pve):
+    pve.tasks = [{**pve.tasks[0], 'type': 'aptupdate'}]
+    pve.snapshots = {path: [{'name': 'current'}] for path in pve.snapshots}
+    protection = read_summary(connection(pve), guard=lambda: None).protection
+    assert protection.state == 'empty'
+    assert protection.latestBackup is None
+    assert all(item.snapshotCount == 0 and item.latestAt is None
+               for item in protection.snapshots)
+
+
+@pytest.mark.parametrize('snapshots', [
+    [{'name': 'current'}, {'name': 'nightly', 'snaptime': 'private'}],
+    [{'name': 'current'}, {'name': 'same', 'snaptime': 1},
+     {'name': 'same', 'snaptime': 2}],
+    [{'name': f'snapshot-{index}', 'snaptime': index + 1} for index in range(257)],
+    [{'name': 'bad\nname', 'snaptime': 1}],
+])
+def test_snapshot_projection_is_bounded_strict_and_secret_free(pve, snapshots):
+    pve.snapshots['/api2/json/nodes/pve-a/qemu/101/snapshot'] = snapshots
+    with pytest.raises(ApiError) as error:
+        read_summary(connection(pve), guard=lambda: None)
+    assert (error.value.code, error.value.status) == ('proxmox_summary_unsupported', 502)
+    assert 'private' not in str(error.value)
+
+
+def test_snapshot_offline_fails_whole_summary_closed(pve):
+    pve.snapshot_status = 503
+    with pytest.raises(ApiError) as error:
+        read_summary(connection(pve), guard=lambda: None)
+    assert (error.value.code, error.value.status) == ('proxmox_upstream_unavailable', 502)
+
+
+def test_snapshot_scan_is_capped_and_marks_partial(pve):
+    pve.resources = [pve.resources[0], *[
+        {'type': 'qemu', 'vmid': 100 + index, 'node': 'pve-a',
+         'name': f'guest-{index}', 'status': 'running', 'cpu': 0,
+         'mem': 1, 'maxmem': 2}
+        for index in range(1, 10)
+    ]]
+    pve.snapshots = {
+        f'/api2/json/nodes/pve-a/qemu/{100 + index}/snapshot':
+            [{'name': 'current'}]
+        for index in range(1, 10)
+    }
+    protection = read_summary(connection(pve), guard=lambda: None).protection
+    assert protection.state == 'partial'
+    assert (protection.guestCount, protection.scannedGuestCount,
+            protection.truncated) == (9, 8, True)
+    assert len([call for call in pve.calls if call[1].endswith('/snapshot')]) == 8

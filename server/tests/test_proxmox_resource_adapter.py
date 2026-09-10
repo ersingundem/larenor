@@ -26,6 +26,20 @@ SUMMARY = {
         'state': 'healthy', 'warningCount': 0, 'truncated': False,
         'warnings': [],
     },
+    'protection': {
+        'state': 'available', 'guestCount': 1, 'scannedGuestCount': 1,
+        'truncated': False,
+        'latestBackup': {
+            'taskId': '9' * 64, 'node': 'pve-a', 'kind': 'vzdump',
+            'status': 'succeeded',
+            'startedAt': '2026-09-11T08:00:00Z',
+            'finishedAt': '2026-09-11T08:03:00Z',
+        },
+        'snapshots': [{
+            'node': 'pve-a', 'kind': 'qemu', 'vmId': 101,
+            'snapshotCount': 2, 'latestAt': '2026-09-11T07:30:00Z',
+        }],
+    },
 }
 
 
@@ -213,6 +227,30 @@ def test_maintenance_summary_is_strict_and_secret_free(server, maintenance):
     app.state.core.proxmox._cache.clear()
     app.state.core.proxmox._reader = lambda connection, *, guard: {
         **SUMMARY, 'maintenance': maintenance,
+    }
+    response = client.get(public + '/snapshot', headers=auth(admin))
+    assert response.status_code == 502, response.text
+    assert 'pve.internal' not in response.text and 'private' not in response.text
+
+
+@pytest.mark.parametrize('protection', [
+    {'state': 'unknown', 'guestCount': 1, 'scannedGuestCount': 1,
+     'truncated': False, 'latestBackup': None, 'snapshots': []},
+    {**SUMMARY['protection'], 'guestCount': 2},
+    {**SUMMARY['protection'], 'host': 'pve.internal'},
+    {**SUMMARY['protection'], 'latestBackup': {
+        **SUMMARY['protection']['latestBackup'], 'taskId': '8' * 64}},
+    {**SUMMARY['protection'], 'snapshots': [{
+        **SUMMARY['protection']['snapshots'][0], 'vmId': 999}]},
+    {**SUMMARY['protection'], 'snapshots': [{
+        **SUMMARY['protection']['snapshots'][0], 'description': 'private'}]},
+])
+def test_backup_snapshot_summary_is_strict_and_secret_free(server, protection):
+    app, client, admin, _, _, base, public, body, _ = setup(server)
+    bind(client, admin, base, body)
+    app.state.core.proxmox._cache.clear()
+    app.state.core.proxmox._reader = lambda connection, *, guard: {
+        **SUMMARY, 'protection': protection,
     }
     response = client.get(public + '/snapshot', headers=auth(admin))
     assert response.status_code == 502, response.text

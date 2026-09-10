@@ -637,6 +637,7 @@ enum _CoreProxmoxDetailFilter {
   guests,
   storage,
   maintenance,
+  protection,
   tasks,
 }
 
@@ -706,6 +707,27 @@ class _CoreProxmoxDetailExplorerState extends State<CoreProxmoxDetailExplorer> {
           tr ? 'Dikkat gerekli' : 'Attention needed',
         CoreProxmoxMaintenanceState.critical => tr ? 'Kritik' : 'Critical',
       };
+
+  String _protectionState(
+    CoreProxmoxProtectionState state,
+    bool tr,
+  ) => switch (state) {
+    CoreProxmoxProtectionState.available => tr ? 'Kullanılabilir' : 'Available',
+    CoreProxmoxProtectionState.empty => tr ? 'Kayıt yok' : 'No records',
+    CoreProxmoxProtectionState.partial => tr ? 'Kısmi görünüm' : 'Partial view',
+  };
+
+  String _age(DateTime value, bool tr) {
+    final raw = DateTime.now().toUtc().difference(value);
+    final age = raw.isNegative ? Duration.zero : raw;
+    if (age.inDays > 0) {
+      return tr ? '${age.inDays} gün önce' : '${age.inDays} d ago';
+    }
+    if (age.inHours > 0) {
+      return tr ? '${age.inHours} saat önce' : '${age.inHours} h ago';
+    }
+    return tr ? '${age.inMinutes} dk önce' : '${age.inMinutes} min ago';
+  }
 
   List<_CoreProxmoxDetailItem> _items(bool tr) => [
     for (final node in widget.summary.nodes)
@@ -793,6 +815,65 @@ class _CoreProxmoxDetailExplorerState extends State<CoreProxmoxDetailExplorer> {
                 : 'Correlated with a recent failed task.',
         ],
       ),
+    _CoreProxmoxDetailItem(
+      key: 'protection-overview',
+      filter: _CoreProxmoxDetailFilter.protection,
+      section: tr ? 'Yedekler ve snapshotlar' : 'Backup & snapshots',
+      title: tr ? 'Yedekler ve snapshotlar' : 'Backup & snapshots',
+      status: _protectionState(widget.summary.protection.state, tr),
+      metrics: [
+        tr
+            ? '${widget.summary.protection.scannedGuestCount}/${widget.summary.protection.guestCount} konuk tarandı'
+            : '${widget.summary.protection.scannedGuestCount}/${widget.summary.protection.guestCount} guests scanned',
+        if (widget.summary.protection.truncated)
+          tr ? 'İlk 8 konuk gösteriliyor.' : 'Showing the first 8 guests.',
+      ],
+    ),
+    if (widget.summary.protection.latestBackup case final backup?)
+      _CoreProxmoxDetailItem(
+        key: 'protection-latest-backup',
+        filter: _CoreProxmoxDetailFilter.protection,
+        section: tr ? 'Yedekler ve snapshotlar' : 'Backup & snapshots',
+        title: tr ? 'Son yedek' : 'Latest backup',
+        status: switch (backup.status) {
+          CoreProxmoxTaskStatus.running => tr ? 'Çalışıyor' : 'Running',
+          CoreProxmoxTaskStatus.succeeded => tr ? 'Başarılı' : 'Succeeded',
+          CoreProxmoxTaskStatus.failed => tr ? 'Başarısız' : 'Failed',
+        },
+        metrics: [
+          '${tr ? 'Düğüm' : 'Node'} ${backup.node}',
+          '${tr ? 'Yaş' : 'Age'} ${_age(backup.finishedAt ?? backup.startedAt, tr)}',
+        ],
+      )
+    else
+      _CoreProxmoxDetailItem(
+        key: 'protection-no-backup',
+        filter: _CoreProxmoxDetailFilter.protection,
+        section: tr ? 'Yedekler ve snapshotlar' : 'Backup & snapshots',
+        title: tr ? 'Yedek kaydı yok' : 'No backup record',
+        status: tr
+            ? 'Core son görevlerde bir yedek bulmadı.'
+            : 'Core found no backup in recent tasks.',
+        metrics: const [],
+      ),
+    for (final snapshot in widget.summary.protection.snapshots)
+      _CoreProxmoxDetailItem(
+        key: 'protection-snapshot-${snapshot.kind.name}-${snapshot.vmId}',
+        filter: _CoreProxmoxDetailFilter.protection,
+        section: tr ? 'Yedekler ve snapshotlar' : 'Backup & snapshots',
+        title:
+            '${tr ? 'Snapshotlar' : 'Snapshots'} · ${snapshot.kind == CoreProxmoxGuestKind.qemu ? 'QEMU' : 'LXC'} #${snapshot.vmId}',
+        status: snapshot.snapshotCount == 0
+            ? (tr ? 'Snapshot yok' : 'No snapshots')
+            : tr
+            ? '${snapshot.snapshotCount} snapshot'
+            : '${snapshot.snapshotCount} snapshots',
+        metrics: [
+          '${tr ? 'Düğüm' : 'Node'} ${snapshot.node}',
+          if (snapshot.latestAt != null)
+            '${tr ? 'En yenisinin yaşı' : 'Newest age'} ${_age(snapshot.latestAt!, tr)}',
+        ],
+      ),
     for (final task in widget.summary.recentTasks)
       _CoreProxmoxDetailItem(
         key: 'task-${task.id}',
@@ -845,6 +926,7 @@ class _CoreProxmoxDetailExplorerState extends State<CoreProxmoxDetailExplorer> {
       _CoreProxmoxDetailFilter.guests => tr ? 'Konuklar' : 'Guests',
       _CoreProxmoxDetailFilter.storage => tr ? 'Depolama' : 'Storage',
       _CoreProxmoxDetailFilter.maintenance => tr ? 'Bakım' : 'Maintenance',
+      _CoreProxmoxDetailFilter.protection => tr ? 'Yedekler' : 'Protection',
       _CoreProxmoxDetailFilter.tasks => tr ? 'Görevler' : 'Tasks',
     };
 

@@ -289,6 +289,128 @@ final class CoreProxmoxRecentTask {
   }
 }
 
+enum CoreProxmoxProtectionState { available, empty, partial }
+
+final class CoreProxmoxGuestSnapshot {
+  const CoreProxmoxGuestSnapshot._({
+    required this.node,
+    required this.kind,
+    required this.vmId,
+    required this.snapshotCount,
+    required this.latestAt,
+  });
+
+  final String node;
+  final CoreProxmoxGuestKind kind;
+  final int vmId, snapshotCount;
+  final DateTime? latestAt;
+
+  factory CoreProxmoxGuestSnapshot.fromJson(Object? raw) {
+    final value = _object(raw, {
+      'node',
+      'kind',
+      'vmId',
+      'snapshotCount',
+      'latestAt',
+    });
+    final count = _integer(value['snapshotCount'], max: 256);
+    final latest = value['latestAt'] == null
+        ? null
+        : _timestamp(value['latestAt']);
+    if ((count == 0) != (latest == null)) _invalid();
+    return CoreProxmoxGuestSnapshot._(
+      node: _safe(
+        value['node'],
+        max: 64,
+        pattern: r'^[A-Za-z0-9][A-Za-z0-9._-]*$',
+      ),
+      kind: switch (value['kind']) {
+        'qemu' => CoreProxmoxGuestKind.qemu,
+        'lxc' => CoreProxmoxGuestKind.lxc,
+        _ => _invalid(),
+      },
+      vmId: _integer(value['vmId'], min: 1, max: 999999999),
+      snapshotCount: count,
+      latestAt: latest,
+    );
+  }
+}
+
+final class CoreProxmoxProtectionSummary {
+  const CoreProxmoxProtectionSummary._({
+    required this.state,
+    required this.guestCount,
+    required this.scannedGuestCount,
+    required this.truncated,
+    required this.latestBackup,
+    required this.snapshots,
+  });
+
+  final CoreProxmoxProtectionState state;
+  final int guestCount, scannedGuestCount;
+  final bool truncated;
+  final CoreProxmoxRecentTask? latestBackup;
+  final List<CoreProxmoxGuestSnapshot> snapshots;
+
+  factory CoreProxmoxProtectionSummary.fromJson(Object? raw) {
+    final value = _object(raw, {
+      'state',
+      'guestCount',
+      'scannedGuestCount',
+      'truncated',
+      'latestBackup',
+      'snapshots',
+    });
+    final source = value['snapshots'];
+    if (source is! List || source.length > 8 || value['truncated'] is! bool) {
+      _invalid();
+    }
+    final snapshots = List<CoreProxmoxGuestSnapshot>.unmodifiable(
+      source.map(CoreProxmoxGuestSnapshot.fromJson),
+    );
+    final guestCount = _integer(value['guestCount'], max: 256);
+    final scanned = _integer(value['scannedGuestCount'], max: 8);
+    final truncated = value['truncated'] as bool;
+    final latest = value['latestBackup'] == null
+        ? null
+        : CoreProxmoxRecentTask.fromJson(value['latestBackup']);
+    if (latest != null && latest.kind != 'vzdump' ||
+        snapshots.length != scanned ||
+        guestCount < scanned ||
+        truncated != (guestCount > scanned) ||
+        snapshots
+                .map((item) => '${item.node}:${item.kind.name}:${item.vmId}')
+                .toSet()
+                .length !=
+            snapshots.length) {
+      _invalid();
+    }
+    final hasData =
+        latest != null ||
+        snapshots.any((snapshot) => snapshot.snapshotCount > 0);
+    final state = switch (value['state']) {
+      'available' => CoreProxmoxProtectionState.available,
+      'empty' => CoreProxmoxProtectionState.empty,
+      'partial' => CoreProxmoxProtectionState.partial,
+      _ => _invalid(),
+    };
+    final expected = truncated
+        ? CoreProxmoxProtectionState.partial
+        : hasData
+        ? CoreProxmoxProtectionState.available
+        : CoreProxmoxProtectionState.empty;
+    if (state != expected) _invalid();
+    return CoreProxmoxProtectionSummary._(
+      state: state,
+      guestCount: guestCount,
+      scannedGuestCount: scanned,
+      truncated: truncated,
+      latestBackup: latest,
+      snapshots: snapshots,
+    );
+  }
+}
+
 enum CoreProxmoxMaintenanceState { healthy, attention, critical }
 
 enum CoreProxmoxWarningSeverity { warning, critical }
@@ -474,12 +596,14 @@ final class CoreProxmoxSummary {
     this.storages,
     this.recentTasks,
     this.maintenance,
+    this.protection,
   );
   final List<CoreProxmoxNode> nodes;
   final List<CoreProxmoxGuest> guests;
   final List<CoreProxmoxStorage> storages;
   final List<CoreProxmoxRecentTask> recentTasks;
   final CoreProxmoxMaintenanceSummary maintenance;
+  final CoreProxmoxProtectionSummary protection;
 
   factory CoreProxmoxSummary.fromJson(Object? raw) {
     final value = _object(raw, {
@@ -488,6 +612,7 @@ final class CoreProxmoxSummary {
       'storages',
       'recentTasks',
       'maintenance',
+      'protection',
     });
     List<T> list<T>(String key, int max, T Function(Object?) parse) {
       final source = value[key];
@@ -509,6 +634,9 @@ final class CoreProxmoxSummary {
     }
     final maintenance = CoreProxmoxMaintenanceSummary.fromJson(
       value['maintenance'],
+    );
+    final protection = CoreProxmoxProtectionSummary.fromJson(
+      value['protection'],
     );
     final nodeNames = nodes.map((node) => node.name).toSet();
     final storageNames = storages
@@ -532,12 +660,35 @@ final class CoreProxmoxSummary {
         _invalid();
       }
     }
+    final guestKeys = guests
+        .map((guest) => '${guest.node}:${guest.kind.name}:${guest.vmId}')
+        .toSet();
+    if (protection.snapshots.any(
+      (item) =>
+          !guestKeys.contains('${item.node}:${item.kind.name}:${item.vmId}'),
+    )) {
+      _invalid();
+    }
+    final backup = protection.latestBackup;
+    if (backup != null &&
+        !recentTasks.any(
+          (task) =>
+              task.id == backup.id &&
+              task.node == backup.node &&
+              task.kind == backup.kind &&
+              task.status == backup.status &&
+              task.startedAt == backup.startedAt &&
+              task.finishedAt == backup.finishedAt,
+        )) {
+      _invalid();
+    }
     return CoreProxmoxSummary._(
       nodes,
       guests,
       storages,
       recentTasks,
       maintenance,
+      protection,
     );
   }
 }

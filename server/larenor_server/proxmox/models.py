@@ -117,6 +117,64 @@ class RecentTaskSummary(FrozenModel):
         return self
 
 
+class LatestBackupSummary(RecentTaskSummary):
+    kind: Literal['vzdump']
+
+
+class GuestSnapshotSummary(FrozenModel):
+    node: str = Field(min_length=1, max_length=64,
+                      pattern=r'^[A-Za-z0-9][A-Za-z0-9._-]*$')
+    kind: Literal['qemu', 'lxc']
+    vmId: int = Field(ge=1, le=999999999)
+    snapshotCount: int = Field(ge=0, le=256)
+    latestAt: str | None = Field(min_length=20, max_length=40,
+                                 pattern=r'^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?(?:Z|\+00:00)$')
+
+    @field_validator('latestAt')
+    @classmethod
+    def utc_timestamp(cls, value):
+        if value is None:
+            return value
+        try:
+            parsed = datetime.fromisoformat(value.replace('Z', '+00:00'))
+        except (TypeError, ValueError):
+            raise ValueError('invalid_summary') from None
+        if parsed.tzinfo is None or parsed.utcoffset() != timezone.utc.utcoffset(parsed):
+            raise ValueError('invalid_summary')
+        return value
+
+    @model_validator(mode='after')
+    def count_matches_timestamp(self):
+        if (self.snapshotCount == 0) != (self.latestAt is None):
+            raise ValueError('invalid_summary')
+        return self
+
+
+class ProtectionSummary(FrozenModel):
+    state: Literal['available', 'empty', 'partial']
+    guestCount: int = Field(ge=0, le=256)
+    scannedGuestCount: int = Field(ge=0, le=8)
+    truncated: bool
+    latestBackup: LatestBackupSummary | None
+    snapshots: list[GuestSnapshotSummary] = Field(max_length=8)
+
+    @model_validator(mode='after')
+    def valid_rollup(self):
+        if (len(self.snapshots) != self.scannedGuestCount or
+                self.guestCount < self.scannedGuestCount or
+                self.truncated != (self.guestCount > self.scannedGuestCount)):
+            raise ValueError('invalid_summary')
+        identities = [(item.node, item.kind, item.vmId) for item in self.snapshots]
+        if len(identities) != len(set(identities)):
+            raise ValueError('invalid_summary')
+        has_data = (self.latestBackup is not None or
+                    any(item.snapshotCount for item in self.snapshots))
+        expected = 'partial' if self.truncated else 'available' if has_data else 'empty'
+        if self.state != expected:
+            raise ValueError('invalid_summary')
+        return self
+
+
 class MaintenanceWarning(FrozenModel):
     warningId: str = Field(min_length=64, max_length=64, pattern=r'^[0-9a-f]{64}$')
     kind: Literal['node_offline', 'storage_offline', 'node_cpu_pressure',
@@ -182,6 +240,7 @@ class Summary(FrozenModel):
     storages: list[StorageSummary] = Field(max_length=64)
     recentTasks: list[RecentTaskSummary] = Field(max_length=20)
     maintenance: MaintenanceSummary
+    protection: ProtectionSummary
 
     @model_validator(mode='after')
     def unique_keys(self):
@@ -207,6 +266,14 @@ class Summary(FrozenModel):
             if key in semantic:
                 raise ValueError('invalid_summary')
             semantic.add(key)
+        guest_keys = {(guest.node, guest.kind, guest.vmId) for guest in self.guests}
+        if any((item.node, item.kind, item.vmId) not in guest_keys
+               for item in self.protection.snapshots):
+            raise ValueError('invalid_summary')
+        if self.protection.latestBackup is not None:
+            backup = self.protection.latestBackup.model_dump()
+            if not any(task.model_dump() == backup for task in self.recentTasks):
+                raise ValueError('invalid_summary')
         return self
 
 

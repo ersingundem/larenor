@@ -307,6 +307,49 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('empty backup and snapshot state stays explicit at 2x text', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(600, 900));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    final raw = jsonDecode(
+      File('contracts/proxmox-resource.v1.json').readAsStringSync(),
+    ) as Map<String, dynamic>;
+    final summary =
+        jsonDecode(jsonEncode(raw['summary'])) as Map<String, dynamic>;
+    final protection = summary['protection'] as Map<String, dynamic>;
+    protection['state'] = 'empty';
+    protection['latestBackup'] = null;
+    for (final snapshot in protection['snapshots'] as List) {
+      (snapshot as Map<String, dynamic>)
+        ..['snapshotCount'] = 0
+        ..['latestAt'] = null;
+    }
+    await tester.pumpWidget(
+      CupertinoApp(
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        home: MediaQuery(
+          data: const MediaQueryData(
+            size: Size(600, 900),
+            textScaler: TextScaler.linear(2),
+          ),
+          child: CupertinoPageScaffold(
+            child: SingleChildScrollView(
+              child: CoreProxmoxDetailExplorer(
+                summary: CoreProxmoxSummary.fromJson(summary),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('No backup record'), findsOneWidget);
+    expect(find.text('No snapshots'), findsNWidgets(2));
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('wide detail groups, filters and searches read-only telemetry', (
     tester,
   ) async {
@@ -339,6 +382,10 @@ void main() {
     expect(find.text('Node offline'), findsWidgets);
     expect(find.text('Recent task failed'), findsWidgets);
     expect(find.textContaining('private'), findsNothing);
+    expect(find.text('Backup & snapshots'), findsWidgets);
+    expect(find.text('Latest backup'), findsWidgets);
+    expect(find.textContaining('Snapshots · QEMU #101'), findsWidgets);
+    expect(find.textContaining('Succeeded'), findsWidgets);
     expect(
       tester
           .widget<CupertinoButton>(
@@ -388,12 +435,20 @@ void main() {
     expect(find.text('Node offline'), findsWidgets);
     expect(find.text('Recent task failed'), findsWidgets);
     expect(find.textContaining('vzdump'), findsNothing);
+    await tester.tap(
+      find.byKey(const ValueKey('core-proxmox-filter-protection')),
+    );
+    await tester.pump();
+    expect(find.text('Latest backup'), findsWidgets);
+    expect(find.textContaining('Snapshots · QEMU #101'), findsWidgets);
+    expect(find.text('Node offline'), findsNothing);
     for (final key in [
       'core-proxmox-filter-all',
       'core-proxmox-filter-nodes',
       'core-proxmox-filter-guests',
       'core-proxmox-filter-storage',
       'core-proxmox-filter-maintenance',
+      'core-proxmox-filter-protection',
       'core-proxmox-filter-tasks',
     ]) {
       final button = tester.widget<CupertinoButton>(find.byKey(ValueKey(key)));

@@ -1,70 +1,331 @@
 {
-  "context": {"schemaVersion": 1, "coreId": "11111111111111111111111111111111", "homeId": "22222222222222222222222222222222"},
+  "context": {
+    "schemaVersion": 1,
+    "coreId": "11111111111111111111111111111111",
+    "homeId": "22222222222222222222222222222222"
+  },
   "resource": {
-    "ref": {"schemaVersion": 1, "coreId": "11111111111111111111111111111111", "homeId": "22222222222222222222222222222222", "kind": "resource", "id": "33333333333333333333333333333333"},
-    "revision": 4, "aclRevision": 7, "label": "Ev sunucuları", "order": 2,
-    "permissions": {"read": true, "write": false}
+    "ref": {
+      "schemaVersion": 1,
+      "coreId": "11111111111111111111111111111111",
+      "homeId": "22222222222222222222222222222222",
+      "kind": "resource",
+      "id": "33333333333333333333333333333333"
+    },
+    "revision": 4,
+    "aclRevision": 7,
+    "label": "Ev sunucular\u0131",
+    "order": 2,
+    "permissions": {
+      "read": true,
+      "write": false
+    }
   },
   "service": {
-    "id": "44444444444444444444444444444444", "revision": 3,
-    "kind": "proxmox", "name": "Ev Proxmox", "baseUrl": "https://pve.invalid:8006",
-    "credentialKeys": ["token"],
-    "verification": {"state": "authenticated", "checkedAt": "2026-09-10T12:00:00Z", "version": "9.0.3"}
+    "id": "44444444444444444444444444444444",
+    "revision": 3,
+    "kind": "proxmox",
+    "name": "Ev Proxmox",
+    "baseUrl": "https://pve.invalid:8006",
+    "credentialKeys": [
+      "token"
+    ],
+    "verification": {
+      "state": "authenticated",
+      "checkedAt": "2026-09-10T12:00:00Z",
+      "version": "9.0.3"
+    }
   },
   "binding": {
-    "schemaVersion": 1, "id": "55555555555555555555555555555555", "revision": 2,
-    "ref": {"schemaVersion": 1, "coreId": "11111111111111111111111111111111", "homeId": "22222222222222222222222222222222", "kind": "resource", "id": "33333333333333333333333333333333"},
-    "serviceId": "44444444444444444444444444444444", "serviceRevision": 3
+    "schemaVersion": 1,
+    "id": "55555555555555555555555555555555",
+    "revision": 2,
+    "ref": {
+      "schemaVersion": 1,
+      "coreId": "11111111111111111111111111111111",
+      "homeId": "22222222222222222222222222222222",
+      "kind": "resource",
+      "id": "33333333333333333333333333333333"
+    },
+    "serviceId": "44444444444444444444444444444444",
+    "serviceRevision": 3
   },
   "summary": {
     "nodes": [
-      {"node": "pve-a", "status": "online", "cpuRatio": 0.25, "memoryUsedBytes": 4294967296, "memoryTotalBytes": 17179869184, "uptimeSeconds": 86400},
-      {"node": "pve-b", "status": "offline", "cpuRatio": 0, "memoryUsedBytes": 0, "memoryTotalBytes": 8589934592, "uptimeSeconds": 0}
+      {
+        "node": "pve-a",
+        "status": "online",
+        "cpuRatio": 0.25,
+        "memoryUsedBytes": 4294967296,
+        "memoryTotalBytes": 17179869184,
+        "uptimeSeconds": 86400
+      },
+      {
+        "node": "pve-b",
+        "status": "offline",
+        "cpuRatio": 0,
+        "memoryUsedBytes": 0,
+        "memoryTotalBytes": 8589934592,
+        "uptimeSeconds": 0
+      }
     ],
     "guests": [
-      {"vmId": 101, "node": "pve-a", "kind": "qemu", "name": "Media", "status": "running", "cpuRatio": 0.4, "memoryUsedBytes": 2147483648, "memoryTotalBytes": 8589934592},
-      {"vmId": 102, "node": "pve-a", "kind": "lxc", "name": "DNS", "status": "stopped", "cpuRatio": 0, "memoryUsedBytes": 268435456, "memoryTotalBytes": 536870912}
+      {
+        "vmId": 101,
+        "node": "pve-a",
+        "kind": "qemu",
+        "name": "Media",
+        "status": "running",
+        "cpuRatio": 0.4,
+        "memoryUsedBytes": 2147483648,
+        "memoryTotalBytes": 8589934592
+      },
+      {
+        "vmId": 102,
+        "node": "pve-a",
+        "kind": "lxc",
+        "name": "DNS",
+        "status": "stopped",
+        "cpuRatio": 0,
+        "memoryUsedBytes": 268435456,
+        "memoryTotalBytes": 536870912
+      }
     ],
     "storages": [
-      {"storage": "local-lvm", "node": "pve-a", "kind": "lvmthin", "active": true, "usedBytes": 53687091200, "totalBytes": 107374182400, "availableBytes": 53687091200}
+      {
+        "storage": "local-lvm",
+        "node": "pve-a",
+        "kind": "lvmthin",
+        "active": true,
+        "usedBytes": 53687091200,
+        "totalBytes": 107374182400,
+        "availableBytes": 53687091200
+      }
     ],
     "recentTasks": [
-      {"taskId": "9999999999999999999999999999999999999999999999999999999999999999", "node": "pve-a", "kind": "vzdump", "status": "succeeded", "startedAt": "2026-09-11T08:00:00Z", "finishedAt": "2026-09-11T08:03:00Z"},
-      {"taskId": "8888888888888888888888888888888888888888888888888888888888888888", "node": "pve-a", "kind": "aptupdate", "status": "failed", "startedAt": "2026-09-11T09:00:00Z", "finishedAt": "2026-09-11T09:00:30Z"}
+      {
+        "taskId": "9999999999999999999999999999999999999999999999999999999999999999",
+        "node": "pve-a",
+        "kind": "vzdump",
+        "status": "succeeded",
+        "startedAt": "2026-09-11T08:00:00Z",
+        "finishedAt": "2026-09-11T08:03:00Z"
+      },
+      {
+        "taskId": "8888888888888888888888888888888888888888888888888888888888888888",
+        "node": "pve-a",
+        "kind": "aptupdate",
+        "status": "failed",
+        "startedAt": "2026-09-11T09:00:00Z",
+        "finishedAt": "2026-09-11T09:00:30Z"
+      }
     ],
-    "maintenance": {"state": "critical", "warningCount": 2, "truncated": false, "warnings": [
-      {"warningId": "7777777777777777777777777777777777777777777777777777777777777777", "kind": "node_offline", "severity": "critical", "node": "pve-b", "storage": null, "observedPercent": null, "thresholdPercent": null, "relatedTaskId": null},
-      {"warningId": "6666666666666666666666666666666666666666666666666666666666666666", "kind": "recent_task_failed", "severity": "warning", "node": "pve-a", "storage": null, "observedPercent": null, "thresholdPercent": null, "relatedTaskId": "8888888888888888888888888888888888888888888888888888888888888888"}
-    ]}
+    "maintenance": {
+      "state": "critical",
+      "warningCount": 2,
+      "truncated": false,
+      "warnings": [
+        {
+          "warningId": "7777777777777777777777777777777777777777777777777777777777777777",
+          "kind": "node_offline",
+          "severity": "critical",
+          "node": "pve-b",
+          "storage": null,
+          "observedPercent": null,
+          "thresholdPercent": null,
+          "relatedTaskId": null
+        },
+        {
+          "warningId": "6666666666666666666666666666666666666666666666666666666666666666",
+          "kind": "recent_task_failed",
+          "severity": "warning",
+          "node": "pve-a",
+          "storage": null,
+          "observedPercent": null,
+          "thresholdPercent": null,
+          "relatedTaskId": "8888888888888888888888888888888888888888888888888888888888888888"
+        }
+      ]
+    },
+    "protection": {
+      "state": "available",
+      "guestCount": 2,
+      "scannedGuestCount": 2,
+      "truncated": false,
+      "latestBackup": {
+        "taskId": "9999999999999999999999999999999999999999999999999999999999999999",
+        "node": "pve-a",
+        "kind": "vzdump",
+        "status": "succeeded",
+        "startedAt": "2026-09-11T08:00:00Z",
+        "finishedAt": "2026-09-11T08:03:00Z"
+      },
+      "snapshots": [
+        {
+          "node": "pve-a",
+          "kind": "qemu",
+          "vmId": 101,
+          "snapshotCount": 2,
+          "latestAt": "2026-09-11T07:30:00Z"
+        },
+        {
+          "node": "pve-a",
+          "kind": "lxc",
+          "vmId": 102,
+          "snapshotCount": 0,
+          "latestAt": null
+        }
+      ]
+    }
   },
   "snapshot": {
     "schemaVersion": 1,
-    "ref": {"schemaVersion": 1, "coreId": "11111111111111111111111111111111", "homeId": "22222222222222222222222222222222", "kind": "resource", "id": "33333333333333333333333333333333"},
-    "bindingId": "55555555555555555555555555555555", "bindingRevision": 2,
-    "resourceRevision": 4, "aclRevision": 7,
-    "serviceId": "44444444444444444444444444444444", "serviceRevision": 3,
-    "observedAt": "2026-09-10T12:00:00Z", "remainingTtlMs": 5000,
+    "ref": {
+      "schemaVersion": 1,
+      "coreId": "11111111111111111111111111111111",
+      "homeId": "22222222222222222222222222222222",
+      "kind": "resource",
+      "id": "33333333333333333333333333333333"
+    },
+    "bindingId": "55555555555555555555555555555555",
+    "bindingRevision": 2,
+    "resourceRevision": 4,
+    "aclRevision": 7,
+    "serviceId": "44444444444444444444444444444444",
+    "serviceRevision": 3,
+    "observedAt": "2026-09-10T12:00:00Z",
+    "remainingTtlMs": 5000,
     "summary": {
       "nodes": [
-        {"node": "pve-a", "status": "online", "cpuRatio": 0.25, "memoryUsedBytes": 4294967296, "memoryTotalBytes": 17179869184, "uptimeSeconds": 86400},
-        {"node": "pve-b", "status": "offline", "cpuRatio": 0, "memoryUsedBytes": 0, "memoryTotalBytes": 8589934592, "uptimeSeconds": 0}
+        {
+          "node": "pve-a",
+          "status": "online",
+          "cpuRatio": 0.25,
+          "memoryUsedBytes": 4294967296,
+          "memoryTotalBytes": 17179869184,
+          "uptimeSeconds": 86400
+        },
+        {
+          "node": "pve-b",
+          "status": "offline",
+          "cpuRatio": 0,
+          "memoryUsedBytes": 0,
+          "memoryTotalBytes": 8589934592,
+          "uptimeSeconds": 0
+        }
       ],
       "guests": [
-        {"vmId": 101, "node": "pve-a", "kind": "qemu", "name": "Media", "status": "running", "cpuRatio": 0.4, "memoryUsedBytes": 2147483648, "memoryTotalBytes": 8589934592},
-        {"vmId": 102, "node": "pve-a", "kind": "lxc", "name": "DNS", "status": "stopped", "cpuRatio": 0, "memoryUsedBytes": 268435456, "memoryTotalBytes": 536870912}
+        {
+          "vmId": 101,
+          "node": "pve-a",
+          "kind": "qemu",
+          "name": "Media",
+          "status": "running",
+          "cpuRatio": 0.4,
+          "memoryUsedBytes": 2147483648,
+          "memoryTotalBytes": 8589934592
+        },
+        {
+          "vmId": 102,
+          "node": "pve-a",
+          "kind": "lxc",
+          "name": "DNS",
+          "status": "stopped",
+          "cpuRatio": 0,
+          "memoryUsedBytes": 268435456,
+          "memoryTotalBytes": 536870912
+        }
       ],
       "storages": [
-        {"storage": "local-lvm", "node": "pve-a", "kind": "lvmthin", "active": true, "usedBytes": 53687091200, "totalBytes": 107374182400, "availableBytes": 53687091200}
+        {
+          "storage": "local-lvm",
+          "node": "pve-a",
+          "kind": "lvmthin",
+          "active": true,
+          "usedBytes": 53687091200,
+          "totalBytes": 107374182400,
+          "availableBytes": 53687091200
+        }
       ],
       "recentTasks": [
-        {"taskId": "9999999999999999999999999999999999999999999999999999999999999999", "node": "pve-a", "kind": "vzdump", "status": "succeeded", "startedAt": "2026-09-11T08:00:00Z", "finishedAt": "2026-09-11T08:03:00Z"},
-        {"taskId": "8888888888888888888888888888888888888888888888888888888888888888", "node": "pve-a", "kind": "aptupdate", "status": "failed", "startedAt": "2026-09-11T09:00:00Z", "finishedAt": "2026-09-11T09:00:30Z"}
+        {
+          "taskId": "9999999999999999999999999999999999999999999999999999999999999999",
+          "node": "pve-a",
+          "kind": "vzdump",
+          "status": "succeeded",
+          "startedAt": "2026-09-11T08:00:00Z",
+          "finishedAt": "2026-09-11T08:03:00Z"
+        },
+        {
+          "taskId": "8888888888888888888888888888888888888888888888888888888888888888",
+          "node": "pve-a",
+          "kind": "aptupdate",
+          "status": "failed",
+          "startedAt": "2026-09-11T09:00:00Z",
+          "finishedAt": "2026-09-11T09:00:30Z"
+        }
       ],
-      "maintenance": {"state": "critical", "warningCount": 2, "truncated": false, "warnings": [
-        {"warningId": "7777777777777777777777777777777777777777777777777777777777777777", "kind": "node_offline", "severity": "critical", "node": "pve-b", "storage": null, "observedPercent": null, "thresholdPercent": null, "relatedTaskId": null},
-        {"warningId": "6666666666666666666666666666666666666666666666666666666666666666", "kind": "recent_task_failed", "severity": "warning", "node": "pve-a", "storage": null, "observedPercent": null, "thresholdPercent": null, "relatedTaskId": "8888888888888888888888888888888888888888888888888888888888888888"}
-      ]}
+      "maintenance": {
+        "state": "critical",
+        "warningCount": 2,
+        "truncated": false,
+        "warnings": [
+          {
+            "warningId": "7777777777777777777777777777777777777777777777777777777777777777",
+            "kind": "node_offline",
+            "severity": "critical",
+            "node": "pve-b",
+            "storage": null,
+            "observedPercent": null,
+            "thresholdPercent": null,
+            "relatedTaskId": null
+          },
+          {
+            "warningId": "6666666666666666666666666666666666666666666666666666666666666666",
+            "kind": "recent_task_failed",
+            "severity": "warning",
+            "node": "pve-a",
+            "storage": null,
+            "observedPercent": null,
+            "thresholdPercent": null,
+            "relatedTaskId": "8888888888888888888888888888888888888888888888888888888888888888"
+          }
+        ]
+      },
+      "protection": {
+        "state": "available",
+        "guestCount": 2,
+        "scannedGuestCount": 2,
+        "truncated": false,
+        "latestBackup": {
+          "taskId": "9999999999999999999999999999999999999999999999999999999999999999",
+          "node": "pve-a",
+          "kind": "vzdump",
+          "status": "succeeded",
+          "startedAt": "2026-09-11T08:00:00Z",
+          "finishedAt": "2026-09-11T08:03:00Z"
+        },
+        "snapshots": [
+          {
+            "node": "pve-a",
+            "kind": "qemu",
+            "vmId": 101,
+            "snapshotCount": 2,
+            "latestAt": "2026-09-11T07:30:00Z"
+          },
+          {
+            "node": "pve-a",
+            "kind": "lxc",
+            "vmId": 102,
+            "snapshotCount": 0,
+            "latestAt": null
+          }
+        ]
+      }
     }
   },
-  "preview": {"id": "66666666666666666666666666666666", "expiresInMs": 60000}
+  "preview": {
+    "id": "66666666666666666666666666666666",
+    "expiresInMs": 60000
+  }
 }
