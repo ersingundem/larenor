@@ -23,6 +23,7 @@ from larenor_server.proxmox_commands.worker_runtime import (
 from larenor_server.proxmox_commands.worker_supervisor import (
     ProxmoxWorkerSupervisor,
     SupervisorConfig,
+    check_health,
     cleanup_exact_socket,
 )
 
@@ -115,6 +116,7 @@ def test_runtime_health_is_atomic_private_and_graceful_shutdown_removes_owned_so
         assert not any(word in wire.lower() for word in (
             "token", "password", "credential", "url", "host", "upid",
         ))
+        assert check_health(selected) is True
 
         stopped.set()
         thread.join(2)
@@ -122,6 +124,7 @@ def test_runtime_health_is_atomic_private_and_graceful_shutdown_removes_owned_so
         assert result == [0]
         assert not selected.socket_path.exists()
         assert read_health_receipt(selected.health_path).state == "stopped"
+        assert check_health(selected) is False
 
 
 def test_runtime_check_config_is_non_effectful_and_static(monkeypatch, capsys):
@@ -156,6 +159,7 @@ def test_exact_inode_cleanup_never_unlinks_replacement():
             expected = (info.st_dev, info.st_ino)
             path.unlink()
             replacement.bind(str(path))
+            path.chmod(0o600)
             replacement_inode = path.lstat().st_ino
             assert cleanup_exact_socket(path, expected, os.getuid()) is False
             assert path.lstat().st_ino == replacement_inode
@@ -229,6 +233,30 @@ def test_supervisor_graceful_shutdown_terminates_once_without_restart():
         assert process.killed is False
 
 
+def test_real_supervisor_launcher_discards_all_child_output(monkeypatch):
+    observed = {}
+
+    def popen(command, **options):
+        observed["command"] = command
+        observed.update(options)
+        return Process(0)
+
+    monkeypatch.setattr(
+        "larenor_server.proxmox_commands.worker_supervisor.subprocess.Popen",
+        popen,
+    )
+    with private_root() as name:
+        selected = SupervisorConfig.from_runtime(config(Path(name)))
+        supervisor = ProxmoxWorkerSupervisor(selected)
+        assert supervisor.run(threading.Event()) == 0
+    import subprocess
+
+    assert observed["stdout"] is subprocess.DEVNULL
+    assert observed["stderr"] is subprocess.DEVNULL
+    assert observed["stdin"] is subprocess.DEVNULL
+    assert observed["close_fds"] is True
+
+
 def test_container_overlay_is_nonroot_readonly_cap_dropped_and_networkless():
     source = Path(__file__).resolve().parents[2] / "deploy/larenor-server/proxmox-worker.compose.yaml"
     value = json.loads(source.read_text())
@@ -244,6 +272,9 @@ def test_container_overlay_is_nonroot_readonly_cap_dropped_and_networkless():
     assert "ports" not in service
     assert service["stop_grace_period"] == "10s"
     assert service["entrypoint"][-1].endswith("worker_supervisor")
+    health = service["healthcheck"]
+    assert health["test"][:3] == ["CMD", "/opt/larenor/.venv/bin/python", "-m"]
+    assert "--check-health" in health["test"]
     mounts = service["volumes"]
     assert any(item["target"] == "/run/larenor" and item["read_only"] is False for item in mounts)
     assert any(item["target"] == "/run/secrets/proxmox-credential.bin" and item["read_only"] is True for item in mounts)

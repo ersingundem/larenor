@@ -21,6 +21,8 @@ dev = [
 larenor-server = "larenor_server.cli:main"
 larenor-preflight-worker = "larenor_server.plugins.preflight_runtime:main"
 larenor-installation-worker = "larenor_server.plugins.installation_runtime:main"
+larenor-proxmox-power-worker = "larenor_server.proxmox_commands.worker_runtime:main"
+larenor-proxmox-power-supervisor = "larenor_server.proxmox_commands.worker_supervisor:main"
 
 [build-system]
 requires = ["hatchling==1.29.0"]
