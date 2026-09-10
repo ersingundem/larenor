@@ -46,6 +46,17 @@ def downgrade_to_known_v1(app):
         for table in ('proxmox_resource_bindings', 'proxmox_resource_state'):
             connection.execute(f'DROP TABLE {table}')
         connection.execute("DELETE FROM metadata WHERE key='proxmox_resource_schema'")
+        # Keenetic command history was introduced after the shipped v1
+        # database and authenticates its chain against the Core identity.
+        for table in (
+            'keenetic_command_records',
+            'keenetic_command_events',
+            'keenetic_command_chain_state',
+        ):
+            connection.execute(f'DROP TABLE {table}')
+        connection.execute(
+            "DELETE FROM metadata WHERE key='keenetic_command_schema'"
+        )
         connection.execute("UPDATE metadata SET value='1' WHERE key='schema_version'")
 
 
