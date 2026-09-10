@@ -2,7 +2,7 @@
   "capabilities": {
     "executionConfigured": true,
     "installAvailable": false,
-    "services": ["jellyfin"]
+    "services": ["jellyfin", "seerr"]
   },
   "createRequest": {
     "requestId": "cccccccccccccccccccccccccccccccc",
@@ -10,7 +10,8 @@
     "inspectionId": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
     "expectedPreparationRevision": 1,
     "expectedInspectionRevision": 3,
-    "planHash": "1111111111111111111111111111111111111111111111111111111111111111"
+    "planHash": "1111111111111111111111111111111111111111111111111111111111111111",
+    "serviceId": "jellyfin"
   },
   "queued": {
     "id": "dddddddddddddddddddddddddddddddd",
