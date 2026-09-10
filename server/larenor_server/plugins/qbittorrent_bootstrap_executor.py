@@ -10,6 +10,7 @@ from pydantic import ValidationError
 from .catalog import load_catalog
 from .managed_container import (
     JournaledManagedContainerOperations, ManagedContainerBinding,
+    ManagedContainerError,
 )
 from .qbittorrent_authenticated_readback import (
     QbittorrentAuthenticatedReadback,
@@ -53,6 +54,13 @@ _CAUSE_CODES = frozenset({
     'invalid_qbittorrent_categories',
     'qbittorrent_categories_authentication_failed',
     'qbittorrent_categories_protocol',
+    'qbittorrent_categories_observation_protocol',
+    'qbittorrent_categories_observation_framing',
+    'qbittorrent_categories_observation_http',
+    'qbittorrent_categories_observation_closed',
+    'qbittorrent_categories_observation_payload',
+    'qbittorrent_category_create_protocol',
+    'qbittorrent_categories_verification_protocol',
     'qbittorrent_category_conflict',
     'qbittorrent_categories_unavailable',
     'qbittorrent_categories_timeout',
@@ -62,6 +70,19 @@ _CAUSE_CODES = frozenset({
     'qbittorrent_readback_mismatch',
     'qbittorrent_authenticated_readback_unavailable',
     'qbittorrent_authenticated_readback_timeout',
+    'qbittorrent_bootstrap_binding_invalid_installation_plan',
+    'qbittorrent_bootstrap_binding_resources_unavailable',
+    'qbittorrent_bootstrap_binding_resources_untrusted',
+    'qbittorrent_bootstrap_proof_plan_failed',
+    'qbittorrent_bootstrap_proof_journal_bind_failed',
+    'qbittorrent_bootstrap_proof_image_observation_failed',
+    'qbittorrent_bootstrap_proof_volume_observation_failed',
+    'qbittorrent_bootstrap_proof_volume_bootstrap_failed',
+    'qbittorrent_bootstrap_proof_network_list_failed',
+    'qbittorrent_bootstrap_proof_network_observation_failed',
+    'qbittorrent_bootstrap_proof_journal_rebind_failed',
+    'qbittorrent_bootstrap_proof_result_failed',
+    'qbittorrent_bootstrap_unexpected',
 })
 _CATEGORY_STEPS = frozenset({
     (), ('categories_observed',),
@@ -356,6 +377,44 @@ class QbittorrentBootstrapExecutor:
             raise QbittorrentBootstrapExecutionError(
                 code, uncertain_effect=category_result is not None,
                 boundary=boundary) from None
+        except ManagedContainerError as error:
+            cause = {
+                'invalid_installation_plan':
+                    'qbittorrent_bootstrap_binding_invalid_installation_plan',
+                'resources_unavailable':
+                    'qbittorrent_bootstrap_binding_resources_unavailable',
+                'resources_untrusted':
+                    'qbittorrent_bootstrap_binding_resources_untrusted',
+            }.get(error.code)
+            proof_cause = {
+                'resource_proof_plan_failed':
+                    'qbittorrent_bootstrap_proof_plan_failed',
+                'resource_proof_journal_bind_failed':
+                    'qbittorrent_bootstrap_proof_journal_bind_failed',
+                'resource_proof_image_observation_failed':
+                    'qbittorrent_bootstrap_proof_image_observation_failed',
+                'resource_proof_volume_observation_failed':
+                    'qbittorrent_bootstrap_proof_volume_observation_failed',
+                'resource_proof_volume_bootstrap_failed':
+                    'qbittorrent_bootstrap_proof_volume_bootstrap_failed',
+                'resource_proof_network_list_failed':
+                    'qbittorrent_bootstrap_proof_network_list_failed',
+                'resource_proof_network_observation_failed':
+                    'qbittorrent_bootstrap_proof_network_observation_failed',
+                'resource_proof_journal_rebind_failed':
+                    'qbittorrent_bootstrap_proof_journal_rebind_failed',
+                'resource_proof_result_failed':
+                    'qbittorrent_bootstrap_proof_result_failed',
+            }.get(error.cause_code)
+            raise QbittorrentBootstrapExecutionError(
+                'qbittorrent_bootstrap_resources_unavailable',
+                uncertain_effect=category_result is not None,
+                boundary=boundary, cause_code=proof_cause or cause) from None
+        except TimeoutError:
+            raise QbittorrentBootstrapExecutionError(
+                'qbittorrent_bootstrap_timeout',
+                uncertain_effect=category_result is not None,
+                boundary=boundary) from None
         except (DockerWorkerError, ValueError, TypeError, AttributeError,
                 RuntimeError):
             code = ('qbittorrent_bootstrap_timeout'
@@ -363,7 +422,16 @@ class QbittorrentBootstrapExecutor:
                     else 'qbittorrent_bootstrap_resources_unavailable')
             raise QbittorrentBootstrapExecutionError(
                 code, uncertain_effect=category_result is not None,
-                boundary=boundary) from None
+                boundary=boundary,
+                cause_code='qbittorrent_bootstrap_unexpected') from None
+        except Exception:
+            code = ('qbittorrent_bootstrap_timeout'
+                    if time.monotonic() >= deadline
+                    else 'qbittorrent_bootstrap_resources_unavailable')
+            raise QbittorrentBootstrapExecutionError(
+                code, uncertain_effect=category_result is not None,
+                boundary=boundary,
+                cause_code='qbittorrent_bootstrap_unexpected') from None
         finally:
             if categories_opened is not None and not categories_called:
                 try:

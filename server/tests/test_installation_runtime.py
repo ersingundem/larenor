@@ -174,7 +174,8 @@ def test_runtime_configures_qbittorrent_before_create_and_start(monkeypatch):
 
     class Operations:
         def apply(self, step, binding):
-            events.append(('apply', step.kind, binding))
+            events.append(
+                ('apply', step.kind, binding, step.start_deadline))
             code = ('container_created' if step.kind == 'create_container'
                     else 'container_started')
             return StepReceipt(
@@ -219,10 +220,13 @@ def test_runtime_configures_qbittorrent_before_create_and_start(monkeypatch):
     monkeypatch.setattr(
         runtime, 'QbittorrentBootstrapExecutor',
         lambda *_args: QbittorrentBootstrap())
+    monkeypatch.setattr(runtime.time, 'monotonic', lambda: 1000.0)
+    monkeypatch.setattr(runtime.time, 'time', lambda: 2000.0)
     backend = runtime._RuntimeBackend(Operations(), binding, Configuration())
     result = backend.install_configured_qbittorrent(
-        'd' * 32, stack, 'c' * 48, api_key='a' * 32, salt=b'1' * 16,
-        cancelled=threading.Event(), deadline=time.monotonic() + 30,
+        'd' * 32, stack, 'c' * 48,
+        api_key='qbt_' + 'a' * 28, salt=b'1' * 16,
+        cancelled=threading.Event(), deadline=1030.0,
         gate=lambda: True)
     assert result.configuration == receipt
     assert result.state == 'qbittorrent_container_started'
@@ -232,6 +236,8 @@ def test_runtime_configures_qbittorrent_before_create_and_start(monkeypatch):
         'configure', 'binding', 'apply', 'binding', 'apply', 'bootstrap']
     assert [event[1] for event in events if event[0] == 'binding'] == [
         'qbittorrent', 'qbittorrent']
+    assert [event[3] for event in events if event[0] == 'apply'] == [
+        2030.0, 2030.0]
 
 
 @pytest.mark.parametrize('bootstrap_code,public_code', [
@@ -253,7 +259,12 @@ def test_runtime_projects_bootstrap_failure_as_static_uncertain_result(
         'qbittorrent_config_installed')
 
     def failed(*_args, **_kwargs):
-        raise QbittorrentBootstrapExecutionError(bootstrap_code)
+        raise QbittorrentBootstrapExecutionError(
+            bootstrap_code,
+            cause_code=('qbittorrent_readback_protocol'
+                        if bootstrap_code
+                        == 'qbittorrent_bootstrap_readback_failed'
+                        else None))
 
     backend = object.__new__(runtime._RuntimeBackend)
     backend.qbittorrent_config = SimpleNamespace(
@@ -271,10 +282,114 @@ def test_runtime_projects_bootstrap_failure_as_static_uncertain_result(
     ) as raised:
         backend.install_configured_qbittorrent(
             'd' * 32, object(), 'c' * 48,
-            api_key='a' * 32, salt=b'1' * 16,
+            api_key='qbt_' + 'a' * 28, salt=b'1' * 16,
             cancelled=threading.Event(), deadline=time.monotonic() + 30,
             gate=lambda: True)
     assert raised.value.uncertain_effect
+    assert raised.value.cause_code == (
+        'qbittorrent_readback_protocol'
+        if bootstrap_code == 'qbittorrent_bootstrap_readback_failed'
+        else None)
+
+
+def test_runtime_projects_unexpected_bootstrap_failure_with_static_boundary(
+        monkeypatch):
+    receipt = QbittorrentConfigInstallReceipt(
+        '1' * 32, '2' * 32, '3' * 32, 3,
+        'larenor-appdata-v1-' + '1' * 32, '4' * 64,
+        'qbittorrent_config_installed')
+
+    def failed(*_args, **_kwargs):
+        raise QbittorrentBootstrapExecutionError(
+            'qbittorrent_bootstrap_resources_unavailable',
+            boundary='after_categories',
+            cause_code='qbittorrent_bootstrap_unexpected')
+
+    backend = object.__new__(runtime._RuntimeBackend)
+    backend.qbittorrent_config = SimpleNamespace(
+        install=lambda *_args, **_kwargs: receipt)
+    backend.qbittorrent_installation = object()
+    backend.qbittorrent_bootstrap = SimpleNamespace(execute=failed)
+    monkeypatch.setattr(
+        runtime, 'build_execution',
+        lambda *_args, **_kwargs: SimpleNamespace(
+            run=lambda *_run_args: runtime.ExecutionResult(
+                'succeeded', 'container_started', '5' * 64)))
+
+    with pytest.raises(
+        runtime.QbittorrentConfigurationExecutionError,
+        match='^qbittorrent_service_verification_failed$',
+    ) as raised:
+        backend.install_configured_qbittorrent(
+            'd' * 32, object(), 'c' * 48,
+            api_key='qbt_' + 'a' * 28, salt=b'1' * 16,
+            cancelled=threading.Event(), deadline=time.monotonic() + 30,
+            gate=lambda: True)
+
+    assert raised.value.uncertain_effect
+    assert raised.value.cause_code == (
+        'qbittorrent_bootstrap_after_categories_failed')
+
+
+@pytest.mark.parametrize('state,code,cause', [
+    ('pending', 'worker_unavailable',
+     'qbittorrent_execution_worker_unavailable'),
+    ('failed', 'invalid_worker_result',
+     'qbittorrent_execution_invalid_worker_result'),
+    ('needs_attention', 'resource_conflict',
+     'qbittorrent_execution_resource_conflict'),
+    ('needs_attention', 'container_not_running',
+     'qbittorrent_execution_container_not_running'),
+    ('needs_attention', 'dispatch_expired',
+     'qbittorrent_execution_dispatch_expired'),
+])
+def test_runtime_projects_invalid_execution_result_as_static_cause(
+        monkeypatch, state, code, cause):
+    receipt = QbittorrentConfigInstallReceipt(
+        '1' * 32, '2' * 32, '3' * 32, 3,
+        'larenor-appdata-v1-' + '1' * 32, '4' * 64,
+        'qbittorrent_config_installed')
+    backend = object.__new__(runtime._RuntimeBackend)
+    backend.qbittorrent_config = SimpleNamespace(
+        install=lambda *_args, **_kwargs: receipt)
+    backend.qbittorrent_installation = object()
+    monkeypatch.setattr(
+        runtime, 'build_execution',
+        lambda *_args, **_kwargs: SimpleNamespace(
+            run=lambda *_run_args: runtime.ExecutionResult(state, code)))
+
+    with pytest.raises(
+        runtime.QbittorrentConfigurationExecutionError,
+        match='^qbittorrent_config_result_invalid$',
+    ) as raised:
+        backend.install_configured_qbittorrent(
+            'd' * 32, object(), 'c' * 48,
+            api_key='qbt_' + 'a' * 28, salt=b'1' * 16,
+            cancelled=threading.Event(), deadline=time.monotonic() + 30,
+            gate=lambda: True)
+
+    assert raised.value.uncertain_effect
+    assert raised.value.cause_code == cause
+
+
+def test_runtime_closes_unexpected_qbittorrent_configure_failure():
+    backend = object.__new__(runtime._RuntimeBackend)
+    backend.qbittorrent_config = SimpleNamespace(
+        install=lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            RuntimeError('private failure')))
+
+    with pytest.raises(
+        runtime.QbittorrentConfigurationExecutionError,
+        match='^qbittorrent_config_resources_unavailable$',
+    ) as raised:
+        backend.install_configured_qbittorrent(
+            'd' * 32, object(), 'c' * 48,
+            api_key='qbt_' + 'a' * 28, salt=b'1' * 16,
+            cancelled=threading.Event(), deadline=time.monotonic() + 30,
+            gate=lambda: True)
+
+    assert raised.value.cause_code == 'qbittorrent_configure_stage_failed'
+    assert 'private failure' not in repr(raised.value)
 
 
 def test_runtime_routes_every_engine_connection_through_one_peer_verifier(configuration):

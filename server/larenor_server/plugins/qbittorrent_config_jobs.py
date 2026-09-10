@@ -32,6 +32,7 @@ from .qbittorrent_config_models import (
     PrivateQbittorrentConfiguration, QbittorrentConfiguredInstallReceipt,
     QbittorrentConfigurationExecutionError,
 )
+from .qbittorrent_api_key import generate_qbittorrent_api_key
 from .stack_plan import verify_media_stack_plan
 
 
@@ -262,7 +263,7 @@ class QbittorrentConfigurationManagement:
             }
             private = PrivateQbittorrentConfiguration(
                 credential=secrets.token_urlsafe(48),
-                apiKey=secrets.token_urlsafe(32),
+                apiKey=generate_qbittorrent_api_key(),
                 saltHex=secrets.token_bytes(16).hex(),
             )
             payload = QbittorrentConfigurationPayload(

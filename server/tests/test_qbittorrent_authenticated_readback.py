@@ -84,6 +84,16 @@ def test_authentication_failure_is_static_and_never_retried(status):
     assert PRIVATE_BEARER not in str(raised.value) + repr(raised.value)
 
 
+def test_plain_text_auth_failure_is_classified_after_bounded_framing():
+    connection = Connection([
+        response(403, b'Forbidden', content_type=b'text/plain'),
+    ])
+    with pytest.raises(QbittorrentAuthenticatedReadbackError,
+                       match='^qbittorrent_authentication_failed$'):
+        QbittorrentAuthenticatedReadback().read(
+            connection, api_key=PRIVATE_BEARER)
+
+
 def test_owned_setting_drift_is_reported_without_returning_payload():
     connection = Connection([
         version_response(),

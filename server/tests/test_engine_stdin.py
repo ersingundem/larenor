@@ -142,6 +142,17 @@ def test_stdout_and_stderr_frames_are_bounded_and_kept_separate():
         assert exchange(client) == (b'onethree', b'two')
 
 
+def test_current_multiplexed_media_type_is_accepted():
+    upgrade = (
+        b'HTTP/1.1 101 UPGRADED\r\n'
+        b'Connection: Upgrade\r\nUpgrade: tcp\r\n'
+        b'Content-Type: application/vnd.docker.multiplexed-stream\r\n\r\n'
+    )
+    with engine(upgrade=upgrade) as (client, _calls, received):
+        assert exchange(client) == (b'{"state":"installed"}\n', b'')
+    assert received == [INPUT]
+
+
 @pytest.mark.parametrize('change', [
     {'container_id': 'short'}, {'container_id': '../' + CONTAINER},
     {'container_id': True}, {'input_bytes': b''}, {'input_bytes': b'x' * 4097},
@@ -187,10 +198,13 @@ def test_authority_loss_after_attach_still_sends_no_private_input():
     b'HTTP/1.1 200 OK\r\nContent-Type: application/vnd.docker.raw-stream\r\n\r\n',
     b'HTTP/1.1 101 UPGRADED\r\nConnection: close\r\nUpgrade: tcp\r\n\r\n',
     b'HTTP/1.1 101 UPGRADED\r\nConnection: Upgrade\r\nUpgrade: websocket\r\n\r\n',
+    b'HTTP/1.1 101 UPGRADED\r\nConnection: Upgrade\r\nUpgrade: tcp\r\n'
+    b'Content-Type: application/octet-stream\r\n\r\n',
 ])
 def test_invalid_upgrade_never_sends_private_input(upgrade):
     with engine(upgrade=upgrade) as (client, calls, received):
-        with pytest.raises(EngineStdinError, match='^engine_stdin_protocol$'):
+        with pytest.raises(
+                EngineStdinError, match='^engine_stdin_attach_protocol$'):
             exchange(client)
     assert len(calls) == 2
     assert len(received) <= 1 and b''.join(received) == b''
@@ -204,7 +218,9 @@ def test_invalid_upgrade_never_sends_private_input(upgrade):
 ])
 def test_invalid_multiplex_stream_fails_closed(output):
     with engine(output=output) as (client, _calls, received):
-        with pytest.raises(EngineStdinError, match='^engine_stdin_(protocol|response_limit)$'):
+        with pytest.raises(
+                EngineStdinError,
+                match='^engine_stdin_(frames_protocol|response_limit)$'):
             exchange(client)
     assert received == [INPUT]
 

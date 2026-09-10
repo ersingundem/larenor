@@ -35,6 +35,9 @@ _CODES = frozenset({
     'engine_stdin_unavailable', 'engine_stdin_timeout',
     'engine_stdin_cancelled', 'engine_stdin_api_unsupported',
     'engine_stdin_dispatch_denied',
+    'engine_stdin_version_protocol',
+    'engine_stdin_attach_protocol',
+    'engine_stdin_frames_protocol',
 })
 
 
@@ -97,7 +100,10 @@ def _upgrade_headers(reader):
     content_type = values.get('content-type')
     _require(content_type is None
              or content_type.split(';', 1)[0].strip().lower()
-             == 'application/vnd.docker.raw-stream')
+             in {
+                 'application/vnd.docker.raw-stream',
+                 'application/vnd.docker.multiplexed-stream',
+             })
 
 
 def _multiplex(reader, limits):
@@ -117,6 +123,65 @@ def _multiplex(reader, limits):
         (stdout if prefix[0] == 1 else stderr).extend(payload)
         total += length
     raise EngineStdinError('engine_stdin_response_limit')
+
+
+def _http_code(error, protocol):
+    return {
+        'engine_cancelled': 'engine_stdin_cancelled',
+        'engine_timeout': 'engine_stdin_timeout',
+        'engine_stream_limit': 'engine_stdin_response_limit',
+        'engine_protocol': protocol,
+    }.get(error.code, 'engine_stdin_unavailable')
+
+
+def _probe_code(error, protocol):
+    return {
+        'request_timeout': 'engine_stdin_timeout',
+        'response_too_large': 'engine_stdin_response_limit',
+    }.get(error.code, protocol)
+
+
+def _version_response(reader):
+    try:
+        status, headers = _headers(reader)
+        body = b''.join(_body(reader, headers, 65536, 4096))
+        return status, headers, body
+    except EngineHttpError as error:
+        raise EngineStdinError(_http_code(
+            error, 'engine_stdin_version_protocol')) from None
+    except ProbeTransportError as error:
+        raise EngineStdinError(_probe_code(
+            error, 'engine_stdin_version_protocol')) from None
+
+
+def _attach_response(reader):
+    try:
+        _upgrade_headers(reader)
+    except EngineStdinError as error:
+        code = ('engine_stdin_attach_protocol'
+                if error.code == 'engine_stdin_protocol' else error.code)
+        raise EngineStdinError(code) from None
+    except EngineHttpError as error:
+        raise EngineStdinError(_http_code(
+            error, 'engine_stdin_attach_protocol')) from None
+    except ProbeTransportError as error:
+        raise EngineStdinError(_probe_code(
+            error, 'engine_stdin_attach_protocol')) from None
+
+
+def _stream_response(reader, limits):
+    try:
+        return _multiplex(reader, limits)
+    except EngineStdinError as error:
+        code = ('engine_stdin_frames_protocol'
+                if error.code == 'engine_stdin_protocol' else error.code)
+        raise EngineStdinError(code) from None
+    except EngineHttpError as error:
+        raise EngineStdinError(_http_code(
+            error, 'engine_stdin_frames_protocol')) from None
+    except ProbeTransportError as error:
+        raise EngineStdinError(_probe_code(
+            error, 'engine_stdin_frames_protocol')) from None
 
 
 def _attach_wire(container_id):
@@ -173,8 +238,7 @@ class UnixEngineStdin:
                 'GET', '/version', 'localhost', {'Accept': 'application/json'}, None)
             connection.sendall(version_wire.replace(
                 b'Connection: close\r\n', b'Connection: keep-alive\r\n', 1))
-            status, headers = _headers(reader)
-            version = b''.join(_body(reader, headers, 65536, 4096))
+            status, headers, version = _version_response(reader)
             _require(_compatibility(ProbeResponse(status, headers, version), platform)
                      == 'passed', 'engine_stdin_api_unsupported')
             _require(not any(name == 'connection' and 'close' in value.lower()
@@ -190,7 +254,7 @@ class UnixEngineStdin:
             _require(_identity(endpoint) == before, 'engine_stdin_unavailable')
             _require(not cancelled.is_set(), 'engine_stdin_cancelled')
             connection.sendall(_attach_wire(container_id))
-            _upgrade_headers(reader)
+            _attach_response(reader)
             _require(_identity(endpoint) == before, 'engine_stdin_unavailable')
             _require(not cancelled.is_set(), 'engine_stdin_cancelled')
             try:
@@ -202,7 +266,7 @@ class UnixEngineStdin:
             _require(not cancelled.is_set(), 'engine_stdin_cancelled')
             connection.sendall(input_bytes)
             connection.shutdown(socket.SHUT_WR)
-            stdout, stderr = _multiplex(reader, limits)
+            stdout, stderr = _stream_response(reader, limits)
             result = consume(stdout, stderr)
             _require(_identity(endpoint) == before, 'engine_stdin_unavailable')
             _require(not cancelled.is_set(), 'engine_stdin_cancelled')

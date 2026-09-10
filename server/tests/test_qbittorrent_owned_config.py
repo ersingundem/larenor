@@ -14,7 +14,7 @@ from larenor_server.plugins.qbittorrent_owned_config import (
 
 
 PRIVATE_PASSWORD = 'p' * 40
-PRIVATE_BEARER = 'k' * 40
+PRIVATE_BEARER = 'qbt_' + 'k' * 28
 SALT = bytes(range(16))
 
 
@@ -34,6 +34,8 @@ def test_renderer_matches_upstream_pbkdf2_and_fixed_managed_paths():
         'Session\\Port=6881\n'
         'Session\\TempPath=/data/incomplete\n'
         'Session\\TempPathEnabled=true\n\n'
+        '[Network]\n'
+        'PortForwardingEnabled=false\n\n'
         '[Preferences]\n'
         f'WebUI\\APIKey={PRIVATE_BEARER}\n'
         'WebUI\\Address=*\n'
@@ -129,6 +131,8 @@ def test_exact_config_can_be_reconciled_from_its_embedded_salt():
     lambda raw: raw.replace(b'/data/downloads', b'/private/downloads'),
     lambda raw: raw.replace(b'CSRFProtection=true', b'CSRFProtection=false'),
     lambda raw: raw.replace(b'UseUPnP=false', b'UseUPnP=true'),
+    lambda raw: raw.replace(
+        b'PortForwardingEnabled=false', b'PortForwardingEnabled=true'),
     lambda raw: raw.replace(b'Username=larenor-system', b'Username=admin'),
     lambda raw: raw.replace(b'@ByteArray(', b'@ByteArray(AA'),
 ])
@@ -146,7 +150,8 @@ def test_reconciliation_fails_closed_for_invalid_file_shape(value):
 
 
 @pytest.mark.parametrize('api_key', [
-    '', 'short', 'contains:colon' + 'x' * 32, 'x' * 129, b'x' * 40, True,
+    '', 'short', 'contains:colon' + 'x' * 32, 'x' * 32,
+    'qbt_' + 'x' * 27, 'qbt_' + 'x' * 29, b'x' * 32, True,
 ])
 def test_api_key_is_required_and_strict(api_key):
     with pytest.raises(QbittorrentOwnedConfigError,

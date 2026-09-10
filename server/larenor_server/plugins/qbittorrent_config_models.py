@@ -7,6 +7,7 @@ from typing import Literal
 from pydantic import ConfigDict, Field
 
 from ..models import StrictModel
+from .qbittorrent_api_key import QB_API_KEY_PATTERN
 from .qbittorrent_config_effect import QbittorrentConfigInstallReceipt
 
 
@@ -18,7 +19,7 @@ class PrivateQbittorrentConfiguration(StrictModel):
         min_length=32, max_length=128, pattern=r'^[A-Za-z0-9_-]+$', repr=False,
     )
     apiKey: str = Field(
-        min_length=32, max_length=128, pattern=r'^[A-Za-z0-9_-]+$', repr=False,
+        min_length=32, max_length=32, pattern=QB_API_KEY_PATTERN, repr=False,
     )
     saltHex: str = Field(pattern=r'^[0-9a-f]{32}$', repr=False)
 
@@ -53,18 +54,71 @@ QB_CONFIG_EXECUTION_CODES = frozenset({
     'qbittorrent_service_changed',
     'qbittorrent_service_verification_failed',
 })
+QB_CONFIG_CAUSE_CODES = frozenset({
+    'qbittorrent_configure_stage_failed',
+    'qbittorrent_execution_stage_failed',
+    'qbittorrent_bootstrap_stage_failed',
+    'qbittorrent_receipt_stage_failed',
+    'qbittorrent_execution_worker_unavailable',
+    'qbittorrent_execution_invalid_worker_result',
+    'qbittorrent_execution_resource_conflict',
+    'qbittorrent_execution_container_not_running',
+    'qbittorrent_execution_dispatch_expired',
+    'qbittorrent_bootstrap_binding_invalid_installation_plan',
+    'qbittorrent_bootstrap_binding_resources_unavailable',
+    'qbittorrent_bootstrap_binding_resources_untrusted',
+    'qbittorrent_bootstrap_proof_plan_failed',
+    'qbittorrent_bootstrap_proof_journal_bind_failed',
+    'qbittorrent_bootstrap_proof_image_observation_failed',
+    'qbittorrent_bootstrap_proof_volume_observation_failed',
+    'qbittorrent_bootstrap_proof_volume_bootstrap_failed',
+    'qbittorrent_bootstrap_proof_network_list_failed',
+    'qbittorrent_bootstrap_proof_network_observation_failed',
+    'qbittorrent_bootstrap_proof_journal_rebind_failed',
+    'qbittorrent_bootstrap_proof_result_failed',
+    'invalid_qbittorrent_categories',
+    'qbittorrent_categories_authentication_failed',
+    'qbittorrent_categories_protocol',
+    'qbittorrent_categories_observation_protocol',
+    'qbittorrent_categories_observation_framing',
+    'qbittorrent_categories_observation_http',
+    'qbittorrent_categories_observation_closed',
+    'qbittorrent_categories_observation_payload',
+    'qbittorrent_category_create_protocol',
+    'qbittorrent_categories_verification_protocol',
+    'qbittorrent_category_conflict',
+    'qbittorrent_categories_unavailable',
+    'qbittorrent_categories_timeout',
+    'invalid_qbittorrent_authenticated_readback',
+    'qbittorrent_authentication_failed',
+    'qbittorrent_readback_protocol',
+    'qbittorrent_readback_mismatch',
+    'qbittorrent_authenticated_readback_unavailable',
+    'qbittorrent_authenticated_readback_timeout',
+    'qbittorrent_bootstrap_resources_unavailable',
+    'qbittorrent_bootstrap_categories_failed',
+    'qbittorrent_bootstrap_readback_failed',
+    'qbittorrent_bootstrap_before_connect_failed',
+    'qbittorrent_bootstrap_after_categories_connect_failed',
+    'qbittorrent_bootstrap_after_categories_failed',
+    'qbittorrent_bootstrap_after_readback_connect_failed',
+    'qbittorrent_bootstrap_after_readback_failed',
+})
 
 
 class QbittorrentConfigurationExecutionError(Exception):
     """Closed error crossing the Core-to-worker boundary."""
 
     def __init__(self, code='qbittorrent_config_resources_unavailable', *,
-                 uncertain_effect=False):
+                 uncertain_effect=False, cause_code=None):
         self.code = (code if code in QB_CONFIG_EXECUTION_CODES
                      else 'qbittorrent_config_resources_unavailable')
         self.uncertain_effect = uncertain_effect is True
+        self.cause_code = (
+            cause_code if cause_code in QB_CONFIG_CAUSE_CODES else None)
         super().__init__(self.code)
 
     def __repr__(self):
         return (f'QbittorrentConfigurationExecutionError({self.code!r}, '
-                f'uncertain_effect={self.uncertain_effect!r})')
+                f'uncertain_effect={self.uncertain_effect!r}, '
+                f'cause_code={self.cause_code!r})')

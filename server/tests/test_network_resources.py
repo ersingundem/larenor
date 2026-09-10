@@ -48,6 +48,16 @@ def network(prepared):
                      'Config': [{'Subnet': '172.28.0.0/16', 'Gateway': '172.28.0.1'}]}}
 
 
+def managed_endpoint():
+    return {
+        'Name': 'larenor-' + '2' * 32,
+        'EndpointID': '3' * 64,
+        'MacAddress': '02:42:ac:1c:00:02',
+        'IPv4Address': '172.28.0.2/16',
+        'IPv6Address': '',
+    }
+
+
 def listed(prepared, value, **kwargs):
     _, binding, intent = prepared
     return validate_network_list(response(value), binding, intent,
@@ -120,7 +130,7 @@ def test_create_body_never_reauthorizes_an_old_or_uncertain_intent(prepared, sta
         build_network_create_body(binding, intent)
 
 
-def test_list_is_only_a_candidate_and_inspect_proves_no_attached_endpoints(prepared):
+def test_list_is_only_a_candidate_and_inspect_accepts_managed_endpoint(prepared):
     value = network(prepared)
     summary = dict(value)
     summary.pop('Containers')
@@ -129,9 +139,28 @@ def test_list_is_only_a_candidate_and_inspect_proves_no_attached_endpoints(prepa
     assert inspected(prepared, value).network_id == value['Id']
     with pytest.raises(NetworkResourceError, match='^network_conflict$'):
         inspected(prepared, summary)
-    value['Containers'] = {'ep-' + '2' * 64: {'Name': 'foreign endpoint'}}
+    value['Containers'] = {'2' * 64: managed_endpoint()}
+    assert inspected(prepared, value).network_id == value['Id']
+    value['Containers']['2' * 64]['Name'] = 'foreign endpoint'
     with pytest.raises(NetworkResourceError, match='^network_conflict$'):
         inspected(prepared, value)
+
+
+@pytest.mark.parametrize('field,value', [
+    ('EndpointID', '3' * 63),
+    ('MacAddress', 'ff:ff:ff:ff:ff:ff'),
+    ('IPv4Address', '172.29.0.2/16'),
+    ('IPv4Address', '172.28.0.2/24'),
+    ('IPv6Address', 'fd00::2/64'),
+])
+def test_inspect_rejects_malformed_or_foreign_managed_endpoint(
+        prepared, field, value):
+    item = network(prepared)
+    endpoint = managed_endpoint()
+    endpoint[field] = value
+    item['Containers'] = {'2' * 64: endpoint}
+    with pytest.raises(NetworkResourceError, match='^network_conflict$'):
+        inspected(prepared, item)
 
 
 def test_missing_requires_complete_bounded_200_list_and_exact_name_query(prepared):

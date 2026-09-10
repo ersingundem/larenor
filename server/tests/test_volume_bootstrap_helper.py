@@ -145,7 +145,8 @@ def test_media_directory_symlink_or_wrong_metadata_is_rejected(local, name, monk
 
 def owned_config():
     return render_qbittorrent_owned_config(
-        'p' * 40, api_key='k' * 40, salt=bytes(range(16))).configuration
+        'p' * 40, api_key='qbt_' + 'k' * 28,
+        salt=bytes(range(16))).configuration
 
 
 def config_local(local, monkeypatch):
@@ -209,7 +210,8 @@ def test_exact_qbittorrent_config_is_idempotent_and_wrong_existing_file_is_prese
 @pytest.mark.parametrize('configuration', [
     b'', b'x' * 4097, b'not-qbittorrent\n',
     owned_config().replace(b'WebUI\\CSRFProtection=true', b'WebUI\\CSRFProtection=false'),
-    owned_config().replace(b'WebUI\\APIKey=' + b'k' * 40, b'WebUI\\APIKey=short'),
+    owned_config().replace(
+        b'WebUI\\APIKey=qbt_' + b'k' * 28, b'WebUI\\APIKey=short'),
     owned_config() + b'Hidden\\Option=true\n',
 ])
 def test_invalid_qbittorrent_config_never_creates_storage(local, monkeypatch, configuration):

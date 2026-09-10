@@ -180,6 +180,22 @@ def test_provider_exception_and_forged_stack_are_static_and_leak_nothing():
         builder(stack.model_copy(update={'homeId': '9' * 32}))
 
 
+def test_provider_static_proof_stage_survives_binding_boundary():
+    catalog, stack, policy = source()
+
+    def fail(*_):
+        raise ManagedContainerError(
+            'resources_unavailable',
+            cause_code='resource_proof_volume_bootstrap_failed')
+
+    builder = JellyfinBindingBuilder(catalog, policy, '4' * 32, fail)
+    with pytest.raises(
+            ManagedContainerError,
+            match='^resources_unavailable$') as caught:
+        builder(stack)
+    assert caught.value.cause_code == 'resource_proof_volume_bootstrap_failed'
+
+
 def snapshot(binding):
     body = json.loads(binding.specification)
     inherited = json.loads(binding.image_configuration)

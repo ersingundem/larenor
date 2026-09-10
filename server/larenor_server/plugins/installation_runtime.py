@@ -16,6 +16,7 @@ import signal
 import stat
 import sys
 import threading
+import time
 
 from ..errors import StartupError
 from ..files import checked_path, private_read
@@ -32,8 +33,12 @@ from .jellyfin_bootstrap_executor import JellyfinBootstrapExecutor
 from .jellyfin_startup import JellyfinStartupConfigurator
 from .jellyfin_authenticated_readback import JellyfinAuthenticatedReadback
 from .jellyfin_managed_libraries import JellyfinManagedLibraries
-from .qbittorrent_config_runtime import QbittorrentConfigRuntime
-from .qbittorrent_config_effect import QbittorrentConfigInstallReceipt
+from .qbittorrent_config_runtime import (
+    QbittorrentConfigRuntime, QbittorrentConfigRuntimeError,
+)
+from .qbittorrent_config_effect import (
+    QbittorrentConfigEffectError, QbittorrentConfigInstallReceipt,
+)
 from .qbittorrent_bootstrap_executor import (
     QbittorrentBootstrapExecutionError, QbittorrentBootstrapExecutionResult,
     QbittorrentBootstrapExecutor,
@@ -271,9 +276,18 @@ class _RuntimeBackend:
             self, job, stack, credential, *, api_key, salt, cancelled,
             deadline, gate):
         """Verify/install config, then and only then execute create/start."""
-        configured = self.configure_qbittorrent(
-            job, stack, credential, api_key=api_key, salt=salt,
-            cancelled=cancelled, deadline=deadline, gate=gate)
+        try:
+            configured = self.configure_qbittorrent(
+                job, stack, credential, api_key=api_key, salt=salt,
+                cancelled=cancelled, deadline=deadline, gate=gate)
+        except (QbittorrentConfigurationExecutionError,
+                QbittorrentConfigRuntimeError,
+                QbittorrentConfigEffectError):
+            raise
+        except Exception:
+            raise QbittorrentConfigurationExecutionError(
+                'qbittorrent_config_resources_unavailable',
+                cause_code='qbittorrent_configure_stage_failed') from None
         if (type(configured) is not QbittorrentConfigInstallReceipt
                 or configured.state not in {
                     'qbittorrent_config_installed',
@@ -289,16 +303,42 @@ class _RuntimeBackend:
             except Exception:
                 return ExecutionGateResult.denied('authority_changed')
 
-        execution = build_execution(
-            stack, job_id=job, deadline=deadline,
-            service_id='qbittorrent')
-        result = execution.run(self.qbittorrent_installation, authority)
+        remaining = deadline - time.monotonic()
+        if not 0 < remaining <= 120:
+            raise QbittorrentConfigurationExecutionError(
+                'qbittorrent_config_timeout')
+        try:
+            execution = build_execution(
+                stack, job_id=job, deadline=time.time() + remaining,
+                service_id='qbittorrent')
+            result = execution.run(
+                self.qbittorrent_installation, authority)
+        except QbittorrentConfigurationExecutionError:
+            raise
+        except Exception:
+            raise QbittorrentConfigurationExecutionError(
+                'qbittorrent_config_result_invalid', uncertain_effect=True,
+                cause_code='qbittorrent_execution_stage_failed') from None
         if (type(result) is not ExecutionResult or result.state != 'succeeded'
                 or result.code != 'container_started'
                 or result.container_id is None):
+            cause = ({
+                ('pending', 'worker_unavailable'):
+                    'qbittorrent_execution_worker_unavailable',
+                ('failed', 'invalid_worker_result'):
+                    'qbittorrent_execution_invalid_worker_result',
+                ('needs_attention', 'resource_conflict'):
+                    'qbittorrent_execution_resource_conflict',
+                ('needs_attention', 'container_not_running'):
+                    'qbittorrent_execution_container_not_running',
+                ('needs_attention', 'dispatch_expired'):
+                    'qbittorrent_execution_dispatch_expired',
+            }.get((getattr(result, 'state', None),
+                   getattr(result, 'code', None)))
+                     if type(result) is ExecutionResult else None)
             raise QbittorrentConfigurationExecutionError(
                 'qbittorrent_config_result_invalid',
-                uncertain_effect=True)
+                uncertain_effect=True, cause_code=cause)
         try:
             verified = self.qbittorrent_bootstrap.execute(
                 job, stack, PrivateQbittorrentConfiguration(
@@ -315,16 +355,100 @@ class _RuntimeBackend:
                     'qbittorrent_service_changed',
                 'qbittorrent_bootstrap_timeout': 'qbittorrent_config_timeout',
             }.get(error.code, 'qbittorrent_service_verification_failed')
+            cause = {
+                'qbittorrent_bootstrap_binding_invalid_installation_plan':
+                    'qbittorrent_bootstrap_binding_invalid_installation_plan',
+                'qbittorrent_bootstrap_binding_resources_unavailable':
+                    'qbittorrent_bootstrap_binding_resources_unavailable',
+                'qbittorrent_bootstrap_binding_resources_untrusted':
+                    'qbittorrent_bootstrap_binding_resources_untrusted',
+                'qbittorrent_bootstrap_proof_plan_failed':
+                    'qbittorrent_bootstrap_proof_plan_failed',
+                'qbittorrent_bootstrap_proof_journal_bind_failed':
+                    'qbittorrent_bootstrap_proof_journal_bind_failed',
+                'qbittorrent_bootstrap_proof_image_observation_failed':
+                    'qbittorrent_bootstrap_proof_image_observation_failed',
+                'qbittorrent_bootstrap_proof_volume_observation_failed':
+                    'qbittorrent_bootstrap_proof_volume_observation_failed',
+                'qbittorrent_bootstrap_proof_volume_bootstrap_failed':
+                    'qbittorrent_bootstrap_proof_volume_bootstrap_failed',
+                'qbittorrent_bootstrap_proof_network_list_failed':
+                    'qbittorrent_bootstrap_proof_network_list_failed',
+                'qbittorrent_bootstrap_proof_network_observation_failed':
+                    'qbittorrent_bootstrap_proof_network_observation_failed',
+                'qbittorrent_bootstrap_proof_journal_rebind_failed':
+                    'qbittorrent_bootstrap_proof_journal_rebind_failed',
+                'qbittorrent_bootstrap_proof_result_failed':
+                    'qbittorrent_bootstrap_proof_result_failed',
+                'invalid_qbittorrent_categories':
+                    'invalid_qbittorrent_categories',
+                'qbittorrent_categories_authentication_failed':
+                    'qbittorrent_categories_authentication_failed',
+                'qbittorrent_categories_protocol':
+                    'qbittorrent_categories_protocol',
+                'qbittorrent_categories_observation_protocol':
+                    'qbittorrent_categories_observation_protocol',
+                'qbittorrent_categories_observation_framing':
+                    'qbittorrent_categories_observation_framing',
+                'qbittorrent_categories_observation_http':
+                    'qbittorrent_categories_observation_http',
+                'qbittorrent_categories_observation_closed':
+                    'qbittorrent_categories_observation_closed',
+                'qbittorrent_categories_observation_payload':
+                    'qbittorrent_categories_observation_payload',
+                'qbittorrent_category_create_protocol':
+                    'qbittorrent_category_create_protocol',
+                'qbittorrent_categories_verification_protocol':
+                    'qbittorrent_categories_verification_protocol',
+                'qbittorrent_category_conflict':
+                    'qbittorrent_category_conflict',
+                'qbittorrent_categories_unavailable':
+                    'qbittorrent_categories_unavailable',
+                'qbittorrent_categories_timeout':
+                    'qbittorrent_categories_timeout',
+                'invalid_qbittorrent_authenticated_readback':
+                    'invalid_qbittorrent_authenticated_readback',
+                'qbittorrent_authentication_failed':
+                    'qbittorrent_authentication_failed',
+                'qbittorrent_readback_protocol':
+                    'qbittorrent_readback_protocol',
+                'qbittorrent_readback_mismatch':
+                    'qbittorrent_readback_mismatch',
+                'qbittorrent_authenticated_readback_unavailable':
+                    'qbittorrent_authenticated_readback_unavailable',
+                'qbittorrent_authenticated_readback_timeout':
+                    'qbittorrent_authenticated_readback_timeout',
+            }.get(error.cause_code)
+            if (cause is None
+                    and error.cause_code == 'qbittorrent_bootstrap_unexpected'
+                    and error.boundary is not None):
+                cause = f'qbittorrent_bootstrap_{error.boundary}_failed'
+            if cause is None and error.code in {
+                    'qbittorrent_bootstrap_resources_unavailable',
+                    'qbittorrent_bootstrap_categories_failed',
+                    'qbittorrent_bootstrap_readback_failed'}:
+                cause = error.code
             raise QbittorrentConfigurationExecutionError(
-                code, uncertain_effect=True) from None
+                code, uncertain_effect=True, cause_code=cause) from None
+        except Exception:
+            raise QbittorrentConfigurationExecutionError(
+                'qbittorrent_service_verification_failed',
+                uncertain_effect=True,
+                cause_code='qbittorrent_bootstrap_stage_failed') from None
         if (type(verified) is not QbittorrentBootstrapExecutionResult
                 or verified.state != 'verified'):
             raise QbittorrentConfigurationExecutionError(
                 'qbittorrent_service_verification_failed',
                 uncertain_effect=True)
-        return QbittorrentConfiguredInstallReceipt(
-            configured, result.container_id, 'qbittorrent_container_started',
-            'qbittorrent_service_verified')
+        try:
+            return QbittorrentConfiguredInstallReceipt(
+                configured, result.container_id,
+                'qbittorrent_container_started',
+                'qbittorrent_service_verified')
+        except (TypeError, ValueError):
+            raise QbittorrentConfigurationExecutionError(
+                'qbittorrent_config_result_invalid', uncertain_effect=True,
+                cause_code='qbittorrent_receipt_stage_failed') from None
 
 
 def _build_runtime(policy, *, peer_uid=None):

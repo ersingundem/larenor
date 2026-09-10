@@ -1,6 +1,6 @@
 # Larenor — güncel ilerleme ve iş kuyruğu
 
-**Son güncelleme: 10 Eylül 2026 — qBittorrent private endpoint/bootstrap PR39 ile ana dalda. Doğrulanmış servis sonucu Core runtime/IPC/kalıcı iş zincirine bağlandı ve yerel kapıları geçti.**
+**Son güncelleme: 10 Eylül 2026 — qBittorrent yönetilen servis zinciri PR41'de exact amd64+arm64 native kabulünü geçti. İndirilen iki makbuz merge kaynağına karşı yeniden doğrulandı; S06.5'in sıradaki işi Radarr/Sonarr/Seerr/Music Assistant otomatik eşleştirmesi.**
 
 ```text
 Kuyruk kabulü       ██░░░░░░░░░░░░░░░░░░  14/125 iş (%11; eşit ağırlıklı sayaç)
@@ -41,7 +41,7 @@ Gerçek ev kurulumu ve fiziksel tablet kabulü henüz yapılmadı.
 | S06.3d — kalıcı depolama | **Kabul edildi**; Native18 exact `6a054ea`, amd64+arm64 makbuzları doğrulandı | S06.3f ile birleşik kaynak kapısı kapandı |
 | S06.3f — kaynak kabulü | **Kabul edildi**; exact `4021391`, iki mimarili native makbuz, 4.065 Server ve tam Android/Server CI yeşil | S06.4 dar kurulum yürütme kapısı |
 | S06.4 — dar kurulum yürütme kapısı | **Kabul edildi**; PR16 `bf6f860`, PR18 `75af015`, PR19 `9ce3c5a` ve PR20 `2b9166b` tam CI kapıları yeşil | S06.5 özel bootstrap ve otomatik servis eşleştirme |
-| S06.5 — özel bootstrap ve otomatik eşleştirme | **Devam ediyor**; Jellyfin native kabulü tamamlandı. qBittorrent config, create/start ve private bootstrap PR28–PR39 ile ana dalda; doğrulanmış servis sonucu Core zincirine bağlı kabul dalında yerel kapıları geçti | qBittorrent iki mimarili native servis/readback/restart kanıtı; ardından Radarr/Sonarr/Seerr/Music Assistant otomatik eşleştirmesi |
+| S06.5 — özel bootstrap ve otomatik eşleştirme | **Devam ediyor**; Jellyfin kabulünden sonra qBittorrent config/create/start/private bootstrap ve restart readback exact PR41 kaynağında amd64+arm64 geçti | Radarr/Sonarr/Seerr/Music Assistant sahipli bootstrap ve otomatik eşleştirmesi |
 
 S06.5'in ilk iki TDD parçası, yalnız tamamlanmış Jellyfin kurulumundan
 yöneticiye bağlı bootstrap niyeti üretir ve public API'de sır, hedef adres veya
@@ -244,7 +244,15 @@ gösteriyor. Eski config-only veya container-started kayıtlar okunuyor fakat
 doğrulandı sayılmıyor. **130 odaklı test PASS / 1 mevcut macOS skip**; sabit
 apksig 9.1.0 jar ve JDK 17 ile tam Server paketi **4.831 PASS / 13 platform
 skip**. Security policy, compileall, queue, diff ve gitleaks temiz.
-İki mimarili native servis/readback/restart kanıtı açık olduğu için sayaç ve
+PR41'in gerçek servis koşuları Docker'ın çalışan container endpoint projeksiyonu,
+qBittorrent'in exact `qbt_` API-key biçimi ve WebUI UPnP'den bağımsız peer-port
+yönlendirme ayarını ortaya çıkardı. Kapalı sözleşmeler bu gerçek davranışlara
+göre düzeltildi; **289 ilgili yerel test PASS**. Exact PR head `f00a869` için
+[CI 34437420807](https://github.com/ersingundem/larenor/actions/runs/34437420807)
+amd64 ve arm64 üzerinde config, start, Bearer auth, iki kalıcı kategori, restart
+ve ikinci readback adımlarının tamamını geçti. İndirilen iki makbuz exact merge
+kaynağı `8cf7257` ile repo doğrulayıcısında yeniden PASS oldu. Diğer medya
+servislerinin otomatik eşleştirmesi açık olduğu için sayaç ve
 `installAvailable=false` değişmedi.
 [Uygulama ve açık sınırlar](qbittorrent-service-verification-implementation-2026-09-10.md).
 

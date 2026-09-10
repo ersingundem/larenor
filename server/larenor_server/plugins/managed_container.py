@@ -39,11 +39,29 @@ _VOLUME = re.compile(r'larenor-(?:appdata|library)-v1-[0-9a-f]{32}\Z')
 
 
 class ManagedContainerError(Exception):
-    def __init__(self, code='resources_untrusted'):
+    _CAUSE_CODES = frozenset({
+        'resource_proof_plan_failed',
+        'resource_proof_journal_bind_failed',
+        'resource_proof_image_observation_failed',
+        'resource_proof_volume_observation_failed',
+        'resource_proof_volume_bootstrap_failed',
+        'resource_proof_network_list_failed',
+        'resource_proof_network_observation_failed',
+        'resource_proof_journal_rebind_failed',
+        'resource_proof_result_failed',
+    })
+
+    def __init__(self, code='resources_untrusted', *, cause_code=None):
         self.code = code if code in {
             'invalid_installation_plan', 'resources_unavailable', 'resources_untrusted',
         } else 'resources_untrusted'
+        self.cause_code = (
+            cause_code if cause_code in self._CAUSE_CODES else None)
         super().__init__(self.code)
+
+    def __repr__(self):
+        return (f'ManagedContainerError({self.code!r}, '
+                f'cause_code={self.cause_code!r})')
 
 
 def _exact(value, cls):
@@ -189,6 +207,7 @@ class JellyfinResourceProofBroker:
             raise ManagedContainerError('resources_untrusted') from None
 
     def __call__(self, resource_plan, volume_plan, component):
+        stage = 'plan'
         try:
             expected_resources = build_resource_plan(self.stack, self.catalog, self.policy)
             expected_volumes = build_volume_plan(self.stack, self.catalog, self.policy)
@@ -212,6 +231,7 @@ class JellyfinResourceProofBroker:
             if len(volume_resources) != expected_volume_count:
                 raise ValueError()
             cancelled = threading.Event()
+            stage = 'journal_bind'
             with self.resource_journal.locked(), self.volume_journal.locked():
                 image_receipt = self.resource_journal.get(image_resource.resourceId)
                 network_receipt = self.resource_journal.get(network_resource.resourceId)
@@ -230,6 +250,7 @@ class JellyfinResourceProofBroker:
                         raise ValueError()
                     volume_intents.append(intent)
 
+                stage = 'image_observation'
                 selected_image = image_binding(
                     resource_plan, self.stack, self.catalog, self.policy,
                     image_resource.resourceId)
@@ -241,6 +262,7 @@ class JellyfinResourceProofBroker:
 
                 volume_proofs = []
                 for intent in volume_intents:
+                    stage = 'volume_observation'
                     observed = self.readers.inspect_volume(intent, cancelled=cancelled)
                     binding = intent.binding
                     expected_observation = VolumeObservation(
@@ -250,6 +272,7 @@ class JellyfinResourceProofBroker:
                     )
                     if not _exact(observed, VolumeObservation) or observed != expected_observation:
                         raise ValueError()
+                    stage = 'volume_bootstrap'
                     bootstrap = self.readers.verify_bootstrap(intent, cancelled=cancelled)
                     receipt = intent.receipt
                     expected_bootstrap = VolumeBootstrapObservation(
@@ -266,6 +289,7 @@ class JellyfinResourceProofBroker:
                         binding.resource.name, binding.resource.target, True,
                     ))
 
+                stage = 'network_list'
                 selected_network = network_binding(
                     resource_plan, self.stack, self.catalog, self.policy,
                     network_resource.resourceId)
@@ -274,6 +298,7 @@ class JellyfinResourceProofBroker:
                 if (not _exact(listed, NetworkListObservation)
                         or listed.state != 'candidate' or not _identity(listed.network_id, _HASH)):
                     raise ValueError()
+                stage = 'network_observation'
                 network = self.readers.inspect_network(
                     selected_network, network_intent, listed.network_id,
                     cancelled=cancelled)
@@ -283,6 +308,7 @@ class JellyfinResourceProofBroker:
 
                 # Rebind after every external read. A raw/reentrant journal
                 # change cannot publish a proof from the earlier revision.
+                stage = 'journal_rebind'
                 if self.resource_journal.bind(
                         image_resource.resourceId, image_receipt.revision,
                         plan=resource_plan, **source) != image_intent:
@@ -297,6 +323,7 @@ class JellyfinResourceProofBroker:
                             plan=volume_plan, **source) != intent:
                         raise ValueError()
 
+            stage = 'result'
             return VerifiedJellyfinResources(
                 stack_plan_hash=resource_plan.stackPlanHash,
                 resource_plan_hash=resource_plan.planHash,
@@ -313,7 +340,9 @@ class JellyfinResourceProofBroker:
                     network.network_id),
             )
         except Exception:
-            raise ManagedContainerError('resources_unavailable') from None
+            raise ManagedContainerError(
+                'resources_unavailable',
+                cause_code='resource_proof_' + stage + '_failed') from None
 
 
 @dataclass(frozen=True, repr=False)
@@ -652,6 +681,8 @@ class JellyfinBindingBuilder:
 
         try:
             proof = self.proof_provider(resource_plan, volume_plan, component)
+        except ManagedContainerError:
+            raise
         except Exception:
             raise ManagedContainerError('resources_unavailable') from None
 
