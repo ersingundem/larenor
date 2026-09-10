@@ -5,7 +5,7 @@ from urllib.parse import urlsplit
 from cryptography.exceptions import InvalidTag
 
 from ..errors import ApiError
-from ..services.transport import ServiceTransport
+from ..services.transport import ServiceTransport, ProbeTransportError
 from . import storage
 from .models import Event, Policy, Update
 
@@ -143,6 +143,11 @@ class _Transport(ServiceTransport):
         if method != 'GET' or path != '/api/config' or body is not None or options:
             raise ApiError('outbound_denied', 403)
         self._lease.check()
-        result = super().request(method, path, headers, body, before_send=self._lease.before_send)
+        try:
+            result = super().request(method, path, headers, body, before_send=self._lease.before_send)
+        except ProbeTransportError as error:
+            if error.code == 'address_blocked':
+                raise ApiError('outbound_denied', 403) from None
+            raise
         self._lease.check()
         return result
