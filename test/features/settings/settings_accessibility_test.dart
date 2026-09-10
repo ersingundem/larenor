@@ -183,6 +183,7 @@ void main() {
                 )
                 .first;
             final server = find.text(l10n.serverTitle).first;
+            final remote = find.text(l10n.remoteAccessTitle).first;
             final display = find.text(l10n.settingsCategoryDisplay).first;
             final node = tester.getSemantics(connection);
             expect(node.flagsCollection.isButton, isTrue);
@@ -195,11 +196,18 @@ void main() {
             await tester.sendKeyEvent(LogicalKeyboardKey.tab);
             expect(Focus.of(tester.element(server)).hasPrimaryFocus, isTrue);
             await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+            expect(Focus.of(tester.element(remote)).hasPrimaryFocus, isTrue);
+            await tester.sendKeyEvent(LogicalKeyboardKey.tab);
             expect(Focus.of(tester.element(display)).hasPrimaryFocus, isTrue);
             await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
             await tester.sendKeyEvent(LogicalKeyboardKey.tab);
             await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
+            expect(Focus.of(tester.element(remote)).hasPrimaryFocus, isTrue);
+            await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
+            await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+            await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
             expect(Focus.of(tester.element(server)).hasPrimaryFocus, isTrue);
+            await tester.sendKeyEvent(LogicalKeyboardKey.tab);
             await tester.sendKeyEvent(LogicalKeyboardKey.tab);
             await tester.sendKeyEvent(LogicalKeyboardKey.enter);
             await tester.pumpAndSettle();

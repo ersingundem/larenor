@@ -2451,5 +2451,35 @@
   "coreHaTransferSuccess": "Core connection and switch link created. Direct records were preserved.",
   "coreHaTransferUncertain": "The confirmation outcome is unknown. Check the saved result before starting another transfer.",
   "coreHaTransferRecover": "Check transfer result",
-  "coreHaTransferCredentials": "Reconnect Home Assistant in Direct settings, then preview this transfer again."
+  "coreHaTransferCredentials": "Reconnect Home Assistant in Direct settings, then preview this transfer again.",
+  "remoteAccessTitle": "Remote access",
+  "remoteAccessPrivacy": "Personal target profiles stay in this tablet’s secure storage. No Core or Proxmox account is required. Passwords and keys are not saved here.",
+  "remoteAccessLocked": "Return to Settings to unlock this private view.",
+  "remoteAccessEmpty": "No saved remote targets",
+  "remoteAccessAdd": "Add target",
+  "remoteAccessName": "Name",
+  "remoteAccessHost": "IP address or domain",
+  "remoteAccessHostHint": "Enter the host without a URL scheme or port. International domain names use their xn-- form.",
+  "remoteAccessPort": "Port",
+  "remoteAccessUsername": "Username (optional)",
+  "remoteAccessEngineHint": "Profile saved, connection not tested. In-app SSH, RDP and VNC sessions are not available yet. Copy the address for use in your remote-access app.",
+  "remoteAccessCopy": "Copy address",
+  "remoteAccessCopied": "Address copied",
+  "remoteAccessSaved": "Saved on this tablet",
+  "remoteAccessDeleteConfirm": "Delete “{name}” from this tablet? The remote device is not changed.",
+  "remoteAccessInvalidHost": "Enter a valid IPv4, IPv6 or ASCII domain name without a port.",
+  "remoteAccessInvalidPort": "Port must be a number from 1 to 65535.",
+  "remoteAccessInvalidRecord": "The profile data is invalid. Check the fields, or reload to review stored data.",
+  "remoteAccessReadFailed": "Profiles could not be read. Reload to try again; existing records were not replaced.",
+  "remoteAccessWriteUnconfirmed": "The save could not be confirmed. Reload to see what was stored before making another change.",
+  "remoteAccessConflict": "Profiles changed while this view was open. Reload before editing.",
+  "remoteAccessLimit": "You can save up to 32 personal targets.",
+  "remoteAccessCopyFailed": "The address could not be copied.",
+  "@remoteAccessDeleteConfirm": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  }
 }
