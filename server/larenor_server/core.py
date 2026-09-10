@@ -33,6 +33,8 @@ from .plugins.arr_config_job_schema import migrate_arr_configurations
 from .plugins.arr_config_jobs import ArrConfigurationManagement
 from .plugins.music_assistant_core_schema import migrate_music_assistant_core
 from .plugins.music_assistant_core import MusicAssistantCoreManagement
+from .plugins.music_provider_setup_schema import migrate_music_provider_setups
+from .plugins.music_provider_setups import MusicProviderSetupManagement
 from .plugins.preflight_ipc import PreflightWorkerClient
 from .plugins.installation_ipc import InstallationWorkerClient
 from .component_egress.storage import migrate as migrate_component_egress
@@ -163,6 +165,7 @@ class CoreServices:
                 migrate_qbittorrent_configurations(connection)
                 migrate_arr_configurations(connection)
                 migrate_music_assistant_core(connection)
+                migrate_music_provider_setups(connection)
             if not existed:
                 # Only publish the DB after its complete first transaction commits.
                 # Never expose an empty DB that a restart might treat as a reset.
@@ -229,6 +232,10 @@ class CoreServices:
                 self.db, self.auth, settings, key, self.media_installations,
                 self.services)
             self.music_assistant_core.validate_storage()
+            self.music_provider_setups = MusicProviderSetupManagement(
+                self.db, self.auth, settings, key, self.media_installations,
+                self.music_assistant_core)
+            self.music_provider_setups.validate_storage()
             self.clear_inactive_bootstrap()
 
     def clear_inactive_bootstrap(self) -> None:

@@ -190,3 +190,8 @@ def test_public_api_never_accepts_provider_credentials_or_completes_interaction(
         assert response.status_code in (404, 405) and secret not in response.text
     schema = client.get('/api/v1/openapi.json', headers=auth(pair)).json()
     assert secret not in json.dumps(schema)
+    response = client.post(BASE, headers=auth(pair), json={
+        'requestId': 'f' * 32, 'installationId': setup['installationId'],
+        'expectedInstallationRevision': setup['installationRevision'],
+        'providerDomain': 'ytmusic', 'cookie': secret})
+    assert response.status_code == 400 and secret not in response.text
