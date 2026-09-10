@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
@@ -9,6 +11,8 @@ import '../../../../server/providers/server_providers.dart';
 import '../../../../settings/presentation/settings_file_dialog.dart';
 import '../../../../settings/providers/settings_providers.dart';
 import '../data/core_music_playback_api.dart';
+import '../data/core_music_media_session_bridge.dart';
+import '../data/core_music_media_session_coordinator.dart';
 import '../data/core_music_targets_api.dart';
 import '../data/core_music_targets_controller.dart';
 import '../domain/core_music_playback_models.dart';
@@ -23,10 +27,12 @@ class CoreMusicTargetsPanel extends ConsumerStatefulWidget {
     super.key,
     this.controller,
     this.authorizeMutation,
+    this.mediaSessionCoordinator,
   });
 
   final CoreMusicTargetsController? controller;
   final CoreMusicMutationAuthorizer? authorizeMutation;
+  final CoreMusicMediaSessionCoordinator? mediaSessionCoordinator;
 
   @override
   ConsumerState<CoreMusicTargetsPanel> createState() =>
@@ -36,6 +42,8 @@ class CoreMusicTargetsPanel extends ConsumerStatefulWidget {
 class _CoreMusicTargetsPanelState extends ConsumerState<CoreMusicTargetsPanel> {
   late final CoreMusicTargetsController _controller;
   late final bool _ownsController;
+  CoreMusicMediaSessionCoordinator? _mediaSession;
+  bool _ownsMediaSession = false;
   ValueListenable<TickerModeData>? _ticker;
   bool _visible = true;
   bool _authorizing = false;
@@ -54,6 +62,14 @@ class _CoreMusicTargetsPanelState extends ConsumerState<CoreMusicTargetsPanel> {
         playbackApi: AccountCoreMusicPlaybackApi(account),
         lifecycle: account,
         authorized: () => api.authorized,
+      );
+    }
+    _mediaSession = widget.mediaSessionCoordinator;
+    if (_mediaSession == null && _ownsController) {
+      _ownsMediaSession = true;
+      _mediaSession = CoreMusicMediaSessionCoordinator(
+        controller: _controller,
+        platform: CoreMusicMediaSessionBridge(),
       );
     }
     _controller.addListener(_changed);
@@ -91,6 +107,7 @@ class _CoreMusicTargetsPanelState extends ConsumerState<CoreMusicTargetsPanel> {
   Future<void> _runCommand(
     CoreMusicPlaybackOperation operation, {
     int? volumeLevel,
+    int? seekPosition,
   }) async {
     if (!_visible || !_controller.canExecute(operation)) return;
     final selectedId = _controller.selectedTargetId;
@@ -111,14 +128,27 @@ class _CoreMusicTargetsPanelState extends ConsumerState<CoreMusicTargetsPanel> {
         !authorized ||
         selectedId != _controller.selectedTargetId ||
         !_controller.canExecute(operation)) {
+      if (!authorized) _mediaSession?.revokeAuthorization();
       return;
     }
-    await _controller.execute(operation, volumeLevel: volumeLevel);
+    await _controller.execute(
+      operation,
+      volumeLevel: volumeLevel,
+      seekPosition: seekPosition,
+    );
+    if (_controller.lastReceipt != null &&
+        _controller.failure == null &&
+        selectedId == _controller.selectedTargetId) {
+      _mediaSession?.authorizeCurrent();
+    } else {
+      _mediaSession?.revokeAuthorization();
+    }
   }
 
   @override
   void dispose() {
     _ticker?.removeListener(_visibilityChanged);
+    if (_ownsMediaSession) unawaited(_mediaSession?.dispose());
     _controller.removeListener(_changed);
     if (_ownsController) _controller.dispose();
     super.dispose();
@@ -251,6 +281,7 @@ class _PlaybackControls extends StatelessWidget {
   final Future<void> Function(
     CoreMusicPlaybackOperation operation, {
     int? volumeLevel,
+    int? seekPosition,
   })
   onCommand;
 

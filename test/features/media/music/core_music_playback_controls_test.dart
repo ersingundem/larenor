@@ -414,6 +414,7 @@ class _FixturePlaybackApi implements CoreMusicPlaybackApi {
     required CoreMusicTarget target,
     required CoreMusicPlaybackOperation operation,
     int? volumeLevel,
+    int? seekPosition,
     required bool Function() isCurrent,
   }) async {
     calls++;

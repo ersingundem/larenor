@@ -143,6 +143,7 @@ class CoreMusicTargetsController extends ChangeNotifier {
   Future<void> execute(
     CoreMusicPlaybackOperation operation, {
     int? volumeLevel,
+    int? seekPosition,
   }) async {
     final commandApi = playbackApi;
     final currentInventory = inventory;
@@ -153,7 +154,10 @@ class CoreMusicTargetsController extends ChangeNotifier {
         !canExecute(operation) ||
         (operation == CoreMusicPlaybackOperation.volume) !=
             (volumeLevel != null) ||
-        (volumeLevel != null && (volumeLevel < 0 || volumeLevel > 100))) {
+        (operation == CoreMusicPlaybackOperation.seek) !=
+            (seekPosition != null) ||
+        (volumeLevel != null && (volumeLevel < 0 || volumeLevel > 100)) ||
+        (seekPosition != null && (seekPosition < 0 || seekPosition > 604800))) {
       return;
     }
     final epoch = ++_epoch;
@@ -168,6 +172,7 @@ class CoreMusicTargetsController extends ChangeNotifier {
         target: target,
         operation: operation,
         volumeLevel: volumeLevel,
+        seekPosition: seekPosition,
         isCurrent: () => _current(epoch),
       );
       if (!_current(epoch)) return;

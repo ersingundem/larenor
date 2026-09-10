@@ -5,6 +5,7 @@ import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import androidx.media3.common.util.UnstableApi
 import com.ersingundem.larenor.audio.LocalAudioBridge
+import com.ersingundem.larenor.music.CoreMusicSessionBridge
 import com.ersingundem.larenor.window.WindowPolicyBridge
 import com.ersingundem.larenor.kiosk.KioskBridge
 import com.ersingundem.larenor.updater.ClientUpdaterBridge
@@ -13,6 +14,7 @@ import com.ersingundem.larenor.wellbeing.WellbeingBridge
 @UnstableApi
 class MainActivity : FlutterActivity() {
     private var localAudio: LocalAudioBridge? = null
+    private var coreMusicSession: CoreMusicSessionBridge? = null
     private var windowPolicy: WindowPolicyBridge? = null
     private var wellbeing: WellbeingBridge? = null
     private var kiosk: KioskBridge? = null
@@ -20,6 +22,7 @@ class MainActivity : FlutterActivity() {
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
         localAudio = LocalAudioBridge(this, flutterEngine.dartExecutor.binaryMessenger)
+        coreMusicSession = CoreMusicSessionBridge(this, flutterEngine.dartExecutor.binaryMessenger)
         windowPolicy = WindowPolicyBridge(this, flutterEngine.dartExecutor.binaryMessenger)
         wellbeing = WellbeingBridge(this, flutterEngine.dartExecutor.binaryMessenger)
         kiosk = KioskBridge(this, flutterEngine.dartExecutor.binaryMessenger)
@@ -28,6 +31,7 @@ class MainActivity : FlutterActivity() {
     override fun onResume() {
         super.onResume()
         localAudio?.setResumed(true)
+        coreMusicSession?.setResumed(true)
         windowPolicy?.setResumed(true)
         wellbeing?.setResumed(true)
         kiosk?.setResumed(true)
@@ -35,6 +39,7 @@ class MainActivity : FlutterActivity() {
     }
     override fun onPause() {
         localAudio?.setResumed(false)
+        coreMusicSession?.setResumed(false)
         windowPolicy?.setResumed(false)
         wellbeing?.setResumed(false)
         kiosk?.setResumed(false)
@@ -70,6 +75,8 @@ class MainActivity : FlutterActivity() {
         windowPolicy = null
         localAudio?.dispose()
         localAudio = null
+        coreMusicSession?.dispose()
+        coreMusicSession = null
         super.cleanUpFlutterEngine(flutterEngine)
     }
 }

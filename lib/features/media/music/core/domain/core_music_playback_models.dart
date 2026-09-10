@@ -5,6 +5,7 @@ enum CoreMusicPlaybackOperation {
   pause,
   next,
   previous,
+  seek,
   volume;
 
   String get wire => name;
@@ -14,6 +15,7 @@ enum CoreMusicPlaybackOperation {
     CoreMusicPlaybackOperation.pause => 'pause',
     CoreMusicPlaybackOperation.next ||
     CoreMusicPlaybackOperation.previous => 'next_previous',
+    CoreMusicPlaybackOperation.seek => 'seek',
     CoreMusicPlaybackOperation.volume => 'volume_set',
   };
 }
@@ -40,8 +42,8 @@ class CoreMusicPlaybackReceipt {
       'CoreMusicPlaybackReceipt(operation: ${operation.name}, state: ${state.name}, revision: $playerRevision)';
 }
 
-/// A secret-free snapshot that can later feed Android Media3/MediaSession.
-/// This slice does not publish a native session or accept lock-screen actions.
+/// Secret-free state projected to Android Media3. Native actions still require
+/// a short-lived, revision-bound authorization lease before reaching Core.
 class CoreMusicMediaSessionState {
   const CoreMusicMediaSessionState({
     this.targetId,

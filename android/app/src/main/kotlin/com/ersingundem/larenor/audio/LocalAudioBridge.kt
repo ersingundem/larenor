@@ -16,6 +16,7 @@ import androidx.media3.common.util.UnstableApi
 import io.flutter.plugin.common.BinaryMessenger
 import io.flutter.plugin.common.EventChannel
 import io.flutter.plugin.common.MethodChannel
+import com.ersingundem.larenor.music.CoreMusicSessionRuntime
 import java.util.concurrent.Executors
 import java.util.concurrent.ExecutorService
 
@@ -124,6 +125,7 @@ class LocalAudioBridge(private val activity: Activity, messenger: BinaryMessenge
 
     override fun start(ticket: String) {
         if (!foreground) throw AudioRejected("foregroundRequired")
+        if (CoreMusicSessionRuntime.hasOwner) throw AudioRejected("busy")
         val intent = Intent(activity, LocalAudioService::class.java)
             .setAction(LocalAudioService.ACTION_PLAY)
             .putExtra(LocalAudioService.EXTRA_TICKET, ticket)
