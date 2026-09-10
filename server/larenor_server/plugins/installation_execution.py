@@ -209,6 +209,14 @@ class QbittorrentWorkerBackend(JellyfinWorkerBackend):
         except Exception:
             raise InstallationExecutionError('invalid_worker_result') from None
 
+    def reconcile(self, step, plan):
+        trusted = self._verify(step, plan, 'qbittorrent')
+        try:
+            binding = self.binding_builder(trusted, 'qbittorrent')
+            return self.operations.reconcile(step.job_id, step.kind, binding)
+        except Exception:
+            raise InstallationExecutionError('invalid_worker_result') from None
+
 
 class ArrWorkerBackend(JellyfinWorkerBackend):
     """Worker-only bridge for one fixed Sonarr or Radarr child."""
@@ -233,14 +241,6 @@ class ArrWorkerBackend(JellyfinWorkerBackend):
             return self.operations.reconcile(
                 step.job_id, step.kind,
                 self.binding_builder(trusted, self.service_id))
-        except Exception:
-            raise InstallationExecutionError('invalid_worker_result') from None
-
-    def reconcile(self, step, plan):
-        trusted = self._verify(step, plan, 'qbittorrent')
-        try:
-            binding = self.binding_builder(trusted, 'qbittorrent')
-            return self.operations.reconcile(step.job_id, step.kind, binding)
         except Exception:
             raise InstallationExecutionError('invalid_worker_result') from None
 

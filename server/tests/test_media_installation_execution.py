@@ -5,6 +5,7 @@ from dataclasses import replace
 import pytest
 
 from larenor_server.plugins.installation_execution import (
+    ArrWorkerBackend,
     ExecutionGateResult,
     InstallationExecution,
     InstallationExecutionError,
@@ -185,8 +186,55 @@ def test_qbittorrent_worker_bridge_selects_only_qbittorrent_binding(server):
     assert receipt.state == 'succeeded'
     assert supplied == [(execution.plan, 'qbittorrent')]
     assert calls == [(execution.steps[0], sentinel)]
+    recovered = bridge.reconcile(execution.steps[0], execution.plan)
+    assert recovered.state == 'succeeded'
+    assert supplied == [
+        (execution.plan, 'qbittorrent'),
+        (execution.plan, 'qbittorrent'),
+    ]
+    assert calls[-1] == ('a' * 32, 'create_container', sentinel)
     jellyfin = build_execution(
         execution.plan, job_id='b' * 32, deadline=1788609900)
     with pytest.raises(InstallationExecutionError,
                        match='^invalid_execution_request$'):
         bridge.apply(jellyfin.steps[0], jellyfin.plan)
+
+
+@pytest.mark.parametrize('service_id', ['sonarr', 'radarr'])
+def test_arr_worker_bridge_keeps_apply_and_reconcile_on_selected_service(
+        server, service_id):
+    execution = build_execution(
+        stack(server), job_id='a' * 32, deadline=1788609900,
+        service_id=service_id)
+    calls = []
+
+    class Operations:
+        def apply(self, step, binding):
+            calls.append(('apply', step.kind, binding))
+            return StepReceipt(
+                step.job_id, step.kind, 'succeeded',
+                'container_created', '1' * 64)
+
+        def reconcile(self, job, kind, binding):
+            calls.append(('reconcile', kind, binding))
+            return StepReceipt(
+                job, kind, 'succeeded', 'container_created', '1' * 64)
+
+    supplied = []
+
+    def binding(plan, selected):
+        supplied.append((plan, selected))
+        return 'binding-' + selected
+
+    bridge = ArrWorkerBackend(Operations(), binding, service_id)
+    bridge.apply(execution.steps[0], execution.plan)
+    bridge.reconcile(execution.steps[0], execution.plan)
+
+    assert supplied == [
+        (execution.plan, service_id),
+        (execution.plan, service_id),
+    ]
+    assert calls == [
+        ('apply', 'create_container', 'binding-' + service_id),
+        ('reconcile', 'create_container', 'binding-' + service_id),
+    ]
