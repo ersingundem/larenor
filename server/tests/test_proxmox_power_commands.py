@@ -8,6 +8,7 @@ from fastapi.testclient import TestClient
 from conftest import Clock, auth, ready
 from larenor_server.app import create_app
 from larenor_server.config import Settings
+from larenor_server.errors import StartupError
 from larenor_server.proxmox_commands.models import (
     ConfirmRequest,
     PowerReceipt,
@@ -109,6 +110,12 @@ def descriptor(record, *, kind="qemu", status="running"):
 def base(record):
     ref = record["ref"]
     return f"/api/v1/admin/proxmox-power/{ref['coreId']}/{ref['homeId']}/{ref['id']}"
+
+
+def journal(client, admin, record, limit=50):
+    return client.get(
+        base(record) + f"/journal?limit={limit}", headers=auth(admin)
+    )
 
 
 def preview_body(app, admin, record, action, request_id="d" * 32):
@@ -479,3 +486,93 @@ def test_restart_marks_interrupted_receipt_unknown_without_replay(tmp_path):
         "resultCode": "outcome_uncertain",
     }
     assert restarted_executor.calls == 0
+
+
+def test_append_only_journal_covers_preview_cancel_and_command_transitions(tmp_path):
+    app, settings, clock, provider, executor = fixture(tmp_path)
+    with TestClient(app) as client:
+        admin = ready((app, client, settings, clock))
+        record = resource(client, app, admin)
+        provider.descriptor = descriptor(record, status="stopped")
+        first = preview(client, app, admin, record, "start", "1" * 32).json()["preview"]
+        assert client.delete(
+            base(record) + f"/previews/{first['id']}", headers=auth(admin)
+        ).status_code == 204
+        second = preview(client, app, admin, record, "start", "2" * 32).json()["preview"]
+        receipt = confirm(client, admin, record, second["id"], "2" * 32).json()["receipt"]
+        assert receipt["operationRef"] is None
+        response = journal(client, admin, record)
+        assert response.status_code == 200, response.text
+        entries = response.json()["entries"]
+        assert [entry["eventKind"] for entry in entries] == [
+            "previewed", "preview_cancelled", "previewed",
+            "command_status", "command_status", "command_status",
+        ]
+        assert [entry["state"] for entry in entries[-3:]] == [
+            "accepted", "executing", "succeeded",
+        ]
+        for entry in entries:
+            assert entry["resourceRevision"] == record["revision"]
+            assert entry["aclRevision"] == record["aclRevision"]
+            assert entry["userRevision"] == user_revision(app, admin["user"]["id"])
+            assert entry["bindingRevision"] == 1
+            assert entry["serviceRevision"] == 1
+            assert entry["operationRef"] is None
+            assert not any(word in str(entry).lower() for word in (
+                "token", "password", "url", "host", "node",
+            ))
+
+
+def test_journal_integrity_is_admin_only_and_detects_live_or_restart_tamper(tmp_path):
+    app, settings, clock, provider, executor = fixture(tmp_path)
+    with TestClient(app) as client:
+        admin = ready((app, client, settings, clock))
+        record = resource(client, app, admin)
+        provider.descriptor = descriptor(record, status="stopped")
+        assert preview(client, app, admin, record, "start").status_code == 201
+        integrity_path = base(record) + "/journal/integrity"
+        verified = client.get(integrity_path, headers=auth(admin))
+        assert verified.status_code == 200
+        assert verified.json() == {
+            "schemaVersion": 1,
+            "verified": True,
+            "eventCount": 1,
+            "headHash": verified.json()["headHash"],
+        }
+        assert len(verified.json()["headHash"]) == 64
+        created = client.post(
+            "/api/v1/admin/users",
+            headers=auth(admin),
+            json={
+                "username": "journal-member",
+                "role": "member",
+                "initialPassword": "Synthetic temporary password 2026",
+            },
+        ).json()["user"]
+        assert created["role"] == "member"
+        from conftest import login
+        member = login(client, "journal-member", "Synthetic temporary password 2026").json()
+        assert client.get(integrity_path, headers=auth(member)).status_code == 403
+        with app.state.core.db.transaction() as connection:
+            connection.execute(
+                "UPDATE proxmox_power_journal SET result_code='effect_failed' WHERE sequence=1"
+            )
+        assert client.get(integrity_path, headers=auth(admin)).status_code == 503
+    with pytest.raises(StartupError, match="proxmox_power_storage_invalid"):
+        create_app(settings)
+
+
+def test_journal_limit_is_bounded_and_unknown_never_claims_operation_reference(tmp_path):
+    app, settings, clock, provider, executor = fixture(tmp_path)
+    with TestClient(app) as client:
+        admin = ready((app, client, settings, clock))
+        record = resource(client, app, admin)
+        provider.descriptor = descriptor(record, status="stopped")
+        executor.outcome = "unknown"
+        proposal = preview(client, app, admin, record, "start").json()["preview"]
+        receipt = confirm(client, admin, record, proposal["id"]).json()["receipt"]
+        assert receipt["state"] == "unknown"
+        assert receipt["operationRef"] is None
+        assert journal(client, admin, record, 0).status_code == 400
+        assert journal(client, admin, record, 51).status_code == 400
+        assert len(journal(client, admin, record, 2).json()["entries"]) == 2

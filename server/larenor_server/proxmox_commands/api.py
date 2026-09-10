@@ -59,3 +59,16 @@ async def confirm(core_id: str, home_id: str, resource_id: str, preview_id: str,
 def result(core_id: str, home_id: str, resource_id: str, request_id: str,
            principal: Admin, core: Core):
     return core.proxmox_power.result(principal, core_id, home_id, resource_id, request_id)
+
+
+@router.get(PREFIX + "/journal")
+def journal(core_id: str, home_id: str, resource_id: str, principal: Admin,
+            core: Core, limit: int = 50):
+    return core.proxmox_power.journal(principal, core_id, home_id, resource_id, limit)
+
+
+@router.get(PREFIX + "/journal/integrity")
+def integrity(core_id: str, home_id: str, resource_id: str,
+              principal: Admin, core: Core):
+    return core.proxmox_power.journal_integrity(
+        principal, core_id, home_id, resource_id)

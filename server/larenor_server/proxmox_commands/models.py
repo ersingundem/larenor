@@ -73,9 +73,41 @@ class PowerReceipt(StrictModel):
     resultCode: Literal["accepted", "executing", "completed", "effect_failed", "cancelled", "outcome_uncertain"]
     guestState: Literal["running", "stopped", "suspended"]
     statusRevision: Revision
+    userRevision: Revision = 1
+    resourceRevision: Revision = 1
+    aclRevision: Revision = 1
+    bindingRevision: Revision = 1
+    serviceRevision: Revision = 1
+    operationRef: str | None = None
     causalityVerified: bool
     createdAt: float
     updatedAt: float
+
+    @field_validator("operationRef")
+    @classmethod
+    def safe_operation_ref(cls, value):
+        if value is not None and (not 5 <= len(value) <= 256 or not value.startswith("UPID:")
+                                  or any(ord(char) < 32 or ord(char) == 127 for char in value)):
+            raise ValueError("invalid_operation_ref")
+        return value
+
+
+class PowerJournalEvent(StrictModel):
+    schemaVersion: Literal[1] = 1
+    sequence: Revision
+    eventKind: Literal["previewed", "preview_cancelled", "command_status"]
+    requestId: Identity
+    action: Action
+    state: Literal["previewed", "preview_cancelled", "accepted", "executing", "succeeded", "failed", "cancelled", "unknown"]
+    resultCode: Literal["preview_created", "preview_cancelled", "accepted", "executing", "completed", "effect_failed", "cancelled", "outcome_uncertain"]
+    userRevision: Revision
+    resourceRevision: Revision
+    aclRevision: Revision
+    bindingRevision: Revision
+    serviceRevision: Revision
+    statusRevision: Revision
+    operationRef: str | None
+    emittedAt: float
 
 
 @dataclass(frozen=True)
@@ -95,3 +127,4 @@ class ProxmoxPowerEffectResult:
     outcome: str
     state: str
     status_revision: int
+    operation_ref: str | None = None

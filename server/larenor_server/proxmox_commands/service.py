@@ -116,6 +116,7 @@ class ProxmoxPowerAuthority:
             self._purge(now)
             if len(self._previews) >= MAX_PREVIEWS or sum(p.actor_id == actor.id for p in self._previews.values()) >= MAX_ACTOR_PREVIEWS:
                 raise ApiError("rate_limited", 429)
+            self.store.append_preview(body, current, actor.id, "previewed")
             self._previews[public.id] = _PendingPreview(public, body, actor.id, current)
         return {"preview": public.model_dump()}
 
@@ -131,6 +132,7 @@ class ProxmoxPowerAuthority:
                     or pending.descriptor.resource_id != resource_id
                     or (core_id, home_id) != (self.registry.scope.coreId, self.registry.scope.homeId)):
                 raise ApiError("revision_conflict", 409)
+            self.store.append_preview(pending.body, pending.descriptor, actor.id, "preview_cancelled")
             pending.consumed = True
             self._previews.pop(preview_id, None)
 
@@ -188,7 +190,9 @@ class ProxmoxPowerAuthority:
                        and final.service_revision == current.service_revision
                        and self.settings.clock() * 1000 <= started * 1000 + body.deadlineMs)
             if success:
-                receipt = self._receipt(pending, "succeeded", "completed", final, started)
+                receipt = self._receipt(
+                    pending, "succeeded", "completed", final, started,
+                    operation_ref=effect.operation_ref)
             elif effect.outcome == "failed":
                 receipt = self._receipt(pending, "failed", "effect_failed", final, started)
             elif effect.outcome == "cancelled":
@@ -202,11 +206,17 @@ class ProxmoxPowerAuthority:
         self.store.put(receipt, resource_id, actor.id)
         return {"receipt": receipt.model_dump()}
 
-    def _receipt(self, pending, state, code, descriptor, created):
+    def _receipt(self, pending, state, code, descriptor, created, *, operation_ref=None):
         return PowerReceipt(
             requestId=pending.body.requestId, action=pending.body.action,
             state=state, resultCode=code, guestState=descriptor.status,
             statusRevision=descriptor.status_revision, causalityVerified=False,
+            userRevision=pending.body.expectedUserRevision,
+            resourceRevision=pending.body.expectedResourceRevision,
+            aclRevision=pending.body.expectedAclRevision,
+            bindingRevision=pending.body.expectedBindingRevision,
+            serviceRevision=pending.body.expectedServiceRevision,
+            operationRef=operation_ref,
             createdAt=created, updatedAt=self.settings.clock(),
         )
 
@@ -226,3 +236,15 @@ class ProxmoxPowerAuthority:
             raise ApiError("not_found", 404)
         return {"schemaVersion": 1, "idempotencyKey": receipt.requestId,
                 "state": receipt.state, "resultCode": receipt.resultCode}
+
+    def journal(self, actor, core_id, home_id, resource_id, limit):
+        if actor.role != "admin":
+            raise ApiError("forbidden", 403)
+        self.registry.get(actor, core_id, home_id, resource_id)
+        return self.store.journal(resource_id, limit)
+
+    def journal_integrity(self, actor, core_id, home_id, resource_id):
+        if actor.role != "admin":
+            raise ApiError("forbidden", 403)
+        self.registry.get(actor, core_id, home_id, resource_id)
+        return self.store.integrity()
