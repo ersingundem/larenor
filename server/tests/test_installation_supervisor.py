@@ -120,6 +120,15 @@ class Backend:
         assert time.monotonic() < deadline and gate() is True and gate() is True
         return 'arr-configured'
 
+    def install_configured_arr(self, job, stack, service_id, *, api_key,
+                               cancelled, deadline, gate):
+        self.calls.append((
+            'install_configured_arr', job, stack, service_id, api_key,
+            cancelled, threading.get_native_id(),
+        ))
+        assert time.monotonic() < deadline and gate() is True and gate() is True
+        return 'arr-installed'
+
     def install_configured_qbittorrent(
             self, job, stack, credential, *, api_key, salt, cancelled,
             deadline, gate):
@@ -252,6 +261,27 @@ def test_arr_config_gates_share_retained_daemon_and_native_thread(monkeypatch):
     ) == 'arr-configured'
     assert backend.calls[0][0:6] == (
         'configure_arr', 'a' * 32, 'stack', 'sonarr', 'api-key', cancelled,
+    )
+    assert backend.calls[0][6] == threading.get_native_id()
+    assert lease.pair.checks == 5
+
+    guarded.close()
+    assert connection.closed and lease.closed
+
+
+def test_arr_ordered_install_shares_retained_daemon_and_native_thread(monkeypatch):
+    guarded, backend, connection, lease = build(monkeypatch)
+    deadline = time.monotonic() + 2
+    cancelled = threading.Event()
+    guarded.open(deadline)
+
+    assert guarded.install_configured_arr_with_deadline(
+        'a' * 32, 'stack', 'radarr', api_key='api-key',
+        cancelled=cancelled, deadline=deadline,
+    ) == 'arr-installed'
+    assert backend.calls[0][0:6] == (
+        'install_configured_arr', 'a' * 32, 'stack', 'radarr', 'api-key',
+        cancelled,
     )
     assert backend.calls[0][6] == threading.get_native_id()
     assert lease.pair.checks == 5

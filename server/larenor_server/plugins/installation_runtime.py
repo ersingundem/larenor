@@ -34,7 +34,9 @@ from .jellyfin_startup import JellyfinStartupConfigurator
 from .jellyfin_authenticated_readback import JellyfinAuthenticatedReadback
 from .jellyfin_managed_libraries import JellyfinManagedLibraries
 from .arr_config_runtime import ArrConfigRuntime
-from .arr_bootstrap_executor import ArrBootstrapExecutor
+from .arr_bootstrap_executor import (
+    ArrBootstrapExecutionError, ArrBootstrapExecutor,
+)
 from .arr_authenticated_readback import ArrAuthenticatedReadback
 from .arr_config_effect import ArrConfigInstallReceipt
 from .arr_config_models import (
@@ -316,11 +318,40 @@ class _RuntimeBackend:
             if (type(result) is not ExecutionResult or result.state != 'succeeded'
                     or result.code != 'container_started'
                     or result.container_id is None):
-                raise ValueError()
-            verified = self.arr_bootstrap.execute(
-                job, stack, PrivateArrConfiguration(
-                    serviceId=service_id, apiKey=api_key),
-                deadline=deadline, gate=gate)
+                code = ('arr_config_authority_changed'
+                        if type(result) is ExecutionResult
+                        and result.code in {
+                            'authority_changed', 'context_changed',
+                            'preparation_changed', 'inspection_changed',
+                            'catalog_changed', 'cancelled',
+                        }
+                        else 'arr_config_resources_unavailable'
+                        if type(result) is ExecutionResult
+                        and (result.state == 'pending'
+                             or result.code in {
+                                 'resource_conflict', 'container_not_running',
+                                 'dispatch_expired',
+                             })
+                        else 'arr_config_result_invalid')
+                raise ArrConfigurationExecutionError(
+                    code, uncertain_effect=True)
+            try:
+                verified = self.arr_bootstrap.execute(
+                    job, stack, PrivateArrConfiguration(
+                        serviceId=service_id, apiKey=api_key),
+                    deadline=deadline, gate=gate)
+            except ArrBootstrapExecutionError as error:
+                code = {
+                    'arr_bootstrap_authority_changed':
+                        'arr_config_authority_changed',
+                    'arr_bootstrap_timeout': 'arr_config_timeout',
+                    'arr_bootstrap_resources_unavailable':
+                        'arr_config_resources_unavailable',
+                    'arr_bootstrap_endpoint_unavailable':
+                        'arr_config_resources_unavailable',
+                }.get(error.code, 'arr_config_result_invalid')
+                raise ArrConfigurationExecutionError(
+                    code, uncertain_effect=True) from None
             if verified.state != 'verified' or verified.service_id != service_id:
                 raise ValueError()
             return ArrConfiguredInstallReceipt(
