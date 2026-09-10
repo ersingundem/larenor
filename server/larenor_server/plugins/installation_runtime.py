@@ -237,8 +237,10 @@ class _RuntimeBackend:
         return self.bootstrap_executor.execute(
             job, plan, private, deadline=deadline, gate=gate)
 
-    def configure_qbittorrent(self, stack, credential, *, api_key, salt,
+    def configure_qbittorrent(self, job, stack, credential, *, api_key, salt,
                               cancelled, deadline, gate):
+        if type(job) is not str or re.fullmatch(r'[0-9a-f]{32}', job) is None:
+            raise ValueError('invalid_worker_result')
         return self.qbittorrent_config.install(
             stack, credential, api_key=api_key, salt=salt,
             cancelled=cancelled, before_dispatch=gate,

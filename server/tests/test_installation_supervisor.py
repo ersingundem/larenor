@@ -102,10 +102,10 @@ class Backend:
         assert time.monotonic() < deadline and gate() is True and gate() is True
         return 'bootstrapped'
 
-    def configure_qbittorrent(self, stack, credential, *, api_key, salt,
+    def configure_qbittorrent(self, job, stack, credential, *, api_key, salt,
                               cancelled, deadline, gate):
         self.calls.append((
-            'configure_qbittorrent', stack, credential, api_key, salt,
+            'configure_qbittorrent', job, stack, credential, api_key, salt,
             cancelled, threading.get_native_id(),
         ))
         assert time.monotonic() < deadline and gate() is True and gate() is True
@@ -188,14 +188,14 @@ def test_qbittorrent_config_gates_share_retained_daemon_and_native_thread(monkey
     guarded.open(deadline)
 
     assert guarded.configure_qbittorrent_with_deadline(
-        'stack', 'credential', api_key='api-key', salt=b'x' * 16,
+        'a' * 32, 'stack', 'credential', api_key='api-key', salt=b'x' * 16,
         cancelled=cancelled, deadline=deadline,
     ) == 'configured'
-    assert backend.calls[0][0:6] == (
-        'configure_qbittorrent', 'stack', 'credential', 'api-key', b'x' * 16,
+    assert backend.calls[0][0:7] == (
+        'configure_qbittorrent', 'a' * 32, 'stack', 'credential', 'api-key', b'x' * 16,
         cancelled,
     )
-    assert backend.calls[0][6] == threading.get_native_id()
+    assert backend.calls[0][7] == threading.get_native_id()
     assert lease.pair.checks == 5
 
     guarded.close()
