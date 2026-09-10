@@ -24,6 +24,10 @@ _CODES = frozenset({
     'qbittorrent_categories_authentication_failed',
     'qbittorrent_categories_protocol',
     'qbittorrent_categories_observation_protocol',
+    'qbittorrent_categories_observation_framing',
+    'qbittorrent_categories_observation_http',
+    'qbittorrent_categories_observation_closed',
+    'qbittorrent_categories_observation_payload',
     'qbittorrent_category_create_protocol',
     'qbittorrent_categories_verification_protocol',
     'qbittorrent_category_conflict',
@@ -174,14 +178,20 @@ class QbittorrentManagedCategories:
             scope = _Deadline(deadline)
             scope.attach(connection)
             reader = _StartupReader(connection, deadline)
-            status, raw, closes = self._get(
-                connection, reader, deadline, limits, api_key, final=False)
-            self._status(status, protocol_code)
+            try:
+                status, raw, closes = self._get(
+                    connection, reader, deadline, limits, api_key, final=False)
+            except ProbeTransportError:
+                raise QbittorrentManagedCategoriesError(
+                    'qbittorrent_categories_observation_framing') from None
+            self._status(
+                status, 'qbittorrent_categories_observation_http')
             if closes:
                 raise QbittorrentManagedCategoriesError(
-                    protocol_code)
+                    'qbittorrent_categories_observation_closed')
             completed.append('categories_observed')
-            present = _existing(_json(raw, protocol_code))
+            present = _existing(_json(
+                raw, 'qbittorrent_categories_observation_payload'))
             if present == frozenset(dict(_CATEGORIES)):
                 completed.append('categories_verified')
                 return QbittorrentManagedCategoriesResult(

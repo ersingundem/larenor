@@ -120,7 +120,34 @@ def test_observation_protocol_failure_has_a_bounded_stage_code():
     connection = Connection([response(200, b'not-json',
                                       content_type=b'application/json')])
     with pytest.raises(QbittorrentManagedCategoriesError,
-                       match='^qbittorrent_categories_observation_protocol$'):
+                       match='^qbittorrent_categories_observation_payload$'):
+        QbittorrentManagedCategories().apply(
+            connection, api_key=PRIVATE_BEARER)
+
+
+def test_observation_http_failure_has_a_bounded_stage_code():
+    connection = Connection([json_response({}, status=500)])
+    with pytest.raises(QbittorrentManagedCategoriesError,
+                       match='^qbittorrent_categories_observation_http$'):
+        QbittorrentManagedCategories().apply(
+            connection, api_key=PRIVATE_BEARER)
+
+
+def test_observation_close_failure_has_a_bounded_stage_code():
+    connection = Connection([json_response({}, close=True)])
+    with pytest.raises(QbittorrentManagedCategoriesError,
+                       match='^qbittorrent_categories_observation_closed$'):
+        QbittorrentManagedCategories().apply(
+            connection, api_key=PRIVATE_BEARER)
+
+
+def test_observation_framing_failure_has_a_bounded_stage_code():
+    connection = Connection([
+        b'HTTP/1.1 200 OK\r\nContent-Type: application/json\r\n'
+        b'Content-Length: nope\r\n\r\n',
+    ])
+    with pytest.raises(QbittorrentManagedCategoriesError,
+                       match='^qbittorrent_categories_observation_framing$'):
         QbittorrentManagedCategories().apply(
             connection, api_key=PRIVATE_BEARER)
 

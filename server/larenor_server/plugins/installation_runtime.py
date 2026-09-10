@@ -388,6 +388,14 @@ class _RuntimeBackend:
                     'qbittorrent_categories_protocol',
                 'qbittorrent_categories_observation_protocol':
                     'qbittorrent_categories_observation_protocol',
+                'qbittorrent_categories_observation_framing':
+                    'qbittorrent_categories_observation_framing',
+                'qbittorrent_categories_observation_http':
+                    'qbittorrent_categories_observation_http',
+                'qbittorrent_categories_observation_closed':
+                    'qbittorrent_categories_observation_closed',
+                'qbittorrent_categories_observation_payload':
+                    'qbittorrent_categories_observation_payload',
                 'qbittorrent_category_create_protocol':
                     'qbittorrent_category_create_protocol',
                 'qbittorrent_categories_verification_protocol':
