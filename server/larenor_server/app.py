@@ -28,6 +28,7 @@ from .home_assistant.api import router as home_assistant_router
 from .home_assistant.history_api import router as command_history_router
 from .home_assistant.integrity_api import router as command_integrity_router
 from .home_assistant.migration_api import router as direct_ha_migration_router
+from .proxmox.api import router as proxmox_resource_router
 from .services.probe_api import router as service_probe_router
 from .plugins.api import router as plugins_router
 from .plugins.job_api import router as plugin_jobs_router
@@ -95,6 +96,7 @@ def create_app(settings: Settings, *, routers: Iterable[APIRouter] = (),
         finally:
             stop.set()
             application.state.core.home_assistant.close()
+            application.state.core.proxmox.close()
             application.state.core.direct_ha_migration.close()
             if task is not None:
                 # Worker IPC has one bounded deadline. Do not cancel its DB
@@ -213,6 +215,7 @@ def create_app(settings: Settings, *, routers: Iterable[APIRouter] = (),
     app.include_router(command_history_router, prefix="/api/v1")
     app.include_router(command_integrity_router, prefix="/api/v1")
     app.include_router(direct_ha_migration_router, prefix="/api/v1")
+    app.include_router(proxmox_resource_router, prefix="/api/v1")
     app.include_router(service_probe_router, prefix="/api/v1")
     app.include_router(plugins_router, prefix="/api/v1")
     app.include_router(plugin_jobs_router, prefix="/api/v1")

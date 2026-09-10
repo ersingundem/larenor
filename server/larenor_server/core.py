@@ -54,6 +54,8 @@ from .home_assistant.schema import migrate_home_assistant
 from .home_assistant.service import HomeAssistantAdapter
 from .home_assistant.migration_schema import migrate as migrate_direct_ha
 from .home_assistant.migration import DirectHaMigration
+from .proxmox.schema import migrate as migrate_proxmox_resources
+from .proxmox.service import ProxmoxResourceAdapter
 
 
 class CoreServices:
@@ -158,6 +160,7 @@ class CoreServices:
                 migrate_home_assistant(connection, self.context, key)
                 migrate_command_history(connection, self.context, key)
                 migrate_direct_ha(connection, key, self.context)
+                migrate_proxmox_resources(connection, self.context, key)
                 migrate_plugins(connection)
                 migrate_plugin_jobs(connection)
                 migrate_media_preparations(connection)
@@ -198,6 +201,9 @@ class CoreServices:
             self.home_assistant.validate_storage()
             self.direct_ha_migration = DirectHaMigration(self.home_assistant)
             self.direct_ha_migration.validate_storage()
+            self.proxmox = ProxmoxResourceAdapter(
+                self.db, self.auth, settings, key, self.home_resources, self.services)
+            self.proxmox.validate_storage()
             self.component_egress = ComponentEgress(self.services, key, self.context)
             self.services.component_egress = self.component_egress
             self.service_probe = ServiceProbeRunner(self.services)
