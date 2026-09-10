@@ -36,11 +36,7 @@ void main() {
           if (path.endsWith('/snapshot')) {
             response = {'snapshot': f['snapshot']};
           } else if (path.endsWith('/binding-preview')) {
-            proposed = {
-              ...f['binding'] as Map,
-              'id': '7' * 32,
-              'revision': 3,
-            };
+            proposed = {...f['binding'] as Map, 'id': '7' * 32, 'revision': 3};
             response = {
               'preview': {
                 ...f['preview'] as Map,
@@ -55,7 +51,9 @@ void main() {
           } else if (path.endsWith('/binding')) {
             response = {'binding': f['binding']};
           } else if (path.endsWith('/services')) {
-            response = {'services': [f['service']]};
+            response = {
+              'services': [f['service']],
+            };
           } else if (path.contains('/home-resources/')) {
             response = {'record': f['resource']};
           } else if (request.method == 'DELETE') {
@@ -82,28 +80,43 @@ void main() {
     expect(record.id, target.id);
     expect(snapshot.summary.guests, hasLength(2));
     expect(requests.map((r) => (r.method, r.url.path)), [
-      ('GET', '/prefix/api/v1/home-resources/${context.coreId}/${context.homeId}/${target.id}'),
-      ('GET', '/prefix/api/v1/proxmox/${context.coreId}/${context.homeId}/resources/${target.id}/snapshot'),
+      (
+        'GET',
+        '/prefix/api/v1/home-resources/${context.coreId}/${context.homeId}/${target.id}',
+      ),
+      (
+        'GET',
+        '/prefix/api/v1/proxmox/${context.coreId}/${context.homeId}/resources/${target.id}/snapshot',
+      ),
     ]);
-    expect(requests.every((r) => r.headers['authorization'] == 'Bearer ${'a' * 43}'), isTrue);
+    expect(
+      requests.every((r) => r.headers['authorization'] == 'Bearer ${'a' * 43}'),
+      isTrue,
+    );
   });
 
-  test('admin preview confirm cancel sends exact revisions and no command', () async {
-    final service = ServerService.fromJson(f['service']);
-    final binding = await api.binding();
-    final preview = await api.preview(service: service, existing: binding);
-    expect(jsonDecode(requests.last.body), {
-      'serviceId': service.id,
-      'expectedServiceRevision': service.revision,
-      'expectedRevision': target.revision,
-      'expectedAclRevision': target.aclRevision,
-      'expectedBindingId': binding!.id,
-    });
-    expect((await api.confirm(preview)).sameBinding(preview.binding), isTrue);
-    await api.cancel(preview);
-    expect(requests.map((r) => r.method), isNot(contains('PATCH')));
-    expect(requests.map((r) => r.url.path).join(' '), isNot(contains('commands')));
-  });
+  test(
+    'admin preview confirm cancel sends exact revisions and no command',
+    () async {
+      final service = ServerService.fromJson(f['service']);
+      final binding = await api.binding();
+      final preview = await api.preview(service: service, existing: binding);
+      expect(jsonDecode(requests.last.body), {
+        'serviceId': service.id,
+        'expectedServiceRevision': service.revision,
+        'expectedRevision': target.revision,
+        'expectedAclRevision': target.aclRevision,
+        'expectedBindingId': binding!.id,
+      });
+      expect((await api.confirm(preview)).sameBinding(preview.binding), isTrue);
+      await api.cancel(preview);
+      expect(requests.map((r) => r.method), isNot(contains('PATCH')));
+      expect(
+        requests.map((r) => r.url.path).join(' '),
+        isNot(contains('commands')),
+      );
+    },
+  );
 
   test('late response and foreign service selection are rejected', () async {
     var current = true;
@@ -118,7 +131,10 @@ void main() {
     current = false;
     expect(
       () => api.preview(
-        service: ServerService.fromJson({...f['service'] as Map, 'kind': 'jellyfin'}),
+        service: ServerService.fromJson({
+          ...f['service'] as Map,
+          'kind': 'jellyfin',
+        }),
         existing: null,
       ),
       throwsA(isA<LarenorServerException>()),

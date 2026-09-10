@@ -54,9 +54,11 @@ void main() {
     Map<String, dynamic> snapshot() =>
         jsonDecode(jsonEncode(fixture['snapshot'])) as Map<String, dynamic>;
     final mutations = <void Function(Map<String, dynamic>)>[
-      (v) => ((v['summary'] as Map)['nodes'] as List).first['status'] = 'unknown',
+      (v) =>
+          ((v['summary'] as Map)['nodes'] as List).first['status'] = 'unknown',
       (v) => ((v['summary'] as Map)['guests'] as List).first['cpuRatio'] = 2,
-      (v) => ((v['summary'] as Map)['storages'] as List).first['usedBytes'] = -1,
+      (v) =>
+          ((v['summary'] as Map)['storages'] as List).first['usedBytes'] = -1,
       (v) => (v['summary'] as Map)['nodes'] = [
         ...((v['summary'] as Map)['nodes'] as List),
         ((v['summary'] as Map)['nodes'] as List).first,

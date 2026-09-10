@@ -234,6 +234,7 @@ final class CoreProxmoxSummary {
       if (source is! List || source.length > max) _invalid();
       return List<T>.unmodifiable(source.map(parse));
     }
+
     final nodes = list('nodes', 32, CoreProxmoxNode.fromJson),
         guests = list('guests', 256, CoreProxmoxGuest.fromJson),
         storages = list('storages', 64, CoreProxmoxStorage.fromJson);

@@ -76,7 +76,11 @@ final class CoreProxmoxApi {
   });
 
   Future<CoreProxmoxSnapshot> snapshot() => _operation(() async {
-    final raw = await _transport.request('GET', '$_path/snapshot', token: _token);
+    final raw = await _transport.request(
+      'GET',
+      '$_path/snapshot',
+      token: _token,
+    );
     _check();
     return CoreProxmoxSnapshot.fromJson(
       _envelope(raw, 'snapshot'),
@@ -86,7 +90,11 @@ final class CoreProxmoxApi {
 
   Future<CoreProxmoxBinding?> binding() => _operation(() async {
     try {
-      final raw = await _transport.request('GET', '$_admin/binding', token: _token);
+      final raw = await _transport.request(
+        'GET',
+        '$_admin/binding',
+        token: _token,
+      );
       _check();
       return CoreProxmoxBinding.fromJson(
         _envelope(raw, 'binding'),
@@ -137,7 +145,8 @@ final class CoreProxmoxApi {
     );
     if (value.binding.serviceId != service.id ||
         value.binding.serviceRevision != service.revision ||
-        value.binding.revision != (existing == null ? 1 : existing.revision + 1)) {
+        value.binding.revision !=
+            (existing == null ? 1 : existing.revision + 1)) {
       throw const LarenorServerException('invalid_response');
     }
     return value;
