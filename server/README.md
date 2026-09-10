@@ -363,6 +363,13 @@ in-flight receipt during shutdown. Success exposes a secret-free
 readable without claiming a container start. Native service/readback acceptance
 is still open, so every capability and job reports `installAvailable: false`.
 
+A worker-private qBittorrent bootstrap executor can now derive TCP/8080 only
+from the exact running journal container and its sole private control-network
+attachment. It verifies fixed movie/TV categories and then performs pinned
+version, API-key and owned-settings readback over a fresh proved connection,
+with repeated authority and endpoint-drift checks. This executor is not yet
+attached to the Core IPC job; no public route or install capability is added.
+
 ## Client releases
 
 The normal `larenor-server` entry point also registers `/client/releases`.

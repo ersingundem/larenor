@@ -324,6 +324,14 @@ Historical configuration-only receipts stay readable and expose no container
 state. `installAvailable` remains false until native service acceptance and
 authenticated readback are proven.
 
+The next worker-private layer proves a qBittorrent TCP/8080 endpoint only from
+the exact started container and its sole private control-network attachment. It
+uses numeric RFC1918 IPv4 without DNS or proxy, rechecks the container around
+each connection, applies only the fixed movie/TV categories, and reads back the
+pinned version, private API key and owned settings on a fresh stream. The
+executor is not yet exposed through Core IPC; native service acceptance remains
+open.
+
 The initial worker-only binding builder now requires fresh typed image,
 bootstrapped-volume and private-network proofs, disables published ports, maps
 exactly writable `/config` and `/cache` plus the Larenor-managed, read-only

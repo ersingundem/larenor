@@ -43,6 +43,11 @@ ordering, same-thread supervisor gates, legacy encrypted receipt readback,
 secret-free failure handling and strict public-state coherence. `compileall`,
 diff validation and the execution-queue validator also pass.
 
+Exact PR head `729eb1e9bebc29c9ee73cdf2d3bda50b89b72076` then passed the
+Server, Android analyze, debug APK, API 35 emulator E2E, dependency, platform
+policy and secret-scan jobs. Source-bound characterization passed on amd64 and
+arm64. PR 38 merged as `307f8dc0ff575171ac8a6972e5974dc59397757d`.
+
 ## Remaining acceptance boundary
 
 This source has not started qBittorrent against the disposable amd64 and arm64

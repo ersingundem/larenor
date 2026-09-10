@@ -775,7 +775,8 @@
         "docs/qbittorrent-runtime-binding-implementation-2026-09-10.md",
         "docs/qbittorrent-installation-ipc-implementation-2026-09-10.md",
         "docs/qbittorrent-configuration-jobs-implementation-2026-09-10.md",
-        "docs/qbittorrent-configured-container-implementation-2026-09-10.md"
+        "docs/qbittorrent-configured-container-implementation-2026-09-10.md",
+        "docs/qbittorrent-private-bootstrap-implementation-2026-09-10.md"
       ],
       "scope": "Kullanıcı ayrı uygulama kurmaz veya API anahtarı kopyalamaz; sırlar Client/plan/log içine girmez.",
       "acceptance": [
@@ -1010,10 +1011,42 @@
           "state": "completed",
           "result": "passed",
           "label": "Exact PR37 dependency, platform-policy ve secret-scan kapıları PASS."
+        },
+        {
+          "kind": "test",
+          "ref": "docs/qbittorrent-private-bootstrap-implementation-2026-09-10.md",
+          "commit": "293481597ec231ef48af021752e1b69decb33eed",
+          "state": "completed",
+          "result": "passed",
+          "label": "Exact qBittorrent running-container/private-network endpoint kanıtı ile sabit kategori ve authenticated readback executor temeli; 354 ilgili testte 353 PASS/1 mevcut macOS skip. Core IPC/runtime ve native kabul açık."
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/34425789882",
+          "commit": "729eb1e9bebc29c9ee73cdf2d3bda50b89b72076",
+          "state": "completed",
+          "result": "passed",
+          "label": "Exact PR38 Server, Android analyze, debug APK ve API35 emulator E2E kapıları PASS."
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/34425789801",
+          "commit": "729eb1e9bebc29c9ee73cdf2d3bda50b89b72076",
+          "state": "completed",
+          "result": "passed",
+          "label": "Exact PR38 source-bound karakterizasyon amd64 ve arm64 üzerinde PASS."
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/34425789647",
+          "commit": "729eb1e9bebc29c9ee73cdf2d3bda50b89b72076",
+          "state": "completed",
+          "result": "passed",
+          "label": "Exact PR38 dependency, platform-policy ve secret-scan kapıları PASS."
         }
       ],
       "completionCommit": null,
-      "reason": "Server üretimli sır, sabit startup, exact journal/container/private-network yürütücüsü, kalıcı no-retry koordinatör, otomatik yaşam döngüsü dispatcher ve aynı retained daemon'a bağlı private IPC/runtime hazır. Disposable Jellyfin 10.11.11 bootstrap, API anahtarı, kütüphane eşleştirmesi, logout, restart ve veri kalıcılığı exact arm64+amd64 CI'da geçti. qBittorrent 5.2.3 sahipli config/API, journal-bound volume/library planı, güvenli helper, private stdin effect, current-journal runtime bağı, UID-korumalı IPC, şifreli kalıcı Core işi ve config-before-create/start zinciri yerelde yeşil. Exact qBittorrent native servis/readback, Radarr/Sonarr/Seerr/Music Assistant eşleştirmesi açık; installAvailable=false."
+      "reason": "Server üretimli sır, sabit startup, exact journal/container/private-network yürütücüsü, kalıcı no-retry koordinatör, otomatik yaşam döngüsü dispatcher ve aynı retained daemon'a bağlı private IPC/runtime hazır. Disposable Jellyfin 10.11.11 bootstrap, API anahtarı, kütüphane eşleştirmesi, logout, restart ve veri kalıcılığı exact arm64+amd64 CI'da geçti. qBittorrent 5.2.3 sahipli config/API, journal-bound volume/library planı, güvenli helper, private stdin effect, current-journal runtime bağı, UID-korumalı IPC, şifreli kalıcı Core işi ve config-before-create/start zinciri yerelde yeşil. qBittorrent private numeric endpoint ile kategori/readback executor temeli de yerelde yeşil; Core dispatch, exact native servis/readback ve Radarr/Sonarr/Seerr/Music Assistant eşleştirmesi açık; installAvailable=false."
     },
     {
       "id": "S06.6",
