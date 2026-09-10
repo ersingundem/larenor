@@ -78,11 +78,14 @@ def running(backend=None):
         )
         server.start()
         try:
-            yield selected, InstallationWorkerClient(
-                path,
-                owner_uid=os.getuid(),
-                peer_uid=lambda _connection: os.getuid(),
-                timeout=0.5,
+            yield (
+                selected,
+                InstallationWorkerClient(
+                    path,
+                    owner_uid=os.getuid(),
+                    peer_uid=lambda _connection: os.getuid(),
+                    timeout=0.5,
+                ),
             )
         finally:
             server.close()
@@ -187,3 +190,34 @@ def test_invalid_worker_result_fails_closed(result):
             )
     assert raised.value.uncertain_effect
     assert API_KEY not in repr(raised.value)
+
+
+def test_unrecognized_private_worker_cause_is_not_accepted(monkeypatch, tmp_path):
+    client = InstallationWorkerClient(
+        tmp_path / "worker.sock", owner_uid=os.getuid(), timeout=0.5
+    )
+    monkeypatch.setattr(
+        client,
+        "_exchange",
+        lambda *_a, **_k: {
+            "state": "failed",
+            "apiKey": None,
+            "completedSteps": [],
+            "errorCode": "seerr_bootstrap_initial_admin_failed",
+            "uncertainEffect": True,
+            "causeCode": "private-worker-detail",
+        },
+    )
+    with pytest.raises(
+        SeerrBootstrapExecutionError,
+        match="^seerr_bootstrap_resources_unavailable$",
+    ) as raised:
+        client.bootstrap_seerr(
+            "a" * 32,
+            stack(),
+            private(),
+            deadline=time.monotonic() + 0.4,
+            gate=lambda: True,
+        )
+    assert raised.value.uncertain_effect
+    assert "private-worker-detail" not in repr(raised.value)

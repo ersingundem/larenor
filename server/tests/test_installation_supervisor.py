@@ -102,6 +102,12 @@ class Backend:
         assert time.monotonic() < deadline and gate() is True and gate() is True
         return 'bootstrapped'
 
+    def bootstrap_seerr(self, job, plan, private, *, deadline, gate):
+        self.calls.append(
+            ('bootstrap_seerr', job, plan, private, threading.get_native_id()))
+        assert time.monotonic() < deadline and gate() is True and gate() is True
+        return 'seerr-bootstrapped'
+
     def configure_qbittorrent(self, job, stack, credential, *, api_key, salt,
                               cancelled, deadline, gate):
         self.calls.append((
@@ -203,6 +209,22 @@ def test_bootstrap_gates_share_retained_daemon_evidence_and_native_thread(monkey
     assert backend.calls[0][:4] == ('bootstrap', 'job', 'plan', 'private')
     assert backend.calls[0][4] == threading.get_native_id()
     assert lease.pair.checks == 5  # open, before, two inner gates, after
+
+    guarded.close()
+    assert connection.closed and lease.closed
+
+
+def test_seerr_bootstrap_gates_share_retained_daemon_evidence(monkeypatch):
+    guarded, backend, connection, lease = build(monkeypatch)
+    deadline = time.monotonic() + 2
+    guarded.open(deadline)
+
+    assert guarded.bootstrap_seerr_with_deadline(
+        'job', 'plan', 'private', deadline) == 'seerr-bootstrapped'
+    assert backend.calls[0][:4] == (
+        'bootstrap_seerr', 'job', 'plan', 'private')
+    assert backend.calls[0][4] == threading.get_native_id()
+    assert lease.pair.checks == 5
 
     guarded.close()
     assert connection.closed and lease.closed

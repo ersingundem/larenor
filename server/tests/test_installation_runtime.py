@@ -225,6 +225,8 @@ def test_runtime_configures_qbittorrent_before_create_and_start(monkeypatch):
         lambda *_args: QbittorrentBootstrap())
     monkeypatch.setattr(
         runtime, 'ArrBootstrapExecutor', lambda *_args: object())
+    monkeypatch.setattr(
+        runtime, 'SeerrBootstrapExecutor', lambda *_args: object())
     monkeypatch.setattr(runtime.time, 'monotonic', lambda: 1000.0)
     monkeypatch.setattr(runtime.time, 'time', lambda: 2000.0)
     backend = runtime._RuntimeBackend(
@@ -585,6 +587,7 @@ def test_runtime_configures_arr_before_create_start_and_readback(monkeypatch):
     monkeypatch.setattr(runtime,'JellyfinBootstrapExecutor',lambda *_:object())
     monkeypatch.setattr(runtime,'QbittorrentBootstrapExecutor',lambda *_:object())
     monkeypatch.setattr(runtime,'ArrBootstrapExecutor',lambda *_:Bootstrap())
+    monkeypatch.setattr(runtime,'SeerrBootstrapExecutor',lambda *_:object())
     monkeypatch.setattr(runtime.time,'monotonic',lambda:1000.0); monkeypatch.setattr(runtime.time,'time',lambda:2000.0)
     stack=build_media_stack_plan(load_catalog(),{},'linux/amd64',ContextResponse(schemaVersion=1,coreId='a'*32,homeId='b'*32),'c'*32)
     backend=runtime._RuntimeBackend(Operations(),lambda _s,service:'binding-'+service,object(),Configuration())
