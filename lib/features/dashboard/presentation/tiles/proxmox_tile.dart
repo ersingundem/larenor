@@ -468,6 +468,24 @@ class _CoreProxmoxTileState extends ConsumerState<_CoreProxmoxTile> {
               readiness,
           ],
         ];
+        void openDetail() => Navigator.of(context).push(
+          CupertinoPageRoute<void>(
+            builder: (_) => CoreProxmoxScreen(
+              target: target,
+              onOpenPowerControls: (detailContext, powerTarget, canWrite) {
+                Navigator.of(detailContext).push<void>(
+                  CupertinoPageRoute(
+                    builder: (_) => SettingsGateScreen(
+                      initialDestination: SettingsGateDestination.proxmoxPower,
+                      proxmoxPowerTarget: powerTarget,
+                      proxmoxCanWrite: canWrite,
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+        );
         VoidCallback? onTap;
         if (summary == null || controller.stale || controller.failure != null) {
           onTap = controller.busy
@@ -476,33 +494,8 @@ class _CoreProxmoxTileState extends ConsumerState<_CoreProxmoxTile> {
                   discovery?.invalidate();
                   unawaited(controller.refresh());
                 };
-        } else if (!admin) {
-          onTap = () => Navigator.of(context).push(
-            CupertinoPageRoute<void>(
-              builder: (_) => CoreProxmoxScreen(target: target),
-            ),
-          );
-        } else if (discovery?.phase == ProxmoxTargetDiscoveryPhase.ready &&
-            commandTarget != null &&
-            coherent &&
-            target.canWrite) {
-          onTap = () => Navigator.of(context).push(
-            CupertinoPageRoute<void>(
-              builder: (_) => SettingsGateScreen(
-                initialDestination: SettingsGateDestination.proxmoxPower,
-                proxmoxPowerTarget: commandTarget,
-                proxmoxCanWrite: true,
-              ),
-            ),
-          );
-        } else if (discovery?.phase == ProxmoxTargetDiscoveryPhase.ready &&
-            !coherent) {
-          onTap = () {
-            discovery?.invalidate();
-            unawaited(controller.refresh());
-          };
-        } else if (discovery?.busy != true) {
-          onTap = discovery?.discover;
+        } else {
+          onTap = openDetail;
         }
         return ServiceTileShell(
           icon: CupertinoIcons.square_stack_3d_up,
