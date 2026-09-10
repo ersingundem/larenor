@@ -13,6 +13,21 @@ Map _object(Object? raw, Set<String> keys) {
   return raw;
 }
 
+Map _objectWithOptional(
+  Object? raw,
+  Set<String> required,
+  Set<String> optional,
+) {
+  if (raw is! Map ||
+      !required.every(raw.containsKey) ||
+      raw.keys.any(
+        (key) => !required.contains(key) && !optional.contains(key),
+      )) {
+    _invalid();
+  }
+  return raw;
+}
+
 String _id(Object? raw) {
   if (raw is! String || !RegExp(r'^[0-9a-f]{32}$').hasMatch(raw)) _invalid();
   return raw;
@@ -71,22 +86,29 @@ final class CoreKeeneticStatus {
     this.publicIp,
     this.uptimeSeconds,
     this.firmware,
+    this.firmwareRevision,
+    this.statusRevision,
     this.cpuPercent,
     this.memoryPercent,
   );
   final bool online;
   final String? publicIp, firmware;
   final int uptimeSeconds;
+  final int? firmwareRevision, statusRevision;
   final double? cpuPercent, memoryPercent;
   factory CoreKeeneticStatus.fromJson(Object? raw) {
-    final value = _object(raw, {
-      'online',
-      'publicIp',
-      'uptimeSeconds',
-      'firmware',
-      'cpuPercent',
-      'memoryPercent',
-    });
+    final value = _objectWithOptional(
+      raw,
+      {
+        'online',
+        'publicIp',
+        'uptimeSeconds',
+        'firmware',
+        'cpuPercent',
+        'memoryPercent',
+      },
+      {'firmwareRevision', 'statusRevision'},
+    );
     if (value['online'] is! bool) _invalid();
     final publicIp = value['publicIp'] == null
         ? null
@@ -99,6 +121,12 @@ final class CoreKeeneticStatus {
       publicIp,
       _integer(value['uptimeSeconds']),
       value['firmware'] == null ? null : _text(value['firmware'], max: 80),
+      value['firmwareRevision'] == null
+          ? null
+          : _integer(value['firmwareRevision'], min: 1),
+      value['statusRevision'] == null
+          ? null
+          : _integer(value['statusRevision'], min: 1),
       _percent(value['cpuPercent']),
       _percent(value['memoryPercent']),
     );
@@ -116,26 +144,28 @@ final class CoreKeeneticInterface {
     this.address,
     this.rxBytes,
     this.txBytes,
+    this.guest,
   );
   final String id, name;
   final CoreKeeneticInterfaceKind kind;
   final bool online;
   final String? address;
   final int rxBytes, txBytes;
+  final bool? guest;
   factory CoreKeeneticInterface.fromJson(Object? raw) {
-    final value = _object(raw, {
-      'id',
-      'name',
-      'kind',
-      'online',
-      'address',
-      'rxBytes',
-      'txBytes',
-    });
+    final value = _objectWithOptional(
+      raw,
+      {'id', 'name', 'kind', 'online', 'address', 'rxBytes', 'txBytes'},
+      {'guest'},
+    );
     final kind = CoreKeeneticInterfaceKind.values
         .where((v) => v.name == value['kind'])
         .firstOrNull;
-    if (kind == null || value['online'] is! bool) _invalid();
+    if (kind == null ||
+        value['online'] is! bool ||
+        value.containsKey('guest') && value['guest'] is! bool) {
+      _invalid();
+    }
     final address = value['address'] == null
         ? null
         : _text(value['address'], max: 64);
@@ -150,6 +180,7 @@ final class CoreKeeneticInterface {
       address,
       _integer(value['rxBytes']),
       _integer(value['txBytes']),
+      value['guest'] as bool?,
     );
   }
 }
@@ -188,25 +219,33 @@ final class CoreKeeneticHost {
     this.interfaceId,
     this.online,
     this.registered,
+    this.internetAccess,
   );
   final String id, name, ipAddress, macAddress, interfaceId;
   final bool online, registered;
+  final String? internetAccess;
   factory CoreKeeneticHost.fromJson(Object? raw) {
-    final value = _object(raw, {
-      'id',
-      'name',
-      'ipAddress',
-      'macAddress',
-      'interfaceId',
-      'online',
-      'registered',
-    });
+    final value = _objectWithOptional(
+      raw,
+      {
+        'id',
+        'name',
+        'ipAddress',
+        'macAddress',
+        'interfaceId',
+        'online',
+        'registered',
+      },
+      {'internetAccess'},
+    );
     final ip = _text(value['ipAddress'], max: 64),
         mac = _text(value['macAddress'], max: 17);
     if (InternetAddress.tryParse(ip) == null ||
         !RegExp(r'^[0-9A-Fa-f]{2}(?::[0-9A-Fa-f]{2}){5}$').hasMatch(mac) ||
         value['online'] is! bool ||
-        value['registered'] is! bool) {
+        value['registered'] is! bool ||
+        value.containsKey('internetAccess') &&
+            !{'allowed', 'paused'}.contains(value['internetAccess'])) {
       _invalid();
     }
     return CoreKeeneticHost._(
@@ -217,6 +256,7 @@ final class CoreKeeneticHost {
       _text(value['interfaceId'], max: 128),
       value['online'] as bool,
       value['registered'] as bool,
+      value['internetAccess'] as String?,
     );
   }
 }
@@ -233,6 +273,10 @@ final class CoreKeeneticTelemetry {
   final CoreKeeneticTraffic traffic;
   final List<CoreKeeneticHost> hosts;
   int get onlineHosts => hosts.where((h) => h.online).length;
+  int get pausedHosts =>
+      hosts.where((h) => h.internetAccess == 'paused').length;
+  List<CoreKeeneticInterface> get guestInterfaces =>
+      interfaces.where((item) => item.guest == true).toList(growable: false);
   factory CoreKeeneticTelemetry.fromJson(Object? raw) {
     final value = _object(raw, {'status', 'interfaces', 'traffic', 'hosts'});
     final rawInterfaces = value['interfaces'], rawHosts = value['hosts'];

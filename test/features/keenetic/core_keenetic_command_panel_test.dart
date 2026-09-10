@@ -170,7 +170,10 @@ void main() {
     );
     await tester.tap(find.text('Etkinleştir'));
     await tester.pump();
-    expect(find.text('Komut motoru kullanılamıyor'), findsOneWidget);
+    expect(
+      find.textContaining('Komut denetimleri kullanılamıyor'),
+      findsOneWidget,
+    );
   });
 
   testWidgets('cancel and lifecycle retirement cannot execute a held preview', (
