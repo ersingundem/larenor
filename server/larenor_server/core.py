@@ -27,6 +27,8 @@ from .plugins.media_installation_schema import migrate_media_installations
 from .plugins.media_installations import MediaInstallationManagement
 from .plugins.media_service_bootstrap_schema import migrate_media_service_bootstraps
 from .plugins.media_service_bootstraps import MediaServiceBootstrapManagement
+from .plugins.seerr_bootstrap_job_schema import migrate_seerr_bootstraps
+from .plugins.seerr_bootstrap_jobs import SeerrBootstrapManagement
 from .plugins.qbittorrent_config_job_schema import migrate_qbittorrent_configurations
 from .plugins.qbittorrent_config_jobs import QbittorrentConfigurationManagement
 from .plugins.arr_config_job_schema import migrate_arr_configurations
@@ -175,6 +177,7 @@ class CoreServices:
                 migrate_media_inspections(connection)
                 migrate_media_installations(connection)
                 migrate_media_service_bootstraps(connection)
+                migrate_seerr_bootstraps(connection)
                 migrate_qbittorrent_configurations(connection)
                 migrate_arr_configurations(connection)
                 migrate_music_assistant_core(connection)
@@ -242,6 +245,10 @@ class CoreServices:
                 self.db, self.auth, settings, key, self.media_installations,
                 installation_backend)
             self.media_service_bootstraps.validate_storage()
+            self.seerr_bootstraps = SeerrBootstrapManagement(
+                self.db, self.auth, settings, key, self.media_installations,
+                self.media_service_bootstraps)
+            self.seerr_bootstraps.validate_storage()
             self.qbittorrent_configurations = QbittorrentConfigurationManagement(
                 self.db, self.auth, settings, key, self.media_installations,
                 installation_backend)

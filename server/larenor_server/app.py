@@ -37,6 +37,7 @@ from .plugins.media_api import router as media_preparations_router
 from .plugins.media_inspection_api import router as media_inspections_router
 from .plugins.media_installation_api import router as media_installations_router
 from .plugins.media_service_bootstrap_api import router as media_service_bootstraps_router
+from .plugins.seerr_bootstrap_job_api import router as seerr_bootstraps_router
 from .plugins.qbittorrent_config_job_api import router as qbittorrent_configurations_router
 from .plugins.arr_config_job_api import router as arr_configurations_router
 from .plugins.music_assistant_core_api import router as music_assistant_core_router
@@ -233,6 +234,7 @@ def create_app(settings: Settings, *, routers: Iterable[APIRouter] = (),
     app.include_router(media_inspections_router, prefix="/api/v1")
     app.include_router(media_installations_router, prefix="/api/v1")
     app.include_router(media_service_bootstraps_router, prefix="/api/v1")
+    app.include_router(seerr_bootstraps_router, prefix="/api/v1")
     app.include_router(qbittorrent_configurations_router, prefix="/api/v1")
     app.include_router(arr_configurations_router, prefix="/api/v1")
     app.include_router(music_assistant_core_router, prefix="/api/v1")
