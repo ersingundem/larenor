@@ -194,7 +194,11 @@ def test_resource_proof_failure_preserves_only_static_cause(prepared):
             cause_code='resource_proof_network_observation_failed')
 
     selected = ArrBootstrapExecutor(
-        operations, failed_binding, ArrAuthenticatedReadback())
+        operations,
+        failed_binding,
+        ArrManagedRootFolders(),
+        ArrAuthenticatedReadback(),
+    )
     with pytest.raises(
         ArrBootstrapExecutionError,
         match='^arr_bootstrap_resources_unavailable$',
