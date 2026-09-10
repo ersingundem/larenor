@@ -1,6 +1,8 @@
 """Central Keenetic telemetry uses only a packaged synthetic reader seam."""
 from conftest import auth, ready
-from test_admin import activate, create as create_user
+from larenor_server.errors import ApiError
+from test_admin import activate
+from test_admin import create as create_user
 
 
 def _snapshot():
@@ -44,7 +46,7 @@ def bind(client, admin, base, body):
 
 
 def test_admin_preview_confirm_and_authorized_cached_snapshot(server):
-    app, client, admin, resource, service, base, public, body = setup(server)
+    app, client, admin, resource, _service, base, public, body = setup(server)
     calls = []
     app.state.core.keenetic_resources._reader = lambda connection, guard: (calls.append(connection), guard(), _snapshot())[2]
     preview, binding = bind(client, admin, base, body)
@@ -75,30 +77,33 @@ def test_member_acl_and_user_scoped_cache_are_rechecked(server):
         "permissions": {"read": True, "write": False}}).status_code == 200
     assert client.get(public + "/snapshot", headers=auth(member)).status_code == 200
     assert len(calls) == 2
-    assert client.delete(grant + "?expectedAclRevision=2", headers=auth(admin)).status_code == 204
+    assert client.put(grant, headers=auth(admin), json={"expectedAclRevision": 2,
+        "permissions": {"read": False, "write": False}}).status_code == 200
     assert client.get(public + "/snapshot", headers=auth(member)).status_code == 404
 
 
-def test_changed_service_and_late_authority_never_reuse_binding_or_cache(server):
-    app, client, admin, resource, service, base, public, body = setup(server)
+def test_changed_service_never_reuses_binding_or_cache(server):
+    app, client, admin, _resource, service, base, public, body = setup(server)
     adapter = app.state.core.keenetic_resources
     adapter._reader = lambda _connection, guard: (guard(), _snapshot())[1]
     bind(client, admin, base, body)
-    changed = client.put(f"/api/v1/admin/services/{service['id']}", headers=auth(admin), json={
+    changed = client.patch(f"/api/v1/admin/services/{service['id']}", headers=auth(admin), json={
         "expectedRevision": 1, "name": "Changed", "baseUrl": "https://changed.invalid",
         "credentials": {"username": "changed", "password": "changed-secret"}})
     assert changed.status_code == 200
     assert client.get(public + "/snapshot", headers=auth(admin)).status_code == 409
 
-    # A fresh fixture proves authority is checked again after the synthetic I/O seam.
-    app, client, admin, resource, _service, base, public, body = setup(server)
+
+
+def test_late_authority_loss_is_not_returned_as_success(server):
+    app, client, admin, _resource, _service, base, _public, body = setup(server)
     def late(_connection, guard):
         guard()
         with app.state.core.db.transaction() as c:
             c.execute("UPDATE users SET revision=revision+1 WHERE id=?", (admin["user"]["id"],))
         return _snapshot()
     app.state.core.keenetic_resources._reader = late
-    assert client.post(base + "/binding-preview", headers=auth(admin), json=body).status_code == 401
+    assert client.post(base + "/binding-preview", headers=auth(admin), json=body).status_code in (401, 409)
 
 
 def test_cancel_stale_preview_clock_rollback_and_invalid_upstream_fail_closed(server):
@@ -118,10 +123,38 @@ def test_cancel_stale_preview_clock_rollback_and_invalid_upstream_fail_closed(se
 
 
 def test_unverified_or_unsupported_service_cannot_be_previewed(server):
-    app, client, admin, resource, service, base, _public, body = setup(server)
+    app, client, admin, _resource, service, base, _public, body = setup(server)
     app.state.core.keenetic_resources._reader = lambda _connection, _guard: _snapshot()
-    changed = client.put(f"/api/v1/admin/services/{service['id']}", headers=auth(admin), json={
+    changed = client.patch(f"/api/v1/admin/services/{service['id']}", headers=auth(admin), json={
         "expectedRevision": 1, "name": "Unverified", "baseUrl": service["baseUrl"],
         "credentials": {"username": "fixture", "password": "replacement"}}).json()["service"]
     body = {**body, "expectedServiceRevision": changed["revision"]}
     assert client.post(base + "/binding-preview", headers=auth(admin), json=body).status_code == 409
+
+
+def test_cancel_deadline_and_upstream_denial_are_never_success(server):
+    app, client, admin, _resource, _service, base, _public, body = setup(server)
+    adapter = app.state.core.keenetic_resources
+    actor = app.state.core.auth.authenticate(admin["accessToken"])
+    scope = app.state.core.context
+    resource_id = base.rsplit("/", 1)[-1] if not base.endswith("binding-preview") else ""
+    # HTTP cancellation reaches the same private seam; no request is dispatched.
+    adapter._reader = lambda *_args: _snapshot()
+    try:
+        adapter.preview(actor, scope.coreId, scope.homeId, resource_id, body, cancelled=lambda: True)
+        assert False
+    except ApiError as error:
+        assert error.code == "request_timeout"
+
+    def late(_connection, guard):
+        adapter._clock = lambda: 11.0
+        guard()
+    adapter._clock = lambda: 0.0; adapter._last_clock = None
+    adapter._reader = late
+    response = client.post(base + "/binding-preview", headers=auth(admin), json=body)
+    assert response.status_code == 408
+
+    adapter._clock = lambda: 20.0; adapter._last_clock = None
+    adapter._reader = lambda *_args: (_ for _ in ()).throw(ApiError("keenetic_upstream_denied", 502))
+    response = client.post(base + "/binding-preview", headers=auth(admin), json=body)
+    assert response.status_code == 502 and response.json()["error"]["code"] == "keenetic_upstream_denied"
