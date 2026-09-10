@@ -7,7 +7,7 @@
       },
       "container_name": "larenor-keenetic-worker",
       "user": "10001:10001",
-      "network_mode": "none",
+      "networks": ["keenetic-rci-egress"],
       "read_only": true,
       "restart": "on-failure:3",
       "stop_grace_period": "10s",
@@ -34,5 +34,8 @@
         "options": {"max-size": "1m", "max-file": "2"}
       }
     }
+  },
+  "networks": {
+    "keenetic-rci-egress": {"driver": "bridge"}
   }
 }

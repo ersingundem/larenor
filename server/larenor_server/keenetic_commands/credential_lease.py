@@ -2,6 +2,7 @@
 
 import base64
 import hashlib
+import ipaddress
 import json
 import math
 import secrets
@@ -68,7 +69,10 @@ class KeeneticCredentialLeaseIssuer:
         self._clock = clock
         self._last_clock = None
 
-    def issue(self, actor, expected, *, worker_id, ttl_seconds=10):
+    def issue(
+        self, actor, expected, *, worker_id, ttl_seconds=10,
+        allowed_addresses=(),
+    ):
         try:
             expected = TargetState.model_validate(expected)
             if (
@@ -77,6 +81,13 @@ class KeeneticCredentialLeaseIssuer:
                 or any(char not in "0123456789abcdef" for char in worker_id)
                 or type(ttl_seconds) is not int
                 or not 1 <= ttl_seconds <= 30
+            ):
+                raise ValueError
+            addresses = tuple(allowed_addresses)
+            if (
+                not 1 <= len(addresses) <= 8
+                or len(set(addresses)) != len(addresses)
+                or any(not _lan_address(address) for address in addresses)
             ):
                 raise ValueError
             now = _now(self._clock)
@@ -111,6 +122,7 @@ class KeeneticCredentialLeaseIssuer:
                 "expiresAt": now + ttl_seconds,
                 "nonce": secrets.token_hex(16),
                 "target": expected.model_dump(mode="json"),
+                "allowedAddresses": sorted(addresses),
                 "service": {
                     "id": connection.id,
                     "revision": connection.revision,
@@ -134,11 +146,18 @@ class KeeneticCredentialLeaseIssuer:
 class LeasedServiceConnection:
     """Mutable private buffers are overwritten when the lease is released."""
 
-    __slots__ = ("service_id", "service_revision", "_buffers", "_closed")
+    __slots__ = (
+        "service_id", "service_revision", "allowed_addresses",
+        "_buffers", "_closed",
+    )
 
-    def __init__(self, service_id, service_revision, endpoint, username, password):
+    def __init__(
+        self, service_id, service_revision, endpoint, username, password,
+        allowed_addresses,
+    ):
         self.service_id = service_id
         self.service_revision = service_revision
+        self.allowed_addresses = tuple(allowed_addresses)
         self._buffers = tuple(bytearray(value.encode("utf-8")) for value in (
             endpoint, username, password
         ))
@@ -219,7 +238,7 @@ class KeeneticCredentialLeaseVerifier:
                 type(payload) is not dict
                 or set(payload) != {
                     "version", "workerId", "issuedAt", "expiresAt", "nonce",
-                    "target", "service",
+                    "target", "allowedAddresses", "service",
                 }
                 or payload["version"] != 1
                 or payload["workerId"] != self._worker_id
@@ -230,6 +249,13 @@ class KeeneticCredentialLeaseVerifier:
                 or not isinstance(payload["nonce"], str)
                 or not _full_hex(payload["nonce"], 32)
                 or TargetState.model_validate(payload["target"]) != expected
+                or not isinstance(payload["allowedAddresses"], list)
+                or not 1 <= len(payload["allowedAddresses"]) <= 8
+                or payload["allowedAddresses"] != sorted(set(payload["allowedAddresses"]))
+                or any(
+                    not _lan_address(address)
+                    for address in payload["allowedAddresses"]
+                )
             ):
                 raise ValueError
             service = payload["service"]
@@ -254,6 +280,7 @@ class KeeneticCredentialLeaseVerifier:
             result = LeasedServiceConnection(
                 service["id"], service["revision"], service["baseUrl"],
                 service["username"], service["password"],
+                payload["allowedAddresses"],
             )
             self._spent.add(digest)
             return result
@@ -269,3 +296,20 @@ def _full_hex(value, length):
         len(value) == length
         and all(char in "0123456789abcdef" for char in value)
     )
+
+
+def _lan_address(value):
+    try:
+        address = ipaddress.ip_address(value)
+    except ValueError:
+        return False
+    if str(address) != value or address.is_loopback or address.is_link_local:
+        return False
+    private_v4 = (
+        ipaddress.ip_network("10.0.0.0/8"),
+        ipaddress.ip_network("172.16.0.0/12"),
+        ipaddress.ip_network("192.168.0.0/16"),
+    )
+    return (
+        address.version == 4 and any(address in network for network in private_v4)
+    ) or address.version == 6 and address in ipaddress.ip_network("fc00::/7")

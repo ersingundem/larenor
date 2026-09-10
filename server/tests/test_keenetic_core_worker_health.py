@@ -36,7 +36,12 @@ class Egress:
         self.calls.append((actor.id, service_id, revision, component))
         if not self.allowed:
             raise ApiError("outbound_denied", 403)
-        return SimpleNamespace(revision=3)
+        return SimpleNamespace(
+            revision=3,
+            grants=[SimpleNamespace(addresses=[
+                SimpleNamespace(address="192.168.1.1")
+            ])],
+        )
 
 
 class Delegate:
@@ -207,16 +212,21 @@ def test_keenetic_component_egress_policy_is_revision_bound_and_read_only(server
     assert changed.status_code == 200, changed.text
     assert changed.json()["policy"]["component"] == "keenetic_command_worker"
     actor = app.state.core.auth.authenticate(pair["accessToken"])
-    before = app.state.core.db.connection().execute(
-        "SELECT COUNT(*) FROM service_audit"
-    ).fetchone()[0]
+    with app.state.core.db.connection() as connection:
+        before = connection.execute(
+            "SELECT COUNT(*) FROM service_audit"
+        ).fetchone()[0]
     policy = app.state.core.component_egress.check_component(
         actor, record["id"], record["revision"], "keenetic_command_worker"
     )
-    after = app.state.core.db.connection().execute(
-        "SELECT COUNT(*) FROM service_audit"
-    ).fetchone()[0]
+    with app.state.core.db.connection() as connection:
+        after = connection.execute(
+            "SELECT COUNT(*) FROM service_audit"
+        ).fetchone()[0]
     assert policy.revision == 1 and before == after
+    assert [item.address for item in policy.grants[0].addresses] == [
+        "192.168.1.1"
+    ]
     with pytest.raises(ApiError):
         app.state.core.component_egress.check_component(
             actor, record["id"], record["revision"] + 1,
@@ -237,3 +247,51 @@ def test_compose_gives_worker_egress_without_published_ports_and_default_core_is
     settings = Settings(root / ".test-unused-data", root / ".test-unused-key")
     assert build_keenetic_worker_effect(settings, object(), Egress()) is None
     assert isinstance(UnavailableKeeneticEffect(), UnavailableKeeneticEffect)
+
+
+def test_core_startup_installs_health_gated_effect_only_for_live_worker(tmp_path):
+    with socket_directory() as directory:
+        socket_path = directory / "worker.sock"
+        health_path = directory / "health.json"
+        lease_key = private_key(directory / "lease.key")
+        listener = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        publish(listener, socket_path, health_path)
+        settings = worker_settings(tmp_path, socket_path, health_path, lease_key)
+        with TestClient(create_app(settings)) as client:
+            effect = client.app.state.core.keenetic_commands._effect
+            assert isinstance(effect, HealthGatedKeeneticWorkerEffect)
+            assert "worker.sock" not in repr(effect)
+        listener.close()
+
+
+@pytest.mark.parametrize("uid", [-1, 2**31, True])
+def test_settings_reject_invalid_keenetic_worker_uid(tmp_path, uid):
+    with pytest.raises(ValueError, match="^invalid_worker_configuration$"):
+        Settings(
+            tmp_path / "data",
+            tmp_path / "vault.key",
+            keenetic_worker_socket=tmp_path / "worker.sock",
+            keenetic_worker_health=tmp_path / "health.json",
+            keenetic_worker_key_file=tmp_path / "lease.key",
+            keenetic_worker_uid=uid,
+        )
+
+
+def test_invalid_health_receipt_is_read_only_and_unavailable(tmp_path):
+    with socket_directory() as directory:
+        socket_path = directory / "worker.sock"
+        health_path = directory / "health.json"
+        lease_key = private_key(directory / "lease.key")
+        listener = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        listener.bind(str(socket_path))
+        os.chmod(socket_path, 0o600)
+        health_path.write_text('{"workerId":"invalid"}')
+        health_path.chmod(0o600)
+        before = health_path.read_bytes()
+        effect = build_keenetic_worker_effect(
+            worker_settings(tmp_path, socket_path, health_path, lease_key),
+            object(), Egress(), process_alive=lambda _pid: True,
+        )
+        assert effect is None
+        assert health_path.read_bytes() == before
+        listener.close()

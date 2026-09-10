@@ -26,14 +26,17 @@ class ComponentEgress:
 
     def _connection(self, c, service_id, revision=None):
         row, record = self.services._record(c, service_id, revision)
-        if record['kind'] not in {'home_assistant', 'proxmox'}:
+        if record['kind'] not in {'home_assistant', 'proxmox', 'keenetic'}:
             raise ApiError('not_found', 404)
         return self.services._private(row, record)
 
     @staticmethod
     def _component(connection):
-        return ('home_assistant_probe' if connection.kind == 'home_assistant'
-                else 'proxmox_command_worker')
+        if connection.kind == 'home_assistant':
+            return 'home_assistant_probe'
+        if connection.kind == 'proxmox':
+            return 'proxmox_command_worker'
+        return 'keenetic_command_worker'
 
     @classmethod
     def _policy(cls, state, connection):
@@ -91,7 +94,11 @@ class ComponentEgress:
             return self._response(state, policy)
 
     def check_component(self, actor, service_id, revision, component):
-        if component not in {'home_assistant_probe', 'proxmox_command_worker'}:
+        if component not in {
+            'home_assistant_probe',
+            'proxmox_command_worker',
+            'keenetic_command_worker',
+        }:
             raise ApiError('outbound_denied', 403)
         with self._tx(actor) as (c, state):
             current = self._connection(c, service_id, revision)

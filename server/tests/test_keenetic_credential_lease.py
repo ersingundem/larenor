@@ -89,7 +89,7 @@ def test_lease_is_encrypted_revision_bound_one_use_and_zeroized(server):
     key = b"L" * 32
     lease = KeeneticCredentialLeaseIssuer(
         app.state.core.services, key, clock=clock
-    ).issue(actor, expected, worker_id="a" * 32, ttl_seconds=5)
+    ).issue(actor, expected, worker_id="a" * 32, ttl_seconds=5, allowed_addresses=("192.168.1.1",))
     assert SECRET not in json.dumps(lease.model_dump(mode="json")) + repr(lease)
 
     verifier = KeeneticCredentialLeaseVerifier(
@@ -99,6 +99,7 @@ def test_lease_is_encrypted_revision_bound_one_use_and_zeroized(server):
         assert connection.service_id == expected.serviceId
         assert connection.service_revision == expected.serviceRevision
         assert connection.password_text() == SECRET
+        assert connection.allowed_addresses == ("192.168.1.1",)
         buffers = connection._buffers
     assert all(not any(buffer) for buffer in buffers)
     with pytest.raises(KeeneticLeaseError, match="^keenetic_lease_invalid$"):
@@ -112,7 +113,7 @@ def test_lease_tamper_expiry_audience_rollback_and_tuple_fail_closed(failure):
     key = b"K" * 32
     lease = KeeneticCredentialLeaseIssuer(
         Services(binding()), key, clock=clock
-    ).issue(Actor(), current, worker_id="a" * 32, ttl_seconds=5)
+    ).issue(Actor(), current, worker_id="a" * 32, ttl_seconds=5, allowed_addresses=("192.168.1.1",))
     verifier = KeeneticCredentialLeaseVerifier(
         key,
         worker_id="b" * 32 if failure == "audience" else "a" * 32,
@@ -167,7 +168,8 @@ def test_encrypted_lease_crosses_private_worker_for_one_dispatch():
                 timeout=.5,
             )
             effect = LeasedKeeneticCommandWorkerClient(
-                raw, issuer, worker_id=worker_id, ttl_seconds=5
+                raw, issuer, worker_id=worker_id, ttl_seconds=5,
+                egress=lambda _actor, _target: ("192.168.1.1",),
             )
             observed = effect.execute_for_actor(
                 Actor(), request(current=current), lambda: None
@@ -218,7 +220,7 @@ def test_post_effect_uncertainty_spends_lease_and_cannot_retry():
     worker_id = "c" * 32
     lease = KeeneticCredentialLeaseIssuer(
         Services(binding()), key, clock=clock
-    ).issue(Actor(), current, worker_id=worker_id, ttl_seconds=5)
+    ).issue(Actor(), current, worker_id=worker_id, ttl_seconds=5, allowed_addresses=("192.168.1.1",))
     from larenor_server.keenetic_commands.rci_adapter import RciCommand
     from larenor_server.services.transport import ProbeTransportError
 
@@ -339,3 +341,14 @@ def test_rci_startup_builds_worker_bound_adapter_after_config_check(tmp_path, mo
     ]) == 0
     assert len(calls) == 1
     assert isinstance(calls[0], PackagedRciCommandAdapter)
+
+
+@pytest.mark.parametrize("addresses", [(), ("8.8.8.8",), ("127.0.0.1",)])
+def test_lease_requires_bounded_lan_egress_pins(addresses):
+    with pytest.raises(KeeneticLeaseError, match="^keenetic_lease_invalid$"):
+        KeeneticCredentialLeaseIssuer(
+            Services(binding()), b"E" * 32, clock=Clock()
+        ).issue(
+            Actor(), state(), worker_id="e" * 32, ttl_seconds=5,
+            allowed_addresses=addresses,
+        )
