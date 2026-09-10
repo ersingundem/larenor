@@ -61,89 +61,78 @@ void main() {
       clock: () => DateTime.utc(2026, 9, 10, 12),
     );
 
-    final pinned = await store.pin(
-      _context(),
-      _proof(),
-      isCurrent: () => true,
-    );
+    final pinned = await store.pin(_context(), _proof(), isCurrent: () => true);
     expect(pinned.sequence, 2);
     expect(pinned.checkpoint, 'checkpoint-2');
     expect(await store.read(_context(), isCurrent: () => true), pinned);
-    expect(
-      await store.read(_context('e'), isCurrent: () => true),
-      isNull,
-    );
+    expect(await store.read(_context('e'), isCurrent: () => true), isNull);
     expect(
       () => store.pin(
         _context(),
         _proof(sequence: 3, checkpoint: 'checkpoint-3'),
         isCurrent: () => true,
       ),
-      throwsA(isA<CoreHaCheckpointException>().having(
-        (error) => error.code,
-        'code',
-        'already_pinned',
-      )),
-    );
-    expect(
-      (await store.read(_context(), isCurrent: () => true))?.checkpoint,
-      'checkpoint-2',
-    );
-  });
-
-  test('rotation requires a matched, monotonic proof and exact prior pin', () async {
-    final backend = _MemoryBackend();
-    final store = CoreHaCheckpointStore(backend: backend);
-    final pinned = await store.pin(
-      _context(),
-      _proof(),
-      isCurrent: () => true,
-    );
-
-    for (final proof in [
-      _proof(sequence: 3, checkpoint: 'checkpoint-3'),
-      _proof(
-        sequence: 1,
-        checkpoint: 'checkpoint-1',
-        compared: true,
-      ),
-      _proof(
-        sequence: 3,
-        chain: 'e',
-        checkpoint: 'checkpoint-3',
-        compared: true,
-      ),
-    ]) {
-      expect(
-        () => store.rotate(
-          _context(),
-          pinned,
-          proof,
-          isCurrent: () => true,
+      throwsA(
+        isA<CoreHaCheckpointException>().having(
+          (error) => error.code,
+          'code',
+          'already_pinned',
         ),
-        throwsA(isA<CoreHaCheckpointException>()),
-      );
-    }
+      ),
+    );
     expect(
       (await store.read(_context(), isCurrent: () => true))?.checkpoint,
       'checkpoint-2',
     );
-
-    final rotated = await store.rotate(
-      _context(),
-      pinned,
-      _proof(
-        sequence: 3,
-        head: 'e',
-        checkpoint: 'checkpoint-3',
-        compared: true,
-      ),
-      isCurrent: () => true,
-    );
-    expect(rotated.sequence, 3);
-    expect(rotated.checkpoint, 'checkpoint-3');
-    expect(rotated.revision, pinned.revision + 1);
   });
+
+  test(
+    'rotation requires a matched, monotonic proof and exact prior pin',
+    () async {
+      final backend = _MemoryBackend();
+      final store = CoreHaCheckpointStore(backend: backend);
+      final pinned = await store.pin(
+        _context(),
+        _proof(),
+        isCurrent: () => true,
+      );
+
+      for (final proof in [
+        _proof(sequence: 3, checkpoint: 'checkpoint-3'),
+        _proof(sequence: 1, checkpoint: 'checkpoint-1', compared: true),
+        _proof(
+          sequence: 3,
+          chain: 'e',
+          checkpoint: 'checkpoint-3',
+          compared: true,
+        ),
+      ]) {
+        expect(
+          () => store.rotate(_context(), pinned, proof, isCurrent: () => true),
+          throwsA(isA<CoreHaCheckpointException>()),
+        );
+      }
+      expect(
+        (await store.read(_context(), isCurrent: () => true))?.checkpoint,
+        'checkpoint-2',
+      );
+
+      final rotated = await store.rotate(
+        _context(),
+        pinned,
+        _proof(
+          sequence: 3,
+          head: 'e',
+          checkpoint: 'checkpoint-3',
+          compared: true,
+        ),
+        isCurrent: () => true,
+      );
+      expect(rotated.sequence, 3);
+      expect(rotated.checkpoint, 'checkpoint-3');
+      expect(rotated.revision, pinned.revision + 1);
+    },
+  );
 
   test('retirement after secure read stops a pin before its write', () async {
     final backend = _MemoryBackend();
@@ -153,11 +142,13 @@ void main() {
 
     await expectLater(
       store.pin(_context(), _proof(), isCurrent: () => current),
-      throwsA(isA<CoreHaCheckpointException>().having(
-        (error) => error.code,
-        'code',
-        'retired',
-      )),
+      throwsA(
+        isA<CoreHaCheckpointException>().having(
+          (error) => error.code,
+          'code',
+          'retired',
+        ),
+      ),
     );
     expect(backend.calls.where((call) => call.startsWith('write:')), isEmpty);
     expect(backend.values, isEmpty);
@@ -171,11 +162,13 @@ void main() {
 
     await expectLater(
       store.read(_context(), isCurrent: () => true),
-      throwsA(isA<CoreHaCheckpointException>().having(
-        (error) => error.code,
-        'code',
-        'invalid_record',
-      )),
+      throwsA(
+        isA<CoreHaCheckpointException>().having(
+          (error) => error.code,
+          'code',
+          'invalid_record',
+        ),
+      ),
     );
     expect(backend.values[key], contains('forged'));
     expect(backend.calls.where((call) => call.startsWith('write:')), isEmpty);
