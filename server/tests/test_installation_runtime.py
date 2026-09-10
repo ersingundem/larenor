@@ -17,6 +17,7 @@ from larenor_server.plugins.resource_journal import ResourceJournal
 from larenor_server.plugins.volume_create_journal import VolumeCreateJournal
 from larenor_server.context import ContextResponse
 from larenor_server.plugins.catalog import load_catalog
+from larenor_server.plugins.installation_execution import build_execution
 from larenor_server.plugins.qbittorrent_config_effect import (
     QbittorrentConfigInstallReceipt,
 )
@@ -246,6 +247,43 @@ def test_runtime_configures_qbittorrent_before_create_and_start(monkeypatch):
         'qbittorrent', 'qbittorrent']
     assert [event[3] for event in events if event[0] == 'apply'] == [
         2030.0, 2030.0]
+
+
+def test_runtime_routes_plan_derived_seerr_steps_to_seerr_backend():
+    stack = build_media_stack_plan(
+        load_catalog(), {}, 'linux/amd64',
+        ContextResponse(
+            schemaVersion=1, coreId='a' * 32, homeId='b' * 32),
+        'c' * 32)
+    execution = build_execution(
+        stack, job_id='d' * 32, deadline=1788609900,
+        service_id='seerr')
+    calls = []
+
+    class Selected:
+        def apply(self, step, plan):
+            calls.append(('apply', step, plan))
+            return 'applied'
+
+        def reconcile(self, step, plan):
+            calls.append(('reconcile', step, plan))
+            return 'reconciled'
+
+    class Rejected:
+        def apply(self, *_args):
+            raise AssertionError('Jellyfin backend must not receive Seerr')
+
+        def reconcile(self, *_args):
+            raise AssertionError('Jellyfin backend must not receive Seerr')
+
+    backend = object.__new__(runtime._RuntimeBackend)
+    backend.installation = Rejected()
+    backend.seerr_installation = Selected()
+
+    assert backend.apply(execution.steps[0], execution.plan) == 'applied'
+    assert backend.reconcile(
+        execution.steps[0], execution.plan) == 'reconciled'
+    assert [item[0] for item in calls] == ['apply', 'reconcile']
 
 
 @pytest.mark.parametrize('bootstrap_code,public_code', [

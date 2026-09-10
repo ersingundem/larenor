@@ -63,4 +63,3 @@ def test_schema_one_rows_survive_removal_of_preparation_unique_constraint():
         if index['unique']
     }
     assert ('preparation_id',) not in unique
-
