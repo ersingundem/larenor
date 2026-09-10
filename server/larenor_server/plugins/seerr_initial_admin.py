@@ -13,32 +13,62 @@ import re
 import socket
 import time
 
-from ..services.transport import ProbeTransportError, _Deadline, _remaining, _request_bytes
+from ..services.transport import (
+    ProbeTransportError,
+    _Deadline,
+    _remaining,
+    _request_bytes,
+)
 from .jellyfin_startup import _ConnectionLost, _StartupReader, _headers
 
 
-_CODES = frozenset({
-    "invalid_seerr_initial_admin",
-    "seerr_initial_state_conflict",
-    "seerr_initial_admin_conflict",
-    "seerr_jellyfin_authentication_failed",
-    "seerr_session_protocol",
-    "seerr_api_key_protocol",
-    "seerr_initial_admin_protocol",
-    "seerr_initial_admin_unavailable",
-    "seerr_initial_admin_timeout",
-})
-_PUBLIC_FIELDS = frozenset({
-    "initialized", "applicationTitle", "applicationUrl", "hideAvailable",
-    "hideBlocklisted", "localLogin", "mediaServerLogin", "movie4kEnabled",
-    "series4kEnabled", "discoverRegion", "streamingRegion", "originalLanguage",
-    "mediaServerType", "jellyfinExternalHost", "jellyfinForgotPasswordUrl",
-    "jellyfinServerName", "partialRequestsEnabled", "enableSpecialEpisodes",
-    "cacheImages", "vapidPublic", "enablePushRegistration", "locale",
-    "emailEnabled", "userEmailRequired", "newPlexLogin", "youtubeUrl",
-    "versionCheck", "plexClientIdentifier",
-})
+_CODES = frozenset(
+    {
+        "invalid_seerr_initial_admin",
+        "seerr_initial_state_conflict",
+        "seerr_initial_admin_conflict",
+        "seerr_jellyfin_authentication_failed",
+        "seerr_session_protocol",
+        "seerr_api_key_protocol",
+        "seerr_initial_admin_protocol",
+        "seerr_initial_admin_unavailable",
+        "seerr_initial_admin_timeout",
+    }
+)
+_PUBLIC_FIELDS = frozenset(
+    {
+        "initialized",
+        "applicationTitle",
+        "applicationUrl",
+        "hideAvailable",
+        "hideBlocklisted",
+        "localLogin",
+        "mediaServerLogin",
+        "movie4kEnabled",
+        "series4kEnabled",
+        "discoverRegion",
+        "streamingRegion",
+        "originalLanguage",
+        "mediaServerType",
+        "jellyfinExternalHost",
+        "jellyfinForgotPasswordUrl",
+        "jellyfinServerName",
+        "partialRequestsEnabled",
+        "enableSpecialEpisodes",
+        "cacheImages",
+        "vapidPublic",
+        "enablePushRegistration",
+        "locale",
+        "emailEnabled",
+        "userEmailRequired",
+        "newPlexLogin",
+        "youtubeUrl",
+        "versionCheck",
+        "plexClientIdentifier",
+    }
+)
 _COOKIE_VALUE = re.compile(r"s%3A[A-Za-z0-9_-]{20,256}\.[A-Za-z0-9_-]{20,128}\Z")
+_JELLYFIN_HOST = re.compile(r"larenor-[0-9a-f]{32}\Z")
 _EXPIRES = re.compile(
     r"(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun), [0-9]{2} "
     r"(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec) "
@@ -51,8 +81,13 @@ _GENERATED_KEY = re.compile(
 
 
 class SeerrInitialAdminError(Exception):
-    def __init__(self, code="seerr_initial_admin_unavailable", *,
-                 completed_steps=(), uncertain_effect=False):
+    def __init__(
+        self,
+        code="seerr_initial_admin_unavailable",
+        *,
+        completed_steps=(),
+        uncertain_effect=False,
+    ):
         self.code = code if code in _CODES else "seerr_initial_admin_unavailable"
         self.completed_steps = tuple(completed_steps)
         self.uncertain_effect = uncertain_effect is True
@@ -92,8 +127,11 @@ class SeerrInitialAdminResult:
         if (
             self.state != "verified"
             or not _is_generated_key(self.api_key)
-            or self.completed_steps != (
-                "uninitialized_verified", "admin_created", "api_key_verified",
+            or self.completed_steps
+            != (
+                "uninitialized_verified",
+                "admin_created",
+                "api_key_verified",
                 "session_destroyed",
             )
         ):
@@ -118,7 +156,8 @@ def _unique(pairs):
 def _json(raw, code):
     try:
         return json.loads(
-            raw.decode("utf-8"), object_pairs_hook=_unique,
+            raw.decode("utf-8"),
+            object_pairs_hook=_unique,
             parse_constant=lambda _value: (_ for _ in ()).throw(ValueError()),
         )
     except (UnicodeError, json.JSONDecodeError, ValueError, TypeError):
@@ -132,20 +171,28 @@ def _is_generated_key(value):
         raw = base64.b64decode(value, validate=True)
     except (binascii.Error, ValueError):
         return False
-    return base64.b64encode(raw).decode("ascii") == value and bool(_GENERATED_KEY.fullmatch(raw))
+    return base64.b64encode(raw).decode("ascii") == value and bool(
+        _GENERATED_KEY.fullmatch(raw)
+    )
 
 
 def _body(reader, headers, maximum, status):
     framing = {}
     for name, value in headers:
-        if name in {"content-length", "transfer-encoding", "content-encoding",
-                    "content-type", "connection"}:
+        if name in {
+            "content-length",
+            "transfer-encoding",
+            "content-encoding",
+            "content-type",
+            "connection",
+        }:
             if name in framing:
                 raise ProbeTransportError("invalid_response")
             framing[name] = value.lower()
-    if (framing.get("content-encoding", "identity") != "identity"
-            or framing.get("content-type", "").split(";")[0].strip()
-            != "application/json"):
+    if (
+        framing.get("content-encoding", "identity") != "identity"
+        or framing.get("content-type", "").split(";")[0].strip() != "application/json"
+    ):
         raise ProbeTransportError("invalid_response")
     connection = framing.get("connection")
     if connection not in (None, "keep-alive", "close"):
@@ -194,7 +241,7 @@ def _session(headers):
     parts = cookies[0].split("; ")
     if not parts or not parts[0].startswith("connect.sid="):
         raise SeerrInitialAdminError("seerr_session_protocol")
-    value = parts[0][len("connect.sid="):]
+    value = parts[0][len("connect.sid=") :]
     attributes = parts[1:]
     if (
         _COOKIE_VALUE.fullmatch(value) is None
@@ -205,7 +252,9 @@ def _session(headers):
         or any(
             item not in {"Path=/", "HttpOnly", "SameSite=Lax"}
             and not (item.startswith("Expires=") and _EXPIRES.fullmatch(item[8:]))
-            and not (item.startswith("Max-Age=") and re.fullmatch(r"[0-9]{1,10}", item[8:]))
+            and not (
+                item.startswith("Max-Age=") and re.fullmatch(r"[0-9]{1,10}", item[8:])
+            )
             for item in attributes
         )
     ):
@@ -232,17 +281,27 @@ def _wire(method, path, body=None, *, cookie=None, final=False):
 
 
 class SeerrInitialAdmin:
-    def create(self, connection, *, username, credential,
-               limits=SeerrInitialAdminLimits()):
+    def create(
+        self,
+        connection,
+        *,
+        username,
+        credential,
+        jellyfin_hostname,
+        limits=SeerrInitialAdminLimits(),
+    ):
         if (
             username != "larenor-system"
             or type(credential) is not str
             or not 32 <= len(credential) <= 128
             or re.fullmatch(r"[A-Za-z0-9_-]+", credential) is None
+            or type(jellyfin_hostname) is not str
+            or _JELLYFIN_HOST.fullmatch(jellyfin_hostname) is None
             or type(limits) is not SeerrInitialAdminLimits
-            or any(not callable(getattr(connection, name, None)) for name in (
-                "sendall", "recv", "settimeout", "shutdown", "close"
-            ))
+            or any(
+                not callable(getattr(connection, name, None))
+                for name in ("sendall", "recv", "settimeout", "shutdown", "close")
+            )
         ):
             raise SeerrInitialAdminError("invalid_seerr_initial_admin")
         try:
@@ -261,12 +320,18 @@ class SeerrInitialAdmin:
             reader = _StartupReader(connection, deadline)
 
             status, _headers_value, raw, closes = self._request(
-                connection, reader, deadline, limits, "GET",
+                connection,
+                reader,
+                deadline,
+                limits,
+                "GET",
                 "/api/v1/settings/public",
             )
             public = _json(raw, "seerr_initial_state_conflict")
             if (
-                status != 200 or closes or type(public) is not dict
+                status != 200
+                or closes
+                or type(public) is not dict
                 or not set(public) <= _PUBLIC_FIELDS
                 or public.get("initialized") is not False
                 or public.get("applicationTitle") != "Seerr"
@@ -276,18 +341,26 @@ class SeerrInitialAdmin:
 
             mutation_sent = True
             status, headers, raw, closes = self._request(
-                connection, reader, deadline, limits, "POST",
-                "/api/v1/auth/jellyfin", {
-                    "username": username, "password": credential,
-                    "hostname": "jellyfin", "port": 8096, "urlBase": "",
-                    "useSsl": False, "email": username, "serverType": 2,
+                connection,
+                reader,
+                deadline,
+                limits,
+                "POST",
+                "/api/v1/auth/jellyfin",
+                {
+                    "username": username,
+                    "password": credential,
+                    "hostname": jellyfin_hostname,
+                    "port": 8096,
+                    "urlBase": "",
+                    "useSsl": False,
+                    "email": username,
+                    "serverType": 2,
                 },
             )
             if status in {401, 403}:
                 mutation_sent = False
-                raise SeerrInitialAdminError(
-                    "seerr_jellyfin_authentication_failed"
-                )
+                raise SeerrInitialAdminError("seerr_jellyfin_authentication_failed")
             if status != 200 or closes:
                 raise SeerrInitialAdminError(protocol_code)
             user = _json(raw, "seerr_initial_admin_conflict")
@@ -304,20 +377,35 @@ class SeerrInitialAdmin:
             completed.append("admin_created")
 
             status, _headers_value, raw, closes = self._request(
-                connection, reader, deadline, limits, "GET",
-                "/api/v1/settings/main", cookie=cookie,
+                connection,
+                reader,
+                deadline,
+                limits,
+                "GET",
+                "/api/v1/settings/main",
+                cookie=cookie,
             )
             main = _json(raw, "seerr_api_key_protocol")
             api_key = main.get("apiKey") if type(main) is dict else None
-            if (status != 200 or closes or type(main) is not dict
-                    or main.get("mediaServerType") != 2
-                    or not _is_generated_key(api_key)):
+            if (
+                status != 200
+                or closes
+                or type(main) is not dict
+                or main.get("mediaServerType") != 2
+                or not _is_generated_key(api_key)
+            ):
                 raise SeerrInitialAdminError("seerr_api_key_protocol")
             completed.append("api_key_verified")
 
             status, _headers_value, raw, _closes = self._request(
-                connection, reader, deadline, limits, "POST",
-                "/api/v1/auth/logout", cookie=cookie, final=True,
+                connection,
+                reader,
+                deadline,
+                limits,
+                "POST",
+                "/api/v1/auth/logout",
+                cookie=cookie,
+                final=True,
             )
             if status != 200 or _json(raw, protocol_code) != {"status": "ok"}:
                 raise SeerrInitialAdminError(protocol_code)
@@ -327,33 +415,49 @@ class SeerrInitialAdmin:
             if error.completed_steps or error.uncertain_effect:
                 raise
             raise SeerrInitialAdminError(
-                error.code, completed_steps=completed,
+                error.code,
+                completed_steps=completed,
                 uncertain_effect=mutation_sent,
             ) from None
         except (socket.timeout, TimeoutError):
             raise SeerrInitialAdminError(
-                "seerr_initial_admin_timeout", completed_steps=completed,
+                "seerr_initial_admin_timeout",
+                completed_steps=completed,
                 uncertain_effect=mutation_sent,
             ) from None
         except _ConnectionLost:
             raise SeerrInitialAdminError(
-                "seerr_initial_admin_unavailable", completed_steps=completed,
+                "seerr_initial_admin_unavailable",
+                completed_steps=completed,
                 uncertain_effect=mutation_sent,
             ) from None
-        except (ProbeTransportError, ValueError, TypeError, AttributeError,
-                UnicodeError, json.JSONDecodeError):
-            code = ("seerr_initial_admin_timeout"
-                    if time.monotonic() >= deadline else protocol_code)
+        except (
+            ProbeTransportError,
+            ValueError,
+            TypeError,
+            AttributeError,
+            UnicodeError,
+            json.JSONDecodeError,
+        ):
+            code = (
+                "seerr_initial_admin_timeout"
+                if time.monotonic() >= deadline
+                else protocol_code
+            )
             raise SeerrInitialAdminError(
-                code, completed_steps=completed,
+                code,
+                completed_steps=completed,
                 uncertain_effect=mutation_sent,
             ) from None
         except (OSError, RuntimeError):
-            code = ("seerr_initial_admin_timeout"
-                    if time.monotonic() >= deadline
-                    else "seerr_initial_admin_unavailable")
+            code = (
+                "seerr_initial_admin_timeout"
+                if time.monotonic() >= deadline
+                else "seerr_initial_admin_unavailable"
+            )
             raise SeerrInitialAdminError(
-                code, completed_steps=completed,
+                code,
+                completed_steps=completed,
                 uncertain_effect=mutation_sent,
             ) from None
         finally:
@@ -361,10 +465,26 @@ class SeerrInitialAdmin:
                 scope.finish()
 
     @staticmethod
-    def _request(connection, reader, deadline, limits, method, path, body=None,
-                 *, cookie=None, final=False):
+    def _request(
+        connection,
+        reader,
+        deadline,
+        limits,
+        method,
+        path,
+        body=None,
+        *,
+        cookie=None,
+        final=False,
+    ):
         connection.settimeout(_remaining(deadline))
-        connection.sendall(_wire(
-            method, path, body, cookie=cookie, final=final,
-        ))
+        connection.sendall(
+            _wire(
+                method,
+                path,
+                body,
+                cookie=cookie,
+                final=final,
+            )
+        )
         return _response(reader, limits.max_response_bytes)

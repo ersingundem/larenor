@@ -27,7 +27,8 @@ def build(container_journal_id="4" * 32):
 
     def provider(resources, volumes, component):
         image = next(
-            item for item in resources.resources
+            item
+            for item in resources.resources
             if item.kind == "ensure_image" and item.serviceId == "seerr"
         )
         network = resources.resources[-1]
@@ -51,14 +52,25 @@ def build(container_journal_id="4" * 32):
             ),
             tuple(
                 ManagedVolumeProof(
-                    item.resourceId, item.operationId, 4, "e" * 32, "f" * 32,
-                    item.name, item.target, True,
+                    item.resourceId,
+                    item.operationId,
+                    4,
+                    "e" * 32,
+                    "f" * 32,
+                    item.name,
+                    item.target,
+                    True,
                 )
                 for item in selected
             ),
             ManagedNetworkProof(
-                network.resourceId, network.operationId, 3, "1" * 32,
-                "2" * 32, network.name, "3" * 64,
+                network.resourceId,
+                network.operationId,
+                3,
+                "1" * 32,
+                "2" * 32,
+                network.name,
+                "3" * 64,
             ),
         )
 
@@ -67,8 +79,11 @@ def build(container_journal_id="4" * 32):
     )(stack)
     observed = snapshot(binding)
     observed["State"] = {
-        "Status": "running", "Running": True, "Paused": False,
-        "Restarting": False, "Dead": False,
+        "Status": "running",
+        "Running": True,
+        "Paused": False,
+        "Restarting": False,
+        "Dead": False,
     }
     next(iter(observed["NetworkSettings"]["Networks"].values())).update(
         IPAddress="172.28.0.5", IPPrefixLen=16, Gateway="172.28.0.1"
@@ -81,9 +96,7 @@ def test_seerr_builder_mounts_only_owned_appdata_without_public_port():
     body = json.loads(binding.specification)
     assert {item.target for item in binding.mounts} == {"/app/config"}
     assert "PortBindings" not in body["HostConfig"]
-    assert set(json.loads(binding.image_configuration)["Volumes"]) == {
-        "/app/config"
-    }
+    assert set(json.loads(binding.image_configuration)["Volumes"]) == {"/app/config"}
     assert managed_container_matches(observed, binding)
 
 
@@ -94,9 +107,16 @@ def test_exact_running_container_yields_fixed_private_endpoint():
     assert "172.28" not in repr(proof)
 
 
-@pytest.mark.parametrize("damage", [
-    "id", "stopped", "public", "network", "extra",
-])
+@pytest.mark.parametrize(
+    "damage",
+    [
+        "id",
+        "stopped",
+        "public",
+        "network",
+        "extra",
+    ],
+)
 def test_drift_never_opens_socket(damage, monkeypatch):
     stack, binding, observed = build()
     if damage == "id":
@@ -104,13 +124,13 @@ def test_drift_never_opens_socket(damage, monkeypatch):
     elif damage == "stopped":
         observed["State"].update(Status="exited", Running=False)
     elif damage == "public":
-        next(iter(observed["NetworkSettings"]["Networks"].values()))[
-            "IPAddress"
-        ] = "8.8.8.8"
+        next(iter(observed["NetworkSettings"]["Networks"].values()))["IPAddress"] = (
+            "8.8.8.8"
+        )
     elif damage == "network":
-        next(iter(observed["NetworkSettings"]["Networks"].values()))[
-            "NetworkID"
-        ] = "9" * 64
+        next(iter(observed["NetworkSettings"]["Networks"].values()))["NetworkID"] = (
+            "9" * 64
+        )
     else:
         observed["NetworkSettings"]["Networks"]["foreign"] = copy.deepcopy(
             next(iter(observed["NetworkSettings"]["Networks"].values()))
