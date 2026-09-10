@@ -1,6 +1,6 @@
 # Larenor — güncel ilerleme ve iş kuyruğu
 
-**Son güncelleme: 10 Eylül 2026 — qBittorrent config/runtime, UID-korumalı IPC ve şifreli kalıcı Core işi PR28–PR37 ile ana dalda. Yapılandırma-before-create/start zinciri kabul dalında yerel kapıları geçti.**
+**Son güncelleme: 10 Eylül 2026 — qBittorrent config/runtime, kalıcı Core işi ve config-before-create/start zinciri PR28–PR38 ile ana dalda. Private servis endpoint/bootstrap temeli yerelde yeşil.**
 
 ```text
 Kuyruk kabulü       ██░░░░░░░░░░░░░░░░░░  14/125 iş (%11; eşit ağırlıklı sayaç)
@@ -216,7 +216,20 @@ container başarısı iddia etmiyor. **229 ilgili testte 228 PASS / 1 mevcut mac
 skip**, compileall, diff ve queue doğrulaması temiz. Exact CI ile gerçek
 amd64/arm64 servis/readback/restart kanıtı açık olduğundan sayaç ve
 `installAvailable=false` değişmedi.
+Exact `729eb1e` kaynağının Server, Android analyze/debug/E2E, güvenlik ve iki
+mimarili karakterizasyon kapıları geçerek PR38 üzerinden ana dala birleşti.
 [Uygulama ve açık sınırlar](qbittorrent-configured-container-implementation-2026-09-10.md).
+
+`2934815` qBittorrent private endpoint dilimi yalnız exact running container,
+journal binding'i ve tek Larenor control-network gözleminden RFC1918 numeric
+TCP/8080 bağlantısı üretiyor; DNS, proxy, alternatif hedef veya public port yok.
+Worker-private bootstrap executor önce sabit `movies`/`tv` kategorilerini
+idempotent doğruluyor, sonra taze kanalda pinned sürüm, API key ve owned ayarları
+geri okuyor. Altı retained-authority kapısı ve her etkiden önce/sonra endpoint
+drift kontrolü var; olası yazma sonrası hata belirsiz etki. **354 ilgili testte
+353 PASS / 1 mevcut macOS skip**, compileall, security policy ve gitleaks temiz.
+Core IPC/runtime dispatch ve native servis kanıtı açık olduğundan sayaç değişmedi.
+[Uygulama ve açık sınırlar](qbittorrent-private-bootstrap-implementation-2026-09-10.md).
 
 S06.4 native kabul koşusu [34326112926](https://github.com/ersingundem/larenor/actions/runs/34326112926)
 iki gerçek GitHub runner'ında geçti. İndirilen ARM64 ve X64 makbuzları merge
