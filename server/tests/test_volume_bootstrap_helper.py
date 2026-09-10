@@ -13,6 +13,7 @@ from types import SimpleNamespace
 
 import pytest
 
+from larenor_server.plugins.arr_owned_config import render_arr_owned_config
 from larenor_server.plugins.qbittorrent_owned_config import (
     render_qbittorrent_owned_config,
 )
@@ -147,6 +148,11 @@ def owned_config():
     return render_qbittorrent_owned_config(
         'p' * 40, api_key='qbt_' + 'k' * 28,
         salt=bytes(range(16))).configuration
+
+
+def arr_config(service_id):
+    return render_arr_owned_config(
+        service_id, '01234567' * 4).configuration
 
 
 def config_local(local, monkeypatch):
@@ -285,6 +291,130 @@ def test_qbittorrent_config_cli_reads_only_stdin_and_emits_no_secret(local, monk
         'sha256': hashlib.sha256(configuration).hexdigest(),
     }
     assert b'WebUI' not in output.out.encode()
+    assert output.err == ''
+
+
+@pytest.mark.parametrize('service_id,mode', [
+    ('sonarr', 'install_sonarr_config'),
+    ('radarr', 'install_radarr_config'),
+])
+def test_arr_config_is_written_atomically_to_one_fixed_private_file(
+        local, monkeypatch, service_id, mode):
+    m, root, effects = config_local(local, monkeypatch)
+    configuration = arr_config(service_id)
+
+    result = m.run(mode, io.BytesIO(configuration))
+
+    target = root / 'config.xml'
+    assert result == {
+        'schemaVersion': 1,
+        'state': f'{service_id}_config_installed',
+        'sha256': hashlib.sha256(configuration).hexdigest(),
+    }
+    assert target.read_bytes() == configuration
+    assert stat.S_IMODE(target.stat().st_mode) == 0o600
+    assert not (root / '.larenor-arr-config.tmp').exists()
+    assert effects == [('fsync',), ('fsync',)]
+
+
+@pytest.mark.parametrize('service_id,mode', [
+    ('sonarr', 'install_sonarr_config'),
+    ('radarr', 'install_radarr_config'),
+])
+def test_arr_config_is_idempotent_and_foreign_existing_file_is_preserved(
+        local, monkeypatch, service_id, mode):
+    m, root, _effects = config_local(local, monkeypatch)
+    configuration = arr_config(service_id)
+    m.run(mode, io.BytesIO(configuration))
+    target = root / 'config.xml'
+    before = target.stat()
+    assert m.run(mode, io.BytesIO(configuration))['state'] == \
+        f'{service_id}_config_already_installed'
+    assert target.stat().st_ino == before.st_ino
+    target.write_bytes(b'foreign')
+    with pytest.raises(m.BootstrapError, match='^bootstrap_conflict$'):
+        m.run(mode, io.BytesIO(configuration))
+    assert target.read_bytes() == b'foreign'
+
+
+@pytest.mark.parametrize('mode,configuration', [
+    ('install_sonarr_config', b''),
+    ('install_sonarr_config', b'x' * 4097),
+    ('install_sonarr_config', arr_config('radarr')),
+    ('install_radarr_config', arr_config('sonarr')),
+    ('install_radarr_config', arr_config('radarr') + b'<Hidden/>\n'),
+    ('install_sonarr_config', arr_config('sonarr').replace(
+        b'<UpdateAutomatically>False', b'<UpdateAutomatically>True')),
+])
+def test_invalid_arr_config_never_creates_storage(
+        local, monkeypatch, mode, configuration):
+    m, root, _effects = config_local(local, monkeypatch)
+    with pytest.raises(m.BootstrapError, match='^bootstrap_conflict$'):
+        m.run(mode, io.BytesIO(configuration))
+    assert list(root.iterdir()) == []
+
+
+@pytest.mark.parametrize('kind', ['directory', 'symlink'])
+def test_arr_config_target_type_conflict_is_never_replaced(
+        local, monkeypatch, kind):
+    m, root, _effects = config_local(local, monkeypatch)
+    target = root / 'config.xml'
+    if kind == 'directory':
+        target.mkdir()
+    else:
+        target.symlink_to('/outside')
+    with pytest.raises(m.BootstrapError, match='^bootstrap_conflict$'):
+        m.run('install_sonarr_config', io.BytesIO(arr_config('sonarr')))
+    assert target.is_symlink() or target.is_dir()
+
+
+@pytest.mark.parametrize('conflict', ['wrong_mode', 'hardlink'])
+def test_arr_config_existing_file_metadata_conflict_is_preserved(
+        local, monkeypatch, conflict):
+    m, root, _effects = config_local(local, monkeypatch)
+    target = root / 'config.xml'
+    target.write_bytes(arr_config('sonarr'))
+    if conflict == 'wrong_mode':
+        target.chmod(0o640)
+    else:
+        target.chmod(0o600)
+        os.link(target, root / 'foreign-link')
+    before = target.read_bytes()
+    with pytest.raises(m.BootstrapError, match='^bootstrap_conflict$'):
+        m.run('install_sonarr_config', io.BytesIO(arr_config('sonarr')))
+    assert target.read_bytes() == before
+    assert stat.S_IMODE(target.stat().st_mode) == (
+        0o640 if conflict == 'wrong_mode' else 0o600)
+
+
+def test_arr_config_stale_temporary_file_requires_review(local, monkeypatch):
+    m, root, _effects = config_local(local, monkeypatch)
+    temporary = root / '.larenor-arr-config.tmp'
+    temporary.write_bytes(b'preserve')
+    with pytest.raises(m.BootstrapError, match='^bootstrap_conflict$'):
+        m.run('install_radarr_config', io.BytesIO(arr_config('radarr')))
+    assert temporary.read_bytes() == b'preserve'
+    assert not (root / 'config.xml').exists()
+
+
+@pytest.mark.parametrize('service_id,mode', [
+    ('sonarr', 'install_sonarr_config'),
+    ('radarr', 'install_radarr_config'),
+])
+def test_arr_config_cli_reads_only_stdin_and_emits_no_secret(
+        local, monkeypatch, capsys, service_id, mode):
+    m, _root, _effects = config_local(local, monkeypatch)
+    configuration = arr_config(service_id)
+    monkeypatch.setattr(
+        m.sys, 'stdin', SimpleNamespace(buffer=io.BytesIO(configuration)))
+    assert m.main([mode]) == 0
+    output = capsys.readouterr()
+    assert json.loads(output.out) == {
+        'schemaVersion': 1,
+        'state': f'{service_id}_config_installed',
+        'sha256': hashlib.sha256(configuration).hexdigest(),
+    }
+    assert b'<ApiKey>' not in output.out.encode()
     assert output.err == ''
 
 
