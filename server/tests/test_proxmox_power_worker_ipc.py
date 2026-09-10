@@ -2,6 +2,7 @@
 
 from dataclasses import dataclass
 import hashlib
+import json
 import os
 from pathlib import Path
 import socket
@@ -23,6 +24,7 @@ from larenor_server.proxmox_commands.worker_ipc import (
     ProxmoxPowerWorkerClient,
     ProxmoxPowerWorkerError,
     ProxmoxPowerWorkerServer,
+    verified_power_worker_client,
 )
 
 
@@ -378,4 +380,82 @@ def test_worker_configuration_is_explicit_absolute_and_uid_private(monkeypatch, 
         Settings(
             tmp_path / "data", tmp_path / "key",
             proxmox_power_worker_socket=Path("relative.sock"),
+        )
+
+
+def test_core_worker_health_binds_the_original_socket_inode(tmp_path):
+    socket_root = tempfile.TemporaryDirectory(
+        prefix="lpw-health-",
+        dir="/private/tmp" if Path("/private/tmp").is_dir() else "/tmp",
+    )
+    root = Path(socket_root.name)
+    socket_path = root / "power.sock"
+    health_path = root / "power-health.json"
+    original = ProxmoxPowerWorkerServer(
+        socket_path,
+        Adapter([]),
+        allowed_uid=os.getuid(),
+        peer_uid=lambda _connection: os.getuid(),
+        timeout=1,
+    )
+    original.start()
+    try:
+        info = socket_path.lstat()
+        health_path.write_text(json.dumps({
+            "schemaVersion": 1,
+            "capability": "proxmox-power-effect",
+            "state": "ready",
+            "workerId": "c" * 32,
+            "workerUid": os.getuid(),
+            "socketDevice": info.st_dev,
+            "socketInode": info.st_ino,
+            "emittedAt": time.time(),
+        }))
+        health_path.chmod(0o600)
+        client = verified_power_worker_client(
+            socket_path, health_path, os.getuid(),
+            peer_uid=lambda _connection: os.getuid(),
+            timeout=1,
+        )
+        assert isinstance(client, ProxmoxPowerWorkerClient)
+        original.close()
+
+        replacement_calls = []
+        replacement = ProxmoxPowerWorkerServer(
+            socket_path,
+            Adapter(replacement_calls),
+            allowed_uid=os.getuid(),
+            peer_uid=lambda _connection: os.getuid(),
+            timeout=1,
+        )
+        replacement.start()
+        try:
+            with pytest.raises(ProxmoxPowerWorkerError, match="^worker_unavailable$"):
+                client.execute_bounded(
+                    descriptor(), "start", lambda: None,
+                    preview=preview(), deadline_ms=1_000,
+                )
+            assert replacement_calls == []
+        finally:
+            replacement.close()
+    finally:
+        original.close()
+        socket_root.cleanup()
+
+
+def test_core_worker_health_configuration_is_all_or_nothing(tmp_path):
+    root = tmp_path.resolve()
+    socket_path = (root / "power.sock").resolve()
+    health_path = (root / "power-health.json").resolve()
+    with pytest.raises(ValueError, match="^invalid_worker_configuration$"):
+        Settings(
+            root / "data", root / "key",
+            proxmox_power_worker_socket=socket_path,
+            proxmox_power_worker_uid=os.getuid(),
+        )
+    with pytest.raises(ValueError, match="^invalid_worker_configuration$"):
+        Settings(
+            root / "data", root / "key",
+            proxmox_power_worker_health=health_path,
+            proxmox_power_worker_uid=os.getuid(),
         )
