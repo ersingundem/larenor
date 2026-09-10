@@ -15,7 +15,11 @@ import '../../health/data/health_configuration.dart';
 import '../../web_panel/presentation/web_panel_settings_screen.dart';
 import '../../wellbeing/providers/wellbeing_privacy_providers.dart';
 import '../../keenetic/presentation/keenetic_widget_picker_screen.dart';
+import '../../keenetic/core/presentation/core_keenetic_widget_picker_screen.dart';
 import '../../keenetic/providers/keenetic_providers.dart';
+import '../../core_proxmox/presentation/core_proxmox_widget_picker.dart';
+import '../../../core/home_session_controller.dart';
+import '../../../core/home_source_store.dart';
 import '../domain/tile_config.dart';
 import 'dashboard_edit_guard.dart';
 import 'tile_kinds.dart';
@@ -93,6 +97,7 @@ class _DashboardWidgetPickerScreenState
   bool _accountSeen = false;
   bool _returned = false;
   bool _openingKeenetic = false;
+  bool _openingDirectKeenetic = false;
   final _website = TextEditingController(text: 'https://');
   bool _invalidWebsite = false;
 
@@ -147,10 +152,50 @@ class _DashboardWidgetPickerScreenState
   Future<void> _keenetic() async {
     if (!_current || _openingKeenetic) return;
     final generation = interactionGeneration;
-    setState(() => _openingKeenetic = true);
+    setState(() {
+      _openingKeenetic = true;
+      _openingDirectKeenetic = true;
+    });
     try {
       final tile = await pushDashboardPage<TileConfig>(
         CupertinoPageRoute(builder: (_) => const KeeneticWidgetPickerScreen()),
+      );
+      if (tile != null && interactionCurrent(generation)) _complete(tile);
+    } finally {
+      if (mounted) {
+        setState(() {
+          _openingKeenetic = false;
+          _openingDirectKeenetic = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _coreKeenetic() async {
+    if (!_current || _openingKeenetic) return;
+    final generation = interactionGeneration;
+    setState(() => _openingKeenetic = true);
+    try {
+      final tile = await pushDashboardPage<TileConfig>(
+        CupertinoPageRoute(
+          builder: (_) => const CoreKeeneticWidgetPickerScreen(),
+        ),
+      );
+      if (tile != null && interactionCurrent(generation)) _complete(tile);
+    } finally {
+      if (mounted) setState(() => _openingKeenetic = false);
+    }
+  }
+
+  Future<void> _proxmox() async {
+    if (!_current || _openingKeenetic) return;
+    final generation = interactionGeneration;
+    setState(() => _openingKeenetic = true);
+    try {
+      final tile = await pushDashboardPage<TileConfig>(
+        CupertinoPageRoute(
+          builder: (_) => const CoreProxmoxWidgetPickerScreen(),
+        ),
       );
       if (tile != null && interactionCurrent(generation)) _complete(tile);
     } finally {
@@ -207,13 +252,16 @@ class _DashboardWidgetPickerScreenState
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    final haType = _type != null && tileKinds.containsKey(_type);
+    final haType =
+        _type != null &&
+        _type != TileType.proxmox &&
+        tileKinds.containsKey(_type);
     final config = haType ? ref.watch(connectionConfigProvider) : null;
     watchDashboardAccount();
     if (ref.exists(keeneticConnectionProvider)) {
       ref.watch(keeneticConnectionProvider);
       ref.listen(keeneticConnectionProvider, (previous, next) {
-        if (_openingKeenetic &&
+        if (_openingDirectKeenetic &&
             (next.isLoading ||
                 next.hasError ||
                 !sameHealthConfiguration(previous?.value, next.value))) {
@@ -240,7 +288,17 @@ class _DashboardWidgetPickerScreenState
       slivers.add(
         SliverToBoxAdapter(child: _message(l10n.dashboardWidgetPickerHint)),
       );
-      final types = [...tileKinds.keys, TileType.webview, TileType.keenetic];
+      final core = ref.read(homeSessionControllerProvider);
+      final types = [
+        ...tileKinds.keys.where(
+          (type) =>
+              type != TileType.proxmox ||
+              core?.source == HomeSource.verifiedCore,
+        ),
+        TileType.webview,
+        TileType.keenetic,
+        TileType.coreKeenetic,
+      ];
       slivers.add(
         SliverList.builder(
           itemCount: types.length,
@@ -257,6 +315,10 @@ class _DashboardWidgetPickerScreenState
                   : dashboardAction(() {
                       if (type == TileType.keenetic) {
                         _keenetic();
+                      } else if (type == TileType.proxmox) {
+                        _proxmox();
+                      } else if (type == TileType.coreKeenetic) {
+                        _coreKeenetic();
                       } else {
                         _chooseType(type);
                       }

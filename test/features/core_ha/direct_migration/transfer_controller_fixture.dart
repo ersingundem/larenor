@@ -52,6 +52,7 @@ class TransferHarness {
     if (r.url.path.endsWith('/${target().context.homeId}')) {
       return response({
         'scope': scopeJson(),
+        'userRevision': 7,
         'entries': [resourceJson()],
         'snapshot': 'a' * 64,
         'nextAfter': null,

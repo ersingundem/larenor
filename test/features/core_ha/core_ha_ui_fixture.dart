@@ -54,6 +54,7 @@ class HaUiHarness {
     'context': f['context'],
     'memberList': {
       'scope': f['context'],
+      'userRevision': 7,
       'entries': [f['resource']],
       'snapshot': 'a' * 64,
       'nextAfter': null,

@@ -39,6 +39,13 @@ def downgrade_to_known_v1(app):
         for table in ('direct_ha_migrations', 'direct_ha_state'):
             connection.execute(f'DROP TABLE {table}')
         connection.execute("DELETE FROM metadata WHERE key='direct_ha_schema'")
+        # Central infrastructure bindings also postdate the context-free v1 schema.
+        for table in ('keenetic_resource_bindings', 'keenetic_resource_state'):
+            connection.execute(f'DROP TABLE {table}')
+        connection.execute("DELETE FROM metadata WHERE key='keenetic_resource_schema'")
+        for table in ('proxmox_resource_bindings', 'proxmox_resource_state'):
+            connection.execute(f'DROP TABLE {table}')
+        connection.execute("DELETE FROM metadata WHERE key='proxmox_resource_schema'")
         connection.execute("UPDATE metadata SET value='1' WHERE key='schema_version'")
 
 

@@ -130,6 +130,7 @@ class ResourceAdminHarness extends ResourceHarness {
       final page = rest.take(25).toList();
       return json({
         'scope': fixture['context'],
+        'userRevision': 7,
         'entries': page,
         'snapshot': 'a' * 64,
         'nextAfter': rest.length > page.length ? page.last['ref']['id'] : null,

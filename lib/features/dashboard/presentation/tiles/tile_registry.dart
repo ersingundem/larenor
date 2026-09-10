@@ -13,6 +13,7 @@ import 'history_tile.dart';
 import 'jellyfin_tile.dart';
 import 'jellyseerr_tile.dart';
 import 'keenetic_tile.dart';
+import 'core_keenetic_tile.dart';
 import 'lidarr_tile.dart';
 import 'media_player_tile.dart';
 import 'prowlarr_tile.dart';
@@ -61,5 +62,6 @@ Widget _buildTileContent(TileConfig tile) {
     TileType.qbittorrent => QbittorrentTile(tile: tile),
     TileType.proxmox => ProxmoxTile(tile: tile),
     TileType.keenetic => KeeneticTile(tile: tile),
+    TileType.coreKeenetic => CoreKeeneticTile(tile: tile),
   };
 }

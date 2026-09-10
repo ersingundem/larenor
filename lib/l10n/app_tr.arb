@@ -1914,6 +1914,15 @@
   "homeResourcesRoom": "Oda",
   "homeResourcesResource": "Kaynak",
   "homeResourcesLoadMore": "Daha fazla yükle",
+  "coreResourceDownload": "Doğrulanmış dosyayı indir",
+  "coreResourceDownloading": "İndiriliyor ve doğrulanıyor…",
+  "coreResourceChooseDestination": "Doğrulanmış dosyanın kaydedileceği yeri seçin.",
+  "coreResourceDownloadSaved": "Doğrulanmış dosya kaydedildi.",
+  "coreResourceDownloadCancelled": "İndirme iptal edildi.",
+  "coreResourceDownloadSessionLost": "İndirmeden önce yeniden giriş yapın.",
+  "coreResourceDownloadForbidden": "Bu hesabın indirme erişimi artık yok.",
+  "coreResourceDownloadChanged": "Kaynak değişti. Yeniden indirmeden önce yenileyin.",
+  "coreResourceDownloadFailed": "Dosya doğrulanamadı veya kaydedilemedi.",
   "arrConnectionIncomplete": "Kayıtlı bağlantı tamamlanamadı. Adres ve API anahtarını yeniden girin veya kayıtlı bağlantıyı kaldırın.",
   "arrRemoveConnection": "Kayıtlı bağlantıyı kaldır",
   "wellbeingReloadSettings": "Kayıtlı ayarları yeniden oku",
@@ -2210,11 +2219,29 @@
   "sftpUpload": "Yüklenecek dosyayı seç",
   "sftpEmpty": "Desteklenen dosya veya klasör gösterilmiyor. Bu klasörü okumak için yenileyin.",
   "sftpDownload": "{name} dosyasını indir",
-  "@sftpDownload": {"placeholders": {"name": {"type": "String"}}},
+  "@sftpDownload": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
   "sftpFileSize": "{bytes} bayt",
-  "@sftpFileSize": {"placeholders": {"bytes": {"type": "int"}}},
+  "@sftpFileSize": {
+    "placeholders": {
+      "bytes": {
+        "type": "int"
+      }
+    }
+  },
   "sftpTransferred": "{bytes} bayt aktarıldı",
-  "@sftpTransferred": {"placeholders": {"bytes": {"type": "int"}}},
+  "@sftpTransferred": {
+    "placeholders": {
+      "bytes": {
+        "type": "int"
+      }
+    }
+  },
   "sftpUploadComplete": "Yükleme tamamlandı. Uzak sonucu doğrulamak için yenileyin.",
   "sftpDownloadComplete": "İndirme seçilen Android konumuna kaydedildi.",
   "sftpDownloadCancelled": "Android kaydetme işlemi iptal edildi; uzak dosya değiştirilmedi.",
@@ -2277,5 +2304,65 @@
   "coreHaCheckpointCopied": "Sürümlü kontrol noktası yedeği kopyalandı.",
   "coreHaCheckpointMismatchAlarm": "Güvenilir kontrol noktası eşleşmiyor. Olası geri alma veya kurcalama; kayıtlı sabitleme değiştirilmedi.",
   "coreHaCheckpointRollbackAlarm": "Core, güvenilir kontrol noktasından daha eski bir geçmiş döndürdü. Olası geri alma; kayıtlı sabitleme değiştirilmedi.",
-  "coreHaCheckpointStorageFailed": "Güvenli kontrol noktası deposu okunamadı veya değiştirilemedi. Hiçbir şeyin üzerine yazılmadı."
+  "coreHaCheckpointStorageFailed": "Güvenli kontrol noktası deposu okunamadı veya değiştirilemedi. Hiçbir şeyin üzerine yazılmadı.",
+  "coreKeeneticTitle": "Core ağ telemetrisi",
+  "coreKeeneticBindingTitle": "Keenetic telemetrisini bağla",
+  "coreKeeneticOpen": "Core ağ telemetrisini aç",
+  "coreKeeneticRequired": "Güncel bir Core ev oturumu gerekli.",
+  "coreKeeneticLoading": "Güncel Core telemetrisi okunuyor…",
+  "coreKeeneticNoBinding": "Bu kaynağa bağlı Keenetic servisi yok.",
+  "coreKeeneticPermission": "Bu hesabın ev kaynağını okuma yetkisi yok.",
+  "coreKeeneticDenied": "Keenetic bu telemetri okumasını reddetti.",
+  "coreKeeneticUnsupported": "Bu telemetri yanıtı desteklenmiyor.",
+  "coreKeeneticChanged": "Kaynak veya servis değişti. Yenileyip tekrar inceleyin.",
+  "coreKeeneticPreviewExpired": "Bağlantı önizlemesinin süresi doldu. Yeni önizleme oluşturun.",
+  "coreKeeneticOffline": "Core telemetrisine ulaşılamıyor. Yenilemek için tekrar deneyin.",
+  "coreKeeneticStale": "Bu telemetri eski. Güvenmeden önce yenileyin.",
+  "coreKeeneticSaved": "Keenetic telemetri bağlantısı kaydedildi.",
+  "coreKeeneticReadOnly": "Salt okunur telemetri. Yönlendirici ayarları değiştirilmez.",
+  "coreKeeneticStatus": "Ağ durumu",
+  "coreKeeneticPublicIp": "Public IP adresi",
+  "coreKeeneticService": "Keenetic servisi",
+  "coreKeeneticNoServices": "Kimliği doğrulanmış Keenetic servisi yok.",
+  "coreKeeneticPreview": "Bağlantıyı önizle",
+  "coreKeeneticConfirm": "Bağlantıyı onayla",
+  "coreProxmoxTitle": "Proxmox kaynakları",
+  "coreProxmoxBindingTitle": "Proxmox Core bağlantısı",
+  "coreProxmoxReadOnly": "Salt okunur Core özeti. Güç ve yapılandırma işlemleri kullanılamaz.",
+  "coreProxmoxLoading": "Güncel Core anlık görüntüsü okunuyor…",
+  "coreProxmoxRequired": "Doğrulanmış ve kilidi açık bir Core oturumu gerekli.",
+  "coreProxmoxPermission": "Bu hesap Proxmox kaynağını okuyamaz.",
+  "coreProxmoxUpstreamAuth": "Core, seçilen Proxmox servisine kimlik doğrulayamıyor.",
+  "coreProxmoxOffline": "Core veya Proxmox servisi erişilemiyor.",
+  "coreProxmoxUnsupported": "Core bilinmeyen veya desteklenmeyen bir Proxmox özeti döndürdü.",
+  "coreProxmoxChanged": "Kaynak, erişim, servis veya bağlantı değişti. Güncel evden yenileyin.",
+  "coreProxmoxPreviewExpired": "Bu önizleme eskidi. Servisi yeniden seçin.",
+  "coreProxmoxError": "Proxmox özeti okunamadı.",
+  "coreProxmoxStale": "Core anlık görüntüsünün süresi doldu ve kaldırıldı. Güncel sonucu okumak için yenileyin.",
+  "coreProxmoxUncertain": "Core bağlantının değişip değişmediğini doğrulayamadı. Yeniden denemeden önce yenileyin.",
+  "coreProxmoxSaved": "Proxmox Core bağlantısı kaydedildi.",
+  "coreProxmoxPreviewReady": "Onaylamadan önce bu salt okunur düğüm, misafir ve depolama önizlemesini inceleyin.",
+  "coreProxmoxConfirm": "Salt okunur bağlantıyı onayla",
+  "coreProxmoxServices": "Doğrulanmış Proxmox servisleri",
+  "coreProxmoxNoServices": "Core içinde kullanılabilir Proxmox servisi yok.",
+  "coreProxmoxOnline": "Çevrimiçi",
+  "coreProxmoxOfflineState": "Çevrimdışı",
+  "coreProxmoxRunning": "Çalışıyor",
+  "coreProxmoxStopped": "Durduruldu",
+  "coreProxmoxActive": "Etkin",
+  "coreProxmoxInactive": "Etkin değil",
+  "coreProxmoxCpu": "CPU",
+  "coreProxmoxMemory": "Bellek",
+  "coreProxmoxDisk": "Disk",
+  "coreProxmoxUptime": "Çalışma süresi",
+  "coreProxmoxNode": "Düğüm",
+  "coreProxmoxVm": "QEMU sanal makinesi",
+  "coreProxmoxContainer": "LXC konteyneri",
+  "coreProxmoxEmpty": "Görünür düğüm, misafir veya depolama yok.",
+  "coreProxmoxOpen": "Salt okunur Proxmox özetini aç",
+  "coreProxmoxConfigure": "Proxmox Core bağlantısını yapılandır",
+  "coreProxmoxChooseResource": "Bu Proxmox widget’ı için bir Core kaynağı seçin.",
+  "dashboardTileCoreKeenetic": "Core Keenetic",
+  "coreKeeneticDashboardPickerTitle": "Core Keenetic kartı ekle",
+  "coreKeeneticDashboardPickerHint": "Bir Core ev kaynağı seçin. Larenor kartı kaydetmeden önce güncel Keenetic bağlantısını doğrular."
 }

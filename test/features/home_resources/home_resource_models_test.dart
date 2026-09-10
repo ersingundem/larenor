@@ -17,6 +17,7 @@ Map<String, Object?> record([String id = '1']) => {
 };
 Map<String, Object?> page() => {
   'scope': scope(),
+  'userRevision': 7,
   'entries': [record()],
   'snapshot': 'a' * 64,
   'nextAfter': null,
@@ -36,6 +37,7 @@ void main() {
       raw,
       expectedContext: ServerContext.fromJson(scope()),
     );
+    expect(value.userRevision, 7);
     expect(value.entries.single.label, 'Kitchen');
     expect(value.entries.single.kind, HomeResourceKind.room);
     expect(value.entries.single.canWrite, isFalse);

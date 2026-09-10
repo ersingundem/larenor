@@ -1,6 +1,6 @@
 # Larenor — güncel ilerleme ve iş kuyruğu
 
-**Son güncelleme: 10 Eylül 2026 — PR65 exact `5db7942` üzerinde 15/15 zorunlu kontrolü geçerek ana dala alındı. Üçüncü toplu kilometre taşı Music Assistant sağlayıcı/oynatma worker'ını, SSH tünel/PTY/MFA/jump-host akışını, güvenilir HA checkpoint E2E'sini ve günlük GitHub artifact bakımını birleştiriyor.**
+**Son güncelleme: 10 Eylül 2026 — PR66 `4925a50` ile ana dala alındı. Dördüncü toplu kilometre taşı Music Assistant ilk kurulumunu, Core-backed Proxmox/Keenetic tablet yüzeylerini ve doğrulanmış bounded indirmeyi birleştiriyor.**
 
 ```text
 Kuyruk kabulü       ██░░░░░░░░░░░░░░░░░░  14/125 iş (%11; eşit ağırlıklı sayaç)
@@ -107,6 +107,35 @@ Gerçek HomePod/sağlayıcı, iki hostlu SSH fixture, fiziksel Huawei/DeX ve Git
 PR/CI kabulü açık olduğundan sayaçlar **14/125 (%11,2)** ve **0/63 (%0,0)**
 olarak korunuyor. S08.9 Keenetic/Proxmox ve S08.10 bounded transfer pilotları
 bir sonraki toplu paket için paralel yürütülüyor.
+
+### Hazırlanan dördüncü toplu kilometre taşı
+
+- Her PR commitinin kuyruk ve seçili özellik yüzdesi GitHub Actions özetinde
+  commit hash'iyle ayrı satırda gösteriliyor. Bu kayıt öncesindeki **30/30 commit**
+  `14/125 (%11,2)` ve `0/63 (%0,0)` trailerlarıyla doğrulandı.
+- Music Assistant 2.10.2 ilk kurulumunda Core iç yöneticiyi oluşturuyor, kısa
+  kurulum anahtarını uzun ömürlü entegrasyon anahtarıyla değiştiriyor,
+  onboarding'i tamamlıyor ve aynı sunucu kimliğini tekrar okuyor. Sırlar yalnız
+  UID-korumalı Unix IPC ve retained worker içinde kalıyor.
+- Proxmox pilotunda yönetici preview/confirm ve üye salt okunur Core ekranı;
+  kaynak seçen Core-backed dashboard widget'ı, node/QEMU-LXC/storage özeti ve
+  stale/denied/offline ayrımı var. Core yolunda Direct fallback yok.
+- Keenetic pilotu authenticated Core kaynağından internet durumu, public IP,
+  uptime, indirme/yükleme, CPU/RAM ve çevrimiçi cihaz özetini tablet/DeX paneli
+  ve kaynak/revision bağlı dashboard kartında gösteriyor. Yönlendirici ayarı
+  değiştirmiyor ve Direct kimlik bilgisi/cache yoluna dönmüyor.
+- S08.10 bounded indirme pilotu trace, sıra, final frame, uzunluk, SHA-256,
+  içerik türü ve servis revision doğrulanmadan Android SAF'e veri yayımlamıyor.
+  İptal, timeout, oturum/lifecycle ve ACL değişiminde akış kapanıyor; otomatik
+  retry, range veya resume yok.
+
+Birleşim sonrası ilgili **228 Server** ve **100 Flutter** testi geçti; security
+policy, Python compileall, kuyruk ve commit ilerleme kapıları temiz. Flutter
+generated kaynakları birleşik testten önce yeniden üretildi. Uzak CI,
+gerçek Proxmox/Keenetic/Music Assistant, Android SAF, Huawei MatePad ve Samsung
+DeX fiziksel kabulü açık. S08.9, S08.10, S06.5 ve seçili özelliklerin bütün
+kriterleri kapanmadığı için sayaçlar **14/125 (%11,2)** ve **0/63 (%0,0)**
+olarak korunuyor.
 
 | Adım | Durum | Sonraki somut çıktı |
 | --- | --- | --- |
@@ -1388,6 +1417,16 @@ ve gerçek cihaz komutları henüz tamamlanmış sayılmıyor.
 S08.5, kimlik/yetki S08.6; gerçek HA eşlemesi ve typed cache S08.7, medya
 S08.8, altyapı S08.9. Böylece bir adım kendi sonraki adaptörünü bitiş önkoşulu
 olarak beklemiyor. Kapsam ve 125 işlik kuyruk korunuyor; kabul sayısı 7/125.
+
+**S08.9 Proxmox salt okunur pilotu ayrı dalda:** `codex/core-proxmox-adapter`
+node/QEMU-LXC guest/storage özetini yönetici preview/onay binding'i ve Home
+Resources read ACL'si üzerinden Core'a taşır. Beş saniyelik typed cache exact
+Core/ev/kaynak/binding/servis/kullanıcı/oturum tuple'ına bağlıdır; endpoint,
+credential, revizyon, ACL veya oturum değişince geç yanıt yayınlanmaz. Bu paket
+güç/yapılandırma komutu eklemez ve gerçek Proxmox'a bağlanmadı. Mevcut Android
+Direct Proxmox yolu, Core-backed Client geçişi ve fiziksel tablet kabulüne kadar
+geçici olarak açıktır. Bu yalnız pilot kanıtıdır; S08.9 ve seçilen özellik kabul
+sayaçları değişmedi. [Sınır ve API](core-proxmox-resource-pilot-2026-09-10.md).
 
 **Yarım çalışmaları kaybetmeden devam:** önce çalışma kopyaları, dallar,
 agent ve CI durumları incelenir; aynı iş yeniden başlatılmaz. Tamamlanan

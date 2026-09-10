@@ -11,6 +11,7 @@ import '../../../l10n/generated/app_localizations.dart';
 import '../../../shared/widgets/app_page_scaffold.dart';
 import '../../../shared/theme/app_colors.dart';
 import '../../core_ha/presentation/core_ha_screen.dart';
+import '../../core_proxmox/presentation/core_proxmox_screen.dart';
 import '../data/home_resources_api.dart';
 import '../data/home_resources_controller.dart';
 import '../domain/home_resource_models.dart';
@@ -593,7 +594,7 @@ class _HomeResourceAdminScreenState
                                             destructive: true,
                                           ),
                                           if (row.kind ==
-                                              HomeResourceKind.resource)
+                                              HomeResourceKind.resource) ...[
                                             _button(
                                               'core-ha-bind-${row.id}',
                                               l10n.coreHaBind,
@@ -610,6 +611,23 @@ class _HomeResourceAdminScreenState
                                                     )
                                                   : null,
                                             ),
+                                            _button(
+                                              'core-proxmox-bind-${row.id}',
+                                              l10n.coreProxmoxConfigure,
+                                              _controller.canMutate
+                                                  ? () => Navigator.of(context).push(
+                                                      CupertinoPageRoute<void>(
+                                                        builder: (_) =>
+                                                            CoreProxmoxBindingScreen(
+                                                              target: row,
+                                                              gateCurrent: widget
+                                                                  .gateCurrent,
+                                                            ),
+                                                      ),
+                                                    )
+                                                  : null,
+                                            ),
+                                          ],
                                         ],
                                       ),
                                     ],

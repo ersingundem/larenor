@@ -308,6 +308,14 @@ void main() {
         find.byKey(const ValueKey('widget-kind-keenetic')),
         findsOneWidget,
       );
+      await tester.scrollUntilVisible(
+        find.byKey(const ValueKey('widget-kind-coreKeenetic')),
+        250,
+      );
+      expect(
+        find.byKey(const ValueKey('widget-kind-coreKeenetic')),
+        findsOneWidget,
+      );
     },
   );
   for (final (kind, id) in [

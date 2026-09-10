@@ -162,6 +162,13 @@ const serviceTileKinds = {
     width: 3,
     height: 2,
   ),
+  TileType.coreKeenetic: TileKindInfo(
+    'Core Keenetic',
+    CupertinoIcons.cloud,
+    CupertinoColors.systemBlue,
+    width: 3,
+    height: 2,
+  ),
 };
 
 /// Which summary tile represents each optional service, so the dashboard's
@@ -230,6 +237,8 @@ String tileTypeLabel(BuildContext context, TileType type) {
       return l10n.dashboardTileProxmox;
     case TileType.keenetic:
       return l10n.dashboardTileKeenetic;
+    case TileType.coreKeenetic:
+      return l10n.dashboardTileCoreKeenetic;
     case TileType.webview:
       return l10n.dashboardTileWebview;
   }

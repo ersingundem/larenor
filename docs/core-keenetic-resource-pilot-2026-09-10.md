@@ -1,0 +1,84 @@
+# Core Keenetic Home Resource pilotu — 10 Eylül 2026
+
+Bu S08.9 pilotu, kayıtlı bir Keenetic servisinden **yalnız salt okunur** durum,
+arayüz, trafik ve istemci anlık görüntüsünü Home Resources yetki zinciri
+üzerinden sunar. S08.9 tamamlanmış sayılmaz. Üretim ağ istemcisi bu dilimde
+bilerek kapalıdır; bütün kabul testleri paket içi sentetik reader seam'iyle
+çalışır. Gerçek routera, `192.168.1.150` adresine veya başka bir ev cihazına
+istek gönderilmedi.
+
+## Yetki ve bağlama sınırı
+
+- Yönetici, exact `serviceId`, servis revizyonu, kaynak revizyonu, ACL revizyonu
+  ve mevcut binding kimliğiyle önizleme ister. Önizleme yalnız servis kaydı
+  `authenticated` ise ve kimlik bilgisi alanları exact `username/password` ise
+  üretilir.
+- Önizleme, bağlama ve tipli telemetriyi birlikte gösterir. Onay tek kullanımlık
+  preview kimliğiyle yapılır; kaynak, ACL, kullanıcı, oturum, servis, endpoint,
+  kimlik bilgileri veya doğrulama durumu değişmişse kayıt yapılmaz.
+- Binding AES-GCM ile şifrelenir ve keyed envanter etiketiyle doğrulanır.
+  Credential değerleri binding, response, receipt veya log içine yazılmaz.
+- Her snapshot öncesinde ve sentetik upstream dönüşünden sonra aynı yetki
+  gerçekleri yeniden okunur. İptal, 10 saniyelik deadline, geç sonuç, saat geri
+  sarımı, kapatılmış adapter, geçersiz oturum ve stale revizyon fail closed olur.
+- Cache anahtarı Core, home, resource, binding, service ve kullanıcı/oturum
+  kimliklerinin exact bileşimidir. TTL 5 saniye, toplam 128 ve kullanıcı başına
+  16 kayıtla sınırlıdır. Servis endpoint/credential/revizyon değişimi eski
+  binding veya cache yetkisini devralmaz.
+
+## Tipli readback
+
+Snapshot yalnız şu sınırlı alanları içerir: router online/uptime/firmware;
+arayüz kimliği, türü, durumu, adresi ve byte sayaçları; toplam trafik ve ölçülmüş
+hız; host kimliği, adı, IP/MAC, arayüzü, online ve kayıtlı durumu. Bilinmeyen
+alanlar, yinelenen kimlikler, var olmayan arayüz referansları, negatif/aşırı
+sayaçlar, unsupported shape ve upstream denied/unauthorized cevapları başarı
+sayılmaz.
+
+## Direct Keenetic yolu
+
+Android uygulamasındaki mevcut Direct Keenetic kayıt, PIN kurtarma ve yerel
+telemetri yolu açıktır ve bu pilot tarafından değiştirilmez. Kullanıcı Core
+bağlantısı kurmadan Direct profili kullanmaya devam edebilir. Merkezi yol için
+gerçek Keenetic transport, cihaz/firmware matrisi ve fiziksel tablet-router
+kabulü sonraki S08.9 dilimleridir.
+
+## Android tablet/DeX istemci dilimi
+
+Home Resources listesindeki bir `resource`, ayrı Core ağ telemetrisi rotasını
+açar. Rota kaynak seçildiği andaki Core/home/account kimliğine bağlıdır; pencere,
+uygulama odağı, oturum, home kaynağı, kullanıcı veya ACL değişirse geç cevap
+yayınlanmaz ve eski Direct Keenetic profiline geri düşülmez.
+
+Üye görünümü yalnız snapshot GET çağrısı yapar. Yönetici görünümü exact binding
+readback, authenticated Keenetic servis seçimi, preview, tek kullanımlık confirm
+ve cancel akışını gösterir. Public IP yalnız doğrulanmış IPv4/IPv6 metniyse
+maskelenmeden sunulur. Online durumu, uptime, download/upload, CPU/RAM, bağlı
+cihaz sayısı ve interface sayaçları aynı tipli snapshot üzerinden okunur.
+Unknown, denied, unsupported, offline ve stale durumları ayrı metin ve semantik
+durumlarla gösterilir.
+
+Panel geniş tablet ve yeniden boyutlandırılabilir DeX penceresinde tek okunabilir
+sütun kullanır. Etkileşimler en az 48 dp, klavyeyle erişilebilir ve TalkBack için
+etiketlidir; 2× sistem yazı ölçeğinde yatay metrik satırları esnek kalır. Tasarım,
+dinamik sistem renkleri ve mevcut Larenor Cupertino yüzeylerini kullanır.
+
+## Core dashboard kartı
+
+Widget seçicide Direct Keenetic ve Core Keenetic ayrı seçeneklerdir. Core kartı
+Core/home/resource, resource revision, ACL revision, binding id ve binding
+revision tuple'ını scope'a bağlı dashboard layoutunda saklar. Yerleştirme öncesi
+public snapshot ile güncel binding doğrulanır; layout yazımı beklerken account,
+home veya interaction değişirse kart kaydedilmez. Ekranlar arasında yer ve seçim
+korunur, fakat eski revision yeni kaynağa veya binding'e sessizce taşınmaz.
+
+Kart her görünür olduğunda resource ve snapshot readback'ini Core üzerinden
+yeniden doğrular. Internet durumu, public IP, uptime, download/upload, CPU/RAM ve
+online cihaz özeti tipli snapshot'tan gelir. Unknown, permission denied, upstream
+denied, unsupported, offline ve TTL sonrası stale ayrı gösterilir. Uygulama arka
+plana giderse veya Core/account/home/ACL kimliği değişirse geç sonuç yayınlanmaz;
+otomatik retry ve Direct credential/cache fallback yoktur.
+
+Direct Keenetic kart tipi ve yerel credential yolu ayrı ve değişmeden kalır.
+Gerçek Keenetic transport, firmware matrisi ve fiziksel tablet-router kabulü hâlâ
+sonraki S08.9 dilimleridir.

@@ -153,6 +153,22 @@ class ServiceManagement:
             raise ApiError('ha_binding_changed', 409)
         return self._private(row, record)
 
+    def _proxmox_connection(self, connection, service_id: str, revision: int) -> ServiceConnection:
+        """Private resource-adapter seam; never exposes an execution permit."""
+        row, record = self._record(connection, service_id, revision)
+        keys = set(record['credentials'])
+        if record['kind'] != 'proxmox' or keys not in ({'token'}, {'username', 'password'}):
+            raise ApiError('proxmox_binding_changed', 409)
+        return self._private(row, record)
+
+    def _keenetic_connection(self, connection, service_id: str, revision: int) -> ServiceConnection:
+        """Private, transaction-bound read-only telemetry source selection."""
+        row, record = self._record(connection, service_id, revision)
+        if (record["kind"] != "keenetic" or set(record["credentials"]) != {"username", "password"} or
+                record["verification"]["state"] != "authenticated"):
+            raise ApiError("keenetic_service_unverified", 409)
+        return self._private(row, record)
+
     def list(self, actor: Principal) -> dict:
         with self._read(actor) as connection:
             rows = connection.execute("SELECT * FROM service_connections ORDER BY id LIMIT ?", (MAX_SERVICES + 1,)).fetchall()

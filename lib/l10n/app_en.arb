@@ -2235,6 +2235,15 @@
   "homeResourcesRoom": "Room",
   "homeResourcesResource": "Resource",
   "homeResourcesLoadMore": "Load more",
+  "coreResourceDownload": "Download verified file",
+  "coreResourceDownloading": "Downloading and verifying…",
+  "coreResourceChooseDestination": "Choose where to save the verified file.",
+  "coreResourceDownloadSaved": "Verified file saved.",
+  "coreResourceDownloadCancelled": "Download cancelled.",
+  "coreResourceDownloadSessionLost": "Sign in again before downloading.",
+  "coreResourceDownloadForbidden": "This account no longer has download access.",
+  "coreResourceDownloadChanged": "The resource changed. Refresh before downloading again.",
+  "coreResourceDownloadFailed": "The file could not be verified or saved.",
   "arrConnectionIncomplete": "The saved connection is incomplete. Enter the complete address and API key again, or remove the saved connection.",
   "arrRemoveConnection": "Remove saved connection",
   "wellbeingReloadSettings": "Read saved settings again",
@@ -2538,11 +2547,29 @@
   "sftpUpload": "Choose a file to upload",
   "sftpEmpty": "No supported files or folders are shown. Refresh to read this folder.",
   "sftpDownload": "Download {name}",
-  "@sftpDownload": {"placeholders": {"name": {"type": "String"}}},
+  "@sftpDownload": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
   "sftpFileSize": "{bytes} bytes",
-  "@sftpFileSize": {"placeholders": {"bytes": {"type": "int"}}},
+  "@sftpFileSize": {
+    "placeholders": {
+      "bytes": {
+        "type": "int"
+      }
+    }
+  },
   "sftpTransferred": "{bytes} bytes transferred",
-  "@sftpTransferred": {"placeholders": {"bytes": {"type": "int"}}},
+  "@sftpTransferred": {
+    "placeholders": {
+      "bytes": {
+        "type": "int"
+      }
+    }
+  },
   "sftpUploadComplete": "Upload completed. Refresh to confirm the remote result.",
   "sftpDownloadComplete": "Download saved to the selected Android location.",
   "sftpDownloadCancelled": "Android save was cancelled; the remote file was not changed.",
@@ -2605,5 +2632,65 @@
   "coreHaCheckpointCopied": "The versioned checkpoint backup was copied.",
   "coreHaCheckpointMismatchAlarm": "The trusted checkpoint does not match. Possible rollback or tampering; the saved pin was not changed.",
   "coreHaCheckpointRollbackAlarm": "Core returned history older than the trusted checkpoint. Possible rollback; the saved pin was not changed.",
-  "coreHaCheckpointStorageFailed": "The secure checkpoint store could not be read or changed. Nothing was overwritten."
+  "coreHaCheckpointStorageFailed": "The secure checkpoint store could not be read or changed. Nothing was overwritten.",
+  "coreKeeneticTitle": "Core network telemetry",
+  "coreKeeneticBindingTitle": "Link Keenetic telemetry",
+  "coreKeeneticOpen": "Open Core network telemetry",
+  "coreKeeneticRequired": "A current Core home session is required.",
+  "coreKeeneticLoading": "Reading current Core telemetry…",
+  "coreKeeneticNoBinding": "No Keenetic service is linked to this resource.",
+  "coreKeeneticPermission": "This account cannot read this home resource.",
+  "coreKeeneticDenied": "Keenetic denied this telemetry read.",
+  "coreKeeneticUnsupported": "This telemetry response is not supported.",
+  "coreKeeneticChanged": "The resource or service changed. Refresh and review it again.",
+  "coreKeeneticPreviewExpired": "The link preview expired. Create a new preview.",
+  "coreKeeneticOffline": "Core telemetry is unavailable. Refresh to try again.",
+  "coreKeeneticStale": "This telemetry is stale. Refresh before relying on it.",
+  "coreKeeneticSaved": "Keenetic telemetry link saved.",
+  "coreKeeneticReadOnly": "Read-only telemetry. Router settings are not changed.",
+  "coreKeeneticStatus": "Network status",
+  "coreKeeneticPublicIp": "Public IP address",
+  "coreKeeneticService": "Keenetic service",
+  "coreKeeneticNoServices": "No authenticated Keenetic service is available.",
+  "coreKeeneticPreview": "Preview link",
+  "coreKeeneticConfirm": "Confirm link",
+  "coreProxmoxTitle": "Proxmox resources",
+  "coreProxmoxBindingTitle": "Proxmox Core link",
+  "coreProxmoxReadOnly": "Read-only Core summary. Power and configuration actions are unavailable.",
+  "coreProxmoxLoading": "Reading a current Core snapshot…",
+  "coreProxmoxRequired": "A verified, unlocked Core session is required.",
+  "coreProxmoxPermission": "This account cannot read this Proxmox resource.",
+  "coreProxmoxUpstreamAuth": "Core cannot authenticate to the selected Proxmox service.",
+  "coreProxmoxOffline": "Core or the Proxmox service is unavailable.",
+  "coreProxmoxUnsupported": "Core returned an unknown or unsupported Proxmox summary.",
+  "coreProxmoxChanged": "The resource, access, service, or link changed. Refresh from the current home.",
+  "coreProxmoxPreviewExpired": "This preview is stale. Select the service again.",
+  "coreProxmoxError": "The Proxmox summary could not be read.",
+  "coreProxmoxStale": "The Core snapshot expired and was removed. Refresh to read a current result.",
+  "coreProxmoxUncertain": "Core could not confirm whether the link changed. Refresh before trying again.",
+  "coreProxmoxSaved": "The Proxmox Core link was saved.",
+  "coreProxmoxPreviewReady": "Review this read-only node, guest, and storage preview before confirming.",
+  "coreProxmoxConfirm": "Confirm read-only link",
+  "coreProxmoxServices": "Verified Proxmox services",
+  "coreProxmoxNoServices": "No Proxmox service is available in Core.",
+  "coreProxmoxOnline": "Online",
+  "coreProxmoxOfflineState": "Offline",
+  "coreProxmoxRunning": "Running",
+  "coreProxmoxStopped": "Stopped",
+  "coreProxmoxActive": "Active",
+  "coreProxmoxInactive": "Inactive",
+  "coreProxmoxCpu": "CPU",
+  "coreProxmoxMemory": "Memory",
+  "coreProxmoxDisk": "Disk",
+  "coreProxmoxUptime": "Uptime",
+  "coreProxmoxNode": "Node",
+  "coreProxmoxVm": "QEMU VM",
+  "coreProxmoxContainer": "LXC container",
+  "coreProxmoxEmpty": "No nodes, guests, or storage are visible.",
+  "coreProxmoxOpen": "Open read-only Proxmox summary",
+  "coreProxmoxConfigure": "Configure Proxmox Core link",
+  "coreProxmoxChooseResource": "Choose a Core resource for this Proxmox widget.",
+  "dashboardTileCoreKeenetic": "Core Keenetic",
+  "coreKeeneticDashboardPickerTitle": "Add Core Keenetic card",
+  "coreKeeneticDashboardPickerHint": "Choose a Core home resource. Larenor verifies its current Keenetic binding before saving the card."
 }

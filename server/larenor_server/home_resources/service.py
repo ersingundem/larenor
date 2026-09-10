@@ -110,8 +110,10 @@ class HomeResourceRegistry:
                    self._cipher.encrypt(nonce, plain, self._aad(row))))
 
     @contextmanager
-    def _transaction(self, actor, core_id, home_id, *, admin=False, action=None, target_id=None):
-        self.auth.rate_limit([('home_resource_write' if action else 'home_resource_read', actor.id, 120)])
+    def _transaction(self, actor, core_id, home_id, *, admin=False, action=None, target_id=None,
+                     consume_rate_limit=True):
+        if consume_rate_limit:
+            self.auth.rate_limit([('home_resource_write' if action else 'home_resource_read', actor.id, 120)])
         error = None
         try:
             with self.db.transaction() as c:
@@ -243,7 +245,8 @@ class HomeResourceRegistry:
                 raise ApiError('revision_conflict', 409)
             if not cursor_visible:
                 raise ApiError('not_found', 404)
-            return {'scope': self.scope.model_dump(), 'entries': entries[:limit],
+            return {'scope': self.scope.model_dump(), 'userRevision': facts.revision,
+                    'entries': entries[:limit],
                     'snapshot': snapshot, 'nextAfter': entries[limit - 1]['ref']['id'] if len(entries) > limit else None}
 
     def get(self, actor, core_id, home_id, record_id):
@@ -251,14 +254,33 @@ class HomeResourceRegistry:
             row, ref, data = self._target(c, record_id); self._require(facts, row, ref, data)
             return {'record': self._public(facts, row, ref, data)}
 
-    def authorize(self, actor, core_id, home_id, record_id, action, *, expected_revision,
-                  expected_acl_revision, expected_user_revision, cancelled=False):
-        """Current in-process check only; no command endpoint or reusable execution permit."""
-        with self._transaction(actor, core_id, home_id) as (c, facts):
+    def _authorize(self, actor, core_id, home_id, record_id, action, *, expected_revision,
+                   expected_acl_revision, expected_user_revision, cancelled,
+                   consume_rate_limit):
+        with self._transaction(actor, core_id, home_id,
+                               consume_rate_limit=consume_rate_limit) as (c, facts):
             row, ref, data = self._target(c, record_id)
             self._require(facts, row, ref, data, action, expected_revision=expected_revision,
                           expected_acl_revision=expected_acl_revision, expected_user_revision=expected_user_revision,
                           cancelled=cancelled)
+
+    def authorize(self, actor, core_id, home_id, record_id, action, *, expected_revision,
+                  expected_acl_revision, expected_user_revision, cancelled=False):
+        """Current in-process check only; no command endpoint or reusable execution permit."""
+        return self._authorize(
+            actor, core_id, home_id, record_id, action,
+            expected_revision=expected_revision, expected_acl_revision=expected_acl_revision,
+            expected_user_revision=expected_user_revision, cancelled=cancelled,
+            consume_rate_limit=True)
+
+    def reauthorize(self, actor, core_id, home_id, record_id, action, *, expected_revision,
+                    expected_acl_revision, expected_user_revision, cancelled=False):
+        """Recheck an already rate-limited operation; packaged streaming code only."""
+        return self._authorize(
+            actor, core_id, home_id, record_id, action,
+            expected_revision=expected_revision, expected_acl_revision=expected_acl_revision,
+            expected_user_revision=expected_user_revision, cancelled=cancelled,
+            consume_rate_limit=False)
 
     def create(self, actor, core_id, home_id, body):
         body = CreateRecordRequest.model_validate(body); identity = uuid.uuid4().hex

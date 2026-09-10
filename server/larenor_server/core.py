@@ -48,17 +48,26 @@ from .vault import VaultService
 from .home_resources.schema import migrate_home_resources
 from .home_assistant.command_chain import migrate_command_history
 from .home_resources.service import HomeResourceRegistry
+from .bounded_transfer.models import TransferLimits
+from .bounded_transfer.service import BlobProvider, BoundedTransferService
 from .home_people.schema import migrate_home_people
 from .home_people.service import HomePeopleRegistry
 from .home_assistant.schema import migrate_home_assistant
 from .home_assistant.service import HomeAssistantAdapter
+from .keenetic_resources.schema import migrate as migrate_keenetic_resources
+from .keenetic_resources.service import KeeneticResourceAdapter
 from .home_assistant.migration_schema import migrate as migrate_direct_ha
 from .home_assistant.migration import DirectHaMigration
+from .proxmox.schema import migrate as migrate_proxmox_resources
+from .proxmox.service import ProxmoxResourceAdapter
 
 
 class CoreServices:
-    def __init__(self, settings: Settings):
+    def __init__(self, settings: Settings, *, blob_provider: BlobProvider | None = None,
+                 transfer_limits: TransferLimits | None = None):
         self.settings = settings
+        self._blob_provider = blob_provider
+        self._transfer_limits = transfer_limits
         self.bootstrap_created = False
         self.bootstrap_cleanup_pending = False
         try:
@@ -156,8 +165,10 @@ class CoreServices:
                 migrate_services(connection)
                 migrate_component_egress(connection, self.context, key)
                 migrate_home_assistant(connection, self.context, key)
+                migrate_keenetic_resources(connection, self.context, key)
                 migrate_command_history(connection, self.context, key)
                 migrate_direct_ha(connection, key, self.context)
+                migrate_proxmox_resources(connection, self.context, key)
                 migrate_plugins(connection)
                 migrate_plugin_jobs(connection)
                 migrate_media_preparations(connection)
@@ -189,6 +200,8 @@ class CoreServices:
             self.vault = VaultService(self.db, self.auth, settings, key)
             self.home_resources = HomeResourceRegistry(self.db, self.auth, settings, key, self.context)
             self.home_resources.validate_storage()
+            self.bounded_transfers = BoundedTransferService(
+                self.home_resources, settings, self._blob_provider, self._transfer_limits)
             self.home_people = HomePeopleRegistry(self.db, self.auth, settings, key, self.context)
             self.home_people.validate_storage()
             self.admin = AdminService(self.db, self.auth, settings)
@@ -196,8 +209,14 @@ class CoreServices:
             self.services.validate_storage()
             self.home_assistant = HomeAssistantAdapter(self.db, self.auth, settings, key, self.home_resources, self.services)
             self.home_assistant.validate_storage()
+            self.keenetic_resources = KeeneticResourceAdapter(
+                self.db, self.auth, settings, key, self.home_resources, self.services)
+            self.keenetic_resources.validate_storage()
             self.direct_ha_migration = DirectHaMigration(self.home_assistant)
             self.direct_ha_migration.validate_storage()
+            self.proxmox = ProxmoxResourceAdapter(
+                self.db, self.auth, settings, key, self.home_resources, self.services)
+            self.proxmox.validate_storage()
             self.component_egress = ComponentEgress(self.services, key, self.context)
             self.services.component_egress = self.component_egress
             self.service_probe = ServiceProbeRunner(self.services)

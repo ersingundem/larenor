@@ -17,6 +17,11 @@ from .jellyfin_bootstrap_executor import (
 )
 from .jellyfin_authenticated_readback import JellyfinAuthenticatedReadbackResult
 from .media_service_bootstrap_models import PrivateMediaServiceBootstrap
+from .music_assistant_bootstrap_models import PrivateMusicAssistantBootstrap
+from .music_assistant_bootstrap_runtime import (
+    MusicAssistantBootstrapRuntimeError,
+)
+from .music_assistant_core_models import AuthenticatedMusicAssistantReadback
 from .music_provider_setup_models import (
     PrivateMusicProviderSetupAction, ProviderSetupWorkerResult,
 )
@@ -264,6 +269,56 @@ def _seerr_bootstrap_result(value):
             raise ValueError()
         raise failure
     except SeerrBootstrapExecutionError:
+        raise
+    except (ValueError, TypeError, AttributeError):
+        raise InstallationIPCError('invalid_worker_result') from None
+
+
+def _wire_music_assistant_bootstrap(value=None, error=None):
+    if error is not None:
+        failure = error if type(error) is MusicAssistantBootstrapRuntimeError else (
+            MusicAssistantBootstrapRuntimeError(
+                'music_assistant_bootstrap_uncertain', uncertain_effect=True))
+        return {
+            'state': 'failed', 'errorCode': failure.code,
+            'uncertainEffect': failure.uncertain_effect, 'readback': None,
+        }
+    try:
+        if type(value) is not AuthenticatedMusicAssistantReadback:
+            raise ValueError()
+        readback = AuthenticatedMusicAssistantReadback.model_validate(
+            value.model_dump(mode='python', warnings=False))
+        return {
+            'state': 'verified', 'errorCode': None,
+            'uncertainEffect': False,
+            'readback': readback.model_dump(mode='json', warnings=False),
+        }
+    except (ValueError, TypeError, AttributeError):
+        raise InstallationIPCError('invalid_worker_result') from None
+
+
+def _music_assistant_bootstrap_result(value):
+    try:
+        if (type(value) is not dict or set(value) != {
+                'state', 'errorCode', 'uncertainEffect', 'readback'}
+                or type(value['uncertainEffect']) is not bool):
+            raise ValueError()
+        if value['state'] == 'verified':
+            if (value['errorCode'] is not None
+                    or value['uncertainEffect'] is not False
+                    or type(value['readback']) is not dict):
+                raise ValueError()
+            return AuthenticatedMusicAssistantReadback.model_validate(
+                value['readback'])
+        if (value['state'] != 'failed' or value['readback'] is not None
+                or type(value['errorCode']) is not str):
+            raise ValueError()
+        failure = MusicAssistantBootstrapRuntimeError(
+            value['errorCode'], uncertain_effect=value['uncertainEffect'])
+        if failure.code != value['errorCode']:
+            raise ValueError()
+        raise failure
+    except MusicAssistantBootstrapRuntimeError:
         raise
     except (ValueError, TypeError, AttributeError):
         raise InstallationIPCError('invalid_worker_result') from None
@@ -537,7 +592,7 @@ class InstallationWorkerClient:
 
     def _exchange(self, operation, step=None, plan=None, bootstrap=None,
                   qbittorrent=None, arr=None, seerr=None, music_provider=None,
-                  music_playback=None):
+                  music_playback=None, music_bootstrap=None):
         try:
             _safe_path(self.path, uid=self.owner_uid, kind=stat.S_ISSOCK)
             deadline = time.monotonic() + self.timeout
@@ -576,6 +631,9 @@ class InstallationWorkerClient:
                     mode='json', warnings=False)
             elif music_playback is not None:
                 request['private'] = music_playback.model_dump(
+                    mode='json', warnings=False)
+            elif music_bootstrap is not None:
+                request['private'] = music_bootstrap.model_dump(
                     mode='json', warnings=False)
             with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as connection:
                 connection.settimeout(self.timeout)
@@ -625,6 +683,38 @@ class InstallationWorkerClient:
             raise
         except Exception:
             raise InstallationIPCError('invalid_worker_result') from None
+
+    def bootstrap_music_assistant(self, private, *, deadline, gate):
+        now = time.monotonic()
+        if (type(private) is not PrivateMusicAssistantBootstrap
+                or type(deadline) not in (int, float)
+                or not math.isfinite(deadline)
+                or not now < deadline <= now + 120 or not callable(gate)):
+            raise MusicAssistantBootstrapRuntimeError(
+                'invalid_music_assistant_bootstrap')
+        try:
+            if gate() is not True:
+                raise ValueError()
+        except Exception:
+            raise MusicAssistantBootstrapRuntimeError(
+                'music_assistant_bootstrap_cancelled') from None
+        try:
+            result = _music_assistant_bootstrap_result(self._exchange(
+                'bootstrap_music_assistant', music_bootstrap=private))
+        except MusicAssistantBootstrapRuntimeError:
+            raise
+        except InstallationIPCError:
+            raise MusicAssistantBootstrapRuntimeError(
+                'music_assistant_bootstrap_uncertain',
+                uncertain_effect=True) from None
+        try:
+            if gate() is not True:
+                raise ValueError()
+        except Exception:
+            raise MusicAssistantBootstrapRuntimeError(
+                'music_assistant_bootstrap_uncertain',
+                uncertain_effect=True) from None
+        return result
 
     def read_music_players(self, authority, *, deadline, gate):
         return self._music_playback_exchange(
@@ -986,6 +1076,45 @@ class InstallationWorkerServer(PreflightWorkerServer):
                 return result.model_dump(mode='json', warnings=False)
             except Exception:
                 raise PreflightIPCError('invalid_request') from None
+        if operation == 'bootstrap_music_assistant':
+            if (set(request) != {
+                    'protocol', 'requestId', 'operation', 'private'}
+                    or time.monotonic() >= deadline):
+                raise PreflightIPCError('invalid_request')
+            try:
+                raw = json.dumps(request['private'], sort_keys=True,
+                                 separators=(',', ':'), allow_nan=False)
+                private = PrivateMusicAssistantBootstrap.model_validate_json(raw)
+            except (ValueError, TypeError, AttributeError, RecursionError):
+                raise PreflightIPCError('invalid_request') from None
+            try:
+                timed = getattr(
+                    self.backend, 'bootstrap_music_assistant_with_deadline',
+                    None)
+                result = (timed(private, deadline) if callable(timed)
+                          else self.backend.bootstrap_music_assistant(
+                              private.installationId, private.username,
+                              private.credential, deadline=deadline,
+                              gate=lambda: time.monotonic() < deadline))
+            except MusicAssistantBootstrapRuntimeError as error:
+                return _wire_music_assistant_bootstrap(error=error)
+            except Exception:
+                return _wire_music_assistant_bootstrap(error=
+                    MusicAssistantBootstrapRuntimeError(
+                        'music_assistant_bootstrap_uncertain',
+                        uncertain_effect=True))
+            if time.monotonic() >= deadline:
+                return _wire_music_assistant_bootstrap(error=
+                    MusicAssistantBootstrapRuntimeError(
+                        'music_assistant_bootstrap_uncertain',
+                        uncertain_effect=True))
+            try:
+                return _wire_music_assistant_bootstrap(value=result)
+            except InstallationIPCError:
+                return _wire_music_assistant_bootstrap(error=
+                    MusicAssistantBootstrapRuntimeError(
+                        'music_assistant_bootstrap_readback_changed',
+                        uncertain_effect=True))
         if operation in {'music_players_read', 'music_playback_execute'}:
             if (set(request) != {
                     'protocol', 'requestId', 'operation', 'private'}
