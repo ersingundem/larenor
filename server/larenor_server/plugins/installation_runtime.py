@@ -399,6 +399,7 @@ class _RuntimeBackend:
                     'arr_bootstrap_resources_unavailable',
                     'arr_bootstrap_endpoint_unavailable',
                     'arr_bootstrap_endpoint_changed',
+                    'arr_bootstrap_wiring_failed',
                     'arr_bootstrap_readback_failed',
                     'arr_bootstrap_timeout'}:
                 cause = error.code

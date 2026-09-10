@@ -385,6 +385,17 @@ henüz gözlenmediğinden `installAvailable=false` ve sayaç değişmedi.
 [Uygulama ve açık sınırlar](arr-native-characterization-implementation-2026-09-10.md).
 Native kapı PR #51 ile güncel `main` tabanında çalıştırılıyor.
 
+`77448d0` dilimi, ortak yönetilen medya hacmindeki sabit `movies` ve `shows`
+dizinlerini production Core binding kanıtına taşıdı. Journal'dan yeniden
+türetilmiş tek hacim ağsız, sınırlandırılmış helper'a geçici olarak yazılabilir
+bağlanıyor; yol, komut, kullanıcı ve Docker seçenekleri caller girdisi değil.
+Hazırlık sonucu aynı resource/operation/journal/nonce/revision ile doğrulanıp
+kök yeniden salt okunur kanıtlanmadan container binding'i üretilemiyor. **27
+odaklı / 180 ilgili PASS**; Ruff, compileall, security policy, queue, diff ve
+Gitleaks yeşil. Exact CI ve iki mimarili native kabul açık olduğu için sayaç ve
+`installAvailable=false` değişmedi.
+[Uygulama ve açık sınırlar](managed-media-directory-preparation-implementation-2026-09-10.md).
+
 S06.4 native kabul koşusu [34326112926](https://github.com/ersingundem/larenor/actions/runs/34326112926)
 iki gerçek GitHub runner'ında geçti. İndirilen ARM64 ve X64 makbuzları merge
 commit'i `b6e7034` için repo verifier ile tekrar doğrulandı; bu commit'in ikinci
