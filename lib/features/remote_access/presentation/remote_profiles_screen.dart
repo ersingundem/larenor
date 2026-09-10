@@ -413,6 +413,7 @@ class _RemoteProfilesScreenState extends ConsumerState<RemoteProfilesScreen>
       return SshTerminalPanel(
         key: ValueKey("ssh-${_selected!.id}"),
         profile: _selected!,
+        availableProfiles: _snapshot?.profiles ?? const [],
         isCurrent: _terminalCurrent!,
         onBack: () {
           _generation++;

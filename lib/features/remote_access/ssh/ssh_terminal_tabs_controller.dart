@@ -19,6 +19,7 @@ class SshTerminalTab {
 class SshTerminalTabsController extends ChangeNotifier {
   SshTerminalTabsController({
     required this.profile,
+    this.jumpProfile,
     required this.store,
     required this.engineFactory,
     required this.isCurrent,
@@ -31,6 +32,7 @@ class SshTerminalTabsController extends ChangeNotifier {
   }
 
   final RemoteProfile profile;
+  final RemoteProfile? jumpProfile;
   final SshSecurityStore store;
   final SshEngine Function() engineFactory;
   final bool Function() isCurrent;
@@ -51,6 +53,7 @@ class SshTerminalTabsController extends ChangeNotifier {
     late final SshSessionController controller;
     controller = SshSessionController(
       profile: profile,
+      jumpProfile: jumpProfile,
       store: store,
       engineFactory: engineFactory,
       isCurrent: () => !_retired && !_disposed && isCurrent(),

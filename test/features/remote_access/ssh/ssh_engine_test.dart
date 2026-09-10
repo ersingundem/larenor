@@ -226,7 +226,6 @@ void main() {
         ),
         throwsA(_failure('cancelled')),
       );
-      await Future<void>.delayed(const Duration(milliseconds: 100));
       engine.close();
       await expectation;
       await Future<void>.delayed(const Duration(milliseconds: 20));
@@ -247,6 +246,7 @@ Future<SshChannel> _open(
   isCurrent: current ?? () => true,
   verifyHost: verify ?? (_) async => false,
   initialSize: initialSize,
+  answerChallenge: (_, _) async => null,
 );
 
 TypeMatcher<SshFailure> _failure(String code) =>

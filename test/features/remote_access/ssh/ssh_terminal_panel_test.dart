@@ -5,6 +5,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:larenor/features/remote_access/ssh/ssh_security_store.dart';
+import 'package:larenor/features/remote_access/ssh/ssh_engine.dart';
 
 import '../remote_profiles_ui_fixture.dart';
 import 'ssh_session_controller_test.dart' show Engine, hostPin;
@@ -118,6 +119,28 @@ void main() {
       expect(engine.opens, 1);
     },
   );
+  testWidgets('MFA prompt is visible per hop and answer is never persisted', (
+    t,
+  ) async {
+    final ui = RemoteUi();
+    final engine = Engine()
+      ..challenge = const SshAuthChallenge(
+        name: 'Second factor',
+        instruction: 'Enter current code',
+        prompts: [SshAuthPrompt(text: 'One-time code', echo: false)],
+      );
+    await setup(t, ui, engine, width: 1280);
+    await credentials(t);
+    await press(t, 'ssh-connect');
+    await press(t, 'ssh-trust');
+    expect(find.text('Target authentication'), findsOneWidget);
+    expect(find.text('Second factor'), findsOneWidget);
+    await t.enterText(key('ssh-mfa-0'), '654321');
+    await press(t, 'ssh-mfa-submit');
+    expect(key('ssh-line'), findsOneWidget);
+    expect(ui.values.values.join(), isNot(contains('654321')));
+    expect(engine.channel.writes, isEmpty);
+  });
   testWidgets(
     'cancel first trust stores no pin and never sends credentials as profile metadata',
     (t) async {
