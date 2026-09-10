@@ -375,7 +375,7 @@ class ProxmoxPowerWorkerClient:
             or not 0 < timeout <= 30
             or expected_identity is not None and (
                 type(expected_identity) is not tuple
-                or len(expected_identity) != 2
+                or len(expected_identity) != 3
                 or any(type(value) is not int or value < 0
                        for value in expected_identity)
             )
@@ -407,7 +407,8 @@ class ProxmoxPowerWorkerClient:
             info = selected.lstat()
             if (
                 self.expected_identity is not None
-                and (info.st_dev, info.st_ino) != self.expected_identity
+                and (info.st_dev, info.st_ino, info.st_ctime_ns)
+                != self.expected_identity
             ):
                 raise ProxmoxPowerWorkerError()
             deadline = time.monotonic() + min(self.timeout, deadline_ms / 1000)
@@ -464,7 +465,7 @@ def verified_power_worker_client(
             return None
         return ProxmoxPowerWorkerClient(
             selected, owner_uid=owner_uid, peer_uid=peer_uid, timeout=timeout,
-            expected_identity=identity,
+            expected_identity=(*identity, info.st_ctime_ns),
         )
     except BaseException as error:
         if isinstance(error, (KeyboardInterrupt, SystemExit)):
