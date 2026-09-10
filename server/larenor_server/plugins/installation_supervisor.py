@@ -433,6 +433,30 @@ class SupervisedInstallationBackend:
         finally:
             self._peer_verifier.deactivate()
 
+    def bootstrap_music_assistant_with_deadline(self, private, deadline):
+        self._check(deadline)
+        self._peer_verifier.activate(deadline)
+
+        def gate():
+            self._check(deadline)
+            return True
+
+        try:
+            try:
+                result = self.backend.bootstrap_music_assistant(
+                    private.installationId, private.username,
+                    private.credential, deadline=deadline, gate=gate)
+                self._check(deadline)
+                return result
+            except BaseException:
+                try:
+                    self._check(deadline)
+                except InstallationSupervisorError:
+                    raise
+                raise
+        finally:
+            self._peer_verifier.deactivate()
+
     def read_music_players_with_deadline(self, authority, deadline):
         return self._music_playback_call(
             'read_music_players', authority, deadline)

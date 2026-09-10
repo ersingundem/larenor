@@ -13,6 +13,9 @@ import pytest
 from larenor_server.plugins import installation_supervisor as supervisor
 from larenor_server.plugins.daemon_context import DaemonContext
 from larenor_server.plugins.docker_probe import DockerEndpoint
+from larenor_server.plugins.music_assistant_bootstrap_models import (
+    PrivateMusicAssistantBootstrap,
+)
 
 
 IDENTITY_MAP = ((0, 0, 4294967295),)
@@ -107,6 +110,14 @@ class Backend:
             ('bootstrap_seerr', job, plan, private, threading.get_native_id()))
         assert time.monotonic() < deadline and gate() is True and gate() is True
         return 'seerr-bootstrapped'
+
+    def bootstrap_music_assistant(self, installation_id, username, credential,
+                                  *, deadline, gate):
+        self.calls.append((
+            'bootstrap_music_assistant', installation_id, username, credential,
+            threading.get_native_id()))
+        assert time.monotonic() < deadline and gate() is True and gate() is True
+        return 'music-assistant-bootstrapped'
 
     def configure_qbittorrent(self, job, stack, credential, *, api_key, salt,
                               cancelled, deadline, gate):
@@ -223,6 +234,24 @@ def test_seerr_bootstrap_gates_share_retained_daemon_evidence(monkeypatch):
         'job', 'plan', 'private', deadline) == 'seerr-bootstrapped'
     assert backend.calls[0][:4] == (
         'bootstrap_seerr', 'job', 'plan', 'private')
+    assert backend.calls[0][4] == threading.get_native_id()
+    assert lease.pair.checks == 5
+
+    guarded.close()
+    assert connection.closed and lease.closed
+
+
+def test_music_assistant_bootstrap_keeps_private_input_in_retained_worker(monkeypatch):
+    guarded, backend, connection, lease = build(monkeypatch)
+    deadline = time.monotonic() + 2
+    guarded.open(deadline)
+    private = PrivateMusicAssistantBootstrap(
+        installationId='a' * 32, credential='S' * 48)
+
+    assert guarded.bootstrap_music_assistant_with_deadline(
+        private, deadline) == 'music-assistant-bootstrapped'
+    assert backend.calls[0][:4] == (
+        'bootstrap_music_assistant', 'a' * 32, 'larenor-core', 'S' * 48)
     assert backend.calls[0][4] == threading.get_native_id()
     assert lease.pair.checks == 5
 
