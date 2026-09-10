@@ -415,6 +415,8 @@ void main() {
           tile('internet', TileType.coreKeenetic),
           tile('details', TileType.coreKeeneticDetails),
           tile('mesh', TileType.coreKeeneticMesh),
+          tile('clients', TileType.coreKeeneticClients),
+          tile('bandwidth', TileType.coreKeeneticBandwidth),
         ],
       ),
     );
@@ -436,14 +438,37 @@ void main() {
     expect(find.byKey(const ValueKey('dashboard-edit-mesh')), findsOneWidget);
     await _tap(tester, 'dashboard-edit-size-details');
     await _tap(tester, 'dashboard-size-large');
-    await _tap(tester, 'dashboard-edit-up-mesh');
+    await tester.scrollUntilVisible(
+      find.byKey(const ValueKey('dashboard-edit-clients')),
+      250,
+    );
+    expect(
+      find.byKey(const ValueKey('dashboard-edit-clients')),
+      findsOneWidget,
+    );
+    await tester.scrollUntilVisible(
+      find.byKey(const ValueKey('dashboard-edit-bandwidth')),
+      250,
+    );
+    expect(
+      find.byKey(const ValueKey('dashboard-edit-bandwidth')),
+      findsOneWidget,
+    );
+    tester
+        .widget<CupertinoButton>(
+          find.byKey(const ValueKey('dashboard-edit-up-bandwidth')),
+        )
+        .onPressed!();
+    await tester.pumpAndSettle();
     expect(harness.repository.saved.tiles.map((item) => item.id), [
       'internet',
-      'mesh',
       'details',
+      'mesh',
+      'bandwidth',
+      'clients',
     ]);
-    expect(harness.repository.saved.tiles.last.width, 2);
-    expect(harness.repository.saved.tiles.last.height, 2);
+    expect(harness.repository.saved.tiles[1].width, 2);
+    expect(harness.repository.saved.tiles[1].height, 2);
     expect(tester.takeException(), isNull);
   });
 

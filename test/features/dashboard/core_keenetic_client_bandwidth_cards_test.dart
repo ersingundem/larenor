@@ -116,6 +116,26 @@ CoreKeeneticSnapshot _snapshot() => CoreKeeneticSnapshot.fromJson({
   },
 }, target: _target);
 
+CoreKeeneticDetailsPage _details() => CoreKeeneticDetailsPage.fromJson({
+  'entries': [
+    {
+      'kind': 'client',
+      'id': '0123456789abcdef',
+      'name': 'Tablet',
+      'ipAddress': '192.0.2.20',
+      'macHash': '0123456789abcdef',
+      'interfaceId': 'WifiMaster0',
+      'online': true,
+      'registered': true,
+      'internetAccess': 'allowed',
+      'band': '5',
+      'signalDbm': -51,
+    },
+  ],
+  'snapshot': 'a' * 64,
+  'nextAfter': null,
+});
+
 void main() {
   test(
     'client and bandwidth cards persist only a sealed Core authority tuple',
@@ -160,7 +180,7 @@ void main() {
                 Expanded(
                   child: CoreKeeneticClientsDashboardCard(
                     title: 'Connected devices',
-                    snapshot: _snapshot(),
+                    page: _details(),
                     failure: null,
                     stale: false,
                     loading: false,
@@ -215,4 +235,59 @@ void main() {
       semantics.dispose();
     });
   }
+
+  testWidgets(
+    'client offline and bandwidth stale states keep refresh explicit',
+    (tester) async {
+      await tester.pumpWidget(
+        CupertinoApp(
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: CupertinoPageScaffold(
+            child: Column(
+              children: [
+                Expanded(
+                  child: CoreKeeneticClientsDashboardCard(
+                    title: 'Devices',
+                    page: null,
+                    failure: 'connection_failed',
+                    stale: false,
+                    loading: false,
+                    onRefresh: () {},
+                  ),
+                ),
+                Expanded(
+                  child: CoreKeeneticBandwidthDashboardCard(
+                    title: 'Bandwidth',
+                    snapshot: null,
+                    failure: null,
+                    stale: true,
+                    loading: false,
+                    onRefresh: () {},
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+      expect(
+        find.text('Core telemetry is unavailable. Refresh to try again.'),
+        findsOneWidget,
+      );
+      expect(
+        find.text('This telemetry is stale. Refresh before relying on it.'),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const ValueKey('core-keenetic-clients-refresh')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const ValueKey('core-keenetic-bandwidth-refresh')),
+        findsOneWidget,
+      );
+    },
+  );
 }

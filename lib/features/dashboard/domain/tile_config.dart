@@ -29,6 +29,8 @@ enum TileType {
   coreKeenetic,
   coreKeeneticDetails,
   coreKeeneticMesh,
+  coreKeeneticClients,
+  coreKeeneticBandwidth,
 }
 
 @freezed
