@@ -132,15 +132,18 @@ Future<void> flush() async {
 }
 
 void main() {
-  test('unsupported engine is explicit and never negotiates or opens', () async {
-    final engine = Engine(available: false);
-    final value = controller(engine, Trust(), () => true);
-    await value.connect();
-    expect(value.phase, VncSessionPhase.unsupported);
-    expect(engine.negotiations, 0);
-    expect(engine.opens, 0);
-    value.dispose();
-  });
+  test(
+    'unsupported engine is explicit and never negotiates or opens',
+    () async {
+      final engine = Engine(available: false);
+      final value = controller(engine, Trust(), () => true);
+      await value.connect();
+      expect(value.phase, VncSessionPhase.unsupported);
+      expect(engine.negotiations, 0);
+      expect(engine.opens, 0);
+      value.dispose();
+    },
+  );
 
   test('plain VNC is rejected with no retry, replay, or open', () async {
     final engine = Engine(plain: true);
@@ -187,28 +190,31 @@ void main() {
     value.dispose();
   });
 
-  test('focus or PIN retirement closes exactly once and blocks input', () async {
-    var current = true;
-    final trust = Trust()
-      ..pin = VncCertificatePin.fromJson(fixture()['certificate']);
-    final engine = Engine(), value = controller(engine, trust, () => current);
-    final opening = value.connect();
-    await flush();
-    await value.authenticate('temporary');
-    await opening;
-    expect(value.phase, VncSessionPhase.connected);
-    value.pointer(const VncPointerEvent(x: .5, y: .5, buttons: 0));
-    value.key(const VncKeyEvent(physicalKey: 42, down: true));
-    current = false;
-    value.synchronize();
-    value.synchronize();
-    expect(value.phase, VncSessionPhase.closed);
-    expect(engine.channel.closes, 1);
-    value.pointer(const VncPointerEvent(x: .6, y: .6, buttons: 0));
-    expect(engine.channel.pointers, hasLength(1));
-    expect(engine.channel.keys, hasLength(1));
-    value.dispose();
-  });
+  test(
+    'focus or PIN retirement closes exactly once and blocks input',
+    () async {
+      var current = true;
+      final trust = Trust()
+        ..pin = VncCertificatePin.fromJson(fixture()['certificate']);
+      final engine = Engine(), value = controller(engine, trust, () => current);
+      final opening = value.connect();
+      await flush();
+      await value.authenticate('temporary');
+      await opening;
+      expect(value.phase, VncSessionPhase.connected);
+      value.pointer(const VncPointerEvent(x: .5, y: .5, buttons: 0));
+      value.key(const VncKeyEvent(physicalKey: 42, down: true));
+      current = false;
+      value.synchronize();
+      value.synchronize();
+      expect(value.phase, VncSessionPhase.closed);
+      expect(engine.channel.closes, 1);
+      value.pointer(const VncPointerEvent(x: .6, y: .6, buttons: 0));
+      expect(engine.channel.pointers, hasLength(1));
+      expect(engine.channel.keys, hasLength(1));
+      value.dispose();
+    },
+  );
 
   test('late negotiation after sign-out cannot publish or open', () async {
     var current = true;
