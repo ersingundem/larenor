@@ -1,0 +1,48 @@
+{
+  "name": "GitHub Storage Retention",
+  "on": {
+    "schedule": [
+      {
+        "cron": "15 0 * * *"
+      }
+    ],
+    "workflow_dispatch": {}
+  },
+  "permissions": {
+    "contents": "read"
+  },
+  "concurrency": {
+    "group": "github-storage-retention",
+    "cancel-in-progress": true
+  },
+  "jobs": {
+    "cleanup": {
+      "if": "github.repository == 'ersingundem/larenor'",
+      "permissions": {
+        "actions": "write",
+        "contents": "read"
+      },
+      "runs-on": "ubuntu-latest",
+      "timeout-minutes": 10,
+      "steps": [
+        {
+          "uses": "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+          "with": {
+            "persist-credentials": false
+          }
+        },
+        {
+          "name": "Verify the bounded retention policy",
+          "run": "python3 -m unittest discover -s tool/tests -p 'github_storage_cleanup_test.py' -v"
+        },
+        {
+          "name": "Delete revalidated old debug APK artifacts",
+          "env": {
+            "GH_TOKEN": "${{ github.token }}"
+          },
+          "run": "python3 tool/github_storage_cleanup.py --apply --max-deletions 20"
+        }
+      ]
+    }
+  }
+}

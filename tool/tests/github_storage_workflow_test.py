@@ -19,10 +19,11 @@ class GitHubStorageWorkflowTest(unittest.TestCase):
         self.assertEqual(self.job['timeout-minutes'], 10)
         self.assertEqual(self.workflow['concurrency']['group'],
                          'github-storage-retention')
-        self.assertFalse(self.workflow['concurrency']['cancel-in-progress'])
+        self.assertTrue(self.workflow['concurrency']['cancel-in-progress'])
 
     def test_token_can_only_read_contents_and_manage_actions_artifacts(self):
-        self.assertEqual(self.workflow['permissions'], {
+        self.assertEqual(self.workflow['permissions'], {'contents': 'read'})
+        self.assertEqual(self.job['permissions'], {
             'actions': 'write',
             'contents': 'read',
         })

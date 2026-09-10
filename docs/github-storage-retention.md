@@ -41,7 +41,14 @@ python3 tool/github_storage_cleanup.py --apply --max-deletions 5
 
 There is no generic repository/package selector, force option, or GHCR deletion flag. `candidateBytes` describes the initial eligible set; `deletedBytes` describes confirmed deletions. `remainingCandidates` counts initial candidates not deleted or skipped during apply. Status and reasons must be read separately for `artifacts` and `ghcr`. Exit code 0 means artifact processing completed, even when GHCR remains explicitly blocked; 1 means processing was blocked or interrupted, and 2 means invalid arguments. A partially completed apply can exit 1 and still list confirmed deletions.
 
-The configured Codex heartbeat is **“Larenor geliştirme ve bakım”**. It wakes every 15 minutes to resume the approved development queue and preserves this daily maintenance at the first available wake after **03:15 Europe/Istanbul**, at most once per local calendar day. Before cleanup it checks the day's recorded result and afterwards records the dated outcome in local task state outside the repository. Its artifact deletion policy has not expanded. It runs on the configured Codex host, which must be available with the Codex app running, this checkout, Python, and its existing GitHub authentication. This is not a GitHub Actions cron workflow. The heartbeat follows this policy and reports meaningful cleanup, new failures, or required user action; unchanged package-permission status does not require repeated notifications. The scheduler is managed in Codex, not by this utility.
+The repository workflow `.github/workflows/github-storage-retention.yml` runs
+daily at **03:15 Europe/Istanbul** (`00:15 UTC`) and can also be started
+manually. It is restricted to `ersingundem/larenor`, grants only `contents:
+read` and `actions: write`, tests the retention policy before applying it, and
+runs one bounded apply attempt with no workflow retry. The GitHub token cannot
+delete packages, while the utility itself has no package deletion endpoint.
+The newest three debug APK artifacts and every signed APK/test artifact remain
+protected by the same revalidated policy.
 
 ## Verification
 
