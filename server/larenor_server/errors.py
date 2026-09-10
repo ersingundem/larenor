@@ -103,6 +103,13 @@ MESSAGES = {
     "music_player_capability_unavailable": "The Music Assistant player does not advertise this capability.",
     "music_playback_command_conflict": "This request conflicts with a saved playback command.",
     "music_playback_command_limit_reached": "The playback command journal is full.",
+    "keenetic_command_changed": "The selected Keenetic target or authority changed. Review it again.",
+    "keenetic_confirmation_invalid": "Create a new Keenetic command preview.",
+    "keenetic_preview_invalid": "Create a new Keenetic command preview.",
+    "keenetic_command_limit": "The Keenetic command journal is full.",
+    "keenetic_command_unavailable": "The Keenetic command state source is unavailable.",
+    "keenetic_command_integrity_failed": "The Keenetic command history could not be verified.",
+    "idempotency_conflict": "This request conflicts with an existing command.",
 }
 
 
