@@ -335,7 +335,7 @@ tekrarlanmıyor. **5 yeni uçtan uca sözleşme testi** dahil ilgili Arr paketle
 create/start ve gerçek native API readback açık olduğundan sayaç değişmedi.
 [Uygulama ve açık sınırlar](arr-configuration-jobs-implementation-2026-09-10.md).
 
-`a282112` readback dilimi, Sonarr/Radarr pinned servis adı ve sürümünü
+`f113835` readback dilimi, Sonarr/Radarr pinned servis adı ve sürümünü
 `X-Api-Key` ile sabit system/status endpoint'inden doğruluyor. Hedef, proxy,
 resolver veya serbest header girdisi yok; auth, protokol, servis/sürüm sapması ve
 timeout secret-free statik sonuçlara kapanıyor. **14 yeni test**, compileall,
@@ -343,21 +343,21 @@ security policy, queue ve Gitleaks PASS. Container zinciri ve iki mimarili nativ
 kabul açık olduğundan sayaç değişmedi.
 [Uygulama ve açık sınırlar](arr-authenticated-readback-implementation-2026-09-10.md).
 
-`2409c6d` endpoint dilimi ortak managed-container builder'ı Sonarr/Radarr'a
+`b02bdb6` endpoint dilimi ortak managed-container builder'ı Sonarr/Radarr'a
 genişletti ve exact journal/container/ağ proof'undan sabit private 8989/7878
 stream'i üretti. DNS, proxy, alternatif hedef ve retry yok. Arr endpoint/readback
 ile mevcut Jellyfin/qBittorrent regresyonlarında **97 PASS**; security, queue ve
 Gitleaks PASS. Create/start orkestrasyonu açık olduğundan sayaç değişmedi.
 [Uygulama ve açık sınırlar](arr-private-endpoint-implementation-2026-09-10.md).
 
-`2d823ba`–`0f5006f` zinciri, config sonrası create/start, fresh private endpoint,
+`cdeb54c`–`06242ba` zinciri, config sonrası create/start, fresh private endpoint,
 authenticated readback, UID-korumalı IPC ve kalıcı Core sonucunu birleştirdi.
 Public iş durumu config, container ve doğrulanmış servis sonucunu ayırıyor; çapraz
-servis veya belirsiz sonuç retry edilmeden kapanıyor. `3331f8d` okunabilirlik
+servis veya belirsiz sonuç retry edilmeden kapanıyor. `6a1270a` okunabilirlik
 düzenlemesiyle deadline readback başlamadan tükenirse açılmış özel stream'in de
-kapatılmasını güvenceye aldı. `e5eed11`, yanlışlıkla qBittorrent'a yönlenen Arr
+kapatılmasını güvenceye aldı. `8f3bfc9`, yanlışlıkla qBittorrent'a yönlenen Arr
 reconcile metodunu seçili servise geri bağladı ve qBittorrent reconcile metodunu
-doğru sınıfa taşıdı. `7d9fb22`, eksik Arr supervisor metodunu tamamladı ve
+doğru sınıfa taşıdı. `382c8a9`, eksik Arr supervisor metodunu tamamladı ve
 config/create/start/readback zincirini aynı retained daemon/native thread
 kanıtına bağladı; yürütme ile bootstrap yetki, timeout, kaynak ve geçersiz sonuç
 hatalarını kapalı, secret-free belirsiz sonuçlara ayırdı. İlgili 13 pakette
