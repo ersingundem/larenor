@@ -12,6 +12,7 @@ import '../../../shared/widgets/app_page_scaffold.dart';
 import '../../../shared/widgets/settings_action_tile.dart';
 import '../../../shared/widgets/settings_section.dart';
 import '../data/remote_profiles.dart';
+import '../ssh/sftp_browser_panel.dart';
 import '../ssh/ssh_terminal_panel.dart';
 
 final remoteProfilesStoreProvider = Provider<RemoteProfilesStore>(
@@ -39,8 +40,9 @@ class _RemoteProfilesScreenState extends ConsumerState<RemoteProfilesScreen>
   RemoteProfile? _selected;
   RemoteProtocol _protocol = RemoteProtocol.ssh;
   int _generation = 0, _interactionEpoch = 0;
-  bool _resumed = true, _nativeFocused = true, _terminal = false;
+  bool _resumed = true, _nativeFocused = true, _terminal = false, _sftp = false;
   bool Function()? _terminalCurrent;
+  bool Function()? _sftpCurrent;
   bool _started = false,
       _busy = false,
       _editing = false,
@@ -100,7 +102,9 @@ class _RemoteProfilesScreenState extends ConsumerState<RemoteProfilesScreen>
 
   void _invalidate() {
     _terminal = false;
+    _sftp = false;
     _terminalCurrent = null;
+    _sftpCurrent = null;
     _generation++;
     _snapshot = null;
     _selected = null;
@@ -408,6 +412,17 @@ class _RemoteProfilesScreenState extends ConsumerState<RemoteProfilesScreen>
         },
       );
     }
+    if (_sftp && _selected != null && active) {
+      return SftpBrowserPanel(
+        key: ValueKey("sftp-${_selected!.id}"),
+        profile: _selected!,
+        isCurrent: _sftpCurrent!,
+        onBack: () {
+          _generation++;
+          setState(() => _sftp = false);
+        },
+      );
+    }
     return AppPageScaffold(
       child: CustomScrollView(
         key: const ValueKey('remote-scroll'),
@@ -552,12 +567,18 @@ class _RemoteProfilesScreenState extends ConsumerState<RemoteProfilesScreen>
                           }),
                         ] else ...[
                           if (selected.protocol == RemoteProtocol.ssh &&
-                              selected.username.isNotEmpty)
+                              selected.username.isNotEmpty) ...[
                             action('remote-ssh-open', l.sshTitle, () {
                               _generation++;
                               _terminalCurrent = _action();
                               setState(() => _terminal = true);
                             }),
+                            action('remote-sftp-open', l.sftpTitle, () {
+                              _generation++;
+                              _sftpCurrent = _action();
+                              setState(() => _sftp = true);
+                            }),
+                          ],
                           action(
                             'remote-copy',
                             l.remoteAccessCopy,

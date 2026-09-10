@@ -10,7 +10,11 @@ void main() {
     });
 
     test('rejects control characters, backslashes and oversized paths', () {
-      for (final value in ['/tmp/\u0000secret', r'/tmp\secret', '/${'x' * 4097}']) {
+      for (final value in [
+        '/tmp/\u0000secret',
+        r'/tmp\secret',
+        '/${'x' * 4097}',
+      ]) {
         expect(() => normalizeSftpPath(value), throwsA(isA<SftpFailure>()));
       }
     });

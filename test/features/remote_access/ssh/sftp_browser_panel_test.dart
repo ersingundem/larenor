@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -14,6 +12,7 @@ import 'package:larenor/features/remote_access/ssh/ssh_terminal_panel.dart';
 import 'package:larenor/l10n/generated/app_localizations.dart';
 
 import '../remote_profiles_test.dart' show profile;
+import '../remote_profiles_ui_fixture.dart' show RemoteUi;
 import 'sftp_controller_test.dart' show FakeSftpEngine, FakeSftpTransport;
 import 'ssh_session_controller_test.dart' show Security, hostPin;
 
@@ -27,6 +26,17 @@ Future<void> tapKey(WidgetTester tester, String value) async {
 }
 
 void main() {
+  testWidgets('saved SSH profile exposes the SFTP browser entry point', (
+    tester,
+  ) async {
+    final ui = RemoteUi();
+    await ui.mount(tester, pin: true, width: 1280);
+    await ui.edit(tester);
+    await ui.save(tester);
+    await ui.openFirst(tester);
+    expect(keyed('remote-sftp-open'), findsOneWidget);
+  });
+
   for (final width in [600.0, 1280.0]) {
     testWidgets('$width tablet SFTP is explicit, bounded and cancellable', (
       tester,
@@ -51,7 +61,7 @@ void main() {
             sftpEngineFactoryProvider.overrideWithValue(() => engine),
             sftpFileAccessProvider.overrideWithValue(
               SftpFileAccess(
-                pickFile: () async => const SftpUpload('new.txt', [4, 5]),
+                pickFile: () async => SftpUpload('new.txt', [4, 5]),
                 saveFile: (_, _) async => Uri.parse('content://saved'),
               ),
             ),

@@ -105,6 +105,7 @@ void main() {
   late FakeSftpEngine engine;
   late SftpController controller;
   late List<String> saved;
+  late SftpUpload picked;
   bool current = true;
 
   setUp(() {
@@ -112,13 +113,14 @@ void main() {
     transport = FakeSftpTransport();
     engine = FakeSftpEngine(transport);
     saved = [];
+    picked = SftpUpload('new.txt', [7, 8]);
     current = true;
     controller = SftpController(
       profile: profile(),
       store: store,
       engineFactory: () => engine,
       fileAccess: SftpFileAccess(
-        pickFile: () async => const SftpUpload('new.txt', [7, 8]),
+        pickFile: () async => picked,
         saveFile: (name, bytes) async {
           saved.add('$name:${bytes.length}');
           return Uri.parse('content://downloads/$name');
@@ -191,6 +193,7 @@ void main() {
       await controller.openDirectory('/media');
       await controller.pickAndUpload();
       expect(transport.uploaded['/media/new.txt'], [7, 8]);
+      expect(picked.bytes, [0, 0]);
       expect(engine.opens, 1);
     },
   );
