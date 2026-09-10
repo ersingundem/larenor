@@ -2198,7 +2198,13 @@
   "sshTargetHop": "Hedef kimlik doğrulaması",
   "sshJumpDirect": "Doğrudan bağlan (ara sunucu yok)",
   "sshJumpUsing": "{name} ara sunucusunu kullan",
-  "@sshJumpUsing": {"placeholders": {"name": {"type": "String"}}},
+  "@sshJumpUsing": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
   "sshJumpCredentialMissing": "Ara sunucunun bu cihazda kayıtlı kimlik bilgisi yok.",
   "sshJumpHostChanged": "Kayıtlı ara sunucu anahtarı değişti. Bağlantı engellendi.",
   "sftpTitle": "SFTP dosyaları",
@@ -2364,5 +2370,31 @@
   "coreProxmoxChooseResource": "Bu Proxmox widget’ı için bir Core kaynağı seçin.",
   "dashboardTileCoreKeenetic": "Core Keenetic",
   "coreKeeneticDashboardPickerTitle": "Core Keenetic kartı ekle",
-  "coreKeeneticDashboardPickerHint": "Bir Core ev kaynağı seçin. Larenor kartı kaydetmeden önce güncel Keenetic bağlantısını doğrular."
+  "coreKeeneticDashboardPickerHint": "Bir Core ev kaynağı seçin. Larenor kartı kaydetmeden önce güncel Keenetic bağlantısını doğrular.",
+  "serverMusicRetainedTitle": "Music Assistant Core",
+  "serverMusicRetainedIntro": "Bu Larenor Core tarafından yönetilen saklanan kurulum, kimliği doğrulanmış bootstrap ve sağlayıcı durumunu oku.",
+  "serverMusicRetainedRefresh": "Durumu yenile",
+  "serverMusicRetainedUnknown": "Saklanan bir Music Assistant kurulumu bulunamadı.",
+  "serverMusicRetainedPartial": "Kurulum kısmi",
+  "serverMusicRetainedFailed": "Doğrulama başarısız",
+  "serverMusicRetainedReady": "Hazır",
+  "serverMusicRetainedUnavailable": "Durum doğrulanamadı. Yeni bir okuma için yenile.",
+  "serverMusicRetainedAdminOnly": "Güncel bir yönetici oturumu ve Ayarlar PIN'i gerekiyor.",
+  "serverMusicRetainedInstallation": "Kurulum",
+  "serverMusicRetainedRevision": "Revizyon",
+  "serverMusicRetainedBootstrap": "Kimliği doğrulanmış bootstrap",
+  "serverMusicRetainedHomeAssistant": "Home Assistant servisi",
+  "serverMusicRetainedJellyfin": "Jellyfin servisi",
+  "serverMusicRetainedProviders": "Sağlayıcılar",
+  "serverMusicRetainedNoProviders": "Henüz hiçbir sağlayıcının hazır olduğu doğrulanmadı.",
+  "serverMusicRetainedPending": "Bekliyor",
+  "serverMusicRetainedContainerReady": "Konteyner başlatıldı",
+  "serverMusicRetainedCancelled": "İptal edildi",
+  "serverMusicRetainedInstallationPending": "Saklanan worker kurulumu henüz tamamlamadı.",
+  "serverMusicRetainedInstallationFailed": "Saklanan kurulum güvenli biçimde tamamlanamadı.",
+  "serverMusicRetainedBootstrapUnknown": "Kimliği doğrulanmış bootstrap kaydı bulunmuyor.",
+  "serverMusicRetainedInstallationChanged": "Bootstrap sonrasında kurulum revizyonu değişti.",
+  "serverMusicRetainedDependencyChanged": "Bağlı Home Assistant veya Jellyfin servis revizyonu değişti.",
+  "serverMusicRetainedProviderNotReady": "Motor doğrulandı; henüz hazır bir sağlayıcı yok.",
+  "serverMusicRetainedProviderFailed": "Bir sağlayıcı kurulumu ilgi bekliyor veya iptal edildi."
 }
