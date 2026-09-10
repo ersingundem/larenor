@@ -156,10 +156,7 @@ final class CoreHaApi {
           'GET',
           '$_path/history',
           token: _token,
-          queryParameters: {
-            if (before != null) 'before': before,
-            'limit': '$limit',
-          },
+          queryParameters: {'before': ?before, 'limit': '$limit'},
         );
         _check();
         return CoreHaHistoryPage.fromJson(raw, target: target);
