@@ -1,4 +1,5 @@
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:larenor/features/dashboard/domain/core_keenetic_tile_validation.dart';
 import 'package:larenor/features/dashboard/domain/dashboard_layout.dart';
@@ -149,18 +150,24 @@ void main() {
     TileType.coreKeeneticMesh,
   };
 
-  test('all Core Keenetic card variants persist the sealed authority tuple', () {
-    for (final type in variants) {
-      final tile = _tile(type);
-      final raw = DashboardLayout(tiles: [tile]).toJson();
-      validateDashboardLayoutJson(raw);
-      expect(hasValidCoreKeeneticTileFields(tile.toJson()), isTrue);
-      expect(DashboardLayout.fromJson(raw).tiles.single, tile);
-    }
-  });
+  test(
+    'all Core Keenetic card variants persist the sealed authority tuple',
+    () {
+      for (final type in variants) {
+        final tile = _tile(type);
+        final raw = DashboardLayout(tiles: [tile]).toJson();
+        validateDashboardLayoutJson(raw);
+        expect(hasValidCoreKeeneticTileFields(tile.toJson()), isTrue);
+        expect(DashboardLayout.fromJson(raw).tiles.single, tile);
+      }
+    },
+  );
 
   test('registry exposes distinct internet, details and mesh cards', () {
-    expect(buildTileContent(_tile(TileType.coreKeenetic)), isA<CoreKeeneticTile>());
+    expect(
+      buildTileContent(_tile(TileType.coreKeenetic)),
+      isA<CoreKeeneticTile>(),
+    );
     expect(
       buildTileContent(_tile(TileType.coreKeeneticDetails)),
       isA<CoreKeeneticDetailsTile>(),
@@ -175,6 +182,8 @@ void main() {
     testWidgets('details and mesh cards fit ${size.width} at 2x text', (
       tester,
     ) async {
+      final semantics = tester.ensureSemantics();
+      var refreshes = 0;
       tester.view.physicalSize = size;
       tester.view.devicePixelRatio = 1;
       addTearDown(tester.view.reset);
@@ -183,9 +192,8 @@ void main() {
           localizationsDelegates: AppLocalizations.localizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
           builder: (context, child) => MediaQuery(
-            data: MediaQuery.of(context).copyWith(
-              textScaler: const TextScaler.linear(2),
-            ),
+            data: MediaQuery.of(context)
+                .copyWith(textScaler: const TextScaler.linear(2)),
             child: child!,
           ),
           home: CupertinoPageScaffold(
@@ -198,7 +206,7 @@ void main() {
                     failure: null,
                     stale: false,
                     loading: false,
-                    onRefresh: () {},
+                    onRefresh: () => refreshes++,
                   ),
                 ),
                 Expanded(
@@ -208,7 +216,7 @@ void main() {
                     failure: null,
                     stale: false,
                     loading: false,
-                    onRefresh: () {},
+                    onRefresh: () => refreshes++,
                   ),
                 ),
               ],
@@ -219,14 +227,29 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('Living room TV'), findsOneWidget);
       expect(find.text('Hall extender'), findsOneWidget);
+      expect(
+        tester
+            .getSemantics(
+              find.byKey(const ValueKey('core-keenetic-details-card')),
+            )
+            .label,
+        contains('Network devices'),
+      );
       for (final key in [
         'core-keenetic-details-refresh',
         'core-keenetic-mesh-refresh',
       ]) {
-        final button = tester.widget<CupertinoButton>(find.byKey(ValueKey(key)));
+        final button = tester.widget<CupertinoButton>(
+          find.byKey(ValueKey(key)),
+        );
         expect(button.minimumSize?.height, greaterThanOrEqualTo(48));
       }
+      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      await tester.pump();
+      expect(refreshes, 1);
       expect(tester.takeException(), isNull);
+      semantics.dispose();
     });
   }
 
@@ -266,9 +289,21 @@ void main() {
       ),
     );
     await tester.pump();
-    expect(find.text('Offline'), findsOneWidget);
-    expect(find.text('Data is stale'), findsOneWidget);
-    expect(find.byKey(const ValueKey('core-keenetic-details-refresh')), findsOneWidget);
-    expect(find.byKey(const ValueKey('core-keenetic-mesh-refresh')), findsOneWidget);
+    expect(
+      find.text('Core telemetry is unavailable. Refresh to try again.'),
+      findsOneWidget,
+    );
+    expect(
+      find.text('This telemetry is stale. Refresh before relying on it.'),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('core-keenetic-details-refresh')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('core-keenetic-mesh-refresh')),
+      findsOneWidget,
+    );
   });
 }
