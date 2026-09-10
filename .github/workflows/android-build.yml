@@ -26,27 +26,45 @@ jobs:
   build-debug-apk:
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    env:
+      PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+      PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+          fetch-depth: 0
+
+      - name: Decide Android and Flutter scope from the exact PR diff
+        id: android_scope
+        run: python3 tool/android_ci_scope.py
+
+      - name: Android/Flutter checks reused
+        if: steps.android_scope.outputs.run == 'false'
+        run: |
+          echo 'Android/Flutter checks reused: this exact PR diff changes only Server or documentation files.' >> "$GITHUB_STEP_SUMMARY"
 
       - uses: actions/setup-java@dd06d9cba3e5552c54d9f8ea23572deb30010f7c # v6.0.0
+        if: steps.android_scope.outputs.run == 'true'
         with:
           distribution: temurin
           java-version: "17"
 
       - uses: android-actions/setup-android@40fd30fb8d7440372e1316f5d1809ec01dcd3699 # v4.0.1
+        if: steps.android_scope.outputs.run == 'true'
 
       - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
+        if: steps.android_scope.outputs.run == 'true'
         with:
           channel: stable
           flutter-version: "3.47.2"
           cache: true
 
       - run: flutter pub get --enforce-lockfile
+        if: steps.android_scope.outputs.run == 'true'
 
       - run: dart run build_runner build
+        if: steps.android_scope.outputs.run == 'true'
 
       # Android's SDK now ships fractional platform revisions (e.g.
       # android-37.0), but Gradle/AGP still resolve compileSdk by the plain
@@ -54,6 +72,7 @@ jobs:
       # flutter_secure_storage) resolves. Safe to drop once AGP/Android SDK
       # tooling reconcile this naming change upstream.
       - name: Work around Android SDK platform naming
+        if: steps.android_scope.outputs.run == 'true'
         run: |
           sdkmanager "platforms;android-37.0"
           platform_dir="$ANDROID_HOME/platforms"
@@ -62,15 +81,17 @@ jobs:
           fi
 
       - name: Build debug APK with a monotonic CI versionCode
+        if: steps.android_scope.outputs.run == 'true'
         run: flutter build apk --debug --build-number "$(python3 tool/android_signing.py version-code)"
 
       - name: Native audio, kiosk, window, health privacy and platform contracts
+        if: steps.android_scope.outputs.run == 'true'
         working-directory: android
         run: ./gradlew :app:testDebugUnitTest
 
       - name: Preserve native test evidence
         id: test_evidence
-        if: always()
+        if: always() && steps.android_scope.outputs.run == 'true'
         continue-on-error: true
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
@@ -82,12 +103,13 @@ jobs:
           retention-days: 14
 
       - name: Report unavailable native test artifact
-        if: always() && steps.test_evidence.outcome == 'failure'
+        if: always() && steps.android_scope.outputs.run == 'true' && steps.test_evidence.outcome == 'failure'
         run: |
           echo "::warning::Native test artifact upload failed. Test results remain in this job's logs; test failures still block delivery."
           echo 'Native test artifact upload was unavailable. Inspect the native test step logs for results.' >> "$GITHUB_STEP_SUMMARY"
 
       - name: Release signing must fail closed without private keys
+        if: steps.android_scope.outputs.run == 'true'
         working-directory: android
         run: |
           ./gradlew :app:preReleaseBuild --dry-run > release-task-graph.log 2>&1
@@ -101,7 +123,7 @@ jobs:
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         # Main pushes publish the verified signed APK below. Keep large debug
         # downloads for explicit manual runs and PR troubleshooting only.
-        if: github.event_name == 'workflow_dispatch' || github.event_name == 'pull_request'
+        if: steps.android_scope.outputs.run == 'true' && (github.event_name == 'workflow_dispatch' || github.event_name == 'pull_request')
         with:
           name: app-debug-apk
           path: build/app/outputs/flutter-apk/app-debug.apk

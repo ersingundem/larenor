@@ -17,34 +17,53 @@ jobs:
     # CI105 reached 4,282 of 5,056 tests before the 15-minute job deadline.
     # Allow setup and the full coverage suite; individual tests stay at 90s.
     timeout-minutes: 25
+    env:
+      PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+      PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+          fetch-depth: 0
+
+      - name: Decide Android and Flutter scope from the exact PR diff
+        id: android_scope
+        run: python3 tool/android_ci_scope.py
+
+      - name: Android/Flutter checks reused
+        if: steps.android_scope.outputs.run == 'false'
+        run: |
+          echo 'Android/Flutter checks reused: this exact PR diff changes only Server or documentation files.' >> "$GITHUB_STEP_SUMMARY"
 
       - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
+        if: steps.android_scope.outputs.run == 'true'
         with:
           channel: stable
           flutter-version: "3.47.2"
           cache: true
 
       - run: flutter pub get --enforce-lockfile
+        if: steps.android_scope.outputs.run == 'true'
 
       - run: dart run build_runner build
+        if: steps.android_scope.outputs.run == 'true'
 
       - name: Check formatting
+        if: steps.android_scope.outputs.run == 'true'
         run: dart format --output=none --set-exit-if-changed .
 
       - run: flutter analyze
+        if: steps.android_scope.outputs.run == 'true'
 
       - name: Unit, widget, security and resilience regressions
+        if: steps.android_scope.outputs.run == 'true'
         run: |
           set -o pipefail
           flutter test --coverage --reporter expanded --timeout 90s 2>&1 | tee test-results.log
 
       - name: Preserve test evidence
         id: test_evidence
-        if: always()
+        if: always() && steps.android_scope.outputs.run == 'true'
         continue-on-error: true
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
@@ -55,7 +74,7 @@ jobs:
           retention-days: 14
 
       - name: Report unavailable test artifact
-        if: always() && steps.test_evidence.outcome == 'failure'
+        if: always() && steps.android_scope.outputs.run == 'true' && steps.test_evidence.outcome == 'failure'
         run: |
           echo "::warning::Test artifact upload failed. Test results remain in this job's logs; test failures still block delivery."
           echo 'Test artifact upload was unavailable. Inspect the unit/widget test step logs for results.' >> "$GITHUB_STEP_SUMMARY"
