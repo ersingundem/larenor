@@ -951,10 +951,18 @@
           "state": "completed",
           "result": "passed",
           "label": "qBittorrent config current volume journal ve retained-daemon supervisor native thread kapısına bağlandı; rebase sonrası exact kaynakta 12 yeni, 345 ilgili testte 343 PASS/2 mevcut macOS skip."
+        },
+        {
+          "kind": "test",
+          "ref": "server/tests/test_media_installation_ipc.py",
+          "commit": "dcf6b17c93fc81b2b139c1782ed3dac56c592951",
+          "state": "completed",
+          "result": "passed",
+          "label": "Kalıcı Jellyfin bootstrap kuyruğu Server yaşam döngüsünde otomatik çalışıyor; kapanış devam eden makbuz yazımını bekliyor ve hata logu secret-free. Gerçek UID Unix IPC yolculuğu dahil 57 ilgili test PASS; exact CI açık."
         }
       ],
       "completionCommit": null,
-      "reason": "Server üretimli sır, sabit startup, exact journal/container/private-network yürütücüsü, kalıcı no-retry koordinatör ve aynı retained daemon'a bağlı private IPC/runtime hazır. Disposable Jellyfin 10.11.11 bootstrap, API anahtarı, kütüphane eşleştirmesi, logout, restart ve veri kalıcılığı exact arm64+amd64 CI'da geçti. qBittorrent 5.2.3 sahipli config/API, journal-bound volume/library planı, güvenli helper ve private stdin effect ana dalda; current-journal/retained-daemon runtime bağı yerelde yeşil. Kalıcı qBittorrent job/IPC, create-start önkoşulu, Radarr/Sonarr/Seerr/Music Assistant eşleştirmesi ve qBittorrent native kabul açık; installAvailable=false."
+      "reason": "Server üretimli sır, sabit startup, exact journal/container/private-network yürütücüsü, kalıcı no-retry koordinatör, otomatik yaşam döngüsü dispatcher ve aynı retained daemon'a bağlı private IPC/runtime hazır. Disposable Jellyfin 10.11.11 bootstrap, API anahtarı, kütüphane eşleştirmesi, logout, restart ve veri kalıcılığı exact arm64+amd64 CI'da geçti. qBittorrent 5.2.3 sahipli config/API, journal-bound volume/library planı, güvenli helper ve private stdin effect ana dalda; current-journal/retained-daemon runtime bağı yerelde yeşil. Kalıcı qBittorrent job/IPC, create-start önkoşulu, Radarr/Sonarr/Seerr/Music Assistant eşleştirmesi ve qBittorrent native kabul açık; installAvailable=false."
     },
     {
       "id": "S06.6",

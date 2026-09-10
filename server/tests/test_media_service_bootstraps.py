@@ -217,6 +217,67 @@ def test_tick_persists_encrypted_readback_without_exposing_secret(server):
     assert app.state.core.media_service_bootstraps.tick() is None
 
 
+def test_lifespan_waits_for_inflight_bootstrap_receipt(server):
+    from concurrent.futures import ThreadPoolExecutor
+    from threading import Event
+
+    app, client, _, _ = server
+    pair, installation = installed(server)
+    record = client.post(BASE, headers=auth(pair), json=request(installation)).json()['bootstrap']
+    entered, release, stopping, stopped = Event(), Event(), Event(), Event()
+
+    class BlockingBackend(BootstrapBackend):
+        def execute(self, *args, **kwargs):
+            entered.set()
+            assert release.wait(5)
+            return super().execute(*args, **kwargs)
+
+    app.state.core.media_service_bootstraps.backend = BlockingBackend()
+
+    def lifecycle():
+        with TestClient(app):
+            assert entered.wait(5)
+            stopping.set()
+        stopped.set()
+
+    with ThreadPoolExecutor(max_workers=1) as pool:
+        future = pool.submit(lifecycle)
+        try:
+            assert entered.wait(5) and stopping.wait(5)
+            assert not stopped.wait(.05)
+            assert app.state.media_service_bootstrap_dispatcher is not None
+        finally:
+            release.set()
+        future.result(timeout=5)
+
+    assert stopped.is_set()
+    terminal = client.get(BASE + '/' + record['id'], headers=auth(pair)).json()['bootstrap']
+    assert terminal['state'] == 'wiring_partial'
+
+
+def test_lifespan_bootstrap_errors_log_only_static_code(server, caplog):
+    from threading import Event
+
+    app, client, _, _ = server
+    pair, installation = installed(server)
+    record = client.post(BASE, headers=auth(pair), json=request(installation)).json()['bootstrap']
+    entered = Event()
+
+    def broken_tick():
+        entered.set()
+        raise RuntimeError('private-bootstrap-detail')
+
+    manager = app.state.core.media_service_bootstraps
+    manager.backend = BootstrapBackend()
+    manager.tick = broken_tick
+    with TestClient(app):
+        assert entered.wait(5)
+
+    assert 'media_service_bootstrap_dispatch_unavailable' in caplog.text
+    assert 'private-bootstrap-detail' not in caplog.text
+    assert client.get(BASE + '/' + record['id'], headers=auth(pair)).json()['bootstrap']['state'] == 'queued'
+
+
 def test_interrupted_running_bootstrap_is_never_retried(server):
     app, client, _, _ = server
     pair, installation = installed(server)

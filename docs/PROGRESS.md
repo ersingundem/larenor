@@ -87,6 +87,13 @@ aynı retained daemon lease'i/native thread içinde doğrular. Sentetik gerçek
 Unix-soket Core→IPC→worker yolculuğu dahil **11 yeni / 149 ilgili test** geçti;
 bir Linux-only test macOS'ta skip edildi. Gerçek Docker/Jellyfin etkisi yapılmadı.
 
+`dcf6b17` yaşam döngüsü düzeltmesi, kalıcı bootstrap kuyruğunu Server açılışında
+otomatik dispatcher'a bağladı. Kapanış devam eden UID-korumalı IPC çağrısının
+şifreli makbuz yazımını bekliyor; beklenmeyen yürütücü ayrıntıları yerine yalnız
+sabit hata kodu loglanıyor. Gerçek Unix-soket yolculuğu ve diğer dispatcher
+regresyonları dahil **57 ilgili test** geçti. Exact GitHub CI açık olduğundan
+S06.5 ve genel sayaç değişmedi.
+
 `7668017` → `0745d70`, `c790748` → `61be275`, `1f36ed5` / `22bae10` →
 `a681d74` ve `e95e436` → `d198a72` TDD zinciri, tamamlanan startup'tan sonra
 ikinci kez doğrulanmış private endpoint üzerinde Jellyfin sistem kullanıcısını
