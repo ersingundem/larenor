@@ -317,6 +317,39 @@ def test_runtime_routes_plan_derived_music_assistant_steps_to_its_backend():
     assert [item[0] for item in calls] == ['apply', 'reconcile']
 
 
+def test_runtime_owns_music_assistant_first_run_inside_authority_gates():
+    from larenor_server.plugins.music_assistant_core_models import (
+        AuthenticatedMusicAssistantReadback,
+    )
+
+    calls = []
+    expected = AuthenticatedMusicAssistantReadback(
+        token='private-long-token', serverId='mass-fixture',
+        serverVersion='2.10.2', schemaVersion=65)
+
+    class Bootstrap:
+        def create(self, **kwargs):
+            calls.append(('create', kwargs))
+            return expected
+
+    backend = object.__new__(runtime._RuntimeBackend)
+    backend.music_assistant_bootstrap = Bootstrap()
+
+    def gate():
+        calls.append(('gate',))
+        return True
+
+    result = backend.bootstrap_music_assistant(
+        'a' * 32, 'larenor-core', 'S' * 48,
+        deadline=time.monotonic() + 2, gate=gate)
+
+    assert result == expected
+    assert [call[0] for call in calls] == ['gate', 'create', 'gate']
+    assert calls[1][1]['installation_id'] == 'a' * 32
+    assert calls[1][1]['username'] == 'larenor-core'
+    assert calls[1][1]['credential'] == 'S' * 48
+
+
 @pytest.mark.parametrize('bootstrap_code,public_code', [
     ('qbittorrent_bootstrap_authority_changed',
      'qbittorrent_config_authority_changed'),
