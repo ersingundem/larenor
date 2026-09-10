@@ -440,8 +440,9 @@ aynı doğrulanmış preparation üzerinde Jellyfin ve Seerr için ayrı kalıc�
 create/start işleri üretiyor. Worker servis kimliğini plan içindeki tek
 `installationId` eşleşmesinden türetiyor; request Docker/image/ağ ayrıntısı
 taşımıyor. V1 kurulum ve bağlı Jellyfin bootstrap satırları v2 şemasına ciphertext
-değiştirilmeden kayıpsız taşınıyor; foreign key hedefi yeniden kanıtlanıyor. **106 ilgili ve 3 migration/contract testi geçti**; exact rebased
-kaynakta tam Server paketi **5.248 testte geçti**. Şifreli Seerr bootstrap job'u hâlâ açık ve
+değiştirilmeden kayıpsız taşınıyor; foreign key hedefi yeniden kanıtlanıyor. **106 ilgili test**, migration/public contract ve Jellyfin bootstrap kimlik
+regresyonları geçti; güncel **5.249 testlik** tam Server paketi yeniden çalışıyor.
+Şifreli Seerr bootstrap job'u hâlâ açık ve
 `installAvailable=false` değişmedi.
 [Seerr konteyner işi kanıtı](seerr-container-installation-implementation-2026-09-10.md).
 

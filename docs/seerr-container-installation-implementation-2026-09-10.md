@@ -20,6 +20,9 @@ konteyner fazı
   v2'ye taşınır. Foreign key yeniden `media_installations` tablosuna bağlanır.
   Eski kayıtlar varsayılan `jellyfin` seçimiyle okunur; aynı preparation için
   servis başına tek iş oluşturulabilir.
+- Mevcut Jellyfin bootstrap koordinatörü yalnız Jellyfin installation kaydını
+  kabul eder ve worker journal uzlaştırmasına bootstrap kayıt kimliği yerine
+  gerçek installation kimliğini gönderir.
 - Public sonuç yalnız iş, servis, faz ve sabit hata durumlarını taşır.
   `installAvailable=false` korunur.
 
@@ -35,8 +38,8 @@ konteyner fazı
   doğruluyor.
 - `8ee12c5`: sürümlü public sözleşme örneği iki servisi ilan ediyor.
 - API, execution, IPC ve runtime paketinde 106 test; migration ve public
-  contract paketinde 3 test geçti. Exact rebased kaynakta tam Server paketi
-  5.248 testte geçti.
+  contract paketi ile Jellyfin bootstrap kimlik regresyonları geçti. Güncel
+  5.249 testlik tam Server paketi yeniden çalıştırılıyor.
 
 ## Açık sınırlar
 

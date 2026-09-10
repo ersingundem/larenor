@@ -152,10 +152,11 @@ class MediaServiceBootstrapManagement:
                 'SELECT * FROM media_installations WHERE id=?', (body.installationId,)).fetchone()
             if installation is None:
                 raise ApiError('not_found', 404)
-            self.installations._decode(installation)
+            installation_payload = self.installations._decode(installation)
             if (installation['revision'] != body.expectedInstallationRevision
                     or installation['state'] != 'container_started'
                     or installation['phase'] != 'complete'
+                    or installation_payload.request.serviceId != 'jellyfin'
                     or installation['actor_id'] != actor.id
                     or installation['family_id'] != actor.family_id
                     or installation['actor_revision'] != actor_revision):
@@ -203,12 +204,13 @@ class MediaServiceBootstrapManagement:
         if installation is None:
             raise ApiError('media_bootstrap_storage_unavailable', 503)
         try:
-            self.installations._decode(installation)
+            installation_payload = self.installations._decode(installation)
         except ApiError:
             raise ApiError('media_bootstrap_storage_unavailable', 503) from None
         if (installation['revision'] != row['installation_revision']
                 or installation['state'] != 'container_started'
                 or installation['phase'] != 'complete'
+                or installation_payload.request.serviceId != 'jellyfin'
                 or installation['actor_id'] != row['actor_id']
                 or installation['actor_revision'] != row['actor_revision']
                 or installation['family_id'] != row['family_id']):
@@ -397,7 +399,7 @@ class MediaServiceBootstrapManagement:
                 identifier = row['id']
             try:
                 result = self.backend.execute(
-                    identifier, plan, private,
+                    row['installation_id'], plan, private,
                     deadline=time.monotonic() + 30.0,
                     gate=lambda: self._gate(identifier),
                 )

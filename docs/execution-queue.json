@@ -1050,7 +1050,7 @@
           "commit": "47e3d045967a5d7a1a52b9a2e14f4937de827398",
           "state": "completed",
           "result": "passed",
-          "label": "Core aynı doğrulanmış preparation üzerinde Jellyfin ve Seerr için ayrı şifreli kalıcı create/start işleri üretiyor; worker servis kimliğini plandaki exact installationId eşleşmesinden türetiyor. 106 ilgili ve 3 migration/contract testi; mevcut Jellyfin bootstrap satırlarıyla foreign key korunumu ile exact rebased tam Server paketi 5.248 testte PASS; installAvailable=false."
+          "label": "Core aynı doğrulanmış preparation üzerinde Jellyfin ve Seerr için ayrı şifreli kalıcı create/start işleri üretiyor; worker servis kimliğini plandaki exact installationId eşleşmesinden türetiyor. Mevcut Jellyfin bootstrap da yalnız Jellyfin installation kaydını kabul edip gerçek installation kimliğini journal uzlaştırmasına gönderiyor. İlgili, migration ve contract testleri PASS; güncel 5.249 testlik tam Server regresyonu sürüyor; installAvailable=false."
         },
         {
           "kind": "ci",
