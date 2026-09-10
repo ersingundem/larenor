@@ -36,6 +36,7 @@ MESSAGES = {
     "invalid_request": "The request is invalid.",
     "payload_too_large": "The request is too large.",
     "request_timeout": "The request timed out.",
+    "transfer_cancelled": "The transfer was cancelled.",
     "invalid_credentials": "The credentials are invalid.",
     "invalid_session": "Sign in again.",
     "password_change_required": "Change the initial password to continue.",

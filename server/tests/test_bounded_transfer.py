@@ -6,7 +6,7 @@ import struct
 import pytest
 from fastapi.testclient import TestClient
 
-from conftest import Clock, auth, ready
+from conftest import Clock, auth, login, ready
 from larenor_server.app import create_app
 from larenor_server.bounded_transfer.models import BlobDescriptor, TransferLimits
 from larenor_server.config import Settings
@@ -165,7 +165,8 @@ def test_stream_aborts_without_success_frame_after_cancel_deadline_auth_loss_or_
             next(opened.frames)
         opened.close()
 
-        admin = ready((app, client, settings, clock)); actor = app.state.core.auth.authenticate(admin["accessToken"])
+        admin = login(client, "admin", "Synthetic new password 2026").json()
+        actor = app.state.core.auth.authenticate(admin["accessToken"])
         values = request_body(app, admin, record, deadline_ms=20)
         opened = app.state.core.bounded_transfers.open(
             actor, record["ref"]["coreId"], record["ref"]["homeId"], identity,

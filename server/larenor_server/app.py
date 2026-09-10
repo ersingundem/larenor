@@ -42,6 +42,9 @@ from .plugins.arr_config_job_api import router as arr_configurations_router
 from .plugins.music_assistant_core_api import router as music_assistant_core_router
 from .plugins.music_provider_setup_api import router as music_provider_setup_router
 from .plugins.music_playback_api import router as music_playback_router
+from .bounded_transfer.api import router as bounded_transfer_router
+from .bounded_transfer.models import TransferLimits
+from .bounded_transfer.service import BlobProvider
 
 
 Core = Annotated[CoreServices, Depends(get_core)]
@@ -51,7 +54,9 @@ Admin = Annotated[Principal, Depends(require_admin)]
 
 
 def create_app(settings: Settings, *, routers: Iterable[APIRouter] = (),
-               source: SourceInformation | None = None) -> FastAPI:
+               source: SourceInformation | None = None,
+               blob_provider: BlobProvider | None = None,
+               transfer_limits: TransferLimits | None = None) -> FastAPI:
     source = source or SourceInformation.from_environment()
     @asynccontextmanager
     async def lifespan(application):
@@ -120,7 +125,8 @@ def create_app(settings: Settings, *, routers: Iterable[APIRouter] = (),
                   lifespan=lifespan,
                   license_info={"name": "GNU Affero General Public License v3.0 only",
                                 "identifier": "AGPL-3.0-only"})
-    app.state.core = CoreServices(settings)
+    app.state.core = CoreServices(
+        settings, blob_provider=blob_provider, transfer_limits=transfer_limits)
     app.state.plugin_job_dispatcher = None
     app.state.media_inspection_dispatcher = None
     app.state.media_installation_dispatcher = None
@@ -212,6 +218,7 @@ def create_app(settings: Settings, *, routers: Iterable[APIRouter] = (),
     app.include_router(admin_router, prefix="/api/v1")
     app.include_router(services_router, prefix="/api/v1")
     app.include_router(home_resources_router, prefix="/api/v1")
+    app.include_router(bounded_transfer_router, prefix="/api/v1")
     app.include_router(home_people_router, prefix="/api/v1")
     app.include_router(home_assistant_router, prefix="/api/v1")
     app.include_router(keenetic_resources_router, prefix="/api/v1")

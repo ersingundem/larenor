@@ -1,5 +1,10 @@
 # Larenor Server
 
+The first bounded read-only binary transport pilot is documented in
+[`docs/BOUNDED_TRANSFER_PILOT.md`](../docs/BOUNDED_TRANSFER_PILOT.md). Production
+exposes no blob until trusted packaged Core code provides one; arbitrary paths and
+URLs are never accepted from the API.
+
 Larenor Server is the API backend for Larenor Client, the tablet-first Android
 app. The same Android app supports Samsung DeX and resizable windows.
 It has no separate web admin application: administrative features

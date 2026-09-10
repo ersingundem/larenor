@@ -48,6 +48,8 @@ from .vault import VaultService
 from .home_resources.schema import migrate_home_resources
 from .home_assistant.command_chain import migrate_command_history
 from .home_resources.service import HomeResourceRegistry
+from .bounded_transfer.models import TransferLimits
+from .bounded_transfer.service import BlobProvider, BoundedTransferService
 from .home_people.schema import migrate_home_people
 from .home_people.service import HomePeopleRegistry
 from .home_assistant.schema import migrate_home_assistant
@@ -61,8 +63,11 @@ from .proxmox.service import ProxmoxResourceAdapter
 
 
 class CoreServices:
-    def __init__(self, settings: Settings):
+    def __init__(self, settings: Settings, *, blob_provider: BlobProvider | None = None,
+                 transfer_limits: TransferLimits | None = None):
         self.settings = settings
+        self._blob_provider = blob_provider
+        self._transfer_limits = transfer_limits
         self.bootstrap_created = False
         self.bootstrap_cleanup_pending = False
         try:
@@ -195,6 +200,8 @@ class CoreServices:
             self.vault = VaultService(self.db, self.auth, settings, key)
             self.home_resources = HomeResourceRegistry(self.db, self.auth, settings, key, self.context)
             self.home_resources.validate_storage()
+            self.bounded_transfers = BoundedTransferService(
+                self.home_resources, settings, self._blob_provider, self._transfer_limits)
             self.home_people = HomePeopleRegistry(self.db, self.auth, settings, key, self.context)
             self.home_people.validate_storage()
             self.admin = AdminService(self.db, self.auth, settings)
