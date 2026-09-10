@@ -97,8 +97,10 @@ class Readers:
     def inspect_image(self, binding, *, cancelled):
         self.calls.append(('image', binding.resource_id))
         service_id = self.data[5].serviceId
-        configuration = {'Env': ['PATH=/usr/bin'], 'Volumes': {
-            '/config': {}, **({'/cache': {}} if service_id == 'jellyfin' else {})}}
+        volumes = ({'/app/config': {}} if service_id == 'seerr'
+                   else {'/config': {}, **(
+                       {'/cache': {}} if service_id == 'jellyfin' else {})})
+        configuration = {'Env': ['PATH=/usr/bin'], 'Volumes': volumes}
         return ImageObservation(binding.config_digest, json.dumps(
             configuration, sort_keys=True, separators=(',', ':')).encode())
 
@@ -232,6 +234,23 @@ def test_broker_rebinds_qbittorrent_config_and_shared_library(tmp_path):
     assert [call[0] for call in readers.calls] == [
         'image', 'volume', 'bootstrap', 'volume', 'prepare-library', 'bootstrap',
         'network-list', 'network-inspect']
+
+
+def test_broker_rebinds_only_seerr_owned_appdata(tmp_path):
+    data = source('seerr')
+    endpoint = object()
+    readers = Readers(data, endpoint)
+    with ResourceJournal(tmp_path / 'resources', initialize=True) as resource_journal, \
+            VolumeCreateJournal(tmp_path / 'volumes', initialize=True) as volume_journal:
+        populate(resource_journal, volume_journal, data, 'seerr')
+        broker = JellyfinResourceProofBroker(
+            data[1], data[0], data[2], resource_journal, volume_journal,
+            readers, engine_identity=endpoint, service_id='seerr')
+        proof = broker(data[3], data[4], data[5])
+    assert len(proof.volumes) == 1
+    assert proof.volumes[0].target == '/app/config'
+    assert [call[0] for call in readers.calls] == [
+        'image', 'volume', 'bootstrap', 'network-list', 'network-inspect']
 
 
 def test_stale_bootstrap_or_different_engine_never_produces_a_proof(tmp_path):
