@@ -134,10 +134,21 @@ has `POST /setup` for a first internal administrator, `GET /info`, a configurabl
 web bind address, and its `/api` command interface. The
 [auth manager](https://github.com/music-assistant/server/blob/2.10.2/music_assistant/controllers/webserver/auth.py)
 can generate integration tokens through `auth/token/create`; these expire after
-one year and do not renew on use. A future adapter must privately generate,
-store and rotate engine credentials, expose only allowlisted Larenor actions,
-and enforce current Larenor role/session scope. It must not give a shared engine
+one year and do not renew on use. Larenor must privately generate, store and
+rotate engine credentials, expose only allowlisted actions, and enforce current
+Larenor role/session scope. It must not give a shared engine
 administrator token to the Client or implement an unrestricted command proxy.
+
+The first worker-only adapter now implements that initial session boundary for
+the pinned `2.10.2` / API schema `65` engine. It creates only the fixed
+`larenor-core` administrator at `/setup`, exchanges the short setup token for a
+named long-lived token, proves the administrator and exact engine identity,
+completes onboarding, revokes the short token and proves the same identity
+again. All calls share one deadline and cancellation scope; no mutation is
+retried, and any transport loss after a request begins is reported as an
+uncertain effect. The token is returned only in the private readback model.
+Persistent Core job dispatch, retained-worker IPC integration and native
+container acceptance remain open, so this adapter does not enable installation.
 
 Jellyfin's [versioned startup controller](https://github.com/jellyfin/jellyfin/blob/v10.11.11/Jellyfin.Api/Controllers/StartupController.cs)
 can configure its first user and complete setup over an isolated control API.
