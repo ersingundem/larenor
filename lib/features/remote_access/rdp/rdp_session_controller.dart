@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 
@@ -45,6 +46,7 @@ class RdpSessionController extends ChangeNotifier {
   RdpChannel? _channel;
   Completer<bool>? _certificateDecision;
   Completer<String?>? _passwordDecision;
+  Completer<void>? _opening;
   Timer? _timer;
   int _generation = 0;
   bool _retired = false, _disposed = false;
@@ -79,6 +81,10 @@ class RdpSessionController extends ChangeNotifier {
       _passwordDecision!.complete(null);
     }
     _passwordDecision = null;
+    if (_opening?.isCompleted == false) {
+      _opening!.complete();
+    }
+    _opening = null;
     pendingCertificate = null;
     _channel?.close();
     _channel = null;
@@ -113,12 +119,13 @@ class RdpSessionController extends ChangeNotifier {
     _timer = Timer(connectTimeout, () {
       if (generation == _generation) _finish(code: 'timed_out');
     });
-    final opening = Completer<void>();
+    final opening = _opening = Completer<void>();
     _publish();
     unawaited(
       _start(generation).then(
         (_) {
           if (!opening.isCompleted) opening.complete();
+          if (identical(_opening, opening)) _opening = null;
         },
         onError: (Object value) {
           if (generation == _generation && !_disposed) {
@@ -131,6 +138,7 @@ class RdpSessionController extends ChangeNotifier {
             }
           }
           if (!opening.isCompleted) opening.complete();
+          if (identical(_opening, opening)) _opening = null;
         },
       ),
     );
@@ -258,7 +266,7 @@ class RdpSessionController extends ChangeNotifier {
         decision.isCompleted ||
         !_current(_generation) ||
         password.isEmpty ||
-        password.length > 4096 ||
+        utf8.encode(password).length > 4096 ||
         password.contains('\u0000')) {
       return;
     }
