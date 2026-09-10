@@ -100,7 +100,10 @@ def _upgrade_headers(reader):
     content_type = values.get('content-type')
     _require(content_type is None
              or content_type.split(';', 1)[0].strip().lower()
-             == 'application/vnd.docker.raw-stream')
+             in {
+                 'application/vnd.docker.raw-stream',
+                 'application/vnd.docker.multiplexed-stream',
+             })
 
 
 def _multiplex(reader, limits):
