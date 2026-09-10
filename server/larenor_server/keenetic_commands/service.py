@@ -62,11 +62,15 @@ class _Pending:
 
 
 class KeeneticCommandAuthority:
-    def __init__(self, *, authorize, observe, effect=None, clock=time.monotonic):
+    def __init__(self, *, authorize, observe, effect=None, clock=time.monotonic,
+                 actor_revision=None, journal=None, wall_clock=None):
         self._authorize = authorize
         self._observe = observe
         self._effect = effect or UnavailableKeeneticEffect()
         self._clock = clock
+        self._actor_revision = actor_revision or (lambda actor: actor.revision)
+        self._journal = journal
+        self._wall_clock = wall_clock
         self._last_clock = None
         self._lock = threading.RLock()
         self._previews = {}
@@ -121,7 +125,7 @@ class KeeneticCommandAuthority:
 
     def _guard(self, actor, body):
         self._actor(actor)
-        if actor.revision != body.expectedUserRevision:
+        if self._actor_revision(actor) != body.expectedUserRevision:
             raise ApiError("keenetic_command_changed", 409)
         self._authorize(actor, body.target, "write")
         current = TargetState.model_validate(self._observe(body.target))
@@ -134,6 +138,7 @@ class KeeneticCommandAuthority:
         with self._lock:
             now = self._now()
             self._actor(actor)
+            actor_revision = self._actor_revision(actor)
             key = (actor.id, body.idempotencyKey)
             old = self._requests.get(key)
             if old is not None:
@@ -161,7 +166,11 @@ class KeeneticCommandAuthority:
                 target=body.target,
                 expiresInMs=60000,
             )
-            pending = _Pending(actor.id, actor.revision, body, preview, now)
+            pending = _Pending(actor.id, actor_revision, body, preview, now)
+            if self._journal is not None:
+                existing = self._journal.accept(actor, body)
+                if existing["status"] != "accepted":
+                    return {"command": existing}
             self._previews[preview.id] = pending
             self._requests[key] = pending
             self._request_ids[request_key] = pending
@@ -191,24 +200,34 @@ class KeeneticCommandAuthority:
         self._receipts[(pending.actor_id, pending.preview.id)] = receipt
         return {"receipt": receipt.model_dump()}
 
-    def cancel(self, actor, preview_id):
+    @staticmethod
+    def _scope(pending, scope):
+        target = pending.body.target
+        if scope is not None and scope != (target.coreId, target.homeId, target.resourceId):
+            raise ApiError("not_found", 404)
+
+    def cancel(self, actor, preview_id, scope=None):
         with self._lock:
             self._now()
             self._actor(actor)
             pending, result = self._pending_or_receipt(actor, preview_id)
             if result is not None:
                 return result
+            self._scope(pending, scope)
             self._authorize(actor, pending.body.target, "write")
+            if self._journal is not None:
+                self._journal.transition(actor, pending.body, "cancelled", "cancelled")
             return self._finish(pending, "cancelled", "cancelled", ["accepted", "cancelled"])
 
-    def confirm(self, actor, preview_id, token):
+    def confirm(self, actor, preview_id, token, scope=None):
         with self._lock:
             now = self._now()
             self._actor(actor)
             pending, result = self._pending_or_receipt(actor, preview_id)
             if result is not None:
                 return result
-            if pending.actor_revision != actor.revision:
+            self._scope(pending, scope)
+            if pending.actor_revision != self._actor_revision(actor):
                 raise ApiError("keenetic_command_changed", 409)
             if pending.preview.risk == "high" and pending.second_token is None:
                 if not secrets.compare_digest(token, pending.preview.confirmToken):
@@ -232,6 +251,8 @@ class KeeneticCommandAuthority:
             dispatched = False
             try:
                 self._guard(actor, pending.body)
+                if self._journal is not None:
+                    self._journal.transition(actor, pending.body, "executing", "executing")
 
                 def guard():
                     if self._clock() - started >= EFFECT_TTL:
@@ -243,7 +264,7 @@ class KeeneticCommandAuthority:
                 if self._clock() - started >= EFFECT_TTL:
                     raise KeeneticEffectError("keenetic_effect_timeout", uncertain=True)
                 self._actor(actor)
-                if actor.revision != pending.body.expectedUserRevision:
+                if self._actor_revision(actor) != pending.body.expectedUserRevision:
                     raise ApiError("keenetic_command_changed", 409)
                 self._authorize(actor, pending.body.target, "write")
                 observed = TargetState.model_validate(self._observe(pending.body.target))
@@ -265,15 +286,23 @@ class KeeneticCommandAuthority:
                     or observed.value != RESULT[pending.body.action]
                 ):
                     raise KeeneticEffectError("keenetic_result_unknown", uncertain=True)
+                if self._journal is not None:
+                    self._journal.transition(actor, pending.body, "succeeded", "succeeded")
                 return self._finish(pending, "succeeded", "succeeded", ["accepted", "executing", "succeeded"])
             except KeeneticEffectError as error:
                 status = "unknown" if error.uncertain else "failed"
+                if self._journal is not None:
+                    self._journal.transition(actor, pending.body, status, error.code)
                 return self._finish(pending, status, error.code, ["accepted", "executing", status])
             except ApiError:
                 if not dispatched:
                     raise
                 # Authorization/revision changed after dispatch may mean the router
                 # changed even though Core can no longer verify it.
+                if self._journal is not None:
+                    self._journal.transition(actor, pending.body, "unknown", "keenetic_result_unknown")
                 return self._finish(pending, "unknown", "keenetic_result_unknown", ["accepted", "executing", "unknown"])
             except Exception:
+                if self._journal is not None:
+                    self._journal.transition(actor, pending.body, "unknown", "keenetic_effect_unknown")
                 return self._finish(pending, "unknown", "keenetic_effect_unknown", ["accepted", "executing", "unknown"])
