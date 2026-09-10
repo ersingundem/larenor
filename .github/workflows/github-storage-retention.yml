@@ -40,7 +40,7 @@
           "env": {
             "GH_TOKEN": "${{ github.token }}"
           },
-          "run": "python3 tool/github_storage_cleanup.py --apply --max-deletions 20"
+          "run": "python3 tool/github_storage_cleanup.py --apply --max-deletions 5"
         }
       ]
     }

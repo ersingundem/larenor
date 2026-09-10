@@ -43,7 +43,7 @@ class GitHubStorageWorkflowTest(unittest.TestCase):
         self.assertLess(test_index, apply_index)
         self.assertEqual(
             apply['run'],
-            'python3 tool/github_storage_cleanup.py --apply --max-deletions 20')
+            'python3 tool/github_storage_cleanup.py --apply --max-deletions 5')
         self.assertEqual(apply['env'], {'GH_TOKEN': '${{ github.token }}'})
         rendered = WORKFLOW.read_text()
         self.assertNotIn('packages: write', rendered)

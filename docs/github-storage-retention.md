@@ -45,7 +45,9 @@ The repository workflow `.github/workflows/github-storage-retention.yml` runs
 daily at **03:15 Europe/Istanbul** (`00:15 UTC`) and can also be started
 manually. It is restricted to `ersingundem/larenor`, grants only `contents:
 read` and `actions: write`, tests the retention policy before applying it, and
-runs one bounded apply attempt with no workflow retry. The GitHub token cannot
+runs one bounded apply attempt of at most five deletions with no workflow
+retry. The smaller scheduled budget leaves enough API calls to re-list a large
+artifact inventory before every delete. The GitHub token cannot
 delete packages, while the utility itself has no package deletion endpoint.
 The newest three debug APK artifacts and every signed APK/test artifact remain
 protected by the same revalidated policy.
