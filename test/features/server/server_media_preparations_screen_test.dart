@@ -9,6 +9,7 @@ import 'package:http/http.dart' as http;
 import 'package:larenor/core/app_interaction_scope.dart';
 import 'package:larenor/features/server/domain/server_models.dart';
 import 'package:larenor/features/server/media_preparations/presentation/server_media_preparations_screen.dart';
+import 'package:larenor/features/server/music_provider_commands/presentation/server_music_provider_commands_screen.dart';
 import 'package:larenor/features/server/plugins/presentation/server_plugins_screen.dart';
 import 'package:larenor/features/server/providers/server_providers.dart';
 import 'package:larenor/features/settings/presentation/settings_gate_screen.dart';
@@ -229,6 +230,16 @@ void main() {
       await tap(tester, 'plugins-media');
       expect(find.byKey(const ValueKey('media-new')), findsOneWidget);
       expect(find.byKey(const ValueKey('media-music-core')), findsOneWidget);
+      expect(
+        find.byKey(const ValueKey('media-provider-commands')),
+        findsOneWidget,
+      );
+      await tap(tester, 'media-provider-commands');
+      expect(find.byType(ServerMusicProviderCommandsScreen), findsOneWidget);
+      expect(
+        find.byKey(const ValueKey('provider-enable-preview')),
+        findsNothing,
+      );
       expect(f.mutations, isEmpty);
     },
   );
