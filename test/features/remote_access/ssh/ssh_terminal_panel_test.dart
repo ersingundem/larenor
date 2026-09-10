@@ -52,8 +52,41 @@ void main() {
       await setup(t, ui, engine);
       expect(key('ssh-password'), findsOneWidget);
       expect(engine.opens, 0);
+      expect(key('ssh-tab-1'), findsOneWidget);
+      expect(key('ssh-tab-add'), findsOneWidget);
     },
   );
+  testWidgets('tablet tab strip exposes status and never connects a new tab', (
+    t,
+  ) async {
+    final ui = RemoteUi();
+    final engines = <Engine>[];
+    await ui.mount(
+      t,
+      pin: true,
+      width: 1280,
+      sshEngine: () {
+        final engine = Engine();
+        engines.add(engine);
+        return engine;
+      },
+    );
+    await ui.edit(t);
+    await ui.save(t);
+    await ui.openFirst(t);
+    await press(t, 'remote-ssh-open');
+    await credentials(t);
+    await press(t, 'ssh-tab-add');
+    expect(key('ssh-tab-1'), findsOneWidget);
+    expect(key('ssh-tab-2'), findsOneWidget);
+    expect(engines, isEmpty);
+    await press(t, 'ssh-connect');
+    expect(engines, hasLength(1));
+    await press(t, 'ssh-trust');
+    expect(find.textContaining('Connected'), findsWidgets);
+    await press(t, 'ssh-tab-close');
+    expect(engines.single.closed, isTrue);
+  });
   testWidgets(
     'actual credential store trust, output, explicit send and disconnect no replay',
     (t) async {
