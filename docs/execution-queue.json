@@ -1047,10 +1047,10 @@
         {
           "kind": "test",
           "ref": "docs/arr-configuration-jobs-implementation-2026-09-10.md",
-          "commit": "8a342f648bd7dc730d61650f3358998fedb8f4db",
+          "commit": "c3eaceee5007513cdd019e40563107d054e707f7",
           "state": "completed",
           "result": "passed",
-          "label": "Sonarr/Radarr servis başına tekil, AES-GCM şifreli no-retry Core işlerine bağlandı; Server üretimli API anahtarı, dispatcher, idempotence ve belirsiz sonuçlar ilgili Arr paketlerinde 253 PASS / 1 mevcut macOS skip ile doğrulandı."
+          "label": "Sonarr/Radarr servis başına tekil, AES-GCM şifreli no-retry Core işlerine bağlandı; Server üretimli API anahtarı, dispatcher, idempotence ve belirsiz sonuçlar ilgili Arr paketlerinde 267 PASS / 1 mevcut macOS skip ile doğrulandı."
         }
       ],
       "completionCommit": null,
