@@ -63,6 +63,7 @@ final class ProxmoxPowerTarget {
     required this.guestKind,
     required this.currentState,
     required this.statusRevision,
+    required this.allowedActions,
   });
 
   final String coreId, homeId, resourceId, bindingId, serviceId;
@@ -70,6 +71,7 @@ final class ProxmoxPowerTarget {
   final int bindingRevision, serviceRevision, statusRevision;
   final ProxmoxGuestKind guestKind;
   final ProxmoxGuestState currentState;
+  final Set<ProxmoxPowerAction> allowedActions;
 
   void validate() {
     for (final id in [coreId, homeId, resourceId]) {
@@ -94,6 +96,21 @@ final class ProxmoxPowerTarget {
         throw ArgumentError.value(value, 'revision');
       }
     }
+    final expected = switch (currentState) {
+      ProxmoxGuestState.running => const {
+        ProxmoxPowerAction.shutdown,
+        ProxmoxPowerAction.stop,
+        ProxmoxPowerAction.reboot,
+        ProxmoxPowerAction.suspend,
+      },
+      ProxmoxGuestState.stopped => const {ProxmoxPowerAction.start},
+      ProxmoxGuestState.suspended => const {ProxmoxPowerAction.resume},
+    };
+    if (allowedActions.isEmpty ||
+        allowedActions.length != expected.length ||
+        !allowedActions.containsAll(expected)) {
+      throw ArgumentError.value(allowedActions, 'allowedActions');
+    }
   }
 
   ProxmoxPowerTarget copyWith({String? bindingId}) {
@@ -111,6 +128,7 @@ final class ProxmoxPowerTarget {
       guestKind: guestKind,
       currentState: currentState,
       statusRevision: statusRevision,
+      allowedActions: allowedActions,
     );
     value.validate();
     return value;

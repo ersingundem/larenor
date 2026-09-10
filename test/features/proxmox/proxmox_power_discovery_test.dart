@@ -9,6 +9,7 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:larenor/features/home_resources/domain/home_resource_models.dart';
 import 'package:larenor/features/proxmox/core_power/proxmox_power_discovery.dart';
+import 'package:larenor/features/proxmox/core_power/proxmox_power_models.dart';
 import 'package:larenor/features/server/data/larenor_server_api.dart';
 import 'package:larenor/features/server/domain/server_models.dart';
 
@@ -89,9 +90,7 @@ final class FakeDiscoveryGateway implements ProxmoxTargetDiscoveryGateway {
   int requests = 0;
 
   @override
-  Future<ProxmoxTargetDiscoveryResult> discover(
-    HomeResourceRecord resource,
-  ) {
+  Future<ProxmoxTargetDiscoveryResult> discover(HomeResourceRecord resource) {
     requests++;
     if (error case final value?) return Future.error(value);
     return pending?.future ?? Future.value(result);
@@ -108,132 +107,140 @@ Widget app(Widget child, {double scale = 1}) => CupertinoApp(
 );
 
 void main() {
-  test('discovery API binds one exact ready target and uses a bounded read', () async {
-    late http.Request request;
-    final transport = LarenorServerApi(
-      endpoint: ServerEndpoint('https://core.invalid'),
-      client: MockClient((value) async {
-        request = value;
-        return http.Response(
-          jsonEncode(pageJson()),
-          200,
-          headers: {'content-type': 'application/json'},
-        );
-      }),
-    );
-    final result = await CoreProxmoxTargetDiscoveryApi(
-      transport,
-      't' * 43,
-    ).discover(resource);
-    expect(request.method, 'GET');
-    expect(
-      request.url.path,
-      '/api/v1/admin/proxmox-power/$coreId/$homeId/$resourceId/targets',
-    );
-    expect(request.url.queryParameters, {'limit': '2'});
-    expect(request.headers['authorization'], 'Bearer ${'t' * 43}');
-    expect(result.phase, ProxmoxTargetDiscoveryPhase.ready);
-    expect(result.target!.statusRevision, 7);
-    expect(
-      result.target!.allowedActions,
-      {
+  test(
+    'discovery API binds one exact ready target and uses a bounded read',
+    () async {
+      late http.Request request;
+      final transport = LarenorServerApi(
+        endpoint: ServerEndpoint('https://core.invalid'),
+        client: MockClient((value) async {
+          request = value;
+          return http.Response(
+            jsonEncode(pageJson()),
+            200,
+            headers: {'content-type': 'application/json'},
+          );
+        }),
+      );
+      final result = await CoreProxmoxTargetDiscoveryApi(
+        transport,
+        't' * 43,
+      ).discover(resource);
+      expect(request.method, 'GET');
+      expect(
+        request.url.path,
+        '/api/v1/admin/proxmox-power/$coreId/$homeId/$resourceId/targets',
+      );
+      expect(request.url.queryParameters, {'limit': '2'});
+      expect(request.headers['authorization'], 'Bearer ${'t' * 43}');
+      expect(result.phase, ProxmoxTargetDiscoveryPhase.ready);
+      expect(result.target!.statusRevision, 7);
+      expect(result.target!.allowedActions, {
         ProxmoxPowerAction.shutdown,
         ProxmoxPowerAction.stop,
         ProxmoxPowerAction.reboot,
         ProxmoxPowerAction.suspend,
-      },
-    );
-    transport.close();
-  });
+      });
+      transport.close();
+    },
+  );
 
-  test('strict discovery rejects revision drift, extra fields and false readiness', () {
-    expect(
-      () => ProxmoxTargetDiscoveryResult.fromJson(
-        {...pageJson(), 'host': 'secret.invalid'},
-        expectedResource: resource,
-      ),
-      throwsA(isA<LarenorServerException>()),
-    );
-    expect(
-      () => ProxmoxTargetDiscoveryResult.fromJson(
-        {...pageJson(), 'resourceRevision': 99},
-        expectedResource: resource,
-      ),
-      throwsA(
-        isA<LarenorServerException>().having(
-          (value) => value.code,
-          'code',
-          'revision_conflict',
+  test(
+    'strict discovery rejects revision drift, extra fields and false readiness',
+    () {
+      expect(
+        () => ProxmoxTargetDiscoveryResult.fromJson({
+          ...pageJson(),
+          'host': 'secret.invalid',
+        }, expectedResource: resource),
+        throwsA(isA<LarenorServerException>()),
+      );
+      expect(
+        () => ProxmoxTargetDiscoveryResult.fromJson({
+          ...pageJson(),
+          'resourceRevision': 99,
+        }, expectedResource: resource),
+        throwsA(
+          isA<LarenorServerException>().having(
+            (value) => value.code,
+            'code',
+            'revision_conflict',
+          ),
         ),
-      ),
-    );
-    expect(
-      () => ProxmoxTargetDiscoveryResult.fromJson(
+      );
+      expect(
+        () => ProxmoxTargetDiscoveryResult.fromJson(
+          pageJson(
+            targets: [
+              {...targetJson(), 'capabilityReady': false},
+            ],
+          ),
+          expectedResource: resource,
+        ),
+        throwsA(isA<LarenorServerException>()),
+      );
+    },
+  );
+
+  test(
+    'multiple, paged and unavailable targets never become command authority',
+    () {
+      final multiple = ProxmoxTargetDiscoveryResult.fromJson(
         pageJson(
           targets: [
-            {...targetJson(), 'capabilityReady': false},
+            targetJson(targetId: '1' * 32, ready: false),
+            targetJson(targetId: '2' * 32, ready: false),
           ],
         ),
         expectedResource: resource,
-      ),
-      throwsA(isA<LarenorServerException>()),
-    );
-  });
+      );
+      final paged = ProxmoxTargetDiscoveryResult.fromJson(
+        pageJson(targets: [targetJson(ready: false)], nextAfter: 'f' * 32),
+        expectedResource: resource,
+      );
+      final unavailable = ProxmoxTargetDiscoveryResult.fromJson(
+        pageJson(targets: [targetJson(state: 'unavailable', ready: false)]),
+        expectedResource: resource,
+      );
+      expect(multiple.phase, ProxmoxTargetDiscoveryPhase.ambiguous);
+      expect(paged.phase, ProxmoxTargetDiscoveryPhase.ambiguous);
+      expect(unavailable.phase, ProxmoxTargetDiscoveryPhase.unavailable);
+      expect([
+        multiple.target,
+        paged.target,
+        unavailable.target,
+      ], everyElement(isNull));
+    },
+  );
 
-  test('multiple, paged and unavailable targets never become command authority', () {
-    final multiple = ProxmoxTargetDiscoveryResult.fromJson(
-      pageJson(
-        targets: [
-          targetJson(targetId: '1' * 32, ready: false),
-          targetJson(targetId: '2' * 32, ready: false),
-        ],
-      ),
-      expectedResource: resource,
-    );
-    final paged = ProxmoxTargetDiscoveryResult.fromJson(
-      pageJson(
-        targets: [targetJson(ready: false)],
-        nextAfter: 'f' * 32,
-      ),
-      expectedResource: resource,
-    );
-    final unavailable = ProxmoxTargetDiscoveryResult.fromJson(
-      pageJson(
-        targets: [targetJson(state: 'unavailable', ready: false)],
-      ),
-      expectedResource: resource,
-    );
-    expect(multiple.phase, ProxmoxTargetDiscoveryPhase.ambiguous);
-    expect(paged.phase, ProxmoxTargetDiscoveryPhase.ambiguous);
-    expect(unavailable.phase, ProxmoxTargetDiscoveryPhase.unavailable);
-    expect([multiple.target, paged.target, unavailable.target], everyElement(isNull));
-  });
-
-  test('controller discards late authority and never retries automatically', () async {
-    final ready = ProxmoxTargetDiscoveryResult.fromJson(
-      pageJson(),
-      expectedResource: resource,
-    );
-    final gateway = FakeDiscoveryGateway(ready)
-      ..pending = Completer<ProxmoxTargetDiscoveryResult>();
-    var current = true;
-    final controller = ProxmoxTargetDiscoveryController(
-      gateway: gateway,
-      resource: resource,
-      current: () => current,
-    );
-    final operation = controller.discover();
-    current = false;
-    controller.invalidate();
-    gateway.pending!.complete(ready);
-    await operation;
-    expect(controller.phase, ProxmoxTargetDiscoveryPhase.idle);
-    expect(controller.target, isNull);
-    expect(gateway.requests, 1);
-    await Future<void>.delayed(Duration.zero);
-    expect(gateway.requests, 1);
-    controller.dispose();
-  });
+  test(
+    'controller discards late authority and never retries automatically',
+    () async {
+      final ready = ProxmoxTargetDiscoveryResult.fromJson(
+        pageJson(),
+        expectedResource: resource,
+      );
+      final gateway = FakeDiscoveryGateway(ready)
+        ..pending = Completer<ProxmoxTargetDiscoveryResult>();
+      var current = true;
+      final controller = ProxmoxTargetDiscoveryController(
+        gateway: gateway,
+        resource: resource,
+        current: () => current,
+      );
+      final operation = controller.discover();
+      current = false;
+      controller.invalidate();
+      gateway.pending!.complete(ready);
+      await operation;
+      expect(controller.phase, ProxmoxTargetDiscoveryPhase.idle);
+      expect(controller.target, isNull);
+      expect(gateway.requests, 1);
+      await Future<void>.delayed(Duration.zero);
+      expect(gateway.requests, 1);
+      controller.dispose();
+    },
+  );
 
   testWidgets('single ready discovery enables explicit 48dp keyboard entry', (
     tester,
@@ -277,7 +284,7 @@ void main() {
     controller.dispose();
   });
 
-  testWidgets('ambiguous and offline states stay visible with zero mutation', (
+  testWidgets('ambiguous, stale, offline and unavailable stay mutation-free', (
     tester,
   ) async {
     final ambiguous = ProxmoxTargetDiscoveryResult.fromJson(
@@ -314,53 +321,68 @@ void main() {
     await tester.pump();
     expect(find.textContaining('offline'), findsOneWidget);
     expect(gateway.requests, 2);
+    gateway.error = const LarenorServerException('revision_conflict');
+    await tester.tap(find.byKey(const ValueKey('core-proxmox-power-refresh')));
+    await tester.pump();
+    expect(find.textContaining('changed'), findsOneWidget);
+    gateway
+      ..error = null
+      ..result = ProxmoxTargetDiscoveryResult.fromJson(
+        pageJson(targets: [targetJson(state: 'unavailable', ready: false)]),
+        expectedResource: resource,
+      );
+    await tester.tap(find.byKey(const ValueKey('core-proxmox-power-refresh')));
+    await tester.pump();
+    expect(find.textContaining('No command-ready'), findsOneWidget);
+    expect(gateway.requests, 4);
     await tester.pump(const Duration(seconds: 30));
-    expect(gateway.requests, 2);
+    expect(gateway.requests, 4);
     expect(opened, 0);
     controller.dispose();
   });
 
-  testWidgets('member never discovers and background invalidates pending read', (
-    tester,
-  ) async {
-    final ready = ProxmoxTargetDiscoveryResult.fromJson(
-      pageJson(),
-      expectedResource: resource,
-    );
-    final gateway = FakeDiscoveryGateway(ready)
-      ..pending = Completer<ProxmoxTargetDiscoveryResult>();
-    final controller = ProxmoxTargetDiscoveryController(
-      gateway: gateway,
-      resource: resource,
-      current: () => true,
-    );
-    await tester.pumpWidget(
-      app(
-        ProxmoxTargetDiscoveryEntry(
-          controller: controller,
-          isAdmin: false,
-          canWrite: true,
-          onOpen: (_) {},
+  testWidgets(
+    'member never discovers and background invalidates pending read',
+    (tester) async {
+      final ready = ProxmoxTargetDiscoveryResult.fromJson(
+        pageJson(),
+        expectedResource: resource,
+      );
+      final gateway = FakeDiscoveryGateway(ready)
+        ..pending = Completer<ProxmoxTargetDiscoveryResult>();
+      final controller = ProxmoxTargetDiscoveryController(
+        gateway: gateway,
+        resource: resource,
+        current: () => true,
+      );
+      await tester.pumpWidget(
+        app(
+          ProxmoxTargetDiscoveryEntry(
+            controller: controller,
+            isAdmin: false,
+            canWrite: true,
+            onOpen: (_) {},
+          ),
         ),
-      ),
-    );
-    expect(gateway.requests, 0);
-    await tester.pumpWidget(
-      app(
-        ProxmoxTargetDiscoveryEntry(
-          controller: controller,
-          isAdmin: true,
-          canWrite: true,
-          onOpen: (_) {},
+      );
+      expect(gateway.requests, 0);
+      await tester.pumpWidget(
+        app(
+          ProxmoxTargetDiscoveryEntry(
+            controller: controller,
+            isAdmin: true,
+            canWrite: true,
+            onOpen: (_) {},
+          ),
         ),
-      ),
-    );
-    expect(gateway.requests, 1);
-    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
-    gateway.pending!.complete(ready);
-    await tester.pump();
-    expect(controller.target, isNull);
-    expect(controller.phase, ProxmoxTargetDiscoveryPhase.idle);
-    controller.dispose();
-  });
+      );
+      expect(gateway.requests, 1);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+      gateway.pending!.complete(ready);
+      await tester.pump();
+      expect(controller.target, isNull);
+      expect(controller.phase, ProxmoxTargetDiscoveryPhase.idle);
+      controller.dispose();
+    },
+  );
 }

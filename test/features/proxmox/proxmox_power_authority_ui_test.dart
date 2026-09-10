@@ -53,10 +53,10 @@ void main() {
         ),
       ),
     );
-    final start = tester.widget<CupertinoButton>(
-      find.widgetWithText(CupertinoButton, 'Start'),
+    final shutdown = tester.widget<CupertinoButton>(
+      find.widgetWithText(CupertinoButton, 'Shut down'),
     );
-    expect(start.onPressed, isNull);
+    expect(shutdown.onPressed, isNull);
     expect(gateway.previews, 0);
     controller.dispose();
   });
@@ -111,7 +111,7 @@ void main() {
         ),
       ),
     );
-    for (var index = 0; index < 4; index++) {
+    for (var index = 0; index < 3; index++) {
       await tester.sendKeyEvent(LogicalKeyboardKey.tab);
       await tester.pump();
     }

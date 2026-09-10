@@ -55,7 +55,12 @@ final class ProxmoxPowerController extends ChangeNotifier {
   }
 
   Future<void> preview(ProxmoxPowerAction action) async {
-    if (_disposed || !current() || phase != ProxmoxPowerPhase.idle) return;
+    if (_disposed ||
+        !current() ||
+        phase != ProxmoxPowerPhase.idle ||
+        !target.allowedActions.contains(action)) {
+      return;
+    }
     final operation = ++_epoch;
     phase = ProxmoxPowerPhase.previewing;
     failure = null;
