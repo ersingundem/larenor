@@ -240,9 +240,10 @@ def test_diagnostic_phase_preserves_only_closed_arr_code():
     with pytest.raises(module.ArrManagedCIError) as known:
         with module.diagnostic_phase("runtime_install"):
             raise ArrConfigurationExecutionError(
-                "arr_config_timeout", uncertain_effect=True
+                "arr_config_timeout", uncertain_effect=True,
+                cause_code="arr_authenticated_readback_timeout",
             )
-    assert known.value.args == ("arr_config_timeout",)
+    assert known.value.args == ("arr_authenticated_readback_timeout",)
 
     class Untrusted(Exception):
         code = "arr_config_timeout"

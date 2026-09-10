@@ -243,9 +243,13 @@ def test_invalid_worker_receipt_is_closed_without_private_output():
 def test_private_model_and_error_never_render_api_key():
     payload = private()
     failure = ArrConfigurationExecutionError(
-        'arr_config_write_failed', uncertain_effect=True)
+        'arr_config_write_failed', uncertain_effect=True,
+        cause_code='arr_execution_invalid_worker_result')
     assert API_KEY not in repr(payload)
     assert API_KEY not in repr(failure)
+    assert failure.cause_code == 'arr_execution_invalid_worker_result'
+    assert ArrConfigurationExecutionError(
+        cause_code=API_KEY).cause_code is None
 
 @pytest.mark.parametrize('service_id', ['sonarr', 'radarr'])
 def test_configured_arr_install_roundtrip_includes_verified_container(service_id):

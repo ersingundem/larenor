@@ -44,6 +44,17 @@ _PRODUCTION_CODES = frozenset(
         "arr_config_write_failed",
         "arr_config_result_invalid",
         "arr_config_timeout",
+        "arr_configure_stage_failed",
+        "arr_execution_stage_failed",
+        "arr_bootstrap_stage_failed",
+        "arr_receipt_stage_failed",
+        "arr_execution_authority_changed",
+        "arr_execution_cancelled",
+        "arr_execution_worker_unavailable",
+        "arr_execution_invalid_worker_result",
+        "arr_execution_resource_conflict",
+        "arr_execution_container_not_running",
+        "arr_execution_dispatch_expired",
         "arr_config_runtime_untrusted",
         "arr_config_runtime_configuration_invalid",
         "arr_config_runtime_effect_failed",
@@ -66,6 +77,16 @@ _PRODUCTION_CODES = frozenset(
         "arr_bootstrap_endpoint_changed",
         "arr_bootstrap_readback_failed",
         "arr_bootstrap_timeout",
+        "arr_bootstrap_authority_changed",
+        "arr_bootstrap_before_connect_failed",
+        "arr_bootstrap_after_connect_failed",
+        "arr_bootstrap_after_readback_failed",
+        "invalid_arr_authenticated_readback",
+        "arr_authentication_failed",
+        "arr_readback_protocol",
+        "arr_readback_mismatch",
+        "arr_authenticated_readback_unavailable",
+        "arr_authenticated_readback_timeout",
     }
 )
 _DIAGNOSTIC_CODES = frozenset(
@@ -112,6 +133,9 @@ def _production_diagnostic(error):
         ArrConfigRuntimeError,
         InstallationExecutionError,
     }
+    cause = getattr(error, "cause_code", None)
+    if type(error) is ArrConfigurationExecutionError and cause in _PRODUCTION_CODES:
+        return cause
     code = getattr(error, "code", None)
     return code if type(error) in trusted and code in _PRODUCTION_CODES else None
 
