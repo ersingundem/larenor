@@ -46,6 +46,21 @@ class _Pending:
     created: float
 
 
+@dataclass(frozen=True, repr=False)
+class ProxmoxCommandFacts:
+    core_id: str
+    home_id: str
+    resource_id: str
+    user_revision: int
+    resource_revision: int
+    acl_revision: int
+    binding_id: str
+    binding_revision: int
+    service_id: str
+    service_revision: int
+    fingerprint: tuple
+
+
 class ProxmoxResourceAdapter:
     def __init__(self, db, auth, settings, key, resources, services):
         self.db, self.auth, self.settings = db, auth, settings
@@ -199,6 +214,28 @@ class ProxmoxResourceAdapter:
             if value is None:
                 raise ApiError('not_found', 404)
             return {'binding': value.model_dump()}
+
+    def command_facts(self, actor, core, home, resource):
+        """Return private, exact authority facts without service secrets."""
+        with self._tx(actor, core, home, admin=True) as (connection, actor_facts):
+            fingerprint, row, ref, _, binding, service = self._facts(
+                connection, actor_facts, resource
+            )
+            if binding is None:
+                raise ApiError('not_found', 404)
+            return ProxmoxCommandFacts(
+                core_id=ref.coreId,
+                home_id=ref.homeId,
+                resource_id=ref.id,
+                user_revision=actor_facts.revision,
+                resource_revision=row['revision'],
+                acl_revision=row['acl_revision'],
+                binding_id=binding.id,
+                binding_revision=binding.revision,
+                service_id=service.id,
+                service_revision=service.revision,
+                fingerprint=fingerprint,
+            )
 
     def preview(self, actor, core, home, resource, body, *, cancelled=lambda: False):
         body = PreviewRequest.model_validate(body)

@@ -242,6 +242,7 @@ class CoreServices:
             self.proxmox = ProxmoxResourceAdapter(
                 self.db, self.auth, settings, key, self.home_resources, self.services)
             self.proxmox.validate_storage()
+            self.proxmox_power.attach_binding_reader(self.proxmox)
             self.service_probe = ServiceProbeRunner(self.services)
             self.plugins = PluginManagement(self.db, self.auth, settings, key)
             self.plugins.validate_storage()

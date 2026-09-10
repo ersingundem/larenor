@@ -1,5 +1,6 @@
 """Admin-only Proxmox target discovery; every provider value is synthetic."""
 from dataclasses import dataclass
+import socket
 
 import pytest
 from fastapi.testclient import TestClient
@@ -19,15 +20,16 @@ class DiscoveryProvider:
 
     def discover(self, resource_id):
         self.reads += 1
+        values = list(self.values)
         if self.on_read is not None:
             callback, self.on_read = self.on_read, None
             callback()
-        return [value for value in self.values if value.resource_id == resource_id]
+        return [value for value in values if value.resource_id == resource_id]
 
 
 def discovered(record, binding, service, *, node="pve-a", guest_id=101,
                kind="qemu", state="running", status_revision=7,
-               installation_id="9" * 32, ready=True):
+               installation_id=None, ready=True):
     return ProxmoxGuestDescriptor(
         resource_id=record["ref"]["id"],
         binding_id=binding["id"],
@@ -37,7 +39,7 @@ def discovered(record, binding, service, *, node="pve-a", guest_id=101,
         guest_kind=kind,
         status=state,
         status_revision=status_revision,
-        installation_id=installation_id,
+        installation_id=installation_id or service["id"],
         node=node,
         guest_id=guest_id,
         capability_ready=ready,
@@ -71,7 +73,7 @@ def test_admin_reads_exact_redacted_command_ready_target(server):
     assert target == {
         "schemaVersion": 1,
         "targetId": target["targetId"],
-        "installationId": "9" * 32,
+        "installationId": service["id"],
         "node": "pve-a",
         "guestKind": "qemu",
         "guestId": 101,
@@ -110,6 +112,20 @@ def test_member_and_missing_binding_fail_before_provider_read(server):
     assert client.get(other_base, headers=auth(admin)).status_code == 404
     assert provider.reads == 0
 
+
+def test_default_discovery_is_offline_and_never_opens_a_network_socket(
+    server, monkeypatch
+):
+    app, client, admin, record, service, binding, base = prepared(server)
+    real_socket = socket.socket
+
+    def deny_network(family=socket.AF_INET, *args, **kwargs):
+        if family in (socket.AF_INET, socket.AF_INET6):
+            pytest.fail("target discovery opened a network socket")
+        return real_socket(family, *args, **kwargs)
+
+    monkeypatch.setattr(socket, "socket", deny_network)
+    assert client.get(base + "/targets", headers=auth(admin)).status_code == 404
 
 @pytest.mark.parametrize("mode", ["missing", "duplicate", "oversized", "malformed"])
 def test_missing_ambiguous_and_unbounded_provider_results_fail_closed(server, mode):
@@ -180,7 +196,7 @@ def test_pagination_is_snapshot_bound_and_multiple_guests_are_not_command_ready(
 @pytest.mark.parametrize("query", [
     "?limit=0", "?limit=101", "?limit=01", "?after=bad",
     "?after=" + "a" * 32, "?expectedSnapshot=" + "b" * 64,
-    "?limit=1&limit=1", "?unknown=1",
+    "?limit=1&limit=1", "?limit=" + "9" * 1000, "?unknown=1",
 ])
 def test_query_bounds_and_cursor_contract_are_exact(server, query):
     app, client, admin, record, service, binding, base = prepared(server)
@@ -188,6 +204,26 @@ def test_query_bounds_and_cursor_contract_are_exact(server, query):
     app.state.core.proxmox_power.provider = provider
     assert client.get(base + "/targets" + query, headers=auth(admin)).status_code == 400
     assert provider.reads == 0
+
+
+def test_duplicate_authorization_and_unbound_installation_are_rejected(server):
+    app, client, admin, record, service, binding, base = prepared(server)
+    provider = DiscoveryProvider([discovered(record, binding, service)])
+    app.state.core.proxmox_power.provider = provider
+    duplicate = client.get(
+        base + "/targets",
+        headers=[
+            ("Authorization", "Bearer " + admin["accessToken"]),
+            ("Authorization", "Bearer " + admin["accessToken"]),
+        ],
+    )
+    assert duplicate.status_code == 400
+    assert provider.reads == 0
+
+    provider.values = [
+        discovered(record, binding, service, installation_id="9" * 32)
+    ]
+    assert client.get(base + "/targets", headers=auth(admin)).status_code == 409
 
 
 def test_binding_ciphertext_corruption_and_provider_revision_drift_are_static(server):

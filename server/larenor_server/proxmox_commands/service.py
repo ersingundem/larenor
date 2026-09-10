@@ -1,9 +1,13 @@
 from dataclasses import dataclass
+import hashlib
+import hmac
+import json
 import re
 import threading
 import uuid
 
 from ..errors import ApiError
+from .discovery_models import DiscoveredTarget, TargetDiscoveryPage
 from .models import ConfirmRequest, PowerPreview, PowerReceipt, PreviewRequest, ProxmoxGuestDescriptor
 from .storage import PowerReceiptStore
 
@@ -26,6 +30,9 @@ class UnavailableGuestProvider:
     def resolve(self, _resource_id):
         return None
 
+    def discover(self, _resource_id):
+        return []
+
 
 class UnavailablePowerExecutor:
     def execute(self, _descriptor, _action, _guard):
@@ -47,8 +54,209 @@ class ProxmoxPowerAuthority:
         self.provider = provider or UnavailableGuestProvider()
         self.executor = executor or UnavailablePowerExecutor()
         self.store = PowerReceiptStore(registry.db, settings, key)
+        self._discovery_key = key
+        self._binding_reader = None
         self._previews = {}
         self._lock = threading.Lock()
+
+    def attach_binding_reader(self, reader):
+        if self._binding_reader is not None or not callable(
+            getattr(reader, "command_facts", None)
+        ):
+            raise RuntimeError("proxmox_binding_reader_invalid")
+        self._binding_reader = reader
+
+    @staticmethod
+    def _discovery_descriptor(value, resource_id):
+        if not isinstance(value, ProxmoxGuestDescriptor):
+            raise ApiError("server_unavailable", 503)
+        if (
+            value.resource_id != resource_id
+            or not isinstance(value.installation_id, str)
+            or re.fullmatch(r"[0-9a-f]{32}", value.installation_id) is None
+            or not isinstance(value.node, str)
+            or re.fullmatch(
+                r"[A-Za-z0-9](?:[A-Za-z0-9._-]{0,62}[A-Za-z0-9])?",
+                value.node,
+            ) is None
+            or type(value.guest_id) is not int
+            or not 1 <= value.guest_id <= 999_999_999
+            or type(value.capability_ready) is not bool
+        ):
+            raise ApiError("server_unavailable", 503)
+        return ProxmoxPowerAuthority._descriptor(value, resource_id)
+
+    def _provider_targets(self, resource_id):
+        try:
+            discover = getattr(self.provider, "discover", None)
+            if callable(discover):
+                raw = discover(resource_id)
+            else:
+                selected = self.provider.resolve(resource_id)
+                raw = [] if selected is None else [selected]
+            if type(raw) not in (list, tuple):
+                raise TypeError()
+            if len(raw) > 256:
+                raise ApiError("rate_limited", 429)
+            return tuple(
+                self._discovery_descriptor(value, resource_id) for value in raw
+            )
+        except ApiError:
+            raise
+        except Exception:
+            raise ApiError("server_unavailable", 503) from None
+
+    @staticmethod
+    def _target_id(value):
+        public_identity = (
+            f"larenor-proxmox-target-v1:{value.installation_id}:"
+            f"{value.resource_id}:{value.node}:{value.guest_kind}:{value.guest_id}"
+        )
+        return hashlib.sha256(public_identity.encode("ascii")).hexdigest()[:32]
+
+    @classmethod
+    def _normalized_targets(cls, values):
+        normalized = tuple(
+            sorted(
+                (
+                    cls._target_id(value),
+                    value.installation_id,
+                    value.resource_id,
+                    value.binding_id,
+                    value.binding_revision,
+                    value.service_id,
+                    value.service_revision,
+                    value.node,
+                    value.guest_kind,
+                    value.guest_id,
+                    value.status,
+                    value.status_revision,
+                    value.capability_ready,
+                )
+                for value in values
+            )
+        )
+        selectors = [item[:3] + item[7:10] for item in normalized]
+        if len(selectors) != len(set(selectors)):
+            raise ApiError("revision_conflict", 409)
+        return normalized
+
+    def discover_targets(
+        self, actor, core_id, home_id, resource_id, *, limit, after, expected_snapshot
+    ):
+        if self._binding_reader is None:
+            raise ApiError("server_unavailable", 503)
+        first_facts = self._binding_reader.command_facts(
+            actor, core_id, home_id, resource_id
+        )
+        first_values = self._provider_targets(resource_id)
+        if not first_values:
+            raise ApiError("not_found", 404)
+        first = self._normalized_targets(first_values)
+        second_facts = self._binding_reader.command_facts(
+            actor, core_id, home_id, resource_id
+        )
+        second = self._normalized_targets(self._provider_targets(resource_id))
+        if first_facts != second_facts or first != second:
+            raise ApiError("revision_conflict", 409)
+        for value in first_values:
+            if (
+                value.installation_id != first_facts.service_id
+                or value.binding_id != first_facts.binding_id
+                or value.binding_revision != first_facts.binding_revision
+                or value.service_id != first_facts.service_id
+                or value.service_revision != first_facts.service_revision
+            ):
+                raise ApiError("revision_conflict", 409)
+        snapshot_payload = json.dumps(
+            [
+                first_facts.core_id,
+                first_facts.home_id,
+                first_facts.resource_id,
+                first_facts.user_revision,
+                first_facts.resource_revision,
+                first_facts.acl_revision,
+                first_facts.binding_id,
+                first_facts.binding_revision,
+                first_facts.service_id,
+                first_facts.service_revision,
+                first,
+            ],
+            separators=(",", ":"),
+        ).encode("utf-8")
+        snapshot = hmac.new(
+            self._discovery_key,
+            b"larenor-proxmox-target-page-v1:" + snapshot_payload,
+            hashlib.sha256,
+        ).hexdigest()
+        if expected_snapshot is not None and not hmac.compare_digest(
+            snapshot, expected_snapshot
+        ):
+            raise ApiError("revision_conflict", 409)
+        identities = [item[0] for item in first]
+        start = 0
+        if after is not None:
+            try:
+                start = identities.index(after) + 1
+            except ValueError:
+                raise ApiError("revision_conflict", 409) from None
+        window = first[start : start + limit]
+        multiple = len(first) != 1
+        targets = []
+        for item in window:
+            (
+                target_id,
+                installation_id,
+                _,
+                _,
+                _,
+                _,
+                _,
+                node,
+                guest_kind,
+                guest_id,
+                state,
+                status_revision,
+                provider_ready,
+            ) = item
+            ready = provider_ready and not multiple and state != "unavailable"
+            allowed = (
+                [action for action, (_, states, _) in POLICY.items() if state in states]
+                if ready
+                else []
+            )
+            targets.append(
+                DiscoveredTarget(
+                    targetId=target_id,
+                    installationId=installation_id,
+                    node=node,
+                    guestKind=guest_kind,
+                    guestId=guest_id,
+                    currentState=state,
+                    statusRevision=status_revision,
+                    allowedCommands=allowed,
+                    capabilityReady=ready,
+                )
+            )
+        next_after = window[-1][0] if start + len(window) < len(first) else None
+        return TargetDiscoveryPage(
+            scope={
+                "schemaVersion": 1,
+                "coreId": first_facts.core_id,
+                "homeId": first_facts.home_id,
+            },
+            resourceId=first_facts.resource_id,
+            userRevision=first_facts.user_revision,
+            resourceRevision=first_facts.resource_revision,
+            aclRevision=first_facts.acl_revision,
+            bindingId=first_facts.binding_id,
+            bindingRevision=first_facts.binding_revision,
+            serviceId=first_facts.service_id,
+            serviceRevision=first_facts.service_revision,
+            snapshot=snapshot,
+            targets=targets,
+            nextAfter=next_after,
+        ).model_dump()
 
     def close(self):
         with self._lock:
