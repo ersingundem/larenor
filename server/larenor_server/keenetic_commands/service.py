@@ -128,10 +128,15 @@ class KeeneticCommandAuthority:
         if self._actor_revision(actor) != body.expectedUserRevision:
             raise ApiError("keenetic_command_changed", 409)
         self._authorize(actor, body.target, "write")
-        current = TargetState.model_validate(self._observe(body.target))
+        current = TargetState.model_validate(self._observe_current(actor, body.target))
         if not self._same(current, body.target):
             raise ApiError("keenetic_command_changed", 409)
         return current
+
+    def _observe_current(self, actor, target):
+        if hasattr(self._observe, "for_actor"):
+            return self._observe.for_actor(actor, target)
+        return self._observe(target)
 
     def preview(self, actor, body):
         body = CommandRequest.model_validate(body)
@@ -270,7 +275,9 @@ class KeeneticCommandAuthority:
                 if self._actor_revision(actor) != pending.body.expectedUserRevision:
                     raise ApiError("keenetic_command_changed", 409)
                 self._authorize(actor, pending.body.target, "write")
-                observed = TargetState.model_validate(self._observe(pending.body.target))
+                observed = TargetState.model_validate(
+                    self._observe_current(actor, pending.body.target)
+                )
                 if (
                     observed.coreId != pending.body.target.coreId
                     or observed.homeId != pending.body.target.homeId

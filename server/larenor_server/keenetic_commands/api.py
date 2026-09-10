@@ -41,6 +41,14 @@ def _scope(body, core_id, home_id, resource_id):
         raise ApiError("not_found", 404)
 
 
+@router.get(ROOT + "/targets")
+def targets(core_id: Identity, home_id: Identity, resource_id: Identity,
+            actor: Admin, core: Core):
+    return core.keenetic_command_provider.descriptors(
+        actor, core_id, home_id, resource_id
+    )
+
+
 @router.post(ROOT + "/preview")
 def preview(core_id: Identity, home_id: Identity, resource_id: Identity,
             body: CommandRequest, actor: Admin, core: Core):

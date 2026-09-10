@@ -1,10 +1,11 @@
 import pytest
 
+from conftest import auth
 from larenor_server.errors import ApiError
 from larenor_server.keenetic_commands.provider import KeeneticCommandStateProvider
 
 from test_keenetic_command_authority import Actor, state
-from test_keenetic_resource_adapter import _snapshot
+from test_keenetic_resource_adapter import _snapshot, bind, setup
 
 
 def snapshot(**changes):
@@ -18,9 +19,9 @@ def snapshot(**changes):
         {**value["interfaces"][0], "id": "WifiMaster0/AccessPoint1",
          "name": "Guest", "kind": "wifi", "online": False, "guest": True},
     ]
-    value["hosts"][0].update({"internetAccess": "allowed"})
+    value["hosts"][0].update({"interfaceId": "ISP", "internetAccess": "allowed"})
     return {
-        "ref": {"kind": "resource", "id": "3" * 32,
+        "ref": {"schemaVersion": 1, "kind": "resource", "id": "3" * 32,
                 "coreId": "1" * 32, "homeId": "2" * 32},
         "bindingId": "4" * 32, "bindingRevision": 5,
         "serviceId": "5" * 32, "serviceRevision": 6,
@@ -54,7 +55,7 @@ class Egress:
             raise self.error
 
 
-def provider(value=None, authorize=None, egress=None):
+def provider(value=None, authorize=None, egress=None, actor_revision=None):
     source = Resources(value or snapshot())
     checks = []
     result = KeeneticCommandStateProvider(
@@ -62,7 +63,7 @@ def provider(value=None, authorize=None, egress=None):
         authorize=authorize or (lambda actor, target, action: checks.append(
             (actor.id, target.resourceId, action)
         )),
-        actor_revision=lambda _actor: 9,
+        actor_revision=actor_revision or (lambda _actor: 9),
         egress=egress or Egress(),
     )
     return result, source, checks
@@ -127,3 +128,59 @@ def test_observe_accepts_only_an_exact_current_descriptor():
         service.for_actor(
             Actor(), state().model_copy(update={"stateRevision": 999})
         )
+
+
+def test_scope_ambiguity_or_user_revision_loss_fails_closed():
+    duplicate = snapshot()
+    duplicate["telemetry"]["hosts"].append({
+        **duplicate["telemetry"]["hosts"][0],
+        "id": "host-duplicate",
+    })
+    service, _, _ = provider(duplicate)
+    with pytest.raises(ApiError, match="keenetic_command_unavailable"):
+        service.descriptors(Actor(), "1" * 32, "2" * 32, "3" * 32)
+
+    wrong_scope = snapshot()
+    wrong_scope["ref"] = {**wrong_scope["ref"], "id": "9" * 32}
+    service, _, _ = provider(wrong_scope)
+    with pytest.raises(ApiError, match="keenetic_command_unavailable"):
+        service.descriptors(Actor(), "1" * 32, "2" * 32, "3" * 32)
+
+    revisions = iter((9, 10))
+    service, _, _ = provider(actor_revision=lambda _actor: next(revisions))
+    with pytest.raises(ApiError, match="keenetic_command_unavailable"):
+        service.descriptors(Actor(), "1" * 32, "2" * 32, "3" * 32)
+
+
+def test_admin_targets_route_uses_fresh_bound_resource_state(server):
+    app, client, admin, resource, _service, base, _public, body = setup(server)
+    telemetry = snapshot()["telemetry"]
+    calls = []
+    app.state.core.keenetic_resources._reader = lambda _connection, guard: (
+        guard(), calls.append(1), telemetry
+    )[2]
+    bind(client, admin, base, body)
+    app.state.core.keenetic_command_provider._egress = Egress()
+    ref = resource["ref"]
+    path = (
+        f"/api/v1/admin/homes/{ref['coreId']}/{ref['homeId']}"
+        f"/resources/{ref['id']}/keenetic/commands/targets"
+    )
+    response = client.get(path, headers=auth(admin))
+    assert response.status_code == 200, response.text
+    descriptors = response.json()["descriptors"]
+    assert [item["target"]["targetKind"] for item in descriptors] == [
+        "guest_wifi", "client", "wan"
+    ]
+    preview = client.post(path.removesuffix("/targets") + "/preview", headers=auth(admin), json={
+        "schemaVersion": 1,
+        "action": descriptors[0]["actions"][0],
+        "target": descriptors[0]["target"],
+        "expectedUserRevision": descriptors[0]["expectedUserRevision"],
+        "requestId": "6" * 32,
+        "idempotencyKey": "B" * 43,
+        "reason": "Guest network schedule",
+    })
+    assert preview.status_code == 200, preview.text
+    assert preview.json()["preview"]["target"] == descriptors[0]["target"]
+    assert len(calls) == 3  # binding preview plus two forced-fresh command reads
