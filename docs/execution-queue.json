@@ -780,7 +780,8 @@
         "docs/qbittorrent-service-verification-implementation-2026-09-10.md",
         "docs/arr-owned-config-implementation-2026-09-10.md",
         "docs/arr-config-helper-implementation-2026-09-10.md",
-        "docs/arr-config-binding-implementation-2026-09-10.md"
+        "docs/arr-config-binding-implementation-2026-09-10.md",
+        "docs/arr-config-effect-implementation-2026-09-10.md"
       ],
       "scope": "Kullanıcı ayrı uygulama kurmaz veya API anahtarı kopyalamaz; sırlar Client/plan/log içine girmez.",
       "acceptance": [
@@ -792,14 +793,6 @@
         "ci"
       ],
       "evidence": [
-        {
-          "kind": "test",
-          "ref": "docs/media-service-bootstrap-implementation-2026-09-09.md",
-          "commit": "2e75cd3467e1f951dfaac288384eef1601ed5c2e",
-          "state": "completed",
-          "result": "passed",
-          "label": "Kalıcı no-retry bootstrap koordinatörü: 18 odaklı/90 ilgili test; şifreli durum geçişi, restart kesintisi, yetki kaybı ve secret-free hata ayrımı doğrulandı. IPC/supervisor, CI ve gerçek servis kabulü açık."
-        },
         {
           "kind": "test",
           "ref": "docs/media-service-bootstrap-implementation-2026-09-09.md",
@@ -1047,10 +1040,18 @@
           "state": "completed",
           "result": "passed",
           "label": "Sonarr/Radarr config bağı current journal intentinden resource/operation/nonce/revision, appdata volume, installation ve sabit stack alanlarını yeniden türetiyor; 44 yeni/138 ilgili test, host etkisi yok."
+        },
+        {
+          "kind": "test",
+          "ref": "docs/arr-config-effect-implementation-2026-09-10.md",
+          "commit": "87449f1724a17e57421d4ccc87fc0cdaf73064d5",
+          "state": "completed",
+          "result": "passed",
+          "label": "Journal-bound Sonarr/Radarr config yalnız sabit networks-off helpera private Engine stdin ile iletiliyor; exact servis/digest sonucu, güvenli container kimliği ve belirsiz lifecycle sınıflaması 22 yeni/160 ilgili testte PASS."
         }
       ],
       "completionCommit": null,
-      "reason": "Server üretimli sır, sabit startup, exact journal/container/private-network yürütücüsü, kalıcı no-retry koordinatör, otomatik yaşam döngüsü dispatcher ve aynı retained daemon'a bağlı private IPC/runtime hazır. Disposable Jellyfin 10.11.11 bootstrap, API anahtarı, kütüphane eşleştirmesi, logout, restart ve veri kalıcılığı exact arm64+amd64 CI'da geçti. qBittorrent 5.2.3 sahipli config/API, journal-bound volume/library planı, güvenli helper, private stdin effect, current-journal runtime bağı, UID-korumalı IPC, şifreli kalıcı Core işi, config-before-create/start ve private endpoint/bootstrap hazır; exact PR41 amd64+arm64 native CI config, Bearer auth, kategori kalıcılığı ve restart readback makbuzlarını doğruladı. Sonarr/Radarr owned config.xml ve exact API-key geri doğrulaması PR42 tam CI ile ana dalda; stdin-only atomik no-overwrite hacim yazıcısı ve current-journal kaynak bağı yerelde yeşil. Arr journal-bound Docker etkisi/native API readback, qBittorrent/root-folder bağlantısı, Seerr ve Music Assistant bootstrap açık; installAvailable=false."
+      "reason": "Server üretimli sır, sabit startup, exact journal/container/private-network yürütücüsü, kalıcı no-retry koordinatör, otomatik yaşam döngüsü dispatcher ve aynı retained daemon'a bağlı private IPC/runtime hazır. Disposable Jellyfin 10.11.11 bootstrap, API anahtarı, kütüphane eşleştirmesi, logout, restart ve veri kalıcılığı exact arm64+amd64 CI'da geçti. qBittorrent 5.2.3 sahipli config/API, journal-bound volume/library planı, güvenli helper, private stdin effect, current-journal runtime bağı, UID-korumalı IPC, şifreli kalıcı Core işi, config-before-create/start ve private endpoint/bootstrap hazır; exact PR41 amd64+arm64 native CI config, Bearer auth, kategori kalıcılığı ve restart readback makbuzlarını doğruladı. Sonarr/Radarr owned config.xml ve exact API-key geri doğrulaması PR42 tam CI ile ana dalda; stdin-only atomik no-overwrite hacim yazıcısı, current-journal kaynak bağı ve networks-off private Docker stdin etkisi yerelde yeşil. Arr installation runtime/container create-start/native API readback, qBittorrent/root-folder bağlantısı, Seerr ve Music Assistant bootstrap açık; installAvailable=false."
     },
     {
       "id": "S06.6",
