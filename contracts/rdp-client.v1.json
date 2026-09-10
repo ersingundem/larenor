@@ -1,0 +1,58 @@
+{
+  "availableCapabilities": {
+    "schemaVersion": 1,
+    "availability": "available",
+    "engineRevision": "fixture-1",
+    "security": {
+      "tls": true,
+      "certificatePinning": true,
+      "nla": true
+    },
+    "display": {
+      "dynamicResolution": true,
+      "externalDisplay": true,
+      "maxWidth": 8192,
+      "maxHeight": 8192,
+      "maxDpi": 640
+    },
+    "input": {
+      "touchpad": true,
+      "keyboard": true
+    },
+    "channels": {
+      "clipboard": false,
+      "audio": false,
+      "files": false
+    }
+  },
+  "unavailableCapabilities": {
+    "schemaVersion": 1,
+    "availability": "unavailable",
+    "engineRevision": null,
+    "security": {
+      "tls": false,
+      "certificatePinning": false,
+      "nla": false
+    },
+    "display": {
+      "dynamicResolution": false,
+      "externalDisplay": false,
+      "maxWidth": 0,
+      "maxHeight": 0,
+      "maxDpi": 0
+    },
+    "input": {
+      "touchpad": false,
+      "keyboard": false
+    },
+    "channels": {
+      "clipboard": false,
+      "audio": false,
+      "files": false
+    }
+  },
+  "certificate": {
+    "algorithm": "spki-sha256",
+    "fingerprint": "SHA256:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+  }
+}
