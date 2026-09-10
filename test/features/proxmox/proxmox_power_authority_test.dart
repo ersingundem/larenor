@@ -23,6 +23,8 @@ const target = ProxmoxPowerTarget(
   serviceId: 'service_1',
   serviceRevision: 6,
   guestKind: ProxmoxGuestKind.qemu,
+  node: 'pve-a',
+  guestId: 101,
   currentState: ProxmoxGuestState.running,
   statusRevision: 7,
   allowedActions: {

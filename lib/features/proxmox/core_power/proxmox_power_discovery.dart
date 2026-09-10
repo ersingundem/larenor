@@ -141,6 +141,8 @@ final class ProxmoxTargetDiscoveryResult {
       serviceId: serviceId,
       serviceRevision: serviceRevision,
       guestKind: discovered.guestKind,
+      node: discovered.node,
+      guestId: discovered.guestId,
       currentState: discovered.currentState!,
       statusRevision: discovered.statusRevision,
       allowedActions: Set.unmodifiable(discovered.allowedActions),
@@ -161,6 +163,8 @@ final class _DiscoveredTarget {
     required this.targetId,
     required this.installationId,
     required this.guestKind,
+    required this.node,
+    required this.guestId,
     required this.currentState,
     required this.statusRevision,
     required this.allowedActions,
@@ -189,7 +193,7 @@ final class _DiscoveredTarget {
             .hasMatch(node)) {
       _invalid();
     }
-    _integer(value['guestId'], 1, 999999999);
+    final guestId = _integer(value['guestId'], 1, 999999999);
     final kind = switch (value['guestKind']) {
       'qemu' => ProxmoxGuestKind.qemu,
       'lxc' => ProxmoxGuestKind.lxc,
@@ -237,6 +241,8 @@ final class _DiscoveredTarget {
       targetId: _hex(value['targetId'], 32),
       installationId: _hex(value['installationId'], 32),
       guestKind: kind,
+      node: node,
+      guestId: guestId,
       currentState: state,
       statusRevision: _integer(value['statusRevision'], 1, 9223372036854775807),
       allowedActions: List.unmodifiable(actions),
@@ -246,6 +252,8 @@ final class _DiscoveredTarget {
 
   final String targetId, installationId;
   final ProxmoxGuestKind guestKind;
+  final String node;
+  final int guestId;
   final ProxmoxGuestState? currentState;
   final int statusRevision;
   final List<ProxmoxPowerAction> allowedActions;

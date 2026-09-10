@@ -9,6 +9,8 @@ import '../../home_resources/presentation/home_resource_admin_screen.dart';
 import '../../home_people/presentation/home_people_screen.dart';
 import '../../server/presentation/server_connection_screen.dart';
 import '../../core_ha/direct_migration/transfer_screen.dart';
+import '../../core_proxmox/presentation/core_proxmox_screen.dart';
+import '../../proxmox/core_power/proxmox_power_models.dart';
 
 import '../../../l10n/generated/app_localizations.dart';
 import '../providers/settings_providers.dart';
@@ -23,6 +25,7 @@ enum SettingsGateDestination {
   homeResources,
   homePeople,
   coreHaTransfer,
+  proxmoxPower,
 }
 
 /// Gates access to [SettingsSplitScreen] behind a PIN, if one has been set —
@@ -33,12 +36,19 @@ class SettingsGateScreen extends ConsumerStatefulWidget {
     super.key,
     this.initialDestination = SettingsGateDestination.settings,
     this.transferParentCurrent,
-  });
+    this.proxmoxPowerTarget,
+    this.proxmoxCanWrite = false,
+  }) : assert(
+         initialDestination != SettingsGateDestination.proxmoxPower ||
+             proxmoxPowerTarget != null,
+       );
 
   final SettingsGateDestination initialDestination;
 
   /// Only the explicit transfer's parent/root route supplies this authority.
   final bool Function()? transferParentCurrent;
+  final ProxmoxPowerTarget? proxmoxPowerTarget;
+  final bool proxmoxCanWrite;
 
   @override
   ConsumerState<SettingsGateScreen> createState() => _SettingsGateScreenState();
@@ -132,8 +142,9 @@ class _SettingsGateScreenState extends ConsumerState<SettingsGateScreen>
       if ((widget.initialDestination == SettingsGateDestination.homeResources ||
               widget.initialDestination ==
                   SettingsGateDestination.coreHaTransfer ||
+              widget.initialDestination == SettingsGateDestination.homePeople ||
               widget.initialDestination ==
-                  SettingsGateDestination.homePeople) &&
+                  SettingsGateDestination.proxmoxPower) &&
           (next.isLoading || next.hasError)) {
         _lockSettings();
         return;
@@ -145,8 +156,9 @@ class _SettingsGateScreenState extends ConsumerState<SettingsGateScreen>
                   SettingsGateDestination.coreHaTransfer ||
               widget.initialDestination ==
                   SettingsGateDestination.homeResources ||
+              widget.initialDestination == SettingsGateDestination.homePeople ||
               widget.initialDestination ==
-                  SettingsGateDestination.homePeople) &&
+                  SettingsGateDestination.proxmoxPower) &&
           previous?.value != next.value) {
         // First PIN creation also closes a phone pane pushed while no PIN was
         // configured. A locked gate underneath that pane is not sufficient.
@@ -185,7 +197,28 @@ class _SettingsGateScreenState extends ConsumerState<SettingsGateScreen>
                       onGenerateRoute: (_) => CupertinoPageRoute<void>(
                         builder: (_) =>
                             widget.initialDestination ==
-                                SettingsGateDestination.serverAccount
+                                SettingsGateDestination.proxmoxPower
+                            ? CoreProxmoxPowerCommandScreen(
+                                target: widget.proxmoxPowerTarget!,
+                                canWrite: widget.proxmoxCanWrite,
+                                gateCurrent: () {
+                                  if (!mounted ||
+                                      !_interactive ||
+                                      resourceGeneration != _generation ||
+                                      ModalRoute.of(context)?.isCurrent !=
+                                          true) {
+                                    return false;
+                                  }
+                                  final currentPin = ref.read(pinLockProvider);
+                                  return !currentPin.isLoading &&
+                                      !currentPin.hasError &&
+                                      currentPin.hasValue &&
+                                      currentPin.value == pin &&
+                                      (pin == null || _unlocked);
+                                },
+                              )
+                            : widget.initialDestination ==
+                                  SettingsGateDestination.serverAccount
                             ? ServerConnectionScreen(
                                 onExit: Navigator.of(context).canPop()
                                     ? _exit
