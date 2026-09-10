@@ -22,6 +22,9 @@ _DIAGNOSTIC_PHASES = {
     'resource_prepare': 'qbittorrent_resource_prepare_failed',
     'runtime_setup': 'qbittorrent_runtime_setup_failed',
     'runtime_install': 'qbittorrent_runtime_install_failed',
+    'configuration_receipt': 'qbittorrent_configuration_receipt_failed',
+    'container_receipt': 'qbittorrent_container_receipt_failed',
+    'service_receipt': 'qbittorrent_service_receipt_failed',
     'container_inspect': 'qbittorrent_container_inspect_failed',
     'resource_verify': 'qbittorrent_resource_verify_failed',
     'container_restart': 'qbittorrent_container_restart_failed',
@@ -29,6 +32,8 @@ _DIAGNOSTIC_PHASES = {
     'post_restart_inspect': 'qbittorrent_post_restart_inspect_failed',
 }
 _PRODUCTION_DIAGNOSTIC_CODES = frozenset({
+    'invalid_execution_request',
+    'invalid_worker_result',
     'qbittorrent_config_authority_changed',
     'qbittorrent_config_resources_unavailable',
     'qbittorrent_config_write_failed',
@@ -84,6 +89,9 @@ class QbittorrentManagedCIError(Exception):
 
 
 def _production_diagnostic(error):
+    from larenor_server.plugins.installation_execution import (
+        InstallationExecutionError,
+    )
     from larenor_server.plugins.qbittorrent_bootstrap_executor import (
         QbittorrentBootstrapExecutionError,
     )
@@ -98,6 +106,7 @@ def _production_diagnostic(error):
     )
 
     trusted = {
+        InstallationExecutionError,
         QbittorrentBootstrapExecutionError,
         QbittorrentConfigEffectError,
         QbittorrentConfigurationExecutionError,
@@ -405,10 +414,15 @@ def _install_and_restart(daemon, source, endpoint, helper_id):
                 api_key=private.apiKey, salt=bytes.fromhex(private.saltHex),
                 cancelled=threading.Event(), deadline=time.monotonic() + 90,
                 gate=lambda: True)
+        with diagnostic_phase('configuration_receipt'):
             require(
-                receipt.configuration.state == 'qbittorrent_config_installed'
-                and receipt.state == 'qbittorrent_container_started'
-                and receipt.service_state == 'qbittorrent_service_verified')
+                receipt.configuration.state
+                == 'qbittorrent_config_installed')
+        with diagnostic_phase('container_receipt'):
+            require(receipt.state == 'qbittorrent_container_started')
+        with diagnostic_phase('service_receipt'):
+            require(
+                receipt.service_state == 'qbittorrent_service_verified')
         with diagnostic_phase('container_inspect'):
             binding_value = binding(source.stack)
             running = engine.inspect_container(receipt.container_id)
