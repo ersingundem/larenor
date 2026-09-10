@@ -107,7 +107,7 @@ def _remaining(deadline):
     return remaining
 
 
-def _resolve(resolver, host, port, deadline):
+def _resolve(resolver, host, port, deadline, address_guard=None):
     if not _DNS_SLOTS.acquire(timeout=_remaining(deadline)):
         raise ProbeTransportError("request_timeout")
     result = queue.Queue(maxsize=1)
@@ -142,10 +142,10 @@ def _resolve(resolver, host, port, deadline):
     if not ok:
         raise ProbeTransportError("resolution_failed")
     _remaining(deadline)
-    return _addresses(answers, port)
+    return _addresses(answers, port, address_guard)
 
 
-def _addresses(answers, port):
+def _addresses(answers, port, address_guard=None):
     valid = []
     invalid = False
     blocked = False
@@ -179,6 +179,9 @@ def _addresses(answers, port):
         raise ProbeTransportError("address_blocked")
     if invalid or not valid:
         raise ProbeTransportError("invalid_resolution")
+    if address_guard is not None:
+        for _, numeric in valid:
+            address_guard(numeric[0])
     # No alternate-address retry: failure of this connection is a failed probe.
     return valid[0]
 
@@ -387,11 +390,14 @@ def _request_bytes(method, path, authority, headers, body, *, allow_delete=False
 
 class ServiceTransport:
     def __init__(self, base_url, *, timeout=8.0, max_bytes=1024 * 1024,
-                 resolver=None, connector=None):
+                 resolver=None, connector=None, address_guard=None):
         if (not isinstance(timeout, (float, int)) or isinstance(timeout, bool)
                 or not math.isfinite(timeout) or not 0 < timeout <= 60
                 or type(max_bytes) is not int or not 1 <= max_bytes <= _MAX_BODY):
             raise ProbeTransportError("invalid_limits")
+        if address_guard is not None and not callable(address_guard):
+            raise ProbeTransportError("invalid_request")
+        self._address_guard = address_guard
         self._scheme, self._host, self._port, self._authority, self._prefix = _base(base_url)
         self._timeout, self._max_bytes = float(timeout), max_bytes
         self._resolver, self._connector = resolver or _resolve_system, connector
@@ -410,7 +416,7 @@ class ServiceTransport:
         with self._lock:
             if self._closed:
                 raise ProbeTransportError("transport_closed")
-        family, address = _resolve(self._resolver, self._host, self._port, deadline)
+        family, address = _resolve(self._resolver, self._host, self._port, deadline, self._address_guard)
         scope = _Deadline(deadline)
         with self._lock:
             if self._closed:
@@ -421,6 +427,12 @@ class ServiceTransport:
         result = None
         before_send_error = None
         try:
+            if self._address_guard is not None:
+                try:
+                    self._address_guard(address[0])
+                except BaseException as caught:
+                    before_send_error = caught
+                    raise ProbeTransportError("address_blocked") from None
             if self._connector is None:
                 connection = socket.socket(family, socket.SOCK_STREAM)
                 scope.attach(connection)
@@ -436,6 +448,8 @@ class ServiceTransport:
                 scope.attach(connection)
                 connection.settimeout(_remaining(deadline))
                 connection.do_handshake()
+            if self._address_guard is not None and connection.getpeername() != address:
+                raise ProbeTransportError("address_blocked")
             if before_send is not None:
                 try:
                     before_send()

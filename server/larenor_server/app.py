@@ -1,3 +1,4 @@
+from .component_egress.api import router as component_egress_router
 from typing import Annotated, Iterable
 import asyncio
 from contextlib import asynccontextmanager
@@ -200,6 +201,7 @@ def create_app(settings: Settings, *, routers: Iterable[APIRouter] = (),
         return app.openapi()
 
     app.include_router(router)
+    app.include_router(component_egress_router, prefix="/api/v1")
     app.include_router(admin_router, prefix="/api/v1")
     app.include_router(services_router, prefix="/api/v1")
     app.include_router(home_resources_router, prefix="/api/v1")
