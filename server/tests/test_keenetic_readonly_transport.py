@@ -181,6 +181,12 @@ def test_authenticated_fixed_show_contract_maps_full_typed_snapshot_and_rates():
         {"name": "WifiMaster0/AccessPoint1", "stat": {}},
     ]}
     assert all(item.closed for item in fake.instances) and len(guards) >= len(fake.calls) * 2
+    assert all(
+        0 < call[5]["timeout"] <= 4
+        and call[5]["max_bytes"] == 256 * 1024
+        and callable(call[5]["address_guard"])
+        for call in fake.calls
+    )
     assert SECRET not in repr(first) + repr(second) + repr(fake.calls)
 
 
@@ -211,6 +217,26 @@ def test_guard_cancellation_after_auth_stops_before_rci_and_redacts_secret():
     assert SECRET not in repr(caught.value) + repr(fake.calls)
 
 
+def test_expired_authority_never_resolves_or_opens_a_transport():
+    fake = ScriptedFactory(*exchange())
+    with pytest.raises(ApiError, match="forbidden"):
+        KeeneticReadOnlyTransport(factory=fake).read(
+            CONNECTION,
+            lambda: (_ for _ in ()).throw(ApiError("forbidden", 403)),
+        )
+    assert fake.calls == []
+
+
+def test_closed_reader_never_resolves_or_opens_a_transport():
+    fake = ScriptedFactory(*exchange())
+    reader = KeeneticReadOnlyTransport(factory=fake)
+    reader.close()
+    assert error_code(lambda: reader.read(CONNECTION, lambda: None)) == (
+        "keenetic_upstream_unavailable"
+    )
+    assert fake.calls == []
+
+
 @pytest.mark.parametrize("release,family", [
     ("2.12.A.1.0-1", "ndms-2"), ("3.9.6", "keeneticos-3"),
     ("4.3.6", "keeneticos-4"), ("5.0.4", "keeneticos-5"),
@@ -219,6 +245,20 @@ def test_firmware_capability_matrix_is_explicit(release, family):
     capabilities = firmware_capabilities(release)
     assert capabilities.family == family
     assert capabilities.commands == ("version", "system", "interface", "internet.status", "ip.hotspot", "interface.stat")
+
+
+@pytest.mark.parametrize("release", [
+    "2.12.A.1.0-1", "3.9.6", "4.3.6", "5.0.4",
+])
+def test_each_supported_firmware_family_produces_provider_metadata(release):
+    value = KeeneticReadOnlyTransport(
+        factory=ScriptedFactory(*exchange(release=release))
+    ).read(CONNECTION, lambda: None)
+    assert value.status.firmware == release
+    assert value.status.firmwareRevision > 0
+    assert value.status.statusRevision > 0
+    assert value.interfaces[2].guest is True
+    assert value.hosts[0].internetAccess == "allowed"
 
 
 @pytest.mark.parametrize("release", ["1.11", "6.0.0", "dev", "5", "5.0\nsecret"])

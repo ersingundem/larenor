@@ -20,7 +20,7 @@ from ..auth import token_hash
 from ..errors import ApiError, StartupError
 from . import schema
 from .models import BindingPreviewRequest, KeeneticBinding, ResourceSnapshot, Telemetry
-from .transport import read_telemetry
+from .transport import KeeneticReadOnlyTransport
 
 PREVIEW_TTL = 60.0
 CACHE_TTL = 5.0
@@ -53,7 +53,8 @@ class KeeneticResourceAdapter:
         self._clock, self._last_clock = time.monotonic, None
         self._closed = False
         self._slots = threading.BoundedSemaphore(4)
-        self._reader = read_telemetry
+        self._transport = KeeneticReadOnlyTransport()
+        self._reader = self._transport.read
 
     def _now(self):
         now = self._clock()
@@ -76,6 +77,7 @@ class KeeneticResourceAdapter:
             self._previews.clear()
             self._cache.clear()
             self._closed = True
+        self._transport.close()
 
     @staticmethod
     def _aad(row):
