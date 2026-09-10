@@ -78,7 +78,7 @@ def test_admin_can_queue_closed_jellyfin_execution_and_read_it_after_restart(ser
     app.state.core.media_installations.backend = ExecutionBackend()
     assert client.get(BASE + '/capabilities', headers=auth(pair)).json() == {
         'executionConfigured': True, 'installAvailable': False,
-        'services': ['jellyfin', 'seerr']}
+        'services': ['jellyfin', 'seerr', 'music_assistant']}
     response = client.post(BASE, headers=auth(pair), json=body)
     assert response.status_code == 201
     record = response.json()['installation']
@@ -121,6 +121,26 @@ def test_seerr_container_phase_uses_exact_packaged_component(server):
     assert terminal['state'] == 'container_started'
     assert backend.calls == [('apply', 'create_container', 'seerr'),
                              ('apply', 'start_container', 'seerr')]
+
+
+def test_music_assistant_container_phase_is_durable_but_product_install_stays_disabled(server):
+    app, client, settings, _ = server
+    pair, _, _, body = prepared(server)
+    backend = ExecutionBackend()
+    app.state.core.media_installations.backend = backend
+    queued = client.post(BASE, headers=auth(pair), json=body | {
+        'serviceId': 'music_assistant'}).json()['installation']
+    terminal = app.state.core.media_installations.tick()['installation']
+    assert terminal['serviceId'] == 'music_assistant'
+    assert terminal['state'] == 'container_started'
+    assert terminal['installAvailable'] is False
+    assert backend.calls == [
+        ('apply', 'create_container', 'music_assistant'),
+        ('apply', 'start_container', 'music_assistant'),
+    ]
+    with TestClient(create_app(settings)) as reopened:
+        stored = reopened.get(BASE + '/' + queued['id'], headers=auth(pair))
+        assert stored.json()['installation']['state'] == 'container_started'
 
 
 def test_tick_rechecks_authority_between_create_and_start(server):

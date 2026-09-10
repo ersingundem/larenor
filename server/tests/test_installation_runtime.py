@@ -286,6 +286,37 @@ def test_runtime_routes_plan_derived_seerr_steps_to_seerr_backend():
     assert [item[0] for item in calls] == ['apply', 'reconcile']
 
 
+def test_runtime_routes_plan_derived_music_assistant_steps_to_its_backend():
+    stack = build_media_stack_plan(
+        load_catalog(), {}, 'linux/amd64',
+        ContextResponse(schemaVersion=1, coreId='a' * 32, homeId='b' * 32),
+        'c' * 32)
+    execution = build_execution(
+        stack, job_id='d' * 32, deadline=1788609900,
+        service_id='music_assistant')
+    calls = []
+
+    class Selected:
+        def apply(self, step, plan):
+            calls.append(('apply', step, plan))
+            return 'applied'
+
+        def reconcile(self, step, plan):
+            calls.append(('reconcile', step, plan))
+            return 'reconciled'
+
+    backend = object.__new__(runtime._RuntimeBackend)
+    backend.installation = SimpleNamespace(
+        apply=lambda *_: pytest.fail('wrong backend'),
+        reconcile=lambda *_: pytest.fail('wrong backend'))
+    backend.seerr_installation = backend.installation
+    backend.music_assistant_installation = Selected()
+
+    assert backend.apply(execution.steps[0], execution.plan) == 'applied'
+    assert backend.reconcile(execution.steps[0], execution.plan) == 'reconciled'
+    assert [item[0] for item in calls] == ['apply', 'reconcile']
+
+
 @pytest.mark.parametrize('bootstrap_code,public_code', [
     ('qbittorrent_bootstrap_authority_changed',
      'qbittorrent_config_authority_changed'),

@@ -98,6 +98,7 @@ class Readers:
         self.calls.append(('image', binding.resource_id))
         service_id = self.data[5].serviceId
         volumes = ({'/app/config': {}} if service_id == 'seerr'
+                   else {'/data': {}} if service_id == 'music_assistant'
                    else {'/config': {}, **(
                        {'/cache': {}} if service_id == 'jellyfin' else {})})
         configuration = {'Env': ['PATH=/usr/bin'], 'Volumes': volumes}
@@ -249,6 +250,24 @@ def test_broker_rebinds_only_seerr_owned_appdata(tmp_path):
         proof = broker(data[3], data[4], data[5])
     assert len(proof.volumes) == 1
     assert proof.volumes[0].target == '/app/config'
+    assert [call[0] for call in readers.calls] == [
+        'image', 'volume', 'bootstrap', 'network-list', 'network-inspect']
+
+
+def test_broker_rebinds_only_music_assistant_owned_data(tmp_path):
+    data = source('music_assistant')
+    endpoint = object()
+    readers = Readers(data, endpoint)
+    with ResourceJournal(tmp_path / 'resources', initialize=True) as resource_journal, \
+            VolumeCreateJournal(tmp_path / 'volumes', initialize=True) as volume_journal:
+        populate(resource_journal, volume_journal, data, 'music_assistant')
+        broker = JellyfinResourceProofBroker(
+            data[1], data[0], data[2], resource_journal, volume_journal,
+            readers, engine_identity=endpoint, service_id='music_assistant')
+        proof = broker(data[3], data[4], data[5])
+    assert len(proof.volumes) == 1
+    assert proof.volumes[0].target == '/data'
+    assert proof.image.image_id == data[5].plan.image.configDigest
     assert [call[0] for call in readers.calls] == [
         'image', 'volume', 'bootstrap', 'network-list', 'network-inspect']
 
