@@ -777,7 +777,9 @@
         "docs/qbittorrent-configuration-jobs-implementation-2026-09-10.md",
         "docs/qbittorrent-configured-container-implementation-2026-09-10.md",
         "docs/qbittorrent-private-bootstrap-implementation-2026-09-10.md",
-        "docs/qbittorrent-service-verification-implementation-2026-09-10.md"
+        "docs/qbittorrent-service-verification-implementation-2026-09-10.md",
+        "docs/arr-owned-config-implementation-2026-09-10.md",
+        "docs/arr-config-helper-implementation-2026-09-10.md"
       ],
       "scope": "Kullanıcı ayrı uygulama kurmaz veya API anahtarı kopyalamaz; sırlar Client/plan/log içine girmez.",
       "acceptance": [
@@ -789,22 +791,6 @@
         "ci"
       ],
       "evidence": [
-        {
-          "kind": "test",
-          "ref": "docs/media-service-bootstrap-implementation-2026-09-09.md",
-          "commit": "9882c7c9cc09e65729760006fea257d6f12bba8c",
-          "state": "completed",
-          "result": "passed",
-          "label": "Şifreli bootstrap niyeti ve URL/IP kabul etmeyen tek-stream Jellyfin 10.11 startup protokolü: 30 odaklı; exact kaynakta tam yerel Server 4.381 PASS/13 macOS skip, security policy ve compileall temiz. CI, worker adres kanıtı ve gerçek servis kabulü açık."
-        },
-        {
-          "kind": "test",
-          "ref": "docs/media-service-bootstrap-implementation-2026-09-09.md",
-          "commit": "832b44adc01d98529e7298d574db328d799226d8",
-          "state": "completed",
-          "result": "passed",
-          "label": "Exact managed container/private-network numeric Jellyfin endpoint kanıtı: 27 yeni/86 ilgili test; DNS/proxy/retry yok. Journal/supervisor runtime bağı, CI ve gerçek servis kabulü açık."
-        },
         {
           "kind": "test",
           "ref": "docs/media-service-bootstrap-implementation-2026-09-09.md",
@@ -1044,10 +1030,26 @@
           "state": "completed",
           "result": "passed",
           "label": "Sonarr 4.0.19.2979 ve Radarr 6.3.0.10514 upstream davranışına bağlı owned config.xml, exact 32-hex API key, sabit port/policy ve byte-level drift reddi 36 yeni/218 ilgili testte PASS; filesystem/Docker etkisi kapalı."
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/34439991038",
+          "commit": "45f53eaba52c0b1971b311173804141bb33f26b7",
+          "state": "completed",
+          "result": "passed",
+          "label": "Exact PR42 head Android analyze, API35 emulator E2E, debug APK ve Server PASS; bağımsız Security ile amd64/arm64 Jellyfin ve qBittorrent karakterizasyonları yeşil."
+        },
+        {
+          "kind": "test",
+          "ref": "docs/arr-config-helper-implementation-2026-09-10.md",
+          "commit": "0643801437eb1a39089e6c7f0a71bff32ded6661",
+          "state": "completed",
+          "result": "passed",
+          "label": "Sonarr/Radarr exact config.xml yalnız kapalı stdin komutlarıyla sabit /volume/config.xml hedefine UID/GID 1000, 0600, O_NOFOLLOW/O_EXCL, atomik no-overwrite yayın ve geri okumayla kuruluyor; helper 58, ilgili 94 test PASS."
         }
       ],
       "completionCommit": null,
-      "reason": "Server üretimli sır, sabit startup, exact journal/container/private-network yürütücüsü, kalıcı no-retry koordinatör, otomatik yaşam döngüsü dispatcher ve aynı retained daemon'a bağlı private IPC/runtime hazır. Disposable Jellyfin 10.11.11 bootstrap, API anahtarı, kütüphane eşleştirmesi, logout, restart ve veri kalıcılığı exact arm64+amd64 CI'da geçti. qBittorrent 5.2.3 sahipli config/API, journal-bound volume/library planı, güvenli helper, private stdin effect, current-journal runtime bağı, UID-korumalı IPC, şifreli kalıcı Core işi, config-before-create/start ve private endpoint/bootstrap hazır; exact PR41 amd64+arm64 native CI config, Bearer auth, kategori kalıcılığı ve restart readback makbuzlarını doğruladı. Sonarr/Radarr owned config.xml ve exact API-key geri doğrulaması hazır. Arr journal-bound yazma/native API readback, qBittorrent/root-folder bağlantısı, Seerr ve Music Assistant bootstrap açık; installAvailable=false."
+      "reason": "Server üretimli sır, sabit startup, exact journal/container/private-network yürütücüsü, kalıcı no-retry koordinatör, otomatik yaşam döngüsü dispatcher ve aynı retained daemon'a bağlı private IPC/runtime hazır. Disposable Jellyfin 10.11.11 bootstrap, API anahtarı, kütüphane eşleştirmesi, logout, restart ve veri kalıcılığı exact arm64+amd64 CI'da geçti. qBittorrent 5.2.3 sahipli config/API, journal-bound volume/library planı, güvenli helper, private stdin effect, current-journal runtime bağı, UID-korumalı IPC, şifreli kalıcı Core işi, config-before-create/start ve private endpoint/bootstrap hazır; exact PR41 amd64+arm64 native CI config, Bearer auth, kategori kalıcılığı ve restart readback makbuzlarını doğruladı. Sonarr/Radarr owned config.xml ve exact API-key geri doğrulaması PR42 tam CI ile ana dalda; stdin-only atomik no-overwrite hacim yazıcısı yerelde yeşil. Arr journal-bound Docker etkisi/native API readback, qBittorrent/root-folder bağlantısı, Seerr ve Music Assistant bootstrap açık; installAvailable=false."
     },
     {
       "id": "S06.6",
