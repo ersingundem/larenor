@@ -214,3 +214,92 @@ def test_container_package_is_non_networked_bounded_and_health_checked():
     assert compose["security_opt"] == ["no-new-privileges:true"]
     assert compose["stop_grace_period"] == "10s"
     assert all(volume.get("read_only") is True for volume in compose["volumes"] if volume["target"] == "/run/secrets")
+
+
+def test_unreceipted_stale_socket_is_never_removed():
+    with socket_directory() as directory:
+        path = directory / "worker.sock"
+        health = directory / "health.json"
+        listener = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        listener.bind(str(path))
+        os.chmod(path, 0o600)
+        store = WorkerHealthStore(health, owner_uid=os.getuid())
+
+        with pytest.raises(RuntimeConfigurationError, match="^worker_health_invalid$"):
+            store.cleanup_orphan(path, process_alive=lambda _pid: False)
+
+        assert path.exists()
+        listener.close()
+
+
+def test_supervisor_crash_recovery_cleans_before_each_bounded_attempt():
+    events = []
+    outcomes = iter((RuntimeError("crash"), "stopped"))
+
+    class Stop:
+        def is_set(self):
+            return False
+
+        def wait(self, delay):
+            events.append(("wait", delay))
+            return False
+
+    def run_once(_stop):
+        events.append("run")
+        outcome = next(outcomes)
+        if isinstance(outcome, Exception):
+            raise outcome
+        return outcome
+
+    supervisor = KeeneticWorkerSupervisor(
+        run_once,
+        cleanup=lambda: events.append("cleanup"),
+        max_restarts=1,
+        initial_backoff=.25,
+    )
+    assert supervisor.run(Stop()) == 0
+    assert events == ["cleanup", "run", ("wait", .25), "cleanup", "run"]
+
+
+def test_runtime_argv_and_environment_are_not_mutated(tmp_path, monkeypatch):
+    source = policy(tmp_path / "worker.json")
+    argv = ("--policy", str(source), "--check-config")
+    environment = dict(os.environ)
+    monkeypatch.setattr(
+        "larenor_server.keenetic_commands.worker_runtime._platform",
+        lambda: "linux/amd64",
+    )
+
+    assert main(argv) == 0
+    assert argv == ("--policy", str(source), "--check-config")
+    assert dict(os.environ) == environment
+
+
+def test_container_uses_immutable_exec_argv_without_ambient_environment():
+    root = Path(__file__).parents[2]
+    dockerfile = (root / "server/Dockerfile.keenetic-worker").read_text()
+    compose = json.loads(
+        (root / "deploy/larenor-server/keenetic-worker.compose.yaml").read_text()
+    )["services"]["larenor-keenetic-worker"]
+
+    assert 'ENTRYPOINT ["/opt/larenor/.venv/bin/larenor-keenetic-worker"]' in dockerfile
+    assert 'CMD ["--policy",' in dockerfile
+    assert "environment" not in compose and "env_file" not in compose
+    assert "command" not in compose and "entrypoint" not in compose
+
+
+def test_worker_liveness_tracks_private_socket_thread():
+    from larenor_server.keenetic_commands.worker_ipc import KeeneticCommandWorkerServer
+
+    with socket_directory() as directory:
+        worker = KeeneticCommandWorkerServer(
+            directory / "worker.sock",
+            allowed_uid=os.getuid(),
+            peer_uid=lambda _connection: os.getuid(),
+            timeout=.5,
+        )
+        assert worker.is_alive is False
+        worker.start()
+        assert worker.is_alive is True
+        worker.close()
+        assert worker.is_alive is False
