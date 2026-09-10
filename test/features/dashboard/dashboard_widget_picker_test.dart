@@ -316,6 +316,22 @@ void main() {
         find.byKey(const ValueKey('widget-kind-coreKeenetic')),
         findsOneWidget,
       );
+      await tester.scrollUntilVisible(
+        find.byKey(const ValueKey('widget-kind-coreKeeneticDetails')),
+        250,
+      );
+      expect(
+        find.byKey(const ValueKey('widget-kind-coreKeeneticDetails')),
+        findsOneWidget,
+      );
+      await tester.scrollUntilVisible(
+        find.byKey(const ValueKey('widget-kind-coreKeeneticMesh')),
+        250,
+      );
+      expect(
+        find.byKey(const ValueKey('widget-kind-coreKeeneticMesh')),
+        findsOneWidget,
+      );
     },
   );
   for (final (kind, id) in [

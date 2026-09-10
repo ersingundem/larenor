@@ -517,3 +517,400 @@ class _CoreKeeneticTileState extends ConsumerState<CoreKeeneticTile> {
     );
   }
 }
+
+class _CoreKeeneticReadOnlyCard extends StatelessWidget {
+  const _CoreKeeneticReadOnlyCard({
+    required this.cardKey,
+    required this.refreshKey,
+    required this.title,
+    required this.icon,
+    required this.state,
+    required this.alert,
+    required this.loading,
+    required this.children,
+    required this.onRefresh,
+  });
+  final Key cardKey, refreshKey;
+  final String title, state;
+  final IconData icon;
+  final bool alert, loading;
+  final List<Widget> children;
+  final VoidCallback? onRefresh;
+
+  @override
+  Widget build(BuildContext context) => Semantics(
+    key: cardKey,
+    container: true,
+    readOnly: true,
+    label: '$title. $state',
+    child: DecoratedBox(
+      decoration: BoxDecoration(
+        color: CupertinoColors.secondarySystemGroupedBackground.resolveFrom(
+          context,
+        ),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              children: [
+                ExcludeSemantics(child: Icon(icon, size: 20)),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppText.tileTitle,
+                  ),
+                ),
+                Semantics(
+                  button: true,
+                  label: AppLocalizations.of(context).commonRefresh,
+                  child: CupertinoButton(
+                    key: refreshKey,
+                    minimumSize: const Size.square(48),
+                    padding: const EdgeInsets.all(8),
+                    onPressed: onRefresh,
+                    child: loading
+                        ? const CupertinoActivityIndicator()
+                        : const Icon(CupertinoIcons.refresh, size: 20),
+                  ),
+                ),
+              ],
+            ),
+            Text(
+              state,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: AppText.footnote.copyWith(
+                color: alert
+                    ? CupertinoColors.systemOrange.resolveFrom(context)
+                    : CupertinoColors.secondaryLabel.resolveFrom(context),
+              ),
+            ),
+            const SizedBox(height: 4),
+            Expanded(
+              child: ListView(
+                physics: const ClampingScrollPhysics(),
+                padding: EdgeInsets.zero,
+                children: children,
+              ),
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
+}
+
+class CoreKeeneticDetailsDashboardCard extends StatelessWidget {
+  const CoreKeeneticDetailsDashboardCard({
+    super.key,
+    required this.title,
+    required this.page,
+    required this.failure,
+    required this.stale,
+    required this.loading,
+    required this.onRefresh,
+  });
+  final String title;
+  final CoreKeeneticDetailsPage? page;
+  final String? failure;
+  final bool stale, loading;
+  final VoidCallback? onRefresh;
+
+  @override
+  Widget build(BuildContext context) {
+    final l = AppLocalizations.of(context);
+    final state = loading
+        ? l.commonLoading
+        : stale
+        ? l.coreKeeneticStale
+        : failure != null
+        ? _failure(failure!, l)
+        : page == null
+        ? l.commonUnknown
+        : '${page!.clients.length} ${l.coreKeeneticDetailsClients.toLowerCase()}, '
+              '${page!.interfaces.length} ${l.coreKeeneticDetailsInterfaces.toLowerCase()}';
+    return _CoreKeeneticReadOnlyCard(
+      cardKey: const ValueKey('core-keenetic-details-card'),
+      refreshKey: const ValueKey('core-keenetic-details-refresh'),
+      title: title,
+      icon: CupertinoIcons.list_bullet,
+      state: state,
+      alert: stale || failure != null,
+      loading: loading,
+      onRefresh: onRefresh,
+      children: [
+        for (final item in page?.entries.take(4) ?? <CoreKeeneticDetail>[])
+          Semantics(
+            readOnly: true,
+            label:
+                '${item.name}, ${item.online ? l.keeneticOnline : l.keeneticOffline}',
+            child: ExcludeSemantics(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 6),
+                child: Row(
+                  children: [
+                    Icon(
+                      item.online
+                          ? CupertinoIcons.circle_fill
+                          : CupertinoIcons.circle,
+                      size: 10,
+                      color: item.online
+                          ? CupertinoColors.systemGreen.resolveFrom(context)
+                          : CupertinoColors.systemGrey.resolveFrom(context),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        item.name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+class CoreKeeneticTopologyDashboardCard extends StatelessWidget {
+  const CoreKeeneticTopologyDashboardCard({
+    super.key,
+    required this.title,
+    required this.topology,
+    required this.failure,
+    required this.stale,
+    required this.loading,
+    required this.onRefresh,
+  });
+  final String title;
+  final CoreKeeneticTopologySnapshot? topology;
+  final String? failure;
+  final bool stale, loading;
+  final VoidCallback? onRefresh;
+
+  @override
+  Widget build(BuildContext context) {
+    final l = AppLocalizations.of(context);
+    final nodes = topology?.nodes ?? const <CoreKeeneticMeshNode>[];
+    final state = loading
+        ? l.commonLoading
+        : stale
+        ? l.coreKeeneticStale
+        : failure != null
+        ? _failure(failure!, l)
+        : topology == null
+        ? l.commonUnknown
+        : '${nodes.where((node) => node.online).length}/${nodes.length} '
+              '${l.coreKeeneticMeshNodes.toLowerCase()}';
+    return _CoreKeeneticReadOnlyCard(
+      cardKey: const ValueKey('core-keenetic-mesh-card'),
+      refreshKey: const ValueKey('core-keenetic-mesh-refresh'),
+      title: title,
+      icon: CupertinoIcons.dot_radiowaves_left_right,
+      state: state,
+      alert: stale || failure != null,
+      loading: loading,
+      onRefresh: onRefresh,
+      children: [
+        for (final node in nodes.take(4))
+          Semantics(
+            readOnly: true,
+            label:
+                '${node.name}, ${node.online ? l.keeneticOnline : l.keeneticOffline}',
+            child: ExcludeSemantics(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 6),
+                child: Row(
+                  children: [
+                    Icon(
+                      node.role == CoreKeeneticMeshRole.controller
+                          ? CupertinoIcons.wifi
+                          : CupertinoIcons.antenna_radiowaves_left_right,
+                      size: 18,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        node.name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    if (node.quality != null)
+                      Text(
+                        node.quality!.name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: AppText.footnote,
+                      ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        if (topology != null)
+          Padding(
+            padding: const EdgeInsets.only(top: 4),
+            child: Text(
+              '${topology!.networks.length} ${l.coreKeeneticMeshNetworks.toLowerCase()}',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: AppText.footnote,
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+mixin _CoreKeeneticReadonlyTileLifecycle<T extends ConsumerStatefulWidget>
+    on ConsumerState<T> {
+  late final AppLifecycleListener keeneticLifecycle;
+  bool keeneticForeground = true, keeneticStale = false;
+  Timer? keeneticExpiry;
+  Object? keeneticArmed;
+
+  void initKeeneticLifecycle() {
+    final state = WidgetsBinding.instance.lifecycleState;
+    keeneticForeground = state == null || state == AppLifecycleState.resumed;
+    keeneticLifecycle = AppLifecycleListener(
+      onStateChange: (state) {
+        if (!mounted) return;
+        final next = state == AppLifecycleState.resumed;
+        if (!next) keeneticExpiry?.cancel();
+        setState(() => keeneticForeground = next);
+      },
+    );
+  }
+
+  void armKeenetic(Object value, int ttlMs) {
+    if (identical(keeneticArmed, value)) return;
+    keeneticArmed = value;
+    keeneticStale = false;
+    keeneticExpiry?.cancel();
+    keeneticExpiry = Timer(Duration(milliseconds: ttlMs), () {
+      if (mounted) setState(() => keeneticStale = true);
+    });
+  }
+
+  void disposeKeeneticLifecycle() {
+    keeneticExpiry?.cancel();
+    keeneticLifecycle.dispose();
+  }
+}
+
+class CoreKeeneticDetailsTile extends ConsumerStatefulWidget {
+  const CoreKeeneticDetailsTile({super.key, required this.tile});
+  final TileConfig tile;
+  @override
+  ConsumerState<CoreKeeneticDetailsTile> createState() =>
+      _CoreKeeneticDetailsTileState();
+}
+
+class _CoreKeeneticDetailsTileState
+    extends ConsumerState<CoreKeeneticDetailsTile>
+    with _CoreKeeneticReadonlyTileLifecycle<CoreKeeneticDetailsTile> {
+  @override
+  void initState() {
+    super.initState();
+    initKeeneticLifecycle();
+  }
+
+  @override
+  void dispose() {
+    disposeKeeneticLifecycle();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final active = keeneticForeground && TickerMode.valuesOf(context).enabled;
+    final reading = active
+        ? ref.watch(coreKeeneticDashboardDetailsProvider(widget.tile))
+        : null;
+    final value = reading?.value;
+    if (value != null) {
+      armKeenetic(value, value.authority.remainingTtlMs);
+    }
+    final error = reading?.error;
+    final failure = error is LarenorServerException
+        ? error.code
+        : reading?.hasError == true
+        ? 'connection_failed'
+        : null;
+    return CoreKeeneticDetailsDashboardCard(
+      title: widget.tile.title ?? 'Keenetic',
+      page: keeneticStale ? null : value?.page,
+      failure: failure,
+      stale: keeneticStale,
+      loading: reading?.isLoading == true,
+      onRefresh: active
+          ? () => ref.invalidate(
+              coreKeeneticDashboardDetailsProvider(widget.tile),
+            )
+          : null,
+    );
+  }
+}
+
+class CoreKeeneticMeshTile extends ConsumerStatefulWidget {
+  const CoreKeeneticMeshTile({super.key, required this.tile});
+  final TileConfig tile;
+  @override
+  ConsumerState<CoreKeeneticMeshTile> createState() =>
+      _CoreKeeneticMeshTileState();
+}
+
+class _CoreKeeneticMeshTileState extends ConsumerState<CoreKeeneticMeshTile>
+    with _CoreKeeneticReadonlyTileLifecycle<CoreKeeneticMeshTile> {
+  @override
+  void initState() {
+    super.initState();
+    initKeeneticLifecycle();
+  }
+
+  @override
+  void dispose() {
+    disposeKeeneticLifecycle();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final active = keeneticForeground && TickerMode.valuesOf(context).enabled;
+    final reading = active
+        ? ref.watch(coreKeeneticDashboardTopologyProvider(widget.tile))
+        : null;
+    final value = reading?.value;
+    if (value != null) armKeenetic(value, value.remainingTtlMs);
+    final error = reading?.error;
+    final failure = error is LarenorServerException
+        ? error.code
+        : reading?.hasError == true
+        ? 'connection_failed'
+        : null;
+    return CoreKeeneticTopologyDashboardCard(
+      title: widget.tile.title ?? 'Keenetic',
+      topology: keeneticStale ? null : value,
+      failure: failure,
+      stale: keeneticStale,
+      loading: reading?.isLoading == true,
+      onRefresh: active
+          ? () => ref.invalidate(
+              coreKeeneticDashboardTopologyProvider(widget.tile),
+            )
+          : null,
+    );
+  }
+}
