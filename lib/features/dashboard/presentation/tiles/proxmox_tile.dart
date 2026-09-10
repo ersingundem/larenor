@@ -110,9 +110,10 @@ class _CoreProxmoxTileState extends ConsumerState<_CoreProxmoxTile> {
   AppLifecycleListener? _lifecycle;
   HomeResourceRecord? _target;
   CoreHaOwner? _owner;
+  HomeSessionController? _home;
   Object? _identity;
-  int _operation = 0;
-  bool _foreground = true, _loading = false;
+  int _operation = 0, _accountGeneration = -1;
+  bool _foreground = true, _loading = false, _attempted = false;
   String? _failure;
 
   @override
@@ -128,7 +129,23 @@ class _CoreProxmoxTileState extends ConsumerState<_CoreProxmoxTile> {
         setState(() {});
       },
     );
+    _home = ref.read(homeSessionControllerProvider);
+    _home?.addListener(_authorityChanged);
+    _home?.account.addListener(_authorityChanged);
+    _home?.interaction.addListener(_authorityChanged);
     WidgetsBinding.instance.addPostFrameCallback((_) => _resolve());
+  }
+
+  void _authorityChanged() {
+    if (!mounted) return;
+    final home = ref.read(homeSessionControllerProvider);
+    if (!identical(home, _home) ||
+        (_identity != null &&
+            (home?.runtimeIdentity != _identity ||
+                home?.account.generation != _accountGeneration))) {
+      _retire();
+    }
+    setState(() {});
   }
 
   bool _visible() {
@@ -151,20 +168,37 @@ class _CoreProxmoxTileState extends ConsumerState<_CoreProxmoxTile> {
     _owner = null;
     _target = null;
     _identity = null;
+    _accountGeneration = -1;
     _loading = false;
+    _attempted = false;
+  }
+
+  void _retry() {
+    if (!mounted) return;
+    _attempted = false;
+    _failure = null;
+    unawaited(_resolve());
   }
 
   Future<void> _resolve() async {
     final resourceId = widget.tile.entityId;
     if (_loading ||
         _target != null ||
+        _attempted ||
         resourceId == null ||
         !RegExp(r'^[0-9a-f]{32}$').hasMatch(resourceId)) {
       return;
     }
     final home = ref.read(homeSessionControllerProvider),
         operation = ++_operation;
-    if (home == null || home.source != HomeSource.verifiedCore) return;
+    if (home == null ||
+        home.source != HomeSource.verifiedCore ||
+        home.busy ||
+        home.failure != null ||
+        !home.interaction.active ||
+        home.account.session == null) {
+      return;
+    }
     final identity = home.runtimeIdentity,
         generation = home.account.generation,
         interactionEpoch = home.interaction.epoch;
@@ -179,6 +213,8 @@ class _CoreProxmoxTileState extends ConsumerState<_CoreProxmoxTile> {
         home.interaction.active &&
         _foreground;
     _identity = identity;
+    _accountGeneration = generation;
+    _attempted = true;
     setState(() {
       _loading = true;
       _failure = null;
@@ -230,6 +266,9 @@ class _CoreProxmoxTileState extends ConsumerState<_CoreProxmoxTile> {
   void dispose() {
     _operation++;
     _lifecycle?.dispose();
+    _home?.removeListener(_authorityChanged);
+    _home?.account.removeListener(_authorityChanged);
+    _home?.interaction.removeListener(_authorityChanged);
     _owner?.dispose();
     super.dispose();
   }
@@ -237,7 +276,7 @@ class _CoreProxmoxTileState extends ConsumerState<_CoreProxmoxTile> {
   @override
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context), target = _target, owner = _owner;
-    if (!_loading && target == null) {
+    if (!_loading && !_attempted && target == null) {
       WidgetsBinding.instance.addPostFrameCallback((_) => _resolve());
     }
     if (target == null || owner == null || !owner.isCurrent) {
@@ -246,7 +285,7 @@ class _CoreProxmoxTileState extends ConsumerState<_CoreProxmoxTile> {
         service: AppService.proxmox,
         title: widget.tile.title ?? 'Proxmox',
         connected: true,
-        onTap: _resolve,
+        onTap: _retry,
         lines: [
           if (widget.tile.entityId == null)
             l.coreProxmoxChooseResource

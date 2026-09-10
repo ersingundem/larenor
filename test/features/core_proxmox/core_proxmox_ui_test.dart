@@ -224,6 +224,14 @@ void main() {
       hasLength(2),
     );
     expect(paths.where((path) => path.endsWith('/snapshot')), hasLength(1));
+
+    await account.signOut();
+    await tester.pump();
+    expect(find.textContaining('pve-a'), findsNothing);
+    expect(
+      find.text('A verified, unlocked Core session is required.'),
+      findsOneWidget,
+    );
     expect(tester.takeException(), isNull);
   });
 }
