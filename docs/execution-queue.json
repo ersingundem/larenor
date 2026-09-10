@@ -791,7 +791,8 @@
         "docs/arr-root-folder-wiring-implementation-2026-09-10.md",
         "docs/arr-native-characterization-implementation-2026-09-10.md",
         "docs/managed-media-directory-preparation-implementation-2026-09-10.md",
-        "docs/seerr-private-bootstrap-implementation-2026-09-10.md"
+        "docs/seerr-private-bootstrap-implementation-2026-09-10.md",
+        "docs/seerr-container-installation-implementation-2026-09-10.md"
       ],
       "scope": "Kullanıcı ayrı uygulama kurmaz veya API anahtarı kopyalamaz; sırlar Client/plan/log içine girmez.",
       "acceptance": [
@@ -842,14 +843,6 @@
           "state": "completed",
           "result": "passed",
           "label": "Exact PR30 head Android analyze, 4.670 Server, emülatör E2E ve debug APK; bağımsız Security ile amd64/arm64 karakterizasyonu PASS."
-        },
-        {
-          "kind": "test",
-          "ref": "docs/qbittorrent-config-helper-implementation-2026-09-10.md",
-          "commit": "43936ab202061b03ee0f9dd747c08e172140746c",
-          "state": "completed",
-          "result": "passed",
-          "label": "qBittorrent config yalnız stdin ve exact allowlist ile sabit volume hedefine O_NOFOLLOW/O_EXCL, atomik no-overwrite yayın ve geri okuma altında kuruldu; 16 yeni/136 ilgili test PASS."
         },
         {
           "kind": "ci",
@@ -1053,15 +1046,23 @@
         },
         {
           "kind": "test",
-          "ref": "docs/seerr-bootstrap-executor-implementation-2026-09-10.md",
-          "commit": "8dd35a7528a319ae954b266245f76c1ba7248410",
+          "ref": "docs/seerr-container-installation-implementation-2026-09-10.md",
+          "commit": "47e3d045967a5d7a1a52b9a2e14f4937de827398",
           "state": "completed",
           "result": "passed",
-          "label": "Seerr start receipt, aynı ağdaki taze Jellyfin peer kanıtı, etki öncesi/sonrası re-proof, UID-korumalı IPC ve retained-daemon runtime bağlantısı eklendi. Least-privilege private model yalnız parola ile kaynak bootstrap kimliği/revizyonunu taşıyor; Jellyfin API anahtarı ve kütüphane ayrıntıları worker mesajından çıkarıldı. Exact 8dd35a7 tam Server paketi 5.243 testte geçti. Şifreli kalıcı Core işi ve native kabul açık."
+          "label": "Core aynı doğrulanmış preparation üzerinde Jellyfin ve Seerr için ayrı şifreli kalıcı create/start işleri üretiyor; worker servis kimliğini plandaki exact installationId eşleşmesinden türetiyor. Mevcut Jellyfin bootstrap da yalnız Jellyfin installation kaydını kabul edip gerçek installation kimliğini journal uzlaştırmasına gönderiyor. İlgili, migration ve contract testleri PASS; güncel 5.249 testlik tam Server regresyonu sürüyor; installAvailable=false."
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/34486635465",
+          "commit": "db75479da3241b59b98897b7ac38dd0b113544e3",
+          "state": "completed",
+          "result": "passed",
+          "label": "PR58 exact kaynakta Seerr executor, least-privilege private worker IPC ve retained-daemon runtime bağlantısı 15 zorunlu kontrolden geçti; squash merge aee92b4."
         }
       ],
       "completionCommit": null,
-      "reason": "Jellyfin 10.11.11 ve qBittorrent 5.2.3 private bootstrap zincirleri iki mimarili native CI ile doğrulandı. Sonarr/Radarr owned config, root folder ve qBittorrent download-client bağlantısı PR56 ile ana dala alındı. Seerr owned /app/config, private TCP/5055 ve secret-free ilk admin/API-key temeli PR57 ile tam zorunlu CI sonrasında ana dalda. Seerr executor aynı yönetilen ağdaki Jellyfin peerini etki öncesi/sonrası yeniden kanıtlıyor ve UID-korumalı retained-worker IPC üzerinden yalnız private sonuç döndürüyor. Core şifreli kalıcı Seerr işi, Sonarr/Radarr/kütüphane/initialize eşleştirmesi, native amd64/arm64 kabulü ve Music Assistant bootstrap açık; installAvailable=false."
+      "reason": "Jellyfin 10.11.11 ve qBittorrent 5.2.3 private bootstrap zincirleri iki mimarili native CI ile doğrulandı. Sonarr/Radarr owned config, root folder ve qBittorrent download-client bağlantısı PR56 ile ana dala alındı. Seerr owned /app/config ve ilk admin/API-key temeli PR57, executor ile UID-korumalı worker IPC PR58 ile tam zorunlu CI sonrasında ana dalda. Core artık Seerr için journal-bound kalıcı create/start işi üretiyor. Şifreli kalıcı Seerr bootstrap işi, Sonarr/Radarr/kütüphane/initialize eşleştirmesi, native amd64/arm64 kabulü ve Music Assistant bootstrap açık; installAvailable=false."
     },
     {
       "id": "S06.6",

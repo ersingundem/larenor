@@ -97,6 +97,20 @@ def test_only_exact_terminal_installation_can_allocate_one_bootstrap(server):
         assert connection.execute('SELECT COUNT(*) FROM media_service_bootstraps').fetchone()[0] == 0
 
 
+def test_jellyfin_bootstrap_rejects_a_completed_seerr_installation(server):
+    app, client, _, _ = server
+    pair, _, _, body = prepared(server)
+    app.state.core.media_installations.backend = ExecutionBackend()
+    queued = client.post(
+        '/api/v1/admin/media/installations', headers=auth(pair),
+        json=body | {'serviceId': 'seerr'}).json()['installation']
+    installation = app.state.core.media_installations.tick()['installation']
+    assert installation['id'] == queued['id']
+    response = client.post(BASE, headers=auth(pair), json=request(installation))
+    assert response.status_code == 409
+    assert response.json()['error']['code'] == 'media_installation_changed'
+
+
 def test_request_rejects_revision_reuse_and_client_selected_credentials(server):
     app, client, _, _ = server
     pair, installation = installed(server)
@@ -198,7 +212,7 @@ def test_tick_persists_encrypted_readback_without_exposing_secret(server):
     }
     assert len(backend.calls) == 1
     job, plan, private, _deadline, _gate = backend.calls[0]
-    assert job == record['id'] and plan.templateId == 'media'
+    assert job == installation['id'] and plan.templateId == 'media'
     assert private.credential and private.username == 'larenor-system'
     stored = app.state.core.media_service_bootstraps.private_payload(record['id'])
     assert stored.api_key == 'c' * 32
