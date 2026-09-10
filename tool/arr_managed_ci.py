@@ -87,6 +87,18 @@ _PRODUCTION_CODES = frozenset(
         "arr_readback_mismatch",
         "arr_authenticated_readback_unavailable",
         "arr_authenticated_readback_timeout",
+        "arr_bootstrap_binding_invalid_installation_plan",
+        "arr_bootstrap_binding_resources_unavailable",
+        "arr_bootstrap_binding_resources_untrusted",
+        "arr_bootstrap_proof_plan_failed",
+        "arr_bootstrap_proof_journal_bind_failed",
+        "arr_bootstrap_proof_image_observation_failed",
+        "arr_bootstrap_proof_volume_observation_failed",
+        "arr_bootstrap_proof_volume_bootstrap_failed",
+        "arr_bootstrap_proof_network_list_failed",
+        "arr_bootstrap_proof_network_observation_failed",
+        "arr_bootstrap_proof_journal_rebind_failed",
+        "arr_bootstrap_proof_result_failed",
     }
 )
 _DIAGNOSTIC_CODES = frozenset(
