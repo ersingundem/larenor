@@ -2781,5 +2781,13 @@
   "rdpKeyboardAutomatic": "Keyboard: Automatic",
   "rdpKeyboardUs": "Keyboard: US",
   "rdpClipboardDisabled": "Clipboard: Disabled",
-  "rdpClipboardBidirectional": "Clipboard: Bidirectional"
+  "rdpClipboardBidirectional": "Clipboard: Bidirectional",
+  "serverMusicProviderBlocked": "Intent recorded as blocked. No provider setting changed.",
+  "serverMusicProviderCommandExplanation": "Review an enable or disable intent for this verified provider. Larenor Core cannot apply this effect yet, and no account secret is shown or sent by this screen.",
+  "serverMusicProviderCommandTitle": "Provider control",
+  "serverMusicProviderCommandUnknown": "Unknown provider",
+  "serverMusicProviderConfirm": "Confirm reviewed intent",
+  "serverMusicProviderDisable": "Review disable",
+  "serverMusicProviderEffectUnavailable": "Effect unavailable. Confirmation records the blocked intent only.",
+  "serverMusicProviderEnable": "Review enable"
 }
