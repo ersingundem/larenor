@@ -335,7 +335,7 @@ tekrarlanmıyor. **5 yeni uçtan uca sözleşme testi** dahil ilgili Arr paketle
 create/start ve gerçek native API readback açık olduğundan sayaç değişmedi.
 [Uygulama ve açık sınırlar](arr-configuration-jobs-implementation-2026-09-10.md).
 
-`5f70bd3` readback dilimi, Sonarr/Radarr pinned servis adı ve sürümünü
+`245685d` readback dilimi, Sonarr/Radarr pinned servis adı ve sürümünü
 `X-Api-Key` ile sabit system/status endpoint'inden doğruluyor. Hedef, proxy,
 resolver veya serbest header girdisi yok; auth, protokol, servis/sürüm sapması ve
 timeout secret-free statik sonuçlara kapanıyor. **14 yeni test**, compileall,
@@ -343,19 +343,19 @@ security policy, queue ve Gitleaks PASS. Container zinciri ve iki mimarili nativ
 kabul açık olduğundan sayaç değişmedi.
 [Uygulama ve açık sınırlar](arr-authenticated-readback-implementation-2026-09-10.md).
 
-`79d4873` endpoint dilimi ortak managed-container builder'ı Sonarr/Radarr'a
+`0770a05` endpoint dilimi ortak managed-container builder'ı Sonarr/Radarr'a
 genişletti ve exact journal/container/ağ proof'undan sabit private 8989/7878
 stream'i üretti. DNS, proxy, alternatif hedef ve retry yok. Arr endpoint/readback
 ile mevcut Jellyfin/qBittorrent regresyonlarında **97 PASS**; security, queue ve
 Gitleaks PASS. Create/start orkestrasyonu açık olduğundan sayaç değişmedi.
 [Uygulama ve açık sınırlar](arr-private-endpoint-implementation-2026-09-10.md).
 
-`4cef404`–`db6caca` zinciri, config sonrası create/start, fresh private endpoint,
+`e80a0a6`–`3ce2b72` zinciri, config sonrası create/start, fresh private endpoint,
 authenticated readback, UID-korumalı IPC ve kalıcı Core sonucunu birleştirdi.
 Public iş durumu config, container ve doğrulanmış servis sonucunu ayırıyor; çapraz
-servis veya belirsiz sonuç retry edilmeden kapanıyor. `1a3fcfc` okunabilirlik
+servis veya belirsiz sonuç retry edilmeden kapanıyor. `8c4eb4c` okunabilirlik
 düzenlemesiyle deadline readback başlamadan tükenirse açılmış özel stream'in de
-kapatılmasını güvenceye aldı. `71faccb`, yanlışlıkla qBittorrent'a yönlenen Arr
+kapatılmasını güvenceye aldı. `c5cbf61`, yanlışlıkla qBittorrent'a yönlenen Arr
 reconcile metodunu seçili servise geri bağladı ve qBittorrent reconcile metodunu
 doğru sınıfa taşıdı. İlgili 13 pakette **301 PASS / 1 mevcut macOS skip**; Ruff,
 compileall, security, queue ve Gitleaks PASS. İki mimarili native

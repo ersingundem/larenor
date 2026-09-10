@@ -2,14 +2,14 @@
 
 Exact uygulama commit'leri:
 
-- started-container bootstrap: `4cef4047e8fd6477ae0f548332efcd43e383c4a6`
-- config/create/start/readback runtime: `69c749edae08f0c825eb233ddfd2cefb97f4bf27`
-- private Unix IPC: `68f9a63dec1d656d4762a9697880de2d720f72a4`
-- kalıcı Core sonucu: `db6caca116959391bc407c169bc22cdcf55d7bb7`
+- started-container bootstrap: `e80a0a6864af909fb10226c2d767b76ed072a1f1`
+- config/create/start/readback runtime: `338c3705b895e2550f1e9c5497b0b1afcc8ae383`
+- private Unix IPC: `298ab6de4ce46168a011e20d6fdfda29afc52129`
+- kalıcı Core sonucu: `3ce2b72be17716b51b482670c40bc1ea504c4ea3`
 - okunabilirlik ve deadline öncesi stream sahipliği:
-  `1a3fcfc3f8872aa33df0ea7a4af38e4063468e90`
+  `8c4eb4cc236c1c873f3f8b9ea79d0eed7722efd5`
 - Sonarr/Radarr/qBittorrent reconcile servis yönlendirmesi:
-  `71faccbc54d60fa135abb0d6b388a7d9c7483fa0`
+  `c5cbf61335dd4fa13adf4e25536369ddc2a4b95e`
 
 Larenor, her servis için sahipli config'i doğruladıktan sonra exact packaged plan ile container create/start adımlarını yürütür. Fresh journal-bound container ve private kontrol ağı tekrar kanıtlanır; yalnız numeric Sonarr 8989 veya Radarr 7878 endpoint'i açılır. `X-Api-Key` authenticated system/status yanıtında pinned servis adı ve sürümü doğrulanır. Sonuç Core'a config, container ve servis durumlarını birlikte taşıyan typed makbuz olarak döner.
 
