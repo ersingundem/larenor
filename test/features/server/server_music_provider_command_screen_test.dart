@@ -52,9 +52,8 @@ void main() {
           localizationsDelegates: AppLocalizations.localizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
           builder: (context, child) => MediaQuery(
-            data: MediaQuery.of(
-              context,
-            ).copyWith(textScaler: const TextScaler.linear(2)),
+            data: MediaQuery.of(context)
+                .copyWith(textScaler: const TextScaler.linear(2)),
             child: child!,
           ),
           home: ServerMusicProviderCommandsScreen(target: selected),
@@ -82,7 +81,6 @@ void main() {
         'explicit provider authority is tablet safe $language $width 2x',
         (tester) async {
           final semantics = tester.ensureSemantics();
-          addTearDown(semantics.dispose);
           await mount(tester, language: language, width: width);
           expect(tester.takeException(), isNull);
           expect(find.byType(CupertinoTextField), findsNothing);
@@ -90,20 +88,29 @@ void main() {
             const ValueKey('provider-disable-preview'),
           );
           expect(tester.getSize(disable).height, greaterThanOrEqualTo(48));
+          final l10n = AppLocalizations.of(tester.element(disable));
           expect(
             tester
-                .getSemantics(disable)
+                .getSemantics(find.text(l10n.serverMusicProviderDisable))
                 .getSemanticsData()
                 .hasAction(ui.SemanticsAction.tap),
             isTrue,
           );
           await tap(tester, 'provider-disable-preview');
           expect(fixture.providerPosts, hasLength(1));
-          expect(find.byKey(const ValueKey('provider-confirm')), findsOneWidget);
-          expect(fixture.providerPosts, hasLength(1), reason: 'no auto-confirm');
+          expect(
+            find.byKey(const ValueKey('provider-confirm')),
+            findsOneWidget,
+          );
+          expect(
+            fixture.providerPosts,
+            hasLength(1),
+            reason: 'no auto-confirm',
+          );
           await tap(tester, 'provider-confirm');
           expect(fixture.providerPosts, hasLength(2));
           expect(tester.takeException(), isNull);
+          semantics.dispose();
         },
       );
     }
@@ -112,14 +119,17 @@ void main() {
   testWidgets('keyboard can review and confirm without replay', (tester) async {
     await mount(tester);
     final disable = find.byKey(const ValueKey('provider-disable-preview'));
-    Focus.of(tester.element(disable)).requestFocus();
+    final l10n = AppLocalizations.of(tester.element(disable));
+    Focus.of(tester.element(find.text(l10n.serverMusicProviderDisable)))
+        .requestFocus();
     await tester.pump();
     await tester.sendKeyEvent(LogicalKeyboardKey.enter);
     await tester.pumpAndSettle();
     expect(fixture.providerPosts, hasLength(1));
     final confirm = find.byKey(const ValueKey('provider-confirm'));
     await tester.ensureVisible(confirm);
-    Focus.of(tester.element(confirm)).requestFocus();
+    Focus.of(tester.element(find.text(l10n.serverMusicProviderConfirm)))
+        .requestFocus();
     await tester.pump();
     await tester.sendKeyEvent(LogicalKeyboardKey.space);
     await tester.pumpAndSettle();
@@ -151,9 +161,7 @@ void main() {
     ) async {
       await mount(tester);
       fixture.previewResponse = Completer();
-      await tester.tap(
-        find.byKey(const ValueKey('provider-disable-preview')),
-      );
+      await tester.tap(find.byKey(const ValueKey('provider-disable-preview')));
       await tester.pump();
       expect(fixture.providerPosts, hasLength(1));
       switch (boundary) {
@@ -164,9 +172,8 @@ void main() {
         case 'route':
           Navigator.of(tester.element(find.byType(CupertinoPageScaffold))).push(
             CupertinoPageRoute<void>(
-              builder: (_) => const CupertinoPageScaffold(
-                child: Text('Covered'),
-              ),
+              builder: (_) =>
+                  const CupertinoPageScaffold(child: Text('Covered')),
             ),
           );
         case 'pin':
@@ -188,7 +195,9 @@ void main() {
     });
   }
 
-  testWidgets('unbound entry point exposes no command mutation', (tester) async {
+  testWidgets('unbound entry point exposes no command mutation', (
+    tester,
+  ) async {
     await mount(tester, selected: null);
     expect(find.byKey(const ValueKey('provider-enable-preview')), findsNothing);
     expect(fixture.providerPosts, isEmpty);

@@ -2807,5 +2807,13 @@
   "serverMusicRetainedInstallationChanged": "The installation revision changed after bootstrap.",
   "serverMusicRetainedDependencyChanged": "A bound Home Assistant or Jellyfin service revision changed.",
   "serverMusicRetainedProviderNotReady": "The engine is verified; no provider is ready yet.",
-  "serverMusicRetainedProviderFailed": "A provider setup needs attention or was cancelled."
+  "serverMusicRetainedProviderFailed": "A provider setup needs attention or was cancelled.",
+  "serverMusicProviderBlocked": "Intent recorded as blocked. No provider setting changed.",
+  "serverMusicProviderCommandExplanation": "Review an enable or disable intent for this verified provider. Larenor Core cannot apply this effect yet, and no account secret is shown or sent by this screen.",
+  "serverMusicProviderCommandTitle": "Provider control",
+  "serverMusicProviderCommandUnknown": "Unknown provider",
+  "serverMusicProviderConfirm": "Confirm reviewed intent",
+  "serverMusicProviderDisable": "Review disable",
+  "serverMusicProviderEffectUnavailable": "Effect unavailable. Confirmation records the blocked intent only.",
+  "serverMusicProviderEnable": "Review enable"
 }
