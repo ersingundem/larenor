@@ -143,7 +143,79 @@ Future<void> mount(
 }
 
 void main() {
-  for (final width in [600.0, 1280.0])
+  test('command entry requires admin PIN and the exact live snapshot', () {
+    final session = ServerSession(
+      endpoint: ServerEndpoint('https://core.invalid'),
+      accessToken: 'access-token-for-test-1234',
+      refreshToken: 'refresh-token-for-test-1234',
+      expiresAt: DateTime.utc(2026, 9, 11, 14),
+      user: const ServerUser(
+        id: 'admin',
+        username: 'admin',
+        role: ServerRole.admin,
+        mustChangePassword: false,
+      ),
+      context: contextId,
+    );
+    expect(
+      coreKeeneticCommandEntryAllowed(
+        session: session,
+        target: target(),
+        snapshot: snapshot(),
+        pinConfigured: true,
+      ),
+      isTrue,
+    );
+    expect(
+      coreKeeneticCommandEntryAllowed(
+        session: session,
+        target: target(),
+        snapshot: snapshot(),
+        pinConfigured: false,
+      ),
+      isFalse,
+    );
+    expect(
+      coreKeeneticCommandEntryAllowed(
+        session: session.withUser(
+          const ServerUser(
+            id: 'member',
+            username: 'member',
+            role: ServerRole.member,
+            mustChangePassword: false,
+          ),
+        ),
+        target: target(),
+        snapshot: snapshot(),
+        pinConfigured: true,
+      ),
+      isFalse,
+    );
+    expect(
+      coreKeeneticCommandEntryAllowed(
+        session: session,
+        target: HomeResourceRecord.fromJson({
+          'ref': {
+            'schemaVersion': 1,
+            'coreId': contextId.coreId,
+            'homeId': contextId.homeId,
+            'kind': 'resource',
+            'id': target().id,
+          },
+          'label': 'Main router',
+          'order': 0,
+          'revision': 8,
+          'aclRevision': 9,
+          'permissions': {'read': true, 'write': true},
+        }, expectedContext: contextId),
+        snapshot: snapshot(),
+        pinConfigured: true,
+      ),
+      isFalse,
+    );
+  });
+
+  for (final width in [600.0, 1280.0]) {
     testWidgets('$width tablet card exposes complete summary at 2x text', (
       tester,
     ) async {
@@ -163,21 +235,24 @@ void main() {
       expect(find.textContaining('200.0 MB'), findsOneWidget);
       expect(find.textContaining('4.3.6'), findsOneWidget);
       expect(find.textContaining('Guest Wi-Fi'), findsWidgets);
+      expect(find.textContaining('CPU'), findsOneWidget);
+      expect(find.textContaining('Memory'), findsOneWidget);
       expect(find.textContaining('1'), findsWidgets);
       final semantics = tester.getSemantics(
         find.byKey(const ValueKey('core-keenetic-dashboard-card')),
       );
       expect(semantics.label, contains('Main router'));
-    for (final button in tester.widgetList<CupertinoButton>(
-      find.byType(CupertinoButton),
-    )) {
-      expect(button.minimumSize?.height ?? 0, greaterThanOrEqualTo(48));
+      for (final button in tester.widgetList<CupertinoButton>(
+        find.byType(CupertinoButton),
+      )) {
+        expect(button.minimumSize?.height ?? 0, greaterThanOrEqualTo(48));
       }
       await tester.sendKeyEvent(LogicalKeyboardKey.tab);
       await tester.sendKeyEvent(LogicalKeyboardKey.enter);
       expect(opened + refreshed + commands, 1);
       expect(tester.takeException(), isNull);
     });
+  }
 
   testWidgets('refresh is explicit and command entry is capability gated', (
     tester,

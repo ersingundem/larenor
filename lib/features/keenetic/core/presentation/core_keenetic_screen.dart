@@ -244,9 +244,23 @@ class _CoreKeeneticTelemetryPanelState
     return '$bytes B/s';
   }
 
-  String _uptime(int seconds) {
+  String _uptime(int seconds, AppLocalizations l) {
     final days = seconds ~/ 86400, hours = seconds.remainder(86400) ~/ 3600;
-    return days > 0 ? '$days d $hours h' : '$hours h';
+    return days > 0
+        ? '$days${l.keeneticUptimeDays} $hours${l.keeneticUptimeHours}'
+        : '$hours${l.keeneticUptimeHours}';
+  }
+
+  String _bytes(int value) {
+    if (value >= 1099511627776) {
+      return '${(value / 1099511627776).toStringAsFixed(1)} TB';
+    }
+    if (value >= 1073741824) {
+      return '${(value / 1073741824).toStringAsFixed(1)} GB';
+    }
+    if (value >= 1048576) return '${(value / 1048576).toStringAsFixed(1)} MB';
+    if (value >= 1024) return '${(value / 1024).toStringAsFixed(1)} KB';
+    return '$value B';
   }
 
   Widget _metric(String key, String label, String value) => Semantics(
@@ -276,6 +290,7 @@ class _CoreKeeneticTelemetryPanelState
     final selected = value.interfaces
         .where((i) => i.id == _interfaceId)
         .firstOrNull;
+    final guest = value.guestInterfaces;
     return Semantics(
       container: true,
       readOnly: true,
@@ -299,7 +314,7 @@ class _CoreKeeneticTelemetryPanelState
           _metric(
             'core-keenetic-uptime',
             l.keeneticUptime,
-            _uptime(value.status.uptimeSeconds),
+            _uptime(value.status.uptimeSeconds, l),
           ),
           _metric(
             'core-keenetic-download',
@@ -310,6 +325,26 @@ class _CoreKeeneticTelemetryPanelState
             'core-keenetic-upload',
             l.keeneticUploadRate,
             _rate(value.traffic.uploadBps, l),
+          ),
+          _metric(
+            'core-keenetic-traffic',
+            l.coreKeeneticTrafficTotal,
+            '${_bytes(value.traffic.rxBytes)} ↓ / '
+                '${_bytes(value.traffic.txBytes)} ↑',
+          ),
+          _metric(
+            'core-keenetic-firmware',
+            l.keeneticFirmware,
+            value.status.firmware ?? l.commonUnknown,
+          ),
+          _metric(
+            'core-keenetic-guest',
+            l.coreKeeneticGuestWifi,
+            guest.isEmpty
+                ? l.coreKeeneticGuestUnavailable
+                : guest.any((item) => item.online)
+                ? l.coreKeeneticGuestEnabled
+                : l.coreKeeneticGuestDisabled,
           ),
           _metric(
             'core-keenetic-cpu',
