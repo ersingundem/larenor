@@ -2198,7 +2198,13 @@
   "sshTargetHop": "Hedef kimlik doğrulaması",
   "sshJumpDirect": "Doğrudan bağlan (ara sunucu yok)",
   "sshJumpUsing": "{name} ara sunucusunu kullan",
-  "@sshJumpUsing": {"placeholders": {"name": {"type": "String"}}},
+  "@sshJumpUsing": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
   "sshJumpCredentialMissing": "Ara sunucunun bu cihazda kayıtlı kimlik bilgisi yok.",
   "sshJumpHostChanged": "Kayıtlı ara sunucu anahtarı değişti. Bağlantı engellendi.",
   "sftpTitle": "SFTP dosyaları",
@@ -2390,5 +2396,20 @@
   "keeneticCommandFailed": "Başarısız",
   "keeneticCommandUnknown": "Sonuç bilinmiyor",
   "keeneticCommandUnavailable": "Komut denetimleri kullanılamıyor. Yeniden denemeden önce router durumunu yenileyin.",
-  "keeneticCommandReadOnly": "Bu hesap router durumunu görebilir ancak komut çalıştıramaz."
+  "keeneticCommandReadOnly": "Bu hesap router durumunu görebilir ancak komut çalıştıramaz.",
+  "coreKeeneticDetailsTitle": "Ağ cihazları ve arayüzler",
+  "coreKeeneticDetailsSearch": "Cihaz ve arayüz ara",
+  "coreKeeneticDetailsAll": "Tümü",
+  "coreKeeneticDetailsInterfaces": "Arayüzler",
+  "coreKeeneticDetailsClients": "Cihazlar",
+  "coreKeeneticDetailsEmpty": "Eşleşen ağ ayrıntısı yok.",
+  "coreKeeneticDetailsLoadMore": "Daha fazla yükle",
+  "coreKeeneticDetailsIdentity": "Özel cihaz kimliği",
+  "coreKeeneticDetailsInterface": "Arayüz",
+  "coreKeeneticDetailsAddress": "Adres",
+  "coreKeeneticDetailsSsid": "Wi-Fi adı",
+  "coreKeeneticDetailsBand": "Bant",
+  "coreKeeneticDetailsChannel": "Kanal",
+  "coreKeeneticDetailsSignal": "Sinyal",
+  "coreKeeneticDetailsAccess": "İnternet erişimi"
 }

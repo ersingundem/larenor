@@ -66,6 +66,11 @@ def batch(*, release="5.0.4", online="yes", duplicate_interface=False):
             "link": "down",
             "connected": "no",
             "guest": "yes",
+            "ssid": "Larenor Guest",
+            "band": "5",
+            "channel": 44,
+            "signal": -61,
+            "password": SECRET,
         },
     }
     if duplicate_interface:
@@ -81,6 +86,8 @@ def batch(*, release="5.0.4", online="yes", duplicate_interface=False):
             "mac": "02:00:00:00:00:01", "name": "Tablet", "ip": "192.168.1.20",
             "via": "Bridge0", "active": True, "registered": True,
             "access": "permit",
+            "band": "5",
+            "signal": -58,
         }]}}},
     ])
 
@@ -159,6 +166,9 @@ def test_authenticated_fixed_show_contract_maps_full_typed_snapshot_and_rates():
     ]
     assert first.interfaces[0].kind == "wan" and first.interfaces[1].kind == "lan"
     assert first.interfaces[2].guest is True and first.interfaces[2].online is False
+    assert first.interfaces[2].ssid == "Larenor Guest"
+    assert (first.interfaces[2].band, first.interfaces[2].channel,
+            first.interfaces[2].signalDbm) == ("5", 44, -61)
     assert first.traffic.model_dump() == {
         "rxBytes": 1200, "txBytes": 500, "downloadBps": None, "uploadBps": None,
     }
@@ -167,6 +177,7 @@ def test_authenticated_fixed_show_contract_maps_full_typed_snapshot_and_rates():
         "id": "02:00:00:00:00:01", "name": "Tablet", "ipAddress": "192.168.1.20",
         "macAddress": "02:00:00:00:00:01", "interfaceId": "Bridge0",
         "online": True, "registered": True, "internetAccess": "allowed",
+        "band": "5", "signalDbm": -58,
     }
     assert [(method, path) for _, method, path, *_ in fake.calls] == [
         ("GET", "/auth"), ("POST", "/auth"), ("POST", "/rci/show"),
@@ -188,6 +199,7 @@ def test_authenticated_fixed_show_contract_maps_full_typed_snapshot_and_rates():
         for call in fake.calls
     )
     assert SECRET not in repr(first) + repr(second) + repr(fake.calls)
+    assert SECRET not in first.model_dump_json()
 
 
 def test_offline_is_typed_and_command_state_change_has_a_new_revision():

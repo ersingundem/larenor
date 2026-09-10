@@ -201,7 +201,26 @@ def _object(value):
 
 
 def _text(value, *, length=128):
-    if not isinstance(value, str) or not 1 <= len(value) <= length or _SAFE.fullmatch(value) is None:
+    if (not isinstance(value, str) or not 1 <= len(value) <= length or any(
+            ord(char) < 32 or 127 <= ord(char) <= 159
+            or 0xD800 <= ord(char) <= 0xDFFF
+            or 0x202A <= ord(char) <= 0x202E
+            or 0x2066 <= ord(char) <= 0x2069 or ord(char) == 0xFEFF
+            for char in value)):
+        _unsupported()
+    return value
+
+
+def _band(value):
+    aliases = {2.4: "2.4", 5: "5", 6: "6", "2.4": "2.4", "5": "5", "6": "6",
+               "2.4GHz": "2.4", "5GHz": "5", "6GHz": "6"}
+    if type(value) not in {str, int, float} or value not in aliases:
+        _unsupported()
+    return aliases[value]
+
+
+def _signal(value):
+    if type(value) is not int or not -127 <= value <= 0:
         _unsupported()
     return value
 
@@ -412,6 +431,21 @@ class KeeneticReadOnlyTransport:
                          "online": online, "address": address}
             if guest is not None:
                 projected["guest"] = guest
+            wifi_keys = {"ssid", "band", "channel", "signal"}
+            if kind != "wifi" and any(key in item for key in wifi_keys):
+                _unsupported()
+            if kind == "wifi":
+                if "ssid" in item:
+                    projected["ssid"] = _text(item["ssid"], length=64)
+                if "band" in item:
+                    projected["band"] = _band(item["band"])
+                if "channel" in item:
+                    channel = _integer(item["channel"])
+                    if not 1 <= channel <= 233:
+                        _unsupported()
+                    projected["channel"] = channel
+                if "signal" in item:
+                    projected["signalDbm"] = _signal(item["signal"])
             result.append(projected)
         if gateway not in {item["id"] for item in result}:
             _unsupported()
@@ -459,6 +493,12 @@ class KeeneticReadOnlyTransport:
                          "registered": _flag(raw.get("registered"))}
             if "access" in raw:
                 projected["internetAccess"] = _internet_access(raw["access"])
+            if "band" in raw:
+                projected["band"] = _band(raw["band"])
+            if "signal" in raw or "rssi" in raw:
+                if "signal" in raw and "rssi" in raw and raw["signal"] != raw["rssi"]:
+                    _unsupported()
+                projected["signalDbm"] = _signal(raw.get("signal", raw.get("rssi")))
             result.append(projected)
         if len({item["id"] for item in result}) != len(result):
             _unsupported()
