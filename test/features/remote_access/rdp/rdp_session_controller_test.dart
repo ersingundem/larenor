@@ -163,6 +163,24 @@ class Vault implements RdpCredentialVault {
   }
 }
 
+class DelayedVault extends Vault {
+  final release = Completer<void>();
+
+  @override
+  Future<void> saveCredential(
+    RemoteProfile profile,
+    RdpCredential credential, {
+    required bool Function() isCurrent,
+  }) async {
+    await release.future;
+    await super.saveCredential(
+      profile,
+      credential,
+      isCurrent: isCurrent,
+    );
+  }
+}
+
 void main() {
   test('unavailable engine is explicit and never opens a transport', () async {
     final engine = Engine(available: false),
@@ -333,6 +351,45 @@ void main() {
       c.retire();
       c.resize(const RdpDisplaySpec(width: 1920, height: 1080, dpi: 180));
       expect(engine.channel.displays, hasLength(1));
+      c.dispose();
+    },
+  );
+
+  test(
+    'remembering NLA and gateway secrets is explicit and lifecycle-bound',
+    () async {
+      var current = true;
+      final trust = Trust()
+        ..pin = RdpCertificatePin.fromJson(fixture()['certificate']);
+      final vault = DelayedVault();
+      final engine = Engine();
+      final c = RdpSessionController(
+        profile: profile,
+        trust: trust,
+        credentialVault: vault,
+        engineFactory: () => engine,
+        isCurrent: () => current,
+        display: const RdpDisplaySpec(width: 1920, height: 1080, dpi: 180),
+        settings: const RdpProfileSettings(
+          gatewayHost: 'gateway.home.arpa',
+          gatewayUsername: 'gateway-user',
+        ),
+      );
+      final opening = c.connect();
+      await flush();
+      expect(c.phase, RdpSessionPhase.nlaRequired);
+      final auth = c.authenticate(
+        'rdp-secret',
+        gatewayPassword: 'gateway-secret',
+        remember: true,
+      );
+      current = false;
+      c.synchronize();
+      vault.release.complete();
+      await auth;
+      await opening;
+      expect(vault.value, isNull);
+      expect(engine.opens, 0);
       c.dispose();
     },
   );
