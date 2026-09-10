@@ -5,6 +5,8 @@ import tempfile
 import threading
 import time
 
+import pytest
+
 from larenor_server.plugins.installation_ipc import (
     InstallationWorkerClient, InstallationWorkerServer,
 )
@@ -53,6 +55,20 @@ def raw_player(identifier='homepod-living', *, group=None):
     }
 
 
+def raw_queue(identifier='homepod-living'):
+    return {
+        'queue_id': identifier, 'active': True,
+        'display_name': 'Living HomePod', 'available': True, 'items': 4,
+        'shuffle_enabled': False, 'repeat_mode': 'off',
+        'current_index': 1, 'elapsed_time': 37,
+        'state': 'paused',
+        'current_item': {
+            'queue_id': identifier, 'queue_item_id': 'queue-item-2',
+            'name': 'Synthetic Song', 'duration': 241,
+        },
+    }
+
+
 def request(operation='queue_add', **changes):
     body = {
         'requestId': 'a' * 32, 'installationId': 'b' * 32,
@@ -87,6 +103,45 @@ def test_authenticated_discovery_derives_homepod_and_exact_airplay_group():
         'player_queues/all', 'players/all']
     assert all(call[3]['Authorization'] == 'Bearer private-token'
                for call in calls)
+
+
+def test_authenticated_discovery_projects_bounded_provider_queue_and_now_playing():
+    calls = []
+    responses = [[raw_queue()], [raw_player()]]
+    runtime = MusicPlaybackRuntime(lambda _timeout: Connection(responses, calls))
+    result = runtime.read(PrivateMusicPlaybackAuthority(
+        installationId='b' * 32, token='private-token'),
+        deadline=time.monotonic() + 2)
+    player = result.players[0]
+    assert player.providerDomain == 'airplay'
+    assert player.providerInstanceId == 'airplay--main'
+    assert player.queue.model_dump() == {
+        'id': 'homepod-living', 'itemCount': 4, 'currentIndex': 1,
+        'shuffleEnabled': False, 'repeatMode': 'off', 'state': 'paused',
+        'nowPlaying': {
+            'itemId': 'queue-item-2', 'title': 'Synthetic Song',
+            'durationSeconds': 241, 'positionSeconds': 37,
+        },
+    }
+    encoded = result.model_dump_json()
+    assert 'private-token' not in encoded
+    assert 'http://' not in encoded and 'https://' not in encoded
+
+
+def test_authenticated_discovery_rejects_changed_queue_shape_and_provider_identity():
+    for queue, provider in (
+        ({'queue_id': 'homepod-living'}, 'airplay--main'),
+        (raw_queue(), 'airplay--main--unexpected'),
+        (raw_queue() | {'elapsed_time': float('nan')}, 'airplay--main'),
+    ):
+        current = raw_player() | {'provider': provider}
+        responses = [[queue], [current]]
+        runtime = MusicPlaybackRuntime(
+            lambda _timeout: Connection(responses, []))
+        with pytest.raises(Exception, match='music_player_readback_changed'):
+            runtime.read(PrivateMusicPlaybackAuthority(
+                installationId='b' * 32, token='private-token'),
+                deadline=time.monotonic() + 2)
 
 
 def test_queue_add_is_one_explicit_effect_with_pre_and_post_readback():
