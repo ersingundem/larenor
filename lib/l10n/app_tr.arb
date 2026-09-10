@@ -1269,7 +1269,23 @@
   "musicChooseServer": "Music Assistant bağlantısı seç",
   "musicChooseOutput": "Music Assistant çıkışı seç",
   "musicNoAssistant": "Music Assistant, Home Assistant’a bağlı değil.",
-  "musicAssistantHint": "Larenor Server, Music Assistant ile desteklenen müzik hesaplarını ve hoparlör kuyruklarını bir araya getirir. CasaOS veya Linux sunucusuna Docker ile elle kurulur. Larenor Client bu müzik arayüzünü Home Assistant üzerinden sağlar; sunucu ayrı çalışır.",
+  "musicAssistantHint": "Larenor Core, yönettiği Music Assistant bileşenini çalıştırır ve desteklenen müzik hesaplarıyla hoparlör kuyruklarını bu ekrana getirir. Sağlayıcı oturumu ayarlarda açıkça başlatılır.",
+  "coreMusicOutputsTitle": "Larenor Core çıkışları",
+  "coreMusicOutputsHint": "Yönetilen Music Assistant bileşeninden doğrulanmış AirPlay, HomePod ve Chromecast hedefleri.",
+  "coreMusicNoTargets": "Core henüz bir hoparlör hedefini doğrulamadı.",
+  "coreMusicNotReady": "Core müzik hedefleri bu yönetici oturumu için hazır değil.",
+  "coreMusicHomePod": "HomePod",
+  "coreMusicAirPlay": "AirPlay",
+  "coreMusicChromecast": "Chromecast",
+  "coreMusicGroup": "Hoparlör grubu",
+  "coreMusicQueueSummary": "{count} öğe • {position} / {duration}",
+  "@coreMusicQueueSummary": {
+    "placeholders": {
+      "count": {"type": "int"},
+      "position": {"type": "String"},
+      "duration": {"type": "String"}
+    }
+  },
   "musicProviderHint": "Spotify, Apple Music ve YouTube Music için ayrı sağlayıcı kurulumu ve abonelik izinleri gerekir. Yalnızca aboneliğinin olması hesabı buraya bağlamaz. Mevcut Home Assistant çıkışları ve yerel ses kullanılabilir.",
   "musicEmpty": "Bu seçim için öğe döndürülmedi.",
   "musicServiceMissing": "Bağlı sunucuda bu müzik işlemi kullanılamıyor.",

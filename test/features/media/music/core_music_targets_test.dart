@@ -188,4 +188,42 @@ void main() {
       }
     },
   );
+
+  test(
+    'stale player revision is never published as a target inventory',
+    () async {
+      var calls = 0;
+      final stalePlayback = playbackFixture();
+      (stalePlayback['playback']! as Map<String, Object?>)['revision'] = 10;
+      final transport = LarenorServerApi(
+        endpoint: ServerEndpoint('https://core.fixture'),
+        client: MockClient((_) async {
+          calls++;
+          final body = switch (calls) {
+            1 => retainedFixture(),
+            2 => stalePlayback,
+            _ => discoveryFixture(),
+          };
+          return http.Response(
+            jsonEncode(body),
+            200,
+            headers: {'content-type': 'application/json'},
+          );
+        }),
+      );
+      await expectLater(
+        ServerCoreMusicTargetsApi(
+          transport,
+          'a' * 43,
+        ).read(isCurrent: () => true),
+        throwsA(
+          isA<LarenorServerException>().having(
+            (error) => error.code,
+            'code',
+            'stale',
+          ),
+        ),
+      );
+    },
+  );
 }

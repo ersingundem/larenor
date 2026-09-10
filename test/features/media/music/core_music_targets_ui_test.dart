@@ -1,6 +1,9 @@
+import 'dart:async';
+
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:larenor/features/media/music/core/data/core_music_targets_api.dart';
 import 'package:larenor/features/media/music/core/data/core_music_targets_controller.dart';
 import 'package:larenor/features/media/music/core/domain/core_music_target_models.dart';
 import 'package:larenor/features/media/music/core/presentation/core_music_targets_panel.dart';
@@ -18,7 +21,39 @@ class FixtureApi implements CoreMusicTargetsApi {
   }
 }
 
+class DelayedFixtureApi implements CoreMusicTargetsApi {
+  final result = Completer<CoreMusicTargetInventory>();
+
+  @override
+  Future<CoreMusicTargetInventory> read({required bool Function() isCurrent}) =>
+      result.future;
+}
+
 void main() {
+  test('account lifecycle retirement drops a late inventory', () async {
+    final lifecycle = ValueNotifier(0);
+    var authorized = true;
+    final api = DelayedFixtureApi();
+    final controller = CoreMusicTargetsController(
+      api: api,
+      lifecycle: lifecycle,
+      authorized: () => authorized,
+    );
+    controller.setVisible(true);
+    expect(controller.busy, isTrue);
+    authorized = false;
+    lifecycle.value++;
+    api.result.complete(
+      CoreMusicTargetInventory.fromJson(discoveryFixture()['inventory']),
+    );
+    await Future<void>.delayed(Duration.zero);
+    expect(controller.inventory, isNull);
+    expect(controller.selectedTargetId, isNull);
+    expect(controller.busy, isFalse);
+    controller.dispose();
+    lifecycle.dispose();
+  });
+
   for (final fixture in [
     (size: const Size(600, 1000), scale: 2.0),
     (size: const Size(1280, 800), scale: 1.0),
@@ -108,6 +143,7 @@ void main() {
         matchesSemantics(
           label: 'Living HomePod, HomePod, Paused, Synthetic Song',
           isButton: true,
+          hasSelectedState: true,
           isSelected: true,
           hasEnabledState: true,
           isEnabled: true,

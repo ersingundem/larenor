@@ -12,6 +12,7 @@ import '../../../health/presentation/health_labels.dart';
 import '../../ha_playback/presentation/ha_playback_screen.dart';
 import '../../hub/presentation/media_session_state.dart';
 import '../../local_audio/presentation/local_audio_screen.dart';
+import '../core/presentation/core_music_targets_panel.dart';
 import '../domain/music_models.dart';
 import '../domain/music_playback_models.dart';
 import '../providers/music_providers.dart';
@@ -434,6 +435,7 @@ class _MusicCenterScreenState extends MediaSessionState<MusicCenterScreen> {
     final l10n = AppLocalizations.of(context);
     final targets = discovery?.inventory?.targets;
     return [
+      const SliverToBoxAdapter(child: CoreMusicTargetsPanel()),
       SliverToBoxAdapter(
         child: MusicPanel(
           child: Column(

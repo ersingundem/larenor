@@ -1590,7 +1590,23 @@
   "musicChooseServer": "Choose a Music Assistant connection",
   "musicChooseOutput": "Choose a Music Assistant output",
   "musicNoAssistant": "Music Assistant is not connected to Home Assistant.",
-  "musicAssistantHint": "Larenor Server brings supported music accounts and speaker queues together using Music Assistant. Install it manually with Docker on CasaOS or a Linux server. Larenor Client provides this music interface through Home Assistant; the server runs separately.",
+  "musicAssistantHint": "Larenor Core runs its managed Music Assistant component and brings supported music accounts and speaker queues into this screen. Provider sign-in remains an explicit step in settings.",
+  "coreMusicOutputsTitle": "Larenor Core outputs",
+  "coreMusicOutputsHint": "Verified AirPlay, HomePod and Chromecast targets from the managed Music Assistant component.",
+  "coreMusicNoTargets": "Core has not verified any speaker targets yet.",
+  "coreMusicNotReady": "Core music targets are not ready for this administrator session.",
+  "coreMusicHomePod": "HomePod",
+  "coreMusicAirPlay": "AirPlay",
+  "coreMusicChromecast": "Chromecast",
+  "coreMusicGroup": "Speaker group",
+  "coreMusicQueueSummary": "{count} items • {position} / {duration}",
+  "@coreMusicQueueSummary": {
+    "placeholders": {
+      "count": {"type": "int"},
+      "position": {"type": "String"},
+      "duration": {"type": "String"}
+    }
+  },
   "musicProviderHint": "Spotify, Apple Music and YouTube Music need their own provider setup and subscription permissions. Having a subscription alone does not connect that account here. Existing Home Assistant outputs and local audio remain available.",
   "musicEmpty": "No items were returned for this selection.",
   "musicServiceMissing": "This music action is not available on the connected server.",
