@@ -182,7 +182,11 @@ void main() {
     await openRdp(tester, ui);
     await press(tester, 'rdp-check');
     expect(key('rdp-surface'), findsOneWidget);
+    await tester.ensureVisible(key('rdp-surface'));
+    await tester.pumpAndSettle();
     await tester.tap(key('rdp-surface'));
+    tester.widget<Focus>(key('rdp-surface')).focusNode!.requestFocus();
+    await tester.pump();
     await tester.sendKeyDownEvent(LogicalKeyboardKey.keyA);
     await tester.sendKeyUpEvent(LogicalKeyboardKey.keyA);
     expect(engine.channel.pointers, isNotEmpty);

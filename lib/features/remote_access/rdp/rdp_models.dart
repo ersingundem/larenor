@@ -454,5 +454,5 @@ class RdpKeyEvent {
   const RdpKeyEvent({required this.physicalKey, required this.down});
   final int physicalKey;
   final bool down;
-  bool get valid => physicalKey >= 1 && physicalKey <= 0xffff;
+  bool get valid => physicalKey >= 1 && physicalKey <= 0xffffffff;
 }

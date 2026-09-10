@@ -4,6 +4,7 @@ import 'dart:ui' show ViewFocusEvent, ViewFocusState;
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart' show SelectableText;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter/services.dart';
 
 import '../../../core/app_interaction_scope.dart';
 import '../../../core/window/window_policy_providers.dart';
@@ -560,6 +561,10 @@ class _RdpSessionPanelState extends ConsumerState<RdpSessionPanel>
                           ),
                         ],
                         if (c.phase == RdpSessionPhase.connected) ...[
+                          _RdpInputSurface(
+                            controller: c,
+                            label: l.rdpInputReady,
+                          ),
                           Padding(
                             padding: const EdgeInsets.all(20),
                             child: Semantics(
@@ -592,4 +597,116 @@ class _RdpSessionPanelState extends ConsumerState<RdpSessionPanel>
       ),
     );
   }
+}
+
+class _RdpInputSurface extends StatefulWidget {
+  const _RdpInputSurface({required this.controller, required this.label});
+  final RdpSessionController controller;
+  final String label;
+
+  @override
+  State<_RdpInputSurface> createState() => _RdpInputSurfaceState();
+}
+
+class _RdpInputSurfaceState extends State<_RdpInputSurface> {
+  final _focus = FocusNode(debugLabel: 'RDP desktop input');
+  Size? _lastSize;
+
+  KeyEventResult _key(FocusNode _, KeyEvent event) {
+    if (event is KeyRepeatEvent) return KeyEventResult.handled;
+    if (event is! KeyDownEvent && event is! KeyUpEvent) {
+      return KeyEventResult.ignored;
+    }
+    final physical = event.physicalKey.usbHidUsage;
+    if (physical <= 0 || physical > 0xffffffff) return KeyEventResult.ignored;
+    widget.controller.key(
+      RdpKeyEvent(physicalKey: physical, down: event is KeyDownEvent),
+    );
+    return KeyEventResult.handled;
+  }
+
+  void _resize(Size size) {
+    if (size.isEmpty || size == _lastSize) return;
+    _lastSize = size;
+    final ratio = MediaQuery.devicePixelRatioOf(context);
+    final width = (size.width * ratio).round().clamp(640, 8192);
+    final height = (size.height * ratio).round().clamp(480, 8192);
+    final current = widget.controller.display;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      widget.controller.resize(
+        RdpDisplaySpec(
+          width: width,
+          height: height,
+          dpi: current.dpi,
+          externalDisplay: current.externalDisplay,
+        ),
+      );
+    });
+  }
+
+  void _pointer(PointerEvent event, Size size) {
+    if (size.isEmpty) return;
+    widget.controller.pointer(
+      RdpPointerEvent(
+        x: (event.localPosition.dx / size.width).clamp(0, 1),
+        y: (event.localPosition.dy / size.height).clamp(0, 1),
+        buttons: event.buttons.clamp(0, 31),
+      ),
+    );
+  }
+
+  @override
+  void dispose() {
+    _focus.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.all(12),
+    child: LayoutBuilder(
+      builder: (context, constraints) {
+        final size = Size(constraints.maxWidth, 480);
+        _resize(size);
+        return Focus(
+          key: const ValueKey('rdp-surface'),
+          focusNode: _focus,
+          autofocus: true,
+          onKeyEvent: _key,
+          child: Semantics(
+            label: widget.label,
+            focusable: true,
+            child: MouseRegion(
+              cursor: SystemMouseCursors.basic,
+              child: Listener(
+                behavior: HitTestBehavior.opaque,
+                onPointerDown: (event) {
+                  _focus.requestFocus();
+                  _pointer(event, size);
+                },
+                onPointerMove: (event) => _pointer(event, size),
+                onPointerUp: (event) => _pointer(event, size),
+                child: Container(
+                  height: size.height,
+                  decoration: BoxDecoration(
+                    color: CupertinoColors.black,
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  alignment: Alignment.center,
+                  child: ExcludeSemantics(
+                    child: Icon(
+                      CupertinoIcons.desktopcomputer,
+                      size: 64,
+                      color: CupertinoColors.systemGrey.resolveFrom(context),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    ),
+  );
 }
