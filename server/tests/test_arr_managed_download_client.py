@@ -229,3 +229,51 @@ def test_untrusted_inputs_do_not_open_or_mutate(service, arr_key, qbit_key):
             qbittorrent_api_key=qbit_key,
         )
     assert connection.requests == []
+
+
+@pytest.mark.parametrize(("responses", "code", "uncertain"), [
+    ([json_response({}, status=401, close=True)],
+     "arr_download_client_authentication_failed", False),
+    ([response(200, b'[{"id":1,"id":2}]', content_type=b"application/json")],
+     "arr_download_client_observation_payload", False),
+    ([json_response([]), json_response(schema("sonarr"), close=True)],
+     "arr_download_client_schema_protocol", False),
+    ([json_response([]), json_response(schema("sonarr")),
+      json_response({}, status=403, close=True)],
+     "arr_download_client_authentication_failed", False),
+    ([json_response([]), json_response(schema("sonarr")), json_response({}),
+      json_response({}, status=500, close=True)],
+     "arr_download_client_create_protocol", True),
+    ([json_response([]), json_response(schema("sonarr")), json_response({}),
+      json_response(desired("sonarr"), status=201),
+      json_response([{**desired("sonarr", masked=True), "priority": 2}], close=True)],
+     "arr_download_client_conflict", True),
+])
+def test_protocol_and_auth_failures_are_bounded(responses, code, uncertain):
+    connection = Connection(responses)
+    with pytest.raises(ArrManagedDownloadClientError, match=f"^{code}$") as raised:
+        ArrManagedDownloadClient().apply(
+            connection, service_id="sonarr", arr_api_key=ARR_KEY,
+            qbittorrent_api_key=QBIT_KEY,
+        )
+    assert raised.value.uncertain_effect is uncertain
+    assert QBIT_KEY not in str(raised.value) + repr(raised.value)
+    assert connection.closed
+
+
+def test_duplicate_or_unknown_schema_fields_are_rejected_without_secret_test():
+    duplicate = schema("sonarr")
+    duplicate[0]["fields"].append({"name": "host", "value": "attacker"})
+    unknown = schema("sonarr")
+    unknown[0]["fields"].append({"name": "script", "value": "attacker"})
+    for value in (duplicate, unknown):
+        connection = Connection([json_response([]), json_response(value)])
+        with pytest.raises(
+            ArrManagedDownloadClientError,
+            match="^arr_download_client_schema_conflict$",
+        ):
+            ArrManagedDownloadClient().apply(
+                connection, service_id="sonarr", arr_api_key=ARR_KEY,
+                qbittorrent_api_key=QBIT_KEY,
+            )
+        assert len(connection.requests) == 2 and connection.closed
