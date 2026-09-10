@@ -135,53 +135,65 @@ void main() {
     expect(controller.phase, SftpPhase.ready);
   }
 
-  test('reuses saved credential and host pin without listing or retry', () async {
-    await connect();
-    expect(engine.opens, 1);
-    expect(transport.listCalls, 0);
-    expect(controller.path, '/');
-  });
+  test(
+    'reuses saved credential and host pin without listing or retry',
+    () async {
+      await connect();
+      expect(engine.opens, 1);
+      expect(transport.listCalls, 0);
+      expect(controller.path, '/');
+    },
+  );
 
-  test('unknown key requires explicit trust before SFTP becomes ready', () async {
-    final opening = controller.connect();
-    await Future<void>.delayed(Duration.zero);
-    expect(controller.phase, SftpPhase.hostKey);
-    expect(controller.pendingPin, hostPin);
-    await controller.trustHost();
-    await opening;
-    expect(store.pin, hostPin);
-    expect(controller.phase, SftpPhase.ready);
-  });
+  test(
+    'unknown key requires explicit trust before SFTP becomes ready',
+    () async {
+      final opening = controller.connect();
+      await Future<void>.delayed(Duration.zero);
+      expect(controller.phase, SftpPhase.hostKey);
+      expect(controller.pendingPin, hostPin);
+      await controller.trustHost();
+      await opening;
+      expect(store.pin, hostPin);
+      expect(controller.phase, SftpPhase.ready);
+    },
+  );
 
-  test('bounded listing normalizes path, sorts folders and reports truncation', () async {
-    await connect();
-    transport.listing = [
-      const SftpEntry.file('z.txt', '/srv/z.txt', size: 9),
-      const SftpEntry.directory('Albums', '/srv/Albums'),
-      ...List.generate(
-        sftpMaxEntries,
-        (i) => SftpEntry.file('f$i', '/srv/f$i'),
-      ),
-    ];
-    await controller.openDirectory('/srv//./');
-    expect(controller.path, '/srv');
-    expect(controller.entries, hasLength(sftpMaxEntries));
-    expect(controller.entries.first.name, 'Albums');
-    expect(controller.truncated, isTrue);
-    expect(transport.listCalls, 1);
-  });
+  test(
+    'bounded listing normalizes path, sorts folders and reports truncation',
+    () async {
+      await connect();
+      transport.listing = [
+        const SftpEntry.file('z.txt', '/srv/z.txt', size: 9),
+        const SftpEntry.directory('Albums', '/srv/Albums'),
+        ...List.generate(
+          sftpMaxEntries,
+          (i) => SftpEntry.file('f$i', '/srv/f$i'),
+        ),
+      ];
+      await controller.openDirectory('/srv//./');
+      expect(controller.path, '/srv');
+      expect(controller.entries, hasLength(sftpMaxEntries));
+      expect(controller.entries.first.name, 'Albums');
+      expect(controller.truncated, isTrue);
+      expect(transport.listCalls, 1);
+    },
+  );
 
-  test('download and upload require explicit calls and use normalized paths', () async {
-    await connect();
-    const file = SftpEntry.file('movie.mkv', '/media/movie.mkv', size: 3);
-    await controller.download(file);
-    expect(transport.reads, ['/media/movie.mkv']);
-    expect(saved, ['movie.mkv:3']);
-    await controller.openDirectory('/media');
-    await controller.pickAndUpload();
-    expect(transport.uploaded['/media/new.txt'], [7, 8]);
-    expect(engine.opens, 1);
-  });
+  test(
+    'download and upload require explicit calls and use normalized paths',
+    () async {
+      await connect();
+      const file = SftpEntry.file('movie.mkv', '/media/movie.mkv', size: 3);
+      await controller.download(file);
+      expect(transport.reads, ['/media/movie.mkv']);
+      expect(saved, ['movie.mkv:3']);
+      await controller.openDirectory('/media');
+      await controller.pickAndUpload();
+      expect(transport.uploaded['/media/new.txt'], [7, 8]);
+      expect(engine.opens, 1);
+    },
+  );
 
   test('cancel closes active transfer and late completion cannot publish or replay', () async {
     await connect();
@@ -195,8 +207,9 @@ void main() {
     expect(engine.closed, isTrue);
     expect(controller.phase, SftpPhase.closed);
     expect(controller.entries, isEmpty);
-    await controller.connect();
     expect(engine.opens, 1);
+    await controller.connect();
+    expect(engine.opens, 2);
   });
 
   test('owner retirement closes session and wipes downloaded bytes', () async {
