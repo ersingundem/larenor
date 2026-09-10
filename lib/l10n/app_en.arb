@@ -2526,7 +2526,13 @@
   "sshTargetHop": "Target authentication",
   "sshJumpDirect": "Connect directly (no jump host)",
   "sshJumpUsing": "Use {name} as jump host",
-  "@sshJumpUsing": {"placeholders": {"name": {"type": "String"}}},
+  "@sshJumpUsing": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
   "sshJumpCredentialMissing": "The jump host has no saved credential on this device.",
   "sshJumpHostChanged": "The saved jump-host key changed. The connection was blocked.",
   "sftpTitle": "SFTP files",
@@ -2718,5 +2724,20 @@
   "keeneticCommandFailed": "Failed",
   "keeneticCommandUnknown": "Result unknown",
   "keeneticCommandUnavailable": "Command controls are unavailable. Refresh the exact router state before trying again.",
-  "keeneticCommandReadOnly": "This account can view router state but cannot run commands."
+  "keeneticCommandReadOnly": "This account can view router state but cannot run commands.",
+  "coreKeeneticDetailsTitle": "Network devices and interfaces",
+  "coreKeeneticDetailsSearch": "Search devices and interfaces",
+  "coreKeeneticDetailsAll": "All",
+  "coreKeeneticDetailsInterfaces": "Interfaces",
+  "coreKeeneticDetailsClients": "Devices",
+  "coreKeeneticDetailsEmpty": "No matching network details.",
+  "coreKeeneticDetailsLoadMore": "Load more",
+  "coreKeeneticDetailsIdentity": "Private device identity",
+  "coreKeeneticDetailsInterface": "Interface",
+  "coreKeeneticDetailsAddress": "Address",
+  "coreKeeneticDetailsSsid": "Wi-Fi name",
+  "coreKeeneticDetailsBand": "Band",
+  "coreKeeneticDetailsChannel": "Channel",
+  "coreKeeneticDetailsSignal": "Signal",
+  "coreKeeneticDetailsAccess": "Internet access"
 }

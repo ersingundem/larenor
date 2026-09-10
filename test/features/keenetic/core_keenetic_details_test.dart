@@ -42,7 +42,7 @@ Map<String, dynamic> pageJson() => {
     },
     {
       'kind': 'client',
-      'id': 'client-1',
+      'id': '0123456789abcdef',
       'name': 'Salon Tablet',
       'ipAddress': '192.168.1.20',
       'macHash': '0123456789abcdef',

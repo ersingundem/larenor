@@ -40,6 +40,7 @@ class CoreKeeneticController extends ChangeNotifier {
   String? failure;
   HomeResourceRecord? record;
   CoreKeeneticSnapshot? snapshot;
+  CoreKeeneticDetailsPage? details;
   CoreKeeneticBinding? binding;
   CoreKeeneticPreview? preview;
   List<ServerService> services = const [];
@@ -102,6 +103,7 @@ class CoreKeeneticController extends ChangeNotifier {
     _ttl = null;
     record = null;
     snapshot = null;
+    details = null;
     binding = null;
     preview = null;
     services = const [];
@@ -230,14 +232,38 @@ class CoreKeeneticController extends ChangeNotifier {
         services = await api(next).services();
         if (binding != null) {
           snapshot = await api(next).snapshot();
+          details = await api(next).details();
         }
       } else {
         snapshot = await api(next).snapshot();
+        details = await api(next).details();
       }
       loaded = true;
       if (snapshot != null) {
         _arm(snapshot!.remainingTtlMs);
       }
+    });
+  }
+
+  Future<void> loadMoreDetails() async {
+    final expectedRecord = record, currentPage = details;
+    if (!fresh ||
+        busy ||
+        stale ||
+        expectedRecord == null ||
+        currentPage?.nextAfter == null) {
+      return;
+    }
+    await _run((api) async {
+      if (record != expectedRecord || details != currentPage) {
+        throw const LarenorServerException('cancelled');
+      }
+      final next = await api(expectedRecord).details(
+        after: currentPage!.nextAfter,
+        expectedSnapshot: currentPage.snapshot,
+      );
+      details = currentPage.append(next);
+      loaded = true;
     });
   }
 

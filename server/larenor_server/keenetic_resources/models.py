@@ -6,6 +6,8 @@ from ..home_resources.models import FrozenModel, Identity, ResourceRef, Revision
 
 SafeName = Annotated[str, Field(min_length=1, max_length=128)]
 Counter = Annotated[int, Field(ge=0, le=2**63 - 1)]
+WifiBand = Literal["2.4", "5", "6"]
+SignalDbm = Annotated[int, Field(ge=-127, le=0)]
 
 
 def _safe(value):
@@ -70,8 +72,22 @@ class InterfaceTelemetry(FrozenModel):
     rxBytes: Counter
     txBytes: Counter
     guest: bool | None = Field(default=None, exclude_if=lambda value: value is None)
+    ssid: str | None = Field(default=None, max_length=64, exclude_if=lambda value: value is None)
+    band: WifiBand | None = Field(default=None, exclude_if=lambda value: value is None)
+    channel: Annotated[int, Field(ge=1, le=233)] | None = Field(
+        default=None, exclude_if=lambda value: value is None
+    )
+    signalDbm: SignalDbm | None = Field(default=None, exclude_if=lambda value: value is None)
 
-    _id = field_validator("id", "name", "address")(_safe)
+    _id = field_validator("id", "name", "address", "ssid")(_safe)
+
+    @model_validator(mode="after")
+    def wifi_metadata_only(self):
+        if self.kind != "wifi" and any(
+            value is not None for value in (self.ssid, self.band, self.channel, self.signalDbm)
+        ):
+            raise ValueError("unexpected_wifi_metadata")
+        return self
 
 
 class TrafficTelemetry(FrozenModel):
@@ -93,6 +109,8 @@ class HostTelemetry(FrozenModel):
     internetAccess: Literal["allowed", "paused"] | None = Field(
         default=None, exclude_if=lambda value: value is None
     )
+    band: WifiBand | None = Field(default=None, exclude_if=lambda value: value is None)
+    signalDbm: SignalDbm | None = Field(default=None, exclude_if=lambda value: value is None)
 
     _text = field_validator("id", "name", "ipAddress", "interfaceId")(_safe)
 
@@ -143,3 +161,59 @@ class ResourceSnapshot(FrozenModel):
 
 class SnapshotResponse(FrozenModel):
     snapshot: ResourceSnapshot
+
+
+class InterfaceDetail(FrozenModel):
+    kind: Literal["interface"] = "interface"
+    id: SafeName
+    name: SafeName
+    interfaceKind: Literal["wan", "lan", "wifi", "vpn", "other"]
+    online: bool
+    address: str | None = Field(default=None, max_length=64)
+    rxBytes: Counter
+    txBytes: Counter
+    guest: bool | None = None
+    ssid: str | None = Field(default=None, max_length=64)
+    band: WifiBand | None = None
+    channel: Annotated[int, Field(ge=1, le=233)] | None = None
+    signalDbm: SignalDbm | None = None
+
+    _safe_text = field_validator("id", "name", "address", "ssid")(_safe)
+
+    @model_validator(mode="after")
+    def wifi_metadata_only(self):
+        if self.interfaceKind != "wifi" and any(
+            value is not None for value in (self.ssid, self.band, self.channel, self.signalDbm)
+        ):
+            raise ValueError("unexpected_wifi_metadata")
+        return self
+
+
+class ClientDetail(FrozenModel):
+    kind: Literal["client"] = "client"
+    id: str = Field(min_length=16, max_length=16, pattern=r"^[0-9a-f]{16}$")
+    name: SafeName
+    ipAddress: str = Field(min_length=2, max_length=64)
+    macHash: str = Field(min_length=16, max_length=16, pattern=r"^[0-9a-f]{16}$")
+    interfaceId: SafeName
+    online: bool
+    registered: bool
+    internetAccess: Literal["allowed", "paused"] | None = None
+    band: WifiBand | None = None
+    signalDbm: SignalDbm | None = None
+
+    _safe_text = field_validator("name", "ipAddress", "interfaceId")(_safe)
+
+    @model_validator(mode="after")
+    def stable_private_identity(self):
+        if self.id != self.macHash:
+            raise ValueError("identity_mismatch")
+        return self
+
+
+class DetailsPage(FrozenModel):
+    entries: list[InterfaceDetail | ClientDetail] = Field(max_length=100)
+    snapshot: str = Field(min_length=64, max_length=64, pattern=r"^[0-9a-f]{64}$")
+    nextAfter: str | None = Field(
+        default=None, min_length=64, max_length=64, pattern=r"^[0-9a-f]{64}$"
+    )
