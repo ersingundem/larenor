@@ -72,7 +72,7 @@ def test_builder_selects_fixed_qbittorrent_child_without_effect_payload(server):
 
 @pytest.mark.parametrize('field', ['service_id', 'job_id', 'deadline'])
 def test_builder_rejects_caller_selected_effects(server, field):
-    values = {'service_id': 'sonarr', 'job_id': 'x' * 32, 'deadline': float('nan')}
+    values = {'service_id': 'seerr', 'job_id': 'x' * 32, 'deadline': float('nan')}
     arguments = {'job_id': 'a' * 32, 'deadline': 1788609900}
     arguments[field] = values[field]
     with pytest.raises(InstallationExecutionError, match='^invalid_execution_request$'):

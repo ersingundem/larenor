@@ -60,13 +60,13 @@ class ExecutionResult:
 
 @dataclass(frozen=True)
 class InstallationExecution:
-    service_id: Literal['jellyfin', 'qbittorrent']
+    service_id: Literal['jellyfin', 'qbittorrent', 'sonarr', 'radarr']
     operation_id: str
     steps: tuple[WorkerStep, WorkerStep]
     plan: MediaStackPlan = field(repr=False)
 
     def __post_init__(self):
-        if (self.service_id not in {'jellyfin', 'qbittorrent'}
+        if (self.service_id not in {'jellyfin', 'qbittorrent', 'sonarr', 'radarr'}
                 or not _ID.fullmatch(self.operation_id)
                 or type(self.steps) is not tuple or len(self.steps) != 2
                 or type(self.plan) is not MediaStackPlan
@@ -160,7 +160,7 @@ class JellyfinWorkerBackend:
     def _verify(step, plan, service_id='jellyfin'):
         try:
             if (type(step) is not WorkerStep or type(plan) is not MediaStackPlan
-                    or service_id not in {'jellyfin', 'qbittorrent'}):
+                    or service_id not in {'jellyfin', 'qbittorrent', 'sonarr', 'radarr'}):
                 raise ValueError()
             current = verify_media_stack_plan(plan, load_catalog())
             component = next(item for item in current.components
@@ -209,6 +209,33 @@ class QbittorrentWorkerBackend(JellyfinWorkerBackend):
         except Exception:
             raise InstallationExecutionError('invalid_worker_result') from None
 
+
+class ArrWorkerBackend(JellyfinWorkerBackend):
+    """Worker-only bridge for one fixed Sonarr or Radarr child."""
+
+    def __init__(self, operations, binding_builder, service_id):
+        if service_id not in {'sonarr', 'radarr'}:
+            raise InstallationExecutionError()
+        super().__init__(operations, binding_builder)
+        self.service_id = service_id
+
+    def apply(self, step, plan):
+        trusted = self._verify(step, plan, self.service_id)
+        try:
+            return self.operations.apply(
+                step, self.binding_builder(trusted, self.service_id))
+        except Exception:
+            raise InstallationExecutionError('invalid_worker_result') from None
+
+    def reconcile(self, step, plan):
+        trusted = self._verify(step, plan, self.service_id)
+        try:
+            return self.operations.reconcile(
+                step.job_id, step.kind,
+                self.binding_builder(trusted, self.service_id))
+        except Exception:
+            raise InstallationExecutionError('invalid_worker_result') from None
+
     def reconcile(self, step, plan):
         trusted = self._verify(step, plan, 'qbittorrent')
         try:
@@ -220,7 +247,7 @@ class QbittorrentWorkerBackend(JellyfinWorkerBackend):
 def build_execution(plan, *, job_id, deadline, service_id='jellyfin'):
     """Re-derive the packaged plan and select the fixed first component."""
     try:
-        if (service_id not in {'jellyfin', 'qbittorrent'}
+        if (service_id not in {'jellyfin', 'qbittorrent', 'sonarr', 'radarr'}
                 or type(job_id) is not str or _ID.fullmatch(job_id) is None
                 or type(deadline) not in (int, float) or not math.isfinite(deadline) or deadline <= 0):
             raise ValueError()

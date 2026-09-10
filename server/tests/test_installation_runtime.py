@@ -223,6 +223,8 @@ def test_runtime_configures_qbittorrent_before_create_and_start(monkeypatch):
     monkeypatch.setattr(
         runtime, 'QbittorrentBootstrapExecutor',
         lambda *_args: QbittorrentBootstrap())
+    monkeypatch.setattr(
+        runtime, 'ArrBootstrapExecutor', lambda *_args: object())
     monkeypatch.setattr(runtime.time, 'monotonic', lambda: 1000.0)
     monkeypatch.setattr(runtime.time, 'time', lambda: 2000.0)
     backend = runtime._RuntimeBackend(
@@ -564,3 +566,28 @@ def test_help_and_module_entrypoint_do_not_observe_runtime(monkeypatch, capsys):
         with pytest.raises(SystemExit) as result:
             runpy.run_module('larenor_server.plugins.installation_runtime', run_name='__main__')
     assert result.value.code == 0
+
+
+def test_runtime_configures_arr_before_create_start_and_readback(monkeypatch):
+    from larenor_server.plugins.arr_config_effect import ArrConfigInstallReceipt
+    from larenor_server.plugins.arr_bootstrap_executor import ArrBootstrapExecutionResult
+    from larenor_server.plugins.arr_authenticated_readback import ArrAuthenticatedReadbackResult
+    events=[]
+    configured=ArrConfigInstallReceipt('sonarr','1'*32,'2'*32,'3'*32,3,'larenor-appdata-v1-'+'1'*32,'4'*64,'sonarr_config_installed')
+    class Configuration:
+        def install(self, stack, service, **kwargs): events.append(('configure',service)); return configured
+    class Operations:
+        def apply(self,step,binding): events.append(('apply',step.kind,binding)); return StepReceipt(step.job_id,step.kind,'succeeded','container_created' if step.kind=='create_container' else 'container_started','5'*64)
+        def reconcile(self,*args): raise AssertionError()
+    class Bootstrap:
+        def execute(self,*args,**kwargs): events.append(('readback',args[2].serviceId)); return ArrBootstrapExecutionResult('verified','sonarr',ArrAuthenticatedReadbackResult('verified','sonarr','Sonarr','4.0.19.2979'))
+    monkeypatch.setattr(runtime,'JellyfinBootstrapExecutor',lambda *_:object())
+    monkeypatch.setattr(runtime,'QbittorrentBootstrapExecutor',lambda *_:object())
+    monkeypatch.setattr(runtime,'ArrBootstrapExecutor',lambda *_:Bootstrap())
+    monkeypatch.setattr(runtime.time,'monotonic',lambda:1000.0); monkeypatch.setattr(runtime.time,'time',lambda:2000.0)
+    stack=build_media_stack_plan(load_catalog(),{},'linux/amd64',ContextResponse(schemaVersion=1,coreId='a'*32,homeId='b'*32),'c'*32)
+    backend=runtime._RuntimeBackend(Operations(),lambda _s,service:'binding-'+service,object(),Configuration())
+    value=backend.install_configured_arr('d'*32,stack,'sonarr',api_key='a'*32,cancelled=threading.Event(),deadline=1030.0,gate=lambda:True)
+    assert value.configuration==configured and value.container_id=='5'*64
+    assert value.state=='sonarr_container_started' and value.service_state=='sonarr_service_verified'
+    assert events==[('configure','sonarr'),('apply','create_container','binding-sonarr'),('apply','start_container','binding-sonarr'),('readback','sonarr')]
