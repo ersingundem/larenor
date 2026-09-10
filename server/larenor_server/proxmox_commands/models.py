@@ -88,6 +88,10 @@ class ProxmoxGuestDescriptor:
     guest_kind: str
     status: str
     status_revision: int
+    installation_id: str | None = None
+    node: str | None = None
+    guest_id: int | None = None
+    capability_ready: bool = False
 
 
 @dataclass(frozen=True)

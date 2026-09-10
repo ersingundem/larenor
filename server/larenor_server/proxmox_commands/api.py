@@ -1,4 +1,5 @@
 import asyncio
+import re
 import threading
 from typing import Annotated
 
@@ -7,6 +8,7 @@ from fastapi import APIRouter, Depends, Request, Response
 from ..auth import Principal
 from ..core import CoreServices
 from ..dependencies import get_core, require_admin
+from .discovery_models import TargetDiscoveryPage
 from .models import ConfirmRequest, PreviewRequest
 
 
@@ -14,6 +16,65 @@ router = APIRouter(tags=["Proxmox power authority"])
 Core = Annotated[CoreServices, Depends(get_core)]
 Admin = Annotated[Principal, Depends(require_admin)]
 PREFIX = "/admin/proxmox-power/{core_id}/{home_id}/{resource_id}"
+
+
+def _target_query(request: Request):
+    items = list(request.query_params.multi_items())
+    allowed = {"limit", "after", "expectedSnapshot"}
+    if (
+        any(key not in allowed for key, _ in items)
+        or len({key for key, _ in items}) != len(items)
+    ):
+        raise ValueError()
+    values = dict(items)
+    raw_limit = values.get("limit", "25")
+    if (
+        len(raw_limit) > 3
+        or not raw_limit.isascii()
+        or not raw_limit.isdigit()
+        or str(int(raw_limit)) != raw_limit
+    ):
+        raise ValueError()
+    limit = int(raw_limit)
+    if not 1 <= limit <= 100:
+        raise ValueError()
+    after, snapshot = values.get("after"), values.get("expectedSnapshot")
+    if (after is None) != (snapshot is None):
+        raise ValueError()
+    if after is not None and (
+        re.fullmatch(r"[0-9a-f]{32}", after) is None
+        or re.fullmatch(r"[0-9a-f]{64}", snapshot) is None
+    ):
+        raise ValueError()
+    return limit, after, snapshot
+
+
+@router.get(PREFIX + "/targets", response_model=TargetDiscoveryPage)
+def targets(
+    core_id: str,
+    home_id: str,
+    resource_id: str,
+    request: Request,
+    principal: Admin,
+    core: Core,
+):
+    try:
+        if len(request.headers.getlist("authorization")) != 1:
+            raise ValueError()
+        limit, after, snapshot = _target_query(request)
+    except (TypeError, ValueError, OverflowError):
+        from ..errors import ApiError
+
+        raise ApiError("invalid_request") from None
+    return core.proxmox_power.discover_targets(
+        principal,
+        core_id,
+        home_id,
+        resource_id,
+        limit=limit,
+        after=after,
+        expected_snapshot=snapshot,
+    )
 
 
 @router.post(PREFIX + "/previews", status_code=201)
