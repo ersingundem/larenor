@@ -39,3 +39,9 @@ Run the focused regression suite after changing this workflow:
 ```sh
 python3 -m unittest tool.tests.commit_with_progress_test -v
 ```
+
+Pull requests also run `tool/check_commit_progress.py` against every commit in
+the proposed range. The gate requires one correctly calculated queue trailer
+and one feature trailer per commit, rejects decreasing counters, and requires
+the pull request head to match the validated queue. Direct commits and commits
+from parallel branches therefore follow the same visible rule.

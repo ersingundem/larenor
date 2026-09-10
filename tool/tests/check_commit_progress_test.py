@@ -58,7 +58,7 @@ class CheckCommitProgressTest(unittest.TestCase):
             check_commit_progress.validate_sequence(
                 history, expected=history[0])
 
-    def test_checks_only_first_parent_pr_commits(self):
+    def test_checks_every_commit_added_by_the_pr(self):
         with tempfile.TemporaryDirectory() as directory:
             repo = Path(directory)
             self._git(repo, 'init', '-q')
@@ -66,16 +66,17 @@ class CheckCommitProgressTest(unittest.TestCase):
             self._git(repo, 'config', 'user.email', 'test@larenor.invalid')
             base = self._commit(repo, 'base', 'base')
             self._git(repo, 'checkout', '-q', '-b', 'feature')
-            self._commit(repo, 'feature', 'parallel commit without trailers')
+            self._commit(repo, 'feature', self._message(
+                'parallel commit', 14, 125, 0, 63))
             self._git(repo, 'checkout', '-q', '-')
             self._commit(repo, 'main', self._message('integration one', 14, 125, 0, 63))
             self._git(repo, 'merge', '--no-ff', '-q', 'feature', '-m',
                       self._message('merge feature', 14, 125, 0, 63))
             head = self._git(repo, 'rev-parse', 'HEAD').strip()
 
-            values = check_commit_progress.read_first_parent_progress(
+            values = check_commit_progress.read_progress(
                 repo, base, head)
-            self.assertEqual(len(values), 2)
+            self.assertEqual(len(values), 3)
             self.assertEqual(values[-1].queue, (14, 125))
 
     @staticmethod
