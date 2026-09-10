@@ -5,7 +5,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:larenor/features/core_proxmox/data/core_proxmox_api.dart';
-import 'package:larenor/features/core_proxmox/domain/core_proxmox_models.dart';
 import 'package:larenor/features/home_resources/domain/home_resource_models.dart';
 import 'package:larenor/features/server/data/larenor_server_api.dart';
 import 'package:larenor/features/server/domain/server_models.dart';

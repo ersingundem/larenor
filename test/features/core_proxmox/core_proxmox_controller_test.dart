@@ -123,13 +123,17 @@ class _Harness {
                 'error': {'code': 'not_found'},
               }, 404);
       }
-      if (path.endsWith('/services'))
+      if (path.endsWith('/services')) {
         return _json({
           'services': [f['service']],
         });
-      if (path.contains('/home-resources/'))
+      }
+      if (path.contains('/home-resources/')) {
         return _json({'record': f['resource']});
-      if (request.method == 'DELETE') return http.Response('', 204);
+      }
+      if (request.method == 'DELETE') {
+        return http.Response('', 204);
+      }
       throw StateError('unexpected $request');
     }, () => closes++),
   );
@@ -169,7 +173,9 @@ http.Response _json(Object? value, [int status = 200]) => http.Response(
 );
 
 Future<void> _flush() async {
-  for (var i = 0; i < 20; i++) await Future<void>.delayed(Duration.zero);
+  for (var i = 0; i < 20; i++) {
+    await Future<void>.delayed(Duration.zero);
+  }
 }
 
 void main() {
