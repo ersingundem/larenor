@@ -140,6 +140,7 @@ def test_worker_receives_exact_preview_revisions_and_only_returns_hashed_upid():
         result = client.execute_bounded(
             descriptor(), "start", lambda: None,
             preview=preview(), deadline_ms=2_000,
+            allowed_addresses=("127.0.0.1",),
         )
 
     assert len(adapter.calls) == 1
@@ -176,6 +177,7 @@ def test_worker_has_a_fixed_five_action_allowlist(action, state):
     with RunningWorker(adapter) as (_server, client):
         result = client.execute_bounded(
             selected, action, lambda: None, preview=body, deadline_ms=2_000,
+            allowed_addresses=("127.0.0.1",),
         )
     assert result.outcome == "succeeded"
     assert len(adapter.calls) == 1
@@ -189,6 +191,23 @@ def test_worker_rejects_actions_outside_fixed_effect_allowlist(action):
             client.execute_bounded(
                 descriptor(), action, lambda: None,
                 preview=preview("start"), deadline_ms=2_000,
+                allowed_addresses=("127.0.0.1",),
+            )
+    assert adapter.calls == []
+
+
+@pytest.mark.parametrize("addresses", [
+    (), ("8.8.8.8",), ("10.20.30.40", "10.20.30.40"),
+    ("169.254.169.254",),
+])
+def test_worker_rejects_missing_public_duplicate_or_metadata_egress_pins(addresses):
+    adapter = Adapter([])
+    with RunningWorker(adapter) as (_server, client):
+        with pytest.raises(ProxmoxPowerWorkerError):
+            client.execute_bounded(
+                descriptor(), "start", lambda: None,
+                preview=preview(), deadline_ms=2_000,
+                allowed_addresses=addresses,
             )
     assert adapter.calls == []
 
@@ -201,6 +220,7 @@ def test_private_socket_owner_peer_and_mode_are_checked_before_effect():
             client.execute_bounded(
                 descriptor(), "start", lambda: None,
                 preview=preview(), deadline_ms=2_000,
+                allowed_addresses=("127.0.0.1",),
             )
     assert adapter.calls == []
 
@@ -209,6 +229,7 @@ def test_private_socket_owner_peer_and_mode_are_checked_before_effect():
             client.execute_bounded(
                 descriptor(), "start", lambda: None,
                 preview=preview(), deadline_ms=2_000,
+                allowed_addresses=("127.0.0.1",),
             )
     assert adapter.calls == []
 
@@ -227,6 +248,7 @@ def test_guard_and_deadline_cancel_without_retry_or_late_success():
             client.execute_bounded(
                 descriptor(), "start", cancelled,
                 preview=preview(), deadline_ms=500,
+                allowed_addresses=("127.0.0.1",),
             )
     assert guard_calls == 1
     assert adapter.calls == []
@@ -239,11 +261,13 @@ def test_duplicate_request_is_not_replayed():
         first = client.execute_bounded(
             descriptor(), "start", lambda: None,
             preview=preview(), deadline_ms=2_000,
+            allowed_addresses=("127.0.0.1",),
         )
         with pytest.raises(ProxmoxPowerWorkerError):
             client.execute_bounded(
                 descriptor(), "start", lambda: None,
                 preview=preview(), deadline_ms=2_000,
+                allowed_addresses=("127.0.0.1",),
             )
     assert first.outcome == "succeeded"
     assert len(adapter.calls) == 1
@@ -263,6 +287,7 @@ def test_worker_never_opens_inet_sockets(monkeypatch):
         assert client.execute_bounded(
             descriptor(), "start", lambda: None,
             preview=preview(), deadline_ms=2_000,
+            allowed_addresses=("127.0.0.1",),
         ).outcome == "succeeded"
 
 
@@ -315,10 +340,30 @@ def test_core_uses_explicit_worker_and_journal_contains_only_upid_hash(tmp_path)
         app = create_app(settings, proxmox_guest_provider=provider)
         # The fixture substitutes peer-UID observation only inside the worker;
         # macOS has no Linux SO_PEERCRED, so bind the owned test observer here.
-        app.state.core.proxmox_power.executor.peer_uid = lambda _connection: os.getuid()
+        app.state.core.proxmox_power.executor._delegate.peer_uid = lambda _connection: os.getuid()
         with TestClient(app) as client:
             admin = ready((app, client, settings, clock))
             scope = app.state.core.context
+            service = client.post(
+                "/api/v1/admin/services", headers=auth(admin), json={
+                    "kind": "proxmox", "name": "Synthetic PVE",
+                    "baseUrl": "https://pve.invalid:8006",
+                    "credentials": {
+                        "token": "root@pam!larenor=01234567-89ab-cdef-0123-456789abcdef",
+                    },
+                },
+            ).json()["service"]
+            policy = client.put(
+                f"/api/v1/admin/services/{service['id']}/outbound-policy",
+                headers=auth(admin), json={
+                    "expectedRevision": 0, "expectedServiceRevision": 1,
+                    "grants": [{
+                        "scheme": "https", "host": "pve.invalid", "port": 8006,
+                        "addresses": [{"address": "10.20.30.40", "network": "lan"}],
+                    }],
+                },
+            )
+            assert policy.status_code == 200, policy.text
             created = client.post(
                 f"/api/v1/admin/home-resources/{scope.coreId}/{scope.homeId}",
                 headers=auth(admin),
@@ -326,7 +371,7 @@ def test_core_uses_explicit_worker_and_journal_contains_only_upid_hash(tmp_path)
             ).json()["record"]
             resource_id = created["ref"]["id"]
             provider.value = ProxmoxGuestDescriptor(
-                resource_id, "binding_1", 7, "service_1", 9,
+                resource_id, "binding_1", 7, service["id"], 1,
                 "qemu", "stopped", 11,
             )
             with app.state.core.db.connection() as connection:
@@ -342,7 +387,7 @@ def test_core_uses_explicit_worker_and_journal_contains_only_upid_hash(tmp_path)
                 "expectedResourceRevision": created["revision"],
                 "expectedAclRevision": created["aclRevision"],
                 "expectedBindingId": "binding_1", "expectedBindingRevision": 7,
-                "expectedServiceId": "service_1", "expectedServiceRevision": 9,
+                "expectedServiceId": service["id"], "expectedServiceRevision": 1,
                 "expectedGuestKind": "qemu", "expectedCurrentState": "stopped",
                 "expectedStatusRevision": 11,
             }
@@ -444,6 +489,7 @@ def test_core_worker_health_binds_the_original_socket_inode(tmp_path):
                 client.execute_bounded(
                     descriptor(), "start", lambda: None,
                     preview=preview(), deadline_ms=1_000,
+                    allowed_addresses=("127.0.0.1",),
                 )
             assert replacement_calls == []
         finally:

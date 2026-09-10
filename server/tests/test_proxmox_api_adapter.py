@@ -121,6 +121,7 @@ def command(action="start", **changes):
         "guest_kind": "qemu",
         "current_state": "stopped" if action == "start" else "running",
         "status_revision": 11,
+        "allowed_addresses": ("127.0.0.1",),
     }
     values.update(changes)
     return PackagedProxmoxCommand(**values)
@@ -194,6 +195,19 @@ def test_exact_sealed_binding_dispatches_one_fixed_request_and_returns_unknown_u
                 cancelled=lambda: False,
             )
         assert len(requests) == 1
+
+
+def test_component_egress_address_must_include_the_sealed_pin_before_dns():
+    calls = []
+    adapter = ProxmoxApiEffectAdapter(
+        binding(8006), resolver=lambda *_args: calls.append("dns"),
+    )
+    with pytest.raises(ProxmoxApiAdapterError, match="^binding_changed$"):
+        adapter.execute(
+            command(allowed_addresses=("10.20.30.40",)),
+            deadline=time.monotonic() + 1, cancelled=lambda: False,
+        )
+    assert calls == []
 
 
 @pytest.mark.parametrize("change", [
@@ -313,6 +327,7 @@ def test_worker_hashes_accepted_upid_but_never_claims_success_or_retries():
             result = client.execute_bounded(
                 descriptor(), "start", lambda: None,
                 preview=preview(), deadline_ms=2_000,
+                allowed_addresses=("127.0.0.1",),
             )
         expected = "UPID-SHA256:" + hashlib.sha256(RAW_UPID.encode()).hexdigest()
         assert result.outcome == "unknown"

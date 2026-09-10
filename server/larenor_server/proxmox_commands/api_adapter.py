@@ -338,6 +338,7 @@ class ProxmoxApiEffectAdapter:
             and command.service_id == selected.service_id
             and command.service_revision == selected.service_revision
             and command.guest_kind == selected.guest_kind
+            and selected.pinned_address in command.allowed_addresses
         )
 
     def _unknown(self, command, upid=None):

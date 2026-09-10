@@ -5,6 +5,7 @@ import hashlib
 import json
 import os
 from pathlib import Path
+from types import SimpleNamespace
 import socket
 import socketserver
 import tempfile
@@ -241,7 +242,13 @@ def test_core_supervisor_worker_api_journal_end_to_end(
             proxmox_power_worker_uid=os.getuid(),
         )
         app = create_app(active_settings, proxmox_guest_provider=provider)
-        app.state.core.proxmox_power.executor.peer_uid = lambda _connection: os.getuid()
+        executor = app.state.core.proxmox_power.executor
+        executor._delegate.peer_uid = lambda _connection: os.getuid()
+        executor._egress = SimpleNamespace(check_component=lambda *args: (
+            SimpleNamespace(grants=[SimpleNamespace(addresses=[
+                SimpleNamespace(address="127.0.0.1")
+            ])])
+        ))
         with TestClient(app) as client:
             signed = login(
                 client, "admin", "Synthetic new password 2026",

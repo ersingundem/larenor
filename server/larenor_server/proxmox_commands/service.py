@@ -178,8 +178,15 @@ class ProxmoxPowerAuthority:
                     raise RuntimeError("descriptor_changed")
 
         try:
+            actor_aware = getattr(self.executor, "execute_for_actor", None)
             bounded = getattr(self.executor, "execute_bounded", None)
-            if callable(bounded):
+            if callable(actor_aware):
+                effect = actor_aware(
+                    actor, current, pending.body.action, guard,
+                    preview=pending.body, deadline_ms=body.deadlineMs,
+                    continuation_guard=lambda: guard(descriptor=False),
+                )
+            elif callable(bounded):
                 effect = bounded(
                     current, pending.body.action, guard,
                     preview=pending.body, deadline_ms=body.deadlineMs,

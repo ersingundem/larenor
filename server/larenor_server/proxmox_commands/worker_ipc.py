@@ -9,6 +9,7 @@ from collections import deque
 from dataclasses import dataclass
 import fcntl
 import hashlib
+import ipaddress
 import json
 import math
 import os
@@ -71,6 +72,7 @@ class PackagedProxmoxCommand:
     guest_kind: str
     current_state: str
     status_revision: int
+    allowed_addresses: tuple[str, ...]
 
 
 @dataclass(frozen=True)
@@ -189,7 +191,25 @@ def _revision(value):
     return type(value) is int and 1 <= value <= 2**63 - 1
 
 
-def _wire_command(descriptor, action, preview, deadline_ms):
+def _allowed_address(value):
+    try:
+        address = ipaddress.ip_address(value)
+    except (ValueError, TypeError):
+        return False
+    if str(address) != value or address.is_link_local or address.is_multicast:
+        return False
+    return (
+        address.is_loopback
+        or address.version == 4 and any(address in network for network in (
+            ipaddress.ip_network("10.0.0.0/8"),
+            ipaddress.ip_network("172.16.0.0/12"),
+            ipaddress.ip_network("192.168.0.0/16"),
+        ))
+        or address.version == 6 and address in ipaddress.ip_network("fc00::/7")
+    )
+
+
+def _wire_command(descriptor, action, preview, deadline_ms, allowed_addresses):
     if (
         not isinstance(descriptor, ProxmoxGuestDescriptor)
         or not isinstance(preview, PreviewRequest)
@@ -204,6 +224,10 @@ def _wire_command(descriptor, action, preview, deadline_ms):
         or descriptor.status_revision != preview.expectedStatusRevision
         or type(deadline_ms) is not int
         or not 500 <= deadline_ms <= 30_000
+        or type(allowed_addresses) is not tuple
+        or not 1 <= len(allowed_addresses) <= 8
+        or len(set(allowed_addresses)) != len(allowed_addresses)
+        or any(not _allowed_address(value) for value in allowed_addresses)
     ):
         raise ProxmoxPowerWorkerError()
     return {
@@ -221,6 +245,7 @@ def _wire_command(descriptor, action, preview, deadline_ms):
         "guestKind": descriptor.guest_kind,
         "currentState": descriptor.status,
         "statusRevision": descriptor.status_revision,
+        "allowedAddresses": sorted(allowed_addresses),
         "deadlineMs": deadline_ms,
     }
 
@@ -230,7 +255,7 @@ def _command(value):
         "schemaVersion", "requestId", "action", "resourceId",
         "userRevision", "resourceRevision", "aclRevision", "bindingId",
         "bindingRevision", "serviceId", "serviceRevision", "guestKind",
-        "currentState", "statusRevision", "deadlineMs",
+        "currentState", "statusRevision", "allowedAddresses", "deadlineMs",
     }
     if (
         type(value) is not dict
@@ -251,6 +276,10 @@ def _command(value):
         or value["guestKind"] not in {"qemu", "lxc"}
         or value["currentState"] not in {"running", "stopped", "suspended"}
         or value["currentState"] not in _SOURCE[value["action"]]
+        or type(value["allowedAddresses"]) is not list
+        or not 1 <= len(value["allowedAddresses"]) <= 8
+        or value["allowedAddresses"] != sorted(set(value["allowedAddresses"]))
+        or any(not _allowed_address(address) for address in value["allowedAddresses"])
         or type(value["deadlineMs"]) is not int
         or not 500 <= value["deadlineMs"] <= 30_000
     ):
@@ -263,6 +292,7 @@ def _command(value):
         service_id=value["serviceId"], service_revision=value["serviceRevision"],
         guest_kind=value["guestKind"], current_state=value["currentState"],
         status_revision=value["statusRevision"],
+        allowed_addresses=tuple(value["allowedAddresses"]),
     )
 
 
@@ -359,14 +389,16 @@ class ProxmoxPowerWorkerClient:
 
     def execute_bounded(
         self, descriptor, action, guard, *, preview, deadline_ms,
-        continuation_guard=None,
+        allowed_addresses, continuation_guard=None,
     ):
         if not callable(guard) or (
             continuation_guard is not None and not callable(continuation_guard)
         ):
             raise ProxmoxPowerWorkerError()
         continuing = continuation_guard or guard
-        command = _wire_command(descriptor, action, preview, deadline_ms)
+        command = _wire_command(
+            descriptor, action, preview, deadline_ms, tuple(allowed_addresses)
+        )
         try:
             guard()
             selected = _safe_path(

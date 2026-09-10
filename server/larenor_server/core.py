@@ -63,6 +63,7 @@ from .proxmox.service import ProxmoxResourceAdapter
 from .proxmox_commands.schema import migrate as migrate_proxmox_power
 from .proxmox_commands.service import ProxmoxPowerAuthority
 from .proxmox_commands.worker_ipc import verified_power_worker_client
+from .proxmox_commands.core_worker import EgressGatedProxmoxExecutor
 
 
 class CoreServices:
@@ -209,23 +210,28 @@ class CoreServices:
             self.home_resources.validate_storage()
             self.bounded_transfers = BoundedTransferService(
                 self.home_resources, settings, self._blob_provider, self._transfer_limits)
-            power_executor = self._proxmox_power_executor
-            if power_executor is None and settings.proxmox_power_worker_socket is not None:
-                power_executor = verified_power_worker_client(
-                    settings.proxmox_power_worker_socket,
-                    settings.proxmox_power_worker_health,
-                    settings.proxmox_power_worker_uid,
-                )
-            self.proxmox_power = ProxmoxPowerAuthority(
-                self.home_resources, self.auth, settings, key,
-                self._proxmox_guest_provider, power_executor)
-            self.proxmox_power.store.validate_storage()
-            self.proxmox_power.store.recover_incomplete()
             self.home_people = HomePeopleRegistry(self.db, self.auth, settings, key, self.context)
             self.home_people.validate_storage()
             self.admin = AdminService(self.db, self.auth, settings)
             self.services = ServiceManagement(self.db, self.auth, settings, key)
             self.services.validate_storage()
+            self.component_egress = ComponentEgress(self.services, key, self.context)
+            self.services.component_egress = self.component_egress
+            power_executor = self._proxmox_power_executor
+            if power_executor is None and settings.proxmox_power_worker_socket is not None:
+                worker = verified_power_worker_client(
+                    settings.proxmox_power_worker_socket,
+                    settings.proxmox_power_worker_health,
+                    settings.proxmox_power_worker_uid,
+                )
+                if worker is not None:
+                    power_executor = EgressGatedProxmoxExecutor(
+                        worker, self.component_egress)
+            self.proxmox_power = ProxmoxPowerAuthority(
+                self.home_resources, self.auth, settings, key,
+                self._proxmox_guest_provider, power_executor)
+            self.proxmox_power.store.validate_storage()
+            self.proxmox_power.store.recover_incomplete()
             self.home_assistant = HomeAssistantAdapter(self.db, self.auth, settings, key, self.home_resources, self.services)
             self.home_assistant.validate_storage()
             self.keenetic_resources = KeeneticResourceAdapter(
@@ -236,8 +242,6 @@ class CoreServices:
             self.proxmox = ProxmoxResourceAdapter(
                 self.db, self.auth, settings, key, self.home_resources, self.services)
             self.proxmox.validate_storage()
-            self.component_egress = ComponentEgress(self.services, key, self.context)
-            self.services.component_egress = self.component_egress
             self.service_probe = ServiceProbeRunner(self.services)
             self.plugins = PluginManagement(self.db, self.auth, settings, key)
             self.plugins.validate_storage()
