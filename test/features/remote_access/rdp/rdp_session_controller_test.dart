@@ -45,6 +45,7 @@ class Channel implements RdpChannel {
   int closes = 0;
   final pointers = <RdpPointerEvent>[];
   final keys = <RdpKeyEvent>[];
+  final displays = <RdpDisplaySpec>[];
   final doneValue = Completer<void>();
   @override
   Future<void> get done => doneValue.future;
@@ -58,6 +59,8 @@ class Channel implements RdpChannel {
   void pointer(RdpPointerEvent event) => pointers.add(event);
   @override
   void key(RdpKeyEvent event) => keys.add(event);
+  @override
+  void resize(RdpDisplaySpec display) => displays.add(display);
 }
 
 class Engine implements RdpEngine {
@@ -124,6 +127,27 @@ RdpSessionController controller(
 Future<void> flush() async {
   for (var i = 0; i < 20; i++) {
     await Future<void>.delayed(Duration.zero);
+  }
+}
+
+class Vault implements RdpCredentialVault {
+  RdpCredential? value;
+  int reads = 0, writes = 0;
+  @override
+  Future<RdpCredential?> readCredential(RemoteProfile profile, {required bool Function() isCurrent}) async {
+    reads++;
+    if (!isCurrent()) throw const RdpFailure('retired');
+    return value;
+  }
+  @override
+  Future<void> saveCredential(RemoteProfile profile, RdpCredential credential, {required bool Function() isCurrent}) async {
+    writes++;
+    if (!isCurrent()) throw const RdpFailure('retired');
+    value = credential;
+  }
+  @override
+  Future<void> deleteCredential(RemoteProfile profile, {required bool Function() isCurrent}) async {
+    value = null;
   }
 }
 
@@ -230,6 +254,52 @@ void main() {
       completes,
     );
     expect(c.phase, RdpSessionPhase.closed);
+    c.dispose();
+  });
+
+  test('saved credential reuse and reconnect both require an explicit connect', () async {
+    final trust = Trust()..pin = RdpCertificatePin.fromJson(fixture()['certificate']);
+    final vault = Vault()..value = const RdpCredential(password: 'saved-secret');
+    final engines = <Engine>[];
+    final c = RdpSessionController(
+      profile: profile,
+      trust: trust,
+      credentialVault: vault,
+      engineFactory: () { final value = Engine(); engines.add(value); return value; },
+      isCurrent: () => true,
+      display: const RdpDisplaySpec(width: 1920, height: 1080, dpi: 180),
+    );
+    await c.connect();
+    expect(c.phase, RdpSessionPhase.connected);
+    expect(engines.single.passwordSeen, 'saved-secret');
+    engines.single.channel.doneValue.completeError(StateError('lost'));
+    await flush();
+    expect(c.phase, RdpSessionPhase.failed);
+    expect(engines, hasLength(1));
+    await c.reconnect();
+    expect(c.phase, RdpSessionPhase.connected);
+    expect(engines, hasLength(2));
+    c.dispose();
+  });
+
+  test('resize and clipboard policy reject stale or over-bounded input', () async {
+    final trust = Trust()..pin = RdpCertificatePin.fromJson(fixture()['certificate']);
+    final engine = Engine(requiresNla: false);
+    final c = RdpSessionController(
+      profile: profile,
+      trust: trust,
+      engineFactory: () => engine,
+      isCurrent: () => true,
+      display: const RdpDisplaySpec(width: 1920, height: 1080, dpi: 180),
+      settings: const RdpProfileSettings(clipboardMode: RdpClipboardMode.disabled),
+    );
+    await c.connect();
+    c.resize(const RdpDisplaySpec(width: 2560, height: 1440, dpi: 220, externalDisplay: true));
+    c.resize(const RdpDisplaySpec(width: 9000, height: 1440, dpi: 220));
+    expect(engine.channel.displays, hasLength(1));
+    c.retire();
+    c.resize(const RdpDisplaySpec(width: 1920, height: 1080, dpi: 180));
+    expect(engine.channel.displays, hasLength(1));
     c.dispose();
   });
 }
