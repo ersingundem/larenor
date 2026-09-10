@@ -1,6 +1,6 @@
 # Sonarr/Radarr authenticated API geri okuması
 
-Exact uygulama commit'i: `36460550c2849b3d3679ea4300f33de323633936`.
+Exact uygulama commit'i: `5f70bd37dd19ecc7177be99725bcaa360cb19b22`.
 
 Larenor'un kapalı adaptörü yalnız önceden doğrulanmış private stream üzerinden `GET /api/v3/system/status` çağırır. Kimlik `X-Api-Key` başlığındadır; hedef, resolver, proxy, serbest header veya retry girdisi yoktur. Sonarr `4.0.19.2979` ve Radarr `6.3.0.10514` için servis adı ile sürüm birlikte doğrulanır. Başka servis yanıtı, sürüm sapması, auth hatası, bozuk/tekrarlı JSON, limit aşımı ve timeout secret-free sabit hatalara kapanır.
 
