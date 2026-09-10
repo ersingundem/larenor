@@ -330,12 +330,9 @@ void main() {
     expect(find.text('Virtual machines & containers'), findsWidgets);
     expect(find.text('Storage'), findsWidgets);
     expect(find.text('Recent tasks'), findsWidgets);
-    expect(
-      find.textContaining(
-        'current Core snapshot does not provide task history',
-      ),
-      findsOneWidget,
-    );
+    expect(find.textContaining('vzdump'), findsWidgets);
+    expect(find.textContaining('Succeeded'), findsWidgets);
+    expect(find.textContaining('root@pam'), findsNothing);
     expect(
       tester
           .widget<CupertinoButton>(
@@ -374,6 +371,10 @@ void main() {
     await tester.pump();
     expect(find.textContaining('local-lvm'), findsWidgets);
     expect(find.textContaining('QEMU VM #101'), findsNothing);
+    await tester.tap(find.byKey(const ValueKey('core-proxmox-filter-tasks')));
+    await tester.pump();
+    expect(find.textContaining('vzdump'), findsWidgets);
+    expect(find.textContaining('local-lvm'), findsNothing);
     for (final key in [
       'core-proxmox-filter-all',
       'core-proxmox-filter-nodes',

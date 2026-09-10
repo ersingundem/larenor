@@ -33,6 +33,11 @@ void main() {
       (CoreProxmoxGuestKind.lxc, CoreProxmoxGuestStatus.stopped),
     ]);
     expect(value.summary.storages.single.usedRatio, .5);
+    expect(value.summary.recentTasks.single.kind, 'vzdump');
+    expect(
+      value.summary.recentTasks.single.status,
+      CoreProxmoxTaskStatus.succeeded,
+    );
     expect(value.toString(), 'CoreProxmoxSnapshot');
   });
 
@@ -67,6 +72,14 @@ void main() {
       (v) => v['aclRevision'] = target.aclRevision + 1,
       (v) => v['serviceId'] = 'x' * 32,
       (v) => v['extra'] = true,
+      (v) => ((v['summary'] as Map)['recentTasks'] as List).first['status'] =
+          'unknown',
+      (v) => ((v['summary'] as Map)['recentTasks'] as List).first['actor'] =
+          'root@pam',
+      (v) => (v['summary'] as Map)['recentTasks'] = [
+        ...((v['summary'] as Map)['recentTasks'] as List),
+        ((v['summary'] as Map)['recentTasks'] as List).first,
+      ],
     ];
     for (final mutate in mutations) {
       final value = snapshot();
