@@ -111,8 +111,9 @@ class Engine implements VncEngine {
 VncSessionController controller(
   VncEngine engine,
   Trust trust,
-  bool Function() current,
-) => VncSessionController(
+  bool Function() current, {
+  Duration timeout = const Duration(seconds: 45),
+}) => VncSessionController(
   profile: profile,
   trust: trust,
   engineFactory: () => engine,
@@ -123,6 +124,7 @@ VncSessionController controller(
     dpi: 220,
     externalDisplay: true,
   ),
+  connectTimeout: timeout,
 );
 
 Future<void> flush() async {
@@ -245,6 +247,24 @@ void main() {
       opening.timeout(const Duration(milliseconds: 50)),
       completes,
     );
+    value.dispose();
+  });
+
+  test('bounded connect times out once without retrying', () async {
+    final engine = Engine()..delayed = Completer();
+    final value = controller(
+      engine,
+      Trust(),
+      () => true,
+      timeout: const Duration(milliseconds: 10),
+    );
+    await value.connect();
+    expect(value.phase, VncSessionPhase.failed);
+    expect(value.error, 'timed_out');
+    expect(engine.negotiations, 1);
+    expect(engine.opens, 0);
+    await value.connect();
+    expect(engine.negotiations, 1);
     value.dispose();
   });
 }
