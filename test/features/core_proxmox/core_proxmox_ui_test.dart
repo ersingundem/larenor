@@ -427,6 +427,10 @@ void main() {
         await tester.pumpAndSettle();
         expect(find.byType(SettingsGateScreen), findsOneWidget);
         expect(find.text('Unlock'), findsOneWidget);
+        await tester.enterText(find.byType(CupertinoTextField), '1234');
+        await tester.tap(find.text('Unlock'));
+        await tester.pumpAndSettle();
+        expect(find.text('Power controls'), findsWidgets);
         expect(
           harness.paths.where((path) => path.startsWith('POST ')),
           isEmpty,
@@ -490,6 +494,15 @@ void main() {
                 headers: {'content-type': 'application/json'},
               );
             }
+            if (discovery > 2) {
+              return http.Response(
+                jsonEncode({
+                  'error': {'code': 'revision_conflict'},
+                }),
+                409,
+                headers: {'content-type': 'application/json'},
+              );
+            }
             return http.Response(
               jsonEncode({..._targetPage(fixture), 'host': 'private.invalid'}),
               200,
@@ -510,6 +523,9 @@ void main() {
       await tester.tap(find.byType(CupertinoButton).first);
       await tester.pump();
       expect(find.textContaining('could not be verified'), findsOneWidget);
+      await tester.tap(find.byType(CupertinoButton).first);
+      await tester.pump();
+      expect(find.textContaining('Target changed'), findsOneWidget);
       expect(harness.paths.where((path) => path.startsWith('POST ')), isEmpty);
     },
   );
@@ -550,7 +566,9 @@ void main() {
         );
       },
     );
+    expect(find.textContaining('Verifying power target'), findsOneWidget);
     tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+    await admin.account.signOut();
     pending.complete(
       http.Response(
         jsonEncode(

@@ -61,6 +61,8 @@ final class ProxmoxPowerTarget {
     required this.serviceId,
     required this.serviceRevision,
     required this.guestKind,
+    required this.node,
+    required this.guestId,
     required this.currentState,
     required this.statusRevision,
     required this.allowedActions,
@@ -70,6 +72,8 @@ final class ProxmoxPowerTarget {
   final int userRevision, resourceRevision, aclRevision;
   final int bindingRevision, serviceRevision, statusRevision;
   final ProxmoxGuestKind guestKind;
+  final String node;
+  final int guestId;
   final ProxmoxGuestState currentState;
   final Set<ProxmoxPowerAction> allowedActions;
 
@@ -83,6 +87,12 @@ final class ProxmoxPowerTarget {
       if (!RegExp(r'^[A-Za-z0-9_-]{1,128}$').hasMatch(id)) {
         throw ArgumentError.value(id, 'binding');
       }
+    }
+    if (!RegExp(r'^[A-Za-z0-9](?:[A-Za-z0-9._-]{0,62}[A-Za-z0-9])?$')
+            .hasMatch(node) ||
+        guestId < 1 ||
+        guestId > 999999999) {
+      throw ArgumentError.value((node, guestId), 'guest');
     }
     for (final value in [
       userRevision,
@@ -126,6 +136,8 @@ final class ProxmoxPowerTarget {
       serviceId: serviceId,
       serviceRevision: serviceRevision,
       guestKind: guestKind,
+      node: node,
+      guestId: guestId,
       currentState: currentState,
       statusRevision: statusRevision,
       allowedActions: allowedActions,

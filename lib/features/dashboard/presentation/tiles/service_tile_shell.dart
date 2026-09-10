@@ -30,7 +30,7 @@ class ServiceTileShell extends StatelessWidget {
   final IconData icon;
   final String title;
   final bool connected;
-  final VoidCallback onTap;
+  final VoidCallback? onTap;
   final List<String> lines;
 
   /// When set and a real vendored logo exists for it, that logo is shown

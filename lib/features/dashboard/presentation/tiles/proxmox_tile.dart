@@ -11,8 +11,11 @@ import '../../../core_proxmox/data/core_proxmox_providers.dart';
 import '../../../core_proxmox/domain/core_proxmox_models.dart';
 import '../../../core_proxmox/presentation/core_proxmox_screen.dart';
 import '../../../home_resources/domain/home_resource_models.dart';
+import '../../../proxmox/core_power/proxmox_power_discovery.dart';
+import '../../../proxmox/core_power/proxmox_power_models.dart';
 import '../../../server/data/larenor_server_api.dart';
 import '../../../server/domain/server_models.dart';
+import '../../../settings/presentation/settings_gate_screen.dart';
 import '../../../proxmox/presentation/proxmox_nodes_screen.dart';
 import '../../../proxmox/providers/proxmox_providers.dart';
 import '../../domain/tile_config.dart';
@@ -110,6 +113,8 @@ class _CoreProxmoxTileState extends ConsumerState<_CoreProxmoxTile> {
   AppLifecycleListener? _lifecycle;
   HomeResourceRecord? _target;
   CoreHaOwner? _owner;
+  LarenorServerApi? _discoveryApi;
+  ProxmoxTargetDiscoveryController? _discovery;
   HomeSessionController? _home;
   Object? _identity;
   int _operation = 0, _accountGeneration = -1;
@@ -148,6 +153,10 @@ class _CoreProxmoxTileState extends ConsumerState<_CoreProxmoxTile> {
     setState(() {});
   }
 
+  void _discoveryChanged() {
+    if (mounted) setState(() {});
+  }
+
   bool _visible() {
     if (!mounted || !_foreground || !TickerMode.valuesOf(context).enabled) {
       return false;
@@ -163,6 +172,11 @@ class _CoreProxmoxTileState extends ConsumerState<_CoreProxmoxTile> {
 
   void _retire() {
     _operation++;
+    _discovery?.removeListener(_discoveryChanged);
+    _discovery?.dispose();
+    _discoveryApi?.close();
+    _discovery = null;
+    _discoveryApi = null;
     _owner?.retire();
     _owner?.dispose();
     _owner = null;
@@ -222,6 +236,7 @@ class _CoreProxmoxTileState extends ConsumerState<_CoreProxmoxTile> {
     LarenorServerApi? api;
     try {
       HomeResourceRecord? target;
+      ServerSession? boundSession;
       await home.account.withSession((_, session) async {
         if (!current() || session.context == null) {
           throw const LarenorServerException('cancelled');
@@ -246,10 +261,29 @@ class _CoreProxmoxTileState extends ConsumerState<_CoreProxmoxTile> {
             target!.kind != HomeResourceKind.resource) {
           throw const LarenorServerException('invalid_response');
         }
+        boundSession = session;
       });
       if (!current() || target == null) return;
       _target = target;
       _owner = CoreHaOwner(isCurrent: _visible, interaction: home.interaction);
+      final session = boundSession;
+      if (session?.user.canAdminister == true) {
+        final discoveryApi = ref.read(coreProxmoxApiFactoryProvider)(
+          session!.endpoint,
+        );
+        final discovery = ProxmoxTargetDiscoveryController(
+          gateway: CoreProxmoxTargetDiscoveryApi(
+            discoveryApi,
+            session.accessToken,
+          ),
+          resource: target!,
+          current: _visible,
+        );
+        _discoveryApi = discoveryApi;
+        _discovery = discovery;
+        discovery.addListener(_discoveryChanged);
+        unawaited(discovery.discover());
+      }
     } catch (error) {
       if (current()) {
         _failure = error is LarenorServerException
@@ -270,6 +304,9 @@ class _CoreProxmoxTileState extends ConsumerState<_CoreProxmoxTile> {
     _home?.account.removeListener(_authorityChanged);
     _home?.interaction.removeListener(_authorityChanged);
     _owner?.dispose();
+    _discovery?.removeListener(_discoveryChanged);
+    _discovery?.dispose();
+    _discoveryApi?.close();
     super.dispose();
   }
 
@@ -308,8 +345,106 @@ class _CoreProxmoxTileState extends ConsumerState<_CoreProxmoxTile> {
     return ListenableBuilder(
       listenable: controller,
       builder: (_, _) {
-        final summary = controller.snapshot?.summary;
+        final snapshot = controller.snapshot;
+        final summary = snapshot?.summary;
+        final session = _home?.account.session;
+        final admin = session?.user.canAdminister == true;
+        final discovery = _discovery;
+        final commandTarget = discovery?.target;
+        final tr = Localizations.localeOf(context).languageCode == 'tr';
         String percent(double value) => '${(value * 100).round()}%';
+        String uptime(Duration value) {
+          if (value.inDays > 0) return '${value.inDays}d';
+          if (value.inHours > 0) return '${value.inHours}h';
+          return '${value.inMinutes}m';
+        }
+
+        T? firstWhereOrNull<T>(Iterable<T> values, bool Function(T) match) {
+          for (final value in values) {
+            if (match(value)) return value;
+          }
+          return null;
+        }
+
+        final exactNode = summary == null || commandTarget == null
+            ? null
+            : firstWhereOrNull(
+                summary.nodes,
+                (value) => value.name == commandTarget.node,
+              );
+        final node = exactNode ?? summary?.nodes.firstOrNull;
+        final exactGuest = summary == null || commandTarget == null
+            ? null
+            : firstWhereOrNull(
+                summary.guests,
+                (value) =>
+                    value.node == commandTarget.node &&
+                    value.vmId == commandTarget.guestId &&
+                    value.kind.name == commandTarget.guestKind.name,
+              );
+        final guest = exactGuest ?? summary?.guests.firstOrNull;
+        final storage = summary == null || node == null
+            ? null
+            : firstWhereOrNull(
+                summary.storages,
+                (value) => value.node == node.name && value.active,
+              );
+        final exactState =
+            exactGuest != null &&
+            commandTarget != null &&
+            switch (commandTarget.currentState) {
+              ProxmoxGuestState.running =>
+                exactGuest.status == CoreProxmoxGuestStatus.running,
+              ProxmoxGuestState.stopped =>
+                exactGuest.status == CoreProxmoxGuestStatus.stopped,
+              ProxmoxGuestState.suspended => false,
+            };
+        final coherent =
+            snapshot != null &&
+            commandTarget != null &&
+            exactNode != null &&
+            exactState &&
+            snapshot.bindingId == commandTarget.bindingId &&
+            snapshot.bindingRevision == commandTarget.bindingRevision &&
+            snapshot.serviceId == commandTarget.serviceId &&
+            snapshot.serviceRevision == commandTarget.serviceRevision &&
+            snapshot.resourceRevision == commandTarget.resourceRevision &&
+            snapshot.aclRevision == commandTarget.aclRevision;
+        final readiness = !admin
+            ? (tr ? 'Salt okunur özet' : 'Read-only summary')
+            : switch (discovery?.phase) {
+                ProxmoxTargetDiscoveryPhase.loading =>
+                  tr ? 'Güç hedefi doğrulanıyor' : 'Verifying power target',
+                ProxmoxTargetDiscoveryPhase.ready when !coherent =>
+                  tr
+                      ? 'Özet ve hedef değişti; yenile'
+                      : 'Summary and target changed; refresh',
+                ProxmoxTargetDiscoveryPhase.ready when target.canWrite =>
+                  tr ? 'Güç komutları hazır' : 'Power commands ready',
+                ProxmoxTargetDiscoveryPhase.ready =>
+                  tr ? 'Salt okunur özet' : 'Read-only summary',
+                ProxmoxTargetDiscoveryPhase.ambiguous =>
+                  tr
+                      ? 'Birden fazla konuk; komutlar kapalı'
+                      : 'Multiple guests; commands disabled',
+                ProxmoxTargetDiscoveryPhase.stale =>
+                  tr ? 'Hedef değişti; yenile' : 'Target changed; refresh',
+                ProxmoxTargetDiscoveryPhase.offline =>
+                  tr
+                      ? 'Proxmox çevrimdışı; yenile'
+                      : 'Proxmox offline; refresh',
+                ProxmoxTargetDiscoveryPhase.unavailable =>
+                  tr ? 'Komuta hazır hedef yok' : 'No command-ready target',
+                ProxmoxTargetDiscoveryPhase.forbidden =>
+                  tr
+                      ? 'Yönetici yetkisi gerekli'
+                      : 'Administrator access required',
+                ProxmoxTargetDiscoveryPhase.invalid =>
+                  tr
+                      ? 'Hedef doğrulanamadı; yenile'
+                      : 'Target could not be verified; refresh',
+                _ => tr ? 'Güç hedefini yenile' : 'Refresh power target',
+              };
         final lines = <String>[
           if (controller.busy)
             l.commonLoading
@@ -323,23 +458,58 @@ class _CoreProxmoxTileState extends ConsumerState<_CoreProxmoxTile> {
           else if (summary == null)
             l.coreProxmoxRequired
           else ...[
-            '${l.coreProxmoxNode}: ${summary.nodes.length} · ${l.coreProxmoxVm}/${l.coreProxmoxContainer}: ${summary.guests.length}',
-            for (final node in summary.nodes.take(2))
-              '${node.name} · ${node.status == CoreProxmoxNodeStatus.online ? l.coreProxmoxOnline : l.coreProxmoxOfflineState} · CPU ${percent(node.cpuRatio)}',
+            if (node != null)
+              '${node.name} · ${node.status == CoreProxmoxNodeStatus.online ? l.coreProxmoxOnline : l.coreProxmoxOfflineState} · ${tr ? 'Çalışma süresi' : 'Uptime'} ${uptime(node.uptime)}',
+            if (node != null)
+              'CPU ${percent(node.cpuRatio)} · RAM ${percent(node.memoryUsedBytes / node.memoryTotalBytes)}${storage == null ? '' : ' · ${tr ? 'Depolama' : 'Storage'} ${percent(storage.usedRatio)}'}',
+            if (guest != null)
+              '${guest.kind == CoreProxmoxGuestKind.qemu ? 'QEMU' : 'LXC'} #${guest.vmId} · ${guest.status == CoreProxmoxGuestStatus.running ? (tr ? 'Çalışıyor' : 'Running') : (tr ? 'Durduruldu' : 'Stopped')} · $readiness'
+            else
+              readiness,
           ],
         ];
+        VoidCallback? onTap;
+        if (summary == null || controller.stale || controller.failure != null) {
+          onTap = controller.busy
+              ? null
+              : () {
+                  discovery?.invalidate();
+                  unawaited(controller.refresh());
+                };
+        } else if (!admin) {
+          onTap = () => Navigator.of(context).push(
+            CupertinoPageRoute<void>(
+              builder: (_) => CoreProxmoxScreen(target: target),
+            ),
+          );
+        } else if (discovery?.phase == ProxmoxTargetDiscoveryPhase.ready &&
+            commandTarget != null &&
+            coherent &&
+            target.canWrite) {
+          onTap = () => Navigator.of(context).push(
+            CupertinoPageRoute<void>(
+              builder: (_) => SettingsGateScreen(
+                initialDestination: SettingsGateDestination.proxmoxPower,
+                proxmoxPowerTarget: commandTarget,
+                proxmoxCanWrite: true,
+              ),
+            ),
+          );
+        } else if (discovery?.phase == ProxmoxTargetDiscoveryPhase.ready &&
+            !coherent) {
+          onTap = () {
+            discovery?.invalidate();
+            unawaited(controller.refresh());
+          };
+        } else if (discovery?.busy != true) {
+          onTap = discovery?.discover;
+        }
         return ServiceTileShell(
           icon: CupertinoIcons.square_stack_3d_up,
           service: AppService.proxmox,
           title: widget.tile.title ?? 'Proxmox',
           connected: true,
-          onTap: summary == null || !owner.isCurrent
-              ? () => unawaited(controller.refresh())
-              : () => Navigator.of(context).push(
-                  CupertinoPageRoute<void>(
-                    builder: (_) => CoreProxmoxScreen(target: target),
-                  ),
-                ),
+          onTap: owner.isCurrent ? onTap : null,
           lines: lines,
         );
       },
