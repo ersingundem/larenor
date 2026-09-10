@@ -3,11 +3,14 @@ from typing import Annotated
 from fastapi import APIRouter, Depends
 
 from ..auth import Principal
+from ..admin.models import ObjectId
 from ..dependencies import get_core, require_admin
 from ..models import ErrorResponse
 from .music_target_authority_models import (
-    ConfirmMusicTargetCommandRequest, CreateMusicTargetCommandPreviewRequest,
-    MusicTargetCommandPreviewResponse, MusicTargetCommandResponse,
+    CancelMusicTargetCommandRequest, ConfirmMusicTargetCommandRequest,
+    CreateMusicTargetCommandPreviewRequest, MusicTargetCommandPreviewResponse,
+    MusicTargetCommandResponse, MusicTargetHistoryRequest,
+    MusicTargetHistoryResponse, MusicTargetIntegrityResponse,
     MusicTargetInventoryResponse, ReadMusicTargetInventoryRequest,
 )
 
@@ -38,3 +41,25 @@ def preview(body: CreateMusicTargetCommandPreviewRequest,
              status_code=201)
 def confirm(body: ConfirmMusicTargetCommandRequest, core: Core, actor: Admin):
     return core.music_target_authority.confirm(actor, body)
+
+
+@router.get('/commands/{identifier}', response_model=MusicTargetCommandResponse)
+def status(identifier: ObjectId, core: Core, actor: Admin):
+    return core.music_target_authority.get_command(actor, identifier)
+
+
+@router.post('/commands/{identifier}/cancel',
+             response_model=MusicTargetCommandResponse)
+def cancel(identifier: ObjectId, body: CancelMusicTargetCommandRequest,
+           core: Core, actor: Admin):
+    return core.music_target_authority.cancel(actor, identifier, body)
+
+
+@router.post('/history', response_model=MusicTargetHistoryResponse)
+def history(body: MusicTargetHistoryRequest, core: Core, actor: Admin):
+    return core.music_target_authority.history(actor, body)
+
+
+@router.post('/integrity', response_model=MusicTargetIntegrityResponse)
+def integrity(body: ReadMusicTargetInventoryRequest, core: Core, actor: Admin):
+    return core.music_target_authority.integrity(actor, body)

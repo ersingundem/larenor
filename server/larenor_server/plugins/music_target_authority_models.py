@@ -138,19 +138,71 @@ class ConfirmMusicTargetCommandRequest(StrictModel):
 
 class MusicTargetCommand(StrictModel):
     id: ObjectId
-    revision: Literal[1]
+    revision: Revision
     requestId: ObjectId
     previewId: ObjectId
     targetId: str = Field(min_length=1, max_length=128)
     target: MusicTarget
     operation: PlaybackOperation
-    state: Literal['blocked']
-    errorCode: Literal['effect_unavailable']
-    result: None
+    state: Literal['blocked', 'cancelled', 'unknown', 'succeeded']
+    errorCode: Literal['effect_unavailable', 'effect_unknown'] | None
+    result: 'MusicTargetEffectStatus | None'
     effectAvailable: Literal[False]
     installAvailable: Literal[False]
     createdAt: str
 
+    @model_validator(mode='after')
+    def coherent_result(self):
+        expected = {
+            'blocked': (1, 'effect_unavailable', None),
+            'cancelled': (2, 'effect_unavailable', None),
+            'unknown': (2, 'effect_unknown', 'unknown'),
+            'succeeded': (2, None, 'succeeded'),
+        }[self.state]
+        if (self.revision != expected[0] or self.errorCode != expected[1]
+                or (None if self.result is None else self.result.state)
+                != expected[2]):
+            raise ValueError('invalid_music_target_command')
+        return self
+
 
 class MusicTargetCommandResponse(StrictModel):
     command: MusicTargetCommand
+
+
+class MusicTargetEffectStatus(StrictModel):
+    state: Literal['unknown', 'succeeded']
+    code: Literal['effect_unknown', 'authenticated_readback']
+
+    @model_validator(mode='after')
+    def coherent(self):
+        if self.code != ('authenticated_readback'
+                         if self.state == 'succeeded' else 'effect_unknown'):
+            raise ValueError('invalid_music_target_effect_status')
+        return self
+
+
+class CancelMusicTargetCommandRequest(StrictModel):
+    requestId: ObjectId
+    expectedRevision: Literal[1]
+
+
+class MusicTargetHistoryRequest(ReadMusicTargetInventoryRequest):
+    limit: int = Field(default=50, ge=1, le=100)
+    before: ObjectId | None = None
+
+
+class MusicTargetHistoryResponse(StrictModel):
+    commands: list[MusicTargetCommand] = Field(max_length=100)
+    nextBefore: ObjectId | None
+
+
+class MusicTargetIntegrity(StrictModel):
+    verified: Literal[True] = True
+    commandCount: int = Field(ge=0, le=256)
+    headHash: str = Field(pattern=r'^[0-9a-f]{64}$')
+    installAvailable: Literal[False] = False
+
+
+class MusicTargetIntegrityResponse(StrictModel):
+    integrity: MusicTargetIntegrity

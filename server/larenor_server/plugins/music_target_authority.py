@@ -1,6 +1,7 @@
 """Revision-bound target authority with explicitly unavailable effects."""
 
 import hashlib
+import hmac
 import json
 import secrets
 import uuid
@@ -12,8 +13,10 @@ from pydantic import ValidationError
 from ..admin.service import utc
 from ..errors import ApiError, StartupError
 from .music_target_authority_models import (
-    ConfirmMusicTargetCommandRequest, CreateMusicTargetCommandPreviewRequest,
-    MusicTarget, MusicTargetCommand, MusicTargetCommandPreview,
+    CancelMusicTargetCommandRequest, ConfirmMusicTargetCommandRequest,
+    CreateMusicTargetCommandPreviewRequest, MusicTarget,
+    MusicTargetCommand, MusicTargetCommandPreview, MusicTargetHistoryRequest,
+    MusicTargetHistoryResponse, MusicTargetIntegrityResponse,
     MusicTargetInventory, MusicTargetProviderRevision,
     ReadMusicTargetInventoryRequest,
 )
@@ -33,6 +36,59 @@ class MusicTargetAuthorityManagement:
     def __init__(self, db, settings, key, playback):
         self.db, self.settings, self.playback = db, settings, playback
         self._cipher = AESGCM(key)
+        self._journal_key = hmac.digest(
+            key, b'larenor:music-target-journal:v2', 'sha256')
+
+    def _event_hash(self, kind, values):
+        payload = json.dumps(
+            [kind, *values], ensure_ascii=True,
+            separators=(',', ':')).encode('ascii')
+        return hmac.digest(self._journal_key, payload, 'sha256')
+
+    def _command_hash(self, row, preview):
+        return self._event_hash('command', (
+            row['id'], row['request_id'], row['actor_id'],
+            row['actor_revision'], row['family_id'], row['preview_id'],
+            row['target_id'], row['operation'], row['created_at'],
+            preview['provider_digest'], preview['plan_hash']))
+
+    def _verify_command(self, connection, row):
+        preview = connection.execute(
+            'SELECT * FROM music_target_command_previews WHERE id=?',
+            (row['preview_id'],)).fetchone()
+        if (preview is None or type(row['event_hash']) is not bytes
+                or not hmac.compare_digest(
+                    row['event_hash'], self._command_hash(row, preview))):
+            raise ApiError('music_playback_storage_unavailable', 503)
+        return preview
+
+    def _cancellation_hash(self, row, command_hash):
+        return self._event_hash('cancel', (
+            row['command_id'], row['request_id'], row['actor_id'],
+            row['actor_revision'], row['family_id'], row['created_at'],
+            command_hash.hex()))
+
+    def _verify_cancellation(self, row, command_hash):
+        if (type(row['event_hash']) is not bytes
+                or not hmac.compare_digest(
+                    row['event_hash'],
+                    self._cancellation_hash(row, command_hash))):
+            raise ApiError('music_playback_storage_unavailable', 503)
+
+    def _effect_hash(self, row):
+        return self._event_hash('effect', (
+            row['command_id'], row['execution_id'],
+            row['dispatch_request_id'], row['actor_id'],
+            row['actor_revision'], row['family_id'], row['installation_id'],
+            row['installation_revision'], row['core_revision'],
+            row['player_revision'], row['provider_digest'], row['state'],
+            row['created_at'], row['updated_at'], row['result_hash']))
+
+    def _verify_effect(self, row):
+        if (type(row['event_hash']) is not bytes
+                or not hmac.compare_digest(
+                    row['event_hash'], self._effect_hash(row))):
+            raise ApiError('music_playback_storage_unavailable', 503)
 
     @staticmethod
     def _target(player):
@@ -226,15 +282,60 @@ class MusicTargetAuthorityManagement:
             return {'preview': self._public_preview(row, body, target)}
 
     @staticmethod
-    def _public_command(row, target):
+    def _public_command(row, target, cancellation=None, effect=None):
+        if cancellation is not None:
+            state, error, result, revision = (
+                'cancelled', 'effect_unavailable', None, 2)
+        elif effect is not None:
+            state = ('succeeded' if effect['state'] == 'succeeded'
+                     else 'unknown')
+            error = None if state == 'succeeded' else 'effect_unknown'
+            result = {
+                'state': state,
+                'code': ('authenticated_readback' if state == 'succeeded'
+                         else 'effect_unknown'),
+            }
+            revision = 2
+        else:
+            state, error, result, revision = (
+                'blocked', 'effect_unavailable', None, 1)
         return MusicTargetCommand.model_validate({
-            'id': row['id'], 'revision': 1, 'requestId': row['request_id'],
+            'id': row['id'], 'revision': revision,
+            'requestId': row['request_id'],
             'previewId': row['preview_id'], 'targetId': row['target_id'],
-            'target': target, 'operation': row['operation'], 'state': 'blocked',
-            'errorCode': 'effect_unavailable', 'result': None,
+            'target': target, 'operation': row['operation'], 'state': state,
+            'errorCode': error, 'result': result,
             'effectAvailable': False, 'installAvailable': False,
             'createdAt': utc(row['created_at']),
         }).model_dump()
+
+    def _read_command(self, connection, row):
+        preview = self._verify_command(connection, row)
+        request = self._decode(preview)
+        _, stored = self._state(connection, request)
+        providers = self._providers(connection, request)
+        if preview['provider_digest'] != self._provider_digest(providers):
+            raise ApiError('revision_conflict', 409)
+        target = self._exact_target(stored, request)
+        cancellation = connection.execute(
+            'SELECT * FROM music_target_command_cancellations '
+            'WHERE command_id=?', (row['id'],)).fetchone()
+        if cancellation is not None:
+            self._verify_cancellation(cancellation, row['event_hash'])
+        effect = connection.execute(
+            'SELECT * FROM music_target_effect_attempts WHERE command_id=?',
+            (row['id'],)).fetchone()
+        if effect is not None:
+            self._verify_effect(effect)
+            if (effect['installation_id'] != preview['installation_id']
+                    or effect['installation_revision']
+                    != preview['installation_revision']
+                    or effect['core_revision'] != preview['core_revision']
+                    or effect['player_revision'] != preview['player_revision']
+                    or effect['provider_digest'] != preview['provider_digest']
+                    or cancellation is not None):
+                raise ApiError('music_playback_storage_unavailable', 503)
+        return self._public_command(row, target, cancellation, effect)
 
     def confirm(self, actor, body):
         if type(body) is not ConfirmMusicTargetCommandRequest:
@@ -247,20 +348,14 @@ class MusicTargetAuthorityManagement:
                 'WHERE actor_id=? AND request_id=?',
                 (actor.id, body.requestId)).fetchone()
             if existing is not None:
-                preview = connection.execute(
-                    'SELECT * FROM music_target_command_previews WHERE id=?',
-                    (existing['preview_id'],)).fetchone()
+                preview = self._verify_command(connection, existing)
                 if (existing['preview_id'] != body.previewId
                         or existing['actor_revision'] != actor_revision
                         or existing['family_id'] != actor.family_id
                         or preview is None
                         or preview['plan_hash'] != body.planHash):
                     raise ApiError('music_playback_command_conflict', 409)
-                request = self._decode(preview)
-                _, stored = self._state(connection, request)
-                self._providers(connection, request)
-                return {'command': self._public_command(
-                    existing, self._exact_target(stored, request))}
+                return {'command': self._read_command(connection, existing)}
             preview = connection.execute(
                 'SELECT * FROM music_target_command_previews WHERE id=?',
                 (body.previewId,)).fetchone()
@@ -281,21 +376,144 @@ class MusicTargetAuthorityManagement:
             if preview['provider_digest'] != self._provider_digest(providers):
                 raise ApiError('revision_conflict', 409)
             target = self._exact_target(stored, request)
-            values = (
+            values = [
                 uuid.uuid4().hex, body.requestId, actor.id, actor_revision,
                 actor.family_id, preview['id'], target.id,
-                request.operation, now)
+                request.operation, now]
+            sealed = dict(zip((
+                'id', 'request_id', 'actor_id', 'actor_revision', 'family_id',
+                'preview_id', 'target_id', 'operation', 'created_at'), values))
+            values.append(self._command_hash(sealed, preview))
             connection.execute(
-                'INSERT INTO music_target_commands VALUES(?,?,?,?,?,?,?,?,?)',
+                'INSERT INTO music_target_commands VALUES(?,?,?,?,?,?,?,?,?,?)',
                 values)
             saved = connection.execute(
                 'SELECT * FROM music_target_commands WHERE id=?',
                 (values[0],)).fetchone()
             return {'command': self._public_command(saved, target)}
 
+    def get_command(self, actor, identifier):
+        self.playback._identity(identifier)
+        with self.db.connection() as connection:
+            connection.execute('BEGIN')
+            self.playback.providers._assert_admin(connection, actor)
+            row = connection.execute(
+                'SELECT * FROM music_target_commands WHERE id=?',
+                (identifier,)).fetchone()
+            if row is None:
+                raise ApiError('not_found', 404)
+            return {'command': self._read_command(connection, row)}
+
+    def cancel(self, actor, identifier, body):
+        self.playback._identity(identifier)
+        if type(body) is not CancelMusicTargetCommandRequest:
+            raise ApiError('invalid_request')
+        with self.db.transaction() as connection:
+            actor_revision = self.playback.providers._assert_admin(
+                connection, actor)
+            row = connection.execute(
+                'SELECT * FROM music_target_commands WHERE id=?',
+                (identifier,)).fetchone()
+            if row is None:
+                raise ApiError('not_found', 404)
+            self._read_command(connection, row)
+            if connection.execute(
+                    'SELECT 1 FROM music_target_effect_attempts '
+                    'WHERE command_id=?', (identifier,)).fetchone() is not None:
+                raise ApiError('music_playback_command_conflict', 409)
+            existing = connection.execute(
+                'SELECT * FROM music_target_command_cancellations '
+                'WHERE command_id=?', (identifier,)).fetchone()
+            if existing is not None:
+                self._verify_cancellation(existing, row['event_hash'])
+                if (existing['request_id'] != body.requestId
+                        or existing['actor_id'] != actor.id
+                        or existing['actor_revision'] != actor_revision
+                        or existing['family_id'] != actor.family_id):
+                    raise ApiError('music_playback_command_conflict', 409)
+                return {'command': self._read_command(connection, row)}
+            now = int(self.settings.clock())
+            values = [identifier, body.requestId, actor.id, actor_revision,
+                      actor.family_id, now]
+            cancellation = dict(zip((
+                'command_id', 'request_id', 'actor_id', 'actor_revision',
+                'family_id', 'created_at'), values))
+            values.append(self._cancellation_hash(
+                cancellation, row['event_hash']))
+            connection.execute(
+                'INSERT INTO music_target_command_cancellations '
+                'VALUES(?,?,?,?,?,?,?)', values)
+            return {'command': self._read_command(connection, row)}
+
+    def _journal_rows(self, connection, installation_id):
+        rows = connection.execute('''SELECT * FROM music_target_commands
+            WHERE preview_id IN (
+              SELECT id FROM music_target_command_previews
+              WHERE installation_id=?)
+            ORDER BY created_at DESC,id DESC LIMIT 257''',
+            (installation_id,)).fetchall()
+        if len(rows) > MAX_PREVIEWS:
+            raise ApiError('music_playback_storage_unavailable', 503)
+        return rows
+
+    def history(self, actor, body):
+        if type(body) is not MusicTargetHistoryRequest:
+            raise ApiError('invalid_request')
+        with self.db.connection() as connection:
+            connection.execute('BEGIN')
+            self.playback.providers._assert_admin(connection, actor)
+            self._state(connection, body)
+            self._providers(connection, body)
+            rows = self._journal_rows(connection, body.installationId)
+            offset = 0
+            if body.before is not None:
+                indices = [index for index, row in enumerate(rows)
+                           if row['id'] == body.before]
+                if not indices:
+                    raise ApiError('not_found', 404)
+                offset = indices[0] + 1
+            selected = rows[offset:offset + body.limit]
+            commands = [self._read_command(connection, row)
+                        for row in selected]
+            next_before = (selected[-1]['id']
+                           if offset + len(selected) < len(rows) else None)
+            response = MusicTargetHistoryResponse(
+                commands=commands, nextBefore=next_before)
+            return response.model_dump()
+
+    def integrity(self, actor, body):
+        if type(body) is not ReadMusicTargetInventoryRequest:
+            raise ApiError('invalid_request')
+        with self.db.connection() as connection:
+            connection.execute('BEGIN')
+            self.playback.providers._assert_admin(connection, actor)
+            self._state(connection, body)
+            self._providers(connection, body)
+            rows = list(reversed(self._journal_rows(
+                connection, body.installationId)))
+            digest = hashlib.sha256()
+            for row in rows:
+                self._read_command(connection, row)
+                digest.update(row['event_hash'])
+                cancellation = connection.execute(
+                    'SELECT event_hash FROM music_target_command_cancellations '
+                    'WHERE command_id=?', (row['id'],)).fetchone()
+                effect = connection.execute(
+                    'SELECT event_hash FROM music_target_effect_attempts '
+                    'WHERE command_id=?', (row['id'],)).fetchone()
+                if cancellation is not None:
+                    digest.update(cancellation['event_hash'])
+                if effect is not None:
+                    digest.update(effect['event_hash'])
+            response = MusicTargetIntegrityResponse.model_validate({
+                'integrity': {'verified': True, 'commandCount': len(rows),
+                              'headHash': digest.hexdigest(),
+                              'installAvailable': False}})
+            return response.model_dump()
+
     def validate_storage(self):
         try:
-            with self.db.connection() as connection:
+            with self.db.transaction() as connection:
                 previews = connection.execute(
                     'SELECT * FROM music_target_command_previews LIMIT 257'
                 ).fetchall()
@@ -308,9 +526,55 @@ class MusicTargetAuthorityManagement:
                 if len(commands) > MAX_PREVIEWS:
                     raise ApiError('music_playback_storage_unavailable', 503)
                 for row in commands:
-                    if connection.execute(
-                            'SELECT 1 FROM music_target_command_previews WHERE id=?',
-                            (row['preview_id'],)).fetchone() is None:
+                    self._verify_command(connection, row)
+                cancellations = connection.execute(
+                    'SELECT * FROM music_target_command_cancellations LIMIT 257'
+                ).fetchall()
+                effects = connection.execute(
+                    'SELECT * FROM music_target_effect_attempts LIMIT 257'
+                ).fetchall()
+                if (len(cancellations) > MAX_PREVIEWS
+                        or len(effects) > MAX_PREVIEWS):
+                    raise ApiError('music_playback_storage_unavailable', 503)
+                command_by_id = {row['id']: row for row in commands}
+                preview_by_id = {row['id']: row for row in previews}
+                cancellation_ids = set()
+                for row in cancellations:
+                    command = command_by_id.get(row['command_id'])
+                    if command is None:
                         raise ApiError('music_playback_storage_unavailable', 503)
+                    self._verify_cancellation(row, command['event_hash'])
+                    cancellation_ids.add(row['command_id'])
+                for row in effects:
+                    command = command_by_id.get(row['command_id'])
+                    preview = (None if command is None else
+                               preview_by_id.get(command['preview_id']))
+                    self._verify_effect(row)
+                    if (command is None or preview is None
+                            or row['command_id'] in cancellation_ids
+                            or row['installation_id']
+                            != preview['installation_id']
+                            or row['installation_revision']
+                            != preview['installation_revision']
+                            or row['core_revision'] != preview['core_revision']
+                            or row['player_revision']
+                            != preview['player_revision']
+                            or row['provider_digest']
+                            != preview['provider_digest']):
+                        raise ApiError('music_playback_storage_unavailable', 503)
+                    if row['state'] == 'pending':
+                        changed = dict(row)
+                        changed.update(
+                            state='unknown',
+                            updated_at=max(
+                                row['updated_at'], int(self.settings.clock())),
+                            result_hash='0' * 64)
+                        changed['event_hash'] = self._effect_hash(changed)
+                        connection.execute('''UPDATE music_target_effect_attempts
+                            SET state=?,updated_at=?,result_hash=?,event_hash=?
+                            WHERE command_id=?''', (
+                                changed['state'], changed['updated_at'],
+                                changed['result_hash'], changed['event_hash'],
+                                row['command_id']))
         except ApiError:
             raise StartupError('invalid_music_target_authority_storage') from None
