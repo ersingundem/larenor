@@ -321,7 +321,11 @@ class CoreHaActivityController extends ChangeNotifier {
             proof = null;
             proofFailure = _failure(error);
             if (pin != null &&
-                {'conflict', 'revision_conflict'}.contains(proofFailure)) {
+                {
+                  'conflict',
+                  'revision_conflict',
+                  'invalid_response',
+                }.contains(proofFailure)) {
               alarm = 'mismatch';
             }
           }
@@ -344,6 +348,11 @@ class CoreHaActivityController extends ChangeNotifier {
       final cap = CoreHaHistoryPage.maximumVisibleEntries;
       if (combined.length > cap) {
         throw const LarenorServerException('invalid_response');
+      }
+      // Secure-store reads and parsing are separate asynchronous boundaries.
+      // Recheck immediately before publishing any retained or new result.
+      if (_epoch != operation || !_sourceCurrent) {
+        throw const LarenorServerException('cancelled');
       }
       entries = List.unmodifiable(combined);
       verification = proof;

@@ -457,8 +457,10 @@ void main() {
         await unauthorized.start();
         unauthorized.fixture.unauthorized = true;
         await unauthorized.refresh();
-        expect(unauthorized.controller!.failure, 'unauthorized');
-        expect(unauthorized.controller!.stale, isTrue);
+        expect(unauthorized.account.session, isNull);
+        expect(unauthorized.controller!.fresh, isFalse);
+        expect(unauthorized.controller!.loaded, isFalse);
+        expect(unauthorized.controller!.entries, isEmpty);
         expect(unauthorized.controller!.checkpointAlarm, isNull);
       } finally {
         await unauthorized.close();
