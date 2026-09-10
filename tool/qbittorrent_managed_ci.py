@@ -28,14 +28,72 @@ _DIAGNOSTIC_PHASES = {
     'bootstrap_reverify': 'qbittorrent_bootstrap_reverify_failed',
     'post_restart_inspect': 'qbittorrent_post_restart_inspect_failed',
 }
+_PRODUCTION_DIAGNOSTIC_CODES = frozenset({
+    'qbittorrent_config_authority_changed',
+    'qbittorrent_config_resources_unavailable',
+    'qbittorrent_config_write_failed',
+    'qbittorrent_config_result_invalid',
+    'qbittorrent_config_timeout',
+    'qbittorrent_service_unavailable',
+    'qbittorrent_service_changed',
+    'qbittorrent_service_verification_failed',
+    'qbittorrent_config_runtime_untrusted',
+    'qbittorrent_config_runtime_configuration_invalid',
+    'qbittorrent_config_runtime_effect_failed',
+    'qbittorrent_config_runtime_result_invalid',
+    'qbittorrent_config_effect_untrusted',
+    'qbittorrent_config_effect_configuration_invalid',
+    'qbittorrent_config_effect_dispatch_denied',
+    'qbittorrent_config_effect_cancelled',
+    'qbittorrent_config_effect_create_failed',
+    'qbittorrent_config_effect_start_failed',
+    'qbittorrent_config_effect_stream_failed',
+    'qbittorrent_config_effect_result_failed',
+    'qbittorrent_config_effect_wait_failed',
+    'qbittorrent_config_effect_cleanup_failed',
+    'qbittorrent_config_effect_authority_changed',
+    'invalid_qbittorrent_bootstrap_execution',
+    'qbittorrent_bootstrap_authority_changed',
+    'qbittorrent_bootstrap_resources_unavailable',
+    'qbittorrent_bootstrap_endpoint_unavailable',
+    'qbittorrent_bootstrap_endpoint_changed',
+    'qbittorrent_bootstrap_categories_failed',
+    'qbittorrent_bootstrap_readback_failed',
+    'qbittorrent_bootstrap_timeout',
+})
 _DIAGNOSTIC_CODES = frozenset({
     'qbittorrent_characterization_evidence_invalid',
     *_DIAGNOSTIC_PHASES.values(),
+    *_PRODUCTION_DIAGNOSTIC_CODES,
 })
 
 
 class QbittorrentManagedCIError(Exception):
     """Static native evidence failure; private Engine data never escapes."""
+
+
+def _production_diagnostic(error):
+    from larenor_server.plugins.qbittorrent_bootstrap_executor import (
+        QbittorrentBootstrapExecutionError,
+    )
+    from larenor_server.plugins.qbittorrent_config_effect import (
+        QbittorrentConfigEffectError,
+    )
+    from larenor_server.plugins.qbittorrent_config_models import (
+        QbittorrentConfigurationExecutionError,
+    )
+    from larenor_server.plugins.qbittorrent_config_runtime import (
+        QbittorrentConfigRuntimeError,
+    )
+
+    trusted = {
+        QbittorrentBootstrapExecutionError,
+        QbittorrentConfigEffectError,
+        QbittorrentConfigurationExecutionError,
+        QbittorrentConfigRuntimeError,
+    }
+    code = getattr(error, 'code', None)
+    return code if type(error) in trusted and code in _PRODUCTION_DIAGNOSTIC_CODES else None
 
 
 @contextmanager
@@ -53,7 +111,10 @@ def diagnostic_phase(phase):
         raise
     except smoke.SmokeError:
         raise
-    except Exception:
+    except Exception as error:
+        production_code = _production_diagnostic(error)
+        if production_code is not None:
+            raise QbittorrentManagedCIError(production_code) from None
         raise QbittorrentManagedCIError(code) from None
 
 

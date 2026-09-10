@@ -198,6 +198,27 @@ def test_static_diagnostic_phase_hides_the_original_exception():
             pass
 
 
+def test_diagnostic_phase_preserves_only_allowlisted_production_code():
+    module = api()
+    from larenor_server.plugins.qbittorrent_config_effect import (
+        QbittorrentConfigEffectError,
+    )
+
+    with pytest.raises(module.QbittorrentManagedCIError) as known:
+        with module.diagnostic_phase('runtime_install'):
+            raise QbittorrentConfigEffectError(
+                'qbittorrent_config_effect_wait_failed')
+    assert known.value.args == ('qbittorrent_config_effect_wait_failed',)
+
+    class UntrustedFailure(Exception):
+        code = 'qbittorrent_config_effect_wait_failed'
+
+    with pytest.raises(module.QbittorrentManagedCIError) as unknown:
+        with module.diagnostic_phase('runtime_install'):
+            raise UntrustedFailure('private detail')
+    assert unknown.value.args == ('qbittorrent_runtime_install_failed',)
+
+
 def test_main_prints_only_allowlisted_native_diagnostic(monkeypatch, capsys):
     module = api()
     monkeypatch.setattr(
