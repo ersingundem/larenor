@@ -26,13 +26,12 @@ def android_client_scope_errors(root: Path) -> list[str]:
         errors.append("flutter_platform_metadata")
 
     pubspec = (root / "pubspec.yaml").read_text(encoding="utf-8")
-    if re.search(
-        r"(?m)^\s{2}['\"]?webview_flutter_wkwebview['\"]?\s*:", pubspec
-    ):
+    if "webview_flutter_wkwebview" in pubspec:
         errors.append("direct_wkwebview_dependency")
 
     dart_paths = sorted((root / "lib").rglob("*.dart"))
-    dart_sources = "\n".join(path.read_text(encoding="utf-8") for path in dart_paths)
+    sources = [path.read_text(encoding="utf-8") for path in dart_paths]
+    dart_sources = "\n".join(sources)
     for marker in (
         "webview_flutter_wkwebview",
         "TargetPlatform.iOS",
@@ -41,6 +40,12 @@ def android_client_scope_errors(root: Path) -> list[str]:
         if marker in dart_sources:
             errors.append("native_ios_runtime_branch")
             break
+    if any(
+        "Platform.operatingSystem" in source
+        and re.search(r"['\"]ios['\"]", source)
+        for source in sources
+    ):
+        errors.append("native_ios_runtime_branch")
     if any(path.name.endswith("_ios.dart") for path in dart_paths):
         errors.append("native_ios_source_file")
     return errors
@@ -61,11 +66,11 @@ class AndroidClientScopeTest(unittest.TestCase):
                 encoding="utf-8",
             )
             (root / "pubspec.yaml").write_text(
-                'dependencies:\n  "webview_flutter_wkwebview": ^3.0.0\n',
+                'dependencies:\n    "webview_flutter_wkwebview": ^3.0.0\n',
                 encoding="utf-8",
             )
             (root / "lib" / "platform.dart").write_text(
-                "final nativeIos = Platform.isIOS;\n",
+                "final nativeIos = Platform.operatingSystem == 'ios';\n",
                 encoding="utf-8",
             )
             self.assertEqual(
