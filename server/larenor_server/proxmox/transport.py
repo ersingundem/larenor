@@ -3,9 +3,11 @@
 Only packaged fixed routes are used. The exported seam returns a closed typed
 projection; upstream bodies, credentials and errors never cross the API.
 """
+import hashlib
 import json
 import math
 import re
+from datetime import datetime, timezone
 from urllib.parse import urlencode
 
 from ..errors import ApiError
@@ -58,7 +60,7 @@ def _number(value, *, integer=False, minimum=0, maximum=2**63 - 1):
     return value
 
 
-def _summary(values):
+def _resources(values):
     nodes, guests, storages = [], [], []
     try:
         if len(values) > 512:
@@ -89,9 +91,124 @@ def _summary(values):
                     'usedBytes': used, 'totalBytes': total, 'availableBytes': total - used})
             else:
                 raise ValueError()
-        return Summary(nodes=nodes, guests=guests, storages=storages)
+        return nodes, guests, storages
     except (KeyError, TypeError, ValueError):
         raise ApiError('proxmox_summary_unsupported', 502) from None
+
+
+def _safe(value, *, maximum=128, pattern=None):
+    if (type(value) is not str or not value or len(value) > maximum or
+            any(ord(c) < 32 or ord(c) == 127 or 0xD800 <= ord(c) <= 0xDFFF for c in value) or
+            pattern is not None and re.fullmatch(pattern, value) is None):
+        raise ValueError()
+    return value
+
+
+def _timestamp(value):
+    seconds = _number(value, integer=True)
+    try:
+        return datetime.fromtimestamp(seconds, timezone.utc).isoformat().replace('+00:00', 'Z')
+    except (OverflowError, OSError, ValueError):
+        raise ValueError() from None
+
+
+def _tasks(values):
+    try:
+        if len(values) > 20:
+            raise ValueError()
+        result = []
+        for item in values:
+            if type(item) is not dict:
+                raise ValueError()
+            upid = _safe(item['upid'], maximum=4096)
+            node = _safe(item['node'], maximum=64, pattern=r'[A-Za-z0-9][A-Za-z0-9._-]*')
+            kind = _safe(item['type'], maximum=64, pattern=r'[A-Za-z0-9][A-Za-z0-9._-]*')
+            started = _timestamp(item['starttime'])
+            end = item.get('endtime')
+            raw_status = item.get('status')
+            if end is None:
+                if raw_status is not None:
+                    raise ValueError()
+                status, finished = 'running', None
+            else:
+                if type(raw_status) is not str:
+                    raise ValueError()
+                _safe(raw_status, maximum=128)
+                status = 'succeeded' if raw_status == 'OK' else 'failed'
+                finished = _timestamp(end)
+            result.append({
+                'taskId': hashlib.sha256(upid.encode('utf-8')).hexdigest(),
+                'node': node,
+                'kind': kind,
+                'status': status,
+                'startedAt': started,
+                'finishedAt': finished,
+            })
+        return result
+    except (KeyError, TypeError, ValueError, UnicodeError):
+        raise ApiError('proxmox_summary_unsupported', 502) from None
+
+
+def _maintenance(nodes, storages, tasks):
+    warnings = []
+
+    def add(kind, severity, node, *, storage=None, observed=None,
+            threshold=None, task=None):
+        identity = '|'.join((kind, node, storage or '', task or ''))
+        warnings.append({
+            'warningId': hashlib.sha256(identity.encode('ascii')).hexdigest(),
+            'kind': kind,
+            'severity': severity,
+            'node': node,
+            'storage': storage,
+            'observedPercent': observed,
+            'thresholdPercent': threshold,
+            'relatedTaskId': task,
+        })
+
+    def pressure(kind, node, ratio, *, storage=None, low=80):
+        observed = min(100, max(0, round(ratio * 100)))
+        if ratio >= .9:
+            add(kind, 'critical', node, storage=storage, observed=observed,
+                threshold=90)
+        elif ratio >= low / 100:
+            add(kind, 'warning', node, storage=storage, observed=observed,
+                threshold=low)
+
+    for node in nodes:
+        if node['status'] == 'offline':
+            add('node_offline', 'critical', node['node'])
+            continue
+        pressure('node_cpu_pressure', node['node'], node['cpuRatio'], low=75)
+        pressure('node_memory_pressure', node['node'],
+                 node['memoryUsedBytes'] / node['memoryTotalBytes'])
+    for storage in storages:
+        if not storage['active']:
+            add('storage_offline', 'critical', storage['node'],
+                storage=storage['storage'])
+            continue
+        pressure('storage_pressure', storage['node'],
+                 storage['usedBytes'] / storage['totalBytes'],
+                 storage=storage['storage'])
+    for task in tasks:
+        if task['status'] == 'failed':
+            add('recent_task_failed', 'warning', task['node'],
+                task=task['taskId'])
+    warnings.sort(key=lambda item: (
+        0 if item['severity'] == 'critical' else 1,
+        item['kind'], item['node'], item['storage'] or '',
+        item['relatedTaskId'] or '',
+    ))
+    total = len(warnings)
+    bounded = warnings[:32]
+    return {
+        'state': ('healthy' if total == 0 else
+                  'critical' if any(item['severity'] == 'critical'
+                                    for item in bounded) else 'attention'),
+        'warningCount': total,
+        'truncated': total > len(bounded),
+        'warnings': bounded,
+    }
 
 
 def read_summary(service, *, guard):
@@ -117,10 +234,20 @@ def read_summary(service, *, guard):
                 raise ApiError('proxmox_binding_changed', 409)
             response = transport.request('GET', '/api2/json/cluster/resources',
                 headers=headers, before_send=guard)
+            guard()
+            tasks_response = transport.request('GET', '/api2/json/cluster/tasks',
+                headers=headers, before_send=guard, query_parameters={'limit': '20'})
     except ApiError:
         raise
     except (ProbeTransportError, KeyError, UnicodeError):
         guard()
         raise ApiError('proxmox_upstream_unavailable', 502) from None
     guard()
-    return _summary(_data(response))
+    nodes, guests, storages = _resources(_data(response))
+    tasks = _tasks(_data(tasks_response))
+    try:
+        return Summary(nodes=nodes, guests=guests, storages=storages,
+                       recentTasks=tasks,
+                       maintenance=_maintenance(nodes, storages, tasks))
+    except (TypeError, ValueError):
+        raise ApiError('proxmox_summary_unsupported', 502) from None

@@ -63,7 +63,7 @@ class Grant(StrictModel):
 
 
 class Policy(StrictModel):
-    component: Literal['home_assistant_probe'] = 'home_assistant_probe'
+    component: Literal['home_assistant_probe', 'proxmox_command_worker'] = 'home_assistant_probe'
     serviceId: ObjectId
     serviceRevision: Revision
     revision: int = Field(ge=0, le=2**63-1)

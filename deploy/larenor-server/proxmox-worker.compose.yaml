@@ -1,0 +1,93 @@
+{
+  "name": "larenor-proxmox-worker",
+  "services": {
+    "larenor-proxmox-power-worker": {
+      "image": "${LARENOR_SERVER_IMAGE:?Set an immutable digest-pinned Larenor Server image}",
+      "container_name": "larenor-proxmox-power-worker",
+      "user": "10001:10001",
+      "read_only": true,
+      "network_mode": "bridge",
+      "restart": "no",
+      "stop_grace_period": "10s",
+      "cap_drop": [
+        "ALL"
+      ],
+      "security_opt": [
+        "no-new-privileges:true"
+      ],
+      "pids_limit": 32,
+      "tmpfs": [
+        "/tmp:rw,noexec,nosuid,nodev,size=16m,mode=700,uid=10001,gid=10001"
+      ],
+      "entrypoint": [
+        "/opt/larenor/.venv/bin/python",
+        "-m",
+        "larenor_server.proxmox_commands.worker_supervisor"
+      ],
+      "command": [
+        "--socket",
+        "/run/larenor/proxmox-power.sock",
+        "--health-receipt",
+        "/run/larenor/proxmox-power-health.json",
+        "--credential-file",
+        "/run/secrets/proxmox-credential.bin",
+        "--binding-key-file",
+        "/run/secrets/proxmox-binding.key",
+        "--api-uid",
+        "10001"
+      ],
+      "healthcheck": {
+        "test": [
+          "CMD",
+          "/opt/larenor/.venv/bin/python",
+          "-m",
+          "larenor_server.proxmox_commands.worker_supervisor",
+          "--socket",
+          "/run/larenor/proxmox-power.sock",
+          "--health-receipt",
+          "/run/larenor/proxmox-power-health.json",
+          "--credential-file",
+          "/run/secrets/proxmox-credential.bin",
+          "--binding-key-file",
+          "/run/secrets/proxmox-binding.key",
+          "--api-uid",
+          "10001",
+          "--check-health"
+        ],
+        "interval": "10s",
+        "timeout": "2s",
+        "start_period": "5s",
+        "retries": 3
+      },
+      "volumes": [
+        {
+          "type": "bind",
+          "source": "${LARENOR_PROXMOX_RUNTIME_DIR:?Create a private UID 10001 runtime directory}",
+          "target": "/run/larenor",
+          "read_only": false,
+          "bind": {
+            "create_host_path": false
+          }
+        },
+        {
+          "type": "bind",
+          "source": "${LARENOR_PROXMOX_CREDENTIAL_FILE:?Provide a 0600 UID 10001 encrypted credential envelope}",
+          "target": "/run/secrets/proxmox-credential.bin",
+          "read_only": true,
+          "bind": {
+            "create_host_path": false
+          }
+        },
+        {
+          "type": "bind",
+          "source": "${LARENOR_PROXMOX_BINDING_KEY_FILE:?Provide a 0600 UID 10001 binding key}",
+          "target": "/run/secrets/proxmox-binding.key",
+          "read_only": true,
+          "bind": {
+            "create_host_path": false
+          }
+        }
+      ]
+    }
+  }
+}

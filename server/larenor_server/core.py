@@ -60,14 +60,21 @@ from .home_assistant.migration_schema import migrate as migrate_direct_ha
 from .home_assistant.migration import DirectHaMigration
 from .proxmox.schema import migrate as migrate_proxmox_resources
 from .proxmox.service import ProxmoxResourceAdapter
+from .proxmox_commands.schema import migrate as migrate_proxmox_power
+from .proxmox_commands.service import ProxmoxPowerAuthority
+from .proxmox_commands.worker_ipc import verified_power_worker_client
+from .proxmox_commands.core_worker import EgressGatedProxmoxExecutor
 
 
 class CoreServices:
     def __init__(self, settings: Settings, *, blob_provider: BlobProvider | None = None,
-                 transfer_limits: TransferLimits | None = None):
+                 transfer_limits: TransferLimits | None = None,
+                 proxmox_guest_provider=None, proxmox_power_executor=None):
         self.settings = settings
         self._blob_provider = blob_provider
         self._transfer_limits = transfer_limits
+        self._proxmox_guest_provider = proxmox_guest_provider
+        self._proxmox_power_executor = proxmox_power_executor
         self.bootstrap_created = False
         self.bootstrap_cleanup_pending = False
         try:
@@ -180,6 +187,7 @@ class CoreServices:
                 migrate_music_assistant_core(connection)
                 migrate_music_provider_setups(connection)
                 migrate_music_playback(connection)
+                migrate_proxmox_power(connection, key)
             if not existed:
                 # Only publish the DB after its complete first transaction commits.
                 # Never expose an empty DB that a restart might treat as a reset.
@@ -207,6 +215,23 @@ class CoreServices:
             self.admin = AdminService(self.db, self.auth, settings)
             self.services = ServiceManagement(self.db, self.auth, settings, key)
             self.services.validate_storage()
+            self.component_egress = ComponentEgress(self.services, key, self.context)
+            self.services.component_egress = self.component_egress
+            power_executor = self._proxmox_power_executor
+            if power_executor is None and settings.proxmox_power_worker_socket is not None:
+                worker = verified_power_worker_client(
+                    settings.proxmox_power_worker_socket,
+                    settings.proxmox_power_worker_health,
+                    settings.proxmox_power_worker_uid,
+                )
+                if worker is not None:
+                    power_executor = EgressGatedProxmoxExecutor(
+                        worker, self.component_egress)
+            self.proxmox_power = ProxmoxPowerAuthority(
+                self.home_resources, self.auth, settings, key,
+                self._proxmox_guest_provider, power_executor)
+            self.proxmox_power.store.validate_storage()
+            self.proxmox_power.store.recover_incomplete()
             self.home_assistant = HomeAssistantAdapter(self.db, self.auth, settings, key, self.home_resources, self.services)
             self.home_assistant.validate_storage()
             self.keenetic_resources = KeeneticResourceAdapter(
@@ -217,8 +242,7 @@ class CoreServices:
             self.proxmox = ProxmoxResourceAdapter(
                 self.db, self.auth, settings, key, self.home_resources, self.services)
             self.proxmox.validate_storage()
-            self.component_egress = ComponentEgress(self.services, key, self.context)
-            self.services.component_egress = self.component_egress
+            self.proxmox_power.attach_binding_reader(self.proxmox)
             self.service_probe = ServiceProbeRunner(self.services)
             self.plugins = PluginManagement(self.db, self.auth, settings, key)
             self.plugins.validate_storage()

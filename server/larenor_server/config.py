@@ -22,17 +22,32 @@ class Settings:
     plugin_worker_uid: int = 0
     installation_worker_socket: Path | None = None
     installation_worker_uid: int = 0
+    proxmox_power_worker_socket: Path | None = None
+    proxmox_power_worker_health: Path | None = None
+    proxmox_power_worker_uid: int = 0
 
     def __post_init__(self):
         if (type(self.plugin_worker_uid) is not int or not 0 <= self.plugin_worker_uid < 2**31
                 or type(self.installation_worker_uid) is not int
-                or not 0 <= self.installation_worker_uid < 2**31):
+                or not 0 <= self.installation_worker_uid < 2**31
+                or type(self.proxmox_power_worker_uid) is not int
+                or not 0 <= self.proxmox_power_worker_uid < 2**31):
             raise ValueError("invalid_worker_configuration")
-        for path in (self.plugin_worker_socket, self.installation_worker_socket):
+        worker_paths = (
+            self.plugin_worker_socket,
+            self.installation_worker_socket,
+            self.proxmox_power_worker_socket,
+            self.proxmox_power_worker_health,
+        )
+        for path in worker_paths:
             if path is not None and (not isinstance(path, Path) or not path.is_absolute()
                     or ".." in path.parts or any(ord(char) < 32 or ord(char) == 127 for char in str(path))):
                 raise ValueError("invalid_worker_configuration")
-        if self.plugin_worker_socket is not None and self.plugin_worker_socket == self.installation_worker_socket:
+        if ((self.proxmox_power_worker_socket is None)
+                != (self.proxmox_power_worker_health is None)):
+            raise ValueError("invalid_worker_configuration")
+        selected = [path for path in worker_paths if path is not None]
+        if len(selected) != len(set(selected)):
             raise ValueError("invalid_worker_configuration")
 
     @property
@@ -54,6 +69,11 @@ class Settings:
                 installation_worker_socket=Path(os.environ["LARENOR_INSTALLATION_WORKER_SOCKET"]
                                                 ) if os.environ.get("LARENOR_INSTALLATION_WORKER_SOCKET") else None,
                 installation_worker_uid=int(os.environ.get("LARENOR_INSTALLATION_WORKER_UID", "0")),
+                proxmox_power_worker_socket=Path(os.environ["LARENOR_PROXMOX_POWER_WORKER_SOCKET"]
+                                                 ) if os.environ.get("LARENOR_PROXMOX_POWER_WORKER_SOCKET") else None,
+                proxmox_power_worker_health=Path(os.environ["LARENOR_PROXMOX_POWER_WORKER_HEALTH"]
+                                                 ) if os.environ.get("LARENOR_PROXMOX_POWER_WORKER_HEALTH") else None,
+                proxmox_power_worker_uid=int(os.environ.get("LARENOR_PROXMOX_POWER_WORKER_UID", "0")),
             )
         except ValueError:
             # int() errors include their input. Environment values must never

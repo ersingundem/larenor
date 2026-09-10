@@ -21,6 +21,15 @@ String _id(Object? value) {
   return value;
 }
 
+String _digest(Object? value) {
+  if (value is! String ||
+      value.length != 64 ||
+      !RegExp(r'^[0-9a-f]{64}$').hasMatch(value)) {
+    _invalid();
+  }
+  return value;
+}
+
 int _integer(Object? value, {int min = 0, int max = 9223372036854775807}) {
   if (value is! int || value < min || value > max) _invalid();
   return value;
@@ -221,14 +230,265 @@ final class CoreProxmoxStorage {
   }
 }
 
+enum CoreProxmoxTaskStatus { running, succeeded, failed }
+
+final class CoreProxmoxRecentTask {
+  const CoreProxmoxRecentTask._({
+    required this.id,
+    required this.node,
+    required this.kind,
+    required this.status,
+    required this.startedAt,
+    required this.finishedAt,
+  });
+
+  final String id, node, kind;
+  final CoreProxmoxTaskStatus status;
+  final DateTime startedAt;
+  final DateTime? finishedAt;
+
+  factory CoreProxmoxRecentTask.fromJson(Object? raw) {
+    final value = _object(raw, {
+      'taskId',
+      'node',
+      'kind',
+      'status',
+      'startedAt',
+      'finishedAt',
+    });
+    final status = switch (value['status']) {
+      'running' => CoreProxmoxTaskStatus.running,
+      'succeeded' => CoreProxmoxTaskStatus.succeeded,
+      'failed' => CoreProxmoxTaskStatus.failed,
+      _ => _invalid(),
+    };
+    final started = _timestamp(value['startedAt']);
+    final finished = value['finishedAt'] == null
+        ? null
+        : _timestamp(value['finishedAt']);
+    if ((status == CoreProxmoxTaskStatus.running) != (finished == null) ||
+        finished != null && finished.isBefore(started)) {
+      _invalid();
+    }
+    return CoreProxmoxRecentTask._(
+      id: _digest(value['taskId']),
+      node: _safe(
+        value['node'],
+        max: 64,
+        pattern: r'^[A-Za-z0-9][A-Za-z0-9._-]*$',
+      ),
+      kind: _safe(
+        value['kind'],
+        max: 64,
+        pattern: r'^[A-Za-z0-9][A-Za-z0-9._-]*$',
+      ),
+      status: status,
+      startedAt: started,
+      finishedAt: finished,
+    );
+  }
+}
+
+enum CoreProxmoxMaintenanceState { healthy, attention, critical }
+
+enum CoreProxmoxWarningSeverity { warning, critical }
+
+enum CoreProxmoxWarningKind {
+  nodeOffline,
+  storageOffline,
+  nodeCpuPressure,
+  nodeMemoryPressure,
+  storagePressure,
+  recentTaskFailed,
+}
+
+final class CoreProxmoxMaintenanceWarning {
+  const CoreProxmoxMaintenanceWarning._({
+    required this.id,
+    required this.kind,
+    required this.severity,
+    required this.node,
+    required this.storage,
+    required this.observedPercent,
+    required this.thresholdPercent,
+    required this.relatedTaskId,
+  });
+
+  final String id, node;
+  final CoreProxmoxWarningKind kind;
+  final CoreProxmoxWarningSeverity severity;
+  final String? storage, relatedTaskId;
+  final int? observedPercent, thresholdPercent;
+
+  factory CoreProxmoxMaintenanceWarning.fromJson(Object? raw) {
+    final value = _object(raw, {
+      'warningId',
+      'kind',
+      'severity',
+      'node',
+      'storage',
+      'observedPercent',
+      'thresholdPercent',
+      'relatedTaskId',
+    });
+    final kind = switch (value['kind']) {
+      'node_offline' => CoreProxmoxWarningKind.nodeOffline,
+      'storage_offline' => CoreProxmoxWarningKind.storageOffline,
+      'node_cpu_pressure' => CoreProxmoxWarningKind.nodeCpuPressure,
+      'node_memory_pressure' => CoreProxmoxWarningKind.nodeMemoryPressure,
+      'storage_pressure' => CoreProxmoxWarningKind.storagePressure,
+      'recent_task_failed' => CoreProxmoxWarningKind.recentTaskFailed,
+      _ => _invalid(),
+    };
+    final severity = switch (value['severity']) {
+      'warning' => CoreProxmoxWarningSeverity.warning,
+      'critical' => CoreProxmoxWarningSeverity.critical,
+      _ => _invalid(),
+    };
+    int? optionalPercent(String key) {
+      final raw = value[key];
+      return raw == null ? null : _integer(raw, max: 100);
+    }
+
+    final storage = value['storage'] == null
+        ? null
+        : _safe(
+            value['storage'],
+            max: 64,
+            pattern: r'^[A-Za-z0-9][A-Za-z0-9._-]*$',
+          );
+    final observed = optionalPercent('observedPercent');
+    final threshold = optionalPercent('thresholdPercent');
+    final task = value['relatedTaskId'] == null
+        ? null
+        : _digest(value['relatedTaskId']);
+    final pressure = {
+      CoreProxmoxWarningKind.nodeCpuPressure,
+      CoreProxmoxWarningKind.nodeMemoryPressure,
+      CoreProxmoxWarningKind.storagePressure,
+    }.contains(kind);
+    final storageKind = {
+      CoreProxmoxWarningKind.storageOffline,
+      CoreProxmoxWarningKind.storagePressure,
+    }.contains(kind);
+    if (storageKind != (storage != null) ||
+        (kind == CoreProxmoxWarningKind.recentTaskFailed) != (task != null) ||
+        pressure != (observed != null && threshold != null)) {
+      _invalid();
+    }
+    if (pressure) {
+      final low = kind == CoreProxmoxWarningKind.nodeCpuPressure ? 75 : 80;
+      final expected = severity == CoreProxmoxWarningSeverity.critical
+          ? 90
+          : low;
+      if (threshold != expected ||
+          observed! < expected ||
+          severity == CoreProxmoxWarningSeverity.warning && observed >= 90) {
+        _invalid();
+      }
+    } else if (kind == CoreProxmoxWarningKind.recentTaskFailed
+        ? severity != CoreProxmoxWarningSeverity.warning
+        : severity != CoreProxmoxWarningSeverity.critical) {
+      _invalid();
+    }
+    return CoreProxmoxMaintenanceWarning._(
+      id: _digest(value['warningId']),
+      kind: kind,
+      severity: severity,
+      node: _safe(
+        value['node'],
+        max: 64,
+        pattern: r'^[A-Za-z0-9][A-Za-z0-9._-]*$',
+      ),
+      storage: storage,
+      observedPercent: observed,
+      thresholdPercent: threshold,
+      relatedTaskId: task,
+    );
+  }
+}
+
+final class CoreProxmoxMaintenanceSummary {
+  const CoreProxmoxMaintenanceSummary._({
+    required this.state,
+    required this.warningCount,
+    required this.truncated,
+    required this.warnings,
+  });
+
+  final CoreProxmoxMaintenanceState state;
+  final int warningCount;
+  final bool truncated;
+  final List<CoreProxmoxMaintenanceWarning> warnings;
+
+  factory CoreProxmoxMaintenanceSummary.fromJson(Object? raw) {
+    final value = _object(raw, {
+      'state',
+      'warningCount',
+      'truncated',
+      'warnings',
+    });
+    final source = value['warnings'];
+    if (source is! List || source.length > 32 || value['truncated'] is! bool) {
+      _invalid();
+    }
+    final warnings = List<CoreProxmoxMaintenanceWarning>.unmodifiable(
+      source.map(CoreProxmoxMaintenanceWarning.fromJson),
+    );
+    final count = _integer(value['warningCount'], max: 148);
+    final truncated = value['truncated'] as bool;
+    if (truncated != (count > warnings.length) ||
+        !truncated && count != warnings.length ||
+        warnings.map((warning) => warning.id).toSet().length !=
+            warnings.length) {
+      _invalid();
+    }
+    final hasCritical = warnings.any(
+      (warning) => warning.severity == CoreProxmoxWarningSeverity.critical,
+    );
+    final state = switch (value['state']) {
+      'healthy' => CoreProxmoxMaintenanceState.healthy,
+      'attention' => CoreProxmoxMaintenanceState.attention,
+      'critical' => CoreProxmoxMaintenanceState.critical,
+      _ => _invalid(),
+    };
+    final expected = count == 0
+        ? CoreProxmoxMaintenanceState.healthy
+        : hasCritical
+        ? CoreProxmoxMaintenanceState.critical
+        : CoreProxmoxMaintenanceState.attention;
+    if (state != expected) _invalid();
+    return CoreProxmoxMaintenanceSummary._(
+      state: state,
+      warningCount: count,
+      truncated: truncated,
+      warnings: warnings,
+    );
+  }
+}
+
 final class CoreProxmoxSummary {
-  const CoreProxmoxSummary._(this.nodes, this.guests, this.storages);
+  const CoreProxmoxSummary._(
+    this.nodes,
+    this.guests,
+    this.storages,
+    this.recentTasks,
+    this.maintenance,
+  );
   final List<CoreProxmoxNode> nodes;
   final List<CoreProxmoxGuest> guests;
   final List<CoreProxmoxStorage> storages;
+  final List<CoreProxmoxRecentTask> recentTasks;
+  final CoreProxmoxMaintenanceSummary maintenance;
 
   factory CoreProxmoxSummary.fromJson(Object? raw) {
-    final value = _object(raw, {'nodes', 'guests', 'storages'});
+    final value = _object(raw, {
+      'nodes',
+      'guests',
+      'storages',
+      'recentTasks',
+      'maintenance',
+    });
     List<T> list<T>(String key, int max, T Function(Object?) parse) {
       final source = value[key];
       if (source is! List || source.length > max) _invalid();
@@ -237,15 +497,48 @@ final class CoreProxmoxSummary {
 
     final nodes = list('nodes', 32, CoreProxmoxNode.fromJson),
         guests = list('guests', 256, CoreProxmoxGuest.fromJson),
-        storages = list('storages', 64, CoreProxmoxStorage.fromJson);
+        storages = list('storages', 64, CoreProxmoxStorage.fromJson),
+        recentTasks = list('recentTasks', 20, CoreProxmoxRecentTask.fromJson);
     if (nodes.map((e) => e.name).toSet().length != nodes.length ||
         guests.map((e) => '${e.kind.name}:${e.vmId}').toSet().length !=
             guests.length ||
         storages.map((e) => '${e.node}:${e.name}').toSet().length !=
-            storages.length) {
+            storages.length ||
+        recentTasks.map((e) => e.id).toSet().length != recentTasks.length) {
       _invalid();
     }
-    return CoreProxmoxSummary._(nodes, guests, storages);
+    final maintenance = CoreProxmoxMaintenanceSummary.fromJson(
+      value['maintenance'],
+    );
+    final nodeNames = nodes.map((node) => node.name).toSet();
+    final storageNames = storages
+        .map((storage) => '${storage.node}:${storage.name}')
+        .toSet();
+    final failedTasks = {
+      for (final task in recentTasks)
+        if (task.status == CoreProxmoxTaskStatus.failed) task.id: task.node,
+    };
+    final semanticWarnings = <String>{};
+    for (final warning in maintenance.warnings) {
+      final semantic =
+          '${warning.kind.name}:${warning.node}:'
+          '${warning.storage ?? ''}:${warning.relatedTaskId ?? ''}';
+      if (!nodeNames.contains(warning.node) ||
+          warning.storage != null &&
+              !storageNames.contains('${warning.node}:${warning.storage}') ||
+          warning.relatedTaskId != null &&
+              failedTasks[warning.relatedTaskId] != warning.node ||
+          !semanticWarnings.add(semantic)) {
+        _invalid();
+      }
+    }
+    return CoreProxmoxSummary._(
+      nodes,
+      guests,
+      storages,
+      recentTasks,
+      maintenance,
+    );
   }
 }
 
