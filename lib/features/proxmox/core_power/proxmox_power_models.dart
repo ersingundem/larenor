@@ -1,6 +1,14 @@
 Never _invalid() => throw const FormatException('invalid_response');
 
-enum ProxmoxPowerAction { start, shutdown, stop, reboot, suspend, resume }
+enum ProxmoxPowerAction {
+  start,
+  shutdown,
+  stop,
+  reboot,
+  reset,
+  suspend,
+  resume,
+}
 
 enum ProxmoxPowerRisk { low, moderate, high }
 
@@ -35,6 +43,15 @@ String _identity(Object? value) {
 
 int _revision(Object? value) {
   if (value is! int || value < 1 || value > 9223372036854775807) _invalid();
+  return value;
+}
+
+String? _operationRef(Object? value) {
+  if (value == null) return null;
+  if (value is! String ||
+      !RegExp(r'^UPID-SHA256:[0-9a-f]{64}$').hasMatch(value)) {
+    _invalid();
+  }
   return value;
 }
 
@@ -111,6 +128,7 @@ final class ProxmoxPowerTarget {
         ProxmoxPowerAction.shutdown,
         ProxmoxPowerAction.stop,
         ProxmoxPowerAction.reboot,
+        ProxmoxPowerAction.reset,
         ProxmoxPowerAction.suspend,
       },
       ProxmoxGuestState.stopped => const {ProxmoxPowerAction.start},
@@ -226,6 +244,12 @@ final class PowerReceipt {
     required this.resultCode,
     required this.guestState,
     required this.statusRevision,
+    required this.userRevision,
+    required this.resourceRevision,
+    required this.aclRevision,
+    required this.bindingRevision,
+    required this.serviceRevision,
+    required this.operationRef,
     required this.causalityVerified,
     required this.createdAt,
     required this.updatedAt,
@@ -240,6 +264,12 @@ final class PowerReceipt {
       'resultCode',
       'guestState',
       'statusRevision',
+      'userRevision',
+      'resourceRevision',
+      'aclRevision',
+      'bindingRevision',
+      'serviceRevision',
+      'operationRef',
       'causalityVerified',
       'createdAt',
       'updatedAt',
@@ -277,6 +307,12 @@ final class PowerReceipt {
       resultCode: code,
       guestState: _enum(value['guestState'], ProxmoxGuestState.values),
       statusRevision: _revision(value['statusRevision']),
+      userRevision: _revision(value['userRevision']),
+      resourceRevision: _revision(value['resourceRevision']),
+      aclRevision: _revision(value['aclRevision']),
+      bindingRevision: _revision(value['bindingRevision']),
+      serviceRevision: _revision(value['serviceRevision']),
+      operationRef: _operationRef(value['operationRef']),
       causalityVerified: value['causalityVerified'] as bool,
       createdAt: created,
       updatedAt: updated,
@@ -288,9 +324,12 @@ final class PowerReceipt {
   final ProxmoxPowerReceiptState state;
   final ProxmoxGuestState guestState;
   final int statusRevision;
+  final int userRevision, resourceRevision, aclRevision;
+  final int bindingRevision, serviceRevision;
+  final String? operationRef;
   final bool causalityVerified;
   final double createdAt, updatedAt;
-  Map<String, Object> toJson() => {
+  Map<String, Object?> toJson() => {
     'schemaVersion': 1,
     'requestId': requestId,
     'action': action.name,
@@ -298,6 +337,12 @@ final class PowerReceipt {
     'resultCode': resultCode,
     'guestState': guestState.name,
     'statusRevision': statusRevision,
+    'userRevision': userRevision,
+    'resourceRevision': resourceRevision,
+    'aclRevision': aclRevision,
+    'bindingRevision': bindingRevision,
+    'serviceRevision': serviceRevision,
+    'operationRef': operationRef,
     'causalityVerified': causalityVerified,
     'createdAt': createdAt,
     'updatedAt': updatedAt,

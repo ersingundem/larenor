@@ -296,6 +296,7 @@ final class _Labels {
     ProxmoxPowerAction.shutdown => tr ? 'Düzenli kapat' : 'Shut down',
     ProxmoxPowerAction.stop => tr ? 'Zorla durdur' : 'Stop',
     ProxmoxPowerAction.reboot => tr ? 'Yeniden başlat' : 'Reboot',
+    ProxmoxPowerAction.reset => tr ? 'Zorla sıfırla' : 'Reset',
     ProxmoxPowerAction.suspend => tr ? 'Askıya al' : 'Suspend',
     ProxmoxPowerAction.resume => tr ? 'Sürdür' : 'Resume',
   };

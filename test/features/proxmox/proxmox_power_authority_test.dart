@@ -31,6 +31,7 @@ const target = ProxmoxPowerTarget(
     ProxmoxPowerAction.shutdown,
     ProxmoxPowerAction.stop,
     ProxmoxPowerAction.reboot,
+    ProxmoxPowerAction.reset,
     ProxmoxPowerAction.suspend,
   },
 );
@@ -56,6 +57,12 @@ PowerReceipt fixtureReceipt(String state) => PowerReceipt.fromJson({
   'resultCode': state == 'succeeded' ? 'completed' : 'outcome_uncertain',
   'guestState': 'running',
   'statusRevision': 8,
+  'userRevision': 2,
+  'resourceRevision': 3,
+  'aclRevision': 4,
+  'bindingRevision': 5,
+  'serviceRevision': 6,
+  'operationRef': null,
   'causalityVerified': false,
   'createdAt': 1788609600.0,
   'updatedAt': 1788609601.0,
@@ -182,6 +189,48 @@ void main() {
       throwsA(isA<ArgumentError>()),
     );
   });
+
+  test(
+    'gateway rejects receipts from a different authority snapshot',
+    () async {
+      final client = MockClient((request) async {
+        final body = jsonDecode(request.body) as Map<String, dynamic>;
+        return http.Response(
+          jsonEncode({
+            'receipt': {
+              ...fixtureReceipt('succeeded').toJson(),
+              'requestId': body['requestId'],
+              'action': 'shutdown',
+              'aclRevision': 99,
+            },
+          }),
+          200,
+          headers: {'content-type': 'application/json'},
+        );
+      });
+      final transport = LarenorServerApi(
+        endpoint: ServerEndpoint('https://core.invalid'),
+        client: client,
+      );
+      final gateway = CoreProxmoxPowerApi(transport, 't' * 43);
+
+      await expectLater(
+        gateway.confirm(
+          target,
+          fixturePreview(high: false),
+          highRiskConfirmed: false,
+        ),
+        throwsA(
+          isA<LarenorServerException>().having(
+            (value) => value.code,
+            'code',
+            'invalid_response',
+          ),
+        ),
+      );
+      transport.close();
+    },
+  );
 
   test('high-risk confirm is explicit and double taps never replay', () async {
     final gateway = FakeGateway();

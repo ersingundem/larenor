@@ -55,7 +55,7 @@ Map<String, Object?> targetJson({
   'statusRevision': 7,
   'allowedCommands': ready
       ? state == 'running'
-            ? ['shutdown', 'stop', 'reboot', 'suspend']
+            ? ['shutdown', 'stop', 'reboot', 'reset', 'suspend']
             : state == 'stopped'
             ? ['start']
             : ['resume']
@@ -139,6 +139,7 @@ void main() {
         ProxmoxPowerAction.shutdown,
         ProxmoxPowerAction.stop,
         ProxmoxPowerAction.reboot,
+        ProxmoxPowerAction.reset,
         ProxmoxPowerAction.suspend,
       });
       transport.close();

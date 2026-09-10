@@ -97,7 +97,7 @@ Map<String, Object?> _targetPage(
     'currentState': 'running',
     'statusRevision': 9,
     'allowedCommands': mode == 'ready'
-        ? ['shutdown', 'stop', 'reboot', 'suspend']
+        ? ['shutdown', 'stop', 'reboot', 'reset', 'suspend']
         : <String>[],
     'capabilityReady': mode == 'ready',
   };

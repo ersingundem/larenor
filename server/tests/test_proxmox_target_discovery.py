@@ -79,7 +79,7 @@ def test_admin_reads_exact_redacted_command_ready_target(server):
         "guestId": 101,
         "currentState": "running",
         "statusRevision": 7,
-        "allowedCommands": ["shutdown", "stop", "reboot", "suspend"],
+        "allowedCommands": ["shutdown", "stop", "reboot", "reset", "suspend"],
         "capabilityReady": True,
     }
     assert len(target["targetId"]) == 32

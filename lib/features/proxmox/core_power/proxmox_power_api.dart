@@ -17,6 +17,13 @@ final class CoreProxmoxPowerApi implements ProxmoxPowerGateway {
   String _base(ProxmoxPowerTarget target) =>
       '/admin/proxmox-power/${target.coreId}/${target.homeId}/${target.resourceId}';
 
+  bool _matchesTarget(PowerReceipt receipt, ProxmoxPowerTarget target) =>
+      receipt.userRevision == target.userRevision &&
+      receipt.resourceRevision == target.resourceRevision &&
+      receipt.aclRevision == target.aclRevision &&
+      receipt.bindingRevision == target.bindingRevision &&
+      receipt.serviceRevision == target.serviceRevision;
+
   @override
   Future<PowerPreview> preview(
     ProxmoxPowerTarget target,
@@ -73,7 +80,8 @@ final class CoreProxmoxPowerApi implements ProxmoxPowerGateway {
     );
     final receipt = PowerReceipt.fromJson(serverObject(response)['receipt']);
     if (receipt.requestId != preview.requestId ||
-        receipt.action != preview.action) {
+        receipt.action != preview.action ||
+        !_matchesTarget(receipt, target)) {
       throw const LarenorServerException('invalid_response');
     }
     return receipt;
@@ -104,7 +112,7 @@ final class CoreProxmoxPowerApi implements ProxmoxPowerGateway {
       token: accessToken,
     );
     final receipt = PowerReceipt.fromJson(serverObject(response)['receipt']);
-    if (receipt.requestId != requestId) {
+    if (receipt.requestId != requestId || !_matchesTarget(receipt, target)) {
       throw const LarenorServerException('invalid_response');
     }
     return receipt;

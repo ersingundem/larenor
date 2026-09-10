@@ -208,7 +208,7 @@ final class _DiscoveredTarget {
     };
     final ready = value['capabilityReady'] as bool;
     final rawActions = value['allowedCommands'];
-    if (rawActions is! List || rawActions.length > 6) _invalid();
+    if (rawActions is! List || rawActions.length > 7) _invalid();
     final actions = <ProxmoxPowerAction>[];
     for (final rawAction in rawActions) {
       final action = ProxmoxPowerAction.values
@@ -224,6 +224,7 @@ final class _DiscoveredTarget {
               ProxmoxPowerAction.shutdown,
               ProxmoxPowerAction.stop,
               ProxmoxPowerAction.reboot,
+              ProxmoxPowerAction.reset,
               ProxmoxPowerAction.suspend,
             ],
             ProxmoxGuestState.stopped => const [ProxmoxPowerAction.start],

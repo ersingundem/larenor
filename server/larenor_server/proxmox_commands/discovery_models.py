@@ -5,7 +5,7 @@ from pydantic import Field, model_validator
 from ..home_resources.models import FrozenModel, HomeScope, Identity, Revision
 
 
-Command = Literal["start", "shutdown", "stop", "reboot", "suspend", "resume"]
+Command = Literal["start", "shutdown", "stop", "reboot", "reset", "suspend", "resume"]
 
 
 class DiscoveredTarget(FrozenModel):
@@ -21,13 +21,13 @@ class DiscoveredTarget(FrozenModel):
     guestId: int = Field(ge=1, le=999_999_999)
     currentState: Literal["running", "stopped", "suspended", "unavailable"]
     statusRevision: Revision
-    allowedCommands: list[Command] = Field(max_length=6)
+    allowedCommands: list[Command] = Field(max_length=7)
     capabilityReady: bool
 
     @model_validator(mode="after")
     def exact_capability(self):
         policy = {
-            "running": ["shutdown", "stop", "reboot", "suspend"],
+            "running": ["shutdown", "stop", "reboot", "reset", "suspend"],
             "stopped": ["start"],
             "suspended": ["resume"],
             "unavailable": [],
