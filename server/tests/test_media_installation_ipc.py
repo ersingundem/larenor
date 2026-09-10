@@ -92,6 +92,17 @@ def test_roundtrip_transports_only_closed_step_and_verified_stack_plan():
         assert backend.calls == [('apply', execution.steps[0], execution.plan)]
 
 
+def test_roundtrip_accepts_only_plan_derived_seerr_step():
+    execution = build_execution(
+        stack(), job_id='a' * 32, deadline=1788609900,
+        service_id='seerr')
+    with running() as (backend, client):
+        receipt = client.apply(execution.steps[0], execution.plan)
+    assert receipt.job_id == 'a' * 32
+    assert receipt.step == 'create_container'
+    assert backend.calls == [('apply', execution.steps[0], execution.plan)]
+
+
 def test_bootstrap_roundtrip_transports_only_exact_private_contract():
     selected = stack()
     private = PrivateMediaServiceBootstrap(
@@ -284,7 +295,7 @@ def test_core_enables_execution_only_from_the_separate_installation_channel(serv
             ).json() == {
                 'executionConfigured': True,
                 'installAvailable': False,
-                'services': ['jellyfin'],
+                    'services': ['jellyfin', 'seerr'],
             }
 
 

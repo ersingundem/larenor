@@ -11,6 +11,7 @@ from larenor_server.plugins.installation_execution import (
     InstallationExecutionError,
     JellyfinWorkerBackend,
     QbittorrentWorkerBackend,
+    SeerrWorkerBackend,
     build_execution,
 )
 from larenor_server.plugins.worker import StepReceipt
@@ -73,7 +74,8 @@ def test_builder_selects_fixed_qbittorrent_child_without_effect_payload(server):
 
 @pytest.mark.parametrize('field', ['service_id', 'job_id', 'deadline'])
 def test_builder_rejects_caller_selected_effects(server, field):
-    values = {'service_id': 'seerr', 'job_id': 'x' * 32, 'deadline': float('nan')}
+    values = {'service_id': 'music_assistant', 'job_id': 'x' * 32,
+              'deadline': float('nan')}
     arguments = {'job_id': 'a' * 32, 'deadline': 1788609900}
     arguments[field] = values[field]
     with pytest.raises(InstallationExecutionError, match='^invalid_execution_request$'):
@@ -237,4 +239,33 @@ def test_arr_worker_bridge_keeps_apply_and_reconcile_on_selected_service(
     assert calls == [
         ('apply', 'create_container', 'binding-' + service_id),
         ('reconcile', 'create_container', 'binding-' + service_id),
+    ]
+
+
+def test_seerr_worker_bridge_keeps_effect_on_exact_seerr_binding(server):
+    execution = build_execution(
+        stack(server), job_id='a' * 32, deadline=1788609900,
+        service_id='seerr')
+    calls = []
+
+    class Operations:
+        def apply(self, step, binding):
+            calls.append(('apply', step.kind, binding))
+            return StepReceipt(
+                step.job_id, step.kind, 'succeeded',
+                'container_created', '1' * 64)
+
+        def reconcile(self, job, kind, binding):
+            calls.append(('reconcile', kind, binding))
+            return StepReceipt(
+                job, kind, 'succeeded', 'container_created', '1' * 64)
+
+    bridge = SeerrWorkerBackend(
+        Operations(), lambda _plan, service: 'binding-' + service)
+    bridge.apply(execution.steps[0], execution.plan)
+    bridge.reconcile(execution.steps[0], execution.plan)
+
+    assert calls == [
+        ('apply', 'create_container', 'binding-seerr'),
+        ('reconcile', 'create_container', 'binding-seerr'),
     ]

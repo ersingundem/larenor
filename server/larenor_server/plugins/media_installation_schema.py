@@ -29,7 +29,7 @@ def _verify(connection):
             unique.add(fields)
         if index['name'] == 'media_installations_state':
             state_index = fields == ('state', 'sequence') and not index['unique'] and not index['partial']
-    if unique != {('id',), ('sequence',), ('actor_id', 'request_id'), ('preparation_id',)} or not state_index:
+    if unique != {('id',), ('sequence',), ('actor_id', 'request_id')} or not state_index:
         raise StartupError('media_installations_schema_unsupported')
 
 
@@ -48,7 +48,7 @@ def migrate_media_installations(connection):
             actor_revision INTEGER NOT NULL CHECK(actor_revision > 0),
             family_id TEXT NOT NULL,
             request_id TEXT NOT NULL,
-            preparation_id TEXT NOT NULL UNIQUE,
+            preparation_id TEXT NOT NULL,
             inspection_id TEXT NOT NULL,
             state TEXT NOT NULL CHECK(state IN ('queued','running','container_started','needs_attention','failed','cancelled')),
             phase TEXT NOT NULL CHECK(phase IN ('queued','executing','complete')),
@@ -61,7 +61,36 @@ def migrate_media_installations(connection):
             UNIQUE(actor_id,request_id)
         )''')
         connection.execute('CREATE INDEX media_installations_state ON media_installations(state,sequence)')
-        connection.execute("INSERT INTO metadata(key,value) VALUES('media_installations_schema','1')")
-    elif marker['value'] != '1' or tables != {'media_installations'}:
+        connection.execute("INSERT INTO metadata(key,value) VALUES('media_installations_schema','2')")
+    elif marker['value'] == '1' and tables == {'media_installations'}:
+        connection.execute('ALTER TABLE media_installations RENAME TO media_installations_v1')
+        connection.execute('''CREATE TABLE media_installations (
+            id TEXT PRIMARY KEY,
+            sequence INTEGER NOT NULL UNIQUE CHECK(sequence > 0),
+            revision INTEGER NOT NULL CHECK(revision > 0),
+            actor_id TEXT NOT NULL,
+            actor_revision INTEGER NOT NULL CHECK(actor_revision > 0),
+            family_id TEXT NOT NULL,
+            request_id TEXT NOT NULL,
+            preparation_id TEXT NOT NULL,
+            inspection_id TEXT NOT NULL,
+            state TEXT NOT NULL CHECK(state IN ('queued','running','container_started','needs_attention','failed','cancelled')),
+            phase TEXT NOT NULL CHECK(phase IN ('queued','executing','complete')),
+            cancel_requested INTEGER NOT NULL CHECK(cancel_requested IN (0,1)),
+            error_code TEXT,
+            created_at INTEGER NOT NULL,
+            updated_at INTEGER NOT NULL,
+            nonce BLOB NOT NULL,
+            ciphertext BLOB NOT NULL,
+            UNIQUE(actor_id,request_id)
+        )''')
+        connection.execute(
+            'INSERT INTO media_installations SELECT * FROM media_installations_v1')
+        connection.execute('DROP TABLE media_installations_v1')
+        connection.execute(
+            'CREATE INDEX media_installations_state ON media_installations(state,sequence)')
+        connection.execute(
+            "UPDATE metadata SET value='2' WHERE key='media_installations_schema'")
+    elif marker['value'] != '2' or tables != {'media_installations'}:
         raise StartupError('media_installations_schema_unsupported')
     _verify(connection)

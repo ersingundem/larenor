@@ -89,9 +89,12 @@ class MediaInstallationManagement:
     def _public(self, row, payload):
         # Historical records remain readable when a later packaged catalog is
         # installed. Dispatch separately re-verifies the current catalog.
-        component = next(item for item in payload.plan.components if item.serviceId == 'jellyfin')
+        component = next(
+            item for item in payload.plan.components
+            if item.serviceId == payload.request.serviceId)
         selected = {step.kind: step.stepId for step in component.steps}
-        execution = {'serviceId': 'jellyfin', 'operationId': component.operationId,
+        execution = {'serviceId': payload.request.serviceId,
+                     'operationId': component.operationId,
                      'steps': [{'stepId': selected[kind], 'kind': kind}
                                for kind in ('create_container', 'start_container')]}
         return {'id': row['id'], 'requestId': row['request_id'], 'preparationId': row['preparation_id'],
@@ -136,7 +139,7 @@ class MediaInstallationManagement:
             connection.execute('BEGIN')
             self._assert_admin(connection, actor)
             return {'executionConfigured': self.backend is not None,
-                    'installAvailable': False, 'services': ['jellyfin']}
+                    'installAvailable': False, 'services': ['jellyfin', 'seerr']}
 
     @staticmethod
     def _inspection_passed(payload):
@@ -175,11 +178,11 @@ class MediaInstallationManagement:
                 if payload.request != body:
                     raise ApiError('media_installation_conflict', 409)
                 return {'installation': self._public(previous, payload)}
-            if connection.execute(
-                    'SELECT 1 FROM media_installations WHERE preparation_id=?',
-                    (body.preparationId,),
-            ).fetchone():
-                raise ApiError('media_installation_conflict', 409)
+            for candidate in connection.execute(
+                    'SELECT * FROM media_installations WHERE preparation_id=?',
+                    (body.preparationId,)).fetchall():
+                if self._decode(candidate).request.serviceId == body.serviceId:
+                    raise ApiError('media_installation_conflict', 409)
             if self.backend is None:
                 raise ApiError('plugin_worker_unavailable', 503)
             plan = self._current_sources(connection, body)
@@ -333,7 +336,9 @@ class MediaInstallationManagement:
                 if row['state'] == 'queued':
                     self._transition(connection, row, payload, state='running')
                 identifier = row['id']
-            execution = build_execution(payload.plan, job_id=identifier, deadline=payload.deadline)
+            execution = build_execution(
+                payload.plan, job_id=identifier, deadline=payload.deadline,
+                service_id=payload.request.serviceId)
             outcome = execution.run(self.backend, lambda: self._gate(identifier))
             with self.db.transaction() as connection:
                 row = self._find(connection, identifier)

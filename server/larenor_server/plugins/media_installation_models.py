@@ -17,6 +17,7 @@ class CreateMediaInstallationRequest(StrictModel):
     expectedPreparationRevision: Revision
     expectedInspectionRevision: Revision
     planHash: Digest
+    serviceId: Literal['jellyfin', 'seerr'] = 'jellyfin'
 
 
 class CancelMediaInstallationRequest(StrictModel):
@@ -33,7 +34,7 @@ class MediaInstallation(StrictModel):
     requestId: ObjectId
     preparationId: ObjectId
     inspectionId: ObjectId
-    serviceId: Literal['jellyfin']
+    serviceId: Literal['jellyfin', 'seerr']
     operationId: ObjectId
     revision: Revision
     state: Literal['queued', 'running', 'container_started', 'needs_attention', 'failed', 'cancelled']
@@ -79,7 +80,8 @@ class MediaInstallationsResponse(StrictModel):
 class MediaInstallationCapabilities(StrictModel):
     executionConfigured: bool
     installAvailable: Literal[False] = False
-    services: list[Literal['jellyfin']] = Field(default_factory=lambda: ['jellyfin'], min_length=1, max_length=1)
+    services: list[Literal['jellyfin', 'seerr']] = Field(
+        default_factory=lambda: ['jellyfin', 'seerr'], min_length=2, max_length=2)
 
 
 class MediaInstallationPayload(StrictModel):
