@@ -42,10 +42,13 @@ runtime, supervisor, execution and managed-container selection collected 354
 tests and completed with 353 passing plus one existing macOS skip. `compileall`,
 diff validation, repository security policy and gitleaks pass.
 
+PR39 head `98a7a1c` passed Server, Android analyze/debug/API35 emulator E2E,
+dependency, platform-policy, secret-scan and source-bound amd64/arm64
+characterization before merge `ec977b2`.
+
 ## Remaining boundary
 
-This executor is worker-private infrastructure and is not yet dispatched by the
-Core job. The next slice must add a readiness-bounded IPC/runtime operation and
-persist a service-verification receipt. Disposable amd64/arm64 qBittorrent
-startup, category/readback and restart persistence remain required before
-`installAvailable` or S06.5 can close.
+The following service-verification slice dispatches this executor through the
+Core job and persists a closed verification receipt. Disposable amd64/arm64
+qBittorrent startup, category/readback and restart persistence remain required
+before `installAvailable` or S06.5 can close.

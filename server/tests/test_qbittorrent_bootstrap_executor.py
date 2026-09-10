@@ -19,7 +19,8 @@ from larenor_server.plugins.qbittorrent_config_models import (
     PrivateQbittorrentConfiguration,
 )
 from larenor_server.plugins.qbittorrent_endpoint import (
-    OpenQbittorrentEndpoint, prove_qbittorrent_endpoint,
+    OpenQbittorrentEndpoint, QbittorrentEndpointError,
+    prove_qbittorrent_endpoint,
 )
 from larenor_server.plugins.qbittorrent_managed_categories import (
     QbittorrentManagedCategories,
@@ -115,6 +116,63 @@ def test_reconciles_started_container_wires_categories_and_reads_back(
     assert len([item for item in engine.calls if item[0] == 'inspect']) >= 5
     assert PRIVATE_PASSWORD not in repr(result)
     assert PRIVATE_BEARER not in repr(result)
+
+
+def test_transient_refusal_retries_only_the_same_reproved_endpoint(
+        prepared, monkeypatch):
+    stack, binding, engine, operations = prepared
+    category, readback, _opens = connections(
+        monkeypatch, stack, binding, engine)
+    proof = prove_qbittorrent_endpoint(
+        engine.container, binding, stack, engine.container['Id'])
+    outcomes = [QbittorrentEndpointError('qbittorrent_endpoint_unavailable'),
+                OpenQbittorrentEndpoint(category, proof),
+                OpenQbittorrentEndpoint(readback, proof)]
+    attempts = []
+    sleeps = []
+
+    def opened(*args, **kwargs):
+        attempts.append((args, kwargs))
+        value = outcomes.pop(0)
+        if isinstance(value, BaseException):
+            raise value
+        return value
+
+    monkeypatch.setattr(
+        'larenor_server.plugins.qbittorrent_bootstrap_executor.open_qbittorrent_endpoint',
+        opened)
+    monkeypatch.setattr(
+        'larenor_server.plugins.qbittorrent_bootstrap_executor.time.sleep',
+        lambda value: sleeps.append(value))
+    result = executor(binding, operations).execute(
+        JOB, stack, private(), deadline=time.monotonic() + 10,
+        gate=lambda: True)
+    assert result.state == 'verified'
+    assert len(attempts) == 3 and sleeps == [0.1]
+    assert attempts[0][0] == attempts[1][0]
+
+
+def test_endpoint_drift_during_readiness_wait_stops_retry(
+        prepared, monkeypatch):
+    stack, binding, engine, operations = prepared
+    attempts = []
+    monkeypatch.setattr(
+        'larenor_server.plugins.qbittorrent_bootstrap_executor.open_qbittorrent_endpoint',
+        lambda *args, **kwargs: attempts.append((args, kwargs)) or (_ for _ in ()).throw(
+            QbittorrentEndpointError('qbittorrent_endpoint_unavailable')))
+    monkeypatch.setattr(
+        'larenor_server.plugins.qbittorrent_bootstrap_executor.time.sleep',
+        lambda _value: next(iter(engine.container['NetworkSettings']['Networks'].values())).update(
+            IPAddress='172.28.0.9'))
+    with pytest.raises(
+            QbittorrentBootstrapExecutionError,
+            match='^qbittorrent_bootstrap_endpoint_changed$') as raised:
+        executor(binding, operations).execute(
+            JOB, stack, private(), deadline=time.monotonic() + 10,
+            gate=lambda: True)
+    assert len(attempts) == 1
+    assert raised.value.boundary == 'before_connect'
+    assert not raised.value.uncertain_effect
 
 
 def test_category_failure_preserves_static_cause_without_readback(

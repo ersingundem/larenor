@@ -34,8 +34,14 @@ from .jellyfin_authenticated_readback import JellyfinAuthenticatedReadback
 from .jellyfin_managed_libraries import JellyfinManagedLibraries
 from .qbittorrent_config_runtime import QbittorrentConfigRuntime
 from .qbittorrent_config_effect import QbittorrentConfigInstallReceipt
+from .qbittorrent_bootstrap_executor import (
+    QbittorrentBootstrapExecutionError, QbittorrentBootstrapExecutionResult,
+    QbittorrentBootstrapExecutor,
+)
+from .qbittorrent_authenticated_readback import QbittorrentAuthenticatedReadback
+from .qbittorrent_managed_categories import QbittorrentManagedCategories
 from .qbittorrent_config_models import (
-    QbittorrentConfiguredInstallReceipt,
+    PrivateQbittorrentConfiguration, QbittorrentConfiguredInstallReceipt,
     QbittorrentConfigurationExecutionError,
 )
 from .managed_container import (
@@ -235,6 +241,9 @@ class _RuntimeBackend:
         self.installation = JellyfinWorkerBackend(operations, binding_builder)
         self.qbittorrent_installation = QbittorrentWorkerBackend(
             operations, binding_builder)
+        self.qbittorrent_bootstrap = QbittorrentBootstrapExecutor(
+            operations, binding_builder, QbittorrentManagedCategories(),
+            QbittorrentAuthenticatedReadback())
         self.bootstrap_executor = JellyfinBootstrapExecutor(
             operations, binding_builder, JellyfinStartupConfigurator(),
             JellyfinAuthenticatedReadback(), JellyfinManagedLibraries())
@@ -290,8 +299,32 @@ class _RuntimeBackend:
             raise QbittorrentConfigurationExecutionError(
                 'qbittorrent_config_result_invalid',
                 uncertain_effect=True)
+        try:
+            verified = self.qbittorrent_bootstrap.execute(
+                job, stack, PrivateQbittorrentConfiguration(
+                    credential=credential, apiKey=api_key,
+                    saltHex=salt.hex()),
+                deadline=deadline, gate=gate)
+        except QbittorrentBootstrapExecutionError as error:
+            code = {
+                'qbittorrent_bootstrap_authority_changed':
+                    'qbittorrent_config_authority_changed',
+                'qbittorrent_bootstrap_endpoint_unavailable':
+                    'qbittorrent_service_unavailable',
+                'qbittorrent_bootstrap_endpoint_changed':
+                    'qbittorrent_service_changed',
+                'qbittorrent_bootstrap_timeout': 'qbittorrent_config_timeout',
+            }.get(error.code, 'qbittorrent_service_verification_failed')
+            raise QbittorrentConfigurationExecutionError(
+                code, uncertain_effect=True) from None
+        if (type(verified) is not QbittorrentBootstrapExecutionResult
+                or verified.state != 'verified'):
+            raise QbittorrentConfigurationExecutionError(
+                'qbittorrent_service_verification_failed',
+                uncertain_effect=True)
         return QbittorrentConfiguredInstallReceipt(
-            configured, result.container_id, 'qbittorrent_container_started')
+            configured, result.container_id, 'qbittorrent_container_started',
+            'qbittorrent_service_verified')
 
 
 def _build_runtime(policy, *, peer_uid=None):

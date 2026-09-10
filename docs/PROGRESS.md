@@ -1,6 +1,6 @@
 # Larenor — güncel ilerleme ve iş kuyruğu
 
-**Son güncelleme: 10 Eylül 2026 — qBittorrent config/runtime, kalıcı Core işi ve config-before-create/start zinciri PR28–PR38 ile ana dalda. Private servis endpoint/bootstrap temeli yerelde yeşil.**
+**Son güncelleme: 10 Eylül 2026 — qBittorrent private endpoint/bootstrap PR39 ile ana dalda. Doğrulanmış servis sonucu Core runtime/IPC/kalıcı iş zincirine bağlandı ve yerel kapıları geçti.**
 
 ```text
 Kuyruk kabulü       ██░░░░░░░░░░░░░░░░░░  14/125 iş (%11; eşit ağırlıklı sayaç)
@@ -41,7 +41,7 @@ Gerçek ev kurulumu ve fiziksel tablet kabulü henüz yapılmadı.
 | S06.3d — kalıcı depolama | **Kabul edildi**; Native18 exact `6a054ea`, amd64+arm64 makbuzları doğrulandı | S06.3f ile birleşik kaynak kapısı kapandı |
 | S06.3f — kaynak kabulü | **Kabul edildi**; exact `4021391`, iki mimarili native makbuz, 4.065 Server ve tam Android/Server CI yeşil | S06.4 dar kurulum yürütme kapısı |
 | S06.4 — dar kurulum yürütme kapısı | **Kabul edildi**; PR16 `bf6f860`, PR18 `75af015`, PR19 `9ce3c5a` ve PR20 `2b9166b` tam CI kapıları yeşil | S06.5 özel bootstrap ve otomatik servis eşleştirme |
-| S06.5 — özel bootstrap ve otomatik eşleştirme | **Devam ediyor**; Jellyfin native kabulü tamamlandı. qBittorrent config/runtime, UID IPC ve şifreli kalıcı Core işi PR28–PR37 ile ana dalda; config-before-create/start zinciri kabul dalında yerel kapıları geçti | qBittorrent iki mimarili native servis/readback kanıtı; ardından Radarr/Sonarr/Seerr/Music Assistant otomatik eşleştirmesi |
+| S06.5 — özel bootstrap ve otomatik eşleştirme | **Devam ediyor**; Jellyfin native kabulü tamamlandı. qBittorrent config, create/start ve private bootstrap PR28–PR39 ile ana dalda; doğrulanmış servis sonucu Core zincirine bağlı kabul dalında yerel kapıları geçti | qBittorrent iki mimarili native servis/readback/restart kanıtı; ardından Radarr/Sonarr/Seerr/Music Assistant otomatik eşleştirmesi |
 
 S06.5'in ilk iki TDD parçası, yalnız tamamlanmış Jellyfin kurulumundan
 yöneticiye bağlı bootstrap niyeti üretir ve public API'de sır, hedef adres veya
@@ -228,8 +228,25 @@ idempotent doğruluyor, sonra taze kanalda pinned sürüm, API key ve owned ayar
 geri okuyor. Altı retained-authority kapısı ve her etkiden önce/sonra endpoint
 drift kontrolü var; olası yazma sonrası hata belirsiz etki. **354 ilgili testte
 353 PASS / 1 mevcut macOS skip**, compileall, security policy ve gitleaks temiz.
-Core IPC/runtime dispatch ve native servis kanıtı açık olduğundan sayaç değişmedi.
+Exact PR39 head `98a7a1c` Server, Android analyze/debug/API35 E2E, güvenlik ve
+iki mimarili karakterizasyon kapılarından geçip `ec977b2` ile ana dala
+birleşti. Core IPC/runtime dispatch sonraki dilimde bağlandı; native servis
+kanıtı açık olduğundan sayaç değişmedi.
 [Uygulama ve açık sınırlar](qbittorrent-private-bootstrap-implementation-2026-09-10.md).
+
+`a1e3bb6` doğrulanmış-servis dilimi yalnız ilk read-only TCP hazır olma
+bağlantısını ortak deadline içinde yeniden deniyor; her denemede yetkiyi,
+journal-bound container'ı ve aynı private numeric endpoint'i yeniden kanıtlıyor.
+Runtime kategori ve authenticated readback'i config/create/start sonrasına
+bağladı. UID IPC yalnız `qbittorrent_service_verified` makbuzunu başarı kabul
+ediyor; Core bunu şifreli saklayıp public durumda `serviceState=verified`
+gösteriyor. Eski config-only veya container-started kayıtlar okunuyor fakat
+doğrulandı sayılmıyor. **130 odaklı test PASS / 1 mevcut macOS skip**; sabit
+apksig 9.1.0 jar ve JDK 17 ile tam Server paketi **4.831 PASS / 13 platform
+skip**. Security policy, compileall, queue, diff ve gitleaks temiz.
+İki mimarili native servis/readback/restart kanıtı açık olduğu için sayaç ve
+`installAvailable=false` değişmedi.
+[Uygulama ve açık sınırlar](qbittorrent-service-verification-implementation-2026-09-10.md).
 
 S06.4 native kabul koşusu [34326112926](https://github.com/ersingundem/larenor/actions/runs/34326112926)
 iki gerçek GitHub runner'ında geçti. İndirilen ARM64 ve X64 makbuzları merge

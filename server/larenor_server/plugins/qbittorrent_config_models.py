@@ -31,12 +31,15 @@ class QbittorrentConfiguredInstallReceipt:
     configuration: QbittorrentConfigInstallReceipt
     container_id: str
     state: Literal['qbittorrent_container_started']
+    service_state: Literal['qbittorrent_service_verified'] | None = None
 
     def __post_init__(self):
         if (type(self.configuration) is not QbittorrentConfigInstallReceipt
                 or type(self.container_id) is not str
                 or re.fullmatch(r'[0-9a-f]{64}', self.container_id) is None
-                or self.state != 'qbittorrent_container_started'):
+                or self.state != 'qbittorrent_container_started'
+                or self.service_state not in {
+                    None, 'qbittorrent_service_verified'}):
             raise ValueError('invalid_qbittorrent_install_receipt')
 
 
@@ -46,6 +49,9 @@ QB_CONFIG_EXECUTION_CODES = frozenset({
     'qbittorrent_config_write_failed',
     'qbittorrent_config_result_invalid',
     'qbittorrent_config_timeout',
+    'qbittorrent_service_unavailable',
+    'qbittorrent_service_changed',
+    'qbittorrent_service_verification_failed',
 })
 
 

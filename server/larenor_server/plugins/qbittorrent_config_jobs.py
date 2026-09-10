@@ -98,6 +98,10 @@ class QbittorrentConfigurationManagement:
                                if receipt is not None
                                and receipt.containerState
                                == 'qbittorrent_container_started' else None),
+            'serviceState': ('verified'
+                             if receipt is not None
+                             and receipt.serviceState
+                             == 'qbittorrent_service_verified' else None),
             'errorCode': row['error_code'], 'installAvailable': False,
             'createdAt': utc(row['created_at']), 'updatedAt': utc(row['updated_at']),
         }).model_dump()
@@ -340,7 +344,8 @@ class QbittorrentConfigurationManagement:
             if payload.receipt.containerId is not None:
                 receipt = QbittorrentConfiguredInstallReceipt(
                     configuration, payload.receipt.containerId,
-                    payload.receipt.containerState)
+                    payload.receipt.containerState,
+                    payload.receipt.serviceState)
         return _PrivateView(
             payload.private.credential, payload.private.apiKey,
             bytes.fromhex(payload.private.saltHex), receipt)
@@ -452,7 +457,9 @@ class QbittorrentConfigurationManagement:
                     identifier, payload.plan, payload.private,
                     deadline=time.monotonic() + 30.0,
                     gate=lambda: self._gate(identifier).permitted)
-                if type(result) is not QbittorrentConfiguredInstallReceipt:
+                if (type(result) is not QbittorrentConfiguredInstallReceipt
+                        or result.service_state !=
+                        'qbittorrent_service_verified'):
                     raise QbittorrentConfigurationExecutionError(
                         'qbittorrent_config_result_invalid', uncertain_effect=True)
                 receipt = PrivateQbittorrentReceipt(
@@ -464,7 +471,8 @@ class QbittorrentConfigurationManagement:
                     configurationDigest=result.configuration.configuration_digest,
                     state=result.configuration.state,
                     containerId=result.container_id,
-                    containerState=result.state)
+                    containerState=result.state,
+                    serviceState=result.service_state)
             except QbittorrentConfigurationExecutionError as failure:
                 with self.db.transaction() as connection:
                     row = self._find(connection, identifier)
