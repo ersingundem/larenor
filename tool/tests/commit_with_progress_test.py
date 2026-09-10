@@ -6,6 +6,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[2]
 TOOL = ROOT / 'tool'
@@ -53,14 +54,17 @@ class CommitWithProgressTest(unittest.TestCase):
 
     def test_dry_run_prints_message_without_invoking_git(self):
         out, err = io.StringIO(), io.StringIO()
-        with unittest.mock.patch.object(commit_with_progress.subprocess, 'run') as run:
+        with mock.patch.object(commit_with_progress.subprocess, 'run') as run:
             result = commit_with_progress.main(
                 ['--dry-run', '--queue', str(ROOT / 'docs/execution-queue.json'),
                  '-m', 'docs: show progress'], stdout=out, stderr=err)
         self.assertEqual(result, 0, err.getvalue())
         run.assert_not_called()
-        self.assertIn('Larenor-Queue-Progress: 14/125 (11.2%)', out.getvalue())
-        self.assertIn('Larenor-Feature-Progress: 0/63 (0.0%)', out.getvalue())
+        progress = commit_with_progress.progress_for(
+            commit_with_progress.execution_queue.load_queue(
+                ROOT / 'docs/execution-queue.json'))
+        self.assertIn('Larenor-Queue-Progress: ' + progress.queue_trailer, out.getvalue())
+        self.assertIn('Larenor-Feature-Progress: ' + progress.feature_trailer, out.getvalue())
 
     def test_real_git_commit_treats_shell_metacharacters_as_literal_text(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -92,7 +96,7 @@ class CommitWithProgressTest(unittest.TestCase):
             queue = Path(directory) / 'queue.json'
             queue.write_text('{"secret":"DO_NOT_ECHO"}')
             out, err = io.StringIO(), io.StringIO()
-            with unittest.mock.patch.object(commit_with_progress.subprocess, 'run') as run:
+            with mock.patch.object(commit_with_progress.subprocess, 'run') as run:
                 result = commit_with_progress.main(
                     ['--queue', str(queue), '-m', 'test: no commit'],
                     stdout=out, stderr=err)

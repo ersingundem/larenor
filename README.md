@@ -839,11 +839,15 @@ regenerated automatically by `flutter pub get`/`flutter run` (via
 flutter analyze                    # static analysis
 flutter test --coverage             # unit, widget, security + performance regressions
 python3 -m unittest discover -s tool/tests -p '*_test.py' -v
+python3 tool/commit_with_progress.py --dry-run -m 'feat: describe the slice'
 # Only on an explicitly selected disposable Android emulator:
 bash tool/run_android_e2e.sh emulator-5554
 flutter build apk --debug          # debug Android build
 dart run flutter_launcher_icons    # regenerate app icons after changing assets/icon/*.png
 ```
+
+Use [the commit progress wrapper](docs/commit-progress.md) for new development
+commits so GitHub shows evidence-backed queue and selected-feature percentages.
 
 ### Android release signing
 
