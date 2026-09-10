@@ -355,8 +355,10 @@ authenticated readback, UID-korumalı IPC ve kalıcı Core sonucunu birleştirdi
 Public iş durumu config, container ve doğrulanmış servis sonucunu ayırıyor; çapraz
 servis veya belirsiz sonuç retry edilmeden kapanıyor. `1a3fcfc` okunabilirlik
 düzenlemesiyle deadline readback başlamadan tükenirse açılmış özel stream'in de
-kapatılmasını güvenceye aldı. İlgili 13 pakette **299 PASS / 1 mevcut macOS
-skip**; Ruff, compileall, security, queue ve Gitleaks PASS. İki mimarili native
+kapatılmasını güvenceye aldı. `71faccb`, yanlışlıkla qBittorrent'a yönlenen Arr
+reconcile metodunu seçili servise geri bağladı ve qBittorrent reconcile metodunu
+doğru sınıfa taşıdı. İlgili 13 pakette **301 PASS / 1 mevcut macOS skip**; Ruff,
+compileall, security, queue ve Gitleaks PASS. İki mimarili native
 kabul açık olduğundan sayaç değişmedi.
 [Uygulama ve açık sınırlar](arr-configured-container-implementation-2026-09-10.md).
 
