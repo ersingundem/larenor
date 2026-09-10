@@ -197,6 +197,24 @@ def test_unexpected_failure_preserves_only_static_boundary_diagnostic(
     assert 'private' not in str(raised.value) + repr(raised.value)
 
 
+def test_expected_runtime_exception_also_preserves_static_boundary(
+        prepared):
+    stack, _binding, _engine, operations = prepared
+    failed = QbittorrentBootstrapExecutor(
+        operations, lambda *_args: object(),
+        QbittorrentManagedCategories(), QbittorrentAuthenticatedReadback())
+
+    with pytest.raises(
+            QbittorrentBootstrapExecutionError,
+            match='^qbittorrent_bootstrap_resources_unavailable$') as raised:
+        failed.execute(
+            JOB, stack, private(), deadline=time.monotonic() + 10,
+            gate=lambda: True)
+
+    assert raised.value.boundary == 'before_connect'
+    assert raised.value.cause_code == 'qbittorrent_bootstrap_unexpected'
+
+
 @pytest.mark.parametrize('private_code,public_cause', [
     ('invalid_installation_plan',
      'qbittorrent_bootstrap_binding_invalid_installation_plan'),

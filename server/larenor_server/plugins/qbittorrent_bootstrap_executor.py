@@ -415,7 +415,8 @@ class QbittorrentBootstrapExecutor:
                     else 'qbittorrent_bootstrap_resources_unavailable')
             raise QbittorrentBootstrapExecutionError(
                 code, uncertain_effect=category_result is not None,
-                boundary=boundary) from None
+                boundary=boundary,
+                cause_code='qbittorrent_bootstrap_unexpected') from None
         except Exception:
             code = ('qbittorrent_bootstrap_timeout'
                     if time.monotonic() >= deadline
