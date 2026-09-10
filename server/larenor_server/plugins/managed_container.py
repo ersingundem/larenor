@@ -208,7 +208,8 @@ class JellyfinResourceProofBroker:
                     or type(volume_journal) is not VolumeCreateJournal
                     or getattr(readers, '_endpoint', None) is not engine_identity
                     or service_id not in {
-                        'jellyfin', 'qbittorrent', 'sonarr', 'radarr', 'seerr'}
+                        'jellyfin', 'qbittorrent', 'sonarr', 'radarr', 'seerr',
+                        'music_assistant'}
                     or not all(callable(getattr(readers, name, None)) for name in methods)):
                 raise ValueError()
             self.stack = MediaStackPlan.model_validate_json(_wire(stack))
@@ -244,7 +245,7 @@ class JellyfinResourceProofBroker:
                 and item.kind == 'managed_library')
             expected_volume_count = {
                 'jellyfin': 3, 'qbittorrent': 2, 'sonarr': 2,
-                'radarr': 2, 'seerr': 1,
+                'radarr': 2, 'seerr': 1, 'music_assistant': 1,
             }[self.service_id]
             if len(volume_resources) != expected_volume_count:
                 raise ValueError()
@@ -431,7 +432,7 @@ def _binding_parts(value):
             or not _identity(value.image_id, _IMAGE)
             or not _identity(value.network_id, _HASH)
             or targets not in ({'/config', '/cache', '/media'},
-                               {'/config', '/data'}, {'/app/config'})):
+                               {'/config', '/data'}, {'/app/config'}, {'/data'})):
         raise ValueError()
     body = _decode(value.specification, 65536)
     inherited = _configuration(value.image_configuration,
@@ -444,11 +445,15 @@ def _binding_parts(value):
     expected_host = {'Privileged', 'CapDrop', 'CapAdd', 'SecurityOpt', 'NetworkMode',
                      'Memory', 'MemorySwap', 'NanoCpus', 'PidsLimit', 'ReadonlyRootfs', 'Init',
                      'Tmpfs', 'Mounts', 'RestartPolicy'}
+    music_assistant = targets == {'/data'}
     if (type(host) is not dict or set(host) != expected_host
             or host['Privileged'] is not False or host['CapDrop'] != ['ALL']
-            or host['CapAdd'] != [] or host['SecurityOpt'] != ['no-new-privileges:true']
-            or not _identity(host['NetworkMode'], _NETWORK)
-            or body['User'] != '1000:1000' or type(body['Image']) is not str
+            or host['CapAdd'] != (['NET_BIND_SERVICE'] if music_assistant else [])
+            or host['SecurityOpt'] != ['no-new-privileges:true']
+            or (host['NetworkMode'] != 'host' if music_assistant
+                else not _identity(host['NetworkMode'], _NETWORK))
+            or body['User'] != ('0:0' if music_assistant else '1000:1000')
+            or type(body['Image']) is not str
             or _REFERENCE.fullmatch(body['Image']) is None
             or type(labels) is not dict or set(labels) != set(_LABELS)
             or any(type(labels[key]) is not str
@@ -457,8 +462,10 @@ def _binding_parts(value):
             or labels['org.larenor.installation'] != value.name.removeprefix('larenor-')
             or type(environment) is not list or len(environment) > 4
             or not all(type(item) is str and re.fullmatch(
-                r'(?:TZ|PORT|WEBUI_PORT|TORRENTING_PORT)=[A-Za-z0-9/_-]{1,80}', item)
+                (r'LOG_LEVEL=warning' if music_assistant else
+                 r'(?:TZ|PORT|WEBUI_PORT|TORRENTING_PORT)=[A-Za-z0-9/_-]{1,80}'), item)
                        for item in environment)
+            or (music_assistant and environment != ['LOG_LEVEL=warning'])
             or len({item.partition('=')[0] for item in environment}) != len(environment)
             or host['RestartPolicy'] != {'Name': 'no'}
             or host['MemorySwap'] != -1
@@ -479,14 +486,14 @@ def _binding_parts(value):
             raise ValueError()
     expected_mounts = []
     for item in value.mounts:
+        library_mount = item.target in {'/media', '/data'} and not music_assistant
+        expected_prefix = ('larenor-library-v1-' if library_mount
+                           else 'larenor-appdata-v1-')
         if (not _exact(item, ManagedContainerMount) or not _identity(item.name, _VOLUME)
                 or item.target not in targets
                 or type(item.read_only) is not bool
                 or item.read_only is not (item.target == '/media')
-                or (item.target in {'/media', '/data'}) is not
-                    item.name.startswith('larenor-library-v1-')
-                or (item.target not in {'/media', '/data'}) is not
-                    item.name.startswith('larenor-appdata-v1-')):
+                or not item.name.startswith(expected_prefix)):
             raise ValueError()
         expected_mounts.append({'Type': 'volume', 'Source': item.name, 'Target': item.target,
                                 'ReadOnly': item.read_only, 'VolumeOptions': {'NoCopy': True}})
@@ -588,6 +595,8 @@ def managed_container_matches(value, binding):
         attached = networks[body['HostConfig']['NetworkMode']]
         if type(attached) is not dict:
             return False
+        if body['HostConfig']['NetworkMode'] == 'host':
+            return _identity(attached.get('NetworkID'), _HASH)
         if attached.get('NetworkID') == binding.network_id:
             return True
         state = value.get('State')
@@ -673,6 +682,8 @@ def _configuration(raw, targets):
         if selected_targets == {'/config', '/cache', '/media'}
         else {'/app/config'}
         if selected_targets == {'/app/config'}
+        else {'/data'}
+        if selected_targets == {'/data'}
         else {'/config'}
     )
     if (type(volumes) is not dict or set(volumes) != expected
@@ -697,7 +708,8 @@ class JellyfinBindingBuilder:
             if (type(catalog) is not Catalog or type(policy) is not WorkerPolicyBinding
                     or not _identity(container_journal_id) or not callable(proof_provider)
                     or service_id not in {
-                        'jellyfin', 'qbittorrent', 'sonarr', 'radarr', 'seerr'}):
+                        'jellyfin', 'qbittorrent', 'sonarr', 'radarr', 'seerr',
+                        'music_assistant'}):
                 raise ValueError()
             self.catalog = Catalog.model_validate_json(_wire(catalog))
             self.policy = WorkerPolicyBinding.model_validate_json(_wire(policy))
@@ -791,6 +803,7 @@ class JellyfinBindingBuilder:
             expected_targets = ({'/config', '/cache', '/media'}
                                 if self.service_id == 'jellyfin'
                                 else {'/app/config'} if self.service_id == 'seerr'
+                                else {'/data'} if self.service_id == 'music_assistant'
                                 else {'/config', '/data'})
             if len({item.name for item in mounts}) != len(mounts) or {
                     item.target for item in mounts} != expected_targets:
@@ -833,7 +846,8 @@ class JellyfinBindingBuilder:
                     'CapDrop': list(child.security.capDrop),
                     'CapAdd': list(child.security.capAdd),
                     'SecurityOpt': ['no-new-privileges:true'],
-                    'NetworkMode': network.name,
+                    'NetworkMode': ('host' if self.service_id == 'music_assistant'
+                                    else network.name),
                     'Memory': child.resources.memoryMiB * 1048576,
                     # The hard memory limit remains enforced. Explicitly avoid
                     # asking Docker for a swap controller that is commonly not

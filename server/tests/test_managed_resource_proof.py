@@ -267,7 +267,10 @@ def test_broker_rebinds_only_music_assistant_owned_data(tmp_path):
         proof = broker(data[3], data[4], data[5])
     assert len(proof.volumes) == 1
     assert proof.volumes[0].target == '/data'
-    assert proof.image.image_id == data[5].plan.image.configDigest
+    image = next(item for item in data[3].resources
+                 if item.kind == 'ensure_image'
+                 and item.serviceId == 'music_assistant')
+    assert proof.image.image_id == image.image.configDigest
     assert [call[0] for call in readers.calls] == [
         'image', 'volume', 'bootstrap', 'network-list', 'network-inspect']
 

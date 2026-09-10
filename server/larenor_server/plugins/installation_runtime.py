@@ -25,7 +25,8 @@ from .docker_probe import DockerEndpoint
 from .host_preflight import _host_platform
 from .installation_execution import (
     ArrWorkerBackend, ExecutionGateResult, ExecutionResult, JellyfinWorkerBackend,
-    QbittorrentWorkerBackend, SeerrWorkerBackend, build_execution,
+    MusicAssistantWorkerBackend, QbittorrentWorkerBackend,
+    SeerrWorkerBackend, build_execution,
     service_for_step,
 )
 from .installation_ipc import InstallationWorkerServer
@@ -265,6 +266,8 @@ class _RuntimeBackend:
             operations, binding_builder)
         self.seerr_installation = SeerrWorkerBackend(
             operations, binding_builder)
+        self.music_assistant_installation = MusicAssistantWorkerBackend(
+            operations, binding_builder)
         self.qbittorrent_bootstrap = QbittorrentBootstrapExecutor(
             operations, binding_builder, QbittorrentManagedCategories(),
             QbittorrentAuthenticatedReadback())
@@ -278,15 +281,17 @@ class _RuntimeBackend:
             operations, binding_builder, SeerrInitialAdmin())
 
     def apply(self, step, plan):
-        backend = (self.seerr_installation
-                   if service_for_step(step, plan) == 'seerr'
-                   else self.installation)
+        service = service_for_step(step, plan)
+        backend = (self.seerr_installation if service == 'seerr'
+                   else self.music_assistant_installation
+                   if service == 'music_assistant' else self.installation)
         return backend.apply(step, plan)
 
     def reconcile(self, step, plan):
-        backend = (self.seerr_installation
-                   if service_for_step(step, plan) == 'seerr'
-                   else self.installation)
+        service = service_for_step(step, plan)
+        backend = (self.seerr_installation if service == 'seerr'
+                   else self.music_assistant_installation
+                   if service == 'music_assistant' else self.installation)
         return backend.reconcile(step, plan)
 
     def bootstrap(self, job, plan, private, *, deadline, gate):

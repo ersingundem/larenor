@@ -586,7 +586,8 @@ class InstallationWorkerClient:
         result = self._exchange('status')
         expected = {
             'capability': 'container_execution', 'installAvailable': False,
-            'services': ['jellyfin', 'qbittorrent', 'sonarr', 'radarr', 'seerr'],
+            'services': ['jellyfin', 'qbittorrent', 'sonarr', 'radarr', 'seerr',
+                         'music_assistant'],
         }
         if result != expected:
             raise InstallationIPCError('invalid_worker_result')
@@ -893,7 +894,8 @@ class InstallationWorkerServer(PreflightWorkerServer):
             return {
                 'capability': 'container_execution', 'installAvailable': False,
                 'services': [
-                    'jellyfin', 'qbittorrent', 'sonarr', 'radarr', 'seerr'],
+                    'jellyfin', 'qbittorrent', 'sonarr', 'radarr', 'seerr',
+                    'music_assistant'],
             }
         if operation in {'configure_arr', 'install_configured_arr'}:
             if (set(request) != {

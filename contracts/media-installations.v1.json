@@ -2,7 +2,7 @@
   "capabilities": {
     "executionConfigured": true,
     "installAvailable": false,
-    "services": ["jellyfin", "seerr"]
+    "services": ["jellyfin", "seerr", "music_assistant"]
   },
   "createRequest": {
     "requestId": "cccccccccccccccccccccccccccccccc",

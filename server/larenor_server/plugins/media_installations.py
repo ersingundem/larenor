@@ -139,7 +139,8 @@ class MediaInstallationManagement:
             connection.execute('BEGIN')
             self._assert_admin(connection, actor)
             return {'executionConfigured': self.backend is not None,
-                    'installAvailable': False, 'services': ['jellyfin', 'seerr']}
+                    'installAvailable': False,
+                    'services': ['jellyfin', 'seerr', 'music_assistant']}
 
     @staticmethod
     def _inspection_passed(payload):
