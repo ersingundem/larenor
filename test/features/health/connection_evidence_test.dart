@@ -1,5 +1,4 @@
 import 'package:flutter/cupertino.dart';
-import 'package:flutter/semantics.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:larenor/features/health/data/connection_evidence.dart';
 import 'package:larenor/features/health/data/integration_health.dart';
@@ -43,6 +42,14 @@ Future<void> _mount(
 
 void main() {
   test('normalizes service evidence without promoting transport contact', () {
+    expect(
+      ConnectionEvidence.fromHealth(
+        IntegrationHealth(lastContact: _now, lastSuccessfulRead: _now),
+        HealthStatus.healthy,
+      ).stage,
+      ConnectionEvidenceStage.none,
+      reason: 'unsaved targets never inherit contradictory remote evidence',
+    );
     expect(
       ConnectionEvidence.fromHealth(
         const IntegrationHealth(configured: true),
@@ -110,31 +117,33 @@ void main() {
   });
 
   for (final locale in ['en', 'tr']) {
-    testWidgets(
-      'status fits tablet cards at 2x and exposes one live label ($locale)',
-      (tester) async {
-        final semantics = tester.ensureSemantics();
-        try {
-          await _mount(
-            tester,
-            ConnectionEvidence.stale(_now),
-            locale: locale,
-            scale: 2,
-            width: 600,
-          );
-          expect(tester.takeException(), isNull);
-          final node = tester.getSemantics(
-            find.byKey(const ValueKey('connection-evidence-status')),
-          );
-          expect(node.flagsCollection.isLiveRegion, isTrue);
-          expect(
-            node.label,
-            contains(locale == 'tr' ? 'güncelliğini yitirdi' : 'out of date'),
-          );
-        } finally {
-          semantics.dispose();
-        }
-      },
-    );
+    for (final width in [600.0, 1280.0]) {
+      testWidgets(
+        'status fits tablet cards at 2x and exposes one live label ($locale $width)',
+        (tester) async {
+          final semantics = tester.ensureSemantics();
+          try {
+            await _mount(
+              tester,
+              ConnectionEvidence.stale(_now),
+              locale: locale,
+              scale: 2,
+              width: width,
+            );
+            expect(tester.takeException(), isNull);
+            final node = tester.getSemantics(
+              find.byKey(const ValueKey('connection-evidence-status')),
+            );
+            expect(node.flagsCollection.isLiveRegion, isTrue);
+            expect(
+              node.label,
+              contains(locale == 'tr' ? 'güncelliğini yitirdi' : 'out of date'),
+            );
+          } finally {
+            semantics.dispose();
+          }
+        },
+      );
+    }
   }
 }

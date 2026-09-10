@@ -6,6 +6,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/home_session_controller.dart';
 import '../../../../l10n/generated/app_localizations.dart';
 import '../../../../shared/theme/typography.dart';
+import '../../../../shared/widgets/connection_evidence_status.dart';
+import '../../../health/data/connection_evidence.dart';
 import '../../../keenetic/core/data/core_keenetic_dashboard_providers.dart';
 import '../../../keenetic/core/domain/core_keenetic_models.dart';
 import '../../../keenetic/core/presentation/core_keenetic_screen.dart';
@@ -59,6 +61,24 @@ class CoreKeeneticDashboardCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context), value = snapshot?.telemetry;
+    final evidence = loading
+        ? const ConnectionEvidence.connecting()
+        : stale
+        ? ConnectionEvidence.stale(snapshot?.observedAt)
+        : failure == 'forbidden' ||
+              failure == 'unauthorized' ||
+              failure == 'keenetic_upstream_denied'
+        ? const ConnectionEvidence.permissionDenied()
+        : failure == 'keenetic_snapshot_unsupported' ||
+              failure == 'invalid_response' ||
+              failure == 'resource_changed' ||
+              failure == 'conflict'
+        ? const ConnectionEvidence.error()
+        : failure != null
+        ? const ConnectionEvidence.unavailable()
+        : snapshot != null
+        ? ConnectionEvidence.verified(snapshot!.observedAt)
+        : const ConnectionEvidence.saved();
     final state = loading
         ? l.commonLoading
         : stale
@@ -78,7 +98,13 @@ class CoreKeeneticDashboardCard extends StatelessWidget {
             'CPU ${_percent(value.status.cpuPercent, l)} · RAM ${_percent(value.status.memoryPercent, l)} · ${l.keeneticConnectedDevices}: ${value.onlineHosts}',
             '${l.keeneticUptime}: ${_uptime(value.status.uptimeSeconds)}',
           ];
-    final semantics = '$title. $state. ${lines.join('. ')}';
+    final evidenceLabels = connectionEvidenceLabels(
+      l,
+      evidence,
+      showTimestamp: false,
+    );
+    final semantics =
+        '$title. ${evidenceLabels.join('. ')}. $state. ${lines.join('. ')}';
     return DashboardTileButton(
       key: const ValueKey('core-keenetic-dashboard-card'),
       label: semantics,
@@ -114,6 +140,12 @@ class CoreKeeneticDashboardCard extends StatelessWidget {
                   ),
                 ),
               ],
+            ),
+            const SizedBox(height: 6),
+            ConnectionEvidenceStatus(
+              evidence: evidence,
+              compact: true,
+              showTimestamp: false,
             ),
             const SizedBox(height: 6),
             Text(

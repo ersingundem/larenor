@@ -8,7 +8,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/app_interaction_scope.dart';
 import '../../../core/window/window_policy_providers.dart';
 import '../../../l10n/generated/app_localizations.dart';
+import '../../health/data/connection_evidence.dart';
 import '../../../shared/widgets/app_page_scaffold.dart';
+import '../../../shared/widgets/connection_evidence_status.dart';
 import '../../../shared/widgets/settings_action_tile.dart';
 import '../../../shared/widgets/settings_section.dart';
 import '../data/remote_profiles.dart';
@@ -568,6 +570,14 @@ class _RemoteProfilesScreenState extends ConsumerState<RemoteProfilesScreen>
                           padding: const EdgeInsets.symmetric(horizontal: 20),
                           child: Text(
                             '${selected.protocol.name.toUpperCase()} · ${selected.address}${selected.username.isEmpty ? '' : '\n${selected.username}'}',
+                          ),
+                        ),
+                        const Padding(
+                          padding: EdgeInsets.fromLTRB(20, 16, 20, 0),
+                          child: ConnectionEvidenceStatus(
+                            evidence: ConnectionEvidence.saved(),
+                            compact: true,
+                            showTimestamp: false,
                           ),
                         ),
                         Padding(
