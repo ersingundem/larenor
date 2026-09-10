@@ -54,5 +54,15 @@
   "certificate": {
     "algorithm": "spki-sha256",
     "fingerprint": "SHA256:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+  },
+  "profileSettings": {
+    "version": 1,
+    "domain": "LARENOR",
+    "gatewayHost": "gateway.home.arpa",
+    "gatewayPort": 443,
+    "gatewayUsername": "ersin",
+    "displayMode": "fitWindow",
+    "keyboardLayout": "turkishQ",
+    "clipboardMode": "clientToRemote"
   }
 }

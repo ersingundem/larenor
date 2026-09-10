@@ -32,6 +32,16 @@ Gerçek ev kurulumu ve fiziksel tablet kabulü henüz yapılmadı.
 
 ## Şimdi yapılan işler
 
+### F62 RDP — bounded Client yazılım dilimi
+
+Core ve Proxmox'tan bağımsız kişisel RDP profilleri; hedef/gateway ayrımı,
+Windows domain, şifreli kimlik bilgisi ve sertifika pini, açık bağlantı/yeniden
+bağlantı, tablet/DeX pointer-klavye-resize yüzeyi olarak hazırlandı. Üretim
+varsayılanı native motor yokken bağlantı denemez. Gerçek Windows/RD Gateway,
+FreeRDP/JNI ve fiziksel Huawei tablet/DeX kabulü açık olduğundan F62 kabulü ve
+**14/125 · 0/63** sayaçları değişmedi. Ayrıntı:
+[bounded RDP Client dilimi](rdp-client-flow-2026-09-11.md).
+
 ### Tamamlanan toplu kilometre taşı — PR64
 
 Ara commitlerde yalnız ilgili testler çalıştırılıyor; aynı teslim grubunun tam
