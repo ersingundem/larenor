@@ -293,6 +293,7 @@ class KeeneticTelemetrySnapshot {
       KeeneticMetricKind.interfaces => interfaces,
       KeeneticMetricKind.connectedDevices => hosts,
       KeeneticMetricKind.wanTraffic => interfaces,
+      KeeneticMetricKind.connectionQuality => internet,
     };
     return switch (reading.issue) {
       KeeneticReadFailure.unsupported => KeeneticCapabilityState.unsupported,

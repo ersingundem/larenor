@@ -1085,6 +1085,7 @@
   "adminEditorSessionChanged": "Bağlantı veya uygulama oturumu değişti. Kaydetmeden önce bu düzenleyiciyi yeniden aç.",
   "keeneticAddWidget": "Keenetic widgetı ekle",
   "keeneticInternetStatus": "İnternet bağlantısı",
+  "keeneticConnectionQuality": "Bağlantı kalitesi",
   "keeneticTraffic": "Ağ trafiği",
   "keeneticResources": "Yönlendirici kaynakları",
   "keeneticInterfaces": "Ağ arayüzleri",

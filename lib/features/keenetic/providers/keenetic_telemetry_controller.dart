@@ -86,9 +86,7 @@ class KeeneticTelemetryController with WidgetsBindingObserver {
   }
 
   void _setInterval() => _poller.interval =
-      _demands.values.any(
-        (request) => request.kind == KeeneticMetricKind.wanTraffic,
-      )
+      _demands.values.any((request) => keeneticMetricNeedsTraffic(request.kind))
       ? _trafficInterval
       : _metadataInterval;
 
@@ -118,10 +116,22 @@ class KeeneticTelemetryController with WidgetsBindingObserver {
         _foreground &&
         generation == _generation &&
         _demands.isNotEmpty;
+    final kinds = <KeeneticMetricKind>{};
+    for (final request in _demands.values) {
+      if (request.kind == KeeneticMetricKind.connectionQuality) {
+        kinds.addAll(const {
+          KeeneticMetricKind.internetStatus,
+          KeeneticMetricKind.wanTraffic,
+          KeeneticMetricKind.routerResources,
+        });
+      } else {
+        kinds.add(request.kind);
+      }
+    }
     final demand = KeeneticTelemetryDemand(
-      kinds: _demands.values.map((request) => request.kind),
+      kinds: kinds,
       interfaceIds: _demands.values
-          .where((request) => request.kind == KeeneticMetricKind.wanTraffic)
+          .where((request) => keeneticMetricNeedsTraffic(request.kind))
           .map((request) => request.interfaceId)
           .whereType<String>(),
     );
