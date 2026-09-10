@@ -6,7 +6,7 @@
       "container_name": "larenor-proxmox-power-worker",
       "user": "10001:10001",
       "read_only": true,
-      "network_mode": "none",
+      "network_mode": "bridge",
       "restart": "no",
       "stop_grace_period": "10s",
       "cap_drop": [
@@ -31,6 +31,8 @@
         "/run/larenor/proxmox-power-health.json",
         "--credential-file",
         "/run/secrets/proxmox-credential.bin",
+        "--binding-key-file",
+        "/run/secrets/proxmox-binding.key",
         "--api-uid",
         "10001"
       ],
@@ -46,6 +48,8 @@
           "/run/larenor/proxmox-power-health.json",
           "--credential-file",
           "/run/secrets/proxmox-credential.bin",
+          "--binding-key-file",
+          "/run/secrets/proxmox-binding.key",
           "--api-uid",
           "10001",
           "--check-health"
@@ -69,6 +73,15 @@
           "type": "bind",
           "source": "${LARENOR_PROXMOX_CREDENTIAL_FILE:?Provide a 0600 UID 10001 encrypted credential envelope}",
           "target": "/run/secrets/proxmox-credential.bin",
+          "read_only": true,
+          "bind": {
+            "create_host_path": false
+          }
+        },
+        {
+          "type": "bind",
+          "source": "${LARENOR_PROXMOX_BINDING_KEY_FILE:?Provide a 0600 UID 10001 binding key}",
+          "target": "/run/secrets/proxmox-binding.key",
           "read_only": true,
           "bind": {
             "create_host_path": false

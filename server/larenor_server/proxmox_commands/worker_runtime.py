@@ -20,7 +20,11 @@ import uuid
 
 from ..files import private_read
 from ..plugins.worker import DockerWorkerError, _safe_path
-from .api_adapter import CREDENTIAL_MAGIC
+from .api_adapter import (
+    CREDENTIAL_MAGIC,
+    ProxmoxApiAdapterError,
+    ProxmoxApiEffectAdapter,
+)
 from .worker_ipc import ProxmoxPowerWorkerServer
 
 
@@ -52,9 +56,15 @@ class WorkerRuntimeConfig:
     health_path: Path
     credential_path: Path
     api_uid: int
+    binding_key_path: Path | None = None
 
     def __post_init__(self):
-        paths = (self.socket_path, self.health_path, self.credential_path)
+        paths = (
+            self.socket_path,
+            self.health_path,
+            self.credential_path,
+            *((self.binding_key_path,) if self.binding_key_path is not None else ()),
+        )
         if (
             type(self.api_uid) is not int or not 0 <= self.api_uid < 2**31
             or any(not isinstance(path, Path) or not path.is_absolute()
@@ -112,6 +122,21 @@ def load_encrypted_credential(path):
     except ProxmoxWorkerRuntimeError:
         raise
     except Exception:
+        raise ProxmoxWorkerRuntimeError("worker_configuration_invalid") from None
+
+
+def load_configured_adapter(config):
+    if not isinstance(config, WorkerRuntimeConfig):
+        raise ProxmoxWorkerRuntimeError("worker_configuration_invalid")
+    if config.binding_key_path is None:
+        return None
+    try:
+        _private_file(config.binding_key_path)
+        return ProxmoxApiEffectAdapter.from_sealed(
+            config.credential_path, config.binding_key_path,
+            confirm_readback=True,
+        )
+    except (ProxmoxApiAdapterError, OSError, ValueError, TypeError):
         raise ProxmoxWorkerRuntimeError("worker_configuration_invalid") from None
 
 
@@ -234,6 +259,7 @@ def _validate(config):
     except (OSError, DockerWorkerError):
         raise ProxmoxWorkerRuntimeError("worker_configuration_invalid") from None
     load_encrypted_credential(config.credential_path)
+    return load_configured_adapter(config)
 
 
 def serve_worker(config, stopped, *, adapter=None, peer_uid=None, timeout=5):
@@ -241,11 +267,12 @@ def serve_worker(config, stopped, *, adapter=None, peer_uid=None, timeout=5):
     identity = (0, 0)
     worker_id = uuid.uuid4().hex
     try:
-        _validate(config)
+        configured_adapter = _validate(config)
         if not isinstance(stopped, threading.Event):
             raise ProxmoxWorkerRuntimeError("worker_configuration_invalid")
         worker = ProxmoxPowerWorkerServer(
-            config.socket_path, adapter,
+            config.socket_path,
+            adapter if adapter is not None else configured_adapter,
             allowed_uid=config.api_uid, peer_uid=peer_uid, timeout=timeout,
         )
         worker.start()
@@ -306,12 +333,14 @@ def main(argv=None):
     parser.add_argument("--socket", required=True, type=Path)
     parser.add_argument("--health-receipt", required=True, type=Path)
     parser.add_argument("--credential-file", required=True, type=Path)
+    parser.add_argument("--binding-key-file", type=Path)
     parser.add_argument("--api-uid", required=True, type=_uid)
     parser.add_argument("--check-config", action="store_true")
     try:
         args = parser.parse_args(argv)
         selected = WorkerRuntimeConfig(
             args.socket, args.health_receipt, args.credential_file, args.api_uid,
+            args.binding_key_file,
         )
         _validate(selected)
     except _ParserExit as result:

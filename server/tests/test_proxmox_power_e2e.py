@@ -18,7 +18,6 @@ from conftest import Clock, auth, login, ready
 from larenor_server.app import create_app
 from larenor_server.config import Settings
 from larenor_server.proxmox_commands.api_adapter import (
-    ProxmoxApiEffectAdapter,
     ProxmoxServiceBinding,
     seal_service_binding,
 )
@@ -110,9 +109,8 @@ class Provider:
 
 
 class RuntimeProcess:
-    def __init__(self, runtime, adapter):
+    def __init__(self, runtime):
         self.runtime = runtime
-        self.adapter = adapter
         self.stopped = threading.Event()
         self.code = None
         self.thread = threading.Thread(target=self._run)
@@ -120,7 +118,7 @@ class RuntimeProcess:
 
     def _run(self):
         self.code = serve_worker(
-            self.runtime, self.stopped, adapter=self.adapter,
+            self.runtime, self.stopped,
             peer_uid=lambda _connection: os.getuid(), timeout=1,
         )
 
@@ -208,7 +206,7 @@ def test_core_supervisor_worker_api_journal_end_to_end(
             service_id="service_1",
             service_revision=9,
             scheme="http",
-            host="proxmox.fixture",
+            host="127.0.0.1",
             port=upstream.port,
             pinned_address="127.0.0.1",
             node="node-a",
@@ -218,21 +216,13 @@ def test_core_supervisor_worker_api_journal_end_to_end(
             token_secret=TOKEN,
         )
         seal_service_binding(credential_path, key_path, sealed)
-        adapter = ProxmoxApiEffectAdapter.from_sealed(
-            credential_path, key_path,
-            resolver=lambda _host, port: [(
-                socket.AF_INET, socket.SOCK_STREAM, socket.IPPROTO_TCP, "",
-                ("127.0.0.1", port),
-            )],
-            confirm_readback=True,
-        )
         runtime = WorkerRuntimeConfig(
             runtime_dir / "power.sock", runtime_dir / "health.json",
-            credential_path, os.getuid(),
+            credential_path, os.getuid(), key_path,
         )
         supervisor = ProxmoxWorkerSupervisor(
             SupervisorConfig.from_runtime(runtime),
-            launch=lambda _command: RuntimeProcess(runtime, adapter),
+            launch=lambda _command: RuntimeProcess(runtime),
         )
         supervisor_stop = threading.Event()
         supervisor_result = []

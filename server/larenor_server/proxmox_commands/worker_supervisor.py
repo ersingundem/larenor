@@ -52,14 +52,17 @@ class SupervisorConfig:
     @property
     def command(self):
         runtime = self.runtime
-        return (
+        command = [
             sys.executable, "-m",
             "larenor_server.proxmox_commands.worker_runtime",
             "--socket", str(runtime.socket_path),
             "--health-receipt", str(runtime.health_path),
             "--credential-file", str(runtime.credential_path),
-            "--api-uid", str(runtime.api_uid),
-        )
+        ]
+        if runtime.binding_key_path is not None:
+            command.extend(("--binding-key-file", str(runtime.binding_key_path)))
+        command.extend(("--api-uid", str(runtime.api_uid)))
+        return tuple(command)
 
 
 def cleanup_exact_socket(path, identity, owner_uid):
@@ -207,12 +210,14 @@ def main(argv=None):
     parser.add_argument("--socket", required=True, type=Path)
     parser.add_argument("--health-receipt", required=True, type=Path)
     parser.add_argument("--credential-file", required=True, type=Path)
+    parser.add_argument("--binding-key-file", type=Path)
     parser.add_argument("--api-uid", required=True, type=_uid)
     parser.add_argument("--check-health", action="store_true")
     try:
         args = parser.parse_args(argv)
         runtime = WorkerRuntimeConfig(
             args.socket, args.health_receipt, args.credential_file, args.api_uid,
+            args.binding_key_file,
         )
         selected = SupervisorConfig.from_runtime(runtime)
         if os.getuid() != os.geteuid() or os.geteuid() == 0:
