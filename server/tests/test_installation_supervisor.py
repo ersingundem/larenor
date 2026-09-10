@@ -111,6 +111,15 @@ class Backend:
         assert time.monotonic() < deadline and gate() is True and gate() is True
         return 'configured'
 
+    def install_configured_qbittorrent(
+            self, job, stack, credential, *, api_key, salt, cancelled,
+            deadline, gate):
+        self.calls.append((
+            'install_configured_qbittorrent', job, stack, credential, api_key,
+            salt, cancelled, threading.get_native_id()))
+        assert time.monotonic() < deadline and gate() is True and gate() is True
+        return 'installed'
+
 
 class Security:
     def __init__(self):
@@ -195,6 +204,26 @@ def test_qbittorrent_config_gates_share_retained_daemon_and_native_thread(monkey
         'configure_qbittorrent', 'a' * 32, 'stack', 'credential', 'api-key', b'x' * 16,
         cancelled,
     )
+    assert backend.calls[0][7] == threading.get_native_id()
+    assert lease.pair.checks == 5
+
+    guarded.close()
+    assert connection.closed and lease.closed
+
+
+def test_qbittorrent_ordered_install_shares_retained_daemon_and_native_thread(
+        monkeypatch):
+    guarded, backend, connection, lease = build(monkeypatch)
+    deadline = time.monotonic() + 2
+    cancelled = threading.Event()
+    guarded.open(deadline)
+
+    assert guarded.install_configured_qbittorrent_with_deadline(
+        'a' * 32, 'stack', 'credential', api_key='api-key', salt=b'x' * 16,
+        cancelled=cancelled, deadline=deadline) == 'installed'
+    assert backend.calls[0][0:7] == (
+        'install_configured_qbittorrent', 'a' * 32, 'stack', 'credential',
+        'api-key', b'x' * 16, cancelled)
     assert backend.calls[0][7] == threading.get_native_id()
     assert lease.pair.checks == 5
 

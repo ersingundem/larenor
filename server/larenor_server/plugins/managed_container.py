@@ -19,6 +19,7 @@ from .network_transport import UnixNetworkEngine
 from .resource_journal import NetworkIdentity, ResourceJournal, _digest as _resource_digest
 from .resource_models import WorkerPolicyBinding
 from .resource_plan import build_resource_plan, _wire
+from .shared_library_consumers import build_shared_library_consumer_plan
 from .stack_plan import MediaStackPlan, verify_media_stack_plan
 from .volume_create_journal import VolumeCreateJournal
 from .volume_plan import build_volume_plan
@@ -165,7 +166,7 @@ class JellyfinResourceProofBroker:
     """
 
     def __init__(self, stack, catalog, policy, resource_journal, volume_journal,
-                 readers, *, engine_identity):
+                 readers, *, engine_identity, service_id='jellyfin'):
         try:
             methods = ('inspect_image', 'inspect_volume', 'verify_bootstrap',
                        'list_network', 'inspect_network')
@@ -174,6 +175,7 @@ class JellyfinResourceProofBroker:
                     or type(resource_journal) is not ResourceJournal
                     or type(volume_journal) is not VolumeCreateJournal
                     or getattr(readers, '_endpoint', None) is not engine_identity
+                    or service_id not in {'jellyfin', 'qbittorrent'}
                     or not all(callable(getattr(readers, name, None)) for name in methods)):
                 raise ValueError()
             self.stack = MediaStackPlan.model_validate_json(_wire(stack))
@@ -182,6 +184,7 @@ class JellyfinResourceProofBroker:
             self.resource_journal = resource_journal
             self.volume_journal = volume_journal
             self.readers = readers
+            self.service_id = service_id
         except (ValueError, TypeError, AttributeError, RecursionError):
             raise ManagedContainerError('resources_untrusted') from None
 
@@ -189,18 +192,24 @@ class JellyfinResourceProofBroker:
         try:
             expected_resources = build_resource_plan(self.stack, self.catalog, self.policy)
             expected_volumes = build_volume_plan(self.stack, self.catalog, self.policy)
-            selected = next(item for item in self.stack.components if item.serviceId == 'jellyfin')
+            selected = next(item for item in self.stack.components
+                            if item.serviceId == self.service_id)
             if (resource_plan != expected_resources or volume_plan != expected_volumes
                     or component != selected):
                 raise ValueError()
             source = dict(stack=self.stack, catalog=self.catalog, policy=self.policy)
             image_resource = next(item for item in resource_plan.resources
-                                  if item.kind == 'ensure_image' and item.serviceId == 'jellyfin')
+                                  if item.kind == 'ensure_image'
+                                  and item.serviceId == self.service_id)
             network_resource = next(item for item in resource_plan.resources
                                     if item.kind == 'prepare_control_network')
-            volume_resources = tuple(item for item in volume_plan.resources
-                                     if item.serviceId == 'jellyfin')
-            if len(volume_resources) != 3:
+            volume_resources = tuple(
+                item for item in volume_plan.resources
+                if item.serviceId == self.service_id
+                or self.service_id == 'qbittorrent'
+                and item.kind == 'managed_library')
+            expected_volume_count = 3 if self.service_id == 'jellyfin' else 2
+            if len(volume_resources) != expected_volume_count:
                 raise ValueError()
             cancelled = threading.Event()
             with self.resource_journal.locked(), self.volume_journal.locked():
@@ -348,13 +357,17 @@ class ManagedContainerBinding:
 
 
 def _binding_parts(value):
+    targets = ({item.target for item in value.mounts}
+               if _exact(value, ManagedContainerBinding)
+               and type(value.mounts) is tuple else set())
     if (not _exact(value, ManagedContainerBinding)
             or not _identity(value.name.removeprefix('larenor-'))
             or value.name != 'larenor-' + value.name.removeprefix('larenor-')
             or value.platform not in {'linux/amd64', 'linux/arm64'}
             or not _identity(value.image_id, _IMAGE)
             or not _identity(value.network_id, _HASH)
-            or type(value.mounts) is not tuple or len(value.mounts) != 3):
+            or targets not in ({'/config', '/cache', '/media'},
+                               {'/config', '/data'})):
         raise ValueError()
     body = _decode(value.specification, 65536)
     inherited = _configuration(value.image_configuration,
@@ -403,15 +416,17 @@ def _binding_parts(value):
     expected_mounts = []
     for item in value.mounts:
         if (not _exact(item, ManagedContainerMount) or not _identity(item.name, _VOLUME)
-                or item.target not in {'/config', '/cache', '/media'}
+                or item.target not in targets
                 or type(item.read_only) is not bool
                 or item.read_only is not (item.target == '/media')
-                or (item.target == '/media') is not item.name.startswith('larenor-library-v1-')
-                or (item.target != '/media') is not item.name.startswith('larenor-appdata-v1-')):
+                or (item.target in {'/media', '/data'}) is not
+                    item.name.startswith('larenor-library-v1-')
+                or (item.target not in {'/media', '/data'}) is not
+                    item.name.startswith('larenor-appdata-v1-')):
             raise ValueError()
         expected_mounts.append({'Type': 'volume', 'Source': item.name, 'Target': item.target,
                                 'ReadOnly': item.read_only, 'VolumeOptions': {'NoCopy': True}})
-    if host['Mounts'] != expected_mounts or len({item.target for item in value.mounts}) != 3:
+    if host['Mounts'] != expected_mounts or len(value.mounts) != len(targets):
         raise ValueError()
     return body, inherited
 
@@ -534,7 +549,7 @@ class ManagedWorkerJournal(WorkerJournal):
                     'specification', 'image_configuration'}:
                 raise ValueError()
             mounts = value['mounts']
-            if type(mounts) is not list or len(mounts) != 3:
+            if type(mounts) is not list or len(mounts) not in {2, 3}:
                 raise ValueError()
             binding = ManagedContainerBinding(
                 value['name'], value['platform'], value['image_id'], value['network_id'],
@@ -588,7 +603,9 @@ def _configuration(raw, targets):
     if type(value) is not dict or _canonical(value) != raw:
         raise ValueError()
     volumes = value.get('Volumes')
-    if (type(volumes) is not dict or set(volumes) != {'/config', '/cache'}
+    expected = ({'/config', '/cache'} if set(targets) == {'/config', '/cache', '/media'}
+                else {'/config'})
+    if (type(volumes) is not dict or set(volumes) != expected
             or not set(volumes) <= set(targets) or any(
             item not in (None, {}) for item in volumes.values())):
         raise ValueError()
@@ -602,17 +619,20 @@ def _configuration(raw, targets):
 
 
 class JellyfinBindingBuilder:
-    """Re-derive a private, ports-off Jellyfin binding on every worker call."""
+    """Re-derive a private, ports-off managed-service binding on every call."""
 
-    def __init__(self, catalog, policy, container_journal_id, proof_provider):
+    def __init__(self, catalog, policy, container_journal_id, proof_provider,
+                 *, service_id='jellyfin'):
         try:
             if (type(catalog) is not Catalog or type(policy) is not WorkerPolicyBinding
-                    or not _identity(container_journal_id) or not callable(proof_provider)):
+                    or not _identity(container_journal_id) or not callable(proof_provider)
+                    or service_id not in {'jellyfin', 'qbittorrent'}):
                 raise ValueError()
             self.catalog = Catalog.model_validate_json(_wire(catalog))
             self.policy = WorkerPolicyBinding.model_validate_json(_wire(policy))
             self.container_journal_id = container_journal_id
             self.proof_provider = proof_provider
+            self.service_id = service_id
         except (ValueError, TypeError, AttributeError, RecursionError):
             raise ManagedContainerError('resources_untrusted') from None
 
@@ -621,9 +641,12 @@ class JellyfinBindingBuilder:
             if type(stack) is not MediaStackPlan:
                 raise ValueError()
             selected = verify_media_stack_plan(stack, self.catalog)
-            component = next(item for item in selected.components if item.serviceId == 'jellyfin')
+            component = next(item for item in selected.components
+                             if item.serviceId == self.service_id)
             resource_plan = build_resource_plan(selected, self.catalog, self.policy)
             volume_plan = build_volume_plan(selected, self.catalog, self.policy)
+            consumers = build_shared_library_consumer_plan(
+                volume_plan, selected, self.catalog, self.policy)
         except (ValueError, TypeError, AttributeError, RecursionError, StopIteration):
             raise ManagedContainerError('invalid_installation_plan') from None
 
@@ -645,7 +668,8 @@ class JellyfinBindingBuilder:
                 raise ValueError()
 
             image_resource = next(item for item in resource_plan.resources
-                                  if item.kind == 'ensure_image' and item.serviceId == 'jellyfin')
+                                  if item.kind == 'ensure_image'
+                                  and item.serviceId == self.service_id)
             image = proof.image
             if (not _exact(image, ManagedImageProof) or not _identity(image.resource_id)
                     or type(image.revision) is not int or not 3 <= image.revision <= 2**63 - 2
@@ -654,8 +678,11 @@ class JellyfinBindingBuilder:
                     or image.image_id != image_resource.image.configDigest):
                 raise ValueError()
 
-            expected_volumes = tuple(item for item in volume_plan.resources
-                                     if item.serviceId == 'jellyfin')
+            expected_volumes = tuple(
+                item for item in volume_plan.resources
+                if item.serviceId == self.service_id
+                or self.service_id == 'qbittorrent'
+                and item.kind == 'managed_library')
             if type(proof.volumes) is not tuple or len(proof.volumes) != len(expected_volumes) != 0:
                 raise ValueError()
             mounts = []
@@ -670,11 +697,28 @@ class JellyfinBindingBuilder:
                             expected.resourceId, expected.operationId, expected.name, expected.target)
                         or not _identity(actual.name, _VOLUME)):
                     raise ValueError()
+                target = ('/data' if self.service_id == 'qbittorrent'
+                          and expected.kind == 'managed_library'
+                          else actual.target)
+                consumer = next(
+                    item for item in consumers.consumers
+                    if item.serviceId == self.service_id)
+                if (expected.kind == 'managed_library'
+                        and (consumer.target != target
+                             or expected.readOnly is not True
+                             or consumer.readOnly is not
+                                (self.service_id == 'jellyfin'))):
+                    raise ValueError()
                 mounts.append(ManagedContainerMount(
-                    actual.name, actual.target, expected.readOnly,
+                    actual.name, target,
+                    consumer.readOnly if expected.kind == 'managed_library'
+                    else expected.readOnly,
                 ))
+            expected_targets = ({'/config', '/cache', '/media'}
+                                if self.service_id == 'jellyfin'
+                                else {'/config', '/data'})
             if len({item.name for item in mounts}) != len(mounts) or {
-                    item.target for item in mounts} != {'/config', '/cache', '/media'}:
+                    item.target for item in mounts} != expected_targets:
                 raise ValueError()
 
             expected_network = resource_plan.resources[-1]

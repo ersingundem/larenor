@@ -1,10 +1,13 @@
 """Private qBittorrent configuration and secret-free execution outcome."""
 
+from dataclasses import dataclass
+import re
 from typing import Literal
 
 from pydantic import ConfigDict, Field
 
 from ..models import StrictModel
+from .qbittorrent_config_effect import QbittorrentConfigInstallReceipt
 
 
 class PrivateQbittorrentConfiguration(StrictModel):
@@ -21,6 +24,20 @@ class PrivateQbittorrentConfiguration(StrictModel):
 
     def __repr__(self):
         return 'PrivateQbittorrentConfiguration(<private>)'
+
+
+@dataclass(frozen=True)
+class QbittorrentConfiguredInstallReceipt:
+    configuration: QbittorrentConfigInstallReceipt
+    container_id: str
+    state: Literal['qbittorrent_container_started']
+
+    def __post_init__(self):
+        if (type(self.configuration) is not QbittorrentConfigInstallReceipt
+                or type(self.container_id) is not str
+                or re.fullmatch(r'[0-9a-f]{64}', self.container_id) is None
+                or self.state != 'qbittorrent_container_started'):
+            raise ValueError('invalid_qbittorrent_install_receipt')
 
 
 QB_CONFIG_EXECUTION_CODES = frozenset({

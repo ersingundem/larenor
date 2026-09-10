@@ -29,7 +29,8 @@ from .qbittorrent_config_job_models import (
     QbittorrentConfigurationPayload,
 )
 from .qbittorrent_config_models import (
-    PrivateQbittorrentConfiguration, QbittorrentConfigurationExecutionError,
+    PrivateQbittorrentConfiguration, QbittorrentConfiguredInstallReceipt,
+    QbittorrentConfigurationExecutionError,
 )
 from .stack_plan import verify_media_stack_plan
 
@@ -49,7 +50,7 @@ class _PrivateView:
     credential: str
     api_key: str
     salt: bytes
-    receipt: QbittorrentConfigInstallReceipt | None
+    receipt: QbittorrentConfigInstallReceipt | QbittorrentConfiguredInstallReceipt | None
 
     def __repr__(self):
         return '_PrivateView(<private>)'
@@ -83,7 +84,8 @@ class QbittorrentConfigurationManagement:
             sort_keys=True, separators=(',', ':')).encode('ascii')
 
     @staticmethod
-    def _public(row):
+    def _public(row, payload=None):
+        receipt = None if payload is None else payload.receipt
         return QbittorrentConfiguration.model_validate({
             'id': row['id'], 'requestId': row['request_id'],
             'preparationId': row['preparation_id'],
@@ -92,6 +94,10 @@ class QbittorrentConfigurationManagement:
             'phase': row['phase'], 'cancelRequested': bool(row['cancel_requested']),
             'configured': row['state'] == 'succeeded',
             'configurationState': row['configuration_state'],
+            'containerState': ('container_started'
+                               if receipt is not None
+                               and receipt.containerState
+                               == 'qbittorrent_container_started' else None),
             'errorCode': row['error_code'], 'installAvailable': False,
             'createdAt': utc(row['created_at']), 'updatedAt': utc(row['updated_at']),
         }).model_dump()
@@ -130,7 +136,7 @@ class QbittorrentConfigurationManagement:
                     or payload.receipt is not None
                     and payload.receipt.state != row['configuration_state']):
                 raise ValueError()
-            self._public(row)
+            self._public(row, payload)
             return payload
         except (InvalidTag, ValidationError, ValueError, TypeError, AttributeError,
                 KeyError, OverflowError, RecursionError):
@@ -183,7 +189,7 @@ class QbittorrentConfigurationManagement:
         )
         value = payload.model_copy(update={'receipt': receipt})
         self._save(connection, changed, value)
-        return {'configuration': self._public(changed)}
+        return {'configuration': self._public(changed, value)}
 
     def validate_storage(self):
         try:
@@ -218,7 +224,7 @@ class QbittorrentConfigurationManagement:
                 payload = self._decode(previous)
                 if payload.request != body:
                     raise ApiError('media_qbittorrent_configuration_conflict', 409)
-                return {'configuration': self._public(previous)}
+                return {'configuration': self._public(previous, payload)}
             if self.backend is None:
                 raise ApiError('plugin_worker_unavailable', 503)
             if connection.execute(
@@ -263,7 +269,7 @@ class QbittorrentConfigurationManagement:
                 + ','.join('?' for _ in range(len(_BINDING) + 2)) + ')',
                 (*[row[key] for key in _BINDING], b'', b''))
             self._save(connection, row, payload)
-            return {'configuration': self._public(row)}
+            return {'configuration': self._public(row, payload)}
 
     @staticmethod
     def _find(connection, identifier):
@@ -280,8 +286,8 @@ class QbittorrentConfigurationManagement:
             connection.execute('BEGIN')
             self._assert_admin(connection, actor)
             row = self._find(connection, identifier)
-            self._validate_row(connection, row)
-            return {'configuration': self._public(row)}
+            payload = self._validate_row(connection, row)
+            return {'configuration': self._public(row, payload)}
 
     def list(self, actor, *, before=None, limit=10):
         if (type(limit) is not int or not 1 <= limit <= 10
@@ -295,9 +301,10 @@ class QbittorrentConfigurationManagement:
                 'SELECT * FROM media_qbittorrent_configurations WHERE sequence<? '
                 'ORDER BY sequence DESC LIMIT ?',
                 (before or 2**63 - 1, limit + 1)).fetchall()
-            for row in rows:
-                self._validate_row(connection, row)
-            return {'configurations': [self._public(row) for row in rows[:limit]],
+            payloads = [self._validate_row(connection, row) for row in rows]
+            return {'configurations': [
+                        self._public(row, payload)
+                        for row, payload in zip(rows[:limit], payloads[:limit])],
                     'nextBefore': rows[limit - 1]['sequence'] if len(rows) > limit else None}
 
     def cancel(self, actor, identifier, body):
@@ -322,11 +329,18 @@ class QbittorrentConfigurationManagement:
             connection.execute('BEGIN')
             payload = self._validate_row(
                 connection, self._find(connection, identifier))
-        receipt = None if payload.receipt is None else QbittorrentConfigInstallReceipt(
-            payload.receipt.resourceId, payload.receipt.operationId,
-            payload.receipt.journalId, payload.receipt.revision,
-            payload.receipt.volumeName, payload.receipt.configurationDigest,
-            payload.receipt.state)
+        receipt = None
+        if payload.receipt is not None:
+            configuration = QbittorrentConfigInstallReceipt(
+                payload.receipt.resourceId, payload.receipt.operationId,
+                payload.receipt.journalId, payload.receipt.revision,
+                payload.receipt.volumeName,
+                payload.receipt.configurationDigest, payload.receipt.state)
+            receipt = configuration
+            if payload.receipt.containerId is not None:
+                receipt = QbittorrentConfiguredInstallReceipt(
+                    configuration, payload.receipt.containerId,
+                    payload.receipt.containerState)
         return _PrivateView(
             payload.private.credential, payload.private.apiKey,
             bytes.fromhex(payload.private.saltHex), receipt)
@@ -434,19 +448,23 @@ class QbittorrentConfigurationManagement:
                 self._transition(connection, row, payload, state='running')
                 identifier = row['id']
             try:
-                result = self.backend.configure_qbittorrent(
+                result = self.backend.install_qbittorrent(
                     identifier, payload.plan, payload.private,
                     deadline=time.monotonic() + 30.0,
                     gate=lambda: self._gate(identifier).permitted)
-                if type(result) is not QbittorrentConfigInstallReceipt:
+                if type(result) is not QbittorrentConfiguredInstallReceipt:
                     raise QbittorrentConfigurationExecutionError(
                         'qbittorrent_config_result_invalid', uncertain_effect=True)
                 receipt = PrivateQbittorrentReceipt(
-                    resourceId=result.resource_id, operationId=result.operation_id,
-                    journalId=result.journal_id, revision=result.revision,
-                    volumeName=result.volume_name,
-                    configurationDigest=result.configuration_digest,
-                    state=result.state)
+                    resourceId=result.configuration.resource_id,
+                    operationId=result.configuration.operation_id,
+                    journalId=result.configuration.journal_id,
+                    revision=result.configuration.revision,
+                    volumeName=result.configuration.volume_name,
+                    configurationDigest=result.configuration.configuration_digest,
+                    state=result.configuration.state,
+                    containerId=result.container_id,
+                    containerState=result.state)
             except QbittorrentConfigurationExecutionError as failure:
                 with self.db.transaction() as connection:
                     row = self._find(connection, identifier)
