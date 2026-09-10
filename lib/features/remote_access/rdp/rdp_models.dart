@@ -240,6 +240,20 @@ class RdpProfileSettings {
   final RdpKeyboardLayout keyboardLayout;
   final RdpClipboardMode clipboardMode;
 
+  RdpProfileSettings copyWith({
+    RdpDisplayMode? displayMode,
+    RdpKeyboardLayout? keyboardLayout,
+    RdpClipboardMode? clipboardMode,
+  }) => RdpProfileSettings(
+    domain: domain,
+    gatewayHost: gatewayHost,
+    gatewayPort: gatewayPort,
+    gatewayUsername: gatewayUsername,
+    displayMode: displayMode ?? this.displayMode,
+    keyboardLayout: keyboardLayout ?? this.keyboardLayout,
+    clipboardMode: clipboardMode ?? this.clipboardMode,
+  );
+
   static bool _safeText(String value, int max) =>
       value == value.trim() &&
       value.runes.length <= max &&

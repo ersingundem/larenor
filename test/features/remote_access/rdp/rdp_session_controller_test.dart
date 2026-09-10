@@ -173,11 +173,7 @@ class DelayedVault extends Vault {
     required bool Function() isCurrent,
   }) async {
     await release.future;
-    await super.saveCredential(
-      profile,
-      credential,
-      isCurrent: isCurrent,
-    );
+    await super.saveCredential(profile, credential, isCurrent: isCurrent);
   }
 }
 

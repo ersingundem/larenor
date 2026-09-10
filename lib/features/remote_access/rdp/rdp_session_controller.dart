@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 
@@ -49,7 +48,7 @@ class RdpSessionController extends ChangeNotifier {
   RdpEngine? _engine;
   RdpChannel? _channel;
   Completer<bool>? _certificateDecision;
-  Completer<String?>? _passwordDecision;
+  Completer<RdpCredential?>? _passwordDecision;
   Completer<void>? _opening;
   Timer? _timer;
   int _generation = 0;
@@ -205,14 +204,13 @@ class RdpSessionController extends ChangeNotifier {
       _check(generation);
     }
     if (peer.requiresNla && credential == null) {
-      final decision = _passwordDecision = Completer<String?>();
+      final decision = _passwordDecision = Completer<RdpCredential?>();
       phase = RdpSessionPhase.nlaRequired;
       _publish();
-      final password = await decision.future;
+      credential = await decision.future;
       _passwordDecision = null;
       _check(generation);
-      if (password == null) throw const RdpFailure('nla_cancelled');
-      credential = RdpCredential(password: password);
+      if (credential == null) throw const RdpFailure('nla_cancelled');
     }
     phase = RdpSessionPhase.connecting;
     _publish();
@@ -275,18 +273,42 @@ class RdpSessionController extends ChangeNotifier {
     }
   }
 
-  Future<void> authenticate(String password) async {
+  Future<void> authenticate(
+    String password, {
+    String gatewayPassword = '',
+    bool remember = false,
+  }) async {
+    final generation = _generation;
     final decision = _passwordDecision;
     if (phase != RdpSessionPhase.nlaRequired ||
         decision == null ||
         decision.isCompleted ||
         !_current(_generation) ||
-        password.isEmpty ||
-        utf8.encode(password).length > 4096 ||
-        password.contains('\u0000')) {
+        password.isEmpty) {
       return;
     }
-    decision.complete(password);
+    try {
+      final credential = RdpCredential(
+        password: password,
+        gatewayPassword: gatewayPassword,
+      );
+      credential.validate();
+      if (remember) {
+        final vault = credentialVault;
+        if (vault == null) throw const RdpFailure('storage_failed');
+        await vault.saveCredential(
+          profile,
+          credential,
+          isCurrent: () => _current(generation),
+        );
+        _check(generation);
+      }
+      if (!decision.isCompleted) decision.complete(credential);
+    } catch (value) {
+      if (generation == _generation) {
+        _finish(code: value is RdpFailure ? value.code : 'storage_failed');
+      }
+    }
   }
 
   Future<void> reconnect() async {
@@ -299,6 +321,11 @@ class RdpSessionController extends ChangeNotifier {
     error = null;
     _publish();
     await connect();
+  }
+
+  void disconnect() {
+    if (_disposed || _retired || phase != RdpSessionPhase.connected) return;
+    _finish();
   }
 
   void resize(RdpDisplaySpec next) {
