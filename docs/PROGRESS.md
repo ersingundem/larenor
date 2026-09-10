@@ -551,8 +551,11 @@ regresyonları geçti; güncel **5.249 testlik** tam Server paketi yeniden çal�
 preparation içindeki doğrulanmış Jellyfin bootstrap kaynağına exact revizyonla
 bağlayan AES-GCM şifreli kalıcı işi ekledi. Yeniden başlatma, idempotency,
 kaynak/kurulum drift'i, gizli alan reddi ve sınırlı okuma kapıları yeşil.
-Executor dispatch, Sonarr/Radarr/kütüphane/initialize eşleştirmesi ve native
-iki mimari kabul açık; `installAvailable=false` değişmedi.
+`a8751777` → `b85a53ba` dilimi işi UID-denetimli private worker'a bağlıyor,
+etki sırasında retained admin ve kaynak revizyonlarını yeniden doğruluyor,
+API anahtarını yalnız şifreli kayıtta saklıyor ve belirsiz/yarım etkileri tekrar
+çalıştırmadan `needs_attention` durumuna alıyor. Sonarr/Radarr/kütüphane/initialize
+eşleştirmesi ve native iki mimari kabul açık; `installAvailable=false` değişmedi.
 [Seerr konteyner işi kanıtı](seerr-container-installation-implementation-2026-09-10.md).
 
 S06.4 native kabul koşusu [34326112926](https://github.com/ersingundem/larenor/actions/runs/34326112926)

@@ -2,10 +2,11 @@
 
 from typing import Literal
 
-from pydantic import Field, model_validator
+from pydantic import ConfigDict, Field, model_validator
 
 from ..admin.models import ObjectId, Revision
 from ..models import StrictModel
+from .seerr_bootstrap_models import PrivateSeerrBootstrap
 
 
 class CreateSeerrBootstrapRequest(StrictModel):
@@ -73,3 +74,15 @@ class SeerrBootstrapJobsResponse(StrictModel):
     bootstraps: list[SeerrBootstrapJob] = Field(max_length=10)
     nextBefore: int | None
 
+
+class PrivateSeerrBootstrapPayload(StrictModel):
+    model_config = ConfigDict(extra="forbid", strict=True, frozen=True)
+
+    private: PrivateSeerrBootstrap = Field(repr=False)
+    apiKey: str | None = Field(
+        default=None,
+        min_length=64,
+        max_length=72,
+        pattern=r"^[A-Za-z0-9+/]+={0,2}$",
+        repr=False,
+    )

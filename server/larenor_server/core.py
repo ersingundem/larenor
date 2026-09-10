@@ -248,6 +248,7 @@ class CoreServices:
             self.seerr_bootstraps = SeerrBootstrapManagement(
                 self.db, self.auth, settings, key, self.media_installations,
                 self.media_service_bootstraps)
+            self.seerr_bootstraps.backend = installation_backend
             self.seerr_bootstraps.validate_storage()
             self.qbittorrent_configurations = QbittorrentConfigurationManagement(
                 self.db, self.auth, settings, key, self.media_installations,
