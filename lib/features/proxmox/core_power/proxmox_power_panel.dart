@@ -202,7 +202,7 @@ final class _ProxmoxPowerPanelState extends State<ProxmoxPowerPanel>
                     spacing: 12,
                     runSpacing: 12,
                     children: [
-                      for (final action in ProxmoxPowerAction.values)
+                      for (final action in controller.target.allowedActions)
                         Semantics(
                           button: true,
                           enabled:

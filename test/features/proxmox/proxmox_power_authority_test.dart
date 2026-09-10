@@ -25,6 +25,12 @@ const target = ProxmoxPowerTarget(
   guestKind: ProxmoxGuestKind.qemu,
   currentState: ProxmoxGuestState.running,
   statusRevision: 7,
+  allowedActions: {
+    ProxmoxPowerAction.shutdown,
+    ProxmoxPowerAction.stop,
+    ProxmoxPowerAction.reboot,
+    ProxmoxPowerAction.suspend,
+  },
 );
 
 PowerPreview fixturePreview({bool high = true}) => PowerPreview.fromJson({

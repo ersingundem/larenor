@@ -8,9 +8,9 @@ import '../../core_ha/data/core_ha_providers.dart';
 import '../../core_ha/presentation/core_ha_route.dart';
 import '../../core_ha/presentation/core_ha_widgets.dart';
 import '../../home_resources/domain/home_resource_models.dart';
+import '../../proxmox/core_power/proxmox_power_discovery.dart';
 import '../../proxmox/core_power/proxmox_power_models.dart';
 import '../../proxmox/core_power/proxmox_power_panel.dart';
-import '../../proxmox/core_power/proxmox_power_providers.dart';
 import '../../server/data/larenor_server_api.dart';
 import '../../server/data/server_account_controller.dart';
 import '../../server/domain/server_models.dart';
@@ -84,11 +84,23 @@ class _CoreProxmoxViewState extends ConsumerState<_CoreProxmoxView> {
     admin: widget.admin,
   );
   late final CoreProxmoxController _controller;
+  late final ServerAccountController _account;
+  late final int _accountGeneration;
+  late final ServerSession? _session;
+  LarenorServerApi? _powerDiscoveryApi;
   ServerService? _service;
 
   @override
   void initState() {
     super.initState();
+    _account = ref.read(serverAccountControllerProvider);
+    _accountGeneration = _account.generation;
+    _session = _account.session;
+    if (_session case final session?) {
+      _powerDiscoveryApi = ref.read(coreProxmoxApiFactoryProvider)(
+        session.endpoint,
+      );
+    }
     _controller = ref.read(coreProxmoxControllerProvider(_selection));
     _controller.addListener(_changed);
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -96,7 +108,18 @@ class _CoreProxmoxViewState extends ConsumerState<_CoreProxmoxView> {
     });
   }
 
-  bool _current() => mounted && widget.owner.isCurrent && widget.gateCurrent();
+  bool _current() {
+    final session = _account.session;
+    return mounted &&
+        widget.owner.isCurrent &&
+        widget.gateCurrent() &&
+        _account.generation == _accountGeneration &&
+        identical(session, _session) &&
+        (!widget.admin || session?.user.canAdminister == true) &&
+        TickerMode.valuesOf(context).enabled &&
+        ModalRoute.of(context)?.isCurrent == true;
+  }
+
   void _changed() {
     if (!_controller.fresh || _controller.preview == null) _service = null;
   }
@@ -104,6 +127,7 @@ class _CoreProxmoxViewState extends ConsumerState<_CoreProxmoxView> {
   @override
   void dispose() {
     _controller.removeListener(_changed);
+    _powerDiscoveryApi?.close();
     super.dispose();
   }
 
@@ -230,9 +254,9 @@ class _CoreProxmoxViewState extends ConsumerState<_CoreProxmoxView> {
         ),
       ];
     }
-    final powerTarget = ref.watch(
-      coreProxmoxPowerTargetProvider(widget.target),
-    );
+    final resource = c.record ?? widget.target;
+    final discoveryApi = _powerDiscoveryApi;
+    final session = _session;
     return [
       const SizedBox(height: 12),
       Semantics(header: true, child: Text(l.coreProxmoxServices)),
@@ -250,24 +274,37 @@ class _CoreProxmoxViewState extends ConsumerState<_CoreProxmoxView> {
           selected: identical(_service, service),
         ),
       const SizedBox(height: 12),
-      ProxmoxPowerEntry(
-        isAdmin: true,
-        canWrite: widget.target.canWrite,
-        target: powerTarget,
-        current: current,
-        onOpen: (target) {
-          if (!current()) return;
-          Navigator.of(context).push<void>(
-            CupertinoPageRoute(
-              builder: (_) => CoreProxmoxPowerCommandScreen(
-                target: target,
-                canWrite: widget.target.canWrite,
-                gateCurrent: widget.gateCurrent,
+      if (discoveryApi != null && session != null && c.loaded)
+        CoreProxmoxTargetDiscoveryEntry(
+          key: ValueKey(
+            'core-proxmox-power-discovery-${resource.id}-${resource.revision}-${resource.aclRevision}',
+          ),
+          api: discoveryApi,
+          accessToken: session.accessToken,
+          resource: resource,
+          isAdmin: session.user.canAdminister,
+          current: current,
+          onOpen: (target) {
+            if (!current()) return;
+            Navigator.of(context).push<void>(
+              CupertinoPageRoute(
+                builder: (_) => CoreProxmoxPowerCommandScreen(
+                  target: target,
+                  canWrite: resource.canWrite,
+                  gateCurrent: widget.gateCurrent,
+                ),
               ),
-            ),
-          );
-        },
-      ),
+            );
+          },
+        )
+      else
+        ProxmoxPowerEntry(
+          isAdmin: true,
+          canWrite: false,
+          target: null,
+          current: current,
+          onOpen: (_) {},
+        ),
     ];
   }
 }
