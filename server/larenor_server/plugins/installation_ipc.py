@@ -17,6 +17,9 @@ from .jellyfin_bootstrap_executor import (
 )
 from .jellyfin_authenticated_readback import JellyfinAuthenticatedReadbackResult
 from .media_service_bootstrap_models import PrivateMediaServiceBootstrap
+from .music_provider_setup_models import (
+    PrivateMusicProviderSetupAction, ProviderSetupWorkerResult,
+)
 from .seerr_bootstrap_models import PrivateSeerrBootstrap
 from .seerr_bootstrap_executor import (
     SeerrBootstrapExecutionError, SeerrBootstrapExecutionResult,
@@ -529,7 +532,7 @@ class InstallationWorkerClient:
         self.owner_uid, self.peer_uid, self.timeout = owner_uid, peer_uid or _peer_uid, timeout
 
     def _exchange(self, operation, step=None, plan=None, bootstrap=None,
-                  qbittorrent=None, arr=None, seerr=None):
+                  qbittorrent=None, arr=None, seerr=None, music_provider=None):
         try:
             _safe_path(self.path, uid=self.owner_uid, kind=stat.S_ISSOCK)
             deadline = time.monotonic() + self.timeout
@@ -563,6 +566,9 @@ class InstallationWorkerClient:
                 request['plan'] = plan.model_dump(mode='json')
                 request['private'] = private.model_dump(
                     mode='json', warnings=False)
+            elif music_provider is not None:
+                request['private'] = music_provider.model_dump(
+                    mode='json', warnings=False)
             with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as connection:
                 connection.settimeout(self.timeout)
                 connection.connect(str(self.path))
@@ -592,6 +598,25 @@ class InstallationWorkerClient:
         if result != expected:
             raise InstallationIPCError('invalid_worker_result')
         return result
+
+    def execute_music_provider_setup(self, action, *, deadline, gate):
+        now = time.monotonic()
+        if (type(action) is not PrivateMusicProviderSetupAction
+                or type(deadline) not in (int, float) or not math.isfinite(deadline)
+                or not now < deadline <= now + 120 or not callable(gate)):
+            raise InstallationIPCError('invalid_request')
+        try:
+            if gate() is not True:
+                raise ValueError()
+            raw = self._exchange('music_provider_setup', music_provider=action)
+            result = ProviderSetupWorkerResult.model_validate(raw)
+            if gate() is not True:
+                raise ValueError()
+            return result
+        except InstallationIPCError:
+            raise
+        except Exception:
+            raise InstallationIPCError('invalid_worker_result') from None
 
     def apply(self, step, plan):
         if type(step) is not WorkerStep or type(plan) is not MediaStackPlan:
@@ -897,6 +922,30 @@ class InstallationWorkerServer(PreflightWorkerServer):
                     'jellyfin', 'qbittorrent', 'sonarr', 'radarr', 'seerr',
                     'music_assistant'],
             }
+        if operation == 'music_provider_setup':
+            if (set(request) != {
+                    'protocol', 'requestId', 'operation', 'private'}
+                    or time.monotonic() >= deadline):
+                raise PreflightIPCError('invalid_request')
+            try:
+                raw = json.dumps(request['private'], sort_keys=True,
+                                 separators=(',', ':'), allow_nan=False)
+                action = PrivateMusicProviderSetupAction.model_validate_json(raw)
+                cancelled = threading.Event()
+                timed = getattr(
+                    self.backend, 'execute_music_provider_setup_with_deadline',
+                    None)
+                result = (timed(action, deadline)
+                          if callable(timed)
+                          else self.backend.execute_music_provider_setup(
+                              action, deadline=deadline,
+                              gate=lambda: time.monotonic() < deadline))
+                if (time.monotonic() >= deadline
+                        or type(result) is not ProviderSetupWorkerResult):
+                    raise ValueError()
+                return result.model_dump(mode='json', warnings=False)
+            except Exception:
+                raise PreflightIPCError('invalid_request') from None
         if operation in {'configure_arr', 'install_configured_arr'}:
             if (set(request) != {
                     'protocol', 'requestId', 'operation', 'jobId', 'plan',

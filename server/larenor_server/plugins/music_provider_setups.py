@@ -2,6 +2,7 @@
 
 import re
 import secrets
+import time
 import uuid
 from urllib.parse import urlsplit
 
@@ -12,8 +13,10 @@ from pydantic import ValidationError
 from ..admin.service import utc
 from ..errors import ApiError, StartupError
 from .music_provider_setup_models import (
-    CreateMusicProviderSetupRequest, MusicProviderSetup,
-    ProviderSetupDiscovery, _StoredMusicProviderSetup,
+    ContinueMusicProviderSetupRequest, CreateMusicProviderSetupRequest,
+    MusicProviderSetup, PrivateMusicProviderSetupAction,
+    ProviderSetupDiscovery, ProviderSetupWorkerResult,
+    SubmitMusicProviderSetupRequest, _StoredMusicProviderSetup,
 )
 
 
@@ -33,9 +36,11 @@ _CAPABILITIES = [
 
 
 class MusicProviderSetupManagement:
-    def __init__(self, db, auth, settings, key, installations, music_core):
+    def __init__(self, db, auth, settings, key, installations, music_core,
+                 backend=None):
         self.db, self.auth, self.settings = db, auth, settings
         self.installations, self.music_core = installations, music_core
+        self.backend = backend
         self._cipher = AESGCM(key)
 
     @staticmethod
@@ -127,17 +132,21 @@ class MusicProviderSetupManagement:
 
     def _public(self, row, stored):
         discovery = stored.discovery
+        terminal = stored.status in {'ready', 'cancelled'}
         result = {
             'id': row['id'], 'requestId': stored.request.requestId,
             'installationId': row['installation_id'],
             'installationRevision': row['installation_revision'],
             'providerDomain': stored.request.providerDomain,
-            'revision': row['revision'], 'state': row['state'],
-            'nextAction': ('awaiting_core_discovery' if discovery is None
+            'revision': row['revision'], 'state': stored.status,
+            'nextAction': ('none' if terminal else 'retry'
+                           if stored.status == 'needs_attention'
+                           else 'awaiting_core_discovery' if discovery is None
                            else 'continue_in_larenor'),
-            'interaction': None if discovery is None else self._interaction(discovery),
-            'fields': [] if discovery is None else [
+            'interaction': None if discovery is None or terminal else self._interaction(discovery),
+            'fields': [] if discovery is None or terminal else [
                 entry.model_dump() for entry in discovery.entries],
+            'providerInstanceId': stored.providerInstanceId,
             'installAvailable': False,
             'createdAt': utc(row['created_at']), 'updatedAt': utc(row['updated_at']),
         }
@@ -215,7 +224,7 @@ class MusicProviderSetupManagement:
                 + ',nonce,ciphertext) VALUES('
                 + ','.join('?' for _ in range(len(_BINDING) + 2)) + ')',
                 (*[row[key] for key in _BINDING], b'', b''))
-            stored = _StoredMusicProviderSetup(request=body)
+            stored = _StoredMusicProviderSetup(request=body, status='queued')
             self._save(connection, row, stored)
             saved = connection.execute(
                 'SELECT * FROM music_provider_setups WHERE id=?',
@@ -259,9 +268,180 @@ class MusicProviderSetupManagement:
                            state='action_required',
                            updated_at=max(row['updated_at'], int(self.settings.clock())))
             updated = _StoredMusicProviderSetup(
-                request=stored.request, discovery=discovery)
+                request=stored.request, discovery=discovery,
+                status='action_required')
             self._save(connection, changed, updated)
             saved = connection.execute(
                 'SELECT * FROM music_provider_setups WHERE id=?',
                 (identifier,)).fetchone()
             return self._public(saved, self._decode(saved))
+
+    @staticmethod
+    def _validate_values(discovery, body):
+        if discovery.kind != 'form' or body.stepId != discovery.stepId:
+            raise ApiError('invalid_request')
+        entries = {entry.key: entry for entry in discovery.entries}
+        if set(body.values) - set(entries):
+            raise ApiError('invalid_request')
+        for key, entry in entries.items():
+            if entry.required and key not in body.values:
+                raise ApiError('invalid_request')
+            if key not in body.values:
+                continue
+            value = body.values[key]
+            if entry.type == 'boolean':
+                valid = type(value) is bool
+            else:
+                valid = (type(value) is str and 0 < len(value) <= 8192
+                         and not any(ord(char) < 9 or ord(char) == 127
+                                     for char in value))
+            if not valid:
+                raise ApiError('invalid_request')
+
+    def _private_token(self, connection, row):
+        core_row = connection.execute(
+            'SELECT * FROM music_assistant_core WHERE installation_id=?',
+            (row['installation_id'],)).fetchone()
+        if core_row is None:
+            raise ApiError('music_assistant_not_ready', 409)
+        self._readiness(connection, row['installation_id'],
+                        row['installation_revision'])
+        return self.music_core._decode(core_row).token
+
+    def _claim(self, actor, identifier, expected_revision, command,
+               step_id=None, values=None, allow_expired=False):
+        with self.db.transaction() as connection:
+            self._assert_admin(connection, actor)
+            row = self._find(connection, identifier)
+            stored = self._decode(row)
+            if (row['revision'] != expected_revision
+                    or stored.status not in {'action_required',
+                                             'needs_attention'}):
+                raise ApiError('revision_conflict', 409)
+            if (not allow_expired
+                    and stored.discovery.expiresAt <= self.settings.clock()):
+                raise ApiError('music_provider_setup_expired', 409)
+            token = self._private_token(connection, row)
+            changed = dict(row)
+            changed.update(revision=row['revision'] + 1,
+                           updated_at=max(row['updated_at'], int(self.settings.clock())))
+            pending = _StoredMusicProviderSetup(
+                request=stored.request, discovery=stored.discovery,
+                status='needs_attention', pendingCommand=command,
+                pendingStepId=step_id, pendingValues=values or {})
+            self._save(connection, changed, pending)
+            return changed, pending, token
+
+    def _execute_claim(self, row, stored, token):
+        if self.backend is None:
+            raise ApiError('music_provider_worker_unavailable', 503)
+        action = PrivateMusicProviderSetupAction(
+            setupId=row['id'], providerDomain=stored.request.providerDomain,
+            command=stored.pendingCommand, flowId=stored.discovery.flowId,
+            stepId=stored.pendingStepId, values=stored.pendingValues,
+            token=token)
+        deadline = time.monotonic() + 5
+
+        def gate():
+            with self.db.connection() as connection:
+                current = self._find(connection, row['id'])
+                if current['revision'] != row['revision']:
+                    return False
+                try:
+                    current_stored = self._decode(current)
+                    self._private_token(connection, current)
+                except ApiError:
+                    return False
+                return (current_stored.status == 'needs_attention'
+                        and current_stored.pendingCommand == stored.pendingCommand)
+
+        try:
+            result = self.backend.execute_music_provider_setup(
+                action, deadline=deadline, gate=gate)
+            if type(result) is not ProviderSetupWorkerResult:
+                raise ValueError()
+        except Exception:
+            raise ApiError('music_provider_worker_unavailable', 503) from None
+        if result.providerDomain != stored.request.providerDomain:
+            raise ApiError('music_provider_capability_changed', 409)
+        with self.db.transaction() as connection:
+            current = self._find(connection, row['id'])
+            if current['revision'] != row['revision']:
+                raise ApiError('revision_conflict', 409)
+            self._private_token(connection, current)
+            if result.discovery is not None:
+                if result.discovery.expiresAt <= self.settings.clock():
+                    raise ApiError('music_provider_capability_changed', 409)
+                self._validate_discovery(result.discovery)
+            changed = dict(current)
+            changed.update(revision=current['revision'] + 1,
+                           state=('action_required' if result.discovery else 'queued'),
+                           updated_at=max(current['updated_at'], int(self.settings.clock())))
+            final = _StoredMusicProviderSetup(
+                request=stored.request, discovery=result.discovery,
+                status=result.state,
+                providerInstanceId=result.providerInstanceId)
+            self._save(connection, changed, final)
+            saved = self._find(connection, row['id'])
+            return {'setup': self._public(saved, self._decode(saved))}
+
+    def submit(self, actor, identifier, body):
+        if type(body) is not SubmitMusicProviderSetupRequest:
+            raise ApiError('invalid_request')
+        with self.db.connection() as connection:
+            row = self._find(connection, identifier)
+            stored = self._decode(row)
+            if row['revision'] != body.expectedRevision:
+                raise ApiError('revision_conflict', 409)
+            if stored.discovery is None:
+                raise ApiError('revision_conflict', 409)
+            self._validate_values(stored.discovery, body)
+        row, stored, token = self._claim(
+            actor, identifier, body.expectedRevision, 'submit',
+            body.stepId, body.values)
+        return self._execute_claim(row, stored, token)
+
+    def resume(self, actor, identifier, body):
+        if type(body) is not ContinueMusicProviderSetupRequest:
+            raise ApiError('invalid_request')
+        with self.db.connection() as connection:
+            row = self._find(connection, identifier)
+            stored = self._decode(row)
+            if (row['revision'] != body.expectedRevision
+                    or stored.discovery is None
+                    or stored.discovery.kind != 'external'):
+                raise ApiError('revision_conflict', 409)
+        row, stored, token = self._claim(
+            actor, identifier, body.expectedRevision, 'resume')
+        return self._execute_claim(row, stored, token)
+
+    def cancel(self, actor, identifier, body):
+        if type(body) is not ContinueMusicProviderSetupRequest:
+            raise ApiError('invalid_request')
+        with self.db.transaction() as connection:
+            self._assert_admin(connection, actor)
+            row = self._find(connection, identifier)
+            stored = self._decode(row)
+            if (row['revision'] != body.expectedRevision
+                    or stored.status not in {'queued', 'action_required',
+                                             'needs_attention'}):
+                raise ApiError('revision_conflict', 409)
+            if stored.discovery is not None:
+                # The upstream flow must be aborted through the private worker;
+                # release the transaction before the bounded IPC call.
+                pass
+            else:
+                self._readiness(connection, row['installation_id'],
+                                row['installation_revision'])
+                changed = dict(row)
+                changed.update(revision=row['revision'] + 1, state='queued',
+                               updated_at=max(row['updated_at'], int(self.settings.clock())))
+                final = _StoredMusicProviderSetup(
+                    request=stored.request, status='cancelled')
+                self._save(connection, changed, final)
+                saved = self._find(connection, identifier)
+                return {'setup': self._public(saved, self._decode(saved))}
+        row, stored, token = self._claim(
+            actor, identifier, body.expectedRevision, 'abort',
+            allow_expired=True)
+        return self._execute_claim(row, stored, token)

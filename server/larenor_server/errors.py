@@ -83,6 +83,8 @@ MESSAGES = {
     "music_provider_setup_limit_reached": "The music provider setup limit has been reached.",
     "music_provider_setup_storage_unavailable": "The saved music provider setups are unavailable.",
     "music_provider_capability_changed": "Music Assistant requested an unsupported provider setup step.",
+    "music_provider_setup_expired": "The Music Assistant provider setup expired. Start it again.",
+    "music_provider_worker_unavailable": "The private Music Assistant provider worker is unavailable.",
 }
 
 

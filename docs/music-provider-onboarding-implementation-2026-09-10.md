@@ -4,16 +4,28 @@ This slice gives Larenor Core a durable, encrypted setup-intent journal for the
 packaged Music Assistant engine. An administrator selects Spotify, Apple Music,
 or YouTube Music in Larenor Client. The public request contains only the managed
 Music Assistant installation identity, its expected revision, the provider
-domain, and an idempotency key. It never accepts a provider password, OAuth
-token, cookie, Music Assistant flow ID, callback URL, or arbitrary endpoint.
+domain, and an idempotency key. It never accepts an account password, Music
+Assistant flow ID, callback URL, or arbitrary Music Assistant endpoint.
+Provider setup fields are accepted only for the exact encrypted flow and schema
+returned by Music Assistant.
 
-A packaged worker will start Music Assistant's own provider setup flow and can
-record the first observed step through the private Core seam added here. Core verifies that step
+A packaged worker starts and advances Music Assistant's own provider setup flow
+through a UID-authenticated Unix socket. Core verifies each observed step
 against the reviewed provider domain and initial-flow shape, encrypts the flow
 ID, external URL, and field metadata, then exposes a secret-free receipt. The
 Client sees only `open_external` or `submit_form` plus the names and secure/plain
 types of fields it must render. No OAuth URL, state parameter, cookie, token, or
-submitted value is persisted in the public record or returned by the API.
+submitted value is persisted in the public record or returned by the API. Form
+values remain inside the encrypted setup journal and private IPC request.
+
+Form submission uses `config/flows/submit`; returning from Music Assistant's own
+OAuth callback resumes with `config/flows/get`; explicit cancellation calls
+`config/flows/abort`. Each Worker invocation has one deadline and makes no
+retry. A `finish` result is provisional: the Worker must complete authenticated
+`config/providers/get_entries` readback for the exact returned instance before
+Core records `ready`. Revision and Music Assistant readiness are checked before
+and after IPC, so a changed flow, installation, dependency, or concurrent
+action fails closed. `installAvailable=false` remains unchanged.
 
 Setup is allowed only while the revision-bound Music Assistant installation,
 Home Assistant peer, and Jellyfin peer remain verified. A missing or stale
@@ -57,9 +69,8 @@ the current `dev` provider sources:
 
 ## Remaining boundary
 
-The private worker transport that invokes and advances Music Assistant setup
-sessions is still pending. The Larenor API therefore cannot submit form values,
-complete OAuth callbacks, or mark a provider ready in this slice. Spotify,
-Apple Music, and YouTube Music account access has not been tested with real
-accounts. AirPlay/HomePod discovery and playback are separate acceptance work
-and are not claimed here.
+Music Assistant still owns the external callback page and provider-specific
+interactive steps; Larenor does not emulate upstream OAuth. Spotify, Apple
+Music, and YouTube Music account access has not been tested with real accounts,
+so this slice makes no real-account success claim. AirPlay/HomePod discovery and
+playback are separate acceptance work and are not claimed here.

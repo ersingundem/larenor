@@ -8,7 +8,8 @@ from ..dependencies import get_core, require_admin
 from ..models import ErrorResponse
 from .music_provider_setup_models import (
     CreateMusicProviderSetupRequest, MusicProviderSetupCapabilities,
-    MusicProviderSetupResponse,
+    ContinueMusicProviderSetupRequest, MusicProviderSetupResponse,
+    SubmitMusicProviderSetupRequest,
 )
 
 
@@ -34,3 +35,21 @@ def create(body: CreateMusicProviderSetupRequest, core: Core, actor: Admin):
 @router.get('/{identifier}', response_model=MusicProviderSetupResponse)
 def get(identifier: ObjectId, core: Core, actor: Admin):
     return core.music_provider_setups.get(actor, identifier)
+
+
+@router.post('/{identifier}/responses', response_model=MusicProviderSetupResponse)
+def submit(identifier: ObjectId, body: SubmitMusicProviderSetupRequest,
+           core: Core, actor: Admin):
+    return core.music_provider_setups.submit(actor, identifier, body)
+
+
+@router.post('/{identifier}/resume', response_model=MusicProviderSetupResponse)
+def resume(identifier: ObjectId, body: ContinueMusicProviderSetupRequest,
+           core: Core, actor: Admin):
+    return core.music_provider_setups.resume(actor, identifier, body)
+
+
+@router.post('/{identifier}/cancel', response_model=MusicProviderSetupResponse)
+def cancel(identifier: ObjectId, body: ContinueMusicProviderSetupRequest,
+           core: Core, actor: Admin):
+    return core.music_provider_setups.cancel(actor, identifier, body)

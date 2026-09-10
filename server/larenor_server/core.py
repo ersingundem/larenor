@@ -234,7 +234,7 @@ class CoreServices:
             self.music_assistant_core.validate_storage()
             self.music_provider_setups = MusicProviderSetupManagement(
                 self.db, self.auth, settings, key, self.media_installations,
-                self.music_assistant_core)
+                self.music_assistant_core, installation_backend)
             self.music_provider_setups.validate_storage()
             self.clear_inactive_bootstrap()
 

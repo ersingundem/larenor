@@ -208,6 +208,12 @@ class ProviderWorker:
         return self.result
 
 
+class FailingProviderWorker:
+    def execute_music_provider_setup(self, _action, *, deadline, gate):
+        assert gate() is True
+        raise RuntimeError('private detail that must not escape')
+
+
 def test_validated_form_submission_crosses_private_worker_and_finishes_only_after_readback(server):
     app, client, _, _ = server
     pair, setup = create_setup(server, 'ytmusic')
@@ -270,6 +276,35 @@ def test_form_submission_rejects_wrong_fields_and_stale_or_expired_flow_without_
     assert worker.calls == []
 
 
+def test_failed_attempt_keeps_pending_secret_encrypted_and_allows_revision_bound_retry(server):
+    app, client, _, _ = server
+    pair, setup = create_setup(server, 'apple_music')
+    discovered = app.state.core.music_provider_setups.record_initial_discovery(
+        setup['id'], 1, form('apple_music', 'app_token', [
+            ProviderSetupEntry(key='music_app_token', type='secure_string', required=True)]))
+    app.state.core.music_provider_setups.backend = FailingProviderWorker()
+    secret = 'private-apple-token'
+    body = {'expectedRevision': discovered['revision'], 'stepId': 'app_token',
+            'values': {'music_app_token': secret}}
+    failed = client.post(BASE + '/' + setup['id'] + '/responses',
+                         headers=auth(pair), json=body)
+    assert failed.status_code == 503
+    assert secret not in failed.text and 'private detail' not in failed.text
+    pending = client.get(BASE + '/' + setup['id'], headers=auth(pair)).json()['setup']
+    assert pending['state'] == 'needs_attention' and pending['nextAction'] == 'retry'
+    with app.state.core.db.connection() as connection:
+        assert secret not in '\n'.join(connection.iterdump())
+    worker = ProviderWorker(ProviderSetupWorkerResult(
+        state='ready', providerDomain='apple_music',
+        providerInstanceId='apple_music--fixture'))
+    app.state.core.music_provider_setups.backend = worker
+    body['expectedRevision'] = pending['revision']
+    retried = client.post(BASE + '/' + setup['id'] + '/responses',
+                          headers=auth(pair), json=body)
+    assert retried.status_code == 200
+    assert retried.json()['setup']['state'] == 'ready'
+
+
 def test_external_callback_resume_and_explicit_cancel_are_revision_bound(server):
     app, client, _, _ = server
     pair, setup = create_setup(server)
@@ -283,12 +318,22 @@ def test_external_callback_resume_and_explicit_cancel_are_revision_bound(server)
     assert response.status_code == 200
     assert worker.calls[0].command == 'resume'
 
-    _pair2, pending = create_setup(server, 'spotify', request='b' * 32)
+    pending_response = client.post(BASE, headers=auth(pair), json={
+        'requestId': 'b' * 32, 'installationId': setup['installationId'],
+        'expectedInstallationRevision': setup['installationRevision'],
+        'providerDomain': 'spotify'})
+    assert pending_response.status_code == 201
+    pending = pending_response.json()['setup']
+    pending = app.state.core.music_provider_setups.record_initial_discovery(
+        pending['id'], pending['revision'], external('spotify'))
+    worker.result = ProviderSetupWorkerResult(
+        state='cancelled', providerDomain='spotify')
     response = client.post(BASE + '/' + pending['id'] + '/cancel', headers=auth(pair), json={
         'expectedRevision': pending['revision']})
     assert response.status_code == 200
     assert response.json()['setup']['state'] == 'cancelled'
     assert response.json()['setup']['nextAction'] == 'none'
+    assert worker.calls[-1].command == 'abort'
     stale = client.post(BASE + '/' + pending['id'] + '/cancel', headers=auth(pair), json={
         'expectedRevision': pending['revision']})
     assert stale.status_code == 409
