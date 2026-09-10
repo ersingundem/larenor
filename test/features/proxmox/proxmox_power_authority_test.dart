@@ -135,13 +135,10 @@ void main() {
       endpoint: ServerEndpoint('https://core.invalid'),
       client: client,
     );
-    final gateway = CoreProxmoxPowerApi(
-      transport,
-      't' * 43,
-      random: Random(1),
-    );
+    final gateway = CoreProxmoxPowerApi(transport, 't' * 43, random: Random(1));
     final proposed = await gateway.preview(target, ProxmoxPowerAction.shutdown);
-    final previewBody = jsonDecode(requests.single.body) as Map<String, dynamic>;
+    final previewBody =
+        jsonDecode(requests.single.body) as Map<String, dynamic>;
     expect(requests.single.url.host, 'core.invalid');
     expect(previewBody['expectedStatusRevision'], 7);
     await gateway.confirm(target, proposed, highRiskConfirmed: false);
@@ -199,26 +196,29 @@ void main() {
     controller.dispose();
   });
 
-  test('route, account or PIN invalidation discards every late result', () async {
-    final gateway = FakeGateway()..pendingConfirm = Completer<PowerReceipt>();
-    var current = true;
-    final controller = ProxmoxPowerController(
-      gateway: gateway,
-      target: target,
-      current: () => current,
-    );
-    await controller.preview(ProxmoxPowerAction.reboot);
-    controller.setHighRiskConfirmed(true);
-    final future = controller.confirm();
-    current = false;
-    controller.invalidate();
-    gateway.pendingConfirm!.complete(fixtureReceipt('succeeded'));
-    await future;
-    expect(controller.phase, ProxmoxPowerPhase.idle);
-    expect(controller.receipt, isNull);
-    expect(gateway.confirms, 1);
-    controller.dispose();
-  });
+  test(
+    'route, account or PIN invalidation discards every late result',
+    () async {
+      final gateway = FakeGateway()..pendingConfirm = Completer<PowerReceipt>();
+      var current = true;
+      final controller = ProxmoxPowerController(
+        gateway: gateway,
+        target: target,
+        current: () => current,
+      );
+      await controller.preview(ProxmoxPowerAction.reboot);
+      controller.setHighRiskConfirmed(true);
+      final future = controller.confirm();
+      current = false;
+      controller.invalidate();
+      gateway.pendingConfirm!.complete(fixtureReceipt('succeeded'));
+      await future;
+      expect(controller.phase, ProxmoxPowerPhase.idle);
+      expect(controller.receipt, isNull);
+      expect(gateway.confirms, 1);
+      controller.dispose();
+    },
+  );
 
   test('failed or unknown operations never retry automatically', () async {
     final gateway = FakeGateway()..previewError = TimeoutException('fixture');

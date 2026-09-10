@@ -8,6 +8,13 @@ import '../../core_ha/data/core_ha_providers.dart';
 import '../../core_ha/presentation/core_ha_route.dart';
 import '../../core_ha/presentation/core_ha_widgets.dart';
 import '../../home_resources/domain/home_resource_models.dart';
+import '../../proxmox/core_power/proxmox_power_models.dart';
+import '../../proxmox/core_power/proxmox_power_panel.dart';
+import '../../proxmox/core_power/proxmox_power_providers.dart';
+import '../../server/data/larenor_server_api.dart';
+import '../../server/data/server_account_controller.dart';
+import '../../server/domain/server_models.dart';
+import '../../server/providers/server_providers.dart';
 import '../../server/services/domain/server_service_models.dart';
 import '../data/core_proxmox_controller.dart';
 import '../data/core_proxmox_providers.dart';
@@ -223,6 +230,9 @@ class _CoreProxmoxViewState extends ConsumerState<_CoreProxmoxView> {
         ),
       ];
     }
+    final powerTarget = ref.watch(
+      coreProxmoxPowerTargetProvider(widget.target),
+    );
     return [
       const SizedBox(height: 12),
       Semantics(header: true, child: Text(l.coreProxmoxServices)),
@@ -239,7 +249,153 @@ class _CoreProxmoxViewState extends ConsumerState<_CoreProxmoxView> {
               : null,
           selected: identical(_service, service),
         ),
+      const SizedBox(height: 12),
+      ProxmoxPowerEntry(
+        isAdmin: true,
+        canWrite: widget.target.canWrite,
+        target: powerTarget,
+        current: current,
+        onOpen: (target) {
+          if (!current()) return;
+          Navigator.of(context).push<void>(
+            CupertinoPageRoute(
+              builder: (_) => CoreProxmoxPowerCommandScreen(
+                target: target,
+                canWrite: widget.target.canWrite,
+                gateCurrent: widget.gateCurrent,
+              ),
+            ),
+          );
+        },
+      ),
     ];
+  }
+}
+
+/// Command route reached from the existing Settings PIN-protected Proxmox
+/// resource editor. It binds one exact target to the current admin account and
+/// retires all pending work on route, account, lifecycle or PIN changes.
+class CoreProxmoxPowerCommandScreen extends ConsumerWidget {
+  const CoreProxmoxPowerCommandScreen({
+    super.key,
+    required this.target,
+    required this.canWrite,
+    required this.gateCurrent,
+  });
+
+  final ProxmoxPowerTarget target;
+  final bool canWrite;
+  final bool Function() gateCurrent;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final tr = Localizations.localeOf(context).languageCode == 'tr';
+    return CoreHaRoute(
+      title: tr ? 'Güç denetimleri' : 'Power controls',
+      backKey: 'core-proxmox-power-back',
+      gateCurrent: gateCurrent,
+      builder: (owner) {
+        final account = ref.read(serverAccountControllerProvider);
+        final session = account.session;
+        if (session == null ||
+            session.user.canAdminister != true ||
+            session.context?.coreId != target.coreId ||
+            session.context?.homeId != target.homeId) {
+          return CoreHaPage(
+            title: tr ? 'Güç denetimleri' : 'Power controls',
+            backKey: 'core-proxmox-power-back',
+            onBack: null,
+            slivers: [
+              coreHaBlock([
+                Text(
+                  tr
+                      ? 'Doğrulanmış yönetici oturumu gereklidir.'
+                      : 'A verified administrator session is required.',
+                ),
+              ]),
+            ],
+          );
+        }
+        return _CoreProxmoxPowerPage(
+          owner: owner,
+          gateCurrent: gateCurrent,
+          account: account,
+          session: session,
+          factory: ref.read(coreProxmoxApiFactoryProvider),
+          target: target,
+          canWrite: canWrite,
+        );
+      },
+    );
+  }
+}
+
+class _CoreProxmoxPowerPage extends StatefulWidget {
+  const _CoreProxmoxPowerPage({
+    required this.owner,
+    required this.gateCurrent,
+    required this.account,
+    required this.session,
+    required this.factory,
+    required this.target,
+    required this.canWrite,
+  });
+
+  final CoreHaOwner owner;
+  final bool Function() gateCurrent;
+  final ServerAccountController account;
+  final ServerSession session;
+  final ServerApiFactory factory;
+  final ProxmoxPowerTarget target;
+  final bool canWrite;
+
+  @override
+  State<_CoreProxmoxPowerPage> createState() => _CoreProxmoxPowerPageState();
+}
+
+class _CoreProxmoxPowerPageState extends State<_CoreProxmoxPowerPage> {
+  late final int _generation = widget.account.generation;
+  late final LarenorServerApi _api = widget.factory(widget.session.endpoint);
+
+  bool _current() {
+    final active = widget.account.session;
+    return mounted &&
+        widget.owner.isCurrent &&
+        widget.gateCurrent() &&
+        widget.account.generation == _generation &&
+        identical(active, widget.session) &&
+        active?.user.canAdminister == true &&
+        TickerMode.valuesOf(context).enabled &&
+        ModalRoute.of(context)?.isCurrent == true;
+  }
+
+  @override
+  void dispose() {
+    _api.close();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final tr = Localizations.localeOf(context).languageCode == 'tr';
+    return CoreHaPage(
+      title: tr ? 'Güç denetimleri' : 'Power controls',
+      backKey: 'core-proxmox-power-back',
+      onBack: _current() ? () => Navigator.of(context).maybePop() : null,
+      slivers: [
+        SliverFillRemaining(
+          hasScrollBody: false,
+          child: CoreProxmoxPowerPanel(
+            api: _api,
+            accessToken: widget.session.accessToken,
+            target: widget.target,
+            isAdmin: true,
+            canWrite: widget.canWrite,
+            current: _current,
+          ),
+        ),
+      ],
+    );
   }
 }
 
