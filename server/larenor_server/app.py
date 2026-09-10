@@ -92,11 +92,15 @@ def create_app(settings: Settings, *, routers: Iterable[APIRouter] = (),
         arr = application.state.core.arr_configurations
         arr_task = asyncio.create_task(dispatch(
             arr, "arr_configuration_dispatch_unavailable")) if arr.backend is not None else None
+        seerr = application.state.core.seerr_bootstraps
+        seerr_task = asyncio.create_task(dispatch(
+            seerr, "seerr_bootstrap_dispatch_unavailable")) if seerr.backend is not None else None
         application.state.media_inspection_dispatcher = media_task
         application.state.media_installation_dispatcher = installation_task
         application.state.media_service_bootstrap_dispatcher = bootstrap_task
         application.state.qbittorrent_configuration_dispatcher = qbittorrent_task
         application.state.arr_configuration_dispatcher = arr_task
+        application.state.seerr_bootstrap_dispatcher = seerr_task
         application.state.plugin_job_dispatcher = task
         try:
             yield
@@ -120,6 +124,8 @@ def create_app(settings: Settings, *, routers: Iterable[APIRouter] = (),
                 await qbittorrent_task
             if arr_task is not None:
                 await arr_task
+            if seerr_task is not None:
+                await seerr_task
 
     app = FastAPI(title="Larenor Server", version=server_version(), docs_url=None,
                   redoc_url=None, openapi_url=None,
@@ -134,6 +140,7 @@ def create_app(settings: Settings, *, routers: Iterable[APIRouter] = (),
     app.state.media_service_bootstrap_dispatcher = None
     app.state.qbittorrent_configuration_dispatcher = None
     app.state.arr_configuration_dispatcher = None
+    app.state.seerr_bootstrap_dispatcher = None
     app.add_middleware(SafeBoundaryMiddleware)
 
     @app.exception_handler(ApiError)

@@ -100,13 +100,14 @@ def test_running_job_after_restart_becomes_needs_attention_without_dispatch(serv
     app, _client, _, _ = server
     _, record, backend = queued(server)
     with app.state.core.db.transaction() as connection:
-        connection.execute(
-            "UPDATE media_seerr_bootstraps SET revision=2,state='running',"
-            "phase='bootstrapping' WHERE id=?",
-            (record["id"],),
+        row = app.state.core.seerr_bootstraps._find(connection, record["id"])
+        app.state.core.seerr_bootstraps._transition(
+            connection,
+            row,
+            app.state.core.seerr_bootstraps._decode(row),
+            state="running",
         )
     terminal = app.state.core.seerr_bootstraps.tick()["bootstrap"]
     assert terminal["state"] == "needs_attention"
     assert terminal["errorCode"] == "seerr_bootstrap_interrupted"
     assert backend.calls == []
-

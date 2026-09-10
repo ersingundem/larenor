@@ -1,9 +1,15 @@
 """Encrypted durable Seerr bootstrap intent over one verified Jellyfin source."""
 
+from contextlib import contextmanager
+from dataclasses import dataclass
+import fcntl
 import json
+import os
 import re
 import secrets
 import sqlite3
+import stat
+import time
 import uuid
 
 from cryptography.exceptions import InvalidTag
@@ -14,9 +20,16 @@ from ..admin.service import utc
 from ..errors import ApiError, StartupError
 from .seerr_bootstrap_job_models import (
     CreateSeerrBootstrapRequest,
+    PrivateSeerrBootstrapPayload,
     SeerrBootstrapJob,
 )
+from .catalog import load_catalog
+from .seerr_bootstrap_executor import (
+    SeerrBootstrapExecutionError,
+    SeerrBootstrapExecutionResult,
+)
 from .seerr_bootstrap_models import PrivateSeerrBootstrap
+from .stack_plan import verify_media_stack_plan
 
 
 MAX_BOOTSTRAPS = 256
@@ -39,6 +52,17 @@ _BINDING = (
     "created_at",
     "updated_at",
 )
+
+
+@dataclass(frozen=True, repr=False)
+class _PrivateView:
+    credential: str
+    sourceBootstrapId: str
+    sourceBootstrapRevision: int
+    api_key: str | None
+
+    def __repr__(self):
+        return "_PrivateView(<private>)"
 
 
 def _identifier(value):
@@ -125,16 +149,19 @@ class SeerrBootstrapManagement:
                 )
             ):
                 raise ValueError()
-            private = PrivateSeerrBootstrap.model_validate_json(
+            payload = PrivateSeerrBootstrapPayload.model_validate_json(
                 self._cipher.decrypt(row["nonce"], row["ciphertext"], self._aad(row))
             )
+            private = payload.private
             if (
                 private.sourceBootstrapId != row["source_bootstrap_id"]
                 or private.sourceBootstrapRevision != row["source_bootstrap_revision"]
             ):
                 raise ValueError()
             self._public(row)
-            return private
+            if (payload.apiKey is None) != (row["state"] != "succeeded"):
+                raise ValueError()
+            return payload
         except (
             InvalidTag,
             ValidationError,
@@ -147,7 +174,8 @@ class SeerrBootstrapManagement:
             raise ApiError("seerr_bootstrap_storage_unavailable", 503) from None
 
     def _validate_row(self, connection, row):
-        private = self._decode(row)
+        payload = self._decode(row)
+        private = payload.private
         installation = connection.execute(
             "SELECT * FROM media_installations WHERE id=?", (row["installation_id"],)
         ).fetchone()
@@ -188,7 +216,7 @@ class SeerrBootstrapManagement:
                 )
             ):
                 raise ValueError()
-            return private
+            return payload
         except (ApiError, ValidationError, ValueError, TypeError, AttributeError):
             raise ApiError("seerr_bootstrap_storage_unavailable", 503) from None
 
@@ -305,10 +333,12 @@ class SeerrBootstrapManagement:
                 "created_at": now,
                 "updated_at": now,
             }
-            private = PrivateSeerrBootstrap(
-                credential=secrets.token_urlsafe(48),
-                sourceBootstrapId=body.sourceBootstrapId,
-                sourceBootstrapRevision=body.expectedSourceBootstrapRevision,
+            private = PrivateSeerrBootstrapPayload(
+                private=PrivateSeerrBootstrap(
+                    credential=secrets.token_urlsafe(48),
+                    sourceBootstrapId=body.sourceBootstrapId,
+                    sourceBootstrapRevision=body.expectedSourceBootstrapRevision,
+                )
             )
             nonce = secrets.token_bytes(12)
             ciphertext = self._cipher.encrypt(
@@ -373,5 +403,215 @@ class SeerrBootstrapManagement:
         _identifier(identifier)
         with self.db.connection() as connection:
             connection.execute("BEGIN")
-            return self._decode(self._find(connection, identifier))
+            payload = self._decode(self._find(connection, identifier))
+            return _PrivateView(
+                credential=payload.private.credential,
+                sourceBootstrapId=payload.private.sourceBootstrapId,
+                sourceBootstrapRevision=payload.private.sourceBootstrapRevision,
+                api_key=payload.apiKey,
+            )
 
+    def _save(self, connection, row, payload):
+        nonce = secrets.token_bytes(12)
+        ciphertext = self._cipher.encrypt(
+            nonce, payload.model_dump_json().encode("utf-8"), self._aad(row)
+        )
+        if len(ciphertext) > MAX_CIPHERTEXT:
+            raise ApiError("seerr_bootstrap_storage_unavailable", 503)
+        self._decode(dict(row) | {"nonce": nonce, "ciphertext": ciphertext})
+        connection.execute(
+            "UPDATE media_seerr_bootstraps SET "
+            + ",".join(key + "=?" for key in _BINDING)
+            + ",nonce=?,ciphertext=? WHERE id=?",
+            (*[row[key] for key in _BINDING], nonce, ciphertext, row["id"]),
+        )
+
+    def _transition(self, connection, row, payload, *, state, error=None, api_key=None):
+        changed = dict(row)
+        changed.update(
+            revision=row["revision"] + 1,
+            state=state,
+            phase="bootstrapping" if state == "running" else "complete",
+            error_code=error,
+            updated_at=max(row["updated_at"], int(self.settings.clock())),
+        )
+        value = payload.model_copy(update={"apiKey": api_key})
+        self._save(connection, changed, value)
+        return {"bootstrap": self._public(changed)}
+
+    def _dispatch_authorized(self, connection, row):
+        current = connection.execute(
+            "SELECT u.revision,u.role,u.disabled,u.must_change_password,"
+            "f.revoked_at,f.expires_at FROM users u JOIN session_families f "
+            "ON f.user_id=u.id WHERE u.id=? AND f.id=?",
+            (row["actor_id"], row["family_id"]),
+        ).fetchone()
+        return bool(
+            current
+            and current["revision"] == row["actor_revision"]
+            and current["role"] == "admin"
+            and not current["disabled"]
+            and not current["must_change_password"]
+            and current["revoked_at"] is None
+            and current["expires_at"] > self.settings.clock()
+        )
+
+    def _execution_inputs(self, connection, row):
+        payload = self._validate_row(connection, row)
+        installation = connection.execute(
+            "SELECT * FROM media_installations WHERE id=?", (row["installation_id"],)
+        ).fetchone()
+        installed = self.installations._decode(installation)
+        catalog = load_catalog()
+        if catalog.digest != self.installations.preparations.plugins._catalog.digest:
+            raise ValueError()
+        return payload, verify_media_stack_plan(installed.plan, catalog)
+
+    def _gate_locked(self, connection, row):
+        if not self._dispatch_authorized(connection, row):
+            return False
+        try:
+            _payload, plan = self._execution_inputs(connection, row)
+            return (
+                plan.coreId == self.installations.preparations.context.coreId
+                and plan.homeId == self.installations.preparations.context.homeId
+            )
+        except (ApiError, ValueError, TypeError, AttributeError, OSError):
+            return False
+
+    def _gate(self, identifier):
+        try:
+            with self.db.connection() as connection:
+                connection.execute("BEGIN")
+                row = self._find(connection, identifier)
+                return row["state"] == "running" and self._gate_locked(connection, row)
+        except (ApiError, ValueError, TypeError, AttributeError, OSError):
+            return False
+
+    @contextmanager
+    def _dispatch_lock(self):
+        descriptor = None
+        try:
+            descriptor = os.open(
+                self.settings.data_dir / ".media-seerr-bootstraps.lock",
+                os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW,
+                0o600,
+            )
+            info = os.fstat(descriptor)
+            if (
+                not stat.S_ISREG(info.st_mode)
+                or info.st_uid != os.geteuid()
+                or stat.S_IMODE(info.st_mode) != 0o600
+                or info.st_nlink != 1
+            ):
+                raise ApiError("seerr_bootstrap_storage_unavailable", 503)
+            try:
+                fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except BlockingIOError:
+                yield False
+                return
+            yield True
+        except OSError:
+            raise ApiError("seerr_bootstrap_storage_unavailable", 503) from None
+        finally:
+            if descriptor is not None:
+                os.close(descriptor)
+
+    def tick(self):
+        with self._dispatch_lock() as acquired:
+            if not acquired:
+                return None
+            with self.db.transaction() as connection:
+                row = connection.execute(
+                    "SELECT * FROM media_seerr_bootstraps "
+                    "WHERE state IN ('queued','running') "
+                    "ORDER BY CASE state WHEN 'running' THEN 0 ELSE 1 END,sequence LIMIT 1"
+                ).fetchone()
+                if row is None:
+                    return None
+                payload = self._decode(row)
+                if row["state"] == "running":
+                    return self._transition(
+                        connection,
+                        row,
+                        payload,
+                        state="needs_attention",
+                        error="seerr_bootstrap_interrupted",
+                    )
+                if not self._gate_locked(connection, row):
+                    return self._transition(
+                        connection,
+                        row,
+                        payload,
+                        state="needs_attention",
+                        error="seerr_bootstrap_authority_changed",
+                    )
+                if self.backend is None:
+                    return self._transition(
+                        connection,
+                        row,
+                        payload,
+                        state="failed",
+                        error="seerr_bootstrap_worker_unavailable",
+                    )
+                payload, plan = self._execution_inputs(connection, row)
+                self._transition(connection, row, payload, state="running")
+                identifier = row["id"]
+            try:
+                result = self.backend.bootstrap_seerr(
+                    identifier,
+                    plan,
+                    payload.private,
+                    deadline=time.monotonic() + 60.0,
+                    gate=lambda: self._gate(identifier),
+                )
+                if type(result) is not SeerrBootstrapExecutionResult:
+                    raise SeerrBootstrapExecutionError(
+                        "invalid_seerr_bootstrap_execution", uncertain_effect=True
+                    )
+            except SeerrBootstrapExecutionError as failure:
+                error = (
+                    "invalid_seerr_bootstrap_result"
+                    if failure.code == "invalid_seerr_bootstrap_execution"
+                    else failure.code
+                )
+                state = (
+                    "needs_attention"
+                    if failure.uncertain_effect
+                    or bool(failure.completed_steps)
+                    or error
+                    in {
+                        "seerr_bootstrap_authority_changed",
+                        "seerr_bootstrap_endpoint_changed",
+                        "seerr_bootstrap_peer_changed",
+                    }
+                    else "failed"
+                )
+                with self.db.transaction() as connection:
+                    row = self._find(connection, identifier)
+                    return self._transition(
+                        connection,
+                        row,
+                        self._decode(row),
+                        state=state,
+                        error=error,
+                    )
+            except (OSError, ValueError, TypeError, AttributeError, RuntimeError):
+                with self.db.transaction() as connection:
+                    row = self._find(connection, identifier)
+                    return self._transition(
+                        connection,
+                        row,
+                        self._decode(row),
+                        state="needs_attention",
+                        error="seerr_bootstrap_worker_unavailable",
+                    )
+            with self.db.transaction() as connection:
+                row = self._find(connection, identifier)
+                return self._transition(
+                    connection,
+                    row,
+                    self._decode(row),
+                    state="succeeded",
+                    api_key=result.api_key,
+                )
