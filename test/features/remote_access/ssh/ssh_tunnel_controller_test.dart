@@ -64,6 +64,7 @@ class TunnelEngine implements SshTunnelEngine {
     if (!isCurrent()) throw const SshFailure('retired');
     return handle;
   }
+
   @override
   void close() {
     closed = true;
@@ -125,19 +126,22 @@ void main() {
     expect(engine.starts, 0);
   });
 
-  test('explicit start reuses credential and pin once and exposes active bind', () async {
-    security.tunnel = SshTunnelProfile.parse(
-      name: 'Media',
-      localPort: '8088',
-      targetHost: '127.0.0.1',
-      targetPort: '8096',
-    );
-    await controller.load();
-    await controller.start();
-    expect(engine.starts, 1);
-    expect(controller.phase, SshTunnelPhase.active);
-    expect(controller.localEndpoint, '127.0.0.1:8088');
-  });
+  test(
+    'explicit start reuses credential and pin once and exposes active bind',
+    () async {
+      security.tunnel = SshTunnelProfile.parse(
+        name: 'Media',
+        localPort: '8088',
+        targetHost: '127.0.0.1',
+        targetPort: '8096',
+      );
+      await controller.load();
+      await controller.start();
+      expect(engine.starts, 1);
+      expect(controller.phase, SshTunnelPhase.active);
+      expect(controller.localEndpoint, '127.0.0.1:8088');
+    },
+  );
 
   test('changed host key fails closed before active state', () async {
     security.tunnel = SshTunnelProfile.parse(
@@ -157,21 +161,25 @@ void main() {
     expect(controller.phase, SshTunnelPhase.failed);
   });
 
-  test('cancel and owner retirement close once with no automatic restart', () async {
-    security.tunnel = SshTunnelProfile.parse(
-      name: 'Media',
-      localPort: '8088',
-      targetHost: '127.0.0.1',
-      targetPort: '8096',
-    );
-    await controller.load();
-    await controller.start();
-    controller.cancel();
-    await Future<void>.delayed(Duration.zero);
-    expect(engine.closed, isTrue);
-    expect(engine.starts, 1);
-    current = false;
-    controller.retire();
-    expect(engine.starts, 1);
-  });
+  test(
+    'cancel and owner retirement close once with no automatic restart',
+    () async {
+      security.tunnel = SshTunnelProfile.parse(
+        name: 'Media',
+        localPort: '8088',
+        targetHost: '127.0.0.1',
+        targetPort: '8096',
+      );
+      await controller.load();
+      await controller.start();
+      controller.cancel();
+      await Future<void>.delayed(Duration.zero);
+      expect(engine.closed, isTrue);
+      expect(engine.starts, 1);
+      expect(controller.phase, SshTunnelPhase.ready);
+      current = false;
+      controller.retire();
+      expect(engine.starts, 1);
+    },
+  );
 }

@@ -5,6 +5,7 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 import '../../../core/configuration_writes.dart';
 import '../data/remote_profiles.dart';
+import 'ssh_tunnel_models.dart';
 
 class SshFailure implements Exception {
   const SshFailure(this.code);
@@ -200,6 +201,26 @@ class SshSecurityStore {
     RemoteProfile p, {
     required bool Function() isCurrent,
   }) => _run(p, isCurrent, (check) => _write(p, 'credential', null, check));
+
+  Future<SshTunnelProfile?> readTunnel(
+    RemoteProfile p, {
+    required bool Function() isCurrent,
+  }) => _run(p, isCurrent, (check) async {
+    final value = await _read(p, 'tunnel', check);
+    if (value == null) return null;
+    if (value.length != 6) throw const SshFailure('invalid_record');
+    return SshTunnelProfile.fromJson(value);
+  });
+
+  Future<void> saveTunnel(
+    RemoteProfile p,
+    SshTunnelProfile value, {
+    required bool Function() isCurrent,
+  }) => _run(p, isCurrent, (check) async {
+    final old = await _read(p, 'tunnel', check);
+    if (old != null) SshTunnelProfile.fromJson(old);
+    await _write(p, 'tunnel', value.toJson(), check);
+  });
   SshHostPin _decodePin(Map<String, dynamic> v) {
     if (v.length != 4 || v['type'] is! String || v['fingerprint'] is! String) {
       throw const SshFailure('invalid_record');

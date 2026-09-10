@@ -14,6 +14,7 @@ import '../../../shared/widgets/settings_section.dart';
 import '../data/remote_profiles.dart';
 import '../ssh/sftp_browser_panel.dart';
 import '../ssh/ssh_terminal_panel.dart';
+import '../ssh/ssh_tunnel_panel.dart';
 
 final remoteProfilesStoreProvider = Provider<RemoteProfilesStore>(
   (ref) => RemoteProfilesStore(),
@@ -40,9 +41,14 @@ class _RemoteProfilesScreenState extends ConsumerState<RemoteProfilesScreen>
   RemoteProfile? _selected;
   RemoteProtocol _protocol = RemoteProtocol.ssh;
   int _generation = 0, _interactionEpoch = 0;
-  bool _resumed = true, _nativeFocused = true, _terminal = false, _sftp = false;
+  bool _resumed = true,
+      _nativeFocused = true,
+      _terminal = false,
+      _sftp = false,
+      _tunnel = false;
   bool Function()? _terminalCurrent;
   bool Function()? _sftpCurrent;
+  bool Function()? _tunnelCurrent;
   bool _started = false,
       _busy = false,
       _editing = false,
@@ -103,8 +109,10 @@ class _RemoteProfilesScreenState extends ConsumerState<RemoteProfilesScreen>
   void _invalidate() {
     _terminal = false;
     _sftp = false;
+    _tunnel = false;
     _terminalCurrent = null;
     _sftpCurrent = null;
+    _tunnelCurrent = null;
     _generation++;
     _snapshot = null;
     _selected = null;
@@ -423,6 +431,17 @@ class _RemoteProfilesScreenState extends ConsumerState<RemoteProfilesScreen>
         },
       );
     }
+    if (_tunnel && _selected != null && active) {
+      return SshTunnelPanel(
+        key: ValueKey("tunnel-${_selected!.id}"),
+        profile: _selected!,
+        isCurrent: _tunnelCurrent!,
+        onBack: () {
+          _generation++;
+          setState(() => _tunnel = false);
+        },
+      );
+    }
     return AppPageScaffold(
       child: CustomScrollView(
         key: const ValueKey('remote-scroll'),
@@ -577,6 +596,11 @@ class _RemoteProfilesScreenState extends ConsumerState<RemoteProfilesScreen>
                               _generation++;
                               _sftpCurrent = _action();
                               setState(() => _sftp = true);
+                            }),
+                            action('remote-tunnel-open', l.sshTunnelTitle, () {
+                              _generation++;
+                              _tunnelCurrent = _action();
+                              setState(() => _tunnel = true);
                             }),
                           ],
                           action(
