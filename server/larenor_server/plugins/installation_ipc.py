@@ -19,6 +19,14 @@ from .jellyfin_bootstrap_executor import (
 from .jellyfin_authenticated_readback import JellyfinAuthenticatedReadbackResult
 from .media_service_bootstrap_models import PrivateMediaServiceBootstrap
 from .preflight_ipc import PreflightIPCError, PreflightWorkerServer, read_packet, write_packet
+from .qbittorrent_config_effect import (
+    QbittorrentConfigEffectError, QbittorrentConfigInstallReceipt,
+)
+from .qbittorrent_config_models import (
+    PrivateQbittorrentConfiguration, QB_CONFIG_EXECUTION_CODES,
+    QbittorrentConfigurationExecutionError,
+)
+from .qbittorrent_config_runtime import QbittorrentConfigRuntimeError
 from .catalog import load_catalog
 from .stack_plan import MediaStackPlan, verify_media_stack_plan
 from .worker import DockerWorkerError, StepReceipt, WorkerStep, _safe_path
@@ -166,6 +174,95 @@ def _bootstrap_result(value):
         raise InstallationIPCError('invalid_worker_result') from None
 
 
+def _qbittorrent_error(error):
+    if isinstance(error, QbittorrentConfigurationExecutionError):
+        return error
+    if isinstance(error, QbittorrentConfigEffectError):
+        if error.code in {
+            'qbittorrent_config_effect_dispatch_denied',
+            'qbittorrent_config_effect_authority_changed',
+            'qbittorrent_config_effect_cancelled',
+        }:
+            code = 'qbittorrent_config_authority_changed'
+        elif error.code == 'qbittorrent_config_effect_result_failed':
+            code = 'qbittorrent_config_result_invalid'
+        else:
+            code = 'qbittorrent_config_write_failed'
+        return QbittorrentConfigurationExecutionError(
+            code, uncertain_effect=error.uncertain_effect)
+    if isinstance(error, QbittorrentConfigRuntimeError):
+        code = {
+            'qbittorrent_config_runtime_effect_failed': 'qbittorrent_config_write_failed',
+            'qbittorrent_config_runtime_result_invalid': 'qbittorrent_config_result_invalid',
+        }.get(error.code, 'qbittorrent_config_resources_unavailable')
+        return QbittorrentConfigurationExecutionError(
+            code, uncertain_effect=error.uncertain_effect)
+    return QbittorrentConfigurationExecutionError()
+
+
+def _wire_qbittorrent(value=None, error=None):
+    if error is not None:
+        failure = _qbittorrent_error(error)
+        return {
+            'state': 'failed', 'errorCode': failure.code,
+            'uncertainEffect': failure.uncertain_effect, 'receipt': None,
+        }
+    try:
+        if type(value) is not QbittorrentConfigInstallReceipt:
+            raise ValueError()
+        receipt = QbittorrentConfigInstallReceipt(**vars(value))
+        return {
+            'state': 'succeeded', 'errorCode': None,
+            'uncertainEffect': False,
+            'receipt': {
+                'resourceId': receipt.resource_id,
+                'operationId': receipt.operation_id,
+                'journalId': receipt.journal_id,
+                'revision': receipt.revision,
+                'volumeName': receipt.volume_name,
+                'configurationDigest': receipt.configuration_digest,
+                'state': receipt.state,
+            },
+        }
+    except (ValueError, TypeError, AttributeError, QbittorrentConfigEffectError):
+        failure = QbittorrentConfigurationExecutionError(
+            'qbittorrent_config_result_invalid', uncertain_effect=True)
+        return {
+            'state': 'failed', 'errorCode': failure.code,
+            'uncertainEffect': True, 'receipt': None,
+        }
+
+
+def _qbittorrent_result(value):
+    try:
+        if (type(value) is not dict or set(value) != {
+                'state', 'errorCode', 'uncertainEffect', 'receipt'}
+                or type(value['uncertainEffect']) is not bool):
+            raise ValueError()
+        if value['state'] == 'failed':
+            if (value['receipt'] is not None
+                    or value['errorCode'] not in QB_CONFIG_EXECUTION_CODES):
+                raise ValueError()
+            raise QbittorrentConfigurationExecutionError(
+                value['errorCode'], uncertain_effect=value['uncertainEffect'])
+        receipt = value['receipt']
+        if (value['state'] != 'succeeded' or value['errorCode'] is not None
+                or value['uncertainEffect'] is not False
+                or type(receipt) is not dict or set(receipt) != {
+                    'resourceId', 'operationId', 'journalId', 'revision',
+                    'volumeName', 'configurationDigest', 'state'}):
+            raise ValueError()
+        return QbittorrentConfigInstallReceipt(
+            receipt['resourceId'], receipt['operationId'], receipt['journalId'],
+            receipt['revision'], receipt['volumeName'],
+            receipt['configurationDigest'], receipt['state'])
+    except QbittorrentConfigurationExecutionError:
+        raise
+    except (ValueError, TypeError, AttributeError, QbittorrentConfigEffectError):
+        raise QbittorrentConfigurationExecutionError(
+            'qbittorrent_config_result_invalid', uncertain_effect=True) from None
+
+
 class InstallationWorkerClient:
     def __init__(self, path, *, owner_uid=0, peer_uid=None, timeout=5):
         from .preflight_ipc import _peer_uid
@@ -174,7 +271,8 @@ class InstallationWorkerClient:
         self.path = Path(path).absolute()
         self.owner_uid, self.peer_uid, self.timeout = owner_uid, peer_uid or _peer_uid, timeout
 
-    def _exchange(self, operation, step=None, plan=None, bootstrap=None):
+    def _exchange(self, operation, step=None, plan=None, bootstrap=None,
+                  qbittorrent=None):
         try:
             _safe_path(self.path, uid=self.owner_uid, kind=stat.S_ISSOCK)
             deadline = time.monotonic() + self.timeout
@@ -191,6 +289,11 @@ class InstallationWorkerClient:
                 request['jobId'] = job
                 request['plan'] = plan.model_dump(mode='json')
                 request['private'] = private.model_dump(mode='json')
+            elif qbittorrent is not None:
+                job, private = qbittorrent
+                request['jobId'] = job
+                request['plan'] = plan.model_dump(mode='json')
+                request['private'] = private.model_dump(mode='json', warnings=False)
             with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as connection:
                 connection.settimeout(self.timeout)
                 connection.connect(str(self.path))
@@ -213,7 +316,7 @@ class InstallationWorkerClient:
     def status(self):
         result = self._exchange('status')
         expected = {'capability': 'container_execution', 'installAvailable': False,
-                    'services': ['jellyfin']}
+                    'services': ['jellyfin', 'qbittorrent']}
         if result != expected:
             raise InstallationIPCError('invalid_worker_result')
         return result
@@ -254,6 +357,44 @@ class InstallationWorkerClient:
         except InstallationIPCError:
             raise JellyfinBootstrapExecutionError(
                 'bootstrap_resources_unavailable') from None
+
+    def configure_qbittorrent(self, job, plan, private, *, deadline, gate):
+        now = time.monotonic()
+        if (type(job) is not str or re.fullmatch(r'[0-9a-f]{32}', job) is None
+                or type(plan) is not MediaStackPlan
+                or type(private) is not PrivateQbittorrentConfiguration
+                or type(deadline) not in (int, float) or not math.isfinite(deadline)
+                or not now < deadline <= now + 120 or not callable(gate)):
+            raise QbittorrentConfigurationExecutionError(
+                'qbittorrent_config_resources_unavailable')
+        try:
+            plan = verify_media_stack_plan(plan, load_catalog())
+        except (ValueError, TypeError, AttributeError, OSError):
+            raise QbittorrentConfigurationExecutionError(
+                'qbittorrent_config_resources_unavailable') from None
+        try:
+            if gate() is not True:
+                raise ValueError()
+        except Exception:
+            raise QbittorrentConfigurationExecutionError(
+                'qbittorrent_config_authority_changed') from None
+        try:
+            result = _qbittorrent_result(self._exchange(
+                'configure_qbittorrent', plan=plan,
+                qbittorrent=(job, private)))
+        except QbittorrentConfigurationExecutionError:
+            raise
+        except InstallationIPCError:
+            raise QbittorrentConfigurationExecutionError(
+                'qbittorrent_config_resources_unavailable') from None
+        try:
+            if gate() is not True:
+                raise ValueError()
+        except Exception:
+            raise QbittorrentConfigurationExecutionError(
+                'qbittorrent_config_authority_changed',
+                uncertain_effect=True) from None
+        return result
 
 
 class InstallationWorkerServer(PreflightWorkerServer):
@@ -311,7 +452,50 @@ class InstallationWorkerServer(PreflightWorkerServer):
         operation = request.get('operation')
         if operation == 'status' and set(request) == {'protocol', 'requestId', 'operation'}:
             return {'capability': 'container_execution', 'installAvailable': False,
-                    'services': ['jellyfin']}
+                    'services': ['jellyfin', 'qbittorrent']}
+        if operation == 'configure_qbittorrent':
+            if (set(request) != {
+                    'protocol', 'requestId', 'operation', 'jobId', 'plan', 'private'}
+                    or type(request['jobId']) is not str
+                    or re.fullmatch(r'[0-9a-f]{32}', request['jobId']) is None
+                    or time.monotonic() >= deadline):
+                raise PreflightIPCError('invalid_request')
+            try:
+                raw_plan = json.dumps(
+                    request['plan'], sort_keys=True, separators=(',', ':'),
+                    allow_nan=False)
+                raw_private = json.dumps(
+                    request['private'], sort_keys=True, separators=(',', ':'),
+                    allow_nan=False)
+                plan = verify_media_stack_plan(
+                    MediaStackPlan.model_validate_json(raw_plan), self.catalog)
+                private = PrivateQbittorrentConfiguration.model_validate_json(
+                    raw_private)
+                cancelled = threading.Event()
+                timed = getattr(
+                    self.backend, 'configure_qbittorrent_with_deadline', None)
+                try:
+                    result = (timed(
+                        request['jobId'], plan, private.credential,
+                        api_key=private.apiKey,
+                        salt=bytes.fromhex(private.saltHex),
+                        cancelled=cancelled, deadline=deadline,
+                    ) if callable(timed) else self.backend.configure_qbittorrent(
+                        request['jobId'], plan, private.credential,
+                        api_key=private.apiKey,
+                        salt=bytes.fromhex(private.saltHex),
+                        cancelled=cancelled, deadline=deadline,
+                        gate=lambda: time.monotonic() < deadline,
+                    ))
+                except Exception as error:
+                    return _wire_qbittorrent(error=error)
+                if time.monotonic() >= deadline:
+                    return _wire_qbittorrent(error=
+                        QbittorrentConfigurationExecutionError(
+                            'qbittorrent_config_timeout', uncertain_effect=True))
+                return _wire_qbittorrent(value=result)
+            except (ValueError, TypeError, AttributeError, RecursionError):
+                raise PreflightIPCError('invalid_request') from None
         if operation == 'bootstrap':
             if (set(request) != {
                     'protocol', 'requestId', 'operation', 'jobId', 'plan', 'private'}
