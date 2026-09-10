@@ -375,6 +375,15 @@ security policy, queue ve Gitleaks yeşil. Native dizin hazırlığı, qBittorre
 download-client kaydı ve iki mimarili kabul açık olduğundan sayaç değişmedi.
 [Uygulama ve açık sınırlar](arr-root-folder-wiring-implementation-2026-09-10.md).
 
+`6cc334d` native kabul dilimi, Sonarr ve Radarr'ı gerçek AMD64/ARM64
+runner'larında ayrı dört iş olarak config/create/start/authenticated readback,
+restart ve ikinci readback zincirinden geçirecek kapalı CI makbuzunu ekledi.
+Ephemeral daemon/cgroup/namespace sahipliği, exact source hash'leri ve secret-free
+makbuz sözleşmesi **25 odaklı / 239 ilgili PASS** ile yerelde doğrulandı; Ruff,
+compileall, security policy, queue ve Gitleaks PASS. Gerçek dört native makbuz
+henüz gözlenmediğinden `installAvailable=false` ve sayaç değişmedi.
+[Uygulama ve açık sınırlar](arr-native-characterization-implementation-2026-09-10.md).
+
 S06.4 native kabul koşusu [34326112926](https://github.com/ersingundem/larenor/actions/runs/34326112926)
 iki gerçek GitHub runner'ında geçti. İndirilen ARM64 ve X64 makbuzları merge
 commit'i `b6e7034` için repo verifier ile tekrar doğrulandı; bu commit'in ikinci
