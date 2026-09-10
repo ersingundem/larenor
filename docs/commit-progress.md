@@ -44,4 +44,6 @@ Pull requests also run `tool/check_commit_progress.py` against every commit in
 the proposed range. The gate requires one correctly calculated queue trailer
 and one feature trailer per commit, rejects decreasing counters, and requires
 the pull request head to match the validated queue. Direct commits and commits
-from parallel branches therefore follow the same visible rule.
+from parallel branches therefore follow the same visible rule. Its GitHub
+Actions summary also lists every short commit ID with both percentages, so the
+progress attached to each commit is visible without opening commit messages.

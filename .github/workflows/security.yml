@@ -51,6 +51,7 @@ jobs:
           python3 tool/check_commit_progress.py
           --base "$PROGRESS_BASE"
           --head "$PROGRESS_HEAD"
+          --summary "$GITHUB_STEP_SUMMARY"
       - run: python3 tool/check_security_policy.py
 
   dependency-scan:

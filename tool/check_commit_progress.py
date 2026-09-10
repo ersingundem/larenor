@@ -27,6 +27,12 @@ class ProgressValues:
     feature: tuple
 
 
+@dataclass(frozen=True)
+class ProgressEntry:
+    commit: str
+    values: ProgressValues
+
+
 def _parse_value(match):
     done, total = int(match.group(2)), int(match.group(3))
     if total <= 0 or done < 0 or done > total:
@@ -64,7 +70,7 @@ def validate_sequence(history, expected):
         raise ProgressCheckError('head_progress_mismatch')
 
 
-def read_progress(repo, base, head):
+def read_progress_entries(repo, base, head):
     ancestor = subprocess.run(
         ['git', 'merge-base', '--is-ancestor', base, head], cwd=repo,
         check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
@@ -78,8 +84,31 @@ def read_progress(repo, base, head):
         message = subprocess.run(
             ['git', 'show', '-s', '--format=%B', commit], cwd=repo,
             check=True, text=True, capture_output=True).stdout
-        history.append(parse_message(message))
+        history.append(ProgressEntry(commit, parse_message(message)))
     return history
+
+
+def read_progress(repo, base, head):
+    return [entry.values for entry in read_progress_entries(repo, base, head)]
+
+
+def _display(value):
+    done, total = value
+    return f'{done}/{total} ({done * 100.0 / total:.1f}%)'
+
+
+def format_report(entries):
+    rows = [
+        '### Commit ilerlemesi',
+        '',
+        '| Commit | Kuyruk | Yeni özellikler |',
+        '| --- | ---: | ---: |',
+    ]
+    for entry in entries:
+        rows.append(
+            f'| `{entry.commit[:7]}` | {_display(entry.values.queue)} | '
+            f'{_display(entry.values.feature)} |')
+    return '\n'.join(rows) + '\n'
 
 
 def expected_progress(queue_path):
@@ -98,11 +127,19 @@ def main(argv=None, stdout=None, stderr=None):
     parser.add_argument('--repo', type=Path, default=Path.cwd())
     parser.add_argument('--queue', type=Path,
                         default=execution_queue.DEFAULT_FILE)
+    parser.add_argument('--summary', type=Path,
+                        help='append the per-commit table to a CI summary file')
     try:
         args = parser.parse_args(argv)
-        history = read_progress(args.repo, args.base, args.head)
+        entries = read_progress_entries(args.repo, args.base, args.head)
+        history = [entry.values for entry in entries]
         validate_sequence(history, expected_progress(args.queue))
         stdout.write(f'Commit ilerleme kapısı: {len(history)} commit doğrulandı.\n')
+        report = format_report(entries)
+        stdout.write(report)
+        if args.summary is not None:
+            with args.summary.open('a', encoding='utf-8') as summary:
+                summary.write(report)
         return 0
     except (ProgressCheckError, execution_queue.QueueError,
             subprocess.SubprocessError, OSError) as error:
