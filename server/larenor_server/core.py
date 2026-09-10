@@ -40,6 +40,7 @@ from .plugins.music_playback import MusicPlaybackManagement
 from .plugins.music_retained_status import MusicRetainedStatusManagement
 from .plugins.music_target_authority import MusicTargetAuthorityManagement
 from .plugins.music_target_authority_schema import migrate_music_target_authority
+from .plugins.music_target_ipc import MusicTargetWorkerClient
 from .plugins.preflight_ipc import PreflightWorkerClient
 from .plugins.installation_ipc import InstallationWorkerClient
 from .component_egress.storage import migrate as migrate_component_egress
@@ -269,8 +270,14 @@ class CoreServices:
                 self.db, self.auth, settings, key, self.music_assistant_core,
                 self.music_provider_setups, installation_backend)
             self.music_playback.validate_storage()
+            music_target_backend = (
+                None if settings.music_playback_worker_socket is None
+                else MusicTargetWorkerClient(
+                    settings.music_playback_worker_socket,
+                    owner_uid=settings.music_playback_worker_uid))
             self.music_target_authority = MusicTargetAuthorityManagement(
-                self.db, settings, key, self.music_playback)
+                self.db, settings, key, self.music_playback,
+                music_target_backend)
             self.music_target_authority.validate_storage()
             self.clear_inactive_bootstrap()
 

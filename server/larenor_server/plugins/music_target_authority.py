@@ -4,6 +4,7 @@ import hashlib
 import hmac
 import json
 import secrets
+import time
 import uuid
 
 from cryptography.exceptions import InvalidTag
@@ -20,6 +21,9 @@ from .music_target_authority_models import (
     MusicTargetInventory, MusicTargetProviderRevision,
     ReadMusicTargetInventoryRequest,
 )
+from .music_target_effect_models import (
+    MusicTargetEffectEnvelope, MusicTargetEffectResult,
+)
 
 
 MAX_PREVIEWS = 256
@@ -33,8 +37,10 @@ _CAPABILITY = {
 
 
 class MusicTargetAuthorityManagement:
-    def __init__(self, db, settings, key, playback):
+    def __init__(self, db, settings, key, playback, effect_backend=None):
         self.db, self.settings, self.playback = db, settings, playback
+        self.effect_backend = effect_backend
+        self.effect_available = effect_backend is not None
         self._cipher = AESGCM(key)
         self._journal_key = hmac.digest(
             key, b'larenor:music-target-journal:v2', 'sha256')
@@ -89,6 +95,30 @@ class MusicTargetAuthorityManagement:
                 or not hmac.compare_digest(
                     row['event_hash'], self._effect_hash(row))):
             raise ApiError('music_playback_storage_unavailable', 503)
+
+    def _save_effect(self, connection, row, state, result_hash):
+        changed = dict(row)
+        changed.update(
+            state=state,
+            updated_at=max(row['updated_at'], int(self.settings.clock())),
+            result_hash=result_hash)
+        changed['event_hash'] = self._effect_hash(changed)
+        connection.execute('''UPDATE music_target_effect_attempts SET
+            state=?,updated_at=?,result_hash=?,event_hash=? WHERE command_id=?''',
+            (changed['state'], changed['updated_at'], changed['result_hash'],
+             changed['event_hash'], changed['command_id']))
+        return changed
+
+    @staticmethod
+    def _effect_receipt(row):
+        state = 'succeeded' if row['state'] == 'succeeded' else 'unknown'
+        return {
+            'commandId': row['command_id'],
+            'requestId': row['dispatch_request_id'], 'state': state,
+            'code': ('authenticated_readback' if state == 'succeeded'
+                     else 'effect_unknown'), 'effectAvailable': True,
+            'installAvailable': False,
+        }
 
     @staticmethod
     def _target(player):
@@ -305,7 +335,7 @@ class MusicTargetAuthorityManagement:
             'previewId': row['preview_id'], 'targetId': row['target_id'],
             'target': target, 'operation': row['operation'], 'state': state,
             'errorCode': error, 'result': result,
-            'effectAvailable': False, 'installAvailable': False,
+            'effectAvailable': effect is not None, 'installAvailable': False,
             'createdAt': utc(row['created_at']),
         }).model_dump()
 
@@ -510,6 +540,153 @@ class MusicTargetAuthorityManagement:
                               'headHash': digest.hexdigest(),
                               'installAvailable': False}})
             return response.model_dump()
+
+    def execute_confirmed(self, actor, command_id, expected_revision,
+                          request_id, *, gate):
+        """Dispatch one confirmed command through the private worker seam."""
+        if self.effect_backend is None or self.effect_available is not True:
+            raise ApiError('music_target_effect_unavailable', 409)
+        self.playback._identity(command_id)
+        self.playback._identity(request_id)
+        if (type(expected_revision) is not int or expected_revision != 1
+                or not callable(gate)):
+            raise ApiError('invalid_request')
+        with self.db.transaction() as connection:
+            actor_revision = self.playback.providers._assert_admin(
+                connection, actor)
+            command = connection.execute(
+                'SELECT * FROM music_target_commands WHERE id=?',
+                (command_id,)).fetchone()
+            if command is None:
+                raise ApiError('not_found', 404)
+            preview = self._verify_command(connection, command)
+            request = self._decode(preview)
+            if connection.execute(
+                    'SELECT 1 FROM music_target_command_cancellations '
+                    'WHERE command_id=?', (command_id,)).fetchone() is not None:
+                raise ApiError('revision_conflict', 409)
+            _, stored = self._state(connection, request)
+            providers = self._providers(connection, request)
+            provider_digest = self._provider_digest(providers)
+            if preview['provider_digest'] != provider_digest:
+                raise ApiError('revision_conflict', 409)
+            target = self._exact_target(stored, request)
+            previous = connection.execute(
+                'SELECT * FROM music_target_effect_attempts WHERE command_id=?',
+                (command_id,)).fetchone()
+            if previous is not None:
+                self._verify_effect(previous)
+                if (previous['dispatch_request_id'] != request_id
+                        or previous['actor_id'] != actor.id
+                        or previous['actor_revision'] != actor_revision
+                        or previous['family_id'] != actor.family_id):
+                    raise ApiError('music_playback_command_conflict', 409)
+                if previous['state'] == 'pending':
+                    previous = self._save_effect(
+                        connection, previous, 'unknown', '0' * 64)
+                return self._effect_receipt(previous)
+            try:
+                permitted = gate()
+            except Exception:
+                permitted = False
+            if permitted is not True:
+                raise ApiError('revision_conflict', 409)
+            now = int(self.settings.clock())
+            row = {
+                'command_id': command_id, 'execution_id': uuid.uuid4().hex,
+                'dispatch_request_id': request_id, 'actor_id': actor.id,
+                'actor_revision': actor_revision, 'family_id': actor.family_id,
+                'installation_id': request.installationId,
+                'installation_revision': request.expectedInstallationRevision,
+                'core_revision': request.expectedCoreRevision,
+                'player_revision': request.expectedPlayerRevision,
+                'provider_digest': provider_digest, 'state': 'pending',
+                'created_at': now, 'updated_at': now,
+                'result_hash': '0' * 64,
+            }
+            row['event_hash'] = self._effect_hash(row)
+            connection.execute('''INSERT INTO music_target_effect_attempts(
+                command_id,execution_id,dispatch_request_id,actor_id,
+                actor_revision,family_id,installation_id,
+                installation_revision,core_revision,player_revision,
+                provider_digest,state,created_at,updated_at,result_hash,event_hash)
+                VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)''', tuple(row.values()))
+            envelope = MusicTargetEffectEnvelope(
+                executionId=row['execution_id'], commandId=command_id,
+                requestId=request_id, previewId=preview['id'],
+                installationId=request.installationId,
+                installationRevision=request.expectedInstallationRevision,
+                coreRevision=request.expectedCoreRevision,
+                playerRevision=request.expectedPlayerRevision,
+                providerRevisions=providers, target=target,
+                operation=request.operation, volumeLevel=request.volumeLevel,
+                muted=request.muted, mediaUris=request.mediaUris)
+        deadline = time.monotonic() + 5
+
+        def current():
+            if time.monotonic() >= deadline:
+                return False
+            try:
+                if gate() is not True:
+                    return False
+                with self.db.connection() as connection:
+                    self.playback.providers._assert_admin(connection, actor)
+                    _, saved = self._state(connection, request)
+                    self._exact_target(saved, request)
+                    if self._provider_digest(
+                            self._providers(connection, request)
+                            ) != provider_digest:
+                        return False
+                    attempt = connection.execute(
+                        'SELECT * FROM music_target_effect_attempts '
+                        'WHERE command_id=?', (command_id,)).fetchone()
+                    self._verify_effect(attempt)
+                    return (attempt['state'] == 'pending'
+                            and attempt['dispatch_request_id'] == request_id)
+            except Exception:
+                return False
+
+        try:
+            result = self.effect_backend.execute_music_target_effect(
+                envelope, deadline=deadline, gate=current)
+            if (type(result) is not MusicTargetEffectResult
+                    or result.executionId != envelope.executionId
+                    or result.commandId != command_id
+                    or result.requestId != request_id
+                    or result.target.id != target.id
+                    or result.target.provider != target.provider
+                    or result.target.transport != target.transport
+                    or result.target.kind != target.kind
+                    or result.target.groupMemberIds != target.groupMemberIds
+                    or result.target.queueId != target.queueId
+                    or current() is not True):
+                raise ValueError()
+            result_hash = hashlib.sha256(
+                result.model_dump_json().encode()).hexdigest()
+        except Exception:
+            with self.db.transaction() as connection:
+                attempt = connection.execute(
+                    'SELECT * FROM music_target_effect_attempts '
+                    'WHERE command_id=?', (command_id,)).fetchone()
+                if attempt is not None:
+                    self._verify_effect(attempt)
+                    if attempt['state'] == 'pending':
+                        self._save_effect(
+                            connection, attempt, 'unknown', '0' * 64)
+            raise ApiError('music_playback_worker_unavailable', 503) from None
+        with self.db.transaction() as connection:
+            attempt = connection.execute(
+                'SELECT * FROM music_target_effect_attempts WHERE command_id=?',
+                (command_id,)).fetchone()
+            self._verify_effect(attempt)
+            if attempt['state'] != 'pending' or current() is not True:
+                if attempt['state'] == 'pending':
+                    self._save_effect(
+                        connection, attempt, 'unknown', '0' * 64)
+                raise ApiError('revision_conflict', 409)
+            final = self._save_effect(
+                connection, attempt, 'succeeded', result_hash)
+            return self._effect_receipt(final)
 
     def validate_storage(self):
         try:

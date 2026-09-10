@@ -2,6 +2,7 @@
 
 import json
 import os
+from dataclasses import replace
 from pathlib import Path
 import socket
 import stat
@@ -12,7 +13,7 @@ import time
 
 import pytest
 
-from conftest import auth
+from larenor_server.app import create_app
 from larenor_server.errors import ApiError
 from larenor_server.plugins.music_target_effect_models import (
     MusicTargetEffectEnvelope, MusicTargetEffectResult,
@@ -163,6 +164,37 @@ def test_partial_and_oversize_frames_are_bounded_and_server_recovers():
         directory.cleanup()
 
 
+def test_oversize_worker_response_is_rejected_without_parsing():
+    directory, path = socket_path()
+    listener = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    listener.bind(str(path))
+    os.chmod(path, 0o600)
+    listener.listen(1)
+
+    def answer():
+        with listener:
+            connection, _ = listener.accept()
+            with connection:
+                read_packet(connection, time.monotonic() + .3)
+                connection.sendall(struct.pack("!I", MAX_PACKET + 1))
+
+    thread = threading.Thread(target=answer, daemon=True)
+    thread.start()
+    try:
+        client = MusicTargetWorkerClient(
+            path, owner_uid=os.getuid(),
+            peer_uid=lambda _connection: os.getuid(), timeout=.3)
+        with pytest.raises(MusicTargetIPCError):
+            client.execute_music_target_effect(
+                action(), deadline=time.monotonic() + .25,
+                gate=lambda: True)
+        thread.join(.4)
+        assert not thread.is_alive()
+    finally:
+        listener.close()
+        directory.cleanup()
+
+
 def _lost_response_server(path, captured):
     listener = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
     listener.bind(str(path))
@@ -181,19 +213,64 @@ def _lost_response_server(path, captured):
     return thread
 
 
+def test_core_dispatches_exact_effect_once_and_persists_verified_result(server):
+    _app, _client, settings, _clock = server
+    pair, setup, readiness, worker, playback, _confirmation, command = confirmed(
+        server, "4")
+    directory, path = socket_path()
+    backend = Backend()
+    ipc = MusicTargetWorkerServer(
+        path, backend, allowed_uid=os.getuid(),
+        peer_uid=lambda _connection: os.getuid(), timeout=.5)
+    ipc.start()
+    try:
+        configured_app = create_app(replace(
+            settings, music_playback_worker_socket=path,
+            music_playback_worker_uid=os.getuid()))
+        manager = configured_app.state.core.music_target_authority
+        manager.effect_backend.peer_uid = lambda _connection: os.getuid()
+        actor = configured_app.state.core.auth.authenticate(pair["accessToken"])
+        first = manager.execute_confirmed(
+            actor, command["id"], 1, "f" * 32, gate=lambda: True)
+        second = manager.execute_confirmed(
+            actor, command["id"], 1, "f" * 32, gate=lambda: True)
+        assert first == second
+        assert first["state"] == "succeeded"
+        assert first["code"] == "authenticated_readback"
+        assert len(backend.calls) == 1
+        sent = backend.calls[0]
+        assert sent.installationId == setup["installationId"]
+        assert sent.installationRevision == setup["installationRevision"]
+        assert sent.coreRevision == readiness["revision"]
+        assert sent.playerRevision == playback["revision"]
+        assert sent.target.queueId == "homepod-living"
+        assert sent.providerRevisions[0].providerDomain == "spotify"
+        assert manager.get_command(actor, command["id"])["command"][
+            "state"] == "succeeded"
+        with pytest.raises(ApiError):
+            manager.execute_confirmed(
+                actor, command["id"], 1, "e" * 32, gate=lambda: True)
+        assert worker.calls == []
+    finally:
+        ipc.close()
+        directory.cleanup()
+
+
 def test_core_lost_response_is_unknown_and_same_request_never_replays(server):
-    app, _client, _settings, _clock = server
+    _app, _client, settings, _clock = server
     pair, _setup, _readiness, worker, _playback, _confirmation, command = confirmed(
         server, "a")
-    actor = app.state.core.auth.authenticate(pair["accessToken"])
     directory, path = socket_path()
     captured = []
     thread = _lost_response_server(path, captured)
-    manager = app.state.core.music_target_authority
-    manager.effect_backend = MusicTargetWorkerClient(
-        path, owner_uid=os.getuid(),
-        peer_uid=lambda _connection: os.getuid(), timeout=.4)
-    manager.effect_available = True
+    configured = replace(
+        settings, music_playback_worker_socket=path,
+        music_playback_worker_uid=os.getuid())
+    configured_app = create_app(configured)
+    manager = configured_app.state.core.music_target_authority
+    manager.effect_backend.peer_uid = lambda _connection: os.getuid()
+    manager.effect_backend.timeout = .4
+    actor = configured_app.state.core.auth.authenticate(pair["accessToken"])
     try:
         with pytest.raises(ApiError) as lost:
             manager.execute_confirmed(

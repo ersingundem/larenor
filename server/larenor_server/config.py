@@ -22,17 +22,24 @@ class Settings:
     plugin_worker_uid: int = 0
     installation_worker_socket: Path | None = None
     installation_worker_uid: int = 0
+    music_playback_worker_socket: Path | None = None
+    music_playback_worker_uid: int = 0
 
     def __post_init__(self):
         if (type(self.plugin_worker_uid) is not int or not 0 <= self.plugin_worker_uid < 2**31
                 or type(self.installation_worker_uid) is not int
-                or not 0 <= self.installation_worker_uid < 2**31):
+                or not 0 <= self.installation_worker_uid < 2**31
+                or type(self.music_playback_worker_uid) is not int
+                or not 0 <= self.music_playback_worker_uid < 2**31):
             raise ValueError("invalid_worker_configuration")
-        for path in (self.plugin_worker_socket, self.installation_worker_socket):
+        paths = (self.plugin_worker_socket, self.installation_worker_socket,
+                 self.music_playback_worker_socket)
+        for path in paths:
             if path is not None and (not isinstance(path, Path) or not path.is_absolute()
                     or ".." in path.parts or any(ord(char) < 32 or ord(char) == 127 for char in str(path))):
                 raise ValueError("invalid_worker_configuration")
-        if self.plugin_worker_socket is not None and self.plugin_worker_socket == self.installation_worker_socket:
+        configured = [path for path in paths if path is not None]
+        if len(set(configured)) != len(configured):
             raise ValueError("invalid_worker_configuration")
 
     @property
@@ -54,6 +61,12 @@ class Settings:
                 installation_worker_socket=Path(os.environ["LARENOR_INSTALLATION_WORKER_SOCKET"]
                                                 ) if os.environ.get("LARENOR_INSTALLATION_WORKER_SOCKET") else None,
                 installation_worker_uid=int(os.environ.get("LARENOR_INSTALLATION_WORKER_UID", "0")),
+                music_playback_worker_socket=Path(
+                    os.environ["LARENOR_MUSIC_PLAYBACK_WORKER_SOCKET"]
+                ) if os.environ.get(
+                    "LARENOR_MUSIC_PLAYBACK_WORKER_SOCKET") else None,
+                music_playback_worker_uid=int(os.environ.get(
+                    "LARENOR_MUSIC_PLAYBACK_WORKER_UID", "0")),
             )
         except ValueError:
             # int() errors include their input. Environment values must never

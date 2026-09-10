@@ -147,21 +147,21 @@ class MusicTargetCommand(StrictModel):
     state: Literal['blocked', 'cancelled', 'unknown', 'succeeded']
     errorCode: Literal['effect_unavailable', 'effect_unknown'] | None
     result: 'MusicTargetEffectStatus | None'
-    effectAvailable: Literal[False]
+    effectAvailable: bool
     installAvailable: Literal[False]
     createdAt: str
 
     @model_validator(mode='after')
     def coherent_result(self):
         expected = {
-            'blocked': (1, 'effect_unavailable', None),
-            'cancelled': (2, 'effect_unavailable', None),
-            'unknown': (2, 'effect_unknown', 'unknown'),
-            'succeeded': (2, None, 'succeeded'),
+            'blocked': (1, 'effect_unavailable', None, False),
+            'cancelled': (2, 'effect_unavailable', None, False),
+            'unknown': (2, 'effect_unknown', 'unknown', True),
+            'succeeded': (2, None, 'succeeded', True),
         }[self.state]
         if (self.revision != expected[0] or self.errorCode != expected[1]
                 or (None if self.result is None else self.result.state)
-                != expected[2]):
+                != expected[2] or self.effectAvailable != expected[3]):
             raise ValueError('invalid_music_target_command')
         return self
 

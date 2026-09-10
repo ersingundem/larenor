@@ -103,6 +103,7 @@ MESSAGES = {
     "music_player_capability_unavailable": "The Music Assistant player does not advertise this capability.",
     "music_playback_command_conflict": "This request conflicts with a saved playback command.",
     "music_playback_command_limit_reached": "The playback command journal is full.",
+    "music_target_effect_unavailable": "The private Music Assistant playback worker is unavailable.",
 }
 
 
