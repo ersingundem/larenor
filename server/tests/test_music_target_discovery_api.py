@@ -44,4 +44,8 @@ def test_member_discovery_rejects_stale_revision_and_mutation_stays_admin_only(s
         '/api/v1/admin/media/music-assistant/target-authority/previews',
         headers=auth(member), json={})
     assert mutation.status_code == 403
+    direct_mutation = client.post(
+        '/api/v1/admin/media/music-assistant/playback/commands',
+        headers=auth(member), json={})
+    assert direct_mutation.status_code == 403
     assert worker.calls == []

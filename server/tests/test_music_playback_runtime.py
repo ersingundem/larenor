@@ -87,7 +87,7 @@ def request(operation='queue_add', **changes):
 def test_authenticated_discovery_derives_homepod_and_exact_airplay_group():
     calls = []
     responses = [
-        [{'queue_id': 'homepod-living'}, {'queue_id': 'whole-home'}],
+        [raw_queue(), raw_queue('whole-home')],
         [raw_player(), raw_player('homepod-kitchen'),
          raw_player('whole-home', group=['homepod-living', 'homepod-kitchen'])],
     ]
@@ -116,7 +116,8 @@ def test_authenticated_discovery_projects_bounded_provider_queue_and_now_playing
     assert player.providerDomain == 'airplay'
     assert player.providerInstanceId == 'airplay--main'
     assert player.queue.model_dump() == {
-        'id': 'homepod-living', 'itemCount': 4, 'currentIndex': 1,
+        'id': 'homepod-living', 'active': True, 'available': True,
+        'itemCount': 4, 'currentIndex': 1,
         'shuffleEnabled': False, 'repeatMode': 'off', 'state': 'paused',
         'nowPlaying': {
             'itemId': 'queue-item-2', 'title': 'Synthetic Song',
@@ -128,17 +129,53 @@ def test_authenticated_discovery_projects_bounded_provider_queue_and_now_playing
     assert 'http://' not in encoded and 'https://' not in encoded
 
 
+@pytest.mark.parametrize(('protocol', 'kind'), [
+    ('airplay', 'homepod'), ('chromecast', 'chromecast'),
+])
+def test_universal_player_uses_exact_active_output_protocol(protocol, kind):
+    calls = []
+    player = raw_player() | {
+        'provider': 'universal_player--living',
+        'active_output_protocol': protocol + '-living',
+        'output_protocols': [{
+            'output_protocol_id': protocol + '-living',
+            'name': protocol.title(), 'protocol_domain': protocol,
+            'available': True,
+        }],
+    }
+    responses = [[raw_queue()], [player]]
+    result = MusicPlaybackRuntime(
+        lambda _timeout: Connection(responses, calls)).read(
+            PrivateMusicPlaybackAuthority(
+                installationId='b' * 32, token='private-token'),
+            deadline=time.monotonic() + 2)
+    assert result.players[0].targetKind == kind
+    assert result.players[0].providerDomain == 'universal_player'
+    assert result.players[0].providerInstanceId == 'universal_player--living'
+
+
 def test_authenticated_discovery_rejects_changed_queue_shape_and_provider_identity():
-    for queue, provider in (
-        ({'queue_id': 'homepod-living'}, 'airplay--main'),
-        (raw_queue(), 'airplay--main--unexpected'),
-        (raw_queue() | {'elapsed_time': float('nan')}, 'airplay--main'),
+    duplicate_protocols = [
+        {'output_protocol_id': 'duplicate', 'protocol_domain': 'airplay',
+         'available': True},
+        {'output_protocol_id': 'duplicate', 'protocol_domain': 'chromecast',
+         'available': True},
+    ]
+    for queue, player_change, error in (
+        ({'queue_id': 'homepod-living'}, {},
+         'music_player_readback_changed'),
+        (raw_queue(), {'provider': 'airplay--main--unexpected'},
+         'music_player_readback_changed'),
+        (raw_queue() | {'elapsed_time': float('nan')}, {},
+         'music_playback_upstream_unavailable'),
+        (raw_queue(), {'output_protocols': duplicate_protocols},
+         'music_player_readback_changed'),
     ):
-        current = raw_player() | {'provider': provider}
+        current = raw_player() | player_change
         responses = [[queue], [current]]
         runtime = MusicPlaybackRuntime(
             lambda _timeout: Connection(responses, []))
-        with pytest.raises(Exception, match='music_player_readback_changed'):
+        with pytest.raises(Exception, match=error):
             runtime.read(PrivateMusicPlaybackAuthority(
                 installationId='b' * 32, token='private-token'),
                 deadline=time.monotonic() + 2)
@@ -146,7 +183,7 @@ def test_authenticated_discovery_rejects_changed_queue_shape_and_provider_identi
 
 def test_queue_add_is_one_explicit_effect_with_pre_and_post_readback():
     calls = []
-    responses = [raw_player(), [{'queue_id': 'homepod-living'}], None,
+    responses = [raw_player(), [raw_queue()], None,
                  raw_player()]
     runtime = MusicPlaybackRuntime(lambda _timeout: Connection(responses, calls))
     action = PrivateMusicPlaybackAction(
@@ -167,7 +204,7 @@ class Backend:
     def __init__(self):
         self.target = MusicPlaybackRuntime(
             lambda _timeout: Connection([], []))._player(
-                raw_player(), {'homepod-living'})
+                raw_player(), MusicPlaybackRuntime._queue_snapshots([raw_queue()]))
 
     def read_music_players(self, _authority, *, deadline, gate):
         assert gate() is True

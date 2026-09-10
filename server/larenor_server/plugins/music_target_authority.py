@@ -134,11 +134,14 @@ class MusicTargetAuthorityManagement:
             raise ApiError('music_player_capability_unavailable', 409)
         return MusicTarget(
             id=player.playerId, name=player.name, provider=player.provider,
+            providerDomain=player.providerDomain,
+            providerInstanceId=player.providerInstanceId,
             transport=transport, kind=kind,
             homePod=player.targetKind == 'homepod', available=player.available,
             enabled=player.enabled, playbackState=player.playbackState,
             volumeLevel=player.volumeLevel, muted=player.muted,
             groupMemberIds=player.groupMembers, queueId=player.queueId,
+            queue=player.queue,
             capabilities=player.capabilities)
 
     def _state(self, connection, body):
@@ -195,6 +198,33 @@ class MusicTargetAuthorityManagement:
                 coreRevision=row['core_revision'], playerRevision=row['revision'],
                 providerRevisions=providers,
                 targets=[self._target(player) for player in stored.players],
+                installAvailable=False, updatedAt=utc(row['updated_at']))
+            return {'inventory': inventory.model_dump()}
+
+    def discovery(self, actor, body):
+        if type(body) is not ReadMusicTargetInventoryRequest:
+            raise ApiError('invalid_request')
+        with self.db.connection() as connection:
+            connection.execute('BEGIN')
+            self.playback._assert_user(connection, actor)
+            row, stored = self._state(connection, body)
+            providers = self._providers(connection, body)
+            if any(player.queueId is not None and player.queue is None
+                   for player in stored.players):
+                raise ApiError('music_player_readback_required', 409)
+            targets = []
+            for player in stored.players:
+                try:
+                    targets.append(self._target(player))
+                except ApiError as error:
+                    if error.code != 'music_player_capability_unavailable':
+                        raise
+            inventory = MusicTargetInventory(
+                installationId=row['installation_id'],
+                installationRevision=row['installation_revision'],
+                coreRevision=row['core_revision'], playerRevision=row['revision'],
+                providerRevisions=providers,
+                targets=targets,
                 installAvailable=False, updatedAt=utc(row['updated_at']))
             return {'inventory': inventory.model_dump()}
 
