@@ -325,13 +325,13 @@ Kalıcı Core işi, container zinciri ve native API kabulü açık olduğundan s
 değişmedi.
 [Uygulama ve açık sınırlar](arr-configuration-ipc-implementation-2026-09-10.md).
 
-`935f706` kalıcı iş dilimi, Sonarr ve Radarr yapılandırmalarını servis başına
+`a7b0039` kalıcı iş dilimi, Sonarr ve Radarr yapılandırmalarını servis başına
 tekil, yöneticiye bağlı ve AES-GCM şifreli no-retry işlere dönüştürdü. API
 anahtarı yalnız Server tarafından üretiliyor; public modeller, hata ve repr
 yüzeyleri sırrı taşımıyor. Yaşam döngüsü dispatcher'ı UID-korumalı worker IPC
 üzerinden exact servis makbuzunu kaydediyor; kesinti ve belirsiz etkiler otomatik
 tekrarlanmıyor. **5 yeni uçtan uca sözleşme testi** dahil ilgili Arr paketlerinde
-**107 PASS**. Security policy, queue, compileall, diff ve Gitleaks PASS. Container
+**253 PASS / 1 mevcut macOS skip**. Security policy, queue, compileall, diff ve Gitleaks PASS. Container
 create/start ve gerçek native API readback açık olduğundan sayaç değişmedi.
 [Uygulama ve açık sınırlar](arr-configuration-jobs-implementation-2026-09-10.md).
 
