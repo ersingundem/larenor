@@ -63,7 +63,22 @@ sütun kullanır. Etkileşimler en az 48 dp, klavyeyle erişilebilir ve TalkBack
 etiketlidir; 2× sistem yazı ölçeğinde yatay metrik satırları esnek kalır. Tasarım,
 dinamik sistem renkleri ve mevcut Larenor Cupertino yüzeylerini kullanır.
 
-Mevcut dashboard Keenetic kartları Direct profile bağlıdır. Bu pilot, kaynak
-kimliği/revizyonu için henüz ayrı bir Core kart sözleşmesi olmadan onları sessizce
-merkezi kaynağa çevirmedi. Core dashboard kartı, kalıcı layout CAS ve kaynak ACL
-yeniden doğrulamasını birlikte ekleyecek sonraki bounded dilimde kalır.
+## Core dashboard kartı
+
+Widget seçicide Direct Keenetic ve Core Keenetic ayrı seçeneklerdir. Core kartı
+Core/home/resource, resource revision, ACL revision, binding id ve binding
+revision tuple'ını scope'a bağlı dashboard layoutunda saklar. Yerleştirme öncesi
+public snapshot ile güncel binding doğrulanır; layout yazımı beklerken account,
+home veya interaction değişirse kart kaydedilmez. Ekranlar arasında yer ve seçim
+korunur, fakat eski revision yeni kaynağa veya binding'e sessizce taşınmaz.
+
+Kart her görünür olduğunda resource ve snapshot readback'ini Core üzerinden
+yeniden doğrular. Internet durumu, public IP, uptime, download/upload, CPU/RAM ve
+online cihaz özeti tipli snapshot'tan gelir. Unknown, permission denied, upstream
+denied, unsupported, offline ve TTL sonrası stale ayrı gösterilir. Uygulama arka
+plana giderse veya Core/account/home/ACL kimliği değişirse geç sonuç yayınlanmaz;
+otomatik retry ve Direct credential/cache fallback yoktur.
+
+Direct Keenetic kart tipi ve yerel credential yolu ayrı ve değişmeden kalır.
+Gerçek Keenetic transport, firmware matrisi ve fiziksel tablet-router kabulü hâlâ
+sonraki S08.9 dilimleridir.

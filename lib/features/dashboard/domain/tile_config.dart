@@ -26,6 +26,7 @@ enum TileType {
   qbittorrent,
   proxmox,
   keenetic,
+  coreKeenetic,
 }
 
 @freezed
@@ -45,6 +46,13 @@ abstract class TileConfig with _$TileConfig {
     String? title,
     KeeneticMetricKind? keeneticMetric,
     String? keeneticInterfaceId,
+    String? coreId,
+    String? coreHomeId,
+    String? coreResourceId,
+    int? coreResourceRevision,
+    int? coreResourceAclRevision,
+    String? coreBindingId,
+    int? coreBindingRevision,
     WebPanelOptions? webPanel,
   }) = _TileConfig;
 

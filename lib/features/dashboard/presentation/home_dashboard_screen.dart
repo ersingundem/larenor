@@ -2,6 +2,8 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/home_session_controller.dart';
+import '../../../core/home_source_store.dart';
 import '../../../l10n/generated/app_localizations.dart';
 import '../../../shared/theme/icon_sizes.dart';
 import '../../../shared/theme/radii.dart';
@@ -810,6 +812,41 @@ class _HomeDashboardScreenState
           }
         });
         closeAccount = subscription.close;
+      } else if (tile.type == TileType.coreKeenetic) {
+        final home = ref.read(homeSessionControllerProvider),
+            session = home?.account.session;
+        if (home == null ||
+            home.source != HomeSource.verifiedCore ||
+            session?.context == null ||
+            session!.context!.coreId != tile.coreId ||
+            session.context!.homeId != tile.coreHomeId) {
+          return;
+        }
+        final identity = home.runtimeIdentity,
+            accountGeneration = home.account.generation,
+            homeEpoch = home.interaction.epoch;
+        bool currentCore() {
+          try {
+            return mounted &&
+                identical(ref.read(homeSessionControllerProvider), home) &&
+                home.source == HomeSource.verifiedCore &&
+                home.runtimeIdentity == identity &&
+                home.interaction.active &&
+                home.interaction.epoch == homeEpoch &&
+                home.account.isCurrent(accountGeneration) &&
+                identical(home.account.session, session);
+          } catch (_) {
+            return false;
+          }
+        }
+
+        accountCurrent = currentCore;
+        void changed() {
+          if (!currentCore()) accountValid = false;
+        }
+
+        home.addListener(changed);
+        closeAccount = () => home.removeListener(changed);
       } else if (tile.entityId != null) {
         final source = ref.read(connectionConfigProvider);
         if (source.isLoading || source.hasError || source.value == null) return;

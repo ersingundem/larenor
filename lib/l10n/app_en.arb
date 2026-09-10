@@ -2689,5 +2689,8 @@
   "coreProxmoxEmpty": "No nodes, guests, or storage are visible.",
   "coreProxmoxOpen": "Open read-only Proxmox summary",
   "coreProxmoxConfigure": "Configure Proxmox Core link",
-  "coreProxmoxChooseResource": "Choose a Core resource for this Proxmox widget."
+  "coreProxmoxChooseResource": "Choose a Core resource for this Proxmox widget.",
+  "dashboardTileCoreKeenetic": "Core Keenetic",
+  "coreKeeneticDashboardPickerTitle": "Add Core Keenetic card",
+  "coreKeeneticDashboardPickerHint": "Choose a Core home resource. Larenor verifies its current Keenetic binding before saving the card."
 }

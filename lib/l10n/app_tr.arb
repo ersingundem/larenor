@@ -2361,5 +2361,8 @@
   "coreProxmoxEmpty": "Görünür düğüm, misafir veya depolama yok.",
   "coreProxmoxOpen": "Salt okunur Proxmox özetini aç",
   "coreProxmoxConfigure": "Proxmox Core bağlantısını yapılandır",
-  "coreProxmoxChooseResource": "Bu Proxmox widget’ı için bir Core kaynağı seçin."
+  "coreProxmoxChooseResource": "Bu Proxmox widget’ı için bir Core kaynağı seçin.",
+  "dashboardTileCoreKeenetic": "Core Keenetic",
+  "coreKeeneticDashboardPickerTitle": "Core Keenetic kartı ekle",
+  "coreKeeneticDashboardPickerHint": "Bir Core ev kaynağı seçin. Larenor kartı kaydetmeden önce güncel Keenetic bağlantısını doğrular."
 }

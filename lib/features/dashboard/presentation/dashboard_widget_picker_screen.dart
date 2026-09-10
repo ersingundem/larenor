@@ -15,6 +15,7 @@ import '../../health/data/health_configuration.dart';
 import '../../web_panel/presentation/web_panel_settings_screen.dart';
 import '../../wellbeing/providers/wellbeing_privacy_providers.dart';
 import '../../keenetic/presentation/keenetic_widget_picker_screen.dart';
+import '../../keenetic/core/presentation/core_keenetic_widget_picker_screen.dart';
 import '../../keenetic/providers/keenetic_providers.dart';
 import '../../core_proxmox/presentation/core_proxmox_widget_picker.dart';
 import '../../../core/home_session_controller.dart';
@@ -96,6 +97,7 @@ class _DashboardWidgetPickerScreenState
   bool _accountSeen = false;
   bool _returned = false;
   bool _openingKeenetic = false;
+  bool _openingDirectKeenetic = false;
   final _website = TextEditingController(text: 'https://');
   bool _invalidWebsite = false;
 
@@ -150,10 +152,34 @@ class _DashboardWidgetPickerScreenState
   Future<void> _keenetic() async {
     if (!_current || _openingKeenetic) return;
     final generation = interactionGeneration;
-    setState(() => _openingKeenetic = true);
+    setState(() {
+      _openingKeenetic = true;
+      _openingDirectKeenetic = true;
+    });
     try {
       final tile = await pushDashboardPage<TileConfig>(
         CupertinoPageRoute(builder: (_) => const KeeneticWidgetPickerScreen()),
+      );
+      if (tile != null && interactionCurrent(generation)) _complete(tile);
+    } finally {
+      if (mounted) {
+        setState(() {
+          _openingKeenetic = false;
+          _openingDirectKeenetic = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _coreKeenetic() async {
+    if (!_current || _openingKeenetic) return;
+    final generation = interactionGeneration;
+    setState(() => _openingKeenetic = true);
+    try {
+      final tile = await pushDashboardPage<TileConfig>(
+        CupertinoPageRoute(
+          builder: (_) => const CoreKeeneticWidgetPickerScreen(),
+        ),
       );
       if (tile != null && interactionCurrent(generation)) _complete(tile);
     } finally {
@@ -235,7 +261,7 @@ class _DashboardWidgetPickerScreenState
     if (ref.exists(keeneticConnectionProvider)) {
       ref.watch(keeneticConnectionProvider);
       ref.listen(keeneticConnectionProvider, (previous, next) {
-        if (_openingKeenetic &&
+        if (_openingDirectKeenetic &&
             (next.isLoading ||
                 next.hasError ||
                 !sameHealthConfiguration(previous?.value, next.value))) {
@@ -271,6 +297,7 @@ class _DashboardWidgetPickerScreenState
         ),
         TileType.webview,
         TileType.keenetic,
+        TileType.coreKeenetic,
       ];
       slivers.add(
         SliverList.builder(
@@ -290,6 +317,8 @@ class _DashboardWidgetPickerScreenState
                         _keenetic();
                       } else if (type == TileType.proxmox) {
                         _proxmox();
+                      } else if (type == TileType.coreKeenetic) {
+                        _coreKeenetic();
                       } else {
                         _chooseType(type);
                       }

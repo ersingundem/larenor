@@ -5,6 +5,7 @@ import 'dart:convert';
 import '../../../shared/network/server_bound_client.dart';
 import '../../dashboard/domain/tile_config.dart';
 import '../../dashboard/domain/keenetic_tile_validation.dart';
+import '../../dashboard/domain/core_keenetic_tile_validation.dart';
 import '../../dashboard/domain/ha_area_binding.dart';
 import '../../dashboard/domain/dashboard_layout_validation.dart';
 import '../../intercom/domain/door_station.dart';
@@ -380,6 +381,13 @@ void _validateDashboard(Object? value) {
           'title',
           'keeneticMetric',
           'keeneticInterfaceId',
+          'coreId',
+          'coreHomeId',
+          'coreResourceId',
+          'coreResourceRevision',
+          'coreResourceAclRevision',
+          'coreBindingId',
+          'coreBindingRevision',
           'webPanel',
         },
         required: {'id', 'type', 'x', 'y', 'width', 'height'},
@@ -387,6 +395,7 @@ void _validateDashboard(Object? value) {
       if (!ids.add(_string(tile['id'], maxLength: 256)) ||
           !TileType.values.map((e) => e.name).contains(tile['type']) ||
           !hasValidKeeneticTileFields(tile) ||
+          !hasValidCoreKeeneticTileFields(tile) ||
           !hasValidWebPanelTileFields(tile)) {
         throw const BackupValidationException();
       }

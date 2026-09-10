@@ -150,9 +150,10 @@ void main() {
 
   for (final (name, failure, stale, expected) in [
     ('unknown', null, false, 'Loading'),
-    ('denied', 'forbidden', false, 'permission'),
-    ('unsupported', 'keenetic_snapshot_unsupported', false, 'Unsupported'),
-    ('stale', null, true, 'out of date'),
+    ('denied', 'forbidden', false, 'cannot read'),
+    ('upstream denied', 'keenetic_upstream_denied', false, 'denied'),
+    ('unsupported', 'keenetic_snapshot_unsupported', false, 'not supported'),
+    ('stale', null, true, 'stale'),
   ]) {
     testWidgets('$name is explicit and secret free', (tester) async {
       await mount(tester, failure: failure, stale: stale);
@@ -164,6 +165,6 @@ void main() {
   testWidgets('offline is distinct from stale and unknown', (tester) async {
     await mount(tester, value: snapshot(online: false));
     expect(find.textContaining('Offline'), findsOneWidget);
-    expect(find.textContaining('out of date'), findsNothing);
+    expect(find.textContaining('stale'), findsNothing);
   });
 }

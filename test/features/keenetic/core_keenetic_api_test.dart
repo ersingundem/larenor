@@ -5,7 +5,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:larenor/features/home_resources/domain/home_resource_models.dart';
+import 'package:larenor/features/dashboard/domain/tile_config.dart';
 import 'package:larenor/features/keenetic/core/data/core_keenetic_api.dart';
+import 'package:larenor/features/keenetic/core/data/core_keenetic_dashboard_providers.dart';
 import 'package:larenor/features/keenetic/core/domain/core_keenetic_models.dart';
 import 'package:larenor/features/server/data/larenor_server_api.dart';
 import 'package:larenor/features/server/domain/server_models.dart';
@@ -117,6 +119,55 @@ http.Response response(Object? value, [int status = 200]) => status == 204
       );
 
 void main() {
+  test(
+    'dashboard readback requires exact resource ACL and binding revisions',
+    () {
+      final tile = TileConfig(
+        id: 'core-router',
+        type: TileType.coreKeenetic,
+        x: 0,
+        y: 0,
+        width: 3,
+        height: 2,
+        title: 'Router',
+        coreId: '1' * 32,
+        coreHomeId: '2' * 32,
+        coreResourceId: '3' * 32,
+        coreResourceRevision: 1,
+        coreResourceAclRevision: 1,
+        coreBindingId: '4' * 32,
+        coreBindingRevision: 1,
+      );
+      final record = coreKeeneticTileTarget(
+        tile,
+        ServerContext.fromJson(scopeJson()),
+      );
+      final snapshot = CoreKeeneticSnapshot.fromJson(
+        snapshotJson(),
+        target: record,
+      );
+      validateCoreKeeneticDashboardReadback(tile, record, snapshot);
+      for (final changed in [
+        tile.copyWith(coreResourceRevision: 2),
+        tile.copyWith(coreResourceAclRevision: 2),
+        tile.copyWith(coreBindingId: '9' * 32),
+        tile.copyWith(coreBindingRevision: 2),
+      ]) {
+        expect(
+          () =>
+              validateCoreKeeneticDashboardReadback(changed, record, snapshot),
+          throwsA(
+            isA<LarenorServerException>().having(
+              (value) => value.code,
+              'code',
+              'resource_changed',
+            ),
+          ),
+        );
+      }
+    },
+  );
+
   test('strict telemetry preserves public IP and typed metrics', () {
     final value = CoreKeeneticTelemetry.fromJson(telemetryJson());
     expect(value.status.publicIp, '198.51.100.20');
