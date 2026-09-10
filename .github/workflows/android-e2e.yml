@@ -35,6 +35,15 @@ jobs:
         with:
           distribution: temurin
           java-version: "17"
+          cache: gradle
+          cache-read-only: ${{ github.event_name == 'pull_request' }}
+          cache-dependency-path: |
+            android/**/*.gradle*
+            android/gradle/wrapper/gradle-wrapper.properties
+            pubspec.lock
+          cache-path: |
+            ${{ runner.temp }}/larenor-e2e-gradle/caches
+            ${{ runner.temp }}/larenor-e2e-gradle/wrapper
       - uses: android-actions/setup-android@40fd30fb8d7440372e1316f5d1809ec01dcd3699 # v4.0.1
         if: steps.android_scope.outputs.run == 'true'
       - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
