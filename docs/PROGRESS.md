@@ -1,6 +1,6 @@
 # Larenor — güncel ilerleme ve iş kuyruğu
 
-**Son güncelleme: 10 Eylül 2026 — qBittorrent yönetilen servis zinciri PR41 ile ana dalda. Sonarr/Radarr sahipli `config.xml` üretimi PR42 tam CI ile ana dalda; hacim yazıcısı, retained-daemon runtime ve UID-korumalı private IPC yerelde yeşil. Şifreli kalıcı Core işi yerelde yeşil; container zinciri ve native kabul sıradaki kapı.**
+**Son güncelleme: 10 Eylül 2026 — qBittorrent yönetilen servis zinciri PR41 ile ana dalda. Sonarr/Radarr sahipli `config.xml` üretimi PR42 tam CI ile ana dalda; hacim yazıcısı, retained-daemon runtime ve UID-korumalı private IPC yerelde yeşil. Şifreli kalıcı Core işi yerelde yeşil; authenticated API readback yerelde yeşil; container zinciri ve native kabul sıradaki kapı.**
 
 ```text
 Kuyruk kabulü       ██░░░░░░░░░░░░░░░░░░  14/125 iş (%11; eşit ağırlıklı sayaç)
@@ -334,6 +334,14 @@ tekrarlanmıyor. **5 yeni uçtan uca sözleşme testi** dahil ilgili Arr paketle
 **267 PASS / 1 mevcut macOS skip**. Security policy, queue, compileall, diff ve Gitleaks PASS. Container
 create/start ve gerçek native API readback açık olduğundan sayaç değişmedi.
 [Uygulama ve açık sınırlar](arr-configuration-jobs-implementation-2026-09-10.md).
+
+`3646055` readback dilimi, Sonarr/Radarr pinned servis adı ve sürümünü
+`X-Api-Key` ile sabit system/status endpoint'inden doğruluyor. Hedef, proxy,
+resolver veya serbest header girdisi yok; auth, protokol, servis/sürüm sapması ve
+timeout secret-free statik sonuçlara kapanıyor. **14 yeni test**, compileall,
+security policy, queue ve Gitleaks PASS. Container zinciri ve iki mimarili native
+kabul açık olduğundan sayaç değişmedi.
+[Uygulama ve açık sınırlar](arr-authenticated-readback-implementation-2026-09-10.md).
 
 S06.4 native kabul koşusu [34326112926](https://github.com/ersingundem/larenor/actions/runs/34326112926)
 iki gerçek GitHub runner'ında geçti. İndirilen ARM64 ve X64 makbuzları merge

@@ -1051,6 +1051,14 @@
           "state": "completed",
           "result": "passed",
           "label": "Sonarr/Radarr servis başına tekil, AES-GCM şifreli no-retry Core işlerine bağlandı; Server üretimli API anahtarı, dispatcher, idempotence ve belirsiz sonuçlar ilgili Arr paketlerinde 267 PASS / 1 mevcut macOS skip ile doğrulandı."
+        ,
+        {
+          "kind": "test",
+          "ref": "docs/arr-authenticated-readback-implementation-2026-09-10.md",
+          "commit": "a28211261f699d1903eeffbfc9d0047f2a61eed8",
+          "state": "completed",
+          "result": "passed",
+          "label": "Sonarr/Radarr pinned servis adı ve sürümü X-Api-Key authenticated system/status geri okumasında doğrulandı; kapalı hedef ve secret-free hata yüzeyi 14 testte geçti."
         }
       ],
       "completionCommit": null,
