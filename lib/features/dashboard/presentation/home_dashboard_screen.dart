@@ -816,6 +816,8 @@ class _HomeDashboardScreenState
         TileType.coreKeenetic,
         TileType.coreKeeneticDetails,
         TileType.coreKeeneticMesh,
+        TileType.coreKeeneticClients,
+        TileType.coreKeeneticBandwidth,
       }.contains(tile.type)) {
         final home = ref.read(homeSessionControllerProvider),
             session = home?.account.session;

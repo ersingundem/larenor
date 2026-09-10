@@ -49,6 +49,8 @@ void main() {
     TileType.coreKeenetic,
     TileType.coreKeeneticDetails,
     TileType.coreKeeneticMesh,
+    TileType.coreKeeneticClients,
+    TileType.coreKeeneticBandwidth,
   ]) {
     testWidgets('tablet picker returns verified ${type.name} draft', (
       tester,

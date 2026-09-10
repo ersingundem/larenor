@@ -78,6 +78,8 @@ HomeResourceRecord coreKeeneticTileTarget(
         TileType.coreKeenetic,
         TileType.coreKeeneticDetails,
         TileType.coreKeeneticMesh,
+        TileType.coreKeeneticClients,
+        TileType.coreKeeneticBandwidth,
       }.contains(tile.type) ||
       tile.coreId != context.coreId ||
       tile.coreHomeId != context.homeId) {
@@ -317,6 +319,8 @@ Future<TileConfig> _draft(
         TileType.coreKeenetic,
         TileType.coreKeeneticDetails,
         TileType.coreKeeneticMesh,
+        TileType.coreKeeneticClients,
+        TileType.coreKeeneticBandwidth,
       }.contains(type)) {
     throw const LarenorServerException('resource_changed');
   }

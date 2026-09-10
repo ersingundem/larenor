@@ -300,6 +300,8 @@ class _DashboardWidgetPickerScreenState
         TileType.coreKeenetic,
         TileType.coreKeeneticDetails,
         TileType.coreKeeneticMesh,
+        TileType.coreKeeneticClients,
+        TileType.coreKeeneticBandwidth,
       ];
       slivers.add(
         SliverList.builder(
@@ -323,6 +325,8 @@ class _DashboardWidgetPickerScreenState
                         TileType.coreKeenetic,
                         TileType.coreKeeneticDetails,
                         TileType.coreKeeneticMesh,
+                        TileType.coreKeeneticClients,
+                        TileType.coreKeeneticBandwidth,
                       }.contains(type)) {
                         _coreKeenetic(type);
                       } else {

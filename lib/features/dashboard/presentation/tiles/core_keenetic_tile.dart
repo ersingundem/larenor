@@ -774,6 +774,156 @@ class CoreKeeneticTopologyDashboardCard extends StatelessWidget {
   }
 }
 
+/// A privacy-first client summary. Network identifiers remain available only
+/// in the explicit details screen and are never rendered on a shared dashboard.
+class CoreKeeneticClientsDashboardCard extends StatelessWidget {
+  const CoreKeeneticClientsDashboardCard({
+    super.key,
+    required this.title,
+    required this.page,
+    required this.failure,
+    required this.stale,
+    required this.loading,
+    required this.onRefresh,
+  });
+  final String title;
+  final CoreKeeneticDetailsPage? page;
+  final String? failure;
+  final bool stale, loading;
+  final VoidCallback? onRefresh;
+
+  @override
+  Widget build(BuildContext context) {
+    final l = AppLocalizations.of(context);
+    final clients = page?.clients ?? const <CoreKeeneticClientDetail>[];
+    final state = loading
+        ? l.commonLoading
+        : stale
+        ? l.coreKeeneticStale
+        : failure != null
+        ? _failure(failure!, l)
+        : page == null
+        ? l.commonUnknown
+        : '${clients.where((item) => item.online).length}/${clients.length} '
+              '${l.keeneticConnectedDevices.toLowerCase()}';
+    return _CoreKeeneticReadOnlyCard(
+      cardKey: const ValueKey('core-keenetic-clients-card'),
+      refreshKey: const ValueKey('core-keenetic-clients-refresh'),
+      title: title,
+      icon: CupertinoIcons.device_laptop,
+      state: state,
+      alert: stale || failure != null,
+      loading: loading,
+      onRefresh: onRefresh,
+      children: [
+        for (final client in clients.take(6))
+          Semantics(
+            readOnly: true,
+            label:
+                '${client.name}, ${client.online ? l.keeneticOnline : l.keeneticOffline}, '
+                '${client.band ?? l.commonUnknown}, '
+                '${client.signalDbm ?? l.commonUnknown}',
+            child: ExcludeSemantics(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 6),
+                child: Row(
+                  children: [
+                    Icon(
+                      client.online
+                          ? CupertinoIcons.circle_fill
+                          : CupertinoIcons.circle,
+                      size: 10,
+                      color: client.online
+                          ? CupertinoColors.systemGreen.resolveFrom(context)
+                          : CupertinoColors.systemGrey.resolveFrom(context),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        client.name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    if (client.band != null)
+                      Text('${client.band} GHz', style: AppText.footnote),
+                    if (client.signalDbm != null) ...[
+                      const SizedBox(width: 8),
+                      Text('${client.signalDbm} dBm', style: AppText.footnote),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+class CoreKeeneticBandwidthDashboardCard extends StatelessWidget {
+  const CoreKeeneticBandwidthDashboardCard({
+    super.key,
+    required this.title,
+    required this.snapshot,
+    required this.failure,
+    required this.stale,
+    required this.loading,
+    required this.onRefresh,
+  });
+  final String title;
+  final CoreKeeneticSnapshot? snapshot;
+  final String? failure;
+  final bool stale, loading;
+  final VoidCallback? onRefresh;
+
+  @override
+  Widget build(BuildContext context) {
+    final l = AppLocalizations.of(context),
+        traffic = snapshot?.telemetry.traffic;
+    final state = loading
+        ? l.commonLoading
+        : stale
+        ? l.coreKeeneticStale
+        : failure != null
+        ? _failure(failure!, l)
+        : traffic == null
+        ? l.commonUnknown
+        : snapshot!.telemetry.status.online
+        ? l.keeneticOnline
+        : l.keeneticOffline;
+    return _CoreKeeneticReadOnlyCard(
+      cardKey: const ValueKey('core-keenetic-bandwidth-card'),
+      refreshKey: const ValueKey('core-keenetic-bandwidth-refresh'),
+      title: title,
+      icon: CupertinoIcons.speedometer,
+      state: state,
+      alert:
+          stale ||
+          failure != null ||
+          snapshot?.telemetry.status.online == false,
+      loading: loading,
+      onRefresh: onRefresh,
+      children: traffic == null
+          ? const []
+          : [
+              _Metric(
+                item: (l.keeneticDownloadRate, _rate(traffic.downloadBps, l)),
+              ),
+              _Metric(
+                item: (l.keeneticUploadRate, _rate(traffic.uploadBps, l)),
+              ),
+              _Metric(
+                item: (
+                  l.coreKeeneticTrafficTotal,
+                  '${_bytes(traffic.rxBytes)} ↓ / ${_bytes(traffic.txBytes)} ↑',
+                ),
+              ),
+            ],
+    );
+  }
+}
+
 mixin _CoreKeeneticReadonlyTileLifecycle<T extends ConsumerStatefulWidget>
     on ConsumerState<T> {
   late final AppLifecycleListener keeneticLifecycle;
@@ -909,6 +1059,110 @@ class _CoreKeeneticMeshTileState extends ConsumerState<CoreKeeneticMeshTile>
       onRefresh: active
           ? () => ref.invalidate(
               coreKeeneticDashboardTopologyProvider(widget.tile),
+            )
+          : null,
+    );
+  }
+}
+
+class CoreKeeneticClientsTile extends ConsumerStatefulWidget {
+  const CoreKeeneticClientsTile({super.key, required this.tile});
+  final TileConfig tile;
+  @override
+  ConsumerState<CoreKeeneticClientsTile> createState() =>
+      _CoreKeeneticClientsTileState();
+}
+
+class _CoreKeeneticClientsTileState
+    extends ConsumerState<CoreKeeneticClientsTile>
+    with _CoreKeeneticReadonlyTileLifecycle<CoreKeeneticClientsTile> {
+  @override
+  void initState() {
+    super.initState();
+    initKeeneticLifecycle();
+  }
+
+  @override
+  void dispose() {
+    disposeKeeneticLifecycle();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final active = keeneticForeground && TickerMode.valuesOf(context).enabled;
+    final reading = active
+        ? ref.watch(coreKeeneticDashboardDetailsProvider(widget.tile))
+        : null;
+    final value = reading?.value;
+    if (value != null) armKeenetic(value, value.authority.remainingTtlMs);
+    final error = reading?.error;
+    final failure = error is LarenorServerException
+        ? error.code
+        : reading?.hasError == true
+        ? 'connection_failed'
+        : null;
+    return CoreKeeneticClientsDashboardCard(
+      title: widget.tile.title ?? 'Keenetic',
+      page: keeneticStale ? null : value?.page,
+      failure: failure,
+      stale: keeneticStale,
+      loading: reading?.isLoading == true,
+      onRefresh: active
+          ? () => ref.invalidate(
+              coreKeeneticDashboardDetailsProvider(widget.tile),
+            )
+          : null,
+    );
+  }
+}
+
+class CoreKeeneticBandwidthTile extends ConsumerStatefulWidget {
+  const CoreKeeneticBandwidthTile({super.key, required this.tile});
+  final TileConfig tile;
+  @override
+  ConsumerState<CoreKeeneticBandwidthTile> createState() =>
+      _CoreKeeneticBandwidthTileState();
+}
+
+class _CoreKeeneticBandwidthTileState
+    extends ConsumerState<CoreKeeneticBandwidthTile>
+    with _CoreKeeneticReadonlyTileLifecycle<CoreKeeneticBandwidthTile> {
+  @override
+  void initState() {
+    super.initState();
+    initKeeneticLifecycle();
+  }
+
+  @override
+  void dispose() {
+    disposeKeeneticLifecycle();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final active = keeneticForeground && TickerMode.valuesOf(context).enabled;
+    final reading = active
+        ? ref.watch(coreKeeneticDashboardSnapshotProvider(widget.tile))
+        : null;
+    final value = reading?.value;
+    if (value != null) armKeenetic(value, value.remainingTtlMs);
+    final error = reading?.error;
+    final failure = error is LarenorServerException
+        ? error.code
+        : reading?.hasError == true
+        ? 'connection_failed'
+        : null;
+    return CoreKeeneticBandwidthDashboardCard(
+      title: widget.tile.title ?? 'Keenetic',
+      snapshot: keeneticStale ? null : value,
+      failure: failure,
+      stale: keeneticStale,
+      loading: reading?.isLoading == true,
+      onRefresh: active
+          ? () => ref.invalidate(
+              coreKeeneticDashboardSnapshotProvider(widget.tile),
             )
           : null,
     );
