@@ -1,6 +1,6 @@
 # Larenor — güncel ilerleme ve iş kuyruğu
 
-**Son güncelleme: 10 Eylül 2026 — Keenetic bağlantı kalitesi kartı PR60 ile ana dalda. PR64 tek kilometre taşı olarak Seerr ve Music Assistant kalıcı Core kurulumunu, atıflı ve değişiklik algılayan HA işlem geçmişini, bağımsız uzak hedef profillerini, güvenli SSH terminal temelini ve ilk bileşen internet iznini birleştiriyor; exact head `8f20730` için zorunlu CI çalışıyor.**
+**Son güncelleme: 10 Eylül 2026 — PR64 exact `3f1ac31` üzerinde 15/15 zorunlu kontrolü geçerek ana dala alındı. İkinci toplu kilometre taşı Music Assistant otomatik bağlantısı ve sağlayıcı kurulum niyetlerini, tablet SFTP'yi, HA işlem geçmişi ekranını ve her committe görünür kanıtlı ilerleme yüzdelerini hazırlıyor.**
 
 ```text
 Kuyruk kabulü       ██░░░░░░░░░░░░░░░░░░  14/125 iş (%11; eşit ağırlıklı sayaç)
@@ -32,7 +32,7 @@ Gerçek ev kurulumu ve fiziksel tablet kabulü henüz yapılmadı.
 
 ## Şimdi yapılan işler
 
-### Aktif toplu kilometre taşı — PR64
+### Tamamlanan toplu kilometre taşı — PR64
 
 Ara commitlerde yalnız ilgili testler çalıştırılıyor; aynı teslim grubunun tam
 Android, Server, E2E, güvenlik ve iki mimarili native kapıları tek exact head
@@ -53,8 +53,32 @@ Keenetic/uzak-erisim/Ayarlar tablet testi; 49 SSH testi; 543 bileşen internet
 izni testi; güvenlik politikası ve kuyruk doğrulaması geçti. İlk tam CI denemesi
 Music Assistant'ın yeni worker capability değerini beklemeyen dört tarihsel
 fixture buldu; fixture'lar güncellendi ve ilgili 44 test geçti. Yeni exact head
-için zorunlu CI sonucu bekleniyor. Bu dilimler F13/F20/F63 veya S06.5'in bütün
+için 15/15 zorunlu CI kontrolü geçti ve PR64 ana dala alındı. Bu dilimler
+F13/F20/F63 veya S06.5'in bütün
 kabul ölçütlerini tek başına kapatmadığı için kanıt sayaçları henüz artırılmadı.
+
+### Hazırlanan ikinci toplu kilometre taşı
+
+Her commit `tool/commit_with_progress.py` ile kuyruktaki kanıtlı durumu okur ve
+`Larenor-Queue-Progress` ile `Larenor-Feature-Progress` trailerlarını ekler.
+Kısmi geliştirme yüzdeleri yükseltmez. Şu anki kanıtlı değerler **14/125
+(%11,2)** ve **0/63 (%0,0)**.
+
+İkinci paket şunları tek yerel kabul noktasında birleştiriyor:
+
+- Music Assistant'ın doğrulanmış kurulumundan şifreli authenticated readback,
+  tekil HA/Jellyfin keşfi ve revision bağlama.
+- Spotify, Apple Music ve YouTube Music için şifreli ve idempotent provider
+  kurulum niyetleri; beklenmeyen URL/alan/akış durumunda kapalı davranış.
+- Paylaşılan SSH kimliği ve host pinini kullanan, 200 öğe ve 64 MiB sınırına
+  sahip tablet SFTP tarayıcısı ile açık indirme/yükleme.
+- Actor/source/reason/result ve bütünlük/checkpoint durumunu gösteren salt
+  okunur tablet HA etkinlik ekranı.
+
+Yerel birleşim kapısında seçili Music Assistant/provider Server testleri ve
+**298 birleşik SFTP/SSH/Core HA Flutter testi** geçti. Tam PR/CI kabulü henüz
+başlamadı; gerçek sağlayıcı hesabı, gerçek SFTP hostu ve fiziksel tablet kabulü
+ayrı kaldı.
 
 | Adım | Durum | Sonraki somut çıktı |
 | --- | --- | --- |

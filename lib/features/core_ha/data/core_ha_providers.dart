@@ -8,6 +8,7 @@ import '../../../core/home_session_controller.dart';
 import '../../server/data/larenor_server_api.dart';
 import '../../server/data/server_account_controller.dart';
 import '../../home_resources/domain/home_resource_models.dart';
+import 'core_ha_activity_controller.dart';
 import 'core_ha_controller.dart';
 
 /// One mounted page owns one handle. The screen must synchronize on route,
@@ -119,6 +120,33 @@ final coreHaControllerProvider = Provider.autoDispose
         selection.owner,
         admin: selection.admin,
         requestId: ref.watch(coreHaRequestIdProvider),
+      );
+      ref.onDispose(() {
+        controller.dispose();
+        selection.owner.retire();
+      });
+      return controller;
+    });
+
+typedef CoreHaActivitySelection = ({
+  CoreHaOwner owner,
+  HomeResourceRecord target,
+  bool verifyIntegrity,
+});
+final coreHaActivityControllerProvider = Provider.autoDispose
+    .family<CoreHaActivityController, CoreHaActivitySelection>((
+      ref,
+      selection,
+    ) {
+      final home = ref.watch(homeSessionControllerProvider);
+      final controller = CoreHaActivityController(
+        home,
+        selection.target,
+        ref.watch(coreHaApiFactoryProvider),
+        ref.watch(coreHaClockProvider),
+        _bind(ref, selection.owner, home),
+        selection.owner,
+        verifyIntegrity: selection.verifyIntegrity,
       );
       ref.onDispose(() {
         controller.dispose();

@@ -47,6 +47,9 @@ class HaUiHarness {
   HaUiHarness({this.pinStore});
   final PinLockStore? pinStore;
   final f = contract();
+  final history = jsonDecode(
+    File('contracts/home-assistant-history.v1.json').readAsStringSync(),
+  ) as Map<String, dynamic>;
   late final fixture = {
     'context': f['context'],
     'memberList': {
@@ -58,10 +61,12 @@ class HaUiHarness {
   };
   String role = 'admin';
   int snapshotReads = 0, previewCount = 0;
+  int historyReads = 0, integrityReads = 0, historyStatus = 200;
+  bool pagedHistory = false;
   bool bound = false, uncertainConfirm = false;
   String snapshotStep = 'snapshotOff';
   final adapterRequests = <http.Request>[];
-  Completer<http.Response>? pendingSnapshot, pendingConfirm;
+  Completer<http.Response>? pendingSnapshot, pendingConfirm, pendingHistory;
   Duration elapsed = Duration.zero;
   final boundary = GlobalKey();
   final source = SourceMemory(HomeSource.verifiedCore);
@@ -106,6 +111,37 @@ class HaUiHarness {
         request.headers['authorization'],
         refreshes.isEven ? 'Bearer ${'a' * 43}' : 'Bearer ${'c' * 43}',
       );
+      if (request.url.path.endsWith('/history')) {
+        historyReads++;
+        if (historyStatus != 200) {
+          return json({
+            'error': {'code': 'server_unavailable'},
+          }, historyStatus);
+        }
+        final step = request.url.queryParameters.containsKey('before')
+            ? 'lastPage'
+            : pagedHistory
+            ? 'firstPage'
+            : 'complete';
+        return pendingHistory?.future ?? json(history[step]['response']);
+      }
+      if (request.url.path.endsWith('/history/verification')) {
+        integrityReads++;
+        final compared = request.url.queryParameters.containsKey('checkpoint');
+        return json({
+          'verification': {
+            'schemaVersion': 1,
+            'scope': f['context'],
+            'chainId': 'a' * 32,
+            'sequence': 2,
+            'headHash': 'b' * 64,
+            'checkpoint': 'eyJjaGFpbiI6InN5bnRoZXRpYyJ9.fixture',
+            'verified': true,
+            'comparedCheckpoint': compared,
+            'causalityVerified': false,
+          },
+        });
+      }
       if (request.url.path.endsWith('/admin/services')) {
         return json({
           'services': [
@@ -315,6 +351,10 @@ class HaUiHarness {
         pending!.complete(json(fixture['memberList']));
       }
       pending = null;
+      if (pendingHistory?.isCompleted == false) {
+        pendingHistory!.complete(json(history['complete']['response']));
+      }
+      pendingHistory = null;
       if (pendingContext?.isCompleted == false) {
         pendingContext!.complete(json(contextResponse));
       }
