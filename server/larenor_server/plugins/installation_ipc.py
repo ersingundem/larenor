@@ -19,6 +19,12 @@ from .jellyfin_bootstrap_executor import (
 from .jellyfin_authenticated_readback import JellyfinAuthenticatedReadbackResult
 from .media_service_bootstrap_models import PrivateMediaServiceBootstrap
 from .preflight_ipc import PreflightIPCError, PreflightWorkerServer, read_packet, write_packet
+from .arr_config_effect import ArrConfigEffectError, ArrConfigInstallReceipt
+from .arr_config_models import (
+    ARR_CONFIG_EXECUTION_CODES, ArrConfigurationExecutionError,
+    PrivateArrConfiguration,
+)
+from .arr_config_runtime import ArrConfigRuntimeError
 from .qbittorrent_config_effect import (
     QbittorrentConfigEffectError, QbittorrentConfigInstallReceipt,
 )
@@ -201,6 +207,98 @@ def _qbittorrent_error(error):
     return QbittorrentConfigurationExecutionError()
 
 
+def _arr_error(error):
+    if isinstance(error, ArrConfigurationExecutionError):
+        return error
+    if isinstance(error, ArrConfigEffectError):
+        if error.code in {
+            'arr_config_effect_dispatch_denied',
+            'arr_config_effect_authority_changed',
+            'arr_config_effect_cancelled',
+        }:
+            code = 'arr_config_authority_changed'
+        elif error.code == 'arr_config_effect_result_failed':
+            code = 'arr_config_result_invalid'
+        else:
+            code = 'arr_config_write_failed'
+        return ArrConfigurationExecutionError(
+            code, uncertain_effect=error.uncertain_effect)
+    if isinstance(error, ArrConfigRuntimeError):
+        code = {
+            'arr_config_runtime_effect_failed': 'arr_config_write_failed',
+            'arr_config_runtime_result_invalid': 'arr_config_result_invalid',
+        }.get(error.code, 'arr_config_resources_unavailable')
+        return ArrConfigurationExecutionError(
+            code, uncertain_effect=error.uncertain_effect)
+    return ArrConfigurationExecutionError()
+
+
+def _wire_arr(value=None, error=None):
+    if error is not None:
+        failure = _arr_error(error)
+        return {
+            'state': 'failed', 'errorCode': failure.code,
+            'uncertainEffect': failure.uncertain_effect, 'receipt': None,
+        }
+    try:
+        if type(value) is not ArrConfigInstallReceipt:
+            raise ValueError()
+        receipt = ArrConfigInstallReceipt(**vars(value))
+        return {
+            'state': 'succeeded', 'errorCode': None,
+            'uncertainEffect': False,
+            'receipt': {
+                'serviceId': receipt.service_id,
+                'resourceId': receipt.resource_id,
+                'operationId': receipt.operation_id,
+                'journalId': receipt.journal_id,
+                'revision': receipt.revision,
+                'volumeName': receipt.volume_name,
+                'configurationDigest': receipt.configuration_digest,
+                'state': receipt.state,
+            },
+        }
+    except (ValueError, TypeError, AttributeError, ArrConfigEffectError):
+        failure = ArrConfigurationExecutionError(
+            'arr_config_result_invalid', uncertain_effect=True)
+        return {
+            'state': 'failed', 'errorCode': failure.code,
+            'uncertainEffect': True, 'receipt': None,
+        }
+
+
+def _arr_result(value):
+    try:
+        if (type(value) is not dict or set(value) != {
+                'state', 'errorCode', 'uncertainEffect', 'receipt'}
+                or type(value['uncertainEffect']) is not bool):
+            raise ValueError()
+        if value['state'] == 'failed':
+            if (value['receipt'] is not None
+                    or value['errorCode'] not in ARR_CONFIG_EXECUTION_CODES):
+                raise ValueError()
+            raise ArrConfigurationExecutionError(
+                value['errorCode'],
+                uncertain_effect=value['uncertainEffect'])
+        receipt = value['receipt']
+        if (value['state'] != 'succeeded' or value['errorCode'] is not None
+                or value['uncertainEffect'] is not False
+                or type(receipt) is not dict or set(receipt) != {
+                    'serviceId', 'resourceId', 'operationId', 'journalId',
+                    'revision', 'volumeName', 'configurationDigest', 'state'}):
+            raise ValueError()
+        return ArrConfigInstallReceipt(
+            receipt['serviceId'], receipt['resourceId'],
+            receipt['operationId'], receipt['journalId'], receipt['revision'],
+            receipt['volumeName'], receipt['configurationDigest'],
+            receipt['state'])
+    except ArrConfigurationExecutionError:
+        raise
+    except (ValueError, TypeError, AttributeError, ArrConfigEffectError):
+        raise ArrConfigurationExecutionError(
+            'arr_config_result_invalid', uncertain_effect=True) from None
+
+
 def _wire_qbittorrent(value=None, error=None):
     if error is not None:
         failure = _qbittorrent_error(error)
@@ -314,7 +412,7 @@ class InstallationWorkerClient:
         self.owner_uid, self.peer_uid, self.timeout = owner_uid, peer_uid or _peer_uid, timeout
 
     def _exchange(self, operation, step=None, plan=None, bootstrap=None,
-                  qbittorrent=None):
+                  qbittorrent=None, arr=None):
         try:
             _safe_path(self.path, uid=self.owner_uid, kind=stat.S_ISSOCK)
             deadline = time.monotonic() + self.timeout
@@ -336,6 +434,12 @@ class InstallationWorkerClient:
                 request['jobId'] = job
                 request['plan'] = plan.model_dump(mode='json')
                 request['private'] = private.model_dump(mode='json', warnings=False)
+            elif arr is not None:
+                job, private = arr
+                request['jobId'] = job
+                request['plan'] = plan.model_dump(mode='json')
+                request['private'] = private.model_dump(
+                    mode='json', warnings=False)
             with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as connection:
                 connection.settimeout(self.timeout)
                 connection.connect(str(self.path))
@@ -357,8 +461,10 @@ class InstallationWorkerClient:
 
     def status(self):
         result = self._exchange('status')
-        expected = {'capability': 'container_execution', 'installAvailable': False,
-                    'services': ['jellyfin', 'qbittorrent']}
+        expected = {
+            'capability': 'container_execution', 'installAvailable': False,
+            'services': ['jellyfin', 'qbittorrent', 'sonarr', 'radarr'],
+        }
         if result != expected:
             raise InstallationIPCError('invalid_worker_result')
         return result
@@ -476,6 +582,51 @@ class InstallationWorkerClient:
                 uncertain_effect=True) from None
         return result
 
+    def configure_arr(self, job, plan, private, *, deadline, gate):
+        now = time.monotonic()
+        if (type(job) is not str
+                or re.fullmatch(r'[0-9a-f]{32}', job) is None
+                or type(plan) is not MediaStackPlan
+                or type(private) is not PrivateArrConfiguration
+                or type(deadline) not in (int, float)
+                or not math.isfinite(deadline)
+                or not now < deadline <= now + 120
+                or not callable(gate)):
+            raise ArrConfigurationExecutionError(
+                'arr_config_resources_unavailable')
+        try:
+            plan = verify_media_stack_plan(plan, load_catalog())
+            private = PrivateArrConfiguration.model_validate(
+                private.model_dump(mode='python', warnings=False))
+        except (ValueError, TypeError, AttributeError, OSError):
+            raise ArrConfigurationExecutionError(
+                'arr_config_resources_unavailable') from None
+        try:
+            if gate() is not True:
+                raise ValueError()
+        except Exception:
+            raise ArrConfigurationExecutionError(
+                'arr_config_authority_changed') from None
+        try:
+            result = _arr_result(self._exchange(
+                'configure_arr', plan=plan, arr=(job, private)))
+            if result.service_id != private.serviceId:
+                raise ArrConfigurationExecutionError(
+                    'arr_config_result_invalid', uncertain_effect=True)
+        except ArrConfigurationExecutionError:
+            raise
+        except InstallationIPCError:
+            raise ArrConfigurationExecutionError(
+                'arr_config_resources_unavailable') from None
+        try:
+            if gate() is not True:
+                raise ValueError()
+        except Exception:
+            raise ArrConfigurationExecutionError(
+                'arr_config_authority_changed',
+                uncertain_effect=True) from None
+        return result
+
 
 class InstallationWorkerServer(PreflightWorkerServer):
     def __init__(self, path, backend, *, allowed_uid, socket_gid=None, peer_uid=None, timeout=5):
@@ -531,8 +682,50 @@ class InstallationWorkerServer(PreflightWorkerServer):
         deadline = time.monotonic() + self.timeout if deadline is None else deadline
         operation = request.get('operation')
         if operation == 'status' and set(request) == {'protocol', 'requestId', 'operation'}:
-            return {'capability': 'container_execution', 'installAvailable': False,
-                    'services': ['jellyfin', 'qbittorrent']}
+            return {
+                'capability': 'container_execution', 'installAvailable': False,
+                'services': ['jellyfin', 'qbittorrent', 'sonarr', 'radarr'],
+            }
+        if operation == 'configure_arr':
+            if (set(request) != {
+                    'protocol', 'requestId', 'operation', 'jobId', 'plan',
+                    'private'}
+                    or type(request['jobId']) is not str
+                    or re.fullmatch(r'[0-9a-f]{32}', request['jobId']) is None
+                    or time.monotonic() >= deadline):
+                raise PreflightIPCError('invalid_request')
+            try:
+                raw_plan = json.dumps(
+                    request['plan'], sort_keys=True, separators=(',', ':'),
+                    allow_nan=False)
+                raw_private = json.dumps(
+                    request['private'], sort_keys=True, separators=(',', ':'),
+                    allow_nan=False)
+                plan = verify_media_stack_plan(
+                    MediaStackPlan.model_validate_json(raw_plan), self.catalog)
+                private = PrivateArrConfiguration.model_validate_json(
+                    raw_private)
+                cancelled = threading.Event()
+                timed = getattr(
+                    self.backend, 'configure_arr_with_deadline', None)
+                try:
+                    result = (timed(
+                        request['jobId'], plan, private.serviceId,
+                        api_key=private.apiKey, cancelled=cancelled,
+                        deadline=deadline,
+                    ) if callable(timed) else self.backend.configure_arr(
+                        request['jobId'], plan, private.serviceId,
+                        api_key=private.apiKey, cancelled=cancelled,
+                        deadline=deadline,
+                        gate=lambda: time.monotonic() < deadline))
+                except Exception as error:
+                    return _wire_arr(error=error)
+                if time.monotonic() >= deadline:
+                    return _wire_arr(error=ArrConfigurationExecutionError(
+                        'arr_config_timeout', uncertain_effect=True))
+                return _wire_arr(value=result)
+            except (ValueError, TypeError, AttributeError, RecursionError):
+                raise PreflightIPCError('invalid_request') from None
         if operation in {
                 'configure_qbittorrent',
                 'install_configured_qbittorrent'}:
