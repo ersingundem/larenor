@@ -1,6 +1,6 @@
 # Larenor — güncel ilerleme ve iş kuyruğu
 
-**Son güncelleme: 10 Eylül 2026 — PR64 exact `3f1ac31` üzerinde 15/15 zorunlu kontrolü geçerek ana dala alındı. İkinci toplu kilometre taşı Music Assistant otomatik bağlantısı ve sağlayıcı kurulum niyetlerini, tablet SFTP'yi, HA işlem geçmişi ekranını ve her committe görünür kanıtlı ilerleme yüzdelerini hazırlıyor.**
+**Son güncelleme: 10 Eylül 2026 — PR65 exact `5db7942` üzerinde 15/15 zorunlu kontrolü geçerek ana dala alındı. Üçüncü toplu kilometre taşı Music Assistant sağlayıcı/oynatma worker'ını, SSH tünel/PTY/MFA/jump-host akışını, güvenilir HA checkpoint E2E'sini ve günlük GitHub artifact bakımını birleştiriyor.**
 
 ```text
 Kuyruk kabulü       ██░░░░░░░░░░░░░░░░░░  14/125 iş (%11; eşit ağırlıklı sayaç)
@@ -57,14 +57,15 @@ için 15/15 zorunlu CI kontrolü geçti ve PR64 ana dala alındı. Bu dilimler
 F13/F20/F63 veya S06.5'in bütün
 kabul ölçütlerini tek başına kapatmadığı için kanıt sayaçları henüz artırılmadı.
 
-### Hazırlanan ikinci toplu kilometre taşı
+### Tamamlanan ikinci toplu kilometre taşı — PR65
 
 Her commit `tool/commit_with_progress.py` ile kuyruktaki kanıtlı durumu okur ve
 `Larenor-Queue-Progress` ile `Larenor-Feature-Progress` trailerlarını ekler.
 Kısmi geliştirme yüzdeleri yükseltmez. Şu anki kanıtlı değerler **14/125
 (%11,2)** ve **0/63 (%0,0)**.
 
-İkinci paket şunları tek yerel kabul noktasında birleştiriyor:
+[PR65](https://github.com/ersingundem/larenor/pull/65) şu parçaları tek kabul
+noktasında birleştirdi:
 
 - Music Assistant'ın doğrulanmış kurulumundan şifreli authenticated readback,
   tekil HA/Jellyfin keşfi ve revision bağlama.
@@ -76,9 +77,36 @@ Kısmi geliştirme yüzdeleri yükseltmez. Şu anki kanıtlı değerler **14/125
   okunur tablet HA etkinlik ekranı.
 
 Yerel birleşim kapısında seçili Music Assistant/provider Server testleri ve
-**298 birleşik SFTP/SSH/Core HA Flutter testi** geçti. Tam PR/CI kabulü henüz
-başlamadı; gerçek sağlayıcı hesabı, gerçek SFTP hostu ve fiziksel tablet kabulü
-ayrı kaldı.
+**298 birleşik SFTP/SSH/Core HA Flutter testi** geçti. Exact PR head üzerinde
+Android analiz/test, debug APK, API 35 emülatör E2E, Server, Security ve iki
+mimarili Jellyfin/Arr/qBittorrent karakterizasyonu dahil **15/15 zorunlu
+kontrol** geçti. Gerçek sağlayıcı hesabı, gerçek SFTP hostu ve fiziksel tablet
+kabulü ayrı kaldı.
+
+### Hazırlanan üçüncü toplu kilometre taşı
+
+- Music Assistant provider form/OAuth worker'ı yalnız şifreli Unix IPC ile
+  çalışıyor; exact instance/domain/loaded readback olmadan hazır saymıyor.
+- HomePod/AirPlay dahil doğrulanmış player keşfi; açık play/pause/stop/skip,
+  ses/mute ve queue add/replace/clear niyetleri revision, idempotency,
+  deadline ve authenticated readback ile kapalı davranıyor.
+- Kişisel SSH tarafında loopback tünel, dört PTY terminal sekmesi, Türkçe UTF-8,
+  SFTP, keyboard-interactive MFA ve tek açık jump host; kopuşta otomatik komut,
+  retry veya replay yok.
+- F20 Client checkpoint'i Android güvenli depoda Core/ev kapsamıyla açıkça
+  pin/rotate/export ediliyor; gerçek loopback Core restore/rollback/tamper ve
+  geç yanıt/401/yetki kaybı E2E'si var.
+- Her PR commitindeki iki yüzde trailerı artık CI'da doğrulanıyor. Günlük
+  artifact işi eski tamamlanmış debug APK'lardan en yeni üçünü koruyor; ilk
+  canlı tur **5 artifact / 651.810.797 bayt** sildi, belirsiz sonuç üretmedi.
+
+Bu birleşimde ilgili Server **39**, Flutter **374** ve araç/güvenlik **257**
+testi geçti. Commit ilerleme kapısı bu kayıt dahil mevcut **23/23** commit
+mesajını doğruluyor.
+Gerçek HomePod/sağlayıcı, iki hostlu SSH fixture, fiziksel Huawei/DeX ve GitHub
+PR/CI kabulü açık olduğundan sayaçlar **14/125 (%11,2)** ve **0/63 (%0,0)**
+olarak korunuyor. S08.9 Keenetic/Proxmox ve S08.10 bounded transfer pilotları
+bir sonraki toplu paket için paralel yürütülüyor.
 
 | Adım | Durum | Sonraki somut çıktı |
 | --- | --- | --- |
