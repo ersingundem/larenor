@@ -9,8 +9,11 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
+import 'package:larenor/core/app_interaction_scope.dart';
 import 'package:larenor/core/home_session_controller.dart';
 import 'package:larenor/core/home_source_store.dart';
+import 'package:larenor/core/window/window_policy_models.dart';
+import 'package:larenor/core/window/window_policy_providers.dart';
 import 'package:larenor/features/core_proxmox/data/core_proxmox_providers.dart';
 import 'package:larenor/features/core_proxmox/domain/core_proxmox_models.dart';
 import 'package:larenor/features/core_proxmox/presentation/core_proxmox_screen.dart';
@@ -185,26 +188,41 @@ Future<_TileHarness> _mountCoreTile(
       overrides: [
         homeSessionControllerProvider.overrideWithValue(home),
         coreProxmoxApiFactoryProvider.overrideWithValue(transport),
+        windowPolicySnapshotProvider.overrideWith((_) async* {
+          yield const WindowPolicySnapshot(
+            supported: true,
+            isResumed: true,
+            hasWindowFocus: true,
+            reason: WindowRestrictionReason.none,
+          );
+        }),
       ],
       child: CupertinoApp(
         localizationsDelegates: AppLocalizations.localizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
-        home: MediaQuery(
-          data: MediaQueryData(textScaler: TextScaler.linear(scale)),
-          child: CupertinoPageScaffold(
-            child: SizedBox(
-              width: size.width,
-              height: 360,
-              child: ProxmoxTile(
-                tile: TileConfig(
-                  id: 'tile',
-                  type: TileType.proxmox,
-                  x: 0,
-                  y: 0,
-                  width: 3,
-                  height: 2,
-                  entityId: id,
-                ),
+        builder: (_, child) => MediaQuery(
+          data: MediaQueryData(
+            size: size,
+            textScaler: TextScaler.linear(scale),
+          ),
+          child: AppInteractionScope(
+            controller: home.interaction,
+            child: child!,
+          ),
+        ),
+        home: CupertinoPageScaffold(
+          child: SizedBox(
+            width: size.width,
+            height: 360,
+            child: ProxmoxTile(
+              tile: TileConfig(
+                id: 'tile',
+                type: TileType.proxmox,
+                x: 0,
+                y: 0,
+                width: 3,
+                height: 2,
+                entityId: id,
               ),
             ),
           ),
@@ -318,6 +336,19 @@ void main() {
       ),
       findsOneWidget,
     );
+    expect(
+      tester
+          .widget<CupertinoButton>(
+            find.byKey(const ValueKey('core-proxmox-detail-guest-lxc-102')),
+          )
+          .minimumSize
+          ?.height,
+      greaterThanOrEqualTo(48),
+    );
+    expect(
+      find.bySemanticsLabel(RegExp('Virtual machines & containers')),
+      findsWidgets,
+    );
     await tester.enterText(
       find.byKey(const ValueKey('core-proxmox-detail-search')),
       'DNS',
@@ -325,18 +356,34 @@ void main() {
     await tester.pump();
     expect(find.textContaining('LXC container #102'), findsWidgets);
     expect(find.textContaining('QEMU VM #101'), findsNothing);
-    await tester.tap(find.byKey(const ValueKey('core-proxmox-filter-storage')));
+    await tester.enterText(
+      find.byKey(const ValueKey('core-proxmox-detail-search')),
+      '',
+    );
     await tester.pump();
-    expect(find.textContaining('local-lvm'), findsNothing);
-    for (final button in tester.widgetList<CupertinoButton>(
-      find.byType(CupertinoButton),
-    )) {
+    final storageFilter = find.byKey(
+      const ValueKey('core-proxmox-filter-storage'),
+    );
+    final storageLabel = find.descendant(
+      of: storageFilter,
+      matching: find.text('Storage'),
+    );
+    Focus.of(tester.element(storageLabel)).requestFocus();
+    await tester.pump();
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+    await tester.pump();
+    expect(find.textContaining('local-lvm'), findsWidgets);
+    expect(find.textContaining('QEMU VM #101'), findsNothing);
+    for (final key in [
+      'core-proxmox-filter-all',
+      'core-proxmox-filter-nodes',
+      'core-proxmox-filter-guests',
+      'core-proxmox-filter-storage',
+      'core-proxmox-filter-tasks',
+    ]) {
+      final button = tester.widget<CupertinoButton>(find.byKey(ValueKey(key)));
       expect(button.minimumSize?.height ?? 0, greaterThanOrEqualTo(48));
     }
-    expect(
-      find.bySemanticsLabel(RegExp('Virtual machines & containers')),
-      findsWidgets,
-    );
     semantics.dispose();
   });
 
@@ -473,14 +520,28 @@ void main() {
           find.bySemanticsLabel(RegExp('Power commands ready')),
           findsOneWidget,
         );
-        await tester.sendKeyEvent(LogicalKeyboardKey.tab);
-        await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+        await tester.tap(find.byType(CupertinoButton).first);
         await tester.pumpAndSettle();
         expect(
           find.byKey(const ValueKey('core-proxmox-detail-search')),
           findsOneWidget,
         );
-        expect(find.byType(CupertinoSliverRefreshControl), findsOneWidget);
+        final refresh = find.byType(
+          CupertinoSliverRefreshControl,
+          skipOffstage: false,
+        );
+        expect(refresh, findsOneWidget);
+        final snapshotReads = harness.paths
+            .where((path) => path.endsWith('/snapshot'))
+            .length;
+        await tester
+            .widget<CupertinoSliverRefreshControl>(refresh)
+            .onRefresh!();
+        await tester.pumpAndSettle();
+        expect(
+          harness.paths.where((path) => path.endsWith('/snapshot')).length,
+          snapshotReads + 1,
+        );
         final power = find.byKey(const ValueKey('core-proxmox-power-open'));
         await tester.ensureVisible(power);
         await tester.tap(power);
@@ -599,8 +660,8 @@ void main() {
       final refresh = find.byKey(const ValueKey('core-proxmox-power-refresh'));
       await tester.ensureVisible(refresh);
       await tester.tap(refresh);
-      await tester.pump();
-      expect(find.textContaining('Target changed'), findsOneWidget);
+      await tester.pumpAndSettle();
+      expect(find.textContaining('Target details changed'), findsOneWidget);
       expect(harness.paths.where((path) => path.startsWith('POST ')), isEmpty);
     },
   );
