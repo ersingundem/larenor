@@ -29,7 +29,8 @@ from .arr_config_job_models import (
     ArrConfigurationPayload,
 )
 from .arr_config_models import (
-    PrivateArrConfiguration, ArrConfigurationExecutionError,
+    ArrConfiguredInstallReceipt, PrivateArrConfiguration,
+    ArrConfigurationExecutionError,
 )
 from .arr_owned_config import generate_arr_api_key
 from .stack_plan import verify_media_stack_plan
@@ -49,7 +50,7 @@ _BINDING = (
 class _PrivateView:
     service_id: str
     api_key: str
-    receipt: ArrConfigInstallReceipt | None
+    receipt: ArrConfiguredInstallReceipt | None
 
     def __repr__(self):
         return '_PrivateView(<private>)'
@@ -92,6 +93,8 @@ class ArrConfigurationManagement:
             'phase': row['phase'], 'cancelRequested': bool(row['cancel_requested']),
             'configured': row['state'] == 'succeeded',
             'configurationState': row['configuration_state'],
+            'containerState': ('container_started' if row['state'] == 'succeeded' else None),
+            'serviceState': ('verified' if row['state'] == 'succeeded' else None),
             'errorCode': row['error_code'], 'installAvailable': False,
             'createdAt': utc(row['created_at']), 'updatedAt': utc(row['updated_at']),
         }).model_dump()
@@ -331,6 +334,10 @@ class ArrConfigurationManagement:
             payload.receipt.journalId, payload.receipt.revision,
             payload.receipt.volumeName, payload.receipt.configurationDigest,
             payload.receipt.state)
+        if receipt is not None:
+            receipt = ArrConfiguredInstallReceipt(
+                receipt, payload.receipt.containerId,
+                payload.receipt.containerState, payload.receipt.serviceState)
         return _PrivateView(
             payload.private.serviceId, payload.private.apiKey, receipt)
 
@@ -437,20 +444,25 @@ class ArrConfigurationManagement:
                 self._transition(connection, row, payload, state='running')
                 identifier = row['id']
             try:
-                result = self.backend.configure_arr(
+                result = self.backend.install_arr(
                     identifier, payload.plan, payload.private,
                     deadline=time.monotonic() + 30.0,
                     gate=lambda: self._gate(identifier).permitted)
-                if type(result) is not ArrConfigInstallReceipt:
+                if type(result) is not ArrConfiguredInstallReceipt:
                     raise ArrConfigurationExecutionError(
                         'arr_config_result_invalid', uncertain_effect=True)
                 receipt = PrivateArrReceipt(
                     serviceId=payload.private.serviceId,
-                    resourceId=result.resource_id, operationId=result.operation_id,
-                    journalId=result.journal_id, revision=result.revision,
-                    volumeName=result.volume_name,
-                    configurationDigest=result.configuration_digest,
-                    state=result.state)
+                    resourceId=result.configuration.resource_id,
+                    operationId=result.configuration.operation_id,
+                    journalId=result.configuration.journal_id,
+                    revision=result.configuration.revision,
+                    volumeName=result.configuration.volume_name,
+                    configurationDigest=result.configuration.configuration_digest,
+                    state=result.configuration.state,
+                    containerId=result.container_id,
+                    containerState=result.state,
+                    serviceState=result.service_state)
             except ArrConfigurationExecutionError as failure:
                 with self.db.transaction() as connection:
                     row = self._find(connection, identifier)

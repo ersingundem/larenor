@@ -5,7 +5,8 @@ import pytest
 
 from conftest import auth, ready
 from larenor_server.plugins.arr_config_effect import ArrConfigInstallReceipt
-from larenor_server.plugins.arr_config_models import ArrConfigurationExecutionError
+from larenor_server.plugins.arr_config_models import (
+    ArrConfiguredInstallReceipt, ArrConfigurationExecutionError)
 from test_media_installations_api import prepared
 
 BASE = '/api/v1/admin/media/arr-configurations'
@@ -18,17 +19,23 @@ def receipt(service='sonarr'):
         service+'_config_installed')
 
 
+def installed(service='sonarr'):
+    return ArrConfiguredInstallReceipt(
+        receipt(service), '5'*64, service+'_container_started',
+        service+'_service_verified')
+
+
 class Backend:
     def __init__(self, result=None):
         self.calls=[]
-        self.result = receipt() if result is None else result
+        self.result = installed() if result is None else result
 
-    def configure_arr(self, job, plan, private, *, deadline, gate):
+    def install_arr(self, job, plan, private, *, deadline, gate):
         self.calls.append((job, plan, private))
         assert deadline > time.monotonic() and gate()
         if isinstance(self.result, BaseException):
             raise self.result
-        return receipt(private.serviceId) if self.result == receipt() else self.result
+        return installed(private.serviceId) if self.result == installed() else self.result
 
 
 def queue(server, service='sonarr', request='d'*32, backend=None):
@@ -57,6 +64,7 @@ def test_server_generates_encrypted_key_and_tick_persists_receipt(server, servic
     app, client, _, _ = server
     pair, body, record, backend = queue(server, service)
     assert record['serviceId'] == service and record['state'] == 'queued'
+    assert record['containerState'] is None and record['serviceState'] is None
     private = app.state.core.arr_configurations.private_payload(record['id'])
     assert private.service_id == service and len(private.api_key) == 32
     assert private.api_key not in repr(private)+repr(record)
@@ -66,7 +74,9 @@ def test_server_generates_encrypted_key_and_tick_persists_receipt(server, servic
     terminal = app.state.core.arr_configurations.tick()['configuration']
     assert terminal['state'] == 'succeeded'
     assert terminal['configurationState'] == service+'_config_installed'
-    assert app.state.core.arr_configurations.private_payload(record['id']).receipt == receipt(service)
+    assert terminal['containerState'] == 'container_started'
+    assert terminal['serviceState'] == 'verified'
+    assert app.state.core.arr_configurations.private_payload(record['id']).receipt == installed(service)
     assert backend.calls[0][2].apiKey == private.api_key
     assert client.post(BASE, headers=auth(pair), json=body).json()['configuration'] == terminal
 

@@ -31,12 +31,18 @@ class PrivateArrReceipt(StrictModel):
         'sonarr_config_installed', 'sonarr_config_already_installed',
         'radarr_config_installed', 'radarr_config_already_installed',
     ]
+    containerId: str = Field(pattern=r'^[0-9a-f]{64}$')
+    containerState: Literal['sonarr_container_started', 'radarr_container_started']
+    serviceState: Literal['sonarr_service_verified', 'radarr_service_verified']
 
     @model_validator(mode='after')
     def coherent(self):
         if self.volumeName != 'larenor-appdata-v1-' + self.resourceId:
             raise ValueError('invalid_arr_configuration_receipt')
         if not self.state.startswith(self.serviceId + '_config_'):
+            raise ValueError('invalid_arr_configuration_receipt')
+        if (self.containerState != self.serviceId + '_container_started'
+                or self.serviceState != self.serviceId + '_service_verified'):
             raise ValueError('invalid_arr_configuration_receipt')
         return self
 
@@ -59,6 +65,8 @@ class ArrConfiguration(StrictModel):
         'sonarr_config_installed', 'sonarr_config_already_installed',
         'radarr_config_installed', 'radarr_config_already_installed',
     ] | None
+    containerState: Literal['container_started'] | None
+    serviceState: Literal['verified'] | None
     errorCode: Literal[
         'arr_config_authority_changed',
         'arr_config_context_changed',
@@ -94,6 +102,11 @@ class ArrConfiguration(StrictModel):
                     or self.errorCode is not None or self.cancelRequested):
                 raise ValueError('invalid_arr_configuration_state')
         elif self.configured or self.configurationState is not None:
+            raise ValueError('invalid_arr_configuration_state')
+        if self.state == 'succeeded':
+            if self.containerState != 'container_started' or self.serviceState != 'verified':
+                raise ValueError('invalid_arr_configuration_state')
+        elif self.containerState is not None or self.serviceState is not None:
             raise ValueError('invalid_arr_configuration_state')
         if self.state in {'queued', 'running', 'cancelled'} and self.errorCode is not None:
             raise ValueError('invalid_arr_configuration_state')
