@@ -66,7 +66,8 @@ jobs:
         run: |
           mkdir -p "$GITHUB_WORKSPACE/test-results"
           shard_dir="$RUNNER_TEMP/larenor-server-shards"
-          python ../tool/server_test_shards.py --root tests --count 3 --output-dir "$shard_dir"
+          python ../tool/server_test_shards.py --root tests --count 3 \
+            --weights ../tool/server_test_durations.json --output-dir "$shard_dir"
           shard="${{ matrix.shard }}"
           mapfile -t test_paths < "$shard_dir/$shard.txt"
           uv run --locked --no-sync python -m pytest \
