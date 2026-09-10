@@ -120,6 +120,98 @@ void main() {
     }
   });
 
+  test('connection quality combines fresh WAN, rates and router uptime', () {
+    final now = DateTime.utc(2026, 9, 10, 12);
+    final projection = KeeneticMetricPresentation.from(
+      KeeneticTelemetrySnapshot(
+        accountGeneration: 1,
+        internet: KeeneticReading(
+          readAt: now,
+          value: const KeeneticInternetStatus(
+            internet: true,
+            gatewayInterfaceId: 'ISP',
+          ),
+        ),
+        interfaces: KeeneticReading(
+          readAt: now,
+          value: [KeeneticInterface(id: 'ISP', address: '100.64.1.2')],
+        ),
+        resources: const KeeneticReading(
+          value: KeeneticRouterStatus(
+            model: 'Fixture',
+            uptimeSeconds: 90061,
+          ),
+        ),
+        traffic: {
+          'ISP': KeeneticReading(
+            readAt: now,
+            value: const KeeneticTrafficSample(
+              interfaceId: 'ISP',
+              receiveBytesPerSecond: 12500000,
+              sendBytesPerSecond: 1250000,
+            ),
+          ),
+        },
+      ),
+      const KeeneticMetricRequest(
+        KeeneticMetricKind.connectionQuality,
+        interfaceId: 'ISP',
+      ),
+      l10n,
+      now: now,
+    );
+
+    expect(keeneticMetricTitle(l10n, KeeneticMetricKind.connectionQuality),
+        'Connection quality');
+    expect(projection.lines, [
+      (label: l10n.keeneticInternetStatus, value: l10n.keeneticReachable),
+      (label: l10n.keeneticInterfaceAddress, value: '100.64.1.2'),
+      (label: l10n.keeneticDownloadRate, value: '100.0 Mbit/s'),
+      (label: l10n.keeneticUploadRate, value: '10.0 Mbit/s'),
+      (label: l10n.keeneticUptime, value: '1 d 1 h 1 min'),
+    ]);
+    expect(projection.issue, isNull);
+    expect(projection.readAt, now);
+    expect(projection.awaitingSample, isFalse);
+  });
+
+  test('connection quality exposes partial-source failure and pending rates', () {
+    final projection = KeeneticMetricPresentation.from(
+      KeeneticTelemetrySnapshot(
+        accountGeneration: 1,
+        internet: const KeeneticReading(
+          value: KeeneticInternetStatus(internet: true),
+        ),
+        interfaces: KeeneticReading(
+          value: [KeeneticInterface(id: 'ISP', address: '192.0.2.1')],
+        ),
+        resources: const KeeneticReading(
+          issue: KeeneticReadFailure.timeout,
+        ),
+        traffic: {
+          'ISP': const KeeneticReading(
+            value: KeeneticTrafficSample(
+              interfaceId: 'ISP',
+              receivedBytes: 10,
+              sentBytes: 5,
+            ),
+          ),
+        },
+      ),
+      const KeeneticMetricRequest(
+        KeeneticMetricKind.connectionQuality,
+        interfaceId: 'ISP',
+      ),
+      l10n,
+    );
+
+    expect(projection.issue, KeeneticReadFailure.timeout);
+    expect(projection.stale, isTrue);
+    expect(projection.awaitingSample, isTrue);
+    expect(projection.lines[2].value, l10n.commonUnknown);
+    expect(projection.lines[4].value, l10n.commonUnknown);
+  });
+
   test(
     'first sample is pending and retained failed measurement is marked stale',
     () {

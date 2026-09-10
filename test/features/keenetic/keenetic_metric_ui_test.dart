@@ -205,6 +205,10 @@ class _Harness {
     await tester.tap(find.text('Network traffic'));
     await tester.pump();
   }
+  Future<void> quality(WidgetTester tester) async {
+    await tester.tap(find.text('Connection quality'));
+    await tester.pump();
+  }
 
   Future<void> select(WidgetTester tester) async {
     final choice = find.text('WAN interface');
@@ -319,6 +323,29 @@ void main() {
       expect(h.results, hasLength(1));
       expect(h.results.single.keeneticInterfaceId, 'wan');
       expect(h.results.single.keeneticMetric, KeeneticMetricKind.wanTraffic);
+      await h.close(tester);
+    },
+  );
+
+  testWidgets(
+    'connection quality picker requires a current WAN selection and persists it',
+    (tester) async {
+      final h = _Harness();
+      await h.mount(tester, picker: true, overrideInventory: true);
+      await h.quality(tester);
+      expect(h.addButton(tester).onPressed, isNull);
+      h.inventory!.add(h.sample());
+      await tester.pumpAndSettle();
+      await h.select(tester);
+      h.addButton(tester).onPressed!();
+      await tester.pumpAndSettle();
+      expect(h.results, hasLength(1));
+      expect(
+        h.results.single.keeneticMetric,
+        KeeneticMetricKind.connectionQuality,
+      );
+      expect(h.results.single.keeneticInterfaceId, 'wan');
+      expect(h.requests, 0);
       await h.close(tester);
     },
   );

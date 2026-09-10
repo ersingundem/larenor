@@ -63,6 +63,51 @@ void main() {
     },
   );
   testWidgets(
+    'connection quality requests all sources and samples selected WAN traffic',
+    (tester) async {
+      var bytes = 100;
+      var tick = Duration.zero;
+      final client = KeeneticClient(
+        config: fixtureConfig,
+        httpClient: MockClient(
+          (request) async => telemetryResponse(request, rx: bytes),
+        ),
+      );
+      final controller = KeeneticTelemetryController(
+        client: client,
+        monotonicNow: () => tick,
+      );
+      addTearDown(controller.dispose);
+      final remove = controller.register(
+        const KeeneticMetricRequest(
+          KeeneticMetricKind.connectionQuality,
+          interfaceId: 'GigabitEthernet1',
+        ),
+      );
+      await flush(tester);
+      expect(controller.snapshot.internet.value?.internet, isTrue);
+      expect(controller.snapshot.interfaces.value, isNotEmpty);
+      expect(controller.snapshot.resources.value?.uptimeSeconds, 12345);
+      expect(
+        controller.snapshot.traffic['GigabitEthernet1']?.value,
+        isNotNull,
+      );
+      bytes = 150;
+      tick = const Duration(seconds: 5);
+      await tester.pump(const Duration(seconds: 5));
+      await flush(tester);
+      expect(
+        controller
+            .snapshot
+            .traffic['GigabitEthernet1']
+            ?.value
+            ?.receiveBytesPerSecond,
+        10,
+      );
+      remove();
+    },
+  );
+  testWidgets(
     'background pauses IO, clears rate baseline, resume starts with unknown speed',
     (tester) async {
       var requests = 0, bytes = 100;
