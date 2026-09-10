@@ -1,7 +1,80 @@
+import 'dart:async';
+
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:larenor/features/remote_access/data/remote_profiles.dart';
+import 'package:larenor/features/remote_access/rdp/rdp_engine.dart';
+import 'package:larenor/features/remote_access/rdp/rdp_models.dart';
+import 'package:larenor/features/remote_access/rdp/rdp_security_store.dart';
 
 import '../remote_profiles_ui_fixture.dart';
+import 'rdp_models_test.dart' show fixture;
+
+class UiTrust implements RdpTrustStore {
+  final pin = RdpCertificatePin.fromJson(fixture()['certificate']);
+  @override
+  Future<void> checkProfile(
+    RemoteProfile profile, {
+    required bool Function() isCurrent,
+  }) async {}
+  @override
+  Future<RdpCertificatePin?> readPin(
+    RemoteProfile profile, {
+    required bool Function() isCurrent,
+  }) async => pin;
+  @override
+  Future<void> trust(
+    RemoteProfile profile,
+    RdpCertificatePin value, {
+    required bool Function() isCurrent,
+  }) async {}
+}
+
+class UiChannel implements RdpChannel {
+  final doneCompleter = Completer<void>();
+  final pointers = <RdpPointerEvent>[];
+  final keys = <RdpKeyEvent>[];
+  final displays = <RdpDisplaySpec>[];
+  @override
+  Future<void> get done => doneCompleter.future;
+  @override
+  void close() {
+    if (!doneCompleter.isCompleted) doneCompleter.complete();
+  }
+
+  @override
+  void key(RdpKeyEvent event) => keys.add(event);
+  @override
+  void pointer(RdpPointerEvent event) => pointers.add(event);
+  @override
+  void resize(RdpDisplaySpec display) => displays.add(display);
+}
+
+class UiEngine implements RdpEngine {
+  final channel = UiChannel();
+  @override
+  Future<RdpCapabilities> capabilities({
+    required bool Function() isCurrent,
+  }) async => RdpCapabilities.fromJson(fixture()['availableCapabilities']);
+  @override
+  Future<RdpPeerSecurity> inspect(
+    RemoteProfile profile, {
+    required bool Function() isCurrent,
+  }) async => RdpPeerSecurity(
+    tls: true,
+    requiresNla: false,
+    certificate: RdpCertificatePin.fromJson(fixture()['certificate']),
+  );
+  @override
+  Future<RdpChannel> open(
+    RdpSessionRequest request, {
+    required RdpCredential? credential,
+    required bool Function() isCurrent,
+  }) async => channel;
+  @override
+  void close() {}
+}
 
 Future<void> openRdp(WidgetTester tester, RemoteUi ui) async {
   await ui.edit(tester, name: 'Office PC');
@@ -95,4 +168,27 @@ void main() {
       semantics.dispose();
     },
   );
+
+  testWidgets('connected DeX surface forwards pointer keyboard and resize', (
+    tester,
+  ) async {
+    final engine = UiEngine(), ui = RemoteUi();
+    await ui.mount(
+      tester,
+      width: 1280,
+      rdpEngine: () => engine,
+      rdpTrust: UiTrust(),
+    );
+    await openRdp(tester, ui);
+    await press(tester, 'rdp-check');
+    expect(key('rdp-surface'), findsOneWidget);
+    await tester.tap(key('rdp-surface'));
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.keyA);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.keyA);
+    expect(engine.channel.pointers, isNotEmpty);
+    expect(engine.channel.keys, hasLength(2));
+    tester.view.physicalSize = const Size(1000, 900);
+    await tester.pumpAndSettle();
+    expect(engine.channel.displays, isNotEmpty);
+  });
 }
