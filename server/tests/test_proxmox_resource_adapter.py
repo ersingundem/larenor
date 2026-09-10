@@ -30,7 +30,8 @@ SUMMARY = {
         'state': 'available', 'guestCount': 1, 'scannedGuestCount': 1,
         'truncated': False,
         'latestBackup': {
-            'taskId': '9' * 64, 'node': 'pve-a', 'status': 'succeeded',
+            'taskId': '9' * 64, 'node': 'pve-a', 'kind': 'vzdump',
+            'status': 'succeeded',
             'startedAt': '2026-09-11T08:00:00Z',
             'finishedAt': '2026-09-11T08:03:00Z',
         },

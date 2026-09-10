@@ -109,18 +109,18 @@ void main() {
                       as List)[1]
                   as Map)['severity'] =
               'critical',
-      (v) => ((v['summary'] as Map)['protection'] as Map)['state'] =
-          'unknown',
+      (v) => ((v['summary'] as Map)['protection'] as Map)['state'] = 'unknown',
       (v) => ((v['summary'] as Map)['protection'] as Map)['guestCount'] = 3,
-      (v) => ((v['summary'] as Map)['protection'] as Map)['host'] =
-          'pve.internal',
+      (v) =>
+          ((v['summary'] as Map)['protection'] as Map)['host'] = 'pve.internal',
       (v) =>
           (((v['summary'] as Map)['protection'] as Map)['latestBackup']
                   as Map)['taskId'] =
               '7' * 64,
       (v) =>
           ((((v['summary'] as Map)['protection'] as Map)['snapshots'] as List)
-                  .first as Map)['vmId'] =
+                      .first
+                  as Map)['vmId'] =
               999,
     ];
     for (final mutate in mutations) {

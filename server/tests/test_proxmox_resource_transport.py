@@ -138,7 +138,8 @@ def test_packaged_transport_uses_one_fixed_read_and_returns_only_typed_summary(p
         ('GET', '/api2/json/nodes/pve-a/lxc/102/snapshot',
          'PVEAPIToken=root@pam!larenor=01234567-89ab-cdef-0123-456789abcdef'),
     ]
-    assert 'root@pam' not in json.dumps(result.model_dump())
+    public = json.dumps(result.model_dump())
+    assert 'root@pam' not in public and 'private note' not in public
 
 
 def test_password_account_uses_ticket_only_then_same_fixed_read(pve):

@@ -307,6 +307,49 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('empty backup and snapshot state stays explicit at 2x text', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(600, 900));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    final raw = jsonDecode(
+      File('contracts/proxmox-resource.v1.json').readAsStringSync(),
+    ) as Map<String, dynamic>;
+    final summary =
+        jsonDecode(jsonEncode(raw['summary'])) as Map<String, dynamic>;
+    final protection = summary['protection'] as Map<String, dynamic>;
+    protection['state'] = 'empty';
+    protection['latestBackup'] = null;
+    for (final snapshot in protection['snapshots'] as List) {
+      (snapshot as Map<String, dynamic>)
+        ..['snapshotCount'] = 0
+        ..['latestAt'] = null;
+    }
+    await tester.pumpWidget(
+      CupertinoApp(
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        home: MediaQuery(
+          data: const MediaQueryData(
+            size: Size(600, 900),
+            textScaler: TextScaler.linear(2),
+          ),
+          child: CupertinoPageScaffold(
+            child: SingleChildScrollView(
+              child: CoreProxmoxDetailExplorer(
+                summary: CoreProxmoxSummary.fromJson(summary),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('No backup record'), findsOneWidget);
+    expect(find.text('No snapshots'), findsNWidgets(2));
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('wide detail groups, filters and searches read-only telemetry', (
     tester,
   ) async {

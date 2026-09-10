@@ -18,6 +18,7 @@ from .models import Summary
 
 MAX_BYTES = 1024 * 1024
 TIMEOUT = 4.0
+MAX_SNAPSHOT_GUESTS = 8
 _TOKEN = re.compile(r'[^=\s;]+@[^=!\s;]+![A-Za-z0-9._-]{1,64}=[A-Za-z0-9-]{16,128}\Z')
 _SESSION = re.compile(r'[A-Za-z0-9_./~+!:=@-]{1,2048}\Z')
 
@@ -149,6 +150,42 @@ def _tasks(values):
         raise ApiError('proxmox_summary_unsupported', 502) from None
 
 
+def _snapshots(values, guest):
+    try:
+        if len(values) > 256:
+            raise ValueError()
+        names, timestamps = set(), []
+        for item in values:
+            if type(item) is not dict:
+                raise ValueError()
+            name = _safe(item['name'])
+            if name in names:
+                raise ValueError()
+            names.add(name)
+            if name == 'current':
+                continue
+            timestamps.append(_number(item['snaptime'], integer=True))
+        return {
+            'node': guest['node'], 'kind': guest['kind'], 'vmId': guest['vmId'],
+            'snapshotCount': len(timestamps),
+            'latestAt': _timestamp(max(timestamps)) if timestamps else None,
+        }
+    except (KeyError, TypeError, ValueError, UnicodeError):
+        raise ApiError('proxmox_summary_unsupported', 502) from None
+
+
+def _protection(guests, tasks, snapshots):
+    backups = [task for task in tasks if task['kind'] == 'vzdump']
+    latest = max(backups, key=lambda task: task['startedAt']) if backups else None
+    truncated = len(guests) > len(snapshots)
+    has_data = latest is not None or any(item['snapshotCount'] for item in snapshots)
+    return {
+        'state': 'partial' if truncated else 'available' if has_data else 'empty',
+        'guestCount': len(guests), 'scannedGuestCount': len(snapshots),
+        'truncated': truncated, 'latestBackup': latest, 'snapshots': snapshots,
+    }
+
+
 def _maintenance(nodes, storages, tasks):
     warnings = []
 
@@ -235,19 +272,30 @@ def read_summary(service, *, guard):
             response = transport.request('GET', '/api2/json/cluster/resources',
                 headers=headers, before_send=guard)
             guard()
+            nodes, guests, storages = _resources(_data(response))
             tasks_response = transport.request('GET', '/api2/json/cluster/tasks',
                 headers=headers, before_send=guard, query_parameters={'limit': '20'})
+            guard()
+            tasks = _tasks(_data(tasks_response))
+            snapshots = []
+            for guest in guests[:MAX_SNAPSHOT_GUESTS]:
+                node = _safe(guest['node'], maximum=64,
+                             pattern=r'[A-Za-z0-9][A-Za-z0-9._-]*')
+                response = transport.request(
+                    'GET', f'/api2/json/nodes/{node}/{guest["kind"]}/{guest["vmId"]}/snapshot',
+                    headers=headers, before_send=guard)
+                guard()
+                snapshots.append(_snapshots(_data(response), guest))
     except ApiError:
         raise
     except (ProbeTransportError, KeyError, UnicodeError):
         guard()
         raise ApiError('proxmox_upstream_unavailable', 502) from None
     guard()
-    nodes, guests, storages = _resources(_data(response))
-    tasks = _tasks(_data(tasks_response))
     try:
         return Summary(nodes=nodes, guests=guests, storages=storages,
                        recentTasks=tasks,
-                       maintenance=_maintenance(nodes, storages, tasks))
+                       maintenance=_maintenance(nodes, storages, tasks),
+                       protection=_protection(guests, tasks, snapshots))
     except (TypeError, ValueError):
         raise ApiError('proxmox_summary_unsupported', 502) from None
