@@ -318,7 +318,9 @@ void main() {
         localizationsDelegates: AppLocalizations.localizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
         home: CupertinoPageScaffold(
-          child: CoreProxmoxDetailExplorer(summary: _summary()),
+          child: SingleChildScrollView(
+            child: CoreProxmoxDetailExplorer(summary: _summary()),
+          ),
         ),
       ),
     );
@@ -333,6 +335,10 @@ void main() {
     expect(find.textContaining('vzdump'), findsWidgets);
     expect(find.textContaining('Succeeded'), findsWidgets);
     expect(find.textContaining('root@pam'), findsNothing);
+    expect(find.text('Capacity & maintenance'), findsWidgets);
+    expect(find.text('Node offline'), findsWidgets);
+    expect(find.text('Recent task failed'), findsWidgets);
+    expect(find.textContaining('private'), findsNothing);
     expect(
       tester
           .widget<CupertinoButton>(
@@ -375,11 +381,19 @@ void main() {
     await tester.pump();
     expect(find.textContaining('vzdump'), findsWidgets);
     expect(find.textContaining('local-lvm'), findsNothing);
+    await tester.tap(
+      find.byKey(const ValueKey('core-proxmox-filter-maintenance')),
+    );
+    await tester.pump();
+    expect(find.text('Node offline'), findsWidgets);
+    expect(find.text('Recent task failed'), findsWidgets);
+    expect(find.textContaining('vzdump'), findsNothing);
     for (final key in [
       'core-proxmox-filter-all',
       'core-proxmox-filter-nodes',
       'core-proxmox-filter-guests',
       'core-proxmox-filter-storage',
+      'core-proxmox-filter-maintenance',
       'core-proxmox-filter-tasks',
     ]) {
       final button = tester.widget<CupertinoButton>(find.byKey(ValueKey(key)));

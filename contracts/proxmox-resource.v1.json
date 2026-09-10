@@ -29,8 +29,13 @@
       {"storage": "local-lvm", "node": "pve-a", "kind": "lvmthin", "active": true, "usedBytes": 53687091200, "totalBytes": 107374182400, "availableBytes": 53687091200}
     ],
     "recentTasks": [
-      {"taskId": "9999999999999999999999999999999999999999999999999999999999999999", "node": "pve-a", "kind": "vzdump", "status": "succeeded", "startedAt": "2026-09-11T08:00:00Z", "finishedAt": "2026-09-11T08:03:00Z"}
-    ]
+      {"taskId": "9999999999999999999999999999999999999999999999999999999999999999", "node": "pve-a", "kind": "vzdump", "status": "succeeded", "startedAt": "2026-09-11T08:00:00Z", "finishedAt": "2026-09-11T08:03:00Z"},
+      {"taskId": "8888888888888888888888888888888888888888888888888888888888888888", "node": "pve-a", "kind": "aptupdate", "status": "failed", "startedAt": "2026-09-11T09:00:00Z", "finishedAt": "2026-09-11T09:00:30Z"}
+    ],
+    "maintenance": {"state": "critical", "warningCount": 2, "truncated": false, "warnings": [
+      {"warningId": "7777777777777777777777777777777777777777777777777777777777777777", "kind": "node_offline", "severity": "critical", "node": "pve-b", "storage": null, "observedPercent": null, "thresholdPercent": null, "relatedTaskId": null},
+      {"warningId": "6666666666666666666666666666666666666666666666666666666666666666", "kind": "recent_task_failed", "severity": "warning", "node": "pve-a", "storage": null, "observedPercent": null, "thresholdPercent": null, "relatedTaskId": "8888888888888888888888888888888888888888888888888888888888888888"}
+    ]}
   },
   "snapshot": {
     "schemaVersion": 1,
@@ -52,8 +57,13 @@
         {"storage": "local-lvm", "node": "pve-a", "kind": "lvmthin", "active": true, "usedBytes": 53687091200, "totalBytes": 107374182400, "availableBytes": 53687091200}
       ],
       "recentTasks": [
-        {"taskId": "9999999999999999999999999999999999999999999999999999999999999999", "node": "pve-a", "kind": "vzdump", "status": "succeeded", "startedAt": "2026-09-11T08:00:00Z", "finishedAt": "2026-09-11T08:03:00Z"}
-      ]
+        {"taskId": "9999999999999999999999999999999999999999999999999999999999999999", "node": "pve-a", "kind": "vzdump", "status": "succeeded", "startedAt": "2026-09-11T08:00:00Z", "finishedAt": "2026-09-11T08:03:00Z"},
+        {"taskId": "8888888888888888888888888888888888888888888888888888888888888888", "node": "pve-a", "kind": "aptupdate", "status": "failed", "startedAt": "2026-09-11T09:00:00Z", "finishedAt": "2026-09-11T09:00:30Z"}
+      ],
+      "maintenance": {"state": "critical", "warningCount": 2, "truncated": false, "warnings": [
+        {"warningId": "7777777777777777777777777777777777777777777777777777777777777777", "kind": "node_offline", "severity": "critical", "node": "pve-b", "storage": null, "observedPercent": null, "thresholdPercent": null, "relatedTaskId": null},
+        {"warningId": "6666666666666666666666666666666666666666666666666666666666666666", "kind": "recent_task_failed", "severity": "warning", "node": "pve-a", "storage": null, "observedPercent": null, "thresholdPercent": null, "relatedTaskId": "8888888888888888888888888888888888888888888888888888888888888888"}
+      ]}
     }
   },
   "preview": {"id": "66666666666666666666666666666666", "expiresInMs": 60000}

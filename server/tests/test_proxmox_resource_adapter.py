@@ -22,6 +22,10 @@ SUMMARY = {
         'status': 'succeeded', 'startedAt': '2026-09-11T08:00:00Z',
         'finishedAt': '2026-09-11T08:03:00Z',
     }],
+    'maintenance': {
+        'state': 'healthy', 'warningCount': 0, 'truncated': False,
+        'warnings': [],
+    },
 }
 
 
@@ -190,3 +194,26 @@ def test_recent_tasks_are_closed_bounded_and_actor_free(server, tasks):
     response = client.get(public + '/snapshot', headers=auth(admin))
     assert response.status_code == 502, response.text
     assert 'root@pam' not in response.text
+
+
+@pytest.mark.parametrize('maintenance', [
+    {'state': 'healthy', 'warningCount': 1, 'truncated': False, 'warnings': []},
+    {'state': 'unknown', 'warningCount': 0, 'truncated': False, 'warnings': []},
+    {'state': 'healthy', 'warningCount': 0, 'truncated': False, 'warnings': [],
+     'host': 'pve.internal'},
+    {'state': 'critical', 'warningCount': 1, 'truncated': False, 'warnings': [{
+        'warningId': '8' * 64, 'kind': 'node_cpu_pressure', 'severity': 'critical',
+        'node': 'pve-a', 'storage': None, 'observedPercent': 95,
+        'thresholdPercent': 90, 'relatedTaskId': None, 'rawError': 'private',
+    }]},
+])
+def test_maintenance_summary_is_strict_and_secret_free(server, maintenance):
+    app, client, admin, _, _, base, public, body, _ = setup(server)
+    bind(client, admin, base, body)
+    app.state.core.proxmox._cache.clear()
+    app.state.core.proxmox._reader = lambda connection, *, guard: {
+        **SUMMARY, 'maintenance': maintenance,
+    }
+    response = client.get(public + '/snapshot', headers=auth(admin))
+    assert response.status_code == 502, response.text
+    assert 'pve.internal' not in response.text and 'private' not in response.text

@@ -631,7 +631,14 @@ class CoreProxmoxSummaryPanel extends StatelessWidget {
   }
 }
 
-enum _CoreProxmoxDetailFilter { all, nodes, guests, storage, tasks }
+enum _CoreProxmoxDetailFilter {
+  all,
+  nodes,
+  guests,
+  storage,
+  maintenance,
+  tasks,
+}
 
 final class _CoreProxmoxDetailItem {
   const _CoreProxmoxDetailItem({
@@ -676,6 +683,29 @@ class _CoreProxmoxDetailExplorerState extends State<CoreProxmoxDetailExplorer> {
     const gib = 1024 * 1024 * 1024;
     return '${(value / gib).toStringAsFixed(value >= 10 * gib ? 0 : 1)} GB';
   }
+
+  String _warningTitle(CoreProxmoxWarningKind kind, bool tr) => switch (kind) {
+    CoreProxmoxWarningKind.nodeOffline =>
+      tr ? 'Düğüm çevrimdışı' : 'Node offline',
+    CoreProxmoxWarningKind.storageOffline =>
+      tr ? 'Depolama çevrimdışı' : 'Storage offline',
+    CoreProxmoxWarningKind.nodeCpuPressure =>
+      tr ? 'CPU baskısı' : 'CPU pressure',
+    CoreProxmoxWarningKind.nodeMemoryPressure =>
+      tr ? 'Bellek baskısı' : 'Memory pressure',
+    CoreProxmoxWarningKind.storagePressure =>
+      tr ? 'Depolama baskısı' : 'Storage pressure',
+    CoreProxmoxWarningKind.recentTaskFailed =>
+      tr ? 'Son görev başarısız' : 'Recent task failed',
+  };
+
+  String _maintenanceState(CoreProxmoxMaintenanceState state, bool tr) =>
+      switch (state) {
+        CoreProxmoxMaintenanceState.healthy => tr ? 'Sağlıklı' : 'Healthy',
+        CoreProxmoxMaintenanceState.attention =>
+          tr ? 'Dikkat gerekli' : 'Attention needed',
+        CoreProxmoxMaintenanceState.critical => tr ? 'Kritik' : 'Critical',
+      };
 
   List<_CoreProxmoxDetailItem> _items(bool tr) => [
     for (final node in widget.summary.nodes)
@@ -723,6 +753,44 @@ class _CoreProxmoxDetailExplorerState extends State<CoreProxmoxDetailExplorer> {
         metrics: [
           '${tr ? 'Düğüm' : 'Node'} ${storage.node}',
           '${tr ? 'Kullanılan' : 'Used'} ${_bytes(storage.usedBytes)} / ${_bytes(storage.totalBytes)}',
+        ],
+      ),
+    _CoreProxmoxDetailItem(
+      key: 'maintenance-overview',
+      filter: _CoreProxmoxDetailFilter.maintenance,
+      section: tr ? 'Kapasite ve bakım' : 'Capacity & maintenance',
+      title: tr ? 'Kapasite ve bakım' : 'Capacity & maintenance',
+      status: _maintenanceState(widget.summary.maintenance.state, tr),
+      metrics: [
+        tr
+            ? '${widget.summary.maintenance.warningCount} uyarı'
+            : '${widget.summary.maintenance.warningCount} warnings',
+        if (widget.summary.maintenance.truncated)
+          tr
+              ? 'En yüksek öncelikli 32 uyarı gösteriliyor.'
+              : 'Showing the 32 highest-priority warnings.',
+      ],
+    ),
+    for (final warning in widget.summary.maintenance.warnings)
+      _CoreProxmoxDetailItem(
+        key: 'maintenance-${warning.id}',
+        filter: _CoreProxmoxDetailFilter.maintenance,
+        section: tr ? 'Kapasite ve bakım' : 'Capacity & maintenance',
+        title: _warningTitle(warning.kind, tr),
+        status: warning.severity == CoreProxmoxWarningSeverity.critical
+            ? (tr ? 'Kritik' : 'Critical')
+            : (tr ? 'Uyarı' : 'Warning'),
+        metrics: [
+          '${tr ? 'Düğüm' : 'Node'} ${warning.node}',
+          if (warning.storage != null)
+            '${tr ? 'Depolama' : 'Storage'} ${warning.storage}',
+          if (warning.observedPercent != null)
+            '${tr ? 'Gözlenen' : 'Observed'} ${warning.observedPercent}% · '
+                '${tr ? 'Eşik' : 'Threshold'} ${warning.thresholdPercent}%',
+          if (warning.relatedTaskId != null)
+            tr
+                ? 'Son başarısız görevle ilişkilendirildi.'
+                : 'Correlated with a recent failed task.',
         ],
       ),
     for (final task in widget.summary.recentTasks)
@@ -776,6 +844,7 @@ class _CoreProxmoxDetailExplorerState extends State<CoreProxmoxDetailExplorer> {
       _CoreProxmoxDetailFilter.nodes => tr ? 'Düğümler' : 'Nodes',
       _CoreProxmoxDetailFilter.guests => tr ? 'Konuklar' : 'Guests',
       _CoreProxmoxDetailFilter.storage => tr ? 'Depolama' : 'Storage',
+      _CoreProxmoxDetailFilter.maintenance => tr ? 'Bakım' : 'Maintenance',
       _CoreProxmoxDetailFilter.tasks => tr ? 'Görevler' : 'Tasks',
     };
 
