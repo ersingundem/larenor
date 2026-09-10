@@ -13,6 +13,7 @@ from test_jellyfin_startup import Connection
 
 
 USERNAME = "larenor-system"
+JELLYFIN_HOST = "larenor-" + "6" * 32
 PASSWORD = "S" * 48
 COOKIE = "s%3A" + "A" * 48 + "." + "b" * 43
 DECODED_KEY = b"178900000000012345678-1234-4abc-8def-123456789abc"
@@ -60,6 +61,7 @@ def test_creates_initial_admin_reads_key_and_destroys_session():
 
     result = SeerrInitialAdmin().create(
         connection, username=USERNAME, credential=PASSWORD,
+        jellyfin_hostname=JELLYFIN_HOST,
     )
 
     assert result.state == "verified"
@@ -78,7 +80,7 @@ def test_creates_initial_admin_reads_key_and_destroys_session():
     auth_headers, auth_body = request(connection.requests[1])
     assert auth_body == {
         "email": USERNAME,
-        "hostname": "jellyfin",
+        "hostname": JELLYFIN_HOST,
         "password": PASSWORD,
         "port": 8096,
         "serverType": 2,
@@ -107,6 +109,7 @@ def test_only_exact_fresh_seerr_instance_can_receive_credentials(public):
     ) as raised:
         SeerrInitialAdmin().create(
             connection, username=USERNAME, credential=PASSWORD,
+        jellyfin_hostname=JELLYFIN_HOST,
         )
 
     assert not raised.value.uncertain_effect
@@ -134,6 +137,7 @@ def test_auth_response_must_be_exact_larenor_jellyfin_admin(user):
     ) as raised:
         SeerrInitialAdmin().create(
             connection, username=USERNAME, credential=PASSWORD,
+        jellyfin_hostname=JELLYFIN_HOST,
         )
 
     assert raised.value.uncertain_effect
@@ -160,6 +164,7 @@ def test_missing_or_untrusted_session_cookie_never_reaches_settings(cookie):
     ) as raised:
         SeerrInitialAdmin().create(
             connection, username=USERNAME, credential=PASSWORD,
+        jellyfin_hostname=JELLYFIN_HOST,
         )
 
     assert raised.value.uncertain_effect
@@ -182,6 +187,7 @@ def test_generated_api_key_must_match_pinned_seerr_contract(key):
     ) as raised:
         SeerrInitialAdmin().create(
             connection, username=USERNAME, credential=PASSWORD,
+        jellyfin_hostname=JELLYFIN_HOST,
         )
 
     assert raised.value.uncertain_effect
@@ -221,8 +227,28 @@ def test_authentication_failure_is_secret_free_and_not_marked_uncertain():
     ) as raised:
         SeerrInitialAdmin().create(
             connection, username=USERNAME, credential=PASSWORD,
+        jellyfin_hostname=JELLYFIN_HOST,
         )
 
     assert not raised.value.uncertain_effect
     assert PASSWORD not in str(raised.value) + repr(raised.value)
     assert connection.closed
+
+@pytest.mark.parametrize("hostname", [
+    "jellyfin",
+    "larenor-jellyfin",
+    "larenor-" + "6" * 31,
+    "larenor-" + "G" * 32,
+])
+def test_untrusted_jellyfin_hostname_sends_nothing(hostname):
+    connection = Connection([])
+
+    with pytest.raises(
+        SeerrInitialAdminError, match="^invalid_seerr_initial_admin$"
+    ):
+        SeerrInitialAdmin().create(
+            connection, username=USERNAME, credential=PASSWORD,
+            jellyfin_hostname=hostname,
+        )
+
+    assert connection.requests == []
