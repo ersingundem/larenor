@@ -26,7 +26,7 @@ from larenor_server.plugins.preflight_ipc import (
 )
 
 from conftest import auth, ready
-from test_keenetic_command_authority import Actor, Harness, authority, request, state
+from test_keenetic_command_authority import Harness, request, state
 from test_keenetic_command_http_journal import scoped_request
 
 
@@ -58,21 +58,25 @@ def resulting(command):
 
 
 class Handler:
-    def __init__(self, error=None):
+    def __init__(self, error=None, observed=None):
         self.calls = []
         self.error = error
+        self.observed = observed
 
     def execute(self, command, *, deadline, cancelled):
         assert time.monotonic() < deadline and cancelled() is False
         self.calls.append(command)
         if self.error is not None:
             raise self.error
+        result = resulting(command)
+        if self.observed is not None:
+            self.observed(result)
         return KeeneticWorkerResult.for_command(command, {
             'schemaVersion': 1, 'requestId': command.requestId,
             'action': command.action, 'target': command.target,
             'previewReceipt': command.previewReceipt,
             'status': 'succeeded', 'code': 'keenetic_effect_succeeded',
-            'observedState': resulting(command),
+            'observedState': result,
         })
 
 
@@ -279,10 +283,16 @@ def test_unknown_operation_and_replayed_packet_fail_closed():
                 worker.path, packet(command, packet_id='e' * 32,
                                     operation='router_raw_command'))
             assert unknown['error'] == 'invalid_request'
+            raw = packet(command, packet_id='d' * 32)
+            raw['command']['action'] = 'raw_command'
+            assert exchange(worker.path, raw)['error'] == 'invalid_request'
             first = exchange(worker.path, packet(command))
             assert 'result' in first
             replay = exchange(worker.path, packet(command))
             assert replay['error'] == 'invalid_request'
+            replay_with_new_frame = exchange(
+                worker.path, packet(command, packet_id='a' * 32))
+            assert replay_with_new_frame['error'] == 'invalid_request'
             assert handler.calls == [command]
         finally:
             worker.close()
@@ -326,7 +336,7 @@ def test_worker_result_is_persisted_in_current_integrity_journal(server):
                 'SELECT revision FROM users WHERE id=?',
                 (actor.id,)).fetchone()['revision']
 
-    handler = Handler()
+    handler = Handler(observed=lambda value: setattr(harness, 'current', value))
     with socket_directory() as directory:
         worker = KeeneticCommandWorkerServer(
             directory / 'keenetic.sock', handler,
