@@ -12,6 +12,7 @@ abstract interface class CoreMusicPlaybackApi {
     required CoreMusicTarget target,
     required CoreMusicPlaybackOperation operation,
     int? volumeLevel,
+    int? seekPosition,
     required bool Function() isCurrent,
   });
 }
@@ -34,6 +35,7 @@ class AccountCoreMusicPlaybackApi implements CoreMusicPlaybackApi {
     required CoreMusicTarget target,
     required CoreMusicPlaybackOperation operation,
     int? volumeLevel,
+    int? seekPosition,
     required bool Function() isCurrent,
   }) async {
     bool current() => authorized && isCurrent();
@@ -47,6 +49,7 @@ class AccountCoreMusicPlaybackApi implements CoreMusicPlaybackApi {
         target: target,
         operation: operation,
         volumeLevel: volumeLevel,
+        seekPosition: seekPosition,
         isCurrent: current,
       );
     });
@@ -70,6 +73,7 @@ class ServerCoreMusicPlaybackApi implements CoreMusicPlaybackApi {
     required CoreMusicTarget target,
     required CoreMusicPlaybackOperation operation,
     int? volumeLevel,
+    int? seekPosition,
     required bool Function() isCurrent,
   }) async {
     try {
@@ -80,7 +84,11 @@ class ServerCoreMusicPlaybackApi implements CoreMusicPlaybackApi {
           !target.capabilities.contains(operation.capability) ||
           (operation == CoreMusicPlaybackOperation.volume) !=
               (volumeLevel != null) ||
-          (volumeLevel != null && (volumeLevel < 0 || volumeLevel > 100))) {
+          (operation == CoreMusicPlaybackOperation.seek) !=
+              (seekPosition != null) ||
+          (volumeLevel != null && (volumeLevel < 0 || volumeLevel > 100)) ||
+          (seekPosition != null &&
+              (seekPosition < 0 || seekPosition > 604800))) {
         throw const LarenorServerException('invalid_request');
       }
       final requestId = _requestId();
@@ -105,7 +113,7 @@ class ServerCoreMusicPlaybackApi implements CoreMusicPlaybackApi {
           'operation': operation.wire,
           'volumeLevel': volumeLevel,
           'muted': null,
-          'seekPosition': null,
+          'seekPosition': seekPosition,
           'mediaUris': <String>[],
         },
       );
