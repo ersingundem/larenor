@@ -158,6 +158,8 @@ class CommandAttribution(FrozenModel):
     serviceId: Identity | None
     serviceRevision: Revision | None
 
+    _integer_version = field_validator('schemaVersion', mode='before')(CommandRequest.integer_version.__func__)
+
     @model_validator(mode='after')
     def known_source(self):
         if self.source == 'unknown':
