@@ -1,7 +1,5 @@
 """Bounded Seerr-to-Arr service wiring on one proved private stream."""
 
-import json
-
 import pytest
 
 from larenor_server.plugins.seerr_arr_wiring import (
@@ -151,4 +149,3 @@ def test_private_input_is_strict_and_secret_safe():
     ):
         with pytest.raises(SeerrArrWiringError, match="^invalid_seerr_arr_service$"):
             SeerrArrService(*args)
-
