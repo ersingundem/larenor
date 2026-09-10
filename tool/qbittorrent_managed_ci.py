@@ -61,10 +61,18 @@ _PRODUCTION_DIAGNOSTIC_CODES = frozenset({
     'qbittorrent_bootstrap_readback_failed',
     'qbittorrent_bootstrap_timeout',
 })
+_ENGINE_DIAGNOSTIC_CODES = frozenset({
+    'engine_stdin_invalid', 'engine_stdin_invalid_limits',
+    'engine_stdin_protocol', 'engine_stdin_response_limit',
+    'engine_stdin_unavailable', 'engine_stdin_timeout',
+    'engine_stdin_cancelled', 'engine_stdin_api_unsupported',
+    'engine_stdin_dispatch_denied',
+})
 _DIAGNOSTIC_CODES = frozenset({
     'qbittorrent_characterization_evidence_invalid',
     *_DIAGNOSTIC_PHASES.values(),
     *_PRODUCTION_DIAGNOSTIC_CODES,
+    *_ENGINE_DIAGNOSTIC_CODES,
 })
 
 
@@ -92,6 +100,9 @@ def _production_diagnostic(error):
         QbittorrentConfigurationExecutionError,
         QbittorrentConfigRuntimeError,
     }
+    cause = getattr(error, 'cause_code', None)
+    if type(error) in trusted and cause in _ENGINE_DIAGNOSTIC_CODES:
+        return cause
     code = getattr(error, 'code', None)
     return code if type(error) in trusted and code in _PRODUCTION_DIAGNOSTIC_CODES else None
 

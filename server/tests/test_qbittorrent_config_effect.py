@@ -312,6 +312,29 @@ def test_helper_output_must_be_exact_and_never_enters_error(tmp_path):
     assert raised.value.uncertain_effect is True
 
 
+def test_stream_failure_preserves_only_closed_engine_cause(tmp_path):
+    _journal, _intent, binding = prepared(tmp_path)
+    endpoint = DockerEndpoint('/private/docker.sock', owner_uid=0)
+    transport = ExchangeTransport([
+        response(201, {'Id': CONTAINER, 'Warnings': None}), response(204),
+        response(204),
+    ])
+    stdin = StdinTransport(
+        endpoint, EngineStdinError('engine_stdin_protocol'))
+    engine = UnixQbittorrentConfigEngine(
+        endpoint, transport_factory=lambda _: transport,
+        stdin_factory=lambda _: stdin, name_factory=lambda: '6' * 32)
+
+    with pytest.raises(QbittorrentConfigEffectError) as raised:
+        engine.install(
+            binding, HELPER, 'linux/amd64', cancelled=threading.Event(),
+            before_dispatch=lambda: True)
+
+    assert raised.value.code == 'qbittorrent_config_effect_stream_failed'
+    assert raised.value.cause_code == 'engine_stdin_protocol'
+    assert 'private' not in repr(raised.value)
+
+
 def test_effect_api_has_no_caller_path_command_or_container_specification():
     parameters = inspect.signature(QbittorrentConfigInstaller.install).parameters
     assert set(parameters) == {

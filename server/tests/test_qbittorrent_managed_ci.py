@@ -219,6 +219,20 @@ def test_diagnostic_phase_preserves_only_allowlisted_production_code():
     assert unknown.value.args == ('qbittorrent_runtime_install_failed',)
 
 
+def test_diagnostic_phase_prefers_closed_engine_cause():
+    module = api()
+    from larenor_server.plugins.qbittorrent_config_effect import (
+        QbittorrentConfigEffectError,
+    )
+
+    with pytest.raises(module.QbittorrentManagedCIError) as failure:
+        with module.diagnostic_phase('runtime_install'):
+            raise QbittorrentConfigEffectError(
+                'qbittorrent_config_effect_stream_failed',
+                uncertain_effect=True, cause_code='engine_stdin_protocol')
+    assert failure.value.args == ('engine_stdin_protocol',)
+
+
 def test_main_prints_only_allowlisted_native_diagnostic(monkeypatch, capsys):
     module = api()
     monkeypatch.setattr(

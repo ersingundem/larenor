@@ -46,18 +46,27 @@ _CODES = frozenset({
     'qbittorrent_config_effect_cleanup_failed',
     'qbittorrent_config_effect_authority_changed',
 })
+_CAUSE_CODES = frozenset({
+    'engine_stdin_invalid', 'engine_stdin_invalid_limits',
+    'engine_stdin_protocol', 'engine_stdin_response_limit',
+    'engine_stdin_unavailable', 'engine_stdin_timeout',
+    'engine_stdin_cancelled', 'engine_stdin_api_unsupported',
+    'engine_stdin_dispatch_denied',
+})
 
 
 class QbittorrentConfigEffectError(Exception):
     def __init__(self, code='qbittorrent_config_effect_untrusted', *,
-                 uncertain_effect=False):
+                 uncertain_effect=False, cause_code=None):
         self.code = code if code in _CODES else 'qbittorrent_config_effect_untrusted'
         self.uncertain_effect = uncertain_effect is True
+        self.cause_code = cause_code if cause_code in _CAUSE_CODES else None
         super().__init__(self.code)
 
     def __repr__(self):
         return (f'QbittorrentConfigEffectError({self.code!r}, '
-                f'uncertain_effect={self.uncertain_effect!r})')
+                f'uncertain_effect={self.uncertain_effect!r}, '
+                f'cause_code={self.cause_code!r})')
 
 
 def _require(value, code='qbittorrent_config_effect_untrusted', *, uncertain=False):
@@ -267,6 +276,7 @@ class UnixQbittorrentConfigEngine:
         identity = None
         result = None
         failure = None
+        cause_code = None
         uncertain = False
         stage = 'create'
         try:
@@ -324,6 +334,7 @@ class UnixQbittorrentConfigEngine:
                 'engine_stdin_dispatch_denied':
                     'qbittorrent_config_effect_dispatch_denied',
             }.get(error.code, 'qbittorrent_config_effect_stream_failed')
+            cause_code = error.code
             uncertain = True
         except Exception:
             failure = 'qbittorrent_config_effect_' + stage + '_failed'
@@ -342,7 +353,8 @@ class UnixQbittorrentConfigEngine:
                     uncertain = True
         if failure is not None:
             raise QbittorrentConfigEffectError(
-                failure, uncertain_effect=uncertain) from None
+                failure, uncertain_effect=uncertain,
+                cause_code=cause_code) from None
         return result
 
 
