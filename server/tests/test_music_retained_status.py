@@ -261,5 +261,6 @@ def test_corrupt_encrypted_installation_record_fails_closed(server):
             (b'broken', installation_id))
     response = client.get(BASE, headers=auth(pair))
     assert response.status_code == 503
-    assert response.json()['error']['code'] == 'server_unavailable'
+    assert response.json()['error']['code'] == (
+        'media_installation_storage_unavailable')
     assert 'private-mass-token' not in response.text
