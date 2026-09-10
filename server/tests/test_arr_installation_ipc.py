@@ -95,7 +95,7 @@ def test_private_configuration_roundtrip_reaches_only_arr_worker_method(
     with running() as (backend, client):
         assert client.status() == {
             'capability': 'container_execution', 'installAvailable': False,
-            'services': ['jellyfin', 'qbittorrent', 'sonarr', 'radarr'],
+            'services': ['jellyfin', 'qbittorrent', 'sonarr', 'radarr', 'seerr'],
         }
         result = client.configure_arr(
             'a' * 32, selected, payload,

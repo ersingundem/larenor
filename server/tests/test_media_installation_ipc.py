@@ -85,7 +85,7 @@ def test_roundtrip_transports_only_closed_step_and_verified_stack_plan():
         assert client.status() == {'capability': 'container_execution', 'installAvailable': False,
                                    'services': [
                                        'jellyfin', 'qbittorrent',
-                                       'sonarr', 'radarr']}
+                                       'sonarr', 'radarr', 'seerr']}
         receipt = client.apply(execution.steps[0], execution.plan)
         assert receipt == StepReceipt('a' * 32, 'create_container', 'succeeded',
                                       'container_created', '1' * 64)

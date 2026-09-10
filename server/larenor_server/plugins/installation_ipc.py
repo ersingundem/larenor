@@ -17,6 +17,10 @@ from .jellyfin_bootstrap_executor import (
 )
 from .jellyfin_authenticated_readback import JellyfinAuthenticatedReadbackResult
 from .media_service_bootstrap_models import PrivateMediaServiceBootstrap
+from .seerr_bootstrap_models import PrivateSeerrBootstrap
+from .seerr_bootstrap_executor import (
+    SeerrBootstrapExecutionError, SeerrBootstrapExecutionResult,
+)
 from .preflight_ipc import PreflightIPCError, PreflightWorkerServer, read_packet, write_packet
 from .arr_config_effect import ArrConfigEffectError, ArrConfigInstallReceipt
 from .arr_config_models import (
@@ -176,6 +180,83 @@ def _bootstrap_result(value):
             value['errorCode'], completed_steps=completed,
             uncertain_effect=value['uncertainEffect'])
     except JellyfinBootstrapExecutionError:
+        raise
+    except (ValueError, TypeError, AttributeError):
+        raise InstallationIPCError('invalid_worker_result') from None
+
+
+_SEERR_BOOTSTRAP_STEPS = (
+    'uninitialized_verified', 'admin_created',
+    'api_key_verified', 'session_destroyed',
+)
+_SEERR_BOOTSTRAP_CODES = frozenset({
+    'invalid_seerr_bootstrap_execution',
+    'seerr_bootstrap_authority_changed',
+    'seerr_bootstrap_resources_unavailable',
+    'seerr_bootstrap_endpoint_unavailable',
+    'seerr_bootstrap_endpoint_changed',
+    'seerr_bootstrap_peer_changed',
+    'seerr_bootstrap_initial_admin_failed',
+    'seerr_bootstrap_timeout',
+})
+
+
+def _wire_seerr_bootstrap(value=None, error=None):
+    if error is not None:
+        if type(error) is not SeerrBootstrapExecutionError:
+            error = SeerrBootstrapExecutionError()
+        return {
+            'state': 'failed', 'apiKey': None,
+            'completedSteps': list(error.completed_steps),
+            'errorCode': error.code,
+            'uncertainEffect': error.uncertain_effect,
+            'causeCode': error.cause_code,
+        }
+    try:
+        if type(value) is not SeerrBootstrapExecutionResult:
+            raise ValueError()
+        verified = SeerrBootstrapExecutionResult(
+            value.state, value.api_key, value.completed_steps)
+        return {
+            'state': verified.state, 'apiKey': verified.api_key,
+            'completedSteps': list(verified.completed_steps),
+            'errorCode': None, 'uncertainEffect': False, 'causeCode': None,
+        }
+    except (ValueError, TypeError, AttributeError,
+            SeerrBootstrapExecutionError):
+        raise InstallationIPCError('invalid_worker_result') from None
+
+
+def _seerr_bootstrap_result(value):
+    try:
+        if (type(value) is not dict or set(value) != {
+                'state', 'apiKey', 'completedSteps', 'errorCode',
+                'uncertainEffect', 'causeCode'}
+                or type(value['completedSteps']) is not list
+                or tuple(value['completedSteps'])
+                != _SEERR_BOOTSTRAP_STEPS[:len(value['completedSteps'])]
+                or type(value['uncertainEffect']) is not bool):
+            raise ValueError()
+        if value['state'] == 'verified':
+            if (value['completedSteps'] != list(_SEERR_BOOTSTRAP_STEPS)
+                    or value['errorCode'] is not None
+                    or value['uncertainEffect'] is not False
+                    or value['causeCode'] is not None):
+                raise ValueError()
+            return SeerrBootstrapExecutionResult(
+                value['state'], value['apiKey'], tuple(value['completedSteps']))
+        if (value['state'] != 'failed' or value['apiKey'] is not None
+                or value['errorCode'] not in _SEERR_BOOTSTRAP_CODES):
+            raise ValueError()
+        failure = SeerrBootstrapExecutionError(
+            value['errorCode'], completed_steps=tuple(value['completedSteps']),
+            uncertain_effect=value['uncertainEffect'],
+            cause_code=value['causeCode'])
+        if (failure.code != value['errorCode']
+                or failure.cause_code != value['causeCode']):
+            raise ValueError()
+        raise failure
+    except SeerrBootstrapExecutionError:
         raise
     except (ValueError, TypeError, AttributeError):
         raise InstallationIPCError('invalid_worker_result') from None
@@ -448,7 +529,7 @@ class InstallationWorkerClient:
         self.owner_uid, self.peer_uid, self.timeout = owner_uid, peer_uid or _peer_uid, timeout
 
     def _exchange(self, operation, step=None, plan=None, bootstrap=None,
-                  qbittorrent=None, arr=None):
+                  qbittorrent=None, arr=None, seerr=None):
         try:
             _safe_path(self.path, uid=self.owner_uid, kind=stat.S_ISSOCK)
             deadline = time.monotonic() + self.timeout
@@ -476,6 +557,12 @@ class InstallationWorkerClient:
                 request['plan'] = plan.model_dump(mode='json')
                 request['private'] = private.model_dump(
                     mode='json', warnings=False)
+            elif seerr is not None:
+                job, private = seerr
+                request['jobId'] = job
+                request['plan'] = plan.model_dump(mode='json')
+                request['private'] = private.model_dump(
+                    mode='json', warnings=False)
             with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as connection:
                 connection.settimeout(self.timeout)
                 connection.connect(str(self.path))
@@ -499,7 +586,7 @@ class InstallationWorkerClient:
         result = self._exchange('status')
         expected = {
             'capability': 'container_execution', 'installAvailable': False,
-            'services': ['jellyfin', 'qbittorrent', 'sonarr', 'radarr'],
+            'services': ['jellyfin', 'qbittorrent', 'sonarr', 'radarr', 'seerr'],
         }
         if result != expected:
             raise InstallationIPCError('invalid_worker_result')
@@ -541,6 +628,48 @@ class InstallationWorkerClient:
         except InstallationIPCError:
             raise JellyfinBootstrapExecutionError(
                 'bootstrap_resources_unavailable') from None
+
+    def bootstrap_seerr(self, job, plan, private, *, deadline, gate):
+        now = time.monotonic()
+        if (type(job) is not str or re.fullmatch(r'[0-9a-f]{32}', job) is None
+                or type(plan) is not MediaStackPlan
+                or type(private) is not PrivateSeerrBootstrap
+                or type(deadline) not in (int, float) or not math.isfinite(deadline)
+                or not now < deadline <= now + 120 or not callable(gate)):
+            raise SeerrBootstrapExecutionError(
+                'invalid_seerr_bootstrap_execution')
+        try:
+            plan = verify_media_stack_plan(plan, load_catalog())
+            private = PrivateSeerrBootstrap.model_validate(
+                private.model_dump(mode='python', warnings=False))
+            if private.sourceBootstrapId == job:
+                raise ValueError()
+        except (ValueError, TypeError, AttributeError, OSError):
+            raise SeerrBootstrapExecutionError(
+                'invalid_seerr_bootstrap_execution') from None
+        try:
+            if gate() is not True:
+                raise ValueError()
+        except Exception:
+            raise SeerrBootstrapExecutionError(
+                'seerr_bootstrap_authority_changed') from None
+        try:
+            result = _seerr_bootstrap_result(self._exchange(
+                'bootstrap_seerr', plan=plan, seerr=(job, private)))
+        except SeerrBootstrapExecutionError:
+            raise
+        except InstallationIPCError:
+            raise SeerrBootstrapExecutionError(
+                'seerr_bootstrap_resources_unavailable',
+                uncertain_effect=True) from None
+        try:
+            if gate() is not True:
+                raise ValueError()
+        except Exception:
+            raise SeerrBootstrapExecutionError(
+                'seerr_bootstrap_authority_changed',
+                uncertain_effect=True) from None
+        return result
 
     def configure_qbittorrent(self, job, plan, private, *, deadline, gate):
         now = time.monotonic()
@@ -763,7 +892,8 @@ class InstallationWorkerServer(PreflightWorkerServer):
         if operation == 'status' and set(request) == {'protocol', 'requestId', 'operation'}:
             return {
                 'capability': 'container_execution', 'installAvailable': False,
-                'services': ['jellyfin', 'qbittorrent', 'sonarr', 'radarr'],
+                'services': [
+                    'jellyfin', 'qbittorrent', 'sonarr', 'radarr', 'seerr'],
             }
         if operation in {'configure_arr', 'install_configured_arr'}:
             if (set(request) != {
@@ -870,7 +1000,7 @@ class InstallationWorkerServer(PreflightWorkerServer):
                             uncertain_effect=True))
             except (ValueError, TypeError, AttributeError, RecursionError):
                 raise PreflightIPCError('invalid_request') from None
-        if operation == 'bootstrap':
+        if operation in {'bootstrap', 'bootstrap_seerr'}:
             if (set(request) != {
                     'protocol', 'requestId', 'operation', 'jobId', 'plan', 'private'}
                     or type(request['jobId']) is not str
@@ -886,19 +1016,42 @@ class InstallationWorkerServer(PreflightWorkerServer):
                     allow_nan=False)
                 plan = verify_media_stack_plan(
                     MediaStackPlan.model_validate_json(raw_plan), self.catalog)
-                private = PrivateMediaServiceBootstrap.model_validate_json(raw_private)
-                timed = getattr(self.backend, 'bootstrap_with_deadline', None)
+                private_model = (PrivateMediaServiceBootstrap
+                                 if operation == 'bootstrap'
+                                 else PrivateSeerrBootstrap)
+                private = private_model.model_validate_json(raw_private)
+                method = ('bootstrap' if operation == 'bootstrap'
+                          else 'bootstrap_seerr')
+                timed = getattr(self.backend, method + '_with_deadline', None)
                 try:
                     result = (timed(request['jobId'], plan, private, deadline)
-                              if callable(timed) else self.backend.bootstrap(
-                                  request['jobId'], plan, private, deadline=deadline))
-                except JellyfinBootstrapExecutionError as error:
-                    return _wire_bootstrap(error=error)
+                              if callable(timed) else getattr(self.backend, method)(
+                                  request['jobId'], plan, private,
+                                  deadline=deadline))
+                except (JellyfinBootstrapExecutionError,
+                        SeerrBootstrapExecutionError) as error:
+                    return (_wire_bootstrap(error=error)
+                            if operation == 'bootstrap'
+                            else _wire_seerr_bootstrap(error=error))
                 if time.monotonic() >= deadline:
-                    raise JellyfinBootstrapExecutionError('bootstrap_timeout')
-                return _wire_bootstrap(value=result)
-            except JellyfinBootstrapExecutionError as error:
-                return _wire_bootstrap(error=error)
+                    if operation == 'bootstrap':
+                        raise JellyfinBootstrapExecutionError('bootstrap_timeout')
+                    raise SeerrBootstrapExecutionError(
+                        'seerr_bootstrap_timeout', uncertain_effect=True)
+                if operation == 'bootstrap':
+                    return _wire_bootstrap(value=result)
+                try:
+                    return _wire_seerr_bootstrap(value=result)
+                except InstallationIPCError:
+                    return _wire_seerr_bootstrap(error=
+                        SeerrBootstrapExecutionError(
+                            'seerr_bootstrap_resources_unavailable',
+                            uncertain_effect=True))
+            except (JellyfinBootstrapExecutionError,
+                    SeerrBootstrapExecutionError) as error:
+                return (_wire_bootstrap(error=error)
+                        if operation == 'bootstrap'
+                        else _wire_seerr_bootstrap(error=error))
             except (ValueError, TypeError, AttributeError, DockerWorkerError,
                     InstallationIPCError):
                 raise PreflightIPCError('invalid_request') from None

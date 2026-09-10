@@ -33,6 +33,8 @@ from .jellyfin_bootstrap_executor import JellyfinBootstrapExecutor
 from .jellyfin_startup import JellyfinStartupConfigurator
 from .jellyfin_authenticated_readback import JellyfinAuthenticatedReadback
 from .jellyfin_managed_libraries import JellyfinManagedLibraries
+from .seerr_bootstrap_executor import SeerrBootstrapExecutor
+from .seerr_initial_admin import SeerrInitialAdmin
 from .arr_config_runtime import ArrConfigRuntime
 from .arr_bootstrap_executor import (
     ArrBootstrapExecutionError, ArrBootstrapExecutor,
@@ -269,6 +271,8 @@ class _RuntimeBackend:
         self.bootstrap_executor = JellyfinBootstrapExecutor(
             operations, binding_builder, JellyfinStartupConfigurator(),
             JellyfinAuthenticatedReadback(), JellyfinManagedLibraries())
+        self.seerr_bootstrap = SeerrBootstrapExecutor(
+            operations, binding_builder, SeerrInitialAdmin())
 
     def apply(self, step, plan):
         return self.installation.apply(step, plan)
@@ -278,6 +282,10 @@ class _RuntimeBackend:
 
     def bootstrap(self, job, plan, private, *, deadline, gate):
         return self.bootstrap_executor.execute(
+            job, plan, private, deadline=deadline, gate=gate)
+
+    def bootstrap_seerr(self, job, plan, private, *, deadline, gate):
+        return self.seerr_bootstrap.execute(
             job, plan, private, deadline=deadline, gate=gate)
 
     def configure_qbittorrent(self, job, stack, credential, *, api_key, salt,
