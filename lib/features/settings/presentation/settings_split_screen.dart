@@ -127,7 +127,7 @@ class _SettingsSplitScreenState extends State<SettingsSplitScreen> {
             category,
             runFileDialog: widget.runFileDialog,
             backupGateCurrent: widget.backupGateCurrent,
-                    remoteGateCurrent: widget.remoteGateCurrent,
+            remoteGateCurrent: widget.remoteGateCurrent,
           ),
         ),
       ),
@@ -145,7 +145,9 @@ Widget paneFor(
     case SettingsCategory.connection:
       return const ConnectionPane();
     case SettingsCategory.remoteAccess:
-      return RemoteProfilesScreen(gateCurrent: remoteGateCurrent ?? () => false);
+      return RemoteProfilesScreen(
+        gateCurrent: remoteGateCurrent ?? () => false,
+      );
     case SettingsCategory.server:
       return const ServerConnectionScreen();
     case SettingsCategory.display:
