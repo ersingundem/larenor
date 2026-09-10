@@ -27,6 +27,8 @@ class RdpSessionController extends ChangeNotifier {
     required this.engineFactory,
     required this.isCurrent,
     required this.display,
+    this.credentialVault,
+    this.settings = const RdpProfileSettings(),
     this.connectTimeout = const Duration(seconds: 45),
   });
   final RemoteProfile profile;
@@ -34,6 +36,8 @@ class RdpSessionController extends ChangeNotifier {
   final RdpEngine Function() engineFactory;
   final bool Function() isCurrent;
   final RdpDisplaySpec display;
+  final RdpCredentialVault? credentialVault;
+  final RdpProfileSettings settings;
   final Duration connectTimeout;
 
   RdpSessionPhase phase = RdpSessionPhase.idle;
@@ -192,15 +196,23 @@ class RdpSessionController extends ChangeNotifier {
       _certificateDecision = null;
       pendingCertificate = null;
     }
-    String? password;
-    if (peer.requiresNla) {
+    RdpCredential? credential;
+    if (peer.requiresNla || settings.gatewayHost != null) {
+      credential = await credentialVault?.readCredential(
+        profile,
+        isCurrent: () => _current(generation),
+      );
+      _check(generation);
+    }
+    if (peer.requiresNla && credential == null) {
       final decision = _passwordDecision = Completer<String?>();
       phase = RdpSessionPhase.nlaRequired;
       _publish();
-      password = await decision.future;
+      final password = await decision.future;
       _passwordDecision = null;
       _check(generation);
       if (password == null) throw const RdpFailure('nla_cancelled');
+      credential = RdpCredential(password: password);
     }
     phase = RdpSessionPhase.connecting;
     _publish();
@@ -208,14 +220,18 @@ class RdpSessionController extends ChangeNotifier {
       profile: profile,
       display: display,
       certificateFingerprint: peer.certificate.fingerprint,
+      settings: settings,
+      channels: RdpChannelPolicy(
+        clipboard: settings.clipboardMode != RdpClipboardMode.disabled,
+      ),
     );
     request.validate(found);
     final channel = await engine.open(
       request,
-      nlaPassword: password,
+      credential: credential,
       isCurrent: () => _current(generation),
     );
-    password = null;
+    credential = null;
     if (!_current(generation)) {
       channel.close();
       _check(generation);
@@ -271,6 +287,34 @@ class RdpSessionController extends ChangeNotifier {
       return;
     }
     decision.complete(password);
+  }
+
+  Future<void> reconnect() async {
+    if (_disposed ||
+        _retired ||
+        phase != RdpSessionPhase.failed && phase != RdpSessionPhase.closed) {
+      return;
+    }
+    phase = RdpSessionPhase.idle;
+    error = null;
+    _publish();
+    await connect();
+  }
+
+  void resize(RdpDisplaySpec next) {
+    final found = capabilities;
+    if (phase != RdpSessionPhase.connected ||
+        found == null ||
+        !found.supportsDynamicResolution ||
+        !next.valid ||
+        next.width > found.maxWidth ||
+        next.height > found.maxHeight ||
+        next.dpi > found.maxDpi ||
+        next.externalDisplay && !found.supportsExternalDisplay ||
+        !_current(_generation)) {
+      return;
+    }
+    _channel?.resize(next);
   }
 
   void pointer(RdpPointerEvent event) {

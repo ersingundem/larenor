@@ -14,38 +14,41 @@ Future<RdpSecurityStore> savedProfile(FlutterSecureStorage storage) async {
 }
 
 void main() {
-  test('strict settings keep gateway display keyboard and clipboard bounded', () {
-    final value = RdpProfileSettings.fromJson(const {
-      'version': 1,
-      'domain': 'LARENOR',
-      'gatewayHost': 'gateway.home.arpa',
-      'gatewayPort': 443,
-      'gatewayUsername': 'ersin',
-      'displayMode': 'fitWindow',
-      'keyboardLayout': 'turkishQ',
-      'clipboardMode': 'clientToRemote',
-    });
-    expect(value.domain, 'LARENOR');
-    expect(value.gatewayHost, 'gateway.home.arpa');
-    expect(value.gatewayPort, 443);
-    expect(value.keyboardLayout, RdpKeyboardLayout.turkishQ);
-    expect(value.clipboardMode, RdpClipboardMode.clientToRemote);
-    expect(value.toJson(), isNot(contains('password')));
-    expect(
-      () => RdpProfileSettings.fromJson({
-        ...value.toJson(),
-        'gatewayHost': 'https://gateway.home.arpa/path',
-      }),
-      throwsA(isA<RdpFailure>()),
-    );
-    expect(
-      () => RdpProfileSettings.fromJson({
-        ...value.toJson(),
-        'clipboardMode': 'unrestricted',
-      }),
-      throwsA(isA<RdpFailure>()),
-    );
-  });
+  test(
+    'strict settings keep gateway display keyboard and clipboard bounded',
+    () {
+      final value = RdpProfileSettings.fromJson(const {
+        'version': 1,
+        'domain': 'LARENOR',
+        'gatewayHost': 'gateway.home.arpa',
+        'gatewayPort': 443,
+        'gatewayUsername': 'ersin',
+        'displayMode': 'fitWindow',
+        'keyboardLayout': 'turkishQ',
+        'clipboardMode': 'clientToRemote',
+      });
+      expect(value.domain, 'LARENOR');
+      expect(value.gatewayHost, 'gateway.home.arpa');
+      expect(value.gatewayPort, 443);
+      expect(value.keyboardLayout, RdpKeyboardLayout.turkishQ);
+      expect(value.clipboardMode, RdpClipboardMode.clientToRemote);
+      expect(value.toJson(), isNot(contains('password')));
+      expect(
+        () => RdpProfileSettings.fromJson({
+          ...value.toJson(),
+          'gatewayHost': 'https://gateway.home.arpa/path',
+        }),
+        throwsA(isA<RdpFailure>()),
+      );
+      expect(
+        () => RdpProfileSettings.fromJson({
+          ...value.toJson(),
+          'clipboardMode': 'unrestricted',
+        }),
+        throwsA(isA<RdpFailure>()),
+      );
+    },
+  );
 
   test('settings and credentials are profile-bound secure records', () async {
     FlutterSecureStorage.setMockInitialValues({});
@@ -67,10 +70,7 @@ void main() {
 
     await store.saveSettings(profile, settings, isCurrent: () => true);
     await store.saveCredential(profile, credential, isCurrent: () => true);
-    expect(
-      await store.readSettings(profile, isCurrent: () => true),
-      settings,
-    );
+    expect(await store.readSettings(profile, isCurrent: () => true), settings);
     expect(
       await store.readCredential(profile, isCurrent: () => true),
       credential,
@@ -79,10 +79,7 @@ void main() {
     expect(settings.toString(), isNot(contains('secret')));
 
     await store.deleteCredential(profile, isCurrent: () => true);
-    expect(
-      await store.readCredential(profile, isCurrent: () => true),
-      isNull,
-    );
+    expect(await store.readCredential(profile, isCurrent: () => true), isNull);
   });
 
   test('credential validation rejects controls and oversized secrets', () {

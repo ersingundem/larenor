@@ -5,6 +5,7 @@ abstract interface class RdpChannel {
   Future<void> get done;
   void pointer(RdpPointerEvent event);
   void key(RdpKeyEvent event);
+  void resize(RdpDisplaySpec display);
   void close();
 }
 
@@ -16,7 +17,7 @@ abstract interface class RdpEngine {
   });
   Future<RdpChannel> open(
     RdpSessionRequest request, {
-    required String? nlaPassword,
+    required RdpCredential? credential,
     required bool Function() isCurrent,
   });
   void close();
@@ -55,7 +56,7 @@ class UnsupportedRdpEngine implements RdpEngine {
   @override
   Future<RdpChannel> open(
     RdpSessionRequest request, {
-    required String? nlaPassword,
+    required RdpCredential? credential,
     required bool Function() isCurrent,
   }) => throw const RdpFailure('engine_unavailable');
   @override

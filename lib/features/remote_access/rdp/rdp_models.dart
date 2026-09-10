@@ -215,6 +215,164 @@ class RdpDisplaySpec {
       pixelCount <= 33554432;
 }
 
+enum RdpDisplayMode { fitWindow, native, fixed }
+
+enum RdpKeyboardLayout { automatic, turkishQ, us }
+
+enum RdpClipboardMode { disabled, clientToRemote, bidirectional }
+
+class RdpProfileSettings {
+  const RdpProfileSettings({
+    this.domain = '',
+    this.gatewayHost,
+    this.gatewayPort = 443,
+    this.gatewayUsername = '',
+    this.displayMode = RdpDisplayMode.fitWindow,
+    this.keyboardLayout = RdpKeyboardLayout.automatic,
+    this.clipboardMode = RdpClipboardMode.disabled,
+  });
+
+  final String domain;
+  final String? gatewayHost;
+  final int gatewayPort;
+  final String gatewayUsername;
+  final RdpDisplayMode displayMode;
+  final RdpKeyboardLayout keyboardLayout;
+  final RdpClipboardMode clipboardMode;
+
+  static bool _safeText(String value, int max) =>
+      value == value.trim() &&
+      value.runes.length <= max &&
+      !value.runes.any(
+        (value) =>
+            value < 32 ||
+            value == 127 ||
+            (value >= 0xd800 && value <= 0xdfff) ||
+            (value >= 0x202a && value <= 0x202e) ||
+            (value >= 0x2066 && value <= 0x2069),
+      );
+
+  void validate() {
+    if (!_safeText(domain, 128) ||
+        !_safeText(gatewayUsername, 128) ||
+        gatewayPort < 1 ||
+        gatewayPort > 65535) {
+      _invalid('invalid_settings');
+    }
+    if (gatewayHost != null) {
+      try {
+        if (normalizeRemoteHost(gatewayHost!) != gatewayHost) {
+          _invalid('invalid_settings');
+        }
+      } catch (_) {
+        _invalid('invalid_settings');
+      }
+    } else if (gatewayUsername.isNotEmpty) {
+      _invalid('invalid_settings');
+    }
+  }
+
+  Map<String, Object?> toJson() {
+    validate();
+    return {
+      'version': 1,
+      'domain': domain,
+      'gatewayHost': gatewayHost,
+      'gatewayPort': gatewayPort,
+      'gatewayUsername': gatewayUsername,
+      'displayMode': displayMode.name,
+      'keyboardLayout': keyboardLayout.name,
+      'clipboardMode': clipboardMode.name,
+    };
+  }
+
+  factory RdpProfileSettings.fromJson(Object? raw) {
+    final value = _object(raw, {
+      'version',
+      'domain',
+      'gatewayHost',
+      'gatewayPort',
+      'gatewayUsername',
+      'displayMode',
+      'keyboardLayout',
+      'clipboardMode',
+    });
+    if (value['version'] != 1 ||
+        value['domain'] is! String ||
+        value['gatewayHost'] != null && value['gatewayHost'] is! String ||
+        value['gatewayPort'] is! int ||
+        value['gatewayUsername'] is! String) {
+      _invalid('invalid_settings');
+    }
+    T parse<T extends Enum>(Object? raw, List<T> values) {
+      if (raw is! String) _invalid('invalid_settings');
+      return values.where((value) => value.name == raw).firstOrNull ??
+          _invalid('invalid_settings');
+    }
+
+    final result = RdpProfileSettings(
+      domain: value['domain'] as String,
+      gatewayHost: value['gatewayHost'] as String?,
+      gatewayPort: value['gatewayPort'] as int,
+      gatewayUsername: value['gatewayUsername'] as String,
+      displayMode: parse(value['displayMode'], RdpDisplayMode.values),
+      keyboardLayout: parse(value['keyboardLayout'], RdpKeyboardLayout.values),
+      clipboardMode: parse(value['clipboardMode'], RdpClipboardMode.values),
+    );
+    result.validate();
+    return result;
+  }
+
+  @override
+  bool operator ==(Object other) =>
+      other is RdpProfileSettings &&
+      domain == other.domain &&
+      gatewayHost == other.gatewayHost &&
+      gatewayPort == other.gatewayPort &&
+      gatewayUsername == other.gatewayUsername &&
+      displayMode == other.displayMode &&
+      keyboardLayout == other.keyboardLayout &&
+      clipboardMode == other.clipboardMode;
+
+  @override
+  int get hashCode => Object.hash(
+    domain,
+    gatewayHost,
+    gatewayPort,
+    gatewayUsername,
+    displayMode,
+    keyboardLayout,
+    clipboardMode,
+  );
+}
+
+class RdpCredential {
+  const RdpCredential({required this.password, this.gatewayPassword = ''});
+  final String password, gatewayPassword;
+
+  void validate() {
+    for (final value in [password, gatewayPassword]) {
+      if (value.length > 4096 ||
+          value.contains('\u0000') ||
+          value.runes.any((rune) => rune >= 0xd800 && rune <= 0xdfff)) {
+        _invalid('invalid_credential');
+      }
+    }
+    if (password.isEmpty) _invalid('invalid_credential');
+  }
+
+  @override
+  String toString() => 'RdpCredential(<redacted>)';
+
+  @override
+  bool operator ==(Object other) =>
+      other is RdpCredential &&
+      password == other.password &&
+      gatewayPassword == other.gatewayPassword;
+  @override
+  int get hashCode => Object.hash(password, gatewayPassword);
+}
+
 class RdpChannelPolicy {
   const RdpChannelPolicy({
     this.clipboard = false,
@@ -230,14 +388,17 @@ class RdpSessionRequest {
     required this.profile,
     required this.display,
     required this.certificateFingerprint,
+    this.settings = const RdpProfileSettings(),
     this.channels = RdpChannelPolicy.lockedDown,
   });
   final RemoteProfile profile;
   final RdpDisplaySpec display;
   final String certificateFingerprint;
+  final RdpProfileSettings settings;
   final RdpChannelPolicy channels;
 
   void validate(RdpCapabilities capabilities) {
+    settings.validate();
     if (profile.protocol != RemoteProtocol.rdp ||
         profile.username.isEmpty ||
         !display.valid ||
