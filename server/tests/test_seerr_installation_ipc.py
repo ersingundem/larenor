@@ -93,6 +93,7 @@ def test_private_seerr_bootstrap_roundtrip_and_worker_capability():
             "sonarr",
             "radarr",
             "seerr",
+            "music_assistant",
         ]
         result = client.bootstrap_seerr(
             "a" * 32,
