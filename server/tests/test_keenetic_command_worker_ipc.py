@@ -103,6 +103,7 @@ def test_wire_models_bind_exact_revision_and_exclude_secrets_and_reason():
     assert set(wire) == {
         'schemaVersion', 'requestId', 'action', 'target',
         'expectedUserRevision', 'previewReceipt', 'timeoutMs',
+        'credentialLease',
     }
     assert body.idempotencyKey not in str(wire)
     assert body.reason not in str(wire)

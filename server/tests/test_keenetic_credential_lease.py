@@ -19,14 +19,21 @@ from larenor_server.keenetic_commands.worker_ipc import (
     LeasedKeeneticCommandWorkerClient,
 )
 from larenor_server.keenetic_commands.worker_runtime import (
-    RuntimeConfigurationError,
+    WorkerHealthStore,
     load_policy,
     main,
+    run_worker_once,
     runtime_adapter_factory,
 )
 
 from conftest import auth, ready
-from test_keenetic_command_authority import Actor, request, state
+from test_keenetic_command_authority import (
+    Actor,
+    Harness,
+    authority,
+    request,
+    state,
+)
 from test_keenetic_command_worker_ipc import socket_directory
 from test_keenetic_rci_transport import (
     SECRET,
@@ -201,7 +208,7 @@ def test_check_config_validates_key_without_starting_worker(tmp_path, monkeypatc
     assert main(["--policy", str(source), "--check-config"]) == 0
     policy = load_policy(source)
     factory = runtime_adapter_factory(policy, clock=Clock())
-    assert callable(factory)
+    assert isinstance(factory("a" * 32), PackagedRciCommandAdapter)
 
 
 def test_post_effect_uncertainty_spends_lease_and_cannot_retry():
@@ -234,3 +241,101 @@ def test_post_effect_uncertainty_spends_lease_and_cannot_retry():
     assert [call[0] for call in factory.calls if call[0] in {"GET", "POST"}] == [
         "GET", "POST"
     ]
+
+
+def test_runtime_factory_and_health_receipt_share_one_worker_identity():
+    captured = []
+
+    def adapter_factory(worker_id):
+        captured.append(worker_id)
+        return PackagedRciCommandAdapter()
+
+    with socket_directory() as directory:
+        socket_path = directory / "worker.sock"
+        health_path = directory / "health.json"
+        stop = __import__("threading").Event()
+        result = []
+        thread = __import__("threading").Thread(
+            target=lambda: result.append(run_worker_once(
+                socket_path,
+                health_path,
+                api_uid=os.getuid(),
+                socket_gid=None,
+                stop=stop,
+                peer_uid=lambda _connection: os.getuid(),
+                adapter_factory=adapter_factory,
+            )),
+            daemon=True,
+        )
+        thread.start()
+        deadline = time.monotonic() + 2
+        while not health_path.exists():
+            assert time.monotonic() < deadline
+            time.sleep(.01)
+        receipt = WorkerHealthStore(
+            health_path, owner_uid=os.getuid()
+        ).verify_ready(socket_path)
+        assert captured == [receipt.workerId]
+        stop.set()
+        thread.join(2)
+        assert result == ["stopped"]
+
+
+def test_authority_passes_current_actor_only_to_lease_aware_effect():
+    harness = Harness()
+    calls = []
+
+    class Effect:
+        def execute_for_actor(self, actor, body, guard):
+            guard()
+            calls.append((actor.id, body.requestId))
+            current = body.target
+            harness.current = current.model_copy(
+                update={"value": "enabled", "stateRevision": current.stateRevision + 1}
+            )
+
+        def __call__(self, *_args, **_kwargs):
+            pytest.fail("legacy effect path used")
+
+    service = authority(harness, effect=Effect())
+    body = request()
+    preview = service.preview(Actor(), body)["preview"]
+    receipt = service.confirm(
+        Actor(), preview["id"], preview["confirmToken"]
+    )["receipt"]
+    assert receipt["status"] == "succeeded"
+    assert calls == [(Actor().id, body.requestId)]
+
+
+def test_rci_startup_builds_worker_bound_adapter_after_config_check(tmp_path, monkeypatch):
+    key = private_bytes(tmp_path / "worker.key", b"V" * 32)
+    source = rci_policy(tmp_path / "worker.json", key)
+    socket_path = tmp_path / "worker.sock"
+    health_path = tmp_path / "health.json"
+    calls = []
+
+    def run_once(_socket, _health, **options):
+        adapter = options["adapter_factory"]("d" * 32)
+        calls.append(adapter)
+        return "stopped"
+
+    monkeypatch.setattr(
+        "larenor_server.keenetic_commands.worker_runtime._platform",
+        lambda: "linux/amd64",
+    )
+    monkeypatch.setattr(
+        "larenor_server.keenetic_commands.worker_runtime.run_worker_once",
+        run_once,
+    )
+    monkeypatch.setattr(
+        "larenor_server.keenetic_commands.worker_runtime.WorkerHealthStore.cleanup_orphan",
+        lambda *_args, **_kwargs: None,
+    )
+    assert main([
+        "--policy", str(source),
+        "--socket", str(socket_path),
+        "--health", str(health_path),
+        "--api-uid", str(os.getuid()),
+    ]) == 0
+    assert len(calls) == 1
+    assert isinstance(calls[0], PackagedRciCommandAdapter)

@@ -260,7 +260,10 @@ class KeeneticCommandAuthority:
                     self._guard(actor, pending.body)
 
                 dispatched = True
-                self._effect(pending.body, guard)
+                if hasattr(self._effect, "execute_for_actor"):
+                    self._effect.execute_for_actor(actor, pending.body, guard)
+                else:
+                    self._effect(pending.body, guard)
                 if self._clock() - started >= EFFECT_TTL:
                     raise KeeneticEffectError("keenetic_effect_timeout", uncertain=True)
                 self._actor(actor)

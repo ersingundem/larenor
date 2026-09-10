@@ -113,6 +113,43 @@ class KeeneticCommandWorkerClient:
         return result.observedState
 
 
+class LeasedKeeneticCommandWorkerClient:
+    """Issue one encrypted service lease only after Core's actor guard passes."""
+
+    def __init__(self, client, issuer, *, worker_id, ttl_seconds=10):
+        if (
+            not isinstance(client, KeeneticCommandWorkerClient)
+            or not isinstance(worker_id, str)
+            or len(worker_id) != 32
+            or any(char not in "0123456789abcdef" for char in worker_id)
+            or type(ttl_seconds) is not int
+            or not 1 <= ttl_seconds <= 30
+        ):
+            raise KeeneticEffectError("keenetic_effect_unavailable")
+        self._client = client
+        self._issuer = issuer
+        self._worker_id = worker_id
+        self._ttl = ttl_seconds
+
+    def __repr__(self):
+        return "LeasedKeeneticCommandWorkerClient(<private>)"
+
+    def execute_for_actor(self, actor, request, guard):
+        guard()
+        lease = self._issuer.issue(
+            actor,
+            request.target,
+            worker_id=self._worker_id,
+            ttl_seconds=self._ttl,
+        )
+        command = KeeneticWorkerCommand.from_request(
+            request,
+            timeout_ms=max(50, min(10000, int(self._client.timeout * 1000))),
+            credential_lease=lease,
+        )
+        return self._client.execute(command, guard=guard)
+
+
 class KeeneticCommandWorkerServer(PreflightWorkerServer):
     """Owned Unix fixture/runtime boundary; it contains no router transport."""
 

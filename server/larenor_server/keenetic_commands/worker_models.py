@@ -8,6 +8,7 @@ from pydantic import Field
 
 from ..home_resources.models import FrozenModel, Identity, Revision, Snapshot
 from .models import Action, CommandRequest, TargetState
+from .credential_lease import KeeneticCredentialLease
 from .service import KeeneticEffectError, RESULT
 
 
@@ -31,9 +32,11 @@ class KeeneticWorkerCommand(FrozenModel):
     expectedUserRevision: Revision
     previewReceipt: Snapshot
     timeoutMs: Annotated[int, Field(ge=50, le=10000)]
+    credentialLease: KeeneticCredentialLease | None = Field(default=None, repr=False)
 
     @classmethod
-    def from_request(cls, request: CommandRequest, *, timeout_ms: int):
+    def from_request(cls, request: CommandRequest, *, timeout_ms: int,
+                     credential_lease=None):
         request = CommandRequest.model_validate(request)
         return cls(
             schemaVersion=1,
@@ -43,6 +46,7 @@ class KeeneticWorkerCommand(FrozenModel):
             expectedUserRevision=request.expectedUserRevision,
             previewReceipt=preview_receipt(request),
             timeoutMs=timeout_ms,
+            credentialLease=credential_lease,
         )
 
 
