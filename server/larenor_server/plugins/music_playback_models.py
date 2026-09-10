@@ -23,7 +23,9 @@ class VerifiedMusicPlayer(StrictModel):
     playerId: str = Field(min_length=1, max_length=128)
     name: str = Field(min_length=1, max_length=160)
     provider: str = Field(min_length=1, max_length=128)
-    targetKind: Literal['homepod', 'airplay', 'airplay_group', 'group', 'other']
+    targetKind: Literal[
+        'homepod', 'airplay', 'airplay_group', 'chromecast',
+        'chromecast_group', 'group', 'other']
     available: bool
     enabled: bool
     playbackState: Literal['idle', 'playing', 'paused']
@@ -56,9 +58,11 @@ class VerifiedMusicPlayer(StrictModel):
                        is None for item in self.groupMembers)
                 or len(set(self.capabilities)) != len(self.capabilities)):
             raise ValueError('invalid_music_player_readback')
-        if self.targetKind in {'airplay_group', 'group'} and not self.groupMembers:
+        if self.targetKind in {
+                'airplay_group', 'chromecast_group', 'group'} and not self.groupMembers:
             raise ValueError('invalid_music_player_readback')
-        if self.targetKind not in {'airplay_group', 'group'} and self.groupMembers:
+        if self.targetKind not in {
+                'airplay_group', 'chromecast_group', 'group'} and self.groupMembers:
             raise ValueError('invalid_music_player_readback')
         return self
 
@@ -92,7 +96,8 @@ class MusicPlaybackCommandRequest(StrictModel):
     targetId: str = Field(min_length=1, max_length=128)
     expectedProvider: str = Field(min_length=1, max_length=128)
     expectedTargetKind: Literal[
-        'homepod', 'airplay', 'airplay_group', 'group', 'other']
+        'homepod', 'airplay', 'airplay_group', 'chromecast',
+        'chromecast_group', 'group', 'other']
     expectedQueueId: str | None = Field(default=None, max_length=128)
     expectedGroupMembers: list[str] = Field(max_length=64)
     operation: PlaybackOperation

@@ -146,7 +146,7 @@ def test_preview_confirm_is_one_use_idempotent_and_effect_unavailable(server):
     assert worker.calls == []
 
 
-def test_provider_revision_target_queue_and_capability_changes_fail_closed(server):
+def test_provider_revision_change_after_preview_fails_closed(server):
     app, client, _, _ = server
     pair, setup, readiness, worker, playback = discovered(server)
     intent = preview_request(server, pair, setup, readiness, playback)
@@ -174,7 +174,11 @@ def test_provider_revision_target_queue_and_capability_changes_fail_closed(serve
     )
     assert stale.status_code == 409
 
-    pair, setup, readiness, _, playback = discovered(
+
+def test_target_queue_and_capability_changes_fail_closed(server):
+    _app, client, _, _ = server
+
+    pair, setup, readiness, worker, playback = discovered(
         server, [cast(capabilities=["play"])]
     )
     unsupported = preview_request(
@@ -239,6 +243,6 @@ def test_secret_fields_and_missing_provider_revision_are_rejected_without_receip
         response = server[1].post(
             BASE + "/previews", headers=auth(pair), json=changed
         )
-        assert response.status_code == 422
+        assert response.status_code == 400
         assert "private-cookie" not in response.text
     assert worker.calls == []
