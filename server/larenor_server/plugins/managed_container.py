@@ -681,6 +681,8 @@ class JellyfinBindingBuilder:
 
         try:
             proof = self.proof_provider(resource_plan, volume_plan, component)
+        except ManagedContainerError:
+            raise
         except Exception:
             raise ManagedContainerError('resources_unavailable') from None
 
