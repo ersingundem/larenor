@@ -572,6 +572,7 @@ def test_runtime_configures_arr_before_create_start_and_readback(monkeypatch):
     from larenor_server.plugins.arr_config_effect import ArrConfigInstallReceipt
     from larenor_server.plugins.arr_bootstrap_executor import ArrBootstrapExecutionResult
     from larenor_server.plugins.arr_authenticated_readback import ArrAuthenticatedReadbackResult
+    from larenor_server.plugins.arr_managed_root_folders import ArrManagedRootFoldersResult
     events=[]
     configured=ArrConfigInstallReceipt('sonarr','1'*32,'2'*32,'3'*32,3,'larenor-appdata-v1-'+'1'*32,'4'*64,'sonarr_config_installed')
     class Configuration:
@@ -580,7 +581,7 @@ def test_runtime_configures_arr_before_create_start_and_readback(monkeypatch):
         def apply(self,step,binding): events.append(('apply',step.kind,binding)); return StepReceipt(step.job_id,step.kind,'succeeded','container_created' if step.kind=='create_container' else 'container_started','5'*64)
         def reconcile(self,*args): raise AssertionError()
     class Bootstrap:
-        def execute(self,*args,**kwargs): events.append(('readback',args[2].serviceId)); return ArrBootstrapExecutionResult('verified','sonarr',ArrAuthenticatedReadbackResult('verified','sonarr','Sonarr','4.0.19.2979'))
+        def execute(self,*args,**kwargs): events.append(('readback',args[2].serviceId)); return ArrBootstrapExecutionResult('verified','sonarr',ArrManagedRootFoldersResult('verified','sonarr','/data/shows',('root_folders_observed','root_folder_verified')),ArrAuthenticatedReadbackResult('verified','sonarr','Sonarr','4.0.19.2979'))
     monkeypatch.setattr(runtime,'JellyfinBootstrapExecutor',lambda *_:object())
     monkeypatch.setattr(runtime,'QbittorrentBootstrapExecutor',lambda *_:object())
     monkeypatch.setattr(runtime,'ArrBootstrapExecutor',lambda *_:Bootstrap())
@@ -654,6 +655,7 @@ def test_arr_runtime_projects_execution_failures_to_closed_uncertain_codes(
     ('arr_bootstrap_endpoint_unavailable',
      'arr_config_resources_unavailable'),
     ('arr_bootstrap_endpoint_changed', 'arr_config_result_invalid'),
+    ('arr_bootstrap_wiring_failed', 'arr_config_result_invalid'),
     ('arr_bootstrap_readback_failed', 'arr_config_result_invalid'),
 ])
 def test_arr_runtime_projects_bootstrap_failures_to_closed_uncertain_codes(

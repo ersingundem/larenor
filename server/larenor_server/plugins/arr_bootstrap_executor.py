@@ -15,6 +15,10 @@ from .arr_authenticated_readback import (
 )
 from .arr_config_models import PrivateArrConfiguration
 from .arr_endpoint import ArrEndpointError, open_arr_endpoint, prove_arr_endpoint
+from .arr_managed_root_folders import (
+    ArrManagedRootFolders, ArrManagedRootFoldersError,
+    ArrManagedRootFoldersLimits, ArrManagedRootFoldersResult,
+)
 from .catalog import load_catalog
 from .managed_container import (
     JournaledManagedContainerOperations,
@@ -45,6 +49,7 @@ class ArrBootstrapExecutionError(Exception):
                 'arr_bootstrap_resources_unavailable',
                 'arr_bootstrap_endpoint_unavailable',
                 'arr_bootstrap_endpoint_changed',
+                'arr_bootstrap_wiring_failed',
                 'arr_bootstrap_readback_failed',
                 'arr_bootstrap_timeout',
             }
@@ -53,7 +58,10 @@ class ArrBootstrapExecutionError(Exception):
         self.uncertain_effect = uncertain_effect is True
         self.boundary = (
             boundary
-            if boundary in {'before_connect', 'after_connect', 'after_readback'}
+            if boundary in {
+                'before_connect', 'after_connect', 'after_readback',
+                'after_wiring_connect', 'after_wiring',
+            }
             else None
         )
         self.cause_code = (
@@ -66,6 +74,18 @@ class ArrBootstrapExecutionError(Exception):
                 'arr_readback_mismatch',
                 'arr_authenticated_readback_unavailable',
                 'arr_authenticated_readback_timeout',
+                'invalid_arr_managed_root_folders',
+                'arr_root_folders_authentication_failed',
+                'arr_root_folders_observation_protocol',
+                'arr_root_folders_observation_framing',
+                'arr_root_folders_observation_http',
+                'arr_root_folders_observation_closed',
+                'arr_root_folders_observation_payload',
+                'arr_root_folder_create_protocol',
+                'arr_root_folders_verification_protocol',
+                'arr_root_folder_conflict',
+                'arr_root_folders_unavailable',
+                'arr_root_folders_timeout',
                 'arr_bootstrap_unexpected',
             }
             else None
@@ -80,12 +100,16 @@ class ArrBootstrapExecutionError(Exception):
 class ArrBootstrapExecutionResult:
     state: str
     service_id: str
+    root_folders: ArrManagedRootFoldersResult = field(repr=False)
     readback: ArrAuthenticatedReadbackResult = field(repr=False)
 
     def __post_init__(self):
         if (
             self.state != 'verified'
             or self.service_id not in {'sonarr', 'radarr'}
+            or type(self.root_folders) is not ArrManagedRootFoldersResult
+            or self.root_folders.state != 'verified'
+            or self.root_folders.service_id != self.service_id
             or type(self.readback) is not ArrAuthenticatedReadbackResult
             or self.readback.state != 'verified'
             or self.readback.service_id != self.service_id
@@ -106,15 +130,17 @@ def _remaining(deadline):
 
 
 class ArrBootstrapExecutor:
-    def __init__(self, operations, binding_builder, readback):
+    def __init__(self, operations, binding_builder, root_folders, readback):
         if (
             type(operations) is not JournaledManagedContainerOperations
             or not callable(binding_builder)
+            or type(root_folders) is not ArrManagedRootFolders
             or type(readback) is not ArrAuthenticatedReadback
         ):
             raise ArrBootstrapExecutionError('invalid_arr_bootstrap_execution')
         self.operations = operations
         self.binding_builder = binding_builder
+        self.root_folders = root_folders
         self.readback = readback
 
     @staticmethod
@@ -239,13 +265,70 @@ class ArrBootstrapExecutor:
                 )
             self._gate(gate, True)
             _remaining(deadline)
-            return ArrBootstrapExecutionResult('verified', secret.serviceId, verified)
+            opened = None
+            called = False
+            while True:
+                self._gate(gate, True)
+                try:
+                    opened = open_arr_endpoint(
+                        observed, binding, trusted, receipt.container_id,
+                        secret.serviceId,
+                        timeout=min(10.0, _remaining(deadline)),
+                    )
+                    break
+                except ArrEndpointError as error:
+                    if error.code != 'arr_endpoint_unavailable':
+                        raise
+                    time.sleep(min(0.1, _remaining(deadline)))
+                    observed = self.operations.engine.inspect_container(binding.name)
+                    current = prove_arr_endpoint(
+                        observed, binding, trusted, receipt.container_id,
+                        secret.serviceId,
+                    )
+                    if current != proof:
+                        raise ArrBootstrapExecutionError(
+                            'arr_bootstrap_endpoint_changed',
+                            uncertain_effect=True, boundary='after_readback')
+            boundary = 'after_wiring_connect'
+            observed = self.operations.engine.inspect_container(binding.name)
+            if (prove_arr_endpoint(
+                    observed, binding, trusted, receipt.container_id,
+                    secret.serviceId) != proof or opened.proof != proof):
+                raise ArrBootstrapExecutionError(
+                    'arr_bootstrap_endpoint_changed', uncertain_effect=True,
+                    boundary=boundary)
+            self._gate(gate, True)
+            wiring_limits = ArrManagedRootFoldersLimits(
+                total_seconds=min(30.0, _remaining(deadline)))
+            called = True
+            root_folders = self.root_folders.apply(
+                opened.connection, service_id=secret.serviceId,
+                api_key=secret.apiKey, limits=wiring_limits)
+            boundary = 'after_wiring'
+            observed = self.operations.engine.inspect_container(binding.name)
+            if prove_arr_endpoint(
+                    observed, binding, trusted, receipt.container_id,
+                    secret.serviceId) != proof:
+                raise ArrBootstrapExecutionError(
+                    'arr_bootstrap_endpoint_changed', uncertain_effect=True,
+                    boundary=boundary)
+            self._gate(gate, True)
+            _remaining(deadline)
+            return ArrBootstrapExecutionResult(
+                'verified', secret.serviceId, root_folders, verified)
         except ArrBootstrapExecutionError:
             raise
         except ArrAuthenticatedReadbackError as error:
             raise ArrBootstrapExecutionError(
                 'arr_bootstrap_readback_failed',
                 uncertain_effect=True,
+                boundary=boundary,
+                cause_code=error.code,
+            ) from None
+        except ArrManagedRootFoldersError as error:
+            raise ArrBootstrapExecutionError(
+                'arr_bootstrap_wiring_failed',
+                uncertain_effect=error.uncertain_effect,
                 boundary=boundary,
                 cause_code=error.code,
             ) from None
