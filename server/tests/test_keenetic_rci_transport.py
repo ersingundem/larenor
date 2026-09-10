@@ -8,17 +8,21 @@ from contextlib import contextmanager
 
 import pytest
 
-from larenor_server.keenetic_commands.rci_adapter import RciCommand
+from larenor_server.keenetic_commands.rci_adapter import (
+    PackagedRciCommandAdapter,
+    RciCommand,
+)
 from larenor_server.keenetic_commands.rci_transport import (
     KeeneticRciTransport,
     keenetic_lan_address,
 )
 from larenor_server.keenetic_commands.service import KeeneticEffectError
+from larenor_server.keenetic_commands.worker_models import KeeneticWorkerCommand
 from larenor_server.services.service import ServiceConnection
 from larenor_server.services.transport import ProbeResponse, ProbeTransportError
 
 from conftest import auth, ready
-from test_keenetic_command_authority import Actor, state
+from test_keenetic_command_authority import Actor, request, state
 
 
 SECRET = "Synthetic-router-secret-not-for-production"
@@ -78,8 +82,11 @@ class ScriptTransport:
         self.calls = calls
         self.calls.append(("open", base_url, options))
 
-    def request(self, method, path, headers=None, body=None, **_options):
+    def request(self, method, path, headers=None, body=None, **options):
         self.calls.append((method, path, dict(headers or {}), body))
+        before_send = options.get("before_send")
+        if before_send is not None:
+            before_send()
         item = self.responses.pop(0)
         if isinstance(item, Exception):
             raise item
@@ -394,3 +401,117 @@ def test_owned_loopback_fixture_uses_pinned_dns_once_and_real_bounded_http_socke
         assert observed.value == "enabled"
         assert len(resolutions) == 1
         assert len(requests) == 2 and requests[1][0] == b"POST /rci/ HTTP/1.1\r\n"
+
+
+@pytest.mark.parametrize(
+    ("action", "operation"),
+    [
+        ("guest_wifi_enable", "guest_wifi_enable"),
+        ("guest_wifi_disable", "guest_wifi_disable"),
+        ("client_internet_pause", "client_access_pause"),
+        ("client_internet_resume", "client_access_resume"),
+        ("wan_reconnect", "wan_reconnect"),
+    ],
+)
+def test_executor_maps_only_packaged_operations(action, operation):
+    current = state(
+        kind={
+            "guest_wifi_enable": "guest_wifi",
+            "guest_wifi_disable": "guest_wifi",
+            "client_internet_pause": "client",
+            "client_internet_resume": "client",
+            "wan_reconnect": "wan",
+        }[action],
+        value={
+            "guest_wifi_enable": "disabled",
+            "guest_wifi_disable": "enabled",
+            "client_internet_pause": "allowed",
+            "client_internet_resume": "paused",
+            "wan_reconnect": "online",
+        }[action],
+        target={
+            "guest_wifi_enable": "WifiMaster0/AccessPoint1",
+            "guest_wifi_disable": "WifiMaster0/AccessPoint1",
+            "client_internet_pause": "AA:BB:CC:DD:EE:FF",
+            "client_internet_resume": "AA:BB:CC:DD:EE:FF",
+            "wan_reconnect": "ISP",
+        }[action],
+    )
+    worker = KeeneticWorkerCommand.from_request(
+        request(action, current=current),
+        timeout_ms=500,
+    )
+    calls = []
+
+    def transport(rci, *, deadline, cancelled):
+        calls.append(rci)
+        result = {
+            "guest_wifi_enable": "enabled",
+            "guest_wifi_disable": "disabled",
+            "client_internet_pause": "paused",
+            "client_internet_resume": "allowed",
+            "wan_reconnect": "online",
+        }[action]
+        return current.model_copy(
+            update={"value": result, "stateRevision": current.stateRevision + 1}
+        )
+
+    result = PackagedRciCommandAdapter(transport).execute(
+        worker, deadline=time.monotonic() + 1, cancelled=lambda: False
+    )
+    assert calls == [RciCommand(operation=operation, expectedState=current)]
+    assert result.status == "succeeded"
+
+
+def test_default_executor_is_unavailable_without_dns_or_socket(monkeypatch):
+    monkeypatch.setattr(socket, "socket", lambda *_args, **_kwargs: pytest.fail("socket opened"))
+    monkeypatch.setattr(socket, "getaddrinfo", lambda *_args, **_kwargs: pytest.fail("DNS used"))
+    worker = KeeneticWorkerCommand.from_request(
+        request(), timeout_ms=500
+    )
+    with pytest.raises(KeeneticEffectError, match="^keenetic_effect_unavailable$") as caught:
+        PackagedRciCommandAdapter().execute(
+            worker, deadline=time.monotonic() + 1, cancelled=lambda: False
+        )
+    assert caught.value.uncertain is False
+
+
+def test_post_timeout_is_uncertain_and_never_retried():
+    current = state(target="WifiMaster0/AccessPoint1")
+    factory = ScriptFactory([challenge(), ProbeTransportError("request_timeout")])
+    with pytest.raises(KeeneticEffectError, match="^keenetic_effect_timeout$") as caught:
+        run(Services(binding()), factory, command(target=current))
+    requests = [entry for entry in factory.calls if entry[0] in {"GET", "POST"}]
+    assert caught.value.uncertain is True
+    assert [entry[0] for entry in requests] == ["GET", "POST"]
+
+
+def test_oversized_post_response_is_unknown_without_retry():
+    current = state(target="WifiMaster0/AccessPoint1")
+    factory = ScriptFactory([
+        challenge(),
+        ProbeResponse(200, (), b"x" * (128 * 1024 + 1)),
+    ])
+    with pytest.raises(KeeneticEffectError, match="^keenetic_result_unknown$") as caught:
+        run(Services(binding()), factory, command(target=current))
+    assert caught.value.uncertain is True
+    assert [entry[0] for entry in factory.calls if entry[0] in {"GET", "POST"}] == [
+        "GET", "POST"
+    ]
+
+
+def test_tls_and_auth_failures_never_disclose_service_secret():
+    for response in (
+        ProbeTransportError("tls_verification_failed"),
+        ProbeResponse(401, (("www-authenticate", 'Basic realm="wrong"'),), b""),
+    ):
+        factory = ScriptFactory([response])
+        with pytest.raises(KeeneticEffectError) as caught:
+            run(
+                Services(binding(base_url="https://router.test")),
+                factory,
+                command(),
+            )
+        public = str(caught.value) + repr(caught.value) + repr(factory.responses)
+        assert SECRET not in public
+        assert len([entry for entry in factory.calls if entry[0] in {"GET", "POST"}]) == 1
