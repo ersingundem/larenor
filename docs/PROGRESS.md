@@ -1,6 +1,6 @@
 # Larenor — güncel ilerleme ve iş kuyruğu
 
-**Son güncelleme: 10 Eylül 2026 — qBittorrent yönetilen servis zinciri PR41 ile ana dalda. Sonarr/Radarr sahipli `config.xml` üretimi PR42 tam CI ile ana dalda; kapalı ve atomik hacim yazıcısı yerelde yeşil. Journal-bound Docker etkisi ve native kabul sıradaki kapı.**
+**Son güncelleme: 10 Eylül 2026 — qBittorrent yönetilen servis zinciri PR41 ile ana dalda. Sonarr/Radarr sahipli `config.xml` üretimi PR42 tam CI ile ana dalda; kapalı hacim yazıcısı ve current-journal kaynak bağı yerelde yeşil. Journal-bound Docker etkisi ve native kabul sıradaki kapı.**
 
 ```text
 Kuyruk kabulü       ██░░░░░░░░░░░░░░░░░░  14/125 iş (%11; eşit ağırlıklı sayaç)
@@ -41,7 +41,7 @@ Gerçek ev kurulumu ve fiziksel tablet kabulü henüz yapılmadı.
 | S06.3d — kalıcı depolama | **Kabul edildi**; Native18 exact `6a054ea`, amd64+arm64 makbuzları doğrulandı | S06.3f ile birleşik kaynak kapısı kapandı |
 | S06.3f — kaynak kabulü | **Kabul edildi**; exact `4021391`, iki mimarili native makbuz, 4.065 Server ve tam Android/Server CI yeşil | S06.4 dar kurulum yürütme kapısı |
 | S06.4 — dar kurulum yürütme kapısı | **Kabul edildi**; PR16 `bf6f860`, PR18 `75af015`, PR19 `9ce3c5a` ve PR20 `2b9166b` tam CI kapıları yeşil | S06.5 özel bootstrap ve otomatik servis eşleştirme |
-| S06.5 — özel bootstrap ve otomatik eşleştirme | **Devam ediyor**; Jellyfin kabulünden sonra qBittorrent config/create/start/private bootstrap ve restart readback exact PR41 kaynağında amd64+arm64 geçti. Sonarr/Radarr owned config üretimi PR42 tam CI ile ana dalda; kapalı atomik hacim yazıcısı yerelde yeşil | Arr journal-bound Docker etkisi ve native authenticated readback; ardından qBittorrent/root-folder bağlantısı, Seerr ve Music Assistant |
+| S06.5 — özel bootstrap ve otomatik eşleştirme | **Devam ediyor**; Jellyfin kabulünden sonra qBittorrent config/create/start/private bootstrap ve restart readback exact PR41 kaynağında amd64+arm64 geçti. Sonarr/Radarr owned config üretimi PR42 tam CI ile ana dalda; kapalı hacim yazıcısı ve current-journal kaynak bağı yerelde yeşil | Arr journal-bound Docker etkisi ve native authenticated readback; ardından qBittorrent/root-folder bağlantısı, Seerr ve Music Assistant |
 
 S06.5'in ilk iki TDD parçası, yalnız tamamlanmış Jellyfin kurulumundan
 yöneticiye bağlı bootstrap niyeti üretir ve public API'de sır, hedef adres veya
@@ -277,6 +277,17 @@ geçici dosya korunup çakışma olur. Helper paketinde **58 PASS**, owned confi
 henüz Docker effect veya gerçek servis başlangıcı yapmadığı için sayaç ve
 `installAvailable=false` değişmedi.
 [Uygulama ve açık sınırlar](arr-config-helper-implementation-2026-09-10.md).
+
+`25b7850` saf binding dilimi, Sonarr/Radarr config üretimini yalnız güncel
+`VolumeCreateJournal` intent'inden yeniden türetilen ilgili `/config` appdata
+kaynağına bağladı. Resource/operation/journal/nonce/revision, plan digest'leri,
+installation, volume, servis, kullanıcı, mount ve sabit stack ayarlarının tamamı
+eşleşmeden config üretilemiyor. Bütün binding alanları ve API key yeniden
+doğrulanıyor; public API servis/yol/port/stack/policy seçimi almıyor ve hiçbir
+host/ağ etkisi oluşturmuyor. **44 yeni / 138 ilgili test**, compileall, security
+policy, queue, diff ve Gitleaks PASS. Docker effect ve native kabul açık olduğu
+için sayaç ve `installAvailable=false` değişmedi.
+[Uygulama ve açık sınırlar](arr-config-binding-implementation-2026-09-10.md).
 
 S06.4 native kabul koşusu [34326112926](https://github.com/ersingundem/larenor/actions/runs/34326112926)
 iki gerçek GitHub runner'ında geçti. İndirilen ARM64 ve X64 makbuzları merge
