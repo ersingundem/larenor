@@ -7,11 +7,26 @@ import pytest
 
 from conftest import auth, bootstrap_password, login, ready
 from test_admin import activate, create as create_user
-from test_services import BASE, SECRET, create
+from test_services import BASE, SECRET, create as create_service
+from urllib.parse import urlsplit
 from larenor_server.errors import ApiError
 from larenor_server.services.models import UpdateServiceRequest
 from larenor_server.services.probe_runner import ServiceProbeRunner
 
+
+
+def create(client, pair, **changes):
+    """Existing probe cases now explicitly grant their synthetic HA origin."""
+    record = create_service(client, pair, **changes)
+    parsed = urlsplit(record['baseUrl'])
+    if parsed.hostname != '127.0.0.1':
+        response = client.put(BASE + '/' + record['id'] + '/outbound-policy', headers=auth(pair), json={
+            'expectedRevision': 0, 'expectedServiceRevision': record['revision'],
+            'grants': [{'scheme': parsed.scheme, 'host': parsed.hostname,
+                        'port': parsed.port or (443 if parsed.scheme == 'https' else 80),
+                        'addresses': [{'address': '10.20.30.40', 'network': 'lan'}]}]})
+        assert response.status_code == 200, response.text
+    return record
 
 def install(app, probe):
     runner = ServiceProbeRunner(app.state.core.services, probe=probe)
@@ -163,8 +178,8 @@ def test_process_start_initializes_probe_runner(server):
 
 
 @pytest.mark.parametrize("authorized", [True, False])
-def test_real_loopback_probe_through_api_transport_and_encrypted_storage(server, authorized):
-    """A local synthetic HA fixture exercises the complete production check path."""
+def test_local_core_address_is_not_grantable_through_probe_api(server, authorized):
+    """F13 blocks local Core destinations even when a synthetic HA listens there."""
     _, client, _, _ = server
     pair = ready(server)
     requests = []
@@ -187,11 +202,11 @@ def test_real_loopback_probe_through_api_transport_and_encrypted_storage(server,
     try:
         record = create(client, pair, baseUrl=f"http://127.0.0.1:{upstream.server_port}/home")
         checked = client.post(target(record), headers=auth(pair), json={"expectedRevision": 1})
-        assert checked.status_code == 200, checked.text
-        expected = "authenticated" if authorized else "unauthorized"
-        assert checked.json()["service"]["verification"]["state"] == expected
+        assert checked.status_code == 403, checked.text
+        assert checked.json()["error"]["code"] == "outbound_denied"
+        expected = "never"
         assert SECRET not in checked.text
-        assert requests == [("GET", "/home/api/config", "Bearer " + SECRET)]
+        assert requests == []
         assert client.get(BASE, headers=auth(pair)).json()["services"][0]["verification"]["state"] == expected
     finally:
         upstream.shutdown()

@@ -209,3 +209,51 @@ def test_corrupt_storage_fails_closed_without_repair_or_probe(server, monkeypatc
         # Auth/rate counters can change; encrypted policy rows and schema cannot.
         assert c.execute('SELECT sql FROM sqlite_master WHERE name="component_egress_state"').fetchone()[0] in before
     assert calls == [] and wires == []
+
+
+def test_policy_update_rollback_on_database_write_failure(server, monkeypatch):
+    from contextlib import contextmanager
+    app, client, pair, record, body = setup(server)
+    original = app.state.core.db.connection
+    @contextmanager
+    def fail_write():
+        with original() as c:
+            c.set_authorizer(lambda action, table, *_: sqlite3.SQLITE_DENY if action == sqlite3.SQLITE_UPDATE and table == 'component_egress_state' else sqlite3.SQLITE_OK)
+            yield c
+    monkeypatch.setattr(app.state.core.db, 'connection', fail_write)
+    response=client.put(policy_url(record),headers=auth(pair),json={**body,'expectedRevision':1,'grants':[]})
+    assert response.status_code == 503
+    monkeypatch.undo()
+    saved=client.get(policy_url(record),headers=auth(pair)).json()
+    assert saved['policy']['revision'] == 1 and saved['policy']['grants'] == body['grants']
+    assert len(saved['audit']) == 1
+
+
+def test_migration_commit_failure_rolls_back_whole_extension(server, monkeypatch):
+    from contextlib import contextmanager
+    from larenor_server.database import Database
+    app, _, _, _, _ = setup(server)
+    with app.state.core.db.transaction() as c:
+        c.execute('DROP TABLE component_egress_state')
+        c.execute("DELETE FROM metadata WHERE key='component_egress_schema'")
+    original=Database.transaction
+    @contextmanager
+    def fail_commit(self):
+        with original(self) as c:
+            yield c
+            raise sqlite3.OperationalError('synthetic_private_commit_failure')
+    monkeypatch.setattr(Database,'transaction',fail_commit)
+    with pytest.raises(StartupError): create_app(server[2])
+    with app.state.core.db.connection() as c:
+        assert c.execute("SELECT 1 FROM metadata WHERE key='component_egress_schema'").fetchone() is None
+        assert c.execute("SELECT 1 FROM sqlite_master WHERE name='component_egress_state'").fetchone() is None
+
+
+@pytest.mark.parametrize('address,kind', [('8.8.8.8','public'), ('2606:4700:4700::1111','public'), ('fd12::1','lan'), ('192.168.1.2','lan'), ('172.16.2.3','lan')])
+def test_explicit_public_and_lan_pins_remain_visible(server,address,kind):
+    _, client, pair, record, body=setup(server)
+    body['expectedRevision']=1
+    body['grants'][0]['addresses']=[{'address':address,'network':kind}]
+    response=client.put(policy_url(record),headers=auth(pair),json=body)
+    assert response.status_code == 200, response.text
+    assert response.json()['policy']['grants']==body['grants']

@@ -28,6 +28,9 @@ def downgrade_to_known_v1(app):
         for table in ('home_assistant_commands', 'home_assistant_bindings', 'home_assistant_state'):
             connection.execute(f'DROP TABLE {table}')
         connection.execute("DELETE FROM metadata WHERE key='home_assistant_schema'")
+        # Per-component egress policy is scoped to the later Core identity.
+        connection.execute('DROP TABLE component_egress_state')
+        connection.execute("DELETE FROM metadata WHERE key='component_egress_schema'")
         # The attributed command chain also postdates this context-free schema.
         for table in ('command_history_chain', 'command_history_state'):
             connection.execute(f'DROP TABLE {table}')
