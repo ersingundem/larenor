@@ -44,6 +44,6 @@ void main() {
     ui.interaction.setActive(false);
     await tester.pumpAndSettle();
     expect(find.byKey(const ValueKey('rdp-session-panel')), findsNothing);
-    expect(find.text('Uzak erişim kilitli.'), findsOneWidget);
+    expect(find.byKey(const ValueKey('rdp-password')), findsNothing);
   });
 }

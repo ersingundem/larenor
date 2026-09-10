@@ -5,9 +5,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:larenor/features/remote_access/data/remote_profiles.dart';
 import 'package:larenor/features/remote_access/rdp/rdp_models.dart';
 
-Map<String, dynamic> fixture() => jsonDecode(
-  File('contracts/rdp-client.v1.json').readAsStringSync(),
-) as Map<String, dynamic>;
+Map<String, dynamic> fixture() =>
+    jsonDecode(File('contracts/rdp-client.v1.json').readAsStringSync())
+        as Map<String, dynamic>;
 
 const profile = RemoteProfile(
   id: 'a0000000000000000000000000000001',
@@ -22,9 +22,7 @@ void main() {
   test('strict capabilities distinguish unavailable and secure RDP', () {
     final f = fixture();
     final available = RdpCapabilities.fromJson(f['availableCapabilities']);
-    final unavailable = RdpCapabilities.fromJson(
-      f['unavailableCapabilities'],
-    );
+    final unavailable = RdpCapabilities.fromJson(f['unavailableCapabilities']);
     expect(available.canConnect, isTrue);
     expect(available.supportsNla, isTrue);
     expect(available.supportsExternalDisplay, isTrue);
@@ -56,7 +54,9 @@ void main() {
     expect(request.channels.audio, isFalse);
     expect(request.channels.files, isFalse);
     expect(request.display.pixelCount, 4096000);
-    request.validate(RdpCapabilities.fromJson(fixture()['availableCapabilities']));
+    request.validate(
+      RdpCapabilities.fromJson(fixture()['availableCapabilities']),
+    );
   });
 
   test('display capability and insecure requests fail closed', () {

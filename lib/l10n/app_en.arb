@@ -2552,7 +2552,13 @@
   "sshTargetHop": "Target authentication",
   "sshJumpDirect": "Connect directly (no jump host)",
   "sshJumpUsing": "Use {name} as jump host",
-  "@sshJumpUsing": {"placeholders": {"name": {"type": "String"}}},
+  "@sshJumpUsing": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
   "sshJumpCredentialMissing": "The jump host has no saved credential on this device.",
   "sshJumpHostChanged": "The saved jump-host key changed. The connection was blocked.",
   "sftpTitle": "SFTP files",
@@ -2718,5 +2724,43 @@
   "coreProxmoxChooseResource": "Choose a Core resource for this Proxmox widget.",
   "dashboardTileCoreKeenetic": "Core Keenetic",
   "coreKeeneticDashboardPickerTitle": "Add Core Keenetic card",
-  "coreKeeneticDashboardPickerHint": "Choose a Core home resource. Larenor verifies its current Keenetic binding before saving the card."
+  "coreKeeneticDashboardPickerHint": "Choose a Core home resource. Larenor verifies its current Keenetic binding before saving the card.",
+  "rdpTitle": "RDP readiness",
+  "rdpProfileHint": "Open the secure RDP readiness panel. A session is offered only when the packaged engine proves TLS, certificate pinning, NLA, display, touchpad, and keyboard capabilities.",
+  "rdpCheck": "Check RDP capability",
+  "rdpEngineUnavailable": "A native RDP engine is not packaged in this build. No connection was attempted.",
+  "rdpChecking": "Checking packaged capabilities and peer security…",
+  "rdpTlsRequired": "The server did not provide the required TLS security.",
+  "rdpNlaUnsupported": "This server requires NLA, but the packaged engine cannot provide it.",
+  "rdpCertificateChanged": "The TLS certificate differs from the saved pin. The session was blocked.",
+  "rdpCertificateReview": "Review and pin this TLS certificate before any RDP login.",
+  "rdpTrustCertificate": "Trust this certificate",
+  "rdpNlaPassword": "One-time NLA password",
+  "rdpAuthenticate": "Authenticate with NLA",
+  "rdpConnecting": "Opening the verified RDP session…",
+  "rdpConnected": "RDP transport connected. Native screen rendering remains engine-owned.",
+  "rdpClosed": "RDP session closed. Reopen the profile for a new attempt.",
+  "rdpFailed": "RDP session failed. No automatic retry or input replay occurred.",
+  "rdpClipboardOff": "Clipboard: Off",
+  "rdpAudioOff": "Audio: Off",
+  "rdpFilesOff": "Files: Off",
+  "rdpChannelsHint": "Clipboard, audio, and file channels start disabled and require separate explicit capability and consent work.",
+  "rdpDisplay": "Display",
+  "rdpDisplayValue": "{width} × {height} · {dpi} DPI",
+  "@rdpDisplayValue": {
+    "placeholders": {
+      "width": {
+        "type": "int"
+      },
+      "height": {
+        "type": "int"
+      },
+      "dpi": {
+        "type": "int"
+      }
+    }
+  },
+  "rdpExternalDisplay": "DeX / external display profile",
+  "rdpInputReady": "Touchpad and physical keyboard input are scoped to this foreground session.",
+  "rdpBack": "Back to remote profiles"
 }

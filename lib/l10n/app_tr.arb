@@ -2224,7 +2224,13 @@
   "sshTargetHop": "Hedef kimlik doğrulaması",
   "sshJumpDirect": "Doğrudan bağlan (ara sunucu yok)",
   "sshJumpUsing": "{name} ara sunucusunu kullan",
-  "@sshJumpUsing": {"placeholders": {"name": {"type": "String"}}},
+  "@sshJumpUsing": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
   "sshJumpCredentialMissing": "Ara sunucunun bu cihazda kayıtlı kimlik bilgisi yok.",
   "sshJumpHostChanged": "Kayıtlı ara sunucu anahtarı değişti. Bağlantı engellendi.",
   "sftpTitle": "SFTP dosyaları",
@@ -2390,5 +2396,43 @@
   "coreProxmoxChooseResource": "Bu Proxmox widget’ı için bir Core kaynağı seçin.",
   "dashboardTileCoreKeenetic": "Core Keenetic",
   "coreKeeneticDashboardPickerTitle": "Core Keenetic kartı ekle",
-  "coreKeeneticDashboardPickerHint": "Bir Core ev kaynağı seçin. Larenor kartı kaydetmeden önce güncel Keenetic bağlantısını doğrular."
+  "coreKeeneticDashboardPickerHint": "Bir Core ev kaynağı seçin. Larenor kartı kaydetmeden önce güncel Keenetic bağlantısını doğrular.",
+  "rdpTitle": "RDP hazırlığı",
+  "rdpProfileHint": "Güvenli RDP hazırlık panelini açın. Oturum yalnız paketlenmiş motor TLS, sertifika sabitleme, NLA, ekran, touchpad ve klavye yeteneklerini kanıtlarsa sunulur.",
+  "rdpCheck": "RDP yeteneğini denetle",
+  "rdpEngineUnavailable": "Bu sürümde yerel RDP motoru paketlenmemiş. Bağlantı denenmedi.",
+  "rdpChecking": "Paketlenmiş yetenekler ve eş güvenliği denetleniyor…",
+  "rdpTlsRequired": "Sunucu gerekli TLS güvenliğini sağlamadı.",
+  "rdpNlaUnsupported": "Bu sunucu NLA istiyor ancak paketlenmiş motor bunu sağlayamıyor.",
+  "rdpCertificateChanged": "TLS sertifikası kayıtlı sabitlemeden farklı. Oturum engellendi.",
+  "rdpCertificateReview": "RDP oturumu açılmadan önce bu TLS sertifikasını inceleyip sabitleyin.",
+  "rdpTrustCertificate": "Bu sertifikaya güven",
+  "rdpNlaPassword": "Tek kullanımlık NLA parolası",
+  "rdpAuthenticate": "NLA ile doğrula",
+  "rdpConnecting": "Doğrulanmış RDP oturumu açılıyor…",
+  "rdpConnected": "RDP aktarımı bağlandı. Yerel ekran çizimi motorun sorumluluğundadır.",
+  "rdpClosed": "RDP oturumu kapandı. Yeni deneme için profili yeniden açın.",
+  "rdpFailed": "RDP oturumu başarısız. Otomatik yeniden deneme veya girdi tekrarı yapılmadı.",
+  "rdpClipboardOff": "Pano: Kapalı",
+  "rdpAudioOff": "Ses: Kapalı",
+  "rdpFilesOff": "Dosyalar: Kapalı",
+  "rdpChannelsHint": "Pano, ses ve dosya kanalları kapalı başlar; ayrı açık yetenek ve izin çalışması gerektirir.",
+  "rdpDisplay": "Ekran",
+  "rdpDisplayValue": "{width} × {height} · {dpi} DPI",
+  "@rdpDisplayValue": {
+    "placeholders": {
+      "width": {
+        "type": "int"
+      },
+      "height": {
+        "type": "int"
+      },
+      "dpi": {
+        "type": "int"
+      }
+    }
+  },
+  "rdpExternalDisplay": "DeX / harici ekran profili",
+  "rdpInputReady": "Touchpad ve fiziksel klavye girdisi bu ön plan oturumuyla sınırlıdır.",
+  "rdpBack": "Uzak erişim profillerine dön"
 }
