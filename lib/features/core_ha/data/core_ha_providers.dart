@@ -9,6 +9,7 @@ import '../../server/data/larenor_server_api.dart';
 import '../../server/data/server_account_controller.dart';
 import '../../home_resources/domain/home_resource_models.dart';
 import 'core_ha_activity_controller.dart';
+import 'core_ha_checkpoint_store.dart';
 import 'core_ha_controller.dart';
 
 /// One mounted page owns one handle. The screen must synchronize on route,
@@ -79,6 +80,9 @@ final coreHaRequestIdProvider = Provider<String Function()>((_) {
     (_) => random.nextInt(256),
   ).map((value) => value.toRadixString(16).padLeft(2, '0')).join();
 });
+final coreHaCheckpointStoreProvider = Provider<CoreHaCheckpointStore>(
+  (_) => CoreHaCheckpointStore(),
+);
 
 bool Function() _bind(Ref ref, CoreHaOwner owner, HomeSessionController? home) {
   owner._bind(ref);
@@ -132,6 +136,7 @@ typedef CoreHaActivitySelection = ({
   CoreHaOwner owner,
   HomeResourceRecord target,
   bool verifyIntegrity,
+  bool checkpointProtected,
 });
 final coreHaActivityControllerProvider = Provider.autoDispose
     .family<CoreHaActivityController, CoreHaActivitySelection>((
@@ -147,6 +152,8 @@ final coreHaActivityControllerProvider = Provider.autoDispose
         _bind(ref, selection.owner, home),
         selection.owner,
         verifyIntegrity: selection.verifyIntegrity,
+        checkpointStore: ref.watch(coreHaCheckpointStoreProvider),
+        checkpointProtected: selection.checkpointProtected,
       );
       ref.onDispose(() {
         controller.dispose();

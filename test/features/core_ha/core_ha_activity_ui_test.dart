@@ -37,10 +37,21 @@ Future<void> press(WidgetTester tester, String value) async {
   await flush(tester);
 }
 
-Future<void> confirm(WidgetTester tester, String value) async {
-  expect(keyed(value), findsOneWidget);
-  await tester.tap(keyed(value));
+Future<void> scrollToTop(WidgetTester tester) async {
+  final scrollable = find
+      .descendant(
+        of: find.byType(CustomScrollView).last,
+        matching: find.byType(Scrollable),
+      )
+      .first;
+  tester.state<ScrollableState>(scrollable).position.jumpTo(0);
   await flush(tester);
+}
+
+Future<void> authorizeCheckpoint(WidgetTester tester, String confirmKey) async {
+  await reveal(tester, keyed('core-ha-checkpoint-reauth-pin'));
+  await tester.enterText(keyed('core-ha-checkpoint-reauth-pin'), '1234');
+  await press(tester, confirmKey);
 }
 
 Future<void> openSnapshotActivity(
@@ -157,7 +168,7 @@ void main() {
 
       expect(keyed('core-ha-checkpoint-unpinned'), findsOneWidget);
       await press(tester, 'core-ha-checkpoint-pin');
-      await confirm(tester, 'core-ha-checkpoint-pin-confirm');
+      await authorizeCheckpoint(tester, 'core-ha-checkpoint-pin-confirm');
       expect(keyed('core-ha-checkpoint-pinned'), findsOneWidget);
       final storage = const FlutterSecureStorage();
       final storageKey = CoreHaCheckpointStore.storageKey(
@@ -167,6 +178,7 @@ void main() {
       expect(firstRaw, contains(harness.integrityCheckpoint));
 
       await press(tester, 'core-ha-checkpoint-copy');
+      await authorizeCheckpoint(tester, 'core-ha-checkpoint-copy-confirm');
       expect(clipboard, contains(harness.integrityCheckpoint));
       expect(keyed('core-ha-checkpoint-copied'), findsOneWidget);
 
@@ -175,6 +187,7 @@ void main() {
         ..integritySequence = 3
         ..integrityHead = 'c' * 64
         ..integrityCheckpoint = 'eyJjaGFpbiI6Im5leHQifQ.fixture';
+      await scrollToTop(tester);
       await press(tester, 'core-ha-activity-refresh');
       expect(keyed('core-ha-checkpoint-auto-matched'), findsOneWidget);
       final comparisons = harness.adapterRequests.where(
@@ -189,7 +202,7 @@ void main() {
       expect(await storage.read(key: storageKey), firstRaw);
 
       await press(tester, 'core-ha-checkpoint-rotate');
-      await confirm(tester, 'core-ha-checkpoint-rotate-confirm');
+      await authorizeCheckpoint(tester, 'core-ha-checkpoint-rotate-confirm');
       final rotated = await storage.read(key: storageKey);
       expect(rotated, contains(harness.integrityCheckpoint));
       expect(rotated, contains('"revision":2'));
@@ -204,7 +217,7 @@ void main() {
     final harness = HaUiHarness();
     await openBindingActivity(tester, harness);
     await press(tester, 'core-ha-checkpoint-pin');
-    await confirm(tester, 'core-ha-checkpoint-pin-confirm');
+    await authorizeCheckpoint(tester, 'core-ha-checkpoint-pin-confirm');
     final storage = const FlutterSecureStorage();
     final storageKey = CoreHaCheckpointStore.storageKey(
       harness.account.session!.context!,
@@ -212,6 +225,7 @@ void main() {
     final trusted = await storage.read(key: storageKey);
 
     harness.rejectComparedCheckpoint = true;
+    await scrollToTop(tester);
     await press(tester, 'core-ha-activity-refresh');
     expect(keyed('core-ha-checkpoint-alarm'), findsOneWidget);
     expect(
@@ -222,6 +236,36 @@ void main() {
     );
     expect(await storage.read(key: storageKey), trusted);
     expect(keyed('core-ha-checkpoint-rotate'), findsNothing);
+  });
+
+  testWidgets('backgrounding retires a held checkpoint authorization', (
+    tester,
+  ) async {
+    final harness = HaUiHarness();
+    await openBindingActivity(tester, harness);
+    await press(tester, 'core-ha-checkpoint-pin');
+    await reveal(tester, keyed('core-ha-checkpoint-reauth-pin'));
+    await tester.enterText(keyed('core-ha-checkpoint-reauth-pin'), '1234');
+    final held = tester
+        .widget<CupertinoButton>(
+          find.descendant(
+            of: keyed('core-ha-checkpoint-pin-confirm'),
+            matching: find.byType(CupertinoButton),
+          ),
+        )
+        .onPressed!;
+
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.hidden);
+    await flush(tester);
+    held();
+    await flush(tester);
+
+    final key = CoreHaCheckpointStore.storageKey(
+      harness.account.session!.context!,
+    );
+    expect(await const FlutterSecureStorage().read(key: key), isNull);
+    expect(keyed('core-ha-checkpoint-authorization'), findsNothing);
   });
 
   testWidgets(

@@ -10,6 +10,7 @@ import '../../server/data/server_account_controller.dart';
 import '../../server/domain/server_models.dart';
 import '../domain/core_ha_activity_models.dart';
 import 'core_ha_api.dart';
+import 'core_ha_checkpoint_store.dart';
 
 /// Read-only, route-owned history. It never dispatches or replays a command.
 class CoreHaActivityController extends ChangeNotifier {
@@ -21,6 +22,8 @@ class CoreHaActivityController extends ChangeNotifier {
     this.current,
     this.owner, {
     required this.verifyIntegrity,
+    required this.checkpointStore,
+    required this.checkpointProtected,
     this.pageSize = 25,
   }) {
     home?.addListener(_changed);
@@ -36,12 +39,17 @@ class CoreHaActivityController extends ChangeNotifier {
   final bool Function() current;
   final Listenable owner;
   final bool verifyIntegrity;
+  final CoreHaCheckpointStore checkpointStore;
+  final bool checkpointProtected;
   final int pageSize;
 
   List<CoreHaHistoryEntry> entries = const [];
   CoreHaHistoryVerification? verification;
-  String? nextBefore, failure, integrityFailure;
+  CoreHaTrustedCheckpoint? trustedCheckpoint;
+  String? nextBefore, failure, integrityFailure, checkpointFailure;
+  String? checkpointAlarm;
   bool busy = false, loaded = false, stale = false, truncated = false;
+  bool checkpointLoaded = false, trustedCompared = false;
   bool _disposed = false,
       _visible = false,
       _attempted = false,
@@ -94,6 +102,26 @@ class CoreHaActivityController extends ChangeNotifier {
       nextBefore != null &&
       entries.length < CoreHaHistoryPage.maximumVisibleEntries;
   bool get canVerifyCheckpoint => verifyIntegrity && fresh && !busy;
+  bool get canPinCheckpoint =>
+      checkpointProtected &&
+      checkpointLoaded &&
+      trustedCheckpoint == null &&
+      verification != null &&
+      !verification!.comparedCheckpoint &&
+      checkpointAlarm == null &&
+      checkpointFailure == null &&
+      fresh &&
+      !busy;
+  bool get canRotateCheckpoint =>
+      checkpointProtected &&
+      trustedCompared &&
+      trustedCheckpoint != null &&
+      verification != null &&
+      verification!.checkpoint != trustedCheckpoint!.checkpoint &&
+      checkpointAlarm == null &&
+      checkpointFailure == null &&
+      fresh &&
+      !busy;
 
   void _emit() {
     if (!_disposed) notifyListeners();
@@ -102,12 +130,17 @@ class CoreHaActivityController extends ChangeNotifier {
   void _clear() {
     entries = const [];
     verification = null;
+    trustedCheckpoint = null;
     nextBefore = null;
     failure = null;
     integrityFailure = null;
+    checkpointFailure = null;
+    checkpointAlarm = null;
     loaded = false;
     stale = false;
     truncated = false;
+    checkpointLoaded = false;
+    trustedCompared = false;
   }
 
   void _retire() {
@@ -223,10 +256,19 @@ class CoreHaActivityController extends ChangeNotifier {
     final operation = ++_epoch,
         oldEntries = entries,
         oldVerification = verification,
+        oldTrusted = trustedCheckpoint,
+        oldCheckpointLoaded = checkpointLoaded,
+        oldTrustedCompared = trustedCompared,
+        oldCheckpointFailure = checkpointFailure,
+        oldCheckpointAlarm = checkpointAlarm,
         cursor = more ? nextBefore : null;
     busy = true;
     failure = null;
     integrityFailure = null;
+    if (!more) {
+      checkpointFailure = null;
+      checkpointAlarm = null;
+    }
     _attempted = true;
     _emit();
     try {
@@ -236,12 +278,53 @@ class CoreHaActivityController extends ChangeNotifier {
       );
       CoreHaHistoryVerification? proof = oldVerification;
       String? proofFailure;
+      var pin = oldTrusted;
+      var pinLoaded = oldCheckpointLoaded;
+      var comparedTrusted = more ? oldTrustedCompared : false;
+      String? pinFailure = more ? oldCheckpointFailure : null;
+      String? alarm = more ? oldCheckpointAlarm : null;
       if (!more && verifyIntegrity) {
-        try {
-          proof = await _session(operation, (api) => api.verifyHistory());
-        } catch (error) {
-          proof = null;
-          proofFailure = _failure(error);
+        if (checkpointProtected) {
+          try {
+            pin = await checkpointStore.read(
+              target.context,
+              isCurrent: () => _epoch == operation && _sourceCurrent,
+            );
+            pinLoaded = true;
+          } on CoreHaCheckpointException catch (error) {
+            pinFailure = error.code;
+          }
+        } else {
+          pin = null;
+          pinLoaded = false;
+        }
+        if (pinFailure == null) {
+          try {
+            final verified = await _session(
+              operation,
+              (api) => api.verifyHistory(checkpoint: pin?.checkpoint),
+            );
+            proof = verified;
+            if (pin != null) {
+              comparedTrusted = true;
+              if (verified.chainId != pin.chainId) {
+                proof = null;
+                comparedTrusted = false;
+                alarm = 'mismatch';
+              } else if (verified.sequence < pin.sequence) {
+                proof = null;
+                comparedTrusted = false;
+                alarm = 'rollback';
+              }
+            }
+          } catch (error) {
+            proof = null;
+            proofFailure = _failure(error);
+            if (pin != null &&
+                {'conflict', 'revision_conflict'}.contains(proofFailure)) {
+              alarm = 'mismatch';
+            }
+          }
         }
       }
       final combined = more ? [...oldEntries, ...page.entries] : page.entries;
@@ -265,6 +348,11 @@ class CoreHaActivityController extends ChangeNotifier {
       entries = List.unmodifiable(combined);
       verification = proof;
       integrityFailure = proofFailure;
+      trustedCheckpoint = pin;
+      checkpointLoaded = pinLoaded;
+      trustedCompared = comparedTrusted;
+      checkpointFailure = pinFailure;
+      checkpointAlarm = alarm;
       nextBefore = page.nextBefore;
       truncated = combined.length == cap && page.nextBefore != null;
       if (truncated) nextBefore = null;
@@ -274,6 +362,11 @@ class CoreHaActivityController extends ChangeNotifier {
       if (_epoch == operation && _sourceCurrent) {
         entries = oldEntries;
         verification = oldVerification;
+        trustedCheckpoint = oldTrusted;
+        checkpointLoaded = oldCheckpointLoaded;
+        trustedCompared = oldTrustedCompared;
+        checkpointFailure = oldCheckpointFailure;
+        checkpointAlarm = oldCheckpointAlarm;
         failure = _failure(error);
         stale = oldEntries.isNotEmpty;
         loaded = oldEntries.isNotEmpty;
@@ -307,6 +400,7 @@ class CoreHaActivityController extends ChangeNotifier {
         operation,
         (api) => api.verifyHistory(checkpoint: value),
       );
+      trustedCompared = false;
     } catch (error) {
       if (_epoch == operation && _sourceCurrent) {
         integrityFailure = _failure(error);
@@ -317,6 +411,65 @@ class CoreHaActivityController extends ChangeNotifier {
         _transport = null;
         _preparing = false;
         _preparationCurrent = null;
+        busy = false;
+        _emit();
+      }
+    }
+  }
+
+  String _checkpointFailure(Object error) =>
+      error is CoreHaCheckpointException ? error.code : 'write_failed';
+
+  Future<void> pinCurrentCheckpoint() async {
+    final proof = verification;
+    if (!canPinCheckpoint || proof == null) return;
+    final operation = ++_epoch;
+    busy = true;
+    checkpointFailure = null;
+    _emit();
+    try {
+      trustedCheckpoint = await checkpointStore.pin(
+        target.context,
+        proof,
+        isCurrent: () =>
+            _epoch == operation && _sourceCurrent && checkpointProtected,
+      );
+      checkpointLoaded = true;
+      trustedCompared = false;
+    } catch (error) {
+      if (_epoch == operation && _sourceCurrent) {
+        checkpointFailure = _checkpointFailure(error);
+      }
+    } finally {
+      if (!_disposed && _epoch == operation) {
+        busy = false;
+        _emit();
+      }
+    }
+  }
+
+  Future<void> rotateTrustedCheckpoint() async {
+    final before = trustedCheckpoint, proof = verification;
+    if (!canRotateCheckpoint || before == null || proof == null) return;
+    final operation = ++_epoch;
+    busy = true;
+    checkpointFailure = null;
+    _emit();
+    try {
+      trustedCheckpoint = await checkpointStore.rotate(
+        target.context,
+        before,
+        proof,
+        isCurrent: () =>
+            _epoch == operation && _sourceCurrent && checkpointProtected,
+      );
+      trustedCompared = false;
+    } catch (error) {
+      if (_epoch == operation && _sourceCurrent) {
+        checkpointFailure = _checkpointFailure(error);
+      }
+    } finally {
+      if (!_disposed && _epoch == operation) {
         busy = false;
         _emit();
       }
