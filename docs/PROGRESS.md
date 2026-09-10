@@ -1,6 +1,6 @@
 # Larenor — güncel ilerleme ve iş kuyruğu
 
-**Son güncelleme: 10 Eylül 2026 — Seerr executor ve UID-korumalı worker IPC PR58 ile bütün zorunlu kontrollerden geçerek ana dalda. Sıradaki dilimde Core'un kalıcı kurulum API'si aynı hazırlıkta Jellyfin ve Seerr için ayrı journal-bound create/start işi üretiyor; şifreli Seerr bootstrap işi ve gerçek iki mimarili kabul açık.**
+**Son güncelleme: 10 Eylül 2026 — Keenetic bağlantı kalitesi kartı PR60 ile ana dalda. PR64 tek kilometre taşı olarak Seerr ve Music Assistant kalıcı Core kurulumunu, atıflı ve değişiklik algılayan HA işlem geçmişini, bağımsız uzak hedef profillerini, güvenli SSH terminal temelini ve ilk bileşen internet iznini birleştiriyor; exact head `8f20730` için zorunlu CI çalışıyor.**
 
 ```text
 Kuyruk kabulü       ██░░░░░░░░░░░░░░░░░░  14/125 iş (%11; eşit ağırlıklı sayaç)
@@ -31,6 +31,30 @@ geçti; Server 4.065 testi ile amd64/arm64 imaj ve manifest yayını tamamlandı
 Gerçek ev kurulumu ve fiziksel tablet kabulü henüz yapılmadı.
 
 ## Şimdi yapılan işler
+
+### Aktif toplu kilometre taşı — PR64
+
+Ara commitlerde yalnız ilgili testler çalıştırılıyor; aynı teslim grubunun tam
+Android, Server, E2E, güvenlik ve iki mimarili native kapıları tek exact head
+üzerinde bir kez çalışıyor. [PR64](https://github.com/ersingundem/larenor/pull/64)
+şu yazılım dilimlerini birlikte taşıyor:
+
+- Seerr ve Music Assistant için kalıcı, plan-türetilmiş Core kurulum işleri;
+  kullanıcı Docker girdisi yok ve `installAvailable=false` korunuyor.
+- HA komutlarında actor/source/reason/correlation geçmişi ile şifreli append
+  zinciri ve dış HMAC checkpoint doğrulaması.
+- IP, alan adı ve IPv6 hedefli SSH/RDP/VNC profil yönetimi ile PIN korumalı,
+  host-key pinli ve şifreli kimlik bilgili ilk SSH terminali.
+- Home Assistant service-check için varsayılan ret, exact origin/IP izinleri,
+  DNS/peer doğrulaması ve şifreli denetim kaydı.
+
+Yerel toplu doğrulamada seçili Server paketleri; 226 birleşik
+Keenetic/uzak-erisim/Ayarlar tablet testi; 49 SSH testi; 543 bileşen internet
+izni testi; güvenlik politikası ve kuyruk doğrulaması geçti. İlk tam CI denemesi
+Music Assistant'ın yeni worker capability değerini beklemeyen dört tarihsel
+fixture buldu; fixture'lar güncellendi ve ilgili 44 test geçti. Yeni exact head
+için zorunlu CI sonucu bekleniyor. Bu dilimler F13/F20/F63 veya S06.5'in bütün
+kabul ölçütlerini tek başına kapatmadığı için kanıt sayaçları henüz artırılmadı.
 
 | Adım | Durum | Sonraki somut çıktı |
 | --- | --- | --- |
