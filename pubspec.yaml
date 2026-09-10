@@ -59,6 +59,7 @@ dependencies:
   media_kit_libs_video: ^1.0.7
   file_picker: ^12.1.2
   path_provider: ^2.1.6
+  dartssh2: 4.1.0
   crypto: ^3.0.7
   network_info_plus: ^8.2.1
   cached_network_image: ^4.0.0
