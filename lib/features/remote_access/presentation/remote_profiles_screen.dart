@@ -12,6 +12,7 @@ import '../../../shared/widgets/app_page_scaffold.dart';
 import '../../../shared/widgets/settings_action_tile.dart';
 import '../../../shared/widgets/settings_section.dart';
 import '../data/remote_profiles.dart';
+import '../ssh/ssh_terminal_panel.dart';
 
 final remoteProfilesStoreProvider = Provider<RemoteProfilesStore>(
   (ref) => RemoteProfilesStore(),
@@ -38,7 +39,8 @@ class _RemoteProfilesScreenState extends ConsumerState<RemoteProfilesScreen>
   RemoteProfile? _selected;
   RemoteProtocol _protocol = RemoteProtocol.ssh;
   int _generation = 0, _interactionEpoch = 0;
-  bool _resumed = true, _nativeFocused = true;
+  bool _resumed = true, _nativeFocused = true, _terminal = false;
+  bool Function()? _terminalCurrent;
   bool _started = false,
       _busy = false,
       _editing = false,
@@ -97,6 +99,8 @@ class _RemoteProfilesScreenState extends ConsumerState<RemoteProfilesScreen>
   }
 
   void _invalidate() {
+    _terminal = false;
+    _terminalCurrent = null;
     _generation++;
     _snapshot = null;
     _selected = null;
@@ -393,6 +397,17 @@ class _RemoteProfilesScreenState extends ConsumerState<RemoteProfilesScreen>
       'copy_failed' => l.remoteAccessCopyFailed,
       _ => l.remoteAccessReadFailed,
     };
+    if (_terminal && _selected != null && active) {
+      return SshTerminalPanel(
+        key: ValueKey("ssh-${_selected!.id}"),
+        profile: _selected!,
+        isCurrent: _terminalCurrent!,
+        onBack: () {
+          _generation++;
+          setState(() => _terminal = false);
+        },
+      );
+    }
     return AppPageScaffold(
       child: CustomScrollView(
         key: const ValueKey('remote-scroll'),
@@ -508,7 +523,11 @@ class _RemoteProfilesScreenState extends ConsumerState<RemoteProfilesScreen>
                         ),
                         Padding(
                           padding: const EdgeInsets.all(20),
-                          child: Text(l.remoteAccessEngineHint),
+                          child: Text(
+                            selected.protocol == RemoteProtocol.ssh
+                                ? l.sshHint
+                                : l.remoteAccessEngineHint,
+                          ),
                         ),
                         if (_deleting) ...[
                           Padding(
@@ -532,6 +551,13 @@ class _RemoteProfilesScreenState extends ConsumerState<RemoteProfilesScreen>
                             setState(() => _deleting = false);
                           }),
                         ] else ...[
+                          if (selected.protocol == RemoteProtocol.ssh &&
+                              selected.username.isNotEmpty)
+                            action('remote-ssh-open', l.sshTitle, () {
+                              _generation++;
+                              _terminalCurrent = _action();
+                              setState(() => _terminal = true);
+                            }),
                           action(
                             'remote-copy',
                             l.remoteAccessCopy,

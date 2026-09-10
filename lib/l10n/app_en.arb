@@ -2481,5 +2481,34 @@
         "type": "String"
       }
     }
-  }
+  },
+  "sshTitle": "SSH terminal",
+  "sshHint": "A plain-text shell with explicit line sending. Full-screen terminal apps, SFTP and tunnels are not supported yet. No automatic reconnect or command replay.",
+  "sshReady": "Not connected",
+  "sshConnecting": "Connecting… You can cancel.",
+  "sshVerifyHost": "Verify the server key",
+  "sshConnected": "SSH shell open",
+  "sshClosed": "Disconnected. Remote processes may still be running.",
+  "sshFailed": "SSH could not continue. Check the target, authentication and supported key format before trying again.",
+  "sshHostChanged": "The saved server key has changed. Connection blocked. Verify the new key independently; this screen cannot replace a trusted key.",
+  "sshCredentialMissing": "Save a credential on this device first.",
+  "sshInvalidCredential": "Enter a supported password or PEM private key within the displayed limit.",
+  "sshProfileChanged": "This profile changed. Return to the profile list and review it again.",
+  "sshTimeout": "Connection timed out and was closed. No input was replayed.",
+  "sshStorageFailed": "Secure storage could not be confirmed. Refresh to inspect the saved credential before trying again.",
+  "sshInvalidInput": "Send one line, up to 4096 UTF-8 bytes, without control characters.",
+  "sshTrustHint": "First connection: compare this SHA-256 fingerprint with the server administrator through a trusted channel. Trust only if it matches this target.",
+  "sshTrust": "Trust this server key",
+  "sshWaitingOutput": "Waiting for shell output…",
+  "sshLine": "Input line",
+  "sshSend": "Send line",
+  "sshDisconnect": "Disconnect",
+  "sshCredentialSaved": "A credential is saved in this device’s secure storage, separately from the profile. It is not exported.",
+  "sshConnect": "Connect to this target",
+  "sshForgetConfirm": "Delete the saved credential from this device? The trusted server key is kept.",
+  "sshForget": "Forget saved credential",
+  "sshPassword": "Password",
+  "sshPrivateKey": "Private key (PEM)",
+  "sshPassphrase": "Key passphrase (if encrypted)",
+  "sshSaveCredential": "Save credential on this device"
 }
