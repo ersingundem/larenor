@@ -9,7 +9,9 @@ are Huawei MatePad 11.5 S 2026 and other Android tablets, plus resizable windows
 external displays and keyboard/mouse use through Samsung DeX. The Apple
 Home-inspired Cupertino design remains shared across tablet orientations and
 DeX window sizes. A separate phone interface is not a current design target;
-the gallery below focuses on tablet and resizable DeX layouts. **Larenor Server** provides accounts, an encrypted
+the gallery below focuses on tablet and resizable DeX layouts. Native iOS,
+iPhone/iPad packaging and App Store delivery are not product targets.
+**Larenor Server** provides accounts, an encrypted
 configuration vault, user/session administration and signed Client release APIs.
 The Client admin area also manages encrypted service connections and bounded
 identity checks for 17 service types. See the [connection guide and limitations](docs/server-service-connections.md).
@@ -324,8 +326,10 @@ representation; physical devices are controlled through actions.
 - The app now requires **Android 8 / API 26**. Health Connect itself requires a
   compatible **Android 9+** device/provider. Huawei availability is checked at
   runtime. Mi Fitness data requires an actual sync into a supported source;
-  Huawei Health developer approval and native Apple Health integration remain
-  external/pending paths, not connected accounts. See the [provider matrix](docs/wellbeing-implementation-2026-09-05.md).
+  Huawei Health developer approval remains an external, pending path. Apple
+  Health data can enter only through an explicit user-controlled Server or Home
+  Assistant bridge; Larenor Client has no direct HealthKit integration. See the
+  [provider matrix](docs/wellbeing-implementation-2026-09-05.md).
 - Android verifies window capture protection before opening the private view.
   Backgrounding revokes the read session while retaining capture protection until
   a masked foreground frame is painted. Actual OEM/Recents behavior remains a
@@ -439,7 +443,7 @@ identity scheme (MusicBrainz/Goodreads, not TMDB) and suit a poster-row layout p
   view shows the current and next items returned by HA, not a fabricated full queue.
 - Spotify, Apple Music and YouTube Music require supported provider setup on a
   Music Assistant server. Subscriptions alone do not configure that server.
-  Larenor includes a native music interface, not the Music Assistant server engine;
+  Larenor includes an Android music interface, not the Music Assistant server engine;
   running that complete engine inside Android and direct subscription SDK login
   are not implemented. No server is installed or account connected automatically.
 - **Play on this device** uses an Android Media3 player and MediaSessionService for
@@ -783,8 +787,6 @@ version are verified in CI. This is not a claim of complete coverage of every Ho
 entity, media configuration, Proxmox operation or Keenetic firmware. Live router, media playback,
 server mutation and Android-device verification remains separate from mocked API tests.
 
-The [4 September 2026 implementation review](docs/implementation-review-2026-09-04.md)
-records the current changes, validation status and remaining limitations.
 Read-only compatibility was checked against **HA 2026.8.3** with the actual Dart
 clients: 294 actions / 384 fields, 360 state models, 94 devices, 8 areas, 668 registry
 entries and 46 config entries. History and WebSocket subscription lifecycle also

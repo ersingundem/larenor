@@ -40,8 +40,8 @@ HA'daki genel ağırlık sensörü insan ölçümü kanıtı değildir. Kullanı
 kişiye kendisi bağlar. `last_updated`, tartılma zamanı diye gösterilmez:
 ölçüm zamanı, kaynak güncellemesi ve okuma zamanı ayrı tutulur. Geçersiz birim,
 NaN/sonsuz veya bozuk aralık güvenli hata olur. Bilinmeyen/boş sonuç sıfıra
-dönüştürülmez. Apple HealthKit'in okuma iznini gizlemesi nedeniyle ilerideki boş
-HealthKit sonucu da tek başına erişim başarısı sayılmayacaktır.
+dönüştürülmez. Apple Health kaynaklı bir üst köprü okuma iznini gizleyebilir;
+boş bir köprü sonucu tek başına erişim başarısı sayılmayacaktır.
 [HA sensör tanımı](https://www.home-assistant.io/integrations/sensor/),
 [Apple HealthKit authorization](https://developer.apple.com/documentation/healthkit/authorizing-access-to-health-data).
 

@@ -43,22 +43,23 @@ Plugin public API'si Android renderer ölümü için gerekli native callback'i v
 panel başına ayrı cookie/data-store sahipliğini açmıyor. Controller'ı boşaltmak
 logout veya bütün site verisini silmek değildir. Global clearCookies diğer
 panellerin oturumlarını da etkiler; bu dilimde tek paneli temizlediğini iddia eden
-bir düğme yoktur. iOS dosya yüklemesinin tümüyle engellendiği de iddia edilmez.
+bir düğme yoktur. Android dosya seçici davranışı ayrıca fiziksel cihazda sınanır.
 [Cookie temizleme kapsamı](https://pub.dev/documentation/webview_flutter/latest/webview_flutter/WebViewCookieManager/clearCookies.html),
-[WKWebView oluşturma seçenekleri](https://pub.dev/documentation/webview_flutter_wkwebview/latest/webview_flutter_wkwebview/WebKitWebViewControllerCreationParams-class.html).
+[Android WebView dosya seçici](https://developer.android.com/reference/android/webkit/WebChromeClient.FileChooserParams).
 
 ## Kanıt ve devam işleri
 
 Bu dilimdeki 77 ilgili test; köken karşılaştırması, bütçe/watchdog, ilk yükleme
 sırasında arka plan, idle, config loading/error, aynı hostta token değişimi,
-güvensiz callback, retry/back tek uçuşu ve telefon/tablet düzenini kapsar.
+güvensiz callback, retry/back tek uçuşu ve dar/tablet düzenini kapsar.
 Dosyalar `lib/features/web_panel`, `test/features/web_panel` ve mevcut webview
 kart testleridir. Bunlar gerçek WebView/OEM davranışı yerine geçmez.
 
 Sonraki tarayıcı dilimi: açık ek köken yönetimi, izinli harici giriş akışı,
 etkilenen bütün web oturumlarını belirten temizleme, native renderer kurtarma ve
-oturum izolasyonu. Huawei'nin gerçek WebView sürümü, iOS upload ve servis-worker
-ömrü cihaz kabulünde sınanmalıdır. [Tam kiosk planı](kiosk-capabilities-research-2026-09-05.md).
+oturum izolasyonu. Huawei'nin gerçek WebView sürümü, Android dosya seçici
+davranışı ve service-worker ömrü fiziksel cihaz kabulünde sınanmalıdır.
+[Tam kiosk planı](kiosk-capabilities-research-2026-09-05.md).
 
 ## Aynı gün eklenen kart ve veri yönetimi
 
