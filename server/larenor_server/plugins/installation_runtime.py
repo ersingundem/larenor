@@ -30,6 +30,8 @@ from .installation_execution import (
     service_for_step,
 )
 from .installation_ipc import InstallationWorkerServer
+from .music_provider_setup_runtime import MusicProviderSetupRuntime
+from .music_playback_runtime import MusicPlaybackRuntime
 from .installation_supervisor import RetainedDaemonPeerVerifier, SupervisedInstallationBackend
 from .jellyfin_bootstrap_executor import JellyfinBootstrapExecutor
 from .jellyfin_startup import JellyfinStartupConfigurator
@@ -279,6 +281,8 @@ class _RuntimeBackend:
             JellyfinAuthenticatedReadback(), JellyfinManagedLibraries())
         self.seerr_bootstrap = SeerrBootstrapExecutor(
             operations, binding_builder, SeerrInitialAdmin())
+        self.music_provider_setup = MusicProviderSetupRuntime()
+        self.music_playback = MusicPlaybackRuntime()
 
     def apply(self, step, plan):
         service = service_for_step(step, plan)
@@ -293,6 +297,30 @@ class _RuntimeBackend:
                    else self.music_assistant_installation
                    if service == 'music_assistant' else self.installation)
         return backend.reconcile(step, plan)
+
+    def execute_music_provider_setup(self, action, *, deadline, gate):
+        if gate() is not True:
+            raise ValueError('provider_setup_authority_changed')
+        result = self.music_provider_setup.execute(action, deadline=deadline)
+        if gate() is not True:
+            raise ValueError('provider_setup_authority_changed')
+        return result
+
+    def read_music_players(self, authority, *, deadline, gate):
+        if gate() is not True:
+            raise ValueError('music_playback_authority_changed')
+        result = self.music_playback.read(authority, deadline=deadline)
+        if gate() is not True:
+            raise ValueError('music_playback_authority_changed')
+        return result
+
+    def execute_music_playback(self, action, *, deadline, gate):
+        if gate() is not True:
+            raise ValueError('music_playback_authority_changed')
+        result = self.music_playback.execute(action, deadline=deadline)
+        if gate() is not True:
+            raise ValueError('music_playback_authority_changed')
+        return result
 
     def bootstrap(self, job, plan, private, *, deadline, gate):
         return self.bootstrap_executor.execute(

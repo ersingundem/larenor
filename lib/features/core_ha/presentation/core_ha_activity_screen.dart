@@ -1,10 +1,12 @@
 import 'dart:async';
 
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../l10n/generated/app_localizations.dart';
 import '../../home_resources/domain/home_resource_models.dart';
+import '../../settings/providers/settings_providers.dart';
 import '../data/core_ha_activity_controller.dart';
 import '../data/core_ha_providers.dart';
 import '../domain/core_ha_activity_models.dart';
@@ -51,20 +53,29 @@ class _ActivityView extends ConsumerStatefulWidget {
   ConsumerState<_ActivityView> createState() => _ActivityViewState();
 }
 
-class _ActivityViewState extends ConsumerState<_ActivityView> {
+class _ActivityViewState extends ConsumerState<_ActivityView>
+    with WidgetsBindingObserver {
   late final CoreHaActivitySelection _selection = (
     owner: widget.owner,
     target: widget.target,
     verifyIntegrity: widget.verifyIntegrity,
+    checkpointProtected:
+        widget.verifyIntegrity && ref.read(pinLockProvider).value != null,
   );
   late final CoreHaActivityController _controller = ref.read(
     coreHaActivityControllerProvider(_selection),
   );
   final _checkpoint = TextEditingController();
+  final _reauthPin = TextEditingController();
+  bool _copied = false;
+  bool _checkingPin = false;
+  String? _pendingCheckpointAction, _pinError;
+  int _actionGeneration = 0;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted && widget.owner.isCurrent) _controller.setVisible(true);
     });
@@ -72,8 +83,27 @@ class _ActivityViewState extends ConsumerState<_ActivityView> {
 
   @override
   void dispose() {
+    _actionGeneration++;
+    WidgetsBinding.instance.removeObserver(this);
     _checkpoint.dispose();
+    _reauthPin.dispose();
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.hidden) {
+      _actionGeneration++;
+      _reauthPin.clear();
+      if (mounted) {
+        setState(() {
+          _pendingCheckpointAction = null;
+          _pinError = null;
+          _checkingPin = false;
+        });
+      }
+    }
   }
 
   bool _current() => mounted && widget.owner.isCurrent;
@@ -120,6 +150,173 @@ class _ActivityViewState extends ConsumerState<_ActivityView> {
       ],
     ),
   );
+
+  void _beginCheckpointAction(String action) {
+    if (!_current() || _checkingPin) return;
+    _actionGeneration++;
+    _reauthPin.clear();
+    setState(() {
+      _pendingCheckpointAction = action;
+      _pinError = null;
+      _copied = false;
+    });
+  }
+
+  void _cancelCheckpointAction() {
+    _actionGeneration++;
+    _reauthPin.clear();
+    setState(() {
+      _pendingCheckpointAction = null;
+      _pinError = null;
+      _checkingPin = false;
+    });
+  }
+
+  Future<void> _authorizeCheckpointAction(
+    CoreHaActivityController controller,
+  ) async {
+    final action = _pendingCheckpointAction;
+    if (!_current() || _checkingPin || action == null) return;
+    final generation = _actionGeneration;
+    setState(() => _checkingPin = true);
+    try {
+      final result = await ref
+          .read(pinLockStoreProvider)
+          .verify(_reauthPin.text);
+      if (!mounted || !_current() || generation != _actionGeneration) return;
+      _reauthPin.clear();
+      if (!result.accepted) {
+        final l = AppLocalizations.of(context);
+        setState(() {
+          _pinError = result.retryAfter > Duration.zero
+              ? l.settingsGateRetryAfter(
+                  (result.retryAfter.inMilliseconds / 1000).ceil(),
+                )
+              : l.settingsGateIncorrectPin;
+        });
+        return;
+      }
+      if (action == 'pin') {
+        await controller.pinCurrentCheckpoint();
+      } else if (action == 'rotate') {
+        await controller.rotateTrustedCheckpoint();
+      } else if (action == 'copy') {
+        final value = controller.trustedCheckpoint?.exportValue;
+        if (value != null && _current()) {
+          await Clipboard.setData(ClipboardData(text: value));
+          if (_current() && generation == _actionGeneration) _copied = true;
+        }
+      }
+      if (_current() && generation == _actionGeneration) {
+        setState(() {
+          _pendingCheckpointAction = null;
+          _pinError = null;
+        });
+      }
+    } catch (_) {
+      if (_current() && generation == _actionGeneration) {
+        setState(
+          () =>
+              _pinError = AppLocalizations.of(context).settingsGateStorageError,
+        );
+      }
+    } finally {
+      if (mounted && generation == _actionGeneration) {
+        setState(() => _checkingPin = false);
+      }
+    }
+  }
+
+  Widget _checkpointAuthorization(
+    CoreHaActivityController controller,
+    AppLocalizations l,
+  ) {
+    final action = _pendingCheckpointAction!;
+    final (title, message, confirmKey) = switch (action) {
+      'pin' => (
+        l.coreHaCheckpointPinTitle,
+        l.coreHaCheckpointPinConfirmation,
+        'core-ha-checkpoint-pin-confirm',
+      ),
+      'rotate' => (
+        l.coreHaCheckpointRotateTitle,
+        l.coreHaCheckpointRotateConfirmation,
+        'core-ha-checkpoint-rotate-confirm',
+      ),
+      _ => (
+        l.coreHaCheckpointCopy,
+        l.coreHaCheckpointCopyConfirmation,
+        'core-ha-checkpoint-copy-confirm',
+      ),
+    };
+    return Container(
+      key: const ValueKey('core-ha-checkpoint-authorization'),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: CupertinoColors.secondarySystemGroupedBackground.resolveFrom(
+          context,
+        ),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            title,
+            style: CupertinoTheme.of(context).textTheme.navTitleTextStyle,
+          ),
+          const SizedBox(height: 8),
+          Text(message),
+          const SizedBox(height: 12),
+          CupertinoTextField(
+            key: const ValueKey('core-ha-checkpoint-reauth-pin'),
+            controller: _reauthPin,
+            obscureText: true,
+            enabled: !_checkingPin,
+            keyboardType: TextInputType.number,
+            enableSuggestions: false,
+            autocorrect: false,
+            placeholder: l.settingsGatePinPlaceholder,
+            textInputAction: TextInputAction.done,
+            onSubmitted: (_) => _authorizeCheckpointAction(controller),
+          ),
+          if (_pinError != null) ...[
+            const SizedBox(height: 8),
+            Text(
+              _pinError!,
+              key: const ValueKey('core-ha-checkpoint-pin-error'),
+              style: const TextStyle(color: CupertinoColors.systemRed),
+            ),
+          ],
+          Row(
+            children: [
+              Expanded(
+                child: CoreHaButton(
+                  key: const ValueKey('core-ha-checkpoint-action-cancel'),
+                  label: l.commonCancel,
+                  onPressed: !_checkingPin && _current()
+                      ? _cancelCheckpointAction
+                      : null,
+                  isCurrent: _current,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: CoreHaButton(
+                  key: ValueKey(confirmKey),
+                  label: l.commonSave,
+                  onPressed: !_checkingPin && _current()
+                      ? () => unawaited(_authorizeCheckpointAction(controller))
+                      : null,
+                  isCurrent: _current,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
 
   Widget _entry(CoreHaHistoryEntry entry, AppLocalizations l) {
     final receipt = entry.receipt;
@@ -191,6 +388,50 @@ class _ActivityViewState extends ConsumerState<_ActivityView> {
     }
     final proof = c.verification;
     return [
+      if (!c.checkpointProtected)
+        Text(
+          l.coreHaCheckpointPinRequired,
+          key: const ValueKey('core-ha-checkpoint-pin-required'),
+        ),
+      if (c.checkpointProtected && c.checkpointLoaded) ...[
+        if (c.trustedCheckpoint == null)
+          Text(
+            l.coreHaCheckpointUnpinned,
+            key: const ValueKey('core-ha-checkpoint-unpinned'),
+          )
+        else ...[
+          Text(
+            l.coreHaCheckpointPinned,
+            key: const ValueKey('core-ha-checkpoint-pinned'),
+          ),
+          _line(
+            l.coreHaCheckpointPinnedAt,
+            c.trustedCheckpoint!.pinnedAt.toIso8601String(),
+          ),
+          _line(l.coreHaActivitySequence, '${c.trustedCheckpoint!.sequence}'),
+          if (c.trustedCompared)
+            Text(
+              l.coreHaCheckpointAutoMatched,
+              key: const ValueKey('core-ha-checkpoint-auto-matched'),
+            ),
+        ],
+      ],
+      if (c.checkpointAlarm != null)
+        Semantics(
+          liveRegion: true,
+          child: Text(
+            c.checkpointAlarm == 'rollback'
+                ? l.coreHaCheckpointRollbackAlarm
+                : l.coreHaCheckpointMismatchAlarm,
+            key: const ValueKey('core-ha-checkpoint-alarm'),
+            style: const TextStyle(color: CupertinoColors.systemRed),
+          ),
+        ),
+      if (c.checkpointFailure != null)
+        _message(
+          'core-ha-checkpoint-storage-error',
+          l.coreHaCheckpointStorageFailed,
+        ),
       if (proof != null) ...[
         Text(
           l.coreHaActivityIntegrityVerified,
@@ -214,8 +455,33 @@ class _ActivityViewState extends ConsumerState<_ActivityView> {
         const SizedBox(height: 8),
         Text(l.coreHaActivityCausalityUnknown),
       ],
+      if (c.canPinCheckpoint)
+        CoreHaButton(
+          key: const ValueKey('core-ha-checkpoint-pin'),
+          label: l.coreHaCheckpointPinAction,
+          onPressed: _current() ? () => _beginCheckpointAction('pin') : null,
+          isCurrent: _current,
+        ),
+      if (c.trustedCheckpoint != null) ...[
+        CoreHaButton(
+          key: const ValueKey('core-ha-checkpoint-copy'),
+          label: l.coreHaCheckpointCopy,
+          onPressed: _current() ? () => _beginCheckpointAction('copy') : null,
+          isCurrent: _current,
+        ),
+        if (_copied)
+          _message('core-ha-checkpoint-copied', l.coreHaCheckpointCopied),
+      ],
+      if (c.canRotateCheckpoint)
+        CoreHaButton(
+          key: const ValueKey('core-ha-checkpoint-rotate'),
+          label: l.coreHaCheckpointRotateAction,
+          onPressed: _current() ? () => _beginCheckpointAction('rotate') : null,
+          isCurrent: _current,
+        ),
       if (c.integrityFailure != null)
         _message('core-ha-integrity-error', _error(c.integrityFailure, l)),
+      if (_pendingCheckpointAction != null) _checkpointAuthorization(c, l),
       const SizedBox(height: 12),
       CupertinoTextField(
         key: const ValueKey('core-ha-checkpoint-input'),

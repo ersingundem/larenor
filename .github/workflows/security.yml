@@ -39,8 +39,18 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+          fetch-depth: 0
       - name: Validate backup and CI security policies
         run: python3 -m unittest discover -s tool/tests -p '*_test.py' -v
+      - name: Verify progress on every pull request commit
+        if: ${{ github.event_name == 'pull_request' }}
+        env:
+          PROGRESS_BASE: ${{ github.event.pull_request.base.sha }}
+          PROGRESS_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: >-
+          python3 tool/check_commit_progress.py
+          --base "$PROGRESS_BASE"
+          --head "$PROGRESS_HEAD"
       - run: python3 tool/check_security_policy.py
 
   dependency-scan:

@@ -54,11 +54,46 @@ class Security extends SshSecurityStore {
   }
 }
 
+class JumpSecurity extends SshSecurityStore {
+  final credentials = <String, SshCredential>{};
+  final pins = <String, SshHostPin>{};
+  @override
+  Future<void> checkProfile(
+    RemoteProfile p, {
+    required bool Function() isCurrent,
+  }) async {
+    if (!isCurrent()) throw const SshFailure('profile_changed');
+  }
+
+  @override
+  Future<SshCredential?> readCredential(
+    RemoteProfile p, {
+    required bool Function() isCurrent,
+  }) async => credentials[p.id];
+
+  @override
+  Future<SshHostPin?> readPin(
+    RemoteProfile p, {
+    required bool Function() isCurrent,
+  }) async => pins[p.id];
+
+  @override
+  Future<void> trust(
+    RemoteProfile p,
+    SshHostPin value, {
+    required bool Function() isCurrent,
+  }) async {
+    if (!isCurrent()) throw const SshFailure('retired');
+    pins[p.id] = value;
+  }
+}
+
 class Channel extends SshChannel {
   final out = StreamController<List<int>>(),
       err = StreamController<List<int>>();
   final finished = Completer<void>();
   final writes = <List<int>>[];
+  final resizes = <SshTerminalSize>[];
   bool closed = false;
   @override
   Stream<List<int>> get stdout => out.stream;
@@ -69,6 +104,11 @@ class Channel extends SshChannel {
   @override
   void write(Uint8List data) {
     writes.add(List.of(data));
+  }
+
+  @override
+  void resize(SshTerminalSize size) {
+    resizes.add(size);
   }
 
   @override
@@ -86,16 +126,38 @@ class Engine extends SshEngine {
   int opens = 0;
   Completer<void>? gate;
   SshHostPin presented = hostPin;
+  SshJumpConnection? receivedJump;
+  SshAuthChallenge? challenge;
+  SshHop challengeHop = SshHop.target;
   @override
   Future<SshChannel> open(
     RemoteProfile p,
     SshCredential c, {
     required Future<bool> Function(SshHostPin) verifyHost,
     required bool Function() isCurrent,
+    SshTerminalSize initialSize = SshTerminalSize.standard,
+    SshJumpConnection? jump,
+    required Future<List<String>?> Function(SshHop, SshAuthChallenge)
+    answerChallenge,
+    Future<bool> Function(SshHostPin)? verifyJumpHost,
   }) async {
     opens++;
+    receivedJump = jump;
     await gate?.future;
+    if (jump != null &&
+        !await verifyJumpHost!(
+          const SshHostPin(
+            'ssh-ed25519',
+            'SHA256:CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC',
+          ),
+        )) {
+      throw const SshFailure('jump_host_rejected');
+    }
     if (!await verifyHost(presented)) throw const SshFailure('host_rejected');
+    if (challenge case final value?) {
+      final answers = await answerChallenge(challengeHop, value);
+      if (answers == null) throw const SshFailure('challenge_rejected');
+    }
     if (!isCurrent()) throw const SshFailure('retired');
     return channel;
   }
@@ -224,8 +286,33 @@ void main() {
       engine.channel.out.add(utf8.encode('x' * 70000));
       await tick();
       expect(c.transcript.length, lessThanOrEqualTo(65536));
-      await c.sendLine('echo merhaba');
-      expect(utf8.decode(engine.channel.writes.single), 'echo merhaba\n');
+      await c.sendLine('echo İstanbul, çığ öşü');
+      expect(
+        utf8.decode(engine.channel.writes.single),
+        'echo İstanbul, çığ öşü\n',
+      );
+    },
+  );
+  test(
+    'PTY size is bounded, deduplicated and sent only while connected',
+    () async {
+      store.pin = hostPin;
+      c.resizeTerminal(const SshTerminalSize(columns: 132, rows: 40));
+      expect(engine.channel.resizes, isEmpty);
+      await c.connect();
+      expect(engine.channel.resizes, isEmpty);
+      c.resizeTerminal(const SshTerminalSize(columns: 140, rows: 42));
+      c.resizeTerminal(const SshTerminalSize(columns: 140, rows: 42));
+      expect(engine.channel.resizes, [
+        const SshTerminalSize(columns: 140, rows: 42),
+      ]);
+      expect(
+        () => c.resizeTerminal(SshTerminalSize(columns: 10, rows: 2)),
+        throwsA(isA<SshFailure>()),
+      );
+      c.cancel();
+      c.resizeTerminal(const SshTerminalSize(columns: 100, rows: 30));
+      expect(engine.channel.resizes, hasLength(1));
     },
   );
   test('multiline, oversized and control input never sends', () async {
@@ -296,4 +383,67 @@ void main() {
       expect(c.phase, SshSessionPhase.closed);
     },
   );
+  test(
+    'MFA answer is one-shot, secret-free state and stale submit is rejected',
+    () async {
+      store.pin = hostPin;
+      engine.challenge = const SshAuthChallenge(
+        name: 'Second factor',
+        instruction: 'Enter current code',
+        prompts: [SshAuthPrompt(text: 'Code:', echo: false)],
+      );
+      final opening = c.connect();
+      await tick();
+      expect(c.phase, SshSessionPhase.challenge);
+      expect(c.pendingChallenge!.prompts.single.text, 'Code:');
+      expect(c.toString(), isNot(contains('654321')));
+      await c.answerChallenge(['654321']);
+      await opening;
+      expect(c.phase, SshSessionPhase.connected);
+      expect(c.pendingChallenge, isNull);
+      c.cancel();
+      await c.answerChallenge(['stale']);
+      expect(engine.channel.writes, isEmpty);
+    },
+  );
+  test('single jump hop keeps credentials and host pins separate', () async {
+    final target = profile();
+    final jump = RemoteProfile(
+      id: 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
+      name: 'Jump',
+      protocol: RemoteProtocol.ssh,
+      host: 'jump.example',
+      port: 2222,
+      username: 'bastion',
+    );
+    final security = JumpSecurity()
+      ..credentials[target.id] = const SshCredential(
+        SshCredentialKind.password,
+        'target-secret',
+      )
+      ..credentials[jump.id] = const SshCredential(
+        SshCredentialKind.password,
+        'jump-secret',
+      )
+      ..pins[target.id] = hostPin
+      ..pins[jump.id] = const SshHostPin(
+        'ssh-ed25519',
+        'SHA256:CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC',
+      );
+    final routedEngine = Engine();
+    final routed = SshSessionController(
+      profile: target,
+      jumpProfile: jump,
+      store: security,
+      engineFactory: () => routedEngine,
+      isCurrent: () => true,
+    );
+    addTearDown(routed.dispose);
+    await routed.connect();
+    expect(routed.phase, SshSessionPhase.connected);
+    expect(routedEngine.receivedJump!.profile.id, jump.id);
+    expect(routedEngine.receivedJump!.credential.secret, 'jump-secret');
+    expect(routedEngine.channel.writes, isEmpty);
+    expect(security.pins.keys, containsAll([target.id, jump.id]));
+  });
 }

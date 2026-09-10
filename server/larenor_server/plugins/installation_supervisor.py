@@ -417,6 +417,46 @@ class SupervisedInstallationBackend:
         finally:
             self._peer_verifier.deactivate()
 
+    def execute_music_provider_setup_with_deadline(self, action, deadline):
+        self._check(deadline)
+        self._peer_verifier.activate(deadline)
+
+        def gate():
+            self._check(deadline)
+            return True
+
+        try:
+            result = self.backend.execute_music_provider_setup(
+                action, deadline=deadline, gate=gate)
+            self._check(deadline)
+            return result
+        finally:
+            self._peer_verifier.deactivate()
+
+    def read_music_players_with_deadline(self, authority, deadline):
+        return self._music_playback_call(
+            'read_music_players', authority, deadline)
+
+    def execute_music_playback_with_deadline(self, action, deadline):
+        return self._music_playback_call(
+            'execute_music_playback', action, deadline)
+
+    def _music_playback_call(self, method, private, deadline):
+        self._check(deadline)
+        self._peer_verifier.activate(deadline)
+
+        def gate():
+            self._check(deadline)
+            return True
+
+        try:
+            result = getattr(self.backend, method)(
+                private, deadline=deadline, gate=gate)
+            self._check(deadline)
+            return result
+        finally:
+            self._peer_verifier.deactivate()
+
     def close(self):
         if self._closed:
             return

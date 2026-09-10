@@ -83,6 +83,16 @@ MESSAGES = {
     "music_provider_setup_limit_reached": "The music provider setup limit has been reached.",
     "music_provider_setup_storage_unavailable": "The saved music provider setups are unavailable.",
     "music_provider_capability_changed": "Music Assistant requested an unsupported provider setup step.",
+    "music_provider_setup_expired": "The Music Assistant provider setup expired. Start it again.",
+    "music_provider_worker_unavailable": "The private Music Assistant provider worker is unavailable.",
+    "music_provider_not_ready": "Verify at least one Music Assistant provider first.",
+    "music_playback_storage_unavailable": "The saved Music Assistant player state is unavailable.",
+    "music_playback_worker_unavailable": "The private Music Assistant playback worker is unavailable.",
+    "music_player_readback_required": "Refresh Music Assistant players before controlling playback.",
+    "music_player_changed": "The Music Assistant player or group changed. Refresh it first.",
+    "music_player_capability_unavailable": "The Music Assistant player does not advertise this capability.",
+    "music_playback_command_conflict": "This request conflicts with a saved playback command.",
+    "music_playback_command_limit_reached": "The playback command journal is full.",
 }
 
 

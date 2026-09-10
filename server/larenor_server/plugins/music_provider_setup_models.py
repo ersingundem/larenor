@@ -91,10 +91,11 @@ class MusicProviderSetup(StrictModel):
     installationRevision: Revision
     providerDomain: ProviderDomain
     revision: Revision
-    state: Literal['queued', 'action_required']
-    nextAction: Literal['awaiting_core_discovery', 'continue_in_larenor']
+    state: Literal['queued', 'action_required', 'ready', 'cancelled', 'needs_attention']
+    nextAction: Literal['awaiting_core_discovery', 'continue_in_larenor', 'retry', 'none']
     interaction: Literal['open_external', 'submit_form'] | None
     fields: list[ProviderSetupEntry] = Field(max_length=16)
+    providerInstanceId: str | None = Field(default=None, max_length=128)
     installAvailable: Literal[False] = False
     createdAt: str
     updatedAt: str
@@ -104,6 +105,70 @@ class MusicProviderSetupResponse(StrictModel):
     setup: MusicProviderSetup
 
 
+class SubmitMusicProviderSetupRequest(StrictModel):
+    expectedRevision: Revision
+    stepId: str = Field(min_length=1, max_length=80)
+    values: dict[str, str | bool] = Field(max_length=16, repr=False)
+
+
+class ContinueMusicProviderSetupRequest(StrictModel):
+    expectedRevision: Revision
+
+
+class PrivateMusicProviderSetupAction(StrictModel):
+    setupId: ObjectId
+    providerDomain: ProviderDomain
+    command: Literal['start', 'submit', 'resume', 'abort']
+    flowId: str | None = Field(default=None, min_length=1, max_length=128, repr=False)
+    stepId: str | None = Field(default=None, min_length=1, max_length=80)
+    values: dict[str, str | bool] = Field(default_factory=dict, max_length=16, repr=False)
+    token: str = Field(min_length=1, max_length=2048, repr=False)
+
+    @model_validator(mode='after')
+    def coherent_action(self):
+        if self.command == 'start':
+            valid = self.flowId is None and self.stepId is None and not self.values
+        elif self.command == 'submit':
+            valid = self.flowId is not None and self.stepId is not None
+        else:
+            valid = self.flowId is not None and self.stepId is None and not self.values
+        if not valid:
+            raise ValueError('invalid_provider_setup_action')
+        return self
+
+
+class ProviderSetupWorkerResult(StrictModel):
+    state: Literal['action_required', 'ready', 'cancelled']
+    providerDomain: ProviderDomain
+    discovery: ProviderSetupDiscovery | None = None
+    providerInstanceId: str | None = Field(default=None, min_length=1, max_length=128)
+
+    @field_validator('providerInstanceId')
+    @classmethod
+    def safe_instance_id(cls, value):
+        if (value is not None
+                and re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9_.:\-]{0,127}',
+                                 value) is None):
+            raise ValueError('invalid_provider_setup_worker_result')
+        return value
+
+    @model_validator(mode='after')
+    def coherent_result(self):
+        if ((self.state == 'action_required') != (self.discovery is not None)
+                or (self.state == 'ready') != (self.providerInstanceId is not None)
+                or self.state == 'cancelled'
+                and (self.discovery is not None or self.providerInstanceId is not None)):
+            raise ValueError('invalid_provider_setup_worker_result')
+        if self.discovery is not None and self.discovery.providerDomain != self.providerDomain:
+            raise ValueError('invalid_provider_setup_worker_result')
+        return self
+
+
 class _StoredMusicProviderSetup(StrictModel):
     request: CreateMusicProviderSetupRequest
     discovery: ProviderSetupDiscovery | None = None
+    status: Literal['queued', 'action_required', 'ready', 'cancelled', 'needs_attention'] = 'queued'
+    providerInstanceId: str | None = Field(default=None, max_length=128)
+    pendingCommand: Literal['submit', 'resume', 'abort'] | None = None
+    pendingStepId: str | None = Field(default=None, max_length=80)
+    pendingValues: dict[str, str | bool] = Field(default_factory=dict, max_length=16, repr=False)

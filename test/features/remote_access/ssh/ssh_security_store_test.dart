@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_secure_storage_platform_interface/flutter_secure_storage_platform_interface.dart';
 import 'package:larenor/features/remote_access/data/remote_profiles.dart';
 import 'package:larenor/features/remote_access/ssh/ssh_security_store.dart';
+import 'package:larenor/features/remote_access/ssh/ssh_tunnel_models.dart';
 
 import '../remote_profiles_test.dart' show profile;
 
@@ -230,4 +231,26 @@ void main() {
     );
     expect(calls.where((c) => c.method == 'write'), isEmpty);
   });
+  test(
+    'loopback tunnel profile is encrypted separately and read back exactly',
+    () async {
+      final value = SshTunnelProfile.parse(
+        name: 'Media tunnel',
+        localPort: '18096',
+        targetHost: '127.0.0.1',
+        targetPort: '8096',
+      );
+      final profileRecord = disk[RemoteProfilesStore.storageKey];
+      await store.saveTunnel(profile(), value, isCurrent: () => current);
+      final saved = await store.readTunnel(profile(), isCurrent: () => current);
+      expect(saved!.toJson(), value.toJson());
+      expect(saved.bindAddress, '127.0.0.1');
+      expect(disk[RemoteProfilesStore.storageKey], profileRecord);
+      expect(profileRecord, isNot(contains('Media tunnel')));
+      expect(
+        disk.keys.where((key) => key.contains('tunnel_v1_')),
+        hasLength(1),
+      );
+    },
+  );
 }

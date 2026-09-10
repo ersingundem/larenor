@@ -7,23 +7,38 @@ import '../data/remote_profiles.dart';
 import 'ssh_security_store.dart';
 import 'ssh_engine.dart';
 
-enum SshSessionPhase { idle, connecting, hostKey, connected, closed, failed }
+enum SshSessionPhase {
+  idle,
+  connecting,
+  hostKey,
+  challenge,
+  connected,
+  closed,
+  failed,
+}
 
 class SshSessionController extends ChangeNotifier {
   SshSessionController({
     required this.profile,
+    this.jumpProfile,
     required this.store,
     required this.engineFactory,
     required this.isCurrent,
     this.connectTimeout = const Duration(seconds: 45),
+    this.initialSize = SshTerminalSize.standard,
   });
   final RemoteProfile profile;
+  final RemoteProfile? jumpProfile;
   final SshSecurityStore store;
   final SshEngine Function() engineFactory;
   final bool Function() isCurrent;
   final Duration connectTimeout;
+  final SshTerminalSize initialSize;
   SshSessionPhase phase = SshSessionPhase.idle;
   SshHostPin? pendingPin;
+  SshHop? pendingHop;
+  SshHop? failureHop;
+  SshAuthChallenge? pendingChallenge;
   String? error;
   String transcript = '';
 
@@ -31,10 +46,13 @@ class SshSessionController extends ChangeNotifier {
   SshChannel? _channel;
   final _subscriptions = <StreamSubscription<String>>[];
   Completer<bool>? _decision;
+  Completer<List<String>?>? _challengeDecision;
   Completer<void>? _opening;
   Timer? _timer;
   int _generation = 0;
   bool _retired = false, _disposed = false, _sending = false;
+  late SshTerminalSize _terminalSize = initialSize;
+  SshTerminalSize? _sentSize;
   bool _current(int generation) {
     try {
       return !_disposed &&
@@ -60,6 +78,12 @@ class SshSessionController extends ChangeNotifier {
     if (_decision?.isCompleted == false) _decision!.complete(false);
     _decision = null;
     pendingPin = null;
+    pendingHop = null;
+    pendingChallenge = null;
+    if (_challengeDecision?.isCompleted == false) {
+      _challengeDecision!.complete(null);
+    }
+    _challengeDecision = null;
     for (final s in _subscriptions) {
       unawaited(s.cancel());
     }
@@ -71,6 +95,7 @@ class SshSessionController extends ChangeNotifier {
     if (_opening?.isCompleted == false) _opening!.complete();
     _opening = null;
     _sending = false;
+    _sentSize = null;
   }
 
   void _end({String? code, bool clear = true}) {
@@ -99,6 +124,7 @@ class SshSessionController extends ChangeNotifier {
         _disposed ||
         phase == SshSessionPhase.connecting ||
         phase == SshSessionPhase.hostKey ||
+        phase == SshSessionPhase.challenge ||
         phase == SshSessionPhase.connected) {
       return Future.value();
     }
@@ -111,6 +137,7 @@ class SshSessionController extends ChangeNotifier {
     _closeResources();
     phase = SshSessionPhase.connecting;
     error = null;
+    failureHop = null;
     transcript = '';
     _publish();
     final finished = Completer<void>();
@@ -128,6 +155,13 @@ class SshSessionController extends ChangeNotifier {
             if (!_current(generation)) {
               retire();
             } else {
+              if (e is SshFailure) {
+                if (e.code.startsWith('jump_')) {
+                  failureHop = SshHop.jump;
+                } else if (e.code.startsWith('target_')) {
+                  failureHop = SshHop.target;
+                }
+              }
               _end(code: e is SshFailure ? e.code : 'connection_failed');
             }
           }
@@ -145,6 +179,21 @@ class SshSessionController extends ChangeNotifier {
     final credential = await store.readCredential(profile, isCurrent: current);
     _check(generation);
     if (credential == null) throw const SshFailure('credential_missing');
+    SshJumpConnection? jump;
+    if (jumpProfile case final jumpTarget?) {
+      if (jumpTarget.id == profile.id) throw const SshFailure('invalid_jump');
+      failureHop = SshHop.jump;
+      await store.checkProfile(jumpTarget, isCurrent: current);
+      final jumpCredential = await store.readCredential(
+        jumpTarget,
+        isCurrent: current,
+      );
+      _check(generation);
+      if (jumpCredential == null) {
+        throw const SshFailure('jump_credential_missing');
+      }
+      jump = SshJumpConnection(profile: jumpTarget, credential: jumpCredential);
+    }
     final engine = engineFactory();
     _engine = engine;
     _check(generation);
@@ -152,24 +201,29 @@ class SshSessionController extends ChangeNotifier {
       profile,
       credential,
       isCurrent: current,
-      verifyHost: (pin) async {
+      initialSize: _terminalSize,
+      jump: jump,
+      verifyJumpHost: jump == null
+          ? null
+          : (pin) => _verifyHost(generation, SshHop.jump, jump!.profile, pin),
+      answerChallenge: (hop, challenge) async {
         _check(generation);
-        final old = await store.readPin(profile, isCurrent: current);
-        _check(generation);
-        if (old != null) {
-          if (old.type != pin.type || old.fingerprint != pin.fingerprint) {
-            throw const SshFailure('host_changed');
-          }
-          return true;
-        }
-        _decision = Completer<bool>();
-        final decision = _decision!;
-        pendingPin = pin;
-        phase = SshSessionPhase.hostKey;
+        failureHop = hop;
+        final decision = _challengeDecision = Completer<List<String>?>();
+        pendingHop = hop;
+        pendingChallenge = challenge;
+        phase = SshSessionPhase.challenge;
         _publish();
-        final accepted = await decision.future;
+        final answer = await decision.future;
         _check(generation);
-        return accepted;
+        pendingChallenge = null;
+        pendingHop = null;
+        phase = SshSessionPhase.connecting;
+        _publish();
+        return answer;
+      },
+      verifyHost: (pin) async {
+        return _verifyHost(generation, SshHop.target, profile, pin);
       },
     );
     if (!current()) {
@@ -177,6 +231,7 @@ class SshSessionController extends ChangeNotifier {
       _check(generation);
     }
     _channel = channel;
+    _sentSize = _terminalSize;
     _timer?.cancel();
     _timer = null;
     pendingPin = null;
@@ -237,11 +292,47 @@ class SshSessionController extends ChangeNotifier {
     _publish();
   }
 
+  Future<bool> _verifyHost(
+    int generation,
+    SshHop hop,
+    RemoteProfile target,
+    SshHostPin pin,
+  ) async {
+    _check(generation);
+    failureHop = hop;
+    final old = await store.readPin(
+      target,
+      isCurrent: () => _current(generation),
+    );
+    _check(generation);
+    if (old != null) {
+      if (old.type != pin.type || old.fingerprint != pin.fingerprint) {
+        throw SshFailure(
+          hop == SshHop.jump ? 'jump_host_changed' : 'host_changed',
+        );
+      }
+      return true;
+    }
+    _decision = Completer<bool>();
+    final decision = _decision!;
+    pendingPin = pin;
+    pendingHop = hop;
+    phase = SshSessionPhase.hostKey;
+    _publish();
+    final accepted = await decision.future;
+    _check(generation);
+    return accepted;
+  }
+
   Future<void> trustHost() async {
-    final generation = _generation, decision = _decision, pin = pendingPin;
+    final generation = _generation,
+        decision = _decision,
+        pin = pendingPin,
+        hop = pendingHop;
     if (phase != SshSessionPhase.hostKey ||
         decision == null ||
         pin == null ||
+        hop == null ||
         decision.isCompleted ||
         _sending) {
       return;
@@ -252,10 +343,15 @@ class SshSessionController extends ChangeNotifier {
     }
     _sending = true;
     try {
-      await store.trust(profile, pin, isCurrent: () => _current(generation));
+      await store.trust(
+        hop == SshHop.jump ? jumpProfile! : profile,
+        pin,
+        isCurrent: () => _current(generation),
+      );
       _check(generation);
       decision.complete(true);
       pendingPin = null;
+      pendingHop = null;
       phase = SshSessionPhase.connecting;
       _publish();
     } catch (e) {
@@ -265,6 +361,25 @@ class SshSessionController extends ChangeNotifier {
     } finally {
       if (generation == _generation) _sending = false;
     }
+  }
+
+  Future<void> answerChallenge(List<String> answers) async {
+    final decision = _challengeDecision;
+    final challenge = pendingChallenge;
+    if (phase != SshSessionPhase.challenge ||
+        decision == null ||
+        challenge == null ||
+        decision.isCompleted ||
+        answers.length != challenge.prompts.length ||
+        answers.any(
+          (value) =>
+              value.isEmpty ||
+              utf8.encode(value).length > 4096 ||
+              value.contains('\u0000'),
+        )) {
+      return;
+    }
+    decision.complete(List<String>.of(answers));
   }
 
   Future<void> sendLine(String line) async {
@@ -295,6 +410,24 @@ class SshSessionController extends ChangeNotifier {
       }
     } finally {
       if (generation == _generation) _sending = false;
+    }
+  }
+
+  void resizeTerminal(SshTerminalSize size) {
+    if (!size.isValid) throw const SshFailure('invalid_terminal_size');
+    if (_retired || _disposed) return;
+    _terminalSize = size;
+    if (phase != SshSessionPhase.connected || _channel == null) return;
+    if (!_current(_generation)) {
+      retire();
+      return;
+    }
+    if (_sentSize == size) return;
+    try {
+      _channel!.resize(size);
+      _sentSize = size;
+    } catch (_) {
+      _end(code: 'connection_lost');
     }
   }
 

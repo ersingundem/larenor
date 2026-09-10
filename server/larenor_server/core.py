@@ -35,6 +35,8 @@ from .plugins.music_assistant_core_schema import migrate_music_assistant_core
 from .plugins.music_assistant_core import MusicAssistantCoreManagement
 from .plugins.music_provider_setup_schema import migrate_music_provider_setups
 from .plugins.music_provider_setups import MusicProviderSetupManagement
+from .plugins.music_playback_schema import migrate_music_playback
+from .plugins.music_playback import MusicPlaybackManagement
 from .plugins.preflight_ipc import PreflightWorkerClient
 from .plugins.installation_ipc import InstallationWorkerClient
 from .component_egress.storage import migrate as migrate_component_egress
@@ -166,6 +168,7 @@ class CoreServices:
                 migrate_arr_configurations(connection)
                 migrate_music_assistant_core(connection)
                 migrate_music_provider_setups(connection)
+                migrate_music_playback(connection)
             if not existed:
                 # Only publish the DB after its complete first transaction commits.
                 # Never expose an empty DB that a restart might treat as a reset.
@@ -234,8 +237,12 @@ class CoreServices:
             self.music_assistant_core.validate_storage()
             self.music_provider_setups = MusicProviderSetupManagement(
                 self.db, self.auth, settings, key, self.media_installations,
-                self.music_assistant_core)
+                self.music_assistant_core, installation_backend)
             self.music_provider_setups.validate_storage()
+            self.music_playback = MusicPlaybackManagement(
+                self.db, self.auth, settings, key, self.music_assistant_core,
+                self.music_provider_setups, installation_backend)
+            self.music_playback.validate_storage()
             self.clear_inactive_bootstrap()
 
     def clear_inactive_bootstrap(self) -> None:

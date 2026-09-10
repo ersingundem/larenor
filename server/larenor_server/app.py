@@ -39,6 +39,7 @@ from .plugins.qbittorrent_config_job_api import router as qbittorrent_configurat
 from .plugins.arr_config_job_api import router as arr_configurations_router
 from .plugins.music_assistant_core_api import router as music_assistant_core_router
 from .plugins.music_provider_setup_api import router as music_provider_setup_router
+from .plugins.music_playback_api import router as music_playback_router
 
 
 Core = Annotated[CoreServices, Depends(get_core)]
@@ -223,6 +224,7 @@ def create_app(settings: Settings, *, routers: Iterable[APIRouter] = (),
     app.include_router(arr_configurations_router, prefix="/api/v1")
     app.include_router(music_assistant_core_router, prefix="/api/v1")
     app.include_router(music_provider_setup_router, prefix="/api/v1")
+    app.include_router(music_playback_router, prefix="/api/v1")
     for extension in routers:
         # Only routers supplied by trusted, packaged server code are supported.
         app.include_router(extension, prefix="/api/v1")

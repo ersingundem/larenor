@@ -22,6 +22,22 @@ const _profile = RemoteProfile(
 );
 
 void main() {
+  test('invalid initial PTY size fails before socket creation', () async {
+    var calls = 0;
+    final engine = DartSshEngine(
+      connectSocket: (_, _) async {
+        calls++;
+        return _Socket();
+      },
+    );
+    addTearDown(engine.close);
+    await expectLater(
+      _open(engine, initialSize: const SshTerminalSize(columns: 10, rows: 2)),
+      throwsA(_failure('invalid_terminal_size')),
+    );
+    expect(calls, 0);
+  });
+
   test('retired or throwing owner never calls the socket factory', () async {
     for (final current in <bool Function()>[
       () => false,
@@ -210,7 +226,6 @@ void main() {
         ),
         throwsA(_failure('cancelled')),
       );
-      await Future<void>.delayed(const Duration(milliseconds: 100));
       engine.close();
       await expectation;
       await Future<void>.delayed(const Duration(milliseconds: 20));
@@ -224,11 +239,14 @@ Future<SshChannel> _open(
   SshCredential credential = _password,
   bool Function()? current,
   Future<bool> Function(SshHostPin)? verify,
+  SshTerminalSize initialSize = SshTerminalSize.standard,
 }) => engine.open(
   _profile,
   credential,
   isCurrent: current ?? () => true,
   verifyHost: verify ?? (_) async => false,
+  initialSize: initialSize,
+  answerChallenge: (_, _) async => null,
 );
 
 TypeMatcher<SshFailure> _failure(String code) =>
