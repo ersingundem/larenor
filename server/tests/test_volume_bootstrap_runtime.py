@@ -22,13 +22,15 @@ from larenor_server.plugins.volume_create_journal import VolumeCreateJournal
 HELPER = 'sha256:' + '9' * 64
 
 
-def volume_intent(tmp_path):
+def volume_intent(tmp_path, kind='managed_appdata'):
     data = source()
     resources = ResourceJournal(tmp_path / 'resources', initialize=True)
     volumes = VolumeCreateJournal(tmp_path / 'volumes', initialize=True)
     populate(resources, volumes, data)
     plan, stack, catalog, policy = data[4], data[1], data[0], data[2]
-    selected = next(item for item in plan.resources if item.serviceId == 'jellyfin')
+    selected = next(
+        item for item in plan.resources
+        if item.serviceId == 'jellyfin' and item.kind == kind)
     with volumes.locked():
         receipt = volumes.get(selected.resourceId)
         intent = volumes.bind(
@@ -52,6 +54,13 @@ class VerifiedRootEngine:
 
     def verify_root(self, intent, helper_image_id, platform, *, cancelled):
         self.calls.append((intent, helper_image_id, platform, cancelled))
+        if isinstance(self.result, Exception):
+            raise self.result
+        return self.result
+
+    def prepare_media_directories(
+            self, intent, helper_image_id, platform, *, cancelled):
+        self.calls.append((intent, helper_image_id, platform, cancelled, 'prepare'))
         if isinstance(self.result, Exception):
             raise self.result
         return self.result
@@ -82,6 +91,27 @@ def test_verifier_rederives_intent_and_returns_revision_bound_observation(tmp_pa
     assert result.state == 'root_verified'
     assert engine.calls == [(intent, HELPER, 'linux/amd64', cancelled)]
     assert verifier._endpoint is endpoint
+
+
+def test_verifier_prepares_only_revision_bound_managed_library(tmp_path):
+    intent = volume_intent(tmp_path, 'managed_library')
+    endpoint = DockerEndpoint('/private/docker.sock', owner_uid=0)
+    engine = VerifiedRootEngine(endpoint)
+    verifier = VolumeBootstrapVerifier(
+        endpoint,
+        HELPER,
+        'linux/amd64',
+        engine_factory=lambda value: engine,
+    )
+    cancelled = threading.Event()
+
+    result = verifier.prepare_media_directories(intent, cancelled=cancelled)
+
+    assert result.state == 'media_directories_prepared'
+    assert result.resource_id == intent.binding.resource_id
+    assert result.revision == intent.receipt.revision
+    assert engine.calls == [
+        (intent, HELPER, 'linux/amd64', cancelled, 'prepare')]
 
 
 @pytest.mark.parametrize('result', [False, RuntimeError('private-engine-detail')])
@@ -149,7 +179,7 @@ def test_default_engine_keeps_all_helper_operations_strictly_bounded():
 
     assert engine._transport.path == Path(endpoint.path)
     assert engine._transport.socket_uid == 0
-    assert engine._transport.timeout == 1.0
+    assert engine._transport.timeout == 10.0
     assert engine._cleanup_transport is engine._transport
 
 
@@ -226,6 +256,53 @@ def test_unix_engine_uses_fixed_ephemeral_helper_and_removes_it(tmp_path):
     assert transport.calls[3][:2] == (
         'DELETE', f'/containers/{container_id}',
     )
+
+
+def test_unix_engine_prepares_only_fixed_managed_library_directories(tmp_path):
+    intent = volume_intent(tmp_path, 'managed_library')
+    container_id = '7' * 64
+    transport = ExchangeTransport([
+        response(201, {'Id': container_id, 'Warnings': None}),
+        response(204),
+        response(200, {'StatusCode': 0}),
+        response(204),
+    ])
+    endpoint = DockerEndpoint('/private/docker.sock', owner_uid=0)
+    engine = UnixVolumeBootstrapEngine(
+        endpoint,
+        transport_factory=lambda value: transport,
+        name_factory=lambda: '8' * 32,
+    )
+
+    assert engine.prepare_media_directories(
+        intent, HELPER, 'linux/amd64', cancelled=threading.Event()) is True
+    body = json.loads(transport.calls[0][2])
+    assert body['Cmd'] == ['prepare_media_directories']
+    assert body['User'] == '1000:1000'
+    assert body['HostConfig']['Mounts'][0] == {
+        'Type': 'volume',
+        'Source': intent.binding.resource.name,
+        'Target': '/volume',
+        'ReadOnly': False,
+        'VolumeOptions': {'NoCopy': True},
+    }
+    assert body['NetworkDisabled'] is True
+
+
+def test_directory_preparation_rejects_appdata_before_engine_dispatch(tmp_path):
+    intent = volume_intent(tmp_path)
+    transport = ExchangeTransport([])
+    endpoint = DockerEndpoint('/private/docker.sock', owner_uid=0)
+    engine = UnixVolumeBootstrapEngine(
+        endpoint,
+        transport_factory=lambda value: transport,
+        name_factory=lambda: '8' * 32,
+    )
+
+    with pytest.raises(VolumeBootstrapError):
+        engine.prepare_media_directories(
+            intent, HELPER, 'linux/amd64', cancelled=threading.Event())
+    assert transport.calls == []
 
 
 def test_wait_response_ignores_future_fields_from_open_engine_schema(tmp_path):

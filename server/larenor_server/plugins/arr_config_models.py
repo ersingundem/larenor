@@ -48,18 +48,76 @@ ARR_CONFIG_EXECUTION_CODES = frozenset({
     'arr_config_result_invalid',
     'arr_config_timeout',
 })
+ARR_CONFIG_CAUSE_CODES = frozenset({
+    'arr_configure_stage_failed',
+    'arr_execution_stage_failed',
+    'arr_bootstrap_stage_failed',
+    'arr_receipt_stage_failed',
+    'arr_execution_authority_changed',
+    'arr_execution_cancelled',
+    'arr_execution_worker_unavailable',
+    'arr_execution_invalid_worker_result',
+    'arr_execution_resource_conflict',
+    'arr_execution_container_not_running',
+    'arr_execution_dispatch_expired',
+    'invalid_arr_authenticated_readback',
+    'arr_authentication_failed',
+    'arr_readback_protocol',
+    'arr_readback_mismatch',
+    'arr_authenticated_readback_unavailable',
+    'arr_authenticated_readback_timeout',
+    'arr_bootstrap_resources_unavailable',
+    'arr_bootstrap_authority_changed',
+    'arr_bootstrap_endpoint_unavailable',
+    'arr_bootstrap_endpoint_changed',
+    'arr_bootstrap_wiring_failed',
+    'arr_bootstrap_readback_failed',
+    'arr_bootstrap_timeout',
+    'arr_bootstrap_before_connect_failed',
+    'arr_bootstrap_after_connect_failed',
+    'arr_bootstrap_after_wiring_connect_failed',
+    'arr_bootstrap_after_wiring_failed',
+    'arr_bootstrap_after_readback_failed',
+    'invalid_arr_managed_root_folders',
+    'arr_root_folders_authentication_failed',
+    'arr_root_folders_observation_protocol',
+    'arr_root_folders_observation_framing',
+    'arr_root_folders_observation_http',
+    'arr_root_folders_observation_closed',
+    'arr_root_folders_observation_payload',
+    'arr_root_folder_create_protocol',
+    'arr_root_folders_verification_protocol',
+    'arr_root_folder_conflict',
+    'arr_root_folders_unavailable',
+    'arr_root_folders_timeout',
+    'arr_bootstrap_binding_invalid_installation_plan',
+    'arr_bootstrap_binding_resources_unavailable',
+    'arr_bootstrap_binding_resources_untrusted',
+    'arr_bootstrap_proof_plan_failed',
+    'arr_bootstrap_proof_journal_bind_failed',
+    'arr_bootstrap_proof_image_observation_failed',
+    'arr_bootstrap_proof_volume_observation_failed',
+    'arr_bootstrap_proof_volume_bootstrap_failed',
+    'arr_bootstrap_proof_network_list_failed',
+    'arr_bootstrap_proof_network_observation_failed',
+    'arr_bootstrap_proof_journal_rebind_failed',
+    'arr_bootstrap_proof_result_failed',
+})
 
 
 class ArrConfigurationExecutionError(Exception):
     """Closed error crossing the Core-to-worker boundary."""
 
     def __init__(self, code='arr_config_resources_unavailable', *,
-                 uncertain_effect=False):
+                 uncertain_effect=False, cause_code=None):
         self.code = (code if code in ARR_CONFIG_EXECUTION_CODES
                      else 'arr_config_resources_unavailable')
         self.uncertain_effect = uncertain_effect is True
+        self.cause_code = (
+            cause_code if cause_code in ARR_CONFIG_CAUSE_CODES else None)
         super().__init__(self.code)
 
     def __repr__(self):
         return (f'ArrConfigurationExecutionError({self.code!r}, '
-                f'uncertain_effect={self.uncertain_effect!r})')
+                f'uncertain_effect={self.uncertain_effect!r}, '
+                f'cause_code={self.cause_code!r})')

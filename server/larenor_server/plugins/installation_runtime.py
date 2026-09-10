@@ -303,71 +303,125 @@ class _RuntimeBackend:
             configured = self.configure_arr(
                 job, stack, service_id, api_key=api_key,
                 cancelled=cancelled, deadline=deadline, gate=gate)
-            if (type(configured) is not ArrConfigInstallReceipt
-                    or configured.service_id != service_id):
-                raise ValueError()
-            remaining = deadline - time.monotonic()
-            if not 0 < remaining <= 120:
-                raise TimeoutError()
+        except ArrConfigurationExecutionError:
+            raise
+        except Exception:
+            raise ArrConfigurationExecutionError(
+                'arr_config_resources_unavailable',
+                cause_code='arr_configure_stage_failed') from None
+        if (type(configured) is not ArrConfigInstallReceipt
+                or configured.service_id != service_id):
+            raise ArrConfigurationExecutionError(
+                'arr_config_result_invalid', uncertain_effect=True)
+
+        def authority():
+            try:
+                return (ExecutionGateResult.allowed() if gate() is True
+                        else ExecutionGateResult.denied('authority_changed'))
+            except Exception:
+                return ExecutionGateResult.denied('authority_changed')
+
+        remaining = deadline - time.monotonic()
+        if not 0 < remaining <= 120:
+            raise ArrConfigurationExecutionError('arr_config_timeout')
+        try:
             execution = build_execution(
                 stack, job_id=job, deadline=time.time() + remaining,
                 service_id=service_id)
             result = execution.run(
                 ArrWorkerBackend(
                     self.operations, self.binding_builder, service_id),
-                lambda: ExecutionGateResult.allowed()
-                if gate() is True else ExecutionGateResult.denied('authority_changed'))
-            if (type(result) is not ExecutionResult or result.state != 'succeeded'
-                    or result.code != 'container_started'
-                    or result.container_id is None):
-                code = ('arr_config_authority_changed'
-                        if type(result) is ExecutionResult
-                        and result.code in {
-                            'authority_changed', 'context_changed',
-                            'preparation_changed', 'inspection_changed',
-                            'catalog_changed', 'cancelled',
-                        }
-                        else 'arr_config_resources_unavailable'
-                        if type(result) is ExecutionResult
-                        and (result.state == 'pending'
-                             or result.code in {
-                                 'resource_conflict', 'container_not_running',
-                                 'dispatch_expired',
-                             })
-                        else 'arr_config_result_invalid')
-                raise ArrConfigurationExecutionError(
-                    code, uncertain_effect=True)
-            try:
-                verified = self.arr_bootstrap.execute(
-                    job, stack, PrivateArrConfiguration(
-                        serviceId=service_id, apiKey=api_key),
-                    deadline=deadline, gate=gate)
-            except ArrBootstrapExecutionError as error:
-                code = {
-                    'arr_bootstrap_authority_changed':
-                        'arr_config_authority_changed',
-                    'arr_bootstrap_timeout': 'arr_config_timeout',
-                    'arr_bootstrap_resources_unavailable':
-                        'arr_config_resources_unavailable',
-                    'arr_bootstrap_endpoint_unavailable':
-                        'arr_config_resources_unavailable',
-                }.get(error.code, 'arr_config_result_invalid')
-                raise ArrConfigurationExecutionError(
-                    code, uncertain_effect=True) from None
-            if verified.state != 'verified' or verified.service_id != service_id:
-                raise ValueError()
+                authority)
+        except ArrConfigurationExecutionError:
+            raise
+        except Exception:
+            raise ArrConfigurationExecutionError(
+                'arr_config_result_invalid', uncertain_effect=True,
+                cause_code='arr_execution_stage_failed') from None
+        if (type(result) is not ExecutionResult or result.state != 'succeeded'
+                or result.code != 'container_started'
+                or result.container_id is None):
+            result_key = (getattr(result, 'state', None),
+                          getattr(result, 'code', None))
+            authority_codes = {
+                'authority_changed', 'context_changed', 'preparation_changed',
+                'inspection_changed', 'catalog_changed', 'cancelled',
+            }
+            code = ('arr_config_authority_changed'
+                    if type(result) is ExecutionResult
+                    and result.code in authority_codes
+                    else 'arr_config_resources_unavailable'
+                    if type(result) is ExecutionResult
+                    and (result.state == 'pending' or result.code in {
+                        'resource_conflict', 'container_not_running',
+                        'dispatch_expired',
+                    })
+                    else 'arr_config_result_invalid')
+            cause = ({
+                ('pending', 'worker_unavailable'):
+                    'arr_execution_worker_unavailable',
+                ('failed', 'invalid_worker_result'):
+                    'arr_execution_invalid_worker_result',
+                ('needs_attention', 'resource_conflict'):
+                    'arr_execution_resource_conflict',
+                ('needs_attention', 'container_not_running'):
+                    'arr_execution_container_not_running',
+                ('needs_attention', 'dispatch_expired'):
+                    'arr_execution_dispatch_expired',
+                ('cancelled', 'cancelled'): 'arr_execution_cancelled',
+            }.get(result_key)
+                     if type(result) is ExecutionResult else None)
+            if cause is None and type(result) is ExecutionResult \
+                    and result.code in authority_codes:
+                cause = 'arr_execution_authority_changed'
+            raise ArrConfigurationExecutionError(
+                code, uncertain_effect=True, cause_code=cause)
+        try:
+            verified = self.arr_bootstrap.execute(
+                job, stack, PrivateArrConfiguration(
+                    serviceId=service_id, apiKey=api_key),
+                deadline=deadline, gate=gate)
+        except ArrBootstrapExecutionError as error:
+            code = {
+                'arr_bootstrap_authority_changed':
+                    'arr_config_authority_changed',
+                'arr_bootstrap_timeout': 'arr_config_timeout',
+                'arr_bootstrap_resources_unavailable':
+                    'arr_config_resources_unavailable',
+                'arr_bootstrap_endpoint_unavailable':
+                    'arr_config_resources_unavailable',
+            }.get(error.code, 'arr_config_result_invalid')
+            cause = error.cause_code
+            if cause == 'arr_bootstrap_unexpected' and error.boundary is not None:
+                cause = f'arr_bootstrap_{error.boundary}_failed'
+            if cause is None and error.code in {
+                    'arr_bootstrap_authority_changed',
+                    'arr_bootstrap_resources_unavailable',
+                    'arr_bootstrap_endpoint_unavailable',
+                    'arr_bootstrap_endpoint_changed',
+                    'arr_bootstrap_wiring_failed',
+                    'arr_bootstrap_readback_failed',
+                    'arr_bootstrap_timeout'}:
+                cause = error.code
+            raise ArrConfigurationExecutionError(
+                code, uncertain_effect=True, cause_code=cause) from None
+        except Exception:
+            raise ArrConfigurationExecutionError(
+                'arr_config_result_invalid', uncertain_effect=True,
+                cause_code='arr_bootstrap_stage_failed') from None
+        if (verified.state != 'verified'
+                or verified.service_id != service_id):
+            raise ArrConfigurationExecutionError(
+                'arr_config_result_invalid', uncertain_effect=True)
+        try:
             return ArrConfiguredInstallReceipt(
                 configured, result.container_id,
                 service_id + '_container_started',
                 service_id + '_service_verified')
-        except ArrConfigurationExecutionError:
-            raise
-        except TimeoutError:
+        except (TypeError, ValueError):
             raise ArrConfigurationExecutionError(
-                'arr_config_timeout', uncertain_effect=True) from None
-        except Exception:
-            raise ArrConfigurationExecutionError(
-                'arr_config_result_invalid', uncertain_effect=True) from None
+                'arr_config_result_invalid', uncertain_effect=True,
+                cause_code='arr_receipt_stage_failed') from None
 
     def install_configured_qbittorrent(
             self, job, stack, credential, *, api_key, salt, cancelled,

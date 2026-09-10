@@ -375,6 +375,27 @@ security policy, queue ve Gitleaks yeşil. Native dizin hazırlığı, qBittorre
 download-client kaydı ve iki mimarili kabul açık olduğundan sayaç değişmedi.
 [Uygulama ve açık sınırlar](arr-root-folder-wiring-implementation-2026-09-10.md).
 
+`7f03b85` native kabul dilimi, Sonarr ve Radarr'ı gerçek AMD64/ARM64
+runner'larında ayrı dört iş olarak config/create/start/authenticated readback,
+restart ve ikinci readback zincirinden geçirecek kapalı CI makbuzunu ekledi.
+Ephemeral daemon/cgroup/namespace sahipliği, exact source hash'leri ve secret-free
+makbuz sözleşmesi **25 odaklı / 239 ilgili PASS** ile yerelde doğrulandı; Ruff,
+compileall, security policy, queue ve Gitleaks PASS. Gerçek dört native makbuz
+henüz gözlenmediğinden `installAvailable=false` ve sayaç değişmedi.
+[Uygulama ve açık sınırlar](arr-native-characterization-implementation-2026-09-10.md).
+Native kapı PR #51 ile güncel `main` tabanında çalıştırılıyor.
+
+`77448d0` dilimi, ortak yönetilen medya hacmindeki sabit `movies` ve `shows`
+dizinlerini production Core binding kanıtına taşıdı. Journal'dan yeniden
+türetilmiş tek hacim ağsız, sınırlandırılmış helper'a geçici olarak yazılabilir
+bağlanıyor; yol, komut, kullanıcı ve Docker seçenekleri caller girdisi değil.
+Hazırlık sonucu aynı resource/operation/journal/nonce/revision ile doğrulanıp
+kök yeniden salt okunur kanıtlanmadan container binding'i üretilemiyor. **27
+odaklı / 180 ilgili PASS**; Ruff, compileall, security policy, queue, diff ve
+Gitleaks yeşil. Exact CI ve iki mimarili native kabul açık olduğu için sayaç ve
+`installAvailable=false` değişmedi.
+[Uygulama ve açık sınırlar](managed-media-directory-preparation-implementation-2026-09-10.md).
+
 S06.4 native kabul koşusu [34326112926](https://github.com/ersingundem/larenor/actions/runs/34326112926)
 iki gerçek GitHub runner'ında geçti. İndirilen ARM64 ve X64 makbuzları merge
 commit'i `b6e7034` için repo verifier ile tekrar doğrulandı; bu commit'in ikinci

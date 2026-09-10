@@ -1,9 +1,10 @@
-"""Fixed Docker helper for read-only managed-volume root verification.
+"""Fixed Docker helper for managed-volume verification and library setup.
 
 This worker-only adapter accepts a retained ``VolumeCreateIntent`` from the
-private journal and runs one exact helper image as an ephemeral container.  It
-does not accept a command, Docker JSON, bind mount, host path, network, image
-reference or cleanup option from IPC/API callers.
+private journal and runs one exact helper image as an ephemeral container. It
+verifies roots read-only and may create the fixed media directories in the one
+managed library volume. It does not accept a command, Docker JSON, bind mount,
+host path, network, image reference or cleanup option from IPC/API callers.
 """
 
 import re
@@ -73,7 +74,7 @@ class UnixVolumeBootstrapEngine:
             self._endpoint = endpoint
             if transport_factory is None:
                 self._transport = UnixDockerEngine(
-                    endpoint.path, timeout=1.0, socket_uid=endpoint.owner_uid,
+                    endpoint.path, timeout=10.0, socket_uid=endpoint.owner_uid,
                     peer_uid=peer_uid,
                 )
                 self._cleanup_transport = self._transport
@@ -97,8 +98,19 @@ class UnixVolumeBootstrapEngine:
         return _decode(raw, 4096) if body else None
 
     @staticmethod
-    def _body(intent, image_id):
-        binding = intent.binding
+    def _body(intent, image_id, command):
+        selected = _intent(intent)
+        binding = selected.binding
+        _require(command in {'verify_root', 'prepare_media_directories'})
+        if command == 'prepare_media_directories':
+            resource = binding.resource
+            _require(
+                resource.kind == 'managed_library'
+                and resource.serviceId == 'jellyfin'
+                and resource.target == '/media'
+                and resource.readOnly is True
+                and resource.containerUser == '1000:1000'
+            )
         return _canonical({
             'Image': image_id,
             'User': '1000:1000',
@@ -106,7 +118,7 @@ class UnixVolumeBootstrapEngine:
                 '/usr/local/bin/python', '-I',
                 '/opt/larenor/volume_bootstrap_helper.py',
             ],
-            'Cmd': ['verify_root'],
+            'Cmd': [command],
             'Labels': {
                 'org.larenor.bootstrap-schema': '1',
                 'org.larenor.resource': binding.resource_id,
@@ -128,13 +140,13 @@ class UnixVolumeBootstrapEngine:
                     'Type': 'volume',
                     'Source': binding.resource.name,
                     'Target': '/volume',
-                    'ReadOnly': True,
+                    'ReadOnly': command == 'verify_root',
                     'VolumeOptions': {'NoCopy': True},
                 }],
             },
         })
 
-    def verify_root(self, intent, helper_image_id, platform, *, cancelled):
+    def _execute(self, intent, helper_image_id, platform, command, *, cancelled):
         intent = _intent(intent)
         _require(type(helper_image_id) is str and _IMAGE_ID.fullmatch(helper_image_id) is not None)
         _require(platform in {'linux/amd64', 'linux/arm64'})
@@ -149,8 +161,9 @@ class UnixVolumeBootstrapEngine:
                 'name': 'larenor-bootstrap-' + suffix,
                 'platform': platform,
             })
+            body = self._body(intent, helper_image_id, command)
             result = self._response(
-                self._transport._exchange('POST', target, self._body(intent, helper_image_id)),
+                self._transport._exchange('POST', target, body),
                 201,
                 body=True,
             )
@@ -192,6 +205,21 @@ class UnixVolumeBootstrapEngine:
             raise VolumeBootstrapError(failure) from None
         return True
 
+    def verify_root(self, intent, helper_image_id, platform, *, cancelled):
+        return self._execute(
+            intent, helper_image_id, platform, 'verify_root',
+            cancelled=cancelled,
+        )
+
+    def prepare_media_directories(
+            self, intent, helper_image_id, platform, *, cancelled):
+        # The command and writable mount are fixed here; callers cannot choose
+        # a helper mode, volume, path, user, network or Docker option.
+        return self._execute(
+            intent, helper_image_id, platform, 'prepare_media_directories',
+            cancelled=cancelled,
+        )
+
 
 class VolumeBootstrapVerifier:
     """Return only a revision-bound proof from the exact helper result."""
@@ -217,7 +245,9 @@ class VolumeBootstrapVerifier:
                 _require(peer_uid is None, 'bootstrap_configuration_invalid')
                 self._engine = engine_factory(endpoint)
             _require(getattr(self._engine, '_endpoint', None) is endpoint
-                     and callable(getattr(self._engine, 'verify_root', None)),
+                     and callable(getattr(self._engine, 'verify_root', None))
+                     and callable(getattr(
+                         self._engine, 'prepare_media_directories', None)),
                      'bootstrap_configuration_invalid')
         except (ValueError, TypeError, AttributeError, DockerWorkerError,
                 VolumeBootstrapError, RecursionError):
@@ -245,6 +275,43 @@ class VolumeBootstrapVerifier:
                 binding.resource.name,
                 binding.resource.target,
                 'root_verified',
+            )
+        except VolumeBootstrapError:
+            raise
+        except Exception:
+            raise VolumeBootstrapError() from None
+
+    def prepare_media_directories(self, intent, *, cancelled):
+        try:
+            selected = _intent(intent)
+            resource = selected.binding.resource
+            _require(
+                resource.kind == 'managed_library'
+                and resource.serviceId == 'jellyfin'
+                and resource.target == '/media'
+                and resource.readOnly is True
+                and resource.containerUser == '1000:1000'
+                and type(cancelled) is threading.Event
+                and not cancelled.is_set()
+            )
+            result = self._engine.prepare_media_directories(
+                selected,
+                self._helper_image_id,
+                self._platform,
+                cancelled=cancelled,
+            )
+            _require(result is True and not cancelled.is_set())
+            from .managed_container import VolumeBootstrapObservation
+            binding, receipt = selected.binding, selected.receipt
+            return VolumeBootstrapObservation(
+                binding.resource_id,
+                binding.resource.operationId,
+                binding.journal_id,
+                binding.ownership_nonce,
+                receipt.revision,
+                binding.resource.name,
+                binding.resource.target,
+                'media_directories_prepared',
             )
         except VolumeBootstrapError:
             raise

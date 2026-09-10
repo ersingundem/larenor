@@ -619,16 +619,20 @@ def _arr_runtime_backend(monkeypatch, execution_result, bootstrap):
     return backend
 
 
-@pytest.mark.parametrize(('state', 'cause', 'public_code'), [
-    ('needs_attention', 'authority_changed', 'arr_config_authority_changed'),
-    ('cancelled', 'cancelled', 'arr_config_authority_changed'),
-    ('pending', 'worker_unavailable', 'arr_config_resources_unavailable'),
+@pytest.mark.parametrize(('state', 'cause', 'public_code', 'diagnostic'), [
+    ('needs_attention', 'authority_changed', 'arr_config_authority_changed',
+     'arr_execution_authority_changed'),
+    ('cancelled', 'cancelled', 'arr_config_authority_changed',
+     'arr_execution_cancelled'),
+    ('pending', 'worker_unavailable', 'arr_config_resources_unavailable',
+     'arr_execution_worker_unavailable'),
     ('needs_attention', 'resource_conflict',
-     'arr_config_resources_unavailable'),
-    ('failed', 'invalid_worker_result', 'arr_config_result_invalid'),
+     'arr_config_resources_unavailable', 'arr_execution_resource_conflict'),
+    ('failed', 'invalid_worker_result', 'arr_config_result_invalid',
+     'arr_execution_invalid_worker_result'),
 ])
 def test_arr_runtime_projects_execution_failures_to_closed_uncertain_codes(
-        monkeypatch, state, cause, public_code):
+        monkeypatch, state, cause, public_code, diagnostic):
     def forbidden(*_args, **_kwargs):
         pytest.fail('failed container execution must not start readback')
 
@@ -645,6 +649,7 @@ def test_arr_runtime_projects_execution_failures_to_closed_uncertain_codes(
         )
 
     assert raised.value.uncertain_effect
+    assert raised.value.cause_code == diagnostic
 
 
 @pytest.mark.parametrize(('bootstrap_code', 'public_code'), [
@@ -679,3 +684,4 @@ def test_arr_runtime_projects_bootstrap_failures_to_closed_uncertain_codes(
         )
 
     assert raised.value.uncertain_effect
+    assert raised.value.cause_code == bootstrap_code

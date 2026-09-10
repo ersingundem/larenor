@@ -12,6 +12,7 @@ from larenor_server.plugins.arr_endpoint import OpenArrEndpoint, prove_arr_endpo
 from larenor_server.plugins.arr_managed_root_folders import ArrManagedRootFolders
 from larenor_server.plugins.managed_container import (
     JournaledManagedContainerOperations,
+    ManagedContainerError,
     ManagedWorkerJournal,
 )
 from test_arr_authenticated_readback import result
@@ -182,3 +183,33 @@ def test_cross_service_binding_never_reaches_endpoint(prepared, monkeypatch):
             deadline=time.monotonic() + 10,
             gate=lambda: True,
         )
+
+
+def test_resource_proof_failure_preserves_only_static_cause(prepared):
+    stack, _binding, _engine, operations = prepared
+
+    def failed_binding(*_args):
+        raise ManagedContainerError(
+            'resources_unavailable',
+            cause_code='resource_proof_network_observation_failed')
+
+    selected = ArrBootstrapExecutor(
+        operations,
+        failed_binding,
+        ArrManagedRootFolders(),
+        ArrAuthenticatedReadback(),
+    )
+    with pytest.raises(
+        ArrBootstrapExecutionError,
+        match='^arr_bootstrap_resources_unavailable$',
+    ) as raised:
+        selected.execute(
+            JOB,
+            stack,
+            PrivateArrConfiguration(serviceId='sonarr', apiKey=KEY),
+            deadline=time.monotonic() + 10,
+            gate=lambda: True,
+        )
+
+    assert raised.value.cause_code == (
+        'arr_bootstrap_proof_network_observation_failed')

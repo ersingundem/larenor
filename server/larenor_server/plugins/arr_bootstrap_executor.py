@@ -86,6 +86,18 @@ class ArrBootstrapExecutionError(Exception):
                 'arr_root_folder_conflict',
                 'arr_root_folders_unavailable',
                 'arr_root_folders_timeout',
+                'arr_bootstrap_binding_invalid_installation_plan',
+                'arr_bootstrap_binding_resources_unavailable',
+                'arr_bootstrap_binding_resources_untrusted',
+                'arr_bootstrap_proof_plan_failed',
+                'arr_bootstrap_proof_journal_bind_failed',
+                'arr_bootstrap_proof_image_observation_failed',
+                'arr_bootstrap_proof_volume_observation_failed',
+                'arr_bootstrap_proof_volume_bootstrap_failed',
+                'arr_bootstrap_proof_network_list_failed',
+                'arr_bootstrap_proof_network_observation_failed',
+                'arr_bootstrap_proof_journal_rebind_failed',
+                'arr_bootstrap_proof_result_failed',
                 'arr_bootstrap_unexpected',
             }
             else None
@@ -341,8 +353,39 @@ class ArrBootstrapExecutor:
                 else 'arr_bootstrap_endpoint_changed'
             )
             raise ArrBootstrapExecutionError(code, boundary=boundary) from None
+        except ManagedContainerError as error:
+            cause = {
+                'invalid_installation_plan':
+                    'arr_bootstrap_binding_invalid_installation_plan',
+                'resources_unavailable':
+                    'arr_bootstrap_binding_resources_unavailable',
+                'resources_untrusted':
+                    'arr_bootstrap_binding_resources_untrusted',
+            }.get(error.code)
+            proof_cause = {
+                'resource_proof_plan_failed':
+                    'arr_bootstrap_proof_plan_failed',
+                'resource_proof_journal_bind_failed':
+                    'arr_bootstrap_proof_journal_bind_failed',
+                'resource_proof_image_observation_failed':
+                    'arr_bootstrap_proof_image_observation_failed',
+                'resource_proof_volume_observation_failed':
+                    'arr_bootstrap_proof_volume_observation_failed',
+                'resource_proof_volume_bootstrap_failed':
+                    'arr_bootstrap_proof_volume_bootstrap_failed',
+                'resource_proof_network_list_failed':
+                    'arr_bootstrap_proof_network_list_failed',
+                'resource_proof_network_observation_failed':
+                    'arr_bootstrap_proof_network_observation_failed',
+                'resource_proof_journal_rebind_failed':
+                    'arr_bootstrap_proof_journal_rebind_failed',
+                'resource_proof_result_failed':
+                    'arr_bootstrap_proof_result_failed',
+            }.get(error.cause_code)
+            raise ArrBootstrapExecutionError(
+                'arr_bootstrap_resources_unavailable', boundary=boundary,
+                cause_code=proof_cause or cause) from None
         except (
-            ManagedContainerError,
             DockerWorkerError,
             ValueError,
             TypeError,
