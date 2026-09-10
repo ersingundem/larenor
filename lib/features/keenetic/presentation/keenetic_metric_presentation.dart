@@ -15,6 +15,7 @@ String keeneticMetricTitle(AppLocalizations l10n, KeeneticMetricKind kind) =>
       KeeneticMetricKind.connectedDevices => l10n.keeneticConnectedDevices,
       KeeneticMetricKind.routerResources => l10n.keeneticResources,
       KeeneticMetricKind.interfaces => l10n.keeneticInterfaces,
+      KeeneticMetricKind.connectionQuality => l10n.keeneticConnectionQuality,
     };
 IconData keeneticMetricIcon(KeeneticMetricKind kind) => switch (kind) {
   KeeneticMetricKind.internetStatus => CupertinoIcons.globe,
@@ -22,6 +23,7 @@ IconData keeneticMetricIcon(KeeneticMetricKind kind) => switch (kind) {
   KeeneticMetricKind.connectedDevices => CupertinoIcons.device_laptop,
   KeeneticMetricKind.routerResources => CupertinoIcons.gauge,
   KeeneticMetricKind.interfaces => CupertinoIcons.square_stack_3d_up,
+  KeeneticMetricKind.connectionQuality => CupertinoIcons.speedometer,
 };
 
 String keeneticReadFailureLabel(
@@ -132,6 +134,7 @@ class KeeneticMetricPresentation {
       KeeneticMetricKind.connectedDevices => snapshot.hosts,
       KeeneticMetricKind.routerResources => snapshot.resources,
       KeeneticMetricKind.interfaces => snapshot.interfaces,
+      KeeneticMetricKind.connectionQuality => snapshot.internet,
     };
     final instant = now ?? DateTime.now();
     final internetAge = snapshot.internet.readAt == null
@@ -233,20 +236,61 @@ class KeeneticMetricPresentation {
             value: '${flag(item.connected)} · ${text(item.address)}',
           ),
       ],
+      KeeneticMetricKind.connectionQuality => <KeeneticMetricLine>[
+        (
+          label: l10n.keeneticInternetStatus,
+          value: flag(snapshot.internet.value?.internet),
+        ),
+        (label: l10n.keeneticInterfaceAddress, value: text(selected?.address)),
+        (
+          label: currentWan
+              ? l10n.keeneticDownloadRate
+              : l10n.keeneticReceiveRate,
+          value: formatKeeneticRate(
+            traffic?.value?.receiveBytesPerSecond,
+            l10n,
+          ),
+        ),
+        (
+          label: currentWan ? l10n.keeneticUploadRate : l10n.keeneticSendRate,
+          value: formatKeeneticRate(traffic?.value?.sendBytesPerSecond, l10n),
+        ),
+        (
+          label: l10n.keeneticUptime,
+          value: _uptime(snapshot.resources.value?.uptimeSeconds, l10n),
+        ),
+      ],
     };
     final secondaryIssue = switch (request.kind) {
       KeeneticMetricKind.internetStatus ||
       KeeneticMetricKind.wanTraffic => snapshot.interfaces.issue,
+      KeeneticMetricKind.connectionQuality =>
+        traffic?.issue ?? snapshot.interfaces.issue ?? snapshot.resources.issue,
       _ => null,
     };
     final issue = reading.issue ?? snapshot.connectionIssue ?? secondaryIssue;
+    final combinedReadAt = request.kind == KeeneticMetricKind.connectionQuality
+        ? traffic?.readAt ??
+              snapshot.internet.readAt ??
+              snapshot.resources.readAt ??
+              snapshot.interfaces.readAt
+        : reading.readAt;
+    final hasCombinedValue =
+        snapshot.internet.value != null ||
+        traffic?.value != null ||
+        snapshot.resources.value != null ||
+        snapshot.interfaces.value != null;
     return KeeneticMetricPresentation(
       lines: List.unmodifiable(lines),
       issue: issue,
-      readAt: reading.readAt,
-      stale: reading.value != null && issue != null,
+      readAt: combinedReadAt,
+      stale:
+          (request.kind == KeeneticMetricKind.connectionQuality
+              ? hasCombinedValue
+              : reading.value != null) &&
+          issue != null,
       awaitingSample:
-          request.kind == KeeneticMetricKind.wanTraffic &&
+          keeneticMetricNeedsTraffic(request.kind) &&
           traffic?.value != null &&
           traffic?.issue == null &&
           traffic!.value!.receiveBytesPerSecond == null &&

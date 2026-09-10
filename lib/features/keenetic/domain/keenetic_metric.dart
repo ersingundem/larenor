@@ -5,7 +5,16 @@ enum KeeneticMetricKind {
   connectedDevices,
   routerResources,
   interfaces,
+  // Appended so persisted enum names and generated serialization stay stable.
+  connectionQuality,
 }
+
+bool keeneticMetricNeedsInterface(KeeneticMetricKind kind) =>
+    kind == KeeneticMetricKind.wanTraffic ||
+    kind == KeeneticMetricKind.connectionQuality;
+
+bool keeneticMetricNeedsTraffic(KeeneticMetricKind kind) =>
+    keeneticMetricNeedsInterface(kind);
 
 class KeeneticMetricRequest {
   const KeeneticMetricRequest(this.kind, {this.interfaceId});

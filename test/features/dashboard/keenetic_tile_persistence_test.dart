@@ -39,7 +39,8 @@ void main() {
         final raw = layout(
           tile({
             if (kind != null) 'keeneticMetric': kind.name,
-            if (kind == KeeneticMetricKind.wanTraffic)
+            if (kind == KeeneticMetricKind.wanTraffic ||
+                kind == KeeneticMetricKind.connectionQuality)
               'keeneticInterfaceId': 'GigabitEthernet0/Vlan2',
           }),
         );
@@ -59,6 +60,7 @@ void main() {
     'unknown metric': {'keeneticMetric': 'executeCommand'},
     'interface without metric': {'keeneticInterfaceId': 'ISP'},
     'traffic without interface': {'keeneticMetric': 'wanTraffic'},
+    'quality without interface': {'keeneticMetric': 'connectionQuality'},
     'empty interface': {
       'keeneticMetric': 'wanTraffic',
       'keeneticInterfaceId': '',

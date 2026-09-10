@@ -12,7 +12,10 @@ bool hasValidKeeneticTileFields(Map<String, dynamic> tile) {
       !KeeneticMetricKind.values.any((kind) => kind.name == metric)) {
     return false;
   }
-  if (metric != KeeneticMetricKind.wanTraffic.name) return id == null;
+  final kind = KeeneticMetricKind.values.firstWhere(
+    (value) => value.name == metric,
+  );
+  if (!keeneticMetricNeedsInterface(kind)) return id == null;
   return id is String &&
       id.isNotEmpty &&
       id.length <= 256 &&

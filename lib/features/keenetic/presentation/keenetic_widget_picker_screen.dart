@@ -101,7 +101,7 @@ class _KeeneticWidgetPickerScreenState
   void _save(int generation) {
     if (!_current(generation) ||
         ModalRoute.of(context)?.isCurrent != true ||
-        (_selected == KeeneticMetricKind.wanTraffic && !_validInterface())) {
+        (keeneticMetricNeedsInterface(_selected) && !_validInterface())) {
       return;
     }
     _submitted = true;
@@ -113,9 +113,9 @@ class _KeeneticWidgetPickerScreenState
         x: 0,
         y: 0,
         width: 2,
-        height: 2,
+        height: _selected == KeeneticMetricKind.connectionQuality ? 3 : 2,
         keeneticMetric: _selected,
-        keeneticInterfaceId: _selected == KeeneticMetricKind.wanTraffic
+        keeneticInterfaceId: keeneticMetricNeedsInterface(_selected)
             ? _interfaceId
             : null,
       ),
@@ -146,7 +146,7 @@ class _KeeneticWidgetPickerScreenState
     final active = _current(generation);
     final AsyncValue<KeeneticTelemetrySnapshot>? inventory =
         active &&
-            _selected == KeeneticMetricKind.wanTraffic &&
+            keeneticMetricNeedsInterface(_selected) &&
             config.value != null &&
             TickerMode.valuesOf(context).enabled
         ? ref.watch(keeneticMetricProvider(_inventoryRequest))
@@ -160,7 +160,7 @@ class _KeeneticWidgetPickerScreenState
         : null;
     final canSave =
         active &&
-        (_selected != KeeneticMetricKind.wanTraffic || _validInterface());
+        (!keeneticMetricNeedsInterface(_selected) || _validInterface());
     return AppPageScaffold(
       navigationBar: CupertinoNavigationBar(
         middle: Text(l10n.keeneticAddWidget),
@@ -242,7 +242,7 @@ class _KeeneticWidgetPickerScreenState
                     ],
                   ),
                 ),
-                if (_selected == KeeneticMetricKind.wanTraffic) ...[
+                if (keeneticMetricNeedsInterface(_selected)) ...[
                   SliverToBoxAdapter(
                     child: Padding(
                       padding: const EdgeInsets.all(20),

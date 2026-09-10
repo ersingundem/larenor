@@ -1406,6 +1406,7 @@
   "adminEditorSessionChanged": "The connection or app session changed. Reopen this editor before saving.",
   "keeneticAddWidget": "Add a Keenetic widget",
   "keeneticInternetStatus": "Internet connection",
+  "keeneticConnectionQuality": "Connection quality",
   "keeneticTraffic": "Network traffic",
   "keeneticResources": "Router resources",
   "keeneticInterfaces": "Network interfaces",
