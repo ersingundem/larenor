@@ -27,6 +27,8 @@ from .plugins.media_installation_schema import migrate_media_installations
 from .plugins.media_installations import MediaInstallationManagement
 from .plugins.media_service_bootstrap_schema import migrate_media_service_bootstraps
 from .plugins.media_service_bootstraps import MediaServiceBootstrapManagement
+from .plugins.qbittorrent_config_job_schema import migrate_qbittorrent_configurations
+from .plugins.qbittorrent_config_jobs import QbittorrentConfigurationManagement
 from .plugins.preflight_ipc import PreflightWorkerClient
 from .plugins.installation_ipc import InstallationWorkerClient
 from .services.schema import migrate_services
@@ -149,6 +151,7 @@ class CoreServices:
                 migrate_media_inspections(connection)
                 migrate_media_installations(connection)
                 migrate_media_service_bootstraps(connection)
+                migrate_qbittorrent_configurations(connection)
             if not existed:
                 # Only publish the DB after its complete first transaction commits.
                 # Never expose an empty DB that a restart might treat as a reset.
@@ -201,6 +204,10 @@ class CoreServices:
                 self.db, self.auth, settings, key, self.media_installations,
                 installation_backend)
             self.media_service_bootstraps.validate_storage()
+            self.qbittorrent_configurations = QbittorrentConfigurationManagement(
+                self.db, self.auth, settings, key, self.media_installations,
+                installation_backend)
+            self.qbittorrent_configurations.validate_storage()
             self.clear_inactive_bootstrap()
 
     def clear_inactive_bootstrap(self) -> None:

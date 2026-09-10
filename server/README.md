@@ -350,7 +350,14 @@ thread. The same socket now has a closed qBittorrent configuration operation:
 Core sends only a job ID, verified stack and generated private credential,
 API-key and salt; the worker repeats catalog/model checks and returns only a
 journal-bound digest receipt. The durable qBittorrent job and create/start
-ordering are still open, so no public route or installation capability is added.
+ordering are still open, so no installation capability is added. Core now owns
+an encrypted durable job at
+`/api/v1/admin/media/qbittorrent-configurations`: administrators can create,
+list, inspect and revision-cancel work while all generated credentials remain in
+authenticated encrypted storage. The lifespan dispatcher uses the private worker
+automatically, does not retry interrupted effects and waits for a bounded
+in-flight receipt during shutdown. Every capability and job still reports
+`installAvailable: false`.
 
 ## Client releases
 

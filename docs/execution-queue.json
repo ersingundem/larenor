@@ -773,7 +773,8 @@
         "docs/qbittorrent-config-helper-implementation-2026-09-10.md",
         "docs/qbittorrent-config-effect-implementation-2026-09-10.md",
         "docs/qbittorrent-runtime-binding-implementation-2026-09-10.md",
-        "docs/qbittorrent-installation-ipc-implementation-2026-09-10.md"
+        "docs/qbittorrent-installation-ipc-implementation-2026-09-10.md",
+        "docs/qbittorrent-configuration-jobs-implementation-2026-09-10.md"
       ],
       "scope": "Kullanıcı ayrı uygulama kurmaz veya API anahtarı kopyalamaz; sırlar Client/plan/log içine girmez.",
       "acceptance": [
@@ -968,10 +969,18 @@
           "state": "completed",
           "result": "passed",
           "label": "UID-korumalı installation IPC qBittorrent iş kimliği, revalidated private config ve secret-free journal makbuzunu taşıyor; 14 yeni, 418 ilgili testte 417 PASS/1 mevcut macOS skip. Kalıcı Core job, create/start sırası ve exact native CI açık."
+        },
+        {
+          "kind": "test",
+          "ref": "docs/qbittorrent-configuration-jobs-implementation-2026-09-10.md",
+          "commit": "9bf5f4092fecd8794200d214b7bb2dd6f5c0793e",
+          "state": "completed",
+          "result": "passed",
+          "label": "Şifreli kalıcı qBittorrent yapılandırma işi; admin API, no-retry dispatcher, gerçek UID Unix IPC, iptal/yetki belirsizliği ve graceful shutdown dahil 23 yeni/263 ilgili test PASS. Create/start sırası ve exact native kabul açık."
         }
       ],
       "completionCommit": null,
-      "reason": "Server üretimli sır, sabit startup, exact journal/container/private-network yürütücüsü, kalıcı no-retry koordinatör, otomatik yaşam döngüsü dispatcher ve aynı retained daemon'a bağlı private IPC/runtime hazır. Disposable Jellyfin 10.11.11 bootstrap, API anahtarı, kütüphane eşleştirmesi, logout, restart ve veri kalıcılığı exact arm64+amd64 CI'da geçti. qBittorrent 5.2.3 sahipli config/API, journal-bound volume/library planı, güvenli helper, private stdin effect, current-journal runtime bağı ve UID-korumalı private IPC yerelde yeşil. Kalıcı qBittorrent job, create-start önkoşulu, Radarr/Sonarr/Seerr/Music Assistant eşleştirmesi ve qBittorrent native kabul açık; installAvailable=false."
+      "reason": "Server üretimli sır, sabit startup, exact journal/container/private-network yürütücüsü, kalıcı no-retry koordinatör, otomatik yaşam döngüsü dispatcher ve aynı retained daemon'a bağlı private IPC/runtime hazır. Disposable Jellyfin 10.11.11 bootstrap, API anahtarı, kütüphane eşleştirmesi, logout, restart ve veri kalıcılığı exact arm64+amd64 CI'da geçti. qBittorrent 5.2.3 sahipli config/API, journal-bound volume/library planı, güvenli helper, private stdin effect, current-journal runtime bağı, UID-korumalı IPC ve şifreli kalıcı Core işi yerelde yeşil. Create/start önkoşulu, Radarr/Sonarr/Seerr/Music Assistant eşleştirmesi ve qBittorrent native kabul açık; installAvailable=false."
     },
     {
       "id": "S06.6",
