@@ -2483,7 +2483,7 @@
     }
   },
   "sshTitle": "SSH terminal",
-  "sshHint": "A plain-text shell with explicit line sending. SFTP is available as a separate browser; full-screen terminal apps and tunnels are not supported yet. No automatic reconnect or command replay.",
+  "sshHint": "Up to four plain-text PTY tabs with explicit line sending. SFTP and loopback tunnels are available separately. No automatic reconnect or command replay.",
   "sshReady": "Not connected",
   "sshConnecting": "Connecting… You can cancel.",
   "sshVerifyHost": "Verify the server key",

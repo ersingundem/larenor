@@ -2155,7 +2155,7 @@
   "remoteAccessLimit": "En fazla 32 kişisel hedef kaydedebilirsiniz.",
   "remoteAccessCopyFailed": "Adres kopyalanamadı",
   "sshTitle": "SSH terminali",
-  "sshHint": "Açık gönderme eylemiyle satır ileten düz metin kabuğu. SFTP ayrı dosya tarayıcısında kullanılabilir; tam ekran terminal uygulamaları ve tüneller henüz desteklenmez. Otomatik yeniden bağlantı veya komut tekrarı yapılmaz.",
+  "sshHint": "Açık satır gönderme eylemi sunan en fazla dört düz metin PTY sekmesi. SFTP ve yalnızca yerel tüneller ayrı kullanılabilir. Otomatik yeniden bağlantı veya komut tekrarı yapılmaz.",
   "sshReady": "Bağlı değil",
   "sshConnecting": "Bağlanıyor… İptal edebilirsiniz.",
   "sshVerifyHost": "Sunucu anahtarını doğrulayın",

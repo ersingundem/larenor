@@ -98,6 +98,7 @@ class Engine extends SshEngine {
     SshCredential c, {
     required Future<bool> Function(SshHostPin) verifyHost,
     required bool Function() isCurrent,
+    SshTerminalSize initialSize = SshTerminalSize.standard,
   }) async {
     opens++;
     await gate?.future;
@@ -237,25 +238,28 @@ void main() {
       );
     },
   );
-  test('PTY size is bounded, deduplicated and sent only while connected', () async {
-    store.pin = hostPin;
-    c.resizeTerminal(const SshTerminalSize(columns: 132, rows: 40));
-    expect(engine.channel.resizes, isEmpty);
-    await c.connect();
-    expect(engine.channel.resizes, isEmpty);
-    c.resizeTerminal(const SshTerminalSize(columns: 132, rows: 40));
-    c.resizeTerminal(const SshTerminalSize(columns: 132, rows: 40));
-    expect(engine.channel.resizes, [
-      const SshTerminalSize(columns: 132, rows: 40),
-    ]);
-    expect(
-      () => c.resizeTerminal(const SshTerminalSize(columns: 10, rows: 2)),
-      throwsA(isA<SshFailure>()),
-    );
-    c.cancel();
-    c.resizeTerminal(const SshTerminalSize(columns: 100, rows: 30));
-    expect(engine.channel.resizes, hasLength(1));
-  });
+  test(
+    'PTY size is bounded, deduplicated and sent only while connected',
+    () async {
+      store.pin = hostPin;
+      c.resizeTerminal(const SshTerminalSize(columns: 132, rows: 40));
+      expect(engine.channel.resizes, isEmpty);
+      await c.connect();
+      expect(engine.channel.resizes, isEmpty);
+      c.resizeTerminal(const SshTerminalSize(columns: 140, rows: 42));
+      c.resizeTerminal(const SshTerminalSize(columns: 140, rows: 42));
+      expect(engine.channel.resizes, [
+        const SshTerminalSize(columns: 140, rows: 42),
+      ]);
+      expect(
+        () => c.resizeTerminal(SshTerminalSize(columns: 10, rows: 2)),
+        throwsA(isA<SshFailure>()),
+      );
+      c.cancel();
+      c.resizeTerminal(const SshTerminalSize(columns: 100, rows: 30));
+      expect(engine.channel.resizes, hasLength(1));
+    },
+  );
   test('multiline, oversized and control input never sends', () async {
     store.pin = hostPin;
     await c.connect();

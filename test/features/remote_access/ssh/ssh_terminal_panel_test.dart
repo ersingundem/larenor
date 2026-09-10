@@ -83,7 +83,7 @@ void main() {
     await press(t, 'ssh-connect');
     expect(engines, hasLength(1));
     await press(t, 'ssh-trust');
-    expect(find.textContaining('Connected'), findsWidgets);
+    expect(find.textContaining('SSH shell open'), findsWidgets);
     await press(t, 'ssh-tab-close');
     expect(engines.single.closed, isTrue);
   });

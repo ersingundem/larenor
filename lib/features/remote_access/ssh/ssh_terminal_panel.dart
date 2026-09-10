@@ -16,6 +16,7 @@ import '../data/remote_profiles.dart';
 import 'ssh_engine.dart';
 import 'ssh_security_store.dart';
 import 'ssh_session_controller.dart';
+import 'ssh_terminal_tabs_controller.dart';
 
 final sshEngineFactoryProvider = Provider<SshEngine Function()>(
   (ref) => DartSshEngine.new,
@@ -46,7 +47,8 @@ class _SshTerminalPanelState extends ConsumerState<SshTerminalPanel>
       _line = TextEditingController();
   late SshSecurityStore _store;
   late SshEngine Function() _factory;
-  late SshSessionController _session;
+  late SshTerminalTabsController _tabs;
+  SshSessionController get _session => _tabs.active.controller;
   ProviderContainer? _container;
   AppInteractionController? _interaction;
   bool _initialized = false,
@@ -164,7 +166,7 @@ class _SshTerminalPanelState extends ConsumerState<SshTerminalPanel>
   void _retire() {
     if (_retired) return;
     _retired = true;
-    if (_initialized) _session.retire();
+    if (_initialized) _tabs.retire();
     _changed();
   }
 
@@ -249,8 +251,8 @@ class _SshTerminalPanelState extends ConsumerState<SshTerminalPanel>
     WidgetsBinding.instance.removeObserver(this);
     _interaction?.removeListener(_ownerChanged);
     if (_initialized) {
-      _session.removeListener(_changed);
-      _session.dispose();
+      _tabs.removeListener(_changed);
+      _tabs.dispose();
     }
     for (final f in [_secret, _phrase, _line]) {
       f.dispose();
@@ -267,7 +269,7 @@ class _SshTerminalPanelState extends ConsumerState<SshTerminalPanel>
       _store = store;
       _factory = factory;
       _initialized = true;
-      _session = SshSessionController(
+      _tabs = SshTerminalTabsController(
         profile: widget.profile,
         store: store,
         engineFactory: factory,
@@ -284,6 +286,24 @@ class _SshTerminalPanelState extends ConsumerState<SshTerminalPanel>
     ref.watch(windowPolicySnapshotProvider);
     final active = _current();
     if (!active) _retire();
+    final viewport = MediaQuery.sizeOf(context);
+    final terminalSize = SshTerminalSize(
+      columns: ((viewport.width.clamp(320.0, 1000.0) - 32) / 9).floor().clamp(
+        SshTerminalSize.minColumns,
+        160,
+      ),
+      rows: ((viewport.height * 0.36) / 20).floor().clamp(
+        SshTerminalSize.minRows,
+        60,
+      ),
+      pixelWidth: viewport.width.clamp(0, SshTerminalSize.maxPixels).round(),
+      pixelHeight: (viewport.height * 0.36)
+          .clamp(0, SshTerminalSize.maxPixels)
+          .round(),
+    );
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_current()) _tabs.resizeActive(terminalSize);
+    });
     final phase = _session.phase,
         busy =
             _busy ||
@@ -336,7 +356,7 @@ class _SshTerminalPanelState extends ConsumerState<SshTerminalPanel>
       ),
     );
     final failure = _error ?? _session.error;
-    String status() => switch (phase) {
+    String status(SshSessionPhase value) => switch (value) {
       SshSessionPhase.idle => l.sshReady,
       SshSessionPhase.connecting => l.sshConnecting,
       SshSessionPhase.hostKey => l.sshVerifyHost,
@@ -376,7 +396,7 @@ class _SshTerminalPanelState extends ConsumerState<SshTerminalPanel>
                       Text(l.sshHint),
                       const SizedBox(height: 12),
                       Text(
-                        active ? status() : l.remoteAccessLocked,
+                        active ? status(phase) : l.remoteAccessLocked,
                         key: const ValueKey('ssh-status'),
                       ),
                       if (failure != null)
@@ -384,6 +404,63 @@ class _SshTerminalPanelState extends ConsumerState<SshTerminalPanel>
                     ],
                   ),
                 ),
+                if (active)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    child: SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: Row(
+                        children: [
+                          for (final tab in _tabs.tabs)
+                            Padding(
+                              padding: const EdgeInsets.only(right: 8),
+                              child: CupertinoButton(
+                                key: ValueKey('ssh-tab-${tab.number}'),
+                                color: tab.id == _tabs.active.id
+                                    ? CupertinoColors.activeBlue
+                                    : CupertinoColors.systemGrey5,
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 14,
+                                  vertical: 10,
+                                ),
+                                onPressed: () {
+                                  _line.clear();
+                                  _tabs.selectTab(tab.id);
+                                },
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Text('${l.sshTitle} ${tab.number}'),
+                                    Text(
+                                      status(tab.controller.phase),
+                                      style: const TextStyle(fontSize: 12),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          CupertinoButton(
+                            key: const ValueKey('ssh-tab-add'),
+                            onPressed: _tabs.canAdd
+                                ? () {
+                                    _line.clear();
+                                    _tabs.addTab();
+                                  }
+                                : null,
+                            child: Text(l.commonAdd),
+                          ),
+                          CupertinoButton(
+                            key: const ValueKey('ssh-tab-close'),
+                            onPressed: () {
+                              _line.clear();
+                              _tabs.closeTab(_tabs.active.id);
+                            },
+                            child: Text(l.commonClose),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
                 if (active) ...[
                   if (_session.pendingPin case final pin?)
                     SettingsSection(
@@ -520,7 +597,7 @@ class _SshTerminalPanelState extends ConsumerState<SshTerminalPanel>
                   SettingsSection(
                     children: [
                       action('ssh-back', l.commonBack, () {
-                        _session.cancel();
+                        _tabs.retire();
                         _clear();
                         widget.onBack();
                       }),

@@ -13,7 +13,46 @@ abstract class SshChannel {
   Stream<List<int>> get stderr;
   Future<void> get done;
   void write(Uint8List bytes);
+  void resize(SshTerminalSize size);
   void close();
+}
+
+class SshTerminalSize {
+  const SshTerminalSize({
+    required this.columns,
+    required this.rows,
+    this.pixelWidth = 0,
+    this.pixelHeight = 0,
+  });
+
+  static const standard = SshTerminalSize(columns: 80, rows: 24);
+  static const minColumns = 20, maxColumns = 500, minRows = 5, maxRows = 200;
+  static const maxPixels = 16384;
+  final int columns;
+  final int rows;
+  final int pixelWidth;
+  final int pixelHeight;
+
+  bool get isValid =>
+      columns >= minColumns &&
+      columns <= maxColumns &&
+      rows >= minRows &&
+      rows <= maxRows &&
+      pixelWidth >= 0 &&
+      pixelWidth <= maxPixels &&
+      pixelHeight >= 0 &&
+      pixelHeight <= maxPixels;
+
+  @override
+  bool operator ==(Object other) =>
+      other is SshTerminalSize &&
+      columns == other.columns &&
+      rows == other.rows &&
+      pixelWidth == other.pixelWidth &&
+      pixelHeight == other.pixelHeight;
+
+  @override
+  int get hashCode => Object.hash(columns, rows, pixelWidth, pixelHeight);
 }
 
 abstract class SshEngine {
@@ -22,6 +61,7 @@ abstract class SshEngine {
     SshCredential credential, {
     required Future<bool> Function(SshHostPin) verifyHost,
     required bool Function() isCurrent,
+    SshTerminalSize initialSize = SshTerminalSize.standard,
   });
   void close();
 }
@@ -59,7 +99,11 @@ class DartSshEngine implements SshEngine {
     SshCredential credential, {
     required Future<bool> Function(SshHostPin) verifyHost,
     required bool Function() isCurrent,
+    SshTerminalSize initialSize = SshTerminalSize.standard,
   }) {
+    if (!initialSize.isValid) {
+      return Future.error(const SshFailure('invalid_terminal_size'));
+    }
     if (_used) return Future.error(const SshFailure('closed'));
     _used = true;
     final result = Completer<SshChannel>();
@@ -138,7 +182,13 @@ class DartSshEngine implements SshEngine {
             }, onError: failure),
           );
           final session = await client.shell(
-            pty: const SSHPtyConfig(type: 'dumb', width: 80, height: 24),
+            pty: SSHPtyConfig(
+              type: 'xterm-256color',
+              width: initialSize.columns,
+              height: initialSize.rows,
+              pixelWidth: initialSize.pixelWidth,
+              pixelHeight: initialSize.pixelHeight,
+            ),
           );
           if (_closed) {
             session.close();
@@ -197,6 +247,18 @@ class _DartSshChannel extends SshChannel {
   void write(Uint8List bytes) {
     if (owner._closed) throw const SshFailure('closed');
     session.write(bytes);
+  }
+
+  @override
+  void resize(SshTerminalSize size) {
+    if (owner._closed) throw const SshFailure('closed');
+    if (!size.isValid) throw const SshFailure('invalid_terminal_size');
+    session.resizeTerminal(
+      size.columns,
+      size.rows,
+      size.pixelWidth,
+      size.pixelHeight,
+    );
   }
 
   @override

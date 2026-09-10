@@ -16,12 +16,14 @@ class SshSessionController extends ChangeNotifier {
     required this.engineFactory,
     required this.isCurrent,
     this.connectTimeout = const Duration(seconds: 45),
+    this.initialSize = SshTerminalSize.standard,
   });
   final RemoteProfile profile;
   final SshSecurityStore store;
   final SshEngine Function() engineFactory;
   final bool Function() isCurrent;
   final Duration connectTimeout;
+  final SshTerminalSize initialSize;
   SshSessionPhase phase = SshSessionPhase.idle;
   SshHostPin? pendingPin;
   String? error;
@@ -35,6 +37,8 @@ class SshSessionController extends ChangeNotifier {
   Timer? _timer;
   int _generation = 0;
   bool _retired = false, _disposed = false, _sending = false;
+  late SshTerminalSize _terminalSize = initialSize;
+  SshTerminalSize? _sentSize;
   bool _current(int generation) {
     try {
       return !_disposed &&
@@ -71,6 +75,7 @@ class SshSessionController extends ChangeNotifier {
     if (_opening?.isCompleted == false) _opening!.complete();
     _opening = null;
     _sending = false;
+    _sentSize = null;
   }
 
   void _end({String? code, bool clear = true}) {
@@ -152,6 +157,7 @@ class SshSessionController extends ChangeNotifier {
       profile,
       credential,
       isCurrent: current,
+      initialSize: _terminalSize,
       verifyHost: (pin) async {
         _check(generation);
         final old = await store.readPin(profile, isCurrent: current);
@@ -177,6 +183,7 @@ class SshSessionController extends ChangeNotifier {
       _check(generation);
     }
     _channel = channel;
+    _sentSize = _terminalSize;
     _timer?.cancel();
     _timer = null;
     pendingPin = null;
@@ -295,6 +302,24 @@ class SshSessionController extends ChangeNotifier {
       }
     } finally {
       if (generation == _generation) _sending = false;
+    }
+  }
+
+  void resizeTerminal(SshTerminalSize size) {
+    if (!size.isValid) throw const SshFailure('invalid_terminal_size');
+    if (_retired || _disposed) return;
+    _terminalSize = size;
+    if (phase != SshSessionPhase.connected || _channel == null) return;
+    if (!_current(_generation)) {
+      retire();
+      return;
+    }
+    if (_sentSize == size) return;
+    try {
+      _channel!.resize(size);
+      _sentSize = size;
+    } catch (_) {
+      _end(code: 'connection_lost');
     }
   }
 
