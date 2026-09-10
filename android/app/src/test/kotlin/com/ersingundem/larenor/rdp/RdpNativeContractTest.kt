@@ -4,6 +4,23 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class RdpNativeContractTest {
+    private class RecordingBackend : RdpNativeBackend {
+        var openCalls = 0
+        override fun capabilities() = RdpNativeCapabilities.parse(availableCapabilities)
+        override fun open(
+            request: RdpNativeRequest,
+            negotiated: RdpNativeNegotiated,
+            secrets: RdpNativeSecrets,
+        ): RdpNativeSession {
+            openCalls++
+            return object : RdpNativeSession { override fun close() = Unit }
+        }
+
+        companion object {
+            lateinit var availableCapabilities: Map<String, Any?>
+        }
+    }
+
     private fun available() = mapOf<String, Any?>(
         "schemaVersion" to 1,
         "availability" to "available",
@@ -113,5 +130,30 @@ class RdpNativeContractTest {
         assertTrue(secret.closed)
         assertEquals(setOf("code", "retryable"), RdpNativeFailure("timedOut").publicDetails().keys)
         reject("invalidFailure") { RdpNativeFailure("raw java.net error: desktop.home.arpa") }
+    }
+
+    @Test fun gatewayCredentialShapeMustMatchTheNegotiatedRoute() {
+        RecordingBackend.availableCapabilities = available()
+        val backend = RecordingBackend()
+        val adapter = RdpNativeAdapter(backend)
+        val missingGatewaySecret = RdpNativeSecrets.take("secret".toCharArray(), null)
+        reject("invalidSecrets") {
+            adapter.open(RdpNativeRequest.parse(request()), missingGatewaySecret)
+        }
+        assertTrue(missingGatewaySecret.closed)
+        assertEquals(0, backend.openCalls)
+
+        val unexpectedGatewaySecret = RdpNativeSecrets.take(
+            "secret".toCharArray(),
+            "gateway-secret".toCharArray(),
+        )
+        reject("invalidSecrets") {
+            adapter.open(
+                RdpNativeRequest.parse(request(mapOf("gateway" to null))),
+                unexpectedGatewaySecret,
+            )
+        }
+        assertTrue(unexpectedGatewaySecret.closed)
+        assertEquals(0, backend.openCalls)
     }
 }
