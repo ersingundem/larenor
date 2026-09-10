@@ -62,6 +62,17 @@ double? _percent(Object? raw) {
   return raw.toDouble();
 }
 
+int? _signal(Object? raw) {
+  if (raw == null) return null;
+  return _integer(raw, min: -127, max: 0);
+}
+
+String? _band(Object? raw) {
+  if (raw == null) return null;
+  if (raw is! String || !const {'2.4', '5', '6'}.contains(raw)) _invalid();
+  return raw;
+}
+
 void _ref(Object? raw, HomeResourceRecord target) {
   final value = _object(raw, {
     'schemaVersion',
@@ -145,6 +156,10 @@ final class CoreKeeneticInterface {
     this.rxBytes,
     this.txBytes,
     this.guest,
+    this.ssid,
+    this.band,
+    this.channel,
+    this.signalDbm,
   );
   final String id, name;
   final CoreKeeneticInterfaceKind kind;
@@ -152,11 +167,13 @@ final class CoreKeeneticInterface {
   final String? address;
   final int rxBytes, txBytes;
   final bool? guest;
+  final String? ssid, band;
+  final int? channel, signalDbm;
   factory CoreKeeneticInterface.fromJson(Object? raw) {
     final value = _objectWithOptional(
       raw,
       {'id', 'name', 'kind', 'online', 'address', 'rxBytes', 'txBytes'},
-      {'guest'},
+      {'guest', 'ssid', 'band', 'channel', 'signalDbm'},
     );
     final kind = CoreKeeneticInterfaceKind.values
         .where((v) => v.name == value['kind'])
@@ -172,6 +189,16 @@ final class CoreKeeneticInterface {
     if (address != null && InternetAddress.tryParse(address) == null) {
       _invalid();
     }
+    final ssid = value['ssid'] == null ? null : _text(value['ssid'], max: 64);
+    final band = _band(value['band']);
+    final channel = value['channel'] == null
+        ? null
+        : _integer(value['channel'], min: 1, max: 233);
+    final signal = _signal(value['signalDbm']);
+    if (kind != CoreKeeneticInterfaceKind.wifi &&
+        (ssid != null || band != null || channel != null || signal != null)) {
+      _invalid();
+    }
     return CoreKeeneticInterface._(
       _text(value['id'], max: 128),
       _text(value['name'], max: 128),
@@ -181,6 +208,10 @@ final class CoreKeeneticInterface {
       _integer(value['rxBytes']),
       _integer(value['txBytes']),
       value['guest'] as bool?,
+      ssid,
+      band,
+      channel,
+      signal,
     );
   }
 }
@@ -220,10 +251,14 @@ final class CoreKeeneticHost {
     this.online,
     this.registered,
     this.internetAccess,
+    this.band,
+    this.signalDbm,
   );
   final String id, name, ipAddress, macAddress, interfaceId;
   final bool online, registered;
   final String? internetAccess;
+  final String? band;
+  final int? signalDbm;
   factory CoreKeeneticHost.fromJson(Object? raw) {
     final value = _objectWithOptional(
       raw,
@@ -236,7 +271,7 @@ final class CoreKeeneticHost {
         'online',
         'registered',
       },
-      {'internetAccess'},
+      {'internetAccess', 'band', 'signalDbm'},
     );
     final ip = _text(value['ipAddress'], max: 64),
         mac = _text(value['macAddress'], max: 17);
@@ -257,6 +292,8 @@ final class CoreKeeneticHost {
       value['online'] as bool,
       value['registered'] as bool,
       value['internetAccess'] as String?,
+      _band(value['band']),
+      _signal(value['signalDbm']),
     );
   }
 }
@@ -306,6 +343,218 @@ final class CoreKeeneticTelemetry {
   }
   @override
   String toString() => 'CoreKeeneticTelemetry';
+}
+
+sealed class CoreKeeneticDetail {
+  const CoreKeeneticDetail(this.id, this.name, this.online);
+  final String id, name;
+  final bool online;
+}
+
+final class CoreKeeneticInterfaceDetail extends CoreKeeneticDetail {
+  const CoreKeeneticInterfaceDetail._(
+    super.id,
+    super.name,
+    super.online,
+    this.interfaceKind,
+    this.address,
+    this.rxBytes,
+    this.txBytes,
+    this.guest,
+    this.ssid,
+    this.band,
+    this.channel,
+    this.signalDbm,
+  );
+  final CoreKeeneticInterfaceKind interfaceKind;
+  final String? address, ssid, band;
+  final int rxBytes, txBytes;
+  final int? channel, signalDbm;
+  final bool? guest;
+
+  factory CoreKeeneticInterfaceDetail.fromJson(Object? raw) {
+    final value = _object(raw, {
+      'kind',
+      'id',
+      'name',
+      'interfaceKind',
+      'online',
+      'address',
+      'rxBytes',
+      'txBytes',
+      'guest',
+      'ssid',
+      'band',
+      'channel',
+      'signalDbm',
+    });
+    final kind = CoreKeeneticInterfaceKind.values
+        .where((item) => item.name == value['interfaceKind'])
+        .firstOrNull;
+    if (value['kind'] != 'interface' ||
+        kind == null ||
+        value['online'] is! bool ||
+        value['guest'] != null && value['guest'] is! bool) {
+      _invalid();
+    }
+    final address = value['address'] == null
+        ? null
+        : _text(value['address'], max: 64);
+    if (address != null && InternetAddress.tryParse(address) == null) {
+      _invalid();
+    }
+    final ssid = value['ssid'] == null ? null : _text(value['ssid'], max: 64);
+    final band = _band(value['band']);
+    final channel = value['channel'] == null
+        ? null
+        : _integer(value['channel'], min: 1, max: 233);
+    final signal = _signal(value['signalDbm']);
+    if (kind != CoreKeeneticInterfaceKind.wifi &&
+        (ssid != null || band != null || channel != null || signal != null)) {
+      _invalid();
+    }
+    return CoreKeeneticInterfaceDetail._(
+      _text(value['id'], max: 128),
+      _text(value['name'], max: 128),
+      value['online'] as bool,
+      kind,
+      address,
+      _integer(value['rxBytes']),
+      _integer(value['txBytes']),
+      value['guest'] as bool?,
+      ssid,
+      band,
+      channel,
+      signal,
+    );
+  }
+}
+
+final class CoreKeeneticClientDetail extends CoreKeeneticDetail {
+  const CoreKeeneticClientDetail._(
+    super.id,
+    super.name,
+    super.online,
+    this.ipAddress,
+    this.macHash,
+    this.interfaceId,
+    this.registered,
+    this.internetAccess,
+    this.band,
+    this.signalDbm,
+  );
+  final String ipAddress, macHash, interfaceId;
+  final bool registered;
+  final String? internetAccess, band;
+  final int? signalDbm;
+
+  factory CoreKeeneticClientDetail.fromJson(Object? raw) {
+    final value = _object(raw, {
+      'kind',
+      'id',
+      'name',
+      'ipAddress',
+      'macHash',
+      'interfaceId',
+      'online',
+      'registered',
+      'internetAccess',
+      'band',
+      'signalDbm',
+    });
+    final ip = _text(value['ipAddress'], max: 64);
+    final id = _text(value['id'], max: 16);
+    final hash = _text(value['macHash'], max: 16);
+    if (value['kind'] != 'client' ||
+        id != hash ||
+        !RegExp(r'^[0-9a-f]{16}$').hasMatch(hash) ||
+        InternetAddress.tryParse(ip) == null ||
+        value['online'] is! bool ||
+        value['registered'] is! bool ||
+        value['internetAccess'] != null &&
+            !const {'allowed', 'paused'}.contains(value['internetAccess'])) {
+      _invalid();
+    }
+    return CoreKeeneticClientDetail._(
+      id,
+      _text(value['name'], max: 128),
+      value['online'] as bool,
+      ip,
+      hash,
+      _text(value['interfaceId'], max: 128),
+      value['registered'] as bool,
+      value['internetAccess'] as String?,
+      _band(value['band']),
+      _signal(value['signalDbm']),
+    );
+  }
+}
+
+final class CoreKeeneticDetailsPage {
+  const CoreKeeneticDetailsPage._(this.entries, this.snapshot, this.nextAfter);
+  final List<CoreKeeneticDetail> entries;
+  final String snapshot;
+  final String? nextAfter;
+  List<CoreKeeneticInterfaceDetail> get interfaces =>
+      entries.whereType<CoreKeeneticInterfaceDetail>().toList(growable: false);
+  List<CoreKeeneticClientDetail> get clients =>
+      entries.whereType<CoreKeeneticClientDetail>().toList(growable: false);
+
+  factory CoreKeeneticDetailsPage.fromJson(Object? raw) {
+    final value = _object(raw, {'entries', 'snapshot', 'nextAfter'});
+    final rawEntries = value['entries'];
+    if (rawEntries is! List || rawEntries.length > 100) _invalid();
+    final entries = rawEntries
+        .map<CoreKeeneticDetail>((item) {
+          if (item is! Map) _invalid();
+          return switch (item['kind']) {
+            'interface' => CoreKeeneticInterfaceDetail.fromJson(item),
+            'client' => CoreKeeneticClientDetail.fromJson(item),
+            _ => _invalid(),
+          };
+        })
+        .toList(growable: false);
+    if (entries
+            .map((item) => '${item.runtimeType}:${item.id}')
+            .toSet()
+            .length !=
+        entries.length) {
+      _invalid();
+    }
+    String digest(Object? candidate) {
+      if (candidate is! String ||
+          !RegExp(r'^[0-9a-f]{64}$').hasMatch(candidate)) {
+        _invalid();
+      }
+      return candidate;
+    }
+
+    return CoreKeeneticDetailsPage._(
+      List.unmodifiable(entries),
+      digest(value['snapshot']),
+      value['nextAfter'] == null ? null : digest(value['nextAfter']),
+    );
+  }
+
+  CoreKeeneticDetailsPage append(CoreKeeneticDetailsPage next) {
+    if (snapshot != next.snapshot ||
+        entries.length + next.entries.length > 576) {
+      _invalid();
+    }
+    final combined = [...entries, ...next.entries];
+    if (combined
+            .map((item) => '${item.runtimeType}:${item.id}')
+            .toSet()
+            .length !=
+        combined.length) {
+      _invalid();
+    }
+    return CoreKeeneticDetailsPage._(
+      List.unmodifiable(combined),
+      snapshot,
+      next.nextAfter,
+    );
+  }
 }
 
 final class CoreKeeneticBinding {

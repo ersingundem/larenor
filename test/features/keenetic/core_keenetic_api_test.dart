@@ -123,6 +123,46 @@ http.Response response(Object? value, [int status = 200]) => status == 204
       );
 
 void main() {
+  test('details request is bounded and snapshot-bound without retry', () async {
+    final requests = <http.Request>[];
+    final transport = LarenorServerApi(
+      endpoint: ServerEndpoint('https://core.invalid/prefix'),
+      client: MockClient((request) async {
+        requests.add(request);
+        return response({
+          'entries': const [],
+          'snapshot': 'a' * 64,
+          'nextAfter': requests.length == 1 ? 'b' * 64 : null,
+        });
+      }),
+    );
+    addTearDown(transport.close);
+    final api = CoreKeeneticApi(
+      transport,
+      'fixture-token',
+      target(),
+      isCurrent: () => true,
+    );
+    final first = await api.details(limit: 2);
+    await api.details(
+      limit: 2,
+      after: first.nextAfter,
+      expectedSnapshot: first.snapshot,
+    );
+    expect(requests, hasLength(2));
+    expect(requests.first.url.queryParameters, {'limit': '2'});
+    expect(requests.last.url.queryParameters, {
+      'limit': '2',
+      'after': 'b' * 64,
+      'expectedSnapshot': 'a' * 64,
+    });
+    await expectLater(
+      api.details(limit: 101),
+      throwsA(isA<LarenorServerException>()),
+    );
+    expect(requests, hasLength(2));
+  });
+
   test(
     'dashboard readback requires exact resource ACL and binding revisions',
     () {

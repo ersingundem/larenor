@@ -3,6 +3,7 @@ import hashlib
 import hmac
 import json
 import math
+import re
 import secrets
 import threading
 import time
@@ -19,7 +20,15 @@ from ..admin.service import utc
 from ..auth import token_hash
 from ..errors import ApiError, StartupError
 from . import schema
-from .models import BindingPreviewRequest, KeeneticBinding, ResourceSnapshot, Telemetry
+from .models import (
+    BindingPreviewRequest,
+    ClientDetail,
+    DetailsPage,
+    InterfaceDetail,
+    KeeneticBinding,
+    ResourceSnapshot,
+    Telemetry,
+)
 from .transport import KeeneticReadOnlyTransport
 
 PREVIEW_TTL = 60.0
@@ -302,3 +311,71 @@ class KeeneticResourceAdapter:
                 self._cache.popitem(last=False)
             self._cache[key] = (self._now(), fingerprint, result)
             return {"snapshot": result}
+
+    def details_page(self, actor, core, home, resource, *, limit=25, after=None,
+                     expected_snapshot=None, cancelled=lambda: False):
+        if (type(limit) is not int or not 1 <= limit <= 100
+                or (after is None) != (expected_snapshot is None)
+                or after is not None and (
+                    not isinstance(after, str) or re.fullmatch(r"[0-9a-f]{64}", after) is None
+                    or not isinstance(expected_snapshot, str)
+                    or re.fullmatch(r"[0-9a-f]{64}", expected_snapshot) is None)):
+            raise ApiError("invalid_request")
+        observed = self.snapshot(
+            actor, core, home, resource, cancelled=cancelled
+        )["snapshot"]
+        telemetry = Telemetry.model_validate(observed["telemetry"])
+        entries = []
+        for item in telemetry.interfaces:
+            entries.append(InterfaceDetail(
+                id=item.id, name=item.name, interfaceKind=item.kind,
+                online=item.online, address=item.address,
+                rxBytes=item.rxBytes, txBytes=item.txBytes, guest=item.guest,
+                ssid=item.ssid, band=item.band, channel=item.channel,
+                signalDbm=item.signalDbm,
+            ).model_dump(mode="json"))
+        for item in telemetry.hosts:
+            mac_hash = hmac.new(
+                self._key,
+                f"larenor-keenetic-client-v1:{resource}:{item.macAddress.upper()}".encode(),
+                hashlib.sha256,
+            ).hexdigest()[:16]
+            entries.append(ClientDetail(
+                id=mac_hash, name=item.name, ipAddress=item.ipAddress,
+                macHash=mac_hash, interfaceId=item.interfaceId,
+                online=item.online, registered=item.registered,
+                internetAccess=item.internetAccess, band=item.band,
+                signalDbm=item.signalDbm,
+            ).model_dump(mode="json"))
+        entries.sort(key=lambda item: (
+            0 if item["kind"] == "interface" else 1,
+            item.get("interfaceKind", ""), item["id"],
+        ))
+        identity = hashlib.sha256(json.dumps({
+            "ref": observed["ref"],
+            "bindingId": observed["bindingId"],
+            "bindingRevision": observed["bindingRevision"],
+            "serviceId": observed["serviceId"],
+            "serviceRevision": observed["serviceRevision"],
+            "resourceRevision": observed["resourceRevision"],
+            "aclRevision": observed["aclRevision"],
+            "observedAt": observed["observedAt"],
+            "entries": entries,
+        }, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+        if expected_snapshot is not None and not hmac.compare_digest(
+                identity, expected_snapshot):
+            raise ApiError("keenetic_snapshot_changed", 409)
+        cursors = [hashlib.sha256(
+            f"{identity}:{index}:{item['kind']}:{item['id']}".encode()
+        ).hexdigest() for index, item in enumerate(entries)]
+        start = 0
+        if after is not None:
+            try:
+                start = cursors.index(after) + 1
+            except ValueError:
+                raise ApiError("keenetic_snapshot_changed", 409) from None
+        page = entries[start:start + limit]
+        next_after = cursors[start + limit - 1] if start + limit < len(entries) else None
+        return DetailsPage(
+            entries=page, snapshot=identity, nextAfter=next_after
+        ).model_dump(mode="json")

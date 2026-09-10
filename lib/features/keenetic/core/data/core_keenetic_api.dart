@@ -81,6 +81,33 @@ final class CoreKeeneticApi {
       target: target,
     ),
   );
+  Future<CoreKeeneticDetailsPage> details({
+    int limit = 100,
+    String? after,
+    String? expectedSnapshot,
+  }) => _operation(() async {
+    if (limit < 1 ||
+        limit > 100 ||
+        (after == null) != (expectedSnapshot == null) ||
+        after != null &&
+            (!RegExp(r'^[0-9a-f]{64}$').hasMatch(after) ||
+                !RegExp(r'^[0-9a-f]{64}$').hasMatch(expectedSnapshot!))) {
+      throw const LarenorServerException('invalid_request');
+    }
+    final query = <String, String>{'limit': '$limit'};
+    if (after != null) {
+      query['after'] = after;
+      query['expectedSnapshot'] = expectedSnapshot!;
+    }
+    return CoreKeeneticDetailsPage.fromJson(
+      await _transport.request(
+        'GET',
+        '$_path/details',
+        token: _token,
+        queryParameters: query,
+      ),
+    );
+  });
   Future<CoreKeeneticBinding?> binding() => _operation(() async {
     try {
       return CoreKeeneticBinding.fromJson(
