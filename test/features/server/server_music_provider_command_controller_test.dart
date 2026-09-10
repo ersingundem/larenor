@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:larenor/features/server/domain/server_models.dart';
@@ -35,7 +36,70 @@ void main() {
     expect(controller.failure, isNull);
   });
 
-  test('review and confirm are single flight and require two user actions', () async {
+  test(
+    'review and confirm are single flight and require two user actions',
+    () async {
+      final fixture = ProviderCommandFixture();
+      await fixture.account.initialize();
+      final controller = createController(fixture);
+      addTearDown(controller.dispose);
+      addTearDown(fixture.account.dispose);
+      fixture.previewResponse = Completer();
+
+      final firstReview = controller.review('disable', current: () => true);
+      await flush();
+      final duplicateReview = controller.review('disable', current: () => true);
+      await flush();
+      expect(fixture.providerPosts, hasLength(1));
+      expect(controller.busy, isTrue);
+      fixture.previewResponse!.complete(
+        fixture.json({'preview': providerCommandPreviewJson()}, 201),
+      );
+      await Future.wait([firstReview, duplicateReview]);
+      expect(controller.preview, isNotNull);
+      expect(controller.command, isNull);
+      expect(fixture.providerPosts, hasLength(1));
+      final previewBody =
+          jsonDecode(fixture.providerPosts.single.body) as Map<String, dynamic>;
+      expect(previewBody.keys.toSet(), {
+        'requestId',
+        'installationId',
+        'expectedInstallationRevision',
+        'providerSetupId',
+        'expectedProviderRevision',
+        'providerDomain',
+        'command',
+        'settings',
+      });
+      expect(previewBody['settings'], isEmpty);
+      expect(fixture.providerPosts.single.body, isNot(contains('token')));
+
+      fixture.confirmResponse = Completer();
+      final firstConfirm = controller.confirm(current: () => true);
+      await flush();
+      final duplicateConfirm = controller.confirm(current: () => true);
+      await flush();
+      expect(fixture.providerPosts, hasLength(2));
+      fixture.confirmResponse!.complete(
+        fixture.json({
+          'command': providerCommandJson(requestId: 'f' * 32),
+        }, 201),
+      );
+      await Future.wait([firstConfirm, duplicateConfirm]);
+      expect(controller.command, isNotNull);
+      expect(fixture.providerPosts, hasLength(2));
+      final confirmBody = jsonDecode(fixture.providerPosts.last.body) as Map;
+      expect(confirmBody.keys.toSet(), {
+        'requestId',
+        'previewId',
+        'expectedPreviewRevision',
+        'planHash',
+      });
+      expect(fixture.providerPosts.last.body, isNot(contains('token')));
+    },
+  );
+
+  test('strict API response rejects secret-shaped additions', () async {
     final fixture = ProviderCommandFixture();
     await fixture.account.initialize();
     final controller = createController(fixture);
@@ -43,32 +107,19 @@ void main() {
     addTearDown(fixture.account.dispose);
     fixture.previewResponse = Completer();
 
-    final firstReview = controller.review('disable', current: () => true);
+    final pending = controller.review('disable', current: () => true);
     await flush();
-    final duplicateReview = controller.review('disable', current: () => true);
-    await flush();
-    expect(fixture.providerPosts, hasLength(1));
-    expect(controller.busy, isTrue);
     fixture.previewResponse!.complete(
-      fixture.json({'preview': providerCommandPreviewJson()}, 201),
+      fixture.json({
+        'preview': {...providerCommandPreviewJson(), 'token': 'synthetic'},
+      }, 201),
     );
-    await Future.wait([firstReview, duplicateReview]);
-    expect(controller.preview, isNotNull);
-    expect(controller.command, isNull);
-    expect(fixture.providerPosts, hasLength(1));
+    await pending;
 
-    fixture.confirmResponse = Completer();
-    final firstConfirm = controller.confirm(current: () => true);
-    await flush();
-    final duplicateConfirm = controller.confirm(current: () => true);
-    await flush();
-    expect(fixture.providerPosts, hasLength(2));
-    fixture.confirmResponse!.complete(
-      fixture.json({'command': providerCommandJson(requestId: 'f' * 32)}, 201),
-    );
-    await Future.wait([firstConfirm, duplicateConfirm]);
-    expect(controller.command, isNotNull);
-    expect(fixture.providerPosts, hasLength(2));
+    expect(controller.preview, isNull);
+    expect(controller.failure, 'invalid_response');
+    expect(controller.failure, isNot(contains('synthetic')));
+    expect(fixture.providerPosts, hasLength(1));
   });
 
   for (final boundary in ['pin', 'background', 'route', 'account']) {

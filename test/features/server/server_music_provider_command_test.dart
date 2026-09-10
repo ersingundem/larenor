@@ -21,10 +21,7 @@ void main() {
     for (final value in [
       {...providerCommandPreviewJson(), 'token': 'secret'},
       {...providerCommandPreviewJson(), 'effectAvailable': true},
-      {
-        ...providerCommandJson(requestId: 'f' * 32),
-        'state': 'succeeded',
-      },
+      {...providerCommandJson(requestId: 'f' * 32), 'state': 'succeeded'},
     ]) {
       expect(
         () => value.containsKey('planHash')
