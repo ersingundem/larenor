@@ -511,19 +511,6 @@ void main() {
             calls++;
             return null;
           });
-      final ios = ChannelWellbeingNativeApi(
-        channel: channel,
-        platform: TargetPlatform.iOS,
-      );
-      expect(
-        (await ios.probe()).availability,
-        WellbeingAvailability.integrationPending,
-      );
-      expect(
-        (await ios.requestReadPermissions({WellbeingMetric.bodyMass}))
-            .availability,
-        WellbeingAvailability.integrationPending,
-      );
       final linux = ChannelWellbeingNativeApi(
         channel: channel,
         platform: TargetPlatform.linux,

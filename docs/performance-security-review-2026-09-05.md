@@ -106,8 +106,8 @@ ve ortak açık/koyu palet korunmalı.
   veya cihazı ele geçirme karşısında bir güvenlik sınırı olduğu iddia edilmez.
 - Android bulut/device-transfer dışlama politikası kaynak ve derleme düzeyinde
   kontrol edilir. Gerçek OEM yedekleme/geri yükleme testi ayrıca yapılmalı.
-- Release imzası yapılandırması hazırdır; gerçek private key, mağaza dağıtımı ve
-  iOS imzalama bu teslimde oluşturulmadı.
+- Release imzası yapılandırması hazırdır; gerçek private key ve mağaza dağıtımı
+  bu teslimde oluşturulmadı.
 - Gerçek tablette profile modunda 24 saat açık kalma, ağın kesilip gelmesi,
   arka plana geçiş, 60 Hz için frame-time dağılımı, bellek artışı, TalkBack ve
   büyük yazı kabul testi gerekir. Test cihazı olmadan bunlar başarılı sayılmaz.

@@ -12,7 +12,7 @@ veya kişisel cihaz üzerinde veri okuma/izin testi bu dilimde çalıştırılma
 | Health Connect | Android native SDK ile ağırlık, yağ yüzdesi, günlük adım toplamı | Uygun cihaz, kurulmuş/güncel sağlayıcı ve kullanıcı okuma izni |
 | Google Fit / Mi Fitness | Health Connect'e gerçekten paylaşılmış kayıtlar üzerinden | Üretici uygulamasının o veri türünü aktarması gerekir; hesap şifresi alınmaz |
 | Huawei Health | Gereken sağlayıcı uygulama onayı görünür | Health Kit geliştirici kaydı, kapsam onayı ve cihaz kabulü henüz yok |
-| Apple Health | Platform/entegrasyon durumu açık | Android'den doğrudan HealthKit erişimi yok; iOS native HealthKit köprüsü bu dilimde uygulanmadı |
+| Apple Health | Kullanıcı kontrollü Server/Home Assistant aktarım köprüsü planlı | Android'den doğrudan HealthKit erişimi yok; kaynak hesap parolası Client'a verilmez |
 
 Android SDK bağımlılığı `androidx.health.connect:connect-client:1.1.0` sabittir.
 Kütüphane manifesti nedeniyle uygulama minimum API 26 / Android 8'e yükseltildi;
@@ -40,8 +40,8 @@ HA'daki genel ağırlık sensörü insan ölçümü kanıtı değildir. Kullanı
 kişiye kendisi bağlar. `last_updated`, tartılma zamanı diye gösterilmez:
 ölçüm zamanı, kaynak güncellemesi ve okuma zamanı ayrı tutulur. Geçersiz birim,
 NaN/sonsuz veya bozuk aralık güvenli hata olur. Bilinmeyen/boş sonuç sıfıra
-dönüştürülmez. Apple HealthKit'in okuma iznini gizlemesi nedeniyle ilerideki boş
-HealthKit sonucu da tek başına erişim başarısı sayılmayacaktır.
+dönüştürülmez. Apple Health kaynaklı bir üst köprü okuma iznini gizleyebilir;
+boş bir köprü sonucu tek başına erişim başarısı sayılmayacaktır.
 [HA sensör tanımı](https://www.home-assistant.io/integrations/sensor/),
 [Apple HealthKit authorization](https://developer.apple.com/documentation/healthkit/authorizing-access-to-health-data).
 
@@ -69,8 +69,8 @@ Android özel pencere koruması native `FLAG_SECURE` doğrulanmadan kişi etiket
 ve ölçümleri açmaz. Arka planda okuma hakkı iptal edilir; son özel kare Recents'te
 açılmasın diye flag, maskeli ön plan karesinden sonra bırakılır. Eski sayfanın
 geç kapanışı yeni özel sayfanın korumasını kaldıramaz. Önceden başka bileşenin
-sağladığı flag korunur. Bu Android yoludur; iOS için mutlak ekran görüntüsü
-engeli vaat edilmez. OEM Recents davranışı fiziksel cihazda ayrıca sınanmalıdır.
+sağladığı flag korunur. OEM Recents davranışı fiziksel Android cihazda ayrıca
+sınanmalıdır.
 
 Bağlanan HA varlıkları ortak arama, özetler, oda/kart seçicileri, kaydedilmiş
 kartlar ve geçmiş okumalarından çıkarılır. Özel filtre yüklenemiyorsa ortak

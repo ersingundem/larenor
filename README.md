@@ -4,12 +4,14 @@
 **Execution queue:** [all remaining steps and resume instructions](docs/EXECUTION_QUEUE.md), with [validated task state and dependencies](docs/execution-queue.json). Local tests, CI acceptance and physical-device validation are tracked separately.
 **Approved expansion:** [63 selected Core/Android Client features, ordered by dependencies](docs/feature-expansion-plan-2026-09-05.md), including independent [VNC, RDP and SSH remote access](docs/remote-access-plan-2026-09-05.md). Planned features are tracked separately from implemented capabilities.
 
-**Larenor Client** is an **Android app**, designed primarily for tablets. The same
-app supports resizable windows and external displays, including Samsung DeX.
-Native iOS development is paused; the Apple Home-inspired design remains shared
-across tablet orientations and window sizes. A separate phone interface is
-not a current design target; the gallery below focuses on tablet and desktop
-window layouts. **Larenor Server** provides accounts, an encrypted
+**Larenor Client** is an **Android tablet app**. Its primary acceptance targets
+are Huawei MatePad 11.5 S 2026 and other Android tablets, plus resizable windows,
+external displays and keyboard/mouse use through Samsung DeX. The Apple
+Home-inspired Cupertino design remains shared across tablet orientations and
+DeX window sizes. A separate phone interface is not a current design target;
+the gallery below focuses on tablet and resizable DeX layouts. Native iOS,
+iPhone/iPad packaging and App Store delivery are not product targets.
+**Larenor Server** provides accounts, an encrypted
 configuration vault, user/session administration and signed Client release APIs.
 The Client admin area also manages encrypted service connections and bounded
 identity checks for 17 service types. See the [connection guide and limitations](docs/server-service-connections.md).
@@ -324,8 +326,10 @@ representation; physical devices are controlled through actions.
 - The app now requires **Android 8 / API 26**. Health Connect itself requires a
   compatible **Android 9+** device/provider. Huawei availability is checked at
   runtime. Mi Fitness data requires an actual sync into a supported source;
-  Huawei Health developer approval and native Apple Health integration remain
-  external/pending paths, not connected accounts. See the [provider matrix](docs/wellbeing-implementation-2026-09-05.md).
+  Huawei Health developer approval remains an external, pending path. Apple
+  Health data can enter only through an explicit user-controlled Server or Home
+  Assistant bridge; Larenor Client has no direct HealthKit integration. See the
+  [provider matrix](docs/wellbeing-implementation-2026-09-05.md).
 - Android verifies window capture protection before opening the private view.
   Backgrounding revokes the read session while retaining capture protection until
   a masked foreground frame is painted. Actual OEM/Recents behavior remains a
@@ -439,7 +443,7 @@ identity scheme (MusicBrainz/Goodreads, not TMDB) and suit a poster-row layout p
   view shows the current and next items returned by HA, not a fabricated full queue.
 - Spotify, Apple Music and YouTube Music require supported provider setup on a
   Music Assistant server. Subscriptions alone do not configure that server.
-  Larenor includes a native music interface, not the Music Assistant server engine;
+  Larenor includes an Android music interface, not the Music Assistant server engine;
   running that complete engine inside Android and direct subscription SDK login
   are not implemented. No server is installed or account connected automatically.
 - **Play on this device** uses an Android Media3 player and MediaSessionService for
@@ -480,7 +484,7 @@ generic icon:
   quality/bitrate picker is available too, for capping playback to a lower ceiling on
   demand. Playback progress is reported back to Jellyfin so resume/continue-watching
   works. Subtitle and audio track pickers switch between a file's embedded tracks
-  on the fly. iOS-style edge gestures: swipe up/down on the left half of the screen
+  on the fly. Edge gestures: swipe up/down on the left half of the screen
   for brightness, right half for volume, double-tap either side to seek ±10s.
 - **Jellyseerr** — connect with a server URL + API key, search movies/TV, submit
   requests, and track request status ("My Requests").
@@ -599,18 +603,17 @@ list, so the app stays uncluttered no matter how many services exist:
 
 ### Settings
 
-- An iPad-style split view: the categories (Connection, Display & Brightness,
+- A tablet split view: the categories (Connection, Display & Brightness,
   Security, Backup and restore, Home Assistant, Integrations, About) stay listed down the left while the
   selected one fills the right half. Drilling into a category — say Integrations → a
   config flow — keeps the master list visible beside it.
-- On a display too narrow for two useful panes it falls back to the plain iOS
-  behaviour of pushing each category full-screen, so phones and portrait are
-  unaffected. The switch is width-driven, not orientation-driven.
+- On a display too narrow for two useful panes it falls back to single-pane
+  drill-down navigation. The switch is width-driven, not orientation-driven.
 
 ### Shared navigation and search
 
-- Home, Media, Routines and System use persistent branch navigation: phone tabs
-  become a sidebar in wider windows. Room selection and scroll survive a tab
+- Home, Media, Routines and System use persistent branch navigation: the compact
+  bottom bar becomes a sidebar in wider windows. Room selection and scroll survive a tab
   round trip and window resizing. Configuration stays behind the Settings PIN.
 - Global local search finds rooms, member devices, scenes/scripts, cached media
   and configured services. Turkish matching, stable identifiers, media alias
@@ -732,7 +735,7 @@ for remaining platform and physical-device acceptance work.
 
 - The single brand motto is **Unus Lar, omnem domum servat.**
 - App branding and launcher icons share the house/guardian emblem. Android includes
-  adaptive and monochrome vectors; iOS includes the generated icon sizes.
+  adaptive and monochrome vectors.
 - Home, Settings and Media share an adaptive page surface and Inter/Cupertino type
   hierarchy. Resizable tablet, light/dark and larger-text layouts are checked in widget
   tests. [Design previews](docs/previews/) use synthetic fixture data.
@@ -784,8 +787,6 @@ version are verified in CI. This is not a claim of complete coverage of every Ho
 entity, media configuration, Proxmox operation or Keenetic firmware. Live router, media playback,
 server mutation and Android-device verification remains separate from mocked API tests.
 
-The [4 September 2026 implementation review](docs/implementation-review-2026-09-04.md)
-records the current changes, validation status and remaining limitations.
 Read-only compatibility was checked against **HA 2026.8.3** with the actual Dart
 clients: 294 actions / 384 fields, 360 state models, 94 devices, 8 areas, 668 registry
 entries and 46 config entries. History and WebSocket subscription lifecycle also
@@ -798,7 +799,7 @@ Immich and Paperless-ngx in phases. These are proposals, not shipped integration
 
 Deferred work includes OAuth2/PKCE login, broader DPC policies and physical kiosk
 acceptance, ambient video/PDF playlists, push notifications, an Assist voice satellite, multi-profile/guest-mode dashboards,
-a theme editor, and iOS build/signing. Direct Netflix integration, Proxmox backup
+a theme editor. Direct Netflix integration, Proxmox backup
 restore/migration/snapshot management, and Keenetic port-forwarding edits are not
 provided by the current UI. Main CI publishes persistently signed release APKs
 with certificate/package/version checks. Debug APK downloads are retained for

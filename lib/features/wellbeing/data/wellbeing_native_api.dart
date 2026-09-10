@@ -33,15 +33,11 @@ class ChannelWellbeingNativeApi implements WellbeingNativeApi {
   final TargetPlatform _platform;
   final DateTime Function() _now;
   @override
-  WellbeingSource get source => _platform == TargetPlatform.iOS
-      ? WellbeingSource.healthKit
-      : WellbeingSource.healthConnect;
+  WellbeingSource get source => WellbeingSource.healthConnect;
   bool get _android => !kIsWeb && _platform == TargetPlatform.android;
   WellbeingProviderStatus _unsupported() => WellbeingProviderStatus(
     source: source,
-    availability: !kIsWeb && _platform == TargetPlatform.iOS
-        ? WellbeingAvailability.integrationPending
-        : WellbeingAvailability.unsupportedPlatform,
+    availability: WellbeingAvailability.unsupportedPlatform,
     checkedAt: _now(),
   );
 

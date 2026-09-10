@@ -9,15 +9,15 @@ tanımlar; aşağıdaki sağlayıcıların henüz bağlandığı anlamına gelme
 
 | Kaynak | Uygulanacak erişim | Sınır / gereken hazırlık |
 | --- | --- | --- |
-| Apple Health | iOS HealthKit, cihazda kullanılabilirlik kontrolü ve yalnız seçilen okuma izinleri | Android'de HealthKit yok; iPhone'dan kullanıcı kontrollü aktarım veya HA/üretici köprüsü gerekir. iPadOS 17+ desteklenir. |
+| Apple Health | Kullanıcı kontrollü bir Server/Home Assistant aktarım köprüsü | Android'de HealthKit yok; iPhone'dan aktarılan kayıtların kaynağı, zamanı ve kişi eşlemesi korunmalıdır. |
 | Google Health / Health Connect | Android Health Connect, izin verilen kilo/vücut yağ oranı/adım gibi türler | Cihazda gerçek kullanılabilirlik kontrolü yapılır. Google Play servisleri olmayan Huawei tablet için kullanılabilir varsayılmaz. |
 | Huawei Health | Huawei Health Kit'in yetkilendirilmiş okuma API'si | Uygulamanın Huawei kaydı, erişim kapsamlarının onayı ve kullanıcının veri türü izni gerekir; genel uygulama tokenı bu izinlerin yerini tutmaz. |
 | Xiaomi / Mi Fitness | Mi Fitness'in Health Connect'e aktardığı veri türleri; uygun tartı için üretici veya HA yolu | Xiaomi'nin resmi Mi Fitness kaydı Health Connect eşitlemesini bildiriyor. Her modelin bütün ölçümlerini aktardığı varsayılmaz; kapalı bulut uçları taklit edilmez. |
 | HA'ya bağlı akıllı tartılar | Kullanıcının seçtiği kişi ve ölçüm sensörleri, mevcut salt okunur entity akışı | Her tartı markası aynı entity/kişi yapısını kullanmaz. Otomatik olarak tüm evde gösterilmez; birim, kaynak ve ölçüm zamanı korunur. |
 
-Apple cihazlarında HealthKit kullanılabilirliği çalışma anında sorgulanır;
-kurumsal cihaz kısıtlamaları da erişimi engelleyebilir.
-[Apple HealthKit kullanılabilirliği](https://developer.apple.com/documentation/HealthKit/HKHealthStore/isHealthDataAvailable%28%29)
+Apple Health köprüsü, kaynağın verdiği yetki ve paylaşım sınırlarını aşamaz;
+boş sonuç erişim başarısı olarak yorumlanmaz.
+[Apple HealthKit yetkilendirmesi](https://developer.apple.com/documentation/healthkit/authorizing-access-to-health-data)
 
 Health Connect, Android 9+ ve Google Play servisleri gerektirir. Android 14+
 sistem bileşenidir; daha eski destekli sürümlerde ayrı uygulamadır. Uygulama

@@ -1781,7 +1781,7 @@ için [yayın hazırlık planı](readme-publication-plan.md) eklendi. GitHub aç
   sonra hesap/kasa geri yükleme kabulü.
 
 Üretim Home Assistant üzerindeki kontroller salt okunur kalır. Native iOS
-geliştirmesi güncel kapsam dışındadır.
+platform dosyaları kaldırılmıştır; Client Android tablet ve DeX ürünüdür.
 
 ## Son test kanıtı
 
