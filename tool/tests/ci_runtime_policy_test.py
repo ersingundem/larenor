@@ -11,9 +11,10 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[2]
 WORKFLOW = (ROOT / ".github/workflows/android-e2e.yml").read_text()
-KVM_SCRIPT = textwrap.dedent(WORKFLOW.split(
-    "      - name: Enable hardware acceleration\n        run: |\n", 1,
-)[1].split("\n      # Reviewed", 1)[0])
+KVM_STEP = WORKFLOW.split(
+    "      - name: Enable hardware acceleration\n", 1,
+)[1].split("\n      # Reviewed", 1)[0]
+KVM_SCRIPT = textwrap.dedent(KVM_STEP.split("        run: |\n", 1)[1])
 
 # Override every device test and privileged command in the extracted script.
 # A stray command or different target fails; this never changes /dev or udev.
