@@ -79,6 +79,47 @@ class CheckCommitProgressTest(unittest.TestCase):
             self.assertEqual(len(values), 3)
             self.assertEqual(values[-1].queue, (14, 125))
 
+    def test_reports_each_commit_progress_without_commit_message(self):
+        entries = [
+            check_commit_progress.ProgressEntry(
+                '0123456789abcdef',
+                check_commit_progress.ProgressValues((14, 125), (0, 63))),
+            check_commit_progress.ProgressEntry(
+                'fedcba9876543210',
+                check_commit_progress.ProgressValues((15, 125), (1, 63))),
+        ]
+
+        report = check_commit_progress.format_report(entries)
+
+        self.assertIn('| `0123456` | 14/125 (11.2%) | 0/63 (0.0%) |', report)
+        self.assertIn('| `fedcba9` | 15/125 (12.0%) | 1/63 (1.6%) |', report)
+        self.assertNotIn('private commit subject', report)
+
+    def test_main_writes_the_same_commit_report_to_ci_summary(self):
+        with tempfile.TemporaryDirectory() as directory:
+            repo = Path(directory) / 'repo'
+            repo.mkdir()
+            self._git(repo, 'init', '-q')
+            self._git(repo, 'config', 'user.name', 'Larenor Test')
+            self._git(repo, 'config', 'user.email', 'test@larenor.invalid')
+            base = self._commit(repo, 'base', 'base')
+            head = self._commit(
+                repo, 'feature', self._message(
+                    'private commit subject', 14, 125, 0, 63))
+            queue = Path(directory) / 'queue.json'
+            queue.write_text((ROOT / 'docs/execution-queue.json').read_text())
+            summary = Path(directory) / 'summary.md'
+
+            status = check_commit_progress.main([
+                '--base', base, '--head', head, '--repo', str(repo),
+                '--queue', str(queue), '--summary', str(summary),
+            ])
+
+            self.assertEqual(status, 0)
+            written = summary.read_text()
+            self.assertIn(f'| `{head[:7]}` | 14/125 (11.2%) | 0/63 (0.0%) |', written)
+            self.assertNotIn('private commit subject', written)
+
     @staticmethod
     def _message(subject, queue_done, queue_total, feature_done, feature_total):
         return (
