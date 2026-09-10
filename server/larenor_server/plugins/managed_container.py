@@ -193,7 +193,7 @@ class JellyfinResourceProofBroker:
                     or type(resource_journal) is not ResourceJournal
                     or type(volume_journal) is not VolumeCreateJournal
                     or getattr(readers, '_endpoint', None) is not engine_identity
-                    or service_id not in {'jellyfin', 'qbittorrent'}
+                    or service_id not in {'jellyfin', 'qbittorrent', 'sonarr', 'radarr'}
                     or not all(callable(getattr(readers, name, None)) for name in methods)):
                 raise ValueError()
             self.stack = MediaStackPlan.model_validate_json(_wire(stack))
@@ -225,7 +225,7 @@ class JellyfinResourceProofBroker:
             volume_resources = tuple(
                 item for item in volume_plan.resources
                 if item.serviceId == self.service_id
-                or self.service_id == 'qbittorrent'
+                or self.service_id != 'jellyfin'
                 and item.kind == 'managed_library')
             expected_volume_count = 3 if self.service_id == 'jellyfin' else 2
             if len(volume_resources) != expected_volume_count:
@@ -655,7 +655,7 @@ class JellyfinBindingBuilder:
         try:
             if (type(catalog) is not Catalog or type(policy) is not WorkerPolicyBinding
                     or not _identity(container_journal_id) or not callable(proof_provider)
-                    or service_id not in {'jellyfin', 'qbittorrent'}):
+                    or service_id not in {'jellyfin', 'qbittorrent', 'sonarr', 'radarr'}):
                 raise ValueError()
             self.catalog = Catalog.model_validate_json(_wire(catalog))
             self.policy = WorkerPolicyBinding.model_validate_json(_wire(policy))
@@ -712,7 +712,7 @@ class JellyfinBindingBuilder:
             expected_volumes = tuple(
                 item for item in volume_plan.resources
                 if item.serviceId == self.service_id
-                or self.service_id == 'qbittorrent'
+                or self.service_id != 'jellyfin'
                 and item.kind == 'managed_library')
             if type(proof.volumes) is not tuple or len(proof.volumes) != len(expected_volumes) != 0:
                 raise ValueError()
@@ -728,7 +728,7 @@ class JellyfinBindingBuilder:
                             expected.resourceId, expected.operationId, expected.name, expected.target)
                         or not _identity(actual.name, _VOLUME)):
                     raise ValueError()
-                target = ('/data' if self.service_id == 'qbittorrent'
+                target = ('/data' if self.service_id != 'jellyfin'
                           and expected.kind == 'managed_library'
                           else actual.target)
                 consumer = next(
