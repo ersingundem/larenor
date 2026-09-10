@@ -32,6 +32,7 @@ from .installation_execution import (
 from .installation_ipc import InstallationWorkerServer
 from .music_provider_setup_runtime import MusicProviderSetupRuntime
 from .music_playback_runtime import MusicPlaybackRuntime
+from .music_assistant_bootstrap_runtime import MusicAssistantBootstrapRuntime
 from .installation_supervisor import RetainedDaemonPeerVerifier, SupervisedInstallationBackend
 from .jellyfin_bootstrap_executor import JellyfinBootstrapExecutor
 from .jellyfin_startup import JellyfinStartupConfigurator
@@ -281,6 +282,7 @@ class _RuntimeBackend:
             JellyfinAuthenticatedReadback(), JellyfinManagedLibraries())
         self.seerr_bootstrap = SeerrBootstrapExecutor(
             operations, binding_builder, SeerrInitialAdmin())
+        self.music_assistant_bootstrap = MusicAssistantBootstrapRuntime()
         self.music_provider_setup = MusicProviderSetupRuntime()
         self.music_playback = MusicPlaybackRuntime()
 
@@ -329,6 +331,17 @@ class _RuntimeBackend:
     def bootstrap_seerr(self, job, plan, private, *, deadline, gate):
         return self.seerr_bootstrap.execute(
             job, plan, private, deadline=deadline, gate=gate)
+
+    def bootstrap_music_assistant(self, installation_id, username, credential,
+                                  *, deadline, gate):
+        if gate() is not True:
+            raise ValueError('music_assistant_bootstrap_authority_changed')
+        result = self.music_assistant_bootstrap.create(
+            installation_id=installation_id, username=username,
+            credential=credential, deadline=deadline)
+        if gate() is not True:
+            raise ValueError('music_assistant_bootstrap_authority_changed')
+        return result
 
     def configure_qbittorrent(self, job, stack, credential, *, api_key, salt,
                               cancelled, deadline, gate):
