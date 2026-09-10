@@ -109,7 +109,8 @@ class RemoteUi {
     await t.pumpWidget(
       ProviderScope(
         overrides: [
-          if(sshEngine!=null) sshEngineFactoryProvider.overrideWithValue(sshEngine),
+          if (sshEngine != null)
+            sshEngineFactoryProvider.overrideWithValue(sshEngine),
           windowPolicySnapshotProvider.overrideWith((ref) async* {
             yield const WindowPolicySnapshot();
             yield* windows.stream;
