@@ -57,6 +57,18 @@ class _PrivateView:
         return '_PrivateView(<private>)'
 
 
+@dataclass(frozen=True, repr=False)
+class QbittorrentArrDependency:
+    """Verified private input exposed only to the in-process Arr bootstrap."""
+
+    configuration_id: str
+    revision: int
+    api_key: str
+
+    def __repr__(self):
+        return 'QbittorrentArrDependency(<private>)'
+
+
 def _identifier(value):
     if type(value) is not str or re.fullmatch(r'[0-9a-f]{32}', value) is None:
         raise ApiError('invalid_request')
@@ -350,6 +362,29 @@ class QbittorrentConfigurationManagement:
         return _PrivateView(
             payload.private.credential, payload.private.apiKey,
             bytes.fromhex(payload.private.saltHex), receipt)
+
+    def arr_dependency(self, preparation_id):
+        """Resolve a verified qBittorrent service for an Arr configuration job."""
+        _identifier(preparation_id)
+        with self.db.connection() as connection:
+            connection.execute('BEGIN')
+            row = connection.execute(
+                'SELECT * FROM media_qbittorrent_configurations '
+                'WHERE preparation_id=?', (preparation_id,)).fetchone()
+            if row is None:
+                raise ApiError('media_qbittorrent_configuration_required', 409)
+            payload = self._validate_row(connection, row)
+            receipt = payload.receipt
+            if (row['state'] != 'succeeded' or row['phase'] != 'complete'
+                    or row['cancel_requested']
+                    or type(receipt) is not PrivateQbittorrentReceipt
+                    or receipt.state != 'qbittorrent_config_installed'
+                    or receipt.containerState != 'qbittorrent_container_started'
+                    or receipt.serviceState != 'qbittorrent_service_verified'):
+                raise ApiError('media_qbittorrent_configuration_required', 409)
+            return QbittorrentArrDependency(
+                configuration_id=row['id'], revision=row['revision'],
+                api_key=payload.private.apiKey)
 
     def _dispatch_authorized(self, connection, row):
         current = connection.execute(

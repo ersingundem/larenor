@@ -128,6 +128,45 @@ def test_tick_persists_secret_free_journal_receipt(server):
         'configuration': terminal}
 
 
+def test_arr_dependency_exposes_only_verified_private_api_key(server):
+    app, _client, _, _ = server
+    _pair, body, record, _backend = queue(server)
+    manager = app.state.core.qbittorrent_configurations
+    private = manager.private_payload(record['id'])
+    with pytest.raises(Exception, match='media_qbittorrent_configuration_required'):
+        manager.arr_dependency(body['preparationId'])
+
+    terminal = manager.tick()['configuration']
+    dependency = manager.arr_dependency(body['preparationId'])
+    assert dependency.configuration_id == record['id']
+    assert dependency.revision == terminal['revision']
+    assert dependency.api_key == private.api_key
+    assert private.api_key not in repr(dependency)
+
+
+def test_arr_dependency_requires_matching_verified_configuration(server):
+    app, _client, _, _ = server
+    _pair, queued_body, record, _backend = queue(server)
+    manager = app.state.core.qbittorrent_configurations
+    manager.tick()
+    with manager.db.transaction() as connection:
+        row = manager._find(connection, record['id'])
+        payload = manager._decode(row)
+        unverified = payload.receipt.model_copy(update={'serviceState': None})
+        manager._transition(
+            connection, row, payload, state='succeeded', receipt=unverified)
+    with pytest.raises(Exception, match='media_qbittorrent_configuration_required'):
+        manager.arr_dependency(queued_body['preparationId'])
+
+
+def test_arr_dependency_rejects_missing_configuration(server):
+    app, _client, _, _ = server
+    _pair, _preparation, _inspection, body = prepared(server)
+    with pytest.raises(Exception, match='media_qbittorrent_configuration_required'):
+        app.state.core.qbittorrent_configurations.arr_dependency(
+            body['preparationId'])
+
+
 def test_configuration_only_receipt_remains_readable_without_claiming_start(server):
     app, client, _, _ = server
     pair, _body, record, _backend = queue(server)
