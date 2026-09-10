@@ -258,7 +258,12 @@ def test_runtime_projects_bootstrap_failure_as_static_uncertain_result(
         'qbittorrent_config_installed')
 
     def failed(*_args, **_kwargs):
-        raise QbittorrentBootstrapExecutionError(bootstrap_code)
+        raise QbittorrentBootstrapExecutionError(
+            bootstrap_code,
+            cause_code=('qbittorrent_readback_protocol'
+                        if bootstrap_code
+                        == 'qbittorrent_bootstrap_readback_failed'
+                        else None))
 
     backend = object.__new__(runtime._RuntimeBackend)
     backend.qbittorrent_config = SimpleNamespace(
@@ -280,6 +285,10 @@ def test_runtime_projects_bootstrap_failure_as_static_uncertain_result(
             cancelled=threading.Event(), deadline=time.monotonic() + 30,
             gate=lambda: True)
     assert raised.value.uncertain_effect
+    assert raised.value.cause_code == (
+        'qbittorrent_readback_protocol'
+        if bootstrap_code == 'qbittorrent_bootstrap_readback_failed'
+        else None)
 
 
 def test_runtime_projects_unexpected_bootstrap_failure_with_static_boundary(

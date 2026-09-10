@@ -233,6 +233,21 @@ def test_diagnostic_phase_prefers_closed_engine_cause():
     assert failure.value.args == ('engine_stdin_protocol',)
 
 
+def test_diagnostic_phase_preserves_closed_readback_cause():
+    module = api()
+    from larenor_server.plugins.qbittorrent_config_models import (
+        QbittorrentConfigurationExecutionError,
+    )
+
+    with pytest.raises(module.QbittorrentManagedCIError) as failure:
+        with module.diagnostic_phase('runtime_install'):
+            raise QbittorrentConfigurationExecutionError(
+                'qbittorrent_service_verification_failed',
+                uncertain_effect=True,
+                cause_code='qbittorrent_readback_protocol')
+    assert failure.value.args == ('qbittorrent_readback_protocol',)
+
+
 def test_main_prints_only_allowlisted_native_diagnostic(monkeypatch, capsys):
     module = api()
     monkeypatch.setattr(

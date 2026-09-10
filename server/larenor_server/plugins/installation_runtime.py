@@ -380,11 +380,40 @@ class _RuntimeBackend:
                     'qbittorrent_bootstrap_proof_journal_rebind_failed',
                 'qbittorrent_bootstrap_proof_result_failed':
                     'qbittorrent_bootstrap_proof_result_failed',
+                'invalid_qbittorrent_categories':
+                    'invalid_qbittorrent_categories',
+                'qbittorrent_categories_authentication_failed':
+                    'qbittorrent_categories_authentication_failed',
+                'qbittorrent_categories_protocol':
+                    'qbittorrent_categories_protocol',
+                'qbittorrent_category_conflict':
+                    'qbittorrent_category_conflict',
+                'qbittorrent_categories_unavailable':
+                    'qbittorrent_categories_unavailable',
+                'qbittorrent_categories_timeout':
+                    'qbittorrent_categories_timeout',
+                'invalid_qbittorrent_authenticated_readback':
+                    'invalid_qbittorrent_authenticated_readback',
+                'qbittorrent_authentication_failed':
+                    'qbittorrent_authentication_failed',
+                'qbittorrent_readback_protocol':
+                    'qbittorrent_readback_protocol',
+                'qbittorrent_readback_mismatch':
+                    'qbittorrent_readback_mismatch',
+                'qbittorrent_authenticated_readback_unavailable':
+                    'qbittorrent_authenticated_readback_unavailable',
+                'qbittorrent_authenticated_readback_timeout':
+                    'qbittorrent_authenticated_readback_timeout',
             }.get(error.cause_code)
             if (cause is None
                     and error.cause_code == 'qbittorrent_bootstrap_unexpected'
                     and error.boundary is not None):
                 cause = f'qbittorrent_bootstrap_{error.boundary}_failed'
+            if cause is None and error.code in {
+                    'qbittorrent_bootstrap_resources_unavailable',
+                    'qbittorrent_bootstrap_categories_failed',
+                    'qbittorrent_bootstrap_readback_failed'}:
+                cause = error.code
             raise QbittorrentConfigurationExecutionError(
                 code, uncertain_effect=True, cause_code=cause) from None
         except Exception:
