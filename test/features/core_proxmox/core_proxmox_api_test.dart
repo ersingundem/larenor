@@ -24,6 +24,7 @@ void main() {
   late CoreProxmoxApi api;
   setUp(() {
     requests = [];
+    Map<String, dynamic>? proposed;
     api = CoreProxmoxApi(
       LarenorServerApi(
         endpoint: ServerEndpoint('https://core.invalid/prefix'),
@@ -35,18 +36,24 @@ void main() {
           if (path.endsWith('/snapshot')) {
             response = {'snapshot': f['snapshot']};
           } else if (path.endsWith('/binding-preview')) {
+            proposed = {
+              ...f['binding'] as Map,
+              'id': '7' * 32,
+              'revision': 3,
+            };
             response = {
               'preview': {
                 ...f['preview'] as Map,
-                'binding': f['binding'],
+                'binding': proposed,
                 'summary': f['summary'],
               },
             };
             status = 201;
-          } else if (path.endsWith('/binding-confirm') ||
-              path.endsWith('/binding')) {
+          } else if (path.endsWith('/binding-confirm')) {
+            response = {'binding': proposed};
+            status = 201;
+          } else if (path.endsWith('/binding')) {
             response = {'binding': f['binding']};
-            status = path.endsWith('/binding-confirm') ? 201 : 200;
           } else if (path.endsWith('/services')) {
             response = {'services': [f['service']]};
           } else if (path.contains('/home-resources/')) {
