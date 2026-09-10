@@ -1062,7 +1062,7 @@
         }
       ],
       "completionCommit": null,
-      "reason": "Jellyfin 10.11.11 ve qBittorrent 5.2.3 private bootstrap zincirleri iki mimarili native CI ile doğrulandı. Sonarr/Radarr owned config, root folder ve qBittorrent download-client bağlantısı PR56 ile ana dala alındı. Seerr owned /app/config ve ilk admin/API-key temeli PR57, executor ile UID-korumalı worker IPC PR58 ile tam zorunlu CI sonrasında ana dalda. Core artık Seerr için journal-bound kalıcı create/start işi ve doğrulanmış Jellyfin kaynağına exact revizyonla bağlı AES-GCM şifreli bootstrap niyeti üretiyor. Seerr executor dispatch, Sonarr/Radarr/kütüphane/initialize eşleştirmesi, native amd64/arm64 kabulü ve Music Assistant bootstrap açık; installAvailable=false."
+      "reason": "Jellyfin 10.11.11 ve qBittorrent 5.2.3 private bootstrap zincirleri iki mimarili native CI ile doğrulandı. Sonarr/Radarr owned config, root folder ve qBittorrent download-client bağlantısı PR56 ile ana dala alındı. Seerr owned /app/config ve ilk admin/API-key temeli PR57, executor ile UID-korumalı worker IPC PR58 ile tam zorunlu CI sonrasında ana dalda. Core artık Seerr için journal-bound kalıcı create/start işi, doğrulanmış Jellyfin kaynağına exact revizyonla bağlı AES-GCM şifreli bootstrap niyeti ve kesinti/belirsiz etkiyi tekrar çalıştırmayan private worker dispatch üretiyor. Sonarr/Radarr/kütüphane/initialize eşleştirmesi, native amd64/arm64 kabulü ve Music Assistant bootstrap açık; installAvailable=false."
     },
     {
       "id": "S06.6",
