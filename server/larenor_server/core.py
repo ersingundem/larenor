@@ -41,6 +41,8 @@ from .plugins.music_retained_status import MusicRetainedStatusManagement
 from .plugins.music_target_authority import MusicTargetAuthorityManagement
 from .plugins.music_target_authority_schema import migrate_music_target_authority
 from .plugins.music_target_ipc import MusicTargetWorkerClient
+from .plugins.music_target_lease import MusicTargetCredentialLeaseStore
+from .plugins.music_target_leased_client import LeasedMusicTargetWorkerClient
 from .plugins.preflight_ipc import PreflightWorkerClient
 from .plugins.installation_ipc import InstallationWorkerClient
 from .component_egress.storage import migrate as migrate_component_egress
@@ -275,6 +277,15 @@ class CoreServices:
                 else MusicTargetWorkerClient(
                     settings.music_playback_worker_socket,
                     owner_uid=settings.music_playback_worker_uid))
+            if (music_target_backend is not None
+                    and settings.music_playback_lease_dir is not None):
+                music_target_backend = LeasedMusicTargetWorkerClient(
+                    music_target_backend,
+                    MusicTargetCredentialLeaseStore(
+                        settings.music_playback_lease_dir, key,
+                        clock=settings.clock),
+                    self.music_playback.effect_binding,
+                    clock=settings.clock)
             self.music_target_authority = MusicTargetAuthorityManagement(
                 self.db, settings, key, self.music_playback,
                 music_target_backend)

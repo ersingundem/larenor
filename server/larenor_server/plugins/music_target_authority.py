@@ -235,6 +235,7 @@ class MusicTargetAuthorityManagement:
             'providerRevisions': request.expectedProviderRevisions,
             'target': target, 'operation': request.operation,
             'volumeLevel': request.volumeLevel, 'muted': request.muted,
+            'seekPosition': request.seekPosition,
             'mediaUris': request.mediaUris, 'planHash': row['plan_hash'],
             'effectAvailable': False, 'installAvailable': False,
             'blockers': ['effect_unavailable'],
@@ -620,7 +621,8 @@ class MusicTargetAuthorityManagement:
                 playerRevision=request.expectedPlayerRevision,
                 providerRevisions=providers, target=target,
                 operation=request.operation, volumeLevel=request.volumeLevel,
-                muted=request.muted, mediaUris=request.mediaUris)
+                muted=request.muted, seekPosition=request.seekPosition,
+                mediaUris=request.mediaUris)
         deadline = time.monotonic() + 5
 
         def current():

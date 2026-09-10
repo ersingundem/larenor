@@ -8,8 +8,10 @@ import time
 import pytest
 
 from larenor_server.plugins.music_playback_models import (
-    PrivateMusicAssistantServiceBinding,
+    MusicPlaybackCommandRequest, PrivateMusicAssistantServiceBinding,
+    PrivateMusicPlaybackAction,
 )
+from larenor_server.plugins.music_playback_runtime import MusicPlaybackRuntime
 from larenor_server.plugins.music_target_effect_models import (
     MusicTargetEffectEnvelope,
 )
@@ -18,6 +20,9 @@ from larenor_server.plugins.music_target_effect_runtime import (
 )
 from larenor_server.plugins.music_target_lease import (
     MusicTargetCredentialLeaseError, MusicTargetCredentialLeaseStore,
+)
+from larenor_server.plugins.music_target_leased_client import (
+    LeasedMusicTargetWorkerClient,
 )
 from larenor_server.plugins.music_target_transport import (
     MusicAssistantHTTPConnection, MusicTargetTransportError,
@@ -155,11 +160,45 @@ def test_transport_pins_numeric_private_peer_and_rejects_redirect_or_rebind():
         changed.request('POST', '/api', body=b'{}', headers={})
 
 
+@pytest.mark.parametrize(('operation', 'position', 'expected'), [
+    ('resume', None, ('players/cmd/resume', {'player_id': 'homepod-living'})),
+    ('seek', 19, ('players/cmd/seek', {
+        'player_id': 'homepod-living', 'position': 19})),
+])
+def test_runtime_uses_official_allowlisted_resume_and_seek_commands(
+        operation, position, expected):
+    from test_music_playback_runtime import Connection, raw_player
+    player = raw_player()
+    player['supported_features'].append('seek')
+    calls = []
+    responses = [{
+        'server_id': 'mass-fixture', 'server_version': '2.8.0',
+        'schema_version': 29}, player, [{'queue_id': 'homepod-living'}],
+        None, player]
+    runtime = MusicPlaybackRuntime(lambda _timeout: Connection(responses, calls))
+    request = MusicPlaybackCommandRequest(
+        requestId='1' * 32, installationId='5' * 32,
+        expectedInstallationRevision=6, expectedCoreRevision=7,
+        expectedPlayerRevision=8, targetId='homepod-living',
+        expectedProvider='airplay--main', expectedTargetKind='homepod',
+        expectedQueueId='homepod-living', expectedGroupMembers=[],
+        operation=operation, seekPosition=position)
+    result = runtime.execute(
+        PrivateMusicPlaybackAction(request=request, token=binding().token),
+        deadline=time.monotonic() + 2, binding=binding())
+    assert result.state == 'succeeded'
+    assert (calls[3][2]['command'], calls[3][2]['args']) == expected
+    assert [call[2]['command'] for call in calls[:3]] == [
+        'info', 'players/get', 'player_queues/all']
+    assert calls[-1][2]['command'] == 'players/get'
+
+
 class Playback:
     def __init__(self):
         self.calls = []
 
-    def execute(self, action, *, deadline, cancelled=None):
+    def execute(self, action, *, deadline, cancelled=None, binding=None):
+        assert binding is not None
         self.calls.append(action)
         target = action.request
         from larenor_server.plugins.music_playback_models import (
@@ -188,6 +227,35 @@ def test_worker_consumes_lease_and_returns_only_authenticated_readback(tmp_path)
     assert 'private-token-cookie' not in result.model_dump_json()
     with pytest.raises(MusicTargetCredentialLeaseError):
         store.consume(action)
+
+
+def test_core_issues_lease_without_adding_credentials_to_ipc_envelope(tmp_path):
+    store = MusicTargetCredentialLeaseStore(
+        private_root(tmp_path), b'w' * 32, clock=time.time)
+    action = effect()
+    seen = []
+
+    class Delegate:
+        def execute_music_target_effect(self, envelope, *, deadline, gate):
+            seen.append(envelope.model_dump(mode='json'))
+            private = store.consume(envelope)
+            assert private.token == 'private-token-cookie'
+            from larenor_server.plugins.music_target_effect_models import (
+                MusicTargetEffectResult,
+            )
+            return MusicTargetEffectResult(
+                state='succeeded', executionId=envelope.executionId,
+                commandId=envelope.commandId, requestId=envelope.requestId,
+                target=envelope.target)
+
+    client = LeasedMusicTargetWorkerClient(
+        Delegate(), store, lambda _action: binding(), clock=time.time)
+    result = client.execute_music_target_effect(
+        action, deadline=time.monotonic() + 2, gate=lambda: True)
+    assert result.state == 'succeeded'
+    wire = json.dumps(seen)
+    assert all(value not in wire.lower() for value in (
+        'private-token-cookie', 'token', 'cookie', 'endpoint', '127.0.0.1'))
 
 
 class Stop:

@@ -10,11 +10,11 @@ from ..models import StrictModel
 
 
 PlaybackOperation = Literal[
-    'play', 'pause', 'stop', 'next', 'previous', 'volume', 'mute',
+    'play', 'pause', 'resume', 'stop', 'seek', 'next', 'previous', 'volume', 'mute',
     'queue_add', 'queue_replace', 'queue_clear',
 ]
 PlayerCapability = Literal[
-    'play', 'pause', 'stop', 'next_previous', 'volume_set', 'volume_mute',
+    'play', 'pause', 'stop', 'seek', 'next_previous', 'volume_set', 'volume_mute',
     'queue',
 ]
 
@@ -33,7 +33,7 @@ class VerifiedMusicPlayer(StrictModel):
     muted: bool | None = None
     groupMembers: list[str] = Field(max_length=64)
     queueId: str | None = Field(default=None, max_length=128)
-    capabilities: list[PlayerCapability] = Field(max_length=7)
+    capabilities: list[PlayerCapability] = Field(max_length=8)
 
     @field_validator('playerId', 'provider', 'queueId')
     @classmethod
@@ -103,6 +103,7 @@ class MusicPlaybackCommandRequest(StrictModel):
     operation: PlaybackOperation
     volumeLevel: int | None = Field(default=None, ge=0, le=100)
     muted: bool | None = None
+    seekPosition: int | None = Field(default=None, ge=0, le=7 * 24 * 60 * 60)
     mediaUris: list[str] = Field(default_factory=list, max_length=64, repr=False)
 
     @model_validator(mode='after')
@@ -111,6 +112,7 @@ class MusicPlaybackCommandRequest(StrictModel):
         if (media != bool(self.mediaUris)
                 or (self.operation == 'volume') != (self.volumeLevel is not None)
                 or (self.operation == 'mute') != (self.muted is not None)
+                or (self.operation == 'seek') != (self.seekPosition is not None)
                 or len(set(self.expectedGroupMembers)) != len(self.expectedGroupMembers)):
             raise ValueError('invalid_music_playback_command')
         if (any(re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9_.:\-]{0,127}', item)
@@ -159,6 +161,35 @@ class MusicPlaybackReceiptResponse(StrictModel):
 class PrivateMusicPlaybackAuthority(StrictModel):
     installationId: ObjectId
     token: str = Field(min_length=1, max_length=2048, repr=False)
+
+
+class PrivateMusicAssistantServiceBinding(StrictModel):
+    installationId: ObjectId
+    installationRevision: Revision
+    coreRevision: Revision
+    endpoint: str = Field(min_length=1, max_length=256, repr=False)
+    pinnedPeer: str = Field(min_length=7, max_length=45)
+    serverId: str = Field(min_length=1, max_length=128)
+    serverVersion: str = Field(min_length=1, max_length=80)
+    schemaVersion: int = Field(ge=1, le=2**31 - 1)
+    token: str = Field(min_length=1, max_length=2048, repr=False)
+
+    @model_validator(mode='after')
+    def private_numeric_endpoint(self):
+        import ipaddress
+        from urllib.parse import urlsplit
+        try:
+            parsed = urlsplit(self.endpoint)
+            address = ipaddress.ip_address(parsed.hostname or '')
+            if (parsed.scheme != 'http' or parsed.username is not None
+                    or parsed.password is not None or parsed.path not in {'', '/'}
+                    or parsed.query or parsed.fragment or parsed.port is None
+                    or str(address) != self.pinnedPeer
+                    or not (address.is_private or address.is_loopback)):
+                raise ValueError()
+        except Exception:
+            raise ValueError('invalid_music_service_binding') from None
+        return self
 
 
 class PrivateMusicPlaybackAction(StrictModel):

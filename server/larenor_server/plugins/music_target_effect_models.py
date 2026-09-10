@@ -27,13 +27,15 @@ class MusicTargetEffectEnvelope(StrictModel):
     operation: PlaybackOperation
     volumeLevel: int | None = Field(default=None, ge=0, le=100)
     muted: bool | None = None
+    seekPosition: int | None = Field(default=None, ge=0, le=7 * 24 * 60 * 60)
     mediaUris: list[str] = Field(default_factory=list, max_length=64, repr=False)
 
     @model_validator(mode='after')
     def coherent(self):
         media = self.operation in {'queue_add', 'queue_replace'}
         capability = {
-            'play': 'play', 'pause': 'pause', 'stop': 'stop',
+            'play': 'play', 'pause': 'pause', 'resume': 'play', 'stop': 'stop',
+            'seek': 'seek',
             'next': 'next_previous', 'previous': 'next_previous',
             'volume': 'volume_set', 'mute': 'volume_mute',
             'queue_add': 'queue', 'queue_replace': 'queue',
@@ -42,6 +44,7 @@ class MusicTargetEffectEnvelope(StrictModel):
         if (media != bool(self.mediaUris)
                 or (self.operation == 'volume') != (self.volumeLevel is not None)
                 or (self.operation == 'mute') != (self.muted is not None)
+                or (self.operation == 'seek') != (self.seekPosition is not None)
                 or len({item.id for item in self.providerRevisions})
                 != len(self.providerRevisions)
                 or not self.target.available or not self.target.enabled

@@ -24,6 +24,7 @@ class Settings:
     installation_worker_uid: int = 0
     music_playback_worker_socket: Path | None = None
     music_playback_worker_uid: int = 0
+    music_playback_lease_dir: Path | None = None
 
     def __post_init__(self):
         if (type(self.plugin_worker_uid) is not int or not 0 <= self.plugin_worker_uid < 2**31
@@ -33,7 +34,7 @@ class Settings:
                 or not 0 <= self.music_playback_worker_uid < 2**31):
             raise ValueError("invalid_worker_configuration")
         paths = (self.plugin_worker_socket, self.installation_worker_socket,
-                 self.music_playback_worker_socket)
+                 self.music_playback_worker_socket, self.music_playback_lease_dir)
         for path in paths:
             if path is not None and (not isinstance(path, Path) or not path.is_absolute()
                     or ".." in path.parts or any(ord(char) < 32 or ord(char) == 127 for char in str(path))):
@@ -67,6 +68,9 @@ class Settings:
                     "LARENOR_MUSIC_PLAYBACK_WORKER_SOCKET") else None,
                 music_playback_worker_uid=int(os.environ.get(
                     "LARENOR_MUSIC_PLAYBACK_WORKER_UID", "0")),
+                music_playback_lease_dir=Path(
+                    os.environ["LARENOR_MUSIC_PLAYBACK_LEASE_DIR"]
+                ) if os.environ.get("LARENOR_MUSIC_PLAYBACK_LEASE_DIR") else None,
             )
         except ValueError:
             # int() errors include their input. Environment values must never

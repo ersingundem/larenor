@@ -31,7 +31,7 @@ class MusicTarget(StrictModel):
     muted: bool | None = None
     groupMemberIds: list[str] = Field(max_length=64)
     queueId: str | None = Field(default=None, max_length=128)
-    capabilities: list[PlayerCapability] = Field(max_length=7)
+    capabilities: list[PlayerCapability] = Field(max_length=8)
 
     @model_validator(mode='after')
     def coherent(self):
@@ -86,6 +86,7 @@ class CreateMusicTargetCommandPreviewRequest(ReadMusicTargetInventoryRequest):
     operation: PlaybackOperation
     volumeLevel: int | None = Field(default=None, ge=0, le=100)
     muted: bool | None = None
+    seekPosition: int | None = Field(default=None, ge=0, le=7 * 24 * 60 * 60)
     mediaUris: list[str] = Field(default_factory=list, max_length=64, repr=False)
 
     @model_validator(mode='after')
@@ -94,6 +95,7 @@ class CreateMusicTargetCommandPreviewRequest(ReadMusicTargetInventoryRequest):
         if (media != bool(self.mediaUris)
                 or (self.operation == 'volume') != (self.volumeLevel is not None)
                 or (self.operation == 'mute') != (self.muted is not None)
+                or (self.operation == 'seek') != (self.seekPosition is not None)
                 or len(set(self.expectedGroupMemberIds)) != len(
                     self.expectedGroupMemberIds)
                 or any(type(uri) is not str or not 0 < len(uri) <= 2048
@@ -116,6 +118,7 @@ class MusicTargetCommandPreview(StrictModel):
     operation: PlaybackOperation
     volumeLevel: int | None
     muted: bool | None
+    seekPosition: int | None
     mediaUris: list[str] = Field(max_length=64, repr=False)
     planHash: str = Field(pattern=r'^[0-9a-f]{64}$')
     effectAvailable: Literal[False]

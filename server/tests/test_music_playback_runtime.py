@@ -34,9 +34,7 @@ class Connection:
         self.calls.append((method, path, json.loads(body), headers))
 
     def getresponse(self):
-        request = self.calls[-1][2]
-        return Response({'message_id': request['message_id'],
-                         'result': self.responses.pop(0)})
+        return Response(self.responses.pop(0))
 
     def close(self):
         pass

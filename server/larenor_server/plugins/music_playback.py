@@ -14,6 +14,7 @@ from .music_playback_models import (
     MusicPlaybackCommandRequest, MusicPlaybackReadback, MusicPlaybackState,
     MusicPlaybackWorkerResult, PrivateMusicPlaybackAction,
     PrivateMusicPlaybackAuthority, RefreshMusicPlaybackRequest,
+    PrivateMusicAssistantServiceBinding,
     _StoredMusicPlayback, _StoredPlaybackCommand,
 )
 
@@ -106,6 +107,24 @@ class MusicPlaybackManagement:
         token = self.music_core._decode(core).token
         return PrivateMusicPlaybackAuthority(
             installationId=installation_id, token=token)
+
+    def effect_binding(self, action):
+        """Resolve one current encrypted Core identity for a private lease."""
+        with self.db.connection() as connection:
+            authority = self._authority(
+                connection, action.installationId,
+                action.installationRevision, action.coreRevision)
+            row = connection.execute(
+                'SELECT * FROM music_assistant_core WHERE installation_id=?',
+                (action.installationId,)).fetchone()
+            stored = self.music_core._decode(row)
+            return PrivateMusicAssistantServiceBinding(
+                installationId=action.installationId,
+                installationRevision=action.installationRevision,
+                coreRevision=action.coreRevision,
+                endpoint='http://127.0.0.1:8095', pinnedPeer='127.0.0.1',
+                serverId=stored.serverId, serverVersion=stored.serverVersion,
+                schemaVersion=stored.schemaVersion, token=authority.token)
 
     @staticmethod
     def _player(stored, player_id):

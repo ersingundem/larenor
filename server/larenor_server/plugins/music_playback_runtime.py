@@ -1,8 +1,10 @@
 """Fixed-endpoint authenticated Music Assistant player runtime."""
 
+import hashlib
 import http.client
 import json
 import math
+import re
 import threading
 import time
 
@@ -11,7 +13,12 @@ from pydantic import ValidationError
 from .music_playback_models import (
     MusicPlaybackReadback, MusicPlaybackWorkerResult,
     PrivateMusicPlaybackAction, PrivateMusicPlaybackAuthority,
+    PrivateMusicAssistantServiceBinding,
     VerifiedMusicPlayer,
+)
+from .music_target_transport import (
+    MAX_MUSIC_ASSISTANT_FRAME, MusicAssistantHTTPConnection,
+    decode_music_assistant_frame,
 )
 
 
@@ -21,6 +28,7 @@ class MusicPlaybackRuntimeError(Exception):
 
 class MusicPlaybackRuntime:
     def __init__(self, connection_factory=None):
+        self._uses_default_connection = connection_factory is None
         self.connection_factory = connection_factory or (
             lambda timeout: http.client.HTTPConnection(
                 '127.0.0.1', 8095, timeout=timeout))
@@ -31,11 +39,21 @@ class MusicPlaybackRuntime:
                 or time.monotonic() >= deadline or cancelled.is_set()):
             raise MusicPlaybackRuntimeError('music_playback_cancelled')
 
-    def _command(self, request_id, token, command, args, deadline, cancelled):
+    def _connection(self, binding, timeout):
+        if binding is None:
+            return self.connection_factory(timeout)
+        if self._uses_default_connection:
+            return MusicAssistantHTTPConnection(
+                binding.endpoint, binding.pinnedPeer, timeout)
+        return self.connection_factory(timeout)
+
+    def _command(self, request_id, token, command, args, deadline, cancelled,
+                 binding=None):
         self._check(deadline, cancelled)
-        message_id = request_id + '-' + command.rsplit('/', 1)[-1]
-        connection = self.connection_factory(
-            max(.001, deadline - time.monotonic()))
+        message_id = request_id + '-' + hashlib.sha256(
+            command.encode('ascii')).hexdigest()[:16]
+        connection = self._connection(
+            binding, max(.001, deadline - time.monotonic()))
         try:
             connection.request('POST', '/api', body=json.dumps({
                 'message_id': message_id, 'command': command, 'args': args,
@@ -45,16 +63,15 @@ class MusicPlaybackRuntime:
                 'Connection': 'close',
             })
             response = connection.getresponse()
-            raw = response.read(262145)
-            if response.status != 200 or len(raw) > 262144:
+            raw = response.read(MAX_MUSIC_ASSISTANT_FRAME + 1)
+            if response.status != 200 or len(raw) > MAX_MUSIC_ASSISTANT_FRAME:
                 raise ValueError()
-            parsed = json.loads(raw)
-            if (type(parsed) is not dict
-                    or set(parsed) != {'message_id', 'result'}
-                    or parsed['message_id'] != message_id):
-                raise ValueError()
+            # Music Assistant's authenticated POST /api returns the command
+            # result directly; the message_id only belongs to CommandMessage.
+            # Source: music-assistant/server webserver controller.
+            parsed = decode_music_assistant_frame(raw)
             self._check(deadline, cancelled)
-            return parsed['result']
+            return parsed
         except MusicPlaybackRuntimeError:
             raise
         except Exception:
@@ -79,13 +96,19 @@ class MusicPlaybackRuntime:
             if type(device) is not dict:
                 raise ValueError()
             model = str(device.get('model') or '').lower()
-            airplay = provider.split('--', 1)[0] == 'airplay'
-            if group:
-                kind = 'airplay_group' if airplay else 'group'
+            domain = provider.split('--', 1)[0]
+            airplay = domain == 'airplay'
+            chromecast = domain in {'chromecast', 'cast'}
+            if group and airplay:
+                kind = 'airplay_group'
+            elif group and chromecast:
+                kind = 'chromecast_group'
             elif airplay and 'homepod' in model:
                 kind = 'homepod'
             elif airplay:
                 kind = 'airplay'
+            elif chromecast:
+                kind = 'chromecast'
             else:
                 kind = 'other'
             source = raw.get('active_source')
@@ -98,6 +121,8 @@ class MusicPlaybackRuntime:
                 capabilities.append('pause')
             if 'next_previous' in features:
                 capabilities.append('next_previous')
+            if 'seek' in features:
+                capabilities.append('seek')
             if raw.get('volume_control') not in (None, 'none'):
                 capabilities.append('volume_set')
             if raw.get('mute_control') not in (None, 'none'):
@@ -118,6 +143,28 @@ class MusicPlaybackRuntime:
             raise MusicPlaybackRuntimeError(
                 'music_player_readback_changed') from None
 
+    @staticmethod
+    def _queue_ids(raw):
+        try:
+            if type(raw) is not list or len(raw) > 256:
+                raise ValueError()
+            values = []
+            for item in raw:
+                if type(item) is not dict or 'queue_id' not in item:
+                    raise ValueError()
+                identifier = item['queue_id']
+                if (type(identifier) is not str or re.fullmatch(
+                        r'[A-Za-z0-9][A-Za-z0-9_.:\-]{0,127}',
+                        identifier) is None):
+                    raise ValueError()
+                values.append(identifier)
+            if len(values) != len(set(values)):
+                raise ValueError()
+            return set(values)
+        except (TypeError, ValueError):
+            raise MusicPlaybackRuntimeError(
+                'music_player_readback_changed') from None
+
     def read(self, authority, *, deadline, cancelled=None):
         if type(authority) is not PrivateMusicPlaybackAuthority:
             raise MusicPlaybackRuntimeError('invalid_music_playback_action')
@@ -132,30 +179,45 @@ class MusicPlaybackRuntime:
         if type(queues) is not list or type(players) is not list:
             raise MusicPlaybackRuntimeError('music_player_readback_changed')
         try:
-            queue_ids = {item['queue_id'] for item in queues
-                         if type(item) is dict and type(item.get('queue_id')) is str}
+            queue_ids = self._queue_ids(queues)
             return MusicPlaybackReadback(
                 players=[self._player(item, queue_ids) for item in players])
         except ValidationError:
             raise MusicPlaybackRuntimeError(
                 'music_player_readback_changed') from None
 
-    def execute(self, action, *, deadline, cancelled=None):
+    def execute(self, action, *, deadline, cancelled=None, binding=None):
         if type(action) is not PrivateMusicPlaybackAction:
             raise MusicPlaybackRuntimeError('invalid_music_playback_action')
         cancelled = threading.Event() if cancelled is None else cancelled
         request = action.request
+        if binding is not None:
+            if (type(binding) is not PrivateMusicAssistantServiceBinding
+                    or binding.installationId != request.installationId
+                    or binding.installationRevision
+                    != request.expectedInstallationRevision
+                    or binding.coreRevision != request.expectedCoreRevision
+                    or binding.token != action.token):
+                raise MusicPlaybackRuntimeError('invalid_music_playback_action')
+            info = self._command(
+                request.requestId, action.token, 'info', {}, deadline,
+                cancelled, binding)
+            if (type(info) is not dict or set(info) != {
+                    'server_id', 'server_version', 'schema_version'}
+                    or info['server_id'] != binding.serverId
+                    or info['server_version'] != binding.serverVersion
+                    or info['schema_version'] != binding.schemaVersion):
+                raise MusicPlaybackRuntimeError('music_service_binding_changed')
         before_raw = self._command(
             request.requestId, action.token, 'players/get', {
                 'player_id': request.targetId, 'raise_unavailable': True},
-            deadline, cancelled)
+            deadline, cancelled, binding)
         queues = self._command(
             request.requestId, action.token, 'player_queues/all', {}, deadline,
-            cancelled)
+            cancelled, binding)
         if type(queues) is not list:
             raise MusicPlaybackRuntimeError('music_player_readback_changed')
-        queue_ids = {item['queue_id'] for item in queues
-                     if type(item) is dict and type(item.get('queue_id')) is str}
+        queue_ids = self._queue_ids(queues)
         before = self._player(before_raw, queue_ids)
         if (not before.available or not before.enabled
                 or before.groupMembers != request.expectedGroupMembers
@@ -164,7 +226,8 @@ class MusicPlaybackRuntime:
                 or before.queueId != request.expectedQueueId):
             raise MusicPlaybackRuntimeError('music_player_changed')
         expected_capability = {
-            'play': 'play', 'pause': 'pause', 'stop': 'stop',
+            'play': 'play', 'pause': 'pause', 'resume': 'play', 'stop': 'stop',
+            'seek': 'seek',
             'next': 'next_previous', 'previous': 'next_previous',
             'volume': 'volume_set', 'mute': 'volume_mute',
             'queue_add': 'queue', 'queue_replace': 'queue',
@@ -175,7 +238,11 @@ class MusicPlaybackRuntime:
         commands = {
             'play': ('players/cmd/play', {'player_id': request.targetId}),
             'pause': ('players/cmd/pause', {'player_id': request.targetId}),
+            'resume': ('players/cmd/resume', {'player_id': request.targetId}),
             'stop': ('players/cmd/stop', {'player_id': request.targetId}),
+            'seek': ('players/cmd/seek', {
+                'player_id': request.targetId,
+                'position': request.seekPosition}),
             'next': ('players/cmd/next', {'player_id': request.targetId}),
             'previous': ('players/cmd/previous', {'player_id': request.targetId}),
             'volume': ('players/cmd/volume_set', {
@@ -196,13 +263,14 @@ class MusicPlaybackRuntime:
         if request.operation.startswith('queue_') and before.queueId is None:
             raise MusicPlaybackRuntimeError('music_player_changed')
         result = self._command(
-            request.requestId, action.token, command, args, deadline, cancelled)
+            request.requestId, action.token, command, args, deadline, cancelled,
+            binding)
         if result is not None:
             raise MusicPlaybackRuntimeError('music_playback_upstream_changed')
         after_raw = self._command(
             request.requestId, action.token, 'players/get', {
                 'player_id': request.targetId, 'raise_unavailable': True},
-            deadline, cancelled)
+            deadline, cancelled, binding)
         after = self._player(after_raw, queue_ids)
         if (after.groupMembers != request.expectedGroupMembers
                 or after.provider != request.expectedProvider
