@@ -60,6 +60,9 @@ from .home_assistant.migration_schema import migrate as migrate_direct_ha
 from .home_assistant.migration import DirectHaMigration
 from .proxmox.schema import migrate as migrate_proxmox_resources
 from .proxmox.service import ProxmoxResourceAdapter
+from .keenetic_commands.schema import migrate as migrate_keenetic_commands
+from .keenetic_commands.journal import KeeneticCommandJournal, state_tag as keenetic_state_tag
+from .keenetic_commands.service import KeeneticCommandAuthority
 
 
 class CoreServices:
@@ -180,6 +183,14 @@ class CoreServices:
                 migrate_music_assistant_core(connection)
                 migrate_music_provider_setups(connection)
                 migrate_music_playback(connection)
+                migrate_keenetic_commands(
+                    connection,
+                    key,
+                    self.context,
+                    lambda scope, chain, sequence, head: keenetic_state_tag(
+                        scope, chain, sequence, head, key
+                    ),
+                )
             if not existed:
                 # Only publish the DB after its complete first transaction commits.
                 # Never expose an empty DB that a restart might treat as a reset.
@@ -262,6 +273,46 @@ class CoreServices:
                 self.db, self.auth, settings, key, self.music_assistant_core,
                 self.music_provider_setups, installation_backend)
             self.music_playback.validate_storage()
+            self.keenetic_command_journal = KeeneticCommandJournal(
+                self.db, self.auth, settings, key, self.context
+            )
+            self.keenetic_command_journal.validate_storage()
+
+            def keenetic_actor_revision(actor):
+                with self.db.connection() as connection:
+                    self.auth.assert_current(connection, actor)
+                    row = connection.execute(
+                        "SELECT revision FROM users WHERE id=?", (actor.id,)
+                    ).fetchone()
+                    if row is None:
+                        raise ValueError("missing_actor")
+                    return row["revision"]
+
+            def keenetic_authorize(actor, target, action):
+                self.home_resources.authorize(
+                    actor,
+                    target.coreId,
+                    target.homeId,
+                    target.resourceId,
+                    action,
+                    expected_revision=target.resourceRevision,
+                    expected_acl_revision=target.aclRevision,
+                    expected_user_revision=keenetic_actor_revision(actor),
+                )
+
+            def unavailable_keenetic_observer(_target):
+                # The read-only adapter is intentionally not promoted to a
+                # mutating effect or trusted state source in this slice.
+                from .errors import ApiError
+                raise ApiError("keenetic_command_unavailable", 503)
+
+            self.keenetic_commands = KeeneticCommandAuthority(
+                authorize=keenetic_authorize,
+                observe=unavailable_keenetic_observer,
+                actor_revision=keenetic_actor_revision,
+                journal=self.keenetic_command_journal,
+                wall_clock=settings.clock,
+            )
             self.clear_inactive_bootstrap()
 
     def clear_inactive_bootstrap(self) -> None:
