@@ -9,6 +9,8 @@ import '../../../core/home_session_controller.dart';
 import '../../../core/window/window_policy_providers.dart';
 import '../../../l10n/generated/app_localizations.dart';
 import '../../core_ha/presentation/core_ha_screen.dart';
+import '../../keenetic/core/presentation/core_keenetic_screen.dart';
+import '../../server/providers/server_providers.dart';
 import '../data/home_resources_api.dart';
 import '../data/home_resources_controller.dart';
 import '../domain/home_resource_models.dart';
@@ -252,7 +254,7 @@ class _CoreHomeResourcesState extends ConsumerState<CoreHomeResources>
                         ),
                         const SizedBox(height: 4),
                         Text(kind),
-                        if (entry.kind == HomeResourceKind.resource)
+                        if (entry.kind == HomeResourceKind.resource) ...[
                           button(
                             'core-ha-open-${entry.id}',
                             '${l10n.coreHaOpen}: ${entry.label}',
@@ -266,6 +268,26 @@ class _CoreHomeResourcesState extends ConsumerState<CoreHomeResources>
                               );
                             },
                           ),
+                          button(
+                            'core-keenetic-open-${entry.id}',
+                            '${l10n.coreKeeneticOpen}: ${entry.label}',
+                            true,
+                            () async {
+                              if (!current()) return;
+                              final session = ref
+                                  .read(serverAccountControllerProvider)
+                                  .session;
+                              await Navigator.of(context).push<void>(
+                                CupertinoPageRoute(
+                                  builder: (_) => CoreKeeneticScreen(
+                                    target: entry,
+                                    admin: session?.user.canAdminister == true,
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
+                        ],
                       ],
                     ),
                   ),

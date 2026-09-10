@@ -76,6 +76,12 @@ async def observe(request, operation):
             pass
 
 
+@router.get(ADMIN + "/binding", response_model=BindingResponse)
+def binding(core_id: Identity, home_id: Identity, resource_id: Identity,
+            actor: Admin, core: Core):
+    return core.keenetic_resources.binding(actor, core_id, home_id, resource_id)
+
+
 @router.post(ADMIN + "/binding-preview", response_model=PreviewResponse, status_code=201)
 async def preview(core_id: Identity, home_id: Identity, resource_id: Identity,
                   body: BindingPreviewRequest, request: Request, actor: Admin, core: Core):

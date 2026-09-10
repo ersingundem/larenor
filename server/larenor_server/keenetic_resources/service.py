@@ -224,6 +224,13 @@ class KeeneticResourceAdapter:
             self._target(c, facts, resource); self._pending(actor, resource, preview_id)
             del self._previews[preview_id]
 
+    def binding(self, actor, core, home, resource):
+        with self._tx(actor, core, home, admin=True) as (c, facts):
+            binding = self._target(c, facts, resource)[3]
+            if binding is None:
+                raise ApiError("not_found", 404)
+            return {"binding": binding.model_dump()}
+
     def confirm(self, actor, core, home, resource, preview_id):
         with self._tx(actor, core, home, admin=True) as (c, facts):
             self._target(c, facts, resource)
@@ -265,7 +272,7 @@ class KeeneticResourceAdapter:
             result = ResourceSnapshot(ref=ref, bindingId=binding.id, bindingRevision=binding.revision,
                 serviceId=service.id, serviceRevision=service.revision, resourceRevision=row["revision"],
                 aclRevision=row["acl_revision"], observedAt=utc(self.settings.clock()),
-                remainingTtlMs=5000, telemetry=telemetry).model_dump()
+                remainingTtlMs=5000, telemetry=telemetry).model_dump(mode="json")
             if len(json.dumps(result).encode()) > MAX_CACHE_ENTRY:
                 raise ApiError("keenetic_snapshot_unsupported", 502)
             self._cache.pop(key, None)

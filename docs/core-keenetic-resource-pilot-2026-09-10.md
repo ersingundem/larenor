@@ -42,3 +42,28 @@ telemetri yolu açıktır ve bu pilot tarafından değiştirilmez. Kullanıcı C
 bağlantısı kurmadan Direct profili kullanmaya devam edebilir. Merkezi yol için
 gerçek Keenetic transport, cihaz/firmware matrisi ve fiziksel tablet-router
 kabulü sonraki S08.9 dilimleridir.
+
+## Android tablet/DeX istemci dilimi
+
+Home Resources listesindeki bir `resource`, ayrı Core ağ telemetrisi rotasını
+açar. Rota kaynak seçildiği andaki Core/home/account kimliğine bağlıdır; pencere,
+uygulama odağı, oturum, home kaynağı, kullanıcı veya ACL değişirse geç cevap
+yayınlanmaz ve eski Direct Keenetic profiline geri düşülmez.
+
+Üye görünümü yalnız snapshot GET çağrısı yapar. Yönetici görünümü exact binding
+readback, authenticated Keenetic servis seçimi, preview, tek kullanımlık confirm
+ve cancel akışını gösterir. Public IP yalnız doğrulanmış IPv4/IPv6 metniyse
+maskelenmeden sunulur. Online durumu, uptime, download/upload, CPU/RAM, bağlı
+cihaz sayısı ve interface sayaçları aynı tipli snapshot üzerinden okunur.
+Unknown, denied, unsupported, offline ve stale durumları ayrı metin ve semantik
+durumlarla gösterilir.
+
+Panel geniş tablet ve yeniden boyutlandırılabilir DeX penceresinde tek okunabilir
+sütun kullanır. Etkileşimler en az 48 dp, klavyeyle erişilebilir ve TalkBack için
+etiketlidir; 2× sistem yazı ölçeğinde yatay metrik satırları esnek kalır. Tasarım,
+dinamik sistem renkleri ve mevcut Larenor Cupertino yüzeylerini kullanır.
+
+Mevcut dashboard Keenetic kartları Direct profile bağlıdır. Bu pilot, kaynak
+kimliği/revizyonu için henüz ayrı bir Core kart sözleşmesi olmadan onları sessizce
+merkezi kaynağa çevirmedi. Core dashboard kartı, kalıcı layout CAS ve kaynak ACL
+yeniden doğrulamasını birlikte ekleyecek sonraki bounded dilimde kalır.

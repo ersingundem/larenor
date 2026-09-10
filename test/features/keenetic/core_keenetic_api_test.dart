@@ -9,7 +9,6 @@ import 'package:larenor/features/keenetic/core/data/core_keenetic_api.dart';
 import 'package:larenor/features/keenetic/core/domain/core_keenetic_models.dart';
 import 'package:larenor/features/server/data/larenor_server_api.dart';
 import 'package:larenor/features/server/domain/server_models.dart';
-import 'package:larenor/features/server/services/domain/server_service_models.dart';
 
 Map<String, dynamic> scopeJson() => {
   'schemaVersion': 1,
@@ -111,8 +110,11 @@ Map<String, dynamic> serviceJson() => {
 };
 http.Response response(Object? value, [int status = 200]) => status == 204
     ? http.Response('', 204)
-    : http.Response(jsonEncode(value), status,
-          headers: {'content-type': 'application/json'});
+    : http.Response(
+        jsonEncode(value),
+        status,
+        headers: {'content-type': 'application/json'},
+      );
 
 void main() {
   test('strict telemetry preserves public IP and typed metrics', () {
@@ -123,11 +125,23 @@ void main() {
     expect(value.onlineHosts, 1);
     for (final invalid in [
       {...telemetryJson(), 'private': 'secret'},
-      {...telemetryJson(), 'status': {...telemetryJson()['status'] as Map, 'online': 'yes'}},
+      {
+        ...telemetryJson(),
+        'status': {...telemetryJson()['status'] as Map, 'online': 'yes'},
+      },
       {...telemetryJson(), 'interfaces': []},
+      {
+        ...telemetryJson(),
+        'status': {
+          ...telemetryJson()['status'] as Map,
+          'firmware': 'safe\u202Etxt',
+        },
+      },
     ]) {
-      expect(() => CoreKeeneticTelemetry.fromJson(invalid),
-          throwsA(isA<LarenorServerException>()));
+      expect(
+        () => CoreKeeneticTelemetry.fromJson(invalid),
+        throwsA(isA<LarenorServerException>()),
+      );
     }
   });
 
@@ -136,7 +150,9 @@ void main() {
     final replies = [
       {'snapshot': snapshotJson()},
       {'binding': bindingJson()},
-      {'services': [serviceJson()]},
+      {
+        'services': [serviceJson()],
+      },
       {'preview': previewJson()},
       {'binding': bindingJson()},
       null,
@@ -145,18 +161,33 @@ void main() {
       endpoint: ServerEndpoint('https://core.invalid/prefix'),
       client: MockClient((request) async {
         requests.add(request);
-        return response(replies[requests.length - 1], requests.length == 6 ? 204 : 200);
+        return response(
+          replies[requests.length - 1],
+          requests.length == 6 ? 204 : 200,
+        );
       }),
     );
     addTearDown(transport.close);
-    final api = CoreKeeneticApi(transport, 'fixture-token', target(), isCurrent: () => true);
+    final api = CoreKeeneticApi(
+      transport,
+      'fixture-token',
+      target(),
+      isCurrent: () => true,
+    );
     expect((await api.snapshot()).telemetry.status.online, isTrue);
     expect((await api.binding())!.id, '4' * 32);
     final service = (await api.services()).single;
     final preview = await api.preview(service: service, existing: null);
     expect((await api.confirm(preview)).sameBinding(preview.binding), isTrue);
     await api.cancel(preview);
-    expect(requests.map((r) => r.method), ['GET', 'GET', 'GET', 'POST', 'POST', 'DELETE']);
+    expect(requests.map((r) => r.method), [
+      'GET',
+      'GET',
+      'GET',
+      'POST',
+      'POST',
+      'DELETE',
+    ]);
     expect(jsonDecode(requests[3].body), {
       'serviceId': '5' * 32,
       'expectedServiceRevision': 1,
@@ -164,7 +195,12 @@ void main() {
       'expectedAclRevision': 1,
       'expectedBindingId': null,
     });
-    expect(requests.every((r) => r.headers['authorization'] == 'Bearer fixture-token'), isTrue);
+    expect(
+      requests.every(
+        (r) => r.headers['authorization'] == 'Bearer fixture-token',
+      ),
+      isTrue,
+    );
   });
 
   test('retired late response is cancelled and cannot reopen', () async {
@@ -172,15 +208,31 @@ void main() {
     var current = true, calls = 0;
     final transport = LarenorServerApi(
       endpoint: ServerEndpoint('https://core.invalid'),
-      client: MockClient((_) { calls++; return pending.future; }),
+      client: MockClient((_) {
+        calls++;
+        return pending.future;
+      }),
     );
     addTearDown(transport.close);
-    final api = CoreKeeneticApi(transport, 'fixture-token', target(), isCurrent: () => current);
+    final api = CoreKeeneticApi(
+      transport,
+      'fixture-token',
+      target(),
+      isCurrent: () => current,
+    );
     final result = api.snapshot();
     current = false;
     pending.complete(response({'snapshot': snapshotJson()}));
-    await expectLater(result, throwsA(isA<LarenorServerException>()
-        .having((e) => e.code, 'code', 'cancelled')));
+    await expectLater(
+      result,
+      throwsA(
+        isA<LarenorServerException>().having(
+          (e) => e.code,
+          'code',
+          'cancelled',
+        ),
+      ),
+    );
     current = true;
     await expectLater(api.snapshot(), throwsA(isA<LarenorServerException>()));
     expect(calls, 1);

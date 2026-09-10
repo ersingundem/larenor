@@ -1,13 +1,16 @@
 """Central Keenetic telemetry uses only a packaged synthetic reader seam."""
 from conftest import auth, ready
 from larenor_server.errors import ApiError
+from larenor_server.keenetic_resources.models import Telemetry
+from pydantic import ValidationError
 from test_admin import activate
 from test_admin import create as create_user
 
 
 def _snapshot():
     return {
-        "status": {"online": True, "uptimeSeconds": 86400, "firmware": "4.3.6"},
+        "status": {"online": True, "publicIp": "198.51.100.20", "uptimeSeconds": 86400,
+                   "firmware": "4.3.6", "cpuPercent": 17.5, "memoryPercent": 42.0},
         "interfaces": [{"id": "GigabitEthernet0", "name": "Internet", "kind": "wan",
                         "online": True, "address": "192.0.2.2", "rxBytes": 1200, "txBytes": 500}],
         "traffic": {"rxBytes": 1200, "txBytes": 500, "downloadBps": 90, "uploadBps": 30},
@@ -15,6 +18,16 @@ def _snapshot():
                    "macAddress": "02:00:00:00:00:01", "interfaceId": "GigabitEthernet0",
                    "online": True, "registered": True}],
     }
+
+
+def test_typed_snapshot_rejects_directional_control_text():
+    value = _snapshot()
+    value["status"]["firmware"] = "safe\N{RIGHT-TO-LEFT OVERRIDE}txt"
+    try:
+        Telemetry.model_validate(value)
+        assert False
+    except ValidationError:
+        pass
 
 
 def setup(server):
@@ -52,6 +65,7 @@ def test_admin_preview_confirm_and_authorized_cached_snapshot(server):
     preview, binding = bind(client, admin, base, body)
     assert preview["snapshot"] == _snapshot()
     assert binding == preview["binding"]
+    assert client.get(base + "/binding", headers=auth(admin)).json()["binding"] == binding
     assert client.post(base + "/binding-confirm", headers=auth(admin),
                        json={"previewId": preview["id"]}).status_code == 409
     first = client.get(public + "/snapshot", headers=auth(admin))

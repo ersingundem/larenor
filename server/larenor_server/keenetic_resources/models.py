@@ -1,6 +1,6 @@
 from typing import Annotated, Literal
 
-from pydantic import Field, field_validator, model_validator
+from pydantic import Field, IPvAnyAddress, field_validator, model_validator
 
 from ..home_resources.models import FrozenModel, Identity, ResourceRef, Revision
 
@@ -9,7 +9,17 @@ Counter = Annotated[int, Field(ge=0, le=2**63 - 1)]
 
 
 def _safe(value):
-    if any(ord(c) < 32 or ord(c) == 127 or 0xD800 <= ord(c) <= 0xDFFF for c in value):
+    if value is None:
+        return value
+    if any(
+        ord(c) < 32
+        or 127 <= ord(c) <= 159
+        or 0xD800 <= ord(c) <= 0xDFFF
+        or 0x202A <= ord(c) <= 0x202E
+        or 0x2066 <= ord(c) <= 0x2069
+        or ord(c) == 0xFEFF
+        for c in value
+    ):
         raise ValueError("unsafe_text")
     return value
 
@@ -36,8 +46,11 @@ class KeeneticBinding(FrozenModel):
 
 class RouterStatus(FrozenModel):
     online: bool
+    publicIp: IPvAnyAddress | None
     uptimeSeconds: Counter
     firmware: str | None = Field(default=None, max_length=80)
+    cpuPercent: Annotated[float, Field(ge=0, le=100)] | None
+    memoryPercent: Annotated[float, Field(ge=0, le=100)] | None
 
     _firmware = field_validator("firmware")(_safe)
 
@@ -76,7 +89,7 @@ class HostTelemetry(FrozenModel):
 
 class Telemetry(FrozenModel):
     status: RouterStatus
-    interfaces: list[InterfaceTelemetry] = Field(max_length=64)
+    interfaces: list[InterfaceTelemetry] = Field(min_length=1, max_length=64)
     traffic: TrafficTelemetry
     hosts: list[HostTelemetry] = Field(max_length=512)
 
