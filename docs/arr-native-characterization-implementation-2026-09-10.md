@@ -20,3 +20,6 @@ security policy, queue validation, diff ve Gitleaks PASS. Bu belge gerçek nativ
 koşunun geçtiğini iddia etmez. Dört GitHub matris makbuzu exact PR head üzerinde
 başarılı olup tekrar doğrulanana kadar `installAvailable=false` ve sayaçlar
 değişmez.
+
+PR #51 güncel `main` tabanında açıldı; retarget sonrası bu belge güncellemesi
+dört native matris işini exact head üzerinde tetikler.

@@ -383,6 +383,7 @@ makbuz sözleşmesi **25 odaklı / 239 ilgili PASS** ile yerelde doğrulandı; R
 compileall, security policy, queue ve Gitleaks PASS. Gerçek dört native makbuz
 henüz gözlenmediğinden `installAvailable=false` ve sayaç değişmedi.
 [Uygulama ve açık sınırlar](arr-native-characterization-implementation-2026-09-10.md).
+Native kapı PR #51 ile güncel `main` tabanında çalıştırılıyor.
 
 S06.4 native kabul koşusu [34326112926](https://github.com/ersingundem/larenor/actions/runs/34326112926)
 iki gerçek GitHub runner'ında geçti. İndirilen ARM64 ve X64 makbuzları merge
