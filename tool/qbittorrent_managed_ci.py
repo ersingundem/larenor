@@ -410,8 +410,23 @@ def _prepare_volumes(daemon, source, helper_id):
                 == {'writable': True, 'uid': 1000, 'gid': 1000})
 
 
-def _install_and_restart(daemon, source, endpoint, helper_id):
+def _runtime_backend(operations, binding, endpoint, volumes, catalog, policy,
+                     helper_id, platform):
+    from larenor_server.plugins.arr_config_runtime import ArrConfigRuntime
     from larenor_server.plugins.installation_runtime import _RuntimeBackend
+    from larenor_server.plugins.qbittorrent_config_runtime import (
+        QbittorrentConfigRuntime,
+    )
+
+    return _RuntimeBackend(
+        operations, binding,
+        QbittorrentConfigRuntime(
+            endpoint, volumes, catalog, policy, helper_id, platform),
+        ArrConfigRuntime(
+            endpoint, volumes, catalog, policy, helper_id, platform))
+
+
+def _install_and_restart(daemon, source, endpoint, helper_id):
     from larenor_server.plugins.managed_container import (
         JellyfinBindingBuilder, JellyfinEngineReaders,
         JellyfinResourceProofBroker, JournaledManagedContainerOperations,
@@ -419,9 +434,6 @@ def _install_and_restart(daemon, source, endpoint, helper_id):
     )
     from larenor_server.plugins.qbittorrent_config_models import (
         PrivateQbittorrentConfiguration,
-    )
-    from larenor_server.plugins.qbittorrent_config_runtime import (
-        QbittorrentConfigRuntime,
     )
     from larenor_server.plugins.resource_journal import ResourceJournal
     from larenor_server.plugins.volume_bootstrap import VolumeBootstrapVerifier
@@ -456,11 +468,9 @@ def _install_and_restart(daemon, source, endpoint, helper_id):
             engine = smoke._managed_engine(endpoint)
             operations = JournaledManagedContainerOperations(
                 containers, engine)
-            backend = _RuntimeBackend(
-                operations, binding,
-                QbittorrentConfigRuntime(
-                    endpoint, volumes, source.catalog, source.policy,
-                    helper_id, daemon.platform))
+            backend = _runtime_backend(
+                operations, binding, endpoint, volumes,
+                source.catalog, source.policy, helper_id, daemon.platform)
         with diagnostic_phase('runtime_install'):
             receipt = backend.install_configured_qbittorrent(
                 job, source.stack, private.credential,
