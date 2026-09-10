@@ -21,6 +21,15 @@ String _id(Object? value) {
   return value;
 }
 
+String _digest(Object? value) {
+  if (value is! String ||
+      value.length != 64 ||
+      !RegExp(r'^[0-9a-f]{64}$').hasMatch(value)) {
+    _invalid();
+  }
+  return value;
+}
+
 int _integer(Object? value, {int min = 0, int max = 9223372036854775807}) {
   if (value is! int || value < min || value > max) _invalid();
   return value;
@@ -221,14 +230,79 @@ final class CoreProxmoxStorage {
   }
 }
 
+enum CoreProxmoxTaskStatus { running, succeeded, failed }
+
+final class CoreProxmoxRecentTask {
+  const CoreProxmoxRecentTask._({
+    required this.id,
+    required this.node,
+    required this.kind,
+    required this.status,
+    required this.startedAt,
+    required this.finishedAt,
+  });
+
+  final String id, node, kind;
+  final CoreProxmoxTaskStatus status;
+  final DateTime startedAt;
+  final DateTime? finishedAt;
+
+  factory CoreProxmoxRecentTask.fromJson(Object? raw) {
+    final value = _object(raw, {
+      'taskId',
+      'node',
+      'kind',
+      'status',
+      'startedAt',
+      'finishedAt',
+    });
+    final status = switch (value['status']) {
+      'running' => CoreProxmoxTaskStatus.running,
+      'succeeded' => CoreProxmoxTaskStatus.succeeded,
+      'failed' => CoreProxmoxTaskStatus.failed,
+      _ => _invalid(),
+    };
+    final started = _timestamp(value['startedAt']);
+    final finished = value['finishedAt'] == null
+        ? null
+        : _timestamp(value['finishedAt']);
+    if ((status == CoreProxmoxTaskStatus.running) != (finished == null) ||
+        finished != null && finished.isBefore(started)) {
+      _invalid();
+    }
+    return CoreProxmoxRecentTask._(
+      id: _digest(value['taskId']),
+      node: _safe(
+        value['node'],
+        max: 64,
+        pattern: r'^[A-Za-z0-9][A-Za-z0-9._-]*$',
+      ),
+      kind: _safe(
+        value['kind'],
+        max: 64,
+        pattern: r'^[A-Za-z0-9][A-Za-z0-9._-]*$',
+      ),
+      status: status,
+      startedAt: started,
+      finishedAt: finished,
+    );
+  }
+}
+
 final class CoreProxmoxSummary {
-  const CoreProxmoxSummary._(this.nodes, this.guests, this.storages);
+  const CoreProxmoxSummary._(
+    this.nodes,
+    this.guests,
+    this.storages,
+    this.recentTasks,
+  );
   final List<CoreProxmoxNode> nodes;
   final List<CoreProxmoxGuest> guests;
   final List<CoreProxmoxStorage> storages;
+  final List<CoreProxmoxRecentTask> recentTasks;
 
   factory CoreProxmoxSummary.fromJson(Object? raw) {
-    final value = _object(raw, {'nodes', 'guests', 'storages'});
+    final value = _object(raw, {'nodes', 'guests', 'storages', 'recentTasks'});
     List<T> list<T>(String key, int max, T Function(Object?) parse) {
       final source = value[key];
       if (source is! List || source.length > max) _invalid();
@@ -237,15 +311,17 @@ final class CoreProxmoxSummary {
 
     final nodes = list('nodes', 32, CoreProxmoxNode.fromJson),
         guests = list('guests', 256, CoreProxmoxGuest.fromJson),
-        storages = list('storages', 64, CoreProxmoxStorage.fromJson);
+        storages = list('storages', 64, CoreProxmoxStorage.fromJson),
+        recentTasks = list('recentTasks', 20, CoreProxmoxRecentTask.fromJson);
     if (nodes.map((e) => e.name).toSet().length != nodes.length ||
         guests.map((e) => '${e.kind.name}:${e.vmId}').toSet().length !=
             guests.length ||
         storages.map((e) => '${e.node}:${e.name}').toSet().length !=
-            storages.length) {
+            storages.length ||
+        recentTasks.map((e) => e.id).toSet().length != recentTasks.length) {
       _invalid();
     }
-    return CoreProxmoxSummary._(nodes, guests, storages);
+    return CoreProxmoxSummary._(nodes, guests, storages, recentTasks);
   }
 }
 
