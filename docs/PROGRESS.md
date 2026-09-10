@@ -571,7 +571,14 @@ Radarr ve Sonarr bağlantısını önce test eden, yalnız doğrulanmış kalite
 ile `/media/movies` ve `/media/tv` köklerini kabul eden, ardından create ve exact
 readback yapan private adaptörü ekledi. Mevcut exact kayıt idempotent kalıyor;
 yabancı kayıt veya response drift'i üzerine yazılmıyor. Adaptörün kalıcı Seerr
-işine bağlanması ve `initialize` readback'i açık.
+işine bağlanması açık. `8fddf2bd` → `6f9c9f9b` TDD dilimi, resmî
+`POST /api/v1/settings/initialize` çağrısını en fazla bir etkide tutan ve aynı
+`plexClientIdentifier` için authenticated public readback görmeden başarı
+vermeyen adaptörü ekledi. Zaten tamamlanmış örnek idempotent kalıyor; kayıp
+cevap veya şema sapması otomatik tekrarlanmayan belirsiz etki olarak kapanıyor.
+Yeni 8 test ve ilgili Seerr paketinde **48 PASS**; compileall, Security ve diff
+kapıları temiz. Arr ve initialize adaptörlerinin kalıcı Seerr işine bağlanması
+ile native iki mimari kabul açık; `installAvailable=false` değişmedi.
 [Seerr konteyner işi kanıtı](seerr-container-installation-implementation-2026-09-10.md).
 
 S06.4 native kabul koşusu [34326112926](https://github.com/ersingundem/larenor/actions/runs/34326112926)
