@@ -282,6 +282,26 @@ def test_runtime_projects_bootstrap_failure_as_static_uncertain_result(
     assert raised.value.uncertain_effect
 
 
+def test_runtime_closes_unexpected_qbittorrent_configure_failure():
+    backend = object.__new__(runtime._RuntimeBackend)
+    backend.qbittorrent_config = SimpleNamespace(
+        install=lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            RuntimeError('private failure')))
+
+    with pytest.raises(
+        runtime.QbittorrentConfigurationExecutionError,
+        match='^qbittorrent_config_resources_unavailable$',
+    ) as raised:
+        backend.install_configured_qbittorrent(
+            'd' * 32, object(), 'c' * 48,
+            api_key='a' * 32, salt=b'1' * 16,
+            cancelled=threading.Event(), deadline=time.monotonic() + 30,
+            gate=lambda: True)
+
+    assert raised.value.cause_code == 'qbittorrent_configure_stage_failed'
+    assert 'private failure' not in repr(raised.value)
+
+
 def test_runtime_routes_every_engine_connection_through_one_peer_verifier(configuration):
     policy = runtime.load_policy(configuration)
     verifier = lambda _connection: policy.endpoint.owner_uid

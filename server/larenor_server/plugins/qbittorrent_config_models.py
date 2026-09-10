@@ -53,18 +53,27 @@ QB_CONFIG_EXECUTION_CODES = frozenset({
     'qbittorrent_service_changed',
     'qbittorrent_service_verification_failed',
 })
+QB_CONFIG_CAUSE_CODES = frozenset({
+    'qbittorrent_configure_stage_failed',
+    'qbittorrent_execution_stage_failed',
+    'qbittorrent_bootstrap_stage_failed',
+    'qbittorrent_receipt_stage_failed',
+})
 
 
 class QbittorrentConfigurationExecutionError(Exception):
     """Closed error crossing the Core-to-worker boundary."""
 
     def __init__(self, code='qbittorrent_config_resources_unavailable', *,
-                 uncertain_effect=False):
+                 uncertain_effect=False, cause_code=None):
         self.code = (code if code in QB_CONFIG_EXECUTION_CODES
                      else 'qbittorrent_config_resources_unavailable')
         self.uncertain_effect = uncertain_effect is True
+        self.cause_code = (
+            cause_code if cause_code in QB_CONFIG_CAUSE_CODES else None)
         super().__init__(self.code)
 
     def __repr__(self):
         return (f'QbittorrentConfigurationExecutionError({self.code!r}, '
-                f'uncertain_effect={self.uncertain_effect!r})')
+                f'uncertain_effect={self.uncertain_effect!r}, '
+                f'cause_code={self.cause_code!r})')
