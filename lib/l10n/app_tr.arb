@@ -2453,5 +2453,42 @@
   "rdpKeyboardAutomatic": "Klavye: Otomatik",
   "rdpKeyboardUs": "Klavye: ABD",
   "rdpClipboardDisabled": "Pano: Kapalı",
-  "rdpClipboardBidirectional": "Pano: Çift yönlü"
+  "rdpClipboardBidirectional": "Pano: Çift yönlü",
+  "vncTitle": "VNC hazırlığı",
+  "vncProfileHint": "Güvenli VNC hazırlık panelini açın. Oturum yalnız paketlenmiş motor RFB 3.8, TLS, sertifika sabitleme, ekran, touchpad ve klavye yeteneklerini kanıtlarsa sunulur.",
+  "vncCheck": "VNC yeteneğini denetle",
+  "vncEngineUnavailable": "Bu sürümde yerel VNC motoru paketlenmemiş. DNS sorgusu veya bağlantı denenmedi.",
+  "vncChecking": "Paketlenmiş yetenekler ve RFB güvenliği denetleniyor…",
+  "vncPlainRejected": "Düz VNC güvensizdir ve varsayılan olarak engellenir.",
+  "vncNoAuthRejected": "Sunucu kimlik doğrulamasız VNC oturumu sundu. Oturum engellendi.",
+  "vncSecurityUnsupported": "RFB güvenlik seçimi paketlenmiş motor tarafından desteklenmiyor.",
+  "vncCertificateChanged": "TLS sertifikası kayıtlı sabitlemeden farklı. Oturum engellendi.",
+  "vncCertificateReview": "VNC parolasını girmeden önce bu TLS sertifikasını inceleyip sabitleyin.",
+  "vncTrustCertificate": "Bu sertifikaya güven",
+  "vncPassword": "Tek kullanımlık VNC parolası",
+  "vncAuthenticate": "Doğrulanmış oturumu aç",
+  "vncConnecting": "Doğrulanmış VNC oturumu açılıyor…",
+  "vncConnected": "VNC aktarımı bağlandı. Yerel framebuffer çizimi motorun sorumluluğundadır.",
+  "vncClosed": "VNC oturumu kapandı. Yeni deneme için profili yeniden açın.",
+  "vncFailed": "VNC oturumu başarısız. Otomatik yeniden deneme veya girdi tekrarı yapılmadı.",
+  "vncClipboardOff": "Pano: Kapalı",
+  "vncFilesOff": "Dosyalar: Kapalı",
+  "vncChannelsHint": "Pano ve dosya kanalları kapalı başlar; ayrı açık yetenek ve izin çalışması gerektirir.",
+  "vncDisplay": "Ekran",
+  "vncDisplayValue": "{width} × {height} · {dpi} DPI",
+  "@vncDisplayValue": {
+    "placeholders": {
+      "width": {
+        "type": "int"
+      },
+      "height": {
+        "type": "int"
+      },
+      "dpi": {
+        "type": "int"
+      }
+    }
+  },
+  "vncExternalDisplay": "DeX / harici ekran profili",
+  "vncInputReady": "Touchpad ve fiziksel klavye girdisi bu ön plan oturumuyla sınırlıdır."
 }

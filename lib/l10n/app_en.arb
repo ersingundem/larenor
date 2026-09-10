@@ -2781,5 +2781,42 @@
   "rdpKeyboardAutomatic": "Keyboard: Automatic",
   "rdpKeyboardUs": "Keyboard: US",
   "rdpClipboardDisabled": "Clipboard: Disabled",
-  "rdpClipboardBidirectional": "Clipboard: Bidirectional"
+  "rdpClipboardBidirectional": "Clipboard: Bidirectional",
+  "vncTitle": "VNC readiness",
+  "vncProfileHint": "Open the secure VNC readiness panel. A session is offered only when the packaged engine proves RFB 3.8, TLS, certificate pinning, display, touchpad, and keyboard capabilities.",
+  "vncCheck": "Check VNC capability",
+  "vncEngineUnavailable": "A native VNC engine is not packaged in this build. No DNS lookup or connection was attempted.",
+  "vncChecking": "Checking packaged capabilities and RFB security…",
+  "vncPlainRejected": "Plain VNC is insecure and is blocked by default.",
+  "vncNoAuthRejected": "The server offered an unauthenticated VNC session. It was blocked.",
+  "vncSecurityUnsupported": "The RFB security selection is not supported by the packaged engine.",
+  "vncCertificateChanged": "The TLS certificate differs from the saved pin. The session was blocked.",
+  "vncCertificateReview": "Review and pin this TLS certificate before entering a VNC password.",
+  "vncTrustCertificate": "Trust this certificate",
+  "vncPassword": "One-time VNC password",
+  "vncAuthenticate": "Open verified session",
+  "vncConnecting": "Opening the verified VNC session…",
+  "vncConnected": "VNC transport connected. Native framebuffer rendering remains engine-owned.",
+  "vncClosed": "VNC session closed. Reopen the profile for a new attempt.",
+  "vncFailed": "VNC session failed. No automatic retry or input replay occurred.",
+  "vncClipboardOff": "Clipboard: Off",
+  "vncFilesOff": "Files: Off",
+  "vncChannelsHint": "Clipboard and file channels start disabled and require separate explicit capability and consent work.",
+  "vncDisplay": "Display",
+  "vncDisplayValue": "{width} × {height} · {dpi} DPI",
+  "@vncDisplayValue": {
+    "placeholders": {
+      "width": {
+        "type": "int"
+      },
+      "height": {
+        "type": "int"
+      },
+      "dpi": {
+        "type": "int"
+      }
+    }
+  },
+  "vncExternalDisplay": "DeX / external display profile",
+  "vncInputReady": "Touchpad and physical keyboard input are scoped to this foreground session."
 }
