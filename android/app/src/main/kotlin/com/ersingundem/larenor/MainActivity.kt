@@ -5,6 +5,7 @@ import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import androidx.media3.common.util.UnstableApi
 import com.ersingundem.larenor.audio.LocalAudioBridge
+import com.ersingundem.larenor.cast.CoreCastRouteBridge
 import com.ersingundem.larenor.music.CoreMusicSessionBridge
 import com.ersingundem.larenor.window.WindowPolicyBridge
 import com.ersingundem.larenor.kiosk.KioskBridge
@@ -15,6 +16,7 @@ import com.ersingundem.larenor.wellbeing.WellbeingBridge
 class MainActivity : FlutterActivity() {
     private var localAudio: LocalAudioBridge? = null
     private var coreMusicSession: CoreMusicSessionBridge? = null
+    private var coreCastRoutes: CoreCastRouteBridge? = null
     private var windowPolicy: WindowPolicyBridge? = null
     private var wellbeing: WellbeingBridge? = null
     private var kiosk: KioskBridge? = null
@@ -23,6 +25,7 @@ class MainActivity : FlutterActivity() {
         super.configureFlutterEngine(flutterEngine)
         localAudio = LocalAudioBridge(this, flutterEngine.dartExecutor.binaryMessenger)
         coreMusicSession = CoreMusicSessionBridge(this, flutterEngine.dartExecutor.binaryMessenger)
+        coreCastRoutes = CoreCastRouteBridge(this, flutterEngine.dartExecutor.binaryMessenger)
         windowPolicy = WindowPolicyBridge(this, flutterEngine.dartExecutor.binaryMessenger)
         wellbeing = WellbeingBridge(this, flutterEngine.dartExecutor.binaryMessenger)
         kiosk = KioskBridge(this, flutterEngine.dartExecutor.binaryMessenger)
@@ -32,6 +35,7 @@ class MainActivity : FlutterActivity() {
         super.onResume()
         localAudio?.setResumed(true)
         coreMusicSession?.setResumed(true)
+        coreCastRoutes?.setResumed(true)
         windowPolicy?.setResumed(true)
         wellbeing?.setResumed(true)
         kiosk?.setResumed(true)
@@ -40,6 +44,7 @@ class MainActivity : FlutterActivity() {
     override fun onPause() {
         localAudio?.setResumed(false)
         coreMusicSession?.setResumed(false)
+        coreCastRoutes?.setResumed(false)
         windowPolicy?.setResumed(false)
         wellbeing?.setResumed(false)
         kiosk?.setResumed(false)
@@ -77,6 +82,8 @@ class MainActivity : FlutterActivity() {
         localAudio = null
         coreMusicSession?.dispose()
         coreMusicSession = null
+        coreCastRoutes?.dispose()
+        coreCastRoutes = null
         super.cleanUpFlutterEngine(flutterEngine)
     }
 }

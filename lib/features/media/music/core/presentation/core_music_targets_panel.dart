@@ -10,6 +10,8 @@ import '../../../../../shared/theme/typography.dart';
 import '../../../../server/providers/server_providers.dart';
 import '../../../../settings/presentation/settings_file_dialog.dart';
 import '../../../../settings/providers/settings_providers.dart';
+import '../data/core_cast_route_bridge.dart';
+import '../data/core_cast_route_coordinator.dart';
 import '../data/core_music_playback_api.dart';
 import '../data/core_music_media_session_bridge.dart';
 import '../data/core_music_media_session_coordinator.dart';
@@ -28,11 +30,13 @@ class CoreMusicTargetsPanel extends ConsumerStatefulWidget {
     this.controller,
     this.authorizeMutation,
     this.mediaSessionCoordinator,
+    this.castRouteCoordinator,
   });
 
   final CoreMusicTargetsController? controller;
   final CoreMusicMutationAuthorizer? authorizeMutation;
   final CoreMusicMediaSessionCoordinator? mediaSessionCoordinator;
+  final CoreCastRouteCoordinator? castRouteCoordinator;
 
   @override
   ConsumerState<CoreMusicTargetsPanel> createState() =>
@@ -44,6 +48,9 @@ class _CoreMusicTargetsPanelState extends ConsumerState<CoreMusicTargetsPanel> {
   late final bool _ownsController;
   CoreMusicMediaSessionCoordinator? _mediaSession;
   bool _ownsMediaSession = false;
+  CoreCastRouteCoordinator? _castRoutes;
+  bool _ownsCastRoutes = false;
+  bool _castPickerOpen = false;
   ValueListenable<TickerModeData>? _ticker;
   bool _visible = true;
   bool _authorizing = false;
@@ -72,7 +79,16 @@ class _CoreMusicTargetsPanelState extends ConsumerState<CoreMusicTargetsPanel> {
         platform: CoreMusicMediaSessionBridge(),
       );
     }
+    _castRoutes = widget.castRouteCoordinator;
+    if (_castRoutes == null && _ownsController) {
+      _ownsCastRoutes = true;
+      _castRoutes = CoreCastRouteCoordinator(
+        core: _controller,
+        platform: AndroidCoreCastRouteBridge(),
+      );
+    }
     _controller.addListener(_changed);
+    _castRoutes?.addListener(_changed);
   }
 
   @override
@@ -95,9 +111,24 @@ class _CoreMusicTargetsPanelState extends ConsumerState<CoreMusicTargetsPanel> {
         ((ModalRoute.isCurrentOf(context) ?? true) || _authorizing);
     if (value == _visible && _controller.loaded) return;
     _visible = value;
+    if (!value && _castPickerOpen) {
+      _castPickerOpen = false;
+      unawaited(_castRoutes?.stop());
+    }
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) _controller.setVisible(value);
     });
+  }
+
+  Future<void> _toggleCastPicker() async {
+    final routes = _castRoutes;
+    if (routes == null || !routes.supported || routes.busy) return;
+    setState(() => _castPickerOpen = !_castPickerOpen);
+    if (_castPickerOpen) {
+      await routes.start();
+    } else {
+      await routes.stop();
+    }
   }
 
   void _changed() {
@@ -148,6 +179,8 @@ class _CoreMusicTargetsPanelState extends ConsumerState<CoreMusicTargetsPanel> {
   @override
   void dispose() {
     _ticker?.removeListener(_visibilityChanged);
+    _castRoutes?.removeListener(_changed);
+    if (_ownsCastRoutes) unawaited(_castRoutes?.dispose());
     if (_ownsMediaSession) unawaited(_mediaSession?.dispose());
     _controller.removeListener(_changed);
     if (_ownsController) _controller.dispose();
@@ -188,10 +221,33 @@ class _CoreMusicTargetsPanelState extends ConsumerState<CoreMusicTargetsPanel> {
                       ? const CupertinoActivityIndicator()
                       : Text(l10n.commonRefresh),
                 ),
+                if (_castRoutes?.supported == true)
+                  CupertinoButton(
+                    key: const ValueKey('core-cast-route-picker'),
+                    minimumSize: const Size(48, 48),
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    onPressed: _castRoutes!.busy ? null : _toggleCastPicker,
+                    child: Text(
+                      _castPickerOpen
+                          ? l10n.coreCastClosePicker
+                          : l10n.coreCastFindDevices,
+                    ),
+                  ),
               ],
             ),
             const SizedBox(height: 4),
             Text(l10n.coreMusicOutputsHint, style: AppText.footnote),
+            if (_castPickerOpen) ...[
+              const SizedBox(height: 12),
+              _CastRoutePicker(
+                coordinator: _castRoutes!,
+                onSelect: (routeId) {
+                  if (!_castRoutes!.select(routeId)) return;
+                  setState(() => _castPickerOpen = false);
+                  unawaited(_castRoutes!.stop());
+                },
+              ),
+            ],
             const SizedBox(height: 12),
             if (!_controller.isAuthorized)
               _StatusMessage(l10n.coreMusicNotReady)
@@ -267,6 +323,66 @@ class _CoreMusicTargetsPanelState extends ConsumerState<CoreMusicTargetsPanel> {
         'music_playback_worker_unavailable' => l10n.musicPlayUnknown,
         _ => l10n.healthReadError,
       };
+}
+
+class _CastRoutePicker extends StatelessWidget {
+  const _CastRoutePicker({required this.coordinator, required this.onSelect});
+
+  final CoreCastRouteCoordinator coordinator;
+  final ValueChanged<String> onSelect;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    if (coordinator.busy) {
+      return const Center(child: CupertinoActivityIndicator());
+    }
+    if (coordinator.failure != null) {
+      return _StatusMessage(
+        coordinator.failure == 'route_lost'
+            ? l10n.coreCastRouteLost
+            : l10n.coreCastDiscoveryUnavailable,
+      );
+    }
+    if (coordinator.routes.isEmpty) {
+      return _StatusMessage(l10n.coreCastNoDevices);
+    }
+    return Semantics(
+      container: true,
+      explicitChildNodes: true,
+      label: l10n.coreCastPickerTitle,
+      child: Wrap(
+        spacing: 8,
+        runSpacing: 8,
+        children: [
+          for (final binding in coordinator.routes)
+            Semantics(
+              label: [
+                binding.route.name,
+                binding.route.kind == CoreCastRouteKind.group
+                    ? l10n.coreMusicGroup
+                    : l10n.coreMusicChromecast,
+                binding.selectable
+                    ? l10n.coreCastAvailableInCore
+                    : l10n.coreCastNotInCore,
+              ].join(', '),
+              button: true,
+              enabled: binding.selectable,
+              excludeSemantics: true,
+              child: CupertinoButton(
+                key: ValueKey('core-cast-route-${binding.route.id}'),
+                minimumSize: const Size(48, 48),
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                onPressed: binding.selectable
+                    ? () => onSelect(binding.route.id)
+                    : null,
+                child: Text(binding.route.name),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
 }
 
 class _PlaybackControls extends StatelessWidget {

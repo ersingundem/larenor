@@ -95,6 +95,9 @@ dependencies {
     implementation("androidx.media3:media3-exoplayer:$media3Version")
     implementation("androidx.media3:media3-session:$media3Version")
     implementation("androidx.media3:media3-datasource-okhttp:$media3Version")
+    // Official Google Cast Android sender framework. Discovery is advisory;
+    // Larenor Core/Music Assistant remains the playback transport owner.
+    implementation("com.google.android.gms:play-services-cast-framework:22.3.1")
     implementation("com.squareup.okhttp3:okhttp:5.5.0")
     testImplementation("junit:junit:4.13.2")
     testImplementation("com.squareup.okhttp3:mockwebserver:5.5.0")
