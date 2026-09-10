@@ -11,6 +11,7 @@ import re
 import threading
 
 from .docker_probe import DockerEndpoint
+from .qbittorrent_api_key import is_qbittorrent_api_key
 from .models import Catalog
 from .qbittorrent_config_binding import (
     QbittorrentConfigBindingError,
@@ -108,8 +109,7 @@ class QbittorrentConfigRuntime:
             _require(type(stack) is MediaStackPlan
                      and type(credential) is str
                      and _PRIVATE.fullmatch(credential) is not None
-                     and type(api_key) is str
-                     and _PRIVATE.fullmatch(api_key) is not None
+                     and is_qbittorrent_api_key(api_key)
                      and type(salt) is bytes and len(salt) == 16
                      and type(cancelled) is threading.Event
                      and not cancelled.is_set()

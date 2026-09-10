@@ -26,7 +26,7 @@ from test_managed_resource_proof import volume_observation
 
 
 PRIVATE_PASSWORD = 'p' * 40
-PRIVATE_BEARER = 'k' * 40
+PRIVATE_BEARER = 'qbt_' + 'k' * 28
 SALT = bytes(range(16))
 
 

@@ -22,7 +22,7 @@ from test_media_host_preflight import stack
 
 
 CREDENTIAL = 'c' * 48
-CONTROL_ID = 'q' * 32
+CONTROL_ID = 'qbt_' + 'q' * 28
 
 
 def private():

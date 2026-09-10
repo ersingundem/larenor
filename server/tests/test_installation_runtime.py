@@ -224,7 +224,8 @@ def test_runtime_configures_qbittorrent_before_create_and_start(monkeypatch):
     monkeypatch.setattr(runtime.time, 'time', lambda: 2000.0)
     backend = runtime._RuntimeBackend(Operations(), binding, Configuration())
     result = backend.install_configured_qbittorrent(
-        'd' * 32, stack, 'c' * 48, api_key='a' * 32, salt=b'1' * 16,
+        'd' * 32, stack, 'c' * 48,
+        api_key='qbt_' + 'a' * 28, salt=b'1' * 16,
         cancelled=threading.Event(), deadline=1030.0,
         gate=lambda: True)
     assert result.configuration == receipt
@@ -281,7 +282,7 @@ def test_runtime_projects_bootstrap_failure_as_static_uncertain_result(
     ) as raised:
         backend.install_configured_qbittorrent(
             'd' * 32, object(), 'c' * 48,
-            api_key='a' * 32, salt=b'1' * 16,
+            api_key='qbt_' + 'a' * 28, salt=b'1' * 16,
             cancelled=threading.Event(), deadline=time.monotonic() + 30,
             gate=lambda: True)
     assert raised.value.uncertain_effect
@@ -321,7 +322,7 @@ def test_runtime_projects_unexpected_bootstrap_failure_with_static_boundary(
     ) as raised:
         backend.install_configured_qbittorrent(
             'd' * 32, object(), 'c' * 48,
-            api_key='a' * 32, salt=b'1' * 16,
+            api_key='qbt_' + 'a' * 28, salt=b'1' * 16,
             cancelled=threading.Event(), deadline=time.monotonic() + 30,
             gate=lambda: True)
 
@@ -363,7 +364,7 @@ def test_runtime_projects_invalid_execution_result_as_static_cause(
     ) as raised:
         backend.install_configured_qbittorrent(
             'd' * 32, object(), 'c' * 48,
-            api_key='a' * 32, salt=b'1' * 16,
+            api_key='qbt_' + 'a' * 28, salt=b'1' * 16,
             cancelled=threading.Event(), deadline=time.monotonic() + 30,
             gate=lambda: True)
 
@@ -383,7 +384,7 @@ def test_runtime_closes_unexpected_qbittorrent_configure_failure():
     ) as raised:
         backend.install_configured_qbittorrent(
             'd' * 32, object(), 'c' * 48,
-            api_key='a' * 32, salt=b'1' * 16,
+            api_key='qbt_' + 'a' * 28, salt=b'1' * 16,
             cancelled=threading.Event(), deadline=time.monotonic() + 30,
             gate=lambda: True)
 

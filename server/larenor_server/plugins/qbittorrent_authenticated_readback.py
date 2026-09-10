@@ -21,6 +21,7 @@ from .qbittorrent_readback import (
     QbittorrentReadbackError,
     validate_qbittorrent_readback,
 )
+from .qbittorrent_api_key import is_qbittorrent_api_key
 
 
 _CODES = frozenset({
@@ -31,7 +32,6 @@ _CODES = frozenset({
     'qbittorrent_authenticated_readback_unavailable',
     'qbittorrent_authenticated_readback_timeout',
 })
-_TOKEN = re.compile(r'[A-Za-z0-9_-]{32,128}\Z')
 
 
 class QbittorrentAuthenticatedReadbackError(Exception):
@@ -104,7 +104,7 @@ def _wire(path, api_key, *, final):
 class QbittorrentAuthenticatedReadback:
     def read(self, connection, *, api_key, web_port=8080, torrent_port=6881,
              limits=QbittorrentAuthenticatedReadbackLimits()):
-        if (type(api_key) is not str or _TOKEN.fullmatch(api_key) is None
+        if (not is_qbittorrent_api_key(api_key)
                 or type(limits) is not QbittorrentAuthenticatedReadbackLimits
                 or type(web_port) is not int or not 1024 <= web_port <= 65535
                 or type(torrent_port) is not int
@@ -223,4 +223,5 @@ class QbittorrentAuthenticatedReadback:
         return _response(
             reader, limits.max_response_bytes,
             content_type=('text/plain' if path == '/api/v2/app/version'
-                          else 'application/json'))
+                          else 'application/json'),
+            error_content_type='text/plain')

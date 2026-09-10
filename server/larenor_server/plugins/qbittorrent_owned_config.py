@@ -12,6 +12,8 @@ import hashlib
 import hmac
 import re
 
+from .qbittorrent_api_key import is_qbittorrent_api_key
+
 
 _CREDENTIAL = re.compile(r'[A-Za-z0-9_-]{32,128}\Z')
 _ITERATIONS = 100_000
@@ -49,7 +51,7 @@ def render_qbittorrent_owned_config(credential, *, api_key, salt, web_port=8080,
                                     torrent_port=6881):
     """Render only allowlisted identity, listener and managed-path settings."""
     try:
-        if (not _valid_credential(credential) or not _valid_credential(api_key)
+        if (not _valid_credential(credential) or not is_qbittorrent_api_key(api_key)
                 or type(salt) is not bytes
                 or len(salt) != _SALT_BYTES
                 or type(web_port) is not int or not 1024 <= web_port <= 65535
@@ -111,7 +113,7 @@ def verify_qbittorrent_owned_config(configuration, credential, *, api_key,
     try:
         if (type(configuration) is not bytes or not 1 <= len(configuration) <= 4096
                 or not _valid_credential(credential)
-                or not _valid_credential(api_key)):
+                or not is_qbittorrent_api_key(api_key)):
             return False
         prefix = b'WebUI\\Password_PBKDF2="@ByteArray('
         matching = tuple(line for line in configuration.splitlines()

@@ -116,6 +116,16 @@ def test_bearer_auth_failure_is_closed_and_never_retried(status):
     assert len(connection.requests) == 1 and connection.closed
 
 
+def test_plain_text_auth_failure_is_classified_after_bounded_framing():
+    connection = Connection([
+        response(403, b'Forbidden', content_type=b'text/plain'),
+    ])
+    with pytest.raises(QbittorrentManagedCategoriesError,
+                       match='^qbittorrent_categories_authentication_failed$'):
+        QbittorrentManagedCategories().apply(
+            connection, api_key=PRIVATE_BEARER)
+
+
 def test_observation_protocol_failure_has_a_bounded_stage_code():
     connection = Connection([response(200, b'not-json',
                                       content_type=b'application/json')])

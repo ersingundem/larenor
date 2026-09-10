@@ -132,7 +132,8 @@ def _headers(reader):
     return int(match[1]), tuple(headers)
 
 
-def _response(reader, maximum, *, content_type='application/json'):
+def _response(reader, maximum, *, content_type='application/json',
+              error_content_type=None):
     status, headers = _headers(reader)
     framing = {}
     for key, value in headers:
@@ -154,7 +155,11 @@ def _response(reader, maximum, *, content_type='application/json'):
             raise ProbeTransportError('invalid_response')
         body = b''
     else:
-        if framing.get('content-type', '').split(';')[0].strip() != content_type:
+        observed_type = framing.get('content-type', '').split(';')[0].strip()
+        allowed_types = {content_type}
+        if status >= 400 and error_content_type is not None:
+            allowed_types.add(error_content_type)
+        if observed_type not in allowed_types:
             raise ProbeTransportError('invalid_response')
         if length is not None:
             if re.fullmatch(r'[0-9]{1,20}', length) is None or int(length) > maximum:

@@ -429,7 +429,7 @@ def _install_and_restart(daemon, source, endpoint, helper_id):
 
     private = PrivateQbittorrentConfiguration(
         credential=secrets.token_urlsafe(48),
-        apiKey=secrets.token_urlsafe(32),
+        apiKey='qbt_' + secrets.token_urlsafe(21),
         saltHex=secrets.token_hex(16))
     job = uuid.uuid4().hex
     with ResourceJournal(daemon.root / 'resource-journal') as resources, \

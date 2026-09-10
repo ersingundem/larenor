@@ -16,9 +16,9 @@ from .jellyfin_startup import (
     _headers,
     _response,
 )
+from .qbittorrent_api_key import is_qbittorrent_api_key
 
 
-_TOKEN = re.compile(r'[A-Za-z0-9_-]{32,128}\Z')
 _CODES = frozenset({
     'invalid_qbittorrent_categories',
     'qbittorrent_categories_authentication_failed',
@@ -154,7 +154,7 @@ def _empty_response(reader):
 class QbittorrentManagedCategories:
     def apply(self, connection, *, api_key,
               limits=QbittorrentManagedCategoriesLimits()):
-        if (type(api_key) is not str or _TOKEN.fullmatch(api_key) is None
+        if (not is_qbittorrent_api_key(api_key)
                 or type(limits) is not QbittorrentManagedCategoriesLimits):
             raise QbittorrentManagedCategoriesError(
                 'invalid_qbittorrent_categories')
@@ -264,7 +264,8 @@ class QbittorrentManagedCategories:
     def _get(connection, reader, deadline, limits, api_key, *, final):
         connection.settimeout(_remaining(deadline))
         connection.sendall(_wire('GET', api_key, final=final))
-        return _response(reader, limits.max_response_bytes)
+        return _response(
+            reader, limits.max_response_bytes, error_content_type='text/plain')
 
     @staticmethod
     def _post(connection, reader, deadline, api_key, body):

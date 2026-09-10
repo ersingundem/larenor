@@ -7,6 +7,7 @@ from typing import Literal
 from pydantic import ConfigDict, Field
 
 from ..models import StrictModel
+from .qbittorrent_api_key import QB_API_KEY_PATTERN
 from .qbittorrent_config_effect import QbittorrentConfigInstallReceipt
 
 
@@ -18,7 +19,7 @@ class PrivateQbittorrentConfiguration(StrictModel):
         min_length=32, max_length=128, pattern=r'^[A-Za-z0-9_-]+$', repr=False,
     )
     apiKey: str = Field(
-        min_length=32, max_length=128, pattern=r'^[A-Za-z0-9_-]+$', repr=False,
+        min_length=32, max_length=32, pattern=QB_API_KEY_PATTERN, repr=False,
     )
     saltHex: str = Field(pattern=r'^[0-9a-f]{32}$', repr=False)
 

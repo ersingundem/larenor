@@ -14,7 +14,7 @@ from larenor_server.plugins.qbittorrent_owned_config import (
 
 
 PRIVATE_PASSWORD = 'p' * 40
-PRIVATE_BEARER = 'k' * 40
+PRIVATE_BEARER = 'qbt_' + 'k' * 28
 SALT = bytes(range(16))
 
 
@@ -146,7 +146,8 @@ def test_reconciliation_fails_closed_for_invalid_file_shape(value):
 
 
 @pytest.mark.parametrize('api_key', [
-    '', 'short', 'contains:colon' + 'x' * 32, 'x' * 129, b'x' * 40, True,
+    '', 'short', 'contains:colon' + 'x' * 32, 'x' * 32,
+    'qbt_' + 'x' * 27, 'qbt_' + 'x' * 29, b'x' * 32, True,
 ])
 def test_api_key_is_required_and_strict(api_key):
     with pytest.raises(QbittorrentOwnedConfigError,
