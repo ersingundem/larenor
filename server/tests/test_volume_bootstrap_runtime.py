@@ -149,7 +149,7 @@ def test_default_engine_keeps_all_helper_operations_strictly_bounded():
 
     assert engine._transport.path == Path(endpoint.path)
     assert engine._transport.socket_uid == 0
-    assert engine._transport.timeout == 1.0
+    assert engine._transport.timeout == 10.0
     assert engine._cleanup_transport is engine._transport
 
 
