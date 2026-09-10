@@ -1,6 +1,7 @@
 """Revision-bound provider configuration previews with unavailable effects."""
 
 import pytest
+from fastapi.testclient import TestClient
 
 from conftest import auth, bootstrap_password, login, ready
 from larenor_server.app import create_app
@@ -65,7 +66,7 @@ def ready_provider(server, domain='spotify', request_id='a' * 32):
 
 
 def test_preview_and_confirm_are_exact_idempotent_and_effect_unavailable(server):
-    _app, client, _, _ = server
+    _app, client, settings, _ = server
     pair, provider = ready_provider(server)
     body = {
         'requestId': 'b' * 32,
@@ -95,6 +96,10 @@ def test_preview_and_confirm_are_exact_idempotent_and_effect_unavailable(server)
     assert command['errorCode'] == 'effect_unavailable'
     assert command['providerSetupId'] == provider['id']
     assert command['providerRevision'] == provider['revision']
+    with TestClient(create_app(settings)) as restarted:
+        replay = restarted.post(BASE, headers=auth(pair), json=confirm)
+        assert replay.status_code == 201
+        assert replay.json() == first.json()
 
 
 def test_preview_rejects_revision_drift_and_secret_shaped_settings(server):
