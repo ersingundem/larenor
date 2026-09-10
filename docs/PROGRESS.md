@@ -375,7 +375,7 @@ security policy, queue ve Gitleaks yeşil. Native dizin hazırlığı, qBittorre
 download-client kaydı ve iki mimarili kabul açık olduğundan sayaç değişmedi.
 [Uygulama ve açık sınırlar](arr-root-folder-wiring-implementation-2026-09-10.md).
 
-`6cc334d` native kabul dilimi, Sonarr ve Radarr'ı gerçek AMD64/ARM64
+`7f03b85` native kabul dilimi, Sonarr ve Radarr'ı gerçek AMD64/ARM64
 runner'larında ayrı dört iş olarak config/create/start/authenticated readback,
 restart ve ikinci readback zincirinden geçirecek kapalı CI makbuzunu ekledi.
 Ephemeral daemon/cgroup/namespace sahipliği, exact source hash'leri ve secret-free

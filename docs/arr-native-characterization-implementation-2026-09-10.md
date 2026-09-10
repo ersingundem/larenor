@@ -1,6 +1,6 @@
 # Sonarr/Radarr iki mimarili native kabul kapısı
 
-Exact uygulama commit'i: `6cc334db10b51b6abca7974dc88e749adce84719`.
+Exact uygulama commit'i: `7f03b856ff5cf4703f24f074304347ee4704045b`.
 
 Yeni opt-in GitHub iş akışı Sonarr ve Radarr'ı ayrı ayrı gerçek
 `linux/amd64` ve `linux/arm64` runner'larında çalıştırır. Her matris işi yalnız
