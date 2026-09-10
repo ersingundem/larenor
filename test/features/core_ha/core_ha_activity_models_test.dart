@@ -5,18 +5,29 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:larenor/features/core_ha/domain/core_ha_activity_models.dart';
 import 'package:larenor/features/server/domain/server_models.dart';
 
-import 'core_ha_models_test.dart' show target;
+import 'package:larenor/features/home_resources/domain/home_resource_models.dart';
 
-Map<String, dynamic> historyContract() =>
-    jsonDecode(File('contracts/home-assistant-history.v1.json').readAsStringSync())
-        as Map<String, dynamic>;
+HomeResourceRecord historyTarget() {
+  final contract = jsonDecode(
+    File('contracts/home-assistant.v1.json').readAsStringSync(),
+  ) as Map<String, dynamic>;
+  final context = ServerContext.fromJson(contract['context']);
+  return HomeResourceRecord.fromJson(
+    contract['resource'],
+    expectedContext: context,
+  );
+}
+
+Map<String, dynamic> historyContract() => jsonDecode(
+  File('contracts/home-assistant-history.v1.json').readAsStringSync(),
+) as Map<String, dynamic>;
 
 Map<String, dynamic> verificationJson({bool compared = false}) => {
   'schemaVersion': 1,
   'scope': {
     'schemaVersion': 1,
-    'coreId': target().context.coreId,
-    'homeId': target().context.homeId,
+    'coreId': historyTarget().context.coreId,
+    'homeId': historyTarget().context.homeId,
   },
   'chainId': 'a' * 32,
   'sequence': 2,
@@ -27,18 +38,14 @@ Map<String, dynamic> verificationJson({bool compared = false}) => {
   'causalityVerified': false,
 };
 
-Matcher invalidResponse() => throwsA(
-  isA<LarenorServerException>().having(
-    (error) => error.code,
-    'code',
-    'invalid_response',
-  ),
+Matcher failure([String code = 'invalid_response']) => throwsA(
+  isA<LarenorServerException>().having((error) => error.code, 'code', code),
 );
 
 void main() {
   test('strict history model retains attribution and observed result', () {
     final response = historyContract()['complete']['response'];
-    final page = CoreHaHistoryPage.fromJson(response, target: target());
+    final page = CoreHaHistoryPage.fromJson(response, target: historyTarget());
     expect(page.entries, hasLength(2));
     final first = page.entries.first;
     expect(first.attribution.source, CoreHaAttributionSource.coreApi);
@@ -58,8 +65,10 @@ void main() {
     final first = entries.first as Map<String, dynamic>;
     final second = entries.last as Map<String, dynamic>;
     final mutations = <void Function(Map<String, dynamic>)>[
-      (value) => ((value['entries'] as List).first['attribution']
-              as Map<String, dynamic>)['correlationId'] = '7' * 32,
+      (value) =>
+          ((value['entries'] as List).first['attribution']
+                  as Map<String, dynamic>)['correlationId'] =
+              '7' * 32,
       (value) => (value['entries'] as List).setAll(0, [second, first]),
       (value) => value['nextBefore'] = '7' * 32,
       (value) => value['private'] = 'must not be accepted',
@@ -68,8 +77,8 @@ void main() {
       final value = jsonDecode(jsonEncode(original)) as Map<String, dynamic>;
       mutate(value);
       expect(
-        () => CoreHaHistoryPage.fromJson(value, target: target()),
-        invalidResponse(),
+        () => CoreHaHistoryPage.fromJson(value, target: historyTarget()),
+        failure(),
       );
     }
   });
@@ -77,7 +86,7 @@ void main() {
   test('verification binds scope and distinguishes external comparison', () {
     final current = CoreHaHistoryVerification.fromJson(
       verificationJson(),
-      expectedContext: target().context,
+      expectedContext: historyTarget().context,
       expectedComparison: false,
     );
     expect(current.verified, isTrue);
@@ -85,7 +94,7 @@ void main() {
     expect(current.sequence, 2);
     final compared = CoreHaHistoryVerification.fromJson(
       verificationJson(compared: true),
-      expectedContext: target().context,
+      expectedContext: historyTarget().context,
       expectedComparison: true,
     );
     expect(compared.comparedCheckpoint, isTrue);
@@ -105,19 +114,19 @@ void main() {
       expect(
         () => CoreHaHistoryVerification.fromJson(
           value,
-          expectedContext: target().context,
+          expectedContext: historyTarget().context,
           expectedComparison: false,
         ),
-        invalidResponse(),
+        failure(),
       );
     }
     expect(
       () => CoreHaHistoryVerification.fromJson(
         verificationJson(compared: true),
-        expectedContext: target().context,
+        expectedContext: historyTarget().context,
         expectedComparison: false,
       ),
-      invalidResponse(),
+      failure(),
     );
   });
 }

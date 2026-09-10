@@ -170,6 +170,8 @@ class LarenorServerApi {
           !path.startsWith('/admin/media/inspections') &&
           !path.startsWith('/home-resources') &&
           !path.startsWith('/home-people') &&
+          !path.startsWith('/home-assistant') &&
+          !path.startsWith('/admin/home-assistant') &&
           !path.startsWith('/admin/home-people') &&
           queryParameters.length <= keys.length &&
           !queryParameters.entries.any(
@@ -215,6 +217,33 @@ class LarenorServerApi {
               _ => false,
             };
           });
+      final homeAssistantHistory =
+          method == 'GET' &&
+          RegExp(
+            r'^/home-assistant/[0-9a-f]{32}/[0-9a-f]{32}/resources/[0-9a-f]{32}/history$',
+          ).hasMatch(path) &&
+          queryParameters.entries.every(
+            (entry) => switch (entry.key) {
+              'limit' =>
+                RegExp(r'^[1-9][0-9]?$').hasMatch(entry.value) &&
+                    (int.tryParse(entry.value) ?? 0) <= 50,
+              'before' => RegExp(r'^[0-9a-f]{32}$').hasMatch(entry.value),
+              _ => false,
+            },
+          );
+      final homeAssistantVerification =
+          method == 'GET' &&
+          RegExp(
+            r'^/admin/home-assistant/[0-9a-f]{32}/[0-9a-f]{32}/history/verification$',
+          ).hasMatch(path) &&
+          queryParameters.length == 1 &&
+          queryParameters.entries.every(
+            (entry) =>
+                entry.key == 'checkpoint' &&
+                entry.value.isNotEmpty &&
+                entry.value.length <= 512 &&
+                !entry.value.contains(RegExp(r'[\x00-\x20\x7f-\xff]')),
+          );
       final revision = queryParameters['expectedRevision'];
       final homeResourcesQuery =
           method == 'GET' &&
@@ -248,6 +277,8 @@ class LarenorServerApi {
           !jobsQuery &&
           !mediaQuery &&
           !homeResourcesQuery &&
+          !homeAssistantHistory &&
+          !homeAssistantVerification &&
           !homeResourceDeleteQuery) {
         throw const LarenorServerException('invalid_request');
       }

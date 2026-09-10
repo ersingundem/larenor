@@ -8,7 +8,6 @@ import 'package:larenor/features/server/data/larenor_server_api.dart';
 import 'package:larenor/features/server/domain/server_models.dart';
 
 import 'core_ha_activity_models_test.dart';
-import 'core_ha_models_test.dart' show target;
 
 http.Response jsonResponse(Object value) => http.Response(
   jsonEncode(value),
@@ -26,8 +25,9 @@ void main() {
         requests.add(request);
         return jsonResponse(
           requests.length < 3
-              ? contract[requests.length == 1 ? 'firstPage' : 'lastPage']
-                    ['response']
+              ? contract[requests.length == 1
+                    ? 'firstPage'
+                    : 'lastPage']['response']
               : {'verification': verificationJson(compared: true)},
         );
       }),
@@ -36,7 +36,7 @@ void main() {
     final api = CoreHaApi(
       transport,
       'fixture_token',
-      target(),
+      historyTarget(),
       isCurrent: () => true,
     );
     final first = await api.history(limit: 1);
@@ -55,10 +55,13 @@ void main() {
     expect(requests[2].url.queryParameters, {
       'checkpoint': verificationJson()['checkpoint'],
     });
-    expect(requests[0].url.path, contains('/resources/${target().id}/history'));
+    expect(
+      requests[0].url.path,
+      contains('/resources/${historyTarget().id}/history'),
+    );
     expect(
       requests[2].url.path,
-      '/prefix/api/v1/admin/home-assistant/${target().context.coreId}/${target().context.homeId}/history/verification',
+      '/prefix/api/v1/admin/home-assistant/${historyTarget().context.coreId}/${historyTarget().context.homeId}/history/verification',
     );
     expect(requests.every((request) => request.body.isEmpty), isTrue);
     expect(
@@ -82,16 +85,16 @@ void main() {
     final api = CoreHaApi(
       transport,
       'fixture_token',
-      target(),
+      historyTarget(),
       isCurrent: () => true,
     );
     for (final limit in [0, 51]) {
-      await expectLater(api.history(limit: limit), invalidResponse());
+      await expectLater(api.history(limit: limit), failure('invalid_request'));
     }
-    await expectLater(api.history(before: 'BAD'), invalidResponse());
+    await expectLater(api.history(before: 'BAD'), failure('invalid_request'));
     await expectLater(
       api.verifyHistory(checkpoint: 'x' * 513),
-      invalidResponse(),
+      failure('invalid_request'),
     );
     expect(calls, 0);
   });

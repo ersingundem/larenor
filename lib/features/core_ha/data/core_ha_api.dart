@@ -3,6 +3,7 @@ import '../../server/data/larenor_server_api.dart';
 import '../../server/domain/server_models.dart';
 import '../../server/services/data/server_services_api.dart';
 import '../../server/services/domain/server_service_models.dart';
+import '../domain/core_ha_activity_models.dart';
 import '../domain/core_ha_models.dart';
 
 final class CoreHaApi {
@@ -144,6 +145,47 @@ final class CoreHaApi {
         }
         return receipt;
       });
+  Future<CoreHaHistoryPage> history({String? before, int limit = 25}) =>
+      _operation(() async {
+        if (limit < 1 ||
+            limit > CoreHaHistoryPage.maximumPageSize ||
+            before != null && !RegExp(r'^[0-9a-f]{32}$').hasMatch(before)) {
+          throw const LarenorServerException('invalid_request');
+        }
+        final raw = await _transport.request(
+          'GET',
+          '$_path/history',
+          token: _token,
+          queryParameters: {
+            if (before != null) 'before': before,
+            'limit': '$limit',
+          },
+        );
+        _check();
+        return CoreHaHistoryPage.fromJson(raw, target: target);
+      });
+  Future<CoreHaHistoryVerification> verifyHistory({
+    String? checkpoint,
+  }) => _operation(() async {
+    if (checkpoint != null &&
+        (checkpoint.isEmpty ||
+            checkpoint.length > 512 ||
+            checkpoint.codeUnits.any((unit) => unit < 0x21 || unit > 0x7e))) {
+      throw const LarenorServerException('invalid_request');
+    }
+    final raw = await _transport.request(
+      'GET',
+      '/admin/home-assistant/$_scope/history/verification',
+      token: _token,
+      queryParameters: checkpoint == null ? null : {'checkpoint': checkpoint},
+    );
+    _check();
+    return CoreHaHistoryVerification.fromJson(
+      _envelope(raw, 'verification'),
+      expectedContext: target.context,
+      expectedComparison: checkpoint != null,
+    );
+  });
   Future<CoreHaBinding?> binding() => _operation(() async {
     try {
       final raw = await _transport.request(
