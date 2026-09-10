@@ -76,6 +76,9 @@ def test_v2_migration_preserves_existing_receipt_without_inventing_attribution(s
     assert response.status_code == 202
     adapter = app.state.core.home_assistant
     with app.state.core.db.transaction() as c:
+        c.execute('DROP TABLE command_history_chain')
+        c.execute('DROP TABLE command_history_state')
+        c.execute("DELETE FROM metadata WHERE key='command_history_schema'")
         row = c.execute('SELECT * FROM home_assistant_commands').fetchone()
         value = json.loads(adapter._cipher.decrypt(row['nonce'], row['ciphertext'], adapter._command_aad(row)))
         value.pop('attribution', None)
