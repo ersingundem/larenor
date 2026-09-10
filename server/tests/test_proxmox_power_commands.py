@@ -410,6 +410,30 @@ def test_terminal_effect_outcomes_remain_distinct(tmp_path, outcome, state, code
         assert executor.calls == 1
 
 
+def test_unknown_effect_keeps_only_redacted_operation_reference_in_journal(tmp_path):
+    app, settings, clock, provider, executor = fixture(tmp_path)
+    operation = "UPID-SHA256:" + "f" * 64
+    with TestClient(app) as client:
+        admin = ready((app, client, settings, clock))
+        record = resource(client, app, admin)
+        provider.descriptor = descriptor(record, status="stopped")
+
+        def accepted(current, action, guard):
+            executor.calls += 1
+            guard()
+            return ProxmoxPowerEffectResult(
+                "unknown", current.status, current.status_revision, operation,
+            )
+
+        executor.execute = accepted
+        proposal = preview(client, app, admin, record, "start").json()["preview"]
+        receipt = confirm(client, admin, record, proposal["id"]).json()["receipt"]
+        assert receipt["state"] == "unknown"
+        assert receipt["operationRef"] == operation
+        assert journal(client, admin, record).json()["entries"][-1]["operationRef"] == operation
+        assert executor.calls == 1
+
+
 def test_receipt_payload_is_encrypted_and_never_contains_guest_or_action(tmp_path):
     app, settings, clock, provider, executor = fixture(tmp_path)
     with TestClient(app) as client:

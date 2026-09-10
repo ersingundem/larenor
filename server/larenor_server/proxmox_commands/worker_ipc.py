@@ -286,6 +286,19 @@ def _wire_result(value, command):
         operation_ref = "UPID-SHA256:" + hashlib.sha256(
             value.upid.encode("utf-8")
         ).hexdigest()
+    elif value.outcome == "unknown" and value.upid is not None:
+        if (
+            value.state != command.current_state
+            or value.status_revision != command.status_revision
+            or type(value.upid) is not str
+            or not 1 <= len(value.upid.encode("utf-8")) <= 512
+            or not value.upid.startswith("UPID:")
+            or any(ord(char) < 32 or ord(char) == 127 for char in value.upid)
+        ):
+            raise ProxmoxPowerWorkerError("invalid_worker_result")
+        operation_ref = "UPID-SHA256:" + hashlib.sha256(
+            value.upid.encode("utf-8")
+        ).hexdigest()
     else:
         if (
             value.upid is not None

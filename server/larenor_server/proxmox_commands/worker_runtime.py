@@ -20,10 +20,10 @@ import uuid
 
 from ..files import private_read
 from ..plugins.worker import DockerWorkerError, _safe_path
-from .worker_ipc import ProxmoxPowerWorkerError, ProxmoxPowerWorkerServer
+from .api_adapter import CREDENTIAL_MAGIC
+from .worker_ipc import ProxmoxPowerWorkerServer
 
 
-CREDENTIAL_MAGIC = b"LARENOR-PROXMOX-CREDENTIAL-V1\x00"
 MAX_CREDENTIAL_BYTES = 65_536
 MAX_HEALTH_BYTES = 4_096
 _ID = re.compile(r"[0-9a-f]{32}\Z")

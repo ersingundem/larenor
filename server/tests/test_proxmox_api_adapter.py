@@ -41,16 +41,25 @@ def origin(response):
         def handle(self):
             reader = self.request.makefile("rb")
             first = reader.readline()
+            if not first:
+                return
             headers = []
             while True:
                 line = reader.readline()
+                if not line:
+                    return
                 if line == b"\r\n":
                     break
                 headers.append(line.decode("latin1").rstrip("\r\n"))
             length = next((int(line.split(":", 1)[1]) for line in headers
                            if line.lower().startswith("content-length:")), 0)
             requests.append((first, headers, reader.read(length)))
-            self.request.sendall(response)
+            delay, payload = response if isinstance(response, tuple) else (0, response)
+            time.sleep(delay)
+            try:
+                self.request.sendall(payload)
+            except OSError:
+                pass
 
     class Server(socketserver.ThreadingTCPServer):
         allow_reuse_address = True
@@ -78,6 +87,7 @@ def binding(port, **changes):
     values = {
         "schema_version": 1,
         "resource_id": "a" * 32,
+        "resource_revision": 5,
         "binding_id": "binding_1",
         "binding_revision": 7,
         "service_id": "service_1",
@@ -161,8 +171,8 @@ def test_exact_sealed_binding_dispatches_one_fixed_request_and_returns_unknown_u
     )
     with origin(reply) as (port, requests), root() as name:
         envelope, key = seal(Path(name), binding(port))
-        adapter = ProxmoxApiEffectAdapter(
-            load_service_binding(envelope, key), resolver=loopback,
+        adapter = ProxmoxApiEffectAdapter.from_sealed(
+            envelope, key, resolver=loopback,
         )
         result = adapter.execute(
             command(), deadline=time.monotonic() + 2, cancelled=lambda: False,
@@ -188,6 +198,7 @@ def test_exact_sealed_binding_dispatches_one_fixed_request_and_returns_unknown_u
 
 @pytest.mark.parametrize("change", [
     {"resource_id": "c" * 32},
+    {"resource_revision": 6},
     {"binding_revision": 8},
     {"service_revision": 10},
     {"guest_kind": "lxc"},
@@ -223,6 +234,47 @@ def test_dns_pin_peer_and_rebinding_changes_fail_before_secret_send():
     assert connections == []
 
 
+def test_connected_peer_mismatch_rejects_before_authorization_header_is_sent():
+    reply = b"HTTP/1.1 500 Error\r\nContent-Length: 0\r\n\r\n"
+    with origin(reply) as (port, requests):
+        class WrongPeer:
+            def __init__(self):
+                self.inner = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                self.inner.connect(("127.0.0.1", port))
+
+            def settimeout(self, value):
+                self.inner.settimeout(value)
+
+            def getpeername(self):
+                return ("127.0.0.2", port)
+
+            def sendall(self, value):
+                self.inner.sendall(value)
+
+            def recv(self, count):
+                return self.inner.recv(count)
+
+            def shutdown(self, how):
+                self.inner.shutdown(how)
+
+            def close(self):
+                self.inner.close()
+
+        adapter = ProxmoxApiEffectAdapter(
+            binding(port), resolver=loopback,
+            connector=lambda *_args: WrongPeer(),
+        )
+        result = adapter.execute(
+            command(), deadline=time.monotonic() + 1,
+            cancelled=lambda: False,
+        )
+        assert result.outcome == "unknown"
+        wait_for = time.monotonic() + 0.2
+        while time.monotonic() < wait_for and not requests:
+            time.sleep(0.005)
+        assert requests == []
+
+
 def test_redirect_proxy_large_body_and_deadline_are_unknown_without_retry(monkeypatch):
     trapped = []
     monkeypatch.setenv("HTTP_PROXY", "http://127.0.0.1:9")
@@ -231,13 +283,15 @@ def test_redirect_proxy_large_body_and_deadline_are_unknown_without_retry(monkey
     cases = [
         b"HTTP/1.1 302 Found\r\nLocation: http://127.0.0.1:9/secret\r\nContent-Length: 0\r\n\r\n",
         b"HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: 9000\r\n\r\n" + b"x" * 9000,
+        (0.2, b"HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: 0\r\n\r\n"),
     ]
     for index, response in enumerate(cases):
         with origin(response) as (port, requests):
             adapter = ProxmoxApiEffectAdapter(binding(port), resolver=loopback)
+            deadline = time.monotonic() + (0.05 if isinstance(response, tuple) else 1)
             result = adapter.execute(
                 command(request_id=(str(index + 1) * 32)),
-                deadline=time.monotonic() + 1, cancelled=lambda: False,
+                deadline=deadline, cancelled=lambda: False,
             )
             assert result.outcome == "unknown"
             assert len(requests) == 1
@@ -252,8 +306,8 @@ def test_worker_hashes_accepted_upid_but_never_claims_success_or_retries():
     )
     with origin(reply) as (port, requests), root() as name:
         envelope, key = seal(Path(name), binding(port))
-        adapter = ProxmoxApiEffectAdapter(
-            load_service_binding(envelope, key), resolver=loopback,
+        adapter = ProxmoxApiEffectAdapter.from_sealed(
+            envelope, key, resolver=loopback,
         )
         with RunningWorker(adapter) as (_server, client):
             result = client.execute_bounded(

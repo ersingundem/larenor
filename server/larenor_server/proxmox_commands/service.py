@@ -208,7 +208,10 @@ class ProxmoxPowerAuthority:
             elif effect.outcome == "cancelled":
                 receipt = self._receipt(pending, "cancelled", "cancelled", final, started)
             else:
-                receipt = self._receipt(pending, "unknown", "outcome_uncertain", final, started)
+                receipt = self._receipt(
+                    pending, "unknown", "outcome_uncertain", final, started,
+                    operation_ref=effect.operation_ref,
+                )
         except Exception:
             observed = self.provider.resolve(resource_id)
             final = current if not isinstance(observed, ProxmoxGuestDescriptor) else observed
