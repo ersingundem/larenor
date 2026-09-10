@@ -57,14 +57,14 @@ class UnsupportedVncEngine implements VncEngine {
   Future<RfbNegotiation> negotiate(
     RemoteProfile profile, {
     required bool Function() isCurrent,
-  }) => throw const VncFailure('engine_unavailable');
+  }) async => throw const VncFailure('engine_unavailable');
 
   @override
   Future<VncChannel> open(
     VncSessionRequest request, {
     VncSecretLease? password,
     required bool Function() isCurrent,
-  }) {
+  }) async {
     password?.dispose();
     throw const VncFailure('engine_unavailable');
   }

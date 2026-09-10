@@ -25,10 +25,11 @@ conversion and IPv6 zone identifiers are not implemented; the form explicitly
 asks for international names in their xn-- representation.
 
 The profile does not contain a password, key, command, certificate exception
-or trust decision. Unknown record keys are rejected. There is no SSH/RDP/VNC
-session engine in this slice: the details explicitly say the connection was
-not tested and in-app sessions are unavailable. Existing Proxmox console and
-all HA/Server transports remain unchanged. No remote target is contacted.
+or trust decision. Unknown record keys are rejected. Later bounded slices add
+SSH and VNC session contracts around this profile. The VNC foundation keeps an
+explicit unavailable state until a reviewed native engine is packaged; its
+default engine does not contact the target. Existing Proxmox console and all
+HA/Server transports remain unchanged.
 
 ## Storage and lifecycle
 
@@ -85,9 +86,10 @@ or unavailable profile from reappearing through a retained action.
 - Analyzer: **5 items, 0 issues**. Formatter:8 owned Dart files; no unrelated
   formatting/refactor. New-module line coverage: **464/491 = 94.50% (Dart lines only)**.
 
-This is a partial REMOTE.COMMON software foundation, not completion of
-REMOTE.COMMON/F61/F62/F63. Host-key/certificate trust, credentials, live
-terminal/desktop, tunnels, SFTP, Core-managed profiles, reconnect and physical
-Android/DeX acceptance remain separate work. No CI, push or PR was created.
+This remains a partial REMOTE.COMMON software foundation, not completion of
+REMOTE.COMMON/F61/F62/F63. The separate F61 foundation is documented in
+`vnc-client-foundation-2026-09-10.md`; its native engine, framebuffer, real
+server interoperability, Core-managed profiles and physical Android/DeX
+acceptance remain separate work. No CI, push or PR was created here.
 Private logs, process outcomes, hashes and final commit are recorded in
 `/private/tmp/larenor-remote-profiles-delivery-evidence.json`.
