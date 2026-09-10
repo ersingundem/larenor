@@ -1,0 +1,38 @@
+{
+  "services": {
+    "larenor-keenetic-worker": {
+      "build": {
+        "context": "../..",
+        "dockerfile": "server/Dockerfile.keenetic-worker"
+      },
+      "container_name": "larenor-keenetic-worker",
+      "user": "10001:10001",
+      "network_mode": "none",
+      "read_only": true,
+      "restart": "on-failure:3",
+      "stop_grace_period": "10s",
+      "cap_drop": ["ALL"],
+      "security_opt": ["no-new-privileges:true"],
+      "tmpfs": ["/tmp:rw,nosuid,nodev,noexec,size=16m,mode=0700,uid=10001,gid=10001"],
+      "volumes": [
+        {
+          "type": "bind",
+          "source": "/var/lib/larenor-server/keenetic-secrets",
+          "target": "/run/secrets",
+          "read_only": true,
+          "bind": {"create_host_path": false}
+        },
+        {
+          "type": "bind",
+          "source": "/var/lib/larenor-server/keenetic-runtime",
+          "target": "/run/larenor",
+          "bind": {"create_host_path": false}
+        }
+      ],
+      "logging": {
+        "driver": "json-file",
+        "options": {"max-size": "1m", "max-file": "2"}
+      }
+    }
+  }
+}

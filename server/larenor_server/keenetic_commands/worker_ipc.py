@@ -181,3 +181,8 @@ class KeeneticCommandWorkerServer(PreflightWorkerServer):
             ).model_dump(mode="json")
         except (PreflightIPCError, ValidationError, ValueError, TypeError):
             raise PreflightIPCError("invalid_request") from None
+
+    @property
+    def is_alive(self):
+        """Expose only liveness; no thread, path or transport details escape."""
+        return self._thread is not None and self._thread.is_alive()
