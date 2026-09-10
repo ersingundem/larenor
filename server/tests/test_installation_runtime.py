@@ -321,6 +321,47 @@ def test_runtime_projects_unexpected_bootstrap_failure_with_static_boundary(
         'qbittorrent_bootstrap_after_categories_failed')
 
 
+@pytest.mark.parametrize('state,code,cause', [
+    ('pending', 'worker_unavailable',
+     'qbittorrent_execution_worker_unavailable'),
+    ('failed', 'invalid_worker_result',
+     'qbittorrent_execution_invalid_worker_result'),
+    ('needs_attention', 'resource_conflict',
+     'qbittorrent_execution_resource_conflict'),
+    ('needs_attention', 'container_not_running',
+     'qbittorrent_execution_container_not_running'),
+    ('needs_attention', 'dispatch_expired',
+     'qbittorrent_execution_dispatch_expired'),
+])
+def test_runtime_projects_invalid_execution_result_as_static_cause(
+        monkeypatch, state, code, cause):
+    receipt = QbittorrentConfigInstallReceipt(
+        '1' * 32, '2' * 32, '3' * 32, 3,
+        'larenor-appdata-v1-' + '1' * 32, '4' * 64,
+        'qbittorrent_config_installed')
+    backend = object.__new__(runtime._RuntimeBackend)
+    backend.qbittorrent_config = SimpleNamespace(
+        install=lambda *_args, **_kwargs: receipt)
+    backend.qbittorrent_installation = object()
+    monkeypatch.setattr(
+        runtime, 'build_execution',
+        lambda *_args, **_kwargs: SimpleNamespace(
+            run=lambda *_run_args: runtime.ExecutionResult(state, code)))
+
+    with pytest.raises(
+        runtime.QbittorrentConfigurationExecutionError,
+        match='^qbittorrent_config_result_invalid$',
+    ) as raised:
+        backend.install_configured_qbittorrent(
+            'd' * 32, object(), 'c' * 48,
+            api_key='a' * 32, salt=b'1' * 16,
+            cancelled=threading.Event(), deadline=time.monotonic() + 30,
+            gate=lambda: True)
+
+    assert raised.value.uncertain_effect
+    assert raised.value.cause_code == cause
+
+
 def test_runtime_closes_unexpected_qbittorrent_configure_failure():
     backend = object.__new__(runtime._RuntimeBackend)
     backend.qbittorrent_config = SimpleNamespace(

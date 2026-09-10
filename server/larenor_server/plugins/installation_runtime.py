@@ -322,9 +322,23 @@ class _RuntimeBackend:
         if (type(result) is not ExecutionResult or result.state != 'succeeded'
                 or result.code != 'container_started'
                 or result.container_id is None):
+            cause = ({
+                ('pending', 'worker_unavailable'):
+                    'qbittorrent_execution_worker_unavailable',
+                ('failed', 'invalid_worker_result'):
+                    'qbittorrent_execution_invalid_worker_result',
+                ('needs_attention', 'resource_conflict'):
+                    'qbittorrent_execution_resource_conflict',
+                ('needs_attention', 'container_not_running'):
+                    'qbittorrent_execution_container_not_running',
+                ('needs_attention', 'dispatch_expired'):
+                    'qbittorrent_execution_dispatch_expired',
+            }.get((getattr(result, 'state', None),
+                   getattr(result, 'code', None)))
+                     if type(result) is ExecutionResult else None)
             raise QbittorrentConfigurationExecutionError(
                 'qbittorrent_config_result_invalid',
-                uncertain_effect=True)
+                uncertain_effect=True, cause_code=cause)
         try:
             verified = self.qbittorrent_bootstrap.execute(
                 job, stack, PrivateQbittorrentConfiguration(
@@ -341,11 +355,18 @@ class _RuntimeBackend:
                     'qbittorrent_service_changed',
                 'qbittorrent_bootstrap_timeout': 'qbittorrent_config_timeout',
             }.get(error.code, 'qbittorrent_service_verification_failed')
-            cause = (f'qbittorrent_bootstrap_{error.boundary}_failed'
-                     if (error.cause_code
-                         == 'qbittorrent_bootstrap_unexpected'
-                         and error.boundary is not None)
-                     else None)
+            cause = {
+                'qbittorrent_bootstrap_binding_invalid_installation_plan':
+                    'qbittorrent_bootstrap_binding_invalid_installation_plan',
+                'qbittorrent_bootstrap_binding_resources_unavailable':
+                    'qbittorrent_bootstrap_binding_resources_unavailable',
+                'qbittorrent_bootstrap_binding_resources_untrusted':
+                    'qbittorrent_bootstrap_binding_resources_untrusted',
+            }.get(error.cause_code)
+            if (cause is None
+                    and error.cause_code == 'qbittorrent_bootstrap_unexpected'
+                    and error.boundary is not None):
+                cause = f'qbittorrent_bootstrap_{error.boundary}_failed'
             raise QbittorrentConfigurationExecutionError(
                 code, uncertain_effect=True, cause_code=cause) from None
         except Exception:

@@ -6,7 +6,8 @@ import time
 import pytest
 
 from larenor_server.plugins.managed_container import (
-    JournaledManagedContainerOperations, ManagedWorkerJournal,
+    JournaledManagedContainerOperations, ManagedContainerError,
+    ManagedWorkerJournal,
 )
 from larenor_server.plugins.qbittorrent_authenticated_readback import (
     QbittorrentAuthenticatedReadback,
@@ -194,6 +195,35 @@ def test_unexpected_failure_preserves_only_static_boundary_diagnostic(
     assert raised.value.cause_code == 'qbittorrent_bootstrap_unexpected'
     assert not raised.value.uncertain_effect
     assert 'private' not in str(raised.value) + repr(raised.value)
+
+
+@pytest.mark.parametrize('private_code,public_cause', [
+    ('invalid_installation_plan',
+     'qbittorrent_bootstrap_binding_invalid_installation_plan'),
+    ('resources_unavailable',
+     'qbittorrent_bootstrap_binding_resources_unavailable'),
+    ('resources_untrusted',
+     'qbittorrent_bootstrap_binding_resources_untrusted'),
+])
+def test_binding_failure_preserves_only_static_cause(
+        prepared, private_code, public_cause):
+    stack, _binding, _engine, operations = prepared
+    failed = QbittorrentBootstrapExecutor(
+        operations,
+        lambda *_args: (_ for _ in ()).throw(
+            ManagedContainerError(private_code)),
+        QbittorrentManagedCategories(), QbittorrentAuthenticatedReadback())
+
+    with pytest.raises(
+            QbittorrentBootstrapExecutionError,
+            match='^qbittorrent_bootstrap_resources_unavailable$') as raised:
+        failed.execute(
+            JOB, stack, private(), deadline=time.monotonic() + 10,
+            gate=lambda: True)
+
+    assert raised.value.boundary == 'before_connect'
+    assert raised.value.cause_code == public_cause
+    assert not raised.value.uncertain_effect
 
 
 def test_category_failure_preserves_static_cause_without_readback(

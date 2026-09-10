@@ -10,6 +10,7 @@ from pydantic import ValidationError
 from .catalog import load_catalog
 from .managed_container import (
     JournaledManagedContainerOperations, ManagedContainerBinding,
+    ManagedContainerError,
 )
 from .qbittorrent_authenticated_readback import (
     QbittorrentAuthenticatedReadback,
@@ -62,6 +63,9 @@ _CAUSE_CODES = frozenset({
     'qbittorrent_readback_mismatch',
     'qbittorrent_authenticated_readback_unavailable',
     'qbittorrent_authenticated_readback_timeout',
+    'qbittorrent_bootstrap_binding_invalid_installation_plan',
+    'qbittorrent_bootstrap_binding_resources_unavailable',
+    'qbittorrent_bootstrap_binding_resources_untrusted',
     'qbittorrent_bootstrap_unexpected',
 })
 _CATEGORY_STEPS = frozenset({
@@ -356,6 +360,24 @@ class QbittorrentBootstrapExecutor:
                     else 'qbittorrent_bootstrap_endpoint_changed')
             raise QbittorrentBootstrapExecutionError(
                 code, uncertain_effect=category_result is not None,
+                boundary=boundary) from None
+        except ManagedContainerError as error:
+            cause = {
+                'invalid_installation_plan':
+                    'qbittorrent_bootstrap_binding_invalid_installation_plan',
+                'resources_unavailable':
+                    'qbittorrent_bootstrap_binding_resources_unavailable',
+                'resources_untrusted':
+                    'qbittorrent_bootstrap_binding_resources_untrusted',
+            }.get(error.code)
+            raise QbittorrentBootstrapExecutionError(
+                'qbittorrent_bootstrap_resources_unavailable',
+                uncertain_effect=category_result is not None,
+                boundary=boundary, cause_code=cause) from None
+        except TimeoutError:
+            raise QbittorrentBootstrapExecutionError(
+                'qbittorrent_bootstrap_timeout',
+                uncertain_effect=category_result is not None,
                 boundary=boundary) from None
         except (DockerWorkerError, ValueError, TypeError, AttributeError,
                 RuntimeError):
