@@ -39,6 +39,7 @@ from .arr_bootstrap_executor import (
 )
 from .arr_authenticated_readback import ArrAuthenticatedReadback
 from .arr_managed_root_folders import ArrManagedRootFolders
+from .arr_managed_download_client import ArrManagedDownloadClient
 from .arr_config_effect import ArrConfigInstallReceipt
 from .arr_config_models import (
     ArrConfiguredInstallReceipt, ArrConfigurationExecutionError,
@@ -264,7 +265,7 @@ class _RuntimeBackend:
             QbittorrentAuthenticatedReadback())
         self.arr_bootstrap = ArrBootstrapExecutor(
             operations, binding_builder, ArrManagedRootFolders(),
-            ArrAuthenticatedReadback())
+            ArrAuthenticatedReadback(), ArrManagedDownloadClient())
         self.bootstrap_executor = JellyfinBootstrapExecutor(
             operations, binding_builder, JellyfinStartupConfigurator(),
             JellyfinAuthenticatedReadback(), JellyfinManagedLibraries())
@@ -298,7 +299,8 @@ class _RuntimeBackend:
         )
 
     def install_configured_arr(self, job, stack, service_id, *, api_key,
-                               cancelled, deadline, gate):
+                               qbittorrent_api_key=None, cancelled, deadline,
+                               gate):
         try:
             configured = self.configure_arr(
                 job, stack, service_id, api_key=api_key,
@@ -379,7 +381,8 @@ class _RuntimeBackend:
         try:
             verified = self.arr_bootstrap.execute(
                 job, stack, PrivateArrConfiguration(
-                    serviceId=service_id, apiKey=api_key),
+                    serviceId=service_id, apiKey=api_key,
+                    qbittorrentApiKey=qbittorrent_api_key),
                 deadline=deadline, gate=gate)
         except ArrBootstrapExecutionError as error:
             code = {

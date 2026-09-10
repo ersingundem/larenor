@@ -69,9 +69,11 @@ def _body(value, model):
 
 
 class ArrConfigurationManagement:
-    def __init__(self, db, auth, settings, key, installations, backend=None):
+    def __init__(self, db, auth, settings, key, installations, backend=None,
+                 qbittorrent=None):
         self.db, self.auth, self.settings = db, auth, settings
         self.installations, self.backend = installations, backend
+        self.qbittorrent = qbittorrent
         self._cipher = AESGCM(key)
 
     def _assert_admin(self, connection, actor):
@@ -228,6 +230,8 @@ class ArrConfigurationManagement:
                 return {'configuration': self._public(previous)}
             if self.backend is None:
                 raise ApiError('plugin_worker_unavailable', 503)
+            if self.qbittorrent is None:
+                raise ApiError('media_qbittorrent_configuration_required', 409)
             if connection.execute(
                 'SELECT 1 FROM media_arr_configurations '
                 'WHERE preparation_id=? AND service_id=?',
@@ -259,8 +263,10 @@ class ArrConfigurationManagement:
                 'phase': 'queued', 'cancel_requested': 0, 'error_code': None,
                 'configuration_state': None, 'created_at': now, 'updated_at': now,
             }
+            dependency = self.qbittorrent.arr_dependency(body.preparationId)
             private = PrivateArrConfiguration(
-                serviceId=body.serviceId, apiKey=generate_arr_api_key())
+                serviceId=body.serviceId, apiKey=generate_arr_api_key(),
+                qbittorrentApiKey=dependency.api_key)
             payload = ArrConfigurationPayload(
                 request=body, plan=plan, private=private)
             connection.execute(

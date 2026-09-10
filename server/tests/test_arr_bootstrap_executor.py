@@ -1,5 +1,6 @@
 import socket
 import time
+from dataclasses import replace
 
 import pytest
 from larenor_server.plugins.arr_authenticated_readback import ArrAuthenticatedReadback
@@ -10,6 +11,7 @@ from larenor_server.plugins.arr_bootstrap_executor import (
 from larenor_server.plugins.arr_config_models import PrivateArrConfiguration
 from larenor_server.plugins.arr_endpoint import OpenArrEndpoint, prove_arr_endpoint
 from larenor_server.plugins.arr_managed_root_folders import ArrManagedRootFolders
+from larenor_server.plugins.arr_managed_download_client import ArrManagedDownloadClient
 from larenor_server.plugins.managed_container import (
     JournaledManagedContainerOperations,
     ManagedContainerError,
@@ -18,6 +20,10 @@ from larenor_server.plugins.managed_container import (
 from test_arr_authenticated_readback import result
 from test_arr_endpoint import build
 from test_arr_managed_root_folders import json_response as root_response
+from test_arr_managed_download_client import (
+    QBIT_KEY, desired as download_client, json_response as download_response,
+    schema as download_schema,
+)
 from test_jellyfin_startup import Connection
 from test_managed_container_binding import Engine, command
 
@@ -77,6 +83,68 @@ def test_reconciles_started_container_and_reads_back(prepared, monkeypatch):
         and len(gates) >= 7
         and KEY not in repr(value)
     )
+
+
+def test_runtime_wires_verified_qbittorrent_download_client(prepared, monkeypatch):
+    stack, binding, engine, operations = prepared
+    readback = Connection([result('sonarr')])
+    root = Connection([root_response([{'id': 1, 'path': '/data/shows'}])])
+    download = Connection([
+        download_response([]), download_response(download_schema('sonarr')),
+        download_response({}),
+        download_response(download_client('sonarr'), status=201),
+        download_response([download_client('sonarr', masked=True)], close=True),
+    ])
+    proof = prove_arr_endpoint(
+        engine.container, binding, stack, engine.container['Id'], 'sonarr')
+    connections = iter([readback, root, download])
+    monkeypatch.setattr(
+        'larenor_server.plugins.arr_bootstrap_executor.open_arr_endpoint',
+        lambda *_a, **_k: OpenArrEndpoint(next(connections), proof))
+
+    value = ArrBootstrapExecutor(
+        operations, lambda *_: binding, ArrManagedRootFolders(),
+        ArrAuthenticatedReadback(), ArrManagedDownloadClient()).execute(
+            JOB, stack,
+            PrivateArrConfiguration(
+                serviceId='sonarr', apiKey=KEY,
+                qbittorrentApiKey=QBIT_KEY),
+            deadline=time.monotonic() + 10, gate=lambda: True)
+
+    assert value.state == 'verified'
+    assert len(download.requests) == 5 and download.closed
+    assert QBIT_KEY not in repr(value)
+
+
+def test_changed_endpoint_blocks_download_client_secret(prepared, monkeypatch):
+    stack, binding, engine, operations = prepared
+    proof = prove_arr_endpoint(
+        engine.container, binding, stack, engine.container['Id'], 'sonarr')
+    readback = Connection([result('sonarr')])
+    root = Connection([root_response([{'id': 1, 'path': '/data/shows'}])])
+    download = Connection([])
+    opened = iter([
+        OpenArrEndpoint(readback, proof), OpenArrEndpoint(root, proof),
+        OpenArrEndpoint(download, replace(proof, address='172.28.0.3')),
+    ])
+    monkeypatch.setattr(
+        'larenor_server.plugins.arr_bootstrap_executor.open_arr_endpoint',
+        lambda *_a, **_k: next(opened))
+
+    with pytest.raises(
+            ArrBootstrapExecutionError,
+            match='^arr_bootstrap_endpoint_changed$') as raised:
+        ArrBootstrapExecutor(
+            operations, lambda *_: binding, ArrManagedRootFolders(),
+            ArrAuthenticatedReadback(), ArrManagedDownloadClient()).execute(
+                JOB, stack,
+                PrivateArrConfiguration(
+                    serviceId='sonarr', apiKey=KEY,
+                    qbittorrentApiKey=QBIT_KEY),
+                deadline=time.monotonic() + 10, gate=lambda: True)
+
+    assert raised.value.uncertain_effect
+    assert download.requests == [] and download.closed
 
 
 def test_authority_loss_before_private_readback_closes_stream(prepared, monkeypatch):

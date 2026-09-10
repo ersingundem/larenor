@@ -19,6 +19,10 @@ from .arr_managed_root_folders import (
     ArrManagedRootFolders, ArrManagedRootFoldersError,
     ArrManagedRootFoldersLimits, ArrManagedRootFoldersResult,
 )
+from .arr_managed_download_client import (
+    ArrManagedDownloadClient, ArrManagedDownloadClientError,
+    ArrManagedDownloadClientLimits,
+)
 from .catalog import load_catalog
 from .managed_container import (
     JournaledManagedContainerOperations,
@@ -86,6 +90,20 @@ class ArrBootstrapExecutionError(Exception):
                 'arr_root_folder_conflict',
                 'arr_root_folders_unavailable',
                 'arr_root_folders_timeout',
+                'invalid_arr_managed_download_client',
+                'arr_download_client_authentication_failed',
+                'arr_download_client_observation_protocol',
+                'arr_download_client_observation_framing',
+                'arr_download_client_observation_payload',
+                'arr_download_client_schema_protocol',
+                'arr_download_client_schema_conflict',
+                'arr_download_client_test_protocol',
+                'arr_download_client_test_failed',
+                'arr_download_client_create_protocol',
+                'arr_download_client_verification_protocol',
+                'arr_download_client_conflict',
+                'arr_download_client_unavailable',
+                'arr_download_client_timeout',
                 'arr_bootstrap_binding_invalid_installation_plan',
                 'arr_bootstrap_binding_resources_unavailable',
                 'arr_bootstrap_binding_resources_untrusted',
@@ -142,18 +160,22 @@ def _remaining(deadline):
 
 
 class ArrBootstrapExecutor:
-    def __init__(self, operations, binding_builder, root_folders, readback):
+    def __init__(self, operations, binding_builder, root_folders, readback,
+                 download_client=None):
         if (
             type(operations) is not JournaledManagedContainerOperations
             or not callable(binding_builder)
             or type(root_folders) is not ArrManagedRootFolders
             or type(readback) is not ArrAuthenticatedReadback
+            or download_client is not None
+            and type(download_client) is not ArrManagedDownloadClient
         ):
             raise ArrBootstrapExecutionError('invalid_arr_bootstrap_execution')
         self.operations = operations
         self.binding_builder = binding_builder
         self.root_folders = root_folders
         self.readback = readback
+        self.download_client = download_client
 
     @staticmethod
     def _gate(gate, uncertain=False):
@@ -316,6 +338,31 @@ class ArrBootstrapExecutor:
             root_folders = self.root_folders.apply(
                 opened.connection, service_id=secret.serviceId,
                 api_key=secret.apiKey, limits=wiring_limits)
+            if (self.download_client is not None
+                    and secret.qbittorrentApiKey is not None):
+                opened = None
+                called = False
+                self._gate(gate, True)
+                opened = open_arr_endpoint(
+                    observed, binding, trusted, receipt.container_id,
+                    secret.serviceId,
+                    timeout=min(10.0, _remaining(deadline)))
+                boundary = 'after_wiring_connect'
+                observed = self.operations.engine.inspect_container(binding.name)
+                if (prove_arr_endpoint(
+                        observed, binding, trusted, receipt.container_id,
+                        secret.serviceId) != proof or opened.proof != proof):
+                    raise ArrBootstrapExecutionError(
+                        'arr_bootstrap_endpoint_changed',
+                        uncertain_effect=True, boundary=boundary)
+                self._gate(gate, True)
+                called = True
+                self.download_client.apply(
+                    opened.connection, service_id=secret.serviceId,
+                    arr_api_key=secret.apiKey,
+                    qbittorrent_api_key=secret.qbittorrentApiKey,
+                    limits=ArrManagedDownloadClientLimits(
+                        total_seconds=min(30.0, _remaining(deadline))))
             boundary = 'after_wiring'
             observed = self.operations.engine.inspect_container(binding.name)
             if prove_arr_endpoint(
@@ -344,6 +391,11 @@ class ArrBootstrapExecutor:
                 boundary=boundary,
                 cause_code=error.code,
             ) from None
+        except ArrManagedDownloadClientError as error:
+            raise ArrBootstrapExecutionError(
+                'arr_bootstrap_wiring_failed',
+                uncertain_effect=error.uncertain_effect,
+                boundary=boundary, cause_code=error.code) from None
         except ArrEndpointError as error:
             code = (
                 'arr_bootstrap_timeout'
