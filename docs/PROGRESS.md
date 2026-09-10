@@ -343,6 +343,13 @@ security policy, queue ve Gitleaks PASS. Container zinciri ve iki mimarili nativ
 kabul açık olduğundan sayaç değişmedi.
 [Uygulama ve açık sınırlar](arr-authenticated-readback-implementation-2026-09-10.md).
 
+`8737a1d` endpoint dilimi ortak managed-container builder'ı Sonarr/Radarr'a
+genişletti ve exact journal/container/ağ proof'undan sabit private 8989/7878
+stream'i üretti. DNS, proxy, alternatif hedef ve retry yok. Arr endpoint/readback
+ile mevcut Jellyfin/qBittorrent regresyonlarında **97 PASS**; security, queue ve
+Gitleaks PASS. Create/start orkestrasyonu açık olduğundan sayaç değişmedi.
+[Uygulama ve açık sınırlar](arr-private-endpoint-implementation-2026-09-10.md).
+
 S06.4 native kabul koşusu [34326112926](https://github.com/ersingundem/larenor/actions/runs/34326112926)
 iki gerçek GitHub runner'ında geçti. İndirilen ARM64 ve X64 makbuzları merge
 commit'i `b6e7034` için repo verifier ile tekrar doğrulandı; bu commit'in ikinci
