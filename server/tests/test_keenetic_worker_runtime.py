@@ -47,6 +47,7 @@ def test_policy_is_private_address_free_and_secret_permission_checked(tmp_path):
     secret.chmod(0o640)
     with pytest.raises(RuntimeConfigurationError, match="^worker_configuration_invalid$"):
         load_policy(tmp_path / "worker.json")
+    secret.chmod(0o600)
 
     for forbidden in (
         {"endpoint": "http://192.0.2.1"},
@@ -55,7 +56,7 @@ def test_policy_is_private_address_free_and_secret_permission_checked(tmp_path):
         {"command": "show running-config"},
     ):
         with pytest.raises(RuntimeConfigurationError, match="^worker_configuration_invalid$") as caught:
-            load_policy(policy(tmp_path / "worker.json", **forbidden))
+            load_policy(policy(tmp_path / "worker.json", secret, adapter="rci", **forbidden))
         assert next(iter(forbidden.values())) not in str(caught.value)
 
 

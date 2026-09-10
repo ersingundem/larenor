@@ -240,7 +240,8 @@ def test_only_fixed_target_typed_rci_batches_can_be_dispatched(
     assert body[2] == {"show": {"version": {}}}
     assert "show" in body[3]
     wire = command(action, target=current).model_dump(mode="json")
-    assert set(wire) == {"operation", "expectedState"}
+    assert set(wire) == {"operation", "expectedState", "credentialLease"}
+    assert wire["credentialLease"] is None
     assert all(key not in json.dumps(wire).lower() for key in ("endpoint", "password", "command"))
 
 

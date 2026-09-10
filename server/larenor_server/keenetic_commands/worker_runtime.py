@@ -10,6 +10,7 @@ import re
 import signal
 import stat
 import sys
+import time
 import uuid
 
 from pydantic import Field
@@ -17,6 +18,9 @@ from pydantic import Field
 from ..files import checked_path, private_read, sync_directory
 from ..home_resources.models import FrozenModel, Identity
 from ..plugins.worker import _safe_path
+from .credential_lease import KeeneticCredentialLeaseVerifier
+from .rci_adapter import PackagedRciCommandAdapter
+from .rci_transport import LeasedKeeneticRciTransport
 from .worker_ipc import KeeneticCommandWorkerServer
 
 
@@ -94,24 +98,56 @@ def load_policy(path):
             or set(value) != {"version", "adapter", "secretFile"}
             or type(value["version"]) is not int
             or value["version"] != 1
-            or value["adapter"] != "unavailable"
+            or value["adapter"] not in {"unavailable", "rci"}
             or value["secretFile"] is not None
             and type(value["secretFile"]) is not str
+            or value["adapter"] == "unavailable"
+            and value["secretFile"] is not None
+            or value["adapter"] == "rci"
+            and value["secretFile"] is None
         ):
             raise ValueError()
         secret = None
         if value["secretFile"] is not None:
             secret = _absolute(value["secretFile"])
             _safe_path(secret, uid=os.geteuid(), kind=stat.S_ISREG, private=True)
-            info = secret.stat()
-            if not 1 <= info.st_size <= MAX_POLICY_BYTES:
+            if len(private_read(secret, 32)) != 32:
                 raise ValueError()
-        result = KeeneticWorkerPolicy("unavailable", secret)
+        result = KeeneticWorkerPolicy(value["adapter"], secret)
     except Exception:
         invalid = True
     if invalid or type(result) is not KeeneticWorkerPolicy:
         raise RuntimeConfigurationError() from None
     return result
+
+
+def runtime_adapter_factory(policy, *, clock=None):
+    """Build worker-bound RCI adapters without retaining decrypted credentials."""
+    if (
+        not isinstance(policy, KeeneticWorkerPolicy)
+        or policy.adapter != "rci"
+        or policy.secret_file is None
+        or clock is not None and not callable(clock)
+    ):
+        raise RuntimeConfigurationError()
+
+    def build(worker_id):
+        try:
+            key = private_read(policy.secret_file, 32)
+            if len(key) != 32:
+                raise ValueError()
+            verifier = KeeneticCredentialLeaseVerifier(
+                key,
+                worker_id=worker_id,
+                clock=clock or time.time,
+            )
+            return PackagedRciCommandAdapter(
+                LeasedKeeneticRciTransport(verifier)
+            )
+        except Exception:
+            raise RuntimeConfigurationError() from None
+
+    return build
 
 
 class WorkerHealthStore:
@@ -270,11 +306,13 @@ class KeeneticWorkerSupervisor:
 
 
 def run_worker_once(socket_path, health_path, *, api_uid, socket_gid, stop,
-                    peer_uid=None):
+                    peer_uid=None, adapter_factory=None):
     worker_id = uuid.uuid4().hex
     store = WorkerHealthStore(health_path, owner_uid=os.geteuid())
+    adapter = None if adapter_factory is None else adapter_factory(worker_id)
     worker = KeeneticCommandWorkerServer(
         socket_path,
+        adapter,
         allowed_uid=api_uid,
         socket_gid=socket_gid,
         peer_uid=peer_uid,
@@ -358,8 +396,9 @@ def main(argv=None):
                 args.health, owner_uid=os.geteuid()
             ).verify_ready(args.socket)
             return 0 if _process_alive(receipt.workerPid) else 1
-        if policy.adapter != "unavailable":
-            raise RuntimeConfigurationError()
+        adapter_factory = (
+            runtime_adapter_factory(policy) if policy.adapter == "rci" else None
+        )
     except (RuntimeConfigurationError, OSError, ValueError):
         print("worker_configuration_invalid", file=sys.stderr)
         return 2
@@ -382,6 +421,7 @@ def main(argv=None):
                 api_uid=args.api_uid,
                 socket_gid=args.socket_gid,
                 stop=event,
+                adapter_factory=adapter_factory,
             ),
             cleanup=lambda: store.cleanup_orphan(
                 args.socket, process_alive=_process_alive

@@ -21,6 +21,8 @@ from pydantic import ValidationError
 
 from ..errors import ApiError
 from ..services.transport import ProbeTransportError, ServiceTransport
+from ..services.service import ServiceConnection
+from .credential_lease import KeeneticLeaseError
 from .rci_adapter import RciCommand
 from .service import KeeneticEffectError, RESULT
 
@@ -134,7 +136,7 @@ def _hash(algorithm, value):
     return hashlib.new(name, value.encode("utf-8"), usedforsecurity=False).hexdigest()
 
 
-def _authorization(challenge, username, password, cnonce):
+def _authorization(challenge, username, password, cnonce, *, method="POST", uri="/rci/"):
     if not _USERNAME.fullmatch(username) or not isinstance(password, str):
         raise KeeneticEffectError("keenetic_effect_unavailable")
     scheme, separator, parameters = challenge.partition(" ")
@@ -152,13 +154,15 @@ def _authorization(challenge, username, password, cnonce):
         raise KeeneticEffectError("keenetic_effect_unavailable")
     nonce = fields["nonce"]
     ha1 = _hash(algorithm, f"{username}:{fields['realm']}:{password}")
-    ha2 = _hash(algorithm, "POST:/rci/")
+    if method not in {"GET", "POST"} or not re.fullmatch(r"/[A-Za-z0-9/_-]{1,256}", uri):
+        raise KeeneticEffectError("keenetic_effect_rejected")
+    ha2 = _hash(algorithm, f"{method}:{uri}")
     digest = _hash(algorithm, f"{ha1}:{nonce}:00000001:{cnonce}:auth:{ha2}")
     values = [
         f'username="{username}"',
         'realm="Keenetic"',
         f'nonce="{nonce}"',
-        'uri="/rci/"',
+        f'uri="{uri}"',
         f"algorithm={algorithm}",
         f'response="{digest}"',
         "qop=auth",
@@ -333,6 +337,8 @@ class KeeneticRciTransport:
         ):
             raise KeeneticEffectError("keenetic_effect_rejected")
         expected = _validate_target(command)
+        if command.credentialLease is not None:
+            raise KeeneticEffectError("keenetic_effect_rejected")
         if cancelled():
             raise KeeneticEffectError("keenetic_effect_cancelled")
         remaining = deadline - time.monotonic()
@@ -460,3 +466,55 @@ class KeeneticRciTransport:
                     transport.close()
                 except Exception:
                     pass
+
+
+class LeasedKeeneticRciTransport:
+    """Worker-side RCI transport; the only binding input is a sealed lease."""
+
+    def __init__(self, verifier, **transport_options):
+        self._verifier = verifier
+        self._options = dict(transport_options)
+
+    def __repr__(self):
+        return "LeasedKeeneticRciTransport(<private>)"
+
+    def __call__(self, command, *, deadline, cancelled):
+        command = RciCommand.model_validate(command)
+        if command.credentialLease is None:
+            raise KeeneticEffectError("keenetic_effect_unavailable")
+        try:
+            with self._verifier.open(
+                command.credentialLease, command.expectedState
+            ) as leased:
+                connection = ServiceConnection(
+                    id=leased.service_id,
+                    revision=leased.service_revision,
+                    name="leased-keenetic",
+                    kind="keenetic",
+                    base_url=leased.endpoint_text(),
+                    credentials={
+                        "username": leased.username_text(),
+                        "password": leased.password_text(),
+                    },
+                )
+
+                class OneConnection:
+                    def connection(self, _actor, service_id, revision):
+                        if (service_id, revision) != (
+                            connection.id, connection.revision
+                        ):
+                            raise ApiError("revision_conflict", 409)
+                        return connection
+
+                direct = KeeneticRciTransport(
+                    OneConnection(), None, **self._options
+                )
+                return direct(
+                    command.model_copy(update={"credentialLease": None}),
+                    deadline=deadline,
+                    cancelled=cancelled,
+                )
+        except KeeneticEffectError:
+            raise
+        except KeeneticLeaseError:
+            raise KeeneticEffectError("keenetic_effect_unavailable") from None

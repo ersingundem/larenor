@@ -4,7 +4,10 @@ import math
 import time
 from typing import Literal
 
+from pydantic import Field
+
 from ..home_resources.models import FrozenModel
+from .credential_lease import KeeneticCredentialLease
 from .models import TargetState
 from .service import KeeneticEffectError
 from .worker_models import KeeneticWorkerCommand, KeeneticWorkerResult
@@ -19,6 +22,7 @@ class RciCommand(FrozenModel):
         "wan_reconnect",
     ]
     expectedState: TargetState
+    credentialLease: KeeneticCredentialLease | None = Field(default=None, repr=False)
 
     @property
     def targetKind(self):
@@ -64,6 +68,7 @@ class PackagedRciCommandAdapter:
         operation = RciCommand(
             operation=_OPERATIONS[command.action],
             expectedState=command.target,
+            credentialLease=command.credentialLease,
         )
         dispatched = False
         try:
