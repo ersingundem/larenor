@@ -58,6 +58,9 @@ acceptance. Clipboard and file transfer remain unsupported.
 - RED `40b5e00`: two widget journeys failed because no VNC action/panel existed.
 - GREEN `ea9317d`: 16 model, lifecycle, trust-store and EN/TR 2× widget tests
   passed; scoped analysis and diff checks were clean.
+- RED `637a13a`: a late REMOTE.COMMON profile check could start negotiation
+  after retirement. The controller now rechecks ownership before handing the
+  profile to the engine; the final focused gate is 20 tests.
 
 Only focused VNC tests and scoped analysis are used for this slice. Broad
 Flutter, CI, native-server and physical-device gates remain milestone work.

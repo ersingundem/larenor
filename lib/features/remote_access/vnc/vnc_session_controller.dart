@@ -161,6 +161,7 @@ class VncSessionController extends ChangeNotifier {
       return;
     }
     await trust.checkProfile(profile, isCurrent: () => _current(generation));
+    _check(generation);
     final negotiation = await engine.negotiate(
       profile,
       isCurrent: () => _current(generation),
