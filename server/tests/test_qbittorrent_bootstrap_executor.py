@@ -175,6 +175,27 @@ def test_endpoint_drift_during_readiness_wait_stops_retry(
     assert not raised.value.uncertain_effect
 
 
+def test_unexpected_failure_preserves_only_static_boundary_diagnostic(
+        prepared, monkeypatch):
+    stack, binding, _engine, operations = prepared
+    monkeypatch.setattr(
+        'larenor_server.plugins.qbittorrent_bootstrap_executor.open_qbittorrent_endpoint',
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            KeyError('private native failure')))
+
+    with pytest.raises(
+            QbittorrentBootstrapExecutionError,
+            match='^qbittorrent_bootstrap_resources_unavailable$') as raised:
+        executor(binding, operations).execute(
+            JOB, stack, private(), deadline=time.monotonic() + 10,
+            gate=lambda: True)
+
+    assert raised.value.boundary == 'before_connect'
+    assert raised.value.cause_code == 'qbittorrent_bootstrap_unexpected'
+    assert not raised.value.uncertain_effect
+    assert 'private' not in str(raised.value) + repr(raised.value)
+
+
 def test_category_failure_preserves_static_cause_without_readback(
         prepared, monkeypatch):
     stack, binding, engine, operations = prepared

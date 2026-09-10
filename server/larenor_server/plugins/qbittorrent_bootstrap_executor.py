@@ -62,6 +62,7 @@ _CAUSE_CODES = frozenset({
     'qbittorrent_readback_mismatch',
     'qbittorrent_authenticated_readback_unavailable',
     'qbittorrent_authenticated_readback_timeout',
+    'qbittorrent_bootstrap_unexpected',
 })
 _CATEGORY_STEPS = frozenset({
     (), ('categories_observed',),
@@ -364,6 +365,14 @@ class QbittorrentBootstrapExecutor:
             raise QbittorrentBootstrapExecutionError(
                 code, uncertain_effect=category_result is not None,
                 boundary=boundary) from None
+        except Exception:
+            code = ('qbittorrent_bootstrap_timeout'
+                    if time.monotonic() >= deadline
+                    else 'qbittorrent_bootstrap_resources_unavailable')
+            raise QbittorrentBootstrapExecutionError(
+                code, uncertain_effect=category_result is not None,
+                boundary=boundary,
+                cause_code='qbittorrent_bootstrap_unexpected') from None
         finally:
             if categories_opened is not None and not categories_called:
                 try:

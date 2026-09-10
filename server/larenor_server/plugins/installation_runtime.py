@@ -341,8 +341,13 @@ class _RuntimeBackend:
                     'qbittorrent_service_changed',
                 'qbittorrent_bootstrap_timeout': 'qbittorrent_config_timeout',
             }.get(error.code, 'qbittorrent_service_verification_failed')
+            cause = (f'qbittorrent_bootstrap_{error.boundary}_failed'
+                     if (error.cause_code
+                         == 'qbittorrent_bootstrap_unexpected'
+                         and error.boundary is not None)
+                     else None)
             raise QbittorrentConfigurationExecutionError(
-                code, uncertain_effect=True) from None
+                code, uncertain_effect=True, cause_code=cause) from None
         except Exception:
             raise QbittorrentConfigurationExecutionError(
                 'qbittorrent_service_verification_failed',

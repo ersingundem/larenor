@@ -58,6 +58,11 @@ QB_CONFIG_CAUSE_CODES = frozenset({
     'qbittorrent_execution_stage_failed',
     'qbittorrent_bootstrap_stage_failed',
     'qbittorrent_receipt_stage_failed',
+    'qbittorrent_bootstrap_before_connect_failed',
+    'qbittorrent_bootstrap_after_categories_connect_failed',
+    'qbittorrent_bootstrap_after_categories_failed',
+    'qbittorrent_bootstrap_after_readback_connect_failed',
+    'qbittorrent_bootstrap_after_readback_failed',
 })
 
 
