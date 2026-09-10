@@ -17,6 +17,7 @@ from .jellyfin_bootstrap_executor import (
 )
 from .jellyfin_authenticated_readback import JellyfinAuthenticatedReadbackResult
 from .media_service_bootstrap_models import PrivateMediaServiceBootstrap
+from .seerr_bootstrap_models import PrivateSeerrBootstrap
 from .seerr_bootstrap_executor import (
     SeerrBootstrapExecutionError, SeerrBootstrapExecutionResult,
 )
@@ -632,16 +633,16 @@ class InstallationWorkerClient:
         now = time.monotonic()
         if (type(job) is not str or re.fullmatch(r'[0-9a-f]{32}', job) is None
                 or type(plan) is not MediaStackPlan
-                or type(private) is not PrivateMediaServiceBootstrap
+                or type(private) is not PrivateSeerrBootstrap
                 or type(deadline) not in (int, float) or not math.isfinite(deadline)
                 or not now < deadline <= now + 120 or not callable(gate)):
             raise SeerrBootstrapExecutionError(
                 'invalid_seerr_bootstrap_execution')
         try:
             plan = verify_media_stack_plan(plan, load_catalog())
-            private = PrivateMediaServiceBootstrap.model_validate(
+            private = PrivateSeerrBootstrap.model_validate(
                 private.model_dump(mode='python', warnings=False))
-            if private.readback is None:
+            if private.sourceBootstrapId == job:
                 raise ValueError()
         except (ValueError, TypeError, AttributeError, OSError):
             raise SeerrBootstrapExecutionError(
@@ -1015,7 +1016,10 @@ class InstallationWorkerServer(PreflightWorkerServer):
                     allow_nan=False)
                 plan = verify_media_stack_plan(
                     MediaStackPlan.model_validate_json(raw_plan), self.catalog)
-                private = PrivateMediaServiceBootstrap.model_validate_json(raw_private)
+                private_model = (PrivateMediaServiceBootstrap
+                                 if operation == 'bootstrap'
+                                 else PrivateSeerrBootstrap)
+                private = private_model.model_validate_json(raw_private)
                 method = ('bootstrap' if operation == 'bootstrap'
                           else 'bootstrap_seerr')
                 timed = getattr(self.backend, method + '_with_deadline', None)

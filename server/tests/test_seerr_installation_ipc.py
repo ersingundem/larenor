@@ -12,10 +12,7 @@ from larenor_server.plugins.installation_ipc import (
     InstallationWorkerClient,
     InstallationWorkerServer,
 )
-from larenor_server.plugins.media_service_bootstrap_models import (
-    PrivateJellyfinReadback,
-    PrivateMediaServiceBootstrap,
-)
+from larenor_server.plugins.seerr_bootstrap_models import PrivateSeerrBootstrap
 from larenor_server.plugins.seerr_bootstrap_executor import (
     SeerrBootstrapExecutionError,
     SeerrBootstrapExecutionResult,
@@ -25,15 +22,10 @@ from test_seerr_initial_admin import API_KEY, PASSWORD
 
 
 def private():
-    return PrivateMediaServiceBootstrap(
+    return PrivateSeerrBootstrap(
         credential=PASSWORD,
-        readback=PrivateJellyfinReadback(
-            apiKey="A" * 32,
-            serverId="b" * 32,
-            serverName="Larenor Jellyfin",
-            version="10.11.11",
-            libraries=(),
-        ),
+        sourceBootstrapId="b" * 32,
+        sourceBootstrapRevision=3,
     )
 
 

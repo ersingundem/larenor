@@ -14,7 +14,7 @@ from .managed_container import (
     ManagedContainerBinding,
     ManagedContainerError,
 )
-from .media_service_bootstrap_models import PrivateMediaServiceBootstrap
+from .seerr_bootstrap_models import PrivateSeerrBootstrap
 from .seerr_endpoint import (
     SeerrEndpointError,
     open_seerr_endpoint,
@@ -156,7 +156,7 @@ class SeerrBootstrapExecutor:
             type(job) is not str
             or _JOB.fullmatch(job) is None
             or type(stack) is not MediaStackPlan
-            or type(private) is not PrivateMediaServiceBootstrap
+            or type(private) is not PrivateSeerrBootstrap
             or type(deadline) not in (int, float)
             or not math.isfinite(deadline)
             or not now < deadline <= now + 120
@@ -165,10 +165,10 @@ class SeerrBootstrapExecutor:
             raise SeerrBootstrapExecutionError("invalid_seerr_bootstrap_execution")
         try:
             trusted = verify_media_stack_plan(stack, load_catalog())
-            secret = PrivateMediaServiceBootstrap.model_validate(
+            secret = PrivateSeerrBootstrap.model_validate(
                 private.model_dump(mode="python")
             )
-            if secret.readback is None:
+            if secret.sourceBootstrapId == job:
                 raise ValueError()
             return trusted, secret
         except (ValidationError, ValueError, TypeError, AttributeError, OSError):

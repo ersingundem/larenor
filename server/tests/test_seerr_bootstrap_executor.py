@@ -11,10 +11,7 @@ from larenor_server.plugins.managed_container import (
     JournaledManagedContainerOperations,
     ManagedWorkerJournal,
 )
-from larenor_server.plugins.media_service_bootstrap_models import (
-    PrivateJellyfinReadback,
-    PrivateMediaServiceBootstrap,
-)
+from larenor_server.plugins.seerr_bootstrap_models import PrivateSeerrBootstrap
 from larenor_server.plugins.seerr_bootstrap_executor import (
     SeerrBootstrapExecutionError,
     SeerrBootstrapExecutor,
@@ -46,15 +43,10 @@ API_KEY = base64.b64encode(b"178900000000012345678-1234-4abc-8def-123456789abc")
 
 
 def private():
-    return PrivateMediaServiceBootstrap(
+    return PrivateSeerrBootstrap(
         credential=PASSWORD,
-        readback=PrivateJellyfinReadback(
-            apiKey="A" * 32,
-            serverId="b" * 32,
-            serverName="Larenor Jellyfin",
-            version="10.11.11",
-            libraries=(),
-        ),
+        sourceBootstrapId="a" * 32,
+        sourceBootstrapRevision=3,
     )
 
 
@@ -332,7 +324,7 @@ def test_authority_loss_before_endpoint_never_connects(prepared, monkeypatch):
     "change",
     [
         {"credential": "short"},
-        {"readback": None},
+        {"sourceBootstrapId": JOB},
         {"username": "foreign"},
     ],
 )
