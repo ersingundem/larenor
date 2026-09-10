@@ -6,7 +6,7 @@ from larenor_server.plugins.catalog import load_catalog
 from larenor_server.plugins.managed_container import JellyfinBindingBuilder,ManagedImageProof,ManagedNetworkProof,ManagedVolumeProof,VerifiedJellyfinResources
 from test_managed_container_binding import source,snapshot
 
-def build(service):
+def build(service, container_journal_id='4'*32):
     catalog,stack,policy=source()
     def provider(resources,volumes,component):
         image=next(x for x in resources.resources if x.kind=='ensure_image' and x.serviceId==service); network=resources.resources[-1]
@@ -15,7 +15,7 @@ def build(service):
             ManagedImageProof(image.resourceId,3,image.image.configDigest,json.dumps({'Env':['PATH=/usr/bin'],'Volumes':{'/config':{}}},sort_keys=True,separators=(',',':')).encode()),
             tuple(ManagedVolumeProof(x.resourceId,x.operationId,4,'e'*32,'f'*32,x.name,x.target,True) for x in selected),
             ManagedNetworkProof(network.resourceId,network.operationId,3,'1'*32,'2'*32,network.name,'3'*64))
-    binding=JellyfinBindingBuilder(catalog,policy,'4'*32,provider,service_id=service)(stack)
+    binding=JellyfinBindingBuilder(catalog,policy,container_journal_id,provider,service_id=service)(stack)
     observed=snapshot(binding); observed['State']={'Status':'running','Running':True,'Paused':False,'Restarting':False,'Dead':False}
     next(iter(observed['NetworkSettings']['Networks'].values())).update(IPAddress='172.28.0.2',IPPrefixLen=16,Gateway='172.28.0.1')
     return stack,binding,observed
