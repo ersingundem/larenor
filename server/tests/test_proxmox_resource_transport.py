@@ -92,6 +92,10 @@ def test_packaged_transport_uses_one_fixed_read_and_returns_only_typed_summary(p
             'startedAt': '2026-09-11T08:00:00Z',
             'finishedAt': '2026-09-11T08:03:00Z',
         }],
+        'maintenance': {
+            'state': 'healthy', 'warningCount': 0, 'truncated': False,
+            'warnings': [],
+        },
     }
     assert pve.calls == [
         ('GET', '/api2/json/cluster/resources',
@@ -149,3 +153,33 @@ def test_task_projection_is_bounded_and_fails_closed(pve, change):
     with pytest.raises(ApiError) as error:
         read_summary(connection(pve), guard=lambda: None)
     assert (error.value.code, error.value.status) == ('proxmox_summary_unsupported', 502)
+
+
+def test_capacity_pressure_and_failed_tasks_produce_bounded_redacted_warnings(pve):
+    pve.resources[0] = {**pve.resources[0], 'cpu': .95, 'mem': 3900}
+    pve.resources[-1] = {**pve.resources[-1], 'disk': 95}
+    pve.tasks[0] = {**pve.tasks[0], 'status': 'token=private-error'}
+    summary = read_summary(connection(pve), guard=lambda: None).model_dump()
+    maintenance = summary['maintenance']
+    assert maintenance['state'] == 'critical'
+    assert maintenance['warningCount'] == 4 and maintenance['truncated'] is False
+    assert [warning['kind'] for warning in maintenance['warnings']] == [
+        'node_cpu_pressure', 'node_memory_pressure', 'storage_pressure',
+        'recent_task_failed',
+    ]
+    assert all(set(warning) == {
+        'warningId', 'kind', 'severity', 'node', 'storage',
+        'observedPercent', 'thresholdPercent', 'relatedTaskId',
+    } for warning in maintenance['warnings'])
+    assert 'private-error' not in json.dumps(summary)
+
+
+def test_warning_projection_is_capped_without_hiding_total_pressure(pve):
+    pve.resources = [
+        {'type': 'node', 'node': f'pve-{index}', 'status': 'online',
+         'cpu': .95, 'mem': 95, 'maxmem': 100, 'uptime': 3600}
+        for index in range(32)
+    ]
+    summary = read_summary(connection(pve), guard=lambda: None).maintenance
+    assert len(summary.warnings) == 32
+    assert summary.warningCount == 64 and summary.truncated is True
