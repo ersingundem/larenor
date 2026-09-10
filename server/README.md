@@ -375,6 +375,20 @@ now invokes this executor after configuration/create/start, and the UID-checked
 IPC plus durable Core job require its exact verified receipt. No public service
 route or install capability is added.
 
+## Read-only Proxmox resource pilot
+
+Administrators can explicitly preview and confirm a Proxmox service binding for
+a Home Resources record. Authorized users can then read a bounded, typed node,
+QEMU/LXC guest and storage summary through Core. The five-second cache is tied
+to the exact Core/home/resource/binding/service/user/session tuple and current
+revisions; changed credentials, ACLs or sessions retire old results. The pilot
+exposes no power or configuration operation. Its transport uses fixed packaged
+routes and the tests use only an owned loopback fixture.
+
+The Android Direct Proxmox path remains a documented temporary path while its
+Core-backed Client replacement and physical tablet acceptance remain open. See
+[the S08.9 pilot boundary](../docs/core-proxmox-resource-pilot-2026-09-10.md).
+
 ## Client releases
 
 The normal `larenor-server` entry point also registers `/client/releases`.

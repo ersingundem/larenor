@@ -1389,6 +1389,16 @@ S08.5, kimlik/yetki S08.6; gerçek HA eşlemesi ve typed cache S08.7, medya
 S08.8, altyapı S08.9. Böylece bir adım kendi sonraki adaptörünü bitiş önkoşulu
 olarak beklemiyor. Kapsam ve 125 işlik kuyruk korunuyor; kabul sayısı 7/125.
 
+**S08.9 Proxmox salt okunur pilotu ayrı dalda:** `codex/core-proxmox-adapter`
+node/QEMU-LXC guest/storage özetini yönetici preview/onay binding'i ve Home
+Resources read ACL'si üzerinden Core'a taşır. Beş saniyelik typed cache exact
+Core/ev/kaynak/binding/servis/kullanıcı/oturum tuple'ına bağlıdır; endpoint,
+credential, revizyon, ACL veya oturum değişince geç yanıt yayınlanmaz. Bu paket
+güç/yapılandırma komutu eklemez ve gerçek Proxmox'a bağlanmadı. Mevcut Android
+Direct Proxmox yolu, Core-backed Client geçişi ve fiziksel tablet kabulüne kadar
+geçici olarak açıktır. Bu yalnız pilot kanıtıdır; S08.9 ve seçilen özellik kabul
+sayaçları değişmedi. [Sınır ve API](core-proxmox-resource-pilot-2026-09-10.md).
+
 **Yarım çalışmaları kaybetmeden devam:** önce çalışma kopyaları, dallar,
 agent ve CI durumları incelenir; aynı iş yeniden başlatılmaz. Tamamlanan
 RED/GREEN checkpoint'leri git geçmişinde tutulur; ana dala birleşme uzak CI
