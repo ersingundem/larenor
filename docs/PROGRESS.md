@@ -557,8 +557,12 @@ create/start işleri üretiyor. Worker servis kimliğini plan içindeki tek
 taşımıyor. V1 kurulum ve bağlı Jellyfin bootstrap satırları v2 şemasına ciphertext
 değiştirilmeden kayıpsız taşınıyor; foreign key hedefi yeniden kanıtlanıyor. **106 ilgili test**, migration/public contract ve Jellyfin bootstrap kimlik
 regresyonları geçti; güncel **5.249 testlik** tam Server paketi yeniden çalışıyor.
-Şifreli Seerr bootstrap job'u hâlâ açık ve
-`installAvailable=false` değişmedi.
+`b8fad69a` → `8ce745cf` TDD dilimi, tamamlanmış Seerr konteynerini aynı
+preparation içindeki doğrulanmış Jellyfin bootstrap kaynağına exact revizyonla
+bağlayan AES-GCM şifreli kalıcı işi ekledi. Yeniden başlatma, idempotency,
+kaynak/kurulum drift'i, gizli alan reddi ve sınırlı okuma kapıları yeşil.
+Executor dispatch, Sonarr/Radarr/kütüphane/initialize eşleştirmesi ve native
+iki mimari kabul açık; `installAvailable=false` değişmedi.
 [Seerr konteyner işi kanıtı](seerr-container-installation-implementation-2026-09-10.md).
 
 S06.4 native kabul koşusu [34326112926](https://github.com/ersingundem/larenor/actions/runs/34326112926)
