@@ -71,7 +71,7 @@ void main() {
     expect(disk[key],jsonEncode({'password':'bad'}));
   });
   test('invalid secret and pin bounds perform no write',() async {
-    for(final bad in [const SshCredential(SshCredentialKind.password,''),SshCredential(SshCredentialKind.password,'x'*4097),const SshCredential(SshCredentialKind.password,'secret',passphrase:'not-applicable')]) {
+    for(final bad in [const SshCredential(SshCredentialKind.password,''),SshCredential(SshCredentialKind.password,'x'*4097),SshCredential(SshCredentialKind.privateKey,'PEM',passphrase:'ğ'*600),const SshCredential(SshCredentialKind.password,'secret',passphrase:'not-applicable')]) {
       await expectLater(store.saveCredential(profile(),bad,isCurrent:()=>current),throwsA(isA<SshFailure>()));
     }
     await expectLater(store.trust(profile(),const SshHostPin('bad\n','raw'),isCurrent:()=>current),throwsA(isA<SshFailure>()));
