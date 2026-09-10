@@ -6,7 +6,7 @@
 
 ## Ürün sınırı
 
-- **Larenor Client:** Tablet öncelikli Android uygulaması. Samsung DeX, aynı uygulamanın değişken pencere ve harici ekran desteğidir; ayrı bir uygulama değildir. Huawei MatePad 11.5 S 2026, dokunmatik monitör ve klavye/fare kabul hedefleri. Apple Home esintili ortak tasarım korunur. Native iOS ve Apple HealthKit geliştirmesi şimdilik kapsam dışıdır; mevcut iOS dosyaları silinmez.
+- **Larenor Client:** Tablet öncelikli Android uygulaması. Samsung DeX, aynı uygulamanın değişken pencere ve harici ekran desteğidir; ayrı bir uygulama değildir. Huawei MatePad 11.5 S 2026, dokunmatik monitör ve klavye/fare kabul hedefleri. Apple Home esintili ortak tasarım korunur. Native iOS platformu kaldırılmıştır; Apple Health verisi ileride Server veya Home Assistant üzerinden kullanıcı kontrollü bir köprüyle alınabilir.
 - **Larenor Server:** Linux/CasaOS üzerinde Docker ile çalışan, veritabanı ve eklenti hizmetlerini sağlayan API uygulaması. Kurulum en sonda kullanıcıyla manuel yapılır. Ayrı bir Server web yönetim arayüzü geliştirilmez.
 - **Yönetim:** Client içindeki yönetici bölümünden kullanıcı, oturum, bağlantı, eklenti, kurulum işi, yedekleme ve güncelleme yönetimi. Yetki denetimi her API çağrısında Server'dadır; yerel Ayarlar PIN'i server admin yetkisi sağlamaz. Swagger/OpenAPI aynı API sözleşmesini belgeler.
 - **Bütünleşik medya/müzik:** Music Assistant ve medya sistemi, tek Larenor Server kurulumunun dahili bileşenleridir. Yeni kurulumda ayrı servis/MA hesabı veya elle API anahtarı/adres eşleştirmesi istenmez. Larenor kurar, bağlar ve denetler; kullanıcı Client'tan ayarları yönetir. [Güncel kapsam ve kabul ölçütleri](integrated-media-stack.md). Bu otomasyon henüz tamamlanmadı.

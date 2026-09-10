@@ -4,12 +4,12 @@
 **Execution queue:** [all remaining steps and resume instructions](docs/EXECUTION_QUEUE.md), with [validated task state and dependencies](docs/execution-queue.json). Local tests, CI acceptance and physical-device validation are tracked separately.
 **Approved expansion:** [63 selected Core/Android Client features, ordered by dependencies](docs/feature-expansion-plan-2026-09-05.md), including independent [VNC, RDP and SSH remote access](docs/remote-access-plan-2026-09-05.md). Planned features are tracked separately from implemented capabilities.
 
-**Larenor Client** is an **Android app**, designed primarily for tablets. The same
-app supports resizable windows and external displays, including Samsung DeX.
-Native iOS development is paused; the Apple Home-inspired design remains shared
-across tablet orientations and window sizes. A separate phone interface is
-not a current design target; the gallery below focuses on tablet and desktop
-window layouts. **Larenor Server** provides accounts, an encrypted
+**Larenor Client** is an **Android tablet app**. Its primary acceptance targets
+are Huawei MatePad 11.5 S 2026 and other Android tablets, plus resizable windows,
+external displays and keyboard/mouse use through Samsung DeX. The Apple
+Home-inspired Cupertino design remains shared across tablet orientations and
+DeX window sizes. A separate phone interface is not a current design target;
+the gallery below focuses on tablet and resizable DeX layouts. **Larenor Server** provides accounts, an encrypted
 configuration vault, user/session administration and signed Client release APIs.
 The Client admin area also manages encrypted service connections and bounded
 identity checks for 17 service types. See the [connection guide and limitations](docs/server-service-connections.md).
@@ -480,7 +480,7 @@ generic icon:
   quality/bitrate picker is available too, for capping playback to a lower ceiling on
   demand. Playback progress is reported back to Jellyfin so resume/continue-watching
   works. Subtitle and audio track pickers switch between a file's embedded tracks
-  on the fly. iOS-style edge gestures: swipe up/down on the left half of the screen
+  on the fly. Edge gestures: swipe up/down on the left half of the screen
   for brightness, right half for volume, double-tap either side to seek ±10s.
 - **Jellyseerr** — connect with a server URL + API key, search movies/TV, submit
   requests, and track request status ("My Requests").
@@ -599,18 +599,17 @@ list, so the app stays uncluttered no matter how many services exist:
 
 ### Settings
 
-- An iPad-style split view: the categories (Connection, Display & Brightness,
+- A tablet split view: the categories (Connection, Display & Brightness,
   Security, Backup and restore, Home Assistant, Integrations, About) stay listed down the left while the
   selected one fills the right half. Drilling into a category — say Integrations → a
   config flow — keeps the master list visible beside it.
-- On a display too narrow for two useful panes it falls back to the plain iOS
-  behaviour of pushing each category full-screen, so phones and portrait are
-  unaffected. The switch is width-driven, not orientation-driven.
+- On a display too narrow for two useful panes it falls back to single-pane
+  drill-down navigation. The switch is width-driven, not orientation-driven.
 
 ### Shared navigation and search
 
-- Home, Media, Routines and System use persistent branch navigation: phone tabs
-  become a sidebar in wider windows. Room selection and scroll survive a tab
+- Home, Media, Routines and System use persistent branch navigation: the compact
+  bottom bar becomes a sidebar in wider windows. Room selection and scroll survive a tab
   round trip and window resizing. Configuration stays behind the Settings PIN.
 - Global local search finds rooms, member devices, scenes/scripts, cached media
   and configured services. Turkish matching, stable identifiers, media alias
@@ -732,7 +731,7 @@ for remaining platform and physical-device acceptance work.
 
 - The single brand motto is **Unus Lar, omnem domum servat.**
 - App branding and launcher icons share the house/guardian emblem. Android includes
-  adaptive and monochrome vectors; iOS includes the generated icon sizes.
+  adaptive and monochrome vectors.
 - Home, Settings and Media share an adaptive page surface and Inter/Cupertino type
   hierarchy. Resizable tablet, light/dark and larger-text layouts are checked in widget
   tests. [Design previews](docs/previews/) use synthetic fixture data.
@@ -798,7 +797,7 @@ Immich and Paperless-ngx in phases. These are proposals, not shipped integration
 
 Deferred work includes OAuth2/PKCE login, broader DPC policies and physical kiosk
 acceptance, ambient video/PDF playlists, push notifications, an Assist voice satellite, multi-profile/guest-mode dashboards,
-a theme editor, and iOS build/signing. Direct Netflix integration, Proxmox backup
+a theme editor. Direct Netflix integration, Proxmox backup
 restore/migration/snapshot management, and Keenetic port-forwarding edits are not
 provided by the current UI. Main CI publishes persistently signed release APKs
 with certificate/package/version checks. Debug APK downloads are retained for

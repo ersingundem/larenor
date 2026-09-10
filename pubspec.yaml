@@ -11,9 +11,6 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 # build by specifying --build-name and --build-number, respectively.
 # In Android, build-name is used as versionName while build-number used as versionCode.
 # Read more about Android versioning at https://developer.android.com/studio/publish/versioning
-# In iOS, build-name is used as CFBundleShortVersionString while build-number is used as CFBundleVersion.
-# Read more about iOS versioning at
-# https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/CoreFoundationKeys.html
 # In Windows, build-name is used as the major, minor, and patch parts
 # of the product and file versions while build-number is used as the build suffix.
 version: 1.0.0+1
@@ -45,7 +42,6 @@ dependencies:
   flutter_secure_storage: ^11.0.0
   webview_flutter: ^4.14.1
   webview_flutter_android: ^4.14.1
-  webview_flutter_wkwebview: ^3.26.1
   wakelock_plus: ^1.8.0
   freezed_annotation: ^3.1.0
   json_annotation: ^4.12.0
@@ -88,14 +84,13 @@ dev_dependencies:
   flutter_launcher_icons: ^0.14.4
 
 # App icon generation — run `dart run flutter_launcher_icons` after
-# changing assets/icon/*.png to regenerate every platform size.
+# changing assets/icon/*.png to regenerate Android launcher sizes.
 flutter_launcher_icons:
   android: true
   ios: false
   image_path: "assets/icon/app_icon.png"
   # Android adaptive/themed icons use native vectors in res/drawable.
   # Keep the hand-authored mipmap-anydpi-v26/ic_launcher.xml when regenerating.
-  remove_alpha_ios: true
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec

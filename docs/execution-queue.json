@@ -2410,7 +2410,7 @@
       "sources": [
         "docs/product-implementation-plan-2026-09-05.md"
       ],
-      "scope": "Native iOS/HealthKit kapsam dışı; sağlayıcı/cihaz yoksa tamamlandı denmez.",
+      "scope": "Native iOS platformu kaldırıldı; Apple Health Server/HA aktarım köprüsü ve gerçek sağlayıcı/cihaz kabulü olmadan tamamlandı denmez.",
       "acceptance": [
         "Huawei onay ve desteklenen veri/izin sözleşmesi doğrulanır; reddet/iptal/özel ekran/account sınırları ve eski Health Connect yolu korunur."
       ],
