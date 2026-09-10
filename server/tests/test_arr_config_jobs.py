@@ -8,6 +8,7 @@ from larenor_server.plugins.arr_config_effect import ArrConfigInstallReceipt
 from larenor_server.plugins.arr_config_models import (
     ArrConfiguredInstallReceipt, ArrConfigurationExecutionError)
 from test_media_installations_api import prepared
+from test_qbittorrent_config_jobs import Backend as QbittorrentBackend
 
 BASE = '/api/v1/admin/media/arr-configurations'
 
@@ -41,6 +42,13 @@ class Backend:
 def queue(server, service='sonarr', request='d'*32, backend=None):
     app, client, _, _ = server
     pair, _, _, body = prepared(server)
+    app.state.core.qbittorrent_configurations.backend = QbittorrentBackend()
+    qbittorrent = client.post(
+        '/api/v1/admin/media/qbittorrent-configurations',
+        headers=auth(pair), json=body | {'requestId': 'b' * 32})
+    assert qbittorrent.status_code == 201, qbittorrent.text
+    assert app.state.core.qbittorrent_configurations.tick()[
+        'configuration']['state'] == 'succeeded'
     selected = backend or Backend()
     app.state.core.arr_configurations.backend = selected
     body |= {'requestId': request, 'serviceId': service}
@@ -57,6 +65,18 @@ def test_capabilities_are_closed_to_configuration_only(server):
         'serviceIds': ['sonarr', 'radarr']}
     app.state.core.arr_configurations.backend = Backend()
     assert client.get(BASE+'/capabilities', headers=auth(pair)).json()['executionConfigured'] is True
+
+
+def test_create_requires_verified_qbittorrent_for_same_preparation(server):
+    app, client, _, _ = server
+    pair, _, _, body = prepared(server)
+    app.state.core.arr_configurations.backend = Backend()
+    response = client.post(
+        BASE, headers=auth(pair),
+        json=body | {'requestId': 'd' * 32, 'serviceId': 'sonarr'})
+    assert response.status_code == 409
+    assert response.json()['error']['code'] == (
+        'media_qbittorrent_configuration_required')
 
 
 @pytest.mark.parametrize('service', ['sonarr', 'radarr'])
@@ -78,6 +98,7 @@ def test_server_generates_encrypted_key_and_tick_persists_receipt(server, servic
     assert terminal['serviceState'] == 'verified'
     assert app.state.core.arr_configurations.private_payload(record['id']).receipt == installed(service)
     assert backend.calls[0][2].apiKey == private.api_key
+    assert backend.calls[0][2].qbittorrentApiKey is not None
     assert client.post(BASE, headers=auth(pair), json=body).json()['configuration'] == terminal
 
 

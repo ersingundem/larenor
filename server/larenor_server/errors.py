@@ -76,6 +76,7 @@ MESSAGES = {
     "media_bootstrap_conflict": "This request conflicts with a saved media service bootstrap.",
     "media_bootstrap_limit_reached": "The media service bootstrap limit has been reached.",
     "media_bootstrap_storage_unavailable": "The saved media service bootstraps are unavailable.",
+    "media_qbittorrent_configuration_required": "Configure and verify qBittorrent for this media preparation first.",
 }
 
 

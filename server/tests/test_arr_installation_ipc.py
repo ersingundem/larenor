@@ -25,10 +25,14 @@ from test_media_host_preflight import stack
 
 
 API_KEY = '01234567' * 4
+QBITTORRENT_API_KEY = 'qbt_' + 'A' * 28
 
 
-def private(service_id='sonarr'):
-    return PrivateArrConfiguration(serviceId=service_id, apiKey=API_KEY)
+def private(service_id='sonarr', *, with_qbittorrent=False):
+    return PrivateArrConfiguration(
+        serviceId=service_id, apiKey=API_KEY,
+        qbittorrentApiKey=(QBITTORRENT_API_KEY
+                           if with_qbittorrent else None))
 
 
 def receipt(service_id='sonarr'):
@@ -256,8 +260,10 @@ def test_configured_arr_install_roundtrip_includes_verified_container(service_id
     from larenor_server.plugins.arr_config_models import ArrConfiguredInstallReceipt
     class InstallBackend(Backend):
         def install_configured_arr(self, job, plan, selected, *, api_key,
-                                   cancelled, deadline, gate):
-            self.calls.append((job, plan, selected, api_key))
+                                   qbittorrent_api_key=None, cancelled,
+                                   deadline, gate):
+            self.calls.append((
+                job, plan, selected, api_key, qbittorrent_api_key))
             assert gate() and not cancelled.is_set()
             return ArrConfiguredInstallReceipt(
                 receipt(selected), '5' * 64,
@@ -266,13 +272,14 @@ def test_configured_arr_install_roundtrip_includes_verified_container(service_id
     selected=InstallBackend()
     with running(selected) as (backend,client):
         value=client.install_arr(
-            'a'*32,stack(),private(service_id),
+            'a'*32,stack(),private(service_id, with_qbittorrent=True),
             deadline=time.monotonic()+.4,gate=lambda:True)
     assert value.configuration==receipt(service_id)
     assert value.container_id=='5'*64
     assert value.state==service_id+'_container_started'
     assert value.service_state==service_id+'_service_verified'
-    assert backend.calls[0][2:]==(service_id,API_KEY)
+    assert backend.calls[0][2:]==(
+        service_id,API_KEY,QBITTORRENT_API_KEY)
 
 
 def test_cross_service_configured_receipt_is_rejected_as_uncertain():

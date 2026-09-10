@@ -1,27 +1,3 @@
-# Larenor kalıcı yürütme kuyruğu
-
-[JSON kayıt](execution-queue.json) tek iş kimliği, bağımlılık, durum ve kabul
-kanıtını saklar. [PROGRESS](PROGRESS.md) güncel ürün özeti ve CI anlatımıdır;
-bu kuyruk ayrıntılı yürütme sırasıdır. Uygulanmış kabulün kapsamı veya kaynak
-plan değişirse iki belge birlikte güncellenir. 5 Eylül 2026 başlangıcında
-S06.3a/3b, 483ec13 Linux Server ve güvenlik CI ile kabul edildi. S06.3c
-<<<<<<< HEAD
-imaj/journal bağlantısı fc632b6 Server/güvenlik CI ile kabul edildi; S08.1 aynı commit’in tam Android/yayın CI kapısıyla kabul edildi. S06.3e ağ yazılımı 9138e61 Server/güvenlik CI ile, S06.3d kalıcı depolama Native18 ve exact 6a054ea CI ile kabul edildi; S06.3f kaynak makbuzu exact 4021391 iki mimarili native, Server, Android ve güvenlik CI ile kabul edildi. S06.4 exact PR20 `2b9166b` üzerinde 4.364 Linux Server, 5.438 Flutter, 98 Android native, 17 API35 E2E ve Security kapılarıyla kabul edildi; S06.5 kalıcı no-retry koordinatör, private IPC/runtime ve Jellyfin 10.11.11 bootstrap/readback/restart zincirini exact `2c3f591` arm64+amd64 CI ile doğruladı; Larenor Movies/Shows ile journal-bound salt okunur `/media` mount exact AMD64+ARM64 native CI ve indirilen makbuz doğrulamasında yeşil. qBittorrent config/runtime, kalıcı Core işi, config-before-create/start ve private endpoint/bootstrap zinciri PR28–PR39 ile ana dalda; doğrulanmış servis sonucu Runtime/IPC/şifreli işe bağlı. PR41 exact amd64+arm64 native config, Bearer auth, kategori kalıcılığı, restart ve ikinci readback kabulü yeşil; indirilen makbuzlar merge kaynağına karşı yeniden doğrulandı. Sonarr/Radarr exact owned `config.xml` ve API-key sınırı PR42 tam CI ile ana dalda; kapalı hacim yazıcısı `0643801`, retained-daemon runtime `228687d` ve UID-korumalı private IPC `ebf98c0` ve şifreli kalıcı Core işi `c3eacee`; config/create/start/private authenticated readback ile retained-daemon supervisor zinciri `382c8a9` üzerinde yerelde yeşil; iki mimarili native Arr kabulü açık. Diğer medya servislerinin otomatik eşleştirmesi açık. S08.3 ev runtime sınırı 4b98680 tam CI ve APK 94 ile kabul edildi; S08.4 kalıcı kayıt sınırı 1c2db57 tam CI/APK100 ile kabul edildi; S08.5 restore ve S08.6 kişi/izin yönetimi exact 960691c tam CI/APK108 ile kabul edildi; S08.7 typed durum, kalıcı switch komutu/makbuzu ve Direct aktarımı ana dala alındı. Standart ve özel Home Assistant domain'lerini kapalı, salt okunur projeksiyonla taşıyan `9cabd4b` dilimi 200 Server ve 219 Android testinden geçti; registry/servis keşfi, domain'e özel typed komutlar ve fiziksel kabul açık. F01–F63 yazılım teslimleri bekliyor. Önceki S06.1–2 ve
-=======
-imaj/journal bağlantısı fc632b6 Server/güvenlik CI ile kabul edildi; S08.1 aynı commit’in tam Android/yayın CI kapısıyla kabul edildi. S06.3e ağ yazılımı 9138e61 Server/güvenlik CI ile, S06.3d kalıcı depolama Native18 ve exact 6a054ea CI ile kabul edildi; S06.3f kaynak makbuzu exact 4021391 iki mimarili native, Server, Android ve güvenlik CI ile kabul edildi. S06.4 exact PR20 `2b9166b` üzerinde 4.364 Linux Server, 5.438 Flutter, 98 Android native, 17 API35 E2E ve Security kapılarıyla kabul edildi; S06.5 kalıcı no-retry koordinatör, private IPC/runtime ve Jellyfin 10.11.11 bootstrap/readback/restart zincirini exact `2c3f591` arm64+amd64 CI ile doğruladı; Larenor Movies/Shows ile journal-bound salt okunur `/media` mount exact AMD64+ARM64 native CI ve indirilen makbuz doğrulamasında yeşil. qBittorrent config/runtime, kalıcı Core işi, config-before-create/start ve private endpoint/bootstrap zinciri PR28–PR39 ile ana dalda; doğrulanmış servis sonucu Runtime/IPC/şifreli işe bağlı. PR41 exact amd64+arm64 native config, Bearer auth, kategori kalıcılığı, restart ve ikinci readback kabulü yeşil; indirilen makbuzlar merge kaynağına karşı yeniden doğrulandı. Sonarr/Radarr exact owned `config.xml` ve API-key sınırı PR42 tam CI ile ana dalda; kapalı hacim yazıcısı `0643801`, retained-daemon runtime `228687d` ve UID-korumalı private IPC `ebf98c0` ve şifreli kalıcı Core işi `c3eacee`; config/create/start/private authenticated readback ile retained-daemon supervisor zinciri `7d9fb22` üzerinde yerelde yeşil; dört işli gerçek AMD64/ARM64 native kabul kapısı `6cc334d` ile yerelde hazır ve GitHub makbuzları açık. Diğer medya servislerinin otomatik eşleştirmesi açık. S08.3 ev runtime sınırı 4b98680 tam CI ve APK 94 ile kabul edildi; S08.4 kalıcı kayıt sınırı 1c2db57 tam CI/APK100 ile kabul edildi; S08.5 restore ve S08.6 kişi/izin yönetimi exact 960691c tam CI/APK108 ile kabul edildi; S08.7 typed durum, kalıcı switch komutu/makbuzu ve Direct aktarımı ana dala alındı. Standart ve özel Home Assistant domain'lerini kapalı, salt okunur projeksiyonla taşıyan `9cabd4b` dilimi 200 Server ve 219 Android testinden geçti; registry/servis keşfi, domain'e özel typed komutlar ve fiziksel kabul açık. F01–F63 yazılım teslimleri bekliyor. Önceki S06.1–2 ve
->>>>>>> 4279a14 (docs: track native Arr acceptance gate)
-kalıcı Core/ev kimliği tekrar yapılacak iş sayılmaz.
-
-Bu kayıt bir zamanlayıcı, agent başlatıcı veya işlem yetkisi değildir. Araç
-hiçbir kod, shell, Docker, ağ ya da ev cihazı işlemi yürütmez; dosyaları veya
-durumları değiştirmez. Kayıt restart/oturum değişiminden sonra okunabilir.
-Devam eden yetkili çalışma, bir işin gerçek kabulü tamamlanınca kaydı günceller
-ve sonraki bağımlılığı hazır işi ele alır. CI bekleyen veya kullanıcı gerektiren
-bir dal, bağımsız ve hazır yazılım dallarını durdurmaz.
-
-## Güncel kuyruk özeti
-
-<!-- queue-summary:start -->
 F01–F63 yazılım kapısı: **0/63** (fiziksel kabul ayrı). Kalan kuyruk: **14/125 iş kanıtla tamamlandı**.
 
 Gruplar ve önceki kabul checkpoint’leri iş sayısına dahil değildir.
@@ -48,139 +24,28 @@ Gruplar ve önceki kabul checkpoint’leri iş sayısına dahil değildir.
 | G11 — Proxmox'tan bağımsız uzak erişim | 4 | 0 | 0 | 0 | 0 |
 | FINAL — Bütün yazılım sonrası son frontend ve yayın | 5 | 0 | 0 | 0 | 0 |
 | MANUAL — Kullanıcıyla son kurulum ve fiziksel kabul | 9 | 0 | 0 | 0 | 9 |
-<!-- queue-summary:end -->
 
-125 iş aynı eforu temsil etmez; bu toplam ürün tamamlanma yüzdesi değildir.
-F01–F63 sayacı **yazılım kapısını** sayar. Gerçek cihaz, sağlayıcı hesabı ve
-canlı ev kabulü `MANUAL.*` içinde ayrıca açık kalır. Önceki yaklaşık %65 ile
-bu payda birleştirilmez; seçili 63 özelliğin bütün cihazlarda tamamlandığı
-iddia edilmez. POC işi kapanması bağlı ürün özelliğini otomatik kabul etmez.
+İşler · sayfa 1/7 · en çok 20 satır
 
-## Okuma ve devam etme
-
-Repo kökünden, yalnız Python 3.9+ standart kütüphanesiyle:
-
-```sh
-python3 tool/execution_queue.py validate
-python3 tool/execution_queue.py status
-python3 tool/execution_queue.py next
-python3 tool/execution_queue.py next --json
-python3 tool/execution_queue.py render --group S06 --page-size 10
-python3 tool/execution_queue.py render --group G06 --page 1 --page-size 5
-python3 tool/execution_queue.py render --summary-only
-```
-
-`status` grup toplamlarını gösterir. `next` devam edenleri, CI ve kullanıcı
-bekleyenleri ayrı listeler; sonra dosya sırasıyla en çok beş başlanabilir iş
-verir (`--limit 1..50`). `--group` bütün alt grupları içerir. `render` varsayılan
-20, en çok 50 satırlık sayfa üretir; gruplar tamamlanma toplamına ikinci kez
-eklenmez. `--json` salt veri çıktısıdır. `--file` ayrı bir yerel kuyruk dosyasını
-okur; varsayılan repo yolu çalışma dizininden bağımsızdır. Geçerli komut 0,
-bozuk veri/seçenek 2 döndürür; hata çıktısı sabit kod içerir.
-
-Kabulden sonra yetkili geliştirici JSON'daki ilgili işi elle günceller,
-`validate` çalıştırır ve yukarıdaki özetin `render --summary-only` çıktısını
-belgeye taşır. Araç JSON'a yazmaz. Yeni kapsam eklemek; kabul koşulu, kaynak
-plan, bağımlılık ve gerekiyorsa sürümlü şema değişikliği gerektirir.
-
-## Durum ve kanıt sözleşmesi
-
-| Durum | Anlamı | Devam kararı |
-| --- | --- | --- |
-| `pending` | Planlı; uygulanmış kabul yok | Bütün başlangıç bağımlılıkları kapandıysa başlanabilir |
-| `in_progress` | Gerçek çalışma sürüyor | Önce aynı işin yarım çalışmasını incele ve devam et |
-| `awaiting_ci` | Yerel çalışma bitmiş olabilir, uzak kapı bekleniyor | Tam kaynak commit'inin koşumunu doğrula; eski yeşili kullanma |
-| `needs_user` | Gerekli cihaz/hesap/manuel katılım eksik | `reason` zorunlu; bağımsız hazır işe geç, eksikliği gizleme |
-| `done` | Bu işin tanımlı kapsamı kanıtla kabul edildi | Bağımlı işlere kapı açılır; fiziksel/global kabul çıkarılmaz |
-
-Her görevde `scope`, kaynak belgeler, somut `acceptance` ve
-`requiredEvidence` bulunur. Yazılım işi test + bağımsız inceleme + CI; manuel
-kabul işinde manuel kayıt + inceleme istenir. `done` için `completionCommit`
-tam 40 karakter küçük harf Git SHA'dır. Bütün kanıtlar aynı SHA'ya, tamamlanmış
-ve başarılı sonuca bağlı olmalı; gereken her kanıt türü mevcut olmalıdır.
-Başarısız/iptal/atlanmış veya henüz çalışan CI bu kapıyı geçmez.
-
-Kanıt biçimi `kind/ref/commit/state/result/label` alanlarıdır. `ci` referansı
-yalnız bu repodaki sayısal GitHub Actions run URL'sidir. Diğer kanıtlar repo
-altındaki belge/test kayıtlarına referans verir; sır, ham çıktı veya komut
-saklanmaz. Etiket somut test/inceleme/manuel kabulü anlatır. `state` yalnız
-`queued`, `in_progress`, `completed`; sonuç tamamlanmamış CI'da null,
-tamamlanmış kayıtta `passed`, `failed`, `cancelled`, `skipped` olabilir.
-GitHub'un success sonucu kayda `passed` olarak aktarılır.
-
-Doğrulayıcı **kanıt metadata'sını** denetler; GitHub'a bağlanmaz, logu çalıştırmaz,
-referansın gerçekten test sonucunu kanıtladığını veya SHA'nın son head olduğunu
-kendiliğinden doğrulamaz. Kaydı yapan geliştirici tam head/test/artefact ve
-inceleme kanıtını okumalıdır. CI eksikliği sahte linkle kapatılamaz. `B0` yalnız
-62b2054'ün belgelenmiş önceki kabulüdür; her yeni iş kendi CI kanıtını ister.
-
-## Kimlik ve bağımlılıklar
-
-`schemaVersion: 1`, tarih, kaynak belgeler, 63 seçili özellik ve tek `nodes`
-listesi bulunur. Kimlikler bütün türlerde benzersizdir:
-
-- `group`: yalnız başlık ve parent. Durum tüm alt işlerden türetilir; boş grup
-  reddedilir. Elle done yazılamaz, bir görev gibi sayılmaz.
-- `checkpoint`: önceki doğrulanmış temel. Kanıt zorunludur; kalan iş sayısına
-  girmez. Bu başlangıçta yalnız `B0` bulunur.
-- `task`: somut yürütülebilir iş kaydı. Araç işin kendisini yürütmez.
-
-`dependsOn` başlangıç kapısıdır. `finishDependsOn` başlanabilen bir işin bütün
-kapsamını kabul etmeden kapanması gereken ek kapıdır. İkisi de döngü kontrolüne
-girer. `done` bütün kapıları, `in_progress/awaiting_ci` başlangıç kapılarını
-sağlamak zorundadır. Bir grubun tamamlanması her alt işin tamamlanmasını ister;
-çocuğun kendi parent grubuna bağımlılığı da döngü sayılır.
-
-| Dal | Kapsam ve kritik sıra |
-| --- | --- |
-| `B1 / S06` | Kabul sırası 3a sözleşme → 3b journal → 3c digest / 3d appdata / 3e ağ → 3f iki mimari → 4 kurulum → 5 bootstrap → 6 kurtarma |
-| `B2 / S07` | Paketleme, otomatik medya bağlantısı, dahili MA ve tek ayar/durum kabulü |
-| `B3 / S08` | Oturum → uyumluluk → provider → cache → restore; kaynak yetkisi → HA → medya/ağ → olay/aktarım ve ortak widget |
-| `B4 / S09` | Yazılım yedek/kurulum → boş ortam restore → temiz kurulum/yükseltme CI; son fiziksel kurulum ayrı |
-| `B5` | Erken ortak tablet/erişilebilirlik ve özel oturum temeli; son ekran revizyonu değildir |
-| `G01–G10` | Kaynak JSON'daki F bağımlılıkları ve ortak B0/B5 kapıları; grup numarası zorunlu doğrusal sıra değildir |
-| `G11` | Ortak profil → SSH/RDP → SSH tüneline bağlı VNC; kişisel yol Core/Proxmox veya medya kurulumu beklemez |
-| `PRODUCT / KIOSK` | Apple TV, sağlayıcı, sağlık, kamera; eksik WebPanel/ortam ve K07–K13 işleri |
-| `POC` | Erken cihaz/motor fizibilitesi; test erişimi yoksa ihtiyaç açık kalır |
-| `FINAL` | Seçili yazılım → son tablet UI → bütünlük → tam CI/artefact → gerçek final galeri → README |
-| `MANUAL` | Son ev kurulumu, servis/alıcı, Huawei/DeX, sağlık, kiosk, diafon, güncelleme ve diğer fiziksel kabul |
-
-S06.3b ve S06.3c, önceki sözleşme yerelde dondurulduğu için ayrı modüllerde
-paralel draft geliştirmeye başlayabilir: başlangıç B0; tamamlama sırasıyla
-S06.3a ve S06.3b kanıt kapısıdır. Önceki iş CI beklerken sonraki işin yerel
-kodu bulunabilir, ancak `done` olamaz. 3d/3e başlangıcı hâlâ 3b kabulünü bekler.
-Bu ayrım kod yazmayı erken ürün kabulü olarak göstermeyi engeller.
-
-F61–F63'te B3 yalnız **tamamlama** kapısıdır: kişisel hızlı bağlantı Core'suz
-başlayabilir; seçili yönetilen profil yolu ise B3 olmadan bitmiş sayılmaz.
-Yerel profil/pano/mikrofon/tünel ve Core logout/revoke/offline lease kapanış
-politikası `REMOTE.COMMON` kabulüne bağlıdır. S06.3 boyunca
-`installAvailable=false`; Client Docker seçeneği veya host kaynak adı üretmez.
-Kaynak hazırlığı makbuzu kurulum/sağlık başarısı değildir.
-
-## Doğrulamanın sınırları
-
-Dosya en çok 1 MiB; 512 node/liste öğesi, 20 katman, 50.000 JSON değer ziyareti,
-2.000 karakter metin ve iş başına 32 kanıtla sınırlıdır. Büyük sayılar, yinelenen
-JSON anahtarı, bilinmeyen alan/durum, yinelenen ID, kontrol karakteri, bozuk
-referans, eksik F seçimi, döngü ve bilinmeyen bağımlılık reddedilir. Yerel input
-normal dosya olmalıdır; FIFO/cihaz okunmaz. Render metni HTML/Markdown özel
-karakterlerinden arındırır. Shell/eval/subprocess/yürütme alanı yoktur.
-
-```sh
-python3 -m unittest tool.tests.execution_queue_test
-```
-
-Testler gerçek kuyruk/CLI okumasını, süreç yeniden açılmasında aynı işten devamı,
-kanıt sonrası bir sonraki işin açılmasını, grup sayımı, Core'suz başlangıç,
-CI/manual bekleyen bağımsız dallar, dosya sınırları ve değişiklik yapmayan
-sayfalı çıktıyı doğrular. Log veya canlı CI doğruluğu yerine geçmez.
-
-## Bu aracın teslim kanıtı
-
-24 odaklı test Python 3.9 ile geçti; bütün native araç paketi 202/202 geçti.
-Araçta birleşik satır/dal kapsamı %98 (278 statement, 86 branch); Python 3.9
-sözdizimi ve diff kontrolü temiz. RED checkpoint’leri `dc68827` ve `93b11a6`;
-ilki eksik araç sözleşmesi, ikincisi bozuk ileri parent kaydının ham KeyError
-üretmesini yakaladı. Bunlar kuyruktaki ürün işlerini tamamlamaz. Bu test
-kanıtı canlı GitHub/ev cihazı kabulü değildir.
+| ID | İş | Durum | Beklenen bağımlılık |
+| --- | --- | --- | --- |
+| S06.3a | Worker kaynak planı ve değişmez kimlikler | Kanıtla tamamlandı | — |
+| S06.3b | Kaynak journal’ı ve kesilmiş işlem sahipliği | Kanıtla tamamlandı | — |
+| S06.3c | Seçili digest ile bounded imaj edinme | Kanıtla tamamlandı | — |
+| S06.3d | Onaylı kökte sahiplikli appdata | Kanıtla tamamlandı | — |
+| S06.3e | Sahiplikli özel kontrol ağı | Kanıtla tamamlandı | — |
+| S06.3f | Kaynak makbuzu ve iki mimarili kabul | Kanıtla tamamlandı | — |
+| S06.4 | Dar kurulum adımlarını API ve işçiye bağlama | Kanıtla tamamlandı | — |
+| S06.5 | Özel bootstrap ve otomatik servis eşleştirme temeli | Çalışılıyor | — |
+| S06.6 | Doğrulanmış sonuç, iptal ve kurtarma | Bekliyor | S06.5 |
+| S07.1 | Altı bileşen ve dahili Music Assistant paketleme | Bekliyor | B1 |
+| S07.2 | İndirme, istek ve kütüphane otomatik eşleştirmesi | Bekliyor | S07.1 |
+| S07.3 | Müzik sağlayıcı, kuyruk ve alıcı Server API’si | Bekliyor | S07.1 |
+| S07.4 | Tek kurulum durumu ve ayarlar kabulü | Bekliyor | S07.2, S07.3 |
+| S08.1 | Core/ev bağlamını oturuma atomik bağlama | Kanıtla tamamlandı | — |
+| S08.2 | İlk parola ve eski Server uyumluluğu | Kanıtla tamamlandı | — |
+| S08.3 | Provider, route ve callback kapsam sınırı | Kanıtla tamamlandı | — |
+| S08.4 | Kalıcı ev kayıt sınırı ve açık eski düzen taşıması | Kanıtla tamamlandı | — |
+| S08.5 | Restore, logout ve journal hedef sınırı | Kanıtla tamamlandı | — |
+| S08.6 | Kişi/oda/kaynak kimliği ve yetki sözleşmesi | Kanıtla tamamlandı | — |
+| S08.7 | İlk merkezi Home Assistant adaptörü | Kanıtla tamamlandı | — |

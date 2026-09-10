@@ -213,7 +213,7 @@ class CoreServices:
             self.qbittorrent_configurations.validate_storage()
             self.arr_configurations = ArrConfigurationManagement(
                 self.db, self.auth, settings, key, self.media_installations,
-                installation_backend)
+                installation_backend, self.qbittorrent_configurations)
             self.arr_configurations.validate_storage()
             self.clear_inactive_bootstrap()
 

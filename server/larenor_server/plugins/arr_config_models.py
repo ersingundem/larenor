@@ -8,6 +8,7 @@ from pydantic import ConfigDict, Field
 
 from ..models import StrictModel
 from .arr_config_effect import ArrConfigInstallReceipt
+from .qbittorrent_api_key import QB_API_KEY_PATTERN
 
 
 class PrivateArrConfiguration(StrictModel):
@@ -17,6 +18,10 @@ class PrivateArrConfiguration(StrictModel):
     serviceId: Literal['sonarr', 'radarr']
     apiKey: str = Field(
         min_length=32, max_length=32, pattern=r'^[0-9a-f]{32}$', repr=False,
+    )
+    qbittorrentApiKey: str | None = Field(
+        default=None, min_length=32, max_length=32,
+        pattern=QB_API_KEY_PATTERN, repr=False,
     )
 
     def __repr__(self):
@@ -90,6 +95,20 @@ ARR_CONFIG_CAUSE_CODES = frozenset({
     'arr_root_folder_conflict',
     'arr_root_folders_unavailable',
     'arr_root_folders_timeout',
+    'invalid_arr_managed_download_client',
+    'arr_download_client_authentication_failed',
+    'arr_download_client_observation_protocol',
+    'arr_download_client_observation_framing',
+    'arr_download_client_observation_payload',
+    'arr_download_client_schema_protocol',
+    'arr_download_client_schema_conflict',
+    'arr_download_client_test_protocol',
+    'arr_download_client_test_failed',
+    'arr_download_client_create_protocol',
+    'arr_download_client_verification_protocol',
+    'arr_download_client_conflict',
+    'arr_download_client_unavailable',
+    'arr_download_client_timeout',
     'arr_bootstrap_binding_invalid_installation_plan',
     'arr_bootstrap_binding_resources_unavailable',
     'arr_bootstrap_binding_resources_untrusted',

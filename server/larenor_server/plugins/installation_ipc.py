@@ -788,14 +788,19 @@ class InstallationWorkerServer(PreflightWorkerServer):
                 method = ('configure_arr' if operation == 'configure_arr'
                           else 'install_configured_arr')
                 timed = getattr(self.backend, method + '_with_deadline', None)
+                private_arguments = {'api_key': private.apiKey}
+                if (operation == 'install_configured_arr'
+                        and private.qbittorrentApiKey is not None):
+                    private_arguments['qbittorrent_api_key'] = (
+                        private.qbittorrentApiKey)
                 try:
                     result = (timed(
                         request['jobId'], plan, private.serviceId,
-                        api_key=private.apiKey, cancelled=cancelled,
+                        **private_arguments, cancelled=cancelled,
                         deadline=deadline,
                     ) if callable(timed) else getattr(self.backend, method)(
                         request['jobId'], plan, private.serviceId,
-                        api_key=private.apiKey, cancelled=cancelled,
+                        **private_arguments, cancelled=cancelled,
                         deadline=deadline,
                         gate=lambda: time.monotonic() < deadline))
                 except Exception as error:
