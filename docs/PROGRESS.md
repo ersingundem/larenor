@@ -325,7 +325,7 @@ Kalıcı Core işi, container zinciri ve native API kabulü açık olduğundan s
 değişmedi.
 [Uygulama ve açık sınırlar](arr-configuration-ipc-implementation-2026-09-10.md).
 
-`a7b0039` kalıcı iş dilimi, Sonarr ve Radarr yapılandırmalarını servis başına
+`8a342f6` kalıcı iş dilimi, Sonarr ve Radarr yapılandırmalarını servis başına
 tekil, yöneticiye bağlı ve AES-GCM şifreli no-retry işlere dönüştürdü. API
 anahtarı yalnız Server tarafından üretiliyor; public modeller, hata ve repr
 yüzeyleri sırrı taşımıyor. Yaşam döngüsü dispatcher'ı UID-korumalı worker IPC

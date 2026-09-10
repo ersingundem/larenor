@@ -1,6 +1,6 @@
 # Sonarr/Radarr kalıcı yapılandırma işleri
 
-Exact uygulama commit'i: `a7b00391c0e7c04cf7bbdbbe92847dfe5d581472`.
+Exact uygulama commit'i: `8a342f648bd7dc730d61650f3358998fedb8f4db`.
 
 Larenor Server, Sonarr ve Radarr yapılandırmasını servis başına tekil, yönetici oturumuna bağlı ve otomatik tekrar yapmayan kalıcı işlerde tutar. API anahtarı Server içinde üretilir ve AES-GCM ile şifrelenir; public API, kayıt özeti ve hata yüzeyleri sırrı göstermez. Aynı hazırlık iki servisi ayrı ayrı yapılandırabilir, fakat aynı servis için ikinci belirsiz etki oluşturulamaz.
 
