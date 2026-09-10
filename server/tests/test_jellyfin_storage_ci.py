@@ -160,7 +160,7 @@ def test_real_sigterm_unwinds_and_reaps_a_synthetic_owned_process(tmp_path):
     import subprocess
     import time
     m = api()
-    ready, closed = tmp_path/'ready', tmp_path/'closed'
+    ready, entered, closed = tmp_path/'ready', tmp_path/'entered', tmp_path/'closed'
     program = f'''
 import os,signal,subprocess,sys,time
 from pathlib import Path
@@ -179,7 +179,10 @@ class Owned:
         code=self.process.wait(timeout=3)
         Path({str(closed)!r}).write_text(str(code))
 ci.smoke.EphemeralDaemon=Owned
-ci.smoke.characterize=lambda *args,**kwargs:time.sleep(30)
+def characterize(*args,**kwargs):
+    Path({str(entered)!r}).write_text('entered')
+    time.sleep(30)
+ci.smoke.characterize=characterize
 raise SystemExit(ci.main(['--run-ephemeral-ci']))
 '''
     root = Path(__file__).resolve().parents[2]
@@ -188,9 +191,9 @@ raise SystemExit(ci.main(['--run-ephemeral-ci']))
         stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     try:
         deadline = time.monotonic()+5
-        while not ready.exists() and time.monotonic() < deadline and process.poll() is None:
+        while not entered.exists() and time.monotonic() < deadline and process.poll() is None:
             time.sleep(0.01)
-        assert ready.exists(), 'synthetic process did not start'
+        assert ready.exists() and entered.exists(), 'synthetic characterization did not start'
         process.send_signal(signal.SIGTERM)
         stdout, stderr = process.communicate(timeout=5)
         assert process.returncode == 1 and stdout == b''
