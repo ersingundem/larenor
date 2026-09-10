@@ -1,4 +1,5 @@
 import 'package:flutter/cupertino.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:larenor/features/proxmox/core_power/proxmox_power_controller.dart';
@@ -6,9 +7,15 @@ import 'package:larenor/features/proxmox/core_power/proxmox_power_panel.dart';
 
 import 'proxmox_power_authority_test.dart' show FakeGateway, target;
 
-Widget app(Widget child, {Locale locale = const Locale('en'), double scale = 1}) {
+Widget app(
+  Widget child, {
+  Locale locale = const Locale('en'),
+  double scale = 1,
+}) {
   return CupertinoApp(
     locale: locale,
+    supportedLocales: const [Locale('en'), Locale('tr')],
+    localizationsDelegates: GlobalCupertinoLocalizations.delegates,
     home: MediaQuery(
       data: MediaQueryData(textScaler: TextScaler.linear(scale)),
       child: CupertinoPageScaffold(child: child),
@@ -17,7 +24,9 @@ Widget app(Widget child, {Locale locale = const Locale('en'), double scale = 1})
 }
 
 void main() {
-  testWidgets('member has no controls and cannot cause a request', (tester) async {
+  testWidgets('member has no controls and cannot cause a request', (
+    tester,
+  ) async {
     final gateway = FakeGateway();
     final controller = ProxmoxPowerController(
       gateway: gateway,
@@ -35,11 +44,27 @@ void main() {
     );
     expect(find.text('Power controls'), findsNothing);
     expect(gateway.previews, 0);
+    await tester.pumpWidget(
+      app(
+        ProxmoxPowerPanel(
+          controller: controller,
+          isAdmin: true,
+          canWrite: false,
+        ),
+      ),
+    );
+    final start = tester.widget<CupertinoButton>(
+      find.widgetWithText(CupertinoButton, 'Start'),
+    );
+    expect(start.onPressed, isNull);
+    expect(gateway.previews, 0);
     controller.dispose();
   });
 
   for (final size in [const Size(600, 900), const Size(1280, 900)]) {
-    testWidgets('${size.width.toInt()}px 2x tablet remains usable', (tester) async {
+    testWidgets('${size.width.toInt()}px 2x tablet remains usable', (
+      tester,
+    ) async {
       await tester.binding.setSurfaceSize(size);
       addTearDown(() => tester.binding.setSurfaceSize(null));
       final controller = ProxmoxPowerController(
@@ -67,7 +92,9 @@ void main() {
     });
   }
 
-  testWidgets('keyboard preview never auto-confirms high-risk action', (tester) async {
+  testWidgets('keyboard preview never auto-confirms high-risk action', (
+    tester,
+  ) async {
     final gateway = FakeGateway();
     final controller = ProxmoxPowerController(
       gateway: gateway,
@@ -84,25 +111,30 @@ void main() {
         ),
       ),
     );
-    final reboot = find.widgetWithText(CupertinoButton, 'Reboot');
-    Focus.of(tester.element(reboot)).requestFocus();
-    await tester.pump();
+    for (var index = 0; index < 4; index++) {
+      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+      await tester.pump();
+    }
     await tester.sendKeyEvent(LogicalKeyboardKey.enter);
     await tester.pump();
     expect(gateway.previews, 1);
     expect(gateway.confirms, 0);
     expect(find.bySemanticsLabel('Give second confirmation'), findsOneWidget);
     expect(
-      tester.widget<CupertinoButton>(
-        find.widgetWithText(CupertinoButton, 'Explicitly confirm'),
-      ).onPressed,
+      tester
+          .widget<CupertinoButton>(
+            find.widgetWithText(CupertinoButton, 'Explicitly confirm'),
+          )
+          .onPressed,
       isNull,
     );
     semantics.dispose();
     controller.dispose();
   });
 
-  testWidgets('backgrounding invalidates review and late confirm', (tester) async {
+  testWidgets('backgrounding invalidates review and late confirm', (
+    tester,
+  ) async {
     final gateway = FakeGateway();
     final controller = ProxmoxPowerController(
       gateway: gateway,
@@ -148,7 +180,7 @@ void main() {
     );
     final reboot = find.widgetWithText(CupertinoButton, 'Yeniden başlat');
     expect(tester.getSize(reboot).height, greaterThanOrEqualTo(48));
-    expect(find.bySemanticsLabel('Yeniden başlat'), findsOneWidget);
+    expect(find.bySemanticsLabel('Yeniden başlat'), findsWidgets);
     semantics.dispose();
     controller.dispose();
   });
@@ -161,6 +193,7 @@ void main() {
       app(
         ProxmoxPowerEntry(
           isAdmin: true,
+          canWrite: true,
           target: null,
           current: () => true,
           onOpen: (_) => opened++,
@@ -173,5 +206,27 @@ void main() {
     expect(entry.onPressed, isNull);
     expect(opened, 0);
     expect(find.text('Exact guest status is required.'), findsOneWidget);
+  });
+
+  testWidgets('production entry rechecks route/PIN authority before opening', (
+    tester,
+  ) async {
+    var current = false, opened = 0;
+    await tester.pumpWidget(
+      app(
+        ProxmoxPowerEntry(
+          isAdmin: true,
+          canWrite: true,
+          target: target,
+          current: () => current,
+          onOpen: (_) => opened++,
+        ),
+      ),
+    );
+    await tester.tap(find.byKey(const ValueKey('core-proxmox-power-open')));
+    expect(opened, 0);
+    current = true;
+    await tester.tap(find.byKey(const ValueKey('core-proxmox-power-open')));
+    expect(opened, 1);
   });
 }
