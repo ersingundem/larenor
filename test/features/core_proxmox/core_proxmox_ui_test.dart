@@ -339,6 +339,10 @@ void main() {
     expect(find.text('Node offline'), findsWidgets);
     expect(find.text('Recent task failed'), findsWidgets);
     expect(find.textContaining('private'), findsNothing);
+    expect(find.text('Backup & snapshots'), findsWidgets);
+    expect(find.text('Latest backup'), findsWidgets);
+    expect(find.textContaining('Snapshots · QEMU #101'), findsWidgets);
+    expect(find.textContaining('Succeeded'), findsWidgets);
     expect(
       tester
           .widget<CupertinoButton>(
@@ -388,12 +392,20 @@ void main() {
     expect(find.text('Node offline'), findsWidgets);
     expect(find.text('Recent task failed'), findsWidgets);
     expect(find.textContaining('vzdump'), findsNothing);
+    await tester.tap(
+      find.byKey(const ValueKey('core-proxmox-filter-protection')),
+    );
+    await tester.pump();
+    expect(find.text('Latest backup'), findsWidgets);
+    expect(find.textContaining('Snapshots · QEMU #101'), findsWidgets);
+    expect(find.text('Node offline'), findsNothing);
     for (final key in [
       'core-proxmox-filter-all',
       'core-proxmox-filter-nodes',
       'core-proxmox-filter-guests',
       'core-proxmox-filter-storage',
       'core-proxmox-filter-maintenance',
+      'core-proxmox-filter-protection',
       'core-proxmox-filter-tasks',
     ]) {
       final button = tester.widget<CupertinoButton>(find.byKey(ValueKey(key)));
