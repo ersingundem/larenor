@@ -19,18 +19,30 @@ from larenor_server.plugins.seerr_bootstrap_executor import (
     SeerrBootstrapExecutionError,
     SeerrBootstrapExecutor,
 )
-from larenor_server.plugins.seerr_endpoint import OpenSeerrEndpoint, prove_seerr_endpoint
-from larenor_server.plugins.seerr_initial_admin import SeerrInitialAdmin
+from larenor_server.plugins.seerr_endpoint import (
+    OpenSeerrEndpoint,
+    prove_seerr_endpoint,
+)
+from larenor_server.plugins.seerr_endpoint import SeerrEndpointError
+from larenor_server.plugins.seerr_initial_admin import (
+    SeerrInitialAdmin,
+    SeerrInitialAdminResult,
+)
 from test_jellyfin_startup import Connection
-from test_managed_container_binding import Engine, build as build_jellyfin, command, snapshot
+from test_managed_container_binding import (
+    Engine,
+    build as build_jellyfin,
+    command,
+    snapshot,
+)
 from test_seerr_endpoint import build as build_seerr
 from test_seerr_initial_admin import PASSWORD, response, valid_responses
 
 
 JOB = "7" * 32
-API_KEY = base64.b64encode(
-    b"178900000000012345678-1234-4abc-8def-123456789abc"
-).decode("ascii")
+API_KEY = base64.b64encode(b"178900000000012345678-1234-4abc-8def-123456789abc").decode(
+    "ascii"
+)
 
 
 def private():
@@ -130,7 +142,9 @@ def test_reconciles_seerr_and_bootstraps_against_exact_jellyfin_peer(
     assert result.completed_steps[-1] == "session_destroyed"
     assert len(opens) == 1 and connection.closed and len(gates) >= 3
     assert jellyfin.name.encode() in connection.requests[1]
-    assert len([call for call in engine.calls if call == ("inspect", jellyfin.name)]) >= 2
+    assert (
+        len([call for call in engine.calls if call == ("inspect", jellyfin.name)]) >= 2
+    )
     assert PASSWORD not in repr(result) and API_KEY not in repr(result)
 
 
@@ -198,6 +212,102 @@ def test_initial_admin_failure_preserves_static_effect_state(prepared, monkeypat
     assert raised.value.uncertain_effect
     assert raised.value.cause_code == "seerr_initial_admin_protocol"
     assert PASSWORD not in repr(raised.value)
+
+
+def test_endpoint_refusal_is_static_and_closes_before_credentials(
+    prepared, monkeypatch
+):
+    stack, seerr, jellyfin, _observed, _engine, operations = prepared
+    monkeypatch.setattr(
+        "larenor_server.plugins.seerr_bootstrap_executor.open_seerr_endpoint",
+        lambda *_a, **_k: (_ for _ in ()).throw(
+            SeerrEndpointError("seerr_endpoint_unavailable")
+        ),
+    )
+    with pytest.raises(
+        SeerrBootstrapExecutionError, match="^seerr_bootstrap_endpoint_unavailable$"
+    ) as raised:
+        executor(seerr, jellyfin, operations).execute(
+            JOB,
+            stack,
+            private(),
+            deadline=time.monotonic() + 10,
+            gate=lambda: True,
+        )
+    assert not raised.value.uncertain_effect
+
+
+def test_peer_drift_after_admin_is_uncertain(prepared, monkeypatch):
+    stack, seerr, jellyfin, observed, _engine, operations = prepared
+    connected(monkeypatch, stack, seerr, observed)
+    original = SeerrInitialAdmin.create
+
+    def create(self, *args, **kwargs):
+        result = original(self, *args, **kwargs)
+        observed[jellyfin.name]["State"] = {"Status": "exited", "Running": False}
+        return result
+
+    monkeypatch.setattr(SeerrInitialAdmin, "create", create)
+    with pytest.raises(
+        SeerrBootstrapExecutionError, match="^seerr_bootstrap_peer_changed$"
+    ) as raised:
+        executor(seerr, jellyfin, operations).execute(
+            JOB,
+            stack,
+            private(),
+            deadline=time.monotonic() + 10,
+            gate=lambda: True,
+        )
+    assert raised.value.uncertain_effect
+    assert raised.value.completed_steps[-1] == "session_destroyed"
+
+
+def test_authority_loss_after_admin_is_uncertain(prepared, monkeypatch):
+    stack, seerr, jellyfin, observed, _engine, operations = prepared
+    connected(monkeypatch, stack, seerr, observed)
+    gates = iter((True, True, True, False))
+    with pytest.raises(
+        SeerrBootstrapExecutionError, match="^seerr_bootstrap_authority_changed$"
+    ) as raised:
+        executor(seerr, jellyfin, operations).execute(
+            JOB,
+            stack,
+            private(),
+            deadline=time.monotonic() + 10,
+            gate=lambda: next(gates),
+        )
+    assert raised.value.uncertain_effect
+
+
+def test_invalid_adapter_result_is_uncertain_and_never_exposes_key(
+    prepared, monkeypatch
+):
+    stack, seerr, jellyfin, observed, _engine, operations = prepared
+    connected(monkeypatch, stack, seerr, observed)
+    forged = SeerrInitialAdminResult(
+        "verified",
+        API_KEY,
+        (
+            "uninitialized_verified",
+            "admin_created",
+            "api_key_verified",
+            "session_destroyed",
+        ),
+    )
+    object.__setattr__(forged, "api_key", "private-invalid-key")
+    monkeypatch.setattr(SeerrInitialAdmin, "create", lambda *_a, **_k: forged)
+    with pytest.raises(
+        SeerrBootstrapExecutionError, match="^seerr_bootstrap_initial_admin_failed$"
+    ) as raised:
+        executor(seerr, jellyfin, operations).execute(
+            JOB,
+            stack,
+            private(),
+            deadline=time.monotonic() + 10,
+            gate=lambda: True,
+        )
+    assert raised.value.uncertain_effect
+    assert "private-invalid-key" not in repr(raised.value)
 
 
 def test_authority_loss_before_endpoint_never_connects(prepared, monkeypatch):
