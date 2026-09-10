@@ -12,6 +12,7 @@ import 'vnc_models_test.dart' show fixture, profile;
 class Trust implements VncTrustStore {
   VncCertificatePin? pin;
   bool checked = false;
+  Completer<void>? delayedCheck;
 
   @override
   Future<void> checkProfile(
@@ -19,6 +20,7 @@ class Trust implements VncTrustStore {
     required bool Function() isCurrent,
   }) async {
     if (!isCurrent()) throw const VncFailure('retired');
+    await delayedCheck?.future;
     checked = true;
   }
 
@@ -231,6 +233,22 @@ void main() {
     );
     await opening;
     expect(value.phase, VncSessionPhase.closed);
+    expect(engine.opens, 0);
+    value.dispose();
+  });
+
+  test('late profile check cannot begin RFB network negotiation', () async {
+    var current = true;
+    final engine = Engine();
+    final trust = Trust()..delayedCheck = Completer();
+    final value = controller(engine, trust, () => current);
+    final opening = value.connect();
+    await flush();
+    current = false;
+    trust.delayedCheck!.complete();
+    await opening;
+    expect(value.phase, VncSessionPhase.closed);
+    expect(engine.negotiations, 0);
     expect(engine.opens, 0);
     value.dispose();
   });
