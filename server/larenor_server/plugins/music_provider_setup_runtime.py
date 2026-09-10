@@ -132,9 +132,12 @@ class MusicProviderSetupRuntime:
         # A finish response is not accepted as success until the same
         # authenticated endpoint reads the exact provider instance back.
         readback = self._command(
-            action, 'config/providers/get_entries', {'instance_id': parsed},
+            action, 'config/providers/get', {'instance_id': parsed},
             deadline, cancelled)
-        if type(readback) is not list or len(readback) > 128:
+        if (type(readback) is not dict
+                or readback.get('instance_id') != parsed
+                or readback.get('domain') != action.providerDomain
+                or readback.get('status') != 'loaded'):
             raise MusicProviderSetupRuntimeError(
                 'provider_setup_readback_failed')
         return ProviderSetupWorkerResult(

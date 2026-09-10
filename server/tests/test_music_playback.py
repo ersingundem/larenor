@@ -3,7 +3,6 @@ import json
 import pytest
 
 from conftest import auth
-from larenor_server.errors import ApiError
 from larenor_server.plugins.music_playback_models import (
     MusicPlaybackReadback, MusicPlaybackWorkerResult, VerifiedMusicPlayer,
 )
@@ -84,14 +83,18 @@ def discovered(server, players=None):
 
 def test_authenticated_player_readback_exposes_exact_airplay_homepod_capabilities(server):
     pair, setup, readiness, _worker, playback = discovered(server, [
-        player(), player('whole-home', group=('homepod-living', 'homepod-kitchen'))])
+        player(), player('homepod-kitchen'),
+        player('whole-home', group=('homepod-living', 'homepod-kitchen'))])
     assert playback['installationId'] == setup['installationId']
     assert playback['coreRevision'] == readiness['revision']
     assert playback['installAvailable'] is False
     assert playback['players'][0]['targetKind'] == 'homepod'
-    assert playback['players'][1]['targetKind'] == 'airplay_group'
-    assert playback['players'][1]['groupMembers'] == [
+    assert playback['players'][2]['targetKind'] == 'airplay_group'
+    assert playback['players'][2]['groupMembers'] == [
         'homepod-living', 'homepod-kitchen']
+    saved = server[1].get(BASE + '/' + setup['installationId'],
+                          headers=auth(pair))
+    assert saved.status_code == 200 and saved.json()['playback'] == playback
 
 
 @pytest.mark.parametrize(('operation', 'changes'), [
@@ -110,7 +113,9 @@ def test_each_explicit_control_is_idempotent_and_revision_group_bound(
         'expectedInstallationRevision': setup['installationRevision'],
         'expectedCoreRevision': readiness['revision'],
         'expectedPlayerRevision': playback['revision'],
-        'targetId': 'homepod-living', 'expectedGroupMembers': [],
+        'targetId': 'homepod-living', 'expectedProvider': 'airplay--main',
+        'expectedTargetKind': 'homepod',
+        'expectedQueueId': 'homepod-living', 'expectedGroupMembers': [],
         'operation': operation, **changes,
     }
     first = server[1].post(BASE + '/commands', headers=auth(pair), json=body)
@@ -132,10 +137,12 @@ def test_stale_revision_or_group_members_never_reaches_worker(server):
         'expectedInstallationRevision': setup['installationRevision'],
         'expectedCoreRevision': readiness['revision'],
         'expectedPlayerRevision': playback['revision'],
-        'targetId': 'homepod-living', 'expectedGroupMembers': [],
+        'targetId': 'homepod-living', 'expectedProvider': 'airplay--main',
+        'expectedTargetKind': 'homepod',
+        'expectedQueueId': 'homepod-living', 'expectedGroupMembers': [],
         'operation': 'pause'}
     for change in [
-        {'expectedPlayerRevision': playback['revision'] - 1},
+        {'expectedPlayerRevision': playback['revision'] + 1},
         {'expectedGroupMembers': ['unexpected-member']},
     ]:
         body = {**base, **change}
@@ -162,8 +169,37 @@ def test_provider_must_remain_verified_for_every_player_effect(server):
         'expectedInstallationRevision': setup['installationRevision'],
         'expectedCoreRevision': readiness['revision'],
         'expectedPlayerRevision': playback['revision'],
-        'targetId': 'homepod-living', 'expectedGroupMembers': [],
+        'targetId': 'homepod-living', 'expectedProvider': 'airplay--main',
+        'expectedTargetKind': 'homepod',
+        'expectedQueueId': 'homepod-living', 'expectedGroupMembers': [],
         'operation': 'pause'})
     assert response.status_code == 409
     assert response.json()['error']['code'] == 'music_provider_not_ready'
     assert worker.calls == []
+
+
+def test_uncertain_effect_is_journaled_and_never_retried_automatically(server):
+    app, client, _, _ = server
+    pair, setup, readiness, worker, playback = discovered(server)
+
+    def fail(_action, *, deadline, gate):
+        worker.calls.append('attempt')
+        raise RuntimeError('private effect failure')
+
+    worker.execute_music_playback = fail
+    body = {
+        'requestId': '9' * 32, 'installationId': setup['installationId'],
+        'expectedInstallationRevision': setup['installationRevision'],
+        'expectedCoreRevision': readiness['revision'],
+        'expectedPlayerRevision': playback['revision'],
+        'targetId': 'homepod-living', 'expectedProvider': 'airplay--main',
+        'expectedTargetKind': 'homepod',
+        'expectedQueueId': 'homepod-living', 'expectedGroupMembers': [],
+        'operation': 'pause'}
+    first = client.post(BASE + '/commands', headers=auth(pair), json=body)
+    assert first.status_code == 503 and 'private effect failure' not in first.text
+    second = client.post(BASE + '/commands', headers=auth(pair), json=body)
+    assert second.status_code == 201
+    assert second.json()['receipt']['state'] == 'needs_attention'
+    assert second.json()['receipt']['code'] == 'effect_unknown'
+    assert worker.calls == ['attempt']

@@ -57,7 +57,7 @@ def test_runtime_submits_once_then_authenticates_exact_instance_readback():
         {'type': 'finish', 'flow_id': 'flow-private',
          'result': {'instance_id': 'ytmusic--family'}},
         {'instance_id': 'ytmusic--family', 'domain': 'ytmusic',
-         'status': 'available'},
+         'status': 'loaded'},
     ]
     runtime = MusicProviderSetupRuntime(
         lambda _timeout: Connection(responses, calls))
@@ -165,6 +165,8 @@ def test_finished_provider_requires_exact_instance_and_domain_readback():
         {'instance_id': 'ytmusic--family', 'domain': 'spotify'},
         {'instance_id': 'ytmusic--family'},
         {'domain': 'ytmusic'},
+        {'instance_id': 'ytmusic--family', 'domain': 'ytmusic',
+         'status': 'auth_required'},
     ]
     for readback in bad_readbacks:
         calls = []

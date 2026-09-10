@@ -22,8 +22,9 @@ Form submission uses `config/flows/submit`; returning from Music Assistant's own
 OAuth callback resumes with `config/flows/get`; explicit cancellation calls
 `config/flows/abort`. Each Worker invocation has one deadline and makes no
 retry. A `finish` result is provisional: the Worker must complete authenticated
-`config/providers/get_entries` readback for the exact returned instance before
-Core records `ready`. Revision and Music Assistant readiness are checked before
+`config/providers/get` readback whose `instance_id`, `domain`, and `loaded`
+status exactly match the finished flow before Core records `ready`. Revision
+and Music Assistant readiness are checked before
 and after IPC, so a changed flow, installation, dependency, or concurrent
 action fails closed. `installAvailable=false` remains unchanged.
 
