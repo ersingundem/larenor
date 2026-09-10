@@ -783,7 +783,8 @@
         "docs/arr-config-binding-implementation-2026-09-10.md",
         "docs/arr-config-effect-implementation-2026-09-10.md",
         "docs/arr-config-runtime-implementation-2026-09-10.md",
-        "docs/arr-configuration-ipc-implementation-2026-09-10.md"
+        "docs/arr-configuration-ipc-implementation-2026-09-10.md",
+        "docs/arr-configuration-jobs-implementation-2026-09-10.md"
       ],
       "scope": "Kullanıcı ayrı uygulama kurmaz veya API anahtarı kopyalamaz; sırlar Client/plan/log içine girmez.",
       "acceptance": [
@@ -795,14 +796,6 @@
         "ci"
       ],
       "evidence": [
-        {
-          "kind": "test",
-          "ref": "docs/jellyfin-authenticated-readback-implementation-2026-09-09.md",
-          "commit": "2c3f591bfe2e5ad9c0465be4ff2ed6ba3628b4fc",
-          "state": "completed",
-          "result": "passed",
-          "label": "Jellyfin 10.11.11 gerçek startup, API anahtarı projeksiyonu, secret-free adım tanısı ve wizard öncesi/sonrası sağlık sözleşmesi: 655 ilgili yerel test, security policy ve queue doğrulaması PASS."
-        },
         {
           "kind": "ci",
           "ref": "https://github.com/ersingundem/larenor/actions/runs/34389549143",
@@ -1050,10 +1043,18 @@
           "state": "completed",
           "result": "passed",
           "label": "Strict private Arr modeli UID-korumalı installation socketine bağlandı; peer/deadline/yetki, exact servis makbuzu ve secret-free hata projeksiyonu 18 yeni testte, ilgili paketler 140 PASS/1 macOS skip."
+        },
+        {
+          "kind": "test",
+          "ref": "docs/arr-configuration-jobs-implementation-2026-09-10.md",
+          "commit": "935f70658bef6a5d20af2a9356b4ce3a9a7a31a4",
+          "state": "completed",
+          "result": "passed",
+          "label": "Sonarr/Radarr servis başına tekil, AES-GCM şifreli no-retry Core işlerine bağlandı; Server üretimli API anahtarı, dispatcher, idempotence ve belirsiz sonuçlar ilgili Arr paketlerinde 107 PASS ile doğrulandı."
         }
       ],
       "completionCommit": null,
-      "reason": "Server üretimli sır, sabit startup, exact journal/container/private-network yürütücüsü, kalıcı no-retry koordinatör, otomatik yaşam döngüsü dispatcher ve aynı retained daemon'a bağlı private IPC/runtime hazır. Disposable Jellyfin 10.11.11 bootstrap, API anahtarı, kütüphane eşleştirmesi, logout, restart ve veri kalıcılığı exact arm64+amd64 CI'da geçti. qBittorrent 5.2.3 sahipli config/API, journal-bound volume/library planı, güvenli helper, private stdin effect, current-journal runtime bağı, UID-korumalı IPC, şifreli kalıcı Core işi, config-before-create/start ve private endpoint/bootstrap hazır; exact PR41 amd64+arm64 native CI config, Bearer auth, kategori kalıcılığı ve restart readback makbuzlarını doğruladı. Sonarr/Radarr owned config.xml ve exact API-key geri doğrulaması PR42 tam CI ile ana dalda; stdin-only hacim yazıcısı, current-journal effect, retained-daemon runtime ve UID-korumalı private IPC yerelde yeşil. Arr kalıcı Core işi, container create-start/native API readback, qBittorrent/root-folder bağlantısı, Seerr ve Music Assistant bootstrap açık; installAvailable=false."
+      "reason": "Server üretimli sır, sabit startup, exact journal/container/private-network yürütücüsü, kalıcı no-retry koordinatör, otomatik yaşam döngüsü dispatcher ve aynı retained daemon'a bağlı private IPC/runtime hazır. Disposable Jellyfin 10.11.11 bootstrap, API anahtarı, kütüphane eşleştirmesi, logout, restart ve veri kalıcılığı exact arm64+amd64 CI'da geçti. qBittorrent 5.2.3 sahipli config/API, journal-bound volume/library planı, güvenli helper, private stdin effect, current-journal runtime bağı, UID-korumalı IPC, şifreli kalıcı Core işi, config-before-create/start ve private endpoint/bootstrap hazır; exact PR41 amd64+arm64 native CI config, Bearer auth, kategori kalıcılığı ve restart readback makbuzlarını doğruladı. Sonarr/Radarr owned config.xml ve exact API-key geri doğrulaması PR42 tam CI ile ana dalda; stdin-only hacim yazıcısı, current-journal effect, retained-daemon runtime ve UID-korumalı private IPC yerelde yeşil. Arr şifreli kalıcı Core işi yerelde yeşil; container create-start/native API readback, qBittorrent/root-folder bağlantısı, Seerr ve Music Assistant bootstrap açık; installAvailable=false."
     },
     {
       "id": "S06.6",
