@@ -1,0 +1,278 @@
+{
+  "schemaVersion": 1,
+  "context": {
+    "schemaVersion": 1,
+    "coreId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "homeId": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+  },
+  "limits": {
+    "page": 50,
+    "retainedCommands": 1024,
+    "encryptedCommandBytes": 4096
+  },
+  "empty": {
+    "method": "GET",
+    "path": "/home-assistant/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb/resources/11111111111111111111111111111111/history",
+    "status": 200,
+    "response": {
+      "schemaVersion": 1,
+      "ref": {
+        "schemaVersion": 1,
+        "coreId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "homeId": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "kind": "resource",
+        "id": "11111111111111111111111111111111"
+      },
+      "entries": [],
+      "nextBefore": null
+    }
+  },
+  "complete": {
+    "method": "GET",
+    "path": "/home-assistant/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb/resources/11111111111111111111111111111111/history",
+    "status": 200,
+    "response": {
+      "schemaVersion": 1,
+      "ref": {
+        "schemaVersion": 1,
+        "coreId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "homeId": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "kind": "resource",
+        "id": "11111111111111111111111111111111"
+      },
+      "entries": [
+        {
+          "attribution": {
+            "schemaVersion": 1,
+            "correlationId": "99999999999999999999999999999999",
+            "source": "core_api",
+            "reason": "explicit_command_request",
+            "serviceId": "22222222222222222222222222222222",
+            "serviceRevision": 1
+          },
+          "receipt": {
+            "schemaVersion": 1,
+            "requestId": "99999999999999999999999999999999",
+            "ref": {
+              "schemaVersion": 1,
+              "coreId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "homeId": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+              "kind": "resource",
+              "id": "11111111111111111111111111111111"
+            },
+            "bindingId": "33333333333333333333333333333333",
+            "bindingRevision": 1,
+            "actorId": "ffffffffffffffffffffffffffffffff",
+            "action": "turn_on",
+            "dispatchState": "accepted",
+            "providerAccepted": true,
+            "observedProjection": {
+              "kind": "switch",
+              "state": "on",
+              "commandAvailable": false
+            },
+            "observationMatchesTarget": true,
+            "causalityVerified": false,
+            "createdAt": "2026-09-05T12:00:00.000Z",
+            "completedAt": "2026-09-05T12:00:00.000Z"
+          }
+        },
+        {
+          "attribution": {
+            "schemaVersion": 1,
+            "correlationId": "88888888888888888888888888888888",
+            "source": "core_api",
+            "reason": "explicit_command_request",
+            "serviceId": "22222222222222222222222222222222",
+            "serviceRevision": 1
+          },
+          "receipt": {
+            "schemaVersion": 1,
+            "requestId": "88888888888888888888888888888888",
+            "ref": {
+              "schemaVersion": 1,
+              "coreId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "homeId": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+              "kind": "resource",
+              "id": "11111111111111111111111111111111"
+            },
+            "bindingId": "33333333333333333333333333333333",
+            "bindingRevision": 1,
+            "actorId": "ffffffffffffffffffffffffffffffff",
+            "action": "turn_on",
+            "dispatchState": "accepted",
+            "providerAccepted": true,
+            "observedProjection": {
+              "kind": "switch",
+              "state": "on",
+              "commandAvailable": false
+            },
+            "observationMatchesTarget": true,
+            "causalityVerified": false,
+            "createdAt": "2026-09-05T12:00:00.000Z",
+            "completedAt": "2026-09-05T12:00:00.000Z"
+          }
+        }
+      ],
+      "nextBefore": null
+    }
+  },
+  "firstPage": {
+    "method": "GET",
+    "path": "/home-assistant/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb/resources/11111111111111111111111111111111/history?limit=1",
+    "status": 200,
+    "response": {
+      "schemaVersion": 1,
+      "ref": {
+        "schemaVersion": 1,
+        "coreId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "homeId": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "kind": "resource",
+        "id": "11111111111111111111111111111111"
+      },
+      "entries": [
+        {
+          "attribution": {
+            "schemaVersion": 1,
+            "correlationId": "99999999999999999999999999999999",
+            "source": "core_api",
+            "reason": "explicit_command_request",
+            "serviceId": "22222222222222222222222222222222",
+            "serviceRevision": 1
+          },
+          "receipt": {
+            "schemaVersion": 1,
+            "requestId": "99999999999999999999999999999999",
+            "ref": {
+              "schemaVersion": 1,
+              "coreId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "homeId": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+              "kind": "resource",
+              "id": "11111111111111111111111111111111"
+            },
+            "bindingId": "33333333333333333333333333333333",
+            "bindingRevision": 1,
+            "actorId": "ffffffffffffffffffffffffffffffff",
+            "action": "turn_on",
+            "dispatchState": "accepted",
+            "providerAccepted": true,
+            "observedProjection": {
+              "kind": "switch",
+              "state": "on",
+              "commandAvailable": false
+            },
+            "observationMatchesTarget": true,
+            "causalityVerified": false,
+            "createdAt": "2026-09-05T12:00:00.000Z",
+            "completedAt": "2026-09-05T12:00:00.000Z"
+          }
+        }
+      ],
+      "nextBefore": "99999999999999999999999999999999"
+    }
+  },
+  "lastPage": {
+    "method": "GET",
+    "path": "/home-assistant/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb/resources/11111111111111111111111111111111/history?before=99999999999999999999999999999999&limit=1",
+    "status": 200,
+    "response": {
+      "schemaVersion": 1,
+      "ref": {
+        "schemaVersion": 1,
+        "coreId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "homeId": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "kind": "resource",
+        "id": "11111111111111111111111111111111"
+      },
+      "entries": [
+        {
+          "attribution": {
+            "schemaVersion": 1,
+            "correlationId": "88888888888888888888888888888888",
+            "source": "core_api",
+            "reason": "explicit_command_request",
+            "serviceId": "22222222222222222222222222222222",
+            "serviceRevision": 1
+          },
+          "receipt": {
+            "schemaVersion": 1,
+            "requestId": "88888888888888888888888888888888",
+            "ref": {
+              "schemaVersion": 1,
+              "coreId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "homeId": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+              "kind": "resource",
+              "id": "11111111111111111111111111111111"
+            },
+            "bindingId": "33333333333333333333333333333333",
+            "bindingRevision": 1,
+            "actorId": "ffffffffffffffffffffffffffffffff",
+            "action": "turn_on",
+            "dispatchState": "accepted",
+            "providerAccepted": true,
+            "observedProjection": {
+              "kind": "switch",
+              "state": "on",
+              "commandAvailable": false
+            },
+            "observationMatchesTarget": true,
+            "causalityVerified": false,
+            "createdAt": "2026-09-05T12:00:00.000Z",
+            "completedAt": "2026-09-05T12:00:00.000Z"
+          }
+        }
+      ],
+      "nextBefore": null
+    }
+  },
+  "hiddenMember": {
+    "method": "GET",
+    "path": "/home-assistant/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb/resources/11111111111111111111111111111111/history",
+    "status": 404,
+    "response": {
+      "error": {
+        "code": "not_found",
+        "message": "The requested resource was not found."
+      }
+    }
+  },
+  "otherActorFiltered": {
+    "method": "GET",
+    "path": "/home-assistant/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb/resources/11111111111111111111111111111111/history",
+    "status": 200,
+    "response": {
+      "schemaVersion": 1,
+      "ref": {
+        "schemaVersion": 1,
+        "coreId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "homeId": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "kind": "resource",
+        "id": "11111111111111111111111111111111"
+      },
+      "entries": [],
+      "nextBefore": null
+    }
+  },
+  "hiddenCursor": {
+    "method": "GET",
+    "path": "/home-assistant/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb/resources/11111111111111111111111111111111/history?before=99999999999999999999999999999999",
+    "status": 404,
+    "response": {
+      "error": {
+        "code": "not_found",
+        "message": "The requested resource was not found."
+      }
+    }
+  },
+  "invalidLimit": {
+    "method": "GET",
+    "path": "/home-assistant/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb/resources/11111111111111111111111111111111/history?limit=51",
+    "status": 400,
+    "response": {
+      "error": {
+        "code": "invalid_request",
+        "message": "The request is invalid."
+      }
+    }
+  }
+}

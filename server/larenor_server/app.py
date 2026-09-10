@@ -24,6 +24,7 @@ from .services.api import router as services_router
 from .home_resources.api import router as home_resources_router
 from .home_people.api import router as home_people_router
 from .home_assistant.api import router as home_assistant_router
+from .home_assistant.history_api import router as command_history_router
 from .home_assistant.migration_api import router as direct_ha_migration_router
 from .services.probe_api import router as service_probe_router
 from .plugins.api import router as plugins_router
@@ -203,6 +204,7 @@ def create_app(settings: Settings, *, routers: Iterable[APIRouter] = (),
     app.include_router(home_resources_router, prefix="/api/v1")
     app.include_router(home_people_router, prefix="/api/v1")
     app.include_router(home_assistant_router, prefix="/api/v1")
+    app.include_router(command_history_router, prefix="/api/v1")
     app.include_router(direct_ha_migration_router, prefix="/api/v1")
     app.include_router(service_probe_router, prefix="/api/v1")
     app.include_router(plugins_router, prefix="/api/v1")

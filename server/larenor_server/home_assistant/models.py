@@ -145,9 +145,51 @@ class CommandReceipt(FrozenModel):
         return value
 
 
-class StoredCommand(FrozenModel):
+class LegacyStoredCommand(FrozenModel):
     request: CommandRequest
     receipt: CommandReceipt
+
+
+class CommandAttribution(FrozenModel):
+    schemaVersion: Literal[1] = 1
+    correlationId: Identity
+    source: Literal['core_api', 'unknown']
+    reason: Literal['explicit_command_request', 'unknown']
+    serviceId: Identity | None
+    serviceRevision: Revision | None
+
+    _integer_version = field_validator('schemaVersion', mode='before')(CommandRequest.integer_version.__func__)
+
+    @model_validator(mode='after')
+    def known_source(self):
+        if self.source == 'unknown':
+            if self.reason != 'unknown' or self.serviceId is not None or self.serviceRevision is not None:
+                raise ValueError('invalid_attribution')
+        elif self.reason != 'explicit_command_request' or self.serviceId is None or self.serviceRevision is None:
+            raise ValueError('invalid_attribution')
+        return self
+
+
+class StoredCommand(LegacyStoredCommand):
+    attribution: CommandAttribution
+
+    @model_validator(mode='after')
+    def same_correlation(self):
+        if self.attribution.correlationId != self.request.requestId:
+            raise ValueError('invalid_attribution')
+        return self
+
+
+class CommandHistoryEntry(FrozenModel):
+    attribution: CommandAttribution
+    receipt: CommandReceipt
+
+
+class CommandHistoryResponse(FrozenModel):
+    schemaVersion: Literal[1] = 1
+    ref: ResourceRef
+    entries: list[CommandHistoryEntry] = Field(max_length=50)
+    nextBefore: Identity | None
 
 
 class CommandResponse(FrozenModel):
