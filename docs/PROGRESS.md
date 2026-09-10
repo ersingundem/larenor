@@ -1,6 +1,6 @@
 # Larenor — güncel ilerleme ve iş kuyruğu
 
-**Son güncelleme: 10 Eylül 2026 — qBittorrent 5.2.3 config/API, volume bağı, güvenli helper, private Docker stdin/effect ve retained-daemon runtime zinciri PR28/PR30/PR31/PR32/PR34 ile ana dalda. UID-korumalı qBittorrent IPC dilimi yerelde hazır.**
+**Son güncelleme: 10 Eylül 2026 — qBittorrent config/runtime zinciri ve UID-korumalı IPC PR28/PR30/PR31/PR32/PR34/PR36 ile ana dalda. Şifreli, kalıcı ve otomatik qBittorrent yapılandırma işi yerelde hazır.**
 
 ```text
 Kuyruk kabulü       ██░░░░░░░░░░░░░░░░░░  14/125 iş (%11; eşit ağırlıklı sayaç)
@@ -191,6 +191,18 @@ macOS skip**, compileall, queue, diff ve gitleaks kontrolü geçti. Kalıcı şi
 qBittorrent job, create/start sırası ve iki mimarili native kabul açık olduğu
 için sayaç değişmedi.
 [Uygulama ve açık sınırlar](qbittorrent-installation-ipc-implementation-2026-09-10.md).
+
+`9bf5f40` TDD dilimi Core'un ürettiği qBittorrent credential, API key ve salt'ı
+satır kimliği/durum/kaynak bağlamlı AES-GCM kayıt içinde tutan kalıcı işi ekledi.
+Admin API oluşturma, sınırlı listeleme, okuma ve revision-bound iptal sunuyor;
+dispatcher gerçek UID-korumalı IPC'yi otomatik çağırıyor ve kapanışta devam eden
+makbuzu bekliyor. Restart sırasında `running` kalan iş tekrar edilmiyor; etki
+sonrası iptal, yetki kaybı veya bilinmeyen worker kopması açıkça
+`needs_attention` oluyor. **23 yeni ve 263 ilgili test PASS**; sabit apksig/JDK
+ile dört gerçek APK doğrulama testi de geçti. Create/start sırası, iki mimarili
+native qBittorrent ve otomatik servis eşleştirmesi açık olduğu için sayaç
+değişmedi ve `installAvailable=false` kaldı.
+[Uygulama ve açık sınırlar](qbittorrent-configuration-jobs-implementation-2026-09-10.md).
 
 S06.4 native kabul koşusu [34326112926](https://github.com/ersingundem/larenor/actions/runs/34326112926)
 iki gerçek GitHub runner'ında geçti. İndirilen ARM64 ve X64 makbuzları merge
