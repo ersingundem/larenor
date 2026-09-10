@@ -19,6 +19,8 @@ final class _File extends PlatformFile {
   @override
   Future<int> length() async => size;
   @override
+  int lengthSync() => size;
+  @override
   Future<Uint8List> readAsBytes() async => throw UnsupportedError('not used');
   @override
   Stream<Uint8List> readAsByteStream() async* {
