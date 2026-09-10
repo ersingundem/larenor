@@ -2739,5 +2739,22 @@
   "coreKeeneticDetailsBand": "Band",
   "coreKeeneticDetailsChannel": "Channel",
   "coreKeeneticDetailsSignal": "Signal",
-  "coreKeeneticDetailsAccess": "Internet access"
+  "coreKeeneticDetailsAccess": "Internet access",
+  "coreKeeneticMeshTitle": "Mesh and Wi-Fi topology",
+  "coreKeeneticMeshNodes": "Mesh nodes",
+  "coreKeeneticMeshNetworks": "Wi-Fi distribution",
+  "coreKeeneticMeshController": "Controller",
+  "coreKeeneticMeshExtender": "Extender",
+  "coreKeeneticMeshBackhaul": "Backhaul",
+  "coreKeeneticMeshQuality": "Estimated path quality",
+  "coreKeeneticMeshPathCost": "Path cost",
+  "coreKeeneticMeshClients": "Connected devices",
+  "coreKeeneticMeshNoNodes": "No mesh extenders were reported.",
+  "coreKeeneticMeshUnavailable": "Mesh topology is unavailable. Refresh to try again.",
+  "coreKeeneticMeshUnsupported": "This router does not report a supported mesh topology.",
+  "coreKeeneticMeshExcellent": "Excellent",
+  "coreKeeneticMeshGood": "Good",
+  "coreKeeneticMeshFair": "Fair",
+  "coreKeeneticMeshPoor": "Poor",
+  "coreKeeneticMeshUnknown": "Unknown"
 }

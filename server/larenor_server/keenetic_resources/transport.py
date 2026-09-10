@@ -225,6 +225,76 @@ def _signal(value):
     return value
 
 
+def _mesh_topology(value):
+    value = _object(value)
+    if set(value) != {"controller", "members"}:
+        _unsupported()
+    controller = _object(value["controller"])
+    if set(controller) != {"name", "model"}:
+        _unsupported()
+    result = {
+        "controller": {
+            "name": _text(controller["name"]),
+            "model": _text(controller["model"]),
+        },
+        "members": [],
+    }
+    members = value["members"]
+    if type(members) is not list or len(members) > 63:
+        _unsupported()
+    seen = set()
+    for raw in members:
+        raw = _object(raw)
+        if set(raw) == {"name", "model", "mac", "online", "uplink", "bridge", "cost"}:
+            mac = raw["mac"]
+            bridge = raw["bridge"]
+            cost = raw["cost"]
+            if (not isinstance(mac, str) or _MAC.fullmatch(mac) is None
+                    or type(raw["online"]) is not bool
+                    or not isinstance(bridge, str)
+                    or re.fullmatch(r"(?:8000|e000)\.[0-9a-f]{2}(?::[0-9a-f]{2}){5}", bridge) is None
+                    or type(cost) is not int or not 1 <= cost <= 65535):
+                _unsupported()
+            mac = mac.upper()
+            if mac in seen:
+                _unsupported()
+            seen.add(mac)
+            result["members"].append({
+                "name": _text(raw["name"]), "model": _text(raw["model"]),
+                "mac": mac, "online": raw["online"],
+                "uplink": _text(raw["uplink"]), "bridge": bridge, "cost": cost,
+            })
+            continue
+        if set(raw) != {"name", "model", "mac", "status", "backhaul"}:
+            _unsupported()
+        mac = raw["mac"]
+        if not isinstance(mac, str) or _MAC.fullmatch(mac) is None:
+            _unsupported()
+        mac = mac.upper()
+        if mac in seen or raw["status"] not in {"online", "offline"}:
+            _unsupported()
+        seen.add(mac)
+        backhaul = _object(raw["backhaul"])
+        if set(backhaul) != {"uplink", "bridge", "cost"}:
+            _unsupported()
+        bridge = _text(backhaul["bridge"], length=22).lower()
+        if re.fullmatch(r"(?:8000|e000)\.[0-9a-f]{2}(?::[0-9a-f]{2}){5}", bridge) is None:
+            _unsupported()
+        cost = _integer(backhaul["cost"])
+        if not 1 <= cost <= 65535:
+            _unsupported()
+        result["members"].append({
+            "name": _text(raw["name"]),
+            "model": _text(raw["model"]),
+            "mac": mac,
+            "online": raw["status"] == "online",
+            "uplink": _text(backhaul["uplink"]),
+            "bridge": bridge,
+            "cost": cost,
+        })
+    return result
+
+
 def _integer(value):
     if isinstance(value, str) and re.fullmatch(r"[0-9]{1,19}", value):
         value = int(value)
@@ -627,6 +697,40 @@ class KeeneticReadOnlyTransport:
             })
         except ValidationError:
             _unsupported()
+
+    def read_topology(self, connection, guard):
+        if (connection.kind != "keenetic" or not callable(guard)
+                or type(connection.revision) is not int or not isinstance(connection.id, str)):
+            _unsupported()
+        guard()
+        resolver = _PinnedLanResolver(self._system_resolver)
+        deadline = time.monotonic() + _TOTAL_TIMEOUT
+        headers = self._authenticate(connection, resolver, deadline, guard)
+        commands = ({"version": {}}, {"mws": {"member": {}}})
+        body = json.dumps(commands, separators=(",", ":")).encode()
+        response = self._request(
+            connection, resolver, deadline, guard, "POST", "/rci/show",
+            {**headers, "Content-Type": "application/json"}, body,
+        )
+        batch = _json_response(response)
+        if type(batch) is not list or len(batch) != 2:
+            _unsupported()
+        version, mesh = map(_object, batch)
+        if set(version) != {"version"} or set(mesh) != {"mws"}:
+            _unsupported()
+        version = _object(version["version"])
+        release = version.get("release") or version.get("title")
+        capabilities = firmware_capabilities(release)
+        if capabilities.family == "ndms-2":
+            _unsupported()
+        model = _text(version.get("model"))
+        mws = _object(mesh["mws"])
+        if set(mws) != {"member"}:
+            _unsupported()
+        return _mesh_topology({
+            "controller": {"name": model, "model": model},
+            "members": mws["member"],
+        })
 
 
 def read_telemetry(connection, guard):

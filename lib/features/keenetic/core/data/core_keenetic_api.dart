@@ -108,6 +108,15 @@ final class CoreKeeneticApi {
       ),
     );
   });
+  Future<CoreKeeneticTopologySnapshot> topology() => _operation(
+    () async => CoreKeeneticTopologySnapshot.fromJson(
+      _envelope(
+        await _transport.request('GET', '$_path/topology', token: _token),
+        'topology',
+      ),
+      target: target,
+    ),
+  );
   Future<CoreKeeneticBinding?> binding() => _operation(() async {
     try {
       return CoreKeeneticBinding.fromJson(
