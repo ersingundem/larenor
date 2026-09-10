@@ -45,4 +45,3 @@ def list_bootstraps(
 @router.get("/{identifier}", response_model=SeerrBootstrapJobResponse)
 def get(identifier: ObjectId, core: Core, actor: Admin):
     return core.seerr_bootstraps.get(actor, identifier)
-

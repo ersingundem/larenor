@@ -166,4 +166,3 @@ def test_list_is_admin_only_bounded_and_contains_no_private_values(server):
     assert response.json() == {"bootstraps": [record["bootstrap"]], "nextBefore": None}
     assert "credential" not in response.text and "apiKey" not in response.text
     assert client.get(BASE + "?limit=0", headers=auth(pair)).status_code == 400
-

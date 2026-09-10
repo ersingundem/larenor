@@ -364,4 +364,3 @@ class SeerrArrWiring:
         finally:
             if scope is not None:
                 scope.finish()
-

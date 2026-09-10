@@ -121,4 +121,3 @@ def migrate_seerr_bootstraps(connection):
     elif marker["value"] != "1" or tables != {TABLE}:
         raise StartupError("media_seerr_bootstraps_schema_unsupported")
     _verify(connection)
-
