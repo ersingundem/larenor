@@ -2547,11 +2547,29 @@
   "sftpUpload": "Choose a file to upload",
   "sftpEmpty": "No supported files or folders are shown. Refresh to read this folder.",
   "sftpDownload": "Download {name}",
-  "@sftpDownload": {"placeholders": {"name": {"type": "String"}}},
+  "@sftpDownload": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
   "sftpFileSize": "{bytes} bytes",
-  "@sftpFileSize": {"placeholders": {"bytes": {"type": "int"}}},
+  "@sftpFileSize": {
+    "placeholders": {
+      "bytes": {
+        "type": "int"
+      }
+    }
+  },
   "sftpTransferred": "{bytes} bytes transferred",
-  "@sftpTransferred": {"placeholders": {"bytes": {"type": "int"}}},
+  "@sftpTransferred": {
+    "placeholders": {
+      "bytes": {
+        "type": "int"
+      }
+    }
+  },
   "sftpUploadComplete": "Upload completed. Refresh to confirm the remote result.",
   "sftpDownloadComplete": "Download saved to the selected Android location.",
   "sftpDownloadCancelled": "Android save was cancelled; the remote file was not changed.",
@@ -2635,5 +2653,41 @@
   "coreKeeneticService": "Keenetic service",
   "coreKeeneticNoServices": "No authenticated Keenetic service is available.",
   "coreKeeneticPreview": "Preview link",
-  "coreKeeneticConfirm": "Confirm link"
+  "coreKeeneticConfirm": "Confirm link",
+  "coreProxmoxTitle": "Proxmox resources",
+  "coreProxmoxBindingTitle": "Proxmox Core link",
+  "coreProxmoxReadOnly": "Read-only Core summary. Power and configuration actions are unavailable.",
+  "coreProxmoxLoading": "Reading a current Core snapshot…",
+  "coreProxmoxRequired": "A verified, unlocked Core session is required.",
+  "coreProxmoxPermission": "This account cannot read this Proxmox resource.",
+  "coreProxmoxUpstreamAuth": "Core cannot authenticate to the selected Proxmox service.",
+  "coreProxmoxOffline": "Core or the Proxmox service is unavailable.",
+  "coreProxmoxUnsupported": "Core returned an unknown or unsupported Proxmox summary.",
+  "coreProxmoxChanged": "The resource, access, service, or link changed. Refresh from the current home.",
+  "coreProxmoxPreviewExpired": "This preview is stale. Select the service again.",
+  "coreProxmoxError": "The Proxmox summary could not be read.",
+  "coreProxmoxStale": "The Core snapshot expired and was removed. Refresh to read a current result.",
+  "coreProxmoxUncertain": "Core could not confirm whether the link changed. Refresh before trying again.",
+  "coreProxmoxSaved": "The Proxmox Core link was saved.",
+  "coreProxmoxPreviewReady": "Review this read-only node, guest, and storage preview before confirming.",
+  "coreProxmoxConfirm": "Confirm read-only link",
+  "coreProxmoxServices": "Verified Proxmox services",
+  "coreProxmoxNoServices": "No Proxmox service is available in Core.",
+  "coreProxmoxOnline": "Online",
+  "coreProxmoxOfflineState": "Offline",
+  "coreProxmoxRunning": "Running",
+  "coreProxmoxStopped": "Stopped",
+  "coreProxmoxActive": "Active",
+  "coreProxmoxInactive": "Inactive",
+  "coreProxmoxCpu": "CPU",
+  "coreProxmoxMemory": "Memory",
+  "coreProxmoxDisk": "Disk",
+  "coreProxmoxUptime": "Uptime",
+  "coreProxmoxNode": "Node",
+  "coreProxmoxVm": "QEMU VM",
+  "coreProxmoxContainer": "LXC container",
+  "coreProxmoxEmpty": "No nodes, guests, or storage are visible.",
+  "coreProxmoxOpen": "Open read-only Proxmox summary",
+  "coreProxmoxConfigure": "Configure Proxmox Core link",
+  "coreProxmoxChooseResource": "Choose a Core resource for this Proxmox widget."
 }

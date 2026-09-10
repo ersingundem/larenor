@@ -106,8 +106,7 @@ class CoreProxmoxController extends ChangeNotifier {
   bool get canRefresh => _ready != null && !busy;
   bool get canPreview =>
       admin && fresh && loaded && !busy && !uncertain && preview == null;
-  bool get canConfirm =>
-      admin && fresh && !busy && preview != null && !stale;
+  bool get canConfirm => admin && fresh && !busy && preview != null && !stale;
 
   void _emit() {
     if (!_disposed) notifyListeners();
@@ -361,10 +360,8 @@ class CoreProxmoxController extends ChangeNotifier {
     final currentRecord = record!, existing = binding;
     await _run((api) async {
       final started = monotonic();
-      final value = await api(currentRecord).preview(
-        service: service,
-        existing: existing,
-      );
+      final value = await api(currentRecord)
+          .preview(service: service, existing: existing);
       _preview = value;
       _stale = false;
       _arm(started + Duration(milliseconds: value.expiresInMs));
@@ -375,7 +372,9 @@ class CoreProxmoxController extends ChangeNotifier {
     CoreProxmoxPreview value, {
     required bool Function() isCurrent,
   }) async {
-    if (!canConfirm || !identical(value, preview) || !_action(isCurrent)) return;
+    if (!canConfirm || !identical(value, preview) || !_action(isCurrent)) {
+      return;
+    }
     final deadline = _deadline!, currentRecord = record!;
     _preview = null;
     _ttlTimer?.cancel();
@@ -398,7 +397,9 @@ class CoreProxmoxController extends ChangeNotifier {
     CoreProxmoxPreview value, {
     required bool Function() isCurrent,
   }) async {
-    if (!canConfirm || !identical(value, preview) || !_action(isCurrent)) return;
+    if (!canConfirm || !identical(value, preview) || !_action(isCurrent)) {
+      return;
+    }
     final currentRecord = record!;
     _preview = null;
     _ttlTimer?.cancel();

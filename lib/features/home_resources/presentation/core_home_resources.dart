@@ -9,6 +9,7 @@ import '../../../core/home_session_controller.dart';
 import '../../../core/window/window_policy_providers.dart';
 import '../../../l10n/generated/app_localizations.dart';
 import '../../core_ha/presentation/core_ha_screen.dart';
+import '../../core_proxmox/presentation/core_proxmox_screen.dart';
 import '../../keenetic/core/presentation/core_keenetic_screen.dart';
 import '../../server/providers/server_providers.dart';
 import '../data/home_resources_api.dart';
@@ -305,6 +306,20 @@ class _CoreHomeResourcesState extends ConsumerState<CoreHomeResources>
                                     target: entry,
                                     admin: session?.user.canAdminister == true,
                                   ),
+                                ),
+                              );
+                            },
+                          ),
+                          button(
+                            'core-proxmox-open-${entry.id}',
+                            '${l10n.coreProxmoxOpen}: ${entry.label}',
+                            true,
+                            () async {
+                              if (!current()) return;
+                              await Navigator.of(context).push<void>(
+                                CupertinoPageRoute(
+                                  builder: (_) =>
+                                      CoreProxmoxScreen(target: entry),
                                 ),
                               );
                             },

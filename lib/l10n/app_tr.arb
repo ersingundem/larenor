@@ -2219,11 +2219,29 @@
   "sftpUpload": "Yüklenecek dosyayı seç",
   "sftpEmpty": "Desteklenen dosya veya klasör gösterilmiyor. Bu klasörü okumak için yenileyin.",
   "sftpDownload": "{name} dosyasını indir",
-  "@sftpDownload": {"placeholders": {"name": {"type": "String"}}},
+  "@sftpDownload": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
   "sftpFileSize": "{bytes} bayt",
-  "@sftpFileSize": {"placeholders": {"bytes": {"type": "int"}}},
+  "@sftpFileSize": {
+    "placeholders": {
+      "bytes": {
+        "type": "int"
+      }
+    }
+  },
   "sftpTransferred": "{bytes} bayt aktarıldı",
-  "@sftpTransferred": {"placeholders": {"bytes": {"type": "int"}}},
+  "@sftpTransferred": {
+    "placeholders": {
+      "bytes": {
+        "type": "int"
+      }
+    }
+  },
   "sftpUploadComplete": "Yükleme tamamlandı. Uzak sonucu doğrulamak için yenileyin.",
   "sftpDownloadComplete": "İndirme seçilen Android konumuna kaydedildi.",
   "sftpDownloadCancelled": "Android kaydetme işlemi iptal edildi; uzak dosya değiştirilmedi.",
@@ -2307,5 +2325,41 @@
   "coreKeeneticService": "Keenetic servisi",
   "coreKeeneticNoServices": "Kimliği doğrulanmış Keenetic servisi yok.",
   "coreKeeneticPreview": "Bağlantıyı önizle",
-  "coreKeeneticConfirm": "Bağlantıyı onayla"
+  "coreKeeneticConfirm": "Bağlantıyı onayla",
+  "coreProxmoxTitle": "Proxmox kaynakları",
+  "coreProxmoxBindingTitle": "Proxmox Core bağlantısı",
+  "coreProxmoxReadOnly": "Salt okunur Core özeti. Güç ve yapılandırma işlemleri kullanılamaz.",
+  "coreProxmoxLoading": "Güncel Core anlık görüntüsü okunuyor…",
+  "coreProxmoxRequired": "Doğrulanmış ve kilidi açık bir Core oturumu gerekli.",
+  "coreProxmoxPermission": "Bu hesap Proxmox kaynağını okuyamaz.",
+  "coreProxmoxUpstreamAuth": "Core, seçilen Proxmox servisine kimlik doğrulayamıyor.",
+  "coreProxmoxOffline": "Core veya Proxmox servisi erişilemiyor.",
+  "coreProxmoxUnsupported": "Core bilinmeyen veya desteklenmeyen bir Proxmox özeti döndürdü.",
+  "coreProxmoxChanged": "Kaynak, erişim, servis veya bağlantı değişti. Güncel evden yenileyin.",
+  "coreProxmoxPreviewExpired": "Bu önizleme eskidi. Servisi yeniden seçin.",
+  "coreProxmoxError": "Proxmox özeti okunamadı.",
+  "coreProxmoxStale": "Core anlık görüntüsünün süresi doldu ve kaldırıldı. Güncel sonucu okumak için yenileyin.",
+  "coreProxmoxUncertain": "Core bağlantının değişip değişmediğini doğrulayamadı. Yeniden denemeden önce yenileyin.",
+  "coreProxmoxSaved": "Proxmox Core bağlantısı kaydedildi.",
+  "coreProxmoxPreviewReady": "Onaylamadan önce bu salt okunur düğüm, misafir ve depolama önizlemesini inceleyin.",
+  "coreProxmoxConfirm": "Salt okunur bağlantıyı onayla",
+  "coreProxmoxServices": "Doğrulanmış Proxmox servisleri",
+  "coreProxmoxNoServices": "Core içinde kullanılabilir Proxmox servisi yok.",
+  "coreProxmoxOnline": "Çevrimiçi",
+  "coreProxmoxOfflineState": "Çevrimdışı",
+  "coreProxmoxRunning": "Çalışıyor",
+  "coreProxmoxStopped": "Durduruldu",
+  "coreProxmoxActive": "Etkin",
+  "coreProxmoxInactive": "Etkin değil",
+  "coreProxmoxCpu": "CPU",
+  "coreProxmoxMemory": "Bellek",
+  "coreProxmoxDisk": "Disk",
+  "coreProxmoxUptime": "Çalışma süresi",
+  "coreProxmoxNode": "Düğüm",
+  "coreProxmoxVm": "QEMU sanal makinesi",
+  "coreProxmoxContainer": "LXC konteyneri",
+  "coreProxmoxEmpty": "Görünür düğüm, misafir veya depolama yok.",
+  "coreProxmoxOpen": "Salt okunur Proxmox özetini aç",
+  "coreProxmoxConfigure": "Proxmox Core bağlantısını yapılandır",
+  "coreProxmoxChooseResource": "Bu Proxmox widget’ı için bir Core kaynağı seçin."
 }
