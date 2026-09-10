@@ -40,6 +40,14 @@ SUMMARY = {
             'snapshotCount': 2, 'latestAt': '2026-09-11T07:30:00Z',
         }],
     },
+    'retention': {
+        'state': 'healthy',
+        'latestSuccessfulBackupAt': '2026-09-11T08:03:00Z',
+        'latestSuccessfulBackupAgeSeconds': 3600,
+        'evaluatedGuestCount': 1, 'protectedGuestCount': 1,
+        'coverageTruncated': False, 'highestStorageUsedPercent': 10,
+        'warnings': [],
+    },
 }
 
 
@@ -251,6 +259,27 @@ def test_backup_snapshot_summary_is_strict_and_secret_free(server, protection):
     app.state.core.proxmox._cache.clear()
     app.state.core.proxmox._reader = lambda connection, *, guard: {
         **SUMMARY, 'protection': protection,
+    }
+    response = client.get(public + '/snapshot', headers=auth(admin))
+    assert response.status_code == 502, response.text
+    assert 'pve.internal' not in response.text and 'private' not in response.text
+
+
+@pytest.mark.parametrize('retention', [
+    {**SUMMARY['retention'], 'state': 'unknown'},
+    {**SUMMARY['retention'], 'protectedGuestCount': 2},
+    {**SUMMARY['retention'], 'latestSuccessfulBackupAgeSeconds': None},
+    {**SUMMARY['retention'], 'host': 'pve.internal'},
+    {**SUMMARY['retention'], 'warnings': [{
+        'kind': 'backup_stale', 'severity': 'attention', 'affectedCount': 1,
+        'observedPercent': None, 'ageSeconds': 3600, 'rawError': 'private'}]},
+])
+def test_retention_summary_is_strict_bounded_and_secret_free(server, retention):
+    app, client, admin, _, _, base, public, body, _ = setup(server)
+    bind(client, admin, base, body)
+    app.state.core.proxmox._cache.clear()
+    app.state.core.proxmox._reader = lambda connection, *, guard: {
+        **SUMMARY, 'retention': retention,
     }
     response = client.get(public + '/snapshot', headers=auth(admin))
     assert response.status_code == 502, response.text

@@ -13,7 +13,10 @@ from larenor_server.services.probe import ServiceConnection
 
 
 @pytest.fixture
-def pve():
+def pve(monkeypatch):
+    from larenor_server.proxmox import transport as module
+    from datetime import datetime, timezone
+    monkeypatch.setattr(module, '_now', lambda: datetime(2026, 9, 11, 20, tzinfo=timezone.utc))
     class Fixture:
         calls = []
         status = 200
@@ -126,6 +129,18 @@ def test_packaged_transport_uses_one_fixed_read_and_returns_only_typed_summary(p
                 {'node': 'pve-a', 'kind': 'lxc', 'vmId': 102,
                  'snapshotCount': 0, 'latestAt': None},
             ],
+        },
+        'retention': {
+            'state': 'attention',
+            'latestSuccessfulBackupAt': '2026-09-11T08:03:00Z',
+            'latestSuccessfulBackupAgeSeconds': 43020,
+            'evaluatedGuestCount': 2, 'protectedGuestCount': 1,
+            'coverageTruncated': False, 'highestStorageUsedPercent': 10,
+            'warnings': [{
+                'kind': 'restore_point_missing', 'severity': 'attention',
+                'affectedCount': 1, 'observedPercent': None,
+                'ageSeconds': None,
+            }],
         },
     }
     assert pve.calls == [
@@ -285,3 +300,18 @@ def test_snapshot_scan_is_capped_and_marks_partial(pve):
     assert (protection.guestCount, protection.scannedGuestCount,
             protection.truncated) == (9, 8, True)
     assert len([call for call in pve.calls if call[1].endswith('/snapshot')]) == 8
+
+
+def test_retention_signals_age_failures_coverage_and_storage_pressure(pve):
+    pve.tasks.append({
+        'upid': 'UPID:pve-a:2:3:4:vzdump:102:root@pam:', 'node': 'pve-a',
+        'type': 'vzdump', 'starttime': 1789100000, 'endtime': 1789100060,
+        'status': 'private failure',
+    })
+    pve.resources[-1] = {**pve.resources[-1], 'disk': 95}
+    retention = read_summary(connection(pve), guard=lambda: None).retention
+    assert retention.state == 'critical'
+    assert [warning.kind for warning in retention.warnings] == [
+        'backup_failed', 'restore_point_missing', 'storage_pressure']
+    assert retention.highestStorageUsedPercent == 95
+    assert 'private' not in json.dumps(retention.model_dump())

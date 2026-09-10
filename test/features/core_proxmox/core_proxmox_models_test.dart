@@ -56,6 +56,12 @@ void main() {
       CoreProxmoxTaskStatus.succeeded,
     );
     expect(value.summary.protection.snapshots.first.snapshotCount, 2);
+    expect(value.summary.retention.state, CoreProxmoxRetentionState.attention);
+    expect(value.summary.retention.latestSuccessfulBackupAge.inHours, 11);
+    expect(
+      value.summary.retention.warnings.single.kind,
+      CoreProxmoxRetentionWarningKind.restorePointMissing,
+    );
     expect(value.toString(), 'CoreProxmoxSnapshot');
   });
 
@@ -122,6 +128,12 @@ void main() {
                       .first
                   as Map)['vmId'] =
               999,
+      (v) => ((v['summary'] as Map)['retention'] as Map)['state'] = 'unknown',
+      (v) =>
+          ((v['summary'] as Map)['retention'] as Map)['protectedGuestCount'] =
+              99,
+      (v) =>
+          ((v['summary'] as Map)['retention'] as Map)['host'] = 'pve.internal',
     ];
     for (final mutate in mutations) {
       final value = snapshot();

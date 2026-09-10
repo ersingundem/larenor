@@ -176,6 +176,24 @@
           "latestAt": null
         }
       ]
+    },
+    "retention": {
+      "state": "attention",
+      "latestSuccessfulBackupAt": "2026-09-11T08:03:00Z",
+      "latestSuccessfulBackupAgeSeconds": 43020,
+      "evaluatedGuestCount": 2,
+      "protectedGuestCount": 1,
+      "coverageTruncated": false,
+      "highestStorageUsedPercent": 50,
+      "warnings": [
+        {
+          "kind": "restore_point_missing",
+          "severity": "attention",
+          "affectedCount": 1,
+          "observedPercent": null,
+          "ageSeconds": null
+        }
+      ]
     }
   },
   "snapshot": {
@@ -319,6 +337,24 @@
             "vmId": 102,
             "snapshotCount": 0,
             "latestAt": null
+          }
+        ]
+      },
+      "retention": {
+        "state": "attention",
+        "latestSuccessfulBackupAt": "2026-09-11T08:03:00Z",
+        "latestSuccessfulBackupAgeSeconds": 43020,
+        "evaluatedGuestCount": 2,
+        "protectedGuestCount": 1,
+        "coverageTruncated": false,
+        "highestStorageUsedPercent": 50,
+        "warnings": [
+          {
+            "kind": "restore_point_missing",
+            "severity": "attention",
+            "affectedCount": 1,
+            "observedPercent": null,
+            "ageSeconds": null
           }
         ]
       }
