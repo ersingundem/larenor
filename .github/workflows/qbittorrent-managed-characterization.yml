@@ -3,7 +3,9 @@
   "on": {
     "workflow_dispatch": {},
     "pull_request": {
-      "branches": ["main"]
+      "branches": [
+        "main"
+      ]
     }
   },
   "permissions": {
@@ -21,14 +23,22 @@
         "fail-fast": false,
         "matrix": {
           "include": [
-            {"runner": "ubuntu-24.04", "platform": "linux/amd64"},
-            {"runner": "ubuntu-24.04-arm", "platform": "linux/arm64"}
+            {
+              "runner": "ubuntu-24.04",
+              "platform": "linux/amd64"
+            },
+            {
+              "runner": "ubuntu-24.04-arm",
+              "platform": "linux/arm64"
+            }
           ]
         }
       },
       "env": {
         "EXPECTED_PLATFORM": "${{ matrix.platform }}",
-        "PR_HEAD_REPOSITORY": "${{ github.event.pull_request.head.repo.full_name }}"
+        "PR_HEAD_REPOSITORY": "${{ github.event.pull_request.head.repo.full_name }}",
+        "PR_BASE_SHA": "${{ github.event.pull_request.base.sha }}",
+        "PR_HEAD_SHA": "${{ github.event.pull_request.head.sha }}"
       },
       "steps": [
         {
@@ -36,38 +46,50 @@
           "run": "case \"$GITHUB_EVENT_NAME\" in\n  workflow_dispatch)\n    test \"$GITHUB_REF\" = refs/heads/main\n    test -z \"$GITHUB_BASE_REF\"\n    test -z \"$PR_HEAD_REPOSITORY\"\n    ;;\n  pull_request)\n    test \"$GITHUB_BASE_REF\" = main\n    test \"$PR_HEAD_REPOSITORY\" = \"$GITHUB_REPOSITORY\"\n    case \"$GITHUB_REF\" in refs/pull/*/merge) ;; *) exit 1;; esac\n    ;;\n  *) exit 1;;\nesac\ntest \"$GITHUB_REPOSITORY\" = ersingundem/larenor\ntest \"$GITHUB_WORKFLOW_SHA\" = \"$GITHUB_SHA\"\ntest \"$RUNNER_ENVIRONMENT\" = github-hosted"
         },
         {
-          "name": "Require owned cgroup runtime",
-          "run": "test -x /usr/bin/systemd-run\ntest -x /usr/bin/systemctl\ntest -x /usr/bin/unshare\ntest -x /usr/bin/dockerd\nsystemd_major=\"$(/usr/bin/systemd-run --version | /usr/bin/awk 'NR == 1 { print $2 }')\"\ncase \"$systemd_major\" in ''|*[!0-9]*) exit 1;; esac\ntest \"$systemd_major\" -ge 254\ntest \"$(/usr/bin/stat --file-system --format=%T /sys/fs/cgroup)\" = cgroup2fs\ntest -r /sys/fs/cgroup/cgroup.controllers"
-        },
-        {
           "uses": "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
           "with": {
             "ref": "${{ github.sha }}",
-            "persist-credentials": false
+            "persist-credentials": false,
+            "fetch-depth": 0
           }
         },
         {
+          "name": "Decide whether native evidence changed",
+          "id": "scope",
+          "run": "python3 tool/native_ci_scope.py --github-output \"$GITHUB_OUTPUT\" --summary \"$GITHUB_STEP_SUMMARY\""
+        },
+        {
+          "name": "Require owned cgroup runtime",
+          "run": "test -x /usr/bin/systemd-run\ntest -x /usr/bin/systemctl\ntest -x /usr/bin/unshare\ntest -x /usr/bin/dockerd\nsystemd_major=\"$(/usr/bin/systemd-run --version | /usr/bin/awk 'NR == 1 { print $2 }')\"\ncase \"$systemd_major\" in ''|*[!0-9]*) exit 1;; esac\ntest \"$systemd_major\" -ge 254\ntest \"$(/usr/bin/stat --file-system --format=%T /sys/fs/cgroup)\" = cgroup2fs\ntest -r /sys/fs/cgroup/cgroup.controllers",
+          "if": "steps.scope.outputs.run == 'true'"
+        },
+        {
           "name": "Prepare pinned isolated Python tooling",
-          "run": "python3 -m venv \"$RUNNER_TEMP/qbittorrent-managed-ci-tools\"\n\"$RUNNER_TEMP/qbittorrent-managed-ci-tools/bin/python\" -m pip install --disable-pip-version-check --only-binary=:all: uv==0.12.10\n{\n  echo \"UV_PROJECT_ENVIRONMENT=$RUNNER_TEMP/qbittorrent-managed-venv\"\n  echo \"UV_PYTHON_INSTALL_DIR=$RUNNER_TEMP/qbittorrent-managed-python\"\n} >> \"$GITHUB_ENV\"\necho \"$RUNNER_TEMP/qbittorrent-managed-ci-tools/bin\" >> \"$GITHUB_PATH\""
+          "run": "python3 -m venv \"$RUNNER_TEMP/qbittorrent-managed-ci-tools\"\n\"$RUNNER_TEMP/qbittorrent-managed-ci-tools/bin/python\" -m pip install --disable-pip-version-check --only-binary=:all: uv==0.12.10\n{\n  echo \"UV_PROJECT_ENVIRONMENT=$RUNNER_TEMP/qbittorrent-managed-venv\"\n  echo \"UV_PYTHON_INSTALL_DIR=$RUNNER_TEMP/qbittorrent-managed-python\"\n} >> \"$GITHUB_ENV\"\necho \"$RUNNER_TEMP/qbittorrent-managed-ci-tools/bin\" >> \"$GITHUB_PATH\"",
+          "if": "steps.scope.outputs.run == 'true'"
         },
         {
           "name": "Install reviewed dependency lock",
           "working-directory": "server",
-          "run": "uv sync --locked --python 3.12.14"
+          "run": "uv sync --locked --python 3.12.14",
+          "if": "steps.scope.outputs.run == 'true'"
         },
         {
           "name": "Check installed dependency consistency",
-          "run": "uv pip check --python \"$UV_PROJECT_ENVIRONMENT/bin/python\""
+          "run": "uv pip check --python \"$UV_PROJECT_ENVIRONMENT/bin/python\"",
+          "if": "steps.scope.outputs.run == 'true'"
         },
         {
           "name": "Characterize qBittorrent config, service and restart",
           "id": "native",
           "timeout-minutes": 22,
-          "run": "exec sudo --non-interactive env -i \\\n  PATH=/usr/bin:/bin \\\n  PYTHONPATH=\"$GITHUB_WORKSPACE/server:$GITHUB_WORKSPACE\" \\\n  CI=\"$CI\" GITHUB_ACTIONS=\"$GITHUB_ACTIONS\" \\\n  RUNNER_ENVIRONMENT=\"$RUNNER_ENVIRONMENT\" RUNNER_ARCH=\"$RUNNER_ARCH\" \\\n  GITHUB_SHA=\"$GITHUB_SHA\" GITHUB_WORKFLOW_SHA=\"$GITHUB_WORKFLOW_SHA\" \\\n  GITHUB_EVENT_NAME=\"$GITHUB_EVENT_NAME\" GITHUB_REF=\"$GITHUB_REF\" \\\n  GITHUB_BASE_REF=\"$GITHUB_BASE_REF\" PR_HEAD_REPOSITORY=\"$PR_HEAD_REPOSITORY\" \\\n  GITHUB_REPOSITORY=\"$GITHUB_REPOSITORY\" EXPECTED_PLATFORM=\"$EXPECTED_PLATFORM\" \\\n  \"$UV_PROJECT_ENVIRONMENT/bin/python\" -B -m tool.qbittorrent_managed_ci --run-ephemeral-ci \\\n  > \"$RUNNER_TEMP/qbittorrent-managed-receipt.json\""
+          "run": "exec sudo --non-interactive env -i \\\n  PATH=/usr/bin:/bin \\\n  PYTHONPATH=\"$GITHUB_WORKSPACE/server:$GITHUB_WORKSPACE\" \\\n  CI=\"$CI\" GITHUB_ACTIONS=\"$GITHUB_ACTIONS\" \\\n  RUNNER_ENVIRONMENT=\"$RUNNER_ENVIRONMENT\" RUNNER_ARCH=\"$RUNNER_ARCH\" \\\n  GITHUB_SHA=\"$GITHUB_SHA\" GITHUB_WORKFLOW_SHA=\"$GITHUB_WORKFLOW_SHA\" \\\n  GITHUB_EVENT_NAME=\"$GITHUB_EVENT_NAME\" GITHUB_REF=\"$GITHUB_REF\" \\\n  GITHUB_BASE_REF=\"$GITHUB_BASE_REF\" PR_HEAD_REPOSITORY=\"$PR_HEAD_REPOSITORY\" \\\n  GITHUB_REPOSITORY=\"$GITHUB_REPOSITORY\" EXPECTED_PLATFORM=\"$EXPECTED_PLATFORM\" \\\n  \"$UV_PROJECT_ENVIRONMENT/bin/python\" -B -m tool.qbittorrent_managed_ci --run-ephemeral-ci \\\n  > \"$RUNNER_TEMP/qbittorrent-managed-receipt.json\"",
+          "if": "steps.scope.outputs.run == 'true'"
         },
         {
           "name": "Verify exact source and qBittorrent receipt",
-          "run": "\"$UV_PROJECT_ENVIRONMENT/bin/python\" -B -m tool.qbittorrent_managed_ci --verify-receipt \"$RUNNER_TEMP/qbittorrent-managed-receipt.json\""
+          "run": "\"$UV_PROJECT_ENVIRONMENT/bin/python\" -B -m tool.qbittorrent_managed_ci --verify-receipt \"$RUNNER_TEMP/qbittorrent-managed-receipt.json\"",
+          "if": "steps.scope.outputs.run == 'true'"
         },
         {
           "name": "Preserve required public qBittorrent receipt",
@@ -77,7 +99,8 @@
             "path": "${{ runner.temp }}/qbittorrent-managed-receipt.json",
             "if-no-files-found": "error",
             "retention-days": 14
-          }
+          },
+          "if": "steps.scope.outputs.run == 'true'"
         }
       ]
     }
