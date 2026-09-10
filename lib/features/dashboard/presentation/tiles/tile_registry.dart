@@ -63,5 +63,7 @@ Widget _buildTileContent(TileConfig tile) {
     TileType.proxmox => ProxmoxTile(tile: tile),
     TileType.keenetic => KeeneticTile(tile: tile),
     TileType.coreKeenetic => CoreKeeneticTile(tile: tile),
+    TileType.coreKeeneticDetails => CoreKeeneticDetailsTile(tile: tile),
+    TileType.coreKeeneticMesh => CoreKeeneticMeshTile(tile: tile),
   };
 }

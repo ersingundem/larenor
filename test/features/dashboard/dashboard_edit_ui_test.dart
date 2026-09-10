@@ -390,6 +390,63 @@ void main() {
     },
   );
 
+  testWidgets('Keenetic cards remain movable and independently resizable', (
+    tester,
+  ) async {
+    TileConfig tile(String id, TileType type) => TileConfig(
+      id: id,
+      type: type,
+      x: 0,
+      y: 0,
+      width: 3,
+      height: 2,
+      coreId: '1' * 32,
+      coreHomeId: '2' * 32,
+      coreResourceId: '3' * 32,
+      coreResourceRevision: 7,
+      coreResourceAclRevision: 9,
+      coreBindingId: '4' * 32,
+      coreBindingRevision: 4,
+    );
+
+    final harness = _Harness(
+      DashboardLayout(
+        tiles: [
+          tile('internet', TileType.coreKeenetic),
+          tile('details', TileType.coreKeeneticDetails),
+          tile('mesh', TileType.coreKeeneticMesh),
+        ],
+      ),
+    );
+    await harness.mount(
+      tester,
+      const DashboardCardEditorScreen(mode: DashboardEditorMode.widgets),
+      passive: true,
+      size: const Size(600, 1000),
+      scale: 2,
+    );
+    expect(
+      find.byKey(const ValueKey('dashboard-edit-internet')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('dashboard-edit-details')),
+      findsOneWidget,
+    );
+    expect(find.byKey(const ValueKey('dashboard-edit-mesh')), findsOneWidget);
+    await _tap(tester, 'dashboard-edit-size-details');
+    await _tap(tester, 'dashboard-size-large');
+    await _tap(tester, 'dashboard-edit-up-mesh');
+    expect(harness.repository.saved.tiles.map((item) => item.id), [
+      'internet',
+      'mesh',
+      'details',
+    ]);
+    expect(harness.repository.saved.tiles.last.width, 2);
+    expect(harness.repository.saved.tiles.last.height, 2);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets(
     'service editor changes only the local size map and remains passive',
     (tester) async {
