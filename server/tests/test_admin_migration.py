@@ -28,6 +28,10 @@ def downgrade_to_known_v1(app):
         for table in ('home_assistant_commands', 'home_assistant_bindings', 'home_assistant_state'):
             connection.execute(f'DROP TABLE {table}')
         connection.execute("DELETE FROM metadata WHERE key='home_assistant_schema'")
+        # The attributed command chain also postdates this context-free schema.
+        for table in ('command_history_chain', 'command_history_state'):
+            connection.execute(f'DROP TABLE {table}')
+        connection.execute("DELETE FROM metadata WHERE key='command_history_schema'")
         # Direct transfer receipts also bind the later Core/home identity.
         for table in ('direct_ha_migrations', 'direct_ha_state'):
             connection.execute(f'DROP TABLE {table}')

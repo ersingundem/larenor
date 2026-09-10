@@ -23,6 +23,7 @@ from ..admin.service import utc
 from ..auth import token_hash
 from ..errors import ApiError, StartupError
 from . import schema
+from . import command_chain
 from .command_storage import command_aad, decode_command
 from .models import (Binding, CommandAttribution, CommandReceipt, CommandRequest, PreviewRequest,
                      Projection, Snapshot, StoredCommand)
@@ -113,6 +114,7 @@ class HomeAssistantAdapter:
                     self._decode(row)
                 for row in schema.command_rows(c):
                     self._decode_command(row)
+                command_chain.verify(c, self._key, self.resources.scope)
         except (ValueError, TypeError, InvalidTag):
             raise StartupError('home_assistant_storage_invalid') from None
 
@@ -124,6 +126,7 @@ class HomeAssistantAdapter:
                     raise ApiError("server_unavailable", 503)
                 self._now()
                 schema.validate(c, self._key, self.resources.scope)
+                command_chain.verify(c, self._key, self.resources.scope)
                 yield c, facts
         except ApiError:
             with self._lock:
@@ -299,6 +302,7 @@ class HomeAssistantAdapter:
             return {'binding': binding.model_dump()}
 
     def _save_command(self, c, value):
+        command_chain.verify(c, self._key, self.resources.scope)
         plain = value.model_dump_json().encode('utf-8')
         nonce = secrets.token_bytes(12)
         row = {'request_id': value.request.requestId, 'resource_id': value.receipt.ref.id}
@@ -314,6 +318,10 @@ class HomeAssistantAdapter:
         saved = c.execute('SELECT * FROM home_assistant_commands WHERE request_id=?',
                           (row['request_id'],)).fetchone()
         if saved is None or self._decode_command(saved) != value:
+            raise ValueError()
+        sequence, head = command_chain.append(c, self._key, self.resources.scope, saved)
+        state = command_chain.verify(c, self._key, self.resources.scope)
+        if (state['sequence'], state['head_hash']) != (sequence, head):
             raise ValueError()
 
     def _existing_command(self, c, actor, resource, body):
@@ -376,6 +384,10 @@ class HomeAssistantAdapter:
                 entries = entries[position + 1:]
             return {'schemaVersion': 1, 'ref': ref.model_dump(), 'entries': entries[:limit],
                     'nextBefore': entries[limit - 1]['receipt']['requestId'] if len(entries) > limit else None}
+
+    def verify_history(self, actor, core, home, *, checkpoint=None):
+        with self._tx(actor, core, home, admin=True) as (c, _):
+            return {'verification': command_chain.checkpoint(c, self._key, self.resources.scope, checkpoint)}
 
     def _prepare_command(self, actor, core, home, resource, body):
         reserved = False

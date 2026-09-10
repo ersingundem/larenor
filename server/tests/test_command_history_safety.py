@@ -159,6 +159,9 @@ def test_initial_history_persistence_failure_prevents_dispatch_and_rolls_back(se
 def downgrade(app):
     adapter = app.state.core.home_assistant
     with app.state.core.db.transaction() as c:
+        c.execute('DROP TABLE command_history_chain')
+        c.execute('DROP TABLE command_history_state')
+        c.execute("DELETE FROM metadata WHERE key='command_history_schema'")
         for row in schema.command_rows(c):
             value = json.loads(adapter._cipher.decrypt(row['nonce'], row['ciphertext'], adapter._command_aad(row)))
             value.pop('attribution')

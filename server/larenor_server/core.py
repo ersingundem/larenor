@@ -38,6 +38,7 @@ from .services.service import ServiceManagement
 from .services.probe_runner import ServiceProbeRunner
 from .vault import VaultService
 from .home_resources.schema import migrate_home_resources
+from .home_assistant.command_chain import migrate_command_history
 from .home_resources.service import HomeResourceRegistry
 from .home_people.schema import migrate_home_people
 from .home_people.service import HomePeopleRegistry
@@ -146,6 +147,7 @@ class CoreServices:
                 migrate_home_people(connection, self.context, key)
                 migrate_services(connection)
                 migrate_home_assistant(connection, self.context, key)
+                migrate_command_history(connection, self.context, key)
                 migrate_direct_ha(connection, key, self.context)
                 migrate_plugins(connection)
                 migrate_plugin_jobs(connection)
