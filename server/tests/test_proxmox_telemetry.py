@@ -217,7 +217,7 @@ def test_credential_lease_is_short_lived_revision_bound_and_zeroized(tmp_path):
     with origin(responses()) as (port, _requests):
         issuer, _observer = configured(tmp_path, port)
         lease = issuer.issue(expectation(), deadline=time.monotonic() + 3)
-        backing = lease.zeroizable_view
+        backing = lease._credential  # Owned buffer inspection; never a public API.
         assert TOKEN.encode() in bytes(backing)
         assert TOKEN in lease.authorization()
         lease.close()
@@ -248,10 +248,38 @@ def test_network_loss_is_offline_then_cached_live_data_is_bounded_stale(tmp_path
     assert stale.polled_at == 110.0
     assert stale.guests == live.guests
 
+    changed = observer.poll(
+        expectation(service_revision=10), deadline=12, cancelled=lambda: False,
+    )
+    assert changed.availability == "schema_drift"
+    assert changed.node is None and changed.guests == ()
+
     now[0], mono[0] = 131.0, 12.0
     offline = observer.poll(expectation(), deadline=13, cancelled=lambda: False)
     assert offline.availability == "offline"
     assert offline.node is None and offline.guests == ()
+
+
+@pytest.mark.parametrize("provider_status,public_status", [
+    ("OK", "succeeded"),
+    ("running", "executing"),
+    ("ERROR", "failed"),
+    ("unknown", "unknown"),
+])
+def test_task_status_matrix_is_typed_and_raw_upid_is_redacted(
+    tmp_path, provider_status, public_status,
+):
+    fixture = responses()
+    fixture["/api2/json/nodes/node-a/tasks"]["data"][0]["status"] = provider_status
+    with origin(fixture) as (port, _requests):
+        _issuer, observer = configured(tmp_path, port)
+        snapshot = observer.poll(
+            expectation(), deadline=time.monotonic() + 2,
+            cancelled=lambda: False,
+        )
+    assert snapshot.availability == "live"
+    assert snapshot.tasks[0].status == public_status
+    assert RAW_UPID not in repr(snapshot)
 
 
 def test_schema_drift_and_revision_drift_never_reuse_cached_values(tmp_path):
