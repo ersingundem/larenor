@@ -3,8 +3,14 @@ import hashlib
 import hmac
 import json
 import sqlite3
+import secrets
+
+from cryptography.exceptions import InvalidTag
+from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
 from ..errors import StartupError
+from .command_storage import command_aad, decode_command
+from .models import CommandAttribution, StoredCommand
 
 MAX_BINDINGS = 256
 MAX_CIPHER = 2048
@@ -135,7 +141,7 @@ def migrate_home_assistant(c, scope, key):
                 raise ValueError()
             for sql in TABLES.values():
                 c.execute(sql)
-            c.execute("INSERT INTO metadata VALUES('home_assistant_schema','2')")
+            c.execute("INSERT INTO metadata VALUES('home_assistant_schema','3')")
             c.execute('INSERT INTO home_assistant_state VALUES(1,?)', (tag(key, scope, [], []),))
         elif marker['value'] == '1':
             legacy = {name: TABLES[name] for name in ('home_assistant_bindings', 'home_assistant_state')}
@@ -149,9 +155,34 @@ def migrate_home_assistant(c, scope, key):
             c.execute("UPDATE metadata SET value='2' WHERE key='home_assistant_schema'")
             update(c, key, scope)
         else:
-            if marker['value'] != '2':
+            if marker['value'] not in ('2', '3'):
                 raise ValueError()
             _tables(c, actual, TABLES)
             validate(c, key, scope)
-    except (ValueError, TypeError, sqlite3.Error):
+        if marker is not None and marker['value'] in ('1', '2'):
+            # The caller holds the Core initialization transaction. Verify the
+            # old keyed inventory before rewriting any ciphertext or marker.
+            validate(c, key, scope)
+            cipher = AESGCM(key)
+            for row in command_rows(c):
+                old = decode_command(row, cipher, scope, legacy=True)
+                value = StoredCommand(request=old.request, receipt=old.receipt,
+                    attribution=CommandAttribution(correlationId=old.request.requestId,
+                        source='unknown', reason='unknown', serviceId=None, serviceRevision=None))
+                nonce = secrets.token_bytes(12)
+                encrypted = cipher.encrypt(nonce, value.model_dump_json().encode(), command_aad(row))
+                if len(encrypted) > MAX_COMMAND_CIPHER:
+                    raise ValueError()
+                c.execute('UPDATE home_assistant_commands SET nonce=?,ciphertext=? WHERE request_id=?',
+                          (nonce, encrypted, row['request_id']))
+                saved = c.execute('SELECT * FROM home_assistant_commands WHERE request_id=?',
+                                  (row['request_id'],)).fetchone()
+                if saved is None or decode_command(saved, cipher, scope) != value:
+                    raise ValueError()
+            update(c, key, scope)
+            validate(c, key, scope)
+            c.execute("UPDATE metadata SET value='3' WHERE key='home_assistant_schema'")
+            if c.execute("SELECT value FROM metadata WHERE key='home_assistant_schema'").fetchone()[0] != '3':
+                raise ValueError()
+    except (ValueError, TypeError, sqlite3.Error, InvalidTag):
         raise StartupError('home_assistant_storage_invalid') from None
