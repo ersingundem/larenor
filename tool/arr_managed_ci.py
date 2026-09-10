@@ -323,7 +323,7 @@ def _install_and_restart(daemon, source, endpoint, helper_id, service):
                 service,
                 api_key=private.apiKey,
                 cancelled=threading.Event(),
-                deadline=time.monotonic() + 90,
+                deadline=time.monotonic() + 120,
                 gate=lambda: True,
             )
         with diagnostic_phase("configuration_receipt"):
@@ -356,7 +356,7 @@ def _install_and_restart(daemon, source, endpoint, helper_id, service):
                 job,
                 source.stack,
                 private,
-                deadline=time.monotonic() + 90,
+                deadline=time.monotonic() + 120,
                 gate=lambda: True,
             )
             require(
