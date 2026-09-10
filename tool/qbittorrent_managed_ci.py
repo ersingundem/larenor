@@ -67,6 +67,9 @@ _ENGINE_DIAGNOSTIC_CODES = frozenset({
     'engine_stdin_unavailable', 'engine_stdin_timeout',
     'engine_stdin_cancelled', 'engine_stdin_api_unsupported',
     'engine_stdin_dispatch_denied',
+    'engine_stdin_version_protocol',
+    'engine_stdin_attach_protocol',
+    'engine_stdin_frames_protocol',
 })
 _DIAGNOSTIC_CODES = frozenset({
     'qbittorrent_characterization_evidence_invalid',

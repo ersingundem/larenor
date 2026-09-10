@@ -190,7 +190,8 @@ def test_authority_loss_after_attach_still_sends_no_private_input():
 ])
 def test_invalid_upgrade_never_sends_private_input(upgrade):
     with engine(upgrade=upgrade) as (client, calls, received):
-        with pytest.raises(EngineStdinError, match='^engine_stdin_protocol$'):
+        with pytest.raises(
+                EngineStdinError, match='^engine_stdin_attach_protocol$'):
             exchange(client)
     assert len(calls) == 2
     assert len(received) <= 1 and b''.join(received) == b''
@@ -204,7 +205,9 @@ def test_invalid_upgrade_never_sends_private_input(upgrade):
 ])
 def test_invalid_multiplex_stream_fails_closed(output):
     with engine(output=output) as (client, _calls, received):
-        with pytest.raises(EngineStdinError, match='^engine_stdin_(protocol|response_limit)$'):
+        with pytest.raises(
+                EngineStdinError,
+                match='^engine_stdin_(frames_protocol|response_limit)$'):
             exchange(client)
     assert received == [INPUT]
 
