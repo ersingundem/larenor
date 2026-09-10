@@ -13,6 +13,7 @@ const homeResourceContractFixture = r'''
       "coreId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
       "homeId": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
     },
+    "userRevision": 7,
     "entries": [],
     "snapshot": "a25b468ce759f966cf4bcf6ac5f2ca9335251128b6256ea80ebe3d4fc579e753",
     "nextAfter": null
@@ -23,6 +24,7 @@ const homeResourceContractFixture = r'''
       "coreId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
       "homeId": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
     },
+    "userRevision": 7,
     "entries": [
       {
         "label": "Salon",
@@ -102,6 +104,7 @@ const homeResourceContractFixture = r'''
       "coreId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
       "homeId": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
     },
+    "userRevision": 7,
     "entries": [
       {
         "label": "Salon",
@@ -147,6 +150,7 @@ const homeResourceContractFixture = r'''
       "coreId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
       "homeId": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
     },
+    "userRevision": 7,
     "entries": [
       {
         "label": "Salon",
@@ -175,6 +179,7 @@ const homeResourceContractFixture = r'''
       "coreId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
       "homeId": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
     },
+    "userRevision": 7,
     "entries": [
       {
         "label": "Okuma lambası",
@@ -241,6 +246,7 @@ const homeResourceContractFixture = r'''
       "coreId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
       "homeId": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
     },
+    "userRevision": 7,
     "entries": [
       {
         "label": "Okuma lambası",
@@ -275,6 +281,7 @@ const homeResourceContractFixture = r'''
       "coreId": "cccccccccccccccccccccccccccccccc",
       "homeId": "dddddddddddddddddddddddddddddddd"
     },
+    "userRevision": 7,
     "entries": [
       {
         "label": "İkinci ev · Salon",

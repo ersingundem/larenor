@@ -49,6 +49,7 @@ void main() {
         offset += count;
         return response({
           'scope': scopeJson(),
+          'userRevision': 7,
           'entries': entries,
           'snapshot': 'a' * 64,
           'nextAfter': offset == 513

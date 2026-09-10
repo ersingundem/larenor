@@ -73,6 +73,7 @@ class SyntheticCoreResources {
           .toString();
       source = {
         'scope': {'schemaVersion': 1, 'coreId': coreId, 'homeId': homeId},
+        'userRevision': 1,
         'entries': <Map<String, dynamic>>[],
         'snapshot': token,
         'nextAfter': null,

@@ -13,6 +13,7 @@ void main() {
     final h = TransferUiHarness();
     h.response = {
       'scope': h.f['context'],
+      'userRevision': 7,
       'entries': [],
       'snapshot': 'a' * 64,
       'nextAfter': null,

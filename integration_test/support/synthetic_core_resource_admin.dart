@@ -195,6 +195,7 @@ class SyntheticCoreResourceAdmin {
       200,
       {
         'scope': _contract['context'],
+        'userRevision': 7,
         'entries': page,
         'snapshot': snapshot,
         'nextAfter': rest.length > limit ? page.last['ref']['id'] : null,

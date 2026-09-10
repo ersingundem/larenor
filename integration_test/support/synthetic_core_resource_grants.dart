@@ -301,6 +301,7 @@ class SyntheticCoreResourceGrants {
     recordReads++;
     return GrantsReply(200, {
       'scope': _contract['context'],
+      'userRevision': 7,
       'entries': after == null ? entries : [],
       'snapshot': snapshot,
       'nextAfter': null,
