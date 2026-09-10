@@ -1,6 +1,6 @@
 # Larenor — güncel ilerleme ve iş kuyruğu
 
-**Son güncelleme: 10 Eylül 2026 — qBittorrent → Sonarr/Radarr download-client bağlantısı PR56 ile 15 zorunlu kontrol sonrası ana dalda. Seerr'ın sahipli `/app/config` container/private TCP 5055 kanıtı ile secret-free ilk Jellyfin-admin/API-key oturumu yerelde yeşil; worker/IPC ve gerçek iki mimarili Seerr kabulü sıradaki kapı.**
+**Son güncelleme: 10 Eylül 2026 — Seerr private container/endpoint ve ilk yönetici temeli PR57 ile bütün zorunlu kontrollerden geçerek ana dalda. Seerr executor, UID-korumalı worker IPC ve retained-daemon bağlantısı yerelde yeşil; Core'un şifreli kalıcı iş kaydı ve gerçek iki mimarili Seerr kabulü sıradaki kapı.**
 
 ```text
 Kuyruk kabulü       ██░░░░░░░░░░░░░░░░░░  14/125 iş (%11; eşit ağırlıklı sayaç)
@@ -41,7 +41,7 @@ Gerçek ev kurulumu ve fiziksel tablet kabulü henüz yapılmadı.
 | S06.3d — kalıcı depolama | **Kabul edildi**; Native18 exact `6a054ea`, amd64+arm64 makbuzları doğrulandı | S06.3f ile birleşik kaynak kapısı kapandı |
 | S06.3f — kaynak kabulü | **Kabul edildi**; exact `4021391`, iki mimarili native makbuz, 4.065 Server ve tam Android/Server CI yeşil | S06.4 dar kurulum yürütme kapısı |
 | S06.4 — dar kurulum yürütme kapısı | **Kabul edildi**; PR16 `bf6f860`, PR18 `75af015`, PR19 `9ce3c5a` ve PR20 `2b9166b` tam CI kapıları yeşil | S06.5 özel bootstrap ve otomatik servis eşleştirme |
-| S06.5 — özel bootstrap ve otomatik eşleştirme | **Devam ediyor**; Jellyfin ve qBittorrent native kabulü geçti. Sonarr/Radarr config, kök klasör ve qBittorrent download-client eşleştirmesi PR56 ile ana dalda. Seerr private container/endpoint ve ilk yönetici oturumu yerelde yeşil | Seerr worker/IPC, Sonarr/Radarr/kütüphane/initialize eşleştirmesi ve iki mimarili native kabul; ardından Music Assistant |
+| S06.5 — özel bootstrap ve otomatik eşleştirme | **Devam ediyor**; Jellyfin ve qBittorrent native kabulü geçti. Sonarr/Radarr download-client bağlantısı PR56, Seerr private temel PR57 ile ana dalda. Seerr executor/worker IPC yerelde yeşil | Şifreli kalıcı Seerr iş kaydı, Sonarr/Radarr/kütüphane/initialize eşleştirmesi ve iki mimarili native kabul; ardından Music Assistant |
 
 S06.5'in ilk iki TDD parçası, yalnız tamamlanmış Jellyfin kurulumundan
 yöneticiye bağlı bootstrap niyeti üretir ve public API'de sır, hedef adres veya
@@ -415,9 +415,24 @@ ve anahtar hata veya repr yüzeyine çıkmıyor. Managed container yalnız sahip
 `/app/config` hacmi ve internal ağ alıyor; çalışan exact journal container'ından
 DNS/retry olmadan RFC1918 TCP/5055 endpoint üretiliyor. **24 ilk-yönetici**, ilgili
 probe/kataloglarla **236**, endpoint/binding/resource regresyonlarında **99 PASS**;
-security policy ve Gitleaks temiz. Worker/IPC, Sonarr/Radarr/kütüphane/initialize
-eşleştirmesi ve native Seerr kabulü henüz açık.
+security policy ve Gitleaks temiz. PR57 exact `73ccf235` bütün zorunlu Android,
+Server, Security ve iki mimarili medya kontrollerinden geçti; squash merge
+`e62f407` ile ana dala alındı. Sonarr/Radarr/kütüphane/initialize eşleştirmesi
+ve native Seerr kabulü henüz açık.
 [TDD kanıtı ve açık sınırlar](seerr-private-bootstrap-implementation-2026-09-10.md).
+
+Sonraki `d53c42e` → `387ed9d` ve `a560c62` → `9ab1d7e` TDD zinciri,
+Seerr'ın tamamlanmış start makbuzunu aynı yönetilen ağdaki taze Jellyfin
+kanıtıyla birleştiren executor'ı ve UID-korumalı worker IPC operasyonunu ekledi.
+Parola gönderilmeden önce ve etkiden sonra iki konteyner ile retained daemon
+yetkisi yeniden doğrulanıyor; sonuç yalnız private socket'te API anahtarı
+taşıyor. **12 executor**, **7 IPC** ve mevcut kurulum/runtime/supervisor
+regresyonlarıyla **160 PASS / 1 mevcut macOS skip** geçti. `341a983` →
+`8dd35a7` güvenlik daraltması, worker isteğinden Jellyfin API anahtarı ve
+kütüphane verisini çıkarıp yalnız parola ile kaynak bootstrap kimliği/revizyonunu
+bıraktı; 6 model ve ilgili 40 test geçti. Exact `8dd35a7` üzerinde tam
+Server paketi **5.243 testte geçti**. Core'un şifreli kalıcı Seerr işi henüz bağlı değil; sayaç ve `installAvailable=false` değişmedi.
+[Executor ve IPC kanıtı](seerr-bootstrap-executor-implementation-2026-09-10.md).
 
 S06.4 native kabul koşusu [34326112926](https://github.com/ersingundem/larenor/actions/runs/34326112926)
 iki gerçek GitHub runner'ında geçti. İndirilen ARM64 ve X64 makbuzları merge
