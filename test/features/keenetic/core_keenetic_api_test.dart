@@ -40,6 +40,8 @@ Map<String, dynamic> telemetryJson() => {
     'publicIp': '198.51.100.20',
     'uptimeSeconds': 86400,
     'firmware': '4.3.6',
+    'firmwareRevision': 44,
+    'statusRevision': 71,
     'cpuPercent': 17.5,
     'memoryPercent': 42.0,
   },
@@ -52,6 +54,7 @@ Map<String, dynamic> telemetryJson() => {
       'address': '192.0.2.2',
       'rxBytes': 1200,
       'txBytes': 500,
+      'guest': false,
     },
   ],
   'traffic': {
@@ -69,6 +72,7 @@ Map<String, dynamic> telemetryJson() => {
       'interfaceId': 'GigabitEthernet0',
       'online': true,
       'registered': true,
+      'internetAccess': 'allowed',
     },
   ],
 };
@@ -172,7 +176,11 @@ void main() {
     final value = CoreKeeneticTelemetry.fromJson(telemetryJson());
     expect(value.status.publicIp, '198.51.100.20');
     expect(value.status.cpuPercent, 17.5);
+    expect(value.status.firmwareRevision, 44);
+    expect(value.status.statusRevision, 71);
     expect(value.interfaces.single.kind, CoreKeeneticInterfaceKind.wan);
+    expect(value.interfaces.single.guest, isFalse);
+    expect(value.hosts.single.internetAccess, 'allowed');
     expect(value.onlineHosts, 1);
     for (final invalid in [
       {...telemetryJson(), 'private': 'secret'},
