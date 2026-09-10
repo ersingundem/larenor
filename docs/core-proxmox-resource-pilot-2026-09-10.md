@@ -3,7 +3,7 @@
 Bu paket S08.9'un yalnız Proxmox başlangıç dilimidir. Proxmox node, QEMU/LXC
 guest ve storage özetlerini bir Home Resources kaydına bağlar. S08.9'u veya
 seçilen özelliklerden birini tamamlanmış saymaz; Keenetic, diğer altyapı
-adaptörleri, Client ekranı, uzak CI ve fiziksel ev kabulü açık kalır.
+adaptörleri, uzak CI ve fiziksel ev kabulü açık kalır.
 
 ## Yetki ve bağlama
 
@@ -46,17 +46,34 @@ Proxmox sunucusuna bağlanılmadı.
 ## Geçici Direct yolu
 
 Android uygulamasındaki mevcut Direct Proxmox bağlantısı bu pilot boyunca açık
-kalır. Core binding otomatik fallback değildir, Direct credential'ı devralmaz
-ve Direct oturumu Core yetkisi sayılmaz. Client geçişi ve kullanıcı tarafından
-açık kaynak seçimi ayrı kabul dilimidir. Direct yol ancak eşdeğer Client akışı,
+kalır. Core ekranı ve dashboard widget'ı Direct sağlayıcıya geri dönmez, Direct
+credential'ı devralmaz ve Direct oturumu Core yetkisi sayılmaz. Direct yol ancak
 geri dönüş ve fiziksel tablet kabulü tamamlandığında kaldırılabilir.
+
+## Android tablet ve DeX istemcisi
+
+Home Resources ekranı üyeye salt okunur Proxmox özetini, PIN korumalı yönetici
+ekranı ise Proxmox servis seçimi ile açık önizleme/onay/iptal akışını sunar.
+Dashboard düzenleyicisi önce Core kaynağını seçtirir ve widget yalnız bu kaynak
+kimliğini çözdükten sonra anlık görüntüyü okur. Node, QEMU VM, LXC konteyner ve
+storage kartlarında durum metinle birlikte CPU, RAM, disk ve çalışma süresi
+gösterilir. Bilinmeyen, yetkisiz, çevrimdışı ve eski sonuçlar ayrı görünür;
+TTL dolunca eski metrik kaldırılır.
+
+Ekran 880 dp içerik sınırı ve geniş görünümde iki sütun kullanır. Metin 2 kat
+büyüdüğünde tek sütuna döner. Tüm seçimler en az 48 dp Cupertino düğmeleri,
+klavye focus halkası ve TalkBack için durum ile metrikleri birleştiren Semantics
+etiketleri kullanır. App lifecycle, pencere odağı, hesap nesli, ev kimliği,
+kaynak/ACL revizyonu veya oturum değişirse owner kalıcı kapanır; geç yanıt ve
+önceki anlık görüntü yayımlanmaz.
 
 ## Yerel kanıt
 
 Odaklı testler `test_proxmox_resource_adapter.py` ve
 `test_proxmox_resource_transport.py` dosyalarındadır. İlişkili Server kapısı
 Home Resources, Home Assistant, servis kayıtları ve ağ probe regresyonlarını
-birlikte çalıştırır. RED `e2e3baa`, GREEN `67bee0c`; **15 odaklı** ve odaklıları
-da içeren **335 ilişkili Server testi** geçti. Gerçek Proxmox ACL davranışı,
-self-signed TLS tercihi,
-tablet görünümü ve GitHub CI bu yerel pilotun kanıtı değildir.
+birlikte çalıştırır. Server RED `e2e3baa`, GREEN `67bee0c`; **15 odaklı** ve
+odaklıları da içeren **335 ilişkili Server testi** geçti. Client sözleşme,
+lifecycle/controller ve tablet/dashboard diliminde **12 odaklı Flutter testi**
+ile seçili dosyaların analizi geçti. Gerçek Proxmox ACL davranışı, self-signed
+TLS tercihi, fiziksel tablet/DeX ve GitHub CI bu yerel pilotun kanıtı değildir.

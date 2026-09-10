@@ -75,6 +75,9 @@ noktasında birleştirdi:
   sahip tablet SFTP tarayıcısı ile açık indirme/yükleme.
 - Actor/source/reason/result ve bütünlük/checkpoint durumunu gösteren salt
   okunur tablet HA etkinlik ekranı.
+- S08.9 Proxmox pilotunda yönetici preview/confirm ve üye salt okunur Core
+  ekranı; kaynak seçen Core-backed dashboard widget'ı, node/QEMU-LXC/storage
+  özeti ve stale/denied/offline ayrımı. Direct sağlayıcıya fallback yoktur.
 
 Yerel birleşim kapısında seçili Music Assistant/provider Server testleri ve
 **298 birleşik SFTP/SSH/Core HA Flutter testi** geçti. Exact PR head üzerinde
