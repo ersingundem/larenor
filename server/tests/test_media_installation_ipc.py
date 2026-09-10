@@ -85,11 +85,33 @@ def test_roundtrip_transports_only_closed_step_and_verified_stack_plan():
         assert client.status() == {'capability': 'container_execution', 'installAvailable': False,
                                    'services': [
                                        'jellyfin', 'qbittorrent',
-                                       'sonarr', 'radarr', 'seerr']}
+                                       'sonarr', 'radarr', 'seerr',
+                                       'music_assistant']}
         receipt = client.apply(execution.steps[0], execution.plan)
         assert receipt == StepReceipt('a' * 32, 'create_container', 'succeeded',
                                       'container_created', '1' * 64)
         assert backend.calls == [('apply', execution.steps[0], execution.plan)]
+
+
+def test_roundtrip_accepts_only_plan_derived_seerr_step():
+    execution = build_execution(
+        stack(), job_id='a' * 32, deadline=1788609900,
+        service_id='seerr')
+    with running() as (backend, client):
+        receipt = client.apply(execution.steps[0], execution.plan)
+    assert receipt.job_id == 'a' * 32
+    assert receipt.step == 'create_container'
+    assert backend.calls == [('apply', execution.steps[0], execution.plan)]
+
+
+def test_roundtrip_accepts_only_plan_derived_music_assistant_step():
+    execution = build_execution(
+        stack(), job_id='a' * 32, deadline=1788609900,
+        service_id='music_assistant')
+    with running() as (backend, client):
+        receipt = client.apply(execution.steps[0], execution.plan)
+    assert receipt.job_id == 'a' * 32
+    assert backend.calls == [('apply', execution.steps[0], execution.plan)]
 
 
 def test_bootstrap_roundtrip_transports_only_exact_private_contract():
@@ -284,7 +306,7 @@ def test_core_enables_execution_only_from_the_separate_installation_channel(serv
             ).json() == {
                 'executionConfigured': True,
                 'installAvailable': False,
-                'services': ['jellyfin'],
+                    'services': ['jellyfin', 'seerr', 'music_assistant'],
             }
 
 
@@ -325,4 +347,4 @@ def test_durable_coordinator_reaches_supervised_worker_over_real_unix_ipc(
         'credentialsConfigured': True, 'wiringState': 'partial',
     }
     assert backend.calls[0][0] == 'bootstrap'
-    assert backend.calls[0][1] == queued['id']
+    assert backend.calls[0][1] == installation['id']

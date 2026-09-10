@@ -33,11 +33,14 @@ from .plugins.arr_config_job_schema import migrate_arr_configurations
 from .plugins.arr_config_jobs import ArrConfigurationManagement
 from .plugins.preflight_ipc import PreflightWorkerClient
 from .plugins.installation_ipc import InstallationWorkerClient
+from .component_egress.storage import migrate as migrate_component_egress
+from .component_egress.service import ComponentEgress
 from .services.schema import migrate_services
 from .services.service import ServiceManagement
 from .services.probe_runner import ServiceProbeRunner
 from .vault import VaultService
 from .home_resources.schema import migrate_home_resources
+from .home_assistant.command_chain import migrate_command_history
 from .home_resources.service import HomeResourceRegistry
 from .home_people.schema import migrate_home_people
 from .home_people.service import HomePeopleRegistry
@@ -145,7 +148,9 @@ class CoreServices:
                 migrate_home_resources(connection, self.context, key)
                 migrate_home_people(connection, self.context, key)
                 migrate_services(connection)
+                migrate_component_egress(connection, self.context, key)
                 migrate_home_assistant(connection, self.context, key)
+                migrate_command_history(connection, self.context, key)
                 migrate_direct_ha(connection, key, self.context)
                 migrate_plugins(connection)
                 migrate_plugin_jobs(connection)
@@ -184,6 +189,8 @@ class CoreServices:
             self.home_assistant.validate_storage()
             self.direct_ha_migration = DirectHaMigration(self.home_assistant)
             self.direct_ha_migration.validate_storage()
+            self.component_egress = ComponentEgress(self.services, key, self.context)
+            self.services.component_egress = self.component_egress
             self.service_probe = ServiceProbeRunner(self.services)
             self.plugins = PluginManagement(self.db, self.auth, settings, key)
             self.plugins.validate_storage()

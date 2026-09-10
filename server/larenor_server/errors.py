@@ -13,6 +13,7 @@ class StartupError(Exception):
 
 
 MESSAGES = {
+    "outbound_denied": "This component has no current permission for that destination.",
     "ha_migration_changed": "The selected migration source or target changed. Review it again.",
     "ha_migration_preview_invalid": "The migration preview is no longer available. Review it again.",
     "ha_migration_limit_reached": "The Home Assistant migration limit has been reached.",

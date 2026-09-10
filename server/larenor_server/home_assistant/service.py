@@ -23,7 +23,9 @@ from ..admin.service import utc
 from ..auth import token_hash
 from ..errors import ApiError, StartupError
 from . import schema
-from .models import (Binding, CommandReceipt, CommandRequest, PreviewRequest,
+from . import command_chain
+from .command_storage import command_aad, decode_command
+from .models import (Binding, CommandAttribution, CommandReceipt, CommandRequest, PreviewRequest,
                      Projection, Snapshot, StoredCommand)
 from .transport import command_switch, read_entity
 
@@ -99,18 +101,10 @@ class HomeAssistantAdapter:
 
     @staticmethod
     def _command_aad(row):
-        return f'larenor-ha-command-v1:{row["request_id"]}:{row["resource_id"]}'.encode('ascii')
+        return command_aad(row)
 
     def _decode_command(self, row):
-        value = StoredCommand.model_validate_json(
-            self._cipher.decrypt(row['nonce'], row['ciphertext'], self._command_aad(row)))
-        if (value.request.requestId != row['request_id'] or
-                value.receipt.requestId != row['request_id'] or
-                value.receipt.ref.id != row['resource_id'] or
-                value.receipt.action != value.request.action or
-                value.receipt.bindingRevision != value.request.expectedBindingRevision):
-            raise ValueError()
-        return value
+        return decode_command(row, self._cipher, self.resources.scope)
 
     def validate_storage(self):
         try:
@@ -120,6 +114,7 @@ class HomeAssistantAdapter:
                     self._decode(row)
                 for row in schema.command_rows(c):
                     self._decode_command(row)
+                command_chain.verify(c, self._key, self.resources.scope)
         except (ValueError, TypeError, InvalidTag):
             raise StartupError('home_assistant_storage_invalid') from None
 
@@ -131,6 +126,7 @@ class HomeAssistantAdapter:
                     raise ApiError("server_unavailable", 503)
                 self._now()
                 schema.validate(c, self._key, self.resources.scope)
+                command_chain.verify(c, self._key, self.resources.scope)
                 yield c, facts
         except ApiError:
             with self._lock:
@@ -306,6 +302,7 @@ class HomeAssistantAdapter:
             return {'binding': binding.model_dump()}
 
     def _save_command(self, c, value):
+        command_chain.verify(c, self._key, self.resources.scope)
         plain = value.model_dump_json().encode('utf-8')
         nonce = secrets.token_bytes(12)
         row = {'request_id': value.request.requestId, 'resource_id': value.receipt.ref.id}
@@ -322,6 +319,10 @@ class HomeAssistantAdapter:
                           (row['request_id'],)).fetchone()
         if saved is None or self._decode_command(saved) != value:
             raise ValueError()
+        sequence, head = command_chain.append(c, self._key, self.resources.scope, saved)
+        state = command_chain.verify(c, self._key, self.resources.scope)
+        if (state['sequence'], state['head_hash']) != (sequence, head):
+            raise ValueError()
 
     def _existing_command(self, c, actor, resource, body):
         row = c.execute('SELECT * FROM home_assistant_commands WHERE request_id=?',
@@ -334,7 +335,7 @@ class HomeAssistantAdapter:
         if value.request != body:
             raise ApiError('ha_command_conflict', 409)
         if value.receipt.dispatchState == 'pending' and body.requestId not in self._active_commands:
-            value = StoredCommand(request=value.request, receipt=value.receipt.model_copy(update={
+            value = StoredCommand(request=value.request, attribution=value.attribution, receipt=value.receipt.model_copy(update={
                 'dispatchState': 'unknown', 'providerAccepted': None,
                 'observedProjection': None, 'observationMatchesTarget': None,
                 'completedAt': utc(self.settings.clock())}))
@@ -352,12 +353,41 @@ class HomeAssistantAdapter:
             if value.receipt.ref != ref or (actor.role != 'admin' and value.receipt.actorId != actor.id):
                 raise ApiError('not_found', 404)
             if value.receipt.dispatchState == 'pending' and request_id not in self._active_commands:
-                value = StoredCommand(request=value.request, receipt=value.receipt.model_copy(update={
+                value = StoredCommand(request=value.request, attribution=value.attribution, receipt=value.receipt.model_copy(update={
                     'dispatchState': 'unknown', 'providerAccepted': None,
                     'observedProjection': None, 'observationMatchesTarget': None,
                     'completedAt': utc(self.settings.clock())}))
                 self._save_command(c, value)
             return {'receipt': value.receipt.model_dump()}
+
+    def command_history(self, actor, core, home, resource, *, before=None, limit=25):
+        if type(limit) is not int or not 1 <= limit <= 50:
+            raise ApiError('invalid_request')
+        if before is not None:
+            self.resources._id(before)
+        with self._tx(actor, core, home) as (c, facts):
+            _, ref, _, _ = self._target(c, facts, resource)
+            entries = []
+            for saved in schema.command_rows(c):
+                value = self._decode_command(saved)
+                if value.receipt.ref != ref or (facts.role != 'admin' and value.receipt.actorId != actor.id):
+                    continue
+                # A read must not settle or replay interrupted commands. Pending
+                # is the stored intent state, not a claim of active dispatch.
+                entries.append({'attribution': value.attribution.model_dump(), 'receipt': value.receipt.model_dump()})
+            entries.sort(key=lambda v: (v['receipt']['createdAt'], v['receipt']['requestId']), reverse=True)
+            if before is not None:
+                position = next((i for i, value in enumerate(entries)
+                                 if value['receipt']['requestId'] == before), None)
+                if position is None:
+                    raise ApiError('not_found', 404)
+                entries = entries[position + 1:]
+            return {'schemaVersion': 1, 'ref': ref.model_dump(), 'entries': entries[:limit],
+                    'nextBefore': entries[limit - 1]['receipt']['requestId'] if len(entries) > limit else None}
+
+    def verify_history(self, actor, core, home, *, checkpoint=None):
+        with self._tx(actor, core, home, admin=True) as (c, _):
+            return {'verification': command_chain.checkpoint(c, self._key, self.resources.scope, checkpoint)}
 
     def _prepare_command(self, actor, core, home, resource, body):
         reserved = False
@@ -385,12 +415,15 @@ class HomeAssistantAdapter:
                     action=body.action, dispatchState='pending', providerAccepted=None,
                     observedProjection=None, observationMatchesTarget=None,
                     causalityVerified=False, createdAt=created, completedAt=None)
-                self._save_command(c, StoredCommand(request=body, receipt=receipt))
+                attribution = CommandAttribution(correlationId=body.requestId, source='core_api',
+                    reason='explicit_command_request', serviceId=binding.serviceId,
+                    serviceRevision=binding.serviceRevision)
+                self._save_command(c, StoredCommand(request=body, receipt=receipt, attribution=attribution))
                 self._command_generation += 1
                 self._cache.clear()
                 self._active_commands.add(body.requestId)
                 reserved = True
-            return None, (receipt, binding, service, fingerprint)
+            return None, (receipt, attribution, binding, service, fingerprint)
         except BaseException:
             if reserved:
                 with self._lock:
@@ -402,7 +435,7 @@ class HomeAssistantAdapter:
         existing, prepared = self._prepare_command(actor, core, home, resource, body)
         if existing is not None:
             return {'receipt': existing.receipt.model_dump()}
-        receipt, binding, service, fingerprint = prepared
+        receipt, attribution, binding, service, fingerprint = prepared
         slot = self._slots.acquire(blocking=False)
         try:
             if not slot or cancelled():
@@ -424,7 +457,7 @@ class HomeAssistantAdapter:
                 'providerAccepted': outcome, 'observedProjection': observed,
                 'observationMatchesTarget': None if observed is None else observed.state == target,
                 'completedAt': utc(self.settings.clock())})
-            value = StoredCommand(request=body, receipt=completed)
+            value = StoredCommand(request=body, receipt=completed, attribution=attribution)
             with self._lock, self.db.transaction() as c:
                 schema.validate(c, self._key, self.resources.scope)
                 current = c.execute('SELECT * FROM home_assistant_commands WHERE request_id=?',

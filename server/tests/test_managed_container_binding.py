@@ -118,6 +118,59 @@ def build_qbittorrent(container_journal_id='4' * 32):
     return builder, stack, builder(stack)
 
 
+def music_assistant_proof(resource_plan, volume_plan, component):
+    image = next(item for item in resource_plan.resources
+                 if item.kind == 'ensure_image'
+                 and item.serviceId == 'music_assistant')
+    network = resource_plan.resources[-1]
+    volumes = tuple(item for item in volume_plan.resources
+                    if item.serviceId == 'music_assistant')
+    return VerifiedJellyfinResources(
+        stack_plan_hash=resource_plan.stackPlanHash,
+        resource_plan_hash=resource_plan.planHash,
+        volume_plan_hash=volume_plan.planHash,
+        worker_policy_digest=resource_plan.workerPolicyDigest,
+        image=ManagedImageProof(
+            image.resourceId, 3, image.image.configDigest,
+            json.dumps({'Env': ['PATH=/usr/bin'], 'Volumes': {'/data': {}}},
+                       sort_keys=True, separators=(',', ':')).encode()),
+        volumes=tuple(ManagedVolumeProof(
+            item.resourceId, item.operationId, 4, 'e' * 32, 'f' * 32,
+            item.name, item.target, True) for item in volumes),
+        network=ManagedNetworkProof(
+            network.resourceId, network.operationId, 3, '1' * 32, '2' * 32,
+            network.name, '3' * 64))
+
+
+def build_music_assistant(container_journal_id='4' * 32):
+    catalog, stack, policy = source()
+    builder = JellyfinBindingBuilder(
+        catalog, policy, container_journal_id, music_assistant_proof,
+        service_id='music_assistant')
+    return builder, stack, builder(stack)
+
+
+def test_music_assistant_binding_is_fixed_digest_host_network_and_owned_data_only():
+    _builder, stack, binding = build_music_assistant()
+    body = json.loads(binding.specification)
+    component = next(item for item in stack.components
+                     if item.serviceId == 'music_assistant')
+    assert body['Image'] == component.plan.image.repository + '@' + component.plan.image.digest
+    assert body['User'] == '0:0'
+    assert body['Env'] == ['LOG_LEVEL=warning']
+    assert body['HostConfig']['NetworkMode'] == 'host'
+    assert body['HostConfig']['CapAdd'] == ['NET_BIND_SERVICE']
+    assert body['HostConfig']['CapDrop'] == ['ALL']
+    assert 'PortBindings' not in body['HostConfig'] and 'ExposedPorts' not in body
+    assert [(mount.target, mount.read_only) for mount in binding.mounts] == [
+        ('/data', False)]
+    assert managed_container_matches(snapshot(binding), binding)
+
+    drift = snapshot(binding)
+    drift['HostConfig']['NetworkMode'] = 'bridge'
+    assert managed_container_matches(drift, binding) is False
+
+
 def test_builder_derives_ports_off_private_network_and_exact_nocopy_mounts():
     _builder, stack, binding = build()
     body = json.loads(binding.specification)

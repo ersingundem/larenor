@@ -308,6 +308,21 @@ class _SettingsGateScreenState extends ConsumerState<SettingsGateScreen>
                                     : null,
                               )
                             : SettingsSplitScreen(
+                                remoteGateCurrent: () {
+                                  if (!mounted ||
+                                      !_interactive ||
+                                      resourceGeneration != _generation ||
+                                      ModalRoute.of(context)?.isCurrent !=
+                                          true) {
+                                    return false;
+                                  }
+                                  final value = ref.read(pinLockProvider);
+                                  return !value.isLoading &&
+                                      !value.hasError &&
+                                      value.hasValue &&
+                                      value.value == pin &&
+                                      (pin == null || _unlocked);
+                                },
                                 backupGateCurrent: () {
                                   if (!mounted ||
                                       !_interactive ||

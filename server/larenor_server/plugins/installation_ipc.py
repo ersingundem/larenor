@@ -11,7 +11,7 @@ import threading
 import time
 import uuid
 
-from .installation_execution import JellyfinWorkerBackend
+from .installation_execution import service_for_step
 from .jellyfin_bootstrap_executor import (
     JellyfinBootstrapExecutionError, JellyfinBootstrapExecutionResult,
 )
@@ -586,7 +586,8 @@ class InstallationWorkerClient:
         result = self._exchange('status')
         expected = {
             'capability': 'container_execution', 'installAvailable': False,
-            'services': ['jellyfin', 'qbittorrent', 'sonarr', 'radarr', 'seerr'],
+            'services': ['jellyfin', 'qbittorrent', 'sonarr', 'radarr', 'seerr',
+                         'music_assistant'],
         }
         if result != expected:
             raise InstallationIPCError('invalid_worker_result')
@@ -893,7 +894,8 @@ class InstallationWorkerServer(PreflightWorkerServer):
             return {
                 'capability': 'container_execution', 'installAvailable': False,
                 'services': [
-                    'jellyfin', 'qbittorrent', 'sonarr', 'radarr', 'seerr'],
+                    'jellyfin', 'qbittorrent', 'sonarr', 'radarr', 'seerr',
+                    'music_assistant'],
             }
         if operation in {'configure_arr', 'install_configured_arr'}:
             if (set(request) != {
@@ -1063,7 +1065,7 @@ class InstallationWorkerServer(PreflightWorkerServer):
             raw = json.dumps(request['plan'], sort_keys=True, separators=(',', ':'), allow_nan=False)
             plan = MediaStackPlan.model_validate_json(raw)
             step = WorkerStep(**request['step'])
-            JellyfinWorkerBackend._verify(step, plan)
+            service_for_step(step, plan)
             if time.monotonic() >= deadline:
                 raise ValueError()
             timed = getattr(self.backend, operation + '_with_deadline', None)

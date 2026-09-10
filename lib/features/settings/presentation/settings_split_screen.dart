@@ -7,6 +7,7 @@ import '../../../shared/widgets/icon_badge.dart';
 import '../../../shared/widgets/settings_action_tile.dart';
 import '../../../shared/widgets/settings_section.dart';
 import '../../backup/presentation/backup_screen.dart';
+import '../../remote_access/presentation/remote_profiles_screen.dart';
 import '../../intercom/presentation/intercom_settings_screen.dart';
 import '../../server/presentation/server_connection_screen.dart';
 import 'panes/about_pane.dart';
@@ -22,6 +23,7 @@ import 'settings_file_dialog.dart';
 enum SettingsCategory {
   connection,
   server,
+  remoteAccess,
   display,
   security,
   homeAssistant,
@@ -41,11 +43,13 @@ class SettingsSplitScreen extends StatefulWidget {
     this.runFileDialog,
     this.onExit,
     this.backupGateCurrent,
+    this.remoteGateCurrent,
   });
 
   final SettingsFileDialogRunner? runFileDialog;
   final VoidCallback? onExit;
   final bool Function()? backupGateCurrent;
+  final bool Function()? remoteGateCurrent;
 
   @override
   State<SettingsSplitScreen> createState() => _SettingsSplitScreenState();
@@ -102,6 +106,7 @@ class _SettingsSplitScreenState extends State<SettingsSplitScreen> {
                     _selected,
                     runFileDialog: widget.runFileDialog,
                     backupGateCurrent: widget.backupGateCurrent,
+                    remoteGateCurrent: widget.remoteGateCurrent,
                   ),
                 ),
               ),
@@ -122,6 +127,7 @@ class _SettingsSplitScreenState extends State<SettingsSplitScreen> {
             category,
             runFileDialog: widget.runFileDialog,
             backupGateCurrent: widget.backupGateCurrent,
+            remoteGateCurrent: widget.remoteGateCurrent,
           ),
         ),
       ),
@@ -133,10 +139,15 @@ Widget paneFor(
   SettingsCategory category, {
   SettingsFileDialogRunner? runFileDialog,
   bool Function()? backupGateCurrent,
+  bool Function()? remoteGateCurrent,
 }) {
   switch (category) {
     case SettingsCategory.connection:
       return const ConnectionPane();
+    case SettingsCategory.remoteAccess:
+      return RemoteProfilesScreen(
+        gateCurrent: remoteGateCurrent ?? () => false,
+      );
     case SettingsCategory.server:
       return const ServerConnectionScreen();
     case SettingsCategory.display:
@@ -188,6 +199,12 @@ class _MasterList extends StatelessWidget {
         CupertinoIcons.cloud,
         CupertinoColors.systemIndigo,
         l10n.serverTitle,
+      ),
+      (
+        SettingsCategory.remoteAccess,
+        CupertinoIcons.desktopcomputer,
+        CupertinoColors.systemTeal,
+        l10n.remoteAccessTitle,
       ),
       (
         SettingsCategory.display,

@@ -96,7 +96,10 @@ def test_private_configuration_roundtrip_reaches_only_closed_worker_method():
     with running() as (backend, client):
         assert client.status() == {
             'capability': 'container_execution', 'installAvailable': False,
-            'services': ['jellyfin', 'qbittorrent', 'sonarr', 'radarr', 'seerr'],
+            'services': [
+                'jellyfin', 'qbittorrent', 'sonarr', 'radarr', 'seerr',
+                'music_assistant',
+            ],
         }
         receipt = client.configure_qbittorrent(
             'a' * 32, selected, payload,

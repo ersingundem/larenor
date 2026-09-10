@@ -20,7 +20,10 @@ class ExecutionBackend:
         self.change = change
 
     def apply(self, step, plan):
-        self.calls.append(('apply', step.kind, 'jellyfin'))
+        service = next(
+            item.serviceId for item in plan.components
+            if item.installationId == step.installation_id)
+        self.calls.append(('apply', step.kind, service))
         if self.change:
             action, self.change = self.change, None
             action()
@@ -28,7 +31,10 @@ class ExecutionBackend:
         return StepReceipt(step.job_id, step.kind, 'succeeded', code, '1' * 64)
 
     def reconcile(self, step, plan):
-        self.calls.append(('reconcile', step.kind, 'jellyfin'))
+        service = next(
+            item.serviceId for item in plan.components
+            if item.installationId == step.installation_id)
+        self.calls.append(('reconcile', step.kind, service))
         return StepReceipt(step.job_id, step.kind, 'succeeded', 'container_created', '1' * 64)
 
 
@@ -71,7 +77,8 @@ def test_admin_can_queue_closed_jellyfin_execution_and_read_it_after_restart(ser
     pair, _, _, body = prepared(server)
     app.state.core.media_installations.backend = ExecutionBackend()
     assert client.get(BASE + '/capabilities', headers=auth(pair)).json() == {
-        'executionConfigured': True, 'installAvailable': False, 'services': ['jellyfin']}
+        'executionConfigured': True, 'installAvailable': False,
+        'services': ['jellyfin', 'seerr', 'music_assistant']}
     response = client.post(BASE, headers=auth(pair), json=body)
     assert response.status_code == 201
     record = response.json()['installation']
@@ -84,17 +91,56 @@ def test_admin_can_queue_closed_jellyfin_execution_and_read_it_after_restart(ser
         assert reopened.get(BASE + '/' + record['id'], headers=auth(pair)).json() == {'installation': record}
 
 
-def test_second_request_for_the_same_preparation_is_an_explicit_conflict(server):
+def test_same_preparation_can_install_seerr_but_rejects_duplicate_service(server):
     app, client, _, _ = server
     pair, _, _, body = prepared(server)
     app.state.core.media_installations.backend = ExecutionBackend()
     first = client.post(BASE, headers=auth(pair), json=body)
     assert first.status_code == 201
 
+    response = client.post(BASE, headers=auth(pair), json=body | {
+        'requestId': 'd' * 32, 'serviceId': 'seerr'})
+    assert response.status_code == 201
+    assert response.json()['installation']['serviceId'] == 'seerr'
+
     response = client.post(BASE, headers=auth(pair),
-                           json=body | {'requestId': 'd' * 32})
+                           json=body | {'requestId': 'e' * 32})
     assert response.status_code == 409
     assert response.json()['error']['code'] == 'media_installation_conflict'
+
+
+def test_seerr_container_phase_uses_exact_packaged_component(server):
+    app, client, _, _ = server
+    pair, _, _, body = prepared(server)
+    backend = ExecutionBackend()
+    app.state.core.media_installations.backend = backend
+    queued = client.post(BASE, headers=auth(pair), json=body | {
+        'serviceId': 'seerr'}).json()['installation']
+    terminal = app.state.core.media_installations.tick()['installation']
+    assert queued['serviceId'] == terminal['serviceId'] == 'seerr'
+    assert terminal['state'] == 'container_started'
+    assert backend.calls == [('apply', 'create_container', 'seerr'),
+                             ('apply', 'start_container', 'seerr')]
+
+
+def test_music_assistant_container_phase_is_durable_but_product_install_stays_disabled(server):
+    app, client, settings, _ = server
+    pair, _, _, body = prepared(server)
+    backend = ExecutionBackend()
+    app.state.core.media_installations.backend = backend
+    queued = client.post(BASE, headers=auth(pair), json=body | {
+        'serviceId': 'music_assistant'}).json()['installation']
+    terminal = app.state.core.media_installations.tick()['installation']
+    assert terminal['serviceId'] == 'music_assistant'
+    assert terminal['state'] == 'container_started'
+    assert terminal['installAvailable'] is False
+    assert backend.calls == [
+        ('apply', 'create_container', 'music_assistant'),
+        ('apply', 'start_container', 'music_assistant'),
+    ]
+    with TestClient(create_app(settings)) as reopened:
+        stored = reopened.get(BASE + '/' + queued['id'], headers=auth(pair))
+        assert stored.json()['installation']['state'] == 'container_started'
 
 
 def test_tick_rechecks_authority_between_create_and_start(server):
