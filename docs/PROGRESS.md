@@ -1,6 +1,6 @@
 # Larenor — güncel ilerleme ve iş kuyruğu
 
-**Son güncelleme: 10 Eylül 2026 — qBittorrent yönetilen servis zinciri PR41 ile ana dalda. Sonarr/Radarr sahipli `config.xml` üretimi PR42 tam CI ile ana dalda; hacim yazıcısı, retained-daemon runtime ve UID-korumalı private IPC yerelde yeşil. Şifreli kalıcı Core işi yerelde yeşil; authenticated API readback yerelde yeşil; container zinciri ve native kabul sıradaki kapı.**
+**Son güncelleme: 10 Eylül 2026 — qBittorrent yönetilen servis zinciri PR41 ile ana dalda. Sonarr/Radarr sahipli `config.xml` üretimi PR42 tam CI ile ana dalda; hacim yazıcısı, retained-daemon runtime ve UID-korumalı private IPC yerelde yeşil. Şifreli kalıcı Core işi yerelde yeşil; config-create-start-authenticated readback ve kalıcı sonuç yerelde yeşil; iki mimarili native kabul sıradaki kapı.**
 
 ```text
 Kuyruk kabulü       ██░░░░░░░░░░░░░░░░░░  14/125 iş (%11; eşit ağırlıklı sayaç)
@@ -349,6 +349,14 @@ stream'i üretti. DNS, proxy, alternatif hedef ve retry yok. Arr endpoint/readba
 ile mevcut Jellyfin/qBittorrent regresyonlarında **97 PASS**; security, queue ve
 Gitleaks PASS. Create/start orkestrasyonu açık olduğundan sayaç değişmedi.
 [Uygulama ve açık sınırlar](arr-private-endpoint-implementation-2026-09-10.md).
+
+`b7eaf50`–`fc83138` zinciri, config sonrası create/start, fresh private endpoint,
+authenticated readback, UID-korumalı IPC ve kalıcı Core sonucunu birleştirdi.
+Public iş durumu config, container ve doğrulanmış servis sonucunu ayırıyor; çapraz
+servis veya belirsiz sonuç retry edilmeden kapanıyor. İlgili paketlerde **78
+PASS**, geniş regresyonda **109 PASS**; compileall, security, queue ve Gitleaks
+PASS. İki mimarili native kabul açık olduğundan sayaç değişmedi.
+[Uygulama ve açık sınırlar](arr-configured-container-implementation-2026-09-10.md).
 
 S06.4 native kabul koşusu [34326112926](https://github.com/ersingundem/larenor/actions/runs/34326112926)
 iki gerçek GitHub runner'ında geçti. İndirilen ARM64 ve X64 makbuzları merge
