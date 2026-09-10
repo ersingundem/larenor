@@ -20,6 +20,7 @@ from .models import (
     DetailsPage,
     PreviewResponse,
     SnapshotResponse,
+    TopologyResponse,
 )
 
 Core = Annotated[CoreServices, Depends(get_core)]
@@ -133,3 +134,10 @@ async def details(core_id: Identity, home_id: Identity, resource_id: Identity,
     return await observe(request, lambda cancelled: core.keenetic_resources.details_page(
         actor, core_id, home_id, resource_id, limit=limit, after=after,
         expected_snapshot=expectedSnapshot, cancelled=cancelled))
+
+
+@router.get(PUBLIC + "/topology", response_model=TopologyResponse)
+async def topology(core_id: Identity, home_id: Identity, resource_id: Identity,
+                   request: Request, actor: Ready, core: Core):
+    return await observe(request, lambda cancelled: core.keenetic_resources.topology(
+        actor, core_id, home_id, resource_id, cancelled=cancelled))

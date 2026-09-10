@@ -679,3 +679,211 @@ final class CoreKeeneticSnapshot {
     );
   }
 }
+
+enum CoreKeeneticMeshRole { controller, extender }
+
+enum CoreKeeneticBackhaul { ethernet, wifi_2_4, wifi_5, wifi_6, unknown }
+
+enum CoreKeeneticBackhaulQuality { excellent, good, fair, poor, unknown }
+
+final class CoreKeeneticMeshNode {
+  const CoreKeeneticMeshNode._(
+    this.id,
+    this.name,
+    this.model,
+    this.role,
+    this.online,
+    this.parentId,
+    this.backhaul,
+    this.quality,
+    this.pathCost,
+  );
+  final String id, name, model;
+  final CoreKeeneticMeshRole role;
+  final bool online;
+  final String? parentId;
+  final CoreKeeneticBackhaul? backhaul;
+  final CoreKeeneticBackhaulQuality? quality;
+  final int? pathCost;
+
+  factory CoreKeeneticMeshNode.fromJson(Object? raw) {
+    final value = _object(raw, {
+      'id',
+      'name',
+      'model',
+      'role',
+      'online',
+      'parentId',
+      'backhaulType',
+      'backhaulQuality',
+      'pathCost',
+    });
+    String identity(Object? candidate) {
+      if (candidate is! String ||
+          !RegExp(r'^[0-9a-f]{16}$').hasMatch(candidate)) {
+        _invalid();
+      }
+      return candidate;
+    }
+
+    final role = CoreKeeneticMeshRole.values
+        .where((item) => item.name == value['role'])
+        .firstOrNull;
+    final backhaul = CoreKeeneticBackhaul.values
+        .where((item) => item.name == value['backhaulType'])
+        .firstOrNull;
+    final quality = CoreKeeneticBackhaulQuality.values
+        .where((item) => item.name == value['backhaulQuality'])
+        .firstOrNull;
+    if (role == null || value['online'] is! bool) _invalid();
+    final parent = value['parentId'] == null
+        ? null
+        : identity(value['parentId']);
+    final cost = value['pathCost'] == null
+        ? null
+        : _integer(value['pathCost'], min: 1, max: 65535);
+    if (role == CoreKeeneticMeshRole.controller &&
+            (parent != null ||
+                backhaul != null ||
+                quality != null ||
+                cost != null) ||
+        role == CoreKeeneticMeshRole.extender &&
+            (parent == null ||
+                backhaul == null ||
+                quality == null ||
+                cost == null)) {
+      _invalid();
+    }
+    return CoreKeeneticMeshNode._(
+      identity(value['id']),
+      _text(value['name'], max: 128),
+      _text(value['model'], max: 128),
+      role,
+      value['online'] as bool,
+      parent,
+      backhaul,
+      quality,
+      cost,
+    );
+  }
+}
+
+final class CoreKeeneticWifiDistribution {
+  const CoreKeeneticWifiDistribution._(
+    this.id,
+    this.ssid,
+    this.band,
+    this.channel,
+    this.clientCount,
+    this.online,
+  );
+  final String id, ssid, band;
+  final int channel, clientCount;
+  final bool online;
+  factory CoreKeeneticWifiDistribution.fromJson(Object? raw) {
+    final value = _object(raw, {
+      'id',
+      'ssid',
+      'band',
+      'channel',
+      'clientCount',
+      'online',
+    });
+    if (value['online'] is! bool) _invalid();
+    return CoreKeeneticWifiDistribution._(
+      _text(value['id'], max: 128),
+      _text(value['ssid'], max: 64),
+      _band(value['band'])!,
+      _integer(value['channel'], min: 1, max: 233),
+      _integer(value['clientCount'], max: 512),
+      value['online'] as bool,
+    );
+  }
+}
+
+final class CoreKeeneticTopologySnapshot {
+  const CoreKeeneticTopologySnapshot._(
+    this.bindingId,
+    this.bindingRevision,
+    this.serviceId,
+    this.serviceRevision,
+    this.resourceRevision,
+    this.aclRevision,
+    this.observedAt,
+    this.remainingTtlMs,
+    this.nodes,
+    this.networks,
+  );
+  final String bindingId, serviceId;
+  final int bindingRevision,
+      serviceRevision,
+      resourceRevision,
+      aclRevision,
+      remainingTtlMs;
+  final DateTime observedAt;
+  final List<CoreKeeneticMeshNode> nodes;
+  final List<CoreKeeneticWifiDistribution> networks;
+
+  factory CoreKeeneticTopologySnapshot.fromJson(
+    Object? raw, {
+    required HomeResourceRecord target,
+  }) {
+    final value = _object(raw, {
+      'ref',
+      'bindingId',
+      'bindingRevision',
+      'serviceId',
+      'serviceRevision',
+      'resourceRevision',
+      'aclRevision',
+      'observedAt',
+      'remainingTtlMs',
+      'nodes',
+      'networks',
+    });
+    _ref(value['ref'], target);
+    final rawNodes = value['nodes'], rawNetworks = value['networks'];
+    if (rawNodes is! List ||
+        rawNodes.isEmpty ||
+        rawNodes.length > 64 ||
+        rawNetworks is! List ||
+        rawNetworks.length > 64) {
+      _invalid();
+    }
+    final nodes = rawNodes.map(CoreKeeneticMeshNode.fromJson).toList();
+    final networks = rawNetworks
+        .map(CoreKeeneticWifiDistribution.fromJson)
+        .toList();
+    final ids = nodes.map((item) => item.id).toSet();
+    if (ids.length != nodes.length ||
+        nodes
+                .where((item) => item.role == CoreKeeneticMeshRole.controller)
+                .length !=
+            1 ||
+        nodes.any(
+          (item) => item.parentId != null && !ids.contains(item.parentId),
+        ) ||
+        networks.map((item) => item.id).toSet().length != networks.length) {
+      _invalid();
+    }
+    final timestamp = value['observedAt'];
+    final date = timestamp is String ? DateTime.tryParse(timestamp) : null;
+    if (date == null ||
+        !date.isUtc ||
+        !RegExp(r'T.*(?:Z|\+00:00)$').hasMatch(timestamp as String)) {
+      _invalid();
+    }
+    return CoreKeeneticTopologySnapshot._(
+      _id(value['bindingId']),
+      _integer(value['bindingRevision'], min: 1),
+      _id(value['serviceId']),
+      _integer(value['serviceRevision'], min: 1),
+      _integer(value['resourceRevision'], min: target.revision),
+      _integer(value['aclRevision'], min: target.aclRevision),
+      date,
+      _integer(value['remainingTtlMs'], max: 5000),
+      List.unmodifiable(nodes),
+      List.unmodifiable(networks),
+    );
+  }
+}

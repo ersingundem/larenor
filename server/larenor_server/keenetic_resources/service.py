@@ -26,10 +26,13 @@ from .models import (
     DetailsPage,
     InterfaceDetail,
     KeeneticBinding,
+    MeshNode,
     ResourceSnapshot,
     Telemetry,
+    TopologySnapshot,
+    WifiDistribution,
 )
-from .transport import KeeneticReadOnlyTransport
+from .transport import KeeneticReadOnlyTransport, _mesh_topology
 
 PREVIEW_TTL = 60.0
 CACHE_TTL = 5.0
@@ -64,6 +67,7 @@ class KeeneticResourceAdapter:
         self._slots = threading.BoundedSemaphore(4)
         self._transport = KeeneticReadOnlyTransport()
         self._reader = self._transport.read
+        self._topology_reader = self._transport.read_topology
 
     def _now(self):
         now = self._clock()
@@ -207,7 +211,8 @@ class KeeneticResourceAdapter:
 
     def preview(self, actor, core, home, resource, body, *, cancelled=lambda: False):
         body = BindingPreviewRequest.model_validate(body)
-        started = self._now()
+        with self._lock:
+            started = self._now()
         caller_cancelled = cancelled
 
         def cancelled():
@@ -379,3 +384,126 @@ class KeeneticResourceAdapter:
         return DetailsPage(
             entries=page, snapshot=identity, nextAfter=next_after
         ).model_dump(mode="json")
+
+    def topology(self, actor, core, home, resource, *, cancelled=lambda: False):
+        started = self._now()
+        observed = self.snapshot(
+            actor, core, home, resource, cancelled=cancelled
+        )["snapshot"]
+        source_ttl = observed["remainingTtlMs"]
+
+        def topology_cancelled():
+            with self._lock:
+                elapsed = (self._now() - started) * 1000
+            return cancelled() or elapsed >= source_ttl
+
+        with self._tx(actor, core, home) as (c, facts):
+            fingerprint, _row, _ref, _data, _binding, service = self._facts(
+                c, facts, resource
+            )
+        if not self._slots.acquire(blocking=False):
+            raise ApiError("keenetic_limit_reached", 429)
+        try:
+            def guard():
+                self._fresh(
+                    actor, core, home, resource, fingerprint, None,
+                    topology_cancelled,
+                )
+
+            raw = _mesh_topology(self._topology_reader(service, guard))
+            guard()
+        except ApiError as error:
+            if error.code in {
+                "request_timeout", "invalid_session", "not_found", "forbidden",
+                "keenetic_binding_changed", "keenetic_limit_reached",
+                "keenetic_upstream_unavailable", "keenetic_upstream_unauthorized",
+                "keenetic_upstream_denied", "keenetic_upstream_unsupported",
+            }:
+                if error.code == "keenetic_upstream_unsupported":
+                    raise ApiError("keenetic_snapshot_unsupported", 502) from None
+                raise
+            raise ApiError("keenetic_snapshot_unsupported", 502) from None
+        except Exception:  # noqa: BLE001 - private seam must not expose upstream state.
+            raise ApiError("keenetic_snapshot_unsupported", 502) from None
+        finally:
+            self._slots.release()
+
+        def private_id(value):
+            return hmac.new(
+                self._key,
+                f"larenor-keenetic-mesh-v1:{resource}:{value}".encode(),
+                hashlib.sha256,
+            ).hexdigest()[:16]
+
+        controller_id = private_id("controller")
+        member_ids = {
+            member["mac"]: private_id(member["mac"])
+            for member in raw["members"]
+        }
+        nodes = [MeshNode(
+            id=controller_id, name=raw["controller"]["name"],
+            model=raw["controller"]["model"], role="controller", online=True,
+            parentId=None, backhaulType=None, backhaulQuality=None, pathCost=None,
+        )]
+        for member in raw["members"]:
+            prefix, parent_mac = member["bridge"].split(".", 1)
+            parent_id = controller_id if prefix == "8000" else member_ids.get(
+                parent_mac.upper()
+            )
+            if parent_id is None:
+                raise ApiError("keenetic_snapshot_unsupported", 502)
+            uplink = member["uplink"].casefold()
+            if "wifimaster0" in uplink:
+                backhaul = "wifi_2_4"
+            elif "wifimaster1" in uplink:
+                backhaul = "wifi_5"
+            elif "wifimaster2" in uplink:
+                backhaul = "wifi_6"
+            elif "ethernet" in uplink or "sfp" in uplink:
+                backhaul = "ethernet"
+            else:
+                backhaul = "unknown"
+            cost = member["cost"]
+            quality = (
+                "unknown" if backhaul == "unknown" else
+                "excellent" if cost <= 19 else
+                "good" if cost <= 50 else
+                "fair" if cost <= 124 else "poor"
+            )
+            nodes.append(MeshNode(
+                id=member_ids[member["mac"]], name=member["name"],
+                model=member["model"], role="extender", online=member["online"],
+                parentId=parent_id, backhaulType=backhaul,
+                backhaulQuality=quality, pathCost=cost,
+            ))
+        telemetry = Telemetry.model_validate(observed["telemetry"])
+        networks = []
+        for interface in telemetry.interfaces:
+            if (interface.kind != "wifi" or interface.ssid is None
+                    or interface.band is None or interface.channel is None):
+                continue
+            networks.append(WifiDistribution(
+                id=interface.id, ssid=interface.ssid, band=interface.band,
+                channel=interface.channel, online=interface.online,
+                clientCount=sum(
+                    host.online and host.interfaceId == interface.id
+                    for host in telemetry.hosts
+                ),
+            ))
+        networks.sort(key=lambda item: (
+            {"2.4": 0, "5": 1, "6": 2}[item.band], item.id
+        ))
+        with self._lock:
+            remaining_ttl = source_ttl - int((self._now() - started) * 1000)
+        if remaining_ttl <= 0:
+            raise ApiError("request_timeout", 408)
+        result = TopologySnapshot(
+            ref=observed["ref"], bindingId=observed["bindingId"],
+            bindingRevision=observed["bindingRevision"],
+            serviceId=observed["serviceId"], serviceRevision=observed["serviceRevision"],
+            resourceRevision=observed["resourceRevision"],
+            aclRevision=observed["aclRevision"], observedAt=observed["observedAt"],
+            remainingTtlMs=remaining_ttl, nodes=nodes,
+            networks=networks,
+        )
+        return {"topology": result.model_dump(mode="json")}

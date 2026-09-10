@@ -38,9 +38,11 @@ class CoreKeeneticController extends ChangeNotifier {
   int epoch = 0;
   bool busy = false, loaded = false, stale = false, saved = false;
   String? failure;
+  String? topologyFailure;
   HomeResourceRecord? record;
   CoreKeeneticSnapshot? snapshot;
   CoreKeeneticDetailsPage? details;
+  CoreKeeneticTopologySnapshot? topology;
   CoreKeeneticBinding? binding;
   CoreKeeneticPreview? preview;
   List<ServerService> services = const [];
@@ -104,6 +106,8 @@ class CoreKeeneticController extends ChangeNotifier {
     record = null;
     snapshot = null;
     details = null;
+    topology = null;
+    topologyFailure = null;
     binding = null;
     preview = null;
     services = const [];
@@ -233,16 +237,35 @@ class CoreKeeneticController extends ChangeNotifier {
         if (binding != null) {
           snapshot = await api(next).snapshot();
           details = await api(next).details();
+          await _readTopology(api(next));
         }
       } else {
         snapshot = await api(next).snapshot();
         details = await api(next).details();
+        await _readTopology(api(next));
       }
       loaded = true;
       if (snapshot != null) {
         _arm(snapshot!.remainingTtlMs);
       }
     });
+  }
+
+  Future<void> _readTopology(CoreKeeneticApi api) async {
+    try {
+      topology = await api.topology();
+    } on LarenorServerException catch (error) {
+      if (!const {
+        'keenetic_snapshot_unsupported',
+        'keenetic_upstream_unavailable',
+        'keenetic_upstream_denied',
+        'keenetic_upstream_unauthorized',
+      }.contains(error.code)) {
+        rethrow;
+      }
+      topology = null;
+      topologyFailure = error.code;
+    }
   }
 
   Future<void> loadMoreDetails() async {
