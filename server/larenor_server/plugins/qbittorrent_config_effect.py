@@ -331,7 +331,8 @@ class UnixQbittorrentConfigEngine:
             if identity is not None:
                 try:
                     cleanup = self._transport._exchange(
-                        'DELETE', f'/containers/{identity}')
+                        'DELETE',
+                        f'/containers/{identity}?force=1&v=0')
                     self._response(
                         cleanup, 204,
                         'qbittorrent_config_effect_cleanup_failed',

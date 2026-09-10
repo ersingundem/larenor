@@ -123,7 +123,8 @@ def test_unix_engine_uses_one_fixed_rw_helper_and_private_stdin(tmp_path):
     assert transport.calls[1][:2] == ('POST', f'/containers/{CONTAINER}/start')
     assert transport.calls[2][:2] == (
         'POST', f'/containers/{CONTAINER}/wait?condition=not-running')
-    assert transport.calls[3][:2] == ('DELETE', f'/containers/{CONTAINER}')
+    assert transport.calls[3][:2] == (
+        'DELETE', f'/containers/{CONTAINER}?force=1&v=0')
 
 
 class InstalledEngine:
@@ -283,7 +284,8 @@ def test_engine_failures_are_static_and_known_containers_are_removed(
             before_dispatch=lambda: True)
     assert raised.value.uncertain_effect is uncertain
     if stage != 'create':
-        assert transport.calls[-1][:2] == ('DELETE', f'/containers/{CONTAINER}')
+        assert transport.calls[-1][:2] == (
+            'DELETE', f'/containers/{CONTAINER}?force=1&v=0')
     assert PRIVATE_PASSWORD not in repr(raised.value)
     assert PRIVATE_BEARER not in repr(raised.value)
 
