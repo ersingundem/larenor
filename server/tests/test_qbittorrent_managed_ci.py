@@ -161,6 +161,43 @@ def test_characterize_projects_only_closed_native_evidence(monkeypatch):
     assert '"apiKey":' not in serialized and '"credential":' not in serialized
 
 
+def test_runtime_backend_supplies_both_config_runtimes(monkeypatch):
+    module = api()
+    from larenor_server.plugins import arr_config_runtime
+    from larenor_server.plugins import installation_runtime
+    from larenor_server.plugins import qbittorrent_config_runtime
+
+    calls = []
+
+    def config(kind):
+        def build(*arguments):
+            value = (kind, arguments)
+            calls.append(value)
+            return value
+        return build
+
+    def backend(*arguments):
+        calls.append(('backend', arguments))
+        return arguments
+
+    monkeypatch.setattr(
+        qbittorrent_config_runtime, 'QbittorrentConfigRuntime',
+        config('qbittorrent'))
+    monkeypatch.setattr(arr_config_runtime, 'ArrConfigRuntime', config('arr'))
+    monkeypatch.setattr(installation_runtime, '_RuntimeBackend', backend)
+    values = tuple(object() for _ in range(8))
+
+    result = module._runtime_backend(*values)
+
+    common = values[2:]
+    assert calls == [
+        ('qbittorrent', common),
+        ('arr', common),
+        ('backend', (values[0], values[1], calls[0], calls[1])),
+    ]
+    assert result == calls[2][1]
+
+
 def test_receipt_verification_never_starts_daemon(tmp_path, monkeypatch, capsys):
     module = api()
     path = tmp_path / 'receipt.json'

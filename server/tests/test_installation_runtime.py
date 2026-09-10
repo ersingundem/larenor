@@ -155,6 +155,9 @@ def test_runtime_builds_one_endpoint_and_closes_all_journals(configuration):
                 is built.backend.operations)
         assert built.backend.qbittorrent_config._endpoint is policy.endpoint
         assert built.backend.qbittorrent_config._journal is built.backend.binding_builder._volume_journal
+        assert built.backend.arr_config._endpoint is policy.endpoint
+        assert (built.backend.arr_config._journal
+                is built.backend.binding_builder._volume_journal)
     finally:
         built.close()
     assert built.closed is True
@@ -222,7 +225,8 @@ def test_runtime_configures_qbittorrent_before_create_and_start(monkeypatch):
         lambda *_args: QbittorrentBootstrap())
     monkeypatch.setattr(runtime.time, 'monotonic', lambda: 1000.0)
     monkeypatch.setattr(runtime.time, 'time', lambda: 2000.0)
-    backend = runtime._RuntimeBackend(Operations(), binding, Configuration())
+    backend = runtime._RuntimeBackend(
+        Operations(), binding, Configuration(), object())
     result = backend.install_configured_qbittorrent(
         'd' * 32, stack, 'c' * 48,
         api_key='qbt_' + 'a' * 28, salt=b'1' * 16,
@@ -406,8 +410,35 @@ def test_runtime_routes_every_engine_connection_through_one_peer_verifier(config
         qbit = built.backend.qbittorrent_config._installer._engine
         assert qbit._transport.peer_uid is verifier
         assert qbit._stdin._peer_uid is verifier
+        arr = built.backend.arr_config._installer._engine
+        assert arr._transport.peer_uid is verifier
+        assert arr._stdin._peer_uid is verifier
     finally:
         built.close()
+
+
+def test_runtime_backend_routes_only_valid_jobs_to_arr_config():
+    calls = []
+    backend = object.__new__(runtime._RuntimeBackend)
+    backend.arr_config = SimpleNamespace(
+        install=lambda *args, **kwargs: calls.append((args, kwargs)) or 'done')
+    cancelled = threading.Event()
+    gate = lambda: True
+
+    assert backend.configure_arr(
+        'd' * 32, 'stack', 'radarr', api_key='a' * 32,
+        cancelled=cancelled, deadline=1000.0, gate=gate) == 'done'
+    assert calls == [(('stack', 'radarr'), {
+        'api_key': 'a' * 32,
+        'cancelled': cancelled,
+        'before_dispatch': gate,
+    })]
+
+    with pytest.raises(ValueError, match='^invalid_worker_result$'):
+        backend.configure_arr(
+            'foreign', 'stack', 'sonarr', api_key='a' * 32,
+            cancelled=cancelled, deadline=1000.0, gate=gate)
+    assert len(calls) == 1
 
 
 def test_core_uses_the_same_private_worker_channel_for_bootstrap(server, monkeypatch):

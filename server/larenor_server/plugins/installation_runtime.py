@@ -33,6 +33,7 @@ from .jellyfin_bootstrap_executor import JellyfinBootstrapExecutor
 from .jellyfin_startup import JellyfinStartupConfigurator
 from .jellyfin_authenticated_readback import JellyfinAuthenticatedReadback
 from .jellyfin_managed_libraries import JellyfinManagedLibraries
+from .arr_config_runtime import ArrConfigRuntime
 from .qbittorrent_config_runtime import (
     QbittorrentConfigRuntime, QbittorrentConfigRuntimeError,
 )
@@ -239,10 +240,12 @@ class _InstallationRuntime:
 class _RuntimeBackend:
     """One journal/binding authority for installation and private bootstrap."""
 
-    def __init__(self, operations, binding_builder, qbittorrent_config):
+    def __init__(self, operations, binding_builder, qbittorrent_config,
+                 arr_config):
         self.operations = operations
         self.binding_builder = binding_builder
         self.qbittorrent_config = qbittorrent_config
+        self.arr_config = arr_config
         self.installation = JellyfinWorkerBackend(operations, binding_builder)
         self.qbittorrent_installation = QbittorrentWorkerBackend(
             operations, binding_builder)
@@ -270,6 +273,15 @@ class _RuntimeBackend:
         return self.qbittorrent_config.install(
             stack, credential, api_key=api_key, salt=salt,
             cancelled=cancelled, before_dispatch=gate,
+        )
+
+    def configure_arr(self, job, stack, service_id, *, api_key, cancelled,
+                      deadline, gate):
+        if type(job) is not str or re.fullmatch(r'[0-9a-f]{32}', job) is None:
+            raise ValueError('invalid_worker_result')
+        return self.arr_config.install(
+            stack, service_id, api_key=api_key, cancelled=cancelled,
+            before_dispatch=gate,
         )
 
     def install_configured_qbittorrent(
@@ -486,8 +498,13 @@ def _build_runtime(policy, *, peer_uid=None):
             policy.endpoint, volumes, catalog, policy.worker_policy,
             policy.helper_image_id, policy.platform, peer_uid=peer_uid,
         )
+        arr_config = ArrConfigRuntime(
+            policy.endpoint, volumes, catalog, policy.worker_policy,
+            policy.helper_image_id, policy.platform, peer_uid=peer_uid,
+        )
         return _InstallationRuntime(
-            _RuntimeBackend(operations, builder, qbittorrent_config),
+            _RuntimeBackend(
+                operations, builder, qbittorrent_config, arr_config),
             resources,
             volumes,
             containers,
