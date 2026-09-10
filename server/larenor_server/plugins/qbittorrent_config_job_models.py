@@ -34,12 +34,15 @@ class PrivateQbittorrentReceipt(StrictModel):
     # without claiming that their container was started.
     containerId: Digest | None = None
     containerState: Literal['qbittorrent_container_started'] | None = None
+    serviceState: Literal['qbittorrent_service_verified'] | None = None
 
     @model_validator(mode='after')
     def coherent(self):
         if self.volumeName != 'larenor-appdata-v1-' + self.resourceId:
             raise ValueError('invalid_qbittorrent_configuration_receipt')
         if (self.containerId is None) != (self.containerState is None):
+            raise ValueError('invalid_qbittorrent_configuration_receipt')
+        if self.serviceState is not None and self.containerState is None:
             raise ValueError('invalid_qbittorrent_configuration_receipt')
         return self
 
@@ -63,6 +66,7 @@ class QbittorrentConfiguration(StrictModel):
         'qbittorrent_config_already_installed',
     ] | None
     containerState: Literal['container_started'] | None
+    serviceState: Literal['verified'] | None
     errorCode: Literal[
         'qbittorrent_config_authority_changed',
         'qbittorrent_config_context_changed',
@@ -76,6 +80,9 @@ class QbittorrentConfiguration(StrictModel):
         'qbittorrent_config_interrupted',
         'qbittorrent_config_cancellation_uncertain',
         'qbittorrent_config_worker_unavailable',
+        'qbittorrent_service_unavailable',
+        'qbittorrent_service_changed',
+        'qbittorrent_service_verification_failed',
     ] | None
     installAvailable: Literal[False] = False
     createdAt: str
@@ -97,8 +104,11 @@ class QbittorrentConfiguration(StrictModel):
             if (not self.configured or self.configurationState is None
                     or self.errorCode is not None or self.cancelRequested):
                 raise ValueError('invalid_qbittorrent_configuration_state')
-        elif (self.configured or self.configurationState is not None
-              or self.containerState is not None):
+        if self.serviceState is not None and self.containerState is None:
+            raise ValueError('invalid_qbittorrent_configuration_state')
+        if self.state != 'succeeded' and (
+                self.configured or self.configurationState is not None
+                or self.containerState is not None or self.serviceState is not None):
             raise ValueError('invalid_qbittorrent_configuration_state')
         if self.state in {'queued', 'running', 'cancelled'} and self.errorCode is not None:
             raise ValueError('invalid_qbittorrent_configuration_state')

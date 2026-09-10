@@ -32,7 +32,8 @@ class Backend:
                 '1' * 32, '2' * 32, '3' * 32, 3,
                 'larenor-appdata-v1-' + '1' * 32, '4' * 64,
                 'qbittorrent_config_installed'),
-            '5' * 64, 'qbittorrent_container_started')
+            '5' * 64, 'qbittorrent_container_started',
+            'qbittorrent_service_verified')
         self.action = action
 
     def install_qbittorrent(self, job, plan, private, *, deadline, gate):
@@ -82,6 +83,7 @@ def test_create_encrypts_server_generated_private_values_and_is_idempotent(serve
         'phase': 'queued', 'cancelRequested': False, 'configured': False,
         'configurationState': None, 'errorCode': None,
         'containerState': None,
+        'serviceState': None,
         'installAvailable': False,
         'createdAt': '2026-09-05T12:00:00.000Z',
         'updatedAt': '2026-09-05T12:00:00.000Z',
@@ -115,6 +117,7 @@ def test_tick_persists_secret_free_journal_receipt(server):
         'configured': True,
         'configurationState': 'qbittorrent_config_installed',
         'containerState': 'container_started',
+        'serviceState': 'verified',
     }
     private = app.state.core.qbittorrent_configurations.private_payload(record['id'])
     assert private.receipt == backend.result
@@ -145,11 +148,36 @@ def test_configuration_only_receipt_remains_readable_without_claiming_start(serv
     assert result['configured'] is True
     assert result['configurationState'] == 'qbittorrent_config_installed'
     assert result['containerState'] is None
+    assert result['serviceState'] is None
     assert manager.private_payload(record['id']).receipt == (
         QbittorrentConfigInstallReceipt(
             '1' * 32, '2' * 32, '3' * 32, 3,
             'larenor-appdata-v1-' + '1' * 32, '4' * 64,
             'qbittorrent_config_installed'))
+
+
+def test_started_legacy_receipt_remains_readable_without_claiming_verification(server):
+    app, client, _, _ = server
+    pair, _body, record, _backend = queue(server)
+    manager = app.state.core.qbittorrent_configurations
+    with manager.db.transaction() as connection:
+        row = manager._find(connection, record['id'])
+        payload = manager._decode(row)
+        legacy = PrivateQbittorrentReceipt(
+            resourceId='1' * 32, operationId='2' * 32,
+            journalId='3' * 32, revision=3,
+            volumeName='larenor-appdata-v1-' + '1' * 32,
+            configurationDigest='4' * 64,
+            state='qbittorrent_config_installed',
+            containerId='5' * 64,
+            containerState='qbittorrent_container_started')
+        manager._transition(
+            connection, row, payload, state='succeeded', receipt=legacy)
+    result = client.get(
+        BASE + '/' + record['id'], headers=auth(pair)).json()['configuration']
+    assert result['containerState'] == 'container_started'
+    assert result['serviceState'] is None
+    assert manager.private_payload(record['id']).receipt.service_state is None
 
 
 def test_lifespan_dispatches_job_over_real_uid_checked_unix_ipc(server, monkeypatch):
@@ -273,6 +301,24 @@ def test_worker_failure_is_static_and_preserves_private_payload(server, failure,
     private = app.state.core.qbittorrent_configurations.private_payload(record['id'])
     assert private.receipt is None
     assert private.credential not in repr(failure) + repr(terminal)
+
+
+def test_new_job_rejects_started_but_unverified_service_receipt(server):
+    unverified = QbittorrentConfiguredInstallReceipt(
+        QbittorrentConfigInstallReceipt(
+            '1' * 32, '2' * 32, '3' * 32, 3,
+            'larenor-appdata-v1-' + '1' * 32, '4' * 64,
+            'qbittorrent_config_installed'),
+        '5' * 64, 'qbittorrent_container_started')
+    app, _client, _, _ = server
+    _pair, _body, record, _backend = queue(
+        server, backend=Backend(unverified))
+    terminal = app.state.core.qbittorrent_configurations.tick()['configuration']
+    assert terminal['state'] == 'needs_attention'
+    assert terminal['errorCode'] == 'qbittorrent_config_result_invalid'
+    assert terminal['serviceState'] is None
+    assert app.state.core.qbittorrent_configurations.private_payload(
+        record['id']).receipt is None
 
 
 def test_unknown_worker_failure_is_uncertain(server):

@@ -147,7 +147,11 @@ def _remaining(deadline):
 
 
 class QbittorrentBootstrapExecutor:
-    """Wire and verify one exact started qBittorrent container without retry."""
+    """Wire and verify one exact started qBittorrent container.
+
+    Only the initial read-only TCP readiness check is retried. Every retry
+    revalidates authority and the same journal-bound private endpoint.
+    """
 
     def __init__(self, operations, binding_builder, categories, readback):
         if (type(operations) is not JournaledManagedContainerOperations
@@ -212,6 +216,28 @@ class QbittorrentBootstrapExecutor:
                 'qbittorrent_bootstrap_resources_unavailable')
         return value
 
+    def _open_ready(self, observed, binding, trusted, receipt, expected, *,
+                    deadline, gate, uncertain):
+        """Retry only a refused read-only connect while authority stays exact."""
+        while True:
+            self._gate(gate, uncertain=uncertain)
+            try:
+                return open_qbittorrent_endpoint(
+                    observed, binding, trusted, receipt.container_id,
+                    timeout=min(10.0, _remaining(deadline)))
+            except QbittorrentEndpointError as error:
+                if error.code != 'qbittorrent_endpoint_unavailable':
+                    raise
+                time.sleep(min(0.1, _remaining(deadline)))
+                observed = self.operations.engine.inspect_container(binding.name)
+                current = prove_qbittorrent_endpoint(
+                    observed, binding, trusted, receipt.container_id)
+                if current != expected:
+                    raise QbittorrentBootstrapExecutionError(
+                        'qbittorrent_bootstrap_endpoint_changed',
+                        uncertain_effect=uncertain,
+                        boundary='before_connect')
+
     def execute(self, job, stack, private, *, deadline, gate):
         trusted, secret, web_port, torrent_port = self._inputs(
             job, stack, private, deadline, gate)
@@ -230,10 +256,9 @@ class QbittorrentBootstrapExecutor:
             observed = self.operations.engine.inspect_container(binding.name)
             before = prove_qbittorrent_endpoint(
                 observed, binding, trusted, receipt.container_id)
-            self._gate(gate)
-            categories_opened = open_qbittorrent_endpoint(
-                observed, binding, trusted, receipt.container_id,
-                timeout=min(10.0, _remaining(deadline)))
+            categories_opened = self._open_ready(
+                observed, binding, trusted, receipt, before,
+                deadline=deadline, gate=gate, uncertain=False)
             boundary = 'after_categories_connect'
             observed = self.operations.engine.inspect_container(binding.name)
             after_connect = prove_qbittorrent_endpoint(
@@ -264,10 +289,9 @@ class QbittorrentBootstrapExecutor:
                 raise QbittorrentBootstrapExecutionError(
                     'qbittorrent_bootstrap_endpoint_changed',
                     uncertain_effect=True, boundary=boundary)
-            self._gate(gate, uncertain=True)
-            readback_opened = open_qbittorrent_endpoint(
-                observed, binding, trusted, receipt.container_id,
-                timeout=min(10.0, _remaining(deadline)))
+            readback_opened = self._open_ready(
+                observed, binding, trusted, receipt, before,
+                deadline=deadline, gate=gate, uncertain=True)
             boundary = 'after_readback_connect'
             observed = self.operations.engine.inspect_container(binding.name)
             after_readback_connect = prove_qbittorrent_endpoint(

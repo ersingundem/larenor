@@ -271,6 +271,7 @@ def _wire_qbittorrent_install(value):
     return {
         'state': value.state,
         'containerId': value.container_id,
+        'serviceState': value.service_state,
         'configuration': configuration,
     }
 
@@ -284,8 +285,9 @@ def _qbittorrent_install_result(value):
             _qbittorrent_result(value)
             raise ValueError()
         if (type(value) is not dict or set(value) != {
-                'state', 'containerId', 'configuration'}
+                'state', 'containerId', 'serviceState', 'configuration'}
                 or value['state'] != 'qbittorrent_container_started'
+                or value['serviceState'] != 'qbittorrent_service_verified'
                 or type(value['containerId']) is not str
                 or re.fullmatch(r'[0-9a-f]{64}', value['containerId']) is None):
             raise ValueError()
@@ -294,7 +296,8 @@ def _qbittorrent_install_result(value):
             'uncertainEffect': False, 'receipt': value['configuration'],
         }
         return QbittorrentConfiguredInstallReceipt(
-            _qbittorrent_result(wrapped), value['containerId'], value['state'])
+            _qbittorrent_result(wrapped), value['containerId'], value['state'],
+            value['serviceState'])
     except QbittorrentConfigurationExecutionError:
         raise
     except (ValueError, TypeError, AttributeError):

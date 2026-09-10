@@ -65,7 +65,8 @@ class Backend:
             job, plan, credential, api_key=api_key, salt=salt,
             cancelled=cancelled, deadline=deadline, gate=gate)
         return QbittorrentConfiguredInstallReceipt(
-            configured, '5' * 64, 'qbittorrent_container_started')
+            configured, '5' * 64, 'qbittorrent_container_started',
+            'qbittorrent_service_verified')
 
 
 @contextmanager
@@ -117,7 +118,8 @@ def test_configured_install_roundtrip_uses_one_closed_ordered_operation():
             'a' * 32, selected, payload,
             deadline=time.monotonic() + .4, gate=lambda: True)
     assert receipt == QbittorrentConfiguredInstallReceipt(
-        backend.result, '5' * 64, 'qbittorrent_container_started')
+        backend.result, '5' * 64, 'qbittorrent_container_started',
+        'qbittorrent_service_verified')
     assert backend.install_calls == ['a' * 32]
     assert len(backend.calls) == 1
     assert backend.calls[0][:5] == (
@@ -225,4 +227,24 @@ def test_invalid_worker_receipt_is_rejected_without_private_output():
                 'a' * 32, stack(), private(),
                 deadline=time.monotonic() + .4, gate=lambda: True,
             )
+    assert CREDENTIAL not in repr(raised.value)
+
+
+def test_configured_install_requires_verified_service_receipt():
+    backend = Backend()
+
+    def unverified(*_args, **_kwargs):
+        return QbittorrentConfiguredInstallReceipt(
+            backend.result, '5' * 64, 'qbittorrent_container_started')
+
+    backend.install_configured_qbittorrent = unverified
+    with running(backend) as (_backend, client):
+        with pytest.raises(
+            QbittorrentConfigurationExecutionError,
+            match='^qbittorrent_config_result_invalid$',
+        ) as raised:
+            client.install_qbittorrent(
+                'a' * 32, stack(), private(),
+                deadline=time.monotonic() + .4, gate=lambda: True)
+    assert raised.value.uncertain_effect
     assert CREDENTIAL not in repr(raised.value)
