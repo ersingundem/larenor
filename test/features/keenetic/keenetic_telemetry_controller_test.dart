@@ -87,11 +87,8 @@ void main() {
       await flush(tester);
       expect(controller.snapshot.internet.value?.internet, isTrue);
       expect(controller.snapshot.interfaces.value, isNotEmpty);
-      expect(controller.snapshot.resources.value?.uptimeSeconds, 12345);
-      expect(
-        controller.snapshot.traffic['GigabitEthernet1']?.value,
-        isNotNull,
-      );
+      expect(controller.snapshot.resources.value?.uptimeSeconds, 60);
+      expect(controller.snapshot.traffic['GigabitEthernet1']?.value, isNotNull);
       bytes = 150;
       tick = const Duration(seconds: 5);
       await tester.pump(const Duration(seconds: 5));

@@ -205,6 +205,7 @@ class _Harness {
     await tester.tap(find.text('Network traffic'));
     await tester.pump();
   }
+
   Future<void> quality(WidgetTester tester) async {
     await tester.tap(find.text('Connection quality'));
     await tester.pump();
@@ -345,6 +346,7 @@ void main() {
         KeeneticMetricKind.connectionQuality,
       );
       expect(h.results.single.keeneticInterfaceId, 'wan');
+      expect(h.results.single.height, 3);
       expect(h.requests, 0);
       await h.close(tester);
     },
