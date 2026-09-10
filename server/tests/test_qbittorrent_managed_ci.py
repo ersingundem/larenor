@@ -180,3 +180,32 @@ def test_cli_has_no_generic_or_external_socket_mode(arguments, monkeypatch, caps
     monkeypatch.setattr(module, 'run', lambda: pytest.fail('invalid CLI ran fixture'))
     assert module.main(arguments) == 1
     assert capsys.readouterr().out == ''
+
+
+def test_static_diagnostic_phase_hides_the_original_exception():
+    module = api()
+    with pytest.raises(module.QbittorrentManagedCIError) as failure:
+        with module.diagnostic_phase('runtime_install'):
+            raise RuntimeError('private engine detail')
+    assert failure.value.args == ('qbittorrent_runtime_install_failed',)
+    assert failure.value.__cause__ is None
+    with pytest.raises(module.QbittorrentManagedCIError) as requirement:
+        with module.diagnostic_phase('resource_verify'):
+            module.require(False)
+    assert requirement.value.args == ('qbittorrent_resource_verify_failed',)
+    with pytest.raises(module.QbittorrentManagedCIError):
+        with module.diagnostic_phase('not_allowed'):
+            pass
+
+
+def test_main_prints_only_allowlisted_native_diagnostic(monkeypatch, capsys):
+    module = api()
+    monkeypatch.setattr(
+        module, 'run',
+        lambda: (_ for _ in ()).throw(
+            module.QbittorrentManagedCIError(
+                'qbittorrent_container_restart_failed')))
+    assert module.main(['--run-ephemeral-ci']) == 1
+    captured = capsys.readouterr()
+    assert captured.out == ''
+    assert captured.err == 'qbittorrent_container_restart_failed\n'

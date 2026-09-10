@@ -2,6 +2,7 @@
 """Opt-in native qBittorrent config, start, readback and restart acceptance."""
 
 from dataclasses import replace
+from contextlib import contextmanager
 import json
 import os
 from pathlib import Path
@@ -17,8 +18,43 @@ import uuid
 from tool import jellyfin_storage_smoke as smoke
 
 
+_DIAGNOSTIC_PHASES = {
+    'resource_prepare': 'qbittorrent_resource_prepare_failed',
+    'runtime_setup': 'qbittorrent_runtime_setup_failed',
+    'runtime_install': 'qbittorrent_runtime_install_failed',
+    'container_inspect': 'qbittorrent_container_inspect_failed',
+    'resource_verify': 'qbittorrent_resource_verify_failed',
+    'container_restart': 'qbittorrent_container_restart_failed',
+    'bootstrap_reverify': 'qbittorrent_bootstrap_reverify_failed',
+    'post_restart_inspect': 'qbittorrent_post_restart_inspect_failed',
+}
+_DIAGNOSTIC_CODES = frozenset({
+    'qbittorrent_characterization_evidence_invalid',
+    *_DIAGNOSTIC_PHASES.values(),
+})
+
+
 class QbittorrentManagedCIError(Exception):
     """Static native evidence failure; private Engine data never escapes."""
+
+
+@contextmanager
+def diagnostic_phase(phase):
+    """Replace private runtime failures with an allowlisted stage code."""
+    code = _DIAGNOSTIC_PHASES.get(phase)
+    if code is None:
+        raise QbittorrentManagedCIError(
+            'qbittorrent_characterization_evidence_invalid')
+    try:
+        yield
+    except QbittorrentManagedCIError as error:
+        if error.args == ('qbittorrent_characterization_evidence_invalid',):
+            raise QbittorrentManagedCIError(code) from None
+        raise
+    except smoke.SmokeError:
+        raise
+    except Exception:
+        raise QbittorrentManagedCIError(code) from None
 
 
 class _Cancelled(BaseException):
@@ -279,53 +315,61 @@ def _install_and_restart(daemon, source, endpoint, helper_id):
             require(service_id == 'qbittorrent')
             return builder(stack)
 
-        engine = smoke._managed_engine(endpoint)
-        operations = JournaledManagedContainerOperations(containers, engine)
-        backend = _RuntimeBackend(
-            operations, binding,
-            QbittorrentConfigRuntime(
-                endpoint, volumes, source.catalog, source.policy,
-                helper_id, daemon.platform))
-        receipt = backend.install_configured_qbittorrent(
-            job, source.stack, private.credential,
-            api_key=private.apiKey, salt=bytes.fromhex(private.saltHex),
-            cancelled=threading.Event(), deadline=time.monotonic() + 90,
-            gate=lambda: True)
-        require(
-            receipt.configuration.state == 'qbittorrent_config_installed'
-            and receipt.state == 'qbittorrent_container_started'
-            and receipt.service_state == 'qbittorrent_service_verified')
-        binding_value = binding(source.stack)
-        running = engine.inspect_container(receipt.container_id)
-        require(
-            managed_container_matches(running, binding_value)
-            and running.get('State', {}).get('Running') is True)
-        host = binding_value.payload()['specification']['HostConfig']
-        daemon.verify_container_resources(
-            running.get('State', {}).get('Pid'), host['Memory'],
-            host['NanoCpus'], host['PidsLimit'])
-        daemon.docker([
-            'restart', '--time=10', receipt.container_id,
-        ], timeout=30, limit=128)
-        restarted = backend.qbittorrent_bootstrap.execute(
-            job, source.stack, private,
-            deadline=time.monotonic() + 90, gate=lambda: True)
-        require(
-            restarted.state == 'verified'
-            and restarted.categories.categories
-            == (('movies', '/data/downloads/movies'),
-                ('tv', '/data/downloads/tv'))
-            and restarted.categories.completed_steps
-            == ('categories_observed', 'categories_verified')
-            and restarted.readback.state == 'verified'
-            and restarted.readback.version == 'v5.2.3')
-        running = engine.inspect_container(receipt.container_id)
-        require(
-            managed_container_matches(running, binding_value)
-            and running.get('State', {}).get('Running') is True)
-        daemon.verify_container_resources(
-            running.get('State', {}).get('Pid'), host['Memory'],
-            host['NanoCpus'], host['PidsLimit'])
+        with diagnostic_phase('runtime_setup'):
+            engine = smoke._managed_engine(endpoint)
+            operations = JournaledManagedContainerOperations(
+                containers, engine)
+            backend = _RuntimeBackend(
+                operations, binding,
+                QbittorrentConfigRuntime(
+                    endpoint, volumes, source.catalog, source.policy,
+                    helper_id, daemon.platform))
+        with diagnostic_phase('runtime_install'):
+            receipt = backend.install_configured_qbittorrent(
+                job, source.stack, private.credential,
+                api_key=private.apiKey, salt=bytes.fromhex(private.saltHex),
+                cancelled=threading.Event(), deadline=time.monotonic() + 90,
+                gate=lambda: True)
+            require(
+                receipt.configuration.state == 'qbittorrent_config_installed'
+                and receipt.state == 'qbittorrent_container_started'
+                and receipt.service_state == 'qbittorrent_service_verified')
+        with diagnostic_phase('container_inspect'):
+            binding_value = binding(source.stack)
+            running = engine.inspect_container(receipt.container_id)
+            require(
+                managed_container_matches(running, binding_value)
+                and running.get('State', {}).get('Running') is True)
+            host = binding_value.payload()['specification']['HostConfig']
+        with diagnostic_phase('resource_verify'):
+            daemon.verify_container_resources(
+                running.get('State', {}).get('Pid'), host['Memory'],
+                host['NanoCpus'], host['PidsLimit'])
+        with diagnostic_phase('container_restart'):
+            daemon.docker([
+                'restart', '--time=10', receipt.container_id,
+            ], timeout=30, limit=128)
+        with diagnostic_phase('bootstrap_reverify'):
+            restarted = backend.qbittorrent_bootstrap.execute(
+                job, source.stack, private,
+                deadline=time.monotonic() + 90, gate=lambda: True)
+            require(
+                restarted.state == 'verified'
+                and restarted.categories.categories
+                == (('movies', '/data/downloads/movies'),
+                    ('tv', '/data/downloads/tv'))
+                and restarted.categories.completed_steps
+                == ('categories_observed', 'categories_verified')
+                and restarted.readback.state == 'verified'
+                and restarted.readback.version == 'v5.2.3')
+        with diagnostic_phase('post_restart_inspect'):
+            running = engine.inspect_container(receipt.container_id)
+            require(
+                managed_container_matches(running, binding_value)
+                and running.get('State', {}).get('Running') is True)
+            daemon.verify_container_resources(
+                running.get('State', {}).get('Pid'), host['Memory'],
+                host['NanoCpus'], host['PidsLimit'])
         return receipt
 
 
@@ -336,7 +380,8 @@ def characterize(daemon, *, checkout_binding=None):
         if checkout_binding is None else checkout_binding)
     smoke.check_source(checkout_binding)
     source = fixture_source(daemon.platform)
-    endpoint, volume_states = _prepare_resources(daemon, source)
+    with diagnostic_phase('resource_prepare'):
+        endpoint, volume_states = _prepare_resources(daemon, source)
     helper_id, attestation = _build_helper(daemon, checkout_binding)
     _prepare_volumes(daemon, source, helper_id)
     receipt = _install_and_restart(
@@ -448,6 +493,9 @@ def main(arguments=None):
     except Exception as error:
         if type(error) is smoke.SmokeError:
             print(smoke.failure_diagnostic(error), file=sys.stderr)
+        elif (type(error) is QbittorrentManagedCIError
+              and error.args and error.args[0] in _DIAGNOSTIC_CODES):
+            print(error.args[0], file=sys.stderr)
         else:
             print('qbittorrent_characterization_failed', file=sys.stderr)
     return 1
