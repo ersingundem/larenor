@@ -167,6 +167,9 @@ class PrivateMusicAssistantServiceBinding(StrictModel):
     installationId: ObjectId
     installationRevision: Revision
     coreRevision: Revision
+    serviceId: ObjectId
+    serviceRevision: Revision
+    egressPolicyRevision: int = Field(ge=1, le=2**63 - 1)
     endpoint: str = Field(min_length=1, max_length=256, repr=False)
     pinnedPeer: str = Field(min_length=7, max_length=45)
     serverId: str = Field(min_length=1, max_length=128)

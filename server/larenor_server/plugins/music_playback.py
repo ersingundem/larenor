@@ -17,11 +17,13 @@ from .music_playback_models import (
     PrivateMusicAssistantServiceBinding,
     _StoredMusicPlayback, _StoredPlaybackCommand,
 )
+from .music_assistant_core import managed_music_service_id
 
 
 MAX_CIPHERTEXT = 262144
 _OP_CAPABILITY = {
-    'play': 'play', 'pause': 'pause', 'stop': 'stop',
+    'play': 'play', 'pause': 'pause', 'resume': 'play', 'stop': 'stop',
+    'seek': 'seek',
     'next': 'next_previous', 'previous': 'next_previous',
     'volume': 'volume_set', 'mute': 'volume_mute',
     'queue_add': 'queue', 'queue_replace': 'queue', 'queue_clear': 'queue',
@@ -30,9 +32,10 @@ _OP_CAPABILITY = {
 
 class MusicPlaybackManagement:
     def __init__(self, db, auth, settings, key, music_core, providers,
-                 backend=None):
+                 backend=None, component_egress=None):
         self.db, self.auth, self.settings = db, auth, settings
         self.music_core, self.providers, self.backend = music_core, providers, backend
+        self.component_egress = component_egress
         self._cipher = AESGCM(key)
 
     @staticmethod
@@ -118,11 +121,22 @@ class MusicPlaybackManagement:
                 'SELECT * FROM music_assistant_core WHERE installation_id=?',
                 (action.installationId,)).fetchone()
             stored = self.music_core._decode(row)
+            if self.component_egress is None:
+                raise ApiError('outbound_denied', 403)
+            service, policy, address, verified_version = (
+                self.component_egress.music_playback_binding(
+                    connection,
+                    managed_music_service_id(action.installationId)))
+            if (service.credentials.get('token') != authority.token
+                    or verified_version != stored.serverVersion):
+                raise ApiError('music_assistant_not_ready', 409)
             return PrivateMusicAssistantServiceBinding(
                 installationId=action.installationId,
                 installationRevision=action.installationRevision,
                 coreRevision=action.coreRevision,
-                endpoint='http://127.0.0.1:8095', pinnedPeer='127.0.0.1',
+                serviceId=service.id, serviceRevision=service.revision,
+                egressPolicyRevision=policy.revision,
+                endpoint=service.base_url, pinnedPeer=address,
                 serverId=stored.serverId, serverVersion=stored.serverVersion,
                 schemaVersion=stored.schemaVersion, token=authority.token)
 

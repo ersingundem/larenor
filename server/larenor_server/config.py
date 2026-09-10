@@ -25,6 +25,7 @@ class Settings:
     music_playback_worker_socket: Path | None = None
     music_playback_worker_uid: int = 0
     music_playback_lease_dir: Path | None = None
+    music_playback_worker_health: Path | None = None
 
     def __post_init__(self):
         if (type(self.plugin_worker_uid) is not int or not 0 <= self.plugin_worker_uid < 2**31
@@ -35,6 +36,7 @@ class Settings:
             raise ValueError("invalid_worker_configuration")
         paths = (self.plugin_worker_socket, self.installation_worker_socket,
                  self.music_playback_worker_socket, self.music_playback_lease_dir)
+        paths = (*paths, self.music_playback_worker_health)
         for path in paths:
             if path is not None and (not isinstance(path, Path) or not path.is_absolute()
                     or ".." in path.parts or any(ord(char) < 32 or ord(char) == 127 for char in str(path))):
@@ -54,6 +56,14 @@ class Settings:
     @classmethod
     def from_environment(cls) -> "Settings":
         try:
+            music_values = tuple(os.environ.get(name) for name in (
+                "LARENOR_MUSIC_PLAYBACK_WORKER_SOCKET",
+                "LARENOR_MUSIC_PLAYBACK_LEASE_DIR",
+                "LARENOR_MUSIC_PLAYBACK_WORKER_HEALTH"))
+            if ((any(music_values) and not all(music_values))
+                    or (os.environ.get("LARENOR_MUSIC_PLAYBACK_WORKER_UID")
+                        and not all(music_values))):
+                raise ValueError("invalid_worker_configuration")
             return cls(
                 data_dir=Path(os.environ.get("LARENOR_DATA_DIR", "/data")),
                 key_file=Path(os.environ.get("LARENOR_KEY_FILE", "/secrets/vault.key")),
@@ -71,6 +81,9 @@ class Settings:
                 music_playback_lease_dir=Path(
                     os.environ["LARENOR_MUSIC_PLAYBACK_LEASE_DIR"]
                 ) if os.environ.get("LARENOR_MUSIC_PLAYBACK_LEASE_DIR") else None,
+                music_playback_worker_health=Path(
+                    os.environ["LARENOR_MUSIC_PLAYBACK_WORKER_HEALTH"]
+                ) if os.environ.get("LARENOR_MUSIC_PLAYBACK_WORKER_HEALTH") else None,
             )
         except ValueError:
             # int() errors include their input. Environment values must never

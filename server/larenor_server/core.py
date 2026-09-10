@@ -43,6 +43,9 @@ from .plugins.music_target_authority_schema import migrate_music_target_authorit
 from .plugins.music_target_ipc import MusicTargetWorkerClient
 from .plugins.music_target_lease import MusicTargetCredentialLeaseStore
 from .plugins.music_target_leased_client import LeasedMusicTargetWorkerClient
+from .plugins.music_target_health import (
+    MusicTargetWorkerHealthError, MusicTargetWorkerHealthGuard,
+)
 from .plugins.preflight_ipc import PreflightWorkerClient
 from .plugins.installation_ipc import InstallationWorkerClient
 from .component_egress.storage import migrate as migrate_component_egress
@@ -270,7 +273,8 @@ class CoreServices:
                 self.music_provider_setups)
             self.music_playback = MusicPlaybackManagement(
                 self.db, self.auth, settings, key, self.music_assistant_core,
-                self.music_provider_setups, installation_backend)
+                self.music_provider_setups, installation_backend,
+                self.component_egress)
             self.music_playback.validate_storage()
             music_target_backend = (
                 None if settings.music_playback_worker_socket is None
@@ -278,14 +282,29 @@ class CoreServices:
                     settings.music_playback_worker_socket,
                     owner_uid=settings.music_playback_worker_uid))
             if (music_target_backend is not None
-                    and settings.music_playback_lease_dir is not None):
-                music_target_backend = LeasedMusicTargetWorkerClient(
-                    music_target_backend,
-                    MusicTargetCredentialLeaseStore(
-                        settings.music_playback_lease_dir, key,
-                        clock=settings.clock),
-                    self.music_playback.effect_binding,
-                    clock=settings.clock)
+                    and (settings.music_playback_lease_dir is not None
+                         or settings.music_playback_worker_health is not None)):
+                if (settings.music_playback_lease_dir is None
+                        or settings.music_playback_worker_health is None):
+                    music_target_backend = None
+                else:
+                    guard = MusicTargetWorkerHealthGuard(
+                        settings.music_playback_worker_socket,
+                        settings.music_playback_worker_health,
+                        owner_uid=settings.music_playback_worker_uid)
+                    try:
+                        health_binding = guard.bind()
+                    except MusicTargetWorkerHealthError:
+                        music_target_backend = None
+                    else:
+                        music_target_backend = LeasedMusicTargetWorkerClient(
+                            music_target_backend,
+                            MusicTargetCredentialLeaseStore(
+                                settings.music_playback_lease_dir, key,
+                                clock=settings.clock),
+                            self.music_playback.effect_binding,
+                            clock=settings.clock, health_guard=guard,
+                            health_binding=health_binding)
             self.music_target_authority = MusicTargetAuthorityManagement(
                 self.db, settings, key, self.music_playback,
                 music_target_backend)

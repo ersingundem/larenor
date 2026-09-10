@@ -63,6 +63,7 @@ def effect(operation='pause', **changes):
 def binding(endpoint='http://127.0.0.1:8095'):
     return PrivateMusicAssistantServiceBinding(
         installationId='5' * 32, installationRevision=6, coreRevision=7,
+        serviceId='7' * 32, serviceRevision=2, egressPolicyRevision=3,
         endpoint=endpoint, pinnedPeer='127.0.0.1', serverId='mass-fixture',
         serverVersion='2.8.0', schemaVersion=29,
         token='private-token-cookie')

@@ -5,6 +5,7 @@ authenticated `info` readback through the private method after creating the
 Music Assistant access token. The endpoint and token never enter an HTTP model.
 """
 
+import hashlib
 import re
 import secrets
 
@@ -13,6 +14,7 @@ from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from pydantic import ValidationError
 
 from ..errors import ApiError, StartupError
+from ..admin.service import utc
 from .music_assistant_core_models import (
     AuthenticatedMusicAssistantReadback, MusicAssistantCoreReadiness,
     _StoredMusicAssistantCore,
@@ -21,6 +23,12 @@ from .music_assistant_core_models import (
 
 MAX_RECORDS = 256
 MAX_CIPHERTEXT = 16384
+
+
+def managed_music_service_id(installation_id):
+    return hashlib.sha256(
+        ('larenor:managed-music-assistant:' + installation_id).encode('ascii')
+    ).hexdigest()[:32]
 
 
 class MusicAssistantCoreManagement:
@@ -163,6 +171,36 @@ class MusicAssistantCoreManagement:
             raise ApiError('invalid_music_assistant_readback')
         with self.db.transaction() as connection:
             self._installation(connection, installation_id, installation_revision)
+            service_id = managed_music_service_id(installation_id)
+            service_row = connection.execute(
+                'SELECT * FROM service_connections WHERE id=?',
+                (service_id,)).fetchone()
+            service_record = {
+                'name': 'Larenor Music Assistant',
+                'kind': 'music_assistant',
+                'baseUrl': 'http://127.0.0.1:8095',
+                'credentials': {'token': readback.token},
+                'verification': {
+                    'state': 'authenticated',
+                    'checkedAt': utc(self.settings.clock()),
+                    'version': readback.serverVersion}}
+            if service_row is None:
+                if connection.execute(
+                        'SELECT COUNT(*) FROM service_connections').fetchone()[0] >= 128:
+                    raise ApiError('service_limit_reached', 409)
+                self.services._save(connection, service_id, 1, service_record)
+            else:
+                saved_service = self.services._decode(service_row)
+                if (service_row['revision'] != 1
+                        or {key: saved_service[key] for key in (
+                            'name', 'kind', 'baseUrl', 'credentials')}
+                        != {key: service_record[key] for key in (
+                            'name', 'kind', 'baseUrl', 'credentials')}
+                        or saved_service['verification']['state']
+                        != 'authenticated'
+                        or saved_service['verification']['version']
+                        != readback.serverVersion):
+                    raise ApiError('music_assistant_readback_conflict', 409)
             existing = connection.execute(
                 'SELECT * FROM music_assistant_core WHERE installation_id=?',
                 (installation_id,)).fetchone()

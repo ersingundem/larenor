@@ -4,6 +4,7 @@ import argparse
 import json
 import os
 from pathlib import Path
+import re
 import secrets
 import signal
 import stat
@@ -64,16 +65,31 @@ class AtomicMusicTargetWorkerHealth:
     def __init__(self, path):
         self.path = checked_path(Path(path).absolute())
 
-    def write(self, state, attempt):
+    def write(self, state, attempt, *, socket_path=None, session_id=None):
         if state not in self._STATES or type(attempt) is not int or not 1 <= attempt <= 3:
             raise MusicTargetWorkerConfigurationError('invalid_worker_health')
         private_directory(self.path.parent)
-        body = json.dumps({
+        ready = state == 'ready' and socket_path is not None and session_id is not None
+        value = {
             'schemaVersion': 1,
             'component': 'music_target_effect_worker',
             'state': state, 'attempt': attempt,
-            'effectAvailable': False, 'installAvailable': False,
-        }, sort_keys=True, separators=(',', ':')).encode('ascii')
+            'effectAvailable': ready, 'installAvailable': False,
+        }
+        if ready:
+            try:
+                info = Path(socket_path).lstat()
+                if (not stat.S_ISSOCK(info.st_mode)
+                        or type(session_id) is not str
+                        or re.fullmatch(r'[0-9a-f]{32}', session_id) is None):
+                    raise ValueError()
+                value.update({
+                    'sessionId': session_id, 'socketDevice': info.st_dev,
+                    'socketInode': info.st_ino, 'socketUid': info.st_uid})
+            except Exception:
+                raise MusicTargetWorkerConfigurationError(
+                    'invalid_worker_health') from None
+        body = json.dumps(value, sort_keys=True, separators=(',', ':')).encode('ascii')
         temporary = self.path.parent / (
             '.' + self.path.name + '.' + secrets.token_hex(12))
         descriptor = None
@@ -106,6 +122,7 @@ class AtomicMusicTargetWorkerHealth:
 class MusicTargetWorkerSession:
     def __init__(self, worker):
         self.worker = worker
+        self.session_id = secrets.token_hex(16)
 
     def start(self):
         self.worker.start()
@@ -149,7 +166,13 @@ class BoundedMusicTargetWorkerSupervisor:
                 self.health.write('starting', attempt)
                 session = self.factory()
                 session.start()
-                self.health.write('ready', attempt)
+                if (hasattr(session, 'worker')
+                        and hasattr(session, 'session_id')):
+                    self.health.write(
+                        'ready', attempt, socket_path=session.worker.path,
+                        session_id=session.session_id)
+                else:
+                    self.health.write('ready', attempt)
                 session.wait(stop)
                 if not stop.is_set():
                     raise RuntimeError('worker_unavailable')

@@ -1,0 +1,59 @@
+{
+  "services": {
+    "larenor-music-target-worker": {
+      "image": "${LARENOR_CORE_IMAGE:?set a digest-pinned Larenor Core image}",
+      "container_name": "larenor-music-target-worker",
+      "user": "10001:10001",
+      "network_mode": "service:larenor-server",
+      "read_only": true,
+      "restart": "unless-stopped",
+      "stop_grace_period": "10s",
+      "cap_drop": ["ALL"],
+      "security_opt": ["no-new-privileges:true"],
+      "environment": {},
+      "entrypoint": ["/opt/larenor/.venv/bin/larenor-music-target-worker"],
+      "command": [
+        "--socket", "/run/larenor/music-target.sock",
+        "--lease-dir", "/run/larenor/leases",
+        "--lease-key-file", "/secrets/vault.key",
+        "--health-receipt", "/run/larenor/music-target-health.json",
+        "--api-uid", "10001"
+      ],
+      "volumes": [
+        {
+          "type": "bind",
+          "source": "/var/lib/larenor-server/run",
+          "target": "/run/larenor",
+          "bind": {"create_host_path": false}
+        },
+        {
+          "type": "bind",
+          "source": "/var/lib/larenor-server/secrets/vault.key",
+          "target": "/secrets/vault.key",
+          "read_only": true,
+          "bind": {"create_host_path": false}
+        }
+      ],
+      "tmpfs": ["/tmp:rw,noexec,nosuid,nodev,size=16m"],
+      "healthcheck": {
+        "test": [
+          "CMD", "python", "-c",
+          "import json,pathlib;v=json.loads(pathlib.Path('/run/larenor/music-target-health.json').read_text());assert v.get('state')=='ready' and v.get('effectAvailable') is True and v.get('installAvailable') is False"
+        ],
+        "interval": "30s",
+        "timeout": "3s",
+        "retries": 3
+      },
+      "logging": {
+        "driver": "json-file",
+        "options": {"max-size": "5m", "max-file": "2"}
+      }
+    }
+  },
+  "x-larenor-core-environment": {
+    "LARENOR_MUSIC_PLAYBACK_WORKER_SOCKET": "/run/larenor/music-target.sock",
+    "LARENOR_MUSIC_PLAYBACK_WORKER_UID": "10001",
+    "LARENOR_MUSIC_PLAYBACK_LEASE_DIR": "/run/larenor/leases",
+    "LARENOR_MUSIC_PLAYBACK_WORKER_HEALTH": "/run/larenor/music-target-health.json"
+  }
+}

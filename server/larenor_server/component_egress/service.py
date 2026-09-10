@@ -26,14 +26,20 @@ class ComponentEgress:
 
     def _connection(self, c, service_id, revision=None):
         row, record = self.services._record(c, service_id, revision)
-        if record['kind'] != 'home_assistant':
+        if record['kind'] not in {'home_assistant', 'music_assistant'}:
             raise ApiError('not_found', 404)
         return self.services._private(row, record)
 
     @staticmethod
     def _policy(state, connection):
         return next((p for p in state.policies if p.serviceId == connection.id),
-                    Policy(serviceId=connection.id, serviceRevision=connection.revision, revision=0, grants=[]))
+                    Policy(
+                        component=('music_assistant_playback'
+                                   if connection.kind == 'music_assistant'
+                                   else 'home_assistant_probe'),
+                        serviceId=connection.id,
+                        serviceRevision=connection.revision, revision=0,
+                        grants=[]))
 
     @staticmethod
     def _matches(policy, connection):
@@ -69,8 +75,13 @@ class ComponentEgress:
             if old.revision != body.expectedRevision:
                 raise ApiError('revision_conflict', 409)
             policy = Policy(serviceId=service_id, serviceRevision=connection.revision,
-                            revision=old.revision + 1, grants=body.grants)
+                            revision=old.revision + 1, grants=body.grants,
+                            component=old.component)
             if policy.grants and not self._matches(policy, connection):
+                raise ApiError('invalid_request')
+            if (connection.kind == 'home_assistant' and policy.grants
+                    and any(address.network == 'loopback'
+                            for address in policy.grants[0].addresses)):
                 raise ApiError('invalid_request')
             # Explicit edits may retire only grants for deleted service metadata.
             live = {r[0] for r in c.execute('SELECT id FROM service_connections LIMIT 129')}
@@ -92,6 +103,42 @@ class ComponentEgress:
         if denied:
             raise ApiError('outbound_denied', 403)
         return _Lease(self, actor, connection, policy, correlation)
+
+    def music_playback_binding(self, connection, service_id=None):
+        """Resolve one authenticated MA service and its exact current policy."""
+        try:
+            rows = connection.execute(
+                'SELECT * FROM service_connections ORDER BY id LIMIT 129'
+            ).fetchall()
+            if len(rows) > 128:
+                raise ValueError()
+            matches = []
+            for row in rows:
+                record = self.services._decode(row)
+                if (record['kind'] == 'music_assistant'
+                        and (service_id is None or row['id'] == service_id)):
+                    matches.append((row, record))
+            if len(matches) != 1:
+                raise ValueError()
+            row, record = matches[0]
+            if (record['verification']['state'] != 'authenticated'
+                    or set(record['credentials']) != {'token'}):
+                raise ValueError()
+            current = self.services._private(row, record)
+            state = storage.load(connection, self.key, self.scope)
+            policy = self._policy(state, current)
+            if (policy.component != 'music_assistant_playback'
+                    or not self._matches(policy, current)
+                    or len(policy.grants) != 1
+                    or len(policy.grants[0].addresses) != 1):
+                raise ValueError()
+            address = policy.grants[0].addresses[0].address
+            parsed = urlsplit(current.base_url)
+            if parsed.hostname != address:
+                raise ValueError()
+            return current, policy, address, record['verification']['version']
+        except Exception:
+            raise ApiError('outbound_denied', 403) from None
 
 
 class _Lease:

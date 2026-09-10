@@ -16,8 +16,11 @@ def address_network(value):
     ip = ipaddress.ip_address(value)
     if str(ip) != value or '%' in value or getattr(ip, 'ipv4_mapped', None):
         raise ValueError('invalid_address')
-    # Never grant local Core, link-local/cloud metadata, transition or special ranges.
-    if (ip.is_loopback or ip.is_link_local or ip.is_multicast or ip.is_unspecified
+    if ip.is_loopback:
+        return 'loopback'
+    # Loopback is classified explicitly and only the managed music component
+    # may accept it; link-local/cloud metadata and special ranges stay denied.
+    if (ip.is_link_local or ip.is_multicast or ip.is_unspecified
             or ip.is_reserved or value == 'fd00:ec2::254'
             or ip.version == 6 and (ip in ipaddress.ip_network('2002::/16') or
                                    ip in ipaddress.ip_network('2001::/32'))):
@@ -31,7 +34,7 @@ def address_network(value):
 
 class Address(StrictModel):
     address: str = Field(min_length=1, max_length=45)
-    network: Literal['public', 'lan']
+    network: Literal['public', 'lan', 'loopback']
 
     @model_validator(mode='after')
     def valid(self):
@@ -63,7 +66,9 @@ class Grant(StrictModel):
 
 
 class Policy(StrictModel):
-    component: Literal['home_assistant_probe'] = 'home_assistant_probe'
+    component: Literal[
+        'home_assistant_probe', 'music_assistant_playback'
+    ] = 'home_assistant_probe'
     serviceId: ObjectId
     serviceRevision: Revision
     revision: int = Field(ge=0, le=2**63-1)
