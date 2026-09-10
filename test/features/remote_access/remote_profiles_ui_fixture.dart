@@ -11,6 +11,8 @@ import 'package:larenor/core/theme.dart';
 import 'package:larenor/core/window/window_policy_models.dart';
 import 'package:larenor/core/window/window_policy_providers.dart';
 import 'package:larenor/features/remote_access/data/remote_profiles.dart';
+import 'package:larenor/features/remote_access/ssh/ssh_engine.dart';
+import 'package:larenor/features/remote_access/ssh/ssh_terminal_panel.dart';
 import 'package:larenor/features/settings/presentation/settings_gate_screen.dart';
 import 'package:larenor/l10n/generated/app_localizations.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -48,6 +50,7 @@ class RemoteUi {
     double scale = 1,
     String locale = 'en',
     bool pin = false,
+    SshEngine Function()? sshEngine,
   }) async {
     SharedPreferences.setMockInitialValues({});
     if (pin) values['settings_pin'] = '1234';
@@ -106,6 +109,7 @@ class RemoteUi {
     await t.pumpWidget(
       ProviderScope(
         overrides: [
+          if(sshEngine!=null) sshEngineFactoryProvider.overrideWithValue(sshEngine),
           windowPolicySnapshotProvider.overrideWith((ref) async* {
             yield const WindowPolicySnapshot();
             yield* windows.stream;
