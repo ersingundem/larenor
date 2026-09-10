@@ -9,7 +9,7 @@ from conftest import auth
 from larenor_server.app import create_app
 from larenor_server.errors import ApiError
 from larenor_server.plugins.music_provider_setup_models import (
-    ProviderSetupDiscovery, ProviderSetupEntry,
+    ProviderSetupDiscovery, ProviderSetupEntry, ProviderSetupWorkerResult,
 )
 from test_music_assistant_core_wiring import (
     authenticated_peer, installed, readback,
@@ -195,3 +195,100 @@ def test_public_api_never_accepts_provider_credentials_or_completes_interaction(
         'expectedInstallationRevision': setup['installationRevision'],
         'providerDomain': 'ytmusic', 'cookie': secret})
     assert response.status_code == 400 and secret not in response.text
+
+
+class ProviderWorker:
+    def __init__(self, result):
+        self.result = result
+        self.calls = []
+
+    def execute_music_provider_setup(self, action, *, deadline, gate):
+        assert gate() is True
+        self.calls.append(action)
+        return self.result
+
+
+def test_validated_form_submission_crosses_private_worker_and_finishes_only_after_readback(server):
+    app, client, _, _ = server
+    pair, setup = create_setup(server, 'ytmusic')
+    discovered = app.state.core.music_provider_setups.record_initial_discovery(
+        setup['id'], setup['revision'], form('ytmusic', 'user', [
+            ProviderSetupEntry(key='username', type='string', required=True),
+            ProviderSetupEntry(key='cookie', type='secure_string', required=True),
+            ProviderSetupEntry(key='po_token_server_url', type='string', required=True),
+        ]))
+    worker = ProviderWorker(ProviderSetupWorkerResult(
+        state='ready', providerDomain='ytmusic', providerInstanceId='ytmusic--fixture'))
+    app.state.core.music_provider_setups.backend = worker
+    secret = 'SAPISID=private-youtube-cookie'
+    response = client.post(BASE + '/' + setup['id'] + '/responses', headers=auth(pair), json={
+        'expectedRevision': discovered['revision'], 'stepId': 'user',
+        'values': {'username': 'family', 'cookie': secret,
+                   'po_token_server_url': 'http://127.0.0.1:8096'},
+    })
+    assert response.status_code == 200, response.text
+    final = response.json()['setup']
+    assert final['state'] == 'ready' and final['nextAction'] == 'none'
+    assert final['providerInstanceId'] == 'ytmusic--fixture'
+    assert final['installAvailable'] is False
+    assert worker.calls[0].command == 'submit'
+    assert worker.calls[0].values['cookie'] == secret
+    assert 'private-mass-token' not in repr(worker.calls[0])
+    encoded = json.dumps(response.json())
+    assert secret not in encoded and FLOW not in encoded
+    with app.state.core.db.connection() as connection:
+        dump = '\n'.join(connection.iterdump())
+    assert secret not in dump and FLOW not in dump
+
+
+def test_form_submission_rejects_wrong_fields_and_stale_or_expired_flow_without_worker(server):
+    app, client, _, clock = server
+    pair, setup = create_setup(server, 'apple_music')
+    discovered = app.state.core.music_provider_setups.record_initial_discovery(
+        setup['id'], 1, form('apple_music', 'app_token', [
+            ProviderSetupEntry(key='music_app_token', type='secure_string', required=True)]))
+    worker = ProviderWorker(ProviderSetupWorkerResult(
+        state='ready', providerDomain='apple_music', providerInstanceId='apple_music--fixture'))
+    app.state.core.music_provider_setups.backend = worker
+    for body in [
+        {'expectedRevision': discovered['revision'], 'stepId': 'wrong',
+         'values': {'music_app_token': 'secret'}},
+        {'expectedRevision': discovered['revision'], 'stepId': 'app_token',
+         'values': {'music_app_token': 'secret', 'extra': 'no'}},
+        {'expectedRevision': 1, 'stepId': 'app_token',
+         'values': {'music_app_token': 'secret'}},
+    ]:
+        response = client.post(BASE + '/' + setup['id'] + '/responses',
+                               headers=auth(pair), json=body)
+        assert response.status_code in (400, 409)
+    clock.now = 1788610201
+    response = client.post(BASE + '/' + setup['id'] + '/responses', headers=auth(pair), json={
+        'expectedRevision': discovered['revision'], 'stepId': 'app_token',
+        'values': {'music_app_token': 'secret'}})
+    assert response.status_code == 409
+    assert response.json()['error']['code'] == 'music_provider_setup_expired'
+    assert worker.calls == []
+
+
+def test_external_callback_resume_and_explicit_cancel_are_revision_bound(server):
+    app, client, _, _ = server
+    pair, setup = create_setup(server)
+    discovered = app.state.core.music_provider_setups.record_initial_discovery(
+        setup['id'], 1, external('spotify'))
+    worker = ProviderWorker(ProviderSetupWorkerResult(
+        state='ready', providerDomain='spotify', providerInstanceId='spotify--fixture'))
+    app.state.core.music_provider_setups.backend = worker
+    response = client.post(BASE + '/' + setup['id'] + '/resume', headers=auth(pair), json={
+        'expectedRevision': discovered['revision']})
+    assert response.status_code == 200
+    assert worker.calls[0].command == 'resume'
+
+    _pair2, pending = create_setup(server, 'spotify', request='b' * 32)
+    response = client.post(BASE + '/' + pending['id'] + '/cancel', headers=auth(pair), json={
+        'expectedRevision': pending['revision']})
+    assert response.status_code == 200
+    assert response.json()['setup']['state'] == 'cancelled'
+    assert response.json()['setup']['nextAction'] == 'none'
+    stale = client.post(BASE + '/' + pending['id'] + '/cancel', headers=auth(pair), json={
+        'expectedRevision': pending['revision']})
+    assert stale.status_code == 409
