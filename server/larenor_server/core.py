@@ -37,6 +37,7 @@ from .plugins.music_provider_setup_schema import migrate_music_provider_setups
 from .plugins.music_provider_setups import MusicProviderSetupManagement
 from .plugins.music_playback_schema import migrate_music_playback
 from .plugins.music_playback import MusicPlaybackManagement
+from .plugins.music_retained_status import MusicRetainedStatusManagement
 from .plugins.preflight_ipc import PreflightWorkerClient
 from .plugins.installation_ipc import InstallationWorkerClient
 from .component_egress.storage import migrate as migrate_component_egress
@@ -258,6 +259,9 @@ class CoreServices:
                 self.db, self.auth, settings, key, self.media_installations,
                 self.music_assistant_core, installation_backend)
             self.music_provider_setups.validate_storage()
+            self.music_retained_status = MusicRetainedStatusManagement(
+                self.db, self.media_installations, self.music_assistant_core,
+                self.music_provider_setups)
             self.music_playback = MusicPlaybackManagement(
                 self.db, self.auth, settings, key, self.music_assistant_core,
                 self.music_provider_setups, installation_backend)
