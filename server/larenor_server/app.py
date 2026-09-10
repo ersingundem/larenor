@@ -45,6 +45,7 @@ from .plugins.music_playback_api import router as music_playback_router
 from .bounded_transfer.api import router as bounded_transfer_router
 from .bounded_transfer.models import TransferLimits
 from .bounded_transfer.service import BlobProvider
+from .proxmox_commands.api import router as proxmox_power_router
 
 
 Core = Annotated[CoreServices, Depends(get_core)]
@@ -56,7 +57,9 @@ Admin = Annotated[Principal, Depends(require_admin)]
 def create_app(settings: Settings, *, routers: Iterable[APIRouter] = (),
                source: SourceInformation | None = None,
                blob_provider: BlobProvider | None = None,
-               transfer_limits: TransferLimits | None = None) -> FastAPI:
+               transfer_limits: TransferLimits | None = None,
+               proxmox_guest_provider=None,
+               proxmox_power_executor=None) -> FastAPI:
     source = source or SourceInformation.from_environment()
     @asynccontextmanager
     async def lifespan(application):
@@ -105,6 +108,7 @@ def create_app(settings: Settings, *, routers: Iterable[APIRouter] = (),
             application.state.core.proxmox.close()
             application.state.core.keenetic_resources.close()
             application.state.core.direct_ha_migration.close()
+            application.state.core.proxmox_power.close()
             if task is not None:
                 # Worker IPC has one bounded deadline. Do not cancel its DB
                 # receipt write or release a dispatch lock before it unwinds.
@@ -126,7 +130,9 @@ def create_app(settings: Settings, *, routers: Iterable[APIRouter] = (),
                   license_info={"name": "GNU Affero General Public License v3.0 only",
                                 "identifier": "AGPL-3.0-only"})
     app.state.core = CoreServices(
-        settings, blob_provider=blob_provider, transfer_limits=transfer_limits)
+        settings, blob_provider=blob_provider, transfer_limits=transfer_limits,
+        proxmox_guest_provider=proxmox_guest_provider,
+        proxmox_power_executor=proxmox_power_executor)
     app.state.plugin_job_dispatcher = None
     app.state.media_inspection_dispatcher = None
     app.state.media_installation_dispatcher = None
@@ -238,6 +244,7 @@ def create_app(settings: Settings, *, routers: Iterable[APIRouter] = (),
     app.include_router(music_assistant_core_router, prefix="/api/v1")
     app.include_router(music_provider_setup_router, prefix="/api/v1")
     app.include_router(music_playback_router, prefix="/api/v1")
+    app.include_router(proxmox_power_router, prefix="/api/v1")
     for extension in routers:
         # Only routers supplied by trusted, packaged server code are supported.
         app.include_router(extension, prefix="/api/v1")
