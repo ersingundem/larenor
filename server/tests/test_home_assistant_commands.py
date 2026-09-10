@@ -215,7 +215,7 @@ def test_lost_read_authority_after_dispatch_hides_response_but_keeps_admin_recei
     assert ha.command_calls == 1
 
 
-def test_v1_binding_storage_migrates_to_v2_without_losing_the_binding(server, ha):
+def test_v1_binding_storage_migrates_to_v3_without_losing_the_binding(server, ha):
     app, client, admin, record, _, base, public, body = setup(server, ha)
     _, binding = bind(client, admin, base, body)
     with app.state.core.db.transaction() as c:
@@ -227,7 +227,7 @@ def test_v1_binding_storage_migrates_to_v2_without_losing_the_binding(server, ha
 
     restarted = create_app(server[2])
     with restarted.state.core.db.connection() as c:
-        assert c.execute("SELECT value FROM metadata WHERE key='home_assistant_schema'").fetchone()[0] == '2'
+        assert c.execute("SELECT value FROM metadata WHERE key='home_assistant_schema'").fetchone()[0] == '3'
         assert c.execute('SELECT COUNT(*) FROM home_assistant_bindings').fetchone()[0] == 1
         assert c.execute('SELECT COUNT(*) FROM home_assistant_commands').fetchone()[0] == 0
     assert restarted.state.core.home_assistant.binding(
