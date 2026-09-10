@@ -24,12 +24,32 @@ Core control-network journal in the same transaction so the common stack plan
 and resource journals remain one authority; Music Assistant is not attached to
 that network by this slice.
 
+## Authenticated readiness and automatic peer wiring
+
+Larenor Core now has a private worker handoff for an authenticated Music
+Assistant `info` readback. The worker supplies the access token and verified
+identity directly to Core; neither value is accepted by the admin HTTP API.
+Core encrypts the complete readback with installation and record revisions in
+the AEAD associated data. Its public, read-only readiness route returns only the
+server/schema versions and revision-bound references to the selected peers.
+
+Peer discovery selects exactly one authenticated Home Assistant record and one
+authenticated Jellyfin record from Larenor's encrypted service store. Missing,
+unverified, or ambiguous peers block the handoff. Later changes to either
+service revision or to the managed Music Assistant installation change the
+readiness state to `needs_attention`; the old credential is never copied into a
+receipt, log, URL, or response. Users are therefore not asked to copy an
+endpoint or token between Larenor-managed components.
+
 ## Remaining acceptance boundary
 
 - Provider setup for Spotify, Apple Music, and YouTube Music is not automated.
-- Home Assistant, Jellyfin, and player-provider auto-wiring is not implemented.
-- Music Assistant health/readiness, authenticated API readback, and upgrade
-  reconciliation are not part of the container-started receipt.
+- Player/provider registration and the worker operation that creates the first
+  Music Assistant access token are not implemented. The authenticated handoff
+  and automatic Home Assistant/Jellyfin peer selection are ready for that
+  operation.
+- Active health polling and upgrade reconciliation are not part of the
+  container-started receipt.
 - HomePod/AirPlay, Chromecast, and lock-screen playback require real-device
   acceptance before `installAvailable` may become true.
 - CasaOS and Proxmox packaging still consume the existing deployment path; this
