@@ -26,10 +26,7 @@ void main() {
     );
     expect(available.canConnect, isTrue);
     expect(available.supportedVersions, {RfbProtocolVersion.v38});
-    expect(
-      available.supportedSecurity,
-      {RfbSecurityType.vencryptTlsVncAuth},
-    );
+    expect(available.supportedSecurity, {RfbSecurityType.vencryptTlsVncAuth});
     expect(unavailable.canConnect, isFalse);
     expect(unavailable.engineRevision, isNull);
     expect(
@@ -49,14 +46,8 @@ void main() {
 
     final invalid = Map<String, dynamic>.from(
       fixture()['secureNegotiation'] as Map,
-    )..['certificate'] = {
-        'algorithm': 'sha1',
-        'fingerprint': 'secret',
-      };
-    expect(
-      () => RfbNegotiation.fromJson(invalid),
-      throwsA(isA<VncFailure>()),
-    );
+    )..['certificate'] = {'algorithm': 'sha1', 'fingerprint': 'secret'};
+    expect(() => RfbNegotiation.fromJson(invalid), throwsA(isA<VncFailure>()));
   });
 
   test('plain VNC and no-auth negotiation are rejected by default', () {
@@ -71,14 +62,14 @@ void main() {
         ),
       ),
     );
-    final noAuth = Map<String, dynamic>.from(
-      fixture()['plainNegotiation'] as Map,
-    )
-      ..['securityType'] = 'none'
-      ..['requiresPassword'] = false;
+    final noAuth =
+        Map<String, dynamic>.from(fixture()['plainNegotiation'] as Map)
+          ..['securityType'] = 'none'
+          ..['requiresPassword'] = false;
     expect(
-      () => RfbNegotiation.fromJson(noAuth)
-          .validate(VncTransportPolicy.lockedDown),
+      () =>
+          RfbNegotiation.fromJson(noAuth)
+              .validate(VncTransportPolicy.lockedDown),
       throwsA(isA<VncFailure>()),
     );
   });
