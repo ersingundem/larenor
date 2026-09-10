@@ -313,6 +313,7 @@ class KeeneticRciTransport:
         connector=None,
         cnonce_factory=None,
         allow_loopback_fixture=False,
+        allowed_addresses=None,
     ):
         self._services = services
         self._actor = actor
@@ -321,6 +322,9 @@ class KeeneticRciTransport:
         self._connector = connector
         self._cnonce = cnonce_factory or (lambda: secrets.token_hex(16))
         self._fixture = allow_loopback_fixture is True
+        self._allowed_addresses = (
+            None if allowed_addresses is None else frozenset(allowed_addresses)
+        )
 
     def __repr__(self):
         return "KeeneticRciTransport(<private>)"
@@ -375,9 +379,14 @@ class KeeneticRciTransport:
 
         pinned = _PinnedResolver(self._resolver)
         def guard(address):
-            return keenetic_lan_address(
+            keenetic_lan_address(
                 address, allow_loopback_fixture=self._fixture
             )
+            if (
+                self._allowed_addresses is not None
+                and address not in self._allowed_addresses
+            ):
+                raise ProbeTransportError("address_blocked")
         transport = None
         posted = False
         try:
@@ -507,7 +516,9 @@ class LeasedKeeneticRciTransport:
                         return connection
 
                 direct = KeeneticRciTransport(
-                    OneConnection(), None, **self._options
+                    OneConnection(), None,
+                    allowed_addresses=leased.allowed_addresses,
+                    **self._options,
                 )
                 return direct(
                     command.model_copy(update={"credentialLease": None}),

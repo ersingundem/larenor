@@ -26,19 +26,35 @@ class ComponentEgress:
 
     def _connection(self, c, service_id, revision=None):
         row, record = self.services._record(c, service_id, revision)
-        if record['kind'] != 'home_assistant':
+        if record['kind'] not in {'home_assistant', 'keenetic'}:
             raise ApiError('not_found', 404)
         return self.services._private(row, record)
 
     @staticmethod
-    def _policy(state, connection):
-        return next((p for p in state.policies if p.serviceId == connection.id),
-                    Policy(serviceId=connection.id, serviceRevision=connection.revision, revision=0, grants=[]))
+    def _component(connection):
+        return (
+            'home_assistant_probe'
+            if connection.kind == 'home_assistant'
+            else 'keenetic_command_worker'
+        )
 
-    @staticmethod
-    def _matches(policy, connection):
+    @classmethod
+    def _policy(cls, state, connection):
+        component = cls._component(connection)
+        return next(
+            (p for p in state.policies
+             if p.serviceId == connection.id and p.component == component),
+            Policy(
+                component=component, serviceId=connection.id,
+                serviceRevision=connection.revision, revision=0, grants=[]
+            ),
+        )
+
+    @classmethod
+    def _matches(cls, policy, connection):
         parsed = urlsplit(connection.base_url)
-        return (policy.serviceRevision == connection.revision and len(policy.grants) == 1 and
+        return (policy.component == cls._component(connection) and
+                policy.serviceRevision == connection.revision and len(policy.grants) == 1 and
                 (policy.grants[0].scheme, policy.grants[0].host, policy.grants[0].port) ==
                 (parsed.scheme, parsed.hostname, parsed.port or (443 if parsed.scheme == 'https' else 80)))
 
@@ -68,8 +84,11 @@ class ComponentEgress:
             old = self._policy(state, connection)
             if old.revision != body.expectedRevision:
                 raise ApiError('revision_conflict', 409)
-            policy = Policy(serviceId=service_id, serviceRevision=connection.revision,
-                            revision=old.revision + 1, grants=body.grants)
+            policy = Policy(
+                component=self._component(connection),
+                serviceId=service_id, serviceRevision=connection.revision,
+                revision=old.revision + 1, grants=body.grants
+            )
             if policy.grants and not self._matches(policy, connection):
                 raise ApiError('invalid_request')
             # Explicit edits may retire only grants for deleted service metadata.
@@ -79,6 +98,16 @@ class ComponentEgress:
             state.policies = [p for p in state.policies if p.serviceId in live and p.serviceId != service_id] + [policy]
             self._event(c, state, actor, policy, uuid.uuid4().hex, 'policy_replaced')
             return self._response(state, policy)
+
+    def check_component(self, actor, service_id, revision, component):
+        if component not in {'home_assistant_probe', 'keenetic_command_worker'}:
+            raise ApiError('outbound_denied', 403)
+        with self._tx(actor) as (c, state):
+            current = self._connection(c, service_id, revision)
+            policy = self._policy(state, current)
+            if policy.component != component or not self._matches(policy, current):
+                raise ApiError('outbound_denied', 403)
+            return policy
 
     def begin(self, actor, connection):
         denied = False

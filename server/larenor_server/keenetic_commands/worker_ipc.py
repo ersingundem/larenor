@@ -116,7 +116,9 @@ class KeeneticCommandWorkerClient:
 class LeasedKeeneticCommandWorkerClient:
     """Issue one encrypted service lease only after Core's actor guard passes."""
 
-    def __init__(self, client, issuer, *, worker_id, ttl_seconds=10):
+    def __init__(
+        self, client, issuer, *, worker_id, ttl_seconds=10, egress=None
+    ):
         if (
             not isinstance(client, KeeneticCommandWorkerClient)
             or not isinstance(worker_id, str)
@@ -130,17 +132,22 @@ class LeasedKeeneticCommandWorkerClient:
         self._issuer = issuer
         self._worker_id = worker_id
         self._ttl = ttl_seconds
+        self._egress = egress
 
     def __repr__(self):
         return "LeasedKeeneticCommandWorkerClient(<private>)"
 
     def execute_for_actor(self, actor, request, guard):
         guard()
+        if not callable(self._egress):
+            raise KeeneticEffectError("keenetic_effect_unavailable")
+        addresses = self._egress(actor, request.target)
         lease = self._issuer.issue(
             actor,
             request.target,
             worker_id=self._worker_id,
             ttl_seconds=self._ttl,
+            allowed_addresses=addresses,
         )
         command = KeeneticWorkerCommand.from_request(
             request,

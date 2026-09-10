@@ -210,7 +210,8 @@ def test_container_package_is_non_networked_bounded_and_health_checked():
     )["services"]["larenor-keenetic-worker"]
     assert "USER 10001:10001" in dockerfile
     assert "HEALTHCHECK" in dockerfile and "STOPSIGNAL SIGTERM" in dockerfile
-    assert compose["network_mode"] == "none"
+    assert compose["networks"] == ["keenetic-rci-egress"]
+    assert "ports" not in compose and "expose" not in compose
     assert compose["read_only"] is True
     assert compose["restart"] == "on-failure:3"
     assert compose["cap_drop"] == ["ALL"]

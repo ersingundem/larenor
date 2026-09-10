@@ -516,3 +516,23 @@ def test_tls_and_auth_failures_never_disclose_service_secret():
         public = str(caught.value) + repr(caught.value) + repr(factory.responses)
         assert SECRET not in public
         assert len([entry for entry in factory.calls if entry[0] in {"GET", "POST"}]) == 1
+
+
+def test_component_egress_address_pins_are_enforced_by_transport_guard():
+    current = state(target="WifiMaster0/AccessPoint1")
+    factory = ScriptFactory([challenge(), ok(current, "enabled")])
+    transport = KeeneticRciTransport(
+        Services(binding()),
+        Actor(),
+        transport_factory=factory,
+        allowed_addresses=("192.168.1.1",),
+    )
+    assert transport(
+        command(target=current),
+        deadline=time.monotonic() + 1,
+        cancelled=lambda: False,
+    ).value == "enabled"
+    guard = factory.calls[0][2]["address_guard"]
+    assert guard("192.168.1.1") is None
+    with pytest.raises(ProbeTransportError, match="^address_blocked$"):
+        guard("192.168.1.2")
