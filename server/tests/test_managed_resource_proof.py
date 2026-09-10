@@ -235,3 +235,24 @@ def test_stale_bootstrap_or_different_engine_never_produces_a_proof(tmp_path):
         with pytest.raises(ManagedContainerError, match='^resources_unavailable$') as error:
             broker(data[3], data[4], data[5])
         assert 'revision' not in repr(error.value)
+
+
+def test_broker_reports_only_the_failed_proof_stage(tmp_path):
+    data = source('qbittorrent')
+    endpoint = object()
+    readers = Readers(data, endpoint)
+    readers.verify_bootstrap = lambda *_args, **_kwargs: (_ for _ in ()).throw(
+        RuntimeError('private helper failure'))
+    with ResourceJournal(tmp_path / 'resources', initialize=True) as resource_journal, \
+            VolumeCreateJournal(tmp_path / 'volumes', initialize=True) as volume_journal:
+        populate(resource_journal, volume_journal, data, 'qbittorrent')
+        broker = JellyfinResourceProofBroker(
+            data[1], data[0], data[2], resource_journal, volume_journal,
+            readers, engine_identity=endpoint, service_id='qbittorrent')
+        with pytest.raises(
+                ManagedContainerError,
+                match='^resources_unavailable$') as error:
+            broker(data[3], data[4], data[5])
+
+    assert error.value.cause_code == 'resource_proof_volume_bootstrap_failed'
+    assert 'private' not in repr(error.value)

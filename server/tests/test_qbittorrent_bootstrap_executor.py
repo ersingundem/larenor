@@ -226,6 +226,29 @@ def test_binding_failure_preserves_only_static_cause(
     assert not raised.value.uncertain_effect
 
 
+def test_binding_proof_failure_preserves_only_static_proof_stage(
+        prepared):
+    stack, _binding, _engine, operations = prepared
+    failed = QbittorrentBootstrapExecutor(
+        operations,
+        lambda *_args: (_ for _ in ()).throw(ManagedContainerError(
+            'resources_unavailable',
+            cause_code='resource_proof_volume_bootstrap_failed')),
+        QbittorrentManagedCategories(), QbittorrentAuthenticatedReadback())
+
+    with pytest.raises(
+            QbittorrentBootstrapExecutionError,
+            match='^qbittorrent_bootstrap_resources_unavailable$') as raised:
+        failed.execute(
+            JOB, stack, private(), deadline=time.monotonic() + 10,
+            gate=lambda: True)
+
+    assert raised.value.boundary == 'before_connect'
+    assert raised.value.cause_code == (
+        'qbittorrent_bootstrap_proof_volume_bootstrap_failed')
+    assert not raised.value.uncertain_effect
+
+
 def test_category_failure_preserves_static_cause_without_readback(
         prepared, monkeypatch):
     stack, binding, engine, operations = prepared

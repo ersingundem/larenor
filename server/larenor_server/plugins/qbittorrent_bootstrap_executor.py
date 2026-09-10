@@ -66,6 +66,15 @@ _CAUSE_CODES = frozenset({
     'qbittorrent_bootstrap_binding_invalid_installation_plan',
     'qbittorrent_bootstrap_binding_resources_unavailable',
     'qbittorrent_bootstrap_binding_resources_untrusted',
+    'qbittorrent_bootstrap_proof_plan_failed',
+    'qbittorrent_bootstrap_proof_journal_bind_failed',
+    'qbittorrent_bootstrap_proof_image_observation_failed',
+    'qbittorrent_bootstrap_proof_volume_observation_failed',
+    'qbittorrent_bootstrap_proof_volume_bootstrap_failed',
+    'qbittorrent_bootstrap_proof_network_list_failed',
+    'qbittorrent_bootstrap_proof_network_observation_failed',
+    'qbittorrent_bootstrap_proof_journal_rebind_failed',
+    'qbittorrent_bootstrap_proof_result_failed',
     'qbittorrent_bootstrap_unexpected',
 })
 _CATEGORY_STEPS = frozenset({
@@ -370,10 +379,30 @@ class QbittorrentBootstrapExecutor:
                 'resources_untrusted':
                     'qbittorrent_bootstrap_binding_resources_untrusted',
             }.get(error.code)
+            proof_cause = {
+                'resource_proof_plan_failed':
+                    'qbittorrent_bootstrap_proof_plan_failed',
+                'resource_proof_journal_bind_failed':
+                    'qbittorrent_bootstrap_proof_journal_bind_failed',
+                'resource_proof_image_observation_failed':
+                    'qbittorrent_bootstrap_proof_image_observation_failed',
+                'resource_proof_volume_observation_failed':
+                    'qbittorrent_bootstrap_proof_volume_observation_failed',
+                'resource_proof_volume_bootstrap_failed':
+                    'qbittorrent_bootstrap_proof_volume_bootstrap_failed',
+                'resource_proof_network_list_failed':
+                    'qbittorrent_bootstrap_proof_network_list_failed',
+                'resource_proof_network_observation_failed':
+                    'qbittorrent_bootstrap_proof_network_observation_failed',
+                'resource_proof_journal_rebind_failed':
+                    'qbittorrent_bootstrap_proof_journal_rebind_failed',
+                'resource_proof_result_failed':
+                    'qbittorrent_bootstrap_proof_result_failed',
+            }.get(error.cause_code)
             raise QbittorrentBootstrapExecutionError(
                 'qbittorrent_bootstrap_resources_unavailable',
                 uncertain_effect=category_result is not None,
-                boundary=boundary, cause_code=cause) from None
+                boundary=boundary, cause_code=proof_cause or cause) from None
         except TimeoutError:
             raise QbittorrentBootstrapExecutionError(
                 'qbittorrent_bootstrap_timeout',

@@ -362,6 +362,24 @@ class _RuntimeBackend:
                     'qbittorrent_bootstrap_binding_resources_unavailable',
                 'qbittorrent_bootstrap_binding_resources_untrusted':
                     'qbittorrent_bootstrap_binding_resources_untrusted',
+                'qbittorrent_bootstrap_proof_plan_failed':
+                    'qbittorrent_bootstrap_proof_plan_failed',
+                'qbittorrent_bootstrap_proof_journal_bind_failed':
+                    'qbittorrent_bootstrap_proof_journal_bind_failed',
+                'qbittorrent_bootstrap_proof_image_observation_failed':
+                    'qbittorrent_bootstrap_proof_image_observation_failed',
+                'qbittorrent_bootstrap_proof_volume_observation_failed':
+                    'qbittorrent_bootstrap_proof_volume_observation_failed',
+                'qbittorrent_bootstrap_proof_volume_bootstrap_failed':
+                    'qbittorrent_bootstrap_proof_volume_bootstrap_failed',
+                'qbittorrent_bootstrap_proof_network_list_failed':
+                    'qbittorrent_bootstrap_proof_network_list_failed',
+                'qbittorrent_bootstrap_proof_network_observation_failed':
+                    'qbittorrent_bootstrap_proof_network_observation_failed',
+                'qbittorrent_bootstrap_proof_journal_rebind_failed':
+                    'qbittorrent_bootstrap_proof_journal_rebind_failed',
+                'qbittorrent_bootstrap_proof_result_failed':
+                    'qbittorrent_bootstrap_proof_result_failed',
             }.get(error.cause_code)
             if (cause is None
                     and error.cause_code == 'qbittorrent_bootstrap_unexpected'
