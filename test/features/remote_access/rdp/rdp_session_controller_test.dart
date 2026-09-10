@@ -215,4 +215,21 @@ void main() {
     expect(engine.opens, 0);
     c.dispose();
   });
+
+  test('retirement completes a caller waiting on a stuck engine', () async {
+    var current = true;
+    final engine = Engine()..delayed = Completer();
+    final c = controller(engine, Trust(), () => current);
+    final opening = c.connect();
+    await flush();
+    current = false;
+    c.synchronize();
+
+    await expectLater(
+      opening.timeout(const Duration(milliseconds: 50)),
+      completes,
+    );
+    expect(c.phase, RdpSessionPhase.closed);
+    c.dispose();
+  });
 }
