@@ -24,14 +24,19 @@ host yolu veya Docker işlemi sunmaz.
 
 ## Kanıt ve açık iş
 
-- Exact kaynak `228687da05050d4266d5e094bd61820939979edc`.
-- **19 yeni test**; runtime, effect, binding, helper, owned config,
+- Exact runtime kaynağı `228687da05050d4266d5e094bd61820939979edc`;
+  qBittorrent native kabul uyumluluğu `daff353d7625214ddcd37412248b429c780c2e27`.
+- **20 yeni test**; runtime, effect, binding, helper, owned config,
   installation runtime ve supervisor paketlerinde **251 PASS / 1 mevcut macOS
-  skip**.
+  skip**. Native araç uyumluluk düzeltmesinden sonra seçili yedi pakette ayrıca
+  **148 PASS / 1 mevcut macOS skip** yeniden doğrulandı.
 - Her iki servis, stale journal, kapalı girdi/imza, unpinned helper/platform,
   çapraz servis makbuzu, bilinmeyen hata, iş kimliği ve aynı peer verifier/native
   thread zinciri doğrulandı.
 - `compileall`, güvenlik politikası, kuyruk, diff ve Gitleaks PASS.
+- Arr runtime'ın backend yapıcı bağı değiştiğinde qBittorrent native kabul aracı
+  da hem qBittorrent hem Arr config runtime'ını sağlamalıdır; sözleşme testi bu
+  çapraz giriş noktasını korur.
 
 Bu runtime henüz kalıcı Core işi veya IPC operasyonu sunmaz ve gerçek servis
 container'ını oluşturmaz. Sıradaki adım private API key'i şifreli, no-retry bir

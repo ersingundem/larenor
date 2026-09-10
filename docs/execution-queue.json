@@ -1045,10 +1045,10 @@
         {
           "kind": "test",
           "ref": "docs/arr-config-runtime-implementation-2026-09-10.md",
-          "commit": "228687da05050d4266d5e094bd61820939979edc",
+          "commit": "daff353d7625214ddcd37412248b429c780c2e27",
           "state": "completed",
           "result": "passed",
-          "label": "Arr config current volume journal ve retained-daemon installation supervisorına bağlandı; iki servis, stale kaynak, closed input, aynı peer-verifier/native-thread ve belirsiz sonuçlar 19 yeni testte, ilgili paketler 251 PASS/1 macOS skip."
+          "label": "Arr config current volume journal ve retained-daemon installation supervisorına bağlandı; iki servis, stale kaynak, closed input, aynı peer-verifier/native-thread ve belirsiz sonuçlar 19 yeni testte, ilgili paketler 251 PASS/1 macOS skip. Backend yapıcı değişikliği qBittorrent native giriş noktasına da taşındı; bir çapraz sözleşme testiyle seçili yedi paket 148 PASS/1 macOS skip yeniden doğrulandı."
         }
       ],
       "completionCommit": null,

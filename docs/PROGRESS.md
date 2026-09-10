@@ -304,8 +304,11 @@ için sayaç ve `installAvailable=false` değişmedi.
 türetilen güncel appdata intent'ine ve installation supervisor'ın aynı retained
 daemon/native thread kapısına bağladı. Sonarr/Radarr seçimi kapalı; API key exact
 32 hex, internal iş kimliği 32 hex. Stale journal helper'a ulaşmıyor; Docker
-transport ve private stdin aynı peer verifier'ı kullanıyor. **19 yeni test**;
-ilgili yedi pakette **251 PASS / 1 mevcut macOS skip**. Compileall, security
+transport ve private stdin aynı peer verifier'ı kullanıyor. `daff353`, değişen
+backend yapıcısını qBittorrent native kabul giriş noktasında da iki config
+runtime'ıyla eşledi ve çapraz sözleşme testi ekledi. **20 yeni test**; ilk tam
+ilgili koşuda **251 PASS / 1 mevcut macOS skip**, düzeltme sonrası seçili yedi
+pakette **148 PASS / 1 mevcut macOS skip**. Compileall, security
 policy, queue, diff ve Gitleaks PASS. Kalıcı Core işi, IPC, container create/start
 ve native API kabulü açık olduğu için sayaç ve `installAvailable=false`
 değişmedi.
