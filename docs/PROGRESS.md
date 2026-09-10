@@ -1,6 +1,6 @@
 # Larenor — güncel ilerleme ve iş kuyruğu
 
-**Son güncelleme: 10 Eylül 2026 — qBittorrent yönetilen servis zinciri PR41 ile ana dalda. Sonarr/Radarr sahipli `config.xml` üretimi PR42 tam CI ile ana dalda; hacim yazıcısı, retained-daemon runtime ve UID-korumalı private IPC yerelde yeşil. Şifreli kalıcı Core işi yerelde yeşil; container zinciri ve native kabul sıradaki kapı.**
+**Son güncelleme: 10 Eylül 2026 — qBittorrent yönetilen servis zinciri PR41 ile ana dalda. Sonarr/Radarr sahipli `config.xml` üretimi PR42 tam CI ile ana dalda; hacim yazıcısı, retained-daemon runtime ve UID-korumalı private IPC yerelde yeşil. Şifreli kalıcı Core işi yerelde yeşil; config-create-start-authenticated readback ve kalıcı sonuç yerelde yeşil; iki mimarili native kabul sıradaki kapı.**
 
 ```text
 Kuyruk kabulü       ██░░░░░░░░░░░░░░░░░░  14/125 iş (%11; eşit ağırlıklı sayaç)
@@ -41,7 +41,7 @@ Gerçek ev kurulumu ve fiziksel tablet kabulü henüz yapılmadı.
 | S06.3d — kalıcı depolama | **Kabul edildi**; Native18 exact `6a054ea`, amd64+arm64 makbuzları doğrulandı | S06.3f ile birleşik kaynak kapısı kapandı |
 | S06.3f — kaynak kabulü | **Kabul edildi**; exact `4021391`, iki mimarili native makbuz, 4.065 Server ve tam Android/Server CI yeşil | S06.4 dar kurulum yürütme kapısı |
 | S06.4 — dar kurulum yürütme kapısı | **Kabul edildi**; PR16 `bf6f860`, PR18 `75af015`, PR19 `9ce3c5a` ve PR20 `2b9166b` tam CI kapıları yeşil | S06.5 özel bootstrap ve otomatik servis eşleştirme |
-| S06.5 — özel bootstrap ve otomatik eşleştirme | **Devam ediyor**; Jellyfin kabulünden sonra qBittorrent config/create/start/private bootstrap ve restart readback exact PR41 kaynağında amd64+arm64 geçti. Sonarr/Radarr owned config üretimi PR42 tam CI ile ana dalda; hacim yazıcısı, retained-daemon runtime ve private IPC yerelde yeşil | Arr container zinciri ve native authenticated readback; ardından qBittorrent/root-folder bağlantısı, Seerr ve Music Assistant |
+| S06.5 — özel bootstrap ve otomatik eşleştirme | **Devam ediyor**; Jellyfin kabulünden sonra qBittorrent config/create/start/private bootstrap ve restart readback exact PR41 kaynağında amd64+arm64 geçti. Sonarr/Radarr owned config üretimi PR42 tam CI ile ana dalda; config/create/start/private authenticated readback, retained-daemon supervisor ve kalıcı Core sonucu yerelde yeşil | İki mimarili native Arr kabulü; ardından qBittorrent/root-folder bağlantısı, Seerr ve Music Assistant |
 
 S06.5'in ilk iki TDD parçası, yalnız tamamlanmış Jellyfin kurulumundan
 yöneticiye bağlı bootstrap niyeti üretir ve public API'de sır, hedef adres veya
@@ -334,6 +334,37 @@ tekrarlanmıyor. **5 yeni uçtan uca sözleşme testi** dahil ilgili Arr paketle
 **267 PASS / 1 mevcut macOS skip**. Security policy, queue, compileall, diff ve Gitleaks PASS. Container
 create/start ve gerçek native API readback açık olduğundan sayaç değişmedi.
 [Uygulama ve açık sınırlar](arr-configuration-jobs-implementation-2026-09-10.md).
+
+`f113835` readback dilimi, Sonarr/Radarr pinned servis adı ve sürümünü
+`X-Api-Key` ile sabit system/status endpoint'inden doğruluyor. Hedef, proxy,
+resolver veya serbest header girdisi yok; auth, protokol, servis/sürüm sapması ve
+timeout secret-free statik sonuçlara kapanıyor. **14 yeni test**, compileall,
+security policy, queue ve Gitleaks PASS. Container zinciri ve iki mimarili native
+kabul açık olduğundan sayaç değişmedi.
+[Uygulama ve açık sınırlar](arr-authenticated-readback-implementation-2026-09-10.md).
+
+`b02bdb6` endpoint dilimi ortak managed-container builder'ı Sonarr/Radarr'a
+genişletti ve exact journal/container/ağ proof'undan sabit private 8989/7878
+stream'i üretti. DNS, proxy, alternatif hedef ve retry yok. Arr endpoint/readback
+ile mevcut Jellyfin/qBittorrent regresyonlarında **97 PASS**; security, queue ve
+Gitleaks PASS. Create/start orkestrasyonu açık olduğundan sayaç değişmedi.
+[Uygulama ve açık sınırlar](arr-private-endpoint-implementation-2026-09-10.md).
+
+`cdeb54c`–`06242ba` zinciri, config sonrası create/start, fresh private endpoint,
+authenticated readback, UID-korumalı IPC ve kalıcı Core sonucunu birleştirdi.
+Public iş durumu config, container ve doğrulanmış servis sonucunu ayırıyor; çapraz
+servis veya belirsiz sonuç retry edilmeden kapanıyor. `6a1270a` okunabilirlik
+düzenlemesiyle deadline readback başlamadan tükenirse açılmış özel stream'in de
+kapatılmasını güvenceye aldı. `8f3bfc9`, yanlışlıkla qBittorrent'a yönlenen Arr
+reconcile metodunu seçili servise geri bağladı ve qBittorrent reconcile metodunu
+doğru sınıfa taşıdı. `382c8a9`, eksik Arr supervisor metodunu tamamladı ve
+config/create/start/readback zincirini aynı retained daemon/native thread
+kanıtına bağladı; yürütme ile bootstrap yetki, timeout, kaynak ve geçersiz sonuç
+hatalarını kapalı, secret-free belirsiz sonuçlara ayırdı. İlgili 13 pakette
+**313 PASS / 1 mevcut macOS skip**; Ruff,
+compileall, security, queue ve Gitleaks PASS. İki mimarili native
+kabul açık olduğundan sayaç değişmedi.
+[Uygulama ve açık sınırlar](arr-configured-container-implementation-2026-09-10.md).
 
 S06.4 native kabul koşusu [34326112926](https://github.com/ersingundem/larenor/actions/runs/34326112926)
 iki gerçek GitHub runner'ında geçti. İndirilen ARM64 ve X64 makbuzları merge

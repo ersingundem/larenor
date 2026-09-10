@@ -784,7 +784,10 @@
         "docs/arr-config-effect-implementation-2026-09-10.md",
         "docs/arr-config-runtime-implementation-2026-09-10.md",
         "docs/arr-configuration-ipc-implementation-2026-09-10.md",
-        "docs/arr-configuration-jobs-implementation-2026-09-10.md"
+        "docs/arr-configuration-jobs-implementation-2026-09-10.md",
+        "docs/arr-authenticated-readback-implementation-2026-09-10.md",
+        "docs/arr-private-endpoint-implementation-2026-09-10.md",
+        "docs/arr-configured-container-implementation-2026-09-10.md"
       ],
       "scope": "Kullanıcı ayrı uygulama kurmaz veya API anahtarı kopyalamaz; sırlar Client/plan/log içine girmez.",
       "acceptance": [
@@ -803,14 +806,6 @@
           "state": "completed",
           "result": "passed",
           "label": "Exact head arm64 ve amd64 disposable Jellyfin 10.11.11 makbuzları: hesap bootstrap, API anahtarı, boş kütüphane, session logout, restart ve kalıcı veri PASS; installAvailable=false."
-        },
-        {
-          "kind": "test",
-          "ref": "docs/jellyfin-managed-libraries-implementation-2026-09-09.md",
-          "commit": "a0d14209286b9be1c023e10dd18309d8cf298179",
-          "state": "completed",
-          "result": "passed",
-          "label": "Sabit Larenor Movies/Shows Jellyfin kütüphaneleri üçüncü doğrulanmış endpoint üzerinde idempotent oluşturulup geri okunuyor; çakışma, kısmi yazma ve secret-free tanılar dahil 306 ilgili test PASS. Onaylı /media mount ve exact native kabul açık."
         },
         {
           "kind": "test",
@@ -1051,10 +1046,18 @@
           "state": "completed",
           "result": "passed",
           "label": "Sonarr/Radarr servis başına tekil, AES-GCM şifreli no-retry Core işlerine bağlandı; Server üretimli API anahtarı, dispatcher, idempotence ve belirsiz sonuçlar ilgili Arr paketlerinde 267 PASS / 1 mevcut macOS skip ile doğrulandı."
+        },
+        {
+          "kind": "test",
+          "ref": "docs/arr-configured-container-implementation-2026-09-10.md",
+          "commit": "382c8a92a90d23e599b3bbfc369264e8ac59c75d",
+          "state": "completed",
+          "result": "passed",
+          "label": "Sonarr/Radarr authenticated readback, private endpoint, config-create-start, UID IPC, kalıcı Core sonucu, retained-daemon supervisor ve kapalı hata projeksiyonu ilgili 13 pakette 313 PASS/1 mevcut macOS skip ile doğrulandı."
         }
       ],
       "completionCommit": null,
-      "reason": "Server üretimli sır, sabit startup, exact journal/container/private-network yürütücüsü, kalıcı no-retry koordinatör, otomatik yaşam döngüsü dispatcher ve aynı retained daemon'a bağlı private IPC/runtime hazır. Disposable Jellyfin 10.11.11 bootstrap, API anahtarı, kütüphane eşleştirmesi, logout, restart ve veri kalıcılığı exact arm64+amd64 CI'da geçti. qBittorrent 5.2.3 sahipli config/API, journal-bound volume/library planı, güvenli helper, private stdin effect, current-journal runtime bağı, UID-korumalı IPC, şifreli kalıcı Core işi, config-before-create/start ve private endpoint/bootstrap hazır; exact PR41 amd64+arm64 native CI config, Bearer auth, kategori kalıcılığı ve restart readback makbuzlarını doğruladı. Sonarr/Radarr owned config.xml ve exact API-key geri doğrulaması PR42 tam CI ile ana dalda; stdin-only hacim yazıcısı, current-journal effect, retained-daemon runtime ve UID-korumalı private IPC yerelde yeşil. Arr şifreli kalıcı Core işi yerelde yeşil; container create-start/native API readback, qBittorrent/root-folder bağlantısı, Seerr ve Music Assistant bootstrap açık; installAvailable=false."
+      "reason": "Server üretimli sır, sabit startup, exact journal/container/private-network yürütücüsü, kalıcı no-retry koordinatör, otomatik yaşam döngüsü dispatcher ve aynı retained daemon'a bağlı private IPC/runtime hazır. Disposable Jellyfin 10.11.11 bootstrap, API anahtarı, kütüphane eşleştirmesi, logout, restart ve veri kalıcılığı exact arm64+amd64 CI'da geçti. qBittorrent 5.2.3 sahipli config/API, journal-bound volume/library planı, güvenli helper, private stdin effect, current-journal runtime bağı, UID-korumalı IPC, şifreli kalıcı Core işi, config-before-create/start ve private endpoint/bootstrap hazır; exact PR41 amd64+arm64 native CI config, Bearer auth, kategori kalıcılığı ve restart readback makbuzlarını doğruladı. Sonarr/Radarr owned config.xml ve exact API-key geri doğrulaması PR42 tam CI ile ana dalda; config/create/start/private authenticated readback, retained-daemon supervisor, UID-korumalı IPC ve şifreli kalıcı Core sonucu yerelde yeşil. İki mimarili native Arr kabulü, qBittorrent/root-folder bağlantısı, Seerr ve Music Assistant bootstrap açık; installAvailable=false."
     },
     {
       "id": "S06.6",

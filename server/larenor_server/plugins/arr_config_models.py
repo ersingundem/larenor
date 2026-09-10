@@ -1,10 +1,13 @@
 """Private Arr configuration and secret-free worker execution outcome."""
 
+from dataclasses import dataclass
+import re
 from typing import Literal
 
 from pydantic import ConfigDict, Field
 
 from ..models import StrictModel
+from .arr_config_effect import ArrConfigInstallReceipt
 
 
 class PrivateArrConfiguration(StrictModel):
@@ -18,6 +21,24 @@ class PrivateArrConfiguration(StrictModel):
 
     def __repr__(self):
         return 'PrivateArrConfiguration(<private>)'
+
+
+@dataclass(frozen=True)
+class ArrConfiguredInstallReceipt:
+    configuration: ArrConfigInstallReceipt
+    container_id: str
+    state: Literal['sonarr_container_started', 'radarr_container_started']
+    service_state: Literal['sonarr_service_verified', 'radarr_service_verified']
+
+    def __post_init__(self):
+        service = getattr(self.configuration, 'service_id', None)
+        if (type(self.configuration) is not ArrConfigInstallReceipt
+                or service not in {'sonarr', 'radarr'}
+                or type(self.container_id) is not str
+                or re.fullmatch(r'[0-9a-f]{64}', self.container_id) is None
+                or self.state != service + '_container_started'
+                or self.service_state != service + '_service_verified'):
+            raise ValueError('invalid_arr_install_receipt')
 
 
 ARR_CONFIG_EXECUTION_CODES = frozenset({

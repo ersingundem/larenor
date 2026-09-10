@@ -140,6 +140,7 @@ class SupervisedInstallationBackend:
                 or not callable(getattr(backend, 'reconcile', None))
                 or not callable(getattr(backend, 'configure_qbittorrent', None))
                 or not callable(getattr(backend, 'configure_arr', None))
+                or not callable(getattr(backend, 'install_configured_arr', None))
                 or socket_factory is not None and not callable(socket_factory)
                 or peer_verifier is not None
                 and type(peer_verifier) is not RetainedDaemonPeerVerifier
@@ -355,6 +356,31 @@ class SupervisedInstallationBackend:
         try:
             try:
                 result = self.backend.configure_arr(
+                    job, stack, service_id, api_key=api_key,
+                    cancelled=cancelled, deadline=deadline, gate=gate)
+                self._check(deadline)
+                return result
+            except BaseException:
+                try:
+                    self._check(deadline)
+                except InstallationSupervisorError:
+                    raise
+                raise
+        finally:
+            self._peer_verifier.deactivate()
+
+    def install_configured_arr_with_deadline(
+            self, job, stack, service_id, *, api_key, cancelled, deadline):
+        self._check(deadline)
+        self._peer_verifier.activate(deadline)
+
+        def gate():
+            self._check(deadline)
+            return True
+
+        try:
+            try:
+                result = self.backend.install_configured_arr(
                     job, stack, service_id, api_key=api_key,
                     cancelled=cancelled, deadline=deadline, gate=gate)
                 self._check(deadline)

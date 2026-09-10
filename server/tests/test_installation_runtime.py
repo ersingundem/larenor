@@ -223,6 +223,8 @@ def test_runtime_configures_qbittorrent_before_create_and_start(monkeypatch):
     monkeypatch.setattr(
         runtime, 'QbittorrentBootstrapExecutor',
         lambda *_args: QbittorrentBootstrap())
+    monkeypatch.setattr(
+        runtime, 'ArrBootstrapExecutor', lambda *_args: object())
     monkeypatch.setattr(runtime.time, 'monotonic', lambda: 1000.0)
     monkeypatch.setattr(runtime.time, 'time', lambda: 2000.0)
     backend = runtime._RuntimeBackend(
@@ -564,3 +566,114 @@ def test_help_and_module_entrypoint_do_not_observe_runtime(monkeypatch, capsys):
         with pytest.raises(SystemExit) as result:
             runpy.run_module('larenor_server.plugins.installation_runtime', run_name='__main__')
     assert result.value.code == 0
+
+
+def test_runtime_configures_arr_before_create_start_and_readback(monkeypatch):
+    from larenor_server.plugins.arr_config_effect import ArrConfigInstallReceipt
+    from larenor_server.plugins.arr_bootstrap_executor import ArrBootstrapExecutionResult
+    from larenor_server.plugins.arr_authenticated_readback import ArrAuthenticatedReadbackResult
+    events=[]
+    configured=ArrConfigInstallReceipt('sonarr','1'*32,'2'*32,'3'*32,3,'larenor-appdata-v1-'+'1'*32,'4'*64,'sonarr_config_installed')
+    class Configuration:
+        def install(self, stack, service, **kwargs): events.append(('configure',service)); return configured
+    class Operations:
+        def apply(self,step,binding): events.append(('apply',step.kind,binding)); return StepReceipt(step.job_id,step.kind,'succeeded','container_created' if step.kind=='create_container' else 'container_started','5'*64)
+        def reconcile(self,*args): raise AssertionError()
+    class Bootstrap:
+        def execute(self,*args,**kwargs): events.append(('readback',args[2].serviceId)); return ArrBootstrapExecutionResult('verified','sonarr',ArrAuthenticatedReadbackResult('verified','sonarr','Sonarr','4.0.19.2979'))
+    monkeypatch.setattr(runtime,'JellyfinBootstrapExecutor',lambda *_:object())
+    monkeypatch.setattr(runtime,'QbittorrentBootstrapExecutor',lambda *_:object())
+    monkeypatch.setattr(runtime,'ArrBootstrapExecutor',lambda *_:Bootstrap())
+    monkeypatch.setattr(runtime.time,'monotonic',lambda:1000.0); monkeypatch.setattr(runtime.time,'time',lambda:2000.0)
+    stack=build_media_stack_plan(load_catalog(),{},'linux/amd64',ContextResponse(schemaVersion=1,coreId='a'*32,homeId='b'*32),'c'*32)
+    backend=runtime._RuntimeBackend(Operations(),lambda _s,service:'binding-'+service,object(),Configuration())
+    value=backend.install_configured_arr('d'*32,stack,'sonarr',api_key='a'*32,cancelled=threading.Event(),deadline=1030.0,gate=lambda:True)
+    assert value.configuration==configured and value.container_id=='5'*64
+    assert value.state=='sonarr_container_started' and value.service_state=='sonarr_service_verified'
+    assert events==[('configure','sonarr'),('apply','create_container','binding-sonarr'),('apply','start_container','binding-sonarr'),('readback','sonarr')]
+
+
+def _arr_runtime_backend(monkeypatch, execution_result, bootstrap):
+    from larenor_server.plugins.arr_config_effect import ArrConfigInstallReceipt
+
+    configured = ArrConfigInstallReceipt(
+        'sonarr', '1' * 32, '2' * 32, '3' * 32, 3,
+        'larenor-appdata-v1-' + '1' * 32, '4' * 64,
+        'sonarr_config_installed',
+    )
+    backend = object.__new__(runtime._RuntimeBackend)
+    backend.arr_config = SimpleNamespace(
+        install=lambda *_args, **_kwargs: configured)
+    backend.operations = object()
+    backend.binding_builder = lambda *_args: object()
+    backend.arr_bootstrap = SimpleNamespace(execute=bootstrap)
+    monkeypatch.setattr(
+        runtime,
+        'build_execution',
+        lambda *_args, **_kwargs: SimpleNamespace(
+            run=lambda *_run_args: execution_result),
+    )
+    monkeypatch.setattr(
+        runtime, 'ArrWorkerBackend', lambda *_args, **_kwargs: object())
+    return backend
+
+
+@pytest.mark.parametrize(('state', 'cause', 'public_code'), [
+    ('needs_attention', 'authority_changed', 'arr_config_authority_changed'),
+    ('cancelled', 'cancelled', 'arr_config_authority_changed'),
+    ('pending', 'worker_unavailable', 'arr_config_resources_unavailable'),
+    ('needs_attention', 'resource_conflict',
+     'arr_config_resources_unavailable'),
+    ('failed', 'invalid_worker_result', 'arr_config_result_invalid'),
+])
+def test_arr_runtime_projects_execution_failures_to_closed_uncertain_codes(
+        monkeypatch, state, cause, public_code):
+    def forbidden(*_args, **_kwargs):
+        pytest.fail('failed container execution must not start readback')
+
+    backend = _arr_runtime_backend(
+        monkeypatch, runtime.ExecutionResult(state, cause), forbidden)
+
+    with pytest.raises(
+            runtime.ArrConfigurationExecutionError,
+            match='^' + public_code + '$') as raised:
+        backend.install_configured_arr(
+            'd' * 32, object(), 'sonarr', api_key='a' * 32,
+            cancelled=threading.Event(), deadline=time.monotonic() + 30,
+            gate=lambda: True,
+        )
+
+    assert raised.value.uncertain_effect
+
+
+@pytest.mark.parametrize(('bootstrap_code', 'public_code'), [
+    ('arr_bootstrap_authority_changed', 'arr_config_authority_changed'),
+    ('arr_bootstrap_timeout', 'arr_config_timeout'),
+    ('arr_bootstrap_resources_unavailable',
+     'arr_config_resources_unavailable'),
+    ('arr_bootstrap_endpoint_unavailable',
+     'arr_config_resources_unavailable'),
+    ('arr_bootstrap_endpoint_changed', 'arr_config_result_invalid'),
+    ('arr_bootstrap_readback_failed', 'arr_config_result_invalid'),
+])
+def test_arr_runtime_projects_bootstrap_failures_to_closed_uncertain_codes(
+        monkeypatch, bootstrap_code, public_code):
+    def failed(*_args, **_kwargs):
+        raise runtime.ArrBootstrapExecutionError(bootstrap_code)
+
+    backend = _arr_runtime_backend(
+        monkeypatch,
+        runtime.ExecutionResult('succeeded', 'container_started', '5' * 64),
+        failed,
+    )
+
+    with pytest.raises(
+            runtime.ArrConfigurationExecutionError,
+            match='^' + public_code + '$') as raised:
+        backend.install_configured_arr(
+            'd' * 32, object(), 'sonarr', api_key='a' * 32,
+            cancelled=threading.Event(), deadline=time.monotonic() + 30,
+            gate=lambda: True,
+        )
+
+    assert raised.value.uncertain_effect

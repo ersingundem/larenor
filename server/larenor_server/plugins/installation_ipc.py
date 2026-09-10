@@ -2,7 +2,6 @@
 
 import json
 import math
-import os
 from pathlib import Path
 import platform as host_platform
 import re
@@ -21,7 +20,8 @@ from .media_service_bootstrap_models import PrivateMediaServiceBootstrap
 from .preflight_ipc import PreflightIPCError, PreflightWorkerServer, read_packet, write_packet
 from .arr_config_effect import ArrConfigEffectError, ArrConfigInstallReceipt
 from .arr_config_models import (
-    ARR_CONFIG_EXECUTION_CODES, ArrConfigurationExecutionError,
+    ARR_CONFIG_EXECUTION_CODES, ArrConfiguredInstallReceipt,
+    ArrConfigurationExecutionError,
     PrivateArrConfiguration,
 )
 from .arr_config_runtime import ArrConfigRuntimeError
@@ -295,6 +295,42 @@ def _arr_result(value):
     except ArrConfigurationExecutionError:
         raise
     except (ValueError, TypeError, AttributeError, ArrConfigEffectError):
+        raise ArrConfigurationExecutionError(
+            'arr_config_result_invalid', uncertain_effect=True) from None
+
+
+def _wire_arr_install(value):
+    if type(value) is not ArrConfiguredInstallReceipt:
+        raise InstallationIPCError('invalid_worker_result')
+    return {
+        'state': value.state, 'containerId': value.container_id,
+        'serviceState': value.service_state,
+        'configuration': _wire_arr(value=value.configuration)['receipt'],
+    }
+
+
+def _arr_install_result(value):
+    try:
+        if type(value) is dict and set(value) == {
+                'state', 'errorCode', 'uncertainEffect', 'receipt'}:
+            _arr_result(value)
+            raise ValueError()
+        if (type(value) is not dict or set(value) != {
+                'state', 'containerId', 'serviceState', 'configuration'}
+                or type(value['containerId']) is not str
+                or re.fullmatch(r'[0-9a-f]{64}', value['containerId']) is None):
+            raise ValueError()
+        wrapped = {
+            'state': 'succeeded', 'errorCode': None,
+            'uncertainEffect': False, 'receipt': value['configuration'],
+        }
+        configuration = _arr_result(wrapped)
+        return ArrConfiguredInstallReceipt(
+            configuration, value['containerId'], value['state'],
+            value['serviceState'])
+    except ArrConfigurationExecutionError:
+        raise
+    except (ValueError, TypeError, AttributeError):
         raise ArrConfigurationExecutionError(
             'arr_config_result_invalid', uncertain_effect=True) from None
 
@@ -627,6 +663,49 @@ class InstallationWorkerClient:
                 uncertain_effect=True) from None
         return result
 
+    def install_arr(self, job, plan, private, *, deadline, gate):
+        now = time.monotonic()
+        if (type(job) is not str
+                or re.fullmatch(r'[0-9a-f]{32}', job) is None
+                or type(plan) is not MediaStackPlan
+                or type(private) is not PrivateArrConfiguration
+                or type(deadline) not in (int, float)
+                or not math.isfinite(deadline)
+                or not now < deadline <= now + 120
+                or not callable(gate)):
+            raise ArrConfigurationExecutionError('arr_config_resources_unavailable')
+        try:
+            plan = verify_media_stack_plan(plan, load_catalog())
+            private = PrivateArrConfiguration.model_validate(
+                private.model_dump(mode='python', warnings=False))
+        except (ValueError, TypeError, AttributeError, OSError):
+            raise ArrConfigurationExecutionError(
+                'arr_config_resources_unavailable') from None
+        try:
+            if gate() is not True:
+                raise ValueError()
+        except Exception:
+            raise ArrConfigurationExecutionError(
+                'arr_config_authority_changed') from None
+        try:
+            result = _arr_install_result(self._exchange(
+                'install_configured_arr', plan=plan, arr=(job, private)))
+            if result.configuration.service_id != private.serviceId:
+                raise ArrConfigurationExecutionError(
+                    'arr_config_result_invalid', uncertain_effect=True)
+        except ArrConfigurationExecutionError:
+            raise
+        except InstallationIPCError:
+            raise ArrConfigurationExecutionError(
+                'arr_config_resources_unavailable') from None
+        try:
+            if gate() is not True:
+                raise ValueError()
+        except Exception:
+            raise ArrConfigurationExecutionError(
+                'arr_config_authority_changed', uncertain_effect=True) from None
+        return result
+
 
 class InstallationWorkerServer(PreflightWorkerServer):
     def __init__(self, path, backend, *, allowed_uid, socket_gid=None, peer_uid=None, timeout=5):
@@ -686,7 +765,7 @@ class InstallationWorkerServer(PreflightWorkerServer):
                 'capability': 'container_execution', 'installAvailable': False,
                 'services': ['jellyfin', 'qbittorrent', 'sonarr', 'radarr'],
             }
-        if operation == 'configure_arr':
+        if operation in {'configure_arr', 'install_configured_arr'}:
             if (set(request) != {
                     'protocol', 'requestId', 'operation', 'jobId', 'plan',
                     'private'}
@@ -706,14 +785,15 @@ class InstallationWorkerServer(PreflightWorkerServer):
                 private = PrivateArrConfiguration.model_validate_json(
                     raw_private)
                 cancelled = threading.Event()
-                timed = getattr(
-                    self.backend, 'configure_arr_with_deadline', None)
+                method = ('configure_arr' if operation == 'configure_arr'
+                          else 'install_configured_arr')
+                timed = getattr(self.backend, method + '_with_deadline', None)
                 try:
                     result = (timed(
                         request['jobId'], plan, private.serviceId,
                         api_key=private.apiKey, cancelled=cancelled,
                         deadline=deadline,
-                    ) if callable(timed) else self.backend.configure_arr(
+                    ) if callable(timed) else getattr(self.backend, method)(
                         request['jobId'], plan, private.serviceId,
                         api_key=private.apiKey, cancelled=cancelled,
                         deadline=deadline,
@@ -723,7 +803,13 @@ class InstallationWorkerServer(PreflightWorkerServer):
                 if time.monotonic() >= deadline:
                     return _wire_arr(error=ArrConfigurationExecutionError(
                         'arr_config_timeout', uncertain_effect=True))
-                return _wire_arr(value=result)
+                if operation == 'configure_arr':
+                    return _wire_arr(value=result)
+                try:
+                    return _wire_arr_install(result)
+                except InstallationIPCError:
+                    return _wire_arr(error=ArrConfigurationExecutionError(
+                        'arr_config_result_invalid', uncertain_effect=True))
             except (ValueError, TypeError, AttributeError, RecursionError):
                 raise PreflightIPCError('invalid_request') from None
         if operation in {
