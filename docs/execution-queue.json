@@ -787,7 +787,8 @@
         "docs/arr-configuration-jobs-implementation-2026-09-10.md",
         "docs/arr-authenticated-readback-implementation-2026-09-10.md",
         "docs/arr-private-endpoint-implementation-2026-09-10.md",
-        "docs/arr-configured-container-implementation-2026-09-10.md"
+        "docs/arr-configured-container-implementation-2026-09-10.md",
+        "docs/arr-root-folder-wiring-implementation-2026-09-10.md"
       ],
       "scope": "Kullanıcı ayrı uygulama kurmaz veya API anahtarı kopyalamaz; sırlar Client/plan/log içine girmez.",
       "acceptance": [
@@ -1057,7 +1058,7 @@
         }
       ],
       "completionCommit": null,
-      "reason": "Server üretimli sır, sabit startup, exact journal/container/private-network yürütücüsü, kalıcı no-retry koordinatör, otomatik yaşam döngüsü dispatcher ve aynı retained daemon'a bağlı private IPC/runtime hazır. Disposable Jellyfin 10.11.11 bootstrap, API anahtarı, kütüphane eşleştirmesi, logout, restart ve veri kalıcılığı exact arm64+amd64 CI'da geçti. qBittorrent 5.2.3 sahipli config/API, journal-bound volume/library planı, güvenli helper, private stdin effect, current-journal runtime bağı, UID-korumalı IPC, şifreli kalıcı Core işi, config-before-create/start ve private endpoint/bootstrap hazır; exact PR41 amd64+arm64 native CI config, Bearer auth, kategori kalıcılığı ve restart readback makbuzlarını doğruladı. Sonarr/Radarr owned config.xml ve exact API-key geri doğrulaması PR42 tam CI ile ana dalda; config/create/start/private authenticated readback, retained-daemon supervisor, UID-korumalı IPC ve şifreli kalıcı Core sonucu yerelde yeşil. İki mimarili native Arr kabulü, qBittorrent/root-folder bağlantısı, Seerr ve Music Assistant bootstrap açık; installAvailable=false."
+      "reason": "Server üretimli sır, sabit startup, exact journal/container/private-network yürütücüsü, kalıcı no-retry koordinatör, otomatik yaşam döngüsü dispatcher ve aynı retained daemon'a bağlı private IPC/runtime hazır. Disposable Jellyfin 10.11.11 bootstrap, API anahtarı, kütüphane eşleştirmesi, logout, restart ve veri kalıcılığı exact arm64+amd64 CI'da geçti. qBittorrent 5.2.3 sahipli config/API, journal-bound volume/library planı, güvenli helper, private stdin effect, current-journal runtime bağı, UID-korumalı IPC, şifreli kalıcı Core işi, config-before-create/start ve private endpoint/bootstrap hazır; exact PR41 amd64+arm64 native CI config, Bearer auth, kategori kalıcılığı ve restart readback makbuzlarını doğruladı. Sonarr/Radarr owned config.xml ve exact API-key geri doğrulaması PR42 tam CI ile ana dalda; config/create/start/private authenticated readback, retained-daemon supervisor, UID-korumalı IPC ve şifreli kalıcı Core sonucu yerelde yeşil. Sabit, çakışmada fail-closed Sonarr/Radarr kök klasör API eşleştirmesi bootstrap'a yerelde bağlandı. İki mimarili native Arr kabulü, native dizin hazırlığı, qBittorrent download-client kaydı, Seerr ve Music Assistant bootstrap açık; installAvailable=false."
     },
     {
       "id": "S06.6",
