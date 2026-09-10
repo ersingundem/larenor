@@ -11,10 +11,16 @@ import time
 
 import pytest
 
+from larenor_server.proxmox_commands.api_adapter import (
+    ProxmoxApiEffectAdapter,
+    ProxmoxServiceBinding,
+    seal_service_binding,
+)
 from larenor_server.proxmox_commands.worker_runtime import (
     CREDENTIAL_MAGIC,
     ProxmoxWorkerRuntimeError,
     WorkerRuntimeConfig,
+    load_configured_adapter,
     load_encrypted_credential,
     main as runtime_main,
     read_health_receipt,
@@ -50,6 +56,42 @@ def config(root):
     )
 
 
+def configured(root):
+    key = root / "binding.key"
+    key.write_bytes(b"k" * 32)
+    key.chmod(0o600)
+    credential = root / "credential.bin"
+    seal_service_binding(
+        credential,
+        key,
+        ProxmoxServiceBinding(
+            schema_version=1,
+            resource_id="a" * 32,
+            resource_revision=2,
+            binding_id="binding_1",
+            binding_revision=3,
+            service_id="service_1",
+            service_revision=4,
+            scheme="https",
+            host="proxmox.lan",
+            port=8006,
+            pinned_address="192.168.1.20",
+            node="node-a",
+            guest_kind="qemu",
+            guest_id=101,
+            token_id="larenor@pve!tablet",
+            token_secret="synthetic-secret",
+        ),
+    )
+    return WorkerRuntimeConfig(
+        socket_path=root / "power.sock",
+        health_path=root / "health.json",
+        credential_path=credential,
+        api_uid=os.getuid(),
+        binding_key_path=key,
+    )
+
+
 def wait_for(predicate, timeout=2):
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
@@ -75,6 +117,29 @@ def test_encrypted_service_credential_requires_exact_owner_mode_and_binary_envel
         with pytest.raises(ProxmoxWorkerRuntimeError, match="^worker_configuration_invalid$") as raised:
             load_encrypted_credential(path)
         assert "plaintext-forbidden" not in repr(raised.value)
+
+
+def test_configured_adapter_is_loaded_from_sealed_binding_and_check_is_network_free(monkeypatch, capsys):
+    with private_root() as name:
+        selected = configured(Path(name))
+        adapter = load_configured_adapter(selected)
+        assert isinstance(adapter, ProxmoxApiEffectAdapter)
+        assert repr(adapter) == "ProxmoxApiEffectAdapter(<private>)"
+
+        def no_socket(*_args, **_kwargs):
+            pytest.fail("check-config opened a socket")
+
+        monkeypatch.setattr(socket, "socket", no_socket)
+        assert runtime_main([
+            "--socket", str(selected.socket_path),
+            "--health-receipt", str(selected.health_path),
+            "--credential-file", str(selected.credential_path),
+            "--binding-key-file", str(selected.binding_key_path),
+            "--api-uid", str(os.getuid()),
+            "--check-config",
+        ]) == 0
+        captured = capsys.readouterr()
+        assert captured.out == captured.err == ""
 
 
 def test_runtime_health_is_atomic_private_and_graceful_shutdown_removes_owned_socket(monkeypatch):
@@ -257,13 +322,13 @@ def test_real_supervisor_launcher_discards_all_child_output(monkeypatch):
     assert observed["close_fds"] is True
 
 
-def test_container_overlay_is_nonroot_readonly_cap_dropped_and_networkless():
+def test_container_overlay_is_nonroot_readonly_cap_dropped_and_endpoint_only():
     source = Path(__file__).resolve().parents[2] / "deploy/larenor-server/proxmox-worker.compose.yaml"
     value = json.loads(source.read_text())
     service = value["services"]["larenor-proxmox-power-worker"]
     assert service["user"] == "10001:10001"
     assert service["read_only"] is True
-    assert service["network_mode"] == "none"
+    assert service["network_mode"] == "bridge"
     assert service["restart"] == "no"
     assert service["cap_drop"] == ["ALL"]
     assert service["security_opt"] == ["no-new-privileges:true"]
@@ -275,6 +340,9 @@ def test_container_overlay_is_nonroot_readonly_cap_dropped_and_networkless():
     health = service["healthcheck"]
     assert health["test"][:3] == ["CMD", "/opt/larenor/.venv/bin/python", "-m"]
     assert "--check-health" in health["test"]
+    assert "--binding-key-file" in service["command"]
+    assert "--binding-key-file" in health["test"]
     mounts = service["volumes"]
     assert any(item["target"] == "/run/larenor" and item["read_only"] is False for item in mounts)
     assert any(item["target"] == "/run/secrets/proxmox-credential.bin" and item["read_only"] is True for item in mounts)
+    assert any(item["target"] == "/run/secrets/proxmox-binding.key" and item["read_only"] is True for item in mounts)
