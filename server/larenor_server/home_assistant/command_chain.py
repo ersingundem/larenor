@@ -161,7 +161,7 @@ def migrate_command_history(c, scope, key):
                 append(c, key, scope, row, kind='baseline')
         verify(c, key, scope)
     except (ValueError, TypeError, sqlite3.Error, InvalidTag, ApiError):
-        raise StartupError('command_history_storage_invalid') from None
+        raise StartupError('home_assistant_storage_invalid') from None
 
 
 def checkpoint(c, key, scope, expected=None):
