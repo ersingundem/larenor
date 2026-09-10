@@ -359,16 +359,21 @@ list, inspect and revision-cancel work while all generated credentials remain in
 authenticated encrypted storage. The lifespan dispatcher uses the private worker
 automatically, does not retry interrupted effects and waits for a bounded
 in-flight receipt during shutdown. Success exposes a secret-free
-`containerState=container_started`; configuration-only historical receipts stay
-readable without claiming a container start. Native service/readback acceptance
-is still open, so every capability and job reports `installAvailable: false`.
+`containerState=container_started` only after the worker also verifies the
+private service; Core persists the encrypted proof and exposes
+`serviceState=verified`. Configuration-only and container-started historical
+receipts stay readable without claiming later milestones. Native
+service/readback acceptance is still open, so every capability and job reports
+`installAvailable: false`.
 
 A worker-private qBittorrent bootstrap executor can now derive TCP/8080 only
 from the exact running journal container and its sole private control-network
 attachment. It verifies fixed movie/TV categories and then performs pinned
 version, API-key and owned-settings readback over a fresh proved connection,
-with repeated authority and endpoint-drift checks. This executor is not yet
-attached to the Core IPC job; no public route or install capability is added.
+with repeated authority and endpoint-drift checks. The ordered worker operation
+now invokes this executor after configuration/create/start, and the UID-checked
+IPC plus durable Core job require its exact verified receipt. No public service
+route or install capability is added.
 
 ## Client releases
 
