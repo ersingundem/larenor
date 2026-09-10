@@ -44,7 +44,8 @@ class ManagedContainerError(Exception):
         'resource_proof_journal_bind_failed',
         'resource_proof_image_observation_failed',
         'resource_proof_volume_observation_failed',
-        'resource_proof_volume_bootstrap_failed',
+                    'resource_proof_volume_prepare_failed',
+                    'resource_proof_volume_bootstrap_failed',
         'resource_proof_network_list_failed',
         'resource_proof_network_observation_failed',
         'resource_proof_journal_rebind_failed',
@@ -129,11 +130,12 @@ class VolumeBootstrapObservation:
 
 
 class JellyfinEngineReaders:
-    """Fixed read-only Engine adapters plus an endpoint-bound bootstrap reader.
+    """Fixed Engine observers plus one endpoint-bound library helper.
 
     The image, volume and network transports are constructed here from the one
     operator-owned endpoint. Bootstrap remains a separate privileged helper,
-    but it must retain that exact endpoint object and expose only ``verify``.
+    but it retains that endpoint and exposes only fixed root verification and
+    managed-library directory preparation methods.
     Neither arbitrary Engine readers nor caller-selected transport methods can
     be substituted at the proof-broker boundary.
     """
@@ -143,6 +145,8 @@ class JellyfinEngineReaders:
             if (type(endpoint) is not DockerEndpoint
                     or getattr(bootstrap_verifier, '_endpoint', None) is not endpoint
                     or not callable(getattr(bootstrap_verifier, 'verify', None))
+                    or not callable(getattr(
+                        bootstrap_verifier, 'prepare_media_directories', None))
                     or peer_uid is not None and not callable(peer_uid)):
                 raise ValueError()
             self._endpoint = endpoint
@@ -165,6 +169,14 @@ class JellyfinEngineReaders:
             raise ManagedContainerError('resources_unavailable')
         return self._bootstrap.verify(intent, cancelled=cancelled)
 
+    def prepare_media_directories(self, intent, *, cancelled):
+        if (getattr(self._bootstrap, '_endpoint', None) is not self._endpoint
+                or not callable(getattr(
+                    self._bootstrap, 'prepare_media_directories', None))):
+            raise ManagedContainerError('resources_unavailable')
+        return self._bootstrap.prepare_media_directories(
+            intent, cancelled=cancelled)
+
     def list_network(self, binding, intent, *, cancelled):
         return self._networks.list(binding, intent, cancelled=cancelled)
 
@@ -186,7 +198,8 @@ class JellyfinResourceProofBroker:
     def __init__(self, stack, catalog, policy, resource_journal, volume_journal,
                  readers, *, engine_identity, service_id='jellyfin'):
         try:
-            methods = ('inspect_image', 'inspect_volume', 'verify_bootstrap',
+            methods = ('inspect_image', 'inspect_volume',
+                       'prepare_media_directories', 'verify_bootstrap',
                        'list_network', 'inspect_network')
             if (type(stack) is not MediaStackPlan or type(catalog) is not Catalog
                     or type(policy) is not WorkerPolicyBinding
@@ -272,6 +285,23 @@ class JellyfinResourceProofBroker:
                     )
                     if not _exact(observed, VolumeObservation) or observed != expected_observation:
                         raise ValueError()
+                    if binding.resource.kind == 'managed_library':
+                        stage = 'volume_prepare'
+                        prepared = self.readers.prepare_media_directories(
+                            intent, cancelled=cancelled)
+                        expected_prepared = VolumeBootstrapObservation(
+                            binding.resource_id,
+                            binding.resource.operationId,
+                            binding.journal_id,
+                            binding.ownership_nonce,
+                            intent.receipt.revision,
+                            binding.resource.name,
+                            binding.resource.target,
+                            'media_directories_prepared',
+                        )
+                        if (not _exact(prepared, VolumeBootstrapObservation)
+                                or prepared != expected_prepared):
+                            raise ValueError()
                     stage = 'volume_bootstrap'
                     bootstrap = self.readers.verify_bootstrap(intent, cancelled=cancelled)
                     receipt = intent.receipt

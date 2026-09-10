@@ -115,6 +115,16 @@ class Readers:
             binding.resource.name, binding.resource.target, 'root_verified',
         )
 
+    def prepare_media_directories(self, intent, *, cancelled):
+        self.calls.append(('prepare-library', intent.binding.resource_id))
+        binding, receipt = intent.binding, intent.receipt
+        return VolumeBootstrapObservation(
+            binding.resource_id, binding.resource.operationId, binding.journal_id,
+            binding.ownership_nonce, receipt.revision,
+            binding.resource.name, binding.resource.target,
+            'media_directories_prepared',
+        )
+
     def list_network(self, binding, intent, *, cancelled):
         self.calls.append(('network-list', binding.resource.resourceId))
         return NetworkListObservation('candidate', '3' * 64)
@@ -132,6 +142,10 @@ class BootstrapVerifier:
     def verify(self, intent, *, cancelled):
         self.calls.append((intent, cancelled))
         return 'bootstrap-observation'
+
+    def prepare_media_directories(self, intent, *, cancelled):
+        self.calls.append((intent, cancelled, 'prepare'))
+        return 'directory-observation'
 
 
 def test_engine_readers_construct_fixed_adapters_on_one_exact_endpoint():
@@ -153,12 +167,15 @@ def test_engine_readers_construct_fixed_adapters_on_one_exact_endpoint():
     assert readers.inspect_image('image-binding', cancelled=cancelled) == 'image-observation'
     assert readers.inspect_volume(volume_intent, cancelled=cancelled) == 'volume-observation'
     assert readers.verify_bootstrap(volume_intent, cancelled=cancelled) == 'bootstrap-observation'
+    assert readers.prepare_media_directories(
+        volume_intent, cancelled=cancelled) == 'directory-observation'
     assert readers.list_network('network-binding', 'network-intent', cancelled=cancelled) == \
         'network-list-observation'
     assert readers.inspect_network(
         'network-binding', 'network-intent', 'network-id', cancelled=cancelled,
     ) == 'network-observation'
-    assert readers._endpoint is endpoint and bootstrap.calls == [(volume_intent, cancelled)]
+    assert readers._endpoint is endpoint and bootstrap.calls == [
+        (volume_intent, cancelled), (volume_intent, cancelled, 'prepare')]
     assert [item[0] for item in calls] == [
         'image', 'volume', 'network-list', 'network-inspect',
     ]
@@ -189,7 +206,8 @@ def test_broker_rebinds_and_freshly_observes_every_jellyfin_resource(tmp_path):
     assert len(proof.volumes) == 3 and all(item.bootstrap_verified for item in proof.volumes)
     assert proof.network.network_id == '3' * 64
     assert [call[0] for call in readers.calls] == [
-        'image', 'volume', 'bootstrap', 'volume', 'bootstrap', 'volume', 'bootstrap',
+        'image', 'volume', 'bootstrap', 'volume', 'bootstrap', 'volume',
+        'prepare-library', 'bootstrap',
         'network-list', 'network-inspect',
     ]
 
@@ -212,7 +230,7 @@ def test_broker_rebinds_qbittorrent_config_and_shared_library(tmp_path):
     assert len(proof.volumes) == 2
     assert {item.target for item in proof.volumes} == {'/config', '/media'}
     assert [call[0] for call in readers.calls] == [
-        'image', 'volume', 'bootstrap', 'volume', 'bootstrap',
+        'image', 'volume', 'bootstrap', 'volume', 'prepare-library', 'bootstrap',
         'network-list', 'network-inspect']
 
 
