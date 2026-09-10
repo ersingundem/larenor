@@ -118,6 +118,18 @@ def test_launch_requires_exact_service_and_reviewed_source():
         "linux/amd64",
         "sonarr",
     )
+    manual = {
+        **base,
+        "EXPECTED_SERVICE": "radarr",
+        "GITHUB_EVENT_NAME": "workflow_dispatch",
+        "GITHUB_REF": "refs/heads/main",
+        "GITHUB_BASE_REF": "",
+        "PR_HEAD_REPOSITORY": "",
+    }
+    assert module.validate_launch(manual, "Linux", "x86_64", 0) == (
+        "linux/amd64",
+        "radarr",
+    )
     for damaged in (
         {**base, "EXPECTED_SERVICE": "lidarr"},
         {**base, "PR_HEAD_REPOSITORY": "fork/larenor"},
@@ -239,3 +251,102 @@ def test_diagnostic_phase_preserves_only_closed_arr_code():
         with module.diagnostic_phase("runtime_install"):
             raise Untrusted("private detail")
     assert closed.value.args == ("arr_runtime_install_failed",)
+
+
+@pytest.mark.parametrize("service", ["sonarr", "radarr"])
+def test_receipt_verification_never_starts_daemon(
+    service, tmp_path, monkeypatch, capsys
+):
+    module = api()
+    path = tmp_path / "receipt.json"
+    path.write_text(json.dumps(receipt(module, service)))
+    monkeypatch.setenv("GITHUB_SHA", "a" * 40)
+    monkeypatch.setenv("EXPECTED_PLATFORM", "linux/amd64")
+    monkeypatch.setenv("EXPECTED_SERVICE", service)
+    monkeypatch.setattr(module.smoke, "verify_checkout", lambda _commit: None)
+    monkeypatch.setattr(
+        module.smoke,
+        "EphemeralDaemon",
+        lambda: pytest.fail("verification started daemon"),
+    )
+
+    assert module.main(["--verify-receipt", str(path)]) == 0
+    assert capsys.readouterr().out == "arr_characterization_receipt_verified\n"
+
+
+@pytest.mark.parametrize(
+    "arguments",
+    [[], ["--run"], ["--socket", "/var/run/docker.sock"]],
+)
+def test_cli_has_no_generic_or_external_socket_mode(arguments, monkeypatch, capsys):
+    module = api()
+    monkeypatch.setattr(
+        module, "run", lambda: pytest.fail("invalid CLI ran native fixture")
+    )
+
+    assert module.main(arguments) == 1
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert captured.err == "arr_characterization_evidence_invalid\n"
+
+
+def test_static_diagnostic_phase_hides_the_original_exception():
+    module = api()
+    with pytest.raises(module.ArrManagedCIError) as failure:
+        with module.diagnostic_phase("runtime_install"):
+            raise RuntimeError("private engine detail")
+    assert failure.value.args == ("arr_runtime_install_failed",)
+    assert failure.value.__cause__ is None
+
+    with pytest.raises(module.ArrManagedCIError) as requirement:
+        with module.diagnostic_phase("resource_verify"):
+            module.require(False)
+    assert requirement.value.args == ("arr_resource_verify_failed",)
+
+    with pytest.raises(module.ArrManagedCIError):
+        with module.diagnostic_phase("not_allowed"):
+            pass
+
+
+def test_main_prints_only_allowlisted_native_diagnostic(monkeypatch, capsys):
+    module = api()
+    monkeypatch.setattr(
+        module,
+        "run",
+        lambda: (_ for _ in ()).throw(
+            module.ArrManagedCIError("arr_container_restart_failed")
+        ),
+    )
+
+    assert module.main(["--run-ephemeral-ci"]) == 1
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert captured.err == "arr_container_restart_failed\n"
+
+
+@pytest.mark.parametrize(
+    ("field", "replacement"),
+    [
+        ("serviceVersion", "0.0.0"),
+        ("platform", "linux/arm64"),
+        ("arrManifestDigest", "sha256:" + "0" * 64),
+        ("arrConfigDigest", "sha256:" + "0" * 64),
+        ("installAvailable", True),
+    ],
+)
+def test_receipt_rejects_mismatched_or_premature_claims(field, replacement):
+    module = api()
+    damaged = receipt(module)
+    damaged[field] = replacement
+
+    with pytest.raises(module.ArrManagedCIError):
+        module.validate_receipt(damaged, "a" * 40, "linux/amd64", "sonarr")
+
+
+def test_receipt_rejects_unknown_fields_and_secret_shaped_output():
+    module = api()
+    for field in ("apiKey", "credential", "unexpected"):
+        damaged = receipt(module)
+        damaged[field] = "private"
+        with pytest.raises(module.ArrManagedCIError):
+            module.validate_receipt(damaged, "a" * 40, "linux/amd64", "sonarr")
