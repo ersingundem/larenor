@@ -301,13 +301,17 @@ This mutation channel is physically separate from preflight. The API uses
 `LARENOR_INSTALLATION_WORKER_SOCKET` and
 `LARENOR_INSTALLATION_WORKER_UID`; using the preflight path for both fails
 startup. Unix socket ownership, peer UID, packet size and deadlines use the same
-bounded transport rules, but accepted operations are only `status`, `apply` and
-`reconcile`. Each request contains a strict `WorkerStep` plus the complete
+bounded transport rules. The closed operations are `status`, `apply`,
+`reconcile`, Jellyfin `bootstrap` and qBittorrent `configure_qbittorrent`.
+Container requests contain a strict `WorkerStep` plus the complete
 packaged `MediaStackPlan`. The worker reruns catalog and stack verification,
 derives the Jellyfin child, checks its installation and step ID, then invokes
 its internal policy-owned binding builder. This Core/home/preparation context is
 required to bind resource receipts. No public request supplies a Docker endpoint
-or payload.
+or payload. The qBittorrent request carries only a job ID and generated private
+credential/API-key/salt values; the worker revalidates the packaged stack and
+returns a secret-free journal-bound digest receipt. No public HTTP route invokes
+this operation yet.
 
 The initial worker-only binding builder now requires fresh typed image,
 bootstrapped-volume and private-network proofs, disables published ports, maps

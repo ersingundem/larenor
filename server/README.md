@@ -346,7 +346,11 @@ the private installation-worker socket is configured, Core now sends the exact
 bootstrap contract over that same UID-authenticated Unix channel. Installation
 and bootstrap share one journal/binding authority, while the supervisor keeps
 every inner gate and Docker observation on the retained daemon lease and native
-thread. API-key/library readback and real Linux service acceptance remain open.
+thread. The same socket now has a closed qBittorrent configuration operation:
+Core sends only a job ID, verified stack and generated private credential,
+API-key and salt; the worker repeats catalog/model checks and returns only a
+journal-bound digest receipt. The durable qBittorrent job and create/start
+ordering are still open, so no public route or installation capability is added.
 
 ## Client releases
 
