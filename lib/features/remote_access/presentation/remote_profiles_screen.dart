@@ -152,6 +152,8 @@ class _RemoteProfilesScreenState extends ConsumerState<RemoteProfilesScreen>
   }
 
   void _fail(Object error) {
+    _generation++;
+    _busy = false;
     _snapshot = null;
     _selected = null;
     _editing = false;

@@ -208,5 +208,4 @@ void main() {
     expect(find.text('NAS'), findsNothing);
     expect(key('remote-error'), findsOneWidget);
   });
-
 }
