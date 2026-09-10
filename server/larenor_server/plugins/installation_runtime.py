@@ -16,6 +16,7 @@ import signal
 import stat
 import sys
 import threading
+import time
 
 from ..errors import StartupError
 from ..files import checked_path, private_read
@@ -289,8 +290,12 @@ class _RuntimeBackend:
             except Exception:
                 return ExecutionGateResult.denied('authority_changed')
 
+        remaining = deadline - time.monotonic()
+        if not 0 < remaining <= 120:
+            raise QbittorrentConfigurationExecutionError(
+                'qbittorrent_config_timeout')
         execution = build_execution(
-            stack, job_id=job, deadline=deadline,
+            stack, job_id=job, deadline=time.time() + remaining,
             service_id='qbittorrent')
         result = execution.run(self.qbittorrent_installation, authority)
         if (type(result) is not ExecutionResult or result.state != 'succeeded'

@@ -174,7 +174,8 @@ def test_runtime_configures_qbittorrent_before_create_and_start(monkeypatch):
 
     class Operations:
         def apply(self, step, binding):
-            events.append(('apply', step.kind, binding))
+            events.append(
+                ('apply', step.kind, binding, step.start_deadline))
             code = ('container_created' if step.kind == 'create_container'
                     else 'container_started')
             return StepReceipt(
@@ -219,10 +220,12 @@ def test_runtime_configures_qbittorrent_before_create_and_start(monkeypatch):
     monkeypatch.setattr(
         runtime, 'QbittorrentBootstrapExecutor',
         lambda *_args: QbittorrentBootstrap())
+    monkeypatch.setattr(runtime.time, 'monotonic', lambda: 1000.0)
+    monkeypatch.setattr(runtime.time, 'time', lambda: 2000.0)
     backend = runtime._RuntimeBackend(Operations(), binding, Configuration())
     result = backend.install_configured_qbittorrent(
         'd' * 32, stack, 'c' * 48, api_key='a' * 32, salt=b'1' * 16,
-        cancelled=threading.Event(), deadline=time.monotonic() + 30,
+        cancelled=threading.Event(), deadline=1030.0,
         gate=lambda: True)
     assert result.configuration == receipt
     assert result.state == 'qbittorrent_container_started'
@@ -232,6 +235,8 @@ def test_runtime_configures_qbittorrent_before_create_and_start(monkeypatch):
         'configure', 'binding', 'apply', 'binding', 'apply', 'bootstrap']
     assert [event[1] for event in events if event[0] == 'binding'] == [
         'qbittorrent', 'qbittorrent']
+    assert [event[3] for event in events if event[0] == 'apply'] == [
+        2030.0, 2030.0]
 
 
 @pytest.mark.parametrize('bootstrap_code,public_code', [
