@@ -357,7 +357,11 @@ servis veya belirsiz sonuç retry edilmeden kapanıyor. `8c4eb4c` okunabilirlik
 düzenlemesiyle deadline readback başlamadan tükenirse açılmış özel stream'in de
 kapatılmasını güvenceye aldı. `c5cbf61`, yanlışlıkla qBittorrent'a yönlenen Arr
 reconcile metodunu seçili servise geri bağladı ve qBittorrent reconcile metodunu
-doğru sınıfa taşıdı. İlgili 13 pakette **301 PASS / 1 mevcut macOS skip**; Ruff,
+doğru sınıfa taşıdı. `0e473af`, eksik Arr supervisor metodunu tamamladı ve
+config/create/start/readback zincirini aynı retained daemon/native thread
+kanıtına bağladı; yürütme ile bootstrap yetki, timeout, kaynak ve geçersiz sonuç
+hatalarını kapalı, secret-free belirsiz sonuçlara ayırdı. İlgili 13 pakette
+**313 PASS / 1 mevcut macOS skip**; Ruff,
 compileall, security, queue ve Gitleaks PASS. İki mimarili native
 kabul açık olduğundan sayaç değişmedi.
 [Uygulama ve açık sınırlar](arr-configured-container-implementation-2026-09-10.md).
