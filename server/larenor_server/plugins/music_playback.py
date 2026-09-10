@@ -261,7 +261,7 @@ class MusicPlaybackManagement:
         if type(body) is not MusicPlaybackCommandRequest:
             raise ApiError('invalid_request')
         with self.db.transaction() as connection:
-            self._assert_user(connection, actor)
+            self._assert_admin(connection, actor)
             authority = self._authority(
                 connection, body.installationId,
                 body.expectedInstallationRevision, body.expectedCoreRevision)
@@ -340,7 +340,7 @@ class MusicPlaybackManagement:
         except Exception:
             raise ApiError('music_playback_worker_unavailable', 503) from None
         with self.db.transaction() as connection:
-            self._assert_user(connection, actor)
+            self._assert_admin(connection, actor)
             self._authority(connection, body.installationId,
                             body.expectedInstallationRevision,
                             body.expectedCoreRevision)

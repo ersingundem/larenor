@@ -4,7 +4,8 @@ import pytest
 
 from conftest import auth
 from larenor_server.plugins.music_playback_models import (
-    MusicPlaybackReadback, MusicPlaybackWorkerResult, VerifiedMusicPlayer,
+    MusicNowPlaying, MusicPlaybackReadback, MusicPlaybackWorkerResult,
+    MusicQueueSnapshot, VerifiedMusicPlayer,
 )
 from larenor_server.plugins.music_provider_setup_models import (
     ProviderSetupWorkerResult,
@@ -18,10 +19,17 @@ BASE = '/api/v1/admin/media/music-assistant/playback'
 def player(identifier='homepod-living', *, group=(), volume=34):
     return VerifiedMusicPlayer(
         playerId=identifier, name='Living HomePod', provider='airplay--main',
+        providerDomain='airplay', providerInstanceId='airplay--main',
         targetKind='homepod' if not group else 'airplay_group',
         available=True, enabled=True, playbackState='paused',
         volumeLevel=volume, muted=False, groupMembers=list(group),
         queueId=identifier,
+        queue=MusicQueueSnapshot(
+            id=identifier, active=True, available=True, itemCount=1,
+            currentIndex=0, shuffleEnabled=False, repeatMode='off',
+            state='paused', nowPlaying=MusicNowPlaying(
+                itemId='queue-item-1', title='Synthetic Song',
+                durationSeconds=240, positionSeconds=30)),
         capabilities=['play', 'pause', 'stop', 'next_previous',
                       'volume_set', 'volume_mute', 'queue'])
 

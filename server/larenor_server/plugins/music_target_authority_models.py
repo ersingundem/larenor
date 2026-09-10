@@ -7,7 +7,9 @@ from pydantic import Field, field_validator, model_validator
 
 from ..admin.models import ObjectId, Revision
 from ..models import StrictModel
-from .music_playback_models import PlaybackOperation, PlayerCapability
+from .music_playback_models import (
+    MusicQueueSnapshot, PlaybackOperation, PlayerCapability,
+)
 from .music_provider_setup_models import ProviderDomain
 
 
@@ -21,6 +23,8 @@ class MusicTarget(StrictModel):
     id: str = Field(min_length=1, max_length=128)
     name: str = Field(min_length=1, max_length=160)
     provider: str = Field(min_length=1, max_length=128)
+    providerDomain: str = Field(min_length=1, max_length=64)
+    providerInstanceId: str = Field(min_length=1, max_length=128)
     transport: Literal['airplay', 'chromecast']
     kind: Literal['device', 'group']
     homePod: bool
@@ -31,7 +35,17 @@ class MusicTarget(StrictModel):
     muted: bool | None = None
     groupMemberIds: list[str] = Field(max_length=64)
     queueId: str | None = Field(default=None, max_length=128)
+    queue: MusicQueueSnapshot | None = None
     capabilities: list[PlayerCapability] = Field(max_length=8)
+
+    @model_validator(mode='before')
+    @classmethod
+    def provider_metadata(cls, value):
+        if type(value) is dict and type(value.get('provider')) is str:
+            value = dict(value)
+            value.setdefault('providerDomain', value['provider'].split('--', 1)[0])
+            value.setdefault('providerInstanceId', value['provider'])
+        return value
 
     @model_validator(mode='after')
     def coherent(self):
@@ -40,6 +54,10 @@ class MusicTarget(StrictModel):
                                      or self.kind != 'device')
                 or len(set(self.groupMemberIds)) != len(self.groupMemberIds)
                 or len(set(self.capabilities)) != len(self.capabilities)):
+            raise ValueError('invalid_music_target')
+        if (self.provider != self.providerInstanceId
+                or self.providerDomain != self.provider.split('--', 1)[0]
+                or (self.queue is not None and self.queue.id != self.queueId)):
             raise ValueError('invalid_music_target')
         return self
 

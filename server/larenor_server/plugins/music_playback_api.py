@@ -34,5 +34,5 @@ def get(installation_id: ObjectId, core: Core, actor: Ready):
 
 @router.post('/commands', response_model=MusicPlaybackReceiptResponse,
              status_code=201)
-def command(body: MusicPlaybackCommandRequest, core: Core, actor: Ready):
+def command(body: MusicPlaybackCommandRequest, core: Core, actor: Admin):
     return core.music_playback.command(actor, body)

@@ -19,10 +19,67 @@ PlayerCapability = Literal[
 ]
 
 
+class MusicNowPlaying(StrictModel):
+    itemId: str = Field(min_length=1, max_length=128)
+    title: str = Field(min_length=1, max_length=320)
+    durationSeconds: int | None = Field(default=None, ge=0, le=7 * 24 * 60 * 60)
+    positionSeconds: int = Field(ge=0, le=7 * 24 * 60 * 60)
+
+    @field_validator('itemId')
+    @classmethod
+    def safe_item_id(cls, value):
+        if re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9_.:\-]{0,127}', value) is None:
+            raise ValueError('invalid_music_queue_readback')
+        return value
+
+    @field_validator('title')
+    @classmethod
+    def safe_title(cls, value):
+        if any(ord(char) < 32 or ord(char) == 127 for char in value):
+            raise ValueError('invalid_music_queue_readback')
+        return value
+
+    @model_validator(mode='after')
+    def position_within_duration(self):
+        if (self.durationSeconds is not None
+                and self.positionSeconds > self.durationSeconds):
+            raise ValueError('invalid_music_queue_readback')
+        return self
+
+
+class MusicQueueSnapshot(StrictModel):
+    id: str = Field(min_length=1, max_length=128)
+    active: bool
+    available: bool
+    itemCount: int = Field(ge=0, le=100000)
+    currentIndex: int | None = Field(default=None, ge=0, le=99999)
+    shuffleEnabled: bool
+    repeatMode: Literal['off', 'one', 'all']
+    state: Literal['idle', 'playing', 'paused']
+    nowPlaying: MusicNowPlaying | None
+
+    @field_validator('id')
+    @classmethod
+    def safe_queue_id(cls, value):
+        if re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9_.:\-]{0,127}', value) is None:
+            raise ValueError('invalid_music_queue_readback')
+        return value
+
+    @model_validator(mode='after')
+    def coherent(self):
+        if ((self.currentIndex is None) != (self.nowPlaying is None)
+                or (self.currentIndex is not None
+                    and self.currentIndex >= self.itemCount)):
+            raise ValueError('invalid_music_queue_readback')
+        return self
+
+
 class VerifiedMusicPlayer(StrictModel):
     playerId: str = Field(min_length=1, max_length=128)
     name: str = Field(min_length=1, max_length=160)
     provider: str = Field(min_length=1, max_length=128)
+    providerDomain: str = Field(min_length=1, max_length=64)
+    providerInstanceId: str = Field(min_length=1, max_length=128)
     targetKind: Literal[
         'homepod', 'airplay', 'airplay_group', 'chromecast',
         'chromecast_group', 'group', 'other']
@@ -33,14 +90,31 @@ class VerifiedMusicPlayer(StrictModel):
     muted: bool | None = None
     groupMembers: list[str] = Field(max_length=64)
     queueId: str | None = Field(default=None, max_length=128)
+    queue: MusicQueueSnapshot | None = None
     capabilities: list[PlayerCapability] = Field(max_length=8)
 
-    @field_validator('playerId', 'provider', 'queueId')
+    @model_validator(mode='before')
+    @classmethod
+    def provider_metadata(cls, value):
+        if type(value) is dict and type(value.get('provider')) is str:
+            value = dict(value)
+            value.setdefault('providerDomain', value['provider'].split('--', 1)[0])
+            value.setdefault('providerInstanceId', value['provider'])
+        return value
+
+    @field_validator('playerId', 'provider', 'providerInstanceId', 'queueId')
     @classmethod
     def safe_id(cls, value):
         if (value is not None
                 and re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9_.:\-]{0,127}',
                                  value) is None):
+            raise ValueError('invalid_music_player_readback')
+        return value
+
+    @field_validator('providerDomain')
+    @classmethod
+    def safe_provider_domain(cls, value):
+        if re.fullmatch(r'[a-z0-9][a-z0-9_]{0,63}', value) is None:
             raise ValueError('invalid_music_player_readback')
         return value
 
@@ -63,6 +137,10 @@ class VerifiedMusicPlayer(StrictModel):
             raise ValueError('invalid_music_player_readback')
         if self.targetKind not in {
                 'airplay_group', 'chromecast_group', 'group'} and self.groupMembers:
+            raise ValueError('invalid_music_player_readback')
+        if (self.provider != self.providerInstanceId
+                or self.providerDomain != self.provider.split('--', 1)[0]
+                or (self.queue is not None and self.queue.id != self.queueId)):
             raise ValueError('invalid_music_player_readback')
         return self
 

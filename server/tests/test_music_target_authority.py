@@ -1,7 +1,9 @@
 """Server-only authority for retained Music Assistant playback targets."""
 
 from conftest import auth
-from larenor_server.plugins.music_playback_models import VerifiedMusicPlayer
+from larenor_server.plugins.music_playback_models import (
+    MusicNowPlaying, MusicQueueSnapshot, VerifiedMusicPlayer,
+)
 from test_admin import activate, create
 from test_music_playback import discovered, player
 
@@ -15,6 +17,8 @@ def cast(identifier="cast-living", *, group=(), capabilities=None):
         playerId=identifier,
         name="Living Chromecast",
         provider="cast--main",
+        providerDomain="cast",
+        providerInstanceId="cast--main",
         targetKind="chromecast" if not group else "chromecast_group",
         available=True,
         enabled=True,
@@ -23,6 +27,12 @@ def cast(identifier="cast-living", *, group=(), capabilities=None):
         muted=False,
         groupMembers=list(group),
         queueId=identifier,
+        queue=MusicQueueSnapshot(
+            id=identifier, active=True, available=True, itemCount=1,
+            currentIndex=0, shuffleEnabled=False, repeatMode='off',
+            state='idle', nowPlaying=MusicNowPlaying(
+                itemId='queue-item-1', title='Synthetic Song',
+                durationSeconds=240, positionSeconds=0)),
         capabilities=capabilities
         or [
             "play",
