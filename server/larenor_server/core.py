@@ -60,14 +60,19 @@ from .home_assistant.migration_schema import migrate as migrate_direct_ha
 from .home_assistant.migration import DirectHaMigration
 from .proxmox.schema import migrate as migrate_proxmox_resources
 from .proxmox.service import ProxmoxResourceAdapter
+from .proxmox_commands.schema import migrate as migrate_proxmox_power
+from .proxmox_commands.service import ProxmoxPowerAuthority
 
 
 class CoreServices:
     def __init__(self, settings: Settings, *, blob_provider: BlobProvider | None = None,
-                 transfer_limits: TransferLimits | None = None):
+                 transfer_limits: TransferLimits | None = None,
+                 proxmox_guest_provider=None, proxmox_power_executor=None):
         self.settings = settings
         self._blob_provider = blob_provider
         self._transfer_limits = transfer_limits
+        self._proxmox_guest_provider = proxmox_guest_provider
+        self._proxmox_power_executor = proxmox_power_executor
         self.bootstrap_created = False
         self.bootstrap_cleanup_pending = False
         try:
@@ -180,6 +185,7 @@ class CoreServices:
                 migrate_music_assistant_core(connection)
                 migrate_music_provider_setups(connection)
                 migrate_music_playback(connection)
+                migrate_proxmox_power(connection, key)
             if not existed:
                 # Only publish the DB after its complete first transaction commits.
                 # Never expose an empty DB that a restart might treat as a reset.
@@ -202,6 +208,11 @@ class CoreServices:
             self.home_resources.validate_storage()
             self.bounded_transfers = BoundedTransferService(
                 self.home_resources, settings, self._blob_provider, self._transfer_limits)
+            self.proxmox_power = ProxmoxPowerAuthority(
+                self.home_resources, self.auth, settings, key,
+                self._proxmox_guest_provider, self._proxmox_power_executor)
+            self.proxmox_power.store.validate_storage()
+            self.proxmox_power.store.recover_incomplete()
             self.home_people = HomePeopleRegistry(self.db, self.auth, settings, key, self.context)
             self.home_people.validate_storage()
             self.admin = AdminService(self.db, self.auth, settings)
