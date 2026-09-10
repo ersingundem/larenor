@@ -25,9 +25,11 @@ Uygulama, sürüme sabitlenmiş upstream sözleşmelere dayanır:
 | Aşama | Commit | Komut ve sonuç |
 | --- | --- | --- |
 | RED — ilk yönetici | `0ffef42` | `pytest -q server/tests/test_seerr_initial_admin.py` koleksiyonda beklenen `ModuleNotFoundError`; production modülü henüz yoktu. |
-| GREEN — ilk yönetici | `f45ad03` | Aynı hedefte **20 PASS**. Servis probe ve katalog regresyonlarıyla birleşik koşum **236 PASS**. |
+| GREEN — ilk yönetici | `f45ad03` | Aynı hedefte **24 PASS**. Servis probe ve katalog regresyonlarıyla birleşik koşum **236 PASS**. |
 | RED — private endpoint | `1cca084` | `pytest -q server/tests/test_seerr_endpoint.py` koleksiyonda beklenen `ModuleNotFoundError`; endpoint modülü henüz yoktu. |
 | GREEN — private endpoint | `5dc00db` | Endpoint, container binding, resource proof, Arr ve Jellyfin endpoint paketleri birlikte **99 PASS**. |
+| RED — Jellyfin hedefi | `23e79b5` | Testler yalnız plandan türetilen `larenor-<installationId>` adını kabul etmeyi istedi; eski adaptör parametreyi desteklemedi. |
+| GREEN — Jellyfin hedefi | `4c2db90` | **24 ilk-yönetici** ve **84 Seerr/binding/resource testi** PASS; serbest alias/IP girdisi reddediliyor. |
 
 `pytest-cov` bu sabit yerel test ortamında kurulu olmadığı için yeni modüller
 için yüzdelik kapsam üretilmedi. Tam Server koleksiyonu ve GitHub CI, PR
@@ -38,7 +40,7 @@ kapısında ayrıca çalıştırılır.
 | # | Garanti | Test | Tür | Sonuç |
 | --- | --- | --- | --- | --- |
 | 1 | Yalnız `initialized:false` ve `applicationTitle:Seerr` gözlemi sır aktarımına izin verir. | `test_only_exact_fresh_seerr_instance_can_receive_credentials` | güvenlik/bütünleşme | PASS |
-| 2 | Jellyfin sistem hesabı sabit `jellyfin:8096`, TLS kapalı ve Jellyfin türüyle gönderilir. | `test_creates_initial_admin_reads_key_and_destroys_session` | protokol | PASS |
+| 2 | Jellyfin sistem hesabı yalnız plandan türetilen `larenor-<installationId>:8096`, TLS kapalı ve Jellyfin türüyle gönderilir. | `test_creates_initial_admin_reads_key_and_destroys_session` | protokol | PASS |
 | 3 | Dönen kullanıcı `id=1`, admin biti, Jellyfin kullanıcı türü ve beklenen adla eşleşir. | `test_auth_response_must_be_exact_larenor_jellyfin_admin` | güvenlik | PASS |
 | 4 | Yalnız dar `connect.sid` cookie biçimi kabul edilir; Domain enjeksiyonu reddedilir. | `test_missing_or_untrusted_session_cookie_never_reaches_settings` | güvenlik | PASS |
 | 5 | API anahtarı pinned Seerr üretim biçiminde geri okunur ve geçici oturum kapatılır. | `test_generated_api_key_must_match_pinned_seerr_contract` | protokol | PASS |

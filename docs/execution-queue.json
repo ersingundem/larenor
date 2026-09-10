@@ -1038,10 +1038,10 @@
         {
           "kind": "test",
           "ref": "docs/seerr-private-bootstrap-implementation-2026-09-10.md",
-          "commit": "5dc00db046f34a081a99642bf056cde354e41709",
+          "commit": "4c2db906a27995e1e65c5ea57b3a1155e296a8de",
           "state": "completed",
           "result": "passed",
-          "label": "Seerr v3.4.1 ilk-yönetici oturumu ve journal-bound private TCP/5055 endpoint temeli TDD ile eklendi; 20 ilk-yönetici, 99 endpoint/binding/resource regresyonu PASS. Worker/IPC ve native Seerr kabulü açık."
+          "label": "Seerr v3.4.1 ilk-yönetici oturumu, plandan türetilen Jellyfin container hedefi ve journal-bound private TCP/5055 endpoint temeli TDD ile eklendi; 24 ilk-yönetici ve 84 Seerr/binding/resource testi PASS. Worker/IPC ve native Seerr kabulü açık."
         }
       ],
       "completionCommit": null,

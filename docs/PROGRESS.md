@@ -413,7 +413,7 @@ Admin kimliği ve izin biti doğrulanıyor; yalnız dar `connect.sid` cookie kab
 ediliyor; üretilen API anahtarı geri okunup oturum kapatılıyor. Parola, cookie
 ve anahtar hata veya repr yüzeyine çıkmıyor. Managed container yalnız sahipli
 `/app/config` hacmi ve internal ağ alıyor; çalışan exact journal container'ından
-DNS/retry olmadan RFC1918 TCP/5055 endpoint üretiliyor. **20 ilk-yönetici**, ilgili
+DNS/retry olmadan RFC1918 TCP/5055 endpoint üretiliyor. **24 ilk-yönetici**, ilgili
 probe/kataloglarla **236**, endpoint/binding/resource regresyonlarında **99 PASS**;
 security policy ve Gitleaks temiz. Worker/IPC, Sonarr/Radarr/kütüphane/initialize
 eşleştirmesi ve native Seerr kabulü henüz açık.
