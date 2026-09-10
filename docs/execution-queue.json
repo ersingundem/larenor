@@ -887,14 +887,6 @@
         },
         {
           "kind": "test",
-          "ref": "docs/qbittorrent-owned-bootstrap-implementation-2026-09-10.md",
-          "commit": "8d1a04164487aab5272d9dab555b1c4ee22a9af4",
-          "state": "completed",
-          "result": "passed",
-          "label": "qBittorrent 5.2.3 sahipli config, Bearer readback ve movies/tv kategori sözleşmeleri 104 odaklı/149 ilgili test ve secret scan ile geçti; kurulum yeteneği kapalı kaldı."
-        },
-        {
-          "kind": "test",
           "ref": "docs/qbittorrent-config-volume-binding-implementation-2026-09-10.md",
           "commit": "4e9961540d05df027be0d5fc66fd9d6b639ba6b4",
           "state": "completed",
@@ -1044,10 +1036,18 @@
           "state": "completed",
           "result": "passed",
           "label": "Exact PR41 head amd64+arm64 qBittorrent 5.2.3 config/start/Bearer auth, movies+tv kategori kalıcılığı, restart ve ikinci readback PASS; indirilen iki makbuz merge kaynağı 8cf7257 ile repo verifier üzerinde yeniden PASS."
+        },
+        {
+          "kind": "test",
+          "ref": "docs/arr-owned-config-implementation-2026-09-10.md",
+          "commit": "9df82dd79cc274220de903c8b33b718c396b3e9d",
+          "state": "completed",
+          "result": "passed",
+          "label": "Sonarr 4.0.19.2979 ve Radarr 6.3.0.10514 upstream davranışına bağlı owned config.xml, exact 32-hex API key, sabit port/policy ve byte-level drift reddi 36 yeni/218 ilgili testte PASS; filesystem/Docker etkisi kapalı."
         }
       ],
       "completionCommit": null,
-      "reason": "Server üretimli sır, sabit startup, exact journal/container/private-network yürütücüsü, kalıcı no-retry koordinatör, otomatik yaşam döngüsü dispatcher ve aynı retained daemon'a bağlı private IPC/runtime hazır. Disposable Jellyfin 10.11.11 bootstrap, API anahtarı, kütüphane eşleştirmesi, logout, restart ve veri kalıcılığı exact arm64+amd64 CI'da geçti. qBittorrent 5.2.3 sahipli config/API, journal-bound volume/library planı, güvenli helper, private stdin effect, current-journal runtime bağı, UID-korumalı IPC, şifreli kalıcı Core işi, config-before-create/start ve private endpoint/bootstrap hazır. Exact PR41 amd64+arm64 native CI config, Bearer auth, kategori kalıcılığı ve restart readback makbuzlarını doğruladı. Radarr/Sonarr/Seerr/Music Assistant sahipli bootstrap ve otomatik eşleştirmesi açık; installAvailable=false."
+      "reason": "Server üretimli sır, sabit startup, exact journal/container/private-network yürütücüsü, kalıcı no-retry koordinatör, otomatik yaşam döngüsü dispatcher ve aynı retained daemon'a bağlı private IPC/runtime hazır. Disposable Jellyfin 10.11.11 bootstrap, API anahtarı, kütüphane eşleştirmesi, logout, restart ve veri kalıcılığı exact arm64+amd64 CI'da geçti. qBittorrent 5.2.3 sahipli config/API, journal-bound volume/library planı, güvenli helper, private stdin effect, current-journal runtime bağı, UID-korumalı IPC, şifreli kalıcı Core işi, config-before-create/start ve private endpoint/bootstrap hazır; exact PR41 amd64+arm64 native CI config, Bearer auth, kategori kalıcılığı ve restart readback makbuzlarını doğruladı. Sonarr/Radarr owned config.xml ve exact API-key geri doğrulaması hazır. Arr journal-bound yazma/native API readback, qBittorrent/root-folder bağlantısı, Seerr ve Music Assistant bootstrap açık; installAvailable=false."
     },
     {
       "id": "S06.6",

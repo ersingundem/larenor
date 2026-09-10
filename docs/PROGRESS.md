@@ -1,6 +1,6 @@
 # Larenor — güncel ilerleme ve iş kuyruğu
 
-**Son güncelleme: 10 Eylül 2026 — qBittorrent yönetilen servis zinciri PR41'de exact amd64+arm64 native kabulünü geçti. İndirilen iki makbuz merge kaynağına karşı yeniden doğrulandı; S06.5'in sıradaki işi Radarr/Sonarr/Seerr/Music Assistant otomatik eşleştirmesi.**
+**Son güncelleme: 10 Eylül 2026 — qBittorrent yönetilen servis zinciri PR41 ile ana dalda. Sonarr/Radarr için upstream sürümlerine bağlı sahipli `config.xml` üretim ve exact geri doğrulama sözleşmesi yerelde yeşil; journal-bound yazma ve native kabul sıradaki kapı.**
 
 ```text
 Kuyruk kabulü       ██░░░░░░░░░░░░░░░░░░  14/125 iş (%11; eşit ağırlıklı sayaç)
@@ -41,7 +41,7 @@ Gerçek ev kurulumu ve fiziksel tablet kabulü henüz yapılmadı.
 | S06.3d — kalıcı depolama | **Kabul edildi**; Native18 exact `6a054ea`, amd64+arm64 makbuzları doğrulandı | S06.3f ile birleşik kaynak kapısı kapandı |
 | S06.3f — kaynak kabulü | **Kabul edildi**; exact `4021391`, iki mimarili native makbuz, 4.065 Server ve tam Android/Server CI yeşil | S06.4 dar kurulum yürütme kapısı |
 | S06.4 — dar kurulum yürütme kapısı | **Kabul edildi**; PR16 `bf6f860`, PR18 `75af015`, PR19 `9ce3c5a` ve PR20 `2b9166b` tam CI kapıları yeşil | S06.5 özel bootstrap ve otomatik servis eşleştirme |
-| S06.5 — özel bootstrap ve otomatik eşleştirme | **Devam ediyor**; Jellyfin kabulünden sonra qBittorrent config/create/start/private bootstrap ve restart readback exact PR41 kaynağında amd64+arm64 geçti | Radarr/Sonarr/Seerr/Music Assistant sahipli bootstrap ve otomatik eşleştirmesi |
+| S06.5 — özel bootstrap ve otomatik eşleştirme | **Devam ediyor**; Jellyfin kabulünden sonra qBittorrent config/create/start/private bootstrap ve restart readback exact PR41 kaynağında amd64+arm64 geçti. Sonarr/Radarr owned config üretim ve exact doğrulama sözleşmesi hazır | Arr journal-bound yazma ve native authenticated readback; ardından qBittorrent/root-folder bağlantısı, Seerr ve Music Assistant |
 
 S06.5'in ilk iki TDD parçası, yalnız tamamlanmış Jellyfin kurulumundan
 yöneticiye bağlı bootstrap niyeti üretir ve public API'de sır, hedef adres veya
@@ -255,6 +255,16 @@ kaynağı `8cf7257` ile repo doğrulayıcısında yeniden PASS oldu. Diğer medy
 servislerinin otomatik eşleştirmesi açık olduğu için sayaç ve
 `installAvailable=false` değişmedi.
 [Uygulama ve açık sınırlar](qbittorrent-service-verification-implementation-2026-09-10.md).
+
+`9df82dd` ile başlayan Arr dilimi, sabitlenmiş Sonarr `4.0.19.2979` ve Radarr
+`6.3.0.10514` kaynaklarındaki 32 karakterlik API-key ve `config.xml` başlangıç
+davranışını kapalı bir üreticiye bağladı. Yalnız `sonarr`/`radarr`, sabit port,
+örnek adı ve güvenlik ilkesi kabul ediliyor; secret ve dosya baytları `repr`
+çıktısına girmiyor. Exact karşılaştırma ek veya değiştirilmiş XML'i ve servisler
+arası yeniden kullanımı reddediyor. **36 yeni / 218 ilgili test**, compileall,
+security policy ve diff kontrolü PASS. Henüz dosya sistemi/Docker etkisi olmadığı
+için sayaç ve `installAvailable=false` değişmedi.
+[Uygulama ve açık sınırlar](arr-owned-config-implementation-2026-09-10.md).
 
 S06.4 native kabul koşusu [34326112926](https://github.com/ersingundem/larenor/actions/runs/34326112926)
 iki gerçek GitHub runner'ında geçti. İndirilen ARM64 ve X64 makbuzları merge
