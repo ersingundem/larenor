@@ -289,6 +289,57 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('wide detail groups, filters and searches read-only telemetry', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(1280, 900));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    final semantics = tester.ensureSemantics();
+    await tester.pumpWidget(
+      CupertinoApp(
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        home: CupertinoPageScaffold(
+          child: CoreProxmoxDetailExplorer(summary: _summary()),
+        ),
+      ),
+    );
+    expect(
+      find.byKey(const ValueKey('core-proxmox-master-detail')),
+      findsOneWidget,
+    );
+    expect(find.text('Nodes'), findsWidgets);
+    expect(find.text('Virtual machines & containers'), findsWidgets);
+    expect(find.text('Storage'), findsWidgets);
+    expect(find.text('Recent tasks'), findsWidgets);
+    expect(
+      find.textContaining(
+        'current Core snapshot does not provide task history',
+      ),
+      findsOneWidget,
+    );
+    await tester.enterText(
+      find.byKey(const ValueKey('core-proxmox-detail-search')),
+      'DNS',
+    );
+    await tester.pump();
+    expect(find.textContaining('LXC container #102'), findsWidgets);
+    expect(find.textContaining('QEMU VM #101'), findsNothing);
+    await tester.tap(find.byKey(const ValueKey('core-proxmox-filter-storage')));
+    await tester.pump();
+    expect(find.textContaining('local-lvm'), findsNothing);
+    for (final button in tester.widgetList<CupertinoButton>(
+      find.byType(CupertinoButton),
+    )) {
+      expect(button.minimumSize?.height ?? 0, greaterThanOrEqualTo(48));
+    }
+    expect(
+      find.bySemanticsLabel(RegExp('Virtual machines & containers')),
+      findsWidgets,
+    );
+    semantics.dispose();
+  });
+
   testWidgets('verified Core dashboard tile reads the selected resource only', (
     tester,
   ) async {
@@ -386,7 +437,7 @@ void main() {
 
   for (final size in [const Size(600, 900), const Size(1280, 900)]) {
     testWidgets(
-      'admin ${size.width.toInt()}px 2x tile shows exact summary and PIN gate',
+      'admin ${size.width.toInt()}px 2x tile opens detail then PIN power gate',
       (tester) async {
         final semantics = tester.ensureSemantics();
         final harness = await _mountCoreTile(
@@ -425,6 +476,15 @@ void main() {
         await tester.sendKeyEvent(LogicalKeyboardKey.tab);
         await tester.sendKeyEvent(LogicalKeyboardKey.enter);
         await tester.pumpAndSettle();
+        expect(
+          find.byKey(const ValueKey('core-proxmox-detail-search')),
+          findsOneWidget,
+        );
+        expect(find.byType(CupertinoSliverRefreshControl), findsOneWidget);
+        final power = find.byKey(const ValueKey('core-proxmox-power-open'));
+        await tester.ensureVisible(power);
+        await tester.tap(power);
+        await tester.pumpAndSettle();
         expect(find.byType(SettingsGateScreen), findsOneWidget);
         expect(find.text('Unlock'), findsOneWidget);
         await tester.enterText(find.byType(CupertinoTextField), '1234');
@@ -459,10 +519,19 @@ void main() {
       },
     );
     expect(find.textContaining('Multiple guests'), findsOneWidget);
+    await tester.tap(find.byType(CupertinoButton).first);
+    await tester.pumpAndSettle();
+    expect(
+      find.byKey(const ValueKey('core-proxmox-detail-search')),
+      findsOneWidget,
+    );
+    expect(find.textContaining('Multiple guests'), findsOneWidget);
     final before = harness.paths
         .where((path) => path.endsWith('/targets'))
         .length;
-    await tester.tap(find.byType(CupertinoButton).first);
+    final refresh = find.byKey(const ValueKey('core-proxmox-power-refresh'));
+    await tester.ensureVisible(refresh);
+    await tester.tap(refresh);
     await tester.pump();
     final after = harness.paths
         .where((path) => path.endsWith('/targets'))
@@ -521,9 +590,15 @@ void main() {
       );
       expect(find.textContaining('offline'), findsOneWidget);
       await tester.tap(find.byType(CupertinoButton).first);
-      await tester.pump();
+      await tester.pumpAndSettle();
+      expect(
+        find.byKey(const ValueKey('core-proxmox-detail-search')),
+        findsOneWidget,
+      );
       expect(find.textContaining('could not be verified'), findsOneWidget);
-      await tester.tap(find.byType(CupertinoButton).first);
+      final refresh = find.byKey(const ValueKey('core-proxmox-power-refresh'));
+      await tester.ensureVisible(refresh);
+      await tester.tap(refresh);
       await tester.pump();
       expect(find.textContaining('Target changed'), findsOneWidget);
       expect(harness.paths.where((path) => path.startsWith('POST ')), isEmpty);
