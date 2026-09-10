@@ -57,6 +57,21 @@ String foldSearchText(String value) {
 
 enum LocalSearchKind { room, entity, scene, script, media, system, page }
 
+enum LocalSearchSource { local, direct, core }
+
+enum LocalSearchAvailability { current, stale, offline }
+
+class LocalSearchSystem {
+  const LocalSearchSystem({
+    required this.service,
+    this.source = LocalSearchSource.direct,
+    this.availability = LocalSearchAvailability.current,
+  });
+  final AppService service;
+  final LocalSearchSource source;
+  final LocalSearchAvailability availability;
+}
+
 class LocalSearchEntity {
   const LocalSearchEntity({required this.entityId, required this.name});
   final String entityId;
@@ -72,6 +87,8 @@ class LocalSearchItem {
     required this.target,
     this.roomNames = const [],
     this.detail,
+    this.source = LocalSearchSource.local,
+    this.availability = LocalSearchAvailability.current,
   });
   final String id;
   final String title;
@@ -79,6 +96,8 @@ class LocalSearchItem {
   final NavigationTarget target;
   final List<String> roomNames;
   final String? detail;
+  final LocalSearchSource source;
+  final LocalSearchAvailability availability;
 }
 
 class _Document {
@@ -122,8 +141,13 @@ class LocalSearchIndex {
     Iterable<LocalSearchEntity> entities = const [],
     Iterable<MediaTitle> media = const [],
     Iterable<AppService> services = const [],
+    Iterable<LocalSearchSystem> systems = const [],
     Iterable<HomePageTarget> pages = const [],
     Iterable<MediaPageTarget> mediaPages = const [],
+    LocalSearchSource homeSource = LocalSearchSource.direct,
+    LocalSearchAvailability homeAvailability = LocalSearchAvailability.current,
+    LocalSearchSource mediaSource = LocalSearchSource.direct,
+    LocalSearchAvailability mediaAvailability = LocalSearchAvailability.current,
   }) {
     final documents = <String, _Document>{};
     for (final page in mediaPages.toSet()) {
@@ -244,6 +268,8 @@ class LocalSearchIndex {
         target: EntityNavigationTarget(entity.entityId),
         roomNames: List.unmodifiable(names),
         detail: entity.entityId,
+        source: homeSource,
+        availability: homeAvailability,
       );
       documents[item.id] = _Document(
         item,
@@ -252,16 +278,28 @@ class LocalSearchIndex {
       );
     }
 
-    for (final document in _mediaDocuments(media)) {
+    for (final document in _mediaDocuments(
+      media,
+      source: mediaSource,
+      availability: mediaAvailability,
+    )) {
       documents[document.item.id] = document;
     }
-    for (final service in services.toSet()) {
+    final systemByService = <AppService, LocalSearchSystem>{
+      for (final service in services)
+        service: LocalSearchSystem(service: service),
+      for (final system in systems) system.service: system,
+    };
+    for (final system in systemByService.values) {
+      final service = system.service;
       final name = serviceDisplayName(service);
       final item = LocalSearchItem(
         id: 'system:${service.name}',
         title: name,
         kind: LocalSearchKind.system,
         target: SystemNavigationTarget(service),
+        source: system.source,
+        availability: system.availability,
       );
       documents[item.id] = _Document(
         item,
@@ -316,7 +354,11 @@ class LocalSearchIndex {
 /// Join all known aliases before emitting rows. A later title can bridge an
 /// IMDb-only and TMDB-only record; neither source order nor duplicate rows may
 /// alter the result's identifier. The alias map avoids pairwise catalog scans.
-Iterable<_Document> _mediaDocuments(Iterable<MediaTitle> media) sync* {
+Iterable<_Document> _mediaDocuments(
+  Iterable<MediaTitle> media, {
+  required LocalSearchSource source,
+  required LocalSearchAvailability availability,
+}) sync* {
   final records = <({MediaTitle title, Set<String> keys})>[];
   final parents = <int>[];
   final ownerByAlias = <String, int>{};
@@ -399,6 +441,8 @@ Iterable<_Document> _mediaDocuments(Iterable<MediaTitle> media) sync* {
       kind: LocalSearchKind.media,
       target: MediaNavigationTarget.fromTitle(title),
       detail: title.year == null ? null : '${title.year}',
+      source: source,
+      availability: availability,
     );
     yield _Document(item, names, [
       ...keys,
