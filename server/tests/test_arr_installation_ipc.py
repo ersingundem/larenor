@@ -246,3 +246,41 @@ def test_private_model_and_error_never_render_api_key():
         'arr_config_write_failed', uncertain_effect=True)
     assert API_KEY not in repr(payload)
     assert API_KEY not in repr(failure)
+
+@pytest.mark.parametrize('service_id', ['sonarr', 'radarr'])
+def test_configured_arr_install_roundtrip_includes_verified_container(service_id):
+    from larenor_server.plugins.arr_config_models import ArrConfiguredInstallReceipt
+    class InstallBackend(Backend):
+        def install_configured_arr(self, job, plan, selected, *, api_key,
+                                   cancelled, deadline, gate):
+            self.calls.append((job, plan, selected, api_key))
+            assert gate() and not cancelled.is_set()
+            return ArrConfiguredInstallReceipt(
+                receipt(selected), '5' * 64,
+                selected + '_container_started',
+                selected + '_service_verified')
+    selected=InstallBackend()
+    with running(selected) as (backend,client):
+        value=client.install_arr(
+            'a'*32,stack(),private(service_id),
+            deadline=time.monotonic()+.4,gate=lambda:True)
+    assert value.configuration==receipt(service_id)
+    assert value.container_id=='5'*64
+    assert value.state==service_id+'_container_started'
+    assert value.service_state==service_id+'_service_verified'
+    assert backend.calls[0][2:]==(service_id,API_KEY)
+
+
+def test_cross_service_configured_receipt_is_rejected_as_uncertain():
+    from larenor_server.plugins.arr_config_models import ArrConfiguredInstallReceipt
+    class Wrong(Backend):
+        def install_configured_arr(self, *_args, **_kwargs):
+            return ArrConfiguredInstallReceipt(
+                receipt('radarr'),'5'*64,'radarr_container_started',
+                'radarr_service_verified')
+    with running(Wrong()) as (_backend,client):
+        with pytest.raises(ArrConfigurationExecutionError,
+                           match='^arr_config_result_invalid$') as raised:
+            client.install_arr('a'*32,stack(),private('sonarr'),
+                deadline=time.monotonic()+.4,gate=lambda:True)
+    assert raised.value.uncertain_effect
