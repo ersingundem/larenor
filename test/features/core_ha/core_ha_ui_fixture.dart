@@ -62,6 +62,10 @@ class HaUiHarness {
   String role = 'admin';
   int snapshotReads = 0, previewCount = 0;
   int historyReads = 0, integrityReads = 0, historyStatus = 200;
+  int integritySequence = 2;
+  String integrityHead = 'b' * 64;
+  String integrityCheckpoint = 'eyJjaGFpbiI6InN5bnRoZXRpYyJ9.fixture';
+  bool rejectComparedCheckpoint = false;
   bool pagedHistory = false;
   bool bound = false, uncertainConfirm = false;
   String snapshotStep = 'snapshotOff';
@@ -128,14 +132,19 @@ class HaUiHarness {
       if (request.url.path.endsWith('/history/verification')) {
         integrityReads++;
         final compared = request.url.queryParameters.containsKey('checkpoint');
+        if (compared && rejectComparedCheckpoint) {
+          return json({
+            'error': {'code': 'conflict'},
+          }, 409);
+        }
         return json({
           'verification': {
             'schemaVersion': 1,
             'scope': f['context'],
             'chainId': 'a' * 32,
-            'sequence': 2,
-            'headHash': 'b' * 64,
-            'checkpoint': 'eyJjaGFpbiI6InN5bnRoZXRpYyJ9.fixture',
+            'sequence': integritySequence,
+            'headHash': integrityHead,
+            'checkpoint': integrityCheckpoint,
             'verified': true,
             'comparedCheckpoint': compared,
             'causalityVerified': false,
