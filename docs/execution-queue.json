@@ -1046,7 +1046,7 @@
         {
           "kind": "test",
           "ref": "docs/arr-configuration-ipc-implementation-2026-09-10.md",
-          "commit": "d72f3bc319fcc5d3786052833436840370fec7d1",
+          "commit": "ebf98c0ff4b9ac31d3057d1471e25bab6d9be242",
           "state": "completed",
           "result": "passed",
           "label": "Strict private Arr modeli UID-korumalı installation socketine bağlandı; peer/deadline/yetki, exact servis makbuzu ve secret-free hata projeksiyonu 18 yeni testte, ilgili paketler 140 PASS/1 macOS skip."

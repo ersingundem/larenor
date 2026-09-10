@@ -27,7 +27,7 @@ sabit kimlikler ile configuration özetini taşır.
 
 ## Kanıt ve açık iş
 
-- Exact kaynak `d72f3bc319fcc5d3786052833436840370fec7d1`.
+- Exact kaynak `ebf98c0ff4b9ac31d3057d1471e25bab6d9be242`.
 - **18 yeni IPC testi**; Arr runtime, iki IPC paketi, installation runtime ve
   supervisor ile **140 PASS / 1 mevcut macOS skip**.
 - Gerçek yerel Unix socket roundtrip, iki servis, peer/status biçimi, ön/son

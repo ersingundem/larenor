@@ -314,7 +314,7 @@ ve native API kabulü açık olduğu için sayaç ve `installAvailable=false`
 değişmedi.
 [Uygulama ve açık sınırlar](arr-config-runtime-implementation-2026-09-10.md).
 
-`d72f3bc` IPC dilimi, strict private Arr modelini UID-korumalı installation Unix
+`ebf98c0` IPC dilimi, strict private Arr modelini UID-korumalı installation Unix
 socket'ine ekledi. Client ve server plan/model/iş/deadline/peer sınırlarını
 yeniden doğruluyor; runtime sadece `configure_arr` operasyonundan çağrılıyor.
 Yetki dispatch öncesi ve sonuç sonrası tekrar sınanıyor; Sonarr/Radarr makbuz
