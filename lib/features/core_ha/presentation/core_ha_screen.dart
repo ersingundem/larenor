@@ -10,6 +10,7 @@ import '../../server/services/domain/server_service_models.dart';
 import '../data/core_ha_controller.dart';
 import '../data/core_ha_providers.dart';
 import '../domain/core_ha_models.dart';
+import 'core_ha_activity_screen.dart';
 import 'core_ha_route.dart';
 import 'core_ha_widgets.dart';
 
@@ -20,7 +21,12 @@ class CoreHaScreen extends StatelessWidget {
   Widget build(BuildContext context) => CoreHaRoute(
     title: AppLocalizations.of(context).coreHaTitle,
     gateCurrent: () => true,
-    builder: (owner) => _View(owner: owner, target: target, admin: false),
+    builder: (owner) => _View(
+      owner: owner,
+      target: target,
+      admin: false,
+      gateCurrent: () => true,
+    ),
   );
 }
 
@@ -36,15 +42,26 @@ class CoreHaBindingScreen extends StatelessWidget {
   Widget build(BuildContext context) => CoreHaRoute(
     title: AppLocalizations.of(context).coreHaBindingTitle,
     gateCurrent: gateCurrent,
-    builder: (owner) => _View(owner: owner, target: target, admin: true),
+    builder: (owner) => _View(
+      owner: owner,
+      target: target,
+      admin: true,
+      gateCurrent: gateCurrent,
+    ),
   );
 }
 
 class _View extends ConsumerStatefulWidget {
-  const _View({required this.owner, required this.target, required this.admin});
+  const _View({
+    required this.owner,
+    required this.target,
+    required this.admin,
+    required this.gateCurrent,
+  });
   final CoreHaOwner owner;
   final HomeResourceRecord target;
   final bool admin;
+  final bool Function() gateCurrent;
   @override
   ConsumerState<_View> createState() => _ViewState();
 }
@@ -193,6 +210,24 @@ class _ViewState extends ConsumerState<_View> {
                   widget.admin ? l.coreHaPreviewExpired : l.coreHaStale,
                 ),
               if (c.saved) _message('core-ha-saved', l.coreHaSaved),
+              CoreHaButton(
+                key: const ValueKey('core-ha-activity-open'),
+                label: l.coreHaActivityOpen,
+                onPressed: ownerCurrent()
+                    ? () => unawaited(
+                        Navigator.of(context).push(
+                          CupertinoPageRoute<void>(
+                            builder: (_) => CoreHaActivityScreen(
+                              target: widget.target,
+                              verifyIntegrity: widget.admin,
+                              gateCurrent: widget.gateCurrent,
+                            ),
+                          ),
+                        ),
+                      )
+                    : null,
+                isCurrent: ownerCurrent,
+              ),
               if (!widget.admin) ...[
                 if (c.snapshot != null && c.fresh)
                   _message(

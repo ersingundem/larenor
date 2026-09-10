@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -149,6 +151,24 @@ void main() {
       );
     },
   );
+
+  testWidgets('backgrounded pending history cannot publish late success', (
+    tester,
+  ) async {
+    final harness = HaUiHarness()
+      ..role = 'member'
+      ..pendingHistory = Completer();
+    await openSnapshotActivity(tester, harness);
+    expect(keyed('core-ha-activity-loading'), findsOneWidget);
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+    await flush(tester);
+    harness.pendingHistory!.complete(
+      harness.json(harness.history['complete']['response']),
+    );
+    await flush(tester);
+    expect(keyed('core-ha-activity-entry-${'9' * 32}'), findsNothing);
+    expect(harness.haReads, 0);
+  });
 
   for (final locale in ['en', 'tr']) {
     for (final width in [600.0, 1280.0]) {

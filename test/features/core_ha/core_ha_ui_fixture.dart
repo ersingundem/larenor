@@ -66,7 +66,7 @@ class HaUiHarness {
   bool bound = false, uncertainConfirm = false;
   String snapshotStep = 'snapshotOff';
   final adapterRequests = <http.Request>[];
-  Completer<http.Response>? pendingSnapshot, pendingConfirm;
+  Completer<http.Response>? pendingSnapshot, pendingConfirm, pendingHistory;
   Duration elapsed = Duration.zero;
   final boundary = GlobalKey();
   final source = SourceMemory(HomeSource.verifiedCore);
@@ -123,7 +123,7 @@ class HaUiHarness {
             : pagedHistory
             ? 'firstPage'
             : 'complete';
-        return json(history[step]['response']);
+        return pendingHistory?.future ?? json(history[step]['response']);
       }
       if (request.url.path.endsWith('/history/verification')) {
         integrityReads++;
@@ -351,6 +351,10 @@ class HaUiHarness {
         pending!.complete(json(fixture['memberList']));
       }
       pending = null;
+      if (pendingHistory?.isCompleted == false) {
+        pendingHistory!.complete(json(history['complete']['response']));
+      }
+      pendingHistory = null;
       if (pendingContext?.isCompleted == false) {
         pendingContext!.complete(json(contextResponse));
       }
