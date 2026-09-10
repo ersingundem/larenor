@@ -27,20 +27,22 @@ def private_file(path, body):
     return path
 
 
-def policy(path, secret=None, **extra):
+def policy(path, secret=None, *, adapter="unavailable", **extra):
     value = {
         "version": 1,
-        "adapter": "unavailable",
+        "adapter": adapter,
         "secretFile": None if secret is None else str(secret),
     } | extra
     return private_file(path, json.dumps(value))
 
 
 def test_policy_is_private_address_free_and_secret_permission_checked(tmp_path):
-    secret = private_file(tmp_path / "keenetic.secret", "synthetic-private-value")
-    loaded = load_policy(policy(tmp_path / "worker.json", secret))
+    secret = tmp_path / "keenetic.secret"
+    secret.write_bytes(b"S" * 32)
+    secret.chmod(0o600)
+    loaded = load_policy(policy(tmp_path / "worker.json", secret, adapter="rci"))
     assert repr(loaded) == "KeeneticWorkerPolicy(<private>)"
-    assert loaded.adapter == "unavailable" and loaded.secret_file == secret
+    assert loaded.adapter == "rci" and loaded.secret_file == secret
 
     secret.chmod(0o640)
     with pytest.raises(RuntimeConfigurationError, match="^worker_configuration_invalid$"):
