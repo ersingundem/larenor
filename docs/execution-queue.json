@@ -784,7 +784,9 @@
         "docs/arr-config-effect-implementation-2026-09-10.md",
         "docs/arr-config-runtime-implementation-2026-09-10.md",
         "docs/arr-configuration-ipc-implementation-2026-09-10.md",
-        "docs/arr-configuration-jobs-implementation-2026-09-10.md"
+        "docs/arr-configuration-jobs-implementation-2026-09-10.md",
+        "docs/arr-authenticated-readback-implementation-2026-09-10.md",
+        "docs/arr-private-endpoint-implementation-2026-09-10.md"
       ],
       "scope": "Kullanıcı ayrı uygulama kurmaz veya API anahtarı kopyalamaz; sırlar Client/plan/log içine girmez.",
       "acceptance": [
@@ -803,14 +805,6 @@
           "state": "completed",
           "result": "passed",
           "label": "Exact head arm64 ve amd64 disposable Jellyfin 10.11.11 makbuzları: hesap bootstrap, API anahtarı, boş kütüphane, session logout, restart ve kalıcı veri PASS; installAvailable=false."
-        },
-        {
-          "kind": "test",
-          "ref": "docs/jellyfin-managed-libraries-implementation-2026-09-09.md",
-          "commit": "a0d14209286b9be1c023e10dd18309d8cf298179",
-          "state": "completed",
-          "result": "passed",
-          "label": "Sabit Larenor Movies/Shows Jellyfin kütüphaneleri üçüncü doğrulanmış endpoint üzerinde idempotent oluşturulup geri okunuyor; çakışma, kısmi yazma ve secret-free tanılar dahil 306 ilgili test PASS. Onaylı /media mount ve exact native kabul açık."
         },
         {
           "kind": "test",
@@ -1051,7 +1045,7 @@
           "state": "completed",
           "result": "passed",
           "label": "Sonarr/Radarr servis başına tekil, AES-GCM şifreli no-retry Core işlerine bağlandı; Server üretimli API anahtarı, dispatcher, idempotence ve belirsiz sonuçlar ilgili Arr paketlerinde 267 PASS / 1 mevcut macOS skip ile doğrulandı."
-        ,
+        },
         {
           "kind": "test",
           "ref": "docs/arr-authenticated-readback-implementation-2026-09-10.md",
@@ -1059,6 +1053,14 @@
           "state": "completed",
           "result": "passed",
           "label": "Sonarr/Radarr pinned servis adı ve sürümü X-Api-Key authenticated system/status geri okumasında doğrulandı; kapalı hedef ve secret-free hata yüzeyi 14 testte geçti."
+        },
+        {
+          "kind": "test",
+          "ref": "docs/arr-private-endpoint-implementation-2026-09-10.md",
+          "commit": "2409c6d30cd934d675041025ea1b480def5641ac",
+          "state": "completed",
+          "result": "passed",
+          "label": "Sonarr/Radarr managed container binding ve exact private numeric endpoint proofü eklendi; Arr readback ile mevcut Jellyfin/qBittorrent regresyonlarında 97 PASS."
         }
       ],
       "completionCommit": null,
