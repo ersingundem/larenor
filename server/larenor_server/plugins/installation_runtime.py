@@ -24,7 +24,7 @@ from .catalog import load_catalog
 from .docker_probe import DockerEndpoint
 from .host_preflight import _host_platform
 from .installation_execution import (
-    ExecutionGateResult, ExecutionResult, JellyfinWorkerBackend,
+    ArrWorkerBackend, ExecutionGateResult, ExecutionResult, JellyfinWorkerBackend,
     QbittorrentWorkerBackend, build_execution,
 )
 from .installation_ipc import InstallationWorkerServer
@@ -34,6 +34,13 @@ from .jellyfin_startup import JellyfinStartupConfigurator
 from .jellyfin_authenticated_readback import JellyfinAuthenticatedReadback
 from .jellyfin_managed_libraries import JellyfinManagedLibraries
 from .arr_config_runtime import ArrConfigRuntime
+from .arr_bootstrap_executor import ArrBootstrapExecutor
+from .arr_authenticated_readback import ArrAuthenticatedReadback
+from .arr_config_effect import ArrConfigInstallReceipt
+from .arr_config_models import (
+    ArrConfiguredInstallReceipt, ArrConfigurationExecutionError,
+    PrivateArrConfiguration,
+)
 from .qbittorrent_config_runtime import (
     QbittorrentConfigRuntime, QbittorrentConfigRuntimeError,
 )
@@ -252,6 +259,8 @@ class _RuntimeBackend:
         self.qbittorrent_bootstrap = QbittorrentBootstrapExecutor(
             operations, binding_builder, QbittorrentManagedCategories(),
             QbittorrentAuthenticatedReadback())
+        self.arr_bootstrap = ArrBootstrapExecutor(
+            operations, binding_builder, ArrAuthenticatedReadback())
         self.bootstrap_executor = JellyfinBootstrapExecutor(
             operations, binding_builder, JellyfinStartupConfigurator(),
             JellyfinAuthenticatedReadback(), JellyfinManagedLibraries())
@@ -283,6 +292,49 @@ class _RuntimeBackend:
             stack, service_id, api_key=api_key, cancelled=cancelled,
             before_dispatch=gate,
         )
+
+    def install_configured_arr(self, job, stack, service_id, *, api_key,
+                               cancelled, deadline, gate):
+        try:
+            configured = self.configure_arr(
+                job, stack, service_id, api_key=api_key,
+                cancelled=cancelled, deadline=deadline, gate=gate)
+            if (type(configured) is not ArrConfigInstallReceipt
+                    or configured.service_id != service_id):
+                raise ValueError()
+            remaining = deadline - time.monotonic()
+            if not 0 < remaining <= 120:
+                raise TimeoutError()
+            execution = build_execution(
+                stack, job_id=job, deadline=time.time() + remaining,
+                service_id=service_id)
+            result = execution.run(
+                ArrWorkerBackend(
+                    self.operations, self.binding_builder, service_id),
+                lambda: ExecutionGateResult.allowed()
+                if gate() is True else ExecutionGateResult.denied('authority_changed'))
+            if (type(result) is not ExecutionResult or result.state != 'succeeded'
+                    or result.code != 'container_started'
+                    or result.container_id is None):
+                raise ValueError()
+            verified = self.arr_bootstrap.execute(
+                job, stack, PrivateArrConfiguration(
+                    serviceId=service_id, apiKey=api_key),
+                deadline=deadline, gate=gate)
+            if verified.state != 'verified' or verified.service_id != service_id:
+                raise ValueError()
+            return ArrConfiguredInstallReceipt(
+                configured, result.container_id,
+                service_id + '_container_started',
+                service_id + '_service_verified')
+        except ArrConfigurationExecutionError:
+            raise
+        except TimeoutError:
+            raise ArrConfigurationExecutionError(
+                'arr_config_timeout', uncertain_effect=True) from None
+        except Exception:
+            raise ArrConfigurationExecutionError(
+                'arr_config_result_invalid', uncertain_effect=True) from None
 
     def install_configured_qbittorrent(
             self, job, stack, credential, *, api_key, salt, cancelled,
