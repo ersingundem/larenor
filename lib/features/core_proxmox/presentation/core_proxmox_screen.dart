@@ -649,9 +649,8 @@ final class _CoreProxmoxDetailItem {
       foldSearchText('$section $title $status ${metrics.join(' ')}');
 }
 
-/// Tablet-first read-only inventory for a verified Core snapshot. Task history
-/// remains an explicit unavailable section until the strict snapshot contract
-/// carries bounded task records.
+/// Tablet-first read-only inventory for a verified Core snapshot, including a
+/// bounded and redacted recent-task projection.
 class CoreProxmoxDetailExplorer extends StatefulWidget {
   const CoreProxmoxDetailExplorer({super.key, required this.summary});
   final CoreProxmoxSummary summary;
@@ -726,16 +725,34 @@ class _CoreProxmoxDetailExplorerState extends State<CoreProxmoxDetailExplorer> {
           '${tr ? 'Kullanılan' : 'Used'} ${_bytes(storage.usedBytes)} / ${_bytes(storage.totalBytes)}',
         ],
       ),
-    _CoreProxmoxDetailItem(
-      key: 'tasks-unavailable',
-      filter: _CoreProxmoxDetailFilter.tasks,
-      section: tr ? 'Son görevler' : 'Recent tasks',
-      title: tr ? 'Görev geçmişi kullanılamıyor' : 'Task history unavailable',
-      status: tr
-          ? 'Mevcut Core anlık görüntüsü görev geçmişi sunmuyor.'
-          : 'The current Core snapshot does not provide task history.',
-      metrics: const [],
-    ),
+    for (final task in widget.summary.recentTasks)
+      _CoreProxmoxDetailItem(
+        key: 'task-${task.id}',
+        filter: _CoreProxmoxDetailFilter.tasks,
+        section: tr ? 'Son görevler' : 'Recent tasks',
+        title: '${task.kind} · ${task.node}',
+        status: switch (task.status) {
+          CoreProxmoxTaskStatus.running => tr ? 'Çalışıyor' : 'Running',
+          CoreProxmoxTaskStatus.succeeded => tr ? 'Başarılı' : 'Succeeded',
+          CoreProxmoxTaskStatus.failed => tr ? 'Başarısız' : 'Failed',
+        },
+        metrics: [
+          '${tr ? 'Başlangıç' : 'Started'} ${task.startedAt.toLocal()}',
+          if (task.finishedAt != null)
+            '${tr ? 'Bitiş' : 'Finished'} ${task.finishedAt!.toLocal()}',
+        ],
+      ),
+    if (widget.summary.recentTasks.isEmpty)
+      _CoreProxmoxDetailItem(
+        key: 'tasks-empty',
+        filter: _CoreProxmoxDetailFilter.tasks,
+        section: tr ? 'Son görevler' : 'Recent tasks',
+        title: tr ? 'Son görev yok' : 'No recent tasks',
+        status: tr
+            ? 'Core son görev bildirmedi.'
+            : 'Core did not report a recent task.',
+        metrics: const [],
+      ),
   ];
 
   @override

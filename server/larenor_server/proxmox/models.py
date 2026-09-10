@@ -1,3 +1,4 @@
+from datetime import datetime, timezone
 from typing import Literal
 
 from pydantic import Field, field_validator, model_validator
@@ -81,16 +82,53 @@ class StorageSummary(FrozenModel):
         return self
 
 
+class RecentTaskSummary(FrozenModel):
+    taskId: str = Field(min_length=64, max_length=64, pattern=r'^[0-9a-f]{64}$')
+    node: str = Field(min_length=1, max_length=64, pattern=r'^[A-Za-z0-9][A-Za-z0-9._-]*$')
+    kind: str = Field(min_length=1, max_length=64, pattern=r'^[A-Za-z0-9][A-Za-z0-9._-]*$')
+    status: Literal['running', 'succeeded', 'failed']
+    startedAt: str = Field(min_length=20, max_length=40,
+                           pattern=r'^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?(?:Z|\+00:00)$')
+    finishedAt: str | None = Field(min_length=20, max_length=40,
+                                   pattern=r'^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?(?:Z|\+00:00)$')
+
+    @field_validator('startedAt', 'finishedAt')
+    @classmethod
+    def utc_timestamp(cls, value):
+        if value is None:
+            return value
+        try:
+            parsed = datetime.fromisoformat(value.replace('Z', '+00:00'))
+        except (TypeError, ValueError):
+            raise ValueError('invalid_summary') from None
+        if parsed.tzinfo is None or parsed.utcoffset() != timezone.utc.utcoffset(parsed):
+            raise ValueError('invalid_summary')
+        return value
+
+    @model_validator(mode='after')
+    def valid_lifecycle(self):
+        if (self.status == 'running') != (self.finishedAt is None):
+            raise ValueError('invalid_summary')
+        if self.finishedAt is not None:
+            started = datetime.fromisoformat(self.startedAt.replace('Z', '+00:00'))
+            finished = datetime.fromisoformat(self.finishedAt.replace('Z', '+00:00'))
+            if finished < started:
+                raise ValueError('invalid_summary')
+        return self
+
+
 class Summary(FrozenModel):
     nodes: list[NodeSummary] = Field(max_length=32)
     guests: list[GuestSummary] = Field(max_length=256)
     storages: list[StorageSummary] = Field(max_length=64)
+    recentTasks: list[RecentTaskSummary] = Field(max_length=20)
 
     @model_validator(mode='after')
     def unique_keys(self):
         keys = ([n.node for n in self.nodes],
                 [(g.kind, g.vmId) for g in self.guests],
-                [(s.node, s.storage) for s in self.storages])
+                [(s.node, s.storage) for s in self.storages],
+                [t.taskId for t in self.recentTasks])
         if any(len(values) != len(set(values)) for values in keys):
             raise ValueError('invalid_summary')
         return self

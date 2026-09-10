@@ -17,7 +17,7 @@ import socket
 import ssl
 import threading
 import time
-from urllib.parse import urlsplit
+from urllib.parse import urlencode, urlsplit
 
 from .models import canonical_base_url
 
@@ -62,6 +62,18 @@ def _path(value):
             or "//" in value or any(part in {".", ".."} for part in value.split("/"))):
         raise ProbeTransportError("invalid_path")
     return value
+
+
+def _query(parameters):
+    if parameters is None:
+        return ''
+    if (type(parameters) is not dict or not 1 <= len(parameters) <= 16 or
+            any(type(key) is not str or not _TOKEN.fullmatch(key) or
+                type(value) is not str or len(value) > 256 or
+                any(ord(c) < 32 or ord(c) == 127 for c in value)
+                for key, value in parameters.items())):
+        raise ProbeTransportError('invalid_path')
+    return '?' + urlencode(sorted(parameters.items()), safe='')
 
 
 def _base(value):
@@ -405,11 +417,12 @@ class ServiceTransport:
         self._closed = False
         self._active = set()
 
-    def request(self, method, path, headers=None, body=None, *, before_send=None):
+    def request(self, method, path, headers=None, body=None, *, before_send=None,
+                query_parameters=None):
         if before_send is not None and not callable(before_send):
             raise ProbeTransportError("invalid_request")
         deadline = time.monotonic() + self._timeout
-        route = self._prefix + _path(path)
+        route = self._prefix + _path(path) + _query(query_parameters)
         if len(route) > 4096:
             raise ProbeTransportError("invalid_path")
         message = _request_bytes(method, route, self._authority, headers, body)
