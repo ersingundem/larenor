@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "actions": {
+    "guest_wifi_enable": {"targetKind": "guest_wifi", "from": "disabled", "to": "enabled", "risk": "low"},
+    "guest_wifi_disable": {"targetKind": "guest_wifi", "from": "enabled", "to": "disabled", "risk": "low"},
+    "client_internet_pause": {"targetKind": "client", "from": "allowed", "to": "paused", "risk": "medium"},
+    "client_internet_resume": {"targetKind": "client", "from": "paused", "to": "allowed", "risk": "medium"},
+    "wan_reconnect": {"targetKind": "wan", "from": "online", "to": "online", "risk": "high", "confirmations": 2}
+  },
+  "statuses": ["accepted", "executing", "succeeded", "failed", "cancelled", "unknown"],
+  "requiredBinding": [
+    "coreId", "homeId", "resourceId", "resourceRevision", "aclRevision",
+    "bindingId", "bindingRevision", "serviceId", "serviceRevision",
+    "firmwareVersion", "firmwareRevision", "stateRevision", "targetKind",
+    "targetId", "value", "expectedUserRevision", "requestId", "idempotencyKey"
+  ],
+  "supportedKeeneticOsMajors": [2, 3, 4, 5],
+  "defaultEffect": "unavailable"
+}
