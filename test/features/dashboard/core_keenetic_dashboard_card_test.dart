@@ -130,6 +130,7 @@ void main() {
   ) async {
     var opened = 0;
     await mount(tester, value: snapshot(), onPressed: () => opened++);
+    expect(find.text('Data read successfully'), findsOneWidget);
     expect(find.textContaining('198.51.100.20'), findsOneWidget);
     expect(find.textContaining('CPU'), findsOneWidget);
     expect(find.textContaining('RAM'), findsOneWidget);
@@ -164,6 +165,7 @@ void main() {
 
   testWidgets('offline is distinct from stale and unknown', (tester) async {
     await mount(tester, value: snapshot(online: false));
+    expect(find.text('Data read successfully'), findsOneWidget);
     expect(find.textContaining('Offline'), findsOneWidget);
     expect(find.textContaining('stale'), findsNothing);
   });
