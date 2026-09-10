@@ -346,18 +346,22 @@ the private installation-worker socket is configured, Core now sends the exact
 bootstrap contract over that same UID-authenticated Unix channel. Installation
 and bootstrap share one journal/binding authority, while the supervisor keeps
 every inner gate and Docker observation on the retained daemon lease and native
-thread. The same socket now has a closed qBittorrent configuration operation:
+thread. The same socket now has closed qBittorrent configuration and ordered
+install operations:
 Core sends only a job ID, verified stack and generated private credential,
 API-key and salt; the worker repeats catalog/model checks and returns only a
-journal-bound digest receipt. The durable qBittorrent job and create/start
-ordering are still open, so no installation capability is added. Core now owns
+journal-bound digest receipt. The durable qBittorrent job invokes the ordered
+operation: configuration must be installed and verified before the fixed
+qBittorrent binding can create and start its container. Core now owns
 an encrypted durable job at
 `/api/v1/admin/media/qbittorrent-configurations`: administrators can create,
 list, inspect and revision-cancel work while all generated credentials remain in
 authenticated encrypted storage. The lifespan dispatcher uses the private worker
 automatically, does not retry interrupted effects and waits for a bounded
-in-flight receipt during shutdown. Every capability and job still reports
-`installAvailable: false`.
+in-flight receipt during shutdown. Success exposes a secret-free
+`containerState=container_started`; configuration-only historical receipts stay
+readable without claiming a container start. Native service/readback acceptance
+is still open, so every capability and job reports `installAvailable: false`.
 
 ## Client releases
 

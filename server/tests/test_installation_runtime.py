@@ -5,6 +5,8 @@ import os
 from pathlib import Path
 import signal
 import socket
+import threading
+import time
 
 import pytest
 
@@ -12,6 +14,13 @@ from larenor_server.plugins import installation_runtime as runtime
 from larenor_server.plugins.managed_container import ManagedWorkerJournal
 from larenor_server.plugins.resource_journal import ResourceJournal
 from larenor_server.plugins.volume_create_journal import VolumeCreateJournal
+from larenor_server.context import ContextResponse
+from larenor_server.plugins.catalog import load_catalog
+from larenor_server.plugins.qbittorrent_config_effect import (
+    QbittorrentConfigInstallReceipt,
+)
+from larenor_server.plugins.stack_plan import build_media_stack_plan
+from larenor_server.plugins.worker import StepReceipt
 
 
 def contents(root, *, platform='linux/amd64'):
@@ -129,11 +138,63 @@ def test_runtime_builds_one_endpoint_and_closes_all_journals(configuration):
         assert built.backend.operations.journal.identity == built.backend.binding_builder._container_journal.identity
         assert built.backend.bootstrap_executor.operations is built.backend.operations
         assert built.backend.bootstrap_executor.binding_builder is built.backend.binding_builder
+        assert (built.backend.qbittorrent_installation.binding_builder
+                is built.backend.binding_builder)
+        assert (built.backend.qbittorrent_installation.operations
+                is built.backend.operations)
         assert built.backend.qbittorrent_config._endpoint is policy.endpoint
         assert built.backend.qbittorrent_config._journal is built.backend.binding_builder._volume_journal
     finally:
         built.close()
     assert built.closed is True
+
+
+def test_runtime_configures_qbittorrent_before_create_and_start(monkeypatch):
+    events = []
+    receipt = QbittorrentConfigInstallReceipt(
+        '1' * 32, '2' * 32, '3' * 32, 3,
+        'larenor-appdata-v1-' + '1' * 32, '4' * 64,
+        'qbittorrent_config_installed')
+
+    class Configuration:
+        def install(self, stack, credential, **kwargs):
+            events.append(('configure', stack, credential, kwargs))
+            return receipt
+
+    class Operations:
+        def apply(self, step, binding):
+            events.append(('apply', step.kind, binding))
+            code = ('container_created' if step.kind == 'create_container'
+                    else 'container_started')
+            return StepReceipt(
+                step.job_id, step.kind, 'succeeded', code, '5' * 64)
+
+        def reconcile(self, job, kind, binding):
+            raise AssertionError('successful effects are not reconciled')
+
+    def binding(stack, service_id='jellyfin'):
+        events.append(('binding', service_id))
+        return 'binding-' + service_id
+
+    stack = build_media_stack_plan(
+        load_catalog(), {}, 'linux/amd64',
+        ContextResponse(
+            schemaVersion=1, coreId='a' * 32, homeId='b' * 32),
+        'c' * 32)
+    monkeypatch.setattr(
+        runtime, 'JellyfinBootstrapExecutor', lambda *_args: object())
+    backend = runtime._RuntimeBackend(Operations(), binding, Configuration())
+    result = backend.install_configured_qbittorrent(
+        'd' * 32, stack, 'credential', api_key='api-key', salt=b'1' * 16,
+        cancelled=threading.Event(), deadline=time.monotonic() + 30,
+        gate=lambda: True)
+    assert result.configuration == receipt
+    assert result.state == 'qbittorrent_container_started'
+    assert result.container_id == '5' * 64
+    assert [event[0] for event in events] == [
+        'configure', 'binding', 'apply', 'binding', 'apply']
+    assert [event[1] for event in events if event[0] == 'binding'] == [
+        'qbittorrent', 'qbittorrent']
 
 
 def test_runtime_routes_every_engine_connection_through_one_peer_verifier(configuration):

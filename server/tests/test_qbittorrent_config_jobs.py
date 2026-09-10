@@ -12,7 +12,11 @@ from larenor_server.plugins.qbittorrent_config_effect import (
     QbittorrentConfigInstallReceipt,
 )
 from larenor_server.plugins.qbittorrent_config_models import (
+    QbittorrentConfiguredInstallReceipt,
     QbittorrentConfigurationExecutionError,
+)
+from larenor_server.plugins.qbittorrent_config_job_models import (
+    PrivateQbittorrentReceipt,
 )
 from test_media_installations_api import prepared
 
@@ -23,14 +27,15 @@ BASE = '/api/v1/admin/media/qbittorrent-configurations'
 class Backend:
     def __init__(self, result=None, action=None):
         self.calls = []
-        self.result = result or QbittorrentConfigInstallReceipt(
-            '1' * 32, '2' * 32, '3' * 32, 3,
-            'larenor-appdata-v1-' + '1' * 32, '4' * 64,
-            'qbittorrent_config_installed',
-        )
+        self.result = result or QbittorrentConfiguredInstallReceipt(
+            QbittorrentConfigInstallReceipt(
+                '1' * 32, '2' * 32, '3' * 32, 3,
+                'larenor-appdata-v1-' + '1' * 32, '4' * 64,
+                'qbittorrent_config_installed'),
+            '5' * 64, 'qbittorrent_container_started')
         self.action = action
 
-    def configure_qbittorrent(self, job, plan, private, *, deadline, gate):
+    def install_qbittorrent(self, job, plan, private, *, deadline, gate):
         self.calls.append((job, plan, private, deadline, gate))
         assert deadline > time.monotonic() and gate() is True
         if self.action:
@@ -76,6 +81,7 @@ def test_create_encrypts_server_generated_private_values_and_is_idempotent(serve
         'serviceId': 'qbittorrent', 'revision': 1, 'state': 'queued',
         'phase': 'queued', 'cancelRequested': False, 'configured': False,
         'configurationState': None, 'errorCode': None,
+        'containerState': None,
         'installAvailable': False,
         'createdAt': '2026-09-05T12:00:00.000Z',
         'updatedAt': '2026-09-05T12:00:00.000Z',
@@ -108,6 +114,7 @@ def test_tick_persists_secret_free_journal_receipt(server):
         'revision': 3, 'state': 'succeeded', 'phase': 'complete',
         'configured': True,
         'configurationState': 'qbittorrent_config_installed',
+        'containerState': 'container_started',
     }
     private = app.state.core.qbittorrent_configurations.private_payload(record['id'])
     assert private.receipt == backend.result
@@ -116,6 +123,33 @@ def test_tick_persists_secret_free_journal_receipt(server):
     assert private.credential not in repr(terminal) + repr(private)
     assert client.get(BASE + '/' + record['id'], headers=auth(pair)).json() == {
         'configuration': terminal}
+
+
+def test_configuration_only_receipt_remains_readable_without_claiming_start(server):
+    app, client, _, _ = server
+    pair, _body, record, _backend = queue(server)
+    manager = app.state.core.qbittorrent_configurations
+    with manager.db.transaction() as connection:
+        row = manager._find(connection, record['id'])
+        payload = manager._decode(row)
+        legacy = PrivateQbittorrentReceipt(
+            resourceId='1' * 32, operationId='2' * 32,
+            journalId='3' * 32, revision=3,
+            volumeName='larenor-appdata-v1-' + '1' * 32,
+            configurationDigest='4' * 64,
+            state='qbittorrent_config_installed')
+        manager._transition(
+            connection, row, payload, state='succeeded', receipt=legacy)
+    result = client.get(
+        BASE + '/' + record['id'], headers=auth(pair)).json()['configuration']
+    assert result['configured'] is True
+    assert result['configurationState'] == 'qbittorrent_config_installed'
+    assert result['containerState'] is None
+    assert manager.private_payload(record['id']).receipt == (
+        QbittorrentConfigInstallReceipt(
+            '1' * 32, '2' * 32, '3' * 32, 3,
+            'larenor-appdata-v1-' + '1' * 32, '4' * 64,
+            'qbittorrent_config_installed'))
 
 
 def test_lifespan_dispatches_job_over_real_uid_checked_unix_ipc(server, monkeypatch):

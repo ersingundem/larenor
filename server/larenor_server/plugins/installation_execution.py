@@ -60,13 +60,14 @@ class ExecutionResult:
 
 @dataclass(frozen=True)
 class InstallationExecution:
-    service_id: Literal['jellyfin']
+    service_id: Literal['jellyfin', 'qbittorrent']
     operation_id: str
     steps: tuple[WorkerStep, WorkerStep]
     plan: MediaStackPlan = field(repr=False)
 
     def __post_init__(self):
-        if (self.service_id != 'jellyfin' or not _ID.fullmatch(self.operation_id)
+        if (self.service_id not in {'jellyfin', 'qbittorrent'}
+                or not _ID.fullmatch(self.operation_id)
                 or type(self.steps) is not tuple or len(self.steps) != 2
                 or type(self.plan) is not MediaStackPlan
                 or tuple(step.kind for step in self.steps) != _KINDS
@@ -156,13 +157,15 @@ class JellyfinWorkerBackend:
         self.operations, self.binding_builder = operations, binding_builder
 
     @staticmethod
-    def _verify(step, plan):
+    def _verify(step, plan, service_id='jellyfin'):
         try:
-            if type(step) is not WorkerStep or type(plan) is not MediaStackPlan:
+            if (type(step) is not WorkerStep or type(plan) is not MediaStackPlan
+                    or service_id not in {'jellyfin', 'qbittorrent'}):
                 raise ValueError()
             current = verify_media_stack_plan(plan, load_catalog())
-            component = next(item for item in current.components if item.serviceId == 'jellyfin')
-            if (component.plan.serviceId != 'jellyfin'
+            component = next(item for item in current.components
+                             if item.serviceId == service_id)
+            if (component.plan.serviceId != service_id
                     or step.installation_id != component.installationId
                     or step.kind not in _KINDS):
                 raise ValueError()
@@ -193,10 +196,32 @@ class JellyfinWorkerBackend:
             raise InstallationExecutionError('invalid_worker_result') from None
 
 
+class QbittorrentWorkerBackend(JellyfinWorkerBackend):
+    """Worker-only bridge for the fixed qBittorrent child and binding."""
+
+    def apply(self, step, plan):
+        trusted = self._verify(step, plan, 'qbittorrent')
+        try:
+            binding = self.binding_builder(trusted, 'qbittorrent')
+            return self.operations.apply(step, binding)
+        except InstallationExecutionError:
+            raise
+        except Exception:
+            raise InstallationExecutionError('invalid_worker_result') from None
+
+    def reconcile(self, step, plan):
+        trusted = self._verify(step, plan, 'qbittorrent')
+        try:
+            binding = self.binding_builder(trusted, 'qbittorrent')
+            return self.operations.reconcile(step.job_id, step.kind, binding)
+        except Exception:
+            raise InstallationExecutionError('invalid_worker_result') from None
+
 def build_execution(plan, *, job_id, deadline, service_id='jellyfin'):
     """Re-derive the packaged plan and select the fixed first component."""
     try:
-        if (service_id != 'jellyfin' or type(job_id) is not str or _ID.fullmatch(job_id) is None
+        if (service_id not in {'jellyfin', 'qbittorrent'}
+                or type(job_id) is not str or _ID.fullmatch(job_id) is None
                 or type(deadline) not in (int, float) or not math.isfinite(deadline) or deadline <= 0):
             raise ValueError()
         if type(plan) is dict:
@@ -205,10 +230,11 @@ def build_execution(plan, *, job_id, deadline, service_id='jellyfin'):
         if type(plan) is not MediaStackPlan:
             raise ValueError()
         verified = verify_media_stack_plan(plan, load_catalog())
-        component = next(item for item in verified.components if item.serviceId == 'jellyfin')
+        component = next(item for item in verified.components
+                         if item.serviceId == service_id)
         by_kind = {step.kind: step for step in component.steps}
         steps = tuple(WorkerStep(job_id, component.installationId, kind,
                                  by_kind[kind].stepId, deadline) for kind in _KINDS)
-        return InstallationExecution('jellyfin', component.operationId, steps, verified)
+        return InstallationExecution(service_id, component.operationId, steps, verified)
     except (ValueError, TypeError, AttributeError, StopIteration):
         raise InstallationExecutionError() from None

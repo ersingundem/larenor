@@ -25,7 +25,7 @@ from larenor_server.plugins.volume_plan import build_volume_plan
 from larenor_server.plugins.volume_resources import VolumeObservation, volume_expected_labels
 
 
-def source():
+def source(service_id='jellyfin'):
     catalog = load_catalog()
     stack = build_media_stack_plan(catalog, {}, 'linux/amd64',
         ContextResponse(schemaVersion=1, coreId='a' * 32, homeId='b' * 32), 'c' * 32)
@@ -33,7 +33,8 @@ def source():
                                  workerPolicyDigest='d' * 64)
     resources = build_resource_plan(stack, catalog, policy)
     volumes = build_volume_plan(stack, catalog, policy)
-    component = next(item for item in stack.components if item.serviceId == 'jellyfin')
+    component = next(item for item in stack.components
+                     if item.serviceId == service_id)
     return catalog, stack, policy, resources, volumes, component
 
 
@@ -54,13 +55,13 @@ def volume_observation(intent):
     )
 
 
-def populate(resource_journal, volume_journal, data):
+def populate(resource_journal, volume_journal, data, service_id='jellyfin'):
     catalog, stack, policy, resources, volumes, _component = data
     source = dict(stack=stack, catalog=catalog, policy=policy)
     with resource_journal.locked():
         for resource in resources.resources:
             if resource.kind not in {'ensure_image', 'prepare_control_network'} or (
-                    resource.kind == 'ensure_image' and resource.serviceId != 'jellyfin'):
+                    resource.kind == 'ensure_image' and resource.serviceId != service_id):
                 continue
             receipt = resource_journal.prepare(
                 plan=resources, resource_id=resource.resourceId, **source)
@@ -72,7 +73,9 @@ def populate(resource_journal, volume_journal, data):
             assert result.state == 'ready'
     with volume_journal.locked():
         for resource in volumes.resources:
-            if resource.serviceId != 'jellyfin':
+            if (resource.serviceId != service_id
+                    and not (service_id == 'qbittorrent'
+                             and resource.kind == 'managed_library')):
                 continue
             receipt = volume_journal.prepare(
                 plan=volumes, resource_id=resource.resourceId, **source)
@@ -93,7 +96,9 @@ class Readers:
 
     def inspect_image(self, binding, *, cancelled):
         self.calls.append(('image', binding.resource_id))
-        configuration = {'Env': ['PATH=/usr/bin'], 'Volumes': {'/config': {}, '/cache': {}}}
+        service_id = self.data[5].serviceId
+        configuration = {'Env': ['PATH=/usr/bin'], 'Volumes': {
+            '/config': {}, **({'/cache': {}} if service_id == 'jellyfin' else {})}}
         return ImageObservation(binding.config_digest, json.dumps(
             configuration, sort_keys=True, separators=(',', ':')).encode())
 
@@ -187,6 +192,28 @@ def test_broker_rebinds_and_freshly_observes_every_jellyfin_resource(tmp_path):
         'image', 'volume', 'bootstrap', 'volume', 'bootstrap', 'volume', 'bootstrap',
         'network-list', 'network-inspect',
     ]
+
+
+def test_broker_rebinds_qbittorrent_config_and_shared_library(tmp_path):
+    data = source('qbittorrent')
+    endpoint = object()
+    readers = Readers(data, endpoint)
+    with ResourceJournal(tmp_path / 'resources', initialize=True) as resource_journal, \
+            VolumeCreateJournal(tmp_path / 'volumes', initialize=True) as volume_journal:
+        populate(resource_journal, volume_journal, data, 'qbittorrent')
+        broker = JellyfinResourceProofBroker(
+            data[1], data[0], data[2], resource_journal, volume_journal,
+            readers, engine_identity=endpoint, service_id='qbittorrent')
+        proof = broker(data[3], data[4], data[5])
+    image = next(item for item in data[3].resources
+                 if item.kind == 'ensure_image'
+                 and item.serviceId == 'qbittorrent')
+    assert proof.image.image_id == image.image.configDigest
+    assert len(proof.volumes) == 2
+    assert {item.target for item in proof.volumes} == {'/config', '/media'}
+    assert [call[0] for call in readers.calls] == [
+        'image', 'volume', 'bootstrap', 'volume', 'bootstrap',
+        'network-list', 'network-inspect']
 
 
 def test_stale_bootstrap_or_different_engine_never_produces_a_proof(tmp_path):

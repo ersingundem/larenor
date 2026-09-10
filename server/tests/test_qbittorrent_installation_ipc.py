@@ -15,7 +15,8 @@ from larenor_server.plugins.qbittorrent_config_effect import (
     QbittorrentConfigEffectError, QbittorrentConfigInstallReceipt,
 )
 from larenor_server.plugins.qbittorrent_config_models import (
-    PrivateQbittorrentConfiguration, QbittorrentConfigurationExecutionError,
+    PrivateQbittorrentConfiguration, QbittorrentConfiguredInstallReceipt,
+    QbittorrentConfigurationExecutionError,
 )
 from test_media_host_preflight import stack
 
@@ -33,6 +34,7 @@ def private():
 class Backend:
     def __init__(self, result=None):
         self.calls = []
+        self.install_calls = []
         self.result = result or QbittorrentConfigInstallReceipt(
             '1' * 32, '2' * 32, '3' * 32, 3,
             'larenor-appdata-v1-' + '1' * 32, '4' * 64,
@@ -54,6 +56,16 @@ class Backend:
         if isinstance(self.result, BaseException):
             raise self.result
         return self.result
+
+    def install_configured_qbittorrent(
+            self, job, plan, credential, *, api_key, salt, cancelled,
+            deadline, gate):
+        self.install_calls.append(job)
+        configured = self.configure_qbittorrent(
+            job, plan, credential, api_key=api_key, salt=salt,
+            cancelled=cancelled, deadline=deadline, gate=gate)
+        return QbittorrentConfiguredInstallReceipt(
+            configured, '5' * 64, 'qbittorrent_container_started')
 
 
 @contextmanager
@@ -95,6 +107,23 @@ def test_private_configuration_roundtrip_reaches_only_closed_worker_method():
         'a' * 32, selected, CREDENTIAL, CONTROL_ID, bytes.fromhex('ab' * 16))
     assert CREDENTIAL not in repr(payload) + repr(receipt)
     assert CONTROL_ID not in repr(payload) + repr(receipt)
+
+
+def test_configured_install_roundtrip_uses_one_closed_ordered_operation():
+    selected = stack()
+    payload = private()
+    with running() as (backend, client):
+        receipt = client.install_qbittorrent(
+            'a' * 32, selected, payload,
+            deadline=time.monotonic() + .4, gate=lambda: True)
+    assert receipt == QbittorrentConfiguredInstallReceipt(
+        backend.result, '5' * 64, 'qbittorrent_container_started')
+    assert backend.install_calls == ['a' * 32]
+    assert len(backend.calls) == 1
+    assert backend.calls[0][:5] == (
+        'a' * 32, selected, CREDENTIAL, CONTROL_ID,
+        bytes.fromhex('ab' * 16))
+    assert CREDENTIAL not in repr(receipt)
 
 
 @pytest.mark.parametrize('gate', [

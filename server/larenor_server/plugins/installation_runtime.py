@@ -22,7 +22,10 @@ from ..files import checked_path, private_read
 from .catalog import load_catalog
 from .docker_probe import DockerEndpoint
 from .host_preflight import _host_platform
-from .installation_execution import JellyfinWorkerBackend
+from .installation_execution import (
+    ExecutionGateResult, ExecutionResult, JellyfinWorkerBackend,
+    QbittorrentWorkerBackend, build_execution,
+)
 from .installation_ipc import InstallationWorkerServer
 from .installation_supervisor import RetainedDaemonPeerVerifier, SupervisedInstallationBackend
 from .jellyfin_bootstrap_executor import JellyfinBootstrapExecutor
@@ -30,6 +33,11 @@ from .jellyfin_startup import JellyfinStartupConfigurator
 from .jellyfin_authenticated_readback import JellyfinAuthenticatedReadback
 from .jellyfin_managed_libraries import JellyfinManagedLibraries
 from .qbittorrent_config_runtime import QbittorrentConfigRuntime
+from .qbittorrent_config_effect import QbittorrentConfigInstallReceipt
+from .qbittorrent_config_models import (
+    QbittorrentConfiguredInstallReceipt,
+    QbittorrentConfigurationExecutionError,
+)
 from .managed_container import (
     JellyfinBindingBuilder,
     JellyfinEngineReaders,
@@ -177,7 +185,7 @@ class _RuntimeBindingBuilder:
         self._readers = readers
         self._endpoint = readers._endpoint
 
-    def __call__(self, stack):
+    def __call__(self, stack, service_id='jellyfin'):
         broker = JellyfinResourceProofBroker(
             stack,
             self._catalog,
@@ -186,12 +194,14 @@ class _RuntimeBindingBuilder:
             self._volume_journal,
             self._readers,
             engine_identity=self._endpoint,
+            service_id=service_id,
         )
         return JellyfinBindingBuilder(
             self._catalog,
             self._policy,
             self._container_journal.identity,
             broker,
+            service_id=service_id,
         )(stack)
 
 
@@ -223,6 +233,8 @@ class _RuntimeBackend:
         self.binding_builder = binding_builder
         self.qbittorrent_config = qbittorrent_config
         self.installation = JellyfinWorkerBackend(operations, binding_builder)
+        self.qbittorrent_installation = QbittorrentWorkerBackend(
+            operations, binding_builder)
         self.bootstrap_executor = JellyfinBootstrapExecutor(
             operations, binding_builder, JellyfinStartupConfigurator(),
             JellyfinAuthenticatedReadback(), JellyfinManagedLibraries())
@@ -245,6 +257,41 @@ class _RuntimeBackend:
             stack, credential, api_key=api_key, salt=salt,
             cancelled=cancelled, before_dispatch=gate,
         )
+
+    def install_configured_qbittorrent(
+            self, job, stack, credential, *, api_key, salt, cancelled,
+            deadline, gate):
+        """Verify/install config, then and only then execute create/start."""
+        configured = self.configure_qbittorrent(
+            job, stack, credential, api_key=api_key, salt=salt,
+            cancelled=cancelled, deadline=deadline, gate=gate)
+        if (type(configured) is not QbittorrentConfigInstallReceipt
+                or configured.state not in {
+                    'qbittorrent_config_installed',
+                    'qbittorrent_config_already_installed'}):
+            raise QbittorrentConfigurationExecutionError(
+                'qbittorrent_config_result_invalid',
+                uncertain_effect=True)
+
+        def authority():
+            try:
+                return (ExecutionGateResult.allowed() if gate() is True
+                        else ExecutionGateResult.denied('authority_changed'))
+            except Exception:
+                return ExecutionGateResult.denied('authority_changed')
+
+        execution = build_execution(
+            stack, job_id=job, deadline=deadline,
+            service_id='qbittorrent')
+        result = execution.run(self.qbittorrent_installation, authority)
+        if (type(result) is not ExecutionResult or result.state != 'succeeded'
+                or result.code != 'container_started'
+                or result.container_id is None):
+            raise QbittorrentConfigurationExecutionError(
+                'qbittorrent_config_result_invalid',
+                uncertain_effect=True)
+        return QbittorrentConfiguredInstallReceipt(
+            configured, result.container_id, 'qbittorrent_container_started')
 
 
 def _build_runtime(policy, *, peer_uid=None):

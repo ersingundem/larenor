@@ -72,6 +72,52 @@ def build(provider=proof, container_journal_id='4' * 32):
     return builder, stack, builder(stack)
 
 
+def qbittorrent_proof(resource_plan, volume_plan, component):
+    image = next(item for item in resource_plan.resources
+                 if item.kind == 'ensure_image' and item.serviceId == 'qbittorrent')
+    network = resource_plan.resources[-1]
+    volumes = tuple(item for item in volume_plan.resources
+                    if item.serviceId == 'qbittorrent' or item.kind == 'managed_library')
+    return VerifiedJellyfinResources(
+        stack_plan_hash=resource_plan.stackPlanHash,
+        resource_plan_hash=resource_plan.planHash,
+        volume_plan_hash=volume_plan.planHash,
+        worker_policy_digest=resource_plan.workerPolicyDigest,
+        image=ManagedImageProof(image.resourceId, 3, image.image.configDigest,
+            json.dumps({'Env': ['PATH=/usr/bin'], 'Volumes': {'/config': {}}},
+                       sort_keys=True, separators=(',', ':')).encode()),
+        volumes=tuple(ManagedVolumeProof(
+            item.resourceId, item.operationId, 4, 'e' * 32, 'f' * 32,
+            item.name, item.target, True,
+        ) for item in volumes),
+        network=ManagedNetworkProof(
+            network.resourceId, network.operationId, 3, '1' * 32, '2' * 32,
+            network.name, '3' * 64,
+        ),
+    )
+
+
+def test_qbittorrent_builder_uses_owned_config_and_shared_writable_library():
+    _builder, stack, binding = build_qbittorrent()
+    body = json.loads(binding.specification)
+    component = next(item for item in stack.components
+                     if item.serviceId == 'qbittorrent')
+    assert binding.name == 'larenor-' + component.installationId
+    assert {item.target: item.read_only for item in binding.mounts} == {
+        '/config': False, '/data': False}
+    assert 'PortBindings' not in body['HostConfig'] and 'ExposedPorts' not in body
+    assert set(json.loads(binding.image_configuration)['Volumes']) == {'/config'}
+    assert managed_container_matches(snapshot(binding), binding)
+
+
+def build_qbittorrent(container_journal_id='4' * 32):
+    catalog, stack, policy = source()
+    builder = JellyfinBindingBuilder(
+        catalog, policy, container_journal_id, qbittorrent_proof,
+        service_id='qbittorrent')
+    return builder, stack, builder(stack)
+
+
 def test_builder_derives_ports_off_private_network_and_exact_nocopy_mounts():
     _builder, stack, binding = build()
     body = json.loads(binding.specification)
@@ -310,6 +356,19 @@ def test_separate_managed_journal_executes_exact_binding_and_recovers_lost_reply
         engine.lose_create = False
         started = worker.apply(command(binding, 'start_container', '8' * 32), binding)
         assert started.code == 'container_started'
+
+
+def test_managed_journal_executes_qbittorrent_two_mount_binding(tmp_path):
+    with ManagedWorkerJournal(tmp_path / 'managed', initialize=True) as journal:
+        _builder, _stack, binding = build_qbittorrent(journal.identity)
+        engine = Engine(binding)
+        worker = JournaledManagedContainerOperations(journal, engine)
+        assert worker.apply(command(binding), binding).code == 'container_created'
+        assert worker.apply(
+            command(binding, 'start_container', '8' * 32), binding,
+        ).code == 'container_started'
+        assert [item[0] for item in engine.calls].count('create') == 1
+        assert managed_container_matches(engine.container, binding)
 
 
 def test_legacy_and_managed_journals_cannot_read_each_others_domain(tmp_path):

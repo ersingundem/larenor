@@ -316,6 +316,32 @@ class SupervisedInstallationBackend:
         finally:
             self._peer_verifier.deactivate()
 
+    def install_configured_qbittorrent_with_deadline(
+            self, job, stack, credential, *, api_key, salt, cancelled,
+            deadline):
+        self._check(deadline)
+        self._peer_verifier.activate(deadline)
+
+        def gate():
+            self._check(deadline)
+            return True
+
+        try:
+            try:
+                result = self.backend.install_configured_qbittorrent(
+                    job, stack, credential, api_key=api_key, salt=salt,
+                    cancelled=cancelled, deadline=deadline, gate=gate)
+                self._check(deadline)
+                return result
+            except BaseException:
+                try:
+                    self._check(deadline)
+                except InstallationSupervisorError:
+                    raise
+                raise
+        finally:
+            self._peer_verifier.deactivate()
+
     def close(self):
         if self._closed:
             return

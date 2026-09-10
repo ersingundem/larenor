@@ -9,6 +9,7 @@ from larenor_server.plugins.installation_execution import (
     InstallationExecution,
     InstallationExecutionError,
     JellyfinWorkerBackend,
+    QbittorrentWorkerBackend,
     build_execution,
 )
 from larenor_server.plugins.worker import StepReceipt
@@ -51,6 +52,22 @@ def test_builder_selects_only_trusted_jellyfin_child_and_has_no_docker_payload(s
     assert set(wire) == {'serviceId', 'operationId', 'steps'}
     assert all(set(step) == {'stepId', 'kind'} for step in wire['steps'])
     assert 'Image' not in repr(wire) and 'HostConfig' not in repr(wire)
+
+
+def test_builder_selects_fixed_qbittorrent_child_without_effect_payload(server):
+    plan = stack(server)
+    execution = build_execution(
+        plan, job_id='a' * 32, deadline=1788609900,
+        service_id='qbittorrent')
+    assert execution.service_id == 'qbittorrent'
+    assert [step.kind for step in execution.steps] == [
+        'create_container', 'start_container']
+    component = next(item for item in plan['components']
+                     if item['serviceId'] == 'qbittorrent')
+    assert execution.operation_id == component['operationId']
+    assert all(step.installation_id == component['installationId']
+               for step in execution.steps)
+    assert 'HostConfig' not in repr(execution.public())
 
 
 @pytest.mark.parametrize('field', ['service_id', 'job_id', 'deadline'])
@@ -136,3 +153,40 @@ def test_worker_bridge_reverifies_component_and_builds_binding_internally(server
     with pytest.raises(InstallationExecutionError, match='^invalid_execution_request$'):
         bridge.apply(execution.steps[0], forged)
     assert len(calls) == 2
+
+
+def test_qbittorrent_worker_bridge_selects_only_qbittorrent_binding(server):
+    execution = build_execution(
+        stack(server), job_id='a' * 32, deadline=1788609900,
+        service_id='qbittorrent')
+    calls = []
+
+    class Operations:
+        def apply(self, step, binding):
+            calls.append((step, binding))
+            return StepReceipt(
+                step.job_id, step.kind, 'succeeded',
+                'container_created', '1' * 64)
+
+        def reconcile(self, job, kind, binding):
+            calls.append((job, kind, binding))
+            return StepReceipt(
+                job, kind, 'succeeded', 'container_created', '1' * 64)
+
+    sentinel = object()
+    supplied = []
+
+    def binding(plan, service_id):
+        supplied.append((plan, service_id))
+        return sentinel
+
+    bridge = QbittorrentWorkerBackend(Operations(), binding)
+    receipt = bridge.apply(execution.steps[0], execution.plan)
+    assert receipt.state == 'succeeded'
+    assert supplied == [(execution.plan, 'qbittorrent')]
+    assert calls == [(execution.steps[0], sentinel)]
+    jellyfin = build_execution(
+        execution.plan, job_id='b' * 32, deadline=1788609900)
+    with pytest.raises(InstallationExecutionError,
+                       match='^invalid_execution_request$'):
+        bridge.apply(jellyfin.steps[0], jellyfin.plan)

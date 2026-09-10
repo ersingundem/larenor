@@ -29,10 +29,17 @@ class PrivateQbittorrentReceipt(StrictModel):
         'qbittorrent_config_installed',
         'qbittorrent_config_already_installed',
     ]
+    # These fields were added after configuration-only jobs had already been
+    # persisted.  Keeping them nullable lets Core read those encrypted receipts
+    # without claiming that their container was started.
+    containerId: Digest | None = None
+    containerState: Literal['qbittorrent_container_started'] | None = None
 
     @model_validator(mode='after')
     def coherent(self):
         if self.volumeName != 'larenor-appdata-v1-' + self.resourceId:
+            raise ValueError('invalid_qbittorrent_configuration_receipt')
+        if (self.containerId is None) != (self.containerState is None):
             raise ValueError('invalid_qbittorrent_configuration_receipt')
         return self
 
@@ -55,6 +62,7 @@ class QbittorrentConfiguration(StrictModel):
         'qbittorrent_config_installed',
         'qbittorrent_config_already_installed',
     ] | None
+    containerState: Literal['container_started'] | None
     errorCode: Literal[
         'qbittorrent_config_authority_changed',
         'qbittorrent_config_context_changed',
@@ -89,7 +97,8 @@ class QbittorrentConfiguration(StrictModel):
             if (not self.configured or self.configurationState is None
                     or self.errorCode is not None or self.cancelRequested):
                 raise ValueError('invalid_qbittorrent_configuration_state')
-        elif self.configured or self.configurationState is not None:
+        elif (self.configured or self.configurationState is not None
+              or self.containerState is not None):
             raise ValueError('invalid_qbittorrent_configuration_state')
         if self.state in {'queued', 'running', 'cancelled'} and self.errorCode is not None:
             raise ValueError('invalid_qbittorrent_configuration_state')
