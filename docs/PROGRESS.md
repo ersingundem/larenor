@@ -1,6 +1,6 @@
 # Larenor — güncel ilerleme ve iş kuyruğu
 
-**Son güncelleme: 10 Eylül 2026 — PR65 exact `5db7942` üzerinde 15/15 zorunlu kontrolü geçerek ana dala alındı. Üçüncü toplu kilometre taşı Music Assistant sağlayıcı/oynatma worker'ını, SSH tünel/PTY/MFA/jump-host akışını, güvenilir HA checkpoint E2E'sini ve günlük GitHub artifact bakımını birleştiriyor.**
+**Son güncelleme: 10 Eylül 2026 — PR66 `4925a50` ile ana dala alındı. Dördüncü toplu kilometre taşı Music Assistant ilk kurulumunu, Core-backed Proxmox/Keenetic tablet yüzeylerini ve doğrulanmış bounded indirmeyi birleştiriyor.**
 
 ```text
 Kuyruk kabulü       ██░░░░░░░░░░░░░░░░░░  14/125 iş (%11; eşit ağırlıklı sayaç)
@@ -75,9 +75,6 @@ noktasında birleştirdi:
   sahip tablet SFTP tarayıcısı ile açık indirme/yükleme.
 - Actor/source/reason/result ve bütünlük/checkpoint durumunu gösteren salt
   okunur tablet HA etkinlik ekranı.
-- S08.9 Proxmox pilotunda yönetici preview/confirm ve üye salt okunur Core
-  ekranı; kaynak seçen Core-backed dashboard widget'ı, node/QEMU-LXC/storage
-  özeti ve stale/denied/offline ayrımı. Direct sağlayıcıya fallback yoktur.
 
 Yerel birleşim kapısında seçili Music Assistant/provider Server testleri ve
 **298 birleşik SFTP/SSH/Core HA Flutter testi** geçti. Exact PR head üzerinde
@@ -110,6 +107,35 @@ Gerçek HomePod/sağlayıcı, iki hostlu SSH fixture, fiziksel Huawei/DeX ve Git
 PR/CI kabulü açık olduğundan sayaçlar **14/125 (%11,2)** ve **0/63 (%0,0)**
 olarak korunuyor. S08.9 Keenetic/Proxmox ve S08.10 bounded transfer pilotları
 bir sonraki toplu paket için paralel yürütülüyor.
+
+### Hazırlanan dördüncü toplu kilometre taşı
+
+- Her PR commitinin kuyruk ve seçili özellik yüzdesi GitHub Actions özetinde
+  commit hash'iyle ayrı satırda gösteriliyor. Bu kayıt öncesindeki **30/30 commit**
+  `14/125 (%11,2)` ve `0/63 (%0,0)` trailerlarıyla doğrulandı.
+- Music Assistant 2.10.2 ilk kurulumunda Core iç yöneticiyi oluşturuyor, kısa
+  kurulum anahtarını uzun ömürlü entegrasyon anahtarıyla değiştiriyor,
+  onboarding'i tamamlıyor ve aynı sunucu kimliğini tekrar okuyor. Sırlar yalnız
+  UID-korumalı Unix IPC ve retained worker içinde kalıyor.
+- Proxmox pilotunda yönetici preview/confirm ve üye salt okunur Core ekranı;
+  kaynak seçen Core-backed dashboard widget'ı, node/QEMU-LXC/storage özeti ve
+  stale/denied/offline ayrımı var. Core yolunda Direct fallback yok.
+- Keenetic pilotu authenticated Core kaynağından internet durumu, public IP,
+  uptime, indirme/yükleme, CPU/RAM ve çevrimiçi cihaz özetini tablet/DeX paneli
+  ve kaynak/revision bağlı dashboard kartında gösteriyor. Yönlendirici ayarı
+  değiştirmiyor ve Direct kimlik bilgisi/cache yoluna dönmüyor.
+- S08.10 bounded indirme pilotu trace, sıra, final frame, uzunluk, SHA-256,
+  içerik türü ve servis revision doğrulanmadan Android SAF'e veri yayımlamıyor.
+  İptal, timeout, oturum/lifecycle ve ACL değişiminde akış kapanıyor; otomatik
+  retry, range veya resume yok.
+
+Birleşim sonrası ilgili **228 Server** ve **100 Flutter** testi geçti; security
+policy, Python compileall, kuyruk ve commit ilerleme kapıları temiz. Flutter
+generated kaynakları birleşik testten önce yeniden üretildi. Uzak CI,
+gerçek Proxmox/Keenetic/Music Assistant, Android SAF, Huawei MatePad ve Samsung
+DeX fiziksel kabulü açık. S08.9, S08.10, S06.5 ve seçili özelliklerin bütün
+kriterleri kapanmadığı için sayaçlar **14/125 (%11,2)** ve **0/63 (%0,0)**
+olarak korunuyor.
 
 | Adım | Durum | Sonraki somut çıktı |
 | --- | --- | --- |
