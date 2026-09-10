@@ -40,9 +40,26 @@ apksig 9.1.0 jar and JDK 17, the complete Server collection completes with
 4,831 passing and 13 platform skips. Repository security policy, compileall,
 queue validation, diff validation and gitleaks pass.
 
+PR41 then exercised this path against the pinned LinuxServer qBittorrent
+5.2.3 image. The first native runs exposed two production-only assumptions:
+Docker network inspect legitimately contains the attached managed endpoint,
+and qBittorrent accepts an API key only in its exact `qbt_` plus 28 character
+format. The final readback also proved that disabling WebUI UPnP does not
+disable peer-port forwarding, so the owned config now independently sets
+`Network/PortForwardingEnabled=false`. The response parser accepts qBittorrent's
+bounded `text/plain` error body before classifying its status, while success
+payloads still require the expected media type.
+
+Exact PR head `f00a869d4f0fcbddf70fecbb99bb1bb96553d7ff` passed the
+[two-architecture native run](https://github.com/ersingundem/larenor/actions/runs/34437420807).
+Both downloaded receipts were independently verified against merge source
+`8cf7257d63447f1441f2ae66f9fd8a477e7f341a`; amd64 and arm64 each proved
+configuration, container startup, Bearer authentication, two persistent
+categories, one restart and post-restart readback. The latest related local
+package completed with 289 passing tests.
+
 ## Remaining boundary
 
-`installAvailable` remains false. Disposable amd64 and arm64 qBittorrent
-startup, category/readback and restart-persistence receipts must pass on this
-exact source. Radarr, Sonarr, Seerr and Music Assistant still need their owned
-private bootstrap and automatic cross-service wiring before S06.5 closes.
+`installAvailable` remains false. Radarr, Sonarr, Seerr and Music Assistant
+still need their owned private bootstrap and automatic cross-service wiring
+before S06.5 closes.
