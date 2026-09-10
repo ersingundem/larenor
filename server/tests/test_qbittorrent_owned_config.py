@@ -34,6 +34,8 @@ def test_renderer_matches_upstream_pbkdf2_and_fixed_managed_paths():
         'Session\\Port=6881\n'
         'Session\\TempPath=/data/incomplete\n'
         'Session\\TempPathEnabled=true\n\n'
+        '[Network]\n'
+        'PortForwardingEnabled=false\n\n'
         '[Preferences]\n'
         f'WebUI\\APIKey={PRIVATE_BEARER}\n'
         'WebUI\\Address=*\n'
@@ -129,6 +131,8 @@ def test_exact_config_can_be_reconciled_from_its_embedded_salt():
     lambda raw: raw.replace(b'/data/downloads', b'/private/downloads'),
     lambda raw: raw.replace(b'CSRFProtection=true', b'CSRFProtection=false'),
     lambda raw: raw.replace(b'UseUPnP=false', b'UseUPnP=true'),
+    lambda raw: raw.replace(
+        b'PortForwardingEnabled=false', b'PortForwardingEnabled=true'),
     lambda raw: raw.replace(b'Username=larenor-system', b'Username=admin'),
     lambda raw: raw.replace(b'@ByteArray(', b'@ByteArray(AA'),
 ])

@@ -64,6 +64,8 @@ def render_qbittorrent_owned_config(credential, *, api_key, salt, web_port=8080,
             f'Session\\Port={torrent_port}\n'
             'Session\\TempPath=/data/incomplete\n'
             'Session\\TempPathEnabled=true\n\n'
+            '[Network]\n'
+            'PortForwardingEnabled=false\n\n'
             '[Preferences]\n'
             f'WebUI\\APIKey={api_key}\n'
             'WebUI\\Address=*\n'
