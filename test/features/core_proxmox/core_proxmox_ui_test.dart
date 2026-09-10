@@ -318,7 +318,9 @@ void main() {
         localizationsDelegates: AppLocalizations.localizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
         home: CupertinoPageScaffold(
-          child: CoreProxmoxDetailExplorer(summary: _summary()),
+          child: SingleChildScrollView(
+            child: CoreProxmoxDetailExplorer(summary: _summary()),
+          ),
         ),
       ),
     );
