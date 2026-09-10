@@ -117,11 +117,71 @@ class RecentTaskSummary(FrozenModel):
         return self
 
 
+class MaintenanceWarning(FrozenModel):
+    warningId: str = Field(min_length=64, max_length=64, pattern=r'^[0-9a-f]{64}$')
+    kind: Literal['node_offline', 'storage_offline', 'node_cpu_pressure',
+                  'node_memory_pressure', 'storage_pressure', 'recent_task_failed']
+    severity: Literal['warning', 'critical']
+    node: str = Field(min_length=1, max_length=64, pattern=r'^[A-Za-z0-9][A-Za-z0-9._-]*$')
+    storage: str | None = Field(min_length=1, max_length=64,
+                                pattern=r'^[A-Za-z0-9][A-Za-z0-9._-]*$')
+    observedPercent: int | None = Field(ge=0, le=100)
+    thresholdPercent: int | None = Field(ge=0, le=100)
+    relatedTaskId: str | None = Field(min_length=64, max_length=64,
+                                      pattern=r'^[0-9a-f]{64}$')
+
+    @model_validator(mode='after')
+    def valid_shape(self):
+        values = (self.observedPercent, self.thresholdPercent)
+        if self.kind in ('node_offline', 'storage_offline'):
+            if self.severity != 'critical' or any(value is not None for value in values):
+                raise ValueError('invalid_summary')
+        elif self.kind == 'recent_task_failed':
+            if self.severity != 'warning' or any(value is not None for value in values):
+                raise ValueError('invalid_summary')
+        else:
+            low = 75 if self.kind == 'node_cpu_pressure' else 80
+            expected = 90 if self.severity == 'critical' else low
+            if (self.observedPercent is None or self.thresholdPercent != expected or
+                    self.observedPercent < expected or
+                    self.severity == 'warning' and self.observedPercent >= 90):
+                raise ValueError('invalid_summary')
+        if ((self.kind in ('storage_offline', 'storage_pressure')) !=
+                (self.storage is not None)):
+            raise ValueError('invalid_summary')
+        if ((self.kind == 'recent_task_failed') != (self.relatedTaskId is not None)):
+            raise ValueError('invalid_summary')
+        return self
+
+
+class MaintenanceSummary(FrozenModel):
+    state: Literal['healthy', 'attention', 'critical']
+    warningCount: int = Field(ge=0, le=148)
+    truncated: bool
+    warnings: list[MaintenanceWarning] = Field(max_length=32)
+
+    @model_validator(mode='after')
+    def valid_rollup(self):
+        if len({warning.warningId for warning in self.warnings}) != len(self.warnings):
+            raise ValueError('invalid_summary')
+        if self.truncated != (self.warningCount > len(self.warnings)):
+            raise ValueError('invalid_summary')
+        if not self.truncated and self.warningCount != len(self.warnings):
+            raise ValueError('invalid_summary')
+        has_critical = any(warning.severity == 'critical' for warning in self.warnings)
+        expected = ('healthy' if self.warningCount == 0 else
+                    'critical' if has_critical else 'attention')
+        if self.state != expected:
+            raise ValueError('invalid_summary')
+        return self
+
+
 class Summary(FrozenModel):
     nodes: list[NodeSummary] = Field(max_length=32)
     guests: list[GuestSummary] = Field(max_length=256)
     storages: list[StorageSummary] = Field(max_length=64)
     recentTasks: list[RecentTaskSummary] = Field(max_length=20)
+    maintenance: MaintenanceSummary
 
     @model_validator(mode='after')
     def unique_keys(self):
@@ -131,6 +191,22 @@ class Summary(FrozenModel):
                 [t.taskId for t in self.recentTasks])
         if any(len(values) != len(set(values)) for values in keys):
             raise ValueError('invalid_summary')
+        nodes = {node.node for node in self.nodes}
+        storages = {(storage.node, storage.storage) for storage in self.storages}
+        failed = {task.taskId: task.node for task in self.recentTasks
+                  if task.status == 'failed'}
+        semantic = set()
+        for warning in self.maintenance.warnings:
+            if warning.node not in nodes:
+                raise ValueError('invalid_summary')
+            if warning.storage is not None and (warning.node, warning.storage) not in storages:
+                raise ValueError('invalid_summary')
+            if warning.relatedTaskId is not None and failed.get(warning.relatedTaskId) != warning.node:
+                raise ValueError('invalid_summary')
+            key = (warning.kind, warning.node, warning.storage, warning.relatedTaskId)
+            if key in semantic:
+                raise ValueError('invalid_summary')
+            semantic.add(key)
         return self
 
 

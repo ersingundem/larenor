@@ -33,9 +33,9 @@ void main() {
       (CoreProxmoxGuestKind.lxc, CoreProxmoxGuestStatus.stopped),
     ]);
     expect(value.summary.storages.single.usedRatio, .5);
-    expect(value.summary.recentTasks.single.kind, 'vzdump');
+    expect(value.summary.recentTasks.first.kind, 'vzdump');
     expect(
-      value.summary.recentTasks.single.status,
+      value.summary.recentTasks.first.status,
       CoreProxmoxTaskStatus.succeeded,
     );
     expect(
@@ -95,6 +95,11 @@ void main() {
           (((v['summary'] as Map)['maintenance'] as Map)['warnings'] as List)
                   .first['rawError'] =
               'private',
+      (v) =>
+          ((((v['summary'] as Map)['maintenance'] as Map)['warnings']
+                      as List)[1]
+                  as Map)['severity'] =
+              'critical',
     ];
     for (final mutate in mutations) {
       final value = snapshot();

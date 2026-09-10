@@ -149,6 +149,68 @@ def _tasks(values):
         raise ApiError('proxmox_summary_unsupported', 502) from None
 
 
+def _maintenance(nodes, storages, tasks):
+    warnings = []
+
+    def add(kind, severity, node, *, storage=None, observed=None,
+            threshold=None, task=None):
+        identity = '|'.join((kind, node, storage or '', task or ''))
+        warnings.append({
+            'warningId': hashlib.sha256(identity.encode('ascii')).hexdigest(),
+            'kind': kind,
+            'severity': severity,
+            'node': node,
+            'storage': storage,
+            'observedPercent': observed,
+            'thresholdPercent': threshold,
+            'relatedTaskId': task,
+        })
+
+    def pressure(kind, node, ratio, *, storage=None, low=80):
+        observed = min(100, max(0, round(ratio * 100)))
+        if ratio >= .9:
+            add(kind, 'critical', node, storage=storage, observed=observed,
+                threshold=90)
+        elif ratio >= low / 100:
+            add(kind, 'warning', node, storage=storage, observed=observed,
+                threshold=low)
+
+    for node in nodes:
+        if node['status'] == 'offline':
+            add('node_offline', 'critical', node['node'])
+            continue
+        pressure('node_cpu_pressure', node['node'], node['cpuRatio'], low=75)
+        pressure('node_memory_pressure', node['node'],
+                 node['memoryUsedBytes'] / node['memoryTotalBytes'])
+    for storage in storages:
+        if not storage['active']:
+            add('storage_offline', 'critical', storage['node'],
+                storage=storage['storage'])
+            continue
+        pressure('storage_pressure', storage['node'],
+                 storage['usedBytes'] / storage['totalBytes'],
+                 storage=storage['storage'])
+    for task in tasks:
+        if task['status'] == 'failed':
+            add('recent_task_failed', 'warning', task['node'],
+                task=task['taskId'])
+    warnings.sort(key=lambda item: (
+        0 if item['severity'] == 'critical' else 1,
+        item['kind'], item['node'], item['storage'] or '',
+        item['relatedTaskId'] or '',
+    ))
+    total = len(warnings)
+    bounded = warnings[:32]
+    return {
+        'state': ('healthy' if total == 0 else
+                  'critical' if any(item['severity'] == 'critical'
+                                    for item in bounded) else 'attention'),
+        'warningCount': total,
+        'truncated': total > len(bounded),
+        'warnings': bounded,
+    }
+
+
 def read_summary(service, *, guard):
     """Read fixed cluster resources; never dispatch a power/config operation."""
     guard()
@@ -185,6 +247,7 @@ def read_summary(service, *, guard):
     tasks = _tasks(_data(tasks_response))
     try:
         return Summary(nodes=nodes, guests=guests, storages=storages,
-                       recentTasks=tasks)
+                       recentTasks=tasks,
+                       maintenance=_maintenance(nodes, storages, tasks))
     except (TypeError, ValueError):
         raise ApiError('proxmox_summary_unsupported', 502) from None

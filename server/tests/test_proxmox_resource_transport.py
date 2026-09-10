@@ -174,6 +174,19 @@ def test_capacity_pressure_and_failed_tasks_produce_bounded_redacted_warnings(pv
     assert 'private-error' not in json.dumps(summary)
 
 
+def test_capacity_threshold_boundaries_are_explicit_warnings(pve):
+    pve.resources[0] = {**pve.resources[0], 'cpu': .75, 'mem': 3277}
+    pve.resources[-1] = {**pve.resources[-1], 'disk': 80}
+    maintenance = read_summary(connection(pve), guard=lambda: None).maintenance
+    assert maintenance.state == 'attention'
+    assert [(warning.kind, warning.observedPercent, warning.thresholdPercent)
+            for warning in maintenance.warnings] == [
+        ('node_cpu_pressure', 75, 75),
+        ('node_memory_pressure', 80, 80),
+        ('storage_pressure', 80, 80),
+    ]
+
+
 def test_warning_projection_is_capped_without_hiding_total_pressure(pve):
     pve.resources = [
         {'type': 'node', 'node': f'pve-{index}', 'status': 'online',
