@@ -69,9 +69,10 @@ jobs:
           python ../tool/server_test_shards.py --root tests --count 3 --output-dir "$shard_dir"
           shard="${{ matrix.shard }}"
           mapfile -t test_paths < "$shard_dir/$shard.txt"
-          uv run --locked --no-sync python -m pytest "${test_paths[@]}" \
+          uv run --locked --no-sync python -m pytest \
             --basetemp="$RUNNER_TEMP/larenor-pytest-$shard" \
-            --junitxml="$GITHUB_WORKSPACE/test-results/larenor-server-$shard.xml"
+            --junitxml="$GITHUB_WORKSPACE/test-results/larenor-server-$shard.xml" \
+            -- "${test_paths[@]}"
 
       - name: Preserve synthetic test evidence
         id: test_evidence

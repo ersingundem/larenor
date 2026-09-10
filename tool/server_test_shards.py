@@ -19,6 +19,10 @@ def partition_test_files(root: Path, count: int) -> list[list[str]]:
     if len(files) < count:
         raise ShardError("server_test_shards_invalid")
     parent = root.parent
+    relative_paths = [path.relative_to(parent).as_posix() for path in files]
+    if any(any(ord(character) < 32 or ord(character) == 127 for character in path)
+           for path in relative_paths):
+        raise ShardError("server_test_shards_invalid")
     ordered = sorted(
         files,
         key=lambda path: (

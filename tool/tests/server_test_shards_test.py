@@ -43,6 +43,20 @@ class ServerTestShardsTest(unittest.TestCase):
             with self.assertRaises(ShardError):
                 partition_test_files(root, 2)
 
+    def test_partition_rejects_manifest_control_characters(self):
+        from server_test_shards import ShardError, partition_test_files
+
+        from tempfile import TemporaryDirectory
+        with TemporaryDirectory() as directory:
+            root = Path(directory) / "tests"
+            root.mkdir()
+            (root / "test_safe.py").write_text("def test_fixture(): pass\n")
+            (root / "test_bad\n--collect-only.py").write_text(
+                "def test_fixture(): assert False\n",
+            )
+            with self.assertRaises(ShardError):
+                partition_test_files(root, 2)
+
 
 if __name__ == "__main__":
     unittest.main()
