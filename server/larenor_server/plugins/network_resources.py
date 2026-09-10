@@ -10,8 +10,10 @@ List replies must come from the exact generated name query, on a fully framed,
 bounded authenticated Engine response. API 1.47 has no list pagination; partial
 or label-filtered results cannot establish absence. A list result is NEVER a
 matched ownership receipt: since API 1.28 list omits attached endpoints. A full
-ID inspect is still required. Neither helper proves ongoing exclusivity, safe
-bootstrap, firewall isolation, egress suitability or permission to attach.
+ID inspect is still required. Its documented endpoint map may contain bounded,
+well-formed Larenor container endpoints after services start. Neither helper
+proves ongoing exclusivity, safe bootstrap, firewall isolation, egress
+suitability or permission to attach.
 
 Sources: Docker Engine 1.47 OpenAPI and Moby v27.5.1 API/types/network +
 daemon/network.go. The pinned v27 schema has no EnableIPv4 create field (despite
@@ -40,6 +42,8 @@ MAX_INSPECT_BYTES = 65536
 MAX_NETWORKS = 128
 _ID = re.compile(r'[0-9a-f]{32}\Z')
 _HASH = re.compile(r'[0-9a-f]{64}\Z')
+_CONTAINER_NAME = re.compile(r'larenor-[0-9a-f]{32}\Z')
+_MAC = re.compile(r'(?:[0-9a-f]{2}:){5}[0-9a-f]{2}\Z')
 _CODES = frozenset({'invalid_network_binding', 'network_protocol', 'network_response_limit',
                     'network_conflict', 'network_multiple'})
 _NETWORK_KEYS = frozenset({'Name', 'Id', 'Created', 'Scope', 'Driver', 'EnableIPv4', 'EnableIPv6',
@@ -221,7 +225,7 @@ def _ipam(value, *, detailed):
              and value.get('Driver') == 'default' and _empty_map(value.get('Options')))
     configs = value.get('Config')
     if not detailed and (configs is None or configs == []):
-        return
+        return None
     _require(type(configs) is list and len(configs) == 1)
     config = configs[0]
     _require(type(config) is dict and set(config) <= {'Subnet', 'Gateway', 'IPRange', 'AuxiliaryAddresses'}
@@ -236,6 +240,33 @@ def _ipam(value, *, detailed):
         address = ipaddress.IPv4Address(gateway)
         _require(str(address) == gateway and address in parsed
                  and address not in (parsed.network_address, parsed.broadcast_address))
+    return parsed
+
+
+def _endpoints(value, network):
+    """Validate only Moby's fixed EndpointResource projection."""
+    _require(type(value) is dict and len(value) <= 128
+             and type(network) is ipaddress.IPv4Network)
+    for container_id, endpoint in value.items():
+        _require(_matches(container_id, _HASH)
+                 and type(endpoint) is dict
+                 and set(endpoint) == {
+                     'Name', 'EndpointID', 'MacAddress',
+                     'IPv4Address', 'IPv6Address'}
+                 and _CONTAINER_NAME.fullmatch(endpoint.get('Name', ''))
+                 is not None
+                 and _matches(endpoint.get('EndpointID'), _HASH)
+                 and _MAC.fullmatch(endpoint.get('MacAddress', ''))
+                 is not None
+                 and endpoint.get('IPv6Address') == '')
+        mac = bytes.fromhex(endpoint['MacAddress'].replace(':', ''))
+        _require(mac != b'\0' * 6 and mac != b'\xff' * 6
+                 and mac[0] & 1 == 0)
+        address = ipaddress.IPv4Interface(endpoint.get('IPv4Address', ''))
+        _require(str(address) == endpoint['IPv4Address']
+                 and address.network == network
+                 and address.ip not in {
+                     network.network_address, network.broadcast_address})
 
 
 def _properties(value, selected, labels, *, detailed):
@@ -252,11 +283,11 @@ def _properties(value, selected, labels, *, detailed):
     _require(type(config_from) is dict and config_from in ({}, {'Network': ''}))
     _require(value.get('Peers') is None or type(value['Peers']) is list and not value['Peers'])
     _require(_empty_map(value.get('Services')))
+    network = _ipam(value.get('IPAM'), detailed=detailed)
     if detailed:
-        _require(type(value.get('Containers')) is dict and not value['Containers'])
+        _endpoints(value.get('Containers'), network)
     else:
         _require(_empty_map(value.get('Containers')))
-    _ipam(value.get('IPAM'), detailed=detailed)
 
 
 @dataclass(frozen=True, repr=False)
