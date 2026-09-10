@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/services.dart';
+// ignore: depend_on_referenced_packages
+import 'package:flutter_secure_storage_platform_interface/flutter_secure_storage_platform_interface.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:larenor/core/configuration_writes.dart';
 import 'package:larenor/features/remote_access/data/remote_profiles.dart';
@@ -46,8 +48,11 @@ void main() {
     final calls = <String>[];
     Future<Object?> Function(MethodCall)? intercept;
     late RemoteProfilesStore store;
+    late FlutterSecureStoragePlatform previous;
     setUp(() {
       disk.clear(); calls.clear(); intercept=null; store=RemoteProfilesStore();
+      previous=FlutterSecureStoragePlatform.instance;
+      FlutterSecureStoragePlatform.instance=MethodChannelFlutterSecureStorage();
       TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(
         const MethodChannel('plugins.it_nomads.com/flutter_secure_storage'), (call) async {
           final a = Map<String,dynamic>.from(call.arguments as Map);
@@ -58,8 +63,9 @@ void main() {
           throw StateError('unexpected method');
         });
     });
-    tearDown(() => TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(
-      const MethodChannel('plugins.it_nomads.com/flutter_secure_storage'), null));
+    tearDown(() { FlutterSecureStoragePlatform.instance=previous;
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(
+      const MethodChannel('plugins.it_nomads.com/flutter_secure_storage'), null); });
     test('Core-free create edit delete and reopen preserve unrelated records', () async {
       disk['unrelated']='keep';
       final empty=await store.read(isCurrent:()=>true);
@@ -105,6 +111,28 @@ void main() {
         await expectLater(store.read(isCurrent:owner),throwsA(failure('retired')));
       }
       expect(calls,isEmpty);
+    });
+    test('bounded profile count and duplicate IDs cannot write', () async {
+      final empty=await store.read(isCurrent:()=>true);
+      await expectLater(store.replace(empty,List.filled(33,profile()),isCurrent:()=>true),throwsA(failure('limit')));
+      await expectLater(store.replace(empty,[profile(),profile()],isCurrent:()=>true),throwsA(failure('invalid_record')));
+      expect(calls.where((c)=>c.startsWith('write')),isEmpty);
+    });
+    test('queued replacement freezes caller list and decoded lists are immutable', () async {
+      final before=await store.read(isCurrent:()=>true);final release=Completer<void>();
+      final block=ConfigurationWrites.run(()=>release.future);final rows=[profile()];
+      final pending=store.replace(before,rows,isCurrent:()=>true);rows.clear();release.complete();await block;
+      final saved=await pending;expect(saved.profiles.length,1);
+      expect(()=>saved.profiles.clear(),throwsUnsupportedError);
+    });
+    test('readback third value never reports confirmed save', () async {
+      final before=await store.read(isCurrent:()=>true);var written=false;
+      intercept=(call) async {
+        if(call.method=='write'){written=true;return null;}
+        return written?'different':null;
+      };
+      await expectLater(store.replace(before,[profile()],isCurrent:()=>true),throwsA(failure('write_unconfirmed')));
+      expect(calls.where((c)=>c.startsWith('write')).length,1);
     });
     for(final after in [false,true]) {
       test('write failure ${after ? 'after':'before'} effect is honest and never retried', () async {
