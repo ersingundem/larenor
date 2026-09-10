@@ -336,4 +336,4 @@ def test_durable_coordinator_reaches_supervised_worker_over_real_unix_ipc(
         'credentialsConfigured': True, 'wiringState': 'partial',
     }
     assert backend.calls[0][0] == 'bootstrap'
-    assert backend.calls[0][1] == queued['id']
+    assert backend.calls[0][1] == installation['id']
