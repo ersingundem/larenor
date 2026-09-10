@@ -7,7 +7,7 @@ from fastapi.testclient import TestClient
 
 from conftest import auth
 from larenor_server.app import create_app
-from larenor_server.errors import ApiError
+from larenor_server.errors import ApiError, StartupError
 from larenor_server.plugins.music_assistant_core import AuthenticatedMusicAssistantReadback
 from test_media_installations_api import ExecutionBackend, prepared
 from test_services import create as create_service
@@ -150,3 +150,39 @@ def test_http_surface_is_read_only_admin_scoped_and_strict(server):
     path = '/api/v1/admin/media/music-assistant/{installation_id}'
     assert set(schema['paths'][path]) == {'get'}
     assert TOKEN not in json.dumps(schema)
+
+
+def test_exact_readback_is_idempotent_but_changed_identity_is_rejected(server):
+    app, _client, _, _ = server
+    pair, installation_id, revision = installed(server)
+    authenticated_peer(server, pair, 'home_assistant')
+    authenticated_peer(server, pair, 'jellyfin')
+    first = app.state.core.music_assistant_core.record_authenticated_readback(
+        installation_id, revision, readback())
+    assert app.state.core.music_assistant_core.record_authenticated_readback(
+        installation_id, revision, readback()) == first
+    changed = AuthenticatedMusicAssistantReadback(
+        token=TOKEN, serverId='different-server', serverVersion='2.8.0', schemaVersion=29)
+    with pytest.raises(ApiError, match='^music_assistant_readback_conflict$'):
+        app.state.core.music_assistant_core.record_authenticated_readback(
+            installation_id, revision, changed)
+    assert TOKEN not in repr(changed)
+
+
+def test_ciphertext_and_aad_tampering_fail_closed_at_runtime_and_restart(server):
+    app, client, settings, _ = server
+    pair, installation_id, revision = installed(server)
+    authenticated_peer(server, pair, 'home_assistant')
+    authenticated_peer(server, pair, 'jellyfin')
+    app.state.core.music_assistant_core.record_authenticated_readback(
+        installation_id, revision, readback())
+    with app.state.core.db.transaction() as connection:
+        connection.execute(
+            'UPDATE music_assistant_core SET ciphertext=? WHERE installation_id=?',
+            (b'broken', installation_id))
+    response = client.get(BASE + '/' + installation_id, headers=auth(pair))
+    assert response.status_code == 503
+    assert response.json()['error']['code'] == 'server_unavailable'
+    assert TOKEN not in response.text
+    with pytest.raises(StartupError, match='^invalid_music_assistant_core_storage$'):
+        create_app(settings)
