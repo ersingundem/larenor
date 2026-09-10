@@ -315,3 +315,31 @@ def test_retention_signals_age_failures_coverage_and_storage_pressure(pve):
         'backup_failed', 'restore_point_missing', 'storage_pressure']
     assert retention.highestStorageUsedPercent == 95
     assert 'private' not in json.dumps(retention.model_dump())
+
+
+def test_retention_marks_stale_success_without_claiming_storage_history(pve):
+    pve.tasks[0] = {**pve.tasks[0], 'starttime': 1788983940,
+                    'endtime': 1788984000}
+    retention = read_summary(connection(pve), guard=lambda: None).retention
+    assert retention.latestSuccessfulBackupAgeSeconds == 172800
+    assert [(warning.kind, warning.severity) for warning in retention.warnings] == [
+        ('backup_stale', 'attention'), ('restore_point_missing', 'attention')]
+
+
+def test_retention_missing_backup_and_unscanned_coverage_are_fail_closed_signals(pve):
+    pve.tasks[0] = {**pve.tasks[0], 'type': 'aptupdate'}
+    pve.resources = [pve.resources[0], *[
+        {'type': 'qemu', 'vmid': 100 + index, 'node': 'pve-a',
+         'name': f'guest-{index}', 'status': 'running', 'cpu': 0,
+         'mem': 1, 'maxmem': 2}
+        for index in range(1, 10)
+    ]]
+    pve.snapshots = {
+        f'/api2/json/nodes/pve-a/qemu/{100 + index}/snapshot': [{'name': 'current'}]
+        for index in range(1, 10)
+    }
+    retention = read_summary(connection(pve), guard=lambda: None).retention
+    assert retention.state == 'critical'
+    assert [warning.kind for warning in retention.warnings] == [
+        'backup_missing', 'restore_point_missing', 'coverage_partial']
+    assert retention.warnings[-1].affectedCount == 1

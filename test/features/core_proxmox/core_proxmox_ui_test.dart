@@ -325,6 +325,17 @@ void main() {
         ..['snapshotCount'] = 0
         ..['latestAt'] = null;
     }
+    final retention = summary['retention'] as Map<String, dynamic>;
+    retention['protectedGuestCount'] = 0;
+    retention['warnings'] = [
+      {
+        'kind': 'restore_point_missing',
+        'severity': 'attention',
+        'affectedCount': 2,
+        'observedPercent': null,
+        'ageSeconds': null,
+      },
+    ];
     await tester.pumpWidget(
       CupertinoApp(
         localizationsDelegates: AppLocalizations.localizationsDelegates,
@@ -450,6 +461,7 @@ void main() {
     await tester.pump();
     expect(find.text('Backup retention'), findsWidgets);
     expect(find.text('Missing restore point'), findsWidgets);
+    expect(find.textContaining('current sample'), findsWidgets);
     expect(find.text('Latest backup'), findsNothing);
     for (final key in [
       'core-proxmox-filter-all',

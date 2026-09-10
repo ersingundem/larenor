@@ -411,6 +411,164 @@ final class CoreProxmoxProtectionSummary {
   }
 }
 
+enum CoreProxmoxRetentionState { healthy, attention, critical }
+
+enum CoreProxmoxRetentionWarningKind {
+  backupMissing,
+  backupStale,
+  backupFailed,
+  restorePointMissing,
+  coveragePartial,
+  storagePressure,
+}
+
+enum CoreProxmoxRetentionSeverity { attention, critical }
+
+final class CoreProxmoxRetentionWarning {
+  const CoreProxmoxRetentionWarning._({
+    required this.kind,
+    required this.severity,
+    required this.affectedCount,
+    required this.observedPercent,
+    required this.age,
+  });
+
+  final CoreProxmoxRetentionWarningKind kind;
+  final CoreProxmoxRetentionSeverity severity;
+  final int affectedCount;
+  final int? observedPercent;
+  final Duration? age;
+
+  factory CoreProxmoxRetentionWarning.fromJson(Object? raw) {
+    final value = _object(raw, {
+      'kind',
+      'severity',
+      'affectedCount',
+      'observedPercent',
+      'ageSeconds',
+    });
+    final kind = switch (value['kind']) {
+      'backup_missing' => CoreProxmoxRetentionWarningKind.backupMissing,
+      'backup_stale' => CoreProxmoxRetentionWarningKind.backupStale,
+      'backup_failed' => CoreProxmoxRetentionWarningKind.backupFailed,
+      'restore_point_missing' =>
+        CoreProxmoxRetentionWarningKind.restorePointMissing,
+      'coverage_partial' => CoreProxmoxRetentionWarningKind.coveragePartial,
+      'storage_pressure' => CoreProxmoxRetentionWarningKind.storagePressure,
+      _ => _invalid(),
+    };
+    final observed = value['observedPercent'] == null
+        ? null
+        : _integer(value['observedPercent'], max: 100);
+    final age = value['ageSeconds'] == null
+        ? null
+        : Duration(seconds: _integer(value['ageSeconds']));
+    if ((kind == CoreProxmoxRetentionWarningKind.storagePressure) !=
+            (observed != null) ||
+        (kind == CoreProxmoxRetentionWarningKind.backupStale) !=
+            (age != null)) {
+      _invalid();
+    }
+    return CoreProxmoxRetentionWarning._(
+      kind: kind,
+      severity: switch (value['severity']) {
+        'attention' => CoreProxmoxRetentionSeverity.attention,
+        'critical' => CoreProxmoxRetentionSeverity.critical,
+        _ => _invalid(),
+      },
+      affectedCount: _integer(value['affectedCount'], min: 1, max: 256),
+      observedPercent: observed,
+      age: age,
+    );
+  }
+}
+
+final class CoreProxmoxRetentionSummary {
+  const CoreProxmoxRetentionSummary._({
+    required this.state,
+    required this.latestSuccessfulBackupAt,
+    required this.latestSuccessfulBackupAge,
+    required this.evaluatedGuestCount,
+    required this.protectedGuestCount,
+    required this.coverageTruncated,
+    required this.highestStorageUsedPercent,
+    required this.warnings,
+  });
+
+  final CoreProxmoxRetentionState state;
+  final DateTime? latestSuccessfulBackupAt;
+  final Duration? latestSuccessfulBackupAge;
+  final int evaluatedGuestCount, protectedGuestCount;
+  final bool coverageTruncated;
+  final int? highestStorageUsedPercent;
+  final List<CoreProxmoxRetentionWarning> warnings;
+
+  factory CoreProxmoxRetentionSummary.fromJson(Object? raw) {
+    final value = _object(raw, {
+      'state',
+      'latestSuccessfulBackupAt',
+      'latestSuccessfulBackupAgeSeconds',
+      'evaluatedGuestCount',
+      'protectedGuestCount',
+      'coverageTruncated',
+      'highestStorageUsedPercent',
+      'warnings',
+    });
+    final latest = value['latestSuccessfulBackupAt'] == null
+        ? null
+        : _timestamp(value['latestSuccessfulBackupAt']);
+    final ageSeconds = value['latestSuccessfulBackupAgeSeconds'] == null
+        ? null
+        : _integer(value['latestSuccessfulBackupAgeSeconds']);
+    final source = value['warnings'];
+    if (source is! List ||
+        source.length > 6 ||
+        value['coverageTruncated'] is! bool ||
+        (latest == null) != (ageSeconds == null)) {
+      _invalid();
+    }
+    final evaluated = _integer(value['evaluatedGuestCount'], max: 8);
+    final protected = _integer(value['protectedGuestCount'], max: 8);
+    final warnings = List<CoreProxmoxRetentionWarning>.unmodifiable(
+      source.map(CoreProxmoxRetentionWarning.fromJson),
+    );
+    if (protected > evaluated ||
+        warnings.map((warning) => warning.kind).toSet().length !=
+            warnings.length) {
+      _invalid();
+    }
+    final state = switch (value['state']) {
+      'healthy' => CoreProxmoxRetentionState.healthy,
+      'attention' => CoreProxmoxRetentionState.attention,
+      'critical' => CoreProxmoxRetentionState.critical,
+      _ => _invalid(),
+    };
+    final expected = warnings.isEmpty
+        ? CoreProxmoxRetentionState.healthy
+        : warnings.any(
+            (warning) =>
+                warning.severity == CoreProxmoxRetentionSeverity.critical,
+          )
+        ? CoreProxmoxRetentionState.critical
+        : CoreProxmoxRetentionState.attention;
+    if (state != expected) _invalid();
+    return CoreProxmoxRetentionSummary._(
+      state: state,
+      latestSuccessfulBackupAt: latest,
+      latestSuccessfulBackupAge: ageSeconds == null
+          ? null
+          : Duration(seconds: ageSeconds),
+      evaluatedGuestCount: evaluated,
+      protectedGuestCount: protected,
+      coverageTruncated: value['coverageTruncated'] as bool,
+      highestStorageUsedPercent: value['highestStorageUsedPercent'] == null
+          ? null
+          : _integer(value['highestStorageUsedPercent'], max: 100),
+      warnings: warnings,
+    );
+  }
+}
+
 enum CoreProxmoxMaintenanceState { healthy, attention, critical }
 
 enum CoreProxmoxWarningSeverity { warning, critical }
@@ -597,6 +755,7 @@ final class CoreProxmoxSummary {
     this.recentTasks,
     this.maintenance,
     this.protection,
+    this.retention,
   );
   final List<CoreProxmoxNode> nodes;
   final List<CoreProxmoxGuest> guests;
@@ -604,6 +763,7 @@ final class CoreProxmoxSummary {
   final List<CoreProxmoxRecentTask> recentTasks;
   final CoreProxmoxMaintenanceSummary maintenance;
   final CoreProxmoxProtectionSummary protection;
+  final CoreProxmoxRetentionSummary retention;
 
   factory CoreProxmoxSummary.fromJson(Object? raw) {
     final value = _object(raw, {
@@ -613,6 +773,7 @@ final class CoreProxmoxSummary {
       'recentTasks',
       'maintenance',
       'protection',
+      'retention',
     });
     List<T> list<T>(String key, int max, T Function(Object?) parse) {
       final source = value[key];
@@ -638,6 +799,7 @@ final class CoreProxmoxSummary {
     final protection = CoreProxmoxProtectionSummary.fromJson(
       value['protection'],
     );
+    final retention = CoreProxmoxRetentionSummary.fromJson(value['retention']);
     final nodeNames = nodes.map((node) => node.name).toSet();
     final storageNames = storages
         .map((storage) => '${storage.node}:${storage.name}')
@@ -682,6 +844,134 @@ final class CoreProxmoxSummary {
         )) {
       _invalid();
     }
+    final activePercentages = storages
+        .where((storage) => storage.active)
+        .map(
+          (storage) =>
+              (storage.usedBytes * 100 + storage.totalBytes ~/ 2) ~/
+              storage.totalBytes,
+        )
+        .toList(growable: false);
+    final highest = activePercentages.isEmpty
+        ? null
+        : activePercentages.reduce((a, b) => a > b ? a : b);
+    final successful = recentTasks
+        .where(
+          (task) =>
+              task.kind == 'vzdump' &&
+              task.status == CoreProxmoxTaskStatus.succeeded,
+        )
+        .toList(growable: false);
+    successful.sort((a, b) => a.finishedAt!.compareTo(b.finishedAt!));
+    final latestSuccess = successful.lastOrNull;
+    if (retention.evaluatedGuestCount != protection.scannedGuestCount ||
+        retention.protectedGuestCount !=
+            protection.snapshots
+                .where((item) => item.snapshotCount > 0)
+                .length ||
+        retention.coverageTruncated != protection.truncated ||
+        retention.highestStorageUsedPercent != highest ||
+        retention.latestSuccessfulBackupAt != latestSuccess?.finishedAt) {
+      _invalid();
+    }
+    final expectedWarnings =
+        <
+          (
+            CoreProxmoxRetentionWarningKind,
+            CoreProxmoxRetentionSeverity,
+            int,
+            int?,
+            Duration?,
+          )
+        >[];
+    final age = retention.latestSuccessfulBackupAge;
+    if (latestSuccess == null) {
+      expectedWarnings.add((
+        CoreProxmoxRetentionWarningKind.backupMissing,
+        CoreProxmoxRetentionSeverity.critical,
+        1,
+        null,
+        null,
+      ));
+    } else if (age!.inSeconds >= 86400) {
+      expectedWarnings.add((
+        CoreProxmoxRetentionWarningKind.backupStale,
+        age.inSeconds >= 259200
+            ? CoreProxmoxRetentionSeverity.critical
+            : CoreProxmoxRetentionSeverity.attention,
+        1,
+        null,
+        age,
+      ));
+    }
+    final failed = recentTasks
+        .where(
+          (task) =>
+              task.kind == 'vzdump' &&
+              task.status == CoreProxmoxTaskStatus.failed,
+        )
+        .length;
+    if (failed > 0) {
+      expectedWarnings.add((
+        CoreProxmoxRetentionWarningKind.backupFailed,
+        CoreProxmoxRetentionSeverity.critical,
+        failed,
+        null,
+        null,
+      ));
+    }
+    final missing =
+        retention.evaluatedGuestCount - retention.protectedGuestCount;
+    if (missing > 0) {
+      expectedWarnings.add((
+        CoreProxmoxRetentionWarningKind.restorePointMissing,
+        CoreProxmoxRetentionSeverity.attention,
+        missing,
+        null,
+        null,
+      ));
+    }
+    final unseen = protection.guestCount - retention.evaluatedGuestCount;
+    if (unseen > 0) {
+      expectedWarnings.add((
+        CoreProxmoxRetentionWarningKind.coveragePartial,
+        CoreProxmoxRetentionSeverity.attention,
+        unseen,
+        null,
+        null,
+      ));
+    }
+    final pressured = activePercentages.where((value) => value >= 80).toList();
+    if (pressured.isNotEmpty) {
+      final observed = pressured.reduce((a, b) => a > b ? a : b);
+      expectedWarnings.add((
+        CoreProxmoxRetentionWarningKind.storagePressure,
+        observed >= 90
+            ? CoreProxmoxRetentionSeverity.critical
+            : CoreProxmoxRetentionSeverity.attention,
+        pressured.length,
+        observed,
+        null,
+      ));
+    }
+    final actualWarnings = retention.warnings
+        .map(
+          (warning) => (
+            warning.kind,
+            warning.severity,
+            warning.affectedCount,
+            warning.observedPercent,
+            warning.age,
+          ),
+        )
+        .toList(growable: false);
+    if (actualWarnings.length != expectedWarnings.length ||
+        List.generate(
+          actualWarnings.length,
+          (index) => actualWarnings[index] == expectedWarnings[index],
+        ).contains(false)) {
+      _invalid();
+    }
     return CoreProxmoxSummary._(
       nodes,
       guests,
@@ -689,6 +979,7 @@ final class CoreProxmoxSummary {
       recentTasks,
       maintenance,
       protection,
+      retention,
     );
   }
 }

@@ -175,6 +175,62 @@ class ProtectionSummary(FrozenModel):
         return self
 
 
+class RetentionWarning(FrozenModel):
+    kind: Literal['backup_missing', 'backup_stale', 'backup_failed',
+                  'restore_point_missing', 'coverage_partial', 'storage_pressure']
+    severity: Literal['attention', 'critical']
+    affectedCount: int = Field(ge=1, le=256)
+    observedPercent: int | None = Field(ge=0, le=100)
+    ageSeconds: int | None = Field(ge=0, le=2**63 - 1)
+
+    @model_validator(mode='after')
+    def valid_shape(self):
+        if ((self.kind == 'storage_pressure') != (self.observedPercent is not None) or
+                (self.kind == 'backup_stale') != (self.ageSeconds is not None)):
+            raise ValueError('invalid_summary')
+        return self
+
+
+class RetentionSummary(FrozenModel):
+    state: Literal['healthy', 'attention', 'critical']
+    latestSuccessfulBackupAt: str | None = Field(min_length=20, max_length=40,
+                                                  pattern=r'^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?(?:Z|\+00:00)$')
+    latestSuccessfulBackupAgeSeconds: int | None = Field(ge=0, le=2**63 - 1)
+    evaluatedGuestCount: int = Field(ge=0, le=8)
+    protectedGuestCount: int = Field(ge=0, le=8)
+    coverageTruncated: bool
+    highestStorageUsedPercent: int | None = Field(ge=0, le=100)
+    warnings: list[RetentionWarning] = Field(max_length=6)
+
+    @field_validator('latestSuccessfulBackupAt')
+    @classmethod
+    def utc_timestamp(cls, value):
+        if value is None:
+            return value
+        try:
+            parsed = datetime.fromisoformat(value.replace('Z', '+00:00'))
+        except (TypeError, ValueError):
+            raise ValueError('invalid_summary') from None
+        if parsed.tzinfo is None or parsed.utcoffset() != timezone.utc.utcoffset(parsed):
+            raise ValueError('invalid_summary')
+        return value
+
+    @model_validator(mode='after')
+    def valid_rollup(self):
+        if ((self.latestSuccessfulBackupAt is None) !=
+                (self.latestSuccessfulBackupAgeSeconds is None) or
+                self.protectedGuestCount > self.evaluatedGuestCount):
+            raise ValueError('invalid_summary')
+        if len({warning.kind for warning in self.warnings}) != len(self.warnings):
+            raise ValueError('invalid_summary')
+        expected = ('healthy' if not self.warnings else
+                    'critical' if any(warning.severity == 'critical'
+                                      for warning in self.warnings) else 'attention')
+        if self.state != expected:
+            raise ValueError('invalid_summary')
+        return self
+
+
 class MaintenanceWarning(FrozenModel):
     warningId: str = Field(min_length=64, max_length=64, pattern=r'^[0-9a-f]{64}$')
     kind: Literal['node_offline', 'storage_offline', 'node_cpu_pressure',
@@ -241,6 +297,7 @@ class Summary(FrozenModel):
     recentTasks: list[RecentTaskSummary] = Field(max_length=20)
     maintenance: MaintenanceSummary
     protection: ProtectionSummary
+    retention: RetentionSummary
 
     @model_validator(mode='after')
     def unique_keys(self):
@@ -274,6 +331,50 @@ class Summary(FrozenModel):
             backup = self.protection.latestBackup.model_dump()
             if not any(task.model_dump() == backup for task in self.recentTasks):
                 raise ValueError('invalid_summary')
+        retention = self.retention
+        active_ratios = [(storage.usedBytes * 100 + storage.totalBytes // 2) //
+                         storage.totalBytes
+                         for storage in self.storages if storage.active]
+        highest = max(active_ratios) if active_ratios else None
+        successful = [task for task in self.recentTasks
+                      if task.kind == 'vzdump' and task.status == 'succeeded']
+        latest_success = (max(successful, key=lambda task: task.finishedAt)
+                          if successful else None)
+        if (retention.evaluatedGuestCount != self.protection.scannedGuestCount or
+                retention.protectedGuestCount != sum(
+                    item.snapshotCount > 0 for item in self.protection.snapshots) or
+                retention.coverageTruncated != self.protection.truncated or
+                retention.highestStorageUsedPercent != highest or
+                (latest_success.finishedAt if latest_success else None) !=
+                retention.latestSuccessfulBackupAt):
+            raise ValueError('invalid_summary')
+        failed = sum(task.kind == 'vzdump' and task.status == 'failed'
+                     for task in self.recentTasks)
+        missing = retention.evaluatedGuestCount - retention.protectedGuestCount
+        unseen = self.protection.guestCount - retention.evaluatedGuestCount
+        expected = []
+        if latest_success is None:
+            expected.append(('backup_missing', 'critical', 1, None, None))
+        elif retention.latestSuccessfulBackupAgeSeconds >= 86400:
+            age = retention.latestSuccessfulBackupAgeSeconds
+            expected.append(('backup_stale', 'critical' if age >= 259200 else 'attention',
+                             1, None, age))
+        if failed:
+            expected.append(('backup_failed', 'critical', failed, None, None))
+        if missing:
+            expected.append(('restore_point_missing', 'attention', missing, None, None))
+        if unseen:
+            expected.append(('coverage_partial', 'attention', unseen, None, None))
+        pressured = [ratio for ratio in active_ratios if ratio >= 80]
+        if pressured:
+            observed = max(pressured)
+            expected.append(('storage_pressure', 'critical' if observed >= 90 else 'attention',
+                             len(pressured), observed, None))
+        actual = [(warning.kind, warning.severity, warning.affectedCount,
+                   warning.observedPercent, warning.ageSeconds)
+                  for warning in retention.warnings]
+        if actual != expected:
+            raise ValueError('invalid_summary')
         return self
 
 

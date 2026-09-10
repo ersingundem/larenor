@@ -638,6 +638,7 @@ enum _CoreProxmoxDetailFilter {
   storage,
   maintenance,
   protection,
+  retention,
   tasks,
 }
 
@@ -728,6 +729,59 @@ class _CoreProxmoxDetailExplorerState extends State<CoreProxmoxDetailExplorer> {
     }
     return tr ? '${age.inMinutes} dk önce' : '${age.inMinutes} min ago';
   }
+
+  String _durationAge(Duration? age, bool tr) {
+    if (age == null) return tr ? 'Yedek kaydı yok' : 'No backup record';
+    if (age.inDays > 0) return tr ? '${age.inDays} gün' : '${age.inDays} d';
+    if (age.inHours > 0) return tr ? '${age.inHours} saat' : '${age.inHours} h';
+    return tr ? '${age.inMinutes} dk' : '${age.inMinutes} min';
+  }
+
+  String _retentionState(CoreProxmoxRetentionState state, bool tr) =>
+      switch (state) {
+        CoreProxmoxRetentionState.healthy => tr ? 'Sağlıklı' : 'Healthy',
+        CoreProxmoxRetentionState.attention =>
+          tr ? 'Dikkat gerekli' : 'Attention needed',
+        CoreProxmoxRetentionState.critical => tr ? 'Kritik' : 'Critical',
+      };
+
+  String _retentionTitle(CoreProxmoxRetentionWarningKind kind, bool tr) =>
+      switch (kind) {
+        CoreProxmoxRetentionWarningKind.backupMissing =>
+          tr ? 'Başarılı yedek bulunamadı' : 'No successful backup',
+        CoreProxmoxRetentionWarningKind.backupStale =>
+          tr ? 'Başarılı yedek eski' : 'Successful backup is stale',
+        CoreProxmoxRetentionWarningKind.backupFailed =>
+          tr ? 'Son yedek başarısız' : 'Recent backup failed',
+        CoreProxmoxRetentionWarningKind.restorePointMissing =>
+          tr ? 'Eksik geri yükleme noktası' : 'Missing restore point',
+        CoreProxmoxRetentionWarningKind.coveragePartial =>
+          tr ? 'Kapsam görünümü kısmi' : 'Coverage view is partial',
+        CoreProxmoxRetentionWarningKind.storagePressure =>
+          tr ? 'Depolama baskısı' : 'Storage pressure',
+      };
+
+  String _retentionAction(CoreProxmoxRetentionWarningKind kind, bool tr) =>
+      switch (kind) {
+        CoreProxmoxRetentionWarningKind.backupMissing ||
+        CoreProxmoxRetentionWarningKind.backupStale ||
+        CoreProxmoxRetentionWarningKind.backupFailed =>
+          tr
+              ? 'Yedek görevini ve hedefini doğrulayın.'
+              : 'Verify the backup job and destination.',
+        CoreProxmoxRetentionWarningKind.restorePointMissing =>
+          tr
+              ? 'Eksik konuklar için geri yükleme noktası oluşturun.'
+              : 'Create restore points for uncovered guests.',
+        CoreProxmoxRetentionWarningKind.coveragePartial =>
+          tr
+              ? 'Kapsamı doğrulamak için konuk filtresini daraltın.'
+              : 'Narrow the guest set to verify full coverage.',
+        CoreProxmoxRetentionWarningKind.storagePressure =>
+          tr
+              ? 'Saklama süresini veya kapasiteyi gözden geçirin.'
+              : 'Review retention duration or storage capacity.',
+      };
 
   List<_CoreProxmoxDetailItem> _items(bool tr) => [
     for (final node in widget.summary.nodes)
@@ -874,6 +928,46 @@ class _CoreProxmoxDetailExplorerState extends State<CoreProxmoxDetailExplorer> {
             '${tr ? 'En yenisinin yaşı' : 'Newest age'} ${_age(snapshot.latestAt!, tr)}',
         ],
       ),
+    _CoreProxmoxDetailItem(
+      key: 'retention-overview',
+      filter: _CoreProxmoxDetailFilter.retention,
+      section: tr ? 'Yedek saklama' : 'Backup retention',
+      title: tr ? 'Yedek saklama' : 'Backup retention',
+      status: _retentionState(widget.summary.retention.state, tr),
+      metrics: [
+        '${tr ? 'Son başarılı yedek yaşı' : 'Last successful backup age'}: '
+            '${_durationAge(widget.summary.retention.latestSuccessfulBackupAge, tr)}',
+        tr
+            ? 'Korunan ${widget.summary.retention.protectedGuestCount}/${widget.summary.retention.evaluatedGuestCount} konuk'
+            : '${widget.summary.retention.protectedGuestCount}/${widget.summary.retention.evaluatedGuestCount} guests protected',
+        if (widget.summary.retention.highestStorageUsedPercent case final used?)
+          tr
+              ? 'Depolama doluluğu: %$used · mevcut örnek'
+              : 'Storage used: $used% · current sample',
+      ],
+    ),
+    for (final warning in widget.summary.retention.warnings)
+      _CoreProxmoxDetailItem(
+        key: 'retention-${warning.kind.name}',
+        filter: _CoreProxmoxDetailFilter.retention,
+        section: tr ? 'Yedek saklama' : 'Backup retention',
+        title: _retentionTitle(warning.kind, tr),
+        status: warning.severity == CoreProxmoxRetentionSeverity.critical
+            ? (tr ? 'Kritik' : 'Critical')
+            : (tr ? 'Dikkat gerekli' : 'Attention needed'),
+        metrics: [
+          tr
+              ? '${warning.affectedCount} öğe etkileniyor'
+              : '${warning.affectedCount} items affected',
+          if (warning.observedPercent != null)
+            tr
+                ? 'Gözlenen doluluk: %${warning.observedPercent} · mevcut örnek'
+                : 'Observed usage: ${warning.observedPercent}% · current sample',
+          if (warning.age != null)
+            '${tr ? 'Yaş' : 'Age'}: ${_durationAge(warning.age, tr)}',
+          _retentionAction(warning.kind, tr),
+        ],
+      ),
     for (final task in widget.summary.recentTasks)
       _CoreProxmoxDetailItem(
         key: 'task-${task.id}',
@@ -927,6 +1021,7 @@ class _CoreProxmoxDetailExplorerState extends State<CoreProxmoxDetailExplorer> {
       _CoreProxmoxDetailFilter.storage => tr ? 'Depolama' : 'Storage',
       _CoreProxmoxDetailFilter.maintenance => tr ? 'Bakım' : 'Maintenance',
       _CoreProxmoxDetailFilter.protection => tr ? 'Yedekler' : 'Protection',
+      _CoreProxmoxDetailFilter.retention => tr ? 'Saklama' : 'Retention',
       _CoreProxmoxDetailFilter.tasks => tr ? 'Görevler' : 'Tasks',
     };
 

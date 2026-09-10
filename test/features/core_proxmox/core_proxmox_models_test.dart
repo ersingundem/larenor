@@ -57,7 +57,7 @@ void main() {
     );
     expect(value.summary.protection.snapshots.first.snapshotCount, 2);
     expect(value.summary.retention.state, CoreProxmoxRetentionState.attention);
-    expect(value.summary.retention.latestSuccessfulBackupAge.inHours, 11);
+    expect(value.summary.retention.latestSuccessfulBackupAge!.inHours, 11);
     expect(
       value.summary.retention.warnings.single.kind,
       CoreProxmoxRetentionWarningKind.restorePointMissing,

@@ -23,6 +23,10 @@ _TOKEN = re.compile(r'[^=\s;]+@[^=!\s;]+![A-Za-z0-9._-]{1,64}=[A-Za-z0-9-]{16,12
 _SESSION = re.compile(r'[A-Za-z0-9_./~+!:=@-]{1,2048}\Z')
 
 
+def _now():
+    return datetime.now(timezone.utc)
+
+
 def _unique(pairs):
     result = {}
     for key, value in pairs:
@@ -186,6 +190,59 @@ def _protection(guests, tasks, snapshots):
     }
 
 
+def _retention(storages, tasks, protection):
+    successful = [task for task in tasks
+                  if task['kind'] == 'vzdump' and task['status'] == 'succeeded']
+    latest = max(successful, key=lambda task: task['finishedAt']) if successful else None
+    age = None
+    if latest is not None:
+        finished = datetime.fromisoformat(latest['finishedAt'].replace('Z', '+00:00'))
+        age = max(0, int((_now() - finished).total_seconds()))
+    protected = sum(item['snapshotCount'] > 0 for item in protection['snapshots'])
+    active_ratios = [(storage['usedBytes'] * 100 + storage['totalBytes'] // 2) //
+                     storage['totalBytes']
+                     for storage in storages if storage['active']]
+    highest = max(active_ratios) if active_ratios else None
+    warnings = []
+
+    def add(kind, severity, count, *, observed=None, age_seconds=None):
+        warnings.append({'kind': kind, 'severity': severity, 'affectedCount': count,
+                         'observedPercent': observed, 'ageSeconds': age_seconds})
+
+    if latest is None:
+        add('backup_missing', 'critical', 1)
+    elif age >= 86400:
+        add('backup_stale', 'critical' if age >= 259200 else 'attention', 1,
+            age_seconds=age)
+    failed = sum(task['kind'] == 'vzdump' and task['status'] == 'failed'
+                 for task in tasks)
+    if failed:
+        add('backup_failed', 'critical', failed)
+    missing = len(protection['snapshots']) - protected
+    if missing:
+        add('restore_point_missing', 'attention', missing)
+    unseen = protection['guestCount'] - protection['scannedGuestCount']
+    if unseen:
+        add('coverage_partial', 'attention', unseen)
+    pressured = [ratio for ratio in active_ratios if ratio >= 80]
+    if pressured:
+        observed = max(pressured)
+        add('storage_pressure', 'critical' if observed >= 90 else 'attention',
+            len(pressured), observed=observed)
+    return {
+        'state': ('healthy' if not warnings else
+                  'critical' if any(item['severity'] == 'critical'
+                                    for item in warnings) else 'attention'),
+        'latestSuccessfulBackupAt': latest['finishedAt'] if latest else None,
+        'latestSuccessfulBackupAgeSeconds': age,
+        'evaluatedGuestCount': protection['scannedGuestCount'],
+        'protectedGuestCount': protected,
+        'coverageTruncated': protection['truncated'],
+        'highestStorageUsedPercent': highest,
+        'warnings': warnings,
+    }
+
+
 def _maintenance(nodes, storages, tasks):
     warnings = []
 
@@ -293,9 +350,11 @@ def read_summary(service, *, guard):
         raise ApiError('proxmox_upstream_unavailable', 502) from None
     guard()
     try:
+        protection = _protection(guests, tasks, snapshots)
         return Summary(nodes=nodes, guests=guests, storages=storages,
                        recentTasks=tasks,
                        maintenance=_maintenance(nodes, storages, tasks),
-                       protection=_protection(guests, tasks, snapshots))
+                       protection=protection,
+                       retention=_retention(storages, tasks, protection))
     except (TypeError, ValueError):
         raise ApiError('proxmox_summary_unsupported', 502) from None
