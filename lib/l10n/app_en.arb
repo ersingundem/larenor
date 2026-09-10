@@ -1599,6 +1599,10 @@
   "coreMusicAirPlay": "AirPlay",
   "coreMusicChromecast": "Chromecast",
   "coreMusicGroup": "Speaker group",
+  "coreMusicControls": "Core playback controls",
+  "coreMusicVolumeDown": "Lower volume",
+  "coreMusicVolumeUp": "Raise volume",
+  "coreMusicCommandConfirmed": "Core verified the command with authenticated player readback.",
   "coreMusicQueueSummary": "{count} items • {position} / {duration}",
   "@coreMusicQueueSummary": {
     "placeholders": {

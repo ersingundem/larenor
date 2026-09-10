@@ -28,6 +28,13 @@ CoreMusicTargetInventory inventoryFixture({
   final target = (json['targets'] as List).single as Map<String, dynamic>;
   target['available'] = available;
   target['playbackState'] = state;
+  target['capabilities'] = [
+    'play',
+    'pause',
+    'next_previous',
+    'volume_set',
+    'queue',
+  ];
   (target['queue'] as Map<String, dynamic>)['state'] = state;
   return CoreMusicTargetInventory.fromJson(json);
 }
@@ -152,6 +159,74 @@ void main() {
     }
   });
 
+  test('play, next, previous and bounded volume use the allowlist', () async {
+    for (final fixture in [
+      (operation: CoreMusicPlaybackOperation.play, volume: null),
+      (operation: CoreMusicPlaybackOperation.next, volume: null),
+      (operation: CoreMusicPlaybackOperation.previous, volume: null),
+      (operation: CoreMusicPlaybackOperation.volume, volume: 100),
+    ]) {
+      http.Request? sent;
+      final transport = LarenorServerApi(
+        endpoint: ServerEndpoint('https://core.fixture'),
+        client: MockClient((request) async {
+          sent = request;
+          return http.Response(
+            jsonEncode({
+              'receipt': {
+                'requestId': '5' * 32,
+                'targetId': 'homepod-living',
+                'operation': fixture.operation.wire,
+                'state': 'succeeded',
+                'playerRevision': 11,
+                'code': 'authenticated_readback',
+                'installAvailable': false,
+              },
+            }),
+            201,
+            headers: {'content-type': 'application/json'},
+          );
+        }),
+      );
+      final inventory = inventoryFixture();
+      await ServerCoreMusicPlaybackApi(
+        transport,
+        'a' * 43,
+        requestId: () => '5' * 32,
+      ).execute(
+        inventory: inventory,
+        target: inventory.targets.single,
+        operation: fixture.operation,
+        volumeLevel: fixture.volume,
+        isCurrent: () => true,
+      );
+      final body = jsonDecode(sent!.body) as Map<String, dynamic>;
+      expect(body['operation'], fixture.operation.wire);
+      expect(body['volumeLevel'], fixture.volume);
+    }
+
+    var calls = 0;
+    final transport = LarenorServerApi(
+      endpoint: ServerEndpoint('https://core.fixture'),
+      client: MockClient((_) async {
+        calls++;
+        return http.Response('{}', 500);
+      }),
+    );
+    final inventory = inventoryFixture();
+    await expectLater(
+      ServerCoreMusicPlaybackApi(transport, 'a' * 43).execute(
+        inventory: inventory,
+        target: inventory.targets.single,
+        operation: CoreMusicPlaybackOperation.volume,
+        volumeLevel: 101,
+        isCurrent: () => true,
+      ),
+      throwsA(isA<LarenorServerException>()),
+    );
+    expect(calls, 0);
+  });
+
   testWidgets(
     'PIN gates controls and authenticated readback updates media state',
     (tester) async {
@@ -188,6 +263,16 @@ void main() {
       await tester.pump();
       expect(controller.mediaSessionState.title, 'Synthetic Song');
       expect(controller.mediaSessionState.isPlaying, isFalse);
+      expect(find.byKey(const ValueKey('core-music-previous')), findsOneWidget);
+      expect(find.byKey(const ValueKey('core-music-next')), findsOneWidget);
+      expect(
+        find.byKey(const ValueKey('core-music-volume-down')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const ValueKey('core-music-volume-up')),
+        findsOneWidget,
+      );
 
       await tester.tap(find.byKey(const ValueKey('core-music-play-pause')));
       await tester.pumpAndSettle();
@@ -238,6 +323,62 @@ void main() {
     await tester.pump();
     expect(find.byKey(const ValueKey('core-music-play-pause')), findsNothing);
     expect(commands.calls, 0);
+    controller.dispose();
+    lifecycle.dispose();
+  });
+
+  testWidgets('tablet controls fit 600px at 2x text with 48px actions', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(600, 1000);
+    addTearDown(tester.view.reset);
+    final lifecycle = ValueNotifier(0);
+    final reads = _MutableTargetsApi();
+    final controller = CoreMusicTargetsController(
+      api: reads,
+      playbackApi: _FixturePlaybackApi(reads),
+      lifecycle: lifecycle,
+      authorized: () => true,
+    );
+    await tester.pumpWidget(
+      CupertinoApp(
+        locale: const Locale('en'),
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        builder: (context, child) => MediaQuery(
+          data: MediaQuery.of(context)
+              .copyWith(textScaler: const TextScaler.linear(2)),
+          child: child!,
+        ),
+        home: CupertinoPageScaffold(
+          child: SingleChildScrollView(
+            child: CoreMusicTargetsPanel(
+              controller: controller,
+              authorizeMutation: (_) async => true,
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(
+      find.byKey(const ValueKey('core-music-target-homepod-living')),
+    );
+    await tester.pump();
+    for (final key in const [
+      'core-music-previous',
+      'core-music-play-pause',
+      'core-music-next',
+      'core-music-volume-down',
+      'core-music-volume-up',
+    ]) {
+      expect(
+        tester.getSize(find.byKey(ValueKey(key))).height,
+        greaterThanOrEqualTo(48),
+      );
+    }
+    expect(tester.takeException(), isNull);
     controller.dispose();
     lifecycle.dispose();
   });

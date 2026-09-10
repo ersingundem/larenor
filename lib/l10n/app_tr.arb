@@ -1278,6 +1278,10 @@
   "coreMusicAirPlay": "AirPlay",
   "coreMusicChromecast": "Chromecast",
   "coreMusicGroup": "Hoparlör grubu",
+  "coreMusicControls": "Core oynatma denetimleri",
+  "coreMusicVolumeDown": "Sesi azalt",
+  "coreMusicVolumeUp": "Sesi artır",
+  "coreMusicCommandConfirmed": "Core, komutu kimliği doğrulanmış oynatıcı okumasıyla teyit etti.",
   "coreMusicQueueSummary": "{count} öğe • {position} / {duration}",
   "@coreMusicQueueSummary": {
     "placeholders": {

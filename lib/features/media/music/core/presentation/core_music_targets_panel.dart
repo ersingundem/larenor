@@ -6,14 +6,27 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../../l10n/generated/app_localizations.dart';
 import '../../../../../shared/theme/typography.dart';
 import '../../../../server/providers/server_providers.dart';
+import '../../../../settings/presentation/settings_file_dialog.dart';
+import '../../../../settings/providers/settings_providers.dart';
+import '../data/core_music_playback_api.dart';
 import '../data/core_music_targets_api.dart';
 import '../data/core_music_targets_controller.dart';
+import '../domain/core_music_playback_models.dart';
 import '../domain/core_music_target_models.dart';
 
+typedef CoreMusicMutationAuthorizer = Future<bool> Function(
+  BuildContext context,
+);
+
 class CoreMusicTargetsPanel extends ConsumerStatefulWidget {
-  const CoreMusicTargetsPanel({super.key, this.controller});
+  const CoreMusicTargetsPanel({
+    super.key,
+    this.controller,
+    this.authorizeMutation,
+  });
 
   final CoreMusicTargetsController? controller;
+  final CoreMusicMutationAuthorizer? authorizeMutation;
 
   @override
   ConsumerState<CoreMusicTargetsPanel> createState() =>
@@ -25,6 +38,7 @@ class _CoreMusicTargetsPanelState extends ConsumerState<CoreMusicTargetsPanel> {
   late final bool _ownsController;
   ValueListenable<TickerModeData>? _ticker;
   bool _visible = true;
+  bool _authorizing = false;
 
   @override
   void initState() {
@@ -37,6 +51,7 @@ class _CoreMusicTargetsPanelState extends ConsumerState<CoreMusicTargetsPanel> {
       final api = AccountCoreMusicTargetsApi(account);
       _controller = CoreMusicTargetsController(
         api: api,
+        playbackApi: AccountCoreMusicPlaybackApi(account),
         lifecycle: account,
         authorized: () => api.authorized,
       );
@@ -61,7 +76,7 @@ class _CoreMusicTargetsPanelState extends ConsumerState<CoreMusicTargetsPanel> {
   void _updateVisibility() {
     final value =
         (_ticker?.value.enabled ?? true) &&
-        (ModalRoute.isCurrentOf(context) ?? true);
+        ((ModalRoute.isCurrentOf(context) ?? true) || _authorizing);
     if (value == _visible && _controller.loaded) return;
     _visible = value;
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -71,6 +86,34 @@ class _CoreMusicTargetsPanelState extends ConsumerState<CoreMusicTargetsPanel> {
 
   void _changed() {
     if (mounted) setState(() {});
+  }
+
+  Future<void> _runCommand(
+    CoreMusicPlaybackOperation operation, {
+    int? volumeLevel,
+  }) async {
+    if (!_visible || !_controller.canExecute(operation)) return;
+    final selectedId = _controller.selectedTargetId;
+    _authorizing = true;
+    bool authorized;
+    try {
+      authorized =
+          await (widget.authorizeMutation?.call(context) ??
+              reauthenticateSettingsFileDialog(
+                context,
+                ref.read(pinLockStoreProvider),
+              ));
+    } finally {
+      _authorizing = false;
+    }
+    if (!mounted ||
+        !_visible ||
+        !authorized ||
+        selectedId != _controller.selectedTargetId ||
+        !_controller.canExecute(operation)) {
+      return;
+    }
+    await _controller.execute(operation, volumeLevel: volumeLevel);
   }
 
   @override
@@ -128,7 +171,7 @@ class _CoreMusicTargetsPanelState extends ConsumerState<CoreMusicTargetsPanel> {
               _StatusMessage(_failureLabel(l10n, _controller.failure!))
             else if (_controller.inventory?.targets.isEmpty ?? true)
               _StatusMessage(l10n.coreMusicNoTargets)
-            else
+            else ...[
               LayoutBuilder(
                 builder: (context, constraints) {
                   final scale = MediaQuery.textScalerOf(context).scale(1);
@@ -160,6 +203,19 @@ class _CoreMusicTargetsPanelState extends ConsumerState<CoreMusicTargetsPanel> {
                   );
                 },
               ),
+              if (_controller.selectedTarget case final selected?) ...[
+                const SizedBox(height: 14),
+                _PlaybackControls(
+                  target: selected,
+                  busy: _controller.busy,
+                  onCommand: _runCommand,
+                ),
+              ],
+              if (_controller.lastReceipt != null) ...[
+                const SizedBox(height: 10),
+                _StatusMessage(l10n.coreMusicCommandConfirmed),
+              ],
+            ],
           ],
         ),
       ),
@@ -175,8 +231,135 @@ class _CoreMusicTargetsPanelState extends ConsumerState<CoreMusicTargetsPanel> {
         'ambiguous_installation' ||
         'stale' ||
         'invalid_response' => l10n.musicStale,
+        'effect_unknown' ||
+        'timeout' ||
+        'connection_failed' ||
+        'music_playback_worker_unavailable' => l10n.musicPlayUnknown,
         _ => l10n.healthReadError,
       };
+}
+
+class _PlaybackControls extends StatelessWidget {
+  const _PlaybackControls({
+    required this.target,
+    required this.busy,
+    required this.onCommand,
+  });
+
+  final CoreMusicTarget target;
+  final bool busy;
+  final Future<void> Function(
+    CoreMusicPlaybackOperation operation, {
+    int? volumeLevel,
+  })
+  onCommand;
+
+  bool _supports(CoreMusicPlaybackOperation operation) =>
+      !busy && target.capabilities.contains(operation.capability);
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final playing = target.playbackState == 'playing';
+    final playOperation = playing
+        ? CoreMusicPlaybackOperation.pause
+        : CoreMusicPlaybackOperation.play;
+    final volume = target.volumeLevel;
+    return Semantics(
+      container: true,
+      label: l10n.coreMusicControls,
+      child: Wrap(
+        spacing: 8,
+        runSpacing: 8,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        children: [
+          _ControlButton(
+            key: const ValueKey('core-music-previous'),
+            label: l10n.entityControlPrevious,
+            icon: CupertinoIcons.backward_end_fill,
+            onPressed: _supports(CoreMusicPlaybackOperation.previous)
+                ? () => onCommand(CoreMusicPlaybackOperation.previous)
+                : null,
+          ),
+          _ControlButton(
+            key: const ValueKey('core-music-play-pause'),
+            label: playing ? l10n.entityControlPause : l10n.mediaActionPlay,
+            icon: playing
+                ? CupertinoIcons.pause_fill
+                : CupertinoIcons.play_fill,
+            onPressed: _supports(playOperation)
+                ? () => onCommand(playOperation)
+                : null,
+          ),
+          _ControlButton(
+            key: const ValueKey('core-music-next'),
+            label: l10n.commonNext,
+            icon: CupertinoIcons.forward_end_fill,
+            onPressed: _supports(CoreMusicPlaybackOperation.next)
+                ? () => onCommand(CoreMusicPlaybackOperation.next)
+                : null,
+          ),
+          if (volume != null) ...[
+            _ControlButton(
+              key: const ValueKey('core-music-volume-down'),
+              label: l10n.coreMusicVolumeDown,
+              icon: CupertinoIcons.volume_down,
+              onPressed:
+                  volume > 0 && _supports(CoreMusicPlaybackOperation.volume)
+                  ? () => onCommand(
+                      CoreMusicPlaybackOperation.volume,
+                      volumeLevel: (volume - 5).clamp(0, 100),
+                    )
+                  : null,
+            ),
+            Semantics(
+              label: l10n.entityControlVolume,
+              value: '$volume%',
+              child: Text('$volume%', style: AppText.body),
+            ),
+            _ControlButton(
+              key: const ValueKey('core-music-volume-up'),
+              label: l10n.coreMusicVolumeUp,
+              icon: CupertinoIcons.volume_up,
+              onPressed:
+                  volume < 100 && _supports(CoreMusicPlaybackOperation.volume)
+                  ? () => onCommand(
+                      CoreMusicPlaybackOperation.volume,
+                      volumeLevel: (volume + 5).clamp(0, 100),
+                    )
+                  : null,
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _ControlButton extends StatelessWidget {
+  const _ControlButton({
+    super.key,
+    required this.label,
+    required this.icon,
+    required this.onPressed,
+  });
+  final String label;
+  final IconData icon;
+  final VoidCallback? onPressed;
+
+  @override
+  Widget build(BuildContext context) => Semantics(
+    label: label,
+    button: true,
+    enabled: onPressed != null,
+    excludeSemantics: true,
+    child: CupertinoButton(
+      minimumSize: const Size(48, 48),
+      padding: const EdgeInsets.all(12),
+      onPressed: onPressed,
+      child: Icon(icon, size: 24),
+    ),
+  );
 }
 
 class _StatusMessage extends StatelessWidget {
