@@ -126,7 +126,7 @@ def test_only_exact_fresh_seerr_instance_can_receive_credentials(public):
 def test_auth_response_must_be_exact_larenor_jellyfin_admin(user):
     connection = Connection([
         response({"initialized": False, "applicationTitle": "Seerr"}),
-        response(user, cookie=COOKIE, close=True),
+        response(user, cookie=COOKIE),
     ])
 
     with pytest.raises(
@@ -152,7 +152,7 @@ def test_missing_or_untrusted_session_cookie_never_reaches_settings(cookie):
         response({
             "id": 1, "permissions": 2, "userType": 3,
             "jellyfinUsername": USERNAME,
-        }, cookie=cookie, close=True),
+        }, cookie=cookie),
     ])
 
     with pytest.raises(
@@ -188,7 +188,8 @@ def test_generated_api_key_must_match_pinned_seerr_contract(key):
     assert raised.value.completed_steps == (
         "uninitialized_verified", "admin_created",
     )
-    assert key not in repr(raised.value)
+    if key:
+        assert key not in repr(raised.value)
 
 
 @pytest.mark.parametrize(("username", "credential"), [
