@@ -17,7 +17,7 @@ def pve():
     class Fixture:
         calls = []
         status = 200
-        values = [
+        resources = [
             {'type': 'node', 'node': 'pve-a', 'status': 'online', 'cpu': .25,
              'mem': 1024, 'maxmem': 4096, 'uptime': 3600},
             {'type': 'qemu', 'vmid': 101, 'node': 'pve-a', 'name': 'media',
@@ -27,6 +27,11 @@ def pve():
             {'type': 'storage', 'storage': 'local-lvm', 'node': 'pve-a',
              'plugintype': 'lvmthin', 'status': 'available', 'disk': 10, 'maxdisk': 100},
         ]
+        tasks = [{
+            'upid': 'UPID:pve-a:00001234:00005678:66E2B900:vzdump:101:root@pam:',
+            'node': 'pve-a', 'type': 'vzdump', 'starttime': 1789113600,
+            'endtime': 1789113780, 'status': 'OK', 'user': 'root@pam',
+        }]
         allow_password = False
     fixture = Fixture()
 
@@ -36,7 +41,8 @@ def pve():
 
         def do_GET(self):
             fixture.calls.append((self.command, self.path, self.headers.get('Authorization')))
-            body = json.dumps({'data': fixture.values}).encode()
+            values = fixture.tasks if self.path == '/api2/json/cluster/tasks?limit=20' else fixture.resources
+            body = json.dumps({'data': values}).encode()
             self.send_response(fixture.status)
             self.send_header('Content-Type', 'application/json')
             self.send_header('Content-Length', str(len(body)))
@@ -80,9 +86,20 @@ def test_packaged_transport_uses_one_fixed_read_and_returns_only_typed_summary(p
              'status': 'stopped', 'cpuRatio': 0, 'memoryUsedBytes': 128, 'memoryTotalBytes': 512}],
         'storages': [{'storage': 'local-lvm', 'node': 'pve-a', 'kind': 'lvmthin',
                       'active': True, 'usedBytes': 10, 'totalBytes': 100, 'availableBytes': 90}],
+        'recentTasks': [{
+            'taskId': 'b926f4455b95b320c913eed90f49f6127788f638b43070cada843afe490c9628',
+            'node': 'pve-a', 'kind': 'vzdump', 'status': 'succeeded',
+            'startedAt': '2026-09-11T08:00:00Z',
+            'finishedAt': '2026-09-11T08:03:00Z',
+        }],
     }
-    assert pve.calls == [('GET', '/api2/json/cluster/resources',
-                          'PVEAPIToken=root@pam!larenor=01234567-89ab-cdef-0123-456789abcdef')]
+    assert pve.calls == [
+        ('GET', '/api2/json/cluster/resources',
+         'PVEAPIToken=root@pam!larenor=01234567-89ab-cdef-0123-456789abcdef'),
+        ('GET', '/api2/json/cluster/tasks?limit=20',
+         'PVEAPIToken=root@pam!larenor=01234567-89ab-cdef-0123-456789abcdef'),
+    ]
+    assert 'root@pam' not in json.dumps(result.model_dump())
 
 
 def test_password_account_uses_ticket_only_then_same_fixed_read(pve):
@@ -92,7 +109,8 @@ def test_password_account_uses_ticket_only_then_same_fixed_read(pve):
             'username': 'reader@pam', 'password': 'synthetic only'}))
     assert read_summary(service, guard=lambda: None).nodes[0].node == 'pve-a'
     assert [(call[0], call[1]) for call in pve.calls] == [
-        ('POST', '/api2/json/access/ticket'), ('GET', '/api2/json/cluster/resources')]
+        ('POST', '/api2/json/access/ticket'), ('GET', '/api2/json/cluster/resources'),
+        ('GET', '/api2/json/cluster/tasks?limit=20')]
 
 
 @pytest.mark.parametrize('change', [
@@ -103,7 +121,7 @@ def test_password_account_uses_ticket_only_then_same_fixed_read(pve):
     lambda values: [*values[:-1], {**values[-1], 'status': 'unknown'}],
 ])
 def test_unknown_unbounded_or_duplicate_provider_data_fails_closed(pve, change):
-    pve.values = change(pve.values)
+    pve.resources = change(pve.resources)
     with pytest.raises(ApiError) as error:
         read_summary(connection(pve), guard=lambda: None)
     assert (error.value.code, error.value.status) == ('proxmox_summary_unsupported', 502)
@@ -117,3 +135,17 @@ def test_guard_cancellation_prevents_any_network_request(pve):
         read_summary(connection(pve), guard=cancelled)
     assert (error.value.code, error.value.status) == ('request_timeout', 408)
     assert pve.calls == []
+
+
+@pytest.mark.parametrize('change', [
+    lambda values: values * 21,
+    lambda values: [{**values[0], 'status': None, 'endtime': 1789113780}],
+    lambda values: [{**values[0], 'status': 'OK', 'endtime': None}],
+    lambda values: [{**values[0], 'starttime': -1}],
+    lambda values: [{**values[0], 'type': 'vzdump\nroot@pam'}],
+])
+def test_task_projection_is_bounded_and_fails_closed(pve, change):
+    pve.tasks = change(pve.tasks)
+    with pytest.raises(ApiError) as error:
+        read_summary(connection(pve), guard=lambda: None)
+    assert (error.value.code, error.value.status) == ('proxmox_summary_unsupported', 502)

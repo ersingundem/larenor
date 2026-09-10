@@ -17,6 +17,11 @@ SUMMARY = {
     'storages': [{'storage': 'local-lvm', 'node': 'pve-a', 'kind': 'lvmthin',
                   'active': True, 'usedBytes': 10, 'totalBytes': 100,
                   'availableBytes': 90}],
+    'recentTasks': [{
+        'taskId': '9' * 64, 'node': 'pve-a', 'kind': 'vzdump',
+        'status': 'succeeded', 'startedAt': '2026-09-11T08:00:00Z',
+        'finishedAt': '2026-09-11T08:03:00Z',
+    }],
 }
 
 
@@ -166,3 +171,22 @@ def test_binding_requires_exact_proxmox_service_revision_and_cache_is_bounded(se
     monkeypatch.setattr(module, 'MAX_CACHE', 1); monkeypatch.setattr(module, 'MAX_USER_CACHE', 1)
     assert client.get(public + '/snapshot', headers=auth(admin)).status_code == 200
     assert len(app.state.core.proxmox._cache) <= 1
+
+
+@pytest.mark.parametrize('tasks', [
+    [*SUMMARY['recentTasks'], dict(SUMMARY['recentTasks'][0])],
+    [{**SUMMARY['recentTasks'][0], 'status': 'unknown'}],
+    [{**SUMMARY['recentTasks'][0], 'actor': 'root@pam'}],
+    [{**SUMMARY['recentTasks'][0], 'finishedAt': None}],
+    [dict(SUMMARY['recentTasks'][0]) for _ in range(33)],
+])
+def test_recent_tasks_are_closed_bounded_and_actor_free(server, tasks):
+    app, client, admin, resource, _, base, public, body, _ = setup(server)
+    bind(client, admin, base, body)
+    app.state.core.proxmox._cache.clear()
+    app.state.core.proxmox._reader = lambda connection, *, guard: {
+        **SUMMARY, 'recentTasks': tasks,
+    }
+    response = client.get(public + '/snapshot', headers=auth(admin))
+    assert response.status_code == 502, response.text
+    assert 'root@pam' not in response.text
