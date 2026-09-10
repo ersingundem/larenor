@@ -48,6 +48,12 @@ inspection, runtime, Core and API-boundary selection collected and passed 263
 tests. The four pinned `apksig 9.1.0` release-verifier tests also passed with
 Homebrew JDK 17 selected. `compileall`, diff validation and gitleaks passed.
 
+Exact PR head `420ba575c5764d8e1326e97363695c313b1a09be` then passed the
+Server, Android analyze, debug APK, API 35 emulator E2E, dependency, platform
+policy and secret-scan jobs. The source-bound native characterization also
+passed on amd64 and arm64. PR 37 merged as
+`e983d210748ba49ec6a75251390e13ecedf3f2e3`.
+
 ## Remaining acceptance boundary
 
 The qBittorrent container must still be created and started only after this

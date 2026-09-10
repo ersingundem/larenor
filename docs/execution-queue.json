@@ -774,7 +774,8 @@
         "docs/qbittorrent-config-effect-implementation-2026-09-10.md",
         "docs/qbittorrent-runtime-binding-implementation-2026-09-10.md",
         "docs/qbittorrent-installation-ipc-implementation-2026-09-10.md",
-        "docs/qbittorrent-configuration-jobs-implementation-2026-09-10.md"
+        "docs/qbittorrent-configuration-jobs-implementation-2026-09-10.md",
+        "docs/qbittorrent-configured-container-implementation-2026-09-10.md"
       ],
       "scope": "Kullanıcı ayrı uygulama kurmaz veya API anahtarı kopyalamaz; sırlar Client/plan/log içine girmez.",
       "acceptance": [
@@ -977,10 +978,42 @@
           "state": "completed",
           "result": "passed",
           "label": "Şifreli kalıcı qBittorrent yapılandırma işi; admin API, no-retry dispatcher, gerçek UID Unix IPC, iptal/yetki belirsizliği ve graceful shutdown dahil 23 yeni/263 ilgili test PASS. Create/start sırası ve exact native kabul açık."
+        },
+        {
+          "kind": "test",
+          "ref": "docs/qbittorrent-configured-container-implementation-2026-09-10.md",
+          "commit": "da879f31877f098dbdc60d677d163781f43c0107",
+          "state": "completed",
+          "result": "passed",
+          "label": "Owned qBittorrent config kurulumu aynı retained-daemon/native-thread otoritesinde sabit /config ve /data binding create/start zincirine bağlandı; legacy config-only receipt uyumu dahil 229 ilgili testte 228 PASS/1 mevcut macOS skip. Exact iki mimarili servis/readback CI açık."
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/34423059641",
+          "commit": "420ba575c5764d8e1326e97363695c313b1a09be",
+          "state": "completed",
+          "result": "passed",
+          "label": "Exact PR37 Server, Android analyze, debug APK ve API35 emulator E2E kapıları PASS."
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/34423059462",
+          "commit": "420ba575c5764d8e1326e97363695c313b1a09be",
+          "state": "completed",
+          "result": "passed",
+          "label": "Exact PR37 source-bound karakterizasyon amd64 ve arm64 üzerinde PASS."
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/34423059453",
+          "commit": "420ba575c5764d8e1326e97363695c313b1a09be",
+          "state": "completed",
+          "result": "passed",
+          "label": "Exact PR37 dependency, platform-policy ve secret-scan kapıları PASS."
         }
       ],
       "completionCommit": null,
-      "reason": "Server üretimli sır, sabit startup, exact journal/container/private-network yürütücüsü, kalıcı no-retry koordinatör, otomatik yaşam döngüsü dispatcher ve aynı retained daemon'a bağlı private IPC/runtime hazır. Disposable Jellyfin 10.11.11 bootstrap, API anahtarı, kütüphane eşleştirmesi, logout, restart ve veri kalıcılığı exact arm64+amd64 CI'da geçti. qBittorrent 5.2.3 sahipli config/API, journal-bound volume/library planı, güvenli helper, private stdin effect, current-journal runtime bağı, UID-korumalı IPC ve şifreli kalıcı Core işi yerelde yeşil. Create/start önkoşulu, Radarr/Sonarr/Seerr/Music Assistant eşleştirmesi ve qBittorrent native kabul açık; installAvailable=false."
+      "reason": "Server üretimli sır, sabit startup, exact journal/container/private-network yürütücüsü, kalıcı no-retry koordinatör, otomatik yaşam döngüsü dispatcher ve aynı retained daemon'a bağlı private IPC/runtime hazır. Disposable Jellyfin 10.11.11 bootstrap, API anahtarı, kütüphane eşleştirmesi, logout, restart ve veri kalıcılığı exact arm64+amd64 CI'da geçti. qBittorrent 5.2.3 sahipli config/API, journal-bound volume/library planı, güvenli helper, private stdin effect, current-journal runtime bağı, UID-korumalı IPC, şifreli kalıcı Core işi ve config-before-create/start zinciri yerelde yeşil. Exact qBittorrent native servis/readback, Radarr/Sonarr/Seerr/Music Assistant eşleştirmesi açık; installAvailable=false."
     },
     {
       "id": "S06.6",
