@@ -68,6 +68,7 @@ from .keenetic_commands.schema import migrate as migrate_keenetic_commands
 from .keenetic_commands.journal import KeeneticCommandJournal, state_tag as keenetic_state_tag
 from .keenetic_commands.service import KeeneticCommandAuthority
 from .keenetic_commands.core_worker import build_keenetic_worker_effect
+from .keenetic_commands.provider import KeeneticCommandStateProvider
 
 
 class CoreServices:
@@ -325,18 +326,18 @@ class CoreServices:
                     expected_user_revision=keenetic_actor_revision(actor),
                 )
 
-            def unavailable_keenetic_observer(_target):
-                # The read-only adapter is intentionally not promoted to a
-                # mutating effect or trusted state source in this slice.
-                from .errors import ApiError
-                raise ApiError("keenetic_command_unavailable", 503)
-
             keenetic_effect = build_keenetic_worker_effect(
                 settings, self.services, self.component_egress
             )
+            self.keenetic_command_provider = KeeneticCommandStateProvider(
+                self.keenetic_resources,
+                authorize=keenetic_authorize,
+                actor_revision=keenetic_actor_revision,
+                egress=self.component_egress,
+            )
             self.keenetic_commands = KeeneticCommandAuthority(
                 authorize=keenetic_authorize,
-                observe=unavailable_keenetic_observer,
+                observe=self.keenetic_command_provider,
                 effect=keenetic_effect,
                 actor_revision=keenetic_actor_revision,
                 journal=self.keenetic_command_journal,

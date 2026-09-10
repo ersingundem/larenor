@@ -60,7 +60,8 @@ class KeeneticResourceAdapter:
         if type(now) not in (int, float) or not math.isfinite(now):
             raise ApiError("server_unavailable", 503)
         if self._last_clock is not None and now < self._last_clock:
-            self._previews.clear(); self._cache.clear()
+            self._previews.clear()
+            self._cache.clear()
         self._last_clock = now
         for key, pending in list(self._previews.items()):
             if now - pending.created >= PREVIEW_TTL:
@@ -72,7 +73,9 @@ class KeeneticResourceAdapter:
 
     def close(self):
         with self._lock:
-            self._previews.clear(); self._cache.clear(); self._closed = True
+            self._previews.clear()
+            self._cache.clear()
+            self._closed = True
 
     @staticmethod
     def _aad(row):
@@ -103,7 +106,8 @@ class KeeneticResourceAdapter:
             with self._lock, self.resources._transaction(actor, core, home, admin=admin) as (c, facts):
                 if self._closed:
                     raise ApiError("server_unavailable", 503)
-                self._now(); schema.validate(c, self._key, self.resources.scope)
+                self._now()
+                schema.validate(c, self._key, self.resources.scope)
                 yield c, facts
         except ApiError:
             with self._lock:
@@ -194,7 +198,10 @@ class KeeneticResourceAdapter:
         body = BindingPreviewRequest.model_validate(body)
         started = self._now()
         caller_cancelled = cancelled
-        cancelled = lambda: caller_cancelled() or self._clock() - started >= OPERATION_TTL
+
+        def cancelled():
+            return caller_cancelled() or self._clock() - started >= OPERATION_TTL
+
         with self._tx(actor, core, home, admin=True) as (c, facts):
             if len(self._previews) >= MAX_PREVIEWS or sum(p.actor.id == actor.id for p in self._previews.values()) >= MAX_ACTOR_PREVIEWS:
                 raise ApiError("keenetic_limit_reached", 429)
@@ -221,7 +228,8 @@ class KeeneticResourceAdapter:
 
     def cancel_preview(self, actor, core, home, resource, preview_id):
         with self._tx(actor, core, home, admin=True) as (c, facts):
-            self._target(c, facts, resource); self._pending(actor, resource, preview_id)
+            self._target(c, facts, resource)
+            self._pending(actor, resource, preview_id)
             del self._previews[preview_id]
 
     def binding(self, actor, core, home, resource):
@@ -241,27 +249,37 @@ class KeeneticResourceAdapter:
             binding = pending.binding
             if pending.body.expectedBindingId is None and len(schema.rows(c)) >= schema.MAX_BINDINGS:
                 raise ApiError("keenetic_limit_reached", 429)
-            plain = binding.model_dump_json().encode(); nonce = secrets.token_bytes(12)
+            plain = binding.model_dump_json().encode()
+            nonce = secrets.token_bytes(12)
             row = {"resource_id": resource, "binding_id": binding.id, "revision": binding.revision}
             cipher = self._cipher.encrypt(nonce, plain, self._aad(row))
             c.execute("INSERT INTO keenetic_resource_bindings VALUES(?,?,?,?,?) ON CONFLICT(resource_id) DO UPDATE SET "
                       "binding_id=excluded.binding_id,revision=excluded.revision,nonce=excluded.nonce,ciphertext=excluded.ciphertext",
                       (resource, binding.id, binding.revision, nonce, cipher))
-            schema.update(c, self._key, self.resources.scope); schema.validate(c, self._key, self.resources.scope)
+            schema.update(c, self._key, self.resources.scope)
+            schema.validate(c, self._key, self.resources.scope)
             self._cache.clear()
             return {"binding": binding.model_dump()}
 
-    def snapshot(self, actor, core, home, resource, *, cancelled=lambda: False):
+    def snapshot(self, actor, core, home, resource, *, cancelled=lambda: False,
+                 bypass_cache=False):
+        if type(bypass_cache) is not bool:
+            raise ApiError("invalid_request")
         started = self._now()
         caller_cancelled = cancelled
-        cancelled = lambda: caller_cancelled() or self._clock() - started >= OPERATION_TTL
+
+        def cancelled():
+            return caller_cancelled() or self._clock() - started >= OPERATION_TTL
+
         with self._tx(actor, core, home) as (c, facts):
             fingerprint, row, ref, _data, binding, service = self._facts(c, facts, resource)
             # The exact required tuple is the prefix; current user/session facts prevent detached reuse.
             key = (core, home, resource, binding.id, binding.revision, service.id, service.revision,
                    actor.id, facts.revision, actor.token_id, actor.family_id)
-            now = self._now(); cached = self._cache.get(key)
-            if cached is not None and cached[1] == fingerprint and not cancelled():
+            now = self._now()
+            cached = self._cache.get(key)
+            if (not bypass_cache and cached is not None and
+                    cached[1] == fingerprint and not cancelled()):
                 return {"snapshot": {**cached[2], "remainingTtlMs": max(0, int(
                     (CACHE_TTL - (now - cached[0])) * 1000))}}
         telemetry = self._observe(actor, core, home, resource, fingerprint, service, None, cancelled)

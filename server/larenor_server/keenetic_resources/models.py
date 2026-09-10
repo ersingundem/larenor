@@ -49,6 +49,12 @@ class RouterStatus(FrozenModel):
     publicIp: IPvAnyAddress | None
     uptimeSeconds: Counter
     firmware: str | None = Field(default=None, max_length=80)
+    firmwareRevision: Revision | None = Field(
+        default=None, exclude_if=lambda value: value is None
+    )
+    statusRevision: Revision | None = Field(
+        default=None, exclude_if=lambda value: value is None
+    )
     cpuPercent: Annotated[float, Field(ge=0, le=100)] | None
     memoryPercent: Annotated[float, Field(ge=0, le=100)] | None
 
@@ -63,6 +69,7 @@ class InterfaceTelemetry(FrozenModel):
     address: str | None = Field(default=None, max_length=64)
     rxBytes: Counter
     txBytes: Counter
+    guest: bool | None = Field(default=None, exclude_if=lambda value: value is None)
 
     _id = field_validator("id", "name", "address")(_safe)
 
@@ -83,6 +90,9 @@ class HostTelemetry(FrozenModel):
     interfaceId: SafeName
     online: bool
     registered: bool
+    internetAccess: Literal["allowed", "paused"] | None = Field(
+        default=None, exclude_if=lambda value: value is None
+    )
 
     _text = field_validator("id", "name", "ipAddress", "interfaceId")(_safe)
 
