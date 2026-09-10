@@ -335,7 +335,7 @@ tekrarlanmıyor. **5 yeni uçtan uca sözleşme testi** dahil ilgili Arr paketle
 create/start ve gerçek native API readback açık olduğundan sayaç değişmedi.
 [Uygulama ve açık sınırlar](arr-configuration-jobs-implementation-2026-09-10.md).
 
-`3646055` readback dilimi, Sonarr/Radarr pinned servis adı ve sürümünü
+`5f70bd3` readback dilimi, Sonarr/Radarr pinned servis adı ve sürümünü
 `X-Api-Key` ile sabit system/status endpoint'inden doğruluyor. Hedef, proxy,
 resolver veya serbest header girdisi yok; auth, protokol, servis/sürüm sapması ve
 timeout secret-free statik sonuçlara kapanıyor. **14 yeni test**, compileall,
@@ -343,19 +343,21 @@ security policy, queue ve Gitleaks PASS. Container zinciri ve iki mimarili nativ
 kabul açık olduğundan sayaç değişmedi.
 [Uygulama ve açık sınırlar](arr-authenticated-readback-implementation-2026-09-10.md).
 
-`8737a1d` endpoint dilimi ortak managed-container builder'ı Sonarr/Radarr'a
+`79d4873` endpoint dilimi ortak managed-container builder'ı Sonarr/Radarr'a
 genişletti ve exact journal/container/ağ proof'undan sabit private 8989/7878
 stream'i üretti. DNS, proxy, alternatif hedef ve retry yok. Arr endpoint/readback
 ile mevcut Jellyfin/qBittorrent regresyonlarında **97 PASS**; security, queue ve
 Gitleaks PASS. Create/start orkestrasyonu açık olduğundan sayaç değişmedi.
 [Uygulama ve açık sınırlar](arr-private-endpoint-implementation-2026-09-10.md).
 
-`b7eaf50`–`fc83138` zinciri, config sonrası create/start, fresh private endpoint,
+`4cef404`–`db6caca` zinciri, config sonrası create/start, fresh private endpoint,
 authenticated readback, UID-korumalı IPC ve kalıcı Core sonucunu birleştirdi.
 Public iş durumu config, container ve doğrulanmış servis sonucunu ayırıyor; çapraz
-servis veya belirsiz sonuç retry edilmeden kapanıyor. İlgili paketlerde **78
-PASS**, geniş regresyonda **109 PASS**; compileall, security, queue ve Gitleaks
-PASS. İki mimarili native kabul açık olduğundan sayaç değişmedi.
+servis veya belirsiz sonuç retry edilmeden kapanıyor. `1a3fcfc` okunabilirlik
+düzenlemesiyle deadline readback başlamadan tükenirse açılmış özel stream'in de
+kapatılmasını güvenceye aldı. İlgili 13 pakette **299 PASS / 1 mevcut macOS
+skip**; Ruff, compileall, security, queue ve Gitleaks PASS. İki mimarili native
+kabul açık olduğundan sayaç değişmedi.
 [Uygulama ve açık sınırlar](arr-configured-container-implementation-2026-09-10.md).
 
 S06.4 native kabul koşusu [34326112926](https://github.com/ersingundem/larenor/actions/runs/34326112926)
