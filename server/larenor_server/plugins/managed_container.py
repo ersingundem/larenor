@@ -36,6 +36,7 @@ _HASH = re.compile(r'[0-9a-f]{64}\Z')
 _IMAGE = re.compile(r'sha256:[0-9a-f]{64}\Z')
 _NETWORK = re.compile(r'larenor-control-[0-9a-f]{32}\Z')
 _VOLUME = re.compile(r'larenor-(?:appdata|library)-v1-[0-9a-f]{32}\Z')
+_SHARED_LIBRARY_SERVICES = frozenset({'jellyfin', 'qbittorrent', 'sonarr', 'radarr'})
 
 
 class ManagedContainerError(Exception):
@@ -206,7 +207,8 @@ class JellyfinResourceProofBroker:
                     or type(resource_journal) is not ResourceJournal
                     or type(volume_journal) is not VolumeCreateJournal
                     or getattr(readers, '_endpoint', None) is not engine_identity
-                    or service_id not in {'jellyfin', 'qbittorrent', 'sonarr', 'radarr'}
+                    or service_id not in {
+                        'jellyfin', 'qbittorrent', 'sonarr', 'radarr', 'seerr'}
                     or not all(callable(getattr(readers, name, None)) for name in methods)):
                 raise ValueError()
             self.stack = MediaStackPlan.model_validate_json(_wire(stack))
@@ -238,9 +240,12 @@ class JellyfinResourceProofBroker:
             volume_resources = tuple(
                 item for item in volume_plan.resources
                 if item.serviceId == self.service_id
-                or self.service_id != 'jellyfin'
+                or self.service_id in _SHARED_LIBRARY_SERVICES - {'jellyfin'}
                 and item.kind == 'managed_library')
-            expected_volume_count = 3 if self.service_id == 'jellyfin' else 2
+            expected_volume_count = {
+                'jellyfin': 3, 'qbittorrent': 2, 'sonarr': 2,
+                'radarr': 2, 'seerr': 1,
+            }[self.service_id]
             if len(volume_resources) != expected_volume_count:
                 raise ValueError()
             cancelled = threading.Event()
@@ -426,7 +431,7 @@ def _binding_parts(value):
             or not _identity(value.image_id, _IMAGE)
             or not _identity(value.network_id, _HASH)
             or targets not in ({'/config', '/cache', '/media'},
-                               {'/config', '/data'})):
+                               {'/config', '/data'}, {'/app/config'})):
         raise ValueError()
     body = _decode(value.specification, 65536)
     inherited = _configuration(value.image_configuration,
@@ -608,7 +613,7 @@ class ManagedWorkerJournal(WorkerJournal):
                     'specification', 'image_configuration'}:
                 raise ValueError()
             mounts = value['mounts']
-            if type(mounts) is not list or len(mounts) not in {2, 3}:
+            if type(mounts) is not list or len(mounts) not in {1, 2, 3}:
                 raise ValueError()
             binding = ManagedContainerBinding(
                 value['name'], value['platform'], value['image_id'], value['network_id'],
@@ -662,8 +667,14 @@ def _configuration(raw, targets):
     if type(value) is not dict or _canonical(value) != raw:
         raise ValueError()
     volumes = value.get('Volumes')
-    expected = ({'/config', '/cache'} if set(targets) == {'/config', '/cache', '/media'}
-                else {'/config'})
+    selected_targets = set(targets)
+    expected = (
+        {'/config', '/cache'}
+        if selected_targets == {'/config', '/cache', '/media'}
+        else {'/app/config'}
+        if selected_targets == {'/app/config'}
+        else {'/config'}
+    )
     if (type(volumes) is not dict or set(volumes) != expected
             or not set(volumes) <= set(targets) or any(
             item not in (None, {}) for item in volumes.values())):
@@ -685,7 +696,8 @@ class JellyfinBindingBuilder:
         try:
             if (type(catalog) is not Catalog or type(policy) is not WorkerPolicyBinding
                     or not _identity(container_journal_id) or not callable(proof_provider)
-                    or service_id not in {'jellyfin', 'qbittorrent', 'sonarr', 'radarr'}):
+                    or service_id not in {
+                        'jellyfin', 'qbittorrent', 'sonarr', 'radarr', 'seerr'}):
                 raise ValueError()
             self.catalog = Catalog.model_validate_json(_wire(catalog))
             self.policy = WorkerPolicyBinding.model_validate_json(_wire(policy))
@@ -742,7 +754,7 @@ class JellyfinBindingBuilder:
             expected_volumes = tuple(
                 item for item in volume_plan.resources
                 if item.serviceId == self.service_id
-                or self.service_id != 'jellyfin'
+                or self.service_id in _SHARED_LIBRARY_SERVICES - {'jellyfin'}
                 and item.kind == 'managed_library')
             if type(proof.volumes) is not tuple or len(proof.volumes) != len(expected_volumes) != 0:
                 raise ValueError()
@@ -761,22 +773,24 @@ class JellyfinBindingBuilder:
                 target = ('/data' if self.service_id != 'jellyfin'
                           and expected.kind == 'managed_library'
                           else actual.target)
-                consumer = next(
-                    item for item in consumers.consumers
-                    if item.serviceId == self.service_id)
-                if (expected.kind == 'managed_library'
-                        and (consumer.target != target
-                             or expected.readOnly is not True
-                             or consumer.readOnly is not
-                                (self.service_id == 'jellyfin'))):
-                    raise ValueError()
+                consumer = None
+                if expected.kind == 'managed_library':
+                    consumer = next(
+                        item for item in consumers.consumers
+                        if item.serviceId == self.service_id)
+                    if (consumer.target != target
+                            or expected.readOnly is not True
+                            or consumer.readOnly is not
+                               (self.service_id == 'jellyfin')):
+                        raise ValueError()
                 mounts.append(ManagedContainerMount(
                     actual.name, target,
-                    consumer.readOnly if expected.kind == 'managed_library'
+                    consumer.readOnly if consumer is not None
                     else expected.readOnly,
                 ))
             expected_targets = ({'/config', '/cache', '/media'}
                                 if self.service_id == 'jellyfin'
+                                else {'/app/config'} if self.service_id == 'seerr'
                                 else {'/config', '/data'})
             if len({item.name for item in mounts}) != len(mounts) or {
                     item.target for item in mounts} != expected_targets:
