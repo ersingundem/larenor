@@ -53,7 +53,7 @@ def rpc(step, result):
 def valid_responses():
     user = {'user_id': USER_ID, 'username': USERNAME, 'role': 'admin'}
     info = {'server_id': 'mass-fixture', 'server_version': '2.10.2',
-            'schema_version': 65}
+            'schema_version': 65, 'onboard_done': False}
     return [
         Response({'success': True, 'token': SHORT_TOKEN, 'user': user}),
         rpc('long-token', LONG_TOKEN),
@@ -61,7 +61,7 @@ def valid_responses():
         rpc('info-before', info),
         rpc('onboard', None),
         rpc('logout', None),
-        rpc('info-after', info),
+        rpc('info-after', {**info, 'onboard_done': True}),
     ]
 
 
@@ -100,9 +100,12 @@ def test_creates_internal_admin_long_token_and_verified_readback_once():
 
 
 @pytest.mark.parametrize('changed', [
-    {'server_id': 'mass-fixture', 'server_version': '2.7.11', 'schema_version': 65},
-    {'server_id': 'mass-fixture', 'server_version': '2.10.2', 'schema_version': 64},
-    {'server_id': 'other', 'server_version': '2.10.2', 'schema_version': 65},
+    {'server_id': 'mass-fixture', 'server_version': '2.7.11',
+     'schema_version': 65, 'onboard_done': False},
+    {'server_id': 'mass-fixture', 'server_version': '2.10.2',
+     'schema_version': 64, 'onboard_done': False},
+    {'server_id': 'other', 'server_version': '2.10.2',
+     'schema_version': 65, 'onboard_done': True},
 ])
 def test_rejects_vulnerable_wrong_schema_or_changed_post_bootstrap_identity(changed):
     responses = valid_responses()
