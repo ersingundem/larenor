@@ -1,8 +1,14 @@
+import 'dart:convert';
+
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
+import 'package:larenor/features/keenetic/core/data/core_keenetic_api.dart';
 import 'package:larenor/features/keenetic/core/domain/core_keenetic_models.dart';
 import 'package:larenor/features/keenetic/core/presentation/core_keenetic_screen.dart';
+import 'package:larenor/features/server/data/larenor_server_api.dart';
 import 'package:larenor/features/server/domain/server_models.dart';
 import 'package:larenor/l10n/generated/app_localizations.dart';
 
@@ -55,6 +61,35 @@ Map<String, dynamic> topologyJson() => {
 };
 
 void main() {
+  test('client reads the exact Core topology route once', () async {
+    final requests = <http.Request>[];
+    final transport = LarenorServerApi(
+      endpoint: ServerEndpoint('https://core.invalid/prefix'),
+      client: MockClient((request) async {
+        requests.add(request);
+        return http.Response(
+          jsonEncode({'topology': topologyJson()}),
+          200,
+          headers: {'content-type': 'application/json'},
+        );
+      }),
+    );
+    addTearDown(transport.close);
+    final api = CoreKeeneticApi(
+      transport,
+      'fixture-token',
+      target(),
+      isCurrent: () => true,
+    );
+    expect((await api.topology()).nodes, hasLength(2));
+    expect(requests, hasLength(1));
+    expect(requests.single.method, 'GET');
+    expect(
+      requests.single.url.path,
+      '/prefix/api/v1/keenetic/${'1' * 32}/${'2' * 32}/resources/${'3' * 32}/topology',
+    );
+  });
+
   test('topology parser rejects raw MAC and broken parent graph', () {
     final snapshot = CoreKeeneticTopologySnapshot.fromJson(
       topologyJson(),
@@ -106,9 +141,8 @@ void main() {
           localizationsDelegates: AppLocalizations.localizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
           builder: (context, child) => MediaQuery(
-            data: MediaQuery.of(context).copyWith(
-              textScaler: const TextScaler.linear(2),
-            ),
+            data: MediaQuery.of(context)
+                .copyWith(textScaler: const TextScaler.linear(2)),
             child: child!,
           ),
           home: CupertinoPageScaffold(
@@ -134,7 +168,7 @@ void main() {
       expect(find.textContaining('50'), findsOneWidget);
       expect(find.textContaining('50:FF'), findsNothing);
       expect(
-        find.bySemanticsLabel(RegExp('Salon Genişletici.*online')),
+        find.bySemanticsLabel(RegExp('Salon Genişletici.*[Oo]nline')),
         findsWidgets,
       );
       final buttons = tester.widgetList<CupertinoButton>(
@@ -157,7 +191,9 @@ void main() {
     tester,
   ) async {
     final raw = topologyJson();
-    final nodes = (raw['nodes'] as List).map((item) => Map.of(item as Map)).toList();
+    final nodes = (raw['nodes'] as List)
+        .map((item) => Map.of(item as Map))
+        .toList();
     nodes[1]['online'] = false;
     raw['nodes'] = nodes;
     await tester.pumpWidget(
@@ -165,7 +201,10 @@ void main() {
         localizationsDelegates: AppLocalizations.localizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
         home: CoreKeeneticTopologyPanel(
-          topology: CoreKeeneticTopologySnapshot.fromJson(raw, target: target()),
+          topology: CoreKeeneticTopologySnapshot.fromJson(
+            raw,
+            target: target(),
+          ),
           enabled: false,
           isCurrent: () => false,
         ),

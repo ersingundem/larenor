@@ -3,7 +3,10 @@
 import json
 
 from conftest import auth
-from larenor_server.keenetic_resources.transport import KeeneticReadOnlyTransport
+from larenor_server.keenetic_resources.transport import (
+    KeeneticReadOnlyTransport,
+    _mesh_topology,
+)
 from test_keenetic_readonly_transport import (
     CONNECTION,
     SECRET,
@@ -80,7 +83,11 @@ def test_fixed_read_only_mws_member_command_is_bounded_and_secret_free():
     value = KeeneticReadOnlyTransport(factory=factory).read_topology(
         CONNECTION, lambda: None
     )
-    assert value == raw
+    assert value["controller"] == {
+        "name": "Titan (KN-1810)", "model": "Titan (KN-1810)"
+    }
+    assert value["members"][0]["mac"] == raw["members"][0]["mac"]
+    assert value["members"][0]["uplink"] == "WifiMaster1/WifiStation0"
     assert json.loads(factory.calls[2][4]) == [
         {"version": {}}, {"mws": {"member": {}}},
     ]
@@ -92,7 +99,7 @@ def test_core_topology_hides_credentials_and_raw_macs_and_counts_wifi_clients(se
     adapter = app.state.core.keenetic_resources
     adapter._reader = lambda _connection, guard: (guard(), telemetry())[1]
     adapter._topology_reader = lambda _connection, guard: (
-        guard(), upstream_topology()
+        guard(), _mesh_topology(upstream_topology())
     )[1]
     bind(client, admin, base, body)
     result = client.get(public + "/topology", headers=auth(admin))

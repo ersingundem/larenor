@@ -177,6 +177,13 @@ class _ViewState extends ConsumerState<_View> {
                       ? () => unawaited(c.loadMoreDetails())
                       : null,
                 ),
+              if (c.topology != null || c.topologyFailure != null)
+                CoreKeeneticTopologyPanel(
+                  topology: c.topology,
+                  failure: c.topologyFailure,
+                  enabled: c.fresh && !c.busy && !c.stale,
+                  isCurrent: live,
+                ),
               if (!widget.admin && telemetry != null)
                 Text(l.coreKeeneticReadOnly, style: AppText.footnote),
               if (widget.admin && c.fresh && c.loaded) ...[
@@ -227,6 +234,209 @@ class _ViewState extends ConsumerState<_View> {
           ],
         );
       },
+    );
+  }
+}
+
+/// Read-only, private mesh graph and Wi-Fi distribution for tablet/DeX.
+class CoreKeeneticTopologyPanel extends StatefulWidget {
+  const CoreKeeneticTopologyPanel({
+    super.key,
+    required this.topology,
+    this.failure,
+    required this.enabled,
+    required this.isCurrent,
+  });
+  final CoreKeeneticTopologySnapshot? topology;
+  final String? failure;
+  final bool enabled;
+  final bool Function() isCurrent;
+  @override
+  State<CoreKeeneticTopologyPanel> createState() =>
+      _CoreKeeneticTopologyPanelState();
+}
+
+class _CoreKeeneticTopologyPanelState extends State<CoreKeeneticTopologyPanel> {
+  String? _selected;
+
+  String _backhaul(CoreKeeneticBackhaul value) => switch (value) {
+    CoreKeeneticBackhaul.ethernet => 'Ethernet',
+    CoreKeeneticBackhaul.wifi_2_4 => 'Wi-Fi 2.4',
+    CoreKeeneticBackhaul.wifi_5 => 'Wi-Fi 5',
+    CoreKeeneticBackhaul.wifi_6 => 'Wi-Fi 6',
+    CoreKeeneticBackhaul.unknown => '—',
+  };
+
+  String _quality(CoreKeeneticBackhaulQuality value, AppLocalizations l) =>
+      switch (value) {
+        CoreKeeneticBackhaulQuality.excellent => l.coreKeeneticMeshExcellent,
+        CoreKeeneticBackhaulQuality.good => l.coreKeeneticMeshGood,
+        CoreKeeneticBackhaulQuality.fair => l.coreKeeneticMeshFair,
+        CoreKeeneticBackhaulQuality.poor => l.coreKeeneticMeshPoor,
+        CoreKeeneticBackhaulQuality.unknown => l.coreKeeneticMeshUnknown,
+      };
+
+  Widget _node(CoreKeeneticMeshNode node, AppLocalizations l) => Padding(
+    padding: const EdgeInsets.symmetric(vertical: 3),
+    child: Semantics(
+      button: true,
+      selected: _selected == node.id,
+      label:
+          '${node.name}, ${node.online ? l.keeneticOnline : l.keeneticOffline}',
+      child: ExcludeSemantics(
+        child: CupertinoButton(
+          minimumSize: const Size(48, 48),
+          alignment: AlignmentDirectional.centerStart,
+          color: _selected == node.id
+              ? CupertinoTheme.of(context).primaryColor.withValues(alpha: .12)
+              : CupertinoColors.systemGrey6.resolveFrom(context),
+          onPressed: widget.enabled && widget.isCurrent()
+              ? () => setState(() => _selected = node.id)
+              : null,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(node.name),
+              Text(
+                node.online ? l.keeneticOnline : l.keeneticOffline,
+                style: AppText.footnote,
+              ),
+            ],
+          ),
+        ),
+      ),
+    ),
+  );
+
+  Widget _metric(String label, String value) => Padding(
+    padding: const EdgeInsets.symmetric(vertical: 7),
+    child: Row(
+      children: [
+        Expanded(child: Text(label)),
+        const SizedBox(width: 12),
+        Flexible(child: Text(value, textAlign: TextAlign.end)),
+      ],
+    ),
+  );
+
+  Widget _detail(CoreKeeneticMeshNode node, AppLocalizations l) =>
+      SingleChildScrollView(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(node.name, style: AppText.headline),
+            _metric(
+              node.role == CoreKeeneticMeshRole.controller
+                  ? l.coreKeeneticMeshController
+                  : l.coreKeeneticMeshExtender,
+              node.model,
+            ),
+            _metric(
+              l.coreKeeneticStatus,
+              node.online ? l.keeneticOnline : l.keeneticOffline,
+            ),
+            if (node.backhaul != null)
+              _metric(l.coreKeeneticMeshBackhaul, _backhaul(node.backhaul!)),
+            if (node.quality != null)
+              _metric(l.coreKeeneticMeshQuality, _quality(node.quality!, l)),
+            if (node.pathCost != null)
+              _metric(l.coreKeeneticMeshPathCost, '${node.pathCost}'),
+          ],
+        ),
+      );
+
+  @override
+  Widget build(BuildContext context) {
+    final l = AppLocalizations.of(context), topology = widget.topology;
+    final selected = topology?.nodes
+        .where((node) => node.id == _selected)
+        .firstOrNull;
+    Widget nodes() => ListView(
+      children: [
+        for (final node in topology?.nodes ?? const <CoreKeeneticMeshNode>[])
+          _node(node, l),
+      ],
+    );
+    final error = widget.failure == 'keenetic_snapshot_unsupported'
+        ? l.coreKeeneticMeshUnsupported
+        : l.coreKeeneticMeshUnavailable;
+    return Semantics(
+      container: true,
+      readOnly: true,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const SizedBox(height: 20),
+          Semantics(
+            header: true,
+            child: Text(l.coreKeeneticMeshTitle, style: AppText.headline),
+          ),
+          if (widget.failure != null)
+            Semantics(liveRegion: true, child: Text(error)),
+          if (topology != null) ...[
+            LayoutBuilder(
+              builder: (context, constraints) => SizedBox(
+                height: constraints.maxWidth >= 900 ? 300 : 350,
+                child: constraints.maxWidth >= 900
+                    ? Row(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Expanded(flex: 2, child: nodes()),
+                          const SizedBox(width: 16),
+                          Expanded(
+                            flex: 3,
+                            child: selected == null
+                                ? Center(child: Text(l.coreKeeneticMeshNoNodes))
+                                : _detail(selected, l),
+                          ),
+                        ],
+                      )
+                    : Column(
+                        children: [
+                          Expanded(child: nodes()),
+                          const SizedBox(height: 8),
+                          Expanded(
+                            child: selected == null
+                                ? Center(child: Text(l.coreKeeneticMeshNoNodes))
+                                : _detail(selected, l),
+                          ),
+                        ],
+                      ),
+              ),
+            ),
+            Semantics(
+              header: true,
+              child: Text(l.coreKeeneticMeshNetworks, style: AppText.headline),
+            ),
+            for (final network in topology.networks)
+              Semantics(
+                container: true,
+                readOnly: true,
+                label:
+                    '${network.ssid}, ${network.band} GHz, ${network.clientCount}',
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  child: ExcludeSemantics(
+                    child: Wrap(
+                      spacing: 8,
+                      runSpacing: 4,
+                      children: [
+                        Text(network.ssid),
+                        Text('${network.band} GHz'),
+                        Text(
+                          '${l.coreKeeneticDetailsChannel} ${network.channel}',
+                        ),
+                        Text(
+                          '${l.coreKeeneticMeshClients} ${network.clientCount}',
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        ],
+      ),
     );
   }
 }

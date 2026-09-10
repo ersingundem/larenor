@@ -2411,5 +2411,22 @@
   "coreKeeneticDetailsBand": "Bant",
   "coreKeeneticDetailsChannel": "Kanal",
   "coreKeeneticDetailsSignal": "Sinyal",
-  "coreKeeneticDetailsAccess": "İnternet erişimi"
+  "coreKeeneticDetailsAccess": "İnternet erişimi",
+  "coreKeeneticMeshTitle": "Mesh ve Wi-Fi topolojisi",
+  "coreKeeneticMeshNodes": "Mesh düğümleri",
+  "coreKeeneticMeshNetworks": "Wi-Fi dağılımı",
+  "coreKeeneticMeshController": "Denetleyici",
+  "coreKeeneticMeshExtender": "Genişletici",
+  "coreKeeneticMeshBackhaul": "Ana taşıyıcı",
+  "coreKeeneticMeshQuality": "Tahmini yol kalitesi",
+  "coreKeeneticMeshPathCost": "Yol maliyeti",
+  "coreKeeneticMeshClients": "Bağlı cihazlar",
+  "coreKeeneticMeshNoNodes": "Mesh genişletici bildirilmedi.",
+  "coreKeeneticMeshUnavailable": "Mesh topolojisine ulaşılamıyor. Yenilemek için tekrar deneyin.",
+  "coreKeeneticMeshUnsupported": "Bu router desteklenen bir mesh topolojisi bildirmiyor.",
+  "coreKeeneticMeshExcellent": "Mükemmel",
+  "coreKeeneticMeshGood": "İyi",
+  "coreKeeneticMeshFair": "Orta",
+  "coreKeeneticMeshPoor": "Zayıf",
+  "coreKeeneticMeshUnknown": "Bilinmiyor"
 }
