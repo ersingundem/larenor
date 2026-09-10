@@ -566,6 +566,12 @@ etki sırasında retained admin ve kaynak revizyonlarını yeniden doğruluyor,
 API anahtarını yalnız şifreli kayıtta saklıyor ve belirsiz/yarım etkileri tekrar
 çalıştırmadan `needs_attention` durumuna alıyor. Sonarr/Radarr/kütüphane/initialize
 eşleştirmesi ve native iki mimari kabul açık; `installAvailable=false` değişmedi.
+`1b944719` → `c46c5258` TDD dilimi, Seerr'ın resmî servis ayarları API'sinde
+Radarr ve Sonarr bağlantısını önce test eden, yalnız doğrulanmış kalite profili
+ile `/media/movies` ve `/media/tv` köklerini kabul eden, ardından create ve exact
+readback yapan private adaptörü ekledi. Mevcut exact kayıt idempotent kalıyor;
+yabancı kayıt veya response drift'i üzerine yazılmıyor. Adaptörün kalıcı Seerr
+işine bağlanması ve `initialize` readback'i açık.
 [Seerr konteyner işi kanıtı](seerr-container-installation-implementation-2026-09-10.md).
 
 S06.4 native kabul koşusu [34326112926](https://github.com/ersingundem/larenor/actions/runs/34326112926)
