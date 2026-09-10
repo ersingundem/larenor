@@ -56,7 +56,8 @@ def test_runtime_submits_once_then_authenticates_exact_instance_readback():
     responses = [
         {'type': 'finish', 'flow_id': 'flow-private',
          'result': {'instance_id': 'ytmusic--family'}},
-        [{'key': 'name', 'type': 'string', 'required': True}],
+        {'instance_id': 'ytmusic--family', 'domain': 'ytmusic',
+         'status': 'available'},
     ]
     runtime = MusicProviderSetupRuntime(
         lambda _timeout: Connection(responses, calls))
@@ -65,7 +66,7 @@ def test_runtime_submits_once_then_authenticates_exact_instance_readback():
         state='ready', providerDomain='ytmusic',
         providerInstanceId='ytmusic--family')
     assert [call[2]['command'] for call in calls] == [
-        'config/flows/submit', 'config/providers/get_entries']
+        'config/flows/submit', 'config/providers/get']
     assert calls[0][2]['args'] == {
         'flow_id': 'flow-private', 'values': {'cookie': 'private-cookie'}}
     assert calls[1][2]['args'] == {'instance_id': 'ytmusic--family'}
@@ -154,3 +155,29 @@ def test_runtime_rejects_stale_flow_before_provider_readback():
     else:
         raise AssertionError('stale flow was accepted')
     assert len(calls) == 1
+
+
+def test_finished_provider_requires_exact_instance_and_domain_readback():
+    bad_readbacks = [
+        None, {}, [],
+        [{'instance_id': 'ytmusic--family', 'domain': 'ytmusic'}],
+        {'instance_id': 'other', 'domain': 'ytmusic'},
+        {'instance_id': 'ytmusic--family', 'domain': 'spotify'},
+        {'instance_id': 'ytmusic--family'},
+        {'domain': 'ytmusic'},
+    ]
+    for readback in bad_readbacks:
+        calls = []
+        responses = [
+            {'type': 'finish', 'flow_id': 'flow-private',
+             'result': {'instance_id': 'ytmusic--family'}},
+            readback,
+        ]
+        runtime = MusicProviderSetupRuntime(
+            lambda _timeout: Connection(responses, calls))
+        try:
+            runtime.execute(action(), deadline=time.monotonic() + 1)
+        except MusicProviderSetupRuntimeError as error:
+            assert str(error) == 'provider_setup_readback_failed'
+        else:
+            raise AssertionError('unbound provider readback was accepted')
