@@ -14,7 +14,11 @@ import org.junit.Test
 class VncNativeBridgeTest {
     private class Session : VncNativeInputSession {
         var closes = 0
-        override fun input(sequence: Long, event: Map<String, Any>): Boolean = true
+        var lastInput: Map<String, Any>? = null
+        override fun input(sequence: Long, event: Map<String, Any>): Boolean {
+            lastInput = event
+            return true
+        }
         override fun close() { closes++ }
     }
 
@@ -70,7 +74,7 @@ class VncNativeBridgeTest {
         "routeRevision" to 11,
     )
 
-    private fun availableCapabilities() = mapOf<String, Any?>(
+    private fun availableCapabilities(clipboard: Boolean = false) = mapOf<String, Any?>(
         "schemaVersion" to 1,
         "availability" to "available",
         "engineRevision" to "rfb-fixture-1",
@@ -83,10 +87,10 @@ class VncNativeBridgeTest {
             "dynamicResolution" to true, "externalDisplay" to true,
             "maxWidth" to 8192, "maxHeight" to 8192, "maxDpi" to 640,
         ),
-        "input" to mapOf("pointer" to true, "keyboard" to true, "clipboard" to false),
+        "input" to mapOf("pointer" to true, "keyboard" to true, "clipboard" to clipboard),
     )
 
-    private fun request() = mapOf<String, Any?>(
+    private fun request(clipboard: Boolean = false) = mapOf<String, Any?>(
         "schemaVersion" to 1,
         "requestId" to "11111111-1111-4111-8111-111111111111",
         "targetHost" to "desktop.home.arpa",
@@ -104,7 +108,7 @@ class VncNativeBridgeTest {
             "dynamicResolution" to true,
         ),
         "framebuffer" to mapOf("encoding" to "tight", "pixelFormat" to "trueColor32"),
-        "input" to mapOf("pointer" to true, "keyboard" to true, "clipboard" to false),
+        "input" to mapOf("pointer" to true, "keyboard" to true, "clipboard" to clipboard),
     )
 
     @Test
@@ -215,6 +219,41 @@ class VncNativeBridgeTest {
         assertEquals("staleSession", stale.error)
         assertEquals(0, backend.opens)
         assertTrue(password.all { it == 0.toByte() })
+        bridge.dispose()
+    }
+
+    @Test
+    fun clipboardTextRequiresTheExplicitNegotiatedChannel() {
+        val messenger = Messenger()
+        val session = Session()
+        val backend = object : VncNativeBackend {
+            override fun capabilities() = VncNativeCapabilities.parse(
+                availableCapabilities(clipboard = true),
+            )
+            override fun open(
+                request: VncNativeRequest,
+                plan: VncNativePlan,
+                secrets: VncNativeSecrets,
+            ): VncNativeSession = session
+        }
+        val bridge = VncNativeBridge(messenger, VncNativeAdapter(backend))
+        bridge.setResumed(true)
+        bridge.onMethodCall(MethodCall("activate", binding()), Result())
+        bridge.onMethodCall(MethodCall("open", mapOf(
+            "binding" to binding(), "request" to request(clipboard = true),
+            "expectedEngineRevision" to "rfb-fixture-1",
+            "password" to "secret".encodeToByteArray(),
+        )), Result())
+        val sent = Result()
+        bridge.onMethodCall(MethodCall("input", mapOf(
+            "binding" to binding(), "sequence" to 1L,
+            "event" to mapOf("kind" to "clipboard", "text" to "Merhaba dünya"),
+        )), sent)
+        assertNull(sent.error)
+        assertEquals(
+            mapOf("kind" to "clipboard", "text" to "Merhaba dünya"),
+            session.lastInput,
+        )
         bridge.dispose()
     }
 }
