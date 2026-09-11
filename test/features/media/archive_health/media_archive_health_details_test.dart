@@ -66,6 +66,56 @@ Map<String, Object?> detailArchiveJson({String state = 'attention'}) => {
       'cleanupAvailable': false,
     },
   ],
+  'savingsPlan': {
+    'state': state == 'incomplete' ? 'partial' : 'ready',
+    'laneStates': {
+      'duplicate': state == 'incomplete' ? 'stale' : 'verified',
+      'transcode': state == 'incomplete' ? 'stale' : 'verified',
+      'retention': state == 'incomplete' ? 'stale' : 'verified',
+    },
+    'candidates': [
+      {
+        'kind': 'duplicate',
+        'source': 'jellyfin',
+        'title': 'The Matrix duplicate',
+        'potentialBytes': 4000000000,
+        'evidence': [
+          'same_media_identity',
+          'multiple_playable_files',
+          'largest_copy_excluded',
+        ],
+        'actionAvailable': false,
+      },
+      {
+        'kind': 'transcode',
+        'source': 'jellyfin',
+        'title': 'Home video',
+        'potentialBytes': 2000000000,
+        'evidence': [
+          'source_profile_verified',
+          'target_playback_verified',
+          'bounded_size_estimate',
+        ],
+        'actionAvailable': false,
+      },
+      {
+        'kind': 'retention',
+        'source': 'qbittorrent',
+        'title': 'The Matrix download',
+        'potentialBytes': 4000000000,
+        'evidence': [
+          'download_complete',
+          'import_verified',
+          'retention_policy_satisfied',
+        ],
+        'actionAvailable': false,
+      },
+    ],
+    'candidateCounts': {'duplicate': 1, 'transcode': 1, 'retention': 1},
+    'totalPotentialBytes': 10000000000,
+    'truncated': false,
+    'actionAvailable': false,
+  },
   'cleanupAvailable': false,
   'generatedAt': 1788609610,
 };
@@ -93,6 +143,41 @@ void main() {
       MediaArchiveSavingEvidence.retentionPolicySatisfied,
     ]);
     expect(snapshot.cleanupAvailable, isFalse);
+    expect(snapshot.savingsPlan.candidates.length, 3);
+    expect(
+      snapshot.savingsPlan.candidates.map((value) => value.kind),
+      MediaArchiveSavingKind.values,
+    );
+    expect(snapshot.savingsPlan.actionAvailable, isFalse);
+  });
+
+  testWidgets('detail explains all bounded plan lanes without actions', (
+    tester,
+  ) async {
+    final snapshot = MediaArchiveHealthSnapshot.fromJson(detailArchiveJson());
+    tester.view.physicalSize = const Size(1280, 1000);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final semantics = tester.ensureSemantics();
+    await tester.pumpWidget(
+      app(MediaArchiveHealthDetailScreen(snapshot: snapshot), scale: 2),
+    );
+    await tester.scrollUntilVisible(
+      find.text('The Matrix duplicate'),
+      300,
+      scrollable: find.byType(Scrollable).last,
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Duplicates'), findsOneWidget);
+    expect(find.text('Transcode review'), findsOneWidget);
+    expect(find.text('Retention review'), findsOneWidget);
+    expect(
+      find.bySemanticsLabel(RegExp(r'The Matrix duplicate.*4\.0 GB')),
+      findsOneWidget,
+    );
+    expect(find.byType(CupertinoButton), findsOneWidget);
+    expect(tester.takeException(), isNull);
+    semantics.dispose();
   });
 
   testWidgets('card opens read-only evidence with keyboard', (tester) async {
