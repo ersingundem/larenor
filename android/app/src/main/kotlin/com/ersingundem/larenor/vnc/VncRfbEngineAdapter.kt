@@ -4,6 +4,8 @@ internal enum class VncRfbEnginePhase {
     VERSION,
     SECURITY,
     SECURITY_HANDOFF,
+    TLS_HANDOFF,
+    AUTHENTICATING,
     INITIALIZING,
     ACTIVE,
     AWAITING_ACK,
@@ -15,7 +17,9 @@ internal enum class VncRfbEnginePhase {
 internal interface VncRfbEngineTransport {
     interface Listener {
         fun onBytes(bytes: ByteArray)
-        fun onSecureAuthenticated()
+        fun onSecurityBytes(bytes: ByteArray)
+        fun onTlsPeer(evidence: VncTlsPeerEvidence)
+        fun onVncAuthResult(success: Boolean)
         fun onClosed()
     }
 
@@ -38,7 +42,7 @@ internal class VncRfbEngineAdapter {
         if (plan.framebufferEncoding != VncFramebufferEncoding.RAW) {
             throw VncNativeFailure("framebufferUnavailable")
         }
-        return VncRfbEngineSession(transport, onFrame)
+        return VncRfbEngineSession(transport, plan.spkiFingerprint, onFrame)
     }
 
     companion object {
@@ -49,6 +53,7 @@ internal class VncRfbEngineAdapter {
 
 internal class VncRfbEngineSession(
     private val transport: VncRfbEngineTransport,
+    expectedSpkiFingerprint: String,
     private val onFrame: (VncRfbFrame) -> Boolean,
 ) : VncNativeSession, VncRfbEngineTransport.Listener {
     var phase = VncRfbEnginePhase.VERSION
@@ -57,6 +62,7 @@ internal class VncRfbEngineSession(
         private set
 
     private val parser = VncSyntheticRfbParser()
+    private val security = VncSyntheticVencrypt(expectedSpkiFingerprint)
     private var pendingFrameSequence: Long? = null
     private var terminated = false
 
@@ -80,14 +86,51 @@ internal class VncRfbEngineSession(
         }
     }
 
-    override fun onSecureAuthenticated() {
+    override fun onSecurityBytes(bytes: ByteArray) {
         if (terminated) return
         try {
             if (phase != VncRfbEnginePhase.SECURITY_HANDOFF) {
-                throw VncRfbFailure("securityUnavailable")
+                throw VncVencryptFailure("malformedSecurity")
             }
+            for (event in security.accept(bytes)) send(event)
+            synchronizeSecurityPhase()
+        } catch (error: VncVencryptFailure) {
+            fail(mapSecurityFailure(error.code))
+        } catch (_: Exception) {
+            fail("connectionFailed")
+        }
+    }
+
+    override fun onTlsPeer(evidence: VncTlsPeerEvidence) {
+        if (terminated) {
+            evidence.close()
+            return
+        }
+        try {
+            if (phase != VncRfbEnginePhase.TLS_HANDOFF) {
+                throw VncVencryptFailure("tlsEvidenceInvalid")
+            }
+            security.verifyPeer(evidence)
+            synchronizeSecurityPhase()
+        } catch (error: VncVencryptFailure) {
+            fail(mapSecurityFailure(error.code))
+        } catch (_: Exception) {
+            evidence.close()
+            fail("connectionFailed")
+        }
+    }
+
+    override fun onVncAuthResult(success: Boolean) {
+        if (terminated) return
+        try {
+            if (phase != VncRfbEnginePhase.AUTHENTICATING) {
+                throw VncVencryptFailure("authFailed")
+            }
+            security.completeVncAuth(success)
             handle(parser.markSecureAuthenticated())
             synchronizePhase()
+        } catch (error: VncVencryptFailure) {
+            fail(mapSecurityFailure(error.code))
         } catch (error: VncRfbFailure) {
             fail(mapFailure(error.code))
         } catch (_: Exception) {
@@ -151,6 +194,10 @@ internal class VncRfbEngineSession(
         if (!transport.write(event.bytes)) throw VncRfbFailure("connectionFailed")
     }
 
+    private fun send(event: VncVencryptOutbound) {
+        if (!transport.write(event.bytes)) throw VncVencryptFailure("malformedSecurity")
+    }
+
     private fun synchronizePhase() {
         if (phase == VncRfbEnginePhase.AWAITING_ACK || terminated) return
         phase = when (parser.phase) {
@@ -161,6 +208,21 @@ internal class VncRfbEngineSession(
             VncRfbPhase.ACTIVE -> VncRfbEnginePhase.ACTIVE
             VncRfbPhase.CANCELLED -> VncRfbEnginePhase.CANCELLED
             VncRfbPhase.FAILED -> VncRfbEnginePhase.FAILED
+        }
+    }
+
+    private fun synchronizeSecurityPhase() {
+        if (terminated) return
+        phase = when (security.phase) {
+            VncVencryptPhase.VERSION,
+            VncVencryptPhase.STATUS,
+            VncVencryptPhase.SUBTYPES,
+            -> VncRfbEnginePhase.SECURITY_HANDOFF
+            VncVencryptPhase.TLS_HANDOFF -> VncRfbEnginePhase.TLS_HANDOFF
+            VncVencryptPhase.VNC_AUTH_HANDOFF -> VncRfbEnginePhase.AUTHENTICATING
+            VncVencryptPhase.AUTHENTICATED -> VncRfbEnginePhase.INITIALIZING
+            VncVencryptPhase.CANCELLED -> VncRfbEnginePhase.CANCELLED
+            VncVencryptPhase.FAILED -> VncRfbEnginePhase.FAILED
         }
     }
 
@@ -175,6 +237,7 @@ internal class VncRfbEngineSession(
         failureCode = code
         phase = next
         parser.cancel()
+        security.cancel()
         try {
             transport.detach()
         } catch (_: Exception) {
@@ -193,6 +256,14 @@ internal class VncRfbEngineSession(
         "frameTooLarge", "framebufferUnavailable", "malformedFrame" ->
             "framebufferUnavailable"
         "frameBackpressure", "staleFrame" -> "staleSession"
+        "cancelled" -> "cancelled"
+        else -> "connectionFailed"
+    }
+
+    private fun mapSecurityFailure(code: String): String = when (code) {
+        "pinMismatch" -> "spkiPinningRequired"
+        "versionUnavailable", "subtypeUnavailable", "authFailed" -> "authUnavailable"
+        "tlsEvidenceInvalid" -> "tlsRequired"
         "cancelled" -> "cancelled"
         else -> "connectionFailed"
     }
