@@ -895,6 +895,28 @@
   "todayDismissConfirm": "Bu işlem bildirimi Home Assistant’tan herkes için kaldırır.",
   "todayViewingKeepsNotification": "Bildirimi açmak onu Home Assistant’tan kaldırmaz.",
   "todayAllDay": "Tüm gün",
+  "todayCalendarAllDayEvents": "Tüm gün etkinlikleri",
+  "todayCalendarTimedEvents": "Saatli etkinlikler",
+  "todayCalendarPast": "Geçmiş",
+  "todayCalendarCurrent": "Şu anda sürüyor",
+  "todayCalendarUpcoming": "Yaklaşan",
+  "todayCalendarSaved": "Kayıtlı okuma",
+  "todayCalendarSavedSource": "Kayıtlı kaynak: {source}",
+  "@todayCalendarSavedSource": {
+    "placeholders": {
+      "source": {
+        "type": "String"
+      }
+    }
+  },
+  "todayCalendarUnavailableSource": "Erişilemeyen kaynak: {source}",
+  "@todayCalendarUnavailableSource": {
+    "placeholders": {
+      "source": {
+        "type": "String"
+      }
+    }
+  },
   "todayLocation": "Konum",
   "todayTimeZone": "Ev saat dilimi: {zone}",
   "todayRefreshed": "Güncellendi: {time}",

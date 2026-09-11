@@ -177,17 +177,27 @@ void main() {
     expect(agenda.unavailableSources.single.failure, TodayFailure.permission);
   });
 
-  test('invalid all-day data or timezone fails the source closed', () {
+  test('invalid all-day date evidence fails the source closed', () {
     final agenda = TodayCalendarSummary.fromSnapshot(
       TodaySnapshot(
         configured: true,
         refreshedAt: DateTime.utc(2026, 9, 11),
-        timeZone: 'Invalid/Zone',
+        timeZone: 'Europe/Istanbul',
         calendars: [
           _calendar(
             'calendar.bad',
             'Bad source',
-            TodayRead(value: [_allDay('day', 'Day', '2026-09-11')]),
+            TodayRead(
+              value: [
+                TodayCalendarEvent(
+                  uid: 'day',
+                  title: 'Day',
+                  start: DateTime.utc(2026, 9, 11),
+                  end: DateTime.utc(2026, 9, 12),
+                  allDay: true,
+                ),
+              ],
+            ),
           ),
         ],
       ),
@@ -200,5 +210,21 @@ void main() {
       agenda.unavailableSources.single.failure,
       TodayFailure.invalidResponse,
     );
+  });
+
+  test('global calendar read failure is unavailable rather than empty', () {
+    final agenda = TodayCalendarSummary.fromSnapshot(
+      TodaySnapshot(
+        configured: true,
+        refreshedAt: DateTime.utc(2026, 9, 11),
+        timeZone: 'Europe/Istanbul',
+        issues: const [TodayIssue(TodaySource.calendars, TodayFailure.network)],
+      ),
+      now: DateTime.utc(2026, 9, 11),
+    );
+
+    expect(agenda.allDay, isEmpty);
+    expect(agenda.timed, isEmpty);
+    expect(agenda.unavailableSources.single.failure, TodayFailure.network);
   });
 }
