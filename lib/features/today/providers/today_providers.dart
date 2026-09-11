@@ -3,6 +3,9 @@ import 'dart:async';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/home_data_scope.dart';
+import '../../../core/home_session_controller.dart';
+import '../../../core/home_source_store.dart';
 import '../../../shared/utils/foreground_poller.dart';
 import '../../auth/providers/auth_providers.dart';
 import '../../ha_client/data/ws_client.dart';
@@ -12,6 +15,7 @@ import '../data/today_actions.dart';
 import '../data/today_api.dart';
 import '../data/today_controller.dart';
 import '../data/today_repository.dart';
+import '../data/today_retained_cache.dart';
 import '../domain/today_models.dart';
 
 /// Tests can replace the complete account-scoped transport without live calls.
@@ -41,10 +45,52 @@ final todayConnectionProvider = StreamProvider.autoDispose<HaConnectionStatus>(
       Stream.value(HaConnectionStatus.disconnected),
 );
 
+final todayRetainedStoreProvider = Provider<TodayRetainedPersistence>(
+  (_) => TodayRetainedStore(),
+);
+
+final todayRetainedScopeProvider = Provider.autoDispose<TodayRetainedScope?>((
+  ref,
+) {
+  final home = ref.watch(homeSessionControllerProvider);
+  if (home?.source == HomeSource.verifiedCore) {
+    final session = home!.account.session;
+    final context = session?.context;
+    if (context == null || session == null || session.user.mustChangePassword) {
+      return null;
+    }
+    try {
+      return TodayRetainedScope.core(
+        HomeDataScope.fromJson({
+          'coreId': context.coreId,
+          'homeId': context.homeId,
+          'userId': session.user.id,
+        }),
+      );
+    } catch (_) {
+      return null;
+    }
+  }
+  final config = ref.watch(connectionConfigProvider).value;
+  if (config == null) return null;
+  try {
+    return TodayRetainedScope.direct(config);
+  } catch (_) {
+    return null;
+  }
+});
+
 final todayControllerProvider = Provider.autoDispose<TodayController?>((ref) {
   final api = ref.watch(todayApiProvider);
   if (api == null) return null;
-  final controller = TodayController(repository: TodayRepository(api: api));
+  final retainedScope = ref.watch(todayRetainedScopeProvider);
+  final controller = TodayController(
+    repository: TodayRepository(api: api),
+    retainedStore: retainedScope == null
+        ? null
+        : ref.watch(todayRetainedStoreProvider),
+    retainedScope: retainedScope,
+  );
   final state = WidgetsBinding.instance.lifecycleState;
   controller.setForeground(state == null || state == AppLifecycleState.resumed);
   final lifecycle = AppLifecycleListener(

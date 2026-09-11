@@ -1186,6 +1186,7 @@
   "todayNoNotifications": "No notifications.",
   "todayUnread": "Not read yet",
   "todayPartial": "Some information could not be refreshed.",
+  "todayRefreshing": "Refreshing today's summary",
   "todayStale": "Showing an older saved view. Refresh before making changes.",
   "todayUnsupported": "This feature is not available from this Home Assistant integration.",
   "todayUnavailable": "This source is currently unavailable.",

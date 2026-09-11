@@ -88,8 +88,15 @@ class _Actions implements TodayActions {
 class _Controller implements TodayController {
   int reads = 0;
   final viewed = <String>[];
+  Completer<void>? pendingRefresh;
+  Object? refreshFailure;
   @override
-  Future<void> refresh({bool afterCurrent = false}) async => reads++;
+  Future<void> refresh({bool afterCurrent = false}) async {
+    reads++;
+    await pendingRefresh?.future;
+    if (refreshFailure != null) throw refreshFailure!;
+  }
+
   @override
   void markNotificationRead(String id) => viewed.add(id);
   @override
@@ -124,8 +131,10 @@ TodaySnapshot _snapshot({
   TodayRead<List<TodayNotification>> notifications = const TodayRead(value: []),
   List<TodayIssue> issues = const [],
   bool configured = true,
+  bool retained = false,
 }) => TodaySnapshot(
   configured: configured,
+  retained: retained,
   refreshedAt: _now,
   timeZone: 'Europe/Istanbul',
   dayStart: TodayTimeZone('Europe/Istanbul').dayRange(_now).start,
@@ -255,6 +264,44 @@ Future<void> _resume(WidgetTester tester) async {
 }
 
 void main() {
+  testWidgets(
+    'retained view is explicit, read-only and refresh errors stay secret-free',
+    (tester) async {
+      final harness = _Harness(_snapshot(list: _list(), retained: true));
+      harness.controller.pendingRefresh = Completer<void>();
+      harness.controller.refreshFailure = StateError(
+        'Bearer private-token from http://private-home.invalid',
+      );
+      await harness.mount(tester);
+
+      expect(
+        find.byKey(const ValueKey('today-retained-status')),
+        findsOneWidget,
+      );
+      expect(
+        tester
+            .widget<CupertinoButton>(
+              find.byKey(const ValueKey('today-toggle-todo.shopping-uid-1')),
+            )
+            .onPressed,
+        isNull,
+      );
+
+      await tester.tap(find.byKey(const ValueKey('today-refresh')));
+      await tester.pump();
+      expect(
+        find.bySemanticsLabel("Refreshing today's summary"),
+        findsOneWidget,
+      );
+      harness.controller.pendingRefresh!.complete();
+      await tester.pumpAndSettle();
+
+      expect(find.text('The request could not be completed'), findsOneWidget);
+      expect(find.textContaining('private-token'), findsNothing);
+      expect(find.textContaining('private-home'), findsNothing);
+    },
+  );
+
   testWidgets('idle erases a draft and old Save cannot run after waking', (
     tester,
   ) async {

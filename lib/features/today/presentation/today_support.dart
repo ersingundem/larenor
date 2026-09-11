@@ -151,6 +151,7 @@ TodayTodoItem? findTodayItem(TodayTodoList? list, String? uid) {
 
 bool todayListWritable(TodaySnapshot snapshot, TodayTodoList list) =>
     snapshot.configured &&
+    !snapshot.retained &&
     list.available &&
     list.items.value != null &&
     list.items.issue == null &&

@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:larenor/core/home_data_scope.dart';
 import 'package:larenor/features/auth/data/ha_connection_config.dart';
 import 'package:larenor/features/today/data/today_retained_cache.dart';
 import 'package:larenor/features/today/domain/today_models.dart';
@@ -75,10 +76,34 @@ void main() {
   );
 
   test(
+    'Core cache identity changes with home and user without exposing IDs',
+    () {
+      HomeDataScope scope(String home, String user) => HomeDataScope.fromJson({
+        'coreId': 'a' * 32,
+        'homeId': home,
+        'userId': user,
+      });
+      final firstScope = scope('b' * 32, 'member-one');
+      final first = TodayRetainedScope.core(firstScope);
+      final otherHome = TodayRetainedScope.core(scope('c' * 32, 'member-one'));
+      final otherUser = TodayRetainedScope.core(scope('b' * 32, 'member-two'));
+
+      expect(first.storageKey, isNot(otherHome.storageKey));
+      expect(first.storageKey, isNot(otherUser.storageKey));
+      expect(first.storageKey, isNot(contains(firstScope.coreId)));
+      expect(first.storageKey, isNot(contains(firstScope.homeId)));
+      expect(first.storageKey, isNot(contains(firstScope.userId)));
+    },
+  );
+
+  test(
     'round trip restores an explicitly retained and non-writable snapshot',
     () async {
       final backend = _Backend();
-      final store = TodayRetainedStore(backend: backend);
+      final store = TodayRetainedStore(
+        backend: backend,
+        clock: () => DateTime.utc(2026, 9, 11, 9),
+      );
       final scope = TodayRetainedScope.direct(first);
 
       await store.write(scope, _snapshot('Milk'), isCurrent: () => true);
@@ -95,7 +120,10 @@ void main() {
 
   test('wrong scope and corrupt or oversized records fail closed', () async {
     final backend = _Backend();
-    final store = TodayRetainedStore(backend: backend);
+    final store = TodayRetainedStore(
+      backend: backend,
+      clock: () => DateTime.utc(2026, 9, 11, 9),
+    );
     final firstScope = TodayRetainedScope.direct(first);
     final otherScope = TodayRetainedScope.direct(secondAccount);
     await store.write(firstScope, _snapshot('Milk'), isCurrent: () => true);
@@ -109,10 +137,29 @@ void main() {
   });
 
   test(
+    'a retained summary never crosses the Home Assistant day boundary',
+    () async {
+      final backend = _Backend();
+      final store = TodayRetainedStore(
+        backend: backend,
+        clock: () => DateTime.utc(2026, 9, 11, 22),
+      );
+      final scope = TodayRetainedScope.direct(first);
+      await store.write(scope, _snapshot('Yesterday'), isCurrent: () => true);
+
+      expect(await store.read(scope, isCurrent: () => true), isNull);
+      expect(backend.values, isEmpty);
+    },
+  );
+
+  test(
     'retired read cannot publish data after route or account disposal',
     () async {
       final backend = _Backend();
-      final store = TodayRetainedStore(backend: backend);
+      final store = TodayRetainedStore(
+        backend: backend,
+        clock: () => DateTime.utc(2026, 9, 11, 9),
+      );
       final scope = TodayRetainedScope.direct(first);
       await store.write(scope, _snapshot('Milk'), isCurrent: () => true);
       backend.readGate = Completer<void>();

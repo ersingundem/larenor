@@ -865,6 +865,7 @@
   "todayNoNotifications": "Bildirim yok.",
   "todayUnread": "Henüz okunmadı",
   "todayPartial": "Bazı bilgiler yenilenemedi.",
+  "todayRefreshing": "Bugünün özeti yenileniyor",
   "todayStale": "Önceden okunan veriler gösteriliyor. Değişiklik yapmadan önce yenileyin.",
   "todayUnsupported": "Bu özellik bu Home Assistant entegrasyonunda kullanılamıyor.",
   "todayUnavailable": "Bu kaynağa şu anda erişilemiyor.",
