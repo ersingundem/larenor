@@ -6,6 +6,7 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../../../core/home_data_scope.dart';
 import '../../auth/data/ha_connection_config.dart';
 import '../domain/today_models.dart';
+import 'today_timezone.dart';
 
 abstract interface class TodayRetainedBackend {
   Future<String?> read(String key);
@@ -240,6 +241,8 @@ final class _TodaySnapshotCodec {
       if (root['version'] != 1 || root['scope'] != scope) {
         _fail('invalid_record');
       }
+      final timeZone = _optionalText(root['timeZone'], 128);
+      if (timeZone != null) TodayTimeZone(timeZone);
       final lists = _list(root['todoLists'], 100).map(_decodeTodoList).toList();
       final calendars = _list(
         root['calendars'],
@@ -252,7 +255,7 @@ final class _TodaySnapshotCodec {
       return TodaySnapshot(
         configured: _bool(root['configured']),
         refreshedAt: _requiredDate(root['refreshedAt']),
-        timeZone: _optionalText(root['timeZone'], 128),
+        timeZone: timeZone,
         dayStart: _optionalDate(root['dayStart']),
         dayEnd: _optionalDate(root['dayEnd']),
         todoLists: List.unmodifiable(lists),
@@ -401,14 +404,29 @@ final class _TodaySnapshotCodec {
       'description',
       'location',
     });
+    final start = _requiredDate(value['start']);
+    final end = _requiredDate(value['end']);
+    final allDay = _bool(value['allDay']);
+    final startDate = _optionalText(value['startDate'], 10);
+    final endDate = _optionalText(value['endDate'], 10);
+    if (!end.isAfter(start) ||
+        (allDay && (startDate == null || endDate == null)) ||
+        (!allDay && (startDate != null || endDate != null))) {
+      _fail('invalid_record');
+    }
+    if (allDay) {
+      final first = parseDateOnly(startDate!);
+      final last = parseDateOnly(endDate!);
+      if (!last.isAfter(first)) _fail('invalid_record');
+    }
     return TodayCalendarEvent(
       uid: _optionalText(value['uid'], 4096),
       title: _text(value['title'], 4096),
-      start: _requiredDate(value['start']),
-      end: _requiredDate(value['end']),
-      allDay: _bool(value['allDay']),
-      startDate: _optionalText(value['startDate'], 10),
-      endDate: _optionalText(value['endDate'], 10),
+      start: start,
+      end: end,
+      allDay: allDay,
+      startDate: startDate,
+      endDate: endDate,
       description: _optionalText(value['description'], 4096),
       location: _optionalText(value['location'], 4096),
     );

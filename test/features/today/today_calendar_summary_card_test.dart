@@ -77,6 +77,7 @@ Future<void> _mount(
   String? selectedItemId,
   ValueChanged<String>? onQueryChanged,
   ValueChanged<TodayCalendarSummaryEntry>? onSelected,
+  String? timeZone = 'Europe/Istanbul',
 }) async {
   tester.view.physicalSize = size;
   tester.view.devicePixelRatio = 1;
@@ -95,6 +96,7 @@ Future<void> _mount(
           child: SingleChildScrollView(
             child: TodayCalendarSummaryCard(
               summary: _summary(),
+              timeZone: timeZone,
               query: query,
               selectedSourceId: 'calendar.family',
               selectedItemId: selectedItemId,
@@ -129,6 +131,9 @@ void main() {
       expect(find.text('Yaklaşan'), findsOneWidget);
       expect(find.text('Kayıtlı kaynak: Family'), findsOneWidget);
       expect(find.text('Erişilemeyen kaynak: Work'), findsOneWidget);
+      expect(find.textContaining('08:00'), findsOneWidget);
+      expect(find.textContaining('14:00'), findsOneWidget);
+      expect(find.textContaining('05:00'), findsNothing);
       expect(
         tester
             .getSemantics(

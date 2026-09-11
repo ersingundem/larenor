@@ -12,6 +12,7 @@ class TodayCalendarSummaryCard extends StatefulWidget {
   const TodayCalendarSummaryCard({
     super.key,
     required this.summary,
+    this.timeZone,
     this.query = '',
     this.selectedSourceId,
     this.selectedItemId,
@@ -21,6 +22,7 @@ class TodayCalendarSummaryCard extends StatefulWidget {
   });
 
   final TodayCalendarSummary summary;
+  final String? timeZone;
   final String query;
   final String? selectedSourceId;
   final String? selectedItemId;
@@ -237,7 +239,7 @@ class _TodayCalendarSummaryCardState extends State<TodayCalendarSummaryCard> {
       entry.event.title,
       entry.sourceTitle,
       phase,
-      todayEventTime(context, entry.event),
+      todayEventTime(context, entry.event, timeZone: widget.timeZone),
       ?entry.event.location,
       ?evidence,
     ].join('. ');
@@ -261,7 +263,7 @@ class _TodayCalendarSummaryCardState extends State<TodayCalendarSummaryCard> {
                 style: AppText.body,
               ),
               Text(
-                todayEventTime(context, entry.event),
+                todayEventTime(context, entry.event, timeZone: widget.timeZone),
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
                 style: AppText.footnote,

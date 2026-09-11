@@ -461,7 +461,11 @@ class _TodayScreenState extends TodayConsumerState<TodayScreen> {
                         overflow: TextOverflow.ellipsis,
                       ),
                       Text(
-                        todayEventTime(context, event),
+                        todayEventTime(
+                          context,
+                          event,
+                          timeZone: snapshot.timeZone,
+                        ),
                         style: AppText.footnote,
                       ),
                     ],
@@ -914,6 +918,7 @@ class _TodayScreenState extends TodayConsumerState<TodayScreen> {
     VoidCallback? onClose,
   }) => TodayCalendarSummaryCard(
     key: key,
+    timeZone: snapshot.timeZone,
     summary: TodayCalendarSummary.fromSnapshot(
       snapshot,
       now: DateTime.now().toUtc(),

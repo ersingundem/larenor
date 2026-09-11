@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:larenor/core/home_data_scope.dart';
@@ -134,6 +135,51 @@ void main() {
     expect(backend.values.containsKey(otherScope.storageKey), isFalse);
     backend.values[otherScope.storageKey] = 'x' * (256 * 1024 + 1);
     expect(await store.read(otherScope, isCurrent: () => true), isNull);
+  });
+
+  test('invalid timezone and incoherent calendar event fail closed', () async {
+    final backend = _Backend();
+    final store = TodayRetainedStore(
+      backend: backend,
+      clock: () => DateTime.utc(2026, 9, 11, 9),
+    );
+    final scope = TodayRetainedScope.direct(first);
+    await store.write(scope, _snapshot('Milk'), isCurrent: () => true);
+    final original = jsonDecode(backend.values.values.single) as Map;
+
+    backend.values[scope.storageKey] = jsonEncode({
+      ...original,
+      'timeZone': 'Private/Unknown',
+    });
+    expect(await store.read(scope, isCurrent: () => true), isNull);
+
+    final event = {
+      'uid': 'event',
+      'title': 'Broken',
+      'start': '2026-09-11T08:00:00.000Z',
+      'end': '2026-09-11T09:00:00.000Z',
+      'allDay': true,
+      'startDate': null,
+      'endDate': null,
+      'description': null,
+      'location': null,
+    };
+    backend.values[scope.storageKey] = jsonEncode({
+      ...original,
+      'calendars': [
+        {
+          'entityId': 'calendar.family',
+          'title': 'Family',
+          'events': {
+            'value': [event],
+            'issue': null,
+            'readAt': null,
+          },
+        },
+      ],
+    });
+    expect(await store.read(scope, isCurrent: () => true), isNull);
+    expect(backend.values, isEmpty);
   });
 
   test(
