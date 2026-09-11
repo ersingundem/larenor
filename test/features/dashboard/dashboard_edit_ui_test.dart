@@ -390,6 +390,62 @@ void main() {
     },
   );
 
+  testWidgets('Today widget keeps personal settings through size and reorder', (
+    tester,
+  ) async {
+    final harness = _Harness(
+      const DashboardLayout(
+        tiles: [
+          TileConfig(
+            id: 'today',
+            type: TileType.today,
+            x: 0,
+            y: 0,
+            width: 3,
+            height: 2,
+            todaySection: 'shopping',
+            todayQuery: 'milk',
+          ),
+          TileConfig(
+            id: 'history',
+            type: TileType.history,
+            x: 0,
+            y: 0,
+            width: 2,
+            height: 2,
+            entityId: 'sensor.a',
+          ),
+        ],
+      ),
+    );
+    await harness.mount(
+      tester,
+      const DashboardCardEditorScreen(mode: DashboardEditorMode.widgets),
+      passive: true,
+    );
+
+    await _tap(tester, 'dashboard-today-settings-today');
+    await tester.tap(
+      find.byKey(const ValueKey('today-widget-section-notifications')),
+    );
+    await tester.enterText(
+      find.byKey(const ValueKey('today-widget-query')),
+      'door',
+    );
+    await _tap(tester, 'today-widget-save');
+    await _tap(tester, 'dashboard-edit-size-today');
+    await _tap(tester, 'dashboard-size-medium');
+    await _tap(tester, 'dashboard-edit-down-today');
+
+    final tile = harness.repository.saved.tiles.last;
+    expect(tile.id, 'today');
+    expect(tile.todaySection, 'notifications');
+    expect(tile.todayQuery, 'door');
+    expect(tile.width, 2);
+    expect(tile.height, 1);
+    expect(harness.entities.actions, 0);
+  });
+
   testWidgets(
     'service editor changes only the local size map and remains passive',
     (tester) async {

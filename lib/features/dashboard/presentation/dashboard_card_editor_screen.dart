@@ -15,6 +15,7 @@ import '../../web_panel/presentation/web_panel_settings_screen.dart';
 import '../providers/dashboard_providers.dart';
 import 'dashboard_card_presentation.dart';
 import 'dashboard_edit_guard.dart';
+import 'today_widget_settings_screen.dart';
 import 'tile_kinds.dart';
 
 enum DashboardEditorMode { room, widgets, services }
@@ -41,6 +42,7 @@ class _DashboardCardEditorScreenState
   String? _message;
   Route<DashboardCardSize?>? _sizeRoute;
   Route<TileConfig>? _webRoute;
+  Route<TileConfig>? _todayRoute;
 
   @override
   void invalidateDashboardInteraction() {
@@ -51,6 +53,11 @@ class _DashboardCardEditorScreenState
     final webRoute = _webRoute;
     _webRoute = null;
     if (webRoute?.isActive == true) webRoute!.navigator?.removeRoute(webRoute);
+    final todayRoute = _todayRoute;
+    _todayRoute = null;
+    if (todayRoute?.isActive == true) {
+      todayRoute!.navigator?.removeRoute(todayRoute);
+    }
   }
 
   Future<void> _change(Future<void> Function() change, int generation) async {
@@ -87,6 +94,8 @@ class _DashboardCardEditorScreenState
   void _move(List<String> ids, int oldIndex, int newIndex, int generation) {
     if (_busy ||
         _sizeRoute != null ||
+        _webRoute != null ||
+        _todayRoute != null ||
         oldIndex == newIndex ||
         !interactionCurrent(generation)) {
       return;
@@ -109,7 +118,13 @@ class _DashboardCardEditorScreenState
   }
 
   Future<void> _size(String id, int generation) async {
-    if (_busy || _sizeRoute != null || !interactionCurrent(generation)) return;
+    if (_busy ||
+        _sizeRoute != null ||
+        _webRoute != null ||
+        _todayRoute != null ||
+        !interactionCurrent(generation)) {
+      return;
+    }
     var selected = false;
     final route = CupertinoModalPopupRoute<DashboardCardSize?>(
       builder: (context) => CupertinoActionSheet(
@@ -172,6 +187,7 @@ class _DashboardCardEditorScreenState
     if (_busy ||
         _webRoute != null ||
         _sizeRoute != null ||
+        _todayRoute != null ||
         !interactionCurrent(generation)) {
       return;
     }
@@ -181,6 +197,33 @@ class _DashboardCardEditorScreenState
     _webRoute = route;
     final updated = await pushDashboardPage(route);
     if (identical(_webRoute, route)) _webRoute = null;
+    if (updated == null || !interactionCurrent(generation)) return;
+    await _change(
+      () => ref
+          .read(dashboardLayoutProvider.notifier)
+          .updateTile(
+            updated,
+            expectedTile: tile,
+            isCurrent: () => interactionCurrent(generation),
+          ),
+      generation,
+    );
+  }
+
+  Future<void> _todaySettings(TileConfig tile, int generation) async {
+    if (_busy ||
+        _todayRoute != null ||
+        _sizeRoute != null ||
+        _webRoute != null ||
+        !interactionCurrent(generation)) {
+      return;
+    }
+    final route = CupertinoPageRoute<TileConfig>(
+      builder: (_) => TodayWidgetSettingsScreen(initialTile: tile),
+    );
+    _todayRoute = route;
+    final updated = await pushDashboardPage(route);
+    if (identical(_todayRoute, route)) _todayRoute = null;
     if (updated == null || !interactionCurrent(generation)) return;
     await _change(
       () => ref
@@ -370,6 +413,19 @@ class _DashboardCardEditorScreenState
                                               child: Text(
                                                 l10n.webPanelSettings,
                                               ),
+                                            ),
+                                          if (tile?.type == TileType.today)
+                                            CupertinoButton(
+                                              key: ValueKey(
+                                                'dashboard-today-settings-$id',
+                                              ),
+                                              onPressed: _busy
+                                                  ? null
+                                                  : () => _todaySettings(
+                                                      tile!,
+                                                      generation,
+                                                    ),
+                                              child: Text(l10n.commonEdit),
                                             ),
                                           CupertinoButton(
                                             key: ValueKey(

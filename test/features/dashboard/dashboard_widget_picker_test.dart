@@ -23,6 +23,7 @@ import 'package:larenor/features/ha_client/data/models/ha_entity.dart';
 import 'package:larenor/features/ha_client/data/ws_client.dart';
 import 'package:larenor/features/ha_client/providers/ha_client_providers.dart';
 import 'package:larenor/features/settings/providers/enabled_services_providers.dart';
+import 'package:larenor/features/today/providers/today_providers.dart';
 import 'package:larenor/l10n/generated/app_localizations.dart';
 
 const _config = HaConnectionConfig(
@@ -318,6 +319,30 @@ void main() {
       );
     },
   );
+  testWidgets('Today creates a passive tablet summary draft', (tester) async {
+    final h = _Harness();
+    await h.mount(tester);
+    final choice = find.byKey(const ValueKey('widget-kind-today'));
+    await tester.scrollUntilVisible(choice, 250);
+    await _tap(tester, choice);
+
+    expect(h.results, hasLength(1));
+    expect(
+      h.results.single,
+      isA<TileConfig>()
+          .having((tile) => tile.type, 'type', TileType.today)
+          .having((tile) => tile.width, 'width', 3)
+          .having((tile) => tile.height, 'height', 2),
+    );
+    expect(h.repository.writes, 0);
+    expect(h.container.exists(todayProvider), isFalse);
+    expect(
+      () => validateDashboardLayoutJson(
+        DashboardLayout(tiles: h.results).toJson(),
+      ),
+      returnsNormally,
+    );
+  });
   for (final (kind, id) in [
     (TileType.entity, 'light.lamp'),
     (TileType.camera, 'camera.front'),

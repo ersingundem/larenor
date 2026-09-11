@@ -64,8 +64,10 @@ void main() {
       expect(summary.shopping.state, TodayDailySummaryState.current);
       expect(summary.shopping.totalCount, 1);
       expect(summary.shopping.entries.single.sourceId, 'todo.shopping');
+      expect(summary.shopping.entries.single.itemId, 'active');
       expect(summary.chores.totalCount, 1);
       expect(summary.chores.entries.single.sourceId, 'todo.home');
+      expect(summary.chores.entries.single.itemId, 'active');
     },
   );
 
@@ -130,7 +132,58 @@ void main() {
     expect(summary.calendar.state, TodayDailySummaryState.stale);
     expect(summary.calendar.totalCount, 5);
     expect(summary.calendar.entries, hasLength(2));
+    expect(summary.calendar.entries.first.itemId, '0');
     expect(summary.calendar.readAt, _now);
+  });
+
+  test('keeps unidentified rows read-only while notifications stay stable', () {
+    final summary = TodayDailySummary.fromSnapshot(
+      _snapshot(
+        todoLists: [
+          _list(
+            'todo.shopping',
+            'Shopping',
+            const TodayRead(
+              value: [
+                TodayTodoItem(
+                  summary: 'Unidentified',
+                  status: TodayTodoStatus.needsAction,
+                ),
+              ],
+            ),
+          ),
+        ],
+        calendars: [
+          TodayCalendar(
+            entityId: 'calendar.home',
+            title: 'Home',
+            events: TodayRead(
+              value: [
+                TodayCalendarEvent(
+                  title: 'No UID',
+                  start: _now,
+                  end: _now,
+                  allDay: false,
+                ),
+              ],
+            ),
+          ),
+        ],
+        notifications: TodayRead(
+          value: [
+            TodayNotification(
+              id: 'notice-1',
+              message: 'Door open',
+              createdAt: _now,
+            ),
+          ],
+        ),
+      ),
+    );
+
+    expect(summary.shopping.entries.single.itemId, isNull);
+    expect(summary.calendar.entries.single.itemId, isNull);
+    expect(summary.notifications.entries.single.itemId, 'notice-1');
   });
 
   test('rejects unbounded preview requests', () {

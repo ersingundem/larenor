@@ -8,6 +8,7 @@ import '../../settings/data/app_service.dart';
 import 'tile_config.dart';
 import 'keenetic_tile_validation.dart';
 import 'core_keenetic_tile_validation.dart';
+import 'today_tile_validation.dart';
 import '../../web_panel/domain/web_panel_options.dart';
 
 const maxDashboardLayoutBytes = 2 * 1024 * 1024;
@@ -78,6 +79,8 @@ void validateDashboardLayoutJson(Object? value) {
         'coreResourceAclRevision',
         'coreBindingId',
         'coreBindingRevision',
+        'todaySection',
+        'todayQuery',
         'webPanel',
       },
       required: {'id', 'type', 'x', 'y', 'width', 'height'},
@@ -86,6 +89,7 @@ void validateDashboardLayoutJson(Object? value) {
         !TileType.values.any((type) => type.name == tile['type']) ||
         !hasValidKeeneticTileFields(tile) ||
         !hasValidCoreKeeneticTileFields(tile) ||
+        !hasValidTodayTileFields(tile) ||
         !hasValidWebPanelTileFields(tile)) {
       throw invalid;
     }
