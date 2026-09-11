@@ -390,6 +390,144 @@ void main() {
     },
   );
 
+  testWidgets('Today widget keeps personal settings through size and reorder', (
+    tester,
+  ) async {
+    final harness = _Harness(
+      const DashboardLayout(
+        tiles: [
+          TileConfig(
+            id: 'today',
+            type: TileType.today,
+            x: 0,
+            y: 0,
+            width: 3,
+            height: 2,
+            todaySection: 'shopping',
+            todayQuery: 'milk',
+          ),
+          TileConfig(
+            id: 'history',
+            type: TileType.history,
+            x: 0,
+            y: 0,
+            width: 2,
+            height: 2,
+            entityId: 'sensor.a',
+          ),
+        ],
+      ),
+    );
+    await harness.mount(
+      tester,
+      const DashboardCardEditorScreen(mode: DashboardEditorMode.widgets),
+      passive: true,
+    );
+
+    await _tap(tester, 'dashboard-today-settings-today');
+    await tester.tap(
+      find.byKey(const ValueKey('today-widget-section-notifications')),
+    );
+    await tester.enterText(
+      find.byKey(const ValueKey('today-widget-query')),
+      'door',
+    );
+    await _tap(tester, 'today-widget-save');
+    await _tap(tester, 'dashboard-edit-size-today');
+    await _tap(tester, 'dashboard-size-medium');
+    await _tap(tester, 'dashboard-edit-down-today');
+
+    final tile = harness.repository.saved.tiles.last;
+    expect(tile.id, 'today');
+    expect(tile.todaySection, 'notifications');
+    expect(tile.todayQuery, 'door');
+    expect(tile.width, 2);
+    expect(tile.height, 1);
+    expect(harness.entities.actions, 0);
+  });
+
+  testWidgets('Keenetic cards remain movable and independently resizable', (
+    tester,
+  ) async {
+    TileConfig tile(String id, TileType type) => TileConfig(
+      id: id,
+      type: type,
+      x: 0,
+      y: 0,
+      width: 3,
+      height: 2,
+      coreId: '1' * 32,
+      coreHomeId: '2' * 32,
+      coreResourceId: '3' * 32,
+      coreResourceRevision: 7,
+      coreResourceAclRevision: 9,
+      coreBindingId: '4' * 32,
+      coreBindingRevision: 4,
+    );
+
+    final harness = _Harness(
+      DashboardLayout(
+        tiles: [
+          tile('internet', TileType.coreKeenetic),
+          tile('details', TileType.coreKeeneticDetails),
+          tile('mesh', TileType.coreKeeneticMesh),
+          tile('clients', TileType.coreKeeneticClients),
+          tile('bandwidth', TileType.coreKeeneticBandwidth),
+        ],
+      ),
+    );
+    await harness.mount(
+      tester,
+      const DashboardCardEditorScreen(mode: DashboardEditorMode.widgets),
+      passive: true,
+      size: const Size(600, 1000),
+      scale: 2,
+    );
+    expect(
+      find.byKey(const ValueKey('dashboard-edit-internet')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('dashboard-edit-details')),
+      findsOneWidget,
+    );
+    expect(find.byKey(const ValueKey('dashboard-edit-mesh')), findsOneWidget);
+    await _tap(tester, 'dashboard-edit-size-details');
+    await _tap(tester, 'dashboard-size-large');
+    await tester.scrollUntilVisible(
+      find.byKey(const ValueKey('dashboard-edit-clients')),
+      250,
+    );
+    expect(
+      find.byKey(const ValueKey('dashboard-edit-clients')),
+      findsOneWidget,
+    );
+    await tester.scrollUntilVisible(
+      find.byKey(const ValueKey('dashboard-edit-bandwidth')),
+      250,
+    );
+    expect(
+      find.byKey(const ValueKey('dashboard-edit-bandwidth')),
+      findsOneWidget,
+    );
+    tester
+        .widget<CupertinoButton>(
+          find.byKey(const ValueKey('dashboard-edit-up-bandwidth')),
+        )
+        .onPressed!();
+    await tester.pumpAndSettle();
+    expect(harness.repository.saved.tiles.map((item) => item.id), [
+      'internet',
+      'details',
+      'mesh',
+      'bandwidth',
+      'clients',
+    ]);
+    expect(harness.repository.saved.tiles[1].width, 2);
+    expect(harness.repository.saved.tiles[1].height, 2);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets(
     'service editor changes only the local size map and remains passive',
     (tester) async {

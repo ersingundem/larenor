@@ -2,7 +2,7 @@ import ipaddress
 from typing import Literal
 from urllib.parse import urlsplit
 
-from pydantic import Field, field_validator, model_validator
+from pydantic import Field, model_validator
 
 from ..admin.models import ObjectId, Revision
 from ..models import StrictModel
@@ -63,7 +63,11 @@ class Grant(StrictModel):
 
 
 class Policy(StrictModel):
-    component: Literal['home_assistant_probe', 'proxmox_command_worker'] = 'home_assistant_probe'
+    component: Literal[
+        'home_assistant_probe',
+        'proxmox_command_worker',
+        'keenetic_command_worker',
+    ] = 'home_assistant_probe'
     serviceId: ObjectId
     serviceRevision: Revision
     revision: int = Field(ge=0, le=2**63-1)

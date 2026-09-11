@@ -171,14 +171,14 @@ class _DashboardWidgetPickerScreenState
     }
   }
 
-  Future<void> _coreKeenetic() async {
+  Future<void> _coreKeenetic(TileType type) async {
     if (!_current || _openingKeenetic) return;
     final generation = interactionGeneration;
     setState(() => _openingKeenetic = true);
     try {
       final tile = await pushDashboardPage<TileConfig>(
         CupertinoPageRoute(
-          builder: (_) => const CoreKeeneticWidgetPickerScreen(),
+          builder: (_) => CoreKeeneticWidgetPickerScreen(tileType: type),
         ),
       );
       if (tile != null && interactionCurrent(generation)) _complete(tile);
@@ -296,8 +296,13 @@ class _DashboardWidgetPickerScreenState
               core?.source == HomeSource.verifiedCore,
         ),
         TileType.webview,
+        TileType.today,
         TileType.keenetic,
         TileType.coreKeenetic,
+        TileType.coreKeeneticDetails,
+        TileType.coreKeeneticMesh,
+        TileType.coreKeeneticClients,
+        TileType.coreKeeneticBandwidth,
       ];
       slivers.add(
         SliverList.builder(
@@ -317,8 +322,16 @@ class _DashboardWidgetPickerScreenState
                         _keenetic();
                       } else if (type == TileType.proxmox) {
                         _proxmox();
-                      } else if (type == TileType.coreKeenetic) {
-                        _coreKeenetic();
+                      } else if (type == TileType.today) {
+                        _complete(_draft(type).copyWith(width: 3, height: 2));
+                      } else if (const {
+                        TileType.coreKeenetic,
+                        TileType.coreKeeneticDetails,
+                        TileType.coreKeeneticMesh,
+                        TileType.coreKeeneticClients,
+                        TileType.coreKeeneticBandwidth,
+                      }.contains(type)) {
+                        _coreKeenetic(type);
                       } else {
                         _chooseType(type);
                       }

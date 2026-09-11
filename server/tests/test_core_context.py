@@ -68,6 +68,17 @@ def legacy_v2(app):
         for table in ('proxmox_resource_bindings', 'proxmox_resource_state'):
             connection.execute(f'DROP TABLE {table}')
         connection.execute("DELETE FROM metadata WHERE key='proxmox_resource_schema'")
+        # This context-bound journal did not exist in the v2 fixture. Keeping
+        # it would retain an authentication tag for the identity removed above.
+        for table in (
+            'keenetic_command_records',
+            'keenetic_command_events',
+            'keenetic_command_chain_state',
+        ):
+            connection.execute(f'DROP TABLE {table}')
+        connection.execute(
+            "DELETE FROM metadata WHERE key='keenetic_command_schema'"
+        )
         connection.execute("UPDATE metadata SET value='2' WHERE key='schema_version'")
 
 

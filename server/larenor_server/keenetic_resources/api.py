@@ -1,5 +1,6 @@
 """Admin binding workflow and resource-authorized Keenetic snapshots."""
 import asyncio
+import re
 from threading import Event
 from typing import Annotated
 
@@ -16,8 +17,10 @@ from .models import (
     BindingPreviewRequest,
     BindingResponse,
     ConfirmRequest,
+    DetailsPage,
     PreviewResponse,
     SnapshotResponse,
+    TopologyResponse,
 )
 
 Core = Annotated[CoreServices, Depends(get_core)]
@@ -48,7 +51,22 @@ Admin = Annotated[Principal, Depends(adapter_admin)]
 
 
 def exact_request(request: Request):
-    if request.scope.get("query_string") or len(request.headers.getlist("authorization")) > 1:
+    if len(request.headers.getlist("authorization")) > 1:
+        raise ApiError("invalid_request")
+    if not request.scope.get("query_string"):
+        return
+    pairs = list(request.query_params.multi_items())
+    values = dict(pairs)
+    details = request.method == "GET" and request.url.path.endswith("/details")
+    if (not details or len(pairs) != len(values) or not 1 <= len(values) <= 3
+            or not set(values) <= {"limit", "after", "expectedSnapshot"}
+            or "limit" in values and (
+                re.fullmatch(r"[1-9][0-9]{0,2}", values["limit"]) is None
+                or int(values["limit"]) > 100)
+            or ("after" in values) != ("expectedSnapshot" in values)
+            or "after" in values and (
+                re.fullmatch(r"[0-9a-f]{64}", values["after"]) is None
+                or re.fullmatch(r"[0-9a-f]{64}", values["expectedSnapshot"]) is None)):
         raise ApiError("invalid_request")
 
 
@@ -106,4 +124,20 @@ def cancel(core_id: Identity, home_id: Identity, resource_id: Identity,
 async def snapshot(core_id: Identity, home_id: Identity, resource_id: Identity,
                    request: Request, actor: Ready, core: Core):
     return await observe(request, lambda cancelled: core.keenetic_resources.snapshot(
+        actor, core_id, home_id, resource_id, cancelled=cancelled))
+
+
+@router.get(PUBLIC + "/details", response_model=DetailsPage)
+async def details(core_id: Identity, home_id: Identity, resource_id: Identity,
+                  request: Request, actor: Ready, core: Core, limit: int = 25,
+                  after: str | None = None, expectedSnapshot: str | None = None):
+    return await observe(request, lambda cancelled: core.keenetic_resources.details_page(
+        actor, core_id, home_id, resource_id, limit=limit, after=after,
+        expected_snapshot=expectedSnapshot, cancelled=cancelled))
+
+
+@router.get(PUBLIC + "/topology", response_model=TopologyResponse)
+async def topology(core_id: Identity, home_id: Identity, resource_id: Identity,
+                   request: Request, actor: Ready, core: Core):
+    return await observe(request, lambda cancelled: core.keenetic_resources.topology(
         actor, core_id, home_id, resource_id, cancelled=cancelled))

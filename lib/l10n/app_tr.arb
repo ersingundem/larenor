@@ -715,6 +715,12 @@
   "navigationSearchLocalHint": "Arama bu cihazda yüklenmiş verileri kullanır.",
   "navigationSearchEmpty": "Eşleşen sonuç yok",
   "navigationSearchRemote": "Medya kataloğunda ara",
+  "navigationSearchSourceLocal": "Yerel",
+  "navigationSearchSourceDirect": "Doğrudan",
+  "navigationSearchSourceCore": "Core",
+  "navigationSearchStatusCurrent": "Güncel",
+  "navigationSearchStatusStale": "Eski veri",
+  "navigationSearchStatusOffline": "Çevrimdışı",
   "navigationSearchNoCache": "İçeriği yüklemek için Ev veya Medya'yı açıp burada arayabilirsin.",
   "navigationSearchRoom": "Oda",
   "navigationSearchEntity": "Cihaz veya varlık",
@@ -865,6 +871,7 @@
   "todayNoNotifications": "Bildirim yok.",
   "todayUnread": "Henüz okunmadı",
   "todayPartial": "Bazı bilgiler yenilenemedi.",
+  "todayRefreshing": "Bugünün özeti yenileniyor",
   "todayStale": "Önceden okunan veriler gösteriliyor. Değişiklik yapmadan önce yenileyin.",
   "todayUnsupported": "Bu özellik bu Home Assistant entegrasyonunda kullanılamıyor.",
   "todayUnavailable": "Bu kaynağa şu anda erişilemiyor.",
@@ -894,6 +901,28 @@
   "todayDismissConfirm": "Bu işlem bildirimi Home Assistant’tan herkes için kaldırır.",
   "todayViewingKeepsNotification": "Bildirimi açmak onu Home Assistant’tan kaldırmaz.",
   "todayAllDay": "Tüm gün",
+  "todayCalendarAllDayEvents": "Tüm gün etkinlikleri",
+  "todayCalendarTimedEvents": "Saatli etkinlikler",
+  "todayCalendarPast": "Geçmiş",
+  "todayCalendarCurrent": "Şu anda sürüyor",
+  "todayCalendarUpcoming": "Yaklaşan",
+  "todayCalendarSaved": "Kayıtlı okuma",
+  "todayCalendarSavedSource": "Kayıtlı kaynak: {source}",
+  "@todayCalendarSavedSource": {
+    "placeholders": {
+      "source": {
+        "type": "String"
+      }
+    }
+  },
+  "todayCalendarUnavailableSource": "Erişilemeyen kaynak: {source}",
+  "@todayCalendarUnavailableSource": {
+    "placeholders": {
+      "source": {
+        "type": "String"
+      }
+    }
+  },
   "todayLocation": "Konum",
   "todayTimeZone": "Ev saat dilimi: {zone}",
   "todayRefreshed": "Güncellendi: {time}",
@@ -2487,5 +2516,270 @@
   "serverMusicProviderConfirm": "İncelenen niyeti onayla",
   "serverMusicProviderDisable": "Devre dışı bırakmayı incele",
   "serverMusicProviderEffectUnavailable": "Etki kullanılamıyor. Onay yalnızca engellenen niyeti kaydeder.",
-  "serverMusicProviderEnable": "Etkinleştirmeyi incele"
+  "serverMusicProviderEnable": "Etkinleştirmeyi incele",
+  "mediaArchiveTitle": "Arşiv sağlığı",
+  "mediaArchiveReadOnly": "Salt okunur sağlık ve alan incelemesi. Güncel Core kanıtını okumak için açıkça yenileyin.",
+  "mediaArchiveRefreshLabel": "Arşiv sağlığını yenile",
+  "mediaArchiveIdle": "Güncel arşivi incelemek istediğinizde yenileyin.",
+  "mediaArchiveLoading": "Güncel arşiv anlık görüntüsü okunuyor…",
+  "mediaArchiveHealthy": "Doğrulanmış arşiv anlık görüntüsü sağlıklı.",
+  "mediaArchiveAttention": "Doğrulanmış arşiv anlık görüntüsü ilgilenmenizi gerektiriyor.",
+  "mediaArchivePartial": "Arşivin yalnız bir bölümü doğrulanabildi.",
+  "mediaArchiveStale": "Arşiv kanıtı değişti veya süresi doldu. Yeniden okumak için yenileyin.",
+  "mediaArchiveOffline": "Core veya özel arşiv okuyucusu çevrimdışı.",
+  "mediaArchiveDenied": "Etkin bir yönetici oturumu gerekli.",
+  "mediaArchiveUnsupported": "Desteklenen tek bir yönetilen medya arşivi bulunamadı.",
+  "mediaArchiveMissing": "Eksik",
+  "mediaArchiveBroken": "Bozuk",
+  "mediaArchiveFailedDownloads": "Başarısız indirmeler",
+  "mediaArchiveSavingCandidates": "Alan inceleme adayları",
+  "mediaArchivePotentialSavings": "Olası alan",
+  "mediaArchiveSourceVerified": "Doğrulandı",
+  "mediaArchiveSourceUnavailable": "Erişilemiyor",
+  "mediaArchiveSourceUnsupported": "Desteklenmiyor",
+  "mediaArchiveSourceStale": "Eski",
+  "mediaArchiveOpenDetails": "Arşiv ayrıntılarını gör",
+  "mediaArchiveDetailsTitle": "Arşiv kanıtları",
+  "mediaArchiveDetailReadOnly": "Yalnız kanıt gösterilir. Bu ekrandan depolama değişikliği yapılamaz.",
+  "mediaArchiveCapturedAt": "Alınma zamanı: {time}",
+  "@mediaArchiveCapturedAt": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "mediaArchiveSourcesTitle": "Kaynak kanıtları",
+  "mediaArchiveIssuesTitle": "Arşiv sorunları",
+  "mediaArchiveIssuesEmpty": "Bu anlık görüntüde doğrulanmış arşiv sorunu yok.",
+  "mediaArchiveSavingsTitle": "Alan incelemesi",
+  "mediaArchiveSavingsHint": "Öneriler inceleme kanıtıdır. Larenor burada saklanan medyayı değiştirmez.",
+  "mediaArchiveSavingsEmpty": "Bu anlık görüntüde doğrulanmış alan inceleme adayı yok.",
+  "mediaArchiveHealthyEvidence": "Sağlıklı kanıt",
+  "mediaArchiveAttentionEvidence": "İlgilenmeniz gerekiyor",
+  "mediaArchivePartialEvidence": "Kısmi kanıt",
+  "mediaArchiveSeverityWarning": "Uyarı",
+  "mediaArchiveSeverityCritical": "Kritik",
+  "mediaArchiveIssueMissingMedia": "İzlenen medya eksik",
+  "mediaArchiveIssueMissingFile": "Kitaplık dosyası eksik",
+  "mediaArchiveIssueCorrupt": "Medya bütünlük kontrolü başarısız",
+  "mediaArchiveIssueUnplayable": "Medya oynatılamıyor",
+  "mediaArchiveIssueDownload": "İndirme bir hata bildirdi",
+  "mediaArchiveEvidenceVerified": "Üç kontrol doğrulandı",
+  "mediaArchiveEvidenceDownloadComplete": "İndirme tamamlandı",
+  "mediaArchiveEvidenceImportVerified": "Kitaplık içe aktarımı doğrulandı",
+  "mediaArchiveEvidenceRetentionSatisfied": "Saklama ilkesi karşılandı",
+  "mediaArchiveObservedSize": "Gözlenen boyut: {size}",
+  "@mediaArchiveObservedSize": {
+    "placeholders": {
+      "size": {
+        "type": "String"
+      }
+    }
+  },
+  "mediaArchivePotentialValue": "Olası alan: {size}",
+  "@mediaArchivePotentialValue": {
+    "placeholders": {
+      "size": {
+        "type": "String"
+      }
+    }
+  },
+  "mediaArchivePlanReady": "Tüm alan tasarrufu kanıt kanalları doğrulandı.",
+  "mediaArchivePlanPartial": "Plan kısmi. Desteklenmeyen, erişilemeyen veya eski kanallar aday üretmez.",
+  "mediaArchivePlanTotal": "Sınırlı olası alan: {size}",
+  "@mediaArchivePlanTotal": {
+    "placeholders": {
+      "size": {
+        "type": "String"
+      }
+    }
+  },
+  "mediaArchivePlanTruncated": "Sınırlı sonuç üst sınırına ulaşıldı; bu, arşivin tam tahmini değildir.",
+  "mediaArchivePlanDuplicates": "Yinelenenler",
+  "mediaArchivePlanTranscode": "Kod dönüştürme incelemesi",
+  "mediaArchivePlanRetention": "Saklama incelemesi",
+  "mediaArchivePlanLaneVerified": "Doğrulanmış kanıt kanalı",
+  "mediaArchivePlanLanePartial": "Kısmi kanıt kanalı",
+  "mediaArchivePlanLaneUnsupported": "Bu kanıt kanalı desteklenmiyor.",
+  "mediaArchivePlanLaneUnavailable": "Bu kanıt kanalına erişilemiyor.",
+  "mediaArchivePlanLaneStale": "Bu kanıt kanalı eski.",
+  "mediaArchiveEvidenceSameIdentity": "Sağlayıcı kimliği eşleşiyor",
+  "mediaArchiveEvidenceMultiplePlayable": "Birden fazla oynatılabilir dosya doğrulandı",
+  "mediaArchiveEvidenceLargestExcluded": "En büyük kopya tahmine katılmadı",
+  "mediaArchiveEvidenceSourceProfile": "Kaynak medya profili doğrulandı",
+  "mediaArchiveEvidenceTargetPlayback": "Hedef oynatma uyumluluğu doğrulandı",
+  "mediaArchiveEvidenceBoundedEstimate": "Tahmin gözlenen dosya boyutuyla sınırlandı",
+  "mediaArchiveComparisonOpen": "Karşılaştırmayı ve kanıtları aç",
+  "mediaArchiveComparisonTitle": "Tasarruf karşılaştırması",
+  "mediaArchiveComparisonReadOnly": "Salt okunur karşılaştırma. Değerler doğrulanmış kanıtlardan üretilen tahminlerdir.",
+  "mediaArchiveConfidenceHigh": "Yüksek güven",
+  "mediaArchiveConfidenceMedium": "Orta güven",
+  "mediaArchiveEstimatedRetained": "Tahmini korunacak alan: {size}",
+  "@mediaArchiveEstimatedRetained": {
+    "placeholders": {
+      "size": {
+        "type": "String"
+      }
+    }
+  },
+  "mediaArchiveEstimatedGain": "Tahmini kazanç: {size}",
+  "@mediaArchiveEstimatedGain": {
+    "placeholders": {
+      "size": {
+        "type": "String"
+      }
+    }
+  },
+  "mediaArchiveComparisonBasisTitle": "Bu karşılaştırmanın gerekçesi",
+  "mediaArchiveComparisonKeepLargest": "Doğrulanmış oynatılabilir kopyaların tümünü, en büyük kopyanın korunduğu durumla karşılaştırır.",
+  "mediaArchiveComparisonTranscode": "Gözlenen boyutu, kaynak dosya boyutuyla sınırlanmış bit hızı tabanlı tahminle karşılaştırır.",
+  "mediaArchiveComparisonRetention": "İçe aktarma ve saklama kontrollerini geçen doğrulanmış indirmeyi yalnız inceleme adayı olarak gösterir. Depolama paylaşılıyorsa gerçek disk kazanımı değişebilir.",
+  "mediaArchiveEvidenceTitle": "Doğrulanmış kanıt",
+  "mediaArchiveDataGapsTitle": "Veri eksikleri",
+  "mediaArchiveDataGap": "{lane}: {reason}",
+  "@mediaArchiveDataGap": {
+    "placeholders": {
+      "lane": {
+        "type": "String"
+      },
+      "reason": {
+        "type": "String"
+      }
+    }
+  },
+  "mediaArchiveGapPartial": "kanıt kısmi",
+  "mediaArchiveGapUnsupported": "kanıt desteklenmiyor",
+  "mediaArchiveGapUnavailable": "kanıta erişilemiyor",
+  "mediaArchiveGapStale": "kanıt eski",
+  "mediaArchiveGapTruncated": "sonuç sınırına ulaşıldı",
+  "mediaArchiveEvidenceContentHash": "Doğrulanmış içerik hash'leri eşleşiyor",
+  "mediaArchiveEvidenceNameSizeRuntime": "İçerik hash'i yok; tam ad, boyut ve runtime eşleşmesine dayalı olası eşleşme",
+  "mediaArchiveEvidenceQualityProfile": "Çözünürlük ve bit hızı profilleri doğrulandı",
+  "mediaArchiveEvidenceBestQuality": "En iyi kaliteli kopya tahmine katılmadı",
+  "mediaArchiveEvidenceSource": "{source} kanıtı",
+  "@mediaArchiveEvidenceSource": {
+    "placeholders": {
+      "source": {
+        "type": "String"
+      }
+    }
+  },
+  "mediaArchiveGroupExactHash": "Kesin içerik hash eşleşmesi",
+  "mediaArchiveGroupProbableMetadata": "Olası eşleşme: aynı ad, boyut ve runtime",
+  "mediaArchiveGroupLowerQuality": "Doğrulanmış düşük kaliteli varyant",
+  "mediaArchiveComparisonBestQuality": "Doğrulanmış kalite profillerini karşılaştırır ve en iyi kaliteli tüm kopyaları korur; tahmine yalnız düşük kaliteli varyantlar katılır.",
+  "mediaArchiveTrendTitle": "12 haftalık depolama eğilimi",
+  "mediaArchiveTrendReady": "Larenor Core'dan doğrulanmış haftalık kapasite kanıtı.",
+  "mediaArchiveTrendStale": "Haftalık depolama eğilimi eski.",
+  "mediaArchiveTrendUnavailable": "Haftalık depolama eğilimi kullanılamıyor.",
+  "mediaArchiveTrendWeek": "{date} haftası",
+  "@mediaArchiveTrendWeek": {
+    "placeholders": {
+      "date": {
+        "type": "String"
+      }
+    }
+  },
+  "mediaArchiveTrendTotal": "Toplam",
+  "mediaArchiveTrendFree": "Boş alan",
+  "mediaArchiveTrendReclaimable": "Potansiyel alan",
+  "mediaArchiveTrendCandidateCounts": "Olası tekrarlar ve düşük kaliteli varyantlar",
+  "mediaArchiveTrendDuplicates": "Olası tekrarlar",
+  "mediaArchiveTrendLowQuality": "Düşük kaliteli varyantlar",
+  "vncTitle": "VNC hazırlığı",
+  "vncProfileHint": "Güvenli VNC hazırlık panelini açın. Oturum yalnız paketlenmiş motor RFB 3.8, TLS, sertifika sabitleme, ekran, touchpad ve klavye yeteneklerini kanıtlarsa sunulur.",
+  "vncCheck": "VNC yeteneğini denetle",
+  "vncEngineUnavailable": "Bu sürümde yerel VNC motoru paketlenmemiş. DNS sorgusu veya bağlantı denenmedi.",
+  "vncChecking": "Paketlenmiş yetenekler ve RFB güvenliği denetleniyor…",
+  "vncPlainRejected": "Düz VNC güvensizdir ve varsayılan olarak engellenir.",
+  "vncNoAuthRejected": "Sunucu kimlik doğrulamasız VNC oturumu sundu. Oturum engellendi.",
+  "vncSecurityUnsupported": "RFB güvenlik seçimi paketlenmiş motor tarafından desteklenmiyor.",
+  "vncCertificateChanged": "TLS sertifikası kayıtlı sabitlemeden farklı. Oturum engellendi.",
+  "vncCertificateReview": "VNC parolasını girmeden önce bu TLS sertifikasını inceleyip sabitleyin.",
+  "vncTrustCertificate": "Bu sertifikaya güven",
+  "vncPassword": "Tek kullanımlık VNC parolası",
+  "vncAuthenticate": "Doğrulanmış oturumu aç",
+  "vncConnecting": "Doğrulanmış VNC oturumu açılıyor…",
+  "vncConnected": "VNC aktarımı bağlandı. Yerel framebuffer çizimi motorun sorumluluğundadır.",
+  "vncClosed": "VNC oturumu kapandı. Yeni deneme için profili yeniden açın.",
+  "vncFailed": "VNC oturumu başarısız. Otomatik yeniden deneme veya girdi tekrarı yapılmadı.",
+  "vncClipboardOff": "Pano: Kapalı",
+  "vncFilesOff": "Dosyalar: Kapalı",
+  "vncChannelsHint": "Pano ve dosya kanalları kapalı başlar; ayrı açık yetenek ve izin çalışması gerektirir.",
+  "vncDisplay": "Ekran",
+  "vncDisplayValue": "{width} × {height} · {dpi} DPI",
+  "@vncDisplayValue": {
+    "placeholders": {
+      "width": {
+        "type": "int"
+      },
+      "height": {
+        "type": "int"
+      },
+      "dpi": {
+        "type": "int"
+      }
+    }
+  },
+  "vncExternalDisplay": "DeX / harici ekran profili",
+  "vncInputReady": "Touchpad ve fiziksel klavye girdisi bu ön plan oturumuyla sınırlıdır.",
+  "coreKeeneticTrafficTotal": "Toplam trafik",
+  "coreKeeneticGuestWifi": "Misafir Wi-Fi",
+  "coreKeeneticGuestEnabled": "Etkin",
+  "coreKeeneticGuestDisabled": "Devre dışı",
+  "coreKeeneticGuestUnavailable": "Bildirilmedi",
+  "coreKeeneticViewDetails": "Ağ ayrıntılarını görüntüle",
+  "coreKeeneticControls": "Korumalı router denetimlerini aç",
+  "keeneticCommandTitle": "Keenetic denetimleri",
+  "keeneticCommandGuestWifi": "Misafir Wi-Fi",
+  "keeneticCommandClient": "İstemci internet erişimi",
+  "keeneticCommandWan": "WAN bağlantısı",
+  "keeneticCommandEnable": "Etkinleştir",
+  "keeneticCommandDisable": "Devre dışı bırak",
+  "keeneticCommandPause": "İnterneti duraklat",
+  "keeneticCommandResume": "İnterneti sürdür",
+  "keeneticCommandReconnect": "WAN'ı yeniden bağla",
+  "keeneticCommandReview": "Komutu incele",
+  "keeneticCommandConfirm": "Onayla",
+  "keeneticCommandConfirmAgain": "Yeniden onayla",
+  "keeneticCommandWanConfirmAgain": "WAN yeniden bağlantısını tekrar onayla",
+  "keeneticCommandCancel": "İptal",
+  "keeneticCommandSucceeded": "Başarılı",
+  "keeneticCommandFailed": "Başarısız",
+  "keeneticCommandUnknown": "Sonuç bilinmiyor",
+  "keeneticCommandUnavailable": "Komut denetimleri kullanılamıyor. Yeniden denemeden önce router durumunu yenileyin.",
+  "keeneticCommandReadOnly": "Bu hesap router durumunu görebilir ancak komut çalıştıramaz.",
+  "coreKeeneticDetailsTitle": "Ağ cihazları ve arayüzler",
+  "coreKeeneticDetailsSearch": "Cihaz ve arayüz ara",
+  "coreKeeneticDetailsAll": "Tümü",
+  "coreKeeneticDetailsInterfaces": "Arayüzler",
+  "coreKeeneticDetailsClients": "Cihazlar",
+  "coreKeeneticDetailsEmpty": "Eşleşen ağ ayrıntısı yok.",
+  "coreKeeneticDetailsLoadMore": "Daha fazla yükle",
+  "coreKeeneticDetailsIdentity": "Özel cihaz kimliği",
+  "coreKeeneticDetailsInterface": "Arayüz",
+  "coreKeeneticDetailsAddress": "Adres",
+  "coreKeeneticDetailsSsid": "Wi-Fi adı",
+  "coreKeeneticDetailsBand": "Bant",
+  "coreKeeneticDetailsChannel": "Kanal",
+  "coreKeeneticDetailsSignal": "Sinyal",
+  "coreKeeneticDetailsAccess": "İnternet erişimi",
+  "coreKeeneticMeshTitle": "Mesh ve Wi-Fi topolojisi",
+  "coreKeeneticMeshNodes": "Mesh düğümleri",
+  "coreKeeneticMeshNetworks": "Wi-Fi dağılımı",
+  "coreKeeneticMeshController": "Denetleyici",
+  "coreKeeneticMeshExtender": "Genişletici",
+  "coreKeeneticMeshBackhaul": "Ana taşıyıcı",
+  "coreKeeneticMeshQuality": "Tahmini yol kalitesi",
+  "coreKeeneticMeshPathCost": "Yol maliyeti",
+  "coreKeeneticMeshClients": "Bağlı cihazlar",
+  "coreKeeneticMeshNoNodes": "Mesh genişletici bildirilmedi.",
+  "coreKeeneticMeshUnavailable": "Mesh topolojisine ulaşılamıyor. Yenilemek için tekrar deneyin.",
+  "coreKeeneticMeshUnsupported": "Bu router desteklenen bir mesh topolojisi bildirmiyor.",
+  "coreKeeneticMeshExcellent": "Mükemmel",
+  "coreKeeneticMeshGood": "İyi",
+  "coreKeeneticMeshFair": "Orta",
+  "coreKeeneticMeshPoor": "Zayıf",
+  "coreKeeneticMeshUnknown": "Bilinmiyor"
 }

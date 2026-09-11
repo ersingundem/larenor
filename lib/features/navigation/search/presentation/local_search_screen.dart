@@ -41,6 +41,9 @@ class _LocalSearchScreenState extends ConsumerState<LocalSearchScreen> {
   @override
   void initState() {
     super.initState();
+    final retained = ref.read(localSearchSelectionProvider);
+    _query = retained.query;
+    _controller.text = retained.query;
     final state = WidgetsBinding.instance.lifecycleState;
     _foreground = state == null || state == AppLifecycleState.resumed;
     _lifecycle = AppLifecycleListener(
@@ -96,7 +99,8 @@ class _LocalSearchScreenState extends ConsumerState<LocalSearchScreen> {
   void _commit(String value, int generation) {
     if (!mounted || generation != _generation) return;
     ref.read(localSearchIndexProvider.notifier).refreshCachedSources();
-    setState(() => _query = value.trim());
+    ref.read(localSearchSelectionProvider.notifier).setQuery(value);
+    setState(() => _query = ref.read(localSearchSelectionProvider).query);
   }
 
   void _changed(String value) {
@@ -117,12 +121,38 @@ class _LocalSearchScreenState extends ConsumerState<LocalSearchScreen> {
     _commit(value, ++_generation);
   }
 
+  void _moveSelection(List<LocalSearchItem> results, int delta) {
+    if (!_canFocus || results.isEmpty) return;
+    final selection = ref.read(localSearchSelectionProvider);
+    final current = results.indexWhere(
+      (item) => item.id == selection.selectedId,
+    );
+    final next = current < 0
+        ? (delta > 0 ? 0 : results.length - 1)
+        : (current + delta).clamp(0, results.length - 1);
+    ref.read(localSearchSelectionProvider.notifier).select(results[next].id);
+  }
+
+  void _openSelection(List<LocalSearchItem> results) {
+    if (!_canFocus) return;
+    final selected = ref.read(localSearchSelectionProvider).selectedId;
+    final item = results.where((item) => item.id == selected).firstOrNull;
+    if (item != null) widget.onOpenTarget(item.target);
+  }
+
+  void _openItem(LocalSearchItem item) {
+    if (!_canFocus) return;
+    ref.read(localSearchSelectionProvider.notifier).select(item.id);
+    widget.onOpenTarget(item.target);
+  }
+
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final keyboardVisible = MediaQuery.viewInsetsOf(context).bottom > 0;
     final index = ref.watch(localSearchIndexProvider);
     final results = ref.watch(localSearchResultsProvider(_query));
+    final selectedId = ref.watch(localSearchSelectionProvider).selectedId;
     return CallbackShortcuts(
       bindings: {
         const SingleActivator(
@@ -132,6 +162,21 @@ class _LocalSearchScreenState extends ConsumerState<LocalSearchScreen> {
         ): _focusSearch,
         const SingleActivator(LogicalKeyboardKey.escape, includeRepeats: false):
             _closeSearch,
+        const SingleActivator(
+          LogicalKeyboardKey.arrowDown,
+          includeRepeats: false,
+        ): () =>
+            _moveSelection(results, 1),
+        const SingleActivator(
+          LogicalKeyboardKey.arrowUp,
+          includeRepeats: false,
+        ): () =>
+            _moveSelection(results, -1),
+        const SingleActivator(
+          LogicalKeyboardKey.enter,
+          includeRepeats: false,
+        ): () =>
+            _openSelection(results),
       },
       child: FocusScope(
         autofocus: true,
@@ -201,8 +246,8 @@ class _LocalSearchScreenState extends ConsumerState<LocalSearchScreen> {
                               itemBuilder: (context, item) => _SearchResultRow(
                                 key: ValueKey(results[item].id),
                                 item: results[item],
-                                onTap: () =>
-                                    widget.onOpenTarget(results[item].target),
+                                selected: results[item].id == selectedId,
+                                onTap: () => _openItem(results[item]),
                               ),
                             ),
                     ),
@@ -252,8 +297,14 @@ class _LocalSearchScreenState extends ConsumerState<LocalSearchScreen> {
 }
 
 class _SearchResultRow extends StatelessWidget {
-  const _SearchResultRow({super.key, required this.item, required this.onTap});
+  const _SearchResultRow({
+    super.key,
+    required this.item,
+    required this.selected,
+    required this.onTap,
+  });
   final LocalSearchItem item;
+  final bool selected;
   final VoidCallback onTap;
 
   @override
@@ -317,45 +368,65 @@ class _SearchResultRow extends StatelessWidget {
       kindLabel,
       ...item.roomNames,
       if (item.detail != null) item.detail!,
+      switch (item.source) {
+        LocalSearchSource.local => l10n.navigationSearchSourceLocal,
+        LocalSearchSource.direct => l10n.navigationSearchSourceDirect,
+        LocalSearchSource.core => l10n.navigationSearchSourceCore,
+      },
+      switch (item.availability) {
+        LocalSearchAvailability.current => l10n.navigationSearchStatusCurrent,
+        LocalSearchAvailability.stale => l10n.navigationSearchStatusStale,
+        LocalSearchAvailability.offline => l10n.navigationSearchStatusOffline,
+      },
     ].join(' · ');
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
-      child: CupertinoButton(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-        color: CupertinoColors.secondarySystemGroupedBackground.resolveFrom(
-          context,
-        ),
-        borderRadius: BorderRadius.circular(16),
-        onPressed: onTap,
-        child: Row(
-          children: [
-            Icon(icon, size: 24),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
-                    style: AppText.body.copyWith(
-                      color: CupertinoColors.label.resolveFrom(context),
-                    ),
+      child: Semantics(
+        button: true,
+        selected: selected,
+        label: '$title, $details',
+        child: ExcludeSemantics(
+          child: CupertinoButton(
+            minimumSize: const Size(48, 48),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            color: selected
+                ? CupertinoTheme.of(context).primaryColor.withValues(alpha: .14)
+                : CupertinoColors.secondarySystemGroupedBackground.resolveFrom(
+                    context,
                   ),
-                  const SizedBox(height: 4),
-                  Text(
-                    details,
-                    style: AppText.footnote.copyWith(
-                      color: CupertinoColors.secondaryLabel.resolveFrom(
-                        context,
+            borderRadius: BorderRadius.circular(16),
+            onPressed: onTap,
+            child: Row(
+              children: [
+                Icon(icon, size: 24),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        style: AppText.body.copyWith(
+                          color: CupertinoColors.label.resolveFrom(context),
+                        ),
                       ),
-                    ),
+                      const SizedBox(height: 4),
+                      Text(
+                        details,
+                        style: AppText.footnote.copyWith(
+                          color: CupertinoColors.secondaryLabel.resolveFrom(
+                            context,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
-                ],
-              ),
+                ),
+                const SizedBox(width: 8),
+                const Icon(CupertinoIcons.chevron_forward, size: 16),
+              ],
             ),
-            const SizedBox(width: 8),
-            const Icon(CupertinoIcons.chevron_forward, size: 16),
-          ],
+          ),
         ),
       ),
     );

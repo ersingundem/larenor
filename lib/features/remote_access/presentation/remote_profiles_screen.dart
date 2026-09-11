@@ -8,7 +8,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/app_interaction_scope.dart';
 import '../../../core/window/window_policy_providers.dart';
 import '../../../l10n/generated/app_localizations.dart';
+import '../../health/data/connection_evidence.dart';
 import '../../../shared/widgets/app_page_scaffold.dart';
+import '../../../shared/widgets/connection_evidence_status.dart';
 import '../../../shared/widgets/settings_action_tile.dart';
 import '../../../shared/widgets/settings_section.dart';
 import '../data/remote_profiles.dart';
@@ -16,6 +18,7 @@ import '../ssh/sftp_browser_panel.dart';
 import '../ssh/ssh_terminal_panel.dart';
 import '../ssh/ssh_tunnel_panel.dart';
 import '../rdp/rdp_session_panel.dart';
+import '../vnc/vnc_session_panel.dart';
 
 final remoteProfilesStoreProvider = Provider<RemoteProfilesStore>(
   (ref) => RemoteProfilesStore(),
@@ -48,10 +51,12 @@ class _RemoteProfilesScreenState extends ConsumerState<RemoteProfilesScreen>
       _sftp = false,
       _tunnel = false;
   bool _rdp = false;
+  bool _vnc = false;
   bool Function()? _terminalCurrent;
   bool Function()? _sftpCurrent;
   bool Function()? _tunnelCurrent;
   bool Function()? _rdpCurrent;
+  bool Function()? _vncCurrent;
   bool _started = false,
       _busy = false,
       _editing = false,
@@ -457,6 +462,17 @@ class _RemoteProfilesScreenState extends ConsumerState<RemoteProfilesScreen>
         },
       );
     }
+    if (_vnc && _selected != null && active) {
+      return VncSessionPanel(
+        key: ValueKey('vnc-${_selected!.id}'),
+        profile: _selected!,
+        isCurrent: _vncCurrent!,
+        onBack: () {
+          _generation++;
+          setState(() => _vnc = false);
+        },
+      );
+    }
     return AppPageScaffold(
       child: CustomScrollView(
         key: const ValueKey('remote-scroll'),
@@ -570,6 +586,14 @@ class _RemoteProfilesScreenState extends ConsumerState<RemoteProfilesScreen>
                             '${selected.protocol.name.toUpperCase()} · ${selected.address}${selected.username.isEmpty ? '' : '\n${selected.username}'}',
                           ),
                         ),
+                        const Padding(
+                          padding: EdgeInsets.fromLTRB(20, 16, 20, 0),
+                          child: ConnectionEvidenceStatus(
+                            evidence: ConnectionEvidence.saved(),
+                            compact: true,
+                            showTimestamp: false,
+                          ),
+                        ),
                         Padding(
                           padding: const EdgeInsets.all(20),
                           child: Text(
@@ -577,6 +601,8 @@ class _RemoteProfilesScreenState extends ConsumerState<RemoteProfilesScreen>
                                 ? l.sshHint
                                 : selected.protocol == RemoteProtocol.rdp
                                 ? l.rdpProfileHint
+                                : selected.protocol == RemoteProtocol.vnc
+                                ? l.vncProfileHint
                                 : l.remoteAccessEngineHint,
                           ),
                         ),
@@ -626,6 +652,12 @@ class _RemoteProfilesScreenState extends ConsumerState<RemoteProfilesScreen>
                               _generation++;
                               _rdpCurrent = _action();
                               setState(() => _rdp = true);
+                            }),
+                          if (selected.protocol == RemoteProtocol.vnc)
+                            action('remote-vnc-open', l.vncTitle, () {
+                              _generation++;
+                              _vncCurrent = _action();
+                              setState(() => _vnc = true);
                             }),
                           action(
                             'remote-copy',

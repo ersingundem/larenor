@@ -263,6 +263,26 @@ class LarenorServerApi {
               _ => false,
             },
           );
+      final keeneticDetailsQuery =
+          method == 'GET' &&
+          RegExp(
+            r'^/keenetic/[0-9a-f]{32}/[0-9a-f]{32}/resources/[0-9a-f]{32}/details$',
+          ).hasMatch(path) &&
+          (!queryParameters.containsKey('after') ||
+              queryParameters.containsKey('expectedSnapshot')) &&
+          (!queryParameters.containsKey('expectedSnapshot') ||
+              queryParameters.containsKey('after')) &&
+          queryParameters.entries.every(
+            (entry) => switch (entry.key) {
+              'limit' =>
+                RegExp(r'^[1-9][0-9]{0,2}$').hasMatch(entry.value) &&
+                    (int.tryParse(entry.value) ?? 0) <= 100,
+              'after' || 'expectedSnapshot' => RegExp(
+                r'^[0-9a-f]{64}$',
+              ).hasMatch(entry.value),
+              _ => false,
+            },
+          );
       final revisionNumber = int.tryParse(revision ?? '');
       final forgetQuery =
           method == 'DELETE' &&
@@ -277,6 +297,7 @@ class LarenorServerApi {
           !jobsQuery &&
           !mediaQuery &&
           !homeResourcesQuery &&
+          !keeneticDetailsQuery &&
           !homeAssistantHistory &&
           !homeAssistantVerification &&
           !homeResourceDeleteQuery) {
@@ -436,6 +457,7 @@ class LarenorServerApi {
             'plugin_job_storage_unavailable',
             'media_preparation_storage_unavailable',
             'media_inspection_storage_unavailable',
+            'media_archive_worker_unavailable',
           }.contains(code)) {
         return code as String;
       }
@@ -458,6 +480,9 @@ class LarenorServerApi {
             'media_catalog_changed',
             'media_context_changed',
             'media_preparation_limit_reached',
+            'media_installation_changed',
+            'media_archive_authority_changed',
+            'media_archive_snapshot_stale',
           }.contains(code)) {
         return code as String;
       }

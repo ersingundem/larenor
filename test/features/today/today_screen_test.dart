@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:ui' as ui;
 
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -10,6 +11,7 @@ import 'package:larenor/features/auth/providers/auth_providers.dart';
 import 'package:larenor/features/today/data/today_actions.dart';
 import 'package:larenor/features/today/data/today_controller.dart';
 import 'package:larenor/features/today/data/today_timezone.dart';
+import 'package:larenor/features/today/domain/today_daily_summary.dart';
 import 'package:larenor/features/today/domain/today_models.dart';
 import 'package:larenor/features/today/presentation/today_screen.dart';
 import 'package:larenor/features/today/presentation/today_support.dart';
@@ -88,8 +90,15 @@ class _Actions implements TodayActions {
 class _Controller implements TodayController {
   int reads = 0;
   final viewed = <String>[];
+  Completer<void>? pendingRefresh;
+  Object? refreshFailure;
   @override
-  Future<void> refresh({bool afterCurrent = false}) async => reads++;
+  Future<void> refresh({bool afterCurrent = false}) async {
+    reads++;
+    await pendingRefresh?.future;
+    if (refreshFailure != null) throw refreshFailure!;
+  }
+
   @override
   void markNotificationRead(String id) => viewed.add(id);
   @override
@@ -124,8 +133,10 @@ TodaySnapshot _snapshot({
   TodayRead<List<TodayNotification>> notifications = const TodayRead(value: []),
   List<TodayIssue> issues = const [],
   bool configured = true,
+  bool retained = false,
 }) => TodaySnapshot(
   configured: configured,
+  retained: retained,
   refreshedAt: _now,
   timeZone: 'Europe/Istanbul',
   dayStart: TodayTimeZone('Europe/Istanbul').dayRange(_now).start,
@@ -255,6 +266,227 @@ Future<void> _resume(WidgetTester tester) async {
 }
 
 void main() {
+  testWidgets('wide Today keeps four summary selections in master-detail', (
+    tester,
+  ) async {
+    final zone = TodayTimeZone('Europe/Istanbul');
+    final harness = _Harness(
+      TodaySnapshot(
+        configured: true,
+        refreshedAt: _now,
+        timeZone: 'Europe/Istanbul',
+        dayStart: zone.dayRange(_now).start,
+        todoLists: [
+          _list(),
+          TodayTodoList(
+            entityId: 'todo.chores',
+            title: 'Chores',
+            supportedFeatures: 5,
+            available: true,
+            items: const TodayRead(
+              value: [
+                TodayTodoItem(
+                  uid: 'chore-1',
+                  summary: 'Water plants',
+                  status: TodayTodoStatus.needsAction,
+                ),
+              ],
+            ),
+          ),
+        ],
+        calendars: [
+          TodayCalendar(
+            entityId: 'calendar.family',
+            title: 'Family',
+            events: TodayRead(
+              value: [
+                TodayCalendarEvent(
+                  title: 'Dentist',
+                  start: zone.local(DateTime.utc(2026, 9, 5, 9)),
+                  end: zone.local(DateTime.utc(2026, 9, 5, 10)),
+                  allDay: false,
+                ),
+              ],
+            ),
+          ),
+        ],
+        notifications: TodayRead(
+          value: [
+            TodayNotification(
+              id: 'notice',
+              message: 'Door open',
+              createdAt: _now,
+            ),
+          ],
+        ),
+      ),
+    );
+    await harness.mount(tester, size: const Size(1280, 900), scale: 2);
+
+    await _tap(tester, 'today-summary-section-shopping');
+    expect(
+      find.byKey(const ValueKey('today-summary-detail-shopping')),
+      findsOneWidget,
+    );
+    await _tap(tester, 'today-summary-detail-open');
+    expect(find.byType(CupertinoSearchTextField), findsOneWidget);
+    Navigator.of(tester.element(find.byType(CupertinoSearchTextField))).pop();
+    await tester.pumpAndSettle();
+    expect(
+      find.byKey(const ValueKey('today-summary-detail-shopping')),
+      findsOneWidget,
+    );
+
+    for (final kind in ['chores', 'calendar', 'notifications']) {
+      await _tap(tester, 'today-summary-section-$kind');
+      expect(
+        find.byKey(ValueKey('today-summary-detail-$kind')),
+        findsOneWidget,
+      );
+      expect(find.byType(CupertinoSearchTextField), findsOneWidget);
+      if (kind == 'calendar') {
+        expect(
+          find.byKey(const ValueKey('today-calendar-summary')),
+          findsOneWidget,
+        );
+        await tester.enterText(
+          find.byKey(const ValueKey('today-calendar-search')),
+          'dentist',
+        );
+      }
+    }
+    await _tap(tester, 'today-summary-section-calendar');
+    expect(
+      tester
+          .widget<CupertinoSearchTextField>(
+            find.byKey(const ValueKey('today-calendar-search')),
+          )
+          .controller
+          ?.text,
+      'dentist',
+    );
+    expect(find.byKey(const ValueKey('today-calendar-create')), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('summary selection survives detail navigation and return', (
+    tester,
+  ) async {
+    final harness = _Harness(_snapshot(list: _list()));
+    final semantics = tester.ensureSemantics();
+    await harness.mount(tester, size: const Size(600, 1100));
+
+    await _tap(tester, 'today-summary-section-shopping');
+    expect(find.text('Shopping'), findsWidgets);
+    expect(find.byType(CupertinoSearchTextField), findsOneWidget);
+    Navigator.of(tester.element(find.byType(CupertinoSearchTextField))).pop();
+    await tester.pumpAndSettle();
+
+    final shopping = find.byKey(
+      const ValueKey('today-summary-section-shopping'),
+    );
+    expect(
+      tester.getSemantics(shopping).flagsCollection.isSelected,
+      ui.Tristate.isTrue,
+    );
+    harness.connection.change();
+    await tester.pump();
+    harness.publish(_snapshot(list: _list()));
+    await tester.pumpAndSettle();
+    expect(
+      tester.getSemantics(shopping).flagsCollection.isSelected,
+      ui.Tristate.isFalse,
+    );
+    semantics.dispose();
+  });
+
+  testWidgets(
+    'wide detail keeps an exact item through refresh and safely falls back',
+    (tester) async {
+      final harness = _Harness(_snapshot(list: _list()));
+      await harness.mount(tester, size: const Size(1280, 900));
+
+      await _tap(tester, 'today-summary-section-shopping');
+      await tester.enterText(
+        find.byKey(const ValueKey('today-summary-detail-search')),
+        'milk',
+      );
+      await tester.pump();
+      await _tap(tester, 'today-summary-detail-item-todo.shopping-uid-1');
+      var selection = harness.container.read(todaySummarySelectionProvider)!;
+      expect(selection.itemId, 'uid-1');
+      expect(selection.query, 'milk');
+
+      harness.publish(_snapshot(list: _list()));
+      await tester.pumpAndSettle();
+      selection = harness.container.read(todaySummarySelectionProvider)!;
+      expect(selection.itemId, 'uid-1');
+
+      harness.publish(
+        _snapshot(
+          list: _list(
+            items: const [
+              TodayTodoItem(
+                uid: 'replacement',
+                summary: 'Milk replacement',
+                status: TodayTodoStatus.needsAction,
+              ),
+            ],
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      selection = harness.container.read(todaySummarySelectionProvider)!;
+      expect(selection.kind, TodayDailySummaryKind.shopping);
+      expect(selection.sourceId, isNull);
+      expect(selection.itemId, isNull);
+      expect(selection.query, 'milk');
+      expect(
+        find.byKey(const ValueKey('today-summary-detail-shopping')),
+        findsOneWidget,
+      );
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'retained view is explicit, read-only and refresh errors stay secret-free',
+    (tester) async {
+      final harness = _Harness(_snapshot(list: _list(), retained: true));
+      harness.controller.pendingRefresh = Completer<void>();
+      harness.controller.refreshFailure = StateError(
+        'Bearer private-token from http://private-home.invalid',
+      );
+      await harness.mount(tester);
+
+      expect(
+        find.byKey(const ValueKey('today-retained-status')),
+        findsOneWidget,
+      );
+      expect(
+        tester
+            .widget<CupertinoButton>(
+              find.byKey(const ValueKey('today-toggle-todo.shopping-uid-1')),
+            )
+            .onPressed,
+        isNull,
+      );
+
+      await tester.tap(find.byKey(const ValueKey('today-refresh')));
+      await tester.pump();
+      expect(
+        find.bySemanticsLabel("Refreshing today's summary"),
+        findsOneWidget,
+      );
+      harness.controller.pendingRefresh!.complete();
+      await tester.pumpAndSettle();
+
+      expect(find.text('The request could not be completed'), findsOneWidget);
+      expect(find.textContaining('private-token'), findsNothing);
+      expect(find.textContaining('private-home'), findsNothing);
+    },
+  );
+
   testWidgets('idle erases a draft and old Save cannot run after waking', (
     tester,
   ) async {

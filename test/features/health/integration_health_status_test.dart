@@ -10,6 +10,7 @@ import 'package:larenor/features/auth/data/ha_connection_config.dart';
 import 'package:larenor/features/auth/providers/auth_providers.dart';
 import 'package:larenor/features/ha_client/providers/ha_client_providers.dart';
 import 'package:larenor/features/navigation/presentation/system_screen.dart';
+import 'package:larenor/features/dashboard/presentation/tiles/service_tile_shell.dart';
 import 'package:larenor/features/health/data/integration_health.dart';
 import 'package:larenor/features/health/providers/health_providers.dart';
 import 'package:larenor/features/media/jellyfin/data/jellyfin_config.dart';
@@ -395,6 +396,69 @@ void main() {
       expect(find.textContaining('private-'), findsNothing);
       expect(find.textContaining('private.invalid'), findsNothing);
       expect(container.exists(jellyfinClientProvider), isFalse);
+    },
+  );
+
+  testWidgets(
+    'media dashboard shell announces saved reachable verified and offline evidence',
+    (tester) async {
+      final monitor = HealthMonitor(now: () => _now);
+      final connection = _Jellyfin();
+      final container = ProviderContainer(
+        overrides: [
+          jellyfinConnectionProvider.overrideWith(() => connection),
+          healthMonitorProvider.overrideWithValue(monitor),
+          healthClockProvider.overrideWith((ref) => Stream.value(_now)),
+        ],
+      );
+      addTearDown(container.dispose);
+      addTearDown(monitor.dispose);
+      await _show(
+        tester,
+        container,
+        page: SizedBox(
+          width: 320,
+          height: 240,
+          child: ServiceTileShell(
+            key: const ValueKey('media-health-card'),
+            icon: CupertinoIcons.play_rectangle,
+            title: 'Jellyfin',
+            connected: true,
+            service: AppService.jellyfin,
+            onTap: () {},
+            lines: const ['Continue watching'],
+          ),
+        ),
+      );
+      expect(find.text('Saved connection'), findsOneWidget);
+      expect(find.text('Not yet verified'), findsOneWidget);
+
+      final session = monitor.bind(
+        IntegrationId.jellyfin,
+        configured: true,
+        configurationIdentity: container.read(jellyfinConnectionProvider).value,
+      )..contact();
+      await tester.pumpAndSettle();
+      expect(
+        find.text('Server responded; data not yet verified'),
+        findsOneWidget,
+      );
+      expect(find.text('Data read successfully'), findsNothing);
+
+      session.readSucceeded();
+      await tester.pumpAndSettle();
+      expect(find.text('Data read successfully'), findsOneWidget);
+
+      session.failed(HealthFailure.transport);
+      await tester.pumpAndSettle();
+      expect(find.text('Unable to reach service'), findsOneWidget);
+      expect(
+        tester
+            .getSemantics(find.byKey(const ValueKey('media-health-card')))
+            .label,
+        contains('Unable to reach service'),
+      );
+      expect(find.text('Continue watching'), findsOneWidget);
     },
   );
 }

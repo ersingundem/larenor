@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../l10n/generated/app_localizations.dart';
 import '../../../../shared/theme/typography.dart';
+import '../../../../shared/widgets/integration_health_status.dart';
+import '../../../health/data/integration_health.dart';
 import '../../../keenetic/presentation/keenetic_metric_detail_screen.dart';
 import '../../../keenetic/presentation/keenetic_metric_presentation.dart';
 import '../../../keenetic/presentation/keenetic_metric_view.dart';
@@ -34,6 +36,83 @@ class KeeneticTile extends StatelessWidget {
             : presentation?.issue == null
             ? null
             : keeneticReadFailureLabel(l10n, presentation!.issue!);
+        Widget metricLines(BoxConstraints constraints) {
+          if (reading.isLoading) {
+            return const Center(child: CupertinoActivityIndicator());
+          }
+          if (!configured || (issue != null && presentation?.readAt == null)) {
+            return Text(
+              issue ?? l10n.commonNotConnected,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: AppText.footnote.copyWith(
+                color: CupertinoColors.secondaryLabel.resolveFrom(context),
+              ),
+            );
+          }
+          final lines = presentation?.lines ?? const <KeeneticMetricLine>[];
+          final rowHeight =
+              MediaQuery.textScalerOf(context)
+                      .scale(AppText.footnote.fontSize!) *
+                  1.4 +
+              8;
+          final count = (constraints.maxHeight / rowHeight).floor().clamp(
+            0,
+            lines.length + 1,
+          );
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (issue != null && count > 0)
+                SizedBox(
+                  height: rowHeight,
+                  child: Text(
+                    presentation!.stale ? l10n.keeneticMetricStale : issue,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppText.footnote.copyWith(
+                      color: CupertinoColors.systemOrange.resolveFrom(context),
+                    ),
+                  ),
+                ),
+              for (final line in lines.take(
+                (count - (issue == null ? 0 : 1)).clamp(0, lines.length),
+              ))
+                SizedBox(
+                  height: rowHeight,
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          line.label,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: AppText.footnote.copyWith(
+                            color: CupertinoColors.secondaryLabel.resolveFrom(
+                              context,
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Flexible(
+                        child: Text(
+                          line.value,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: AppText.footnote.copyWith(
+                            fontWeight: FontWeight.w600,
+                            color: CupertinoColors.label.resolveFrom(context),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+            ],
+          );
+        }
+
         return CupertinoButton(
           padding: EdgeInsets.zero,
           onPressed: () {
@@ -76,89 +155,23 @@ class KeeneticTile extends StatelessWidget {
                 Expanded(
                   child: LayoutBuilder(
                     builder: (context, constraints) {
-                      if (reading.isLoading) {
-                        return const Center(
-                          child: CupertinoActivityIndicator(),
-                        );
-                      }
-                      if (!configured ||
-                          (issue != null && presentation?.readAt == null)) {
-                        return Text(
-                          issue ?? l10n.commonNotConnected,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          style: AppText.footnote.copyWith(
-                            color: CupertinoColors.secondaryLabel.resolveFrom(
-                              context,
-                            ),
-                          ),
-                        );
-                      }
-                      final lines =
-                          presentation?.lines ?? const <KeeneticMetricLine>[];
-                      final rowHeight =
-                          MediaQuery.textScalerOf(context)
-                                  .scale(AppText.footnote.fontSize!) *
-                              1.4 +
-                          8;
-                      final count = (constraints.maxHeight / rowHeight)
-                          .floor()
-                          .clamp(0, lines.length + 1);
+                      final status = IntegrationHealthStatus(
+                        id: IntegrationId.keenetic,
+                        configured: configured,
+                        compact: true,
+                      );
+                      final scale = MediaQuery.textScalerOf(context).scale(1);
+                      if (constraints.maxHeight < 72 * scale) return status;
                       return Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          if (issue != null && count > 0)
-                            SizedBox(
-                              height: rowHeight,
-                              child: Text(
-                                presentation!.stale
-                                    ? l10n.keeneticMetricStale
-                                    : issue,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: AppText.footnote.copyWith(
-                                  color: CupertinoColors.systemOrange
-                                      .resolveFrom(context),
-                                ),
-                              ),
+                          status,
+                          const SizedBox(height: 6),
+                          Expanded(
+                            child: LayoutBuilder(
+                              builder: (_, inner) => metricLines(inner),
                             ),
-                          for (final line in lines.take(
-                            (count - (issue == null ? 0 : 1)).clamp(
-                              0,
-                              lines.length,
-                            ),
-                          ))
-                            SizedBox(
-                              height: rowHeight,
-                              child: Row(
-                                children: [
-                                  Expanded(
-                                    child: Text(
-                                      line.label,
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: AppText.footnote.copyWith(
-                                        color: CupertinoColors.secondaryLabel
-                                            .resolveFrom(context),
-                                      ),
-                                    ),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  Flexible(
-                                    child: Text(
-                                      line.value,
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: AppText.footnote.copyWith(
-                                        fontWeight: FontWeight.w600,
-                                        color: CupertinoColors.label
-                                            .resolveFrom(context),
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
+                          ),
                         ],
                       );
                     },

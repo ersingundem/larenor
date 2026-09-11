@@ -27,6 +27,11 @@ enum TileType {
   proxmox,
   keenetic,
   coreKeenetic,
+  today,
+  coreKeeneticDetails,
+  coreKeeneticMesh,
+  coreKeeneticClients,
+  coreKeeneticBandwidth,
 }
 
 @freezed
@@ -53,6 +58,8 @@ abstract class TileConfig with _$TileConfig {
     int? coreResourceAclRevision,
     String? coreBindingId,
     int? coreBindingRevision,
+    String? todaySection,
+    String? todayQuery,
     WebPanelOptions? webPanel,
   }) = _TileConfig;
 

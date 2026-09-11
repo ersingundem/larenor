@@ -74,7 +74,13 @@ HomeResourceRecord coreKeeneticTileTarget(
   TileConfig tile,
   ServerContext context,
 ) {
-  if (tile.type != TileType.coreKeenetic ||
+  if (!const {
+        TileType.coreKeenetic,
+        TileType.coreKeeneticDetails,
+        TileType.coreKeeneticMesh,
+        TileType.coreKeeneticClients,
+        TileType.coreKeeneticBandwidth,
+      }.contains(tile.type) ||
       tile.coreId != context.coreId ||
       tile.coreHomeId != context.homeId) {
     throw const LarenorServerException('resource_changed');
@@ -96,6 +102,11 @@ HomeResourceRecord coreKeeneticTileTarget(
     'permissions': {'read': true, 'write': false},
   }, expectedContext: context);
 }
+
+typedef CoreKeeneticDetailsDashboardData = ({
+  CoreKeeneticSnapshot authority,
+  CoreKeeneticDetailsPage page,
+});
 
 void validateCoreKeeneticDashboardReadback(
   TileConfig tile,
@@ -204,13 +215,9 @@ final coreKeeneticDashboardSnapshotProvider = FutureProvider.autoDispose
       }
     }, retry: (_, _) => null);
 
-final coreKeeneticDashboardDraftProvider = FutureProvider.autoDispose
-    .family<TileConfig, HomeResourceRecord>((ref, target) async {
+final coreKeeneticDashboardDetailsProvider = FutureProvider.autoDispose
+    .family<CoreKeeneticDetailsDashboardData, TileConfig>((ref, tile) async {
       final authority = _authority(ref), session = authority.session;
-      if (target.context != session.context ||
-          target.kind != HomeResourceKind.resource) {
-        throw const LarenorServerException('resource_changed');
-      }
       final transport = ref.watch(coreKeeneticApiFactoryProvider)(
         session.endpoint,
       );
@@ -226,6 +233,7 @@ final coreKeeneticDashboardDraftProvider = FutureProvider.autoDispose
       ref.onDispose(close);
       bool current() => live && _current(ref, authority);
       try {
+        final target = coreKeeneticTileTarget(tile, session.context!);
         final api = CoreKeeneticApi(
           transport,
           session.accessToken,
@@ -233,37 +241,152 @@ final coreKeeneticDashboardDraftProvider = FutureProvider.autoDispose
           isCurrent: current,
         );
         final record = await api.resource();
-        if (record.revision != target.revision ||
-            record.aclRevision != target.aclRevision) {
-          throw const LarenorServerException('resource_changed');
-        }
-        final snapshot = await CoreKeeneticApi(
+        final bound = CoreKeeneticApi(
           transport,
           session.accessToken,
           record,
           isCurrent: current,
-        ).snapshot();
-        if (snapshot.resourceRevision != record.revision ||
-            snapshot.aclRevision != record.aclRevision) {
-          throw const LarenorServerException('resource_changed');
-        }
-        return TileConfig(
-          id: DateTime.now().microsecondsSinceEpoch.toString(),
-          type: TileType.coreKeenetic,
-          x: 0,
-          y: 0,
-          width: 3,
-          height: 2,
-          title: record.label,
-          coreId: record.context.coreId,
-          coreHomeId: record.context.homeId,
-          coreResourceId: record.id,
-          coreResourceRevision: record.revision,
-          coreResourceAclRevision: record.aclRevision,
-          coreBindingId: snapshot.bindingId,
-          coreBindingRevision: snapshot.bindingRevision,
         );
+        final snapshot = await bound.snapshot();
+        validateCoreKeeneticDashboardReadback(tile, record, snapshot);
+        final page = await bound.details(limit: 12);
+        return (authority: snapshot, page: page);
       } finally {
         close();
       }
     }, retry: (_, _) => null);
+
+final coreKeeneticDashboardTopologyProvider = FutureProvider.autoDispose
+    .family<CoreKeeneticTopologySnapshot, TileConfig>((ref, tile) async {
+      final authority = _authority(ref), session = authority.session;
+      final transport = ref.watch(coreKeeneticApiFactoryProvider)(
+        session.endpoint,
+      );
+      var live = true, closed = false;
+      void close() {
+        live = false;
+        if (!closed) {
+          closed = true;
+          transport.close();
+        }
+      }
+
+      ref.onDispose(close);
+      bool current() => live && _current(ref, authority);
+      try {
+        final target = coreKeeneticTileTarget(tile, session.context!);
+        final api = CoreKeeneticApi(
+          transport,
+          session.accessToken,
+          target,
+          isCurrent: current,
+        );
+        final record = await api.resource();
+        final topology = await CoreKeeneticApi(
+          transport,
+          session.accessToken,
+          record,
+          isCurrent: current,
+        ).topology();
+        if (record.revision != tile.coreResourceRevision ||
+            record.aclRevision != tile.coreResourceAclRevision ||
+            topology.bindingId != tile.coreBindingId ||
+            topology.bindingRevision != tile.coreBindingRevision ||
+            topology.resourceRevision != tile.coreResourceRevision ||
+            topology.aclRevision != tile.coreResourceAclRevision) {
+          throw const LarenorServerException('resource_changed');
+        }
+        return topology;
+      } finally {
+        close();
+      }
+    }, retry: (_, _) => null);
+
+typedef CoreKeeneticDashboardDraftSelection = ({
+  HomeResourceRecord target,
+  TileType type,
+});
+
+Future<TileConfig> _draft(
+  Ref ref,
+  HomeResourceRecord target,
+  TileType type,
+) async {
+  final authority = _authority(ref), session = authority.session;
+  if (target.context != session.context ||
+      target.kind != HomeResourceKind.resource ||
+      !const {
+        TileType.coreKeenetic,
+        TileType.coreKeeneticDetails,
+        TileType.coreKeeneticMesh,
+        TileType.coreKeeneticClients,
+        TileType.coreKeeneticBandwidth,
+      }.contains(type)) {
+    throw const LarenorServerException('resource_changed');
+  }
+  final transport = ref.watch(coreKeeneticApiFactoryProvider)(session.endpoint);
+  var live = true, closed = false;
+  void close() {
+    live = false;
+    if (!closed) {
+      closed = true;
+      transport.close();
+    }
+  }
+
+  ref.onDispose(close);
+  bool current() => live && _current(ref, authority);
+  try {
+    final api = CoreKeeneticApi(
+      transport,
+      session.accessToken,
+      target,
+      isCurrent: current,
+    );
+    final record = await api.resource();
+    if (record.revision != target.revision ||
+        record.aclRevision != target.aclRevision) {
+      throw const LarenorServerException('resource_changed');
+    }
+    final snapshot = await CoreKeeneticApi(
+      transport,
+      session.accessToken,
+      record,
+      isCurrent: current,
+    ).snapshot();
+    if (snapshot.resourceRevision != record.revision ||
+        snapshot.aclRevision != record.aclRevision) {
+      throw const LarenorServerException('resource_changed');
+    }
+    return TileConfig(
+      id: DateTime.now().microsecondsSinceEpoch.toString(),
+      type: type,
+      x: 0,
+      y: 0,
+      width: 3,
+      height: 2,
+      title: record.label,
+      coreId: record.context.coreId,
+      coreHomeId: record.context.homeId,
+      coreResourceId: record.id,
+      coreResourceRevision: record.revision,
+      coreResourceAclRevision: record.aclRevision,
+      coreBindingId: snapshot.bindingId,
+      coreBindingRevision: snapshot.bindingRevision,
+    );
+  } finally {
+    close();
+  }
+}
+
+final coreKeeneticDashboardVariantDraftProvider = FutureProvider.autoDispose
+    .family<TileConfig, CoreKeeneticDashboardDraftSelection>(
+      (ref, selection) => _draft(ref, selection.target, selection.type),
+      retry: (_, _) => null,
+    );
+
+final coreKeeneticDashboardDraftProvider = FutureProvider.autoDispose
+    .family<TileConfig, HomeResourceRecord>(
+      (ref, target) => _draft(ref, target, TileType.coreKeenetic),
+      retry: (_, _) => null,
+    );

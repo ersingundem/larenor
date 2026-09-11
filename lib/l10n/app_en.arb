@@ -1036,6 +1036,12 @@
   "navigationSearchLocalHint": "Search uses data already loaded on this device.",
   "navigationSearchEmpty": "No matching results",
   "navigationSearchRemote": "Search media catalog",
+  "navigationSearchSourceLocal": "Local",
+  "navigationSearchSourceDirect": "Direct",
+  "navigationSearchSourceCore": "Core",
+  "navigationSearchStatusCurrent": "Current",
+  "navigationSearchStatusStale": "Stale",
+  "navigationSearchStatusOffline": "Offline",
   "navigationSearchNoCache": "Open Home or Media to load content, then search here.",
   "navigationSearchRoom": "Room",
   "navigationSearchEntity": "Device or entity",
@@ -1186,6 +1192,7 @@
   "todayNoNotifications": "No notifications.",
   "todayUnread": "Not read yet",
   "todayPartial": "Some information could not be refreshed.",
+  "todayRefreshing": "Refreshing today's summary",
   "todayStale": "Showing an older saved view. Refresh before making changes.",
   "todayUnsupported": "This feature is not available from this Home Assistant integration.",
   "todayUnavailable": "This source is currently unavailable.",
@@ -1215,6 +1222,28 @@
   "todayDismissConfirm": "This removes the notification from Home Assistant for everyone.",
   "todayViewingKeepsNotification": "Opening a notification keeps it in Home Assistant.",
   "todayAllDay": "All day",
+  "todayCalendarAllDayEvents": "All-day events",
+  "todayCalendarTimedEvents": "Timed events",
+  "todayCalendarPast": "Past",
+  "todayCalendarCurrent": "Happening now",
+  "todayCalendarUpcoming": "Upcoming",
+  "todayCalendarSaved": "Saved reading",
+  "todayCalendarSavedSource": "Saved source: {source}",
+  "@todayCalendarSavedSource": {
+    "placeholders": {
+      "source": {
+        "type": "String"
+      }
+    }
+  },
+  "todayCalendarUnavailableSource": "Unavailable source: {source}",
+  "@todayCalendarUnavailableSource": {
+    "placeholders": {
+      "source": {
+        "type": "String"
+      }
+    }
+  },
   "todayLocation": "Location",
   "todayTimeZone": "Home time zone: {zone}",
   "todayRefreshed": "Updated: {time}",
@@ -2815,5 +2844,270 @@
   "serverMusicProviderConfirm": "Confirm reviewed intent",
   "serverMusicProviderDisable": "Review disable",
   "serverMusicProviderEffectUnavailable": "Effect unavailable. Confirmation records the blocked intent only.",
-  "serverMusicProviderEnable": "Review enable"
+  "serverMusicProviderEnable": "Review enable",
+  "mediaArchiveTitle": "Archive health",
+  "mediaArchiveReadOnly": "Read-only health and space review. Refresh explicitly to read current Core evidence.",
+  "mediaArchiveRefreshLabel": "Refresh archive health",
+  "mediaArchiveIdle": "Refresh when you want to inspect the current archive.",
+  "mediaArchiveLoading": "Reading the current archive snapshot…",
+  "mediaArchiveHealthy": "The verified archive snapshot is healthy.",
+  "mediaArchiveAttention": "The verified archive snapshot needs attention.",
+  "mediaArchivePartial": "Only part of the archive could be verified.",
+  "mediaArchiveStale": "The archive evidence changed or expired. Refresh to read it again.",
+  "mediaArchiveOffline": "Core or its private archive reader is offline.",
+  "mediaArchiveDenied": "An active administrator session is required.",
+  "mediaArchiveUnsupported": "A single supported managed media archive is not available.",
+  "mediaArchiveMissing": "Missing",
+  "mediaArchiveBroken": "Broken",
+  "mediaArchiveFailedDownloads": "Failed downloads",
+  "mediaArchiveSavingCandidates": "Space review candidates",
+  "mediaArchivePotentialSavings": "Potential space",
+  "mediaArchiveSourceVerified": "Verified",
+  "mediaArchiveSourceUnavailable": "Unavailable",
+  "mediaArchiveSourceUnsupported": "Unsupported",
+  "mediaArchiveSourceStale": "Stale",
+  "mediaArchiveOpenDetails": "View archive details",
+  "mediaArchiveDetailsTitle": "Archive evidence",
+  "mediaArchiveDetailReadOnly": "Evidence only. Storage changes are unavailable from this screen.",
+  "mediaArchiveCapturedAt": "Captured {time}",
+  "@mediaArchiveCapturedAt": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "mediaArchiveSourcesTitle": "Source evidence",
+  "mediaArchiveIssuesTitle": "Archive issues",
+  "mediaArchiveIssuesEmpty": "No verified archive issues in this snapshot.",
+  "mediaArchiveSavingsTitle": "Space review",
+  "mediaArchiveSavingsHint": "Suggestions are evidence for review. Larenor does not change stored media here.",
+  "mediaArchiveSavingsEmpty": "No verified space review candidates in this snapshot.",
+  "mediaArchiveHealthyEvidence": "Healthy evidence",
+  "mediaArchiveAttentionEvidence": "Attention needed",
+  "mediaArchivePartialEvidence": "Partial evidence",
+  "mediaArchiveSeverityWarning": "Warning",
+  "mediaArchiveSeverityCritical": "Critical",
+  "mediaArchiveIssueMissingMedia": "Monitored media is missing",
+  "mediaArchiveIssueMissingFile": "Library file is missing",
+  "mediaArchiveIssueCorrupt": "Media integrity check failed",
+  "mediaArchiveIssueUnplayable": "Media is not playable",
+  "mediaArchiveIssueDownload": "Download reported an error",
+  "mediaArchiveEvidenceVerified": "Three checks verified",
+  "mediaArchiveEvidenceDownloadComplete": "Download is complete",
+  "mediaArchiveEvidenceImportVerified": "Library import is verified",
+  "mediaArchiveEvidenceRetentionSatisfied": "Retention policy is satisfied",
+  "mediaArchiveObservedSize": "Observed size: {size}",
+  "@mediaArchiveObservedSize": {
+    "placeholders": {
+      "size": {
+        "type": "String"
+      }
+    }
+  },
+  "mediaArchivePotentialValue": "Potential space: {size}",
+  "@mediaArchivePotentialValue": {
+    "placeholders": {
+      "size": {
+        "type": "String"
+      }
+    }
+  },
+  "mediaArchivePlanReady": "All savings evidence lanes are verified.",
+  "mediaArchivePlanPartial": "The plan is partial. Unsupported, unavailable or stale lanes produce no candidates.",
+  "mediaArchivePlanTotal": "Bounded potential: {size}",
+  "@mediaArchivePlanTotal": {
+    "placeholders": {
+      "size": {
+        "type": "String"
+      }
+    }
+  },
+  "mediaArchivePlanTruncated": "The bounded result limit was reached; this is not a complete archive estimate.",
+  "mediaArchivePlanDuplicates": "Duplicates",
+  "mediaArchivePlanTranscode": "Transcode review",
+  "mediaArchivePlanRetention": "Retention review",
+  "mediaArchivePlanLaneVerified": "Verified evidence lane",
+  "mediaArchivePlanLanePartial": "Partial evidence lane",
+  "mediaArchivePlanLaneUnsupported": "This evidence lane is unsupported.",
+  "mediaArchivePlanLaneUnavailable": "This evidence lane is unavailable.",
+  "mediaArchivePlanLaneStale": "This evidence lane is stale.",
+  "mediaArchiveEvidenceSameIdentity": "The provider identity matches",
+  "mediaArchiveEvidenceMultiplePlayable": "Multiple playable files were verified",
+  "mediaArchiveEvidenceLargestExcluded": "The largest copy is excluded from the estimate",
+  "mediaArchiveEvidenceSourceProfile": "The source media profile was verified",
+  "mediaArchiveEvidenceTargetPlayback": "Target playback compatibility was verified",
+  "mediaArchiveEvidenceBoundedEstimate": "The estimate is bounded by the observed file size",
+  "mediaArchiveComparisonOpen": "Open comparison and evidence",
+  "mediaArchiveComparisonTitle": "Savings comparison",
+  "mediaArchiveComparisonReadOnly": "Read-only comparison. Values are estimates derived from verified evidence.",
+  "mediaArchiveConfidenceHigh": "High confidence",
+  "mediaArchiveConfidenceMedium": "Medium confidence",
+  "mediaArchiveEstimatedRetained": "Estimated retained: {size}",
+  "@mediaArchiveEstimatedRetained": {
+    "placeholders": {
+      "size": {
+        "type": "String"
+      }
+    }
+  },
+  "mediaArchiveEstimatedGain": "Estimated gain: {size}",
+  "@mediaArchiveEstimatedGain": {
+    "placeholders": {
+      "size": {
+        "type": "String"
+      }
+    }
+  },
+  "mediaArchiveComparisonBasisTitle": "Why this comparison",
+  "mediaArchiveComparisonKeepLargest": "Compares all verified playable copies with the largest copy retained.",
+  "mediaArchiveComparisonTranscode": "Compares observed size with a bitrate-based estimate bounded by the source file size.",
+  "mediaArchiveComparisonRetention": "Shows the verified retained download as a review candidate after import and retention checks passed. Actual disk recovery can differ when storage is shared.",
+  "mediaArchiveEvidenceTitle": "Verified evidence",
+  "mediaArchiveDataGapsTitle": "Data gaps",
+  "mediaArchiveDataGap": "{lane}: {reason}",
+  "@mediaArchiveDataGap": {
+    "placeholders": {
+      "lane": {
+        "type": "String"
+      },
+      "reason": {
+        "type": "String"
+      }
+    }
+  },
+  "mediaArchiveGapPartial": "evidence is partial",
+  "mediaArchiveGapUnsupported": "evidence is unsupported",
+  "mediaArchiveGapUnavailable": "evidence is unavailable",
+  "mediaArchiveGapStale": "evidence is stale",
+  "mediaArchiveGapTruncated": "result limit reached",
+  "mediaArchiveEvidenceContentHash": "Verified content hash matches",
+  "mediaArchiveEvidenceNameSizeRuntime": "Possible match from exact name, size and runtime; content hash is unavailable",
+  "mediaArchiveEvidenceQualityProfile": "Resolution and bitrate profiles were verified",
+  "mediaArchiveEvidenceBestQuality": "The best-quality copy is excluded from the estimate",
+  "mediaArchiveEvidenceSource": "{source} evidence",
+  "@mediaArchiveEvidenceSource": {
+    "placeholders": {
+      "source": {
+        "type": "String"
+      }
+    }
+  },
+  "mediaArchiveGroupExactHash": "Exact content hash match",
+  "mediaArchiveGroupProbableMetadata": "Possible match: same name, size and runtime",
+  "mediaArchiveGroupLowerQuality": "Verified lower-quality variant",
+  "mediaArchiveComparisonBestQuality": "Compares verified quality profiles and retains every best-quality copy; only lower-quality variants contribute to the estimate.",
+  "mediaArchiveTrendTitle": "12-week storage trend",
+  "mediaArchiveTrendReady": "Verified weekly capacity evidence from Larenor Core.",
+  "mediaArchiveTrendStale": "Weekly storage trend is stale.",
+  "mediaArchiveTrendUnavailable": "Weekly storage trend is unavailable.",
+  "mediaArchiveTrendWeek": "Week of {date}",
+  "@mediaArchiveTrendWeek": {
+    "placeholders": {
+      "date": {
+        "type": "String"
+      }
+    }
+  },
+  "mediaArchiveTrendTotal": "Total",
+  "mediaArchiveTrendFree": "Free space",
+  "mediaArchiveTrendReclaimable": "Potential space",
+  "mediaArchiveTrendCandidateCounts": "Possible duplicates and low-quality variants",
+  "mediaArchiveTrendDuplicates": "Possible duplicates",
+  "mediaArchiveTrendLowQuality": "Low-quality variants",
+  "vncTitle": "VNC readiness",
+  "vncProfileHint": "Open the secure VNC readiness panel. A session is offered only when the packaged engine proves RFB 3.8, TLS, certificate pinning, display, touchpad, and keyboard capabilities.",
+  "vncCheck": "Check VNC capability",
+  "vncEngineUnavailable": "A native VNC engine is not packaged in this build. No DNS lookup or connection was attempted.",
+  "vncChecking": "Checking packaged capabilities and RFB security…",
+  "vncPlainRejected": "Plain VNC is insecure and is blocked by default.",
+  "vncNoAuthRejected": "The server offered an unauthenticated VNC session. It was blocked.",
+  "vncSecurityUnsupported": "The RFB security selection is not supported by the packaged engine.",
+  "vncCertificateChanged": "The TLS certificate differs from the saved pin. The session was blocked.",
+  "vncCertificateReview": "Review and pin this TLS certificate before entering a VNC password.",
+  "vncTrustCertificate": "Trust this certificate",
+  "vncPassword": "One-time VNC password",
+  "vncAuthenticate": "Open verified session",
+  "vncConnecting": "Opening the verified VNC session…",
+  "vncConnected": "VNC transport connected. Native framebuffer rendering remains engine-owned.",
+  "vncClosed": "VNC session closed. Reopen the profile for a new attempt.",
+  "vncFailed": "VNC session failed. No automatic retry or input replay occurred.",
+  "vncClipboardOff": "Clipboard: Off",
+  "vncFilesOff": "Files: Off",
+  "vncChannelsHint": "Clipboard and file channels start disabled and require separate explicit capability and consent work.",
+  "vncDisplay": "Display",
+  "vncDisplayValue": "{width} × {height} · {dpi} DPI",
+  "@vncDisplayValue": {
+    "placeholders": {
+      "width": {
+        "type": "int"
+      },
+      "height": {
+        "type": "int"
+      },
+      "dpi": {
+        "type": "int"
+      }
+    }
+  },
+  "vncExternalDisplay": "DeX / external display profile",
+  "vncInputReady": "Touchpad and physical keyboard input are scoped to this foreground session.",
+  "coreKeeneticTrafficTotal": "Total traffic",
+  "coreKeeneticGuestWifi": "Guest Wi-Fi",
+  "coreKeeneticGuestEnabled": "Enabled",
+  "coreKeeneticGuestDisabled": "Disabled",
+  "coreKeeneticGuestUnavailable": "Not reported",
+  "coreKeeneticViewDetails": "View network details",
+  "coreKeeneticControls": "Open protected router controls",
+  "keeneticCommandTitle": "Keenetic controls",
+  "keeneticCommandGuestWifi": "Guest Wi-Fi",
+  "keeneticCommandClient": "Client internet access",
+  "keeneticCommandWan": "WAN connection",
+  "keeneticCommandEnable": "Enable",
+  "keeneticCommandDisable": "Disable",
+  "keeneticCommandPause": "Pause internet",
+  "keeneticCommandResume": "Resume internet",
+  "keeneticCommandReconnect": "Reconnect WAN",
+  "keeneticCommandReview": "Review command",
+  "keeneticCommandConfirm": "Confirm",
+  "keeneticCommandConfirmAgain": "Confirm again",
+  "keeneticCommandWanConfirmAgain": "Confirm WAN reconnect again",
+  "keeneticCommandCancel": "Cancel",
+  "keeneticCommandSucceeded": "Succeeded",
+  "keeneticCommandFailed": "Failed",
+  "keeneticCommandUnknown": "Result unknown",
+  "keeneticCommandUnavailable": "Command controls are unavailable. Refresh the exact router state before trying again.",
+  "keeneticCommandReadOnly": "This account can view router state but cannot run commands.",
+  "coreKeeneticDetailsTitle": "Network devices and interfaces",
+  "coreKeeneticDetailsSearch": "Search devices and interfaces",
+  "coreKeeneticDetailsAll": "All",
+  "coreKeeneticDetailsInterfaces": "Interfaces",
+  "coreKeeneticDetailsClients": "Devices",
+  "coreKeeneticDetailsEmpty": "No matching network details.",
+  "coreKeeneticDetailsLoadMore": "Load more",
+  "coreKeeneticDetailsIdentity": "Private device identity",
+  "coreKeeneticDetailsInterface": "Interface",
+  "coreKeeneticDetailsAddress": "Address",
+  "coreKeeneticDetailsSsid": "Wi-Fi name",
+  "coreKeeneticDetailsBand": "Band",
+  "coreKeeneticDetailsChannel": "Channel",
+  "coreKeeneticDetailsSignal": "Signal",
+  "coreKeeneticDetailsAccess": "Internet access",
+  "coreKeeneticMeshTitle": "Mesh and Wi-Fi topology",
+  "coreKeeneticMeshNodes": "Mesh nodes",
+  "coreKeeneticMeshNetworks": "Wi-Fi distribution",
+  "coreKeeneticMeshController": "Controller",
+  "coreKeeneticMeshExtender": "Extender",
+  "coreKeeneticMeshBackhaul": "Backhaul",
+  "coreKeeneticMeshQuality": "Estimated path quality",
+  "coreKeeneticMeshPathCost": "Path cost",
+  "coreKeeneticMeshClients": "Connected devices",
+  "coreKeeneticMeshNoNodes": "No mesh extenders were reported.",
+  "coreKeeneticMeshUnavailable": "Mesh topology is unavailable. Refresh to try again.",
+  "coreKeeneticMeshUnsupported": "This router does not report a supported mesh topology.",
+  "coreKeeneticMeshExcellent": "Excellent",
+  "coreKeeneticMeshGood": "Good",
+  "coreKeeneticMeshFair": "Fair",
+  "coreKeeneticMeshPoor": "Poor",
+  "coreKeeneticMeshUnknown": "Unknown"
 }

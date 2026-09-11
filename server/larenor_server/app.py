@@ -37,6 +37,7 @@ from .plugins.media_api import router as media_preparations_router
 from .plugins.media_inspection_api import router as media_inspections_router
 from .plugins.media_installation_api import router as media_installations_router
 from .plugins.media_service_bootstrap_api import router as media_service_bootstraps_router
+from .plugins.seerr_bootstrap_job_api import router as seerr_bootstraps_router
 from .plugins.qbittorrent_config_job_api import router as qbittorrent_configurations_router
 from .plugins.arr_config_job_api import router as arr_configurations_router
 from .plugins.music_assistant_core_api import router as music_assistant_core_router
@@ -44,10 +45,12 @@ from .plugins.music_provider_setup_api import router as music_provider_setup_rou
 from .plugins.music_provider_command_api import router as music_provider_command_router
 from .plugins.music_playback_api import router as music_playback_router
 from .plugins.music_retained_status_api import router as music_retained_status_router
+from .plugins.media_archive_core_api import router as media_archive_health_router
 from .bounded_transfer.api import router as bounded_transfer_router
 from .bounded_transfer.models import TransferLimits
 from .bounded_transfer.service import BlobProvider
 from .proxmox_commands.api import router as proxmox_power_router
+from .keenetic_commands.api import router as keenetic_command_router
 
 
 Core = Annotated[CoreServices, Depends(get_core)]
@@ -61,7 +64,9 @@ def create_app(settings: Settings, *, routers: Iterable[APIRouter] = (),
                blob_provider: BlobProvider | None = None,
                transfer_limits: TransferLimits | None = None,
                proxmox_guest_provider=None,
-               proxmox_power_executor=None) -> FastAPI:
+               proxmox_power_executor=None,
+               media_archive_binding_reader=None,
+               media_archive_worker=None) -> FastAPI:
     source = source or SourceInformation.from_environment()
     @asynccontextmanager
     async def lifespan(application):
@@ -96,11 +101,15 @@ def create_app(settings: Settings, *, routers: Iterable[APIRouter] = (),
         arr = application.state.core.arr_configurations
         arr_task = asyncio.create_task(dispatch(
             arr, "arr_configuration_dispatch_unavailable")) if arr.backend is not None else None
+        seerr = application.state.core.seerr_bootstraps
+        seerr_task = asyncio.create_task(dispatch(
+            seerr, "seerr_bootstrap_dispatch_unavailable")) if seerr.backend is not None else None
         application.state.media_inspection_dispatcher = media_task
         application.state.media_installation_dispatcher = installation_task
         application.state.media_service_bootstrap_dispatcher = bootstrap_task
         application.state.qbittorrent_configuration_dispatcher = qbittorrent_task
         application.state.arr_configuration_dispatcher = arr_task
+        application.state.seerr_bootstrap_dispatcher = seerr_task
         application.state.plugin_job_dispatcher = task
         try:
             yield
@@ -125,6 +134,8 @@ def create_app(settings: Settings, *, routers: Iterable[APIRouter] = (),
                 await qbittorrent_task
             if arr_task is not None:
                 await arr_task
+            if seerr_task is not None:
+                await seerr_task
 
     app = FastAPI(title="Larenor Server", version=server_version(), docs_url=None,
                   redoc_url=None, openapi_url=None,
@@ -134,13 +145,16 @@ def create_app(settings: Settings, *, routers: Iterable[APIRouter] = (),
     app.state.core = CoreServices(
         settings, blob_provider=blob_provider, transfer_limits=transfer_limits,
         proxmox_guest_provider=proxmox_guest_provider,
-        proxmox_power_executor=proxmox_power_executor)
+        proxmox_power_executor=proxmox_power_executor,
+        media_archive_binding_reader=media_archive_binding_reader,
+        media_archive_worker=media_archive_worker)
     app.state.plugin_job_dispatcher = None
     app.state.media_inspection_dispatcher = None
     app.state.media_installation_dispatcher = None
     app.state.media_service_bootstrap_dispatcher = None
     app.state.qbittorrent_configuration_dispatcher = None
     app.state.arr_configuration_dispatcher = None
+    app.state.seerr_bootstrap_dispatcher = None
     app.add_middleware(SafeBoundaryMiddleware)
 
     @app.exception_handler(ApiError)
@@ -241,6 +255,7 @@ def create_app(settings: Settings, *, routers: Iterable[APIRouter] = (),
     app.include_router(media_inspections_router, prefix="/api/v1")
     app.include_router(media_installations_router, prefix="/api/v1")
     app.include_router(media_service_bootstraps_router, prefix="/api/v1")
+    app.include_router(seerr_bootstraps_router, prefix="/api/v1")
     app.include_router(qbittorrent_configurations_router, prefix="/api/v1")
     app.include_router(arr_configurations_router, prefix="/api/v1")
     app.include_router(music_retained_status_router, prefix="/api/v1")
@@ -248,7 +263,9 @@ def create_app(settings: Settings, *, routers: Iterable[APIRouter] = (),
     app.include_router(music_provider_setup_router, prefix="/api/v1")
     app.include_router(music_provider_command_router, prefix="/api/v1")
     app.include_router(music_playback_router, prefix="/api/v1")
+    app.include_router(media_archive_health_router, prefix="/api/v1")
     app.include_router(proxmox_power_router, prefix="/api/v1")
+    app.include_router(keenetic_command_router, prefix="/api/v1")
     for extension in routers:
         # Only routers supplied by trusted, packaged server code are supported.
         app.include_router(extension, prefix="/api/v1")

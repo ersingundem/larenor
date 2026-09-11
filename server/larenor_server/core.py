@@ -27,6 +27,8 @@ from .plugins.media_installation_schema import migrate_media_installations
 from .plugins.media_installations import MediaInstallationManagement
 from .plugins.media_service_bootstrap_schema import migrate_media_service_bootstraps
 from .plugins.media_service_bootstraps import MediaServiceBootstrapManagement
+from .plugins.seerr_bootstrap_job_schema import migrate_seerr_bootstraps
+from .plugins.seerr_bootstrap_jobs import SeerrBootstrapManagement
 from .plugins.qbittorrent_config_job_schema import migrate_qbittorrent_configurations
 from .plugins.qbittorrent_config_jobs import QbittorrentConfigurationManagement
 from .plugins.arr_config_job_schema import migrate_arr_configurations
@@ -40,6 +42,10 @@ from .plugins.music_provider_commands import MusicProviderCommandManagement
 from .plugins.music_playback_schema import migrate_music_playback
 from .plugins.music_playback import MusicPlaybackManagement
 from .plugins.music_retained_status import MusicRetainedStatusManagement
+from .plugins.media_archive_core import MediaArchiveHealthManagement
+from .plugins.media_archive_weekly_trend_schema import (
+    migrate_media_archive_weekly_trends,
+)
 from .plugins.preflight_ipc import PreflightWorkerClient
 from .plugins.installation_ipc import InstallationWorkerClient
 from .component_egress.storage import migrate as migrate_component_egress
@@ -67,17 +73,26 @@ from .proxmox_commands.schema import migrate as migrate_proxmox_power
 from .proxmox_commands.service import ProxmoxPowerAuthority
 from .proxmox_commands.worker_ipc import verified_power_worker_client
 from .proxmox_commands.core_worker import EgressGatedProxmoxExecutor
+from .keenetic_commands.schema import migrate as migrate_keenetic_commands
+from .keenetic_commands.journal import KeeneticCommandJournal, state_tag as keenetic_state_tag
+from .keenetic_commands.service import KeeneticCommandAuthority
+from .keenetic_commands.core_worker import build_keenetic_worker_effect
+from .keenetic_commands.provider import KeeneticCommandStateProvider
 
 
 class CoreServices:
     def __init__(self, settings: Settings, *, blob_provider: BlobProvider | None = None,
                  transfer_limits: TransferLimits | None = None,
-                 proxmox_guest_provider=None, proxmox_power_executor=None):
+                 proxmox_guest_provider=None, proxmox_power_executor=None,
+                 media_archive_binding_reader=None,
+                 media_archive_worker=None):
         self.settings = settings
         self._blob_provider = blob_provider
         self._transfer_limits = transfer_limits
         self._proxmox_guest_provider = proxmox_guest_provider
         self._proxmox_power_executor = proxmox_power_executor
+        self._media_archive_binding_reader = media_archive_binding_reader
+        self._media_archive_worker = media_archive_worker
         self.bootstrap_created = False
         self.bootstrap_cleanup_pending = False
         try:
@@ -185,13 +200,23 @@ class CoreServices:
                 migrate_media_inspections(connection)
                 migrate_media_installations(connection)
                 migrate_media_service_bootstraps(connection)
+                migrate_seerr_bootstraps(connection)
                 migrate_qbittorrent_configurations(connection)
                 migrate_arr_configurations(connection)
                 migrate_music_assistant_core(connection)
                 migrate_music_provider_setups(connection)
                 migrate_music_provider_commands(connection)
                 migrate_music_playback(connection)
+                migrate_media_archive_weekly_trends(connection)
                 migrate_proxmox_power(connection, key)
+                migrate_keenetic_commands(
+                    connection,
+                    key,
+                    self.context,
+                    lambda scope, chain, sequence, head: keenetic_state_tag(
+                        scope, chain, sequence, head, key
+                    ),
+                )
             if not existed:
                 # Only publish the DB after its complete first transaction commits.
                 # Never expose an empty DB that a restart might treat as a reset.
@@ -270,6 +295,11 @@ class CoreServices:
                 self.db, self.auth, settings, key, self.media_installations,
                 installation_backend)
             self.media_service_bootstraps.validate_storage()
+            self.seerr_bootstraps = SeerrBootstrapManagement(
+                self.db, self.auth, settings, key, self.media_installations,
+                self.media_service_bootstraps)
+            self.seerr_bootstraps.backend = installation_backend
+            self.seerr_bootstraps.validate_storage()
             self.qbittorrent_configurations = QbittorrentConfigurationManagement(
                 self.db, self.auth, settings, key, self.media_installations,
                 installation_backend)
@@ -295,6 +325,53 @@ class CoreServices:
                 self.db, self.auth, settings, key, self.music_assistant_core,
                 self.music_provider_setups, installation_backend)
             self.music_playback.validate_storage()
+            self.media_archive_health = MediaArchiveHealthManagement(
+                self.db, self.auth, settings, self.media_installations,
+                self._media_archive_binding_reader, self._media_archive_worker)
+            self.keenetic_command_journal = KeeneticCommandJournal(
+                self.db, self.auth, settings, key, self.context
+            )
+            self.keenetic_command_journal.validate_storage()
+
+            def keenetic_actor_revision(actor):
+                with self.db.connection() as connection:
+                    self.auth.assert_current(connection, actor)
+                    row = connection.execute(
+                        "SELECT revision FROM users WHERE id=?", (actor.id,)
+                    ).fetchone()
+                    if row is None:
+                        raise ValueError("missing_actor")
+                    return row["revision"]
+
+            def keenetic_authorize(actor, target, action):
+                self.home_resources.authorize(
+                    actor,
+                    target.coreId,
+                    target.homeId,
+                    target.resourceId,
+                    action,
+                    expected_revision=target.resourceRevision,
+                    expected_acl_revision=target.aclRevision,
+                    expected_user_revision=keenetic_actor_revision(actor),
+                )
+
+            keenetic_effect = build_keenetic_worker_effect(
+                settings, self.services, self.component_egress
+            )
+            self.keenetic_command_provider = KeeneticCommandStateProvider(
+                self.keenetic_resources,
+                authorize=keenetic_authorize,
+                actor_revision=keenetic_actor_revision,
+                egress=self.component_egress,
+            )
+            self.keenetic_commands = KeeneticCommandAuthority(
+                authorize=keenetic_authorize,
+                observe=self.keenetic_command_provider,
+                effect=keenetic_effect,
+                actor_revision=keenetic_actor_revision,
+                journal=self.keenetic_command_journal,
+                wall_clock=settings.clock,
+            )
             self.clear_inactive_bootstrap()
 
     def clear_inactive_bootstrap(self) -> None:

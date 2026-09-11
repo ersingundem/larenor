@@ -1,6 +1,7 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:larenor/features/dashboard/presentation/tiles/service_tile_shell.dart';
+import 'package:larenor/features/health/data/connection_evidence.dart';
 import 'package:larenor/l10n/generated/app_localizations.dart';
 
 void main() {
@@ -64,5 +65,33 @@ void main() {
 
     await tester.tap(find.text('Keenetic'));
     expect(tapped, isTrue);
+  });
+
+  testWidgets('saved profile does not make a service dashboard card verified', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      CupertinoApp(
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        home: ServiceTileShell(
+          icon: CupertinoIcons.play_rectangle,
+          title: 'Jellyfin',
+          connected: true,
+          evidence: const ConnectionEvidence.saved(),
+          onTap: () {},
+          lines: const ['Continue watching'],
+        ),
+      ),
+    );
+
+    expect(find.text('Saved connection'), findsOneWidget);
+    expect(find.text('Not yet verified'), findsOneWidget);
+    expect(find.text('Data read successfully'), findsNothing);
+    expect(find.text('Continue watching'), findsOneWidget);
+    expect(
+      tester.getSemantics(find.byType(ServiceTileShell)).label,
+      contains('Saved connection'),
+    );
   });
 }
