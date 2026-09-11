@@ -56,12 +56,18 @@ class VncSyntheticRfbParserTest {
             first.rectangles.single().rgba,
         )
 
+        val nextRequest = parser.acknowledgeFrame(1)
+        assertEquals(1, nextRequest.bytes[1].toInt())
         val second = parser.accept(update).single() as VncRfbFrame
         assertEquals(2L, second.sequence)
     }
 
     @Test
     fun unsupportedOrOversizedProtocolInputFailsClosed() {
+        val empty = VncSyntheticRfbParser()
+        assertFailure("malformedProtocol") { empty.accept(byteArrayOf()) }
+        assertEquals(VncRfbPhase.FAILED, empty.phase)
+
         val wrongVersion = VncSyntheticRfbParser()
         assertFailure("rfbVersionUnavailable") {
             wrongVersion.accept("RFB 003.007\n".encodeToByteArray())
@@ -75,7 +81,7 @@ class VncSyntheticRfbParserTest {
             missingSecureType.accept(byteArrayOf(2, 1, 2))
         }
 
-        val oversized = activeParser(width = 8192, height = 8192)
+        val oversized = activeParser(width = 4096, height = 4096)
         assertFailure("frameTooLarge") {
             oversized.accept(frameHeader(width = 3000, height = 2000))
         }
@@ -85,6 +91,15 @@ class VncSyntheticRfbParserTest {
         assertFailure("malformedFrame") {
             outside.accept(frameUpdate(3, 0, 2, 1, ByteArray(8)))
         }
+
+        val backpressured = activeParser(width = 4, height = 2)
+        val small = frameUpdate(0, 0, 1, 1, ByteArray(4))
+        backpressured.accept(small)
+        assertFailure("frameBackpressure") { backpressured.accept(small) }
+
+        val staleAck = activeParser(width = 4, height = 2)
+        staleAck.accept(small)
+        assertFailure("staleFrame") { staleAck.acknowledgeFrame(2) }
     }
 
     @Test
