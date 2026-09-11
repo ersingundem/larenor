@@ -16,6 +16,7 @@ import '../data/today_api.dart';
 import '../data/today_controller.dart';
 import '../data/today_repository.dart';
 import '../data/today_retained_cache.dart';
+import '../domain/today_daily_summary.dart';
 import '../domain/today_models.dart';
 
 /// Tests can replace the complete account-scoped transport without live calls.
@@ -79,6 +80,39 @@ final todayRetainedScopeProvider = Provider.autoDispose<TodayRetainedScope?>((
     return null;
   }
 });
+
+typedef TodaySummarySelection = ({
+  TodayDailySummaryKind kind,
+  String? sourceId,
+});
+
+final todaySummarySelectionProvider =
+    NotifierProvider<TodaySummarySelectionController, TodaySummarySelection?>(
+      TodaySummarySelectionController.new,
+    );
+
+/// Navigation metadata only. Watching the opaque retained scope resets it on
+/// account/home changes without starting a network read.
+final class TodaySummarySelectionController
+    extends Notifier<TodaySummarySelection?> {
+  @override
+  TodaySummarySelection? build() {
+    ref.watch(todayRetainedScopeProvider)?.storageKey;
+    return null;
+  }
+
+  void select(TodayDailySummaryKind kind, {String? sourceId}) {
+    if (sourceId != null &&
+        (sourceId.isEmpty ||
+            sourceId.length > 256 ||
+            sourceId.contains(RegExp(r'[\x00-\x1f\x7f]')))) {
+      throw const TodayException('invalid_selection');
+    }
+    state = (kind: kind, sourceId: sourceId);
+  }
+
+  void clear() => state = null;
+}
 
 final todayControllerProvider = Provider.autoDispose<TodayController?>((ref) {
   final api = ref.watch(todayApiProvider);

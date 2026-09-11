@@ -1,4 +1,4 @@
-import 'dart:ui' show SemanticsFlag;
+import 'dart:ui' as ui;
 
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
@@ -95,7 +95,13 @@ void main() {
   ) async {
     for (final size in [const Size(600, 1200), const Size(1280, 900)]) {
       for (final locale in [const Locale('en'), const Locale('tr')]) {
-        await _mount(tester, size: size, scale: 2, locale: locale);
+        await _mount(
+          tester,
+          size: size,
+          scale: 2,
+          locale: locale,
+          onSectionPressed: (_) {},
+        );
         expect(tester.takeException(), isNull);
         expect(
           find.byKey(const ValueKey('today-daily-summary-card')),
@@ -127,10 +133,20 @@ void main() {
     expect(tester.getSize(shopping).height, greaterThanOrEqualTo(48));
     expect(find.bySemanticsLabel(RegExp('Shopping.*2 open')), findsOneWidget);
     expect(
-      tester.getSemantics(shopping).hasFlag(SemanticsFlag.isSelected),
-      isTrue,
+      tester.getSemantics(shopping).flagsCollection.isSelected,
+      ui.Tristate.isTrue,
     );
-    expect(tester.widget<CupertinoButton>(offline).onPressed, isNull);
+    expect(
+      tester
+          .widget<CupertinoButton>(
+            find.descendant(
+              of: offline,
+              matching: find.byType(CupertinoButton),
+            ),
+          )
+          .onPressed,
+      isNull,
+    );
 
     await tester.sendKeyEvent(LogicalKeyboardKey.tab);
     await tester.sendKeyEvent(LogicalKeyboardKey.enter);
@@ -165,14 +181,17 @@ void main() {
     );
     await _mount(tester, summary: states, onSectionPressed: (_) {});
 
-    expect(find.text('Waiting for source'), findsOneWidget);
+    expect(find.text('Awaiting source'), findsOneWidget);
     expect(find.text('Nothing due'), findsOneWidget);
-    expect(find.text('Some items unavailable'), findsOneWidget);
+    expect(find.text('Partial view'), findsOneWidget);
     expect(find.text('Offline'), findsOneWidget);
     expect(
       tester
           .widget<CupertinoButton>(
-            find.byKey(const ValueKey('today-summary-section-shopping')),
+            find.descendant(
+              of: find.byKey(const ValueKey('today-summary-section-shopping')),
+              matching: find.byType(CupertinoButton),
+            ),
           )
           .onPressed,
       isNull,
