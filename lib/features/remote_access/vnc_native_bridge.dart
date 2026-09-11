@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
@@ -100,6 +101,10 @@ class VncBridgeCapabilities {
   final bool canConnect;
   final String? engineRevision;
   final Map<Object?, Object?> raw;
+
+  bool get pointer => (raw['input'] as Map)['pointer'] == true;
+  bool get keyboard => (raw['input'] as Map)['keyboard'] == true;
+  bool get clipboard => (raw['input'] as Map)['clipboard'] == true;
 
   factory VncBridgeCapabilities.fromChannel(Object? raw) {
     final value = _map(raw, {
@@ -211,6 +216,10 @@ class VncBridgeRequest {
   VncBridgeRequest._(this._raw, this.requestId);
   final Map<String, Object?> _raw;
   final String requestId;
+
+  bool get pointer => (_raw['input'] as Map)['pointer'] == true;
+  bool get keyboard => (_raw['input'] as Map)['keyboard'] == true;
+  bool get clipboard => (_raw['input'] as Map)['clipboard'] == true;
 
   factory VncBridgeRequest.fromChannel(Object? raw) {
     final root = _map(raw, {
@@ -512,6 +521,9 @@ class VncBridgeSession {
   VncOpenedSession? _opened;
   StreamSubscription<Object?>? _frames;
   bool _activated = false, _cancelled = false, _inputBusy = false;
+  bool _pointerAllowed = false;
+  bool _keyboardAllowed = false;
+  bool _clipboardAllowed = false;
   int _inputSequence = 0, _frameSequence = 0;
 
   bool get _ownsSession {
@@ -544,6 +556,9 @@ class VncBridgeSession {
         await _cancelOnce();
         return;
       }
+      _pointerAllowed = capabilities.pointer && request.pointer;
+      _keyboardAllowed = capabilities.keyboard && request.keyboard;
+      _clipboardAllowed = capabilities.clipboard && request.clipboard;
       _frames = transport.frameEvents.listen(
         _onFrame,
         onError: (_) => unawaited(_retire()),
@@ -642,6 +657,7 @@ class VncBridgeSession {
 
   void _validateInput(Map<String, Object?> event) {
     if (event['kind'] == 'key') {
+      if (!_keyboardAllowed) _invalid('inputUnavailable');
       if (event.keys.toSet().difference({'kind', 'code', 'down'}).isNotEmpty ||
           event.length != 3 ||
           event['code'] is! int ||
@@ -652,6 +668,7 @@ class VncBridgeSession {
       return;
     }
     if (event['kind'] == 'pointer') {
+      if (!_pointerAllowed) _invalid('inputUnavailable');
       if (event.keys.toSet().difference({
             'kind',
             'x',
@@ -673,12 +690,33 @@ class VncBridgeSession {
       }
       return;
     }
+    if (event['kind'] == 'clipboard') {
+      if (!_clipboardAllowed) _invalid('inputUnavailable');
+      if (event.keys.toSet().difference({'kind', 'text'}).isNotEmpty ||
+          event.length != 2 ||
+          event['text'] is! String) {
+        _invalid('invalidRequest');
+      }
+      final text = event['text'] as String;
+      if (text.isEmpty || text.length > 65536 || text.contains('\u0000')) {
+        _invalid('invalidRequest');
+      }
+      final encoded = utf8.encode(text);
+      try {
+        if (encoded.length > 65536) _invalid('invalidRequest');
+      } finally {
+        encoded.fillRange(0, encoded.length, 0);
+      }
+      return;
+    }
     _invalid('invalidRequest');
   }
 
   Future<void> synchronize() async {
     if (!_ownsSession) await _retire();
   }
+
+  Future<void> retire() => _retire();
 
   Future<void> _retire() async {
     if (phase == VncBridgePhase.retired) return;
@@ -688,6 +726,9 @@ class VncBridgeSession {
     _frames = null;
     await _cancelOnce();
     _opened = null;
+    _pointerAllowed = false;
+    _keyboardAllowed = false;
+    _clipboardAllowed = false;
   }
 
   Future<void> _cancelOnce() async {

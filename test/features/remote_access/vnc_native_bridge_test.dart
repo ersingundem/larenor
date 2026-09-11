@@ -13,7 +13,7 @@ Map<String, Object?> _binding() => {
   'routeRevision': 11,
 };
 
-Map<String, Object?> _capabilities() => {
+Map<String, Object?> _capabilities({bool clipboard = false}) => {
   'schemaVersion': 1,
   'availability': 'available',
   'engineRevision': 'rfb-fixture-1',
@@ -30,10 +30,10 @@ Map<String, Object?> _capabilities() => {
     'maxHeight': 8192,
     'maxDpi': 640,
   },
-  'input': {'pointer': true, 'keyboard': true, 'clipboard': false},
+  'input': {'pointer': true, 'keyboard': true, 'clipboard': clipboard},
 };
 
-Map<String, Object?> _request() => {
+Map<String, Object?> _request({bool clipboard = false}) => {
   'schemaVersion': 1,
   'requestId': '11111111-1111-4111-8111-111111111111',
   'targetHost': 'desktop.home.arpa',
@@ -51,7 +51,7 @@ Map<String, Object?> _request() => {
     'dynamicResolution': true,
   },
   'framebuffer': {'encoding': 'tight', 'pixelFormat': 'trueColor32'},
-  'input': {'pointer': true, 'keyboard': true, 'clipboard': false},
+  'input': {'pointer': true, 'keyboard': true, 'clipboard': clipboard},
 };
 
 void main() {
@@ -235,6 +235,48 @@ void main() {
       expect(transport.cancels, 1);
     },
   );
+
+  test('clipboard input requires capability and request opt-in', () async {
+    final transport = _FakeTransport()..completeCapabilities(clipboard: true);
+    final session = VncBridgeSession(
+      transport: transport,
+      binding: VncSessionBinding.fromChannel(_binding()),
+      isCurrent: () => true,
+      isForeground: () => true,
+    );
+    await session.connect(
+      VncBridgeRequest.fromChannel(_request(clipboard: true)),
+      Uint8List.fromList('secret'.codeUnits),
+    );
+    await session.input({'kind': 'clipboard', 'text': 'Merhaba dünya'});
+    expect(transport.inputs, 1);
+
+    final deniedTransport = _FakeTransport()
+      ..completeCapabilities(clipboard: true);
+    final denied = VncBridgeSession(
+      transport: deniedTransport,
+      binding: VncSessionBinding.fromChannel(_binding()),
+      isCurrent: () => true,
+      isForeground: () => true,
+    );
+    await denied.connect(
+      VncBridgeRequest.fromChannel(_request()),
+      Uint8List.fromList('secret'.codeUnits),
+    );
+    await expectLater(
+      denied.input({'kind': 'clipboard', 'text': 'private'}),
+      throwsA(
+        isA<VncBridgeException>().having(
+          (error) => error.code,
+          'code',
+          'inputUnavailable',
+        ),
+      ),
+    );
+    expect(deniedTransport.inputs, 0);
+    await session.retire();
+    await denied.retire();
+  });
 }
 
 class _FakeTransport implements VncNativeTransport {
@@ -244,9 +286,10 @@ class _FakeTransport implements VncNativeTransport {
   final acks = <int>[];
   Completer<void>? inputGate;
 
-  void completeCapabilities() => capabilityGate.complete(
-    VncBridgeCapabilities.fromChannel(_capabilities()),
-  );
+  void completeCapabilities({bool clipboard = false}) =>
+      capabilityGate.complete(
+        VncBridgeCapabilities.fromChannel(_capabilities(clipboard: clipboard)),
+      );
 
   @override
   Stream<Object?> get frameEvents => frames.stream;
