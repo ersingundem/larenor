@@ -1,3 +1,5 @@
+import 'dart:ui' as ui;
+
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -12,12 +14,19 @@ Future<void> _mount(
   double scale = 1,
   VoidCallback? onOpen,
   VoidCallback? onClose,
+  String query = '',
+  ValueChanged<String>? onQueryChanged,
+  String? selectedSourceId,
+  String? selectedItemId,
+  ValueChanged<TodayDailySummaryEntry>? onItemSelected,
+  Locale locale = const Locale('en'),
 }) async {
   tester.view.physicalSize = size;
   tester.view.devicePixelRatio = 1;
   addTearDown(tester.view.reset);
   await tester.pumpWidget(
     CupertinoApp(
+      locale: locale,
       localizationsDelegates: AppLocalizations.localizationsDelegates,
       supportedLocales: AppLocalizations.supportedLocales,
       home: MediaQuery(
@@ -27,6 +36,11 @@ Future<void> _mount(
             section: section,
             onOpen: onOpen,
             onClose: onClose,
+            query: query,
+            onQueryChanged: onQueryChanged,
+            selectedSourceId: selectedSourceId,
+            selectedItemId: selectedItemId,
+            onItemSelected: onItemSelected,
           ),
         ),
       ),
@@ -127,5 +141,95 @@ void main() {
       find.byKey(const ValueKey('today-summary-detail-open')),
       findsNothing,
     );
+  });
+
+  testWidgets('filters only bounded local rows and reports an empty match', (
+    tester,
+  ) async {
+    final changes = <String>[];
+    await _mount(
+      tester,
+      _section(
+        TodayDailySummaryState.partial,
+        count: 2,
+        entries: const [
+          TodayDailySummaryEntry(
+            sourceId: 'todo.shopping',
+            itemId: 'milk',
+            title: 'Sut',
+          ),
+          TodayDailySummaryEntry(
+            sourceId: 'todo.shopping',
+            itemId: 'bread',
+            title: 'Ekmek',
+          ),
+        ],
+      ),
+      locale: const Locale('tr'),
+      query: 'süt',
+      onQueryChanged: changes.add,
+    );
+
+    expect(find.text('Sut'), findsOneWidget);
+    expect(find.text('Ekmek'), findsNothing);
+    await tester.enterText(
+      find.byKey(const ValueKey('today-summary-detail-search')),
+      'yoğurt',
+    );
+    expect(changes.last, 'yoğurt');
+
+    await _mount(
+      tester,
+      _section(
+        TodayDailySummaryState.stale,
+        entries: const [
+          TodayDailySummaryEntry(
+            sourceId: 'todo.shopping',
+            itemId: 'milk',
+            title: 'Milk',
+          ),
+        ],
+      ),
+      query: 'missing',
+      onQueryChanged: (_) {},
+    );
+    expect(find.text('No matching results'), findsOneWidget);
+  });
+
+  testWidgets('identified row is a 48dp keyboard and TalkBack selection', (
+    tester,
+  ) async {
+    final selected = <TodayDailySummaryEntry>[];
+    const entry = TodayDailySummaryEntry(
+      sourceId: 'todo.shopping',
+      itemId: 'milk',
+      title: 'Milk',
+    );
+    final semantics = tester.ensureSemantics();
+    await _mount(
+      tester,
+      _section(TodayDailySummaryState.current, entries: const [entry]),
+      size: const Size(600, 900),
+      scale: 2,
+      selectedSourceId: entry.sourceId,
+      selectedItemId: entry.itemId,
+      onItemSelected: selected.add,
+    );
+
+    final row = find.byKey(
+      const ValueKey('today-summary-detail-item-todo.shopping-milk'),
+    );
+    expect(tester.getSize(row).height, greaterThanOrEqualTo(48));
+    expect(
+      tester.getSemantics(row).flagsCollection.isSelected,
+      ui.Tristate.isTrue,
+    );
+    await tester.tap(find.byKey(const ValueKey('today-summary-detail-search')));
+    await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+    await tester.pump();
+    expect(selected, [entry]);
+    expect(tester.takeException(), isNull);
+    semantics.dispose();
   });
 }
