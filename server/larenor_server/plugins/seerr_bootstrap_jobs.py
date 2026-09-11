@@ -192,6 +192,8 @@ class SeerrBootstrapManagement:
     def _validate_row(self, connection, row):
         payload = self._decode(row)
         private = payload.private
+        if row["state"] == "succeeded" and payload.convergencePhase != "verified":
+            raise ApiError("seerr_bootstrap_storage_unavailable", 503)
         installation = connection.execute(
             "SELECT * FROM media_installations WHERE id=?", (row["installation_id"],)
         ).fetchone()
@@ -240,14 +242,32 @@ class SeerrBootstrapManagement:
 
     def validate_storage(self):
         try:
-            with self.db.connection() as connection:
-                connection.execute("BEGIN")
+            with self.db.transaction() as connection:
                 rows = connection.execute(
                     "SELECT * FROM media_seerr_bootstraps LIMIT ?", (MAX_BOOTSTRAPS + 1,)
                 ).fetchall()
                 if len(rows) > MAX_BOOTSTRAPS:
                     raise ValueError()
                 for row in rows:
+                    payload = self._decode(row)
+                    if (
+                        row["state"] == "succeeded"
+                        and payload.convergencePhase == "bootstrap"
+                    ):
+                        changed = dict(row)
+                        changed.update(
+                            revision=row["revision"] + 1,
+                            state="needs_attention",
+                            error_code="seerr_bootstrap_interrupted",
+                            updated_at=max(
+                                row["updated_at"], int(self.settings.clock())
+                            ),
+                        )
+                        self._save(connection, changed, payload)
+                        row = connection.execute(
+                            "SELECT * FROM media_seerr_bootstraps WHERE id=?",
+                            (row["id"],),
+                        ).fetchone()
                     self._validate_row(connection, row)
         except (ApiError, ValueError, sqlite3.Error):
             raise StartupError("invalid_media_seerr_bootstraps_storage") from None
@@ -457,6 +477,7 @@ class SeerrBootstrapManagement:
         convergence_phase=None,
         arr_instance_ids=None,
         initialized=None,
+        initialization_changed=None,
     ):
         changed = dict(row)
         changed.update(
@@ -477,6 +498,11 @@ class SeerrBootstrapManagement:
                     else tuple(arr_instance_ids)
                 ),
                 "initialized": payload.initialized if initialized is None else initialized,
+                "initializationChanged": (
+                    payload.initializationChanged
+                    if initialization_changed is None
+                    else initialization_changed
+                ),
             }
         )
         self._save(connection, changed, value)
@@ -668,6 +694,7 @@ class SeerrBootstrapManagement:
                 if (
                     type(result) is not SeerrBootstrapExecutionResult
                     or result.arr_wiring is None
+                    or result.initialization is None
                 ):
                     raise SeerrBootstrapExecutionError(
                         "invalid_seerr_bootstrap_execution", uncertain_effect=True
@@ -693,7 +720,9 @@ class SeerrBootstrapManagement:
                 with self.db.transaction() as connection:
                     row = self._find(connection, identifier)
                     phase = (
-                        "arr_wiring"
+                        "initialize"
+                        if "arr_wiring_verified" in failure.completed_steps
+                        else "arr_wiring"
                         if "session_destroyed" in failure.completed_steps
                         else "bootstrap"
                     )
@@ -705,6 +734,11 @@ class SeerrBootstrapManagement:
                         error=error,
                         api_key=failure.api_key,
                         convergence_phase=phase,
+                        arr_instance_ids=(
+                            None
+                            if failure.arr_wiring is None
+                            else failure.arr_wiring.instance_ids
+                        ),
                     )
             except (OSError, ValueError, TypeError, AttributeError, RuntimeError):
                 with self.db.transaction() as connection:
@@ -724,6 +758,8 @@ class SeerrBootstrapManagement:
                     self._decode(row),
                     state="succeeded",
                     api_key=result.api_key,
-                    convergence_phase="initialize",
+                    convergence_phase="verified",
                     arr_instance_ids=result.arr_wiring.instance_ids,
+                    initialized=True,
+                    initialization_changed=result.initialization.changed,
                 )

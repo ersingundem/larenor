@@ -12,13 +12,18 @@ from larenor_server.plugins.installation_ipc import (
     InstallationWorkerClient,
     InstallationWorkerServer,
 )
-from larenor_server.plugins.seerr_bootstrap_models import PrivateSeerrBootstrap
+from larenor_server.plugins.seerr_bootstrap_models import (
+    PrivateSeerrArrBinding,
+    PrivateSeerrBootstrap,
+)
 from larenor_server.plugins.seerr_bootstrap_executor import (
     SeerrBootstrapExecutionError,
     SeerrBootstrapExecutionResult,
 )
 from test_media_host_preflight import stack
 from test_seerr_initial_admin import API_KEY, PASSWORD
+from larenor_server.plugins.seerr_arr_wiring import SeerrArrWiringResult
+from larenor_server.plugins.seerr_initialization import SeerrInitializationResult
 
 
 def private():
@@ -26,6 +31,22 @@ def private():
         credential=PASSWORD,
         sourceBootstrapId="b" * 32,
         sourceBootstrapRevision=3,
+        arrBindings=tuple(
+            PrivateSeerrArrBinding(
+                serviceId=service,
+                configurationId=identifier * 32,
+                configurationRevision=3,
+                resourceRevision=4,
+                serviceRevision=3,
+                configurationDigest="c" * 64,
+                hostname="larenor-" + identifier * 32,
+                apiKey=identifier * 32,
+                rootPath="/media/movies" if service == "radarr" else "/media/tv",
+                profileId=4 if service == "radarr" else 5,
+                profileName="HD-1080p",
+            )
+            for service, identifier in (("radarr", "1"), ("sonarr", "2"))
+        ),
     )
 
 
@@ -38,7 +59,11 @@ def receipt():
             "admin_created",
             "api_key_verified",
             "session_destroyed",
+            "arr_wiring_verified",
+            "initialization_verified",
         ),
+        SeerrArrWiringResult("verified", ("radarr", "sonarr"), (7, 8)),
+        SeerrInitializationResult("verified", False, ("initialized_verified",)),
     )
 
 

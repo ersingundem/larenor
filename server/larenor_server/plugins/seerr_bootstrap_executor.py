@@ -33,6 +33,11 @@ from .seerr_initial_admin import (
     SeerrInitialAdminResult,
     _is_generated_key,
 )
+from .seerr_initialization import (
+    SeerrInitialization,
+    SeerrInitializationError,
+    SeerrInitializationResult,
+)
 from .stack_plan import MediaStackPlan, verify_media_stack_plan
 from .worker import DockerWorkerError, StepReceipt
 
@@ -49,6 +54,7 @@ _CODES = frozenset(
         "seerr_bootstrap_peer_changed",
         "seerr_bootstrap_initial_admin_failed",
         "seerr_bootstrap_arr_wiring_failed",
+        "seerr_bootstrap_initialization_failed",
         "seerr_bootstrap_timeout",
     }
 )
@@ -70,6 +76,11 @@ _CAUSE_CODES = frozenset(
         "seerr_arr_protocol",
         "seerr_arr_unavailable",
         "seerr_arr_timeout",
+        "invalid_seerr_initialization",
+        "seerr_initialization_state_conflict",
+        "seerr_initialization_protocol",
+        "seerr_initialization_unavailable",
+        "seerr_initialization_timeout",
     }
 )
 
@@ -83,6 +94,7 @@ class SeerrBootstrapExecutionError(Exception):
         uncertain_effect=False,
         cause_code=None,
         api_key=None,
+        arr_wiring=None,
     ):
         self.code = code if code in _CODES else "seerr_bootstrap_resources_unavailable"
         try:
@@ -95,11 +107,15 @@ class SeerrBootstrapExecutionError(Exception):
             "api_key_verified",
             "session_destroyed",
             "arr_wiring_verified",
+            "initialization_verified",
         )
         self.completed_steps = steps if steps == allowed[: len(steps)] else ()
         self.uncertain_effect = uncertain_effect is True
         self.cause_code = cause_code if cause_code in _CAUSE_CODES else None
         self.api_key = api_key if _is_generated_key(api_key) else None
+        self.arr_wiring = (
+            arr_wiring if type(arr_wiring) is SeerrArrWiringResult else None
+        )
         super().__init__(self.code)
 
     def __repr__(self):
@@ -117,6 +133,7 @@ class SeerrBootstrapExecutionResult:
     api_key: str = field(repr=False)
     completed_steps: tuple[str, ...]
     arr_wiring: SeerrArrWiringResult | None = field(default=None, repr=False)
+    initialization: SeerrInitializationResult | None = field(default=None, repr=False)
 
     def __post_init__(self):
         try:
@@ -139,7 +156,18 @@ class SeerrBootstrapExecutionResult:
         if self.arr_wiring is not None and (
             type(self.arr_wiring) is not SeerrArrWiringResult
             or self.arr_wiring.state != "verified"
-            or self.completed_steps[-1:] != ("arr_wiring_verified",)
+            or self.completed_steps[-1:]
+            not in (("arr_wiring_verified",), ("initialization_verified",))
+        ):
+            raise SeerrBootstrapExecutionError("invalid_seerr_bootstrap_execution")
+        if self.initialization is None and self.completed_steps[-1:] == (
+            "initialization_verified",
+        ):
+            raise SeerrBootstrapExecutionError("invalid_seerr_bootstrap_execution")
+        if self.initialization is not None and (
+            type(self.initialization) is not SeerrInitializationResult
+            or self.initialization.state != "verified"
+            or self.completed_steps[-1:] != ("initialization_verified",)
         ):
             raise SeerrBootstrapExecutionError("invalid_seerr_bootstrap_execution")
 
@@ -160,18 +188,30 @@ def _remaining(deadline):
 class SeerrBootstrapExecutor:
     """Bootstrap Seerr only while its managed Jellyfin peer remains exact."""
 
-    def __init__(self, operations, binding_builder, initial_admin, arr_wiring=None):
+    def __init__(
+        self,
+        operations,
+        binding_builder,
+        initial_admin,
+        arr_wiring=None,
+        initialization=None,
+    ):
         if (
             type(operations) is not JournaledManagedContainerOperations
             or not callable(binding_builder)
             or type(initial_admin) is not SeerrInitialAdmin
             or arr_wiring is not None and type(arr_wiring) is not SeerrArrWiring
+            or initialization is not None
+            and type(initialization) is not SeerrInitialization
+            or initialization is not None
+            and arr_wiring is None
         ):
             raise SeerrBootstrapExecutionError("invalid_seerr_bootstrap_execution")
         self.operations = operations
         self.binding_builder = binding_builder
         self.initial_admin = initial_admin
         self.arr_wiring = arr_wiring
+        self.initialization = initialization
 
     @staticmethod
     def _gate(gate, uncertain=False):
@@ -293,6 +333,7 @@ class SeerrBootstrapExecutor:
                 limits=SeerrInitialAdminLimits(
                     total_seconds=min(45.0, _remaining(deadline))
                 ),
+                close_connection=self.arr_wiring is None,
             )
             if type(result) is not SeerrInitialAdminResult:
                 raise SeerrBootstrapExecutionError(
@@ -310,6 +351,7 @@ class SeerrBootstrapExecutor:
                 ) from None
             completed = result.completed_steps
             wiring = None
+            initialized = None
             if self.arr_wiring is not None:
                 if len(secret.arrBindings) != 2:
                     raise SeerrBootstrapExecutionError(
@@ -339,6 +381,16 @@ class SeerrBootstrapExecutor:
                     close_connection=False,
                 )
                 completed = completed + ("arr_wiring_verified",)
+                if self.initialization is not None:
+                    self._gate(gate, True)
+                    initialized = self.initialization.complete(
+                        opened.connection,
+                        seerr_api_key=result.api_key,
+                        total_seconds=min(30.0, _remaining(deadline)),
+                    )
+                    completed = completed + ("initialization_verified",)
+                else:
+                    initialized = None
             seerr_after = self.operations.engine.inspect_container(seerr.name)
             jellyfin_after = self.operations.engine.inspect_container(jellyfin.name)
             if (
@@ -361,7 +413,7 @@ class SeerrBootstrapExecutor:
             self._gate(gate, True)
             _remaining(deadline)
             return SeerrBootstrapExecutionResult(
-                result.state, result.api_key, completed, wiring
+                result.state, result.api_key, completed, wiring, initialized
             )
         except SeerrBootstrapExecutionError:
             raise
@@ -379,6 +431,15 @@ class SeerrBootstrapExecutor:
                 uncertain_effect=error.uncertain_effect or bool(completed),
                 cause_code=error.code,
                 api_key=result.api_key,
+            ) from None
+        except SeerrInitializationError as error:
+            raise SeerrBootstrapExecutionError(
+                "seerr_bootstrap_initialization_failed",
+                completed_steps=completed,
+                uncertain_effect=error.uncertain_effect or bool(completed),
+                cause_code=error.code,
+                api_key=result.api_key,
+                arr_wiring=wiring,
             ) from None
         except SeerrEndpointError as error:
             code = (

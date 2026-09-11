@@ -2,7 +2,7 @@
 
 from typing import Literal
 
-from pydantic import ConfigDict, Field, model_validator
+from pydantic import ConfigDict, Field, field_validator, model_validator
 
 from ..admin.models import ObjectId, Revision
 from .models import Digest
@@ -46,6 +46,11 @@ class PrivateSeerrBootstrap(StrictModel):
     arrBindings: tuple[PrivateSeerrArrBinding, ...] = Field(
         default=(), min_length=0, max_length=2
     )
+
+    @field_validator("arrBindings", mode="before")
+    @classmethod
+    def json_arr_bindings(cls, value):
+        return tuple(value) if isinstance(value, list) else value
 
     @model_validator(mode="after")
     def coherent(self):

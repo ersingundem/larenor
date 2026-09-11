@@ -29,6 +29,10 @@ from larenor_server.plugins.seerr_initial_admin import (
     SeerrInitialAdminResult,
 )
 from larenor_server.plugins.seerr_arr_wiring import SeerrArrWiring, SeerrArrWiringResult
+from larenor_server.plugins.seerr_initialization import (
+    SeerrInitialization,
+    SeerrInitializationResult,
+)
 from test_jellyfin_startup import Connection
 from test_managed_container_binding import (
     Engine,
@@ -203,6 +207,48 @@ def test_production_executor_wires_exact_bound_arr_services_before_success(
         ("sonarr", 5, "/media/tv"),
     ]
     assert calls[0][1]["close_connection"] is False
+
+
+def test_convergence_reuses_one_proved_connection_through_authenticated_readback(
+    prepared, monkeypatch
+):
+    stack, seerr, jellyfin, observed, _engine, operations = prepared
+    connection, _ = connected(monkeypatch, stack, seerr, observed)
+    seen = []
+
+    def configure(_self, selected, **_values):
+        seen.append(("arr", selected))
+        return SeerrArrWiringResult("verified", ("radarr", "sonarr"), (8, 9))
+
+    def initialize(_self, selected, **_values):
+        seen.append(("initialize", selected))
+        return SeerrInitializationResult("verified", False, ("initialized_verified",))
+
+    monkeypatch.setattr(SeerrArrWiring, "configure", configure)
+    monkeypatch.setattr(SeerrInitialization, "complete", initialize)
+    result = SeerrBootstrapExecutor(
+        operations,
+        lambda _stack, service="jellyfin": {
+            "seerr": seerr,
+            "jellyfin": jellyfin,
+        }[service],
+        SeerrInitialAdmin(),
+        SeerrArrWiring(),
+        SeerrInitialization(),
+    ).execute(
+        JOB,
+        stack,
+        bound_private(),
+        deadline=time.monotonic() + 10,
+        gate=lambda: True,
+    )
+
+    assert seen == [("arr", connection), ("initialize", connection)]
+    assert result.initialization.changed is False
+    assert result.completed_steps[-2:] == (
+        "arr_wiring_verified",
+        "initialization_verified",
+    )
 
 
 def test_jellyfin_drift_after_connect_blocks_credentials(prepared, monkeypatch):

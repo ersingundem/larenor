@@ -2,7 +2,7 @@
 
 from typing import Literal
 
-from pydantic import ConfigDict, Field, model_validator
+from pydantic import ConfigDict, Field, field_validator, model_validator
 
 from ..admin.models import ObjectId, Revision
 from ..models import StrictModel
@@ -37,6 +37,7 @@ class SeerrBootstrapJob(StrictModel):
         "seerr_bootstrap_peer_changed",
         "seerr_bootstrap_initial_admin_failed",
         "seerr_bootstrap_arr_wiring_failed",
+        "seerr_bootstrap_initialization_failed",
         "seerr_bootstrap_timeout",
         "seerr_bootstrap_interrupted",
         "seerr_bootstrap_worker_unavailable",
@@ -50,16 +51,6 @@ class SeerrBootstrapJob(StrictModel):
     initialized: bool = False
     createdAt: str
     updatedAt: str
-
-    @model_validator(mode="before")
-    @classmethod
-    def upgrade_legacy_payload(cls, value):
-        if isinstance(value, dict) and "convergencePhase" not in value:
-            value = dict(value)
-            value["convergencePhase"] = (
-                "bootstrap" if value.get("apiKey") is not None else "queued"
-            )
-        return value
 
     @model_validator(mode="after")
     def coherent(self):
@@ -107,6 +98,22 @@ class PrivateSeerrBootstrapPayload(StrictModel):
     ] = "queued"
     arrInstanceIds: tuple[int, int] | None = None
     initialized: bool = False
+    initializationChanged: bool | None = None
+
+    @field_validator("arrInstanceIds", mode="before")
+    @classmethod
+    def json_arr_instance_ids(cls, value):
+        return tuple(value) if isinstance(value, list) else value
+
+    @model_validator(mode="before")
+    @classmethod
+    def upgrade_legacy_payload(cls, value):
+        if isinstance(value, dict) and "convergencePhase" not in value:
+            value = dict(value)
+            value["convergencePhase"] = (
+                "bootstrap" if value.get("apiKey") is not None else "queued"
+            )
+        return value
 
     @model_validator(mode="after")
     def convergence_coherent(self):
@@ -127,5 +134,7 @@ class PrivateSeerrBootstrapPayload(StrictModel):
         ):
             raise ValueError("invalid_seerr_convergence")
         if self.initialized != (rank == 4):
+            raise ValueError("invalid_seerr_convergence")
+        if (self.initializationChanged is not None) != self.initialized:
             raise ValueError("invalid_seerr_convergence")
         return self

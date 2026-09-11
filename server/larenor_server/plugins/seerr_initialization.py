@@ -170,12 +170,20 @@ class SeerrInitialization:
         )
         return status, _json(body), closed
 
-    def complete(self, connection, *, seerr_api_key, total_seconds=30.0):
+    def complete(
+        self,
+        connection,
+        *,
+        seerr_api_key,
+        total_seconds=30.0,
+        close_connection=True,
+    ):
         if (
             not _is_generated_key(seerr_api_key)
             or type(total_seconds) not in (int, float)
             or not math.isfinite(total_seconds)
             or not 0 < total_seconds <= 120
+            or type(close_connection) is not bool
             or any(
                 not callable(getattr(connection, name, None))
                 for name in ("sendall", "recv", "settimeout", "shutdown", "close")
@@ -277,4 +285,8 @@ class SeerrInitialization:
             ) from None
         finally:
             if scope is not None:
+                if not close_connection:
+                    scope.timer.cancel()
+                    with scope.lock:
+                        scope.socket = None
                 scope.finish()
