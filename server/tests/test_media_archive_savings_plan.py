@@ -1,9 +1,11 @@
 from larenor_server.plugins.media_archive_health import build_media_archive_health
 from larenor_server.plugins.media_archive_health_models import (
+    ArrArchiveSnapshot,
     JellyfinArchiveItem,
     MediaArchiveTranscodeEvidence,
+    QbittorrentArchiveSnapshot,
 )
-from test_media_archive_health import observation
+from test_media_archive_health import binding, observation
 
 
 def playable(identifier, size, *, transcode=None):
@@ -66,6 +68,28 @@ def test_plan_suppresses_unproven_candidates_and_marks_lanes_partial():
     assert stale.savingsPlan.laneStates == {
         'duplicate': 'stale', 'transcode': 'stale', 'retention': 'stale',
     }
+
+
+def test_unavailable_and_partial_lanes_never_emit_retention_candidates():
+    base = observation()
+    unavailable_qbt = QbittorrentArchiveSnapshot(
+        **binding('qbittorrent', state='unavailable'), items=[])
+    unavailable = build_media_archive_health(
+        base.model_copy(update={'qbittorrent': unavailable_qbt}),
+        now=1_788_609_610,
+    )
+    assert unavailable.savingsPlan.laneStates['retention'] == 'unavailable'
+    assert all(item.kind != 'retention'
+               for item in unavailable.savingsPlan.candidates)
+
+    unavailable_sonarr = ArrArchiveSnapshot(
+        **binding('sonarr', state='unavailable'), items=[])
+    partial = build_media_archive_health(
+        base.model_copy(update={'sonarr': unavailable_sonarr}),
+        now=1_788_609_610,
+    )
+    assert partial.savingsPlan.laneStates['retention'] == 'partial'
+    assert all(item.kind != 'retention' for item in partial.savingsPlan.candidates)
 
 
 def test_duplicate_requires_matching_identity_title_and_positive_spare_bytes():

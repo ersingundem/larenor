@@ -115,26 +115,59 @@ final class MediaArchiveHealthDetailScreen extends StatelessWidget {
                 const SizedBox(height: 6),
                 Text(l.mediaArchiveSavingsHint, style: AppText.footnote),
                 const SizedBox(height: 10),
-                if (snapshot.suggestions.isEmpty)
-                  Text(l.mediaArchiveSavingsEmpty)
-                else
-                  _ResponsiveCards(
-                    children: [
-                      for (final suggestion in snapshot.suggestions)
-                        _EvidenceCard(
-                          semanticsLabel:
-                              '${suggestion.title}, ${_bytes(suggestion.potentialBytes)}, ${l.mediaArchiveEvidenceVerified}',
-                          title: suggestion.title,
-                          subtitle: l.mediaArchivePotentialValue(
-                            _bytes(suggestion.potentialBytes),
-                          ),
-                          details: suggestion.evidence
-                              .map((value) => _evidence(l, value))
-                              .toList(),
-                          icon: CupertinoIcons.archivebox,
-                        ),
-                    ],
+                Text(
+                  snapshot.savingsPlan.ready
+                      ? l.mediaArchivePlanReady
+                      : l.mediaArchivePlanPartial,
+                  style: AppText.body,
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  l.mediaArchivePlanTotal(
+                    _bytes(snapshot.savingsPlan.totalPotentialBytes),
                   ),
+                  style: AppText.footnote,
+                ),
+                if (snapshot.savingsPlan.truncated) ...[
+                  const SizedBox(height: 4),
+                  Text(l.mediaArchivePlanTruncated, style: AppText.footnote),
+                ],
+                for (final kind in MediaArchiveSavingKind.values) ...[
+                  const SizedBox(height: 18),
+                  Semantics(
+                    header: true,
+                    child: Text(_kind(l, kind), style: AppText.headline),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    _lane(l, snapshot.savingsPlan.laneStates[kind]!),
+                    style: AppText.footnote,
+                  ),
+                  const SizedBox(height: 8),
+                  if (snapshot.savingsPlan.candidates
+                      .where((candidate) => candidate.kind == kind)
+                      .isEmpty)
+                    Text(l.mediaArchiveSavingsEmpty)
+                  else
+                    _ResponsiveCards(
+                      children: [
+                        for (final candidate in snapshot.savingsPlan.candidates)
+                          if (candidate.kind == kind)
+                            _EvidenceCard(
+                              semanticsLabel:
+                                  '${candidate.title}, ${_bytes(candidate.potentialBytes)}, ${_kind(l, kind)}, ${l.mediaArchiveEvidenceVerified}',
+                              title: candidate.title,
+                              subtitle: l.mediaArchivePotentialValue(
+                                _bytes(candidate.potentialBytes),
+                              ),
+                              details: candidate.evidence
+                                  .map((value) => _evidence(l, value))
+                                  .toList(),
+                              icon: _kindIcon(kind),
+                            ),
+                      ],
+                    ),
+                ],
               ],
             ),
           ),
@@ -171,12 +204,48 @@ final class MediaArchiveHealthDetailScreen extends StatelessWidget {
     AppLocalizations l,
     MediaArchiveSavingEvidence evidence,
   ) => switch (evidence) {
+    MediaArchiveSavingEvidence.sameMediaIdentity =>
+      l.mediaArchiveEvidenceSameIdentity,
+    MediaArchiveSavingEvidence.multiplePlayableFiles =>
+      l.mediaArchiveEvidenceMultiplePlayable,
+    MediaArchiveSavingEvidence.largestCopyExcluded =>
+      l.mediaArchiveEvidenceLargestExcluded,
+    MediaArchiveSavingEvidence.sourceProfileVerified =>
+      l.mediaArchiveEvidenceSourceProfile,
+    MediaArchiveSavingEvidence.targetPlaybackVerified =>
+      l.mediaArchiveEvidenceTargetPlayback,
+    MediaArchiveSavingEvidence.boundedSizeEstimate =>
+      l.mediaArchiveEvidenceBoundedEstimate,
     MediaArchiveSavingEvidence.downloadComplete =>
       l.mediaArchiveEvidenceDownloadComplete,
     MediaArchiveSavingEvidence.importVerified =>
       l.mediaArchiveEvidenceImportVerified,
     MediaArchiveSavingEvidence.retentionPolicySatisfied =>
       l.mediaArchiveEvidenceRetentionSatisfied,
+  };
+
+  static String _kind(AppLocalizations l, MediaArchiveSavingKind kind) =>
+      switch (kind) {
+        MediaArchiveSavingKind.duplicate => l.mediaArchivePlanDuplicates,
+        MediaArchiveSavingKind.transcode => l.mediaArchivePlanTranscode,
+        MediaArchiveSavingKind.retention => l.mediaArchivePlanRetention,
+      };
+
+  static String _lane(AppLocalizations l, MediaArchiveSavingLaneState state) =>
+      switch (state) {
+        MediaArchiveSavingLaneState.verified => l.mediaArchivePlanLaneVerified,
+        MediaArchiveSavingLaneState.partial => l.mediaArchivePlanLanePartial,
+        MediaArchiveSavingLaneState.unsupported =>
+          l.mediaArchivePlanLaneUnsupported,
+        MediaArchiveSavingLaneState.unavailable =>
+          l.mediaArchivePlanLaneUnavailable,
+        MediaArchiveSavingLaneState.stale => l.mediaArchivePlanLaneStale,
+      };
+
+  static IconData _kindIcon(MediaArchiveSavingKind kind) => switch (kind) {
+    MediaArchiveSavingKind.duplicate => CupertinoIcons.square_on_square,
+    MediaArchiveSavingKind.transcode => CupertinoIcons.arrow_2_circlepath,
+    MediaArchiveSavingKind.retention => CupertinoIcons.archivebox,
   };
 
   static String _sourceState(

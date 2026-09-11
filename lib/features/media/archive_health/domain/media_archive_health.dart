@@ -28,6 +28,13 @@ int _integer(Object? value, {int min = 0, int max = 0x7fffffffffffffff}) {
   return value;
 }
 
+bool _boundedText(Object? value, int max) =>
+    value is String &&
+    value.isNotEmpty &&
+    value.length <= max &&
+    value == value.trim() &&
+    !value.contains(RegExp(r'[\x00-\x1f\x7f]'));
+
 enum MediaArchiveSnapshotState { healthy, attention, incomplete }
 
 enum MediaArchiveSourceState { verified, unavailable, unsupported, stale }
@@ -43,9 +50,210 @@ enum MediaArchiveIssueCode {
 enum MediaArchiveIssueSeverity { warning, critical }
 
 enum MediaArchiveSavingEvidence {
+  sameMediaIdentity,
+  multiplePlayableFiles,
+  largestCopyExcluded,
+  sourceProfileVerified,
+  targetPlaybackVerified,
+  boundedSizeEstimate,
   downloadComplete,
   importVerified,
   retentionPolicySatisfied,
+}
+
+enum MediaArchiveSavingKind { duplicate, transcode, retention }
+
+enum MediaArchiveSavingLaneState {
+  verified,
+  partial,
+  unsupported,
+  unavailable,
+  stale,
+}
+
+final class MediaArchiveSavingsCandidate {
+  const MediaArchiveSavingsCandidate._({
+    required this.kind,
+    required this.source,
+    required this.title,
+    required this.potentialBytes,
+    required this.evidence,
+  });
+  final MediaArchiveSavingKind kind;
+  final String source, title;
+  final int potentialBytes;
+  final List<MediaArchiveSavingEvidence> evidence;
+  bool get actionAvailable => false;
+}
+
+final class MediaArchiveSavingsPlan {
+  const MediaArchiveSavingsPlan._({
+    required this.ready,
+    required this.laneStates,
+    required this.candidates,
+    required this.candidateCounts,
+    required this.totalPotentialBytes,
+    required this.truncated,
+  });
+
+  factory MediaArchiveSavingsPlan.fromJson(Object? value) {
+    final map = _object(value, {
+      'state',
+      'laneStates',
+      'candidates',
+      'candidateCounts',
+      'totalPotentialBytes',
+      'truncated',
+      'actionAvailable',
+    });
+    final state = map['state'];
+    final lanes = _object(map['laneStates'], _savingKinds);
+    final counts = _object(map['candidateCounts'], _savingKinds);
+    final raw = map['candidates'];
+    if (!{'ready', 'partial'}.contains(state) ||
+        raw is! List ||
+        raw.length > 768 ||
+        map['truncated'] is! bool ||
+        map['actionAvailable'] != false) {
+      _invalid();
+    }
+    final parsedLanes = <MediaArchiveSavingKind, MediaArchiveSavingLaneState>{};
+    final parsedCounts = <MediaArchiveSavingKind, int>{};
+    for (final kind in MediaArchiveSavingKind.values) {
+      final lane = MediaArchiveSavingLaneState.values
+          .where((candidate) => candidate.name == lanes[kind.name])
+          .firstOrNull;
+      if (lane == null) _invalid();
+      parsedLanes[kind] = lane;
+      parsedCounts[kind] = _integer(counts[kind.name], max: 256);
+    }
+    final candidates = raw.map(_candidate).toList();
+    for (final kind in MediaArchiveSavingKind.values) {
+      if (candidates.where((value) => value.kind == kind).length !=
+          parsedCounts[kind]) {
+        _invalid();
+      }
+    }
+    final total = _integer(map['totalPotentialBytes']);
+    final truncated = map['truncated'] as bool;
+    if (total !=
+            candidates.fold<int>(0, (sum, item) => sum + item.potentialBytes) ||
+        candidates.any(
+          (item) =>
+              parsedLanes[item.kind] != MediaArchiveSavingLaneState.verified,
+        ) ||
+        (state == 'ready') !=
+            (!truncated &&
+                parsedLanes.values.every(
+                  (value) => value == MediaArchiveSavingLaneState.verified,
+                ))) {
+      _invalid();
+    }
+    return MediaArchiveSavingsPlan._(
+      ready: state == 'ready',
+      laneStates: Map.unmodifiable(parsedLanes),
+      candidates: List.unmodifiable(candidates),
+      candidateCounts: Map.unmodifiable(parsedCounts),
+      totalPotentialBytes: total,
+      truncated: truncated,
+    );
+  }
+
+  static MediaArchiveSavingsCandidate _candidate(Object? value) {
+    final map = _object(value, {
+      'kind',
+      'source',
+      'title',
+      'potentialBytes',
+      'evidence',
+      'actionAvailable',
+    });
+    final kind = MediaArchiveSavingKind.values
+        .where((candidate) => candidate.name == map['kind'])
+        .firstOrNull;
+    final evidence = map['evidence'];
+    if (kind == null ||
+        evidence is! List ||
+        evidence.length != 3 ||
+        !_boundedText(map['title'], 240) ||
+        map['actionAvailable'] != false) {
+      _invalid();
+    }
+    final expected = switch (kind) {
+      MediaArchiveSavingKind.duplicate => (
+        'jellyfin',
+        const [
+          'same_media_identity',
+          'multiple_playable_files',
+          'largest_copy_excluded',
+        ],
+      ),
+      MediaArchiveSavingKind.transcode => (
+        'jellyfin',
+        const [
+          'source_profile_verified',
+          'target_playback_verified',
+          'bounded_size_estimate',
+        ],
+      ),
+      MediaArchiveSavingKind.retention => (
+        'qbittorrent',
+        const [
+          'download_complete',
+          'import_verified',
+          'retention_policy_satisfied',
+        ],
+      ),
+    };
+    if (map['source'] != expected.$1 || !_sameList(evidence, expected.$2)) {
+      _invalid();
+    }
+    return MediaArchiveSavingsCandidate._(
+      kind: kind,
+      source: expected.$1,
+      title: map['title'] as String,
+      potentialBytes: _integer(map['potentialBytes'], min: 1),
+      evidence: List.unmodifiable(
+        evidence.map(
+          (value) => switch (value) {
+            'same_media_identity' =>
+              MediaArchiveSavingEvidence.sameMediaIdentity,
+            'multiple_playable_files' =>
+              MediaArchiveSavingEvidence.multiplePlayableFiles,
+            'largest_copy_excluded' =>
+              MediaArchiveSavingEvidence.largestCopyExcluded,
+            'source_profile_verified' =>
+              MediaArchiveSavingEvidence.sourceProfileVerified,
+            'target_playback_verified' =>
+              MediaArchiveSavingEvidence.targetPlaybackVerified,
+            'bounded_size_estimate' =>
+              MediaArchiveSavingEvidence.boundedSizeEstimate,
+            'download_complete' => MediaArchiveSavingEvidence.downloadComplete,
+            'import_verified' => MediaArchiveSavingEvidence.importVerified,
+            'retention_policy_satisfied' =>
+              MediaArchiveSavingEvidence.retentionPolicySatisfied,
+            _ => throw const LarenorServerException('invalid_response'),
+          },
+        ),
+      ),
+    );
+  }
+
+  static bool _sameList(List<dynamic> actual, List<String> expected) {
+    if (actual.length != expected.length) return false;
+    for (var index = 0; index < expected.length; index++) {
+      if (actual[index] != expected[index]) return false;
+    }
+    return true;
+  }
+
+  static const _savingKinds = {'duplicate', 'transcode', 'retention'};
+  final bool ready, truncated;
+  final Map<MediaArchiveSavingKind, MediaArchiveSavingLaneState> laneStates;
+  final List<MediaArchiveSavingsCandidate> candidates;
+  final Map<MediaArchiveSavingKind, int> candidateCounts;
+  final int totalPotentialBytes;
+  bool get actionAvailable => false;
 }
 
 final class MediaArchiveIssue {
@@ -118,6 +326,7 @@ final class MediaArchiveHealthSnapshot {
     required this.counts,
     required this.issues,
     required this.suggestions,
+    required this.savingsPlan,
     required this.generatedAt,
   });
 
@@ -132,6 +341,7 @@ final class MediaArchiveHealthSnapshot {
       'counts',
       'issues',
       'suggestions',
+      'savingsPlan',
       'cleanupAvailable',
       'generatedAt',
     });
@@ -255,6 +465,7 @@ final class MediaArchiveHealthSnapshot {
       counts: MediaArchiveCounts.fromJson(map['counts']),
       issues: List.unmodifiable(parsedIssues),
       suggestions: List.unmodifiable(parsedSuggestions),
+      savingsPlan: MediaArchiveSavingsPlan.fromJson(map['savingsPlan']),
       generatedAt: DateTime.fromMillisecondsSinceEpoch(
         _integer(map['generatedAt'], min: 1) * 1000,
         isUtc: true,
@@ -270,13 +481,6 @@ final class MediaArchiveHealthSnapshot {
     'unplayable_media',
     'download_error',
   };
-  static bool _boundedText(Object? value, int max) =>
-      value is String &&
-      value.isNotEmpty &&
-      value.length <= max &&
-      value == value.trim() &&
-      !value.contains(RegExp(r'[\x00-\x1f\x7f]'));
-
   final String installationId;
   final int installationRevision, snapshotRevision;
   final MediaArchiveSnapshotState state;
@@ -285,6 +489,7 @@ final class MediaArchiveHealthSnapshot {
   final MediaArchiveCounts counts;
   final List<MediaArchiveIssue> issues;
   final List<MediaArchiveSavingSuggestion> suggestions;
+  final MediaArchiveSavingsPlan savingsPlan;
   bool get cleanupAvailable => false;
   final DateTime generatedAt;
 }
