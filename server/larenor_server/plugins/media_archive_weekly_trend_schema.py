@@ -19,4 +19,3 @@ DDL = '''CREATE TABLE IF NOT EXISTS media_archive_weekly_trends (
 
 def migrate_media_archive_weekly_trends(connection):
     connection.execute(DDL)
-
