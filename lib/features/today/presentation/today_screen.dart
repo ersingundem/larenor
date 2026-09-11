@@ -117,9 +117,44 @@ class _TodayScreenState extends TodayConsumerState<TodayScreen> {
   }
 
   void _open(_TodayView view, {String? id}) {
+    final selection = ref.read(todaySummarySelectionProvider.notifier);
+    switch (view) {
+      case _TodayView.tasks:
+        final shopping = const {
+          'todo.shopping',
+          'todo.shopping_list',
+        }.contains(id);
+        selection.select(
+          shopping
+              ? TodayDailySummaryKind.shopping
+              : TodayDailySummaryKind.chores,
+          sourceId: id,
+        );
+      case _TodayView.calendars:
+        selection.select(TodayDailySummaryKind.calendar, sourceId: id);
+      case _TodayView.notifications || _TodayView.notification:
+        selection.select(TodayDailySummaryKind.notifications, sourceId: id);
+      case _TodayView.overview:
+        break;
+    }
     Navigator.of(
       context,
     ).push(CupertinoPageRoute<void>(builder: (_) => TodayScreen._(view, id)));
+  }
+
+  void _openSummary(TodayDailySummary summary, TodayDailySummaryKind kind) {
+    final section = summary.sections.firstWhere((item) => item.kind == kind);
+    if (!todaySummarySectionNavigable(section)) return;
+    switch (kind) {
+      case TodayDailySummaryKind.shopping || TodayDailySummaryKind.chores:
+        final sourceId = section.entries.firstOrNull?.sourceId;
+        if (sourceId == null) return;
+        _open(_TodayView.tasks, id: sourceId);
+      case TodayDailySummaryKind.calendar:
+        _open(_TodayView.calendars, id: section.entries.firstOrNull?.sourceId);
+      case TodayDailySummaryKind.notifications:
+        _open(_TodayView.notifications);
+    }
   }
 
   void _edit(TodayTodoList list, [TodayTodoItem? item]) {
@@ -173,7 +208,11 @@ class _TodayScreenState extends TodayConsumerState<TodayScreen> {
     final asyncState = ref.watch(todayProvider);
     final connectionError = ref.watch(connectionConfigProvider).hasError;
     final actionsAvailable = ref.watch(todayActionsProvider) != null;
-    final list = findTodayList(snapshot, widget._id ?? '');
+    final selection = ref.watch(todaySummarySelectionProvider);
+    final list = findTodayList(
+      snapshot,
+      widget._id ?? selection?.sourceId ?? '',
+    );
     final title = switch (widget._view) {
       _TodayView.overview => l10n.todayTitle,
       _TodayView.tasks => list?.title ?? l10n.todayTodos,
@@ -354,6 +393,8 @@ class _TodayScreenState extends TodayConsumerState<TodayScreen> {
 
   List<Widget> _overview(TodaySnapshot snapshot, bool actionsAvailable) {
     final l10n = AppLocalizations.of(context);
+    final summary = TodayDailySummary.fromSnapshot(snapshot);
+    final selected = ref.watch(todaySummarySelectionProvider);
     final cards = <Widget Function()>[
       if (snapshot.todoLists.isEmpty)
         () => TodayCard(
@@ -471,7 +512,9 @@ class _TodayScreenState extends TodayConsumerState<TodayScreen> {
                   Padding(
                     padding: const EdgeInsets.fromLTRB(20, 0, 20, 14),
                     child: TodayDailySummaryCard(
-                      summary: TodayDailySummary.fromSnapshot(snapshot),
+                      summary: summary,
+                      selectedKind: selected?.kind,
+                      onSectionPressed: (kind) => _openSummary(summary, kind),
                     ),
                   ),
                 ),

@@ -1,5 +1,5 @@
 import 'dart:async';
-import 'dart:ui' show SemanticsFlag;
+import 'dart:ui' as ui;
 
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -282,8 +282,16 @@ void main() {
       const ValueKey('today-summary-section-shopping'),
     );
     expect(
-      tester.getSemantics(shopping).hasFlag(SemanticsFlag.isSelected),
-      isTrue,
+      tester.getSemantics(shopping).flagsCollection.isSelected,
+      ui.Tristate.isTrue,
+    );
+    harness.connection.change();
+    await tester.pump();
+    harness.publish(_snapshot(list: _list()));
+    await tester.pumpAndSettle();
+    expect(
+      tester.getSemantics(shopping).flagsCollection.isSelected,
+      ui.Tristate.isFalse,
     );
     semantics.dispose();
   });
