@@ -9,6 +9,7 @@ import com.ersingundem.larenor.window.WindowPolicyBridge
 import com.ersingundem.larenor.kiosk.KioskBridge
 import com.ersingundem.larenor.updater.ClientUpdaterBridge
 import com.ersingundem.larenor.wellbeing.WellbeingBridge
+import com.ersingundem.larenor.vnc.VncNativeBridge
 
 @UnstableApi
 class MainActivity : FlutterActivity() {
@@ -17,6 +18,7 @@ class MainActivity : FlutterActivity() {
     private var wellbeing: WellbeingBridge? = null
     private var kiosk: KioskBridge? = null
     private var updater: ClientUpdaterBridge? = null
+    private var vncNative: VncNativeBridge? = null
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
         localAudio = LocalAudioBridge(this, flutterEngine.dartExecutor.binaryMessenger)
@@ -24,6 +26,7 @@ class MainActivity : FlutterActivity() {
         wellbeing = WellbeingBridge(this, flutterEngine.dartExecutor.binaryMessenger)
         kiosk = KioskBridge(this, flutterEngine.dartExecutor.binaryMessenger)
         updater = ClientUpdaterBridge(this, flutterEngine.dartExecutor.binaryMessenger)
+        vncNative = VncNativeBridge(flutterEngine.dartExecutor.binaryMessenger)
     }
     override fun onResume() {
         super.onResume()
@@ -32,6 +35,7 @@ class MainActivity : FlutterActivity() {
         wellbeing?.setResumed(true)
         kiosk?.setResumed(true)
         updater?.setResumed(true)
+        vncNative?.setResumed(true)
     }
     override fun onPause() {
         localAudio?.setResumed(false)
@@ -39,6 +43,7 @@ class MainActivity : FlutterActivity() {
         wellbeing?.setResumed(false)
         kiosk?.setResumed(false)
         updater?.setResumed(false)
+        vncNative?.setResumed(false)
         super.onPause()
     }
     override fun onWindowFocusChanged(hasFocus: Boolean) {
@@ -47,6 +52,7 @@ class MainActivity : FlutterActivity() {
         kiosk?.windowChanged()
         updater?.windowChanged()
         windowPolicy?.windowChanged()
+        vncNative?.setWindowFocused(hasFocus)
     }
     override fun onConfigurationChanged(newConfig: Configuration) {
         super.onConfigurationChanged(newConfig)
@@ -60,6 +66,8 @@ class MainActivity : FlutterActivity() {
         windowPolicy?.windowChanged()
     }
     override fun cleanUpFlutterEngine(flutterEngine: FlutterEngine) {
+        vncNative?.dispose()
+        vncNative = null
         updater?.dispose()
         updater = null
         kiosk?.dispose()
