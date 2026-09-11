@@ -53,6 +53,15 @@ Map<String, Object?> archiveJson({String state = 'attention'}) => {
     'candidates': const [],
     'candidateCounts': const {'duplicate': 0, 'transcode': 0, 'retention': 0},
     'totalPotentialBytes': 0,
+    'dataGaps': state == 'incomplete'
+        ? const [
+            {'lane': 'duplicate', 'reason': 'stale'},
+            {'lane': 'transcode', 'reason': 'stale'},
+            {'lane': 'retention', 'reason': 'stale'},
+          ]
+        : const [
+            {'lane': 'transcode', 'reason': 'unsupported'},
+          ],
     'truncated': false,
     'actionAvailable': false,
   },
