@@ -127,16 +127,27 @@ Widget _app(Widget child, Size size) => CupertinoApp(
 
 void main() {
   test(
-    'Core HTTP boundary preserves known infrastructure failures only',
+    'Core HTTP boundary preserves only exact infrastructure status-code pairs',
     () async {
-      const known = {
-        'proxmox_upstream_unauthorized',
-        'proxmox_upstream_unavailable',
-        'keenetic_upstream_unauthorized',
-        'keenetic_upstream_denied',
-        'keenetic_upstream_unavailable',
-      };
-      for (final code in {...known, 'private_upstream_detail'}) {
+      const known = <(int, String)>[
+        (408, 'request_timeout'),
+        (409, 'proxmox_binding_changed'),
+        (409, 'proxmox_preview_invalid'),
+        (409, 'keenetic_binding_changed'),
+        (409, 'keenetic_preview_invalid'),
+        (409, 'keenetic_snapshot_changed'),
+        (429, 'proxmox_limit_reached'),
+        (429, 'keenetic_limit_reached'),
+        (502, 'proxmox_summary_unsupported'),
+        (502, 'proxmox_upstream_unauthorized'),
+        (502, 'proxmox_upstream_unavailable'),
+        (502, 'keenetic_snapshot_unsupported'),
+        (502, 'keenetic_upstream_unauthorized'),
+        (502, 'keenetic_upstream_denied'),
+        (502, 'keenetic_upstream_unavailable'),
+        (502, 'keenetic_upstream_unsupported'),
+      ];
+      for (final (status, code) in known) {
         final api = LarenorServerApi(
           endpoint: ServerEndpoint('https://core.invalid'),
           client: MockClient(
@@ -144,7 +155,7 @@ void main() {
               jsonEncode({
                 'error': {'code': code},
               }),
-              502,
+              status,
               headers: {'content-type': 'application/json'},
             ),
           ),
@@ -156,7 +167,65 @@ void main() {
             isA<LarenorServerException>().having(
               (error) => error.code,
               'code',
-              known.contains(code) ? code : 'server_error',
+              code,
+            ),
+          ),
+        );
+      }
+
+      for (final (status, code) in known) {
+        final wrongStatus = status == 502 ? 409 : 502;
+        final api = LarenorServerApi(
+          endpoint: ServerEndpoint('https://core.invalid'),
+          client: MockClient(
+            (_) async => http.Response(
+              jsonEncode({
+                'error': {'code': code},
+              }),
+              wrongStatus,
+              headers: {'content-type': 'application/json'},
+            ),
+          ),
+        );
+        addTearDown(api.close);
+        await expectLater(
+          api.request('GET', '/synthetic-infrastructure-read'),
+          throwsA(
+            isA<LarenorServerException>().having(
+              (error) => error.code,
+              'code',
+              wrongStatus == 409 ? 'conflict' : 'server_error',
+            ),
+          ),
+        );
+      }
+
+      for (final (status, fallback) in const <(int, String)>[
+        (408, 'server_error'),
+        (409, 'conflict'),
+        (429, 'rate_limited'),
+        (502, 'server_error'),
+      ]) {
+        final api = LarenorServerApi(
+          endpoint: ServerEndpoint('https://core.invalid'),
+          client: MockClient(
+            (_) async => http.Response(
+              jsonEncode({
+                'error': {'code': 'private_upstream_detail'},
+              }),
+              status,
+              headers: {'content-type': 'application/json'},
+            ),
+          ),
+        );
+        addTearDown(api.close);
+        await expectLater(
+          api.request('GET', '/synthetic-infrastructure-read'),
+          throwsA(
+            isA<LarenorServerException>().having(
+              (error) => error.code,
+              'code',
+              fallback,
             ),
           ),
         );
