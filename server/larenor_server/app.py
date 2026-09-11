@@ -43,6 +43,7 @@ from .plugins.music_assistant_core_api import router as music_assistant_core_rou
 from .plugins.music_provider_setup_api import router as music_provider_setup_router
 from .plugins.music_provider_command_api import router as music_provider_command_router
 from .plugins.music_playback_api import router as music_playback_router
+from .plugins.music_retained_status_api import router as music_retained_status_router
 from .bounded_transfer.api import router as bounded_transfer_router
 from .bounded_transfer.models import TransferLimits
 from .bounded_transfer.service import BlobProvider
@@ -242,6 +243,7 @@ def create_app(settings: Settings, *, routers: Iterable[APIRouter] = (),
     app.include_router(media_service_bootstraps_router, prefix="/api/v1")
     app.include_router(qbittorrent_configurations_router, prefix="/api/v1")
     app.include_router(arr_configurations_router, prefix="/api/v1")
+    app.include_router(music_retained_status_router, prefix="/api/v1")
     app.include_router(music_assistant_core_router, prefix="/api/v1")
     app.include_router(music_provider_setup_router, prefix="/api/v1")
     app.include_router(music_provider_command_router, prefix="/api/v1")

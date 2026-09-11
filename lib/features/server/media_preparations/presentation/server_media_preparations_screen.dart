@@ -15,6 +15,7 @@ import '../../../settings/providers/settings_providers.dart';
 import '../../data/server_account_controller.dart';
 import '../../domain/server_models.dart';
 import '../../providers/server_providers.dart';
+import '../../music_retained/presentation/server_music_retained_screen.dart';
 import '../data/server_media_preparations_controller.dart';
 import '../domain/server_media_preparation_models.dart';
 import 'server_media_inspections_screen.dart';
@@ -218,6 +219,15 @@ class _ServerMediaPreparationsScreenState
     );
   }
 
+  Future<void> _openMusicStatus(bool Function() current) async {
+    if (!_enabled || !current()) return;
+    await Navigator.of(context).push(
+      CupertinoPageRoute<void>(
+        builder: (_) => const ServerMusicRetainedScreen(),
+      ),
+    );
+  }
+
   final _fields = {
     'instanceName': TextEditingController(text: 'larenor'),
     'dataRootId': TextEditingController(text: 'appdata'),
@@ -410,6 +420,11 @@ class _ServerMediaPreparationsScreenState
                               'media-inspections-history',
                               l.serverMediaInspectionsHistory,
                               _openInspections,
+                            ),
+                            _button(
+                              'media-music-core',
+                              l.serverMusicRetainedTitle,
+                              _openMusicStatus,
                             ),
                           ],
                         ),

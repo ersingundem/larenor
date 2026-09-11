@@ -228,6 +228,7 @@ void main() {
       expect(find.byKey(const ValueKey('plugins-jobs')), findsOneWidget);
       await tap(tester, 'plugins-media');
       expect(find.byKey(const ValueKey('media-new')), findsOneWidget);
+      expect(find.byKey(const ValueKey('media-music-core')), findsOneWidget);
       expect(f.mutations, isEmpty);
     },
   );
