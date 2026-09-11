@@ -5,6 +5,12 @@ import 'package:larenor/features/today/data/today_api.dart';
 
 class FakeTodayApi implements TodayApi {
   Map<String, dynamic> config = {'time_zone': 'Europe/Istanbul'};
+  List<String> components = [
+    'todo',
+    'shopping_list',
+    'calendar',
+    'persistent_notification',
+  ];
   List<HaEntity> entities = [todoEntity('todo.shopping')];
   List<Map<String, dynamic>> calendars = [
     {'entity_id': 'calendar.family', 'name': 'Family'},
@@ -18,7 +24,9 @@ class FakeTodayApi implements TodayApi {
     'calendar.family': [calendarEvent()],
   };
   Object? notifications = [notification()];
+  Object? legacyShoppingItems = const [];
   Object? configError;
+  Object? componentsError;
   Object? entitiesError;
   Object? calendarsError;
   Object? notificationsError;
@@ -42,6 +50,10 @@ class FakeTodayApi implements TodayApi {
   final subscriptions = <StreamController<dynamic>>[];
   int cancelled = 0;
   int configCalls = 0;
+  int componentsCalls = 0;
+  int entitiesCalls = 0;
+  int calendarIndexCalls = 0;
+  int legacyShoppingCalls = 0;
   int notificationCalls = 0;
 
   @override
@@ -53,13 +65,22 @@ class FakeTodayApi implements TodayApi {
   }
 
   @override
+  Future<Object?> getComponents() async {
+    componentsCalls++;
+    if (componentsError != null) throw componentsError!;
+    return components;
+  }
+
+  @override
   Future<List<HaEntity>> getEntities() async {
+    entitiesCalls++;
     if (entitiesError != null) throw entitiesError!;
     return entities;
   }
 
   @override
   Future<List<Map<String, dynamic>>> getCalendars() async {
+    calendarIndexCalls++;
     if (calendarsError != null) throw calendarsError!;
     return calendars;
   }
@@ -81,6 +102,12 @@ class FakeTodayApi implements TodayApi {
     await beforeItems?.call(entityId);
     if (itemErrors[entityId] case final Object error) throw error;
     return items[entityId] ?? {'items': []};
+  }
+
+  @override
+  Future<Object?> getLegacyShoppingItems() async {
+    legacyShoppingCalls++;
+    return legacyShoppingItems;
   }
 
   @override

@@ -3,14 +3,25 @@ import 'dart:async';
 import '../domain/today_models.dart';
 import 'today_api.dart';
 import 'today_repository.dart';
+import 'today_retained_cache.dart';
 
-/// Account-scoped, memory-only state. Poll scheduling is owned by the provider;
-/// this class coalesces reads and never invokes a mutation or queues one.
+/// Account-scoped state with an optional encrypted retained read snapshot. Poll
+/// scheduling is owned by the provider; this class coalesces reads and never
+/// invokes a Home Assistant mutation or queues one.
 class TodayController {
-  TodayController({required this.repository, DateTime Function()? now})
-    : _now = now ?? DateTime.now;
+  TodayController({
+    required this.repository,
+    DateTime Function()? now,
+    TodayRetainedPersistence? retainedStore,
+    TodayRetainedScope? retainedScope,
+  }) : assert((retainedStore == null) == (retainedScope == null)),
+       _now = now ?? DateTime.now,
+       _retainedStore = retainedStore,
+       _retainedScope = retainedScope;
   final TodayRepository repository;
   final DateTime Function() _now;
+  final TodayRetainedPersistence? _retainedStore;
+  final TodayRetainedScope? _retainedScope;
   final _changes = StreamController<TodaySnapshot>.broadcast();
   final _locallyRead = <String, DateTime>{};
   final _pendingEvents = <Object?>[];
@@ -19,6 +30,7 @@ class TodayController {
   TodaySubscription? _remote;
   StreamSubscription<dynamic>? _events;
   int _subscriptionGeneration = 0;
+  int _loadGeneration = 0;
   bool _subscribing = false;
   bool _foreground = true;
   bool _connected = false;
@@ -40,7 +52,8 @@ class TodayController {
       _refreshAgain = _refreshAgain || afterCurrent;
       return _refreshing!;
     }
-    return _refreshing = _load().whenComplete(() {
+    final generation = ++_loadGeneration;
+    return _refreshing = _load(generation).whenComplete(() {
       _refreshing = null;
       if (_refreshAgain) {
         _refreshAgain = false;
@@ -49,12 +62,35 @@ class TodayController {
     });
   }
 
-  Future<void> _load() async {
+  bool _currentLoad(int generation) =>
+      !_disposed && _foreground && generation == _loadGeneration;
+
+  Future<void> _load(int generation) async {
     _pendingEvents.clear();
     _overflowed = false;
     try {
+      if (_snapshot == null &&
+          _retainedStore != null &&
+          _retainedScope != null) {
+        try {
+          final retained = await _retainedStore.read(
+            _retainedScope,
+            isCurrent: () => _currentLoad(generation),
+          );
+          if (!_currentLoad(generation)) return;
+          if (retained != null) _publish(retained);
+        } on TodayRetainedException {
+          if (!_currentLoad(generation)) return;
+          // Cache loss never blocks a fresh Home Assistant read.
+        }
+      }
+      if (!_currentLoad(generation)) return;
       final value = await repository.load(previous: _snapshot);
-      if (_disposed) return;
+      if (!_currentLoad(generation)) return;
+      if (!repository.notificationSubscriptionsSupported) {
+        _pendingEvents.clear();
+        _stopSubscription();
+      }
       var next = value;
       for (final event in _pendingEvents) {
         next = _mergeEvent(next, event);
@@ -63,8 +99,19 @@ class TodayController {
         next = _notificationFailure(next, TodayFailure.invalidResponse);
       }
       _publish(next);
+      if (_retainedStore != null && _retainedScope != null) {
+        try {
+          await _retainedStore.write(
+            _retainedScope,
+            next,
+            isCurrent: () => _currentLoad(generation),
+          );
+        } on TodayRetainedException {
+          // Current data remains usable when the optional cache is unavailable.
+        }
+      }
     } catch (error) {
-      if (_disposed) return;
+      if (!_currentLoad(generation)) return;
       final previous = _snapshot;
       final failure = classifyTodayFailure(error);
       final lists = [
@@ -105,6 +152,7 @@ class TodayController {
       _publish(
         TodaySnapshot(
           configured: true,
+          retained: previous?.retained ?? false,
           refreshedAt: _now(),
           timeZone: previous?.timeZone,
           dayStart: previous?.dayStart,
@@ -134,7 +182,12 @@ class TodayController {
     _foreground = foreground;
     if (foreground) {
       _ensureSubscription();
+      if (_refreshing != null) {
+        _refreshAgain = true;
+      }
     } else {
+      _loadGeneration++;
+      _refreshAgain = false;
       _stopSubscription();
     }
   }
@@ -161,6 +214,8 @@ class TodayController {
     _subscribing = true;
     unawaited(() async {
       try {
+        final capabilities = await repository.discoverReadCapabilities();
+        if (!capabilities.persistentNotification) return;
         final remote = await repository.api.subscribeNotifications();
         if (_disposed || generation != _subscriptionGeneration) {
           await _cancelRemote(remote);
@@ -330,6 +385,7 @@ class TodayController {
   void dispose() {
     if (_disposed) return;
     _disposed = true;
+    _loadGeneration++;
     _stopSubscription();
     _locallyRead.clear();
     _pendingEvents.clear();

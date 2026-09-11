@@ -9,11 +9,14 @@ import '../../auth/providers/auth_providers.dart';
 import '../../navigation/presentation/app_shell_actions.dart';
 import '../../navigation/search/domain/local_search_index.dart';
 import '../data/today_timezone.dart';
+import '../domain/today_calendar_summary.dart';
 import '../domain/today_daily_summary.dart';
 import '../domain/today_models.dart';
 import '../providers/today_providers.dart';
 import 'today_daily_summary_card.dart';
+import 'today_calendar_summary_card.dart';
 import 'today_support.dart';
+import 'today_summary_detail_card.dart';
 import 'today_task_editor.dart';
 
 enum _TodayView { overview, tasks, calendars, notifications, notification }
@@ -117,9 +120,52 @@ class _TodayScreenState extends TodayConsumerState<TodayScreen> {
   }
 
   void _open(_TodayView view, {String? id}) {
+    final selection = ref.read(todaySummarySelectionProvider.notifier);
+    switch (view) {
+      case _TodayView.tasks:
+        final shopping = const {
+          'todo.shopping',
+          'todo.shopping_list',
+        }.contains(id);
+        selection.select(
+          shopping
+              ? TodayDailySummaryKind.shopping
+              : TodayDailySummaryKind.chores,
+          sourceId: id,
+        );
+      case _TodayView.calendars:
+        selection.select(TodayDailySummaryKind.calendar, sourceId: id);
+      case _TodayView.notifications || _TodayView.notification:
+        selection.select(TodayDailySummaryKind.notifications, sourceId: id);
+      case _TodayView.overview:
+        break;
+    }
     Navigator.of(
       context,
     ).push(CupertinoPageRoute<void>(builder: (_) => TodayScreen._(view, id)));
+  }
+
+  void _openSummary(
+    TodayDailySummary summary,
+    TodayDailySummaryKind kind, {
+    bool masterDetail = false,
+  }) {
+    final section = summary.sections.firstWhere((item) => item.kind == kind);
+    if (!todaySummarySectionNavigable(section)) return;
+    final sourceId = section.entries.firstOrNull?.sourceId;
+    ref
+        .read(todaySummarySelectionProvider.notifier)
+        .select(kind, sourceId: sourceId);
+    if (masterDetail) return;
+    switch (kind) {
+      case TodayDailySummaryKind.shopping || TodayDailySummaryKind.chores:
+        if (sourceId == null) return;
+        _open(_TodayView.tasks, id: sourceId);
+      case TodayDailySummaryKind.calendar:
+        _open(_TodayView.calendars, id: section.entries.firstOrNull?.sourceId);
+      case TodayDailySummaryKind.notifications:
+        _open(_TodayView.notifications);
+    }
   }
 
   void _edit(TodayTodoList list, [TodayTodoItem? item]) {
@@ -140,6 +186,7 @@ class _TodayScreenState extends TodayConsumerState<TodayScreen> {
 
   bool _notificationsWritable(TodaySnapshot snapshot) =>
       snapshot.configured &&
+      !snapshot.retained &&
       snapshot.notifications.value != null &&
       snapshot.notifications.issue == null &&
       !snapshot.issues.any(
@@ -172,7 +219,11 @@ class _TodayScreenState extends TodayConsumerState<TodayScreen> {
     final asyncState = ref.watch(todayProvider);
     final connectionError = ref.watch(connectionConfigProvider).hasError;
     final actionsAvailable = ref.watch(todayActionsProvider) != null;
-    final list = findTodayList(snapshot, widget._id ?? '');
+    final selection = ref.watch(todaySummarySelectionProvider);
+    final list = findTodayList(
+      snapshot,
+      widget._id ?? selection?.sourceId ?? '',
+    );
     final title = switch (widget._view) {
       _TodayView.overview => l10n.todayTitle,
       _TodayView.tasks => list?.title ?? l10n.todayTodos,
@@ -263,13 +314,24 @@ class _TodayScreenState extends TodayConsumerState<TodayScreen> {
                         ),
                         style: AppText.footnote,
                       ),
+                      if (snapshot.retained)
+                        Text(
+                          l10n.todayStale,
+                          key: const ValueKey('today-retained-status'),
+                          style: AppText.headline,
+                        ),
                       CupertinoButton(
+                        key: const ValueKey('today-refresh'),
                         padding: const EdgeInsets.symmetric(vertical: 8),
                         onPressed: _pending.contains('refresh')
                             ? null
                             : _refresh,
                         child: _pending.contains('refresh')
-                            ? const CupertinoActivityIndicator()
+                            ? Semantics(
+                                liveRegion: true,
+                                label: l10n.todayRefreshing,
+                                child: const CupertinoActivityIndicator(),
+                              )
                             : Text(l10n.commonRefresh),
                       ),
                       if (snapshot.issues.isNotEmpty) ...[
@@ -342,6 +404,8 @@ class _TodayScreenState extends TodayConsumerState<TodayScreen> {
 
   List<Widget> _overview(TodaySnapshot snapshot, bool actionsAvailable) {
     final l10n = AppLocalizations.of(context);
+    final summary = TodayDailySummary.fromSnapshot(snapshot);
+    final selected = ref.watch(todaySummarySelectionProvider);
     final cards = <Widget Function()>[
       if (snapshot.todoLists.isEmpty)
         () => TodayCard(
@@ -397,7 +461,11 @@ class _TodayScreenState extends TodayConsumerState<TodayScreen> {
                         overflow: TextOverflow.ellipsis,
                       ),
                       Text(
-                        todayEventTime(context, event),
+                        todayEventTime(
+                          context,
+                          event,
+                          timeZone: snapshot.timeZone,
+                        ),
                         style: AppText.footnote,
                       ),
                     ],
@@ -452,18 +520,106 @@ class _TodayScreenState extends TodayConsumerState<TodayScreen> {
     ];
     return [
       SliverLayoutBuilder(
-        builder: (context, constraints) => constraints.crossAxisExtent < 480
-            ? const SliverToBoxAdapter(child: SizedBox.shrink())
-            : SliverToBoxAdapter(
-                child: _constrained(
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(20, 0, 20, 14),
-                    child: TodayDailySummaryCard(
-                      summary: TodayDailySummary.fromSnapshot(snapshot),
-                    ),
-                  ),
-                ),
+        builder: (context, constraints) {
+          if (constraints.crossAxisExtent < 480) {
+            return const SliverToBoxAdapter(child: SizedBox.shrink());
+          }
+          final masterDetail = constraints.crossAxisExtent >= 1000;
+          final detail = selected == null
+              ? null
+              : summary.sections
+                    .where((section) => section.kind == selected.kind)
+                    .firstOrNull;
+          final selectedItemExists =
+              selected?.itemId == null ||
+              detail?.entries.any(
+                    (entry) =>
+                        entry.sourceId == selected?.sourceId &&
+                        entry.itemId == selected?.itemId,
+                  ) ==
+                  true;
+          if (selected?.itemId != null) {
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (!mounted) return;
+              ref
+                  .read(todaySummarySelectionProvider.notifier)
+                  .reconcileSnapshot(snapshot);
+            });
+          }
+          final master = TodayDailySummaryCard(
+            summary: summary,
+            selectedKind: selected?.kind,
+            onSectionPressed: (kind) =>
+                _openSummary(summary, kind, masterDetail: masterDetail),
+          );
+          return SliverToBoxAdapter(
+            child: _constrained(
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 0, 20, 14),
+                child: masterDetail && detail != null
+                    ? Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(child: master),
+                          const SizedBox(width: 14),
+                          Expanded(
+                            child: detail.kind == TodayDailySummaryKind.calendar
+                                ? _calendarSummaryCard(
+                                    snapshot,
+                                    selected!,
+                                    key: const ValueKey(
+                                      'today-summary-detail-calendar',
+                                    ),
+                                    onClose: ref
+                                        .read(
+                                          todaySummarySelectionProvider
+                                              .notifier,
+                                        )
+                                        .clear,
+                                  )
+                                : TodaySummaryDetailCard(
+                                    section: detail,
+                                    query: selected!.query,
+                                    selectedSourceId: selectedItemExists
+                                        ? selected.sourceId
+                                        : null,
+                                    selectedItemId: selectedItemExists
+                                        ? selected.itemId
+                                        : null,
+                                    onQueryChanged: ref
+                                        .read(
+                                          todaySummarySelectionProvider
+                                              .notifier,
+                                        )
+                                        .updateQuery,
+                                    onItemSelected: (entry) => ref
+                                        .read(
+                                          todaySummarySelectionProvider
+                                              .notifier,
+                                        )
+                                        .selectItem(
+                                          sourceId: entry.sourceId,
+                                          itemId: entry.itemId!,
+                                        ),
+                                    onClose: ref
+                                        .read(
+                                          todaySummarySelectionProvider
+                                              .notifier,
+                                        )
+                                        .clear,
+                                    onOpen: todaySummarySectionNavigable(detail)
+                                        ? () =>
+                                              _openSummary(summary, detail.kind)
+                                        : null,
+                                  ),
+                          ),
+                        ],
+                      )
+                    : master,
               ),
+            ),
+          );
+        },
       ),
       SliverLayoutBuilder(
         builder: (context, constraints) {
@@ -739,57 +895,49 @@ class _TodayScreenState extends TodayConsumerState<TodayScreen> {
   }
 
   List<Widget> _calendars(TodaySnapshot snapshot) {
-    final l10n = AppLocalizations.of(context);
-    final builders = <Widget Function()>[];
-    for (final calendar in snapshot.calendars) {
-      builders.add(
-        () => Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(calendar.title, style: AppText.title3),
-            TodayReadNotice(read: calendar.events, timeZone: snapshot.timeZone),
-            if (calendar.events.value?.isEmpty == true &&
-                calendar.events.issue == null)
-              Text(l10n.todayNoEvents),
-          ],
-        ),
-      );
-      for (final event
-          in calendar.events.value ?? const <TodayCalendarEvent>[]) {
-        builders.add(
-          () => TodayCard(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(event.title, style: AppText.headline),
-                Text(todayEventTime(context, event), style: AppText.subhead),
-                if (event.location?.isNotEmpty == true) ...[
-                  const SizedBox(height: 8),
-                  Text(l10n.todayLocation, style: AppText.footnote),
-                  Text(event.location!),
-                ],
-                if (event.description?.isNotEmpty == true) ...[
-                  const SizedBox(height: 8),
-                  Text(event.description!, style: AppText.body),
-                ],
-              ],
-            ),
-          ),
-        );
-      }
-    }
+    final selected = ref.watch(todaySummarySelectionProvider);
+    final selection = selected?.kind == TodayDailySummaryKind.calendar
+        ? selected!
+        : const TodaySummarySelection(kind: TodayDailySummaryKind.calendar);
     return [
-      SliverList.builder(
-        itemCount: builders.length,
-        itemBuilder: (context, index) => _constrained(
+      SliverToBoxAdapter(
+        child: _constrained(
           Padding(
             padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
-            child: builders[index](),
+            child: _calendarSummaryCard(snapshot, selection),
           ),
         ),
       ),
     ];
   }
+
+  Widget _calendarSummaryCard(
+    TodaySnapshot snapshot,
+    TodaySummarySelection selection, {
+    Key? key,
+    VoidCallback? onClose,
+  }) => TodayCalendarSummaryCard(
+    key: key,
+    timeZone: snapshot.timeZone,
+    summary: TodayCalendarSummary.fromSnapshot(
+      snapshot,
+      now: DateTime.now().toUtc(),
+    ),
+    query: selection.query,
+    selectedSourceId: selection.sourceId,
+    selectedItemId: selection.itemId,
+    onQueryChanged: ref
+        .read(todaySummarySelectionProvider.notifier)
+        .updateQuery,
+    onItemSelected: (entry) {
+      final uid = entry.event.uid;
+      if (uid == null) return;
+      ref
+          .read(todaySummarySelectionProvider.notifier)
+          .selectItem(sourceId: entry.sourceId, itemId: uid);
+    },
+    onClose: onClose,
+  );
 
   Widget _notificationRow(TodayNotification item, TodaySnapshot snapshot) =>
       CupertinoButton(

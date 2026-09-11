@@ -151,6 +151,7 @@ TodayTodoItem? findTodayItem(TodayTodoList? list, String? uid) {
 
 bool todayListWritable(TodaySnapshot snapshot, TodayTodoList list) =>
     snapshot.configured &&
+    !snapshot.retained &&
     list.available &&
     list.items.value != null &&
     list.items.issue == null &&
@@ -198,7 +199,11 @@ String todayTimestamp(BuildContext context, DateTime value, String? zone) {
   return '${todayDate(context, local)} · ${todayTime(context, local)}$suffix';
 }
 
-String todayEventTime(BuildContext context, TodayCalendarEvent event) {
+String todayEventTime(
+  BuildContext context,
+  TodayCalendarEvent event, {
+  String? timeZone,
+}) {
   final l10n = AppLocalizations.of(context);
   if (event.allDay) {
     // Date-only math deliberately avoids the device timezone and DST days.
@@ -217,8 +222,19 @@ String todayEventTime(BuildContext context, TodayCalendarEvent event) {
         : '${todayDate(context, start)} – ${todayDate(context, last)}';
     return '${l10n.todayAllDay} · $dates';
   }
-  return '${todayDate(context, event.start)} · ${todayTime(context, event.start)}'
-      ' – ${todayDate(context, event.end)} · ${todayTime(context, event.end)}';
+  var start = event.start;
+  var end = event.end;
+  if (timeZone != null) {
+    try {
+      final zone = TodayTimeZone(timeZone);
+      start = zone.local(start);
+      end = zone.local(end);
+    } on TodayException {
+      // Invalid retained zones fail closed; an untrusted caller gets no shift.
+    }
+  }
+  return '${todayDate(context, start)} · ${todayTime(context, start)}'
+      ' – ${todayDate(context, end)} · ${todayTime(context, end)}';
 }
 
 class TodayCard extends StatelessWidget {

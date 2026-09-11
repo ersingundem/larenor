@@ -871,6 +871,7 @@
   "todayNoNotifications": "Bildirim yok.",
   "todayUnread": "Henüz okunmadı",
   "todayPartial": "Bazı bilgiler yenilenemedi.",
+  "todayRefreshing": "Bugünün özeti yenileniyor",
   "todayStale": "Önceden okunan veriler gösteriliyor. Değişiklik yapmadan önce yenileyin.",
   "todayUnsupported": "Bu özellik bu Home Assistant entegrasyonunda kullanılamıyor.",
   "todayUnavailable": "Bu kaynağa şu anda erişilemiyor.",
@@ -900,6 +901,28 @@
   "todayDismissConfirm": "Bu işlem bildirimi Home Assistant’tan herkes için kaldırır.",
   "todayViewingKeepsNotification": "Bildirimi açmak onu Home Assistant’tan kaldırmaz.",
   "todayAllDay": "Tüm gün",
+  "todayCalendarAllDayEvents": "Tüm gün etkinlikleri",
+  "todayCalendarTimedEvents": "Saatli etkinlikler",
+  "todayCalendarPast": "Geçmiş",
+  "todayCalendarCurrent": "Şu anda sürüyor",
+  "todayCalendarUpcoming": "Yaklaşan",
+  "todayCalendarSaved": "Kayıtlı okuma",
+  "todayCalendarSavedSource": "Kayıtlı kaynak: {source}",
+  "@todayCalendarSavedSource": {
+    "placeholders": {
+      "source": {
+        "type": "String"
+      }
+    }
+  },
+  "todayCalendarUnavailableSource": "Erişilemeyen kaynak: {source}",
+  "@todayCalendarUnavailableSource": {
+    "placeholders": {
+      "source": {
+        "type": "String"
+      }
+    }
+  },
   "todayLocation": "Konum",
   "todayTimeZone": "Ev saat dilimi: {zone}",
   "todayRefreshed": "Güncellendi: {time}",

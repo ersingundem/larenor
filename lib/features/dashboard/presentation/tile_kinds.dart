@@ -79,11 +79,9 @@ const tileKinds = {
   ),
 };
 
-/// The 11 external-service summary tiles — unlike everything in
-/// [tileKinds], these aren't tied to a Home Assistant entity, they read
-/// from that service's own app-wide connection (configured once via
-/// Settings → Manage Integrations), so adding one needs no entity picker
-/// and no per-tile setup dialog at all.
+/// Summary tiles that do not bind to a single Home Assistant entity. Most read
+/// an app-wide service connection; Today reuses its account-scoped read model.
+/// Adding one never needs the entity picker.
 const serviceTileKinds = {
   TileType.jellyfin: TileKindInfo(
     'Jellyfin',
@@ -169,6 +167,13 @@ const serviceTileKinds = {
     width: 3,
     height: 2,
   ),
+  TileType.today: TileKindInfo(
+    'Today',
+    CupertinoIcons.calendar_today,
+    CupertinoColors.systemIndigo,
+    width: 3,
+    height: 2,
+  ),
 };
 
 /// Which summary tile represents each optional service, so the dashboard's
@@ -239,6 +244,8 @@ String tileTypeLabel(BuildContext context, TileType type) {
       return l10n.dashboardTileKeenetic;
     case TileType.coreKeenetic:
       return l10n.dashboardTileCoreKeenetic;
+    case TileType.today:
+      return l10n.todayTitle;
     case TileType.webview:
       return l10n.dashboardTileWebview;
   }

@@ -18,10 +18,14 @@ class TodayDailySummaryEntry {
   const TodayDailySummaryEntry({
     required this.sourceId,
     required this.title,
+    this.itemId,
     this.supportingText,
   });
 
   final String sourceId;
+
+  /// Stable upstream identity used only for read-only local selection.
+  final String? itemId;
   final String title;
   final String? supportingText;
 }
@@ -133,7 +137,10 @@ TodayDailySummarySection _todoSection(
   int limit,
 ) {
   if (lists.isEmpty) {
-    final issue = _globalIssue(issues, TodaySource.todos);
+    final issue = kind == TodayDailySummaryKind.shopping
+        ? _globalIssue(issues, TodaySource.shopping) ??
+              _globalIssue(issues, TodaySource.todos)
+        : _globalIssue(issues, TodaySource.todos);
     return TodayDailySummarySection(
       kind: kind,
       state: issue == null ? TodayDailySummaryState.empty : _failure(issue),
@@ -152,6 +159,7 @@ TodayDailySummarySection _todoSection(
         entries.add(
           TodayDailySummaryEntry(
             sourceId: list.entityId,
+            itemId: item.uid,
             title: item.summary?.trim().isNotEmpty == true
                 ? item.summary!.trim()
                 : list.title,
@@ -191,6 +199,7 @@ TodayDailySummarySection _calendarSection(
         entries.add(
           TodayDailySummaryEntry(
             sourceId: calendar.entityId,
+            itemId: event.uid,
             title: event.title,
             supportingText: event.start.toIso8601String(),
           ),
@@ -216,6 +225,7 @@ TodayDailySummarySection _notificationSection(
       .map(
         (item) => TodayDailySummaryEntry(
           sourceId: item.id,
+          itemId: item.id,
           title: item.title?.trim().isNotEmpty == true
               ? item.title!.trim()
               : item.message,
