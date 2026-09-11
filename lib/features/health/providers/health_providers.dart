@@ -26,11 +26,10 @@ final integrationHealthProvider = StreamProvider.autoDispose
 final healthClockProvider = StreamProvider.autoDispose<DateTime>((ref) {
   final values = StreamController<DateTime>();
   Timer? timer;
-  void update(AppLifecycleState? state) {
+  void schedule(AppLifecycleState? state) {
     timer?.cancel();
     timer = null;
     if (state == null || state == AppLifecycleState.resumed) {
-      values.add(DateTime.now());
       timer = Timer.periodic(
         const Duration(seconds: 15),
         (_) => values.add(DateTime.now()),
@@ -38,8 +37,20 @@ final healthClockProvider = StreamProvider.autoDispose<DateTime>((ref) {
     }
   }
 
+  void update(AppLifecycleState? state) {
+    if (state == null || state == AppLifecycleState.resumed) {
+      values.add(DateTime.now());
+    }
+    schedule(state);
+  }
+
   final lifecycle = AppLifecycleListener(onStateChange: update);
   update(WidgetsBinding.instance.lifecycleState);
+  ref.onCancel(() {
+    timer?.cancel();
+    timer = null;
+  });
+  ref.onResume(() => schedule(WidgetsBinding.instance.lifecycleState));
   ref.onDispose(() {
     timer?.cancel();
     lifecycle.dispose();
