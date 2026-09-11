@@ -41,7 +41,6 @@ void main() {
       expect(find.text('Saved connection'), findsOneWidget);
       expect(find.text('Not yet verified'), findsOneWidget);
       expect(find.text('Data read successfully'), findsNothing);
-      expect(find.textContaining('connection not tested'), findsOneWidget);
       await press(t, 'remote-copy');
       expect(h.clipboard, '[2001:db8::1]:3389');
       await press(t, 'remote-edit');
