@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -14,7 +16,7 @@ CoreKeeneticCommandTarget target({String kind = 'guest_wifi'}) =>
 class FakeCoreKeeneticCommandApi implements CoreKeeneticCommandApi {
   FakeCoreKeeneticCommandApi({this.highRisk = false});
   final bool highRisk;
-  int effects = 0, cancels = 0;
+  int previews = 0, effects = 0, cancels = 0;
   CoreKeeneticCommandPreview? current;
   bool challenged = false;
 
@@ -22,14 +24,17 @@ class FakeCoreKeeneticCommandApi implements CoreKeeneticCommandApi {
   Future<CoreKeeneticCommandPreview> preview(
     CoreKeeneticCommandAction action,
     CoreKeeneticCommandTarget target,
-  ) async => current = CoreKeeneticCommandPreview(
-    id: 'preview',
-    confirmToken: 'first',
-    requestId: 'request',
-    action: action,
-    targetFingerprint: target.fingerprint,
-    highRisk: highRisk,
-  );
+  ) async {
+    previews++;
+    return current = CoreKeeneticCommandPreview(
+      id: 'preview',
+      confirmToken: 'first',
+      requestId: 'request',
+      action: action,
+      targetFingerprint: target.fingerprint,
+      highRisk: highRisk,
+    );
+  }
 
   @override
   Future<CoreKeeneticConfirmResult> confirm(
@@ -66,6 +71,19 @@ class FakeCoreKeeneticCommandApi implements CoreKeeneticCommandApi {
         CoreKeeneticCommandStatus.succeeded,
         'succeeded',
       );
+}
+
+class HeldCoreKeeneticCommandApi extends FakeCoreKeeneticCommandApi {
+  final pending = Completer<CoreKeeneticCommandPreview>();
+
+  @override
+  Future<CoreKeeneticCommandPreview> preview(
+    CoreKeeneticCommandAction action,
+    CoreKeeneticCommandTarget target,
+  ) {
+    previews++;
+    return pending.future;
+  }
 }
 
 Widget app(Widget child, {Locale locale = const Locale('en')}) => CupertinoApp(
@@ -197,6 +215,85 @@ void main() {
     expect(find.text('Confirm'), findsNothing);
     expect(api.cancels, 1);
     expect(api.effects, 0);
+  });
+
+  testWidgets('live parent authority loss disables actions before a request', (
+    tester,
+  ) async {
+    final api = FakeCoreKeeneticCommandApi();
+    var authorityCurrent = true;
+    late StateSetter rebuild;
+    await tester.pumpWidget(
+      app(
+        StatefulBuilder(
+          builder: (context, setState) {
+            rebuild = setState;
+            return CoreKeeneticCommandPanel(
+              target: target(),
+              isAdmin: true,
+              canWrite: true,
+              isCurrent: () => authorityCurrent,
+              api: api,
+            );
+          },
+        ),
+      ),
+    );
+    expect(find.text('Enable'), findsOneWidget);
+
+    rebuild(() => authorityCurrent = false);
+    await tester.pump();
+
+    expect(find.text('Enable'), findsNothing);
+    expect(
+      find.text('This account can view router state but cannot run commands.'),
+      findsOneWidget,
+    );
+    expect(api.previews, 0);
+  });
+
+  testWidgets('parent authority loss discards a late preview', (tester) async {
+    final api = HeldCoreKeeneticCommandApi();
+    var authorityCurrent = true;
+    late StateSetter rebuild;
+    await tester.pumpWidget(
+      app(
+        StatefulBuilder(
+          builder: (context, setState) {
+            rebuild = setState;
+            return CoreKeeneticCommandPanel(
+              target: target(),
+              isAdmin: true,
+              canWrite: true,
+              isCurrent: () => authorityCurrent,
+              api: api,
+            );
+          },
+        ),
+      ),
+    );
+    await tester.tap(find.text('Enable'));
+    await tester.pump();
+    expect(api.previews, 1);
+
+    rebuild(() => authorityCurrent = false);
+    await tester.pump();
+    api.pending.complete(
+      CoreKeeneticCommandPreview(
+        id: 'late-preview',
+        confirmToken: 'late-token',
+        requestId: 'late-request',
+        action: CoreKeeneticCommandAction.guestWifiEnable,
+        targetFingerprint: target().fingerprint,
+        highRisk: false,
+      ),
+    );
+    await tester.pump();
+
+    expect(find.text('Review command'), findsNothing);
+    expect(find.text('Confirm'), findsNothing);
+    expect(api.effects, 0);
+    expect(api.cancels, 0);
   });
 
   for (final width in [600.0, 1280.0]) {

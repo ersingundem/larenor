@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../l10n/generated/app_localizations.dart';
 import '../../../../shared/theme/typography.dart';
+import '../../../../shared/widgets/core_infrastructure_evidence.dart';
 import '../../../core_ha/data/core_ha_providers.dart';
 import '../../../core_ha/presentation/core_ha_route.dart';
 import '../../../core_ha/presentation/core_ha_widgets.dart';
@@ -84,6 +85,13 @@ class _ViewState extends ConsumerState<_View> {
       builder: (_, _) {
         final c = _controller,
             telemetry = c.preview?.telemetry ?? c.snapshot?.telemetry;
+        final evidence = coreInfrastructureEvidence(
+          busy: c.busy,
+          stale: c.stale,
+          failure: c.failure,
+          verifiedAt: c.snapshot?.observedAt,
+          transportObserved: c.preview != null,
+        );
         if (_service != null &&
             !c.services.any((s) => identical(s, _service))) {
           _service = null;
@@ -122,6 +130,11 @@ class _ViewState extends ConsumerState<_View> {
                   widget.target.label,
                   style: CupertinoTheme.of(context).textTheme.navTitleTextStyle,
                 ),
+              ),
+              const SizedBox(height: 8),
+              CoreInfrastructureEvidenceStatus(
+                surface: 'keenetic-connection',
+                evidence: evidence,
               ),
               button(
                 'core-keenetic-refresh',

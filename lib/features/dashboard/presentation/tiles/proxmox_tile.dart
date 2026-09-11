@@ -6,7 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/home_session_controller.dart';
 import '../../../../core/home_source_store.dart';
 import '../../../../l10n/generated/app_localizations.dart';
-import '../../../health/data/connection_evidence.dart';
+import '../../../../shared/widgets/core_infrastructure_evidence.dart';
 import '../../../core_ha/data/core_ha_providers.dart';
 import '../../../core_proxmox/data/core_proxmox_providers.dart';
 import '../../../core_proxmox/domain/core_proxmox_models.dart';
@@ -323,13 +323,7 @@ class _CoreProxmoxTileState extends ConsumerState<_CoreProxmoxTile> {
         service: AppService.proxmox,
         title: widget.tile.title ?? 'Proxmox',
         connected: true,
-        evidence: _loading
-            ? const ConnectionEvidence.connecting()
-            : _failure == 'forbidden' || _failure == 'not_found'
-            ? const ConnectionEvidence.permissionDenied()
-            : _failure != null
-            ? const ConnectionEvidence.unavailable()
-            : const ConnectionEvidence.saved(),
+        evidence: coreInfrastructureEvidence(busy: _loading, failure: _failure),
         onTap: _retry,
         lines: [
           if (widget.tile.entityId == null)
@@ -510,18 +504,12 @@ class _CoreProxmoxTileState extends ConsumerState<_CoreProxmoxTile> {
           service: AppService.proxmox,
           title: widget.tile.title ?? 'Proxmox',
           connected: true,
-          evidence: controller.busy
-              ? const ConnectionEvidence.connecting()
-              : controller.stale
-              ? const ConnectionEvidence.stale()
-              : controller.failure == 'forbidden' ||
-                    controller.failure == 'not_found'
-              ? const ConnectionEvidence.permissionDenied()
-              : controller.failure != null
-              ? const ConnectionEvidence.unavailable()
-              : snapshot != null
-              ? ConnectionEvidence.verified(snapshot.observedAt)
-              : const ConnectionEvidence.saved(),
+          evidence: coreInfrastructureEvidence(
+            busy: controller.busy,
+            stale: controller.stale,
+            failure: controller.failure,
+            verifiedAt: snapshot?.observedAt,
+          ),
           onTap: owner.isCurrent ? onTap : null,
           lines: lines,
         );

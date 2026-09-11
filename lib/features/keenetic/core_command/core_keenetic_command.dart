@@ -5,6 +5,7 @@ import 'dart:math';
 import 'package:flutter/cupertino.dart';
 
 import '../../../l10n/generated/app_localizations.dart';
+import '../../../shared/widgets/core_infrastructure_evidence.dart';
 import '../../../shared/widgets/settings_action_tile.dart';
 import '../../server/data/larenor_server_api.dart';
 
@@ -738,10 +739,9 @@ class _CoreKeeneticCommandAuthorityScreenState
                                     target: descriptor.target,
                                     isAdmin: true,
                                     canWrite:
-                                        !_retired &&
-                                        widget.isCurrent() &&
                                         descriptor.target.fingerprint ==
-                                            fingerprint,
+                                        fingerprint,
+                                    isCurrent: widget.isCurrent,
                                     api: widget.authority.apiFor(descriptor),
                                   ),
                                 ),
@@ -770,11 +770,13 @@ class CoreKeeneticCommandPanel extends StatefulWidget {
     required this.target,
     required this.isAdmin,
     required this.canWrite,
+    this.isCurrent,
     this.api = const UnavailableCoreKeeneticCommandApi(),
   });
 
   final CoreKeeneticCommandTarget target;
   final bool isAdmin, canWrite;
+  final bool Function()? isCurrent;
   final CoreKeeneticCommandApi api;
 
   @override
@@ -791,8 +793,21 @@ class _CoreKeeneticCommandPanelState extends State<CoreKeeneticCommandPanel>
   int _generation = 0;
   bool _busy = false, _retired = false;
 
+  bool get _authorityCurrent {
+    try {
+      return widget.isCurrent?.call() ?? true;
+    } catch (_) {
+      return false;
+    }
+  }
+
   bool _current(int generation) =>
-      mounted && !_retired && generation == _generation;
+      mounted &&
+      !_retired &&
+      generation == _generation &&
+      widget.isAdmin &&
+      widget.canWrite &&
+      _authorityCurrent;
 
   @override
   void initState() {
@@ -806,8 +821,9 @@ class _CoreKeeneticCommandPanelState extends State<CoreKeeneticCommandPanel>
     if (oldWidget.target.fingerprint != widget.target.fingerprint ||
         oldWidget.api != widget.api ||
         oldWidget.isAdmin != widget.isAdmin ||
-        oldWidget.canWrite != widget.canWrite) {
-      _retire();
+        oldWidget.canWrite != widget.canWrite ||
+        !_authorityCurrent) {
+      _retire(cancelPreview: _authorityCurrent);
     }
   }
 
@@ -816,7 +832,7 @@ class _CoreKeeneticCommandPanelState extends State<CoreKeeneticCommandPanel>
     if (state != AppLifecycleState.resumed) _retire();
   }
 
-  void _retire({bool notify = true}) {
+  void _retire({bool notify = true, bool cancelPreview = true}) {
     if (_retired) return;
     _retired = true;
     _generation++;
@@ -825,12 +841,20 @@ class _CoreKeeneticCommandPanelState extends State<CoreKeeneticCommandPanel>
     _second = null;
     _receipt = null;
     _busy = false;
-    if (preview != null) unawaited(widget.api.cancel(preview.id));
+    if (preview != null && cancelPreview && _authorityCurrent) {
+      unawaited(widget.api.cancel(preview.id));
+    }
     if (notify && mounted) setState(() {});
   }
 
   Future<void> _begin(CoreKeeneticCommandAction action) async {
-    if (_busy || _retired || !widget.isAdmin || !widget.canWrite) return;
+    if (_busy ||
+        _retired ||
+        !widget.isAdmin ||
+        !widget.canWrite ||
+        !_authorityCurrent) {
+      return;
+    }
     final generation = ++_generation;
     setState(() {
       _busy = true;
@@ -841,7 +865,7 @@ class _CoreKeeneticCommandPanelState extends State<CoreKeeneticCommandPanel>
       final preview = await widget.api.preview(action, widget.target);
       if (!_current(generation) ||
           preview.targetFingerprint != widget.target.fingerprint) {
-        unawaited(widget.api.cancel(preview.id));
+        if (_authorityCurrent) unawaited(widget.api.cancel(preview.id));
         return;
       }
       setState(() {
@@ -860,7 +884,7 @@ class _CoreKeeneticCommandPanelState extends State<CoreKeeneticCommandPanel>
 
   Future<void> _confirm() async {
     final preview = _preview;
-    if (preview == null || _busy || _retired) return;
+    if (preview == null || _busy || _retired || !_authorityCurrent) return;
     final generation = _generation;
     final token = _second?.token ?? preview.confirmToken;
     setState(() => _busy = true);
@@ -891,7 +915,7 @@ class _CoreKeeneticCommandPanelState extends State<CoreKeeneticCommandPanel>
 
   Future<void> _cancel() async {
     final preview = _preview;
-    if (preview == null || _busy) return;
+    if (preview == null || _busy || _retired || !_authorityCurrent) return;
     _generation++;
     setState(() {
       _preview = null;
@@ -941,7 +965,8 @@ class _CoreKeeneticCommandPanelState extends State<CoreKeeneticCommandPanel>
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    final canAct = widget.isAdmin && widget.canWrite && !_retired;
+    final canAct =
+        widget.isAdmin && widget.canWrite && !_retired && _authorityCurrent;
     return CupertinoPageScaffold(
       navigationBar: CupertinoNavigationBar(
         middle: Text(l10n.keeneticCommandTitle),
@@ -950,6 +975,23 @@ class _CoreKeeneticCommandPanelState extends State<CoreKeeneticCommandPanel>
         child: ListView(
           padding: const EdgeInsets.symmetric(vertical: 16),
           children: [
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: CoreInfrastructureEvidenceStatus(
+                surface: 'keenetic-operation',
+                evidence: coreInfrastructureOperationEvidence(
+                  pending: _busy,
+                  succeeded:
+                      _receipt?.status == CoreKeeneticCommandStatus.succeeded,
+                  unknown:
+                      _receipt?.status == CoreKeeneticCommandStatus.unknown,
+                  failed:
+                      _error != null ||
+                      _receipt?.status == CoreKeeneticCommandStatus.failed,
+                ),
+                showTimestamp: false,
+              ),
+            ),
             CupertinoListSection.insetGrouped(
               header: Text(_title(l10n)),
               children: [
@@ -967,7 +1009,7 @@ class _CoreKeeneticCommandPanelState extends State<CoreKeeneticCommandPanel>
                     ),
               ],
             ),
-            if (_preview != null)
+            if (_preview != null && canAct)
               CupertinoListSection.insetGrouped(
                 header: Text(
                   _second == null

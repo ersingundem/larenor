@@ -7,7 +7,7 @@ import '../../../../core/home_session_controller.dart';
 import '../../../../l10n/generated/app_localizations.dart';
 import '../../../../shared/theme/typography.dart';
 import '../../../../shared/widgets/connection_evidence_status.dart';
-import '../../../health/data/connection_evidence.dart';
+import '../../../../shared/widgets/core_infrastructure_evidence.dart';
 import '../../../keenetic/core/data/core_keenetic_dashboard_providers.dart';
 import '../../../keenetic/core/data/core_keenetic_providers.dart';
 import '../../../keenetic/core/domain/core_keenetic_models.dart';
@@ -99,24 +99,12 @@ class CoreKeeneticDashboardCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context), value = snapshot?.telemetry;
-    final evidence = loading
-        ? const ConnectionEvidence.connecting()
-        : stale
-        ? ConnectionEvidence.stale(snapshot?.observedAt)
-        : failure == 'forbidden' ||
-              failure == 'unauthorized' ||
-              failure == 'keenetic_upstream_denied'
-        ? const ConnectionEvidence.permissionDenied()
-        : failure == 'keenetic_snapshot_unsupported' ||
-              failure == 'invalid_response' ||
-              failure == 'resource_changed' ||
-              failure == 'conflict'
-        ? const ConnectionEvidence.error()
-        : failure != null
-        ? const ConnectionEvidence.unavailable()
-        : snapshot != null
-        ? ConnectionEvidence.verified(snapshot!.observedAt)
-        : const ConnectionEvidence.saved();
+    final evidence = coreInfrastructureEvidence(
+      busy: loading,
+      stale: stale,
+      failure: failure,
+      verifiedAt: snapshot?.observedAt,
+    );
     final state = loading
         ? l.commonLoading
         : stale

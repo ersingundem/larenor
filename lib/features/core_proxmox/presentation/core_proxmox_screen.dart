@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/home_session_controller.dart';
 import '../../../l10n/generated/app_localizations.dart';
+import '../../../shared/widgets/core_infrastructure_evidence.dart';
 import '../../core_ha/data/core_ha_providers.dart';
 import '../../core_ha/presentation/core_ha_route.dart';
 import '../../core_ha/presentation/core_ha_widgets.dart';
@@ -202,6 +203,13 @@ class _CoreProxmoxViewState extends ConsumerState<_CoreProxmoxView> {
           isCurrent: current,
         );
         final summary = widget.admin ? c.preview?.summary : c.snapshot?.summary;
+        final evidence = coreInfrastructureEvidence(
+          busy: c.busy,
+          stale: c.stale,
+          failure: c.failure,
+          verifiedAt: c.snapshot?.observedAt,
+          transportObserved: c.preview != null,
+        );
         return CoreHaPage(
           key: ValueKey(
             widget.admin ? 'core-proxmox-binding' : 'core-proxmox-summary',
@@ -227,6 +235,11 @@ class _CoreProxmoxViewState extends ConsumerState<_CoreProxmoxView> {
               ),
               const SizedBox(height: 8),
               Text(l.coreProxmoxReadOnly),
+              const SizedBox(height: 8),
+              CoreInfrastructureEvidenceStatus(
+                surface: 'proxmox-connection',
+                evidence: evidence,
+              ),
               button(
                 'core-proxmox-refresh',
                 l.commonRefresh,
