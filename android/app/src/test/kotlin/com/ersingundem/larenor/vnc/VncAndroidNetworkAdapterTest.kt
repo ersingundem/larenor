@@ -15,6 +15,14 @@ import org.junit.Test
 
 class VncAndroidNetworkAdapterTest {
     @Test
+    fun systemResolverConvertsOnlyTheOwnedLocalhostFixtureToNumericAddresses() {
+        val addresses = VncSystemDnsBackend().resolve("localhost")
+        assertTrue(addresses.isNotEmpty())
+        assertTrue(addresses.all { it.isLoopback })
+        assertFalse(addresses.toString().contains("127.0.0.1"))
+    }
+
+    @Test
     fun ownedLoopbackFixtureUsesRealSocketChannelOneConnectAndTwoDnsReads() {
         val server = ServerSocket(0, 1, java.net.InetAddress.getLoopbackAddress())
         val accepted = CountDownLatch(1)
