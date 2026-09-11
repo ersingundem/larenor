@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "title": "Larenor kalıcı yürütme kuyruğu",
-  "updatedAt": "2026-09-10",
+  "updatedAt": "2026-09-11",
   "selectedFeatures": [
     "F01",
     "F02",
@@ -1817,7 +1817,7 @@
       "kind": "task",
       "parent": "S08",
       "title": "Merkezi ağ ve altyapı adaptörleri",
-      "status": "pending",
+      "status": "awaiting_ci",
       "dependsOn": [
         "S08.7"
       ],
@@ -1825,7 +1825,8 @@
       "sources": [
         "docs/remaining-core-integration-slices.md",
         "docs/feature-expansion-plan-2026-09-05.md",
-        "docs/integrated-media-stack.md"
+        "docs/integrated-media-stack.md",
+        "docs/s08-9-infrastructure-acceptance-2026-09-11.md"
       ],
       "scope": "Tek mevcut ev bağlamı; F19 çoklu Core/ev federasyonu bu teslim değildir.",
       "acceptance": [
@@ -1837,9 +1838,26 @@
         "review",
         "ci"
       ],
-      "evidence": [],
+      "evidence": [
+        {
+          "kind": "test",
+          "ref": "docs/s08-9-infrastructure-acceptance-2026-09-11.md",
+          "commit": "758583bbdb3b89b45fd87a3fe9a249a492bb091e",
+          "state": "completed",
+          "result": "passed",
+          "label": "20 yeni çapraz adaptör kabul testi; 103 birleşik Proxmox/Keenetic Server testi geçti."
+        },
+        {
+          "kind": "test",
+          "ref": "docs/s08-9-infrastructure-acceptance-2026-09-11.md",
+          "commit": "78eeb40502937952c6497ef887f9e675580fd67b",
+          "state": "completed",
+          "result": "passed",
+          "label": "37 odaklı Flutter testi ve hedefli analiz; 600/1280, 2x metin, 48 dp, klavye ve ortak kanıt dili geçti."
+        }
+      ],
       "completionCommit": null,
-      "reason": null
+      "reason": "PR135 ile birleşen main a052362 tabanındaki yerel Server ve Flutter kabul matrisi geçti. Exact aday için bağımsız review ile GitHub CI, ardından gerçek Proxmox/Keenetic ve fiziksel Huawei/DeX kabulü açık; bu nedenle done değildir."
     },
     {
       "id": "S08.10",

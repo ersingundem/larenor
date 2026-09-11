@@ -1,6 +1,6 @@
 # Larenor — güncel ilerleme ve iş kuyruğu
 
-**Son güncelleme: 10 Eylül 2026 — PR66 `4925a50` ile ana dala alındı. Dördüncü toplu kilometre taşı Music Assistant ilk kurulumunu, Core-backed Proxmox/Keenetic tablet yüzeylerini ve doğrulanmış bounded indirmeyi birleştiriyor.**
+**Son güncelleme: 11 Eylül 2026 — PR135 kaynak dalı `faa2866`, ana dal `a052362` olarak birleşti ve gerekli entegrasyon CI kapıları geçti. Bu sabit ana dal üzerindeki S08.9 kabul adayı yerelde hazır; adayın kendi uzak CI ve bağımsız incelemesi bekleniyor.**
 
 ```text
 Kuyruk kabulü       ██░░░░░░░░░░░░░░░░░░  14/125 iş (%11; eşit ağırlıklı sayaç)
@@ -127,6 +127,23 @@ Gerçek HomePod/sağlayıcı, iki hostlu SSH fixture, fiziksel Huawei/DeX ve Git
 PR/CI kabulü açık olduğundan sayaçlar **14/125 (%11,2)** ve **0/63 (%0,0)**
 olarak korunuyor. S08.9 Keenetic/Proxmox ve S08.10 bounded transfer pilotları
 bir sonraki toplu paket için paralel yürütülüyor.
+
+### S08.9 merkezi altyapı kabul adayı — CI bekliyor
+
+Sabit `a052362` tabanında Proxmox ve Keenetic için ortak kabul matrisi eklendi.
+Eski binding veya komut önizlemesi endpoint/credential, kaynak, ACL, binding,
+servis revision ya da oturum değişikliğinden sonra kullanılamıyor; geç veya
+belirsiz sonuç başarıya yükseltilmiyor ve yeniden yürütülmüyor. Sentetik odaklı
+Server kapısında **103 test** geçti.
+
+Core-backed Proxmox/Keenetic ayrıntı, dashboard ve komut yüzeyleri aynı bağlantı
+kanıtı sözlüğünü kullanıyor. Komut makbuzu yalnız Core erişilebilirliğini
+gösteriyor; timestamp'li cihaz okuması olmadan doğrulanmış veri iddiası
+oluşturmuyor. **37 Flutter testi**, 600/1280 genişlik, 2× metin, 48 dp ve klavye
+akışlarıyla geçti; hedefli analiz temiz. Direct credential/cache fallback
+eklenmedi. Uzak CI, bağımsız inceleme ve fiziksel Huawei/DeX kabulü açık olduğu
+için `S08.9` **CI bekliyor** ve sayaçlar değişmedi.
+[Kabul taslağı ve açık kanıtlar](s08-9-infrastructure-acceptance-2026-09-11.md).
 
 ### Hazırlanan dördüncü toplu kilometre taşı
 
