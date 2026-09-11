@@ -20,7 +20,13 @@ class VncRfbEngineAdapterTest {
         assertEquals(VncRfbEnginePhase.SECURITY, session.phase)
         transport.bytes(byteArrayOf(1, 19))
         assertEquals(VncRfbEnginePhase.SECURITY_HANDOFF, session.phase)
-        transport.secureAuthenticated()
+        transport.securityBytes(byteArrayOf(0, 2))
+        transport.securityBytes(byteArrayOf(0))
+        transport.securityBytes(subtypes(261))
+        assertEquals(VncRfbEnginePhase.TLS_HANDOFF, session.phase)
+        transport.tlsPeer(validEvidence())
+        assertEquals(VncRfbEnginePhase.AUTHENTICATING, session.phase)
+        transport.vncAuth(success = true)
         assertEquals(VncRfbEnginePhase.INITIALIZING, session.phase)
         transport.bytes(serverInit(1280, 800))
         assertEquals(VncRfbEnginePhase.ACTIVE, session.phase)
@@ -43,7 +49,7 @@ class VncRfbEngineAdapterTest {
         assertEquals("rfbVersionUnavailable", malformed.failureCode)
         assertEquals(1, malformedTransport.cancels)
         malformedTransport.bytes("RFB 003.008\n".encodeToByteArray())
-        malformedTransport.secureAuthenticated()
+        malformedTransport.securityBytes(byteArrayOf(0, 2))
         assertEquals(1, malformedTransport.cancels)
 
         val ackTransport = Transport()
@@ -53,6 +59,31 @@ class VncRfbEngineAdapterTest {
         assertEquals(VncRfbEnginePhase.FAILED, ack.phase)
         assertEquals("staleSession", ack.failureCode)
         assertEquals(1, ackTransport.cancels)
+    }
+
+    @Test
+    fun changedPeerPinMapsToTheClosedNativeFailureAndCancels() {
+        val transport = Transport()
+        val session = VncRfbEngineAdapter().open(rawPlan(), transport) { true }
+        transport.bytes("RFB 003.008\n".encodeToByteArray())
+        transport.bytes(byteArrayOf(1, 19))
+        transport.securityBytes(byteArrayOf(0, 2))
+        transport.securityBytes(byteArrayOf(0))
+        transport.securityBytes(subtypes(261))
+        val changed = ByteArray(32) { 1 }
+        transport.tlsPeer(
+            VncTlsPeerEvidence.take(
+                protocol = "TLSv1.3",
+                cipherSuite = "TLS_AES_128_GCM_SHA256",
+                certificateChainValid = true,
+                hostnameVerified = true,
+                spkiSha256 = changed,
+            ),
+        )
+        assertTrue(changed.all { it == 0.toByte() })
+        assertEquals(VncRfbEnginePhase.FAILED, session.phase)
+        assertEquals("spkiPinningRequired", session.failureCode)
+        assertEquals(1, transport.cancels)
     }
 
     @Test
@@ -86,10 +117,32 @@ class VncRfbEngineAdapterTest {
         val session = VncRfbEngineAdapter().open(rawPlan(), transport) { true }
         transport.bytes("RFB 003.008\n".encodeToByteArray())
         transport.bytes(byteArrayOf(1, 19))
-        transport.secureAuthenticated()
+        transport.securityBytes(byteArrayOf(0, 2))
+        transport.securityBytes(byteArrayOf(0))
+        transport.securityBytes(subtypes(261))
+        transport.tlsPeer(validEvidence())
+        transport.vncAuth(success = true)
         transport.bytes(serverInit(1280, 800))
         return session
     }
+
+    private fun validEvidence() = VncTlsPeerEvidence.take(
+        protocol = "TLSv1.3",
+        cipherSuite = "TLS_AES_128_GCM_SHA256",
+        certificateChainValid = true,
+        hostnameVerified = true,
+        spkiSha256 = ByteArray(32),
+    )
+
+    private fun subtypes(vararg values: Int): ByteArray = buildList {
+        add(values.size.toByte())
+        for (value in values) {
+            add((value ushr 24).toByte())
+            add((value ushr 16).toByte())
+            add((value ushr 8).toByte())
+            add(value.toByte())
+        }
+    }.toByteArray()
 
     private fun rawPlan(): VncNativePlan {
         val request = VncNativeRequest.parse(request())
@@ -202,6 +255,10 @@ class VncRfbEngineAdapterTest {
         }
 
         fun bytes(value: ByteArray) { listener?.onBytes(value) }
-        fun secureAuthenticated() { listener?.onSecureAuthenticated() }
+        fun securityBytes(value: ByteArray) { listener?.onSecurityBytes(value) }
+        fun tlsPeer(evidence: VncTlsPeerEvidence) {
+            listener?.onTlsPeer(evidence) ?: evidence.close()
+        }
+        fun vncAuth(success: Boolean) { listener?.onVncAuthResult(success) }
     }
 }
