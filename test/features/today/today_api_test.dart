@@ -12,6 +12,49 @@ import '../ha_client/fake_socket.dart';
 import 'fake_today_api.dart';
 
 void main() {
+  test(
+    'capability and legacy shopping adapters use GET-only HA routes',
+    () async {
+      final requests = <http.Request>[];
+      final rest = HaRestClient(
+        baseUrl: 'http://ha.test',
+        token: 'fixture',
+        httpClient: MockClient((request) async {
+          requests.add(request);
+          return switch (request.url.path) {
+            '/api/components' => http.Response(
+              jsonEncode(['todo', 'shopping_list']),
+              200,
+            ),
+            '/api/shopping_list' => http.Response(
+              jsonEncode([
+                {'id': 'one', 'name': 'Milk', 'complete': false},
+              ]),
+              200,
+            ),
+            _ => http.Response('{}', 404),
+          };
+        }),
+      );
+      final ws = HaWebSocketClient(
+        baseUrl: 'http://ha.test',
+        token: 'fixture',
+        channelFactory: (_) => FakeSocket(),
+      );
+      addTearDown(rest.dispose);
+      addTearDown(ws.dispose);
+      final api = HaTodayApi(rest: rest, ws: ws);
+
+      expect(await api.getComponents(), ['todo', 'shopping_list']);
+      expect(await api.getLegacyShoppingItems(), isA<List>());
+      expect(requests.map((request) => request.method).toSet(), {'GET'});
+      expect(requests.map((request) => request.url.path), [
+        '/api/components',
+        '/api/shopping_list',
+      ]);
+    },
+  );
+
   test('HA 2026.8.3 wire contracts: todo list, notifications get and subscribe ACK/event', () async {
     final socket = FakeSocket();
     final ws = HaWebSocketClient(
