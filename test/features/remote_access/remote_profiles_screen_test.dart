@@ -37,7 +37,7 @@ void main() {
       await h.save(t);
       expect(h.writes, 1);
       await h.openFirst(t);
-      expect(find.textContaining('connection not tested'), findsOneWidget);
+      expect(find.textContaining('secure RDP readiness panel'), findsOneWidget);
       await press(t, 'remote-copy');
       expect(h.clipboard, '[2001:db8::1]:3389');
       await press(t, 'remote-edit');

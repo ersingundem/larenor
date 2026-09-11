@@ -15,6 +15,7 @@ import '../data/remote_profiles.dart';
 import '../ssh/sftp_browser_panel.dart';
 import '../ssh/ssh_terminal_panel.dart';
 import '../ssh/ssh_tunnel_panel.dart';
+import '../rdp/rdp_session_panel.dart';
 
 final remoteProfilesStoreProvider = Provider<RemoteProfilesStore>(
   (ref) => RemoteProfilesStore(),
@@ -46,9 +47,11 @@ class _RemoteProfilesScreenState extends ConsumerState<RemoteProfilesScreen>
       _terminal = false,
       _sftp = false,
       _tunnel = false;
+  bool _rdp = false;
   bool Function()? _terminalCurrent;
   bool Function()? _sftpCurrent;
   bool Function()? _tunnelCurrent;
+  bool Function()? _rdpCurrent;
   bool _started = false,
       _busy = false,
       _editing = false,
@@ -443,6 +446,17 @@ class _RemoteProfilesScreenState extends ConsumerState<RemoteProfilesScreen>
         },
       );
     }
+    if (_rdp && _selected != null && active) {
+      return RdpSessionPanel(
+        key: ValueKey('rdp-${_selected!.id}'),
+        profile: _selected!,
+        isCurrent: _rdpCurrent!,
+        onBack: () {
+          _generation++;
+          setState(() => _rdp = false);
+        },
+      );
+    }
     return AppPageScaffold(
       child: CustomScrollView(
         key: const ValueKey('remote-scroll'),
@@ -561,6 +575,8 @@ class _RemoteProfilesScreenState extends ConsumerState<RemoteProfilesScreen>
                           child: Text(
                             selected.protocol == RemoteProtocol.ssh
                                 ? l.sshHint
+                                : selected.protocol == RemoteProtocol.rdp
+                                ? l.rdpProfileHint
                                 : l.remoteAccessEngineHint,
                           ),
                         ),
@@ -604,6 +620,13 @@ class _RemoteProfilesScreenState extends ConsumerState<RemoteProfilesScreen>
                               setState(() => _tunnel = true);
                             }),
                           ],
+                          if (selected.protocol == RemoteProtocol.rdp &&
+                              selected.username.isNotEmpty)
+                            action('remote-rdp-open', l.rdpTitle, () {
+                              _generation++;
+                              _rdpCurrent = _action();
+                              setState(() => _rdp = true);
+                            }),
                           action(
                             'remote-copy',
                             l.remoteAccessCopy,

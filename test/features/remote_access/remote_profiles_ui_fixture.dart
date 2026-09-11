@@ -11,6 +11,9 @@ import 'package:larenor/core/theme.dart';
 import 'package:larenor/core/window/window_policy_models.dart';
 import 'package:larenor/core/window/window_policy_providers.dart';
 import 'package:larenor/features/remote_access/data/remote_profiles.dart';
+import 'package:larenor/features/remote_access/rdp/rdp_engine.dart';
+import 'package:larenor/features/remote_access/rdp/rdp_security_store.dart';
+import 'package:larenor/features/remote_access/rdp/rdp_session_panel.dart';
 import 'package:larenor/features/remote_access/ssh/ssh_engine.dart';
 import 'package:larenor/features/remote_access/ssh/ssh_terminal_panel.dart';
 import 'package:larenor/features/settings/presentation/settings_gate_screen.dart';
@@ -51,6 +54,8 @@ class RemoteUi {
     String locale = 'en',
     bool pin = false,
     SshEngine Function()? sshEngine,
+    RdpEngine Function()? rdpEngine,
+    RdpTrustStore? rdpTrust,
   }) async {
     SharedPreferences.setMockInitialValues({});
     if (pin) values['settings_pin'] = '1234';
@@ -111,6 +116,10 @@ class RemoteUi {
         overrides: [
           if (sshEngine != null)
             sshEngineFactoryProvider.overrideWithValue(sshEngine),
+          if (rdpEngine != null)
+            rdpEngineFactoryProvider.overrideWithValue(rdpEngine),
+          if (rdpTrust != null)
+            rdpTrustStoreProvider.overrideWithValue(rdpTrust),
           windowPolicySnapshotProvider.overrideWith((ref) async* {
             yield const WindowPolicySnapshot();
             yield* windows.stream;
