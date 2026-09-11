@@ -1,6 +1,8 @@
 from dataclasses import replace
 import json
 import os
+from pathlib import Path
+import tempfile
 import time
 
 import pytest
@@ -185,14 +187,16 @@ def test_deadline_cancel_and_bad_result_fail_closed_without_retry(server):
 
 
 def test_private_worker_ipc_enriches_one_read_and_core_writes_one_snapshot(
-        server, tmp_path):
+        server):
     pair, body, _private, observation = private_and_observation(server)
     reader = CapacityReader()
     collector = CapacityEnrichedMediaArchiveCollector(
         ArchiveCollector(observation),
         MediaArchiveCapacityCollector(Proofs([proof()]), reader),
     )
-    socket_path = tmp_path / 'archive-capacity.sock'
+    parent = Path('/private/tmp') if Path('/private/tmp').is_dir() else Path('/tmp')
+    directory = Path(tempfile.mkdtemp(prefix='lac-', dir=parent))
+    socket_path = directory / 'a.sock'
     runtime = MediaArchiveWorkerServer(
         socket_path, collector, allowed_uid=os.getuid(),
         peer_uid=lambda _connection: os.getuid(), timeout=1)
@@ -205,6 +209,7 @@ def test_private_worker_ipc_enriches_one_read_and_core_writes_one_snapshot(
         response = server[1].post(BASE, headers=auth(pair), json=body)
     finally:
         runtime.close()
+        directory.rmdir()
     assert response.status_code == 200, response.text
     trend = response.json()['archive']['weeklyTrend']
     assert trend['state'] == 'ready' and len(trend['points']) == 1
