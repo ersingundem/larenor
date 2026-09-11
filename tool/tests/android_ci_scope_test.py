@@ -99,7 +99,7 @@ class AndroidCiScopeTest(unittest.TestCase):
                 self.assertIn('PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}', text)
                 self.assertIn('Android/Flutter checks reused', text)
                 for marker in markers:
-                    block = text[max(0, text.index(marker) - 160):
+                    block = text[max(0, text.index(marker) - 520):
                                  text.index(marker) + 240]
                     self.assertIn(condition, block)
 

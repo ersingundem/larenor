@@ -12,11 +12,9 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  analyze-test:
+  static-analysis:
     runs-on: ubuntu-latest
-    # CI105 reached 4,282 of 5,056 tests before the 15-minute job deadline.
-    # Allow setup and the full coverage suite; individual tests stay at 90s.
-    timeout-minutes: 25
+    timeout-minutes: 10
     env:
       PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
       PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
@@ -25,56 +23,100 @@ jobs:
         with:
           persist-credentials: false
           fetch-depth: 0
-
       - name: Decide Android and Flutter scope from the exact PR diff
         id: android_scope
         run: python3 tool/android_ci_scope.py
-
       - name: Android/Flutter checks reused
         if: steps.android_scope.outputs.run == 'false'
-        run: |
-          echo 'Android/Flutter checks reused: this exact PR diff changes only Server or documentation files.' >> "$GITHUB_STEP_SUMMARY"
-
+        run: echo 'Android/Flutter checks reused for this exact Server/docs diff.' >> "$GITHUB_STEP_SUMMARY"
       - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
         if: steps.android_scope.outputs.run == 'true'
         with:
           channel: stable
           flutter-version: "3.47.2"
           cache: true
-
       - run: flutter pub get --enforce-lockfile
         if: steps.android_scope.outputs.run == 'true'
-
       - run: dart run build_runner build
         if: steps.android_scope.outputs.run == 'true'
-
       - name: Check formatting
         if: steps.android_scope.outputs.run == 'true'
         run: dart format --output=none --set-exit-if-changed .
-
       - run: flutter analyze
         if: steps.android_scope.outputs.run == 'true'
 
-      - name: Unit, widget, security and resilience regressions
+  flutter-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [0, 1, 2, 3]
+    env:
+      PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+      PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Decide Android and Flutter scope from the exact PR diff
+        id: android_scope
+        run: python3 tool/android_ci_scope.py
+      - name: Android/Flutter checks reused
+        if: steps.android_scope.outputs.run == 'false'
+        run: echo 'Android/Flutter checks reused for this exact Server/docs diff.' >> "$GITHUB_STEP_SUMMARY"
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
         if: steps.android_scope.outputs.run == 'true'
+        with:
+          channel: stable
+          flutter-version: "3.47.2"
+          cache: true
+      - run: flutter pub get --enforce-lockfile
+        if: steps.android_scope.outputs.run == 'true'
+      - run: dart run build_runner build
+        if: steps.android_scope.outputs.run == 'true'
+      - name: Run deterministic Flutter test shard
+        if: steps.android_scope.outputs.run == 'true'
+        env:
+          SHARD_INDEX: ${{ matrix.shard }}
         run: |
           set -o pipefail
-          flutter test --coverage --reporter expanded --timeout 90s 2>&1 | tee test-results.log
-
+          mapfile -t shard_files < <(python3 tool/flutter_test_shard.py --index "$SHARD_INDEX" --count 4)
+          if [ "${#shard_files[@]}" -eq 0 ]; then
+            echo "Flutter test shard is empty."
+            exit 1
+          fi
+          flutter test --coverage --reporter expanded --timeout 90s "${shard_files[@]}" 2>&1 | tee "test-results-${SHARD_INDEX}.log"
       - name: Preserve test evidence
         id: test_evidence
         if: always() && steps.android_scope.outputs.run == 'true'
         continue-on-error: true
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: test-evidence
+          name: test-evidence-${{ matrix.shard }}
           path: |
             coverage/lcov.info
-            test-results.log
+            test-results-${{ matrix.shard }}.log
           retention-days: 14
-
       - name: Report unavailable test artifact
         if: always() && steps.android_scope.outputs.run == 'true' && steps.test_evidence.outcome == 'failure'
         run: |
-          echo "::warning::Test artifact upload failed. Test results remain in this job's logs; test failures still block delivery."
-          echo 'Test artifact upload was unavailable. Inspect the unit/widget test step logs for results.' >> "$GITHUB_STEP_SUMMARY"
+          echo "::warning::Shard artifact upload failed; inspect this job's test log."
+          echo 'A shard artifact was unavailable; its test result still controls this job.' >> "$GITHUB_STEP_SUMMARY"
+
+  analyze-test:
+    if: always()
+    needs: [static-analysis, flutter-test]
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Require analysis and every deterministic test shard
+        env:
+          STATIC_RESULT: ${{ needs.static-analysis.result }}
+          TEST_RESULT: ${{ needs.flutter-test.result }}
+        run: |
+          if [ "$STATIC_RESULT" != "success" ] || [ "$TEST_RESULT" != "success" ]; then
+            echo "Static analysis or at least one Flutter test shard failed."
+            exit 1
+          fi
