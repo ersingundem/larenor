@@ -72,16 +72,19 @@ Map<String, Object?> archiveJson({
     'state': trendState,
     'points': trendState == 'unavailable'
         ? const []
-        : List.generate(12, (index) => {
-            'weekStart': 1788134400 + index * 604800,
-            'capturedAt': 1788138000 + index * 604800,
-            'snapshotRevision': index + 1,
-            'totalBytes': 1000000000000,
-            'freeBytes': 300000000000 - index * 1000000000,
-            'reclaimableBytes': 12000000000 + index * 100000000,
-            'duplicateCandidates': index + 1,
-            'lowQualityCandidates': index,
-          }),
+        : List.generate(
+            12,
+            (index) => {
+              'weekStart': 1788134400 + index * 604800,
+              'capturedAt': 1788138000 + index * 604800,
+              'snapshotRevision': index + 1,
+              'totalBytes': 1000000000000,
+              'freeBytes': 300000000000 - index * 1000000000,
+              'reclaimableBytes': 12000000000 + index * 100000000,
+              'duplicateCandidates': index + 1,
+              'lowQualityCandidates': index,
+            },
+          ),
     'actionAvailable': false,
   },
   'cleanupAvailable': false,
@@ -172,9 +175,8 @@ void main() {
   test('weekly trend rejects overflow, disorder and impossible capacity', () {
     final tooMany = archiveJson();
     final trend = tooMany['weeklyTrend']! as Map<String, Object?>;
-    trend['points'] = List<Object?>.from(trend['points']! as List)..add(
-      (trend['points']! as List).last,
-    );
+    trend['points'] = List<Object?>.from(trend['points']! as List)
+      ..add((trend['points']! as List).last);
     expect(
       () => MediaArchiveHealthSnapshot.fromJson(tooMany),
       throwsA(isA<LarenorServerException>()),
@@ -182,8 +184,7 @@ void main() {
 
     final impossible = archiveJson();
     final points =
-        (impossible['weeklyTrend']! as Map<String, Object?>)['points']!
-            as List;
+        (impossible['weeklyTrend']! as Map<String, Object?>)['points']! as List;
     (points.last as Map<String, Object?>)['freeBytes'] = 1000000000001;
     expect(
       () => MediaArchiveHealthSnapshot.fromJson(impossible),
@@ -218,9 +219,14 @@ void main() {
         await controller.refresh();
         await tester.pumpAndSettle();
         expect(find.text('12-week storage trend'), findsOneWidget);
-        expect(find.byKey(const ValueKey('media-archive-weekly-trend')), findsOneWidget);
         expect(
-          find.bySemanticsLabel(RegExp('Week.*total.*free.*potential')),
+          find.byKey(const ValueKey('media-archive-weekly-trend')),
+          findsOneWidget,
+        );
+        expect(
+          find.bySemanticsLabel(
+            RegExp('Week.*total.*free.*potential', caseSensitive: false),
+          ),
           findsNWidgets(12),
         );
         expect(tester.takeException(), isNull);
@@ -232,7 +238,9 @@ void main() {
     },
   );
 
-  testWidgets('trend stale and unavailable remain visibly distinct', (tester) async {
+  testWidgets('trend stale and unavailable remain visibly distinct', (
+    tester,
+  ) async {
     for (final entry in const {
       'stale': 'Weekly storage trend is stale.',
       'unavailable': 'Weekly storage trend is unavailable.',
@@ -249,7 +257,9 @@ void main() {
           localizationsDelegates: AppLocalizations.localizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
           home: CupertinoPageScaffold(
-            child: MediaArchiveHealthCard(controller: controller),
+            child: SingleChildScrollView(
+              child: MediaArchiveHealthCard(controller: controller),
+            ),
           ),
         ),
       );

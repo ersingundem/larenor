@@ -19,6 +19,7 @@ from .media_archive_health_models import (
     JellyfinArchiveItem,
     JellyfinArchiveSnapshot,
     MediaArchiveObservation,
+    MediaArchiveCapacityEvidence,
     QbittorrentArchiveItem,
     QbittorrentArchiveSnapshot,
 )
@@ -175,12 +176,15 @@ class MediaArchiveIngestion:
             raise MediaArchiveIngestionError(
                 'archive_projection_invalid') from None
 
-    def assemble(self, *, jellyfin, sonarr, radarr, qbittorrent):
+    def assemble(self, *, jellyfin, sonarr, radarr, qbittorrent,
+                 capacity=None):
         values = (jellyfin, sonarr, radarr, qbittorrent)
         expected = (JellyfinArchiveSnapshot, ArrArchiveSnapshot,
                     ArrArchiveSnapshot, QbittorrentArchiveSnapshot)
         if any(type(value) is not kind
                for value, kind in zip(values, expected, strict=True)):
+            raise MediaArchiveIngestionError('archive_source_drift')
+        if capacity is not None and type(capacity) is not MediaArchiveCapacityEvidence:
             raise MediaArchiveIngestionError('archive_source_drift')
         authority = {(value.installationId, value.installationRevision,
                       value.snapshotRevision) for value in values}
@@ -189,6 +193,7 @@ class MediaArchiveIngestion:
         try:
             return MediaArchiveObservation(
                 jellyfin=jellyfin, sonarr=sonarr,
-                radarr=radarr, qbittorrent=qbittorrent)
+                radarr=radarr, qbittorrent=qbittorrent,
+                capacity=capacity)
         except (ValidationError, ValueError, TypeError):
             raise MediaArchiveIngestionError('archive_source_drift') from None

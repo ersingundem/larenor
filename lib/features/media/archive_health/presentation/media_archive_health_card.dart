@@ -165,6 +165,8 @@ final class MediaArchiveHealthCard extends StatelessWidget {
                       ),
                   ],
                 ),
+                const SizedBox(height: 16),
+                _weeklyTrend(context, l, snapshot.weeklyTrend),
                 const SizedBox(height: 12),
                 Align(
                   alignment: AlignmentDirectional.centerEnd,
@@ -215,6 +217,111 @@ final class MediaArchiveHealthCard extends StatelessWidget {
       ),
     ),
   );
+
+  static Widget _weeklyTrend(
+    BuildContext context,
+    AppLocalizations l,
+    MediaArchiveWeeklyTrend trend,
+  ) {
+    final status = switch (trend.state) {
+      MediaArchiveWeeklyTrendState.ready => l.mediaArchiveTrendReady,
+      MediaArchiveWeeklyTrendState.stale => l.mediaArchiveTrendStale,
+      MediaArchiveWeeklyTrendState.unavailable =>
+        l.mediaArchiveTrendUnavailable,
+    };
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Semantics(
+          header: true,
+          child: Text(l.mediaArchiveTrendTitle, style: AppText.body),
+        ),
+        const SizedBox(height: 4),
+        Text(status, style: AppText.footnote),
+        if (trend.points.isNotEmpty) ...[
+          const SizedBox(height: 12),
+          SizedBox(
+            key: const ValueKey('media-archive-weekly-trend'),
+            height: 104,
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                for (final point in trend.points)
+                  Expanded(child: _trendBar(context, l, point)),
+              ],
+            ),
+          ),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 14,
+            runSpacing: 6,
+            children: [
+              Text(l.mediaArchiveTrendFree, style: AppText.footnote),
+              Text(l.mediaArchiveTrendReclaimable, style: AppText.footnote),
+              Text(l.mediaArchiveTrendCandidateCounts, style: AppText.footnote),
+            ],
+          ),
+        ],
+      ],
+    );
+  }
+
+  static Widget _trendBar(
+    BuildContext context,
+    AppLocalizations l,
+    MediaArchiveWeeklyTrendPoint point,
+  ) {
+    final freeRatio = point.freeBytes / point.totalBytes;
+    final reclaimRatio = point.reclaimableBytes / point.totalBytes;
+    final date =
+        '${point.weekStart.year.toString().padLeft(4, '0')}-'
+        '${point.weekStart.month.toString().padLeft(2, '0')}-'
+        '${point.weekStart.day.toString().padLeft(2, '0')}';
+    final label =
+        '${l.mediaArchiveTrendWeek(date)}, '
+        '${l.mediaArchiveTrendTotal}: ${_bytes(point.totalBytes)}, '
+        '${l.mediaArchiveTrendFree}: ${_bytes(point.freeBytes)}, '
+        '${l.mediaArchiveTrendReclaimable}: ${_bytes(point.reclaimableBytes)}, '
+        '${l.mediaArchiveTrendDuplicates}: ${point.duplicateCandidates}, '
+        '${l.mediaArchiveTrendLowQuality}: ${point.lowQualityCandidates}';
+    return Semantics(
+      label: label,
+      child: ExcludeSemantics(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 2),
+          child: Stack(
+            alignment: Alignment.bottomCenter,
+            children: [
+              Container(
+                height: 96,
+                decoration: BoxDecoration(
+                  color: CupertinoColors.tertiarySystemFill.resolveFrom(
+                    context,
+                  ),
+                  borderRadius: BorderRadius.circular(5),
+                ),
+              ),
+              Container(
+                height: 96 * freeRatio,
+                decoration: BoxDecoration(
+                  color: CupertinoColors.activeBlue.resolveFrom(context),
+                  borderRadius: BorderRadius.circular(5),
+                ),
+              ),
+              if (reclaimRatio > 0)
+                Container(
+                  height: (96 * reclaimRatio).clamp(2, 96),
+                  decoration: BoxDecoration(
+                    color: CupertinoColors.systemOrange.resolveFrom(context),
+                    borderRadius: BorderRadius.circular(5),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 
   static String _status(AppLocalizations l, MediaArchiveCardState state) =>
       switch (state) {

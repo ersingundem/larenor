@@ -38,6 +38,9 @@ from .plugins.music_provider_setups import MusicProviderSetupManagement
 from .plugins.music_playback_schema import migrate_music_playback
 from .plugins.music_playback import MusicPlaybackManagement
 from .plugins.media_archive_core import MediaArchiveHealthManagement
+from .plugins.media_archive_weekly_trend_schema import (
+    migrate_media_archive_weekly_trends,
+)
 from .plugins.preflight_ipc import PreflightWorkerClient
 from .plugins.installation_ipc import InstallationWorkerClient
 from .component_egress.storage import migrate as migrate_component_egress
@@ -192,6 +195,7 @@ class CoreServices:
                 migrate_music_assistant_core(connection)
                 migrate_music_provider_setups(connection)
                 migrate_music_playback(connection)
+                migrate_media_archive_weekly_trends(connection)
                 migrate_proxmox_power(connection, key)
             if not existed:
                 # Only publish the DB after its complete first transaction commits.

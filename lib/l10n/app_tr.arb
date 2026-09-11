@@ -2466,4 +2466,16 @@
   "mediaArchiveGroupProbableMetadata": "Olası eşleşme: aynı ad, boyut ve runtime",
   "mediaArchiveGroupLowerQuality": "Doğrulanmış düşük kaliteli varyant",
   "mediaArchiveComparisonBestQuality": "Doğrulanmış kalite profillerini karşılaştırır ve en iyi kaliteli tüm kopyaları korur; tahmine yalnız düşük kaliteli varyantlar katılır."
+  ,"mediaArchiveTrendTitle": "12 haftalık depolama eğilimi"
+  ,"mediaArchiveTrendReady": "Larenor Core'dan doğrulanmış haftalık kapasite kanıtı."
+  ,"mediaArchiveTrendStale": "Haftalık depolama eğilimi eski."
+  ,"mediaArchiveTrendUnavailable": "Haftalık depolama eğilimi kullanılamıyor."
+  ,"mediaArchiveTrendWeek": "{date} haftası"
+  ,"@mediaArchiveTrendWeek": {"placeholders": {"date": {"type": "String"}}}
+  ,"mediaArchiveTrendTotal": "Toplam"
+  ,"mediaArchiveTrendFree": "Boş alan"
+  ,"mediaArchiveTrendReclaimable": "Potansiyel alan"
+  ,"mediaArchiveTrendCandidateCounts": "Olası tekrarlar ve düşük kaliteli varyantlar"
+  ,"mediaArchiveTrendDuplicates": "Olası tekrarlar"
+  ,"mediaArchiveTrendLowQuality": "Düşük kaliteli varyantlar"
 }

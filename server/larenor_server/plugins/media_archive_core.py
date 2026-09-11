@@ -16,6 +16,10 @@ from .media_archive_health_models import (
     ArchiveSourceBinding,
     MediaArchiveObservation,
 )
+from .media_archive_weekly_trend import (
+    MediaArchiveTrendError,
+    MediaArchiveWeeklyTrendStore,
+)
 
 
 _MAX_AGE_SECONDS = 300
@@ -36,6 +40,7 @@ class MediaArchiveHealthManagement:
         self.installations = installations
         self.binding_reader = binding_reader
         self.backend = backend
+        self.trends = MediaArchiveWeeklyTrendStore(db)
 
     def _installation(self, connection, actor, body):
         self.installations._assert_admin(connection, actor)
@@ -143,6 +148,15 @@ class MediaArchiveHealthManagement:
             raise ApiError('media_archive_worker_unavailable', 503) from None
         if archive.state == 'incomplete':
             raise ApiError('media_archive_snapshot_stale', 409)
+        try:
+            trend = self.trends.capture(
+                observation, archive, now=archive.generatedAt)
+            archive = archive.model_copy(update={'weeklyTrend': trend})
+        except MediaArchiveTrendError as error:
+            status = 409 if error.code == 'trend_revision_conflict' else 503
+            code = ('media_archive_snapshot_stale' if status == 409
+                    else 'media_archive_worker_unavailable')
+            raise ApiError(code, status) from None
         return {'requestId': body.requestId, 'archive': archive.model_dump()}
 
     def authority(self, actor, body):
