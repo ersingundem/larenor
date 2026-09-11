@@ -1,6 +1,8 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../core/home_session_controller.dart';
+import '../../../../core/home_source_store.dart';
 import '../../../dashboard/domain/dashboard_room.dart';
 import '../../../dashboard/providers/dashboard_providers.dart';
 import '../../../ha_client/providers/ha_client_providers.dart';
@@ -52,11 +54,21 @@ class LocalSearchIndexController extends Notifier<LocalSearchIndex> {
   MediaLibraryIndex? _library;
   List<MediaRowData>? _rows;
   Set<AppService>? _services;
+  LocalSearchSource? _homeSource;
+  LocalSearchAvailability? _homeAvailability;
   LocalSearchIndex? _index;
 
   @override
   LocalSearchIndex build() {
     final privacy = ref.watch(wellbeingPrivateEntityIdsProvider);
+    final entityStatus = ref.exists(entitiesProvider)
+        ? ref.watch(
+            entitiesProvider.select(
+              (states) =>
+                  (refreshing: states.isRefreshing, error: states.hasError),
+            ),
+          )
+        : (refreshing: false, error: false);
     final names = ref.exists(entitiesProvider)
         ? ref.watch(
             entitiesProvider.select(
@@ -83,6 +95,19 @@ class LocalSearchIndexController extends Notifier<LocalSearchIndex> {
         ? _visibleCache(ref.watch(mediaHubRowsProvider))
         : null;
     final services = _availableCachedServices();
+    // This provider is a passive in-memory coordinator. Reading it never
+    // initializes Core or Direct transport, and makes source labeling reliable
+    // even when Search is the first screen to inspect the current home mode.
+    final home = ref.read(homeSessionControllerProvider);
+    final homeSource = home?.source == HomeSource.verifiedCore
+        ? LocalSearchSource.core
+        : LocalSearchSource.direct;
+    final homeAvailability =
+        home?.busy == true || home?.failure != null || entityStatus.error
+        ? LocalSearchAvailability.offline
+        : entityStatus.refreshing
+        ? LocalSearchAvailability.stale
+        : LocalSearchAvailability.current;
     // Refreshing the passive cache view never renormalizes a 5000-entity
     // index unless searchable metadata actually changed.
     if (_index != null &&
@@ -90,7 +115,9 @@ class LocalSearchIndexController extends Notifier<LocalSearchIndex> {
         listEquals(rooms, _rooms) &&
         identical(library, _library) &&
         identical(rows, _rows) &&
-        setEquals(services, _services)) {
+        setEquals(services, _services) &&
+        homeSource == _homeSource &&
+        homeAvailability == _homeAvailability) {
       return _index!;
     }
     _names = names;
@@ -98,6 +125,8 @@ class LocalSearchIndexController extends Notifier<LocalSearchIndex> {
     _library = library;
     _rows = rows;
     _services = services;
+    _homeSource = homeSource;
+    _homeAvailability = homeAvailability;
     final media = <MediaTitle>[
       for (final row in rows ?? const <MediaRowData>[]) ...row.titles,
       if (library != null)
@@ -118,6 +147,8 @@ class LocalSearchIndexController extends Notifier<LocalSearchIndex> {
       ],
       media: media,
       services: services,
+      homeSource: homeSource,
+      homeAvailability: homeAvailability,
     );
   }
 
@@ -197,6 +228,47 @@ final localSearchResultsProvider = Provider.autoDispose
     .family<List<LocalSearchItem>, String>((ref, query) {
       return ref.watch(localSearchIndexProvider).search(query);
     });
+
+@immutable
+class LocalSearchSelection {
+  const LocalSearchSelection({this.query = '', this.selectedId});
+  final String query;
+  final String? selectedId;
+
+  LocalSearchSelection copyWith({String? query, String? selectedId}) =>
+      LocalSearchSelection(
+        query: query ?? this.query,
+        selectedId: selectedId ?? this.selectedId,
+      );
+}
+
+/// App-lifetime search context. It deliberately stores only the local query
+/// and an opaque result ID; names, state, credentials and result snapshots are
+/// rebuilt from the current passive caches after every screen transition.
+final localSearchSelectionProvider =
+    NotifierProvider<LocalSearchSelectionController, LocalSearchSelection>(
+      LocalSearchSelectionController.new,
+    );
+
+class LocalSearchSelectionController extends Notifier<LocalSearchSelection> {
+  @override
+  LocalSearchSelection build() => const LocalSearchSelection();
+
+  void setQuery(String query) {
+    final bounded = query.trim();
+    state = LocalSearchSelection(
+      query: bounded.runes.length <= 256
+          ? bounded
+          : String.fromCharCodes(bounded.runes.take(256)),
+      selectedId: state.selectedId,
+    );
+  }
+
+  void select(String id) {
+    if (id.isEmpty || id.runes.length > 512) return;
+    state = state.copyWith(selectedId: id);
+  }
+}
 
 // Dependency reloads can represent another server/account. AsyncValue keeps
 // the previous value while loading; never expose that value through Search.
