@@ -2917,4 +2917,16 @@
   "mediaArchiveGroupProbableMetadata": "Possible match: same name, size and runtime",
   "mediaArchiveGroupLowerQuality": "Verified lower-quality variant",
   "mediaArchiveComparisonBestQuality": "Compares verified quality profiles and retains every best-quality copy; only lower-quality variants contribute to the estimate."
+  ,"mediaArchiveTrendTitle": "12-week storage trend"
+  ,"mediaArchiveTrendReady": "Verified weekly capacity evidence from Larenor Core."
+  ,"mediaArchiveTrendStale": "Weekly storage trend is stale."
+  ,"mediaArchiveTrendUnavailable": "Weekly storage trend is unavailable."
+  ,"mediaArchiveTrendWeek": "Week of {date}"
+  ,"@mediaArchiveTrendWeek": {"placeholders": {"date": {"type": "String"}}}
+  ,"mediaArchiveTrendTotal": "Total"
+  ,"mediaArchiveTrendFree": "Free space"
+  ,"mediaArchiveTrendReclaimable": "Potential space"
+  ,"mediaArchiveTrendCandidateCounts": "Possible duplicates and low-quality variants"
+  ,"mediaArchiveTrendDuplicates": "Possible duplicates"
+  ,"mediaArchiveTrendLowQuality": "Low-quality variants"
 }

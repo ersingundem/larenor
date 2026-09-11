@@ -180,6 +180,11 @@ Map<String, Object?> detailArchiveJson({
     'truncated': truncated,
     'actionAvailable': false,
   },
+  'weeklyTrend': const {
+    'state': 'unavailable',
+    'points': [],
+    'actionAvailable': false,
+  },
   'cleanupAvailable': false,
   'generatedAt': 1788609610,
 };

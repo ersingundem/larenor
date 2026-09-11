@@ -507,6 +507,102 @@ final class MediaArchiveCounts {
   final int potentialSavingBytes;
 }
 
+enum MediaArchiveWeeklyTrendState { ready, stale, unavailable }
+
+final class MediaArchiveWeeklyTrendPoint {
+  const MediaArchiveWeeklyTrendPoint._({
+    required this.weekStart,
+    required this.capturedAt,
+    required this.snapshotRevision,
+    required this.totalBytes,
+    required this.freeBytes,
+    required this.reclaimableBytes,
+    required this.duplicateCandidates,
+    required this.lowQualityCandidates,
+  });
+
+  factory MediaArchiveWeeklyTrendPoint.fromJson(Object? value) {
+    final map = _object(value, {
+      'weekStart',
+      'capturedAt',
+      'snapshotRevision',
+      'totalBytes',
+      'freeBytes',
+      'reclaimableBytes',
+      'duplicateCandidates',
+      'lowQualityCandidates',
+    });
+    final week = _integer(map['weekStart'], min: 1);
+    final captured = _integer(map['capturedAt'], min: 1);
+    final total = _integer(map['totalBytes'], min: 1);
+    final free = _integer(map['freeBytes']);
+    if (free > total ||
+        week % 86400 != 0 ||
+        ((week ~/ 86400) + 3) % 7 != 0 ||
+        captured < week ||
+        captured >= week + 604800) {
+      _invalid();
+    }
+    return MediaArchiveWeeklyTrendPoint._(
+      weekStart: DateTime.fromMillisecondsSinceEpoch(week * 1000, isUtc: true),
+      capturedAt: DateTime.fromMillisecondsSinceEpoch(
+        captured * 1000,
+        isUtc: true,
+      ),
+      snapshotRevision: _integer(map['snapshotRevision'], min: 1),
+      totalBytes: total,
+      freeBytes: free,
+      reclaimableBytes: _integer(map['reclaimableBytes']),
+      duplicateCandidates: _integer(map['duplicateCandidates'], max: 256),
+      lowQualityCandidates: _integer(map['lowQualityCandidates'], max: 256),
+    );
+  }
+
+  final DateTime weekStart, capturedAt;
+  final int snapshotRevision, totalBytes, freeBytes, reclaimableBytes;
+  final int duplicateCandidates, lowQualityCandidates;
+}
+
+final class MediaArchiveWeeklyTrend {
+  const MediaArchiveWeeklyTrend._({required this.state, required this.points});
+
+  factory MediaArchiveWeeklyTrend.fromJson(Object? value) {
+    final map = _object(value, {'state', 'points', 'actionAvailable'});
+    final state = MediaArchiveWeeklyTrendState.values
+        .where((candidate) => candidate.name == map['state'])
+        .firstOrNull;
+    final values = map['points'];
+    if (state == null ||
+        values is! List ||
+        values.length > 12 ||
+        map['actionAvailable'] != false) {
+      _invalid();
+    }
+    final points = values
+        .map(MediaArchiveWeeklyTrendPoint.fromJson)
+        .toList(growable: false);
+    if ((state == MediaArchiveWeeklyTrendState.unavailable) != points.isEmpty) {
+      _invalid();
+    }
+    for (var index = 1; index < points.length; index++) {
+      final left = points[index - 1], right = points[index];
+      if (!left.weekStart.isBefore(right.weekStart) ||
+          !left.capturedAt.isBefore(right.capturedAt) ||
+          left.snapshotRevision >= right.snapshotRevision) {
+        _invalid();
+      }
+    }
+    return MediaArchiveWeeklyTrend._(
+      state: state,
+      points: List.unmodifiable(points),
+    );
+  }
+
+  final MediaArchiveWeeklyTrendState state;
+  final List<MediaArchiveWeeklyTrendPoint> points;
+  bool get actionAvailable => false;
+}
+
 final class MediaArchiveHealthSnapshot {
   const MediaArchiveHealthSnapshot._({
     required this.installationId,
@@ -519,6 +615,7 @@ final class MediaArchiveHealthSnapshot {
     required this.issues,
     required this.suggestions,
     required this.savingsPlan,
+    required this.weeklyTrend,
     required this.generatedAt,
   });
 
@@ -534,6 +631,7 @@ final class MediaArchiveHealthSnapshot {
       'issues',
       'suggestions',
       'savingsPlan',
+      'weeklyTrend',
       'cleanupAvailable',
       'generatedAt',
     });
@@ -658,6 +756,7 @@ final class MediaArchiveHealthSnapshot {
       issues: List.unmodifiable(parsedIssues),
       suggestions: List.unmodifiable(parsedSuggestions),
       savingsPlan: MediaArchiveSavingsPlan.fromJson(map['savingsPlan']),
+      weeklyTrend: MediaArchiveWeeklyTrend.fromJson(map['weeklyTrend']),
       generatedAt: DateTime.fromMillisecondsSinceEpoch(
         _integer(map['generatedAt'], min: 1) * 1000,
         isUtc: true,
@@ -682,6 +781,7 @@ final class MediaArchiveHealthSnapshot {
   final List<MediaArchiveIssue> issues;
   final List<MediaArchiveSavingSuggestion> suggestions;
   final MediaArchiveSavingsPlan savingsPlan;
+  final MediaArchiveWeeklyTrend weeklyTrend;
   bool get cleanupAvailable => false;
   final DateTime generatedAt;
 }

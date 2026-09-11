@@ -173,16 +173,47 @@ class QbittorrentArchiveSnapshot(ArchiveSourceBinding):
         return self
 
 
+class MediaArchiveCapacityEvidence(StrictModel):
+    """Path-free storage capacity readback from one verified archive source."""
+
+    source: ArchiveService
+    serviceRevision: Revision
+    snapshotRevision: Revision
+    state: Literal['verified', 'unavailable', 'unsupported']
+    totalBytes: int | None = Field(default=None, gt=0, le=2**63 - 1)
+    freeBytes: int | None = Field(default=None, ge=0, le=2**63 - 1)
+
+    @model_validator(mode='after')
+    def coherent(self):
+        has_values = self.totalBytes is not None and self.freeBytes is not None
+        if ((self.state == 'verified') != has_values
+                or has_values and self.freeBytes > self.totalBytes):
+            raise ValueError('invalid_media_archive_capacity')
+        return self
+
+
 class MediaArchiveObservation(StrictModel):
     jellyfin: JellyfinArchiveSnapshot
     sonarr: ArrArchiveSnapshot
     radarr: ArrArchiveSnapshot
     qbittorrent: QbittorrentArchiveSnapshot
+    capacity: MediaArchiveCapacityEvidence | None = None
 
     @model_validator(mode='after')
     def exact_sources(self):
+        sources = {
+            item.serviceId: item for item in (
+                self.jellyfin, self.sonarr, self.radarr, self.qbittorrent)
+        }
         if self.sonarr.serviceId != 'sonarr' or self.radarr.serviceId != 'radarr':
             raise ValueError('invalid_media_archive_observation')
+        if self.capacity is not None:
+            source = sources[self.capacity.source]
+            if (source.serviceRevision != self.capacity.serviceRevision
+                    or source.snapshotRevision != self.capacity.snapshotRevision
+                    or self.capacity.state == 'verified'
+                    and source.state != 'verified'):
+                raise ValueError('invalid_media_archive_capacity')
         return self
 
 
@@ -355,6 +386,42 @@ class MediaArchiveCounts(StrictModel):
     potentialSavingBytes: int = Field(ge=0, le=2**63 - 1)
 
 
+class MediaArchiveWeeklyTrendPoint(StrictModel):
+    weekStart: int = Field(ge=1, le=253402300799)
+    capturedAt: int = Field(ge=1, le=253402300799)
+    snapshotRevision: Revision
+    totalBytes: int = Field(gt=0, le=2**63 - 1)
+    freeBytes: int = Field(ge=0, le=2**63 - 1)
+    reclaimableBytes: int = Field(ge=0, le=2**63 - 1)
+    duplicateCandidates: int = Field(ge=0, le=256)
+    lowQualityCandidates: int = Field(ge=0, le=256)
+
+    @model_validator(mode='after')
+    def coherent(self):
+        days = self.weekStart // 86400
+        if (self.freeBytes > self.totalBytes
+                or self.weekStart % 86400 != 0 or (days + 3) % 7 != 0
+                or not self.weekStart <= self.capturedAt < self.weekStart + 604800):
+            raise ValueError('invalid_media_archive_trend')
+        return self
+
+
+class MediaArchiveWeeklyTrend(StrictModel):
+    state: Literal['ready', 'stale', 'unavailable']
+    points: list[MediaArchiveWeeklyTrendPoint] = Field(max_length=12)
+    actionAvailable: Literal[False] = False
+
+    @model_validator(mode='after')
+    def coherent(self):
+        if ((self.state == 'unavailable') != (not self.points)
+                or any(left.weekStart >= right.weekStart
+                       or left.capturedAt >= right.capturedAt
+                       or left.snapshotRevision >= right.snapshotRevision
+                       for left, right in zip(self.points, self.points[1:]))):
+            raise ValueError('invalid_media_archive_trend')
+        return self
+
+
 class MediaArchiveHealth(StrictModel):
     installationId: ObjectId
     installationRevision: Revision
@@ -367,6 +434,9 @@ class MediaArchiveHealth(StrictModel):
     issues: list[MediaArchiveIssue] = Field(max_length=12288)
     suggestions: list[MediaArchiveSavingSuggestion] = Field(max_length=4096)
     savingsPlan: MediaArchiveSavingsPlan
+    weeklyTrend: MediaArchiveWeeklyTrend = Field(default_factory=lambda:
+        MediaArchiveWeeklyTrend(
+            state='unavailable', points=[], actionAvailable=False))
     cleanupAvailable: Literal[False] = False
     generatedAt: int = Field(ge=1, le=253402300799)
 

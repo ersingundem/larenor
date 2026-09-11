@@ -11,6 +11,8 @@ from larenor_server.plugins.media_archive_weekly_trend import (
     MediaArchiveTrendError,
     MediaArchiveWeeklyTrendStore,
 )
+from conftest import auth
+from test_media_archive_core_read import BASE, configured
 from test_media_archive_health import binding, observation
 
 
@@ -25,7 +27,16 @@ def capacity(*, snapshot=7, total=1_000 * GIB, free=300 * GIB):
 
 
 def health(*, snapshot=7, now=1_788_609_610):
-    source = observation(capacity=capacity(snapshot=snapshot))
+    base = observation()
+    source = observation(
+        capacity=capacity(snapshot=snapshot),
+        **{
+            name: getattr(base, name).model_copy(update={
+                'snapshotRevision': snapshot, 'observedAt': now - 10,
+            })
+            for name in ('jellyfin', 'sonarr', 'radarr', 'qbittorrent')
+        },
+    )
     return source, build_media_archive_health(source, now=now)
 
 
@@ -47,7 +58,7 @@ def test_capacity_contract_is_exact_secret_free_and_source_bound():
 def test_store_keeps_only_latest_twelve_utc_weeks_and_exact_metrics(server):
     db = server[0].state.core.db
     store = MediaArchiveWeeklyTrendStore(db)
-    first = 1_780_000_000
+    first = 1_788_609_610
     for index in range(13):
         now = first + index * WEEK
         source, archive = health(snapshot=index + 1, now=now)
@@ -66,6 +77,10 @@ def test_store_keeps_only_latest_twelve_utc_weeks_and_exact_metrics(server):
         'lowQualityCandidates': 0,
     }
     assert trend.actionAvailable is False
+    reopened = MediaArchiveWeeklyTrendStore(db).current(
+        '1' * 32, 11,
+        now=first + 12 * WEEK, currentVerified=True)
+    assert reopened == trend
 
 
 def test_same_week_is_idempotent_but_rollback_or_changed_replay_fails(server):
@@ -92,6 +107,13 @@ def test_same_week_is_idempotent_but_rollback_or_changed_replay_fails(server):
     ).points[-1].snapshotRevision == 8
     with pytest.raises(MediaArchiveTrendError, match='trend_revision_conflict'):
         store.capture(source, archive, now=1_788_609_610)
+
+    rollback_source, rollback_archive = health(
+        snapshot=9, now=1_788_609_610 - WEEK)
+    with pytest.raises(MediaArchiveTrendError, match='trend_revision_conflict'):
+        store.capture(
+            rollback_source, rollback_archive,
+            now=1_788_609_610 - WEEK)
 
 
 def test_missing_current_capacity_distinguishes_unavailable_and_stale(server):
@@ -124,3 +146,29 @@ def test_tampered_row_fails_closed_without_leaking_database_values(server):
             archive.installationId, archive.installationRevision,
             now=1_788_609_611, currentVerified=True)
 
+
+def test_core_read_captures_verified_capacity_then_marks_missing_evidence_stale(
+        server):
+    pair, _installation, _current, _reader, worker, body = configured(server)
+    observed = worker.result
+    worker.result = observed.model_copy(update={
+        'capacity': MediaArchiveCapacityEvidence(
+            source='sonarr',
+            serviceRevision=observed.sonarr.serviceRevision,
+            snapshotRevision=observed.sonarr.snapshotRevision,
+            state='verified', totalBytes=1_000 * GIB, freeBytes=300 * GIB),
+    })
+    ready = server[1].post(BASE, headers=auth(pair), json=body)
+    assert ready.status_code == 200, ready.text
+    assert ready.json()['archive']['weeklyTrend']['state'] == 'ready'
+    assert len(ready.json()['archive']['weeklyTrend']['points']) == 1
+
+    worker.result = observed
+    stale = server[1].post(BASE, headers=auth(pair), json={
+        **body, 'requestId': 'f' * 32,
+    })
+    assert stale.status_code == 200, stale.text
+    assert stale.json()['archive']['weeklyTrend']['state'] == 'stale'
+    assert len(stale.json()['archive']['weeklyTrend']['points']) == 1
+    assert all(value not in stale.text.lower() for value in (
+        'token', 'password', 'cookie', 'endpoint', '/media/'))
