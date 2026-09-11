@@ -201,6 +201,31 @@ SavingEvidence = Literal[
     'largest_copy_excluded', 'source_profile_verified',
     'target_playback_verified', 'bounded_size_estimate',
     'download_complete', 'import_verified', 'retention_policy_satisfied']
+SavingConfidence = Literal['high', 'medium']
+SavingComparisonBasis = Literal[
+    'keep_largest_copy', 'bounded_transcode_estimate',
+    'review_retained_copy']
+
+
+class MediaArchiveSavingsComparison(StrictModel):
+    basis: SavingComparisonBasis
+    observedBytes: int = Field(gt=0, le=2**63 - 1)
+    estimatedRetainedBytes: int = Field(ge=0, le=2**63 - 1)
+    estimatedSavingBytes: int = Field(gt=0, le=2**63 - 1)
+
+    @model_validator(mode='after')
+    def coherent(self):
+        if (self.estimatedRetainedBytes >= self.observedBytes
+                or self.observedBytes - self.estimatedRetainedBytes
+                != self.estimatedSavingBytes):
+            raise ValueError('invalid_media_archive_savings_plan')
+        return self
+
+
+class MediaArchiveSavingsDataGap(StrictModel):
+    lane: SavingKind
+    reason: Literal[
+        'partial', 'unsupported', 'unavailable', 'stale', 'truncated']
 
 
 class MediaArchiveSavingsCandidate(StrictModel):
@@ -208,6 +233,8 @@ class MediaArchiveSavingsCandidate(StrictModel):
     source: Literal['jellyfin', 'qbittorrent']
     title: str = Field(min_length=1, max_length=240)
     potentialBytes: int = Field(gt=0, le=2**63 - 1)
+    confidence: SavingConfidence
+    comparison: MediaArchiveSavingsComparison
     evidence: list[SavingEvidence] = Field(min_length=3, max_length=3)
     actionAvailable: Literal[False] = False
 
@@ -215,18 +242,22 @@ class MediaArchiveSavingsCandidate(StrictModel):
 
     @model_validator(mode='after')
     def coherent(self):
-        expected = {
-            'duplicate': ('jellyfin', [
+        source, confidence, basis, evidence = {
+            'duplicate': ('jellyfin', 'high', 'keep_largest_copy', [
                 'same_media_identity', 'multiple_playable_files',
                 'largest_copy_excluded']),
-            'transcode': ('jellyfin', [
+            'transcode': ('jellyfin', 'medium',
+                          'bounded_transcode_estimate', [
                 'source_profile_verified', 'target_playback_verified',
                 'bounded_size_estimate']),
-            'retention': ('qbittorrent', [
+            'retention': ('qbittorrent', 'medium', 'review_retained_copy', [
                 'download_complete', 'import_verified',
                 'retention_policy_satisfied']),
         }[self.kind]
-        if (self.source, self.evidence) != expected:
+        if (self.source != source or self.confidence != confidence
+                or self.comparison.basis != basis
+                or self.comparison.estimatedSavingBytes != self.potentialBytes
+                or self.evidence != evidence):
             raise ValueError('invalid_media_archive_savings_plan')
         return self
 
@@ -237,15 +268,35 @@ class MediaArchiveSavingsPlan(StrictModel):
     candidates: list[MediaArchiveSavingsCandidate] = Field(max_length=768)
     candidateCounts: dict[SavingKind, int]
     totalPotentialBytes: int = Field(ge=0, le=2**63 - 1)
+    dataGaps: list[MediaArchiveSavingsDataGap] = Field(max_length=3)
     truncated: bool
     actionAvailable: Literal[False] = False
 
     @model_validator(mode='after')
     def coherent(self):
         lanes = {'duplicate', 'transcode', 'retention'}
+        gap_pairs = [(gap.lane, gap.reason) for gap in self.dataGaps]
+        expected_non_verified = {
+            (kind, state) for kind, state in self.laneStates.items()
+            if state != 'verified'
+        }
+        actual_non_verified = {
+            pair for pair in gap_pairs if pair[1] != 'truncated'
+        }
+        truncated_lanes = {
+            lane for lane, reason in gap_pairs if reason == 'truncated'
+        }
+        lane_order = {'duplicate': 0, 'transcode': 1, 'retention': 2}
         if (set(self.laneStates) != lanes or set(self.candidateCounts) != lanes
                 or any(type(value) is not int or value < 0 or value > 256
                        for value in self.candidateCounts.values())
+                or len(gap_pairs) != len(set(gap_pairs))
+                or gap_pairs != sorted(
+                    gap_pairs, key=lambda pair: (lane_order[pair[0]], pair[1]))
+                or actual_non_verified != expected_non_verified
+                or any(self.laneStates[lane] != 'verified'
+                       for lane in truncated_lanes)
+                or self.truncated != bool(truncated_lanes)
                 or self.candidateCounts != {
                     kind: sum(item.kind == kind for item in self.candidates)
                     for kind in lanes}
@@ -253,9 +304,7 @@ class MediaArchiveSavingsPlan(StrictModel):
                     item.potentialBytes for item in self.candidates)
                 or any(self.laneStates[item.kind] != 'verified'
                        for item in self.candidates)
-                or (self.state == 'ready') != (
-                    not self.truncated
-                    and set(self.laneStates.values()) == {'verified'})):
+                or (self.state == 'ready') != (not self.dataGaps)):
             raise ValueError('invalid_media_archive_savings_plan')
         return self
 

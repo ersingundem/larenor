@@ -43,9 +43,18 @@ def build_media_archive_savings_plan(observation, source_states):
             potential = sum(item.sizeBytes for item in values) - max(
                 item.sizeBytes for item in values)
             if potential > 0:
+                observed = sum(item.sizeBytes for item in values)
+                retained = max(item.sizeBytes for item in values)
                 by_kind['duplicate'].append(MediaArchiveSavingsCandidate(
                     kind='duplicate', source='jellyfin', title=values[0].title,
                     potentialBytes=potential,
+                    confidence='high',
+                    comparison={
+                        'basis': 'keep_largest_copy',
+                        'observedBytes': observed,
+                        'estimatedRetainedBytes': retained,
+                        'estimatedSavingBytes': potential,
+                    },
                     evidence=['same_media_identity', 'multiple_playable_files',
                               'largest_copy_excluded'], actionAvailable=False))
 
@@ -61,6 +70,13 @@ def build_media_archive_savings_plan(observation, source_states):
                 by_kind['transcode'].append(MediaArchiveSavingsCandidate(
                     kind='transcode', source='jellyfin', title=item.title,
                     potentialBytes=potential,
+                    confidence='medium',
+                    comparison={
+                        'basis': 'bounded_transcode_estimate',
+                        'observedBytes': item.sizeBytes,
+                        'estimatedRetainedBytes': item.sizeBytes - potential,
+                        'estimatedSavingBytes': potential,
+                    },
                     evidence=['source_profile_verified',
                               'target_playback_verified',
                               'bounded_size_estimate'], actionAvailable=False))
@@ -73,11 +89,22 @@ def build_media_archive_savings_plan(observation, source_states):
                 by_kind['retention'].append(MediaArchiveSavingsCandidate(
                     kind='retention', source='qbittorrent', title=item.title,
                     potentialBytes=item.contentBytes,
+                    confidence='medium',
+                    comparison={
+                        'basis': 'review_retained_copy',
+                        'observedBytes': item.contentBytes,
+                        'estimatedRetainedBytes': 0,
+                        'estimatedSavingBytes': item.contentBytes,
+                    },
                     evidence=['download_complete', 'import_verified',
                               'retention_policy_satisfied'],
                     actionAvailable=False))
 
-    truncated = any(len(values) > _LIMIT_PER_LANE for values in by_kind.values())
+    truncated_lanes = {
+        kind for kind, values in by_kind.items()
+        if len(values) > _LIMIT_PER_LANE
+    }
+    truncated = bool(truncated_lanes)
     candidates = []
     for kind, values in by_kind.items():
         values.sort(key=lambda item: (item.title.casefold(), item.title,
@@ -87,9 +114,15 @@ def build_media_archive_savings_plan(observation, source_states):
                                       item.title, item.potentialBytes))
     counts = {kind: sum(item.kind == kind for item in candidates)
               for kind in by_kind}
-    ready = not truncated and set(lanes.values()) == {'verified'}
+    data_gaps = []
+    for kind in ('duplicate', 'transcode', 'retention'):
+        if lanes[kind] != 'verified':
+            data_gaps.append({'lane': kind, 'reason': lanes[kind]})
+        elif kind in truncated_lanes:
+            data_gaps.append({'lane': kind, 'reason': 'truncated'})
+    ready = not data_gaps
     return MediaArchiveSavingsPlan(
         state='ready' if ready else 'partial', laneStates=lanes,
         candidates=candidates, candidateCounts=counts,
         totalPotentialBytes=sum(item.potentialBytes for item in candidates),
-        truncated=truncated, actionAvailable=False)
+        dataGaps=data_gaps, truncated=truncated, actionAvailable=False)
