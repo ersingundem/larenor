@@ -37,6 +37,7 @@ from .plugins.media_api import router as media_preparations_router
 from .plugins.media_inspection_api import router as media_inspections_router
 from .plugins.media_installation_api import router as media_installations_router
 from .plugins.media_service_bootstrap_api import router as media_service_bootstraps_router
+from .plugins.seerr_bootstrap_job_api import router as seerr_bootstraps_router
 from .plugins.qbittorrent_config_job_api import router as qbittorrent_configurations_router
 from .plugins.arr_config_job_api import router as arr_configurations_router
 from .plugins.music_assistant_core_api import router as music_assistant_core_router
@@ -97,11 +98,15 @@ def create_app(settings: Settings, *, routers: Iterable[APIRouter] = (),
         arr = application.state.core.arr_configurations
         arr_task = asyncio.create_task(dispatch(
             arr, "arr_configuration_dispatch_unavailable")) if arr.backend is not None else None
+        seerr = application.state.core.seerr_bootstraps
+        seerr_task = asyncio.create_task(dispatch(
+            seerr, "seerr_bootstrap_dispatch_unavailable")) if seerr.backend is not None else None
         application.state.media_inspection_dispatcher = media_task
         application.state.media_installation_dispatcher = installation_task
         application.state.media_service_bootstrap_dispatcher = bootstrap_task
         application.state.qbittorrent_configuration_dispatcher = qbittorrent_task
         application.state.arr_configuration_dispatcher = arr_task
+        application.state.seerr_bootstrap_dispatcher = seerr_task
         application.state.plugin_job_dispatcher = task
         try:
             yield
@@ -126,6 +131,8 @@ def create_app(settings: Settings, *, routers: Iterable[APIRouter] = (),
                 await qbittorrent_task
             if arr_task is not None:
                 await arr_task
+            if seerr_task is not None:
+                await seerr_task
 
     app = FastAPI(title="Larenor Server", version=server_version(), docs_url=None,
                   redoc_url=None, openapi_url=None,
@@ -142,6 +149,7 @@ def create_app(settings: Settings, *, routers: Iterable[APIRouter] = (),
     app.state.media_service_bootstrap_dispatcher = None
     app.state.qbittorrent_configuration_dispatcher = None
     app.state.arr_configuration_dispatcher = None
+    app.state.seerr_bootstrap_dispatcher = None
     app.add_middleware(SafeBoundaryMiddleware)
 
     @app.exception_handler(ApiError)
@@ -242,6 +250,7 @@ def create_app(settings: Settings, *, routers: Iterable[APIRouter] = (),
     app.include_router(media_inspections_router, prefix="/api/v1")
     app.include_router(media_installations_router, prefix="/api/v1")
     app.include_router(media_service_bootstraps_router, prefix="/api/v1")
+    app.include_router(seerr_bootstraps_router, prefix="/api/v1")
     app.include_router(qbittorrent_configurations_router, prefix="/api/v1")
     app.include_router(arr_configurations_router, prefix="/api/v1")
     app.include_router(music_retained_status_router, prefix="/api/v1")

@@ -557,8 +557,28 @@ create/start işleri üretiyor. Worker servis kimliğini plan içindeki tek
 taşımıyor. V1 kurulum ve bağlı Jellyfin bootstrap satırları v2 şemasına ciphertext
 değiştirilmeden kayıpsız taşınıyor; foreign key hedefi yeniden kanıtlanıyor. **106 ilgili test**, migration/public contract ve Jellyfin bootstrap kimlik
 regresyonları geçti; güncel **5.249 testlik** tam Server paketi yeniden çalışıyor.
-Şifreli Seerr bootstrap job'u hâlâ açık ve
-`installAvailable=false` değişmedi.
+`b8fad69a` → `8ce745cf` TDD dilimi, tamamlanmış Seerr konteynerini aynı
+preparation içindeki doğrulanmış Jellyfin bootstrap kaynağına exact revizyonla
+bağlayan AES-GCM şifreli kalıcı işi ekledi. Yeniden başlatma, idempotency,
+kaynak/kurulum drift'i, gizli alan reddi ve sınırlı okuma kapıları yeşil.
+`a8751777` → `b85a53ba` dilimi işi UID-denetimli private worker'a bağlıyor,
+etki sırasında retained admin ve kaynak revizyonlarını yeniden doğruluyor,
+API anahtarını yalnız şifreli kayıtta saklıyor ve belirsiz/yarım etkileri tekrar
+çalıştırmadan `needs_attention` durumuna alıyor. Sonarr/Radarr/kütüphane/initialize
+eşleştirmesi ve native iki mimari kabul açık; `installAvailable=false` değişmedi.
+`1b944719` → `c46c5258` TDD dilimi, Seerr'ın resmî servis ayarları API'sinde
+Radarr ve Sonarr bağlantısını önce test eden, yalnız doğrulanmış kalite profili
+ile `/media/movies` ve `/media/tv` köklerini kabul eden, ardından create ve exact
+readback yapan private adaptörü ekledi. Mevcut exact kayıt idempotent kalıyor;
+yabancı kayıt veya response drift'i üzerine yazılmıyor. Adaptörün kalıcı Seerr
+işine bağlanması açık. `8fddf2bd` → `6f9c9f9b` TDD dilimi, resmî
+`POST /api/v1/settings/initialize` çağrısını en fazla bir etkide tutan ve aynı
+`plexClientIdentifier` için authenticated public readback görmeden başarı
+vermeyen adaptörü ekledi. Zaten tamamlanmış örnek idempotent kalıyor; kayıp
+cevap veya şema sapması otomatik tekrarlanmayan belirsiz etki olarak kapanıyor.
+Yeni 8 test ve ilgili Seerr paketinde **48 PASS**; compileall, Security ve diff
+kapıları temiz. Arr ve initialize adaptörlerinin kalıcı Seerr işine bağlanması
+ile native iki mimari kabul açık; `installAvailable=false` değişmedi.
 [Seerr konteyner işi kanıtı](seerr-container-installation-implementation-2026-09-10.md).
 
 S06.4 native kabul koşusu [34326112926](https://github.com/ersingundem/larenor/actions/runs/34326112926)
