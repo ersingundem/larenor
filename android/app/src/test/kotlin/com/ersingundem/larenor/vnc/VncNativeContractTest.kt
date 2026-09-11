@@ -161,4 +161,26 @@ class VncNativeContractTest {
         assertTrue(secrets.closed)
         reject("invalidFailure") { VncNativeFailure("raw java.net error: desktop.home.arpa") }
     }
+
+    @Test
+    fun backendDiagnosticsAreCollapsedAndSecretsAreZeroized() {
+        val available = capabilities()
+        val backend = object : VncNativeBackend {
+            override fun capabilities() = VncNativeCapabilities.parse(available)
+            override fun open(
+                request: VncNativeRequest,
+                plan: VncNativePlan,
+                secrets: VncNativeSecrets,
+            ): VncNativeSession = throw IllegalStateException(
+                "vnc-secret desktop.home.arpa",
+            )
+        }
+        val password = "vnc-secret".toCharArray()
+        val secrets = VncNativeSecrets.take(password)
+        reject("connectionFailed") {
+            VncNativeAdapter(backend).open(VncNativeRequest.parse(request()), secrets)
+        }
+        assertTrue(secrets.closed)
+        assertTrue(password.all { it == '\u0000' })
+    }
 }
