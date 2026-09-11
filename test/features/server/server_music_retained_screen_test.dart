@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:larenor/features/server/domain/server_models.dart';
+import 'package:larenor/features/server/music_provider_commands/presentation/server_music_provider_commands_screen.dart';
 import 'package:larenor/features/server/music_retained/presentation/server_music_retained_screen.dart';
 import 'package:larenor/features/server/providers/server_providers.dart';
 import 'package:larenor/l10n/generated/app_localizations.dart';
@@ -74,6 +75,55 @@ void main() {
 
     expect(find.text('Setup is partial'), findsNWidgets(3));
     expect(find.text('Verification failed'), findsNothing);
+    expect(
+      find.byKey(ValueKey('music-provider-command-${'d' * 32}')),
+      findsNothing,
+    );
+    expect(fixture.mutations, isEmpty);
+  });
+
+  testWidgets('ready retained provider opens commands with exact revisions', (
+    tester,
+  ) async {
+    final fixture = MusicRetainedFixture();
+    SharedPreferences.setMockInitialValues({});
+    FlutterSecureStorage.setMockInitialValues({'settings_pin': '1234'});
+    await fixture.account.initialize();
+    addTearDown(fixture.account.dispose);
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          serverAccountControllerProvider.overrideWithValue(fixture.account),
+        ],
+        child: const CupertinoApp(
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: ServerMusicRetainedScreen(),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final providerId = 'd' * 32;
+    final manage = find.byKey(ValueKey('music-provider-command-$providerId'));
+    await tester.ensureVisible(manage);
+    await tester.pumpAndSettle();
+    await tester.tap(manage);
+    await tester.pumpAndSettle();
+
+    final screen = tester.widget<ServerMusicProviderCommandsScreen>(
+      find.byType(ServerMusicProviderCommandsScreen),
+    );
+    expect(screen.target?.installationId, 'a' * 32);
+    expect(screen.target?.installationRevision, 4);
+    expect(screen.target?.providerSetupId, providerId);
+    expect(screen.target?.providerRevision, 3);
+    expect(screen.target?.providerDomain, 'spotify');
+    expect(
+      find.byKey(const ValueKey('provider-enable-preview')),
+      findsOneWidget,
+    );
+    expect(fixture.mutations, isEmpty, reason: 'navigation cannot auto-review');
   });
 
   for (final locale in ['en', 'tr']) {

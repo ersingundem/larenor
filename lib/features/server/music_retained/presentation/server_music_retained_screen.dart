@@ -10,6 +10,7 @@ import '../../../../shared/widgets/app_page_scaffold.dart';
 import '../../../../shared/widgets/settings_section.dart';
 import '../../../settings/providers/settings_providers.dart';
 import '../../data/server_account_controller.dart';
+import '../../music_provider_commands/presentation/server_music_provider_commands_screen.dart';
 import '../../providers/server_providers.dart';
 import '../data/server_music_retained_controller.dart';
 import '../domain/server_music_retained_models.dart';
@@ -99,6 +100,26 @@ class _ServerMusicRetainedScreenState
   void _load() {
     final current = _capture();
     if (current()) unawaited(_status.load(current: current));
+  }
+
+  Future<void> _openProviderCommands(
+    ServerMusicRetainedInstallation installation,
+    ServerMusicProviderStatus provider,
+  ) async {
+    if (!_active || provider.state != 'ready') return;
+    await Navigator.of(context).push(
+      CupertinoPageRoute<void>(
+        builder: (_) => ServerMusicProviderCommandsScreen(
+          target: ServerMusicProviderCommandTarget(
+            installationId: installation.installationId,
+            installationRevision: installation.installationRevision,
+            providerSetupId: provider.id,
+            providerRevision: provider.revision,
+            providerDomain: provider.domain,
+          ),
+        ),
+      ),
+    );
   }
 
   @override
@@ -225,6 +246,19 @@ class _ServerMusicRetainedScreenState
                         '${provider.revision}',
                       ),
                       Text(provider.id, style: AppText.footnote),
+                      if (provider.state == 'ready')
+                        CupertinoButton(
+                          key: ValueKey(
+                            'music-provider-command-${provider.id}',
+                          ),
+                          minimumSize: const Size(48, 48),
+                          onPressed: _active
+                              ? () => unawaited(
+                                  _openProviderCommands(item, provider),
+                                )
+                              : null,
+                          child: Text(l.serverMusicProviderCommandTitle),
+                        ),
                     ],
                   ),
                 ),
