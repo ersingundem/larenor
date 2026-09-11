@@ -3,6 +3,7 @@ import hashlib
 import hmac
 import json
 import math
+import re
 import secrets
 import threading
 import time
@@ -19,8 +20,19 @@ from ..admin.service import utc
 from ..auth import token_hash
 from ..errors import ApiError, StartupError
 from . import schema
-from .models import BindingPreviewRequest, KeeneticBinding, ResourceSnapshot, Telemetry
-from .transport import read_telemetry
+from .models import (
+    BindingPreviewRequest,
+    ClientDetail,
+    DetailsPage,
+    InterfaceDetail,
+    KeeneticBinding,
+    MeshNode,
+    ResourceSnapshot,
+    Telemetry,
+    TopologySnapshot,
+    WifiDistribution,
+)
+from .transport import KeeneticReadOnlyTransport, _mesh_topology
 
 PREVIEW_TTL = 60.0
 CACHE_TTL = 5.0
@@ -53,14 +65,17 @@ class KeeneticResourceAdapter:
         self._clock, self._last_clock = time.monotonic, None
         self._closed = False
         self._slots = threading.BoundedSemaphore(4)
-        self._reader = read_telemetry
+        self._transport = KeeneticReadOnlyTransport()
+        self._reader = self._transport.read
+        self._topology_reader = self._transport.read_topology
 
     def _now(self):
         now = self._clock()
         if type(now) not in (int, float) or not math.isfinite(now):
             raise ApiError("server_unavailable", 503)
         if self._last_clock is not None and now < self._last_clock:
-            self._previews.clear(); self._cache.clear()
+            self._previews.clear()
+            self._cache.clear()
         self._last_clock = now
         for key, pending in list(self._previews.items()):
             if now - pending.created >= PREVIEW_TTL:
@@ -72,7 +87,10 @@ class KeeneticResourceAdapter:
 
     def close(self):
         with self._lock:
-            self._previews.clear(); self._cache.clear(); self._closed = True
+            self._previews.clear()
+            self._cache.clear()
+            self._closed = True
+        self._transport.close()
 
     @staticmethod
     def _aad(row):
@@ -103,7 +121,8 @@ class KeeneticResourceAdapter:
             with self._lock, self.resources._transaction(actor, core, home, admin=admin) as (c, facts):
                 if self._closed:
                     raise ApiError("server_unavailable", 503)
-                self._now(); schema.validate(c, self._key, self.resources.scope)
+                self._now()
+                schema.validate(c, self._key, self.resources.scope)
                 yield c, facts
         except ApiError:
             with self._lock:
@@ -192,9 +211,13 @@ class KeeneticResourceAdapter:
 
     def preview(self, actor, core, home, resource, body, *, cancelled=lambda: False):
         body = BindingPreviewRequest.model_validate(body)
-        started = self._now()
+        with self._lock:
+            started = self._now()
         caller_cancelled = cancelled
-        cancelled = lambda: caller_cancelled() or self._clock() - started >= OPERATION_TTL
+
+        def cancelled():
+            return caller_cancelled() or self._clock() - started >= OPERATION_TTL
+
         with self._tx(actor, core, home, admin=True) as (c, facts):
             if len(self._previews) >= MAX_PREVIEWS or sum(p.actor.id == actor.id for p in self._previews.values()) >= MAX_ACTOR_PREVIEWS:
                 raise ApiError("keenetic_limit_reached", 429)
@@ -221,7 +244,8 @@ class KeeneticResourceAdapter:
 
     def cancel_preview(self, actor, core, home, resource, preview_id):
         with self._tx(actor, core, home, admin=True) as (c, facts):
-            self._target(c, facts, resource); self._pending(actor, resource, preview_id)
+            self._target(c, facts, resource)
+            self._pending(actor, resource, preview_id)
             del self._previews[preview_id]
 
     def binding(self, actor, core, home, resource):
@@ -241,27 +265,37 @@ class KeeneticResourceAdapter:
             binding = pending.binding
             if pending.body.expectedBindingId is None and len(schema.rows(c)) >= schema.MAX_BINDINGS:
                 raise ApiError("keenetic_limit_reached", 429)
-            plain = binding.model_dump_json().encode(); nonce = secrets.token_bytes(12)
+            plain = binding.model_dump_json().encode()
+            nonce = secrets.token_bytes(12)
             row = {"resource_id": resource, "binding_id": binding.id, "revision": binding.revision}
             cipher = self._cipher.encrypt(nonce, plain, self._aad(row))
             c.execute("INSERT INTO keenetic_resource_bindings VALUES(?,?,?,?,?) ON CONFLICT(resource_id) DO UPDATE SET "
                       "binding_id=excluded.binding_id,revision=excluded.revision,nonce=excluded.nonce,ciphertext=excluded.ciphertext",
                       (resource, binding.id, binding.revision, nonce, cipher))
-            schema.update(c, self._key, self.resources.scope); schema.validate(c, self._key, self.resources.scope)
+            schema.update(c, self._key, self.resources.scope)
+            schema.validate(c, self._key, self.resources.scope)
             self._cache.clear()
             return {"binding": binding.model_dump()}
 
-    def snapshot(self, actor, core, home, resource, *, cancelled=lambda: False):
+    def snapshot(self, actor, core, home, resource, *, cancelled=lambda: False,
+                 bypass_cache=False):
+        if type(bypass_cache) is not bool:
+            raise ApiError("invalid_request")
         started = self._now()
         caller_cancelled = cancelled
-        cancelled = lambda: caller_cancelled() or self._clock() - started >= OPERATION_TTL
+
+        def cancelled():
+            return caller_cancelled() or self._clock() - started >= OPERATION_TTL
+
         with self._tx(actor, core, home) as (c, facts):
             fingerprint, row, ref, _data, binding, service = self._facts(c, facts, resource)
             # The exact required tuple is the prefix; current user/session facts prevent detached reuse.
             key = (core, home, resource, binding.id, binding.revision, service.id, service.revision,
                    actor.id, facts.revision, actor.token_id, actor.family_id)
-            now = self._now(); cached = self._cache.get(key)
-            if cached is not None and cached[1] == fingerprint and not cancelled():
+            now = self._now()
+            cached = self._cache.get(key)
+            if (not bypass_cache and cached is not None and
+                    cached[1] == fingerprint and not cancelled()):
                 return {"snapshot": {**cached[2], "remainingTtlMs": max(0, int(
                     (CACHE_TTL - (now - cached[0])) * 1000))}}
         telemetry = self._observe(actor, core, home, resource, fingerprint, service, None, cancelled)
@@ -282,3 +316,194 @@ class KeeneticResourceAdapter:
                 self._cache.popitem(last=False)
             self._cache[key] = (self._now(), fingerprint, result)
             return {"snapshot": result}
+
+    def details_page(self, actor, core, home, resource, *, limit=25, after=None,
+                     expected_snapshot=None, cancelled=lambda: False):
+        if (type(limit) is not int or not 1 <= limit <= 100
+                or (after is None) != (expected_snapshot is None)
+                or after is not None and (
+                    not isinstance(after, str) or re.fullmatch(r"[0-9a-f]{64}", after) is None
+                    or not isinstance(expected_snapshot, str)
+                    or re.fullmatch(r"[0-9a-f]{64}", expected_snapshot) is None)):
+            raise ApiError("invalid_request")
+        observed = self.snapshot(
+            actor, core, home, resource, cancelled=cancelled
+        )["snapshot"]
+        telemetry = Telemetry.model_validate(observed["telemetry"])
+        entries = []
+        for item in telemetry.interfaces:
+            entries.append(InterfaceDetail(
+                id=item.id, name=item.name, interfaceKind=item.kind,
+                online=item.online, address=item.address,
+                rxBytes=item.rxBytes, txBytes=item.txBytes, guest=item.guest,
+                ssid=item.ssid, band=item.band, channel=item.channel,
+                signalDbm=item.signalDbm,
+            ).model_dump(mode="json"))
+        for item in telemetry.hosts:
+            mac_hash = hmac.new(
+                self._key,
+                f"larenor-keenetic-client-v1:{resource}:{item.macAddress.upper()}".encode(),
+                hashlib.sha256,
+            ).hexdigest()[:16]
+            entries.append(ClientDetail(
+                id=mac_hash, name=item.name, ipAddress=item.ipAddress,
+                macHash=mac_hash, interfaceId=item.interfaceId,
+                online=item.online, registered=item.registered,
+                internetAccess=item.internetAccess, band=item.band,
+                signalDbm=item.signalDbm,
+            ).model_dump(mode="json"))
+        entries.sort(key=lambda item: (
+            0 if item["kind"] == "interface" else 1,
+            item.get("interfaceKind", ""), item["id"],
+        ))
+        identity = hashlib.sha256(json.dumps({
+            "ref": observed["ref"],
+            "bindingId": observed["bindingId"],
+            "bindingRevision": observed["bindingRevision"],
+            "serviceId": observed["serviceId"],
+            "serviceRevision": observed["serviceRevision"],
+            "resourceRevision": observed["resourceRevision"],
+            "aclRevision": observed["aclRevision"],
+            "observedAt": observed["observedAt"],
+            "entries": entries,
+        }, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+        if expected_snapshot is not None and not hmac.compare_digest(
+                identity, expected_snapshot):
+            raise ApiError("keenetic_snapshot_changed", 409)
+        cursors = [hashlib.sha256(
+            f"{identity}:{index}:{item['kind']}:{item['id']}".encode()
+        ).hexdigest() for index, item in enumerate(entries)]
+        start = 0
+        if after is not None:
+            try:
+                start = cursors.index(after) + 1
+            except ValueError:
+                raise ApiError("keenetic_snapshot_changed", 409) from None
+        page = entries[start:start + limit]
+        next_after = cursors[start + limit - 1] if start + limit < len(entries) else None
+        return DetailsPage(
+            entries=page, snapshot=identity, nextAfter=next_after
+        ).model_dump(mode="json")
+
+    def topology(self, actor, core, home, resource, *, cancelled=lambda: False):
+        started = self._now()
+        observed = self.snapshot(
+            actor, core, home, resource, cancelled=cancelled
+        )["snapshot"]
+        source_ttl = observed["remainingTtlMs"]
+
+        def topology_cancelled():
+            with self._lock:
+                elapsed = (self._now() - started) * 1000
+            return cancelled() or elapsed >= source_ttl
+
+        with self._tx(actor, core, home) as (c, facts):
+            fingerprint, _row, _ref, _data, _binding, service = self._facts(
+                c, facts, resource
+            )
+        if not self._slots.acquire(blocking=False):
+            raise ApiError("keenetic_limit_reached", 429)
+        try:
+            def guard():
+                self._fresh(
+                    actor, core, home, resource, fingerprint, None,
+                    topology_cancelled,
+                )
+
+            raw = _mesh_topology(self._topology_reader(service, guard))
+            guard()
+        except ApiError as error:
+            if error.code in {
+                "request_timeout", "invalid_session", "not_found", "forbidden",
+                "keenetic_binding_changed", "keenetic_limit_reached",
+                "keenetic_upstream_unavailable", "keenetic_upstream_unauthorized",
+                "keenetic_upstream_denied", "keenetic_upstream_unsupported",
+            }:
+                if error.code == "keenetic_upstream_unsupported":
+                    raise ApiError("keenetic_snapshot_unsupported", 502) from None
+                raise
+            raise ApiError("keenetic_snapshot_unsupported", 502) from None
+        except Exception:  # noqa: BLE001 - private seam must not expose upstream state.
+            raise ApiError("keenetic_snapshot_unsupported", 502) from None
+        finally:
+            self._slots.release()
+
+        def private_id(value):
+            return hmac.new(
+                self._key,
+                f"larenor-keenetic-mesh-v1:{resource}:{value}".encode(),
+                hashlib.sha256,
+            ).hexdigest()[:16]
+
+        controller_id = private_id("controller")
+        member_ids = {
+            member["mac"]: private_id(member["mac"])
+            for member in raw["members"]
+        }
+        nodes = [MeshNode(
+            id=controller_id, name=raw["controller"]["name"],
+            model=raw["controller"]["model"], role="controller", online=True,
+            parentId=None, backhaulType=None, backhaulQuality=None, pathCost=None,
+        )]
+        for member in raw["members"]:
+            prefix, parent_mac = member["bridge"].split(".", 1)
+            parent_id = controller_id if prefix == "8000" else member_ids.get(
+                parent_mac.upper()
+            )
+            if parent_id is None:
+                raise ApiError("keenetic_snapshot_unsupported", 502)
+            uplink = member["uplink"].casefold()
+            if "wifimaster0" in uplink:
+                backhaul = "wifi_2_4"
+            elif "wifimaster1" in uplink:
+                backhaul = "wifi_5"
+            elif "wifimaster2" in uplink:
+                backhaul = "wifi_6"
+            elif "ethernet" in uplink or "sfp" in uplink:
+                backhaul = "ethernet"
+            else:
+                backhaul = "unknown"
+            cost = member["cost"]
+            quality = (
+                "unknown" if backhaul == "unknown" else
+                "excellent" if cost <= 19 else
+                "good" if cost <= 50 else
+                "fair" if cost <= 124 else "poor"
+            )
+            nodes.append(MeshNode(
+                id=member_ids[member["mac"]], name=member["name"],
+                model=member["model"], role="extender", online=member["online"],
+                parentId=parent_id, backhaulType=backhaul,
+                backhaulQuality=quality, pathCost=cost,
+            ))
+        telemetry = Telemetry.model_validate(observed["telemetry"])
+        networks = []
+        for interface in telemetry.interfaces:
+            if (interface.kind != "wifi" or interface.ssid is None
+                    or interface.band is None or interface.channel is None):
+                continue
+            networks.append(WifiDistribution(
+                id=interface.id, ssid=interface.ssid, band=interface.band,
+                channel=interface.channel, online=interface.online,
+                clientCount=sum(
+                    host.online and host.interfaceId == interface.id
+                    for host in telemetry.hosts
+                ),
+            ))
+        networks.sort(key=lambda item: (
+            {"2.4": 0, "5": 1, "6": 2}[item.band], item.id
+        ))
+        with self._lock:
+            remaining_ttl = source_ttl - int((self._now() - started) * 1000)
+        if remaining_ttl <= 0:
+            raise ApiError("request_timeout", 408)
+        result = TopologySnapshot(
+            ref=observed["ref"], bindingId=observed["bindingId"],
+            bindingRevision=observed["bindingRevision"],
+            serviceId=observed["serviceId"], serviceRevision=observed["serviceRevision"],
+            resourceRevision=observed["resourceRevision"],
+            aclRevision=observed["aclRevision"], observedAt=observed["observedAt"],
+            remainingTtlMs=remaining_ttl, nodes=nodes,
+            networks=networks,
+        )
+        return {"topology": result.model_dump(mode="json")}

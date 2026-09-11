@@ -27,6 +27,10 @@ enum TileType {
   proxmox,
   keenetic,
   coreKeenetic,
+  coreKeeneticDetails,
+  coreKeeneticMesh,
+  coreKeeneticClients,
+  coreKeeneticBandwidth,
 }
 
 @freezed

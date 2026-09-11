@@ -7,12 +7,17 @@ import '../../../../l10n/generated/app_localizations.dart';
 import '../../../../shared/theme/typography.dart';
 import '../../../../shared/widgets/app_page_scaffold.dart';
 import '../../../dashboard/presentation/dashboard_edit_guard.dart';
+import '../../../dashboard/domain/tile_config.dart';
 import '../../../home_resources/domain/home_resource_models.dart';
 import '../../../server/domain/server_models.dart';
 import '../data/core_keenetic_dashboard_providers.dart';
 
 class CoreKeeneticWidgetPickerScreen extends ConsumerStatefulWidget {
-  const CoreKeeneticWidgetPickerScreen({super.key});
+  const CoreKeeneticWidgetPickerScreen({
+    super.key,
+    this.tileType = TileType.coreKeenetic,
+  });
+  final TileType tileType;
   @override
   ConsumerState<CoreKeeneticWidgetPickerScreen> createState() =>
       _CoreKeeneticWidgetPickerScreenState();
@@ -33,9 +38,14 @@ class _CoreKeeneticWidgetPickerScreenState
       _failure = null;
     });
     try {
-      final tile = await ref.read(
-        coreKeeneticDashboardDraftProvider(target).future,
-      );
+      final tile = widget.tileType == TileType.coreKeenetic
+          ? await ref.read(coreKeeneticDashboardDraftProvider(target).future)
+          : await ref.read(
+              coreKeeneticDashboardVariantDraftProvider((
+                target: target,
+                type: widget.tileType,
+              )).future,
+            );
       if (!interactionCurrent(generation) || _expired || _returned) return;
       _returned = true;
       if (mounted && ModalRoute.of(context)?.isCurrent == true) {

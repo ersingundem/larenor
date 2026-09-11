@@ -67,6 +67,7 @@ class _ViewState extends ConsumerState<_View> {
     'keenetic_snapshot_unsupported' ||
     'keenetic_upstream_unsupported' => l.coreKeeneticUnsupported,
     'keenetic_binding_changed' || 'revision_conflict' => l.coreKeeneticChanged,
+    'keenetic_snapshot_changed' => l.coreKeeneticChanged,
     'keenetic_preview_invalid' => l.coreKeeneticPreviewExpired,
     'keenetic_upstream_unavailable' ||
     'connection_failed' ||
@@ -164,6 +165,25 @@ class _ViewState extends ConsumerState<_View> {
                   enabled: c.fresh,
                   isCurrent: live,
                 ),
+              if (telemetry != null || c.details != null || c.failure != null)
+                CoreKeeneticDetailsPanel(
+                  page: c.details,
+                  enabled: c.fresh && !c.busy && !c.stale,
+                  failure: c.failure,
+                  stale: c.stale,
+                  isCurrent: live,
+                  onRefresh: c.canRefresh ? () => unawaited(c.refresh()) : null,
+                  onLoadMore: c.details?.nextAfter != null && c.fresh && !c.busy
+                      ? () => unawaited(c.loadMoreDetails())
+                      : null,
+                ),
+              if (c.topology != null || c.topologyFailure != null)
+                CoreKeeneticTopologyPanel(
+                  topology: c.topology,
+                  failure: c.topologyFailure,
+                  enabled: c.fresh && !c.busy && !c.stale,
+                  isCurrent: live,
+                ),
               if (!widget.admin && telemetry != null)
                 Text(l.coreKeeneticReadOnly, style: AppText.footnote),
               if (widget.admin && c.fresh && c.loaded) ...[
@@ -218,6 +238,485 @@ class _ViewState extends ConsumerState<_View> {
   }
 }
 
+/// Read-only, private mesh graph and Wi-Fi distribution for tablet/DeX.
+class CoreKeeneticTopologyPanel extends StatefulWidget {
+  const CoreKeeneticTopologyPanel({
+    super.key,
+    required this.topology,
+    this.failure,
+    required this.enabled,
+    required this.isCurrent,
+  });
+  final CoreKeeneticTopologySnapshot? topology;
+  final String? failure;
+  final bool enabled;
+  final bool Function() isCurrent;
+  @override
+  State<CoreKeeneticTopologyPanel> createState() =>
+      _CoreKeeneticTopologyPanelState();
+}
+
+class _CoreKeeneticTopologyPanelState extends State<CoreKeeneticTopologyPanel> {
+  String? _selected;
+
+  String _backhaul(CoreKeeneticBackhaul value) => switch (value) {
+    CoreKeeneticBackhaul.ethernet => 'Ethernet',
+    CoreKeeneticBackhaul.wifi_2_4 => 'Wi-Fi 2.4',
+    CoreKeeneticBackhaul.wifi_5 => 'Wi-Fi 5',
+    CoreKeeneticBackhaul.wifi_6 => 'Wi-Fi 6',
+    CoreKeeneticBackhaul.unknown => '—',
+  };
+
+  String _quality(CoreKeeneticBackhaulQuality value, AppLocalizations l) =>
+      switch (value) {
+        CoreKeeneticBackhaulQuality.excellent => l.coreKeeneticMeshExcellent,
+        CoreKeeneticBackhaulQuality.good => l.coreKeeneticMeshGood,
+        CoreKeeneticBackhaulQuality.fair => l.coreKeeneticMeshFair,
+        CoreKeeneticBackhaulQuality.poor => l.coreKeeneticMeshPoor,
+        CoreKeeneticBackhaulQuality.unknown => l.coreKeeneticMeshUnknown,
+      };
+
+  Widget _node(CoreKeeneticMeshNode node, AppLocalizations l) => Padding(
+    padding: const EdgeInsets.symmetric(vertical: 3),
+    child: Semantics(
+      button: true,
+      selected: _selected == node.id,
+      label:
+          '${node.name}, ${node.online ? l.keeneticOnline : l.keeneticOffline}',
+      child: ExcludeSemantics(
+        child: CupertinoButton(
+          minimumSize: const Size(48, 48),
+          alignment: AlignmentDirectional.centerStart,
+          color: _selected == node.id
+              ? CupertinoTheme.of(context).primaryColor.withValues(alpha: .12)
+              : CupertinoColors.systemGrey6.resolveFrom(context),
+          onPressed: widget.enabled && widget.isCurrent()
+              ? () => setState(() => _selected = node.id)
+              : null,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(node.name),
+              Text(
+                node.online ? l.keeneticOnline : l.keeneticOffline,
+                style: AppText.footnote,
+              ),
+            ],
+          ),
+        ),
+      ),
+    ),
+  );
+
+  Widget _metric(String label, String value) => Padding(
+    padding: const EdgeInsets.symmetric(vertical: 7),
+    child: Row(
+      children: [
+        Expanded(child: Text(label)),
+        const SizedBox(width: 12),
+        Flexible(child: Text(value, textAlign: TextAlign.end)),
+      ],
+    ),
+  );
+
+  Widget _detail(CoreKeeneticMeshNode node, AppLocalizations l) =>
+      SingleChildScrollView(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(node.name, style: AppText.headline),
+            _metric(
+              node.role == CoreKeeneticMeshRole.controller
+                  ? l.coreKeeneticMeshController
+                  : l.coreKeeneticMeshExtender,
+              node.model,
+            ),
+            _metric(
+              l.coreKeeneticStatus,
+              node.online ? l.keeneticOnline : l.keeneticOffline,
+            ),
+            if (node.backhaul != null)
+              _metric(l.coreKeeneticMeshBackhaul, _backhaul(node.backhaul!)),
+            if (node.quality != null)
+              _metric(l.coreKeeneticMeshQuality, _quality(node.quality!, l)),
+            if (node.pathCost != null)
+              _metric(l.coreKeeneticMeshPathCost, '${node.pathCost}'),
+          ],
+        ),
+      );
+
+  @override
+  Widget build(BuildContext context) {
+    final l = AppLocalizations.of(context), topology = widget.topology;
+    final selected = topology?.nodes
+        .where((node) => node.id == _selected)
+        .firstOrNull;
+    Widget nodes() => ListView(
+      children: [
+        for (final node in topology?.nodes ?? const <CoreKeeneticMeshNode>[])
+          _node(node, l),
+      ],
+    );
+    final error = widget.failure == 'keenetic_snapshot_unsupported'
+        ? l.coreKeeneticMeshUnsupported
+        : l.coreKeeneticMeshUnavailable;
+    return Semantics(
+      container: true,
+      readOnly: true,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const SizedBox(height: 20),
+          Semantics(
+            header: true,
+            child: Text(l.coreKeeneticMeshTitle, style: AppText.headline),
+          ),
+          if (widget.failure != null)
+            Semantics(liveRegion: true, child: Text(error)),
+          if (topology != null) ...[
+            LayoutBuilder(
+              builder: (context, constraints) => SizedBox(
+                height: constraints.maxWidth >= 900 ? 300 : 350,
+                child: constraints.maxWidth >= 900
+                    ? Row(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Expanded(flex: 2, child: nodes()),
+                          const SizedBox(width: 16),
+                          Expanded(
+                            flex: 3,
+                            child: selected == null
+                                ? Center(child: Text(l.coreKeeneticMeshNoNodes))
+                                : _detail(selected, l),
+                          ),
+                        ],
+                      )
+                    : Column(
+                        children: [
+                          Expanded(child: nodes()),
+                          const SizedBox(height: 8),
+                          Expanded(
+                            child: selected == null
+                                ? Center(child: Text(l.coreKeeneticMeshNoNodes))
+                                : _detail(selected, l),
+                          ),
+                        ],
+                      ),
+              ),
+            ),
+            Semantics(
+              header: true,
+              child: Text(l.coreKeeneticMeshNetworks, style: AppText.headline),
+            ),
+            for (final network in topology.networks)
+              Semantics(
+                container: true,
+                readOnly: true,
+                label:
+                    '${network.ssid}, ${network.band} GHz, ${network.clientCount}',
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  child: ExcludeSemantics(
+                    child: Wrap(
+                      spacing: 8,
+                      runSpacing: 4,
+                      children: [
+                        Text(network.ssid),
+                        Text('${network.band} GHz'),
+                        Text(
+                          '${l.coreKeeneticDetailsChannel} ${network.channel}',
+                        ),
+                        Text(
+                          '${l.coreKeeneticMeshClients} ${network.clientCount}',
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+enum _DetailFilter { all, interfaces, clients }
+
+/// Snapshot-bound, read-only master-detail list for tablets and DeX windows.
+class CoreKeeneticDetailsPanel extends StatefulWidget {
+  const CoreKeeneticDetailsPanel({
+    super.key,
+    required this.page,
+    required this.enabled,
+    this.failure,
+    this.stale = false,
+    required this.isCurrent,
+    required this.onRefresh,
+    required this.onLoadMore,
+  });
+  final CoreKeeneticDetailsPage? page;
+  final bool enabled, stale;
+  final String? failure;
+  final bool Function() isCurrent;
+  final VoidCallback? onRefresh, onLoadMore;
+  @override
+  State<CoreKeeneticDetailsPanel> createState() =>
+      _CoreKeeneticDetailsPanelState();
+}
+
+class _CoreKeeneticDetailsPanelState extends State<CoreKeeneticDetailsPanel> {
+  String _query = '';
+  _DetailFilter _filter = _DetailFilter.all;
+  String? _selected;
+
+  String _failure(AppLocalizations l) => switch (widget.failure) {
+    'keenetic_snapshot_unsupported' ||
+    'invalid_response' => l.coreKeeneticUnsupported,
+    'keenetic_snapshot_changed' ||
+    'keenetic_binding_changed' => l.coreKeeneticChanged,
+    'forbidden' || 'unauthorized' => l.coreKeeneticPermission,
+    _ => l.coreKeeneticOffline,
+  };
+
+  List<CoreKeeneticDetail> get _entries {
+    final query = _query.trim().toLowerCase();
+    return (widget.page?.entries ?? const <CoreKeeneticDetail>[])
+        .where((item) {
+          if (_filter == _DetailFilter.interfaces &&
+              item is! CoreKeeneticInterfaceDetail) {
+            return false;
+          }
+          if (_filter == _DetailFilter.clients &&
+              item is! CoreKeeneticClientDetail) {
+            return false;
+          }
+          if (query.isEmpty) return true;
+          final searchable = switch (item) {
+            CoreKeeneticInterfaceDetail value =>
+              '${value.name} ${value.address ?? ''} ${value.ssid ?? ''} '
+                  '${value.interfaceKind.name}',
+            CoreKeeneticClientDetail value =>
+              '${value.name} ${value.ipAddress} ${value.macHash} '
+                  '${value.interfaceId}',
+          };
+          return searchable.toLowerCase().contains(query);
+        })
+        .toList(growable: false);
+  }
+
+  void _invoke(VoidCallback? callback) {
+    if (callback != null && widget.enabled && widget.isCurrent()) callback();
+  }
+
+  Widget _entry(CoreKeeneticDetail item, AppLocalizations l) {
+    final selected = _selected == '${item.runtimeType}:${item.id}';
+    final semantics = switch (item) {
+      CoreKeeneticInterfaceDetail value =>
+        '${value.name}, ${value.ssid ?? value.address ?? value.interfaceKind.name}',
+      CoreKeeneticClientDetail value =>
+        '${value.name}, ${value.ipAddress}, ${value.macHash}',
+    };
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 3),
+      child: Semantics(
+        button: true,
+        selected: selected,
+        label: semantics,
+        child: ExcludeSemantics(
+          child: CupertinoButton(
+            minimumSize: const Size(48, 48),
+            alignment: AlignmentDirectional.centerStart,
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            color: selected
+                ? CupertinoTheme.of(context).primaryColor.withValues(alpha: .12)
+                : CupertinoColors.systemGrey6.resolveFrom(context),
+            onPressed: widget.enabled && widget.isCurrent()
+                ? () => setState(
+                    () => _selected = '${item.runtimeType}:${item.id}',
+                  )
+                : null,
+            child: Text(item.name, textAlign: TextAlign.start),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _metric(String label, String value) => Padding(
+    padding: const EdgeInsets.symmetric(vertical: 8),
+    child: Row(
+      children: [
+        Expanded(child: Text(label)),
+        const SizedBox(width: 12),
+        Flexible(child: Text(value, textAlign: TextAlign.end)),
+      ],
+    ),
+  );
+
+  Widget _detail(CoreKeeneticDetail item, AppLocalizations l) {
+    final values = switch (item) {
+      CoreKeeneticInterfaceDetail value => <(String, String)>[
+        (
+          l.coreKeeneticDetailsInterface,
+          value.interfaceKind.name.toUpperCase(),
+        ),
+        (l.coreKeeneticDetailsAddress, value.address ?? l.commonUnknown),
+        (l.coreKeeneticDetailsSsid, value.ssid ?? l.commonUnknown),
+        (l.coreKeeneticDetailsBand, value.band ?? l.commonUnknown),
+        (
+          l.coreKeeneticDetailsChannel,
+          value.channel?.toString() ?? l.commonUnknown,
+        ),
+        (
+          l.coreKeeneticDetailsSignal,
+          value.signalDbm == null ? l.commonUnknown : '${value.signalDbm} dBm',
+        ),
+      ],
+      CoreKeeneticClientDetail value => <(String, String)>[
+        (l.coreKeeneticDetailsAddress, value.ipAddress),
+        (l.coreKeeneticDetailsIdentity, value.macHash),
+        (l.coreKeeneticDetailsInterface, value.interfaceId),
+        (l.coreKeeneticDetailsAccess, value.internetAccess ?? l.commonUnknown),
+        (l.coreKeeneticDetailsBand, value.band ?? l.commonUnknown),
+        (
+          l.coreKeeneticDetailsSignal,
+          value.signalDbm == null ? l.commonUnknown : '${value.signalDbm} dBm',
+        ),
+      ],
+    };
+    return Semantics(
+      container: true,
+      readOnly: true,
+      label: item.name,
+      child: SingleChildScrollView(
+        key: ValueKey('core-keenetic-detail-${item.id}'),
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(item.name, style: AppText.headline),
+            for (final (label, value) in values) _metric(label, value),
+          ],
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l = AppLocalizations.of(context), entries = _entries;
+    final selectedKey = _selected;
+    final selected = entries
+        .where((item) => '${item.runtimeType}:${item.id}' == selectedKey)
+        .firstOrNull;
+    Widget list() => ListView(
+      key: const ValueKey('core-keenetic-details-list'),
+      children: [
+        for (final item in entries) _entry(item, l),
+        if (entries.isEmpty) Text(l.coreKeeneticDetailsEmpty),
+        if (widget.page?.nextAfter != null)
+          CoreHaButton(
+            key: const ValueKey('core-keenetic-details-load-more'),
+            label: l.coreKeeneticDetailsLoadMore,
+            isCurrent: widget.isCurrent,
+            onPressed: widget.enabled ? () => _invoke(widget.onLoadMore) : null,
+          ),
+      ],
+    );
+    return Semantics(
+      container: true,
+      readOnly: true,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const SizedBox(height: 20),
+          Semantics(
+            header: true,
+            child: Text(l.coreKeeneticDetailsTitle, style: AppText.headline),
+          ),
+          CupertinoSearchTextField(
+            placeholder: l.coreKeeneticDetailsSearch,
+            onChanged: (value) => setState(() => _query = value),
+          ),
+          const SizedBox(height: 8),
+          CupertinoSlidingSegmentedControl<_DetailFilter>(
+            groupValue: _filter,
+            onValueChanged: (value) {
+              if (value != null && widget.enabled && widget.isCurrent()) {
+                setState(() {
+                  _filter = value;
+                  _selected = null;
+                });
+              }
+            },
+            children: {
+              _DetailFilter.all: Padding(
+                padding: const EdgeInsets.all(8),
+                child: Text(l.coreKeeneticDetailsAll),
+              ),
+              _DetailFilter.interfaces: Padding(
+                padding: const EdgeInsets.all(8),
+                child: Text(l.coreKeeneticDetailsInterfaces),
+              ),
+              _DetailFilter.clients: Padding(
+                padding: const EdgeInsets.all(8),
+                child: Text(l.coreKeeneticDetailsClients),
+              ),
+            },
+          ),
+          CoreHaButton(
+            key: const ValueKey('core-keenetic-details-refresh'),
+            label: l.commonRefresh,
+            isCurrent: widget.isCurrent,
+            onPressed: widget.enabled ? () => _invoke(widget.onRefresh) : null,
+          ),
+          if (widget.stale)
+            Semantics(liveRegion: true, child: Text(l.coreKeeneticStale)),
+          if (widget.failure != null)
+            Semantics(liveRegion: true, child: Text(_failure(l))),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              if (constraints.maxWidth >= 900) {
+                return SizedBox(
+                  height: 340,
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Expanded(flex: 2, child: list()),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        flex: 3,
+                        child: selected == null
+                            ? Center(child: Text(l.coreKeeneticDetailsEmpty))
+                            : _detail(selected, l),
+                      ),
+                    ],
+                  ),
+                );
+              }
+              return SizedBox(
+                height: 340,
+                child: Column(
+                  children: [
+                    Expanded(child: list()),
+                    const SizedBox(height: 8),
+                    Expanded(
+                      child: selected == null
+                          ? Center(child: Text(l.coreKeeneticDetailsEmpty))
+                          : _detail(selected, l),
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 /// Responsive read-only panel shared by tablet and DeX layouts.
 class CoreKeeneticTelemetryPanel extends StatefulWidget {
   const CoreKeeneticTelemetryPanel({
@@ -244,9 +743,23 @@ class _CoreKeeneticTelemetryPanelState
     return '$bytes B/s';
   }
 
-  String _uptime(int seconds) {
+  String _uptime(int seconds, AppLocalizations l) {
     final days = seconds ~/ 86400, hours = seconds.remainder(86400) ~/ 3600;
-    return days > 0 ? '$days d $hours h' : '$hours h';
+    return days > 0
+        ? '$days${l.keeneticUptimeDays} $hours${l.keeneticUptimeHours}'
+        : '$hours${l.keeneticUptimeHours}';
+  }
+
+  String _bytes(int value) {
+    if (value >= 1099511627776) {
+      return '${(value / 1099511627776).toStringAsFixed(1)} TB';
+    }
+    if (value >= 1073741824) {
+      return '${(value / 1073741824).toStringAsFixed(1)} GB';
+    }
+    if (value >= 1048576) return '${(value / 1048576).toStringAsFixed(1)} MB';
+    if (value >= 1024) return '${(value / 1024).toStringAsFixed(1)} KB';
+    return '$value B';
   }
 
   Widget _metric(String key, String label, String value) => Semantics(
@@ -276,6 +789,7 @@ class _CoreKeeneticTelemetryPanelState
     final selected = value.interfaces
         .where((i) => i.id == _interfaceId)
         .firstOrNull;
+    final guest = value.guestInterfaces;
     return Semantics(
       container: true,
       readOnly: true,
@@ -299,7 +813,7 @@ class _CoreKeeneticTelemetryPanelState
           _metric(
             'core-keenetic-uptime',
             l.keeneticUptime,
-            _uptime(value.status.uptimeSeconds),
+            _uptime(value.status.uptimeSeconds, l),
           ),
           _metric(
             'core-keenetic-download',
@@ -310,6 +824,26 @@ class _CoreKeeneticTelemetryPanelState
             'core-keenetic-upload',
             l.keeneticUploadRate,
             _rate(value.traffic.uploadBps, l),
+          ),
+          _metric(
+            'core-keenetic-traffic',
+            l.coreKeeneticTrafficTotal,
+            '${_bytes(value.traffic.rxBytes)} ↓ / '
+                '${_bytes(value.traffic.txBytes)} ↑',
+          ),
+          _metric(
+            'core-keenetic-firmware',
+            l.keeneticFirmware,
+            value.status.firmware ?? l.commonUnknown,
+          ),
+          _metric(
+            'core-keenetic-guest',
+            l.coreKeeneticGuestWifi,
+            guest.isEmpty
+                ? l.coreKeeneticGuestUnavailable
+                : guest.any((item) => item.online)
+                ? l.coreKeeneticGuestEnabled
+                : l.coreKeeneticGuestDisabled,
           ),
           _metric(
             'core-keenetic-cpu',

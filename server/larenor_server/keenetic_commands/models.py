@@ -115,3 +115,13 @@ class CommandReceipt(FrozenModel):
     transitions: list[Status] = Field(min_length=2, max_length=3)
 
     _code = field_validator("code")(_safe)
+
+
+class CommandTargetDescriptor(FrozenModel):
+    target: TargetState
+    actions: list[Action] = Field(min_length=1, max_length=1)
+    expectedUserRevision: Revision
+
+
+class CommandTargetResponse(FrozenModel):
+    descriptors: list[CommandTargetDescriptor] = Field(min_length=1, max_length=128)
