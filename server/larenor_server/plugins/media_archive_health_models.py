@@ -52,6 +52,12 @@ class MediaArchiveTranscodeEvidence(StrictModel):
         return self
 
 
+class MediaArchiveQualityEvidence(StrictModel):
+    width: int = Field(gt=0, le=16384)
+    height: int = Field(gt=0, le=16384)
+    videoBitrate: int = Field(gt=0, le=1_000_000_000)
+
+
 class JellyfinArchiveItem(StrictModel):
     itemId: ObjectId
     mediaKey: str = Field(min_length=1, max_length=96)
@@ -60,11 +66,21 @@ class JellyfinArchiveItem(StrictModel):
     sizeBytes: int = Field(ge=0, le=2**63 - 1)
     integrity: Literal['playable', 'missing_file', 'corrupt', 'unplayable']
     transcode: 'MediaArchiveTranscodeEvidence | None' = None
+    contentHash: str | None = Field(
+        default=None, pattern=r'^[0-9a-f]{64}$')
+    runtimeSeconds: int | None = Field(default=None, gt=0, le=604_800)
+    quality: MediaArchiveQualityEvidence | None = None
 
     _key = field_validator('mediaKey')(
         lambda value: value if _MEDIA_KEY.fullmatch(value) else
         (_ for _ in ()).throw(ValueError('invalid_media_archive_observation')))
     _title = field_validator('title')(_safe_text)
+
+    @model_validator(mode='after')
+    def quality_has_runtime(self):
+        if self.quality is not None and self.runtimeSeconds is None:
+            raise ValueError('invalid_media_archive_observation')
+        return self
 
 
 class JellyfinArchiveSnapshot(ArchiveSourceBinding):
@@ -197,14 +213,19 @@ SavingKind = Literal['duplicate', 'transcode', 'retention']
 SavingLaneState = Literal[
     'verified', 'partial', 'unsupported', 'unavailable', 'stale']
 SavingEvidence = Literal[
-    'same_media_identity', 'multiple_playable_files',
+    'same_media_identity', 'content_hash_match',
+    'name_size_runtime_match', 'quality_profile_comparison',
+    'best_quality_excluded', 'multiple_playable_files',
     'largest_copy_excluded', 'source_profile_verified',
     'target_playback_verified', 'bounded_size_estimate',
     'download_complete', 'import_verified', 'retention_policy_satisfied']
 SavingConfidence = Literal['high', 'medium']
 SavingComparisonBasis = Literal[
     'keep_largest_copy', 'bounded_transcode_estimate',
-    'review_retained_copy']
+    'review_retained_copy', 'keep_best_quality_copy']
+SavingGroupReason = Literal[
+    'exact_content_hash', 'probable_name_size_runtime',
+    'lower_quality_variant', 'not_applicable']
 
 
 class MediaArchiveSavingsComparison(StrictModel):
@@ -233,6 +254,7 @@ class MediaArchiveSavingsCandidate(StrictModel):
     source: Literal['jellyfin', 'qbittorrent']
     title: str = Field(min_length=1, max_length=240)
     potentialBytes: int = Field(gt=0, le=2**63 - 1)
+    groupReason: SavingGroupReason
     confidence: SavingConfidence
     comparison: MediaArchiveSavingsComparison
     evidence: list[SavingEvidence] = Field(min_length=3, max_length=3)
@@ -242,19 +264,35 @@ class MediaArchiveSavingsCandidate(StrictModel):
 
     @model_validator(mode='after')
     def coherent(self):
-        source, confidence, basis, evidence = {
-            'duplicate': ('jellyfin', 'high', 'keep_largest_copy', [
-                'same_media_identity', 'multiple_playable_files',
-                'largest_copy_excluded']),
-            'transcode': ('jellyfin', 'medium',
+        if self.kind == 'duplicate':
+            confidence, basis, evidence = {
+                'exact_content_hash': ('high', 'keep_largest_copy', [
+                    'content_hash_match', 'multiple_playable_files',
+                    'largest_copy_excluded']),
+                'probable_name_size_runtime': (
+                    'medium', 'keep_largest_copy', [
+                        'name_size_runtime_match', 'multiple_playable_files',
+                        'largest_copy_excluded']),
+                'lower_quality_variant': (
+                    'medium', 'keep_best_quality_copy', [
+                        'same_media_identity', 'quality_profile_comparison',
+                        'best_quality_excluded']),
+            }.get(self.groupReason, (None, None, None))
+            source = 'jellyfin'
+        else:
+            source, confidence, basis, evidence = {
+                'transcode': ('jellyfin', 'medium',
                           'bounded_transcode_estimate', [
                 'source_profile_verified', 'target_playback_verified',
                 'bounded_size_estimate']),
-            'retention': ('qbittorrent', 'medium', 'review_retained_copy', [
+                'retention': ('qbittorrent', 'medium',
+                              'review_retained_copy', [
                 'download_complete', 'import_verified',
                 'retention_policy_satisfied']),
-        }[self.kind]
+            }[self.kind]
         if (self.source != source or self.confidence != confidence
+                or (self.kind != 'duplicate'
+                    and self.groupReason != 'not_applicable')
                 or self.comparison.basis != basis
                 or self.comparison.estimatedSavingBytes != self.potentialBytes
                 or self.evidence != evidence):

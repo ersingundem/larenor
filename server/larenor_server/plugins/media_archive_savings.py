@@ -32,31 +32,87 @@ def build_media_archive_savings_plan(observation, source_states):
     by_kind = {'duplicate': [], 'transcode': [], 'retention': []}
 
     if duplicate_state == 'verified':
-        grouped = defaultdict(list)
-        for item in observation.jellyfin.items:
-            if item.integrity == 'playable':
-                grouped[item.mediaKey].append(item)
-        for values in grouped.values():
-            if (len(values) < 2 or len({item.title for item in values}) != 1
-                    or any(item.sizeBytes <= 0 for item in values)):
+        playable = [item for item in observation.jellyfin.items
+                    if item.integrity == 'playable' and item.sizeBytes > 0]
+        used = set()
+
+        hashes = defaultdict(list)
+        for item in playable:
+            if item.contentHash is not None:
+                hashes[item.contentHash].append(item)
+        for values in hashes.values():
+            if len(values) < 2 or len({item.sizeBytes for item in values}) != 1:
                 continue
-            potential = sum(item.sizeBytes for item in values) - max(
-                item.sizeBytes for item in values)
-            if potential > 0:
-                observed = sum(item.sizeBytes for item in values)
-                retained = max(item.sizeBytes for item in values)
-                by_kind['duplicate'].append(MediaArchiveSavingsCandidate(
-                    kind='duplicate', source='jellyfin', title=values[0].title,
-                    potentialBytes=potential,
-                    confidence='high',
-                    comparison={
-                        'basis': 'keep_largest_copy',
-                        'observedBytes': observed,
-                        'estimatedRetainedBytes': retained,
-                        'estimatedSavingBytes': potential,
-                    },
-                    evidence=['same_media_identity', 'multiple_playable_files',
-                              'largest_copy_excluded'], actionAvailable=False))
+            observed = sum(item.sizeBytes for item in values)
+            retained = values[0].sizeBytes
+            potential = observed - retained
+            by_kind['duplicate'].append(MediaArchiveSavingsCandidate(
+                kind='duplicate', source='jellyfin', title=values[0].title,
+                potentialBytes=potential, groupReason='exact_content_hash',
+                confidence='high', comparison={
+                    'basis': 'keep_largest_copy',
+                    'observedBytes': observed,
+                    'estimatedRetainedBytes': retained,
+                    'estimatedSavingBytes': potential,
+                }, evidence=['content_hash_match', 'multiple_playable_files',
+                             'largest_copy_excluded'], actionAvailable=False))
+            used.update(item.itemId for item in values)
+
+        metadata = defaultdict(list)
+        for item in playable:
+            if item.contentHash is None and item.runtimeSeconds is not None:
+                metadata[(item.title, item.sizeBytes,
+                          item.runtimeSeconds)].append(item)
+        for values in metadata.values():
+            if len(values) < 2:
+                continue
+            observed = sum(item.sizeBytes for item in values)
+            retained = values[0].sizeBytes
+            potential = observed - retained
+            by_kind['duplicate'].append(MediaArchiveSavingsCandidate(
+                kind='duplicate', source='jellyfin', title=values[0].title,
+                potentialBytes=potential,
+                groupReason='probable_name_size_runtime',
+                confidence='medium', comparison={
+                    'basis': 'keep_largest_copy',
+                    'observedBytes': observed,
+                    'estimatedRetainedBytes': retained,
+                    'estimatedSavingBytes': potential,
+                }, evidence=['name_size_runtime_match',
+                             'multiple_playable_files',
+                             'largest_copy_excluded'], actionAvailable=False))
+            used.update(item.itemId for item in values)
+
+        qualities = defaultdict(list)
+        for item in playable:
+            if (item.itemId not in used and item.runtimeSeconds is not None
+                    and item.quality is not None):
+                qualities[(item.mediaKey, item.runtimeSeconds)].append(item)
+        for values in qualities.values():
+            if len(values) < 2:
+                continue
+            ranks = [(item.quality.width * item.quality.height,
+                      item.quality.videoBitrate, item.sizeBytes)
+                     for item in values]
+            best = max(ranks)
+            lower = [item for item, rank in zip(values, ranks) if rank < best]
+            if not lower:
+                continue
+            potential = sum(item.sizeBytes for item in lower)
+            observed = sum(item.sizeBytes for item in values)
+            by_kind['duplicate'].append(MediaArchiveSavingsCandidate(
+                kind='duplicate', source='jellyfin',
+                title=max(zip(values, ranks), key=lambda pair: pair[1])[0].title,
+                potentialBytes=potential,
+                groupReason='lower_quality_variant', confidence='medium',
+                comparison={
+                    'basis': 'keep_best_quality_copy',
+                    'observedBytes': observed,
+                    'estimatedRetainedBytes': observed - potential,
+                    'estimatedSavingBytes': potential,
+                }, evidence=['same_media_identity',
+                             'quality_profile_comparison',
+                             'best_quality_excluded'], actionAvailable=False))
 
     if transcode_state == 'verified':
         for item in observation.jellyfin.items:
@@ -70,6 +126,7 @@ def build_media_archive_savings_plan(observation, source_states):
                 by_kind['transcode'].append(MediaArchiveSavingsCandidate(
                     kind='transcode', source='jellyfin', title=item.title,
                     potentialBytes=potential,
+                    groupReason='not_applicable',
                     confidence='medium',
                     comparison={
                         'basis': 'bounded_transcode_estimate',
@@ -89,6 +146,7 @@ def build_media_archive_savings_plan(observation, source_states):
                 by_kind['retention'].append(MediaArchiveSavingsCandidate(
                     kind='retention', source='qbittorrent', title=item.title,
                     potentialBytes=item.contentBytes,
+                    groupReason='not_applicable',
                     confidence='medium',
                     comparison={
                         'basis': 'review_retained_copy',

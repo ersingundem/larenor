@@ -126,6 +126,7 @@ Map<String, Object?> detailArchiveJson({
               'source': 'jellyfin',
               'title': 'Home video',
               'potentialBytes': 2000000000,
+              'groupReason': 'not_applicable',
               'confidence': 'medium',
               'comparison': {
                 'basis': 'bounded_transcode_estimate',
@@ -145,6 +146,7 @@ Map<String, Object?> detailArchiveJson({
               'source': 'qbittorrent',
               'title': 'The Matrix download',
               'potentialBytes': 4000000000,
+              'groupReason': 'not_applicable',
               'confidence': 'medium',
               'comparison': {
                 'basis': 'review_retained_copy',
@@ -288,7 +290,7 @@ void main() {
             skipOffstage: false,
           ),
           matching: find.textContaining(
-            'The provider identity matches',
+            'Verified content hash matches',
             skipOffstage: false,
           ),
           skipOffstage: false,
@@ -336,6 +338,33 @@ void main() {
     expect(find.text('Data gaps'), findsOneWidget);
     expect(find.text('Duplicates: result limit reached'), findsOneWidget);
   });
+
+  testWidgets(
+    'lower-quality group explains source, reason and reclaimable space',
+    (tester) async {
+      final snapshot = MediaArchiveHealthSnapshot.fromJson(detailArchiveJson());
+      await tester.pumpWidget(
+        app(
+          MediaArchiveSavingsCandidateScreen(
+            candidate: snapshot.savingsPlan.candidates[1],
+            dataGaps: snapshot.savingsPlan.dataGaps,
+          ),
+        ),
+      );
+      expect(find.text('Medium confidence'), findsOneWidget);
+      expect(find.text('Jellyfin evidence'), findsOneWidget);
+      expect(find.text('Verified lower-quality variant'), findsOneWidget);
+      expect(find.text('Estimated gain: 2.0 GB'), findsOneWidget);
+      expect(
+        find.textContaining('Resolution and bitrate profiles were verified'),
+        findsOneWidget,
+      );
+      expect(
+        find.textContaining(RegExp(r'apply|delete', caseSensitive: false)),
+        findsNothing,
+      );
+    },
+  );
 
   testWidgets('comparison supports 600 and 1280 at 2x with TalkBack', (
     tester,
