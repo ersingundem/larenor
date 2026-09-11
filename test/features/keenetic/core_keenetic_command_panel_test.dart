@@ -296,6 +296,90 @@ void main() {
     expect(api.cancels, 0);
   });
 
+  testWidgets('API replacement cancels an accepted preview through its owner', (
+    tester,
+  ) async {
+    final oldApi = FakeCoreKeeneticCommandApi();
+    final newApi = FakeCoreKeeneticCommandApi();
+    await tester.pumpWidget(
+      app(
+        CoreKeeneticCommandPanel(
+          target: target(),
+          isAdmin: true,
+          canWrite: true,
+          api: oldApi,
+        ),
+      ),
+    );
+    await tester.tap(find.text('Enable'));
+    await tester.pump();
+    expect(find.text('Confirm'), findsOneWidget);
+
+    await tester.pumpWidget(
+      app(
+        CoreKeeneticCommandPanel(
+          target: target(kind: 'client'),
+          isAdmin: true,
+          canWrite: true,
+          api: newApi,
+        ),
+      ),
+    );
+    await tester.pump();
+
+    expect(oldApi.cancels, 1);
+    expect(newApi.cancels, 0);
+    expect(oldApi.effects, 0);
+    expect(newApi.effects, 0);
+  });
+
+  testWidgets('API replacement retires and owner-cancels a late preview', (
+    tester,
+  ) async {
+    final oldApi = HeldCoreKeeneticCommandApi();
+    final newApi = FakeCoreKeeneticCommandApi();
+    await tester.pumpWidget(
+      app(
+        CoreKeeneticCommandPanel(
+          target: target(),
+          isAdmin: true,
+          canWrite: true,
+          api: oldApi,
+        ),
+      ),
+    );
+    await tester.tap(find.text('Enable'));
+    await tester.pump();
+
+    await tester.pumpWidget(
+      app(
+        CoreKeeneticCommandPanel(
+          target: target(kind: 'client'),
+          isAdmin: true,
+          canWrite: true,
+          api: newApi,
+        ),
+      ),
+    );
+    oldApi.pending.complete(
+      CoreKeeneticCommandPreview(
+        id: 'late-preview',
+        confirmToken: 'late-token',
+        requestId: 'late-request',
+        action: CoreKeeneticCommandAction.guestWifiEnable,
+        targetFingerprint: target().fingerprint,
+        highRisk: false,
+      ),
+    );
+    await tester.pump();
+
+    expect(find.text('Confirm'), findsNothing);
+    expect(oldApi.cancels, 1);
+    expect(newApi.cancels, 0);
+    expect(oldApi.effects, 0);
+    expect(newApi.effects, 0);
+  });
+
   for (final width in [600.0, 1280.0]) {
     testWidgets('$width tablet keeps actions accessible at 2x text', (
       tester,

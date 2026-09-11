@@ -787,6 +787,7 @@ class CoreKeeneticCommandPanel extends StatefulWidget {
 class _CoreKeeneticCommandPanelState extends State<CoreKeeneticCommandPanel>
     with WidgetsBindingObserver {
   CoreKeeneticCommandPreview? _preview;
+  CoreKeeneticCommandApi? _previewOwner;
   CoreKeeneticConfirmation? _second;
   CoreKeeneticCommandReceipt? _receipt;
   String? _error;
@@ -837,12 +838,17 @@ class _CoreKeeneticCommandPanelState extends State<CoreKeeneticCommandPanel>
     _retired = true;
     _generation++;
     final preview = _preview;
+    final previewOwner = _previewOwner;
     _preview = null;
+    _previewOwner = null;
     _second = null;
     _receipt = null;
     _busy = false;
-    if (preview != null && cancelPreview && _authorityCurrent) {
-      unawaited(widget.api.cancel(preview.id));
+    if (preview != null &&
+        previewOwner != null &&
+        cancelPreview &&
+        _authorityCurrent) {
+      unawaited(previewOwner.cancel(preview.id));
     }
     if (notify && mounted) setState(() {});
   }
@@ -856,20 +862,22 @@ class _CoreKeeneticCommandPanelState extends State<CoreKeeneticCommandPanel>
       return;
     }
     final generation = ++_generation;
+    final previewOwner = widget.api;
     setState(() {
       _busy = true;
       _error = null;
       _receipt = null;
     });
     try {
-      final preview = await widget.api.preview(action, widget.target);
+      final preview = await previewOwner.preview(action, widget.target);
       if (!_current(generation) ||
           preview.targetFingerprint != widget.target.fingerprint) {
-        if (_authorityCurrent) unawaited(widget.api.cancel(preview.id));
+        if (_authorityCurrent) unawaited(previewOwner.cancel(preview.id));
         return;
       }
       setState(() {
         _preview = preview;
+        _previewOwner = previewOwner;
         _busy = false;
       });
     } catch (error) {
@@ -884,12 +892,19 @@ class _CoreKeeneticCommandPanelState extends State<CoreKeeneticCommandPanel>
 
   Future<void> _confirm() async {
     final preview = _preview;
-    if (preview == null || _busy || _retired || !_authorityCurrent) return;
+    final previewOwner = _previewOwner;
+    if (preview == null ||
+        previewOwner == null ||
+        _busy ||
+        _retired ||
+        !_authorityCurrent) {
+      return;
+    }
     final generation = _generation;
     final token = _second?.token ?? preview.confirmToken;
     setState(() => _busy = true);
     try {
-      final result = await widget.api.confirm(preview.id, token);
+      final result = await previewOwner.confirm(preview.id, token);
       if (!_current(generation)) return;
       setState(() {
         _busy = false;
@@ -898,6 +913,7 @@ class _CoreKeeneticCommandPanelState extends State<CoreKeeneticCommandPanel>
         } else if (result is CoreKeeneticFinished) {
           _receipt = result.receipt;
           _preview = null;
+          _previewOwner = null;
           _second = null;
         }
       });
@@ -906,6 +922,7 @@ class _CoreKeeneticCommandPanelState extends State<CoreKeeneticCommandPanel>
         setState(() {
           _busy = false;
           _preview = null;
+          _previewOwner = null;
           _second = null;
           _error = error is CoreKeeneticCommandFailure ? error.code : 'failed';
         });
@@ -915,15 +932,23 @@ class _CoreKeeneticCommandPanelState extends State<CoreKeeneticCommandPanel>
 
   Future<void> _cancel() async {
     final preview = _preview;
-    if (preview == null || _busy || _retired || !_authorityCurrent) return;
+    final previewOwner = _previewOwner;
+    if (preview == null ||
+        previewOwner == null ||
+        _busy ||
+        _retired ||
+        !_authorityCurrent) {
+      return;
+    }
     _generation++;
     setState(() {
       _preview = null;
+      _previewOwner = null;
       _second = null;
       _busy = false;
     });
     try {
-      await widget.api.cancel(preview.id);
+      await previewOwner.cancel(preview.id);
     } catch (_) {
       // A cancel result cannot make a command executable or successful.
     }

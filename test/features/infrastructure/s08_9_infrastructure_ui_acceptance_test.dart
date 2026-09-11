@@ -1,14 +1,19 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
 import 'package:larenor/features/health/data/connection_evidence.dart';
 import 'package:larenor/features/keenetic/core_command/core_keenetic_command.dart';
 import 'package:larenor/features/proxmox/core_power/proxmox_power_controller.dart';
 import 'package:larenor/features/proxmox/core_power/proxmox_power_models.dart';
 import 'package:larenor/features/proxmox/core_power/proxmox_power_panel.dart';
+import 'package:larenor/features/server/data/larenor_server_api.dart';
+import 'package:larenor/features/server/domain/server_models.dart';
 import 'package:larenor/l10n/generated/app_localizations.dart';
 import 'package:larenor/shared/widgets/core_infrastructure_evidence.dart';
 
@@ -121,6 +126,44 @@ Widget _app(Widget child, Size size) => CupertinoApp(
 );
 
 void main() {
+  test(
+    'Core HTTP boundary preserves known infrastructure failures only',
+    () async {
+      const known = {
+        'proxmox_upstream_unauthorized',
+        'proxmox_upstream_unavailable',
+        'keenetic_upstream_unauthorized',
+        'keenetic_upstream_denied',
+        'keenetic_upstream_unavailable',
+      };
+      for (final code in {...known, 'private_upstream_detail'}) {
+        final api = LarenorServerApi(
+          endpoint: ServerEndpoint('https://core.invalid'),
+          client: MockClient(
+            (_) async => http.Response(
+              jsonEncode({
+                'error': {'code': code},
+              }),
+              502,
+              headers: {'content-type': 'application/json'},
+            ),
+          ),
+        );
+        addTearDown(api.close);
+        await expectLater(
+          api.request('GET', '/synthetic-infrastructure-read'),
+          throwsA(
+            isA<LarenorServerException>().having(
+              (error) => error.code,
+              'code',
+              known.contains(code) ? code : 'server_error',
+            ),
+          ),
+        );
+      }
+    },
+  );
+
   test(
     'Core evidence maps shared authority failures without inventing success',
     () {
