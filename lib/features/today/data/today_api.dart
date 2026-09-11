@@ -4,6 +4,7 @@ import '../../ha_client/data/ws_client.dart';
 
 abstract interface class TodayApi {
   Future<Map<String, dynamic>> getConfig();
+  Future<Object?> getComponents();
   Future<List<HaEntity>> getEntities();
   Future<List<Map<String, dynamic>>> getCalendars();
   Future<List<Map<String, dynamic>>> getCalendarEvents(
@@ -12,6 +13,7 @@ abstract interface class TodayApi {
     DateTime end,
   );
   Future<Object?> getTodoItems(String entityId);
+  Future<Object?> getLegacyShoppingItems();
   Future<Object?> getNotifications();
   Future<TodaySubscription> subscribeNotifications();
   Future<void> callService(
@@ -28,8 +30,9 @@ class TodaySubscription {
   final Future<void> Function() cancel;
 }
 
-/// HA 2026.8.3 contracts verified in components/todo, calendar and
-/// persistent_notification. These existing clients enforce server boundaries.
+/// HA 2026.8.3 read contracts verified against components, shopping_list,
+/// todo, calendar and persistent_notification. Mutations remain on the
+/// separate explicit service path and are never used by summary reads.
 class HaTodayApi implements TodayApi {
   HaTodayApi({required this.rest, required this.ws, this.entities});
   final HaRestClient rest;
@@ -37,6 +40,8 @@ class HaTodayApi implements TodayApi {
   final Future<List<HaEntity>> Function()? entities;
   @override
   Future<Map<String, dynamic>> getConfig() => rest.getConfig();
+  @override
+  Future<Object?> getComponents() => rest.getComponents();
   @override
   Future<List<HaEntity>> getEntities() => entities?.call() ?? rest.getStates();
   @override
@@ -50,6 +55,9 @@ class HaTodayApi implements TodayApi {
   @override
   Future<Object?> getTodoItems(String entityId) =>
       ws.sendCommand({'type': 'todo/item/list', 'entity_id': entityId});
+  @override
+  Future<Object?> getLegacyShoppingItems() =>
+      rest.getJson('/api/shopping_list');
   @override
   Future<Object?> getNotifications() =>
       ws.sendCommand({'type': 'persistent_notification/get'});

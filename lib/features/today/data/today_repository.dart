@@ -6,6 +6,7 @@ import '../../ha_client/data/ha_api_exception.dart';
 import '../../ha_client/data/models/ha_entity.dart';
 import '../domain/today_models.dart';
 import 'today_api.dart';
+import 'today_read_adapters.dart';
 import 'today_timezone.dart';
 
 class TodayRepository {
@@ -13,28 +14,111 @@ class TodayRepository {
     : _now = now ?? DateTime.now;
   final TodayApi api;
   final DateTime Function() _now;
+  Future<TodayReadCapabilities>? _capabilityRequest;
+  TodayReadCapabilities? _lastCapabilities;
   bool _disposed = false;
+
+  bool get notificationSubscriptionsSupported =>
+      _lastCapabilities?.persistentNotification == true;
+
+  Future<TodayReadCapabilities> discoverReadCapabilities() {
+    _checkActive();
+    final active = _capabilityRequest;
+    if (active != null) return active;
+    late final Future<TodayReadCapabilities> request;
+    request = (() async {
+      try {
+        final capabilities = parseTodayReadCapabilities(
+          await api.getComponents(),
+        );
+        _lastCapabilities = capabilities;
+        return capabilities;
+      } catch (_) {
+        _lastCapabilities = null;
+        rethrow;
+      } finally {
+        if (identical(_capabilityRequest, request)) {
+          _capabilityRequest = null;
+        }
+      }
+    })();
+    return _capabilityRequest = request;
+  }
 
   Future<TodaySnapshot> load({TodaySnapshot? previous}) async {
     _checkActive();
-    final results = await Future.wait([
+    final discovery = await Future.wait([
       _read(TodaySource.configuration, api.getConfig),
-      _read(TodaySource.todos, api.getEntities),
-      _read(TodaySource.calendars, api.getCalendars),
-      _read(
-        TodaySource.notifications,
-        readNotifications,
-        previous: previous?.notifications,
-      ),
+      _read(TodaySource.configuration, discoverReadCapabilities),
     ]);
     _checkActive();
-    final config = results[0] as TodayRead<Map<String, dynamic>>;
-    final entities = results[1] as TodayRead<List<HaEntity>>;
-    final calendarIndex = results[2] as TodayRead<List<Map<String, dynamic>>>;
-    final notifications = results[3] as TodayRead<List<TodayNotification>>;
+    final config = discovery[0] as TodayRead<Map<String, dynamic>>;
+    final capabilityRead = discovery[1] as TodayRead<TodayReadCapabilities>;
+    final capabilities = capabilityRead.value;
+    final capabilityFailure = capabilityRead.issue?.failure;
+    TodayRead<T> gated<T>(
+      TodaySource source,
+      bool supported,
+      TodayRead<T>? previous,
+    ) => TodayRead(
+      value: previous?.value,
+      readAt: previous?.readAt,
+      issue: TodayIssue(
+        source,
+        capabilityFailure ??
+            (supported
+                ? TodayFailure.invalidResponse
+                : TodayFailure.unsupported),
+      ),
+    );
+    final sourceReads = await Future.wait([
+      capabilities?.todo == true
+          ? _read(TodaySource.todos, api.getEntities)
+          : Future.value(
+              gated<List<HaEntity>>(
+                TodaySource.todos,
+                capabilities?.todo == true,
+                null,
+              ),
+            ),
+      capabilities?.calendar == true
+          ? _read(TodaySource.calendars, api.getCalendars)
+          : Future.value(
+              gated<List<Map<String, dynamic>>>(
+                TodaySource.calendars,
+                capabilities?.calendar == true,
+                null,
+              ),
+            ),
+      capabilities?.persistentNotification == true
+          ? _read(
+              TodaySource.notifications,
+              readNotifications,
+              previous: previous?.notifications,
+            )
+          : Future.value(
+              gated<List<TodayNotification>>(
+                TodaySource.notifications,
+                capabilities?.persistentNotification == true,
+                previous?.notifications,
+              ),
+            ),
+    ]);
+    _checkActive();
+    final entities = sourceReads[0] as TodayRead<List<HaEntity>>;
+    final calendarIndex =
+        sourceReads[1] as TodayRead<List<Map<String, dynamic>>>;
+    final notifications = sourceReads[2] as TodayRead<List<TodayNotification>>;
     final issues = <TodayIssue>[
-      for (final result in results)
-        if (result.issue != null) result.issue!,
+      if (config.issue != null) config.issue!,
+      if (entities.issue != null) entities.issue!,
+      if (calendarIndex.issue != null) calendarIndex.issue!,
+      if (notifications.issue != null) notifications.issue!,
+      if (capabilities == null)
+        TodayIssue(
+          TodaySource.shopping,
+          capabilityFailure ?? TodayFailure.invalidResponse,
+        ),
     ];
     TodayTimeZone? zone;
     ({DateTime start, DateTime end})? day;
@@ -66,60 +150,94 @@ class TodayRepository {
         const TodayIssue(TodaySource.todos, TodayFailure.invalidResponse),
       );
     }
-    final lists = entities.issue == null
-        ? await _mapBounded(listEntities.take(100).toList(), (entity) async {
-            final available = !{
-              'unavailable',
-              'unknown',
-            }.contains(entity.state);
-            final features = entity.attributes['supported_features'];
-            final items = available
-                ? await _read(
-                    TodaySource.todos,
-                    () => readTodoItems(entity.entityId),
-                    entityId: entity.entityId,
-                    previous: oldLists[entity.entityId]?.items,
-                  )
-                : TodayRead<List<TodayTodoItem>>(
-                    value: oldLists[entity.entityId]?.items.value,
-                    readAt: oldLists[entity.entityId]?.items.readAt,
+    final lists = <TodayTodoList>[
+      ...(entities.issue == null
+          ? await _mapBounded(listEntities.take(100).toList(), (entity) async {
+              final available = !{
+                'unavailable',
+                'unknown',
+              }.contains(entity.state);
+              final features = entity.attributes['supported_features'];
+              final items = available
+                  ? await _read(
+                      TodaySource.todos,
+                      () => readTodoItems(entity.entityId),
+                      entityId: entity.entityId,
+                      previous: oldLists[entity.entityId]?.items,
+                    )
+                  : TodayRead<List<TodayTodoItem>>(
+                      value: oldLists[entity.entityId]?.items.value,
+                      readAt: oldLists[entity.entityId]?.items.readAt,
+                      issue: TodayIssue(
+                        TodaySource.todos,
+                        TodayFailure.unavailable,
+                        entityId: entity.entityId,
+                      ),
+                    );
+              final name = entity.attributes['friendly_name'];
+              return TodayTodoList(
+                entityId: entity.entityId,
+                title: name is String && name.length <= 4096
+                    ? name
+                    : entity.entityId,
+                supportedFeatures: features is int && features >= 0
+                    ? features
+                    : 0,
+                available: available,
+                items: items,
+              );
+            })
+          : [
+              for (final list in oldLists.values)
+                TodayTodoList(
+                  entityId: list.entityId,
+                  title: list.title,
+                  supportedFeatures: list.supportedFeatures,
+                  available: false,
+                  items: TodayRead(
+                    value: list.items.value,
+                    readAt: list.items.readAt,
                     issue: TodayIssue(
                       TodaySource.todos,
-                      TodayFailure.unavailable,
-                      entityId: entity.entityId,
+                      entities.issue!.failure,
+                      entityId: list.entityId,
                     ),
-                  );
-            final name = entity.attributes['friendly_name'];
-            return TodayTodoList(
-              entityId: entity.entityId,
-              title: name is String && name.length <= 4096
-                  ? name
-                  : entity.entityId,
-              supportedFeatures: features is int && features >= 0
-                  ? features
-                  : 0,
-              available: available,
-              items: items,
-            );
-          })
-        : [
-            for (final list in oldLists.values)
-              TodayTodoList(
-                entityId: list.entityId,
-                title: list.title,
-                supportedFeatures: list.supportedFeatures,
-                available: false,
-                items: TodayRead(
-                  value: list.items.value,
-                  readAt: list.items.readAt,
-                  issue: TodayIssue(
-                    TodaySource.todos,
-                    entities.issue!.failure,
-                    entityId: list.entityId,
                   ),
                 ),
-              ),
-          ];
+            ]),
+    ];
+    final hasShoppingEntity = lists.any(
+      (list) =>
+          const {'todo.shopping', 'todo.shopping_list'}.contains(list.entityId),
+    );
+    if (!hasShoppingEntity && capabilities?.shoppingList == true) {
+      final old = oldLists['todo.shopping_list']?.items;
+      final items = await _read(
+        TodaySource.shopping,
+        () async =>
+            parseLegacyShoppingItems(await api.getLegacyShoppingItems()),
+        entityId: 'todo.shopping_list',
+        previous: old,
+      );
+      lists.add(
+        TodayTodoList(
+          entityId: 'todo.shopping_list',
+          title: 'Shopping list',
+          supportedFeatures: 0,
+          available: items.value != null,
+          items: items,
+        ),
+      );
+    } else if (!hasShoppingEntity &&
+        capabilities != null &&
+        !capabilities.shoppingList) {
+      issues.add(
+        TodayIssue(
+          TodaySource.shopping,
+          capabilityFailure ?? TodayFailure.unsupported,
+        ),
+      );
+    }
 
     final oldCalendars = {
       for (final calendar in previous?.calendars ?? <TodayCalendar>[])

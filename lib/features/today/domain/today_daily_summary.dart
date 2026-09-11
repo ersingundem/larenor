@@ -133,7 +133,10 @@ TodayDailySummarySection _todoSection(
   int limit,
 ) {
   if (lists.isEmpty) {
-    final issue = _globalIssue(issues, TodaySource.todos);
+    final issue = kind == TodayDailySummaryKind.shopping
+        ? _globalIssue(issues, TodaySource.shopping) ??
+              _globalIssue(issues, TodaySource.todos)
+        : _globalIssue(issues, TodaySource.todos);
     return TodayDailySummarySection(
       kind: kind,
       state: issue == null ? TodayDailySummaryState.empty : _failure(issue),
