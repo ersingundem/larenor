@@ -9,6 +9,8 @@ import '../../plugins/data/server_plugins_api.dart';
 import '../../plugins/domain/server_plugin_models.dart';
 import '../domain/server_media_preparation_models.dart';
 import 'server_media_preparations_api.dart';
+import 'server_seerr_convergence_api.dart';
+import '../domain/server_seerr_convergence.dart';
 
 /// Route-owned metadata. Durable history is always read from the Server; only
 /// an explicit retry can recover an uncertain write using its original request.
@@ -39,6 +41,8 @@ class ServerMediaPreparationsController extends ChangeNotifier {
   String? failure;
   List<ServerMediaPreparation> preparations = const [];
   ServerMediaPreparation? selected;
+  ServerSeerrConvergence? seerrConvergence;
+  String? seerrFailure;
   int? nextBefore;
   ServerContext? context;
   ServerPluginCatalog? catalog;
@@ -65,6 +69,8 @@ class ServerMediaPreparationsController extends ChangeNotifier {
     failure = null;
     preparations = const [];
     selected = null;
+    seerrConvergence = null;
+    seerrFailure = null;
     nextBefore = null;
     _historyContext = null;
     context = null;
@@ -256,11 +262,28 @@ class ServerMediaPreparationsController extends ChangeNotifier {
         api,
         token,
       ).get(record.id, previous: record);
+      ServerSeerrConvergence? convergence;
+      String? convergenceFailure;
+      try {
+        final installation = result.plan.components
+            .singleWhere((component) => component.serviceId == 'seerr')
+            .installationId;
+        convergence = await ServerSeerrConvergenceApi(
+          api,
+          token,
+        ).findForInstallation(installation);
+      } catch (error) {
+        convergenceFailure = error is LarenorServerException
+            ? error.code
+            : 'connection_failed';
+      }
       if (valid()) {
         _rememberRecords([result]);
         selected = result;
         _replace(result);
         cancelNeedsRefresh = false;
+        seerrConvergence = convergence;
+        seerrFailure = convergenceFailure;
       }
     });
   }
@@ -294,6 +317,8 @@ class ServerMediaPreparationsController extends ChangeNotifier {
   void showList() {
     if (!busy) {
       selected = null;
+      seerrConvergence = null;
+      seerrFailure = null;
       cancelNeedsRefresh = false;
       _emit();
     }
