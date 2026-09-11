@@ -1,8 +1,10 @@
 import 'dart:async';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:larenor/features/auth/data/ha_connection_config.dart';
 import 'package:larenor/features/today/data/today_controller.dart';
 import 'package:larenor/features/today/data/today_repository.dart';
+import 'package:larenor/features/today/data/today_retained_cache.dart';
 import 'package:larenor/features/today/domain/today_models.dart';
 
 import 'fake_today_api.dart';
@@ -180,4 +182,116 @@ void main() {
       );
     },
   );
+
+  test(
+    'retained snapshot is shown before refresh and fresh data replaces it',
+    () async {
+      final retained = _MemoryRetainedStore(_retainedSnapshot('Saved milk'));
+      final gatedApi = FakeTodayApi();
+      final release = Completer<void>();
+      gatedApi.beforeConfig = () => release.future;
+      final cachedController = TodayController(
+        repository: TodayRepository(
+          api: gatedApi,
+          now: () => DateTime.utc(2026, 9, 11, 9),
+        ),
+        retainedStore: retained,
+        retainedScope: TodayRetainedScope.direct(
+          const HaConnectionConfig(baseUrl: 'http://ha.invalid', token: 'one'),
+        ),
+      );
+      addTearDown(cachedController.dispose);
+
+      final refresh = cachedController.refresh();
+      await drain();
+      expect(cachedController.snapshot!.retained, isTrue);
+      expect(
+        cachedController.snapshot!.todoLists.single.items.value!.single.summary,
+        'Saved milk',
+      );
+      release.complete();
+      await refresh;
+      expect(cachedController.snapshot!.retained, isFalse);
+      expect(retained.writes, 1);
+    },
+  );
+
+  test(
+    'background during retained read discards the late cache and network read',
+    () async {
+      final retained = _MemoryRetainedStore(_retainedSnapshot('Private saved'))
+        ..gate = Completer<void>();
+      final gatedApi = FakeTodayApi();
+      final cachedController = TodayController(
+        repository: TodayRepository(api: gatedApi),
+        retainedStore: retained,
+        retainedScope: TodayRetainedScope.direct(
+          const HaConnectionConfig(baseUrl: 'http://ha.invalid', token: 'one'),
+        ),
+      );
+      addTearDown(cachedController.dispose);
+
+      final refresh = cachedController.refresh();
+      cachedController.setForeground(false);
+      retained.gate!.complete();
+      await refresh;
+
+      expect(cachedController.snapshot, isNull);
+      expect(gatedApi.configCalls, 0);
+      expect(retained.writes, 0);
+    },
+  );
 }
+
+final class _MemoryRetainedStore implements TodayRetainedPersistence {
+  _MemoryRetainedStore(this.value);
+  TodaySnapshot? value;
+  Completer<void>? gate;
+  int writes = 0;
+
+  @override
+  Future<TodaySnapshot?> read(
+    TodayRetainedScope scope, {
+    required bool Function() isCurrent,
+  }) async {
+    await gate?.future;
+    if (!isCurrent()) throw const TodayRetainedException('retired');
+    return value;
+  }
+
+  @override
+  Future<void> write(
+    TodayRetainedScope scope,
+    TodaySnapshot snapshot, {
+    required bool Function() isCurrent,
+  }) async {
+    if (!isCurrent()) throw const TodayRetainedException('retired');
+    writes++;
+    value = snapshot;
+  }
+}
+
+TodaySnapshot _retainedSnapshot(String title) => TodaySnapshot(
+  configured: true,
+  retained: true,
+  refreshedAt: DateTime.utc(2026, 9, 11, 8),
+  todoLists: [
+    TodayTodoList(
+      entityId: 'todo.shopping',
+      title: 'Shopping',
+      supportedFeatures: 5,
+      available: false,
+      items: TodayRead(
+        value: [
+          TodayTodoItem(
+            uid: 'one',
+            summary: title,
+            status: TodayTodoStatus.needsAction,
+          ),
+        ],
+        readAt: DateTime.utc(2026, 9, 11, 8),
+        issue: const TodayIssue(TodaySource.todos, TodayFailure.unavailable),
+      ),
+    ),
+  ],
+);
