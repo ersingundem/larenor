@@ -111,12 +111,7 @@ void main() {
       findsOneWidget,
     );
 
-    final focusable = find.descendant(
-      of: card,
-      matching: find.byType(FocusableActionDetector),
-    );
-    Focus.of(tester.element(focusable.first)).requestFocus();
-    await tester.pump();
+    await tester.sendKeyEvent(LogicalKeyboardKey.tab);
     await tester.sendKeyEvent(LogicalKeyboardKey.enter);
     await tester.pump();
     expect(calls, 1);
