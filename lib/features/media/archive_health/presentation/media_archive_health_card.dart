@@ -6,6 +6,7 @@ import '../../../../l10n/generated/app_localizations.dart';
 import '../../../../shared/theme/typography.dart';
 import '../data/media_archive_health_controller.dart';
 import '../domain/media_archive_health.dart';
+import 'media_archive_health_detail_screen.dart';
 
 final class MediaArchiveHealthCard extends StatelessWidget {
   const MediaArchiveHealthCard({super.key, required this.controller});
@@ -163,6 +164,29 @@ final class MediaArchiveHealthCard extends StatelessWidget {
                         ),
                       ),
                   ],
+                ),
+                const SizedBox(height: 12),
+                Align(
+                  alignment: AlignmentDirectional.centerEnd,
+                  child: CupertinoButton(
+                    key: const ValueKey('media-archive-details'),
+                    minimumSize: const Size(48, 48),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 12,
+                    ),
+                    onPressed: () {
+                      if (!identical(controller.snapshot, snapshot)) return;
+                      Navigator.of(context).push(
+                        CupertinoPageRoute<void>(
+                          builder: (_) => MediaArchiveHealthDetailScreen(
+                            snapshot: snapshot,
+                          ),
+                        ),
+                      );
+                    },
+                    child: Text(l.mediaArchiveOpenDetails),
+                  ),
                 ),
               ],
             ],

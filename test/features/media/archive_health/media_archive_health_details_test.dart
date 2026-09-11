@@ -84,7 +84,7 @@ Widget app(Widget child, {double scale = 1}) => CupertinoApp(
 void main() {
   test('strict read model retains bounded issue and saving evidence', () {
     final snapshot = MediaArchiveHealthSnapshot.fromJson(detailArchiveJson());
-    expect(snapshot.issues.single.code, MediaArchiveIssueCode.corruptMedia);
+    expect(snapshot.issues.first.code, MediaArchiveIssueCode.corruptMedia);
     expect(snapshot.issues.last.severity, MediaArchiveIssueSeverity.warning);
     expect(snapshot.suggestions.single.potentialBytes, 4000000000);
     expect(snapshot.suggestions.single.evidence, [
@@ -103,7 +103,9 @@ void main() {
     );
     addTearDown(controller.dispose);
     await controller.refresh();
-    await tester.pumpWidget(app(MediaArchiveHealthCard(controller: controller)));
+    await tester.pumpWidget(
+      app(MediaArchiveHealthCard(controller: controller)),
+    );
     final details = find.byKey(const ValueKey('media-archive-details'));
     expect(details, findsOneWidget);
     expect(tester.getSize(details).height, greaterThanOrEqualTo(48));
@@ -116,35 +118,56 @@ void main() {
     expect(find.text('Pilot'), findsOneWidget);
   });
 
-  testWidgets('detail is responsive at 600 and 1280 with 2x text and TalkBack', (
-    tester,
-  ) async {
-    final snapshot = MediaArchiveHealthSnapshot.fromJson(detailArchiveJson());
-    for (final width in [600.0, 1280.0]) {
-      tester.view.physicalSize = Size(width, 1000);
-      tester.view.devicePixelRatio = 1;
-      final semantics = tester.ensureSemantics();
-      await tester.pumpWidget(
-        app(MediaArchiveHealthDetailScreen(snapshot: snapshot), scale: 2),
-      );
-      await tester.pumpAndSettle();
-      expect(
-        find.bySemanticsLabel(RegExp(r'The Matrix download.*4\.0 GB')),
-        findsOneWidget,
-      );
-      expect(find.bySemanticsLabel(RegExp(r'Pilot.*Critical')), findsOneWidget);
-      expect(find.textContaining(RegExp(r'clean|delete', caseSensitive: false)), findsNothing);
-      expect(tester.takeException(), isNull);
-      semantics.dispose();
-    }
-    addTearDown(tester.view.reset);
-  });
+  testWidgets(
+    'detail is responsive at 600 and 1280 with 2x text and TalkBack',
+    (tester) async {
+      final snapshot = MediaArchiveHealthSnapshot.fromJson(detailArchiveJson());
+      for (final width in [600.0, 1280.0]) {
+        tester.view.physicalSize = Size(width, 1000);
+        tester.view.devicePixelRatio = 1;
+        final semantics = tester.ensureSemantics();
+        await tester.pumpWidget(
+          app(MediaArchiveHealthDetailScreen(snapshot: snapshot), scale: 2),
+        );
+        await tester.pumpAndSettle();
+        await tester.scrollUntilVisible(
+          find.text('Pilot'),
+          250,
+          scrollable: find.byType(Scrollable).last,
+        );
+        await tester.pumpAndSettle();
+        expect(
+          find.bySemanticsLabel(RegExp(r'Pilot.*Critical')),
+          findsOneWidget,
+        );
+        await tester.scrollUntilVisible(
+          find.text('The Matrix download'),
+          300,
+          scrollable: find.byType(Scrollable).last,
+        );
+        await tester.pumpAndSettle();
+        expect(
+          find.bySemanticsLabel(RegExp(r'The Matrix download.*4\.0 GB')),
+          findsOneWidget,
+        );
+        expect(
+          find.textContaining(RegExp(r'clean|delete', caseSensitive: false)),
+          findsNothing,
+        );
+        expect(tester.takeException(), isNull);
+        semantics.dispose();
+      }
+      addTearDown(tester.view.reset);
+    },
+  );
 
   testWidgets('partial detail keeps stale source visible', (tester) async {
     final snapshot = MediaArchiveHealthSnapshot.fromJson(
       detailArchiveJson(state: 'incomplete'),
     );
-    await tester.pumpWidget(app(MediaArchiveHealthDetailScreen(snapshot: snapshot)));
+    await tester.pumpWidget(
+      app(MediaArchiveHealthDetailScreen(snapshot: snapshot)),
+    );
     expect(find.text('Partial evidence'), findsOneWidget);
     expect(find.textContaining('Jellyfin · Stale'), findsOneWidget);
   });

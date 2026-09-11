@@ -32,6 +32,48 @@ enum MediaArchiveSnapshotState { healthy, attention, incomplete }
 
 enum MediaArchiveSourceState { verified, unavailable, unsupported, stale }
 
+enum MediaArchiveIssueCode {
+  missingMedia,
+  missingFile,
+  corruptMedia,
+  unplayableMedia,
+  downloadError,
+}
+
+enum MediaArchiveIssueSeverity { warning, critical }
+
+enum MediaArchiveSavingEvidence {
+  downloadComplete,
+  importVerified,
+  retentionPolicySatisfied,
+}
+
+final class MediaArchiveIssue {
+  const MediaArchiveIssue._({
+    required this.code,
+    required this.severity,
+    required this.source,
+    required this.title,
+    required this.observedBytes,
+  });
+  final MediaArchiveIssueCode code;
+  final MediaArchiveIssueSeverity severity;
+  final String source, title;
+  final int observedBytes;
+}
+
+final class MediaArchiveSavingSuggestion {
+  const MediaArchiveSavingSuggestion._({
+    required this.title,
+    required this.potentialBytes,
+    required this.evidence,
+  });
+  final String title;
+  final int potentialBytes;
+  final List<MediaArchiveSavingEvidence> evidence;
+  bool get cleanupAvailable => false;
+}
+
 final class MediaArchiveCounts {
   const MediaArchiveCounts({
     required this.missing,
@@ -74,6 +116,8 @@ final class MediaArchiveHealthSnapshot {
     required this.sourceStates,
     required this.sourceRevisions,
     required this.counts,
+    required this.issues,
+    required this.suggestions,
     required this.generatedAt,
   });
 
@@ -107,6 +151,7 @@ final class MediaArchiveHealthSnapshot {
     }
     // Public detail rows remain bounded and secret-free even though this card
     // only renders aggregate counts.
+    final parsedIssues = <MediaArchiveIssue>[];
     for (final issue in issues) {
       final item = _object(issue, {
         'code',
@@ -126,7 +171,26 @@ final class MediaArchiveHealthSnapshot {
           _integer(item['observedBytes']) < 0) {
         _invalid();
       }
+      parsedIssues.add(
+        MediaArchiveIssue._(
+          code: switch (item['code']) {
+            'missing_media' => MediaArchiveIssueCode.missingMedia,
+            'missing_file' => MediaArchiveIssueCode.missingFile,
+            'corrupt_media' => MediaArchiveIssueCode.corruptMedia,
+            'unplayable_media' => MediaArchiveIssueCode.unplayableMedia,
+            'download_error' => MediaArchiveIssueCode.downloadError,
+            _ => throw const LarenorServerException('invalid_response'),
+          },
+          severity: item['severity'] == 'critical'
+              ? MediaArchiveIssueSeverity.critical
+              : MediaArchiveIssueSeverity.warning,
+          source: item['source'] as String,
+          title: item['title'] as String,
+          observedBytes: item['observedBytes'] as int,
+        ),
+      );
     }
+    final parsedSuggestions = <MediaArchiveSavingSuggestion>[];
     for (final suggestion in suggestions) {
       final item = _object(suggestion, {
         'code',
@@ -152,6 +216,24 @@ final class MediaArchiveHealthSnapshot {
           item['cleanupAvailable'] != false) {
         _invalid();
       }
+      parsedSuggestions.add(
+        MediaArchiveSavingSuggestion._(
+          title: item['title'] as String,
+          potentialBytes: item['potentialBytes'] as int,
+          evidence: List.unmodifiable(
+            evidence.map(
+              (value) => switch (value) {
+                'download_complete' =>
+                  MediaArchiveSavingEvidence.downloadComplete,
+                'import_verified' => MediaArchiveSavingEvidence.importVerified,
+                'retention_policy_satisfied' =>
+                  MediaArchiveSavingEvidence.retentionPolicySatisfied,
+                _ => throw const LarenorServerException('invalid_response'),
+              },
+            ),
+          ),
+        ),
+      );
     }
     final parsedStates = <String, MediaArchiveSourceState>{};
     final parsedRevisions = <String, int>{};
@@ -171,6 +253,8 @@ final class MediaArchiveHealthSnapshot {
       sourceStates: Map.unmodifiable(parsedStates),
       sourceRevisions: Map.unmodifiable(parsedRevisions),
       counts: MediaArchiveCounts.fromJson(map['counts']),
+      issues: List.unmodifiable(parsedIssues),
+      suggestions: List.unmodifiable(parsedSuggestions),
       generatedAt: DateTime.fromMillisecondsSinceEpoch(
         _integer(map['generatedAt'], min: 1) * 1000,
         isUtc: true,
@@ -199,6 +283,9 @@ final class MediaArchiveHealthSnapshot {
   final Map<String, MediaArchiveSourceState> sourceStates;
   final Map<String, int> sourceRevisions;
   final MediaArchiveCounts counts;
+  final List<MediaArchiveIssue> issues;
+  final List<MediaArchiveSavingSuggestion> suggestions;
+  bool get cleanupAvailable => false;
   final DateTime generatedAt;
 }
 
