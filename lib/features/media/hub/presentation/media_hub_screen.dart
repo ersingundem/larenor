@@ -26,6 +26,8 @@ import '../../../../shared/theme/icon_sizes.dart';
 import '../../../navigation/presentation/app_shell_actions.dart';
 import '../../ha_playback/presentation/ha_playback_screen.dart';
 import '../../music/presentation/music_center_screen.dart';
+import '../../archive_health/data/media_archive_health_providers.dart';
+import '../../archive_health/presentation/media_archive_health_card.dart';
 
 /// One browse surface across every connected media service — the library
 /// you already have and the catalogue you could request, in the same
@@ -53,6 +55,7 @@ class _MediaHubScreenState extends ConsumerState<MediaHubScreen> {
   Widget _build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final rowsAsync = ref.watch(mediaHubRowsProvider);
+    final archiveHealth = ref.watch(mediaArchiveHealthControllerProvider);
 
     return AppPageScaffold(
       // The nav bar lives in the scroll view rather than the scaffold so
@@ -210,6 +213,9 @@ class _MediaHubScreenState extends ConsumerState<MediaHubScreen> {
               issues: rows.readIssues,
               hasSuccessfulRead: rows.successfulReads.isNotEmpty,
             ),
+          ),
+          SliverToBoxAdapter(
+            child: MediaArchiveHealthCard(controller: archiveHealth),
           ),
         ],
       ),

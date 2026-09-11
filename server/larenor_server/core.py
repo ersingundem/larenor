@@ -40,6 +40,10 @@ from .plugins.music_provider_commands import MusicProviderCommandManagement
 from .plugins.music_playback_schema import migrate_music_playback
 from .plugins.music_playback import MusicPlaybackManagement
 from .plugins.music_retained_status import MusicRetainedStatusManagement
+from .plugins.media_archive_core import MediaArchiveHealthManagement
+from .plugins.media_archive_weekly_trend_schema import (
+    migrate_media_archive_weekly_trends,
+)
 from .plugins.preflight_ipc import PreflightWorkerClient
 from .plugins.installation_ipc import InstallationWorkerClient
 from .component_egress.storage import migrate as migrate_component_egress
@@ -72,12 +76,16 @@ from .proxmox_commands.core_worker import EgressGatedProxmoxExecutor
 class CoreServices:
     def __init__(self, settings: Settings, *, blob_provider: BlobProvider | None = None,
                  transfer_limits: TransferLimits | None = None,
-                 proxmox_guest_provider=None, proxmox_power_executor=None):
+                 proxmox_guest_provider=None, proxmox_power_executor=None,
+                 media_archive_binding_reader=None,
+                 media_archive_worker=None):
         self.settings = settings
         self._blob_provider = blob_provider
         self._transfer_limits = transfer_limits
         self._proxmox_guest_provider = proxmox_guest_provider
         self._proxmox_power_executor = proxmox_power_executor
+        self._media_archive_binding_reader = media_archive_binding_reader
+        self._media_archive_worker = media_archive_worker
         self.bootstrap_created = False
         self.bootstrap_cleanup_pending = False
         try:
@@ -191,6 +199,7 @@ class CoreServices:
                 migrate_music_provider_setups(connection)
                 migrate_music_provider_commands(connection)
                 migrate_music_playback(connection)
+                migrate_media_archive_weekly_trends(connection)
                 migrate_proxmox_power(connection, key)
             if not existed:
                 # Only publish the DB after its complete first transaction commits.
@@ -295,6 +304,9 @@ class CoreServices:
                 self.db, self.auth, settings, key, self.music_assistant_core,
                 self.music_provider_setups, installation_backend)
             self.music_playback.validate_storage()
+            self.media_archive_health = MediaArchiveHealthManagement(
+                self.db, self.auth, settings, self.media_installations,
+                self._media_archive_binding_reader, self._media_archive_worker)
             self.clear_inactive_bootstrap()
 
     def clear_inactive_bootstrap(self) -> None:
