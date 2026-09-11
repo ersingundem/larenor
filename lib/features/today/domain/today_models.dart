@@ -1,4 +1,4 @@
-enum TodaySource { configuration, todos, calendars, notifications }
+enum TodaySource { configuration, shopping, todos, calendars, notifications }
 
 enum TodayFailure {
   authentication,

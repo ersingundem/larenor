@@ -55,6 +55,10 @@ class TodayController {
     try {
       final value = await repository.load(previous: _snapshot);
       if (_disposed) return;
+      if (!repository.notificationSubscriptionsSupported) {
+        _pendingEvents.clear();
+        _stopSubscription();
+      }
       var next = value;
       for (final event in _pendingEvents) {
         next = _mergeEvent(next, event);
@@ -161,6 +165,8 @@ class TodayController {
     _subscribing = true;
     unawaited(() async {
       try {
+        final capabilities = await repository.discoverReadCapabilities();
+        if (!capabilities.persistentNotification) return;
         final remote = await repository.api.subscribeNotifications();
         if (_disposed || generation != _subscriptionGeneration) {
           await _cancelRemote(remote);
