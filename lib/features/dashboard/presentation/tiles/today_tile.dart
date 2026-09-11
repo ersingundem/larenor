@@ -254,7 +254,14 @@ class _TodayTileState extends ConsumerState<TodayTile> {
     final reading = active ? ref.watch(todayProvider) : null;
     final snapshot = reading?.value;
     final selection = ref.watch(todaySummarySelectionProvider);
-    final kind = selection?.kind ?? TodayDailySummaryKind.shopping;
+    final storedKind = TodayDailySummaryKind.values
+        .where((candidate) => candidate.name == widget.tile.todaySection)
+        .firstOrNull;
+    final hasPersonalContext =
+        storedKind != null && widget.tile.todayQuery != null;
+    final kind = hasPersonalContext
+        ? storedKind
+        : selection?.kind ?? TodayDailySummaryKind.shopping;
     final summary = snapshot?.configured == true
         ? TodayDailySummary.fromSnapshot(snapshot!)
         : null;
@@ -265,7 +272,9 @@ class _TodayTileState extends ConsumerState<TodayTile> {
       section: section,
       loading: _refreshing || reading?.isLoading == true,
       offline: reading?.hasError == true || snapshot?.configured != true,
-      query: selection?.query ?? '',
+      query: hasPersonalContext
+          ? widget.tile.todayQuery!
+          : selection?.query ?? '',
       onOpen: active ? () => context.go('/today') : null,
       onRefresh: active && !_refreshing ? _refresh : null,
     );

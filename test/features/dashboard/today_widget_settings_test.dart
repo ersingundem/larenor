@@ -1,7 +1,7 @@
 import 'dart:ui' as ui;
 
 import 'package:flutter/cupertino.dart';
-import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:larenor/features/dashboard/domain/tile_config.dart';
 import 'package:larenor/features/dashboard/presentation/today_widget_settings_screen.dart';
@@ -27,30 +27,32 @@ Future<List<TileConfig>> _mount(
   addTearDown(tester.view.reset);
   final results = <TileConfig>[];
   await tester.pumpWidget(
-    CupertinoApp(
-      locale: const Locale('tr'),
-      localizationsDelegates: AppLocalizations.localizationsDelegates,
-      supportedLocales: AppLocalizations.supportedLocales,
-      builder: (context, child) => MediaQuery(
-        data: MediaQuery.of(context)
-            .copyWith(textScaler: const TextScaler.linear(2)),
-        child: child!,
-      ),
-      home: Builder(
-        builder: (context) => CupertinoPageScaffold(
-          child: Center(
-            child: CupertinoButton(
-              onPressed: () async {
-                final value = await Navigator.push<TileConfig>(
-                  context,
-                  CupertinoPageRoute(
-                    builder: (_) =>
-                        const TodayWidgetSettingsScreen(initialTile: _tile),
-                  ),
-                );
-                if (value != null) results.add(value);
-              },
-              child: const Text('Open'),
+    ProviderScope(
+      child: CupertinoApp(
+        locale: const Locale('tr'),
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        builder: (context, child) => MediaQuery(
+          data: MediaQuery.of(context)
+              .copyWith(textScaler: const TextScaler.linear(2)),
+          child: child!,
+        ),
+        home: Builder(
+          builder: (context) => CupertinoPageScaffold(
+            child: Center(
+              child: CupertinoButton(
+                onPressed: () async {
+                  final value = await Navigator.push<TileConfig>(
+                    context,
+                    CupertinoPageRoute(
+                      builder: (_) =>
+                          const TodayWidgetSettingsScreen(initialTile: _tile),
+                    ),
+                  );
+                  if (value != null) results.add(value);
+                },
+                child: const Text('Open'),
+              ),
             ),
           ),
         ),
@@ -83,8 +85,7 @@ void main() {
         find.byKey(const ValueKey('today-widget-query')),
         'dişçi',
       );
-      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
-      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      await tester.testTextInput.receiveAction(TextInputAction.done);
       await tester.pumpAndSettle();
 
       expect(results, hasLength(1));
