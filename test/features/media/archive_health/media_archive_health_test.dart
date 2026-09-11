@@ -76,27 +76,47 @@ void main() {
       client: MockClient((request) async {
         calls.add(request);
         if (request.url.path == '/api/v1/admin/media/installations') {
-          return http.Response(jsonEncode({'installations': [installationJson()], 'nextBefore': null}), 200);
+          return http.Response(
+            jsonEncode({
+              'installations': [installationJson()],
+              'nextBefore': null,
+            }),
+            200,
+            headers: {'content-type': 'application/json'},
+          );
         }
-        if (request.url.path == '/api/v1/admin/media/archive-health/authority') {
+        if (request.url.path ==
+            '/api/v1/admin/media/archive-health/authority') {
           expect(jsonDecode(request.body), {
             'requestId': requestId,
             'installationId': installationId,
             'expectedInstallationRevision': 12,
           });
-          return http.Response(jsonEncode({
-            'requestId': requestId,
-            'installationId': installationId,
-            'installationRevision': 12,
-            'snapshotRevision': 4,
-          }), 200);
+          return http.Response(
+            jsonEncode({
+              'requestId': requestId,
+              'installationId': installationId,
+              'installationRevision': 12,
+              'snapshotRevision': 4,
+            }),
+            200,
+            headers: {'content-type': 'application/json'},
+          );
         }
         expect(jsonDecode(request.body)['expectedSnapshotRevision'], 4);
-        return http.Response(jsonEncode({'requestId': requestId, 'archive': archiveJson()}), 200);
+        return http.Response(
+          jsonEncode({'requestId': requestId, 'archive': archiveJson()}),
+          200,
+          headers: {'content-type': 'application/json'},
+        );
       }),
     );
     addTearDown(api.close);
-    final value = await CoreMediaArchiveApi(api, 'access', requestId: () => requestId).read();
+    final value = await CoreMediaArchiveApi(
+      api,
+      'access',
+      requestId: () => requestId,
+    ).read();
     expect(value.state, MediaArchiveSnapshotState.attention);
     expect(value.counts.potentialSavingBytes, 4000);
     expect(calls.map((e) => e.url.path), [
@@ -106,34 +126,122 @@ void main() {
     ]);
   });
 
-  test('Core API fails closed on ambiguous installation and response drift', () async {
-    Future<void> expectCode(Object body, String code) async {
+  test(
+    'Core API fails closed on ambiguous installation and response drift',
+    () async {
+      Future<void> expectCode(Object body, String code) async {
+        final api = LarenorServerApi(
+          endpoint: ServerEndpoint('https://core.test'),
+          client: MockClient(
+            (_) async => http.Response(
+              jsonEncode(body),
+              200,
+              headers: {'content-type': 'application/json'},
+            ),
+          ),
+        );
+        addTearDown(api.close);
+        await expectLater(
+          CoreMediaArchiveApi(api, 'access').read(),
+          throwsA(
+            isA<MediaArchiveReadException>().having(
+              (e) => e.kind,
+              'kind',
+              code,
+            ),
+          ),
+        );
+      }
+
+      await expectCode({
+        'installations': [installationJson(), installationJson()],
+        'nextBefore': null,
+      }, 'unsupported');
+      await expectCode({
+        'installations': [installationJson()],
+        'nextBefore': 4,
+      }, 'unsupported');
+    },
+  );
+
+  test('Core API preserves stale and unavailable classifications', () async {
+    for (final entry in const {
+      409: ('media_archive_snapshot_stale', 'media_archive_snapshot_stale'),
+      503: ('media_archive_worker_unavailable', 'connection_failed'),
+    }.entries) {
+      var calls = 0;
       final api = LarenorServerApi(
         endpoint: ServerEndpoint('https://core.test'),
-        client: MockClient((_) async => http.Response(jsonEncode(body), 200)),
+        client: MockClient((request) async {
+          calls++;
+          if (calls == 1) {
+            return http.Response(
+              jsonEncode({
+                'installations': [installationJson()],
+                'nextBefore': null,
+              }),
+              200,
+              headers: {'content-type': 'application/json'},
+            );
+          }
+          return http.Response(
+            jsonEncode({
+              'error': {'code': entry.value.$1, 'message': 'discarded'},
+            }),
+            entry.key,
+            headers: {'content-type': 'application/json'},
+          );
+        }),
       );
       addTearDown(api.close);
-      await expectLater(CoreMediaArchiveApi(api, 'access').read(), throwsA(isA<MediaArchiveReadException>().having((e) => e.kind, 'kind', code)));
+      await expectLater(
+        CoreMediaArchiveApi(api, 'access').read(),
+        throwsA(
+          isA<MediaArchiveReadException>().having(
+            (error) => error.kind,
+            'kind',
+            entry.value.$2,
+          ),
+        ),
+      );
     }
-    await expectCode({'installations': [installationJson(), installationJson()], 'nextBefore': null}, 'unsupported');
-    await expectCode({'installations': [installationJson()], 'nextBefore': 4}, 'unsupported');
   });
 
-  test('controller only refreshes explicitly and retires late results', () async {
-    final pending = Completer<MediaArchiveHealthSnapshot>();
-    var calls = 0;
-    final controller = MediaArchiveHealthController(read: () { calls++; return pending.future; }, authorized: () => true);
+  test(
+    'controller only refreshes explicitly and retires late results',
+    () async {
+      final pending = Completer<MediaArchiveHealthSnapshot>();
+      var calls = 0;
+      final controller = MediaArchiveHealthController(
+        read: () {
+          calls++;
+          return pending.future;
+        },
+        authorized: () => true,
+      );
+      addTearDown(controller.dispose);
+      expect(calls, 0);
+      expect(controller.state, MediaArchiveCardState.idle);
+      final future = controller.refresh();
+      expect(controller.state, MediaArchiveCardState.loading);
+      controller.retire();
+      pending.complete(MediaArchiveHealthSnapshot.fromJson(archiveJson()));
+      await future;
+      expect(controller.snapshot, isNull);
+      expect(controller.state, MediaArchiveCardState.idle);
+      expect(calls, 1);
+    },
+  );
+
+  test('controller keeps incomplete evidence distinct as partial', () async {
+    final controller = MediaArchiveHealthController(
+      read: () async =>
+          MediaArchiveHealthSnapshot.fromJson(archiveJson(state: 'incomplete')),
+      authorized: () => true,
+    );
     addTearDown(controller.dispose);
-    expect(calls, 0);
-    expect(controller.state, MediaArchiveCardState.idle);
-    final future = controller.refresh();
-    expect(controller.state, MediaArchiveCardState.loading);
-    controller.retire();
-    pending.complete(MediaArchiveHealthSnapshot.fromJson(archiveJson()));
-    await future;
-    expect(controller.snapshot, isNull);
-    expect(controller.state, MediaArchiveCardState.idle);
-    expect(calls, 1);
+    await controller.refresh();
+    expect(controller.state, MediaArchiveCardState.partial);
   });
 
   for (final entry in const {
@@ -153,35 +261,47 @@ void main() {
     });
   }
 
-  testWidgets('tablet and DeX card supports 2x, TalkBack and keyboard refresh', (tester) async {
-    for (final width in [600.0, 1280.0]) {
-      tester.view.physicalSize = Size(width, 900);
-      tester.view.devicePixelRatio = 1;
-      tester.platformDispatcher.textScaleFactorTestValue = 2;
-      final controller = MediaArchiveHealthController(
-        read: () async => MediaArchiveHealthSnapshot.fromJson(archiveJson()),
-        authorized: () => true,
-      );
-      await tester.pumpWidget(CupertinoApp(
-        locale: const Locale('en'),
-        localizationsDelegates: AppLocalizations.localizationsDelegates,
-        supportedLocales: AppLocalizations.supportedLocales,
-        home: CupertinoPageScaffold(child: SingleChildScrollView(child: MediaArchiveHealthCard(controller: controller))),
-      ));
-      final semantics = tester.ensureSemantics();
-      expect(find.bySemanticsLabel('Refresh archive health'), findsOneWidget);
-      final refresh = find.byKey(const ValueKey('media-archive-refresh'));
-      expect(tester.getSize(refresh).height, greaterThanOrEqualTo(48));
-      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
-      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
-      await tester.pumpAndSettle();
-      expect(find.text('4.0 KB'), findsOneWidget);
-      expect(find.textContaining(RegExp(r'clean|delete', caseSensitive: false)), findsNothing);
-      expect(tester.takeException(), isNull);
-      semantics.dispose();
-      controller.dispose();
-    }
-    addTearDown(tester.view.reset);
-    addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
-  });
+  testWidgets(
+    'tablet and DeX card supports 2x, TalkBack and keyboard refresh',
+    (tester) async {
+      for (final width in [600.0, 1280.0]) {
+        tester.view.physicalSize = Size(width, 900);
+        tester.view.devicePixelRatio = 1;
+        tester.platformDispatcher.textScaleFactorTestValue = 2;
+        final controller = MediaArchiveHealthController(
+          read: () async => MediaArchiveHealthSnapshot.fromJson(archiveJson()),
+          authorized: () => true,
+        );
+        await tester.pumpWidget(
+          CupertinoApp(
+            locale: const Locale('en'),
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            home: CupertinoPageScaffold(
+              child: SingleChildScrollView(
+                child: MediaArchiveHealthCard(controller: controller),
+              ),
+            ),
+          ),
+        );
+        final semantics = tester.ensureSemantics();
+        expect(find.bySemanticsLabel('Refresh archive health'), findsOneWidget);
+        final refresh = find.byKey(const ValueKey('media-archive-refresh'));
+        expect(tester.getSize(refresh).height, greaterThanOrEqualTo(48));
+        await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+        await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+        await tester.pumpAndSettle();
+        expect(find.text('4.0 KB'), findsOneWidget);
+        expect(
+          find.textContaining(RegExp(r'clean|delete', caseSensitive: false)),
+          findsNothing,
+        );
+        expect(tester.takeException(), isNull);
+        semantics.dispose();
+        controller.dispose();
+      }
+      addTearDown(tester.view.reset);
+      addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+    },
+  );
 }
