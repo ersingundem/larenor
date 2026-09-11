@@ -284,6 +284,7 @@ class VncNativePlan internal constructor(
     val framebufferEncoding: VncFramebufferEncoding,
     private val request: VncNativeRequest,
 ) {
+    internal val requestId: String get() = request.requestId
     internal val spkiFingerprint: String get() = request.spkiFingerprint
 
     fun toMap(): Map<String, Any> = mapOf(

@@ -42,7 +42,7 @@ internal class VncRfbEngineAdapter {
         if (plan.framebufferEncoding != VncFramebufferEncoding.RAW) {
             throw VncNativeFailure("framebufferUnavailable")
         }
-        return VncRfbEngineSession(transport, plan.spkiFingerprint, onFrame)
+        return VncRfbEngineSession(transport, plan, onFrame)
     }
 
     companion object {
@@ -53,7 +53,7 @@ internal class VncRfbEngineAdapter {
 
 internal class VncRfbEngineSession(
     private val transport: VncRfbEngineTransport,
-    expectedSpkiFingerprint: String,
+    private val plan: VncNativePlan,
     private val onFrame: (VncRfbFrame) -> Boolean,
 ) : VncNativeSession, VncRfbEngineTransport.Listener {
     var phase = VncRfbEnginePhase.VERSION
@@ -62,8 +62,9 @@ internal class VncRfbEngineSession(
         private set
 
     private val parser = VncSyntheticRfbParser()
-    private val security = VncSyntheticVencrypt(expectedSpkiFingerprint)
+    private val security = VncSyntheticVencrypt(plan.spkiFingerprint)
     private var pendingFrameSequence: Long? = null
+    private var verificationIssued = false
     private var terminated = false
 
     init {
@@ -162,6 +163,22 @@ internal class VncRfbEngineSession(
 
     fun setForeground(foreground: Boolean) {
         if (!foreground) terminate(VncRfbEnginePhase.CANCELLED, null)
+    }
+
+    /**
+     * Produces the package-private, one-use handoff only after the complete
+     * RFB + VeNCrypt + TLS/SPKI + VNC-auth + ServerInit chain is active.
+     */
+    fun claimVerifiedResult(): VncVerifiedRfbResult {
+        return VncVerifiedRfbResult.issue(this)
+    }
+
+    internal fun claimVerifiedPlan(): VncNativePlan {
+        if (terminated || phase != VncRfbEnginePhase.ACTIVE || verificationIssued) {
+            throw VncNativeFailure("staleSession")
+        }
+        verificationIssued = true
+        return plan
     }
 
     override fun close() {

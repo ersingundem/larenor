@@ -22,6 +22,11 @@ class VncVerifiedTransportSessionTest {
         assertEquals(VncVerifiedTransportPhase.CONNECTING, session.phase)
         assertEquals(1, operation.starts)
 
+        val unverified = VncRfbEngineAdapter().open(plan, RfbTransport()) { true }
+        val early = runCatching { unverified.claimVerifiedResult() }.exceptionOrNull() as VncNativeFailure
+        assertEquals("staleSession", early.code)
+        unverified.close()
+
         val engine = activeEngine(plan)
         operation.verified(engine.claimVerifiedResult())
 
@@ -29,6 +34,8 @@ class VncVerifiedTransportSessionTest {
         assertNull(session.failureCode)
         assertEquals(0, operation.cancels)
         assertFalse(VncVerifiedTransportSession.productionAvailable)
+        val duplicate = runCatching { engine.claimVerifiedResult() }.exceptionOrNull() as VncNativeFailure
+        assertEquals("staleSession", duplicate.code)
     }
 
     @Test
