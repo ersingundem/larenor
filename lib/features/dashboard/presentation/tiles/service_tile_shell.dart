@@ -67,9 +67,7 @@ class ServiceTileShell extends StatelessWidget {
               ? const <String>[]
               : <String>[transientStatus]
         : connectionEvidenceLabels(l10n, evidence, showTimestamp: false);
-    final contentLines = configured
-        ? lines.take(statusLabels.isEmpty ? lines.length : 1)
-        : const Iterable<String>.empty();
+    final contentLines = configured ? lines : const Iterable<String>.empty();
     return DashboardTileButton(
       label: [
         title,
