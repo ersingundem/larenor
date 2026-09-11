@@ -18,13 +18,15 @@ from larenor_server.plugins.media_archive_health_models import (
 INSTALLATION = '1' * 32
 
 
-def binding(service, revision=7, state='verified', observed_at=1_788_609_600):
+def binding(service, revision=7, state='verified', observed_at=1_788_609_600,
+            snapshot_revision=7):
     return {
         'serviceId': service,
         'serviceRecordId': {
             'jellyfin': '2', 'sonarr': '3', 'radarr': '4', 'qbittorrent': '5'
         }[service] * 32,
         'serviceRevision': revision,
+        'snapshotRevision': snapshot_revision,
         'installationId': INSTALLATION,
         'installationRevision': 11,
         'state': state,
@@ -148,6 +150,25 @@ def test_unmonitored_missing_and_unproven_download_never_become_actions():
     assert result.cleanupAvailable is False
 
 
+def test_verified_saving_candidate_alone_requires_attention_without_cleanup():
+    qbt = QbittorrentArchiveSnapshot(
+        **binding('qbittorrent'),
+        items=[QbittorrentArchiveItem(
+            torrentId='e' * 40, mediaKey='movie:tmdb:603',
+            title='Imported download', contentBytes=99_000, state='complete',
+            importedConfirmed=True, retentionPolicySatisfied=True)],
+    )
+    result = build_media_archive_health(MediaArchiveObservation(
+        jellyfin=JellyfinArchiveSnapshot(**binding('jellyfin'), items=[]),
+        sonarr=ArrArchiveSnapshot(**binding('sonarr'), items=[]),
+        radarr=ArrArchiveSnapshot(**binding('radarr'), items=[]),
+        qbittorrent=qbt,
+    ), now=1_788_609_610)
+    assert result.state == 'attention'
+    assert result.counts.potentialSavingBytes == 99_000
+    assert result.cleanupAvailable is False
+
+
 @pytest.mark.parametrize('change', [
     {'token': 'secret'},
     {'items': [{'itemId': 'a' * 32, 'mediaKey': 'movie:tmdb:603',
@@ -170,7 +191,7 @@ def test_duplicate_ids_cross_source_revision_or_future_observation_fail_closed()
             **binding('jellyfin'), items=[duplicate, duplicate])
 
     changed = ArrArchiveSnapshot(
-        **binding('sonarr', revision=8), items=[])
+        **binding('sonarr', snapshot_revision=8), items=[])
     with pytest.raises(ValueError, match='archive_authority_changed'):
         build_media_archive_health(
             observation(sonarr=changed), now=1_788_609_610)
