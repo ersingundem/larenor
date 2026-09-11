@@ -343,7 +343,7 @@ void main() {
         find.byKey(ValueKey('today-summary-detail-$kind')),
         findsOneWidget,
       );
-      expect(find.byType(CupertinoSearchTextField), findsNothing);
+      expect(find.byType(CupertinoSearchTextField), findsOneWidget);
     }
     expect(tester.takeException(), isNull);
   });
