@@ -65,5 +65,9 @@ Widget _buildTileContent(TileConfig tile) {
     TileType.keenetic => KeeneticTile(tile: tile),
     TileType.coreKeenetic => CoreKeeneticTile(tile: tile),
     TileType.today => TodayTile(tile: tile),
+    TileType.coreKeeneticDetails => CoreKeeneticDetailsTile(tile: tile),
+    TileType.coreKeeneticMesh => CoreKeeneticMeshTile(tile: tile),
+    TileType.coreKeeneticClients => CoreKeeneticClientsTile(tile: tile),
+    TileType.coreKeeneticBandwidth => CoreKeeneticBandwidthTile(tile: tile),
   };
 }

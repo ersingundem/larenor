@@ -317,6 +317,38 @@ void main() {
         find.byKey(const ValueKey('widget-kind-coreKeenetic')),
         findsOneWidget,
       );
+      await tester.scrollUntilVisible(
+        find.byKey(const ValueKey('widget-kind-coreKeeneticDetails')),
+        250,
+      );
+      expect(
+        find.byKey(const ValueKey('widget-kind-coreKeeneticDetails')),
+        findsOneWidget,
+      );
+      await tester.scrollUntilVisible(
+        find.byKey(const ValueKey('widget-kind-coreKeeneticMesh')),
+        250,
+      );
+      expect(
+        find.byKey(const ValueKey('widget-kind-coreKeeneticMesh')),
+        findsOneWidget,
+      );
+      await tester.scrollUntilVisible(
+        find.byKey(const ValueKey('widget-kind-coreKeeneticClients')),
+        250,
+      );
+      expect(
+        find.byKey(const ValueKey('widget-kind-coreKeeneticClients')),
+        findsOneWidget,
+      );
+      await tester.scrollUntilVisible(
+        find.byKey(const ValueKey('widget-kind-coreKeeneticBandwidth')),
+        250,
+      );
+      expect(
+        find.byKey(const ValueKey('widget-kind-coreKeeneticBandwidth')),
+        findsOneWidget,
+      );
     },
   );
   testWidgets('Today creates a passive tablet summary draft', (tester) async {

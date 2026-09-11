@@ -307,6 +307,50 @@ class CoreServices:
             self.media_archive_health = MediaArchiveHealthManagement(
                 self.db, self.auth, settings, self.media_installations,
                 self._media_archive_binding_reader, self._media_archive_worker)
+            self.keenetic_command_journal = KeeneticCommandJournal(
+                self.db, self.auth, settings, key, self.context
+            )
+            self.keenetic_command_journal.validate_storage()
+
+            def keenetic_actor_revision(actor):
+                with self.db.connection() as connection:
+                    self.auth.assert_current(connection, actor)
+                    row = connection.execute(
+                        "SELECT revision FROM users WHERE id=?", (actor.id,)
+                    ).fetchone()
+                    if row is None:
+                        raise ValueError("missing_actor")
+                    return row["revision"]
+
+            def keenetic_authorize(actor, target, action):
+                self.home_resources.authorize(
+                    actor,
+                    target.coreId,
+                    target.homeId,
+                    target.resourceId,
+                    action,
+                    expected_revision=target.resourceRevision,
+                    expected_acl_revision=target.aclRevision,
+                    expected_user_revision=keenetic_actor_revision(actor),
+                )
+
+            keenetic_effect = build_keenetic_worker_effect(
+                settings, self.services, self.component_egress
+            )
+            self.keenetic_command_provider = KeeneticCommandStateProvider(
+                self.keenetic_resources,
+                authorize=keenetic_authorize,
+                actor_revision=keenetic_actor_revision,
+                egress=self.component_egress,
+            )
+            self.keenetic_commands = KeeneticCommandAuthority(
+                authorize=keenetic_authorize,
+                observe=self.keenetic_command_provider,
+                effect=keenetic_effect,
+                actor_revision=keenetic_actor_revision,
+                journal=self.keenetic_command_journal,
+                wall_clock=settings.clock,
+            )
             self.clear_inactive_bootstrap()
 
     def clear_inactive_bootstrap(self) -> None:

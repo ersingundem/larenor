@@ -28,6 +28,10 @@ enum TileType {
   keenetic,
   coreKeenetic,
   today,
+  coreKeeneticDetails,
+  coreKeeneticMesh,
+  coreKeeneticClients,
+  coreKeeneticBandwidth,
 }
 
 @freezed

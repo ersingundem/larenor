@@ -38,8 +38,11 @@ class CoreKeeneticController extends ChangeNotifier {
   int epoch = 0;
   bool busy = false, loaded = false, stale = false, saved = false;
   String? failure;
+  String? topologyFailure;
   HomeResourceRecord? record;
   CoreKeeneticSnapshot? snapshot;
+  CoreKeeneticDetailsPage? details;
+  CoreKeeneticTopologySnapshot? topology;
   CoreKeeneticBinding? binding;
   CoreKeeneticPreview? preview;
   List<ServerService> services = const [];
@@ -102,6 +105,9 @@ class CoreKeeneticController extends ChangeNotifier {
     _ttl = null;
     record = null;
     snapshot = null;
+    details = null;
+    topology = null;
+    topologyFailure = null;
     binding = null;
     preview = null;
     services = const [];
@@ -230,14 +236,57 @@ class CoreKeeneticController extends ChangeNotifier {
         services = await api(next).services();
         if (binding != null) {
           snapshot = await api(next).snapshot();
+          details = await api(next).details();
+          await _readTopology(api(next));
         }
       } else {
         snapshot = await api(next).snapshot();
+        details = await api(next).details();
+        await _readTopology(api(next));
       }
       loaded = true;
       if (snapshot != null) {
         _arm(snapshot!.remainingTtlMs);
       }
+    });
+  }
+
+  Future<void> _readTopology(CoreKeeneticApi api) async {
+    try {
+      topology = await api.topology();
+    } on LarenorServerException catch (error) {
+      if (!const {
+        'keenetic_snapshot_unsupported',
+        'keenetic_upstream_unavailable',
+        'keenetic_upstream_denied',
+        'keenetic_upstream_unauthorized',
+      }.contains(error.code)) {
+        rethrow;
+      }
+      topology = null;
+      topologyFailure = error.code;
+    }
+  }
+
+  Future<void> loadMoreDetails() async {
+    final expectedRecord = record, currentPage = details;
+    if (!fresh ||
+        busy ||
+        stale ||
+        expectedRecord == null ||
+        currentPage?.nextAfter == null) {
+      return;
+    }
+    await _run((api) async {
+      if (record != expectedRecord || details != currentPage) {
+        throw const LarenorServerException('cancelled');
+      }
+      final next = await api(expectedRecord).details(
+        after: currentPage!.nextAfter,
+        expectedSnapshot: currentPage.snapshot,
+      );
+      details = currentPage.append(next);
+      loaded = true;
     });
   }
 

@@ -6,6 +6,8 @@ from ..home_resources.models import FrozenModel, Identity, ResourceRef, Revision
 
 SafeName = Annotated[str, Field(min_length=1, max_length=128)]
 Counter = Annotated[int, Field(ge=0, le=2**63 - 1)]
+WifiBand = Literal["2.4", "5", "6"]
+SignalDbm = Annotated[int, Field(ge=-127, le=0)]
 
 
 def _safe(value):
@@ -49,6 +51,12 @@ class RouterStatus(FrozenModel):
     publicIp: IPvAnyAddress | None
     uptimeSeconds: Counter
     firmware: str | None = Field(default=None, max_length=80)
+    firmwareRevision: Revision | None = Field(
+        default=None, exclude_if=lambda value: value is None
+    )
+    statusRevision: Revision | None = Field(
+        default=None, exclude_if=lambda value: value is None
+    )
     cpuPercent: Annotated[float, Field(ge=0, le=100)] | None
     memoryPercent: Annotated[float, Field(ge=0, le=100)] | None
 
@@ -63,8 +71,23 @@ class InterfaceTelemetry(FrozenModel):
     address: str | None = Field(default=None, max_length=64)
     rxBytes: Counter
     txBytes: Counter
+    guest: bool | None = Field(default=None, exclude_if=lambda value: value is None)
+    ssid: str | None = Field(default=None, max_length=64, exclude_if=lambda value: value is None)
+    band: WifiBand | None = Field(default=None, exclude_if=lambda value: value is None)
+    channel: Annotated[int, Field(ge=1, le=233)] | None = Field(
+        default=None, exclude_if=lambda value: value is None
+    )
+    signalDbm: SignalDbm | None = Field(default=None, exclude_if=lambda value: value is None)
 
-    _id = field_validator("id", "name", "address")(_safe)
+    _id = field_validator("id", "name", "address", "ssid")(_safe)
+
+    @model_validator(mode="after")
+    def wifi_metadata_only(self):
+        if self.kind != "wifi" and any(
+            value is not None for value in (self.ssid, self.band, self.channel, self.signalDbm)
+        ):
+            raise ValueError("unexpected_wifi_metadata")
+        return self
 
 
 class TrafficTelemetry(FrozenModel):
@@ -83,6 +106,11 @@ class HostTelemetry(FrozenModel):
     interfaceId: SafeName
     online: bool
     registered: bool
+    internetAccess: Literal["allowed", "paused"] | None = Field(
+        default=None, exclude_if=lambda value: value is None
+    )
+    band: WifiBand | None = Field(default=None, exclude_if=lambda value: value is None)
+    signalDbm: SignalDbm | None = Field(default=None, exclude_if=lambda value: value is None)
 
     _text = field_validator("id", "name", "ipAddress", "interfaceId")(_safe)
 
@@ -133,3 +161,135 @@ class ResourceSnapshot(FrozenModel):
 
 class SnapshotResponse(FrozenModel):
     snapshot: ResourceSnapshot
+
+
+class InterfaceDetail(FrozenModel):
+    kind: Literal["interface"] = "interface"
+    id: SafeName
+    name: SafeName
+    interfaceKind: Literal["wan", "lan", "wifi", "vpn", "other"]
+    online: bool
+    address: str | None = Field(default=None, max_length=64)
+    rxBytes: Counter
+    txBytes: Counter
+    guest: bool | None = None
+    ssid: str | None = Field(default=None, max_length=64)
+    band: WifiBand | None = None
+    channel: Annotated[int, Field(ge=1, le=233)] | None = None
+    signalDbm: SignalDbm | None = None
+
+    _safe_text = field_validator("id", "name", "address", "ssid")(_safe)
+
+    @model_validator(mode="after")
+    def wifi_metadata_only(self):
+        if self.interfaceKind != "wifi" and any(
+            value is not None for value in (self.ssid, self.band, self.channel, self.signalDbm)
+        ):
+            raise ValueError("unexpected_wifi_metadata")
+        return self
+
+
+class ClientDetail(FrozenModel):
+    kind: Literal["client"] = "client"
+    id: str = Field(min_length=16, max_length=16, pattern=r"^[0-9a-f]{16}$")
+    name: SafeName
+    ipAddress: str = Field(min_length=2, max_length=64)
+    macHash: str = Field(min_length=16, max_length=16, pattern=r"^[0-9a-f]{16}$")
+    interfaceId: SafeName
+    online: bool
+    registered: bool
+    internetAccess: Literal["allowed", "paused"] | None = None
+    band: WifiBand | None = None
+    signalDbm: SignalDbm | None = None
+
+    _safe_text = field_validator("name", "ipAddress", "interfaceId")(_safe)
+
+    @model_validator(mode="after")
+    def stable_private_identity(self):
+        if self.id != self.macHash:
+            raise ValueError("identity_mismatch")
+        return self
+
+
+class DetailsPage(FrozenModel):
+    entries: list[InterfaceDetail | ClientDetail] = Field(max_length=100)
+    snapshot: str = Field(min_length=64, max_length=64, pattern=r"^[0-9a-f]{64}$")
+    nextAfter: str | None = Field(
+        default=None, min_length=64, max_length=64, pattern=r"^[0-9a-f]{64}$"
+    )
+
+
+class MeshNode(FrozenModel):
+    id: str = Field(min_length=16, max_length=16, pattern=r"^[0-9a-f]{16}$")
+    name: SafeName
+    model: SafeName
+    role: Literal["controller", "extender"]
+    online: bool
+    parentId: str | None = Field(
+        default=None, min_length=16, max_length=16, pattern=r"^[0-9a-f]{16}$"
+    )
+    backhaulType: Literal["ethernet", "wifi_2_4", "wifi_5", "wifi_6", "unknown"] | None
+    backhaulQuality: Literal["excellent", "good", "fair", "poor", "unknown"] | None
+    pathCost: Annotated[int, Field(ge=1, le=65535)] | None
+
+    _safe_text = field_validator("name", "model")(_safe)
+
+    @model_validator(mode="after")
+    def exact_role(self):
+        dependent = (self.parentId, self.backhaulType, self.backhaulQuality, self.pathCost)
+        if self.role == "controller" and any(value is not None for value in dependent):
+            raise ValueError("controller_has_parent")
+        if self.role == "extender" and any(value is None for value in dependent):
+            raise ValueError("extender_missing_parent")
+        return self
+
+
+class WifiDistribution(FrozenModel):
+    id: SafeName
+    ssid: str = Field(min_length=1, max_length=64)
+    band: WifiBand
+    channel: Annotated[int, Field(ge=1, le=233)]
+    clientCount: Annotated[int, Field(ge=0, le=512)]
+    online: bool
+
+    _safe_text = field_validator("id", "ssid")(_safe)
+
+
+class MeshTopology(FrozenModel):
+    nodes: list[MeshNode] = Field(min_length=1, max_length=64)
+    networks: list[WifiDistribution] = Field(max_length=64)
+
+    @model_validator(mode="after")
+    def exact_graph(self):
+        ids = [node.id for node in self.nodes]
+        if len(set(ids)) != len(ids) or sum(node.role == "controller" for node in self.nodes) != 1:
+            raise ValueError("invalid_topology")
+        known = set(ids)
+        if any(node.parentId is not None and node.parentId not in known for node in self.nodes):
+            raise ValueError("unknown_parent")
+        if len({network.id for network in self.networks}) != len(self.networks):
+            raise ValueError("duplicate_network")
+        return self
+
+
+class TopologySnapshot(FrozenModel):
+    ref: ResourceRef
+    bindingId: Identity
+    bindingRevision: Revision
+    serviceId: Identity
+    serviceRevision: Revision
+    resourceRevision: Revision
+    aclRevision: Revision
+    observedAt: str
+    remainingTtlMs: Annotated[int, Field(ge=0, le=5000)]
+    nodes: list[MeshNode] = Field(min_length=1, max_length=64)
+    networks: list[WifiDistribution] = Field(max_length=64)
+
+    @model_validator(mode="after")
+    def exact_graph(self):
+        MeshTopology(nodes=self.nodes, networks=self.networks)
+        return self
+
+
+class TopologyResponse(FrozenModel):
+    topology: TopologySnapshot

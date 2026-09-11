@@ -480,6 +480,7 @@ void main() {
       await tester.pump();
     }
 
+    expect(find.text('Data read successfully'), findsOneWidget);
     expect(find.textContaining('pve-a'), findsOneWidget);
     expect(
       paths.where((path) => path.contains('/home-resources/')),
@@ -490,6 +491,8 @@ void main() {
     await account.signOut();
     await tester.pump();
     expect(find.textContaining('pve-a'), findsNothing);
+    expect(find.text('Saved connection'), findsOneWidget);
+    expect(find.text('Not yet verified'), findsOneWidget);
     expect(
       find.text('A verified, unlocked Core session is required.'),
       findsOneWidget,

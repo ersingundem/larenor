@@ -42,7 +42,7 @@ class QbittorrentTile extends ConsumerWidget {
       icon: CupertinoIcons.arrow_down_circle,
       service: AppService.qbittorrent,
       title: 'qBittorrent',
-      connected: connected || connection.isLoading || connection.hasError,
+      connected: connected,
       onTap: () {
         if (context.mounted) context.push('/system/qbittorrent');
       },
