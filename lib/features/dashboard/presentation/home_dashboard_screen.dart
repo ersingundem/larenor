@@ -812,7 +812,13 @@ class _HomeDashboardScreenState
           }
         });
         closeAccount = subscription.close;
-      } else if (tile.type == TileType.coreKeenetic) {
+      } else if (const {
+        TileType.coreKeenetic,
+        TileType.coreKeeneticDetails,
+        TileType.coreKeeneticMesh,
+        TileType.coreKeeneticClients,
+        TileType.coreKeeneticBandwidth,
+      }.contains(tile.type)) {
         final home = ref.read(homeSessionControllerProvider),
             session = home?.account.session;
         if (home == null ||

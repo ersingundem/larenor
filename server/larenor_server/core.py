@@ -67,6 +67,11 @@ from .proxmox_commands.schema import migrate as migrate_proxmox_power
 from .proxmox_commands.service import ProxmoxPowerAuthority
 from .proxmox_commands.worker_ipc import verified_power_worker_client
 from .proxmox_commands.core_worker import EgressGatedProxmoxExecutor
+from .keenetic_commands.schema import migrate as migrate_keenetic_commands
+from .keenetic_commands.journal import KeeneticCommandJournal, state_tag as keenetic_state_tag
+from .keenetic_commands.service import KeeneticCommandAuthority
+from .keenetic_commands.core_worker import build_keenetic_worker_effect
+from .keenetic_commands.provider import KeeneticCommandStateProvider
 
 
 class CoreServices:
@@ -192,6 +197,14 @@ class CoreServices:
                 migrate_music_provider_commands(connection)
                 migrate_music_playback(connection)
                 migrate_proxmox_power(connection, key)
+                migrate_keenetic_commands(
+                    connection,
+                    key,
+                    self.context,
+                    lambda scope, chain, sequence, head: keenetic_state_tag(
+                        scope, chain, sequence, head, key
+                    ),
+                )
             if not existed:
                 # Only publish the DB after its complete first transaction commits.
                 # Never expose an empty DB that a restart might treat as a reset.
@@ -295,6 +308,50 @@ class CoreServices:
                 self.db, self.auth, settings, key, self.music_assistant_core,
                 self.music_provider_setups, installation_backend)
             self.music_playback.validate_storage()
+            self.keenetic_command_journal = KeeneticCommandJournal(
+                self.db, self.auth, settings, key, self.context
+            )
+            self.keenetic_command_journal.validate_storage()
+
+            def keenetic_actor_revision(actor):
+                with self.db.connection() as connection:
+                    self.auth.assert_current(connection, actor)
+                    row = connection.execute(
+                        "SELECT revision FROM users WHERE id=?", (actor.id,)
+                    ).fetchone()
+                    if row is None:
+                        raise ValueError("missing_actor")
+                    return row["revision"]
+
+            def keenetic_authorize(actor, target, action):
+                self.home_resources.authorize(
+                    actor,
+                    target.coreId,
+                    target.homeId,
+                    target.resourceId,
+                    action,
+                    expected_revision=target.resourceRevision,
+                    expected_acl_revision=target.aclRevision,
+                    expected_user_revision=keenetic_actor_revision(actor),
+                )
+
+            keenetic_effect = build_keenetic_worker_effect(
+                settings, self.services, self.component_egress
+            )
+            self.keenetic_command_provider = KeeneticCommandStateProvider(
+                self.keenetic_resources,
+                authorize=keenetic_authorize,
+                actor_revision=keenetic_actor_revision,
+                egress=self.component_egress,
+            )
+            self.keenetic_commands = KeeneticCommandAuthority(
+                authorize=keenetic_authorize,
+                observe=self.keenetic_command_provider,
+                effect=keenetic_effect,
+                actor_revision=keenetic_actor_revision,
+                journal=self.keenetic_command_journal,
+                wall_clock=settings.clock,
+            )
             self.clear_inactive_bootstrap()
 
     def clear_inactive_bootstrap(self) -> None:

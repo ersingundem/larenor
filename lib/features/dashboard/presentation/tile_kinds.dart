@@ -169,6 +169,34 @@ const serviceTileKinds = {
     width: 3,
     height: 2,
   ),
+  TileType.coreKeeneticDetails: TileKindInfo(
+    'Core Keenetic devices',
+    CupertinoIcons.list_bullet,
+    CupertinoColors.systemTeal,
+    width: 3,
+    height: 2,
+  ),
+  TileType.coreKeeneticMesh: TileKindInfo(
+    'Core Keenetic mesh',
+    CupertinoIcons.dot_radiowaves_left_right,
+    CupertinoColors.systemIndigo,
+    width: 3,
+    height: 2,
+  ),
+  TileType.coreKeeneticClients: TileKindInfo(
+    'Core Keenetic clients',
+    CupertinoIcons.device_laptop,
+    CupertinoColors.systemGreen,
+    width: 3,
+    height: 2,
+  ),
+  TileType.coreKeeneticBandwidth: TileKindInfo(
+    'Core Keenetic bandwidth',
+    CupertinoIcons.speedometer,
+    CupertinoColors.systemPurple,
+    width: 3,
+    height: 2,
+  ),
 };
 
 /// Which summary tile represents each optional service, so the dashboard's
@@ -239,6 +267,14 @@ String tileTypeLabel(BuildContext context, TileType type) {
       return l10n.dashboardTileKeenetic;
     case TileType.coreKeenetic:
       return l10n.dashboardTileCoreKeenetic;
+    case TileType.coreKeeneticDetails:
+      return l10n.coreKeeneticDetailsTitle;
+    case TileType.coreKeeneticMesh:
+      return l10n.coreKeeneticMeshTitle;
+    case TileType.coreKeeneticClients:
+      return l10n.keeneticConnectedDevices;
+    case TileType.coreKeeneticBandwidth:
+      return '${l10n.keeneticDownloadRate} / ${l10n.keeneticUploadRate}';
     case TileType.webview:
       return l10n.dashboardTileWebview;
   }

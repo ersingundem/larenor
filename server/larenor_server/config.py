@@ -25,29 +25,60 @@ class Settings:
     proxmox_power_worker_socket: Path | None = None
     proxmox_power_worker_health: Path | None = None
     proxmox_power_worker_uid: int = 0
+    keenetic_worker_socket: Path | None = None
+    keenetic_worker_health: Path | None = None
+    keenetic_worker_key_file: Path | None = None
+    keenetic_worker_uid: int = 0
 
     def __post_init__(self):
-        if (type(self.plugin_worker_uid) is not int or not 0 <= self.plugin_worker_uid < 2**31
-                or type(self.installation_worker_uid) is not int
-                or not 0 <= self.installation_worker_uid < 2**31
-                or type(self.proxmox_power_worker_uid) is not int
-                or not 0 <= self.proxmox_power_worker_uid < 2**31):
+        worker_uids = (
+            self.plugin_worker_uid,
+            self.installation_worker_uid,
+            self.proxmox_power_worker_uid,
+            self.keenetic_worker_uid,
+        )
+        if any(
+            type(value) is not int or not 0 <= value < 2**31
+            for value in worker_uids
+        ):
             raise ValueError("invalid_worker_configuration")
-        worker_paths = (
-            self.plugin_worker_socket,
-            self.installation_worker_socket,
+        proxmox_paths = (
             self.proxmox_power_worker_socket,
             self.proxmox_power_worker_health,
         )
-        for path in worker_paths:
-            if path is not None and (not isinstance(path, Path) or not path.is_absolute()
-                    or ".." in path.parts or any(ord(char) < 32 or ord(char) == 127 for char in str(path))):
-                raise ValueError("invalid_worker_configuration")
-        if ((self.proxmox_power_worker_socket is None)
-                != (self.proxmox_power_worker_health is None)):
+        if any(path is not None for path in proxmox_paths) and any(
+            path is None for path in proxmox_paths
+        ):
             raise ValueError("invalid_worker_configuration")
-        selected = [path for path in worker_paths if path is not None]
-        if len(selected) != len(set(selected)):
+        keenetic_paths = (
+            self.keenetic_worker_socket,
+            self.keenetic_worker_health,
+            self.keenetic_worker_key_file,
+        )
+        if any(path is not None for path in keenetic_paths) and any(
+            path is None for path in keenetic_paths
+        ):
+            raise ValueError("invalid_worker_configuration")
+        paths = (
+            self.plugin_worker_socket,
+            self.installation_worker_socket,
+            *proxmox_paths,
+            *keenetic_paths,
+        )
+        for path in paths:
+            if path is not None and (
+                not isinstance(path, Path)
+                or not path.is_absolute()
+                or ".." in path.parts
+                or any(ord(char) < 32 or ord(char) == 127 for char in str(path))
+            ):
+                raise ValueError("invalid_worker_configuration")
+        configured = [path for path in paths if path is not None]
+        if len(set(configured)) != len(configured):
+            raise ValueError("invalid_worker_configuration")
+        if any(path == self.key_file for path in configured):
+            raise ValueError("invalid_worker_configuration")
+        if any(path.is_relative_to(self.data_dir) for path in keenetic_paths if path):
             raise ValueError("invalid_worker_configuration")
 
     @property
@@ -74,6 +105,21 @@ class Settings:
                 proxmox_power_worker_health=Path(os.environ["LARENOR_PROXMOX_POWER_WORKER_HEALTH"]
                                                  ) if os.environ.get("LARENOR_PROXMOX_POWER_WORKER_HEALTH") else None,
                 proxmox_power_worker_uid=int(os.environ.get("LARENOR_PROXMOX_POWER_WORKER_UID", "0")),
+                keenetic_worker_socket=(
+                    Path(os.environ["LARENOR_KEENETIC_WORKER_SOCKET"])
+                    if os.environ.get("LARENOR_KEENETIC_WORKER_SOCKET") else None
+                ),
+                keenetic_worker_health=(
+                    Path(os.environ["LARENOR_KEENETIC_WORKER_HEALTH"])
+                    if os.environ.get("LARENOR_KEENETIC_WORKER_HEALTH") else None
+                ),
+                keenetic_worker_key_file=(
+                    Path(os.environ["LARENOR_KEENETIC_WORKER_KEY_FILE"])
+                    if os.environ.get("LARENOR_KEENETIC_WORKER_KEY_FILE") else None
+                ),
+                keenetic_worker_uid=int(
+                    os.environ.get("LARENOR_KEENETIC_WORKER_UID", "0")
+                ),
             )
         except ValueError:
             # int() errors include their input. Environment values must never

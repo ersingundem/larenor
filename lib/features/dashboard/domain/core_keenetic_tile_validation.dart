@@ -11,7 +11,14 @@ const _fields = {
 /// A Core card is a capability reference, never a router credential or URL.
 bool hasValidCoreKeeneticTileFields(Map<String, dynamic> tile) {
   final present = _fields.where((field) => tile[field] != null).length;
-  if (tile['type'] != 'coreKeenetic') return present == 0;
+  const types = {
+    'coreKeenetic',
+    'coreKeeneticDetails',
+    'coreKeeneticMesh',
+    'coreKeeneticClients',
+    'coreKeeneticBandwidth',
+  };
+  if (!types.contains(tile['type'])) return present == 0;
   if (present != _fields.length ||
       tile['entityId'] != null ||
       tile['url'] != null ||

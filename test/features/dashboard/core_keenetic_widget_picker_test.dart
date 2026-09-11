@@ -45,67 +45,85 @@ final draft = TileConfig(
 );
 
 void main() {
-  testWidgets('tablet picker returns only the verified Core draft', (
-    tester,
-  ) async {
-    tester.view.physicalSize = const Size(1180, 900);
-    tester.view.devicePixelRatio = 1;
-    addTearDown(tester.view.reset);
-    final results = <TileConfig>[];
-    final container = ProviderContainer(
-      overrides: [
-        coreKeeneticDashboardResourcesProvider.overrideWith(
-          (_) async => [resource],
-        ),
-        coreKeeneticDashboardDraftProvider.overrideWith((_, target) async {
-          expect(identical(target, resource), isTrue);
-          return draft;
-        }),
-      ],
-    );
-    addTearDown(container.dispose);
-    await tester.pumpWidget(
-      UncontrolledProviderScope(
-        container: container,
-        child: CupertinoApp(
-          locale: const Locale('en'),
-          localizationsDelegates: AppLocalizations.localizationsDelegates,
-          supportedLocales: AppLocalizations.supportedLocales,
-          builder: (context, child) => MediaQuery(
-            data: MediaQuery.of(context)
-                .copyWith(textScaler: const TextScaler.linear(2)),
-            child: child!,
+  for (final type in [
+    TileType.coreKeenetic,
+    TileType.coreKeeneticDetails,
+    TileType.coreKeeneticMesh,
+    TileType.coreKeeneticClients,
+    TileType.coreKeeneticBandwidth,
+  ]) {
+    testWidgets('tablet picker returns verified ${type.name} draft', (
+      tester,
+    ) async {
+      tester.view.physicalSize = const Size(1180, 900);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      final results = <TileConfig>[];
+      final expected = draft.copyWith(type: type);
+      final container = ProviderContainer(
+        overrides: [
+          coreKeeneticDashboardResourcesProvider.overrideWith(
+            (_) async => [resource],
           ),
-          home: Builder(
-            builder: (context) => CupertinoPageScaffold(
-              child: CupertinoButton(
-                child: const Text('Open'),
-                onPressed: () async {
-                  final value = await Navigator.of(context).push<TileConfig>(
-                    CupertinoPageRoute(
-                      builder: (_) => const CoreKeeneticWidgetPickerScreen(),
-                    ),
-                  );
-                  if (value != null) results.add(value);
-                },
+          coreKeeneticDashboardDraftProvider.overrideWith((_, target) async {
+            expect(identical(target, resource), isTrue);
+            return expected;
+          }),
+          coreKeeneticDashboardVariantDraftProvider.overrideWith((
+            _,
+            selection,
+          ) async {
+            expect(identical(selection.target, resource), isTrue);
+            expect(selection.type, type);
+            return expected;
+          }),
+        ],
+      );
+      addTearDown(container.dispose);
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: CupertinoApp(
+            locale: const Locale('en'),
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            builder: (context, child) => MediaQuery(
+              data: MediaQuery.of(context)
+                  .copyWith(textScaler: const TextScaler.linear(2)),
+              child: child!,
+            ),
+            home: Builder(
+              builder: (context) => CupertinoPageScaffold(
+                child: CupertinoButton(
+                  child: const Text('Open'),
+                  onPressed: () async {
+                    final value = await Navigator.of(context).push<TileConfig>(
+                      CupertinoPageRoute(
+                        builder: (_) =>
+                            CoreKeeneticWidgetPickerScreen(tileType: type),
+                      ),
+                    );
+                    if (value != null) results.add(value);
+                  },
+                ),
               ),
             ),
           ),
         ),
-      ),
-    );
-    await tester.tap(find.text('Open'));
-    await tester.pumpAndSettle();
-    final choice = find.byKey(ValueKey('core-keenetic-pick-${resource.id}'));
-    expect(choice, findsOneWidget);
-    expect(
-      tester.widget<CupertinoButton>(choice).minimumSize,
-      const Size(48, 48),
-    );
-    await tester.ensureVisible(choice);
-    await tester.tap(choice);
-    await tester.pumpAndSettle();
-    expect(results, [draft]);
-    expect(tester.takeException(), isNull);
-  });
+      );
+      await tester.tap(find.text('Open'));
+      await tester.pumpAndSettle();
+      final choice = find.byKey(ValueKey('core-keenetic-pick-${resource.id}'));
+      expect(choice, findsOneWidget);
+      expect(
+        tester.widget<CupertinoButton>(choice).minimumSize,
+        const Size(48, 48),
+      );
+      await tester.ensureVisible(choice);
+      await tester.tap(choice);
+      await tester.pumpAndSettle();
+      expect(results, [expected]);
+      expect(tester.takeException(), isNull);
+    });
+  }
 }
