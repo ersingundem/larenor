@@ -344,7 +344,28 @@ void main() {
         findsOneWidget,
       );
       expect(find.byType(CupertinoSearchTextField), findsOneWidget);
+      if (kind == 'calendar') {
+        expect(
+          find.byKey(const ValueKey('today-calendar-summary')),
+          findsOneWidget,
+        );
+        await tester.enterText(
+          find.byKey(const ValueKey('today-calendar-search')),
+          'dentist',
+        );
+      }
     }
+    await _tap(tester, 'today-summary-section-calendar');
+    expect(
+      tester
+          .widget<CupertinoSearchTextField>(
+            find.byKey(const ValueKey('today-calendar-search')),
+          )
+          .controller
+          ?.text,
+      'dentist',
+    );
+    expect(find.byKey(const ValueKey('today-calendar-create')), findsNothing);
     expect(tester.takeException(), isNull);
   });
 
