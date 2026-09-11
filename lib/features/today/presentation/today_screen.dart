@@ -140,6 +140,7 @@ class _TodayScreenState extends TodayConsumerState<TodayScreen> {
 
   bool _notificationsWritable(TodaySnapshot snapshot) =>
       snapshot.configured &&
+      !snapshot.retained &&
       snapshot.notifications.value != null &&
       snapshot.notifications.issue == null &&
       !snapshot.issues.any(
@@ -263,13 +264,24 @@ class _TodayScreenState extends TodayConsumerState<TodayScreen> {
                         ),
                         style: AppText.footnote,
                       ),
+                      if (snapshot.retained)
+                        Text(
+                          l10n.todayStale,
+                          key: const ValueKey('today-retained-status'),
+                          style: AppText.headline,
+                        ),
                       CupertinoButton(
+                        key: const ValueKey('today-refresh'),
                         padding: const EdgeInsets.symmetric(vertical: 8),
                         onPressed: _pending.contains('refresh')
                             ? null
                             : _refresh,
                         child: _pending.contains('refresh')
-                            ? const CupertinoActivityIndicator()
+                            ? Semantics(
+                                liveRegion: true,
+                                label: l10n.todayRefreshing,
+                                child: const CupertinoActivityIndicator(),
+                              )
                             : Text(l10n.commonRefresh),
                       ),
                       if (snapshot.issues.isNotEmpty) ...[

@@ -138,6 +138,7 @@ class TodaySnapshot {
   const TodaySnapshot({
     required this.configured,
     required this.refreshedAt,
+    this.retained = false,
     this.timeZone,
     this.dayStart,
     this.dayEnd,
@@ -147,6 +148,7 @@ class TodaySnapshot {
     this.issues = const [],
   });
   final bool configured;
+  final bool retained;
   final DateTime refreshedAt;
   final String? timeZone;
   final DateTime? dayStart;
@@ -161,6 +163,7 @@ class TodaySnapshot {
     List<TodayIssue>? issues,
   }) => TodaySnapshot(
     configured: configured,
+    retained: retained,
     refreshedAt: refreshedAt,
     timeZone: timeZone,
     dayStart: dayStart,
@@ -170,6 +173,46 @@ class TodaySnapshot {
     notifications: value,
     issues: issues ?? this.issues,
   );
+
+  TodaySnapshot asRetained() {
+    TodayRead<T> stale<T>(TodayRead<T> read, TodaySource source) => TodayRead(
+      value: read.value,
+      readAt: read.readAt,
+      issue:
+          read.issue ??
+          (read.value == null
+              ? null
+              : TodayIssue(source, TodayFailure.unavailable)),
+    );
+    return TodaySnapshot(
+      configured: configured,
+      retained: true,
+      refreshedAt: refreshedAt,
+      timeZone: timeZone,
+      dayStart: dayStart,
+      dayEnd: dayEnd,
+      todoLists: List.unmodifiable([
+        for (final list in todoLists)
+          TodayTodoList(
+            entityId: list.entityId,
+            title: list.title,
+            supportedFeatures: list.supportedFeatures,
+            available: false,
+            items: stale(list.items, TodaySource.todos),
+          ),
+      ]),
+      calendars: List.unmodifiable([
+        for (final calendar in calendars)
+          TodayCalendar(
+            entityId: calendar.entityId,
+            title: calendar.title,
+            events: stale(calendar.events, TodaySource.calendars),
+          ),
+      ]),
+      notifications: stale(notifications, TodaySource.notifications),
+      issues: issues,
+    );
+  }
 }
 
 class TodayException implements Exception {
