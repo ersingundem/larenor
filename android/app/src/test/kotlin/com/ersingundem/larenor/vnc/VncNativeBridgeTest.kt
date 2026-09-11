@@ -256,4 +256,37 @@ class VncNativeBridgeTest {
         )
         bridge.dispose()
     }
+
+    @Test
+    fun clipboardCannotEscalatePastTheExplicitSessionRequest() {
+        val messenger = Messenger()
+        val session = Session()
+        val backend = object : VncNativeBackend {
+            override fun capabilities() = VncNativeCapabilities.parse(
+                availableCapabilities(clipboard = true),
+            )
+            override fun open(
+                request: VncNativeRequest,
+                plan: VncNativePlan,
+                secrets: VncNativeSecrets,
+            ): VncNativeSession = session
+        }
+        val bridge = VncNativeBridge(messenger, VncNativeAdapter(backend))
+        bridge.setResumed(true)
+        bridge.onMethodCall(MethodCall("activate", binding()), Result())
+        bridge.onMethodCall(MethodCall("open", mapOf(
+            "binding" to binding(), "request" to request(clipboard = false),
+            "expectedEngineRevision" to "rfb-fixture-1",
+            "password" to "secret".encodeToByteArray(),
+        )), Result())
+        val denied = Result()
+        bridge.onMethodCall(MethodCall("input", mapOf(
+            "binding" to binding(), "sequence" to 1L,
+            "event" to mapOf("kind" to "clipboard", "text" to "private"),
+        )), denied)
+        assertEquals("inputUnavailable", denied.error)
+        assertNull(session.lastInput)
+        assertEquals(1, session.closes)
+        bridge.dispose()
+    }
 }

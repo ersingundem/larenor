@@ -243,6 +243,9 @@ class VncNativeBridge(
         if (sequence != lastInputSequence + 1) failBridge("staleSession")
         val interactive = session as? VncNativeInputSession ?: failBridge("inputUnavailable")
         val event = parseInput(value["event"])
+        if (event["kind"] == "clipboard" && request?.clipboard != true) {
+            failBridge("inputUnavailable")
+        }
         if (!interactive.input(sequence, event)) failBridge("busy")
         lastInputSequence = sequence
         result.success(null)
@@ -267,6 +270,20 @@ class VncNativeBridge(
                     failBridge("invalidRequest")
                 }
                 mapOf("kind" to "pointer", "x" to x, "y" to y, "buttons" to buttons)
+            }
+            "clipboard" -> {
+                if (value.keys != setOf("kind", "text")) failBridge("invalidRequest")
+                val text = value["text"] as? String ?: failBridge("invalidRequest")
+                if (text.isEmpty() || text.length > 65_536 || text.indexOf('\u0000') >= 0) {
+                    failBridge("invalidRequest")
+                }
+                val encoded = text.toByteArray(StandardCharsets.UTF_8)
+                try {
+                    if (encoded.size > 65_536) failBridge("invalidRequest")
+                } finally {
+                    encoded.fill(0)
+                }
+                mapOf("kind" to "clipboard", "text" to text)
             }
             else -> failBridge("invalidRequest")
         }
