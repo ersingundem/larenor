@@ -17,7 +17,10 @@ import 'package:larenor/l10n/generated/app_localizations.dart';
 const installationId = '11111111111111111111111111111111';
 const requestId = 'eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee';
 
-Map<String, Object?> archiveJson({String state = 'attention'}) => {
+Map<String, Object?> archiveJson({
+  String state = 'attention',
+  String trendState = 'ready',
+}) => {
   'installationId': installationId,
   'installationRevision': 12,
   'snapshotRevision': 4,
@@ -63,6 +66,22 @@ Map<String, Object?> archiveJson({String state = 'attention'}) => {
             {'lane': 'transcode', 'reason': 'unsupported'},
           ],
     'truncated': false,
+    'actionAvailable': false,
+  },
+  'weeklyTrend': {
+    'state': trendState,
+    'points': trendState == 'unavailable'
+        ? const []
+        : List.generate(12, (index) => {
+            'weekStart': 1788134400 + index * 604800,
+            'capturedAt': 1788138000 + index * 604800,
+            'snapshotRevision': index + 1,
+            'totalBytes': 1000000000000,
+            'freeBytes': 300000000000 - index * 1000000000,
+            'reclaimableBytes': 12000000000 + index * 100000000,
+            'duplicateCandidates': index + 1,
+            'lowQualityCandidates': index,
+          }),
     'actionAvailable': false,
   },
   'cleanupAvailable': false,
@@ -141,11 +160,104 @@ void main() {
     ).read();
     expect(value.state, MediaArchiveSnapshotState.attention);
     expect(value.counts.potentialSavingBytes, 4000);
+    expect(value.weeklyTrend.points.length, 12);
+    expect(value.weeklyTrend.points.last.duplicateCandidates, 12);
     expect(calls.map((e) => e.url.path), [
       '/api/v1/admin/media/installations',
       '/api/v1/admin/media/archive-health/authority',
       '/api/v1/admin/media/archive-health/read',
     ]);
+  });
+
+  test('weekly trend rejects overflow, disorder and impossible capacity', () {
+    final tooMany = archiveJson();
+    final trend = tooMany['weeklyTrend']! as Map<String, Object?>;
+    trend['points'] = List<Object?>.from(trend['points']! as List)..add(
+      (trend['points']! as List).last,
+    );
+    expect(
+      () => MediaArchiveHealthSnapshot.fromJson(tooMany),
+      throwsA(isA<LarenorServerException>()),
+    );
+
+    final impossible = archiveJson();
+    final points =
+        (impossible['weeklyTrend']! as Map<String, Object?>)['points']!
+            as List;
+    (points.last as Map<String, Object?>)['freeBytes'] = 1000000000001;
+    expect(
+      () => MediaArchiveHealthSnapshot.fromJson(impossible),
+      throwsA(isA<LarenorServerException>()),
+    );
+  });
+
+  testWidgets(
+    'tablet trend chart supports 600 and 1280 widths, 2x and TalkBack',
+    (tester) async {
+      for (final width in [600.0, 1280.0]) {
+        tester.view.physicalSize = Size(width, 1100);
+        tester.view.devicePixelRatio = 1;
+        tester.platformDispatcher.textScaleFactorTestValue = 2;
+        final controller = MediaArchiveHealthController(
+          read: () async => MediaArchiveHealthSnapshot.fromJson(archiveJson()),
+          authorized: () => true,
+        );
+        final semantics = tester.ensureSemantics();
+        await tester.pumpWidget(
+          CupertinoApp(
+            locale: const Locale('en'),
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            home: CupertinoPageScaffold(
+              child: SingleChildScrollView(
+                child: MediaArchiveHealthCard(controller: controller),
+              ),
+            ),
+          ),
+        );
+        await controller.refresh();
+        await tester.pumpAndSettle();
+        expect(find.text('12-week storage trend'), findsOneWidget);
+        expect(find.byKey(const ValueKey('media-archive-weekly-trend')), findsOneWidget);
+        expect(
+          find.bySemanticsLabel(RegExp('Week.*total.*free.*potential')),
+          findsNWidgets(12),
+        );
+        expect(tester.takeException(), isNull);
+        semantics.dispose();
+        controller.dispose();
+      }
+      addTearDown(tester.view.reset);
+      addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+    },
+  );
+
+  testWidgets('trend stale and unavailable remain visibly distinct', (tester) async {
+    for (final entry in const {
+      'stale': 'Weekly storage trend is stale.',
+      'unavailable': 'Weekly storage trend is unavailable.',
+    }.entries) {
+      final controller = MediaArchiveHealthController(
+        read: () async => MediaArchiveHealthSnapshot.fromJson(
+          archiveJson(trendState: entry.key),
+        ),
+        authorized: () => true,
+      );
+      await tester.pumpWidget(
+        CupertinoApp(
+          locale: const Locale('en'),
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: CupertinoPageScaffold(
+            child: MediaArchiveHealthCard(controller: controller),
+          ),
+        ),
+      );
+      await controller.refresh();
+      await tester.pumpAndSettle();
+      expect(find.text(entry.value), findsOneWidget);
+      controller.dispose();
+    }
   });
 
   test(
