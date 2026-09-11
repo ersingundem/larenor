@@ -81,10 +81,19 @@ final todayRetainedScopeProvider = Provider.autoDispose<TodayRetainedScope?>((
   }
 });
 
-typedef TodaySummarySelection = ({
-  TodayDailySummaryKind kind,
-  String? sourceId,
-});
+final class TodaySummarySelection {
+  const TodaySummarySelection({
+    required this.kind,
+    this.sourceId,
+    this.itemId,
+    this.query = '',
+  });
+
+  final TodayDailySummaryKind kind;
+  final String? sourceId;
+  final String? itemId;
+  final String query;
+}
 
 final todaySummarySelectionProvider =
     NotifierProvider<TodaySummarySelectionController, TodaySummarySelection?>(
@@ -95,23 +104,114 @@ final todaySummarySelectionProvider =
 /// account/home changes without starting a network read.
 final class TodaySummarySelectionController
     extends Notifier<TodaySummarySelection?> {
+  final _queries = <TodayDailySummaryKind, String>{};
+
   @override
   TodaySummarySelection? build() {
     ref.watch(todayRetainedScopeProvider)?.storageKey;
+    _queries.clear();
     return null;
   }
 
   void select(TodayDailySummaryKind kind, {String? sourceId}) {
-    if (sourceId != null &&
-        (sourceId.isEmpty ||
-            sourceId.length > 256 ||
-            sourceId.contains(RegExp(r'[\x00-\x1f\x7f]')))) {
-      throw const TodayException('invalid_selection');
-    }
-    state = (kind: kind, sourceId: sourceId);
+    _validateIdentity(sourceId);
+    state = TodaySummarySelection(
+      kind: kind,
+      sourceId: sourceId,
+      query: _queries[kind] ?? '',
+    );
   }
 
-  void clear() => state = null;
+  void updateQuery(String query) {
+    final current = state;
+    if (current == null ||
+        query.length > 128 ||
+        query.contains(RegExp(r'[\x00-\x1f\x7f]'))) {
+      throw const TodayException('invalid_selection');
+    }
+    _queries[current.kind] = query;
+    state = TodaySummarySelection(
+      kind: current.kind,
+      sourceId: current.sourceId,
+      itemId: current.itemId,
+      query: query,
+    );
+  }
+
+  void selectItem({required String sourceId, required String itemId}) {
+    final current = state;
+    if (current == null) throw const TodayException('invalid_selection');
+    _validateIdentity(sourceId);
+    _validateIdentity(itemId);
+    state = TodaySummarySelection(
+      kind: current.kind,
+      sourceId: sourceId,
+      itemId: itemId,
+      query: current.query,
+    );
+  }
+
+  void reconcile(TodayDailySummary summary) {
+    final current = state;
+    if (current == null || current.itemId == null) return;
+    final section = summary.sections
+        .where((candidate) => candidate.kind == current.kind)
+        .firstOrNull;
+    final stillPresent = section?.entries.any(
+      (entry) =>
+          entry.sourceId == current.sourceId && entry.itemId == current.itemId,
+    );
+    if (stillPresent == true) return;
+    state = TodaySummarySelection(kind: current.kind, query: current.query);
+  }
+
+  void reconcileSnapshot(TodaySnapshot snapshot) {
+    final current = state;
+    if (current == null || current.itemId == null) return;
+    final stillPresent = switch (current.kind) {
+      TodayDailySummaryKind.shopping || TodayDailySummaryKind.chores =>
+        snapshot.todoLists
+            .where((list) => list.entityId == current.sourceId)
+            .any(
+              (list) =>
+                  list.items.value?.any((item) => item.uid == current.itemId) ==
+                  true,
+            ),
+      TodayDailySummaryKind.calendar =>
+        snapshot.calendars
+            .where((calendar) => calendar.entityId == current.sourceId)
+            .any(
+              (calendar) =>
+                  calendar.events.value?.any(
+                    (event) => event.uid == current.itemId,
+                  ) ==
+                  true,
+            ),
+      TodayDailySummaryKind.notifications =>
+        snapshot.notifications.value?.any(
+              (notification) =>
+                  notification.id == current.sourceId &&
+                  notification.id == current.itemId,
+            ) ==
+            true,
+    };
+    if (stillPresent) return;
+    state = TodaySummarySelection(kind: current.kind, query: current.query);
+  }
+
+  void clear() {
+    _queries.clear();
+    state = null;
+  }
+
+  void _validateIdentity(String? value) {
+    if (value == null) return;
+    if (value.isEmpty ||
+        value.length > 256 ||
+        value.contains(RegExp(r'[\x00-\x1f\x7f]'))) {
+      throw const TodayException('invalid_selection');
+    }
+  }
 }
 
 final todayControllerProvider = Provider.autoDispose<TodayController?>((ref) {

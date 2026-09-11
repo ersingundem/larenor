@@ -166,6 +166,8 @@ void main() {
         ],
       ),
       locale: const Locale('tr'),
+      size: const Size(600, 900),
+      scale: 2,
       query: 'süt',
       onQueryChanged: changes.add,
     );
@@ -208,7 +210,11 @@ void main() {
     final semantics = tester.ensureSemantics();
     await _mount(
       tester,
-      _section(TodayDailySummaryState.current, entries: const [entry]),
+      _section(
+        TodayDailySummaryState.current,
+        count: 1,
+        entries: const [entry],
+      ),
       size: const Size(600, 900),
       scale: 2,
       selectedSourceId: entry.sourceId,

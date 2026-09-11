@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:larenor/features/today/domain/today_daily_summary.dart';
+import 'package:larenor/features/today/domain/today_models.dart';
 import 'package:larenor/features/today/providers/today_providers.dart';
 
 TodayDailySummary _summary(List<TodayDailySummaryEntry> shopping) =>
@@ -54,13 +55,43 @@ void main() {
       ]),
     );
     expect(container.read(todaySummarySelectionProvider)?.itemId, 'uid-1');
+    controller.reconcileSnapshot(
+      TodaySnapshot(
+        configured: true,
+        refreshedAt: DateTime.utc(2026, 9, 11),
+        todoLists: const [
+          TodayTodoList(
+            entityId: 'todo.shopping',
+            title: 'Shopping',
+            supportedFeatures: 0,
+            available: true,
+            items: TodayRead(
+              value: [
+                TodayTodoItem(
+                  uid: 'uid-1',
+                  summary: 'Milk',
+                  status: TodayTodoStatus.needsAction,
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+    expect(container.read(todaySummarySelectionProvider)?.itemId, 'uid-1');
 
     controller.select(TodayDailySummaryKind.calendar);
     controller.updateQuery('dentist');
     controller.select(TodayDailySummaryKind.shopping);
     expect(container.read(todaySummarySelectionProvider)?.query, 'milk');
 
-    controller.reconcile(_summary(const []));
+    controller.selectItem(sourceId: 'todo.shopping', itemId: 'uid-1');
+    controller.reconcileSnapshot(
+      TodaySnapshot(
+        configured: true,
+        refreshedAt: DateTime.utc(2026, 9, 11, 1),
+      ),
+    );
     final fallback = container.read(todaySummarySelectionProvider)!;
     expect(fallback.kind, TodayDailySummaryKind.shopping);
     expect(fallback.sourceId, isNull);

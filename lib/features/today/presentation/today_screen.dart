@@ -524,6 +524,22 @@ class _TodayScreenState extends TodayConsumerState<TodayScreen> {
               : summary.sections
                     .where((section) => section.kind == selected.kind)
                     .firstOrNull;
+          final selectedItemExists =
+              selected?.itemId == null ||
+              detail?.entries.any(
+                    (entry) =>
+                        entry.sourceId == selected?.sourceId &&
+                        entry.itemId == selected?.itemId,
+                  ) ==
+                  true;
+          if (selected?.itemId != null) {
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (!mounted) return;
+              ref
+                  .read(todaySummarySelectionProvider.notifier)
+                  .reconcileSnapshot(snapshot);
+            });
+          }
           final master = TodayDailySummaryCard(
             summary: summary,
             selectedKind: selected?.kind,
@@ -543,6 +559,22 @@ class _TodayScreenState extends TodayConsumerState<TodayScreen> {
                           Expanded(
                             child: TodaySummaryDetailCard(
                               section: detail,
+                              query: selected!.query,
+                              selectedSourceId: selectedItemExists
+                                  ? selected.sourceId
+                                  : null,
+                              selectedItemId: selectedItemExists
+                                  ? selected.itemId
+                                  : null,
+                              onQueryChanged: ref
+                                  .read(todaySummarySelectionProvider.notifier)
+                                  .updateQuery,
+                              onItemSelected: (entry) => ref
+                                  .read(todaySummarySelectionProvider.notifier)
+                                  .selectItem(
+                                    sourceId: entry.sourceId,
+                                    itemId: entry.itemId!,
+                                  ),
                               onClose: ref
                                   .read(todaySummarySelectionProvider.notifier)
                                   .clear,
