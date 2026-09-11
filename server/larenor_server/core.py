@@ -295,11 +295,6 @@ class CoreServices:
                 self.db, self.auth, settings, key, self.media_installations,
                 installation_backend)
             self.media_service_bootstraps.validate_storage()
-            self.seerr_bootstraps = SeerrBootstrapManagement(
-                self.db, self.auth, settings, key, self.media_installations,
-                self.media_service_bootstraps)
-            self.seerr_bootstraps.backend = installation_backend
-            self.seerr_bootstraps.validate_storage()
             self.qbittorrent_configurations = QbittorrentConfigurationManagement(
                 self.db, self.auth, settings, key, self.media_installations,
                 installation_backend)
@@ -308,6 +303,11 @@ class CoreServices:
                 self.db, self.auth, settings, key, self.media_installations,
                 installation_backend, self.qbittorrent_configurations)
             self.arr_configurations.validate_storage()
+            self.seerr_bootstraps = SeerrBootstrapManagement(
+                self.db, self.auth, settings, key, self.media_installations,
+                self.media_service_bootstraps, self.arr_configurations)
+            self.seerr_bootstraps.backend = installation_backend
+            self.seerr_bootstraps.validate_storage()
             self.music_assistant_core = MusicAssistantCoreManagement(
                 self.db, self.auth, settings, key, self.media_installations,
                 self.services)

@@ -36,14 +36,30 @@ class SeerrBootstrapJob(StrictModel):
         "seerr_bootstrap_endpoint_changed",
         "seerr_bootstrap_peer_changed",
         "seerr_bootstrap_initial_admin_failed",
+        "seerr_bootstrap_arr_wiring_failed",
         "seerr_bootstrap_timeout",
         "seerr_bootstrap_interrupted",
         "seerr_bootstrap_worker_unavailable",
         "invalid_seerr_bootstrap_result",
     ] | None
     installAvailable: Literal[False] = False
+    convergencePhase: Literal[
+        "queued", "bootstrap", "arr_wiring", "initialize", "verified"
+    ]
+    arrWired: bool = False
+    initialized: bool = False
     createdAt: str
     updatedAt: str
+
+    @model_validator(mode="before")
+    @classmethod
+    def upgrade_legacy_payload(cls, value):
+        if isinstance(value, dict) and "convergencePhase" not in value:
+            value = dict(value)
+            value["convergencePhase"] = (
+                "bootstrap" if value.get("apiKey") is not None else "queued"
+            )
+        return value
 
     @model_validator(mode="after")
     def coherent(self):
@@ -86,3 +102,30 @@ class PrivateSeerrBootstrapPayload(StrictModel):
         pattern=r"^[A-Za-z0-9+/]+={0,2}$",
         repr=False,
     )
+    convergencePhase: Literal[
+        "queued", "bootstrap", "arr_wiring", "initialize", "verified"
+    ] = "queued"
+    arrInstanceIds: tuple[int, int] | None = None
+    initialized: bool = False
+
+    @model_validator(mode="after")
+    def convergence_coherent(self):
+        rank = {
+            "queued": 0,
+            "bootstrap": 1,
+            "arr_wiring": 2,
+            "initialize": 3,
+            "verified": 4,
+        }[self.convergencePhase]
+        if rank == 0 and self.apiKey is not None or rank >= 2 and self.apiKey is None:
+            raise ValueError("invalid_seerr_convergence")
+        if (self.arrInstanceIds is not None) != (rank >= 3):
+            raise ValueError("invalid_seerr_convergence")
+        if self.arrInstanceIds is not None and any(
+            type(value) is not int or not 0 <= value <= 2**31 - 1
+            for value in self.arrInstanceIds
+        ):
+            raise ValueError("invalid_seerr_convergence")
+        if self.initialized != (rank == 4):
+            raise ValueError("invalid_seerr_convergence")
+        return self

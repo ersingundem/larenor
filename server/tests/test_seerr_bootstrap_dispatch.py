@@ -9,6 +9,7 @@ from larenor_server.plugins.seerr_bootstrap_executor import (
 )
 from test_seerr_bootstrap_jobs import BASE, ready_stack, request
 from test_seerr_initial_admin import API_KEY
+from larenor_server.plugins.seerr_arr_wiring import SeerrArrWiringResult
 
 
 STEPS = (
@@ -16,13 +17,19 @@ STEPS = (
     "admin_created",
     "api_key_verified",
     "session_destroyed",
+    "arr_wiring_verified",
 )
 
 
 class Backend:
     def __init__(self, result=None):
         self.calls = []
-        self.result = result or SeerrBootstrapExecutionResult("verified", API_KEY, STEPS)
+        self.result = result or SeerrBootstrapExecutionResult(
+            "verified",
+            API_KEY,
+            STEPS,
+            SeerrArrWiringResult("verified", ("radarr", "sonarr"), (7, 8)),
+        )
 
     def bootstrap_seerr(self, job, plan, private, *, deadline, gate):
         self.calls.append((job, plan, private, deadline, gate))
@@ -50,12 +57,16 @@ def test_tick_dispatches_exact_private_job_and_persists_api_key_encrypted(server
         "revision": 3,
         "state": "succeeded",
         "phase": "complete",
+        "convergencePhase": "initialize",
+        "arrWired": True,
     }
     assert len(backend.calls) == 1
     job, plan, private, _deadline, _gate = backend.calls[0]
     assert job == record["id"]
     assert plan.templateId == "media"
     assert private.sourceBootstrapId == record["sourceBootstrapId"]
+    assert tuple(item.serviceId for item in private.arrBindings) == ("radarr", "sonarr")
+    assert all(item.configurationRevision == 3 for item in private.arrBindings)
     stored = app.state.core.seerr_bootstraps.private_payload(record["id"])
     assert stored.api_key == API_KEY
     assert API_KEY not in repr(stored) + repr(terminal)
@@ -65,6 +76,20 @@ def test_tick_dispatches_exact_private_job_and_persists_api_key_encrypted(server
         ).fetchone()[0]
     assert API_KEY.encode() not in ciphertext
     assert app.state.core.seerr_bootstraps.tick() is None
+
+
+def test_arr_revision_drift_fails_closed_before_private_worker_dispatch(server):
+    app, _client, _, _ = server
+    _, _record, backend = queued(server)
+    with app.state.core.db.transaction() as connection:
+        connection.execute(
+            "UPDATE media_arr_configurations SET revision=revision+1 "
+            "WHERE service_id='radarr'"
+        )
+    terminal = app.state.core.seerr_bootstraps.tick()["bootstrap"]
+    assert terminal["state"] == "needs_attention"
+    assert terminal["errorCode"] == "seerr_bootstrap_authority_changed"
+    assert backend.calls == []
 
 
 def test_missing_worker_fails_without_exposing_private_input(server):

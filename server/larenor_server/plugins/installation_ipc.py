@@ -33,6 +33,7 @@ from .seerr_bootstrap_models import PrivateSeerrBootstrap
 from .seerr_bootstrap_executor import (
     SeerrBootstrapExecutionError, SeerrBootstrapExecutionResult,
 )
+from .seerr_arr_wiring import SeerrArrWiringResult
 from .preflight_ipc import PreflightIPCError, PreflightWorkerServer, read_packet, write_packet
 from .arr_config_effect import ArrConfigEffectError, ArrConfigInstallReceipt
 from .arr_config_models import (
@@ -199,7 +200,7 @@ def _bootstrap_result(value):
 
 _SEERR_BOOTSTRAP_STEPS = (
     'uninitialized_verified', 'admin_created',
-    'api_key_verified', 'session_destroyed',
+    'api_key_verified', 'session_destroyed', 'arr_wiring_verified',
 )
 _SEERR_BOOTSTRAP_CODES = frozenset({
     'invalid_seerr_bootstrap_execution',
@@ -209,6 +210,7 @@ _SEERR_BOOTSTRAP_CODES = frozenset({
     'seerr_bootstrap_endpoint_changed',
     'seerr_bootstrap_peer_changed',
     'seerr_bootstrap_initial_admin_failed',
+    'seerr_bootstrap_arr_wiring_failed',
     'seerr_bootstrap_timeout',
 })
 
@@ -218,7 +220,8 @@ def _wire_seerr_bootstrap(value=None, error=None):
         if type(error) is not SeerrBootstrapExecutionError:
             error = SeerrBootstrapExecutionError()
         return {
-            'state': 'failed', 'apiKey': None,
+            'state': 'failed', 'apiKey': error.api_key,
+            'arrInstanceIds': None,
             'completedSteps': list(error.completed_steps),
             'errorCode': error.code,
             'uncertainEffect': error.uncertain_effect,
@@ -228,9 +231,13 @@ def _wire_seerr_bootstrap(value=None, error=None):
         if type(value) is not SeerrBootstrapExecutionResult:
             raise ValueError()
         verified = SeerrBootstrapExecutionResult(
-            value.state, value.api_key, value.completed_steps)
+            value.state, value.api_key, value.completed_steps, value.arr_wiring)
         return {
             'state': verified.state, 'apiKey': verified.api_key,
+            'arrInstanceIds': (
+                None if verified.arr_wiring is None
+                else list(verified.arr_wiring.instance_ids)
+            ),
             'completedSteps': list(verified.completed_steps),
             'errorCode': None, 'uncertainEffect': False, 'causeCode': None,
         }
@@ -243,27 +250,41 @@ def _seerr_bootstrap_result(value):
     try:
         if (type(value) is not dict or set(value) != {
                 'state', 'apiKey', 'completedSteps', 'errorCode',
-                'uncertainEffect', 'causeCode'}
+                'uncertainEffect', 'causeCode', 'arrInstanceIds'}
                 or type(value['completedSteps']) is not list
                 or tuple(value['completedSteps'])
                 != _SEERR_BOOTSTRAP_STEPS[:len(value['completedSteps'])]
                 or type(value['uncertainEffect']) is not bool):
             raise ValueError()
         if value['state'] == 'verified':
-            if (value['completedSteps'] != list(_SEERR_BOOTSTRAP_STEPS)
-                    or value['errorCode'] is not None
+            if (value['errorCode'] is not None
                     or value['uncertainEffect'] is not False
                     or value['causeCode'] is not None):
                 raise ValueError()
+            wiring = None
+            if value['arrInstanceIds'] is None:
+                if value['completedSteps'] != list(_SEERR_BOOTSTRAP_STEPS[:4]):
+                    raise ValueError()
+            else:
+                if value['completedSteps'] != list(_SEERR_BOOTSTRAP_STEPS):
+                    raise ValueError()
+                if (type(value['arrInstanceIds']) is not list
+                        or len(value['arrInstanceIds']) != 2):
+                    raise ValueError()
+                wiring = SeerrArrWiringResult(
+                    'verified', ('radarr', 'sonarr'),
+                    tuple(value['arrInstanceIds']))
             return SeerrBootstrapExecutionResult(
-                value['state'], value['apiKey'], tuple(value['completedSteps']))
-        if (value['state'] != 'failed' or value['apiKey'] is not None
+                value['state'], value['apiKey'], tuple(value['completedSteps']),
+                wiring)
+        if (value['state'] != 'failed'
+                or value['arrInstanceIds'] is not None
                 or value['errorCode'] not in _SEERR_BOOTSTRAP_CODES):
             raise ValueError()
         failure = SeerrBootstrapExecutionError(
             value['errorCode'], completed_steps=tuple(value['completedSteps']),
             uncertain_effect=value['uncertainEffect'],
-            cause_code=value['causeCode'])
+            cause_code=value['causeCode'], api_key=value['apiKey'])
         if (failure.code != value['errorCode']
                 or failure.cause_code != value['causeCode']):
             raise ValueError()

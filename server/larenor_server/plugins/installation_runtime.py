@@ -40,6 +40,7 @@ from .jellyfin_authenticated_readback import JellyfinAuthenticatedReadback
 from .jellyfin_managed_libraries import JellyfinManagedLibraries
 from .seerr_bootstrap_executor import SeerrBootstrapExecutor
 from .seerr_initial_admin import SeerrInitialAdmin
+from .seerr_arr_wiring import SeerrArrWiring
 from .arr_config_runtime import ArrConfigRuntime
 from .arr_bootstrap_executor import (
     ArrBootstrapExecutionError, ArrBootstrapExecutor,
@@ -281,7 +282,7 @@ class _RuntimeBackend:
             operations, binding_builder, JellyfinStartupConfigurator(),
             JellyfinAuthenticatedReadback(), JellyfinManagedLibraries())
         self.seerr_bootstrap = SeerrBootstrapExecutor(
-            operations, binding_builder, SeerrInitialAdmin())
+            operations, binding_builder, SeerrInitialAdmin(), SeerrArrWiring())
         self.music_assistant_bootstrap = MusicAssistantBootstrapRuntime()
         self.music_provider_setup = MusicProviderSetupRuntime()
         self.music_playback = MusicPlaybackRuntime()

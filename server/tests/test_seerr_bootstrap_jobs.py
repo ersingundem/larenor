@@ -42,6 +42,28 @@ def ready_stack(server):
     ).json()["installation"]
     seerr = app.state.core.media_installations.tick()["installation"]
     assert seerr["state"] == "container_started"
+
+    from test_qbittorrent_config_jobs import Backend as QbittorrentBackend
+    from test_arr_config_jobs import Backend as ArrBackend
+
+    app.state.core.qbittorrent_configurations.backend = QbittorrentBackend()
+    configured = client.post(
+        "/api/v1/admin/media/qbittorrent-configurations",
+        headers=auth(pair),
+        json=body | {"requestId": "1" * 32},
+    )
+    assert configured.status_code == 201, configured.text
+    assert app.state.core.qbittorrent_configurations.tick()["configuration"]["state"] == "succeeded"
+    app.state.core.arr_configurations.backend = ArrBackend()
+    for service, identifier in (("radarr", "2"), ("sonarr", "3")):
+        configured = client.post(
+            "/api/v1/admin/media/arr-configurations",
+            headers=auth(pair),
+            json=body
+            | {"requestId": identifier * 32, "serviceId": service},
+        )
+        assert configured.status_code == 201, configured.text
+        assert app.state.core.arr_configurations.tick()["configuration"]["state"] == "succeeded"
     return pair, source, seerr
 
 
@@ -73,6 +95,9 @@ def test_admin_queues_encrypted_seerr_bootstrap_and_reads_it_after_restart(serve
         "phase": "queued",
         "errorCode": None,
         "installAvailable": False,
+        "convergencePhase": "queued",
+        "arrWired": False,
+        "initialized": False,
         "createdAt": "2026-09-05T12:00:00.000Z",
         "updatedAt": "2026-09-05T12:00:00.000Z",
     }

@@ -11,7 +11,10 @@ from larenor_server.plugins.managed_container import (
     JournaledManagedContainerOperations,
     ManagedWorkerJournal,
 )
-from larenor_server.plugins.seerr_bootstrap_models import PrivateSeerrBootstrap
+from larenor_server.plugins.seerr_bootstrap_models import (
+    PrivateSeerrArrBinding,
+    PrivateSeerrBootstrap,
+)
 from larenor_server.plugins.seerr_bootstrap_executor import (
     SeerrBootstrapExecutionError,
     SeerrBootstrapExecutor,
@@ -25,6 +28,7 @@ from larenor_server.plugins.seerr_initial_admin import (
     SeerrInitialAdmin,
     SeerrInitialAdminResult,
 )
+from larenor_server.plugins.seerr_arr_wiring import SeerrArrWiring, SeerrArrWiringResult
 from test_jellyfin_startup import Connection
 from test_managed_container_binding import (
     Engine,
@@ -47,6 +51,29 @@ def private():
         credential=PASSWORD,
         sourceBootstrapId="a" * 32,
         sourceBootstrapRevision=3,
+    )
+
+
+def bound_private():
+    return private().model_copy(
+        update={
+            "arrBindings": tuple(
+                PrivateSeerrArrBinding(
+                    serviceId=service,
+                    configurationId=identifier * 32,
+                    configurationRevision=3,
+                    resourceRevision=4,
+                    serviceRevision=3,
+                    configurationDigest="c" * 64,
+                    hostname="larenor-" + identifier * 32,
+                    apiKey=identifier * 32,
+                    rootPath="/media/movies" if service == "radarr" else "/media/tv",
+                    profileId=4 if service == "radarr" else 5,
+                    profileName="HD-1080p",
+                )
+                for service, identifier in (("radarr", "1"), ("sonarr", "2"))
+            )
+        }
     )
 
 
@@ -138,6 +165,44 @@ def test_reconciles_seerr_and_bootstraps_against_exact_jellyfin_peer(
         len([call for call in engine.calls if call == ("inspect", jellyfin.name)]) >= 2
     )
     assert PASSWORD not in repr(result) and API_KEY not in repr(result)
+
+
+def test_production_executor_wires_exact_bound_arr_services_before_success(
+    prepared, monkeypatch
+):
+    stack, seerr, jellyfin, observed, _engine, operations = prepared
+    connected(monkeypatch, stack, seerr, observed)
+    calls = []
+
+    def configure(_self, connection, **values):
+        calls.append((connection, values))
+        return SeerrArrWiringResult("verified", ("radarr", "sonarr"), (8, 9))
+
+    monkeypatch.setattr(SeerrArrWiring, "configure", configure)
+    result = SeerrBootstrapExecutor(
+        operations,
+        lambda _stack, service="jellyfin": {
+            "seerr": seerr,
+            "jellyfin": jellyfin,
+        }[service],
+        SeerrInitialAdmin(),
+        SeerrArrWiring(),
+    ).execute(
+        JOB,
+        stack,
+        bound_private(),
+        deadline=time.monotonic() + 10,
+        gate=lambda: True,
+    )
+
+    assert result.completed_steps[-1] == "arr_wiring_verified"
+    assert result.arr_wiring.instance_ids == (8, 9)
+    services = calls[0][1]["services"]
+    assert [(item.service_id, item.profile_id, item.root_path) for item in services] == [
+        ("radarr", 4, "/media/movies"),
+        ("sonarr", 5, "/media/tv"),
+    ]
+    assert calls[0][1]["close_connection"] is False
 
 
 def test_jellyfin_drift_after_connect_blocks_credentials(prepared, monkeypatch):
