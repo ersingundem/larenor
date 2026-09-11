@@ -6,6 +6,7 @@ from conftest import auth
 from larenor_server.plugins.media_archive_core_models import (
     MediaArchiveCollectionAuthority,
 )
+from test_admin import activate, create as create_user
 from test_media_archive_ingestion import NOW, binding, ingested
 from test_media_service_bootstraps import installed
 
@@ -113,6 +114,9 @@ def test_member_expired_session_and_wrong_revision_never_reach_worker(server):
         **body, 'expectedInstallationRevision': installation['revision'] + 1,
     })
     assert stale.status_code == 409
+    create_user(client, pair)
+    member_pair = activate(client, 'member')
+    assert client.post(BASE, headers=auth(member_pair), json=body).status_code == 403
     client.post('/api/v1/auth/logout', headers=auth(pair))
     expired = client.post(BASE, headers=auth(pair), json=body)
     assert expired.status_code == 401
@@ -156,11 +160,12 @@ def test_stale_authority_and_invalid_worker_shape_fail_closed(server):
     assert worker.calls == []
 
     reader.values = [current]
-    worker.result = {'token': 'private'}
+    worker.result = {'token': 'private-secret-value'}
     invalid = server[1].post(BASE, headers=auth(pair), json=body)
     assert invalid.status_code == 503
     assert invalid.json()['error']['code'] == 'media_archive_worker_unavailable'
-    assert 'private' not in invalid.text
+    assert 'private-secret-value' not in invalid.text
+    assert '"token"' not in invalid.text
 
 
 @pytest.mark.parametrize('extra', [

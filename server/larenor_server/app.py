@@ -42,6 +42,7 @@ from .plugins.arr_config_job_api import router as arr_configurations_router
 from .plugins.music_assistant_core_api import router as music_assistant_core_router
 from .plugins.music_provider_setup_api import router as music_provider_setup_router
 from .plugins.music_playback_api import router as music_playback_router
+from .plugins.media_archive_core_api import router as media_archive_health_router
 from .bounded_transfer.api import router as bounded_transfer_router
 from .bounded_transfer.models import TransferLimits
 from .bounded_transfer.service import BlobProvider
@@ -59,7 +60,9 @@ def create_app(settings: Settings, *, routers: Iterable[APIRouter] = (),
                blob_provider: BlobProvider | None = None,
                transfer_limits: TransferLimits | None = None,
                proxmox_guest_provider=None,
-               proxmox_power_executor=None) -> FastAPI:
+               proxmox_power_executor=None,
+               media_archive_binding_reader=None,
+               media_archive_worker=None) -> FastAPI:
     source = source or SourceInformation.from_environment()
     @asynccontextmanager
     async def lifespan(application):
@@ -132,7 +135,9 @@ def create_app(settings: Settings, *, routers: Iterable[APIRouter] = (),
     app.state.core = CoreServices(
         settings, blob_provider=blob_provider, transfer_limits=transfer_limits,
         proxmox_guest_provider=proxmox_guest_provider,
-        proxmox_power_executor=proxmox_power_executor)
+        proxmox_power_executor=proxmox_power_executor,
+        media_archive_binding_reader=media_archive_binding_reader,
+        media_archive_worker=media_archive_worker)
     app.state.plugin_job_dispatcher = None
     app.state.media_inspection_dispatcher = None
     app.state.media_installation_dispatcher = None
@@ -244,6 +249,7 @@ def create_app(settings: Settings, *, routers: Iterable[APIRouter] = (),
     app.include_router(music_assistant_core_router, prefix="/api/v1")
     app.include_router(music_provider_setup_router, prefix="/api/v1")
     app.include_router(music_playback_router, prefix="/api/v1")
+    app.include_router(media_archive_health_router, prefix="/api/v1")
     app.include_router(proxmox_power_router, prefix="/api/v1")
     for extension in routers:
         # Only routers supplied by trusted, packaged server code are supported.
