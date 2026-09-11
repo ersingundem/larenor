@@ -131,6 +131,14 @@ void main() {
           width: 3,
           height: 2,
         ),
+        TileConfig(
+          id: '4',
+          type: TileType.today,
+          x: 9,
+          y: 0,
+          width: 3,
+          height: 2,
+        ),
       ],
     );
 

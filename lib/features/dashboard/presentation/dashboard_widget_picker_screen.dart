@@ -296,6 +296,7 @@ class _DashboardWidgetPickerScreenState
               core?.source == HomeSource.verifiedCore,
         ),
         TileType.webview,
+        TileType.today,
         TileType.keenetic,
         TileType.coreKeenetic,
       ];
@@ -319,6 +320,8 @@ class _DashboardWidgetPickerScreenState
                         _proxmox();
                       } else if (type == TileType.coreKeenetic) {
                         _coreKeenetic();
+                      } else if (type == TileType.today) {
+                        _complete(_draft(type).copyWith(width: 3, height: 2));
                       } else {
                         _chooseType(type);
                       }
