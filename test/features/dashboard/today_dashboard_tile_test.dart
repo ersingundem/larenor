@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:ui' as ui;
 
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
@@ -69,7 +68,7 @@ Future<void> _mountCard(
       ),
     ),
   );
-  await tester.pumpAndSettle();
+  await tester.pump();
 }
 
 class _Controller implements TodayController {
@@ -206,8 +205,8 @@ void main() {
           todayControllerProvider.overrideWithValue(controller),
         ],
       );
-      addTearDown(container.dispose);
       addTearDown(stream.close);
+      addTearDown(container.dispose);
       container.read(todaySummarySelectionProvider.notifier)
         ..select(TodayDailySummaryKind.calendar)
         ..updateQuery('dentist');

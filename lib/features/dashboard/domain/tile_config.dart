@@ -27,6 +27,7 @@ enum TileType {
   proxmox,
   keenetic,
   coreKeenetic,
+  today,
 }
 
 @freezed

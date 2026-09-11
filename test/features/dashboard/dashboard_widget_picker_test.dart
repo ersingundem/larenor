@@ -336,6 +336,12 @@ void main() {
     );
     expect(h.repository.writes, 0);
     expect(h.container.exists(todayProvider), isFalse);
+    expect(
+      () => validateDashboardLayoutJson(
+        DashboardLayout(tiles: h.results).toJson(),
+      ),
+      returnsNormally,
+    );
   });
   for (final (kind, id) in [
     (TileType.entity, 'light.lamp'),
