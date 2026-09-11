@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:ui' show SemanticsFlag;
 
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -264,6 +265,29 @@ Future<void> _resume(WidgetTester tester) async {
 }
 
 void main() {
+  testWidgets('summary selection survives detail navigation and return', (
+    tester,
+  ) async {
+    final harness = _Harness(_snapshot(list: _list()));
+    final semantics = tester.ensureSemantics();
+    await harness.mount(tester, size: const Size(600, 1100));
+
+    await _tap(tester, 'today-summary-section-shopping');
+    expect(find.text('Shopping'), findsWidgets);
+    expect(find.byType(CupertinoSearchTextField), findsOneWidget);
+    Navigator.of(tester.element(find.byType(CupertinoSearchTextField))).pop();
+    await tester.pumpAndSettle();
+
+    final shopping = find.byKey(
+      const ValueKey('today-summary-section-shopping'),
+    );
+    expect(
+      tester.getSemantics(shopping).hasFlag(SemanticsFlag.isSelected),
+      isTrue,
+    );
+    semantics.dispose();
+  });
+
   testWidgets(
     'retained view is explicit, read-only and refresh errors stay secret-free',
     (tester) async {

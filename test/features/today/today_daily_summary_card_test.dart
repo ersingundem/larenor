@@ -1,3 +1,5 @@
+import 'dart:ui' show SemanticsFlag;
+
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -36,7 +38,9 @@ Future<void> _mount(
   Size size = const Size(600, 900),
   double scale = 1,
   Locale locale = const Locale('en'),
-  VoidCallback? onPressed,
+  ValueChanged<TodayDailySummaryKind>? onSectionPressed,
+  TodayDailySummaryKind? selectedKind,
+  TodayDailySummary summary = _summary,
 }) async {
   tester.view.physicalSize = size;
   tester.view.devicePixelRatio = 1;
@@ -56,8 +60,9 @@ Future<void> _mount(
             child: SizedBox(
               width: size.width,
               child: TodayDailySummaryCard(
-                summary: _summary,
-                onPressed: onPressed,
+                summary: summary,
+                onSectionPressed: onSectionPressed,
+                selectedKind: selectedKind,
               ),
             ),
           ),
@@ -100,21 +105,77 @@ void main() {
     }
   });
 
-  testWidgets('is one accessible 48dp keyboard action', (tester) async {
-    var calls = 0;
+  testWidgets('offers bounded 48dp section actions and preserves selection', (
+    tester,
+  ) async {
+    final calls = <TodayDailySummaryKind>[];
     final semantics = tester.ensureSemantics();
-    await _mount(tester, onPressed: () => calls++);
-    final card = find.byKey(const ValueKey('today-daily-summary-card'));
-    expect(tester.getSize(card).height, greaterThanOrEqualTo(48));
-    expect(
-      find.bySemanticsLabel(RegExp('Today.*Shopping.*2 open.*Offline')),
-      findsOneWidget,
+    await _mount(
+      tester,
+      selectedKind: TodayDailySummaryKind.shopping,
+      onSectionPressed: calls.add,
     );
+    final shopping = find.byKey(
+      const ValueKey('today-summary-section-shopping'),
+    );
+    final calendar = find.byKey(
+      const ValueKey('today-summary-section-calendar'),
+    );
+    final offline = find.byKey(
+      const ValueKey('today-summary-section-notifications'),
+    );
+    expect(tester.getSize(shopping).height, greaterThanOrEqualTo(48));
+    expect(find.bySemanticsLabel(RegExp('Shopping.*2 open')), findsOneWidget);
+    expect(
+      tester.getSemantics(shopping).hasFlag(SemanticsFlag.isSelected),
+      isTrue,
+    );
+    expect(tester.widget<CupertinoButton>(offline).onPressed, isNull);
 
     await tester.sendKeyEvent(LogicalKeyboardKey.tab);
     await tester.sendKeyEvent(LogicalKeyboardKey.enter);
     await tester.pump();
-    expect(calls, 1);
+    expect(calls, [TodayDailySummaryKind.shopping]);
+    await tester.tap(calendar);
+    expect(calls.last, TodayDailySummaryKind.calendar);
     semantics.dispose();
+  });
+
+  testWidgets('keeps loading empty partial stale and offline states distinct', (
+    tester,
+  ) async {
+    const states = TodayDailySummary(
+      shopping: TodayDailySummarySection(
+        kind: TodayDailySummaryKind.shopping,
+        state: TodayDailySummaryState.unread,
+      ),
+      chores: TodayDailySummarySection(
+        kind: TodayDailySummaryKind.chores,
+        state: TodayDailySummaryState.empty,
+        totalCount: 0,
+      ),
+      calendar: TodayDailySummarySection(
+        kind: TodayDailySummaryKind.calendar,
+        state: TodayDailySummaryState.partial,
+      ),
+      notifications: TodayDailySummarySection(
+        kind: TodayDailySummaryKind.notifications,
+        state: TodayDailySummaryState.offline,
+      ),
+    );
+    await _mount(tester, summary: states, onSectionPressed: (_) {});
+
+    expect(find.text('Waiting for source'), findsOneWidget);
+    expect(find.text('Nothing due'), findsOneWidget);
+    expect(find.text('Some items unavailable'), findsOneWidget);
+    expect(find.text('Offline'), findsOneWidget);
+    expect(
+      tester
+          .widget<CupertinoButton>(
+            find.byKey(const ValueKey('today-summary-section-shopping')),
+          )
+          .onPressed,
+      isNull,
+    );
   });
 }
