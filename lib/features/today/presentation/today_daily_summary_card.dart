@@ -132,7 +132,7 @@ class _Section extends StatelessWidget {
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    _title(l10n, section.kind),
+                    todaySummaryTitle(l10n, section.kind),
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                     style: AppText.headline,
@@ -144,7 +144,7 @@ class _Section extends StatelessWidget {
             ),
             const SizedBox(height: 6),
             Text(
-              _state(l10n, section),
+              todaySummaryStateLabel(l10n, section),
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
               style: AppText.footnote.copyWith(
@@ -162,7 +162,9 @@ class _Section extends StatelessWidget {
       button: true,
       enabled: enabled,
       selected: isSelected,
-      label: '${_title(l10n, section.kind)}. ${_state(l10n, section)}',
+      label:
+          '${todaySummaryTitle(l10n, section.kind)}. '
+          '${todaySummaryStateLabel(l10n, section)}',
       child: ExcludeSemantics(
         child: CupertinoButton(
           minimumSize: const Size.square(48),
@@ -189,7 +191,7 @@ bool todaySummarySectionNavigable(TodayDailySummarySection section) =>
       TodayDailySummaryState.error => false,
     };
 
-String _title(AppLocalizations l10n, TodayDailySummaryKind kind) =>
+String todaySummaryTitle(AppLocalizations l10n, TodayDailySummaryKind kind) =>
     switch (kind) {
       TodayDailySummaryKind.shopping => l10n.todaySummaryShopping,
       TodayDailySummaryKind.chores => l10n.todaySummaryChores,
@@ -197,7 +199,10 @@ String _title(AppLocalizations l10n, TodayDailySummaryKind kind) =>
       TodayDailySummaryKind.notifications => l10n.todayNotifications,
     };
 
-String _state(AppLocalizations l10n, TodayDailySummarySection section) {
+String todaySummaryStateLabel(
+  AppLocalizations l10n,
+  TodayDailySummarySection section,
+) {
   final count = section.totalCount;
   return switch (section.state) {
     TodayDailySummaryState.current => l10n.todaySummaryOpen(count!),

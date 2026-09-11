@@ -14,6 +14,7 @@ import '../domain/today_models.dart';
 import '../providers/today_providers.dart';
 import 'today_daily_summary_card.dart';
 import 'today_support.dart';
+import 'today_summary_detail_card.dart';
 import 'today_task_editor.dart';
 
 enum _TodayView { overview, tasks, calendars, notifications, notification }
@@ -142,12 +143,20 @@ class _TodayScreenState extends TodayConsumerState<TodayScreen> {
     ).push(CupertinoPageRoute<void>(builder: (_) => TodayScreen._(view, id)));
   }
 
-  void _openSummary(TodayDailySummary summary, TodayDailySummaryKind kind) {
+  void _openSummary(
+    TodayDailySummary summary,
+    TodayDailySummaryKind kind, {
+    bool masterDetail = false,
+  }) {
     final section = summary.sections.firstWhere((item) => item.kind == kind);
     if (!todaySummarySectionNavigable(section)) return;
+    final sourceId = section.entries.firstOrNull?.sourceId;
+    ref
+        .read(todaySummarySelectionProvider.notifier)
+        .select(kind, sourceId: sourceId);
+    if (masterDetail) return;
     switch (kind) {
       case TodayDailySummaryKind.shopping || TodayDailySummaryKind.chores:
-        final sourceId = section.entries.firstOrNull?.sourceId;
         if (sourceId == null) return;
         _open(_TodayView.tasks, id: sourceId);
       case TodayDailySummaryKind.calendar:
@@ -505,20 +514,50 @@ class _TodayScreenState extends TodayConsumerState<TodayScreen> {
     ];
     return [
       SliverLayoutBuilder(
-        builder: (context, constraints) => constraints.crossAxisExtent < 480
-            ? const SliverToBoxAdapter(child: SizedBox.shrink())
-            : SliverToBoxAdapter(
-                child: _constrained(
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(20, 0, 20, 14),
-                    child: TodayDailySummaryCard(
-                      summary: summary,
-                      selectedKind: selected?.kind,
-                      onSectionPressed: (kind) => _openSummary(summary, kind),
-                    ),
-                  ),
-                ),
+        builder: (context, constraints) {
+          if (constraints.crossAxisExtent < 480) {
+            return const SliverToBoxAdapter(child: SizedBox.shrink());
+          }
+          final masterDetail = constraints.crossAxisExtent >= 1000;
+          final detail = selected == null
+              ? null
+              : summary.sections
+                    .where((section) => section.kind == selected.kind)
+                    .firstOrNull;
+          final master = TodayDailySummaryCard(
+            summary: summary,
+            selectedKind: selected?.kind,
+            onSectionPressed: (kind) =>
+                _openSummary(summary, kind, masterDetail: masterDetail),
+          );
+          return SliverToBoxAdapter(
+            child: _constrained(
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 0, 20, 14),
+                child: masterDetail && detail != null
+                    ? Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(child: master),
+                          const SizedBox(width: 14),
+                          Expanded(
+                            child: TodaySummaryDetailCard(
+                              section: detail,
+                              onClose: ref
+                                  .read(todaySummarySelectionProvider.notifier)
+                                  .clear,
+                              onOpen: todaySummarySectionNavigable(detail)
+                                  ? () => _openSummary(summary, detail.kind)
+                                  : null,
+                            ),
+                          ),
+                        ],
+                      )
+                    : master,
               ),
+            ),
+          );
+        },
       ),
       SliverLayoutBuilder(
         builder: (context, constraints) {

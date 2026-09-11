@@ -322,15 +322,11 @@ void main() {
     );
     await harness.mount(tester, size: const Size(1280, 900), scale: 2);
 
-    for (final kind in ['shopping', 'chores', 'calendar', 'notifications']) {
-      await _tap(tester, 'today-summary-section-$kind');
-      expect(
-        find.byKey(ValueKey('today-summary-detail-$kind')),
-        findsOneWidget,
-      );
-      expect(find.byType(CupertinoSearchTextField), findsNothing);
-    }
     await _tap(tester, 'today-summary-section-shopping');
+    expect(
+      find.byKey(const ValueKey('today-summary-detail-shopping')),
+      findsOneWidget,
+    );
     await _tap(tester, 'today-summary-detail-open');
     expect(find.byType(CupertinoSearchTextField), findsOneWidget);
     Navigator.of(tester.element(find.byType(CupertinoSearchTextField))).pop();
@@ -339,6 +335,15 @@ void main() {
       find.byKey(const ValueKey('today-summary-detail-shopping')),
       findsOneWidget,
     );
+
+    for (final kind in ['chores', 'calendar', 'notifications']) {
+      await _tap(tester, 'today-summary-section-$kind');
+      expect(
+        find.byKey(ValueKey('today-summary-detail-$kind')),
+        findsOneWidget,
+      );
+      expect(find.byType(CupertinoSearchTextField), findsNothing);
+    }
     expect(tester.takeException(), isNull);
   });
 
