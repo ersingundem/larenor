@@ -9,8 +9,10 @@ import '../../auth/providers/auth_providers.dart';
 import '../../navigation/presentation/app_shell_actions.dart';
 import '../../navigation/search/domain/local_search_index.dart';
 import '../data/today_timezone.dart';
+import '../domain/today_daily_summary.dart';
 import '../domain/today_models.dart';
 import '../providers/today_providers.dart';
+import 'today_daily_summary_card.dart';
 import 'today_support.dart';
 import 'today_task_editor.dart';
 
@@ -449,6 +451,20 @@ class _TodayScreenState extends TodayConsumerState<TodayScreen> {
       ),
     ];
     return [
+      SliverLayoutBuilder(
+        builder: (context, constraints) => constraints.crossAxisExtent < 480
+            ? const SliverToBoxAdapter(child: SizedBox.shrink())
+            : SliverToBoxAdapter(
+                child: _constrained(
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 0, 20, 14),
+                    child: TodayDailySummaryCard(
+                      summary: TodayDailySummary.fromSnapshot(snapshot),
+                    ),
+                  ),
+                ),
+              ),
+      ),
       SliverLayoutBuilder(
         builder: (context, constraints) {
           final columns = constraints.crossAxisExtent >= 800 ? 2 : 1;

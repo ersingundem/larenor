@@ -832,6 +832,32 @@
   "todayTodos": "Görevler ve alışveriş",
   "todayCalendar": "Takvim",
   "todayNotifications": "Bildirimler",
+  "todaySummaryShopping": "Alışveriş",
+  "todaySummaryChores": "Ev işleri",
+  "todaySummaryNothingDue": "Bekleyen yok",
+  "todaySummaryOpen": "{count} bekleyen",
+  "@todaySummaryOpen": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "todaySummarySavedView": "Saklanan görünüm · {count}",
+  "@todaySummarySavedView": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "todaySummarySavedViewUnknown": "Saklanan görünüm · sayı alınamadı",
+  "todaySummaryPartial": "Kısmi görünüm",
+  "todaySummaryOffline": "Çevrimdışı",
+  "todaySummaryDenied": "Erişim reddedildi",
+  "todaySummaryAwaitingSource": "Kaynak bekleniyor",
+  "todaySummaryUnsupported": "Desteklenmiyor",
+  "todaySummaryReadFailed": "Okuma başarısız",
   "todayNoTodoLists": "Kullanılabilir görev listesi yok.",
   "todayNoTasks": "Bu listede görev yok.",
   "todayNoCalendars": "Kullanılabilir takvim yok.",

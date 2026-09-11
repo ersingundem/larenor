@@ -1153,6 +1153,32 @@
   "todayTodos": "Tasks & shopping",
   "todayCalendar": "Calendar",
   "todayNotifications": "Notifications",
+  "todaySummaryShopping": "Shopping",
+  "todaySummaryChores": "Chores",
+  "todaySummaryNothingDue": "Nothing due",
+  "todaySummaryOpen": "{count} open",
+  "@todaySummaryOpen": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "todaySummarySavedView": "Saved view · {count}",
+  "@todaySummarySavedView": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "todaySummarySavedViewUnknown": "Saved view · count unavailable",
+  "todaySummaryPartial": "Partial view",
+  "todaySummaryOffline": "Offline",
+  "todaySummaryDenied": "Access denied",
+  "todaySummaryAwaitingSource": "Awaiting source",
+  "todaySummaryUnsupported": "Not supported",
+  "todaySummaryReadFailed": "Read failed",
   "todayNoTodoLists": "No to-do lists are available.",
   "todayNoTasks": "No tasks in this list.",
   "todayNoCalendars": "No calendars are available.",
