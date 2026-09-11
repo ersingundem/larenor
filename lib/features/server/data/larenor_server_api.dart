@@ -438,6 +438,11 @@ class LarenorServerApi {
                 'ha_upstream_unauthorized',
                 'ha_upstream_unavailable',
                 'ha_projection_unsupported',
+                'proxmox_upstream_unauthorized',
+                'proxmox_upstream_unavailable',
+                'keenetic_upstream_unauthorized',
+                'keenetic_upstream_denied',
+                'keenetic_upstream_unavailable',
               }.contains(code)) {
         return code as String;
       }
