@@ -194,7 +194,7 @@ void main() {
   );
 
   testWidgets(
-    'tile uses retained section/query and refreshes only explicitly',
+    'tile prefers its personal section/query and refreshes only explicitly',
     (tester) async {
       final controller = _Controller();
       final stream = StreamController<TodaySnapshot>();
@@ -208,8 +208,8 @@ void main() {
       addTearDown(stream.close);
       addTearDown(container.dispose);
       container.read(todaySummarySelectionProvider.notifier)
-        ..select(TodayDailySummaryKind.calendar)
-        ..updateQuery('dentist');
+        ..select(TodayDailySummaryKind.shopping)
+        ..updateQuery('milk');
       tester.view.physicalSize = const Size(1280, 900);
       tester.view.devicePixelRatio = 1;
       addTearDown(tester.view.reset);
@@ -231,6 +231,8 @@ void main() {
                     y: 0,
                     width: 3,
                     height: 2,
+                    todaySection: 'calendar',
+                    todayQuery: 'dentist',
                   ),
                 ),
               ),
@@ -246,10 +248,10 @@ void main() {
       await tester.tap(find.byKey(const ValueKey('today-dashboard-refresh')));
       await tester.pumpAndSettle();
       expect(controller.reads, 1);
-      expect(container.read(todaySummarySelectionProvider)?.query, 'dentist');
+      expect(container.read(todaySummarySelectionProvider)?.query, 'milk');
       expect(
         container.read(todaySummarySelectionProvider)?.kind,
-        TodayDailySummaryKind.calendar,
+        TodayDailySummaryKind.shopping,
       );
     },
   );
