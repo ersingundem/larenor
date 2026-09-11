@@ -265,6 +265,83 @@ Future<void> _resume(WidgetTester tester) async {
 }
 
 void main() {
+  testWidgets('wide Today keeps four summary selections in master-detail', (
+    tester,
+  ) async {
+    final zone = TodayTimeZone('Europe/Istanbul');
+    final harness = _Harness(
+      TodaySnapshot(
+        configured: true,
+        refreshedAt: _now,
+        timeZone: 'Europe/Istanbul',
+        dayStart: zone.dayRange(_now).start,
+        todoLists: [
+          _list(),
+          TodayTodoList(
+            entityId: 'todo.chores',
+            title: 'Chores',
+            supportedFeatures: 5,
+            available: true,
+            items: const TodayRead(
+              value: [
+                TodayTodoItem(
+                  uid: 'chore-1',
+                  summary: 'Water plants',
+                  status: TodayTodoStatus.needsAction,
+                ),
+              ],
+            ),
+          ),
+        ],
+        calendars: [
+          TodayCalendar(
+            entityId: 'calendar.family',
+            title: 'Family',
+            events: TodayRead(
+              value: [
+                TodayCalendarEvent(
+                  title: 'Dentist',
+                  start: zone.local(DateTime.utc(2026, 9, 5, 9)),
+                  end: zone.local(DateTime.utc(2026, 9, 5, 10)),
+                  allDay: false,
+                ),
+              ],
+            ),
+          ),
+        ],
+        notifications: TodayRead(
+          value: [
+            TodayNotification(
+              id: 'notice',
+              message: 'Door open',
+              createdAt: _now,
+            ),
+          ],
+        ),
+      ),
+    );
+    await harness.mount(tester, size: const Size(1280, 900), scale: 2);
+
+    for (final kind in ['shopping', 'chores', 'calendar', 'notifications']) {
+      await _tap(tester, 'today-summary-section-$kind');
+      expect(
+        find.byKey(ValueKey('today-summary-detail-$kind')),
+        findsOneWidget,
+      );
+      expect(find.byType(CupertinoSearchTextField), findsNothing);
+    }
+    await _tap(tester, 'today-summary-section-shopping');
+    await _tap(tester, 'today-summary-detail-open');
+    expect(find.byType(CupertinoSearchTextField), findsOneWidget);
+    Navigator.of(tester.element(find.byType(CupertinoSearchTextField))).pop();
+    await tester.pumpAndSettle();
+    expect(
+      find.byKey(const ValueKey('today-summary-detail-shopping')),
+      findsOneWidget,
+    );
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('summary selection survives detail navigation and return', (
     tester,
   ) async {
