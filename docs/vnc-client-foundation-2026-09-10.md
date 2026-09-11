@@ -1,7 +1,7 @@
 # F61 VNC Android Client foundation
 
-10 September 2026. This is a bounded, device-personal VNC readiness slice on
-`codex/vnc-client-foundation`, based on `4925a504`. It does not mark F61 or any
+11 September 2026. This is a bounded, device-personal VNC readiness slice on
+`codex/vnc-client-foundation-main`, based on `c1cdace2`. It does not mark F61 or any
 selected feature complete.
 
 ## Delivered contract
@@ -51,14 +51,14 @@ acceptance. Clipboard and file transfer remain unsupported.
 
 ## Focused evidence
 
-- RED `582427f`: missing RFB models, engine and controller failed their focused
+- RED `dce3d771`: missing RFB models, engine and controller failed their focused
   contract tests.
-- GREEN `76ecbdc`: 12 model/controller tests passed; scoped analysis and diff
+- GREEN `18243618`: 12 model/controller tests passed; scoped analysis and diff
   checks were clean.
-- RED `40b5e00`: two widget journeys failed because no VNC action/panel existed.
-- GREEN `ea9317d`: 16 model, lifecycle, trust-store and EN/TR 2× widget tests
+- RED `5de41c0b`: two widget journeys failed because no VNC action/panel existed.
+- GREEN `b27f8f49`: 16 model, lifecycle, trust-store and EN/TR 2× widget tests
   passed; scoped analysis and diff checks were clean.
-- RED `637a13a`: a late REMOTE.COMMON profile check could start negotiation
+- RED `da7c07fd`: a late REMOTE.COMMON profile check could start negotiation
   after retirement. The controller now rechecks ownership before handing the
   profile to the engine; the final focused gate is 20 tests.
 

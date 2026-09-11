@@ -43,7 +43,7 @@ FreeRDP/JNI ve fiziksel Huawei tablet/DeX kabulü açık olduğundan F62 kabulü
 [bounded RDP Client dilimi](rdp-client-flow-2026-09-11.md).
 ### Bağımsız F61 VNC Client temeli — yerel dal
 
-`codex/vnc-client-foundation` dalında REMOTE.COMMON VNC profili için RFB 3.8,
+`codex/vnc-client-foundation-main` dalında REMOTE.COMMON VNC profili için RFB 3.8,
 TLS/SPKI sabitleme, düz VNC varsayılan reddi, tek kullanımlık ve bellekte
 sıfırlanan parola taşıması, tek denemelik yaşam döngüsü ve EN/TR tablet/DeX
 hazırlık paneli eklendi. Varsayılan `UnsupportedVncEngine` DNS/socket açmadan
