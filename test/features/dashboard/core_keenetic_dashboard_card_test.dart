@@ -228,6 +228,7 @@ void main() {
         onRefresh: () => refreshed++,
         onCommands: () => commands++,
       );
+      expect(find.text('Data read successfully'), findsOneWidget);
       expect(find.textContaining('198.51.100.20'), findsOneWidget);
       expect(find.textContaining('9.0'), findsOneWidget);
       expect(find.textContaining('3.0'), findsOneWidget);
@@ -286,6 +287,7 @@ void main() {
 
   testWidgets('offline is distinct from stale and unknown', (tester) async {
     await mount(tester, value: snapshot(online: false));
+    expect(find.text('Data read successfully'), findsOneWidget);
     expect(find.textContaining('Offline'), findsOneWidget);
     expect(find.textContaining('stale'), findsNothing);
   });
