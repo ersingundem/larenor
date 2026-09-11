@@ -44,6 +44,7 @@ def test_initializes_once_and_requires_authenticated_readback():
     ]
     for raw in connection.requests:
         assert b"X-Api-Key: " + API_KEY.encode("ascii") in raw
+        assert b"Connection: keep-alive" in raw
         assert API_KEY not in repr(result)
 
 

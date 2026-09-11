@@ -2177,6 +2177,7 @@
   "serverSeerrPhaseVerified": "Verified",
   "serverSeerrProgressComplete": "Complete",
   "serverSeerrProgressWorking": "In progress",
+  "serverSeerrProgressCancelled": "Cancelled",
   "serverSeerrProgressPending": "Waiting",
   "serverSeerrProgressWaiting": "Ready to start",
   "serverSeerrProgressNeedsAttention": "Needs attention",

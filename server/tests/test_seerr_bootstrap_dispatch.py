@@ -107,6 +107,34 @@ def test_arr_revision_drift_fails_closed_before_private_worker_dispatch(server):
     assert backend.calls == []
 
 
+def test_final_transaction_rechecks_authority_before_persisting_success(server):
+    app, _client, _, _ = server
+    pair, record, backend = queued(server)
+    original = backend.bootstrap_seerr
+
+    def revoke_after_effect(*args, **kwargs):
+        result = original(*args, **kwargs)
+        with app.state.core.db.transaction() as connection:
+            family_id = connection.execute(
+                "SELECT family_id FROM media_seerr_bootstraps WHERE id=?",
+                (record["id"],),
+            ).fetchone()[0]
+            connection.execute(
+                "UPDATE session_families SET revoked_at=? WHERE id=?",
+                (int(time.time()), family_id),
+            )
+        return result
+
+    backend.bootstrap_seerr = revoke_after_effect
+    terminal = app.state.core.seerr_bootstraps.tick()["bootstrap"]
+
+    assert terminal["state"] == "needs_attention"
+    assert terminal["errorCode"] == "seerr_bootstrap_authority_changed"
+    assert terminal["convergencePhase"] == "verified"
+    assert terminal["arrWired"] is True and terminal["initialized"] is True
+    assert app.state.core.seerr_bootstraps.tick() is None
+
+
 def test_missing_worker_fails_without_exposing_private_input(server):
     app, _client, _, _ = server
     _, record, _ = queued(server)

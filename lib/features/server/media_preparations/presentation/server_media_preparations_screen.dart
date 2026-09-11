@@ -322,6 +322,7 @@ class _ServerMediaPreparationsScreenState
     bool allowed = true,
   }) => CupertinoButton(
     key: ValueKey(key),
+    minimumSize: const Size(48, 48),
     onPressed: _enabled && allowed ? _callback(action) : null,
     child: Text(label),
   );
@@ -364,6 +365,7 @@ class _ServerMediaPreparationsScreenState
       _ => 0,
     };
     final failed = value?.needsRecovery == true;
+    final cancelled = value?.cancelled == true;
     String status(int index) {
       if (value == null) {
         return index == 0
@@ -377,39 +379,75 @@ class _ServerMediaPreparationsScreenState
         3 => value.initialized,
         _ => value.state == 'succeeded',
       };
-      if (complete) return l.serverSeerrProgressComplete;
+      if (cancelled && index == rank) {
+        return l.serverSeerrProgressCancelled;
+      }
       if (failed && index == rank) return l.serverSeerrProgressNeedsAttention;
-      if (!failed && index == rank) return l.serverSeerrProgressWorking;
+      if (complete) return l.serverSeerrProgressComplete;
+      if (!cancelled && index == rank) return l.serverSeerrProgressWorking;
       return l.serverSeerrProgressPending;
+    }
+
+    ({IconData icon, Color color}) visual(String status) {
+      if (status == l.serverSeerrProgressComplete) {
+        return (
+          icon: CupertinoIcons.check_mark_circled_solid,
+          color: CupertinoColors.systemGreen.resolveFrom(context),
+        );
+      }
+      if (status == l.serverSeerrProgressNeedsAttention ||
+          status == l.serverSeerrProgressCancelled) {
+        return (
+          icon: status == l.serverSeerrProgressCancelled
+              ? CupertinoIcons.xmark_circle_fill
+              : CupertinoIcons.exclamationmark_triangle_fill,
+          color: CupertinoColors.systemRed.resolveFrom(context),
+        );
+      }
+      return (
+        icon: CupertinoIcons.circle_fill,
+        color:
+            (status == l.serverSeerrProgressWorking
+                    ? CupertinoColors.systemBlue
+                    : CupertinoColors.systemOrange)
+                .resolveFrom(context),
+      );
     }
 
     return _section(l.serverSeerrProgressTitle, [
       Text(l.serverSeerrProgressBody),
       const SizedBox(height: 8),
       for (var index = 0; index < phases.length; index++)
-        Semantics(
-          key: ValueKey('media-seerr-phase-${phases[index]}'),
-          label: '${labels[index]}: ${status(index)}',
-          liveRegion: failed && index == rank,
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(minHeight: 48),
-            child: Row(
-              children: [
-                Icon(
-                  status(index) == l.serverSeerrProgressComplete
-                      ? CupertinoIcons.check_mark_circled_solid
-                      : failed && index == rank
-                      ? CupertinoIcons.exclamationmark_triangle_fill
-                      : CupertinoIcons.circle,
-                  size: 24,
+        Builder(
+          builder: (context) {
+            final rowStatus = status(index);
+            final rowVisual = visual(rowStatus);
+            return Semantics(
+              key: ValueKey('media-seerr-phase-${phases[index]}'),
+              label: '${labels[index]}: $rowStatus',
+              liveRegion: (failed || cancelled) && index == rank,
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(minHeight: 48),
+                child: Row(
+                  children: [
+                    Icon(rowVisual.icon, color: rowVisual.color, size: 24),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(labels[index], style: AppText.subhead),
+                    ),
+                    const SizedBox(width: 12),
+                    Flexible(
+                      child: Text(
+                        rowStatus,
+                        textAlign: TextAlign.end,
+                        style: TextStyle(color: rowVisual.color),
+                      ),
+                    ),
+                  ],
                 ),
-                const SizedBox(width: 12),
-                Expanded(child: Text(labels[index], style: AppText.subhead)),
-                const SizedBox(width: 12),
-                Flexible(child: Text(status(index), textAlign: TextAlign.end)),
-              ],
-            ),
-          ),
+              ),
+            );
+          },
         ),
       if (failed) ...[
         const SizedBox(height: 8),

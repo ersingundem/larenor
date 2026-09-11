@@ -720,7 +720,9 @@ class SeerrBootstrapManagement:
                 with self.db.transaction() as connection:
                     row = self._find(connection, identifier)
                     phase = (
-                        "initialize"
+                        "verified"
+                        if "initialization_verified" in failure.completed_steps
+                        else "initialize"
                         if "arr_wiring_verified" in failure.completed_steps
                         else "arr_wiring"
                         if "session_destroyed" in failure.completed_steps
@@ -739,6 +741,14 @@ class SeerrBootstrapManagement:
                             if failure.arr_wiring is None
                             else failure.arr_wiring.instance_ids
                         ),
+                        initialized=(
+                            None if failure.initialization is None else True
+                        ),
+                        initialization_changed=(
+                            None
+                            if failure.initialization is None
+                            else failure.initialization.changed
+                        ),
                     )
             except (OSError, ValueError, TypeError, AttributeError, RuntimeError):
                 with self.db.transaction() as connection:
@@ -752,6 +762,19 @@ class SeerrBootstrapManagement:
                     )
             with self.db.transaction() as connection:
                 row = self._find(connection, identifier)
+                if not self._gate_locked(connection, row):
+                    return self._transition(
+                        connection,
+                        row,
+                        self._decode(row),
+                        state="needs_attention",
+                        error="seerr_bootstrap_authority_changed",
+                        api_key=result.api_key,
+                        convergence_phase="verified",
+                        arr_instance_ids=result.arr_wiring.instance_ids,
+                        initialized=True,
+                        initialization_changed=result.initialization.changed,
+                    )
                 return self._transition(
                     connection,
                     row,

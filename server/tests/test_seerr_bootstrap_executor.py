@@ -251,6 +251,62 @@ def test_convergence_reuses_one_proved_connection_through_authenticated_readback
     )
 
 
+@pytest.mark.parametrize("reject_gate", [5, 6])
+def test_authority_loss_preserves_completed_private_receipts(
+    prepared, monkeypatch, reject_gate
+):
+    stack, seerr, jellyfin, observed, _engine, operations = prepared
+    connected(monkeypatch, stack, seerr, observed)
+    monkeypatch.setattr(
+        SeerrArrWiring,
+        "configure",
+        lambda *_args, **_kwargs: SeerrArrWiringResult(
+            "verified", ("radarr", "sonarr"), (8, 9)
+        ),
+    )
+    monkeypatch.setattr(
+        SeerrInitialization,
+        "complete",
+        lambda *_args, **_kwargs: SeerrInitializationResult(
+            "verified", False, ("initialized_verified",)
+        ),
+    )
+    calls = 0
+
+    def gate():
+        nonlocal calls
+        calls += 1
+        return calls != reject_gate
+
+    with pytest.raises(SeerrBootstrapExecutionError) as raised:
+        SeerrBootstrapExecutor(
+            operations,
+            lambda _stack, service="jellyfin": {
+                "seerr": seerr,
+                "jellyfin": jellyfin,
+            }[service],
+            SeerrInitialAdmin(),
+            SeerrArrWiring(),
+            SeerrInitialization(),
+        ).execute(
+            JOB,
+            stack,
+            bound_private(),
+            deadline=time.monotonic() + 10,
+            gate=gate,
+        )
+
+    assert raised.value.code == "seerr_bootstrap_authority_changed"
+    assert raised.value.api_key == API_KEY
+    assert raised.value.arr_wiring.instance_ids == (8, 9)
+    if reject_gate == 5:
+        assert raised.value.completed_steps[-1] == "arr_wiring_verified"
+        assert raised.value.initialization is None
+    else:
+        assert raised.value.completed_steps[-1] == "initialization_verified"
+        assert raised.value.initialization.changed is False
+
+
 def test_jellyfin_drift_after_connect_blocks_credentials(prepared, monkeypatch):
     stack, seerr, jellyfin, observed, _engine, operations = prepared
     connection = Connection([])

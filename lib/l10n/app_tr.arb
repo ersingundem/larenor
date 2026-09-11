@@ -1856,6 +1856,7 @@
   "serverSeerrPhaseVerified": "Doğrulama",
   "serverSeerrProgressComplete": "Tamamlandı",
   "serverSeerrProgressWorking": "Devam ediyor",
+  "serverSeerrProgressCancelled": "İptal edildi",
   "serverSeerrProgressPending": "Bekliyor",
   "serverSeerrProgressWaiting": "Başlatılmaya hazır",
   "serverSeerrProgressNeedsAttention": "İlgilenmeniz gerekiyor",

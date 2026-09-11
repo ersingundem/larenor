@@ -95,6 +95,7 @@ class SeerrBootstrapExecutionError(Exception):
         cause_code=None,
         api_key=None,
         arr_wiring=None,
+        initialization=None,
     ):
         self.code = code if code in _CODES else "seerr_bootstrap_resources_unavailable"
         try:
@@ -115,6 +116,11 @@ class SeerrBootstrapExecutionError(Exception):
         self.api_key = api_key if _is_generated_key(api_key) else None
         self.arr_wiring = (
             arr_wiring if type(arr_wiring) is SeerrArrWiringResult else None
+        )
+        self.initialization = (
+            initialization
+            if type(initialization) is SeerrInitializationResult
+            else None
         )
         super().__init__(self.code)
 
@@ -214,13 +220,26 @@ class SeerrBootstrapExecutor:
         self.initialization = initialization
 
     @staticmethod
-    def _gate(gate, uncertain=False):
+    def _gate(
+        gate,
+        uncertain=False,
+        *,
+        completed_steps=(),
+        api_key=None,
+        arr_wiring=None,
+        initialization=None,
+    ):
         try:
             if gate() is not True:
                 raise ValueError()
         except Exception:
             raise SeerrBootstrapExecutionError(
-                "seerr_bootstrap_authority_changed", uncertain_effect=uncertain
+                "seerr_bootstrap_authority_changed",
+                completed_steps=completed_steps,
+                uncertain_effect=uncertain,
+                api_key=api_key,
+                arr_wiring=arr_wiring,
+                initialization=initialization,
             ) from None
 
     @staticmethod
@@ -382,7 +401,13 @@ class SeerrBootstrapExecutor:
                 )
                 completed = completed + ("arr_wiring_verified",)
                 if self.initialization is not None:
-                    self._gate(gate, True)
+                    self._gate(
+                        gate,
+                        True,
+                        completed_steps=completed,
+                        api_key=result.api_key,
+                        arr_wiring=wiring,
+                    )
                     initialized = self.initialization.complete(
                         opened.connection,
                         seerr_api_key=result.api_key,
@@ -410,7 +435,14 @@ class SeerrBootstrapExecutor:
                     completed_steps=completed,
                     uncertain_effect=True,
                 )
-            self._gate(gate, True)
+            self._gate(
+                gate,
+                True,
+                completed_steps=completed,
+                api_key=result.api_key,
+                arr_wiring=wiring,
+                initialization=initialized,
+            )
             _remaining(deadline)
             return SeerrBootstrapExecutionResult(
                 result.state, result.api_key, completed, wiring, initialized

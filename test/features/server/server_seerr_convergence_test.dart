@@ -30,6 +30,8 @@ void main() {
     expect(value.arrWired, isTrue);
     expect(value.initialized, isTrue);
     expect(value.needsRecovery, isFalse);
+    expect(value.publicPhase, 'complete');
+    expect(value.sourceBootstrapRevision, 3);
   });
 
   test('accepts the tablet HTTP fixture', () {
@@ -52,5 +54,57 @@ void main() {
         ),
       ),
     );
+  });
+
+  test('accepts coherent terminal cancellation without recovery action', () {
+    final value = ServerSeerrConvergence.fromJson(
+      record()
+        ..['state'] = 'cancelled'
+        ..['convergencePhase'] = 'initialize'
+        ..['initialized'] = false,
+    );
+    expect(value.cancelled, isTrue);
+    expect(value.needsRecovery, isFalse);
+  });
+
+  test('rejects forged or incoherent public convergence evidence', () {
+    final malformed = <Map<String, Object?>>[
+      record()..['phase'] = 'private_worker',
+      record()..['requestId'] = 'wrong',
+      record()..['sourceBootstrapRevision'] = 0,
+      record()..['revision'] = true,
+      record()..['createdAt'] = '2026-09-05 12:00:00Z',
+      record()
+        ..['createdAt'] = '2026-09-05T12:00:01.000Z'
+        ..['updatedAt'] = '2026-09-05T12:00:00.000Z',
+      record()..['errorCode'] = 'seerr_bootstrap_initialization_failed',
+      record()
+        ..['state'] = 'needs_attention'
+        ..['errorCode'] = null,
+      record()
+        ..['state'] = 'cancelled'
+        ..['errorCode'] = 'seerr_bootstrap_timeout',
+      record()
+        ..['state'] = 'running'
+        ..['phase'] = 'complete'
+        ..['convergencePhase'] = 'bootstrap'
+        ..['arrWired'] = false
+        ..['initialized'] = false,
+      record()
+        ..['state'] = 'needs_attention'
+        ..['errorCode'] = 'unknown_error',
+      record()
+        ..['state'] = 'needs_attention'
+        ..['errorCode'] = 'seerr_bootstrap_initialization_failed'
+        ..['convergencePhase'] = 'arr_wiring',
+    ];
+
+    for (final value in malformed) {
+      expect(
+        () => ServerSeerrConvergence.fromJson(value),
+        throwsA(isA<LarenorServerException>()),
+        reason: value.toString(),
+      );
+    }
   });
 }

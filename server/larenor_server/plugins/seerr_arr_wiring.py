@@ -170,8 +170,7 @@ class SeerrArrWiring:
             if len(raw) > 32768:
                 raise SeerrArrWiringError("invalid_seerr_arr_wiring")
         connection.settimeout(_remaining(deadline))
-        connection.sendall(
-            _request_bytes(
+        request = _request_bytes(
                 method,
                 path,
                 "seerr",
@@ -181,7 +180,13 @@ class SeerrArrWiring:
                     **({"Content-Type": "application/json"} if raw is not None else {}),
                 },
                 raw,
+            ).replace(
+                b"\r\nConnection: close\r\n",
+                b"\r\nConnection: keep-alive\r\n",
+                1,
             )
+        connection.sendall(
+            request
         )
         status, response_body, closed = _response(
             _StartupReader(connection, deadline),

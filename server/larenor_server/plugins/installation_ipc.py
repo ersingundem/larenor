@@ -228,8 +228,13 @@ def _wire_seerr_bootstrap(value=None, error=None):
                 None if error.arr_wiring is None
                 else list(error.arr_wiring.instance_ids)
             ),
-            'initialized': None,
-            'initializationChanged': None,
+            'initialized': (
+                None if error.initialization is None else True
+            ),
+            'initializationChanged': (
+                None if error.initialization is None
+                else error.initialization.changed
+            ),
             'completedSteps': list(error.completed_steps),
             'errorCode': error.code,
             'uncertainEffect': error.uncertain_effect,
@@ -316,21 +321,37 @@ def _seerr_bootstrap_result(value):
                 value['state'], value['apiKey'], tuple(value['completedSteps']),
                 wiring, initialization)
         if (value['state'] != 'failed'
-                or value['initialized'] is not None
-                or value['initializationChanged'] is not None
                 or value['errorCode'] not in _SEERR_BOOTSTRAP_CODES):
             raise ValueError()
         wiring = None
+        initialization = None
         if value['arrInstanceIds'] is not None:
             if type(value['arrInstanceIds']) is not list or len(value['arrInstanceIds']) != 2:
                 raise ValueError()
             wiring = SeerrArrWiringResult(
                 'verified', ('radarr', 'sonarr'), tuple(value['arrInstanceIds']))
+        if value['initialized'] is True:
+            if (wiring is None
+                    or value['completedSteps'] != list(_SEERR_BOOTSTRAP_STEPS)
+                    or type(value['initializationChanged']) is not bool):
+                raise ValueError()
+            initialization = SeerrInitializationResult(
+                'verified', value['initializationChanged'],
+                (
+                    ('uninitialized_verified', 'initialize_sent',
+                     'initialized_verified')
+                    if value['initializationChanged']
+                    else ('initialized_verified',)
+                ),
+            )
+        elif (value['initialized'] is not None
+              or value['initializationChanged'] is not None):
+            raise ValueError()
         failure = SeerrBootstrapExecutionError(
             value['errorCode'], completed_steps=tuple(value['completedSteps']),
             uncertain_effect=value['uncertainEffect'],
             cause_code=value['causeCode'], api_key=value['apiKey'],
-            arr_wiring=wiring)
+            arr_wiring=wiring, initialization=initialization)
         if (failure.code != value['errorCode']
                 or failure.cause_code != value['causeCode']):
             raise ValueError()
@@ -891,7 +912,11 @@ class InstallationWorkerClient:
         except Exception:
             raise SeerrBootstrapExecutionError(
                 'seerr_bootstrap_authority_changed',
-                uncertain_effect=True) from None
+                completed_steps=result.completed_steps,
+                uncertain_effect=True,
+                api_key=result.api_key,
+                arr_wiring=result.arr_wiring,
+                initialization=result.initialization) from None
         return result
 
     def configure_qbittorrent(self, job, plan, private, *, deadline, gate):

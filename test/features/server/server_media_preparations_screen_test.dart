@@ -111,6 +111,27 @@ void main() {
     await tester.pumpAndSettle();
   }
 
+  Future<void> focusWithKeyboard(WidgetTester tester, Finder target) async {
+    for (var index = 0; index < 40; index++) {
+      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+      await tester.pump();
+      final focused = FocusManager.instance.primaryFocus?.context;
+      if (focused != null &&
+          find
+              .descendant(
+                of: target,
+                matching: find.byElementPredicate(
+                  (element) => identical(element, focused),
+                ),
+              )
+              .evaluate()
+              .isNotEmpty) {
+        return;
+      }
+    }
+    fail('Target did not receive keyboard focus');
+  }
+
   testWidgets(
     'history loads without mutation and an existing preparation opens and cancels',
     (tester) async {
@@ -192,6 +213,7 @@ void main() {
       expect(find.textContaining('otomatik tekrarlamaz'), findsOneWidget);
       final recovery = find.byKey(const ValueKey('media-seerr-recover'));
       await reveal(tester, recovery);
+      expect(tester.getSize(recovery).height, greaterThanOrEqualTo(48));
       expect(
         tester
             .getSemantics(recovery)
@@ -202,9 +224,16 @@ void main() {
       await tester.sendKeyEvent(LogicalKeyboardKey.tab);
       await tester.pump();
       expect(FocusManager.instance.primaryFocus, isNotNull);
+      final beforeSpace = f.calls.length;
+      await focusWithKeyboard(tester, recovery);
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.space);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.space);
+      await tester.pumpAndSettle();
+      expect(f.calls.length, greaterThan(beforeSpace));
       f.seerrRecords[0] = seerrConvergenceJson(f.records.single);
       await tester.ensureVisible(recovery);
-      await tester.tap(recovery);
+      await focusWithKeyboard(tester, recovery);
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
       await tester.pumpAndSettle();
       await reveal(
         tester,
@@ -219,6 +248,36 @@ void main() {
         contains('Doğrulama: Tamamlandı'),
       );
       expect(f.mutations, isEmpty);
+      expect(tester.takeException(), isNull);
+    },
+  );
+  testWidgets(
+    'cancelled convergence is terminal and has distinct accessible status',
+    (tester) async {
+      await mount(tester, width: 600, language: 'tr', scale: 2);
+      f.seerrRecords.add(
+        seerrConvergenceJson(
+          f.records.single,
+          state: 'cancelled',
+          phase: 'arr_wiring',
+          arrWired: false,
+          initialized: false,
+        ),
+      );
+      await tap(tester, 'media-view-${f.records.single['id']}');
+      final phase = find.byKey(const ValueKey('media-seerr-phase-arr_wiring'));
+      await reveal(tester, phase);
+
+      expect(tester.getSemantics(phase).label, contains('İptal edildi'));
+      expect(tester.getSemantics(phase).label, isNot(contains('Devam ediyor')));
+      expect(find.byKey(const ValueKey('media-seerr-recover')), findsNothing);
+      final icon = tester.widget<Icon>(
+        find.descendant(of: phase, matching: find.byType(Icon)),
+      );
+      expect(
+        icon.color,
+        CupertinoColors.systemRed.resolveFrom(tester.element(phase)),
+      );
       expect(tester.takeException(), isNull);
     },
   );

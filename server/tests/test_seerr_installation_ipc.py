@@ -159,6 +159,35 @@ def test_worker_failure_preserves_only_static_seerr_state():
     assert len(backend.calls) == 1 and PASSWORD not in repr(raised.value)
 
 
+def test_worker_authority_failure_preserves_verified_convergence_receipts():
+    wiring = SeerrArrWiringResult("verified", ("radarr", "sonarr"), (7, 8))
+    initialization = SeerrInitializationResult(
+        "verified", False, ("initialized_verified",)
+    )
+    failure = SeerrBootstrapExecutionError(
+        "seerr_bootstrap_authority_changed",
+        completed_steps=receipt().completed_steps,
+        uncertain_effect=True,
+        api_key=API_KEY,
+        arr_wiring=wiring,
+        initialization=initialization,
+    )
+    with running(Backend(failure)) as (_backend, client):
+        with pytest.raises(SeerrBootstrapExecutionError) as raised:
+            client.bootstrap_seerr(
+                "a" * 32,
+                stack(),
+                private(),
+                deadline=time.monotonic() + 0.4,
+                gate=lambda: True,
+            )
+
+    assert raised.value.completed_steps == receipt().completed_steps
+    assert raised.value.arr_wiring == wiring
+    assert raised.value.initialization == initialization
+    assert API_KEY not in repr(raised.value)
+
+
 def test_client_authority_loss_before_dispatch_never_reaches_worker():
     with running() as (backend, client):
         with pytest.raises(
@@ -190,6 +219,11 @@ def test_client_authority_loss_after_effect_is_uncertain():
                 gate=lambda: next(gates),
             )
     assert raised.value.uncertain_effect and len(backend.calls) == 1
+    assert raised.value.completed_steps == receipt().completed_steps
+    assert raised.value.api_key == API_KEY
+    assert raised.value.arr_wiring == receipt().arr_wiring
+    assert raised.value.initialization == receipt().initialization
+    assert API_KEY not in repr(raised.value)
 
 
 @pytest.mark.parametrize("result", [{"apiKey": API_KEY}, object()])

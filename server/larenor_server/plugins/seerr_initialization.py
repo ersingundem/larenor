@@ -153,14 +153,19 @@ class SeerrInitialization:
     @staticmethod
     def _exchange(connection, deadline, api_key, method, path):
         connection.settimeout(_remaining(deadline))
-        connection.sendall(
-            _request_bytes(
+        request = _request_bytes(
                 method,
                 path,
                 "seerr",
                 {"Accept": "application/json", "X-Api-Key": api_key},
                 None,
+            ).replace(
+                b"\r\nConnection: close\r\n",
+                b"\r\nConnection: keep-alive\r\n",
+                1,
             )
+        connection.sendall(
+            request
         )
         status, body, closed = _response(
             _StartupReader(connection, deadline),
