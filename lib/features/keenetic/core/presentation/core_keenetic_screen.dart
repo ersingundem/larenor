@@ -90,7 +90,7 @@ class _ViewState extends ConsumerState<_View> {
           stale: c.stale,
           failure: c.failure,
           verifiedAt: c.snapshot?.observedAt,
-          reachable: c.preview != null || c.binding != null,
+          transportObserved: c.preview != null,
         );
         if (_service != null &&
             !c.services.any((s) => identical(s, _service))) {

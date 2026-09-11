@@ -19,6 +19,7 @@ import 'package:larenor/features/core_proxmox/domain/core_proxmox_models.dart';
 import 'package:larenor/features/core_proxmox/presentation/core_proxmox_screen.dart';
 import 'package:larenor/features/dashboard/domain/tile_config.dart';
 import 'package:larenor/features/dashboard/presentation/tiles/proxmox_tile.dart';
+import 'package:larenor/features/home_resources/domain/home_resource_models.dart';
 import 'package:larenor/features/server/data/larenor_server_api.dart';
 import 'package:larenor/features/server/data/server_account_controller.dart';
 import 'package:larenor/features/server/data/server_session_store.dart';
@@ -498,6 +499,89 @@ void main() {
       findsOneWidget,
     );
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('stored binding alone remains saved rather than reachable', (
+    tester,
+  ) async {
+    final fixture = jsonDecode(
+      File('contracts/proxmox-resource.v1.json').readAsStringSync(),
+    ) as Map<String, dynamic>;
+    final context = ServerContext.fromJson(fixture['context']);
+    final account = ServerAccountController(
+      store: _Sessions(),
+      apiFactory: (_) => _Auth(context, role: ServerRole.admin),
+    );
+    final home = HomeSessionController(store: _Source(), account: account);
+    await account.initialize();
+    await home.initialize();
+    await account.signIn(
+      baseUrl: 'https://core.invalid',
+      username: 'admin',
+      password: 'password',
+      deviceName: 'tablet',
+    );
+    home.runtimeMounted(home.runtimeIdentity);
+    addTearDown(() {
+      home.dispose();
+      account.dispose();
+    });
+    final target = HomeResourceRecord.fromJson(
+      fixture['resource'],
+      expectedContext: context,
+    );
+    LarenorServerApi transport(ServerEndpoint endpoint) => LarenorServerApi(
+      endpoint: endpoint,
+      client: MockClient((request) async {
+        final body = request.url.path.endsWith('/binding')
+            ? {'binding': fixture['binding']}
+            : request.url.path.endsWith('/admin/services')
+            ? {
+                'services': [fixture['service']],
+              }
+            : {'record': fixture['resource']};
+        return http.Response(
+          jsonEncode(body),
+          200,
+          headers: {'content-type': 'application/json'},
+        );
+      }),
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          homeSessionControllerProvider.overrideWithValue(home),
+          coreProxmoxApiFactoryProvider.overrideWithValue(transport),
+          windowPolicySnapshotProvider.overrideWith((_) async* {
+            yield const WindowPolicySnapshot(
+              supported: true,
+              isResumed: true,
+              hasWindowFocus: true,
+              reason: WindowRestrictionReason.none,
+            );
+          }),
+        ],
+        child: CupertinoApp(
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: AppInteractionScope(
+            controller: home.interaction,
+            child: CoreProxmoxBindingScreen(
+              target: target,
+              gateCurrent: () => true,
+            ),
+          ),
+        ),
+      ),
+    );
+    for (var index = 0; index < 30; index++) {
+      await tester.pump();
+    }
+
+    expect(find.text('Saved connection'), findsOneWidget);
+    expect(find.text('Service reachable'), findsNothing);
+    expect(find.text('Not yet verified'), findsOneWidget);
   });
 
   for (final size in [const Size(600, 900), const Size(1280, 900)]) {

@@ -208,7 +208,7 @@ class _CoreProxmoxViewState extends ConsumerState<_CoreProxmoxView> {
           stale: c.stale,
           failure: c.failure,
           verifiedAt: c.snapshot?.observedAt,
-          reachable: c.preview != null || c.binding != null,
+          transportObserved: c.preview != null,
         );
         return CoreHaPage(
           key: ValueKey(

@@ -12,17 +12,21 @@ ConnectionEvidence coreInfrastructureEvidence({
   bool stale = false,
   String? failure,
   DateTime? verifiedAt,
-  bool reachable = false,
+  bool transportObserved = false,
 }) {
   final stage = verifiedAt != null
       ? ConnectionEvidenceStage.verified
-      : reachable
+      : transportObserved
       ? ConnectionEvidenceStage.reachable
       : ConnectionEvidenceStage.saved;
   if (busy) return ConnectionEvidence.connecting(stage: stage);
   if (stale) return ConnectionEvidence.stale(verifiedAt);
   if (failure != null) {
-    if ({'forbidden', 'not_found'}.contains(failure)) {
+    if ({
+      'forbidden',
+      'not_found',
+      'keenetic_upstream_denied',
+    }.contains(failure)) {
       return ConnectionEvidence.permissionDenied(
         stage: stage,
         lastVerifiedAt: verifiedAt,
@@ -32,7 +36,6 @@ ConnectionEvidence coreInfrastructureEvidence({
       'unauthorized',
       'proxmox_upstream_unauthorized',
       'keenetic_upstream_unauthorized',
-      'keenetic_upstream_denied',
     }.contains(failure)) {
       return ConnectionEvidence.authenticationRequired(
         stage: stage,
@@ -53,7 +56,7 @@ ConnectionEvidence coreInfrastructureEvidence({
     return ConnectionEvidence.error(stage: stage, lastVerifiedAt: verifiedAt);
   }
   if (verifiedAt != null) return ConnectionEvidence.verified(verifiedAt);
-  if (reachable) return const ConnectionEvidence.reachable();
+  if (transportObserved) return const ConnectionEvidence.reachable();
   return const ConnectionEvidence.saved();
 }
 

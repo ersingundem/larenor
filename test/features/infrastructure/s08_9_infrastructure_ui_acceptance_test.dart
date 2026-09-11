@@ -139,6 +139,11 @@ void main() {
           ConnectionEvidenceCondition.authenticationRequired,
         );
       }
+      expect(
+        coreInfrastructureEvidence(failure: 'keenetic_upstream_denied')
+            .condition,
+        ConnectionEvidenceCondition.permissionDenied,
+      );
       for (final code in [
         'proxmox_upstream_unavailable',
         'keenetic_upstream_unavailable',
@@ -159,6 +164,14 @@ void main() {
       );
       expect(
         coreInfrastructureOperationEvidence(succeeded: true).stage,
+        ConnectionEvidenceStage.reachable,
+      );
+      expect(
+        coreInfrastructureEvidence(transportObserved: false).stage,
+        ConnectionEvidenceStage.saved,
+      );
+      expect(
+        coreInfrastructureEvidence(transportObserved: true).stage,
         ConnectionEvidenceStage.reachable,
       );
     },
