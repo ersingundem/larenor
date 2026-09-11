@@ -23,6 +23,7 @@ import 'radarr_tile.dart';
 import 'readarr_tile.dart';
 import 'scene_tile.dart';
 import 'sonarr_tile.dart';
+import 'today_tile.dart';
 import 'weather_tile.dart';
 import 'webview_tile.dart';
 
@@ -63,5 +64,6 @@ Widget _buildTileContent(TileConfig tile) {
     TileType.proxmox => ProxmoxTile(tile: tile),
     TileType.keenetic => KeeneticTile(tile: tile),
     TileType.coreKeenetic => CoreKeeneticTile(tile: tile),
+    TileType.today => TodayTile(tile: tile),
   };
 }
