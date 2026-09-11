@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:larenor/features/backup/data/backup_snapshot.dart';
 import 'package:larenor/features/dashboard/domain/dashboard_layout.dart';
 import 'package:larenor/features/dashboard/domain/dashboard_layout_validation.dart';
 import 'package:larenor/features/dashboard/domain/tile_config.dart';
@@ -50,6 +51,14 @@ void main() {
       );
       final json = jsonDecode(jsonEncode(layout.toJson()));
       expect(() => validateDashboardLayoutJson(json), returnsNormally);
+      expect(
+        () => BackupSnapshot.fromJson({
+          'version': 1,
+          'createdAt': '2026-09-11T00:00:00Z',
+          'groups': {'dashboard': json},
+        }),
+        returnsNormally,
+      );
       expect(DashboardLayout.fromJson(json).tiles.single, layout.tiles.single);
     },
   );
@@ -63,6 +72,14 @@ void main() {
       _layout(type: 'history'),
     ]) {
       expect(() => validateDashboardLayoutJson(value), throwsFormatException);
+      expect(
+        () => BackupSnapshot.fromJson({
+          'version': 1,
+          'createdAt': '2026-09-11T00:00:00Z',
+          'groups': {'dashboard': value},
+        }),
+        throwsA(isA<BackupValidationException>()),
+      );
     }
   });
 }
