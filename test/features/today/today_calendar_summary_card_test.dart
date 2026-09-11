@@ -31,6 +31,19 @@ TodayCalendarSummary _summary() => TodayCalendarSummary(
       sourceId: 'calendar.family',
       sourceTitle: 'Family',
       event: TodayCalendarEvent(
+        uid: 'breakfast',
+        title: 'Breakfast',
+        start: DateTime.parse('2026-09-11T08:00:00+03:00'),
+        end: DateTime.parse('2026-09-11T09:00:00+03:00'),
+        allDay: false,
+      ),
+      phase: TodayCalendarPhase.past,
+      stale: true,
+    ),
+    TodayCalendarSummaryEntry(
+      sourceId: 'calendar.family',
+      sourceTitle: 'Family',
+      event: TodayCalendarEvent(
         uid: 'dentist',
         title: 'Dentist',
         start: DateTime.parse('2026-09-11T14:00:00+03:00'),
@@ -102,11 +115,17 @@ void main() {
       tester,
     ) async {
       final semantics = tester.ensureSemantics();
-      await _mount(tester, size: size, selectedItemId: 'dentist');
+      await _mount(
+        tester,
+        size: size,
+        selectedItemId: 'dentist',
+        onSelected: (_) {},
+      );
 
       expect(find.text('Tüm gün etkinlikleri'), findsOneWidget);
       expect(find.text('Saatli etkinlikler'), findsOneWidget);
       expect(find.text('Şu anda sürüyor'), findsOneWidget);
+      expect(find.text('Geçmiş'), findsOneWidget);
       expect(find.text('Yaklaşan'), findsOneWidget);
       expect(find.text('Kayıtlı kaynak: Family'), findsOneWidget);
       expect(find.text('Erişilemeyen kaynak: Work'), findsOneWidget);
@@ -120,6 +139,16 @@ void main() {
             .flagsCollection
             .isSelected,
         ui.Tristate.isTrue,
+      );
+      expect(
+        tester
+            .getSize(
+              find.byKey(
+                const ValueKey('today-calendar-event-calendar.family-dentist'),
+              ),
+            )
+            .height,
+        greaterThanOrEqualTo(48),
       );
       expect(find.byKey(const ValueKey('today-calendar-create')), findsNothing);
       expect(tester.takeException(), isNull);
@@ -148,6 +177,9 @@ void main() {
     );
     expect(changes.last, 'day');
     await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+    await tester.pump();
+    await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+    await tester.pump();
     await tester.sendKeyEvent(LogicalKeyboardKey.enter);
     await tester.pump();
     expect(selected.single.event.uid, 'holiday');

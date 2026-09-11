@@ -1216,6 +1216,28 @@
   "todayDismissConfirm": "This removes the notification from Home Assistant for everyone.",
   "todayViewingKeepsNotification": "Opening a notification keeps it in Home Assistant.",
   "todayAllDay": "All day",
+  "todayCalendarAllDayEvents": "All-day events",
+  "todayCalendarTimedEvents": "Timed events",
+  "todayCalendarPast": "Past",
+  "todayCalendarCurrent": "Happening now",
+  "todayCalendarUpcoming": "Upcoming",
+  "todayCalendarSaved": "Saved reading",
+  "todayCalendarSavedSource": "Saved source: {source}",
+  "@todayCalendarSavedSource": {
+    "placeholders": {
+      "source": {
+        "type": "String"
+      }
+    }
+  },
+  "todayCalendarUnavailableSource": "Unavailable source: {source}",
+  "@todayCalendarUnavailableSource": {
+    "placeholders": {
+      "source": {
+        "type": "String"
+      }
+    }
+  },
   "todayLocation": "Location",
   "todayTimeZone": "Home time zone: {zone}",
   "todayRefreshed": "Updated: {time}",
