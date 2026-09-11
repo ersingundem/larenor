@@ -1,5 +1,6 @@
 import 'package:flutter/cupertino.dart';
 
+import '../../../shared/widgets/core_infrastructure_evidence.dart';
 import '../../server/data/larenor_server_api.dart';
 import 'proxmox_power_api.dart';
 import 'proxmox_power_controller.dart';
@@ -196,6 +197,18 @@ final class _ProxmoxPowerPanelState extends State<ProxmoxPowerPanel>
                     style: CupertinoTheme.of(context)
                         .textTheme
                         .navLargeTitleTextStyle,
+                  ),
+                  const SizedBox(height: 12),
+                  CoreInfrastructureEvidenceStatus(
+                    surface: 'proxmox-operation',
+                    evidence: coreInfrastructureOperationEvidence(
+                      pending: controller.busy,
+                      succeeded:
+                          controller.phase == ProxmoxPowerPhase.succeeded,
+                      unknown: controller.phase == ProxmoxPowerPhase.unknown,
+                      failed: controller.phase == ProxmoxPowerPhase.failed,
+                    ),
+                    showTimestamp: false,
                   ),
                   const SizedBox(height: 16),
                   Wrap(

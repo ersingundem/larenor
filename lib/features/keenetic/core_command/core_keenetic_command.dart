@@ -5,6 +5,7 @@ import 'dart:math';
 import 'package:flutter/cupertino.dart';
 
 import '../../../l10n/generated/app_localizations.dart';
+import '../../../shared/widgets/core_infrastructure_evidence.dart';
 import '../../../shared/widgets/settings_action_tile.dart';
 import '../../server/data/larenor_server_api.dart';
 
@@ -950,6 +951,23 @@ class _CoreKeeneticCommandPanelState extends State<CoreKeeneticCommandPanel>
         child: ListView(
           padding: const EdgeInsets.symmetric(vertical: 16),
           children: [
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: CoreInfrastructureEvidenceStatus(
+                surface: 'keenetic-operation',
+                evidence: coreInfrastructureOperationEvidence(
+                  pending: _busy,
+                  succeeded:
+                      _receipt?.status == CoreKeeneticCommandStatus.succeeded,
+                  unknown:
+                      _receipt?.status == CoreKeeneticCommandStatus.unknown,
+                  failed:
+                      _error != null ||
+                      _receipt?.status == CoreKeeneticCommandStatus.failed,
+                ),
+                showTimestamp: false,
+              ),
+            ),
             CupertinoListSection.insetGrouped(
               header: Text(_title(l10n)),
               children: [
