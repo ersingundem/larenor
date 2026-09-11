@@ -436,6 +436,7 @@ class LarenorServerApi {
             'plugin_job_storage_unavailable',
             'media_preparation_storage_unavailable',
             'media_inspection_storage_unavailable',
+            'media_archive_worker_unavailable',
           }.contains(code)) {
         return code as String;
       }
@@ -458,6 +459,9 @@ class LarenorServerApi {
             'media_catalog_changed',
             'media_context_changed',
             'media_preparation_limit_reached',
+            'media_installation_changed',
+            'media_archive_authority_changed',
+            'media_archive_snapshot_stale',
           }.contains(code)) {
         return code as String;
       }

@@ -19,6 +19,19 @@ class MediaArchiveReadRequest(StrictModel):
     expectedSnapshotRevision: Revision
 
 
+class MediaArchiveAuthorityRequest(StrictModel):
+    requestId: ObjectId
+    installationId: ObjectId
+    expectedInstallationRevision: Revision
+
+
+class MediaArchiveAuthorityResponse(StrictModel):
+    requestId: ObjectId
+    installationId: ObjectId
+    installationRevision: Revision
+    snapshotRevision: Revision
+
+
 class MediaArchiveCollectionAuthority(StrictModel):
     installationId: ObjectId
     installationRevision: Revision

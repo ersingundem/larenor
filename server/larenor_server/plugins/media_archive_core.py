@@ -6,6 +6,7 @@ from pydantic import ValidationError
 
 from ..errors import ApiError
 from .media_archive_core_models import (
+    MediaArchiveAuthorityRequest,
     MediaArchiveCollectionAuthority,
     MediaArchiveReadRequest,
     PrivateMediaArchiveCollection,
@@ -63,10 +64,12 @@ class MediaArchiveHealthManagement:
             raise
         except Exception:
             raise ApiError('media_archive_worker_unavailable', 503) from None
+        expected_snapshot = getattr(body, 'expectedSnapshotRevision',
+                                    current.snapshotRevision)
         if (current.installationId != body.installationId
                 or current.installationRevision
                 != body.expectedInstallationRevision
-                or current.snapshotRevision != body.expectedSnapshotRevision):
+                or current.snapshotRevision != expected_snapshot):
             raise ApiError('media_archive_authority_changed', 409)
         if any(item.observedAt > now
                or now - item.observedAt > _MAX_AGE_SECONDS
@@ -141,3 +144,18 @@ class MediaArchiveHealthManagement:
         if archive.state == 'incomplete':
             raise ApiError('media_archive_snapshot_stale', 409)
         return {'requestId': body.requestId, 'archive': archive.model_dump()}
+
+    def authority(self, actor, body):
+        """Return only the revisions needed to make a subsequent exact read."""
+        if type(body) is not MediaArchiveAuthorityRequest:
+            raise ApiError('invalid_request')
+        with self.db.connection() as connection:
+            connection.execute('BEGIN')
+            self._installation(connection, actor, body)
+        current = self._authority(body, int(self.settings.clock()))
+        return {
+            'requestId': body.requestId,
+            'installationId': current.installationId,
+            'installationRevision': current.installationRevision,
+            'snapshotRevision': current.snapshotRevision,
+        }
