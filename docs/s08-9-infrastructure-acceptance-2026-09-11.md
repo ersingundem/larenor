@@ -14,6 +14,9 @@ acceptance.
 | --- | --- | --- |
 | Cross-adapter Server authority acceptance | `758583bbdb3b89b45fd87a3fe9a249a492bb091e` | Passed |
 | Shared Core infrastructure evidence UI | `78eeb40502937952c6497ef887f9e675580fd67b` | Passed |
+| Saved/reachable proof, live child guard and denied mapping regressions | `f8f2323983219a018422dcd6076d8e048fb20931` | Passed |
+| API replacement and late-preview authority ownership | `a00dc041356ca268dbd879113a1abaabd74b6aee` | Passed |
+| Exact HTTP status/error-code preservation | `c70417ab5be838efa6bd7b6cb8e8cf27c1df6ec4` | Passed |
 
 The Server slice adds 20 synthetic acceptance cases across Proxmox and
 Keenetic. The combined focused Server gate ran 103 tests. It proves that an old
@@ -26,8 +29,13 @@ The Client slice uses the existing shared connection evidence vocabulary for
 Core-backed Proxmox and Keenetic detail, dashboard and command surfaces. A
 successful command receipt proves Core reachability; it does not invent a
 timestamped device read. Unknown operation results stay stale/unknown. The
-combined focused Flutter gate ran 37 tests and targeted analysis reported no
-issues.
+first combined focused Flutter gate ran 37 tests. The three review-fix commits
+added six regression cases: a stored binding remains configured rather than
+reachable, the Keenetic child rechecks its live parent authority and owns
+cancellation across API replacement, `keenetic_upstream_denied` stays
+permission-denied, and only exact HTTP status/error-code pairs retain their
+typed failures. The final focused S08.9 Flutter gate ran **43 tests**; targeted
+analysis reported no issues.
 
 ## Local commands
 
@@ -74,16 +82,20 @@ git diff --check
 - Proxmox high-risk confirmation and Keenetic second confirmation remain
   unchanged. Loading, failure and unknown states cannot trigger a command.
 
-## Evidence still required before completion
+## S08.9 software evidence still required
 
 1. An independent security and retained-state review on the exact candidate
    commit.
 2. Required GitHub Server, Android/Flutter, security and queue checks on that
    same commit.
-3. Read-only real Proxmox and Keenetic observations through Larenor Core,
-   followed by an explicitly authorized non-destructive command acceptance.
-4. Huawei MatePad and Samsung DeX physical checks for 2× text, keyboard,
-   TalkBack, lifecycle retirement and PIN-gated command entry.
+
+S08.9's declared `requiredEvidence` is limited to `test`, `review` and `ci`.
+Read-only real Proxmox/Keenetic observations and any explicitly authorized
+non-destructive command acceptance are tracked separately by
+`MANUAL.SERVICES`. Huawei MatePad and Samsung DeX checks for 2× text, keyboard,
+TalkBack, lifecycle retirement and PIN-gated command entry are tracked by
+`MANUAL.TABLET`; neither manual track is silently counted as S08.9 software
+evidence.
 
 Until the automated CI and review evidence are attached to the exact commit,
 `S08.9` remains `awaiting_ci`, `completionCommit` remains null, and progress

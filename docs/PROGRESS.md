@@ -1,6 +1,6 @@
 # Larenor — güncel ilerleme ve iş kuyruğu
 
-**Son güncelleme: 11 Eylül 2026 — PR135 kaynak dalı `faa2866`, ana dal `a052362` olarak birleşti ve gerekli entegrasyon CI kapıları geçti. Bu sabit ana dal üzerindeki S08.9 kabul adayı yerelde hazır; adayın kendi uzak CI ve bağımsız incelemesi bekleniyor.**
+**Son güncelleme: 11 Eylül 2026 — `a052362` ana dalı üzerinde Seerr yakınsaması, S08.9 altyapı kabulü ve imzalı beta/Core güncellemesini birleştiren `d3a22ea8` adayı yerelde hazır. Adayın bağımsız son incelemesi sürüyor; bu exact head için uzak CI henüz yok.**
 
 ```text
 Kuyruk kabulü       ██░░░░░░░░░░░░░░░░░░  14/125 iş (%11; eşit ağırlıklı sayaç)
@@ -139,11 +139,37 @@ Server kapısında **103 test** geçti.
 Core-backed Proxmox/Keenetic ayrıntı, dashboard ve komut yüzeyleri aynı bağlantı
 kanıtı sözlüğünü kullanıyor. Komut makbuzu yalnız Core erişilebilirliğini
 gösteriyor; timestamp'li cihaz okuması olmadan doğrulanmış veri iddiası
-oluşturmuyor. **37 Flutter testi**, 600/1280 genişlik, 2× metin, 48 dp ve klavye
-akışlarıyla geçti; hedefli analiz temiz. Direct credential/cache fallback
-eklenmedi. Uzak CI, bağımsız inceleme ve fiziksel Huawei/DeX kabulü açık olduğu
-için `S08.9` **CI bekliyor** ve sayaçlar değişmedi.
+oluşturmuyor. İlk **37 Flutter** kapısından sonra `f8f23239`, `a00dc041` ve
+`c70417ab` inceleme düzeltmeleri; kayıtlı bağlantıyı erişilebilir kanıt saymama,
+child authority/lifecycle düşüşünde istek başlatmama, API değişiminde preview
+sahipliğini koruma, permission-denied eşlemesi ve exact HTTP hata sözleşmesini
+kapattı. Son S08.9 odaklı kapısı **43 Flutter testiyle** geçti. 600/1280
+genişlik, 2× metin, 48 dp ve klavye akışları doğrulandı; hedefli analiz temiz.
+Direct credential/cache fallback eklenmedi. S08.9 için kalan yazılım kanıtı
+bağımsız inceleme ve exact-head CI'dır. Gerçek LAN/servis kabulü
+`MANUAL.SERVICES`, fiziksel Huawei/DeX kabulü `MANUAL.TABLET` altında ayrı
+izlenir. Bu nedenle `S08.9` **CI bekliyor** ve sayaçlar değişmedi.
 [Kabul taslağı ve açık kanıtlar](s08-9-infrastructure-acceptance-2026-09-11.md).
+
+### Birleşik Seerr + S08.9 + imzalı beta/Core adayı
+
+Exact yerel aday `d3a22ea8`; ana dal tabanı `a052362`'dir. Seerr zinciri
+`ada25a16`, `21c70dc4`, `e6debec2` ve inceleme düzeltmesi `f57dc316` ile aynı
+kanıtlı bağlantıda Arr wiring, initialized readback, transaction içi son yetki
+kapısı, partial makbuz koruması ve tablet faz görünümünü birleştirir. S08.9
+kaynağı `758583bb`/`78eeb405`; son review-fix kanıtları `f8f23239`,
+`a00dc041`, `c70417ab`'dır. İmzalı beta/Core yayın zinciri `17f4c18f`, recovery
+ve APK bütünlük düzeltmesi `3c19f5bd` ile temsil edilir.
+
+İlk birleşik yerel kapıda **183 Server**, **113 Flutter** ve **78 araç/politika
+testi** geçti. Sonraki dar düzeltme tekrarları Seerr için **82 Server / 26
+Flutter**, beta/Core yayın ve bütünlük sınırı için **92 Server / 18 araç testi**
+olarak geçti. Son receipt-coherence düzeltmesi `d3a22ea8` üzerinde ilgili
+**90 Server / 26 Flutter** kapısını geçti. Bu sayılar aynı adayın yerel
+kanıtıdır; GitHub CI yerine geçmez. Bağımsız son inceleme sürüyor ve exact
+`d3a22ea8` için CI sonucu yok. S08.9
+`awaiting_ci`, S06.5 ise daha geniş medya/native kabulü nedeniyle açık kalır;
+ilerleme sayaçları **14/125 (%11,2)** ve **0/63 (%0,0)** olarak korunur.
 
 ### Hazırlanan dördüncü toplu kilometre taşı
 
