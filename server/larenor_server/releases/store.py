@@ -57,6 +57,28 @@ def _private_open(path: Path):
     return stream
 
 
+def _apk_content_matches(stream, manifest: dict) -> bool:
+    """Bound a content check to the already validated manifest size."""
+    try:
+        expected_size = manifest["sizeBytes"]
+        if os.fstat(stream.fileno()).st_size != expected_size:
+            return False
+        digest = hashlib.sha256()
+        size = 0
+        for chunk in iter(lambda: stream.read(65536), b""):
+            size += len(chunk)
+            if size > expected_size:
+                return False
+            digest.update(chunk)
+        if size != expected_size or not hmac.compare_digest(
+                digest.hexdigest(), manifest["apkSha256"]):
+            return False
+        stream.seek(0)
+        return True
+    except (KeyError, OSError, TypeError, ValueError):
+        return False
+
+
 def _valid_beta_receipt(receipt: object, manifest: dict) -> bool:
     expected = {
         "schemaVersion", "channel", "sourceRepository", "sourceWorkflow",
@@ -233,13 +255,26 @@ class ReleaseService:
                     if error.code != "release_conflict":
                         raise
         published = self._published()
-        self._clean_beta_source_artifacts(published)
+        try:
+            previous = self._latest_version("stable")
+            beta = self._latest_version("beta")
+        except ApiError:
+            raise StartupError("invalid_release_storage") from None
+        if previous is not None and previous not in published:
+            raise StartupError("published_release_missing")
+        if beta is not None and beta not in published:
+            raise StartupError("published_release_missing")
+
         beta_intents = {}
+        receipt_repairs = []
         for version in published:
             manifest = self._manifest(version)
-            with _private_open(self.versions / str(version) / "client.apk") as apk:
-                if os.fstat(apk.fileno()).st_size != manifest["sizeBytes"]:
-                    raise StartupError("invalid_release_storage")
+            try:
+                with _private_open(self.versions / str(version) / "client.apk") as apk:
+                    if not _apk_content_matches(apk, manifest):
+                        raise StartupError("invalid_release_storage")
+            except (ApiError, OSError, StartupError):
+                raise StartupError("invalid_release_storage") from None
             intent_path = self.versions / str(version) / "beta-intent.json"
             source_path = self.beta_sources / f"{version}.json"
             intent = _json_read(intent_path) if intent_path.exists() else None
@@ -256,17 +291,18 @@ class ReleaseService:
                 # staging rename. Either external copy can therefore be
                 # reconstructed without guessing the release channel.
                 if intent is None:
-                    _json_write(intent_path, receipt)
+                    receipt_repairs.append((intent_path, receipt))
                 if source is None:
-                    _json_write(source_path, receipt)
+                    receipt_repairs.append((source_path, receipt))
                 beta_intents[version] = receipt
-        previous = self._latest_version("stable")
-        beta = self._latest_version("beta")
-        if previous is not None and previous not in published:
-            raise StartupError("published_release_missing")
         if beta is not None:
-            if beta not in published or beta not in beta_intents:
+            if beta not in beta_intents:
                 raise StartupError("published_release_missing")
+        # All pointer, active receipt, manifest, and APK evidence is known-good
+        # before any orphan or interrupted temporary is unlinked.
+        self._clean_beta_source_artifacts(published)
+        for path, receipt in receipt_repairs:
+            _json_write(path, receipt)
         if beta_intents and (beta is None or max(beta_intents) > beta):
             _json_write(self.beta_index, {"versionCode": max(beta_intents)})
         stable_candidates = [version for version in published
@@ -299,8 +335,11 @@ class ReleaseService:
             if not (self.versions / str(version)).exists():
                 raise ApiError("not_found", 404)
             manifest = self._manifest(version)
-            stream = _private_open(self.versions / str(version) / "client.apk")
-            if os.fstat(stream.fileno()).st_size != manifest["sizeBytes"]:
+            try:
+                stream = _private_open(self.versions / str(version) / "client.apk")
+            except (ApiError, OSError, StartupError):
+                raise ApiError("server_unavailable", 503) from None
+            if not _apk_content_matches(stream, manifest):
                 stream.close()
                 raise ApiError("server_unavailable", 503)
             # Open before releasing the lock. Retention can unlink an old APK

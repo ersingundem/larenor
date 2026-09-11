@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 import hashlib
 import json
+import os
 import uuid
 
 import pytest
@@ -540,3 +541,92 @@ def test_restart_bounds_beta_source_inventory_before_cleaning(beta_server):
         ReleaseService(harness.service.settings, verifier=harness.verifier)
 
     assert all(path.exists() for path in temporary_files)
+
+
+@pytest.mark.parametrize("damage", [
+    "missing-beta-version",
+    "malformed-beta-index",
+    "missing-stable-version",
+    "malformed-stable-index",
+    "corrupt-receipt",
+])
+def test_restart_validates_active_beta_before_cleaning_any_recovery_evidence(
+        beta_server, damage):
+    harness = beta_server
+    harness.synchronizer.refresh()
+    orphan_version = VERSION - 1
+    orphan = harness.service.beta_sources / f"{orphan_version}.json"
+    temporary = harness.service.beta_sources / f".tmp.{uuid.uuid4()}"
+    active_receipt = harness.service.beta_sources / f"{VERSION}.json"
+    _private_write(orphan, _orphan_receipt(harness.service, orphan_version))
+    _private_write(temporary, b"interrupted")
+    if damage == "missing-beta-version":
+        harness.service._remove_directory(harness.service.versions / str(VERSION))
+    elif damage == "malformed-beta-index":
+        harness.service.beta_index.write_text("{}")
+        harness.service.beta_index.chmod(0o600)
+    elif damage == "missing-stable-version":
+        harness.service.index.write_text(json.dumps({"versionCode": VERSION - 1}))
+        harness.service.index.chmod(0o600)
+    elif damage == "malformed-stable-index":
+        harness.service.index.write_text("{}")
+        harness.service.index.chmod(0o600)
+    else:
+        receipt = json.loads(active_receipt.read_bytes())
+        receipt["apkSha256"] = "f" * 64
+        active_receipt.write_text(json.dumps(receipt))
+        active_receipt.chmod(0o600)
+
+    with pytest.raises(StartupError):
+        ReleaseService(harness.service.settings, verifier=harness.verifier)
+
+    assert orphan.exists()
+    assert temporary.exists()
+    assert active_receipt.exists()
+
+
+@pytest.mark.parametrize("kind", ["public-mode", "directory", "symlink", "hardlink"])
+def test_restart_rejects_unsafe_beta_source_files_without_cleaning(kind, beta_server):
+    harness = beta_server
+    harness.synchronizer.refresh()
+    orphan_version = VERSION - 1
+    suspicious = harness.service.beta_sources / f"{orphan_version}.json"
+    temporary = harness.service.beta_sources / f".tmp.{uuid.uuid4()}"
+    _private_write(temporary, b"interrupted")
+    if kind == "directory":
+        suspicious.mkdir(mode=0o700)
+    elif kind == "symlink":
+        suspicious.symlink_to(harness.service.beta_sources / f"{VERSION}.json")
+    else:
+        _private_write(suspicious, _orphan_receipt(harness.service, orphan_version))
+        if kind == "public-mode":
+            suspicious.chmod(0o644)
+        else:
+            linked = harness.service.beta_sources / f"{orphan_version - 1}.json"
+            os.link(suspicious, linked)
+
+    with pytest.raises(StartupError, match="invalid_release_storage"):
+        ReleaseService(harness.service.settings, verifier=harness.verifier)
+
+    assert temporary.exists()
+    assert suspicious.exists()
+
+
+def test_same_size_beta_apk_tamper_fails_recovery_and_open(beta_server):
+    harness = beta_server
+    harness.synchronizer.refresh()
+    orphan_version = VERSION - 1
+    orphan = harness.service.beta_sources / f"{orphan_version}.json"
+    temporary = harness.service.beta_sources / f".tmp.{uuid.uuid4()}"
+    _private_write(orphan, _orphan_receipt(harness.service, orphan_version))
+    _private_write(temporary, b"interrupted")
+    apk = harness.service.versions / str(VERSION) / "client.apk"
+    apk.write_bytes(b"x" * len(APK))
+    apk.chmod(0o600)
+
+    with pytest.raises(ApiError, match="server_unavailable"):
+        harness.service.open_apk(VERSION)
+    with pytest.raises(StartupError, match="invalid_release_storage"):
+        ReleaseService(harness.service.settings, verifier=harness.verifier)
+    assert orphan.exists()
+    assert temporary.exists()
