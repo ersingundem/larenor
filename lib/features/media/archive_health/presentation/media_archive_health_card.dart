@@ -75,14 +75,7 @@ final class MediaArchiveHealthCard extends StatelessWidget {
                         onPressed: controller.canRefresh
                             ? () => unawaited(controller.refresh())
                             : null,
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const Icon(CupertinoIcons.refresh, size: 20),
-                            const SizedBox(width: 8),
-                            Text(l.commonRefresh),
-                          ],
-                        ),
+                        child: const Icon(CupertinoIcons.refresh, size: 20),
                       ),
                     ),
                   ),

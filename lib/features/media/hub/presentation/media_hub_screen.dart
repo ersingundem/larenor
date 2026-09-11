@@ -171,9 +171,6 @@ class _MediaHubScreenState extends ConsumerState<MediaHubScreen> {
               ),
             ),
           ),
-          SliverToBoxAdapter(
-            child: MediaArchiveHealthCard(controller: archiveHealth),
-          ),
           ...rowsAsync.when(
             skipLoadingOnRefresh: false,
             skipLoadingOnReload: false,
@@ -216,6 +213,9 @@ class _MediaHubScreenState extends ConsumerState<MediaHubScreen> {
               issues: rows.readIssues,
               hasSuccessfulRead: rows.successfulReads.isNotEmpty,
             ),
+          ),
+          SliverToBoxAdapter(
+            child: MediaArchiveHealthCard(controller: archiveHealth),
           ),
         ],
       ),
