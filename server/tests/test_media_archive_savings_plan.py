@@ -8,7 +8,8 @@ from larenor_server.plugins.media_archive_health_models import (
 from test_media_archive_health import binding, observation
 
 
-def playable(identifier, size, *, transcode=None):
+def playable(identifier, size, *, transcode=None, content_hash=None,
+             runtime=None):
     return JellyfinArchiveItem(
         itemId=identifier * 32,
         mediaKey='movie:tmdb:603',
@@ -17,6 +18,8 @@ def playable(identifier, size, *, transcode=None):
         sizeBytes=size,
         integrity='playable',
         transcode=transcode,
+        contentHash=content_hash,
+        runtimeSeconds=runtime,
     )
 
 
@@ -28,8 +31,9 @@ def test_builds_explainable_duplicate_transcode_and_retention_review_plan():
     )
     base = observation()
     jellyfin = base.jellyfin.model_copy(update={
-        'items': [playable('a', 10_000_000, transcode=transcode),
-                  playable('b', 4_000_000)],
+        'items': [playable('a', 10_000_000, transcode=transcode,
+                           content_hash='f' * 64),
+                  playable('b', 10_000_000, content_hash='f' * 64)],
         'transcodeEvidence': 'verified',
     })
     result = build_media_archive_health(
@@ -37,7 +41,7 @@ def test_builds_explainable_duplicate_transcode_and_retention_review_plan():
     plan = result.savingsPlan
     assert plan.state == 'ready'
     assert [(item.kind, item.potentialBytes) for item in plan.candidates] == [
-        ('duplicate', 4_000_000),
+        ('duplicate', 10_000_000),
         ('retention', 4_000),
         ('transcode', 5_000_000),
     ]
@@ -45,20 +49,20 @@ def test_builds_explainable_duplicate_transcode_and_retention_review_plan():
         'duplicate': 'verified', 'transcode': 'verified',
         'retention': 'verified',
     }
-    assert plan.totalPotentialBytes == 9_004_000
+    assert plan.totalPotentialBytes == 15_004_000
     assert plan.actionAvailable is False and plan.truncated is False
     assert plan.dataGaps == []
     assert all(item.actionAvailable is False for item in plan.candidates)
     assert plan.candidates[0].evidence == [
-        'same_media_identity', 'multiple_playable_files',
+        'content_hash_match', 'multiple_playable_files',
         'largest_copy_excluded',
     ]
     assert plan.candidates[0].confidence == 'high'
     assert plan.candidates[0].comparison.model_dump() == {
         'basis': 'keep_largest_copy',
-        'observedBytes': 14_000_000,
+        'observedBytes': 20_000_000,
         'estimatedRetainedBytes': 10_000_000,
-        'estimatedSavingBytes': 4_000_000,
+        'estimatedSavingBytes': 10_000_000,
     }
     assert plan.candidates[-1].confidence == 'medium'
     assert plan.candidates[-1].comparison.model_dump() == {
@@ -142,12 +146,13 @@ def test_plan_is_deterministically_bounded_without_claiming_full_results():
     items = []
     for number in range(300):
         key = f'movie:tmdb:{number + 1}'
-        for suffix, size in (('a', 8_000), ('b', 4_000)):
-            items.append(playable(suffix, size).model_copy(update={
+        for suffix in ('a', 'b'):
+            items.append(playable(suffix, 4_000).model_copy(update={
                 'itemId': f'{number:04x}' * 8 if suffix == 'a'
                 else f'{number + 4096:04x}' * 8,
                 'mediaKey': key,
                 'title': f'Movie {number:03d}',
+                'contentHash': f'{number:064x}',
             }))
     jellyfin = base.jellyfin.model_copy(update={'items': items})
     result = build_media_archive_health(

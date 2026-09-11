@@ -2906,5 +2906,15 @@
   "mediaArchiveGapUnsupported": "evidence is unsupported",
   "mediaArchiveGapUnavailable": "evidence is unavailable",
   "mediaArchiveGapStale": "evidence is stale",
-  "mediaArchiveGapTruncated": "result limit reached"
+  "mediaArchiveGapTruncated": "result limit reached",
+  "mediaArchiveEvidenceContentHash": "Verified content hash matches",
+  "mediaArchiveEvidenceNameSizeRuntime": "Possible match from exact name, size and runtime; content hash is unavailable",
+  "mediaArchiveEvidenceQualityProfile": "Resolution and bitrate profiles were verified",
+  "mediaArchiveEvidenceBestQuality": "The best-quality copy is excluded from the estimate",
+  "mediaArchiveEvidenceSource": "{source} evidence",
+  "@mediaArchiveEvidenceSource": {"placeholders": {"source": {"type": "String"}}},
+  "mediaArchiveGroupExactHash": "Exact content hash match",
+  "mediaArchiveGroupProbableMetadata": "Possible match: same name, size and runtime",
+  "mediaArchiveGroupLowerQuality": "Verified lower-quality variant",
+  "mediaArchiveComparisonBestQuality": "Compares verified quality profiles and retains every best-quality copy; only lower-quality variants contribute to the estimate."
 }

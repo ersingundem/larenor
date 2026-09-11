@@ -245,6 +245,14 @@ final class MediaArchiveHealthDetailScreen extends StatelessWidget {
   ) => switch (evidence) {
     MediaArchiveSavingEvidence.sameMediaIdentity =>
       l.mediaArchiveEvidenceSameIdentity,
+    MediaArchiveSavingEvidence.contentHashMatch =>
+      l.mediaArchiveEvidenceContentHash,
+    MediaArchiveSavingEvidence.nameSizeRuntimeMatch =>
+      l.mediaArchiveEvidenceNameSizeRuntime,
+    MediaArchiveSavingEvidence.qualityProfileComparison =>
+      l.mediaArchiveEvidenceQualityProfile,
+    MediaArchiveSavingEvidence.bestQualityExcluded =>
+      l.mediaArchiveEvidenceBestQuality,
     MediaArchiveSavingEvidence.multiplePlayableFiles =>
       l.mediaArchiveEvidenceMultiplePlayable,
     MediaArchiveSavingEvidence.largestCopyExcluded =>

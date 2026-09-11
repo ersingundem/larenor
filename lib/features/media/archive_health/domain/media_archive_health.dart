@@ -51,6 +51,10 @@ enum MediaArchiveIssueSeverity { warning, critical }
 
 enum MediaArchiveSavingEvidence {
   sameMediaIdentity,
+  contentHashMatch,
+  nameSizeRuntimeMatch,
+  qualityProfileComparison,
+  bestQualityExcluded,
   multiplePlayableFiles,
   largestCopyExcluded,
   sourceProfileVerified,
@@ -65,10 +69,18 @@ enum MediaArchiveSavingKind { duplicate, transcode, retention }
 
 enum MediaArchiveSavingConfidence { high, medium }
 
+enum MediaArchiveSavingGroupReason {
+  exactContentHash,
+  probableNameSizeRuntime,
+  lowerQualityVariant,
+  notApplicable,
+}
+
 enum MediaArchiveSavingComparisonBasis {
   keepLargestCopy,
   boundedTranscodeEstimate,
   reviewRetainedCopy,
+  keepBestQualityCopy,
 }
 
 enum MediaArchiveSavingGapReason {
@@ -108,6 +120,8 @@ final class MediaArchiveSavingsComparison {
         MediaArchiveSavingComparisonBasis.boundedTranscodeEstimate,
       'review_retained_copy' =>
         MediaArchiveSavingComparisonBasis.reviewRetainedCopy,
+      'keep_best_quality_copy' =>
+        MediaArchiveSavingComparisonBasis.keepBestQualityCopy,
       _ => null,
     };
     final observed = _integer(map['observedBytes'], min: 1);
@@ -145,6 +159,7 @@ final class MediaArchiveSavingsCandidate {
     required this.source,
     required this.title,
     required this.potentialBytes,
+    required this.groupReason,
     required this.confidence,
     required this.comparison,
     required this.evidence,
@@ -152,6 +167,7 @@ final class MediaArchiveSavingsCandidate {
   final MediaArchiveSavingKind kind;
   final String source, title;
   final int potentialBytes;
+  final MediaArchiveSavingGroupReason groupReason;
   final MediaArchiveSavingConfidence confidence;
   final MediaArchiveSavingsComparison comparison;
   final List<MediaArchiveSavingEvidence> evidence;
@@ -262,6 +278,7 @@ final class MediaArchiveSavingsPlan {
       'source',
       'title',
       'potentialBytes',
+      'groupReason',
       'confidence',
       'comparison',
       'evidence',
@@ -278,17 +295,49 @@ final class MediaArchiveSavingsPlan {
         map['actionAvailable'] != false) {
       _invalid();
     }
+    final groupReason = switch (map['groupReason']) {
+      'exact_content_hash' => MediaArchiveSavingGroupReason.exactContentHash,
+      'probable_name_size_runtime' =>
+        MediaArchiveSavingGroupReason.probableNameSizeRuntime,
+      'lower_quality_variant' =>
+        MediaArchiveSavingGroupReason.lowerQualityVariant,
+      'not_applicable' => MediaArchiveSavingGroupReason.notApplicable,
+      _ => null,
+    };
     final expected = switch (kind) {
-      MediaArchiveSavingKind.duplicate => (
-        'jellyfin',
-        MediaArchiveSavingConfidence.high,
-        MediaArchiveSavingComparisonBasis.keepLargestCopy,
-        const [
-          'same_media_identity',
-          'multiple_playable_files',
-          'largest_copy_excluded',
-        ],
-      ),
+      MediaArchiveSavingKind.duplicate => switch (groupReason) {
+        MediaArchiveSavingGroupReason.exactContentHash => (
+          'jellyfin',
+          MediaArchiveSavingConfidence.high,
+          MediaArchiveSavingComparisonBasis.keepLargestCopy,
+          const [
+            'content_hash_match',
+            'multiple_playable_files',
+            'largest_copy_excluded',
+          ],
+        ),
+        MediaArchiveSavingGroupReason.probableNameSizeRuntime => (
+          'jellyfin',
+          MediaArchiveSavingConfidence.medium,
+          MediaArchiveSavingComparisonBasis.keepLargestCopy,
+          const [
+            'name_size_runtime_match',
+            'multiple_playable_files',
+            'largest_copy_excluded',
+          ],
+        ),
+        MediaArchiveSavingGroupReason.lowerQualityVariant => (
+          'jellyfin',
+          MediaArchiveSavingConfidence.medium,
+          MediaArchiveSavingComparisonBasis.keepBestQualityCopy,
+          const [
+            'same_media_identity',
+            'quality_profile_comparison',
+            'best_quality_excluded',
+          ],
+        ),
+        _ => null,
+      },
       MediaArchiveSavingKind.transcode => (
         'jellyfin',
         MediaArchiveSavingConfidence.medium,
@@ -317,8 +366,12 @@ final class MediaArchiveSavingsPlan {
       map['comparison'],
     );
     final potential = _integer(map['potentialBytes'], min: 1);
-    if (map['source'] != expected.$1 ||
+    if (expected == null ||
+        groupReason == null ||
+        map['source'] != expected.$1 ||
         confidence != expected.$2 ||
+        (kind != MediaArchiveSavingKind.duplicate &&
+            groupReason != MediaArchiveSavingGroupReason.notApplicable) ||
         comparison.basis != expected.$3 ||
         comparison.estimatedSavingBytes != potential ||
         !_sameList(evidence, expected.$4)) {
@@ -329,6 +382,7 @@ final class MediaArchiveSavingsPlan {
       source: expected.$1,
       title: map['title'] as String,
       potentialBytes: potential,
+      groupReason: groupReason,
       confidence: confidence!,
       comparison: comparison,
       evidence: List.unmodifiable(
@@ -336,6 +390,13 @@ final class MediaArchiveSavingsPlan {
           (value) => switch (value) {
             'same_media_identity' =>
               MediaArchiveSavingEvidence.sameMediaIdentity,
+            'content_hash_match' => MediaArchiveSavingEvidence.contentHashMatch,
+            'name_size_runtime_match' =>
+              MediaArchiveSavingEvidence.nameSizeRuntimeMatch,
+            'quality_profile_comparison' =>
+              MediaArchiveSavingEvidence.qualityProfileComparison,
+            'best_quality_excluded' =>
+              MediaArchiveSavingEvidence.bestQualityExcluded,
             'multiple_playable_files' =>
               MediaArchiveSavingEvidence.multiplePlayableFiles,
             'largest_copy_excluded' =>

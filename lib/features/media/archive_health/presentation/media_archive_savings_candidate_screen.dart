@@ -51,6 +51,19 @@ final class MediaArchiveSavingsCandidateScreen extends StatelessWidget {
                       child: _Pill(label: _confidence(l, candidate.confidence)),
                     ),
                   ),
+                  const SizedBox(height: 8),
+                  Text(
+                    l.mediaArchiveEvidenceSource(_source(candidate.source)),
+                    style: AppText.footnote,
+                  ),
+                  if (candidate.groupReason !=
+                      MediaArchiveSavingGroupReason.notApplicable) ...[
+                    const SizedBox(height: 6),
+                    Text(
+                      _groupReason(l, candidate.groupReason),
+                      style: AppText.body,
+                    ),
+                  ],
                   const SizedBox(height: 10),
                   Text(
                     l.mediaArchiveComparisonReadOnly,
@@ -148,6 +161,21 @@ final class MediaArchiveSavingsCandidateScreen extends StatelessWidget {
       l.mediaArchiveComparisonTranscode,
     MediaArchiveSavingComparisonBasis.reviewRetainedCopy =>
       l.mediaArchiveComparisonRetention,
+    MediaArchiveSavingComparisonBasis.keepBestQualityCopy =>
+      l.mediaArchiveComparisonBestQuality,
+  };
+
+  static String _groupReason(
+    AppLocalizations l,
+    MediaArchiveSavingGroupReason reason,
+  ) => switch (reason) {
+    MediaArchiveSavingGroupReason.exactContentHash =>
+      l.mediaArchiveGroupExactHash,
+    MediaArchiveSavingGroupReason.probableNameSizeRuntime =>
+      l.mediaArchiveGroupProbableMetadata,
+    MediaArchiveSavingGroupReason.lowerQualityVariant =>
+      l.mediaArchiveGroupLowerQuality,
+    MediaArchiveSavingGroupReason.notApplicable => '',
   };
 
   static String _evidence(
@@ -156,6 +184,14 @@ final class MediaArchiveSavingsCandidateScreen extends StatelessWidget {
   ) => switch (evidence) {
     MediaArchiveSavingEvidence.sameMediaIdentity =>
       l.mediaArchiveEvidenceSameIdentity,
+    MediaArchiveSavingEvidence.contentHashMatch =>
+      l.mediaArchiveEvidenceContentHash,
+    MediaArchiveSavingEvidence.nameSizeRuntimeMatch =>
+      l.mediaArchiveEvidenceNameSizeRuntime,
+    MediaArchiveSavingEvidence.qualityProfileComparison =>
+      l.mediaArchiveEvidenceQualityProfile,
+    MediaArchiveSavingEvidence.bestQualityExcluded =>
+      l.mediaArchiveEvidenceBestQuality,
     MediaArchiveSavingEvidence.multiplePlayableFiles =>
       l.mediaArchiveEvidenceMultiplePlayable,
     MediaArchiveSavingEvidence.largestCopyExcluded =>
@@ -200,6 +236,9 @@ final class MediaArchiveSavingsCandidateScreen extends StatelessWidget {
     if (value >= 1000) return '${(value / 1000).toStringAsFixed(1)} KB';
     return '$value B';
   }
+
+  static String _source(String source) =>
+      '${source[0].toUpperCase()}${source.substring(1)}';
 }
 
 final class _MetricGrid extends StatelessWidget {
