@@ -33,8 +33,8 @@ Map<String, Object?> detailArchiveJson({
     'missing': 1,
     'broken': 1,
     'failedDownloads': 1,
-    'savingCandidates': 1,
-    'potentialSavingBytes': 4000000000,
+    'savingCandidates': state == 'incomplete' ? 0 : 4,
+    'potentialSavingBytes': state == 'incomplete' ? 0 : 12000000000,
   },
   'issues': [
     {
@@ -86,6 +86,7 @@ Map<String, Object?> detailArchiveJson({
               'source': 'jellyfin',
               'title': 'The Matrix duplicate',
               'potentialBytes': 4000000000,
+              'groupReason': 'exact_content_hash',
               'confidence': 'high',
               'comparison': {
                 'basis': 'keep_largest_copy',
@@ -94,9 +95,29 @@ Map<String, Object?> detailArchiveJson({
                 'estimatedSavingBytes': 4000000000,
               },
               'evidence': [
-                'same_media_identity',
+                'content_hash_match',
                 'multiple_playable_files',
                 'largest_copy_excluded',
+              ],
+              'actionAvailable': false,
+            },
+            {
+              'kind': 'duplicate',
+              'source': 'jellyfin',
+              'title': 'Home video lower-quality',
+              'potentialBytes': 2000000000,
+              'groupReason': 'lower_quality_variant',
+              'confidence': 'medium',
+              'comparison': {
+                'basis': 'keep_best_quality_copy',
+                'observedBytes': 10000000000,
+                'estimatedRetainedBytes': 8000000000,
+                'estimatedSavingBytes': 2000000000,
+              },
+              'evidence': [
+                'same_media_identity',
+                'quality_profile_comparison',
+                'best_quality_excluded',
               ],
               'actionAvailable': false,
             },
@@ -141,8 +162,8 @@ Map<String, Object?> detailArchiveJson({
           ],
     'candidateCounts': state == 'incomplete'
         ? {'duplicate': 0, 'transcode': 0, 'retention': 0}
-        : {'duplicate': 1, 'transcode': 1, 'retention': 1},
-    'totalPotentialBytes': state == 'incomplete' ? 0 : 10000000000,
+        : {'duplicate': 2, 'transcode': 1, 'retention': 1},
+    'totalPotentialBytes': state == 'incomplete' ? 0 : 12000000000,
     'dataGaps': state == 'incomplete'
         ? [
             {'lane': 'duplicate', 'reason': 'stale'},
@@ -184,11 +205,13 @@ void main() {
       MediaArchiveSavingEvidence.retentionPolicySatisfied,
     ]);
     expect(snapshot.cleanupAvailable, isFalse);
-    expect(snapshot.savingsPlan.candidates.length, 3);
-    expect(
-      snapshot.savingsPlan.candidates.map((value) => value.kind),
-      MediaArchiveSavingKind.values,
-    );
+    expect(snapshot.savingsPlan.candidates.length, 4);
+    expect(snapshot.savingsPlan.candidates.map((value) => value.kind), [
+      MediaArchiveSavingKind.duplicate,
+      MediaArchiveSavingKind.duplicate,
+      MediaArchiveSavingKind.transcode,
+      MediaArchiveSavingKind.retention,
+    ]);
     expect(snapshot.savingsPlan.actionAvailable, isFalse);
     expect(
       snapshot.savingsPlan.candidates.first.comparison.estimatedSavingBytes,
@@ -199,6 +222,10 @@ void main() {
       MediaArchiveSavingConfidence.high,
     );
     expect(snapshot.savingsPlan.dataGaps, isEmpty);
+    expect(
+      snapshot.savingsPlan.candidates.first.groupReason,
+      MediaArchiveSavingGroupReason.exactContentHash,
+    );
   });
 
   test('strict read model rejects inconsistent comparison evidence', () {
@@ -252,6 +279,8 @@ void main() {
       expect(find.text('Observed size: 14.0 GB'), findsOneWidget);
       expect(find.text('Estimated retained: 10.0 GB'), findsOneWidget);
       expect(find.text('Estimated gain: 4.0 GB'), findsOneWidget);
+      expect(find.text('Jellyfin evidence'), findsOneWidget);
+      expect(find.text('Exact content hash match'), findsOneWidget);
       expect(
         find.descendant(
           of: find.byType(
@@ -362,6 +391,7 @@ void main() {
       find.bySemanticsLabel(RegExp(r'The Matrix duplicate.*4\.0 GB')),
       findsOneWidget,
     );
+    await reveal('Home video lower-quality');
     await reveal('Transcode review');
     await reveal('Home video');
     await reveal('Retention review');
