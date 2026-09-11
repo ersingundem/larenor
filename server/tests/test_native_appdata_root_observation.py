@@ -21,8 +21,8 @@ def identity(fd):
     return value.st_dev, value.st_ino, value.st_uid, value.st_gid, stat.S_IMODE(value.st_mode)
 
 
-def deadline():
-    return time.monotonic() + 2
+def deadline(seconds=2):
+    return time.monotonic() + seconds
 
 
 def unavailable(call):
@@ -490,10 +490,13 @@ def test_linux_real_exact_root_uses_actual_proc_mount_and_named_descriptors():
     # sticky ancestry. No mount, namespace, daemon or permission change is used.
     with tempfile.TemporaryDirectory(prefix='.root-observation-', dir=Path.cwd()) as path:
         policy = HostPolicy({'appdata': HostRoot(path, 'data')})
-        with module.observe_appdata_root(policy, 'appdata', deadline=deadline()) as held:
-            with held.borrowed_root(deadline()) as fd:
+        # Real /proc mount parsing can be descheduled on a shared runner. The
+        # larger bound does not delay success and keeps the production path
+        # fail-closed when the host cannot be observed.
+        with module.observe_appdata_root(policy, 'appdata', deadline=deadline(10)) as held:
+            with held.borrowed_root(deadline(10)) as fd:
                 assert identity(fd) == held.root_identity
-                actual = module.observe_fd_mount(fd, deadline=deadline())
+                actual = module.observe_fd_mount(fd, deadline=deadline(10))
                 assert actual == held.mount
                 assert actual.read_only is False and actual.idmapped is False
-            held.check(deadline())
+            held.check(deadline(10))
