@@ -67,6 +67,13 @@ def test_builds_explainable_duplicate_transcode_and_retention_review_plan():
         'estimatedRetainedBytes': 5_000_000,
         'estimatedSavingBytes': 5_000_000,
     }
+    assert plan.candidates[1].confidence == 'medium'
+    assert plan.candidates[1].comparison.model_dump() == {
+        'basis': 'review_retained_copy',
+        'observedBytes': 4_000,
+        'estimatedRetainedBytes': 0,
+        'estimatedSavingBytes': 4_000,
+    }
 
 
 def test_plan_suppresses_unproven_candidates_and_marks_lanes_partial():

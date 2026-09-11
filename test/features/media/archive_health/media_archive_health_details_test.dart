@@ -5,6 +5,7 @@ import 'package:larenor/features/media/archive_health/data/media_archive_health_
 import 'package:larenor/features/media/archive_health/domain/media_archive_health.dart';
 import 'package:larenor/features/media/archive_health/presentation/media_archive_health_card.dart';
 import 'package:larenor/features/media/archive_health/presentation/media_archive_health_detail_screen.dart';
+import 'package:larenor/features/media/archive_health/presentation/media_archive_savings_candidate_screen.dart';
 import 'package:larenor/features/server/domain/server_models.dart';
 import 'package:larenor/l10n/generated/app_localizations.dart';
 
@@ -123,7 +124,7 @@ Map<String, Object?> detailArchiveJson({
               'source': 'qbittorrent',
               'title': 'The Matrix download',
               'potentialBytes': 4000000000,
-              'confidence': 'high',
+              'confidence': 'medium',
               'comparison': {
                 'basis': 'review_retained_copy',
                 'observedBytes': 4000000000,
@@ -211,6 +212,17 @@ void main() {
       () => MediaArchiveHealthSnapshot.fromJson(json),
       throwsA(isA<LarenorServerException>()),
     );
+
+    final invalidGapJson = detailArchiveJson(truncated: true);
+    final invalidGapPlan =
+        invalidGapJson['savingsPlan']! as Map<String, Object?>;
+    invalidGapPlan['dataGaps'] = [
+      {'lane': 'duplicate', 'reason': 'unsupported'},
+    ];
+    expect(
+      () => MediaArchiveHealthSnapshot.fromJson(invalidGapJson),
+      throwsA(isA<LarenorServerException>()),
+    );
   });
 
   testWidgets(
@@ -233,13 +245,27 @@ void main() {
         scrollable: find.byType(Scrollable).last,
       );
       expect(tester.getSize(candidate).height, greaterThanOrEqualTo(48));
-      await tester.tap(candidate);
+      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
       await tester.pumpAndSettle();
       expect(find.text('High confidence'), findsOneWidget);
       expect(find.text('Observed size: 14.0 GB'), findsOneWidget);
       expect(find.text('Estimated retained: 10.0 GB'), findsOneWidget);
       expect(find.text('Estimated gain: 4.0 GB'), findsOneWidget);
-      expect(find.text('The provider identity matches'), findsOneWidget);
+      expect(
+        find.descendant(
+          of: find.byType(
+            MediaArchiveSavingsCandidateScreen,
+            skipOffstage: false,
+          ),
+          matching: find.textContaining(
+            'The provider identity matches',
+            skipOffstage: false,
+          ),
+          skipOffstage: false,
+        ),
+        findsOneWidget,
+      );
       expect(
         find.textContaining(RegExp(r'apply|delete', caseSensitive: false)),
         findsNothing,
@@ -269,6 +295,44 @@ void main() {
       find.textContaining(RegExp(r'apply|delete', caseSensitive: false)),
       findsNothing,
     );
+    await tester.pumpWidget(
+      app(
+        MediaArchiveSavingsCandidateScreen(
+          candidate: snapshot.savingsPlan.candidates.first,
+          dataGaps: snapshot.savingsPlan.dataGaps,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Data gaps'), findsOneWidget);
+    expect(find.text('Duplicates: result limit reached'), findsOneWidget);
+  });
+
+  testWidgets('comparison supports 600 and 1280 at 2x with TalkBack', (
+    tester,
+  ) async {
+    final snapshot = MediaArchiveHealthSnapshot.fromJson(detailArchiveJson());
+    addTearDown(tester.view.reset);
+    for (final width in [600.0, 1280.0]) {
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pump();
+      tester.view.physicalSize = Size(width, 1000);
+      tester.view.devicePixelRatio = 1;
+      final semantics = tester.ensureSemantics();
+      await tester.pumpWidget(
+        app(
+          MediaArchiveSavingsCandidateScreen(
+            candidate: snapshot.savingsPlan.candidates.first,
+            dataGaps: snapshot.savingsPlan.dataGaps,
+          ),
+          scale: 2,
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.bySemanticsLabel('High confidence'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+      semantics.dispose();
+    }
   });
 
   testWidgets('detail explains all bounded plan lanes without actions', (
@@ -302,7 +366,14 @@ void main() {
     await reveal('Home video');
     await reveal('Retention review');
     await reveal('The Matrix download');
-    expect(find.byType(CupertinoButton), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('media-archive-saving-duplicate-0')),
+      findsOneWidget,
+    );
+    expect(
+      find.textContaining(RegExp(r'apply|delete', caseSensitive: false)),
+      findsNothing,
+    );
     expect(tester.takeException(), isNull);
     semantics.dispose();
   });

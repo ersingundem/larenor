@@ -63,6 +63,22 @@ enum MediaArchiveSavingEvidence {
 
 enum MediaArchiveSavingKind { duplicate, transcode, retention }
 
+enum MediaArchiveSavingConfidence { high, medium }
+
+enum MediaArchiveSavingComparisonBasis {
+  keepLargestCopy,
+  boundedTranscodeEstimate,
+  reviewRetainedCopy,
+}
+
+enum MediaArchiveSavingGapReason {
+  partial,
+  unsupported,
+  unavailable,
+  stale,
+  truncated,
+}
+
 enum MediaArchiveSavingLaneState {
   verified,
   partial,
@@ -71,17 +87,73 @@ enum MediaArchiveSavingLaneState {
   stale,
 }
 
+final class MediaArchiveSavingsComparison {
+  const MediaArchiveSavingsComparison._({
+    required this.basis,
+    required this.observedBytes,
+    required this.estimatedRetainedBytes,
+    required this.estimatedSavingBytes,
+  });
+
+  factory MediaArchiveSavingsComparison.fromJson(Object? value) {
+    final map = _object(value, {
+      'basis',
+      'observedBytes',
+      'estimatedRetainedBytes',
+      'estimatedSavingBytes',
+    });
+    final basis = switch (map['basis']) {
+      'keep_largest_copy' => MediaArchiveSavingComparisonBasis.keepLargestCopy,
+      'bounded_transcode_estimate' =>
+        MediaArchiveSavingComparisonBasis.boundedTranscodeEstimate,
+      'review_retained_copy' =>
+        MediaArchiveSavingComparisonBasis.reviewRetainedCopy,
+      _ => null,
+    };
+    final observed = _integer(map['observedBytes'], min: 1);
+    final retained = _integer(map['estimatedRetainedBytes']);
+    final saving = _integer(map['estimatedSavingBytes'], min: 1);
+    if (basis == null ||
+        retained >= observed ||
+        observed - retained != saving) {
+      _invalid();
+    }
+    return MediaArchiveSavingsComparison._(
+      basis: basis,
+      observedBytes: observed,
+      estimatedRetainedBytes: retained,
+      estimatedSavingBytes: saving,
+    );
+  }
+
+  final MediaArchiveSavingComparisonBasis basis;
+  final int observedBytes, estimatedRetainedBytes, estimatedSavingBytes;
+}
+
+final class MediaArchiveSavingsDataGap {
+  const MediaArchiveSavingsDataGap._({
+    required this.lane,
+    required this.reason,
+  });
+  final MediaArchiveSavingKind lane;
+  final MediaArchiveSavingGapReason reason;
+}
+
 final class MediaArchiveSavingsCandidate {
   const MediaArchiveSavingsCandidate._({
     required this.kind,
     required this.source,
     required this.title,
     required this.potentialBytes,
+    required this.confidence,
+    required this.comparison,
     required this.evidence,
   });
   final MediaArchiveSavingKind kind;
   final String source, title;
   final int potentialBytes;
+  final MediaArchiveSavingConfidence confidence;
+  final MediaArchiveSavingsComparison comparison;
   final List<MediaArchiveSavingEvidence> evidence;
   bool get actionAvailable => false;
 }
@@ -93,6 +165,7 @@ final class MediaArchiveSavingsPlan {
     required this.candidates,
     required this.candidateCounts,
     required this.totalPotentialBytes,
+    required this.dataGaps,
     required this.truncated,
   });
 
@@ -103,6 +176,7 @@ final class MediaArchiveSavingsPlan {
       'candidates',
       'candidateCounts',
       'totalPotentialBytes',
+      'dataGaps',
       'truncated',
       'actionAvailable',
     });
@@ -110,9 +184,12 @@ final class MediaArchiveSavingsPlan {
     final lanes = _object(map['laneStates'], _savingKinds);
     final counts = _object(map['candidateCounts'], _savingKinds);
     final raw = map['candidates'];
+    final rawGaps = map['dataGaps'];
     if (!{'ready', 'partial'}.contains(state) ||
         raw is! List ||
         raw.length > 768 ||
+        rawGaps is! List ||
+        rawGaps.length > 3 ||
         map['truncated'] is! bool ||
         map['actionAvailable'] != false) {
       _invalid();
@@ -128,6 +205,7 @@ final class MediaArchiveSavingsPlan {
       parsedCounts[kind] = _integer(counts[kind.name], max: 256);
     }
     final candidates = raw.map(_candidate).toList();
+    final dataGaps = rawGaps.map(_dataGap).toList();
     for (final kind in MediaArchiveSavingKind.values) {
       if (candidates.where((value) => value.kind == kind).length !=
           parsedCounts[kind]) {
@@ -136,17 +214,35 @@ final class MediaArchiveSavingsPlan {
     }
     final total = _integer(map['totalPotentialBytes']);
     final truncated = map['truncated'] as bool;
+    final gapKeys = dataGaps
+        .map((gap) => '${gap.lane.name}:${gap.reason.name}')
+        .toList();
+    final expectedGapKeys = <String>[];
+    for (final kind in MediaArchiveSavingKind.values) {
+      final lane = parsedLanes[kind]!;
+      if (lane != MediaArchiveSavingLaneState.verified) {
+        expectedGapKeys.add('${kind.name}:${lane.name}');
+      } else if (dataGaps.any(
+        (gap) =>
+            gap.lane == kind &&
+            gap.reason == MediaArchiveSavingGapReason.truncated,
+      )) {
+        expectedGapKeys.add('${kind.name}:truncated');
+      }
+    }
     if (total !=
             candidates.fold<int>(0, (sum, item) => sum + item.potentialBytes) ||
         candidates.any(
           (item) =>
               parsedLanes[item.kind] != MediaArchiveSavingLaneState.verified,
         ) ||
-        (state == 'ready') !=
-            (!truncated &&
-                parsedLanes.values.every(
-                  (value) => value == MediaArchiveSavingLaneState.verified,
-                ))) {
+        gapKeys.toSet().length != gapKeys.length ||
+        !_sameList(gapKeys, expectedGapKeys) ||
+        truncated !=
+            dataGaps.any(
+              (gap) => gap.reason == MediaArchiveSavingGapReason.truncated,
+            ) ||
+        (state == 'ready') != dataGaps.isEmpty) {
       _invalid();
     }
     return MediaArchiveSavingsPlan._(
@@ -155,6 +251,7 @@ final class MediaArchiveSavingsPlan {
       candidates: List.unmodifiable(candidates),
       candidateCounts: Map.unmodifiable(parsedCounts),
       totalPotentialBytes: total,
+      dataGaps: List.unmodifiable(dataGaps),
       truncated: truncated,
     );
   }
@@ -165,6 +262,8 @@ final class MediaArchiveSavingsPlan {
       'source',
       'title',
       'potentialBytes',
+      'confidence',
+      'comparison',
       'evidence',
       'actionAvailable',
     });
@@ -182,6 +281,8 @@ final class MediaArchiveSavingsPlan {
     final expected = switch (kind) {
       MediaArchiveSavingKind.duplicate => (
         'jellyfin',
+        MediaArchiveSavingConfidence.high,
+        MediaArchiveSavingComparisonBasis.keepLargestCopy,
         const [
           'same_media_identity',
           'multiple_playable_files',
@@ -190,6 +291,8 @@ final class MediaArchiveSavingsPlan {
       ),
       MediaArchiveSavingKind.transcode => (
         'jellyfin',
+        MediaArchiveSavingConfidence.medium,
+        MediaArchiveSavingComparisonBasis.boundedTranscodeEstimate,
         const [
           'source_profile_verified',
           'target_playback_verified',
@@ -198,6 +301,8 @@ final class MediaArchiveSavingsPlan {
       ),
       MediaArchiveSavingKind.retention => (
         'qbittorrent',
+        MediaArchiveSavingConfidence.medium,
+        MediaArchiveSavingComparisonBasis.reviewRetainedCopy,
         const [
           'download_complete',
           'import_verified',
@@ -205,14 +310,27 @@ final class MediaArchiveSavingsPlan {
         ],
       ),
     };
-    if (map['source'] != expected.$1 || !_sameList(evidence, expected.$2)) {
+    final confidence = MediaArchiveSavingConfidence.values
+        .where((value) => value.name == map['confidence'])
+        .firstOrNull;
+    final comparison = MediaArchiveSavingsComparison.fromJson(
+      map['comparison'],
+    );
+    final potential = _integer(map['potentialBytes'], min: 1);
+    if (map['source'] != expected.$1 ||
+        confidence != expected.$2 ||
+        comparison.basis != expected.$3 ||
+        comparison.estimatedSavingBytes != potential ||
+        !_sameList(evidence, expected.$4)) {
       _invalid();
     }
     return MediaArchiveSavingsCandidate._(
       kind: kind,
       source: expected.$1,
       title: map['title'] as String,
-      potentialBytes: _integer(map['potentialBytes'], min: 1),
+      potentialBytes: potential,
+      confidence: confidence!,
+      comparison: comparison,
       evidence: List.unmodifiable(
         evidence.map(
           (value) => switch (value) {
@@ -239,6 +357,18 @@ final class MediaArchiveSavingsPlan {
     );
   }
 
+  static MediaArchiveSavingsDataGap _dataGap(Object? value) {
+    final map = _object(value, {'lane', 'reason'});
+    final lane = MediaArchiveSavingKind.values
+        .where((value) => value.name == map['lane'])
+        .firstOrNull;
+    final reason = MediaArchiveSavingGapReason.values
+        .where((value) => value.name == map['reason'])
+        .firstOrNull;
+    if (lane == null || reason == null) _invalid();
+    return MediaArchiveSavingsDataGap._(lane: lane, reason: reason);
+  }
+
   static bool _sameList(List<dynamic> actual, List<String> expected) {
     if (actual.length != expected.length) return false;
     for (var index = 0; index < expected.length; index++) {
@@ -253,6 +383,7 @@ final class MediaArchiveSavingsPlan {
   final List<MediaArchiveSavingsCandidate> candidates;
   final Map<MediaArchiveSavingKind, int> candidateCounts;
   final int totalPotentialBytes;
+  final List<MediaArchiveSavingsDataGap> dataGaps;
   bool get actionAvailable => false;
 }
 

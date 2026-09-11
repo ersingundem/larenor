@@ -4,6 +4,7 @@ import '../../../../l10n/generated/app_localizations.dart';
 import '../../../../shared/theme/typography.dart';
 import '../../../../shared/widgets/app_page_scaffold.dart';
 import '../domain/media_archive_health.dart';
+import 'media_archive_savings_candidate_screen.dart';
 
 final class MediaArchiveHealthDetailScreen extends StatelessWidget {
   const MediaArchiveHealthDetailScreen({super.key, required this.snapshot});
@@ -132,6 +133,28 @@ final class MediaArchiveHealthDetailScreen extends StatelessWidget {
                   const SizedBox(height: 4),
                   Text(l.mediaArchivePlanTruncated, style: AppText.footnote),
                 ],
+                if (snapshot.savingsPlan.dataGaps.isNotEmpty) ...[
+                  const SizedBox(height: 18),
+                  Semantics(
+                    header: true,
+                    child: Text(
+                      l.mediaArchiveDataGapsTitle,
+                      style: AppText.headline,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  for (final gap in snapshot.savingsPlan.dataGaps)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 4),
+                      child: Text(
+                        l.mediaArchiveDataGap(
+                          _kind(l, gap.lane),
+                          _gapReason(l, gap.reason),
+                        ),
+                        style: AppText.footnote,
+                      ),
+                    ),
+                ],
                 for (final kind in MediaArchiveSavingKind.values) ...[
                   const SizedBox(height: 18),
                   Semantics(
@@ -151,16 +174,32 @@ final class MediaArchiveHealthDetailScreen extends StatelessWidget {
                   else
                     _ResponsiveCards(
                       children: [
-                        for (final candidate in snapshot.savingsPlan.candidates)
-                          if (candidate.kind == kind)
-                            _EvidenceCard(
-                              semanticsLabel:
-                                  '${candidate.title}, ${_bytes(candidate.potentialBytes)}, ${_kind(l, kind)}, ${l.mediaArchiveEvidenceVerified}',
-                              title: candidate.title,
-                              subtitle: l.mediaArchivePotentialValue(
-                                _bytes(candidate.potentialBytes),
+                        for (
+                          var index = 0;
+                          index < snapshot.savingsPlan.candidates.length;
+                          index++
+                        )
+                          if (snapshot.savingsPlan.candidates[index].kind ==
+                              kind)
+                            _SavingsCandidateButton(
+                              key: ValueKey(
+                                'media-archive-saving-${kind.name}-$index',
                               ),
-                              details: candidate.evidence
+                              candidate: snapshot.savingsPlan.candidates[index],
+                              plan: snapshot.savingsPlan,
+                              kindLabel: _kind(l, kind),
+                              potentialLabel: l.mediaArchivePotentialValue(
+                                _bytes(
+                                  snapshot
+                                      .savingsPlan
+                                      .candidates[index]
+                                      .potentialBytes,
+                                ),
+                              ),
+                              evidenceLabels: snapshot
+                                  .savingsPlan
+                                  .candidates[index]
+                                  .evidence
                                   .map((value) => _evidence(l, value))
                                   .toList(),
                               icon: _kindIcon(kind),
@@ -242,6 +281,17 @@ final class MediaArchiveHealthDetailScreen extends StatelessWidget {
         MediaArchiveSavingLaneState.stale => l.mediaArchivePlanLaneStale,
       };
 
+  static String _gapReason(
+    AppLocalizations l,
+    MediaArchiveSavingGapReason reason,
+  ) => switch (reason) {
+    MediaArchiveSavingGapReason.partial => l.mediaArchiveGapPartial,
+    MediaArchiveSavingGapReason.unsupported => l.mediaArchiveGapUnsupported,
+    MediaArchiveSavingGapReason.unavailable => l.mediaArchiveGapUnavailable,
+    MediaArchiveSavingGapReason.stale => l.mediaArchiveGapStale,
+    MediaArchiveSavingGapReason.truncated => l.mediaArchiveGapTruncated,
+  };
+
   static IconData _kindIcon(MediaArchiveSavingKind kind) => switch (kind) {
     MediaArchiveSavingKind.duplicate => CupertinoIcons.square_on_square,
     MediaArchiveSavingKind.transcode => CupertinoIcons.arrow_2_circlepath,
@@ -268,6 +318,55 @@ final class MediaArchiveHealthDetailScreen extends StatelessWidget {
     if (value >= 1000000) return '${(value / 1000000).toStringAsFixed(1)} MB';
     if (value >= 1000) return '${(value / 1000).toStringAsFixed(1)} KB';
     return '$value B';
+  }
+}
+
+final class _SavingsCandidateButton extends StatelessWidget {
+  const _SavingsCandidateButton({
+    super.key,
+    required this.candidate,
+    required this.plan,
+    required this.kindLabel,
+    required this.potentialLabel,
+    required this.evidenceLabels,
+    required this.icon,
+  });
+
+  final MediaArchiveSavingsCandidate candidate;
+  final MediaArchiveSavingsPlan plan;
+  final String kindLabel, potentialLabel;
+  final List<String> evidenceLabels;
+  final IconData icon;
+
+  @override
+  Widget build(BuildContext context) {
+    final l = AppLocalizations.of(context);
+    return Semantics(
+      button: true,
+      label:
+          '${candidate.title}, $potentialLabel, $kindLabel, ${l.mediaArchiveComparisonOpen}',
+      child: ExcludeSemantics(
+        child: CupertinoButton(
+          minimumSize: const Size(48, 48),
+          padding: EdgeInsets.zero,
+          onPressed: () => Navigator.of(context).push(
+            CupertinoPageRoute<void>(
+              builder: (_) => MediaArchiveSavingsCandidateScreen(
+                candidate: candidate,
+                dataGaps: plan.dataGaps,
+              ),
+            ),
+          ),
+          child: _EvidenceCard(
+            semanticsLabel: candidate.title,
+            title: candidate.title,
+            subtitle: potentialLabel,
+            details: evidenceLabels,
+            icon: icon,
+          ),
+        ),
+      ),
+    );
   }
 }
 
