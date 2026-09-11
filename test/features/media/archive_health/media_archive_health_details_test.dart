@@ -73,46 +73,50 @@ Map<String, Object?> detailArchiveJson({String state = 'attention'}) => {
       'transcode': state == 'incomplete' ? 'stale' : 'verified',
       'retention': state == 'incomplete' ? 'stale' : 'verified',
     },
-    'candidates': [
-      {
-        'kind': 'duplicate',
-        'source': 'jellyfin',
-        'title': 'The Matrix duplicate',
-        'potentialBytes': 4000000000,
-        'evidence': [
-          'same_media_identity',
-          'multiple_playable_files',
-          'largest_copy_excluded',
-        ],
-        'actionAvailable': false,
-      },
-      {
-        'kind': 'transcode',
-        'source': 'jellyfin',
-        'title': 'Home video',
-        'potentialBytes': 2000000000,
-        'evidence': [
-          'source_profile_verified',
-          'target_playback_verified',
-          'bounded_size_estimate',
-        ],
-        'actionAvailable': false,
-      },
-      {
-        'kind': 'retention',
-        'source': 'qbittorrent',
-        'title': 'The Matrix download',
-        'potentialBytes': 4000000000,
-        'evidence': [
-          'download_complete',
-          'import_verified',
-          'retention_policy_satisfied',
-        ],
-        'actionAvailable': false,
-      },
-    ],
-    'candidateCounts': {'duplicate': 1, 'transcode': 1, 'retention': 1},
-    'totalPotentialBytes': 10000000000,
+    'candidates': state == 'incomplete'
+        ? <Object?>[]
+        : [
+            {
+              'kind': 'duplicate',
+              'source': 'jellyfin',
+              'title': 'The Matrix duplicate',
+              'potentialBytes': 4000000000,
+              'evidence': [
+                'same_media_identity',
+                'multiple_playable_files',
+                'largest_copy_excluded',
+              ],
+              'actionAvailable': false,
+            },
+            {
+              'kind': 'transcode',
+              'source': 'jellyfin',
+              'title': 'Home video',
+              'potentialBytes': 2000000000,
+              'evidence': [
+                'source_profile_verified',
+                'target_playback_verified',
+                'bounded_size_estimate',
+              ],
+              'actionAvailable': false,
+            },
+            {
+              'kind': 'retention',
+              'source': 'qbittorrent',
+              'title': 'The Matrix download',
+              'potentialBytes': 4000000000,
+              'evidence': [
+                'download_complete',
+                'import_verified',
+                'retention_policy_satisfied',
+              ],
+              'actionAvailable': false,
+            },
+          ],
+    'candidateCounts': state == 'incomplete'
+        ? {'duplicate': 0, 'transcode': 0, 'retention': 0}
+        : {'duplicate': 1, 'transcode': 1, 'retention': 1},
+    'totalPotentialBytes': state == 'incomplete' ? 0 : 10000000000,
     'truncated': false,
     'actionAvailable': false,
   },
@@ -162,19 +166,26 @@ void main() {
     await tester.pumpWidget(
       app(MediaArchiveHealthDetailScreen(snapshot: snapshot), scale: 2),
     );
-    await tester.scrollUntilVisible(
-      find.text('The Matrix duplicate'),
-      300,
-      scrollable: find.byType(Scrollable).last,
-    );
-    await tester.pumpAndSettle();
-    expect(find.text('Duplicates'), findsOneWidget);
-    expect(find.text('Transcode review'), findsOneWidget);
-    expect(find.text('Retention review'), findsOneWidget);
+    Future<void> reveal(String text) async {
+      await tester.scrollUntilVisible(
+        find.text(text),
+        300,
+        scrollable: find.byType(Scrollable).last,
+      );
+      await tester.pumpAndSettle();
+      expect(find.text(text), findsOneWidget);
+    }
+
+    await reveal('Duplicates');
+    await reveal('The Matrix duplicate');
     expect(
       find.bySemanticsLabel(RegExp(r'The Matrix duplicate.*4\.0 GB')),
       findsOneWidget,
     );
+    await reveal('Transcode review');
+    await reveal('Home video');
+    await reveal('Retention review');
+    await reveal('The Matrix download');
     expect(find.byType(CupertinoButton), findsOneWidget);
     expect(tester.takeException(), isNull);
     semantics.dispose();
@@ -199,20 +210,34 @@ void main() {
     await tester.sendKeyEvent(LogicalKeyboardKey.enter);
     await tester.pumpAndSettle();
     expect(find.byType(MediaArchiveHealthDetailScreen), findsOneWidget);
-    expect(find.text('The Matrix download'), findsOneWidget);
     expect(find.text('Pilot'), findsOneWidget);
+    await tester.scrollUntilVisible(
+      find.text('The Matrix download'),
+      300,
+      scrollable: find.byType(Scrollable).last,
+    );
+    expect(find.text('The Matrix download'), findsOneWidget);
   });
 
   testWidgets(
     'detail is responsive at 600 and 1280 with 2x text and TalkBack',
     (tester) async {
       final snapshot = MediaArchiveHealthSnapshot.fromJson(detailArchiveJson());
+      addTearDown(tester.view.reset);
       for (final width in [600.0, 1280.0]) {
+        await tester.pumpWidget(const SizedBox.shrink());
+        await tester.pump();
         tester.view.physicalSize = Size(width, 1000);
         tester.view.devicePixelRatio = 1;
         final semantics = tester.ensureSemantics();
         await tester.pumpWidget(
-          app(MediaArchiveHealthDetailScreen(snapshot: snapshot), scale: 2),
+          app(
+            KeyedSubtree(
+              key: ValueKey(width),
+              child: MediaArchiveHealthDetailScreen(snapshot: snapshot),
+            ),
+            scale: 2,
+          ),
         );
         await tester.pumpAndSettle();
         await tester.scrollUntilVisible(
@@ -242,7 +267,6 @@ void main() {
         expect(tester.takeException(), isNull);
         semantics.dispose();
       }
-      addTearDown(tester.view.reset);
     },
   );
 

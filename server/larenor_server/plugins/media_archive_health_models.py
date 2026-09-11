@@ -37,6 +37,21 @@ class ArchiveSourceBinding(StrictModel):
     observedAt: int = Field(ge=1, le=253402300799)
 
 
+class MediaArchiveTranscodeEvidence(StrictModel):
+    sourceCodec: Literal['h264', 'mpeg2', 'vc1']
+    targetCodec: Literal['hevc', 'av1']
+    sourceBitrate: int = Field(gt=0, le=1_000_000_000)
+    targetBitrate: int = Field(gt=0, le=1_000_000_000)
+    durationSeconds: int = Field(gt=0, le=604_800)
+    targetPlaybackVerified: Literal[True]
+
+    @model_validator(mode='after')
+    def coherent(self):
+        if self.targetBitrate >= self.sourceBitrate:
+            raise ValueError('invalid_media_archive_observation')
+        return self
+
+
 class JellyfinArchiveItem(StrictModel):
     itemId: ObjectId
     mediaKey: str = Field(min_length=1, max_length=96)
@@ -44,6 +59,7 @@ class JellyfinArchiveItem(StrictModel):
     mediaKind: MediaKind
     sizeBytes: int = Field(ge=0, le=2**63 - 1)
     integrity: Literal['playable', 'missing_file', 'corrupt', 'unplayable']
+    transcode: 'MediaArchiveTranscodeEvidence | None' = None
 
     _key = field_validator('mediaKey')(
         lambda value: value if _MEDIA_KEY.fullmatch(value) else
@@ -54,11 +70,14 @@ class JellyfinArchiveItem(StrictModel):
 class JellyfinArchiveSnapshot(ArchiveSourceBinding):
     serviceId: Literal['jellyfin']
     items: list[JellyfinArchiveItem] = Field(max_length=4096)
+    transcodeEvidence: Literal['verified', 'unsupported'] = 'unsupported'
 
     @model_validator(mode='after')
     def coherent(self):
         if (self.state != 'verified' and self.items
-                or len({item.itemId for item in self.items}) != len(self.items)):
+                or len({item.itemId for item in self.items}) != len(self.items)
+                or self.transcodeEvidence != 'verified'
+                and any(item.transcode is not None for item in self.items)):
             raise ValueError('invalid_media_archive_observation')
         return self
 
@@ -174,6 +193,73 @@ class MediaArchiveSavingSuggestion(StrictModel):
     cleanupAvailable: Literal[False] = False
 
 
+SavingKind = Literal['duplicate', 'transcode', 'retention']
+SavingLaneState = Literal[
+    'verified', 'partial', 'unsupported', 'unavailable', 'stale']
+SavingEvidence = Literal[
+    'same_media_identity', 'multiple_playable_files',
+    'largest_copy_excluded', 'source_profile_verified',
+    'target_playback_verified', 'bounded_size_estimate',
+    'download_complete', 'import_verified', 'retention_policy_satisfied']
+
+
+class MediaArchiveSavingsCandidate(StrictModel):
+    kind: SavingKind
+    source: Literal['jellyfin', 'qbittorrent']
+    title: str = Field(min_length=1, max_length=240)
+    potentialBytes: int = Field(gt=0, le=2**63 - 1)
+    evidence: list[SavingEvidence] = Field(min_length=3, max_length=3)
+    actionAvailable: Literal[False] = False
+
+    _title = field_validator('title')(_safe_text)
+
+    @model_validator(mode='after')
+    def coherent(self):
+        expected = {
+            'duplicate': ('jellyfin', [
+                'same_media_identity', 'multiple_playable_files',
+                'largest_copy_excluded']),
+            'transcode': ('jellyfin', [
+                'source_profile_verified', 'target_playback_verified',
+                'bounded_size_estimate']),
+            'retention': ('qbittorrent', [
+                'download_complete', 'import_verified',
+                'retention_policy_satisfied']),
+        }[self.kind]
+        if (self.source, self.evidence) != expected:
+            raise ValueError('invalid_media_archive_savings_plan')
+        return self
+
+
+class MediaArchiveSavingsPlan(StrictModel):
+    state: Literal['ready', 'partial']
+    laneStates: dict[SavingKind, SavingLaneState]
+    candidates: list[MediaArchiveSavingsCandidate] = Field(max_length=768)
+    candidateCounts: dict[SavingKind, int]
+    totalPotentialBytes: int = Field(ge=0, le=2**63 - 1)
+    truncated: bool
+    actionAvailable: Literal[False] = False
+
+    @model_validator(mode='after')
+    def coherent(self):
+        lanes = {'duplicate', 'transcode', 'retention'}
+        if (set(self.laneStates) != lanes or set(self.candidateCounts) != lanes
+                or any(type(value) is not int or value < 0 or value > 256
+                       for value in self.candidateCounts.values())
+                or self.candidateCounts != {
+                    kind: sum(item.kind == kind for item in self.candidates)
+                    for kind in lanes}
+                or self.totalPotentialBytes != sum(
+                    item.potentialBytes for item in self.candidates)
+                or any(self.laneStates[item.kind] != 'verified'
+                       for item in self.candidates)
+                or (self.state == 'ready') != (
+                    not self.truncated
+                    and set(self.laneStates.values()) == {'verified'})):
+            raise ValueError('invalid_media_archive_savings_plan')
+        return self
+
+
 class MediaArchiveCounts(StrictModel):
     missing: int = Field(ge=0, le=8192)
     broken: int = Field(ge=0, le=8192)
@@ -193,6 +279,7 @@ class MediaArchiveHealth(StrictModel):
     counts: MediaArchiveCounts
     issues: list[MediaArchiveIssue] = Field(max_length=12288)
     suggestions: list[MediaArchiveSavingSuggestion] = Field(max_length=4096)
+    savingsPlan: MediaArchiveSavingsPlan
     cleanupAvailable: Literal[False] = False
     generatedAt: int = Field(ge=1, le=253402300799)
 

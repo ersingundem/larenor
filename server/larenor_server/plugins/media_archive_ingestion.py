@@ -142,8 +142,12 @@ class MediaArchiveIngestion:
         source = _binding(binding, 'jellyfin', now)
         _jellyfin_proof(readback, expected_server_id)
         try:
+            items = _records(records, JellyfinArchiveItem)
             return JellyfinArchiveSnapshot(
-                **source, items=_records(records, JellyfinArchiveItem))
+                **source, items=items,
+                transcodeEvidence=(
+                    'verified' if any(item.transcode is not None
+                                      for item in items) else 'unsupported'))
         except (ValidationError, ValueError, TypeError):
             raise MediaArchiveIngestionError(
                 'archive_projection_invalid') from None

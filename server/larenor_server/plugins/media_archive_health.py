@@ -7,6 +7,7 @@ from .media_archive_health_models import (
     MediaArchiveObservation,
     MediaArchiveSavingSuggestion,
 )
+from .media_archive_savings import build_media_archive_savings_plan
 
 
 _MAX_AGE_SECONDS = 300
@@ -91,8 +92,9 @@ def build_media_archive_health(observation, *, now):
         'missing_file', 'corrupt_media', 'unplayable_media'} for issue in issues)
     failed = sum(issue.code == 'download_error' for issue in issues)
     installation_id, installation_revision, snapshot_revision = next(iter(authority))
+    savings_plan = build_media_archive_savings_plan(observation, source_states)
     state = ('incomplete' if not complete
-             else ('attention' if issues or suggestions else 'healthy'))
+             else ('attention' if issues or savings_plan.candidates else 'healthy'))
     return MediaArchiveHealth(
         installationId=installation_id,
         installationRevision=installation_revision,
@@ -103,9 +105,10 @@ def build_media_archive_health(observation, *, now):
                          for source in sources},
         counts=MediaArchiveCounts(
             missing=missing, broken=broken, failedDownloads=failed,
-            savingCandidates=len(suggestions),
-            potentialSavingBytes=sum(item.potentialBytes for item in suggestions),
+            savingCandidates=len(savings_plan.candidates),
+            potentialSavingBytes=savings_plan.totalPotentialBytes,
         ),
         issues=issues, suggestions=suggestions,
+        savingsPlan=savings_plan,
         cleanupAvailable=False, generatedAt=now,
     )
