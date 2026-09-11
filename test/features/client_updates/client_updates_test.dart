@@ -184,7 +184,7 @@ void main() {
             expect(request.followRedirects, isFalse);
             expect(
               request.url.toString(),
-              'http://127.0.0.1:8124/proxy/api/v1/client/releases/latest?platform=android&channel=stable',
+              'http://127.0.0.1:8124/proxy/api/v1/client/releases/latest?platform=android&channel=beta',
             );
             expect(
               request.headers['Authorization'],

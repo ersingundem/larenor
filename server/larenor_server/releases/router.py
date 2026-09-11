@@ -17,7 +17,7 @@ publish_bearer = HTTPBearer(auto_error=False, scheme_name="ReleasePublishToken")
 ReadyUser = Annotated[Principal, Depends(require_ready_user)]
 
 
-def build_release_router(service: ReleaseService) -> APIRouter:
+def build_release_router(service: ReleaseService, *, beta=None) -> APIRouter:
     router = APIRouter(prefix="/client/releases", tags=["Client releases"], responses={
         status: {"model": ErrorResponse, "description": description}
         for status, description in {
@@ -36,9 +36,12 @@ def build_release_router(service: ReleaseService) -> APIRouter:
     @router.get("/latest", response_model=ReleaseManifest,
                 responses={204: {"description": "No Client release published"}})
     def latest(_principal: ReadyUser, platform: str = "android", channel: str = "stable"):
-        if platform != "android" or channel != "stable":
+        if platform != "android" or channel not in ("stable", "beta"):
             raise ApiError("invalid_request")
-        release = service.latest()
+        if channel == "beta":
+            release = beta.refresh() if beta is not None else None
+        else:
+            release = service.latest("stable")
         return Response(status_code=204) if release is None else release
 
     @router.get("/{version_code}/apk", response_class=StreamingResponse, responses={

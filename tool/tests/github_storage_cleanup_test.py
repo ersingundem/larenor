@@ -236,6 +236,32 @@ class GitHubStorageCleanupTest(unittest.TestCase):
             self.assertEqual(main(["--repo", "arbitrary/private-secret"]), 2)
         self.assertNotIn("private-secret", output.getvalue())
 
+    def test_scheduled_blocked_inventory_is_a_safe_needs_attention_noop(self):
+        blocked = {
+            "artifacts": {
+                "status": "blocked",
+                "reason": "github_snapshot_limit",
+                "deletedIds": [],
+                "outcomeUnknownIds": [],
+            },
+            "ghcr": {"status": "blocked", "reason": "oci_reference_graph_unverified"},
+        }
+        with patch("github_storage_cleanup.GitHub"), \
+                patch("github_storage_cleanup.cleanup", return_value=blocked), \
+                patch("sys.stdout", new_callable=io.StringIO) as output:
+            self.assertEqual(main(["--apply", "--allow-blocked-noop"]), 0)
+            report = json.loads(output.getvalue())
+            self.assertTrue(report["attentionRequired"])
+            self.assertEqual(report["artifacts"]["deletedIds"], [])
+        for unsafe in (
+            blocked | {"artifacts": blocked["artifacts"] | {"deletedIds": [4]}},
+            blocked | {"artifacts": blocked["artifacts"] | {"outcomeUnknownIds": [4]}},
+        ):
+            with self.subTest(unsafe=unsafe), patch("github_storage_cleanup.GitHub"), \
+                    patch("github_storage_cleanup.cleanup", return_value=unsafe), \
+                    patch("sys.stdout", new_callable=io.StringIO):
+                self.assertEqual(main(["--apply", "--allow-blocked-noop"]), 1)
+
     def test_gh_transport_is_explicit_bounded_and_redacts_failure_output(self):
         completed = subprocess.CompletedProcess([], 0, b'HTTP/2.0 200 OK\r\ncontent-type: application/json\r\n\r\n{"id":1}', b'')
         with patch("github_storage_cleanup._run_gh", return_value=completed) as run:

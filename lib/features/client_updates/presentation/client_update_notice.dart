@@ -283,10 +283,21 @@ class _ClientUpdateNoticeState extends MediaSessionState<ClientUpdateNotice> {
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              Padding(
+                padding: const EdgeInsetsDirectional.only(start: 14, top: 16),
+                child: ExcludeSemantics(
+                  child: Icon(
+                    CupertinoIcons.arrow_down_circle_fill,
+                    color: CupertinoColors.activeBlue.resolveFrom(context),
+                    size: 24,
+                  ),
+                ),
+              ),
               Expanded(
                 child: CupertinoButton(
                   key: const ValueKey('client-update-open'),
                   padding: const EdgeInsets.all(14),
+                  minimumSize: const Size.fromHeight(48),
                   alignment: Alignment.centerLeft,
                   onPressed: () {
                     if (!current()) return;
@@ -294,17 +305,33 @@ class _ClientUpdateNoticeState extends MediaSessionState<ClientUpdateNotice> {
                     setState(() {});
                     widget.onOpen();
                   },
-                  child: Text(
-                    l10n.clientUpdatesAvailable,
-                    style: AppText.subhead.copyWith(
-                      color: CupertinoColors.label.resolveFrom(context),
-                    ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        l10n.clientUpdatesAvailable,
+                        style: AppText.subhead.copyWith(
+                          color: CupertinoColors.label.resolveFrom(context),
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        '${l10n.clientUpdatesNewVersion}: ${release.versionName}',
+                        style: AppText.footnote.copyWith(
+                          color: CupertinoColors.secondaryLabel.resolveFrom(
+                            context,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ),
               CupertinoButton(
                 key: const ValueKey('client-update-dismiss'),
                 padding: const EdgeInsets.all(12),
+                minimumSize: const Size.square(48),
                 onPressed: () {
                   if (current()) {
                     setState(() => dismissed.add(release.versionCode));
@@ -312,7 +339,10 @@ class _ClientUpdateNoticeState extends MediaSessionState<ClientUpdateNotice> {
                 },
                 child: Semantics(
                   label: l10n.commonClose,
-                  child: const Icon(CupertinoIcons.xmark, size: 18),
+                  button: true,
+                  child: const ExcludeSemantics(
+                    child: Icon(CupertinoIcons.xmark, size: 18),
+                  ),
                 ),
               ),
             ],

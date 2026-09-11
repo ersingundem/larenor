@@ -165,11 +165,22 @@ class AndroidE2EPreparationTest(unittest.TestCase):
         self.assertIn("org.gradle.parallel=false", result.gradle_properties)
         self.assertIn("kotlin.compiler.execution.strategy=in-process", result.gradle_properties)
 
+    def test_ci_stops_the_proven_emulator_after_a_successful_journey(self):
+        result, commands, _ = self.run_script(ci=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(commands.count("adb -s emulator-5554 emu kill"), 1)
+
+    def test_ci_teardown_preserves_the_journey_failure_status(self):
+        result, commands, _ = self.run_script(ci=True, journey_fails=True)
+        self.assertEqual(result.returncode, 23, result.stderr)
+        self.assertEqual(commands.count("adb -s emulator-5554 emu kill"), 1)
+
     def test_local_emulator_run_does_not_reconfigure_gradle(self):
         result, commands, _ = self.run_script()
         self.assertIsNone(result.gradle_properties)
         self.assertNotIn("resolve-activity", commands)
         self.assertNotIn("pm disable-user", commands)
+        self.assertNotIn("emu kill", commands)
 
     def test_ci_disables_only_verified_aosp_quickstep_before_build(self):
         result, commands, _ = self.run_script(ci=True)

@@ -117,8 +117,15 @@ def validate_workflow(text):
         errors.append("Use unprivileged pull_request for untrusted code")
     if re.search(r"\bwrite-all\b", text):
         errors.append("Broad write permissions are forbidden")
-    if "cancel-in-progress: true" not in text:
+    safe_release_group = (
+        "group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && "
+        "format('{0}-{1}', github.event.pull_request.head.repo.full_name, github.head_ref) || github.run_id }}"
+    )
+    safe_release_concurrency = "cancel-in-progress: ${{ github.event_name == 'pull_request' }}"
+    if "cancel-in-progress: true" not in text and safe_release_concurrency not in text:
         errors.append("Superseded runs must be cancelled")
+    if safe_release_concurrency in text and safe_release_group not in text:
+        errors.append("Pull requests may share cancellation groups but release runs must use unique run IDs")
     return errors
 
 
@@ -163,6 +170,7 @@ def validate_signed_android_workflow(text):
         "if: success() && steps.signing.outputs.available == 'true' && vars.LARENOR_RELEASE_SERVER_URL != ''",
         "LARENOR_RELEASE_PUBLISH_TOKEN: ${{ secrets.LARENOR_RELEASE_PUBLISH_TOKEN }}",
         'if [ "$current_main" != "$GITHUB_SHA" ]',
+        "Core will pull its verified beta carrier.", "exit 0",
         "endpoint.scheme != 'https'", "unset GH_TOKEN",
         "python3 tool/publish_client_release.py",
         "--apk build/app/outputs/flutter-apk/app-release.apk",

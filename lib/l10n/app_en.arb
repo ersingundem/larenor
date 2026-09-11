@@ -1918,6 +1918,8 @@
   "serverConnectEntry": "Use Larenor Server",
   "serverIncomplete": "Enter the server address, username, password and device name.",
   "clientUpdatesTitle": "Client updates",
+  "clientUpdatesStatus": "UPDATE STATUS",
+  "clientUpdatesProgress": "Download progress",
   "clientUpdatesCheck": "Check for updates",
   "clientUpdatesAccountRequired": "Sign in to Larenor Server and complete your password change to check for updates.",
   "clientUpdatesChecking": "Checking installed app and Server…",

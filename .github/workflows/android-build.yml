@@ -10,8 +10,8 @@ permissions:
   contents: read
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && format('{0}-{1}', github.event.pull_request.head.repo.full_name, github.head_ref) || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   analyze-test:
@@ -142,6 +142,8 @@ jobs:
     needs: [build-debug-apk, analyze-test, end-to-end, server-test]
     runs-on: ubuntu-latest
     timeout-minutes: 40
+    permissions:
+      contents: write
     env:
       # Pin the verifier output contract; do not select a runner's newest preview.
       ANDROID_BUILD_TOOLS_VERSION: "37.0.0"
@@ -160,16 +162,15 @@ jobs:
           ANDROID_RELEASE_CERT_SHA256: ${{ secrets.ANDROID_RELEASE_CERT_SHA256 }}
         run: python3 tool/android_signing.py check-ci
 
-      - name: Reject an obsolete main commit
-        if: steps.signing.outputs.available == 'true'
-        env:
-          GH_TOKEN: ${{ github.token }}
+      - name: Require the configured beta signing identity
+        if: steps.signing.outputs.available != 'true'
         run: |
-          current_main=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/main" --jq '.object.sha')
-          if [ "$current_main" != "$GITHUB_SHA" ]; then
-            echo "Refusing to sign an obsolete main commit; dispatch a new main build."
-            exit 1
-          fi
+          echo "A merged main commit must produce a signed beta Client release. Configure the five Android release signing secrets."
+          exit 1
+
+      - name: Require one attempt for each beta version
+        if: steps.signing.outputs.available == 'true'
+        run: |
           if [ "$GITHUB_RUN_ATTEMPT" != "1" ]; then
             echo "For a signed rebuild, dispatch a new main run to allocate a fresh versionCode."
             exit 1
@@ -232,6 +233,135 @@ jobs:
           rm -f android/key.properties
           rm -rf "$RUNNER_TEMP/larenor-signing"
 
+      - name: Build the public beta source manifest
+        if: success() && steps.signing.outputs.available == 'true'
+        id: beta
+        run: |
+          version_code=$(python3 tool/android_signing.py version-code)
+          apk_name="Larenor-Client-beta-$version_code.apk"
+          manifest_name="Larenor-Client-beta-$version_code.json"
+          install -d -m 0700 "$RUNNER_TEMP/larenor-beta"
+          install -m 0600 build/app/outputs/flutter-apk/app-release.apk "$RUNNER_TEMP/larenor-beta/$apk_name"
+          python3 tool/beta_release.py manifest \
+            --metadata build/app/outputs/flutter-apk/release-metadata.json \
+            --apk "$RUNNER_TEMP/larenor-beta/$apk_name" \
+            --output "$RUNNER_TEMP/larenor-beta/$manifest_name" \
+            --repository "$GITHUB_REPOSITORY" \
+            --workflow .github/workflows/android-build.yml \
+            --run-attempt "$GITHUB_RUN_ATTEMPT" \
+            --published-at "$(date -u +'%Y-%m-%dT%H:%M:%SZ')" >> "$GITHUB_OUTPUT"
+
+      - name: Publish and verify the signed content-bound beta release
+        if: success() && steps.signing.outputs.available == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ steps.beta.outputs.releaseTag }}
+          APK_ASSET: ${{ steps.beta.outputs.apkAssetName }}
+          MANIFEST_ASSET: ${{ steps.beta.outputs.manifestAssetName }}
+          VERSION_CODE: ${{ steps.beta.outputs.versionCode }}
+        run: |
+          require_absent() {
+            endpoint=$1
+            evidence=$2
+            set +e
+            gh api --include "$endpoint" > "$evidence" 2>/dev/null
+            probe_result=$?
+            set -e
+            if [ "$probe_result" -eq 0 ] || ! head -n 1 "$evidence" | grep -Eq '^HTTP/[0-9.]+ 404 ' ; then
+              echo "Beta carrier absence could not be proven."
+              return 1
+            fi
+          }
+          require_absent "repos/$GITHUB_REPOSITORY/releases/tags/$RELEASE_TAG" "$RUNNER_TEMP/beta-release-preflight"
+          require_absent "repos/$GITHUB_REPOSITORY/git/ref/tags/$RELEASE_TAG" "$RUNNER_TEMP/beta-tag-preflight"
+          cleanup_pending=true
+          cleanup_beta() {
+            result=$?
+            trap - EXIT
+            if [ "$result" -ne 0 ] && [ "$cleanup_pending" = "true" ]; then
+              if gh api "repos/$GITHUB_REPOSITORY/releases/tags/$RELEASE_TAG" > "$RUNNER_TEMP/beta-cleanup-release.json" && \
+                  cleanup_tag_commit=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$RELEASE_TAG" --jq 'select(.object.type == "commit") | .object.sha') && \
+                  cleanup_id=$(python3 tool/beta_release.py verify-candidate \
+                    --release "$RUNNER_TEMP/beta-cleanup-release.json" \
+                    --id "$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["id"])' "$RUNNER_TEMP/beta-cleanup-release.json")" \
+                    --tag "$RELEASE_TAG" --commit "$GITHUB_SHA" \
+                    --tag-commit "$cleanup_tag_commit" --allow-draft); then
+                if gh api --method DELETE "repos/$GITHUB_REPOSITORY/releases/$cleanup_id" && \
+                    cleanup_current_commit=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$RELEASE_TAG" --jq 'select(.object.type == "commit") | .object.sha') && \
+                    [ "$cleanup_current_commit" = "$GITHUB_SHA" ] && \
+                    gh api --method DELETE "repos/$GITHUB_REPOSITORY/git/refs/tags/$RELEASE_TAG" && \
+                    require_absent "repos/$GITHUB_REPOSITORY/releases/$cleanup_id" "$RUNNER_TEMP/beta-cleanup-release-absence" && \
+                    require_absent "repos/$GITHUB_REPOSITORY/git/ref/tags/$RELEASE_TAG" "$RUNNER_TEMP/beta-cleanup-tag-absence"; then
+                  echo "Removed the exact failed mutable beta carrier $cleanup_id."
+                else
+                  echo "The failed beta carrier cleanup outcome could not be proven."
+                fi
+              else
+                echo "The failed beta carrier was ambiguous; leaving it for explicit review."
+              fi
+            fi
+            exit "$result"
+          }
+          trap cleanup_beta EXIT
+          gh release create "$RELEASE_TAG" \
+            --repo "$GITHUB_REPOSITORY" \
+            --target "$GITHUB_SHA" \
+            --title "Larenor Client beta $VERSION_CODE" \
+            --notes "Signed Android beta for source commit $GITHUB_SHA. Install through an authenticated Larenor Core." \
+            --prerelease --latest=false --draft \
+            "$RUNNER_TEMP/larenor-beta/$APK_ASSET" \
+            "$RUNNER_TEMP/larenor-beta/$MANIFEST_ASSET"
+          gh release edit "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --draft=false
+          gh api "repos/$GITHUB_REPOSITORY/releases/tags/$RELEASE_TAG" > "$RUNNER_TEMP/beta-release.json"
+          tag_commit=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$RELEASE_TAG" --jq 'select(.object.type == "commit") | .object.sha')
+          python3 tool/beta_release.py verify-release \
+            --release "$RUNNER_TEMP/beta-release.json" \
+            --manifest "$RUNNER_TEMP/larenor-beta/$MANIFEST_ASSET" \
+            --apk "$RUNNER_TEMP/larenor-beta/$APK_ASSET" \
+            --tag-commit "$tag_commit"
+          cleanup_pending=false
+
+      - name: Apply bounded beta release retention
+        if: success() && steps.signing.outputs.available == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api --paginate --slurp "repos/$GITHUB_REPOSITORY/releases?per_page=100" > "$RUNNER_TEMP/beta-releases.json"
+          python3 tool/beta_release.py retention \
+            --releases "$RUNNER_TEMP/beta-releases.json" \
+            --keep 8 --max-deletions 4 > "$RUNNER_TEMP/beta-retirements"
+          require_absent() {
+            endpoint=$1
+            evidence=$2
+            set +e
+            gh api --include "$endpoint" > "$evidence" 2>/dev/null
+            result=$?
+            set -e
+            if [ "$result" -eq 0 ] || ! head -n 1 "$evidence" | grep -Eq '^HTTP/[0-9.]+ 404 ' ; then
+              echo "Deletion outcome could not be proven."
+              return 1
+            fi
+          }
+          while IFS=' ' read -r release_id release_tag release_commit; do
+            if [ -n "$release_id" ]; then
+              gh api "repos/$GITHUB_REPOSITORY/releases/$release_id" > "$RUNNER_TEMP/beta-retirement.json"
+              tag_commit=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$release_tag" --jq 'select(.object.type == "commit") | .object.sha')
+              python3 tool/beta_release.py verify-candidate \
+                --release "$RUNNER_TEMP/beta-retirement.json" --id "$release_id" \
+                --tag "$release_tag" --commit "$release_commit" --tag-commit "$tag_commit"
+              gh api --method DELETE "repos/$GITHUB_REPOSITORY/releases/$release_id"
+              current_tag_commit=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$release_tag" --jq 'select(.object.type == "commit") | .object.sha')
+              if [ "$current_tag_commit" != "$release_commit" ]; then
+                echo "The beta tag changed after release deletion; refusing to delete it."
+                exit 1
+              fi
+              gh api --method DELETE "repos/$GITHUB_REPOSITORY/git/refs/tags/$release_tag"
+              require_absent "repos/$GITHUB_REPOSITORY/releases/$release_id" "$RUNNER_TEMP/beta-release-absence"
+              require_absent "repos/$GITHUB_REPOSITORY/git/ref/tags/$release_tag" "$RUNNER_TEMP/beta-tag-absence"
+              echo "Retired old verified beta release and tag $release_tag."
+            fi
+          done < "$RUNNER_TEMP/beta-retirements"
+
       - name: Publish verified Client to the configured Larenor Server
         if: success() && steps.signing.outputs.available == 'true' && vars.LARENOR_RELEASE_SERVER_URL != ''
         env:
@@ -241,8 +371,8 @@ jobs:
         run: |
           current_main=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/main" --jq '.object.sha')
           if [ "$current_main" != "$GITHUB_SHA" ]; then
-            echo "Refusing to publish an obsolete Client commit."
-            exit 1
+            echo "Skipping direct Server publication for an older main commit; Core will pull its verified beta carrier."
+            exit 0
           fi
           unset GH_TOKEN
           python3 - <<'PY'

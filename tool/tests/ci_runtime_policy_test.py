@@ -69,6 +69,7 @@ class HostedRuntimePolicyTest(unittest.TestCase):
         self.assertNotIn("--no-enable-impeller", runner)
         self.assertNotIn("--enable-software-rendering", runner)
         self.assertIn('exit "${e2e_pipeline_status[0]}"', runner)
+        self.assertIn('timeout 20s adb -s "$e2e_serial" emu kill', runner)
 
     def run_kvm(self, mode):
         return subprocess.run(

@@ -1597,6 +1597,8 @@
   "serverConnectEntry": "Larenor Server kullan",
   "serverIncomplete": "Sunucu adresi, kullanıcı adı, parola ve cihaz adını girin.",
   "clientUpdatesTitle": "Client güncellemeleri",
+  "clientUpdatesStatus": "GÜNCELLEME DURUMU",
+  "clientUpdatesProgress": "İndirme ilerlemesi",
   "clientUpdatesCheck": "Güncellemeleri kontrol et",
   "clientUpdatesAccountRequired": "Güncellemeleri kontrol etmek için Larenor Server’a giriş yap ve parola değişimini tamamla.",
   "clientUpdatesChecking": "Kurulu uygulama ve Server kontrol ediliyor…",

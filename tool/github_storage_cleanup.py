@@ -357,6 +357,11 @@ def main(argv=None):
     parser = _ArgumentParser(description=__doc__)
     parser.add_argument("--apply", action="store_true", help="Delete only rechecked old debug artifacts; never delete GHCR versions")
     parser.add_argument("--max-deletions", type=int, default=MAX_DELETIONS, help="Maximum debug deletions this invocation (1..20)")
+    parser.add_argument(
+        "--allow-blocked-noop",
+        action="store_true",
+        help="Exit successfully only when blocked before every delete; report needs attention",
+    )
     try:
         args = parser.parse_args(argv)
         if args.apply:
@@ -364,8 +369,21 @@ def main(argv=None):
                 report = cleanup(GitHub(), apply=True, max_deletions=args.max_deletions)
         else:
             report = cleanup(GitHub(), apply=False, max_deletions=args.max_deletions)
+        artifacts = report.get("artifacts", {})
+        attention = (
+            artifacts.get("status") == "blocked"
+            or report.get("ghcr", {}).get("status") == "blocked"
+        )
+        report["attentionRequired"] = attention
         print(json.dumps(report, sort_keys=True, indent=2))
-        return 1 if report.get("artifacts", {}).get("status") == "blocked" else 0
+        if artifacts.get("status") != "blocked":
+            return 0
+        safe_noop = (
+            args.allow_blocked_noop
+            and artifacts.get("deletedIds") == []
+            and artifacts.get("outcomeUnknownIds") == []
+        )
+        return 0 if safe_noop else 1
     except CleanupError as error:
         print(json.dumps({"repository": REPOSITORY, "status": "blocked", "reason": error.code}))
         return 2 if error.code == "invalid_arguments" else 1
