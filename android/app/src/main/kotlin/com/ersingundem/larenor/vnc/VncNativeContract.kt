@@ -204,6 +204,9 @@ class VncNativeRequest private constructor(
     val keyboard: Boolean,
     val clipboard: Boolean,
 ) {
+    internal val directTargetHost: String get() = targetHost
+    internal val directTargetPort: Int get() = targetPort
+
     override fun toString() = "VncNativeRequest(<redacted>)"
 
     fun publicSummary(): Map<String, Any> = mapOf(

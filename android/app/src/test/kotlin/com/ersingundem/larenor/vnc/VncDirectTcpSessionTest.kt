@@ -106,6 +106,11 @@ class VncDirectTcpSessionTest {
 
     @Test
     fun deadlineBackgroundAndExplicitCloseCancelOnceAndDiscardLateCallbacks() {
+        val invalid = runCatching {
+            VncDirectTcpSession(request("192.168.1.8"), Resolver(), Connector(), 30_001) { 0L }
+        }.exceptionOrNull() as VncNativeFailure
+        assertEquals("invalidRequest", invalid.code)
+
         var now = 100L
         val resolver = Resolver()
         val connector = Connector()
