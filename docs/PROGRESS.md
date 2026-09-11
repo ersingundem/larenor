@@ -41,6 +41,16 @@ varsayılanı native motor yokken bağlantı denemez. Gerçek Windows/RD Gateway
 FreeRDP/JNI ve fiziksel Huawei tablet/DeX kabulü açık olduğundan F62 kabulü ve
 **14/125 · 0/63** sayaçları değişmedi. Ayrıntı:
 [bounded RDP Client dilimi](rdp-client-flow-2026-09-11.md).
+### Bağımsız F61 VNC Client temeli — yerel dal
+
+`codex/vnc-client-foundation-main` dalında REMOTE.COMMON VNC profili için RFB 3.8,
+TLS/SPKI sabitleme, düz VNC varsayılan reddi, tek kullanımlık ve bellekte
+sıfırlanan parola taşıması, tek denemelik yaşam döngüsü ve EN/TR tablet/DeX
+hazırlık paneli eklendi. Varsayılan `UnsupportedVncEngine` DNS/socket açmadan
+yerel motorun paketlenmediğini bildirir. Bu dilim F61'i kapatmaz; native motor,
+gerçek sunucu E2E, framebuffer/girdi, CI ve fiziksel Huawei/DeX kabulü açıktır.
+[Kapsam ve kanıt](vnc-client-foundation-2026-09-10.md).
+
 
 ### Tamamlanan toplu kilometre taşı — PR64
 

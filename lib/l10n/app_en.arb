@@ -2870,7 +2870,13 @@
   "mediaArchiveDetailsTitle": "Archive evidence",
   "mediaArchiveDetailReadOnly": "Evidence only. Storage changes are unavailable from this screen.",
   "mediaArchiveCapturedAt": "Captured {time}",
-  "@mediaArchiveCapturedAt": {"placeholders": {"time": {"type": "String"}}},
+  "@mediaArchiveCapturedAt": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
   "mediaArchiveSourcesTitle": "Source evidence",
   "mediaArchiveIssuesTitle": "Archive issues",
   "mediaArchiveIssuesEmpty": "No verified archive issues in this snapshot.",
@@ -2892,13 +2898,31 @@
   "mediaArchiveEvidenceImportVerified": "Library import is verified",
   "mediaArchiveEvidenceRetentionSatisfied": "Retention policy is satisfied",
   "mediaArchiveObservedSize": "Observed size: {size}",
-  "@mediaArchiveObservedSize": {"placeholders": {"size": {"type": "String"}}},
+  "@mediaArchiveObservedSize": {
+    "placeholders": {
+      "size": {
+        "type": "String"
+      }
+    }
+  },
   "mediaArchivePotentialValue": "Potential space: {size}",
-  "@mediaArchivePotentialValue": {"placeholders": {"size": {"type": "String"}}},
+  "@mediaArchivePotentialValue": {
+    "placeholders": {
+      "size": {
+        "type": "String"
+      }
+    }
+  },
   "mediaArchivePlanReady": "All savings evidence lanes are verified.",
   "mediaArchivePlanPartial": "The plan is partial. Unsupported, unavailable or stale lanes produce no candidates.",
   "mediaArchivePlanTotal": "Bounded potential: {size}",
-  "@mediaArchivePlanTotal": {"placeholders": {"size": {"type": "String"}}},
+  "@mediaArchivePlanTotal": {
+    "placeholders": {
+      "size": {
+        "type": "String"
+      }
+    }
+  },
   "mediaArchivePlanTruncated": "The bounded result limit was reached; this is not a complete archive estimate.",
   "mediaArchivePlanDuplicates": "Duplicates",
   "mediaArchivePlanTranscode": "Transcode review",
@@ -2920,9 +2944,21 @@
   "mediaArchiveConfidenceHigh": "High confidence",
   "mediaArchiveConfidenceMedium": "Medium confidence",
   "mediaArchiveEstimatedRetained": "Estimated retained: {size}",
-  "@mediaArchiveEstimatedRetained": {"placeholders": {"size": {"type": "String"}}},
+  "@mediaArchiveEstimatedRetained": {
+    "placeholders": {
+      "size": {
+        "type": "String"
+      }
+    }
+  },
   "mediaArchiveEstimatedGain": "Estimated gain: {size}",
-  "@mediaArchiveEstimatedGain": {"placeholders": {"size": {"type": "String"}}},
+  "@mediaArchiveEstimatedGain": {
+    "placeholders": {
+      "size": {
+        "type": "String"
+      }
+    }
+  },
   "mediaArchiveComparisonBasisTitle": "Why this comparison",
   "mediaArchiveComparisonKeepLargest": "Compares all verified playable copies with the largest copy retained.",
   "mediaArchiveComparisonTranscode": "Compares observed size with a bitrate-based estimate bounded by the source file size.",
@@ -2930,7 +2966,16 @@
   "mediaArchiveEvidenceTitle": "Verified evidence",
   "mediaArchiveDataGapsTitle": "Data gaps",
   "mediaArchiveDataGap": "{lane}: {reason}",
-  "@mediaArchiveDataGap": {"placeholders": {"lane": {"type": "String"}, "reason": {"type": "String"}}},
+  "@mediaArchiveDataGap": {
+    "placeholders": {
+      "lane": {
+        "type": "String"
+      },
+      "reason": {
+        "type": "String"
+      }
+    }
+  },
   "mediaArchiveGapPartial": "evidence is partial",
   "mediaArchiveGapUnsupported": "evidence is unsupported",
   "mediaArchiveGapUnavailable": "evidence is unavailable",
@@ -2941,21 +2986,70 @@
   "mediaArchiveEvidenceQualityProfile": "Resolution and bitrate profiles were verified",
   "mediaArchiveEvidenceBestQuality": "The best-quality copy is excluded from the estimate",
   "mediaArchiveEvidenceSource": "{source} evidence",
-  "@mediaArchiveEvidenceSource": {"placeholders": {"source": {"type": "String"}}},
+  "@mediaArchiveEvidenceSource": {
+    "placeholders": {
+      "source": {
+        "type": "String"
+      }
+    }
+  },
   "mediaArchiveGroupExactHash": "Exact content hash match",
   "mediaArchiveGroupProbableMetadata": "Possible match: same name, size and runtime",
   "mediaArchiveGroupLowerQuality": "Verified lower-quality variant",
-  "mediaArchiveComparisonBestQuality": "Compares verified quality profiles and retains every best-quality copy; only lower-quality variants contribute to the estimate."
-  ,"mediaArchiveTrendTitle": "12-week storage trend"
-  ,"mediaArchiveTrendReady": "Verified weekly capacity evidence from Larenor Core."
-  ,"mediaArchiveTrendStale": "Weekly storage trend is stale."
-  ,"mediaArchiveTrendUnavailable": "Weekly storage trend is unavailable."
-  ,"mediaArchiveTrendWeek": "Week of {date}"
-  ,"@mediaArchiveTrendWeek": {"placeholders": {"date": {"type": "String"}}}
-  ,"mediaArchiveTrendTotal": "Total"
-  ,"mediaArchiveTrendFree": "Free space"
-  ,"mediaArchiveTrendReclaimable": "Potential space"
-  ,"mediaArchiveTrendCandidateCounts": "Possible duplicates and low-quality variants"
-  ,"mediaArchiveTrendDuplicates": "Possible duplicates"
-  ,"mediaArchiveTrendLowQuality": "Low-quality variants"
+  "mediaArchiveComparisonBestQuality": "Compares verified quality profiles and retains every best-quality copy; only lower-quality variants contribute to the estimate.",
+  "mediaArchiveTrendTitle": "12-week storage trend",
+  "mediaArchiveTrendReady": "Verified weekly capacity evidence from Larenor Core.",
+  "mediaArchiveTrendStale": "Weekly storage trend is stale.",
+  "mediaArchiveTrendUnavailable": "Weekly storage trend is unavailable.",
+  "mediaArchiveTrendWeek": "Week of {date}",
+  "@mediaArchiveTrendWeek": {
+    "placeholders": {
+      "date": {
+        "type": "String"
+      }
+    }
+  },
+  "mediaArchiveTrendTotal": "Total",
+  "mediaArchiveTrendFree": "Free space",
+  "mediaArchiveTrendReclaimable": "Potential space",
+  "mediaArchiveTrendCandidateCounts": "Possible duplicates and low-quality variants",
+  "mediaArchiveTrendDuplicates": "Possible duplicates",
+  "mediaArchiveTrendLowQuality": "Low-quality variants",
+  "vncTitle": "VNC readiness",
+  "vncProfileHint": "Open the secure VNC readiness panel. A session is offered only when the packaged engine proves RFB 3.8, TLS, certificate pinning, display, touchpad, and keyboard capabilities.",
+  "vncCheck": "Check VNC capability",
+  "vncEngineUnavailable": "A native VNC engine is not packaged in this build. No DNS lookup or connection was attempted.",
+  "vncChecking": "Checking packaged capabilities and RFB security…",
+  "vncPlainRejected": "Plain VNC is insecure and is blocked by default.",
+  "vncNoAuthRejected": "The server offered an unauthenticated VNC session. It was blocked.",
+  "vncSecurityUnsupported": "The RFB security selection is not supported by the packaged engine.",
+  "vncCertificateChanged": "The TLS certificate differs from the saved pin. The session was blocked.",
+  "vncCertificateReview": "Review and pin this TLS certificate before entering a VNC password.",
+  "vncTrustCertificate": "Trust this certificate",
+  "vncPassword": "One-time VNC password",
+  "vncAuthenticate": "Open verified session",
+  "vncConnecting": "Opening the verified VNC session…",
+  "vncConnected": "VNC transport connected. Native framebuffer rendering remains engine-owned.",
+  "vncClosed": "VNC session closed. Reopen the profile for a new attempt.",
+  "vncFailed": "VNC session failed. No automatic retry or input replay occurred.",
+  "vncClipboardOff": "Clipboard: Off",
+  "vncFilesOff": "Files: Off",
+  "vncChannelsHint": "Clipboard and file channels start disabled and require separate explicit capability and consent work.",
+  "vncDisplay": "Display",
+  "vncDisplayValue": "{width} × {height} · {dpi} DPI",
+  "@vncDisplayValue": {
+    "placeholders": {
+      "width": {
+        "type": "int"
+      },
+      "height": {
+        "type": "int"
+      },
+      "dpi": {
+        "type": "int"
+      }
+    }
+  },
+  "vncExternalDisplay": "DeX / external display profile",
+  "vncInputReady": "Touchpad and physical keyboard input are scoped to this foreground session."
 }

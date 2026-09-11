@@ -1,0 +1,41 @@
+{
+  "availableCapabilities": {
+    "schemaVersion": 1,
+    "availability": "available",
+    "engineRevision": "native-vnc-1",
+    "rfbVersions": ["3.8"],
+    "securityTypes": ["vencrypt_tls_vnc_auth"],
+    "security": {"tls": true, "certificatePinning": true, "passwordAuth": true},
+    "display": {"dynamicResolution": true, "externalDisplay": true, "maxWidth": 8192, "maxHeight": 8192, "maxDpi": 640},
+    "input": {"touchpad": true, "keyboard": true},
+    "channels": {"clipboard": false, "files": false}
+  },
+  "unavailableCapabilities": {
+    "schemaVersion": 1,
+    "availability": "unavailable",
+    "engineRevision": null,
+    "rfbVersions": [],
+    "securityTypes": [],
+    "security": {"tls": false, "certificatePinning": false, "passwordAuth": false},
+    "display": {"dynamicResolution": false, "externalDisplay": false, "maxWidth": 0, "maxHeight": 0, "maxDpi": 0},
+    "input": {"touchpad": false, "keyboard": false},
+    "channels": {"clipboard": false, "files": false}
+  },
+  "secureNegotiation": {
+    "schemaVersion": 1,
+    "rfbVersion": "3.8",
+    "securityType": "vencrypt_tls_vnc_auth",
+    "tls": true,
+    "certificate": {"algorithm": "spki-sha256", "fingerprint": "SHA256:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"},
+    "requiresPassword": true
+  },
+  "plainNegotiation": {
+    "schemaVersion": 1,
+    "rfbVersion": "3.8",
+    "securityType": "vnc_auth",
+    "tls": false,
+    "certificate": null,
+    "requiresPassword": true
+  },
+  "certificate": {"algorithm": "spki-sha256", "fingerprint": "SHA256:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"}
+}

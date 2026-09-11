@@ -2542,7 +2542,13 @@
   "mediaArchiveDetailsTitle": "Arşiv kanıtları",
   "mediaArchiveDetailReadOnly": "Yalnız kanıt gösterilir. Bu ekrandan depolama değişikliği yapılamaz.",
   "mediaArchiveCapturedAt": "Alınma zamanı: {time}",
-  "@mediaArchiveCapturedAt": {"placeholders": {"time": {"type": "String"}}},
+  "@mediaArchiveCapturedAt": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
   "mediaArchiveSourcesTitle": "Kaynak kanıtları",
   "mediaArchiveIssuesTitle": "Arşiv sorunları",
   "mediaArchiveIssuesEmpty": "Bu anlık görüntüde doğrulanmış arşiv sorunu yok.",
@@ -2564,13 +2570,31 @@
   "mediaArchiveEvidenceImportVerified": "Kitaplık içe aktarımı doğrulandı",
   "mediaArchiveEvidenceRetentionSatisfied": "Saklama ilkesi karşılandı",
   "mediaArchiveObservedSize": "Gözlenen boyut: {size}",
-  "@mediaArchiveObservedSize": {"placeholders": {"size": {"type": "String"}}},
+  "@mediaArchiveObservedSize": {
+    "placeholders": {
+      "size": {
+        "type": "String"
+      }
+    }
+  },
   "mediaArchivePotentialValue": "Olası alan: {size}",
-  "@mediaArchivePotentialValue": {"placeholders": {"size": {"type": "String"}}},
+  "@mediaArchivePotentialValue": {
+    "placeholders": {
+      "size": {
+        "type": "String"
+      }
+    }
+  },
   "mediaArchivePlanReady": "Tüm alan tasarrufu kanıt kanalları doğrulandı.",
   "mediaArchivePlanPartial": "Plan kısmi. Desteklenmeyen, erişilemeyen veya eski kanallar aday üretmez.",
   "mediaArchivePlanTotal": "Sınırlı olası alan: {size}",
-  "@mediaArchivePlanTotal": {"placeholders": {"size": {"type": "String"}}},
+  "@mediaArchivePlanTotal": {
+    "placeholders": {
+      "size": {
+        "type": "String"
+      }
+    }
+  },
   "mediaArchivePlanTruncated": "Sınırlı sonuç üst sınırına ulaşıldı; bu, arşivin tam tahmini değildir.",
   "mediaArchivePlanDuplicates": "Yinelenenler",
   "mediaArchivePlanTranscode": "Kod dönüştürme incelemesi",
@@ -2592,9 +2616,21 @@
   "mediaArchiveConfidenceHigh": "Yüksek güven",
   "mediaArchiveConfidenceMedium": "Orta güven",
   "mediaArchiveEstimatedRetained": "Tahmini korunacak alan: {size}",
-  "@mediaArchiveEstimatedRetained": {"placeholders": {"size": {"type": "String"}}},
+  "@mediaArchiveEstimatedRetained": {
+    "placeholders": {
+      "size": {
+        "type": "String"
+      }
+    }
+  },
   "mediaArchiveEstimatedGain": "Tahmini kazanç: {size}",
-  "@mediaArchiveEstimatedGain": {"placeholders": {"size": {"type": "String"}}},
+  "@mediaArchiveEstimatedGain": {
+    "placeholders": {
+      "size": {
+        "type": "String"
+      }
+    }
+  },
   "mediaArchiveComparisonBasisTitle": "Bu karşılaştırmanın gerekçesi",
   "mediaArchiveComparisonKeepLargest": "Doğrulanmış oynatılabilir kopyaların tümünü, en büyük kopyanın korunduğu durumla karşılaştırır.",
   "mediaArchiveComparisonTranscode": "Gözlenen boyutu, kaynak dosya boyutuyla sınırlanmış bit hızı tabanlı tahminle karşılaştırır.",
@@ -2602,7 +2638,16 @@
   "mediaArchiveEvidenceTitle": "Doğrulanmış kanıt",
   "mediaArchiveDataGapsTitle": "Veri eksikleri",
   "mediaArchiveDataGap": "{lane}: {reason}",
-  "@mediaArchiveDataGap": {"placeholders": {"lane": {"type": "String"}, "reason": {"type": "String"}}},
+  "@mediaArchiveDataGap": {
+    "placeholders": {
+      "lane": {
+        "type": "String"
+      },
+      "reason": {
+        "type": "String"
+      }
+    }
+  },
   "mediaArchiveGapPartial": "kanıt kısmi",
   "mediaArchiveGapUnsupported": "kanıt desteklenmiyor",
   "mediaArchiveGapUnavailable": "kanıta erişilemiyor",
@@ -2613,21 +2658,70 @@
   "mediaArchiveEvidenceQualityProfile": "Çözünürlük ve bit hızı profilleri doğrulandı",
   "mediaArchiveEvidenceBestQuality": "En iyi kaliteli kopya tahmine katılmadı",
   "mediaArchiveEvidenceSource": "{source} kanıtı",
-  "@mediaArchiveEvidenceSource": {"placeholders": {"source": {"type": "String"}}},
+  "@mediaArchiveEvidenceSource": {
+    "placeholders": {
+      "source": {
+        "type": "String"
+      }
+    }
+  },
   "mediaArchiveGroupExactHash": "Kesin içerik hash eşleşmesi",
   "mediaArchiveGroupProbableMetadata": "Olası eşleşme: aynı ad, boyut ve runtime",
   "mediaArchiveGroupLowerQuality": "Doğrulanmış düşük kaliteli varyant",
-  "mediaArchiveComparisonBestQuality": "Doğrulanmış kalite profillerini karşılaştırır ve en iyi kaliteli tüm kopyaları korur; tahmine yalnız düşük kaliteli varyantlar katılır."
-  ,"mediaArchiveTrendTitle": "12 haftalık depolama eğilimi"
-  ,"mediaArchiveTrendReady": "Larenor Core'dan doğrulanmış haftalık kapasite kanıtı."
-  ,"mediaArchiveTrendStale": "Haftalık depolama eğilimi eski."
-  ,"mediaArchiveTrendUnavailable": "Haftalık depolama eğilimi kullanılamıyor."
-  ,"mediaArchiveTrendWeek": "{date} haftası"
-  ,"@mediaArchiveTrendWeek": {"placeholders": {"date": {"type": "String"}}}
-  ,"mediaArchiveTrendTotal": "Toplam"
-  ,"mediaArchiveTrendFree": "Boş alan"
-  ,"mediaArchiveTrendReclaimable": "Potansiyel alan"
-  ,"mediaArchiveTrendCandidateCounts": "Olası tekrarlar ve düşük kaliteli varyantlar"
-  ,"mediaArchiveTrendDuplicates": "Olası tekrarlar"
-  ,"mediaArchiveTrendLowQuality": "Düşük kaliteli varyantlar"
+  "mediaArchiveComparisonBestQuality": "Doğrulanmış kalite profillerini karşılaştırır ve en iyi kaliteli tüm kopyaları korur; tahmine yalnız düşük kaliteli varyantlar katılır.",
+  "mediaArchiveTrendTitle": "12 haftalık depolama eğilimi",
+  "mediaArchiveTrendReady": "Larenor Core'dan doğrulanmış haftalık kapasite kanıtı.",
+  "mediaArchiveTrendStale": "Haftalık depolama eğilimi eski.",
+  "mediaArchiveTrendUnavailable": "Haftalık depolama eğilimi kullanılamıyor.",
+  "mediaArchiveTrendWeek": "{date} haftası",
+  "@mediaArchiveTrendWeek": {
+    "placeholders": {
+      "date": {
+        "type": "String"
+      }
+    }
+  },
+  "mediaArchiveTrendTotal": "Toplam",
+  "mediaArchiveTrendFree": "Boş alan",
+  "mediaArchiveTrendReclaimable": "Potansiyel alan",
+  "mediaArchiveTrendCandidateCounts": "Olası tekrarlar ve düşük kaliteli varyantlar",
+  "mediaArchiveTrendDuplicates": "Olası tekrarlar",
+  "mediaArchiveTrendLowQuality": "Düşük kaliteli varyantlar",
+  "vncTitle": "VNC hazırlığı",
+  "vncProfileHint": "Güvenli VNC hazırlık panelini açın. Oturum yalnız paketlenmiş motor RFB 3.8, TLS, sertifika sabitleme, ekran, touchpad ve klavye yeteneklerini kanıtlarsa sunulur.",
+  "vncCheck": "VNC yeteneğini denetle",
+  "vncEngineUnavailable": "Bu sürümde yerel VNC motoru paketlenmemiş. DNS sorgusu veya bağlantı denenmedi.",
+  "vncChecking": "Paketlenmiş yetenekler ve RFB güvenliği denetleniyor…",
+  "vncPlainRejected": "Düz VNC güvensizdir ve varsayılan olarak engellenir.",
+  "vncNoAuthRejected": "Sunucu kimlik doğrulamasız VNC oturumu sundu. Oturum engellendi.",
+  "vncSecurityUnsupported": "RFB güvenlik seçimi paketlenmiş motor tarafından desteklenmiyor.",
+  "vncCertificateChanged": "TLS sertifikası kayıtlı sabitlemeden farklı. Oturum engellendi.",
+  "vncCertificateReview": "VNC parolasını girmeden önce bu TLS sertifikasını inceleyip sabitleyin.",
+  "vncTrustCertificate": "Bu sertifikaya güven",
+  "vncPassword": "Tek kullanımlık VNC parolası",
+  "vncAuthenticate": "Doğrulanmış oturumu aç",
+  "vncConnecting": "Doğrulanmış VNC oturumu açılıyor…",
+  "vncConnected": "VNC aktarımı bağlandı. Yerel framebuffer çizimi motorun sorumluluğundadır.",
+  "vncClosed": "VNC oturumu kapandı. Yeni deneme için profili yeniden açın.",
+  "vncFailed": "VNC oturumu başarısız. Otomatik yeniden deneme veya girdi tekrarı yapılmadı.",
+  "vncClipboardOff": "Pano: Kapalı",
+  "vncFilesOff": "Dosyalar: Kapalı",
+  "vncChannelsHint": "Pano ve dosya kanalları kapalı başlar; ayrı açık yetenek ve izin çalışması gerektirir.",
+  "vncDisplay": "Ekran",
+  "vncDisplayValue": "{width} × {height} · {dpi} DPI",
+  "@vncDisplayValue": {
+    "placeholders": {
+      "width": {
+        "type": "int"
+      },
+      "height": {
+        "type": "int"
+      },
+      "dpi": {
+        "type": "int"
+      }
+    }
+  },
+  "vncExternalDisplay": "DeX / harici ekran profili",
+  "vncInputReady": "Touchpad ve fiziksel klavye girdisi bu ön plan oturumuyla sınırlıdır."
 }
