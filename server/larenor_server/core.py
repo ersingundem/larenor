@@ -27,6 +27,8 @@ from .plugins.media_installation_schema import migrate_media_installations
 from .plugins.media_installations import MediaInstallationManagement
 from .plugins.media_service_bootstrap_schema import migrate_media_service_bootstraps
 from .plugins.media_service_bootstraps import MediaServiceBootstrapManagement
+from .plugins.seerr_bootstrap_job_schema import migrate_seerr_bootstraps
+from .plugins.seerr_bootstrap_jobs import SeerrBootstrapManagement
 from .plugins.qbittorrent_config_job_schema import migrate_qbittorrent_configurations
 from .plugins.qbittorrent_config_jobs import QbittorrentConfigurationManagement
 from .plugins.arr_config_job_schema import migrate_arr_configurations
@@ -71,6 +73,11 @@ from .proxmox_commands.schema import migrate as migrate_proxmox_power
 from .proxmox_commands.service import ProxmoxPowerAuthority
 from .proxmox_commands.worker_ipc import verified_power_worker_client
 from .proxmox_commands.core_worker import EgressGatedProxmoxExecutor
+from .keenetic_commands.schema import migrate as migrate_keenetic_commands
+from .keenetic_commands.journal import KeeneticCommandJournal, state_tag as keenetic_state_tag
+from .keenetic_commands.service import KeeneticCommandAuthority
+from .keenetic_commands.core_worker import build_keenetic_worker_effect
+from .keenetic_commands.provider import KeeneticCommandStateProvider
 
 
 class CoreServices:
@@ -193,6 +200,7 @@ class CoreServices:
                 migrate_media_inspections(connection)
                 migrate_media_installations(connection)
                 migrate_media_service_bootstraps(connection)
+                migrate_seerr_bootstraps(connection)
                 migrate_qbittorrent_configurations(connection)
                 migrate_arr_configurations(connection)
                 migrate_music_assistant_core(connection)
@@ -201,6 +209,14 @@ class CoreServices:
                 migrate_music_playback(connection)
                 migrate_media_archive_weekly_trends(connection)
                 migrate_proxmox_power(connection, key)
+                migrate_keenetic_commands(
+                    connection,
+                    key,
+                    self.context,
+                    lambda scope, chain, sequence, head: keenetic_state_tag(
+                        scope, chain, sequence, head, key
+                    ),
+                )
             if not existed:
                 # Only publish the DB after its complete first transaction commits.
                 # Never expose an empty DB that a restart might treat as a reset.
@@ -279,6 +295,11 @@ class CoreServices:
                 self.db, self.auth, settings, key, self.media_installations,
                 installation_backend)
             self.media_service_bootstraps.validate_storage()
+            self.seerr_bootstraps = SeerrBootstrapManagement(
+                self.db, self.auth, settings, key, self.media_installations,
+                self.media_service_bootstraps)
+            self.seerr_bootstraps.backend = installation_backend
+            self.seerr_bootstraps.validate_storage()
             self.qbittorrent_configurations = QbittorrentConfigurationManagement(
                 self.db, self.auth, settings, key, self.media_installations,
                 installation_backend)
