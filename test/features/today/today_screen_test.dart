@@ -11,6 +11,7 @@ import 'package:larenor/features/auth/providers/auth_providers.dart';
 import 'package:larenor/features/today/data/today_actions.dart';
 import 'package:larenor/features/today/data/today_controller.dart';
 import 'package:larenor/features/today/data/today_timezone.dart';
+import 'package:larenor/features/today/domain/today_daily_summary.dart';
 import 'package:larenor/features/today/domain/today_models.dart';
 import 'package:larenor/features/today/presentation/today_screen.dart';
 import 'package:larenor/features/today/presentation/today_support.dart';
@@ -377,6 +378,55 @@ void main() {
     );
     semantics.dispose();
   });
+
+  testWidgets(
+    'wide detail keeps an exact item through refresh and safely falls back',
+    (tester) async {
+      final harness = _Harness(_snapshot(list: _list()));
+      await harness.mount(tester, size: const Size(1280, 900));
+
+      await _tap(tester, 'today-summary-section-shopping');
+      await tester.enterText(
+        find.byKey(const ValueKey('today-summary-detail-search')),
+        'milk',
+      );
+      await tester.pump();
+      await _tap(tester, 'today-summary-detail-item-todo.shopping-uid-1');
+      var selection = harness.container.read(todaySummarySelectionProvider)!;
+      expect(selection.itemId, 'uid-1');
+      expect(selection.query, 'milk');
+
+      harness.publish(_snapshot(list: _list()));
+      await tester.pumpAndSettle();
+      selection = harness.container.read(todaySummarySelectionProvider)!;
+      expect(selection.itemId, 'uid-1');
+
+      harness.publish(
+        _snapshot(
+          list: _list(
+            items: const [
+              TodayTodoItem(
+                uid: 'replacement',
+                summary: 'Milk replacement',
+                status: TodayTodoStatus.needsAction,
+              ),
+            ],
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      selection = harness.container.read(todaySummarySelectionProvider)!;
+      expect(selection.kind, TodayDailySummaryKind.shopping);
+      expect(selection.sourceId, isNull);
+      expect(selection.itemId, isNull);
+      expect(selection.query, 'milk');
+      expect(
+        find.byKey(const ValueKey('today-summary-detail-shopping')),
+        findsOneWidget,
+      );
+      expect(tester.takeException(), isNull);
+    },
+  );
 
   testWidgets(
     'retained view is explicit, read-only and refresh errors stay secret-free',
