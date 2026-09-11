@@ -409,7 +409,7 @@ class _ServerMediaPreparationsScreenState
         color:
             (status == l.serverSeerrProgressWorking
                     ? CupertinoColors.systemBlue
-                    : CupertinoColors.systemOrange)
+                    : CupertinoColors.secondaryLabel)
                 .resolveFrom(context),
       );
     }

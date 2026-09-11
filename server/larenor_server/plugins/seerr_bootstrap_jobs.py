@@ -700,6 +700,16 @@ class SeerrBootstrapManagement:
                         "invalid_seerr_bootstrap_execution", uncertain_effect=True
                     )
             except SeerrBootstrapExecutionError as failure:
+                step_count = len(failure.completed_steps)
+                if (
+                    (failure.api_key is not None) != (step_count >= 4)
+                    or (failure.arr_wiring is not None) != (step_count >= 5)
+                    or (failure.initialization is not None) != (step_count == 6)
+                ):
+                    failure = SeerrBootstrapExecutionError(
+                        "invalid_seerr_bootstrap_execution",
+                        uncertain_effect=True,
+                    )
                 error = (
                     "invalid_seerr_bootstrap_result"
                     if failure.code == "invalid_seerr_bootstrap_execution"

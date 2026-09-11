@@ -210,6 +210,15 @@ void main() {
             .label,
         contains('Başlatma: İlgilenmeniz gerekiyor'),
       );
+      final pending = find.byKey(const ValueKey('media-seerr-phase-verified'));
+      await reveal(tester, pending);
+      final pendingIcon = tester.widget<Icon>(
+        find.descendant(of: pending, matching: find.byType(Icon)),
+      );
+      expect(
+        pendingIcon.color,
+        CupertinoColors.secondaryLabel.resolveFrom(tester.element(pending)),
+      );
       expect(find.textContaining('otomatik tekrarlamaz'), findsOneWidget);
       final recovery = find.byKey(const ValueKey('media-seerr-recover'));
       await reveal(tester, recovery);

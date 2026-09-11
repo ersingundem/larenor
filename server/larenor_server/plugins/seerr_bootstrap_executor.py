@@ -391,7 +391,12 @@ class SeerrBootstrapExecutor:
                     )
                     for item in secret.arrBindings
                 )
-                self._gate(gate, True)
+                self._gate(
+                    gate,
+                    True,
+                    completed_steps=completed,
+                    api_key=result.api_key,
+                )
                 wiring = self.arr_wiring.configure(
                     opened.connection,
                     seerr_api_key=result.api_key,

@@ -9,8 +9,10 @@ import time
 import pytest
 
 from larenor_server.plugins.installation_ipc import (
+    InstallationIPCError,
     InstallationWorkerClient,
     InstallationWorkerServer,
+    _seerr_bootstrap_result,
 )
 from larenor_server.plugins.seerr_bootstrap_models import (
     PrivateSeerrArrBinding,
@@ -186,6 +188,43 @@ def test_worker_authority_failure_preserves_verified_convergence_receipts():
     assert raised.value.arr_wiring == wiring
     assert raised.value.initialization == initialization
     assert API_KEY not in repr(raised.value)
+
+
+@pytest.mark.parametrize(
+    "changes",
+    [
+        {"completedSteps": list(receipt().completed_steps[:3])},
+        {"apiKey": None},
+        {
+            "completedSteps": list(receipt().completed_steps[:4]),
+            "arrInstanceIds": [7, 8],
+            "initialized": None,
+            "initializationChanged": None,
+        },
+        {
+            "completedSteps": list(receipt().completed_steps[:5]),
+            "arrInstanceIds": None,
+            "initialized": None,
+            "initializationChanged": None,
+        },
+        {"initialized": None, "initializationChanged": None},
+    ],
+)
+def test_failed_worker_receipts_require_exact_completed_step_coherence(changes):
+    value = {
+        "state": "failed",
+        "apiKey": API_KEY,
+        "completedSteps": list(receipt().completed_steps),
+        "errorCode": "seerr_bootstrap_authority_changed",
+        "uncertainEffect": True,
+        "causeCode": None,
+        "arrInstanceIds": [7, 8],
+        "initialized": True,
+        "initializationChanged": False,
+    } | changes
+
+    with pytest.raises(InstallationIPCError, match="^invalid_worker_result$"):
+        _seerr_bootstrap_result(value)
 
 
 def test_client_authority_loss_before_dispatch_never_reaches_worker():

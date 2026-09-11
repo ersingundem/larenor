@@ -251,7 +251,7 @@ def test_convergence_reuses_one_proved_connection_through_authenticated_readback
     )
 
 
-@pytest.mark.parametrize("reject_gate", [5, 6])
+@pytest.mark.parametrize("reject_gate", [4, 5, 6])
 def test_authority_loss_preserves_completed_private_receipts(
     prepared, monkeypatch, reject_gate
 ):
@@ -298,11 +298,16 @@ def test_authority_loss_preserves_completed_private_receipts(
 
     assert raised.value.code == "seerr_bootstrap_authority_changed"
     assert raised.value.api_key == API_KEY
-    assert raised.value.arr_wiring.instance_ids == (8, 9)
-    if reject_gate == 5:
+    if reject_gate == 4:
+        assert raised.value.completed_steps[-1] == "session_destroyed"
+        assert raised.value.arr_wiring is None
+        assert raised.value.initialization is None
+    elif reject_gate == 5:
+        assert raised.value.arr_wiring.instance_ids == (8, 9)
         assert raised.value.completed_steps[-1] == "arr_wiring_verified"
         assert raised.value.initialization is None
     else:
+        assert raised.value.arr_wiring.instance_ids == (8, 9)
         assert raised.value.completed_steps[-1] == "initialization_verified"
         assert raised.value.initialization.changed is False
 

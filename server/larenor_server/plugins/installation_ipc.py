@@ -323,6 +323,11 @@ def _seerr_bootstrap_result(value):
         if (value['state'] != 'failed'
                 or value['errorCode'] not in _SEERR_BOOTSTRAP_CODES):
             raise ValueError()
+        step_count = len(value['completedSteps'])
+        if ((value['apiKey'] is not None) != (step_count >= 4)
+                or (value['arrInstanceIds'] is not None) != (step_count >= 5)
+                or (value['initialized'] is True) != (step_count == 6)):
+            raise ValueError()
         wiring = None
         initialization = None
         if value['arrInstanceIds'] is not None:

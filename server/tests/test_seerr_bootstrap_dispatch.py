@@ -164,6 +164,25 @@ def test_uncertain_worker_failure_needs_attention_and_is_not_retried(server):
     assert "seerr_initial_admin_protocol" not in repr(terminal)
 
 
+def test_incoherent_worker_failure_becomes_controlled_terminal_state(server):
+    failure = SeerrBootstrapExecutionError(
+        "seerr_bootstrap_authority_changed",
+        completed_steps=STEPS,
+        uncertain_effect=True,
+    )
+    app, _client, _, _ = server
+    _, _, backend = queued(server, Backend(failure))
+
+    terminal = app.state.core.seerr_bootstraps.tick()["bootstrap"]
+
+    assert terminal["state"] == "needs_attention"
+    assert terminal["errorCode"] == "invalid_seerr_bootstrap_result"
+    assert terminal["convergencePhase"] == "bootstrap"
+    assert terminal["arrWired"] is False and terminal["initialized"] is False
+    assert len(backend.calls) == 1
+    assert app.state.core.seerr_bootstraps.tick() is None
+
+
 def test_initialization_uncertainty_persists_partial_arr_phase_across_restart(server):
     wiring = SeerrArrWiringResult("verified", ("radarr", "sonarr"), (7, 8))
     failure = SeerrBootstrapExecutionError(
