@@ -398,8 +398,16 @@ class UnavailableVncNativeBackend : VncNativeBackend {
 class VncNativeAdapter(private val backend: VncNativeBackend = UnavailableVncNativeBackend()) {
     fun capabilities() = backend.capabilities()
 
-    fun open(request: VncNativeRequest, secrets: VncNativeSecrets): VncNativeSession = try {
-        val plan = VncNativeNegotiator.negotiate(request, backend.capabilities())
+    fun open(
+        request: VncNativeRequest,
+        secrets: VncNativeSecrets,
+        expectedEngineRevision: String? = null,
+    ): VncNativeSession = try {
+        val capabilities = backend.capabilities()
+        if (expectedEngineRevision != null && capabilities.engineRevision != expectedEngineRevision) {
+            fail("staleSession")
+        }
+        val plan = VncNativeNegotiator.negotiate(request, capabilities)
         backend.open(request, plan, secrets)
     } catch (failure: VncNativeFailure) {
         throw failure

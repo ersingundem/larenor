@@ -12,6 +12,25 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class VncNativeBridgeTest {
+    private class Session : VncNativeInputSession {
+        var closes = 0
+        override fun input(sequence: Long, event: Map<String, Any>): Boolean = true
+        override fun close() { closes++ }
+    }
+
+    private inner class Backend(private val session: Session) : VncNativeBackend {
+        var opens = 0
+        override fun capabilities() = VncNativeCapabilities.parse(availableCapabilities())
+        override fun open(
+            request: VncNativeRequest,
+            plan: VncNativePlan,
+            secrets: VncNativeSecrets,
+        ): VncNativeSession {
+            opens++
+            return session
+        }
+    }
+
     private class Messenger : BinaryMessenger {
         val handlers = mutableMapOf<String, BinaryMessenger.BinaryMessageHandler?>()
         override fun send(channel: String, message: ByteBuffer?) = Unit
@@ -51,6 +70,22 @@ class VncNativeBridgeTest {
         "routeRevision" to 11,
     )
 
+    private fun availableCapabilities() = mapOf<String, Any?>(
+        "schemaVersion" to 1,
+        "availability" to "available",
+        "engineRevision" to "rfb-fixture-1",
+        "rfbVersions" to listOf("3.8"),
+        "securityTypes" to listOf("vencryptTlsVncAuth"),
+        "transport" to mapOf("tls" to true, "spkiPinning" to true),
+        "auth" to mapOf("password" to true),
+        "framebuffer" to mapOf(
+            "encodings" to listOf("tight"), "trueColor32" to true,
+            "dynamicResolution" to true, "externalDisplay" to true,
+            "maxWidth" to 8192, "maxHeight" to 8192, "maxDpi" to 640,
+        ),
+        "input" to mapOf("pointer" to true, "keyboard" to true, "clipboard" to false),
+    )
+
     private fun request() = mapOf<String, Any?>(
         "schemaVersion" to 1,
         "requestId" to "11111111-1111-4111-8111-111111111111",
@@ -87,7 +122,8 @@ class VncNativeBridgeTest {
         val password = "secret".encodeToByteArray()
         val open = Result()
         bridge.onMethodCall(MethodCall("open", mapOf(
-            "binding" to binding(), "request" to request(), "password" to password,
+            "binding" to binding(), "request" to request(),
+            "expectedEngineRevision" to null, "password" to password,
         )), open)
         assertEquals("engineUnavailable", open.error)
         assertEquals("Native VNC unavailable", open.message)
@@ -100,11 +136,23 @@ class VncNativeBridgeTest {
     @Test
     fun lifecycleBindingAndFrameWindowFailClosedWithOneOutstandingFrame() {
         val messenger = Messenger()
-        val bridge = VncNativeBridge(messenger = messenger)
+        val session = Session()
+        val bridge = VncNativeBridge(
+            messenger = messenger,
+            adapter = VncNativeAdapter(Backend(session)),
+        )
         val sink = Sink()
         bridge.onListen(null, sink)
         bridge.setResumed(true)
         bridge.onMethodCall(MethodCall("activate", binding()), Result())
+        val password = "secret".encodeToByteArray()
+        val opened = Result()
+        bridge.onMethodCall(MethodCall("open", mapOf(
+            "binding" to binding(), "request" to request(),
+            "expectedEngineRevision" to "rfb-fixture-1", "password" to password,
+        )), opened)
+        assertNull(opened.error)
+        assertTrue(password.all { it == 0.toByte() })
         assertTrue(bridge.publishFrame(binding(), 1, 1280, 800, 4_096_000))
         assertFalse(bridge.publishFrame(binding(), 2, 1280, 800, 4_096_000))
         assertEquals(1, sink.values.size)
@@ -123,6 +171,7 @@ class VncNativeBridgeTest {
             "event" to mapOf("kind" to "key", "code" to 40, "down" to true),
         )), afterGap)
         assertEquals("staleSession", afterGap.error)
+        assertEquals(1, session.closes)
         bridge.setResumed(false)
         bridge.onCancel(null)
         bridge.dispose()
@@ -143,6 +192,29 @@ class VncNativeBridgeTest {
         bridge.onMethodCall(MethodCall("open", mapOf("password" to "plaintext")), invalid)
         assertEquals("invalidRequest", invalid.error)
         assertNull(invalid.details)
+        bridge.dispose()
+    }
+
+    @Test
+    fun openBindsTheExactCapabilityRevisionBeforeBackendHandoff() {
+        val messenger = Messenger()
+        val session = Session()
+        val backend = Backend(session)
+        val bridge = VncNativeBridge(
+            messenger = messenger,
+            adapter = VncNativeAdapter(backend),
+        )
+        bridge.setResumed(true)
+        bridge.onMethodCall(MethodCall("activate", binding()), Result())
+        val password = "secret".encodeToByteArray()
+        val stale = Result()
+        bridge.onMethodCall(MethodCall("open", mapOf(
+            "binding" to binding(), "request" to request(),
+            "expectedEngineRevision" to "rfb-fixture-0", "password" to password,
+        )), stale)
+        assertEquals("staleSession", stale.error)
+        assertEquals(0, backend.opens)
+        assertTrue(password.all { it == 0.toByte() })
         bridge.dispose()
     }
 }
