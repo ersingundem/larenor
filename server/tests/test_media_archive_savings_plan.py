@@ -47,17 +47,42 @@ def test_builds_explainable_duplicate_transcode_and_retention_review_plan():
     }
     assert plan.totalPotentialBytes == 9_004_000
     assert plan.actionAvailable is False and plan.truncated is False
+    assert plan.dataGaps == []
     assert all(item.actionAvailable is False for item in plan.candidates)
     assert plan.candidates[0].evidence == [
         'same_media_identity', 'multiple_playable_files',
         'largest_copy_excluded',
     ]
+    assert plan.candidates[0].confidence == 'high'
+    assert plan.candidates[0].comparison.model_dump() == {
+        'basis': 'keep_largest_copy',
+        'observedBytes': 14_000_000,
+        'estimatedRetainedBytes': 10_000_000,
+        'estimatedSavingBytes': 4_000_000,
+    }
+    assert plan.candidates[-1].confidence == 'medium'
+    assert plan.candidates[-1].comparison.model_dump() == {
+        'basis': 'bounded_transcode_estimate',
+        'observedBytes': 10_000_000,
+        'estimatedRetainedBytes': 5_000_000,
+        'estimatedSavingBytes': 5_000_000,
+    }
+    assert plan.candidates[1].confidence == 'medium'
+    assert plan.candidates[1].comparison.model_dump() == {
+        'basis': 'review_retained_copy',
+        'observedBytes': 4_000,
+        'estimatedRetainedBytes': 0,
+        'estimatedSavingBytes': 4_000,
+    }
 
 
 def test_plan_suppresses_unproven_candidates_and_marks_lanes_partial():
     base = observation()
     unsupported = build_media_archive_health(base, now=1_788_609_610)
     assert unsupported.savingsPlan.laneStates['transcode'] == 'unsupported'
+    assert [value.model_dump() for value in unsupported.savingsPlan.dataGaps] == [
+        {'lane': 'transcode', 'reason': 'unsupported'},
+    ]
     assert all(item.kind != 'transcode'
                for item in unsupported.savingsPlan.candidates)
     assert unsupported.savingsPlan.state == 'partial'
@@ -68,6 +93,11 @@ def test_plan_suppresses_unproven_candidates_and_marks_lanes_partial():
     assert stale.savingsPlan.laneStates == {
         'duplicate': 'stale', 'transcode': 'stale', 'retention': 'stale',
     }
+    assert [value.model_dump() for value in stale.savingsPlan.dataGaps] == [
+        {'lane': 'duplicate', 'reason': 'stale'},
+        {'lane': 'transcode', 'reason': 'stale'},
+        {'lane': 'retention', 'reason': 'stale'},
+    ]
 
 
 def test_unavailable_and_partial_lanes_never_emit_retention_candidates():
@@ -79,6 +109,8 @@ def test_unavailable_and_partial_lanes_never_emit_retention_candidates():
         now=1_788_609_610,
     )
     assert unavailable.savingsPlan.laneStates['retention'] == 'unavailable'
+    assert {'lane': 'retention', 'reason': 'unavailable'} in [
+        value.model_dump() for value in unavailable.savingsPlan.dataGaps]
     assert all(item.kind != 'retention'
                for item in unavailable.savingsPlan.candidates)
 
@@ -89,6 +121,8 @@ def test_unavailable_and_partial_lanes_never_emit_retention_candidates():
         now=1_788_609_610,
     )
     assert partial.savingsPlan.laneStates['retention'] == 'partial'
+    assert {'lane': 'retention', 'reason': 'partial'} in [
+        value.model_dump() for value in partial.savingsPlan.dataGaps]
     assert all(item.kind != 'retention' for item in partial.savingsPlan.candidates)
 
 
@@ -122,3 +156,5 @@ def test_plan_is_deterministically_bounded_without_claiming_full_results():
                   if item.kind == 'duplicate']
     assert len(duplicates) == 256
     assert result.savingsPlan.truncated is True
+    assert {'lane': 'duplicate', 'reason': 'truncated'} in [
+        value.model_dump() for value in result.savingsPlan.dataGaps]
