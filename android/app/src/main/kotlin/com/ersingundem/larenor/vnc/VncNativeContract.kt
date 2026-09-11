@@ -206,6 +206,7 @@ class VncNativeRequest private constructor(
 ) {
     internal val directTargetHost: String get() = targetHost
     internal val directTargetPort: Int get() = targetPort
+    internal val directSpkiFingerprint: String get() = spkiFingerprint
 
     override fun toString() = "VncNativeRequest(<redacted>)"
 

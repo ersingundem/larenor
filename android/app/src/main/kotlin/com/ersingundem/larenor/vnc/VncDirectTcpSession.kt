@@ -12,6 +12,16 @@ internal enum class VncDirectTcpPhase {
 
 /** Immutable numeric address value. No hostname resolution occurs here. */
 internal class VncIpAddress private constructor(private val bytes: ByteArray) : Comparable<VncIpAddress> {
+    val isLoopback: Boolean
+        get() = when (bytes.size) {
+            4 -> (bytes[0].toInt() and 0xff) == 127
+            16 -> bytes.dropLast(1).all { it == 0.toByte() } && bytes.last() == 1.toByte() ||
+                bytes.take(10).all { it == 0.toByte() } &&
+                bytes[10] == 0xff.toByte() && bytes[11] == 0xff.toByte() &&
+                (bytes[12].toInt() and 0xff) == 127
+            else -> false
+        }
+
     val allowedForDirectVnc: Boolean
         get() = when (bytes.size) {
             4 -> allowedIpv4(bytes)
@@ -31,6 +41,8 @@ internal class VncIpAddress private constructor(private val bytes: ByteArray) : 
     override fun equals(other: Any?) = other is VncIpAddress && bytes.contentEquals(other.bytes)
     override fun hashCode() = bytes.contentHashCode()
     override fun toString() = "VncIpAddress(<redacted>)"
+
+    internal fun encodedCopy() = bytes.copyOf()
 
     companion object {
         fun take(value: ByteArray): VncIpAddress {
